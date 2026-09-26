@@ -1,6 +1,6 @@
 /** Hàm THUẦN của Gia công ngoài (spec docs/superpowers/specs/2026-09-26-gia-cong-ngoai-design.md).
  *  Không gọi API, không React — vitest soi thẳng. */
-import type { LsxLoaiBuoc } from "../../api/client";
+import type { GiaCongNgoaiLan, GiaCongNoiVe, GiaCongTrangThai, LsxLoaiBuoc } from "../../api/client";
 
 /** Tối thiểu một bước cần có để suy dải — `EditRow` của bảng routing khớp kiểu này. */
 export interface BuocDai {
@@ -53,4 +53,71 @@ export function viTriTrongDai(rows: BuocDai[], i: number): ViTriDai | null {
   const truoc = cungLan(rows, rows[i - 1], r) ? rows[i - 1].ten : null;
   const sau = cungLan(rows, r, rows[i + 1]) ? rows[i + 1].ten : null;
   return { truoc, sau, laCuoi: sau == null };
+}
+
+export const NHAN_TRANG_THAI: Record<GiaCongTrangThai, string> = {
+  cho_mang_di: "Chờ mang đi",
+  dang_o_ngoai: "Đang ở nhà gia công",
+  dang_gia_cong: "Đang gia công trọn gói",
+  da_xong: "Đã xong",
+  da_huy: "Đã huỷ",
+};
+
+export const NHAN_NOI_VE: Record<GiaCongNoiVe, string> = {
+  xuong: "Về xưởng làm tiếp",
+  kho: "Nhập kho thành phẩm",
+  khach: "Giao thẳng cho khách",
+};
+
+export interface NutLan {
+  mangDi: boolean;
+  chot: boolean;
+  moLai: boolean;
+  xuatGiay: boolean;
+  huyTronGoi: boolean;
+}
+
+/** Nút nào hiện với lần này — cùng các chốt chặn của máy chủ (Task 6–9), để người dùng không bấm
+ *  vào một nút chắc chắn bị từ chối. Máy chủ vẫn là nơi quyết. */
+export function nutCuaLan(l: GiaCongNgoaiLan): NutLan {
+  const motPhan = l.kieu === "mot_phan";
+  const conMo = l.trang_thai === "cho_mang_di" || l.trang_thai === "dang_o_ngoai";
+  return {
+    mangDi: motPhan && conMo
+      && (l.sl_cho_mang_di > 0 || (l.trang_thai === "cho_mang_di" && !l.co_buoc_truoc)),
+    chot: l.trang_thai === "dang_o_ngoai" || l.trang_thai === "dang_gia_cong",
+    moLai: l.trang_thai === "da_xong" && l.phieu_chi == null,
+    xuatGiay: l.kieu === "tron_goi" && l.trang_thai === "dang_gia_cong" && l.xuong_cap_giay
+      && l.xuat_giay == null,
+    huyTronGoi: l.kieu === "tron_goi" && l.trang_thai === "dang_gia_cong",
+  };
+}
+
+/** Giá trị điền sẵn của mini-form Chốt — "hai click" (spec §7). */
+export function goiYChot(l: GiaCongNgoaiLan): { sl: string; noiVe: GiaCongNoiVe | null; dich: number | null } {
+  const sl = l.sl_gui ?? l.sl_dat;
+  return {
+    sl: sl != null ? String(sl) : "",
+    noiVe: l.noi_ve_hop_le[0] ?? null,
+    dich: l.chang_sau.length === 1 ? l.chang_sau[0].id : null,
+  };
+}
+
+const so = (n: number) => n.toLocaleString("vi-VN");
+
+/** Dòng tóm tắt sau khi xong (spec §7): "Nguyễn A mang đi 1.660 · Nguyễn A chốt 1.650 · 247.500đ".
+ *  `dvTen` dịch mã đơn vị sang tên danh mục (không in thẳng mã). Không có quyền xem tiền thì
+ *  `thanh_tien` là null ⇒ không có đoạn tiền. */
+export function tomTat(l: GiaCongNgoaiLan, dvTen: (ma: string | null) => string): string {
+  const phan: string[] = [];
+  if (l.mang_di_boi_ten && l.sl_gui != null) {
+    phan.push(`${l.mang_di_boi_ten} mang đi ${so(l.sl_gui)} ${dvTen(l.don_vi_gui)}`.trim());
+  }
+  if (l.chot_boi_ten && l.sl_cuoi != null) {
+    const ve = l.noi_ve ? ` — ${NHAN_NOI_VE[l.noi_ve].toLowerCase()}` : "";
+    phan.push(`${l.chot_boi_ten} chốt ${so(l.sl_cuoi)} ${dvTen(l.don_vi)}`.trim() + ve);
+  }
+  if (l.thanh_tien != null) phan.push(`${so(l.thanh_tien)}đ`);
+  if (l.phieu_chi) phan.push(`Phiếu chi ${l.phieu_chi.code}`);
+  return phan.join(" · ");
 }

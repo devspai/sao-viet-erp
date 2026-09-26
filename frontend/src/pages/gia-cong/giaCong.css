@@ -1,0 +1,49 @@
+/* frontend/src/pages/gia-cong/giaCong.css — khối Gia công ngoài trên hồ sơ lệnh.
+   Luật màn hẹp (memory "sáu khuôn lỗi điện thoại"): mọi hàng flex-wrap, không bề rộng cứng, không
+   ellipsis nuốt số, không thông tin chỉ hiện khi hover, cỡ chữ theo rem. */
+.gcn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--rule-soft, #e3e3e3);
+  border-radius: var(--r-3, 10px);
+  background: var(--paper, #fff);
+}
+.gcn__title { margin: 0; font-size: 1rem; }
+.gcn__lan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--rule-soft, #e3e3e3);
+  min-width: 0;
+}
+.gcn__lan:first-of-type { border-top: 0; padding-top: 0; }
+.gcn__head, .gcn__nut, .gcn__form, .gcn__noive {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+.gcn__noive { border: 0; padding: 0; margin: 0; }
+.gcn__noive legend { font-size: 0.8125rem; color: var(--ash, #666); margin-bottom: 0.25rem; }
+.gcn__viec { overflow-wrap: anywhere; }
+.gcn__ncc, .gcn__gia, .gcn__note, .gcn__luc { color: var(--ash, #666); font-size: 0.875rem; }
+.gcn__note, .gcn__tomtat { margin: 0; overflow-wrap: anywhere; }
+.gcn__tt {
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  background: var(--steel-soft, #eef2ff);
+}
+.gcn__tt--cho_mang_di { background: var(--amber-soft, #fff4e0); }
+.gcn__tt--dang_o_ngoai, .gcn__tt--dang_gia_cong { background: var(--steel-soft, #e6f0ff); }
+.gcn__tt--da_xong { background: var(--moss-soft, #e7f6ec); }
+.gcn__tt--da_huy { background: var(--ash-2, #f2f2f2); text-decoration: line-through; }
+.gcn__o { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; font-size: 0.875rem; }
+.gcn__o input, .gcn__o select, .gcn__o textarea { min-width: 0; max-width: 100%; font-size: 1rem; }
+.gcn__lichsu summary { cursor: pointer; font-size: 0.875rem; }
+.gcn__lichsu ul { margin: 0.25rem 0 0; padding-left: 1rem; font-size: 0.8125rem; }

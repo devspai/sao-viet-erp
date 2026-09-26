@@ -6378,6 +6378,46 @@ export interface SupplierInput {
 /** Ô chọn Nhà gia công — NCC đang hoạt động có tích "Nhận gia công" (spec gia công ngoài §7). */
 export interface NhaGiaCong { id: number; ten: string }
 
+export type GiaCongTrangThai = "cho_mang_di" | "dang_o_ngoai" | "dang_gia_cong" | "da_xong" | "da_huy";
+export type GiaCongNoiVe = "xuong" | "kho" | "khach";
+
+/** MỘT lần gia công ngoài (spec 2026-09-26). Tiền (`don_gia`, `thanh_tien`) là `null` khi người
+ *  xem không có quyền xem tiền — máy chủ gác, màn chỉ hiện "—". */
+export interface GiaCongNgoaiLan {
+  id: number;
+  lsx_id: number;
+  lsx_ma: string;
+  kieu: "mot_phan" | "tron_goi";
+  trang_thai: GiaCongTrangThai;
+  nha_cung_cap_id: number;
+  nha_cung_cap_ten: string;
+  ten_viec: string;
+  don_vi: string | null;
+  don_gia: number | null;
+  thanh_tien: number | null;
+  sl_dat: number | null;
+  xuong_cap_giay: boolean;
+  don_vi_gui: string | null;
+  sl_cho_mang_di: number;
+  co_buoc_truoc: boolean;
+  mang_di_boi_ten: string | null;
+  mang_di_luc: string | null;
+  sl_gui: number | null;
+  chot_boi_ten: string | null;
+  chot_luc: string | null;
+  sl_cuoi: number | null;
+  noi_ve: GiaCongNoiVe | null;
+  noi_ve_hop_le: GiaCongNoiVe[];
+  chang_sau: { id: number; ten: string }[];
+  huy_boi_ten: string | null;
+  huy_luc: string | null;
+  ly_do_huy: string | null;
+  phieu_chi: { id: number; code: string } | null;
+  xuat_giay: { id: number; ma: string; trang_thai: string } | null;
+  lich_su: { luc: string | null; ai: string; viec: string; chi_tiet: string }[];
+  version: number;
+}
+
 export interface SupplierListOut {
   items: SupplierRow[];
   total: number;
@@ -11793,6 +11833,49 @@ export const api = {
     /** Ô chọn Nhà gia công — NCC đang hoạt động có tích "Nhận gia công" (spec gia công ngoài §7). */
     nhaGiaCong(token: string): Promise<NhaGiaCong[]> {
       return authed<NhaGiaCong[]>("/api/gia-cong-ngoai/nha-gia-cong", token);
+    },
+    cuaLenh(token: string, lsxId: number): Promise<GiaCongNgoaiLan[]> {
+      return authed<GiaCongNgoaiLan[]>(`/api/gia-cong-ngoai/lenh/${lsxId}`, token);
+    },
+    /** "Đã mang đi" — nhận MỌI bàn giao đang chờ của bước trước. `sl_gui` chỉ khi dải đứng đầu
+     *  lệnh (không có bàn giao để nhận). */
+    mangDi(token: string, id: number, body: { version: number; sl_gui?: number | null }): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/mang-di`, token, {
+        method: "POST", body: JSON.stringify(body),
+      });
+    },
+    chot(
+      token: string,
+      id: number,
+      body: { version: number; sl_cuoi: number; noi_ve: GiaCongNoiVe; dich_cong_viec_id?: number | null },
+    ): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/chot`, token, {
+        method: "POST", body: JSON.stringify(body),
+      });
+    },
+    moLai(token: string, id: number, version: number): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/mo-lai`, token, {
+        method: "POST", body: JSON.stringify({ version }),
+      });
+    },
+    datTronGoi(
+      token: string,
+      lsxId: number,
+      body: { nha_cung_cap_id: number; sl_dat: number; don_gia: number | null; xuong_cap_giay: boolean },
+    ): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/lenh/${lsxId}/tron-goi`, token, {
+        method: "POST", body: JSON.stringify(body),
+      });
+    },
+    huyTronGoi(token: string, id: number, body: { version: number; ly_do: string }): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/huy-tron-goi`, token, {
+        method: "POST", body: JSON.stringify(body),
+      });
+    },
+    xuatGiay(token: string, id: number, version: number): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/xuat-giay`, token, {
+        method: "POST", body: JSON.stringify({ version }),
+      });
     },
   },
   lsx: {

@@ -29,6 +29,7 @@ import { DinhKemTep } from "../components/DinhKemTep";
 import { Icon } from "../components/Icons";
 import { MucInHang } from "../components/MucIn";
 import { Timeline } from "../components/Timeline";
+import { GiaCongNgoaiPanel } from "./gia-cong/GiaCongNgoaiPanel";
 import { ImpositionDiagram } from "./ImpositionDiagram";
 import { LsxRoutingTable, type RefRow } from "./LsxRoutingTable";
 import { LsxVatTuPanel } from "./LsxVatTuPanel";
@@ -984,6 +985,16 @@ export function LsxDetailView({
 
       {readyErr && <BangLoi text={readyErr} onRetry={load} />}
       {err && <BangLoi text={err} onRetry={load} />}
+
+      {/* Khối Gia công ngoài (spec 2026-09-26 §7) — hiện ở MỌI tab vì đây là việc hằng ngày của
+          người kế hoạch sau phát hành; không có lần nào thì khối không vẽ gì. Nó TỰ nạp theo tick
+          SSE (khác phần còn lại của màn chờ nút "Làm mới") — không có ô routing nào ở đây để mất. */}
+      <GiaCongNgoaiPanel
+        lsxId={lsxId}
+        eventTick={eventTick}
+        canUpdate={canUpdate}
+        onChanged={() => { load(); onChanged(); }}
+      />
 
       {/* Lưu ý "gỡ đầu việc mồ côi" GỠ 18/09/2026 (mg `0320`) — bước thôi ghim đầu việc. */}
 
