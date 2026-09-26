@@ -2432,24 +2432,17 @@ def test_replace_routing_giu_nguyen_khoi_thue_ngoai(db, orders, lsx_svc, admin, 
         LsxCongDoanIn(
             ten="Cán màng", nhom="finishing", loai_buoc="thue_ngoai",
             so_luong_vao=5300, so_luong_ra=5250, don_vi_vao="to",
-            nha_cung_cap_id=s.id, sl_gui=5300,
-            ngay_gui_dk=date.today(), ngay_nhan_dk=date.today() + timedelta(days=3),
-            van_chuyen_ngay=1, gia_cong_ngay=1, hao_hut_cho_phep=50, don_gia_gia_cong=450,
-            yeu_cau_ky_thuat="Màng mờ, không bong mép",
-            di_chuyen_phut=45,
+            nha_cung_cap_id=s.id, don_gia_gia_cong=450,
         ),
     ])
     cd = lsx_svc.get(hop.id).cong_doans[0]
     assert cd.nha_cung_cap == "Cơ sở Tân Bình" and float(cd.don_gia_gia_cong) == 450
-    assert cd.yeu_cau_ky_thuat == "Màng mờ, không bong mép"
     assert not hasattr(cd, "dieu_kien_json")
-    # `di_chuyen_phut` đã rời hợp đồng lưu routing (2026-08-04) — cột còn trong DB nhưng client
-    # không gửi được nữa, nên nó KHÔNG sống sót qua vòng lưu. Khối thuê ngoài
-    # (nhà gia công · ngày gửi/nhận · đơn giá · yêu cầu kỹ thuật) mới là thứ phải giữ.
+    # Task 4 (26/09/2026) gỡ 13 cột thuê ngoài cũ (sổ giao–nhận + ngày/đơn giá vận chuyển/yêu cầu
+    # kỹ thuật…) khỏi model — khối còn sống chỉ còn `nha_cung_cap_id`/`nha_cung_cap`/`don_gia_gia_cong`.
     # `bat_buoc` cũng rời hợp đồng lưu routing (07/09/2026): mọi bước đều bắt buộc, server giữ
     # TRUE nên client có gửi `false` cũng không ghi được (mg 0275 backfill dòng cũ).
     assert cd.bat_buoc is True
-    assert float(cd.hao_hut_cho_phep) == 50 and cd.ngay_nhan_dk is not None
 
 
 def test_replace_routing_upsert_giu_id_va_luu_vat_tu_phu_thuoc(
@@ -2860,96 +2853,6 @@ def test_migration_0093_chay_hai_lan_van_no_op():
     dv = dict(s.execute(text("SELECT ten, don_vi_vao FROM lsx_cong_doan")).all())
     assert dv["Dán hộp"] == "cai" and dv["In offset"] == "to"
     s.close()
-
-
-# ===================== Thuê ngoài: sổ giao – nhận thực tế =====================
-# Hàng ra khỏi cổng phải có tên người và số thực. Việc này xảy ra lúc lệnh ĐANG CHẠY, nên nó đi
-# qua cửa THỰC THI riêng — không dùng chung cửa với sửa cấu hình routing.
-
-
-def _lenh_co_buoc_thue_ngoai(db, orders, lsx_svc, admin, customer):
-    """1 lệnh có bước cuối là gia công ngoài, đã khai dự kiến (gửi 20.500, cho phép hụt 100)."""
-    ptg = _ptg_2_san_pham(db)
-    d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
-    ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
-    hop, _tem = lsx_svc.tao(order_id=d.id, order_line_ids=ids, actor=admin)
-    lsx_svc.replace_routing(lsx_id=hop.id, actor=admin, rows_in=[
-        LsxCongDoanIn(ten="In offset", nhom="print", don_vi_vao="to"),
-        LsxCongDoanIn(ten="Cán màng", nhom="finishing", loai_buoc="thue_ngoai",
-                      nha_cung_cap="Cơ sở Tân Bình", sl_gui=20_500,
-                      ngay_gui_dk=date.today() - timedelta(days=5),
-                      ngay_nhan_dk=date.today() - timedelta(days=2),
-                      hao_hut_cho_phep=100, don_gia_gia_cong=500),
-    ])
-    lsx = lsx_svc.get(hop.id)
-    return lsx, next(cd for cd in lsx.cong_doans if cd.loai_buoc == "thue_ngoai")
-
-
-def _gn(su_kien: str, **kw):
-    from app.schemas.lsx import LsxGiaoNhanIn
-
-    return LsxGiaoNhanIn(su_kien=su_kien, **kw)
-
-
-def test_ghi_giao_nhan_van_chay_khi_lenh_da_lap_ke_hoach(db, orders, lsx_svc, admin, customer):
-    """LÝ DO TỒN TẠI của cửa riêng: giao hàng xảy ra SAU khi đã lập kế hoạch.
-
-    Đi chung cửa với `replace_routing` thì bắt kế hoạch gỡ lịch cả lệnh chỉ để ghi một dòng
-    "đã giao 20.500 lúc 14h" — tức ghi không nổi đúng lúc cần ghi nhất.
-    """
-    lsx, buoc = _lenh_co_buoc_thue_ngoai(db, orders, lsx_svc, admin, customer)
-    lsx.trang_thai = TT_DA_LAP_KE_HOACH
-    db.commit()
-
-    # Cửa cấu hình bị khoá...
-    with pytest.raises(LsxConflict):
-        lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=[
-            LsxCongDoanIn(ten="In offset", nhom="print", don_vi_vao="to"),
-        ])
-    # ...nhưng cửa thực thi thì không.
-    lsx_svc.ghi_giao_nhan(lsx_id=lsx.id, buoc_id=buoc.id, payload=_gn("giao"), actor=admin)
-
-    d = lsx_svc.detail_dict(lsx_svc.get(lsx.id))
-    row = next(c for c in d["cong_doans"] if c["loai_buoc"] == "thue_ngoai")
-    assert row["giao_nhan_trang_thai"] == "dang_ngoai"
-    assert row["nguoi_giao_id"] == admin.id and row["giao_luc"] is not None
-    assert float(row["sl_giao_thuc"]) == 20_500          # để trống → lấy số gửi dự kiến
-
-
-def test_giao_nhan_chi_cho_buoc_thue_ngoai(db, orders, lsx_svc, admin, customer):
-    lsx, _ = _lenh_co_buoc_thue_ngoai(db, orders, lsx_svc, admin, customer)
-    buoc_may = next(cd for cd in lsx.cong_doans if cd.loai_buoc != "thue_ngoai")
-    with pytest.raises(LsxValidationError):
-        lsx_svc.ghi_giao_nhan(lsx_id=lsx.id, buoc_id=buoc_may.id, payload=_gn("giao"), actor=admin)
-
-
-def test_nhan_ve_hut_vuot_dinh_muc_va_tien_tinh_theo_so_nhan(db, orders, lsx_svc, admin, customer):
-    """Trả tiền cho hàng CẦM VỀ ĐƯỢC, không phải hàng gửi đi. Hụt vượt định mức thì nói ra."""
-    lsx, buoc = _lenh_co_buoc_thue_ngoai(db, orders, lsx_svc, admin, customer)
-    lsx_svc.ghi_giao_nhan(lsx_id=lsx.id, buoc_id=buoc.id,
-                          payload=_gn("giao", so_luong=20_500), actor=admin)
-    lsx_svc.ghi_giao_nhan(lsx_id=lsx.id, buoc_id=buoc.id,
-                          payload=_gn("nhan", so_luong=20_300), actor=admin)
-
-    row = next(c for c in lsx_svc.detail_dict(lsx_svc.get(lsx.id))["cong_doans"]
-               if c["loai_buoc"] == "thue_ngoai")
-    assert row["giao_nhan_trang_thai"] == "da_ve"
-    assert row["so_hut"] == 200                       # 20.500 − 20.300
-    assert row["hut_vuot_dinh_muc"] is True           # cho phép 100
-    assert row["tien_gia_cong_thuc"] == 20_300 * 500  # theo SỐ NHẬN
-    assert row["qua_han_ngay"] is None                # về rồi thì không còn "quá hạn"
-
-
-def test_dang_o_ngoai_qua_han_dem_theo_ngay_nhan_du_kien(db, orders, lsx_svc, admin, customer):
-    lsx, buoc = _lenh_co_buoc_thue_ngoai(db, orders, lsx_svc, admin, customer)
-    row = next(c for c in lsx_svc.detail_dict(lsx_svc.get(lsx.id))["cong_doans"]
-               if c["loai_buoc"] == "thue_ngoai")
-    assert row["giao_nhan_trang_thai"] == "chua_gui" and row["qua_han_ngay"] is None
-
-    lsx_svc.ghi_giao_nhan(lsx_id=lsx.id, buoc_id=buoc.id, payload=_gn("giao"), actor=admin)
-    row = next(c for c in lsx_svc.detail_dict(lsx_svc.get(lsx.id))["cong_doans"]
-               if c["loai_buoc"] == "thue_ngoai")
-    assert row["qua_han_ngay"] == 2                   # hẹn về 2 hôm trước, chưa nhận
 
 
 # ===================== Chế bản lấy được tốc độ máy ghi kẽm =====================
