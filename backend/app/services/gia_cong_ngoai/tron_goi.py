@@ -64,13 +64,13 @@ def dat_tron_goi(db: Session, *, user, lsx_id: int, nha_cung_cap_id: int, sl_dat
     if len(tp.lsx_ids) > 1 or tp.bai_ghep_ids:
         raise ValueError("Lệnh đi chung nhóm thành phẩm hoặc bài ghép với lệnh khác — gia công "
                          "trọn gói chỉ áp cho lệnh đứng riêng.")
-    # Lệnh đã xếp lịch theo công đoạn (spec §4 bước 1): xếp lịch không còn nghĩa với trọn gói —
-    # tự gỡ nháp xếp lịch của lệnh thay vì bắt người dùng vòng sang màn Xếp lịch xoá tay.
+    if repo.goi_hien_tai_cua({lsx_id}, set()) is not None:
+        raise ValueError("Lệnh đang có gói phát hành — thu hồi trước.")
+    # Kiểm xong hết mới xoá. Lệnh đã xếp lịch theo công đoạn (spec §4 bước 1): xếp lịch không còn
+    # nghĩa với trọn gói — tự gỡ nháp xếp lịch của lệnh thay vì bắt người dùng sang màn Xếp lịch.
     xl_repo = XepLichRepository(db)
     if xl_repo.exists_lsx(lsx_id):
         xl_repo.delete_rows(xl_repo.by_lsx(lsx_id))
-    if repo.goi_hien_tai_cua({lsx_id}, set()) is not None:
-        raise ValueError("Lệnh đang có gói phát hành — thu hồi trước.")
 
     # Mốc giờ của bàn Xếp lịch không còn nghĩa: lệnh không chạy trong xưởng.
     moc = XepLichLenhRepository(db).theo_lsx(lsx_id)
