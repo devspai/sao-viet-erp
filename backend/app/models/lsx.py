@@ -319,8 +319,11 @@ class LsxCongDoan(Base):
     # `san_xuat_kcs_tieu_chi` gắn theo công đoạn — xem `docs/design-kcs-theo-cong-doan.md`. Đừng
     # bày lại ô gõ thêm dòng riêng cho một lệnh: hai nguồn cho cùng một checklist thì không ai
     # biết bản nào chuẩn, mà dòng gõ tay không mã, không lịch sử, không tái dùng cho lệnh sau.
-    # --- Gia công ngoài (§8) — chỉ dùng khi `loai_buoc = thue_ngoai`. NCC khai TAY (text tự do):
-    # cơ sở gia công nhỏ lẻ thường chưa có trong danh mục `suppliers`, chốt không bắt khai trước.
+    # --- Gia công ngoài (spec 2026-09-26) — chỉ dùng khi `loai_buoc = thue_ngoai`. Nhà gia công
+    # chọn từ danh mục Nhà cung cấp (cờ `nhan_gia_cong`) — tham chiếu MỀM như máy/tổ/khuôn của
+    # lệnh. `nha_cung_cap` (chữ) do MÁY CHỦ ghi theo NCC đã chọn: bảy chỗ đang đọc tên (snapshot,
+    # hồ sơ lệnh, phiếu công nghệ, chip…) khỏi phải đổi. Client không gửi cột chữ.
+    nha_cung_cap_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     nha_cung_cap: Mapped[str | None] = mapped_column(String(150), nullable=True)
     sl_gui: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     ngay_gui_dk: Mapped[date | None] = mapped_column(Date, nullable=True)

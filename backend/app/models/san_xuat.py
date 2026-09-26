@@ -290,6 +290,12 @@ class SanXuatCongViec(Base):
     # màn theo dõi mà không phải tra ngược lệnh. Trước 04/09/2026 các màn xưởng chỉ có `loai_buoc`
     # nên chip thuê ngoài hiện trống trơn, không ai biết hàng đang ở đâu.
     nha_cung_cap: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # LẦN GIA CÔNG NGOÀI mà công việc này thuộc về (spec 2026-09-26). NULL = việc của xưởng. Công
+    # việc có cột này KHÔNG vào bàn tổ nào (department_id NULL), không bắt đầu / ghi mẻ tay — mọi
+    # ghi nhận đi qua khối Gia công ngoài của lệnh.
+    gia_cong_ngoai_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("gia_cong_ngoai.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     # KHUÔN/KHUNG của bước — ảnh chụp cùng kiểu với `vat_tu_json`. CHỤP chứ không tra sống: tổ phải
     # thấy đúng con dao đã chốt lúc phát hành, kể cả khi kế hoạch đổi dao sau đó.
     # {"id","ma","ten","loai","so_ke","tinh_trang"} · NULL = bước không trỏ dao. (`ngay_ve_du_kien`

@@ -57,8 +57,12 @@ VOUCHER_SOURCE_OTHER = "other"
 # Phiếu chi lập TỪ MỘT PHIẾU TẠM ỨNG LƯƠNG đã duyệt (chủ chốt 18/08/2026). Một phiếu tạm ứng
 # ⇄ một phiếu chi. Áp cho CẢ `tam_ung` lẫn `luong_dot_1` — cùng là tiền ra khỏi két.
 VOUCHER_SOURCE_SALARY_ADVANCE = "salary_advance"
+# Phiếu chi lập TỪ MỘT LẦN GIA CÔNG NGOÀI đã chốt (26/09/2026). Một lần ⇄ một phiếu chi còn sống.
+# CHỈ ghi tiền ra: không `supplier_id`, loại khỏi báo cáo 331 (chủ: "không dính 331").
+VOUCHER_SOURCE_GIA_CONG = "gia_cong_ngoai"
 VOUCHER_SOURCES = (
     VOUCHER_SOURCE_SALARY_ADVANCE,
+    VOUCHER_SOURCE_GIA_CONG,
     VOUCHER_SOURCE_PURCHASE,
     VOUCHER_SOURCE_INTERNAL,
     VOUCHER_SOURCE_CUSTOMER_REFUND,
@@ -163,6 +167,9 @@ class PaymentVoucher(Base):
         Index("uq_payment_voucher_salary_advance", "salary_advance_id", unique=True,
               postgresql_where=text("status <> 'cancelled'"),
               sqlite_where=text("status <> 'cancelled'")),
+        Index("uq_payment_voucher_gia_cong_ngoai", "gia_cong_ngoai_id", unique=True,
+              postgresql_where=text("status <> 'cancelled'"),
+              sqlite_where=text("status <> 'cancelled'")),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -191,6 +198,12 @@ class PaymentVoucher(Base):
     salary_advance_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("salary_advances.id", ondelete="RESTRICT"),
         nullable=True, index=True,
+    )
+    # LẦN GIA CÔNG NGOÀI nguồn (mg 0339). Chỉ có giá trị khi `source_type = gia_cong_ngoai`.
+    # RESTRICT: còn phiếu chi thì không xoá được lần. Một lần chỉ MỘT phiếu chi CÒN HIỆU LỰC
+    # (`uq_payment_voucher_gia_cong_ngoai`), huỷ phiếu thì lần tự về "chờ chi".
+    gia_cong_ngoai_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("gia_cong_ngoai.id", ondelete="RESTRICT"), nullable=True, index=True,
     )
     supplier_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True, index=True
