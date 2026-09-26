@@ -155,6 +155,7 @@ export function cleanSupplier(input: SupplierInput): SupplierInput {
         ? null
         : Math.max(0, Math.round(Number(input.credit_days) || 0)),
     status: input.status ?? "active",
+    nhan_gia_cong: Boolean(input.nhan_gia_cong),
     note: trimOptional(input.note),
     items: cleanSupplierItems(input.items),
   };

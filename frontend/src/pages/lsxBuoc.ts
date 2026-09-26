@@ -408,9 +408,10 @@ export function loiDong(rows: EditRow[], i: number): string[] {
   if (r.don_vi_vao === r.don_vi_ra && vao > 0 && ra > vao) out.push("ra nhiều hơn vào");
   // KHÔNG kiểm `he_so <= 1` nữa: hệ số nay do server suy, và 1 là HỢP LỆ ở cả hai cầu
   // (1 tờ nguyên ra 1 tờ in là chuyện thường). Luật cũ bắt oan đúng ca đó.
-  // Thuê ngoài KHÔNG có luật riêng: nhà thầu là một máy trong danh mục (tên kèm hậu tố
-  // "thuê ngoài – …"), nên cũng phải gán tổ/máy như mọi bước khác.
-  if (r.department_id == null && r.may_id == null) out.push("chưa gán tổ / máy");
+  // Thuê ngoài không có tổ / máy — đòi nhà gia công chọn từ danh mục NCC (26/09/2026).
+  if (r.loai_buoc === "thue_ngoai") {
+    if (r.nha_cung_cap_id == null) out.push("chưa chọn nhà gia công");
+  } else if (r.department_id == null && r.may_id == null) out.push("chưa gán tổ / máy");
   if (r.tren_dong_giay && r.don_vi_vao) {
     const truoc = rows
       .slice(0, i)
