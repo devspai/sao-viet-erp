@@ -6382,7 +6382,7 @@ export type GiaCongTrangThai = "cho_mang_di" | "dang_o_ngoai" | "dang_gia_cong" 
 export type GiaCongNoiVe = "xuong" | "kho" | "khach";
 
 /** MỘT lần gia công ngoài (spec 2026-09-26). Tiền (`don_gia`, `thanh_tien`) là `null` khi người
- *  xem không có quyền xem tiền — máy chủ gác, màn chỉ hiện "—". */
+ *  xem không có quyền xem tiền — máy chủ gác, màn ẨN hẳn đoạn tiền (không hiện "—"). */
 export interface GiaCongNgoaiLan {
   id: number;
   lsx_id: number;

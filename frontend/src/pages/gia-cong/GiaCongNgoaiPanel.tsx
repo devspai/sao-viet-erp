@@ -57,6 +57,9 @@ export function GiaCongNgoaiPanel({
       return true;
     } catch (e: unknown) {
       setErr(e instanceof ApiError ? e.message : String(e));
+      // Lỗi (đặc biệt 409 lệch version) vẫn nạp lại — version hiển thị phải khớp máy chủ, không
+      // thì bấm lần nữa lại 409 tiếp dù đã có version mới.
+      load();
       return false;
     } finally {
       setBusy(null);
