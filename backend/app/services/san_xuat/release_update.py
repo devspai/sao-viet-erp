@@ -315,7 +315,13 @@ def co_cong_viec_da_bat_dau(db: Session, *, nguon: str, id: int) -> bool:
     goi = repo.goi_hien_tai_cua(lsx_ids, bg_ids)
     if goi is None:
         return False
-    return bool(_da_bat_dau_ids(thuc, repo.cong_viec_cua_goi(goi.id)))
+    if _da_bat_dau_ids(thuc, repo.cong_viec_cua_goi(goi.id)):
+        return True
+    # Hàng đã mang ra nhà gia công (hoặc đã chốt) = việc ĐÃ chạy, dù công việc gia công không có
+    # phiên bắt đầu nào — thu hồi lúc này là xoá dấu vết hàng đang nằm ngoài xưởng.
+    from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+
+    return GiaCongNgoaiRepository(db).co_lan_da_di_trong_goi(goi.id)
 
 
 def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor) -> int:
@@ -332,6 +338,9 @@ def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor) -> int:
     actor_uid = getattr(actor, "id", None)
     for cv in all_cv:
         _huy_phan_cong_ho_tro(db, thuc, cv, actor_uid)
+    from ..gia_cong_ngoai.lan import huy_lan_cua_goi
+
+    huy_lan_cua_goi(db, goi_id=goi.id, actor=actor, ly_do=f"Thu hồi gói phát hành {goi.ma}")
     goi.trang_thai = GOI_DA_THU_HOI
     goi.version += 1
     AuditLogRepository(db).create(

@@ -685,7 +685,12 @@ class XepLichLenhService:
         for bg in self._bai_ghep(tp.bai_ghep_ids):
             if bg.trang_thai != BG_PHAT_HANH:
                 bg.trang_thai = BG_PHAT_HANH
-        _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids, actor=actor)
+        try:
+            _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids, actor=actor)
+        except ValueError as exc:
+            # Gom lần gia công ngoài từ chối (bước thuê ngoài chưa chọn nhà gia công) — trả 400.
+            self.db.rollback()
+            raise XepLichLenhError(str(exc)) from None
         if self.audit is not None:
             self.audit.create(
                 actor_user_id=getattr(actor, "id", None), action="xep_lich_phat_hanh",

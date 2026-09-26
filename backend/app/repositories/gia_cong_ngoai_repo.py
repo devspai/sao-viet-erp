@@ -1,10 +1,16 @@
 """Truy vấn của LẦN GIA CÔNG NGOÀI — spec 2026-09-26. Mọi SELECT của module nằm ở đây."""
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from ..models.accounting import PAYMENT_VOUCHER_CANCELLED, PaymentVoucher
+from ..models.gia_cong_ngoai import GiaCongNgoai
+from ..models.lsx import LsxCongDoan, LsxCongDoanPhuThuoc
 from ..models.purchase import SUPPLIER_ACTIVE, Supplier
+from ..models.san_xuat import SanXuatCongViec
+from ..models.san_xuat_san_luong import BG_DE_XUAT, SanXuatBanGiao
+from ..models.user import User
 
 
 class GiaCongNgoaiRepository:
@@ -28,3 +34,82 @@ class GiaCongNgoaiRepository:
         if s is None or not s.nhan_gia_cong or s.status != SUPPLIER_ACTIVE:
             return None
         return s
+
+    # --- Lần gia công --------------------------------------------------------------------------
+    def get(self, gcn_id: int) -> GiaCongNgoai | None:
+        return self.db.get(GiaCongNgoai, gcn_id)
+
+    def khoa(self, gcn_id: int) -> GiaCongNgoai | None:
+        """Lấy + KHOÁ dòng (Postgres `FOR UPDATE`; SQLite bỏ qua) — chặn bấm đúp Mang đi / Chốt."""
+        return self.db.execute(
+            select(GiaCongNgoai).where(GiaCongNgoai.id == gcn_id).with_for_update()
+        ).scalar_one_or_none()
+
+    def cua_lenh(self, lsx_id: int) -> list[GiaCongNgoai]:
+        return list(self.db.scalars(
+            select(GiaCongNgoai).where(GiaCongNgoai.lsx_id == lsx_id).order_by(GiaCongNgoai.id)
+        ))
+
+    def cong_viec_cua(self, gcn_id: int) -> list[SanXuatCongViec]:
+        """Công việc của lần, theo THỨ TỰ bước (snapshot đẻ công việc theo thứ tự routing ⇒ id tăng)."""
+        return list(self.db.scalars(
+            select(SanXuatCongViec).where(SanXuatCongViec.gia_cong_ngoai_id == gcn_id)
+            .order_by(SanXuatCongViec.id)
+        ))
+
+    def ban_giao_cho_mang_di(self, cv_id: int) -> list[SanXuatBanGiao]:
+        """Bàn giao bước trước đã ĐỀ XUẤT sang công việc đầu của dải, chưa ai nhận."""
+        return list(self.db.scalars(
+            select(SanXuatBanGiao).where(
+                SanXuatBanGiao.dich_cong_viec_id == cv_id, SanXuatBanGiao.trang_thai == BG_DE_XUAT,
+            ).order_by(SanXuatBanGiao.id)
+        ))
+
+    def co_buoc_truoc(self, lsx_cong_doan_id: int | None) -> bool:
+        """Bước này có bước trước (cạnh đi vào, hoặc bước có `thu_tu` nhỏ hơn cùng lệnh)?"""
+        if not lsx_cong_doan_id:
+            return False
+        cd = self.db.get(LsxCongDoan, lsx_cong_doan_id)
+        if cd is None:
+            return False
+        co_canh = self.db.execute(select(LsxCongDoanPhuThuoc.id).where(
+            LsxCongDoanPhuThuoc.buoc_sau_id == cd.id).limit(1)).first()
+        if co_canh is not None:
+            return True
+        return self.db.execute(select(LsxCongDoan.id).where(
+            LsxCongDoan.lsx_id == cd.lsx_id, LsxCongDoan.thu_tu < cd.thu_tu).limit(1)).first() is not None
+
+    def co_lan_da_di_trong_goi(self, goi_id: int) -> bool:
+        """Gói có lần gia công đã MANG ĐI hoặc đã CHỐT — hàng đã rời xưởng, không thu hồi gói được."""
+        return self.db.execute(
+            select(GiaCongNgoai.id)
+            .join(SanXuatCongViec, SanXuatCongViec.gia_cong_ngoai_id == GiaCongNgoai.id)
+            .where(SanXuatCongViec.goi_id == goi_id, GiaCongNgoai.huy_luc.is_(None),
+                   or_(GiaCongNgoai.mang_di_luc.is_not(None), GiaCongNgoai.chot_luc.is_not(None)))
+            .limit(1)
+        ).first() is not None
+
+    def lan_cua_goi(self, goi_id: int) -> list[GiaCongNgoai]:
+        return list(self.db.scalars(
+            select(GiaCongNgoai).where(GiaCongNgoai.id.in_(
+                select(SanXuatCongViec.gia_cong_ngoai_id).where(SanXuatCongViec.goi_id == goi_id)
+            ))
+        ))
+
+    def user_names(self, ids) -> dict[int, str]:
+        ids = {int(i) for i in ids if i}
+        if not ids:
+            return {}
+        return {uid: ten for uid, ten in self.db.execute(
+            select(User.id, User.name).where(User.id.in_(ids)))}
+
+    def phieu_chi_song(self, gcn_ids) -> dict[int, PaymentVoucher]:
+        """Phiếu chi CÒN HIỆU LỰC của từng lần (tối đa một — partial unique mg 0339)."""
+        ids = [int(i) for i in gcn_ids if i]
+        if not ids:
+            return {}
+        return {v.gia_cong_ngoai_id: v for v in self.db.scalars(
+            select(PaymentVoucher).where(
+                PaymentVoucher.gia_cong_ngoai_id.in_(ids),
+                PaymentVoucher.status != PAYMENT_VOUCHER_CANCELLED,
+            ))}

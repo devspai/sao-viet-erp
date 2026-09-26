@@ -14,7 +14,8 @@ from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.user import User
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
-from ..schemas.gia_cong_ngoai import NhaGiaCongOut
+from ..schemas.gia_cong_ngoai import GiaCongNgoaiOut, NhaGiaCongOut
+from ..services.gia_cong_ngoai.lan import lan_cua_lenh
 from ..services.rbac_service import AuthorizationService
 
 router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
@@ -43,3 +44,18 @@ def nha_gia_cong(
 ) -> list[dict]:
     """Ô chọn Nhà gia công của Kế hoạch SX — người kế hoạch không cần quyền Mua hàng."""
     return [{"id": s.id, "ten": s.name} for s in GiaCongNgoaiRepository(db).nha_gia_cong_options()]
+
+
+def _xem_tien(authz: AuthorizationService, user: User) -> bool:
+    """Tiền của lần gia công đi qua CÙNG cổng với mọi số tiền khác (`kho:view_cost`)."""
+    return authz.can(user, "kho", "view_cost")
+
+
+@router.get("/lenh/{lsx_id}", response_model=list[GiaCongNgoaiOut])
+def cua_lenh(
+    lsx_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[dict]:
+    return lan_cua_lenh(db, lsx_id, xem_tien=_xem_tien(authz, user))

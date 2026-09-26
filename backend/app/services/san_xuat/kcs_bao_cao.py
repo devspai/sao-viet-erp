@@ -84,6 +84,7 @@ def _hang_kcs_theo_scope(
     stmt = (
         select(SanXuatKcsBatch, SanXuatCongViec)
         .join(SanXuatCongViec, SanXuatKcsBatch.cong_viec_id == SanXuatCongViec.id)
+        .where(SanXuatCongViec.gia_cong_ngoai_id.is_(None))
         .order_by(SanXuatKcsBatch.bat_dau, SanXuatKcsBatch.id)
     )
     if lsx_id:

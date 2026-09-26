@@ -310,8 +310,9 @@ class SanXuatCongViec(Base):
     # Trả dao về kệ — KHÔNG chặn gì, chỉ để hệ thống không mất dấu con dao sau khi nó rời kệ.
     khuon_tra_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     trang_thai: Mapped[str] = mapped_column(String(16), nullable=False, default=CV_PHAT_HANH)
-    # MỐC NGHIỆP VỤ "bước xong lúc nào" — đóng dấu MỘT LẦN ở `thuc_thi.ket_thuc`, chỗ duy nhất
-    # trong hệ đặt `trang_thai='completed'`. Tồn tại riêng vì `updated_at` là cột BẢO TRÌ: mọi
+    # MỐC NGHIỆP VỤ "bước xong lúc nào" — đóng dấu ở `thuc_thi.ket_thuc`, một trong HAI chỗ đặt
+    # `trang_thai='completed'` (chỗ kia: chốt lần gia công ngoài, `services/gia_cong_ngoai/chot.py`).
+    # Tồn tại riêng vì `updated_at` là cột BẢO TRÌ: mọi
     # `version += 1` về sau (rút người khỏi bước đã xong, sửa ghi chú…) dời nó, và KPI "công đoạn
     # xong hôm nay" từng đếm nhầm một bước đóng năm 2020 vào hôm nay vì đọc `updated_at`. Bịt từng
     # đường ghi không giải quyết được lớp lỗi đó — đường ghi thêm sau lại phá lại. NULL = chưa xong
