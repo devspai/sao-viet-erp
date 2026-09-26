@@ -207,3 +207,95 @@ def test_de_nghi_xuat_giay_ghi_chu_dung_mau(sess, admin, lenh):
     req = de_nghi_xuat_giay(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
     assert req.ghi_chu.startswith("Cấp giấy gia công trọn gói — In hộp Phú Thịnh")
     assert lenh.ma in req.ghi_chu
+
+
+# --- Final fix: đơn vị lệnh ≠ đơn vị món Thành phẩm (C1/I1) + phạm vi lệnh (I2) ----------------
+
+def _hop_bang_10_cai(sess, lenh):
+    """Lệnh đếm theo HỘP, dòng đơn + món Thành phẩm đếm theo CÁI; 1 hộp = 10 cái."""
+    from app.models.don_vi_do import DonViDo, DonViQuyDoi
+    from app.models.order import OrderLine
+
+    hop = sess.query(DonViDo).filter(DonViDo.ma == "hop").one()
+    cai = sess.query(DonViDo).filter(DonViDo.ma == "cai").one()
+    sess.add(DonViQuyDoi(tu_id=hop.id, den_id=cai.id, he_so=10))
+    lenh.don_vi_tinh = "hop"
+    sess.get(OrderLine, lenh.order_line_id).don_vi_tinh = "cai"
+    sess.commit()
+
+
+def test_tron_goi_luu_so_theo_don_vi_lenh(sess, admin, lenh):
+    _hop_bang_10_cai(sess, lenh)
+    lan = _dat(sess, admin, lenh)
+    (cv,) = sess.query(SanXuatCongViec).filter_by(lsx_id=lenh.id).all()
+    assert lan.don_vi == "hop" and cv.don_vi_ra == "hop" and float(cv.so_luong_ra) == 20_000
+
+
+def test_tron_goi_ve_kho_quy_sang_don_vi_thanh_pham(sess, admin, lenh):
+    from app.services.thanh_pham_khai_bao import khai_mot_dong
+    from app.models.order import Order, OrderLine
+
+    _hop_bang_10_cai(sess, lenh)
+    order = sess.get(Order, lenh.order_id)
+    tp = khai_mot_dong(sess, order, sess.get(OrderLine, lenh.order_line_id))
+    tp.don_vi_gia = "cai"
+    sess.commit()
+    lan = _dat(sess, admin, lenh)
+    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+         sl_cuoi=100, noi_ve=NOI_VE_KHO)
+    req = sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id, loai=REQ_NHAP).one()
+    (ln,) = req.lines
+    # 100 hộp = 1.000 cái — kho nhận đúng số cái, không phải 100 cái.
+    assert ln.dvt == "cai" and float(ln.sl_de_nghi) == 1_000
+
+
+def test_tron_goi_giao_thang_quy_ve_don_vi_dong_don(sess, admin, lenh):
+    from app.models.gia_cong_ngoai import NOI_VE_KHACH
+    from app.repositories.delivery_repo import DeliveryRepository
+    from app.models.order import OrderLine
+    from tests.gia_cong_fixtures import nhan_vien_cua
+
+    _hop_bang_10_cai(sess, lenh)
+    dong = sess.get(OrderLine, lenh.order_line_id)
+    dong.qty = 1_000
+    sess.commit()
+    nhan_vien_cua(sess, admin)
+    lan = _dat(sess, admin, lenh)
+    # 101 hộp = 1.010 cái > 1.000 cái còn phải giao ⇒ chặn (so CÙNG đơn vị dòng đơn).
+    with pytest.raises(ValueError, match="còn phải giao 1000"):
+        chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+             sl_cuoi=101, noi_ve=NOI_VE_KHACH)
+    sess.rollback()
+    sess.refresh(lan)
+    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+         sl_cuoi=100, noi_ve=NOI_VE_KHACH)
+    assert DeliveryRepository(sess).da_giao_theo_dong(lenh.order_id)[lenh.order_line_id] == 1_000
+
+
+def test_nguoi_pham_vi_rieng_khong_dung_lenh_nguoi_khac(sess, admin, lenh):
+    from fastapi import HTTPException
+
+    from app.models.role import SCOPE_OWN
+    from app.models.user import User
+    from app.routers import gia_cong_ngoai as r
+    from app.schemas.gia_cong_ngoai import HuyTronGoiIn
+
+    class _Authz:
+        def scope_for(self, user, module_key):  # noqa: ARG002
+            return SCOPE_OWN
+
+        def can(self, *a, **k):  # noqa: ARG002
+            return False
+
+    lan = _dat(sess, admin, lenh)
+    la = User(username="to_truong_gc", name="Tổ trưởng khác", password_hash="x")
+    sess.add(la)
+    sess.commit()
+    with pytest.raises(HTTPException) as e:
+        r.cua_lenh(lenh.id, sess, _Authz(), la)
+    assert e.value.status_code == 404
+    with pytest.raises(HTTPException) as e:
+        r.huy_tron_goi(lan.id, HuyTronGoiIn(version=lan.version, ly_do="Khách đổi mẫu"), sess, _Authz(), la)
+    assert e.value.status_code == 404
+    sess.refresh(lan)
+    assert lan.ly_do_huy is None

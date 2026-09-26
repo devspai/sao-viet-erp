@@ -15,6 +15,7 @@ from ..deps import get_authorization_service, require_permission
 from ..models.user import User
 from ..realtime import hub, phat_ban_giao, phat_dong_nhom
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+from ..repositories.san_xuat_repo import SanXuatRepository
 from ..schemas.gia_cong_ngoai import (
     ChotIn, GiaCongNgoaiOut, HuyTronGoiIn, MangDiIn, MoLaiIn, NhaGiaCongOut, TronGoiIn, XuatGiayIn,
 )
@@ -22,6 +23,7 @@ from ..services.gia_cong_ngoai import chot as chot_svc
 from ..services.gia_cong_ngoai import mot_phan, tron_goi
 from ..services.gia_cong_ngoai.lan import lan_cua_lenh, lan_dict
 from ..services.rbac_service import AuthorizationService
+from .lsx import _guard_scope
 
 router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
 MODULE = "san_xuat"
@@ -51,6 +53,24 @@ def nha_gia_cong(
     return [{"id": s.id, "ten": s.name} for s in GiaCongNgoaiRepository(db).nha_gia_cong_options()]
 
 
+def _gac_lenh(db: Session, authz: AuthorizationService, user: User, lsx_id: int) -> None:
+    """Gác PHẠM VI lệnh y như `routers/lsx.py` — người scope "của mình" không đụng lệnh người khác
+    (ngoài phạm vi trả 404 như chính màn lệnh, không lộ lệnh có tồn tại)."""
+    lsx = SanXuatRepository(db).lsx(lsx_id)
+    if lsx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy lệnh sản xuất")
+    _guard_scope(db, lsx, user, authz)
+
+
+def _gac_lan(db: Session, authz: AuthorizationService, user: User, gcn_id: int) -> None:
+    """Gác phạm vi theo LỆNH của lần gia công."""
+    gcn = GiaCongNgoaiRepository(db).get(gcn_id)
+    if gcn is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Không tìm thấy lần gia công ngoài")
+    _gac_lenh(db, authz, user, gcn.lsx_id)
+
+
 def _xem_tien(authz: AuthorizationService, user: User) -> bool:
     """Tiền của lần gia công đi qua CÙNG cổng với mọi số tiền khác (`kho:view_cost`)."""
     return authz.can(user, "kho", "view_cost")
@@ -63,6 +83,7 @@ def cua_lenh(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> list[dict]:
+    _gac_lenh(db, authz, user, lsx_id)
     return lan_cua_lenh(db, lsx_id, xem_tien=_xem_tien(authz, user))
 
 
@@ -84,6 +105,7 @@ def mang_di(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
 ) -> dict:
+    _gac_lan(db, authz, user, gcn_id)
     kq = _chay(lambda: mot_phan.mang_di(
         db, user=user, gcn_id=gcn_id, expected_version=body.version, sl_gui=body.sl_gui))
     for res in kq["ban_giao"]:
@@ -113,6 +135,7 @@ def chot(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
 ) -> dict:
+    _gac_lan(db, authz, user, gcn_id)
     res = _chay(lambda: chot_svc.chot(
         db, user=user, gcn_id=gcn_id, expected_version=body.version, sl_cuoi=body.sl_cuoi,
         noi_ve=body.noi_ve, dich_cong_viec_id=body.dich_cong_viec_id))
@@ -133,6 +156,7 @@ def mo_lai(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
 ) -> dict:
+    _gac_lan(db, authz, user, gcn_id)
     res = _chay(lambda: chot_svc.mo_lai(db, user=user, gcn_id=gcn_id,
                                          expected_version=body.version))
     hub.broadcast({"type": "gia_cong_cho_chi_changed"})
@@ -150,6 +174,7 @@ def dat_tron_goi(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
 ) -> dict:
+    _gac_lenh(db, authz, user, lsx_id)
     kq = _chay(lambda: tron_goi.dat_tron_goi(
         db, user=user, lsx_id=lsx_id, nha_cung_cap_id=body.nha_cung_cap_id, sl_dat=body.sl_dat,
         don_gia=body.don_gia, xuong_cap_giay=body.xuong_cap_giay))
@@ -165,6 +190,7 @@ def huy_tron_goi(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
 ) -> dict:
+    _gac_lan(db, authz, user, gcn_id)
     kq = _chay(lambda: tron_goi.huy_tron_goi(db, user=user, gcn_id=gcn_id,
                                               expected_version=body.version, ly_do=body.ly_do))
     _phat_doi(kq["lsx_id"])
@@ -179,6 +205,7 @@ def xuat_giay(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
 ) -> dict:
+    _gac_lan(db, authz, user, gcn_id)
     _chay(lambda: tron_goi.de_nghi_xuat_giay(db, user=user, gcn_id=gcn_id,
                                               expected_version=body.version))
     _phat_doi(GiaCongNgoaiRepository(db).get(gcn_id).lsx_id)

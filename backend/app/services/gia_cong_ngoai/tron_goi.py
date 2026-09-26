@@ -20,7 +20,6 @@ from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.document_sequence_repo import DocumentSequenceRepository
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
-from ...repositories.order_repo import OrderRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.stock_request_repo import StockRequestRepository
 from ...repositories.xep_lich_lenh_repo import XepLichLenhRepository
@@ -31,18 +30,9 @@ from ..san_xuat.release_update import thu_hoi_goi
 from ..san_xuat.vat_tu_de_nghi import _don_vi_gui_kho, _hang_service, _req_service
 from ..sequence_service import SequenceService
 from ..stock_request_service import StockRequestError
-from ..thanh_pham_khai_bao import cum_cua_dong, khai_cum
 from . import GiaCongXungDot, kiem_version
 
 _DAT_DUOC = (TT_NHAP, TT_CHO_BO_SUNG, TT_SAN_SANG, TT_DA_LAP_KE_HOACH)
-
-
-def _don_vi_thanh_pham(db: Session, lsx) -> str:
-    """Đơn vị của con số cuối = đơn vị món Thành phẩm của cụm (cùng thứ kho sẽ nhập)."""
-    order = OrderRepository(db).get_by_id(lsx.order_id)
-    cum = cum_cua_dong(order, lsx.order_line_id) if order is not None else None
-    tp = khai_cum(db, order, cum) if cum is not None else None
-    return ((tp.don_vi_gia if tp is not None else None) or lsx.don_vi_tinh or "").strip()
 
 
 def _giu_cho(db: Session):
@@ -88,7 +78,10 @@ def dat_tron_goi(db: Session, *, user, lsx_id: int, nha_cung_cap_id: int, sl_dat
         XepLichLenhRepository(db).xoa(moc)
 
     uid = getattr(user, "id", None)
-    dv = _don_vi_thanh_pham(db, lsx)
+    # Số đặt / số cuối theo ĐƠN VỊ LỆNH — đúng thứ người dùng gõ ở hộp thoại (nhãn `don_vi_tinh`).
+    # Không gắn nhãn đơn vị món Thành phẩm: số không quy mà đổi nhãn là lệch hệ số. Lúc nhập kho /
+    # giao thẳng mới quy sang đơn vị món / dòng đơn (`_he_so_cho_nhap`), y như gia công một phần.
+    dv = (lsx.don_vi_tinh or "").strip()
     gcn = GiaCongNgoai(
         lsx_id=lsx_id, kieu=KIEU_TRON_GOI, nha_cung_cap_id=nha.id, nha_cung_cap_ten=nha.name,
         ten_viec="Trọn gói cả lệnh", don_gia=don_gia, don_vi=dv, sl_dat=float(sl_dat),
