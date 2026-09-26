@@ -67,3 +67,44 @@ def dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, *, buoc) -> int:
     lsx.trang_thai = TT_DA_PHAT_HANH
     sess.commit()
     return lsx.id
+
+
+from datetime import datetime, timedelta, timezone
+
+from app.models.role import Role
+from app.models.san_xuat import SanXuatCongViec
+from app.models.san_xuat_san_luong import SanXuatBatch
+from app.models.user import User
+from app.services.san_xuat import ban_giao
+
+
+def cv_ten(sess, lsx_id: int, ten: str) -> SanXuatCongViec:
+    return sess.query(SanXuatCongViec).filter_by(lsx_id=lsx_id, ten_cong_doan=ten).one()
+
+
+def ghi_me(sess, cv, sl: float) -> SanXuatBatch:
+    """Mẻ TỐT `sl` cho một công việc NỘI BỘ — chèn thẳng, bỏ qua bàn tổ (bài test không soi ghi mẻ)."""
+    luc = datetime.now(timezone.utc)
+    b = SanXuatBatch(cong_viec_id=cv.id, bat_dau=luc - timedelta(hours=1), ket_thuc=luc,
+                     tong=sl, tot=sl, hong=0, don_vi=cv.don_vi_ra or "to")
+    sess.add(b)
+    sess.flush()
+    return b
+
+
+def giao_sang(sess, admin, nguon, dich, sl: float) -> dict:
+    """Tổ nguồn ghi mẻ `sl` rồi ĐỀ XUẤT bàn giao sang `dich` — đúng cửa thật `ban_giao.de_xuat`."""
+    b = ghi_me(sess, nguon, sl)
+    sess.commit()
+    return ban_giao.de_xuat(sess, user=admin, nguon_cong_viec_id=nguon.id,
+                            dich_cong_viec_id=dich.id, batch_ids=[b.id])
+
+
+def nguoi_ke_hoach(sess, username: str = "kehoach_gc") -> User:
+    """Một tài khoản vai "Kế hoạch SX" (seed) — người nhận toast "chờ mang đi"."""
+    role = sess.query(Role).filter(Role.name == "Kế hoạch SX").one()
+    u = User(username=username, name="Kế hoạch A", password_hash="x", role_id=role.id,
+             is_active=True)
+    sess.add(u)
+    sess.commit()
+    return u

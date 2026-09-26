@@ -8,6 +8,7 @@ from ..models.accounting import PAYMENT_VOUCHER_CANCELLED, PaymentVoucher
 from ..models.gia_cong_ngoai import GiaCongNgoai
 from ..models.lsx import LsxCongDoan, LsxCongDoanPhuThuoc
 from ..models.purchase import SUPPLIER_ACTIVE, Supplier
+from ..models.role import RolePermission
 from ..models.san_xuat import SanXuatCongViec
 from ..models.san_xuat_san_luong import BG_DE_XUAT, SanXuatBanGiao
 from ..models.user import User
@@ -102,6 +103,24 @@ class GiaCongNgoaiRepository:
             return {}
         return {uid: ten for uid, ten in self.db.execute(
             select(User.id, User.name).where(User.id.in_(ids)))}
+
+    # --- Người nhận thông báo (spec §6) -----------------------------------------------------
+    def _nguoi_co(self, module_key: str, cot) -> list[int]:
+        stmt = (
+            select(User.id)
+            .join(RolePermission, RolePermission.role_id == User.role_id)
+            .where(RolePermission.module_key == module_key, cot.is_(True),
+                   User.is_active.is_(True))
+        )
+        return sorted({uid for (uid,) in self.db.execute(stmt)})
+
+    def nguoi_sua_lenh(self) -> list[int]:
+        """Ai mang hàng đi / chốt được: tài khoản có `san_xuat:update` (không thêm vai, không bit)."""
+        return self._nguoi_co("san_xuat", RolePermission.can_update)
+
+    def nguoi_lap_phieu_chi(self) -> list[int]:
+        """Kế toán lập phiếu chi: `phieu_chi:create` — người nhận toast "chờ chi"."""
+        return self._nguoi_co("phieu_chi", RolePermission.can_create)
 
     def phieu_chi_song(self, gcn_ids) -> dict[int, PaymentVoucher]:
         """Phiếu chi CÒN HIỆU LỰC của từng lần (tối đa một — partial unique mg 0339)."""

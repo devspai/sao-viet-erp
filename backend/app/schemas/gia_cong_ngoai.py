@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class MangDiIn(BaseModel):
+    version: int
+    sl_gui: float | None = Field(default=None, gt=0)
 
 
 class NhaGiaCongOut(BaseModel):

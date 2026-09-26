@@ -158,6 +158,7 @@ def _phat_sse_ban_giao(res: dict) -> None:
             "dich_ten": res.get("dich_ten"),
             "so_luong": res.get("so_luong"),
             "don_vi": res.get("don_vi"),
+            "lsx_ma": res.get("lsx_ma"),
         })
 
 

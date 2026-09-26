@@ -13,10 +13,13 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.user import User
+from ..realtime import hub
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
-from ..schemas.gia_cong_ngoai import GiaCongNgoaiOut, NhaGiaCongOut
-from ..services.gia_cong_ngoai.lan import lan_cua_lenh
+from ..schemas.gia_cong_ngoai import GiaCongNgoaiOut, MangDiIn, NhaGiaCongOut
+from ..services.gia_cong_ngoai import mot_phan
+from ..services.gia_cong_ngoai.lan import lan_cua_lenh, lan_dict
 from ..services.rbac_service import AuthorizationService
+from .san_xuat import _phat_sse_ban_giao
 
 router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
 MODULE = "san_xuat"
@@ -59,3 +62,29 @@ def cua_lenh(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> list[dict]:
     return lan_cua_lenh(db, lsx_id, xem_tien=_xem_tien(authz, user))
+
+
+def _phat_doi(lsx_id: int) -> None:
+    """Khối Gia công ngoài trên lệnh + danh sách Kế hoạch SX tự nạp lại (sau commit)."""
+    hub.broadcast({"type": "gia_cong_ngoai_changed", "lsx_id": lsx_id})
+
+
+def _ra(db: Session, authz: AuthorizationService, user: User, gcn_id: int) -> dict:
+    gcn = GiaCongNgoaiRepository(db).get(gcn_id)
+    return lan_dict(db, gcn, xem_tien=_xem_tien(authz, user))
+
+
+@router.post("/{gcn_id}/mang-di", response_model=GiaCongNgoaiOut)
+def mang_di(
+    gcn_id: int,
+    body: MangDiIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    kq = _chay(lambda: mot_phan.mang_di(
+        db, user=user, gcn_id=gcn_id, expected_version=body.version, sl_gui=body.sl_gui))
+    for res in kq["ban_giao"]:
+        _phat_sse_ban_giao(res)
+    _phat_doi(kq["lsx_id"])
+    return _ra(db, authz, user, gcn_id)

@@ -21,6 +21,7 @@ from ...models.san_xuat_san_luong import (
     SanXuatBanGiaoDieuChinh,
 )
 from ...repositories.audit_repo import AuditLogRepository
+from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..quyen_to import VIEC_XAC_NHAN, nguoi_co_quyen
 from .dau_vao import cung_to_cung_lsx, kiem_giam_ban_giao
@@ -78,6 +79,74 @@ def _ket_qua(
         "dich_ten": dich_cv.ten_cong_doan if dich_cv else "",
         "don_vi": bg.don_vi,
     }
+
+
+def lap_ban_giao(
+    db: Session, *, user, nguon_cv, dich_cv, so_luong: float, don_vi: str, batch_ids: list[int],
+) -> SanXuatBanGiao:
+    """LÕI ghi một bàn giao — KHÔNG gate, KHÔNG commit, không tự tính số.
+
+    `de_xuat` gác quyền tổ nguồn + suy số từ mẻ rồi gọi vào đây. Chốt lần gia công ngoài
+    (`services/gia_cong_ngoai/chot.py`) gác `san_xuat:update` và giao ĐÚNG con số chốt — công việc
+    gia công không có tổ nào để gác theo dòng quyền tổ."""
+    repo = SanXuatSanLuongRepository(db)
+    cung_to = _la_cung_to(nguon_cv, dich_cv)
+    now = _moc()
+    uid = getattr(user, "id", None)
+    bg = SanXuatBanGiao(
+        nguon_cong_viec_id=nguon_cv.id, dich_cong_viec_id=dich_cv.id, cung_to=cung_to,
+        so_luong=so_luong, don_vi=don_vi,
+        trang_thai=BG_XAC_NHAN if cung_to else BG_DE_XUAT,
+        de_xuat_by_id=uid, de_xuat_luc=now,
+        xac_nhan_by_id=uid if cung_to else None, xac_nhan_luc=now if cung_to else None,
+    )
+    repo.add(bg)
+    repo.flush()
+    for batch_id in batch_ids:
+        repo.add(SanXuatBanGiaoBatch(ban_giao_id=bg.id, batch_id=batch_id))
+    AuditLogRepository(db).create(
+        actor_user_id=uid, action="san_xuat_ban_giao_de_xuat", target=f"san_xuat_ban_giao:{bg.id}",
+        detail=(f"nguon={nguon_cv.id} dich={dich_cv.id} sl={so_luong} "
+                f"me={','.join(map(str, batch_ids)) or '-'} {'cung_to' if cung_to else 'de_xuat'}"),
+        commit=False,
+    )
+    return bg
+
+
+def ghi_xac_nhan(db: Session, *, bg: SanXuatBanGiao, user) -> None:
+    """LÕI xác nhận — KHÔNG gate, KHÔNG commit. `xac_nhan` gác quyền tổ đích; "Đã mang đi" của
+    gia công ngoài gác `san_xuat:update` (đích là công việc gia công, không tổ nào nhận)."""
+    bg.trang_thai = BG_XAC_NHAN
+    bg.xac_nhan_by_id = getattr(user, "id", None)
+    bg.xac_nhan_luc = _moc()
+    bg.version += 1
+    AuditLogRepository(db).create(
+        actor_user_id=getattr(user, "id", None), action="san_xuat_ban_giao_xac_nhan",
+        target=f"san_xuat_ban_giao:{bg.id}", detail=f"sl={float(bg.so_luong)}", commit=False,
+    )
+
+
+def ket_qua_cho_ben_nhan(db: Session, *, user, bg, nguon_cv, dich_cv) -> dict:
+    """Bàn giao MỚI chờ bên nhận: báo người Xác nhận sản lượng ở tổ ĐÍCH (cùng tổ ⇒ không báo ai).
+    Đích là công việc GIA CÔNG NGOÀI thì không tổ nào nhận — báo người mang hàng đi (ai sửa được
+    lệnh, spec gia công §6) bằng sự kiện "chờ mang đi"."""
+    if dich_cv.gia_cong_ngoai_id is not None:
+        from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+
+        uid = getattr(user, "id", None)
+        ra = _ket_qua(bg, nguon_cv, dich_cv, su_kien="cho_mang_di", notify_user_ids=[
+            u for u in GiaCongNgoaiRepository(db).nguoi_sua_lenh() if u != uid])
+        lsx = SanXuatRepository(db).lsx(dich_cv.lsx_id) if dich_cv.lsx_id else None
+        ra["lsx_ma"] = lsx.ma if lsx else ""
+        return ra
+    notify = [] if bg.trang_thai == BG_XAC_NHAN else _nguoi_nhan(db, user, dich_cv.department_id)
+    return _ket_qua(bg, nguon_cv, dich_cv, notify_user_ids=notify, su_kien="de_xuat")
+
+
+def ket_qua_da_nhan(db: Session, *, user, bg, nguon_cv, dich_cv) -> dict:
+    """Bên nhận vừa xác nhận: báo người Xác nhận sản lượng ở tổ NGUỒN."""
+    return _ket_qua(bg, nguon_cv, dich_cv, su_kien="xac_nhan", notify_user_ids=_nguoi_nhan(
+        db, user, nguon_cv.department_id if nguon_cv else None))
 
 
 def _so_theo_me(
@@ -162,37 +231,10 @@ def de_xuat(
     if not don_vi_bg:
         raise ValueError("Bàn giao chưa có đơn vị.")
 
-    cung_to = _la_cung_to(nguon_cv, dich_cv)
-    now = _moc()
-    bg = SanXuatBanGiao(
-        nguon_cong_viec_id=nguon_cv.id,
-        dich_cong_viec_id=dich_cv.id,
-        cung_to=cung_to,
-        so_luong=sl,
-        don_vi=don_vi_bg,
-        trang_thai=BG_XAC_NHAN if cung_to else BG_DE_XUAT,
-        de_xuat_by_id=getattr(user, "id", None),
-        de_xuat_luc=now,
-        xac_nhan_by_id=getattr(user, "id", None) if cung_to else None,
-        xac_nhan_luc=now if cung_to else None,
-    )
-    repo.add(bg)
-    repo.flush()
-    for batch_id in chon:
-        repo.add(SanXuatBanGiaoBatch(ban_giao_id=bg.id, batch_id=batch_id))
-    AuditLogRepository(db).create(
-        actor_user_id=getattr(user, "id", None),
-        action="san_xuat_ban_giao_de_xuat",
-        target=f"san_xuat_ban_giao:{bg.id}",
-        detail=(
-            f"nguon={nguon_cv.id} dich={dich_cv.id} sl={sl} "
-            f"me={','.join(map(str, chon)) or '-'} {'cung_to' if cung_to else 'de_xuat'}"
-        ),
-    )
+    bg = lap_ban_giao(db, user=user, nguon_cv=nguon_cv, dich_cv=dich_cv, so_luong=sl,
+                      don_vi=don_vi_bg, batch_ids=chon)
     db.commit()
-    # Chờ xác nhận → báo người xác nhận được ở tổ ĐÍCH; tự xác nhận → không cần báo ai đợi.
-    notify = [] if cung_to else _nguoi_nhan(db, user, dich_cv.department_id)
-    return _ket_qua(bg, nguon_cv, dich_cv, notify_user_ids=notify, su_kien="de_xuat")
+    return ket_qua_cho_ben_nhan(db, user=user, bg=bg, nguon_cv=nguon_cv, dich_cv=dich_cv)
 
 
 def sua_de_xuat(
@@ -261,22 +303,15 @@ def xac_nhan(
         raise ValueError("Công đoạn nhận của bàn giao này không còn — không xác nhận được.")
     nguon_cv = repo.cong_viec(bg.nguon_cong_viec_id)
     dich_cv = repo.cong_viec(bg.dich_cong_viec_id)
+    if dich_cv is not None and dich_cv.gia_cong_ngoai_id is not None:
+        # Hàng giao sang bước gia công ngoài: không tổ nào nhận — người kế hoạch bấm "Đã mang đi".
+        raise ValueError("Bàn giao sang gia công ngoài — người kế hoạch nhận bằng nút “Đã mang đi”.")
     _gate(db, user, dich_cv, VIEC_XAC_NHAN)
     _kiem_version(bg, expected_version)
 
-    bg.trang_thai = BG_XAC_NHAN
-    bg.xac_nhan_by_id = getattr(user, "id", None)
-    bg.xac_nhan_luc = _moc()
-    bg.version += 1
-    AuditLogRepository(db).create(
-        actor_user_id=getattr(user, "id", None),
-        action="san_xuat_ban_giao_xac_nhan",
-        target=f"san_xuat_ban_giao:{bg.id}",
-        detail=f"sl={float(bg.so_luong)}",
-    )
+    ghi_xac_nhan(db, bg=bg, user=user)
     db.commit()
-    return _ket_qua(bg, nguon_cv, dich_cv, su_kien="xac_nhan", notify_user_ids=_nguoi_nhan(
-        db, user, nguon_cv.department_id if nguon_cv else None))
+    return ket_qua_da_nhan(db, user=user, bg=bg, nguon_cv=nguon_cv, dich_cv=dich_cv)
 
 
 def dieu_chinh(
