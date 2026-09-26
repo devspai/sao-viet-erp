@@ -1261,7 +1261,7 @@ class DeliveryService:
         xong, tong_km = 0, 0
         for t in self.deliveries.list_trips(employee_ids=[employee_id]):
             # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người chốt số — người đó không chạy xe.
-            if getattr(t, "gia_cong_ngoai_id", None):
+            if t.gia_cong_ngoai_id:
                 continue
             ket = t.thoi_gian_ket_thuc
             if ket is None or (ket.year, ket.month) != (ngay.year, ngay.month):
@@ -2060,7 +2060,7 @@ class DeliveryService:
         xong, tong_km = 0, 0
         for t in self.deliveries.list_trips(employee_ids=[employee_id]):
             # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người chốt số — người đó không chạy xe.
-            if getattr(t, "gia_cong_ngoai_id", None):
+            if t.gia_cong_ngoai_id:
                 continue
             if t.thoi_gian_ket_thuc is None or t.thoi_gian_ket_thuc.date() != ngay:
                 continue

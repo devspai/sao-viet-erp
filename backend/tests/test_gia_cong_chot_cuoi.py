@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import date
+
 from app.models.delivery import LG_DA_HUY, LG_THANH_CONG, DeliveryTrip
 from app.models.gia_cong_ngoai import NOI_VE_KHACH, NOI_VE_KHO, GiaCongNgoai
 from app.models.lsx import Lsx
-from app.models.san_xuat import CV_HOAN_THANH, NHOM_DONG_DU, SanXuatNhom
+from app.models.san_xuat import CV_HOAN_THANH, NHOM_DONG_DU, NHOM_DONG_THIEU, SanXuatNhom
 from app.models.san_xuat_kcs import SanXuatKcsBatch
 from app.models.stock_request import REQ_CANCELLED, StockRequest
+from app.models.stock_voucher import VOUCHER_DRAFT, VOUCHER_NHAP, StockVoucher
 from app.repositories.delivery_repo import DeliveryRepository
 from app.services.gia_cong_ngoai.chot import chot, mo_lai
 from app.services.gia_cong_ngoai.mot_phan import mang_di
@@ -74,6 +77,35 @@ def test_mo_lai_ve_kho_huy_de_nghi_va_mo_lai_nhom(sess, admin, dai_cuoi):
     assert sess.query(SanXuatKcsBatch).filter_by(cong_viec_id=cuoi.id).count() == 0
     assert sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id).one().trang_thai == REQ_CANCELLED
     assert sess.get(SanXuatNhom, cuoi.nhom_id).trang_thai != NHOM_DONG_DU
+
+
+def test_mo_lai_ve_kho_chan_khi_da_lap_phieu(sess, admin, dai_cuoi):
+    lsx_id, lan = dai_cuoi
+    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+         sl_cuoi=1000, noi_ve=NOI_VE_KHO)
+    req = sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id).one()
+    v = StockVoucher(ma=f"PNK-TEST-{req.id}", loai=VOUCHER_NHAP, request_id=req.id, kho_id=1,
+                     ngay=date(2026, 9, 26), nguoi_lap_id=admin.id, trang_thai=VOUCHER_DRAFT)
+    sess.add(v)
+    sess.commit()
+    sess.refresh(lan)
+    with pytest.raises(ValueError, match="đã lập phiếu"):
+        mo_lai(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
+
+
+def test_mo_lai_ve_kho_chan_khi_nhom_dong_thieu(sess, admin, dai_cuoi):
+    lsx_id, lan = dai_cuoi
+    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+         sl_cuoi=1000, noi_ve=NOI_VE_KHO)
+    cuoi = cv_ten(sess, lsx_id, "Đóng gói")
+    nhom = sess.get(SanXuatNhom, cuoi.nhom_id)
+    # Trưởng KCS đã đóng thiếu (đường tắt: gán thẳng trạng thái, workflow đủ điều kiện đã kiểm ở
+    # `dong_nhom.py`, bài test này chỉ soi cửa mở lại) — trạng thái này KHOÁ CỨNG, không đảo được.
+    nhom.trang_thai = NHOM_DONG_THIEU
+    sess.commit()
+    sess.refresh(lan)
+    with pytest.raises(ValueError, match="đóng thiếu"):
+        mo_lai(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
 
 
 def test_giao_thang_ghi_chuyen_thanh_cong_cong_vao_da_giao(sess, admin, dai_cuoi):

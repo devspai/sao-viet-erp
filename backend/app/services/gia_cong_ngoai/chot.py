@@ -80,12 +80,12 @@ def _ve_khach(db: Session, *, user, gcn, cuoi, me, so: float, chang_sau: list,
 
 
 def _go_kcs_va_nhom(db: Session, *, user, cuoi) -> None:
-    kcs_repo = SanXuatKcsRepository(db)
-    for k in kcs_repo.cac_kcs_batch(cuoi.id):
-        db.delete(k)
     nhom = SanXuatRepository(db).nhom(cuoi.nhom_id) if cuoi.nhom_id else None
     if nhom is not None and nhom.trang_thai == NHOM_DONG_THIEU:
         raise ValueError("Trưởng KCS đã đóng thiếu nhóm thành phẩm này — không mở lại được.")
+    kcs_repo = SanXuatKcsRepository(db)
+    for k in kcs_repo.cac_kcs_batch(cuoi.id):
+        db.delete(k)
     if nhom is not None and nhom.trang_thai == NHOM_DONG_DU:
         # Chính số chốt đã làm nhóm đủ ⇒ gỡ số thì nhóm mở lại.
         nhom.trang_thai = NHOM_DANG_SX
