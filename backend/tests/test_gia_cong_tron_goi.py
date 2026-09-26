@@ -9,6 +9,7 @@ from app.models.san_xuat import (
     BUOC_THUE_NGOAI, GOI_DA_THU_HOI, SanXuatCongViec, SanXuatGoiPhatHanh,
 )
 from app.models.stock_request import REQ_NHAP, REQ_XUAT, StockRequest
+from app.models.xep_lich import XepLichCongDoan
 from app.models.xep_lich_lenh import XepLichLenh
 from app.services.gia_cong_ngoai import TT_DA_HUY, TT_DANG_GIA_CONG
 from app.services.gia_cong_ngoai.chot import chot
@@ -113,3 +114,60 @@ def test_api_dat_tron_goi(client, sess, admin, lenh):
         "nha_cung_cap_id": a.id, "sl_dat": 20000, "don_gia": 900, "xuong_cap_giay": False})
     assert r.status_code == 200, r.text
     assert r.json()["kieu"] == "tron_goi" and r.json()["trang_thai"] == "dang_gia_cong"
+
+
+# --- Fix round 1 ------------------------------------------------------------------------------
+
+def test_dat_tron_goi_tu_go_dong_xep_lich(sess, admin, lenh):
+    """Lệnh đã có dòng xếp lịch công đoạn: đặt trọn gói tự xoá dòng đó thay vì bắt tay xoá trước
+    (spec §4 bước 1)."""
+    buoc = sorted(lenh.cong_doans, key=lambda c: c.thu_tu)[0]
+    dong = XepLichCongDoan(nguon="lsx", lsx_id=lenh.id, lsx_cong_doan_id=buoc.id,
+                           source_thu_tu=buoc.thu_tu, loai_buoc="may")
+    sess.add(dong)
+    sess.commit()
+    _dat(sess, admin, lenh)
+    assert sess.query(XepLichCongDoan).filter_by(lsx_id=lenh.id).count() == 0
+
+
+def test_huy_tron_goi_bat_lai_giu_cho(sess, admin, lenh, monkeypatch):
+    """Đặt trọn gói xưởng cấp giấy giữ nguyên `giu_cho_bat=True` (chỉ còn giữ giấy). Huỷ phải gọi
+    LẠI `GiuChoService.bat()` — cùng điều kiện `if lsx.giu_cho_bat` như lúc đặt — để nhặt lại theo
+    nhu cầu ĐẦY ĐỦ một khi lệnh về Nháp, không dừng ở mỗi giấy."""
+    import app.services.gia_cong_ngoai.tron_goi as tron_goi_mod
+    from app.services.xep_lich.release import _giu_cho_service
+
+    them_giay(sess, lenh)
+    _giu_cho_service(sess).bat(lsx_id=lenh.id)  # bật giữ chỗ TRƯỚC khi đặt trọn gói, như lệnh thật
+    sess.refresh(lenh)
+    assert lenh.giu_cho_bat
+
+    goi_lan_dau: list[dict] = []
+    goc_giu_cho = tron_goi_mod._giu_cho
+
+    def _theo_doi(db):
+        svc = goc_giu_cho(db)
+        goc_bat = svc.bat
+        svc.bat = lambda **kw: (goi_lan_dau.append(kw), goc_bat(**kw))[1]
+        return svc
+
+    monkeypatch.setattr(tron_goi_mod, "_giu_cho", _theo_doi)
+
+    lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
+    sess.refresh(lenh)
+    assert lenh.giu_cho_bat
+    assert goi_lan_dau == [{"lsx_id": lenh.id}]  # `dat_tron_goi` tự bật lại cho phần giấy
+
+    huy_tron_goi(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+                 ly_do="Khách đổi mẫu")
+    sess.refresh(lenh)
+    assert lenh.giu_cho_bat
+    assert goi_lan_dau == [{"lsx_id": lenh.id}, {"lsx_id": lenh.id}]  # huỷ gọi lại `bat()` lần 2
+
+
+def test_de_nghi_xuat_giay_ghi_chu_dung_mau(sess, admin, lenh):
+    them_giay(sess, lenh)
+    lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
+    req = de_nghi_xuat_giay(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
+    assert req.ghi_chu.startswith("Cấp giấy gia công trọn gói — In hộp Phú Thịnh")
+    assert lenh.ma in req.ghi_chu

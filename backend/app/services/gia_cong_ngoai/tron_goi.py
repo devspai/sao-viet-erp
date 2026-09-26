@@ -55,7 +55,9 @@ def dat_tron_goi(db: Session, *, user, lsx_id: int, nha_cung_cap_id: int, sl_dat
                  don_gia: float | None, xuong_cap_giay: bool) -> dict:
     repo = SanXuatRepository(db)
     gc_repo = GiaCongNgoaiRepository(db)
-    lsx = repo.lsx(lsx_id)
+    # Khoá dòng lệnh TRƯỚC mọi kiểm tra — hai lượt đặt trọn gói bấm gần như đồng thời phải xếp
+    # hàng, không cùng đọc trạng thái cũ rồi cùng ghi đè nhau.
+    lsx = repo.khoa_lsx(lsx_id)
     if lsx is None:
         raise ValueError("Không tìm thấy lệnh sản xuất.")
     if lsx.trang_thai == LSX_DA_PHAT_HANH:
@@ -72,8 +74,11 @@ def dat_tron_goi(db: Session, *, user, lsx_id: int, nha_cung_cap_id: int, sl_dat
     if len(tp.lsx_ids) > 1 or tp.bai_ghep_ids:
         raise ValueError("Lệnh đi chung nhóm thành phẩm hoặc bài ghép với lệnh khác — gia công "
                          "trọn gói chỉ áp cho lệnh đứng riêng.")
-    if XepLichRepository(db).exists_lsx(lsx_id):
-        raise ValueError("Lệnh đang có dòng xếp lịch theo công đoạn — xoá nháp xếp lịch trước.")
+    # Lệnh đã xếp lịch theo công đoạn (spec §4 bước 1): xếp lịch không còn nghĩa với trọn gói —
+    # tự gỡ nháp xếp lịch của lệnh thay vì bắt người dùng vòng sang màn Xếp lịch xoá tay.
+    xl_repo = XepLichRepository(db)
+    if xl_repo.exists_lsx(lsx_id):
+        xl_repo.delete_rows(xl_repo.by_lsx(lsx_id))
     if repo.goi_hien_tai_cua({lsx_id}, set()) is not None:
         raise ValueError("Lệnh đang có gói phát hành — thu hồi trước.")
 
@@ -172,6 +177,11 @@ def huy_tron_goi(db: Session, *, user, gcn_id: int, expected_version: int | None
         detail=f"Huỷ trọn gói — lệnh {lsx.ma} về Nháp. Lý do: {ly_do}"[:500], commit=False,
     )
     db.commit()
+
+    # Đặt trọn gói đã TẮT giữ chỗ (hoặc tắt rồi chỉ giữ giấy) — huỷ thì bật lại đúng như lúc chưa
+    # đặt, cho lệnh về Nháp cân đối vật tư bình thường như mọi lệnh khác. `bat` tự commit.
+    if lsx.giu_cho_bat:
+        _giu_cho(db).bat(lsx_id=gcn.lsx_id)
     return {"gia_cong_ngoai_id": gcn.id, "lsx_id": gcn.lsx_id}
 
 
@@ -207,7 +217,7 @@ def de_nghi_xuat_giay(db: Session, *, user, gcn_id: int, expected_version: int |
         req = req_svc.create(
             user=user, loai=REQ_XUAT, lines=lines, commit=False,
             bo_phan_id=user.department_id, gia_cong_ngoai_id=gcn.id,
-            ghi_chu=f"Cấp giấy cho nhà gia công {gcn.nha_cung_cap_ten} — lệnh {lsx.ma}"[:1000],
+            ghi_chu=f"Cấp giấy gia công trọn gói — {gcn.nha_cung_cap_ten} — lệnh {lsx.ma}"[:1000],
         )
     except StockRequestError as e:
         db.rollback()

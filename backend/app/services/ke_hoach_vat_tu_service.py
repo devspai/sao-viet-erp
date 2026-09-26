@@ -952,7 +952,7 @@ class KeHoachVatTuService:
                 cd, l = buoc_map[vt.lsx_cong_doan_id]
                 if cd.step_key in bi_buoc_chung_de or _f(vt.so_luong) <= 0:
                     continue
-                if l.id in tron_goi and not (tron_goi[l.id] and vt.hang_loai == "giay"):
+                if l.id in tron_goi and not (tron_goi[l.id] and vt.hang_loai == HANG_GIAY):
                     continue
                 tho.append(
                     # `vt.hang_loai` chứ không đóng đinh `"vat_tu"`: từ 08/09/2026 dòng của bước
