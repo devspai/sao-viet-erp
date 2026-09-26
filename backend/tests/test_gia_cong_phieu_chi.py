@@ -82,13 +82,13 @@ def test_hang_cho_chi_co_lan_da_chot(client, h, lan_da_chot):
     assert client.get("/api/accounting/gia-cong-cho-chi/dem", headers=h).json() == {"so": 1}
 
 
-def test_hang_cho_chi_an_gia_khi_thieu_view_cost(client, h_khong_xem_gia, lan_da_chot):
+def test_hang_cho_chi_hien_gia_du_thieu_view_cost(client, h_khong_xem_gia, lan_da_chot):
     r = client.get("/api/accounting/gia-cong-cho-chi", headers=h_khong_xem_gia)
     assert r.status_code == 200, r.text
     (d,) = r.json()
     assert d["gia_cong_ngoai_id"] == lan_da_chot.id
-    assert d["don_gia"] is None and d["thanh_tien"] is None
-    # SL/tên/mã lệnh KHÔNG phải tiền → vẫn hiện dù thiếu view_cost.
+    # Chủ chốt 27/09/2026: tiền gia công KHÔNG gác view_cost.
+    assert d["thanh_tien"] == 825_000
     assert d["sl_cuoi"] == 1650 and d["nha_cung_cap_ten"] == "Cán màng Minh Long"
 
 

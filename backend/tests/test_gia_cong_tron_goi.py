@@ -40,7 +40,7 @@ def test_dat_tron_goi_phat_hanh_mot_cong_viec_khong_to(sess, admin, lenh):
     assert cv.la_kcs_cuoi and cv.loai_buoc == BUOC_THUE_NGOAI
     assert float(cv.so_luong_ra) == 20_000 and cv.don_vi_ra == lan.don_vi
     assert sess.query(XepLichLenh).filter_by(lsx_id=lenh.id).count() == 0
-    (d,) = lan_cua_lenh(sess, lenh.id, xem_tien=True)
+    (d,) = lan_cua_lenh(sess, lenh.id)
     assert d["trang_thai"] == TT_DANG_GIA_CONG and d["xuat_giay"] is None
 
 
@@ -68,7 +68,7 @@ def test_huy_tron_goi_ve_nhap_thu_hoi_goi(sess, admin, lenh):
     assert lenh.trang_thai == TT_NHAP and lan.ly_do_huy == "Khách đổi mẫu"
     goi_id = sess.query(SanXuatCongViec).filter_by(lsx_id=lenh.id).one().goi_id
     assert sess.get(SanXuatGoiPhatHanh, goi_id).trang_thai == GOI_DA_THU_HOI
-    (d,) = lan_cua_lenh(sess, lenh.id, xem_tien=True)
+    (d,) = lan_cua_lenh(sess, lenh.id)
     assert d["trang_thai"] == TT_DA_HUY
 
 
@@ -79,7 +79,7 @@ def test_xuong_cap_giay_lap_de_nghi_xuat_mot_lan(sess, admin, lenh):
     req = sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id, loai=REQ_XUAT).one()
     (ln,) = req.lines
     assert ln.hang_loai == "giay" and float(ln.sl_de_nghi) > 0 and ln.lsx_id == lenh.id
-    (d,) = lan_cua_lenh(sess, lenh.id, xem_tien=True)
+    (d,) = lan_cua_lenh(sess, lenh.id)
     assert d["xuat_giay"]["ma"] == req.ma
     sess.refresh(lan)
     with pytest.raises(ValueError, match="đã có đề nghị"):

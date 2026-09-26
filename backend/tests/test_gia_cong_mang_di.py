@@ -38,7 +38,7 @@ def test_mang_di_nhan_ban_giao_va_ghi_so_gui(sess, admin, lenh):
     bg = sess.query(SanXuatBanGiao).one()
     assert bg.trang_thai == BG_XAC_NHAN and bg.xac_nhan_by_id == admin.id
     assert kq["ban_giao"][0]["su_kien"] == "xac_nhan"
-    (d,) = lan_cua_lenh(sess, lenh, xem_tien=True)
+    (d,) = lan_cua_lenh(sess, lenh)
     assert d["trang_thai"] == TT_DANG_O_NGOAI and d["sl_cho_mang_di"] == 0
     assert [x["viec"] for x in d["lich_su"]][0] == "Mang hàng đi gia công ngoài"
 

@@ -270,7 +270,7 @@ def _goi_y_chot(gcn, dau, cuoi) -> float | None:
     return float(round(float(gcn.sl_gui) * ra / vao))
 
 
-def lan_dict(db: Session, gcn, *, xem_tien: bool, _cache: dict | None = None) -> dict:
+def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
     repo = GiaCongNgoaiRepository(db)
     sl_repo = SanXuatSanLuongRepository(db)
     cvs = repo.cong_viec_cua(gcn.id)
@@ -282,13 +282,13 @@ def lan_dict(db: Session, gcn, *, xem_tien: bool, _cache: dict | None = None) ->
     pc = repo.phieu_chi_song([gcn.id]).get(gcn.id)
     lsx = SanXuatRepository(db).lsx(gcn.lsx_id)
     tien = (round(float(gcn.sl_cuoi) * float(gcn.don_gia), 0)
-            if xem_tien and gcn.sl_cuoi is not None and gcn.don_gia is not None else None)
+            if gcn.sl_cuoi is not None and gcn.don_gia is not None else None)
     return {
         "id": gcn.id, "lsx_id": gcn.lsx_id, "lsx_ma": lsx.ma if lsx else "",
         "kieu": gcn.kieu, "trang_thai": trang_thai(gcn),
         "nha_cung_cap_id": gcn.nha_cung_cap_id, "nha_cung_cap_ten": gcn.nha_cung_cap_ten,
         "ten_viec": gcn.ten_viec, "don_vi": gcn.don_vi,
-        "don_gia": _f(gcn.don_gia) if xem_tien else None,
+        "don_gia": _f(gcn.don_gia),
         "thanh_tien": tien,
         "sl_dat": _f(gcn.sl_dat), "xuong_cap_giay": bool(gcn.xuong_cap_giay),
         "don_vi_gui": dau.don_vi_vao if dau is not None else None,
@@ -317,5 +317,5 @@ def lan_dict(db: Session, gcn, *, xem_tien: bool, _cache: dict | None = None) ->
     }
 
 
-def lan_cua_lenh(db: Session, lsx_id: int, *, xem_tien: bool) -> list[dict]:
-    return [lan_dict(db, g, xem_tien=xem_tien) for g in GiaCongNgoaiRepository(db).cua_lenh(lsx_id)]
+def lan_cua_lenh(db: Session, lsx_id: int) -> list[dict]:
+    return [lan_dict(db, g) for g in GiaCongNgoaiRepository(db).cua_lenh(lsx_id)]

@@ -789,11 +789,11 @@ def list_payment_vouchers(
 @router.get("/api/accounting/gia-cong-cho-chi", response_model=list[GiaCongChoChiOut])
 def gia_cong_cho_chi(
     db: Annotated[Session, Depends(get_db)],
-    authz: Annotated[AuthorizationService, Depends(get_authorization_service)],
     user: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
 ):
-    """Lần gia công ngoài đã chốt số, chưa có phiếu chi (spec gia công ngoài §5)."""
-    return gc_cho_chi.hang_cho_chi(db, xem_tien=authz.can(user, "kho", "view_cost"))
+    """Lần gia công ngoài đã chốt số, chưa có phiếu chi (spec gia công ngoài §5). Tiền gia
+    công hiện cho mọi người xem được màn — chủ chốt 27/09/2026, KHÔNG gác `kho:view_cost`."""
+    return gc_cho_chi.hang_cho_chi(db)
 
 
 @router.get("/api/accounting/gia-cong-cho-chi/dem", response_model=GiaCongChoChiDemOut)

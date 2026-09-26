@@ -71,11 +71,6 @@ def _gac_lan(db: Session, authz: AuthorizationService, user: User, gcn_id: int) 
     _gac_lenh(db, authz, user, gcn.lsx_id)
 
 
-def _xem_tien(authz: AuthorizationService, user: User) -> bool:
-    """Tiền của lần gia công đi qua CÙNG cổng với mọi số tiền khác (`kho:view_cost`)."""
-    return authz.can(user, "kho", "view_cost")
-
-
 @router.get("/lenh/{lsx_id}", response_model=list[GiaCongNgoaiOut])
 def cua_lenh(
     lsx_id: int,
@@ -84,7 +79,7 @@ def cua_lenh(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> list[dict]:
     _gac_lenh(db, authz, user, lsx_id)
-    return lan_cua_lenh(db, lsx_id, xem_tien=_xem_tien(authz, user))
+    return lan_cua_lenh(db, lsx_id)
 
 
 def _phat_doi(lsx_id: int) -> None:
@@ -94,7 +89,7 @@ def _phat_doi(lsx_id: int) -> None:
 
 def _ra(db: Session, authz: AuthorizationService, user: User, gcn_id: int) -> dict:
     gcn = GiaCongNgoaiRepository(db).get(gcn_id)
-    return lan_dict(db, gcn, xem_tien=_xem_tien(authz, user))
+    return lan_dict(db, gcn)
 
 
 @router.post("/{gcn_id}/mang-di", response_model=GiaCongNgoaiOut)

@@ -120,12 +120,10 @@ hai lần.
 
 - **Ai bấm Mang đi / Chốt / Gia công trọn gói / Đề nghị xuất giấy:** ai có quyền sửa lệnh
   (`san_xuat:update`). Không thêm vai, không thêm bit.
-- **Tiền:** đơn giá và tiền trên lần gia công đi qua cổng quyền xem tiền ở máy chủ như mọi số tiền
-  khác ⇒ vai Kế hoạch phải được cấp quyền xem tiền, không thì chính người nhập giá không thấy giá.
-  **CHỜ CHỦ DUYỆT:** cấp `kho.can_view_cost` cho vai Kế hoạch SX là mở rộng thẩm quyền (ô này gác
-  MỌI số tiền giá vốn, không riêng gia công). Plan tách thành Task 11, mặc định KHÔNG làm; chưa
-  duyệt thì người kế hoạch vẫn gõ được đơn giá ở bước / hộp trọn gói, chỉ khối Gia công ngoài ẩn
-  Đơn giá và Thành tiền với họ.
+- **Tiền:** chủ chốt 27/09/2026 — đơn giá và tiền gia công ngoài HIỆN cho mọi người xem được màn
+  (khối Gia công ngoài trên lệnh, bước thuê ngoài, hàng "Gia công chờ chi"), KHÔNG gác
+  `kho:view_cost`. Ngoại lệ riêng của gia công; các số tiền giá vốn khác vẫn gác như cũ. Task 11
+  (cấp `kho.can_view_cost` cho Kế hoạch SX) vì vậy BỎ.
 - **Thông báo tức thì (đẩy SSE):**
   - tới người có quyền sửa lệnh khi bước trước bàn giao sang dải thuê ngoài ("chờ mang đi") —
     toast; badge Kế hoạch SX vẫn là hàng chờ đơn, không trộn thêm;

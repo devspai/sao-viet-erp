@@ -44,7 +44,7 @@ def test_chot_ve_xuong_ghi_me_hoan_thanh_va_de_xuat_ban_giao(sess, admin, da_man
     assert bg.trang_thai == BG_DE_XUAT and float(bg.so_luong) == 1650
     assert bg.dich_cong_viec_id == cv_ten(sess, lsx_id, "Đóng gói").id
     assert kq["ban_giao"]["su_kien"] == "de_xuat"
-    (d,) = lan_cua_lenh(sess, lsx_id, xem_tien=True)
+    (d,) = lan_cua_lenh(sess, lsx_id)
     assert d["trang_thai"] == TT_DA_XONG and d["thanh_tien"] == 1650 * 500
 
 
@@ -87,7 +87,7 @@ def test_mo_lai_go_sach_roi_chot_lai(sess, admin, da_mang_di):
     assert be.trang_thai == CV_PHAT_HANH and be.hoan_thanh_luc is None
     assert sess.query(SanXuatBatch).filter_by(cong_viec_id=be.id).count() == 0
     assert sess.query(SanXuatBanGiao).filter_by(nguon_cong_viec_id=be.id).count() == 0
-    (d,) = lan_cua_lenh(sess, lsx_id, xem_tien=True)
+    (d,) = lan_cua_lenh(sess, lsx_id)
     assert d["trang_thai"] == TT_DANG_O_NGOAI
     chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
          sl_cuoi=1650, noi_ve=NOI_VE_XUONG)

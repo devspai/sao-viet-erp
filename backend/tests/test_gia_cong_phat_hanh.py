@@ -50,15 +50,13 @@ def test_khac_nha_hoac_chen_buoc_noi_bo_la_hai_lan(sess, orders, lsx_svc, admin,
     assert [l.ten_viec for l in _lan(sess, lsx_id)] == ["Cán màng", "Bế", "Ép kim"]
 
 
-def test_doc_khoi_lan_an_tien_khi_khong_co_quyen(sess, orders, lsx_svc, admin, customer):
+def test_doc_khoi_lan_hien_tien(sess, orders, lsx_svc, admin, customer):
     lsx_id = dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, buoc=[
         ("In", "may", None, 1000, "to"),
         ("Cán màng", "thue_ngoai", ncc(sess), 1000, "to"),
     ])
-    (co,) = lan_cua_lenh(sess, lsx_id, xem_tien=True)
-    (khong,) = lan_cua_lenh(sess, lsx_id, xem_tien=False)
+    (co,) = lan_cua_lenh(sess, lsx_id)
     assert co["trang_thai"] == TT_CHO_MANG_DI and co["don_gia"] == 500
-    assert khong["don_gia"] is None and khong["thanh_tien"] is None
     assert co["co_buoc_truoc"] is True and co["chang_sau"] == []
 
 
