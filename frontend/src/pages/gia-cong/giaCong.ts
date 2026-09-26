@@ -95,7 +95,7 @@ export function nutCuaLan(l: GiaCongNgoaiLan): NutLan {
 
 /** Giá trị điền sẵn của mini-form Chốt — "hai click" (spec §7). */
 export function goiYChot(l: GiaCongNgoaiLan): { sl: string; noiVe: GiaCongNoiVe | null; dich: number | null } {
-  const sl = l.sl_gui ?? l.sl_dat;
+  const sl = l.sl_goi_y_chot ?? l.sl_gui ?? l.sl_dat;
   return {
     sl: sl != null ? String(sl) : "",
     noiVe: l.noi_ve_hop_le[0] ?? null,

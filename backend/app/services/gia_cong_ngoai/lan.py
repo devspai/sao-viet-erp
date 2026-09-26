@@ -257,6 +257,19 @@ def noi_ve_hop_le(db: Session, gcn, chang_sau: list) -> list[str]:
     return [NOI_VE_KHO, NOI_VE_KHACH] if dong_don_dung_rieng(db, gcn.lsx_id) else [NOI_VE_KHO]
 
 
+def _goi_y_chot(gcn, dau, cuoi) -> float | None:
+    """Số điền sẵn khi chốt, theo ĐƠN VỊ CỦA LẦN (đầu ra bước cuối). Hàng gửi đi tính theo đầu vào
+    bước đầu (vd tờ) còn chốt tính theo đầu ra bước cuối (vd con) — quy qua tỉ lệ ra/vào kế hoạch
+    của chính dải, không điền thẳng số tờ vào ô con. Trọn gói lấy số đặt."""
+    if gcn.sl_gui is None:
+        return _f(gcn.sl_dat)
+    vao = float(dau.so_luong_vao or 0) if dau is not None else 0
+    ra = float(cuoi.so_luong_ra or 0) if cuoi is not None else 0
+    if vao <= 0 or ra <= 0:
+        return _f(gcn.sl_gui)
+    return float(round(float(gcn.sl_gui) * ra / vao))
+
+
 def lan_dict(db: Session, gcn, *, xem_tien: bool, _cache: dict | None = None) -> dict:
     repo = GiaCongNgoaiRepository(db)
     sl_repo = SanXuatSanLuongRepository(db)
@@ -283,6 +296,7 @@ def lan_dict(db: Session, gcn, *, xem_tien: bool, _cache: dict | None = None) ->
         "co_buoc_truoc": repo.co_buoc_truoc(dau.lsx_cong_doan_id) if dau is not None else False,
         "mang_di_boi_ten": ten.get(gcn.mang_di_boi_id), "mang_di_luc": thuc_te_hien_thi(gcn.mang_di_luc),
         "sl_gui": _f(gcn.sl_gui),
+        "sl_goi_y_chot": _goi_y_chot(gcn, dau, cuoi),
         "chot_boi_ten": ten.get(gcn.chot_boi_id), "chot_luc": thuc_te_hien_thi(gcn.chot_luc),
         "sl_cuoi": _f(gcn.sl_cuoi), "noi_ve": gcn.noi_ve,
         "noi_ve_hop_le": noi_ve_hop_le(db, gcn, chang_sau if gcn.kieu == KIEU_MOT_PHAN else []),

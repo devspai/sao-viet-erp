@@ -97,6 +97,9 @@ describe("nutCuaLan", () => {
 });
 
 describe("goiYChot", () => {
+  it("ưu tiên số máy chủ đã quy tờ → con", () => {
+    expect(goiYChot(lan({ trang_thai: "dang_o_ngoai", sl_gui: 1660, sl_goi_y_chot: 3320 })).sl).toBe("3320");
+  });
   it("điền sẵn số đã gửi, nơi về đầu tiên, bước sau duy nhất", () => {
     expect(goiYChot(lan({ trang_thai: "dang_o_ngoai", sl_gui: 1660 }))).toEqual({
       sl: "1660", noiVe: "xuong", dich: 31,

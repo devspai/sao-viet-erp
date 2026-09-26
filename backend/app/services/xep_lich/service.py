@@ -1043,11 +1043,13 @@ class XepLichLenhService:
         return {
             "id": cd.id, "thu_tu": int(cd.thu_tu or 0), "ten": cd.ten,
             "loai_buoc": cd.loai_buoc,
-            "may_id": tin.get("may_id"),
-            "may_ten": tin.get("may_ten"),
-            "may_nguon": tin.get("may_nguon"),
-            "may_ke_hoach_ten": tin.get("may_ke_hoach_ten"),
-            "to_ten": self._ten_to(cd.department_id),
+            # Bước thuê ngoài không chạy máy xưởng: bỏ máy (kể cả máy công việc cũ còn sót), chỗ
+            # tên tổ in tên nhà gia công để popup không báo "Chưa gán máy" hay một máy nhầm.
+            "may_id": None if ngoai else tin.get("may_id"),
+            "may_ten": None if ngoai else tin.get("may_ten"),
+            "may_nguon": None if ngoai else tin.get("may_nguon"),
+            "may_ke_hoach_ten": None if ngoai else tin.get("may_ke_hoach_ten"),
+            "to_ten": (cd.nha_cung_cap or "Nhà gia công") if ngoai else self._ten_to(cd.department_id),
             "so_luong_vao": sl if sl > 0 else None,
             "don_vi_vao": dv,
             "don_vi_vao_ten": ten_dv.get(dv) if dv else None,

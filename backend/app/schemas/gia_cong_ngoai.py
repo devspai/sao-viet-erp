@@ -86,6 +86,7 @@ class GiaCongNgoaiOut(BaseModel):
     mang_di_boi_ten: str | None = None
     mang_di_luc: datetime | None = None
     sl_gui: float | None = None
+    sl_goi_y_chot: float | None = None
     chot_boi_ten: str | None = None
     chot_luc: datetime | None = None
     sl_cuoi: float | None = None

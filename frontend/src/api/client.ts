@@ -6433,6 +6433,8 @@ export interface GiaCongNgoaiLan {
   mang_di_boi_ten: string | null;
   mang_di_luc: string | null;
   sl_gui: number | null;
+  /** Số điền sẵn khi chốt, máy chủ đã quy về đơn vị của lần (vd tờ gửi đi → con nhận về). */
+  sl_goi_y_chot?: number | null;
   chot_boi_ten: string | null;
   chot_luc: string | null;
   sl_cuoi: number | null;
