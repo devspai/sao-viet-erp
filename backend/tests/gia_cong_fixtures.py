@@ -136,3 +136,42 @@ def nguoi_ke_hoach(sess, username: str = "kehoach_gc") -> User:
     sess.add(u)
     sess.commit()
     return u
+
+
+from app.models.lsx import LsxCongDoanVatTu
+from app.models.vat_lieu_kho import GiayNguyen
+
+
+def them_giay(sess, lsx, *, so_luong: float = 0.5, don_vi: str = "tan") -> LsxCongDoanVatTu:
+    """Một dòng GIẤY (Ivory 350 của `_ptg_2_in`) trên bước ĐẦU của lệnh — thay mọi dòng giấy cũ.
+
+    Khai theo đơn vị gốc của giấy ("tan") để khỏi phụ thuộc quy cách tờ ↔ tấn trong test."""
+    giay = sess.query(GiayNguyen).filter(GiayNguyen.ma == "G-IV350X").one()
+    buoc = sorted(lsx.cong_doans, key=lambda c: c.thu_tu)[0]
+    for vt in list(buoc.vat_tus):
+        if vt.hang_loai == "giay":
+            sess.delete(vt)
+    sess.flush()
+    vt = LsxCongDoanVatTu(
+        lsx_cong_doan_id=buoc.id, hang_loai="giay", vat_tu_id=giay.id,
+        vat_tu_ma_snapshot=giay.ma, vat_tu_ten_snapshot=giay.ten, don_vi_snapshot=don_vi,
+        so_luong=so_luong,
+    )
+    sess.add(vt)
+    sess.commit()
+    return vt
+
+
+def kh_vt(sess):
+    """KeHoachVatTuService dựng đúng dây của cửa phát hành (`xep_lich/release._giu_cho_service`)."""
+    from app.services.xep_lich.release import _giu_cho_service
+
+    return _giu_cho_service(sess).kh
+
+
+def hang_can_cua(sess, lsx_id: int) -> set[tuple[str, int]]:
+    """Mặt hàng mà bảng cân đối đang tính nhu cầu cho lệnh này."""
+    bang = kh_vt(sess).can_doi(chi_lsx_ids={lsx_id})
+    return {(n["hang_loai"], n["hang_id"]) for n in bang["items"]
+            if n.get("loai_nhom") == "vat_tu"
+            for d in n.get("dong", []) if d.get("lsx_id") == lsx_id}

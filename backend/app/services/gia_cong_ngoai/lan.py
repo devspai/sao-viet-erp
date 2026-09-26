@@ -297,6 +297,8 @@ def lan_dict(db: Session, gcn, *, xem_tien: bool, _cache: dict | None = None) ->
              "viec": tra(a.action).nhan, "chi_tiet": a.detail or ""}
             for a in AuditLogRepository(db).list_by_target(f"gia_cong_ngoai:{gcn.id}", limit=50)
         ],
+        "xuat_giay": next(({"id": r.id, "ma": r.ma, "trang_thai": r.trang_thai}
+                           for r in repo.yeu_cau_xuat_cua(gcn.id)), None),
         "version": gcn.version,
     }
 

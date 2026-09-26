@@ -22,6 +22,28 @@ class MoLaiIn(BaseModel):
     version: int
 
 
+class TronGoiIn(BaseModel):
+    nha_cung_cap_id: int = Field(gt=0)
+    sl_dat: float = Field(gt=0)
+    don_gia: float | None = Field(default=None, ge=0)
+    xuong_cap_giay: bool = False
+
+
+class HuyTronGoiIn(BaseModel):
+    version: int
+    ly_do: str = Field(min_length=3, max_length=500)
+
+
+class XuatGiayIn(BaseModel):
+    version: int
+
+
+class XuatGiayOut(BaseModel):
+    id: int
+    ma: str
+    trang_thai: str
+
+
 class NhaGiaCongOut(BaseModel):
     id: int
     ten: str
@@ -75,4 +97,5 @@ class GiaCongNgoaiOut(BaseModel):
     ly_do_huy: str | None = None
     phieu_chi: PhieuChiNganOut | None = None
     lich_su: list[LichSuOut] = []
+    xuat_giay: XuatGiayOut | None = None
     version: int

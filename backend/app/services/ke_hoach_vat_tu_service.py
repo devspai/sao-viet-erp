@@ -942,10 +942,17 @@ class KeHoachVatTuService:
         # --- vật tư khai tay ở bước lệnh ------------------------------------
         buoc_map = {cd.id: (cd, l) for l in lenh for cd in l.cong_doans}
         bi_buoc_chung_de = self.repo.step_keys_bi_buoc_chung_de({bg.id for bg in bais})
+        # Lệnh gia công TRỌN GÓI (spec gia công ngoài §4): nhà gia công lo vật tư. Xưởng cấp giấy
+        # thì chỉ GIẤY còn là nhu cầu của xưởng; không thì lệnh không cần gì từ kho.
+        from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+
+        tron_goi = GiaCongNgoaiRepository(self.db).tron_goi_dang_chay({l.id for l in lenh})
         if buoc_map:
             for vt in self.repo.vat_tu_theo_buoc_lenh(list(buoc_map)):
                 cd, l = buoc_map[vt.lsx_cong_doan_id]
                 if cd.step_key in bi_buoc_chung_de or _f(vt.so_luong) <= 0:
+                    continue
+                if l.id in tron_goi and not (tron_goi[l.id] and vt.hang_loai == "giay"):
                     continue
                 tho.append(
                     # `vt.hang_loai` chứ không đóng đinh `"vat_tu"`: từ 08/09/2026 dòng của bước

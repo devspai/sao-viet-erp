@@ -15,9 +15,11 @@ from ..deps import get_authorization_service, require_permission
 from ..models.user import User
 from ..realtime import hub, phat_ban_giao, phat_dong_nhom
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
-from ..schemas.gia_cong_ngoai import ChotIn, GiaCongNgoaiOut, MangDiIn, MoLaiIn, NhaGiaCongOut
+from ..schemas.gia_cong_ngoai import (
+    ChotIn, GiaCongNgoaiOut, HuyTronGoiIn, MangDiIn, MoLaiIn, NhaGiaCongOut, TronGoiIn, XuatGiayIn,
+)
 from ..services.gia_cong_ngoai import chot as chot_svc
-from ..services.gia_cong_ngoai import mot_phan
+from ..services.gia_cong_ngoai import mot_phan, tron_goi
 from ..services.gia_cong_ngoai.lan import lan_cua_lenh, lan_dict
 from ..services.rbac_service import AuthorizationService
 
@@ -137,4 +139,47 @@ def mo_lai(
     # Bàn tổ của bước sau / màn KCS / kho vừa mất một bàn giao hoặc đề nghị — bump chung.
     hub.broadcast({"type": "san_xuat_cong_viec_changed", "lsx_id": res["lsx_id"]})
     _phat_doi(res["lsx_id"])
+    return _ra(db, authz, user, gcn_id)
+
+
+@router.post("/lenh/{lsx_id}/tron-goi", response_model=GiaCongNgoaiOut)
+def dat_tron_goi(
+    lsx_id: int,
+    body: TronGoiIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    kq = _chay(lambda: tron_goi.dat_tron_goi(
+        db, user=user, lsx_id=lsx_id, nha_cung_cap_id=body.nha_cung_cap_id, sl_dat=body.sl_dat,
+        don_gia=body.don_gia, xuong_cap_giay=body.xuong_cap_giay))
+    _phat_doi(lsx_id)
+    return _ra(db, authz, user, kq["gia_cong_ngoai_id"])
+
+
+@router.post("/{gcn_id}/huy-tron-goi", response_model=GiaCongNgoaiOut)
+def huy_tron_goi(
+    gcn_id: int,
+    body: HuyTronGoiIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    kq = _chay(lambda: tron_goi.huy_tron_goi(db, user=user, gcn_id=gcn_id,
+                                              expected_version=body.version, ly_do=body.ly_do))
+    _phat_doi(kq["lsx_id"])
+    return _ra(db, authz, user, gcn_id)
+
+
+@router.post("/{gcn_id}/xuat-giay", response_model=GiaCongNgoaiOut)
+def xuat_giay(
+    gcn_id: int,
+    body: XuatGiayIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    _chay(lambda: tron_goi.de_nghi_xuat_giay(db, user=user, gcn_id=gcn_id,
+                                              expected_version=body.version))
+    _phat_doi(GiaCongNgoaiRepository(db).get(gcn_id).lsx_id)
     return _ra(db, authz, user, gcn_id)

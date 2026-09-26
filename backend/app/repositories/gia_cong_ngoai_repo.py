@@ -6,14 +6,15 @@ from sqlalchemy.orm import Session
 
 from ..models.accounting import PAYMENT_VOUCHER_CANCELLED, PaymentVoucher
 from ..models.delivery import LG_DA_HUY, DeliveryTrip
-from ..models.gia_cong_ngoai import GiaCongNgoai
-from ..models.lsx import LsxCongDoan, LsxCongDoanPhuThuoc
+from ..models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
+from ..models.lsx import LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
 from ..models.purchase import SUPPLIER_ACTIVE, Supplier
 from ..models.role import RolePermission
 from ..models.san_xuat import SanXuatCongViec
 from ..models.san_xuat_san_luong import BG_DE_XUAT, SanXuatBanGiao
 from ..models.stock_request import REQ_CANCELLED, REQ_NHAP, REQ_XUAT, StockRequest
 from ..models.user import User
+from ..models.vat_lieu_kho import HANG_GIAY
 
 
 class GiaCongNgoaiRepository:
@@ -167,3 +168,22 @@ class GiaCongNgoaiRepository:
     def chuyen_giao_thang_cua(self, gcn_id: int) -> list[DeliveryTrip]:
         return list(self.db.scalars(select(DeliveryTrip).where(
             DeliveryTrip.gia_cong_ngoai_id == gcn_id, DeliveryTrip.trang_thai != LG_DA_HUY)))
+
+    # --- Trọn gói (Task 9) -----------------------------------------------------------------
+    def tron_goi_dang_chay(self, lsx_ids) -> dict[int, bool]:
+        """`{lsx_id: xuong_cap_giay}` của lệnh đang gia công TRỌN GÓI (lần chưa huỷ)."""
+        ids = [int(i) for i in lsx_ids if i]
+        if not ids:
+            return {}
+        return {lsx_id: bool(cap) for lsx_id, cap in self.db.execute(
+            select(GiaCongNgoai.lsx_id, GiaCongNgoai.xuong_cap_giay).where(
+                GiaCongNgoai.lsx_id.in_(ids), GiaCongNgoai.kieu == KIEU_TRON_GOI,
+                GiaCongNgoai.huy_luc.is_(None)))}
+
+    def giay_cua_lenh(self, lsx_id: int) -> list[LsxCongDoanVatTu]:
+        """Dòng GIẤY khai ở các bước của lệnh — nguồn đề nghị xuất giấy cho nhà gia công."""
+        return list(self.db.scalars(
+            select(LsxCongDoanVatTu).join(LsxCongDoan, LsxCongDoan.id == LsxCongDoanVatTu.lsx_cong_doan_id)
+            .where(LsxCongDoan.lsx_id == lsx_id, LsxCongDoanVatTu.hang_loai == HANG_GIAY,
+                   LsxCongDoanVatTu.so_luong > 0)
+            .order_by(LsxCongDoan.thu_tu, LsxCongDoanVatTu.id)))
