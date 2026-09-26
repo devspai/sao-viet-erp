@@ -185,8 +185,9 @@ class LsxCongDoanIn(BaseModel):
     # Hai ô gõ được ở tab Thời gian. `setup_phut` · `chay_phut` · `di_chuyen_phut` vẫn BỎ khỏi
     # input: chuẩn bị + tốc độ kế thừa SỐNG từ module Máy, người kế hoạch không sửa tại bước.
     phat_sinh_phut: float | None = Field(default=None, ge=0)
-    # Gia công ngoài (§8)
-    nha_cung_cap: str | None = None
+    # Gia công ngoài (spec 2026-09-26): nhà gia công = NCC có tích "Nhận gia công". Chỉ gửi ID —
+    # tên (`nha_cung_cap`) do máy chủ ghi theo NCC đã chọn, client không gửi chữ.
+    nha_cung_cap_id: int | None = None
     sl_gui: float | None = Field(default=None, ge=0)
     ngay_gui_dk: date | None = None
     van_chuyen_ngay: float | None = Field(default=None, ge=0)
@@ -268,6 +269,7 @@ class LsxCongDoanOut(BaseModel):
     tong_phut: float = 0
     thoi_luong_dien_giai: dict = Field(default_factory=dict)
 
+    nha_cung_cap_id: int | None = None
     nha_cung_cap: str | None = None
     sl_gui: float | None = None
     ngay_gui_dk: date | None = None

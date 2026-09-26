@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests.conftest import phien_da_seed
+from tests.gia_cong_fixtures import ncc
 
 from app.db import engine
 from app.db_migrations import run_migrations
@@ -2382,21 +2383,21 @@ def test_doi_giay_tai_lenh_keo_theo_dinh_luong_va_ten(db, orders, lsx_svc, admin
 # `test_thieu_NGUON_he_so_moi_chan_chu_khong_phai_he_so_bang_1` phía trên giữ.
 
 
-def test_thue_ngoai_doi_to_may_y_het_buoc_may(db, orders, lsx_svc, admin, customer):
-    """Bước THUÊ NGOÀI không còn cổng riêng (NCC · ngày gửi/nhận).
+def test_thue_ngoai_doi_nha_gia_cong_tu_danh_muc(db, orders, lsx_svc, admin, customer):
+    """Bước THUÊ NGOÀI không đi đường máy nữa (spec gia công ngoài 2026-09-26 §7).
 
-    Nhà thầu được khai như một MÁY trong danh mục (tên kèm hậu tố "thuê ngoài – <nhà in>"), nên
-    cổng phát hành đòi đúng một thứ như bước máy: đã gán tổ hoặc máy chưa.
+    Nhà gia công chọn từ danh mục Nhà cung cấp (cờ `nhan_gia_cong`) — không tổ, không máy. Cổng
+    phát hành đòi `nha_cung_cap_id`, KHÔNG còn đòi tổ/máy như bước máy.
+
+    (Trước 26/09/2026 bước này "ăn chung đường" bước máy — nhà thầu khai như một MÁY giả trong
+    danh mục Máy; hành vi đó đã đổi hẳn, xem `docs/superpowers/specs/2026-09-26-gia-cong-ngoai-design.md`.)
     """
+    s = ncc(db)
     ptg = _ptg_2_san_pham(db)
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
     hop = lsx_svc.tao(order_id=d.id, order_line_ids=ids[:1], actor=admin)[0]
     to_id = _to_san_xuat(db).id
-    may_ngoai = MayThietBi(ma="MAY-TN-1", ten="Máy cán (thuê ngoài – Cơ sở Tân Bình)",
-                           loai_may="thue_ngoai", toc_do=4000, don_vi_toc_do="to_gio")
-    db.add(may_ngoai)
-    db.flush()
 
     def dat_routing(**ngoai) -> list[str]:
         lsx_svc.replace_routing(lsx_id=hop.id, actor=admin, rows_in=[
@@ -2407,17 +2408,21 @@ def test_thue_ngoai_doi_to_may_y_het_buoc_may(db, orders, lsx_svc, admin, custom
         ])
         return lsx_svc.thieu_cua(lsx_svc.get(hop.id))
 
-    # Chưa gán gì → chặn Y NHƯ bước máy trắng, và KHÔNG còn hai mã cũ.
+    # Chưa chọn nhà gia công → chặn bằng mã mới, KHÔNG đòi tổ/máy cho bước thuê ngoài.
     thieu = dat_routing()
-    assert "thieu_to_may" in thieu
-    assert "thieu_ncc" not in thieu and "thieu_tg_thue_ngoai" not in thieu
+    assert "thieu_nha_gia_cong" in thieu
+    assert "thieu_to_may" not in thieu
 
-    # Chọn máy của nhà thầu → hết thiếu, dù không khai NCC/ngày gửi–nhận nào.
-    assert "thieu_to_may" not in dat_routing(may_id=may_ngoai.id)
+    # Chọn nhà gia công từ danh mục → hết thiếu.
+    assert "thieu_nha_gia_cong" not in dat_routing(nha_cung_cap_id=s.id)
 
 
 def test_replace_routing_giu_nguyen_khoi_thue_ngoai(db, orders, lsx_svc, admin, customer):
-    """REPLACE-ALL không được làm rơi dữ liệu người dùng vừa khai ở drawer."""
+    """REPLACE-ALL không được làm rơi dữ liệu người dùng vừa khai ở drawer.
+
+    26/09/2026: client thôi gửi `nha_cung_cap` (chữ) — chỉ gửi `nha_cung_cap_id`, tên do server
+    ghi theo NCC đã chọn từ danh mục (spec gia công ngoài §7)."""
+    s = ncc(db, "Cơ sở Tân Bình")
     ptg = _ptg_2_san_pham(db)
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
@@ -2427,7 +2432,7 @@ def test_replace_routing_giu_nguyen_khoi_thue_ngoai(db, orders, lsx_svc, admin, 
         LsxCongDoanIn(
             ten="Cán màng", nhom="finishing", loai_buoc="thue_ngoai",
             so_luong_vao=5300, so_luong_ra=5250, don_vi_vao="to",
-            nha_cung_cap="Cơ sở Tân Bình", sl_gui=5300,
+            nha_cung_cap_id=s.id, sl_gui=5300,
             ngay_gui_dk=date.today(), ngay_nhan_dk=date.today() + timedelta(days=3),
             van_chuyen_ngay=1, gia_cong_ngay=1, hao_hut_cho_phep=50, don_gia_gia_cong=450,
             yeu_cau_ky_thuat="Màng mờ, không bong mép",
@@ -2440,7 +2445,7 @@ def test_replace_routing_giu_nguyen_khoi_thue_ngoai(db, orders, lsx_svc, admin, 
     assert not hasattr(cd, "dieu_kien_json")
     # `di_chuyen_phut` đã rời hợp đồng lưu routing (2026-08-04) — cột còn trong DB nhưng client
     # không gửi được nữa, nên nó KHÔNG sống sót qua vòng lưu. Khối thuê ngoài
-    # (nhà cung cấp · ngày gửi/nhận · đơn giá · yêu cầu kỹ thuật) mới là thứ phải giữ.
+    # (nhà gia công · ngày gửi/nhận · đơn giá · yêu cầu kỹ thuật) mới là thứ phải giữ.
     # `bat_buoc` cũng rời hợp đồng lưu routing (07/09/2026): mọi bước đều bắt buộc, server giữ
     # TRUE nên client có gửi `false` cũng không ghi được (mg 0275 backfill dòng cũ).
     assert cd.bat_buoc is True
