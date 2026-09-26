@@ -466,6 +466,14 @@ export function AppShell() {
         })
         .catch(() => {});
     }
+    // Badge Phiếu chi: số lần GIA CÔNG NGOÀI đã chốt mà chưa lập phiếu chi (spec 2026-09-26 §6).
+    // Treo ở mục Phiếu chi, KHÔNG dùng kênh `ke_toan` — kênh đó gắn màn Đơn mua hàng.
+    if (readable.has("phieu_chi")) {
+      api.giaCongNgoai
+        .demChoChi(token)
+        .then((r) => setBadges((prev) => ({ ...prev, "ke-toan-phieu-chi": r.so })))
+        .catch(() => {});
+    }
     // Badge Khách hàng: số việc chăm sóc ĐẾN HẠN trong scope (khảo sát #28) — kéo sale
     // quay lại panel "Cần chăm sóc" mà không cần notification center.
     if (readable.has("khach_hang")) {
@@ -872,7 +880,14 @@ export function AppShell() {
         // Đẩy ĐÍCH DANH (máy chủ đã lọc người giữ Xác nhận sản lượng trọn tổ bên kia, trừ người bấm).
         const sl = e.so_luong != null ? `${e.so_luong.toLocaleString("vi-VN")} ${nhanDonVi(e.don_vi)}`.trim() : "";
         const tuyen = `${e.nguon_ten || "?"} → ${e.dich_ten || "?"}`;
-        if (e.su_kien === "xac_nhan") {
+        if (e.su_kien === "cho_mang_di") {
+          // Bàn giao sang dải GIA CÔNG NGOÀI — máy chủ đẩy tới người có quyền sửa lệnh (Task 6).
+          pushToast(
+            `📦 ${e.nguon_ten || "Bước trước"} vừa giao${sl ? " " + sl : ""} sang “${e.dich_ten || "gia công ngoài"}”${e.lsx_ma ? ` (${e.lsx_ma})` : ""} — chờ mang đi gia công`,
+            "info",
+            9000,
+          );
+        } else if (e.su_kien === "xac_nhan") {
           pushToast(`✓ Tổ nhận đã xác nhận bàn giao ${tuyen}${sl ? " · " + sl : ""}`, "ok");
         } else if (e.su_kien === "dieu_chinh") {
           pushToast(`✏️ Bàn giao ${tuyen} vừa được điều chỉnh${sl ? " thành " + sl : ""}`, "warn");
@@ -1148,6 +1163,21 @@ export function AppShell() {
         (e.type === "purchase_changed" || e.type === "accounting_changed")
       ) {
         reloadModuleNotificationBadges();
+      } else if (
+        readable.has("phieu_chi") &&
+        (e.type === "gia_cong_cho_chi" || e.type === "gia_cong_cho_chi_changed")
+      ) {
+        if (e.type === "gia_cong_cho_chi") {
+          pushToast(
+            `💸 Gia công ${e.ten_viec ?? ""} — ${e.nha_cung_cap_ten ?? ""}${e.lsx_ma ? ` (${e.lsx_ma})` : ""} đã chốt số, chờ lập phiếu chi`,
+            "info",
+            9000,
+          );
+        }
+        api.giaCongNgoai
+          .demChoChi(token)
+          .then((r) => setBadges((prev) => ({ ...prev, "ke-toan-phieu-chi": r.so })))
+          .catch(() => {});
       } else if (readable.has("luong") && e.type === "advance_pending_changed") {
         // Có đề nghị tạm ứng mới/đổi → refetch số 'chờ duyệt'; toast khi TĂNG (người duyệt).
         api.luong

@@ -475,7 +475,20 @@ export type QuoteEvent =
       dich_ten?: string | null;
       so_luong?: number | null;
       don_vi?: string | null;
+      lsx_ma?: string | null;
     }
+  // Gia công ngoài (spec 2026-09-26): lần vừa CHỐT ⇒ đẩy đích danh người lập phiếu chi (toast) +
+  // broadcast `_changed` để badge Phiếu chi của mọi người nhảy; `gia_cong_ngoai_changed` để khối
+  // Gia công ngoài / danh sách Kế hoạch SX đang mở tự nạp (qua tick chung).
+  | {
+      type: "gia_cong_cho_chi";
+      gia_cong_ngoai_id: number;
+      lsx_ma?: string | null;
+      nha_cung_cap_ten?: string | null;
+      ten_viec?: string | null;
+    }
+  | { type: "gia_cong_cho_chi_changed" }
+  | { type: "gia_cong_ngoai_changed"; lsx_id?: number | null; gia_cong_ngoai_id?: number | null }
   | { type: "san_xuat_ho_tro_changed"; cong_viec_id?: number | null; ho_tro_id?: number | null; trang_thai?: string | null }
   | {
       type: "san_xuat_ho_tro";
@@ -6378,6 +6391,23 @@ export interface SupplierInput {
 /** Ô chọn Nhà gia công — NCC đang hoạt động có tích "Nhận gia công" (spec gia công ngoài §7). */
 export interface NhaGiaCong { id: number; ten: string }
 
+/** Một dòng "Gia công chờ chi" — lần đã chốt, chưa có phiếu chi còn hiệu lực. Tiền `null` khi người
+ *  xem không có quyền xem tiền. */
+export interface GiaCongChoChi {
+  gia_cong_ngoai_id: number;
+  lsx_id: number;
+  lsx_ma: string;
+  ten_viec: string;
+  nha_cung_cap_id: number | null;
+  nha_cung_cap_ten: string;
+  sl_cuoi: number;
+  don_vi: string | null;
+  don_gia: number | null;
+  thanh_tien: number | null;
+  chot_luc: string | null;
+  chot_boi_ten: string | null;
+}
+
 export type GiaCongTrangThai = "cho_mang_di" | "dang_o_ngoai" | "dang_gia_cong" | "da_xong" | "da_huy";
 export type GiaCongNoiVe = "xuong" | "kho" | "khach";
 
@@ -7311,6 +7341,9 @@ export type PaymentVoucherSource =
   /** Phiếu chi lập TỪ một phiếu tạm ứng lương đã duyệt (18/08/2026). Số tiền + người nhận do
    *  backend lấy thẳng từ phiếu tạm ứng, payload gửi lên bị bỏ qua. */
   | "salary_advance"
+  /** Phiếu chi lập TỪ một lần gia công ngoài đã chốt (26/09/2026). KHÔNG vào công nợ 331 — ô nhà
+   *  cung cấp công nợ để trống, tên nhà gia công chỉ nằm ở người nhận. */
+  | "gia_cong_ngoai"
   | "internal_expense"
   | "customer_refund"
   | "other";
@@ -7394,6 +7427,7 @@ export interface PaymentVoucherInput extends PaymentVoucherBaseInput {
    *  `amount` + `cash_recipient_name` gửi lên BỊ BỎ QUA — backend lấy số tiền và tên nhân viên
    *  của chính phiếu tạm ứng, để phiếu chi không lệch số đã duyệt. */
   salary_advance_id?: number | null;
+  gia_cong_ngoai_id?: number | null;
 }
 
 /** MỘT đợt giao được chọn để trả trong lượt thanh toán gộp (04/09/2026). */
@@ -7496,6 +7530,9 @@ export interface PaymentVoucherRow {
   /** Phiếu tạm ứng lương nguồn — chỉ có giá trị khi `source_type = salary_advance`.
    *  Một phiếu tạm ứng chỉ gắn ĐÚNG MỘT phiếu chi (UNIQUE ở DB). */
   salary_advance_id: number | null;
+  /** Lần gia công ngoài nguồn — chỉ có giá trị khi `source_type = gia_cong_ngoai`. Tùy chọn ở đây
+   *  (dưới `salary_advance_id`) để fixture test dựng `PaymentVoucherRow` bằng tay khỏi vỡ `tsc`. */
+  gia_cong_ngoai_id?: number | null;
   purchase_request_code: string;
   purchase_request_total: number | null;
   purchase_paid_amount: number | null;
@@ -11871,6 +11908,13 @@ export const api = {
       return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/huy-tron-goi`, token, {
         method: "POST", body: JSON.stringify(body),
       });
+    },
+    /** Hàng "Gia công chờ chi" đầu màn Phiếu chi (spec §5): lần đã chốt, chưa có phiếu chi. */
+    choChi(token: string): Promise<GiaCongChoChi[]> {
+      return authed<GiaCongChoChi[]>("/api/accounting/gia-cong-cho-chi", token);
+    },
+    demChoChi(token: string): Promise<{ so: number }> {
+      return authed<{ so: number }>("/api/accounting/gia-cong-cho-chi/dem", token);
     },
     xuatGiay(token: string, id: number, version: number): Promise<GiaCongNgoaiLan> {
       return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/xuat-giay`, token, {
