@@ -1556,14 +1556,16 @@ def test_ap_dinh_muc_giu_nguyen_dong_thu_cong(db, orders, lsx_svc, bg_svc, admin
     assert float(vt.so_luong) == 777.0  # dòng thủ công KHÔNG bị tính lại đè số
 
 
-def test_thieu_buoc_chung_thue_ngoai_khong_doi_may(bg_svc):
-    """Fix round 1 (review Task 3, 26/09/2026): bước chung THUÊ NGOÀI không còn khai như một máy
-    trong danh mục — `may_id` LUÔN None sau Task 3 (gia công ngoài chọn nhà gia công từ danh mục
-    Nhà cung cấp). `_thieu_buoc_chung` không còn được đòi máy cho loại này, nếu không "Chưa chọn
-    máy" treo vĩnh viễn trên mọi bước chung thuê ngoài."""
-    c = SimpleNamespace(department_id=1, loai_buoc=LB_THUE_NGOAI, may_id=None)
+def test_thieu_buoc_chung_thue_ngoai_khong_doi_to_may(bg_svc):
+    """Fix round 1+2 (review Task 3, 26/09/2026): bước chung THUÊ NGOÀI không tổ, không máy —
+    server ép `department_id = may_id = None` cho loại này từ Task 3 (`replace_routing`; nhà gia
+    công chọn từ danh mục Nhà cung cấp, không khai như một tổ/máy trong danh mục). Trước sửa,
+    `_thieu_buoc_chung` vẫn đòi cả hai, khiến "Chưa chọn tổ" · "Chưa chọn máy" treo vĩnh viễn trên
+    mọi bước chung thuê ngoài."""
+    c = SimpleNamespace(department_id=None, loai_buoc=LB_THUE_NGOAI, may_id=None)
     assert bg_svc._thieu_buoc_chung(c) == []
 
-    # Bước MÁY thật thì vẫn phải đòi máy như cũ.
-    c_may = SimpleNamespace(department_id=1, loai_buoc=LB_MAY, may_id=None)
-    assert "Chưa chọn máy" in bg_svc._thieu_buoc_chung(c_may)
+    # Bước MÁY thật thì vẫn phải đòi tổ + máy như cũ.
+    c_may = SimpleNamespace(department_id=None, loai_buoc=LB_MAY, may_id=None)
+    thieu_may = bg_svc._thieu_buoc_chung(c_may)
+    assert "Chưa chọn tổ" in thieu_may and "Chưa chọn máy" in thieu_may

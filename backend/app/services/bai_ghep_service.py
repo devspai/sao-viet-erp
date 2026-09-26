@@ -24,7 +24,7 @@ from ..models.bai_ghep_cong_doan import (
 from ..models.cong_doan import CongDoan
 from ..models.customer import Customer
 from ..models.lsx import (
-    LB_MAY, LB_TO,
+    LB_MAY, LB_THUE_NGOAI, LB_TO,
     TT_DA_LAP_KE_HOACH as LSX_DA_LAP, TT_SAN_SANG as LSX_SAN_SANG,
     Lsx, LsxCongDoan, LsxCongDoanPhuThuoc,
 )
@@ -1765,7 +1765,10 @@ class BaiGhepService:
         lượt chạy đó, không thừa kế mù của bất kỳ lệnh nào.
         """
         thieu: list[str] = []
-        if not c.department_id:
+        # Fix round 2 (26/09/2026, review Task 3): bước thuê ngoài không tổ (server ép
+        # `department_id = None` ở `replace_routing` từ Task 3) — "Chưa chọn tổ" không áp cho nó,
+        # cùng lẽ với "Chưa chọn máy" đã sửa ở fix round 1.
+        if c.loai_buoc != LB_THUE_NGOAI and not c.department_id:
             thieu.append("Chưa chọn tổ")
         # Fix round 1 (26/09/2026, review Task 3): sau Task 3 gia công ngoài, bước LSX loại
         # `thue_ngoai` LUÔN có `may_id = None` — nhà gia công chọn từ danh mục Nhà cung cấp, KHÔNG
