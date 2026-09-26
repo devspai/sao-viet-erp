@@ -208,6 +208,87 @@ def test_cap_nhat_doi_ncc_thi_lan_chua_mang_di_theo_ncc_moi(sess, orders, lsx_sv
     assert lan_moi.huy_luc is None
 
 
+# --- Fix round 2 (reviewer): việc mồ côi sau khi huỷ lần — phải trả về tổ/máy theo routing --------
+def test_buoc_het_thue_ngoai_thi_lan_huy_va_cv_ve_to(sess, orders, lsx_svc, admin, customer):
+    """Kế hoạch đổi bước "Cán màng" từ thuê ngoài về làm NỘI BỘ (tổ mới) rồi đồng bộ — lần cũ bị
+    huỷ, và công việc KHÔNG được mồ côi: `gia_cong_ngoai_id` về None, `department_id` về đúng tổ
+    routing hiện tại (không còn trỏ lần đã huỷ, không còn kẹt "không tổ nào" — mg Fix round 2)."""
+    from app.models.lsx import LsxCongDoan
+    from app.services.gia_cong_ngoai.lan import dong_bo_lan_khi_cap_nhat
+    from tests.test_san_xuat_board import _to_moi
+
+    lsx_id = dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, buoc=[
+        ("In", "may", None, 1000, "to"),
+        ("Cán màng", "thue_ngoai", ncc(sess), 1000, "to"),
+    ])
+    (lan_cu,) = _lan(sess, lsx_id)
+    to_moi = _to_moi(sess, "Tổ Cán màng nội bộ", "TO-CAN-MANG-R2")
+
+    cd = sess.query(LsxCongDoan).filter_by(lsx_id=lsx_id, ten="Cán màng").one()
+    cd.loai_buoc = "to"
+    cd.department_id = to_moi.id
+    cd.nha_cung_cap_id = None
+    cd.nha_cung_cap = None
+    sess.commit()
+
+    dong_bo_lan_khi_cap_nhat(sess, lsx_ids={lsx_id}, actor=admin)
+    sess.commit()
+
+    sess.refresh(lan_cu)
+    assert lan_cu.huy_luc is not None
+    cv = _cv(sess, lsx_id, "Cán màng")
+    assert cv.gia_cong_ngoai_id is None
+    assert cv.department_id == to_moi.id
+
+
+def test_dai_bot_mot_buoc_giua_thi_cv_deu_tro_lan_moi(sess, orders, lsx_svc, admin, customer):
+    """Dải 3 bước "Cán màng + Bế + Ép kim" (một lần) — kế hoạch đổi bước GIỮA ("Bế") về nội bộ,
+    cắt dải làm đôi. Đồng bộ: lần cũ (3 bước) bị huỷ; hai bước thuê ngoài còn lại đều được gom
+    sang lần MỚI (không lần nào trùng `id` lần cũ, không cv nào còn dính lần cũ); bước bị bớt
+    ("Bế") không mồ côi — về đúng tổ mới, `gia_cong_ngoai_id` None."""
+    from app.models.lsx import LsxCongDoan
+    from app.services.gia_cong_ngoai.lan import dong_bo_lan_khi_cap_nhat
+    from tests.test_san_xuat_board import _to_moi
+
+    a = ncc(sess)
+    lsx_id = dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, buoc=[
+        ("In", "may", None, 1000, "to"),
+        ("Cán màng", "thue_ngoai", a, 1000, "to"),
+        ("Bế", "thue_ngoai", a, 1000, "to"),
+        ("Ép kim", "thue_ngoai", a, 1000, "cai"),
+    ])
+    (lan_cu,) = _lan(sess, lsx_id)
+    lan_cu_id = lan_cu.id
+    to_moi = _to_moi(sess, "Tổ Bế nội bộ", "TO-BE-R2")
+
+    be = sess.query(LsxCongDoan).filter_by(lsx_id=lsx_id, ten="Bế").one()
+    be.loai_buoc = "to"
+    be.department_id = to_moi.id
+    be.nha_cung_cap_id = None
+    be.nha_cung_cap = None
+    sess.commit()
+
+    dong_bo_lan_khi_cap_nhat(sess, lsx_ids={lsx_id}, actor=admin)
+    sess.commit()
+
+    sess.refresh(lan_cu)
+    assert lan_cu.huy_luc is not None                 # lần cũ (3 bước) bị huỷ nguyên khối
+
+    lan_song = [l for l in _lan(sess, lsx_id) if l.huy_luc is None]
+    assert len(lan_song) == 2                         # dải tách đôi ⇒ hai lần mới, không lần nào cũ
+    assert lan_cu_id not in {l.id for l in lan_song}
+
+    cv_cm = _cv(sess, lsx_id, "Cán màng")
+    cv_ek = _cv(sess, lsx_id, "Ép kim")
+    assert cv_cm.gia_cong_ngoai_id in {l.id for l in lan_song}
+    assert cv_ek.gia_cong_ngoai_id in {l.id for l in lan_song}
+    assert cv_cm.gia_cong_ngoai_id != cv_ek.gia_cong_ngoai_id   # hai lần riêng, không gộp lại
+
+    cv_be = _cv(sess, lsx_id, "Bế")
+    assert cv_be.gia_cong_ngoai_id is None
+    assert cv_be.department_id == to_moi.id
+
+
 def test_thu_hoi_khong_huy_lan_da_chot_hoac_da_mang_di(sess, orders, lsx_svc, admin, customer):
     """`huy_lan_cua_goi` (thu hồi gói) chỉ đụng lần CHƯA mang đi + CHƯA chốt — lần đã đi/đã chốt
     giữ nguyên dù bị gọi trực tiếp (phòng khi cửa gọi phía trên có sơ hở)."""

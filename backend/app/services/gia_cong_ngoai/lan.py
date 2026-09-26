@@ -116,6 +116,21 @@ def gom_lan_khi_phat_hanh(db: Session, *, lsx_ids: set[int], cv_by_step: dict, a
     return tao
 
 
+def _phuc_hoi_cv_mo_coi(db: Session, gcn_repo: GiaCongNgoaiRepository, huy_trong_luot: list,
+                        cd_by_step: dict) -> None:
+    """Sau khi huỷ (các) lần trong lượt đồng bộ này: công việc nào VẪN còn trỏ `gia_cong_ngoai_id`
+    về đúng lần vừa huỷ (nghĩa là KHÔNG được `_tao_lan` gom sang lần mới ngay sau đó — bước đã hết
+    thuê ngoài, hoặc dải co lại bỏ rơi nó) là việc MỒ CÔI: gỡ liên kết, trả lại tổ/máy theo routing
+    HIỆN TẠI của đúng bước đó (cùng nguồn `lsx_cong_doan.department_id`/`may_id` mà phát hành lần
+    đầu dùng — không suy đoán lại)."""
+    for gcn in huy_trong_luot:
+        for cv in gcn_repo.cong_viec_cua(gcn.id):
+            cd = cd_by_step.get(cv.step_key)
+            cv.gia_cong_ngoai_id = None
+            cv.department_id = cd.department_id if cd is not None else None
+            cv.may_id = cd.may_id if cd is not None else None
+
+
 def dong_bo_lan_khi_cap_nhat(db: Session, *, lsx_ids: set[int], actor) -> None:
     """Sau Phát hành cập nhật (§4.3): đồng bộ lần gia công theo routing hiện tại — IDEMPOTENT,
     KHÔNG commit.
@@ -128,7 +143,11 @@ def dong_bo_lan_khi_cap_nhat(db: Session, *, lsx_ids: set[int], actor) -> None:
         từ đầu — cùng một hàm `_quet_dai_thue_ngoai`/`_tao_lan` mà lúc phát hành lần đầu dùng.
       · Bước MỚI vừa đổi routing thành "Thuê ngoài" (trước đó không phải) cũng được gom thành lần.
       · Bước KHÔNG còn nằm trong dải thuê ngoài nào (đổi lại thành nội bộ) ⇒ lần cũ của nó bị huỷ.
-    """
+
+    Việc MỒ CÔI (Fix round 2): huỷ lần không tự xoá `gia_cong_ngoai_id` trên công việc — công việc
+    nào bị bỏ lại (bước hết thuê ngoài, hoặc dải co lại) được trả về tổ/máy theo routing hiện tại
+    ở CUỐI hàm (`_phuc_hoi_cv_mo_coi`), sau khi mọi lần mới đã gom xong (để không giành lại nhầm
+    công việc vừa được gom sang lần mới)."""
     repo = SanXuatRepository(db)
     gcn_repo = GiaCongNgoaiRepository(db)
     audit = AuditLogRepository(db)
@@ -136,6 +155,7 @@ def dong_bo_lan_khi_cap_nhat(db: Session, *, lsx_ids: set[int], actor) -> None:
 
     for lsx_id in sorted(lsx_ids):
         steps = repo.routing_steps(lsx_id)
+        cd_by_step = {cd.step_key: cd for cd in steps}
         canh = _canh_ke_tiep(db, lsx_id)
         cv_by_step: dict[str, list] = {}
         for cv in db.execute(
@@ -157,6 +177,7 @@ def dong_bo_lan_khi_cap_nhat(db: Session, *, lsx_ids: set[int], actor) -> None:
                     mo_by_step[cv.step_key] = g
 
         da_xu_ly: set[int] = set()
+        huy_trong_luot: list[GiaCongNgoai] = []
         for dai in dai_list:
             step_keys = [c.step_key for c in dai]
             lans_lien_quan = {mo_by_step[sk] for sk in step_keys if sk in mo_by_step}
@@ -192,6 +213,7 @@ def dong_bo_lan_khi_cap_nhat(db: Session, *, lsx_ids: set[int], actor) -> None:
                     continue
                 _huy_lan(db, audit, gcn, uid, "Cập nhật lịch — routing đổi, gom lại lần gia công.")
                 da_xu_ly.add(gcn.id)
+                huy_trong_luot.append(gcn)
             gcn_moi = _tao_lan(db, audit, lsx_id=lsx_id, dai=dai, cv_by_step=cv_by_step, uid=uid)
             da_xu_ly.add(gcn_moi.id)
 
@@ -199,6 +221,11 @@ def dong_bo_lan_khi_cap_nhat(db: Session, *, lsx_ids: set[int], actor) -> None:
         for g in mo:
             if g.id not in da_xu_ly:
                 _huy_lan(db, audit, g, uid, "Cập nhật lịch — bước không còn thuê ngoài.")
+                huy_trong_luot.append(g)
+
+        # Trả việc MỒ CÔI về tổ/máy — làm SAU CÙNG, sau khi mọi lần mới trong lượt này đã gom
+        # xong, để không cướp nhầm công việc vừa được `_tao_lan` gán sang lần mới.
+        _phuc_hoi_cv_mo_coi(db, gcn_repo, huy_trong_luot, cd_by_step)
     db.flush()
 
 
