@@ -15,10 +15,13 @@ from ..deps import get_authorization_service, require_permission
 from ..models.user import User
 from ..realtime import hub, phat_ban_giao
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
-from ..schemas.gia_cong_ngoai import GiaCongNgoaiOut, MangDiIn, NhaGiaCongOut
+from ..schemas.gia_cong_ngoai import ChotIn, GiaCongNgoaiOut, MangDiIn, MoLaiIn, NhaGiaCongOut
+from ..services.gia_cong_ngoai import chot as chot_svc
 from ..services.gia_cong_ngoai import mot_phan
 from ..services.gia_cong_ngoai.lan import lan_cua_lenh, lan_dict
 from ..services.rbac_service import AuthorizationService
+from ..services.san_xuat.kho import phat_su_kien_kho
+from .san_xuat import _phat_sse_dong_nhom
 
 router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
 MODULE = "san_xuat"
@@ -86,4 +89,56 @@ def mang_di(
     for res in kq["ban_giao"]:
         phat_ban_giao(res)
     _phat_doi(kq["lsx_id"])
+    return _ra(db, authz, user, gcn_id)
+
+
+def _phat_cho_chi(res: dict, user: User, db: Session) -> None:
+    """Lần vừa chốt ⇒ kế toán có việc "chờ chi" (spec §6): toast đích danh + badge mọi người."""
+    for uid in GiaCongNgoaiRepository(db).nguoi_lap_phieu_chi():
+        if uid == user.id:
+            continue
+        hub.publish(uid, {
+            "type": "gia_cong_cho_chi", "gia_cong_ngoai_id": res["gia_cong_ngoai_id"],
+            "lsx_ma": res.get("lsx_ma"), "nha_cung_cap_ten": res.get("nha_cung_cap_ten"),
+            "ten_viec": res.get("ten_viec"),
+        })
+    hub.broadcast({"type": "gia_cong_cho_chi_changed"})
+
+
+@router.post("/{gcn_id}/chot", response_model=GiaCongNgoaiOut)
+def chot(
+    gcn_id: int,
+    body: ChotIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    res = _chay(lambda: chot_svc.chot(
+        db, user=user, gcn_id=gcn_id, expected_version=body.version, sl_cuoi=body.sl_cuoi,
+        noi_ve=body.noi_ve, dich_cong_viec_id=body.dich_cong_viec_id))
+    if res["ban_giao"]:
+        phat_ban_giao(res["ban_giao"])
+    if res["yeu_cau_kho"] is not None:
+        phat_su_kien_kho(res["yeu_cau_kho"], bao_nguoi_tao=False)
+    if res["nhom_dong"]:
+        _phat_sse_dong_nhom(res["nhom_dong"])
+    _phat_cho_chi(res, user, db)
+    _phat_doi(res["lsx_id"])
+    return _ra(db, authz, user, gcn_id)
+
+
+@router.post("/{gcn_id}/mo-lai", response_model=GiaCongNgoaiOut)
+def mo_lai(
+    gcn_id: int,
+    body: MoLaiIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    res = _chay(lambda: chot_svc.mo_lai(db, user=user, gcn_id=gcn_id,
+                                         expected_version=body.version))
+    hub.broadcast({"type": "gia_cong_cho_chi_changed"})
+    # Bàn tổ của bước sau / màn KCS / kho vừa mất một bàn giao hoặc đề nghị — bump chung.
+    hub.broadcast({"type": "san_xuat_cong_viec_changed", "lsx_id": res["lsx_id"]})
+    _phat_doi(res["lsx_id"])
     return _ra(db, authz, user, gcn_id)

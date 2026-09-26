@@ -73,6 +73,13 @@ class GiaCongNgoaiRepository:
             stmt = stmt.with_for_update()
         return list(self.db.scalars(stmt))
 
+    def ban_giao_tu(self, cv_id: int) -> list[SanXuatBanGiao]:
+        """Bàn giao ĐI từ công việc cuối của lần (chốt về xưởng đẻ đúng một cái)."""
+        return list(self.db.scalars(
+            select(SanXuatBanGiao).where(SanXuatBanGiao.nguon_cong_viec_id == cv_id)
+            .order_by(SanXuatBanGiao.id)
+        ))
+
     def co_buoc_truoc(self, lsx_cong_doan_id: int | None) -> bool:
         """Bước này có bước trước (cạnh đi vào, hoặc bước có `thu_tu` nhỏ hơn cùng lệnh)?"""
         if not lsx_cong_doan_id:

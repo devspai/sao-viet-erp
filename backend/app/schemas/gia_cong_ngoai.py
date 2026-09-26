@@ -11,6 +11,17 @@ class MangDiIn(BaseModel):
     sl_gui: float | None = Field(default=None, gt=0)
 
 
+class ChotIn(BaseModel):
+    version: int
+    sl_cuoi: float = Field(gt=0)
+    noi_ve: str = Field(pattern="^(xuong|kho|khach)$")
+    dich_cong_viec_id: int | None = None
+
+
+class MoLaiIn(BaseModel):
+    version: int
+
+
 class NhaGiaCongOut(BaseModel):
     id: int
     ten: str
