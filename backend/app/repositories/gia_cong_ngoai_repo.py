@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..models.accounting import PAYMENT_VOUCHER_CANCELLED, PaymentVoucher
 from ..models.delivery import LG_DA_HUY, DeliveryTrip
-from ..models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
+from ..models.gia_cong_ngoai import KIEU_MOT_PHAN, KIEU_TRON_GOI, GiaCongNgoai
 from ..models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
 from ..models.purchase import SUPPLIER_ACTIVE, Supplier
 from ..models.role import RolePermission
@@ -15,6 +15,24 @@ from ..models.san_xuat_san_luong import BG_DE_XUAT, SanXuatBanGiao
 from ..models.stock_request import REQ_CANCELLED, REQ_NHAP, REQ_XUAT, StockRequest
 from ..models.user import User
 from ..models.vat_lieu_kho import HANG_GIAY
+
+
+LOC_GIA_CONG = ("cho_mang_di", "dang_o_ngoai", "tron_goi")
+
+
+def lsx_ids_loc_gia_cong(loai: str):
+    """Subquery `lsx_id` cho ô lọc "Gia công ngoài" của danh sách Kế hoạch SX (spec §7). CÙNG luật
+    với `services.gia_cong_ngoai.trang_thai()` nhưng viết bằng SQL — lọc + đếm ở máy chủ."""
+    dk = [GiaCongNgoai.huy_luc.is_(None), GiaCongNgoai.chot_luc.is_(None)]
+    if loai == "cho_mang_di":
+        dk += [GiaCongNgoai.kieu == KIEU_MOT_PHAN, GiaCongNgoai.mang_di_luc.is_(None)]
+    elif loai == "dang_o_ngoai":
+        dk += [GiaCongNgoai.kieu == KIEU_MOT_PHAN, GiaCongNgoai.mang_di_luc.is_not(None)]
+    elif loai == "tron_goi":
+        dk.append(GiaCongNgoai.kieu == KIEU_TRON_GOI)
+    else:
+        raise ValueError(f"Bộ lọc gia công không hợp lệ: {loai}")
+    return select(GiaCongNgoai.lsx_id).where(*dk)
 
 
 class GiaCongNgoaiRepository:

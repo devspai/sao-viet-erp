@@ -179,6 +179,7 @@ def list_items(
     customer_id: int | None = Query(default=None),
     trang_thai: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    gia_cong: str | None = Query(default=None, pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$"),
     page: int = Query(default=1, ge=1),
     # Trần 200 khớp `repositories/catalog_base.SIZE_TRAN` — chặn client gõ `?size=99999` để kéo
     # cả bảng về, đúng cái đã làm chết endpoint này ở 100.000 lệnh.
@@ -187,6 +188,7 @@ def list_items(
     svc = _svc(db)
     loc = {
         "order_id": order_id, "customer_id": customer_id, "trang_thai": trang_thai, "q": q,
+        "gia_cong": gia_cong,
         "owner_ids": _owner_ids_for_scope(db, user, authz),
     }
     rows, total = svc.list_rows(page=page, size=size, **loc)
@@ -206,11 +208,13 @@ def bo_loc(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     trang_thai: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    gia_cong: str | None = Query(default=None, pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$"),
 ) -> LsxBoLocOut:
     """Đơn / khách để đổ vào hai ô lọc. Cùng scope với `list` — người chỉ thấy lệnh của mình thì
     ô chọn cũng chỉ chào đơn của mình."""
     return LsxBoLocOut.model_validate(_svc(db).nguon_bo_loc(
-        trang_thai=trang_thai, q=q, owner_ids=_owner_ids_for_scope(db, user, authz),
+        trang_thai=trang_thai, q=q, gia_cong=gia_cong,
+        owner_ids=_owner_ids_for_scope(db, user, authz),
     ))
 
 

@@ -47,3 +47,5 @@
 .gcn__o input, .gcn__o select, .gcn__o textarea { min-width: 0; max-width: 100%; font-size: 1rem; }
 .gcn__lichsu summary { cursor: pointer; font-size: 0.875rem; }
 .gcn__lichsu ul { margin: 0.25rem 0 0; padding-left: 1rem; font-size: 0.8125rem; }
+.gcn__form--cot { flex-direction: column; align-items: stretch; }
+.gcn__chk { display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.875rem; }

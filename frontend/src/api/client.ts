@@ -11902,7 +11902,7 @@ export const api = {
       token: string,
       params: {
         order_id?: number; customer_id?: number; trang_thai?: string; q?: string;
-        page?: number; size?: number;
+        gia_cong?: string; page?: number; size?: number;
       } = {},
     ): Promise<LsxListOut> {
       const qs = new URLSearchParams();
@@ -11910,6 +11910,7 @@ export const api = {
       if (params.customer_id) qs.set("customer_id", String(params.customer_id));
       if (params.trang_thai) qs.set("trang_thai", params.trang_thai);
       if (params.q) qs.set("q", params.q);
+      if (params.gia_cong) qs.set("gia_cong", params.gia_cong);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -11917,10 +11918,14 @@ export const api = {
     },
     /** Đơn / khách để đổ vào hai ô lọc của bảng lệnh. KHÔNG truyền `order_id`/`customer_id`:
      *  danh sách chọn phải đứng yên khi đang lọc, không thì chọn xong là hết đường đổi. */
-    boLoc(token: string, params: { trang_thai?: string; q?: string } = {}): Promise<LsxBoLocOut> {
+    boLoc(
+      token: string,
+      params: { trang_thai?: string; q?: string; gia_cong?: string } = {},
+    ): Promise<LsxBoLocOut> {
       const qs = new URLSearchParams();
       if (params.trang_thai) qs.set("trang_thai", params.trang_thai);
       if (params.q) qs.set("q", params.q);
+      if (params.gia_cong) qs.set("gia_cong", params.gia_cong);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<LsxBoLocOut>(`/api/lsx/bo-loc${suffix}`, token);
     },
