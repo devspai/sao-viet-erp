@@ -165,6 +165,42 @@ def test_huy_tron_goi_bat_lai_giu_cho(sess, admin, lenh, monkeypatch):
     assert goi_lan_dau == [{"lsx_id": lenh.id}, {"lsx_id": lenh.id}]  # huỷ gọi lại `bat()` lần 2
 
 
+def test_huy_tron_goi_ncc_lo_giay_bat_lai_giu_cho(sess, admin, lenh, monkeypatch):
+    """Fix round 2: NCC LO GIẤY (`xuong_cap_giay=False`) — `dat_tron_goi` tắt hẳn `giu_cho_bat`,
+    không có nhánh bật lại nên cờ về False. Không có cách nào đọc lại cờ TRƯỚC lúc đặt (không lưu
+    riêng), nên huỷ BẬT LẠI VÔ ĐIỀU KIỆN cho đúng trường hợp này — chấp nhận bật cả khi lệnh trước
+    đó có thể chưa từng bật giữ chỗ."""
+    import app.services.gia_cong_ngoai.tron_goi as tron_goi_mod
+    from app.services.xep_lich.release import _giu_cho_service
+
+    them_giay(sess, lenh)
+    _giu_cho_service(sess).bat(lsx_id=lenh.id)
+    sess.refresh(lenh)
+    assert lenh.giu_cho_bat
+
+    goi_lan_dau: list[dict] = []
+    goc_giu_cho = tron_goi_mod._giu_cho
+
+    def _theo_doi(db):
+        svc = goc_giu_cho(db)
+        goc_bat = svc.bat
+        svc.bat = lambda **kw: (goi_lan_dau.append(kw), goc_bat(**kw))[1]
+        return svc
+
+    monkeypatch.setattr(tron_goi_mod, "_giu_cho", _theo_doi)
+
+    lan = _dat(sess, admin, lenh, xuong_cap_giay=False)
+    sess.refresh(lenh)
+    assert not lenh.giu_cho_bat  # đặt tắt hẳn — không nhánh nào bật lại khi NCC lo giấy
+    assert goi_lan_dau == []  # `dat_tron_goi` không gọi `bat()` ở nhánh này
+
+    huy_tron_goi(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+                 ly_do="Khách đổi mẫu")
+    sess.refresh(lenh)
+    assert lenh.giu_cho_bat  # huỷ tự bật lại
+    assert goi_lan_dau == [{"lsx_id": lenh.id}]  # và gọi `bat()` đúng một lần
+
+
 def test_de_nghi_xuat_giay_ghi_chu_dung_mau(sess, admin, lenh):
     them_giay(sess, lenh)
     lan = _dat(sess, admin, lenh, xuong_cap_giay=True)

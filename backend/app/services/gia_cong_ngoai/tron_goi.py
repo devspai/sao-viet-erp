@@ -172,6 +172,15 @@ def huy_tron_goi(db: Session, *, user, gcn_id: int, expected_version: int | None
     thu_hoi_goi(db, nguon="lsx", id=gcn.lsx_id, actor=user)
     lsx = SanXuatRepository(db).lsx(gcn.lsx_id)
     lsx.trang_thai = TT_NHAP
+    # Nhà gia công tự lo giấy (`xuong_cap_giay=False`) ⇒ lúc đặt `dat_tron_goi` đã TẮT hẳn
+    # `giu_cho_bat` (không có nhánh bật lại vì không giữ gì cho lệnh này). Huỷ thì lệnh về Nháp,
+    # cần giữ chỗ ĐẦY ĐỦ như một lệnh bình thường — không có cột nào nhớ lại cờ lúc TRƯỚC khi đặt
+    # trọn gói (`dat_tron_goi` chỉ tắt khi đang bật, nhưng giá trị "đang bật" đó không được lưu
+    # riêng), nên ở đây BẬT LẠI vô điều kiện cho trường hợp NCC lo giấy — chấp nhận bật cả khi lệnh
+    # trước đó chưa từng bật giữ chỗ (an toàn hơn bỏ sót: `bat()` không nhặt được gì nếu không có
+    # nhu cầu, chỉ đơn thuần bật cờ + cân đối).
+    if not gcn.xuong_cap_giay:
+        lsx.giu_cho_bat = True
     AuditLogRepository(db).create(
         actor_user_id=uid, action="gia_cong_ngoai_huy", target=f"gia_cong_ngoai:{gcn.id}",
         detail=f"Huỷ trọn gói — lệnh {lsx.ma} về Nháp. Lý do: {ly_do}"[:500], commit=False,
