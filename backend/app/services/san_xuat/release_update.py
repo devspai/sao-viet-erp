@@ -271,7 +271,8 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
             may_id=cv.may_id, du_kien_bat_dau=cv.du_kien_bat_dau,
             du_kien_ket_thuc=cv.du_kien_ket_thuc,
         ))
-        if may_id is not None:          # giữ máy cũ nếu lịch mới chưa gán (bước tổ/thuê ngoài)
+        # Việc GIA CÔNG NGOÀI không vào bàn tổ nào, không máy — giữ `may_id=None`, đừng gán đè.
+        if may_id is not None and cv.gia_cong_ngoai_id is None:
             cv.may_id = may_id
         cv.du_kien_bat_dau = start
         cv.du_kien_ket_thuc = finish
@@ -280,6 +281,13 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         so_huy_pc += n_pc
         so_huy_ht += n_ht
     so_cap_nhat = len(chua) - so_lech_phan_doan
+
+    # GIA CÔNG NGOÀI (spec 2026-09-26, Fix round 1): "Phát hành cập nhật" cũng tạo/giữ lần gia
+    # công — routing có thể đổi nhà gia công / thêm-bớt bước thuê ngoài sau lần phát hành đầu.
+    # Lần đã mang đi / đã chốt được hàm này TỰ giữ nguyên, không cần lọc trước ở đây.
+    from ..gia_cong_ngoai.lan import dong_bo_lan_khi_cap_nhat
+
+    dong_bo_lan_khi_cap_nhat(db, lsx_ids=lsx_ids, actor=actor)
 
     AuditLogRepository(db).create(
         actor_user_id=actor_uid,
