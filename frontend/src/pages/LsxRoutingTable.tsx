@@ -22,6 +22,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
 import { DagRoutingCanvas } from "../components/DagRoutingCanvas";
 import { LsxBuocDrawer, type TabKey as DrawerTabKey } from "./LsxBuocDrawer";
+import { viTriTrongDai } from "./gia-cong/giaCong";
 import { ChuoiCongDoan, ngay, num } from "./keHoachSxShared";
 import { nhanTram, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
@@ -1029,6 +1030,7 @@ export function LsxRoutingTable({
           giayRefs={giayRefs}
           phuThuocRefs={phuThuocRefs}
           baiGhep={baiGhep}
+          daiGiaCong={viTriTrongDai(rows, moBuoc)}
           dvChuoi={dvChuoi}
           canUpdate={suaDuoc}
           onPatch={(p) => patch(rows[moBuoc].key, p)}
