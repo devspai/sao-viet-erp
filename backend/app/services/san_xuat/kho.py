@@ -264,34 +264,24 @@ def _chia_theo_cum(so: float, cums: list[CumBan]) -> list[float]:
 
 
 # --- Ghi -----------------------------------------------------------------------------------------
-def tao_yeu_cau_nhap_kho_cong_doan(db: Session, *, user, cong_viec_id: int) -> dict:
-    """Nút "Tạo yêu cầu nhập kho" trên công đoạn KCS cuối — server tự tính phần đạt chưa gửi, KHÔNG
-    nhận số từ client. Khoá dòng các lần kiểm TRƯỚC khi đọc số và tạo yêu cầu bằng
-    `create(commit=False)` trong CÙNG giao dịch, để bấm đúp không đẻ hai yêu cầu. Báo kho sau commit."""
-    gate_kcs(db, user)
-    cv = SanXuatRepository(db).cong_viec(cong_viec_id)
-    if cv is None:
-        raise ValueError("Không tìm thấy công đoạn.")
-    if not cv.la_kcs_cuoi:
-        raise ValueError("Chỉ công đoạn cuối của nhóm thành phẩm mới tạo yêu cầu nhập kho.")
-    if cv.gia_cong_ngoai_id is not None:
-        raise ValueError("Công đoạn gia công ngoài — số chốt tự đi vào kho, KCS không gửi lại.")
+def lap_yeu_cau_nhap_tp(
+    db: Session, *, user, cv, so_kcs: float, nguon_ghi: str = "KCS",
+    gia_cong_ngoai_id: int | None = None,
+):
+    """LÕI lập đề nghị NHẬP thành phẩm cho `so_kcs` (đơn vị ra của công đoạn cuối) — KHÔNG gate,
+    KHÔNG khoá, KHÔNG commit. Trả `(req, dong_ra)`.
 
-    SanXuatKcsRepository(db).khoa_kcs_cua_cong_viec(cv.id)   # khoá TRƯỚC khi đọc — chặn bấm đúp
-    dong = dong_nhap_kho_cua_cong_viec(db, [cv.id]).get(cv.id, [])
-    con = so_con_gui_kho(db, cv, dong)
-    if con <= _EPS:
-        raise KhongConSoDuGuiKho("Không còn số đạt chưa gửi kho ở công đoạn này.")
-
+    Hai cửa gọi: nút của KCS (`tao_yeu_cau_nhap_kho_cong_doan` — gate KCS + khoá + số còn gửi) và
+    chốt lần gia công ngoài về kho (spec gia công §4 bước 4 — KCS làm ngoài phần mềm, số chốt đi
+    thẳng). Đề nghị vẫn mang `san_xuat_cong_viec_id` ⇒ "giao được" của Giao hàng đếm như thường."""
     nguon = _nguon_nhom(db, nhom_id=cv.nhom_id, lsx_id=cv.lsx_id)
     if nguon is None or not nguon.cums:
         raise ValueError("Nhóm thành phẩm chưa nối được dòng đơn nào nên chưa thể nhập kho.")
 
     hang = _hang_service(db)
     don_vi_kcs = (cv.don_vi_ra or "").strip()
-    # Gộp theo mã: hai cụm cùng tên khác SL ra CÙNG một thành phẩm — kho cấm hai dòng cùng món cùng lệnh.
     theo_ma: dict[int, dict] = {}
-    for cum, sl_kcs in zip(nguon.cums, _chia_theo_cum(con, nguon.cums)):
+    for cum, sl_kcs in zip(nguon.cums, _chia_theo_cum(so_kcs, nguon.cums)):
         tp = khai_cum(db, nguon.order, cum)
         sl = round(sl_kcs * _he_so_cho_nhap(db, hang, tp, don_vi_kcs), 2)
         if sl <= 0:
@@ -316,18 +306,46 @@ def tao_yeu_cau_nhap_kho_cong_doan(db: Session, *, user, cong_viec_id: int) -> d
 
     req_svc = _req_service(db, hang)
     ten = " + ".join(c.ten for c in nguon.cums)
+    them = {"gia_cong_ngoai_id": gia_cong_ngoai_id} if gia_cong_ngoai_id else {}
     try:
         req = req_svc.create(
             user=user, loai=REQ_NHAP, lines=lines, commit=False,
-            # Bộ phận = tổ của công đoạn cuối (không phải phòng của người bấm) — cùng luật đề nghị
-            # vật tư: scope `department` của kho và ô "Bộ phận" trên bản in đọc cột này.
             bo_phan_id=cv.department_id or user.department_id,
             san_xuat_cong_viec_id=cv.id,
-            ghi_chu=f"Nhập thành phẩm từ KCS · {nguon.than_chinh.ma} · {ten}"[:1000],
+            ghi_chu=f"Nhập thành phẩm từ {nguon_ghi} · {nguon.than_chinh.ma} · {ten}"[:1000],
+            **them,
         )
     except StockRequestError as e:
         db.rollback()
         raise ValueError(str(e)) from None
+    return req, ra
+
+
+def bao_yeu_cau_nhap_moi(db: Session, req) -> None:
+    """Thông báo kho có đề nghị nhập mới + SSE — gọi SAU commit."""
+    _req_service(db, _hang_service(db)).thong_bao_yeu_cau_moi(req)
+    phat_su_kien_kho(req, bao_nguoi_tao=False)
+
+
+def tao_yeu_cau_nhap_kho_cong_doan(db: Session, *, user, cong_viec_id: int) -> dict:
+    """Nút "Tạo yêu cầu nhập kho" trên công đoạn KCS cuối — server tự tính phần đạt chưa gửi, KHÔNG
+    nhận số từ client. Khoá dòng các lần kiểm TRƯỚC khi đọc số và tạo yêu cầu bằng
+    `create(commit=False)` trong CÙNG giao dịch, để bấm đúp không đẻ hai yêu cầu. Báo kho sau commit."""
+    gate_kcs(db, user)
+    cv = SanXuatRepository(db).cong_viec(cong_viec_id)
+    if cv is None:
+        raise ValueError("Không tìm thấy công đoạn.")
+    if not cv.la_kcs_cuoi:
+        raise ValueError("Chỉ công đoạn cuối của nhóm thành phẩm mới tạo yêu cầu nhập kho.")
+    if cv.gia_cong_ngoai_id is not None:
+        raise ValueError("Công đoạn gia công ngoài — số chốt tự đi vào kho, KCS không gửi lại.")
+
+    SanXuatKcsRepository(db).khoa_kcs_cua_cong_viec(cv.id)   # khoá TRƯỚC khi đọc — chặn bấm đúp
+    dong = dong_nhap_kho_cua_cong_viec(db, [cv.id]).get(cv.id, [])
+    con = so_con_gui_kho(db, cv, dong)
+    if con <= _EPS:
+        raise KhongConSoDuGuiKho("Không còn số đạt chưa gửi kho ở công đoạn này.")
+    req, ra = lap_yeu_cau_nhap_tp(db, user=user, cv=cv, so_kcs=con)
 
     # ⚠️ `audit_repo.create` tự commit — đặt SAU khi yêu cầu đã flush để cả hai chốt chung một nhịp.
     AuditLogRepository(db).create(
@@ -337,16 +355,9 @@ def tao_yeu_cau_nhap_kho_cong_doan(db: Session, *, user, cong_viec_id: int) -> d
         detail=f"stock_request={req.id} ma={req.ma} so_luong_kcs={con:g}",
     )
     db.commit()
-    req_svc.thong_bao_yeu_cau_moi(req)
-    phat_su_kien_kho(req, bao_nguoi_tao=False)
-    return {
-        "request_id": req.id,
-        "ma": req.ma,
-        "cong_viec_id": cv.id,
-        "so_luong": round(con, 3),
-        "don_vi": don_vi_kcs or None,
-        "dong": ra,
-    }
+    bao_yeu_cau_nhap_moi(db, req)
+    return {"request_id": req.id, "ma": req.ma, "cong_viec_id": cv.id,
+            "so_luong": round(con, 3), "don_vi": (cv.don_vi_ra or "").strip() or None, "dong": ra}
 
 
 def phat_su_kien_kho(req, *, bao_nguoi_tao: bool) -> None:

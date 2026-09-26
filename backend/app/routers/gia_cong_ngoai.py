@@ -20,7 +20,6 @@ from ..services.gia_cong_ngoai import chot as chot_svc
 from ..services.gia_cong_ngoai import mot_phan
 from ..services.gia_cong_ngoai.lan import lan_cua_lenh, lan_dict
 from ..services.rbac_service import AuthorizationService
-from ..services.san_xuat.kho import phat_su_kien_kho
 
 router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
 MODULE = "san_xuat"
@@ -117,8 +116,6 @@ def chot(
         noi_ve=body.noi_ve, dich_cong_viec_id=body.dich_cong_viec_id))
     if res["ban_giao"]:
         phat_ban_giao(res["ban_giao"])
-    if res["yeu_cau_kho"] is not None:
-        phat_su_kien_kho(res["yeu_cau_kho"], bao_nguoi_tao=False)
     if res["nhom_dong"]:
         phat_dong_nhom(res["nhom_dong"])
     _phat_cho_chi(res, user, db)

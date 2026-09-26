@@ -5,12 +5,14 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..models.accounting import PAYMENT_VOUCHER_CANCELLED, PaymentVoucher
+from ..models.delivery import LG_DA_HUY, DeliveryTrip
 from ..models.gia_cong_ngoai import GiaCongNgoai
 from ..models.lsx import LsxCongDoan, LsxCongDoanPhuThuoc
 from ..models.purchase import SUPPLIER_ACTIVE, Supplier
 from ..models.role import RolePermission
 from ..models.san_xuat import SanXuatCongViec
 from ..models.san_xuat_san_luong import BG_DE_XUAT, SanXuatBanGiao
+from ..models.stock_request import REQ_CANCELLED, REQ_NHAP, REQ_XUAT, StockRequest
 from ..models.user import User
 
 
@@ -146,3 +148,22 @@ class GiaCongNgoaiRepository:
                 PaymentVoucher.gia_cong_ngoai_id.in_(ids),
                 PaymentVoucher.status != PAYMENT_VOUCHER_CANCELLED,
             ))}
+
+    # --- Chứng từ sau chốt (Task 8: kho / giao thẳng) -----------------------------------------
+    def _yeu_cau_cua(self, gcn_id: int, loai: str) -> list[StockRequest]:
+        return list(self.db.scalars(select(StockRequest).where(
+            StockRequest.gia_cong_ngoai_id == gcn_id, StockRequest.loai == loai,
+            StockRequest.trang_thai != REQ_CANCELLED).order_by(StockRequest.id)))
+
+    def yeu_cau_nhap_cua(self, gcn_id: int) -> list[StockRequest]:
+        """Đề nghị NHẬP thành phẩm do lần chốt về kho đẻ ra (còn sống)."""
+        return self._yeu_cau_cua(gcn_id, REQ_NHAP)
+
+    def yeu_cau_xuat_cua(self, gcn_id: int) -> list[StockRequest]:
+        """Đề nghị XUẤT giấy cấp cho nhà gia công trọn gói (Task 9) — còn sống. Tách loại để mở
+        lại số chốt không đụng nhầm phiếu giấy đã xuất."""
+        return self._yeu_cau_cua(gcn_id, REQ_XUAT)
+
+    def chuyen_giao_thang_cua(self, gcn_id: int) -> list[DeliveryTrip]:
+        return list(self.db.scalars(select(DeliveryTrip).where(
+            DeliveryTrip.gia_cong_ngoai_id == gcn_id, DeliveryTrip.trang_thai != LG_DA_HUY)))

@@ -100,6 +100,34 @@ def giao_sang(sess, admin, nguon, dich, sl: float) -> dict:
                             dich_cong_viec_id=dich.id, batch_ids=[b.id])
 
 
+from app.models.department import Department
+from app.models.employee import Employee
+from app.repositories.employee_repo import EmployeeRepository
+
+
+def nguoi_kcs(sess, ma: str = "TO-KCS-GC") -> User:
+    """Một tài khoản thành viên phòng ban `is_kcs` (admin seed KHÔNG đứng phòng này — xem
+    `test_san_xuat_kcs.py::_to_kiem`) — đọc `chuoi_cong_doan_kcs` cần đúng quyền này."""
+    d = Department(name="Tổ KCS gia công", code=ma, is_kcs=True)
+    sess.add(d)
+    sess.flush()
+    u = User(username=f"kcs_{ma.lower()}", name=f"KCS {ma}", password_hash="x", department_id=d.id)
+    sess.add(u)
+    sess.commit()
+    return u
+
+
+def nhan_vien_cua(sess, user) -> Employee:
+    """Hồ sơ nhân viên gắn tài khoản (giao thẳng đứng tên một nhân viên). Có sẵn thì dùng lại —
+    `employees.user_id` UNIQUE."""
+    emp = EmployeeRepository(sess).get_by_user_id(user.id)
+    if emp is None:
+        emp = Employee(code=f"NV-GC{user.id}", full_name=user.name or user.username, user_id=user.id)
+        sess.add(emp)
+        sess.commit()
+    return emp
+
+
 def nguoi_ke_hoach(sess, username: str = "kehoach_gc") -> User:
     """Một tài khoản vai "Kế hoạch SX" (seed) — người nhận toast "chờ mang đi"."""
     role = sess.query(Role).filter(Role.name == "Kế hoạch SX").one()

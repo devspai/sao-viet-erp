@@ -96,6 +96,19 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def sinh_ma_chung_tu(tien_to: str, da_ton_tai) -> str:
+    """`YCGH-yymmdd-XXXX` / `DNXGH-yymmdd-XXXX` — cùng khuôn `YCMH-` bên Thu mua. Dùng chung cho
+    giao thẳng của gia công ngoài (không qua cửa lập yêu cầu)."""
+    hom_nay = _utcnow().strftime("%y%m%d")
+    bang_chu = string.ascii_uppercase + string.digits
+    for _ in range(20):
+        duoi = "".join(secrets.choice(bang_chu) for _ in range(4))
+        ma = f"{tien_to}-{hom_nay}-{duoi}"
+        if da_ton_tai(ma) is None:
+            return ma
+    raise DeliveryError("Không sinh được mã chứng từ duy nhất, vui lòng thử lại.")
+
+
 class DeliveryService:
     def __init__(self, deliveries, orders, employees, users, departments,
                  stock_requests=None, stock_vouchers=None, xe=None, muc_km=None) -> None:
@@ -122,14 +135,7 @@ class DeliveryService:
     # =====================================================================================
     def _sinh_ma(self, tien_to: str, da_ton_tai) -> str:
         """`YCGH-yymmdd-XXXX` / `DNXGH-yymmdd-XXXX` — cùng khuôn `YCMH-` bên Thu mua."""
-        hom_nay = _utcnow().strftime("%y%m%d")
-        bang_chu = string.ascii_uppercase + string.digits
-        for _ in range(20):
-            duoi = "".join(secrets.choice(bang_chu) for _ in range(4))
-            ma = f"{tien_to}-{hom_nay}-{duoi}"
-            if da_ton_tai(ma) is None:
-                return ma
-        raise DeliveryError("Không sinh được mã chứng từ duy nhất, vui lòng thử lại.")
+        return sinh_ma_chung_tu(tien_to, da_ton_tai)
 
     # =====================================================================================
     # Phạm vi — lọc DÒNG, không ẩn tab
@@ -1254,6 +1260,9 @@ class DeliveryService:
         ngay = ngay or date.today()
         xong, tong_km = 0, 0
         for t in self.deliveries.list_trips(employee_ids=[employee_id]):
+            # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người chốt số — người đó không chạy xe.
+            if getattr(t, "gia_cong_ngoai_id", None):
+                continue
             ket = t.thoi_gian_ket_thuc
             if ket is None or (ket.year, ket.month) != (ngay.year, ngay.month):
                 continue
@@ -2050,6 +2059,9 @@ class DeliveryService:
         ngay = ngay or date.today()
         xong, tong_km = 0, 0
         for t in self.deliveries.list_trips(employee_ids=[employee_id]):
+            # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người chốt số — người đó không chạy xe.
+            if getattr(t, "gia_cong_ngoai_id", None):
+                continue
             if t.thoi_gian_ket_thuc is None or t.thoi_gian_ket_thuc.date() != ngay:
                 continue
             if t.trang_thai in LAN_GIAO_CO_HANG_DEN_TAY:

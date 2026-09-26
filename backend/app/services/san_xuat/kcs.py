@@ -377,6 +377,25 @@ def kiem_cong_doan(
     }
 
 
+def ghi_kcs_ngoai_phan_mem(db: Session, *, cv, so_dat: float, uid: int | None,
+                           ghi_chu: str) -> SanXuatKcsBatch:
+    """Bản ghi KCS ĐẠT tổng hợp cho công việc GIA CÔNG NGOÀI cuối nhóm (spec gia công §10).
+
+    KCS làm ngoài phần mềm; con số chốt đứng thay. Không gate, không commit — `gia_cong_ngoai.chot`
+    gác `san_xuat:update`. Nhờ bản ghi này "còn gửi kho" / đóng nhóm / trạng thái lệnh chạy nguyên
+    đường cũ. Báo cáo KCS loại nó (`kcs_bao_cao`)."""
+    luc = _moc()
+    kcs = SanXuatKcsBatch(
+        cong_viec_id=cv.id, nhom_id=cv.nhom_id, bat_dau=luc, ket_thuc=luc,
+        so_luong_nhan=so_dat, so_luong_dat=so_dat, so_luong_khong_dat=0,
+        don_vi=(cv.don_vi_ra or "").strip(), ket_luan=_ket_luan(so_dat, 0),
+        ghi_chu=ghi_chu[:500], created_by=uid,
+    )
+    db.add(kcs)
+    db.flush()
+    return kcs
+
+
 def _so_da_gui_kho(db: Session, cv) -> float:
     """Σ đã đề nghị nhập kho còn hiệu lực của công đoạn (đơn vị KCS) — đọc yêu cầu kho thật."""
     from .kho import dong_nhap_kho_cua_cong_viec, so_da_de_nghi_kcs
