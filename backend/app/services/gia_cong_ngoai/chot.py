@@ -143,6 +143,8 @@ def mo_lai(db: Session, *, user, gcn_id: int, expected_version: int | None) -> d
     if pc is not None:
         raise ValueError(f"Kế toán đã lập phiếu chi {pc.code} — huỷ phiếu chi trước rồi mới mở lại.")
     cvs = repo.cong_viec_cua(gcn.id)
+    if not cvs:
+        raise ValueError("Lần gia công không còn công việc nào — lệnh đã bị thu hồi?")
     cuoi = cvs[-1]
     _GO[gcn.noi_ve](db, user=user, gcn=gcn, cuoi=cuoi)
 

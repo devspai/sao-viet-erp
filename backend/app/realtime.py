@@ -182,3 +182,19 @@ def phat_ban_giao(res: dict) -> None:
             "don_vi": res.get("don_vi"),
             "lsx_ma": res.get("lsx_ma"),
         })
+
+
+def phat_dong_nhom(ket: dict) -> None:
+    """Nhóm thành phẩm đã đóng (§16 đủ / §13.3 thiếu) → refresh chỗ hiển thị nhóm + báo Sale và Kế
+    hoạch SX NGAY (§17): đơn đã ra thành phẩm, có thể giao/đóng đơn. Broadcast là đủ (ai đang mở
+    bàn/đơn đó tự cập nhật); không nhắm riêng vì người nhận là vai, không phải một tài khoản.
+
+    Dùng chung cho mọi cửa ghi có thể chốt chặn đóng nhóm — bàn tổ/KCS (`routers/san_xuat.py`) và
+    Chốt gia công ngoài (`routers/gia_cong_ngoai.py`)."""
+    hub.broadcast({
+        "type": "san_xuat_nhom_dong",
+        "nhom_id": ket.get("nhom_id"),
+        "order_id": ket.get("order_id"),
+        "trang_thai": ket.get("trang_thai"),
+        "kieu": ket.get("kieu"),
+    })

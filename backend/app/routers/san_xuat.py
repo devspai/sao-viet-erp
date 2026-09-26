@@ -36,7 +36,7 @@ from ..deps import (
     get_authorization_service, get_current_user, require_permission, require_quyen_to,
 )
 from ..models.user import User
-from ..realtime import hub, phat_ban_giao
+from ..realtime import hub, phat_ban_giao, phat_dong_nhom
 from ..repositories.san_xuat_repo import SanXuatRepository
 from ..storage import get_storage, make_key, url_from_key
 from ..schemas.san_xuat import (
@@ -217,19 +217,6 @@ def _phat_sse_kcs(res: dict) -> None:
                 })
 
 
-def _phat_sse_dong_nhom(ket: dict) -> None:
-    """Nhóm thành phẩm đã đóng (§16 đủ / §13.3 thiếu) → refresh chỗ hiển thị nhóm + báo Sale và Kế
-    hoạch SX NGAY (§17): đơn đã ra thành phẩm, có thể giao/đóng đơn. Broadcast là đủ (ai đang mở
-    bàn/đơn đó tự cập nhật); không nhắm riêng vì người nhận là vai, không phải một tài khoản."""
-    hub.broadcast({
-        "type": "san_xuat_nhom_dong",
-        "nhom_id": ket.get("nhom_id"),
-        "order_id": ket.get("order_id"),
-        "trang_thai": ket.get("trang_thai"),
-        "kieu": ket.get("kieu"),
-    })
-
-
 def _thu_dong_nhom(db: Session, res: dict, *, user=None, su_kien: str = "") -> None:
     """CHỐT CHẶN §16 sau một thao tác có thể hoàn tất điều kiện cuối: lần ra `nhom_id` từ kết quả
     (trực tiếp hoặc qua công việc), thử tự đóng ĐỦ, và nếu đóng thì bắn SSE. Lỗi lần-ra hay không đủ
@@ -245,7 +232,7 @@ def _thu_dong_nhom(db: Session, res: dict, *, user=None, su_kien: str = "") -> N
             return
         ket = dong_nhom.tu_dong_dong_neu_du(db, nhom_id=nhom_id, actor=user, su_kien=su_kien)
         if ket:
-            _phat_sse_dong_nhom(ket)
+            phat_dong_nhom(ket)
     except Exception:
         # Thao tác chính đã commit + bắn SSE; chốt chặn hỏng KHÔNG được hoá 500. Nhóm sẽ tự đóng ở
         # lần chốt chặn kế tiếp (hoặc trưởng KCS đóng thiếu).
@@ -1151,5 +1138,5 @@ def dong_thieu_nhom(
     res = _chay(lambda: dong_nhom.dong_thieu(
         db, user=user, nhom_id=nhom_id, expected_version=body.expected_version,
     ))
-    _phat_sse_dong_nhom(res)
+    phat_dong_nhom(res)
     return res

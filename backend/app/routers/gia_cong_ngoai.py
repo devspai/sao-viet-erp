@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.user import User
-from ..realtime import hub, phat_ban_giao
+from ..realtime import hub, phat_ban_giao, phat_dong_nhom
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ..schemas.gia_cong_ngoai import ChotIn, GiaCongNgoaiOut, MangDiIn, MoLaiIn, NhaGiaCongOut
 from ..services.gia_cong_ngoai import chot as chot_svc
@@ -21,7 +21,6 @@ from ..services.gia_cong_ngoai import mot_phan
 from ..services.gia_cong_ngoai.lan import lan_cua_lenh, lan_dict
 from ..services.rbac_service import AuthorizationService
 from ..services.san_xuat.kho import phat_su_kien_kho
-from .san_xuat import _phat_sse_dong_nhom
 
 router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
 MODULE = "san_xuat"
@@ -121,7 +120,7 @@ def chot(
     if res["yeu_cau_kho"] is not None:
         phat_su_kien_kho(res["yeu_cau_kho"], bao_nguoi_tao=False)
     if res["nhom_dong"]:
-        _phat_sse_dong_nhom(res["nhom_dong"])
+        phat_dong_nhom(res["nhom_dong"])
     _phat_cho_chi(res, user, db)
     _phat_doi(res["lsx_id"])
     return _ra(db, authz, user, gcn_id)

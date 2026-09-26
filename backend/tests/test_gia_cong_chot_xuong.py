@@ -93,6 +93,20 @@ def test_mo_lai_go_sach_roi_chot_lai(sess, admin, da_mang_di):
          sl_cuoi=1650, noi_ve=NOI_VE_XUONG)
 
 
+def test_mo_lai_khong_con_cong_viec(sess, admin, da_mang_di):
+    """Lệnh mất liên kết công việc SAU khi đã chốt (mồ côi) ⇒ mở lại phải báo lỗi rõ, không
+    index rỗng ra IndexError."""
+    lsx_id, lan = da_mang_di
+    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+         sl_cuoi=1650, noi_ve=NOI_VE_XUONG)
+    sess.refresh(lan)
+    for cv in (cv_ten(sess, lsx_id, "Cán màng"), cv_ten(sess, lsx_id, "Bế")):
+        cv.gia_cong_ngoai_id = None
+    sess.flush()
+    with pytest.raises(ValueError, match="không còn công việc"):
+        mo_lai(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
+
+
 def test_to_sau_da_nhan_thi_khong_mo_lai(sess, admin, da_mang_di):
     _lsx_id, lan = da_mang_di
     chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
