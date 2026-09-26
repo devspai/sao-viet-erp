@@ -85,6 +85,19 @@ export function SupplierInfoTab({
                       />
                     </LocalField>
 
+                    <LocalField label="Nhận gia công">
+                      <label className="purchase__checkbox">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(form.nhan_gia_cong)}
+                          onChange={(e) =>
+                            setForm({ ...form, nhan_gia_cong: e.target.checked })
+                          }
+                        />
+                        <span>Hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất</span>
+                      </label>
+                    </LocalField>
+
                     <LocalField label="Mã số thuế" required>
                       <input
                         className="input md-page__mono"

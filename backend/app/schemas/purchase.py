@@ -63,6 +63,8 @@ class SupplierIn(BaseModel):
     # NCC này không vào cột Quá hạn). Hai thứ khác nhau, đừng ép None thành 0.
     credit_days: int | None = Field(default=None, ge=0)
     status: str = Field(default="active", max_length=16)
+    # Tích "Nhận gia công" (26/09/2026) — ô chọn Nhà gia công ở Kế hoạch SX lọc theo cờ này.
+    nhan_gia_cong: bool = False
     note: str | None = Field(default=None, max_length=2000)
     items: list[SupplierItemIn] = Field(default_factory=list)
 
@@ -110,6 +112,7 @@ class SupplierRow(BaseModel):
     credit_limit: int = 0
     credit_days: int | None = None
     status: str
+    nhan_gia_cong: bool = False
     note: str | None = None
     created_at: datetime
     updated_at: datetime

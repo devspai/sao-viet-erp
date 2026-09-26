@@ -809,6 +809,8 @@ class PurchaseService:
             "credit_limit": han_muc,
             "credit_days": so_ngay,
             "status": status,
+            # Tích "Nhận gia công" (26/09/2026) — ô chọn Nhà gia công ở Kế hoạch SX lọc theo cờ này.
+            "nhan_gia_cong": bool(values.get("nhan_gia_cong")),
             "note": (values.get("note") or "").strip() or None,
             "items": items,
         }

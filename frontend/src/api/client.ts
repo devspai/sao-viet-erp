@@ -6325,6 +6325,8 @@ export interface SupplierRow {
       của NCC này không vào cột Quá hạn). Hai thứ khác nhau, đừng ép null thành 0. */
   credit_days: number | null;
   status: SupplierStatus;
+  /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
+  nhan_gia_cong: boolean;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -6391,9 +6393,14 @@ export interface SupplierInput {
   /** Số ngày cho nợ — `0` = trả ngay · `null` = chưa đặt hạn. */
   credit_days?: number | null;
   status?: SupplierStatus;
+  /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
+  nhan_gia_cong?: boolean;
   note?: string | null;
   items?: SupplierItemInput[];
 }
+
+/** Ô chọn Nhà gia công — NCC đang hoạt động có tích "Nhận gia công" (spec gia công ngoài §7). */
+export interface NhaGiaCong { id: number; ten: string }
 
 export interface SupplierListOut {
   items: SupplierRow[];
@@ -11806,6 +11813,12 @@ export const api = {
   },
 
   // --- Lệnh sản xuất (LSX) — bàn Kế hoạch sản xuất ---------------------------
+  giaCongNgoai: {
+    /** Ô chọn Nhà gia công — NCC đang hoạt động có tích "Nhận gia công" (spec gia công ngoài §7). */
+    nhaGiaCong(token: string): Promise<NhaGiaCong[]> {
+      return authed<NhaGiaCong[]>("/api/gia-cong-ngoai/nha-gia-cong", token);
+    },
+  },
   lsx: {
     /** Đơn Sale đã "Chuyển xuống sản xuất" mà còn dòng chưa lên lệnh. */
     hangCho(token: string, params: { page?: number; size?: number } = {}): Promise<HangChoOut> {
