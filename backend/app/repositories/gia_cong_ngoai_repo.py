@@ -58,13 +58,20 @@ class GiaCongNgoaiRepository:
             .order_by(SanXuatCongViec.id)
         ))
 
-    def ban_giao_cho_mang_di(self, cv_id: int) -> list[SanXuatBanGiao]:
-        """Bàn giao bước trước đã ĐỀ XUẤT sang công việc đầu của dải, chưa ai nhận."""
-        return list(self.db.scalars(
+    def ban_giao_cho_mang_di(self, cv_id: int, *, khoa: bool = False) -> list[SanXuatBanGiao]:
+        """Bàn giao bước trước đã ĐỀ XUẤT sang công việc đầu của dải, chưa ai nhận.
+
+        `khoa=True` (Postgres `FOR UPDATE`; SQLite bỏ qua) cho `mot_phan.mang_di` — chặn hai
+        request "Đã mang đi" bấm gần như đồng thời cùng nhận trùng một dòng bàn giao. Đọc để
+        HIỂN THỊ (`lan_dict`) không khoá — GET không được giữ khoá dòng."""
+        stmt = (
             select(SanXuatBanGiao).where(
                 SanXuatBanGiao.dich_cong_viec_id == cv_id, SanXuatBanGiao.trang_thai == BG_DE_XUAT,
             ).order_by(SanXuatBanGiao.id)
-        ))
+        )
+        if khoa:
+            stmt = stmt.with_for_update()
+        return list(self.db.scalars(stmt))
 
     def co_buoc_truoc(self, lsx_cong_doan_id: int | None) -> bool:
         """Bước này có bước trước (cạnh đi vào, hoặc bước có `thu_tu` nhỏ hơn cùng lệnh)?"""

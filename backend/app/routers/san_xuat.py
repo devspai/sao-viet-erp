@@ -36,7 +36,7 @@ from ..deps import (
     get_authorization_service, get_current_user, require_permission, require_quyen_to,
 )
 from ..models.user import User
-from ..realtime import hub
+from ..realtime import hub, phat_ban_giao
 from ..repositories.san_xuat_repo import SanXuatRepository
 from ..storage import get_storage, make_key, url_from_key
 from ..schemas.san_xuat import (
@@ -133,33 +133,6 @@ def _phat_sse(res: dict) -> None:
         hub.publish(uid, {"type": "san_xuat_duoc_giao_viec",
                           "cong_viec_id": res.get("cong_viec_id")})
 
-
-def _phat_sse_ban_giao(res: dict) -> None:
-    """Bàn giao đổi trạng thái → refresh CẢ hai bàn tổ (nguồn + đích) + đẩy tới người cần hành động.
-
-    MỘT gói mang cả hai tổ (`team_ids`), không phải mỗi tổ một gói: `broadcast` tới MỌI kết nối và
-    mỗi gói bump tick chung ở FE, nên hai gói là mọi màn đang mở nạp lại hai lượt cho một cú bấm
-    (đo 16/09/2026 ở bàn tổ: danh sách việc ×3, hộp thư kho ×2, chờ xác nhận ×2 cho một Đề xuất)."""
-    teams = sorted({t for t in (res.get("nguon_department_id"), res.get("dich_department_id")) if t})
-    if teams:
-        hub.broadcast({
-            "type": "san_xuat_ban_giao_changed",
-            "team_ids": teams,
-            "ban_giao_id": res.get("ban_giao_id"),
-            "trang_thai": res.get("trang_thai_ban_giao"),
-        })
-    for uid in res.get("notify_user_ids") or []:
-        hub.publish(uid, {
-            "type": "san_xuat_ban_giao",
-            "ban_giao_id": res.get("ban_giao_id"),
-            "trang_thai": res.get("trang_thai_ban_giao"),
-            "su_kien": res.get("su_kien"),
-            "nguon_ten": res.get("nguon_ten"),
-            "dich_ten": res.get("dich_ten"),
-            "so_luong": res.get("so_luong"),
-            "don_vi": res.get("don_vi"),
-            "lsx_ma": res.get("lsx_ma"),
-        })
 
 
 def _phat_sse_vat_tu(res: dict) -> None:
@@ -776,7 +749,7 @@ def de_xuat_ban_giao(
         db, user=user, nguon_cong_viec_id=cong_viec_id,
         dich_cong_viec_id=body.dich_cong_viec_id, don_vi=body.don_vi, batch_ids=body.batch_ids,
     ))
-    _phat_sse_ban_giao(res)
+    phat_ban_giao(res)
     return res
 
 
@@ -792,7 +765,7 @@ def sua_ban_giao(
         db, user=user, ban_giao_id=ban_giao_id,
         batch_ids=body.batch_ids, expected_version=body.expected_version,
     ))
-    _phat_sse_ban_giao(res)
+    phat_ban_giao(res)
     return res
 
 
@@ -807,7 +780,7 @@ def xac_nhan_ban_giao(
     res = _chay(lambda: ban_giao.xac_nhan(
         db, user=user, ban_giao_id=ban_giao_id, expected_version=body.expected_version,
     ))
-    _phat_sse_ban_giao(res)
+    phat_ban_giao(res)
     _thu_dong_nhom(db, res, user=user, su_kien="ban_giao_xac_nhan")
     return res
 
@@ -825,7 +798,7 @@ def dieu_chinh_ban_giao(
         so_luong_sau=body.so_luong_sau, mo_ta=body.mo_ta,
         expected_version=body.expected_version,
     ))
-    _phat_sse_ban_giao(res)
+    phat_ban_giao(res)
     _thu_dong_nhom(db, res, user=user, su_kien="ban_giao_dieu_chinh")
     return res
 

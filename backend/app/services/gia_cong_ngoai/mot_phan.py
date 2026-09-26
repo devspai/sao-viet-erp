@@ -40,8 +40,10 @@ def mang_di(db: Session, *, user, gcn_id: int, expected_version: int | None,
     if not cvs:
         raise ValueError("Lần gia công không còn công việc nào — lệnh đã bị thu hồi?")
     dau = cvs[0]
-    cho = repo.ban_giao_cho_mang_di(dau.id)
+    cho = repo.ban_giao_cho_mang_di(dau.id, khoa=True)
     if cho:
+        if sl_gui is not None:
+            raise ValueError("Số mang đi lấy theo bàn giao, không gõ tay.")
         so = sum(float(b.so_luong) for b in cho)
     elif repo.co_buoc_truoc(dau.lsx_cong_doan_id):
         raise ValueError("Bước trước chưa bàn giao hàng sang — chờ tổ bàn giao rồi bấm lại.")

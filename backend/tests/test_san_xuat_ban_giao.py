@@ -440,12 +440,12 @@ def test_giao_theo_me(db, orders, lsx_svc, admin, customer):
 def test_phat_sse_ban_giao_mot_goi_cho_ca_hai_to(monkeypatch, nguon, dich, ky_vong):
     """`broadcast` tới mọi kết nối và mỗi gói bump tick chung ở FE — mỗi tổ một gói là mọi màn
     đang mở nạp lại hai lượt cho một cú bấm."""
-    from app.routers import san_xuat as router_sx
+    from app import realtime
 
     goi: list[dict] = []
-    monkeypatch.setattr(router_sx.hub, "broadcast", goi.append)
-    monkeypatch.setattr(router_sx.hub, "publish", lambda *a, **k: None)
-    router_sx._phat_sse_ban_giao({
+    monkeypatch.setattr(realtime.hub, "broadcast", goi.append)
+    monkeypatch.setattr(realtime.hub, "publish", lambda *a, **k: None)
+    realtime.phat_ban_giao({
         "nguon_department_id": nguon, "dich_department_id": dich,
         "ban_giao_id": 11, "trang_thai_ban_giao": "cho_xac_nhan",
     })

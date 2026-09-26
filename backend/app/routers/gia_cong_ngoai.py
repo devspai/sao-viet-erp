@@ -13,13 +13,12 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.user import User
-from ..realtime import hub
+from ..realtime import hub, phat_ban_giao
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ..schemas.gia_cong_ngoai import GiaCongNgoaiOut, MangDiIn, NhaGiaCongOut
 from ..services.gia_cong_ngoai import mot_phan
 from ..services.gia_cong_ngoai.lan import lan_cua_lenh, lan_dict
 from ..services.rbac_service import AuthorizationService
-from .san_xuat import _phat_sse_ban_giao
 
 router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
 MODULE = "san_xuat"
@@ -85,6 +84,6 @@ def mang_di(
     kq = _chay(lambda: mot_phan.mang_di(
         db, user=user, gcn_id=gcn_id, expected_version=body.version, sl_gui=body.sl_gui))
     for res in kq["ban_giao"]:
-        _phat_sse_ban_giao(res)
+        phat_ban_giao(res)
     _phat_doi(kq["lsx_id"])
     return _ra(db, authz, user, gcn_id)

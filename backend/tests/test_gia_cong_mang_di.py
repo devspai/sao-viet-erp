@@ -56,6 +56,13 @@ def test_lech_version_la_xung_dot(sess, admin, lenh):
         mang_di(sess, user=admin, gcn_id=lan.id, expected_version=lan.version + 1)
 
 
+def test_co_ban_giao_cho_ma_goi_sl_gui_la_loi(sess, admin, lenh):
+    giao_sang(sess, admin, cv_ten(sess, lenh, "In"), cv_ten(sess, lenh, "Cán màng"), 1660)
+    lan = sess.query(GiaCongNgoai).filter_by(lsx_id=lenh).one()
+    with pytest.raises(ValueError, match="không gõ tay"):
+        mang_di(sess, user=admin, gcn_id=lan.id, expected_version=lan.version, sl_gui=1660)
+
+
 def test_buoc_dau_lenh_la_thue_ngoai_thi_go_so_gui(sess, orders, lsx_svc, admin, customer):
     lsx_id = dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, buoc=[
         ("Cán màng", "thue_ngoai", ncc(sess), 1000, "to"),
