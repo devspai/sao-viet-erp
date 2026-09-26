@@ -7,7 +7,6 @@ import { nhanTram, tenDonVi } from "./tenDonVi";
 import type {
   LsxCongDoan,
   LsxCongDoanBody,
-  LsxGiaoNhanFields,
   LsxLoaiBuoc,
 } from "../api/client";
 
@@ -101,20 +100,12 @@ export interface EditRow {
    *  hoặc đã sửa số thì về `false` và máy chừa ra — không thì đổi công đoạn là mất số vừa gõ. */
   vat_tus: { hang_loai: HangLoai; vat_tu_id: number; vat_tu_ma: string; vat_tu_ten: string;
              don_vi: string; so_luong: string; tu_dong: boolean }[];
-  // gia công ngoài (§8)
+  // Gia công ngoài (spec 2026-09-26): nhà gia công từ danh mục NCC + đơn giá cả lần.
+  nha_cung_cap_id: number | null;
+  /** Tên do máy chủ ghi — chỉ để hiện, không gửi lên. */
   nha_cung_cap: string;
-  sl_gui: string;
-  ngay_gui_dk: string;
-  van_chuyen_ngay: string;
-  gia_cong_ngay: string;
-  ngay_nhan_dk: string;
-  hao_hut_cho_phep: string;
   don_gia_gia_cong: string;
-  yeu_cau_ky_thuat: string;
   ghi_chu: string;
-  /** Sổ giao–nhận THỰC TẾ + dẫn xuất — READ-ONLY ở form này. Ghi qua `api.lsx.giaoNhan`, không
-   *  đi kèm lưu routing (hàng ra cổng lúc lệnh đang chạy, lưu routing thì bị chặn). */
-  giao_nhan: LsxGiaoNhanFields | null;
   /* Khối KHOÁN THEO ĐẦU VIỆC (`khoan_rate_id` · `khoan_chon_duoc` · `khoan_rate_id_luc_tai`) GỠ
      18/09/2026 (mg `0320`): bước thôi mang đầu việc. Việc khoán chọn LÚC GHI MẺ ở bàn tổ. */
 }
@@ -190,31 +181,10 @@ export function toEdit(cd: LsxCongDoan): EditRow {
       ...v, hang_loai: v.hang_loai ?? "vat_tu",
       so_luong: String(v.so_luong), tu_dong: Boolean(v.tu_dong),
     })),
+    nha_cung_cap_id: cd.nha_cung_cap_id ?? null,
     nha_cung_cap: cd.nha_cung_cap ?? "",
-    sl_gui: s(cd.sl_gui),
-    ngay_gui_dk: cd.ngay_gui_dk ?? "",
-    van_chuyen_ngay: s(cd.van_chuyen_ngay),
-    gia_cong_ngay: s(cd.gia_cong_ngay),
-    ngay_nhan_dk: cd.ngay_nhan_dk ?? "",
-    hao_hut_cho_phep: s(cd.hao_hut_cho_phep),
     don_gia_gia_cong: s(cd.don_gia_gia_cong),
-    yeu_cau_ky_thuat: cd.yeu_cau_ky_thuat ?? "",
     ghi_chu: cd.ghi_chu ?? "",
-    giao_nhan: {
-      nguoi_giao_id: cd.nguoi_giao_id ?? null,
-      nguoi_giao_ten: cd.nguoi_giao_ten ?? null,
-      giao_luc: cd.giao_luc ?? null,
-      sl_giao_thuc: cd.sl_giao_thuc ?? null,
-      nguoi_nhan_id: cd.nguoi_nhan_id ?? null,
-      nguoi_nhan_ten: cd.nguoi_nhan_ten ?? null,
-      nhan_luc: cd.nhan_luc ?? null,
-      sl_nhan_thuc: cd.sl_nhan_thuc ?? null,
-      giao_nhan_trang_thai: cd.giao_nhan_trang_thai ?? "chua_gui",
-      so_hut: cd.so_hut ?? null,
-      hut_vuot_dinh_muc: Boolean(cd.hut_vuot_dinh_muc),
-      tien_gia_cong_thuc: cd.tien_gia_cong_thuc ?? null,
-      qua_han_ngay: cd.qua_han_ngay ?? null,
-    },
   };
 }
 
@@ -283,11 +253,8 @@ export function emptyRow(): EditRow {
     thoi_luong_dien_giai: {},
     vat_tu_goi_y: [], so_luong_vao_moi: null, so_luong_ra_moi: null,
     phu_thuoc_step_keys: [], vat_tus: [],
-    nha_cung_cap: "", sl_gui: "", ngay_gui_dk: "", van_chuyen_ngay: "", gia_cong_ngay: "",
-    ngay_nhan_dk: "", hao_hut_cho_phep: "", don_gia_gia_cong: "", yeu_cau_ky_thuat: "",
+    nha_cung_cap_id: null, nha_cung_cap: "", don_gia_gia_cong: "",
     ghi_chu: "",
-    // Bước mới chưa lưu thì chưa có id để ghi giao–nhận — sổ chỉ mở sau khi lưu routing.
-    giao_nhan: null,
   };
 }
 
@@ -382,8 +349,9 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
       // KHÔNG gửi `bat_buoc` (07/09/2026): mọi bước trong routing đều bắt buộc, cột để server tự
       // giữ TRUE. Gửi lại chỉ mở đường ghi nhầm `false` trong khi drawer không còn ô sửa.
       // Để TRỐNG tổ → server tự lấy tổ mặc định của công đoạn (không ép khai lại).
-      department_id: r.department_id,
-      may_id: r.may_id,
+      // Thuê ngoài không tổ, không máy, không vật tư — gửi rỗng để khỏi lệch với server.
+      department_id: ngoai ? null : r.department_id,
+      may_id: ngoai ? null : r.may_id,
       khuon_be_id: r.khuon_be_id,
       so_luong_vao: n(r.so_luong_vao),
       so_luong_ra: n(r.so_luong_ra),
@@ -401,21 +369,13 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
       // Ô trống = để máy tính từ năng suất (KHÔNG phải 0 phút).
       phat_sinh_phut: on(r.phat_sinh_phut),
       phu_thuoc_step_keys: r.phu_thuoc_step_keys,
-      vat_tus: r.vat_tus.map((v) => ({
+      vat_tus: ngoai ? [] : r.vat_tus.map((v) => ({
         hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id,
         so_luong: n(v.so_luong), tu_dong: v.tu_dong,
       })),
-      // Khối gia công ngoài chỉ gửi khi bước ĐANG là thuê ngoài — đổi loại bước rồi thì
-      // không kéo theo dữ liệu NCC cũ làm checklist hiểu nhầm.
-      nha_cung_cap: ngoai ? ot(r.nha_cung_cap) : null,
-      sl_gui: ngoai ? on(r.sl_gui) : undefined,
-      ngay_gui_dk: ngoai ? ot(r.ngay_gui_dk) : null,
-      van_chuyen_ngay: ngoai ? on(r.van_chuyen_ngay) : undefined,
-      gia_cong_ngay: ngoai ? on(r.gia_cong_ngay) : undefined,
-      ngay_nhan_dk: ngoai ? ot(r.ngay_nhan_dk) : null,
-      hao_hut_cho_phep: ngoai ? on(r.hao_hut_cho_phep) : undefined,
+      // Chỉ gửi khi bước ĐANG là thuê ngoài — đổi loại rồi thì server tự dọn (Task 3).
+      nha_cung_cap_id: ngoai ? r.nha_cung_cap_id : null,
       don_gia_gia_cong: ngoai ? on(r.don_gia_gia_cong) : undefined,
-      yeu_cau_ky_thuat: ngoai ? ot(r.yeu_cau_ky_thuat) : null,
       ghi_chu: ot(r.ghi_chu),
       // `piece_rate_id` GỠ 18/09/2026 (mg `0320`) — bước thôi ghim đầu việc khoán.
     };

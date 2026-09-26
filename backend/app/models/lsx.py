@@ -325,26 +325,9 @@ class LsxCongDoan(Base):
     # hồ sơ lệnh, phiếu công nghệ, chip…) khỏi phải đổi. Client không gửi cột chữ.
     nha_cung_cap_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     nha_cung_cap: Mapped[str | None] = mapped_column(String(150), nullable=True)
-    sl_gui: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    ngay_gui_dk: Mapped[date | None] = mapped_column(Date, nullable=True)
-    van_chuyen_ngay: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)  # 1 chiều
-    gia_cong_ngay: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
-    ngay_nhan_dk: Mapped[date | None] = mapped_column(Date, nullable=True)
-    hao_hut_cho_phep: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # Đơn giá gia công của bước — chỉ ô ở BƯỚC CUỐI một dải thuê ngoài được đọc lúc phát hành
+    # (đơn giá cả lần, theo đơn vị ra của bước đó). Tiền = con số chốt × đơn giá, không lưu cột.
     don_gia_gia_cong: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)
-    yeu_cau_ky_thuat: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # --- Gia công ngoài: sổ THỰC TẾ (khác 9 cột trên — kia là DỰ KIẾN) -----------------
-    # Giao và nhận là HAI sự kiện: khác ngày, khác người, khác số lượng. Ghi qua cửa THỰC THI
-    # (`POST .../giao-nhan`), không qua lưu routing — hàng ra cổng lúc lệnh đang chạy, mà lưu
-    # routing thì bị chặn ở trạng thái đã lập kế hoạch.
-    # Số hỏng/thiếu = `sl_giao_thuc - sl_nhan_thuc`, trạng thái suy từ hai mốc thời gian, tiền
-    # gia công thực = `sl_nhan_thuc × don_gia_gia_cong` — DẪN XUẤT, không lưu cột.
-    nguoi_giao_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)  # → users.id
-    giao_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    sl_giao_thuc: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    nguoi_nhan_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)  # → users.id
-    nhan_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    sl_nhan_thuc: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
 
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
 

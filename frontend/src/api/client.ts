@@ -1079,7 +1079,7 @@ export interface XlCongDoan {
    *  nhau). Bàn cấp lệnh vẫn TRẢI TUẦN TỰ — chip chỉ nói thật, không đổi cách trải. */
   lop: number;
   song_song: boolean;
-  thue_ngoai_ngay: number | null;
+  la_thue_ngoai: boolean;
   mau_index: number;
   /** Trạng thái thẻ việc dưới xưởng. `null` ⇔ lệnh chưa phát hành ⇒ cả khối dưới đều `null`. */
   trang_thai: "released" | "running" | "paused" | "completed" | null;
@@ -2485,41 +2485,16 @@ export interface LsxPreviewOut {
   lines: LsxPreviewLine[];
 }
 
-/** Khối gia công ngoài (§8) — chỉ có nghĩa khi `loai_buoc = "thue_ngoai"`. */
+/** Gia công ngoài của BƯỚC (spec 2026-09-26) — chỉ có nghĩa khi `loai_buoc = "thue_ngoai"`.
+ *  Tên nhà gia công do máy chủ ghi theo `nha_cung_cap_id`; việc mang đi / chốt số nằm ở
+ *  `api.giaCongNgoai`, không ở bước. */
 interface LsxThueNgoaiFields {
+  nha_cung_cap_id: number | null;
   nha_cung_cap: string | null;
-  sl_gui: number | null;
-  ngay_gui_dk: string | null;
-  van_chuyen_ngay: number | null;
-  gia_cong_ngay: number | null;
-  ngay_nhan_dk: string | null;
-  hao_hut_cho_phep: number | null;
   don_gia_gia_cong: number | null;
-  yeu_cau_ky_thuat: string | null;
 }
 
-/** Sổ THỰC TẾ của bước gia công ngoài + mọi thứ server SUY RA từ nó (không lưu cột).
- *
- * Ghi qua cửa thực thi `api.lsx.giaoNhan`, KHÔNG qua lưu routing — hàng ra cổng lúc lệnh đang
- * chạy, mà lưu routing bị chặn đúng trạng thái đó.
- */
-export interface LsxGiaoNhanFields {
-  nguoi_giao_id: number | null;
-  nguoi_giao_ten: string | null;
-  giao_luc: string | null;
-  sl_giao_thuc: number | null;
-  nguoi_nhan_id: number | null;
-  nguoi_nhan_ten: string | null;
-  nhan_luc: string | null;
-  sl_nhan_thuc: number | null;
-  giao_nhan_trang_thai: "chua_gui" | "dang_ngoai" | "da_ve" | null;
-  so_hut: number | null;
-  hut_vuot_dinh_muc: boolean;
-  tien_gia_cong_thuc: number | null;
-  qua_han_ngay: number | null;
-}
-
-export interface LsxCongDoan extends LsxThueNgoaiFields, LsxGiaoNhanFields {
+export interface LsxCongDoan extends LsxThueNgoaiFields {
   id: number; step_key: string; thu_tu: number; cong_doan_id: number | null;
   ten: string; nhom: string | null; loai_buoc: LsxLoaiBuoc; bat_buoc: boolean;
   department_id: number | null; department_ten: string | null;
@@ -2585,7 +2560,7 @@ export interface LsxCongDoan extends LsxThueNgoaiFields, LsxGiaoNhanFields {
   so_luong_vao_moi: number | null;
   so_luong_ra_moi: number | null;
 }
-export interface LsxCongDoanBody extends Partial<LsxThueNgoaiFields> {
+export interface LsxCongDoanBody extends Partial<Omit<LsxThueNgoaiFields, "nha_cung_cap">> {
   step_key?: string; thu_tu?: number; cong_doan_id?: number | null; ten?: string; nhom?: string | null;
   /* `bat_buoc` GỠ 07/09/2026 — server không nhận nữa, mọi bước routing đều bắt buộc (mg 0275). */
   loai_buoc?: LsxLoaiBuoc;
@@ -11891,17 +11866,6 @@ export const api = {
       body: { ten: string; loai: string | null },
     ): Promise<KhuonChonDuoc> {
       return authed<KhuonChonDuoc>(`/api/lsx/${id}/khuon-moi`, token, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-    },
-    /** Ghi nhận THỰC TẾ hàng gia công ngoài đi/về. Cửa riêng — chạy được cả khi lệnh đã lập
-     *  kế hoạch, vì hàng ra cổng đúng lúc lệnh đang chạy. */
-    giaoNhan(
-      token: string, id: number, buocId: number,
-      body: { su_kien: "giao" | "nhan"; nguoi_id?: number | null; luc?: string | null; so_luong?: number | null },
-    ): Promise<LsxDetail> {
-      return authed<LsxDetail>(`/api/lsx/${id}/buoc/${buocId}/giao-nhan`, token, {
         method: "POST",
         body: JSON.stringify(body),
       });

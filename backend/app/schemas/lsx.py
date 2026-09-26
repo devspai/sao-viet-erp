@@ -188,17 +188,7 @@ class LsxCongDoanIn(BaseModel):
     # Gia công ngoài (spec 2026-09-26): nhà gia công = NCC có tích "Nhận gia công". Chỉ gửi ID —
     # tên (`nha_cung_cap`) do máy chủ ghi theo NCC đã chọn, client không gửi chữ.
     nha_cung_cap_id: int | None = None
-    sl_gui: float | None = Field(default=None, ge=0)
-    ngay_gui_dk: date | None = None
-    van_chuyen_ngay: float | None = Field(default=None, ge=0)
-    gia_cong_ngay: float | None = Field(default=None, ge=0)
-    ngay_nhan_dk: date | None = None
-    hao_hut_cho_phep: float | None = Field(default=None, ge=0)
     don_gia_gia_cong: float | None = Field(default=None, ge=0)
-    yeu_cau_ky_thuat: str | None = None
-    # Người giao / người nhận + số thực KHÔNG nhận ở đây: đó là THỰC THI, ghi qua
-    # `POST /api/lsx/{id}/buoc/{buoc_id}/giao-nhan`. Lưu routing bị chặn khi lệnh đã lập kế
-    # hoạch, mà hàng ra cổng đúng lúc lệnh đang chạy.
     ghi_chu: str | None = None
     phu_thuoc_step_keys: list[str] | None = None
     vat_tus: list[LsxBuocVatTuIn] | None = None
@@ -271,29 +261,7 @@ class LsxCongDoanOut(BaseModel):
 
     nha_cung_cap_id: int | None = None
     nha_cung_cap: str | None = None
-    sl_gui: float | None = None
-    ngay_gui_dk: date | None = None
-    van_chuyen_ngay: float | None = None
-    gia_cong_ngay: float | None = None
-    ngay_nhan_dk: date | None = None
-    hao_hut_cho_phep: float | None = None
     don_gia_gia_cong: float | None = None
-    yeu_cau_ky_thuat: str | None = None
-    # --- Gia công ngoài: sổ THỰC TẾ + dẫn xuất đọc từ nó ---------------------------
-    nguoi_giao_id: int | None = None
-    nguoi_giao_ten: str | None = None
-    giao_luc: datetime | None = None
-    sl_giao_thuc: float | None = None
-    nguoi_nhan_id: int | None = None
-    nguoi_nhan_ten: str | None = None
-    nhan_luc: datetime | None = None
-    sl_nhan_thuc: float | None = None
-    # DẪN XUẤT (tính lúc đọc, không lưu cột)
-    giao_nhan_trang_thai: str | None = None   # chua_gui | dang_ngoai | da_ve
-    so_hut: float | None = None               # giao − nhận
-    hut_vuot_dinh_muc: bool = False
-    tien_gia_cong_thuc: float | None = None
-    qua_han_ngay: int | None = None           # >0 = quá hạn nhận, chỉ khi chưa nhận
     ghi_chu: str | None = None
 
     # ⚠️ `khoan_rate_id` · `khoan_ten` · `khoan_chon_duoc` GỠ 18/09/2026 (mg `0320`): bước thôi chọn
@@ -307,19 +275,6 @@ class LsxCongDoanOut(BaseModel):
     so_luong_ra_moi: float | None = None
     phu_thuoc_step_keys: list[str] = Field(default_factory=list)
     vat_tus: list[LsxBuocVatTuOut] = Field(default_factory=list)
-
-
-class LsxGiaoNhanIn(BaseModel):
-    """Ghi nhận MỘT sự kiện thực tế của bước thuê ngoài: giao hàng đi, hoặc nhận hàng về.
-
-    Đi qua cửa THỰC THI riêng, KHÔNG qua lưu routing — xem `LsxBuocIn`. `nguoi_id` để trống thì
-    server lấy người đang đăng nhập; `luc` để trống thì lấy thời điểm ghi.
-    """
-
-    su_kien: Literal["giao", "nhan"]
-    nguoi_id: int | None = None
-    luc: datetime | None = None
-    so_luong: float | None = Field(default=None, ge=0)
 
 
 class LsxListItem(BaseModel):

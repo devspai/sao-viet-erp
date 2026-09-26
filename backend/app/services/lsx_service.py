@@ -37,6 +37,7 @@ from ..models.lsx import (
     LOAI_MOI,
     TT_CHO_BO_SUNG,
     TT_DA_LAP_KE_HOACH,
+    TT_DA_PHAT_HANH,
     TT_NHAP,
     TT_SAN_SANG,
     TEN_BUOC_TRONG,
@@ -2330,16 +2331,11 @@ class LsxService:
             "setup_phut": t["dien_giai"]["setup_phut"],
             "phat_sinh_phut": _f(cd.phat_sinh_phut),
             "chay_phut": t["chay_phut"],
-            "nha_cung_cap_id": cd.nha_cung_cap_id,
-            "nha_cung_cap": cd.nha_cung_cap, "sl_gui": cd.sl_gui and _f(cd.sl_gui),
-            "ngay_gui_dk": cd.ngay_gui_dk, "ngay_nhan_dk": cd.ngay_nhan_dk,
-            "van_chuyen_ngay": cd.van_chuyen_ngay and _f(cd.van_chuyen_ngay),
-            "gia_cong_ngay": cd.gia_cong_ngay and _f(cd.gia_cong_ngay),
-            "hao_hut_cho_phep": cd.hao_hut_cho_phep and _f(cd.hao_hut_cho_phep),
+            # Gia công ngoài (spec 2026-09-26): nhà gia công + đơn giá của BƯỚC. Việc mang đi / chốt
+            # số nằm ở LẦN GIA CÔNG (`/api/gia-cong-ngoai/lenh/{id}`), không ở bước.
+            "nha_cung_cap_id": cd.nha_cung_cap_id, "nha_cung_cap": cd.nha_cung_cap,
             "don_gia_gia_cong": cd.don_gia_gia_cong and _f(cd.don_gia_gia_cong),
-            "yeu_cau_ky_thuat": cd.yeu_cau_ky_thuat,
             "ghi_chu": cd.ghi_chu,
-            **self._giao_nhan_dict(cd),
             # CHỈ lấy hai số DẪN XUẤT. KHÔNG spread cả `thoi_luong_buoc` vào đây: nó cũng có key
             # `chay_phut` và sẽ GHI ĐÈ giá trị đã lưu ở trên — client nhận số đã-tính, tưởng là
             # người dùng gõ đè, lưu ngược lại, thế là hợp đồng "để trống = máy tự tính" vỡ vĩnh
@@ -2368,98 +2364,6 @@ class LsxService:
             # Lượng tính sẵn cho MỌI vật tư — drawer chọn món nào là điền được ngay, khỏi gõ tay.
             "vat_tu_goi_y": self._goi_y_luong_vat_tu(cd, quy_cach),
         }
-
-    def _giao_nhan_dict(self, cd) -> dict:
-        """Sổ giao – nhận thực tế + mọi thứ SUY RA từ nó. Không lưu cột nào cho phần suy ra.
-
-        Bước không phải thuê ngoài vẫn trả khoá (schema thẳng), nhưng để trống — tránh cho client
-        phải nhớ "khoá này chỉ có ở loại bước kia".
-        """
-        giao, nhan = cd.giao_luc, cd.nhan_luc
-        if giao is None:
-            trang_thai = "chua_gui"
-        elif nhan is None:
-            trang_thai = "dang_ngoai"
-        else:
-            trang_thai = "da_ve"
-        sl_giao, sl_nhan = cd.sl_giao_thuc, cd.sl_nhan_thuc
-        hut = _f(sl_giao) - _f(sl_nhan) if (sl_giao is not None and sl_nhan is not None) else None
-        # Quá hạn chỉ có nghĩa khi hàng CHƯA về: về rồi thì trễ bao nhiêu đọc ở `nhan_luc`.
-        qua_han = None
-        if cd.ngay_nhan_dk and nhan is None and giao is not None:
-            tre = (date.today() - cd.ngay_nhan_dk).days
-            qua_han = tre if tre > 0 else 0
-        return {
-            "nguoi_giao_id": cd.nguoi_giao_id,
-            "nguoi_giao_ten": self._user_name(cd.nguoi_giao_id),
-            "giao_luc": giao,
-            "sl_giao_thuc": sl_giao and _f(sl_giao),
-            "nguoi_nhan_id": cd.nguoi_nhan_id,
-            "nguoi_nhan_ten": self._user_name(cd.nguoi_nhan_id),
-            "nhan_luc": nhan,
-            "sl_nhan_thuc": sl_nhan and _f(sl_nhan),
-            "giao_nhan_trang_thai": trang_thai,
-            "so_hut": hut,
-            # Định mức để trống = CHƯA KHAI, không phải "cho phép 0" — chưa khai thì đừng phán hụt.
-            "hut_vuot_dinh_muc": bool(
-                hut is not None and cd.hao_hut_cho_phep is not None
-                and hut > _f(cd.hao_hut_cho_phep)
-            ),
-            # Tiền theo số NHẬN ĐƯỢC, không theo số gửi đi — trả tiền cho hàng cầm về được.
-            "tien_gia_cong_thuc": (
-                round(_f(sl_nhan) * _f(cd.don_gia_gia_cong), 2)
-                if sl_nhan is not None and cd.don_gia_gia_cong is not None else None
-            ),
-            "qua_han_ngay": qua_han,
-        }
-
-    def ghi_giao_nhan(self, *, lsx_id: int, buoc_id: int, payload, actor) -> Lsx:
-        """Ghi MỘT sự kiện giao/nhận của bước thuê ngoài. Cửa THỰC THI — KHÔNG có guard
-        `da_lap_ke_hoach`.
-
-        Hàng ra khỏi cổng đúng lúc lệnh đang chạy; nếu đi chung cửa với `replace_routing` thì bắt
-        kế hoạch gỡ lịch cả lệnh chỉ để ghi một dòng "đã giao 1.050 tờ lúc 14h" — tức là ghi không
-        nổi đúng lúc cần ghi nhất.
-        """
-        lsx = self.get(lsx_id)
-        cd = next((c for c in lsx.cong_doans if c.id == buoc_id), None)
-        if cd is None:
-            raise LsxNotFound("Không tìm thấy bước trong lệnh này")
-        if cd.loai_buoc != LB_THUE_NGOAI:
-            raise LsxValidationError("Chỉ bước gia công ngoài mới có sổ giao – nhận")
-
-        d = payload.model_dump(exclude_unset=True)
-        nguoi_id = d.get("nguoi_id") or actor.id
-        luc = d.get("luc") or datetime.now(timezone.utc)
-        so_luong = d.get("so_luong")
-        if d.get("su_kien") == "giao":
-            cd.nguoi_giao_id, cd.giao_luc = nguoi_id, luc
-            cd.sl_giao_thuc = so_luong if so_luong is not None else (
-                cd.sl_giao_thuc if cd.sl_giao_thuc is not None else cd.sl_gui
-            )
-            action, nhan_vc = "lsx_gia_cong_giao", "giao"
-            so_ghi = cd.sl_giao_thuc
-        else:
-            cd.nguoi_nhan_id, cd.nhan_luc = nguoi_id, luc
-            cd.sl_nhan_thuc = so_luong if so_luong is not None else (
-                cd.sl_nhan_thuc if cd.sl_nhan_thuc is not None else cd.sl_giao_thuc
-            )
-            action, nhan_vc = "lsx_gia_cong_nhan", "nhận"
-            so_ghi = cd.sl_nhan_thuc
-
-        ten = self._user_name(nguoi_id) or f"#{nguoi_id}"
-        # Vết audit người đọc, nên bày TÊN đơn vị ("tờ") chứ không bày MÃ ("to").
-        from ..repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
-        dv = nhan_don_vi(DonViDoRepository(self.db).ten_theo_ma(), cd.don_vi_ra)
-        # `.replace(",", ".")` CHỈ áp lên con số (đổi dấu nghìn sang kiểu Việt) — bọc cả câu như
-        # trước thì một cái tên đơn vị có dấu phẩy sẽ bị đổi theo.
-        so = f"{_f(so_ghi):,.0f}".replace(",", ".")
-        self.audit.create(
-            actor_user_id=actor.id, action=action, target=f"lsx_cong_doan:{cd.id}",
-            detail=f"{lsx.ma} · {cd.ten}: {ten} {nhan_vc} {so} {dv}".strip(),
-        )
-        self.repo.commit()
-        return self.get(lsx_id)
 
     # ⚠️ `_dau_viec_cua_buoc()` GỠ 18/09/2026 (mg `0320`) — không còn ai gọi từ lúc bước lệnh
     #    thôi chọn đầu việc.
@@ -2770,9 +2674,7 @@ class LsxService:
         # SỐ GIỜ KẾ HOẠCH của bước TỔ (mg `0319`) — số gõ tay, KHÔNG kế thừa từ đâu cả, nên nó
         # thuộc bộ "nhận thẳng" này. Thay chỗ `so_nhan_cong_tieu_chuan` (kíp chuẩn) đã gỡ.
         "so_gio_ke_hoach", "phat_sinh_phut",
-        # Chờ kỹ thuật: kế thừa từ danh mục Công đoạn là MẶC ĐỊNH, sửa đè tại bước (mục B).
-        "sl_gui", "ngay_gui_dk", "van_chuyen_ngay", "gia_cong_ngay",
-        "ngay_nhan_dk", "hao_hut_cho_phep", "don_gia_gia_cong", "yeu_cau_ky_thuat",
+        "don_gia_gia_cong",
         "ghi_chu",
         # `kcs_tieu_chi_bo_sung_json` rời bộ này 08/09/2026 (mg `0283`): tiêu chí KCS chỉ còn MỘT
         # nguồn là danh mục gắn theo công đoạn — `docs/design-kcs-theo-cong-doan.md` mục 5.
@@ -2780,7 +2682,7 @@ class LsxService:
         # server ghi theo NCC (xem nhánh THUÊ NGOÀI trong `replace_routing`).
     )
     _ROUTING_FIELD_NULLABLE = {
-        "may_id", "khuon_be_id", "chay_phut", "ngay_gui_dk", "ngay_nhan_dk",
+        "may_id", "khuon_be_id", "chay_phut",
         "ghi_chu",
     }
 
@@ -3272,6 +3174,14 @@ class LsxService:
             raise LsxValidationError("Lập kế hoạch qua màn Xếp lịch, không đổi trực tiếp ở đây")
         if lsx.trang_thai == TT_DA_LAP_KE_HOACH:
             raise LsxConflict("Lệnh đã lập kế hoạch — gỡ kế hoạch trước")
+        # "Đã phát hành" chỉ đến từ cửa PHÁT HÀNH (đóng băng gói công việc) — Xếp lịch hoặc Gia
+        # công trọn gói. Đổi tay ở đây là lệnh "đã phát" mà xưởng không có việc nào.
+        if trang_thai == TT_DA_PHAT_HANH:
+            raise LsxValidationError(
+                "Phát hành qua màn Xếp lịch (hoặc Gia công trọn gói), không đổi trực tiếp ở đây")
+        if lsx.trang_thai == TT_DA_PHAT_HANH:
+            raise LsxConflict(
+                "Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) trước")
         if trang_thai == TT_SAN_SANG:
             thieu = self.thieu_cua(lsx)
             if thieu:

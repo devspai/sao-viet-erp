@@ -16096,3 +16096,34 @@ def _migrate_gia_cong_ngoai(db) -> None:
 
 
 MIGRATIONS.append(("0339_gia_cong_ngoai", _migrate_gia_cong_ngoai))
+
+
+_COT_THUE_NGOAI_CU = (
+    "sl_gui", "ngay_gui_dk", "van_chuyen_ngay", "gia_cong_ngay", "ngay_nhan_dk",
+    "hao_hut_cho_phep", "yeu_cau_ky_thuat",
+    "nguoi_giao_id", "giao_luc", "sl_giao_thuc", "nguoi_nhan_id", "nhan_luc", "sl_nhan_thuc",
+)
+
+
+def _migrate_go_cot_thue_ngoai_cu(db) -> None:
+    """mg 0340 — gỡ 13 cột thuê ngoài CŨ của `lsx_cong_doan` (spec gia công ngoài §10).
+
+    Chủ chốt 26/09/2026: không ngày gửi/hẹn về, không hao hụt cho phép; sổ giao–nhận của bước
+    thay bằng LẦN GIA CÔNG (`gia_cong_ngoai`). Dự án chưa có dữ liệu thật ⇒ gỡ thẳng, không chép.
+    Index trên `nguoi_giao_id` / `nguoi_nhan_id` (nếu có) phải DROP trước — SQLite từ chối DROP
+    COLUMN đang có index. Idempotent: cột nào đã mất thì bỏ qua.
+    """
+    insp = inspect(db.get_bind())
+    if "lsx_cong_doan" not in insp.get_table_names():
+        return
+    co = _existing_columns(insp, "lsx_cong_doan")
+    for ix in insp.get_indexes("lsx_cong_doan"):
+        if set(ix.get("column_names") or []) & set(_COT_THUE_NGOAI_CU):
+            db.execute(text(f"DROP INDEX IF EXISTS {ix['name']}"))
+    for cot in _COT_THUE_NGOAI_CU:
+        if cot in co:
+            db.execute(text(f"ALTER TABLE lsx_cong_doan DROP COLUMN {cot}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0340_go_cot_thue_ngoai_cu", _migrate_go_cot_thue_ngoai_cu))

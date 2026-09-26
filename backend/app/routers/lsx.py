@@ -33,7 +33,6 @@ from ..schemas.lsx import (
     LsxBoLocOut,
     LsxDinhKemListOut,
     LsxDinhKemOut,
-    LsxGiaoNhanIn,
     LsxListItem,
     LsxListOut,
     LsxOut,
@@ -489,31 +488,6 @@ def dong_bo_danh_muc(
     try:
         _guard_scope(db, svc.get(lsx_id), user, authz)
         lsx = svc.dong_bo_danh_muc(lsx_id=lsx_id, actor=user)
-    except Exception as exc:
-        raise _map(exc)
-    hub.broadcast({"type": "lsx_changed", "order_id": lsx.order_id})
-    return _out(svc, lsx)
-
-
-@router.post("/{lsx_id}/buoc/{buoc_id}/giao-nhan", response_model=LsxOut)
-def ghi_giao_nhan(
-    lsx_id: int,
-    buoc_id: int,
-    payload: LsxGiaoNhanIn,
-    db: Annotated[Session, Depends(get_db)],
-    authz: Authz,
-    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
-) -> LsxOut:
-    """Ghi nhận THỰC TẾ hàng gia công ngoài đi/về — CỬA RIÊNG, không đi qua lưu routing.
-
-    Việc này xảy ra lúc lệnh ĐANG CHẠY (đã lập kế hoạch), mà `PUT /routing` chặn đúng trạng thái
-    đó. Tách cửa để khỏi bắt kế hoạch gỡ lịch cả lệnh chỉ để ghi một dòng giao hàng. Quyền tái
-    dùng `update` của lệnh — không đẻ vai mới; ai bấm ghi vào AuditLog.
-    """
-    svc = _svc(db)
-    try:
-        _guard_scope(db, svc.get(lsx_id), user, authz)
-        lsx = svc.ghi_giao_nhan(lsx_id=lsx_id, buoc_id=buoc_id, payload=payload, actor=user)
     except Exception as exc:
         raise _map(exc)
     hub.broadcast({"type": "lsx_changed", "order_id": lsx.order_id})

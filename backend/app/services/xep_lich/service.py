@@ -59,24 +59,6 @@ def _chu(v: object) -> str | None:
     return s or None
 
 
-def _ngay_thue_ngoai(cd) -> int | None:
-    """Số NGÀY LỊCH một bước gia công ngoài chiếm chỗ. `None` = chưa khai đủ để biết.
-
-    Hai nguồn, ưu tiên nguồn KHAI TAY vì nó là cam kết của nhà cung cấp:
-      1. `van_chuyen_ngay` (MỘT chiều, nên nhân 2) + `gia_cong_ngay`;
-      2. `ngay_nhan_dk - ngay_gui_dk` nếu khai cả hai mốc.
-
-    Cờ nhận biết bước thuê ngoài là `loai_buoc == LB_THUE_NGOAI` — KHÔNG có cột boolean nào.
-    """
-    vc, gc = getattr(cd, "van_chuyen_ngay", None), getattr(cd, "gia_cong_ngay", None)
-    if vc is not None or gc is not None:
-        return int(round(float(vc or 0) * 2 + float(gc or 0)))
-    gui, nhan = getattr(cd, "ngay_gui_dk", None), getattr(cd, "ngay_nhan_dk", None)
-    if gui and nhan:
-        return max(0, (nhan - gui).days)
-    return None
-
-
 class _LsxCoRouting:
     """Proxy đọc-thuộc-tính cho `quy_cach_bien`: ép nó dùng routing ĐÃ NẠP SẴN.
 
@@ -329,7 +311,7 @@ class XepLichLenhService:
             }
             if ngoai:
                 ra.append(BuocVao(lsx_cong_doan_id=cd.id, thu_tu=tt, chay_phut=0.0,
-                                  thue_ngoai_ngay=_ngay_thue_ngoai(cd), la_thue_ngoai=True))
+                                  la_thue_ngoai=True))
             else:
                 ra.append(BuocVao(lsx_cong_doan_id=cd.id, thu_tu=tt, chay_phut=phut,
                                   canh_bao=tin[cd.id]["canh_bao"]))
@@ -1069,7 +1051,7 @@ class XepLichLenhService:
             "canh_bao": tin.get("canh_bao"),
             "lop": lop,
             "song_song": song_song,
-            "thue_ngoai_ngay": _ngay_thue_ngoai(cd) if ngoai else None,
+            "la_thue_ngoai": ngoai,
             "mau_index": i % 4,     # sắc độ khối chạy — mã hoá THỨ TỰ bước, không mã hoá loại
             # --- lớp THỰC TẾ (chỉ có khi lệnh đã phát hành) ---
             "trang_thai": (thuc or {}).get("trang_thai"),

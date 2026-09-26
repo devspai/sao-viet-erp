@@ -4157,20 +4157,7 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 | ~~`khoan_json`~~ | `JSON` | — | yes | — | 🔴 GỠ 18/09/2026 (mg `0321`). ĐẦU VIỆC KHOÁN của bước — kế hoạch chọn "bước cán này làm *cán mờ* hay *ghép metalize*" (cùng công đoạn, hai đơn giá). SNAPSHOT `{rate_id, ten, don_vi, don_gia}` từ `piece_rates`, KHÔNG đọc-sống: xưởng lên giá khoán về sau không được xê dịch lệnh đã phát. Tiền khoán là số DẪN XUẤT (tính lúc đọc trong `lsx_service._khoan_derived`), không lưu cột. |
 | `nha_cung_cap_id` | `Integer` | soft → `suppliers`, IX | yes | — | Nhà gia công của bước thuê ngoài; `nha_cung_cap` (chữ) do máy chủ ghi theo nó (mg 0339). |
 | `nha_cung_cap` | `String(150)` | — | yes | — | Tên nhà gia công — máy chủ ghi theo `nha_cung_cap_id`, client không gửi. |
-| `sl_gui` | `Numeric(14,2)` | — | yes | — | SL gửi đi gia công. |
-| `ngay_gui_dk` | `Date` | — | yes | — | Ngày dự kiến gửi. |
-| `van_chuyen_ngay` | `Numeric(6,2)` | — | yes | — | Thời gian vận chuyển 1 chiều (ngày). |
-| `gia_cong_ngay` | `Numeric(6,2)` | — | yes | — | Thời gian gia công tại NCC (ngày). |
-| `ngay_nhan_dk` | `Date` | — | yes | — | Ngày dự kiến nhận lại. Có nút gợi ý `gửi + vận chuyển + gia công + vận chuyển`, người quyết. |
-| `hao_hut_cho_phep` | `Numeric(14,2)` | — | yes | — | Hao hụt cho phép ở NCC. |
-| `don_gia_gia_cong` | `Numeric(18,2)` | — | yes | — | Giá gia công dự kiến. |
-| `yeu_cau_ky_thuat` | `Text` | — | yes | — | Yêu cầu kỹ thuật gửi NCC. |
-| `nguoi_giao_id` | `Integer` | IX | yes | — | Soft → `users.id` — ai mang hàng ra cổng (THỰC TẾ). |
-| `giao_luc` | `DateTime(tz)` | — | yes | — | Ngày giờ giao THỰC. Trống = chưa gửi. |
-| `sl_giao_thuc` | `Numeric(14,2)` | — | yes | — | Số THỰC gửi (khác `sl_gui` là dự kiến). |
-| `nguoi_nhan_id` | `Integer` | IX | yes | — | Soft → `users.id` — ai nhận hàng về. |
-| `nhan_luc` | `DateTime(tz)` | — | yes | — | Ngày giờ nhận THỰC. Có `giao_luc` mà trống = đang ở ngoài. |
-| `sl_nhan_thuc` | `Numeric(14,2)` | — | yes | — | Số THỰC nhận. Hụt = `sl_giao_thuc − sl_nhan_thuc` (dẫn xuất, không lưu). |
+| `don_gia_gia_cong` | `Numeric(18,2)` | — | yes | — | Đơn giá gia công của bước — chỉ ô ở BƯỚC CUỐI một dải thuê ngoài được đọc lúc phát hành (đơn giá cả lần, theo đơn vị ra của bước đó). Tiền = con số chốt × đơn giá, không lưu cột. |
 | `ghi_chu` | `String(500)` | — | yes | — | |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
@@ -4179,7 +4166,9 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 > **Đã BỎ ở migration `0093`:** `thue_ngoai` (tập con của `loai_buoc`) · `don_vi` (tách thành `don_vi_vao`/`don_vi_ra`).
 > 🔴 **GỠ 18/09/2026 (mg `0321`):** `so_nhan_cong_tieu_chuan` (kíp chuẩn) · `khoan_json` (đầu việc khoán của bước) · `nang_suat` + `don_vi_nang_suat` (hai cột SAO CHÉP từ định mức, không ai đồng bộ lại bản sao). Chủ xưởng: *"bỏ luôn logic kíp người, mà mấy cái chặn hoặc cảnh báo hoặc phép tính liên quan đến kíp người"*. Luật "phải có ít nhất 1 thợ mới bắt đầu được việc" GIỮ — đó là luật về người có mặt. Thợ chọn công việc khoán LÚC GHI MẺ (`san_xuat_batch.piece_rate_id`), không ở bước lệnh.
 
-**Tất cả cột:** `id`, `step_key`, `lsx_id`, `thu_tu`, `cong_doan_id`, `ten`, `nhom`, `department_id`, `may_id`, `loai_buoc`, `bat_buoc`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `hao_hut`, `hao_hut_pct`, `so_luot_chay`, `setup_phut`, `so_gio_ke_hoach`, `chay_phut`, `ve_sinh_phut`, `phat_sinh_phut`, `cho_phut`, `di_chuyen_phut`, `nha_cung_cap_id`, `nha_cung_cap`, `sl_gui`, `ngay_gui_dk`, `van_chuyen_ngay`, `gia_cong_ngay`, `ngay_nhan_dk`, `hao_hut_cho_phep`, `don_gia_gia_cong`, `yeu_cau_ky_thuat`, `nguoi_giao_id`, `giao_luc`, `sl_giao_thuc`, `nguoi_nhan_id`, `nhan_luc`, `sl_nhan_thuc`, `ghi_chu`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `step_key`, `lsx_id`, `thu_tu`, `cong_doan_id`, `ten`, `nhom`, `department_id`, `may_id`, `loai_buoc`, `bat_buoc`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `hao_hut`, `hao_hut_pct`, `so_luot_chay`, `setup_phut`, `so_gio_ke_hoach`, `chay_phut`, `ve_sinh_phut`, `phat_sinh_phut`, `cho_phut`, `di_chuyen_phut`, `nha_cung_cap_id`, `nha_cung_cap`, `don_gia_gia_cong`, `ghi_chu`, `created_at`, `updated_at`.
+
+13 cột thuê ngoài cũ (ngày gửi/nhận, hao hụt cho phép, sổ giao–nhận) gỡ ở mg `0340` — thay bằng bảng `gia_cong_ngoai`.
 
 ### `gia_cong_ngoai`
 
