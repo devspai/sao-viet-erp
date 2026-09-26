@@ -87,6 +87,8 @@ class PaymentVoucherIn(PaymentVoucherBaseIn):
     # `salary_advance`, và SỐ TIỀN + NGƯỜI NHẬN lấy từ phiếu tạm ứng — payload gửi lên bị bỏ qua,
     # để phiếu chi không thể lệch số đã duyệt.
     salary_advance_id: int | None = Field(default=None, gt=0)
+    # Lần gia công ngoài nguồn — spec 2026-09-26 §5.
+    gia_cong_ngoai_id: int | None = Field(default=None, gt=0)
 
 
 class ApproveAndCreateVoucherIn(PaymentVoucherBaseIn):
@@ -109,6 +111,7 @@ class PaymentVoucherOut(BaseModel):
     source_type: str = "purchase_request"
     purchase_request_id: int | None = None
     salary_advance_id: int | None = None
+    gia_cong_ngoai_id: int | None = None
     purchase_request_code: str
     purchase_request_total: int | None = None
     purchase_paid_amount: int | None = None
@@ -165,6 +168,25 @@ class PaymentVoucherOut(BaseModel):
     note: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class GiaCongChoChiOut(BaseModel):
+    gia_cong_ngoai_id: int
+    lsx_id: int
+    lsx_ma: str
+    ten_viec: str
+    nha_cung_cap_id: int | None = None
+    nha_cung_cap_ten: str
+    sl_cuoi: float
+    don_vi: str | None = None
+    don_gia: float | None = None
+    thanh_tien: float | None = None
+    chot_luc: datetime | None = None
+    chot_boi_ten: str | None = None
+
+
+class GiaCongChoChiDemOut(BaseModel):
+    so: int
 
 
 # --- thanh toán NHIỀU đợt giao một lượt (04/09/2026: "cùng một NCC thì thanh toán một lượt") ---

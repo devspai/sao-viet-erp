@@ -24,7 +24,7 @@ from ..models.bai_ghep_cong_doan import (
 from ..models.cong_doan import CongDoan
 from ..models.customer import Customer
 from ..models.lsx import (
-    LB_MAY, LB_TO,
+    LB_MAY, LB_THUE_NGOAI, LB_TO,
     TT_DA_LAP_KE_HOACH as LSX_DA_LAP, TT_SAN_SANG as LSX_SAN_SANG,
     Lsx, LsxCongDoan, LsxCongDoanPhuThuoc,
 )
@@ -1765,10 +1765,18 @@ class BaiGhepService:
         lượt chạy đó, không thừa kế mù của bất kỳ lệnh nào.
         """
         thieu: list[str] = []
-        if not c.department_id:
+        # Fix round 2 (26/09/2026, review Task 3): bước thuê ngoài không tổ (server ép
+        # `department_id = None` ở `replace_routing` từ Task 3) — "Chưa chọn tổ" không áp cho nó,
+        # cùng lẽ với "Chưa chọn máy" đã sửa ở fix round 1.
+        if c.loai_buoc != LB_THUE_NGOAI and not c.department_id:
             thieu.append("Chưa chọn tổ")
-        # Thuê ngoài cũng phải chọn máy: nhà thầu khai như một máy trong danh mục.
-        if c.loai_buoc in (LB_MAY, "thue_ngoai") and not c.may_id:
+        # Fix round 1 (26/09/2026, review Task 3): sau Task 3 gia công ngoài, bước LSX loại
+        # `thue_ngoai` LUÔN có `may_id = None` — nhà gia công chọn từ danh mục Nhà cung cấp, KHÔNG
+        # còn khai như một máy trong danh mục Máy. `BaiGhepCongDoan` (mô hình "bước chung" của Bài
+        # ghép) CHƯA có cột `nha_cung_cap_id` (chỉ có `nha_cung_cap` dạng chữ, cột cũ) nên ở đây
+        # không dựng được điều kiện tương đương "thiếu nhà gia công" — chỉ bỏ hẳn đòi hỏi máy cho
+        # thuê ngoài, để "Chưa chọn máy" không còn treo vĩnh viễn trên bước thuê ngoài nữa.
+        if c.loai_buoc == LB_MAY and not c.may_id:
             thieu.append("Chưa chọn máy")
         # ⚠️ Chip "Chưa có năng suất" GỠ 18/09/2026 (mg `0319`): bước TỔ thôi chia theo năng suất,
         #    giờ của nó là SỐ GIỜ KẾ HOẠCH gõ tay và để 0 là HỢP LỆ — chủ xưởng 18/09/2026:

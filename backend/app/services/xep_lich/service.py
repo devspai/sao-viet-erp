@@ -59,24 +59,6 @@ def _chu(v: object) -> str | None:
     return s or None
 
 
-def _ngay_thue_ngoai(cd) -> int | None:
-    """Số NGÀY LỊCH một bước gia công ngoài chiếm chỗ. `None` = chưa khai đủ để biết.
-
-    Hai nguồn, ưu tiên nguồn KHAI TAY vì nó là cam kết của nhà cung cấp:
-      1. `van_chuyen_ngay` (MỘT chiều, nên nhân 2) + `gia_cong_ngay`;
-      2. `ngay_nhan_dk - ngay_gui_dk` nếu khai cả hai mốc.
-
-    Cờ nhận biết bước thuê ngoài là `loai_buoc == LB_THUE_NGOAI` — KHÔNG có cột boolean nào.
-    """
-    vc, gc = getattr(cd, "van_chuyen_ngay", None), getattr(cd, "gia_cong_ngay", None)
-    if vc is not None or gc is not None:
-        return int(round(float(vc or 0) * 2 + float(gc or 0)))
-    gui, nhan = getattr(cd, "ngay_gui_dk", None), getattr(cd, "ngay_nhan_dk", None)
-    if gui and nhan:
-        return max(0, (nhan - gui).days)
-    return None
-
-
 class _LsxCoRouting:
     """Proxy đọc-thuộc-tính cho `quy_cach_bien`: ép nó dùng routing ĐÃ NẠP SẴN.
 
@@ -329,7 +311,7 @@ class XepLichLenhService:
             }
             if ngoai:
                 ra.append(BuocVao(lsx_cong_doan_id=cd.id, thu_tu=tt, chay_phut=0.0,
-                                  thue_ngoai_ngay=_ngay_thue_ngoai(cd), la_thue_ngoai=True))
+                                  la_thue_ngoai=True))
             else:
                 ra.append(BuocVao(lsx_cong_doan_id=cd.id, thu_tu=tt, chay_phut=phut,
                                   canh_bao=tin[cd.id]["canh_bao"]))
@@ -703,7 +685,12 @@ class XepLichLenhService:
         for bg in self._bai_ghep(tp.bai_ghep_ids):
             if bg.trang_thai != BG_PHAT_HANH:
                 bg.trang_thai = BG_PHAT_HANH
-        _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids, actor=actor)
+        try:
+            _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids, actor=actor)
+        except ValueError as exc:
+            # Gom lần gia công ngoài từ chối (bước thuê ngoài chưa chọn nhà gia công) — trả 400.
+            self.db.rollback()
+            raise XepLichLenhError(str(exc)) from None
         if self.audit is not None:
             self.audit.create(
                 actor_user_id=getattr(actor, "id", None), action="xep_lich_phat_hanh",
@@ -1056,11 +1043,13 @@ class XepLichLenhService:
         return {
             "id": cd.id, "thu_tu": int(cd.thu_tu or 0), "ten": cd.ten,
             "loai_buoc": cd.loai_buoc,
-            "may_id": tin.get("may_id"),
-            "may_ten": tin.get("may_ten"),
-            "may_nguon": tin.get("may_nguon"),
-            "may_ke_hoach_ten": tin.get("may_ke_hoach_ten"),
-            "to_ten": self._ten_to(cd.department_id),
+            # Bước thuê ngoài không chạy máy xưởng: bỏ máy (kể cả máy công việc cũ còn sót), chỗ
+            # tên tổ in tên nhà gia công để popup không báo "Chưa gán máy" hay một máy nhầm.
+            "may_id": None if ngoai else tin.get("may_id"),
+            "may_ten": None if ngoai else tin.get("may_ten"),
+            "may_nguon": None if ngoai else tin.get("may_nguon"),
+            "may_ke_hoach_ten": None if ngoai else tin.get("may_ke_hoach_ten"),
+            "to_ten": (cd.nha_cung_cap or "Nhà gia công") if ngoai else self._ten_to(cd.department_id),
             "so_luong_vao": sl if sl > 0 else None,
             "don_vi_vao": dv,
             "don_vi_vao_ten": ten_dv.get(dv) if dv else None,
@@ -1069,7 +1058,7 @@ class XepLichLenhService:
             "canh_bao": tin.get("canh_bao"),
             "lop": lop,
             "song_song": song_song,
-            "thue_ngoai_ngay": _ngay_thue_ngoai(cd) if ngoai else None,
+            "la_thue_ngoai": ngoai,
             "mau_index": i % 4,     # sắc độ khối chạy — mã hoá THỨ TỰ bước, không mã hoá loại
             # --- lớp THỰC TẾ (chỉ có khi lệnh đã phát hành) ---
             "trang_thai": (thuc or {}).get("trang_thai"),

@@ -186,6 +186,10 @@ def tao_batch(
     cv = repo.cong_viec(cong_viec_id)
     if cv is None:
         raise ValueError("Không tìm thấy công việc.")
+    if cv.gia_cong_ngoai_id is not None:
+        from ..gia_cong_ngoai import CHAN_XUONG
+
+        raise ValueError(CHAN_XUONG)
     _gate(db, user, cv)
     if cv.trang_thai not in _TRANG_THAI_GHI_DUOC:
         raise ValueError("Chỉ ghi sản lượng cho công việc đã bắt đầu.")

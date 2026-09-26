@@ -131,7 +131,9 @@ def dung_routing(
                 "step_key": sk,
                 "ten_cong_doan": _ten_buoc(cvs),
                 "to_id": dau.department_id,
-                "to_ten": to_ten.get(dau.department_id or 0),
+                # Bước thuê ngoài không thuộc tổ nào — người làm là nhà gia công, in tên họ.
+                "to_ten": (dau.nha_cung_cap if dau.loai_buoc == "thue_ngoai" and dau.nha_cung_cap
+                           else to_ten.get(dau.department_id or 0)),
                 "la_cua_toi": bool(cua_toi),
                 "la_kcs_cuoi": any(c.la_kcs_cuoi for c in cvs),
                 "trang_thai": _gop_trang_thai([c.trang_thai for c in cvs]),

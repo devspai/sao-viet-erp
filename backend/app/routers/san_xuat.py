@@ -36,7 +36,7 @@ from ..deps import (
     get_authorization_service, get_current_user, require_permission, require_quyen_to,
 )
 from ..models.user import User
-from ..realtime import hub
+from ..realtime import hub, phat_ban_giao, phat_dong_nhom
 from ..repositories.san_xuat_repo import SanXuatRepository
 from ..storage import get_storage, make_key, url_from_key
 from ..schemas.san_xuat import (
@@ -134,32 +134,6 @@ def _phat_sse(res: dict) -> None:
                           "cong_viec_id": res.get("cong_viec_id")})
 
 
-def _phat_sse_ban_giao(res: dict) -> None:
-    """Bàn giao đổi trạng thái → refresh CẢ hai bàn tổ (nguồn + đích) + đẩy tới người cần hành động.
-
-    MỘT gói mang cả hai tổ (`team_ids`), không phải mỗi tổ một gói: `broadcast` tới MỌI kết nối và
-    mỗi gói bump tick chung ở FE, nên hai gói là mọi màn đang mở nạp lại hai lượt cho một cú bấm
-    (đo 16/09/2026 ở bàn tổ: danh sách việc ×3, hộp thư kho ×2, chờ xác nhận ×2 cho một Đề xuất)."""
-    teams = sorted({t for t in (res.get("nguon_department_id"), res.get("dich_department_id")) if t})
-    if teams:
-        hub.broadcast({
-            "type": "san_xuat_ban_giao_changed",
-            "team_ids": teams,
-            "ban_giao_id": res.get("ban_giao_id"),
-            "trang_thai": res.get("trang_thai_ban_giao"),
-        })
-    for uid in res.get("notify_user_ids") or []:
-        hub.publish(uid, {
-            "type": "san_xuat_ban_giao",
-            "ban_giao_id": res.get("ban_giao_id"),
-            "trang_thai": res.get("trang_thai_ban_giao"),
-            "su_kien": res.get("su_kien"),
-            "nguon_ten": res.get("nguon_ten"),
-            "dich_ten": res.get("dich_ten"),
-            "so_luong": res.get("so_luong"),
-            "don_vi": res.get("don_vi"),
-        })
-
 
 def _phat_sse_vat_tu(res: dict) -> None:
     """Tổ xác nhận nhận vật tư → refresh bàn tổ nhận."""
@@ -243,19 +217,6 @@ def _phat_sse_kcs(res: dict) -> None:
                 })
 
 
-def _phat_sse_dong_nhom(ket: dict) -> None:
-    """Nhóm thành phẩm đã đóng (§16 đủ / §13.3 thiếu) → refresh chỗ hiển thị nhóm + báo Sale và Kế
-    hoạch SX NGAY (§17): đơn đã ra thành phẩm, có thể giao/đóng đơn. Broadcast là đủ (ai đang mở
-    bàn/đơn đó tự cập nhật); không nhắm riêng vì người nhận là vai, không phải một tài khoản."""
-    hub.broadcast({
-        "type": "san_xuat_nhom_dong",
-        "nhom_id": ket.get("nhom_id"),
-        "order_id": ket.get("order_id"),
-        "trang_thai": ket.get("trang_thai"),
-        "kieu": ket.get("kieu"),
-    })
-
-
 def _thu_dong_nhom(db: Session, res: dict, *, user=None, su_kien: str = "") -> None:
     """CHỐT CHẶN §16 sau một thao tác có thể hoàn tất điều kiện cuối: lần ra `nhom_id` từ kết quả
     (trực tiếp hoặc qua công việc), thử tự đóng ĐỦ, và nếu đóng thì bắn SSE. Lỗi lần-ra hay không đủ
@@ -271,7 +232,7 @@ def _thu_dong_nhom(db: Session, res: dict, *, user=None, su_kien: str = "") -> N
             return
         ket = dong_nhom.tu_dong_dong_neu_du(db, nhom_id=nhom_id, actor=user, su_kien=su_kien)
         if ket:
-            _phat_sse_dong_nhom(ket)
+            phat_dong_nhom(ket)
     except Exception:
         # Thao tác chính đã commit + bắn SSE; chốt chặn hỏng KHÔNG được hoá 500. Nhóm sẽ tự đóng ở
         # lần chốt chặn kế tiếp (hoặc trưởng KCS đóng thiếu).
@@ -775,7 +736,7 @@ def de_xuat_ban_giao(
         db, user=user, nguon_cong_viec_id=cong_viec_id,
         dich_cong_viec_id=body.dich_cong_viec_id, don_vi=body.don_vi, batch_ids=body.batch_ids,
     ))
-    _phat_sse_ban_giao(res)
+    phat_ban_giao(res)
     return res
 
 
@@ -791,7 +752,7 @@ def sua_ban_giao(
         db, user=user, ban_giao_id=ban_giao_id,
         batch_ids=body.batch_ids, expected_version=body.expected_version,
     ))
-    _phat_sse_ban_giao(res)
+    phat_ban_giao(res)
     return res
 
 
@@ -806,7 +767,7 @@ def xac_nhan_ban_giao(
     res = _chay(lambda: ban_giao.xac_nhan(
         db, user=user, ban_giao_id=ban_giao_id, expected_version=body.expected_version,
     ))
-    _phat_sse_ban_giao(res)
+    phat_ban_giao(res)
     _thu_dong_nhom(db, res, user=user, su_kien="ban_giao_xac_nhan")
     return res
 
@@ -824,7 +785,7 @@ def dieu_chinh_ban_giao(
         so_luong_sau=body.so_luong_sau, mo_ta=body.mo_ta,
         expected_version=body.expected_version,
     ))
-    _phat_sse_ban_giao(res)
+    phat_ban_giao(res)
     _thu_dong_nhom(db, res, user=user, su_kien="ban_giao_dieu_chinh")
     return res
 
@@ -1177,5 +1138,5 @@ def dong_thieu_nhom(
     res = _chay(lambda: dong_nhom.dong_thieu(
         db, user=user, nhom_id=nhom_id, expected_version=body.expected_version,
     ))
-    _phat_sse_dong_nhom(res)
+    phat_dong_nhom(res)
     return res

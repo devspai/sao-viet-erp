@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   api,
+  type GiaCongChoChi,
   type PaymentVoucherAttachment,
   type PaymentVoucherRow,
   type PurchaseRequestRow,
@@ -14,11 +15,13 @@ import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import { VOUCHER_PAGE_LABEL } from "../../../constants/features";
 import { PaymentReceiptDialog } from "../phieu-thu/PaymentReceiptDialog";
+import { GiaCongChoChiStrip } from "./components/GiaCongChoChiStrip";
 import { VoucherRowActions } from "./components/VoucherRowActions";
 import { VouchersDrawer } from "./components/VouchersDrawer";
 import { VouchersTable } from "./components/VouchersTable";
 import { VouchersToolbar } from "./components/VouchersToolbar";
 import { CancelVoucherModal } from "./modals/CancelVoucherModal";
+import { LapPhieuChiGiaCongModal } from "./modals/LapPhieuChiGiaCongModal";
 import { StandaloneVoucherDialog } from "./modals/StandaloneVoucherDialog";
 import { PaymentVoucherDialog } from "./PaymentVoucherDialog";
 import { printVoucher } from "./print";
@@ -64,6 +67,7 @@ export function PaymentVouchersPage({
   }>(null);
   const [cancelling, setCancelling] = useState<PaymentVoucherRow | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [lapGc, setLapGc] = useState<GiaCongChoChi | null>(null);
   const [receiptFor, setReceiptFor] = useState<PaymentVoucherRow | null>(null);
   const [standaloneOpen, setStandaloneOpen] = useState(false);
   const [attachments, setAttachments] = useState<PaymentVoucherAttachment[]>(
@@ -305,7 +309,7 @@ export function PaymentVouchersPage({
         <p className="md-page__sub">
           Lập phiếu chi là tiền đã ra khỏi két — phiếu sinh ra đã là "Đã chi".
           Ghi nhận nhầm thì hủy phiếu (bắt lý do), nguồn chi có thể là Đơn mua hàng,
-          chi phí nội bộ, hoàn tiền khách hàng hoặc khoản chi khác.
+          gia công ngoài, chi phí nội bộ, hoàn tiền khách hàng hoặc khoản chi khác.
         </p>
       </header>
       {error && (
@@ -313,6 +317,7 @@ export function PaymentVouchersPage({
           {error}
         </div>
       )}
+      <GiaCongChoChiStrip eventTick={eventTick} canCreate={canApprove} onLap={setLapGc} />
       <VouchersToolbar
         q={q}
         setQ={setQ}
@@ -367,6 +372,17 @@ export function PaymentVouchersPage({
           onClose={() => setStandaloneOpen(false)}
           onSaved={(saved) => {
             setStandaloneOpen(false);
+            setSelectedId(saved.id);
+            load();
+          }}
+        />
+      )}
+      {lapGc && (
+        <LapPhieuChiGiaCongModal
+          row={lapGc}
+          onClose={() => setLapGc(null)}
+          onDone={(saved) => {
+            setLapGc(null);
             setSelectedId(saved.id);
             load();
           }}

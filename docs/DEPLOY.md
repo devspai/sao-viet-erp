@@ -116,3 +116,6 @@ Mở `http://<VPS_HOST>` → đăng nhập bằng `SEED_ADMIN_USERNAME` / `SEED_
 - `git reset --hard origin/main` **ghi đè mọi thay đổi local** trên VPS (trừ file gitignore như `.env`). Đừng sửa code trực tiếp trên server.
 - Guard bảo mật: `APP_ENV=production` bắt buộc `JWT_SECRET` ≥ 32 ký tự, khác default — nếu không backend sẽ từ chối khởi động.
 - Chưa có TLS/HTTPS: production thật nên đặt sau reverse-proxy (Caddy/Traefik) hoặc thêm certbot cho nginx — đổi `CORS_ORIGINS`/domain tương ứng.
+- Migration **xoá cột** (`DROP COLUMN`) làm mất dữ liệu cột đó, không lấy lại được: **backup DB
+  trước khi deploy** nếu prod đã có dữ liệu. Hiện có: mg `0340_go_cot_thue_ngoai_cu` gỡ 13 cột thuê
+  ngoài cũ của `lsx_cong_doan` (sổ giao–nhận cũ) — prod đã có lệnh thì phải backup trước.

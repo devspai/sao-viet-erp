@@ -116,6 +116,12 @@ _HD += _dong("san_xuat", "san_xuat", {
     "update_lsx_danh_muc": "Cập nhật lệnh theo danh mục",
     "lsx_dinh_kem_them": "Đính kèm tệp vào lệnh",
     "lsx_dinh_kem_xoa": "Xoá tệp đính kèm lệnh",
+    "gia_cong_ngoai_dat": "Đặt gia công ngoài",
+    "gia_cong_ngoai_mang_di": "Mang hàng đi gia công ngoài",
+    "gia_cong_ngoai_chot": "Chốt số gia công ngoài",
+    "gia_cong_ngoai_mo_lai": "Mở lại lần gia công ngoài",
+    "gia_cong_ngoai_huy": "Huỷ gia công ngoài",
+    "gia_cong_ngoai_xuat_giay": "Đề nghị xuất giấy cho gia công ngoài",
 })
 _HD += _dong("san_xuat", "bai_ghep_2", {
     "tao_bai_ghep": "Tạo bài ghép",

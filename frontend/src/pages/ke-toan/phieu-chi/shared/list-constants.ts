@@ -33,6 +33,7 @@ export const SOURCE_LABELS: Record<PaymentVoucherSource, string> = {
   // Phiếu chi lập từ màn Tạm ứng (Lương). Mã nguồn in trên chứng từ là MÃ PHIẾU TẠM ỨNG
   // (TU-…/L1-…) nên tra ngược từ sổ quỹ về phiếu đã duyệt bằng ô tìm kiếm là ra.
   salary_advance: "Tạm ứng lương",
+  gia_cong_ngoai: "Gia công ngoài",
   internal_expense: "Khác",
   customer_refund: "Khác",
   other: "Khác",

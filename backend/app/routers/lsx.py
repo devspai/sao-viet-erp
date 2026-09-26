@@ -33,7 +33,6 @@ from ..schemas.lsx import (
     LsxBoLocOut,
     LsxDinhKemListOut,
     LsxDinhKemOut,
-    LsxGiaoNhanIn,
     LsxListItem,
     LsxListOut,
     LsxOut,
@@ -180,6 +179,7 @@ def list_items(
     customer_id: int | None = Query(default=None),
     trang_thai: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    gia_cong: str | None = Query(default=None, pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$"),
     page: int = Query(default=1, ge=1),
     # Trần 200 khớp `repositories/catalog_base.SIZE_TRAN` — chặn client gõ `?size=99999` để kéo
     # cả bảng về, đúng cái đã làm chết endpoint này ở 100.000 lệnh.
@@ -188,6 +188,7 @@ def list_items(
     svc = _svc(db)
     loc = {
         "order_id": order_id, "customer_id": customer_id, "trang_thai": trang_thai, "q": q,
+        "gia_cong": gia_cong,
         "owner_ids": _owner_ids_for_scope(db, user, authz),
     }
     rows, total = svc.list_rows(page=page, size=size, **loc)
@@ -207,11 +208,13 @@ def bo_loc(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     trang_thai: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    gia_cong: str | None = Query(default=None, pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$"),
 ) -> LsxBoLocOut:
     """Đơn / khách để đổ vào hai ô lọc. Cùng scope với `list` — người chỉ thấy lệnh của mình thì
     ô chọn cũng chỉ chào đơn của mình."""
     return LsxBoLocOut.model_validate(_svc(db).nguon_bo_loc(
-        trang_thai=trang_thai, q=q, owner_ids=_owner_ids_for_scope(db, user, authz),
+        trang_thai=trang_thai, q=q, gia_cong=gia_cong,
+        owner_ids=_owner_ids_for_scope(db, user, authz),
     ))
 
 
@@ -489,31 +492,6 @@ def dong_bo_danh_muc(
     try:
         _guard_scope(db, svc.get(lsx_id), user, authz)
         lsx = svc.dong_bo_danh_muc(lsx_id=lsx_id, actor=user)
-    except Exception as exc:
-        raise _map(exc)
-    hub.broadcast({"type": "lsx_changed", "order_id": lsx.order_id})
-    return _out(svc, lsx)
-
-
-@router.post("/{lsx_id}/buoc/{buoc_id}/giao-nhan", response_model=LsxOut)
-def ghi_giao_nhan(
-    lsx_id: int,
-    buoc_id: int,
-    payload: LsxGiaoNhanIn,
-    db: Annotated[Session, Depends(get_db)],
-    authz: Authz,
-    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
-) -> LsxOut:
-    """Ghi nhận THỰC TẾ hàng gia công ngoài đi/về — CỬA RIÊNG, không đi qua lưu routing.
-
-    Việc này xảy ra lúc lệnh ĐANG CHẠY (đã lập kế hoạch), mà `PUT /routing` chặn đúng trạng thái
-    đó. Tách cửa để khỏi bắt kế hoạch gỡ lịch cả lệnh chỉ để ghi một dòng giao hàng. Quyền tái
-    dùng `update` của lệnh — không đẻ vai mới; ai bấm ghi vào AuditLog.
-    """
-    svc = _svc(db)
-    try:
-        _guard_scope(db, svc.get(lsx_id), user, authz)
-        lsx = svc.ghi_giao_nhan(lsx_id=lsx_id, buoc_id=buoc_id, payload=payload, actor=user)
     except Exception as exc:
         raise _map(exc)
     hub.broadcast({"type": "lsx_changed", "order_id": lsx.order_id})

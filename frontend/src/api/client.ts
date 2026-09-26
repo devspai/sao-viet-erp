@@ -475,7 +475,20 @@ export type QuoteEvent =
       dich_ten?: string | null;
       so_luong?: number | null;
       don_vi?: string | null;
+      lsx_ma?: string | null;
     }
+  // Gia công ngoài (spec 2026-09-26): lần vừa CHỐT ⇒ đẩy đích danh người lập phiếu chi (toast) +
+  // broadcast `_changed` để badge Phiếu chi của mọi người nhảy; `gia_cong_ngoai_changed` để khối
+  // Gia công ngoài / danh sách Kế hoạch SX đang mở tự nạp (qua tick chung).
+  | {
+      type: "gia_cong_cho_chi";
+      gia_cong_ngoai_id: number;
+      lsx_ma?: string | null;
+      nha_cung_cap_ten?: string | null;
+      ten_viec?: string | null;
+    }
+  | { type: "gia_cong_cho_chi_changed" }
+  | { type: "gia_cong_ngoai_changed"; lsx_id?: number | null; gia_cong_ngoai_id?: number | null }
   | { type: "san_xuat_ho_tro_changed"; cong_viec_id?: number | null; ho_tro_id?: number | null; trang_thai?: string | null }
   | {
       type: "san_xuat_ho_tro";
@@ -585,7 +598,7 @@ export type LsxLoaiBuoc = "may" | "to" | "thue_ngoai";
 export const LSX_LOAI_BUOC_META: Record<LsxLoaiBuoc, { label: string; tone: string; hint: string }> = {
   may: { label: "Máy", tone: "may", hint: "Chiếm máy — có thanh trên lịch máy" },
   to: { label: "Tổ", tone: "to", hint: "Tổ lao động làm tay — chiếm nhân công, không chiếm máy" },
-  thue_ngoai: { label: "Thuê ngoài", tone: "ngoai", hint: "Nhà gia công làm — khai máy của họ trong danh mục Máy; nhập liệu y hệt bước máy, chỉ không sinh tiền khoán" },
+  thue_ngoai: { label: "Thuê ngoài", tone: "ngoai", hint: "Nhà gia công ngoài làm — chọn nhà gia công trong danh mục Nhà cung cấp; không tổ, không máy, không vật tư, không tính thời gian" },
 };
 
 /** Đơn vị bốn chặng của lệnh đang xét — xem `pages/lsxBuoc.donViChuoi`. Khai lại hình dạng tối
@@ -609,6 +622,7 @@ export const LSX_THIEU_LABELS: Record<string, NhanMa> = {
   thieu_routing: "Chưa có công đoạn",
   thieu_ngay_giao: "Thiếu ngày giao",
   thieu_to_may: "Có công đoạn chưa gán tổ / máy",
+  thieu_nha_gia_cong: "Có bước thuê ngoài chưa chọn nhà gia công",
   // Bước cần dụng cụ lưu kho (bế · ép nhũ · khung lụa) mà chưa trỏ con dao nào. Đứng NGANG HÀNG
   // với thiếu nhà gia công — cùng một danh sách, người dùng không phải học luật mới.
   thieu_khuon: "Có công đoạn cần khuôn / khung mà chưa chọn",
@@ -1078,7 +1092,7 @@ export interface XlCongDoan {
    *  nhau). Bàn cấp lệnh vẫn TRẢI TUẦN TỰ — chip chỉ nói thật, không đổi cách trải. */
   lop: number;
   song_song: boolean;
-  thue_ngoai_ngay: number | null;
+  la_thue_ngoai: boolean;
   mau_index: number;
   /** Trạng thái thẻ việc dưới xưởng. `null` ⇔ lệnh chưa phát hành ⇒ cả khối dưới đều `null`. */
   trang_thai: "released" | "running" | "paused" | "completed" | null;
@@ -2484,41 +2498,16 @@ export interface LsxPreviewOut {
   lines: LsxPreviewLine[];
 }
 
-/** Khối gia công ngoài (§8) — chỉ có nghĩa khi `loai_buoc = "thue_ngoai"`. */
+/** Gia công ngoài của BƯỚC (spec 2026-09-26) — chỉ có nghĩa khi `loai_buoc = "thue_ngoai"`.
+ *  Tên nhà gia công do máy chủ ghi theo `nha_cung_cap_id`; việc mang đi / chốt số nằm ở
+ *  `api.giaCongNgoai`, không ở bước. */
 interface LsxThueNgoaiFields {
+  nha_cung_cap_id: number | null;
   nha_cung_cap: string | null;
-  sl_gui: number | null;
-  ngay_gui_dk: string | null;
-  van_chuyen_ngay: number | null;
-  gia_cong_ngay: number | null;
-  ngay_nhan_dk: string | null;
-  hao_hut_cho_phep: number | null;
   don_gia_gia_cong: number | null;
-  yeu_cau_ky_thuat: string | null;
 }
 
-/** Sổ THỰC TẾ của bước gia công ngoài + mọi thứ server SUY RA từ nó (không lưu cột).
- *
- * Ghi qua cửa thực thi `api.lsx.giaoNhan`, KHÔNG qua lưu routing — hàng ra cổng lúc lệnh đang
- * chạy, mà lưu routing bị chặn đúng trạng thái đó.
- */
-export interface LsxGiaoNhanFields {
-  nguoi_giao_id: number | null;
-  nguoi_giao_ten: string | null;
-  giao_luc: string | null;
-  sl_giao_thuc: number | null;
-  nguoi_nhan_id: number | null;
-  nguoi_nhan_ten: string | null;
-  nhan_luc: string | null;
-  sl_nhan_thuc: number | null;
-  giao_nhan_trang_thai: "chua_gui" | "dang_ngoai" | "da_ve" | null;
-  so_hut: number | null;
-  hut_vuot_dinh_muc: boolean;
-  tien_gia_cong_thuc: number | null;
-  qua_han_ngay: number | null;
-}
-
-export interface LsxCongDoan extends LsxThueNgoaiFields, LsxGiaoNhanFields {
+export interface LsxCongDoan extends LsxThueNgoaiFields {
   id: number; step_key: string; thu_tu: number; cong_doan_id: number | null;
   ten: string; nhom: string | null; loai_buoc: LsxLoaiBuoc; bat_buoc: boolean;
   department_id: number | null; department_ten: string | null;
@@ -2584,7 +2573,7 @@ export interface LsxCongDoan extends LsxThueNgoaiFields, LsxGiaoNhanFields {
   so_luong_vao_moi: number | null;
   so_luong_ra_moi: number | null;
 }
-export interface LsxCongDoanBody extends Partial<LsxThueNgoaiFields> {
+export interface LsxCongDoanBody extends Partial<Omit<LsxThueNgoaiFields, "nha_cung_cap">> {
   step_key?: string; thu_tu?: number; cong_doan_id?: number | null; ten?: string; nhom?: string | null;
   /* `bat_buoc` GỠ 07/09/2026 — server không nhận nữa, mọi bước routing đều bắt buộc (mg 0275). */
   loai_buoc?: LsxLoaiBuoc;
@@ -6325,6 +6314,8 @@ export interface SupplierRow {
       của NCC này không vào cột Quá hạn). Hai thứ khác nhau, đừng ép null thành 0. */
   credit_days: number | null;
   status: SupplierStatus;
+  /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
+  nhan_gia_cong: boolean;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -6391,8 +6382,72 @@ export interface SupplierInput {
   /** Số ngày cho nợ — `0` = trả ngay · `null` = chưa đặt hạn. */
   credit_days?: number | null;
   status?: SupplierStatus;
+  /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
+  nhan_gia_cong?: boolean;
   note?: string | null;
   items?: SupplierItemInput[];
+}
+
+/** Ô chọn Nhà gia công — NCC đang hoạt động có tích "Nhận gia công" (spec gia công ngoài §7). */
+export interface NhaGiaCong { id: number; ten: string }
+
+/** Một dòng "Gia công chờ chi" — lần đã chốt, chưa có phiếu chi còn hiệu lực. Tiền `null` khi người
+ *  xem không có quyền xem tiền. */
+export interface GiaCongChoChi {
+  gia_cong_ngoai_id: number;
+  lsx_id: number;
+  lsx_ma: string;
+  ten_viec: string;
+  nha_cung_cap_id: number | null;
+  nha_cung_cap_ten: string;
+  sl_cuoi: number;
+  don_vi: string | null;
+  don_gia: number | null;
+  thanh_tien: number | null;
+  chot_luc: string | null;
+  chot_boi_ten: string | null;
+}
+
+export type GiaCongTrangThai = "cho_mang_di" | "dang_o_ngoai" | "dang_gia_cong" | "da_xong" | "da_huy";
+export type GiaCongNoiVe = "xuong" | "kho" | "khach";
+
+/** MỘT lần gia công ngoài (spec 2026-09-26). Tiền (`don_gia`, `thanh_tien`) là `null` khi người
+ *  xem không có quyền xem tiền — máy chủ gác, màn ẨN hẳn đoạn tiền (không hiện "—"). */
+export interface GiaCongNgoaiLan {
+  id: number;
+  lsx_id: number;
+  lsx_ma: string;
+  kieu: "mot_phan" | "tron_goi";
+  trang_thai: GiaCongTrangThai;
+  nha_cung_cap_id: number;
+  nha_cung_cap_ten: string;
+  ten_viec: string;
+  don_vi: string | null;
+  don_gia: number | null;
+  thanh_tien: number | null;
+  sl_dat: number | null;
+  xuong_cap_giay: boolean;
+  don_vi_gui: string | null;
+  sl_cho_mang_di: number;
+  co_buoc_truoc: boolean;
+  mang_di_boi_ten: string | null;
+  mang_di_luc: string | null;
+  sl_gui: number | null;
+  /** Số điền sẵn khi chốt, máy chủ đã quy về đơn vị của lần (vd tờ gửi đi → con nhận về). */
+  sl_goi_y_chot?: number | null;
+  chot_boi_ten: string | null;
+  chot_luc: string | null;
+  sl_cuoi: number | null;
+  noi_ve: GiaCongNoiVe | null;
+  noi_ve_hop_le: GiaCongNoiVe[];
+  chang_sau: { id: number; ten: string }[];
+  huy_boi_ten: string | null;
+  huy_luc: string | null;
+  ly_do_huy: string | null;
+  phieu_chi: { id: number; code: string } | null;
+  xuat_giay: { id: number; ma: string; trang_thai: string } | null;
+  lich_su: { luc: string | null; ai: string; viec: string; chi_tiet: string }[];
+  version: number;
 }
 
 export interface SupplierListOut {
@@ -7288,6 +7343,9 @@ export type PaymentVoucherSource =
   /** Phiếu chi lập TỪ một phiếu tạm ứng lương đã duyệt (18/08/2026). Số tiền + người nhận do
    *  backend lấy thẳng từ phiếu tạm ứng, payload gửi lên bị bỏ qua. */
   | "salary_advance"
+  /** Phiếu chi lập TỪ một lần gia công ngoài đã chốt (26/09/2026). KHÔNG vào công nợ 331 — ô nhà
+   *  cung cấp công nợ để trống, tên nhà gia công chỉ nằm ở người nhận. */
+  | "gia_cong_ngoai"
   | "internal_expense"
   | "customer_refund"
   | "other";
@@ -7371,6 +7429,7 @@ export interface PaymentVoucherInput extends PaymentVoucherBaseInput {
    *  `amount` + `cash_recipient_name` gửi lên BỊ BỎ QUA — backend lấy số tiền và tên nhân viên
    *  của chính phiếu tạm ứng, để phiếu chi không lệch số đã duyệt. */
   salary_advance_id?: number | null;
+  gia_cong_ngoai_id?: number | null;
 }
 
 /** MỘT đợt giao được chọn để trả trong lượt thanh toán gộp (04/09/2026). */
@@ -7473,6 +7532,9 @@ export interface PaymentVoucherRow {
   /** Phiếu tạm ứng lương nguồn — chỉ có giá trị khi `source_type = salary_advance`.
    *  Một phiếu tạm ứng chỉ gắn ĐÚNG MỘT phiếu chi (UNIQUE ở DB). */
   salary_advance_id: number | null;
+  /** Lần gia công ngoài nguồn — chỉ có giá trị khi `source_type = gia_cong_ngoai`. Tùy chọn ở đây
+   *  (dưới `salary_advance_id`) để fixture test dựng `PaymentVoucherRow` bằng tay khỏi vỡ `tsc`. */
+  gia_cong_ngoai_id?: number | null;
   purchase_request_code: string;
   purchase_request_total: number | null;
   purchase_paid_amount: number | null;
@@ -11806,6 +11868,62 @@ export const api = {
   },
 
   // --- Lệnh sản xuất (LSX) — bàn Kế hoạch sản xuất ---------------------------
+  giaCongNgoai: {
+    /** Ô chọn Nhà gia công — NCC đang hoạt động có tích "Nhận gia công" (spec gia công ngoài §7). */
+    nhaGiaCong(token: string): Promise<NhaGiaCong[]> {
+      return authed<NhaGiaCong[]>("/api/gia-cong-ngoai/nha-gia-cong", token);
+    },
+    cuaLenh(token: string, lsxId: number): Promise<GiaCongNgoaiLan[]> {
+      return authed<GiaCongNgoaiLan[]>(`/api/gia-cong-ngoai/lenh/${lsxId}`, token);
+    },
+    /** "Đã mang đi" — nhận MỌI bàn giao đang chờ của bước trước. `sl_gui` chỉ khi dải đứng đầu
+     *  lệnh (không có bàn giao để nhận). */
+    mangDi(token: string, id: number, body: { version: number; sl_gui?: number | null }): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/mang-di`, token, {
+        method: "POST", body: JSON.stringify(body),
+      });
+    },
+    chot(
+      token: string,
+      id: number,
+      body: { version: number; sl_cuoi: number; noi_ve: GiaCongNoiVe; dich_cong_viec_id?: number | null },
+    ): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/chot`, token, {
+        method: "POST", body: JSON.stringify(body),
+      });
+    },
+    moLai(token: string, id: number, version: number): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/mo-lai`, token, {
+        method: "POST", body: JSON.stringify({ version }),
+      });
+    },
+    datTronGoi(
+      token: string,
+      lsxId: number,
+      body: { nha_cung_cap_id: number; sl_dat: number; don_gia: number | null; xuong_cap_giay: boolean },
+    ): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/lenh/${lsxId}/tron-goi`, token, {
+        method: "POST", body: JSON.stringify(body),
+      });
+    },
+    huyTronGoi(token: string, id: number, body: { version: number; ly_do: string }): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/huy-tron-goi`, token, {
+        method: "POST", body: JSON.stringify(body),
+      });
+    },
+    /** Hàng "Gia công chờ chi" đầu màn Phiếu chi (spec §5): lần đã chốt, chưa có phiếu chi. */
+    choChi(token: string): Promise<GiaCongChoChi[]> {
+      return authed<GiaCongChoChi[]>("/api/accounting/gia-cong-cho-chi", token);
+    },
+    demChoChi(token: string): Promise<{ so: number }> {
+      return authed<{ so: number }>("/api/accounting/gia-cong-cho-chi/dem", token);
+    },
+    xuatGiay(token: string, id: number, version: number): Promise<GiaCongNgoaiLan> {
+      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/xuat-giay`, token, {
+        method: "POST", body: JSON.stringify({ version }),
+      });
+    },
+  },
   lsx: {
     /** Đơn Sale đã "Chuyển xuống sản xuất" mà còn dòng chưa lên lệnh. */
     hangCho(token: string, params: { page?: number; size?: number } = {}): Promise<HangChoOut> {
@@ -11830,7 +11948,7 @@ export const api = {
       token: string,
       params: {
         order_id?: number; customer_id?: number; trang_thai?: string; q?: string;
-        page?: number; size?: number;
+        gia_cong?: string; page?: number; size?: number;
       } = {},
     ): Promise<LsxListOut> {
       const qs = new URLSearchParams();
@@ -11838,6 +11956,7 @@ export const api = {
       if (params.customer_id) qs.set("customer_id", String(params.customer_id));
       if (params.trang_thai) qs.set("trang_thai", params.trang_thai);
       if (params.q) qs.set("q", params.q);
+      if (params.gia_cong) qs.set("gia_cong", params.gia_cong);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -11845,10 +11964,14 @@ export const api = {
     },
     /** Đơn / khách để đổ vào hai ô lọc của bảng lệnh. KHÔNG truyền `order_id`/`customer_id`:
      *  danh sách chọn phải đứng yên khi đang lọc, không thì chọn xong là hết đường đổi. */
-    boLoc(token: string, params: { trang_thai?: string; q?: string } = {}): Promise<LsxBoLocOut> {
+    boLoc(
+      token: string,
+      params: { trang_thai?: string; q?: string; gia_cong?: string } = {},
+    ): Promise<LsxBoLocOut> {
       const qs = new URLSearchParams();
       if (params.trang_thai) qs.set("trang_thai", params.trang_thai);
       if (params.q) qs.set("q", params.q);
+      if (params.gia_cong) qs.set("gia_cong", params.gia_cong);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<LsxBoLocOut>(`/api/lsx/bo-loc${suffix}`, token);
     },
@@ -11877,17 +12000,6 @@ export const api = {
       body: { ten: string; loai: string | null },
     ): Promise<KhuonChonDuoc> {
       return authed<KhuonChonDuoc>(`/api/lsx/${id}/khuon-moi`, token, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-    },
-    /** Ghi nhận THỰC TẾ hàng gia công ngoài đi/về. Cửa riêng — chạy được cả khi lệnh đã lập
-     *  kế hoạch, vì hàng ra cổng đúng lúc lệnh đang chạy. */
-    giaoNhan(
-      token: string, id: number, buocId: number,
-      body: { su_kien: "giao" | "nhan"; nguoi_id?: number | null; luc?: string | null; so_luong?: number | null },
-    ): Promise<LsxDetail> {
-      return authed<LsxDetail>(`/api/lsx/${id}/buoc/${buocId}/giao-nhan`, token, {
         method: "POST",
         body: JSON.stringify(body),
       });

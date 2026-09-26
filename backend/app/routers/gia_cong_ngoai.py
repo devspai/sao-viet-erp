@@ -1,0 +1,207 @@
+"""Gia công ngoài — một cửa ghi DUY NHẤT cho mang đi / chốt / mở lại / trọn gói (spec 2026-09-26).
+
+Quyền: ai sửa được lệnh (`san_xuat:update`) — không thêm vai, không thêm bit (spec §6). Tiền của
+lần chỉ trả cho người có `kho:view_cost`. Mọi SSE bắn SAU commit.
+"""
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from ..db import get_db
+from ..deps import get_authorization_service, require_permission
+from ..models.user import User
+from ..realtime import hub, phat_ban_giao, phat_dong_nhom
+from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+from ..repositories.san_xuat_repo import SanXuatRepository
+from ..schemas.gia_cong_ngoai import (
+    ChotIn, GiaCongNgoaiOut, HuyTronGoiIn, MangDiIn, MoLaiIn, NhaGiaCongOut, TronGoiIn, XuatGiayIn,
+)
+from ..services.gia_cong_ngoai import chot as chot_svc
+from ..services.gia_cong_ngoai import mot_phan, tron_goi
+from ..services.gia_cong_ngoai.lan import lan_cua_lenh, lan_dict
+from ..services.rbac_service import AuthorizationService
+from .lsx import _guard_scope
+
+router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
+MODULE = "san_xuat"
+Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
+
+
+def _chay(fn):
+    """Lỗi nghiệp vụ → mã HTTP: quyền 403 · người khác vừa đổi 409 · ràng buộc 400."""
+    from ..services.gia_cong_ngoai import GiaCongXungDot
+
+    try:
+        return fn()
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except GiaCongXungDot as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get("/nha-gia-cong", response_model=list[NhaGiaCongOut])
+def nha_gia_cong(
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[dict]:
+    """Ô chọn Nhà gia công của Kế hoạch SX — người kế hoạch không cần quyền Mua hàng."""
+    return [{"id": s.id, "ten": s.name} for s in GiaCongNgoaiRepository(db).nha_gia_cong_options()]
+
+
+def _gac_lenh(db: Session, authz: AuthorizationService, user: User, lsx_id: int) -> None:
+    """Gác PHẠM VI lệnh y như `routers/lsx.py` — người scope "của mình" không đụng lệnh người khác
+    (ngoài phạm vi trả 404 như chính màn lệnh, không lộ lệnh có tồn tại)."""
+    lsx = SanXuatRepository(db).lsx(lsx_id)
+    if lsx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy lệnh sản xuất")
+    _guard_scope(db, lsx, user, authz)
+
+
+def _gac_lan(db: Session, authz: AuthorizationService, user: User, gcn_id: int) -> None:
+    """Gác phạm vi theo LỆNH của lần gia công."""
+    gcn = GiaCongNgoaiRepository(db).get(gcn_id)
+    if gcn is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Không tìm thấy lần gia công ngoài")
+    _gac_lenh(db, authz, user, gcn.lsx_id)
+
+
+@router.get("/lenh/{lsx_id}", response_model=list[GiaCongNgoaiOut])
+def cua_lenh(
+    lsx_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[dict]:
+    _gac_lenh(db, authz, user, lsx_id)
+    return lan_cua_lenh(db, lsx_id)
+
+
+def _phat_doi(lsx_id: int) -> None:
+    """Khối Gia công ngoài trên lệnh + danh sách Kế hoạch SX tự nạp lại (sau commit)."""
+    hub.broadcast({"type": "gia_cong_ngoai_changed", "lsx_id": lsx_id})
+
+
+def _ra(db: Session, authz: AuthorizationService, user: User, gcn_id: int) -> dict:
+    gcn = GiaCongNgoaiRepository(db).get(gcn_id)
+    return lan_dict(db, gcn)
+
+
+@router.post("/{gcn_id}/mang-di", response_model=GiaCongNgoaiOut)
+def mang_di(
+    gcn_id: int,
+    body: MangDiIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    _gac_lan(db, authz, user, gcn_id)
+    kq = _chay(lambda: mot_phan.mang_di(
+        db, user=user, gcn_id=gcn_id, expected_version=body.version, sl_gui=body.sl_gui))
+    for res in kq["ban_giao"]:
+        phat_ban_giao(res)
+    _phat_doi(kq["lsx_id"])
+    return _ra(db, authz, user, gcn_id)
+
+
+def _phat_cho_chi(res: dict, user: User, db: Session) -> None:
+    """Lần vừa chốt ⇒ kế toán có việc "chờ chi" (spec §6): toast đích danh + badge mọi người."""
+    for uid in GiaCongNgoaiRepository(db).nguoi_lap_phieu_chi():
+        if uid == user.id:
+            continue
+        hub.publish(uid, {
+            "type": "gia_cong_cho_chi", "gia_cong_ngoai_id": res["gia_cong_ngoai_id"],
+            "lsx_ma": res.get("lsx_ma"), "nha_cung_cap_ten": res.get("nha_cung_cap_ten"),
+            "ten_viec": res.get("ten_viec"),
+        })
+    hub.broadcast({"type": "gia_cong_cho_chi_changed"})
+
+
+@router.post("/{gcn_id}/chot", response_model=GiaCongNgoaiOut)
+def chot(
+    gcn_id: int,
+    body: ChotIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    _gac_lan(db, authz, user, gcn_id)
+    res = _chay(lambda: chot_svc.chot(
+        db, user=user, gcn_id=gcn_id, expected_version=body.version, sl_cuoi=body.sl_cuoi,
+        noi_ve=body.noi_ve, dich_cong_viec_id=body.dich_cong_viec_id))
+    if res["ban_giao"]:
+        phat_ban_giao(res["ban_giao"])
+    if res["nhom_dong"]:
+        phat_dong_nhom(res["nhom_dong"])
+    _phat_cho_chi(res, user, db)
+    _phat_doi(res["lsx_id"])
+    return _ra(db, authz, user, gcn_id)
+
+
+@router.post("/{gcn_id}/mo-lai", response_model=GiaCongNgoaiOut)
+def mo_lai(
+    gcn_id: int,
+    body: MoLaiIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    _gac_lan(db, authz, user, gcn_id)
+    res = _chay(lambda: chot_svc.mo_lai(db, user=user, gcn_id=gcn_id,
+                                         expected_version=body.version))
+    hub.broadcast({"type": "gia_cong_cho_chi_changed"})
+    # Bàn tổ của bước sau / màn KCS / kho vừa mất một bàn giao hoặc đề nghị — bump chung.
+    hub.broadcast({"type": "san_xuat_cong_viec_changed", "lsx_id": res["lsx_id"]})
+    _phat_doi(res["lsx_id"])
+    return _ra(db, authz, user, gcn_id)
+
+
+@router.post("/lenh/{lsx_id}/tron-goi", response_model=GiaCongNgoaiOut)
+def dat_tron_goi(
+    lsx_id: int,
+    body: TronGoiIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    _gac_lenh(db, authz, user, lsx_id)
+    kq = _chay(lambda: tron_goi.dat_tron_goi(
+        db, user=user, lsx_id=lsx_id, nha_cung_cap_id=body.nha_cung_cap_id, sl_dat=body.sl_dat,
+        don_gia=body.don_gia, xuong_cap_giay=body.xuong_cap_giay))
+    _phat_doi(lsx_id)
+    return _ra(db, authz, user, kq["gia_cong_ngoai_id"])
+
+
+@router.post("/{gcn_id}/huy-tron-goi", response_model=GiaCongNgoaiOut)
+def huy_tron_goi(
+    gcn_id: int,
+    body: HuyTronGoiIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    _gac_lan(db, authz, user, gcn_id)
+    kq = _chay(lambda: tron_goi.huy_tron_goi(db, user=user, gcn_id=gcn_id,
+                                              expected_version=body.version, ly_do=body.ly_do))
+    _phat_doi(kq["lsx_id"])
+    return _ra(db, authz, user, gcn_id)
+
+
+@router.post("/{gcn_id}/xuat-giay", response_model=GiaCongNgoaiOut)
+def xuat_giay(
+    gcn_id: int,
+    body: XuatGiayIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    _gac_lan(db, authz, user, gcn_id)
+    _chay(lambda: tron_goi.de_nghi_xuat_giay(db, user=user, gcn_id=gcn_id,
+                                              expected_version=body.version))
+    _phat_doi(GiaCongNgoaiRepository(db).get(gcn_id).lsx_id)
+    return _ra(db, authz, user, gcn_id)

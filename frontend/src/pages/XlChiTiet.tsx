@@ -806,7 +806,7 @@ export function XlChiTiet({
                   <div className="xl-pipe-list">
                     {ct.cong_doans.map((c, idx) => {
                       const { icon, colorClass } = getCongDoanTheme(c.ten);
-                      const coThoiGian = c.chay_phut > 0 || c.thue_ngoai_ngay != null;
+                      const coThoiGian = c.chay_phut > 0 || c.la_thue_ngoai;
                       const tt = c.trang_thai ? TT_BUOC[c.trang_thai] : null;
                       const lech = nhanLech(c.lech_phut);
                       // Có gì THẬT để bày không: mốc kế hoạch một mình là số thừa ở bàn cấp lệnh
@@ -885,8 +885,8 @@ export function XlChiTiet({
                                 }`}
                                 title={c.canh_bao ?? undefined}
                               >
-                                {c.thue_ngoai_ngay != null
-                                  ? `Thuê ngoài ${c.thue_ngoai_ngay}d`
+                                {c.la_thue_ngoai
+                                  ? "Gia công ngoài"
                                   : c.chay_phut > 0
                                     ? gioChu(c.chay_phut)
                                     : c.canh_bao

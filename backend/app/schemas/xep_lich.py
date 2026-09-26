@@ -152,7 +152,7 @@ class CongDoanOut(BaseModel):
     # 1→N nhưng hai bước đó KHÔNG chặn nhau. Bàn cấp lệnh vẫn trải tuần tự — xem `trai_lich`.
     lop: int = 0
     song_song: bool = False
-    thue_ngoai_ngay: int | None = None
+    la_thue_ngoai: bool = False
     mau_index: int = 0
     # --- lớp THỰC TẾ. Toàn bộ `None` ⇔ lệnh chưa phát hành (xem docstring). ---
     # `released` (tổ chưa động) · `running` · `paused` · `completed`.

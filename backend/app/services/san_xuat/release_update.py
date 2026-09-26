@@ -271,7 +271,8 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
             may_id=cv.may_id, du_kien_bat_dau=cv.du_kien_bat_dau,
             du_kien_ket_thuc=cv.du_kien_ket_thuc,
         ))
-        if may_id is not None:          # giữ máy cũ nếu lịch mới chưa gán (bước tổ/thuê ngoài)
+        # Việc GIA CÔNG NGOÀI không vào bàn tổ nào, không máy — giữ `may_id=None`, đừng gán đè.
+        if may_id is not None and cv.gia_cong_ngoai_id is None:
             cv.may_id = may_id
         cv.du_kien_bat_dau = start
         cv.du_kien_ket_thuc = finish
@@ -280,6 +281,13 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         so_huy_pc += n_pc
         so_huy_ht += n_ht
     so_cap_nhat = len(chua) - so_lech_phan_doan
+
+    # GIA CÔNG NGOÀI (spec 2026-09-26, Fix round 1): "Phát hành cập nhật" cũng tạo/giữ lần gia
+    # công — routing có thể đổi nhà gia công / thêm-bớt bước thuê ngoài sau lần phát hành đầu.
+    # Lần đã mang đi / đã chốt được hàm này TỰ giữ nguyên, không cần lọc trước ở đây.
+    from ..gia_cong_ngoai.lan import dong_bo_lan_khi_cap_nhat
+
+    dong_bo_lan_khi_cap_nhat(db, lsx_ids=lsx_ids, actor=actor)
 
     AuditLogRepository(db).create(
         actor_user_id=actor_uid,
@@ -315,7 +323,13 @@ def co_cong_viec_da_bat_dau(db: Session, *, nguon: str, id: int) -> bool:
     goi = repo.goi_hien_tai_cua(lsx_ids, bg_ids)
     if goi is None:
         return False
-    return bool(_da_bat_dau_ids(thuc, repo.cong_viec_cua_goi(goi.id)))
+    if _da_bat_dau_ids(thuc, repo.cong_viec_cua_goi(goi.id)):
+        return True
+    # Hàng đã mang ra nhà gia công (hoặc đã chốt) = việc ĐÃ chạy, dù công việc gia công không có
+    # phiên bắt đầu nào — thu hồi lúc này là xoá dấu vết hàng đang nằm ngoài xưởng.
+    from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+
+    return GiaCongNgoaiRepository(db).co_lan_da_di_trong_goi(goi.id)
 
 
 def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor) -> int:
@@ -332,6 +346,9 @@ def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor) -> int:
     actor_uid = getattr(actor, "id", None)
     for cv in all_cv:
         _huy_phan_cong_ho_tro(db, thuc, cv, actor_uid)
+    from ..gia_cong_ngoai.lan import huy_lan_cua_goi
+
+    huy_lan_cua_goi(db, goi_id=goi.id, actor=actor, ly_do=f"Thu hồi gói phát hành {goi.ma}")
     goi.trang_thai = GOI_DA_THU_HOI
     goi.version += 1
     AuditLogRepository(db).create(

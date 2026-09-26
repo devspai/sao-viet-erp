@@ -144,28 +144,25 @@ def test_so_do_bai_ghep_ve_routing_day_du_va_mot_cua_ghi() -> None:
     assert "BaiGhepDagCanvas" in page
 
 
-def test_thue_ngoai_khong_co_o_nao_rieng_ngoai_buoc_may() -> None:
-    """Bước THUÊ NGOÀI nhập liệu Y HỆT bước máy — không được có ô/tab nào của riêng nó.
-
-    Nhà thầu khai như một MÁY trong danh mục (tên kèm hậu tố "thuê ngoài – <nhà in>"), nên mọi
-    khối "gia công ngoài" cũ (đối tác · số gửi · ngày gửi/nhận · đơn giá gia công · sổ giao–nhận)
-    đã GỠ khỏi màn kế hoạch. Guard neo vào ĐỊNH DANH MÁY, không vào chữ hiển thị.
-
-    Cột `nha_cung_cap` và cửa ghi `POST …/giao-nhan` ở server VẪN CÒN (dữ liệu cũ + ảnh chụp cho
-    kho) — guard này chỉ gác phần MÀN KẾ HOẠCH.
-    """
+def test_thue_ngoai_chon_nha_gia_cong_khong_to_may() -> None:
+    """Bước THUÊ NGOÀI (spec gia công ngoài 2026-09-26 §7): chọn NHÀ GIA CÔNG từ danh mục Nhà cung
+    cấp + đơn giá cả lần; không tổ, không máy, không vật tư. Sổ giao–nhận cũ đã gỡ hẳn cả ở server
+    (Task 4) — việc mang đi / chốt số nằm ở khối Gia công ngoài trên lệnh, không ở bước."""
     drawer = DRAWER.read_text(encoding="utf-8")
-    bang = (DRAWER.parent / "LsxRoutingTable.tsx").read_text(encoding="utf-8")
+    bang = ROUTING.read_text(encoding="utf-8")
     card = (DRAWER.parents[1] / "components" / "DagNodeCard.tsx").read_text(encoding="utf-8")
 
     for src in (drawer, bang, card):
         assert '"giao_nhan"' not in src
         assert "khsx-gn-badge" not in src
         assert "onGiaoNhan(" not in src
-    # Nút chọn loại bước phải BÀY LẠI "Thuê ngoài" (trước đó bị ẩn khỏi danh sách).
     assert 'LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "to", "thue_ngoai"]' in drawer
-    # Và nó đi CHUNG đường với bước máy khi đổi loại (kíp lấy theo máy, không theo bảng khoán tổ).
-    assert 'if (k === "may" || k === "thue_ngoai") {' in drawer
+    # Ô chọn đọc danh mục Nhà cung cấp tích "Nhận gia công", không gõ chữ tự do.
+    assert "api.giaCongNgoai.nhaGiaCong" in drawer
+    # Đổi sang thuê ngoài là dọn tổ / máy / vật tư ngay trong bản nháp.
+    assert 'if (k === "thue_ngoai") {' in drawer
+    # Ô đơn giá chỉ ở bước cuối lần — bảng cha suy dải cùng luật máy chủ.
+    assert "viTriTrongDai(" in bang
 
 
 

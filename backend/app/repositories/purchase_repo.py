@@ -340,6 +340,7 @@ class SupplierRepository:
         credit_limit: int = 0,
         credit_days: int | None = None,
         status: str = SUPPLIER_ACTIVE,
+        nhan_gia_cong: bool = False,
         note: str | None = None,
         items: Sequence["SupplierItemInput"] | None = None,
     ) -> Supplier:
@@ -356,6 +357,7 @@ class SupplierRepository:
             credit_limit=credit_limit,
             credit_days=credit_days,
             status=status,
+            nhan_gia_cong=nhan_gia_cong,
             note=note,
         )
         row.items = [

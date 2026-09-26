@@ -290,6 +290,12 @@ class SanXuatCongViec(Base):
     # màn theo dõi mà không phải tra ngược lệnh. Trước 04/09/2026 các màn xưởng chỉ có `loai_buoc`
     # nên chip thuê ngoài hiện trống trơn, không ai biết hàng đang ở đâu.
     nha_cung_cap: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # LẦN GIA CÔNG NGOÀI mà công việc này thuộc về (spec 2026-09-26). NULL = việc của xưởng. Công
+    # việc có cột này KHÔNG vào bàn tổ nào (department_id NULL), không bắt đầu / ghi mẻ tay — mọi
+    # ghi nhận đi qua khối Gia công ngoài của lệnh.
+    gia_cong_ngoai_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("gia_cong_ngoai.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     # KHUÔN/KHUNG của bước — ảnh chụp cùng kiểu với `vat_tu_json`. CHỤP chứ không tra sống: tổ phải
     # thấy đúng con dao đã chốt lúc phát hành, kể cả khi kế hoạch đổi dao sau đó.
     # {"id","ma","ten","loai","so_ke","tinh_trang"} · NULL = bước không trỏ dao. (`ngay_ve_du_kien`
@@ -304,8 +310,9 @@ class SanXuatCongViec(Base):
     # Trả dao về kệ — KHÔNG chặn gì, chỉ để hệ thống không mất dấu con dao sau khi nó rời kệ.
     khuon_tra_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     trang_thai: Mapped[str] = mapped_column(String(16), nullable=False, default=CV_PHAT_HANH)
-    # MỐC NGHIỆP VỤ "bước xong lúc nào" — đóng dấu MỘT LẦN ở `thuc_thi.ket_thuc`, chỗ duy nhất
-    # trong hệ đặt `trang_thai='completed'`. Tồn tại riêng vì `updated_at` là cột BẢO TRÌ: mọi
+    # MỐC NGHIỆP VỤ "bước xong lúc nào" — đóng dấu ở `thuc_thi.ket_thuc`, một trong HAI chỗ đặt
+    # `trang_thai='completed'` (chỗ kia: chốt lần gia công ngoài, `services/gia_cong_ngoai/chot.py`).
+    # Tồn tại riêng vì `updated_at` là cột BẢO TRÌ: mọi
     # `version += 1` về sau (rút người khỏi bước đã xong, sửa ghi chú…) dời nó, và KPI "công đoạn
     # xong hôm nay" từng đếm nhầm một bước đóng năm 2020 vào hôm nay vì đọc `updated_at`. Bịt từng
     # đường ghi không giải quyết được lớp lỗi đó — đường ghi thêm sau lại phá lại. NULL = chưa xong

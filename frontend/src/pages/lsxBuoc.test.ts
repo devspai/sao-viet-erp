@@ -85,11 +85,12 @@ describe("loiDong — các kiểm còn lại giữ nguyên", () => {
     expect(loiDong([r], 0)).toContain("chưa gán tổ / máy");
   });
 
-  it("thuê ngoài đòi tổ / máy Y HỆT bước máy", () => {
-    // Nhà thầu được khai như một MÁY trong danh mục (hậu tố "thuê ngoài – …"), nên bước thuê
-    // ngoài không có luật riêng nào ở đây nữa.
+  it("thuê ngoài không đòi tổ / máy — đòi nhà gia công", () => {
+    // Bước thuê ngoài chọn nhà gia công từ danh mục NCC (26/09/2026), không có tổ / máy.
     const r = { ...emptyRow(), loai_buoc: "thue_ngoai" as const, department_id: null, may_id: null };
-    expect(loiDong([r], 0)).toContain("chưa gán tổ / máy");
+    expect(loiDong([r], 0)).not.toContain("chưa gán tổ / máy");
+    expect(loiDong([r], 0)).toContain("chưa chọn nhà gia công");
+    expect(loiDong([{ ...r, nha_cung_cap_id: 3 }], 0)).not.toContain("chưa chọn nhà gia công");
   });
 
   it("trùng bước trước", () => {

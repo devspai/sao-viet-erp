@@ -34,7 +34,9 @@ _HEADER_FIELDS = ("bo_phan_id", "kho_id", "ngay_can", "uu_tien", "ghi_chu", "loa
                   # ĐIỀU CHUYỂN KHO (mig 0203) — set từ service khi ấn điều chuyển.
                   "dieu_chuyen", "kho_nguon_id", "xuat_voucher_id",
                   # NGUỒN KCS (mg 0309): công đoạn KCS cuối gửi thành phẩm vào kho.
-                  "san_xuat_cong_viec_id")
+                  "san_xuat_cong_viec_id",
+                  # NGUỒN GIA CÔNG NGOÀI (Task 8): lần chốt về kho đẻ ra đề nghị này.
+                  "gia_cong_ngoai_id")
 
 
 def _build_line(ln: dict, loai: str) -> StockRequestLine:

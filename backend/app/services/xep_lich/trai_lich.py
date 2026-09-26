@@ -33,8 +33,6 @@ class BuocVao:
     lsx_cong_doan_id: int
     thu_tu: int
     chay_phut: float
-    # Bước thuê ngoài: số NGÀY LỊCH chiếm chỗ. `None` = chưa khai đủ để biết (vẫn không chặn).
-    thue_ngoai_ngay: int | None = None
     la_thue_ngoai: bool = False
     # Vì sao bước này KHÔNG tính được giờ (chưa gán máy · chưa quy đổi được đơn vị…). Có câu này
     # mà `chay_phut == 0` nghĩa là ngày kết thúc đang bị TÍNH THIẾU — thanh phải nói ra.
@@ -92,13 +90,10 @@ def trai_lich(moc: datetime, buoc: list[BuocVao], lich) -> KetQuaTrai:
     for i, b in enumerate(sorted(buoc, key=lambda x: (x.thu_tu, x.lsx_cong_doan_id))):
         b_dau = con
         if b.la_thue_ngoai:
-            if b.thue_ngoai_ngay is None:
-                ghi_chu.append(
-                    "Bước gia công ngoài chưa khai ngày gửi/nhận — lệnh có thể kết thúc muộn hơn."
-                )
-            else:
-                # NGÀY LỊCH: nhà cung cấp chạy theo lịch của họ, không theo ca của xưởng mình.
-                con = con + timedelta(days=b.thue_ngoai_ngay)
+            # Gia công ngoài KHÔNG chiếm thời gian trên lịch (spec 2026-09-26 §8): ngày kết thúc là
+            # ngày XƯỞNG làm xong phần của mình. Nói ra một lần để không ai tưởng đó là lịch trọn.
+            if "Không tính thời gian gia công ngoài." not in ghi_chu:
+                ghi_chu.append("Không tính thời gian gia công ngoài.")
         elif b.chay_phut > 0:
             doan.extend(_cat_doan(b_dau, b.chay_phut, i, lich))
             con = _cong_gio_lam(con, b.chay_phut, lich)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from math import ceil
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,7 +20,7 @@ from app.db import engine
 from app.models.cong_doan import CongDoan
 from app.models.customer import Customer
 from app.models.department import Department
-from app.models.lsx import TT_SAN_SANG
+from app.models.lsx import LB_MAY, LB_THUE_NGOAI, TT_SAN_SANG
 from app.models.may_thiet_bi import MayThietBi
 from app.models.phieu_tinh_gia import PhieuThanhPhan, PhieuThanhPham, PhieuTinhGia
 from app.models.quotation import STATUS_ACCEPTED, Quote, QuoteItem, QuoteVersion
@@ -1553,3 +1554,18 @@ def test_ap_dinh_muc_giu_nguyen_dong_thu_cong(db, orders, lsx_svc, bg_svc, admin
     chung2 = bg_svc._buoc_chungs(bg_svc._get(bg.id))[0]
     vt = next(v for v in chung2.vat_tus if v.vat_tu_id == 1)
     assert float(vt.so_luong) == 777.0  # dòng thủ công KHÔNG bị tính lại đè số
+
+
+def test_thieu_buoc_chung_thue_ngoai_khong_doi_to_may(bg_svc):
+    """Fix round 1+2 (review Task 3, 26/09/2026): bước chung THUÊ NGOÀI không tổ, không máy —
+    server ép `department_id = may_id = None` cho loại này từ Task 3 (`replace_routing`; nhà gia
+    công chọn từ danh mục Nhà cung cấp, không khai như một tổ/máy trong danh mục). Trước sửa,
+    `_thieu_buoc_chung` vẫn đòi cả hai, khiến "Chưa chọn tổ" · "Chưa chọn máy" treo vĩnh viễn trên
+    mọi bước chung thuê ngoài."""
+    c = SimpleNamespace(department_id=None, loai_buoc=LB_THUE_NGOAI, may_id=None)
+    assert bg_svc._thieu_buoc_chung(c) == []
+
+    # Bước MÁY thật thì vẫn phải đòi tổ + máy như cũ.
+    c_may = SimpleNamespace(department_id=None, loai_buoc=LB_MAY, may_id=None)
+    thieu_may = bg_svc._thieu_buoc_chung(c_may)
+    assert "Chưa chọn tổ" in thieu_may and "Chưa chọn máy" in thieu_may

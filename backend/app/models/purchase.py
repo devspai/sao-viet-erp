@@ -20,6 +20,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false as sa_false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -145,6 +146,12 @@ class Supplier(Base):
     # vào cột "Quá hạn", nên màn Công nợ phải đẩy nó lên ĐẦU kèm badge thay vì để chìm.
     credit_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=SUPPLIER_ACTIVE)
+    # NHẬN GIA CÔNG (26/09/2026) — nhà cung cấp này nhận gia công ngoài cho xưởng. Ô chọn "Nhà gia
+    # công" ở Kế hoạch SX chỉ mời NCC đang hoạt động có cờ này. KHÔNG lọc theo chữ `supplier_group`
+    # (gõ tự do: "GC ngoài", "gia cong"… là lọt).
+    nhan_gia_cong: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
+    )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
