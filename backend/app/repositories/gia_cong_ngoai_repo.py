@@ -1,13 +1,13 @@
 """Truy vấn của LẦN GIA CÔNG NGOÀI — spec 2026-09-26. Mọi SELECT của module nằm ở đây."""
 from __future__ import annotations
 
-from sqlalchemy import exists, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models.accounting import PAYMENT_VOUCHER_CANCELLED, PaymentVoucher
 from ..models.delivery import LG_DA_HUY, DeliveryTrip
 from ..models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
-from ..models.lsx import LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
+from ..models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
 from ..models.purchase import SUPPLIER_ACTIVE, Supplier
 from ..models.role import RolePermission
 from ..models.san_xuat import SanXuatCongViec
@@ -150,16 +150,32 @@ class GiaCongNgoaiRepository:
                 PaymentVoucher.status != PAYMENT_VOUCHER_CANCELLED,
             ))}
 
-    def cho_chi(self) -> list[GiaCongNgoai]:
-        """Lần ĐÃ CHỐT, chưa huỷ, chưa có phiếu chi còn hiệu lực — việc của kế toán (spec §5)."""
+    def _cho_chi_dieu_kien(self):
+        """Điều kiện lọc dùng chung cho `cho_chi()` và `dem_cho_chi()` — một chỗ, khỏi lệch nhau."""
         song = select(PaymentVoucher.id).where(
             PaymentVoucher.gia_cong_ngoai_id == GiaCongNgoai.id,
             PaymentVoucher.status != PAYMENT_VOUCHER_CANCELLED)
+        return (GiaCongNgoai.chot_luc.is_not(None), GiaCongNgoai.huy_luc.is_(None), ~exists(song))
+
+    def cho_chi(self) -> list[GiaCongNgoai]:
+        """Lần ĐÃ CHỐT, chưa huỷ, chưa có phiếu chi còn hiệu lực — việc của kế toán (spec §5)."""
         return list(self.db.scalars(
-            select(GiaCongNgoai).where(
-                GiaCongNgoai.chot_luc.is_not(None), GiaCongNgoai.huy_luc.is_(None),
-                ~exists(song))
+            select(GiaCongNgoai).where(*self._cho_chi_dieu_kien())
             .order_by(GiaCongNgoai.chot_luc, GiaCongNgoai.id)))
+
+    def dem_cho_chi(self) -> int:
+        """Đếm hàng chờ chi bằng SQL — badge khỏi tải cả danh sách chỉ để lấy độ dài."""
+        return self.db.scalar(
+            select(func.count()).select_from(GiaCongNgoai).where(*self._cho_chi_dieu_kien())
+        ) or 0
+
+    def ma_cua_lenh(self, lsx_ids) -> dict[int, str]:
+        """`{lsx_id: mã lệnh}` MỘT LƯỢT — tránh N+1 khi hiển thị hàng chờ chi theo từng lần."""
+        ids = {int(i) for i in lsx_ids if i}
+        if not ids:
+            return {}
+        return {lsx_id: ma for lsx_id, ma in self.db.execute(
+            select(Lsx.id, Lsx.ma).where(Lsx.id.in_(ids)))}
 
     # --- Chứng từ sau chốt (Task 8: kho / giao thẳng) -----------------------------------------
     def _yeu_cau_cua(self, gcn_id: int, loai: str) -> list[StockRequest]:

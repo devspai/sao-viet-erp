@@ -22,6 +22,7 @@ from ..deps import (
 from ..models.purchase import PR_DRAFT
 from ..realtime import hub
 from ..models.user import User
+from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.module_notification_repo import (
     CHANNEL_THU_MUA,
@@ -137,6 +138,15 @@ def _notify_accounting_changed(
         "recipient_user_id": recipient_user_id,
         **extra,
     })
+
+
+def _lsx_cua_gia_cong(svc: AccountingService, gia_cong_ngoai_id: int | None) -> int | None:
+    """Lệnh SX của lần gia công — để SSE `gia_cong_ngoai_changed` kèm `lsx_id` (Task 13 bắt cả
+    hai khoá để nạp lại đúng khối trên màn lệnh)."""
+    if gia_cong_ngoai_id is None:
+        return None
+    gcn = GiaCongNgoaiRepository(svc.repo.db).get(int(gia_cong_ngoai_id))
+    return gcn.lsx_id if gcn is not None else None
 
 
 def _map_error(exc: Exception) -> HTTPException:
@@ -833,8 +843,13 @@ def create_payment_voucher(
     )
     if row.get("source_type") == "gia_cong_ngoai":
         # Hàng "Gia công chờ chi" + badge Phiếu chi + khối Gia công ngoài trên lệnh đổi ngay.
+        # `lsx_id` để FE nạp lại đúng khối trên màn lệnh (Task 13 bắt cả hai khoá).
         hub.broadcast({"type": "gia_cong_cho_chi_changed"})
-        hub.broadcast({"type": "gia_cong_ngoai_changed", "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id")})
+        hub.broadcast({
+            "type": "gia_cong_ngoai_changed",
+            "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id"),
+            "lsx_id": _lsx_cua_gia_cong(svc, row.get("gia_cong_ngoai_id")),
+        })
     return PaymentVoucherOut(**row)
 
 
@@ -962,7 +977,11 @@ def cancel_payment_voucher(
     if row.get("source_type") == "gia_cong_ngoai":
         # Huỷ phiếu chi gia công ngoài ⇒ lần đó về lại "Chờ chi" ngay.
         hub.broadcast({"type": "gia_cong_cho_chi_changed"})
-        hub.broadcast({"type": "gia_cong_ngoai_changed", "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id")})
+        hub.broadcast({
+            "type": "gia_cong_ngoai_changed",
+            "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id"),
+            "lsx_id": _lsx_cua_gia_cong(svc, row.get("gia_cong_ngoai_id")),
+        })
     return PaymentVoucherOut(**row)
 
 
