@@ -92,8 +92,9 @@ tư (vd màng) thì kế hoạch lập **đề nghị xuất kho thường** ghi
 | 6 | Kế toán | Lập phiếu chi từ lần gia công. | Tiền điền sẵn, sửa được (vd trừ hàng lỗi). |
 | 7 | — | Lần đã chốt ⇒ lệnh **xong**. | — |
 
-**Huỷ trọn gói:** trước khi chốt, kế hoạch bấm **Huỷ gia công trọn gói** → lệnh về *sẵn sàng*,
-phát hành nội bộ được. Giấy đã xuất thì nhập trả kho theo đường thường, hệ không tự đảo.
+**Huỷ trọn gói:** trước khi chốt, kế hoạch bấm **Huỷ gia công trọn gói** (bắt lý do) → gói thu hồi,
+đề nghị xuất giấy chưa xuất huỷ theo, lệnh về *nháp*; muốn làm trong xưởng thì phát hành lại như lệnh
+thường. Giấy đã xuất thì nhập trả kho theo đường thường, hệ không tự đảo.
 
 Một lần chỉ về **một nơi**. Nhà gia công vừa giao khách một phần vừa chở về kho một phần ⇒ tách
 hai lần.
@@ -101,9 +102,10 @@ hai lần.
 ## 5. Phiếu chi — chỉ ghi tiền ra
 
 - Phiếu chi thêm **nguồn thứ tư "Gia công ngoài"**, cạnh Phiếu mua hàng · Tạm ứng lương · Khác.
-  Chép đúng khuôn tạm ứng lương đang chạy: chọn nguồn → chọn lần gia công đã chốt → số tiền, người
-  nhận (nhà gia công, hoặc người kế hoạch nếu họ cầm tiền mặt đi trả), lý do chi ("Gia công ‹công
-  đoạn› — LSX… — ‹nhà gia công›") điền sẵn.
+  Chép khuôn tạm ứng lương đang chạy: đầu màn Phiếu chi có hàng **Gia công chờ chi** (lần đã chốt,
+  chưa có phiếu); bấm **Lập phiếu chi** trên một dòng → hộp điền sẵn số tiền, người nhận (nhà gia
+  công, hoặc người kế hoạch nếu họ cầm tiền mặt đi trả), lý do chi ("Gia công ‹công đoạn› — LSX… —
+  ‹nhà gia công›").
 - Số tiền **sửa được** — phiếu chi là số thật đã trả; con số trên lần gia công chỉ là gợi ý.
 - Luật phiếu chi giữ nguyên: lập ra là tiền đã ra, không sửa, chỉ huỷ. **Một lần gia công — một
   phiếu chi** (huỷ thì lập lại). Cọc / chi nhiều đợt: không làm.
@@ -120,6 +122,10 @@ hai lần.
   (`san_xuat:update`). Không thêm vai, không thêm bit.
 - **Tiền:** đơn giá và tiền trên lần gia công đi qua cổng quyền xem tiền ở máy chủ như mọi số tiền
   khác ⇒ vai Kế hoạch phải được cấp quyền xem tiền, không thì chính người nhập giá không thấy giá.
+  **CHỜ CHỦ DUYỆT:** cấp `kho.can_view_cost` cho vai Kế hoạch SX là mở rộng thẩm quyền (ô này gác
+  MỌI số tiền giá vốn, không riêng gia công). Plan tách thành Task 11, mặc định KHÔNG làm; chưa
+  duyệt thì người kế hoạch vẫn gõ được đơn giá ở bước / hộp trọn gói, chỉ khối Gia công ngoài ẩn
+  Đơn giá và Thành tiền với họ.
 - **Thông báo tức thì (đẩy SSE):**
   - tới người có quyền sửa lệnh khi bước trước bàn giao sang dải thuê ngoài ("chờ mang đi") —
     toast; badge Kế hoạch SX vẫn là hàng chờ đơn, không trộn thêm;
@@ -149,7 +155,8 @@ hai lần.
 - **Danh sách Kế hoạch SX:** thêm bộ lọc **Gia công ngoài** (chờ mang đi / đang ở ngoài / đang gia
   công trọn gói) — lọc ở máy chủ.
 - **Sơ đồ / bảng bước, Xếp lịch, bàn tổ:** chỉ nhìn trạng thái + nhảy về lệnh. Một cửa ghi duy nhất.
-- **Phiếu chi:** thêm nguồn "Gia công ngoài" vào hộp lập phiếu.
+- **Phiếu chi:** hàng **Gia công chờ chi** đầu màn + hộp lập phiếu từ một lần; nhãn nguồn "Gia công
+  ngoài" trong bảng và chứng từ in.
 
 ## 8. Lịch & thời lượng
 
@@ -193,8 +200,8 @@ Dự án chưa có dữ liệu thật ⇒ ưu tiên ĐÚNG, không giữ tương
 - **Trọn gói KHÔNG thêm trạng thái lệnh.** Bấm trọn gói = phát hành một gói chỉ có MỘT công việc
   thuê ngoài không tổ (`department_id` NULL, `la_kcs_cuoi` = true, đơn vị = đơn vị thành phẩm của
   dòng đơn). Nhờ vậy nhóm thành phẩm, đóng nhóm, trạng thái lệnh ở Theo dõi SX, nhập kho, giao hàng
-  chạy nguyên đường cũ. Huỷ trọn gói = thu hồi gói (`release_update.thu_hoi_goi`) + lệnh về sẵn
-  sàng/nháp. Chặn luôn cửa `set_trang_thai` nhận `da_phat_hanh` từ client.
+  chạy nguyên đường cũ. Huỷ trọn gói = thu hồi gói (`release_update.thu_hoi_goi`) + lệnh về
+  nháp. Chặn luôn cửa `set_trang_thai` nhận `da_phat_hanh` từ client.
 - **Số chốt thay cho KCS:** khi dải chứa bước cuối lệnh (hoặc trọn gói), chốt ghi một mẻ sản lượng
   (tốt = số chốt) và một bản ghi KCS đạt = số chốt đứng tên người chốt, ghi chú "KCS làm ngoài phần
   mềm". Giữ `la_kcs_cuoi` như thường ⇒ đóng nhóm, "còn gửi kho", trạng thái lệnh không phải rẽ
@@ -205,7 +212,9 @@ Dự án chưa có dữ liệu thật ⇒ ưu tiên ĐÚNG, không giữ tương
 - Tham chiếu mềm `gia_cong_ngoai_id` trên: `stock_requests` (xuất giấy trọn gói, nhập thành phẩm),
   `delivery_trips` (giao thẳng — `khoan_km_service` loại chuyến này khỏi tiền km),
   `payment_vouchers` (nguồn mới, FK + unique một phiếu còn sống).
-- Migration: `0337_gia_cong_ngoai` (thêm) và `0338_go_cot_thue_ngoai_cu` (gỡ cột cũ của bước).
+- Migration: `0339_gia_cong_ngoai` (thêm) và `0340_go_cot_thue_ngoai_cu` (gỡ cột cũ của bước);
+  `0341_ke_hoach_sx_xem_gia` chỉ khi chủ duyệt quyền xem tiền. Số cao nhất trên `dev` lúc lập plan
+  là `0338` — số thật lấy lúc làm, trùng thì dời sang số trống kế tiếp.
 
 **Luồng:**
 - Phát hành (`san_xuat/release.py`, cập nhật phát hành): gộp dải thuê ngoài → tạo/giữ lần gia
