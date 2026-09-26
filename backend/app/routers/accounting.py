@@ -35,6 +35,8 @@ from ..schemas.accounting import (
     CongNoKhoaSoRow,
     CongNoKhoaSoTrangThaiOut,
     CongNoKyRow,
+    GiaCongChoChiDemOut,
+    GiaCongChoChiOut,
     CancelSalesInvoiceIn,
     CancelPaymentReceiptIn,
     CancelPaymentVoucherIn,
@@ -67,6 +69,7 @@ from ..schemas.accounting import (
 )
 from ..schemas.purchase import PurchaseRequestListOut
 from ..services import bao_cao_cong_no, bao_cao_cong_no_excel
+from ..services.gia_cong_ngoai import cho_chi as gc_cho_chi
 from ..services.accounting_service import (
     AccountingBulkBlocked,
     AccountingConflict,
@@ -773,6 +776,24 @@ def list_payment_vouchers(
     return PaymentVoucherListOut(items=rows, total=total, page=page, size=size, **totals)
 
 
+@router.get("/api/accounting/gia-cong-cho-chi", response_model=list[GiaCongChoChiOut])
+def gia_cong_cho_chi(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Annotated[AuthorizationService, Depends(get_authorization_service)],
+    user: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
+):
+    """Lần gia công ngoài đã chốt số, chưa có phiếu chi (spec gia công ngoài §5)."""
+    return gc_cho_chi.hang_cho_chi(db, xem_tien=authz.can(user, "kho", "view_cost"))
+
+
+@router.get("/api/accounting/gia-cong-cho-chi/dem", response_model=GiaCongChoChiDemOut)
+def gia_cong_cho_chi_dem(
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
+):
+    return {"so": gc_cho_chi.dem_cho_chi(db)}
+
+
 @router.get("/api/accounting/payment-vouchers/{voucher_id}", response_model=PaymentVoucherOut)
 def get_payment_voucher(
     voucher_id: int,
@@ -810,6 +831,10 @@ def create_payment_voucher(
         actor_user_id=user.id,
         recipient_user_id=row.get("purchase_created_by_user_id"),
     )
+    if row.get("source_type") == "gia_cong_ngoai":
+        # Hàng "Gia công chờ chi" + badge Phiếu chi + khối Gia công ngoài trên lệnh đổi ngay.
+        hub.broadcast({"type": "gia_cong_cho_chi_changed"})
+        hub.broadcast({"type": "gia_cong_ngoai_changed", "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id")})
     return PaymentVoucherOut(**row)
 
 
@@ -934,6 +959,10 @@ def cancel_payment_voucher(
     if row.get("source_type") == "salary_advance":
         # Huỷ phiếu chi tạm ứng ⇒ cả lô về "Chờ chi" — màn Tạm ứng của HCNS phải thấy ngay.
         hub.broadcast({"type": "advance_pending_changed", "code": row.get("code")})
+    if row.get("source_type") == "gia_cong_ngoai":
+        # Huỷ phiếu chi gia công ngoài ⇒ lần đó về lại "Chờ chi" ngay.
+        hub.broadcast({"type": "gia_cong_cho_chi_changed"})
+        hub.broadcast({"type": "gia_cong_ngoai_changed", "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id")})
     return PaymentVoucherOut(**row)
 
 

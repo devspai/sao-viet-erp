@@ -1,7 +1,7 @@
 """Truy vấn của LẦN GIA CÔNG NGOÀI — spec 2026-09-26. Mọi SELECT của module nằm ở đây."""
 from __future__ import annotations
 
-from sqlalchemy import or_, select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session
 
 from ..models.accounting import PAYMENT_VOUCHER_CANCELLED, PaymentVoucher
@@ -149,6 +149,17 @@ class GiaCongNgoaiRepository:
                 PaymentVoucher.gia_cong_ngoai_id.in_(ids),
                 PaymentVoucher.status != PAYMENT_VOUCHER_CANCELLED,
             ))}
+
+    def cho_chi(self) -> list[GiaCongNgoai]:
+        """Lần ĐÃ CHỐT, chưa huỷ, chưa có phiếu chi còn hiệu lực — việc của kế toán (spec §5)."""
+        song = select(PaymentVoucher.id).where(
+            PaymentVoucher.gia_cong_ngoai_id == GiaCongNgoai.id,
+            PaymentVoucher.status != PAYMENT_VOUCHER_CANCELLED)
+        return list(self.db.scalars(
+            select(GiaCongNgoai).where(
+                GiaCongNgoai.chot_luc.is_not(None), GiaCongNgoai.huy_luc.is_(None),
+                ~exists(song))
+            .order_by(GiaCongNgoai.chot_luc, GiaCongNgoai.id)))
 
     # --- Chứng từ sau chốt (Task 8: kho / giao thẳng) -----------------------------------------
     def _yeu_cau_cua(self, gcn_id: int, loai: str) -> list[StockRequest]:
