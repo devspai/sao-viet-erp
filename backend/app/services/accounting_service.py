@@ -2715,10 +2715,12 @@ class AccountingService:
         }
 
     def _ma_lenh_gia_cong(self, gcn) -> str:
-        from ..repositories.san_xuat_repo import SanXuatRepository
+        from .gia_cong_ngoai.lan import nguon_lan
 
-        lsx = SanXuatRepository(self.repo.db).lsx(gcn.lsx_id)
-        return f"Gia công {lsx.ma if lsx else f'#{gcn.id}'}"[:32]  # cột String(32)
+        # Lần của bài ghép: mã bài ghép (mã lệnh thành viên nằm ở lý do chi — cột này chỉ 32 ký tự).
+        nguon = nguon_lan(self.repo.db, gcn)
+        ma = nguon["bai_ghep_ma"] or nguon["lsx_ma"] or f"#{gcn.id}"
+        return f"Gia công {ma}"[:32]  # cột String(32)
 
     def _next_voucher_doc_no(self) -> str:
         """Số IN trên mẫu 02-TT (PC00445) — chung bộ đếm cho tiền mặt lẫn UNC.

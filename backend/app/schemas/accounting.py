@@ -172,8 +172,10 @@ class PaymentVoucherOut(BaseModel):
 
 class GiaCongChoChiOut(BaseModel):
     gia_cong_ngoai_id: int
-    lsx_id: int
+    lsx_id: int | None = None
     lsx_ma: str
+    bai_ghep_id: int | None = None
+    nhan_nguon: str = ""
     ten_viec: str
     nha_cung_cap_id: int | None = None
     nha_cung_cap_ten: str

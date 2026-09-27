@@ -21,9 +21,9 @@ from ..schemas.gia_cong_ngoai import (
 )
 from ..services.gia_cong_ngoai import chot as chot_svc
 from ..services.gia_cong_ngoai import mot_phan, tron_goi
-from ..services.gia_cong_ngoai.lan import lan_cua_lenh, lan_dict
+from ..services.gia_cong_ngoai.lan import lan_cua_bai_ghep, lan_cua_lenh, lan_dict, nguon_lan
 from ..services.rbac_service import AuthorizationService
-from .lsx import _guard_scope
+from .lsx import _guard_scope, _owner_ids_for_scope
 
 router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
 MODULE = "san_xuat"
@@ -62,12 +62,48 @@ def _gac_lenh(db: Session, authz: AuthorizationService, user: User, lsx_id: int)
     _guard_scope(db, lsx, user, authz)
 
 
+_KHONG_THAY_BG = "Không tìm thấy bài ghép"
+_CHI_XEM_BG = ("Bài ghép có lệnh ngoài phạm vi của bạn — chỉ xem được lần gia công này. Nhờ người "
+               "phụ trách các lệnh còn lại thao tác.")
+
+
+def _pham_vi_bai_ghep(db: Session, authz: AuthorizationService, user: User,
+                      bai_ghep_id: int) -> tuple[int, int]:
+    """(số lệnh thành viên trong phạm vi, tổng số lệnh) — spec 2026-09-27 §5."""
+    sx = SanXuatRepository(db)
+    lenh = [sx.lsx(i) for i in sx.thanh_vien_so_con({bai_ghep_id})]
+    lenh = [l for l in lenh if l is not None]
+    owner_ids = _owner_ids_for_scope(db, user, authz)
+    if owner_ids is None:
+        return len(lenh), len(lenh)
+    trong = sum(1 for l in lenh if l.nguoi_phu_trach_id in owner_ids or l.created_by in owner_ids)
+    return trong, len(lenh)
+
+
+def _gac_bai_ghep(db: Session, authz: AuthorizationService, user: User, bai_ghep_id: int, *,
+                  ghi: bool) -> bool:
+    """Đọc: cần phạm vi trên ÍT NHẤT một lệnh thành viên (không thì 404 như màn lệnh). Ghi: cần
+    phạm vi trên MỌI lệnh (thiếu ⇒ 403 chỉ xem). Trả `chi_xem` cho người đọc."""
+    if GiaCongNgoaiRepository(db).bai_ghep(bai_ghep_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_KHONG_THAY_BG)
+    trong, tong = _pham_vi_bai_ghep(db, authz, user, bai_ghep_id)
+    if trong == 0 and tong > 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_KHONG_THAY_BG)
+    chi_xem = trong < tong
+    if ghi and chi_xem:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_CHI_XEM_BG)
+    return chi_xem
+
+
 def _gac_lan(db: Session, authz: AuthorizationService, user: User, gcn_id: int) -> None:
-    """Gác phạm vi theo LỆNH của lần gia công."""
+    """Gác phạm vi theo LỆNH của lần gia công — lần của bài ghép: phạm vi trên mọi lệnh."""
     gcn = GiaCongNgoaiRepository(db).get(gcn_id)
     if gcn is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Không tìm thấy lần gia công ngoài")
+    if gcn.bai_ghep_id is not None:
+        _gac_bai_ghep(db, authz, user, gcn.bai_ghep_id, ghi=True)
+        return
     _gac_lenh(db, authz, user, gcn.lsx_id)
 
 
@@ -82,9 +118,32 @@ def cua_lenh(
     return lan_cua_lenh(db, lsx_id)
 
 
-def _phat_doi(lsx_id: int) -> None:
-    """Khối Gia công ngoài trên lệnh + danh sách Kế hoạch SX tự nạp lại (sau commit)."""
-    hub.broadcast({"type": "gia_cong_ngoai_changed", "lsx_id": lsx_id})
+@router.get("/bai-ghep/{bai_ghep_id}", response_model=list[GiaCongNgoaiOut])
+def cua_bai_ghep(
+    bai_ghep_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[dict]:
+    """Lần gia công của bước CHUNG bài ghép — khối ở màn Bài ghép (spec 2026-09-27 §4)."""
+    chi_xem = _gac_bai_ghep(db, authz, user, bai_ghep_id, ghi=False)
+    return [{**d, "chi_xem": chi_xem} for d in lan_cua_bai_ghep(db, bai_ghep_id)]
+
+
+def _phat_doi(lsx_ids, bai_ghep_id: int | None = None) -> None:
+    """Khối Gia công ngoài trên lệnh / bài ghép + danh sách Kế hoạch SX tự nạp lại (sau commit).
+    Lần của bài ghép đụng MỌI lệnh thành viên — một gói mang cả danh sách, không mỗi lệnh một gói."""
+    ids = [lsx_ids] if isinstance(lsx_ids, int) else [i for i in (lsx_ids or []) if i]
+    hub.broadcast({"type": "gia_cong_ngoai_changed", "lsx_id": ids[0] if ids else None,
+                   "lsx_ids": ids, "bai_ghep_id": bai_ghep_id})
+
+
+def _phat_doi_lan(db: Session, gcn_id: int) -> None:
+    gcn = GiaCongNgoaiRepository(db).get(gcn_id)
+    if gcn is None:
+        return
+    lenh = [l["id"] for l in nguon_lan(db, gcn)["lenh"]]
+    _phat_doi(lenh or [gcn.lsx_id], gcn.bai_ghep_id)
 
 
 def _ra(db: Session, authz: AuthorizationService, user: User, gcn_id: int) -> dict:
@@ -105,7 +164,7 @@ def mang_di(
         db, user=user, gcn_id=gcn_id, expected_version=body.version, sl_gui=body.sl_gui))
     for res in kq["ban_giao"]:
         phat_ban_giao(res)
-    _phat_doi(kq["lsx_id"])
+    _phat_doi(kq["lsx_ids"], kq.get("bai_ghep_id"))
     return _ra(db, authz, user, gcn_id)
 
 
@@ -116,7 +175,8 @@ def _phat_cho_chi(res: dict, user: User, db: Session) -> None:
             continue
         hub.publish(uid, {
             "type": "gia_cong_cho_chi", "gia_cong_ngoai_id": res["gia_cong_ngoai_id"],
-            "lsx_ma": res.get("lsx_ma"), "nha_cung_cap_ten": res.get("nha_cung_cap_ten"),
+            # Nhãn nguồn: mã lệnh, hoặc "BG-.. (LSX-A, LSX-B)" cho lần của bài ghép.
+            "lsx_ma": res.get("nhan_nguon") or res.get("lsx_ma"), "nha_cung_cap_ten": res.get("nha_cung_cap_ten"),
             "ten_viec": res.get("ten_viec"),
         })
     hub.broadcast({"type": "gia_cong_cho_chi_changed"})
@@ -136,10 +196,14 @@ def chot(
         noi_ve=body.noi_ve, dich_cong_viec_id=body.dich_cong_viec_id))
     if res["ban_giao"]:
         phat_ban_giao(res["ban_giao"])
-    if res["nhom_dong"]:
-        phat_dong_nhom(res["nhom_dong"])
+    for nhom in res.get("nhoms_dong") or ([res["nhom_dong"]] if res["nhom_dong"] else []):
+        phat_dong_nhom(nhom)
+    if res.get("toa"):
+        # Số toả sang bước riêng từng lệnh (bàn giao đã xác nhận) — bàn tổ nhận tự nạp lại.
+        hub.broadcast({"type": "san_xuat_cong_viec_changed", "lsx_id": res["lsx_ids"][0],
+                       "lsx_ids": res["lsx_ids"]})
     _phat_cho_chi(res, user, db)
-    _phat_doi(res["lsx_id"])
+    _phat_doi(res["lsx_ids"], res.get("bai_ghep_id"))
     return _ra(db, authz, user, gcn_id)
 
 
@@ -156,8 +220,9 @@ def mo_lai(
                                          expected_version=body.version))
     hub.broadcast({"type": "gia_cong_cho_chi_changed"})
     # Bàn tổ của bước sau / màn KCS / kho vừa mất một bàn giao hoặc đề nghị — bump chung.
-    hub.broadcast({"type": "san_xuat_cong_viec_changed", "lsx_id": res["lsx_id"]})
-    _phat_doi(res["lsx_id"])
+    hub.broadcast({"type": "san_xuat_cong_viec_changed",
+                   "lsx_id": (res["lsx_ids"] or [None])[0], "lsx_ids": res["lsx_ids"]})
+    _phat_doi(res["lsx_ids"], res.get("bai_ghep_id"))
     return _ra(db, authz, user, gcn_id)
 
 
@@ -188,7 +253,7 @@ def huy_tron_goi(
     _gac_lan(db, authz, user, gcn_id)
     kq = _chay(lambda: tron_goi.huy_tron_goi(db, user=user, gcn_id=gcn_id,
                                               expected_version=body.version, ly_do=body.ly_do))
-    _phat_doi(kq["lsx_id"])
+    _phat_doi_lan(db, gcn_id)
     return _ra(db, authz, user, gcn_id)
 
 
@@ -203,5 +268,5 @@ def xuat_giay(
     _gac_lan(db, authz, user, gcn_id)
     _chay(lambda: tron_goi.de_nghi_xuat_giay(db, user=user, gcn_id=gcn_id,
                                               expected_version=body.version))
-    _phat_doi(GiaCongNgoaiRepository(db).get(gcn_id).lsx_id)
+    _phat_doi_lan(db, gcn_id)
     return _ra(db, authz, user, gcn_id)

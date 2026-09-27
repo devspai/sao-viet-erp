@@ -136,8 +136,11 @@ def ket_qua_cho_ben_nhan(db: Session, *, user, bg, nguon_cv, dich_cv) -> dict:
         uid = getattr(user, "id", None)
         ra = _ket_qua(bg, nguon_cv, dich_cv, su_kien="cho_mang_di", notify_user_ids=[
             u for u in GiaCongNgoaiRepository(db).nguoi_sua_lenh() if u != uid])
-        lsx = SanXuatRepository(db).lsx(dich_cv.lsx_id) if dich_cv.lsx_id else None
-        ra["lsx_ma"] = lsx.ma if lsx else ""
+        from ..gia_cong_ngoai.lan import nguon_lan
+
+        # Nhãn nguồn: mã lệnh, hoặc "BG-.. (LSX-A, LSX-B)" khi lần thuộc bài ghép (spec 2026-09-27).
+        gcn = GiaCongNgoaiRepository(db).get(dich_cv.gia_cong_ngoai_id)
+        ra["lsx_ma"] = nguon_lan(db, gcn)["nhan_nguon"] if gcn is not None else ""
         return ra
     notify = [] if bg.trang_thai == BG_XAC_NHAN else _nguoi_nhan(db, user, dich_cv.department_id)
     return _ket_qua(bg, nguon_cv, dich_cv, notify_user_ids=notify, su_kien="de_xuat")

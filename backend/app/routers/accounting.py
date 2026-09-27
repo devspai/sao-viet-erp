@@ -140,13 +140,19 @@ def _notify_accounting_changed(
     })
 
 
-def _lsx_cua_gia_cong(svc: AccountingService, gia_cong_ngoai_id: int | None) -> int | None:
-    """Lệnh SX của lần gia công — để SSE `gia_cong_ngoai_changed` kèm `lsx_id` (Task 13 bắt cả
-    hai khoá để nạp lại đúng khối trên màn lệnh)."""
+def _khoa_gia_cong(svc: AccountingService, gia_cong_ngoai_id: int | None) -> dict:
+    """Lệnh SX (hoặc bài ghép + các lệnh thành viên) của lần gia công — để SSE
+    `gia_cong_ngoai_changed` nạp lại đúng khối trên màn lệnh / màn bài ghép."""
     if gia_cong_ngoai_id is None:
-        return None
-    gcn = GiaCongNgoaiRepository(svc.repo.db).get(int(gia_cong_ngoai_id))
-    return gcn.lsx_id if gcn is not None else None
+        return {"lsx_id": None}
+    from ..services.gia_cong_ngoai.lan import nguon_lan
+
+    db = svc.repo.db
+    gcn = GiaCongNgoaiRepository(db).get(int(gia_cong_ngoai_id))
+    if gcn is None:
+        return {"lsx_id": None}
+    ids = [l["id"] for l in nguon_lan(db, gcn)["lenh"]] or [gcn.lsx_id]
+    return {"lsx_id": ids[0], "lsx_ids": ids, "bai_ghep_id": gcn.bai_ghep_id}
 
 
 def _map_error(exc: Exception) -> HTTPException:
@@ -848,7 +854,7 @@ def create_payment_voucher(
         hub.broadcast({
             "type": "gia_cong_ngoai_changed",
             "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id"),
-            "lsx_id": _lsx_cua_gia_cong(svc, row.get("gia_cong_ngoai_id")),
+            **_khoa_gia_cong(svc, row.get("gia_cong_ngoai_id")),
         })
     return PaymentVoucherOut(**row)
 
@@ -980,7 +986,7 @@ def cancel_payment_voucher(
         hub.broadcast({
             "type": "gia_cong_ngoai_changed",
             "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id"),
-            "lsx_id": _lsx_cua_gia_cong(svc, row.get("gia_cong_ngoai_id")),
+            **_khoa_gia_cong(svc, row.get("gia_cong_ngoai_id")),
         })
     return PaymentVoucherOut(**row)
 

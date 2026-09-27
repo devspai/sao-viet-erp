@@ -66,10 +66,33 @@ class LichSuOut(BaseModel):
     chi_tiet: str = ""
 
 
+class LenhBaiGhepOut(BaseModel):
+    id: int
+    ma: str
+    so_con: float
+
+
+class ChiaTheoLenhOut(BaseModel):
+    lsx_id: int
+    lsx_ma: str = ""
+    so_con: float
+    don_vi: str | None = None
+    buoc_nhan: str | None = None
+
+
 class GiaCongNgoaiOut(BaseModel):
     id: int
-    lsx_id: int
+    # Lần của LỆNH có `lsx_id`; lần của BƯỚC CHUNG bài ghép có `bai_ghep_id` (spec 2026-09-27).
+    lsx_id: int | None = None
     lsx_ma: str
+    bai_ghep_id: int | None = None
+    bai_ghep_ma: str | None = None
+    lenh: list[LenhBaiGhepOut] = []
+    nhan_nguon: str = ""
+    # Bảng chia số chốt về từng lệnh (hộp chốt hiện trước khi bấm) — rỗng khi không toả.
+    chia_theo_lenh: list[ChiaTheoLenhOut] = []
+    # Người xem không thao tác được: lần bài ghép trên màn lệnh, hoặc thiếu phạm vi một lệnh.
+    chi_xem: bool = False
     kieu: str
     trang_thai: str
     nha_cung_cap_id: int

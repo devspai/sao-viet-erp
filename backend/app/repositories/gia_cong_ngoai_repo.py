@@ -34,7 +34,11 @@ def lsx_ids_loc_gia_cong(loai: str):
         dk.append(GiaCongNgoai.kieu == KIEU_TRON_GOI)
     else:
         raise ValueError(f"Bộ lọc gia công không hợp lệ: {loai}")
-    return select(GiaCongNgoai.lsx_id).where(*dk)
+    # Lần của BƯỚC CHUNG bài ghép tính cho MỌI lệnh thành viên (spec 2026-09-27 §4).
+    return select(GiaCongNgoai.lsx_id).where(GiaCongNgoai.lsx_id.is_not(None), *dk).union(
+        select(BaiGhepThanhVien.lsx_id)
+        .join(GiaCongNgoai, GiaCongNgoai.bai_ghep_id == BaiGhepThanhVien.bai_ghep_id)
+        .where(*dk))
 
 
 class GiaCongNgoaiRepository:
