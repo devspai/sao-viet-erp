@@ -325,6 +325,12 @@ def test_diem_toa_buoc_cat_doi_he_so_theo_so_con_tren_to_ghep(
     xa = db.query(SanXuatCongViec).filter_by(goi_id=goi.id, lsx_id=b.id).one()
     assert float(cat.he_so_quy_doi) == 8.0
     assert float(xa.he_so_quy_doi) == 1.0
+    # Kế hoạch VÀO của bước riêng ăn tờ = số tờ ra của lượt chung (nó nhận nguyên số tờ ghép), không
+    # phải 5.000 tờ theo bình bài riêng của lệnh (E2E 27/09/2026: "1.330 tờ in" ở khối kế hoạch).
+    in_chung = db.query(SanXuatCongViec).filter_by(goi_id=goi.id, bai_ghep_id=bg.id).one()
+    assert float(in_chung.so_luong_ra) > 0
+    assert float(cat.so_luong_vao) == float(in_chung.so_luong_ra)
+    assert float(xa.so_luong_vao) == float(in_chung.so_luong_ra)
 
 
 # --- Checklist KCS đóng băng vào snapshot khi phát hành (Task 3) -----------------------------

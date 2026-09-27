@@ -678,6 +678,18 @@ def dung_diem_toa(
             if cung_dv else
             f"Điểm toả bài ghép: 1 {don_vi_ra or '?'} chung → {con} {don_vi_vao or '?'} riêng của lệnh"
         )
+        if cung_dv:
+            # Bước riêng ăn CÙNG đơn vị với điểm toả nhận NGUYÊN số tờ ghép của bài (`he_so_nhanh_toa`
+            # = 1), nên kế hoạch vào của nó là số tờ ra của lượt chung, không phải số tờ theo bình
+            # bài riêng của lệnh (E2E 27/09/2026: Cắt LSX26-0024 nhận 2.583 tờ ghép mà khối kế
+            # hoạch in "1.330 tờ in"). Bước bị tách lần chạy thì chia lại theo tỷ lệ cũ của phân đoạn.
+            to_ghep = sum(float(n.so_luong_ra or 0) for n in nguon_cvs)
+            dcvs = cv_by_step[dich_cd.step_key]
+            cu = sum(float(d.so_luong_vao or 0) for d in dcvs)
+            if to_ghep > 0:
+                for dcv in dcvs:
+                    phan = float(dcv.so_luong_vao or 0) / cu if cu > 0 else 1.0 / len(dcvs)
+                    dcv.so_luong_vao = round(to_ghep * phan, 2)
         if cung_dv and dich_cd.don_vi_ra and dich_cd.don_vi_ra != don_vi_vao:
             # Bước riêng nhận TỜ GHÉP rồi tự cắt ra con (Cắt thành phẩm: tờ → con). Trong bài ghép
             # mỗi tờ nó cắt cho đúng `con` con của lệnh — hệ số theo bình bài riêng của lệnh không
