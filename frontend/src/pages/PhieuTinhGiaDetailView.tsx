@@ -1927,7 +1927,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
                   <p className="tg-empty__title">Chưa có sản phẩm</p>
                   <p className="tg-empty__sub">
                     {suaDuoc
-                      ? "Bấm “Thêm sản phẩm”, rồi chọn loại sản phẩm trong drawer để tự bung cấu hình."
+                      ? "Bấm “Thêm sản phẩm” để khai — sản phẩm đã từng chốt đơn thì gõ tên ở ô Sản phẩm tái bản để nạp lại cấu hình."
                       : "Bạn chỉ được xem phiếu này — người lập phiếu sẽ khai sản phẩm."}
                   </p>
                 </div>
@@ -3117,7 +3117,7 @@ function ComponentModal({
               <div className="tg-timeline">
                 {c.thanh_phams.length === 0 && (
                   <p className="tg-chipgrid__empty" style={{ margin: "6px 0" }}>
-                    Chọn loại sản phẩm để tự bung chuỗi, hoặc thêm công đoạn.
+                    Chưa có công đoạn — thêm ở ô «+ Thêm công đoạn».
                   </p>
                 )}
                 {c.thanh_phams.map((f, fIdx) => {
