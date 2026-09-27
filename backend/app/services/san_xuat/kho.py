@@ -130,7 +130,28 @@ def _he_so(hang, hang_id: int, tu_dv: str | None, sang_dv: str | None) -> float:
     return tu / sang if sang else 1.0
 
 
-def _he_so_cho_nhap(db: Session, hang, tp, don_vi_kcs: str) -> float:
+def loi_quy_doi(db: Session, *, tu_dv: str, sang_dv: str, cv, tp, dich: str) -> ValueError:
+    """Câu lỗi "không quy đổi được" CHỈ ĐƯỜNG: bước nào (lệnh nào), món nào, sửa ở màn nào.
+    `dich` = "thanh_pham" (sang đơn vị món) | "dong_don" (sang đơn vị dòng đơn). KHÔNG gợi ý thêm
+    cặp quy đổi toàn cục cho hai đơn vị không cùng loại (cái↔tờ) — chủ chốt 27/09/2026."""
+    bang = DonViDoRepository(db).ten_theo_ma()
+    lsx = SanXuatRepository(db).lsx(cv.lsx_id) if getattr(cv, "lsx_id", None) else None
+    buoc = f"bước «{cv.ten_cong_doan}»" + (f" của lệnh {lsx.ma}" if lsx is not None else "")
+    if dich == "dong_don":
+        dau = f"«{nhan_don_vi(bang, sang_dv)}» (đơn vị dòng đơn của {tp.ma} {tp.ten})"
+        sua = "hoặc sửa đơn vị tính của dòng đơn ở Đơn hàng bán"
+    else:
+        dau = f"«{nhan_don_vi(bang, sang_dv)}» (đơn vị của thành phẩm {tp.ma} {tp.ten})"
+        sua = "hoặc đổi đơn vị của món ở Cấu hình danh mục ▸ Thành phẩm"
+    return ValueError(
+        f"Không quy đổi được từ «{nhan_don_vi(bang, tu_dv)}» sang {dau}: số chốt đang tính theo "
+        f"đơn vị ra của {buoc}. Cho hai đơn vị khớp nhau — sửa đơn vị ra của bước ở tab Công đoạn "
+        f"của lệnh (lệnh còn nháp), {sua}; hai đơn vị đổi được cho nhau thật thì khai ở Cấu hình "
+        f"danh mục ▸ Đơn vị & quy đổi."
+    )
+
+
+def _he_so_cho_nhap(db: Session, hang, tp, don_vi_kcs: str, cv=None) -> float:
     """Hệ số quy số đạt (đơn vị ra công đoạn) sang đơn vị của món — lỗi nói bằng lời nghiệp vụ."""
     if not (tp.don_vi_gia or "").strip():
         raise ValueError(
@@ -141,6 +162,9 @@ def _he_so_cho_nhap(db: Session, hang, tp, don_vi_kcs: str) -> float:
     try:
         return _he_so(hang, tp.id, don_vi_kcs, tp.don_vi_gia)
     except VatLieuKhoError:
+        if cv is not None:
+            raise loi_quy_doi(db, tu_dv=don_vi_kcs, sang_dv=tp.don_vi_gia, cv=cv, tp=tp,
+                              dich="thanh_pham") from None
         bang = DonViDoRepository(db).ten_theo_ma()
         raise ValueError(
             f"Không quy đổi được từ «{nhan_don_vi(bang, don_vi_kcs)}» sang "
@@ -283,7 +307,7 @@ def lap_yeu_cau_nhap_tp(
     theo_ma: dict[int, dict] = {}
     for cum, sl_kcs in zip(nguon.cums, _chia_theo_cum(so_kcs, nguon.cums)):
         tp = khai_cum(db, nguon.order, cum)
-        sl = round(sl_kcs * _he_so_cho_nhap(db, hang, tp, don_vi_kcs), 2)
+        sl = round(sl_kcs * _he_so_cho_nhap(db, hang, tp, don_vi_kcs, cv), 2)
         if sl <= 0:
             continue
         d = theo_ma.setdefault(tp.id, {"tp": tp, "sl": 0.0, "tien": 0.0, "du_gia": True})

@@ -140,12 +140,23 @@ from ...models.ky_thuat_may import YeuCauSuaChua
 from ...models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc
 from ...models.may_thiet_bi import MayThietBi
 from ...models.order import Order
-from ...models.san_xuat import SanXuatCongViec, SanXuatNhom, SanXuatNhomLsx
+from ...models.san_xuat import (
+    GOI_DA_THU_HOI, SanXuatCongViec, SanXuatGoiPhatHanh, SanXuatNhom, SanXuatNhomLsx,
+)
 from ...models.san_xuat_kcs import SanXuatKcsBatch
 from ...models.san_xuat_san_luong import SanXuatBatch
 from ...models.san_xuat_thuc_thi import PC_HOAT_DONG, SanXuatPhanCong, SanXuatPhienChay
 from ...models.user import User
 
+
+def _cv_con_hieu_luc():
+    """SELECT công việc, trừ việc của gói đã thu hồi. Lọc theo `goi_id` (không theo
+    `phien_ban_so` — xem docstring `SanXuatCongViec`). Cùng một câu, không thêm lượt SQL."""
+    return (
+        select(SanXuatCongViec)
+        .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == SanXuatCongViec.goi_id)
+        .where(SanXuatGoiPhatHanh.trang_thai != GOI_DA_THU_HOI)
+    )
 
 @dataclass
 class BoiCanh:
@@ -275,8 +286,11 @@ def nap(db: Session, lsx_ids: list[int]) -> BoiCanh:
 
     # 5) cong_viec — SanXuatCongViec.lsx_id IN ids. Toàn ánh trên `ids` (xem docstring: NULL tự bị
     # `IN` loại, không cần lọc tay).
+    # Bỏ công việc của GÓI ĐÃ THU HỒI (`_cv_con_hieu_luc`): thu hồi chỉ được khi chưa việc nào bắt
+    # đầu nên các việc đó là xác chết — tính vào thì lệnh phát hành lại (vd huỷ rồi đặt lại trọn
+    # gói) mãi không "xong" và tiến độ đơn kẹt 50% (E2E 27/09/2026).
     cv_rows = list(
-        db.execute(select(SanXuatCongViec).where(SanXuatCongViec.lsx_id.in_(ids))).scalars()
+        db.execute(_cv_con_hieu_luc().where(SanXuatCongViec.lsx_id.in_(ids))).scalars()
     )
     cong_viec: dict[int, list[SanXuatCongViec]] = {i: [] for i in ids}
     for cv in cv_rows:
@@ -309,7 +323,7 @@ def nap(db: Session, lsx_ids: list[int]) -> BoiCanh:
     # gói cũ) thì lọc CẢ HAI câu cùng lúc.
     cv_ghep_rows = list(
         db.execute(
-            select(SanXuatCongViec).where(SanXuatCongViec.bai_ghep_cong_doan_id.in_(bgcd_ids))
+            _cv_con_hieu_luc().where(SanXuatCongViec.bai_ghep_cong_doan_id.in_(bgcd_ids))
         ).scalars()
     )
     cv_ghep_theo_bgcd: dict[int, list[SanXuatCongViec]] = {}

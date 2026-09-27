@@ -325,3 +325,42 @@ def test_ly_do_khong_mo_lai_khi_kho_da_lap_phieu(sess, admin, lenh, monkeypatch)
     monkeypatch.setattr(StockRequestRepository, "co_voucher", lambda self, rid: True)
     (d,) = lan_cua_lenh(sess, lenh.id)
     assert "Kho đã lập phiếu" in d["ly_do_khong_mo_lai"]
+
+
+def test_huy_roi_dat_lai_chot_xong_thi_lenh_xong_va_don_dem_dung(sess, admin, lenh):
+    """E2E 27/09/2026: huỷ trọn gói (gói bị thu hồi) rồi đặt lại, chốt xong — việc của gói thu hồi
+    không được tính, lệnh phải "xong" và đơn đếm 1 lệnh xong (trước đó kẹt 50%, 0/N lệnh)."""
+    from app.models.order import Order, OrderLine
+    from app.services.don_hang_tien_do import tien_do_don
+
+    lan = _dat(sess, admin, lenh)
+    huy_tron_goi(sess, user=admin, gcn_id=lan.id, expected_version=lan.version, ly_do="đổi nhà")
+    lan = _dat(sess, admin, lenh)
+    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+         sl_cuoi=20_000, noi_ve=NOI_VE_KHO)
+    don = sess.get(Order, sess.get(OrderLine, lenh.order_line_id).order_id)
+    (x,) = [l for c in tien_do_don(sess, don)["cum"] for l in c["lenh"] if l["id"] == lenh.id]
+    assert x["xong"] and x["pct"] == 100.0
+
+
+def test_giao_thang_khong_quy_doi_duoc_chi_duong_sua(sess, admin, lenh):
+    """Bước ra «cái», dòng đơn tính đơn vị không đổi được ⇒ câu lỗi nói bước nào, lệnh nào, và
+    sửa ở đâu — không gợi ý khai cặp quy đổi toàn cục cho hai đơn vị khác loại."""
+    from app.models.don_vi_do import DonViDo
+    from app.models.gia_cong_ngoai import NOI_VE_KHACH
+    from app.models.order import OrderLine
+    from tests.gia_cong_fixtures import nhan_vien_cua
+
+    kien = DonViDo(ma="kien_x", ten="kiện X", ho="khac")
+    sess.add(kien)
+    dong = sess.get(OrderLine, lenh.order_line_id)
+    dong.don_vi_tinh = kien.ma
+    lenh.don_vi_tinh = "cai"
+    sess.commit()
+    nhan_vien_cua(sess, admin)
+    lan = _dat(sess, admin, lenh)
+    with pytest.raises(ValueError, match=r"sang «kiện X» \(đơn vị dòng đơn") as e:
+        chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+             sl_cuoi=100, noi_ve=NOI_VE_KHACH)
+    msg = str(e.value)
+    assert lenh.ma in msg and "tab Công đoạn" in msg and "Đơn hàng bán" in msg
