@@ -178,6 +178,10 @@ class XepLichLenhService:
         if not thieu:
             return
         theo_lsx = self.repo.thuc_te_buoc(thieu)
+        # Bước bị bài ghép phủ: việc chung không mang `lsx_id` — nối thêm theo bảng phủ (xếp SAU
+        # để dòng của chính lệnh, nếu có, vẫn thắng ở `setdefault`).
+        for i, ds in self.repo.thuc_te_buoc_chung(thieu).items():
+            theo_lsx.setdefault(i, []).extend(ds)
         for i in thieu:
             ban: dict[tuple[str, object], dict] = {}
             for cd_id, key, tt, kh_bd, kh_kt, xong, thuc_bd in theo_lsx.get(i, []):

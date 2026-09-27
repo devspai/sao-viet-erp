@@ -222,6 +222,36 @@ def test_chi_tiet_buoc_bi_bai_ghep_phu_bay_theo_buoc_chung(db, svc3, lenh):
     assert all(cds[b.id]["bai_ghep_ma"] is None for b in buoc[:-1])
 
 
+def test_chi_tiet_buoc_bi_bai_ghep_phu_co_trang_thai_thuc_te_cua_viec_chung(db, svc3, lenh):
+    """E2E 27/09/2026: bước In ghép trên popup không có chip trạng thái — việc chung mang
+    `lsx_id IS NULL` nên tra thực tế theo lệnh không thấy. Phải lấy qua bảng phủ."""
+    from app.models.bai_ghep import BaiGhep
+    from app.models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
+    from app.models.lsx import LsxCongDoan
+    from app.models.san_xuat import CV_DANG_CHAY, SanXuatCongViec, SanXuatGoiPhatHanh
+
+    buoc = db.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == lenh.id).order_by(LsxCongDoan.id).all()
+    bi_phu = buoc[0]
+    bg = BaiGhep(ma="GB-XL-2", ten="Bài xếp lịch 2")
+    db.add(bg)
+    db.flush()
+    chung = BaiGhepCongDoan(bai_ghep_id=bg.id, ten=bi_phu.ten, loai_buoc=bi_phu.loai_buoc)
+    db.add(chung)
+    db.flush()
+    db.add(BaiGhepCongDoanMap(bai_ghep_cong_doan_id=chung.id, lsx_id=lenh.id,
+                              lsx_step_key=bi_phu.step_key))
+    goi = SanXuatGoiPhatHanh(ma="GOI-XL-CHUNG")
+    db.add(goi)
+    db.flush()
+    db.add(SanXuatCongViec(goi_id=goi.id, bai_ghep_id=bg.id, bai_ghep_cong_doan_id=chung.id,
+                           lsx_id=None, step_key=None, ten_cong_doan=bi_phu.ten,
+                           trang_thai=CV_DANG_CHAY))
+    db.commit()
+
+    cds = {c["id"]: c for c in svc3.chi_tiet(lenh.id)["cong_doans"]}
+    assert cds[bi_phu.id]["trang_thai"] == CV_DANG_CHAY
+
+
 def test_chi_tiet_lenh_chua_xep_van_mo_duoc(svc3, lenh):
     """Bấm thẻ hàng chờ cũng mở panel — chưa có lịch thì các ô lịch để trống, không nổ."""
     ct = svc3.chi_tiet(lenh.id)
