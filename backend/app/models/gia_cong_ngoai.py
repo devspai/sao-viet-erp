@@ -19,7 +19,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, false as sa_false
+from sqlalchemy import (
+    Boolean, CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, false as sa_false,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -41,10 +43,24 @@ def _utcnow() -> datetime:
 
 class GiaCongNgoai(Base):
     __tablename__ = "gia_cong_ngoai"
+    __table_args__ = (
+        # Lần gắn ĐÚNG MỘT nguồn: lệnh (đợt 1) hoặc bài ghép (đợt 2 — bước chung thuê ngoài).
+        CheckConstraint(
+            "(lsx_id IS NULL AND bai_ghep_id IS NOT NULL) "
+            "OR (lsx_id IS NOT NULL AND bai_ghep_id IS NULL)",
+            name="ck_gia_cong_ngoai_mot_nguon",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    lsx_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("lsx.id", ondelete="CASCADE"), index=True, nullable=False
+    # NULL khi lần thuộc bài ghép (spec 2026-09-27 §6).
+    lsx_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("lsx.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    # Bước CHUNG thuê ngoài của bài ghép: lần gắn bài, phần chia từng lệnh nằm ở kết quả toả /
+    # đề nghị nhập kho sẵn có (không bảng phân bổ). RESTRICT: bài còn lần sống thì không xoá được.
+    bai_ghep_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("bai_ghep.id", ondelete="RESTRICT"), index=True, nullable=True
     )
     kieu: Mapped[str] = mapped_column(String(12), nullable=False)
     # Danh mục Nhà cung cấp có tích "Nhận gia công". Không có đường xoá NCC nên FK thường là đủ.

@@ -4177,7 +4177,8 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 | Column | Type | Key | Null | Default | Meaning |
 | --- | --- | --- | --- | --- | --- |
 | `id` | `Integer` | **PK** | no | auto | |
-| `lsx_id` | `Integer` | FK `lsx` CASCADE, idx | no | — | Lệnh của lần. |
+| `lsx_id` | `Integer` | FK `lsx` CASCADE, idx | yes | — | Lệnh của lần. NULL khi lần thuộc bài ghép (mg `0343`). |
+| `bai_ghep_id` | `Integer` | FK `bai_ghep` RESTRICT, idx | yes | — | Bài ghép của lần — bước CHUNG thuê ngoài (spec 2026-09-27, mg `0343`). CHECK `ck_gia_cong_ngoai_mot_nguon`: đúng một trong `lsx_id` / `bai_ghep_id` có giá trị. Phần chia từng lệnh nằm ở kết quả toả / đề nghị nhập kho sẵn có, không bảng phân bổ. |
 | `kieu` | `String(12)` | — | no | — | `mot_phan` \| `tron_goi`. |
 | `nha_cung_cap_id` | `Integer` | FK `suppliers`, idx | no | — | Nhà gia công (NCC có `nhan_gia_cong`). |
 | `nha_cung_cap_ten` | `String(255)` | — | no | `""` | Ảnh chụp tên NCC lúc đặt. |
@@ -4375,33 +4376,28 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `phat_sinh_phut` | `Numeric(10,2)` | — | no | `0` | "Thời gian khác" — mirror `lsx_cong_doan.phat_sinh_phut` (migration `0153`). |
 | `cho_phut` | `Numeric(10,2)` | — | no | `0` | 🔴 GỠ KHỎI MODEL 13/08/2026 — cột còn trong DB, không code nào đọc. |
 | `di_chuyen_phut` | `Numeric(10,2)` | — | no | `0` | Phút di chuyển giữa tổ/máy. |
-| `nha_cung_cap` | `String(150)` | — | yes | — | Bước chung thuê ngoài → cả bài đi **một** phiếu, **một** NCC (bước chung nằm TRƯỚC điểm toả nên giao/nhận đều ở tầng bài). |
-| `sl_gui` | `Numeric(14,2)` | — | yes | — | Số lượng gửi đi (DỰ KIẾN). |
-| `ngay_gui_dk` | `Date` | — | yes | — | Ngày gửi dự kiến. |
-| `van_chuyen_ngay` | `Numeric(6,2)` | — | yes | — | Số ngày vận chuyển (2 chiều). |
-| `gia_cong_ngay` | `Numeric(6,2)` | — | yes | — | Số ngày gia công tại NCC. |
-| `ngay_nhan_dk` | `Date` | — | yes | — | Ngày nhận dự kiến. |
-| `hao_hut_cho_phep` | `Numeric(14,2)` | — | yes | — | Hao hụt cho phép thoả thuận với NCC. |
-| `don_gia_gia_cong` | `Numeric(18,2)` | — | yes | — | Đơn giá gia công ngoài. |
-| `yeu_cau_ky_thuat` | `Text` | — | yes | — | Yêu cầu kỹ thuật gửi NCC. |
+| `nha_cung_cap_id` | `Integer` | FK→`suppliers.id`, IX | yes | — | Nhà gia công của bước chung thuê ngoài — chọn từ danh mục Nhà cung cấp (tích `nhan_gia_cong`, đang hoạt động). Phát hành ⇒ một `gia_cong_ngoai` gắn `bai_ghep_id` (mg `0343`). |
+| `nha_cung_cap` | `String(150)` | — | yes | — | TÊN nhà gia công do máy chủ ghi theo `nha_cung_cap_id` (client không gửi) — y `lsx_cong_doan.nha_cung_cap`. |
 | `ghi_chu` | `String(500)` | — | yes | — | Ghi chú của BÀI. Ghi chú kỹ thuật của từng lệnh **KHÔNG bị đè** — service gom lại kèm mã lệnh, vì thợ chạy chung một lượt phải đọc được yêu cầu của mọi khách trên tờ đó. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
 
 > 🔴 **GỠ 18/09/2026 (mg `0321`)** — mirror đúng `lsx_cong_doan`: `so_nhan_cong_tieu_chuan` · `khoan_json` · `nang_suat` · `don_vi_nang_suat`.
 
+> 🔴 **GỠ 27/09/2026 (mg `0343`)** — 8 cột gia công DỰ KIẾN cũ: `sl_gui` · `ngay_gui_dk` · `van_chuyen_ngay` · `gia_cong_ngay` · `ngay_nhan_dk` · `hao_hut_cho_phep` · `don_gia_gia_cong` · `yeu_cau_ky_thuat` (cùng cách mg `0340` gỡ ở bước lệnh; không ô đơn giá — tiền gia công kế toán gõ ở phiếu chi).
+
 > **Derived, KHÔNG lưu cột:** cạnh phụ thuộc của bài (đồ thị co: thay mỗi bước đã gộp bằng dòng chung của nó rồi khử trùng — khai ở hai nơi là hai nguồn sự thật) · điểm toả · dư tờ mỗi nhánh · phần giấy chia về từng lệnh (chia **theo con**).
 
 **Keys & indexes**
 
-- Primary key: `id`. Foreign keys: `bai_ghep_id` FK→`bai_ghep.id` (on delete CASCADE). Unique: `step_key`. Indexes: `step_key`, `bai_ghep_id`, `cong_doan_id`, `department_id`, `may_id`.
+- Primary key: `id`. Foreign keys: `bai_ghep_id` FK→`bai_ghep.id` (on delete CASCADE), `nha_cung_cap_id` FK→`suppliers.id`. Unique: `step_key`. Indexes: `step_key`, `bai_ghep_id`, `cong_doan_id`, `department_id`, `may_id`, `nha_cung_cap_id`.
 
 **Relationships**
 
 - Một `bai_ghep` có nhiều `bai_ghep_cong_doan`. Mỗi dòng có nhiều `bai_ghep_cong_doan_map` (đè lên bước nào của lệnh nào) và nhiều `bai_ghep_cong_doan_vat_tu` — cả hai cascade delete.
 - **GHI ĐÈ, KHÔNG PHÁ GỐC:** bước của LSX vẫn còn nguyên trong `lsx_cong_doan` với số của nó; tách gộp là số cũ quay lại, không phải khôi phục từ đâu. Engine chỉ việc "chỗ nào bị đè thì lấy số của bài".
 
-**Tất cả cột:** `id`, `step_key`, `bai_ghep_id`, `thu_tu`, `cong_doan_id`, `ten`, `nhom`, `loai_buoc`, `bat_buoc`, `department_id`, `may_id`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `hao_hut`, `hao_hut_pct`, `so_luot_chay`, `setup_phut`, `so_gio_ke_hoach`, `chay_phut`, `ve_sinh_phut`, `phat_sinh_phut`, `cho_phut`, `di_chuyen_phut`, `nha_cung_cap`, `sl_gui`, `ngay_gui_dk`, `van_chuyen_ngay`, `gia_cong_ngay`, `ngay_nhan_dk`, `hao_hut_cho_phep`, `don_gia_gia_cong`, `yeu_cau_ky_thuat`, `ghi_chu`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `step_key`, `bai_ghep_id`, `thu_tu`, `cong_doan_id`, `ten`, `nhom`, `loai_buoc`, `bat_buoc`, `department_id`, `may_id`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `hao_hut`, `hao_hut_pct`, `so_luot_chay`, `setup_phut`, `so_gio_ke_hoach`, `chay_phut`, `ve_sinh_phut`, `phat_sinh_phut`, `cho_phut`, `di_chuyen_phut`, `nha_cung_cap_id`, `nha_cung_cap`, `ghi_chu`, `created_at`, `updated_at`.
 
 ---
 

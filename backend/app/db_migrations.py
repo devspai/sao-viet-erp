@@ -16153,3 +16153,64 @@ def _migrate_don_vi_ncc_ve_ma(db) -> None:
 
 
 MIGRATIONS.append(("0341_don_vi_ncc_ve_ma", _migrate_don_vi_ncc_ve_ma))
+
+
+_COT_DU_KIEN_BUOC_CHUNG = (
+    "sl_gui", "ngay_gui_dk", "van_chuyen_ngay", "gia_cong_ngay", "ngay_nhan_dk",
+    "hao_hut_cho_phep", "don_gia_gia_cong", "yeu_cau_ky_thuat",
+)
+
+
+def _migrate_gia_cong_ngoai_bai_ghep(db) -> None:
+    """mg 0343 — gia công ngoài cho bước CHUNG bài ghép (spec 2026-09-27 §6).
+
+    · `gia_cong_ngoai.lsx_id` thành nullable, thêm `bai_ghep_id` (FK `bai_ghep` RESTRICT) + CHECK
+      đúng một trong hai có giá trị. SQLite không ALTER được ràng buộc — test dựng bằng
+      `create_all` đã có sẵn; ở đây chỉ thêm cột.
+    · `bai_ghep_cong_doan.nha_cung_cap_id` (FK `suppliers`) — nhà gia công chọn từ danh mục; cột
+      chữ `nha_cung_cap` giữ làm tên do máy chủ ghi. KHÔNG backfill: tên gõ tay cũ không đối chiếu
+      được danh mục ⇒ "Còn thiếu" nhắc chọn lại.
+    · Gỡ 8 cột dự kiến cũ của bước chung (ngày gửi/nhận, số ngày vận chuyển/gia công, hao hụt cho
+      phép, sl gửi, đơn giá, yêu cầu kỹ thuật) — cùng cách mg 0340 đã gỡ ở bước lệnh. Dự án chưa có
+      dữ liệu thật ⇒ gỡ thẳng; mất các giá trị đó, không khôi phục.
+    Idempotent (soi cột/ràng buộc trước khi đổi)."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    pg = bind.dialect.name == "postgresql"
+
+    if "gia_cong_ngoai" in bang:
+        cot = _existing_columns(insp, "gia_cong_ngoai")
+        if "bai_ghep_id" not in cot:
+            fk = " REFERENCES bai_ghep(id) ON DELETE RESTRICT" if "bai_ghep" in bang else ""
+            db.execute(text(f"ALTER TABLE gia_cong_ngoai ADD COLUMN bai_ghep_id INTEGER{fk}"))
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_gia_cong_ngoai_bai_ghep_id "
+            "ON gia_cong_ngoai (bai_ghep_id)"))
+        if pg:
+            db.execute(text("ALTER TABLE gia_cong_ngoai ALTER COLUMN lsx_id DROP NOT NULL"))
+            co_ck = {c["name"] for c in insp.get_check_constraints("gia_cong_ngoai")}
+            if "ck_gia_cong_ngoai_mot_nguon" not in co_ck:
+                db.execute(text(
+                    "ALTER TABLE gia_cong_ngoai ADD CONSTRAINT ck_gia_cong_ngoai_mot_nguon CHECK ("
+                    "(lsx_id IS NULL AND bai_ghep_id IS NOT NULL) "
+                    "OR (lsx_id IS NOT NULL AND bai_ghep_id IS NULL))"))
+
+    if "bai_ghep_cong_doan" in bang:
+        cot = _existing_columns(insp, "bai_ghep_cong_doan")
+        if "nha_cung_cap_id" not in cot:
+            fk = " REFERENCES suppliers(id)" if "suppliers" in bang else ""
+            db.execute(text(f"ALTER TABLE bai_ghep_cong_doan ADD COLUMN nha_cung_cap_id INTEGER{fk}"))
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_bai_ghep_cong_doan_nha_cung_cap_id "
+            "ON bai_ghep_cong_doan (nha_cung_cap_id)"))
+        for ix in insp.get_indexes("bai_ghep_cong_doan"):
+            if set(ix.get("column_names") or []) & set(_COT_DU_KIEN_BUOC_CHUNG):
+                db.execute(text(f"DROP INDEX IF EXISTS {ix['name']}"))
+        for c in _COT_DU_KIEN_BUOC_CHUNG:
+            if c in cot:
+                db.execute(text(f"ALTER TABLE bai_ghep_cong_doan DROP COLUMN {c}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0343_gia_cong_ngoai_bai_ghep", _migrate_gia_cong_ngoai_bai_ghep))

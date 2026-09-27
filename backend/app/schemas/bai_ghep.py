@@ -54,17 +54,9 @@ class BuocChungUpdateIn(BaseModel):
     so_luot_chay: int | None = None
     ghi_chu: str | None = None
     vat_tus: list[dict] | None = None
-    # Bước chung thuê ngoài → cả bài đi MỘT phiếu, MỘT nhà cung cấp (bước chung nằm trước điểm
-    # toả nên cả giao lẫn nhận đều ở tầng bài).
-    nha_cung_cap: str | None = None
-    sl_gui: float | None = None
-    ngay_gui_dk: date | None = None
-    van_chuyen_ngay: float | None = None
-    gia_cong_ngay: float | None = None
-    ngay_nhan_dk: date | None = None
-    hao_hut_cho_phep: float | None = None
-    don_gia_gia_cong: float | None = None
-    yeu_cau_ky_thuat: str | None = None
+    # Bước chung thuê ngoài → cả bài đi MỘT lần gia công (spec 2026-09-27). Chọn nhà gia công từ
+    # danh mục; TÊN do máy chủ ghi — client không gửi `nha_cung_cap`.
+    nha_cung_cap_id: int | None = None
 
 
 class BaiGhepUpdateIn(BaseModel):
@@ -377,15 +369,8 @@ class SoDoBuocChung(BaseModel):
     # dien_giai, ly_do}` với bước lệnh. Món chưa tính ra được vẫn có mặt với `so_luong=None` kèm
     # lý do, để drawer nói được "vì sao trống" thay vì im lặng.
     vat_tu_goi_y: list[dict] = Field(default_factory=list)
-    # Gia công ngoài (DỰ KIẾN) — bước chung thuê ngoài thì cả bài đi MỘT phiếu, MỘT nhà cung cấp.
-    sl_gui: float | None = None
-    ngay_gui_dk: date | None = None
-    van_chuyen_ngay: float | None = None
-    gia_cong_ngay: float | None = None
-    ngay_nhan_dk: date | None = None
-    hao_hut_cho_phep: float | None = None
-    don_gia_gia_cong: float | None = None
-    yeu_cau_ky_thuat: str | None = None
+    # Gia công ngoài (spec 2026-09-27) — nhà gia công của bước chung thuê ngoài.
+    nha_cung_cap_id: int | None = None
     ghi_chu: str | None = None
     ma_bai_ghep: str | None = None
     # Lệnh nào bị đè + ghi chú kỹ thuật của lệnh đó (GOM, không đè — thợ chạy chung một lượt phải

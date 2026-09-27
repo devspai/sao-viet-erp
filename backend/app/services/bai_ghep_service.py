@@ -849,8 +849,8 @@ class BaiGhepService:
         "so_gio_ke_hoach", "phat_sinh_phut",
         # Chờ kỹ thuật: gộp lấy mức lớn nhất làm MẶC ĐỊNH, người lập kế hoạch sửa đè được (mục B).
         "so_luot_chay", "ghi_chu",
-        "nha_cung_cap", "sl_gui", "ngay_gui_dk", "van_chuyen_ngay", "gia_cong_ngay",
-        "ngay_nhan_dk", "hao_hut_cho_phep", "don_gia_gia_cong", "yeu_cau_ky_thuat",
+        # Nhà gia công KHÔNG nằm ở đây: `nha_cung_cap_id` kiểm riêng (danh mục NCC tích "Nhận gia
+        # công"), tên `nha_cung_cap` do máy chủ ghi — client không gửi (spec 2026-09-27 §6).
     )
 
     def lap_ke_hoach_buoc_chung(
@@ -1609,14 +1609,8 @@ class BaiGhepService:
                 # cần biến riêng-từng-lệnh (`so_luong`, `dai_tp`…) vẫn báo tịt qua `ly_do` vì các
                 # biến đó = 0 theo `BIEN_KHONG_CO_O_BAI`, không mượn số của một thành viên bất kỳ.
                 "vat_tu_goi_y": self._lsx_svc()._goi_y_luong_vat_tu(c, qc_bien),
-                # Gia công ngoài (dự kiến) — bước chung thuê ngoài thì cả bài đi MỘT phiếu.
-                "sl_gui": _f(c.sl_gui) or None, "ngay_gui_dk": c.ngay_gui_dk,
-                "van_chuyen_ngay": _f(c.van_chuyen_ngay) or None,
-                "gia_cong_ngay": _f(c.gia_cong_ngay) or None,
-                "ngay_nhan_dk": c.ngay_nhan_dk,
-                "hao_hut_cho_phep": _f(c.hao_hut_cho_phep) or None,
-                "don_gia_gia_cong": _f(c.don_gia_gia_cong) or None,
-                "yeu_cau_ky_thuat": c.yeu_cau_ky_thuat,
+                # Gia công ngoài (spec 2026-09-27) — bước chung thuê ngoài ⇒ cả bài đi MỘT lần.
+                "nha_cung_cap_id": c.nha_cung_cap_id,
                 "ghi_chu": c.ghi_chu,
                 "thanh_vien": ds,
                 "ma_bai_ghep": bg.ma,
