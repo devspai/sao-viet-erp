@@ -6,6 +6,7 @@ import { Icon, type IconName } from "./Icons";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ChipGap, classHan, ngay, num } from "../pages/keHoachSxShared";
 import { heSoChu, nhanChang, phut } from "../pages/lsxBuoc";
+import { useNapTenDonVi } from "../pages/tenDonVi";
 
 type Node = SoDo["nhanh"][number]["buoc"][number];
 type BuocChung = SoDo["gop"][number];
@@ -246,6 +247,9 @@ export function BaiGhepDagCanvas({
   onSuaCon,
   canUpdate = true,
 }: BaiGhepDagCanvasProps) {
+  // Nhãn chặng ("tờ in", "thành phẩm") nạp một lần cho cả phiên. Màn Bài ghép mở thẳng mà không
+  // gọi hook này thì chưa ai nạp bảng ⇒ thẻ in mã trần "to"/"cai" (E2E 27/09/2026).
+  useNapTenDonVi();
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Viewport State — vị trí do scrollLeft/scrollTop của vùng cuộn quyết, KHÔNG còn state `pan`.
