@@ -14,7 +14,7 @@
 //
 // Form tự nạp `ke-hoach-sx.css` (khuôn `.khsx-*`) và `bai-ghep.css` (danh sách ghi chú của lệnh) để
 // style đi theo component chứ không đi theo trang nào.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ApiError, LSX_LOAI_BUOC_META, api, type BaiGhepBuocChungBody, type BaiGhepSoDo, type LsxLoaiBuoc,
   type NhaGiaCong,
@@ -84,6 +84,8 @@ export function BuocChungForm({
   const [vtGo, setVtGo] = useState<Record<number, string>>({});
   const [tab, setTab] = useState<TabKey>("cau_hinh");
   const [dangLuu, setDangLuu] = useState(false);
+  /** `g` lúc vừa lưu xong — khác nó (sơ đồ mới về) thì mới xoá nháp. */
+  const choNapLai = useRef<BaiGhepSoDo["gop"][number] | null>(null);
   const [confirmTach, setConfirmTach] = useState(false);
   // Loại bước của lượt chung ĐỔI ĐƯỢC ở đây (spec 2026-09-27 §2 bước 1: "ở bước chung Cán màng,
   // loại bước Thuê ngoài") — gộp kế thừa loại của bước lệnh, nhưng người lập kế hoạch bài ghép
@@ -247,14 +249,21 @@ export function BuocChungForm({
       const saved = await onLuu(f);
       // Trang trả `false` khi API từ chối nhưng đã đưa lỗi lên banner — giữ nguyên draft để người
       // lập kế hoạch sửa tiếp, đừng xoá thứ họ vừa gõ.
-      if (saved !== false) {
-        setF({});
-        setVtGo({});
-      }
+      // Lưu xong KHÔNG xoá nháp ngay: trang nạp lại sơ đồ sau khi `onLuu` trả về, trong lúc đó `g`
+      // vẫn là bản cũ — xoá nháp là form rơi về loại/tổ cũ (Thuê ngoài vừa lưu hiện lại ô
+      // "— chọn tổ —" trống, E2E 27/09/2026). Đợi `g` mới về rồi mới xoá (effect dưới).
+      if (saved !== false) choNapLai.current = g;
     } finally {
       setDangLuu(false);
     }
   };
+  useEffect(() => {
+    if (choNapLai.current && choNapLai.current !== g) {
+      choNapLai.current = null;
+      setF({});
+      setVtGo({});
+    }
+  }, [g]);
 
   return (
     <>

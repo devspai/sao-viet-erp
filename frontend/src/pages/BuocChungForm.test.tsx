@@ -95,6 +95,34 @@ describe("form kế hoạch bước chung", () => {
     }));
   });
 
+  // E2E 27/09/2026: trang nạp lại sơ đồ SAU khi `onLuu` trả về — xoá nháp ngay lúc đó là form rơi về
+  // bản cũ (loại Máy, tổ trống) và hiện ô "— chọn tổ —" dù bước đã lưu thành Thuê ngoài.
+  it("lưu xong giữ nháp tới khi sơ đồ nạp lại, rồi mới đọc theo máy chủ", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api.giaCongNgoai, "nhaGiaCong").mockResolvedValue([{ id: 41, ten: "Tân Phát" }]);
+    const cu = gop({
+      step_key: "gang-can-3", ten: "Cán màng chung", loai_buoc: "may",
+      thanh_vien: [{ lsx_id: 1, lsx_ma: "LSX-1", lsx_step_key: "lsx-1-can", ghi_chu_ky_thuat: null }],
+    });
+    const { rerender } = render(
+      <BuocChungForm g={cu} canUpdate onLuu={async () => true} onTach={async () => {}} />);
+
+    await user.click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
+    await user.click(screen.getByRole("button", { name: "Thuê ngoài" }));
+    await user.selectOptions(await screen.findByLabelText(/NHÀ GIA CÔNG/), "41");
+    await user.click(screen.getByRole("button", { name: "Lưu kế hoạch lượt chung" }));
+
+    await user.click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
+    expect(screen.queryByLabelText(/TỔ PHỤ TRÁCH/)).toBeNull();
+
+    const moi = { ...cu, loai_buoc: "thue_ngoai" as const, nha_cung_cap_id: 41, department_id: null };
+    rerender(<BuocChungForm g={moi} canUpdate onLuu={async () => true} onTach={async () => {}} />);
+    expect(screen.queryByLabelText(/TỔ PHỤ TRÁCH/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Thuê ngoài" })).toHaveAttribute("aria-pressed", "true");
+    // Nháp đã xoá sau khi sơ đồ mới về: nút Lưu hết "đang sửa".
+    expect(screen.getByRole("button", { name: "Lưu kế hoạch lượt chung" })).toBeDisabled();
+  });
+
   it("công đoạn chưa khai tổ thì mời mọi tổ, không có câu giới hạn", async () => {
     render(<BuocChungForm g={gop({
       step_key: "gang-in-2",
