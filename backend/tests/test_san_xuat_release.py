@@ -325,6 +325,7 @@ def test_diem_toa_buoc_cat_doi_he_so_theo_so_con_tren_to_ghep(
     xa = db.query(SanXuatCongViec).filter_by(goi_id=goi.id, lsx_id=b.id).one()
     assert float(cat.he_so_quy_doi) == 8.0
     assert float(xa.he_so_quy_doi) == 1.0
+    assert cat.quy_cach_json["so_con"] == 8.0  # thẻ quy cách: con / tờ GHÉP, không theo lệnh
     # Kế hoạch VÀO của bước riêng ăn tờ = số tờ ra của lượt chung (nó nhận nguyên số tờ ghép), không
     # phải 5.000 tờ theo bình bài riêng của lệnh (E2E 27/09/2026: "1.330 tờ in" ở khối kế hoạch).
     in_chung = db.query(SanXuatCongViec).filter_by(goi_id=goi.id, bai_ghep_id=bg.id).one()

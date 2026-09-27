@@ -697,6 +697,9 @@ def dung_diem_toa(
             # này, còn toả giao nguyên số tờ ghép (`san_luong.so_nhanh_toa`) — nhân MỘT lần.
             for dcv in cv_by_step[dich_cd.step_key]:
                 dcv.he_so_quy_doi = float(con)
+                # Thẻ quy cách chụp từ lệnh ghi "Con / tờ" theo bình bài riêng (180) trong khi thợ
+                # cắt tờ ghép ra `con` con của lệnh (E2E 27/09/2026, drawer Cắt LSX26-0028).
+                dcv.quy_cach_json = {**(dcv.quy_cach_json or {}), "so_con": float(con)}
         for nguon_cv in nguon_cvs:
             repo.add(SanXuatPhuThuoc(
                 goi_id=goi.id, phien_ban_so=phien_ban_so,
