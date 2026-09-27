@@ -3199,6 +3199,11 @@ class LsxService:
         lsx = self.get(lsx_id)
         if lsx.trang_thai == TT_DA_LAP_KE_HOACH:
             raise LsxConflict("Lệnh đã lập kế hoạch — gỡ kế hoạch trước khi xoá")
+        # Đã phát hành ⇒ xưởng đang giữ gói việc, có thể đã có lần gia công ngoài (FK CASCADE sẽ cuốn
+        # mất cả lần gia công lẫn vết mang đi/chốt). Phải thu hồi / huỷ trọn gói trước.
+        if lsx.trang_thai == TT_DA_PHAT_HANH:
+            raise LsxConflict(
+                "Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) trước khi xoá")
         # Coupling bài ghép: neo thành viên là FK RESTRICT (chặn ở Postgres); SQLite dev tắt FK nên
         # chặn ở đây + báo đẹp. Gỡ LSX khỏi bài ghép trước rồi mới xoá được lệnh.
         ghep_ma = self.db.execute(

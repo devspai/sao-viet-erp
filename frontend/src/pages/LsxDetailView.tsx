@@ -460,6 +460,9 @@ export function LsxDetailView({
   // gửi `quy_cach`, và xoá lệnh — cùng luật với routing. Tách ra thành cờ riêng để màn NÓI TRƯỚC
   // thay vì để người ta gõ xong cả bảng thông số rồi mới ăn 409 lúc bấm Lưu.
   const giuCho = !!d?.giu_cho_bat;
+  // Lệnh đã qua cửa Xếp lịch / phát hành: nút "Sẵn sàng lập kế hoạch" và "Xoá lệnh" đều bị máy chủ
+  // từ chối (`set_trang_thai`, `xoa`) — ẩn hẳn thay vì để một CTA sáng mà bấm là báo lỗi.
+  const daQuaKeHoach = d?.trang_thai === "da_lap_ke_hoach" || d?.trang_thai === "da_phat_hanh";
   // Danh mục đã đổi sau lúc lệnh chụp ảnh. `null` = còn khớp hết ⇒ KHÔNG băng, không chỗ trống.
   const dmDoi = d?.danh_muc_doi ?? null;
   // QUY CÁCH Ở LỆNH = CHỈ XEM, không chừa ô nào (07/09/2026). Cụm này là thứ đã chốt với khách ở
@@ -728,7 +731,9 @@ export function LsxDetailView({
                 thẳng lý do chứ không để nút mờ đi im lặng: nút disabled chỉ có tooltip, người dùng
                 bấm không ăn rồi tự đoán là hết quyền. Chip hiện ở MỌI tab nên đây cũng là chỗ báo
                 cái khoá cho ai đang đứng ở tab khác tab Thông số. */}
-            {canUpdate && d.trang_thai !== "san_sang" && (
+            {/* Lệnh đã lập kế hoạch / đã phát hành: máy chủ từ chối xoá (xưởng đang giữ gói việc,
+                có thể có lần gia công ngoài) — không bày nút chắc chắn bị trả về. */}
+            {canUpdate && d.trang_thai !== "san_sang" && !daQuaKeHoach && (
               giuCho ? (
                 <span
                   className="khsx-khoa-chip"
@@ -888,7 +893,7 @@ export function LsxDetailView({
               </div>
             )}
 
-            {d.trang_thai === "san_sang" ? (
+            {daQuaKeHoach ? null : d.trang_thai === "san_sang" ? (
               <Button variant="ghost" onClick={() => doiTrangThai("nhap")}>
                 Mở lại để sửa
               </Button>

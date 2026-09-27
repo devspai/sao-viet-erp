@@ -351,3 +351,18 @@ def test_kiem_cong_doan_bi_chan_tren_cv_gia_cong(sess, orders, lsx_svc, admin, c
     cv = _cv(sess, lsx_id, "Cán màng")
     with pytest.raises(ValueError, match="Gia công ngoài"):
         kcs.kiem_cong_doan(sess, user=kcs_user, cong_viec_id=cv.id, so_dat=10)
+
+
+def test_khong_xoa_duoc_lenh_da_phat_hanh(sess, orders, lsx_svc, admin, customer):
+    """E2E 27/09: nút "Xoá lệnh" còn hiện trên lệnh đã phát hành, máy chủ cho xoá ⇒ FK CASCADE
+    cuốn mất lần gia công (và mọi vết của nó). Lệnh đã phát hành phải thu hồi / huỷ trọn gói trước."""
+    from app.services.lsx_service import LsxConflict
+
+    lsx_id = dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, buoc=[
+        ("In", "may", None, 1000, "to"),
+        ("Cán màng", "thue_ngoai", ncc(sess), 1000, "to"),
+    ])
+    with pytest.raises(LsxConflict, match="phát hành"):
+        lsx_svc.xoa(lsx_id=lsx_id, actor=admin)
+    sess.rollback()
+    assert len(_lan(sess, lsx_id)) == 1
