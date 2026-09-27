@@ -92,14 +92,19 @@ def _go_kcs_va_nhom(db: Session, *, user, cuoi) -> None:
         nhom.version += 1
 
 
-def _go_kho(db: Session, *, user, gcn, cuoi) -> None:
+def _go_kho(db: Session, *, user, gcn, cuoi) -> list:
+    """Huỷ đề nghị nhập của lần chốt — trả các yêu cầu vừa huỷ để báo kho SAU commit."""
     req_repo = StockRequestRepository(db)
+    huy = []
     for req in GiaCongNgoaiRepository(db).yeu_cau_nhap_cua(gcn.id):
         req_repo.lock_for_update(req.id)
         if req_repo.co_voucher(req.id):
             raise ValueError(f"Kho đã lập phiếu cho đề nghị nhập {req.ma} — không mở lại được.")
-        req.trang_thai, req.ly_do_huy = REQ_CANCELLED, "Mở lại lần gia công ngoài"
+        if req.trang_thai != REQ_CANCELLED:
+            req.trang_thai, req.ly_do_huy = REQ_CANCELLED, "Mở lại lần gia công ngoài"
+            huy.append(req)
     _go_kcs_va_nhom(db, user=user, cuoi=cuoi)
+    return huy
 
 
 def _go_khach(db: Session, *, user, gcn, cuoi) -> None:
@@ -239,7 +244,7 @@ def mo_lai(db: Session, *, user, gcn_id: int, expected_version: int | None) -> d
     if not cvs:
         raise ValueError("Lần gia công không còn công việc nào — lệnh đã bị thu hồi?")
     cuoi = cvs[-1]
-    _GO[gcn.noi_ve](db, user=user, gcn=gcn, cuoi=cuoi)
+    yc_huy = _GO[gcn.noi_ve](db, user=user, gcn=gcn, cuoi=cuoi) or []
 
     sl_repo = SanXuatSanLuongRepository(db)
     for b in sl_repo.cac_batch(cuoi.id):
@@ -257,4 +262,6 @@ def mo_lai(db: Session, *, user, gcn_id: int, expected_version: int | None) -> d
         detail=f"Mở lại số chốt {so_cu:g} ({NHAN_NOI_VE[noi_cu]})", commit=False,
     )
     db.commit()
+    for req in yc_huy:
+        sx_kho.bao_yeu_cau_da_huy(db, req)
     return {"gia_cong_ngoai_id": gcn.id, "lsx_id": gcn.lsx_id}

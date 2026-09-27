@@ -156,6 +156,13 @@ class StockRequestService:
         self._notify(req, "Yêu cầu mới — chờ kho cấp", targeted=False)
         self._notif_kho_moi(req)  # lưu vào chuông thủ kho
 
+    def thong_bao_da_huy(self, req: StockRequest) -> None:
+        """Yêu cầu bị huỷ TỪ NGOÀI luồng kho (mở lại / huỷ gia công ngoài…) → badge "chờ cấp" của
+        thủ kho tụt NGAY, không đợi F5. Chỉ tín hiệu refetch (targeted=False): số giảm thì FE không
+        toast. Thiếu nó thì badge đứng số cũ, và lần tạo lại kế tiếp không làm số TĂNG so với mốc cũ
+        ⇒ mất luôn toast "có việc mới" (E2E 27/09/2026). Gọi SAU commit."""
+        self._notify(req, "Yêu cầu đã bị hủy", targeted=False)
+
     def create_dieu_chuyen(self, *, user, loai: str, kho_id: int, lines: list[dict],
                            dieu_chuyen: bool = True, kho_nguon_id: int | None = None,
                            xuat_voucher_id: int | None = None, ghi_chu: str | None = None,

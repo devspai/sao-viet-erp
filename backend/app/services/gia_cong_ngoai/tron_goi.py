@@ -150,12 +150,15 @@ def huy_tron_goi(db: Session, *, user, gcn_id: int, expected_version: int | None
     gc_repo = GiaCongNgoaiRepository(db)
     gcn = _lay_tron_goi(gc_repo, gcn_id, expected_version)
     req_repo = StockRequestRepository(db)
+    yc_huy = []
     for req in gc_repo.yeu_cau_xuat_cua(gcn.id):
         req_repo.lock_for_update(req.id)
         if req_repo.co_voucher(req.id):
             raise ValueError(f"Kho đã lập phiếu xuất giấy {req.ma} cho nhà gia công — không huỷ "
                              "được. Nhập trả giấy về kho trước.")
-        req.trang_thai, req.ly_do_huy = REQ_CANCELLED, "Huỷ gia công trọn gói"
+        if req.trang_thai != REQ_CANCELLED:
+            req.trang_thai, req.ly_do_huy = REQ_CANCELLED, "Huỷ gia công trọn gói"
+            yc_huy.append(req)
 
     uid = getattr(user, "id", None)
     # Đánh huỷ TRƯỚC khi thu hồi gói: `thu_hoi_goi` → `huy_lan_cua_goi` bỏ qua lần đã huỷ, nên
@@ -179,6 +182,9 @@ def huy_tron_goi(db: Session, *, user, gcn_id: int, expected_version: int | None
         detail=f"Huỷ trọn gói — lệnh {lsx.ma} về Nháp. Lý do: {ly_do}"[:500], commit=False,
     )
     db.commit()
+    # Badge "chờ cấp" của thủ kho tụt ngay khi đề nghị xuất giấy bị huỷ (không đợi F5).
+    for req in yc_huy:
+        _req_service(db, _hang_service(db)).thong_bao_da_huy(req)
 
     # Đặt trọn gói đã TẮT giữ chỗ (hoặc tắt rồi chỉ giữ giấy) — huỷ thì bật lại đúng như lúc chưa
     # đặt, cho lệnh về Nháp cân đối vật tư bình thường như mọi lệnh khác. `bat` tự commit.

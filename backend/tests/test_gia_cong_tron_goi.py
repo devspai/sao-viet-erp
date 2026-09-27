@@ -364,3 +364,37 @@ def test_giao_thang_khong_quy_doi_duoc_chi_duong_sua(sess, admin, lenh):
              sl_cuoi=100, noi_ve=NOI_VE_KHACH)
     msg = str(e.value)
     assert lenh.ma in msg and "tab Công đoạn" in msg and "Đơn hàng bán" in msg
+
+
+def _ghi_bao_huy(monkeypatch) -> list:
+    from app.services.stock_request_service import StockRequestService
+
+    goi: list = []
+    monkeypatch.setattr(StockRequestService, "thong_bao_da_huy", lambda self, req: goi.append(req.ma))
+    return goi
+
+
+def test_mo_lai_ve_kho_bao_kho_de_nghi_da_huy(sess, admin, lenh, monkeypatch):
+    """E2E 27/09/2026: mở lại lần đã chốt về kho huỷ đề nghị nhập mà kho không được báo — badge
+    "chờ cấp" đứng số cũ tới khi F5. Nay báo kho (sau commit) đúng đề nghị vừa huỷ."""
+    from app.services.gia_cong_ngoai.chot import mo_lai
+
+    goi = _ghi_bao_huy(monkeypatch)
+    lan = _dat(sess, admin, lenh)
+    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+         sl_cuoi=19_800, noi_ve=NOI_VE_KHO)
+    req = sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id, loai=REQ_NHAP).one()
+    sess.refresh(lan)
+    mo_lai(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
+    assert goi == [req.ma]
+
+
+def test_huy_tron_goi_bao_kho_de_nghi_xuat_giay_da_huy(sess, admin, lenh, monkeypatch):
+    goi = _ghi_bao_huy(monkeypatch)
+    them_giay(sess, lenh)
+    lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
+    de_nghi_xuat_giay(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
+    req = sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id, loai=REQ_XUAT).one()
+    sess.refresh(lan)
+    huy_tron_goi(sess, user=admin, gcn_id=lan.id, expected_version=lan.version, ly_do="đổi nhà")
+    assert goi == [req.ma]

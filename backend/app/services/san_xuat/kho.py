@@ -351,6 +351,12 @@ def bao_yeu_cau_nhap_moi(db: Session, req) -> None:
     phat_su_kien_kho(req, bao_nguoi_tao=False)
 
 
+def bao_yeu_cau_da_huy(db: Session, req) -> None:
+    """Đề nghị nhập/xuất bị huỷ từ phía sản xuất / gia công ngoài → báo kho + SSE. Gọi SAU commit."""
+    _req_service(db, _hang_service(db)).thong_bao_da_huy(req)
+    phat_su_kien_kho(req, bao_nguoi_tao=False)
+
+
 def tao_yeu_cau_nhap_kho_cong_doan(db: Session, *, user, cong_viec_id: int) -> dict:
     """Nút "Tạo yêu cầu nhập kho" trên công đoạn KCS cuối — server tự tính phần đạt chưa gửi, KHÔNG
     nhận số từ client. Khoá dòng các lần kiểm TRƯỚC khi đọc số và tạo yêu cầu bằng
