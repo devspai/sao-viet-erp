@@ -16,6 +16,7 @@ import { useAuth } from "../../auth/useAuth";
 import { Button } from "../../components/Button";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { nhanDonVi } from "../lsxBuoc";
+import { useNapTenDonVi } from "../tenDonVi";
 import { NHAN_NOI_VE, NHAN_TRANG_THAI, goiYChot, nutCuaLan, soNhanChia, tomTat } from "./giaCong";
 import "./giaCong.css";
 
@@ -46,6 +47,8 @@ export function GiaCongNgoaiPanel({
   const [chot, setChot] = useState<Record<number, FormChot>>({});
   const [slGui, setSlGui] = useState<Record<number, string>>({});
   const [huy, setHuy] = useState<{ lan: GiaCongNgoaiLan; lyDo: string } | null>(null);
+  // Mở thẳng màn Bài ghép (chưa màn nào nạp bảng đơn vị) thì `nhanDonVi` in mã trần "2.660 to".
+  useNapTenDonVi();
 
   const load = useCallback(() => {
     if (!token) return;
