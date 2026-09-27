@@ -46,7 +46,7 @@ class RoleInUse(RoleError):
 # dropdown Phạm vi ở nhóm này; ép `all` khi lưu để vai mới (mặc định `own`) không bị bó âm thầm
 # nếu sau này có ai bật lọc theo scope.
 #
-# 11 khoá danh mục lấy từ `catalog_registry` (thêm màn danh mục là tự có mặt ở đây, không phải
+# Các khoá danh mục lấy từ `catalog_registry` (thêm màn danh mục là tự có mặt ở đây, không phải
 # nhớ chép sang). Ngoài danh mục thì liệt kê tay bên dưới — registry chỉ nói về danh mục.
 SCOPELESS_MODULES = frozenset(MODULE_KEYS) | {
     # Kỹ thuật máy (12/08/2026): phiếu sửa chữa / bảo trì là việc chung của xưởng — không có khái

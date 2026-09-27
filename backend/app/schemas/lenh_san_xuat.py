@@ -192,7 +192,6 @@ class ThongSoOut(BaseModel):
     trang_moi_tay: int | None = None
     so_kem: int | None = None
     so_manh_xa: int | None = None
-    loai_san_pham: str | None = None
     ghi_chu_ky_thuat: str | None = None
     so_con: int = 1
     so_to_ke_hoach: int = 0

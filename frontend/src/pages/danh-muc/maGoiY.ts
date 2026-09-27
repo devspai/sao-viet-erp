@@ -4,7 +4,6 @@ import { crud } from "../../api/rebuildCatalog";
 import type { Row } from "./types";
 
 export function tienToMa(prefix: string): string {
-  if (prefix.includes("loai-san-pham")) return "LSP-";
   if (prefix.includes("may-thiet-bi")) return "TB-";
   if (prefix.includes("cong-doan")) return "CD-";
   if (prefix.endsWith("/kho")) return "KHO-";

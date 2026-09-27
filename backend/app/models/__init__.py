@@ -54,7 +54,6 @@ from .payroll import (
     SalaryAdvance,
 )
 from .piece_work import PieceRate
-from .product_type_catalog import ProductTypeCatalog
 from .purchase import (
     DepartmentPurchaseRequest,
     DepartmentPurchaseRequestLine,
@@ -93,7 +92,7 @@ from .user import User
 from .plate_die_rate import PlateDieRate
 from .norm import Norm
 from .may_thiet_bi import MayThietBi, NhomMay
-from .vat_lieu_kho import ChungLoaiGiay, GiayGiaVersion, GiayNguyen, VatTuInAn
+from .vat_lieu_kho import GiayGiaVersion, GiayNguyen, VatTuInAn
 from .cong_doan import (
     CongDoan, CongDoanKhoan, CongDoanKhoanPhatSinh, CongDoanMay, CongDoanTo, CongDoanVatTu,
 )
@@ -118,7 +117,6 @@ from .stock_lot import StockLot, StockThreshold
 from .stock_voucher import StockVoucher, StockVoucherAttachment, StockVoucherLine
 from .khuon_be import KhuonBe
 from .vat_tu_giu_cho import VatTuGiuCho
-from .loai_san_pham import LoaiSanPham
 from .phieu_tinh_gia import PhieuTinhGia, PhieuThanhPhan, PhieuThanhPham, SanPhamTaiBan
 from .nhom_dung_chung import NhomDungChung, NhomDungChungThanhVien
 from .lsx import Lsx, LsxCongDoan, LsxCongDoanVatTu, LsxCongDoanPhuThuoc, LsxDinhKem
@@ -214,7 +212,6 @@ __all__ = [
     "WorkCalendarConfig",
     "SpecialDay",
     "Customer",
-    "ProductTypeCatalog",
     "Supplier",
     "SupplierItem",
     "DepartmentPurchaseRequest",

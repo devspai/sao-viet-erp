@@ -23,11 +23,7 @@ def _headers(client) -> dict[str, str]:
 
 
 def _tao_giay(client, headers, **kw) -> dict:
-    cl = client.post("/api/vat-lieu-kho/chung-loai-giay", json=dict(ma="CL-LS1", ten="Couché"),
-                     headers=headers)
-    assert cl.status_code == 201, cl.text
-    payload = dict(ma="GI-LS1", ten="Giấy thử lịch sử", gsm=250, don_vi_gia="kg", don_gia=28000,
-                   chung_loai_giay_id=cl.json()["id"])
+    payload = dict(ma="GI-LS1", ten="Giấy thử lịch sử", gsm=250, don_vi_gia="kg", don_gia=28000)
     payload.update(kw)
     r = client.post(URL, json=payload, headers=headers)
     assert r.status_code == 201, r.text

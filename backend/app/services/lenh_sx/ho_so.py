@@ -205,7 +205,6 @@ def _thong_so(lsx: Lsx) -> dict:
         "trang_moi_tay": qc.get("trang_moi_tay"),
         "so_kem": qc.get("so_kem"),
         "so_manh_xa": qc.get("so_manh_xa"),
-        "loai_san_pham": qc.get("loai_san_pham_ten"),
         "ghi_chu_ky_thuat": qc.get("ghi_chu_ky_thuat"),
         # Bốn số DẪN XUẤT nằm trên cột thật của `lsx` (không trong JSON) — chuỗi ngược của engine
         # ghi vào đó, và bảng vật tư/bình bài đọc chính chúng.

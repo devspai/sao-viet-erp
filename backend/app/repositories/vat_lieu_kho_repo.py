@@ -1,4 +1,4 @@
-"""Repository — Danh mục Giấy & Vật tư (chủng loại giấy / giấy / vật tư in ấn). CRUD generic."""
+"""Repository — Danh mục Giấy & Vật tư (giấy / vật tư in ấn / thành phẩm). CRUD generic."""
 from __future__ import annotations
 
 from sqlalchemy import func, select
@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..models.customer import Customer
 from ..models.order import Order
-from ..models.vat_lieu_kho import ChungLoaiGiay, GiayGiaVersion, GiayNguyen, VatTuInAn
+from ..models.vat_lieu_kho import GiayGiaVersion, GiayNguyen, VatTuInAn
 from .catalog_base import CatalogRepo
 
 # Các trường "ảnh chụp" của 1 phiên bản giá giấy (khớp cột GiayGiaVersion + GiayNguyen).
@@ -16,15 +16,9 @@ VERSION_SNAPSHOT = ("kho_dai", "kho_rong", "gsm", "caliper_micron", "tho",
 
 # Cả ba tắt `commit_on_write`: `VatLieuKhoService` chốt SAU khi đã ghi nhật ký, để audit nổ thì
 # bản ghi cũng không lọt vào DB (xem `services/catalog_base`).
-class _ChungLoaiGiayRepo(CatalogRepo):
-    model = ChungLoaiGiay
-    fields = ("ten", "mo_ta", "active")
-    commit_on_write = False
-
-
 class _GiayRepo(CatalogRepo):
     model = GiayNguyen
-    fields = ("ten", "chung_loai_giay_id", "gsm", "caliper_micron",
+    fields = ("ten", "gsm", "caliper_micron",
               "tho", "don_vi_gia", "don_gia", "gia_thi_truong", "kho_tinh_gia", "ghi_chu",
               "active", "cong_thuc_gia", "cong_thuc_luong", "thay_the_ids")
     commit_on_write = False
@@ -94,7 +88,6 @@ class _ThanhPhamRepo(CatalogRepo):
 
 
 _REPOS = {
-    "chung_loai_giay": _ChungLoaiGiayRepo,
     "giay": _GiayRepo,
     "vat_tu": _VatTuRepo,
     "thanh_pham": _ThanhPhamRepo,
@@ -105,8 +98,8 @@ class VatLieuKhoRepository:
     """Ba danh mục một cửa — nơi gọi truyền `kind` thay vì cầm ba repo riêng.
 
     KHÔNG kế thừa `CatalogRepo`: nền đó buộc MỘT model cho cả lớp, còn ở đây model đổi theo
-    TỪNG lời gọi (router `_make_crud` sinh CRUD cho ba đường `/chung-loai-giay`, `/giay`,
-    `/vat-tu-in-an`). Nên lớp này giữ nguyên chữ ký có `kind` và ủy quyền xuống ba repo con —
+    TỪNG lời gọi (router `_make_crud` sinh CRUD cho các đường `/giay`,
+    `/vat-tu-in-an`, `/thanh-pham`). Nên lớp này giữ nguyên chữ ký có `kind` và ủy quyền xuống ba repo con —
     phần thân CRUD vẫn dùng chung một bản ở `catalog_base`, không chép lại lần thứ ba.
     """
 

@@ -31,7 +31,6 @@ from .repositories.employee_repo import EmployeeRepository
 from .repositories.noi_quy_repo import NoiQuyRepository
 from .repositories.machine_repo import MachineRepository
 from .repositories.operation_repo import OperationRepository
-from .repositories.product_type_catalog_repo import ProductTypeCatalogRepository
 from .repositories.purchase_repo import (
     DepartmentPurchaseRequestRepository,
     PurchaseRequestRepository,
@@ -71,7 +70,6 @@ from .services.employee_service import EmployeeService
 from .services.noi_quy_service import NoiQuyService
 from .services.machine_service import MachineService
 from .services.operation_service import OperationService
-from .services.product_type_catalog_service import ProductTypeCatalogService
 from .services.purchase_service import PurchaseService
 from .services.quotation_service import QuotationService
 from .services.order_service import OrderService
@@ -727,21 +725,6 @@ def require_all_permissions(*grants: tuple[str, str]):
         return user
 
     return dependency
-
-
-def get_product_type_catalog_repository(
-    db: Annotated[Session, Depends(get_db)],
-) -> ProductTypeCatalogRepository:
-    return ProductTypeCatalogRepository(db)
-
-
-def get_product_type_catalog_service(
-    repo: Annotated[
-        ProductTypeCatalogRepository, Depends(get_product_type_catalog_repository)
-    ],
-    audit: Annotated[AuditLogRepository, Depends(get_audit_repository)],
-) -> ProductTypeCatalogService:
-    return ProductTypeCatalogService(repo, audit)
 
 
 def get_supplier_repository(

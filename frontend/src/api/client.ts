@@ -3802,7 +3802,6 @@ export interface PhieuTinhGiaListItem {
   id: number;
   ma: string;
   ten_san_pham: string;
-  loai_san_pham_id: number | null;
   kho_thanh_pham: string | null;
   /** Σ SL CÁC SẢN PHẨM bên trong phiếu (BE tính lại) — không phải ô SL mặc định ở đầu phiếu.
    *  Đây là số mà `gia_von_don` đang chia, nên SL × giá vốn/đơn = tổng giá vốn. */
@@ -3877,7 +3876,6 @@ export interface ThanhPhanOut {
   trang_moi_tay: number; // số trang mỗi tay gấp (tờ rời = 1)
   so_luong: number; // SL đặt của sản phẩm này (0 = lấy SL mặc định phiếu)
   don_vi_tinh: string; // ĐVT sản phẩm (text tự do, mặc định "cái") → chảy sang Báo giá
-  loai_san_pham_id: number | null; // loại SP của sản phẩm này
   // Giấy in
   giay_id: number | null;
   kho_nguyen: string | null; // ① nhãn hiển thị
@@ -3949,7 +3947,6 @@ export interface PhieuTinhGiaOut {
   ma: string;
   ten_san_pham: string;
   kho_thanh_pham: string | null;
-  loai_san_pham_id: number | null;
   so_luong: number;
   tong_gia_von: number;
   gia_von_don: number;
@@ -4008,7 +4005,6 @@ export interface ThanhPhanIn {
   trang_moi_tay?: number;
   so_luong?: number; // SL đặt của sản phẩm này (0 = SL mặc định phiếu)
   don_vi_tinh?: string | null; // ĐVT sản phẩm (text tự do)
-  loai_san_pham_id?: number | null; // loại SP của sản phẩm này
   giay_id?: number | null;
   kho_nguyen?: string | null;
   kho_nguyen_dai?: number;
@@ -4069,7 +4065,6 @@ export interface VatTuLineIn {
 export interface PhieuTinhGiaCreate {
   ten_san_pham?: string;
   kho_thanh_pham?: string | null;
-  loai_san_pham_id?: number | null;
   so_luong?: number;
   ghi_chu?: string | null;
   thanh_phans?: ThanhPhanIn[];
@@ -8002,7 +7997,6 @@ export interface AnPhamChiTiet {
   // giấy (đã resolve tên + chủng loại)
   giay_id: number | null;
   giay_ten: string | null;
-  chung_loai_ten: string | null;
   gsm: number | null;
   kho_nguyen: string | null;
   kho_nguyen_dai: number;
@@ -8882,7 +8876,6 @@ export interface LenhSxThongSo {
   trang_moi_tay: number | null;
   so_kem: number | null;
   so_manh_xa: number | null;
-  loai_san_pham: string | null;
   ghi_chu_ky_thuat: string | null;
   so_con: number;
   so_to_ke_hoach: number;

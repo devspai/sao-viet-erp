@@ -29,8 +29,7 @@ def _svc():
 
 
 def _giay(svc, **kw):
-    cl = svc.create("chung_loai_giay", dict(ma="COUCHE", ten="Couché"), actor_id=7)
-    data = dict(ma="C100", ten="Couché 100 79×109", chung_loai_giay_id=cl.id,
+    data = dict(ma="C100", ten="Couché 100 79×109",
                 kho_dai=1090, kho_rong=790, gsm=100, don_vi_gia="kg", don_gia=27800)
     data.update(kw)
     return svc.create("giay", data, actor_id=7)
@@ -41,7 +40,6 @@ def test_sua_don_gia_ghi_ro_tu_bao_nhieu_sang_bao_nhieu():
     db, audit, svc = _svc()
     g = _giay(svc)
     svc.update("giay", g.id, dict(ma="C100", ten="Couché 100 79×109",
-                                  chung_loai_giay_id=g.chung_loai_giay_id,
                                   kho_dai=1090, kho_rong=790, gsm=100,
                                   don_vi_gia="kg", don_gia=29000), actor_id=7)
 
@@ -56,7 +54,6 @@ def test_mot_lan_luu_nhieu_truong_van_la_mot_muc():
     db, audit, svc = _svc()
     g = _giay(svc)
     svc.update("giay", g.id, dict(ma="C100", ten="Couché 100 79×109",
-                                  chung_loai_giay_id=g.chung_loai_giay_id,
                                   kho_dai=1090, kho_rong=790, gsm=120,
                                   don_vi_gia="kg", don_gia=29000), actor_id=7)
 
@@ -69,7 +66,7 @@ def test_mot_lan_luu_nhieu_truong_van_la_mot_muc():
 def test_bam_luu_ma_khong_doi_gi_thi_khong_de_ra_dong_rong():
     db, audit, svc = _svc()
     g = _giay(svc)
-    nguyen_ven = dict(ma="C100", ten="Couché 100 79×109", chung_loai_giay_id=g.chung_loai_giay_id,
+    nguyen_ven = dict(ma="C100", ten="Couché 100 79×109",
                       kho_dai=1090, kho_rong=790, gsm=100, don_vi_gia="kg", don_gia=27800)
     svc.update("giay", g.id, nguyen_ven, actor_id=7)
 

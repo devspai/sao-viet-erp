@@ -16,8 +16,7 @@ from sqlalchemy import select, text
 sys.path.insert(0, ".")
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.models.cong_doan import CongDoan  # noqa: E402
-from app.models.loai_san_pham import LoaiSanPham  # noqa: E402
-from app.models.vat_lieu_kho import ChungLoaiGiay, GiayNguyen  # noqa: E402
+from app.models.vat_lieu_kho import GiayNguyen  # noqa: E402
 from app.models.phieu_tinh_gia import PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia  # noqa: E402
 from app.services.tinh_gia_service import compute_phieu_snapshot  # noqa: E402
 
@@ -47,11 +46,10 @@ def main():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        # ── 1. Chủng loại + Giấy D250 khổ 44,5×64 (mua theo cân, 17.100đ/kg) ──────────
-        cl = get_or_create(db, ChungLoaiGiay, "DUPLEX", ten="Duplex (2 mặt: 1 bóng 1 xám)")
+        # ── 1. Giấy D250 khổ 44,5×64 (mua theo cân, 17.100đ/kg) ──────────────────────────
         giay = get_or_create(
             db, GiayNguyen, "D250-BOI-44.5x64",
-            ten="Giấy D250 bồi 44,5×64 (17.100đ/kg)", chung_loai_giay_id=cl.id, gsm=250,
+            ten="Giấy D250 bồi 44,5×64 (17.100đ/kg)", gsm=250,
             kho_rong=445, kho_dai=640, tho="canh_dai", don_vi_gia="kg", don_gia=17100,
             cong_thuc_gia=WEIGHT,
         )
@@ -77,16 +75,9 @@ def main():
         c_dong = cdb("CDB-DONG-GOI", "Đóng gói (/sp)", "finishing", "so_luong * don_gia", 50)
         c_gh = cdb("CDB-GH", "Giao hàng (khoán chuyến)", "finishing", "don_gia", 800000)
 
-        # ── 3. Loại sản phẩm ─────────────────────────────────────────────────────────
-        lsp = get_or_create(
-            db, LoaiSanPham, "LSP-HOP-BOI", ten="Hộp bồi sóng E (ghép bài)",
-            structural_type="box", box_sub_type="corrugated",
-            routing_template=[c_in.id, c_can.id, c_song.id, c_boi.id, c_khuon.id,
-                              c_be.id, c_dan.id, c_dong.id, c_gh.id],
-        )
         db.commit()
 
-        # ── 4. Phiếu PTG-2026-0006 (xoá bản cũ SẠCH — SQLite không cascade FK, phải xoá con
+        # ── 3. Phiếu PTG-2026-0006 (xoá bản cũ SẠCH — SQLite không cascade FK, phải xoá con
         #       tường minh theo thứ tự: thành phẩm/vật tư → thành phần → phiếu) ───────────────
         ph_ids = [r[0] for r in db.execute(
             text("SELECT id FROM phieu_tinh_gia WHERE ma = 'PTG-2026-0006'"))]
@@ -106,12 +97,12 @@ def main():
             ma="PTG-2026-0006",
             ten_san_pham="Hộp bộ đôi Đậu trái Italy + Rổ bông (ghép bài)",
             kho_thanh_pham="130×67×145 + 73×73×233 mm (mỗi loại 2000)",
-            so_luong=4000, loai_san_pham_id=lsp.id, ktv="Sếp Sơn",
+            so_luong=4000, ktv="Sếp Sơn",
             ghi_chu="Báo giá gốc (Excel): giá vốn 3.001đ/sp · nhận 10% → 3.301 · duyệt 3.300. "
                     "Đóng gói + Giao hàng tính như công đoạn sau in.",
         )
         tp = PhieuThanhPhan(
-            thu_tu=0, ten="Hộp bộ đôi (ghép 2 con/tờ)", loai_san_pham_id=lsp.id,
+            thu_tu=0, ten="Hộp bộ đôi (ghép 2 con/tờ)",
             giay_id=giay.id, quy_cach_in="mot_mat", so_mau_a=4, so_mau_b=0,
             kho_nguyen_dai=640, kho_nguyen_rong=445,  # khổ giấy nguyên 44,5×64 (nhập trên phiếu, đè danh mục)
             kho_in_dai=640, kho_in_rong=435,          # khổ tờ in 43,5×64
@@ -136,7 +127,7 @@ def main():
         res = compute_phieu_snapshot(db, p)
         db.commit()
 
-        # ── 5. In kết quả để soi ─────────────────────────────────────────────────────
+        # ── 4. In kết quả để soi ─────────────────────────────────────────────────────
         m = res["meta"]
         comp = m["components"][0]
         print("=" * 90)

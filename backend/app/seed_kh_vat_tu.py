@@ -49,7 +49,6 @@ from sqlalchemy.orm import Session
 
 from .models.customer import Customer
 from .models.kho_hang import KhoHang
-from .models.loai_san_pham import LoaiSanPham
 from .models.lsx import TT_NHAP, TT_SAN_SANG, Lsx, LsxCongDoanVatTu
 from .models.phieu_tinh_gia import PhieuThanhPhan, PhieuTinhGia
 from .models.purchase import PR_APPROVED, PurchaseRequest, PurchaseRequestLine, Supplier
@@ -153,11 +152,11 @@ def _ncc(db: Session) -> dict[str, Supplier]:
 
 
 def _tao_phieu(db: Session, *, cd: dict[str, int], sale_id: int | None, sale_ten: str,
-               lsp_id: int | None, created) -> PhieuTinhGia:
+               created) -> PhieuTinhGia:
     """1 phiếu 5 sản phẩm — mỗi sản phẩm sẽ thành 1 lệnh, mỗi lệnh là 1 ca của bảng cân đối."""
     p = PhieuTinhGia(
         ma=_ma_phieu(db, created), ten_san_pham=TEN_PHIEU_VT,
-        kho_thanh_pham="A4 · A3 · tem 40×25mm", loai_san_pham_id=lsp_id,
+        kho_thanh_pham="A4 · A3 · tem 40×25mm",
         so_luong=20000, ktv=sale_ten, created_by=sale_id,
         ghi_chu="Gói khai trương chi nhánh Bình Dương: tờ hướng dẫn, tờ rơi phát tay, thực đơn, "
                 "bảng giá treo và tem dán quà tặng. Giao 2 đợt theo lịch khai trương.",
@@ -169,7 +168,7 @@ def _tao_phieu(db: Session, *, cd: dict[str, int], sale_id: int | None, sale_ten
         tp = PhieuThanhPhan(
             thu_tu=thu_tu, loai_thanh_phan="to_roi", ten=ten,
             dai_thanh_pham=dai, rong_thanh_pham=rong,
-            so_to_per_sp=1, so_luong=sl, don_vi_tinh=dvt, loai_san_pham_id=lsp_id,
+            so_to_per_sp=1, so_luong=sl, don_vi_tinh=dvt,
             giay_id=(g.id if g else None), kho_nguyen=f"{kn_rong}×{kn_dai}",
             kho_nguyen_dai=kn_dai, kho_nguyen_rong=kn_rong, nguon_giay="cong_ty",
             bleed_mm=3, co_in=True,
@@ -306,14 +305,11 @@ def seed_kh_vat_tu(db: Session) -> None:
     ncc = _ncc(db)
     now = _utcnow()
     hom_nay = now.date()
-    lsp = db.execute(
-        select(LoaiSanPham).where(LoaiSanPham.ma == "LSP-0002")
-    ).scalars().first()
 
     # ══ PHA A — luồng thương mại thật → 5 lệnh sản xuất ═══════════════════════════════════════
     ptg = _tao_phieu(
         db, cd=cd, sale_id=sale.id, sale_ten=f"{sale.name or sale.username} (Kinh doanh)",
-        lsp_id=(lsp.id if lsp else None), created=now - timedelta(days=8),
+        created=now - timedelta(days=8),
     )
     tp_theo_khoa = {sp[0]: tp.id for sp, tp in zip(_SAN_PHAM, ptg.thanh_phans)}
     quote, version = _tao_bao_gia(

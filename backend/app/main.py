@@ -31,7 +31,6 @@ from .routers import (
     files,
     machines,
     operations,
-    product_types_catalog,
     purchases,
     noi_quy,
     profile,
@@ -52,7 +51,6 @@ from .routers import (
     kho_voucher,
     public_scan,
     khuon_be,
-    loai_san_pham,
     danh_muc_xoa,
     nhat_ky_danh_muc,
     nhom_dung_chung,
@@ -181,7 +179,6 @@ app.include_router(payroll.router)
 app.include_router(quotations.router)
 app.include_router(orders.router)
 app.include_router(bao_cao_kinh_doanh.router)
-app.include_router(product_types_catalog.router)
 app.include_router(purchases.router)
 app.include_router(accounting.router)
 app.include_router(module_notifications.router)
@@ -214,7 +211,6 @@ app.include_router(notifications.router)
 app.include_router(public_scan.router)
 app.include_router(kho.router)
 app.include_router(khuon_be.router)
-app.include_router(loai_san_pham.router)
 app.include_router(nhat_ky_danh_muc.router)   # nhật ký 1 bản ghi — chung cho 11 màn danh mục
 app.include_router(danh_muc_xoa.router)       # "còn ai dùng không" — chung cho 9 màn danh mục
 app.include_router(tinh_gia.router)

@@ -46,7 +46,7 @@ const HOSO: LenhSxHoSoOut = {
     dai_thanh_pham: 120, rong_thanh_pham: 80, quy_cach_in: "hai_mat",
     so_mau_a: 4, so_mau_b: 1, muc_a: ["C", "M", "Y", "K"], muc_b: ["K"],
     so_trang: null, trang_moi_tay: null, so_kem: 5, so_manh_xa: 0,
-    loai_san_pham: "Hộp giấy", ghi_chu_ky_thuat: "Bế theo khuôn cũ",
+    ghi_chu_ky_thuat: "Bế theo khuôn cũ",
     so_con: 8, so_to_ke_hoach: 1580, so_to_nguyen: 1600, don_vi_tinh: "cái",
   },
   routing: {

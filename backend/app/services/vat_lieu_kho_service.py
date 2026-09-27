@@ -125,15 +125,11 @@ class VatLieuKhoService:
         if not (data.get("ten") or "").strip():
             raise VatLieuKhoValidationError("Tên không được trống.")
         self._don_vi_ve_ma(data)
-        # `chung_loai_giay` không còn ô nào cần kiểm ngoài mã/tên (gỡ `be_mat`/`tho_mac_dinh`
-        # 15/08/2026) — nhánh riêng của nó bỏ luôn, đừng để lại `if` rỗng.
         # `thanh_pham` KHÔNG có cổng Khách hàng (21/08/2026): ô đó đã bỏ vì thành phẩm là một CÁI
         # TÊN dùng lại, không thuộc về ai. Công tắc màn nay là `la_thanh_pham`, do lớp
         # `MotDanhMucVatLieu` đặt lúc tạo — người dùng không khai. Đơn vị thì CÓ cổng, xem nhánh
         # `elif` bên dưới.
         if kind == "giay":
-            if not data.get("chung_loai_giay_id"):
-                raise VatLieuKhoValidationError("Phải chọn Chủng loại giấy.")
             if _f(data.get("gsm")) <= 0:
                 raise VatLieuKhoValidationError("GSM phải > 0.")
             self._kiem_don_vi(data.get("don_vi_gia"), "Đơn vị tính",

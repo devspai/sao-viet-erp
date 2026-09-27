@@ -17,8 +17,7 @@ from sqlalchemy import delete
 sys.path.insert(0, ".")
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.models.cong_doan import CongDoan  # noqa: E402
-from app.models.loai_san_pham import LoaiSanPham  # noqa: E402
-from app.models.vat_lieu_kho import ChungLoaiGiay, GiayNguyen, VatTuInAn  # noqa: E402
+from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn  # noqa: E402
 from app.models.phieu_tinh_gia import PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia, PhieuVatTu  # noqa: E402
 from app.services.tinh_gia_service import compute_phieu_snapshot  # noqa: E402
 
@@ -36,25 +35,14 @@ def _vi(n) -> str:
 def wipe(db):
     # Con → cha (FK cascade thật ở phiếu); catalog xoá thẳng (soft-FK).
     for model in (PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia,
-                  GiayNguyen, ChungLoaiGiay, VatTuInAn,
-                  CongDoan, LoaiSanPham):
+                  GiayNguyen, VatTuInAn,
+                  CongDoan):
         db.execute(delete(model))
     db.commit()
 
 
 def seed_giay(db):
-    cls = [
-        ChungLoaiGiay(ma="COUCHE", ten="Couché", mo_ta="Tráng phủ 2 mặt, bóng."),
-        ChungLoaiGiay(ma="FORD", ten="Ford (giấy in thường)"),
-        ChungLoaiGiay(ma="IVORY", ten="Ivory (bìa 1 mặt bóng)"),
-        ChungLoaiGiay(ma="DUPLEX", ten="Duplex (2 mặt: 1 bóng 1 xám)"),
-        ChungLoaiGiay(ma="BRISTOL", ten="Bristol"),
-        ChungLoaiGiay(ma="KRAFT", ten="Kraft (giấy nâu)"),
-    ]
-    db.add_all(cls)
-    db.flush()
-    clid = {c.ma: c.id for c in cls}
-    # (ma, ten, chủng loại, gsm, rộng mm, dài mm, đ/kg)
+    # (ma, ten, chủng loại (chỉ để đọc), gsm, rộng mm, dài mm, đ/kg)
     G = [
         ("COUCHE-120-79x109", "Couché C120 79×109", "COUCHE", 120, 790, 1090, 28000),
         ("COUCHE-150-79x109", "Couché C150 79×109", "COUCHE", 150, 790, 1090, 28000),
@@ -71,7 +59,7 @@ def seed_giay(db):
         ("BRISTOL-230-79x109", "Bristol 230 79×109", "BRISTOL", 230, 790, 1090, 30000),
         ("KRAFT-150-79x109", "Kraft 150 79×109", "KRAFT", 150, 790, 1090, 22000),
     ]
-    giay = [GiayNguyen(ma=ma, ten=ten, chung_loai_giay_id=clid[cl], gsm=gsm,
+    giay = [GiayNguyen(ma=ma, ten=ten, gsm=gsm,
                        kho_rong=r, kho_dai=d, tho="canh_dai", don_vi_gia="kg", don_gia=dg,
                        cong_thuc_gia=WEIGHT) for ma, ten, cl, gsm, r, d, dg in G]
     db.add_all(giay)
@@ -150,34 +138,6 @@ def seed_cong_doan(db):
     return {c.ma: c.id for c in objs}
 
 
-def seed_loai_sp(db, cd):
-    def rt(*mas):
-        return [cd[m] for m in mas]
-
-    L = [
-        LoaiSanPham(ma="LSP-0001", ten="Name card", structural_type="flat",
-                    routing_template=rt("CD-0001", "CD-0002", "CD-0003", "CD-0006", "CD-0008")),
-        LoaiSanPham(ma="LSP-0002", ten="Tờ rơi / brochure gấp", structural_type="flat",
-                    routing_template=rt("CD-0001", "CD-0002", "CD-0009")),
-        LoaiSanPham(ma="LSP-0003", ten="Catalogue đóng keo", structural_type="multipage",
-                    has_cover=True, cover_type="bia_roi", default_binding="keo",
-                    routing_template=rt("CD-0001", "CD-0002", "CD-0010")),
-        LoaiSanPham(ma="LSP-0004", ten="Sách đóng ghim", structural_type="multipage",
-                    has_cover=True, cover_type="tu_bia", default_binding="ghim",
-                    routing_template=rt("CD-0001", "CD-0002")),
-        LoaiSanPham(ma="LSP-0005", ten="Hộp giấy Ivory", structural_type="box",
-                    box_sub_type="folding_carton",
-                    routing_template=rt("CD-0001", "CD-0002", "CD-0004", "CD-0006", "CD-0008")),
-        LoaiSanPham(ma="LSP-0006", ten="Thùng carton sóng", structural_type="box",
-                    box_sub_type="corrugated", routing_template=rt("CD-0005", "CD-0006")),
-        LoaiSanPham(ma="LSP-0007", ten="Tem decal cuộn", structural_type="label",
-                    routing_template=rt("CD-0001", "CD-0002", "CD-0006")),
-    ]
-    db.add_all(L)
-    db.flush()
-    return {x.ma: x.id for x in L}
-
-
 def _row(cd_id, ten, thu_tu, bu_hao=False, so_mat=1, so_vi_tri=0):
     return PhieuThanhPham(thu_tu=thu_tu, cong_doan_id=cd_id, ten=ten, don_gia=0,
                           bu_hao=bu_hao, so_mat=so_mat, so_vi_tri=so_vi_tri)
@@ -188,15 +148,15 @@ def _vt(vt_id, ten, thu_tu=0):
     return PhieuVatTu(thu_tu=thu_tu, vat_tu_id=vt_id, ten=ten, don_gia=0)
 
 
-def seed_phieu(db, giay, vt, cd, lsp):
+def seed_phieu(db, giay, vt, cd):
     phieus = []
     muc = vt["MUC-CMYK"]
 
     # ── PHIẾU 1: Name card 4/4 cán bóng 1 mặt + bế ─────────────────────────────
     p1 = PhieuTinhGia(ma="PTG-2026-0001", ten_san_pham="Name card 4/4 cán bóng, bế bo góc",
-                      kho_thanh_pham="9×5,4 cm", so_luong=4000, loai_san_pham_id=lsp["LSP-0001"],
+                      kho_thanh_pham="9×5,4 cm", so_luong=4000,
                       ktv="Kỹ thuật A")
-    tp = PhieuThanhPhan(thu_tu=0, ten="Danh thiếp", loai_san_pham_id=lsp["LSP-0001"],
+    tp = PhieuThanhPhan(thu_tu=0, ten="Danh thiếp",
                         giay_id=giay["COUCHE-300-65x86"], quy_cach_in="hai_mat",
                         so_mau_a=4, so_mau_b=4, dai_thanh_pham=90, rong_thanh_pham=54, con_auto=True)
     tp.thanh_phams = [
@@ -212,9 +172,9 @@ def seed_phieu(db, giay, vt, cd, lsp):
 
     # ── PHIẾU 2: Tờ rơi A5 4/4 gấp đôi ─────────────────────────────────────────
     p2 = PhieuTinhGia(ma="PTG-2026-0002", ten_san_pham="Tờ rơi A5 4/4 gấp đôi",
-                      kho_thanh_pham="A5 (14,8×21 cm)", so_luong=20000, loai_san_pham_id=lsp["LSP-0002"],
+                      kho_thanh_pham="A5 (14,8×21 cm)", so_luong=20000,
                       ktv="Kỹ thuật A")
-    tp = PhieuThanhPhan(thu_tu=0, ten="Tờ rơi", loai_san_pham_id=lsp["LSP-0002"],
+    tp = PhieuThanhPhan(thu_tu=0, ten="Tờ rơi",
                         giay_id=giay["COUCHE-150-79x109"], quy_cach_in="hai_mat",
                         so_mau_a=4, so_mau_b=4, dai_thanh_pham=210, rong_thanh_pham=148, con_auto=True)
     tp.thanh_phams = [
@@ -229,8 +189,8 @@ def seed_phieu(db, giay, vt, cd, lsp):
     # ── PHIẾU 3: Hộp giấy Ivory 300 in 4/0 cán bóng + bế ───────────────────────
     p3 = PhieuTinhGia(ma="PTG-2026-0003", ten_san_pham="Hộp giấy Ivory 300 — 4/0 cán bóng, bế",
                       kho_thanh_pham="Hộp gấp (trải 38×25 cm)", so_luong=10000,
-                      loai_san_pham_id=lsp["LSP-0005"], ktv="Kỹ thuật B")
-    tp = PhieuThanhPhan(thu_tu=0, ten="Vỏ hộp", loai_san_pham_id=lsp["LSP-0005"],
+                      ktv="Kỹ thuật B")
+    tp = PhieuThanhPhan(thu_tu=0, ten="Vỏ hộp",
                         giay_id=giay["IVORY-300-79x109"], quy_cach_in="mot_mat",
                         so_mau_a=4, so_mau_b=0, dai_thanh_pham=380, rong_thanh_pham=250, con_auto=True)
     tp.thanh_phams = [
@@ -247,15 +207,15 @@ def seed_phieu(db, giay, vt, cd, lsp):
     # ── PHIẾU 4: Catalogue — GỘP 2 SẢN PHẨM (ruột + bìa) ───────────────────────
     p4 = PhieuTinhGia(ma="PTG-2026-0004", ten_san_pham="Catalogue A4 — ruột + bìa (đóng keo)",
                       kho_thanh_pham="A4 (21×29,7 cm)", so_luong=3000,
-                      loai_san_pham_id=lsp["LSP-0003"], ktv="Kỹ thuật B")
-    ruot = PhieuThanhPhan(thu_tu=0, ten="Ruột", loai_san_pham_id=lsp["LSP-0003"],
+                      ktv="Kỹ thuật B")
+    ruot = PhieuThanhPhan(thu_tu=0, ten="Ruột",
                           giay_id=giay["COUCHE-150-79x109"], quy_cach_in="hai_mat",
                           so_mau_a=4, so_mau_b=4, dai_thanh_pham=297, rong_thanh_pham=210, con_auto=True)
     ruot.thanh_phams = [
         _row(cd["CD-0001"], "Ghi kẽm CTP (ruột)", 0),
         _row(cd["CD-0002"], "In offset 4/4 (ruột)", 1, bu_hao=True),
     ]
-    bia = PhieuThanhPhan(thu_tu=1, ten="Bìa", loai_san_pham_id=lsp["LSP-0003"],
+    bia = PhieuThanhPhan(thu_tu=1, ten="Bìa",
                          giay_id=giay["COUCHE-300-65x86"], quy_cach_in="hai_mat",
                          so_mau_a=4, so_mau_b=4, dai_thanh_pham=440, rong_thanh_pham=310, con_auto=True)
     bia.thanh_phams = [
@@ -270,9 +230,9 @@ def seed_phieu(db, giay, vt, cd, lsp):
 
     # ── PHIẾU 5: Thiệp cưới ép kim + cán mờ ────────────────────────────────────
     p5 = PhieuTinhGia(ma="PTG-2026-0005", ten_san_pham="Thiệp cưới 4/4 cán mờ, ép kim 1 vị trí",
-                      kho_thanh_pham="20×14 cm", so_luong=1000, loai_san_pham_id=lsp["LSP-0001"],
+                      kho_thanh_pham="20×14 cm", so_luong=1000,
                       ktv="Kỹ thuật A")
-    tp = PhieuThanhPhan(thu_tu=0, ten="Thiệp", loai_san_pham_id=lsp["LSP-0001"],
+    tp = PhieuThanhPhan(thu_tu=0, ten="Thiệp",
                         giay_id=giay["COUCHE-300-65x86"], quy_cach_in="hai_mat",
                         so_mau_a=4, so_mau_b=4, dai_thanh_pham=200, rong_thanh_pham=140, con_auto=True)
     tp.thanh_phams = [
@@ -326,11 +286,10 @@ def main():
         giay = seed_giay(db)
         vt = seed_vat_tu(db)
         cd = seed_cong_doan(db)
-        lsp = seed_loai_sp(db, cd)
         db.commit()
-        phieus = seed_phieu(db, giay, vt, cd, lsp)
+        phieus = seed_phieu(db, giay, vt, cd)
         print(f"✔ Reseed xong: {len(giay)} giấy · {len(vt)} vật tư · {len(cd)} công đoạn · "
-              f"{len(bh)} bù hao · {len(lsp)} loại SP · {len(phieus)} phiếu")
+              f"{len(phieus)} phiếu")
         dump(phieus)
     finally:
         db.close()

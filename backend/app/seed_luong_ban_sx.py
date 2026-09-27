@@ -28,7 +28,6 @@ from sqlalchemy.orm import Session
 from .models.cong_doan import CongDoan
 from .models.customer import Customer
 from .models.khuon_be import KhuonBe
-from .models.loai_san_pham import LoaiSanPham
 from .models.may_thiet_bi import MayThietBi
 from .models.phieu_tinh_gia import PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia
 from .models.vat_lieu_kho import GiayNguyen
@@ -249,17 +248,6 @@ def _ensure_don_gia_khoan(db: Session) -> None:
 #    chọn việc lúc ghi mẻ.
 
 
-def _ensure_loai_the(
-db: Session) -> int | None:
-    """Loại sản phẩm 'Thẻ nhân viên' (idempotent theo mã) — thẻ không phải name card."""
-    lsp = db.execute(select(LoaiSanPham).where(LoaiSanPham.ma == "LSP-0008")).scalars().first()
-    if lsp is None:
-        lsp = LoaiSanPham(ma="LSP-0008", ten="Thẻ nhân viên", structural_type="flat")
-        db.add(lsp)
-        db.flush()
-    return lsp.id
-
-
 def _ensure_khuon_the(db: Session, khach_ten: str | None) -> int | None:
     """Một dòng mẫu cho KHO KHUÔN — nay chỉ để danh mục có dữ liệu xem, không lệnh nào trỏ tới.
 
@@ -293,8 +281,7 @@ def _buoc(cd: dict[str, int], ma: str, ten: str, thu_tu: int, *, so_mat: int = 1
 
 
 def _tao_phieu_tinh_gia(db: Session, *, cd: dict[str, int], sale_id: int | None,
-                        sale_ten: str, lsp_sach_id: int | None,
-                        lsp_the_id: int | None, created: datetime) -> PhieuTinhGia:
+                        sale_ten: str, created: datetime) -> PhieuTinhGia:
     """Phiếu tính giá 3 sản phẩm. Khổ ①②③ + chừa + bù hao khai như sale thật khai trên phiếu."""
     ford70 = _giay(db, "FORD-70-65x86")
     couche300 = _giay(db, "COUCHE-300-65x86")
@@ -305,7 +292,6 @@ def _tao_phieu_tinh_gia(db: Session, *, cd: dict[str, int], sale_id: int | None,
         ma=_ma_phieu(db, created),
         ten_san_pham=TEN_PHIEU,
         kho_thanh_pham="Sách 14,5×20,5 cm · thẻ 5,4×8,6 cm",
-        loai_san_pham_id=lsp_sach_id,
         so_luong=SL_SACH,
         ktv=sale_ten,
         created_by=sale_id,
@@ -321,7 +307,6 @@ def _tao_phieu_tinh_gia(db: Session, *, cd: dict[str, int], sale_id: int | None,
         dai_thanh_pham=205, rong_thanh_pham=145,
         so_trang=160, trang_moi_tay=32,
         so_luong=SL_SACH, don_vi_tinh="cuốn", nhom_bao_gia=NHOM_SACH,
-        loai_san_pham_id=lsp_sach_id,
         giay_id=(ford70.id if ford70 else None), kho_nguyen="650×860",
         kho_nguyen_dai=860, kho_nguyen_rong=650, nguon_giay="cong_ty",
         # Chừa tờ in KHÔNG khai ở phiếu nữa — engine lấy theo danh mục Máy (nhíp/lề hông/đuôi).
@@ -349,7 +334,6 @@ def _tao_phieu_tinh_gia(db: Session, *, cd: dict[str, int], sale_id: int | None,
         thu_tu=1, loai_thanh_phan="bia", ten="Bìa sách (bìa rời, cán màng mờ)",
         dai_thanh_pham=300, rong_thanh_pham=205,   # khổ MỞ của bìa (2 tay + gáy 10mm)
         so_to_per_sp=1, so_luong=SL_SACH, don_vi_tinh="cuốn", nhom_bao_gia=NHOM_SACH,
-        loai_san_pham_id=lsp_sach_id,
         giay_id=(couche300.id if couche300 else None), kho_nguyen="650×860",
         kho_nguyen_dai=860, kho_nguyen_rong=650, nguon_giay="cong_ty",
         bleed_mm=3,
@@ -370,7 +354,6 @@ def _tao_phieu_tinh_gia(db: Session, *, cd: dict[str, int], sale_id: int | None,
         thu_tu=2, loai_thanh_phan="to_roi", ten="Thẻ nhân viên 54×86mm",
         dai_thanh_pham=86, rong_thanh_pham=54,
         so_to_per_sp=1, so_luong=SL_THE, don_vi_tinh="thẻ",
-        loai_san_pham_id=lsp_the_id,
         giay_id=(couche300.id if couche300 else None), kho_nguyen="650×860",
         kho_nguyen_dai=860, kho_nguyen_rong=650, nguon_giay="cong_ty",
         bleed_mm=2,
@@ -397,8 +380,7 @@ def _tao_phieu_tinh_gia(db: Session, *, cd: dict[str, int], sale_id: int | None,
 
 
 def _tao_phieu_the_bo_sung(db: Session, *, cd: dict[str, int], sale_id: int | None,
-                           sale_ten: str, lsp_the_id: int | None,
-                           created: datetime) -> PhieuTinhGia:
+                           sale_ten: str, created: datetime) -> PhieuTinhGia:
     """Phiếu ĐỢT 2: 500 thẻ in bù cho nhân viên mới — cùng maquette, khác số lượng.
 
     Đơn nhỏ nên đơn giá/thẻ cao hơn hẳn đợt 1 (kẽm + canh máy chia cho 500 thay vì 1.000) —
@@ -407,7 +389,7 @@ def _tao_phieu_the_bo_sung(db: Session, *, cd: dict[str, int], sale_id: int | No
     couche300 = _giay(db, "COUCHE-300-65x86")
     p = PhieuTinhGia(
         ma=_ma_phieu(db, created), ten_san_pham=TEN_PHIEU_BO_SUNG,
-        kho_thanh_pham="5,4×8,6 cm", loai_san_pham_id=lsp_the_id,
+        kho_thanh_pham="5,4×8,6 cm",
         so_luong=SL_THE_BO_SUNG, ktv=sale_ten, created_by=sale_id,
         ghi_chu="Đợt 2: in bù thẻ cho 500 nhân viên mới + thẻ hỏng. Maquette giữ nguyên đợt 1, "
                 "chỉ đổi danh sách tên. Khách hỏi giá gấp.",
@@ -417,7 +399,6 @@ def _tao_phieu_the_bo_sung(db: Session, *, cd: dict[str, int], sale_id: int | No
         thu_tu=0, loai_thanh_phan="to_roi", ten="Thẻ nhân viên 54×86mm (đợt 2)",
         dai_thanh_pham=86, rong_thanh_pham=54,
         so_to_per_sp=1, so_luong=SL_THE_BO_SUNG, don_vi_tinh="thẻ",
-        loai_san_pham_id=lsp_the_id,
         giay_id=(couche300.id if couche300 else None), kho_nguyen="650×860",
         kho_nguyen_dai=860, kho_nguyen_rong=650, nguon_giay="cong_ty",
         bleed_mm=2,
@@ -726,17 +707,12 @@ def seed_luong_ban_sx(db: Session) -> None:
     sale_ten = f"{sale.name or sale.username} (Kinh doanh)"
 
     now = _utcnow()
-    lsp_sach = db.execute(
-        select(LoaiSanPham).where(LoaiSanPham.ma == "LSP-0003")
-    ).scalars().first()
-    lsp_the_id = _ensure_loai_the(db)
     _ensure_khuon_the(db, khach.name)   # chỉ để kho khuôn có dòng mẫu — lệnh không trỏ tới nữa
     seq = SequenceService(DocumentSequenceRepository(db))
 
     if can_luong_du:
         ptg = _tao_phieu_tinh_gia(
             db, cd=cd, sale_id=sale.id, sale_ten=sale_ten,
-            lsp_sach_id=(lsp_sach.id if lsp_sach else None), lsp_the_id=lsp_the_id,
             created=now - timedelta(days=16),
         )
         quote, version = _tao_bao_gia(
@@ -756,7 +732,7 @@ def seed_luong_ban_sx(db: Session) -> None:
 
     if can_luong_cho:
         ptg2 = _tao_phieu_the_bo_sung(
-            db, cd=cd, sale_id=sale.id, sale_ten=sale_ten, lsp_the_id=lsp_the_id,
+            db, cd=cd, sale_id=sale.id, sale_ten=sale_ten,
             created=now - timedelta(days=5),
         )
         quote2, version2 = _tao_bao_gia(

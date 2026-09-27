@@ -1,7 +1,7 @@
 """Danh mục Giấy & Vật tư (Cấu hình danh mục).
 
-- `ChungLoaiGiay`  — phân loại giấy (Couche/Ford/Bristol/Ivory/Duplex/Kraft…).
-- `GiayNguyen`     — tờ giấy nguyên (khổ mua); ăn theo 1 Chủng loại giấy (`chung_loai_giay_id`).
+- `GiayNguyen`     — tờ giấy nguyên (khổ mua). Danh mục Chủng loại giấy đã gỡ (mg 0342): tên
+                     giấy tự nói loại, không engine nào đọc nhãn phân loại đó.
 - `GiayGiaVersion` — lịch sử giá của 1 Giấy. DI TÍCH: UI đã tắt (`hasVersions: false`) từ khi
                      đơn giá chuyển sang nhập per-phiếu; endpoint còn nhưng màn không gọi.
 - `VatTuInAn`      — vật tư in ấn danh mục PHẲNG (mực/kẽm/hoá chất/màng/keo… chung 1 bảng, phân
@@ -42,31 +42,14 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class ChungLoaiGiay(Base):
-    """Chủng loại giấy — phân loại (Couche/Ford/Bristol/Ivory/Duplex/Kraft…). Giấy ăn theo đây."""
-
-    __tablename__ = "chung_loai_giay"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ma: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False)
-    ten: Mapped[str] = mapped_column(String(150), nullable=False)
-    mo_ta: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
-    )
-
-
 class GiayNguyen(Base):
-    """Tờ giấy nguyên (khổ lớn để mua) — ăn theo 1 Chủng loại giấy."""
+    """Tờ giấy nguyên (khổ lớn để mua)."""
 
     __tablename__ = "giay_nguyen"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ma: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False)
     ten: Mapped[str] = mapped_column(String(150), nullable=False)
-    chung_loai_giay_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)  # → chung_loai_giay.id
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)   # mm; 0 = cuộn/khổ mở
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)  # mm; 0 = cuộn/khổ mở
     gsm: Mapped[int] = mapped_column(Integer, nullable=False)       # định lượng

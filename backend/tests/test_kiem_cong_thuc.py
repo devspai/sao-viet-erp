@@ -14,7 +14,7 @@ import pytest
 
 from app.services.bien_cong_thuc import LOAI_GIAY, LOAI_QUY_DOI
 from app.services.thanh_phan_engine import kiem_cong_thuc
-from tests.test_danh_muc_http_contract import _admin, _chung_loai_id
+from tests.test_danh_muc_http_contract import _admin
 
 CT_TOT = "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen"
 CT_HONG = "dinh_luong * dai_nguyen * rong_nguyen *"   # ĐÚNG câu đã lọt vào DB dev
@@ -74,8 +74,7 @@ def test_khong_khai_loai_thi_chi_soi_cu_phap():
 # --- đường HTTP thật ---------------------------------------------------------------------------
 
 def _giay(client, h, **them) -> dict:
-    return {"ma": "ZZCTG", "ten": "ZZ Giấy công thức", "gsm": 100,
-            "chung_loai_giay_id": _chung_loai_id(client, h), **them}
+    return {"ma": "ZZCTG", "ten": "ZZ Giấy công thức", "gsm": 100, **them}
 
 
 def test_api_giay_khong_nhan_cau_hong_o_ca_tao_lan_sua(client):

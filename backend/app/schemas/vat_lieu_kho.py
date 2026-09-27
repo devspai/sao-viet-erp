@@ -42,29 +42,10 @@ class GiayGiaVersionRow(BaseModel):
     created_at: datetime | None = None
 
 
-# ---- Chủng loại giấy ----
-class ChungLoaiGiayIn(BaseModel):
-    ma: str = Field(min_length=1, max_length=30)
-    ten: str = Field(min_length=1, max_length=150)
-    mo_ta: str | None = None
-    active: bool = True
-
-
-class ChungLoaiGiayRow(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    ma: str
-    ten: str
-    mo_ta: str | None = None
-    active: bool
-    updated_at: datetime | None = None
-
-
 # ---- Giấy ----
 class GiayIn(BaseModel):
     ma: str = Field(min_length=1, max_length=30)
     ten: str = Field(min_length=1, max_length=150)
-    chung_loai_giay_id: int | None = None
     gsm: int = Field(gt=0)
     caliper_micron: int | None = None
     tho: str | None = None
@@ -87,7 +68,6 @@ class GiayRow(BaseModel):
     id: int
     ma: str
     ten: str
-    chung_loai_giay_id: int | None = None
     gsm: int
     caliper_micron: int | None = None
     tho: str | None = None
@@ -188,8 +168,8 @@ class ThanhPhamRow(BaseModel):
 class ListOut(BaseModel, Generic[RowT]):
     """Phong bì phân trang dùng chung cho CẢ BA danh mục ở router `vat_lieu_kho`.
 
-    GENERIC chứ không `items: list` trần: ba đường (`/chung-loai-giay` · `/giay` ·
-    `/vat-tu-in-an`) trả ba kiểu dòng khác nhau, khai trần thì OpenAPI mất kiểu và client sinh
+    GENERIC chứ không `items: list` trần: các đường (`/giay` · `/vat-tu-in-an` ·
+    `/thanh-pham`) trả ba kiểu dòng khác nhau, khai trần thì OpenAPI mất kiểu và client sinh
     ra `any[]`. Router dùng `ListOut[GiayRow]`, `ListOut[VatTuRow]`…
     """
 

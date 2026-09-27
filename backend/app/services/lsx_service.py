@@ -22,7 +22,6 @@ from ..models.bai_ghep import BaiGhep, BaiGhepThanhVien
 from ..models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
 from ..models.cong_doan import CongDoan, CongDoanMay
 from ..models.customer import Customer
-from ..models.loai_san_pham import LoaiSanPham
 from ..models.lsx import (
     DV_CAI,
     DV_CON,
@@ -1245,9 +1244,6 @@ class LsxService:
             # Nhãn nhóm + ghi chú kỹ thuật không nằm trong bộ field engine → lấy thẳng từ ORM.
             "nhom_bao_gia": getattr(tp, "nhom_bao_gia", None),
             "ghi_chu_ky_thuat": getattr(tp, "ghi_chu_ky_thuat", None),
-            # Loại sản phẩm: tra TÊN ngay lúc chụp. Snapshot mang id trần thì màn lệnh không hiện
-            # được gì, mà bắt frontend đi tra thêm một vòng cho một chữ là thừa.
-            "loai_san_pham_ten": self._loai_san_pham_ten(resolved.get("loai_san_pham_id")),
             # Vật tư in ấn (mực · màng · keo): tên + lượng, KHÔNG kèm đơn giá.
             "vat_tus": [
                 {"ten": vt.get("ten"), "so_luong": vt.get("so_luong")}
@@ -1385,15 +1381,7 @@ class LsxService:
 
     # ================= TẠO LỆNH =================
 
-    def _loai_san_pham_ten(self, lsp_id) -> str | None:
-        """Tên loại sản phẩm để chụp vào quy cách. Không có / đã xoá → None (màn lệnh hiện "—")."""
-        if not lsp_id:
-            return None
-        obj = self.db.get(LoaiSanPham, int(lsp_id))
-        return obj.ten if obj is not None else None
-
-    def _default_buoc(self, r: dict, *, comp: dict, lsx_may_id: int | None,
-                      loai_san_pham_id=None) -> dict:
+    def _default_buoc(self, r: dict, *, comp: dict, lsx_may_id: int | None) -> dict:
         """Toàn bộ giá trị MẶC ĐỊNH của 1 bước khi bung routing từ bài tính giá.
 
         "Kế thừa" ở đây = GIÁ TRỊ KHỞI ĐIỂM; năng suất là snapshot chỉ đọc, còn thời gian chạy có
@@ -1585,10 +1573,7 @@ class LsxService:
                 created_by=actor.id,
             )
             for r in calc["routing"]:
-                d = self._default_buoc(
-                    r, comp=comp, lsx_may_id=lsx.may_id,
-                    loai_san_pham_id=(calc["quy_cach"] or {}).get("loai_san_pham_id"),
-                )
+                d = self._default_buoc(r, comp=comp, lsx_may_id=lsx.may_id)
                 lsx.cong_doans.append(LsxCongDoan(
                     thu_tu=r["thu_tu"],
                     cong_doan_id=r.get("cong_doan_id"),

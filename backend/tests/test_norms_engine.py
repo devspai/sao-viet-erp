@@ -15,7 +15,6 @@ from app.services.norm_service import (
 )
 from app.repositories.audit_repo import AuditLogRepository
 from app.models.norm import Norm
-from app.models.product_type_catalog import ProductTypeCatalog
 from app.models.machine import Machine
 from app.models.operation import Operation
 
@@ -130,14 +129,6 @@ def test_norm_quantity_ranges(client, service_and_actor):
 
 def test_specificity_priority_sorting(client, service_and_actor):
     service, actor, db = service_and_actor
-    
-    # Create product type catalog entry for catalog checks (idempotent)
-    from sqlalchemy import select
-    existing = db.execute(select(ProductTypeCatalog).where(ProductTypeCatalog.product_type == "brochure")).scalar_one_or_none()
-    if not existing:
-        pt = ProductTypeCatalog(product_type="brochure", name="Tờ gấp", calculation_strategy="sheet_based")
-        db.add(pt)
-        db.commit()
 
     # Seed different norms with varying specificity:
     # 1. Fallback default (Score: 0)

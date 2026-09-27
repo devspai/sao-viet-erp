@@ -5,7 +5,7 @@
 IDEMPOTENT theo `ma` (đơn vị/lý do theo mã hoặc cặp): chạy lại chỉ THÊM dòng còn thiếu, KHÔNG
 đụng dòng đã có (kể cả dòng người dùng đã sửa tay). An toàn bấm nhiều lần.
 
-Gồm: đơn vị bổ sung · chủng loại giấy · giấy nguyên · vật tư · máy (+ nhóm máy) · bù hao ·
+Gồm: đơn vị bổ sung · giấy nguyên · vật tư · máy (+ nhóm máy) · bù hao ·
 công đoạn (nối bù hao + gắn tổ qua seed_san_xuat_org) · công việc khoán · khuôn · lý do & lỗi SX ·
 và bù NCC + kho + lô tồn cho mọi giấy/vật tư có đơn vị (seed_kho_ncc).
 
@@ -31,7 +31,7 @@ from .models.don_vi_do import DonViDo, DonViQuyDoi
 from .models.khuon_be import KhuonBe
 from .models.may_thiet_bi import MayThietBi
 from .models.piece_work import CongViecKhoanTo, PieceRate
-from .models.vat_lieu_kho import ChungLoaiGiay, GiayNguyen, VatTuInAn
+from .models.vat_lieu_kho import GiayNguyen, VatTuInAn
 from .repositories.rbac_repo import DepartmentRepository
 from .seed import seed_departments, seed_san_xuat_org, to_sx_theo_ten_bat_ky
 from .seed_kho_ncc import seed_kho_ncc
@@ -97,71 +97,45 @@ def _import_don_vi_bo_sung(db: Session) -> int:
 
 
 # ---------------------------------------------------------------------------------------------
-# 1) Chủng loại giấy (thêm 12 họ giấy ngoài 6 họ base).
+# 1) Giấy nguyên (thêm 20 loại). don_vi_gia="kg", cong_thuc_luong = định lượng × khổ nguyên × tờ.
 # ---------------------------------------------------------------------------------------------
-_CHUNG_LOAI = [
-    dict(ma="ART", ten="Art (tráng phủ cao cấp)", mo_ta="Giấy tráng phủ 2 mặt, độ trắng cao."),
-    dict(ma="COUCHE-MATT", ten="Couché mờ (matt)", mo_ta="Couché tráng mờ, không phản quang."),
-    dict(ma="OFFSET-MAU", ten="Offset màu", mo_ta="Giấy in offset đã nhuộm màu."),
-    dict(ma="KRAFT-TRANG", ten="Kraft trắng", mo_ta="Giấy kraft tẩy trắng, dai."),
-    dict(ma="DECAL", ten="Decal (đế keo)", mo_ta="Giấy có lớp keo + đế, in tem nhãn."),
-    dict(ma="CARBONLESS", ten="Carbonless (in liên/NCR)", mo_ta="Giấy tự nhân bản, in hoá đơn liên."),
-    dict(ma="CALQUE", ten="Giấy can (calque)", mo_ta="Giấy mờ trong, in bản vẽ/thiệp."),
-    dict(ma="FANCY", ten="Giấy mỹ thuật (fancy)", mo_ta="Giấy vân/ánh đặc biệt, cao cấp."),
-    dict(ma="METALIZE", ten="Metalize (ánh kim)", mo_ta="Giấy phủ lớp ánh kim."),
-    dict(ma="GHEP-MANG", ten="Giấy ghép màng (metpet)", mo_ta="Giấy ghép sẵn màng metpet."),
-    dict(ma="BOI-CARTON", ten="Giấy bồi carton", mo_ta="Lớp mặt để bồi lên carton/sóng."),
-    dict(ma="TESTLINER", ten="Testliner (mặt thùng sóng)", mo_ta="Lớp mặt của thùng carton sóng."),
-]
-
-
-def _import_chung_loai(db: Session) -> int:
-    return _them_thieu(db, ChungLoaiGiay, _CHUNG_LOAI)
-
-
-# ---------------------------------------------------------------------------------------------
-# 2) Giấy nguyên (thêm 20 loại). don_vi_gia="kg", cong_thuc_luong = định lượng × khổ nguyên × tờ.
-# ---------------------------------------------------------------------------------------------
-def _giay(ma, ten, cl_ma, dai, rong, gsm, cal, tho, don_gia):
-    return dict(ma=ma, ten=ten, _cl_ma=cl_ma, kho_dai=dai, kho_rong=rong, gsm=gsm,
+def _giay(ma, ten, dai, rong, gsm, cal, tho, don_gia):
+    return dict(ma=ma, ten=ten, kho_dai=dai, kho_rong=rong, gsm=gsm,
                 caliper_micron=cal, tho=tho, don_vi_gia="kg", don_gia=don_gia,
                 cong_thuc_luong=_CT_LUONG_GIAY_CAN)
 
 
 _GIAY = [
-    _giay("COUCHE-100-79x109", "Couché 100 79×109", "COUCHE", 1090, 790, 100, 100, "canh_dai", 27000),
-    _giay("COUCHE-200-65x86", "Couché 200 65×86", "COUCHE", 860, 650, 200, 205, "canh_dai", 29000),
-    _giay("COUCHE-250-79x109", "Couché 250 79×109", "COUCHE", 1090, 790, 250, 255, "canh_dai", 30500),
-    _giay("COUCHE-350-79x109", "Couché bìa 350 79×109", "COUCHE", 1090, 790, 350, 360, "canh_dai", 33000),
-    _giay("COUCHE-MATT-150-79x109", "Couché mờ 150 79×109", "COUCHE-MATT", 1090, 790, 150, 155, "canh_dai", 28500),
-    _giay("FORD-80-79x109", "Ford 80 79×109", "FORD", 1090, 790, 80, 105, "canh_dai", 26500),
-    _giay("FORD-100-65x86", "Ford 100 65×86", "FORD", 860, 650, 100, 125, "canh_ngan", 27000),
-    _giay("FORD-120-79x109", "Ford 120 79×109", "FORD", 1090, 790, 120, 150, "canh_dai", 28000),
-    _giay("OFFSET-MAU-80-79x109", "Offset màu 80 79×109", "OFFSET-MAU", 1090, 790, 80, 105, "canh_dai", 27500),
-    _giay("IVORY-250-79x109", "Ivory 250 79×109", "IVORY", 1090, 790, 250, 300, "canh_dai", 31000),
-    _giay("IVORY-300-79x109", "Ivory 300 79×109", "IVORY", 1090, 790, 300, 370, "canh_dai", 31500),
-    _giay("BRISTOL-230-79x109", "Bristol 230 79×109", "BRISTOL", 1090, 790, 230, 250, "canh_dai", 30000),
-    _giay("BRISTOL-300-65x86", "Bristol 300 65×86", "BRISTOL", 860, 650, 300, 330, "canh_dai", 31000),
-    _giay("DUPLEX-350-79x109", "Duplex 350 79×109", "DUPLEX", 1090, 790, 350, 450, "canh_dai", 18500),
-    _giay("DUPLEX-400-79x109", "Duplex 400 79×109", "DUPLEX", 1090, 790, 400, 520, "canh_dai", 19000),
-    _giay("KRAFT-125-79x109", "Kraft nâu 125 79×109", "KRAFT", 1090, 790, 125, 180, "canh_ngan", 15000),
-    _giay("KRAFT-TRANG-150-79x109", "Kraft trắng 150 79×109", "KRAFT-TRANG", 1090, 790, 150, 200, "canh_ngan", 17000),
-    _giay("ART-128-65x86", "Art 128 65×86", "ART", 860, 650, 128, 120, "canh_dai", 29000),
-    _giay("DECAL-90-70x100", "Decal couché 90 70×100", "DECAL", 1000, 700, 90, 200, "canh_dai", 45000),
-    _giay("FANCY-250-72x102", "Giấy mỹ thuật 250 72×102", "FANCY", 1020, 720, 250, 300, "canh_dai", 60000),
+    _giay("COUCHE-100-79x109", "Couché 100 79×109", 1090, 790, 100, 100, "canh_dai", 27000),
+    _giay("COUCHE-200-65x86", "Couché 200 65×86", 860, 650, 200, 205, "canh_dai", 29000),
+    _giay("COUCHE-250-79x109", "Couché 250 79×109", 1090, 790, 250, 255, "canh_dai", 30500),
+    _giay("COUCHE-350-79x109", "Couché bìa 350 79×109", 1090, 790, 350, 360, "canh_dai", 33000),
+    _giay("COUCHE-MATT-150-79x109", "Couché mờ 150 79×109", 1090, 790, 150, 155, "canh_dai", 28500),
+    _giay("FORD-80-79x109", "Ford 80 79×109", 1090, 790, 80, 105, "canh_dai", 26500),
+    _giay("FORD-100-65x86", "Ford 100 65×86", 860, 650, 100, 125, "canh_ngan", 27000),
+    _giay("FORD-120-79x109", "Ford 120 79×109", 1090, 790, 120, 150, "canh_dai", 28000),
+    _giay("OFFSET-MAU-80-79x109", "Offset màu 80 79×109", 1090, 790, 80, 105, "canh_dai", 27500),
+    _giay("IVORY-250-79x109", "Ivory 250 79×109", 1090, 790, 250, 300, "canh_dai", 31000),
+    _giay("IVORY-300-79x109", "Ivory 300 79×109", 1090, 790, 300, 370, "canh_dai", 31500),
+    _giay("BRISTOL-230-79x109", "Bristol 230 79×109", 1090, 790, 230, 250, "canh_dai", 30000),
+    _giay("BRISTOL-300-65x86", "Bristol 300 65×86", 860, 650, 300, 330, "canh_dai", 31000),
+    _giay("DUPLEX-350-79x109", "Duplex 350 79×109", 1090, 790, 350, 450, "canh_dai", 18500),
+    _giay("DUPLEX-400-79x109", "Duplex 400 79×109", 1090, 790, 400, 520, "canh_dai", 19000),
+    _giay("KRAFT-125-79x109", "Kraft nâu 125 79×109", 1090, 790, 125, 180, "canh_ngan", 15000),
+    _giay("KRAFT-TRANG-150-79x109", "Kraft trắng 150 79×109", 1090, 790, 150, 200, "canh_ngan", 17000),
+    _giay("ART-128-65x86", "Art 128 65×86", 860, 650, 128, 120, "canh_dai", 29000),
+    _giay("DECAL-90-70x100", "Decal couché 90 70×100", 1000, 700, 90, 200, "canh_dai", 45000),
+    _giay("FANCY-250-72x102", "Giấy mỹ thuật 250 72×102", 1020, 720, 250, 300, "canh_dai", 60000),
 ]
 
 
 def _import_giay(db: Session) -> int:
-    cl = {c.ma: c.id for c in db.execute(select(ChungLoaiGiay)).scalars()}
     co = _ma_da_co(db, GiayNguyen)
     moi = []
     for r in _GIAY:
         if r["ma"] in co:
             continue
-        d = {k: v for k, v in r.items() if k != "_cl_ma"}
-        d["chung_loai_giay_id"] = cl.get(r["_cl_ma"])
-        moi.append(GiayNguyen(**d))
+        moi.append(GiayNguyen(**r))
     if moi:
         db.add_all(moi)
         db.commit()
@@ -169,7 +143,7 @@ def _import_giay(db: Session) -> int:
 
 
 # ---------------------------------------------------------------------------------------------
-# 3) Vật tư (thêm 20). Nhóm CÓ công thức tiền (mực/màng/dầu/kẽm) + nhóm phụ liệu giá phẳng.
+# 2) Vật tư (thêm 20). Nhóm CÓ công thức tiền (mực/màng/dầu/kẽm) + nhóm phụ liệu giá phẳng.
 #    Công thức mực: diện tích in × số tờ × đơn giá × ĐỊNH MỨC (kg/m²/màu). Đặt đơn giá=1 ⇒ ra lượng.
 # ---------------------------------------------------------------------------------------------
 _CT_MUC = "so_mau * dai_in * rong_in * don_gia_vat_tu * to_dau_vao * {dm}"   # nhiều màu
@@ -217,7 +191,7 @@ def _import_vat_tu(db: Session) -> int:
 
 
 # ---------------------------------------------------------------------------------------------
-# 4) Máy (thêm 14, gồm 4 nhóm máy MỚI). Cách đo lượng KHÔNG khai ở đây nữa (mg `0274`) — nó theo
+# 3) Máy (thêm 14, gồm 4 nhóm máy MỚI). Cách đo lượng KHÔNG khai ở đây nữa (mg `0274`) — nó theo
 # cặp (công đoạn × máy) ở drawer Công đoạn, một máy chạy hai công đoạn thì đo khác nhau.
 # ---------------------------------------------------------------------------------------------
 _CHUA_IN = {"nhip_giay_mm": 10, "le_hong_mm": 5, "duoi_thang_mau_mm": 5}
@@ -274,7 +248,7 @@ def _import_may(db: Session) -> int:
 
 
 # ---------------------------------------------------------------------------------------------
-# 5) Bảng bậc bù hao dùng chung cho các công đoạn dưới. 6 bậc số tờ + 1 bậc % cho SL > 30.000.
+# 4) Bảng bậc bù hao dùng chung cho các công đoạn dưới. 6 bậc số tờ + 1 bậc % cho SL > 30.000.
 #    Từ 22/09/2026 bậc khai NGAY TRÊN công đoạn (chỉ MỐC TRÊN), module Bù hao độc lập đã gỡ.
 # ---------------------------------------------------------------------------------------------
 _MOC_BAC = [3000, 7000, 10000, 15000, 20000, 30000]
@@ -295,7 +269,7 @@ BAC_DONG_CUON = _bac([30, 40, 60, 80, 100, 120], 0.8)
 
 
 # ---------------------------------------------------------------------------------------------
-# 6) Công đoạn (thêm 20). pricing_basis=per_other, đơn giá NHÉT vào công thức (không có biến giá).
+# 5) Công đoạn (thêm 20). pricing_basis=per_other, đơn giá NHÉT vào công thức (không có biến giá).
 #    Công đoạn tra bậc thì mang thẳng bảng bậc của riêng nó (`bac_bu_hao`).
 # ---------------------------------------------------------------------------------------------
 def _cd(ma, ten, nhom, ct, **extra):
@@ -373,7 +347,7 @@ def _import_cong_doan(db: Session) -> int:
 
 
 # ---------------------------------------------------------------------------------------------
-# 7) Công việc khoán (piece_rates). `unit` = CHỮ đơn vị (khớp `don_vi_do.ten`) để khoán quy đổi.
+# 6) Công việc khoán (piece_rates). `unit` = CHỮ đơn vị (khớp `don_vi_do.ten`) để khoán quy đổi.
 #    department_id tra theo tên TỔ (sau seed_san_xuat_org). `ma` KHÔNG unique ở DB → tự kiểm.
 # ---------------------------------------------------------------------------------------------
 # (ma, ten, tên TỔ, group_name, đơn vị (ten), đơn giá) — cách đo lượng gỡ ở mg `0274`.
@@ -422,7 +396,7 @@ def _import_khoan(db: Session) -> int:
 
 
 # ---------------------------------------------------------------------------------------------
-# 8) Khuôn (thêm 20). loai khuon_be/khuon_ep · tình trạng · số kệ.
+# 7) Khuôn (thêm 20). loai khuon_be/khuon_ep · tình trạng · số kệ.
 # ---------------------------------------------------------------------------------------------
 def _kb(ma, ten, loai, so_ke, tinh_trang, ghi_chu=None):
     return dict(ma=ma, ten=ten, loai=loai, so_ke=so_ke, tinh_trang=tinh_trang, ghi_chu=ghi_chu)
@@ -474,7 +448,6 @@ def run(db: Session) -> dict[str, int]:
     seed_rebuild_catalog(db)
 
     # Danh mục đa dạng (additive theo mã).
-    kq["chung_loai_giay"] = _import_chung_loai(db)
     kq["giay"] = _import_giay(db)
     kq["vat_tu"] = _import_vat_tu(db)
     kq["may"] = _import_may(db)

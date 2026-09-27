@@ -690,16 +690,15 @@ const MODULE_GROUPS: {
   {
     key: "cau_hinh_danh_muc",
     label: "Cấu hình danh mục",
-    // MỘT MÀN = MỘT DÒNG, đúng thứ tự menu "Cấu hình danh mục". 12 mục menu → 12 dòng.
+    // MỘT MÀN = MỘT DÒNG, đúng thứ tự menu "Cấu hình danh mục". 10 mục menu → 10 dòng.
     // (Màn "Lý do & lỗi SX" + ô `dm_ly_do_san_xuat` ĐÃ GỠ HẲN — mg 0288. Màn "Bù hao" +
-    // `dm_bu_hao` GỠ 22/09/2026 — mg 0327: bậc bù hao nay khai trong chính Công đoạn.)
+    // `dm_bu_hao` GỠ 22/09/2026 — mg 0327: bậc bù hao nay khai trong chính Công đoạn. Màn
+    // "Loại sản phẩm" + "Chủng loại giấy" GỠ 27/09/2026 — mg 0342.)
     // `dm_xe` ĐƯA VỀ ĐÂY 24/09/2026 — trước rơi vào "Khác" kể từ khi dựng màn (12/09/2026).
     modules: [
-      "dm_loai_san_pham",
       "dm_thiet_bi",
       "dm_cong_doan",
       "dm_don_vi",
-      "dm_chung_loai_giay",
       "dm_giay",
       "dm_vat_tu",
       "dm_thanh_pham",

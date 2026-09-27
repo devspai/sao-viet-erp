@@ -132,15 +132,6 @@ NHAN: dict[str, str] = {
     # không tự đặt tên mới — đọc nhật ký xong phải tìm ra đúng cái ô đó trên form.
     # Đơn vị đo đi vào `HAU_TO` bên dưới, KHÔNG nhét vào nhãn: "Nhíp kẽm 10 → 12 mm" đọc gọn hơn
     # "Nhíp kẽm (mm) 10 → 12".
-    # Loại sản phẩm
-    "structural_type": "Dạng kết cấu",
-    "box_sub_type": "Kiểu hộp",
-    "imposition_rule_id": "Quy tắc bình bài",
-    "has_cover": "Có bìa",
-    "cover_type": "Loại bìa",
-    "default_binding": "Kiểu đóng mặc định",
-    "default_stock_class": "Nhóm giấy mặc định",
-    "routing_template": "Chuỗi công đoạn mặc định",
     # Công đoạn
     "ten_hien_thi": "Tên hiển thị",
     "kieu_bu_hao": "Bù hao",
@@ -201,7 +192,8 @@ NHAN: dict[str, str] = {
     "hieu_luc_tu": "Hiệu lực từ",
     "dung_lam_toc_do": "Dùng làm đơn vị tốc độ",
     "tram_dong_giay": "Trạm trên dòng giấy",
-    # Chủng loại giấy · Giấy
+    # Giấy. `chung_loai_giay_id` là cột ĐÃ GỠ (mg 0342) — nhãn giữ để nhật ký cũ của Giấy còn đọc
+    # ra chữ thay vì tên cột.
     "chung_loai_giay_id": "Chủng loại giấy",
     "gsm": "Định lượng",
     "caliper_micron": "Độ dày",

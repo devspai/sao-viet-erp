@@ -1,5 +1,7 @@
-r"""Ba mặt API ĐỜI CŨ còn mount nhưng không ai gọi — `machines` · `operations` ·
-`product-types-catalog`.
+r"""Hai mặt API ĐỜI CŨ còn mount nhưng không ai gọi — `machines` · `operations`.
+
+Mặt thứ ba `product-types-catalog` đã GỠ HẲN cùng bảng `product_types_catalog` (mg 0342, 27/09/2026,
+khi bỏ danh mục Loại sản phẩm).
 
 ## Vì sao phải tách ra một ô quyền riêng
 
@@ -36,5 +38,5 @@ Bước sau (chờ ≥1 kỳ chạy thật mà không ai kêu thiếu): mới b�
 """
 from __future__ import annotations
 
-#: Ô quyền riêng cho ba mặt API đời cũ. KHÔNG seed ⇒ mặc định không vai nào có.
+#: Ô quyền riêng cho các mặt API đời cũ. KHÔNG seed ⇒ mặc định không vai nào có.
 LEGACY_READONLY = "legacy_readonly"

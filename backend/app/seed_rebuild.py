@@ -11,9 +11,8 @@ from sqlalchemy.orm import Session
 from .models.cong_doan import CongDoan
 from .models.don_vi_do import DonViDo, DonViQuyDoi
 from .models.khuon_be import KhuonBe
-from .models.loai_san_pham import LoaiSanPham
 from .models.may_thiet_bi import MayThietBi
-from .models.vat_lieu_kho import ChungLoaiGiay, GiayNguyen, VatTuInAn
+from .models.vat_lieu_kho import GiayNguyen, VatTuInAn
 
 
 def _empty(db: Session, model) -> bool:
@@ -270,46 +269,25 @@ def seed_rebuild_catalog(db: Session) -> None:
         db.commit()
 
     # --- Danh mục Giấy & Vật tư (Cấu hình danh mục) ---
-    if _empty(db, ChungLoaiGiay):
-        db.add_all([
-            ChungLoaiGiay(ma="COUCHE", ten="Couché", mo_ta="Giấy tráng phủ 2 mặt, bóng."),
-            ChungLoaiGiay(ma="FORD", ten="Ford (giấy in thường)"),
-            ChungLoaiGiay(ma="IVORY", ten="Ivory (bìa 1 mặt)"),
-            ChungLoaiGiay(ma="DUPLEX", ten="Duplex (bồi 2 lớp)"),
-            ChungLoaiGiay(ma="BRISTOL", ten="Bristol"),
-            ChungLoaiGiay(ma="KRAFT", ten="Kraft (giấy nâu)"),
-        ])
-        db.commit()
-    _cl = {c.ma: c.id for c in db.execute(select(ChungLoaiGiay)).scalars()}
     if _empty(db, GiayNguyen):
         db.add_all([
-            GiayNguyen(ma="COUCHE-300-65x86", ten="Couché 300 65×86", chung_loai_giay_id=_cl.get("COUCHE"),
+            GiayNguyen(ma="COUCHE-300-65x86", ten="Couché 300 65×86",
                        kho_dai=860, kho_rong=650, gsm=300, caliper_micron=310, tho="canh_dai",
                        don_vi_gia="kg", don_gia=30000, cong_thuc_luong=_CT_LUONG_GIAY_CAN),
-            GiayNguyen(ma="COUCHE-150-79x109", ten="Couché 150 79×109", chung_loai_giay_id=_cl.get("COUCHE"),
+            GiayNguyen(ma="COUCHE-150-79x109", ten="Couché 150 79×109",
                        kho_dai=1090, kho_rong=790, gsm=150, caliper_micron=150, tho="canh_dai",
                        don_vi_gia="kg", don_gia=28000, cong_thuc_luong=_CT_LUONG_GIAY_CAN),
-            GiayNguyen(ma="FORD-70-65x86", ten="Ford 70 65×86", chung_loai_giay_id=_cl.get("FORD"),
+            GiayNguyen(ma="FORD-70-65x86", ten="Ford 70 65×86",
                        kho_dai=860, kho_rong=650, gsm=70, caliper_micron=95, tho="canh_ngan",
                        don_vi_gia="kg", don_gia=26000, cong_thuc_luong=_CT_LUONG_GIAY_CAN),
-            GiayNguyen(ma="IVORY-350-79x109", ten="Ivory 350 79×109", chung_loai_giay_id=_cl.get("IVORY"),
+            GiayNguyen(ma="IVORY-350-79x109", ten="Ivory 350 79×109",
                        kho_dai=1090, kho_rong=790, gsm=350, caliper_micron=430, tho="canh_dai",
                        don_vi_gia="kg", don_gia=32000, cong_thuc_luong=_CT_LUONG_GIAY_CAN),
-            GiayNguyen(ma="DUPLEX-300", ten="Duplex 300", chung_loai_giay_id=_cl.get("DUPLEX"),
+            GiayNguyen(ma="DUPLEX-300", ten="Duplex 300",
                        kho_dai=1090, kho_rong=790, gsm=300, caliper_micron=380,
                        don_vi_gia="kg", don_gia=18000, cong_thuc_luong=_CT_LUONG_GIAY_CAN),
         ])
         db.commit()
-    # Backfill chủng loại cho giấy chưa gắn (dev data / sau migration) theo tiền tố mã.
-    _unlinked = list(db.execute(select(GiayNguyen).where(GiayNguyen.chung_loai_giay_id.is_(None))).scalars())
-    if _unlinked:
-        for g in _unlinked:
-            for pfx, clid in _cl.items():
-                if g.ma.upper().startswith(pfx):
-                    g.chung_loai_giay_id = clid
-                    break
-        db.commit()
-
     if _empty(db, VatTuInAn):
         db.add_all([
             # Hệ số 0,0003 = ĐỊNH MỨC MỰC: 0,3 g trên mỗi m², mỗi màu. `dai_in`/`rong_in` engine
@@ -393,28 +371,6 @@ def seed_rebuild_catalog(db: Session) -> None:
                      nhom_may_cho_phep=["Bế"],
                      don_vi_vao="to", don_vi_ra="cai",
                      cong_thuc_gia="so_luong * 20"),
-        ])
-        db.commit()
-
-    # --- Loại sản phẩm (spec-san-pham §7) ---
-    if _empty(db, LoaiSanPham):
-        cd = {c.ma: c.id for c in db.execute(select(CongDoan)).scalars()}
-        rt_flat = [cd.get("CD-0001"), cd.get("CD-0002"), cd.get("CD-0005"), cd.get("CD-0003")]
-        rt_book = [cd.get("CD-0001"), cd.get("CD-0002"), cd.get("CD-0004"), cd.get("CD-0007"), cd.get("CD-0003")]
-        db.add_all([
-            LoaiSanPham(ma="LSP-0001", ten="Name card", structural_type="flat",
-                        routing_template=[x for x in rt_flat if x]),
-            LoaiSanPham(ma="LSP-0002", ten="Tờ phơi / brochure gấp", structural_type="flat"),
-            LoaiSanPham(ma="LSP-0003", ten="Catalogue đóng keo", structural_type="multipage",
-                        has_cover=True, cover_type="bia_roi", default_binding="keo",
-                        routing_template=[x for x in rt_book if x]),
-            LoaiSanPham(ma="LSP-0004", ten="Sách đóng ghim", structural_type="multipage",
-                        has_cover=True, cover_type="tu_bia", default_binding="ghim"),
-            LoaiSanPham(ma="LSP-0005", ten="Hộp giấy Ivory", structural_type="box",
-                        box_sub_type="folding_carton"),
-            LoaiSanPham(ma="LSP-0006", ten="Thùng carton sóng", structural_type="box",
-                        box_sub_type="corrugated"),
-            LoaiSanPham(ma="LSP-0007", ten="Tem decal cuộn", structural_type="label"),
         ])
         db.commit()
 

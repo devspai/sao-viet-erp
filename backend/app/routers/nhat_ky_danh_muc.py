@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/nhat-ky-danh-muc", tags=["nhat-ky-danh-muc"])
 
 # loại bản ghi (đúng chuỗi service dùng làm target) → module quyền của màn chứa nó.
 #
-# Phần DANH MỤC đọc thẳng từ `catalog_registry` — kể cả tên đời cũ (`product_type`, `machine`,
+# Phần DANH MỤC đọc thẳng từ `catalog_registry` — kể cả tên đời cũ (`machine`,
 # `operation`) và bảng phụ đi ké ô quyền (`don_vi_quy_doi`, nằm trong drawer màn Đơn vị; trước
 # 15/08/2026 nó ghi nhật ký dưới target `don_vi_do:<id cặp>`, tức là trộn lịch sử của hai thực
 # thể khác bảng có cùng số id). Thêm màn danh mục ⇒ sửa registry, KHÔNG sửa file này.

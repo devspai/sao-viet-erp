@@ -25,7 +25,7 @@ from app.models.cong_doan import CongDoan
 from app.models.khuon_be import KhuonBe
 from app.models.may_thiet_bi import MayThietBi
 from app.models.piece_work import PieceRate
-from app.models.vat_lieu_kho import ChungLoaiGiay, GiayNguyen, VatTuInAn
+from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn
 from app.services.bien_cong_thuc import BIEN, LOAI_CONG_DOAN, LOAI_QUY_DOI, LOAI_VAT_TU
 from app.services.thanh_phan_engine import kiem_cong_thuc, safe_eval
 
@@ -55,7 +55,7 @@ _BANG_CONG_THUC = [
 
 # Bảng cần đối chiếu số dòng giữa hai lần chạy (idempotent).
 # `BuHao` rời danh sách 22/09/2026 (mg `0327`): bậc bù hao nằm trên chính công đoạn.
-_BANG_DEM = [ChungLoaiGiay, GiayNguyen, VatTuInAn, MayThietBi,
+_BANG_DEM = [GiayNguyen, VatTuInAn, MayThietBi,
              CongDoan, KhuonBe, PieceRate]
 
 
@@ -76,7 +76,7 @@ def test_run_idempotent_va_cong_thuc_engine_nuot_duoc(db):
     sau_lan1 = {m.__name__: _dem(db, m) for m in _BANG_DEM}
 
     # Có thêm dòng thật ở mọi danh mục đa dạng (không phải no-op).
-    for khoa in ("chung_loai_giay", "giay", "vat_tu", "may",
+    for khoa in ("giay", "vat_tu", "may",
                  "cong_doan", "khuon", "cong_viec_khoan"):
         assert kq1[khoa] > 0, f"{khoa} không thêm dòng nào ở lần chạy đầu"
 

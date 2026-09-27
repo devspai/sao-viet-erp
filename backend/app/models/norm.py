@@ -57,12 +57,8 @@ class Norm(Base):
     )
     
     # Specificity dimensions
-    product_type: Mapped[str | None] = mapped_column(
-        String(32),
-        ForeignKey("product_types_catalog.product_type", ondelete="SET NULL"),
-        index=True,
-        nullable=True,
-    )
+    # Chuỗi mã loại SP tự do. Khoá ngoại sang `product_types_catalog` gỡ cùng bảng đó (mg 0342).
+    product_type: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
     machine_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("machines.id", ondelete="SET NULL"), index=True, nullable=True
     )
@@ -133,7 +129,6 @@ class Norm(Base):
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
     
-    product_type_rel = relationship("ProductTypeCatalog")
     machine = relationship("Machine")
     operation = relationship("Operation")
 

@@ -1,4 +1,4 @@
-"""Ba mặt API ĐỜI CŨ chỉ-đọc — `machines` · `operations` · `product-types-catalog`.
+"""Hai mặt API ĐỜI CŨ chỉ-đọc — `machines` · `operations` (`product-types-catalog` gỡ ở mg 0342).
 
 Từ 15/08/2026 chúng có Ô QUYỀN RIÊNG (`legacy_readonly`) thay vì đi ké ô quyền của ba màn danh
 mục đời mới. Ô này CỐ Ý không nằm trong `seed.MODULES` ⇒ không vai nào có ⇒ mặc định 403 cho tất
@@ -92,7 +92,7 @@ def test_ba_mat_legacy_mac_dinh_chan_ca_admin(client, auth_headers):
     Đây là cái CHỐT của đợt B9: trước đó tick MỘT ô quyền cho màn Công đoạn là mở luôn một mặt
     API thứ hai đọc bảng khác, người cấp quyền không hề biết.
     """
-    for duong in ("/api/machines", "/api/operations", "/api/product-types-catalog"):
+    for duong in ("/api/machines", "/api/operations"):
         r = client.get(duong, headers=auth_headers)
         assert r.status_code == 403, f"{duong} phải 403 khi chưa cấp {LEGACY_READONLY}, gặp {r.status_code}"
 

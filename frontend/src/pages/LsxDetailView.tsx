@@ -1229,7 +1229,6 @@ export function LsxDetailView({
                           chỉ hiện "1" (không nói gì), còn với sách thì câu diễn giải đầy đủ
                           ("5 TỜ CHẠY MÁY = 1 cuốn") đã nằm sẵn dưới ô Con / tờ in — xem `giaiThichSach`. */}
                     <KV k="Tên sản phẩm" v={s("ten")} />
-                    <KV k="Loại sản phẩm" v={s("loai_san_pham_ten")} />
                     <KV k="Đơn vị tính" v={s("don_vi_tinh")} />
                     {/* Hai số PHÂN BIỆT sách với hàng cắt rời. Có sẵn trong ảnh chụp quy cách nhưng
                         trước đây không màn nào render → nhìn lệnh không biết đây là loại gì. */}

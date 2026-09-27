@@ -22,7 +22,7 @@ from app.models.customer import Customer
 from app.models.department import Department
 from app.models.khuon_be import KhuonBe
 from app.models.may_thiet_bi import MayThietBi
-from app.models.vat_lieu_kho import ChungLoaiGiay, GiayNguyen, VatTuInAn
+from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn
 
 from .test_work_shifts_api import _admin_token
 
@@ -34,7 +34,6 @@ DANH_SACH = [
     "/api/vat-lieu-kho/thanh-pham?size=200",
     "/api/vat-lieu-kho/vat-tu-in-an?size=200",
     "/api/vat-lieu-kho/giay?size=200",
-    "/api/vat-lieu-kho/chung-loai-giay?size=200",
     "/api/cong-doan?size=200",
     "/api/may-thiet-bi?size=200",
     "/api/may-thiet-bi/trang-thai",
@@ -68,9 +67,8 @@ def _dung_danh_muc(n: int) -> dict[str, int]:
     db = SessionLocal()
     try:
         to = Department(name=f"ST To {d}", code=f"STT{d}", la_san_xuat=True)
-        cl = ChungLoaiGiay(ma=f"STCL{d}", ten=f"ST CL {d}")
         khs = [Customer(code=f"STKH{d}-{i}", name=f"ST Khach {d}-{i}") for i in range(n)]
-        db.add_all([to, cl, *khs])
+        db.add_all([to, *khs])
         db.flush()
         vts = [VatTuInAn(ma=f"STVT{d}-{i}", ten=f"ST vt {d}-{i}", don_vi_gia="kg") for i in range(n)]
         mays = [MayThietBi(ma=f"STM{d}-{i}", ten=f"ST may {d}-{i}", loai_may="press_offset_sheet")
@@ -80,9 +78,7 @@ def _dung_danh_muc(n: int) -> dict[str, int]:
             db.add(VatTuInAn(ma=f"STTP{d}-{i}", ten=f"ST tp {d}-{i}", don_vi_gia="kg",
                              la_thanh_pham=True, customer_id=khs[i].id))
             db.add(KhuonBe(ma=f"STKB{d}-{i}", ten=f"ST khuon {d}-{i}", khach_hang_id=khs[i].id))
-            db.add(GiayNguyen(ma=f"STG{d}-{i}", ten=f"ST giay {d}-{i}", chung_loai_giay_id=cl.id,
-                              gsm=100, don_vi_gia="kg"))
-            db.add(ChungLoaiGiay(ma=f"STCL{d}-{i}", ten=f"ST CL {d}-{i}"))
+            db.add(GiayNguyen(ma=f"STG{d}-{i}", ten=f"ST giay {d}-{i}", gsm=100, don_vi_gia="kg"))
         db.flush()
         cd_dau = None
         for i in range(n):

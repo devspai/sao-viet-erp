@@ -39,7 +39,6 @@ def _cau_hinh_tu_thanh_phan(tp: PhieuThanhPhan) -> dict:
         don_vi_tinh=tp.don_vi_tinh,
         nhom_bao_gia=tp.nhom_bao_gia,
         dvt_nhom=tp.dvt_nhom,
-        loai_san_pham_id=tp.loai_san_pham_id,
         giay_id=tp.giay_id,
         kho_nguyen=tp.kho_nguyen,
         kho_nguyen_dai=tp.kho_nguyen_dai,

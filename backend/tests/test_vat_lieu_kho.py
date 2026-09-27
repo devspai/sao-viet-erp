@@ -1,7 +1,7 @@
-"""Danh mục Giấy & Vật tư — CRUD chủng loại / giấy / vật tư (phẳng).
+"""Danh mục Giấy & Vật tư — CRUD giấy / vật tư (phẳng).
 
-Model mới: `VatTuInAn` gộp phẳng (bỏ `Muc`/`BanKem` cũ); `GiayNguyen` ăn theo 1 Chủng loại
-(`chung_loai_giay_id`, soft int). Self-contained in-memory DB.
+Model mới: `VatTuInAn` gộp phẳng (bỏ `Muc`/`BanKem` cũ). Chủng loại giấy gỡ ở mg 0342.
+Self-contained in-memory DB.
 """
 import pytest
 from sqlalchemy import create_engine
@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base
 import app.models  # noqa: F401 — đăng ký metadata mọi bảng
-from app.models.vat_lieu_kho import ChungLoaiGiay, GiayNguyen, VatTuInAn  # noqa: F401
+from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn  # noqa: F401
 from app.models.don_vi_do import DonViDo, DonViQuyDoi
 from app.repositories.don_vi_do_repo import DonViDoRepository
 from app.repositories.vat_lieu_kho_repo import VatLieuKhoRepository
@@ -46,28 +46,17 @@ def _svc():
     return db, VatLieuKhoService(VatLieuKhoRepository(db), DonViDoRepository(db))
 
 
-def test_chung_loai_giay_crud():
-    db, svc = _svc()
-    c = svc.create("chung_loai_giay", dict(ma="COUCHE", ten="Couché"))
-    assert c.id and c.ma == "COUCHE"
-    # `be_mat` / `tho_mac_dinh` GỠ 15/08/2026 — chủng loại giấy nay chỉ còn mã · tên · mô tả.
-    # Gửi kèm khoá đã gỡ thì Pydantic bỏ qua (không có field), service KHÔNG được vỡ.
-    with pytest.raises(VatLieuKhoValidationError):            # tên trống
-        svc.create("chung_loai_giay", dict(ma="X", ten="  "))
-
-
 def test_giay_crud_and_validate():
     db, svc = _svc()
-    cl = svc.create("chung_loai_giay", dict(ma="COUCHE", ten="Couché"))
-    g = svc.create("giay", dict(ma="C300", ten="Couché 300", chung_loai_giay_id=cl.id,
+    g = svc.create("giay", dict(ma="C300", ten="Couché 300",
                                 kho_dai=860, kho_rong=650, gsm=300, don_vi_gia="kg", don_gia=30000))
-    assert g.id and g.ma == "C300" and g.gsm == 300 and g.chung_loai_giay_id == cl.id
-    with pytest.raises(VatLieuKhoValidationError):            # thiếu chủng loại
-        svc.create("giay", dict(ma="Y", ten="y", kho_dai=860, kho_rong=650, gsm=150))
+    assert g.id and g.ma == "C300" and g.gsm == 300
+    # Chủng loại giấy gỡ ở mg 0342 — thiếu nó KHÔNG còn bị chặn.
+    assert svc.create("giay", dict(ma="Y", ten="y", kho_dai=860, kho_rong=650, gsm=150)).id
     with pytest.raises(VatLieuKhoValidationError):            # gsm <= 0
-        svc.create("giay", dict(ma="X", ten="x", chung_loai_giay_id=cl.id, kho_dai=860, kho_rong=650, gsm=0))
+        svc.create("giay", dict(ma="X", ten="x", kho_dai=860, kho_rong=650, gsm=0))
     with pytest.raises(VatLieuKhoDuplicate):
-        svc.create("giay", dict(ma="C300", ten="khác", chung_loai_giay_id=cl.id, kho_dai=650, kho_rong=860, gsm=150))
+        svc.create("giay", dict(ma="C300", ten="khác", kho_dai=650, kho_rong=860, gsm=150))
 
 
 def test_vat_tu_flat_crud():
@@ -86,14 +75,13 @@ def test_clone_giay_va_vat_tu_hau_to_COPY_khong_lan_sang_loai_khac():
     một Vật tư lỡ trùng tiền tố — đây là lý do `clone()` truyền closure gắn sẵn `kind`, không dùng
     thẳng `repo.find_by_ma` như `CatalogService`."""
     db, svc = _svc()
-    cl = svc.create("chung_loai_giay", dict(ma="COUCHE", ten="Couché"))
-    g = svc.create("giay", dict(ma="C300", ten="Couché 300", chung_loai_giay_id=cl.id,
+    g = svc.create("giay", dict(ma="C300", ten="Couché 300",
                                 kho_dai=860, kho_rong=650, gsm=300, don_vi_gia="kg", don_gia=30000))
     ban_sao = svc.clone("giay", g.id)
     assert ban_sao.id != g.id
     assert ban_sao.ma == "C300-COPY"
     assert ban_sao.ten == "Couché 300 (bản sao)"
-    assert ban_sao.chung_loai_giay_id == cl.id and ban_sao.gsm == 300
+    assert ban_sao.gsm == 300
 
     v = svc.create("vat_tu", dict(ma="MUC-CMYK", ten="Mực process CMYK", don_vi_gia="kg", don_gia=8000))
     ban_sao_v = svc.clone("vat_tu", v.id)
@@ -104,14 +92,13 @@ def test_thay_the_ids_luu_va_sua_duoc_giay_va_vat_tu():
     """`thay_the_ids` (mg 0239) từng bị nuốt im lặng nếu quên khai ở repo `fields` — bẫy
     `pydantic-nuot-field-im-lang` đã dính 4 lần trong dự án này, test roundtrip trực tiếp."""
     db, svc = _svc()
-    cl = svc.create("chung_loai_giay", dict(ma="COUCHE", ten="Couché"))
-    g1 = svc.create("giay", dict(ma="C300", ten="Couché 300", chung_loai_giay_id=cl.id,
+    g1 = svc.create("giay", dict(ma="C300", ten="Couché 300",
                                  kho_dai=860, kho_rong=650, gsm=300))
-    g2 = svc.create("giay", dict(ma="C250", ten="Couché 250", chung_loai_giay_id=cl.id,
+    g2 = svc.create("giay", dict(ma="C250", ten="Couché 250",
                                  kho_dai=860, kho_rong=650, gsm=250, thay_the_ids=[g1.id]))
     assert g2.thay_the_ids == [g1.id]
     g2b = svc.update("giay", g2.id, dict(ma="C250", ten="Couché 250",
-                                         chung_loai_giay_id=cl.id, gsm=250, thay_the_ids=[]))
+                                         gsm=250, thay_the_ids=[]))
     assert g2b.thay_the_ids == []
 
     v1 = svc.create("vat_tu", dict(ma="MUC-CMYK", ten="Mực process CMYK", don_vi_gia="kg"))
@@ -155,8 +142,7 @@ def test_khong_con_quy_cach_dong_goi_o_danh_muc():
 
 
 def _giay_couche_150(db, svc, don_vi="kg"):
-    cl = svc.create("chung_loai_giay", dict(ma="COUCHE", ten="Couché"))
-    g = svc.create("giay", dict(ma="GY001", ten="Couché 150 65×86", chung_loai_giay_id=cl.id,
+    g = svc.create("giay", dict(ma="GY001", ten="Couché 150 65×86",
                                 gsm=150, don_vi_gia=don_vi))
     g.kho_dai, g.kho_rong = 860, 650      # seed có ghi khổ; kho KHÔNG dùng tới (xem test dưới)
     db.commit()
@@ -228,9 +214,8 @@ def test_don_vi_chua_khai_thi_noi_ly_do_chu_khong_doan():
 
 def test_list_filter_active():
     db, svc = _svc()
-    cl = svc.create("chung_loai_giay", dict(ma="FORD", ten="Ford"))
-    svc.create("giay", dict(ma="G1", ten="g1", chung_loai_giay_id=cl.id, kho_dai=860, kho_rong=650, gsm=150))
-    svc.create("giay", dict(ma="G2", ten="g2", chung_loai_giay_id=cl.id, kho_dai=860, kho_rong=650,
+    svc.create("giay", dict(ma="G1", ten="g1", kho_dai=860, kho_rong=650, gsm=150))
+    svc.create("giay", dict(ma="G2", ten="g2", kho_dai=860, kho_rong=650,
                             gsm=200, active=False))
     rows, total = svc.list("giay", active=True)
     assert total == 1 and rows[0].ma == "G1"

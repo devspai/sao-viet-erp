@@ -128,7 +128,6 @@ class ThanhPhanIn(BaseModel):
     nhom_bao_gia: str | None = Field(default=None, max_length=120)
     # ĐVT của cả nhóm gộp khi in cho khách (trống = lấy ĐVT dòng đầu nhóm như cũ).
     dvt_nhom: str | None = Field(default=None, max_length=30)
-    loai_san_pham_id: int | None = None
     # Giấy
     giay_id: int | None = None
     kho_nguyen: str | None = None
@@ -188,7 +187,6 @@ class ThanhPhanOut(BaseModel):
     don_vi_tinh: str = "cái"
     nhom_bao_gia: str | None = None
     dvt_nhom: str | None = None
-    loai_san_pham_id: int | None = None
     # Giấy
     giay_id: int | None = None
     kho_nguyen: str | None = None
@@ -230,7 +228,6 @@ class PhieuTinhGiaCreate(BaseModel):
     """Tạo phiếu — mọi trường optional (cho phép nháp trắng)."""
     ten_san_pham: str | None = None
     kho_thanh_pham: str | None = None
-    loai_san_pham_id: int | None = None
     so_luong: int | None = Field(default=None, ge=0)
     ghi_chu: str | None = None
     thanh_phans: list[ThanhPhanIn] | None = None
@@ -240,7 +237,6 @@ class PhieuTinhGiaUpdate(BaseModel):
     """Sửa phiếu — replace-all con (nếu gửi thanh_phans thì thay toàn bộ)."""
     ten_san_pham: str | None = None
     kho_thanh_pham: str | None = None
-    loai_san_pham_id: int | None = None
     so_luong: int | None = Field(default=None, ge=0)
     ghi_chu: str | None = None
     thanh_phans: list[ThanhPhanIn] | None = None
@@ -270,7 +266,6 @@ class PhieuTinhGiaOut(BaseModel):
     ma: str
     ten_san_pham: str
     kho_thanh_pham: str | None = None
-    loai_san_pham_id: int | None = None
     so_luong: int
     tong_gia_von: float
     gia_von_don: float
@@ -324,7 +319,6 @@ class PhieuTinhGiaOutRutGon(BaseModel):
     ma: str
     ten_san_pham: str
     kho_thanh_pham: str | None = None
-    loai_san_pham_id: int | None = None
     so_luong: int
     tong_gia_von: float
     gia_von_don: float
@@ -344,7 +338,6 @@ class PhieuTinhGiaListItem(BaseModel):
     id: int
     ma: str
     ten_san_pham: str
-    loai_san_pham_id: int | None = None
     kho_thanh_pham: str | None = None
     # Σ SL CÁC SẢN PHẨM bên trong phiếu — không phải ô SL mặc định ở đầu phiếu. Router tính lại
     # (xem `list_items`) để cột SL × cột giá vốn/đơn ra đúng cột tổng giá vốn.

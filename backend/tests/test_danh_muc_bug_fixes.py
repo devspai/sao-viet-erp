@@ -50,24 +50,7 @@ def test_nhat_ky_cap_quy_doi_khong_tron_voi_don_vi(client):
     assert [x for x in nk_cap.json()["items"] if x["action"] == "create_don_vi_cap"]
 
 
-# ── 2. Loại sản phẩm phải ghi nhật ký ────────────────────────────────────────────
-def test_loai_san_pham_co_nhat_ky(client):
-    h = _admin(client)
-    r = client.post("/api/loai-san-pham",
-                    json={"ma": "ZZSP", "ten": "ZZ Sản phẩm", "structural_type": "flat"},
-                    headers=h)
-    assert r.status_code == 201, r.text
-    sp_id = r.json()["id"]
-
-    nk = client.get(f"/api/nhat-ky-danh-muc/loai_san_pham/{sp_id}", headers=h)
-    assert nk.status_code == 200, nk.text
-    assert nk.json()["items"], "tab Nhật ký của Loại sản phẩm đang RỖNG — service chưa ghi audit"
-
-    client.put(f"/api/loai-san-pham/{sp_id}",
-               json={"ma": "ZZSP", "ten": "ZZ Sản phẩm (đổi tên)", "structural_type": "flat"},
-               headers=h)
-    items = client.get(f"/api/nhat-ky-danh-muc/loai_san_pham/{sp_id}", headers=h).json()["items"]
-    assert any(x["action"] == "dm_sua" for x in items), items
+# ── 2. (gỡ 27/09/2026) Loại sản phẩm ghi nhật ký — danh mục đã bỏ ở mg 0342 ───────
 
 
 # ── 3. Bậc bù hao đi CÙNG công đoạn, không cần quyền thứ hai ─────────────────────
@@ -101,7 +84,6 @@ def test_bac_bu_hao_ve_cung_payload_cong_doan(client):
                         "pricing_basis": "per_finished_qty"}),
     ("/api/may-thiet-bi", {"ma": "ZZMAY", "ten": "ZZ Máy", "loai_may": "Máy in",
                            }),
-    ("/api/loai-san-pham", {"ma": "ZZSP2", "ten": "ZZ SP2", "structural_type": "flat"}),
     ("/api/don-vi", {"ma": "zzdv", "ten": "ZZ Đơn vị"}),
 ])
 def test_detail_mo_cho_ai_list_duoc(client, prefix, payload):
@@ -179,30 +161,29 @@ def test_kiem_xoa_tra_du_thu_hop_thoai_can(client):
     assert r.status_code == 200, r.text
     assert r.json() == {"xoa_han_duoc": True, "chan": [], "keo_theo": []}
 
-    # Chủng loại giấy đang có một loại giấy thuộc nó ⇒ hết xoá hẳn được, và câu trả lời nêu SỐ.
-    cl = client.post("/api/vat-lieu-kho/chung-loai-giay",
-                     json={"ma": "ZZCL9", "ten": "ZZ Couché"}, headers=h)
-    assert cl.status_code == 201, cl.text
-    cl_id = cl.json()["id"]
+    # Đơn vị đang là đơn vị gốc của một loại giấy ⇒ hết xoá hẳn được, và câu trả lời nêu SỐ.
+    # (Trước 27/09/2026 vế này dùng Chủng loại giấy — danh mục đó gỡ ở mg 0342.)
+    dv = client.post("/api/don-vi", json={"ma": "zzdv9", "ten": "ZZ Đơn vị 9"}, headers=h)
+    assert dv.status_code == 201, dv.text
+    dv_id = dv.json()["id"]
 
-    truoc = client.get(f"/api/danh-muc/chung_loai_giay/{cl_id}/kiem-xoa", headers=h).json()
-    assert truoc == {"xoa_han_duoc": True, "chan": [], "keo_theo": []}
+    truoc = client.get(f"/api/danh-muc/don_vi_do/{dv_id}/kiem-xoa", headers=h).json()
+    assert truoc["xoa_han_duoc"] is True and truoc["chan"] == [], truoc
 
     giay = client.post("/api/vat-lieu-kho/giay",
-                       json={"ma": "ZZG9", "ten": "ZZ Giấy 9", "gsm": 250, "don_vi_gia": "kg",
-                             "don_gia": 28000, "chung_loai_giay_id": cl_id}, headers=h)
+                       json={"ma": "ZZG9", "ten": "ZZ Giấy 9", "gsm": 250, "don_vi_gia": "zzdv9",
+                             "don_gia": 28000}, headers=h)
     assert giay.status_code == 201, giay.text
 
-    sau = client.get(f"/api/danh-muc/chung_loai_giay/{cl_id}/kiem-xoa", headers=h).json()
+    sau = client.get(f"/api/danh-muc/don_vi_do/{dv_id}/kiem-xoa", headers=h).json()
     assert sau["xoa_han_duoc"] is False
-    assert sau["chan"] == ["1 loại giấy thuộc chủng loại này"], sau
+    assert "1 loại giấy lấy làm đơn vị gốc" in sau["chan"], sau
 
 
 @pytest.mark.parametrize("prefix,payload", [
     ("/api/cong-doan", {"ma": "ZZCD8", "ten": "ZZ CĐ8", "nhom": "finishing",
                         "pricing_basis": "per_finished_qty"}),
     ("/api/khuon-be", {"ten": "ZZ Dao 8", "loai": "khuon_be"}),
-    ("/api/loai-san-pham", {"ma": "ZZSP8", "ten": "ZZ SP8", "structural_type": "flat"}),
 ])
 def test_ngung_dung_va_bat_lai_khong_can_gui_ca_ban_ghi(client, prefix, payload):
     """Nút "Ngừng dùng" / "Bật lại" đổi ĐÚNG MỘT trường — phải có đường gửi đúng một trường.

@@ -421,11 +421,6 @@ _HD += _dong("danh_muc", "dm_don_vi", {
     "update_don_vi_cap": "Sửa cầu quy đổi đơn vị",
     "delete_don_vi_cap": "Xoá cầu quy đổi đơn vị",
 })
-_HD += _dong("danh_muc", "dm_loai_san_pham", {
-    "create_product_type_catalog": "Tạo loại sản phẩm",
-    "update_product_type_catalog": "Sửa loại sản phẩm",
-    "delete_product_type_catalog": "Xoá loại sản phẩm",
-})
 _HD += _dong("danh_muc", "cham_cong", {
     "create_work_shift": "Tạo ca làm việc",
     "update_work_shift": "Sửa ca làm việc",

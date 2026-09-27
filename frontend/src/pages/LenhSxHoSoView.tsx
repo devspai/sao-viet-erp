@@ -811,7 +811,6 @@ export function LenhSxHoSoView({
                   <Kv k="Trang mỗi tay" v={d.thong_so.trang_moi_tay} />
                   <Kv k="Số kẽm" v={d.thong_so.so_kem} />
                   <Kv k="Số mảnh xả" v={d.thong_so.so_manh_xa} />
-                  <Kv k="Loại sản phẩm" v={d.thong_so.loai_san_pham} />
                   <Kv k="Số con trên tờ" v={d.thong_so.so_con} />
                   <Kv k="Số tờ kế hoạch" v={num(d.thong_so.so_to_ke_hoach)} />
                   <Kv k="Số tờ nguyên" v={num(d.thong_so.so_to_nguyen)} />

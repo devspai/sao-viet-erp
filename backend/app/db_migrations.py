@@ -16155,6 +16155,55 @@ def _migrate_don_vi_ncc_ve_ma(db) -> None:
 MIGRATIONS.append(("0341_don_vi_ncc_ve_ma", _migrate_don_vi_ncc_ve_ma))
 
 
+def _migrate_go_loai_san_pham_chung_loai_giay(db) -> None:
+    """mg 0342 — gỡ hai danh mục Loại sản phẩm + Chủng loại giấy (chủ chốt 27/09/2026).
+
+    Không engine nào đọc hai danh mục này để ra tiền, tồn hay lịch. Loại SP chỉ còn đúng một việc:
+    chọn loại ở màn Tính giá thì tự bung chuỗi công đoạn mặc định — chủ chấp nhận bỏ. Chủng loại giấy
+    chỉ là nhãn phân loại của Giấy.
+
+    Gỡ luôn `product_types_catalog` (loại SP ĐỜI CŨ): API của nó 403 cho mọi vai từ 15/08/2026
+    (`legacy_api.py`). `norms.product_type` còn trỏ khoá ngoại vào bảng đó ⇒ Postgres DROP ... CASCADE
+    (bỏ ràng buộc, GIỮ cột chuỗi — `norm_service` vẫn so khớp theo chuỗi).
+
+    Mất dữ liệu, không khôi phục được: các dòng của ba bảng, `phieu_tinh_gia.loai_san_pham_id`,
+    `phieu_thanh_phan.loai_san_pham_id`, `giay_nguyen.chung_loai_giay_id`, và dòng quyền của hai ô
+    `dm_loai_san_pham` · `dm_chung_loai_giay`. Tên loại đã chụp vào `lsx.quy_cach_json` của lệnh cũ
+    ở yên đó (JSON, không ai đọc nữa). Index trên cột phải DROP trước — SQLite từ chối DROP COLUMN
+    đang có index. Idempotent.
+    """
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    pg = bind.dialect.name == "postgresql"
+
+    for ten_bang, cot in (
+        ("phieu_tinh_gia", "loai_san_pham_id"),
+        ("phieu_thanh_phan", "loai_san_pham_id"),
+        ("giay_nguyen", "chung_loai_giay_id"),
+    ):
+        if ten_bang not in bang or cot not in _existing_columns(insp, ten_bang):
+            continue
+        for ix in insp.get_indexes(ten_bang):
+            if cot in (ix.get("column_names") or []):
+                db.execute(text(f"DROP INDEX IF EXISTS {ix['name']}"))
+        db.execute(text(f"ALTER TABLE {ten_bang} DROP COLUMN {cot}"))
+
+    for ten in ("loai_san_pham", "chung_loai_giay", "product_types_catalog"):
+        if ten in bang:
+            db.execute(text(f"DROP TABLE {ten}" + (" CASCADE" if pg else "")))
+
+    for key in ("dm_loai_san_pham", "dm_chung_loai_giay"):
+        if "role_permissions" in bang:
+            db.execute(text("DELETE FROM role_permissions WHERE module_key = :k"), {"k": key})
+        if "modules" in bang:
+            db.execute(text("DELETE FROM modules WHERE key = :k"), {"k": key})
+    db.commit()
+
+
+MIGRATIONS.append(("0342_go_loai_san_pham_chung_loai_giay", _migrate_go_loai_san_pham_chung_loai_giay))
+
+
 _COT_DU_KIEN_BUOC_CHUNG = (
     "sl_gui", "ngay_gui_dk", "van_chuyen_ngay", "gia_cong_ngay", "ngay_nhan_dk",
     "hao_hut_cho_phep", "don_gia_gia_cong", "yeu_cau_ky_thuat",
