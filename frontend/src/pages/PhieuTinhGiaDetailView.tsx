@@ -2691,7 +2691,8 @@ function ComponentModal({
     return () => window.clearTimeout(t);
   }, [canhBaoIn]);
 
-  // Một đường thêm chip cho CẢ hai chỗ: mũi tên chèn giữa chuỗi và nút "+ Thêm công đoạn" ở cuối.
+  // Một đường thêm chip cho CẢ ba chỗ: nút "+" chèn lên đầu, mũi tên chèn giữa chuỗi và nút
+  // "+ Thêm công đoạn" ở cuối.
   const themCongDoan = (v: string, insertIdx: number | null = null) => {
     if (!v) return;
     if (v === "__blank") {
@@ -3119,6 +3120,24 @@ function ComponentModal({
                   <p className="tg-chipgrid__empty" style={{ margin: "6px 0" }}>
                     Chưa có công đoạn — thêm ở ô «+ Thêm công đoạn».
                   </p>
+                )}
+                {/* Chèn TRƯỚC bước đầu — mũi tên giữa chuỗi chỉ chèn được sau một bước có sẵn, nút
+                    cuối chỉ nối đuôi, nên thiếu chỗ này thì muốn thêm bước đứng đầu phải xoá cả
+                    chuỗi rồi khai lại. Chuỗi rỗng thì nút cuối đã lo, không hiện. */}
+                {c.thanh_phams.length > 0 && (
+                  <div className="tg-timeline-arrow-wrap" title="Chèn công đoạn lên đầu chuỗi">
+                    <Select
+                      options={cdOpts}
+                      value=""
+                      onChange={(v) => themCongDoan(v, 0)}
+                      placeholder="+"
+                      ariaLabel="Chèn công đoạn lên đầu chuỗi"
+                      searchable
+                      portal
+                      className="tg-timeline-select-arrow"
+                      listClassName="tg-pop"
+                    />
+                  </div>
                 )}
                 {c.thanh_phams.map((f, fIdx) => {
                   const canh = tinhTrangBuoc(f, congDoans);
