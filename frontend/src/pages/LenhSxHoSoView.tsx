@@ -1313,9 +1313,9 @@ function RoutingRow({ n }: { n: LenhSxRoutingNode }) {
           {n.la_buoc_ghep && (
             <span
               className="hslsx-hs__chip"
-              title="Bước do một ca in ghép đảm nhiệm — trạng thái, máy và người là của cả ca"
+              title="Bước chạy chung với các lệnh khác trên bài ghép — loại bước, tổ/nhà gia công, trạng thái, máy và người là của lượt chung"
             >
-              ca ghép
+              {n.bai_ghep_ma ? `đi chung bài ghép ${n.bai_ghep_ma}` : "ca ghép"}
             </span>
           )}
           {n.la_buoc_hien_tai && <span className="hslsx-hs__chip is-now">đang ở đây</span>}

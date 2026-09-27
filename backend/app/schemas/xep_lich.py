@@ -125,6 +125,8 @@ class CongDoanOut(BaseModel):
     thu_tu: int
     ten: str
     loai_buoc: str | None = None
+    # Mã bài ghép đang phủ bước này — khi có, loại/tổ/nhà gia công là của BƯỚC CHUNG.
+    bai_ghep_ma: str | None = None
     # Máy ĐANG GIAO CHẠY (`san_xuat_cong_viec.may_id`) nếu lệnh đã phát hành, không thì máy kế
     # hoạch. `may_nguon` nói rõ nguồn nào (`thuc_thi` · `ke_hoach`), và khi xưởng đã đổi máy thì
     # `may_ke_hoach_ten` giữ tên máy kế hoạch để màn đối chiếu được — số giờ tính theo máy ĐANG

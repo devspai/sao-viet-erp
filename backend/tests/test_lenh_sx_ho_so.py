@@ -959,6 +959,32 @@ def test_buoc_ghep_co_mat_trong_routing(client, seed_credentials, ghep_doi):
     assert theo_ten["CTP"]["la_buoc_ghep"] is False
 
 
+def test_buoc_ghep_bay_cau_hinh_cua_buoc_chung(client, seed_credentials, sess, ghep_doi):
+    """E2E 27/09/2026: bước bị bài phủ in theo cấu hình CỦA LỆNH (loại Máy, "Tổ cán phủ") trong khi
+    lượt chung là Thuê ngoài ở nhà gia công — hồ sơ phải bày loại/nhà gia công của bước chung, mã
+    bài, và KHÔNG rơi về tổ của lệnh khi bước chung không có tổ."""
+    from app.models.bai_ghep_cong_doan import BaiGhepCongDoan
+    from app.models.bai_ghep import BaiGhep
+    from app.models.lsx import LB_THUE_NGOAI
+
+    lsx_a, _lsx_b, cv_chung = ghep_doi
+    chung = sess.get(BaiGhepCongDoan, cv_chung.bai_ghep_cong_doan_id)
+    chung.loai_buoc, chung.nha_cung_cap, chung.department_id = LB_THUE_NGOAI, "Tân Phát", None
+    cv_chung.loai_buoc, cv_chung.nha_cung_cap, cv_chung.department_id = (
+        LB_THUE_NGOAI, "Tân Phát", None)
+    ma_bai = sess.get(BaiGhep, chung.bai_ghep_id).ma
+    sess.commit()
+
+    theo_ten = {
+        n["ten"]: n for n in _ho_so(client, seed_credentials, lsx_a)["routing"]["nodes"]
+    }
+    n_in = theo_ten["In"]
+    assert (n_in["loai_buoc"], n_in["nha_cung_cap"], n_in["to"]) == (LB_THUE_NGOAI, "Tân Phát", None)
+    assert n_in["bai_ghep_ma"] == ma_bai
+    assert theo_ten["CTP"]["bai_ghep_ma"] is None
+    assert theo_ten["CTP"]["to"] is not None
+
+
 # --- `chi_khoi`: xin ít khối hơn, KHÔNG phải đọc bằng đường khác --------------------------------
 _KHOI_PHIEU = {"thong_tin", "thong_so", "routing", "phien_ban"}
 

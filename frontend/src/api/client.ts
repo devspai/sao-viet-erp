@@ -1066,6 +1066,8 @@ export interface XlCongDoan {
   thu_tu: number;
   ten: string;
   loai_buoc: string | null;
+  /** Mã bài ghép đang phủ bước — có thì loại/tổ/nhà gia công là của BƯỚC CHUNG. */
+  bai_ghep_ma?: string | null;
   /** Máy ĐANG GIAO CHẠY nếu lệnh đã phát hành, không thì máy kế hoạch — `may_nguon` nói rõ nguồn
    *  nào. Xưởng đổi máy thì `may_ke_hoach_ten` giữ tên máy kế hoạch để đối chiếu. Số giờ tính
    *  theo máy ĐANG CHẠY (tốc độ treo ở cặp công đoạn × máy). */
@@ -8911,6 +8913,8 @@ export interface LenhSxRoutingNode {
   cong_viec_id: number | null;
   /** Bước do một ca in GHÉP đảm nhiệm: trạng thái/máy/người là của CẢ CA, không riêng lệnh này. */
   la_buoc_ghep: boolean;
+  /** Mã bài ghép đang phủ bước — có thì loại/tổ/nhà gia công là của BƯỚC CHUNG. */
+  bai_ghep_ma?: string | null;
   la_buoc_hien_tai: boolean;
   /** `released` | `running` | `paused` | `completed`; `null` = bước chưa có công việc. */
   trang_thai: string | null;

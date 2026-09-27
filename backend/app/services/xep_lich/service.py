@@ -426,7 +426,14 @@ class XepLichLenhService:
         ten_dv = self.repo.ten_don_vi(
             sorted({str(c.don_vi_vao) for c in cds if c.don_vi_vao})
         )
-        self._nap_to([c.department_id for c in cds])
+        # Bước bị bài ghép phủ chạy theo cấu hình của BƯỚC CHUNG (loại, tổ, nhà gia công) — cấu
+        # hình còn ở `lsx_cong_doan` là thứ bài đã đè (E2E 27/09/2026: popup in "Tổ cán phủ" cho
+        # lượt cán chung thuê ngoài).
+        from ...repositories.bai_ghep_repo import BaiGhepRepository
+
+        chung = BaiGhepRepository(self.db).buoc_chung_phu_lsx([lsx_id])
+        self._nap_to([c.department_id for c in cds]
+                     + [p.department_id for p, _ in chung.values()])
 
         qc = dict(l.quy_cach_json or {})         # ẢNH CHỤP lúc tạo lệnh — khoá có thể trống
         don = self._don_cua(l)
@@ -454,7 +461,7 @@ class XepLichLenhService:
             "cong_doans": [
                 self._cd_dict(c, i, tin.get(c.id) or {}, ten_dv,
                               lop.get(c.id, 0), dong_lop.get(lop.get(c.id, 0), 1) > 1,
-                              self._thuc_te_cua(c, l.id))
+                              self._thuc_te_cua(c, l.id), chung.get(c.step_key))
                 for i, c in enumerate(cds)
             ],
         }
@@ -1026,7 +1033,8 @@ class XepLichLenhService:
         return _lop_topo(ids, self.repo.phu_thuoc_theo_lo(ids)) if ids else {}
 
     def _cd_dict(self, cd, i: int, tin: dict, ten_dv: dict[str, str],
-                 lop: int, song_song: bool, thuc: dict | None = None) -> dict:
+                 lop: int, song_song: bool, thuc: dict | None = None,
+                 phu: tuple | None = None) -> dict:
         """Một dòng bảng công đoạn. Số giờ + máy lấy TỪ `tin` (lượt tính duy nhất), không tính lại.
 
         `thuc` là lớp THỰC TẾ của bước (`_thuc_te_cua`) — rỗng khi lệnh chưa phát hành, và khi đó
@@ -1034,7 +1042,9 @@ class XepLichLenhService:
         bày mốc bước KẾ HOẠCH). Lệnh ĐÃ phát hành thì mốc bước không còn là số thừa: nó là thứ
         duy nhất so được kế hoạch với việc đã xảy ra.
         """
-        ngoai = (cd.loai_buoc or LB_MAY) == LB_THUE_NGOAI
+        # `phu` = (bước chung, mã bài) khi bài ghép đè bước này: loại/tổ/nhà gia công lấy của bài.
+        goc = phu[0] if phu else cd
+        ngoai = (goc.loai_buoc or LB_MAY) == LB_THUE_NGOAI
         dv = str(cd.don_vi_vao) if cd.don_vi_vao else None
         # `lsx_cong_doan.so_luong_vao` là `NOT NULL default 0`, nên 0 CHÍNH LÀ "chưa khai" — không
         # có bước nào thật sự nhận vào 0 đơn vị. Đổi về `None` ngay ở mép API để màn khỏi phải in
@@ -1042,14 +1052,15 @@ class XepLichLenhService:
         sl = float(cd.so_luong_vao or 0)
         return {
             "id": cd.id, "thu_tu": int(cd.thu_tu or 0), "ten": cd.ten,
-            "loai_buoc": cd.loai_buoc,
+            "loai_buoc": goc.loai_buoc,
+            "bai_ghep_ma": phu[1] if phu else None,
             # Bước thuê ngoài không chạy máy xưởng: bỏ máy (kể cả máy công việc cũ còn sót), chỗ
             # tên tổ in tên nhà gia công để popup không báo "Chưa gán máy" hay một máy nhầm.
             "may_id": None if ngoai else tin.get("may_id"),
             "may_ten": None if ngoai else tin.get("may_ten"),
             "may_nguon": None if ngoai else tin.get("may_nguon"),
             "may_ke_hoach_ten": None if ngoai else tin.get("may_ke_hoach_ten"),
-            "to_ten": (cd.nha_cung_cap or "Nhà gia công") if ngoai else self._ten_to(cd.department_id),
+            "to_ten": (goc.nha_cung_cap or "Nhà gia công") if ngoai else self._ten_to(goc.department_id),
             "so_luong_vao": sl if sl > 0 else None,
             "don_vi_vao": dv,
             "don_vi_vao_ten": ten_dv.get(dv) if dv else None,

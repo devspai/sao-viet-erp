@@ -376,6 +376,30 @@ describe("Hồ sơ lệnh sản xuất · chip khuôn đi theo bước", () => {
   });
 });
 
+// E2E 27/09/2026: bước bị bài ghép phủ in theo cấu hình của LỆNH (Máy, "Tổ cán phủ") trong khi
+// lượt chung là Thuê ngoài — máy chủ nay trả cấu hình bước chung + mã bài, màn phải nói ra mã bài.
+describe("Hồ sơ lệnh sản xuất · bước bị bài ghép phủ", () => {
+  it("bày loại Thuê ngoài, nhà gia công và chip đi chung bài ghép", async () => {
+    const [n1, n2, n3] = HOSO.routing!.nodes;
+    stubApi({
+      ...HOSO,
+      routing: {
+        ...HOSO.routing!,
+        nodes: [n1, {
+          ...n2, loai_buoc: "thue_ngoai", nha_cung_cap: "Tân Phát", may: null, to: null,
+          bai_ghep_ma: "GB26-0002",
+        }, n3],
+      },
+    });
+    ve();
+    await screen.findByText("LSX26-0031");
+    await moHetKhoi();
+
+    expect(screen.getByText("đi chung bài ghép GB26-0002")).toBeInTheDocument();
+    expect(screen.getByText("Tân Phát")).toBeInTheDocument();
+  });
+});
+
 describe("Hồ sơ lệnh sản xuất · bày TÊN đơn vị chứ không bày mã", () => {
   it("⭐ mọi chỗ có đơn vị đều đọc ra tên trong danh mục", async () => {
     stubApi();

@@ -834,6 +834,14 @@ export function XlChiTiet({
                                     song song được
                                   </span>
                                 )}
+                                {c.bai_ghep_ma && (
+                                  <span
+                                    className="xl-c-song-song"
+                                    title="Bước chạy chung với các lệnh khác trên bài ghép — loại bước, tổ/nhà gia công là của lượt chung"
+                                  >
+                                    đi chung bài ghép {c.bai_ghep_ma}
+                                  </span>
+                                )}
                                 {tt && (
                                   <span className={`xl-c-tt xl-c-tt--${tt.cls}`} title="Trạng thái thẻ việc dưới xưởng">
                                     {tt.chu}
