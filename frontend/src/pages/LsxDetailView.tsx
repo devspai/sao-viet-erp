@@ -29,6 +29,7 @@ import { DinhKemTep } from "../components/DinhKemTep";
 import { Icon } from "../components/Icons";
 import { MucInHang } from "../components/MucIn";
 import { Timeline } from "../components/Timeline";
+import { BAI_GHEP_ENABLED } from "../constants/features";
 import { GiaCongNgoaiPanel } from "./gia-cong/GiaCongNgoaiPanel";
 import { TronGoiDialog } from "./gia-cong/TronGoiDialog";
 import { ImpositionDiagram } from "./ImpositionDiagram";
@@ -1008,7 +1009,9 @@ export function LsxDetailView({
         eventTick={eventTick}
         canUpdate={canUpdate}
         onChanged={() => { load(); onChanged(); }}
-        onMoBaiGhep={navigate ? (id) => navigate("bai-ghep-2", { openBaiGhepId: id }) : undefined}
+        // Màn Bài ghép đang ẩn (`BAI_GHEP_ENABLED`) thì route bị chặn — không mời bấm sang.
+        onMoBaiGhep={navigate && BAI_GHEP_ENABLED
+          ? (id) => navigate("bai-ghep-2", { openBaiGhepId: id }) : undefined}
       />
 
       {/* Lưu ý "gỡ đầu việc mồ côi" GỠ 18/09/2026 (mg `0320`) — bước thôi ghim đầu việc. */}

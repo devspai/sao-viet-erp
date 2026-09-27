@@ -16,7 +16,8 @@
 // style đi theo component chứ không đi theo trang nào.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  ApiError, LSX_LOAI_BUOC_META, api, type BaiGhepBuocChungBody, type BaiGhepSoDo, type NhaGiaCong,
+  ApiError, LSX_LOAI_BUOC_META, api, type BaiGhepBuocChungBody, type BaiGhepSoDo, type LsxLoaiBuoc,
+  type NhaGiaCong,
 } from "../api/client";
 import { crud } from "../api/rebuildCatalog";
 import { useAuth } from "../auth/useAuth";
@@ -28,6 +29,8 @@ import "./ke-hoach-sx.css";
 import "./bai-ghep.css";
 
 type TabKey = "cau_hinh" | "phan_cong" | "vat_tu" | "tien_do" | "gia_cong" | "cac_lenh";
+
+const LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "to", "thue_ngoai"];
 
 /** Máy đọc từ danh mục: nhóm để lọc + ba tốc độ và chuẩn bị để tính lại giờ NGAY khi đổi máy,
  *  không đợi lưu (`thoiLuongLive` dùng đúng bộ số này ở bước lệnh). */
@@ -82,7 +85,12 @@ export function BuocChungForm({
   const [tab, setTab] = useState<TabKey>("cau_hinh");
   const [dangLuu, setDangLuu] = useState(false);
   const [confirmTach, setConfirmTach] = useState(false);
-  const ngoaiBuoc = g.loai_buoc === "thue_ngoai";
+  // Loại bước của lượt chung ĐỔI ĐƯỢC ở đây (spec 2026-09-27 §2 bước 1: "ở bước chung Cán màng,
+  // loại bước Thuê ngoài") — gộp kế thừa loại của bước lệnh, nhưng người lập kế hoạch bài ghép
+  // quyết lượt chung đi máy, đi tổ hay gửi nhà gia công. Mọi chỗ trong form đọc `loai` (bản nháp
+  // trước, server sau) để đổi loại là tab/ô đổi theo ngay, chưa cần lưu.
+  const loai = f.loai_buoc ?? g.loai_buoc;
+  const ngoaiBuoc = loai === "thue_ngoai";
   const [nhaDs, setNhaDs] = useState<NhaGiaCong[] | null>(null);
   const [nhaLoi, setNhaLoi] = useState<string | null>(null);
 
@@ -137,8 +145,20 @@ export function BuocChungForm({
   const val = <K extends keyof BaiGhepBuocChungBody>(k: K, hienCo: BaiGhepBuocChungBody[K]) =>
     (f[k] !== undefined ? f[k] : hienCo);
 
-  const meta = LSX_LOAI_BUOC_META[g.loai_buoc];
-  const ngoai = g.loai_buoc === "thue_ngoai";
+  const meta = LSX_LOAI_BUOC_META[loai];
+  const ngoai = loai === "thue_ngoai";
+  const doiLoaiBuoc = (k: LsxLoaiBuoc) => {
+    if (k === "thue_ngoai") {
+      // Nhà gia công lo người và máy — dọn tổ/máy trong bản nháp; máy chủ cũng dọn khi lưu.
+      setF({ ...f, loai_buoc: k, department_id: null, may_id: null });
+      setTab("gia_cong");
+      return;
+    }
+    // Bỏ thuê ngoài thì máy chủ dọn nhà gia công; bước tổ không có máy và chỉ một lượt.
+    const { nha_cung_cap_id: _bo, ...conLai } = f;
+    void _bo;
+    setF(k === "to" ? { ...conLai, loai_buoc: k, may_id: null, so_luot_chay: 1 } : { ...conLai, loai_buoc: k });
+  };
   // Nhà gia công chọn từ danh mục NCC có tích "Nhận gia công" — cùng nguồn với bước lệnh; tên do
   // máy chủ ghi theo id. Nhà đã chọn mà nay bỏ tích vẫn phải HIỆN (ô chọn không rơi về trống).
   const nhaId = val("nha_cung_cap_id", g.nha_cung_cap_id);
@@ -183,9 +203,9 @@ export function BuocChungForm({
   const tg = useMemo(
     () => thoiLuongLive(
       {
-        loai_buoc: g.loai_buoc,
+        loai_buoc: loai,
         // Bước tổ: server ép 1 lượt (ô đã gỡ 08/09/2026) — bản xem trước phải nói cùng con số.
-        so_luot_chay: g.loai_buoc === "to" ? "1" : String(val("so_luot_chay", g.so_luot_chay) ?? 1),
+        so_luot_chay: loai === "to" ? "1" : String(val("so_luot_chay", g.so_luot_chay) ?? 1),
         // Bước TỔ: giờ = SỐ GIỜ KẾ HOẠCH gõ tay (xem `thoi_luong_buoc` ở backend, mg `0319`).
         so_gio_ke_hoach: String(val("so_gio_ke_hoach", g.so_gio_ke_hoach) ?? 0),
         phat_sinh_phut: String(val("phat_sinh_phut", g.phat_sinh_phut) ?? 0),
@@ -196,7 +216,7 @@ export function BuocChungForm({
       mayDaChon,
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [g, f.so_luot_chay, f.so_gio_ke_hoach, f.phat_sinh_phut, mayDaChon],
+    [g, loai, f.so_luot_chay, f.so_gio_ke_hoach, f.phat_sinh_phut, mayDaChon],
   );
 
   const setup = Number(tg.setup_phut ?? 0);
@@ -239,7 +259,7 @@ export function BuocChungForm({
   return (
     <>
       <header className="khsx-drawer__head">
-        <div className={`khsx-drawer__accent khsx-drawer__accent--${g.loai_buoc}`} />
+        <div className={`khsx-drawer__accent khsx-drawer__accent--${loai}`} />
 
         <div className="khsx-drawer__head-main">
           <div className="khsx-drawer__head-info">
@@ -251,7 +271,7 @@ export function BuocChungForm({
                   : ""}
               </span>
               <span className="khsx-dot-sep">·</span>
-              <span className={`khsx-type-tag khsx-type-tag--${g.loai_buoc}`}>{meta.label}</span>
+              <span className={`khsx-type-tag khsx-type-tag--${loai}`}>{meta.label}</span>
               <span className="khsx-dot-sep">·</span>
               <span className="khsx-tag-subtle">
                 {g.thanh_vien.length} lệnh chạy chung{g.ma_bai_ghep ? ` · ${g.ma_bai_ghep}` : ""}
@@ -423,6 +443,25 @@ export function BuocChungForm({
                   <span>{c}</span>
                 </div>
               ))}
+
+              <div className="khsx-field">
+                <span className="khsx-field__label">LOẠI BƯỚC THỰC HIỆN</span>
+                <div className="khsx-seg-std" role="group" aria-label="Loại bước">
+                  {LOAI_BUOC_ORDER.map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      className={loai === k ? "is-active" : ""}
+                      disabled={!canUpdate}
+                      aria-pressed={loai === k}
+                      title={LSX_LOAI_BUOC_META[k].hint}
+                      onClick={() => doiLoaiBuoc(k)}
+                    >
+                      {LSX_LOAI_BUOC_META[k].label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {ngoai && (
                 // Bước thuê ngoài không có tổ/máy trong xưởng — máy chủ gỡ khi lưu.
@@ -745,7 +784,7 @@ export function BuocChungForm({
                     làm tay thì không có "lượt qua máy" nào để đếm. Bước tổ ép 1 lượt ở server
                     (`lap_ke_hoach_buoc_chung`), chip `so_luot_chay` của công thức giờ vẫn
                     có số thật để dùng, chỉ là luôn bằng 1. */}
-                {g.loai_buoc !== "to" && (
+                {loai !== "to" && (
                   <div className="khsx-field">
                     <span className="khsx-field__label">SỐ LƯỢT CHẠY QUA MÁY</span>
                     <div className="khsx-turns-control">
@@ -777,7 +816,7 @@ export function BuocChungForm({
                   </div>
                 )}
 
-                {g.loai_buoc === "to" ? (
+                {loai === "to" ? (
                   // SỐ GIỜ KẾ HOẠCH (mg `0319`) thay ô "Năng suất một người" — y như bước lệnh:
                   // mặc định 0, nhận số lẻ, để 0 không cảnh báo.
                   <label className="khsx-field">
@@ -989,7 +1028,7 @@ export function BuocChungForm({
                               : `${num(Number(tg.so_luong_vao ?? 0))} ${nhanChang(String(tg.don_vi_vao ?? ""))}`}
                             {" ÷ "}
                             {num(Number(tg.nang_suat_hieu_dung ?? 0))}/giờ
-                            {g.loai_buoc === "may" && Number(tg.so_luot_chay ?? 1) !== 1
+                            {loai === "may" && Number(tg.so_luot_chay ?? 1) !== 1
                               ? ` × ${Number(tg.so_luot_chay ?? 1)} lượt`
                               : ""}
                             {" = "}
@@ -1034,7 +1073,7 @@ export function BuocChungForm({
                   </div>
                 ) : (
                   <div className="khsx-tolerance-empty">
-                    {g.loai_buoc === "to"
+                    {loai === "to"
                       ? "Đầu việc chưa khai năng suất tối thiểu / tối đa nên chưa có khoảng nhanh–chậm."
                       : "Máy chưa khai tốc độ tối thiểu / tối đa nên chưa có khoảng nhanh–chậm."}
                   </div>

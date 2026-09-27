@@ -890,10 +890,13 @@ export function BaiGhepDagCanvas({
                   </div>
                   <div className="dag-node__body">
                     <div className="dag-node__row">
-                      <span className="dag-node__badge">
-                        <Icon name="users" size={11} />
-                        {g.to_ten ? `Tổ ${g.to_ten}` : "Chưa chọn tổ"}
-                      </span>
+                      {/* Thuê ngoài không có tổ trong xưởng — "Chưa chọn tổ" ở đây là báo thiếu oan. */}
+                      {g.loai_buoc !== "thue_ngoai" && (
+                        <span className="dag-node__badge">
+                          <Icon name="users" size={11} />
+                          {g.to_ten ? `Tổ ${g.to_ten}` : "Chưa chọn tổ"}
+                        </span>
+                      )}
                       {g.loai_buoc === "thue_ngoai" ? (
                         <span className="dag-node__badge" title="Cả bài đi một phiếu, một nhà cung cấp">
                           <Icon name="truck" size={11} />
@@ -1172,10 +1175,12 @@ export function BaiGhepDagCanvas({
                           </div>
                           <div className="dag-node__body">
                             <div className="dag-node__row">
-                              <span className="dag-node__badge">
-                                <Icon name={getStepIcon(b)} size={11} />
-                                {b.to_ten ? `Tổ ${b.to_ten}` : "Chưa chọn tổ"}
-                              </span>
+                              {b.loai_buoc !== "thue_ngoai" && (
+                                <span className="dag-node__badge">
+                                  <Icon name={getStepIcon(b)} size={11} />
+                                  {b.to_ten ? `Tổ ${b.to_ten}` : "Chưa chọn tổ"}
+                                </span>
+                              )}
                               {b.loai_buoc === "thue_ngoai"
                                 ? <span className="dag-node__badge"><Icon name="truck" size={11} />{b.nha_cung_cap || "chưa có nhà gia công"}</span>
                                 : b.may_ten && <span className="dag-node__badge" title={`Máy: ${b.may_ten}`}><Icon name="cpu" size={11} />{b.may_ten}</span>}

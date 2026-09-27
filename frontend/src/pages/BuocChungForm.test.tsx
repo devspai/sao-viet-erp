@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { api } from "../api/client";
 import { gop } from "../test/baiGhepSoDoFixture";
 import { BuocChungForm } from "./BaiGhepBuocChungForm";
 
@@ -65,6 +66,33 @@ describe("form kế hoạch bước chung", () => {
     ]);
     expect((sel as HTMLSelectElement).value).toBe("9");
     expect(screen.getByText(/Chỉ các tổ phụ trách khai ở danh mục Công đoạn/)).toBeInTheDocument();
+  });
+
+  // Spec 2026-09-27 §2 bước 1: lượt chung kế thừa loại "Máy" từ bước lệnh vẫn đổi sang "Thuê ngoài"
+  // được ngay trên form bài ghép — không có đường này thì UI không thể dựng bước chung gia công ngoài.
+  it("đổi loại bước sang Thuê ngoài thì ẩn tổ/máy, mở thẻ nhà gia công và lưu cả hai", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api.giaCongNgoai, "nhaGiaCong").mockResolvedValue([{ id: 41, ten: "Tân Phát" }]);
+    const onLuu = vi.fn().mockResolvedValue(true);
+    render(<BuocChungForm g={gop({
+      step_key: "gang-can-2",
+      ten: "Cán màng chung",
+      loai_buoc: "may",
+      thanh_vien: [{ lsx_id: 1, lsx_ma: "LSX-1", lsx_step_key: "lsx-1-can", ghi_chu_ky_thuat: null }],
+    })} canUpdate onLuu={onLuu} onTach={async () => {}} />);
+
+    await user.click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
+    await user.click(screen.getByRole("button", { name: "Thuê ngoài" }));
+
+    expect(screen.queryByLabelText(/TỔ PHỤ TRÁCH/)).toBeNull();
+    const nha = await screen.findByLabelText(/NHÀ GIA CÔNG/);
+    await screen.findByRole("option", { name: "Tân Phát" });
+    await user.selectOptions(nha, "41");
+    await user.click(screen.getByRole("button", { name: "Lưu kế hoạch lượt chung" }));
+
+    expect(onLuu).toHaveBeenCalledWith(expect.objectContaining({
+      loai_buoc: "thue_ngoai", nha_cung_cap_id: 41, department_id: null, may_id: null,
+    }));
   });
 
   it("công đoạn chưa khai tổ thì mời mọi tổ, không có câu giới hạn", async () => {
