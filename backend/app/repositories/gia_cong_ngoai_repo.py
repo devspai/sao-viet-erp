@@ -81,6 +81,25 @@ class GiaCongNgoaiRepository:
             .order_by(GiaCongNgoai.id)
         ))
 
+    def bai_ghep(self, bai_ghep_id: int | None) -> BaiGhep | None:
+        return self.db.get(BaiGhep, bai_ghep_id) if bai_ghep_id else None
+
+    def bai_ghep_cua_lenh(self, lsx_id: int) -> int | None:
+        """Bài ghép chứa lệnh (mỗi lệnh tối đa một bài — `uq_bai_ghep_thanh_vien_lsx_id`)."""
+        return self.db.scalar(
+            select(BaiGhepThanhVien.bai_ghep_id).where(BaiGhepThanhVien.lsx_id == lsx_id))
+
+    def don_vi_ra_buoc_bi_phu(self, bai_ghep_cong_doan_id: int | None) -> dict[int, str | None]:
+        """`{lsx_id: đơn vị ra}` của bước LỆNH mà một bước chung phủ — đơn vị phần của từng lệnh
+        (một con trên tờ ghép = một đơn vị ra của bước riêng lệnh đó)."""
+        if not bai_ghep_cong_doan_id:
+            return {}
+        return {lsx_id: dv for lsx_id, dv in self.db.execute(
+            select(LsxCongDoan.lsx_id, LsxCongDoan.don_vi_ra)
+            .join(BaiGhepCongDoanMap, BaiGhepCongDoanMap.lsx_step_key == LsxCongDoan.step_key)
+            .where(BaiGhepCongDoanMap.bai_ghep_cong_doan_id == bai_ghep_cong_doan_id))}
+
+
     def step_keys_bi_phu(self, lsx_id: int) -> set[str]:
         """`step_key` các bước của lệnh đang bị một bước CHUNG bài ghép phủ — thuộc lần của bài."""
         return set(self.db.scalars(

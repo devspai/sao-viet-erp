@@ -378,17 +378,22 @@ def kiem_cong_doan(
 
 
 def ghi_kcs_ngoai_phan_mem(db: Session, *, cv, so_dat: float, uid: int | None,
-                           ghi_chu: str) -> SanXuatKcsBatch:
+                           ghi_chu: str, theo_lenh: tuple[int | None, str] | None = None,
+                           ) -> SanXuatKcsBatch:
     """Bản ghi KCS ĐẠT tổng hợp cho công việc GIA CÔNG NGOÀI cuối nhóm (spec gia công §10).
 
     KCS làm ngoài phần mềm; con số chốt đứng thay. Không gate, không commit — `gia_cong_ngoai.chot`
     gác `san_xuat:update`. Nhờ bản ghi này "còn gửi kho" / đóng nhóm / trạng thái lệnh chạy nguyên
-    đường cũ. Báo cáo KCS loại nó (`kcs_bao_cao`)."""
+    đường cũ. Báo cáo KCS loại nó (`kcs_bao_cao`).
+
+    `theo_lenh=(nhom_id, don_vi)`: công việc CHUNG của bài ghép ghi phần của TỪNG lệnh vào nhóm
+    của lệnh đó (spec gia công bài ghép 2026-09-27 §3)."""
     luc = _moc()
+    nhom_id, don_vi = theo_lenh if theo_lenh is not None else (cv.nhom_id, cv.don_vi_ra)
     kcs = SanXuatKcsBatch(
-        cong_viec_id=cv.id, nhom_id=cv.nhom_id, bat_dau=luc, ket_thuc=luc,
+        cong_viec_id=cv.id, nhom_id=nhom_id, bat_dau=luc, ket_thuc=luc,
         so_luong_nhan=so_dat, so_luong_dat=so_dat, so_luong_khong_dat=0,
-        don_vi=(cv.don_vi_ra or "").strip(), ket_luan=_ket_luan(so_dat, 0),
+        don_vi=(don_vi or "").strip(), ket_luan=_ket_luan(so_dat, 0),
         ghi_chu=ghi_chu[:500], created_by=uid,
     )
     db.add(kcs)

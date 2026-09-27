@@ -14,6 +14,7 @@ from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..san_xuat import ban_giao
 from . import kiem_version
+from .lan import co_buoc_truoc, nguon_lan
 
 _EPS = 1e-9
 
@@ -45,7 +46,7 @@ def mang_di(db: Session, *, user, gcn_id: int, expected_version: int | None,
         if sl_gui is not None:
             raise ValueError("Số mang đi lấy theo bàn giao, không gõ tay.")
         so = sum(float(b.so_luong) for b in cho)
-    elif repo.co_buoc_truoc(dau.lsx_cong_doan_id):
+    elif co_buoc_truoc(db, dau):
         raise ValueError("Bước trước chưa bàn giao hàng sang — chờ tổ bàn giao rồi bấm lại.")
     else:
         # Dải đứng ĐẦU lệnh (không bước trước): không có bàn giao để nhận, người mang đi gõ số.
@@ -69,8 +70,11 @@ def mang_di(db: Session, *, user, gcn_id: int, expected_version: int | None,
         detail=f"Mang đi {so:g} — tổng đã gửi {float(gcn.sl_gui):g}", commit=False,
     )
     db.commit()
+    nguon = nguon_lan(db, gcn)
     return {
-        "gia_cong_ngoai_id": gcn.id, "lsx_id": gcn.lsx_id,
+        "gia_cong_ngoai_id": gcn.id, "lsx_id": gcn.lsx_id, "bai_ghep_id": gcn.bai_ghep_id,
+        "lsx_ids": [l["id"] for l in nguon["lenh"]] or ([gcn.lsx_id] if gcn.lsx_id else []),
+        "nhan_nguon": nguon["nhan_nguon"],
         "ban_giao": [ban_giao.ket_qua_da_nhan(db, user=user, bg=bg, nguon_cv=n, dich_cv=dau)
                      for bg, n in ra_bg],
     }

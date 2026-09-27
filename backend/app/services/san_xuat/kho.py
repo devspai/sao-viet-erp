@@ -290,20 +290,26 @@ def _chia_theo_cum(so: float, cums: list[CumBan]) -> list[float]:
 # --- Ghi -----------------------------------------------------------------------------------------
 def lap_yeu_cau_nhap_tp(
     db: Session, *, user, cv, so_kcs: float, nguon_ghi: str = "KCS",
-    gia_cong_ngoai_id: int | None = None,
+    gia_cong_ngoai_id: int | None = None, theo_lenh: tuple[int | None, int, str] | None = None,
 ):
     """LÕI lập đề nghị NHẬP thành phẩm cho `so_kcs` (đơn vị ra của công đoạn cuối) — KHÔNG gate,
     KHÔNG khoá, KHÔNG commit. Trả `(req, dong_ra)`.
 
     Hai cửa gọi: nút của KCS (`tao_yeu_cau_nhap_kho_cong_doan` — gate KCS + khoá + số còn gửi) và
     chốt lần gia công ngoài về kho (spec gia công §4 bước 4 — KCS làm ngoài phần mềm, số chốt đi
-    thẳng). Đề nghị vẫn mang `san_xuat_cong_viec_id` ⇒ "giao được" của Giao hàng đếm như thường."""
-    nguon = _nguon_nhom(db, nhom_id=cv.nhom_id, lsx_id=cv.lsx_id)
+    thẳng). Đề nghị vẫn mang `san_xuat_cong_viec_id` ⇒ "giao được" của Giao hàng đếm như thường.
+
+    `theo_lenh=(nhom_id, lsx_id, don_vi)`: công việc CHUNG của bài ghép nhập phần của TỪNG lệnh
+    (gia công ngoài chốt về kho — spec 2026-09-27 §3) — nhóm/lệnh/đơn vị lấy theo lệnh đó thay
+    vì theo công việc (công việc chung không thuộc riêng nhóm nào)."""
+    nhom_id, lsx_id, don_vi_kcs = (theo_lenh if theo_lenh is not None
+                                   else (cv.nhom_id, cv.lsx_id, cv.don_vi_ra))
+    nguon = _nguon_nhom(db, nhom_id=nhom_id, lsx_id=lsx_id)
     if nguon is None or not nguon.cums:
         raise ValueError("Nhóm thành phẩm chưa nối được dòng đơn nào nên chưa thể nhập kho.")
 
     hang = _hang_service(db)
-    don_vi_kcs = (cv.don_vi_ra or "").strip()
+    don_vi_kcs = (don_vi_kcs or "").strip()
     theo_ma: dict[int, dict] = {}
     for cum, sl_kcs in zip(nguon.cums, _chia_theo_cum(so_kcs, nguon.cums)):
         tp = khai_cum(db, nguon.order, cum)

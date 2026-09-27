@@ -342,9 +342,12 @@ def huy_lan_cua_goi(db: Session, *, goi_id: int, actor, ly_do: str) -> int:
 
 def noi_ve_hop_le(db: Session, gcn, chang_sau: list) -> list[str]:
     """Dải còn chặng sau ⇒ chỉ về xưởng. Dải chứa bước cuối / trọn gói ⇒ kho, hoặc khách khi dòng
-    đơn của lệnh đứng riêng một cụm bán (§4 bước 5)."""
+    đơn của lệnh đứng riêng một cụm bán (§4 bước 5). Lần của BÀI GHÉP không có nhánh giao thẳng
+    (spec 2026-09-27 §3 — các lệnh thường thuộc nhiều đơn/khách)."""
     if chang_sau:
         return [NOI_VE_XUONG]
+    if gcn.bai_ghep_id is not None:
+        return [NOI_VE_KHO]
     from .giao_thang import dong_don_dung_rieng
 
     return [NOI_VE_KHO, NOI_VE_KHACH] if dong_don_dung_rieng(db, gcn.lsx_id) else [NOI_VE_KHO]
@@ -369,6 +372,75 @@ def _ly_do_khong_mo_lai(db: Session, gcn, *, pc, cuoi) -> str | None:
     return ly_do_khong_mo_lai(db, gcn, pc=pc, cuoi=cuoi)
 
 
+def co_buoc_truoc(db: Session, dau) -> bool:
+    """Công việc đầu của lần có bước đứng trước không (không ⇒ người mang đi tự gõ số). Công việc
+    CHUNG của bài ghép không có `lsx_cong_doan_id` ⇒ suy theo chặng trước (bàn giao đến từ đâu)."""
+    if dau is None:
+        return False
+    if dau.bai_ghep_cong_doan_id is not None:
+        return bool(SanXuatSanLuongRepository(db).cong_viec_chang_truoc(dau))
+    return GiaCongNgoaiRepository(db).co_buoc_truoc(dau.lsx_cong_doan_id)
+
+
+NHANH_TOA, NHANH_XUONG, NHANH_KHO = "toa", "xuong", "kho"
+
+
+def nhanh_bai_ghep(db: Session, cuoi, chang_sau: list) -> str:
+    """Cái đứng sau lần gia công của bài ghép (spec 2026-09-27 §3): điểm toả sang bước riêng từng
+    lệnh (cạnh toả mang `ty_le_ghep` do phát hành dựng) · bước chung kế tiếp · hết bước."""
+    if cuoi is not None and any(
+            c.ty_le_ghep for c in SanXuatSanLuongRepository(db).canh_toa_di_tu(cuoi.id)):
+        return NHANH_TOA
+    return NHANH_XUONG if chang_sau else NHANH_KHO
+
+
+def nguon_lan(db: Session, gcn) -> dict:
+    """Nhãn nguồn của lần: mã lệnh, hoặc "BG-01 (LSX-A, LSX-B)" cho lần của bài ghép — dùng cho
+    khối trên màn, hàng chờ chi, lý do phiếu chi."""
+    sx = SanXuatRepository(db)
+    if gcn.bai_ghep_id is None:
+        lsx = sx.lsx(gcn.lsx_id) if gcn.lsx_id else None
+        ma = lsx.ma if lsx else ""
+        return {"lsx_ma": ma, "bai_ghep_ma": None, "lenh": [], "nhan_nguon": ma}
+    repo = GiaCongNgoaiRepository(db)
+    bg = repo.bai_ghep(gcn.bai_ghep_id)
+    so_con = sx.thanh_vien_so_con({gcn.bai_ghep_id})
+    ma_lenh = repo.ma_cua_lenh(so_con)
+    lenh = [{"id": i, "ma": ma_lenh.get(i, ""), "so_con": so_con[i]}
+            for i in sorted(so_con, key=lambda i: (ma_lenh.get(i, ""), i))]
+    ma_bg = bg.ma if bg else ""
+    return {"lsx_ma": "", "bai_ghep_ma": ma_bg, "lenh": lenh,
+            "nhan_nguon": f"{ma_bg} ({', '.join(l['ma'] for l in lenh)})"}
+
+
+def chia_theo_lenh(db: Session, gcn, cuoi, chang_sau: list) -> list[dict]:
+    """Bảng chia số chốt về từng lệnh — hộp chốt hiện TRƯỚC khi bấm (spec 2026-09-27 §2 bước 5).
+    Rỗng khi lần không toả (lần của lệnh, hoặc chốt về bước chung kế — một bàn giao)."""
+    if gcn.bai_ghep_id is None or cuoi is None:
+        return []
+    nhanh = nhanh_bai_ghep(db, cuoi, chang_sau)
+    sl_repo = SanXuatSanLuongRepository(db)
+    repo = GiaCongNgoaiRepository(db)
+    ra: list[dict] = []
+    if nhanh == NHANH_TOA:
+        for c in sl_repo.canh_toa_di_tu(cuoi.id):
+            dich = sl_repo.cong_viec(c.dich_cong_viec_id)
+            if not c.ty_le_ghep or dich is None or dich.lsx_id is None:
+                continue
+            ra.append({"lsx_id": dich.lsx_id, "so_con": float(c.ty_le_ghep),
+                       "don_vi": c.don_vi_dich or dich.don_vi_vao, "buoc_nhan": dich.ten_cong_doan})
+    elif nhanh == NHANH_KHO:
+        don_vi = repo.don_vi_ra_buoc_bi_phu(cuoi.bai_ghep_cong_doan_id)
+        for lsx_id, con in SanXuatRepository(db).thanh_vien_so_con({gcn.bai_ghep_id}).items():
+            ra.append({"lsx_id": lsx_id, "so_con": float(con),
+                       "don_vi": don_vi.get(lsx_id) or cuoi.don_vi_ra, "buoc_nhan": None})
+    ma = repo.ma_cua_lenh({r["lsx_id"] for r in ra})
+    for r in ra:
+        r["lsx_ma"] = ma.get(r["lsx_id"], "")
+    ra.sort(key=lambda r: (r["lsx_ma"], r["lsx_id"]))
+    return ra
+
+
 def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
     repo = GiaCongNgoaiRepository(db)
     sl_repo = SanXuatSanLuongRepository(db)
@@ -379,11 +451,17 @@ def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
     cho = repo.ban_giao_cho_mang_di(dau.id) if dau is not None and gcn.kieu == KIEU_MOT_PHAN else []
     ten = repo.user_names({gcn.mang_di_boi_id, gcn.chot_boi_id, gcn.huy_boi_id})
     pc = repo.phieu_chi_song([gcn.id]).get(gcn.id)
-    lsx = SanXuatRepository(db).lsx(gcn.lsx_id)
+    nguon = nguon_lan(db, gcn)
     tien = (round(float(gcn.sl_cuoi) * float(gcn.don_gia), 0)
             if gcn.sl_cuoi is not None and gcn.don_gia is not None else None)
     return {
-        "id": gcn.id, "lsx_id": gcn.lsx_id, "lsx_ma": lsx.ma if lsx else "",
+        "id": gcn.id, "lsx_id": gcn.lsx_id, "lsx_ma": nguon["lsx_ma"],
+        "bai_ghep_id": gcn.bai_ghep_id, "bai_ghep_ma": nguon["bai_ghep_ma"],
+        "lenh": nguon["lenh"], "nhan_nguon": nguon["nhan_nguon"],
+        "chia_theo_lenh": chia_theo_lenh(db, gcn, cuoi, chang_sau),
+        # Người xem thao tác được không — router điền theo phạm vi (lần của bài ghép cần phạm vi
+        # trên MỌI lệnh thành viên, spec 2026-09-27 §5).
+        "chi_xem": False,
         "kieu": gcn.kieu, "trang_thai": trang_thai(gcn),
         "nha_cung_cap_id": gcn.nha_cung_cap_id, "nha_cung_cap_ten": gcn.nha_cung_cap_ten,
         "ten_viec": gcn.ten_viec, "don_vi": gcn.don_vi,
@@ -392,7 +470,7 @@ def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
         "sl_dat": _f(gcn.sl_dat), "xuong_cap_giay": bool(gcn.xuong_cap_giay),
         "don_vi_gui": dau.don_vi_vao if dau is not None else None,
         "sl_cho_mang_di": round(sum(float(b.so_luong) for b in cho), 3),
-        "co_buoc_truoc": repo.co_buoc_truoc(dau.lsx_cong_doan_id) if dau is not None else False,
+        "co_buoc_truoc": co_buoc_truoc(db, dau),
         "mang_di_boi_ten": ten.get(gcn.mang_di_boi_id), "mang_di_luc": thuc_te_hien_thi(gcn.mang_di_luc),
         "sl_gui": _f(gcn.sl_gui),
         "sl_goi_y_chot": _goi_y_chot(gcn, dau, cuoi),
@@ -418,4 +496,16 @@ def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
 
 
 def lan_cua_lenh(db: Session, lsx_id: int) -> list[dict]:
-    return [lan_dict(db, g) for g in GiaCongNgoaiRepository(db).cua_lenh(lsx_id)]
+    """Lần của lệnh + lần của BÀI GHÉP chứa lệnh (màn lệnh hiện dòng chỉ đọc cho lần bài ghép —
+    thao tác ở màn bài ghép, spec 2026-09-27 §4)."""
+    repo = GiaCongNgoaiRepository(db)
+    ra = [lan_dict(db, g) for g in repo.cua_lenh(lsx_id)]
+    bg_id = repo.bai_ghep_cua_lenh(lsx_id)
+    if bg_id is not None:
+        ra += [{**lan_dict(db, g), "chi_xem": True} for g in repo.cua_bai_ghep(bg_id)
+               if g.huy_luc is None]
+    return ra
+
+
+def lan_cua_bai_ghep(db: Session, bai_ghep_id: int) -> list[dict]:
+    return [lan_dict(db, g) for g in GiaCongNgoaiRepository(db).cua_bai_ghep(bai_ghep_id)]
