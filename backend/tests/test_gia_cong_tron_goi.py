@@ -311,3 +311,17 @@ def test_den_vat_tu_xanh_khi_nha_gia_cong_lo_giay(sess, admin, lenh):
     _dat(sess, admin, lenh, xuong_cap_giay=False)
     den, _ = lsx_tong_quan.den_vat_tu_va_bang(sess, [lenh.id])
     assert den[lenh.id]["muc"] == lsx_tong_quan.MUC_OK
+
+
+def test_ly_do_khong_mo_lai_khi_kho_da_lap_phieu(sess, admin, lenh, monkeypatch):
+    """E2E 27/09: nút Mở lại hiện dù máy chủ chắc chắn từ chối. Lần dict nay trả lý do để FE khoá."""
+    from app.repositories.stock_request_repo import StockRequestRepository
+
+    lan = _dat(sess, admin, lenh)
+    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+         sl_cuoi=19_800, noi_ve=NOI_VE_KHO)
+    (d,) = lan_cua_lenh(sess, lenh.id)
+    assert d["ly_do_khong_mo_lai"] is None
+    monkeypatch.setattr(StockRequestRepository, "co_voucher", lambda self, rid: True)
+    (d,) = lan_cua_lenh(sess, lenh.id)
+    assert "Kho đã lập phiếu" in d["ly_do_khong_mo_lai"]

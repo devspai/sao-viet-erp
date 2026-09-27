@@ -97,6 +97,8 @@ class GiaCongNgoaiOut(BaseModel):
     huy_luc: datetime | None = None
     ly_do_huy: str | None = None
     phieu_chi: PhieuChiNganOut | None = None
+    # Máy chủ sẽ từ chối "Mở lại" vì lý do này (None = mở lại được / chưa chốt).
+    ly_do_khong_mo_lai: str | None = None
     lich_su: list[LichSuOut] = []
     xuat_giay: XuatGiayOut | None = None
     version: int

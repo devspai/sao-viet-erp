@@ -197,6 +197,36 @@ def chot(db: Session, *, user, gcn_id: int, expected_version: int | None, sl_cuo
     return ra
 
 
+def ly_do_khong_mo_lai(db: Session, gcn, *, pc=None, cuoi=None) -> str | None:
+    """Lý do máy chủ SẼ từ chối "Mở lại" — CHỈ ĐỌC, cùng các cửa của `mo_lai`/`_GO`. `None` = mở
+    lại được (hoặc lần chưa chốt). FE dùng để khoá nút kèm lý do thay vì để người bấm rồi mới lỗi."""
+    if gcn.chot_luc is None or gcn.huy_luc is not None:
+        return None
+    repo = GiaCongNgoaiRepository(db)
+    if pc is None:
+        pc = repo.phieu_chi_song([gcn.id]).get(gcn.id)
+    if pc is not None:
+        return f"Kế toán đã lập phiếu chi {pc.code} — huỷ phiếu chi trước rồi mới mở lại."
+    if cuoi is None:
+        cvs = repo.cong_viec_cua(gcn.id)
+        cuoi = cvs[-1] if cvs else None
+    if cuoi is None:
+        return "Lần gia công không còn công việc nào — lệnh đã bị thu hồi?"
+    if gcn.noi_ve == NOI_VE_XUONG:
+        if any(bg.trang_thai != BG_DE_XUAT for bg in repo.ban_giao_tu(cuoi.id)):
+            return "Tổ nhận đã xác nhận bàn giao số chốt — không mở lại được."
+        return None
+    nhom = SanXuatRepository(db).nhom(cuoi.nhom_id) if cuoi.nhom_id else None
+    if nhom is not None and nhom.trang_thai == NHOM_DONG_THIEU:
+        return "Trưởng KCS đã đóng thiếu nhóm thành phẩm này — không mở lại được."
+    if gcn.noi_ve == NOI_VE_KHO:
+        req_repo = StockRequestRepository(db)
+        for req in repo.yeu_cau_nhap_cua(gcn.id):
+            if req_repo.co_voucher(req.id):
+                return f"Kho đã lập phiếu cho đề nghị nhập {req.ma} — không mở lại được."
+    return None
+
+
 def mo_lai(db: Session, *, user, gcn_id: int, expected_version: int | None) -> dict:
     repo = GiaCongNgoaiRepository(db)
     gcn = _lay(repo, gcn_id, expected_version)

@@ -166,10 +166,15 @@ export function GiaCongNgoaiPanel({
                   <Button
                     variant="ghost"
                     loading={dangBan}
+                    disabled={!!l.ly_do_khong_mo_lai}
+                    title={l.ly_do_khong_mo_lai ?? undefined}
                     onClick={() => chay(l.id, () => api.giaCongNgoai.moLai(token!, l.id, l.version))}
                   >
                     Mở lại
                   </Button>
+                )}
+                {nut.moLai && l.ly_do_khong_mo_lai && (
+                  <span className="gcn__note">{l.ly_do_khong_mo_lai}</span>
                 )}
               </div>
             )}

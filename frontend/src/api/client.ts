@@ -6445,6 +6445,8 @@ export interface GiaCongNgoaiLan {
   huy_luc: string | null;
   ly_do_huy: string | null;
   phieu_chi: { id: number; code: string } | null;
+  /** Máy chủ sẽ từ chối "Mở lại" vì lý do này — null = mở lại được. */
+  ly_do_khong_mo_lai?: string | null;
   xuat_giay: { id: number; ma: string; trang_thai: string } | null;
   lich_su: { luc: string | null; ai: string; viec: string; chi_tiet: string }[];
   version: number;

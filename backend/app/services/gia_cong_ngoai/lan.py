@@ -270,6 +270,12 @@ def _goi_y_chot(gcn, dau, cuoi) -> float | None:
     return float(round(float(gcn.sl_gui) * ra / vao))
 
 
+def _ly_do_khong_mo_lai(db: Session, gcn, *, pc, cuoi) -> str | None:
+    from .chot import ly_do_khong_mo_lai  # chot import lan ⇒ import trễ tránh vòng
+
+    return ly_do_khong_mo_lai(db, gcn, pc=pc, cuoi=cuoi)
+
+
 def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
     repo = GiaCongNgoaiRepository(db)
     sl_repo = SanXuatSanLuongRepository(db)
@@ -304,6 +310,7 @@ def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
         "huy_boi_ten": ten.get(gcn.huy_boi_id), "huy_luc": thuc_te_hien_thi(gcn.huy_luc),
         "ly_do_huy": gcn.ly_do_huy,
         "phieu_chi": {"id": pc.id, "code": pc.code} if pc is not None else None,
+        "ly_do_khong_mo_lai": _ly_do_khong_mo_lai(db, gcn, pc=pc, cuoi=cuoi),
         # Nhật ký hiện NGAY trên lần (spec §6) — đọc thẳng audit theo target, nhãn từ registry.
         # Chi tiết audit của lần gia công viết sẵn bằng lời (không mã nội bộ, không tiền).
         "lich_su": [
