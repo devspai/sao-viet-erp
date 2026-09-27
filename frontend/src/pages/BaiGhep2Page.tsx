@@ -593,6 +593,11 @@ const toForm = (d: BaiGhep2Detail): MetaForm => ({
   // `exclude_unset` nên vắng mặt ở đây = giữ nguyên, không phải xoá về null.
 });
 
+/** Bài đã lập kế hoạch / đã phát hành: máy chủ chặn mọi sửa (`_chan_da_lap`) — UI khoá theo. */
+export function baiDaChot(trangThai: string | null | undefined): boolean {
+  return trangThai === "da_lap_ke_hoach" || trangThai === "da_phat_hanh";
+}
+
 function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
   id: number;
   eventTick?: number;
@@ -747,7 +752,9 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
   const viTriBuoc = buocMo ? sd.gop.findIndex((g) => g.step_key === buocMo.step_key) : -1;
   // `BaiGhepTrangThai` (TS) mới khai hai trạng thái người đổi tay; máy chủ còn trả hai trạng thái
   // do màn Xếp lịch đặt — so bằng chuỗi.
-  const daChot = ["da_lap_ke_hoach", "da_phat_hanh"].includes(d.trang_thai as string);
+  const daChot = baiDaChot(d.trang_thai);
+  // Máy chủ chặn MỌI sửa trên bài đã chốt (thêm/bỏ lệnh, thông tin, quy cách, bước chung) — khoá theo.
+  const suaDuoc = canUpdate && !daChot;
 
   return (
     <div className="khsx-detail bg2-detail">
@@ -809,13 +816,13 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
       {tab === "chung" && <section className="khsx-panel bg2-panel" role="tabpanel" id="bg2-panel-chung" aria-labelledby="bg2-tab-chung">
         <PanelHead icon="pencil" title="Thông tin kế hoạch" action={dirty ? <><Button variant="ghost" onClick={() => setForm(toForm(d))}>Hoàn tác</Button><Button variant="primary" loading={saving} onClick={save}>Lưu</Button></> : null} />
         <div className="bg2-form-grid">
-          <label className="khsx-field"><span>Tên bài ghép</span><input disabled={!canUpdate} value={form.ten} onChange={(e) => setForm({ ...form, ten: e.target.value })} /></label>
-          <label className="khsx-field"><span>Hạn hoàn thành sản xuất</span><input type="date" disabled={!canUpdate} value={form.han_hoan_thanh_sx ?? ""} onChange={(e) => setForm({ ...form, han_hoan_thanh_sx: e.target.value || null })} /></label>
-          <label className="khsx-field"><span>Người phụ trách</span><select disabled={!canUpdate} value={form.nguoi_phu_trach_id ?? ""} onChange={(e) => setForm({ ...form, nguoi_phu_trach_id: e.target.value ? Number(e.target.value) : null })}><option value="">— chưa phân công —</option>{form.nguoi_phu_trach_id != null && !owners.some((x) => x.id === form.nguoi_phu_trach_id) && <option value={form.nguoi_phu_trach_id}>{d.nguoi_phu_trach_ten || `Người dùng #${form.nguoi_phu_trach_id}`}</option>}{owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.ten}</option>)}</select></label>
-          <label className="bg2-check"><input type="checkbox" disabled={!canUpdate} checked={form.is_rush} onChange={(e) => setForm({ ...form, is_rush: e.target.checked })} /><span>Hàng gấp · ưu tiên ở xưởng</span></label>
-          <label className="khsx-field bg2-form-wide"><span>Ghi chú kế hoạch</span><textarea rows={3} disabled={!canUpdate} value={form.ghi_chu ?? ""} onChange={(e) => setForm({ ...form, ghi_chu: e.target.value })} /></label>
+          <label className="khsx-field"><span>Tên bài ghép</span><input disabled={!suaDuoc} value={form.ten} onChange={(e) => setForm({ ...form, ten: e.target.value })} /></label>
+          <label className="khsx-field"><span>Hạn hoàn thành sản xuất</span><input type="date" disabled={!suaDuoc} value={form.han_hoan_thanh_sx ?? ""} onChange={(e) => setForm({ ...form, han_hoan_thanh_sx: e.target.value || null })} /></label>
+          <label className="khsx-field"><span>Người phụ trách</span><select disabled={!suaDuoc} value={form.nguoi_phu_trach_id ?? ""} onChange={(e) => setForm({ ...form, nguoi_phu_trach_id: e.target.value ? Number(e.target.value) : null })}><option value="">— chưa phân công —</option>{form.nguoi_phu_trach_id != null && !owners.some((x) => x.id === form.nguoi_phu_trach_id) && <option value={form.nguoi_phu_trach_id}>{d.nguoi_phu_trach_ten || `Người dùng #${form.nguoi_phu_trach_id}`}</option>}{owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.ten}</option>)}</select></label>
+          <label className="bg2-check"><input type="checkbox" disabled={!suaDuoc} checked={form.is_rush} onChange={(e) => setForm({ ...form, is_rush: e.target.checked })} /><span>Hàng gấp · ưu tiên ở xưởng</span></label>
+          <label className="khsx-field bg2-form-wide"><span>Ghi chú kế hoạch</span><textarea rows={3} disabled={!suaDuoc} value={form.ghi_chu ?? ""} onChange={(e) => setForm({ ...form, ghi_chu: e.target.value })} /></label>
         </div>
-        <div className="bg2-members-head"><h3>Thành viên ({d.thanh_vien.length})</h3>{canUpdate && <Button variant="secondary" onClick={() => setMemberPicker(true)}><Icon name="plus" size={14} /> Thêm lệnh</Button>}</div>
+        <div className="bg2-members-head"><h3>Thành viên ({d.thanh_vien.length})</h3>{suaDuoc && <Button variant="secondary" onClick={() => setMemberPicker(true)}><Icon name="plus" size={14} /> Thêm lệnh</Button>}</div>
         <div className="bg2-members">{d.thanh_vien.map((tv) => <div className="bg2-member" key={tv.thanh_vien_id}>
           <button type="button" className="bg2-member__main" onClick={() => navigate?.("ke-hoach-sx", { openLsxId: tv.lsx_id })}>
             <span className="bg2-member__top">
@@ -827,7 +834,7 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
             <span className={`bg2-date-val ${classHan(tv.han_hoan_thanh_sx)}`}>hạn {ngay(tv.han_hoan_thanh_sx)}</span>
           </button>
           <span>{num(tv.so_luong_dat)} {tv.don_vi_tinh}</span><span>{tv.so_con_tren_to} con/tờ</span>
-          {canUpdate && <button type="button" className="bg2-icon-btn" title="Bỏ lệnh khỏi bài" aria-label={`Bỏ ${tv.lsx_ma}`} onClick={() => token && mutate(() => api.baiGhep2.boThanhVien(token, id, tv.thanh_vien_id))}><Icon name="x" size={15} /></button>}
+          {suaDuoc && <button type="button" className="bg2-icon-btn" title="Bỏ lệnh khỏi bài" aria-label={`Bỏ ${tv.lsx_ma}`} onClick={() => token && mutate(() => api.baiGhep2.boThanhVien(token, id, tv.thanh_vien_id))}><Icon name="x" size={15} /></button>}
         </div>)}</div>
       </section>}
 
@@ -842,9 +849,9 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
           </div>
           <div className="khsx-spec__card-body">
             <div className="khsx-kvgrid">
-              <label className={`khsx-kv ${canUpdate ? "khsx-kv--edit" : ""}`}>
+              <label className={`khsx-kv ${suaDuoc ? "khsx-kv--edit" : ""}`}>
                 <span className="khsx-kv__key">Giấy chạy chung</span>
-                <select className="khsx-kv__input" disabled={!canUpdate} value={form.giay_id ?? ""}
+                <select className="khsx-kv__input" disabled={!suaDuoc} value={form.giay_id ?? ""}
                   onChange={(e) => setForm({ ...form, giay_id: e.target.value ? Number(e.target.value) : null })}>
                   <option value="">— chọn giấy —</option>
                   {paperOptions.map(([paperId, name]) => <option key={paperId} value={paperId}>{name || `Giấy #${paperId}`}</option>)}
@@ -855,9 +862,9 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
                   theo con số nào. Đổi giấy rồi Lưu là hai ô này đổi theo. */}
               <KV k="Định lượng" v={d.gsm ? `${num(d.gsm)} gsm` : "—"} mono />
               <KV k="Khổ giấy nguyên" v={khoNguyen} mono />
-              <KVNum k="Khổ tờ ghép dài" suffix="mm" disabled={!canUpdate}
+              <KVNum k="Khổ tờ ghép dài" suffix="mm" disabled={!suaDuoc}
                 v={form.kho_in_dai ?? undefined} onChange={(x) => setForm({ ...form, kho_in_dai: x || null })} />
-              <KVNum k="Khổ tờ ghép rộng" suffix="mm" disabled={!canUpdate}
+              <KVNum k="Khổ tờ ghép rộng" suffix="mm" disabled={!suaDuoc}
                 v={form.kho_in_rong ?? undefined} onChange={(x) => setForm({ ...form, kho_in_rong: x || null })} />
               <KV k="Cách in" v={CACH_IN_NHAN[d.quy_cach_in ?? ""] ?? "—"} badge />
               {/* Mực của BÀI là HỢP tập mực mọi lệnh — chung tờ là chung MỘT bộ bản. Nên đây là số
@@ -901,7 +908,7 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
             {(d.hao_hut_setup != null || d.hao_hut_chay != null) && <div className="bg2-status-line bg2-status-line--warn">
               <strong>Hao đang khai tay:</strong> {num((d.hao_hut_setup ?? 0) + (d.hao_hut_chay ?? 0))} tờ,
               đang đè số máy tính ({num(d.so_to.hao_de_xuat)} tờ).{" "}
-              {canUpdate && <button type="button" className="khsx-xlink"
+              {suaDuoc && <button type="button" className="khsx-xlink"
                 onClick={() => token && mutate(() => api.baiGhep2.update(token, id, { hao_hut_setup: null, hao_hut_chay: null }))}>
                 Dùng số máy tính
               </button>}
@@ -943,13 +950,13 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
                 </div>
               </div>
               <div className="bg2-spec-row__con">
-                <ConInput value={tv.so_con_tren_to} disabled={!canUpdate}
+                <ConInput value={tv.so_con_tren_to} disabled={!suaDuoc}
                   onSave={(value) => token ? mutate(() => api.baiGhep2.suaThanhVien(token, id, tv.thanh_vien_id, value)) : Promise.resolve(false)} />
                 {/* Gợi ý là số SERVER tính (tối đa theo khổ · cân sản lượng để bớt dư). Bấm mới
                     ghi — máy không tự sửa con/tờ của người bình bài. */}
                 <span className="bg2-spec-row__hint">
                   {tv.con_toi_da > 0 && `tối đa ${tv.con_toi_da}`}
-                  {canUpdate && tv.con_goi_y > 0 && tv.con_goi_y !== tv.so_con_tren_to && <>
+                  {suaDuoc && tv.con_goi_y > 0 && tv.con_goi_y !== tv.so_con_tren_to && <>
                     {tv.con_toi_da > 0 && " · "}
                     <button type="button" className="khsx-xlink"
                       onClick={() => token && mutate(() => api.baiGhep2.suaThanhVien(token, id, tv.thanh_vien_id, tv.con_goi_y))}>
@@ -971,7 +978,7 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
 
       {tab === "routing" && <section className="khsx-panel bg2-panel bg2-panel--routing" role="tabpanel" id="bg2-panel-routing" aria-labelledby="bg2-tab-routing">
         <PanelHead icon="workflow" title={`Công đoạn sản xuất · ${sd.gop.length} bước chung`} />
-        <BaiGhepDagCanvas sd={sd} chon={drawer?.step_key ?? null} canUpdate={canUpdate}
+        <BaiGhepDagCanvas sd={sd} chon={drawer?.step_key ?? null} canUpdate={suaDuoc}
           onChon={(value) => typeof value === "string" && setDrawer(sd.gop.find((g) => g.step_key === value) ?? null)}
           onMoLenh={(lsxId) => navigate?.("ke-hoach-sx", { openLsxId: lsxId })}
           onGop={group}
@@ -998,7 +1005,7 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
       {buocMo && <div className="khsx-scrim" onMouseDown={(e) => e.target === e.currentTarget && setDrawer(null)}>
         <aside ref={dialogRef} tabIndex={-1} className={`khsx-drawer khsx-drawer--buoc khsx-drawer--${buocMo.loai_buoc}`}
           role="dialog" aria-modal="true" aria-label={`Khai lại bước chung ${buocMo.ten}`}>
-          <BuocChungForm g={buocMo} canUpdate={canUpdate}
+          <BuocChungForm g={buocMo} canUpdate={suaDuoc}
             index={viTriBuoc} tong={sd.gop.length}
             onPrev={viTriBuoc > 0 ? () => setDrawer(sd.gop[viTriBuoc - 1]) : undefined}
             onNext={viTriBuoc >= 0 && viTriBuoc < sd.gop.length - 1 ? () => setDrawer(sd.gop[viTriBuoc + 1]) : undefined}
