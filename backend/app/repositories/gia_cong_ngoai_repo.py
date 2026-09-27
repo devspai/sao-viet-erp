@@ -5,12 +5,14 @@ from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models.accounting import PAYMENT_VOUCHER_CANCELLED, PaymentVoucher
+from ..models.bai_ghep import BaiGhep, BaiGhepThanhVien
+from ..models.bai_ghep_cong_doan import BaiGhepCongDoanMap
 from ..models.delivery import LG_DA_HUY, DeliveryTrip
 from ..models.gia_cong_ngoai import KIEU_MOT_PHAN, KIEU_TRON_GOI, GiaCongNgoai
 from ..models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
 from ..models.purchase import SUPPLIER_ACTIVE, Supplier
 from ..models.role import RolePermission
-from ..models.san_xuat import SanXuatCongViec
+from ..models.san_xuat import GOI_DANG_PHAT_HANH, SanXuatCongViec, SanXuatGoiPhatHanh
 from ..models.san_xuat_san_luong import BG_DE_XUAT, SanXuatBanGiao
 from ..models.stock_request import REQ_CANCELLED, REQ_NHAP, REQ_XUAT, StockRequest
 from ..models.user import User
@@ -70,6 +72,30 @@ class GiaCongNgoaiRepository:
     def cua_lenh(self, lsx_id: int) -> list[GiaCongNgoai]:
         return list(self.db.scalars(
             select(GiaCongNgoai).where(GiaCongNgoai.lsx_id == lsx_id).order_by(GiaCongNgoai.id)
+        ))
+
+    def cua_bai_ghep(self, bai_ghep_id: int) -> list[GiaCongNgoai]:
+        """Lần của bước CHUNG bài ghép (spec 2026-09-27)."""
+        return list(self.db.scalars(
+            select(GiaCongNgoai).where(GiaCongNgoai.bai_ghep_id == bai_ghep_id)
+            .order_by(GiaCongNgoai.id)
+        ))
+
+    def step_keys_bi_phu(self, lsx_id: int) -> set[str]:
+        """`step_key` các bước của lệnh đang bị một bước CHUNG bài ghép phủ — thuộc lần của bài."""
+        return set(self.db.scalars(
+            select(BaiGhepCongDoanMap.lsx_step_key).where(BaiGhepCongDoanMap.lsx_id == lsx_id)
+        ))
+
+    def cong_viec_chung_song(self, bai_ghep_id: int) -> list[SanXuatCongViec]:
+        """Công việc CHUNG của bài ghép thuộc gói đang phát hành (bỏ gói đã thu hồi)."""
+        return list(self.db.scalars(
+            select(SanXuatCongViec)
+            .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == SanXuatCongViec.goi_id)
+            .where(SanXuatCongViec.bai_ghep_id == bai_ghep_id,
+                   SanXuatCongViec.step_key.is_not(None),
+                   SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH)
+            .order_by(SanXuatCongViec.id)
         ))
 
     def cong_viec_cua(self, gcn_id: int) -> list[SanXuatCongViec]:

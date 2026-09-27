@@ -124,7 +124,7 @@ def _cd_nguon(db: Session, cv: SanXuatCongViec):
     Snapshot ghim cả hai id nên không phải đọc lại nhãn tiếng Việt để dò ngược.
     """
     if cv.bai_ghep_cong_doan_id is not None:
-        from ...models.bai_ghep import BaiGhepCongDoan
+        from ...models.bai_ghep_cong_doan import BaiGhepCongDoan
 
         return db.get(BaiGhepCongDoan, cv.bai_ghep_cong_doan_id)
     if cv.lsx_cong_doan_id is not None:
@@ -285,9 +285,11 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
     # GIA CÔNG NGOÀI (spec 2026-09-26, Fix round 1): "Phát hành cập nhật" cũng tạo/giữ lần gia
     # công — routing có thể đổi nhà gia công / thêm-bớt bước thuê ngoài sau lần phát hành đầu.
     # Lần đã mang đi / đã chốt được hàm này TỰ giữ nguyên, không cần lọc trước ở đây.
-    from ..gia_cong_ngoai.lan import dong_bo_lan_khi_cap_nhat
+    from ..gia_cong_ngoai.lan import dong_bo_lan_bai_ghep_khi_cap_nhat, dong_bo_lan_khi_cap_nhat
 
     dong_bo_lan_khi_cap_nhat(db, lsx_ids=lsx_ids, actor=actor)
+    # Lần của bước CHUNG bài ghép (spec 2026-09-27) — cùng luật, nguồn là bài.
+    dong_bo_lan_bai_ghep_khi_cap_nhat(db, bai_ghep_ids=bg_ids, actor=actor)
 
     AuditLogRepository(db).create(
         actor_user_id=actor_uid,

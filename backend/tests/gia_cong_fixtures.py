@@ -175,3 +175,76 @@ def hang_can_cua(sess, lsx_id: int) -> set[tuple[str, int]]:
     return {(n["hang_loai"], n["hang_id"]) for n in bang["items"]
             if n.get("loai_nhom") == "vat_tu"
             for d in n.get("dong", []) if d.get("lsx_id") == lsx_id}
+
+
+# --- Bài ghép (spec 2026-09-27 — đợt 2) ------------------------------------------------------
+from app.models.bai_ghep import BaiGhep, BaiGhepThanhVien
+from app.models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
+
+
+def dung_bai_ghep_gia_cong(sess, orders, lsx_svc, admin, customer, *, buoc, chung, con=(4, 2),
+                           phat_hanh: bool = True):
+    """HAI lệnh cùng một bài ghép, routing GIỐNG nhau do bài test mô tả. Trả `(bg, lsx_a, lsx_b)`.
+
+    `buoc` = list `(ten, loai_buoc, nha_cung_cap | None, so_luong, don_vi_vao, don_vi_ra)`;
+    `chung` = chỉ số các bước GỘP chung (mỗi chỉ số một bước chung phủ bước đó của cả hai lệnh —
+    loại bước + nhà gia công lấy theo `buoc`); `con` = số con/tờ của lệnh A, B. Bước máy/tổ về MỘT
+    tổ mới. Khuôn `lenh_sx_fixtures._lenh_ghep_doi`: bài ghép phải có TRƯỚC phát hành."""
+    from tests.test_xep_lich_service import _hai_lsx_san_sang
+
+    i = next(_dem)
+    to = _to_moi(sess, f"Tổ BG GC {i}", f"TO-BG-GC-{i}")
+    a, b = _hai_lsx_san_sang(sess, orders, lsx_svc, admin, customer)
+    for l in (a, b):
+        for cd in sess.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == l.id).all():
+            sess.delete(cd)
+    sess.flush()
+    buocs: dict[int, list[LsxCongDoan]] = {}
+    for l in (a, b):
+        ds = []
+        for k, (ten, loai, s, sl, dv_vao, dv_ra) in enumerate(buoc):
+            cd = LsxCongDoan(
+                lsx_id=l.id, thu_tu=k, ten=ten, nhom="print" if k == 0 else "finishing",
+                loai_buoc=loai, department_id=None if loai == LB_THUE_NGOAI else to.id,
+                nha_cung_cap_id=s.id if s else None, nha_cung_cap=s.name if s else None,
+                so_luong_vao=sl, so_luong_ra=sl, don_vi_vao=dv_vao, don_vi_ra=dv_ra,
+            )
+            sess.add(cd)
+            ds.append(cd)
+        buocs[l.id] = ds
+    sess.flush()
+    for ds in buocs.values():
+        for x, y in zip(ds, ds[1:]):
+            sess.add(LsxCongDoanPhuThuoc(buoc_truoc_id=x.id, buoc_sau_id=y.id))
+    sess.commit()
+
+    bg = BaiGhep(ma=f"GB-GC-{i}", ten="Bài ghép gia công")
+    sess.add(bg)
+    sess.flush()
+    for l, c in zip((a, b), con):
+        sess.add(BaiGhepThanhVien(bai_ghep_id=bg.id, lsx_id=l.id, so_con_tren_to=c))
+    for k in chung:
+        ten, loai, s, sl, dv_vao, dv_ra = buoc[k]
+        cd = BaiGhepCongDoan(
+            bai_ghep_id=bg.id, thu_tu=k, ten=ten, nhom="print" if k == 0 else "finishing",
+            loai_buoc=loai, department_id=None if loai == LB_THUE_NGOAI else to.id,
+            nha_cung_cap_id=s.id if s else None, nha_cung_cap=s.name if s else None,
+            so_luong_vao=sl, so_luong_ra=sl, don_vi_vao=dv_vao, don_vi_ra=dv_ra,
+        )
+        sess.add(cd)
+        sess.flush()
+        for l in (a, b):
+            sess.add(BaiGhepCongDoanMap(bai_ghep_cong_doan_id=cd.id, lsx_id=l.id,
+                                        lsx_step_key=buocs[l.id][k].step_key))
+    sess.commit()
+    if phat_hanh:
+        release.phat_hanh(sess, lsx_ids={a.id, b.id}, bai_ghep_ids={bg.id}, actor=admin)
+        sess.commit()
+        for l in (a, b):
+            l.trang_thai = TT_DA_PHAT_HANH
+        sess.commit()
+    return bg, a.id, b.id
+
+
+def cv_chung(sess, bg_id: int, ten: str) -> SanXuatCongViec:
+    return sess.query(SanXuatCongViec).filter_by(bai_ghep_id=bg_id, ten_cong_doan=ten).one()

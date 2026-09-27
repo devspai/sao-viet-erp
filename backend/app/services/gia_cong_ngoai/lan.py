@@ -34,12 +34,53 @@ def _canh_ke_tiep(db: Session, lsx_id: int) -> set[tuple[int, int]]:
     ).all())
 
 
-def _quet_dai_thue_ngoai(steps, canh: set[tuple[int, int]], cv_by_step: dict) -> list[list]:
+def _cap_ke_tiep_bai_ghep(db: Session, buoc_chungs: list) -> set[tuple[int, int]]:
+    """Cặp (bước chung x, bước chung y) LIỀN NHAU ở MỌI lệnh thành viên — bước lệnh x phủ có cạnh
+    DAG sang bước lệnh y phủ (routing không khai cạnh ⇒ so `thu_tu` liền kề, cùng luật
+    `_quet_dai_thue_ngoai`). Chỉ một lệnh có bước riêng chen giữa là hai lần gia công khác nhau:
+    hàng của lệnh đó phải về xưởng làm bước riêng rồi mới đi tiếp."""
+    repo = SanXuatRepository(db)
+    phu = {c.id: {m.lsx_id: m.lsx_step_key for m in c.thanh_phans} for c in buoc_chungs}
+    cache: dict[int, tuple[dict, set, list]] = {}
+
+    def lenh(lsx_id: int):
+        if lsx_id not in cache:
+            steps = repo.routing_steps(lsx_id)
+            cache[lsx_id] = ({cd.step_key: cd for cd in steps}, _canh_ke_tiep(db, lsx_id),
+                             [cd.step_key for cd in steps])
+        return cache[lsx_id]
+
+    def lien(lsx_id: int, k1: str, k2: str) -> bool:
+        theo_key, canh, thu_tu = lenh(lsx_id)
+        x, y = theo_key.get(k1), theo_key.get(k2)
+        if x is None or y is None:
+            return False
+        if canh:
+            return (x.id, y.id) in canh
+        i = thu_tu.index(k1)
+        return i + 1 < len(thu_tu) and thu_tu[i + 1] == k2
+
+    ra: set[tuple[int, int]] = set()
+    for x, y in zip(buoc_chungs, buoc_chungs[1:]):
+        px, py = phu.get(x.id) or {}, phu.get(y.id) or {}
+        if px and set(px) == set(py) and all(lien(l, px[l], py[l]) for l in px):
+            ra.add((x.id, y.id))
+    return ra
+
+
+def _quet_dai_thue_ngoai(steps, canh: set[tuple[int, int]], cv_by_step: dict, *,
+                         bi_phu: set[str] | None = None, bai_ghep: bool = False) -> list[list]:
     """Cắt routing (đã sắp `thu_tu`) thành các dải bước "Thuê ngoài" LIỀN NHAU, CÙNG nhà gia
     công. "Liền nhau" đi theo CẠNH DAG (`dai[-1].id → cd.id` phải có cạnh) — routing KHÔNG khai
-    cạnh nào (tuyến tính cũ) thì lùi về so `thu_tu` liền kề như trước. Bước bị bài ghép phủ ngắt
-    dải (bài ghép là đợt 2 — spec §9). Ném lỗi nếu gặp bước thuê ngoài chưa chọn nhà gia công."""
-    co_canh_nao = bool(canh)
+    cạnh nào (tuyến tính cũ) thì lùi về so `thu_tu` liền kề như trước. Ném lỗi nếu gặp bước thuê
+    ngoài chưa chọn nhà gia công.
+
+    Bước LỆNH bị bài ghép phủ ngắt dải — nó thuộc lần của BÀI GHÉP (spec 2026-09-27 §3: bước chung
+    và bước riêng không chung một lần). Nhận biết bằng `bi_phu` (step_key bị phủ, đọc từ bảng phủ)
+    hoặc công việc của nó mang `bai_ghep_id`. `bai_ghep=True`: `steps` là các bước CHUNG của một bài
+    (`canh` = `_cap_ke_tiep_bai_ghep`; rỗng nghĩa là không cặp nào liền nhau)."""
+    co_canh_nao = bool(canh) or bai_ghep
+    bi_phu = bi_phu or set()
     ra: list[list] = []
     dai: list = []
 
@@ -50,14 +91,15 @@ def _quet_dai_thue_ngoai(steps, canh: set[tuple[int, int]], cv_by_step: dict) ->
 
     for cd in steps:
         cvs = cv_by_step.get(cd.step_key) or []
-        chung = any(cv.bai_ghep_id for cv in cvs)
+        chung = not bai_ghep and (cd.step_key in bi_phu or any(cv.bai_ghep_id for cv in cvs))
         if cd.loai_buoc != LB_THUE_NGOAI or chung:
             dong()
             continue
         if cd.nha_cung_cap_id is None:
+            noi = "màn Bài ghép" if bai_ghep else "Kế hoạch SX"
             raise ValueError(
-                f"Bước “{cd.ten}” thuê ngoài chưa chọn nhà gia công — chọn ở Kế hoạch SX rồi "
-                f"phát hành lại.")
+                f"Bước{' chung' if bai_ghep else ''} “{cd.ten}” thuê ngoài chưa chọn nhà gia công "
+                f"— chọn ở {noi} rồi phát hành lại.")
         if dai:
             ke_tiep = (not co_canh_nao) or ((dai[-1].id, cd.id) in canh)
             if dai[-1].nha_cung_cap_id != cd.nha_cung_cap_id or not ke_tiep:
@@ -67,15 +109,17 @@ def _quet_dai_thue_ngoai(steps, canh: set[tuple[int, int]], cv_by_step: dict) ->
     return ra
 
 
-def _tao_lan(db: Session, audit: AuditLogRepository, *, lsx_id: int, dai: list, cv_by_step: dict,
-             uid: int | None) -> GiaCongNgoai:
+def _tao_lan(db: Session, audit: AuditLogRepository, *, dai: list, cv_by_step: dict,
+             uid: int | None, lsx_id: int | None = None,
+             bai_ghep_id: int | None = None) -> GiaCongNgoai:
     cuoi = dai[-1]
     gcn = GiaCongNgoai(
-        lsx_id=lsx_id, kieu=KIEU_MOT_PHAN,
+        lsx_id=lsx_id, bai_ghep_id=bai_ghep_id, kieu=KIEU_MOT_PHAN,
         nha_cung_cap_id=cuoi.nha_cung_cap_id, nha_cung_cap_ten=cuoi.nha_cung_cap or "",
         ten_viec=" + ".join(c.ten for c in dai),
-        # Đơn giá CẢ LẦN khai ở bước CUỐI dải, theo đơn vị ra của bước đó (spec §7).
-        don_gia=cuoi.don_gia_gia_cong, don_vi=cuoi.don_vi_ra, created_by=uid,
+        # Đơn giá CẢ LẦN khai ở bước CUỐI dải, theo đơn vị ra của bước đó (spec §7). Bước chung của
+        # bài ghép KHÔNG có ô đơn giá (chốt 27/09) — tiền kế toán gõ ở phiếu chi.
+        don_gia=getattr(cuoi, "don_gia_gia_cong", None), don_vi=cuoi.don_vi_ra, created_by=uid,
     )
     db.add(gcn)
     db.flush()
@@ -110,8 +154,28 @@ def gom_lan_khi_phat_hanh(db: Session, *, lsx_ids: set[int], cv_by_step: dict, a
     for lsx_id in sorted(lsx_ids):
         steps = repo.routing_steps(lsx_id)
         canh = _canh_ke_tiep(db, lsx_id)
-        for dai in _quet_dai_thue_ngoai(steps, canh, cv_by_step):
+        bi_phu = GiaCongNgoaiRepository(db).step_keys_bi_phu(lsx_id)
+        for dai in _quet_dai_thue_ngoai(steps, canh, cv_by_step, bi_phu=bi_phu):
             tao.append(_tao_lan(db, audit, lsx_id=lsx_id, dai=dai, cv_by_step=cv_by_step, uid=uid))
+    db.flush()
+    return tao
+
+
+def gom_lan_bai_ghep_khi_phat_hanh(db: Session, *, bai_ghep_ids: set[int], cv_by_step: dict,
+                                   actor) -> list:
+    """Bước CHUNG thuê ngoài của bài ghép (spec 2026-09-27 §2 bước 2): dải bước chung liền nhau
+    (ở mọi lệnh thành viên), cùng nhà gia công ⇒ MỘT lần gắn `bai_ghep_id` (không gắn lệnh). Công
+    việc chung của dải: gắn lần, gỡ tổ + máy. Gọi trong giao dịch phát hành, KHÔNG commit."""
+    repo = SanXuatRepository(db)
+    audit = AuditLogRepository(db)
+    uid = getattr(actor, "id", None)
+    tao: list[GiaCongNgoai] = []
+    for bg_id in sorted(bai_ghep_ids or ()):
+        steps = repo.bai_ghep_cong_doans(bg_id)
+        canh = _cap_ke_tiep_bai_ghep(db, steps)
+        for dai in _quet_dai_thue_ngoai(steps, canh, cv_by_step, bai_ghep=True):
+            tao.append(_tao_lan(db, audit, bai_ghep_id=bg_id, dai=dai, cv_by_step=cv_by_step,
+                                uid=uid))
     db.flush()
     return tao
 
@@ -155,78 +219,107 @@ def dong_bo_lan_khi_cap_nhat(db: Session, *, lsx_ids: set[int], actor) -> None:
 
     for lsx_id in sorted(lsx_ids):
         steps = repo.routing_steps(lsx_id)
-        cd_by_step = {cd.step_key: cd for cd in steps}
-        canh = _canh_ke_tiep(db, lsx_id)
         cv_by_step: dict[str, list] = {}
         for cv in db.execute(
             select(SanXuatCongViec).where(SanXuatCongViec.lsx_id == lsx_id)
         ).scalars():
             if cv.step_key:
                 cv_by_step.setdefault(cv.step_key, []).append(cv)
-
-        dai_list = _quet_dai_thue_ngoai(steps, canh, cv_by_step)
-
-        # Lần MỞ (chưa mang đi / chưa chốt / chưa huỷ) — thứ DUY NHẤT được đụng vào ở đây.
-        mo = [g for g in gcn_repo.cua_lenh(lsx_id)
-              if g.kieu == KIEU_MOT_PHAN and g.huy_luc is None and g.chot_luc is None
-              and g.mang_di_luc is None]
-        mo_by_step: dict[str, GiaCongNgoai] = {}
-        for g in mo:
-            for cv in gcn_repo.cong_viec_cua(g.id):
-                if cv.step_key:
-                    mo_by_step[cv.step_key] = g
-
-        da_xu_ly: set[int] = set()
-        huy_trong_luot: list[GiaCongNgoai] = []
-        for dai in dai_list:
-            step_keys = [c.step_key for c in dai]
-            lans_lien_quan = {mo_by_step[sk] for sk in step_keys if sk in mo_by_step}
-            cuoi = dai[-1]
-            if len(lans_lien_quan) == 1:
-                (gcn,) = lans_lien_quan
-                cv_hien_tai = {cv.id for c in dai for cv in cv_by_step.get(c.step_key) or []}
-                cv_cua_lan = {cv.id for cv in gcn_repo.cong_viec_cua(gcn.id)}
-                if cv_hien_tai == cv_cua_lan:
-                    # Dải KHÔNG đổi — chỉ đồng bộ NCC/tên/đơn giá theo routing hiện tại.
-                    doi = (gcn.nha_cung_cap_id != cuoi.nha_cung_cap_id
-                           or _f(gcn.don_gia) != _f(cuoi.don_gia_gia_cong)
-                           or gcn.don_vi != cuoi.don_vi_ra)
-                    if doi:
-                        gcn.nha_cung_cap_id = cuoi.nha_cung_cap_id
-                        gcn.nha_cung_cap_ten = cuoi.nha_cung_cap or ""
-                        gcn.ten_viec = " + ".join(c.ten for c in dai)
-                        gcn.don_gia = cuoi.don_gia_gia_cong
-                        gcn.don_vi = cuoi.don_vi_ra
-                        gcn.version += 1
-                        audit.create(
-                            actor_user_id=uid, action="gia_cong_ngoai_dat",
-                            target=f"gia_cong_ngoai:{gcn.id}",
-                            detail=f"Cập nhật lịch: đồng bộ nhà gia công/đơn giá — "
-                                   f"{gcn.nha_cung_cap_ten}",
-                            commit=False,
-                        )
-                    da_xu_ly.add(gcn.id)
-                    continue
-            # Dải mới hoặc dải đã đổi bố cục — huỷ (các) lần cũ liên quan rồi gom lại từ đầu.
-            for gcn in lans_lien_quan:
-                if gcn.id in da_xu_ly:
-                    continue
-                _huy_lan(db, audit, gcn, uid, "Cập nhật lịch — routing đổi, gom lại lần gia công.")
-                da_xu_ly.add(gcn.id)
-                huy_trong_luot.append(gcn)
-            gcn_moi = _tao_lan(db, audit, lsx_id=lsx_id, dai=dai, cv_by_step=cv_by_step, uid=uid)
-            da_xu_ly.add(gcn_moi.id)
-
-        # Lần mở còn lại không nằm trong dải thuê-ngoài nào nữa (routing đổi lại thành nội bộ).
-        for g in mo:
-            if g.id not in da_xu_ly:
-                _huy_lan(db, audit, g, uid, "Cập nhật lịch — bước không còn thuê ngoài.")
-                huy_trong_luot.append(g)
-
-        # Trả việc MỒ CÔI về tổ/máy — làm SAU CÙNG, sau khi mọi lần mới trong lượt này đã gom
-        # xong, để không cướp nhầm công việc vừa được `_tao_lan` gán sang lần mới.
-        _phuc_hoi_cv_mo_coi(db, gcn_repo, huy_trong_luot, cd_by_step)
+        # Bước bị bài ghép PHỦ không có công việc mang `lsx_id` (công việc chung mang `bai_ghep_id`)
+        # ⇒ phải đọc bảng phủ, không thì nó bị coi như bước riêng: lần RỖNG hoặc "chưa chọn nhà gia
+        # công" (lỗi phát hiện 27/09/2026 — spec đợt 2 §1).
+        dai_list = _quet_dai_thue_ngoai(steps, _canh_ke_tiep(db, lsx_id), cv_by_step,
+                                        bi_phu=gcn_repo.step_keys_bi_phu(lsx_id))
+        _dong_bo_mot(db, audit, gcn_repo, uid, steps=steps, cv_by_step=cv_by_step,
+                     dai_list=dai_list, lans=gcn_repo.cua_lenh(lsx_id), nguon={"lsx_id": lsx_id})
     db.flush()
+
+
+def dong_bo_lan_bai_ghep_khi_cap_nhat(db: Session, *, bai_ghep_ids: set[int], actor) -> None:
+    """Phát hành cập nhật nguồn BÀI GHÉP: đồng bộ lần của bước chung theo kế hoạch bài hiện tại —
+    cùng luật `dong_bo_lan_khi_cap_nhat` (lần đã mang đi / đã chốt giữ nguyên). KHÔNG commit."""
+    repo = SanXuatRepository(db)
+    gcn_repo = GiaCongNgoaiRepository(db)
+    audit = AuditLogRepository(db)
+    uid = getattr(actor, "id", None)
+    for bg_id in sorted(bai_ghep_ids or ()):
+        steps = repo.bai_ghep_cong_doans(bg_id)
+        cv_by_step: dict[str, list] = {}
+        for cv in gcn_repo.cong_viec_chung_song(bg_id):
+            cv_by_step.setdefault(cv.step_key, []).append(cv)
+        dai_list = _quet_dai_thue_ngoai(steps, _cap_ke_tiep_bai_ghep(db, steps), cv_by_step,
+                                        bai_ghep=True)
+        _dong_bo_mot(db, audit, gcn_repo, uid, steps=steps, cv_by_step=cv_by_step,
+                     dai_list=dai_list, lans=gcn_repo.cua_bai_ghep(bg_id),
+                     nguon={"bai_ghep_id": bg_id})
+    db.flush()
+
+
+def _dong_bo_mot(db: Session, audit: AuditLogRepository, gcn_repo: GiaCongNgoaiRepository,
+                 uid: int | None, *, steps: list, cv_by_step: dict, dai_list: list, lans: list,
+                 nguon: dict) -> None:
+    """Lõi đồng bộ của MỘT nguồn (một lệnh hoặc một bài ghép) — xem `dong_bo_lan_khi_cap_nhat`."""
+    cd_by_step = {cd.step_key: cd for cd in steps}
+    # Lần MỞ (chưa mang đi / chưa chốt / chưa huỷ) — thứ DUY NHẤT được đụng vào ở đây.
+    mo = [g for g in lans
+          if g.kieu == KIEU_MOT_PHAN and g.huy_luc is None and g.chot_luc is None
+          and g.mang_di_luc is None]
+    mo_by_step: dict[str, GiaCongNgoai] = {}
+    for g in mo:
+        for cv in gcn_repo.cong_viec_cua(g.id):
+            if cv.step_key:
+                mo_by_step[cv.step_key] = g
+
+    da_xu_ly: set[int] = set()
+    huy_trong_luot: list[GiaCongNgoai] = []
+    for dai in dai_list:
+        step_keys = [c.step_key for c in dai]
+        lans_lien_quan = {mo_by_step[sk] for sk in step_keys if sk in mo_by_step}
+        cuoi = dai[-1]
+        if len(lans_lien_quan) == 1:
+            (gcn,) = lans_lien_quan
+            cv_hien_tai = {cv.id for c in dai for cv in cv_by_step.get(c.step_key) or []}
+            cv_cua_lan = {cv.id for cv in gcn_repo.cong_viec_cua(gcn.id)}
+            if cv_hien_tai == cv_cua_lan:
+                # Dải KHÔNG đổi — chỉ đồng bộ NCC/tên/đơn giá theo routing hiện tại.
+                doi = (gcn.nha_cung_cap_id != cuoi.nha_cung_cap_id
+                       or _f(gcn.don_gia) != _f(getattr(cuoi, "don_gia_gia_cong", None))
+                       or gcn.don_vi != cuoi.don_vi_ra)
+                if doi:
+                    gcn.nha_cung_cap_id = cuoi.nha_cung_cap_id
+                    gcn.nha_cung_cap_ten = cuoi.nha_cung_cap or ""
+                    gcn.ten_viec = " + ".join(c.ten for c in dai)
+                    gcn.don_gia = getattr(cuoi, "don_gia_gia_cong", None)
+                    gcn.don_vi = cuoi.don_vi_ra
+                    gcn.version += 1
+                    audit.create(
+                        actor_user_id=uid, action="gia_cong_ngoai_dat",
+                        target=f"gia_cong_ngoai:{gcn.id}",
+                        detail=f"Cập nhật lịch: đồng bộ nhà gia công/đơn giá — "
+                               f"{gcn.nha_cung_cap_ten}",
+                        commit=False,
+                    )
+                da_xu_ly.add(gcn.id)
+                continue
+        # Dải mới hoặc dải đã đổi bố cục — huỷ (các) lần cũ liên quan rồi gom lại từ đầu.
+        for gcn in lans_lien_quan:
+            if gcn.id in da_xu_ly:
+                continue
+            _huy_lan(db, audit, gcn, uid, "Cập nhật lịch — routing đổi, gom lại lần gia công.")
+            da_xu_ly.add(gcn.id)
+            huy_trong_luot.append(gcn)
+        gcn_moi = _tao_lan(db, audit, dai=dai, cv_by_step=cv_by_step, uid=uid, **nguon)
+        da_xu_ly.add(gcn_moi.id)
+
+    # Lần mở còn lại không nằm trong dải thuê-ngoài nào nữa (routing đổi lại thành nội bộ).
+    for g in mo:
+        if g.id not in da_xu_ly:
+            _huy_lan(db, audit, g, uid, "Cập nhật lịch — bước không còn thuê ngoài.")
+            huy_trong_luot.append(g)
+
+    # Trả việc MỒ CÔI về tổ/máy — làm SAU CÙNG, sau khi mọi lần mới trong lượt này đã gom
+    # xong, để không cướp nhầm công việc vừa được `_tao_lan` gán sang lần mới.
+    _phuc_hoi_cv_mo_coi(db, gcn_repo, huy_trong_luot, cd_by_step)
 
 
 def huy_lan_cua_goi(db: Session, *, goi_id: int, actor, ly_do: str) -> int:
