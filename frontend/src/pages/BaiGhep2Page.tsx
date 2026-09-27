@@ -745,6 +745,9 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
   // drawer hiện số MỚI (rơi về ảnh cũ nếu bước vừa bị tách khỏi bài).
   const buocMo = drawer ? (sd.gop.find((g) => g.step_key === drawer.step_key) ?? drawer) : null;
   const viTriBuoc = buocMo ? sd.gop.findIndex((g) => g.step_key === buocMo.step_key) : -1;
+  // `BaiGhepTrangThai` (TS) mới khai hai trạng thái người đổi tay; máy chủ còn trả hai trạng thái
+  // do màn Xếp lịch đặt — so bằng chuỗi.
+  const daChot = ["da_lap_ke_hoach", "da_phat_hanh"].includes(d.trang_thai as string);
 
   return (
     <div className="khsx-detail bg2-detail">
@@ -753,9 +756,13 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
         <div className="bg2-detail__title-row">
           <div><p className="eyebrow">Sản xuất · Bài ghép 2</p><div className="bg2-detail__identity"><h1 className="khsx-detail__ma">{d.ma}</h1><TrangThaiPill tt={d.trang_thai} lg />{d.is_rush && <ChipGap />}</div><p className="bg2-detail__name">{d.ten || `Bài ghép ${d.ma}`}</p></div>
           <div className="bg2-detail__actions">
+            {/* Bài đã lập kế hoạch / đã phát hành: máy chủ chặn xoá và đổi trạng thái (`_chan_da_lap`) —
+                bày hai nút đó ra chỉ để bấm vào ăn lỗi (E2E 27/09/2026). Thu hồi đi qua màn Xếp lịch. */}
+            {daChot ? null : <>
             {canDelete && <Button variant="ghost" onClick={() => setConfirmDelete(true)}><Icon name="trash" size={14} /> Xóa</Button>}
             {d.trang_thai === "san_sang" ? canUpdate ? <Button variant="secondary" onClick={() => token && mutate(() => api.baiGhep2.setTrangThai(token, id, "nhap"))}>Mở lại để sửa</Button> : null
               : <Button variant="accent" disabled={!canUpdate || d.thieu.length > 0} onClick={() => token && mutate(() => api.baiGhep2.setTrangThai(token, id, "san_sang"))}>Sẵn sàng xếp lịch</Button>}
+            </>}
           </div>
         </div>
       </header>
