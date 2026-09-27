@@ -651,6 +651,7 @@ def bat_dau_giao(trip_id: int, svc: Service, db: Db, authz: Authz, user: Writer,
         kq = svc.bat_dau_giao(
             trip_id, actor=user, scope=_scope(authz, user),
             so_dong_ho_xuat_phat=body.so_dong_ho_xuat_phat if body is not None else None,
+            xac_nhan_km_lon=body.xac_nhan_km_lon if body is not None else False,
         )
     except DeliveryError as e:
         raise _err(e)
@@ -826,6 +827,7 @@ def bat_dau_giao_ca_luot(luot_id: int, svc: Service, db: Db, authz: Authz, user:
         kq = svc.bat_dau_giao_ca_luot(
             luot_id, actor=user, scope=_scope(authz, user),
             so_dong_ho_xuat_phat=body.so_dong_ho_xuat_phat if body is not None else None,
+            xac_nhan_km_lon=body.xac_nhan_km_lon if body is not None else False,
         )
     except DeliveryError as e:
         db.rollback()

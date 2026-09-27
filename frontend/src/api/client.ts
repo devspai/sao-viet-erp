@@ -11667,7 +11667,7 @@ export const api = {
     },
     /** Chuyến ĐẦU của một lượt xe phải kèm số đồng hồ lúc xe rời kho (PRD khoán km §14). Trả về
      *  `canh_bao` (vd "xe chạy ngoài sổ N km") — không chặn, chỉ để người bấm biết. */
-    batDauGiao(token: string, tripId: number, input?: { so_dong_ho_xuat_phat?: number }): Promise<DeliveryTrip> {
+    batDauGiao(token: string, tripId: number, input?: { so_dong_ho_xuat_phat?: number; xac_nhan_km_lon?: boolean }): Promise<DeliveryTrip> {
       return authed<DeliveryTrip>(`/api/giao-hang/trips/${tripId}/bat-dau-giao`, token, {
         method: "POST", ...(input ? { body: JSON.stringify(input) } : {}),
       });
@@ -11711,7 +11711,7 @@ export const api = {
       return authed<CaLuotKetQua>(`/api/giao-hang/luot-xe/${luotId}/da-lay-hang`, token, { method: "POST" });
     },
     /** Xe rời kho với mọi chuyến đã lấy hàng; số đồng hồ xuất phát ghi MỘT lần cho cả lượt. */
-    batDauGiaoCaLuot(token: string, luotId: number, input?: { so_dong_ho_xuat_phat?: number }): Promise<CaLuotKetQua> {
+    batDauGiaoCaLuot(token: string, luotId: number, input?: { so_dong_ho_xuat_phat?: number; xac_nhan_km_lon?: boolean }): Promise<CaLuotKetQua> {
       return authed<CaLuotKetQua>(`/api/giao-hang/luot-xe/${luotId}/bat-dau-giao`, token, {
         method: "POST", ...(input ? { body: JSON.stringify(input) } : {}),
       });

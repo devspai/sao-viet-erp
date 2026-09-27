@@ -39,11 +39,10 @@ export function FormSoDongHo({
   onXong: () => void;
   onHuy?: () => void;
 }) {
-  // Xuất phát: TỰ ĐIỀN số cuối đã ghi của xe ở lượt trước (PRD §14.4). Đồng hồ trên xe khác số
-  // này thì tài xế sửa, máy chủ báo "xe chạy ngoài sổ N km" cho người lên đơn kiểm.
-  const [so, setSo] = useState(
-    cheDo === "xuat_phat" && luot.goi_y_xuat_phat != null ? String(luot.goi_y_xuat_phat) : "",
-  );
+  // Xuất phát: số cuối đã ghi của xe chỉ là GỢI Ý (placeholder + nút "Dùng số cuối"), KHÔNG điền
+  // sẵn — điền sẵn thì tài xế gõ NỐI vào số cũ ra số tỉ km (lỗi E2E 27/09/2026). Số lùi hoặc nhảy
+  // quá KM_CANH_BAO bị máy chủ chặn cho tới khi xác nhận.
+  const [so, setSo] = useState("");
   const [xacNhan, setXacNhan] = useState(false);
   const [hoiXacNhan, setHoiXacNhan] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
@@ -52,6 +51,7 @@ export function FormSoDongHo({
 
   const soGo = so === "" ? null : Number(so);
   const ganNhat = luot.so_dong_ho_gan_nhat;
+  const goiY = cheDo === "xuat_phat" ? luot.goi_y_xuat_phat : null;
   const changVe = cheDo === "ve_kho" && soGo != null && ganNhat != null && soGo >= ganNhat
     ? soGo - ganNhat : null;
   const phaiXacNhan = (changVe ?? 0) > KM_CANH_BAO || hoiXacNhan;
@@ -85,13 +85,24 @@ export function FormSoDongHo({
         {cheDo === "xuat_phat" ? "Số đồng hồ lúc xuất phát" : "Số đồng hồ lúc về kho"}
         <input className="input" type="number" min="0" step="1" value={so}
           disabled={canhBao.length > 0}
-          onChange={(e) => setSo(e.target.value)} />
+          placeholder={goiY != null ? `Số cuối: ${goiY}` : undefined}
+          onChange={(e) => { setSo(e.target.value); setHoiXacNhan(false); setXacNhan(false); }} />
       </label>
+      {goiY != null && canhBao.length === 0 && (
+        <div>
+          <Button variant="ghost" onClick={() => setSo(String(goiY))}>
+            Dùng số cuối ({goiY.toLocaleString("vi-VN")})
+          </Button>
+        </div>
+      )}
       <p className="rc__sub">
         {cheDo === "xuat_phat"
-          ? luot.goi_y_xuat_phat != null
-            ? `Tự điền số cuối đã ghi của xe (${luot.goi_y_xuat_phat.toLocaleString("vi-VN")}). Đồng hồ trên xe khác số này thì sửa lại cho đúng.`
-            : "Xe chưa có số nào trong sổ — đọc số trên đồng hồ xe."
+          ? goiY != null
+            ? `Số cuối đã ghi của xe: ${goiY.toLocaleString("vi-VN")}. Đọc số trên đồng hồ xe rồi gõ vào — trùng số cuối thì bấm "Dùng số cuối".`
+            : ganNhat != null
+              // Đã lưu xong (lượt tải lại, gợi ý về null) — đừng nói "chưa có số" khi sổ đã có.
+              ? `Số xuất phát đã ghi: ${ganNhat.toLocaleString("vi-VN")}.`
+              : "Xe chưa có số nào trong sổ — đọc số trên đồng hồ xe."
           : ganNhat != null
             ? `Số ở điểm giao cuối: ${ganNhat.toLocaleString("vi-VN")}` +
               (changVe != null ? ` ⇒ chặng về kho ${changVe.toLocaleString("vi-VN")} km` : "")

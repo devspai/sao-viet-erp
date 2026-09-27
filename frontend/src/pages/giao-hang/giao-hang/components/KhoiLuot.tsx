@@ -256,7 +256,7 @@ export function KhoiLuot({
                 luot={l}
                 moTa={`Xe rời kho với ${l.so_cho_bat_dau} điểm đã lấy hàng. Chặng tới khách đầu tiên trừ từ số này.`}
                 nhanNut={`Bắt đầu giao ${l.so_cho_bat_dau} điểm`}
-                gui={(n) => api.giaoHang.batDauGiaoCaLuot(token, l.id, { so_dong_ho_xuat_phat: n })
+                gui={(n, xn) => api.giaoHang.batDauGiaoCaLuot(token, l.id, { so_dong_ho_xuat_phat: n, xac_nhan_km_lon: xn })
                   .then((r) => {
                     onDoi();
                     return r.canh_bao;

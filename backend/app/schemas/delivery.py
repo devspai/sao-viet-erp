@@ -244,6 +244,8 @@ class LuotXeMoPage(BaseModel):
 class BatDauGiaoIn(BaseModel):
     #: Chỉ chuyến ĐẦU của một lượt xe mới cần — số đồng hồ lúc xe rời kho.
     so_dong_ho_xuat_phat: int | None = Field(default=None, ge=0)
+    #: Số nhỏ hơn số cuối của xe hoặc vượt > KM_CANH_BAO km bị chặn cho tới khi xác nhận.
+    xac_nhan_km_lon: bool = False
 
 
 class VeKhoIn(BaseModel):
