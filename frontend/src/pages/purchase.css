@@ -244,50 +244,535 @@
 
 .supplier__tablewrap {
   overflow-x: auto;
+  border-radius: 12px;
+  background: var(--surface, #ffffff);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(226, 232, 240, 0.8);
 }
 
-/* Bảng NCC còn ĐÚNG 5 cột. Trước đây là 8 (tách riêng nhóm · MST · điều khoản TT), và cả
-   `min-width` lẫn bộ % đều là số đo của bảng CŨ — tổng chỉ 68% + 150px, phần thừa ~32% bị chia
-   theo tỷ lệ nên dồn hết vào cột đầu, còn `min-width: 1220px` thì ép cuộn ngang dù nội dung thừa
-   chỗ. Bộ % dưới đây cộng tròn 100%, và min-width hạ xuống vừa đủ để không bẹp trên màn hẹp.
-
-   26/08/2026 thêm cột ĐÁNH GIÁ (sao máy tự tính) → 5 cột nội dung. Bộ % chia lại: 30+20+25+11+14
-   vẫn cộng tròn 100%; min-width nhích 980→1080px cho vừa dải 5 sao + dòng rã số, đủ gọn trong
-   1440px của laptop (khung nội dung ~1330px sau sidebar) nên KHÔNG sinh cuộn ngang. */
 .supplier__table {
   min-width: 1080px;
+  width: 100%;
   table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
-.supplier__col-name {
-  width: 30%;
+.supplier__col-name { width: 28%; }
+.supplier__col-sao { width: 20%; }
+.supplier__col-contact { width: 22%; }
+.supplier__col-items { width: 13%; }
+.supplier__col-status { width: 9%; }
+.supplier__col-actions { width: 8%; }
+
+/* Modern Table Header */
+.supplier__table thead th {
+  background: var(--surface-subtle, #f8fafc);
+  color: var(--text-muted, #64748b);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  vertical-align: middle;
 }
 
-/* Dải 5 sao (90×13) + số + dòng rã "Đúng hẹn 6/7 · trễ TB 1 ngày" trên một cột hẹp. */
-.supplier__col-sao {
-  width: 20%;
+/* Modern Row Design */
+.supplier__table tbody tr.md-page__row {
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(241, 245, 249, 0.9);
 }
 
-/* Cột dài nhất sau tên NCC: chứa người liên hệ + điện thoại + email. */
-.supplier__col-contact {
-  width: 25%;
+.supplier__table tbody tr.md-page__row:hover {
+  background-color: rgba(241, 245, 249, 0.6) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
-.supplier__col-items {
-  width: 11%;
+.supplier__table tbody td {
+  padding: 12px 14px;
+  vertical-align: middle;
 }
 
-/* Đủ rộng cho chữ "Hoạt động" / "Tạm ngừng" nằm MỘT dòng — 8% cũ làm badge gãy đôi. */
-.supplier__col-status {
-  width: 14%;
+/* Supplier Name Cell + Avatar */
+.supplier__name-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-/* Chứa 2 nút ICON dense (Xem/sửa · Ngừng-Mở) không xuống dòng — từ 09/08/2026 không còn nút chữ
-   nên 17% cũ (đủ cho "Xem/Sửa" + "Ngừng") thành thừa; phần dôi ra trả về cột tên NCC và cột liên
-   hệ, hai chỗ hay bị cắt chữ nhất. Bộ % của bảng phải cộng tròn 100% (36+29+12+13+10) — sửa một
-   cột thì bù ở cột khác, đừng để tổng lệch, table-layout: fixed sẽ chia phần thừa vào cột đầu. */
-.supplier__col-actions {
-  width: 10%;
+.supplier__avatar-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.supplier__name-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.supplier__primary {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-main, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.supplier__mst-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* `min-width: 0` là chỗ vỡ cũ: hàng này là flex nhưng con không được phép co, nên tên nhóm dài
+     ("Bao bì & Phụ liệu đóng gói") tràn ra ĐÈ LÊN mã số thuế bên cạnh. */
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+
+/* Chỉ CON SỐ mới dùng font đều nét — để mono cho cả hàng thì tên nhóm tiếng Việt cũng bị kéo
+   sang monospace, nhìn như chữ lỗi font. */
+.supplier__mst-code {
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+}
+
+.supplier__mst-chua {
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* Nhóm hàng là thứ ĐƯỢC PHÉP cắt bớt trong hàng này: mã số thuế phải đọc đủ chữ số mới dùng
+   được, còn tên nhóm cắt đuôi vẫn nhận ra (và `title` giữ bản đầy đủ). */
+.supplier__mst-row .supplier-group-badge {
+  margin-top: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 12em;
+  padding: 1px 6px;
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Quick Copy Button */
+.supplier__quick-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.supplier__quick-copy:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-main, #334155);
+}
+
+.supplier__quick-copy.is-copied {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+/* Rating Cell & Reliability Bar */
+.supplier__rating-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.supplier__rating-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.supplier__score-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.supplier__score-badge--high {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.supplier__score-badge--mid {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.supplier__score-badge--low {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.supplier__score-badge--new {
+  background: rgba(99, 102, 241, 0.1);
+  color: #4338ca;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  font-weight: 500;
+}
+
+.supplier__ontime-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.supplier__ontime-bar {
+  flex: 1;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+  max-width: 70px;
+}
+
+.supplier__ontime-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.supplier__ontime-fill--green { background: #10b981; }
+.supplier__ontime-fill--amber { background: #f59e0b; }
+.supplier__ontime-fill--red { background: #ef4444; }
+
+.supplier__ontime-text {
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+
+/* Contact Cell */
+.supplier__contact-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.supplier__contact-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main, #1e293b);
+}
+
+.supplier__contact-badge {
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 500;
+}
+
+/* Hai dòng liên hệ (điện thoại · email) — bố cục ở đây chứ không phải `style` trong JSX. */
+.supplier__contact-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.supplier__contact-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.supplier__contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--text-muted, #64748b);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+/* Email dài (`kinhdoanh@giayvinhtien.vn`) trước đây nới cả cột ra và đẩy các cột sau; nay cắt
+   đuôi trong ô, nút sao chép luôn còn chỗ đứng. */
+.supplier__contact-val {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.supplier__contact-link:hover {
+  color: #2563eb;
+}
+
+/* Items Column & Popover */
+.supplier__items-container {
+  position: relative;
+  display: inline-block;
+}
+
+.supplier__items-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  font: inherit;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid #e2e8f0;
+}
+
+.supplier__items-pill:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.supplier__items-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.supplier__items-chip {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Items Popover on Hover */
+.supplier__items-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+  width: 250px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+  padding: 10px;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.supplier__items-container:hover .supplier__items-popover,
+.supplier__items-container:focus-within .supplier__items-popover {
+  display: flex;
+}
+
+/* Dòng gần đáy màn: thẻ lật LÊN (class do JS gắn sau khi đo chỗ trống). */
+.supplier__items-container.is-len .supplier__items-popover {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+.supplier__items-popover-head {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 4px;
+}
+
+.supplier__items-popover-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+}
+
+.supplier__items-popover-name {
+  color: #1e293b;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+}
+
+.supplier__items-popover-price {
+  color: #0f766e;
+  font-weight: 600;
+}
+
+/* Từ chữ xám chết thành NÚT mở tab Bảng giá vật tư — "+19 mặt hàng khác..." trước đây là ngõ
+   cụt: chip nói có 23 món mà thẻ chỉ cho xem 4, phần còn lại không có đường nào tới. */
+.supplier__items-popover-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  margin-top: 2px;
+  padding: 5px 0 1px;
+  border: 0;
+  border-top: 1px solid #f1f5f9;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rust, #b3441a);
+  cursor: pointer;
+}
+.supplier__items-popover-more:hover { text-decoration: underline; }
+
+/* Số tiền: dùng chữ số đều bề ngang để các dòng thẳng cột, và bớt xanh chói —
+   3-4 dòng cùng một sắc xanh đậm đọc ra rất nhiễu. */
+.supplier__items-popover-price {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.supplier__items-empty { font-size: 12px; }
+
+/* Status Dot with Glow Effect */
+.supplier__status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.supplier__status-pill--active {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.supplier__status-pill--inactive {
+  background: rgba(148, 163, 184, 0.1);
+  color: #475569;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.supplier__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.supplier__status-dot--active {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  animation: supplierPulse 2s infinite;
+}
+
+.supplier__status-dot--inactive {
+  background: #94a3b8;
+}
+
+@keyframes supplierPulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Action Buttons Cell */
+/* Nút thao tác hiện SẴN, không chờ hover: bảng này cũng mở trên máy tính bảng ở phòng mua hàng,
+   mà chạm thì không có trạng thái hover để mờ-rõ. */
+.supplier__action-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Ô không dùng được (chưa có báo giá / chưa có số) vẫn CHIẾM CHỖ: mỗi dòng bày đủ ba ô nên mắt
+   học được vị trí, thay vì nút nhảy chỗ theo từng dòng như trước. */
+.supplier__action-btns--end {
+  justify-content: flex-end;
+}
+
+.supplier__action-btn--link {
+  text-decoration: none;
+}
+
+.supplier__action-btn:disabled,
+.supplier__action-btn[aria-disabled="true"] {
+  opacity: 0.32;
+  cursor: default;
+  pointer-events: none;
+}
+
+.supplier__action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.supplier__action-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.supplier__action-btn--primary:hover {
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  border-color: rgba(37, 99, 235, 0.3);
 }
 
 .supplier__table thead th,
@@ -412,41 +897,286 @@
   transform: rotate(180deg);
 }
 
-/* Khối sao trong HỒ SƠ NCC (tab 1 của drawer) — chỉ đọc, không có ô chấm tay. */
-.supplier__sao-box {
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-3);
-  background: var(--paper);
-  padding: 12px 14px;
+/* Khối sao trong HỒ SƠ NCC — Rating Performance Card */
+.supplier__rating-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
-.supplier__sao-box-head {
+.supplier__rating-card--high {
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.supplier__rating-card--mid {
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.supplier__rating-card--low {
+  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.supplier__rating-card--new {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.supplier__rating-card-top {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  justify-content: space-between;
 }
 
-.supplier__sao-box-lbl {
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-medium);
-  color: var(--ash);
+.supplier__rating-score-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.supplier__rating-big-val {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  font-family: var(--ff-sans, sans-serif);
+}
+
+.supplier__rating-big-val.is-high { color: #047857; }
+.supplier__rating-big-val.is-mid { color: #b45309; }
+.supplier__rating-big-val.is-low { color: #b91c1c; }
+
+.supplier__rating-big-score--new {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.supplier__rating-stars-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.supplier__rating-tag {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.supplier__rating-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.supplier__rating-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.supplier__rating-sub {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.supplier__rating-new-tip {
+  font-size: 12px;
+  color: #0369a1;
+  background: rgba(224, 242, 254, 0.5);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(186, 230, 253, 0.8);
+}
+
+/* 3 KPI Grid */
+.supplier__rating-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.supplier__rating-kpi-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.supplier__rating-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
 }
 
-.supplier__sao-box-sub {
-  margin: 8px 0 0;
-  font-size: var(--fs-sm);
-  color: var(--ink);
-  line-height: 1.5;
+.supplier__rating-kpi-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
-.supplier__sao-box-note {
-  margin: 6px 0 0;
-  font-size: var(--fs-xs);
-  color: var(--ash);
-  line-height: 1.5;
+.supplier__rating-kpi-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.supplier__rating-kpi-sub {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.supplier__rating-bar {
+  width: 100%;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.supplier__rating-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.supplier__rating-bar-fill.is-green { background: #10b981; }
+.supplier__rating-bar-fill.is-amber { background: #f59e0b; }
+
+.supplier__sao-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  background: var(--amber-soft, #fffbeb);
+  border: 1px solid #fde68a;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b45309;
+}
+
+/* Suffix & Money Formatting helper */
+.supplier__input-suffix-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.supplier__input-suffix-wrap input {
+  width: 100%;
+  padding-right: 3.5rem !important;
+  font-family: var(--ff-sans, inherit);
+  font-weight: 600;
+}
+.supplier__input-suffix {
+  position: absolute;
+  right: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ash, #64748b);
+  pointer-events: none;
+}
+
+.supplier__money-formatted {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--moss-deep, #166534);
+}
+
+/* Custom Select Container */
+.supplier__select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.supplier__select-wrap select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.25rem !important;
+}
+.supplier__select-arrow {
+  position: absolute;
+  right: 0.75rem;
+  pointer-events: none;
+  color: var(--ash, #475569);
+}
+
+/* Inline Switch Field for 38px Form Grid Height Alignment */
+.supplier__switch-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--rule, #cbd5e1);
+  border-radius: var(--r-2, 6px);
+  background: var(--canvas, #ffffff);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.supplier__switch-field:hover {
+  border-color: var(--rust, #c5400a);
+}
+.supplier__switch-field--checked {
+  border-color: var(--rust, #c5400a);
+  background: var(--rust-soft, #f4e2d6);
+}
+.supplier__switch-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+}
+/* iOS/SaaS Style Toggle Switch */
+.supplier__switch-toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 99px;
+  background: var(--rule, #cbd5e1);
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+.supplier__switch-toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.supplier__switch-field--checked .supplier__switch-toggle {
+  background: var(--rust, #c5400a);
+}
+.supplier__switch-field--checked .supplier__switch-toggle::after {
+  transform: translateX(16px);
 }
 
 .supplier__primary {
@@ -2001,13 +2731,45 @@ span.purchase__readonly-field {
    `.rdx-compact-kpi` (Phòng ban) — ba màn dùng chung một ngôn ngữ dải chỉ số.
    Màu lấy từ tokens, KHÔNG cắm mã hex thô: bộ cũ cắm #e5f6ed / #fef3c7 / #b45309 nên đổi thang
    màu ở tokens.css thì riêng màn này đứng im. */
+.supplier__title-count {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.purchase__search-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+.purchase__search-clear:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #334155;
+}
+
 .supplier__kpi {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-3);
   margin-bottom: var(--sp-4);
-  padding: 5px var(--sp-4);
+  padding: 4px var(--sp-3);
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-pill);
   background: var(--canvas);
@@ -2019,6 +2781,21 @@ span.purchase__readonly-field {
   align-items: center;
   gap: var(--sp-2);
   min-height: 26px;
+  cursor: pointer;
+  padding: 3px 10px;
+  border-radius: var(--r-pill, 99px);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.supplier__kpi-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.supplier__kpi-item.is-active {
+  background: #f1f5f9;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  border: 1px solid #cbd5e1;
 }
 
 .supplier__kpi-sep {
@@ -2153,21 +2930,46 @@ span.purchase__readonly-field {
 .supplier-drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20, 19, 15, 0.45);
+  background: rgba(15, 23, 42, 0.5);
   display: flex;
   justify-content: flex-end;
   z-index: 100;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(4px);
 }
 
 .supplier-drawer {
-  width: min(820px, 100vw);
+  width: min(1080px, 96vw);
   height: 100%;
   background: var(--canvas);
-  box-shadow: -12px 0 40px rgba(20, 19, 15, 0.22);
+  box-shadow: -16px 0 48px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
-  animation: supplier-slide-in 0.18s ease-out;
+  animation: supplier-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.supplier__form-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 18px 22px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.supplier__form-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 4px;
 }
 
 @keyframes supplier-slide-in {
@@ -3257,3 +4059,47 @@ span.pdot__readonly-money {
 @media (max-width: 900px) {
   .acct-mh__frame > .purchase__source-toolbar { flex-direction: column; align-items: stretch; }
 }
+
+/* ===== Icon nét thay emoji ở màn Nhà cung cấp (chủ chốt 27/09/2026: "icon phèn phèn") =====
+   Emoji 🌐/⭐/🏆/💡/👉/🏛️/📞/📍 đã gỡ khỏi JSX: hình của chúng do FONT từng máy quyết định
+   (Windows ra bản vẽ khác macOS), máy thiếu font emoji thì ra ô vuông tofu — cùng lý do đã ghi
+   ở SaoNcc.tsx. Nay dùng <Icon> nét 24-grid, ăn theo currentColor nên đổi màu theo ngữ cảnh. */
+
+/* Hai ô lọc đầu màn: <option> KHÔNG nhận được SVG, nên icon nằm ngoài, đè lên ô. */
+.purchase__select-ico-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.purchase__select-ico {
+  position: absolute;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  color: var(--ash, #94a3b8);
+  pointer-events: none;
+}
+.purchase__select-ico--sao { color: #d97706; }
+.purchase__select-modern--ico { padding-left: 34px !important; }
+
+/* Huy hiệu uy tín + dòng mách nước + dòng quy đổi tiền: icon đứng cùng hàng chữ. */
+.supplier__rating-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.supplier__money-formatted {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.supplier__rating-new-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+.supplier__tip-ico { flex: 0 0 auto; margin-top: 1px; }
+
+/* Tiêu đề 3 thẻ trong drawer — icon nhạt hơn chữ để không tranh chỗ với nhãn. */
+.supplier__form-card-title > svg { color: var(--ash-2, #94a3b8); flex: 0 0 auto; }

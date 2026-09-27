@@ -3,6 +3,7 @@
 // trước `phieuSeTao` phải nằm cùng nhau. Hàm `save` (validate + gọi API) CỐ Ý Ở LẠI SHELL và
 // truyền xuống đây làm handler của <form>: nó chạm `rows`/`tab`/`loadSuppliers` bên đó.
 import type { Dispatch, FormEvent, SetStateAction } from "react";
+import { Icon } from "../../../../components/Icons";
 import type { PurchaseRequestRow, SupplierRow } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
 import { money } from "../../../../utils/format";
@@ -99,7 +100,7 @@ export function PurchaseFormDrawer({
               onClick={() => setMode(null)}
               aria-label="Đóng"
             >
-              ✕
+              <Icon name="x" size={15} />
             </button>
           </div>
           <div className="purchase__hero-meta">

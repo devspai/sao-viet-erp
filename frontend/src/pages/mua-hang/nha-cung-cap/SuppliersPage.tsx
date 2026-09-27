@@ -234,12 +234,7 @@ export function SuppliersPage({
     }));
   }, [tongQuan, rows]);
 
-  // Dải pill lọc theo nhóm ĐANG TẮT (JSX bị comment ở ~500). Giữ nguyên phần tính ở trên để bật
-  // lại chỉ cần bỏ comment khối JSX. `selectedGroup` vẫn chạy thật — nó đi thẳng vào tham số
-  // `supplier_group` của API, chỉ là hiện chưa có nút nào đổi nó. Hai dòng `void` dưới đây chỉ để
-  // TypeScript thôi báo "khai mà không dùng" — không chạy gì, không đổi hành vi.
-  void groupPills;
-  void setSelectedGroup;
+  // Dải pill lọc theo nhóm ngành hàng NCC (lấy từ dữ liệu thực).
 
   // Metric stats — fallback về trang hiện tại khi tổng quan chưa tải xong
   const stats = useMemo(() => {
@@ -305,13 +300,13 @@ export function SuppliersPage({
     setMode("create");
   }
 
-  function openEdit(row: SupplierRow) {
+  function openEdit(row: SupplierRow, initialTab: "info" | "items" | "history" = "info") {
     setSelected(row);
     setForm(fromSupplier(row));
     setFormError(null);
     // Hệ số theo CHỈ SỐ dòng của NCC trước — không xoá là dòng i của NCC mới mượn số của NCC cũ.
     setQuyDoiDong({});
-    setActiveTab("info");
+    setActiveTab(initialTab);
     setItemSearchQ("");
     setNhapKetQua(null);
     setPoList([]);
@@ -485,9 +480,8 @@ export function SuppliersPage({
       />
 
       {/* Lọc nhanh theo nhóm NCC. Nhóm lấy từ dữ liệu thật (`groupPills`), chưa nhóm nào được đặt
-          thì cả dải tự ẩn — không bày ô lọc rỗng. Lọc chạy ở SERVER qua `supplier_group`, nên
-          đếm ở pill là đếm toàn bộ NCC chứ không phải mỗi trang đang xem. */}
-      {/* {groupPills.length > 0 && (
+          thì cả dải tự ẩn — không bày ô lọc rỗng. Lọc chạy ở SERVER qua `supplier_group`. */}
+      {groupPills.length > 0 && (
         <div className="supplier-pills-bar">
           <button
             type="button"
@@ -517,7 +511,7 @@ export function SuppliersPage({
             </button>
           ))}
         </div>
-      )} */}
+      )}
 
       {error && (
         <div className="banner banner--error" role="alert">
@@ -563,10 +557,19 @@ export function SuppliersPage({
                 </h2>
                 {selected && (
                   <span
-                    className={`md-purchase__status-badge ${
-                      selected.status === "active" ? "is-active" : "is-inactive"
+                    className={`supplier__status-pill ${
+                      selected.status === "active"
+                        ? "supplier__status-pill--active"
+                        : "supplier__status-pill--inactive"
                     }`}
                   >
+                    <span
+                      className={`supplier__status-dot ${
+                        selected.status === "active"
+                          ? "supplier__status-dot--active"
+                          : "supplier__status-dot--inactive"
+                      }`}
+                    />
                     {selected.status === "active" ? "Hoạt động" : "Tạm ngừng"}
                   </span>
                 )}
@@ -590,7 +593,7 @@ export function SuppliersPage({
                 }`}
                 onClick={() => setActiveTab("info")}
               >
-                Thông tin chung
+                1. Thông tin chung
               </button>
 
               <button
@@ -600,7 +603,7 @@ export function SuppliersPage({
                 }`}
                 onClick={() => setActiveTab("items")}
               >
-                Bảng giá vật tư
+                2. Bảng giá vật tư
                 {itemsInForm.length > 0 && (
                   <span className="supplier-tab-count">
                     {itemsInForm.length}
@@ -618,7 +621,7 @@ export function SuppliersPage({
                   }`}
                   onClick={() => setActiveTab("history")}
                 >
-                  Lịch sử mua hàng
+                  3. Lịch sử mua hàng
                   {poTotal > 0 && (
                     <span className="supplier-tab-count" style={{ background: "#2563eb" }}>
                       {poTotal}

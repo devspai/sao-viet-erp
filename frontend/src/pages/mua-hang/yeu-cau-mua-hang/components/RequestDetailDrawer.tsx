@@ -57,7 +57,7 @@ export function RequestDetailDrawer({
                   onClick={() => setSelectedId(null)}
                   aria-label="Đóng"
                 >
-                  ✕
+                  <Icon name="x" size={15} />
                 </button>
               </div>
 

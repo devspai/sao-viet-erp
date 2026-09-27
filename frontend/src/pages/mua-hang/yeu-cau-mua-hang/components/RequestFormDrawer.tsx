@@ -6,7 +6,7 @@
 // DRAWER của Thu mua (`rc-drawer` + `purchase__hero-banner` + `purchase__drawer-form` +
 // `purchase__drawer-footer`), chủ chốt: "sao mỗi nơi một màu". Bản cũ đã có sẵn hero-banner nên
 // chỉ là chuyển đổi DỞ DANG. Đây là FORM NHẬP LIỆU (bảng dòng vật tư đang gõ) nên đóng AN TOÀN:
-// scrim KHÔNG bắt click, KHÔNG Esc-to-close — chỉ ✕ và nút Hủy. Toàn bộ `save` / validate / bảng
+// scrim KHÔNG bắt click, KHÔNG Esc-to-close — chỉ <Icon name="x" size={15} /> và nút Hủy. Toàn bộ `save` / validate / bảng
 // dòng giữ NGUYÊN — chỉ đổi vỏ.
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import type {
@@ -75,7 +75,7 @@ export function RequestFormDrawer({
                   onClick={closeForm}
                   aria-label="Đóng"
                 >
-                  ✕
+                  <Icon name="x" size={15} />
                 </button>
               </div>
 

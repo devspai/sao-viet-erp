@@ -395,7 +395,7 @@ export function DeliveriesBlock({
                   onClick={() => setXemAnh(null)}
                   aria-label="Đóng"
                 >
-                  ✕
+                  <Icon name="x" size={15} />
                 </button>
               </div>
             </header>
@@ -428,7 +428,8 @@ export function DeliveriesBlock({
                     )
                   }
                 >
-                  ← Trước
+                  <Icon name="chevron" size={14} style={{ transform: "rotate(90deg)" }} />
+                  Trước
                 </Button>
                 <span className="pdot__lb-filename">
                   {xemAnh.ds[xemAnh.i].file_name}
@@ -442,7 +443,8 @@ export function DeliveriesBlock({
                     )
                   }
                 >
-                  Sau →
+                  Sau
+                  <Icon name="chevron" size={14} style={{ transform: "rotate(-90deg)" }} />
                 </Button>
               </footer>
             )}

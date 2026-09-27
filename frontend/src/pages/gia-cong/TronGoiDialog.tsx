@@ -1,6 +1,5 @@
-// Hộp "Gia công trọn gói" (spec 2026-09-26 §4) — thay cho phát hành: cả lệnh giao nhà gia công,
-// không xuống bàn tổ, không vào Xếp lịch. Máy chủ chặn lệnh ghép cụm / đang có dòng xếp lịch.
 import { useEffect, useState } from "react";
+import { Info, ChevronDown, AlertTriangle, CheckCircle2, PackageCheck } from "lucide-react";
 import { ApiError, api, type LsxDetail, type NhaGiaCong } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
@@ -57,6 +56,7 @@ export function TronGoiDialog({
   return (
     <ConfirmDialog
       open={open}
+      icon={<PackageCheck size={20} />}
       title={`Gia công trọn gói — ${lsx.ma}`}
       confirmLabel="Đặt gia công trọn gói"
       busy={busy}
@@ -66,34 +66,75 @@ export function TronGoiDialog({
       onCancel={onClose}
     >
       <div className="gcn__form gcn__form--cot">
-        <p className="gcn__note">
-          Cả lệnh giao cho nhà gia công: lệnh chuyển sang Đã phát hành với MỘT việc “Gia công trọn
-          gói”, không xuống bàn tổ, không vào Xếp lịch. Nhận hàng về thì chốt số ở khối Gia công
-          ngoài trên lệnh.
-        </p>
-        <label className="gcn__o">
-          <span>Nhà gia công</span>
-          <select
-            value={ncc}
-            onChange={(e) => setNcc(e.target.value ? Number(e.target.value) : "")}
-            disabled={ds == null}
-          >
-            <option value="">— chọn nhà gia công —</option>
-            {(ds ?? []).map((n) => <option key={n.id} value={n.id}>{n.ten}</option>)}
-          </select>
+        <div className="gcn__info-card">
+          <Info size={18} />
+          <div>
+            <b>Lưu ý luồng giao việc:</b> Cả lệnh sẽ chuyển sang trạng thái <i>Đã phát hành</i> với MỘT công việc “Gia công trọn gói”, không xuống bàn tổ và không vào Xếp lịch. Nhận hàng về thì chốt số ở khối Gia công ngoài trên lệnh.
+          </div>
+        </div>
+
+        <div className="gcn__o">
+          <span className="gcn__label-title">Nhà gia công</span>
+          <div className="gcn__select-wrap">
+            <select
+              value={ncc}
+              onChange={(e) => setNcc(e.target.value ? Number(e.target.value) : "")}
+              disabled={ds == null}
+            >
+              <option value="">— chọn nhà gia công —</option>
+              {(ds ?? []).map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.ten}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="gcn__select-arrow" size={18} />
+          </div>
           {ds != null && ds.length === 0 && (
-            <span className="gcn__note">
-              Chưa có nhà cung cấp nào tích “Nhận gia công” — vào màn Nhà cung cấp tích ô đó.
-            </span>
+            <div className="gcn__alert-warn">
+              <AlertTriangle size={16} />
+              <span>
+                Chưa có nhà cung cấp nào tích “Nhận gia công” — vào màn <b>Nhà cung cấp</b> để tích chọn.
+              </span>
+            </div>
           )}
-        </label>
-        <label className="gcn__o">
-          <span>Số đặt ({dv})</span>
-          <input inputMode="decimal" value={sl} onChange={(e) => setSl(e.target.value)} />
-        </label>
-        <label className="gcn__chk">
-          <input type="checkbox" checked={capGiay} onChange={(e) => setCapGiay(e.target.checked)} />
-          Xưởng cấp giấy (kho xuất giấy cho nhà gia công)
+        </div>
+
+        <div className="gcn__o">
+          <span className="gcn__label-title">Số đặt ({dv})</span>
+          <div className="gcn__input-wrap">
+            <input
+              inputMode="decimal"
+              value={sl}
+              onChange={(e) => setSl(e.target.value)}
+              placeholder="Nhập số lượng đặt..."
+            />
+            <span className="gcn__suffix">{dv}</span>
+          </div>
+          {lsx.so_luong_dat != null && Number(sl) !== lsx.so_luong_dat && (
+            <div className="gcn__quick-row">
+              <button
+                type="button"
+                className="gcn__quick-btn"
+                onClick={() => setSl(String(lsx.so_luong_dat))}
+              >
+                <CheckCircle2 size={13} />
+                Bằng 100% lệnh ({lsx.so_luong_dat.toLocaleString("vi-VN")} {dv})
+              </button>
+            </div>
+          )}
+        </div>
+
+        <label className={`gcn__toggle-card${capGiay ? " gcn__toggle-card--checked" : ""}`}>
+          <input
+            type="checkbox"
+            checked={capGiay}
+            onChange={(e) => setCapGiay(e.target.checked)}
+          />
+          <div className="gcn__toggle-text">
+            <span className="gcn__toggle-title">Xưởng cấp giấy</span>
+            <span className="gcn__toggle-desc">Kho xưởng xuất giấy cho nhà gia công sản xuất</span>
+          </div>
         </label>
       </div>
     </ConfirmDialog>

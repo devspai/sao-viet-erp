@@ -249,6 +249,12 @@ const ICONS = {
       <path d="m3 6 9 7 9-7" />
     </>
   ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </>
+  ),
   mapPin: (
     <>
       <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
@@ -398,6 +404,34 @@ const ICONS = {
   paperclip: (
     <>
       <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </>
+  ),
+  // Lọc trạng thái — quả cầu (thay emoji 🌐: emoji đổi hình theo font từng máy, máy thiếu font
+  // emoji thì ra ô vuông tofu — cùng lý do đã ghi ở SaoNcc.tsx)
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3c2.5 2.4 3.8 5.5 3.8 9S14.5 18.6 12 21c-2.5-2.4-3.8-5.5-3.8-9S9.5 5.4 12 3Z" />
+    </>
+  ),
+  // Lọc theo sao — ngôi sao nét, cùng hình với sao trong SaoNcc
+  star: (
+    <path d="m12 3.2 2.7 5.6 6.1.85-4.45 4.3 1.08 6.05L12 17.15l-5.43 2.87 1.08-6.05L3.2 9.65l6.1-.85Z" />
+  ),
+  // Huy hiệu "Đối tác Uy tín" (thay emoji 🏆)
+  trophy: (
+    <>
+      <path d="M7 3.5h10v6a5 5 0 0 1-10 0Z" />
+      <path d="M7 5H4v1.5A3.5 3.5 0 0 0 7.5 10M17 5h3v1.5A3.5 3.5 0 0 1 16.5 10" />
+      <path d="M12 14.5v3M8 20.5h8" />
+    </>
+  ),
+  // Gợi ý / mách nước (thay emoji 💡)
+  bulb: (
+    <>
+      <path d="M9.2 16.5a6 6 0 1 1 5.6 0" />
+      <path d="M9.5 16.5h5M10 19.5h4M10.5 22h3" />
     </>
   ),
   upload: (
