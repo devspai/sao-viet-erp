@@ -15,7 +15,9 @@
 // Form tự nạp `ke-hoach-sx.css` (khuôn `.khsx-*`) và `bai-ghep.css` (danh sách ghi chú của lệnh) để
 // style đi theo component chứ không đi theo trang nào.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { LSX_LOAI_BUOC_META, type BaiGhepBuocChungBody, type BaiGhepSoDo } from "../api/client";
+import {
+  ApiError, LSX_LOAI_BUOC_META, api, type BaiGhepBuocChungBody, type BaiGhepSoDo, type NhaGiaCong,
+} from "../api/client";
 import { crud } from "../api/rebuildCatalog";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
@@ -80,6 +82,18 @@ export function BuocChungForm({
   const [tab, setTab] = useState<TabKey>("cau_hinh");
   const [dangLuu, setDangLuu] = useState(false);
   const [confirmTach, setConfirmTach] = useState(false);
+  const ngoaiBuoc = g.loai_buoc === "thue_ngoai";
+  const [nhaDs, setNhaDs] = useState<NhaGiaCong[] | null>(null);
+  const [nhaLoi, setNhaLoi] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token || !ngoaiBuoc) return;
+    let song = true;
+    api.giaCongNgoai.nhaGiaCong(token)
+      .then((r) => { if (song) setNhaDs(r); })
+      .catch((e: unknown) => { if (song) setNhaLoi(e instanceof ApiError ? e.message : String(e)); });
+    return () => { song = false; };
+  }, [token, ngoaiBuoc]);
 
   useEffect(() => {
     if (!token) return;
@@ -125,6 +139,10 @@ export function BuocChungForm({
 
   const meta = LSX_LOAI_BUOC_META[g.loai_buoc];
   const ngoai = g.loai_buoc === "thue_ngoai";
+  // Nhà gia công chọn từ danh mục NCC có tích "Nhận gia công" — cùng nguồn với bước lệnh; tên do
+  // máy chủ ghi theo id. Nhà đã chọn mà nay bỏ tích vẫn phải HIỆN (ô chọn không rơi về trống).
+  const nhaId = val("nha_cung_cap_id", g.nha_cung_cap_id);
+  const nhaMat = nhaId != null && nhaDs != null && !nhaDs.some((n) => n.id === nhaId);
   const dvVao = nhanChang(g.don_vi_vao);
   const dvRa = nhanChang(g.don_vi_ra);
 
@@ -406,7 +424,15 @@ export function BuocChungForm({
                 </div>
               ))}
 
+              {ngoai && (
+                // Bước thuê ngoài không có tổ/máy trong xưởng — máy chủ gỡ khi lưu.
+                <div className="khsx-note-banner">
+                  <span>Bước thuê ngoài không cần tổ và máy — chọn nhà gia công ở thẻ “Gia công ngoài”.</span>
+                </div>
+              )}
+
               <div className="khsx-assign-grid">
+                {!ngoai && (
                 <label className="khsx-field">
                   <span className="khsx-field__label">TỔ PHỤ TRÁCH</span>
                   <select
@@ -425,6 +451,7 @@ export function BuocChungForm({
                     Đổi tổ thì bảng khoán đổi theo — lưu rồi mở lại mới thấy danh sách mới.
                   </span>
                 </label>
+                )}
 
                 {!ngoai && (
                   <label className="khsx-field">
@@ -1040,102 +1067,47 @@ export function BuocChungForm({
             <section className="khsx-section-card">
               <div className="khsx-section-card__head">
                 <div>
-                  <h3 className="khsx-section-card__title">Đối tác & Khối lượng gia công</h3>
-                  {/* Bước chung nằm TRƯỚC điểm toả nên cả gửi lẫn nhận đều ở tầng bài — một phiếu. */}
-                  <p className="khsx-section-card__sub">Cả tờ ghép đi một phiếu, một nhà cung cấp.</p>
+                  <h3 className="khsx-section-card__title">Nhà gia công</h3>
+                  {/* Bước chung nằm TRƯỚC điểm toả nên cả tờ ghép đi MỘT lần gia công, một nhà. */}
+                  <p className="khsx-section-card__sub">
+                    Cả tờ ghép đi một lần gia công. Mang đi và chốt số làm ở khối “Gia công ngoài”
+                    của bài ghép sau khi phát hành.
+                  </p>
                 </div>
               </div>
-
-              <div className="khsx-subcontract-grid-full">
+              <div className="khsx-assign-grid">
                 <label className="khsx-field">
-                  <span className="khsx-field__label">NHÀ CUNG CẤP</span>
-                  <input
-                    type="text" className="khsx-select-std" disabled={!canUpdate}
-                    value={val("nha_cung_cap", g.nha_cung_cap) ?? ""}
-                    placeholder="tên nhà gia công"
-                    onChange={(e) => setF({ ...f, nha_cung_cap: e.target.value })}
-                  />
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">SỐ LƯỢNG GỬI</span>
-                  <div className="khsx-vattu-input-group">
-                    <input
-                      type="number" min="0" className="khsx-vattu-num-input" disabled={!canUpdate}
-                      value={val("sl_gui", g.sl_gui) ?? ""}
-                      onChange={(e) => setF({ ...f, sl_gui: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="khsx-vattu-unit-tag">{dvVao}</span>
-                  </div>
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">HAO HỤT CHO PHÉP</span>
-                  <div className="khsx-vattu-input-group">
-                    <input
-                      type="number" min="0" className="khsx-vattu-num-input" disabled={!canUpdate}
-                      title="Thoả thuận với nhà gia công"
-                      value={val("hao_hut_cho_phep", g.hao_hut_cho_phep) ?? ""}
-                      onChange={(e) => setF({ ...f, hao_hut_cho_phep: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="khsx-vattu-unit-tag">{dvVao}</span>
-                  </div>
+                  <span className="khsx-field__label">NHÀ GIA CÔNG</span>
+                  {nhaLoi ? (
+                    <span className="khsx-field__hint">{nhaLoi}</span>
+                  ) : (
+                    <select
+                      className="khsx-select-std"
+                      value={nhaId ?? ""}
+                      disabled={!canUpdate || nhaDs == null}
+                      onChange={(e) => setF({
+                        ...f, nha_cung_cap_id: e.target.value ? Number(e.target.value) : null,
+                      })}
+                    >
+                      <option value="">— chọn nhà gia công —</option>
+                      {nhaMat && (
+                        <option value={nhaId ?? ""}>
+                          {(g.nha_cung_cap || "Nhà đã chọn") + " (đã bỏ tích “Nhận gia công”)"}
+                        </option>
+                      )}
+                      {(nhaDs ?? []).map((n) => (
+                        <option key={n.id} value={n.id}>{n.ten}</option>
+                      ))}
+                    </select>
+                  )}
+                  {nhaDs != null && nhaDs.length === 0 && (
+                    <span className="khsx-field__hint">
+                      Chưa có nhà cung cấp nào tích “Nhận gia công” — vào màn Nhà cung cấp tích ô đó
+                      cho nhà gia công rồi chọn lại ở đây.
+                    </span>
+                  )}
                 </label>
               </div>
-            </section>
-
-            <section className="khsx-section-card">
-              <div className="khsx-section-card__head">
-                <h3 className="khsx-section-card__title">Lịch trình tiến độ dự kiến</h3>
-              </div>
-              <div className="khsx-subcontract-grid-full">
-                <label className="khsx-field">
-                  <span className="khsx-field__label">NGÀY GỬI (DK)</span>
-                  <input
-                    type="date" className="khsx-select-std" disabled={!canUpdate}
-                    value={val("ngay_gui_dk", g.ngay_gui_dk) ?? ""}
-                    onChange={(e) => setF({ ...f, ngay_gui_dk: e.target.value || null })}
-                  />
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">NGÀY NHẬN (DK)</span>
-                  <input
-                    type="date" className="khsx-select-std" disabled={!canUpdate}
-                    value={val("ngay_nhan_dk", g.ngay_nhan_dk) ?? ""}
-                    onChange={(e) => setF({ ...f, ngay_nhan_dk: e.target.value || null })}
-                  />
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">VẬN CHUYỂN</span>
-                  <div className="khsx-vattu-input-group">
-                    <input
-                      type="number" min="0" step="0.5" className="khsx-vattu-num-input" disabled={!canUpdate}
-                      title="Tính cả hai chiều"
-                      value={val("van_chuyen_ngay", g.van_chuyen_ngay) ?? ""}
-                      onChange={(e) => setF({ ...f, van_chuyen_ngay: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="khsx-vattu-unit-tag">ngày</span>
-                  </div>
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">GIA CÔNG</span>
-                  <div className="khsx-vattu-input-group">
-                    <input
-                      type="number" min="0" step="0.5" className="khsx-vattu-num-input" disabled={!canUpdate}
-                      value={val("gia_cong_ngay", g.gia_cong_ngay) ?? ""}
-                      onChange={(e) => setF({ ...f, gia_cong_ngay: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="khsx-vattu-unit-tag">ngày</span>
-                  </div>
-                </label>
-              </div>
-
-              <label className="khsx-field">
-                <span className="khsx-field__label">YÊU CẦU KỸ THUẬT GỬI NHÀ GIA CÔNG</span>
-                <textarea
-                  rows={2} className="khsx-textarea" disabled={!canUpdate}
-                  value={val("yeu_cau_ky_thuat", g.yeu_cau_ky_thuat) ?? ""}
-                  onChange={(e) => setF({ ...f, yeu_cau_ky_thuat: e.target.value })}
-                />
-              </label>
             </section>
           </div>
         )}

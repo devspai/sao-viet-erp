@@ -131,6 +131,9 @@ export interface NavParams {
   openSxOrderId?: number;
   /** Liên thông sơ đồ Bài ghép → Kế hoạch SX: mở thẳng chi tiết một lệnh. */
   openLsxId?: number;
+  /** Liên thông lệnh → Bài ghép (dòng chỉ đọc "đi chung bài ghép" của gia công ngoài): mở thẳng
+   *  chi tiết một bài ghép. */
+  openBaiGhepId?: number;
   /** Liên thông Phòng ban → Lương: mở thẳng tab "Cấu hình lương" (bảng lương của tổ). */
   luongTab?: "cauhinh";
   /** Deep-link QR tem kho: mở thẳng drawer lô + vị trí của đúng vật tư này trên màn Tồn kho. */
@@ -1540,7 +1543,15 @@ export function AppShell() {
       // mục menu bị ẩn nên `MODULES_BY_NAV_ID` không có id `bai-ghep-2` và cổng `allowed` chặn
       // trước khi tới đây. Bỏ `case` đi thì bật cờ lại phải sửa hai chỗ thay vì một.
       case "bai-ghep-2":
-        return <BaiGhep2Page navigate={navigate} eventTick={quoteTick} onBadgeStale={reloadBadges} />;
+        return (
+          <BaiGhep2Page
+            navigate={navigate}
+            eventTick={quoteTick}
+            onBadgeStale={reloadBadges}
+            openBaiGhepId={navParams?.openBaiGhepId ?? null}
+            openSeq={navParams?.navSeq ?? null}
+          />
+        );
       case "xep-lich":
         return <XepLichPage eventTick={quoteTick} onBadgeStale={reloadBadges} />;
       case "sua-chua-may":

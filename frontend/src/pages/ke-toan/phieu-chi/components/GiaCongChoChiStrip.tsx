@@ -35,7 +35,7 @@ export function GiaCongChoChiStrip({
         {rows.map((r) => (
           <li key={r.gia_cong_ngoai_id} className="acct-gc-cho__row">
             <span className="acct-gc-cho__ncc">{r.nha_cung_cap_ten}</span>
-            <span>{r.lsx_ma} · {r.ten_viec}</span>
+            <span>{r.nhan_nguon || r.lsx_ma} · {r.ten_viec}</span>
             <span>
               {r.sl_cuoi.toLocaleString("vi-VN")} {r.don_vi ? nhanDonVi(r.don_vi) : ""}
               {r.thanh_tien != null ? ` · ${r.thanh_tien.toLocaleString("vi-VN")}đ` : ""}

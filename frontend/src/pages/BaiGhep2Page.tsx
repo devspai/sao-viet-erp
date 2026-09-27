@@ -24,6 +24,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icons";
 import { MucInHang } from "../components/MucIn";
 import { BuocChungForm } from "./BaiGhepBuocChungForm";
+import { GiaCongNgoaiPanel } from "./gia-cong/GiaCongNgoaiPanel";
 import { keVatTuBaiGhep } from "./baiGhep2VatTu";
 import { LsxVatTuPanel } from "./LsxVatTuPanel";
 import {
@@ -114,10 +115,16 @@ export function BaiGhep2Page({
   navigate,
   eventTick,
   onBadgeStale,
+  openBaiGhepId = null,
+  openSeq = null,
 }: {
   navigate?: (id: string, params?: Record<string, unknown>) => void;
   eventTick?: number;
   onBadgeStale?: () => void;
+  /** Liên thông từ màn lệnh ("đi chung bài ghép …" của gia công ngoài): mở thẳng chi tiết bài. */
+  openBaiGhepId?: number | null;
+  /** Mỗi lượt điều hướng một số mới — bấm lại cùng bài vẫn mở lại được. */
+  openSeq?: number | null;
 }) {
   const { token } = useAuth();
   const canCreate = useCan()("bai_ghep_2", "create");
@@ -129,6 +136,10 @@ export function BaiGhep2Page({
   const [q, setQ] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    if (openBaiGhepId != null) setView({ mode: "detail", id: openBaiGhepId });
+  }, [openBaiGhepId, openSeq]);
 
   const loadPool = useCallback(() => {
     if (!token) return;
@@ -593,6 +604,9 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
   const can = useCan();
   const canUpdate = can("bai_ghep_2", "update");
   const canDelete = can("bai_ghep_2", "delete");
+  // Lần gia công của bước chung: cùng quyền với lần của lệnh (`san_xuat:update`), máy chủ gác thêm
+  // phạm vi trên mọi lệnh thành viên (spec 2026-09-27 §5).
+  const canGiaCong = can("san_xuat", "update");
   const [tab, setTab] = useState<BaiGhep2TabKey>("chung");
   const [d, setD] = useState<BaiGhep2Detail | null>(null);
   const [form, setForm] = useState<MetaForm | null>(null);
@@ -763,6 +777,9 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
         Dữ liệu trên máy chủ vừa thay đổi. Bản đang nhập vẫn được giữ. {" "}
         <button type="button" className="khsx-xlink" onClick={() => { setStale(false); void load(); }}>Nạp lại</button>
       </div>}
+
+      {/* Gia công ngoài của bước CHUNG (spec 2026-09-27 §4) — thao tác mang đi / chốt / mở lại ở đây. */}
+      <GiaCongNgoaiPanel baiGhepId={id} eventTick={eventTick} canUpdate={canGiaCong} onChanged={onChanged} />
 
       <div className="khsx-tabs bg2-tabs" role="tablist" aria-label="Nội dung bài ghép"
         onKeyDown={(event) => {

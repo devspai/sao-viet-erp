@@ -2,6 +2,9 @@
 // công: Đã mang đi · Chốt số · Mở lại · Đề nghị xuất giấy · Huỷ trọn gói. Bàn tổ / Xếp lịch / KCS
 // chỉ nhìn. Tự nạp lại theo tick SSE — khối không có ô nhập dở dang nào ngoài mini-form đang mở,
 // mà state của mini-form nằm riêng, nạp lại không xoá nó.
+//
+// Nguồn lệnh HOẶC bài ghép (spec 2026-09-27 §4): lần của bước CHUNG bài ghép thao tác ở màn bài
+// ghép; màn từng lệnh thành viên chỉ hiện một dòng chỉ đọc bấm sang bài ghép.
 import { useCallback, useEffect, useState } from "react";
 import {
   ApiError,
@@ -20,15 +23,21 @@ type FormChot = { sl: string; noiVe: GiaCongNoiVe | null; dich: number | null };
 
 export function GiaCongNgoaiPanel({
   lsxId,
+  baiGhepId,
   eventTick = 0,
   canUpdate,
   onChanged,
+  onMoBaiGhep,
 }: {
-  lsxId: number;
+  /** Đúng MỘT trong hai: khối trên hồ sơ lệnh, hoặc khối trên màn bài ghép. */
+  lsxId?: number;
+  baiGhepId?: number;
   eventTick?: number;
   canUpdate: boolean;
   /** Lệnh đổi trạng thái (huỷ trọn gói về Nháp, chốt về kho làm nhóm đóng…) — màn cha nạp lại. */
   onChanged: () => void;
+  /** Dòng chỉ đọc (lần của bài ghép trên màn lệnh) bấm sang màn bài ghép. */
+  onMoBaiGhep?: (baiGhepId: number) => void;
 }) {
   const { token } = useAuth();
   const [lans, setLans] = useState<GiaCongNgoaiLan[] | null>(null);
@@ -40,11 +49,13 @@ export function GiaCongNgoaiPanel({
 
   const load = useCallback(() => {
     if (!token) return;
-    api.giaCongNgoai
-      .cuaLenh(token, lsxId)
-      .then(setLans)
+    const req = baiGhepId != null
+      ? api.giaCongNgoai.cuaBaiGhep(token, baiGhepId)
+      : lsxId != null ? api.giaCongNgoai.cuaLenh(token, lsxId) : null;
+    req
+      ?.then(setLans)
       .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : String(e)));
-  }, [token, lsxId]);
+  }, [token, lsxId, baiGhepId]);
   useEffect(() => load(), [load, eventTick]);
 
   async function chay(id: number, fn: () => Promise<unknown>) {
@@ -73,9 +84,28 @@ export function GiaCongNgoaiPanel({
       <h3 className="gcn__title">Gia công ngoài</h3>
       {err && <div className="banner banner--error" role="alert">{err}</div>}
       {lans.map((l) => {
+        if (l.chi_xem && l.bai_ghep_id != null && baiGhepId == null) {
+          // Lần của bước chung bài ghép trên màn LỆNH: một dòng chỉ đọc, thao tác ở màn bài ghép.
+          return (
+            <article key={l.id} className={`gcn__lan gcn__lan--${l.trang_thai} gcn__lan--chi-xem`}>
+              <div className="gcn__head">
+                <strong className="gcn__viec">{l.ten_viec}</strong>
+                <span className="gcn__ncc">đi chung bài ghép {l.bai_ghep_ma} — {l.nha_cung_cap_ten}</span>
+                <span className={`gcn__tt gcn__tt--${l.trang_thai}`}>{NHAN_TRANG_THAI[l.trang_thai]}</span>
+                {onMoBaiGhep && (
+                  <Button variant="ghost" onClick={() => onMoBaiGhep(l.bai_ghep_id!)}>
+                    Mở bài ghép
+                  </Button>
+                )}
+              </div>
+            </article>
+          );
+        }
         const nut = nutCuaLan(l);
         const f = chot[l.id];
         const dangBan = busy === l.id;
+        const thaoTac = canUpdate && !l.chi_xem;
+        const chia = l.chia_theo_lenh ?? [];
         return (
           <article key={l.id} className={`gcn__lan gcn__lan--${l.trang_thai}`}>
             <div className="gcn__head">
@@ -117,8 +147,16 @@ export function GiaCongNgoaiPanel({
                 {l.huy_boi_ten ?? "—"} huỷ{l.ly_do_huy ? `: ${l.ly_do_huy}` : ""}
               </p>
             )}
+            {l.bai_ghep_id != null && (
+              <p className="gcn__note">Các lệnh trên tờ: {(l.lenh ?? []).map((x) => x.ma).join(", ")}</p>
+            )}
+            {canUpdate && l.chi_xem && (
+              <p className="gcn__note">
+                Chỉ xem — bài ghép có lệnh ngoài phạm vi của bạn. Nhờ người phụ trách các lệnh còn lại thao tác.
+              </p>
+            )}
 
-            {canUpdate && (
+            {thaoTac && (
               <div className="gcn__nut">
                 {nut.mangDi && (
                   <>
@@ -179,7 +217,7 @@ export function GiaCongNgoaiPanel({
               </div>
             )}
 
-            {canUpdate && f && (
+            {thaoTac && f && (
               <div className="gcn__form">
                 <label className="gcn__o">
                   <span>Số nhận về ({dvTen(l.don_vi)})</span>
@@ -204,7 +242,30 @@ export function GiaCongNgoaiPanel({
                     </label>
                   ))}
                 </fieldset>
-                {f.noiVe === "xuong" && l.chang_sau.length > 1 && (
+                {chia.length > 0 && (
+                  // Số chốt là tờ ghép — máy chủ nhân số con/tờ ra phần từng lệnh (spec 2026-09-27 §2).
+                  <table className="gcn__chia">
+                    <caption>Chia về từng lệnh</caption>
+                    <thead>
+                      <tr><th>Lệnh</th><th>Số con/tờ</th><th>Nhận</th><th>Bước nhận</th></tr>
+                    </thead>
+                    <tbody>
+                      {chia.map((c) => (
+                        <tr key={c.lsx_id}>
+                          <td>{c.lsx_ma}</td>
+                          <td>{c.so_con.toLocaleString("vi-VN")}</td>
+                          <td>
+                            {Number(f.sl) > 0
+                              ? `${(Math.round(Number(f.sl) * c.so_con * 1000) / 1000).toLocaleString("vi-VN")} ${dvTen(c.don_vi)}`
+                              : "—"}
+                          </td>
+                          <td>{c.buoc_nhan ?? "Nhập kho"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {f.noiVe === "xuong" && l.chang_sau.length > 1 && chia.length === 0 && (
                   <label className="gcn__o">
                     <span>Bước nhận hàng</span>
                     <select

@@ -34,7 +34,7 @@ export function LapPhieuChiGiaCongModal({
   const [soTien, setSoTien] = useState(row.thanh_tien != null ? String(row.thanh_tien) : "");
   const [nguoiNhan, setNguoiNhan] = useState(row.nha_cung_cap_ten);
   const [noiDung, setNoiDung] = useState(
-    `Gia công ${row.ten_viec} — ${row.lsx_ma} — ${row.nha_cung_cap_ten}`,
+    `Gia công ${row.ten_viec} — ${row.nhan_nguon || row.lsx_ma} — ${row.nha_cung_cap_ten}`,
   );
   const [ghiChu, setGhiChu] = useState("");
   const [diaChi, setDiaChi] = useState("");
@@ -116,7 +116,7 @@ export function LapPhieuChiGiaCongModal({
     <div className="ns-modal" role="dialog" aria-modal="true">
       <div className="ns-modal__box">
         <header className="ns-modal__head">
-          <h2>Lập phiếu chi — gia công {row.lsx_ma}</h2>
+          <h2>Lập phiếu chi — gia công {row.nhan_nguon || row.lsx_ma}</h2>
           <button className="ns-modal__x" onClick={onClose} aria-label="Đóng">×</button>
         </header>
         <div className="ns-modal__body lg-pc-body">

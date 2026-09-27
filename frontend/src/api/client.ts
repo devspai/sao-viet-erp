@@ -488,7 +488,8 @@ export type QuoteEvent =
       ten_viec?: string | null;
     }
   | { type: "gia_cong_cho_chi_changed" }
-  | { type: "gia_cong_ngoai_changed"; lsx_id?: number | null; gia_cong_ngoai_id?: number | null }
+  | { type: "gia_cong_ngoai_changed"; lsx_id?: number | null; gia_cong_ngoai_id?: number | null;
+      lsx_ids?: number[]; bai_ghep_id?: number | null }
   | { type: "san_xuat_ho_tro_changed"; cong_viec_id?: number | null; ho_tro_id?: number | null; trang_thai?: string | null }
   | {
       type: "san_xuat_ho_tro";
@@ -815,11 +816,9 @@ export interface BaiGhepSoDoBuocChung {
    *  ra được vẫn có mặt (`so_luong: null`) kèm `ly_do` chỉ chỗ khai công thức. */
   vat_tu_goi_y: { vat_tu_id: number; so_luong: number | null;
                   dien_giai: string | null; ly_do: string | null }[];
-  /** Gia công ngoài (DỰ KIẾN) — bước chung thuê ngoài thì cả bài đi MỘT phiếu, MỘT nhà cung cấp. */
-  sl_gui: number | null; ngay_gui_dk: string | null;
-  van_chuyen_ngay: number | null; gia_cong_ngay: number | null; ngay_nhan_dk: string | null;
-  hao_hut_cho_phep: number | null; don_gia_gia_cong: number | null;
-  yeu_cau_ky_thuat: string | null;
+  /** Nhà gia công của bước chung thuê ngoài (spec 2026-09-27) — tên `nha_cung_cap` do máy chủ ghi.
+   *  Mang đi / chốt số nằm ở khối Gia công ngoài của màn bài ghép, không khai dự kiến ở đây. */
+  nha_cung_cap_id: number | null;
   ghi_chu: string | null; ma_bai_ghep: string | null;
   /** Lệnh nào bị đè + ghi chú kỹ thuật của lệnh đó (GOM, không đè). */
   thanh_vien: { lsx_id: number; lsx_ma: string | null; lsx_step_key: string;
@@ -885,10 +884,8 @@ export interface BaiGhepBuocChungBody {
   phat_sinh_phut?: number; so_luot_chay?: number;
   ghi_chu?: string | null;
   vat_tus?: { vat_tu_id: number; so_luong: number; nguon_so_luong?: string }[];
-  nha_cung_cap?: string | null; sl_gui?: number | null; ngay_gui_dk?: string | null;
-  van_chuyen_ngay?: number | null; gia_cong_ngay?: number | null; ngay_nhan_dk?: string | null;
-  hao_hut_cho_phep?: number | null; don_gia_gia_cong?: number | null;
-  yeu_cau_ky_thuat?: string | null;
+  /** Nhà gia công (NCC có tích "Nhận gia công") — chỉ khi loại bước là thuê ngoài. */
+  nha_cung_cap_id?: number | null;
 }
 /** `step_key → gộp thêm vào được không, không thì vì sao` (kiểm TRƯỚC khi cho bấm Gộp). */
 export interface BaiGhepUngVienGop {
@@ -6393,8 +6390,12 @@ export interface NhaGiaCong { id: number; ten: string }
  *  xem không có quyền xem tiền. */
 export interface GiaCongChoChi {
   gia_cong_ngoai_id: number;
-  lsx_id: number;
+  /** `null` với lần của bước chung bài ghép — khi đó `bai_ghep_id` có giá trị. */
+  lsx_id: number | null;
   lsx_ma: string;
+  bai_ghep_id?: number | null;
+  /** Nhãn nguồn: mã lệnh, hoặc "BG-.. (LSX-A, LSX-B)" cho lần của bài ghép. */
+  nhan_nguon?: string;
   ten_viec: string;
   nha_cung_cap_id: number | null;
   nha_cung_cap_ten: string;
@@ -6413,8 +6414,19 @@ export type GiaCongNoiVe = "xuong" | "kho" | "khach";
  *  xem không có quyền xem tiền — máy chủ gác, màn ẨN hẳn đoạn tiền (không hiện "—"). */
 export interface GiaCongNgoaiLan {
   id: number;
-  lsx_id: number;
+  /** Lần của LỆNH có `lsx_id`; lần của BƯỚC CHUNG bài ghép có `bai_ghep_id` (spec 2026-09-27). */
+  lsx_id: number | null;
   lsx_ma: string;
+  bai_ghep_id?: number | null;
+  bai_ghep_ma?: string | null;
+  lenh?: { id: number; ma: string; so_con: number }[];
+  /** Nhãn nguồn: mã lệnh, hoặc "BG-.. (LSX-A, LSX-B)". */
+  nhan_nguon?: string;
+  /** Bảng chia số chốt về từng lệnh (số × số con/tờ) — rỗng khi lần không toả. */
+  chia_theo_lenh?: { lsx_id: number; lsx_ma: string; so_con: number; don_vi: string | null;
+                     buoc_nhan: string | null }[];
+  /** Không thao tác được ở đây: lần bài ghép trên màn lệnh, hoặc thiếu phạm vi một lệnh. */
+  chi_xem?: boolean;
   kieu: "mot_phan" | "tron_goi";
   trang_thai: GiaCongTrangThai;
   nha_cung_cap_id: number;
@@ -11943,6 +11955,10 @@ export const api = {
     },
     cuaLenh(token: string, lsxId: number): Promise<GiaCongNgoaiLan[]> {
       return authed<GiaCongNgoaiLan[]>(`/api/gia-cong-ngoai/lenh/${lsxId}`, token);
+    },
+    /** Lần gia công của bước CHUNG bài ghép — khối ở màn Bài ghép (spec 2026-09-27 §4). */
+    cuaBaiGhep(token: string, baiGhepId: number): Promise<GiaCongNgoaiLan[]> {
+      return authed<GiaCongNgoaiLan[]>(`/api/gia-cong-ngoai/bai-ghep/${baiGhepId}`, token);
     },
     /** "Đã mang đi" — nhận MỌI bàn giao đang chờ của bước trước. `sl_gui` chỉ khi dải đứng đầu
      *  lệnh (không có bàn giao để nhận). */

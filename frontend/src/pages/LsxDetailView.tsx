@@ -1008,6 +1008,7 @@ export function LsxDetailView({
         eventTick={eventTick}
         canUpdate={canUpdate}
         onChanged={() => { load(); onChanged(); }}
+        onMoBaiGhep={navigate ? (id) => navigate("bai-ghep-2", { openBaiGhepId: id }) : undefined}
       />
 
       {/* Lưu ý "gỡ đầu việc mồ côi" GỠ 18/09/2026 (mg `0320`) — bước thôi ghim đầu việc. */}
