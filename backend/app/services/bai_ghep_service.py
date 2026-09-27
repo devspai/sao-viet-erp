@@ -25,7 +25,7 @@ from ..models.cong_doan import CongDoan
 from ..models.customer import Customer
 from ..models.lsx import (
     LB_MAY, LB_THUE_NGOAI, LB_TO,
-    TT_DA_LAP_KE_HOACH as LSX_DA_LAP, TT_SAN_SANG as LSX_SAN_SANG,
+    TT_DA_LAP_KE_HOACH as LSX_DA_LAP, TT_DA_PHAT_HANH as LSX_DA_PHAT_HANH, TT_SAN_SANG as LSX_SAN_SANG,
     Lsx, LsxCongDoan, LsxCongDoanPhuThuoc,
 )
 from ..models.may_thiet_bi import MayThietBi
@@ -1933,7 +1933,9 @@ class BaiGhepService:
         hans = [l.han_hoan_thanh_sx for l in lsxs if l and l.han_hoan_thanh_sx]
         if len(hans) >= 2 and (max(hans) - min(hans)).days > LECH_HAN_NGAY:
             cb.append("lech_han")
-        if any(l and l.trang_thai not in (LSX_SAN_SANG, LSX_DA_LAP) for l in lsxs):
+        # Lệnh ĐI TIẾP (đã lập KH, đã phát hành) là bình thường — chỉ lệnh LÙI về nháp/chờ bổ sung mới
+        # đáng báo. Thiếu `da_phat_hanh` ở đây làm bài đã phát hành treo cảnh báo mãi (E2E 27/09/2026).
+        if any(l and l.trang_thai not in (LSX_SAN_SANG, LSX_DA_LAP, LSX_DA_PHAT_HANH) for l in lsxs):
             cb.append("thanh_vien_khong_san_sang")
         # Đơn thành viên bị huỷ sau khi ghép.
         order_ids = {l.order_id for l in lsxs if l}
