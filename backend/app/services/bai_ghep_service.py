@@ -795,6 +795,11 @@ class BaiGhepService:
             # chứ không phải lệch lịch. Máy vẫn KHÔNG bị chiếm trong khoảng này.
             thu_tu=int(mau.thu_tu or 0),
         )
+        # NHÀ GIA CÔNG (spec 2026-09-27 §6): mọi bước gộp cùng thuê ngoài ở CÙNG một nhà ⇒ lượt chung
+        # thừa kế nhà đó (khỏi chọn lại). Khác nhà hoặc có bước chưa chọn ⇒ để trống, "Còn thiếu" nhắc.
+        ncc_ids = {cd.nha_cung_cap_id for cd in cds}
+        if mau.loai_buoc == LB_THUE_NGOAI and len(ncc_ids) == 1 and None not in ncc_ids:
+            chung.nha_cung_cap_id, chung.nha_cung_cap = mau.nha_cung_cap_id, mau.nha_cung_cap
         self.db.add(chung)
         self.db.flush()
         for k in keys:
@@ -867,7 +872,10 @@ class BaiGhepService:
         # bước lệnh (`LsxService.replace_routing`). Chỉ soi khi tổ ĐỔI: lưu lại tổ cũ đã lệch vì
         # danh mục đổi sau thì để yên, không khoá đường sửa máy/kíp của bước.
         to_moi = patch.get("department_id")
-        if to_moi is not None and to_moi != chung.department_id and chung.cong_doan_id:
+        # Bước thuê ngoài không tổ (tổ bị gỡ ở `_ap_nha_gia_cong`) — khỏi soi tổ phụ trách.
+        thue_ngoai = patch.get("loai_buoc", chung.loai_buoc) == LB_THUE_NGOAI
+        if (to_moi is not None and not thue_ngoai and to_moi != chung.department_id
+                and chung.cong_doan_id):
             cd_obj = self.db.get(CongDoan, chung.cong_doan_id)
             if cd_obj is not None and cd_obj.department_ids and to_moi not in cd_obj.department_ids:
                 raise BaiGhepValidationError(
@@ -876,6 +884,7 @@ class BaiGhepService:
         for field in self._SUA_DUOC_BUOC_CHUNG:
             if field in patch:
                 setattr(chung, field, patch[field])
+        self._ap_nha_gia_cong(chung, patch)
         # Bước TỔ không có "lượt qua máy" — ô gỡ khỏi form 08/09/2026, ép 1 ở SERVER y như bước
         # tổ của routing lệnh (`_ap_routing`). Đặt SAU vòng trên để `loai_buoc` vừa đổi trong
         # cùng lượt lưu cũng ăn luật này.
@@ -893,6 +902,31 @@ class BaiGhepService:
         )
         self.repo.commit()
         return self._get(bg.id)
+
+    def _ap_nha_gia_cong(self, chung: BaiGhepCongDoan, patch: dict) -> None:
+        """Bước chung THUÊ NGOÀI: không tổ, không máy; nhà gia công chọn từ danh mục Nhà cung cấp
+        (tích "Nhận gia công", đang hoạt động) và TÊN do máy chủ ghi theo — cùng luật bước lệnh
+        (`LsxService.replace_routing`). Đổi khỏi thuê ngoài ⇒ dọn nhà gia công."""
+        from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+
+        if chung.loai_buoc != LB_THUE_NGOAI:
+            chung.nha_cung_cap_id, chung.nha_cung_cap = None, None
+            return
+        chung.department_id = None
+        chung.may_id = None
+        chung.so_luot_chay = 1
+        if "nha_cung_cap_id" not in patch:
+            return
+        ncc_id = patch.get("nha_cung_cap_id")
+        if ncc_id is None:
+            chung.nha_cung_cap_id, chung.nha_cung_cap = None, None
+        elif ncc_id != chung.nha_cung_cap_id:
+            ncc = GiaCongNgoaiRepository(self.db).nha_gia_cong(ncc_id)
+            if ncc is None:
+                raise BaiGhepValidationError(
+                    "Nhà gia công phải là nhà cung cấp đang hoạt động có tích “Nhận gia công” — "
+                    "vào màn Nhà cung cấp để tích.")
+            chung.nha_cung_cap_id, chung.nha_cung_cap = ncc.id, ncc.name
 
     # ⚠️ `_ghim_khoan_chung()` + `_khoan_chung_dict()` GỠ 18/09/2026 (mg `0320`): lượt chạy
     #    chung thôi ghim đầu việc khoán, y như bước lệnh. Việc khoán chọn LÚC GHI MẺ ở bàn tổ,
@@ -1764,14 +1798,13 @@ class BaiGhepService:
         # cùng lẽ với "Chưa chọn máy" đã sửa ở fix round 1.
         if c.loai_buoc != LB_THUE_NGOAI and not c.department_id:
             thieu.append("Chưa chọn tổ")
-        # Fix round 1 (26/09/2026, review Task 3): sau Task 3 gia công ngoài, bước LSX loại
-        # `thue_ngoai` LUÔN có `may_id = None` — nhà gia công chọn từ danh mục Nhà cung cấp, KHÔNG
-        # còn khai như một máy trong danh mục Máy. `BaiGhepCongDoan` (mô hình "bước chung" của Bài
-        # ghép) CHƯA có cột `nha_cung_cap_id` (chỉ có `nha_cung_cap` dạng chữ, cột cũ) nên ở đây
-        # không dựng được điều kiện tương đương "thiếu nhà gia công" — chỉ bỏ hẳn đòi hỏi máy cho
-        # thuê ngoài, để "Chưa chọn máy" không còn treo vĩnh viễn trên bước thuê ngoài nữa.
+        # Bước thuê ngoài KHÔNG máy — nhà gia công chọn từ danh mục Nhà cung cấp (kiểm dưới).
         if c.loai_buoc == LB_MAY and not c.may_id:
             thieu.append("Chưa chọn máy")
+        # Spec 2026-09-27: bước chung thuê ngoài phải chọn nhà gia công từ danh mục — tên gõ tay
+        # kiểu cũ (`nha_cung_cap` có chữ, không id) không tính. Thiếu ⇒ phát hành không gom được lần.
+        if c.loai_buoc == LB_THUE_NGOAI and c.nha_cung_cap_id is None:
+            thieu.append("Chưa chọn nhà gia công")
         # ⚠️ Chip "Chưa có năng suất" GỠ 18/09/2026 (mg `0319`): bước TỔ thôi chia theo năng suất,
         #    giờ của nó là SỐ GIỜ KẾ HOẠCH gõ tay và để 0 là HỢP LỆ — chủ xưởng 18/09/2026:
         #    *"không cần cảnh báo, bản chất nó là số giờ kế hoạch, nếu thiếu thì cứ để 0"*.
@@ -1939,6 +1972,18 @@ class BaiGhepService:
         # không lệnh nào biết mà nhặt — im lặng mất chỗ.
         self._chan_dang_giu_cho(bg)
         ma = bg.ma
+        # Lần gia công của bài (FK RESTRICT): bài về nháp được nghĩa là gói đã thu hồi ⇒ mọi lần đã
+        # HUỶ theo gói. Lần huỷ không có phiếu chi, không chứng từ nào trỏ tới ⇒ dọn cùng bài. Còn lần
+        # sống (lỗi dữ liệu) thì chặn, không xoá mù.
+        from ..models.gia_cong_ngoai import GiaCongNgoai
+
+        lans = list(self.db.scalars(select(GiaCongNgoai).where(GiaCongNgoai.bai_ghep_id == bg.id)))
+        if any(g.huy_luc is None for g in lans):
+            raise BaiGhepValidationError(
+                "Bài ghép còn lần gia công ngoài chưa huỷ — thu hồi phát hành trước rồi mới xoá.")
+        for g in lans:
+            self.db.delete(g)
+        self.db.flush()
         self.repo.delete(bg)  # cascade xoá thành viên → LSX tự do lại
         self.audit.create(
             actor_user_id=getattr(actor, "id", None), action="xoa_bai_ghep",
