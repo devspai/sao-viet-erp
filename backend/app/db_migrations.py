@@ -16127,3 +16127,29 @@ def _migrate_go_cot_thue_ngoai_cu(db) -> None:
 
 
 MIGRATIONS.append(("0340_go_cot_thue_ngoai_cu", _migrate_go_cot_thue_ngoai_cu))
+
+
+def _migrate_don_vi_ncc_ve_ma(db) -> None:
+    """mg 0341 — `supplier_items.unit` lưu bằng TÊN đơn vị ("cái") đổi về MÃ ("cai").
+
+    Trước 27/09/2026 cửa ghi bảng giá NCC kiểm đơn vị nhận cả tên lẫn mã nhưng lưu nguyên chữ người
+    gửi. Màn bảng giá so theo MÃ ⇒ dòng lưu tên hiện "Quy về gốc" gạch ngang và ô ĐVT chọn nhầm
+    lựa chọn đầu. Cửa ghi nay lưu mã (`_kiem_don_vi_ncc`); đây là phần dọn dữ liệu cũ (dev đo được
+    8 dòng). Chỉ đổi khi `unit` KHÔNG trùng mã nào VÀ trùng tên đúng MỘT đơn vị — mơ hồ thì để yên.
+    Idempotent.
+    """
+    bang = set(inspect(db.get_bind()).get_table_names())
+    if not {"supplier_items", "don_vi_do"} <= bang:
+        return
+    db.execute(text(
+        "UPDATE supplier_items SET unit = ("
+        "  SELECT d.ma FROM don_vi_do d WHERE lower(d.ten) = lower(trim(supplier_items.unit))"
+        ") WHERE NOT EXISTS ("
+        "  SELECT 1 FROM don_vi_do d WHERE lower(d.ma) = lower(trim(supplier_items.unit))"
+        ") AND (SELECT count(*) FROM don_vi_do d"
+        "       WHERE lower(d.ten) = lower(trim(supplier_items.unit))) = 1"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0341_don_vi_ncc_ve_ma", _migrate_don_vi_ncc_ve_ma))

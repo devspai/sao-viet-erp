@@ -8,12 +8,14 @@ export function SupplierHistoryTab({
   mode,
   selected,
   poList,
+  poTotal,
   poLoading,
   poError,
 }: {
   mode: null | "create" | "edit";
   selected: SupplierRow | null;
   poList: PurchaseRequestRow[];
+  poTotal: number;
   poLoading: boolean;
   poError: string | null;
 }) {
@@ -52,6 +54,13 @@ export function SupplierHistoryTab({
                         sub="Phiếu mua lập từ màn Mua hàng sẽ tự hiện ở đây."
                       />
                     ) : (
+                      <>
+                      {poTotal > poList.length && (
+                        <p className="md-page__muted" style={{ fontSize: "13px" }}>
+                          Đang hiện {poList.length} phiếu mới nhất / {poTotal} phiếu — xem đủ ở
+                          màn Mua hàng, lọc theo nhà cung cấp này.
+                        </p>
+                      )}
                       <div className="card md-page__tablewrap">
                         <table className="md-page__table">
                           <thead>
@@ -72,7 +81,7 @@ export function SupplierHistoryTab({
                                 <tr key={po.id}>
                                   <td
                                     className="md-page__mono"
-                                    style={{ fontWeight: "bold" }}
+                                    style={{ fontWeight: "bold", whiteSpace: "nowrap" }}
                                   >
                                     {po.code}
                                   </td>
@@ -88,7 +97,7 @@ export function SupplierHistoryTab({
                                       Bởi: {po.created_by_name || "Hệ thống"}
                                     </div>
                                   </td>
-                                  <td style={{ textAlign: "right" }}>
+                                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                                     <strong className="md-page__price">
                                       {money(po.total_estimate ?? 0)}
                                     </strong>
@@ -106,6 +115,7 @@ export function SupplierHistoryTab({
                           </tbody>
                         </table>
                       </div>
+                      </>
                     )}
                   </div>
   );

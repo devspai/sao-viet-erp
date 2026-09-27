@@ -236,3 +236,7 @@ class DonViCuaMatHangOut(BaseModel):
     ds: list[DonViDungDuocRow] = []
     # Vì sao danh sách rỗng — UI hiện nguyên câu này thay vì im lặng khoá ô.
     ly_do: str | None = None
+
+
+class DonViNhieuMatHangOut(BaseModel):
+    items: list[DonViCuaMatHangOut] = []

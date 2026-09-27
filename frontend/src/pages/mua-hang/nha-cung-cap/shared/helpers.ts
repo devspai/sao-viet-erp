@@ -106,6 +106,7 @@ export function fromSupplier(row: SupplierRow): SupplierInput {
           unit_price: item.unit_price,
           vat_percent: item.vat_percent ?? 0,
           note: item.note ?? "",
+          he_so_ve_goc: item.he_so_ve_goc ?? null,
         }))
       : [emptySupplierItem()],
   };

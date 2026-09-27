@@ -6268,6 +6268,9 @@ export interface SupplierItemInput {
   unit_price: number;
   vat_percent?: number;
   note?: string | null;
+  /** CHỈ HIỂN THỊ, không gửi lên (`cleanSupplierItems` bỏ đi): hệ số máy chủ đã tính cho dòng ĐÃ
+   *  LƯU — cột "Quy về gốc" có số ngay lúc mở form, khỏi đợi ô ĐVT nạp danh sách đơn vị. */
+  he_so_ve_goc?: number | null;
 }
 
 /** 1 NCC trong bảng SO GIÁ của một mặt hàng. */
@@ -6457,6 +6460,14 @@ export interface SupplierListOut {
   total: number;
   page: number;
   size: number;
+}
+
+/** Đếm toàn danh mục NCC (máy chủ) — thanh số + dải lọc nhóm của màn Nhà cung cấp. */
+export interface SupplierTongQuan {
+  tong: number;
+  dang_hop_tac: number;
+  tam_ngung: number;
+  nhom: { supplier_group: string; so_ncc: number }[];
 }
 
 export type PurchaseRequestStatus =
@@ -9866,6 +9877,68 @@ export interface UngVienTamUngList {
   items: UngVienTamUng[];
 }
 
+/** Gom lời gọi `api.matHang.donVi` trong cùng một nhịp thành MỘT request lô.
+ *
+ *  Form nhiều dòng vật tư (bảng giá NCC, yêu cầu mua hàng) có mỗi dòng một ô ĐVT tự nạp đơn vị
+ *  của mặt hàng dòng đó: bảng giá 23 dòng từng là 23 request song song, mỗi request máy chủ lại
+ *  đọc cả bảng đơn vị + bảng cặp quy đổi (đo 27/09/2026). Gom ở đây thì mọi nơi dùng ô ĐVT cùng
+ *  hưởng, khỏi luồn danh sách mặt hàng qua từng form. Món vắng trong kết quả ⇒ reject đúng lời
+ *  gọi đó, bên gọi hiện "Không tải được" như cửa lẻ cũ trả 404. */
+type ChoDonVi = {
+  resolve: (r: DonViCuaMatHang) => void;
+  reject: (e: unknown) => void;
+};
+const hangChoDonVi = new Map<string, Map<string, ChoDonVi[]>>();
+
+function gomDonVi(token: string, hangLoai: HangLoai, hangId: number): Promise<DonViCuaMatHang> {
+  return new Promise((resolve, reject) => {
+    let lo = hangChoDonVi.get(token);
+    if (!lo) {
+      lo = new Map();
+      hangChoDonVi.set(token, lo);
+      // setTimeout 0 chứ không microtask: các ô ĐVT gọi trong useEffect của CÙNG một lượt
+      // commit, nhưng React có thể chạy effect qua vài microtask.
+      setTimeout(() => void guiLoDonVi(token), 0);
+    }
+    const khoa = `${hangLoai}:${hangId}`;
+    const cho = lo.get(khoa) ?? [];
+    cho.push({ resolve, reject });
+    lo.set(khoa, cho);
+  });
+}
+
+async function guiLoDonVi(token: string): Promise<void> {
+  const tatCa = hangChoDonVi.get(token);
+  hangChoDonVi.delete(token);
+  if (!tatCa || tatCa.size === 0) return;
+  // Máy chủ nhận tối đa 500 món/lượt; chia 200 cho URL gọn.
+  const khoa = [...tatCa.keys()];
+  const me: Map<string, ChoDonVi[]>[] = [];
+  for (let i = 0; i < khoa.length; i += 200) {
+    me.push(new Map(khoa.slice(i, i + 200).map((k) => [k, tatCa.get(k)!])));
+  }
+  await Promise.all(me.map((lo) => guiMotMeDonVi(token, lo)));
+}
+
+async function guiMotMeDonVi(token: string, lo: Map<string, ChoDonVi[]>): Promise<void> {
+  try {
+    const qs = new URLSearchParams({ cap: [...lo.keys()].join(",") });
+    const res = await authed<{ items: DonViCuaMatHang[] }>(
+      `/api/vat-lieu-kho/mat-hang/don-vi-lo?${qs.toString()}`, token,
+    );
+    const theoKhoa = new Map(res.items.map((r) => [`${r.hang_loai}:${r.hang_id}`, r]));
+    for (const [khoa, cho] of lo) {
+      const r = theoKhoa.get(khoa);
+      for (const c of cho) {
+        if (r) c.resolve(r);
+        else c.reject(new Error("Không tìm thấy mặt hàng."));
+      }
+    }
+  } catch (e) {
+    for (const cho of lo.values()) for (const c of cho) c.reject(e);
+  }
+}
+
 export const api = {
   login(username: string, password: string): Promise<LoginResponse> {
     return request<LoginResponse>("/api/auth/login", {
@@ -13095,6 +13168,9 @@ export const api = {
 
   // --- Thu mua --------------------------------------------------------------
   suppliers: {
+    tongQuan(token: string): Promise<SupplierTongQuan> {
+      return authed<SupplierTongQuan>("/api/suppliers/tong-quan", token);
+    },
     list(
       token: string,
       params: {
@@ -14076,10 +14152,10 @@ export const api = {
       return authed<MatHangOption[]>(`/api/vat-lieu-kho/mat-hang?${qs.toString()}`, token);
     },
     /** Đơn vị gốc + mọi đơn vị đổi được — danh sách TỰ THÍCH NGHI theo từng mặt hàng. */
+    /** Đơn vị của MỘT mặt hàng. Các lời gọi trong CÙNG một nhịp (vd. mỗi dòng của form bảng giá
+     *  tự gọi khi mở) được GỘP thành một request `/mat-hang/don-vi-lo` — xem `gomDonVi`. */
     donVi(token: string, hangLoai: HangLoai, hangId: number): Promise<DonViCuaMatHang> {
-      return authed<DonViCuaMatHang>(
-        `/api/vat-lieu-kho/mat-hang/${hangLoai}/${hangId}/don-vi`, token,
-      );
+      return gomDonVi(token, hangLoai, hangId);
     },
     /** Các NCC bán mặt hàng này, giá đã quy về đơn vị gốc — rẻ nhất đứng đầu. */
     soGia(token: string, hangLoai: HangLoai, hangId: number): Promise<SoGiaOut> {

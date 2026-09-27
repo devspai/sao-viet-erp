@@ -26,7 +26,7 @@ from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.purchase_repo import SupplierRepository
 from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
 from ..schemas.vat_lieu_kho import (
-    ChungLoaiGiayIn, ChungLoaiGiayRow, DonViCuaMatHangOut, GiayGiaVersionIn, GiayGiaVersionRow,
+    ChungLoaiGiayIn, ChungLoaiGiayRow, DonViCuaMatHangOut, DonViNhieuMatHangOut, GiayGiaVersionIn, GiayGiaVersionRow,
     GiayIn, GiayRow, ListOut, MatHangRow, ThanhPhamIn, ThanhPhamRow, VatLieuAnhOut,
     VatTuIn, VatTuRow,
 )
@@ -174,6 +174,32 @@ def don_vi_cua_mat_hang(
         return DonViCuaMatHangOut(**svc.don_vi_cua_mat_hang(hang_loai, hang_id))
     except (VatLieuKhoNotFound, VatLieuKhoValidationError) as e:
         raise loi_http(e) from None
+
+
+@router.get("/mat-hang/don-vi-lo", response_model=DonViNhieuMatHangOut,
+            name="don_vi_nhieu_mat_hang")
+def don_vi_nhieu_mat_hang(
+    svc: Service,
+    _: Annotated[User, Depends(_doc_mat_hang)],
+    cap: str = Query(default="", max_length=8000,
+                     description="Các cặp `hang_loai:hang_id` cách nhau dấu phẩy"),
+) -> DonViNhieuMatHangOut:
+    """Như `/mat-hang/{hang_loai}/{hang_id}/don-vi` cho NHIỀU mặt hàng một lượt.
+
+    Form có nhiều dòng vật tư (bảng giá NCC, yêu cầu mua hàng) từng gọi cửa lẻ cho TỪNG dòng: bảng
+    giá 23 dòng là 23 request, mỗi request đọc lại cả bảng đơn vị + bảng cặp quy đổi. Món không
+    tồn tại / cặp sai cú pháp thì vắng mặt trong `items` — bên gọi tự báo "không tải được".
+    """
+    caps: set[tuple[str, int]] = set()
+    for manh in cap.split(","):
+        loai, _sep, so = manh.strip().partition(":")
+        if loai and so.isdigit():
+            caps.add((loai, int(so)))
+    if len(caps) > 500:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Tối đa 500 mặt hàng một lượt.")
+    return DonViNhieuMatHangOut(
+        items=[DonViCuaMatHangOut(**r) for r in svc.don_vi_nhieu_mat_hang(caps).values()]
+    )
 
 
 # -- Phiên bản giá giấy (lịch sử) — route custom, KHÔNG theo khuôn danh mục --

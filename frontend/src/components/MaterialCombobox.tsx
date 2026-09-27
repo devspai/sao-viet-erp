@@ -11,6 +11,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, type HangLoai, type MatHangOption } from "../api/client";
+import { tenDonVi, useNapTenDonVi } from "../pages/tenDonVi";
 
 export function MaterialCombobox({
   token,
@@ -193,6 +194,7 @@ export function DonViChonTheoHang({
   onQuyDoi,
   disabled = false,
   chiDoc = false,
+  heSoDaLuu = null,
 }: {
   token: string;
   hangLoai: HangLoai | null;
@@ -216,7 +218,12 @@ export function DonViChonTheoHang({
    *
    *  Màn Kho GIỮ NGUYÊN ô chọn: nhập/xuất kho theo thùng, bao là việc có thật. */
   chiDoc?: boolean;
+  /** Hệ số về gốc máy chủ đã tính cho dòng ĐÃ LƯU — chỉ để ô hiện đúng chữ (kèm "(gốc)" khi = 1)
+   *  NGAY lúc mở, trong khi danh sách đơn vị còn đang nạp. */
+  heSoDaLuu?: number | null;
 }) {
+  // Tên đơn vị cho khung hình đầu (trước khi danh sách đơn vị về) — không nạp thì hiện mã "cai".
+  useNapTenDonVi();
   const [ds, setDs] = useState<{ ma: string; ten: string; he_so_ve_goc: number; la_goc: boolean }[]>([]);
   const [lyDo, setLyDo] = useState<string | null>(null);
   // Callback giữ trong ref: nơi gọi hay truyền arrow inline, đưa thẳng vào deps là vòng lặp render.
@@ -256,17 +263,25 @@ export function DonViChonTheoHang({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, hangLoai, hangId]);
 
+  // Dòng cũ có thể lưu TÊN đơn vị ("cái") thay vì mã ("cai") — máy chủ nhận cả hai (mg 0341 đã
+  // dọn dữ liệu, cửa ghi nay lưu mã). So theo mã TRƯỚC, không khớp thì so theo tên; không có bước
+  // này thì hệ số không tìm ra và <select> lặng lẽ hiện lựa chọn ĐẦU TIÊN như thể đúng.
+  const chuan = (value ?? "").trim().toLowerCase();
+  const dangChon =
+    ds.find((d) => d.ma === value) ??
+    (chuan ? ds.find((d) => (d.ten ?? "").trim().toLowerCase() === chuan) : undefined);
+
   // Báo hệ số của đơn vị ĐANG chọn mỗi khi danh sách hoặc lựa chọn đổi.
   useEffect(() => {
     if (!quyDoiRef.current) return;
     const goc = ds.find((d) => d.la_goc);
-    const dv = ds.find((d) => d.ma === value);
+    const dv = dangChon;
     quyDoiRef.current(
       goc && dv && dv.he_so_ve_goc > 0
         ? { donViGocTen: goc.ten, heSoVeGoc: dv.he_so_ve_goc }
         : null,
     );
-  }, [ds, value]);
+  }, [ds, dangChon]);
 
   if (lyDo) {
     return (
@@ -276,7 +291,7 @@ export function DonViChonTheoHang({
     );
   }
   if (chiDoc) {
-    const dang = ds.find((d) => d.ma === value) ?? ds.find((d) => d.la_goc);
+    const dang = dangChon ?? ds.find((d) => d.la_goc);
     // `||` chứ KHÔNG phải `??`: chưa chọn vật tư thì `value` là CHUỖI RỖNG, mà `??` chỉ bắt
     // null/undefined ⇒ ô hiện ra trống trơn, trông như một ô nhập vỡ.
     const chu = dang?.ten || value || "—";
@@ -293,7 +308,7 @@ export function DonViChonTheoHang({
     <select
       className="rc-input"
       style={{ minWidth: 88 }}
-      value={value}
+      value={dangChon?.ma ?? value}
       disabled={disabled || ds.length === 0}
       aria-label="Đơn vị tính"
       onChange={(e) => {
@@ -301,7 +316,13 @@ export function DonViChonTheoHang({
         onChange(e.target.value, d ? d.he_so_ve_goc : null);
       }}
     >
-      {ds.length === 0 && <option value="">—</option>}
+      {/* Đang chờ danh sách đơn vị: hiện LUÔN đơn vị đã lưu (tên đọc từ danh mục) thay vì "—",
+          để ô không nháy từ gạch sang chữ khi danh sách về. */}
+      {ds.length === 0 && (
+        <option value={value}>
+          {value ? `${tenDonVi(value) ?? value}${heSoDaLuu === 1 ? " (gốc)" : ""}` : "—"}
+        </option>
+      )}
       {ds.map((d) => (
         <option key={d.ma} value={d.ma}>
           {d.ten}

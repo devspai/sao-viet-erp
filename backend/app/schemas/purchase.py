@@ -139,6 +139,18 @@ class SupplierListOut(BaseModel):
     size: int
 
 
+class SupplierNhomDem(BaseModel):
+    supplier_group: str
+    so_ncc: int
+
+
+class SupplierTongQuanOut(BaseModel):
+    tong: int
+    dang_hop_tac: int
+    tam_ngung: int
+    nhom: list[SupplierNhomDem]
+
+
 class SupplierItemCatalogRow(BaseModel):
     item_name: str
     unit: str

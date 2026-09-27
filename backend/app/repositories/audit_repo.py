@@ -291,6 +291,21 @@ class AuditLogRepository:
             ).scalars()
         )
 
+    def list_by_targets(self, targets, actions) -> dict[str, list[AuditLog]]:
+        """Như `list_by_target` cho NHIỀU đối tượng một lượt (danh sách cả trang), chỉ lấy các
+        `actions` cần — hỏi từng đối tượng là N+1."""
+        targets = sorted(set(targets or []))
+        ra: dict[str, list[AuditLog]] = {t: [] for t in targets}
+        if not targets:
+            return ra
+        for log in self.db.execute(
+            select(AuditLog)
+            .where(AuditLog.target.in_(targets), AuditLog.action.in_(list(actions)))
+            .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        ).scalars():
+            ra[log.target].append(log)
+        return ra
+
     def list_for_target(self, target: str, limit: int = 50) -> list[AuditLog]:
         """Recent audit rows whose action targeted a given entity (spec-08 per-user activity)."""
         return self.list_by_target(target, limit=limit)

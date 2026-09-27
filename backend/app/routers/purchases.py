@@ -49,6 +49,7 @@ from ..schemas.purchase import (
     SupplierItemCatalogOut,
     SupplierItemImportOut,
     SupplierListOut,
+    SupplierTongQuanOut,
     SupplierRow,
 )
 from ..services.danh_gia_ncc import DanhGiaNcc
@@ -287,6 +288,18 @@ def _dong_ncc(row, danh_gia: DanhGiaNcc, quy_doi: dict | None = None) -> Supplie
                 it.he_so_ve_goc = qd["he_so_ve_goc"]
                 it.gia_quy_doi = qd["gia_quy_doi"]
     return ra
+
+
+@router.get("/api/suppliers/tong-quan", response_model=SupplierTongQuanOut)
+def supplier_tong_quan(
+    svc: Annotated[PurchaseService, Depends(get_purchase_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_NCC, "read"))],
+) -> SupplierTongQuanOut:
+    """Thanh đếm + dải lọc nhóm của màn Nhà cung cấp — đếm ở máy chủ cho TOÀN danh mục.
+
+    Trước 27/09/2026 màn này gọi thêm hai lượt danh sách `size=500` (đang hợp tác + tạm ngừng) chỉ
+    để đếm — vượt trần `size ≤ 200` nên bị 422 và lặng lẽ rơi về đếm trên trang hiện tại."""
+    return SupplierTongQuanOut(**svc.tong_quan_ncc())
 
 
 @router.get("/api/suppliers", response_model=SupplierListOut)
