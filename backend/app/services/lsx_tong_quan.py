@@ -254,8 +254,17 @@ def den_vat_tu_va_bang(db: Session, lsx_ids: list[int]) -> tuple[dict[int, dict]
     except Exception as exc:                                            # noqa: BLE001
         loi_vt = f"Chưa đọc được vật tư ({type(exc).__name__})"
 
+    # Trọn gói + nhà gia công tự lo giấy (spec gia công ngoài §4 bước 2b): lệnh KHÔNG đòi gì từ
+    # kho — `dat_tron_goi` đã tắt giữ chỗ, KHVT bỏ nhu cầu. Đèn phải xanh, không thì "Chưa giữ chỗ
+    # vật tư" đỏ đẩy lệnh vào tab Cảnh báo mãi, kể cả khi hàng đã về kho chờ giao.
+    from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+    ncc_lo = {i for i, cap in GiaCongNgoaiRepository(db).tron_goi_dang_chay(ids).items() if not cap}
+
     ra: dict[int, dict] = {}
     for i in ids:
+        if i in ncc_lo:
+            ra[i] = _den(MUC_OK, "Nhà gia công trọn gói tự lo vật tư")
+            continue
         if giu is None:
             ra[i] = _den(MUC_OK, loi_vt)
             continue

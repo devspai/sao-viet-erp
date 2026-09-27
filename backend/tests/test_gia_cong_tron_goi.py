@@ -299,3 +299,15 @@ def test_nguoi_pham_vi_rieng_khong_dung_lenh_nguoi_khac(sess, admin, lenh):
     assert e.value.status_code == 404
     sess.refresh(lan)
     assert lan.ly_do_huy is None
+
+
+def test_den_vat_tu_xanh_khi_nha_gia_cong_lo_giay(sess, admin, lenh):
+    """E2E 27/09: trọn gói NCC tự lo giấy tắt giữ chỗ ⇒ đèn vật tư từng báo đỏ "Chưa giữ chỗ vật
+    tư", đẩy lệnh vào tab Cảnh báo (cờ Thiếu vật tư) kể cả khi hàng đã về kho. Lệnh không đòi gì
+    từ kho thì đèn phải xanh; xưởng cấp giấy thì vẫn soi như lệnh thường."""
+    from app.services import lsx_tong_quan
+
+    them_giay(sess, lenh)
+    _dat(sess, admin, lenh, xuong_cap_giay=False)
+    den, _ = lsx_tong_quan.den_vat_tu_va_bang(sess, [lenh.id])
+    assert den[lenh.id]["muc"] == lsx_tong_quan.MUC_OK
