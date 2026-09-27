@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GiaCongNgoaiLan } from "../../api/client";
-import { goiYChot, nutCuaLan, tomTat, viTriTrongDai, type BuocDai } from "./giaCong";
+import { goiYChot, nutCuaLan, soNhanChia, tomTat, viTriTrongDai, type BuocDai } from "./giaCong";
 
 const b = (
   ten: string,
@@ -123,5 +123,19 @@ describe("tomTat", () => {
   it("không có quyền xem tiền thì không có đoạn tiền", () => {
     expect(tomTat(lan({ trang_thai: "da_xong", chot_boi_ten: "B", sl_cuoi: 5, noi_ve: "kho" }), () => "cái"))
       .toBe("B chốt 5 cái — nhập kho thành phẩm");
+  });
+});
+
+describe("soNhanChia — bảng chia về từng lệnh", () => {
+  const dv = (m: string | null) => (m === "to" ? "tờ in" : m === "con" ? "con" : "");
+  const dong = (x: Partial<{ so_con: number; he_so_nhan: number | null; don_vi: string | null }>) => ({
+    lsx_id: 1, lsx_ma: "LSX-1", so_con: 4, he_so_nhan: null, don_vi: "to", buoc_nhan: "Cắt", ...x,
+  });
+  // E2E 27/09/2026: Cắt nhận "10.320 tờ" cho 2.580 tờ ghép — nhân con/tờ ở chỗ bước còn ăn tờ.
+  it("bước nhận ăn tờ ghép: nhận nguyên số tờ, kèm số con sẽ ra", () => {
+    expect(soNhanChia(2580, dong({ he_so_nhan: 1 }), dv)).toBe("2.580 tờ in (ra 10.320 con)");
+  });
+  it("bước nhận ăn con: số tờ × con/tờ", () => {
+    expect(soNhanChia(2580, dong({ he_so_nhan: 4, don_vi: "con" }), dv)).toBe("10.320 con");
   });
 });

@@ -16,6 +16,7 @@ from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..gio_xuong import thuc_te_hien_thi
+from ..san_xuat.san_luong import he_so_nhanh_toa
 from . import trang_thai
 
 
@@ -427,12 +428,15 @@ def chia_theo_lenh(db: Session, gcn, cuoi, chang_sau: list) -> list[dict]:
             dich = sl_repo.cong_viec(c.dich_cong_viec_id)
             if not c.ty_le_ghep or dich is None or dich.lsx_id is None:
                 continue
+            # `he_so_nhan` = đúng hệ số toả dùng lúc chốt: bước nhận ăn tờ ghép thì × 1 (nó tự cắt
+            # ra `so_con` con mỗi tờ), ăn con thì × số con/tờ.
             ra.append({"lsx_id": dich.lsx_id, "so_con": float(c.ty_le_ghep),
+                       "he_so_nhan": he_so_nhanh_toa(c),
                        "don_vi": c.don_vi_dich or dich.don_vi_vao, "buoc_nhan": dich.ten_cong_doan})
     elif nhanh == NHANH_KHO:
         don_vi = repo.don_vi_ra_buoc_bi_phu(cuoi.bai_ghep_cong_doan_id)
         for lsx_id, con in SanXuatRepository(db).thanh_vien_so_con({gcn.bai_ghep_id}).items():
-            ra.append({"lsx_id": lsx_id, "so_con": float(con),
+            ra.append({"lsx_id": lsx_id, "so_con": float(con), "he_so_nhan": float(con),
                        "don_vi": don_vi.get(lsx_id) or cuoi.don_vi_ra, "buoc_nhan": None})
     ma = repo.ma_cua_lenh({r["lsx_id"] for r in ra})
     for r in ra:

@@ -262,6 +262,36 @@ def test_toa_san_luong_hai_nhanh_dung_ty_le(db, orders, lsx_svc, admin, customer
     assert bg_a.nguon_cong_viec_id == cv_nguon.id and bg_a.dich_cong_viec_id == cv_a.id
 
 
+def test_toa_sang_buoc_nhan_to_khong_nhan_hai_lan(db, orders, lsx_svc, admin, customer):
+    """E2E 27/09/2026: bước riêng đầu tiên là CẮT (vào tờ, ra con). Toả trước đây nhân số con/tờ
+    rồi ghi nhãn "tờ" (2.580 tờ ghép → "10.320 tờ"), trần ghi mẻ lại nhân hệ số bước Cắt lần nữa
+    (41.280 con). Bước nhận ăn cùng đơn vị với bước chung ⇒ giao đúng số TỜ GHÉP; tờ → con là việc
+    của chính bước Cắt, theo hệ số của nó."""
+    from app.models.san_xuat import SanXuatPhuThuoc
+    from app.services.san_xuat import dau_vao
+    from tests.test_san_xuat_ban_giao import _hai_cv
+
+    _to1, cv_nguon, cv_a, lsx_a = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-TOA-T1")
+    cv_a.lsx_id = lsx_a
+    cv_a.don_vi_vao, cv_a.don_vi_ra, cv_a.he_so_quy_doi = "to", "con", 4
+    cv_nguon.don_vi_ra = "to"
+    db.add(SanXuatPhuThuoc(
+        goi_id=cv_nguon.goi_id, phien_ban_so=cv_nguon.phien_ban_so, nhom_id=cv_nguon.nhom_id,
+        nguon_cong_viec_id=cv_nguon.id, dich_cong_viec_id=cv_a.id,
+        ty_le_ghep=4.0, don_vi_nguon="to", don_vi_dich="to",
+    ))
+    db.commit()
+
+    res = tao_me(
+        db, user=admin, cong_viec_id=cv_nguon.id,
+        bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=1), tong=120, tot=120,
+    )
+    kq = {k["lsx_id"]: k for k in res["ket_qua_lsx"]}[lsx_a]
+    assert kq["so_luong"] == 120.0 and kq["don_vi"] == "to"
+    t = dau_vao.tran_ghi(db, cv_a)
+    assert t["da_nhan"] == 120.0 and t["toi_da"] == 480.0
+
+
 def test_chan_lsx_khac_dung_lot_diem_toa(db, orders, lsx_svc, admin, customer):
     from app.models.san_xuat import SanXuatPhuThuoc
     from tests.test_san_xuat_ban_giao import _hai_cv

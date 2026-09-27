@@ -76,6 +76,8 @@ class ChiaTheoLenhOut(BaseModel):
     lsx_id: int
     lsx_ma: str = ""
     so_con: float
+    # Số chốt × hệ số này = số bước nhận nhận được (theo `don_vi`). Bước nhận ăn tờ ghép ⇒ 1.
+    he_so_nhan: float | None = None
     don_vi: str | None = None
     buoc_nhan: str | None = None
 

@@ -6422,9 +6422,10 @@ export interface GiaCongNgoaiLan {
   lenh?: { id: number; ma: string; so_con: number }[];
   /** Nhãn nguồn: mã lệnh, hoặc "BG-.. (LSX-A, LSX-B)". */
   nhan_nguon?: string;
-  /** Bảng chia số chốt về từng lệnh (số × số con/tờ) — rỗng khi lần không toả. */
-  chia_theo_lenh?: { lsx_id: number; lsx_ma: string; so_con: number; don_vi: string | null;
-                     buoc_nhan: string | null }[];
+  /** Bảng chia số chốt về từng lệnh — rỗng khi lần không toả. Bước nhận nhận
+   *  số chốt × `he_so_nhan` (tính bằng `don_vi`): bước ăn tờ ghép thì 1, ăn con thì = số con/tờ. */
+  chia_theo_lenh?: { lsx_id: number; lsx_ma: string; so_con: number; he_so_nhan?: number | null;
+                     don_vi: string | null; buoc_nhan: string | null }[];
   /** Không thao tác được ở đây: lần bài ghép trên màn lệnh, hoặc thiếu phạm vi một lệnh. */
   chi_xem?: boolean;
   kieu: "mot_phan" | "tron_goi";

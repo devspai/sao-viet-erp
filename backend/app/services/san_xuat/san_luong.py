@@ -68,13 +68,27 @@ def _ket_qua_batch(cv, batch: SanXuatBatch | None, ket_qua_lsx: list[dict] | Non
     }
 
 
+def he_so_nhanh_toa(canh) -> float:
+    """Một đơn vị đầu RA của điểm toả thành bao nhiêu đơn vị ĐẦU VÀO của bước riêng nhận.
+
+    Bước nhận ăn con/thành phẩm ⇒ × số con/tờ ghép (`ty_le_ghep`). Bước nhận ăn CÙNG đơn vị với
+    điểm toả (tờ ghép vào Cắt thành phẩm) ⇒ × 1: tờ → con là việc của chính bước đó, hệ số của nó
+    đã là số con/tờ ghép (`snapshot.dung_diem_toa`). Nhân ở đây nữa là nhân hai lần — E2E 27/09/2026
+    ra "10.320 tờ" cho 2.580 tờ ghép và trần ghi mẻ 41.280 con."""
+    nguon = (canh.don_vi_nguon or "").strip()
+    if nguon and nguon == (canh.don_vi_dich or "").strip():
+        return 1.0
+    return float(canh.ty_le_ghep or 0)
+
+
 def _toa_san_luong(
     db: Session, repo: SanXuatSanLuongRepository, *, cv, batch: SanXuatBatch, tot: float, actor,
 ) -> list[dict]:
     """Tự TOẢ sản lượng TỐT của một batch điểm-toả sang các nhánh LSX riêng (§ điểm toả bài ghép).
 
     Mỗi cạnh `SanXuatPhuThuoc` xuất phát từ `cv` (điểm toả, do `dung_diem_toa` sinh lúc phát hành)
-    mang `ty_le_ghep` = số con/tờ của lệnh đích — nhân thẳng với `tot` ra sản lượng nhánh, rồi bàn
+    mang `ty_le_ghep` = số con/tờ của lệnh đích — quy `tot` ra đơn vị vào của nhánh qua
+    `he_so_nhanh_toa` (bước nhận ăn tờ thì giữ nguyên số tờ ghép), rồi bàn
     giao THẲNG dạng đã xác nhận (không qua đề xuất/xác nhận hai bên): số này suy MỘT CHIỀU từ
     `tot`, không thể vượt, nên không cần vòng thương lượng như bàn giao người khai tay (§11.2)."""
     if tot <= 0:
@@ -88,7 +102,7 @@ def _toa_san_luong(
         dich_cv = repo.cong_viec(c.dich_cong_viec_id)
         if dich_cv is None or dich_cv.lsx_id is None or not c.ty_le_ghep:
             continue
-        sl_nhanh = round(tot * float(c.ty_le_ghep), 3)
+        sl_nhanh = round(tot * he_so_nhanh_toa(c), 3)
         if sl_nhanh <= 0:
             continue
         don_vi_nhanh = c.don_vi_dich or dich_cv.don_vi_vao or batch.don_vi

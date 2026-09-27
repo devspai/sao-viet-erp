@@ -16,6 +16,7 @@ from app.models.san_xuat_san_luong import (
 )
 from app.models.stock_request import REQ_CANCELLED, StockRequest, StockRequestLine
 from app.services.gia_cong_ngoai.chot import chot, mo_lai
+from app.services.san_xuat import dau_vao
 from app.services.gia_cong_ngoai.lan import lan_dict
 from app.services.gia_cong_ngoai.mot_phan import mang_di
 from tests.gia_cong_fixtures import (
@@ -51,7 +52,9 @@ def test_chot_toa_moi_lenh_so_chot_nhan_so_con(sess, admin, bai_toa):
     d = lan_dict(sess, lan)
     assert d["bai_ghep_id"] == bg.id and d["lsx_id"] is None
     assert d["noi_ve_hop_le"] == [NOI_VE_XUONG]
-    assert {(c["lsx_id"], c["so_con"]) for c in d["chia_theo_lenh"]} == {(a, 4), (b, 2)}
+    # Bế ăn TỜ ghép ⇒ mỗi lệnh nhận nguyên số tờ chốt (hệ số nhận 1); Bế tự ra con theo số con/tờ.
+    assert {(c["lsx_id"], c["so_con"], c["he_so_nhan"]) for c in d["chia_theo_lenh"]} == {
+        (a, 4, 1), (b, 2, 1)}
     ma = {l.id: l.ma for l in sess.query(Lsx).filter(Lsx.id.in_([a, b]))}
     assert d["nhan_nguon"] == f"{bg.ma} ({ma[a]}, {ma[b]})"
 
@@ -61,10 +64,12 @@ def test_chot_toa_moi_lenh_so_chot_nhan_so_con(sess, admin, bai_toa):
     assert can.trang_thai == CV_HOAN_THANH
     (me,) = sess.query(SanXuatBatch).filter_by(cong_viec_id=can.id).all()
     assert float(me.tot) == 980
-    for lsx_id, so in ((a, 3920), (b, 1960)):
+    # E2E 27/09/2026: trước đây Bế nhận 3.920 "tờ" (đã nhân con/tờ) rồi trần ghi mẻ nhân lần nữa.
+    for lsx_id, toi_da in ((a, 3920), (b, 1960)):
         be = cv_ten(sess, lsx_id, "Bế")
         bg_ = sess.query(SanXuatBanGiao).filter_by(dich_cong_viec_id=be.id).one()
-        assert bg_.trang_thai == BG_XAC_NHAN and float(bg_.so_luong) == so
+        assert bg_.trang_thai == BG_XAC_NHAN and float(bg_.so_luong) == 980 and bg_.don_vi == "to"
+        assert dau_vao.tran_ghi(sess, be)["toi_da"] == toi_da
     assert sess.query(SanXuatKetQuaNhanh).filter_by(batch_id=me.id).count() == 2
 
 

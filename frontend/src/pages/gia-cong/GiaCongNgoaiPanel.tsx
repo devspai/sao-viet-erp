@@ -16,7 +16,7 @@ import { useAuth } from "../../auth/useAuth";
 import { Button } from "../../components/Button";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { nhanDonVi } from "../lsxBuoc";
-import { NHAN_NOI_VE, NHAN_TRANG_THAI, goiYChot, nutCuaLan, tomTat } from "./giaCong";
+import { NHAN_NOI_VE, NHAN_TRANG_THAI, goiYChot, nutCuaLan, soNhanChia, tomTat } from "./giaCong";
 import "./giaCong.css";
 
 type FormChot = { sl: string; noiVe: GiaCongNoiVe | null; dich: number | null };
@@ -243,7 +243,8 @@ export function GiaCongNgoaiPanel({
                   ))}
                 </fieldset>
                 {chia.length > 0 && (
-                  // Số chốt là tờ ghép — máy chủ nhân số con/tờ ra phần từng lệnh (spec 2026-09-27 §2).
+                  // Số chốt là tờ ghép. Bước nhận ăn tờ (Cắt, Bế) thì nhận NGUYÊN số tờ rồi tự ra
+                  // con; ăn con thì nhận số tờ × con/tờ — máy chủ trả hệ số đó (`he_so_nhan`).
                   <table className="gcn__chia">
                     <caption>Chia về từng lệnh</caption>
                     <thead>
@@ -255,9 +256,7 @@ export function GiaCongNgoaiPanel({
                           <td>{c.lsx_ma}</td>
                           <td>{c.so_con.toLocaleString("vi-VN")}</td>
                           <td>
-                            {Number(f.sl) > 0
-                              ? `${(Math.round(Number(f.sl) * c.so_con * 1000) / 1000).toLocaleString("vi-VN")} ${dvTen(c.don_vi)}`
-                              : "—"}
+                            {Number(f.sl) > 0 ? soNhanChia(Number(f.sl), c, dvTen) : "—"}
                           </td>
                           <td>{c.buoc_nhan ?? "Nhập kho"}</td>
                         </tr>

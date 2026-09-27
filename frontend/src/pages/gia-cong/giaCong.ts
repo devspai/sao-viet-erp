@@ -121,3 +121,15 @@ export function tomTat(l: GiaCongNgoaiLan, dvTen: (ma: string | null) => string)
   if (l.phieu_chi) phan.push(`Phiếu chi ${l.phieu_chi.code}`);
   return phan.join(" · ");
 }
+
+type DongChia = NonNullable<GiaCongNgoaiLan["chia_theo_lenh"]>[number];
+
+/** Ô "Nhận" của bảng chia về từng lệnh: số chốt × `he_so_nhan` theo đơn vị bước nhận. Bước nhận ăn
+ *  tờ ghép (Cắt, Bế — hệ số 1) thì kèm số con nó sẽ ra, để người chốt thấy phần của lệnh. Máy chủ
+ *  cũ chưa trả `he_so_nhan` ⇒ lùi về số con/tờ như trước. */
+export function soNhanChia(sl: number, c: DongChia, dvTen: (ma: string | null) => string): string {
+  const lam = (n: number) => so(Math.round(n * 1000) / 1000);
+  const heSo = c.he_so_nhan ?? c.so_con;
+  const nhan = `${lam(sl * heSo)} ${dvTen(c.don_vi)}`.trim();
+  return heSo !== c.so_con ? `${nhan} (ra ${lam(sl * c.so_con)} con)` : nhan;
+}
