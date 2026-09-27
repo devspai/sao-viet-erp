@@ -91,6 +91,10 @@ class XepLichLenhService:
         self._nho_may: dict[int, object] = {}   # may_id -> MayThietBi
         # lsx_id -> {("id", cd_id) | ("key", step_key): dict lớp thực tế} — nạp theo LÔ
         self._thuc_te: dict[int, dict[tuple[str, object], dict]] = {}
+        # lsx_step_key -> (bước chung bài ghép ĐANG PHỦ bước đó, mã bài) — nạp theo LÔ
+        self._phu: dict[str, tuple] = {}
+        self._phu_da_nap: set[int] = set()
+        self._qc_bai: dict[int, dict] = {}   # bai_ghep_id -> bộ biến quy cách của bài
 
     # ================= nền tính =================
 
@@ -234,6 +238,27 @@ class XepLichLenhService:
             return int(giao), "thuc_thi"
         return (int(cd.may_id), "ke_hoach") if getattr(cd, "may_id", None) else (None, None)
 
+    def _nap_phu(self, lsx_ids) -> None:
+        """Nạp bước chung bài ghép đang phủ các bước của lô lệnh — MỘT truy vấn cho cả lô."""
+        thieu = sorted({int(i) for i in lsx_ids if i and int(i) not in self._phu_da_nap})
+        if not thieu:
+            return
+        from ...repositories.bai_ghep_repo import BaiGhepRepository
+
+        self._phu.update(BaiGhepRepository(self.db).buoc_chung_phu_lsx(thieu))
+        self._phu_da_nap.update(thieu)
+
+    def _quy_cach_bai(self, bai_ghep_id: int) -> dict:
+        if bai_ghep_id not in self._qc_bai:
+            from ...models.bai_ghep import BaiGhep
+            from ...repositories.bai_ghep_repo import BaiGhepRepository
+            from ..bai_ghep_service import BaiGhepService
+
+            bg = self.db.get(BaiGhep, bai_ghep_id)
+            svc = BaiGhepService(self.db, BaiGhepRepository(self.db), None, None)
+            self._qc_bai[bai_ghep_id] = svc.quy_cach_bien_cua_bai(bg) if bg is not None else {}
+        return self._qc_bai[bai_ghep_id]
+
     def _may(self, may_id: int | None):
         if not may_id:
             return None
@@ -288,15 +313,24 @@ class XepLichLenhService:
         qc = quy_cach_bien(_LsxCoRouting(lsx, cds))
         lsx_id = getattr(lsx, "id", None)
         self._nap_may([lsx_id] if lsx_id else [])
+        self._nap_phu([lsx_id] if lsx_id else [])
         self._nap_tai_nguyen({lsx_id: cds})
         ra: list[BuocVao] = []
         tin: dict[int, dict] = {}
         for cd in cds:
             tt = int(cd.thu_tu or 0)
             may_id, nguon = self._may_id_cua(cd, lsx_id)
+            # Bước bị bài ghép PHỦ chạy theo bước chung (loại, máy, số tờ ghép của bài), không
+            # theo cấu hình còn nằm ở `lsx_cong_doan` (E2E 27/09/2026: bước chung Thuê ngoài mà
+            # lịch vẫn tính giờ máy theo lệnh). Cùng nguồn với snapshot phát hành.
+            phu = (self._phu.get(cd.step_key) or (None,))[0] if getattr(cd, "step_key", None) else None
+            goc = phu if phu is not None else cd
+            if phu is not None and nguon != "thuc_thi" and phu.may_id:
+                may_id = phu.may_id
             may = self._may(may_id)
-            ngoai = (cd.loai_buoc or LB_MAY) == LB_THUE_NGOAI
-            t = thoi_luong_buoc(cd, may, svc.sl_tinh_cua_buoc(cd, may, qc))
+            ngoai = (goc.loai_buoc or LB_MAY) == LB_THUE_NGOAI
+            qc_goc = self._quy_cach_bai(phu.bai_ghep_id) if phu is not None else qc
+            t = thoi_luong_buoc(goc, may, svc.sl_tinh_cua_buoc(goc, may, qc_goc))
             dg = t.get("dien_giai") or {}
             phut = 0.0 if ngoai else float(t.get("chiem_may_phut") or 0.0)
             tin[cd.id] = {
@@ -336,6 +370,7 @@ class XepLichLenhService:
         )
         routing = self.repo.routing_theo_lo([r.id for r in rows])
         self._nap_may([r.id for r in rows])
+        self._nap_phu([r.id for r in rows])
         self._nap_tai_nguyen(routing)
         dong = []
         for l in rows:
@@ -367,6 +402,7 @@ class XepLichLenhService:
         lsx_map = self.repo.lsx_theo_ids([m.lsx_id for m in moc_rows])
         routing = self.repo.routing_theo_lo(list(lsx_map))
         self._nap_may(list(lsx_map))
+        self._nap_phu(list(lsx_map))
         self._nap_tai_nguyen(routing)
         self._nap_thuc_te(list(lsx_map))
 
@@ -552,6 +588,7 @@ class XepLichLenhService:
         lsx_map = self.repo.lsx_theo_ids(list(moc))
         routing = self.repo.routing_theo_lo(list(moc))
         self._nap_may(list(moc))
+        self._nap_phu(list(moc))
         self._nap_tai_nguyen(routing)
         self._nap_thuc_te(list(moc))
         ra: dict[int, list[MocBuoc]] = {}

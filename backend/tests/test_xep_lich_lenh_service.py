@@ -252,6 +252,36 @@ def test_chi_tiet_buoc_bi_bai_ghep_phu_co_trang_thai_thuc_te_cua_viec_chung(db, 
     assert cds[bi_phu.id]["trang_thai"] == CV_DANG_CHAY
 
 
+def test_buoc_bi_bai_ghep_phu_thue_ngoai_khong_chiem_gio_may(db, lenh):
+    """E2E 27/09/2026: bước chung Thuê ngoài mà lịch vẫn tính giờ máy theo cấu hình lệnh."""
+    from app.models.bai_ghep import BaiGhep
+    from app.models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
+    from app.models.lsx import LB_THUE_NGOAI, LsxCongDoan
+    from app.repositories.xep_lich_lenh_repo import XepLichLenhRepository
+    from app.services.xep_lich.service import XepLichLenhService
+
+    def _svc():
+        return XepLichLenhService(db, XepLichLenhRepository(db))
+
+    truoc = {c["id"]: c for c in _svc().chi_tiet(lenh.id)["cong_doans"]}
+    buoc = db.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == lenh.id).order_by(LsxCongDoan.id).all()
+    bi_phu = next(b for b in buoc if truoc[b.id]["chay_phut"] > 0)
+    bg = BaiGhep(ma="GB-XL-3", ten="Bài xếp lịch 3")
+    db.add(bg)
+    db.flush()
+    chung = BaiGhepCongDoan(bai_ghep_id=bg.id, ten=bi_phu.ten, loai_buoc=LB_THUE_NGOAI,
+                            nha_cung_cap="Tân Phát")
+    db.add(chung)
+    db.flush()
+    db.add(BaiGhepCongDoanMap(bai_ghep_cong_doan_id=chung.id, lsx_id=lenh.id,
+                              lsx_step_key=bi_phu.step_key))
+    db.commit()
+
+    sau = {c["id"]: c for c in _svc().chi_tiet(lenh.id)["cong_doans"]}
+    assert sau[bi_phu.id]["chay_phut"] == 0
+    assert sau[bi_phu.id]["la_thue_ngoai"] is True
+
+
 def test_chi_tiet_lenh_chua_xep_van_mo_duoc(svc3, lenh):
     """Bấm thẻ hàng chờ cũng mở panel — chưa có lịch thì các ô lịch để trống, không nổ."""
     ct = svc3.chi_tiet(lenh.id)
