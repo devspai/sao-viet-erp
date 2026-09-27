@@ -22,7 +22,7 @@ import { KcsChotNhom } from "./KcsChotNhom";
 import { KcsKiemForm } from "./KcsKiemForm";
 import { KcsLanKiemList } from "./KcsLanKiemList";
 import {
-  KCS_CD_TRANG_THAI, KCS_NHOM_TRANG_THAI, KCS_YC_KHO_TRANG_THAI, kiemDuoc, tinhTrangKiem,
+  KCS_CD_TRANG_THAI, KCS_NHOM_TRANG_THAI, KCS_YC_KHO_TRANG_THAI, kiemDuoc, loiHoiNhapKho, tinhTrangKiem,
 } from "./kcsNhan";
 
 export function KcsChuoiCongDoan({
@@ -424,7 +424,7 @@ export function KcsChuoiCongDoan({
         open={nhapKho != null}
         title="Tạo yêu cầu nhập kho"
         message={nhapKho
-          ? `Đề nghị kho nhập ${num(nhapKho.con_gui_kho)} ${nhanChang(nhapKho.don_vi)} thành phẩm đã kiểm đạt của ${lsx?.ma ?? "lệnh"} (${nhapKho.ten}).`
+          ? loiHoiNhapKho(num(nhapKho.con_gui_kho), nhanChang(nhapKho.don_vi), lsx?.ma ?? "lệnh", nhapKho.ten)
           : undefined}
         confirmLabel="Gửi yêu cầu"
         busy={nhapKhoBusy}
