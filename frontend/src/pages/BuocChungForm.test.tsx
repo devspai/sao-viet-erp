@@ -18,7 +18,10 @@ vi.mock("../api/rebuildCatalog", () => ({
             { id: 7, ten: "Tổ bế" },
             { id: 9, ten: "Tổ dán" },
           ]
-        : [],
+        : prefix === "/api/may-thiet-bi"
+          ? [{ id: 56, ten: "Máy 4 màu", active: true, toc_do: 6000,
+               don_vi_toc_do: "to_gio", don_vi_toc_do_ten: "tờ in" }]
+          : [],
     }),
   }),
 }));
@@ -121,6 +124,20 @@ describe("form kế hoạch bước chung", () => {
     expect(screen.getByRole("button", { name: "Thuê ngoài" })).toHaveAttribute("aria-pressed", "true");
     // Nháp đã xoá sau khi sơ đồ mới về: nút Lưu hết "đang sửa".
     expect(screen.getByRole("button", { name: "Lưu kế hoạch lượt chung" })).toBeDisabled();
+  });
+
+  // E2E 27/09/2026: gợi ý dưới ô máy in thẳng MÃ đơn vị tốc độ ("Tốc độ 6.000 to_gio/giờ").
+  it("gợi ý tốc độ máy dịch đơn vị sang nhãn, không in mã trần", async () => {
+    render(<BuocChungForm g={gop({
+      step_key: "gang-in-3",
+      ten: "In chung",
+      may_id: 56,
+      thanh_vien: [{ lsx_id: 1, lsx_ma: "LSX-1", lsx_step_key: "lsx-1-in", ghi_chu_ky_thuat: null }],
+    })} canUpdate onLuu={async () => true} onTach={async () => {}} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
+    expect(await screen.findByText(/Tốc độ 6\.000 tờ in\/h/)).toBeInTheDocument();
+    expect(screen.queryByText(/to_gio/)).toBeNull();
   });
 
   it("công đoạn chưa khai tổ thì mời mọi tổ, không có câu giới hạn", async () => {

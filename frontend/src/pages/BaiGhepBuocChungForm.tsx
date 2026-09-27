@@ -20,6 +20,7 @@ import {
   type NhaGiaCong,
 } from "../api/client";
 import { crud } from "../api/rebuildCatalog";
+import { nhanDonViTocDo } from "./danh-muc/fields/DonViTocDo";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -41,6 +42,8 @@ interface MayRef extends MayTinhGio {
   /** Cờ NGỪNG DÙNG của danh mục Máy. Vẫn nạp về để đọc được tên máy bài cũ đang đeo; dropdown
    *  ở dưới mới là chỗ quyết định có mời máy đó nữa hay không. */
   active: boolean;
+  /** Nhãn đơn vị tốc độ đã dịch ("tờ in/h") — `donViTocDo` là MÃ (`to_gio`), in thẳng ra là mã trần. */
+  nhanTocDo: string;
 }
 
 /** Lập kế hoạch cho MỘT lượt chạy chung.
@@ -123,6 +126,7 @@ export function BuocChungForm({
           tocDoMin: m.toc_do_min == null ? null : Number(m.toc_do_min),
           tocDoMax: m.toc_do_max == null ? null : Number(m.toc_do_max),
           donViTocDo: m.don_vi_toc_do ? String(m.don_vi_toc_do) : null,
+          nhanTocDo: nhanDonViTocDo(m),
           chuanBiPhut: m.makeready_time_default == null ? null : Number(m.makeready_time_default),
           chuanBiKhoan: Array.isArray(khoan) ? khoan : [],
         };
@@ -534,7 +538,7 @@ export function BuocChungForm({
                     {mayDaChon && (
                       <span className="khsx-field__hint">
                         {mayDaChon.tocDo
-                          ? `Tốc độ ${num(Number(mayDaChon.tocDo))} ${mayDaChon.donViTocDo || "đv"}/giờ`
+                          ? `Tốc độ ${num(Number(mayDaChon.tocDo))} ${mayDaChon.nhanTocDo || "đv/h"}`
                           : "Máy chưa khai tốc độ"}
                         {mayDaChon.chuanBiPhut ? ` · chuẩn bị ${num(Number(mayDaChon.chuanBiPhut))}′` : ""}
                       </span>
