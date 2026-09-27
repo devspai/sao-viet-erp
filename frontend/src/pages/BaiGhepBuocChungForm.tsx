@@ -1079,17 +1079,6 @@ export function BuocChungForm({
                     <span className="khsx-vattu-unit-tag">{dvVao}</span>
                   </div>
                 </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">ĐƠN GIÁ GIA CÔNG</span>
-                  <div className="khsx-vattu-input-group">
-                    <input
-                      type="number" min="0" className="khsx-vattu-num-input" disabled={!canUpdate}
-                      value={val("don_gia_gia_cong", g.don_gia_gia_cong) ?? ""}
-                      onChange={(e) => setF({ ...f, don_gia_gia_cong: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="khsx-vattu-unit-tag">đ/{dvVao || "đơn vị"}</span>
-                  </div>
-                </label>
               </div>
             </section>
 

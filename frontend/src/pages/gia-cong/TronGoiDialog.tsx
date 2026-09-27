@@ -22,7 +22,6 @@ export function TronGoiDialog({
   const [ds, setDs] = useState<NhaGiaCong[] | null>(null);
   const [ncc, setNcc] = useState<number | "">("");
   const [sl, setSl] = useState(String(lsx.so_luong_dat ?? ""));
-  const [gia, setGia] = useState("");
   const [capGiay, setCapGiay] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -43,7 +42,7 @@ export function TronGoiDialog({
       await api.giaCongNgoai.datTronGoi(token, lsx.id, {
         nha_cung_cap_id: ncc,
         sl_dat: Number(sl),
-        don_gia: gia.trim() ? Number(gia) : null,
+        don_gia: null,
         xuong_cap_giay: capGiay,
       });
       onDone();
@@ -62,7 +61,7 @@ export function TronGoiDialog({
       confirmLabel="Đặt gia công trọn gói"
       busy={busy}
       error={err}
-      confirmDisabled={ncc === "" || !(Number(sl) > 0) || (gia.trim() !== "" && !(Number(gia) >= 0))}
+      confirmDisabled={ncc === "" || !(Number(sl) > 0)}
       onConfirm={dat}
       onCancel={onClose}
     >
@@ -91,10 +90,6 @@ export function TronGoiDialog({
         <label className="gcn__o">
           <span>Số đặt ({dv})</span>
           <input inputMode="decimal" value={sl} onChange={(e) => setSl(e.target.value)} />
-        </label>
-        <label className="gcn__o">
-          <span>Đơn giá (đ / {dv}) — bỏ trống được</span>
-          <input inputMode="decimal" value={gia} onChange={(e) => setGia(e.target.value)} />
         </label>
         <label className="gcn__chk">
           <input type="checkbox" checked={capGiay} onChange={(e) => setCapGiay(e.target.checked)} />

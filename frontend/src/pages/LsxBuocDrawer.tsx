@@ -1895,28 +1895,6 @@ function NhaGiaCongCard({
             </span>
           )}
         </label>
-        {dai && !dai.laCuoi ? (
-          <p className="khsx-field__hint">
-            Đơn giá cả lần khai ở bước cuối của lần (“{dai.sau}”).
-          </p>
-        ) : (
-          <label className="khsx-field">
-            <span className="khsx-field__label">
-              ĐƠN GIÁ CẢ LẦN (đ / {dvNhanChung(row.don_vi_ra)})
-            </span>
-            <input
-              className="khsx-input-std"
-              inputMode="decimal"
-              value={row.don_gia_gia_cong}
-              disabled={!canUpdate}
-              onChange={(e) => onPatch({ don_gia_gia_cong: e.target.value })}
-            />
-            <span className="khsx-field__hint">
-              Tiền gợi ý = số chốt cuối × đơn giá. Bỏ trống được — kế toán gõ số tiền thật lúc lập
-              phiếu chi.
-            </span>
-          </label>
-        )}
       </div>
     </section>
   );
