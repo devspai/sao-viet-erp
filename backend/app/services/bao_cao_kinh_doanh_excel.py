@@ -1,7 +1,7 @@
 """Xuất BÁO CÁO KINH DOANH theo khách hàng ra .xlsx (24/09/2026).
 
     dòng 1-2  tiêu đề + kỳ
-    dòng 4    tiêu đề cột (14 cột, A→N)
+    dòng 4    tiêu đề cột (15 cột, A→O)
     rồi từng khách:
         [KHÁCH]  Mã - Tên (n đơn)                       … tổng tiền + cọc của khách   (tô nền)
         [ĐƠN]    Số đơn · Ngày chốt · Sale · PO          … tổng đơn + % cọc + cọc      (đậm)
@@ -25,6 +25,7 @@ COT = (
     ("G", "Đơn giá", 13), ("H", "VAT %", 7), ("I", "Thành tiền (chưa VAT)", 16),
     ("J", "Tổng có VAT", 16), ("K", "% cọc", 7), ("L", "Cọc phải thu", 15),
     ("M", "Cọc đã nhận", 15), ("N", "Cọc còn thiếu", 15),
+    ("O", "Tỷ lệ báo giá", 10),
 )
 _COT_TIEN = ("G", "I", "J", "L", "M", "N")
 
@@ -45,11 +46,11 @@ def xuat_xlsx(bc: dict) -> bytes:
     nen_khach = PatternFill("solid", fgColor="FFE8EDF4")
     nen_tieu_de = PatternFill("solid", fgColor="FF1B2A41")
 
-    ws.merge_cells("A1:N1")
+    ws.merge_cells("A1:O1")
     ws["A1"] = "BÁO CÁO KINH DOANH THEO KHÁCH HÀNG"
     ws["A1"].font = Font(name="Times New Roman", size=14, bold=True)
     ws["A1"].alignment = Alignment(horizontal="center")
-    ws.merge_cells("A2:N2")
+    ws.merge_cells("A2:O2")
     ws["A2"] = (f"Đơn đã chốt từ ngày {_dmy(bc['tu_ngay'])} đến ngày {_dmy(bc['den_ngay'])}"
                 f" · {bc['tong']['so_khach']} khách · {bc['tong']['so_don']} đơn")
     ws["A2"].font = Font(name="Times New Roman", size=11, bold=True)
@@ -75,7 +76,7 @@ def xuat_xlsx(bc: dict) -> bytes:
             if cot in _COT_TIEN:
                 o.number_format = DINH_DANG_TIEN
                 o.alignment = Alignment(horizontal="right", vertical="center")
-            elif cot in ("E", "H", "K", "B", "F"):
+            elif cot in ("E", "H", "K", "B", "F", "O"):
                 o.alignment = Alignment(horizontal="center", vertical="center")
             else:
                 o.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
@@ -102,6 +103,7 @@ def xuat_xlsx(bc: dict) -> bytes:
             ws[f"D{hang}"] = f"PO khách: {d['po_khach']}" if d.get("po_khach") else ""
             _tien_tong(hang, d)
             ws[f"K{hang}"] = f"{d['coc_pct']:g}%" if d["coc_pct"] else ""
+            ws[f"O{hang}"] = f"{d['ty_le_bao_gia']}%" if d.get("ty_le_bao_gia") is not None else ""
             _ke(hang, dam=True)
             hang += 1
             for ln in d["dong"]:

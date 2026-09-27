@@ -3,7 +3,7 @@
 // toolbar hành động, tabs Dashboard / Lịch sử mua hàng / Lịch sử báo giá). MỌI số liệu
 // (KPI, doanh số 12T, cơ cấu SP, tần suất đặt, lịch sử) tính từ ĐƠN HÀNG / BÁO GIÁ THẬT;
 // thiếu dữ liệu → empty state trung thực (không bịa số). Công nợ chỉ-đọc qua SEAM-16.
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import {
   ApiError,
   api,
@@ -34,7 +34,7 @@ import type { NavigateFn } from "../components/AppShell";
 import { useAuth } from "../auth/useAuth";
 import { useCan, useScopeOf } from "../auth/permissions";
 import { CareCalendar } from "./CareCalendar";
-import { gopTienTheoSanPham, tinhTiLeChot } from "./khachHangSo";
+import { gopTienTheoSanPham } from "./khachHangSo";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Select } from "../components/Select";
@@ -2030,6 +2030,99 @@ function Heatmap({ dash }: { dash: CustomerDashboard }) {
   );
 }
 
+// --- Lọc + tìm kiếm nâng cao dùng chung cho 2 tab lịch sử ---------------------
+// Lịch sử của MỘT khách đã tải trọn về (biểu đồ cũng cần đủ), nên lọc tại chỗ trên tập đó.
+
+type HistFilter = { q: string; status: string; from: string; to: string; min: string; max: string };
+const HIST_FILTER_EMPTY: HistFilter = { q: "", status: "", from: "", to: "", min: "", max: "" };
+
+function locLichSu<T extends { created_at: string; status: string; total: number | null }>(
+  rows: T[],
+  f: HistFilter,
+  haystack: (r: T) => string,
+): T[] {
+  const q = f.q.trim().toLowerCase();
+  const min = f.min.trim() === "" ? null : Number(f.min) * 1_000_000;
+  const max = f.max.trim() === "" ? null : Number(f.max) * 1_000_000;
+  return rows.filter((r) => {
+    if (q && !haystack(r).toLowerCase().includes(q)) return false;
+    if (f.status && r.status !== f.status) return false;
+    const day = r.created_at?.slice(0, 10) ?? "";
+    if (f.from && day < f.from) return false;
+    if (f.to && day > f.to) return false;
+    if (min != null && (r.total ?? 0) < min) return false;
+    if (max != null && (r.total ?? 0) > max) return false;
+    return true;
+  });
+}
+
+function HistFilterBar({
+  value,
+  onChange,
+  placeholder,
+  statusLabels,
+  statuses,
+  right,
+}: {
+  value: HistFilter;
+  onChange: (f: HistFilter) => void;
+  placeholder: string;
+  statusLabels: Record<string, string>;
+  statuses: string[];
+  right?: ReactNode;
+}) {
+  const [advanced, setAdvanced] = useState(false);
+  const set = (k: keyof HistFilter) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    onChange({ ...value, [k]: e.target.value });
+  const dangLoc = Object.values(value).some((v) => v !== "");
+  return (
+    <div className="kh__hist-filter">
+      <div className="kh__hist-filter-row">
+        <input
+          type="search"
+          className="input kh__hist-filter-q"
+          placeholder={placeholder}
+          value={value.q}
+          onChange={set("q")}
+        />
+        <select className="input" value={value.status} onChange={set("status")} aria-label="Trạng thái">
+          <option value="">Mọi trạng thái</option>
+          {statuses.map((s) => (
+            <option key={s} value={s}>{statusLabels[s] ?? s}</option>
+          ))}
+        </select>
+        <Button variant="secondary" onClick={() => setAdvanced((a) => !a)}>
+          {advanced ? "Ẩn nâng cao" : "Tìm nâng cao"}
+        </Button>
+        {dangLoc && (
+          <Button variant="secondary" onClick={() => onChange(HIST_FILTER_EMPTY)}>Xoá lọc</Button>
+        )}
+        {right && <span className="kh__hist-filter-right">{right}</span>}
+      </div>
+      {advanced && (
+        <div className="kh__hist-filter-row">
+          <label className="kh__hist-filter-field">
+            Từ ngày
+            <input type="date" className="input" value={value.from} onChange={set("from")} min="2000-01-01" max="2100-12-31" />
+          </label>
+          <label className="kh__hist-filter-field">
+            Đến ngày
+            <input type="date" className="input" value={value.to} onChange={set("to")} min="2000-01-01" max="2100-12-31" />
+          </label>
+          <label className="kh__hist-filter-field">
+            Giá trị từ (triệu đ)
+            <input type="number" min={0} className="input" value={value.min} onChange={set("min")} />
+          </label>
+          <label className="kh__hist-filter-field">
+            Đến (triệu đ)
+            <input type="number" min={0} className="input" value={value.max} onChange={set("max")} />
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Orders tab (Lịch sử mua hàng) -------------------------------------------
 
 function OrdersTab({
@@ -2044,7 +2137,7 @@ function OrdersTab({
   const [rows, setRows] = useState<OrderHistoryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [yearFilter, setYearFilter] = useState<string>("");
+  const [filter, setFilter] = useState<HistFilter>(HIST_FILTER_EMPTY);
 
   useEffect(() => {
     if (!token) return;
@@ -2079,20 +2172,11 @@ function OrdersTab({
     }
   }
 
-  // Năm có dữ liệu THẬT (từ created_at) — không hardcode danh sách năm.
-  const years = useMemo(() => {
-    if (!rows) return [];
-    return [...new Set(rows.map((o) => o.created_at?.slice(0, 4)).filter(Boolean))]
-      .sort()
-      .reverse() as string[];
-  }, [rows]);
-
-  // Memoized filter and aggregates
-  const filteredRows = useMemo(() => {
-    if (!rows) return [];
-    if (!yearFilter) return rows;
-    return rows.filter((o) => o.created_at && o.created_at.startsWith(yearFilter));
-  }, [rows, yearFilter]);
+  const statuses = useMemo(() => [...new Set((rows ?? []).map((o) => o.status))], [rows]);
+  const filteredRows = useMemo(
+    () => locLichSu(rows ?? [], filter, (o) => `${o.order_no} ${o.summary ?? ""}`),
+    [rows, filter],
+  );
 
   // Đơn đã huỷ KHÔNG phải tiền thật đã chi — loại khỏi mọi tổng/biểu đồ tiền, chỉ giữ lại trong
   // bảng "Toàn bộ đơn hàng" bên dưới để còn thấy dấu vết. Khớp quy ước `_EXCLUDED_ORDER_STATUSES`
@@ -2103,53 +2187,6 @@ function OrdersTab({
     () => filteredRows.filter((o) => o.status !== "cancelled"),
     [filteredRows],
   );
-
-  // "Hoàn thành" = ĐÃ CHỐT thật (status "ordered"), không tính Nháp/Tạm giữ/Đã đổi — siết chặt
-  // hơn activeRows vì hai trạng thái đó chưa phải đơn xong. TB/ĐƠN + Đơn lớn nhất đi theo cùng
-  // tập này cho khỏi lệch gốc (chia tổng-mọi-đơn cho đếm-riêng-đơn-chốt sẽ ra số sai).
-  const completedRows = useMemo(
-    () => activeRows.filter((o) => o.status === "ordered"),
-    [activeRows],
-  );
-
-  const { totalLifetime, completedCount, avgSpend, maxSpend, perMonth, sinceDate } = useMemo(() => {
-    if (activeRows.length === 0) {
-      return { totalLifetime: 0, completedCount: 0, avgSpend: 0, maxSpend: 0, perMonth: 0, sinceDate: null as string | null };
-    }
-    const total = activeRows.reduce((s, o) => s + (o.total ?? 0), 0);
-    // Nhịp đặt/tháng tính trên KHOẢNG THỜI GIAN THẬT của dữ liệu (đơn cũ nhất → mới nhất),
-    // không chia bừa cho 12.
-    const dates = activeRows.map((o) => new Date(o.created_at).getTime()).filter((t) => !Number.isNaN(t));
-    const oldest = Math.min(...dates);
-    const newest = Math.max(...dates);
-    const spanMonths = Math.max(1, Math.round((newest - oldest) / (30.44 * 86_400_000)) + 1);
-
-    const completed = completedRows.length;
-    const completedTotal = completedRows.reduce((s, o) => s + (o.total ?? 0), 0);
-    const completedMax = completedRows.reduce((m, o) => Math.max(m, o.total ?? 0), 0);
-
-    return {
-      totalLifetime: total,
-      completedCount: completed,
-      avgSpend: completed > 0 ? Math.round(completedTotal / completed) : 0,
-      maxSpend: completedMax,
-      perMonth: completed / spanMonths,
-      sinceDate: new Date(oldest).toISOString(),
-    };
-  }, [activeRows, completedRows]);
-
-  // So sánh THẬT với năm liền trước (chỉ khi đang lọc 1 năm và năm trước có dữ liệu).
-  const yoyPct = useMemo(() => {
-    if (!rows || !yearFilter) return null;
-    const prevYear = String(Number(yearFilter) - 1);
-    const sum = (yr: string) =>
-      rows
-        .filter((o) => o.status !== "cancelled" && o.created_at?.startsWith(yr))
-        .reduce((s, o) => s + (o.total ?? 0), 0);
-    const prev = sum(prevYear);
-    if (prev <= 0) return null;
-    return Math.round(((sum(yearFilter) - prev) / prev) * 100);
-  }, [rows, yearFilter]);
 
   // Group by month for chart — trục liên tục tối đa 12 tháng như prototype.
   const monthlySpend = useMemo(() => monthlySeries(activeRows), [activeRows]);
@@ -2169,52 +2206,20 @@ function OrdersTab({
 
   return (
     <div className="kh__histwrap">
-      {/* Year filters & export */}
-      <div className="kh__orders-filter-row">
-        <div className="kh__year-filters">
-          <span className="kh__year-filters-label">LỌC THEO NĂM:</span>
-          {["", ...years].map((yr) => (
-            <button
-              key={yr}
-              type="button"
-              className={`kh__year-filter-btn${yearFilter === yr ? " is-active" : ""}`}
-              onClick={() => setYearFilter(yr)}
-            >
-              {yr === "" ? "Tất cả" : yr}
-            </button>
-          ))}
-        </div>
-        {canExport && (
-          <Button variant="secondary" onClick={exportCsv} loading={exporting}>
-            <Download size={15} /> Xuất Excel
-          </Button>
-        )}
-      </div>
-
-      {/* Stats Cards Strip — hint là số THẬT tính từ rows (YoY chỉ hiện khi có kỳ trước). */}
-      <div className="kh__kpis kh__kpis--orders">
-        <div className="kh__kpi card">
-          <span className="kh__kpi-label">{yearFilter ? `CHI TIÊU ${yearFilter}` : "TỔNG CHI TIÊU LIFETIME"}</span>
-          <span className="kh__kpi-value">{moneyStat(totalLifetime)}</span>
-          <span className="kh__kpi-hint">
-            {yoyPct != null
-              ? `${yoyPct >= 0 ? "+" : ""}${yoyPct}% so với ${Number(yearFilter) - 1}`
-              : sinceDate
-                ? `từ ${fmtDate(sinceDate)}`
-                : "—"}
-          </span>
-        </div>
-        <div className="kh__kpi card">
-          <span className="kh__kpi-label">SỐ ĐƠN HOÀN THÀNH</span>
-          <span className="kh__kpi-value">{completedCount} đơn</span>
-          <span className="kh__kpi-hint">{perMonth.toFixed(1)}/tháng TB</span>
-        </div>
-        <div className="kh__kpi card">
-          <span className="kh__kpi-label">TB / ĐƠN</span>
-          <span className="kh__kpi-value">{moneyStat(avgSpend)}</span>
-          <span className="kh__kpi-hint">Đơn lớn nhất: {moneyCompact(maxSpend)}</span>
-        </div>
-      </div>
+      <HistFilterBar
+        value={filter}
+        onChange={setFilter}
+        placeholder="Tìm mã đơn, sản phẩm…"
+        statusLabels={ORDER_STATUS_LABELS}
+        statuses={statuses}
+        right={
+          canExport && (
+            <Button variant="secondary" onClick={exportCsv} loading={exporting}>
+              <Download size={15} /> Xuất Excel
+            </Button>
+          )
+        }
+      />
 
       {/* 2-Column charts row */}
       <div className="kh__orders-analysis-row">
@@ -2324,7 +2329,7 @@ function QuotesTab({
   const { token } = useAuth();
   const [rows, setRows] = useState<QuoteHistoryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [yearFilter, setYearFilter] = useState<string>("");
+  const [filter, setFilter] = useState<HistFilter>(HIST_FILTER_EMPTY);
 
   useEffect(() => {
     if (!token) return;
@@ -2340,19 +2345,11 @@ function QuotesTab({
     };
   }, [token, customerId]);
 
-  // Năm có dữ liệu thật — cùng cơ chế với tab mua hàng.
-  const years = useMemo(() => {
-    if (!rows) return [];
-    return [...new Set(rows.map((q) => q.created_at?.slice(0, 4)).filter(Boolean))]
-      .sort()
-      .reverse() as string[];
-  }, [rows]);
-
-  const filteredRows = useMemo(() => {
-    if (!rows) return [];
-    if (!yearFilter) return rows;
-    return rows.filter((q) => q.created_at && q.created_at.startsWith(yearFilter));
-  }, [rows, yearFilter]);
+  const statuses = useMemo(() => [...new Set((rows ?? []).map((q) => q.status))], [rows]);
+  const filteredRows = useMemo(
+    () => locLichSu(rows ?? [], filter, (q) => `${q.code} v${q.version}`),
+    [rows, filter],
+  );
 
   // Giá trị báo giá theo tháng — TÍNH THẬT từ created_at/total, trục liên tục ≤12 tháng.
   const monthlyQuoted = useMemo(() => monthlySeries(filteredRows), [filteredRows]);
@@ -2381,68 +2378,15 @@ function QuotesTab({
       </div>
     );
 
-  // Số liệu THẬT từ chính danh sách báo giá. Tỉ lệ chốt tính ở `tinhTiLeChot` (có test) — định
-  // nghĩa "thắng"/"đã chào" phải khớp backend, xem chú thích trong `khachHangSo.ts`.
-  const totalQuoted = filteredRows.reduce((s, q) => s + (q.total ?? 0), 0);
-  const chot = tinhTiLeChot(filteredRows);
-
   return (
     <div className="kh__histwrap">
-      {/* Hàng lọc năm — cùng nhịp với tab mua hàng (mẫu). Không có nút Xuất Excel:
-          BE chưa có endpoint export báo giá. */}
-      <div className="kh__orders-filter-row">
-        <div className="kh__year-filters">
-          <span className="kh__year-filters-label">LỌC THEO NĂM:</span>
-          {["", ...years].map((yr) => (
-            <button
-              key={yr}
-              type="button"
-              className={`kh__year-filter-btn${yearFilter === yr ? " is-active" : ""}`}
-              onClick={() => setYearFilter(yr)}
-            >
-              {yr === "" ? "Tất cả" : yr}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="kh__kpis kh__kpis--orders">
-        <div className="kh__kpi card">
-          <span className="kh__kpi-label">{yearFilter ? `SỐ BÁO GIÁ ${yearFilter}` : "SỐ BÁO GIÁ LIFETIME"}</span>
-          <span className="kh__kpi-value">{filteredRows.length} BG</span>
-          <span className="kh__kpi-hint">Tổng GT báo giá {moneyCompact(totalQuoted)}</span>
-        </div>
-        <div className="kh__kpi card">
-          <span className="kh__kpi-label">TỈ LỆ CHỐT</span>
-          {/* Chưa chào báo giá nào thì hiện "—", KHÔNG hiện 0%: 0% đọc ra là "chào mãi không ai
-              mua", oan cho khách mới toanh. */}
-          <span className="kh__kpi-value">{chot.pct === null ? "—" : `${chot.pct}%`}</span>
-          {/* daChao < 3: mẫu quá nhỏ để % có nghĩa (2/2 = "100%" trông chắc như đinh nhưng chỉ
-              từ 2 báo giá) — gắn nhãn cảnh báo thay vì để con số tự tin đánh lừa. */}
-          {chot.pct !== null && chot.daChao < 3 && (
-            <span
-              className="kh__badge kh__badge--warn"
-              style={{ fontSize: "12px", padding: "1px 6px", marginTop: "2px" }}
-            >
-              Mẫu nhỏ
-            </span>
-          )}
-          <span className="kh__kpi-hint">
-            {chot.pct === null
-              ? "Chưa gửi báo giá nào cho khách"
-              : `${chot.thang}/${chot.daChao} BG đã gửi khách`}
-          </span>
-        </div>
-        <div className="kh__kpi card">
-          <span className="kh__kpi-label">GIÁ TRỊ ĐÃ CHỐT</span>
-          <span className="kh__kpi-value">{moneyStat(chot.giaTriThang)}</span>
-          <span className="kh__kpi-hint">
-            {chot.thang > 0
-              ? `TB ${moneyCompact(Math.round(chot.giaTriThang / chot.thang))} / BG thắng`
-              : "Chưa có BG thắng"}
-          </span>
-        </div>
-      </div>
+      <HistFilterBar
+        value={filter}
+        onChange={setFilter}
+        placeholder="Tìm mã báo giá…"
+        statusLabels={QUOTE_STATUS_LABELS}
+        statuses={statuses}
+      />
 
       {/* 2 cột: chart giá trị BG theo tháng + cơ cấu trạng thái (số thật). */}
       <div className="kh__orders-analysis-row">
@@ -4319,7 +4263,7 @@ function CareTab({ customerId, onCareChanged }: { customerId: number; onCareChan
           ) : (
             <div className="care-timeline">
               {shownHistory.map((item) => {
-                const iconsMap: Record<string, React.ReactNode> = {
+                const iconsMap: Record<string, ReactNode> = {
                   goi_dien: <Phone size={10} />,
                   nhan_tin: <MessageCircle size={10} />,
                   email: <Mail size={10} />,
@@ -4947,7 +4891,7 @@ function AttachmentsTab({ customerId }: { customerId: number }) {
     reload();
   }, [reload]);
 
-  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPick(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!token || !file) return;
@@ -5028,7 +4972,7 @@ function AttachmentsTab({ customerId }: { customerId: number }) {
       ) : (
         <div className="kh__files-grid">
           {items.map((a) => {
-            const iconsMap: Record<string, React.ReactNode> = {
+            const iconsMap: Record<string, ReactNode> = {
               hop_dong: <FileText size={18} />,
               gpkd: <ShieldCheck size={18} />,
               thiet_ke: <Image size={18} />,

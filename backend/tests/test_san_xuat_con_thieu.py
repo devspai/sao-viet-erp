@@ -234,6 +234,7 @@ def test_moc_quy_doi_khi_vao_ra_khac_don_vi(db, orders, lsx_svc, admin, customer
     cv.trang_thai = CV_DANG_CHAY
     cv.so_luong_vao, cv.don_vi_vao = 12, "tờ"
     cv.so_luong_ra, cv.don_vi_ra = 1188, "cái"
+    cv.he_so_quy_doi = 99                     # 99 cái/tờ — snapshot thật ghi kèm hệ số bình bài
     db.commit()
     _giao_toi(db, cv, 11, "tờ")
 
@@ -261,6 +262,40 @@ def test_nhan_du_bu_hao_thi_moc_khong_phinh_len(db, orders, lsx_svc, admin, cust
     assert ct["san_luong"]["con_thieu"] == 0.0
 
 
+def test_moc_rut_theo_he_so_quy_doi_khop_tran_ghi_me(db, orders, lsx_svc, admin, customer):
+    """Bế 2 con/tờ, kế hoạch 1.580 tờ (có bù hao) → 3.000 con, nhận 1.200 tờ ⇒ mốc 2.400 con —
+    CÙNG số trần ở hộp Ghi mẻ. Theo tỉ lệ kế hoạch thì ra 2.278,48 con: lẻ và lệch trần."""
+    from app.services.san_xuat import board
+
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-TN7")
+    cv.trang_thai = CV_DANG_CHAY
+    cv.so_luong_vao, cv.don_vi_vao = 1580, "tờ"
+    cv.so_luong_ra, cv.don_vi_ra = 3000, "con"
+    cv.he_so_quy_doi = 2
+    db.commit()
+    _giao_toi(db, cv, 1200, "tờ")
+
+    ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
+    assert ct["san_luong"]["muc_tieu"] == 2400.0
+    assert ct["san_luong"]["con_thieu"] == 2400.0
+
+
+def test_moc_rut_theo_ti_le_thi_lam_tron_xuong(db, orders, lsx_svc, admin, customer):
+    """Bước không có hệ số ⇒ còn quy theo tỉ lệ, nhưng không bày nửa con: 2.278,48 ⇒ 2.278."""
+    from app.services.san_xuat import board
+
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-TN8")
+    cv.trang_thai = CV_DANG_CHAY
+    cv.so_luong_vao, cv.don_vi_vao = 1580, "tờ"
+    cv.so_luong_ra, cv.don_vi_ra = 3000, "con"
+    cv.he_so_quy_doi = None
+    db.commit()
+    _giao_toi(db, cv, 1200, "tờ")
+
+    ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
+    assert ct["san_luong"]["muc_tieu"] == 2278.0
+
+
 def test_ban_giao_khac_don_vi_dau_vao_thi_khong_rut_moc(db, orders, lsx_svc, admin, customer):
     """Bàn giao ghi "con" mà bước nhận "tờ": không đem số đó chia cho `so_luong_vao` — chia bừa ra
     mốc bịa (đúng lỗi đã thấy trên dev: nhận 26.888 chia cho 68 ⇒ thiếu 7 triệu)."""
@@ -277,3 +312,45 @@ def test_ban_giao_khac_don_vi_dau_vao_thi_khong_rut_moc(db, orders, lsx_svc, adm
     assert ct["san_luong"]["thuc_nhan"] is None
     assert ct["san_luong"]["muc_tieu"] == 18.0
     assert ct["san_luong"]["con_thieu"] == 18.0
+
+
+# --- Luật ô tiến độ: NHẬN − TỐT = LỖI (27/09/2026) ------------------------------------------
+def test_ket_thuc_thi_nhan_tru_tot_thanh_loi(db, orders, lsx_svc, admin, customer):
+    """Nhận 1.300, tốt 1.200, bấm Kết thúc ⇒ lỗi 100 — tổ không phải khai số lỗi."""
+    from app.models.san_xuat import CV_HOAN_THANH
+    from app.services.san_xuat import board
+
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-LOI1")
+    cv.trang_thai = CV_DANG_CHAY
+    cv.so_luong_vao, cv.don_vi_vao = 1300, "tờ"
+    cv.so_luong_ra, cv.don_vi_ra = 1300, "tờ"
+    db.add(SanXuatBatch(cong_viec_id=cv.id, bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=2),
+                        tong=1200, tot=1200, hong=0, don_vi="tờ"))
+    db.commit()
+    _giao_toi(db, cv, 1300, "tờ")
+
+    sl = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)["san_luong"]
+    assert (sl["nhan"], sl["nhan_ra"], sl["loi"]) == (1300.0, 1300.0, None)  # đang chạy: chưa có lỗi
+
+    cv.trang_thai = CV_HOAN_THANH
+    db.commit()
+    ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
+    assert ct["san_luong"]["loi"] == 100.0
+    assert ct["cong_viec"]["loi"] == 100.0
+
+
+def test_buoc_dau_chuoi_nhan_la_so_vao_lay_tu_kho(db, orders, lsx_svc, admin, customer):
+    """Bước đầu không ai giao tới ⇒ số nhận = số vào kế hoạch (giấy lấy từ kho), lỗi tính trên đó."""
+    from app.models.san_xuat import CV_HOAN_THANH
+    from app.services.san_xuat import board
+
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-LOI2")
+    cv.trang_thai = CV_HOAN_THANH
+    cv.so_luong_vao, cv.don_vi_vao = 1910, "tờ"
+    cv.so_luong_ra, cv.don_vi_ra = 1660, "tờ"
+    db.add(SanXuatBatch(cong_viec_id=cv.id, bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=2),
+                        tong=1300, tot=1300, hong=0, don_vi="tờ"))
+    db.commit()
+
+    sl = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)["san_luong"]
+    assert (sl["nhan"], sl["nhan_ra"], sl["loi"]) == (1910.0, 1910.0, 610.0)

@@ -127,10 +127,14 @@ export function ThsxDaiRouting({ dai }: { dai: SxRoutingBuoc[] }) {
                 </span>
               </div>
               <div className="thsx-ray__row-sub">
-                <span className="thsx-ray__so">
-                  <b>{b.thuc_te > 0 ? so(b.thuc_te) : (b.ke_hoach != null ? so(b.ke_hoach) : "—")}</b>
-                  {b.don_vi ? <i>{nhanChang(b.don_vi) ?? b.don_vi}</i> : null}
-                </span>
+                {/* CHỈ số thực làm được (27/09/2026): bày kế hoạch ở đây là tổ đọc nhầm thành số
+                    đã có. Chưa làm gì thì để trống — trạng thái trên ray đã nói bước đó chưa chạy. */}
+                {b.thuc_te > 0 && (
+                  <span className="thsx-ray__so">
+                    <b>{so(b.thuc_te)}</b>
+                    {b.don_vi ? <i>{nhanChang(b.don_vi) ?? b.don_vi}</i> : null}
+                  </span>
+                )}
                 {(chu || b.phan_doan_tong > 1 || b.chay_chung || b.la_kcs_cuoi) && (
                   <span className="thsx-ray__ghi">
                     {chu && <em className={`thsx-ray__tt thsx-ray__tt--${b.trang_thai}`}>{chu}</em>}

@@ -5,8 +5,8 @@ tự `confirmed`; khác tổ/khác LSX thì `proposed` → bên NHẬN xác nh�
 KHÔNG xoá cứng: đẻ dòng lịch sử trước/sau; giảm dưới lượng công đoạn sau đã dùng ⇒ cờ không nhất quán.
 
 Quyền (dòng quyền theo tổ, mg 0302): ĐỀ XUẤT/SỬA đòi Xác nhận sản lượng ở tổ NGUỒN; XÁC NHẬN đòi
-Xác nhận sản lượng trọn tổ ĐÍCH; ĐIỀU CHỈNH cho phép người có quyền ở một trong hai bên (người nhập
-sai sửa lại). Tất cả siết ở service, router chỉ gác coarse.
+Xác nhận sản lượng trọn tổ ĐÍCH; ĐIỀU CHỈNH chỉ bên GIAO (27/09/2026) — khác tổ thì số mới quay
+về chờ bên nhận xác nhận lại. Tất cả siết ở service, router chỉ gác coarse.
 """
 from __future__ import annotations
 
@@ -39,18 +39,10 @@ def _nguoi_nhan(db: Session, user, *department_ids: int | None) -> list[int]:
     return sorted(ket)
 
 
-def _gate_hai_ben(db: Session, user, nguon_cv, dich_cv) -> None:
-    """Điều chỉnh: người có quyền Xác nhận sản lượng ở tổ NGUỒN hoặc ĐÍCH đều được (người nhập sai
-    sửa lại, §11.3)."""
-    for cv in (nguon_cv, dich_cv):
-        if cv is None:
-            continue
-        try:
-            _gate(db, user, cv, VIEC_XAC_NHAN)
-            return
-        except PermissionError:
-            pass
-    raise PermissionError("Bạn không có quyền Xác nhận sản lượng ở tổ nguồn hoặc tổ đích.")
+def cho_xac_nhan_lai(bg: SanXuatBanGiao) -> bool:
+    """Bên giao đã điều chỉnh, bên nhận CHƯA xác nhận lại số mới (27/09/2026). Số mới vẫn có hiệu
+    lực — cờ này chỉ lái nút Xác nhận và hộp việc chờ của tổ nhận."""
+    return bg.trang_thai == BG_DIEU_CHINH and bg.xac_nhan_luc is None and not bg.cung_to
 
 
 # Tự xác nhận ⇔ cùng tổ VÀ cùng LSX (§11.2). Luật này nay nằm ở `dau_vao.cung_to_cung_lsx` vì
@@ -295,12 +287,16 @@ def xac_nhan(
     ban_giao_id: int,
     expected_version: int | None = None,
 ) -> dict:
-    """Bên ĐÍCH xác nhận đúng con số cuối (§11.2). Số này thành đầu ra được chấp nhận + đầu vào khả dụng."""
+    """Bên ĐÍCH xác nhận đúng con số cuối (§11.2). Số này thành đầu ra được chấp nhận + đầu vào khả dụng.
+
+    Cũng là nút XÁC NHẬN LẠI sau khi bên giao điều chỉnh (`cho_xac_nhan_lai`): trạng thái giữ
+    "đã điều chỉnh" để còn lịch sử, chỉ ghi lại ai nhận, lúc nào."""
     repo = SanXuatSanLuongRepository(db)
     bg = repo.ban_giao(ban_giao_id)
     if bg is None:
         raise ValueError("Không tìm thấy bàn giao.")
-    if bg.trang_thai != BG_DE_XUAT:
+    nhan_lai = cho_xac_nhan_lai(bg)
+    if bg.trang_thai != BG_DE_XUAT and not nhan_lai:
         raise ValueError("Bàn giao này không ở trạng thái chờ xác nhận.")
     if bg.dich_cong_viec_id is None:
         raise ValueError("Công đoạn nhận của bàn giao này không còn — không xác nhận được.")
@@ -313,6 +309,8 @@ def xac_nhan(
     _kiem_version(bg, expected_version)
 
     ghi_xac_nhan(db, bg=bg, user=user)
+    if nhan_lai:
+        bg.trang_thai = BG_DIEU_CHINH
     db.commit()
     return ket_qua_da_nhan(db, user=user, bg=bg, nguon_cv=nguon_cv, dich_cv=dich_cv)
 
@@ -328,6 +326,11 @@ def dieu_chinh(
 ) -> dict:
     """Điều chỉnh số lượng đã xác nhận (§11.3): đẻ dòng lịch sử trước/sau, cập nhật bàn giao.
 
+    CHỈ BÊN GIAO điều chỉnh (27/09/2026). Bên nhận chỉ có Xác nhận: đếm thiếu/thừa là chuyện hai tổ
+    nói với nhau ngoài xưởng, rồi bên giao sửa số. Số mới CÓ HIỆU LỰC NGAY (tổ nhận chạy tiếp trên
+    số đó); khác tổ thì bên nhận bấm xác nhận lại — xoá "ai nhận, lúc nào" để hiện chờ xác nhận lại.
+    Cùng tổ + cùng lệnh không có ai khác để xác nhận ⇒ giữ nguyên.
+
     Giảm dưới lượng công đoạn sau ĐÃ DÙNG ⇒ đánh dấu không nhất quán (chặn chốt phân bổ/đóng nhóm).
     Giảm tới mức số nhận × hệ số không còn đủ cho số công đoạn sau ĐÃ GHI MẺ ⇒ chặn hẳn (`dau_vao`).
     Ghi chú tự do (`mo_ta`) tuỳ chọn — danh mục lý do/lỗi ĐÃ GỠ."""
@@ -339,13 +342,16 @@ def dieu_chinh(
         raise ValueError("Chỉ điều chỉnh bàn giao đã xác nhận.")
     nguon_cv = repo.cong_viec(bg.nguon_cong_viec_id)
     dich_cv = repo.cong_viec(bg.dich_cong_viec_id) if bg.dich_cong_viec_id else None
-    _gate_hai_ben(db, user, nguon_cv, dich_cv)
+    _gate(db, user, nguon_cv, VIEC_XAC_NHAN)
     _kiem_version(bg, expected_version)
 
     sl_sau = _so_khong_am(so_luong_sau, "Số lượng sau điều chỉnh")
     sl_truoc = float(bg.so_luong)
     # Giảm mà kéo trần ghi mẻ của bên nhận xuống dưới số nó đã ghi ⇒ chặn (19/09/2026, `dau_vao`).
     kiem_giam_ban_giao(db, repo, bg, dich_cv, sl_sau)
+    # Bên nhận phải xác nhận lại — trừ cùng tổ, và trừ bước gia công ngoài (không tổ nào nhận).
+    cho_nhan_lai = (not bg.cung_to and dich_cv is not None
+                    and dich_cv.gia_cong_ngoai_id is None)
 
     # Không nhất quán nếu giảm dưới lượng công đoạn sau đã tiêu thụ (truy vết qua lot đầu vào).
     da_dung = 0.0
@@ -364,17 +370,21 @@ def dieu_chinh(
         )
     )
     bg.so_luong = sl_sau
-    bg.trang_thai = BG_DIEU_CHINH
     bg.khong_nhat_quan = khong_nhat_quan
+    bg.trang_thai = BG_DIEU_CHINH
+    if cho_nhan_lai:
+        bg.xac_nhan_by_id = None
+        bg.xac_nhan_luc = None
     bg.version += 1
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None),
         action="san_xuat_ban_giao_dieu_chinh",
         target=f"san_xuat_ban_giao:{bg.id}",
-        detail=f"{sl_truoc} -> {sl_sau}{' KHONG_NHAT_QUAN' if khong_nhat_quan else ''}",
+        detail=(f"{sl_truoc} -> {sl_sau}{' KHONG_NHAT_QUAN' if khong_nhat_quan else ''}"
+                f"{' CHO_NHAN_LAI' if cho_nhan_lai else ''}"),
     )
     db.commit()
-    # Báo cả hai bên (trừ chính người vừa điều chỉnh).
+    # Báo cả hai bên (trừ chính người vừa điều chỉnh) — bên nhận phải xác nhận lại số mới.
     notify = _nguoi_nhan(db, user, nguon_cv.department_id if nguon_cv else None,
                          dich_cv.department_id if dich_cv else None)
     return _ket_qua(bg, nguon_cv, dich_cv, notify_user_ids=notify, su_kien="dieu_chinh")

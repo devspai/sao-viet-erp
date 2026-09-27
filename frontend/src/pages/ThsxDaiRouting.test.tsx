@@ -106,6 +106,15 @@ describe("ThsxDaiRouting", () => {
     });
   });
 
+  // Ray chỉ bày số THỰC làm được. Bế kế hoạch 10.200 mà chưa làm con nào ⇒ không in số nào ở ô
+  // đó; in kế hoạch ra là tổ đọc thành số đã có.
+  it("bước chưa làm được gì thì không hiện số, kể cả số kế hoạch", () => {
+    render(<ThsxDaiRouting dai={dai} />);
+    expect(screen.queryByText("10.200")).not.toBeInTheDocument();
+    expect(screen.getByText("Bế").closest("li")?.querySelector(".thsx-ray__so")).toBeNull();
+    expect(screen.getAllByText("5.300")).toHaveLength(2);        // In, Cán phủ đã làm 5.300
+  });
+
   it("lệnh một bước thì không vẽ dải", () => {
     const { container } = render(<ThsxDaiRouting dai={[dai[0]]} />);
     expect(container).toBeEmptyDOMElement();

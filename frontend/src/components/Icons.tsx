@@ -290,6 +290,17 @@ const ICONS = {
   zap: (
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
   ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 16v-4M12 8h.01" />
+    </>
+  ),
+  barChart: (
+    <>
+      <path d="M12 20V10M18 20V4M6 20v-6" />
+    </>
+  ),
   history: (
     <>
       <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />

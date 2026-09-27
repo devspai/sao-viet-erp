@@ -8320,3 +8320,12 @@
     flex-direction: column;
   }
 }
+
+/* Bộ lọc + tìm nâng cao ở 2 tab lịch sử (thay hàng "Lọc theo năm" + dải KPI đã gỡ). */
+.kh__hist-filter { display: flex; flex-direction: column; gap: 8px; }
+.kh__hist-filter-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.kh__hist-filter-row > .input { width: auto; flex: 0 0 180px; }
+.kh__hist-filter-row > .kh__hist-filter-q { flex: 1 1 220px; min-width: 0; }
+.kh__hist-filter-field > .input { width: 100%; }
+.kh__hist-filter-right { margin-left: auto; }
+.kh__hist-filter-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-muted, #64748b); flex: 1 1 150px; }

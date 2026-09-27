@@ -119,6 +119,12 @@ class WorkItemOut(BaseModel):
     da_lam: float | None = None
     muc_tieu: float | None = None
     con_thieu: float | None = None
+    # Luật ô tiến độ (27/09/2026): Nhận bao nhiêu, tốt bao nhiêu, còn lại là LỖI. `nhan` theo đơn
+    # vị VÀO (bước đầu chuỗi = số vào kế hoạch lấy từ kho; cùng tổ = số tốt bước trước), `nhan_ra`
+    # quy về đơn vị RA để so với tốt; `loi` chỉ có khi đã Kết thúc = nhan_ra − tốt.
+    nhan: float | None = None
+    nhan_ra: float | None = None
+    loi: float | None = None
     # Nhà gia công + khuôn: ảnh chụp lúc phát hành. `khuon = None` ⇒ bước không dùng dụng cụ, thẻ
     # việc không vẽ gì; có `khuon` mà `khuon_da_nhan = false` ⇒ nút Bắt đầu bị chặn (§ cổng khuôn).
     nha_cung_cap: str | None = None
@@ -667,6 +673,9 @@ class SanLuongOut(BaseModel):
     muc_tieu: float | None = None
     thuc_nhan: float | None = None
     con_thieu: float | None = None
+    nhan: float | None = None
+    nhan_ra: float | None = None
+    loi: float | None = None
     don_vi: str | None = None
     batches: list[BatchOut]
 
@@ -687,6 +696,13 @@ class BanGiaoOut(BaseModel):
     id: int
     doi_tac_cong_viec_id: int | None = None
     doi_tac_ten: str
+    doi_tac_to_ten: str | None = None      # tổ ở đầu kia; None = thuê ngoài / chưa gán tổ
+    # Hai đầu của lần giao — thẻ ghi đủ công đoạn · tổ cho cả bên giao lẫn bên nhận. `*_to` của bước
+    # thuê ngoài là nhà gia công; `dich_cong_doan` = "Kho" khi giao thẳng vào kho.
+    nguon_cong_doan: str | None = None
+    nguon_to: str | None = None
+    dich_cong_doan: str | None = None
+    dich_to: str | None = None
     cung_to: bool
     so_luong: float
     don_vi: str

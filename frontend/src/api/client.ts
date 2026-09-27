@@ -1403,6 +1403,11 @@ export interface SxWorkItem {
   muc_tieu: number | null;
   /** max(mục tiêu − đã làm, 0). null khi bước không khai mục tiêu — KHÁC hẳn với 0. */
   con_thieu: number | null;
+  /** Luật ô tiến độ: nhận − tốt = lỗi. `nhan` đơn vị vào (bước đầu = số vào kế hoạch lấy từ kho),
+   *  `nhan_ra` quy về đơn vị ra, `loi` chỉ có khi đã Kết thúc. null = không biết. */
+  nhan?: number | null;
+  nhan_ra?: number | null;
+  loi?: number | null;
   trang_thai: string;          // "released" | "running" | "paused" | "completed"
   dinh_muc_vat_tu: SxVatTuDinhMuc[]; // định mức vật tư đóng băng lúc phát hành — KHÁC vật tư (phiếu xuất) ở drawer
   thuc_te: SxThucTeKhoang[];   // lớp thực-tế đè lên thanh kế hoạch (§5.1); phiên mở → ket_thuc=null
@@ -1760,12 +1765,20 @@ export interface SxSanLuong {
   thuc_nhan: number | null;
   /** max(mục tiêu − tổng tốt, 0). null khi không có mục tiêu — KHÁC hẳn với 0. */
   con_thieu: number | null;
+  nhan?: number | null;
+  nhan_ra?: number | null;
+  loi?: number | null;
   don_vi: string | null;
 }
 export interface SxBanGiao {
   id: number;
   doi_tac_cong_viec_id: number | null;
   doi_tac_ten: string;
+  /** Hai đầu lần giao: công đoạn + tổ (bước thuê ngoài = nhà gia công; đích "Kho" = nhập kho). */
+  nguon_cong_doan?: string | null;
+  nguon_to?: string | null;
+  dich_cong_doan?: string | null;
+  dich_to?: string | null;
   cung_to: boolean;
   so_luong: number;
   don_vi: string;
@@ -9854,6 +9867,8 @@ export interface BaoCaoKinhDoanhDon extends BaoCaoKinhDoanhTien {
   po_khach: string | null;
   ngay_giao: string | null;
   coc_pct: number;
+  /** % mặt hàng khách ưng / mặt hàng trong báo giá; null = đơn không đi từ báo giá. */
+  ty_le_bao_gia: number | null;
   dong: BaoCaoKinhDoanhDong[];
 }
 export interface BaoCaoKinhDoanhKhach extends BaoCaoKinhDoanhTien {

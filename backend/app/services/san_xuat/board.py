@@ -9,6 +9,7 @@ dòng Xem · Phạm vi · 4 quyền chi tiết; bàn cấp gom gộp các tổ t
 """
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import select
@@ -16,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from ...models.department import Department
 from ...models.may_thiet_bi import MayThietBi
-from ...models.san_xuat import CV_TAM_DUNG
+from ...models.san_xuat import CV_HOAN_THANH, CV_TAM_DUNG
 from ...models.san_xuat_phan_bo import HT_CHO_HAI_BEN, HT_HUY
 from ...models.san_xuat_thuc_thi import PHIEN_TAM_DUNG
 from ...models.user import User
@@ -159,13 +160,26 @@ def _con_thieu(
     "còn thiếu 0" và "không biết thiếu bao nhiêu" là hai câu khác hẳn nhau.
 
     Chạy DƯ thì kẹp về 0 — số âm ở ô "còn thiếu" chỉ làm người đọc dừng lại đoán nghĩa.
+
+    Có `he_so_quy_doi` (Bế 2 con/tờ) thì quy theo hệ số đó, CÙNG luật trần ghi mẻ
+    (`dau_vao.tran_ghi`). Tỉ lệ ra/vào của kế hoạch gồm cả tờ bù hao (3.000 con / 1.580 tờ ≈ 1,9)
+    nên nhận 1.200 tờ ra mốc 2.278,48 con — vừa lẻ, vừa lệch trần 2.400 ngay trong hộp Ghi mẻ.
+    Chỉ bước không có hệ số mới dùng tỉ lệ. Mốc đã rút thì làm tròn XUỐNG: không có nửa con.
     """
     if cv.so_luong_ra is None:
         return None, None
     muc_tieu = float(cv.so_luong_ra)
     vao = None if cv.so_luong_vao is None else float(cv.so_luong_vao)
-    if thuc_nhan is not None and vao is not None and vao > 0:
-        muc_tieu = min(muc_tieu, muc_tieu * float(thuc_nhan) / vao)
+    he_so = float(cv.he_so_quy_doi or 0)
+    if thuc_nhan is not None:
+        if he_so > 0:
+            theo_nhan = float(thuc_nhan) * he_so
+        elif vao is not None and vao > 0:
+            theo_nhan = muc_tieu * float(thuc_nhan) / vao
+        else:
+            theo_nhan = None
+        if theo_nhan is not None and theo_nhan < muc_tieu:
+            muc_tieu = float(math.floor(theo_nhan + 1e-6))
     return muc_tieu, max(muc_tieu - float(tong_tot), 0.0)
 
 
@@ -181,11 +195,55 @@ def _thuc_nhan(cv, nhan_map: dict[int, dict[str, float]]) -> float | None:
     return theo_dv.get(cv.don_vi_vao)
 
 
+def _nhan_vao(db: Session, sl: SanXuatSanLuongRepository, cv, thuc_nhan: float | None) -> float | None:
+    """Lượng bước này ĐÃ NHẬN, đơn vị VÀO — vế trái của luật "nhận − tốt = lỗi" (27/09/2026).
+
+    Có bàn giao chốt về ⇒ số đó. Không có ⇒ hỏi cùng nguồn với trần ghi mẻ (`dau_vao.tran_ghi`:
+    cùng tổ cùng lệnh thì số tốt bước trước, khác tổ thì bàn giao, chưa giao = 0). Bước ĐẦU chuỗi
+    (không có bước trước) lấy vật tư từ kho ⇒ số vào kế hoạch. Còn lại không biết ⇒ None."""
+    if thuc_nhan is not None:
+        return thuc_nhan
+    t = dau_vao.tran_ghi(db, cv, repo=sl)
+    if t is not None:
+        return float(t["da_nhan"])
+    if cv.so_luong_vao is not None and not dau_vao.nhom_truoc(sl, cv):
+        return float(cv.so_luong_vao)
+    return None
+
+
+def _quy_ra(cv, nhan: float | None) -> float | None:
+    """Quy số nhận (đơn vị vào) về đơn vị RA để so thẳng với số tốt: hệ số của bước nếu có (Bế 2
+    con/tờ), cùng đơn vị thì giữ, còn lại theo tỉ lệ kế hoạch ra/vào. Làm tròn XUỐNG."""
+    if nhan is None:
+        return None
+    he_so = float(cv.he_so_quy_doi or 0)
+    if he_so > 0:
+        ra = nhan * he_so
+    elif (cv.don_vi_vao or "").strip() == (cv.don_vi_ra or "").strip():
+        ra = nhan
+    elif cv.so_luong_vao and cv.so_luong_ra is not None:
+        ra = float(cv.so_luong_ra) * nhan / float(cv.so_luong_vao)
+    else:
+        return None
+    return float(math.floor(ra + 1e-6))
+
+
+def _nhan_loi(db: Session, sl: SanXuatSanLuongRepository, cv, thuc_nhan, tot: float) -> dict:
+    """{nhan, nhan_ra, loi}. Tổ chỉ ghi số TỐT; bấm Kết thúc thì phần còn lại tự thành LỖI."""
+    nhan = _nhan_vao(db, sl, cv, thuc_nhan)
+    nhan_ra = _quy_ra(cv, nhan)
+    loi = None
+    if cv.trang_thai == CV_HOAN_THANH and nhan_ra is not None:
+        loi = max(nhan_ra - float(tot), 0.0)
+    return {"nhan": nhan, "nhan_ra": nhan_ra, "loi": loi}
+
+
 def _so_lieu_map(
+    db: Session, sl: SanXuatSanLuongRepository,
     rows, tot_map: dict[int, float], nhan_map: dict[int, dict[str, float]]
 ) -> dict[int, dict]:
-    """{cong_viec_id: ba số thực tế + còn thiếu} cho cả bàn tổ — nạp GỘP một lần, không hỏi
-    `tong_tot`/bàn giao theo từng dòng."""
+    """{cong_viec_id: số thực tế + còn thiếu + nhận/lỗi} cho cả bàn tổ — tổng tốt và bàn giao nạp
+    GỘP một lần; chỉ dòng chưa có bàn giao mới hỏi thêm nguồn trước."""
     ket = {}
     for cv in rows:
         tot = tot_map.get(cv.id, 0.0)
@@ -193,6 +251,7 @@ def _so_lieu_map(
         muc_tieu, thieu = _con_thieu(cv, tot, nhan)
         ket[cv.id] = {
             "thuc_nhan": nhan, "da_lam": tot, "muc_tieu": muc_tieu, "con_thieu": thieu,
+            **_nhan_loi(db, sl, cv, nhan, tot),
         }
     return ket
 
@@ -277,6 +336,9 @@ def _item_dict(cv, lsx_map, bg_map, may_map, nhom_map, phien_map=None, so_map=No
         "da_lam": (so_map or {}).get(cv.id, {}).get("da_lam"),
         "muc_tieu": (so_map or {}).get(cv.id, {}).get("muc_tieu"),
         "con_thieu": (so_map or {}).get(cv.id, {}).get("con_thieu"),
+        "nhan": (so_map or {}).get(cv.id, {}).get("nhan"),
+        "nhan_ra": (so_map or {}).get(cv.id, {}).get("nhan_ra"),
+        "loi": (so_map or {}).get(cv.id, {}).get("loi"),
         # Định mức vật tư đóng băng lúc phát hành (§4.2) — đã đúng hình `VatTuDinhMucOut`, không cần dựng lại.
         "dinh_muc_vat_tu": cv.vat_tu_json or [],
         # Nhà gia công + khuôn — ảnh chụp lúc phát hành, thẻ việc tự đứng được không tra ngược lệnh.
@@ -330,7 +392,7 @@ def _dung_items(db: Session, repo: SanXuatRepository, rows: list,
     # (một truy vấn/việc) theo từng dòng, bàn tổ có thể có hàng chục công việc.
     sl_repo = SanXuatSanLuongRepository(db)
     cv_ids = {cv.id for cv in rows}
-    so_map = _so_lieu_map(rows, sl_repo.tong_tot_nhieu(cv_ids),
+    so_map = _so_lieu_map(db, sl_repo, rows, sl_repo.tong_tot_nhieu(cv_ids),
                           sl_repo.tong_thuc_nhan_nhieu(cv_ids))
     kcs_map = SanXuatKcsRepository(db).tong_kiem_nhieu(cv_ids)
     return [
@@ -739,10 +801,18 @@ def _ca_cua(cas, dt) -> str | None:
     return kq[0].name if kq else None
 
 
-def _bg_dict(b, doi_tac_id, doi_tac_map, me_map, dc_map, ten) -> dict:
+def _bg_dict(b, doi_tac_id, doi_tac_map, me_map, dc_map, ten, ben_map=None) -> dict:
     """Một dòng bàn giao — hai bên thấy như nhau ai đề xuất, ai xác nhận, lúc nào và từng lần điều
-    chỉnh; tên đọc từ tài khoản đã thao tác (`ten` = `{user_id: tên}` gom sẵn một lần)."""
+    chỉnh; tên đọc từ tài khoản đã thao tác (`ten` = `{user_id: tên}` gom sẵn một lần). `ben_map`
+    = `{cong_viec_id: {cong_doan, to}}` cho hai đầu giao/nhận; đích None = nhập kho."""
+    ben_map = ben_map or {}
+    nguon = ben_map.get(b.nguon_cong_viec_id, {})
+    dich = ben_map.get(b.dich_cong_viec_id or 0, {})
     return {
+        "nguon_cong_doan": nguon.get("cong_doan"),
+        "nguon_to": nguon.get("to"),
+        "dich_cong_doan": dich.get("cong_doan") if b.dich_cong_viec_id else "Kho",
+        "dich_to": dich.get("to"),
         "id": b.id,
         "doi_tac_cong_viec_id": doi_tac_id,
         "doi_tac_ten": doi_tac_map.get(doi_tac_id or 0, ""),
@@ -945,6 +1015,7 @@ def chi_tiet_cong_viec(
     # `_con_thieu`. None = không ai giao cho (bước đầu chuỗi) ⇒ giữ mốc kế hoạch.
     _thuc_nhan_cv = _thuc_nhan(cv, sl.tong_thuc_nhan_nhieu({cv.id}))
     _muc_tieu_cv, _con_thieu_cv = _con_thieu(cv, _tong_tot_cv, _thuc_nhan_cv)
+    _nhan_loi_cv = _nhan_loi(db, sl, cv, _thuc_nhan_cv, _tong_tot_cv)
 
     # Máy + ca + sự cố + đầu việc của TỪNG mẻ (§5.2) — mọi số đã có sẵn trong DB, chỉ là chưa ai
     # nối ra mặt đọc. Tập ca lấy đúng nguồn dùng chung của xưởng (`ca_lich_xuong`, cùng tập mà Xếp
@@ -990,7 +1061,20 @@ def chi_tiet_cong_viec(
     # Vòng sửa 1, Minor 4: gộp một truy vấn cho cả tập đối tác thay vì `db.get` từng cái (N+1 về
     # HÌNH DẠNG — `doi_tac_ids` thường 0-5 phần tử, không phải chỗ nghẽn, nhưng rẻ để sửa đúng
     # khuôn `*_nhieu` Task 7 vừa dựng).
-    doi_tac_map = {i: cv.ten_cong_doan for i, cv in sl.cong_viec_nhieu(doi_tac_ids).items()}
+    doi_tac_cvs = sl.cong_viec_nhieu(doi_tac_ids)
+    doi_tac_map = {i: c.ten_cong_doan for i, c in doi_tac_cvs.items()}
+    # Hai đầu của mỗi lần giao: công đoạn nào, tổ nào (bước thuê ngoài = nhà gia công) — thẻ bàn
+    # giao ghi đủ "công đoạn · tổ · ai · lúc nào" cho CẢ bên giao lẫn bên nhận.
+    _ben_cvs = {cv.id: cv, **doi_tac_cvs}
+    _ben_to = repo.to_ten_nhan({c.department_id for c in _ben_cvs.values() if c.department_id})
+    ben_map = {
+        i: {
+            "cong_doan": c.ten_cong_doan,
+            "to": (c.nha_cung_cap if c.loai_buoc == "thue_ngoai" and c.nha_cung_cap
+                   else _ben_to.get(c.department_id) if c.department_id else None),
+        }
+        for i, c in _ben_cvs.items()
+    }
     vt_repo = SanXuatVatTuRepository(db)
     cac_dn = vt_repo.cac_de_nghi(cv.id)
     req_ids = [d.stock_request_id for d in cac_dn if d.stock_request_id]
@@ -1023,7 +1107,7 @@ def chi_tiet_cong_viec(
                                       {cv.bai_ghep_id} if cv.bai_ghep_id else set()),
             so_map={cv.id: {
                 "thuc_nhan": _thuc_nhan_cv, "da_lam": _tong_tot_cv,
-                "muc_tieu": _muc_tieu_cv, "con_thieu": _con_thieu_cv,
+                "muc_tieu": _muc_tieu_cv, "con_thieu": _con_thieu_cv, **_nhan_loi_cv,
             }},
         ),
         "trang_thai": cv.trang_thai,
@@ -1095,6 +1179,7 @@ def chi_tiet_cong_viec(
             "muc_tieu": _muc_tieu_cv,
             "thuc_nhan": _thuc_nhan_cv,
             "con_thieu": _con_thieu_cv,
+            **_nhan_loi_cv,
             "don_vi": cv.don_vi_ra,
             "batches": [
                 {
@@ -1163,10 +1248,12 @@ def chi_tiet_cong_viec(
             ],
         },
         "ban_giao_di": [
-            _bg_dict(b, b.dich_cong_viec_id, doi_tac_map, me_map, dc_map, ten_bg) for b in bg_di
+            _bg_dict(b, b.dich_cong_viec_id, doi_tac_map, me_map, dc_map, ten_bg, ben_map)
+            for b in bg_di
         ],
         "ban_giao_den": [
-            _bg_dict(b, b.nguon_cong_viec_id, doi_tac_map, me_map, dc_map, ten_bg) for b in bg_den
+            _bg_dict(b, b.nguon_cong_viec_id, doi_tac_map, me_map, dc_map, ten_bg, ben_map)
+            for b in bg_den
         ],
         # Đầu vào theo routing (19/09/2026, `dau_vao`): công đoạn trước + trần ghi mẻ + còn thiếu
         # nguồn nào thì chưa bắt đầu được — cùng hàm máy chủ dùng để CHẶN, drawer chỉ bày lại.
