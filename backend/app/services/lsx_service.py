@@ -1692,8 +1692,11 @@ class LsxService:
             # thiếu nhà gia công. Trước 04/09/2026 cửa này im lặng: lệnh qua cửa ngon lành rồi tới
             # lúc thợ ra máy mới biết không có dao. Danh sách dụng cụ đọc từ CỜ của công đoạn
             # (`co_dung_cu` nạp theo lô ở trên), KHÔNG ghi cứng tên bước.
+            # Bước THUÊ NGOÀI: nhà gia công tự lo dao/khuôn (hộp bước ẩn luôn thẻ khuôn) ⇒ không
+            # đòi — đòi thì lệnh kẹt "Còn thiếu 1 mục" mà không còn chỗ nào để chọn (E2E 27/09/2026).
             can_dc, loai_dc = co_dung_cu.get(cd.cong_doan_id, (False, None))
-            if can_chot_khuon(can_dc, loai_dc) and cd.khuon_be_id is None:
+            if (cd.loai_buoc != LB_THUE_NGOAI and can_chot_khuon(can_dc, loai_dc)
+                    and cd.khuon_be_id is None):
                 if "thieu_khuon" not in thieu:
                     thieu.append("thieu_khuon")
         # Thiếu NGUỒN của hệ số quy đổi — hai cầu, hai nguồn khác nhau. KHÔNG kiểm `he_so <= 1`

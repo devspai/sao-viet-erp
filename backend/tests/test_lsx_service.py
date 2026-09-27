@@ -3136,6 +3136,20 @@ def test_thieu_khuon_chan_san_sang(db, orders, lsx_svc, admin, customer):
     assert "thieu_khuon" in lsx_svc.thieu_cua(lsx_svc.get(hop.id))
 
 
+def test_buoc_thue_ngoai_can_dao_khong_bi_doi_khuon(db, orders, lsx_svc, admin, customer):
+    """Bước bế giao nhà gia công: họ tự lo dao, hộp bước ẩn thẻ khuôn — đòi khuôn thì lệnh kẹt
+    "Còn thiếu 1 mục" không lối ra (E2E 27/09/2026)."""
+    ptg = _ptg_2_san_pham(db)
+    d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
+    ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
+    [hop, _tem] = lsx_svc.tao(order_id=d.id, order_line_ids=ids, actor=admin)
+    _buoc_can_dao(db, hop)
+    for cd in hop.cong_doans:
+        cd.loai_buoc = "thue_ngoai"
+    db.commit()
+    assert "thieu_khuon" not in lsx_svc.thieu_cua(lsx_svc.get(hop.id))
+
+
 def test_tro_dao_roi_thi_het_thieu_khuon(db, orders, lsx_svc, admin, customer):
     from app.models.khuon_be import KhuonBe
 
