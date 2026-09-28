@@ -395,10 +395,15 @@ class XepLichLenhService:
 
         Cắt hai nhịp: SQL loại lệnh bắt đầu sau mép phải, rồi sau khi trải mới loại được lệnh kết
         thúc trước mép trái — `ket_thuc` không có cột nên SQL không biết nó.
+
+        Riêng lệnh ĐÃ XONG TRỌN (mọi bước đóng, dấu đóng trước mép trái) thì SQL biết chắc thanh của
+        nó kết thúc trước cửa sổ, nên loại luôn ở nhịp một (A7, 28/09/2026 — xem
+        `XepLichLenhRepository._xong_tron_truoc`). Không có vế đó, mỗi lượt vẽ bàn trải lại MỌI lệnh
+        từng xếp lịch từ ngày đầu dùng phần mềm chỉ để vứt đi.
         """
         d_tu = datetime.combine(tu, time.min)
         d_den = datetime.combine(den, time.max)
-        moc_rows = self.repo.truoc_moc(_aware(d_den))
+        moc_rows = self.repo.truoc_moc(_aware(d_den), tu=_aware(d_tu))
         lsx_map = self.repo.lsx_theo_ids([m.lsx_id for m in moc_rows])
         routing = self.repo.routing_theo_lo(list(lsx_map))
         self._nap_may(list(lsx_map))

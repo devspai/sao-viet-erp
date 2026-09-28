@@ -1,11 +1,12 @@
-# FILE COMPOSE DUY NHẤT của dự án: Postgres + Redis + MinIO + FastAPI backend + nginx + Caddy.
-# (`docker-compose.yml` bản dev đã bỏ — nó khai trùng redis/minio; dev thật chạy `./dev.ps1`
-# với uvicorn + vite trên máy, DB SQLite, không cần compose.)
+# FILE COMPOSE DUY NHẤT của dự án: Postgres + Redis + MinIO + FastAPI backend + nginx + Caddy
+# (+ service sao lưu). Bản compose dev riêng đã bỏ — nó khai trùng redis/minio. Máy dev dựng hạ tầng
+# (db/redis/minio) bằng CHÍNH file này, còn backend + frontend chạy ngoài bằng `./dev.ps1`.
 #
-#   Caddy (TLS, :80/:443) ─▶ web (nginx, build FE) ─/api─▶ backend (uvicorn :8000)
+#   Caddy (TLS, :80/:443) ─▶ web (nginx, build FE) ─/api─▶ backend (uvicorn :8000, nhiều worker)
 #                                                            ├─▶ db     (Postgres — dữ liệu)
 #                                                            ├─▶ redis  (pub/sub SSE + khoá)
 #                                                            └─▶ minio  (kho file)
+#   backup (hằng ngày) ─▶ pg_dump db + rclone minio ─▶ volume `backups` (+ đích ngoài VPS nếu khai)
 #
 # LỆNH DUY NHẤT, MỌI MÔI TRƯỜNG:
 #
@@ -27,24 +28,47 @@
 # service đang tắt. Đã thử thật:
 #   db | redis | minio  → chạy lẻ được
 #   backend             → phải kèm db, redis, minio  (chờ cả 3 healthy)
-#   web                 → phải kèm backend + 3 cái trên (nginx phân giải `backend` LÚC KHỞI ĐỘNG)
+#   web                 → phải kèm backend + 3 cái trên (`depends_on` chờ backend healthy)
 #   caddy               → phải kèm web + chuỗi trên
-# Nghĩa là hai bộ COMPOSE_PROFILES ở trên là hai tổ hợp hợp lệ; đừng cắt lưng chừng.
+#   backup              → phải kèm db + minio (sao lưu hằng ngày, xem deploy/backup/khoi-phuc.md)
+# Nghĩa là hai bộ COMPOSE_PROFILES ở trên là hai tổ hợp hợp lệ (bộ triển khai thêm `backup`);
+# đừng cắt lưng chừng.
 #
 # Bí mật đọc từ `.env` cùng thư mục (KHÔNG commit). Bản mẫu duy nhất trong git: `.env.example`.
 name: erp-svn                          # COMPOSE_PROJECT_NAME trong .env ghi đè được
+
+# Log Docker mặc định KHÔNG giới hạn dung lượng: một service log dày (Postgres ghi câu chậm, backend
+# lỗi lặp) lấp đầy đĩa là Postgres chết theo. Mọi service gắn neo này: tối đa 5 tệp × 20MB.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
 
 services:
   db:
     profiles: ["db"]
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *logging
+    # Tự chỉnh shared_buffers/work_mem/… theo RAM container rồi mới exec entrypoint gốc của image
+    # (xem đầu tệp deploy/postgres/tu-chinh.sh). initdb lần đầu, POSTGRES_* … giữ nguyên hành vi.
+    entrypoint: ["sh", "/tu-chinh.sh"]
+    # /dev/shm mặc định của Docker chỉ 64MB — Postgres dùng nó cho truy vấn song song, thiếu thì
+    # lỗi "could not resize shared memory segment".
+    shm_size: 256mb
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # PHẢI khớp PG_MAX_CONNECTIONS của backend (cùng một biến trong .env) — backend chia ngân sách
+      # kết nối này cho các worker.
+      PG_MAX_CONNECTIONS: ${PG_MAX_CONNECTIONS:-200}
+      # Ghi log câu SQL chạy lâu hơn N ms (-1 = tắt).
+      PG_LOG_CHAM_MS: ${PG_LOG_CHAM_MS:-1000}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/tu-chinh.sh:/tu-chinh.sh:ro
     ports:
       # CHỈ loopback — không ra Internet. Cần có để backend chạy NGOÀI container (./dev.ps1)
       # nối được vào. 5433 chứ không phải 5432: máy dev thường đã cài sẵn Postgres, và trên
@@ -60,6 +84,7 @@ services:
     profiles: ["redis"]
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *logging
     # Không bật persistence: Redis ở đây CHỈ làm pub/sub SSE + khoá chống chạy trùng, mất sạch
     # khi restart cũng không sao (badge tự lành qua notify-summary, khoá tự hết hạn theo TTL).
     command: ["redis-server", "--save", "", "--appendonly", "no"]
@@ -76,8 +101,15 @@ services:
 
   minio:
     profiles: ["minio"]
-    image: minio/minio
+    # CẢNH BÁO (kiểm 28/09/2026): MinIO đã GỠ repo `minio/minio` khỏi Docker Hub (404), quay.io thì
+    # đòi đăng nhập — image này chỉ còn chạy được vì VPS đã có sẵn trong cache. VPS mới, hoặc lỡ
+    # `docker image prune -a` / `docker rmi`, sẽ KHÔNG kéo lại được. GIỮ đúng tên tag cũ, KHÔNG ghim
+    # digest: bản trong cache VPS có thể khác digest của máy dev, ghim digest là compose đi kéo bản
+    # không tồn tại và deploy chết. Đổi nguồn image thì đặt MINIO_IMAGE trong .env — xem
+    # docs/DEPLOY.md mục "Image MinIO".
+    image: ${MINIO_IMAGE:-minio/minio}
     restart: unless-stopped
+    logging: *logging
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -102,6 +134,26 @@ services:
     profiles: ["backend"]
     build: ./backend
     restart: unless-stopped
+    logging: *logging
+    # SIGTERM → uvicorn đóng kết nối (kể cả SSE) rồi thoát; quá 15s mới bị SIGKILL. Mặc định 10s
+    # hay cắt ngang request dài đang chạy dở.
+    stop_grace_period: 15s
+    # `healthy` = app đã migrate/seed xong và đang trả /api/health. `web` chờ trạng thái này, và
+    # deploy.yml cũng chờ nó. Image python:3.11-slim không có curl nên gọi bằng urllib.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      # Khởi động có chạy migrate + seed rồi mới bật worker: trong 180s đầu kiểm hỏng chưa tính là
+      # unhealthy (lên sớm thì healthy ngay ở lần kiểm kế tiếp). Đã đo trên DB trắng + máy đang tải:
+      # ~100s mới trả /api/health — để 60s thì `up` bỏ cuộc giữa chừng ("dependency failed").
+      # (Không dùng `start_interval`: cần Docker Engine ≥ 25, VPS cũ hơn sẽ từ chối cả project.)
+      start_period: 180s
     depends_on:
       db:
         condition: service_healthy
@@ -131,6 +183,26 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: ${MINIO_BUCKET:-svn-files}
+      # --- Tự co giãn theo máy (backend/app/tai_nguyen.py + app/serve.py) ---
+      # Mặc định dưới đây = mặc định trong backend/app/config.py; chỉ đặt trong .env khi muốn chốt
+      # tay. Không được để RỖNG: backend đọc là số, chuỗi rỗng làm nó từ chối khởi động.
+      # 0 = tự tính số worker uvicorn theo CPU/RAM container (2×CPU, trần theo RAM và 8).
+      # Không có REDIS_URL thì backend tự ép 1 worker (SSE in-process).
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-0}
+      # Ngân sách kết nối Postgres CHUNG cho mọi worker — PHẢI bằng max_connections của service db
+      # (cùng biến này, xem deploy/postgres/tu-chinh.sh).
+      PG_MAX_CONNECTIONS: ${PG_MAX_CONNECTIONS:-200}
+      # 0 / -1 = tự chia từ PG_MAX_CONNECTIONS theo số worker; số dương = chốt tay mỗi worker.
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-0}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:--1}
+      # Chờ lấy kết nối DB tối đa N giây rồi báo lỗi.
+      DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-10}
+      # Postgres huỷ câu SQL chạy quá N ms (0 = tắt). Khớp proxy_read_timeout 120s của nginx.
+      DB_STATEMENT_TIMEOUT_MS: ${DB_STATEMENT_TIMEOUT_MS:-120000}
+      # Số request chạy cùng lúc mỗi worker (0 = pool + overflow − 2); dư thì xếp hàng, quá
+      # CHO_HANG_DOI_GIAY giây thì trả 503 "máy chủ đang bận".
+      MAX_REQUEST_DONG_THOI: ${MAX_REQUEST_DONG_THOI:-0}
+      CHO_HANG_DOI_GIAY: ${CHO_HANG_DOI_GIAY:-30}
     expose:
       - "8000"                           # chỉ nội bộ; nginx proxy vào
     # KHÔNG còn volume cho /app/static: file người dùng nằm ở MinIO, không nằm trên đĩa container.
@@ -146,8 +218,14 @@ services:
         # Dùng ${VAR-} (một gạch) để giá trị RỖNG cố ý vẫn được giữ, không bị thay bằng default.
         VITE_API_BASE_URL: ${VITE_API_BASE_URL-}
     restart: unless-stopped
+    logging: *logging
+    # nginx phân giải `backend` qua DNS của Docker lúc có request (resolver trong nginx.conf), nên
+    # backend đổi IP khi deploy cũng không sao. Vẫn chờ backend healthy để lần dựng đầu không trả
+    # 503 cho người vào sớm; `restart: true` = compose khởi động lại backend thì web khởi động theo.
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+        restart: true
     expose:
       - "80"                             # Caddy CÙNG project gọi thẳng `web:80`
     ports:
@@ -168,6 +246,7 @@ services:
     profiles: ["caddy"]
     image: caddy:2-alpine
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - web
     ports:
@@ -189,8 +268,59 @@ services:
       - caddy_data:/data                 # lưu chứng chỉ TLS (đừng xoá)
       - caddy_config:/config
 
+  # Sao lưu hằng ngày Postgres (pg_dump) + MinIO (rclone) vào volume `backups`. Cách đọc kết quả và
+  # khôi phục: deploy/backup/khoi-phuc.md. Chạy tay một lượt:
+  #   docker compose exec backup sao-luu.sh ngay
+  #
+  # LƯU Ý: volume `backups` nằm CÙNG ổ đĩa với pgdata/miniodata — chỉ chống xoá nhầm/hỏng dữ liệu
+  # logic, KHÔNG chống được hỏng ổ đĩa hay mất VPS. Phải đặt BACKUP_RCLONE_DICH (+ khai thông tin
+  # đích trong `.env.backup`) mới có bản sao ngoài VPS.
+  backup:
+    profiles: ["backup"]
+    build: ./deploy/backup
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    # Thông tin đăng nhập đích ngoài VPS (RCLONE_CONFIG_DICH_*), tách khỏi `.env` chính. Không có
+    # tệp thì bỏ qua (chỉ lưu tại chỗ).
+    env_file:
+      - path: ./.env.backup
+        required: false
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      BACKUP_GIO: ${BACKUP_GIO:-02:00}
+      BACKUP_GIU_NGAY: ${BACKUP_GIU_NGAY:-14}
+      # RỖNG = chỉ lưu tại chỗ. Vd `dich:svn-backup/prod` (remote `dich` khai trong .env.backup).
+      BACKUP_RCLONE_DICH: ${BACKUP_RCLONE_DICH:-}
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      # Remote rclone `minio:` khai hoàn toàn bằng biến môi trường, không cần tệp cấu hình.
+      RCLONE_CONFIG_MINIO_TYPE: s3
+      RCLONE_CONFIG_MINIO_PROVIDER: Minio
+      RCLONE_CONFIG_MINIO_ENDPOINT: http://minio:9000
+      RCLONE_CONFIG_MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      RCLONE_CONFIG_MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      RCLONE_CONFIG_MINIO_ENV_AUTH: "false"
+    volumes:
+      - backups:/backups
+    # unhealthy khi lượt cuối LỖI hoặc đã quá 26 giờ không có lượt nào (deploy/backup/kiem-tra.sh).
+    healthcheck:
+      test: ["CMD", "kiem-tra.sh"]
+      interval: 10m
+      timeout: 10s
+      retries: 1
+      start_period: 30s
+
 volumes:
   pgdata:
   miniodata:
   caddy_data:
   caddy_config:
+  backups:

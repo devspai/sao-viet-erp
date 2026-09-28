@@ -31,6 +31,7 @@ from ..deps import (
 from ..models.payroll import PERIOD_DRAFT
 from ..models.user import User
 from ..models.role import SCOPE_ALL
+from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
 from ..services.payroll_component_service import (
     ComponentError,
@@ -343,8 +344,9 @@ def _adv_out(advs, employees: EmployeeRepository,
 
 
 def _notify_advance_pending(name: str | None) -> None:
-    """Có đề nghị tạm ứng mới/đổi → tín hiệu mọi client refetch badge (người duyệt nhận)."""
-    hub.broadcast({"type": "advance_pending_changed", "code": name})
+    """Có đề nghị tạm ứng mới/đổi → người xem màn nhân sự refetch badge (người duyệt nhận).
+    Nhóm `nhan_su`: badge Lương + tab Tạm ứng; người đề nghị nhận kết quả qua `advance_decision`."""
+    hub.gui({"type": "advance_pending_changed", "code": name}, quyen=MAN_NHAN_SU)
 
 
 def _notify_advance_decisions(advs, employees: EmployeeRepository, decision: str) -> None:

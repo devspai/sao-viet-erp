@@ -22,6 +22,9 @@ CHI PHÍ PHẢI BIẾT, vì đây là chỗ sẽ phải vá trước tiên khi x
 đã phát hành trong phạm vi (trừ phần `q`/ngày/máy/nhóm cắt bớt), và tập đó CHỈ TĂNG theo thời gian
 — vòng đời `lsx` hôm nay dừng ở `da_phat_hanh`, không có trạng thái "đã đóng" nào để lọc ra. Một
 xưởng chạy 50 lệnh/tháng sau hai năm có ~1.200 dòng tầng 1 cho MỖI request.
+ĐÃ VÁ MỘT NỬA (A7, 28/09/2026): tầng 1 vẫn trả đủ ID (rẻ — một cột), nhưng chỉ lệnh CÒN SỐNG đi
+qua `_soi`; lệnh ĐÃ GIAO HẾT được xếp tab từ hai con số (`_tach_da_giao_het`) và chỉ nạp khi rơi
+vào trang đang xem. Còn đi đường cũ (nạp cả lịch sử): bộ lọc `tre` — xem chú thích tại chỗ.
 
 SỐ CÂU SQL — nói cho đúng, vì câu nói gọn ở đây từng là một khẳng định SAI: hằng số theo số LỆNH
 (bài `test_so_cau_sql_hang_tren_truc_lenh` khoá), nhưng TUYẾN TÍNH theo số BÀI GHÉP tồn tại trong
@@ -88,6 +91,7 @@ from ...models.lsx import Lsx, LsxCongDoan
 from ...models.may_thiet_bi import MayThietBi
 from ...models.order import Order
 from ...models.san_xuat import CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG, SanXuatCongViec
+from ...repositories.lenh_sx_doc_repo import LenhNhe, LenhSxDocRepository
 from . import boi_canh, pham_vi, tien_do, trang_thai
 from .boi_canh import BoiCanh
 
@@ -424,7 +428,7 @@ def _dong(bc: BoiCanh, lsx_id: int, tinh: dict, bay_gio: datetime) -> dict:
     }
 
 
-def _khoa_sap(bc: BoiCanh, lsx_id: int) -> tuple:
+def _khoa_sap(lsx: LenhNhe) -> tuple:
     """Thứ tự mặc định: GẤP trước · hạn SX gần trước · mã lệnh.
 
     Sắp ở Python chứ không `ORDER BY`: tập đã nằm sẵn trong bộ nhớ (tầng 2 phải duyệt hết để đếm
@@ -433,9 +437,29 @@ def _khoa_sap(bc: BoiCanh, lsx_id: int) -> tuple:
 
     Mã lệnh đứng cuối khoá để thứ tự TOÀN PHẦN: hai lệnh cùng độ gấp cùng hạn mà không có nấc phân
     giải cuối thì trang 1 và trang 2 có quyền chồng nhau.
+
+    Nhận `LenhNhe` (ba cột phẳng) chứ không `bc.lenh[...]`: từ A7 lệnh đã giao hết KHÔNG qua
+    `boi_canh.nap()` nữa, nhưng vẫn phải đứng đúng chỗ trong tab Hoàn thành / Tất cả.
     """
-    lsx = bc.lenh[lsx_id]
     return (0 if lsx.is_rush else 1, lsx.han_hoan_thanh_sx or _NGAY_XA, lsx.ma or "")
+
+
+def _tach_da_giao_het(db: Session, ids: list[int]) -> tuple[dict[int, LenhNhe], set[int]]:
+    """`(cột nhẹ của MỌI lệnh, tập lệnh ĐÃ GIAO HẾT)` — MỘT câu SQL, không nạp đối tượng con nào.
+
+    Đây là cửa "lọc còn sống" của A7 (28/09/2026). Lệnh đã giao hết CHẮC CHẮN ra `TAB_HOAN_THANH`
+    — luật số 1 của `trang_thai_chinh`, ăn trước mọi nhánh, không đọc gì ngoài hai con số này — nên
+    xếp tab cho nó không cần `boi_canh.nap()` lẫn `can_doi()`. Phán quyết đi qua ĐÚNG
+    `trang_thai.giao_du` (lõi của `_da_giao_het`), và `da_giao` cộng y câu 11b của `boi_canh`: tập
+    này là tập CON chính xác của những lệnh `_soi` sẽ xếp vào Hoàn thành, không rộng hơn một lệnh.
+
+    Vì sao đây là thứ cần cắt: vòng đời `lsx` dừng ở `da_phat_hanh`, không có trạng thái "đã đóng"
+    — lệnh giao xong từ năm ngoái vẫn nằm trong tầng 1 mãi mãi (xem "CHI PHÍ PHẢI BIẾT" ở docstring
+    module). Phần CÒN SỐNG thì không phình theo tuổi dữ liệu.
+    """
+    nhe = LenhSxDocRepository(db).lenh_nhe(ids)
+    xong = {i for i, l in nhe.items() if trang_thai.giao_du(l.so_luong_dat, l.da_giao)}
+    return nhe, xong
 
 
 def danh_sach(
@@ -472,24 +496,42 @@ def danh_sach(
             )
         ).scalars()
     )
-    bc, tinh = _soi(db, ids, bay_gio)
+    # A7 — chỉ lệnh CÒN SỐNG đi qua lượt nạp nặng; lệnh đã giao hết biết chắc tab của nó từ hai con
+    # số (xem `_tach_da_giao_het`). NGOẠI LỆ: bộ lọc `tre` hỏi `tien_do.tre_han`, mà cờ đó có nghĩa
+    # cả với lệnh đã giao ("xong trễ hạn") và cần công việc + phiên của nó ⇒ khi lọc `tre` thì nạp
+    # đủ như cũ. Đó là lựa chọn chủ động của người dùng, không phải đường mặc định của màn.
+    nhe, da_giao_het = _tach_da_giao_het(db, ids)
+    if tre is not None:
+        da_giao_het = set()
+    bc, tinh = _soi(db, [i for i in ids if i not in da_giao_het], bay_gio)
+
+    def tt(i: int) -> str:
+        return tinh[i]["trang_thai"] if i in tinh else trang_thai.TAB_HOAN_THANH
 
     if tre is not None:
         ids = [i for i in ids if tinh[i]["tre"] is tre]
 
     dem = {t: 0 for t in trang_thai.TAB_CHINH}
     for i in ids:
-        dem[tinh[i]["trang_thai"]] += 1
+        dem[tt(i)] += 1
     dem[TAB_TAT_CA] = len(ids)
 
     if tab and tab != TAB_TAT_CA:
-        ids = [i for i in ids if tinh[i]["trang_thai"] == tab]
+        ids = [i for i in ids if tt(i) == tab]
 
-    ids.sort(key=lambda i: _khoa_sap(bc, i))
+    ids.sort(key=lambda i: _khoa_sap(nhe[i]))
     dau = (page - 1) * page_size
     trang = ids[dau:dau + page_size]
+    # Lệnh đã giao hết rơi vào TRANG đang xem (tab Hoàn thành / Tất cả) thì mới nạp — đúng số dòng
+    # của trang, không phải cả lịch sử. Dòng của nó vẫn cần đủ bối cảnh (dải chặng, người, cờ cảnh
+    # báo…) như mọi dòng khác, nên đi qua CHÍNH `_soi`, không dựng tắt.
+    bc_trang, tinh_trang = _soi(db, [i for i in trang if i not in tinh], bay_gio)
     return {
-        "items": [_dong(bc, i, tinh[i], bay_gio) for i in trang],
+        "items": [
+            _dong(bc, i, tinh[i], bay_gio) if i in tinh
+            else _dong(bc_trang, i, tinh_trang[i], bay_gio)
+            for i in trang
+        ],
         "total": len(ids),
         "page": page,
         "page_size": page_size,
@@ -593,6 +635,16 @@ def summary(
     dau, cuoi = _ngay_xuong(bay_gio)
 
     ids = list(db.execute(pham_vi.loc_lsx_da_phat_hanh(select(Lsx.id), sale_ids)).scalars())
+    # A7 — lệnh đã giao hết không góp gì vào `dang_sx`/`du_kien_tre` (cả hai đòi khác Hoàn thành).
+    # Nó CHỈ còn góp được vào hai KPI "hôm nay" nếu có công việc đóng / batch KCS kết thúc trong
+    # ngày — nên giữ lại đúng những lệnh đó (câu SQL chặn mép trái, lùi thêm MỘT NGÀY cho khỏi vướng
+    # múi giờ: lọt thừa thì vòng dưới tự loại, còn sót là KPI hụt âm thầm). Mép so bằng UTC thật —
+    # SQLite cất giờ không kèm múi, ném mốc +7 vào là lệch 7 tiếng.
+    _nhe, da_giao_het = _tach_da_giao_het(db, ids)
+    con_hoat_dong = LenhSxDocRepository(db).lenh_co_viec_tu(
+        sorted(da_giao_het), (dau - timedelta(days=1)).astimezone(timezone.utc),
+    )
+    ids = [i for i in ids if i not in da_giao_het or i in con_hoat_dong]
     bc, tinh = _soi(db, ids, bay_gio)
 
     dang_sx = du_kien_tre = 0

@@ -1174,13 +1174,15 @@ class LsxService:
 
     # ================= HÀNG CHỜ =================
 
-    def hang_cho(self, *, page: int = 1, size: int = 50) -> tuple[list[dict], int]:
+    def hang_cho(self, *, page: int = 1, size: int = 50,
+                 chi_dem: bool = False) -> tuple[list[dict], int]:
         """`(đơn của TRANG này, TỔNG số đơn còn nợ lệnh)`.
 
         Điều kiện "còn dòng chưa lên lệnh" đã chuyển xuống SQL (`repo.orders_ban_giao`) — ở đây
-        chỉ còn đếm để HIỆN "x/y dòng đã lên lệnh".
+        chỉ còn đếm để HIỆN "x/y dòng đã lên lệnh". `chi_dem` ⇒ chỉ đếm (badge menu): `([], total)`,
+        không nạp dòng đơn / tên khách / tên sale.
         """
-        orders, total = self.repo.orders_ban_giao(page=page, size=size)
+        orders, total = self.repo.orders_ban_giao(page=page, size=size, chi_dem=chi_dem)
         if not orders:
             return [], total
         line_ids = [ln.id for o in orders for ln in o.lines]

@@ -5,6 +5,7 @@
 // Hình dạng kết quả nhập Excel là CHUNG cho mọi màn (13 danh mục + Hồ sơ nhân sự) nên khai một
 // chỗ ở `rebuildCatalog`. `import type` ⇒ TS xoá lúc build, không đẻ vòng import lúc chạy.
 import type { ImportExcelOut } from "./rebuildCatalog";
+import { laAnhCanNen, nenNeuLaAnh } from "../lib/anhNen";
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(
   /\/$/,
@@ -72,33 +73,164 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  let resp: Response;
-  try {
-    // Let the browser set the multipart boundary itself for FormData (avatar upload);
-    // force JSON otherwise.
-    const isForm = init.body instanceof FormData;
-    resp = await fetch(`${BASE_URL}${path}`, {
-      ...init,
-      // Send/receive the httpOnly refresh cookie (spec-03). Requires the backend to
-      // allow credentials with a specific origin (never "*").
-      credentials: "include",
-      headers: {
-        ...(isForm ? {} : { "Content-Type": "application/json" }),
-        ...(init.headers ?? {}),
-      },
-    });
-  } catch {
-    throw new ApiError("Cannot reach the server. Check your connection and try again.", 0);
-  }
+/** Tuỳ chọn thêm của một lượt gọi, ngoài `RequestInit` chuẩn. */
+export interface TuyChonGoi extends RequestInit {
+  /** Thời hạn chờ (ms), ghi đè mặc định: GET 20 s · ghi 60 s · gửi tệp (FormData) 180 s. */
+  timeoutMs?: number;
+  /** `true` = gửi ảnh trong FormData NGUYÊN BẢN, không tự nén (vd bản quét cần giữ độ nét). */
+  giuNguyenAnh?: boolean;
+}
 
-  if (!resp.ok) {
-    const { text, raw } = await safeDetail(resp);
-    throw new ApiError(text ?? `Request failed (${resp.status}).`, resp.status, raw);
-  }
+// Thời hạn chờ mặc định. Không có hạn thì một kết nối nửa-mở (điện thoại đổi Wi-Fi sang 4G, proxy
+// giữ socket chết) treo màn "Đang tải…" tới khi người dùng F5 — và F5 hàng loạt lại dồn thêm tải.
+const HAN_DOC_MS = 20_000;
+const HAN_GHI_MS = 60_000;
+const HAN_GUI_TEP_MS = 180_000;
+/** GET tự thử lại tối đa ngần này lần khi mất mạng / 502 / 503 / 504 (máy chủ khởi động lại, quá tải). */
+const SO_LAN_THU_LAI_GET = 2;
+/** Trần thời gian chờ theo `Retry-After`: máy chủ xin chờ lâu hơn thì thà báo lỗi để người dùng tự bấm lại. */
+const TRAN_RETRY_AFTER_MS = 5_000;
 
-  if (resp.status === 204) return undefined as T;
-  return (await resp.json()) as T;
+const LOI_HET_GIO = "Máy chủ phản hồi quá lâu, vui lòng thử lại.";
+const LOI_MAT_MANG = "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.";
+const LOI_KHONG_HOP_LE = "Máy chủ trả dữ liệu không hợp lệ (có thể mạng Wi-Fi đang chặn).";
+
+/** Câu lỗi mặc định khi máy chủ không kèm `detail` đọc được. */
+function loiMacDinh(status: number): string {
+  if (status === 0) return LOI_MAT_MANG;
+  if (status === 413) return "Tệp quá lớn.";
+  // Giữ mã trong câu: người báo lỗi đọc lại được cho người sửa (500 = lỗi code, 503 = quá tải).
+  if (status >= 500) return `Máy chủ đang bận hoặc khởi động lại (mã ${status}), vui lòng thử lại.`;
+  return `Yêu cầu thất bại (mã ${status}).`;
+}
+
+/** Thời gian chờ trước lượt thử lại thứ `lan` (0-based): 500 ms·2^n + ngẫu nhiên 0–300 ms để các tab
+ *  không cùng nhịp đập vào máy chủ vừa dậy. Máy chủ gửi `Retry-After` (giây) thì theo nó, trần 5 s. */
+function thoiGianCho(lan: number, retryAfter: string | null | undefined): number {
+  const jitter = Math.random() * 300;
+  const giay = retryAfter != null && retryAfter !== "" ? Number(retryAfter) : NaN;
+  if (Number.isFinite(giay) && giay >= 0) return Math.min(giay * 1000, TRAN_RETRY_AFTER_MS) + jitter;
+  return 500 * 2 ** lan + jitter;
+}
+
+function cho(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((ok, loi) => {
+    if (signal?.aborted) {
+      loi(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const hen = setTimeout(() => {
+      signal?.removeEventListener("abort", huy);
+      ok();
+    }, ms);
+    const huy = () => {
+      clearTimeout(hen);
+      loi(new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", huy, { once: true });
+  });
+}
+
+/** Mọi File ảnh trong FormData lớn hơn ngưỡng được thay bằng bản nén (ảnh chụp điện thoại 4–8 MB →
+ *  vài trăm KB). Không có ảnh nào cần nén thì trả lại CHÍNH form cũ. Nén hỏng (HEIC trình duyệt
+ *  không đọc được…) thì giữ nguyên tệp gốc — không bao giờ chặn người dùng. */
+async function nenAnhTrongForm(form: FormData): Promise<FormData> {
+  const muc = Array.from(form.entries());
+  const canNen = muc.some(([, v]) => typeof v !== "string" && laAnhCanNen(v as File));
+  if (!canNen) return form;
+  const moi = new FormData();
+  for (const [k, v] of muc) {
+    if (typeof v === "string") {
+      moi.append(k, v);
+      continue;
+    }
+    const tep = await nenNeuLaAnh(v as File);
+    moi.append(k, tep, tep.name);
+  }
+  return moi;
+}
+
+type KetQuaLuot<T> = { xong: true; giaTri: T } | { xong: false; choMs: number };
+
+async function request<T>(path: string, init: TuyChonGoi = {}): Promise<T> {
+  const { timeoutMs, giuNguyenAnh, ...rest } = init;
+  const method = (rest.method ?? "GET").toUpperCase();
+  const isForm = typeof FormData !== "undefined" && rest.body instanceof FormData;
+  const body = isForm && !giuNguyenAnh ? await nenAnhTrongForm(rest.body as FormData) : rest.body;
+  const han =
+    timeoutMs ?? (isForm ? HAN_GUI_TEP_MS : method === "GET" || method === "HEAD" ? HAN_DOC_MS : HAN_GHI_MS);
+  // CHỈ thử lại lượt ĐỌC. Lượt ghi (POST/PUT/PATCH/DELETE) có thể đã tới máy chủ và ghi xong rồi mới
+  // rớt phản hồi — tự gửi lại là ghi hai lần (chấm công, mẻ sản lượng…).
+  const thuLaiDuoc = method === "GET" || method === "HEAD";
+  const ngoai = rest.signal ?? null;
+
+  const motLuot = async (lan: number): Promise<KetQuaLuot<T>> => {
+    const ctl = new AbortController();
+    let hetGio = false;
+    const hen = setTimeout(() => {
+      hetGio = true;
+      ctl.abort();
+    }, han);
+    const huyTheoNgoai = () => ctl.abort();
+    if (ngoai) {
+      if (ngoai.aborted) ctl.abort();
+      else ngoai.addEventListener("abort", huyTheoNgoai, { once: true });
+    }
+    try {
+      let resp: Response;
+      try {
+        resp = await fetch(`${BASE_URL}${path}`, {
+          ...rest,
+          body,
+          signal: ctl.signal,
+          // Send/receive the httpOnly refresh cookie (spec-03). Requires the backend to
+          // allow credentials with a specific origin (never "*").
+          credentials: "include",
+          // Let the browser set the multipart boundary itself for FormData; force JSON otherwise.
+          headers: {
+            ...(isForm ? {} : { "Content-Type": "application/json" }),
+            ...(rest.headers ?? {}),
+          },
+        });
+      } catch (err) {
+        if (hetGio) throw new ApiError(LOI_HET_GIO, 0);
+        if (ngoai?.aborted) throw err; // nơi gọi tự huỷ — trả nguyên AbortError cho nó nhận ra
+        if (thuLaiDuoc && lan < SO_LAN_THU_LAI_GET) return { xong: false, choMs: thoiGianCho(lan, null) };
+        throw new ApiError(LOI_MAT_MANG, 0);
+      }
+
+      if (!resp.ok) {
+        if (
+          thuLaiDuoc &&
+          lan < SO_LAN_THU_LAI_GET &&
+          (resp.status === 502 || resp.status === 503 || resp.status === 504)
+        ) {
+          return { xong: false, choMs: thoiGianCho(lan, resp.headers?.get?.("Retry-After")) };
+        }
+        const { text, raw } = await safeDetail(resp);
+        throw new ApiError(text ?? loiMacDinh(resp.status), resp.status, raw);
+      }
+
+      if (resp.status === 204) return { xong: true, giaTri: undefined as T };
+      try {
+        return { xong: true, giaTri: (await resp.json()) as T };
+      } catch (err) {
+        if (hetGio) throw new ApiError(LOI_HET_GIO, 0);
+        if (ngoai?.aborted) throw err;
+        // 2xx mà thân không phải JSON: thường là trang đăng nhập của Wi-Fi công cộng / proxy chặn.
+        throw new ApiError(LOI_KHONG_HOP_LE, 0);
+      }
+    } finally {
+      clearTimeout(hen);
+      ngoai?.removeEventListener("abort", huyTheoNgoai);
+    }
+  };
+
+  for (let lan = 0; ; lan++) {
+    const kq = await motLuot(lan);
+    if (kq.xong) return kq.giaTri;
+    await cho(kq.choMs, ngoai);
+  }
 }
 
 async function safeDetail(resp: Response): Promise<{ text: string | null; raw: unknown }> {
@@ -107,7 +239,7 @@ async function safeDetail(resp: Response): Promise<{ text: string | null; raw: u
     const detail = (body as { detail?: unknown }).detail;
     if (typeof detail === "string") return { text: detail, raw: detail };
     // 422 của FastAPI trả `detail` là MẢNG `{loc, msg}`, không phải chuỗi. Trước 15/08/2026 nhánh
-    // này không tồn tại ⇒ mọi lỗi kiểm dữ liệu của CẢ APP rơi về câu chung "Request failed (422)."
+    // này không tồn tại ⇒ mọi lỗi kiểm dữ liệu của CẢ APP rơi về câu chung "Yêu cầu thất bại (mã 422)."
     // Không nói trường nào sai thì người dùng chỉ biết bấm lại, còn người sửa code phải dựng lại
     // thân request rồi bắn thử từng cái để đoán — đã mất hai lượt vì đúng chỗ này.
     if (Array.isArray(detail) && detail.length > 0) {
@@ -142,8 +274,21 @@ async function safeDetail(resp: Response): Promise<{ text: string | null; raw: u
   return { text: null, raw: undefined };
 }
 
+// --- Token mới nhất ---------------------------------------------------------
+// Access token xoay mỗi 15 phút. Trước đây mỗi lần xoay AuthContext `setToken` ⇒ ~68 effect phụ
+// thuộc `[token]` chạy lại đồng loạt (kênh SSE đóng/mở, nạp lại quyền, badge, dữ liệu màn đang mở)
+// — với vài trăm tab là một cơn bão request mỗi 15 phút. Nay token xoay chỉ nằm ở biến này; token
+// trong React giữ nguyên danh tính (đổi khi đăng nhập / khôi phục phiên), còn mọi request đều
+// mang token MỚI NHẤT qua `authHeader`.
+let tokenMoiNhat: string | null = null;
+
+/** Token truy cập mới nhất (sau lượt làm mới ngầm gần nhất). `null` = chưa đăng nhập / đã hết phiên. */
+export function layTokenMoiNhat(): string | null {
+  return tokenMoiNhat;
+}
+
 function authHeader(token: string): Record<string, string> {
-  return { Authorization: `Bearer ${token}` };
+  return { Authorization: `Bearer ${tokenMoiNhat ?? token}` };
 }
 
 /** Khuôn CHUNG của mọi endpoint danh sách có phân trang.
@@ -175,7 +320,7 @@ function qs(params?: Record<string, string | number | boolean | undefined | null
   return text ? `?${text}` : "";
 }
 
-export async function authed<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
+export async function authed<T>(path: string, token: string, init: TuyChonGoi = {}): Promise<T> {
   try {
     return await request<T>(path, {
       ...init,
@@ -215,6 +360,8 @@ export function registerAuthCallbacks(cb: {
 
 /** Khoá Web Locks dùng chung mọi tab cùng origin. */
 const REFRESH_LOCK = "svn-auth-refresh";
+/** Hạn chờ riêng của lượt /refresh (ngắn hơn hạn ghi 60 s mặc định) — xem `refreshSession`. */
+const HAN_LAM_MOI_MS = 15_000;
 
 /** Đổi refresh cookie lấy phiên mới — ĐƯỜNG DUY NHẤT gọi `/api/auth/refresh`.
  *
@@ -229,17 +376,21 @@ const REFRESH_LOCK = "svn-auth-refresh";
 export function refreshSession(): Promise<LoginResponse | null> {
   if (!refreshInFlight) {
     const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
-    const goi = () => api.refresh();
+    // Hạn 15 s: lượt này chạy BÊN TRONG Web Lock dùng chung mọi tab — treo không hạn là mọi tab của
+    // trình duyệt đó đứng theo, không tab nào làm mới được phiên.
+    const goi = () => api.refresh(HAN_LAM_MOI_MS);
     // `await` để gỡ tầng Promise lồng: kiểu của `locks.request` là Promise<T> với T = Promise<...>.
     const chay = async (): Promise<LoginResponse> =>
       locks ? await locks.request(REFRESH_LOCK, goi) : goi();
     refreshInFlight = chay()
       .then((res) => {
+        tokenMoiNhat = res.access_token;
         onAccessToken(res.access_token);
         return res;
       })
       .catch((err: unknown) => {
         if (!hetPhienThat(err)) throw err;
+        tokenMoiNhat = null;
         onSessionEnded();
         return null;
       })
@@ -361,6 +512,9 @@ export type QuoteEvent =
   // Quyền của CHÍNH người nhận vừa đổi (lưu ma trận vai của họ · gán/gỡ vai · đổi phòng). Không
   // mang nội dung quyền — nhận là hỏi lại `/api/auth/permissions`.
   | { type: "quyen_doi" }
+  // Hàng đợi sự kiện của CHÍNH kết nối này tràn (mạng chậm, tab ngủ) — máy chủ bỏ các sự kiện đang
+  // xếp, để lại đúng tín hiệu này. Nhận là làm như lúc kênh vừa nối lại: nạp lại badge + màn đang mở.
+  | { type: "dong_bo_lai" }
   // Sản xuất (Lát 1) dùng CHUNG kênh hub — tín hiệu NHẸ để hộp việc tổ refetch + "ting". Số chính
   // xác lấy qua to-badges/inbox (đã lọc scope server-side). `lenh_sx_routing` = có lệnh mới PHÁT
   // vào các tổ `to_ids`; `lenh_sx_assigned` = 1 thợ được gán (đích danh tới user).
@@ -2853,12 +3007,37 @@ export interface SxTepLenhNhom {
   items: LsxDinhKem[];
 }
 
-export function connectQuoteEvents(token: string, onEvent: (e: QuoteEvent) => void): () => void {
+/** Thời gian chờ trước lượt nối lại thứ `lan` (0-based): min(30 s, 1 s·2^n) + ngẫu nhiên 0–1 s.
+ *  Trước đây cố định 3 s không ngẫu nhiên ⇒ sau mỗi lần deploy mọi tab nối lại CÙNG NHỊP, đập vào
+ *  máy chủ đúng lúc nó vừa dậy. */
+export function choNoiLaiSse(lan: number): number {
+  return Math.min(30_000, 1_000 * 2 ** lan) + Math.random() * 1_000;
+}
+
+export function connectQuoteEvents(
+  token: string,
+  onEvent: (e: QuoteEvent) => void,
+  opts: {
+    /** Gọi mỗi lần NỐI LẠI thành công (không gọi lần nối đầu). Sự kiện bắn trong lúc đứt đã rơi mất
+     *  — nơi gọi dùng mốc này để nạp lại số đếm / dữ liệu màn đang mở cho khỏi lệch. */
+    onMo?: () => void;
+  } = {},
+): () => void {
   let closed = false;
   let controller: AbortController | null = null;
   let current = token;
+  let henCho: ReturnType<typeof setTimeout> | undefined;
+  let danhThuc: (() => void) | null = null;
+
+  const choTruocKhiNoi = (ms: number) =>
+    new Promise<void>((ok) => {
+      danhThuc = ok;
+      henCho = setTimeout(ok, ms);
+    });
 
   async function loop(): Promise<void> {
+    let lanLoi = 0;
+    let daMoLanNao = false;
     while (!closed) {
       controller = new AbortController();
       const ctl = controller;
@@ -2872,6 +3051,8 @@ export function connectQuoteEvents(token: string, onEvent: (e: QuoteEvent) => vo
       };
       try {
         kick();
+        // Token MỚI NHẤT (xoay ngầm mỗi 15 phút) — kênh không phải đóng/mở lại theo React nữa.
+        current = layTokenMoiNhat() ?? current;
         const resp = await fetch(`${BASE_URL}/api/quotations/events`, {
           headers: { ...authHeader(current), Accept: "text/event-stream" },
           credentials: "include",
@@ -2879,11 +3060,21 @@ export function connectQuoteEvents(token: string, onEvent: (e: QuoteEvent) => vo
           signal: controller.signal,
         });
         if (resp.status === 401) {
-          const fresh = await refreshAccessToken();
-          if (fresh) { current = fresh; continue; }  // thử lại ngay với token mới
-          break;                                     // session chết → dừng
+          // Làm mới rồi cũng CHỜ như mọi lượt hỏng: máy chủ vừa dậy mà trả 401 hàng loạt (token
+          // lệch) thì mọi tab không được cùng lúc quay lại ngay.
+          const fresh = await refreshAccessToken().catch(() => undefined);
+          if (fresh === null) break; // máy chủ từ chối phiên → dừng hẳn (đã báo hết phiên)
+          if (fresh) current = fresh;
+          throw new Error("SSE 401");
         }
         if (!resp.ok || !resp.body) throw new Error(`SSE ${resp.status}`);
+        // Nối được: reset nhịp chờ. Lần nối LẠI (không phải lần đầu) thì báo để nơi gọi bù phần
+        // sự kiện đã rơi trong lúc đứt.
+        lanLoi = 0;
+        if (daMoLanNao) {
+          try { opts.onMo?.(); } catch { /* lỗi của nơi gọi không được giết kênh */ }
+        }
+        daMoLanNao = true;
         const reader = resp.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
@@ -2906,17 +3097,23 @@ export function connectQuoteEvents(token: string, onEvent: (e: QuoteEvent) => vo
           }
         }
       } catch {
-        /* lỗi mạng/stream/abort-do-watchdog → reconnect sau backoff */
+        /* lỗi mạng/stream/abort-do-watchdog/401 → reconnect sau backoff */
       } finally {
         if (watchdog) clearTimeout(watchdog);
       }
       if (closed) break;
-      await new Promise((r) => setTimeout(r, 3000));  // backoff trước khi reconnect
+      await choTruocKhiNoi(choNoiLaiSse(lanLoi));
+      lanLoi += 1;
     }
   }
 
   void loop();
-  return () => { closed = true; controller?.abort(); };
+  return () => {
+    closed = true;
+    controller?.abort();
+    if (henCho) clearTimeout(henCho);
+    danhThuc?.();
+  };
 }
 
 // --- RBAC admin shapes ------------------------------------------------------
@@ -9793,7 +9990,7 @@ async function fetchNhiPhan(path: string, token: string): Promise<Response> {
     const fresh = await refreshAccessToken();
     if (fresh) resp = await doFetch(fresh);
   }
-  if (!resp.ok) throw new ApiError(`Download failed (${resp.status}).`, resp.status);
+  if (!resp.ok) throw new ApiError(`Tải tệp thất bại (mã ${resp.status}).`, resp.status);
   return resp;
 }
 
@@ -9969,6 +10166,9 @@ export const api = {
     return request<LoginResponse>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
+    }).then((res) => {
+      tokenMoiNhat = res.access_token;
+      return res;
     });
   },
 
@@ -9977,12 +10177,15 @@ export const api = {
   },
 
   /** Exchange the httpOnly refresh cookie for a new access token (rotates the cookie). */
-  refresh(): Promise<LoginResponse> {
-    return request<LoginResponse>("/api/auth/refresh", { method: "POST" });
+  refresh(timeoutMs?: number): Promise<LoginResponse> {
+    return request<LoginResponse>("/api/auth/refresh", { method: "POST", timeoutMs });
   },
 
   /** Revoke the refresh token server-side and clear the cookie. */
   logout(): Promise<void> {
+    // Xoá token mới nhất NGAY, không đợi máy chủ trả lời: lượt gọi đang bay sau đó mang token cũ
+    // của React (cũng sắp bị bỏ) chứ không mang token của phiên vừa thoát.
+    tokenMoiNhat = null;
     return request<void>("/api/auth/logout", { method: "POST" });
   },
 
@@ -10416,7 +10619,7 @@ export const api = {
         const fresh = await refreshAccessToken();
         if (fresh) resp = await doFetch(fresh);
       }
-      if (!resp.ok) throw new ApiError(`Export failed (${resp.status}).`, resp.status);
+      if (!resp.ok) throw new ApiError(`Xuất tệp thất bại (mã ${resp.status}).`, resp.status);
       const blob = await resp.blob();
       return URL.createObjectURL(blob);
     },
@@ -10620,6 +10823,10 @@ export const api = {
     careFollowups(token: string): Promise<{ items: FollowupRow[] }> {
       return authed<{ items: FollowupRow[] }>("/api/customers/care-followups", token);
     },
+    /** Chỉ ĐẾM việc chăm sóc đến hạn (badge menu) — khỏi tải cả danh sách để lấy `.length`. */
+    careFollowupsCount(token: string): Promise<{ so: number }> {
+      return authed<{ so: number }>("/api/customers/care-followups/count", token);
+    },
     // --- tài liệu đính kèm (#21) ---
     attachments(token: string, id: number): Promise<{ items: CustomerAttachment[] }> {
       return authed<{ items: CustomerAttachment[] }>(`/api/customers/${id}/attachments`, token);
@@ -10683,7 +10890,7 @@ export const api = {
         const fresh = await refreshAccessToken();
         if (fresh) resp = await doFetch(fresh);
       }
-      if (!resp.ok) throw new ApiError(`Export failed (${resp.status}).`, resp.status);
+      if (!resp.ok) throw new ApiError(`Xuất tệp thất bại (mã ${resp.status}).`, resp.status);
       return URL.createObjectURL(await resp.blob());
     },
     /** File mẫu .xlsx (blob URL) — RỖNG, chỉ dòng tiêu đề.
@@ -10702,7 +10909,7 @@ export const api = {
         const fresh = await refreshAccessToken();
         if (fresh) resp = await doFetch(fresh);
       }
-      if (!resp.ok) throw new ApiError(`Download failed (${resp.status}).`, resp.status);
+      if (!resp.ok) throw new ApiError(`Tải tệp thất bại (mã ${resp.status}).`, resp.status);
       return URL.createObjectURL(await resp.blob());
     },
     /** Nhập .xlsx — mỗi dòng một khách MỚI, CẢ FILE là một giao dịch.
@@ -11079,7 +11286,7 @@ export const api = {
         const fresh = await refreshAccessToken();
         if (fresh) resp = await doFetch(fresh);
       }
-      if (!resp.ok) throw new ApiError(`Export failed (${resp.status}).`, resp.status);
+      if (!resp.ok) throw new ApiError(`Xuất tệp thất bại (mã ${resp.status}).`, resp.status);
       const blob = await resp.blob();
       return URL.createObjectURL(blob);
     },
@@ -11675,7 +11882,7 @@ export const api = {
         const fresh = await refreshAccessToken();
         if (fresh) resp = await doFetch(fresh);
       }
-      if (!resp.ok) throw new ApiError(`Export failed (${resp.status}).`, resp.status);
+      if (!resp.ok) throw new ApiError(`Xuất tệp thất bại (mã ${resp.status}).`, resp.status);
       return URL.createObjectURL(await resp.blob());
     },
     /** File chuyển khoản tạm ứng / lương đợt 1 theo khuôn lô lương BIZ MBBank (25/09/2026).
@@ -12030,10 +12237,15 @@ export const api = {
   },
   lsx: {
     /** Đơn Sale đã "Chuyển xuống sản xuất" mà còn dòng chưa lên lệnh. */
-    hangCho(token: string, params: { page?: number; size?: number } = {}): Promise<HangChoOut> {
+    hangCho(
+      token: string,
+      params: { page?: number; size?: number; chiDem?: boolean } = {},
+    ): Promise<HangChoOut> {
       const qs = new URLSearchParams();
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      // Badge chỉ cần `total` — máy chủ bỏ qua bước dựng trang, `items` về rỗng.
+      if (params.chiDem) qs.set("chi_dem", "true");
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<HangChoOut>(`/api/lsx/hang-cho${suffix}`, token);
     },
@@ -13025,7 +13237,7 @@ export const api = {
         const fresh = await refreshAccessToken();
         if (fresh) resp = await doFetch(fresh);
       }
-      if (!resp.ok) throw new ApiError(`PDF failed (${resp.status}).`, resp.status);
+      if (!resp.ok) throw new ApiError(`Tải bản PDF thất bại (mã ${resp.status}).`, resp.status);
       const blob = await resp.blob();
       return URL.createObjectURL(blob);
     },
@@ -14472,7 +14684,7 @@ export const api = {
           const fresh = await refreshAccessToken();
           if (fresh) resp = await doFetch(fresh);
         }
-        if (!resp.ok) throw new ApiError(`Export failed (${resp.status}).`, resp.status);
+        if (!resp.ok) throw new ApiError(`Xuất tệp thất bại (mã ${resp.status}).`, resp.status);
         return URL.createObjectURL(await resp.blob());
       },
     },
@@ -14625,7 +14837,7 @@ export const api = {
           const fresh = await refreshAccessToken();
           if (fresh) resp = await doFetch(fresh);
         }
-        if (!resp.ok) throw new ApiError(`Export failed (${resp.status}).`, resp.status);
+        if (!resp.ok) throw new ApiError(`Xuất tệp thất bại (mã ${resp.status}).`, resp.status);
         return URL.createObjectURL(await resp.blob());
       },
       /** Xuất Excel ĐIỀU CHUYỂN theo mẫu MISA "Chuyển kho" — fetch as blob (bearer + refresh-aware). */
@@ -14648,7 +14860,7 @@ export const api = {
           const fresh = await refreshAccessToken();
           if (fresh) resp = await doFetch(fresh);
         }
-        if (!resp.ok) throw new ApiError(`Export failed (${resp.status}).`, resp.status);
+        if (!resp.ok) throw new ApiError(`Xuất tệp thất bại (mã ${resp.status}).`, resp.status);
         return URL.createObjectURL(await resp.blob());
       },
       /** Xuất Excel bảng NHẬP-XUẤT-TỒN (mẫu MISA, gom nhóm theo kho + dòng cộng). */
@@ -14670,7 +14882,7 @@ export const api = {
           const fresh = await refreshAccessToken();
           if (fresh) resp = await doFetch(fresh);
         }
-        if (!resp.ok) throw new ApiError(`Export failed (${resp.status}).`, resp.status);
+        if (!resp.ok) throw new ApiError(`Xuất tệp thất bại (mã ${resp.status}).`, resp.status);
         return URL.createObjectURL(await resp.blob());
       },
     },

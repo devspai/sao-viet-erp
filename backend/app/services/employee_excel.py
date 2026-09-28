@@ -586,17 +586,22 @@ def nhap_excel(du_lieu: bytes, *, svc, nc: NguCanh, actor, scope: str,
     """Đọc file → dựng kế hoạch → chạy trong MỘT giao dịch. `ghi=False` = xem trước (rollback)."""
     from openpyxl import load_workbook
 
+    # `read_only`: đọc luồng, không dựng cả cây ô trong RAM (file vài nghìn dòng × 27 cột). Chế độ
+    # này KHÔNG có `ws.cell()` rẻ (mỗi lần gọi là quét lại XML) và `max_row` tin vào thẻ dimension
+    # của file — nên dưới đây chỉ đi MỘT lượt `iter_rows(values_only=True)`.
     try:
-        wb = load_workbook(BytesIO(du_lieu), data_only=True)
+        wb = load_workbook(BytesIO(du_lieu), read_only=True, data_only=True)
     except Exception:
         raise ExcelSaiMan("Không đọc được file — cần đúng tệp .xlsx.") from None
     _kiem_meta(wb)
 
     ws = wb[SHEET_CHINH] if SHEET_CHINH in wb.sheetnames else wb.worksheets[0]
+    cac_dong = ws.iter_rows(values_only=True)
+    # nhãn cột → vị trí (0-based) trong tuple của dòng.
     tieu_de: dict[str, int] = {}
-    for o in ws[1]:
-        if o.value is not None and str(o.value).strip():
-            tieu_de.setdefault(str(o.value).strip(), o.column)
+    for i, v in enumerate(next(cac_dong, None) or ()):
+        if v is not None and str(v).strip():
+            tieu_de.setdefault(str(v).strip(), i)
     co_mat = [c for c in COT if c.nhan in tieu_de]
     if not any(c.field == "code" for c in co_mat) or not any(
             c.field == "full_name" for c in co_mat):
@@ -609,8 +614,9 @@ def nhap_excel(du_lieu: bytes, *, svc, nc: NguCanh, actor, scope: str,
 
     kq = KetQua()
     ke_hoach: list[tuple[int, dict]] = []
-    for hang in range(2, ws.max_row + 1):
-        o = {c.nhan: ws.cell(row=hang, column=tieu_de[c.nhan]).value for c in co_mat}
+    for hang, dong in enumerate(cac_dong, start=2):
+        o = {c.nhan: (dong[tieu_de[c.nhan]] if tieu_de[c.nhan] < len(dong) else None)
+             for c in co_mat}
         if all(_rong(v) for v in o.values()):
             continue
         kq.tong_dong += 1

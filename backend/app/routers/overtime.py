@@ -21,6 +21,7 @@ from ..deps import (
     require_any_permission,
 )
 from ..models.user import User
+from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
 from ..repositories.employee_repo import EmployeeRepository
 from ..schemas.overtime import (
@@ -156,8 +157,9 @@ def _resolve(employees: EmployeeRepository, reqs: list,
 # --- real-time (bám hub SSE chung; event chỉ là TÍN HIỆU nhẹ, FE tự refetch số) ------------
 
 def _notify_pending_changed() -> None:
-    """Có phiếu mới/hủy → mọi client refetch badge (người duyệt thấy số nhảy ngay)."""
-    hub.broadcast({"type": "ot_pending_changed"})
+    """Có phiếu mới/hủy → người xem màn nhân sự refetch badge (người duyệt thấy số nhảy ngay).
+    Nhóm `nhan_su`: badge Tăng ca + các màn nhân sự cùng nhóm."""
+    hub.gui({"type": "ot_pending_changed"}, quyen=MAN_NHAN_SU)
 
 
 def _notify_decision(r, employees: EmployeeRepository, decision: str) -> None:
@@ -166,7 +168,7 @@ def _notify_decision(r, employees: EmployeeRepository, decision: str) -> None:
     if emp is not None and emp.user_id is not None:
         hub.publish(emp.user_id, {"type": "ot_decision", "decision": decision,
                                   "code": emp.full_name})
-    hub.broadcast({"type": "ot_pending_changed"})
+    _notify_pending_changed()
 
 
 # --- NV tự phục vụ ----------------------------------------------------------

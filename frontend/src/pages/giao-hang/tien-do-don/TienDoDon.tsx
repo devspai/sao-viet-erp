@@ -3,10 +3,9 @@
 //
 // Số liệu do máy chủ tính (`GET /api/orders/{id}/tien-do`) — FE chỉ vẽ, không tự suy "giao được".
 // Luật chốt: KHÔNG lập yêu cầu giao cho phần chưa nhập kho ⇒ ô số lượng trần = `giao_duoc`.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
-  connectQuoteEvents,
   type DonTienDo,
   type DonTienDoCum,
   type DonTienDoYeuCau,
@@ -20,15 +19,11 @@ import { fmtDate, fmtDateTime } from "../../../utils/format";
 import { NHAN_TRANG_THAI_YC } from "../giao-hang/shared/constants";
 import { nhanChuyen } from "../giao-hang/shared/helpers";
 
-const SU_KIEN_TAI_LAI = new Set([
-  "giao_hang_changed",
-  "giao_hang_chuyen",
-  "san_xuat_kho_changed",
-  "san_xuat_cong_viec_changed",
-]);
-
-/** Tải tiến độ + tự tươi khi giao hàng / kho / bàn tổ đổi (SSE, không bắt F5). */
-export function useTienDoDon(orderId: number, bat: boolean) {
+/** Tải tiến độ + tự tươi khi giao hàng / kho / bàn tổ đổi (SSE, không bắt F5).
+ *
+ *  `eventTick` = tick nhóm sự kiện (sản xuất · kho · giao hàng) từ kênh SSE CHUNG của AppShell, nơi
+ *  gọi truyền xuống. Trước 28/09/2026 hook tự mở một kênh SSE riêng mỗi lần mở drawer đơn. */
+export function useTienDoDon(orderId: number, bat: boolean, eventTick?: number) {
   const { token } = useAuth();
   const [td, setTd] = useState<DonTienDo | null>(null);
   const tai = useCallback(() => {
@@ -39,12 +34,12 @@ export function useTienDoDon(orderId: number, bat: boolean) {
     setTd(null);
     tai();
   }, [tai]);
+  const tickDaNap = useRef(eventTick);
   useEffect(() => {
-    if (!token || !bat) return;
-    return connectQuoteEvents(token, (e) => {
-      if (SU_KIEN_TAI_LAI.has(e.type)) tai();
-    });
-  }, [token, bat, tai]);
+    if (tickDaNap.current === eventTick) return;
+    tickDaNap.current = eventTick;
+    tai();
+  }, [eventTick, tai]);
   return { td, taiLai: tai };
 }
 

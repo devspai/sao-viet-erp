@@ -243,6 +243,21 @@ def test_kiem_lap_nhieu_lan_cong_don(db, orders, lsx_svc, admin, customer):
     assert SanXuatKcsRepository(db).tong_kiem_nhieu([cv.id])[cv.id] == (2, 50.0, 5.0)
 
 
+def test_bam_luu_lai_lan_kiem_y_het_trong_30_giay_khong_ghi_them(db, orders, lsx_svc, admin, customer):
+    """Máy chủ chậm, KCS bấm "Lưu" lần nữa: trước đây ra hai lần kiểm, lỗi nhân đôi và tổ bị báo hai
+    lần. Lần kiểm Y HỆT của cùng người trong 30 giây là một lần bấm — trả lại lần cũ, không báo lại."""
+    _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, dat=30, khong_dat=0, cuoi=True,
+                          ma="TO-KCS-TRUNG", tot=60)
+    lai = kcs.kiem_cong_doan(db, user=res["nguoi_kcs"], cong_viec_id=cv.id, so_dat=30, so_loi=0)
+    assert lai["kcs_batch_id"] == res["kcs_batch_id"]
+    assert lai["la_gui_lai"] is True and lai["notify_user_ids"] == []
+    assert SanXuatKcsRepository(db).tong_kiem_nhieu([cv.id])[cv.id] == (1, 30.0, 0.0)
+
+    # Khác số là lần kiểm thật thứ hai.
+    kcs.kiem_cong_doan(db, user=res["nguoi_kcs"], cong_viec_id=cv.id, so_dat=20, so_loi=0)
+    assert SanXuatKcsRepository(db).tong_kiem_nhieu([cv.id])[cv.id] == (2, 50.0, 0.0)
+
+
 @pytest.mark.parametrize("dat, loi, loi_msg", [
     (-1, 0, "không được âm"), (5, -2, "không được âm"), (0, 0, "Nhập số đạt hoặc số lỗi"),
     ("abc", 0, "không hợp lệ"),

@@ -119,6 +119,7 @@ from ..services.customer_service import (
 )
 from ..services.rbac_service import AuthorizationService
 from ..storage import get_storage, make_key, url_from_key
+from ..tai_len import TRAN_EXCEL, TRAN_TAI_LIEU, doc_gioi_han
 
 router = APIRouter(prefix="/api/customers", tags=["customers"])
 
@@ -603,6 +604,18 @@ def care_followups(
     )
 
 
+@router.get("/care-followups/count")
+def care_followups_count(
+    svc: Service,
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> dict:
+    """Chỉ SỐ việc của panel "Cần chăm sóc" — badge menu gọi mỗi lần mở app nên đếm bằng COUNT,
+    không nạp danh sách. Cùng quyền + scope với `/care-followups` nên số luôn khớp danh sách.
+    Khai TRƯỚC các route `/{customer_id}/...` để không bị nuốt."""
+    return {"so": svc.count_due_followups(scope=_scope_for(authz, user), actor=user)}
+
+
 # --- xuất / nhập danh bạ (#23) -----------------------------------------------
 #
 # CẢ HAI CHIỀU đều là .xlsx từ 11/09/2026 — trước đó xuất CSV, nhập CSV.
@@ -682,7 +695,8 @@ def import_excel(
     """
     try:
         kq = customer_excel.nhap(
-            db, svc, file.file.read(),
+            # Tệp rỗng để `nhap` báo "không đọc được file" như cũ.
+            db, svc, doc_gioi_han(file, TRAN_EXCEL, cho_rong=True),
             actor=user, scope=_scope_for(authz, user),
             co_tai_chinh=authz.can(user, MODULE, "set_credit_terms"),
             co_quyen_tao=authz.can(user, MODULE, "create"),
@@ -1483,9 +1497,11 @@ def upload_attachment(
     scope = _scope_for(authz, user)
     # Access check first so we don't write a file for an inaccessible customer.
     _load_scoped(svc, customer_id, scope, user)
+    # Đọc có trần TRƯỚC khi ghi kho tệp (trước đây không giới hạn cỡ).
+    data = doc_gioi_han(file, TRAN_TAI_LIEU)
 
     key, safe_name = make_key(_CRM_SUBDIR, customer_id, file.filename)
-    get_storage().save(key, file.file.read(), file.content_type)
+    get_storage().save(key, data, file.content_type)
     file_url = url_from_key(key)
 
     try:
@@ -1494,6 +1510,7 @@ def upload_attachment(
             file_name=safe_name, file_url=file_url, file_type=file.content_type,
         )
     except (CustomerNotFound, CustomerForbidden):
+        get_storage().delete(key)  # ghi tệp rồi mới lỗi ⇒ dọn, đừng để tệp mồ côi
         raise _not_found() from None
     return CustomerAttachmentOut.model_validate(att)
 

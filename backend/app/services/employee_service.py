@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
+from ..storage import get_storage, key_from_url
 from ..models.role import SCOPE_ALL
 from ..models.employee import (
     ATTACHMENT_DOC_KINDS,
@@ -1122,10 +1123,17 @@ class EmployeeService:
         att = self.employees.get_attachment(attachment_id)
         if att is None or att.employee_id != employee.id:
             raise EmployeeNotFound("Không tìm thấy tệp đính kèm.")
+        file_url, file_name = att.file_url, att.file_name
         self.employees.delete_attachment(att)
         self.audit.create(
             actor_user_id=actor.id,
             action="employee_delete_attachment",
             target=f"employee:{employee.id}",
-            detail=f"{employee.code} xóa tệp {att.file_name}",
+            detail=f"{employee.code} xóa tệp {file_name}",
         )
+        # Xoá luôn object trong kho tệp, SAU commit (xoá trước mà commit gãy thì dòng còn đó trỏ
+        # vào tệp đã mất). Trước đây chỉ xoá dòng DB: bản scan CCCD / hợp đồng vẫn nằm trong kho
+        # và vẫn tải được qua URL cũ. `delete` là best-effort, không raise.
+        key = key_from_url(file_url)
+        if key:
+            get_storage().delete(key)

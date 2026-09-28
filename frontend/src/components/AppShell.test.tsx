@@ -170,6 +170,41 @@ describe("AppShell · tải lại quyền không cần F5", () => {
   });
 });
 
+// Lượt hỏi quyền ĐẦU TIÊN hỏng (máy chủ khởi động lại, mạng chập): trước 28/09/2026 app gán menu
+// rỗng im lặng — người dùng tưởng bị rút hết quyền. Nay phải báo lỗi + có nút Thử lại.
+describe("AppShell · lượt hỏi quyền đầu tiên hỏng", () => {
+  it("⭐ hiện lỗi + Thử lại; bấm Thử lại thì vào được app", async () => {
+    let lan = 0;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      let status = 200;
+      let data: unknown = {};
+      if (url.includes("/api/auth/permissions")) {
+        lan += 1;
+        if (lan === 1) {
+          status = 500;
+          data = { detail: "Lỗi máy chủ thử nghiệm." };
+        } else {
+          data = { modules: ["dashboard"], permissions: [] };
+        }
+      } else if (url.includes("/api/module-notifications/summary")) {
+        data = { thu_mua: 0, ke_toan: 0 };
+      } else if (url.includes("/api/attendance/notify-summary")) {
+        data = { unseen_shift_changes: 0 };
+      }
+      return Promise.resolve({
+        ok: status < 400, status, headers: new Headers({ "content-type": "application/json" }),
+        json: async () => data, text: async () => JSON.stringify(data),
+      } as Response);
+    }));
+    ve();
+    expect(await screen.findByText(/Không tải được quyền truy cập/)).toBeInTheDocument();
+    expect(screen.getByText(/Lỗi máy chủ thử nghiệm\./)).toBeInTheDocument();
+    act(() => screen.getByRole("button", { name: "Thử lại" }).click());
+    await screen.findByTestId("probe-dashboard");
+  });
+});
+
 // Người KHÁC đổi quyền của mình (lưu ma trận vai mình đang giữ, gán/gỡ vai, đổi phòng) ⇒ máy chủ đẩy
 // `quyen_doi`. Bắt đầu bằng tài khoản chỉ có Dashboard: trước 17/09/2026 kênh SSE không mở cho tài
 // khoản như vậy, nên được gán vai xong vẫn nhìn menu trống tới khi F5.

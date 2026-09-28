@@ -119,7 +119,8 @@ export function TheoDoiSanXuatPage({
   const [khayDieuKhien, setKhayDieuKhien] = useState<HTMLDivElement | null>(null);
 
   // --- dữ liệu Kanban ở TRANG, không ở tab Kanban ------------------------------------------
-  // `/kanban` trả MỌI lệnh đã phát hành kèm việc đang chạy của nó — tức là bức ảnh cả xưởng, thứ
+  // `/kanban` trả mọi lệnh đã phát hành CÒN SỐNG (lệnh giao hết quá 3 ngày mà không còn việc đang
+  // làm thì máy chủ cho rụng — `bang_theo_doi._bo_lenh_da_rung`) kèm việc đang chạy — bức ảnh cả xưởng, thứ
   // dải số dưới tiêu đề cần. Trước đây nó nằm trong `TdsxKanban` và tab ẩn thì KHÔNG gọi, nên số
   // ở đầu màn sẽ đứng hình ngay khi người dùng sang Theo máy/Theo ca/Gantt. Nâng lên đây: một
   // request duy nhất nuôi cả dải số lẫn tab Kanban — không nhân đôi, không số cũ. Giá phải trả là

@@ -36,9 +36,11 @@ from ..deps import (
     get_authorization_service, get_current_user, require_permission, require_quyen_to,
 )
 from ..models.user import User
+from ..doi_tuong_nhan import MAN_KHO, MAN_THEO_LENH, hop, kem_ban_to
 from ..realtime import hub, phat_ban_giao, phat_dong_nhom
 from ..repositories.san_xuat_repo import SanXuatRepository
 from ..storage import get_storage, make_key, url_from_key
+from ..tai_len import doc_gioi_han
 from ..schemas.san_xuat import (
     BanGiaoDeXuatIn,
     BanGiaoDieuChinhIn,
@@ -118,16 +120,22 @@ Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
 # chỉ người có quyền đọc module này mới xem được. Giới hạn 15MB như ky_thuat_may.
 SUBDIR = "san-xuat"
 _MAX_ANH_BYTES = 15 * 1024 * 1024
+# Trần số ảnh MỘT lượt kiểm — 10 ảnh × 15MB đã là 150MB một request; không có trần thì một form
+# gửi 100 ảnh là cả trăm MB đi qua RAM máy chủ trong một lượt.
+_MAX_ANH_MOT_LUOT = 10
 
 
 def _phat_sse(res: dict) -> None:
-    """SSE SAU commit (§18): báo bàn tổ đổi + đẩy thông báo tới người vừa được giao (nếu có tài khoản)."""
-    hub.broadcast({
+    """SSE SAU commit (§18): báo bàn tổ đổi + đẩy thông báo tới người vừa được giao (nếu có tài khoản).
+
+    Người nhận: bàn của ĐÚNG tổ giữ việc (số tổ khác nhận được đi qua bàn giao — tin riêng mang cả
+    hai tổ) + màn theo lệnh nghe nhóm `san_xuat` (Kế hoạch SX, Hồ sơ lệnh, Theo dõi SX, KCS…)."""
+    hub.gui({
         "type": "san_xuat_cong_viec_changed",
         "team_id": res.get("department_id"),
         "cong_viec_id": res.get("cong_viec_id"),
         "trang_thai": res.get("trang_thai"),
-    })
+    }, **kem_ban_to(MAN_THEO_LENH, [res.get("department_id")]))
     uid = res.get("notify_user_id")
     if uid:
         hub.publish(uid, {"type": "san_xuat_duoc_giao_viec",
@@ -139,21 +147,24 @@ def _phat_sse_vat_tu(res: dict) -> None:
     """Tổ xác nhận nhận vật tư → refresh bàn tổ nhận."""
     team = res.get("department_id")
     if team:
-        hub.broadcast({
+        # FE không có nhánh riêng nhưng nhích nhóm `san_xuat` + `kho`: bàn của tổ nhận, màn Kho
+        # (phiếu xuất đã được nhận) và các màn theo lệnh.
+        hub.gui({
             "type": "san_xuat_vat_tu_nhan",
             "team_id": team,
             "voucher_id": res.get("voucher_id"),
-        })
+        }, quyen=hop(MAN_THEO_LENH, MAN_KHO), to=[team])
 
 
 def _phat_sse_ho_tro(res: dict) -> None:
     """Thỏa thuận hỗ trợ đổi (§9) → refresh chỗ hiển thị + đẩy tới người giữ quyền Xác nhận ở CẢ HAI tổ (§18)."""
-    hub.broadcast({
+    # Bàn + badge "chờ xác nhận" của CẢ HAI tổ (tổ gốc cho mượn người, tổ thực hiện) + màn theo lệnh.
+    hub.gui({
         "type": "san_xuat_ho_tro_changed",
         "cong_viec_id": res.get("cong_viec_id"),
         "ho_tro_id": res.get("ho_tro_id"),
         "trang_thai": res.get("trang_thai"),
-    })
+    }, **kem_ban_to(MAN_THEO_LENH, [res.get("to_goc_id"), res.get("to_thuc_hien_id")]))
     for uid in res.get("notify_user_ids") or []:
         hub.publish(uid, {
             "type": "san_xuat_ho_tro",
@@ -169,15 +180,17 @@ def _phat_sse_ho_tro(res: dict) -> None:
 
 def _phat_sse_kcs(res: dict) -> None:
     """KCS đổi → refresh màn KCS + bàn tổ của công đoạn; kiểm có kết quả thì ĐẨY tới người Xác nhận
-    sản lượng trọn tổ đó (§18) — kết quả kiểm là tương tác GIỮA KCS và tổ nên phải tới NGAY."""
-    hub.broadcast({
+    sản lượng trọn tổ đó (§18) — kết quả kiểm là tương tác GIỮA KCS và tổ nên phải tới NGAY.
+
+    Tin "đã đổi" tới bàn + badge của ĐÚNG tổ công đoạn và màn theo lệnh (gồm màn KCS)."""
+    hub.gui({
         "type": "san_xuat_kcs_changed",
         "cong_viec_id": res.get("cong_viec_id"),
         "kcs_batch_id": res.get("kcs_batch_id"),
         "loi_id": res.get("loi_id"),
         "team_id": res.get("department_id"),
         "lsx_id": res.get("lsx_id"),
-    })
+    }, **kem_ban_to(MAN_THEO_LENH, [res.get("department_id")]))
     for uid in res.get("notify_user_ids") or []:
         if uid:
             hub.publish(uid, {
@@ -193,14 +206,14 @@ def _phat_sse_kcs(res: dict) -> None:
             })
     # Lỗi KCS quy về công đoạn TRƯỚC (bắt ở bước sau) — tổ đó cũng phải biết NGAY.
     for m in res.get("bao_loi_nguon") or []:
-        hub.broadcast({
+        hub.gui({
             "type": "san_xuat_kcs_changed",
             "cong_viec_id": m.get("cong_viec_id"),
             "kcs_batch_id": res.get("kcs_batch_id"),
             "loi_id": m.get("loi_id"),
             "team_id": m.get("department_id"),
             "lsx_id": res.get("lsx_id"),
-        })
+        }, **kem_ban_to(MAN_THEO_LENH, [m.get("department_id")]))
         for uid in m.get("notify_user_ids") or []:
             if uid:
                 hub.publish(uid, {
@@ -242,15 +255,18 @@ def _thu_dong_nhom(db: Session, res: dict, *, user=None, su_kien: str = "") -> N
 def _luu_anh_kcs(owner_id: int, files: list[UploadFile]) -> tuple[list[dict], list[str]]:
     """Lưu ảnh bằng chứng lỗi KCS vào storage, trả (mô-tả-ảnh, keys). Kiểm rỗng/kích-thước/loại-ảnh
     như ky_thuat_may. Nếu bất kỳ file nào lỗi → xoá hết key đã ghi rồi ném (đừng để rác mồ côi)."""
+    if len(files) > _MAX_ANH_MOT_LUOT:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"Mỗi lượt kiểm gửi tối đa {_MAX_ANH_MOT_LUOT} ảnh.",
+        )
     anh: list[dict] = []
     keys: list[str] = []
     try:
         for f in files:
-            data = f.file.read()
-            if not data:
-                raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tệp rỗng.")
-            if len(data) > _MAX_ANH_BYTES:
-                raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Ảnh vượt quá 15MB.")
+            data = doc_gioi_han(
+                f, _MAX_ANH_BYTES, ten="Ảnh",
+                ma_rong=status.HTTP_400_BAD_REQUEST, loi_rong="Tệp rỗng.",
+            )
             if not (f.content_type or "").lower().startswith("image/"):
                 raise HTTPException(
                     status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -980,6 +996,10 @@ def kiem_cong_doan(
     except ValueError as exc:
         _don_anh(keys)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if res.get("la_gui_lai"):
+        # Lượt gửi lại của một lần kiểm đã ghi: ảnh vừa tải là bản sao, không ai trỏ tới.
+        _don_anh(keys)
+        return res
     _phat_sse_kcs(res)
     _thu_dong_nhom(db, res, user=user, su_kien="kcs_kiem")
     return res

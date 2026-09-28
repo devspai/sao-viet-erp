@@ -191,9 +191,12 @@ export function ThucHienSxPage({
   // Từ khoá chỉ gửi máy chủ ở view Bảng. View Lịch lọc trên máy nên gõ tìm KHÔNG được nạp lại:
   // trước đây mỗi nhịp debounce bắn thêm một GET y hệt cửa sổ đang có (đo 15/09/2026).
   const timMayChu = view === "danh_sach" ? qd.trim() : "";
+  // Số thứ tự lượt nạp: lượt CŨ về muộn (mạng chập, sự kiện dồn) thì bỏ, không đè lượt mới.
+  const luotItems = useRef(0);
   const loadItems = useCallback(() => {
     // Tab Sản lượng tự nạp dữ liệu riêng — khỏi kéo trang lệnh về cho một bảng không hiện.
     if (!token || view === "san_luong") return;
+    const luot = ++luotItems.current;
     setErr(null);
     const phang = view === "lich";
     api.sanXuat.workItems(token, {
@@ -206,6 +209,7 @@ export function ThucHienSxPage({
       choXacNhan: chiCho || undefined,
     })
       .then((r) => {
+        if (luot !== luotItems.current) return;
         // Hình nào là do CỜ `nhom` của máy chủ quyết, không do "có mảng lệnh hay không" —
         // xem `chonHinhBan`.
         const h = chonHinhBan(r);
@@ -214,9 +218,12 @@ export function ThucHienSxPage({
         setTongLenh(h.tongLenh);
         setErr(null);
       })
-      .catch((e: unknown) => setErr(e instanceof ApiError
-        ? (e.isForbidden ? "Tổ này ngoài phạm vi của bạn." : e.message)
-        : String(e)));
+      .catch((e: unknown) => {
+        if (luot !== luotItems.current) return;
+        setErr(e instanceof ApiError
+          ? (e.isForbidden ? "Tổ này ngoài phạm vi của bạn." : e.message)
+          : String(e));
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `khoaLoc` đại diện `locMayChu`
   }, [token, teamId, view, timMayChu, trang, winTu, winDen, chiCho, khoaLoc]);
 
@@ -274,13 +281,16 @@ export function ThucHienSxPage({
   useEffect(() => { setSelectedId(null); setChiTiet(null); }, [teamId]);
 
   // ---- chi tiết việc đang chọn (drawer) ----
+  // Cùng khuôn số thứ tự với `loadItems`: đổi việc nhanh / sự kiện dồn ⇒ chỉ lượt MỚI NHẤT được ghi.
+  const luotCt = useRef(0);
   const loadChiTiet = useCallback((id: number | null) => {
-    if (!token || id == null) { setChiTiet(null); return Promise.resolve(); }
+    const luot = ++luotCt.current;
+    if (!token || id == null) { setChiTiet(null); setCtLoading(false); return Promise.resolve(); }
     setCtLoading(true);
     return api.sanXuat.chiTiet(token, id)
-      .then((r) => { setChiTiet(r); })
-      .catch(() => { setChiTiet(null); })
-      .finally(() => setCtLoading(false));
+      .then((r) => { if (luot === luotCt.current) setChiTiet(r); })
+      .catch(() => { if (luot === luotCt.current) setChiTiet(null); })
+      .finally(() => { if (luot === luotCt.current) setCtLoading(false); });
   }, [token]);
 
   // `mutate` đang chờ máy chủ lưu (từ lúc gửi tới lúc bắt đầu nạp lại chi tiết).
@@ -451,9 +461,12 @@ export function ThucHienSxPage({
     setToast(ok);
     // Trả kết quả NGAY khi máy chủ đã lưu để hộp nhập (Ghi mẻ, Đề xuất bàn giao…) đóng liền. Trước
     // đây hộp đứng chờ nạp lại cả chi tiết việc: đo 16/09/2026 lưu mất 87 ms mà hộp 688 ms mới
-    // đóng. `busy` giữ tới khi nạp xong nên nút trong drawer không bấm được trên số cũ.
+    // đóng. `busy` cũng NHẢ NGAY (28/09/2026): trước đây giữ tới khi nạp xong, một lượt nạp treo
+    // là khoá mọi nút của drawer. Bấm tiếp trên số cũ thì khoá lạc quan (`expected_version`) ở
+    // máy chủ đã chặn và `handleErr` nạp lại bản mới.
     const nap = loadChiTiet(selectedId);
     dangGhi.current = false;
+    setBusy(false);
     void nap.finally(() => {
       // Đặt LẠI sau khi nạp xong: mốc đầu phủ khoảng sự kiện về SỚM, mốc này phủ khoảng nó về
       // MUỘN hơn lượt nạp. Cùng cửa 2 giây, không đẻ cơ chế mới.
@@ -461,7 +474,6 @@ export function ThucHienSxPage({
       loadItems();
       setChoTick((t) => t + 1);
       onBadgeStale?.();
-      setBusy(false);
     });
     return r;
   }, [token, selectedId, loadChiTiet, loadItems, onBadgeStale, handleErr]);
@@ -473,7 +485,8 @@ export function ThucHienSxPage({
     setBusy(true);
     try {
       await run();
-      if (selectedId != null) await loadChiTiet(selectedId);
+      // Không `await` lượt nạp lại: nó treo thì nút cũng không được khoá theo.
+      if (selectedId != null) void loadChiTiet(selectedId);
       loadItems();
       onBadgeStale?.();
       setToast(ok);

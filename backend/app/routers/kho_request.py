@@ -117,6 +117,22 @@ def _lenh_map(db: Session, reqs) -> dict[tuple[str, int], str]:
     return ra
 
 
+def _ten_map(db: Session, reqs) -> dict[str, dict[int, str]]:
+    """Tên người tạo/duyệt, bộ phận, kho (đích + nguồn) của CẢ TRANG trong 3 query.
+
+    Tra `get_by_id` từng yêu cầu là N+1 dù cùng một người/kho: identity map của Session chỉ giữ
+    tham chiếu YẾU nên object vòng trước bị dọn là vòng sau SELECT lại (đo 28/09/2026: 2 câu mỗi
+    yêu cầu trên màn Hộp yêu cầu)."""
+    users = UserRepository(db).map_by_ids(
+        {i for r in reqs for i in (r.nguoi_tao_id, r.nguoi_duyet_id) if i})
+    return {
+        "user": {i: u.name for i, u in users.items()},
+        "dept": DepartmentRepository(db).names_by_ids({r.bo_phan_id for r in reqs if r.bo_phan_id}),
+        "kho": KhoHangRepository(db).ten_theo_ids(
+            {i for r in reqs for i in (r.kho_id, getattr(r, "kho_nguon_id", None)) if i}),
+    }
+
+
 def _tu_kcs(req) -> bool:
     """Yêu cầu NHẬP thành phẩm do KCS gửi — cùng dấu hiệu `nguon_lo()` dùng để gọi là lô "từ KCS"."""
     return req.loai == REQ_NHAP and getattr(req, "san_xuat_cong_viec_id", None) is not None
@@ -140,7 +156,9 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
                hang_svc: VatLieuKhoService | None = None,
                lenh_map: dict | None = None,
                boi_canh: dict | None = None,
-               gia_kcs: tuple[dict, dict] | None = None) -> StockRequestOut:
+               gia_kcs: tuple[dict, dict] | None = None,
+               don_vi_map: dict | None = None,
+               ten_map: dict | None = None) -> StockRequestOut:
     """Dựng payload + ÁP quyền hiển thị.
 
     `muc_ton` (đèn 5 màu) trả cho mọi vai vì không kèm con số; `ton_kha_dung` chỉ set khi
@@ -158,10 +176,13 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
     if can_view_cost and tu_kcs:
         gia_goc_map, don_map = gia_kcs if gia_kcs is not None else _gia_kcs(db, [req])
     hang_svc = hang_svc or _hang_service(db)
-    users = UserRepository(db)
     cap = [(ln.hang_loai, ln.hang_id) for ln in req.lines]
     if hang_map is None:
         hang_map = hang_svc.map_theo_cap(cap)
+    if don_vi_map is None:
+        # Bảng đơn vị + bảng cặp quy đổi đọc MỘT lần cho mọi dòng — `quy_ve_goc` từng dòng đọc lại
+        # cả hai bảng mỗi dòng (N+1, khoảng 3 câu SQL/dòng trên màn Hộp yêu cầu).
+        don_vi_map = hang_svc.don_vi_nhieu_mat_hang(cap, san=hang_map)
     if lenh_map is None:
         lenh_map = _lenh_map(db, [req])
     if boi_canh is None:
@@ -176,7 +197,10 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         # văn lý do chứ không im lặng.
         qd, canh_bao = None, None
         try:
-            qd = hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt, float(ln.sl_de_nghi))
+            dv = don_vi_map.get(key)
+            # Món vắng trong map (không tồn tại / loại sai) đi đường lẻ cũ để giữ ĐÚNG câu lỗi.
+            qd = (hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi)) if dv is not None
+                  else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt, float(ln.sl_de_nghi)))
         except VatLieuKhoError as e:
             canh_bao = str(e)
         lines.append(StockRequestLineOut(
@@ -214,30 +238,26 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             muc_ton=(levels or {}).get(key),
             ton_kha_dung=(on_hand or {}).get(key) if can_view_stock else None,
         ))
-    creator = users.get_by_id(req.nguoi_tao_id) if req.nguoi_tao_id else None
-    approver = users.get_by_id(req.nguoi_duyet_id) if req.nguoi_duyet_id else None
-    dept = DepartmentRepository(db).get_by_id(req.bo_phan_id) if req.bo_phan_id else None
-    kho_repo = KhoHangRepository(db)
-    kho = kho_repo.get(req.kho_id) if req.kho_id else None
+    if ten_map is None:
+        ten_map = _ten_map(db, [req])
     # ĐIỀU CHUYỂN: yêu cầu NHẬP đích có `kho_nguon_id` → hiện "Điều chuyển từ «kho nguồn»".
     kho_nguon_id = getattr(req, "kho_nguon_id", None)
-    kho_nguon = kho_repo.get(kho_nguon_id) if kho_nguon_id else None
     return StockRequestOut(
         id=req.id, ma=req.ma, loai=req.loai,
         nguoi_tao_id=req.nguoi_tao_id,
-        nguoi_tao_ten=getattr(creator, "name", None),
-        bo_phan_id=req.bo_phan_id, bo_phan_ten=getattr(dept, "name", None),
-        kho_id=req.kho_id, kho_ten=getattr(kho, "ten", None),
+        nguoi_tao_ten=ten_map["user"].get(req.nguoi_tao_id),
+        bo_phan_id=req.bo_phan_id, bo_phan_ten=ten_map["dept"].get(req.bo_phan_id),
+        kho_id=req.kho_id, kho_ten=ten_map["kho"].get(req.kho_id),
         ngay_can=req.ngay_can, uu_tien=req.uu_tien,
         ghi_chu=req.ghi_chu, loai_kho=req.loai_kho, trang_thai=req.trang_thai,
         nguoi_duyet_id=req.nguoi_duyet_id,
-        nguoi_duyet_ten=getattr(approver, "name", None),
+        nguoi_duyet_ten=ten_map["user"].get(req.nguoi_duyet_id),
         duyet_luc=req.duyet_luc, ly_do_tu_choi=req.ly_do_tu_choi,
         ly_do_huy=req.ly_do_huy,
         open_voucher_id=open_voucher_id,
         dieu_chuyen=bool(getattr(req, "dieu_chuyen", False)),
         kho_nguon_id=kho_nguon_id,
-        kho_nguon_ten=getattr(kho_nguon, "ten", None),
+        kho_nguon_ten=ten_map["kho"].get(kho_nguon_id),
         xuat_voucher_id=getattr(req, "xuat_voucher_id", None),
         # Gỡ nhãn UTC trước khi ra JSON: Postgres trả `can_luc` AWARE, còn FE (`fmtGioCan`,
         # `isOverdue`) đọc naive = giờ NHÀ MÁY — để nguyên là thủ kho thấy giờ cần lệch +7h.
@@ -315,10 +335,11 @@ def list_requests(
     draft_map = StockVoucherRepository(db).draft_ids_by_request([r.id for r in rows])
     # Nạp SẴN mọi mã hàng của cả trang trong 1 query (tránh N+1 trong _serialize).
     hang_svc = _hang_service(db)
-    hang_map = hang_svc.map_theo_cap(
-        [(ln.hang_loai, ln.hang_id) for r in rows for ln in r.lines]
-    )
+    cap_trang = [(ln.hang_loai, ln.hang_id) for r in rows for ln in r.lines]
+    hang_map = hang_svc.map_theo_cap(cap_trang)
+    don_vi_map = hang_svc.don_vi_nhieu_mat_hang(cap_trang, san=hang_map)
     lenh_map = _lenh_map(db, rows)
+    ten_map = _ten_map(db, rows)
     # Tổ/công đoạn/giờ cần (đề nghị cấp vật tư công đoạn) của CẢ TRANG trong 1 query — tránh N+1
     # trên đường mở màn chính của thủ kho (task-8-ruling-man-kho, Ruling 32/34).
     boi_canh = SanXuatVatTuRepository(db).boi_canh_san_xuat([r.id for r in rows])
@@ -331,7 +352,8 @@ def list_requests(
                                 can_view_cost=can_view_cost,
                                 levels=levels, on_hand=on_hand, lenh_map=lenh_map,
                                 open_voucher_id=draft_map.get(r.id), hang_map=hang_map,
-                                hang_svc=hang_svc, boi_canh=boi_canh, gia_kcs=gia_kcs))
+                                hang_svc=hang_svc, boi_canh=boi_canh, gia_kcs=gia_kcs,
+                                don_vi_map=don_vi_map, ten_map=ten_map))
     return StockRequestPage(items=items, total=total)
 
 
@@ -443,6 +465,7 @@ def create_request(
             lines=[ln.model_dump() for ln in payload.lines],
             ngay_can=payload.ngay_can, uu_tien=payload.uu_tien, ghi_chu=payload.ghi_chu,
             loai_kho=payload.loai_kho, purchase_delivery_id=payload.purchase_delivery_id,
+            chong_gui_lai=True,
         )
     except StockRequestError as e:
         raise _err(e) from None

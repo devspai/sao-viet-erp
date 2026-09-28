@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
@@ -272,11 +273,40 @@ class QuyenTo:
         return ket
 
 
+#: Khoá trong `Session.info` giữ memo `quyen_to_cua` — sống đúng một phiên DB (= một request).
+_MEMO_KHOA = "quyen_to_memo"
+
+
+def _xoa_memo(session, *_a) -> None:
+    session.info.pop(_MEMO_KHOA, None)
+
+
+# Phiên ghi gì (flush) / commit / rollback thì bỏ memo: cây phòng ban hay dòng quyền có thể vừa
+# đổi ngay trong phiên (test dùng MỘT phiên cho nhiều request; route sửa phòng ban rồi đọc lại).
+# Request chỉ-đọc không flush nên memo sống trọn request.
+for _su_kien in ("after_flush", "after_commit", "after_soft_rollback"):
+    event.listen(Session, _su_kien, _xoa_memo)
+
+
 def quyen_to_cua(db: Session, user: User, cay: CayKhoi | None = None) -> QuyenTo:
+    """Quyền theo tổ của `user`. Memo theo (phiên DB, người, vai, phòng) khi tự đọc cây: bàn tổ gọi
+    hàm này 2 lần/request (cửa `deps.require_*` rồi `board.teams`), mỗi lần đọc cả cây phòng ban +
+    dòng quyền. Người gọi KHÔNG được sửa các tập trong kết quả (dùng chung trong request)."""
+    memo = None
+    khoa = None
     if cay is None:
+        info = getattr(db, "info", None)
+        if isinstance(info, dict):
+            memo = info.setdefault(_MEMO_KHOA, {})
+            khoa = (getattr(user, "id", None), user.role_id, getattr(user, "department_id", None))
+            if khoa in memo:
+                return memo[khoa]
         cay = doc_cay(db)
     dong = QuyenToRepository(db).dong_quyen_cua_vai(user.role_id) if user.role_id else []
-    return QuyenTo(cay, user, dong)
+    q = QuyenTo(cay, user, dong)
+    if memo is not None:
+        memo[khoa] = q
+    return q
 
 
 def quyen_cua_uid(db: Session, uid: int | None) -> QuyenTo | None:

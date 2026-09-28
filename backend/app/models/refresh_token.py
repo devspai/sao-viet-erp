@@ -30,7 +30,7 @@ class RefreshToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     # Groups a rotation chain so reuse of a revoked token can kill all siblings.
     family_id: Mapped[str] = mapped_column(String(36), index=True, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     # Non-null once the token is rotated away or logged out.
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # User-Agent captured when the token was issued (spec-08) — shown as the "device" of a

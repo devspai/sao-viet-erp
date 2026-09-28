@@ -19,7 +19,9 @@ from ..deps import get_authorization_service, require_permission
 from ..models.lsx import Lsx
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
+from ..doi_tuong_nhan import BAN_TO, NGHE_LENH
 from ..realtime import hub
+from ..services.can_doi_cache import xoa_cache_can_doi
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.catalog_base import SIZE_TRAN
 from ..repositories.document_sequence_repo import DocumentSequenceRepository
@@ -54,6 +56,7 @@ from ..schemas.lsx import (
 from ..services import lsx_tong_quan
 from ..services.actor_display import actor_labels
 from ..services.lsx_dinh_kem import MAX_BYTES as DINH_KEM_MAX_BYTES
+from ..tai_len import doc_gioi_han
 from ..services.lsx_dinh_kem import LsxDinhKemService, TepBiChan, TepQuaLon, don_kho
 from ..services.lsx_service import (
     LsxConflict,
@@ -67,6 +70,13 @@ from ..services.sequence_service import SequenceService
 router = APIRouter(prefix="/api/lsx", tags=["lsx"])
 MODULE = "san_xuat"
 Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
+
+# `lsx_changed` ở router này đi `NGHE_LENH` (không bàn tổ): mọi cửa ghi dưới đây — tạo, sửa, routing,
+# đồng bộ danh mục, đổi trạng thái, xoá — đều chặn lệnh đã phát hành, bàn tổ chưa có gì để bày.
+#
+# Tệp đính kèm: hai nơi đọc (AppShell gác `san_xuat` hoặc có Bàn tổ) — tab Tệp của Kế hoạch SX và thẻ
+# "Tệp của lệnh" trong drawer bàn tổ. Không biết tổ nào đang giữ việc của lệnh ⇒ mọi người có Bàn tổ.
+_NGHE_DINH_KEM = ("san_xuat", BAN_TO)
 
 
 def _svc(db: Session) -> LsxService:
@@ -126,12 +136,13 @@ def hang_cho(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=SIZE_TRAN),
+    chi_dem: bool = Query(default=False, description="True ⇒ chỉ trả `total` (badge), `items` rỗng"),
 ) -> HangChoOut:
     """Đơn Sale đã chuyển xuống SX mà còn dòng chưa lên lệnh. Chỉ người có phạm vi TOÀN BỘ (Kế
     hoạch SX) mới thấy — đơn chưa lên lệnh thì chưa thuộc về ai bên sản xuất."""
     if _owner_ids_for_scope(db, user, authz) is not None:
         return HangChoOut(items=[], total=0, page=page, size=size)
-    items, total = _svc(db).hang_cho(page=page, size=size)
+    items, total = _svc(db).hang_cho(page=page, size=size, chi_dem=chi_dem)
     return HangChoOut(items=items, total=total, page=page, size=size)
 
 
@@ -165,7 +176,8 @@ def tao(
     rows, _ = svc.list_rows(order_id=order_id, size=SIZE_TRAN)
     rows = [r for r in rows if r["id"] in ids]
     # Đơn hàng + hàng chờ nhảy ngay (badge/đếm) — không bắt ai refresh.
-    hub.broadcast({"type": "lsx_changed", "order_id": order_id})
+    xoa_cache_can_doi()
+    hub.gui({"type": "lsx_changed", "order_id": order_id}, quyen=NGHE_LENH)
     return LsxListOut(items=[LsxListItem.model_validate(r) for r in rows], total=len(rows))
 
 
@@ -403,7 +415,8 @@ def update_item(
         lsx = svc.update(lsx_id=lsx_id, payload=payload, actor=user)
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "lsx_changed", "order_id": lsx.order_id})
+    xoa_cache_can_doi()
+    hub.gui({"type": "lsx_changed", "order_id": lsx.order_id}, quyen=NGHE_LENH)
     return _out(svc, lsx)
 
 
@@ -469,7 +482,8 @@ def replace_routing(
         )
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "lsx_changed", "order_id": lsx.order_id})
+    xoa_cache_can_doi()
+    hub.gui({"type": "lsx_changed", "order_id": lsx.order_id}, quyen=NGHE_LENH)
     # ⚠️ Lưu ý "bước bị gỡ đầu việc mồ côi" GỠ 18/09/2026 (mg `0320`) — bước thôi ghim đầu việc.
     return _out(svc, lsx)
 
@@ -494,7 +508,8 @@ def dong_bo_danh_muc(
         lsx = svc.dong_bo_danh_muc(lsx_id=lsx_id, actor=user)
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "lsx_changed", "order_id": lsx.order_id})
+    xoa_cache_can_doi()
+    hub.gui({"type": "lsx_changed", "order_id": lsx.order_id}, quyen=NGHE_LENH)
     return _out(svc, lsx)
 
 
@@ -559,7 +574,8 @@ def set_trang_thai(
         lsx = svc.set_trang_thai(lsx_id=lsx_id, trang_thai=payload.trang_thai, actor=user)
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "lsx_changed", "order_id": lsx.order_id})
+    xoa_cache_can_doi()
+    hub.gui({"type": "lsx_changed", "order_id": lsx.order_id}, quyen=NGHE_LENH)
     return _out(svc, lsx)
 
 
@@ -580,7 +596,8 @@ def delete_item(
     except Exception as exc:
         raise _map(exc)
     don_kho(tep)
-    hub.broadcast({"type": "lsx_changed", "order_id": order_id})
+    xoa_cache_can_doi()
+    hub.gui({"type": "lsx_changed", "order_id": order_id}, quyen=NGHE_LENH)
     return {"ok": True}
 
 
@@ -645,8 +662,9 @@ def upload_dinh_kem(
 ) -> LsxDinhKemOut:
     """MỘT tệp mỗi request — FE gửi nhiều tệp song song, tệp nào lỗi chỉ tệp đó lỗi."""
     lsx = _lenh_trong_pham_vi(db, lsx_id, user, authz)
-    # Đọc tối đa MAX+1 byte: đủ để biết vượt cỡ mà không nạp nguyên một tệp khổng lồ vào RAM.
-    data = file.file.read(DINH_KEM_MAX_BYTES + 1)
+    # Đọc theo khối, vượt trần là dừng (413) — không nạp nguyên một tệp khổng lồ vào RAM. Tệp rỗng
+    # để service báo bằng câu của nó.
+    data = doc_gioi_han(file, DINH_KEM_MAX_BYTES, cho_rong=True)
     try:
         out = LsxDinhKemService(db).them(
             lsx, actor=user, ten_goc=file.filename, data=data, content_type=file.content_type,
@@ -657,7 +675,7 @@ def upload_dinh_kem(
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(exc)) from None
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "lsx_dinh_kem_changed", "lsx_id": lsx_id})
+    hub.gui({"type": "lsx_dinh_kem_changed", "lsx_id": lsx_id}, quyen=_NGHE_DINH_KEM)
     return LsxDinhKemOut.model_validate(out)
 
 
@@ -674,5 +692,5 @@ def delete_dinh_kem(
         LsxDinhKemService(db).xoa(lsx, dinh_kem_id=dinh_kem_id, actor=user)
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "lsx_dinh_kem_changed", "lsx_id": lsx_id})
+    hub.gui({"type": "lsx_dinh_kem_changed", "lsx_id": lsx_id}, quyen=_NGHE_DINH_KEM)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

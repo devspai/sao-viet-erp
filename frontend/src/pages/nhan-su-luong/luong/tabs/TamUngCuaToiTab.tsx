@@ -1,7 +1,8 @@
 // Tab Tạm ứng của tôi (tách từ pages/LuongPage.tsx).
 import { useCallback, useEffect, useState } from "react";
 import { Wallet } from "lucide-react";
-import { api, type MyAdvances } from "../../../../api/client";
+import { ApiError, api, type MyAdvances } from "../../../../api/client";
+import { EmptyState } from "../../../../components/EmptyState";
 import { printAdvanceRequest } from "../../../../utils/printAdvanceRequest";
 import { RowActionButton } from "../../../../components/RowActionButton";
 import { advPrintData, money } from "../shared/helpers";
@@ -23,11 +24,19 @@ export function TamUngCuaToiTab({
   const [data, setData] = useState<MyAdvances | null>(null);
   const [adding, setAdding] = useState<null | "tam_ung" | "luong_dot_1">(null);
 
+  // Lỗi mạng KHÔNG được biến thành "chưa gắn hồ sơ" (trước đây catch dựng `has_employee: false`
+  // ⇒ người có hồ sơ đọc thấy câu sai, đi hỏi HCNS). Lỗi là lỗi, có nút Thử lại.
+  const [loi, setLoi] = useState<string | null>(null);
   const load = useCallback(() => {
     api.luong
       .myAdvances(token)
-      .then(setData)
-      .catch(() => setData({ has_employee: false, items: [], luong_dot_1: 0 }));
+      .then((d) => {
+        setData(d);
+        setLoi(null);
+      })
+      .catch((e: unknown) =>
+        setLoi(e instanceof ApiError ? e.message : "Không đọc được danh sách tạm ứng."),
+      );
   }, [token]);
   useEffect(() => {
     load();
@@ -44,6 +53,7 @@ export function TamUngCuaToiTab({
     luong_dot_1: ["Lương đợt 1", "ns-badge--info"],
   };
 
+  if (!data && loi) return <EmptyState trangThai="loi" loi={loi} onThuLai={load} />;
   if (!data)
     return (
       <p
@@ -70,6 +80,14 @@ export function TamUngCuaToiTab({
     );
   return (
     <div>
+      {loi && (
+        <div className="banner banner--error" role="alert">
+          <span>{loi}</span>
+          <button type="button" className="btn btn--ghost" onClick={load}>
+            Thử lại
+          </button>
+        </div>
+      )}
       <div className="cc-toolbar lg-toolbar lg-toolbar--sat">
         {canCreate && (
           <button

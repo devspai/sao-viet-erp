@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -19,6 +19,8 @@ def _utcnow() -> datetime:
 
 class ModuleNotification(Base):
     __tablename__ = "module_notifications"
+    # Badge đếm "id > mốc đã đọc" theo kênh (mg `0344`).
+    __table_args__ = (Index("ix_module_notifications_channel_id", "channel", "id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     channel: Mapped[str] = mapped_column(String(32), nullable=False, index=True)

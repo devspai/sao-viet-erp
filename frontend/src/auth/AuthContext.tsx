@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -39,15 +40,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const dangDangNhap = useRef(false);
+  useEffect(() => {
+    dangDangNhap.current = status === "authenticated";
+  }, [status]);
 
-  // Let the API client push a rotated access token (silent refresh) and signal a dead
-  // session back into React state.
+  // Token xoay NGẦM (làm mới mỗi 15 phút) KHÔNG đẩy vào state React nữa: đổi `token` là ~68 effect
+  // phụ thuộc `[token]` chạy lại đồng loạt (kênh SSE đóng/mở, quyền, badge, dữ liệu màn đang mở) —
+  // vài trăm tab là một cơn bão request mỗi 15 phút. Token mới nhất nằm ở `client.ts`
+  // (`layTokenMoiNhat`) và mọi request tự mang nó; `token` ở đây chỉ đổi khi đăng nhập / khôi phục
+  // phiên / thoát. Hết phiên thật thì vẫn báo về để rơi ra màn đăng nhập kèm lời nhắc.
   useEffect(() => {
     registerAuthCallbacks({
-      onAccessToken: (t) => setToken(t),
+      onAccessToken: () => {},
       onSessionEnded: () => {
         setUser(null);
         setToken(null);
+        // Chỉ nhắc khi ĐANG đăng nhập mà mất phiên. Mở app lúc chưa có phiên (khôi phục bị từ
+        // chối) cũng đi qua đây — nói "đã hết hạn" với người chưa đăng nhập là nói sai.
+        if (dangDangNhap.current) setNotice("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
         setStatus("anonymous");
       },
     });
@@ -99,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus("authenticated");
     } catch (err) {
       // Re-throw so the form can render the right message; leave state anonymous.
-      throw err instanceof ApiError ? err : new ApiError("Unexpected error.", 0);
+      throw err instanceof ApiError ? err : new ApiError("Có lỗi không mong đợi, vui lòng thử lại.", 0);
     }
   }, []);
 

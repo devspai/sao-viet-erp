@@ -1,15 +1,17 @@
 // Authenticated app shell: persistent left Sidebar + the active screen.
 // On entry it loads the current user's readable modules (feat-010) to gate both
 // the sidebar (handled in Sidebar) and the content (a forbidden module → 403).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
+  ApiError,
   connectQuoteEvents,
   type CanDoiKhoaDong,
   type DepartmentPurchaseSourceType,
   type HangLoai,
   type ModuleNotificationChannel,
   type PinnedCustomer,
+  type QuoteEvent,
   type SxTeam,
 } from "../api/client";
 import { crud } from "../api/rebuildCatalog";
@@ -20,55 +22,90 @@ import {
   PermissionsProvider,
   type Capabilities,
 } from "../auth/permissions";
-import { ActivityLogPage } from "../pages/ActivityLogPage";
-import { BaoGiaPage } from "../pages/BaoGiaPage";
-import { DonHangBanPage } from "../pages/DonHangBanPage";
-import { BaoCaoKinhDoanhPage } from "../pages/bao-cao-kinh-doanh/BaoCaoKinhDoanhPage";
-import GiaoHangPage from "../pages/giao-hang/giao-hang";
-import { KeHoachSXPage } from "../pages/KeHoachSXPage";
-import { LenhSanXuatPage } from "../pages/LenhSanXuatPage";
-import { TheoDoiSanXuatPage } from "../pages/TheoDoiSanXuatPage";
-import { KeHoachVatTuPage } from "../pages/KeHoachVatTuPage";
-import { BaiGhep2Page } from "../pages/BaiGhep2Page";
-import { XepLichPage } from "../pages/XepLichPage";
-import { ThucHienSxPage } from "../pages/ThucHienSxPage";
 import { nhanChang, nhanDonVi } from "../pages/lsxBuoc";
-import { KcsTheoLenhPage } from "../pages/kcs/KcsTheoLenhPage";
-import { SuaChuaMayPage } from "../pages/SuaChuaMayPage";
-import { PhieuBaoTriPage } from "../pages/PhieuBaoTriPage";
 import { kyThuatMay } from "../api/kyThuatMay";
-import { TinhGiaPage } from "../pages/TinhGiaPage";
-import { DashboardPage } from "../pages/DashboardPage";
-import { DepartmentsPage } from "../pages/nhan-su-luong/phong-ban";
-import { KhachHangPage } from "../pages/KhachHangPage";
-import { QuyTrinhKinhDoanhPage } from "../pages/QuyTrinhKinhDoanhPage";
-import { ChamCongPage } from "../pages/nhan-su-luong/cham-cong";
-import { NghiPhepPage } from "../pages/nhan-su-luong/nghi-phep";
-import { TangCaPage } from "../pages/nhan-su-luong/tang-ca";
-import { LuongPage } from "../pages/nhan-su-luong/luong";
-import { HoSoCuaToiPage } from "../pages/nhan-su-luong/ho-so-cua-toi";
-import { NoiQuyPage } from "../pages/nhan-su-luong/noi-quy";
-import { NhanSuPage } from "../pages/nhan-su-luong/nhan-su";
-import { KcsKhaiBaoPage } from "../pages/danh-muc/KcsKhaiBaoPage";
-import { RebuildCatalogPage } from "../pages/RebuildCatalogPage";
-import { KhoTonKhoPage } from "../pages/KhoTonKhoPage";
-import { KhoPage } from "../pages/KhoPage";
-import { KhoBaoCaoPage } from "../pages/KhoBaoCaoPage";
 import type { KhoNhapSeed } from "../pages/KhoDeNghiPage";
-
-// Danh mục rebuild (config .tsx — render pill JSX)
+// Danh mục rebuild (config .tsx — render pill JSX). Nạp TĨNH: bảng này quyết định định tuyến
+// (`REBUILD_CONFIGS[baseId]`) nên phải có ngay, không chờ được.
 import { REBUILD_CONFIGS } from "../pages/rebuildCatalogConfigs";
-import { DepartmentPurchaseRequestsPage } from "../pages/mua-hang/yeu-cau-mua-hang";
-import { PurchaseRequestsPage } from "../pages/mua-hang/phieu-mua-hang";
-import { SuppliersPage } from "../pages/mua-hang/nha-cung-cap";
-import { AccountingPayablesPage } from "../pages/ke-toan/cong-no-phai-tra";
-import { AccountingReceivablesPage } from "../pages/ke-toan/cong-no-phai-thu";
-import { BaoCaoKeToanPage } from "../pages/ke-toan/bao-cao";
-import { AccountingPurchaseInboxPage } from "../pages/ke-toan/don-mua-hang";
-import { PaymentVouchersPage } from "../pages/ke-toan/phieu-chi";
-import { PaymentReceiptsPage } from "../pages/ke-toan/phieu-thu";
-import { AccountingBankAccountsPage } from "../pages/ke-toan/tk-ngan-hang";
-import { TaiSanPage } from "../pages/tai-san";
+import {
+  MOI_NHOM,
+  nhomCua,
+  taoBoGopNhip,
+  taoHoanNap,
+  tickRong,
+  tongTick,
+  type NhomSuKien,
+  type TickNhom,
+} from "../lib/suKienNhom";
+
+// ---- Các màn: TÁCH BUNDLE (sức chịu tải, mục B "Khác") -------------------------------------------
+// Trước 28/09/2026 cả app là MỘT tệp JS ~4,6 MB: công nhân mở bàn tổ trên 4G vẫn phải tải thư viện
+// bản đồ, biểu đồ, và mọi màn kế toán. Nay mỗi màn là một chunk riêng, chỉ tải khi mở lần đầu.
+// Giữ named export của từng màn: `lazy` đòi `default` nên bọc `.then(m => ({ default: m.Ten }))`.
+const ActivityLogPage = lazy(() => import("../pages/ActivityLogPage").then((m) => ({ default: m.ActivityLogPage })));
+const BaoGiaPage = lazy(() => import("../pages/BaoGiaPage").then((m) => ({ default: m.BaoGiaPage })));
+const DonHangBanPage = lazy(() => import("../pages/DonHangBanPage").then((m) => ({ default: m.DonHangBanPage })));
+const BaoCaoKinhDoanhPage = lazy(() =>
+  import("../pages/bao-cao-kinh-doanh/BaoCaoKinhDoanhPage").then((m) => ({ default: m.BaoCaoKinhDoanhPage })));
+const GiaoHangPage = lazy(() => import("../pages/giao-hang/giao-hang"));
+const KeHoachSXPage = lazy(() => import("../pages/KeHoachSXPage").then((m) => ({ default: m.KeHoachSXPage })));
+const LenhSanXuatPage = lazy(() => import("../pages/LenhSanXuatPage").then((m) => ({ default: m.LenhSanXuatPage })));
+const TheoDoiSanXuatPage = lazy(() =>
+  import("../pages/TheoDoiSanXuatPage").then((m) => ({ default: m.TheoDoiSanXuatPage })));
+const KeHoachVatTuPage = lazy(() => import("../pages/KeHoachVatTuPage").then((m) => ({ default: m.KeHoachVatTuPage })));
+const BaiGhep2Page = lazy(() => import("../pages/BaiGhep2Page").then((m) => ({ default: m.BaiGhep2Page })));
+const XepLichPage = lazy(() => import("../pages/XepLichPage").then((m) => ({ default: m.XepLichPage })));
+const ThucHienSxPage = lazy(() => import("../pages/ThucHienSxPage").then((m) => ({ default: m.ThucHienSxPage })));
+const KcsTheoLenhPage = lazy(() => import("../pages/kcs/KcsTheoLenhPage").then((m) => ({ default: m.KcsTheoLenhPage })));
+const SuaChuaMayPage = lazy(() => import("../pages/SuaChuaMayPage").then((m) => ({ default: m.SuaChuaMayPage })));
+const PhieuBaoTriPage = lazy(() => import("../pages/PhieuBaoTriPage").then((m) => ({ default: m.PhieuBaoTriPage })));
+const TinhGiaPage = lazy(() => import("../pages/TinhGiaPage").then((m) => ({ default: m.TinhGiaPage })));
+const DashboardPage = lazy(() => import("../pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const DepartmentsPage = lazy(() =>
+  import("../pages/nhan-su-luong/phong-ban").then((m) => ({ default: m.DepartmentsPage })));
+const KhachHangPage = lazy(() => import("../pages/KhachHangPage").then((m) => ({ default: m.KhachHangPage })));
+const QuyTrinhKinhDoanhPage = lazy(() =>
+  import("../pages/QuyTrinhKinhDoanhPage").then((m) => ({ default: m.QuyTrinhKinhDoanhPage })));
+const ChamCongPage = lazy(() => import("../pages/nhan-su-luong/cham-cong").then((m) => ({ default: m.ChamCongPage })));
+const NghiPhepPage = lazy(() => import("../pages/nhan-su-luong/nghi-phep").then((m) => ({ default: m.NghiPhepPage })));
+const TangCaPage = lazy(() => import("../pages/nhan-su-luong/tang-ca").then((m) => ({ default: m.TangCaPage })));
+const LuongPage = lazy(() => import("../pages/nhan-su-luong/luong").then((m) => ({ default: m.LuongPage })));
+const HoSoCuaToiPage = lazy(() =>
+  import("../pages/nhan-su-luong/ho-so-cua-toi").then((m) => ({ default: m.HoSoCuaToiPage })));
+const NoiQuyPage = lazy(() => import("../pages/nhan-su-luong/noi-quy").then((m) => ({ default: m.NoiQuyPage })));
+const NhanSuPage = lazy(() => import("../pages/nhan-su-luong/nhan-su").then((m) => ({ default: m.NhanSuPage })));
+const KcsKhaiBaoPage = lazy(() => import("../pages/danh-muc/KcsKhaiBaoPage").then((m) => ({ default: m.KcsKhaiBaoPage })));
+const RebuildCatalogPage = lazy(() =>
+  import("../pages/RebuildCatalogPage").then((m) => ({ default: m.RebuildCatalogPage })));
+const KhoTonKhoPage = lazy(() => import("../pages/KhoTonKhoPage").then((m) => ({ default: m.KhoTonKhoPage })));
+const KhoPage = lazy(() => import("../pages/KhoPage").then((m) => ({ default: m.KhoPage })));
+const KhoBaoCaoPage = lazy(() => import("../pages/KhoBaoCaoPage").then((m) => ({ default: m.KhoBaoCaoPage })));
+const DepartmentPurchaseRequestsPage = lazy(() =>
+  import("../pages/mua-hang/yeu-cau-mua-hang").then((m) => ({ default: m.DepartmentPurchaseRequestsPage })));
+const PurchaseRequestsPage = lazy(() =>
+  import("../pages/mua-hang/phieu-mua-hang").then((m) => ({ default: m.PurchaseRequestsPage })));
+const SuppliersPage = lazy(() => import("../pages/mua-hang/nha-cung-cap").then((m) => ({ default: m.SuppliersPage })));
+const AccountingPayablesPage = lazy(() =>
+  import("../pages/ke-toan/cong-no-phai-tra").then((m) => ({ default: m.AccountingPayablesPage })));
+const AccountingReceivablesPage = lazy(() =>
+  import("../pages/ke-toan/cong-no-phai-thu").then((m) => ({ default: m.AccountingReceivablesPage })));
+const BaoCaoKeToanPage = lazy(() => import("../pages/ke-toan/bao-cao").then((m) => ({ default: m.BaoCaoKeToanPage })));
+const AccountingPurchaseInboxPage = lazy(() =>
+  import("../pages/ke-toan/don-mua-hang").then((m) => ({ default: m.AccountingPurchaseInboxPage })));
+const PaymentVouchersPage = lazy(() =>
+  import("../pages/ke-toan/phieu-chi").then((m) => ({ default: m.PaymentVouchersPage })));
+const PaymentReceiptsPage = lazy(() =>
+  import("../pages/ke-toan/phieu-thu").then((m) => ({ default: m.PaymentReceiptsPage })));
+const AccountingBankAccountsPage = lazy(() =>
+  import("../pages/ke-toan/tk-ngan-hang").then((m) => ({ default: m.AccountingBankAccountsPage })));
+const TaiSanPage = lazy(() => import("../pages/tai-san").then((m) => ({ default: m.TaiSanPage })));
+
+/** Tab trình duyệt đang ẩn (người dùng ở tab khác / khoá màn hình điện thoại). */
+function tabDangAn(): boolean {
+  return typeof document !== "undefined" && document.hidden;
+}
+
 import {
   AUTHENTICATED_NAV_IDS,
   MODULES_BY_NAV_ID,
@@ -210,14 +247,45 @@ export function AppShell() {
   // số việc chờ. `teams` MỘT cú gọi ra cả list lẫn badge (`so_viec_cho`) — đừng thêm API badge
   // riêng. Refetch khi có sự kiện `san_xuat_cong_viec_changed` (badge nhảy + bàn đang mở tự tươi).
   const [teamList, setTeamList] = useState<SxTeam[]>([]);
-  // Real-time luồng gửi duyệt (SSE): toast nổi + mốc 'chờ tôi duyệt' gần nhất để chỉ toast khi TĂNG.
-  // `quoteTick` tăng mỗi event → truyền xuống BaoGiaPage cho nó refetch list/stats. Kênh SSE vẫn
-  // DUY NHẤT ở đây (trang con mở kênh riêng = tốn kết nối + lệch trạng thái).
-  const [quoteTick, setQuoteTick] = useState(0);
-  // Tách khỏi `quoteTick` — xem lý do ở nhánh `nhat_ky_moi` của kênh SSE bên dưới.
+  // Real-time (SSE): toast nổi + mốc 'chờ tôi duyệt' gần nhất để chỉ toast khi TĂNG. Kênh SSE DUY
+  // NHẤT ở đây (trang con mở kênh riêng = tốn kết nối + lệch trạng thái).
+  // Tick THEO NHÓM (28/09/2026, trước là một `quoteTick` chung cho mọi màn): mỗi màn nhận tổng tick
+  // các nhóm nó nghe (`tickCua`), sự kiện nhóm khác không bắt nó nạp lại. Xem `lib/suKienNhom`.
+  const [tick, setTick] = useState<TickNhom>(tickRong);
+  const tickCua = (...nhom: NhomSuKien[]) => tongTick(tick, nhom);
+  // Gộp nhịp 400 ms + hoãn khi tab ẩn. Tạo MỘT lần (setTick ổn định danh tính).
+  const boGopRef = useRef<ReturnType<typeof taoBoGopNhip>>(null as unknown as ReturnType<typeof taoBoGopNhip>);
+  if (!boGopRef.current) {
+    boGopRef.current = taoBoGopNhip({
+      choMs: 400,
+      dangAn: tabDangAn,
+      xa: (ds) =>
+        setTick((t) => {
+          const n = { ...t };
+          for (const g of ds) n[g] += 1;
+          return n;
+        }),
+    });
+  }
+  // Lượt nạp badge theo sự kiện: gộp 800 ms theo khoá.
+  const hoanNapRef = useRef<ReturnType<typeof taoHoanNap>>(null as unknown as ReturnType<typeof taoHoanNap>);
+  if (!hoanNapRef.current) hoanNapRef.current = taoHoanNap();
+  useEffect(() => () => {
+    boGopRef.current.huy();
+    hoanNapRef.current.huy();
+  }, []);
+  // Đã bỏ lượt nạp badge vì tab đang ẩn ⇒ nạp lại một lần khi tab hiện.
+  const boLoBadge = useRef(false);
+  const xuLySuKienRef = useRef<(e: QuoteEvent) => void>(() => {});
+  // Nạp lại TOÀN BỘ số đếm (badge + danh sách tổ) — dùng khi tab hiện lại / kênh nối lại.
+  const napLaiTatCaRef = useRef<() => void>(() => {});
+  // Lỡ mất sự kiện (kênh nối lại, máy chủ báo `dong_bo_lai`) mà tab đang ẩn ⇒ khi hiện lại phải nạp
+  // cả badge Kế hoạch vật tư (hàm nặng, bình thường KHÔNG chạy theo sự kiện).
+  const boLoVatTu = useRef(false);
+  // Tách khỏi tick nhóm — xem lý do ở nhánh `nhat_ky_moi` của kênh SSE bên dưới.
   const [nhatKyTick, setNhatKyTick] = useState(0);
   // Tín hiệu ĐÍCH DANH cho bàn tổ: SỐ LẦN đề nghị cấp vật tư đổi, ĐẾM THEO TỪNG công việc. Tách
-  // khỏi `quoteTick` có chủ đích — sự kiện này broadcast toàn hệ, đẩy vào tick chung là bắt mọi
+  // khỏi tick nhóm có chủ đích — sự kiện này broadcast toàn hệ, đẩy vào tick chung là bắt mọi
   // màn đang mở của cả nhà máy gọi lại API mỗi lần một tổ bấm gửi (xem nhánh SSE bên dưới).
   // Đếm theo công việc chứ không phải một `{n, congViecId}` chung: hai sự kiện rơi cùng một nhịp
   // React thì cái sau ghi đè `congViecId` của cái trước, và nếu cái bị đè đúng là việc đang mở thì
@@ -329,9 +397,13 @@ export function AppShell() {
   const luotHoiQuyen = useRef(0);
   // Bộ quyền đang áp (dạng chuỗi) để nhận ra lượt hỏi lại trả về y hệt.
   const quyenDangAp = useRef<string | null>(null);
+  // Lượt hỏi quyền ĐẦU TIÊN hỏng (mạng chập, máy chủ đang khởi động lại). Trước đây gán menu rỗng
+  // im lặng ⇒ người dùng thấy app trống trơn, tưởng bị rút hết quyền. Nay hiện lỗi + nút Thử lại.
+  const [loiQuyen, setLoiQuyen] = useState<string | null>(null);
   const reloadAccess = useCallback((baoNeuDoi = false) => {
     const luot = ++luotHoiQuyen.current;
     if (!token) return;
+    setLoiQuyen(null);
     api
       .myAccess(token)
       .then((acc) => {
@@ -352,11 +424,14 @@ export function AppShell() {
         setKcsTuCach({ kcs: !!acc.kcs, truongKcs: !!acc.truong_kcs });
         if (baoNeuDoi && !lanDau) pushToast("Quyền của bạn vừa được cập nhật.", "info");
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (luot !== luotHoiQuyen.current) return;
-        // Lượt ĐẦU hỏng ⇒ chưa có gì để giữ, coi như không quyền. Lượt tải lại (sau khi lưu vai
-        // trò) hỏng ⇒ giữ bộ quyền đang có; xoá sạch thì menu biến mất chỉ vì một cú mạng chập.
-        setReadable((cur) => cur ?? new Set());
+        // Lượt ĐẦU hỏng ⇒ chưa có gì để giữ: báo lỗi + Thử lại (xem `loiQuyen`). Lượt tải lại (sau
+        // khi lưu vai trò) hỏng ⇒ giữ bộ quyền đang có; xoá sạch thì menu biến mất chỉ vì một cú
+        // mạng chập.
+        if (quyenDangAp.current === null) {
+          setLoiQuyen(err instanceof ApiError ? err.message : "Không tải được quyền truy cập.");
+        }
       });
   }, [token, pushToast]);
   useEffect(() => {
@@ -481,9 +556,9 @@ export function AppShell() {
     // quay lại panel "Cần chăm sóc" mà không cần notification center.
     if (readable.has("khach_hang")) {
       api.customers
-        .careFollowups(token)
+        .careFollowupsCount(token)
         .then((r) => {
-          setBadges((prev) => ({ ...prev, "khach-hang": r.items.length }));
+          setBadges((prev) => ({ ...prev, "khach-hang": r.so }));
         })
         .catch(() => {});
     }
@@ -528,7 +603,7 @@ export function AppShell() {
     // Badge Kế hoạch SX = số đơn Sale đã chuyển xuống mà CÒN dòng chưa lên lệnh (hàng chờ).
     if (readable.has("san_xuat")) {
       api.lsx
-        .hangCho(token)
+        .hangCho(token, { chiDem: true })
         .then((r) => setBadges((prev) => ({ ...prev, "ke-hoach-sx": r.total })))
         .catch(() => {});
     }
@@ -682,6 +757,16 @@ export function AppShell() {
       .catch(() => {});
   }, [token, readable]);
   useEffect(() => { reloadTeams(); }, [reloadTeams]);
+  useEffect(() => {
+    napLaiTatCaRef.current = () => {
+      reloadBadges();
+      reloadTeams();
+      if (boLoVatTu.current) {
+        boLoVatTu.current = false;
+        reloadBadgeVatTu();
+      }
+    };
+  }, [reloadBadges, reloadTeams, reloadBadgeVatTu]);
   // Badge node lá tổ = `so_viec_cho` (đã kèm trong `teams`, KHÔNG gọi API badge riêng). Đồng bộ
   // mỗi khi teamList đổi (nạp đầu + sau mỗi sự kiện bàn tổ).
   useEffect(() => {
@@ -705,86 +790,105 @@ export function AppShell() {
   // được `quyen_doi`: được gán vai xong vẫn đứng nhìn menu trống tới khi F5. Danh sách đó còn chép
   // hai lần lệch nhau (bản thứ hai thiếu Bài ghép, Xếp lịch, Hồ sơ lệnh SX) và chặn luôn các tin
   // gửi đích danh cho chính người đó (đổi ca, chuông) — thứ vốn không cần quyền module nào.
-  useEffect(() => {
+  //
+  // Từ 28/09/2026 (sức chịu tải A3): kênh MỞ MỘT LẦN mỗi phiên, không đóng/mở lại theo bộ quyền
+  // hay token xoay — bộ xử lý đọc state mới nhất qua ref. Sự kiện chỉ đánh dấu NHÓM bẩn (xem
+  // `lib/suKienNhom`), 400 ms sau mới nhích tick một lần; các lượt nạp badge gộp 800 ms theo khoá;
+  // tab đang ẩn thì chỉ đánh dấu, hiện lại mới nạp. Toast vẫn hiện NGAY.
+  function xuLySuKien(e: QuoteEvent) {
     if (!token || readable === null) return;
-
-    const close = connectQuoteEvents(token, (e) => {
-      // Quyền của CHÍNH người này vừa đổi (vai của họ được lưu lại ma trận, được gán/gỡ vai, đổi
-      // phòng). Máy chủ đã gác theo quyền mới từ request kế tiếp; menu + nút thì phải hỏi lại.
-      if (e.type === "quyen_doi") {
-        reloadAccess(true);
+    const boGop = boGopRef.current;
+    // Nạp badge theo sự kiện: gộp theo khoá; tab ẩn thì bỏ lượt, ghi nhớ để nạp một lần khi hiện lại.
+    const napBadge = (khoa: string, fn: () => void) => {
+      if (tabDangAn()) {
+        boLoBadge.current = true;
         return;
       }
-      // Nhật ký có dòng mới. TICK RIÊNG, cố ý không đụng `quoteTick`: mọi thao tác trong hệ đều
-      // ghi một dòng audit, đẩy vào tick chung là bắt MỌI màn đang mở nạp lại theo. Màn Nhật ký
-      // cũng không tự chèn dòng vào danh sách người ta đang đọc — nó chỉ hiện băng "có N dòng mới".
-      if (e.type === "nhat_ky_moi") {
-        setNhatKyTick((n) => n + 1);
-        return;
-      }
-      // Chuyến giao của CHÍNH tài xế này — máy chủ đẩy đích danh nên không lọc quyền lần nữa.
-      // Tài xế đang ở kho hoặc trên đường, không ngồi canh màn hình (CLAUDE.md: nội bộ = tức thì).
-      if (e.type === "giao_hang_chuyen") {
-        setQuoteTick((n) => n + 1);
-        pushToast(
-          String(e.message ?? "Chuyến giao của bạn vừa cập nhật."),
-          e.viec === "kho_xong" ? "ok" : "info",
-        );
-        return;
-      }
-      // Đề nghị cấp vật tư của MỘT công đoạn vừa đổi. `hub.broadcast` gửi cho MỌI kết nối chứ
-      // không theo phạm vi, nên cả hai cổng lọc nằm ở đây:
-      //   1) toast gác quyền Xem bàn tổ — không thì kế toán, lái xe cũng ăn toast của tổ in;
-      //   2) KHÔNG bump `quoteTick` (tick chung của mọi màn) — chỉ đẩy đích danh `cong_viec_id`
-      //      xuống bàn tổ để đúng drawer đang mở việc đó nạp lại. Bump tick chung ở đây là biến
-      //      một lần tổ gửi đề nghị thành một lượt gọi API cho MỌI màn đang mở của cả nhà máy.
-      if (e.type === "san_xuat_vat_tu_de_nghi_changed") {
-        if (coQuyenBanTo(readable)) {
-          const cv = e.cong_viec_id;
-          setVatTuDeNghiDem((m) => ({ ...m, [cv]: (m[cv] ?? 0) + 1 }));
-          // Cổng thứ 3: KHÔNG toast cho việc người này đang mở (drawer vừa tươi, và nếu chính họ
-          // bấm thì `mutate` đã toast rồi) và gộp trong 2 giây — không thì mỗi lần bất kỳ tổ nào
-          // trong nhà máy bấm gửi là mọi người xem được bàn tổ ăn một toast.
-          const gio = Date.now();
-          if (cv !== cvDangMo.current && gio - lastVatTuToast.current > 2000) {
-            lastVatTuToast.current = gio;
-            pushToast("📦 Đề nghị cấp vật tư của công đoạn vừa cập nhật", "info");
-          }
-        }
-        return;
-      }
-      // Tệp đính kèm của lệnh: không toast (không phải việc gửi tới ai), không bump tick chung.
-      // Hai nơi đọc: tab Tệp của Kế hoạch SX và thẻ "Tệp của lệnh" trong drawer Bàn tổ (tổ không
-      // có module `san_xuat`, vào bằng quyền theo tổ).
-      if (e.type === "lsx_dinh_kem_changed") {
-        if (readable.has("san_xuat") || coQuyenBanTo(readable)) {
-          const id = e.lsx_id;
-          setLsxDinhKemDem((m) => ({ ...m, [id]: (m[id] ?? 0) + 1 }));
-        }
-        return;
-      }
-      // Mọi event luồng duyệt → đẩy tick: màn Báo giá đang mở tự tải lại bảng + số đếm tab.
-      setQuoteTick((n) => n + 1);
-      // Giữ chỗ vật tư vừa đổi (bật/tắt/nhặt thêm/hàng về/đối soát PMH) — tick ở trên đã bump nên
-      // màn Kế hoạch vật tư tự tải lại; chỉ cần báo cho người đang mở màn khác biết số đã đổi.
-      if (e.type === "ke_hoach_vat_tu_thay_doi") {
+      hoanNapRef.current.hoanNap(khoa, fn);
+    };
+    // Quyền của CHÍNH người này vừa đổi (vai của họ được lưu lại ma trận, được gán/gỡ vai, đổi
+    // phòng). Máy chủ đã gác theo quyền mới từ request kế tiếp; menu + nút thì phải hỏi lại.
+    if (e.type === "quyen_doi") {
+      reloadAccess(true);
+      return;
+    }
+    // Hàng đợi của kết nối này tràn (mạng chậm, tab ngủ): máy chủ bỏ các sự kiện đang xếp và để lại
+    // đúng tín hiệu này ⇒ làm như lúc kênh nối lại. Không toast.
+    if (e.type === "dong_bo_lai") {
+      dongBoLaiRef.current();
+      return;
+    }
+    // Nhật ký có dòng mới. TICK RIÊNG, cố ý không đụng tick nhóm: mọi thao tác trong hệ đều
+    // ghi một dòng audit, đẩy vào tick chung là bắt MỌI màn đang mở nạp lại theo. Màn Nhật ký
+    // cũng không tự chèn dòng vào danh sách người ta đang đọc — nó chỉ hiện băng "có N dòng mới".
+    if (e.type === "nhat_ky_moi") {
+      setNhatKyTick((n) => n + 1);
+      return;
+    }
+    // Chuyến giao của CHÍNH tài xế này — máy chủ đẩy đích danh nên không lọc quyền lần nữa.
+    // Tài xế đang ở kho hoặc trên đường, không ngồi canh màn hình (CLAUDE.md: nội bộ = tức thì).
+    if (e.type === "giao_hang_chuyen") {
+      boGop.danhDau(nhomCua(e.type));
+      pushToast(
+        String(e.message ?? "Chuyến giao của bạn vừa cập nhật."),
+        e.viec === "kho_xong" ? "ok" : "info",
+      );
+      return;
+    }
+    // Đề nghị cấp vật tư của MỘT công đoạn vừa đổi. `hub.broadcast` gửi cho MỌI kết nối chứ
+    // không theo phạm vi, nên cả hai cổng lọc nằm ở đây:
+    //   1) toast gác quyền Xem bàn tổ — không thì kế toán, lái xe cũng ăn toast của tổ in;
+    //   2) KHÔNG bump tick nhóm — chỉ đẩy đích danh `cong_viec_id`
+    //      xuống bàn tổ để đúng drawer đang mở việc đó nạp lại. Bump tick chung ở đây là biến
+    //      một lần tổ gửi đề nghị thành một lượt gọi API cho MỌI màn đang mở của cả nhà máy.
+    if (e.type === "san_xuat_vat_tu_de_nghi_changed") {
+      if (coQuyenBanTo(readable)) {
+        const cv = e.cong_viec_id;
+        setVatTuDeNghiDem((m) => ({ ...m, [cv]: (m[cv] ?? 0) + 1 }));
+        // Cổng thứ 3: KHÔNG toast cho việc người này đang mở (drawer vừa tươi, và nếu chính họ
+        // bấm thì `mutate` đã toast rồi) và gộp trong 2 giây — không thì mỗi lần bất kỳ tổ nào
+        // trong nhà máy bấm gửi là mọi người xem được bàn tổ ăn một toast.
         const gio = Date.now();
-        if (gio - lastKhvtToast.current > 2000) {
-          lastKhvtToast.current = gio;
-          pushToast("Kế hoạch vật tư vừa cập nhật.", "info");
+        if (cv !== cvDangMo.current && gio - lastVatTuToast.current > 2000) {
+          lastVatTuToast.current = gio;
+          pushToast("📦 Đề nghị cấp vật tư của công đoạn vừa cập nhật", "info");
         }
-        return;
       }
-      if (e.type === "quote_decision") {
-        pushToast(
-          e.decision === "approved"
-            ? `✓ Báo giá ${e.code} đã được duyệt`
-            : `✕ Báo giá ${e.code} bị từ chối`,
-          e.decision === "approved" ? "ok" : "warn",
-        );
-        reloadBadges();
-      } else if (readable.has("bao_gia") && e.type === "quote_pending_changed") {
-        // Danh sách 'chờ duyệt' đổi → refetch số; chỉ toast khi số 'chờ TÔI duyệt' TĂNG (có việc mới).
+      return;
+    }
+    // Tệp đính kèm của lệnh: không toast (không phải việc gửi tới ai), không bump tick chung.
+    // Hai nơi đọc: tab Tệp của Kế hoạch SX và thẻ "Tệp của lệnh" trong drawer Bàn tổ (tổ không
+    // có module `san_xuat`, vào bằng quyền theo tổ).
+    if (e.type === "lsx_dinh_kem_changed") {
+      if (readable.has("san_xuat") || coQuyenBanTo(readable)) {
+        const id = e.lsx_id;
+        setLsxDinhKemDem((m) => ({ ...m, [id]: (m[id] ?? 0) + 1 }));
+      }
+      return;
+    }
+    // Đánh dấu nhóm của sự kiện: màn đang mở nghe nhóm đó sẽ nạp lại (gộp nhịp 400 ms).
+    boGop.danhDau(nhomCua(e.type));
+    // Giữ chỗ vật tư vừa đổi (bật/tắt/nhặt thêm/hàng về/đối soát PMH) — tick ở trên đã bump nên
+    // màn Kế hoạch vật tư tự tải lại; chỉ cần báo cho người đang mở màn khác biết số đã đổi.
+    if (e.type === "ke_hoach_vat_tu_thay_doi") {
+      const gio = Date.now();
+      if (gio - lastKhvtToast.current > 2000) {
+        lastKhvtToast.current = gio;
+        pushToast("Kế hoạch vật tư vừa cập nhật.", "info");
+      }
+      return;
+    }
+    if (e.type === "quote_decision") {
+      pushToast(
+        e.decision === "approved"
+          ? `✓ Báo giá ${e.code} đã được duyệt`
+          : `✕ Báo giá ${e.code} bị từ chối`,
+        e.decision === "approved" ? "ok" : "warn",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("bao_gia") && e.type === "quote_pending_changed") {
+      // Danh sách 'chờ duyệt' đổi → refetch số; chỉ toast khi số 'chờ TÔI duyệt' TĂNG (có việc mới).
+      napBadge("bao_gia", () =>
         api.quotations
           .notifySummary(token)
           .then((s) => {
@@ -797,14 +901,16 @@ export function AppShell() {
             }
             lastPending.current = s.pending_approval_count;
           })
-          .catch(() => {});
-      // Nhánh `order_decision` (duyệt/từ chối đơn đặc thù) đã gỡ cùng luồng duyệt — backend
-      // không còn publish event này nữa.
-      } else if (readable.has("don_hang_ban") && e.type === "order_deposit_ok") {
-        pushToast(`🔔 Đơn ${e.code} đã đủ cọc — chuyển xuống sản xuất được rồi`, "info");
-        reloadBadges();
-      } else if (readable.has("don_hang_ban") && e.type === "order_pending_changed") {
-        // Danh sách 'chờ (duyệt/ghi cọc/chốt)' đổi → refetch số theo vai; toast khi số 'chờ TÔI' TĂNG.
+          .catch(() => {}),
+      );
+    // Nhánh `order_decision` (duyệt/từ chối đơn đặc thù) đã gỡ cùng luồng duyệt — backend
+    // không còn publish event này nữa.
+    } else if (readable.has("don_hang_ban") && e.type === "order_deposit_ok") {
+      pushToast(`🔔 Đơn ${e.code} đã đủ cọc — chuyển xuống sản xuất được rồi`, "info");
+      napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("don_hang_ban") && e.type === "order_pending_changed") {
+      // Danh sách 'chờ (duyệt/ghi cọc/chốt)' đổi → refetch số theo vai; toast khi số 'chờ TÔI' TĂNG.
+      napBadge("don_hang", () =>
         api.orders
           .notifySummary(token)
           .then((s) => {
@@ -814,10 +920,12 @@ export function AppShell() {
             }
             lastOrderAction.current = s.action_count;
           })
-          .catch(() => {});
-      } else if (e.type === "shift_changed") {
-        // Quản lý vừa đổi ca của TÔI. Không gác sau `readable`: đây là việc của chính mình,
-        // công nhân xưởng không có quyền đọc module nhân sự vẫn phải nhận được.
+          .catch(() => {}),
+      );
+    } else if (e.type === "shift_changed") {
+      // Quản lý vừa đổi ca của TÔI. Không gác sau `readable`: đây là việc của chính mình,
+      // công nhân xưởng không có quyền đọc module nhân sự vẫn phải nhận được.
+      napBadge("doi_ca", () =>
         api.attendance
           .notifySummary(token)
           .then((s) => {
@@ -827,206 +935,213 @@ export function AppShell() {
             }
             lastShiftChange.current = s.unseen_shift_changes;
           })
-          .catch(() => {});
-      } else if (
-        e.type === "order_ordered" ||
-        e.type === "lsx_changed" ||
-        e.type === "bai_ghep_changed" ||
-        e.type === "xep_lich_changed"
-      ) {
-        // Sale "Chuyển xuống sản xuất" → hàng chờ Kế hoạch nhảy (badge + toast); Kế hoạch/ghép bài/
-        // xếp lịch đổi → 3 badge khối Sản xuất co giãn NGAY. Nội dung màn tự refetch qua `quoteTick`.
-        //
-        // Ba lượt nạp gác RIÊNG từng khoá (tách 17/08/2026): một sự kiện `lsx_changed` vẫn làm
-        // hàng chờ của cả ba màn đổi, nhưng người chỉ có Bài ghép thì chỉ nên nạp lại badge Bài ghép.
-        if (readable.has("san_xuat")) {
-          api.lsx
-            .hangCho(token)
-            .then((r) => {
-              setBadges((prev) => ({ ...prev, "ke-hoach-sx": r.total }));
-              if (e.type === "order_ordered") {
-                pushToast(`🔔 Đơn ${e.code ?? ""} vừa chuyển xuống sản xuất`.trim(), "info");
-              }
-            })
-            .catch(() => {});
+          .catch(() => {}),
+      );
+    } else if (
+      e.type === "order_ordered" ||
+      e.type === "lsx_changed" ||
+      e.type === "bai_ghep_changed" ||
+      e.type === "xep_lich_changed"
+    ) {
+      // Sale "Chuyển xuống sản xuất" → hàng chờ Kế hoạch nhảy (badge + toast); Kế hoạch/ghép bài/
+      // xếp lịch đổi → 3 badge khối Sản xuất co giãn NGAY. Nội dung màn tự refetch qua tick nhóm.
+      //
+      // Ba lượt nạp gác RIÊNG từng khoá (tách 17/08/2026): một sự kiện `lsx_changed` vẫn làm
+      // hàng chờ của cả ba màn đổi, nhưng người chỉ có Bài ghép thì chỉ nên nạp lại badge Bài ghép.
+      if (readable.has("san_xuat")) {
+        // Toast NGAY theo sự kiện — không chờ lượt đếm (lượt đếm gộp nhịp, sự kiện sau có thể thay).
+        if (e.type === "order_ordered") {
+          pushToast(`🔔 Đơn ${e.code ?? ""} vừa chuyển xuống sản xuất`.trim(), "info");
         }
-        if (BAI_GHEP_ENABLED && readable.has("bai_ghep_2")) {
+        napBadge("ke_hoach_sx", () =>
+          api.lsx
+            .hangCho(token, { chiDem: true })
+            .then((r) => setBadges((prev) => ({ ...prev, "ke-hoach-sx": r.total })))
+            .catch(() => {}),
+        );
+      }
+      if (BAI_GHEP_ENABLED && readable.has("bai_ghep_2")) {
+        napBadge("bai_ghep", () =>
           api.baiGhep2
             .hangCho(token)
             .then((r) => setBadges((prev) => ({ ...prev, "bai-ghep-2": r.total })))
-            .catch(() => {});
-        }
-        if (readable.has("xep_lich")) {
+            .catch(() => {}),
+        );
+      }
+      if (readable.has("xep_lich")) {
+        napBadge("xep_lich", () =>
           api.xepLich
             .hangCho(token, { moi_trang: 1 })
             .then((r) => setBadges((prev) => ({ ...prev, "xep-lich": r.tong })))
-            .catch(() => {});
-        }
-      } else if (coQuyenBanTo(readable) && e.type === "san_xuat_cong_viec_changed") {
-        // Bàn tổ đổi (giao người / bắt đầu / tạm dừng / kết thúc / phát hành) → badge tổ nhảy
-        // NGAY; `quoteTick` đã bump ở đầu handler nên bàn đang mở tự refetch (không refresh).
-        // `teams` mang cả `so_viec_cho` nên reloadTeams lo luôn badge — không gọi API badge riêng.
-        reloadTeams();
-      } else if (coQuyenBanTo(readable) && e.type === "san_xuat_kcs_changed") {
-        // KCS ghi/điều chỉnh một lần kiểm, hoặc tổ mở tab KCS (đã xem lỗi) → badge "chờ xác nhận" của tổ
-        // bị báo lỗi đổi NGAY; `quoteTick` đã bump ở đầu handler nên màn KCS, hộp "KCS báo lỗi" và
-        // mục "Kết quả KCS" đang mở tự nạp lại (không refresh).
-        reloadTeams();
-      } else if (
-        coQuyenBanTo(readable) &&
-        (e.type === "san_xuat_ban_giao_changed" || e.type === "san_xuat_ho_tro_changed")
-      ) {
-        // Việc giữa hai tổ đổi (bàn giao · hỗ trợ chéo) → badge "chờ xác nhận" của tổ nhảy NGAY;
-        // `quoteTick` đã bump nên hộp "Chờ tổ bạn xác nhận" của bàn đang mở tự nạp lại.
-        reloadTeams();
-      } else if (e.type === "san_xuat_ban_giao") {
-        // Đẩy ĐÍCH DANH (máy chủ đã lọc người giữ Xác nhận sản lượng trọn tổ bên kia, trừ người bấm).
-        const sl = e.so_luong != null ? `${e.so_luong.toLocaleString("vi-VN")} ${nhanDonVi(e.don_vi)}`.trim() : "";
-        const tuyen = `${e.nguon_ten || "?"} → ${e.dich_ten || "?"}`;
-        if (e.su_kien === "cho_mang_di") {
-          // Bàn giao sang dải GIA CÔNG NGOÀI — máy chủ đẩy tới người có quyền sửa lệnh (Task 6).
-          pushToast(
-            `📦 ${e.nguon_ten || "Bước trước"} vừa giao${sl ? " " + sl : ""} sang “${e.dich_ten || "gia công ngoài"}”${e.lsx_ma ? ` (${e.lsx_ma})` : ""} — chờ mang đi gia công`,
-            "info",
-            9000,
-          );
-        } else if (e.su_kien === "xac_nhan") {
-          pushToast(`✓ Tổ nhận đã xác nhận bàn giao ${tuyen}${sl ? " · " + sl : ""}`, "ok");
-        } else if (e.su_kien === "dieu_chinh") {
-          pushToast(`✏️ Bàn giao ${tuyen} vừa được điều chỉnh${sl ? " thành " + sl : ""}`, "warn");
-        } else if (e.su_kien === "sua") {
-          pushToast(`✏️ Bàn giao ${tuyen} vừa sửa${sl ? " còn " + sl : ""} — chờ tổ bạn xác nhận`, "info");
-        } else {
-          pushToast(`🔔 Bàn giao mới ${tuyen}${sl ? " · " + sl : ""} — chờ tổ bạn xác nhận`, "info");
-        }
-      } else if (e.type === "san_xuat_ho_tro") {
-        const ai = `${e.ho_ten || "?"} (${e.to_goc_ten || "?"}) → ${e.ten_cong_doan || "?"} · ${e.to_thuc_hien_ten || "?"}`;
-        if (e.trang_thai === "confirmed") {
-          pushToast(`✓ Hỗ trợ chéo đã đủ hai tổ xác nhận: ${ai}`, "ok");
-        } else if (e.trang_thai === "cancelled") {
-          pushToast(`✕ Thỏa thuận hỗ trợ chéo đã huỷ: ${ai}`, "warn");
-        } else {
-          pushToast(`🔔 Lời mời hỗ trợ chéo: ${ai} — chờ tổ bạn xác nhận`, "info");
-        }
-      } else if (e.type === "san_xuat_duoc_giao_viec") {
-        // Đẩy đích danh tới người vừa được giao việc (chỉ người có tài khoản nhận) — toast cá nhân.
-        pushToast("🔔 Bạn được giao việc sản xuất mới", "info");
-      } else if (e.type === "san_xuat_kcs_ket_qua") {
-        // KCS vừa kiểm một công đoạn của tổ — đẩy ĐÍCH DANH tới người giữ Xác nhận sản lượng của tổ
-        // đó (§ thông báo tổ). Một chiều: tổ mở tab KCS là đã xem, không Nhận/Từ chối.
-        const ai = e.nguoi_kiem ? `KCS ${e.nguoi_kiem}` : "KCS";
-        const soDat = e.so_dat ?? 0;
-        const soLoi = e.so_loi ?? 0;
-        const lenh = e.lsx_ma ? ` (${e.lsx_ma})` : "";
-        if (e.phat_hien_o) {
-          // Lỗi của công đoạn này bị bắt ở bước SAU — KCS quy trách nhiệm về tổ.
-          pushToast(
-            `⚠️ ${ai} bắt lỗi ${e.ten_cong_doan || "công đoạn"}${lenh} ở bước ${e.phat_hien_o}: ${soLoi.toLocaleString("vi-VN")} ${nhanChang(e.don_vi)}`.trim(),
-            "warn",
-          );
-        } else {
-          const so = `đạt ${soDat.toLocaleString("vi-VN")} · lỗi ${soLoi.toLocaleString("vi-VN")}`;
-          pushToast(
-            `${soLoi > 0 ? "⚠️" : "✓"} ${ai} đã kiểm ${e.ten_cong_doan || "công đoạn"}${lenh}: ${so}`,
-            soLoi > 0 ? "warn" : "ok",
-          );
-        }
-      } else if (e.type === "san_xuat_kho") {
-        // Nhập kho thành phẩm là tương tác GIỮA KCS và kho — kho ghi sổ phiếu nhập thì đẩy ĐÍCH DANH
-        // tới người tạo yêu cầu (kho đã nhận tới đâu). `trang_thai` = trạng thái yêu cầu kho.
-        const ma = e.ma ? ` ${e.ma}` : "";
-        pushToast(
-          e.trang_thai === "partial"
-            ? `📦 Kho đã nhận MỘT PHẦN yêu cầu nhập kho${ma} — phần còn lại vẫn chờ nhập`
-            : `📦 Kho đã nhận đủ yêu cầu nhập kho${ma}`,
-          "ok",
+            .catch(() => {}),
         );
-      } else if (
-        (readable.has("san_xuat") || readable.has("don_hang_ban")) &&
-        e.type === "san_xuat_nhom_dong"
-      ) {
-        // Nhóm thành phẩm đã đóng (§16 đủ = KCS đạt đủ mục tiêu / §13.3 thiếu = trưởng KCS chốt khi
-        // hụt) → báo Sale + Kế hoạch SX NGAY. Broadcast nên gác theo vai (san_xuat = Kế hoạch,
-        // don_hang_ban = Sale).
+      }
+    } else if (coQuyenBanTo(readable) && e.type === "san_xuat_cong_viec_changed") {
+      // Bàn tổ đổi (giao người / bắt đầu / tạm dừng / kết thúc / phát hành) → badge tổ nhảy
+      // NGAY; nhóm sự kiện đã được đánh dấu ở đầu handler nên bàn đang mở tự refetch (không refresh).
+      // `teams` mang cả `so_viec_cho` nên reloadTeams lo luôn badge — không gọi API badge riêng.
+      napBadge("to_sx", reloadTeams);
+    } else if (coQuyenBanTo(readable) && e.type === "san_xuat_kcs_changed") {
+      // KCS ghi/điều chỉnh một lần kiểm, hoặc tổ mở tab KCS (đã xem lỗi) → badge "chờ xác nhận" của tổ
+      // bị báo lỗi đổi NGAY; nhóm sự kiện đã được đánh dấu ở đầu handler nên màn KCS, hộp "KCS báo lỗi" và
+      // mục "Kết quả KCS" đang mở tự nạp lại (không refresh).
+      napBadge("to_sx", reloadTeams);
+    } else if (
+      coQuyenBanTo(readable) &&
+      (e.type === "san_xuat_ban_giao_changed" || e.type === "san_xuat_ho_tro_changed")
+    ) {
+      // Việc giữa hai tổ đổi (bàn giao · hỗ trợ chéo) → badge "chờ xác nhận" của tổ nhảy NGAY;
+      // nhóm sự kiện đã được đánh dấu nên hộp "Chờ tổ bạn xác nhận" của bàn đang mở tự nạp lại.
+      napBadge("to_sx", reloadTeams);
+    } else if (e.type === "san_xuat_ban_giao") {
+      // Đẩy ĐÍCH DANH (máy chủ đã lọc người giữ Xác nhận sản lượng trọn tổ bên kia, trừ người bấm).
+      const sl = e.so_luong != null ? `${e.so_luong.toLocaleString("vi-VN")} ${nhanDonVi(e.don_vi)}`.trim() : "";
+      const tuyen = `${e.nguon_ten || "?"} → ${e.dich_ten || "?"}`;
+      if (e.su_kien === "cho_mang_di") {
+        // Bàn giao sang dải GIA CÔNG NGOÀI — máy chủ đẩy tới người có quyền sửa lệnh (Task 6).
         pushToast(
-          e.trang_thai === "closed_short"
-            ? "⚠️ Nhóm thành phẩm đã ĐÓNG THIẾU"
-            : "✅ Nhóm thành phẩm đã hoàn tất — đơn có thể giao",
-          e.trang_thai === "closed_short" ? "warn" : "ok",
+          `📦 ${e.nguon_ten || "Bước trước"} vừa giao${sl ? " " + sl : ""} sang “${e.dich_ten || "gia công ngoài"}”${e.lsx_ma ? ` (${e.lsx_ma})` : ""} — chờ mang đi gia công`,
+          "info",
+          9000,
         );
-      } else if (readable.has("ky_thuat_may") && e.type === "ky_thuat_yeu_cau_moi") {
-        // Bộ phận khác vừa báo máy hỏng → ting tổ sửa chữa NGAY. Máy đang dừng thì đổi giọng: đó
-        // là khác biệt giữa "lát nữa ghé xem" và "bỏ việc đang làm chạy sang".
+      } else if (e.su_kien === "xac_nhan") {
+        pushToast(`✓ Tổ nhận đã xác nhận bàn giao ${tuyen}${sl ? " · " + sl : ""}`, "ok");
+      } else if (e.su_kien === "dieu_chinh") {
+        pushToast(`✏️ Bàn giao ${tuyen} vừa được điều chỉnh${sl ? " thành " + sl : ""}`, "warn");
+      } else if (e.su_kien === "sua") {
+        pushToast(`✏️ Bàn giao ${tuyen} vừa sửa${sl ? " còn " + sl : ""} — chờ tổ bạn xác nhận`, "info");
+      } else {
+        pushToast(`🔔 Bàn giao mới ${tuyen}${sl ? " · " + sl : ""} — chờ tổ bạn xác nhận`, "info");
+      }
+    } else if (e.type === "san_xuat_ho_tro") {
+      const ai = `${e.ho_ten || "?"} (${e.to_goc_ten || "?"}) → ${e.ten_cong_doan || "?"} · ${e.to_thuc_hien_ten || "?"}`;
+      if (e.trang_thai === "confirmed") {
+        pushToast(`✓ Hỗ trợ chéo đã đủ hai tổ xác nhận: ${ai}`, "ok");
+      } else if (e.trang_thai === "cancelled") {
+        pushToast(`✕ Thỏa thuận hỗ trợ chéo đã huỷ: ${ai}`, "warn");
+      } else {
+        pushToast(`🔔 Lời mời hỗ trợ chéo: ${ai} — chờ tổ bạn xác nhận`, "info");
+      }
+    } else if (e.type === "san_xuat_duoc_giao_viec") {
+      // Đẩy đích danh tới người vừa được giao việc (chỉ người có tài khoản nhận) — toast cá nhân.
+      pushToast("🔔 Bạn được giao việc sản xuất mới", "info");
+    } else if (e.type === "san_xuat_kcs_ket_qua") {
+      // KCS vừa kiểm một công đoạn của tổ — đẩy ĐÍCH DANH tới người giữ Xác nhận sản lượng của tổ
+      // đó (§ thông báo tổ). Một chiều: tổ mở tab KCS là đã xem, không Nhận/Từ chối.
+      const ai = e.nguoi_kiem ? `KCS ${e.nguoi_kiem}` : "KCS";
+      const soDat = e.so_dat ?? 0;
+      const soLoi = e.so_loi ?? 0;
+      const lenh = e.lsx_ma ? ` (${e.lsx_ma})` : "";
+      if (e.phat_hien_o) {
+        // Lỗi của công đoạn này bị bắt ở bước SAU — KCS quy trách nhiệm về tổ.
         pushToast(
-          e.may_dung
-            ? `⚠️ ${e.may} ĐANG DỪNG · ${e.bo_phan_hong} — ${e.nguoi_bao ?? "?"} báo`
-            : `🔔 Báo máy hỏng: ${e.may} · ${e.bo_phan_hong}${e.nguoi_bao ? " — " + e.nguoi_bao : ""}`,
-          e.may_dung ? "warn" : "info",
+          `⚠️ ${ai} bắt lỗi ${e.ten_cong_doan || "công đoạn"}${lenh} ở bước ${e.phat_hien_o}: ${soLoi.toLocaleString("vi-VN")} ${nhanChang(e.don_vi)}`.trim(),
+          "warn",
         );
-        reloadBadges();
-      } else if (e.type === "ky_thuat_yeu_cau_ket_qua") {
-        // Kết quả đẩy riêng về ĐÚNG người đã báo (không broadcast) ⇒ KHÔNG gác quyền: nhận được
-        // sự kiện này nghĩa là mình chính là người gửi lời báo đó.
+      } else {
+        const so = `đạt ${soDat.toLocaleString("vi-VN")} · lỗi ${soLoi.toLocaleString("vi-VN")}`;
         pushToast(
-          e.ket_qua === "da_tao_phieu"
-            ? `✅ ${e.ma} đã được tiếp nhận — phiếu ${e.phieu_ma ?? ""}${e.boi ? " · " + e.boi : ""}`
-            : `✕ ${e.ma} không lập phiếu: ${e.ly_do ?? ""}`,
-          e.ket_qua === "da_tao_phieu" ? "ok" : "warn",
+          `${soLoi > 0 ? "⚠️" : "✓"} ${ai} đã kiểm ${e.ten_cong_doan || "công đoạn"}${lenh}: ${so}`,
+          soLoi > 0 ? "warn" : "ok",
         );
-        reloadBadges();
-      } else if (readable.has("phieu_bao_tri") && e.type === "bao_tri_due") {
-        // Tới ngày bảo trì → ting tổ sửa chữa: toast + badge "Phiếu bảo trì" tự nhảy.
-        pushToast(
-          `${e.qua_han ? "⚠️ Quá hạn bảo trì" : "🔧 Tới hạn bảo trì"}: ${e.may} · ${e.goi}`.trim(),
-          e.qua_han ? "warn" : "info",
-        );
-        reloadBadges();
-      } else if (readable.has("khach_hang") && e.type === "care_due") {
-        // Tới giờ hẹn → ting người phụ trách: toast + badge "Khách hàng" (số việc đến hạn) tự nhảy.
-        pushToast(`🔔 Tới hẹn chăm sóc: ${e.customer}${e.note ? " — " + e.note : ""}`, "info");
-        reloadBadges();
-      } else if (readable.has("khach_hang") && e.type === "care_assigned") {
-        pushToast(`📋 Bạn có hẹn chăm sóc mới: ${e.customer}${e.note ? " — " + e.note : ""}`, "info");
-        reloadBadges();
-      } else if (e.type === "advance_decision") {
-        // Nhân viên đề nghị nhận quyết định của kế toán — đẩy riêng tới đúng người.
-        pushToast(
-          e.decision === "approved"
-            ? "✓ Đề nghị tạm ứng của bạn đã được duyệt"
-            : "✕ Đề nghị tạm ứng của bạn bị từ chối",
-          e.decision === "approved" ? "ok" : "warn",
-        );
-        reloadBadges();
-      } else if (e.type === "ot_decision") {
-        // NV nộp phiếu tăng ca nhận quyết định của tổ trưởng — đẩy riêng tới đúng người.
-        pushToast(
-          e.decision === "approved"
-            ? "✓ Phiếu tăng ca của bạn đã được duyệt"
-            : e.decision === "cancelled"
-              ? "✕ Phiếu tăng ca đã duyệt của bạn vừa bị HUỶ — tối nay không còn giấy phép tăng ca"
-              : e.decision === "huy_dong_y"
-                ? "✓ Yêu cầu hủy phiếu tăng ca của bạn đã được đồng ý — phiếu đã hủy"
-                : e.decision === "huy_giu_nguyen"
-                  ? "✕ Yêu cầu hủy phiếu tăng ca không được đồng ý — phiếu vẫn giữ, xem lý do ở Tăng ca"
-                  : "✕ Phiếu tăng ca của bạn bị từ chối",
-          e.decision === "approved" || e.decision === "huy_dong_y" ? "ok" : "warn",
-        );
-        reloadBadges();
-      } else if (e.type === "leave_decision") {
-        // Nghỉ phép (23/09/2026): quyết định về đơn đẩy riêng tới người đứng tên đơn.
-        const msg: Record<string, string> = {
-          approved: "✓ Đơn nghỉ phép của bạn đã được duyệt",
-          rejected: "✕ Đơn nghỉ phép của bạn bị từ chối — xem lý do ở Nghỉ phép",
-          cancelled: "✕ Đơn nghỉ đã duyệt của bạn vừa bị HỦY — xem lý do ở Nghỉ phép",
-          huy_dong_y: "✓ Yêu cầu hủy đơn nghỉ đã được đồng ý — đơn đã hủy",
-          huy_rut_ngan: "✓ Yêu cầu hủy đơn nghỉ đã được đồng ý — đơn được rút ngắn, giữ các ngày đã nghỉ",
-          huy_giu_nguyen: "✕ Yêu cầu hủy đơn nghỉ không được đồng ý — đơn vẫn giữ, xem lý do ở Nghỉ phép",
-        };
-        pushToast(msg[e.decision] ?? "Đơn nghỉ phép của bạn vừa được cập nhật",
-          e.decision === "approved" || e.decision === "huy_dong_y" || e.decision === "huy_rut_ngan" ? "ok" : "warn");
-        reloadBadges();
-      } else if (readable.has("nghi_phep") && e.type === "leave_pending_changed") {
-        // Có đơn mới / yêu cầu hủy / vừa xử lý → refetch số chờ duyệt; toast khi TĂNG (người duyệt).
+      }
+    } else if (e.type === "san_xuat_kho") {
+      // Nhập kho thành phẩm là tương tác GIỮA KCS và kho — kho ghi sổ phiếu nhập thì đẩy ĐÍCH DANH
+      // tới người tạo yêu cầu (kho đã nhận tới đâu). `trang_thai` = trạng thái yêu cầu kho.
+      const ma = e.ma ? ` ${e.ma}` : "";
+      pushToast(
+        e.trang_thai === "partial"
+          ? `📦 Kho đã nhận MỘT PHẦN yêu cầu nhập kho${ma} — phần còn lại vẫn chờ nhập`
+          : `📦 Kho đã nhận đủ yêu cầu nhập kho${ma}`,
+        "ok",
+      );
+    } else if (
+      (readable.has("san_xuat") || readable.has("don_hang_ban")) &&
+      e.type === "san_xuat_nhom_dong"
+    ) {
+      // Nhóm thành phẩm đã đóng (§16 đủ = KCS đạt đủ mục tiêu / §13.3 thiếu = trưởng KCS chốt khi
+      // hụt) → báo Sale + Kế hoạch SX NGAY. Broadcast nên gác theo vai (san_xuat = Kế hoạch,
+      // don_hang_ban = Sale).
+      pushToast(
+        e.trang_thai === "closed_short"
+          ? "⚠️ Nhóm thành phẩm đã ĐÓNG THIẾU"
+          : "✅ Nhóm thành phẩm đã hoàn tất — đơn có thể giao",
+        e.trang_thai === "closed_short" ? "warn" : "ok",
+      );
+    } else if (readable.has("ky_thuat_may") && e.type === "ky_thuat_yeu_cau_moi") {
+      // Bộ phận khác vừa báo máy hỏng → ting tổ sửa chữa NGAY. Máy đang dừng thì đổi giọng: đó
+      // là khác biệt giữa "lát nữa ghé xem" và "bỏ việc đang làm chạy sang".
+      pushToast(
+        e.may_dung
+          ? `⚠️ ${e.may} ĐANG DỪNG · ${e.bo_phan_hong} — ${e.nguoi_bao ?? "?"} báo`
+          : `🔔 Báo máy hỏng: ${e.may} · ${e.bo_phan_hong}${e.nguoi_bao ? " — " + e.nguoi_bao : ""}`,
+        e.may_dung ? "warn" : "info",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (e.type === "ky_thuat_yeu_cau_ket_qua") {
+      // Kết quả đẩy riêng về ĐÚNG người đã báo (không broadcast) ⇒ KHÔNG gác quyền: nhận được
+      // sự kiện này nghĩa là mình chính là người gửi lời báo đó.
+      pushToast(
+        e.ket_qua === "da_tao_phieu"
+          ? `✅ ${e.ma} đã được tiếp nhận — phiếu ${e.phieu_ma ?? ""}${e.boi ? " · " + e.boi : ""}`
+          : `✕ ${e.ma} không lập phiếu: ${e.ly_do ?? ""}`,
+        e.ket_qua === "da_tao_phieu" ? "ok" : "warn",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("phieu_bao_tri") && e.type === "bao_tri_due") {
+      // Tới ngày bảo trì → ting tổ sửa chữa: toast + badge "Phiếu bảo trì" tự nhảy.
+      pushToast(
+        `${e.qua_han ? "⚠️ Quá hạn bảo trì" : "🔧 Tới hạn bảo trì"}: ${e.may} · ${e.goi}`.trim(),
+        e.qua_han ? "warn" : "info",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("khach_hang") && e.type === "care_due") {
+      // Tới giờ hẹn → ting người phụ trách: toast + badge "Khách hàng" (số việc đến hạn) tự nhảy.
+      pushToast(`🔔 Tới hẹn chăm sóc: ${e.customer}${e.note ? " — " + e.note : ""}`, "info");
+      napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("khach_hang") && e.type === "care_assigned") {
+      pushToast(`📋 Bạn có hẹn chăm sóc mới: ${e.customer}${e.note ? " — " + e.note : ""}`, "info");
+      napBadge("tat_ca", reloadBadges);
+    } else if (e.type === "advance_decision") {
+      // Nhân viên đề nghị nhận quyết định của kế toán — đẩy riêng tới đúng người.
+      pushToast(
+        e.decision === "approved"
+          ? "✓ Đề nghị tạm ứng của bạn đã được duyệt"
+          : "✕ Đề nghị tạm ứng của bạn bị từ chối",
+        e.decision === "approved" ? "ok" : "warn",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (e.type === "ot_decision") {
+      // NV nộp phiếu tăng ca nhận quyết định của tổ trưởng — đẩy riêng tới đúng người.
+      pushToast(
+        e.decision === "approved"
+          ? "✓ Phiếu tăng ca của bạn đã được duyệt"
+          : e.decision === "cancelled"
+            ? "✕ Phiếu tăng ca đã duyệt của bạn vừa bị HUỶ — tối nay không còn giấy phép tăng ca"
+            : e.decision === "huy_dong_y"
+              ? "✓ Yêu cầu hủy phiếu tăng ca của bạn đã được đồng ý — phiếu đã hủy"
+              : e.decision === "huy_giu_nguyen"
+                ? "✕ Yêu cầu hủy phiếu tăng ca không được đồng ý — phiếu vẫn giữ, xem lý do ở Tăng ca"
+                : "✕ Phiếu tăng ca của bạn bị từ chối",
+        e.decision === "approved" || e.decision === "huy_dong_y" ? "ok" : "warn",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (e.type === "leave_decision") {
+      // Nghỉ phép (23/09/2026): quyết định về đơn đẩy riêng tới người đứng tên đơn.
+      const msg: Record<string, string> = {
+        approved: "✓ Đơn nghỉ phép của bạn đã được duyệt",
+        rejected: "✕ Đơn nghỉ phép của bạn bị từ chối — xem lý do ở Nghỉ phép",
+        cancelled: "✕ Đơn nghỉ đã duyệt của bạn vừa bị HỦY — xem lý do ở Nghỉ phép",
+        huy_dong_y: "✓ Yêu cầu hủy đơn nghỉ đã được đồng ý — đơn đã hủy",
+        huy_rut_ngan: "✓ Yêu cầu hủy đơn nghỉ đã được đồng ý — đơn được rút ngắn, giữ các ngày đã nghỉ",
+        huy_giu_nguyen: "✕ Yêu cầu hủy đơn nghỉ không được đồng ý — đơn vẫn giữ, xem lý do ở Nghỉ phép",
+      };
+      pushToast(msg[e.decision] ?? "Đơn nghỉ phép của bạn vừa được cập nhật",
+        e.decision === "approved" || e.decision === "huy_dong_y" || e.decision === "huy_rut_ngan" ? "ok" : "warn");
+      napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("nghi_phep") && e.type === "leave_pending_changed") {
+      // Có đơn mới / yêu cầu hủy / vừa xử lý → refetch số chờ duyệt; toast khi TĂNG (người duyệt).
+      napBadge("nghi_phep", () =>
         api.leaves
           .summary(token)
           .then((s) => {
@@ -1037,9 +1152,11 @@ export function AppShell() {
             }
             lastLeavePending.current = n;
           })
-          .catch(() => {});
-      } else if (readable.has("tang_ca") && e.type === "ot_pending_changed") {
-        // Có phiếu tăng ca mới/hủy → refetch số 'chờ duyệt'; toast khi TĂNG (người duyệt).
+          .catch(() => {}),
+      );
+    } else if (readable.has("tang_ca") && e.type === "ot_pending_changed") {
+      // Có phiếu tăng ca mới/hủy → refetch số 'chờ duyệt'; toast khi TĂNG (người duyệt).
+      napBadge("tang_ca", () =>
         api.overtime
           .summary(token)
           .then((s) => {
@@ -1050,31 +1167,33 @@ export function AppShell() {
             }
             lastOtPending.current = n;
           })
-          .catch(() => {});
-      } else if (e.type === "adjust_decision") {
-        // NV gửi yêu cầu chỉnh công nhận quyết định (E7, 08/09/2026) — không phải F5 mới biết bị từ chối.
-        pushToast(
-          e.decision === "approved"
-            ? `✓ Yêu cầu chỉnh công ngày ${e.code ?? ""} đã được duyệt`
-            : `✕ Yêu cầu chỉnh công ngày ${e.code ?? ""} bị từ chối — xem lý do ở Chấm công`,
-          e.decision === "approved" ? "ok" : "warn",
-        );
-        reloadBadges();
-      } else if (readable.has("cham_cong") && e.type === "adjust_pending_changed") {
-        // Có yêu cầu chỉnh công mới/huỷ → người duyệt refetch (tab đang mở tự tải lại theo eventTick).
-        reloadBadges();
-      } else if (e.type === "el_decision") {
-        // NV nộp phiếu đi muộn / về sớm nhận quyết định của tổ trưởng — đẩy riêng tới đúng người.
-        pushToast(
-          e.decision === "approved"
-            ? "✓ Phiếu đi muộn / về sớm của bạn đã được duyệt"
-            : "✕ Phiếu đi muộn / về sớm của bạn bị từ chối",
-          e.decision === "approved" ? "ok" : "warn",
-        );
-        reloadBadges();
-      } else if (readable.has("cham_cong") && e.type === "el_pending_changed") {
-        // Có phiếu đi muộn mới/hủy → refetch số 'chờ duyệt'; toast khi TĂNG (người duyệt).
-        // Badge treo ở nav "cham-cong" (tab phiếu nằm trong màn Chấm công).
+          .catch(() => {}),
+      );
+    } else if (e.type === "adjust_decision") {
+      // NV gửi yêu cầu chỉnh công nhận quyết định (E7, 08/09/2026) — không phải F5 mới biết bị từ chối.
+      pushToast(
+        e.decision === "approved"
+          ? `✓ Yêu cầu chỉnh công ngày ${e.code ?? ""} đã được duyệt`
+          : `✕ Yêu cầu chỉnh công ngày ${e.code ?? ""} bị từ chối — xem lý do ở Chấm công`,
+        e.decision === "approved" ? "ok" : "warn",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("cham_cong") && e.type === "adjust_pending_changed") {
+      // Có yêu cầu chỉnh công mới/huỷ → người duyệt refetch (tab đang mở tự tải lại theo eventTick).
+      napBadge("tat_ca", reloadBadges);
+    } else if (e.type === "el_decision") {
+      // NV nộp phiếu đi muộn / về sớm nhận quyết định của tổ trưởng — đẩy riêng tới đúng người.
+      pushToast(
+        e.decision === "approved"
+          ? "✓ Phiếu đi muộn / về sớm của bạn đã được duyệt"
+          : "✕ Phiếu đi muộn / về sớm của bạn bị từ chối",
+        e.decision === "approved" ? "ok" : "warn",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("cham_cong") && e.type === "el_pending_changed") {
+      // Có phiếu đi muộn mới/hủy → refetch số 'chờ duyệt'; toast khi TĂNG (người duyệt).
+      // Badge treo ở nav "cham-cong" (tab phiếu nằm trong màn Chấm công).
+      napBadge("di_muon", () =>
         api.lateEarly
           .summary(token)
           .then((s) => {
@@ -1085,104 +1204,108 @@ export function AppShell() {
             }
             lastElPending.current = n;
           })
-          .catch(() => {});
-      } else if (
-        readable.has("thu_mua") &&
-        e.type === "department_purchase_request_created" &&
-        e.actor_user_id !== user?.id
-      ) {
-        pushToast(`Có yêu cầu mua hàng${e.code ? " " + e.code : ""} mới từ phòng ban`, "info");
-        reloadBadges();
-      } else if (
-        readable.has("ke_toan") &&
-        e.type === "purchase_pending_approval" &&
-        e.actor_user_id !== user?.id
-      ) {
-        pushToast(`Có đơn mua hàng${e.code ? " " + e.code : ""} chờ xử lý`, "info");
-        reloadBadges();
-      } else if (
-        readable.has("thu_mua") &&
-        e.type === "purchase_decision" &&
-        e.actor_user_id !== user?.id &&
-        (e.recipient_user_id == null || e.recipient_user_id === user?.id)
-      ) {
+          .catch(() => {}),
+      );
+    } else if (
+      readable.has("thu_mua") &&
+      e.type === "department_purchase_request_created" &&
+      e.actor_user_id !== user?.id
+    ) {
+      pushToast(`Có yêu cầu mua hàng${e.code ? " " + e.code : ""} mới từ phòng ban`, "info");
+      napBadge("tat_ca", reloadBadges);
+    } else if (
+      readable.has("ke_toan") &&
+      e.type === "purchase_pending_approval" &&
+      e.actor_user_id !== user?.id
+    ) {
+      pushToast(`Có đơn mua hàng${e.code ? " " + e.code : ""} chờ xử lý`, "info");
+      napBadge("tat_ca", reloadBadges);
+    } else if (
+      readable.has("thu_mua") &&
+      e.type === "purchase_decision" &&
+      e.actor_user_id !== user?.id &&
+      (e.recipient_user_id == null || e.recipient_user_id === user?.id)
+    ) {
+      pushToast(
+        e.decision === "approved"
+          ? `Đơn mua hàng${e.code ? " " + e.code : ""} đã được duyệt`
+          : `Đơn mua hàng${e.code ? " " + e.code : ""} bị từ chối, cần sửa và gửi lại`,
+        e.decision === "approved" ? "ok" : "warn",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (
+      (readable.has("ke_toan") || readable.has("phieu_chi")) &&
+      (e.type === "purchase_delivery_created" ||
+        e.type === "purchase_delivery_updated" ||
+        e.type === "purchase_delivery_deleted" ||
+        e.type === "purchase_invoice_updated") &&
+      e.actor_user_id !== user?.id
+    ) {
+      const code = e.code ? ` ${e.code}` : "";
+      if (e.type === "purchase_delivery_created") {
         pushToast(
-          e.decision === "approved"
-            ? `Đơn mua hàng${e.code ? " " + e.code : ""} đã được duyệt`
-            : `Đơn mua hàng${e.code ? " " + e.code : ""} bị từ chối, cần sửa và gửi lại`,
-          e.decision === "approved" ? "ok" : "warn",
+          `Đơn mua hàng${code} có đợt giao mới${e.seq_no ? ` số ${e.seq_no}` : ""}`,
+          "info",
         );
-        reloadBadges();
-      } else if (
-        (readable.has("ke_toan") || readable.has("phieu_chi")) &&
-        (e.type === "purchase_delivery_created" ||
-          e.type === "purchase_delivery_updated" ||
-          e.type === "purchase_delivery_deleted" ||
-          e.type === "purchase_invoice_updated") &&
-        e.actor_user_id !== user?.id
-      ) {
-        const code = e.code ? ` ${e.code}` : "";
-        if (e.type === "purchase_delivery_created") {
-          pushToast(
-            `Đơn mua hàng${code} có đợt giao mới${e.seq_no ? ` số ${e.seq_no}` : ""}`,
-            "info",
-          );
-        } else if (e.type === "purchase_delivery_updated") {
-          pushToast(`Đợt giao của đơn mua hàng${code} đã được cập nhật`, "info");
-        } else if (e.type === "purchase_delivery_deleted") {
-          pushToast(`Đợt giao của đơn mua hàng${code} đã được xóa`, "warn");
-        } else {
-          pushToast(`Hóa đơn của đơn mua hàng${code} đã được cập nhật`, "info");
-        }
-        reloadBadges();
-      } else if (
-        readable.has("thu_mua") &&
-        e.type === "payment_voucher_created" &&
-        e.actor_user_id !== user?.id &&
-        (e.recipient_user_id == null || e.recipient_user_id === user?.id)
-      ) {
+      } else if (e.type === "purchase_delivery_updated") {
+        pushToast(`Đợt giao của đơn mua hàng${code} đã được cập nhật`, "info");
+      } else if (e.type === "purchase_delivery_deleted") {
+        pushToast(`Đợt giao của đơn mua hàng${code} đã được xóa`, "warn");
+      } else {
+        pushToast(`Hóa đơn của đơn mua hàng${code} đã được cập nhật`, "info");
+      }
+      napBadge("tat_ca", reloadBadges);
+    } else if (
+      readable.has("thu_mua") &&
+      e.type === "payment_voucher_created" &&
+      e.actor_user_id !== user?.id &&
+      (e.recipient_user_id == null || e.recipient_user_id === user?.id)
+    ) {
+      pushToast(
+        `Kế toán đã lập chứng từ${e.voucher_code ? " " + e.voucher_code : ""}${
+          e.code ? ` cho đơn ${e.code}` : ""
+        }`,
+        "ok",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (
+      readable.has("thu_mua") &&
+      e.type === "payment_voucher_cancelled" &&
+      e.actor_user_id !== user?.id &&
+      (e.recipient_user_id == null || e.recipient_user_id === user?.id)
+    ) {
+      pushToast(
+        `Kế toán đã hủy chứng từ${e.voucher_code ? " " + e.voucher_code : ""}${
+          e.code ? ` của đơn ${e.code}` : ""
+        }`,
+        "warn",
+      );
+      napBadge("tat_ca", reloadBadges);
+    } else if (
+      (readable.has("thu_mua") || readable.has("ke_toan")) &&
+      (e.type === "purchase_changed" || e.type === "accounting_changed")
+    ) {
+      napBadge("thong_bao_module", reloadModuleNotificationBadges);
+    } else if (
+      readable.has("phieu_chi") &&
+      (e.type === "gia_cong_cho_chi" || e.type === "gia_cong_cho_chi_changed")
+    ) {
+      if (e.type === "gia_cong_cho_chi") {
         pushToast(
-          `Kế toán đã lập chứng từ${e.voucher_code ? " " + e.voucher_code : ""}${
-            e.code ? ` cho đơn ${e.code}` : ""
-          }`,
-          "ok",
+          `💸 Gia công ${e.ten_viec ?? ""} — ${e.nha_cung_cap_ten ?? ""}${e.lsx_ma ? ` (${e.lsx_ma})` : ""} đã chốt số, chờ lập phiếu chi`,
+          "info",
+          9000,
         );
-        reloadBadges();
-      } else if (
-        readable.has("thu_mua") &&
-        e.type === "payment_voucher_cancelled" &&
-        e.actor_user_id !== user?.id &&
-        (e.recipient_user_id == null || e.recipient_user_id === user?.id)
-      ) {
-        pushToast(
-          `Kế toán đã hủy chứng từ${e.voucher_code ? " " + e.voucher_code : ""}${
-            e.code ? ` của đơn ${e.code}` : ""
-          }`,
-          "warn",
-        );
-        reloadBadges();
-      } else if (
-        (readable.has("thu_mua") || readable.has("ke_toan")) &&
-        (e.type === "purchase_changed" || e.type === "accounting_changed")
-      ) {
-        reloadModuleNotificationBadges();
-      } else if (
-        readable.has("phieu_chi") &&
-        (e.type === "gia_cong_cho_chi" || e.type === "gia_cong_cho_chi_changed")
-      ) {
-        if (e.type === "gia_cong_cho_chi") {
-          pushToast(
-            `💸 Gia công ${e.ten_viec ?? ""} — ${e.nha_cung_cap_ten ?? ""}${e.lsx_ma ? ` (${e.lsx_ma})` : ""} đã chốt số, chờ lập phiếu chi`,
-            "info",
-            9000,
-          );
-        }
+      }
+      napBadge("phieu_chi", () =>
         api.giaCongNgoai
           .demChoChi(token)
           .then((r) => setBadges((prev) => ({ ...prev, "ke-toan-phieu-chi": r.so })))
-          .catch(() => {});
-      } else if (readable.has("luong") && e.type === "advance_pending_changed") {
-        // Có đề nghị tạm ứng mới/đổi → refetch số 'chờ duyệt'; toast khi TĂNG (người duyệt).
+          .catch(() => {}),
+      );
+    } else if (readable.has("luong") && e.type === "advance_pending_changed") {
+      // Có đề nghị tạm ứng mới/đổi → refetch số 'chờ duyệt'; toast khi TĂNG (người duyệt).
+      napBadge("tam_ung", () =>
         api.luong
           .advanceNotifySummary(token)
           .then((s) => {
@@ -1192,17 +1315,19 @@ export function AppShell() {
             }
             lastAdvancePending.current = s.pending_approval_count;
           })
-          .catch(() => {});
-      } else if (readable.has("kho") && e.type === "stock_request") {
-        // Tin ĐÍCH DANH của luồng kho (duyệt/từ chối/hủy/cấp…). Câu chữ backend soạn; chèn CHIỀU
-        // (nhập/xuất) vào đầu cho cụ thể, hiện lâu hơn (9s).
-        const dir = e.loai === "XUAT" ? "xuất" : "nhập";
-        const msg = e.message.startsWith("Yêu cầu")
-          ? e.message.replace(/^Yêu cầu/, `Yêu cầu ${dir}`)
-          : e.message;
-        pushToast(msg, "info", 9000);
-        // Phản hồi kho (hoàn tất/không thành) cho yêu cầu CỦA TÔI → badge nhập-xuất nhảy NGAY (không
-        // đợi refresh). Chỉ người TẠO/DUYỆT nhận tin đích danh này nên refetch là đúng đối tượng.
+          .catch(() => {}),
+      );
+    } else if (readable.has("kho") && e.type === "stock_request") {
+      // Tin ĐÍCH DANH của luồng kho (duyệt/từ chối/hủy/cấp…). Câu chữ backend soạn; chèn CHIỀU
+      // (nhập/xuất) vào đầu cho cụ thể, hiện lâu hơn (9s).
+      const dir = e.loai === "XUAT" ? "xuất" : "nhập";
+      const msg = e.message.startsWith("Yêu cầu")
+        ? e.message.replace(/^Yêu cầu/, `Yêu cầu ${dir}`)
+        : e.message;
+      pushToast(msg, "info", 9000);
+      // Phản hồi kho (hoàn tất/không thành) cho yêu cầu CỦA TÔI → badge nhập-xuất nhảy NGAY (không
+      // đợi refresh). Chỉ người TẠO/DUYỆT nhận tin đích danh này nên refetch là đúng đối tượng.
+      napBadge("kho_tin", () =>
         api.kho.deNghi
           .counts(token)
           .then((c) => {
@@ -1213,38 +1338,80 @@ export function AppShell() {
               "kho-main": c.nhap + c.xuat + c.dieu_chuyen + c.done_unseen + c.fail_unseen,
             }));
           })
-          .catch(() => {});
-      } else if (readable.has("kho") && e.type === "stock_request_pending_changed") {
-        // Yêu cầu kho đổi (tạo/duyệt/cấp…) → cập nhật badge Nhập/Xuất; toast thủ kho khi tổng
-        // "chờ cấp" TĂNG (có việc mới). quoteTick ở đầu handler đã lo refetch 2 màn kho đang mở.
-        api.kho.deNghi
-          .counts(token)
-          .then((c) => {
-            const workload = c.nhap + c.xuat + c.dieu_chuyen; // chỉ "chờ cấp" — nuôi toast việc-mới
-            setKhoCounts(c);
-            setBadges((prev) => ({
-              ...prev,
-              "kho-main": workload + c.done_unseen + c.fail_unseen,
-            }));
-            // Toast "có việc mới" CHỈ cho người XỬ LÝ kho (lập phiếu / xem tồn), KHÔNG gửi người TẠO.
-            const canProcess = !!(caps.get("kho")?.can_create || caps.get("kho")?.can_view_stock);
-            if (workload > lastKhoPending.current && canProcess && user?.id !== e.nguoi_tao_id) {
-              const dir = e.loai === "XUAT" ? "xuất" : "nhập";
-              // Nói rõ đến từ AI · PHÒNG nào để thủ kho biết nguồn ngay.
-              const who = [e.nguoi_tao_ten, e.bo_phan_ten].filter(Boolean).join(" · ");
-              pushToast(
-                `🔔 Có yêu cầu ${dir} mới chờ cấp${who ? ` — ${who}` : ""}`,
-                "info",
-                9000,
-              );
-            }
-            lastKhoPending.current = workload;
-          })
-          .catch(() => {});
-      }
+          .catch(() => {}),
+      );
+    } else if (readable.has("kho") && e.type === "stock_request_pending_changed") {
+      // Yêu cầu kho đổi (tạo/duyệt/cấp…) → cập nhật badge Nhập/Xuất; toast thủ kho khi tổng
+      // "chờ cấp" TĂNG (có việc mới). tick nhóm `kho` ở đầu handler đã lo refetch 2 màn kho đang mở.
+      napBadge("kho_cho", () => api.kho.deNghi
+        .counts(token)
+        .then((c) => {
+          const workload = c.nhap + c.xuat + c.dieu_chuyen; // chỉ "chờ cấp" — nuôi toast việc-mới
+          setKhoCounts(c);
+          setBadges((prev) => ({
+            ...prev,
+            "kho-main": workload + c.done_unseen + c.fail_unseen,
+          }));
+          // Toast "có việc mới" CHỈ cho người XỬ LÝ kho (lập phiếu / xem tồn), KHÔNG gửi người TẠO.
+          const canProcess = !!(caps.get("kho")?.can_create || caps.get("kho")?.can_view_stock);
+          if (workload > lastKhoPending.current && canProcess && user?.id !== e.nguoi_tao_id) {
+            const dir = e.loai === "XUAT" ? "xuất" : "nhập";
+            // Nói rõ đến từ AI · PHÒNG nào để thủ kho biết nguồn ngay.
+            const who = [e.nguoi_tao_ten, e.bo_phan_ten].filter(Boolean).join(" · ");
+            pushToast(
+              `🔔 Có yêu cầu ${dir} mới chờ cấp${who ? ` — ${who}` : ""}`,
+              "info",
+              9000,
+            );
+          }
+          lastKhoPending.current = workload;
+        })
+        .catch(() => {}));
+    }
+  }
+  useEffect(() => {
+    xuLySuKienRef.current = xuLySuKien;
+  });
+  // Lỡ mất sự kiện (kênh vừa nối lại sau khi đứt, hoặc máy chủ báo `dong_bo_lai` vì hàng đợi của
+  // kết nối này tràn): nhích MỌI nhóm để màn đang mở nạp lại + nạp lại mọi badge, kể cả Kế hoạch
+  // vật tư. Không toast. Tab đang ẩn thì hoãn tới lúc hiện lại.
+  const dongBoLaiRef = useRef<() => void>(() => {});
+  dongBoLaiRef.current = () => {
+    boGopRef.current.danhDau(MOI_NHOM);
+    boLoVatTu.current = true;
+    if (tabDangAn()) {
+      boLoBadge.current = true;
+      return;
+    }
+    napLaiTatCaRef.current();
+  };
+  const coPhien = !!token && readable !== null;
+  useEffect(() => {
+    if (!token || !coPhien) return;
+    const close = connectQuoteEvents(token, (e) => xuLySuKienRef.current(e), {
+      // Kênh vừa NỐI LẠI sau khi đứt (deploy, rớt mạng): sự kiện bắn trong lúc đứt đã rơi ⇒ nhích
+      // mọi nhóm + nạp lại badge một lần cho khỏi lệch.
+      onMo: () => dongBoLaiRef.current(),
     });
     return close;
-  }, [token, readable, reloadBadges, reloadModuleNotificationBadges, reloadTeams, pushToast, caps, user, reloadAccess]);
+    // Cố ý CHỈ theo token + "đã có quyền" — xem ghi chú đầu khối. Token React giờ chỉ đổi khi đăng
+    // nhập / khôi phục phiên (token xoay ngầm nằm ở `layTokenMoiNhat`).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, coPhien]);
+
+  // Tab hiện lại: xả nhóm bẩn (màn đang mở nạp một lượt) + nạp lại badge nếu đã bỏ lượt lúc ẩn.
+  useEffect(() => {
+    const onVis = () => {
+      if (tabDangAn()) return;
+      const coBan = boGopRef.current.khiHien();
+      if (coBan || boLoBadge.current) {
+        boLoBadge.current = false;
+        napLaiTatCaRef.current();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   useEffect(() => {
     if (readable === null) return;
@@ -1271,6 +1438,18 @@ export function AppShell() {
 
 
   if (readable === null) {
+    if (loiQuyen) {
+      return (
+        <div className="shell__center">
+          <div className="banner banner--error" role="alert" style={{ textTransform: "none", letterSpacing: 0 }}>
+            <span>Không tải được quyền truy cập: {loiQuyen}</span>
+            <button type="button" className="btn btn--ghost" onClick={() => reloadAccess()}>
+              Thử lại
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="shell__center" role="status" aria-live="polite">
         Đang tải…
@@ -1371,12 +1550,12 @@ export function AppShell() {
     if (baseId === "khai-bao-kho") {
       return <RebuildCatalogPage key="khai-bao-kho" config={REBUILD_CONFIGS["khai-bao-kho"]} onMutate={reloadKho} />;
     }
-    // Kho — MỘT module, chia tab (Đề nghị · Hộp yêu cầu) × (Nhập · Xuất). `quoteTick` là tick
-    // CHUNG của kênh SSE: mọi sự kiện kho đều đẩy tick nên bảng tự tươi, không mở EventSource riêng.
+    // Kho — MỘT module, chia tab (Đề nghị · Hộp yêu cầu) × (Nhập · Xuất). Tick nhóm `kho` của kênh
+    // SSE chung: mọi sự kiện kho đều nhích tick nên bảng tự tươi, không mở EventSource riêng.
     if (baseId === "kho-main") {
       return (
         <KhoPage
-          eventTick={quoteTick}
+          eventTick={tickCua("kho")}
           nhapSeed={navParams?.khoNhapSeed}
           counts={khoCounts}
           onSeen={reloadBadges}
@@ -1407,7 +1586,7 @@ export function AppShell() {
       );
     }
     // Bàn "Thực hiện sản xuất" của 1 tổ (bấm node lá "thuc-hien-sx:<teamId>" dưới section Sản xuất).
-    // `eventTick` = quoteTick (bump theo MỌI sự kiện SSE) → bàn đang mở tự refetch khi bàn tổ đổi.
+    // `eventTick` = tick nhóm sản xuất + kho → bàn đang mở tự refetch khi bàn tổ / kho cấp vật tư đổi.
     if (baseId === "thuc-hien-sx") {
       const teamId = Number(activeId.split(":")[1]);
       const t = teamList.find((x) => x.id === teamId);
@@ -1417,7 +1596,7 @@ export function AppShell() {
           teamId={teamId}
           tenTo={t?.ten}
           laTho={t?.la_tho ?? false}
-          eventTick={quoteTick}
+          eventTick={tickCua("san_xuat", "kho")}
           vatTuDeNghiDem={vatTuDeNghiDem}
           dinhKemDem={lsxDinhKemDem}
           onXemCongViec={datCvDangMo}
@@ -1427,7 +1606,7 @@ export function AppShell() {
     }
     // Màn KCS theo lệnh — một màn cho mọi người KCS, không theo tổ.
     if (baseId === "kcs") {
-      return <KcsTheoLenhPage key="kcs" eventTick={quoteTick} onBadgeStale={reloadTeams} navigate={navigate} />;
+      return <KcsTheoLenhPage key="kcs" eventTick={tickCua("san_xuat", "kho")} onBadgeStale={reloadTeams} navigate={navigate} />;
     }
     // Id cũ "quy-doi" (màn cặp riêng, đã gộp vào drawer đơn vị) → về đúng màn Đơn vị.
     if (baseId === "quy-doi") {
@@ -1454,7 +1633,7 @@ export function AppShell() {
       case "noi-quy":
         return <NoiQuyPage />;
       case "cham-cong":
-        // `eventTick` nhảy theo MỌI sự kiện SSE → tab phiếu đi muộn/về sớm đang mở tự tải lại ngay
+        // `eventTick` nhảy theo sự kiện nhóm nhân sự → tab phiếu đi muộn/về sớm đang mở tự tải lại ngay
         // khi tổ trưởng duyệt/từ chối (không chỉ nhảy badge).
         return (
           <ChamCongPage
@@ -1462,21 +1641,21 @@ export function AppShell() {
             focusEmployeeId={navParams?.focusEmployeeId}
             openTab={navParams?.chamCongTab}
             onChanged={reloadBadges}
-            eventTick={quoteTick}
+            eventTick={tickCua("nhan_su")}
           />
         );
       case "nghi-phep":
-        return <NghiPhepPage onChanged={reloadBadges} focusEmployeeId={navParams?.focusEmployeeId} eventTick={quoteTick} />;
+        return <NghiPhepPage onChanged={reloadBadges} focusEmployeeId={navParams?.focusEmployeeId} eventTick={tickCua("nhan_su")} />;
       case "tang-ca":
-        // `eventTick` nhảy theo MỌI sự kiện SSE → bảng phiếu đang mở tự tải lại ngay khi bên kia
+        // `eventTick` nhảy theo sự kiện nhóm nhân sự → bảng phiếu đang mở tự tải lại ngay khi bên kia
         // duyệt/từ chối/gửi phiếu (không chỉ nhảy badge).
-        return <TangCaPage onChanged={reloadBadges} eventTick={quoteTick} />;
+        return <TangCaPage onChanged={reloadBadges} eventTick={tickCua("nhan_su")} />;
       case "luong":
         return (
           <LuongPage
             navigate={navigate}
             focusEmployeeId={navParams?.focusEmployeeId}
-            eventTick={quoteTick}
+            eventTick={tickCua("nhan_su")}
             openTab={navParams?.luongTab}
           />
         );
@@ -1489,36 +1668,45 @@ export function AppShell() {
           <BaoGiaPage
             openQuoteId={navParams?.openQuoteId ?? null}
             navigate={navigate}
-            eventTick={quoteTick}
+            eventTick={tickCua("ban_hang")}
           />
         );
       case "don-hang-ban":
-        return <DonHangBanPage navigate={navigate} openOrderId={navParams?.openOrderId ?? null} />;
+        // Drawer đơn bày tiến độ (sản xuất · kho · giao) và hoá đơn (kế toán) — hai tick riêng, thay cho
+        // hai kênh SSE mà drawer từng tự mở (28/09/2026).
+        return (
+          <DonHangBanPage
+            navigate={navigate}
+            openOrderId={navParams?.openOrderId ?? null}
+            eventTick={tickCua("ban_hang", "san_xuat", "kho", "giao_hang")}
+            keToanTick={tickCua("mua_ke_toan")}
+          />
+        );
       case "bao-cao-kinh-doanh":
         return <BaoCaoKinhDoanhPage />;
       case "giao-hang":
         // `eventTick` tăng mỗi sự kiện SSE ⇒ bảng chuyến tự tươi, không phải F5.
-        return <GiaoHangPage eventTick={quoteTick} />;
+        return <GiaoHangPage eventTick={tickCua("giao_hang", "ban_hang")} />;
       case "ke-hoach-sx":
         return (
           <KeHoachSXPage
             navigate={navigate}
             openOrderId={navParams?.openSxOrderId ?? null}
             openLsxId={navParams?.openLsxId ?? null}
-            eventTick={quoteTick}
+            eventTick={tickCua("san_xuat", "ban_hang", "khvt")}
             dinhKemDem={lsxDinhKemDem}
             onBadgeStale={reloadBadges}
           />
         );
       case "lenh-san-xuat":
-        // Bàn TRA CỨU, chỉ đọc. `eventTick` nhích theo MỌI sự kiện SSE ⇒ bảng tự tươi khi tổ bấm
+        // Bàn TRA CỨU, chỉ đọc. `eventTick` nhích theo sự kiện nhóm sản xuất ⇒ bảng tự tươi khi tổ bấm
         // Bắt đầu/Kết thúc — màn tự GỘP 2 giây rồi mới gọi lại, và KHÔNG toast (bảng tra cứu
         // không phải chỗ báo tin). Hồ sơ một lệnh là LỚP PHỦ do chính màn này mở, không phải một
         // trang riêng — `navigate` chỉ để hồ sơ đi tiếp sang màn Đơn hàng bán khi cần lập yêu cầu
         // giao hàng.
         return (
           <LenhSanXuatPage
-            eventTick={quoteTick}
+            eventTick={tickCua("san_xuat")}
             navigate={navigate}
             openHoSoId={navParams?.openHoSoLsxId ?? null}
             openHoSoPv={navParams?.openHoSoPv ?? null}
@@ -1529,12 +1717,12 @@ export function AppShell() {
         // Bàn quét TOÀN XƯỞNG (Kanban · Theo máy — 17b; Theo ca · Gantt để chỗ cho 18b), chỉ đọc.
         // Hồ sơ một lệnh là LỚP PHỦ do chính màn này mở (tái dùng `LenhSxHoSoView`, cùng khuôn
         // `lenh-san-xuat`) — không cần `navParams` nào ở đây, màn không có deep-link riêng.
-        return <TheoDoiSanXuatPage eventTick={quoteTick} navigate={navigate} />;
+        return <TheoDoiSanXuatPage eventTick={tickCua("san_xuat")} navigate={navigate} />;
       case "ke-hoach-vat-tu":
         return (
           <KeHoachVatTuPage
             navigate={navigate}
-            eventTick={quoteTick}
+            eventTick={tickCua("khvt", "san_xuat", "kho")}
             focusLsxMa={navParams?.focusLsxMa ?? null}
             onSoViec={baoSoViecVatTu}
           />
@@ -1546,24 +1734,24 @@ export function AppShell() {
         return (
           <BaiGhep2Page
             navigate={navigate}
-            eventTick={quoteTick}
+            eventTick={tickCua("san_xuat")}
             onBadgeStale={reloadBadges}
             openBaiGhepId={navParams?.openBaiGhepId ?? null}
             openSeq={navParams?.navSeq ?? null}
           />
         );
       case "xep-lich":
-        return <XepLichPage eventTick={quoteTick} onBadgeStale={reloadBadges} />;
+        return <XepLichPage eventTick={tickCua("san_xuat")} onBadgeStale={reloadBadges} />;
       case "sua-chua-may":
-        // `eventTick` nhích theo MỌI sự kiện SSE ⇒ danh sách yêu cầu tự nạp lại khi có lời báo mới
+        // `eventTick` nhích theo sự kiện nhóm kỹ thuật ⇒ danh sách yêu cầu tự nạp lại khi có lời báo mới
         // hoặc khi người khác vừa tiếp nhận — không để hai người cùng lập phiếu cho một cái máy.
-        return <SuaChuaMayPage eventTick={quoteTick} onBadgeStale={reloadBadges} />;
+        return <SuaChuaMayPage eventTick={tickCua("ky_thuat")} onBadgeStale={reloadBadges} />;
       case "phieu-bao-tri":
         return <PhieuBaoTriPage />;
       case "yeu-cau-mua-hang":
         return (
           <DepartmentPurchaseRequestsPage
-            eventTick={quoteTick}
+            eventTick={tickCua("mua_ke_toan")}
             focusRequestCode={navParams?.focusRequestCode ?? null}
             seedLines={navParams?.purchaseSeedLines ?? null}
             seedPurpose={navParams?.purchaseSeedPurpose ?? null}
@@ -1579,20 +1767,20 @@ export function AppShell() {
         return (
           <PurchaseRequestsPage
             navigate={navigate}
-            eventTick={quoteTick}
+            eventTick={tickCua("mua_ke_toan")}
             focusRequestCode={navParams?.focusRequestCode ?? null}
             onDataRefreshed={markThuMuaNotificationsRead}
           />
         );
       case "nha-cung-cap":
-        return <SuppliersPage eventTick={quoteTick} />;
+        return <SuppliersPage eventTick={tickCua("mua_ke_toan")} />;
       // Nhóm con "Kế toán thu mua" đã BỎ ngày 12/08/2026 — ba màn của nó nay đứng ngang hàng với
       // Phiếu thu / Công nợ phải thu. Không còn id cha nên cũng không cần nhánh rơi-vào-con-đầu.
       case "ke-toan-don-mua-hang":
         return (
           <AccountingPurchaseInboxPage
             navigate={navigate}
-            eventTick={quoteTick}
+            eventTick={tickCua("mua_ke_toan")}
             focusRequestCode={navParams?.focusRequestCode ?? null}
             onDataRefreshed={markKeToanNotificationsRead}
           />
@@ -1601,14 +1789,14 @@ export function AppShell() {
         return (
           <PaymentVouchersPage
             navigate={navigate}
-            eventTick={quoteTick}
+            eventTick={tickCua("mua_ke_toan")}
             focusQuery={navParams?.focusVoucherQuery ?? null}
           />
         );
       case "ke-toan-cong-no":
-        return <AccountingPayablesPage navigate={navigate} eventTick={quoteTick} />;
+        return <AccountingPayablesPage navigate={navigate} eventTick={tickCua("mua_ke_toan")} />;
       case "ke-toan-cong-no-phai-thu":
-        return <AccountingReceivablesPage navigate={navigate} eventTick={quoteTick} />;
+        return <AccountingReceivablesPage navigate={navigate} eventTick={tickCua("mua_ke_toan", "ban_hang")} />;
       case "ke-toan-bao-cao":
         return <BaoCaoKeToanPage navigate={navigate} />;
       case "ke-toan-tai-khoan-ngan-hang":
@@ -1619,7 +1807,7 @@ export function AppShell() {
         return (
           <PaymentReceiptsPage
             navigate={navigate}
-            eventTick={quoteTick}
+            eventTick={tickCua("mua_ke_toan", "ban_hang")}
             focusQuery={navParams?.focusReceiptQuery ?? null}
           />
         );
@@ -1658,7 +1846,18 @@ export function AppShell() {
             onToggleNav={() => setNavOpen((v) => !v)}
             navOpen={navOpen}
           />
-          <div className="shell__content">{renderContent()}</div>
+          <div className="shell__content">
+            {/* Mỗi màn là một chunk nạp khi mở lần đầu — chờ tải thì báo nhẹ, không trắng màn. */}
+            <Suspense
+              fallback={
+                <div className="shell__center" role="status" aria-live="polite">
+                  Đang tải màn…
+                </div>
+              }
+            >
+              {renderContent()}
+            </Suspense>
+          </div>
         </div>
         {/* Toast real-time luồng gửi duyệt — nổi góc trên-phải, tự tắt sau 6s. */}
         {toasts.length > 0 && (

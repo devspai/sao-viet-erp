@@ -129,9 +129,12 @@ def test_expired_token_raises(db):
         _service(db).rotate(raw)
 
 
-def test_login_purges_expired_rows_but_rotation_does_not(db):
+def test_dang_nhap_va_xoay_khong_quet_ticker_moi_don_dong_qua_han(db):
     """Mỗi lần xoay (access 15 phút) để lại một dòng đã thu hồi; không ai xoá thì bảng phình mãi.
-    Đăng nhập mới dọn các dòng quá hạn; xoay thì không (quá dày để quét)."""
+    Từ 28/09/2026 đăng nhập KHÔNG quét nữa (200 người vào đầu ca = 200 lượt DELETE quét bảng) —
+    ticker gọi `don_refresh_token_het_han()` mỗi giờ dọn dòng quá hạn, chừa dòng còn hạn."""
+    from app.services.refresh_service import don_refresh_token_het_han
+
     repo = RefreshTokenRepository(db)
     svc = _service(db)
     admin = _admin(db)
@@ -139,13 +142,16 @@ def test_login_purges_expired_rows_but_rotation_does_not(db):
     repo.create(user_id=admin.id, token_hash=hash_refresh_token("old-1"), family_id="f1", expires_at=past)
 
     raw = svc.issue(admin)
-    assert repo.get_by_hash(hash_refresh_token("old-1")) is None
+    assert repo.get_by_hash(hash_refresh_token("old-1")) is not None
+    raw = svc.rotate(raw)[0]
+    assert repo.get_by_hash(hash_refresh_token("old-1")) is not None
 
-    repo.create(user_id=admin.id, token_hash=hash_refresh_token("old-2"), family_id="f2", expires_at=past)
-    svc.rotate(raw)
-    assert repo.get_by_hash(hash_refresh_token("old-2")) is not None
-    # Phiên vừa đăng nhập (đã xoay) vẫn là phiên sống duy nhất của nhánh này.
+    assert don_refresh_token_het_han() >= 1
+    db.expire_all()
+    assert repo.get_by_hash(hash_refresh_token("old-1")) is None
+    # Phiên vừa đăng nhập (đã xoay) vẫn sống.
     assert len(repo.list_active_for_user(admin.id)) == 1
+    assert repo.get_by_hash(hash_refresh_token(raw)) is not None
 
 
 def test_revoke_then_rotate_fails(db):

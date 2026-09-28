@@ -477,12 +477,15 @@ def test_giao_theo_me(db, orders, lsx_svc, admin, customer):
 # --- SSE bàn giao: MỘT gói cho cả hai tổ (16/09/2026) -----------------------------------------
 @pytest.mark.parametrize(("nguon", "dich", "ky_vong"), [(7, 3, [3, 7]), (5, 5, [5])])
 def test_phat_sse_ban_giao_mot_goi_cho_ca_hai_to(monkeypatch, nguon, dich, ky_vong):
-    """`broadcast` tới mọi kết nối và mỗi gói bump tick chung ở FE — mỗi tổ một gói là mọi màn
-    đang mở nạp lại hai lượt cho một cú bấm."""
+    """Mỗi gói bump tick chung ở FE — mỗi tổ một gói là mọi màn đang mở nạp lại hai lượt cho một
+    cú bấm. Gửi theo đối tượng: người xem sản xuất + đúng hai tổ nguồn/đích."""
     from app import realtime
+    from app.doi_tuong_nhan import MAN_THEO_LENH
 
     goi: list[dict] = []
-    monkeypatch.setattr(realtime.hub, "broadcast", goi.append)
+    dich_gui: list[dict] = []
+    monkeypatch.setattr(realtime.hub, "gui",
+                        lambda ev, **k: (goi.append(ev), dich_gui.append(k)))
     monkeypatch.setattr(realtime.hub, "publish", lambda *a, **k: None)
     realtime.phat_ban_giao({
         "nguon_department_id": nguon, "dich_department_id": dich,
@@ -490,3 +493,4 @@ def test_phat_sse_ban_giao_mot_goi_cho_ca_hai_to(monkeypatch, nguon, dich, ky_vo
     })
     assert goi == [{"type": "san_xuat_ban_giao_changed", "team_ids": ky_vong,
                     "ban_giao_id": 11, "trang_thai": "cho_xac_nhan"}]
+    assert dich_gui == [{"quyen": MAN_THEO_LENH, "to": ky_vong}]

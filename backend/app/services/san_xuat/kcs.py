@@ -20,6 +20,8 @@ Luật cứng:
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy.orm import Session
 
 from ...models.san_xuat import CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG
@@ -42,6 +44,8 @@ from .thuc_thi import _moc
 
 # Dung sai làm tròn (cột Numeric(18,3)) — như san_luong.
 _EPS = 0.0005
+# Lần kiểm Y HỆT của cùng người trong khoảng này = một lần bấm "Lưu" bị gửi lại.
+_CHONG_GHI_LAI = timedelta(seconds=30)
 # Kiểm được công đoạn ĐÃ khởi động (đang chạy / tạm dừng / đã xong).
 _TRANG_THAI_KIEM_DUOC = (CV_DANG_CHAY, CV_TAM_DUNG, CV_HOAN_THANH)
 _CO_TRANG = 30
@@ -279,6 +283,21 @@ def kiem_cong_doan(
     else:
         loi_sl = _so_khong_am(so_loi if so_loi not in (None, "") else 0, "Số lỗi")
         dong_loi = None
+
+    # Chống ghi lặp: máy chủ chậm, KCS bấm "Lưu" lần nữa ⇒ trước đây ra hai lần kiểm, lỗi nhân đôi
+    # (và lượt sau thường bị trần "vượt phần đã làm" chặn với câu khó hiểu). Khoá công đoạn để hai
+    # lượt đồng thời xếp hàng; lần kiểm y hệt trong `_CHONG_GHI_LAI` ⇒ trả lại lần đó, KHÔNG báo
+    # lại tổ. Đứng TRƯỚC các trần vì lượt gửi lại sẽ bị trần chặn oan.
+    SanXuatSanLuongRepository(db).khoa_cong_viec(cv.id)
+    ghi_chu_sach = (ghi_chu or "").strip() or None
+    so_dat_ro = (None if so_dat in (None, "") else _so_khong_am(so_dat, "Số đạt"))
+    da_co = repo.lan_kiem_vua_ghi(
+        cong_viec_id=cv.id, created_by=uid, so_loi=loi_sl, so_dat=so_dat_ro, ghi_chu=ghi_chu_sach,
+        tu_luc=datetime.now(timezone.utc) - _CHONG_GHI_LAI,
+    )
+    if da_co is not None:
+        return _ket_qua_lan_kiem_cu(db, repo, cv, da_co, user, lsx_id)
+
     if not cv.la_kcs_cuoi:
         dat = _chi_ghi_loi(db, repo, cv, loi_sl)
         checklist_ket_qua = None
@@ -374,6 +393,35 @@ def kiem_cong_doan(
         "don_vi": don_vi or None,
         "so_loi_cua_to": so_loi_cua_to,
         "bao_loi_nguon": list(nguon.values()),
+    }
+
+
+def _ket_qua_lan_kiem_cu(db: Session, repo: SanXuatKcsRepository, cv, kcs, user,
+                         lsx_id: int | None) -> dict:
+    """Kết quả của một lần kiểm ĐÃ ghi, cùng khuôn với `kiem_cong_doan` — cho lượt gửi lại. Danh sách
+    người cần báo để TRỐNG: tổ đã được báo ở lượt đầu, báo lại là "ting" hai lần cho một lần kiểm."""
+    lsx = repo.lsx(cv.lsx_id or lsx_id)
+    so_loi = float(kcs.so_luong_khong_dat or 0)
+    return {
+        "kcs_batch_id": kcs.id,
+        "loi_id": repo.loi_dau_id(kcs.id),
+        "cong_viec_id": cv.id,
+        "department_id": cv.department_id,
+        "lsx_id": cv.lsx_id,
+        "lsx_ma": lsx.ma if lsx else None,
+        "nhom_id": cv.nhom_id,
+        "ten_cong_doan": cv.ten_cong_doan,
+        "so_dat": float(kcs.so_luong_dat or 0),
+        "so_loi": so_loi,
+        "ket_luan": kcs.ket_luan,
+        "version": kcs.version,
+        "nguoi_kiem": getattr(user, "name", None),
+        "notify_user_ids": [],
+        "don_vi": kcs.don_vi or None,
+        "so_loi_cua_to": 0.0,
+        "bao_loi_nguon": [],
+        # Router dọn ảnh vừa tải lên của lượt gửi lại — lần kiểm cũ đã giữ ảnh của nó.
+        "la_gui_lai": True,
     }
 
 

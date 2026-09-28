@@ -38,8 +38,11 @@ from ..services.order_service import (
     OrderNotFound,
     OrderService,
     OrderValidationError,
+    _MAX_ATTACH_BYTES,
 )
 from ..services.rbac_service import AuthorizationService
+from ..tai_len import doc_gioi_han
+from ..doi_tuong_nhan import MAN_BAN_HANG, NGHE_LENH
 from ..realtime import hub
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
@@ -47,8 +50,11 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 
 def _order_changed(order_no: str | None = None) -> None:
     """Tín hiệu 'danh sách chờ (duyệt/ghi cọc/chốt) đã đổi' — mọi vai tự refetch notify-summary
-    (badge nhảy + toast khi số 'chờ TÔI' tăng). Bám đúng logic SSE báo giá (kênh hub chung)."""
-    hub.broadcast({"type": "order_pending_changed", "code": order_no})
+    (badge nhảy + toast khi số 'chờ TÔI' tăng). Bám đúng logic SSE báo giá (kênh hub chung).
+
+    Nhóm `ban_hang`: badge Đơn hàng bán + các màn bán hàng (gồm Phiếu thu / Công nợ phải thu — nơi kế
+    toán thấy đơn chờ ghi cọc)."""
+    hub.gui({"type": "order_pending_changed", "code": order_no}, quyen=MAN_BAN_HANG)
 
 MODULE = "don_hang_ban"
 
@@ -226,8 +232,10 @@ def update_production_hint(
     except Exception as exc:
         raise _map(exc)
     # Bàn Kế hoạch SX 'ting': đơn chuyển gấp / cập nhật lưu ý (badge nhảy; nội dung note FE refetch).
-    hub.broadcast(
-        {"type": "order_sx_hint_changed", "code": d.order_no, "order_id": order_id, "is_rush": d.is_rush}
+    # Nhóm `ban_hang` + `san_xuat`; bàn tổ không bày cờ gấp / lưu ý SX của đơn nên không nhận.
+    hub.gui(
+        {"type": "order_sx_hint_changed", "code": d.order_no, "order_id": order_id, "is_rush": d.is_rush},
+        quyen=NGHE_LENH,
     )
     return d
 
@@ -245,7 +253,9 @@ def release_production(
     except Exception as exc:
         raise _map(exc)
     # Đơn 'bắn xuống' hàng chờ Kế hoạch (badge nhảy, không refresh).
-    hub.broadcast({"type": "order_ordered", "code": d.order_no, "order_id": order_id})
+    # Hàng chờ Kế hoạch SX (badge + toast người có `san_xuat`) + nhóm `ban_hang`/`san_xuat`. Đơn
+    # mới vào hàng chờ, chưa có công việc nào ở bàn tổ.
+    hub.gui({"type": "order_ordered", "code": d.order_no, "order_id": order_id}, quyen=NGHE_LENH)
     return d
 
 
@@ -283,12 +293,14 @@ def confirm_order(
         d = svc.confirm(order_id=order_id, actor=user, scope=_scope_for(authz, user))
     except Exception as exc:
         raise _map(exc)
-    _order_changed(d.order_no)   # chốt → rời tập nháp, badge 'sẵn sàng chốt' của Sale tụt
-    # Chốt = chốt THÔNG TIN → báo KẾ TOÁN "đơn chờ ghi cọc" (popup module Phiếu thu). KHÔNG dùng
-    # order_ordered ở đây (đó là tín hiệu 'đã Chuyển SX' cho bàn Kế hoạch — chốt CHƯA vào hàng chờ).
-    hub.broadcast(
-        {"type": "order_deposit_needed", "code": d.order_no, "order_id": order_id, "amount": d.deposit_required}
-    )
+    # Chốt → rời tập nháp, badge 'sẵn sàng chốt' của Sale tụt; màn Phiếu thu / Công nợ phải thu
+    # (nhóm `ban_hang`) cũng nạp lại theo tin này nên kế toán thấy đơn chờ ghi cọc.
+    #
+    # ĐÃ BỎ `order_deposit_needed` (28/09/2026, sức chịu tải A3): nơi duy nhất nghe nó là
+    # `OrderDepositQueue.tsx` mà không màn nào mount; phần còn lại chỉ là nhích nhóm `ban_hang` —
+    # đã có tin trên — và `mua_ke_toan`, nơi không màn nào bày đơn chờ cọc. Gói tin còn mang SỐ TIỀN
+    # cọc đi tới MỌI kết nối, kể cả người không có quyền xem tiền.
+    _order_changed(d.order_no)
     return d
 
 
@@ -332,14 +344,16 @@ def add_deposit_receipt(
 
 # --- Đính kèm chứng cứ khách đồng ý (`update`) — minh chứng đã thu cọc nằm ở màn Phiếu thu Kế toán ---
 @router.post("/{order_id}/attachments", response_model=OrderDetailOut)
-async def upload_consent(
+def upload_consent(
     order_id: int,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
     svc: Service,
     authz: Authz,
     file: UploadFile = File(...),
 ) -> OrderDetailOut:
-    data = await file.read()
+    # `def` (không `async`): đọc tệp + ghi kho tệp + DB đồng bộ — chạy trong threadpool. Tệp rỗng
+    # để service báo bằng câu của nó.
+    data = doc_gioi_han(file, _MAX_ATTACH_BYTES, cho_rong=True)
     try:
         return svc.add_consent_attachment(order_id=order_id, actor=user, scope=_scope_for(authz, user),
             file_name=file.filename, content_type=file.content_type, data=data)

@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from sqlalchemy.orm import Session
 
+from .. import gioi_han_dang_nhap
 from ..config import settings
 from ..db import get_db
 from ..deps import (
@@ -98,9 +99,18 @@ def login(
     refresh: Annotated[RefreshTokenService, Depends(get_refresh_service)],
     audit: Annotated[AuditLogRepository, Depends(get_audit_repository)],
 ) -> TokenResponse:
+    # Chặn TRƯỚC bcrypt: đã sai quá nhiều thì không tốn 0,3–0,4 giây CPU cho lượt dò tiếp theo.
+    ip = gioi_han_dang_nhap.ip_cua(request)
+    phut = gioi_han_dang_nhap.phut_con_bi_chan(payload.username, ip)
+    if phut is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=gioi_han_dang_nhap.thong_bao(phut),
+        )
     try:
         token, user = auth.login(payload.username, payload.password)
     except AuthError:
+        gioi_han_dang_nhap.ghi_sai(payload.username, ip)
         # Nhật ký PHẢI có cả lần hỏng: một màn tên "audit trail" mà không biết ai đã thử vào hệ
         # thống thì không dùng được để truy. `actor_user_id` rỗng vì chưa xác thực được ai —
         # tên gõ vào nằm ở `detail`, đúng chất "người tự xưng", không phải danh tính.
@@ -113,6 +123,7 @@ def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tên đăng nhập hoặc mật khẩu không đúng",
         ) from None
+    gioi_han_dang_nhap.xoa_dem_ten(payload.username)
     audit.create(actor_user_id=user.id, action="dang_nhap", target=f"user:{user.id}", detail="")
     _set_refresh_cookie(response, refresh.issue(user, user_agent=request.headers.get("user-agent")))
     _set_file_cookie(response, user)

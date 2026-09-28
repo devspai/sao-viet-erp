@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from ..models.bai_ghep import BaiGhep, BaiGhepThanhVien
@@ -496,11 +496,19 @@ class SanXuatRepository:
         chi_chua_xong: bool = False,
         employee_id: int | None = None,
         rieng_ids: set[int] | None = None,
+        cham_tu: datetime | None = None,
+        cham_den: datetime | None = None,
     ) -> list[SanXuatCongViec]:
         """Công việc ĐÃ PHÁT HÀNH mà tổ (`department_id`) phải làm — timeline bàn tổ. Chỉ đọc gói
         đang hiệu lực (bỏ gói đã thu hồi). Sắp theo giờ dự kiến (chưa xếp giờ dồn cuối), rồi id.
 
-        `employee_id` / `rieng_ids`: phạm vi tổ, xem `_pham_vi_to`."""
+        `employee_id` / `rieng_ids`: phạm vi tổ, xem `_pham_vi_to`.
+
+        `cham_tu` / `cham_den` (A7, 28/09/2026) — cửa sổ THÔ cho Gantt bàn tổ: giữ việc chưa đủ hai
+        mốc dự kiến, hoặc có `du_kien_ket_thuc >= cham_tu` và `du_kien_bat_dau < cham_den`. Không có
+        nó thì mỗi lượt vẽ Gantt kéo TOÀN BỘ công việc lịch sử của tổ về rồi mới lọc bằng Python.
+        Bên gọi truyền mép ĐÃ NỚI (xem `board.work_items`) — câu này chỉ được RỘNG hơn phép lọc
+        chính xác `board._trong_cua_so`, không bao giờ hẹp hơn."""
         pham_vi = self._pham_vi_to(department_ids, employee_id, rieng_ids)
         if pham_vi is None:
             return []
@@ -514,6 +522,17 @@ class SanXuatRepository:
         )
         if chi_chua_xong:
             q = q.where(SanXuatCongViec.trang_thai != CV_HOAN_THANH)
+        chan = []
+        if cham_tu is not None:
+            chan.append(SanXuatCongViec.du_kien_ket_thuc >= cham_tu)
+        if cham_den is not None:
+            chan.append(SanXuatCongViec.du_kien_bat_dau < cham_den)
+        if chan:
+            q = q.where(or_(
+                SanXuatCongViec.du_kien_bat_dau.is_(None),
+                SanXuatCongViec.du_kien_ket_thuc.is_(None),
+                and_(*chan),
+            ))
         rows = list(self.db.execute(q).scalars())
         rows.sort(key=lambda cv: (cv.du_kien_bat_dau is None, cv.du_kien_bat_dau, cv.id))
         return rows

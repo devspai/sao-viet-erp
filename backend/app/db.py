@@ -27,6 +27,29 @@ def _make_engine():
             # Keep a single shared connection so an in-memory DB (tests) survives
             # across requests/threads.
             engine_kwargs["poolclass"] = StaticPool
+    else:
+        # Postgres: pool CO GIÃN theo số worker và ngân sách `max_connections` (app/tai_nguyen.py).
+        # Mặc định của SQLAlchemy (5 + 10, chờ 30s) đặt cạnh 40 luồng threadpool là công thức cho
+        # "đứng 30 giây rồi lỗi hàng loạt" khi đông người.
+        from .tai_nguyen import cau_hinh_pool
+
+        pool = cau_hinh_pool(
+            settings.svn_so_worker,
+            pg_max_connections=settings.pg_max_connections,
+            pool_size=settings.db_pool_size,
+            max_overflow=settings.db_max_overflow,
+        )
+        engine_kwargs.update(
+            pool_size=pool["pool_size"],
+            max_overflow=pool["max_overflow"],
+            pool_timeout=settings.db_pool_timeout,
+            # Kết nối chết ngầm (Postgres restart, mạng Docker chớp) bị phát hiện TRƯỚC khi dùng,
+            # không để request nhận lỗi "server closed the connection unexpectedly".
+            pool_pre_ping=True,
+            pool_recycle=1800,
+        )
+        if url.startswith("postgresql") and settings.db_statement_timeout_ms > 0:
+            connect_args["options"] = f"-c statement_timeout={settings.db_statement_timeout_ms}"
 
     eng = create_engine(url, connect_args=connect_args, **engine_kwargs)
     if url.startswith("sqlite"):

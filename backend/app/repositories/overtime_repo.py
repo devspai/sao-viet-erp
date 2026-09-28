@@ -180,18 +180,19 @@ class OvertimeRepository:
 
     # --- nguồn cho Bảng công tháng -----------------------------------------
 
-    def approved_in_range(self, start: date, end: date) -> list[OvertimeRequest]:
+    def approved_in_range(self, start: date, end: date, *,
+                          employee_id: int | None = None) -> list[OvertimeRequest]:
         """Phiếu ĐÃ DUYỆT có `work_date` trong [start, end] — Bảng công dùng để chặn TRẦN tiền
-        tăng ca theo phiếu (phần giờ vượt ca nằm ngoài phiếu không ra tiền)."""
-        return list(
-            self.db.execute(
-                select(OvertimeRequest).where(
-                    OvertimeRequest.status == STATUS_APPROVED,
-                    OvertimeRequest.work_date >= start,
-                    OvertimeRequest.work_date <= end,
-                )
-            ).scalars()
+        tăng ca theo phiếu (phần giờ vượt ca nằm ngoài phiếu không ra tiền). `employee_id` lọc
+        một người ngay trong SQL — đường chấm công chỉ cần phiếu của chính người bấm."""
+        stmt = select(OvertimeRequest).where(
+            OvertimeRequest.status == STATUS_APPROVED,
+            OvertimeRequest.work_date >= start,
+            OvertimeRequest.work_date <= end,
         )
+        if employee_id is not None:
+            stmt = stmt.where(OvertimeRequest.employee_id == employee_id)
+        return list(self.db.execute(stmt).scalars())
 
     def sum_live_minutes_in_month(self, employee_id: int, year: int, month: int, *,
                                   exclude_id: int | None = None) -> int:

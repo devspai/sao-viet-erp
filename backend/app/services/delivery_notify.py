@@ -18,6 +18,7 @@ from __future__ import annotations
 from ..models.delivery import DeliveryTrip
 from ..models.employee import Employee
 from ..models.stock_request import StockRequest
+from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_GIAO_HANG, hop
 from ..realtime import hub
 
 
@@ -72,7 +73,9 @@ def kho_nhan_lai_hang_giao(db, request_id: int | None, *, actor) -> None:
         svc = DeliveryService(DeliveryRepository(db), OrderRepository(db), None, None, None)
         if svc.sau_ghi_so_tra_hang(req, actor=actor):
             db.commit()
-        hub.broadcast({"type": "giao_hang_changed", "trip_id": req.delivery_trip_id})
+        # Nhóm `giao_hang` + `ban_hang`: màn Giao hàng + drawer Đơn hàng bán (tiến độ giao).
+        hub.gui({"type": "giao_hang_changed", "trip_id": req.delivery_trip_id},
+                quyen=hop(MAN_GIAO_HANG, MAN_BAN_HANG))
     except Exception:
         db.rollback()
         return

@@ -10,12 +10,15 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
-from . import audit_context
+from . import khoi_dong
 from .config import assert_secure_config, settings
-from .db import SessionLocal, init_db
-from .db_migrations import run_migrations
+from .cong_dong_thoi import CongDongThoi, gioi_han_mac_dinh
+from .db import SessionLocal
 from .routers import (
     accounting,
     module_notifications,
@@ -70,7 +73,6 @@ from .routers import (
     tai_san,
     gia_cong_ngoai,
 )
-from .seed import seed_all
 
 # File người dùng tải lên KHÔNG còn mount công khai ở /static — chúng đi qua kho file
 # (app/storage.py) và chỉ đọc được qua /api/files sau khi kiểm đăng nhập + quyền
@@ -88,23 +90,18 @@ async def lifespan(app: FastAPI):
         hub.connect_redis(settings.redis_url)
     # Refuse to boot in production with an insecure JWT secret (no-op in development).
     assert_secure_config(settings)
-    # Tạo bucket MinIO nếu chưa có (no-op khi chạy LocalStorage — test/dev không Docker).
-    from .storage import ensure_storage_ready
-    ensure_storage_ready()
-    # create_all + idempotent seed (RBAC catalog/roles + admin). Alembic is a later spec.
-    init_db()
-    db = SessionLocal()
-    try:
-        # create_all never ALTERs existing tables; run tracked additive migrations so the
-        # persistent prod DB picks up new columns before seed/queries touch them.
-        run_migrations(db)
-        seed_all(db)
-    finally:
-        db.close()
+    # Schema + seed + bucket: `serve.py` đã làm MỘT lần trước khi bật các worker thì bỏ qua ở đây
+    # (N worker cùng migrate là đua khoá DDL). Chạy thẳng uvicorn (dev/test) thì làm như cũ.
+    if not khoi_dong.schema_da_san():
+        khoi_dong.chuan_bi()
+    else:
+        await khoi_dong.cho_schema_san()
     # Ticker nhắc lịch hẹn chăm sóc real-time (SSE): quét hẹn tới giờ → "ting" người phụ trách.
-    # 0 = tắt (test). Chạy nền, huỷ khi shutdown.
+    # 0 = tắt (test). Chạy nền, huỷ khi shutdown. Nhiều worker thì mỗi vòng chỉ MỘT worker giành
+    # được quyền chạy (`locks.chay_mot_noi`) — các worker còn lại ngủ tiếp.
     reminder_task: asyncio.Task | None = None
     bao_tri_task: asyncio.Task | None = None
+    don_dep_task: asyncio.Task | None = None
     if settings.care_reminder_seconds > 0:
         from .care_reminders import run_care_reminder_loop
         reminder_task = asyncio.create_task(run_care_reminder_loop(settings.care_reminder_seconds))
@@ -115,6 +112,9 @@ async def lifespan(app: FastAPI):
         bao_tri_task = asyncio.create_task(
             run_bao_tri_reminder_loop(max(60, settings.care_reminder_seconds * 10))
         )
+        # Dọn refresh token quá hạn mỗi giờ (thay cho quét ở mỗi lượt đăng nhập).
+        from .don_dinh_ky import run_don_dep_loop
+        don_dep_task = asyncio.create_task(run_don_dep_loop())
     # Cầu Redis→SSE: nghe channel chung, bơm sự kiện vào các kết nối của worker này.
     bridge_task: asyncio.Task | None = None
     if hub.uses_redis:
@@ -122,12 +122,21 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        for task in (reminder_task, bao_tri_task, bridge_task):
+        for task in (reminder_task, bao_tri_task, don_dep_task, bridge_task):
             if task is not None:
                 task.cancel()
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+
+# Vết người gọi (IP + thiết bị) cho nhật ký + cổng giới hạn số request chạy cùng lúc — xem
+# `app/cong_dong_thoi.py`. Khai TRƯỚC CORS để CORS nằm NGOÀI cùng: câu 503 "máy chủ đang bận" vẫn
+# mang header CORS, FE khác origin (dev :5173) đọc được thay vì thấy lỗi CORS khó hiểu.
+app.add_middleware(
+    CongDongThoi,
+    gioi_han=gioi_han_mac_dinh(),
+    cho_toi_da=settings.cho_hang_doi_giay,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -144,23 +153,6 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],
 )
 
-
-@app.middleware("http")
-async def _vet_nguoi_goi(request, call_next):
-    """Đặt IP + thiết bị của request vào context để `AuditLogRepository` ghi kèm mỗi dòng nhật ký.
-
-    Đặt ở middleware chứ không truyền tham số: hơn 200 chỗ gọi `audit.create(...)` nằm trong
-    services, chúng không cầm `Request` và cũng không nên cầm. Sau proxy thì `request.client.host`
-    là IP của nginx, nên lấy `X-Forwarded-For` trước — chỉ phần tử ĐẦU (client thật), phần còn lại
-    là chuỗi proxy.
-    """
-    xff = request.headers.get("x-forwarded-for", "")
-    ip = xff.split(",")[0].strip() if xff else (request.client.host if request.client else "")
-    tokens = audit_context.dat(ip, request.headers.get("user-agent", ""))
-    try:
-        return await call_next(request)
-    finally:
-        audit_context.tra_lai(tokens)
 
 app.include_router(auth.router)
 app.include_router(files.router)
@@ -233,6 +225,23 @@ app.include_router(tai_san.router)            # sổ tài sản cố định + C
 
 
 
+def _thu_db() -> None:
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+    finally:
+        db.close()
+
+
 @app.get("/api/health", tags=["health"])
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+async def health() -> JSONResponse:
+    """Sống THẬT = trả lời được VÀ nói chuyện được với DB. Healthcheck của compose + deploy dựa vào
+    đây — trước chỉ trả `ok` cứng nên DB chết mà container vẫn "khoẻ".
+
+    `async` + đẩy truy vấn sang threadpool có hạn giờ: đang đông người thì health vẫn không phải xếp
+    hàng sau cả loạt request (nó cũng được miễn cổng đồng thời, xem `cong_dong_thoi.py`)."""
+    try:
+        await asyncio.wait_for(run_in_threadpool(_thu_db), timeout=3.0)
+    except Exception:  # noqa: BLE001 — mọi kiểu hỏng đều là "DB không trả lời"
+        return JSONResponse({"status": "loi", "db": "khong_tra_loi"}, status_code=503)
+    return JSONResponse({"status": "ok", "db": "ok"})

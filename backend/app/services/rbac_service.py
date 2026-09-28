@@ -6,6 +6,9 @@ the HTTP mapping (401/403) lives in the route/dependency layer.
 """
 from __future__ import annotations
 
+from sqlalchemy import event
+from sqlalchemy.orm import Session
+
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
 from ..repositories.rbac_repo import RoleRepository
@@ -132,9 +135,63 @@ _ACTION_ATTR = {
 }
 
 
+_THE_HE_KHOA = "rbac_the_he"
+
+
+def _tang_the_he(session, *_a) -> None:
+    session.info[_THE_HE_KHOA] = session.info.get(_THE_HE_KHOA, 0) + 1
+
+
+for _su_kien in ("after_flush", "after_commit", "after_soft_rollback"):
+    event.listen(Session, _su_kien, _tang_the_he)
+
+
 class AuthorizationService:
     def __init__(self, roles: RoleRepository) -> None:
         self.roles = roles
+        # Memo trong ĐỜI MỘT instance. Instance tạo mỗi request (`deps.get_authorization_service`,
+        # FastAPI cache dependency trong request) nên memo tự hết hạn khi request xong — không có
+        # cache chéo request, sửa ma trận quyền là request sau thấy ngay. Trước đây mỗi `can()` /
+        # `scope_for()` là một câu SELECT role_permissions (2–7 câu/request chỉ cho phân quyền).
+        self._memo_quyen: dict[tuple[int, str], object] = {}
+        self._memo_ds: dict[int, list] = {}
+        self._the_he = 0
+
+    def xoa_memo(self) -> None:
+        """Bỏ memo — gọi khi CHÍNH request này vừa thêm/xoá dòng role_permissions rồi còn hỏi lại."""
+        self._memo_quyen.clear()
+        self._memo_ds.clear()
+
+    def _kiem_the_he(self) -> None:
+        """Phiên DB vừa ghi (flush/commit/rollback) ⇒ bỏ memo: dòng quyền có thể vừa thêm/xoá
+        ngay trong phiên (test dùng một phiên cho nhiều lượt; route sửa ma trận rồi hỏi lại)."""
+        info = getattr(getattr(self.roles, "db", None), "info", None)
+        the_he = info.get(_THE_HE_KHOA, 0) if isinstance(info, dict) else 0
+        if the_he != self._the_he:
+            self._the_he = the_he
+            self.xoa_memo()
+
+    def _permissions_for(self, role_id: int) -> list:
+        self._kiem_the_he()
+        ds = self._memo_ds.get(role_id)
+        if ds is None:
+            ds = self.roles.permissions_for(role_id)
+            self._memo_ds[role_id] = ds
+        return ds
+
+    def _permission(self, role_id: int, module_key: str):
+        self._kiem_the_he()
+        khoa = (role_id, module_key)
+        if khoa in self._memo_quyen:
+            return self._memo_quyen[khoa]
+        ds = self._memo_ds.get(role_id)
+        if ds is not None:
+            # Đã nạp cả ma trận của vai trong request này — tra trong đó, khỏi thêm câu SQL.
+            perm = next((p for p in ds if p.module_key == module_key), None)
+        else:
+            perm = self.roles.get_permission(role_id, module_key)
+        self._memo_quyen[khoa] = perm
+        return perm
 
     def can(self, user: User, module_key: str, action: str) -> bool:
         """True if the user's role grants `action` on `module_key`.
@@ -146,7 +203,7 @@ class AuthorizationService:
             raise ValueError(f"Unknown action: {action!r}")
         if user.role_id is None:
             return False
-        perm = self.roles.get_permission(user.role_id, module_key)
+        perm = self._permission(user.role_id, module_key)
         if perm is None:
             return False
         return bool(getattr(perm, attr))
@@ -155,7 +212,7 @@ class AuthorizationService:
         """Module keys the user's role can Read — drives sidebar/route gating."""
         if user.role_id is None:
             return []
-        return [p.module_key for p in self.roles.permissions_for(user.role_id) if p.can_read]
+        return [p.module_key for p in self._permissions_for(user.role_id) if p.can_read]
 
     def capabilities(self, user: User) -> list[dict]:
         """Full CRUD matrix of the user's role, per module (spec-09 UI action gating).
@@ -228,7 +285,7 @@ class AuthorizationService:
                 "can_confirm_output": p.can_confirm_output,
                 "can_warehouse": p.can_warehouse,
             }
-            for p in self.roles.permissions_for(user.role_id)
+            for p in self._permissions_for(user.role_id)
         ]
 
     def scope_for(self, user: User, module_key: str) -> str | None:
@@ -237,7 +294,7 @@ class AuthorizationService:
         `apply_scope` to narrow a list query."""
         if user.role_id is None:
             return None
-        perm = self.roles.get_permission(user.role_id, module_key)
+        perm = self._permission(user.role_id, module_key)
         return perm.scope if perm is not None else None
 
 

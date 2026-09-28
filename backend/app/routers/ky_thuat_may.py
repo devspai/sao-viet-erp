@@ -85,6 +85,7 @@ from ..services.ky_thuat_may_service import (
     hom_nay_vn,
 )
 from ..storage import get_storage, key_from_url, make_key, url_from_key
+from ..tai_len import doc_gioi_han
 
 router = APIRouter(prefix="/api/ky-thuat-may", tags=["ky-thuat-may"])
 MODULE = "ky_thuat_may"      # màn Sửa chữa máy
@@ -688,11 +689,9 @@ def upload_anh(
     _phieu_ton_tai(svc, loai_phieu, phieu_id)
     if loai_phieu == LOAI_PHIEU_YEU_CAU:
         _kiem_chu_yeu_cau(svc, authz, user, phieu_id)
-    data = file.file.read()
-    if not data:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tệp rỗng.")
-    if len(data) > _MAX_ANH_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Ảnh vượt quá 15MB.")
+    data = doc_gioi_han(
+        file, _MAX_ANH_BYTES, ten="Ảnh", ma_rong=status.HTTP_400_BAD_REQUEST, loi_rong="Tệp rỗng.",
+    )
     # Cửa ảnh của module là "có ảnh mới đóng được phiếu" — nhận cả PDF/zip thì cái cửa đó qua được
     # bằng một tệp trắng. Chỉ kiểm content-type: đủ chặn nhầm lẫn, không cần soi nội dung tệp.
     if not (file.content_type or "").lower().startswith("image/"):

@@ -39,9 +39,12 @@ class ModuleNotificationRepository:
         self.db.refresh(row)
         return row
 
-    def unread_counts(self, user_id: int) -> dict[str, int]:
+    def unread_counts(self, user_id: int, channels=CHANNELS) -> dict[str, int]:
+        """Số chưa đọc theo kênh. Chỉ ĐẾM các kênh trong `channels` (kênh người gọi được xem);
+        kênh còn lại trả 0 mà không chạy câu SQL nào."""
         out = {channel: 0 for channel in CHANNELS}
-        for channel in CHANNELS:
+        chon = set(channels)
+        for channel in (c for c in CHANNELS if c in chon):
             read = self.db.execute(
                 select(ModuleNotificationRead).where(
                     ModuleNotificationRead.user_id == user_id,

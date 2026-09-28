@@ -1061,7 +1061,7 @@ def test_doi_soat_dang_ve_don_ban_sse_dung_mot_lan_du_nhieu_mat_hang(db, svc, kh
                for r in svc.repo.cua_chu_the(lsx_id=b.id, bai_ghep_id=None)), "phải giữ hứa mặt hàng 2 trước đã"
 
     calls: list[dict] = []
-    monkeypatch.setattr(giu_cho_service.hub, "broadcast", lambda e: calls.append(e))
+    monkeypatch.setattr(giu_cho_service.hub, "gui", lambda e, **_k: calls.append(e))
 
     svc.doi_soat_dang_ve_don(p.id)
 

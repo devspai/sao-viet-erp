@@ -20,6 +20,7 @@ from ..deps import (
     require_any_permission,
 )
 from ..models.user import User
+from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
 from ..repositories.employee_repo import EmployeeRepository
 from ..schemas.leave import (
@@ -145,8 +146,9 @@ def _resolve(svc: LeaveService, employees: EmployeeRepository, reqs: list):
 # biết đơn bị từ chối — trái nguyên tắc "gửi nội bộ = real-time" (CLAUDE.md).
 
 def _notify_pending_changed() -> None:
-    """Có đơn / yêu cầu hủy mới hoặc vừa xử lý → mọi client tải lại badge chờ duyệt."""
-    hub.broadcast({"type": "leave_pending_changed"})
+    """Có đơn / yêu cầu hủy mới hoặc vừa xử lý → người xem màn nhân sự tải lại badge chờ duyệt.
+    Nhóm `nhan_su`: badge Nghỉ phép + các màn Chấm công / Tăng ca / Lương cùng nhóm."""
+    hub.gui({"type": "leave_pending_changed"}, quyen=MAN_NHAN_SU)
 
 
 def _notify_decision(r, employees: EmployeeRepository, decision: str) -> None:

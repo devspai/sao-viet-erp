@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint,
+    Boolean, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -128,6 +128,10 @@ class WorkShift(Base):
 
 class AttendanceLog(Base):
     __tablename__ = "attendance_logs"
+    # "Lượt cuối của người này" — hỏi nhiều lần trong MỖI lượt chấm (lượt kế là VÀO hay RA, đếm lượt
+    # hôm nay, chống bấm lại). Index ghép cho câu đó đi thẳng tới dòng mới nhất của một người thay vì
+    # gom mọi lượt từ trước tới nay của họ rồi sắp xếp. Tạo cho DB cũ ở migration 0345.
+    __table_args__ = (Index("ix_attendance_logs_emp_checked", "employee_id", "checked_at"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     employee_id: Mapped[int] = mapped_column(

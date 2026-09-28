@@ -175,7 +175,9 @@ class LsxRepository:
         ).scalars()
         return {r.order_line_id: r for r in rows}
 
-    def orders_ban_giao(self, *, page: int = 1, size: int = 50) -> tuple[list[Order], int]:
+    def orders_ban_giao(
+        self, *, page: int = 1, size: int = 50, chi_dem: bool = False,
+    ) -> tuple[list[Order], int]:
         """Đơn đã chốt + đã chuyển xuống SX mà CÒN nợ lệnh (kèm dòng đơn), mới nhất trước.
 
         Điều kiện "còn dòng chưa lên lệnh" nằm trong SQL chứ không lọc bằng Python sau khi kéo
@@ -209,6 +211,9 @@ class LsxRepository:
             Order.id.in_(select(con_no.c.order_id)),
         )
         total = self.db.execute(select(func.count()).select_from(Order).where(*conds)).scalar_one()
+        if chi_dem:
+            # Badge chỉ cần TỔNG — khỏi nạp trang đơn + dòng đơn.
+            return [], total
         page, size = max(1, page), max(1, min(size, SIZE_TRAN))
         # `lines` chỉ nạp cho các đơn CỦA TRANG (≤ size đơn), đủ để đếm dòng-đã-lên-lệnh mà không
         # kéo theo cả bảng dòng đơn.

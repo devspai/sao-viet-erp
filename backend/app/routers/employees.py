@@ -92,6 +92,7 @@ from ..services.employee_service import (
 from ..services.rbac_service import AuthorizationService
 from ..services.payroll_service import PayrollError, PayrollService
 from ..storage import get_storage, make_key, url_from_key
+from ..tai_len import TRAN_EXCEL, TRAN_TAI_LIEU, doc_gioi_han
 
 router = APIRouter(prefix="/api/employees", tags=["employees"])
 
@@ -347,7 +348,9 @@ def import_employees_xlsx(
     """
     try:
         kq = excel_nhan_su.nhap_excel(
-            file.file.read(), svc=svc, nc=excel_nhan_su.dung_ngu_canh(svc), actor=user,
+            # Tệp rỗng để `nhap_excel` báo "không đọc được file" như cũ.
+            doc_gioi_han(file, TRAN_EXCEL, cho_rong=True),
+            svc=svc, nc=excel_nhan_su.dung_ngu_canh(svc), actor=user,
             scope=_scope_for(authz, user),
             co_sua_luong=authz.can(user, MODULE, "edit_salary"),
             co_dieu_chuyen=authz.can(user, MODULE, "transfer"),
@@ -913,9 +916,11 @@ def upload_attachment(
         svc.get_employee(employee_id=employee_id, scope=scope, actor=user)
     except EmployeeError as exc:
         _raise(exc)
+    # Đọc có trần TRƯỚC khi ghi kho tệp (trước đây không giới hạn cỡ).
+    data = doc_gioi_han(file, TRAN_TAI_LIEU)
 
     key, safe_name = make_key(_HR_SUBDIR, employee_id, file.filename)
-    get_storage().save(key, file.file.read(), file.content_type)
+    get_storage().save(key, data, file.content_type)
     file_url = url_from_key(key)
 
     try:
@@ -924,6 +929,7 @@ def upload_attachment(
             file_name=safe_name, file_url=file_url, file_type=file.content_type,
         )
     except EmployeeError as exc:
+        get_storage().delete(key)  # ghi tệp rồi mới lỗi ⇒ dọn, đừng để tệp mồ côi (CCCD, hợp đồng)
         _raise(exc)
     return AttachmentOut.model_validate(att)
 

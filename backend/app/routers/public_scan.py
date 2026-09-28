@@ -13,6 +13,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+from starlette.background import BackgroundTask
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -25,6 +26,7 @@ from ..schemas.stock import PublicScanLot, PublicScanMove, PublicScanOut
 from ..services.qr_token import verify_scan
 from ..services.vat_lieu_kho_service import VatLieuKhoService
 from ..storage import StorageFileNotFound, get_storage, is_safe_key, key_from_url
+from .files import _content_disposition, _phat
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
@@ -118,4 +120,11 @@ def public_vat_lieu_anh(db: Db, t: Annotated[str, Query(description="Mã QR đã
     if size is not None:
         headers["Content-Length"] = str(size)
     media = content_type or mimetypes.guess_type(key)[0] or "application/octet-stream"
-    return StreamingResponse(stream, media_type=media, headers=headers)
+    # Trang CÔNG KHAI, cùng origin với app: ảnh cũ tải lên trước khi chặn SVG vẫn có thể là SVG chèn
+    # script. `nosniff` + ép `attachment` mọi thứ không phải ảnh raster/PDF (cùng luật `/api/files`)
+    # ⇒ mở thẳng đường dẫn không chạy được script. `<img src>` vẫn vẽ bình thường.
+    headers["X-Content-Type-Options"] = "nosniff"
+    headers["Content-Disposition"] = _content_disposition(key, media)
+    return StreamingResponse(
+        _phat(stream), media_type=media, headers=headers, background=BackgroundTask(stream.close),
+    )

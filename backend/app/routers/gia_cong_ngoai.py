@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.user import User
+from ..doi_tuong_nhan import MAN_MUA_KE_TOAN, MAN_THEO_LENH, kem_ban_to
 from ..realtime import hub, phat_ban_giao, phat_dong_nhom
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ..repositories.san_xuat_repo import SanXuatRepository
@@ -134,8 +135,10 @@ def _phat_doi(lsx_ids, bai_ghep_id: int | None = None) -> None:
     """Khối Gia công ngoài trên lệnh / bài ghép + danh sách Kế hoạch SX tự nạp lại (sau commit).
     Lần của bài ghép đụng MỌI lệnh thành viên — một gói mang cả danh sách, không mỗi lệnh một gói."""
     ids = [lsx_ids] if isinstance(lsx_ids, int) else [i for i in (lsx_ids or []) if i]
-    hub.broadcast({"type": "gia_cong_ngoai_changed", "lsx_id": ids[0] if ids else None,
-                   "lsx_ids": ids, "bai_ghep_id": bai_ghep_id})
+    # Nhóm `san_xuat`, màn theo lệnh (khối Gia công ngoài nằm ở Kế hoạch SX / Bài ghép). Phần bàn tổ
+    # đổi theo (bàn giao, bước riêng toả số) đi bằng tin riêng của nó ngay trong cùng cửa ghi.
+    hub.gui({"type": "gia_cong_ngoai_changed", "lsx_id": ids[0] if ids else None,
+             "lsx_ids": ids, "bai_ghep_id": bai_ghep_id}, quyen=MAN_THEO_LENH)
 
 
 def _phat_doi_lan(db: Session, gcn_id: int) -> None:
@@ -179,7 +182,8 @@ def _phat_cho_chi(res: dict, user: User, db: Session) -> None:
             "lsx_ma": res.get("nhan_nguon") or res.get("lsx_ma"), "nha_cung_cap_ten": res.get("nha_cung_cap_ten"),
             "ten_viec": res.get("ten_viec"),
         })
-    hub.broadcast({"type": "gia_cong_cho_chi_changed"})
+    # Badge Phiếu chi + hàng "Gia công chờ chi" — nhóm `mua_ke_toan`.
+    hub.gui({"type": "gia_cong_cho_chi_changed"}, quyen=MAN_MUA_KE_TOAN)
 
 
 @router.post("/{gcn_id}/chot", response_model=GiaCongNgoaiOut)
@@ -199,9 +203,10 @@ def chot(
     for nhom in res.get("nhoms_dong") or ([res["nhom_dong"]] if res["nhom_dong"] else []):
         phat_dong_nhom(nhom)
     if res.get("toa"):
-        # Số toả sang bước riêng từng lệnh (bàn giao đã xác nhận) — bàn tổ nhận tự nạp lại.
-        hub.broadcast({"type": "san_xuat_cong_viec_changed", "lsx_id": res["lsx_ids"][0],
-                       "lsx_ids": res["lsx_ids"]})
+        # Số toả sang bước riêng từng lệnh (bàn giao đã xác nhận) — bàn tổ nhận tự nạp lại. Gói
+        # không nói tổ nào ⇒ mọi người có Bàn tổ, cộng các màn theo lệnh (nhóm `san_xuat`).
+        hub.gui({"type": "san_xuat_cong_viec_changed", "lsx_id": res["lsx_ids"][0],
+                 "lsx_ids": res["lsx_ids"]}, **kem_ban_to(MAN_THEO_LENH, ()))
     _phat_cho_chi(res, user, db)
     _phat_doi(res["lsx_ids"], res.get("bai_ghep_id"))
     return _ra(db, authz, user, gcn_id)
@@ -218,10 +223,12 @@ def mo_lai(
     _gac_lan(db, authz, user, gcn_id)
     res = _chay(lambda: chot_svc.mo_lai(db, user=user, gcn_id=gcn_id,
                                          expected_version=body.version))
-    hub.broadcast({"type": "gia_cong_cho_chi_changed"})
-    # Bàn tổ của bước sau / màn KCS / kho vừa mất một bàn giao hoặc đề nghị — bump chung.
-    hub.broadcast({"type": "san_xuat_cong_viec_changed",
-                   "lsx_id": (res["lsx_ids"] or [None])[0], "lsx_ids": res["lsx_ids"]})
+    hub.gui({"type": "gia_cong_cho_chi_changed"}, quyen=MAN_MUA_KE_TOAN)
+    # Bàn tổ của bước sau / màn KCS / kho vừa mất một bàn giao hoặc đề nghị. Không biết tổ nào ⇒
+    # mọi người có Bàn tổ + màn theo lệnh (nhóm `san_xuat`).
+    hub.gui({"type": "san_xuat_cong_viec_changed",
+             "lsx_id": (res["lsx_ids"] or [None])[0], "lsx_ids": res["lsx_ids"]},
+            **kem_ban_to(MAN_THEO_LENH, ()))
     _phat_doi(res["lsx_ids"], res.get("bai_ghep_id"))
     return _ra(db, authz, user, gcn_id)
 

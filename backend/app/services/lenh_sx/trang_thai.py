@@ -298,10 +298,22 @@ def _da_giao_het(bc: BoiCanh, lsx_id: int) -> bool:
     GIỚI HẠN còn lại: nhiều lệnh cùng một dòng đơn (lệnh bù — pha sau) sẽ CÙNG đọc trọn số của
     dòng đó. Cần chia thì phải chia ở tầng nạp, không phải ở đây.
     """
-    dat = bc.lenh[lsx_id].so_luong_dat or 0
+    return giao_du(bc.lenh[lsx_id].so_luong_dat, bc.da_giao_cua(lsx_id))
+
+
+def giao_du(so_luong_dat: int | None, da_giao: int) -> bool:
+    """Phán quyết "đã giao hết" trên HAI CON SỐ — lõi của `_da_giao_het`, tách ra để tầng lọc còn
+    sống (`danh_sach`, A7) xếp được lệnh vào tab Hoàn thành mà KHÔNG phải `boi_canh.nap()` nó.
+
+    Một hàm cho cả hai đường là load-bearing: tầng lọc tin rằng lệnh nó bỏ qua CHẮC CHẮN ra
+    `TAB_HOAN_THANH` (luật số 1, ăn trước mọi nhánh). Viết lại phép so ở chỗ khác mà lệch một ly —
+    `>` thay `>=`, quên nhánh `dat <= 0` — là một lệnh đang chạy bị đếm vào Hoàn thành và biến khỏi
+    tab của nó, im lặng. Lý do từng vế: docstring `_da_giao_het`.
+    """
+    dat = so_luong_dat or 0
     if dat <= 0:
         return False
-    return bc.da_giao_cua(lsx_id) >= dat
+    return da_giao >= dat
 
 
 def co_canh_bao(

@@ -5,8 +5,9 @@ rồi đẩy sự kiện `care_due` (SSE) tới người phụ trách — badge 
 KHÔNG bắt refresh (CLAUDE.md: thông báo nội bộ = real-time).
 
 Cửa sổ hở-trái/đóng-phải → mỗi hẹn chỉ "ting" ĐÚNG 1 LẦN khi giờ hẹn đi qua; hẹn quá hạn cũ (trước
-lúc khởi động) KHÔNG bị nhắc lại, và restart cũng không spam. Chỉ đúng khi 1 uvicorn worker — giống
-ràng buộc của hub (app/realtime.py); scale >1 worker thì chuyển sang Postgres LISTEN/NOTIFY.
+lúc khởi động) KHÔNG bị nhắc lại, và restart cũng không spam. Nhiều worker: vòng lặp chạy ở mọi
+worker nhưng chỉ worker GIỮ VAI (`locks.giu_vai_chinh`) mới quét; worker khác chỉ dời mốc theo để lỡ
+phải nhận vai thì không quét lại cả quãng đã qua.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ import logging
 from datetime import datetime, timezone
 
 from .db import SessionLocal
+from .locks import giu_vai_chinh
 from .realtime import hub
 from .repositories.customer_repo import CustomerRepository
 
@@ -48,6 +50,9 @@ async def run_care_reminder_loop(interval: int) -> None:
     while True:
         await asyncio.sleep(interval)
         now = datetime.now(timezone.utc)
+        if not await asyncio.to_thread(giu_vai_chinh, "nhac_hen_cham_soc", ttl_ms=interval * 3000):
+            after = now
+            continue
         try:
             n = await asyncio.to_thread(_scan_once, after, now)
             if n:

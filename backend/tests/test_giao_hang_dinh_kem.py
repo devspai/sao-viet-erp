@@ -101,7 +101,7 @@ def test_TEP_QUA_LON_bi_chan(client):
     h = _admin(client)
     trip = _chuyen(client, h, suffix="dk6")
     r = _tai_len(client, h, trip, noi_dung=b"x" * (10 * 1024 * 1024 + 1))
-    assert r.status_code == 400, r.text
+    assert r.status_code == 413, r.text  # trần chung mọi upload (`tai_len.doc_gioi_han`)
     assert "10 MB" in r.json()["detail"]
 
 

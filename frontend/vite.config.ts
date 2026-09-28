@@ -17,6 +17,13 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
   },
+  // Từ 28/09/2026 mọi màn nạp bằng `React.lazy` (AppShell), chunk đầu còn ~390 kB. Khối lớn nhất
+  // còn lại là MapLibre (~1,26 MB, chỉ nạp khi mở màn có bản đồ) — ngưỡng đặt ngay trên nó, để
+  // cảnh báo chỉ kêu khi có khối MỚI phình to (vd lỡ import tĩnh một màn nặng vào AppShell).
+  // Không chia tay bằng manualChunks: để Rollup tự chia theo điểm import động.
+  build: {
+    chunkSizeWarningLimit: 1300,
+  },
   // Test FE chạy bằng vitest + jsdom. Trước đây "bằng chứng FE" của module bài ghép chỉ là mấy
   // dòng `assert "n.buoc.map" in source` bên pytest — grep chuỗi trên mã nguồn: đổi
   // `n.buoc.map(...)` thành `n.buoc.filter(...).map(...)` là đỏ dù đúng, còn để nguyên chuỗi đó

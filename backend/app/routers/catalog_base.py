@@ -35,6 +35,7 @@ from ..schemas.cong_thuc_lich_su import CongThucLichSuOut
 from ..services.catalog_base import (
     CatalogDuplicate, CatalogError, CatalogInUse, CatalogNotFound,
 )
+from ..tai_len import TRAN_EXCEL, doc_gioi_han
 
 
 class MaGoiYOut(BaseModel):
@@ -297,7 +298,9 @@ def make_catalog_router(
             hơn — thứ khiến người dùng bấm Xác nhận rồi mới ăn lỗi.
             """
             try:
-                kq = nhap_excel(excel_spec, svc, InModel, file.file.read(),
+                # Tệp rỗng để `nhap_excel` báo "không đọc được file" như cũ.
+                kq = nhap_excel(excel_spec, svc, InModel,
+                                doc_gioi_han(file, TRAN_EXCEL, cho_rong=True),
                                 actor_id=user.id, ghi=(mode == "commit"), bat_loi=BAT)
             except ExcelSaiMan as e:
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from None

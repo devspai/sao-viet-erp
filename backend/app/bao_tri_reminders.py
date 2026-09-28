@@ -30,6 +30,7 @@ from .models.ky_thuat_may import TT_BT_DANG_MO, BaoTriMay
 from .models.may_thiet_bi import MayThietBi
 from .models.role import RolePermission
 from .models.user import User
+from .locks import giu_vai_chinh
 from .realtime import hub
 from .repositories.audit_repo import AuditLogRepository
 from .repositories.ky_thuat_may_repo import KyThuatMayRepository
@@ -125,6 +126,11 @@ async def run_bao_tri_reminder_loop(interval: int) -> None:
     không bắt người ta đợi hết một chu kỳ ticker mới thấy việc của mình.
     """
     while True:
+        # Nhiều worker: chỉ worker giữ vai quét — sổ `_da_ting` nằm trong tiến trình, để worker nào
+        # cũng quét là mỗi phiếu bị ting một lần mỗi worker.
+        if not await asyncio.to_thread(giu_vai_chinh, "nhac_bao_tri", ttl_ms=interval * 3000):
+            await asyncio.sleep(interval)
+            continue
         try:
             # Ngày theo giờ NHÀ MÁY. Lấy UTC là 0h–7h sáng giờ VN ticker vẫn quét theo ngày HÔM QUA:
             # kỳ của hôm nay không ra phiếu, ca sáng vào làm không thấy việc của mình.

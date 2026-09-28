@@ -3,6 +3,12 @@
 # (Caddy thứ hai ở cổng lệch sẽ không bao giờ lấy được chứng chỉ) mà đi nhờ qua đây.
 #
 # Một Caddy phục vụ được nhiều tên miền: nó đọc tên miền trong request rồi mới quyết đẩy đi đâu.
+#
+# lb_try_duration/lb_try_interval: lúc deploy tạo lại container `web` (hoặc staging đang khởi động),
+# Caddy không nối được upstream. Thay vì trả 502 ngay, nó thử lại mỗi 500ms trong tối đa 20s — người
+# dùng chỉ thấy request chậm một nhịp. Chỉ áp cho lỗi NỐI (request chưa tới upstream), nên không có
+# nguy cơ gửi trùng một thao tác ghi. Backend khởi động lại thì nginx trong `web` tự trả 503 JSON
+# kèm Retry-After (frontend/nginx.conf), phần đó do client thử lại.
 
 # --- Production: `web` cùng project Compose nên gọi thẳng theo tên service ---
 {$SITE_DOMAIN} {
@@ -12,12 +18,17 @@
 	handle @sse {
 		reverse_proxy web:80 {
 			flush_interval -1
+			lb_try_duration 20s
+			lb_try_interval 500ms
 		}
 	}
 	# Phần còn lại: SPA + API thường, vẫn nén gzip.
 	handle {
 		encode gzip
-		reverse_proxy web:80
+		reverse_proxy web:80 {
+			lb_try_duration 20s
+			lb_try_interval 500ms
+		}
 	}
 }
 
@@ -30,10 +41,15 @@
 	handle @sse {
 		reverse_proxy {$STG_UPSTREAM} {
 			flush_interval -1
+			lb_try_duration 20s
+			lb_try_interval 500ms
 		}
 	}
 	handle {
 		encode gzip
-		reverse_proxy {$STG_UPSTREAM}
+		reverse_proxy {$STG_UPSTREAM} {
+			lb_try_duration 20s
+			lb_try_interval 500ms
+		}
 	}
 }

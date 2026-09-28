@@ -40,6 +40,11 @@ import { XemTruoc } from "../../components/DinhKemTep";
 import { Icon } from "../../components/Icons";
 import type { TepXem } from "../../components/tepDinhKem";
 import { coChu, nenAnh } from "../../lib/anhNen";
+
+/** Máy chủ nhận tối đa 10 ảnh cho MỘT lần kiểm (cộng mọi dòng lỗi), quá thì trả 400. Chặn ngay khi
+ *  chọn ảnh — để người kiểm biết trước, không phải chụp xong 12 tấm rồi Lưu mới bị từ chối. */
+const TOI_DA_ANH_MOI_LAN = 10;
+const LOI_QUA_SO_ANH = `Tối đa ${TOI_DA_ANH_MOI_LAN} ảnh mỗi lần kiểm.`;
 import { Drawer } from "../danh-muc/components/Drawer";
 import { gioNgan, ngay, num } from "../keHoachSxShared";
 import { nhanChang } from "../lsxBuoc";
@@ -159,7 +164,12 @@ export function KcsKiemForm({
     // Xoá giá trị ô chọn: không thì chọn lại đúng tấm vừa bỏ, trình duyệt không bắn `change`.
     input.value = "";
     setError(null);
+    let conDuoc = TOI_DA_ANH_MOI_LAN - dongLoi.reduce((n, d) => n + d.anh.length, 0);
     for (const f of ds) {
+      if (conDuoc <= 0) {
+        setError(LOI_QUA_SO_ANH);
+        break;
+      }
       if (!f.type.startsWith("image/")) {
         setError(`"${f.name}" không phải ảnh.`);
         continue;
@@ -168,6 +178,7 @@ export function KcsKiemForm({
       setDangNen((n) => n + 1);
       const kq = await nenAnh(f);
       setDangNen((n) => n - 1);
+      conDuoc -= 1;
       const moi = { id: ++idAnh.current, file: kq.file, url: URL.createObjectURL(kq.file), goc: kq.goc };
       setDongLoi((ds) => ds.map((d) => (d.key === key ? { ...d, anh: [...d.anh, moi] } : d)));
     }
@@ -254,6 +265,8 @@ export function KcsKiemForm({
       if (!d.moTa.trim()) return truoc(i, "Có lỗi thì phải mô tả lỗi.");
       if (d.anh.length === 0) return truoc(i, "Có lỗi thì phải kèm ít nhất một ảnh.");
     }
+    const soAnhGui = dongLoi.filter((d) => Number(d.so) > 0).reduce((n, d) => n + d.anh.length, 0);
+    if (soAnhGui > TOI_DA_ANH_MOI_LAN) return `${LOI_QUA_SO_ANH} Bỏ bớt ${soAnhGui - TOI_DA_ANH_MOI_LAN} ảnh.`;
     return null;
   }
 
@@ -289,6 +302,7 @@ export function KcsKiemForm({
   }
 
   const tenCd = tenCongDoan(cd);
+  const duSoAnh = dongLoi.reduce((n, d) => n + d.anh.length, 0) >= TOI_DA_ANH_MOI_LAN;
   const meHien = moHetMe ? me : me.slice(0, ME_HIEN);
   const lkHien = moHetLk ? lanKiem : lanKiem.slice(0, LAN_KIEM_HIEN);
   const soTcDat = cd.checklist.filter((tc) => dat[tc.thu_tu]).length;
@@ -564,13 +578,18 @@ export function KcsKiemForm({
                               </span>
                             </div>
                             <div className="kcs-drawer__anh-nut">
-                              <button type="button" className="btn btn--ghost" onClick={() => moChonAnh(d.key, chupRef.current)}>
+                              <button type="button" className="btn btn--ghost" disabled={duSoAnh}
+                                title={duSoAnh ? LOI_QUA_SO_ANH : undefined}
+                                onClick={() => moChonAnh(d.key, chupRef.current)}>
                                 <Icon name="camera" size={14} /> Chụp ảnh
                               </button>
-                              <button type="button" className="btn btn--ghost" onClick={() => moChonAnh(d.key, chonRef.current)}>
+                              <button type="button" className="btn btn--ghost" disabled={duSoAnh}
+                                title={duSoAnh ? LOI_QUA_SO_ANH : undefined}
+                                onClick={() => moChonAnh(d.key, chonRef.current)}>
                                 <Icon name="upload" size={14} /> Chọn ảnh có sẵn
                               </button>
                             </div>
+                            {duSoAnh && <p className="kcs-drawer__anh-hint">{LOI_QUA_SO_ANH}</p>}
                             {d.anh.length > 0 && (
                               <ul className="thsx-tep__ds">
                                 {d.anh.map((a) => (

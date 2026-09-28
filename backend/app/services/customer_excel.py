@@ -402,7 +402,9 @@ def xuat(db: Session, khach: list) -> bytes:
 
 def _mo_workbook(du_lieu: bytes):
     try:
-        return load_workbook(BytesIO(du_lieu), data_only=True)
+        # `read_only`: đọc luồng, không dựng cả cây ô trong RAM. Code đọc bên dưới chỉ dùng
+        # `iter_rows(values_only=True)` + một lần `cell(1, 1)` — đều chạy được ở chế độ này.
+        return load_workbook(BytesIO(du_lieu), read_only=True, data_only=True)
     except Exception:  # noqa: BLE001 — mọi kiểu hỏng của file đều cùng một câu trả lời
         raise ExcelSaiMan("Không đọc được file — phải là .xlsx đúng mẫu tải từ hệ thống.") from None
 

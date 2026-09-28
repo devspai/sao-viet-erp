@@ -33,6 +33,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from ...models.stock_request import REQ_CANCELLED, REQ_NHAP, REQ_REJECTED
+from ...doi_tuong_nhan import MAN_KHO, MAN_THEO_LENH, hop
 from ...realtime import hub
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.delivery_repo import DeliveryRepository
@@ -404,7 +405,9 @@ def phat_su_kien_kho(req, *, bao_nguoi_tao: bool) -> None:
     if not cv_id:
         return
     su_kien = {"cong_viec_id": cv_id, "request_id": req.id, "ma": req.ma, "trang_thai": req.trang_thai}
-    hub.broadcast({"type": "san_xuat_kho_changed", **su_kien})
+    # Nhóm `san_xuat` + `kho`: màn KCS, hồ sơ lệnh, Kho, drawer Đơn hàng bán… Bàn tổ không bày
+    # nhập kho thành phẩm (bước cuối do KCS gửi kho) nên không nhận.
+    hub.gui({"type": "san_xuat_kho_changed", **su_kien}, quyen=hop(MAN_THEO_LENH, MAN_KHO))
     if bao_nguoi_tao and req.nguoi_tao_id:
         hub.publish(req.nguoi_tao_id, {"type": "san_xuat_kho", **su_kien})
 

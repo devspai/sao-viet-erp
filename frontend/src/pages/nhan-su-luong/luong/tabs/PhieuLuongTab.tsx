@@ -1,7 +1,8 @@
 // Tab Phiếu lương của tôi (tách từ pages/LuongPage.tsx).
 import { useEffect, useState } from "react";
 import { AlertTriangle, FileText } from "lucide-react";
-import { api, type ChoPhat } from "../../../../api/client";
+import { ApiError, api, type ChoPhat } from "../../../../api/client";
+import { EmptyState } from "../../../../components/EmptyState";
 import { fmtDateTime } from "../../../../utils/format";
 import { PayslipCard } from "../components/PayslipCard";
 
@@ -47,15 +48,29 @@ export function PhieuLuongTab({ token }: { token: string }) {
   // Kỳ đang xem. `null` = để máy chủ chọn kỳ mới nhất đang mở — mở màn luôn về phiếu mới nhất,
   // KHÔNG nhớ lựa chọn cũ: người ta vào đây để xem lương tháng này, tra lại là việc phụ.
   const [ky, setKy] = useState<{ year: number; month: number } | null>(null);
+  // Lỗi mạng / máy chủ PHẢI hiện thành lỗi có nút Thử lại. Trước đây lỗi gán `data = null` ⇒ màn
+  // đứng "Đang tải dữ liệu..." vĩnh viễn, người dùng chỉ biết F5.
+  const [loi, setLoi] = useState<string | null>(null);
+  const [lanThu, setLanThu] = useState(0);
   useEffect(() => {
+    let huy = false;
+    setLoi(null);
     // Không gọi `getParams` nữa: 3 dòng BHXH/BHYT/BHTN do backend trả kèm phiếu, nên nhân viên
     // KHÔNG cần quyền cấu hình lương (trước đây gọi rồi ăn 403 → phiếu rơi về dòng gộp).
     api.luong
       .myPayslip(token, ky ?? undefined)
-      .then(setData)
-      .catch(() => setData(null));
-  }, [token, ky]);
+      .then((d) => {
+        if (!huy) setData(d);
+      })
+      .catch((e: unknown) => {
+        if (!huy) setLoi(e instanceof ApiError ? e.message : "Không đọc được phiếu lương.");
+      });
+    return () => {
+      huy = true;
+    };
+  }, [token, ky, lanThu]);
 
+  if (loi) return <EmptyState trangThai="loi" loi={loi} onThuLai={() => setLanThu((n) => n + 1)} />;
   if (!data)
     return (
       <div className="lg-payslip-empty-container">

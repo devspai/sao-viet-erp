@@ -42,6 +42,13 @@ def _ghim_hom_nay(monkeypatch):
     monkeypatch.setattr(_att_svc, "_today_vn", _ngay_cuoi_thang)
 
 
+@pytest.fixture
+def bam_lien_tiep(monkeypatch):
+    """Tắt cửa sổ chống bấm lại 90 giây cho test cố ý chấm VÀO rồi RA ngay trong vài mili giây.
+    Hành vi chống bấm lại có test riêng ở `test_cham_cong_chong_trung.py`."""
+    monkeypatch.setattr(_att_svc.AttendanceService, "CHONG_BAM_LAI_GIAY", 0)
+
+
 def _vai_cham_bu_pham_vi(pham_vi: str, ten_vai: str) -> str:
     """Tao mot vai CO quyen cham bu nhung PHAM VI hep, tra token.
 
@@ -222,7 +229,7 @@ def test_location_crud_and_validation(client):
 # --- geofenced self check-in ------------------------------------------------
 
 
-def test_check_in_out_toggle_and_hard_block(client):
+def test_check_in_out_toggle_and_hard_block(client, bam_lien_tiep):
     token = _admin_token(client)
     _make_location(client, token, lat=10.0, lng=106.0, radius=200)
     _link_admin_employee(client, token)
@@ -255,7 +262,7 @@ def test_check_in_out_toggle_and_hard_block(client):
     assert {l["check_type"] for l in logs} == {"in", "out"}
 
 
-def test_check_in_out_is_blocked_without_an_effective_shift(client):
+def test_check_in_out_is_blocked_without_an_effective_shift(client, bam_lien_tiep):
     token = _admin_token(client)
     _make_location(client, token, lat=10.0, lng=106.0, radius=200)
     employee_id = _link_admin_employee(client, token, assign_shift=False)
@@ -392,7 +399,7 @@ def _vn_year_month() -> tuple[int, int]:
     return vn.year, vn.month
 
 
-def test_monthly_timesheet_and_xlsx(client):
+def test_monthly_timesheet_and_xlsx(client, bam_lien_tiep):
     token = _admin_token(client)
     _make_location(client, token, lat=10.0, lng=106.0, radius=200)
     _link_admin_employee(client, token)

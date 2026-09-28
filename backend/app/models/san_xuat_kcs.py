@@ -51,7 +51,8 @@ class SanXuatKcsBatch(Base):
         ForeignKey("san_xuat_nhom.id", ondelete="SET NULL"), nullable=True, index=True
     )
     bat_dau: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    ket_thuc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # index (mg `0344`): KPI hỏi "lệnh có đợt KCS kết thúc từ hôm qua" (`lenh_co_viec_tu`).
+    ket_thuc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     so_luong_nhan: Mapped[float] = mapped_column(Numeric(18, 3), nullable=False)
     co_mau: Mapped[float | None] = mapped_column(Numeric(18, 3), nullable=True)
     so_luong_dat: Mapped[float] = mapped_column(Numeric(18, 3), nullable=False)
@@ -95,7 +96,9 @@ class SanXuatKcsLoi(Base):
     don_vi: Mapped[str | None] = mapped_column(String(24), nullable=True)
     # "Đã xem" của tổ chịu — ai bấm, lúc nào. NULL = chưa xem.
     phan_hoi_by_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
-    phan_hoi_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    phan_hoi_luc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)

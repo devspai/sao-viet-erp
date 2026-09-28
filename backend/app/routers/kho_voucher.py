@@ -66,7 +66,12 @@ from ..services.vat_lieu_kho_service import HANG_NHAN, VatLieuKhoService
 from ..services.rbac_service import AuthorizationService
 from ..services.sequence_service import SequenceService
 from ..services.stock_request_service import StockRequestService
-from ..services.stock_voucher_service import StockVoucherError, StockVoucherService
+from ..services.stock_voucher_service import (
+    MAX_ATTACHMENT_BYTES,
+    StockVoucherError,
+    StockVoucherService,
+)
+from ..tai_len import doc_gioi_han
 
 from ..services.delivery_notify import bao_tai_xe_kho_lap_phieu, kho_nhan_lai_hang_giao
 from ..services.san_xuat.kho import phat_su_kien_kho
@@ -944,7 +949,8 @@ def upload_voucher_attachment(
     user: Annotated[User, Depends(require_permission(MODULE, "create"))],
     file: UploadFile = File(...),
 ) -> StockVoucherAttachmentOut:
-    data = file.file.read()
+    # Tệp rỗng để service báo bằng câu của nó.
+    data = doc_gioi_han(file, MAX_ATTACHMENT_BYTES, cho_rong=True)
     try:
         return StockVoucherAttachmentOut(**svc.add_attachment(
             voucher_id, actor=user, file_name=file.filename,

@@ -1,6 +1,7 @@
 // Tab Chấm công của tôi (tách từ pages/ChamCongPage.tsx).
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ApiError,
   api,
   type AttendanceLog,
   type AttendancePreview,
@@ -24,6 +25,7 @@ import {
   LogOut,
 } from "lucide-react";
 import type { NavigateFn } from "../../../../components/AppShell";
+import { EmptyState } from "../../../../components/EmptyState";
 import { GpsRadarMap2D } from "../components/GpsRadarMap2D";
 import { MyHistoryModal } from "../modals/MyHistoryModal";
 import {
@@ -59,6 +61,11 @@ export function MyCheckIn({
   const [showHistory, setShowHistory] = useState(false);
   const [showConfirmOut, setShowConfirmOut] = useState(false);
   const mounted = useRef(true);
+  // Lỗi đọc trạng thái (mạng / máy chủ). Trước đây lỗi gán `status = null` ⇒ màn đứng "Đang tải…"
+  // VĨNH VIỄN đúng lúc đầu ca, không nút thử lại — công nhân chỉ biết tắt app mở lại.
+  const [loiTrangThai, setLoiTrangThai] = useState<string | null>(null);
+  // Chặn bấm đúp NGAY trong cùng nhịp (state `checking` chỉ có hiệu lực từ lần vẽ sau).
+  const dangCham = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -70,8 +77,16 @@ export function MyCheckIn({
   const load = useCallback(() => {
     api.attendance
       .myStatus(token)
-      .then(setStatus)
-      .catch(() => setStatus(null));
+      .then((st) => {
+        if (!mounted.current) return;
+        setStatus(st);
+        setLoiTrangThai(null);
+      })
+      .catch((e: unknown) => {
+        if (!mounted.current) return;
+        // GIỮ trạng thái cũ (nếu có) — chỉ báo lỗi kèm nút Thử lại.
+        setLoiTrangThai(e instanceof ApiError ? e.message : "Không đọc được trạng thái chấm công.");
+      });
     api.attendance
       .myLogs(token)
       .then((r) => setLogs(r.items))
@@ -143,6 +158,8 @@ export function MyCheckIn({
       return;
     }
     setShowConfirmOut(false);
+    if (dangCham.current) return;
+    dangCham.current = true;
     setChecking(true);
     setResult(null);
     setGeoErr(null);
@@ -158,12 +175,19 @@ export function MyCheckIn({
       if (!res.success) refreshPreview(); // chấm hụt (ngoài vùng) → vẽ lại vòng geofence
     } catch (e) {
       setGeoErr(geoErrText(e));
+      // Lỗi từ MÁY CHỦ / mạng (không phải lỗi GPS): lượt chấm có thể ĐÃ GHI mà phản hồi rớt. Nạp
+      // lại trạng thái để nút đổi đúng VÀO/RA — không thì người ta bấm lại "CHẤM VÀO" trong khi
+      // máy chủ đã ghi VÀO (máy chủ chống trùng 90 giây, nhưng nút vẫn phải nói thật).
+      if (e instanceof ApiError) load();
     } finally {
+      dangCham.current = false;
       setChecking(false);
     }
   }
 
   async function setPointHere() {
+    if (dangCham.current) return;
+    dangCham.current = true;
     setChecking(true);
     setResult(null);
     setGeoErr(null);
@@ -185,11 +209,16 @@ export function MyCheckIn({
       load();
     } catch (e) {
       setGeoErr(geoErrText(e));
+      if (e instanceof ApiError) load();
     } finally {
+      dangCham.current = false;
       setChecking(false);
     }
   }
 
+  if (!status && loiTrangThai) {
+    return <EmptyState trangThai="loi" loi={loiTrangThai} onThuLai={load} />;
+  }
   if (!status) return <p className="ns__empty">Đang tải…</p>;
 
   if (!status.has_employee) {
@@ -247,6 +276,14 @@ export function MyCheckIn({
 
   return (
     <div className="cc-checkin-hero-wrapper">
+      {loiTrangThai && (
+        <div className="banner banner--error" role="alert">
+          <span>Trạng thái chấm công có thể chưa mới nhất: {loiTrangThai}</span>
+          <button type="button" className="btn btn--ghost" onClick={load}>
+            Thử lại
+          </button>
+        </div>
+      )}
       {/* 1. Executive Hero Header Banner */}
       <div className="cc-checkin-hero-header">
         <div className="cc-checkin-user-profile">

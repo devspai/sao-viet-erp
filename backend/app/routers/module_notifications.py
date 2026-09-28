@@ -22,12 +22,10 @@ Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
 
 @router.get("/summary", response_model=ModuleNotificationSummaryOut)
 def summary(repo: Repo, authz: Authz, user: CurrentUser) -> ModuleNotificationSummaryOut:
-    counts = repo.unread_counts(user.id)
-    # Không rò cả số lượng sự kiện của màn mà người gọi không được xem.
-    if not authz.can(user, "thu_mua", "read"):
-        counts["thu_mua"] = 0
-    if not authz.can(user, "ke_toan", "read"):
-        counts["ke_toan"] = 0
+    # Kiểm quyền TRƯỚC khi đếm: kênh không được xem trả 0 và không tốn câu SQL nào — vừa không
+    # rò số sự kiện của màn người gọi không được xem, vừa khỏi đếm phí cho mọi tab mỗi lần mở app.
+    duoc_xem = [c for c in CHANNELS if authz.can(user, c, "read")]
+    counts = repo.unread_counts(user.id, duoc_xem) if duoc_xem else {c: 0 for c in CHANNELS}
     return ModuleNotificationSummaryOut(**counts)
 
 

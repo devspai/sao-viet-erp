@@ -17,4 +17,6 @@ COPY app ./app
 EXPOSE 8000
 
 # DATABASE_URL / JWT_SECRET / SEED_* are provided by docker-compose env.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# app.serve: migrate + seed MỘT lần rồi bật N worker uvicorn (N tự tính theo CPU/RAM container,
+# WEB_CONCURRENCY ghi đè; không có REDIS_URL thì ép 1). Healthcheck khai ở docker-compose.yml.
+CMD ["python", "-m", "app.serve"]

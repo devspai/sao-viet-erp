@@ -24,7 +24,9 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import require_permission
 from ..models.user import User
+from ..doi_tuong_nhan import BAN_TO, MAN_KHVT, MAN_THEO_LENH, NGHE_LENH, hop
 from ..realtime import hub
+from ..services.can_doi_cache import xoa_cache_can_doi
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.xep_lich_lenh_repo import XepLichLenhRepository
 from ..schemas.xep_lich import (
@@ -74,6 +76,19 @@ def _map(exc: Exception) -> HTTPException:
     if isinstance(exc, XepLichLenhError):
         return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     raise exc
+
+
+def _phat_lich_doi(lsx_id: int) -> None:
+    """Đặt / dời / bỏ mốc: nhóm `san_xuat` + `khvt` (màn theo lệnh) và badge Xếp lịch. Bàn tổ cầm
+    gói ĐÃ phát hành — lịch mới chỉ xuống tổ qua "phát hành cập nhật" — nên không nhận."""
+    hub.gui({"type": "xep_lich_changed", "lsx_id": lsx_id}, quyen=hop(MAN_THEO_LENH, MAN_KHVT))
+
+
+def _phat_goi_xuong_xuong(lsx_id: int) -> None:
+    """Phát hành / phát hành cập nhật / thu hồi: gói việc ở xưởng đổi ⇒ thêm MỌI người có Bàn tổ
+    (bàn nào có việc của lệnh thì phải tự nạp; tra tổ cần đọc lại gói, còn cửa này thưa)."""
+    _phat_lich_doi(lsx_id)
+    hub.gui({"type": "lsx_changed"}, quyen=hop(NGHE_LENH, (BAN_TO,)))
 
 
 # --- Đọc ---------------------------------------------------------------------
@@ -147,7 +162,7 @@ def dat_moc(
         )
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "xep_lich_changed", "lsx_id": lsx_id})
+    _phat_lich_doi(lsx_id)
     return ra
 
 
@@ -162,7 +177,7 @@ def xoa_moc(
         _svc(db).xoa_moc(lsx_id, nguoi_id=user.id)
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "xep_lich_changed", "lsx_id": lsx_id})
+    _phat_lich_doi(lsx_id)
     return {"ok": True}
 
 
@@ -177,8 +192,8 @@ def phat_hanh(
         _svc(db).phat_hanh(lsx_id, actor=user)
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "xep_lich_changed", "lsx_id": lsx_id})
-    hub.broadcast({"type": "lsx_changed"})
+    xoa_cache_can_doi()
+    _phat_goi_xuong_xuong(lsx_id)
     return {"ok": True}
 
 
@@ -212,9 +227,10 @@ def phat_hanh_cap_nhat(
         kq = _svc(db).phat_hanh_cap_nhat(lsx_id, actor=user, ly_do=payload.ly_do)
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "xep_lich_changed", "lsx_id": lsx_id})
-    hub.broadcast({"type": "lsx_changed"})
-    hub.broadcast({"type": "san_xuat_changed"})
+    xoa_cache_can_doi()
+    # (Từng bắn thêm `san_xuat_changed` — FE không có nhánh riêng, chỉ nhích nhóm `san_xuat` mà
+    # `lsx_changed` ngay trong `_phat_goi_xuong_xuong` đã nhích cho cùng tập người. Bỏ 28/09/2026.)
+    _phat_goi_xuong_xuong(lsx_id)
     return kq
 
 
@@ -229,6 +245,6 @@ def thu_hoi(
         _svc(db).thu_hoi(lsx_id, actor=user, ly_do=ly_do)
     except Exception as exc:
         raise _map(exc)
-    hub.broadcast({"type": "xep_lich_changed", "lsx_id": lsx_id})
-    hub.broadcast({"type": "lsx_changed"})
+    xoa_cache_can_doi()
+    _phat_goi_xuong_xuong(lsx_id)
     return {"ok": True}

@@ -18,11 +18,12 @@ Quy ước khoá: `key` là đường dẫn TƯƠNG ĐỐI, không mang tiền t
 """
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterator, Protocol, runtime_checkable
+from typing import Callable, Iterator, Protocol, runtime_checkable
 
 from .config import settings
 
@@ -36,8 +37,41 @@ _MAX_NAME_LEN = 180
 _CHUNK = 64 * 1024
 
 
+log = logging.getLogger(__name__)
+
+
 class StorageFileNotFound(Exception):
     """Không có object/file ứng với key."""
+
+
+class LuongTep:
+    """Luồng bytes của một tệp, có `close()` — router `/api/files` gọi `close()` qua
+    `BackgroundTask` khi response xong HOẶC client ngắt giữa chừng. Không đóng thì kết nối HTTP tới
+    MinIO (hoặc file handle trên đĩa) nằm treo trong pool tới khi GC dọn."""
+
+    def __init__(self, khoi: Iterator[bytes], dong: Callable[[], None] | None = None) -> None:
+        self._khoi = khoi
+        self._dong = dong
+        self._da_dong = False
+
+    def __iter__(self) -> Iterator[bytes]:
+        return self._khoi
+
+    def __next__(self) -> bytes:
+        return next(self._khoi)
+
+    def close(self) -> None:
+        if self._da_dong:
+            return
+        self._da_dong = True
+        try:
+            close_gen = getattr(self._khoi, "close", None)
+            if close_gen is not None:
+                close_gen()
+            if self._dong is not None:
+                self._dong()
+        except Exception:  # noqa: BLE001 — dọn dẹp, không được làm hỏng response
+            log.warning("Không đóng được luồng tệp", exc_info=True)
 
 
 # --- khoá & URL -------------------------------------------------------------
@@ -93,8 +127,9 @@ def is_safe_key(key: str) -> bool:
 class Storage(Protocol):
     def save(self, key: str, data: bytes, content_type: str | None = None) -> None: ...
 
-    def open_stream(self, key: str) -> tuple[Iterator[bytes], int | None, str | None]:
-        """`(luồng bytes, cỡ nếu biết, content-type nếu biết)`; raise StorageFileNotFound."""
+    def open_stream(self, key: str) -> tuple[LuongTep, int | None, str | None]:
+        """`(luồng bytes có close(), cỡ nếu biết, content-type nếu biết)`; raise
+        StorageFileNotFound. Người gọi PHẢI `close()` luồng khi xong."""
         ...
 
     def delete(self, key: str) -> None:
@@ -116,18 +151,19 @@ class LocalStorage:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
 
-    def open_stream(self, key: str) -> tuple[Iterator[bytes], int | None, str | None]:
+    def open_stream(self, key: str) -> tuple[LuongTep, int | None, str | None]:
         path = self._path(key)
         if not path.is_file():
             raise StorageFileNotFound(key)
 
         def gen() -> Iterator[bytes]:
+            # Generator: `close()` ném GeneratorExit vào đây ⇒ `with` đóng file handle.
             with path.open("rb") as fh:
                 while chunk := fh.read(_CHUNK):
                     yield chunk
 
         # Đĩa không giữ content-type — router tự đoán theo đuôi file.
-        return gen(), path.stat().st_size, None
+        return LuongTep(gen()), path.stat().st_size, None
 
     def delete(self, key: str) -> None:
         try:
@@ -158,7 +194,16 @@ class MinioStorage:
                 endpoint_url=self.endpoint,
                 aws_access_key_id=self.access_key,
                 aws_secret_access_key=self.secret_key,
-                config=Config(signature_version="s3v4", retries={"max_attempts": 3}),
+                # Mặc định botocore là 60s đọc × 3 lần thử (+ backoff): MinIO khựng là MỘT lượt tải
+                # tệp giữ thread + kết nối DB 3–4 phút. 5s nối / 30s đọc / 2 lần là đủ cho LAN nội bộ.
+                # Pool 64 (mặc định 10): threadpool 40 luồng cùng đọc/ghi tệp không phải xếp hàng.
+                config=Config(
+                    signature_version="s3v4",
+                    connect_timeout=5,
+                    read_timeout=30,
+                    retries={"max_attempts": 2, "mode": "standard"},
+                    max_pool_connections=64,
+                ),
             )
         return self._cached_client
 
@@ -179,7 +224,7 @@ class MinioStorage:
         extra = {"ContentType": content_type} if content_type else {}
         self._client.put_object(Bucket=self.bucket, Key=key, Body=data, **extra)
 
-    def open_stream(self, key: str) -> tuple[Iterator[bytes], int | None, str | None]:
+    def open_stream(self, key: str) -> tuple[LuongTep, int | None, str | None]:
         from botocore.exceptions import ClientError
 
         try:
@@ -190,15 +235,20 @@ class MinioStorage:
                 raise StorageFileNotFound(key) from None
             raise
         body = obj["Body"]
-        return body.iter_chunks(_CHUNK), obj.get("ContentLength"), obj.get("ContentType")
+        return (
+            LuongTep(body.iter_chunks(_CHUNK), body.close),
+            obj.get("ContentLength"),
+            obj.get("ContentType"),
+        )
 
     def delete(self, key: str) -> None:
-        from botocore.exceptions import ClientError
-
+        # Nuốt MỌI lỗi, không chỉ ClientError: MinIO sập/timeout ném EndpointConnectionError,
+        # ReadTimeoutError… (không phải ClientError) — trước đây lọt ra thành 500 cho một thao tác
+        # xoá dòng DB đã commit xong. Dọn dẹp best-effort đúng như Protocol hứa.
         try:
             self._client.delete_object(Bucket=self.bucket, Key=key)
-        except ClientError:
-            pass  # giống LocalStorage: dọn dẹp best-effort
+        except Exception:  # noqa: BLE001
+            log.warning("Không xoá được object %s khỏi kho tệp", key, exc_info=True)
 
 
 # --- lựa chọn backend -------------------------------------------------------

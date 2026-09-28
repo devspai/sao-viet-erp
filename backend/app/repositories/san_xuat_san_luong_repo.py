@@ -56,6 +56,31 @@ class SanXuatSanLuongRepository:
     def cong_viec(self, cong_viec_id: int) -> SanXuatCongViec | None:
         return self.db.get(SanXuatCongViec, cong_viec_id)
 
+    def khoa_cong_viec(self, cong_viec_id: int) -> None:
+        """Khoá dòng công việc tới hết transaction: hai mẻ của CÙNG một việc ghi lần lượt — không
+        cùng đọc "còn trần 500" rồi cùng ghi 500, không cùng thấy "chưa có mẻ này" rồi cùng ghi
+        trùng. SQLite (test) không có FOR UPDATE, SQLAlchemy tự bỏ mệnh đề."""
+        self.db.execute(
+            select(SanXuatCongViec.id).where(SanXuatCongViec.id == cong_viec_id).with_for_update()
+        )
+
+    def me_vua_ghi(self, *, cong_viec_id: int, created_by: int | None, bat_dau, ket_thuc,
+                   tong: float, tot: float, hong: float, tu_luc) -> SanXuatBatch | None:
+        """Mẻ Y HỆT (cùng việc, cùng người, cùng cửa sổ giờ, cùng số) ghi từ `tu_luc` trở lại đây."""
+        return self.db.execute(
+            select(SanXuatBatch).where(
+                SanXuatBatch.cong_viec_id == cong_viec_id,
+                SanXuatBatch.created_by == created_by if created_by is not None
+                else SanXuatBatch.created_by.is_(None),
+                SanXuatBatch.bat_dau == bat_dau,
+                SanXuatBatch.ket_thuc == ket_thuc,
+                SanXuatBatch.tong == tong,
+                SanXuatBatch.tot == tot,
+                SanXuatBatch.hong == hong,
+                SanXuatBatch.created_at >= tu_luc,
+            ).order_by(SanXuatBatch.id.desc()).limit(1)
+        ).scalars().first()
+
     def khoan_cua_cong_viec(self, cv: SanXuatCongViec) -> tuple[CongDoanKhoan | None, str | None]:
         """Cấu hình Khoán SỐNG của công đoạn nguồn và tên công đoạn để chụp vào mẻ.
 

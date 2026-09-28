@@ -50,6 +50,7 @@ from ..ports.customer_finance_port import (
 )
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.customer_repo import CustomerRepository
+from ..storage import get_storage, key_from_url
 
 # MST is 10 digits (doanh nghiệp) or 13 digits (đơn vị trực thuộc: 10 + '-' + 3, but we
 # store digits only) — suy luận theo chuẩn VN, chưa xác nhận với người giao.
@@ -649,13 +650,20 @@ class CustomerService:
         att = self.customers.get_attachment(attachment_id)
         if att is None or att.customer_id != customer_id:
             raise CustomerNotFound("Không tìm thấy tài liệu.")
+        file_url, file_name = att.file_url, att.file_name
         self.customers.delete_attachment(att)
         self.audit.create(
             actor_user_id=actor.id,
             action="update_customer",
             target=f"customer:{customer_id}",
-            detail=f"Xóa tài liệu: {att.file_name}",
+            detail=f"Xóa tài liệu: {file_name}",
         )
+        # Xoá luôn object trong kho tệp, SAU commit (xoá trước mà commit gãy thì dòng còn đó trỏ
+        # vào tệp đã mất). Trước đây chỉ xoá dòng DB: hợp đồng / giấy tờ khách vẫn tải được qua
+        # URL cũ. `delete` là best-effort, không raise.
+        key = key_from_url(file_url)
+        if key:
+            get_storage().delete(key)
 
     # --- kho nhãn dùng chung (thêm / xoá nhãn, 16/08/2026) -----------------------
 
@@ -914,17 +922,25 @@ class CustomerService:
     def list_due_followups(self, *, scope: str, actor) -> list[tuple[CustomerCareTask, Customer, int, int]]:
         """Việc đang mở đã đến hạn (tính đến HẾT hôm nay) trong scope, kèm (mức nhắc,
         ngày quá hạn) — nguồn panel "Cần chăm sóc"."""
-        end_of_today = datetime.now(timezone.utc).replace(
-            hour=23, minute=59, second=59, microsecond=0
-        )
         rows = self.customers.list_due_followups(
-            scope=scope, actor=actor, due_before=end_of_today
+            scope=scope, actor=actor, due_before=self._het_hom_nay()
         )
         out = []
         for task, customer in rows:
             level, overdue = self.remind_level(task.due_date)
             out.append((task, customer, level, overdue))
         return out
+
+    @staticmethod
+    def _het_hom_nay() -> datetime:
+        """Mốc "đến hạn" của panel Cần chăm sóc — hết ngày hôm nay (UTC), dùng chung list + đếm."""
+        return datetime.now(timezone.utc).replace(hour=23, minute=59, second=59, microsecond=0)
+
+    def count_due_followups(self, *, scope: str, actor) -> int:
+        """Số việc `list_due_followups` sẽ trả — đếm ở SQL, cho badge menu."""
+        return self.customers.count_due_followups(
+            scope=scope, actor=actor, due_before=self._het_hom_nay()
+        )
 
     def care_stats(self, tasks: list[CustomerCareTask]) -> tuple[int, int, int]:
         """(xong đúng hạn, xong trễ, đang quá hạn) — đánh giá chăm sóc (#28), số thật."""

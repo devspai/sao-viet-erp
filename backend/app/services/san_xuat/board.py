@@ -475,7 +475,17 @@ def work_items(
     chi_ids = _cv_cho_xac_nhan(db, q, team_id) if cho_xac_nhan else None
 
     if nhom == "phang":
-        rows = repo.cong_viec_cua_to(tron, employee_id=emp_id, rieng_ids=rieng)
+        # A7 (28/09/2026) — cửa sổ đẩy xuống SQL TRƯỚC khi nạp, không kéo cả lịch sử của tổ về rồi
+        # mới lọc. Mép SQL NỚI thêm một ngày mỗi đầu: `_trong_cua_so` so `.date()` của giá trị đọc
+        # ra (giờ tường dán nhãn UTC), còn SQL so mốc thời điểm — nới cho khỏi lệch múi/biên ngày;
+        # lọt thừa thì `_trong_cua_so` ngay dưới gạt lại chính xác như cũ.
+        rows = repo.cong_viec_cua_to(
+            tron, employee_id=emp_id, rieng_ids=rieng,
+            cham_tu=(datetime.combine(tu_ngay, time.min, tzinfo=timezone.utc) - timedelta(days=1)
+                     if tu_ngay is not None else None),
+            cham_den=(datetime.combine(den_ngay, time.min, tzinfo=timezone.utc) + timedelta(days=2)
+                      if den_ngay is not None else None),
+        )
         if tu_ngay is not None or den_ngay is not None:
             rows = [cv for cv in rows if _trong_cua_so(cv, tu_ngay, den_ngay)]
         if chi_ids is not None:

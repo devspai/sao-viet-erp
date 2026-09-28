@@ -67,7 +67,9 @@ class SanXuatHoTro(Base):
     ngay_lam_viec: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     # ⚠️ `ty_le_phan_tram` GỠ 18/09/2026 (mg `0322`) — tỷ lệ chỉ sinh ra để CHIA sản lượng, mà tầng
     # chia đã gỡ hẳn. Phiếu hỗ trợ nay thuần là VẾT "ai sang giúp ai, ngày nào".
-    trang_thai: Mapped[str] = mapped_column(String(16), nullable=False, default=HT_CHO_HAI_BEN)
+    trang_thai: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=HT_CHO_HAI_BEN, index=True
+    )
     mo_ta: Mapped[str | None] = mapped_column(String(500), nullable=True)
     de_xuat_by_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     xac_nhan_goc_by_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
