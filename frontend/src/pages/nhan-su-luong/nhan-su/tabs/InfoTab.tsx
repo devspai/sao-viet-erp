@@ -88,6 +88,26 @@ export function InfoTab({
               onChange={(e) => set("position", e.target.value)}
             />
           </Field>
+          {/* Ngày sinh + Giới tính: trước 28/09/2026 chỉ khai được lúc TẠO hồ sơ (wizard), form sửa
+              thiếu hẳn — khai sai là không có đường sửa. */}
+          <Field label="Ngày sinh">
+            <input
+              type="date"
+              value={form.date_of_birth ?? ""}
+              onChange={(e) => set("date_of_birth", e.target.value || null)}
+            />
+          </Field>
+          <Field label="Giới tính">
+            <select
+              value={form.gender ?? ""}
+              onChange={(e) => set("gender", e.target.value || null)}
+            >
+              <option value="">—</option>
+              <option value="male">Nam</option>
+              <option value="female">Nữ</option>
+              <option value="other">Khác</option>
+            </select>
+          </Field>
           <Field label="SĐT">
             <input
               value={form.phone ?? ""}
