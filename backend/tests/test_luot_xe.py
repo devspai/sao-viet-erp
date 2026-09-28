@@ -306,6 +306,28 @@ def test_XE_CHAY_NGOAI_SO_duoc_nhac_khi_luot_sau_xuat_phat_xa_hon_so_cuoi(client
     assert any("ngoài sổ 30 km" in c for c in ra["canh_bao"]), ra["canh_bao"]
 
 
+def test_XUAT_PHAT_bat_thuong_bi_CHAN_truoc_khi_luu_xac_nhan_moi_qua(client):
+    """Gõ nối vào số cũ (5020 → 50201008) hoặc số lùi ⇒ chặn, chưa lưu; xác nhận thì qua."""
+    h, tx, _px, xe = _canh(client)
+    a = _len_don(client, h, suffix="bt1", tx=tx, xe=xe)
+    _lay_hang(client, h, a["id"])
+    _bat_dau(client, h, a["id"], 5000)
+    _ket_qua(client, h, a["id"], 5010)
+    _ve_kho(client, h, a["luot"]["id"], 5020)
+    b = _len_don(client, h, suffix="bt2", tx=tx, xe=xe, lay=13, giao=15)
+    _lay_hang(client, h, b["id"])
+    loi = _bat_dau(client, h, b["id"], 50201008, cho=400)
+    assert "bất thường" in loi["detail"], loi
+    loi = _bat_dau(client, h, b["id"], 4000, cho=400)
+    assert "nhỏ hơn số cuối" in loi["detail"], loi
+    assert _bat_dau(client, h, b["id"], 5521, cho=400)
+    r = client.get(f"{GOC}/luot-xe/{b['luot']['id']}", headers=h)
+    assert r.json()["so_dong_ho_xuat_phat"] is None, "bị chặn thì KHÔNG được lưu số"
+    r = client.post(f"{GOC}/trips/{b['id']}/bat-dau-giao", headers=h,
+                    json={"so_dong_ho_xuat_phat": 4000, "xac_nhan_km_lon": True})
+    assert r.status_code == 200, r.text
+
+
 # =============================================================================================
 # Giao thất bại vẫn ra tiền — xe đã lăn bánh (chủ chốt 24/08/2026)
 # =============================================================================================

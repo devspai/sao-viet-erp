@@ -80,7 +80,7 @@ const HOSO_77: LenhSxHoSoOut = {
     dai_thanh_pham: null, rong_thanh_pham: null, quy_cach_in: null,
     so_mau_a: null, so_mau_b: null, muc_a: [], muc_b: [],
     so_trang: null, trang_moi_tay: null, so_kem: null, so_manh_xa: null,
-    loai_san_pham: null, ghi_chu_ky_thuat: null,
+    ghi_chu_ky_thuat: null,
     so_con: 0, so_to_ke_hoach: 0, so_to_nguyen: 0, don_vi_tinh: null,
   },
   routing: { nodes: [], canh: [] },

@@ -14,8 +14,8 @@ export const UNC_ENABLED = false;
  *  Gom một chỗ để bật lại UNC là đổi đúng `UNC_ENABLED`, không phải đi sửa nhãn. */
 export const VOUCHER_PAGE_LABEL = UNC_ENABLED ? "Phiếu chi / UNC" : "Phiếu chi";
 
-/** Tạm ẨN màn Bài ghép — 10/09/2026 (yêu cầu SVN).
- *  Bật lại: đổi thành true, không cần sửa gì khác.
+/** Màn Bài ghép — ẩn 10/09/2026, BẬT LẠI 27/09/2026 (chủ chốt, cần cho gia công ngoài bước chung).
+ *  Tắt lại: đổi thành false, không cần sửa gì khác.
  *
  *  CHỈ ẩn ĐƯỜNG VÀO ở giao diện: mục menu "Bài ghép", badge hàng chờ ghép, ô quyền `bai_ghep_2`
  *  trong ma trận Vai trò & Quyền, và nút trỏ chéo từ màn Xếp lịch. Dữ liệu · API
@@ -26,7 +26,7 @@ export const VOUCHER_PAGE_LABEL = UNC_ENABLED ? "Phiếu chi / UNC" : "Phiếu c
  *  AppShell coi `bai-ghep-2` là màn không có quyền. Vì vậy phải ẩn cả nút trỏ chéo ở Xếp lịch,
  *  không thì bấm vào ăn màn chặn.
  */
-export const BAI_GHEP_ENABLED = false;
+export const BAI_GHEP_ENABLED = true;
 
 // Cờ `XEP_LICH_2_ENABLED` GỠ 18/09/2026: màn Xếp lịch công đoạn 2 không còn để bật lại — router,
 // service, schema, repo và màn đều xoá hẳn, quyền gộp về `xep_lich` ở mg `0314`. Bảng

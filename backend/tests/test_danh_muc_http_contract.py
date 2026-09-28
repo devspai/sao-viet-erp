@@ -36,32 +36,19 @@ def _doan_tim(ten: str) -> str:
     return ten[idx + 1:].strip() or ten
 
 
-def _chung_loai_id(client, h) -> int:
-    r = client.post("/api/vat-lieu-kho/chung-loai-giay",
-                    json={"ma": "ZZCLG", "ten": "ZZ Chủng loại"}, headers=h)
-    return r.json()["id"] if r.status_code == 201 else \
-        client.get("/api/vat-lieu-kho/chung-loai-giay?q=ZZCLG", headers=h).json()["items"][0]["id"]
-
-
 # (path, module quyền, dựng payload, mã tự sinh?, DELETE là xoá mềm?)
 DANH_MUC = [
     ("/api/cong-doan", "dm_cong_doan",
      lambda c, h, i: {"ma": f"ZZCD{i}", "ten": f"ZZ Công đoạn {i}", "nhom": "finishing",
                       "pricing_basis": "per_finished_qty"}, False, False),
-    ("/api/loai-san-pham", "dm_loai_san_pham",
-     lambda c, h, i: {"ma": f"ZZSP{i}", "ten": f"ZZ SP {i}", "structural_type": "flat"},
-     False, False),
     ("/api/don-vi", "dm_don_vi",
      lambda c, h, i: {"ma": f"zzdv{i}", "ten": f"ZZ Đơn vị {i}"}, False, False),
     ("/api/khuon-be", "khuon_be",
      lambda c, h, i: {"ten": f"ZZ Khuôn {i}"}, True, False),
     ("/api/kho", "dm_kho_hang",
      lambda c, h, i: {"ten": f"ZZ Kho {i}"}, True, True),
-    ("/api/vat-lieu-kho/chung-loai-giay", "dm_chung_loai_giay",
-     lambda c, h, i: {"ma": f"ZZCL{i}", "ten": f"ZZ Chủng loại {i}"}, False, False),
     ("/api/vat-lieu-kho/giay", "dm_giay",
-     lambda c, h, i: {"ma": f"ZZG{i}", "ten": f"ZZ Giấy {i}", "gsm": 100,
-                      "chung_loai_giay_id": _chung_loai_id(c, h)}, False, False),
+     lambda c, h, i: {"ma": f"ZZG{i}", "ten": f"ZZ Giấy {i}", "gsm": 100}, False, False),
     ("/api/vat-lieu-kho/vat-tu-in-an", "dm_vat_tu",
      lambda c, h, i: {"ma": f"ZZVT{i}", "ten": f"ZZ Vật tư {i}"}, False, False),
     ("/api/may-thiet-bi", "dm_thiet_bi",
@@ -215,7 +202,6 @@ CO_MA_GOI_Y = [
     ("/api/kho", "KHO-"),
     ("/api/khuon-be", "KB-"),
     ("/api/cong-doan", "CD-"),
-    ("/api/loai-san-pham", "LSP-"),
 ]
 # Danh mục KHÔNG có "mã kế tiếp": mã là chữ có nghĩa (`kg`, `COUCHE`, `MUC-CMYK`) hoặc đánh theo
 # LOẠI (`IN-01`, `CM-03`) ⇒ cố ý không mở route, chứ không phải quên.

@@ -428,6 +428,13 @@ class SanXuatRepository:
     def lsx(self, lsx_id: int) -> Lsx | None:
         return self.db.get(Lsx, lsx_id)
 
+    def khoa_lsx(self, lsx_id: int) -> Lsx | None:
+        """Lấy + KHOÁ dòng lệnh (Postgres `FOR UPDATE`; SQLite bỏ qua) — chặn hai lượt đặt gia
+        công trọn gói bấm gần như đồng thời cùng đọc trạng thái cũ rồi cùng ghi đè nhau."""
+        return self.db.execute(
+            select(Lsx).where(Lsx.id == lsx_id).with_for_update()
+        ).scalar_one_or_none()
+
     def don_vi_ra_cua(self, cong_viec_ids) -> dict[int, str | None]:
         """`{cong_viec_id: đơn vị ra}` — một câu cho cả tập."""
         ids = {int(i) for i in cong_viec_ids if i}

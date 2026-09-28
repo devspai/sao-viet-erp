@@ -1,5 +1,6 @@
 // Drawer CHI TIẾT ĐƠN MUA + cụm nút thao tác (tách từ pages/PurchaseRequestsPage.tsx).
 import { useState, type Dispatch, type SetStateAction } from "react";
+import { Icon } from "../../../../components/Icons";
 import {
   api,
   type PurchaseDeliveryRow,
@@ -242,7 +243,7 @@ export function PurchaseDetailDrawer({
               onClick={() => setSelectedId(null)}
               aria-label="Đóng"
             >
-              ✕
+              <Icon name="x" size={15} />
             </button>
           </div>
         </div>

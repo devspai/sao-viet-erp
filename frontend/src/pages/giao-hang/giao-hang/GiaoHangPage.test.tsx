@@ -713,7 +713,7 @@ describe("Giao hàng · MỘT LƯỢT = MỘT KHỐI trên tab Đơn giao hàng 
     expect(goi.filter((g) => g.url.includes("da-lay-hang"))).toHaveLength(1);
   });
 
-  it("⭐ Bắt đầu giao lần đầu hỏi số đồng hồ xuất phát, TỰ ĐIỀN số cuối của xe", async () => {
+  it("⭐ Bắt đầu giao lần đầu hỏi số đồng hồ xuất phát; số cuối của xe chỉ là GỢI Ý, không điền sẵn", async () => {
     const goi = stubApi({
       khoi: [khoi({ so_cho_bat_dau: 2 }, "da_lay_hang")],
       rieng: (u) => (u.endsWith("/luot-xe/4/bat-dau-giao")
@@ -725,6 +725,10 @@ describe("Giao hàng · MỘT LƯỢT = MỘT KHỐI trên tab Đơn giao hàng 
     // Bấm ở khối chỉ MỞ ô số — chưa gửi gì.
     expect(goi.some((g) => g.url.includes("/bat-dau-giao"))).toBe(false);
     const o = within(k).getByLabelText(/Số đồng hồ lúc xuất phát/);
+    // Điền sẵn thì tài xế gõ NỐI vào số cũ (lỗi E2E 27/09/2026) — ô trống, số cuối ở placeholder.
+    expect(o).toHaveValue(null);
+    expect(o).toHaveAttribute("placeholder", "Số cuối: 12000");
+    await userEvent.click(within(k).getByRole("button", { name: /Dùng số cuối/ }));
     expect(o).toHaveValue(12000);
     await userEvent.clear(o);
     await userEvent.type(o, "12030");
@@ -733,7 +737,7 @@ describe("Giao hàng · MỘT LƯỢT = MỘT KHỐI trên tab Đơn giao hàng 
       expect(goi.some((g) => g.url.endsWith("/luot-xe/4/bat-dau-giao"))).toBe(true));
     expect(goi.filter((g) => g.url.includes("/bat-dau-giao"))).toHaveLength(1);   // MỘT lệnh
     expect(goi.find((g) => g.url.endsWith("/luot-xe/4/bat-dau-giao"))!.body)
-      .toEqual({ so_dong_ho_xuat_phat: 12030 });
+      .toEqual({ so_dong_ho_xuat_phat: 12030, xac_nhan_km_lon: false });
   });
 
   it("⭐ xe chạy ngoài sổ ⇒ cảnh báo ở lại cho người bấm đọc, không vụt tắt", async () => {
@@ -746,6 +750,7 @@ describe("Giao hàng · MỘT LƯỢT = MỘT KHỐI trên tab Đơn giao hàng 
     ve({ can_create: true });
     const k = await moKhoi();
     await userEvent.click(within(k).getByRole("button", { name: "Bắt đầu giao (2 điểm)" }));
+    await userEvent.type(within(k).getByLabelText(/Số đồng hồ lúc xuất phát/), "12030");
     await userEvent.click(within(k).getByRole("button", { name: "Bắt đầu giao 2 điểm" }));
     expect(await within(k).findByText(canh)).toBeInTheDocument();
     await userEvent.click(within(k).getByRole("button", { name: "Đã hiểu" }));

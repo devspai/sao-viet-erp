@@ -7,7 +7,7 @@ import { num, ngayGio, thoiLuong } from "./keHoachSxShared";
 import { nhanDonVi } from "./lsxBuoc";
 import { ThsxLenhGroups } from "./ThsxLenhGroups";
 import { ChamCho, type SxChoCuaViec } from "./thsxChoXacNhan";
-import { slText, sxNguonIcon, sxSerial, ThsxTrangThaiPill } from "./thsxShared";
+import { slThucTe, tienDoThucTe, sxNguonIcon, sxSerial, ThsxTrangThaiPill } from "./thsxShared";
 
 interface Props {
   /** MỘT TRANG lệnh/bài ghép (máy chủ đã cắt, đếm theo lệnh); bảng bước nằm trong từng lệnh. */
@@ -157,9 +157,7 @@ function DsRowBlock({
   onKetThuc?: () => void;
 }) {
   const durInfo = phutChayGon(w);
-  const daLam = w.da_lam ?? 0;
-  const mucTieu = w.muc_tieu ?? w.so_luong_ra ?? 0;
-  const pct = mucTieu > 0 ? Math.min(100, Math.round((daLam / mucTieu) * 100)) : 0;
+  const tienDo = tienDoThucTe(w);
   const statusCls = `thsx-ds__row--${w.trang_thai}`;
 
   return (
@@ -225,21 +223,25 @@ function DsRowBlock({
       <td>
         <div className="thsx-ds__sl-cell">
           <div className="thsx-ds__sl-top">
-            <span className="thsx-ds__sl-main thsx-num">{slText(w)}</span>
-            {w.thuc_nhan != null && (
-              <span className="thsx-ds__recv-badge thsx-num" title="Số lượng đã nhận từ công đoạn trước">
-                Đã nhận: {num(w.thuc_nhan)}
-              </span>
-            )}
+            <span
+              className="thsx-ds__sl-main thsx-num"
+              title="Nhận bao nhiêu, làm tốt bao nhiêu — bấm Kết thúc thì phần còn lại tính là lỗi"
+            >
+              {slThucTe(w)}
+            </span>
           </div>
-          {mucTieu > 0 ? (
+          {tienDo ? (
             <div className="thsx-ds__prog-wrap">
               <div className="thsx-ds__prog-bar">
-                <div className="thsx-ds__prog-fill" style={{ width: `${pct}%` }} />
+                <div className="thsx-ds__prog-fill" style={{ width: `${tienDo.pct}%` }} />
               </div>
               <div className="thsx-ds__prog-txt thsx-num">
-                <span>{num(daLam)}/{num(mucTieu)}</span>
-                <b>{pct}%</b>
+                <span>
+                  {w.trang_thai === "completed"
+                    ? "Đã kết thúc"
+                    : `${num(tienDo.tot)}/${num(tienDo.nhan ?? 0)}`}
+                </span>
+                <b>{tienDo.pct}%</b>
               </div>
             </div>
           ) : null}

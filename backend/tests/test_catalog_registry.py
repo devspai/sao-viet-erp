@@ -10,7 +10,8 @@ nó thì test luôn xanh kể cả khi registry sai.
 Thêm màn danh mục MỚI thì các bảng dưới phải thêm ĐÚNG một dòng, kèm ghi chú vì sao — đừng nới
 lỏng phép so sánh cho nó xanh, làm thế là giết đúng cái tác dụng của file này. Đã thêm:
 `dm_thanh_pham` (19/08/2026, mg 0203 · docs/prd-thanh-pham.md). Gỡ một màn thì cũng bớt ĐÚNG một
-dòng kèm ghi chú — đã gỡ: `dm_bu_hao` (22/09/2026, mg 0327 · bậc bù hao về thẳng Công đoạn).
+dòng kèm ghi chú — đã gỡ: `dm_bu_hao` (22/09/2026, mg 0327 · bậc bù hao về thẳng Công đoạn);
+`dm_loai_san_pham` + `dm_chung_loai_giay` (27/09/2026, mg 0342 · chủ bỏ hai danh mục).
 """
 from __future__ import annotations
 
@@ -18,9 +19,8 @@ from app.catalog_registry import DANH_MUC, MODULE_KEYS, MODULE_THEO_LOAI, dang_k
 from app.models.cong_doan import CongDoan
 from app.models.don_vi_do import DonViDo
 from app.models.khuon_be import KhuonBe
-from app.models.loai_san_pham import LoaiSanPham
 from app.models.may_thiet_bi import MayThietBi
-from app.models.vat_lieu_kho import ChungLoaiGiay, GiayNguyen, VatTuInAn
+from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn
 from app.routers.nhat_ky_danh_muc import LOAI_MODULE
 from app.seed import MODULES
 from app.services.danh_muc_tham_chieu import DEM_THEO_LOAI, model_cua
@@ -41,8 +41,9 @@ from app.services.role_service import SCOPELESS_MODULES
 SCOPELESS_CU = frozenset({
     # `dm_bu_hao` rời danh sách 22/09/2026: mg `0327` xoá khoá khỏi `modules` + `role_permissions`,
     # bậc bù hao nay khai trong chính màn Công đoạn nên không còn màn riêng để cấp quyền.
-    "dm_loai_san_pham", "dm_thiet_bi", "dm_cong_doan",
-    "dm_don_vi", "dm_chung_loai_giay", "dm_giay", "dm_vat_tu", "khuon_be", "dm_kho_hang",
+    # `dm_loai_san_pham` + `dm_chung_loai_giay` rời danh sách 27/09/2026: mg `0342` gỡ hai danh mục.
+    "dm_thiet_bi", "dm_cong_doan",
+    "dm_don_vi", "dm_giay", "dm_vat_tu", "khuon_be", "dm_kho_hang",
     # Thành phẩm (19/08/2026, mg 0203): danh mục thì KHÔNG có phạm vi — bỏ sót ở đây là màn mọc
     # ra dropdown Phạm vi, rồi scope `own` bó âm thầm quyền vừa cấp.
     "dm_thanh_pham",
@@ -65,20 +66,23 @@ SCOPELESS_CU = frozenset({
     # `ton_kho` (mg `0334`, cùng đợt): màn Tồn kho của từng kho. Thấy kho nào là do KHAI BÁO KHO
     # quyết định — `kho_voucher.py` lọc theo `kho_id` người dùng chọn, không đọc scope của vai.
     "ton_kho",
+    # `activity_log` (25/09/2026) — nhật ký KHÔNG có "của tôi": nó ghi việc của cả hệ thống, và
+    # cái quyết định ai thấy dòng nào là NGƯỜI XEM CÓ MỞ ĐƯỢC MÀN SINH RA DÒNG ĐÓ KHÔNG, không
+    # phải scope của vai (`ActivityService._chan`). Để scope `own` ở đây là dựng một hàng rào giả
+    # rồi tự tin vào nó.
+    "activity_log",
 })
 
-#: `nhat_ky_danh_muc.LOAI_MODULE` — 17 khoá: 11 tên chính, 3 tên đời cũ
-#: (`product_type`/`machine`/`operation`), bảng phụ `don_vi_quy_doi`, 2 khoá Kỹ thuật máy.
+#: `nhat_ky_danh_muc.LOAI_MODULE` — tên chính của từng màn, 2 tên đời cũ (`machine`/`operation`),
+#: bảng phụ `don_vi_quy_doi`, các khoá Kỹ thuật máy.
 LOAI_MODULE_CU = {
-    "loai_san_pham": "dm_loai_san_pham",
-    "product_type": "dm_loai_san_pham",
+    # `loai_san_pham` / `product_type` / `chung_loai_giay` gỡ 27/09/2026 (mg `0342`).
     "may_thiet_bi": "dm_thiet_bi",
     "machine": "dm_thiet_bi",
     "cong_doan": "dm_cong_doan",
     "operation": "dm_cong_doan",
     "don_vi_do": "dm_don_vi",
     "don_vi_quy_doi": "dm_don_vi",
-    "chung_loai_giay": "dm_chung_loai_giay",
     "giay": "dm_giay",
     "vat_tu": "dm_vat_tu",
     # Thành phẩm (19/08/2026) — thiếu dòng này thì nhật ký của màn đó trả 404 dù bản ghi có đủ
@@ -99,10 +103,10 @@ LOAI_MODULE_CU = {
     "san_xuat_kcs_tieu_chi": "dm_kcs_tieu_chi",
 }
 
-#: `danh_muc_tham_chieu.model_cua` bản cũ — đúng 8 loại có model (`bu_hao` gỡ 22/09/2026).
+#: `danh_muc_tham_chieu.model_cua` bản cũ — đúng 6 loại có model (`bu_hao` gỡ 22/09/2026,
+#: `loai_san_pham` + `chung_loai_giay` gỡ 27/09/2026).
 MODEL_CU = {
     "cong_doan": CongDoan, "don_vi_do": DonViDo, "khuon_be": KhuonBe,
-    "loai_san_pham": LoaiSanPham, "chung_loai_giay": ChungLoaiGiay,
     "giay": GiayNguyen, "vat_tu": VatTuInAn,
     # Máy vào bản đồ 15/08/2026 cùng cột `active` (mg `0202`): trước đó nó `model=None`
     # nên `kiem-xoa` trả 404 và hộp thoại xoá của màn Máy rơi vào ngõ cụt.
@@ -122,12 +126,12 @@ def test_loai_module_y_nguyen_ban_cu():
 
 
 def test_model_cua_y_nguyen_ban_cu():
-    """Đúng 8 loại có model. Tên đời cũ (`machine`…) và màn chưa có bộ đếm phải trả None —
+    """Đúng 6 loại có model. Tên đời cũ (`machine`…) và màn chưa có bộ đếm phải trả None —
     trả model theo tên lạ là mở thêm một đường vào luồng xoá bằng khoá không ai khai."""
     for loai, lop in MODEL_CU.items():
         assert model_cua(loai) is lop, f"{loai}: model_cua trả sai lớp"
-    for loai in ("kho_hang", "machine", "product_type", "operation",
-                 "don_vi_quy_doi", "bu_hao", "khong_co_loai_nay"):
+    for loai in ("kho_hang", "machine", "product_type", "operation", "loai_san_pham",
+                 "chung_loai_giay", "don_vi_quy_doi", "bu_hao", "khong_co_loai_nay"):
         assert model_cua(loai) is None, f"{loai}: phải là None, không được suy ra model"
 
 
@@ -153,10 +157,10 @@ def test_khuon_be_giu_nguyen_chuoi_quyen():
 def test_khong_trung_loai_khong_trung_module():
     loai = [d.loai for d in DANH_MUC] + [a for d in DANH_MUC for a in d.alias_loai]
     assert len(loai) == len(set(loai)), "trùng `loai` giữa tên chính và tên đời cũ"
-    # 12 sau khi Bù hao được hợp nhất vào Công đoạn (22/09/2026; trước đó 13, từ đợt hợp nhất
-    # Công việc khoán 21/09). Con số phải ĐỔI chứ không được bỏ — nó bắt cả trường hợp lỡ tay
-    # khai trùng một màn thành hai dòng.
-    assert len(MODULE_KEYS) == len(set(MODULE_KEYS)) == 12
+    # 10 sau khi gỡ Loại sản phẩm + Chủng loại giấy (27/09/2026); 12 sau khi Bù hao được hợp nhất
+    # vào Công đoạn (22/09/2026; trước đó 13, từ đợt hợp nhất Công việc khoán 21/09). Con số phải
+    # ĐỔI chứ không được bỏ — nó bắt cả trường hợp lỡ tay khai trùng một màn thành hai dòng.
+    assert len(MODULE_KEYS) == len(set(MODULE_KEYS)) == 10
 
 
 def test_dem_theo_loai_phu_dung_cac_man_co_model():
@@ -176,10 +180,11 @@ def test_dang_ky_tra_du_cac_man(client):
     r = client.get("/api/danh-muc/dang-ky", headers=_admin(client))
     assert r.status_code == 200, r.text
     items = r.json()["items"]
-    assert len(items) == 12
+    assert len(items) == 10
 # `test_dang_ky_tra_du_11_man` GỠ 21/08/2026 — trùng việc với `test_dang_ky_tra_du_cac_man`
 # ngay trên (cả hai đếm số màn của endpoint đăng ký). Con số 14 (31/08/2026) rút còn 13
-# (10/09/2026) khi màn "Lý do & lỗi SX" gỡ hẳn, rồi còn 12 (22/09/2026) khi màn Bù hao gỡ.
+# (10/09/2026) khi màn "Lý do & lỗi SX" gỡ hẳn, rồi còn 12 (22/09/2026) khi màn Bù hao gỡ, rồi còn 10 (27/09/2026) khi Loại sản phẩm +
+# Chủng loại giấy gỡ.
 
 
 def test_dang_ky_khong_bi_nuot_vao_route_co_tham_so(client):

@@ -25,6 +25,7 @@ from ...models.san_xuat import (
 )
 from ...repositories.document_sequence_repo import DocumentSequenceRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
+from ..gia_cong_ngoai.lan import gom_lan_bai_ghep_khi_phat_hanh, gom_lan_khi_phat_hanh
 from ..sequence_service import SequenceService
 from .nhom import dam_bao_nhom
 from .snapshot import (
@@ -96,6 +97,14 @@ def phat_hanh(
         member = repo.member_of_lsx(lsx_id)
         if member is not None:
             member.la_than_chinh = True
+
+    # GIA CÔNG NGOÀI (spec 2026-09-26): dải bước thuê ngoài liền nhau cùng nhà gia công ⇒ MỘT lần;
+    # công việc của dải rời khỏi mọi bàn tổ. Đặt SAU `danh_dau_kcs_cuoi`: dải chứa bước cuối vẫn
+    # giữ cờ KCS-cuối — con số chốt thay KCS (bản ghi tổng hợp lúc chốt).
+    gom_lan_khi_phat_hanh(repo.db, lsx_ids=lsx_ids, cv_by_step=cv_by_step, actor=actor)
+    # Bước CHUNG thuê ngoài của bài ghép (spec 2026-09-27): lần gắn bài ghép, không gắn lệnh.
+    gom_lan_bai_ghep_khi_phat_hanh(repo.db, bai_ghep_ids=bai_ghep_ids, cv_by_step=cv_by_step,
+                                   actor=actor)
 
     dung_phu_thuoc(
         repo, goi=goi, phien_ban_so=1,

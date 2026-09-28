@@ -173,7 +173,6 @@ export interface CongThucLichSuItem {
 
 export const mayThietBi = crud("/api/may-thiet-bi");
 export const congDoan = crud("/api/cong-doan");
-export const loaiSanPham = crud("/api/loai-san-pham");
 // Vật liệu Kho: 3 loại con dưới cùng prefix.
 export const giay = crud("/api/vat-lieu-kho/giay");
 /** Danh mục ĐƠN VỊ ĐO — nguồn cho ô ĐVT trên phiếu tính giá. */

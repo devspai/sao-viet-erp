@@ -672,6 +672,34 @@ def dung_diem_toa(
             continue
         don_vi_ra = steps[diem_toa_idx].don_vi_ra
         don_vi_vao = dich_cd.don_vi_vao
+        cung_dv = bool(don_vi_vao) and don_vi_vao == don_vi_ra
+        quy_tac = (
+            f"Điểm toả bài ghép: giao nguyên {don_vi_ra} chung, mỗi {don_vi_ra} cho {con} con của lệnh"
+            if cung_dv else
+            f"Điểm toả bài ghép: 1 {don_vi_ra or '?'} chung → {con} {don_vi_vao or '?'} riêng của lệnh"
+        )
+        if cung_dv:
+            # Bước riêng ăn CÙNG đơn vị với điểm toả nhận NGUYÊN số tờ ghép của bài (`he_so_nhanh_toa`
+            # = 1), nên kế hoạch vào của nó là số tờ ra của lượt chung, không phải số tờ theo bình
+            # bài riêng của lệnh (E2E 27/09/2026: Cắt LSX26-0024 nhận 2.583 tờ ghép mà khối kế
+            # hoạch in "1.330 tờ in"). Bước bị tách lần chạy thì chia lại theo tỷ lệ cũ của phân đoạn.
+            to_ghep = sum(float(n.so_luong_ra or 0) for n in nguon_cvs)
+            dcvs = cv_by_step[dich_cd.step_key]
+            cu = sum(float(d.so_luong_vao or 0) for d in dcvs)
+            if to_ghep > 0:
+                for dcv in dcvs:
+                    phan = float(dcv.so_luong_vao or 0) / cu if cu > 0 else 1.0 / len(dcvs)
+                    dcv.so_luong_vao = round(to_ghep * phan, 2)
+        if cung_dv and dich_cd.don_vi_ra and dich_cd.don_vi_ra != don_vi_vao:
+            # Bước riêng nhận TỜ GHÉP rồi tự cắt ra con (Cắt thành phẩm: tờ → con). Trong bài ghép
+            # mỗi tờ nó cắt cho đúng `con` con của lệnh — hệ số theo bình bài riêng của lệnh không
+            # còn đúng. Trần ghi mẻ + "còn thiếu" (`dau_vao.tran_ghi`, `board._con_thieu`) đọc hệ số
+            # này, còn toả giao nguyên số tờ ghép (`san_luong.so_nhanh_toa`) — nhân MỘT lần.
+            for dcv in cv_by_step[dich_cd.step_key]:
+                dcv.he_so_quy_doi = float(con)
+                # Thẻ quy cách chụp từ lệnh ghi "Con / tờ" theo bình bài riêng (180) trong khi thợ
+                # cắt tờ ghép ra `con` con của lệnh (E2E 27/09/2026, drawer Cắt LSX26-0028).
+                dcv.quy_cach_json = {**(dcv.quy_cach_json or {}), "so_con": float(con)}
         for nguon_cv in nguon_cvs:
             repo.add(SanXuatPhuThuoc(
                 goi_id=goi.id, phien_ban_so=phien_ban_so,
@@ -679,9 +707,7 @@ def dung_diem_toa(
                 nguon_cong_viec_id=nguon_cv.id, dich_cong_viec_id=dich_cv.id,
                 ty_le_ghep=float(con),
                 don_vi_nguon=don_vi_ra, don_vi_dich=don_vi_vao,
-                quy_tac_quy_doi=(
-                    f"Điểm toả bài ghép: 1 {don_vi_ra or '?'} chung → {con} {don_vi_vao or '?'} riêng của lệnh"
-                ),
+                quy_tac_quy_doi=quy_tac,
             ))
             dem += 1
     repo.flush()

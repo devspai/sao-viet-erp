@@ -76,7 +76,7 @@ _TP_SCALAR_FIELDS = (
     "thu_tu", "loai_thanh_phan", "ten", "dai_thanh_pham", "rong_thanh_pham",
     # `don_vi_tinh` đi qua engine như mọi trường khác → lệnh sản xuất kế thừa được ĐVT từ PHIẾU,
     # thôi cảnh mỗi tầng tự lấy một đường rồi không ai kiểm chúng có khớp nhau không.
-    "don_vi_tinh", "so_to_per_sp", "so_trang", "trang_moi_tay", "so_luong", "loai_san_pham_id",
+    "don_vi_tinh", "so_to_per_sp", "so_trang", "trang_moi_tay", "so_luong",
     "giay_id", "kho_nguyen", "kho_nguyen_dai", "kho_nguyen_rong", "don_gia_giay",
     "don_gia_don_vi", "nguon_giay",
     "chua_nhip", "bleed_mm", "khe_cat_mm",
@@ -291,9 +291,6 @@ def danh_muc_doi_sau_khi_tinh(db: Session, phieu) -> dict | None:
 
     Mốc so sánh là `phieu.updated_at`: mọi đường ghi phiếu (POST/PUT) đều chạy
     `compute_phieu_snapshot` ngay trước khi commit, nên ngày sửa phiếu CHÍNH LÀ ngày tính.
-
-    KHÔNG soi `loai_san_pham`: loại chỉ bung chuỗi công đoạn mặc định lúc chọn, sửa nó về sau
-    không đổi một đồng nào của phiếu đã lập — nhắc là nhắc nhảm.
     """
     moc = _utc(getattr(phieu, "updated_at", None))
     if moc is None:

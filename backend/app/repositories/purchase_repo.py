@@ -239,6 +239,17 @@ class SupplierRepository:
         ).first()
         return self._doc_danh_gia(*row) if row is not None else None
 
+    def dem_theo_nhom_trang_thai(self) -> list[tuple[str | None, str, int]]:
+        """`(supplier_group, status, số NCC)` cho TOÀN danh mục — một câu GROUP BY, để thanh đếm
+        và dải lọc nhóm của màn NCC khỏi phải kéo cả danh sách (kèm bảng giá) về đếm ở trình duyệt."""
+        return [
+            (g, st, int(n))
+            for g, st, n in self.db.execute(
+                select(Supplier.supplier_group, Supplier.status, func.count())
+                .group_by(Supplier.supplier_group, Supplier.status)
+            ).all()
+        ]
+
     def list(
         self,
         *,
@@ -340,6 +351,7 @@ class SupplierRepository:
         credit_limit: int = 0,
         credit_days: int | None = None,
         status: str = SUPPLIER_ACTIVE,
+        nhan_gia_cong: bool = False,
         note: str | None = None,
         items: Sequence["SupplierItemInput"] | None = None,
     ) -> Supplier:
@@ -356,6 +368,7 @@ class SupplierRepository:
             credit_limit=credit_limit,
             credit_days=credit_days,
             status=status,
+            nhan_gia_cong=nhan_gia_cong,
             note=note,
         )
         row.items = [
@@ -619,6 +632,11 @@ _NAP_PHIEU_CON = (
     selectinload(DepartmentPurchaseRequest.purchase_links)
     .selectinload(PurchaseRequestSource.purchase_request)
     .selectinload(PurchaseRequest.supplier),
+    # `_tinh_trang_tung_dong` cộng số đã giao theo đợt của từng phiếu con — thiếu là 1 câu/phiếu.
+    selectinload(DepartmentPurchaseRequest.purchase_links)
+    .selectinload(PurchaseRequestSource.purchase_request)
+    .selectinload(PurchaseRequest.deliveries)
+    .selectinload(PurchaseDelivery.lines),
 )
 
 
@@ -1084,9 +1102,15 @@ class PurchaseRequestRepository:
                 conditions.append(func.coalesce(PurchaseRequest.deposit_expected, 0) > 0)
                 conditions.append(advance_paid >= func.coalesce(PurchaseRequest.deposit_expected, 0))
 
+        _nguon = selectinload(PurchaseRequest.sources).selectinload(
+            PurchaseRequestSource.department_request
+        )
         stmt = select(PurchaseRequest).options(
             *_quan_he_tien(),
-            selectinload(PurchaseRequest.sources).selectinload(PurchaseRequestSource.department_request),
+            _nguon.selectinload(DepartmentPurchaseRequest.requesting_department),
+            _nguon.selectinload(DepartmentPurchaseRequest.requested_by),
+            # Danh sách dựng cả tệp đính kèm (`_to_request_out`) — thiếu dòng này là 1 câu/phiếu.
+            selectinload(PurchaseRequest.attachments),
         )
         count_stmt = select(func.count()).select_from(PurchaseRequest)
         for c in conditions:
@@ -1442,6 +1466,23 @@ class PurchaseStatusHistoryRepository:
         )
         self.db.add(row)
         return row
+
+    def cua_nhieu(self, doc_type: str, doc_ids) -> dict[int, list[PurchaseStatusHistory]]:
+        """Như `cua` nhưng cho CẢ TRANG danh sách trong 1 query — hỏi từng phiếu là N+1."""
+        ids = sorted({int(i) for i in doc_ids or [] if i})
+        ra: dict[int, list[PurchaseStatusHistory]] = {i: [] for i in ids}
+        if not ids:
+            return ra
+        for h in self.db.execute(
+            select(PurchaseStatusHistory)
+            .where(
+                PurchaseStatusHistory.doc_type == doc_type,
+                PurchaseStatusHistory.doc_id.in_(ids),
+            )
+            .order_by(PurchaseStatusHistory.id.desc())
+        ).scalars():
+            ra[h.doc_id].append(h)
+        return ra
 
     def cua(self, doc_type: str, doc_id: int) -> list[PurchaseStatusHistory]:
         """Lịch sử của MỘT chứng từ, MỚI NHẤT TRƯỚC — đúng thứ tự màn hình đọc."""

@@ -9,6 +9,15 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+// Nhãn chặng/đơn vị nạp qua `useNapTenDonVi` (cần token + `authed`) — giả hai bảng nhỏ.
+vi.mock("../auth/useAuth", () => ({ useAuth: () => ({ token: "token-test" }) }));
+vi.mock("../api/client", async (goc) => ({
+  ...(await goc<typeof import("../api/client")>()),
+  authed: vi.fn(async (url: string) => (url.includes("/tram")
+    ? { items: [{ ma: "to", nhan: "Tờ in", nhan_ngan: "tờ in" }, { ma: "cai", nhan: "Thành phẩm", nhan_ngan: "thành phẩm" }] }
+    : { items: [] })),
+}));
+
 import { BaiGhepDagCanvas, sapHang, tinhCot } from "./BaiGhepDagCanvas";
 import { buoc, gop, nhanh, soDo } from "../test/baiGhepSoDoFixture";
 import type { BaiGhepSoDo } from "../api/client";
@@ -142,6 +151,21 @@ describe("chọn bước để gộp", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("In B đang chờ Cán A");
     // Và tập chọn KHÔNG đổi — thẻ mờ vì vòng thì vẫn không được chọn.
     expect(thanhChon()).toHaveTextContent(/Đã chọn\s*1\s*bước/);
+  });
+});
+
+describe("nhãn đơn vị trên thẻ", () => {
+  // E2E 27/09/2026: màn Bài ghép mở thẳng (chưa màn nào nạp bảng chặng) thì thẻ in mã trần "to"/"cai".
+  it("thẻ bước dịch mã chặng sang nhãn, không in mã trần", async () => {
+    render(
+      <BaiGhepDagCanvas
+        sd={soDo({ nhanh: [nhanh({ lsx_id: 1, buoc: [buoc({ step_key: "a-be", ten: "Bế A", don_vi_ra: "cai" })] })] })}
+        chon={null} onChon={() => {}} onGop={async () => {}} onHoiUngVien={vi.fn().mockResolvedValue({})} />,
+    );
+    const the_ = the("Bế A");
+    await waitFor(() => expect(the_.textContent).toContain("thành phẩm"));
+    expect(the_.textContent).toContain("tờ in");
+    expect(the_.querySelector(".dag-node__flow")?.textContent).not.toMatch(/\b(to|cai)\b/);
   });
 });
 

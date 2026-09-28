@@ -131,6 +131,25 @@ class BaiGhepRepository:
             ket[bai_id].setdefault(m.lsx_id, set()).add(m.lsx_step_key)
         return ket
 
+    def buoc_chung_phu_lsx(self, lsx_ids: list[int]) -> dict[str, tuple[BaiGhepCongDoan, str]]:
+        """lsx_step_key → (bước chung đang ĐÈ bước đó, mã bài) — cho màn bày bước của MỘT lệnh.
+
+        Bước bị phủ chạy theo cấu hình của bài (loại, tổ, nhà gia công), không theo cấu hình còn
+        nằm nguyên ở `lsx_cong_doan`. Đọc theo map nên đúng cả trước lẫn sau phát hành.
+        """
+        ids = sorted({int(i) for i in lsx_ids if i})
+        if not ids:
+            return {}
+        return {
+            m.lsx_step_key: (c, ma)
+            for m, c, ma in self.db.execute(
+                select(BaiGhepCongDoanMap, BaiGhepCongDoan, BaiGhep.ma)
+                .join(BaiGhepCongDoan, BaiGhepCongDoan.id == BaiGhepCongDoanMap.bai_ghep_cong_doan_id)
+                .join(BaiGhep, BaiGhep.id == BaiGhepCongDoan.bai_ghep_id)
+                .where(BaiGhepCongDoanMap.lsx_id.in_(ids))
+            ).all()
+        }
+
     def ghep_theo_lsx(self, lsx_ids: list[int]) -> dict[int, tuple[BaiGhep, BaiGhepThanhVien]]:
         """lsx_id → (bài, dòng thành viên) — bản lô của `LsxService._ghep_cua`."""
         ids = sorted({int(i) for i in lsx_ids if i})

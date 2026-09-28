@@ -280,3 +280,68 @@
   color: var(--ink);
   border-bottom: 0;
 }
+
+/* --- bản ghi lồng Khách → Đơn → Mặt hàng (27/09/2026) ------------------------------------
+ * Mỗi khách một <tbody>; ô khách / ô đơn gộp dọc bằng rowSpan, mỗi mặt hàng một dòng. */
+.bckd__khoi {
+  border-top: 2px solid var(--rule);
+}
+
+.bckd__bang > .bckd__khoi > tr > td {
+  padding: 8px 12px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--rule-hair);
+}
+
+.bckd__o-khach {
+  min-width: 180px;
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+  background: var(--paper);
+  border-right: 1px solid var(--rule-soft);
+}
+
+.bckd__o-mh {
+  min-width: 260px;
+}
+
+.bckd__o-don {
+  white-space: nowrap;
+}
+
+.bckd__o-coc {
+  min-width: 150px;
+}
+
+.bckd__o-don > *,
+.bckd__o-coc > * {
+  display: block;
+}
+
+.bckd__o-don > span,
+.bckd__o-coc > span {
+  font-size: var(--fs-2xs);
+  color: var(--ash);
+}
+
+.bckd__o-don strong {
+  color: var(--ink);
+}
+
+.bckd__o-coc .bckd__thieu {
+  font-size: var(--fs-2xs);
+  color: var(--rust);
+}
+
+.bckd__cong-don > td {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  color: var(--ash);
+  background: var(--paper);
+}
+
+.bckd__cong-khach > td {
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+  background: var(--paper);
+}

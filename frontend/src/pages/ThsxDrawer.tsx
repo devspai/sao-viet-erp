@@ -24,7 +24,7 @@ import { ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import { Icon } from "../components/Icons";
 import { num, ngayGio } from "./keHoachSxShared";
 import { nhanChang } from "./lsxBuoc";
-import { phutChayText, slText, sxSerial, ThsxTrangThaiPill } from "./thsxShared";
+import { phutChayText, slText, sxSerial, ThsxTrangThaiPill, tienDoThucTe } from "./thsxShared";
 import { ThsxBaoSuCoDialog } from "./ThsxBaoSuCoDialog";
 import { ThsxDoiMay } from "./ThsxDoiMay";
 import { ThsxExecPanels, ThsxNhanVe, type ThsxExec } from "./ThsxExecPanels";
@@ -203,12 +203,12 @@ export function ThsxDrawer({
   }, [candidates, activeIds, q, ungVienHomNay, tt, isTo]);
 
 
-  // Tiến độ sản xuất % — cùng mốc với dòng bảng (`ThsxDanhSach`) và ô "Còn thiếu": mục tiêu ĐẦU RA
-  // (đã rút theo thực nhận), không phải lượng vào. Lấy `thuc_nhan`/`so_luong_vao` như trước là chia
-  // sản lượng tờ ra cho số tờ vào có bù hao: In 0004 làm đủ 5.340 cũng chỉ 94% "của 5.690".
-  const targetVal = cv?.muc_tieu ?? cv?.so_luong_ra ?? 0;
-  const currentVal = cv?.da_lam || 0;
-  const progressPct = targetVal > 0 ? Math.min(100, Math.round((currentVal / targetVal) * 100)) : 0;
+  // Tiến độ — CÙNG luật dòng bảng (`tienDoThucTe`): tốt / nhận quy ra; đã Kết thúc = 100%, phần
+  // hụt thành LỖI thay vì "còn thiếu" treo mãi (27/09/2026).
+  const tienDo = cv ? tienDoThucTe(cv) : null;
+  const progressPct = tienDo?.pct ?? 0;
+  const xong = cv?.trang_thai === "completed";
+  const conPhaiLam = !xong && cv?.nhan_ra != null ? Math.max(cv.nhan_ra - (cv.da_lam ?? 0), 0) : null;
 
   function chon(c: SxNhanVienChon, chan: string | null) {
     if (chan) return;
@@ -248,7 +248,7 @@ export function ThsxDrawer({
             <Icon name="clock" size={13} style={{ color: "#64748b" }} /> Dự kiến: <b>{phutChay || "—"}</b>
           </span>
           <span className="thsx-mini-kpi-item">
-            <Icon name="box" size={13} style={{ color: "#64748b" }} /> Mục tiêu: <b>{num(targetVal)}{cv.don_vi_ra ? ` ${nhanChang(cv.don_vi_ra)}` : ""}</b>
+            <Icon name="box" size={13} style={{ color: "#64748b" }} /> Nhận: <b>{cv.nhan != null ? `${num(cv.nhan)}${cv.don_vi_vao ? ` ${nhanChang(cv.don_vi_vao)}` : ""}` : "—"}</b>
           </span>
           <span className="thsx-mini-kpi-item">
             <Icon name="users" size={13} style={{ color: "#64748b" }} /> Đã giao: <b>{rosterActive.length} thợ</b>
@@ -344,7 +344,7 @@ export function ThsxDrawer({
                     <span className="thsx-prod-hub__pct">{progressPct}%</span>
                   </div>
 
-                  {targetVal > 0 && (
+                  {tienDo && (
                     <div className="thsx-progress-box" style={{ margin: "4px 0 4px 0" }}>
                       <div className="thsx-progress-bar" style={{ height: "6px" }}>
                         <div className="thsx-progress-fill" style={{ width: `${progressPct}%` }} />
@@ -354,37 +354,31 @@ export function ThsxDrawer({
 
                   <div className="thsx-flat-metric-strip">
                     <div className="thsx-flat-metric-col">
-                      <span className="thsx-metric-lbl">Đã làm</span>
+                      <span className="thsx-metric-lbl">Nhận</span>
+                      <span className="thsx-metric-val">
+                        {cv.nhan != null ? (
+                          <>
+                            {num(cv.nhan)}
+                            {cv.don_vi_vao ? <span className="thsx-metric-unit">{nhanChang(cv.don_vi_vao)}</span> : null}
+                          </>
+                        ) : "—"}
+                      </span>
+                    </div>
+                    <div className="thsx-flat-metric-col">
+                      <span className="thsx-metric-lbl">Tốt</span>
                       <span className="thsx-metric-val thsx-metric-val--done">
                         {num(cv.da_lam || 0)}
                         {cv.don_vi_ra ? <span className="thsx-metric-unit">{nhanChang(cv.don_vi_ra)}</span> : null}
                       </span>
                     </div>
                     <div className="thsx-flat-metric-col">
-                      <span className="thsx-metric-lbl">Thực nhận</span>
-                      <span className="thsx-metric-val">
-                        {cv.thuc_nhan != null ? (
+                      <span className="thsx-metric-lbl">{xong ? "Lỗi" : "Còn phải làm"}</span>
+                      <span className={`thsx-metric-val${xong && (cv.loi ?? 0) > 0 ? " thsx-metric-val--thieu" : ""}`}>
+                        {(xong ? cv.loi : conPhaiLam) == null ? "—" : (
                           <>
-                            {num(cv.thuc_nhan)}
-                            {cv.don_vi_vao ? <span className="thsx-metric-unit">{nhanChang(cv.don_vi_vao)}</span> : null}
-                          </>
-                        ) : (
-                          <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: "normal" }}>Chưa giao</span>
-                        )}
-                      </span>
-                    </div>
-                    <div className="thsx-flat-metric-col">
-                      <span className="thsx-metric-lbl">Còn thiếu</span>
-                      <span className={`thsx-metric-val${(cv.con_thieu ?? 0) > 0 ? " thsx-metric-val--thieu" : ""}`}>
-                        {cv.con_thieu == null ? (
-                          "—"
-                        ) : cv.con_thieu > 0 ? (
-                          <>
-                            {num(cv.con_thieu)}
+                            {num((xong ? cv.loi : conPhaiLam) ?? 0)}
                             {cv.don_vi_ra ? <span className="thsx-metric-unit">{nhanChang(cv.don_vi_ra)}</span> : null}
                           </>
-                        ) : (
-                          "Đủ"
                         )}
                       </span>
                     </div>

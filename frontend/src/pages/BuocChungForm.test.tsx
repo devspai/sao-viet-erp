@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { api } from "../api/client";
 import { gop } from "../test/baiGhepSoDoFixture";
 import { BuocChungForm } from "./BaiGhepBuocChungForm";
 
@@ -17,7 +18,10 @@ vi.mock("../api/rebuildCatalog", () => ({
             { id: 7, ten: "Tổ bế" },
             { id: 9, ten: "Tổ dán" },
           ]
-        : [],
+        : prefix === "/api/may-thiet-bi"
+          ? [{ id: 56, ten: "Máy 4 màu", active: true, toc_do: 6000,
+               don_vi_toc_do: "to_gio", don_vi_toc_do_ten: "tờ in" }]
+          : [],
     }),
   }),
 }));
@@ -65,6 +69,75 @@ describe("form kế hoạch bước chung", () => {
     ]);
     expect((sel as HTMLSelectElement).value).toBe("9");
     expect(screen.getByText(/Chỉ các tổ phụ trách khai ở danh mục Công đoạn/)).toBeInTheDocument();
+  });
+
+  // Spec 2026-09-27 §2 bước 1: lượt chung kế thừa loại "Máy" từ bước lệnh vẫn đổi sang "Thuê ngoài"
+  // được ngay trên form bài ghép — không có đường này thì UI không thể dựng bước chung gia công ngoài.
+  it("đổi loại bước sang Thuê ngoài thì ẩn tổ/máy, mở thẻ nhà gia công và lưu cả hai", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api.giaCongNgoai, "nhaGiaCong").mockResolvedValue([{ id: 41, ten: "Tân Phát" }]);
+    const onLuu = vi.fn().mockResolvedValue(true);
+    render(<BuocChungForm g={gop({
+      step_key: "gang-can-2",
+      ten: "Cán màng chung",
+      loai_buoc: "may",
+      thanh_vien: [{ lsx_id: 1, lsx_ma: "LSX-1", lsx_step_key: "lsx-1-can", ghi_chu_ky_thuat: null }],
+    })} canUpdate onLuu={onLuu} onTach={async () => {}} />);
+
+    await user.click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
+    await user.click(screen.getByRole("button", { name: "Thuê ngoài" }));
+
+    expect(screen.queryByLabelText(/TỔ PHỤ TRÁCH/)).toBeNull();
+    const nha = await screen.findByLabelText(/NHÀ GIA CÔNG/);
+    await screen.findByRole("option", { name: "Tân Phát" });
+    await user.selectOptions(nha, "41");
+    await user.click(screen.getByRole("button", { name: "Lưu kế hoạch lượt chung" }));
+
+    expect(onLuu).toHaveBeenCalledWith(expect.objectContaining({
+      loai_buoc: "thue_ngoai", nha_cung_cap_id: 41, department_id: null, may_id: null,
+    }));
+  });
+
+  // E2E 27/09/2026: trang nạp lại sơ đồ SAU khi `onLuu` trả về — xoá nháp ngay lúc đó là form rơi về
+  // bản cũ (loại Máy, tổ trống) và hiện ô "— chọn tổ —" dù bước đã lưu thành Thuê ngoài.
+  it("lưu xong giữ nháp tới khi sơ đồ nạp lại, rồi mới đọc theo máy chủ", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api.giaCongNgoai, "nhaGiaCong").mockResolvedValue([{ id: 41, ten: "Tân Phát" }]);
+    const cu = gop({
+      step_key: "gang-can-3", ten: "Cán màng chung", loai_buoc: "may",
+      thanh_vien: [{ lsx_id: 1, lsx_ma: "LSX-1", lsx_step_key: "lsx-1-can", ghi_chu_ky_thuat: null }],
+    });
+    const { rerender } = render(
+      <BuocChungForm g={cu} canUpdate onLuu={async () => true} onTach={async () => {}} />);
+
+    await user.click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
+    await user.click(screen.getByRole("button", { name: "Thuê ngoài" }));
+    await user.selectOptions(await screen.findByLabelText(/NHÀ GIA CÔNG/), "41");
+    await user.click(screen.getByRole("button", { name: "Lưu kế hoạch lượt chung" }));
+
+    await user.click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
+    expect(screen.queryByLabelText(/TỔ PHỤ TRÁCH/)).toBeNull();
+
+    const moi = { ...cu, loai_buoc: "thue_ngoai" as const, nha_cung_cap_id: 41, department_id: null };
+    rerender(<BuocChungForm g={moi} canUpdate onLuu={async () => true} onTach={async () => {}} />);
+    expect(screen.queryByLabelText(/TỔ PHỤ TRÁCH/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Thuê ngoài" })).toHaveAttribute("aria-pressed", "true");
+    // Nháp đã xoá sau khi sơ đồ mới về: nút Lưu hết "đang sửa".
+    expect(screen.getByRole("button", { name: "Lưu kế hoạch lượt chung" })).toBeDisabled();
+  });
+
+  // E2E 27/09/2026: gợi ý dưới ô máy in thẳng MÃ đơn vị tốc độ ("Tốc độ 6.000 to_gio/giờ").
+  it("gợi ý tốc độ máy dịch đơn vị sang nhãn, không in mã trần", async () => {
+    render(<BuocChungForm g={gop({
+      step_key: "gang-in-3",
+      ten: "In chung",
+      may_id: 56,
+      thanh_vien: [{ lsx_id: 1, lsx_ma: "LSX-1", lsx_step_key: "lsx-1-in", ghi_chu_ky_thuat: null }],
+    })} canUpdate onLuu={async () => true} onTach={async () => {}} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
+    expect(await screen.findByText(/Tốc độ 6\.000 tờ in\/h/)).toBeInTheDocument();
+    expect(screen.queryByText(/to_gio/)).toBeNull();
   });
 
   it("công đoạn chưa khai tổ thì mời mọi tổ, không có câu giới hạn", async () => {

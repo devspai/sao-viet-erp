@@ -73,6 +73,7 @@ from ...models.san_xuat_thuc_thi import (
     PC_DA_RUT, PHIEN_DOI_MAY, PHIEN_KET_THUC, PHIEN_TAM_DUNG, SanXuatPhanCong,
 )
 from ...models.user import User
+from ...repositories.bai_ghep_repo import BaiGhepRepository
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ..gio_xuong import lich_hien_thi, thuc_te_hien_thi
 from . import boi_canh, danh_sach, pham_vi, tien_do, trang_thai
@@ -205,7 +206,6 @@ def _thong_so(lsx: Lsx) -> dict:
         "trang_moi_tay": qc.get("trang_moi_tay"),
         "so_kem": qc.get("so_kem"),
         "so_manh_xa": qc.get("so_manh_xa"),
-        "loai_san_pham": qc.get("loai_san_pham_ten"),
         "ghi_chu_ky_thuat": qc.get("ghi_chu_ky_thuat"),
         # Bốn số DẪN XUẤT nằm trên cột thật của `lsx` (không trong JSON) — chuỗi ngược của engine
         # ghi vào đó, và bảng vật tư/bình bài đọc chính chúng.
@@ -293,7 +293,8 @@ def _buoc_can_khuon(db: Session, buocs: list[LsxCongDoan]) -> set[int]:
 
 
 def _routing(bc: BoiCanh, lsx_id: int, buocs: list[LsxCongDoan], ten_to: dict[int, str],
-             khuon: dict[int, dict], can_khuon: set[int]) -> dict:
+             khuon: dict[int, dict], can_khuon: set[int],
+             chung: dict[str, tuple] | None = None) -> dict:
     """Đồ thị routing của lệnh: `nodes` (bước + công việc thực thi của nó) và `canh` (cặp bước).
 
     NODE LÀ BƯỚC ROUTING (`lsx_cong_doan`), không phải công việc: bước bị bài ghép phủ KHÔNG có
@@ -303,7 +304,12 @@ def _routing(bc: BoiCanh, lsx_id: int, buocs: list[LsxCongDoan], ten_to: dict[in
     Cầu bước ↔ công việc chung đi qua `bc.buoc_phu` (`boi_canh` đã dựng bằng `lsx_step_key`, không
     bằng id — sửa routing là replace-all nên id tái sinh). `la_buoc_ghep` phải ra tới UI: "đang
     chạy" của một ca ghép là sự thật của CẢ CA, không riêng lệnh này.
+
+    `chung` (lsx_step_key → (bước chung, mã bài)): bước bị bài ghép phủ bày LOẠI / TỔ / NHÀ GIA CÔNG
+    của bước chung — cấu hình còn nằm ở `lsx_cong_doan` là thứ bài đã đè, không phải thứ sẽ chạy.
+    Tổ KHÔNG rơi về tổ của lệnh: bước chung thuê ngoài không có tổ (E2E 27/09/2026 in "Tổ cán phủ").
     """
+    chung = chung or {}
     cv_theo_buoc: dict[int, tuple] = {}
     for cv in bc.cong_viec[lsx_id]:
         if cv.lsx_cong_doan_id is not None:
@@ -324,7 +330,12 @@ def _routing(bc: BoiCanh, lsx_id: int, buocs: list[LsxCongDoan], ten_to: dict[in
     for b in sorted(buocs, key=lambda x: (lop[x.id], x.thu_tu, x.id)):
         cv, la_ghep = cv_theo_buoc.get(b.id, (None, False))
         may = bc.may.get(danh_sach.may_cua_buoc(bc, cv)) if cv is not None else None
-        to_id = (cv.department_id if cv is not None else None) or b.department_id
+        phu, bai_ma = chung.get(b.step_key, (None, None))
+        if phu is not None:
+            la_ghep = True
+            to_id = cv.department_id if cv is not None else phu.department_id
+        else:
+            to_id = (cv.department_id if cv is not None else None) or b.department_id
         nodes.append({
             "id": b.id,
             "thu_tu": b.thu_tu,
@@ -332,11 +343,12 @@ def _routing(bc: BoiCanh, lsx_id: int, buocs: list[LsxCongDoan], ten_to: dict[in
             "phu_thuoc": sorted(truoc[b.id]),
             "ten": b.ten,
             "nhom": b.nhom,
-            "loai_buoc": b.loai_buoc,
+            "loai_buoc": phu.loai_buoc if phu is not None else b.loai_buoc,
             "bat_buoc": bool(b.bat_buoc),
-            "nha_cung_cap": b.nha_cung_cap,
+            "nha_cung_cap": phu.nha_cung_cap if phu is not None else b.nha_cung_cap,
             "cong_viec_id": cv.id if cv is not None else None,
             "la_buoc_ghep": la_ghep,
+            "bai_ghep_ma": bai_ma,
             "la_buoc_hien_tai": cv is not None and hien_tai is not None and cv.id == hien_tai.id,
             "trang_thai": cv.trang_thai if cv is not None else None,
             "may": may.ten if may is not None else None,
@@ -980,10 +992,12 @@ def ho_so(
     cvs = bc.cong_viec_du(lsx_id)
     cv_ids = [cv.id for cv in cvs]
     can_nhan_luc = bool(can & {"nhan_luc", "timeline"})
+    chung = BaiGhepRepository(db).buoc_chung_phu_lsx([lsx_id]) if "routing" in can else {}
     ten_to: dict[int, str] = {}
     if can_nhan_luc or "routing" in can:
         to_ids = {cv.department_id for cv in cvs if cv.department_id is not None}
         to_ids |= {b.department_id for b in buocs if b.department_id is not None}
+        to_ids |= {c.department_id for c, _ in chung.values() if c.department_id is not None}
         ten_to = {
             int(r[0]): r[1]
             for r in db.execute(
@@ -1022,7 +1036,7 @@ def ho_so(
         ra["thong_so"] = _thong_so(lsx)
     if "routing" in can:
         ra["routing"] = _routing(
-            bc, lsx_id, buocs, ten_to, _khuon_buoc(db, buocs), _buoc_can_khuon(db, buocs)
+            bc, lsx_id, buocs, ten_to, _khuon_buoc(db, buocs), _buoc_can_khuon(db, buocs), chung
         )
     if "vat_tu" in can:
         ra["vat_tu"] = _vat_tu(

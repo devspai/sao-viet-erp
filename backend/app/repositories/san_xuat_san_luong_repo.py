@@ -9,7 +9,7 @@ bằng các hàm tổng ở đây — không cache cột (precedent `lsx_service
 """
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from ..models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
@@ -410,14 +410,22 @@ class SanXuatSanLuongRepository:
 
     def ban_giao_cho_nhan_cua_to(self, to_ids: set[int]) -> list[tuple[SanXuatBanGiao, int]]:
         """Bàn giao ĐANG CHỜ bên nhận xác nhận mà công việc đích thuộc `to_ids` — kèm tổ đích.
-        Nguồn của hộp "Chờ tổ bạn xác nhận" trên Bàn tổ và badge menu."""
+        Nguồn của hộp "Chờ tổ bạn xác nhận" trên Bàn tổ và badge menu. Gồm cả lần bên giao vừa
+        điều chỉnh mà bên nhận chưa xác nhận lại (`ban_giao.cho_xac_nhan_lai`)."""
         if not to_ids:
             return []
         rows = self.db.execute(
             select(SanXuatBanGiao, SanXuatCongViec.department_id)
             .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatBanGiao.dich_cong_viec_id)
             .where(
-                SanXuatBanGiao.trang_thai == BG_DE_XUAT,
+                or_(
+                    SanXuatBanGiao.trang_thai == BG_DE_XUAT,
+                    and_(
+                        SanXuatBanGiao.trang_thai == BG_DIEU_CHINH,
+                        SanXuatBanGiao.xac_nhan_luc.is_(None),
+                        SanXuatBanGiao.cung_to.is_(False),
+                    ),
+                ),
                 SanXuatCongViec.department_id.in_(to_ids),
             )
             .order_by(SanXuatBanGiao.de_xuat_luc, SanXuatBanGiao.id)

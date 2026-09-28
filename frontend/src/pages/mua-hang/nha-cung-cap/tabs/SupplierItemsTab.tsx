@@ -230,10 +230,17 @@ export function SupplierItemsTab({
                       {filteredFormItems.map(({ item, originalIndex }) => {
                         // Hệ số LIVE của ô ĐVT đang chọn — có ngay cả với dòng chưa lưu.
                         const quyDoi = quyDoiDong[originalIndex];
+                        // Chưa có hệ số LIVE (ô ĐVT còn đang nạp) thì dùng hệ số máy chủ đã tính
+                        // cho dòng đã lưu — cột có số ngay lúc mở, không nháy từ gạch sang tiền.
+                        // Chia lại từ đơn giá ĐANG GÕ chứ không lấy `gia_quy_doi` đóng băng.
+                        const heSo =
+                          quyDoi !== undefined
+                            ? (quyDoi?.heSoVeGoc ?? null) // đã nạp: null = không đổi được, KHÔNG lùi
+                            : (item.he_so_ve_goc ?? null);
                         const giaVeGoc =
-                          quyDoi && quyDoi.heSoVeGoc > 0 && item.unit_price > 0
-                            ? Math.round(item.unit_price / quyDoi.heSoVeGoc)
-                            : (item as { gia_quy_doi?: number | null }).gia_quy_doi ?? null;
+                          heSo && heSo > 0 && item.unit_price > 0
+                            ? Math.round(item.unit_price / heSo)
+                            : null;
                         return (
                           <div
                             className="supplier__item-row"
@@ -253,6 +260,7 @@ export function SupplierItemsTab({
                                   hang_id: m.hang_id,
                                   item_name: m.ten,
                                   unit: "",
+                                  he_so_ve_goc: null,
                                 })
                               }
                               placeholder="Gõ tên vật tư…"
@@ -277,6 +285,7 @@ export function SupplierItemsTab({
                                   setSupplierItem(originalIndex, { unit: ma })
                                 }
                                 onQuyDoi={(info) => ghiQuyDoiDong(originalIndex, info)}
+                                heSoDaLuu={item.he_so_ve_goc ?? null}
                               />
                             ) : (
                               // Chưa chọn mặt hàng → chưa biết đơn vị. Trước đây cho gõ tự do; gõ

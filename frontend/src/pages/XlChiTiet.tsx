@@ -806,7 +806,7 @@ export function XlChiTiet({
                   <div className="xl-pipe-list">
                     {ct.cong_doans.map((c, idx) => {
                       const { icon, colorClass } = getCongDoanTheme(c.ten);
-                      const coThoiGian = c.chay_phut > 0 || c.thue_ngoai_ngay != null;
+                      const coThoiGian = c.chay_phut > 0 || c.la_thue_ngoai;
                       const tt = c.trang_thai ? TT_BUOC[c.trang_thai] : null;
                       const lech = nhanLech(c.lech_phut);
                       // Có gì THẬT để bày không: mốc kế hoạch một mình là số thừa ở bàn cấp lệnh
@@ -832,6 +832,14 @@ export function XlChiTiet({
                                     title={`Cùng lớp ${c.lop + 1} với bước khác nên hai bước không chặn nhau. Bàn cấp lệnh vẫn xếp lần lượt — ngày kết thúc đang tính theo kịch bản chạy nối đuôi.`}
                                   >
                                     song song được
+                                  </span>
+                                )}
+                                {c.bai_ghep_ma && (
+                                  <span
+                                    className="xl-c-song-song"
+                                    title="Bước chạy chung với các lệnh khác trên bài ghép — loại bước, tổ/nhà gia công là của lượt chung"
+                                  >
+                                    đi chung bài ghép {c.bai_ghep_ma}
                                   </span>
                                 )}
                                 {tt && (
@@ -885,8 +893,8 @@ export function XlChiTiet({
                                 }`}
                                 title={c.canh_bao ?? undefined}
                               >
-                                {c.thue_ngoai_ngay != null
-                                  ? `Thuê ngoài ${c.thue_ngoai_ngay}d`
+                                {c.la_thue_ngoai
+                                  ? "Gia công ngoài"
                                   : c.chay_phut > 0
                                     ? gioChu(c.chay_phut)
                                     : c.canh_bao

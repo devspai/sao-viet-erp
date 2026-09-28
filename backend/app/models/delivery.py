@@ -237,6 +237,9 @@ class DeliveryTrip(Base):
     gio_lay_hang: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     gio_du_kien_giao: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ghi_chu_phan_cong: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # NHÀ GIA CÔNG GIAO THẲNG (mg 0339): chuyến này không có xe, không xuất kho — chỉ để "đã giao"
+    # của dòng đơn cộng đúng số khách nhận. `khoan_km_service` loại chuyến có cột này.
+    gia_cong_ngoai_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
     trang_thai: Mapped[str] = mapped_column(
         String(20), index=True, nullable=False,

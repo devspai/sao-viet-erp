@@ -327,7 +327,6 @@ def create_item(
         ma=_next_ma(db),
         ten_san_pham=payload.ten_san_pham or "",
         kho_thanh_pham=payload.kho_thanh_pham,
-        loai_san_pham_id=payload.loai_san_pham_id,
         so_luong=payload.so_luong or 0,
         ghi_chu=payload.ghi_chu,
         ktv=(user.name or user.username),
@@ -420,7 +419,7 @@ def update_item(
 ) -> PhieuTinhGia:
     p = _fetch_in_scope(db, p_id, user, authz)
     data = payload.model_dump(exclude_unset=True)
-    for field in ("ten_san_pham", "kho_thanh_pham", "loai_san_pham_id", "so_luong", "ghi_chu"):
+    for field in ("ten_san_pham", "kho_thanh_pham", "so_luong", "ghi_chu"):
         if field in data:
             setattr(p, field, data[field])
     if "thanh_phans" in data:

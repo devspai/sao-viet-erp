@@ -165,7 +165,7 @@ MODULES: list[tuple[str, str]] = [
     # màn hình chứ không phải dò theo tên kỹ thuật. Trước đây 10 mục menu chỉ có 5 dòng quyền:
     # bật đủ 5/5 vẫn không mở được Giấy (nó mượn quyền `kho`), Bù hao và Đơn vị thì đi ké
     # `dm_cong_doan` — cấp cho kế toán khai đơn vị là hở luôn danh mục công đoạn.
-    # Mười một dòng danh mục đọc từ `catalog_registry` (gồm cả `khuon_be`, trước nằm lẫn trên
+    # Các dòng danh mục đọc từ `catalog_registry` (gồm cả `khuon_be`, trước nằm lẫn trên
     # khối Hệ thống): thêm màn danh mục là tự có ô quyền, không phải nhớ chép sang đây.
     # KHÔNG thêm tay `("nhan_su", …)` ở nhánh này — xem cảnh báo ngay bên dưới.
     *MODULES_SEED,
@@ -730,7 +730,7 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
             # Danh mục hàng + khai báo kho: GIỮ NGUYÊN khả năng cũ (hồi chúng còn gác bằng quyền
             # `kho`) — tách module không phải để âm thầm rút quyền của người đang làm việc. Muốn
             # siết "thủ kho không đặt đơn giá giấy" thì tắt công tắc Thao tác ở ma trận.
-            **{k: _dm_full() for k in ("dm_chung_loai_giay", "dm_giay", "dm_vat_tu", "dm_kho_hang")},
+            **{k: _dm_full() for k in ("dm_giay", "dm_vat_tu", "dm_kho_hang")},
             "san_xuat": _read(SCOPE_ALL),    # xem kế hoạch SX để tham chiếu khi lập phiếu
             # Scope rộng hơn giữa `san_xuat` (all, không có `don_hang_ban`) = all.
             "lenh_san_xuat": _read(SCOPE_ALL),
@@ -756,7 +756,7 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
                 "scope": SCOPE_ALL,
             },
             "ton_kho": dict(_TON_KHO),
-            **{k: _dm_full() for k in ("dm_chung_loai_giay", "dm_giay", "dm_vat_tu", "dm_kho_hang")},
+            **{k: _dm_full() for k in ("dm_giay", "dm_vat_tu", "dm_kho_hang")},
             "san_xuat": _read(SCOPE_ALL),
             # Scope rộng hơn giữa `san_xuat` (all, không có `don_hang_ban`) = all.
             "lenh_san_xuat": _read(SCOPE_ALL),
@@ -843,7 +843,7 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
             # cho các cửa cũ của chính màn Kho (popup lịch sử mặt hàng) — xem mg `0329`.
             "bao_cao_kho": {**_read(SCOPE_ALL), "can_close_book": True},
             # Đối chiếu giá vốn cần TRA danh mục, không sửa.
-            **{k: _read(SCOPE_ALL) for k in ("dm_chung_loai_giay", "dm_giay", "dm_vat_tu")},
+            **{k: _read(SCOPE_ALL) for k in ("dm_giay", "dm_vat_tu")},
         },
     ),
     # --- Phía ĐỀ NGHỊ: scope `own` (chỉ thấy đề nghị CỦA MÌNH), KHÔNG `can_view_stock`,
@@ -1555,71 +1555,6 @@ def seed_sales_history(db: Session) -> None:
     db.commit()
 
 
-def seed_product_types(db: Session) -> None:
-    from sqlalchemy import select
-    from .models.product_type_catalog import ProductTypeCatalog
-
-    # Bộ field hiển thị nền cho ấn phẩm tờ rời (spec §B). required ⊆ shown.
-    SHEET_SHOWN = ["finished_w", "finished_h", "quantity", "colors", "sides", "paper", "machine", "sheet_size", "operations"]
-    SHEET_REQ = ["finished_w", "finished_h", "quantity", "paper", "machine"]
-    AREA_SHOWN = ["finished_w", "finished_h", "quantity", "colors", "paper", "machine", "operations"]
-    AREA_REQ = ["finished_w", "finished_h", "quantity", "paper", "machine"]
-    BOX_SHOWN = ["finished_w", "finished_h", "finished_d", "spread_w", "spread_h", "quantity", "colors", "paper", "machine", "sheet_size", "operations"]
-    BOX_REQ = ["spread_w", "spread_h", "quantity", "paper", "machine"]
-    PAGE_SHOWN = ["finished_w", "finished_h", "quantity", "colors", "page_count", "cover_paper", "body_paper", "machine", "sheet_size", "operations"]
-    PAGE_REQ = ["finished_w", "finished_h", "quantity", "page_count", "cover_paper", "body_paper", "machine"]
-
-    # (code, name, group, strategy, tech, shown, required, default_ops, required_ops, allowed_mats,
-    #  comp_techs, dim_rule, bleed, gutter, trim, sheet_mode, has_page, cover_body, has_tooling,
-    #  tooling_type, has_packaging)
-    types = [
-        ("business_card", "Name card", "an_pham", "sheet_based", "offset", SHEET_SHOWN, SHEET_REQ,
-         ["be", "dong_goi"], [], ["paper"], ["offset", "digital"], "finished", 2, 2, 3, "by_pieces", False, False, False, None, True),
-        ("flyer", "Tờ rơi", "an_pham", "sheet_based", "offset", SHEET_SHOWN, SHEET_REQ,
-         ["be", "dong_goi"], [], ["paper"], ["offset", "digital"], "finished", 3, 3, 5, "by_pieces", False, False, False, None, True),
-        ("brochure", "Brochure", "an_pham", "sheet_based", "offset", SHEET_SHOWN, SHEET_REQ,
-         ["gap", "dong_goi"], [], ["paper"], ["offset", "digital"], "finished", 3, 3, 5, "by_pieces", False, False, False, None, True),
-        ("catalogue", "Catalogue", "sach", "page_based", "offset", PAGE_SHOWN, PAGE_REQ,
-         ["dong_cuon", "dong_goi"], ["dong_cuon"], ["paper"], ["offset", "digital"], "finished", 3, 3, 5, "by_pages", True, True, False, None, True),
-        ("book", "Sách", "sach", "page_based", "offset", PAGE_SHOWN, PAGE_REQ,
-         ["dong_cuon", "dong_goi"], ["dong_cuon"], ["paper"], ["offset", "digital"], "finished", 3, 3, 5, "by_pages", True, True, False, None, True),
-        ("sticker", "Sticker", "nhan", "area_based", "offset", AREA_SHOWN, AREA_REQ,
-         ["be", "dong_goi"], [], ["decal"], ["offset", "digital"], "finished", 2, 2, 3, "by_pieces", False, False, True, "khuon_be", True),
-        ("label", "Tem nhãn", "nhan", "area_based", "offset", AREA_SHOWN, AREA_REQ,
-         ["be", "dong_goi"], [], ["decal", "pp"], ["offset", "digital"], "finished", 2, 2, 3, "by_pieces", False, False, True, "khuon_be", True),
-        ("paper_box", "Hộp giấy", "bao_bi", "box_based", "offset", BOX_SHOWN, BOX_REQ,
-         ["be", "dan_hop", "dong_goi"], ["be", "dan_hop"], ["paper", "carton"], ["offset", "flexo"], "spread", 3, 3, 5, "by_pieces", False, False, True, "khuon_be", True),
-        ("paper_bag", "Túi giấy", "bao_bi", "box_based", "offset", BOX_SHOWN, BOX_REQ,
-         ["be", "dan_hop", "dong_goi"], ["be", "dan_hop"], ["paper"], ["offset"], "spread", 3, 3, 5, "by_pieces", False, False, True, "khuon_be", True),
-        ("banner", "Banner", "an_pham", "area_based", "large_format", AREA_SHOWN, AREA_REQ,
-         ["dong_goi"], [], ["pp", "canvas"], ["large_format"], "finished", 0, 0, 0, "manual", False, False, False, None, True),
-        ("envelope", "Bao thư", "bao_bi", "sheet_based", "offset", SHEET_SHOWN, SHEET_REQ,
-         ["be", "dan_hop", "dong_goi"], ["dan_hop"], ["paper"], ["offset"], "spread", 3, 3, 5, "by_pieces", False, False, True, "khuon_be", True),
-    ]
-
-    for row in types:
-        (code, name, group, strategy, tech, shown, required, default_ops, required_ops, allowed_mats,
-         comp_techs, dim_rule, bleed, gutter, trim, sheet_mode, has_page, cover_body, has_tooling,
-         tooling_type, has_packaging) = row
-        # box_based dùng khổ trải nhưng nếu dim_rule='spread' thì shown đã có spread_w/h (BOX_SHOWN).
-        existing = db.execute(
-            select(ProductTypeCatalog).where(ProductTypeCatalog.product_type == code)
-        ).scalars().first()
-        if not existing:
-            db.add(ProductTypeCatalog(
-                product_type=code, name=name, product_group=group, calculation_strategy=strategy,
-                technology=tech, shown_fields=shown, required_fields=required,
-                default_operations=default_ops, required_operations=required_ops,
-                allowed_materials=allowed_mats, compatible_technologies=comp_techs,
-                dimension_rule_type=dim_rule, default_bleed_mm=bleed, default_gutter_mm=gutter,
-                default_trim_mm=trim, sheet_count_mode=sheet_mode, has_page_count=has_page,
-                has_cover_body_split=cover_body, has_tooling=has_tooling, default_tooling_type=tooling_type,
-                has_packaging=has_packaging, default_pack_qty=(50 if has_packaging else 0),
-                is_active=True,
-            ))
-    db.commit()
-
-
 def seed_machines(db: Session) -> None:
     from sqlalchemy import select
     from .models.machine import Machine
@@ -1746,7 +1681,7 @@ def seed_operations(db: Session) -> None:
         )
         repo.add_operation_rate(operation_id=dong.id, setup_fee=0, run_rate=20000, labor_rate=5000, min_charge=50000, speed=20, setup_time_mins=0, effective_from=date(2026, 1, 1))
 
-        # #8 — bổ sung công đoạn mà seed_product_types tham chiếu (gap/dong_cuon/dan_hop) để lookup không treo.
+        # #8 — bổ sung công đoạn gap/dong_cuon/dan_hop (danh mục loại SP đời cũ từng tham chiếu, đã gỡ mg 0342) để lookup không treo.
         gap = repo.create(name="Gấp thành phẩm", operation_type="gap", unit="to", basis_quantity="to", pricing_method="theo_sp", process_group="sau_in", default_sequence=50, quantity_formula_type="print_sheet_qty", allow_outsource=False)
         repo.add_operation_rate(operation_id=gap.id, setup_fee=50000, run_rate=100, labor_rate=50, min_charge=100000, speed=3000, setup_time_mins=15, effective_from=date(2026, 1, 1))
 
@@ -3175,7 +3110,6 @@ def seed_all(db: Session) -> None:
     seed_roles(db)
     seed_admin(db)
     link_admin(db)
-    seed_product_types(db)
     seed_machines(db)
     seed_operations(db)
     seed_special_days(db)  # dữ liệu vận hành thật (không gated demo) — nền lịch/lễ dùng chung

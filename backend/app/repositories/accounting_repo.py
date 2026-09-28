@@ -15,6 +15,7 @@ from ..models.accounting import (
     PAYMENT_VOUCHER_PAID,
     RECEIPT_SOURCE_ORDER,
     SALES_INVOICE_ISSUED,
+    VOUCHER_SOURCE_GIA_CONG,
     CompanyBankAccount,
     PaymentReceipt,
     PaymentReceiptAttachment,
@@ -624,6 +625,8 @@ class AccountingRepository:
         `voucher_date` — một biểu thức COALESCE trên hai kiểu khác nhau (timestamptz vs date),
         viết ở SQL thì mỗi DB một kiểu. Lọc bằng Python với đúng hàm `_ngay_chi` mà màn công nợ
         đang dùng, để hai nơi không bao giờ chọn ngày khác nhau cho cùng một phiếu.
+
+        Loại phiếu chi gia công ngoài — không phải công nợ NCC.
         """
         stmt = (
             select(PaymentVoucher)
@@ -631,7 +634,10 @@ class AccountingRepository:
                 selectinload(PaymentVoucher.purchase_request),
                 selectinload(PaymentVoucher.company_bank_account),
             )
-            .where(PaymentVoucher.status == PAYMENT_VOUCHER_PAID)
+            .where(PaymentVoucher.status == PAYMENT_VOUCHER_PAID,
+                   # Chi gia công ngoài KHÔNG vào công nợ 331 (spec gia công ngoài §5): tiền trả
+                   # ngay khi chốt, không có đơn mua / hoá đơn treo nợ.
+                   PaymentVoucher.source_type != VOUCHER_SOURCE_GIA_CONG)
             .order_by(PaymentVoucher.voucher_date, PaymentVoucher.id)
         )
         return list(self.db.execute(stmt).scalars().unique().all())

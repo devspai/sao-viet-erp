@@ -2,12 +2,14 @@
 // an explicit yes/no — e.g. saving or deleting a department. Esc and scrim-click cancel
 // (unless busy). Pass body content as children (e.g. a list of what will be deleted).
 import { useEffect, useState, type ReactNode } from "react";
+import { X } from "lucide-react";
 import { Button } from "./Button";
 import "./confirm-dialog.css";
 
 interface ConfirmDialogProps {
   open: boolean;
   title: ReactNode;
+  icon?: ReactNode;
   message?: string;
   confirmLabel?: string;
   cancelLabel?: string;
@@ -28,6 +30,7 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({
   open,
   title,
+  icon,
   message,
   confirmLabel = "Xác nhận",
   cancelLabel = "Hủy",
@@ -87,7 +90,20 @@ export function ConfirmDialog({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="cdlg__head">
-          <div className="cdlg__title">{title}</div>
+          <div className="cdlg__head-left">
+            {icon && <div className="cdlg__icon-badge">{icon}</div>}
+            <div className="cdlg__title">{title}</div>
+          </div>
+          <button
+            type="button"
+            className="cdlg__close"
+            onClick={onCancel}
+            disabled={busy}
+            aria-label="Đóng"
+            title="Đóng (Esc)"
+          >
+            <X size={18} />
+          </button>
         </div>
         <div className="cdlg__body">
           {message && <p className="cdlg__msg">{message}</p>}

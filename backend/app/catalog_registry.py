@@ -46,8 +46,6 @@ class DanhMuc:
 # Thứ tự = thứ tự menu "Cấu hình danh mục". Người cấp quyền dò theo MÀN HÌNH chứ không dò theo
 # tên kỹ thuật, nên mọi nơi đọc về đều giữ nguyên thứ tự này.
 DANH_MUC: tuple[DanhMuc, ...] = (
-    DanhMuc("loai_san_pham", "dm_loai_san_pham", "Loại sản phẩm", "loai-san-pham",
-            alias_loai=("product_type",), model="models.loai_san_pham:LoaiSanPham"),
     DanhMuc("may_thiet_bi", "dm_thiet_bi", "Thiết bị & Máy móc", "may-thiet-bi",
             alias_loai=("machine",), model="models.may_thiet_bi:MayThietBi"),
     DanhMuc("cong_doan", "dm_cong_doan", "Công đoạn", "cong-doan",
@@ -56,8 +54,6 @@ DANH_MUC: tuple[DanhMuc, ...] = (
     # ăn chung ô quyền, vì thế đứng ở `alias_loai` chứ không thành một dòng riêng.
     DanhMuc("don_vi_do", "dm_don_vi", "Đơn vị & quy đổi", "don-vi",
             alias_loai=("don_vi_quy_doi",), model="models.don_vi_do:DonViDo"),
-    DanhMuc("chung_loai_giay", "dm_chung_loai_giay", "Chủng loại giấy", "chung-loai-giay",
-            model="models.vat_lieu_kho:ChungLoaiGiay"),
     DanhMuc("giay", "dm_giay", "Giấy", "giay", model="models.vat_lieu_kho:GiayNguyen"),
     DanhMuc("vat_tu", "dm_vat_tu", "Vật tư khác", "vat-tu-in-an",
             model="models.vat_lieu_kho:VatTuInAn"),

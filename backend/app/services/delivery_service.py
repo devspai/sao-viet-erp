@@ -9,7 +9,8 @@ Router chỉ điều phối; mọi luật nằm ở đây. Sáu luật hay bị 
 3. **Một yêu cầu chỉ MỘT lần giao đang chạy** (nghiệm thu #3) — điều kiện giữ cho luật 1 tính được.
 4. **Trùng lịch tài xế thì CHẶN; sát giờ thì CẢNH BÁO** (PRD §6). Hai vế khác nhau, đừng gộp.
 5. **`km >= 0`**, không phải `> 0`. Khách không nghe máy khi xe chưa lăn bánh thì 0 km là số THẬT.
-   `> KM_CANH_BAO` chỉ cảnh báo, KHÔNG chặn.
+   Số đồng hồ (xuất phát / về kho) lùi hoặc nhảy `> KM_CANH_BAO` km so với số cuối ⇒ CHẶN cho tới
+   khi người bấm xác nhận (`xac_nhan_km_lon`); lệch nhỏ hơn thì chỉ cảnh báo.
 6. **Hàng ra khỏi kho thì PHẢI CÓ PHIẾU KHO — không có ngoại lệ cho giao khách.** Quản lý bấm
    *Gửi yêu cầu xuất kho* ⇒ tạo ĐÚNG MỘT `stock_requests` loại XUẤT, y như mọi bộ phận khác xin
    vật tư. Kho lập phiếu · ghi sổ · trừ tồn bằng chính luồng sẵn có; **không một dòng code nào
@@ -96,6 +97,19 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def sinh_ma_chung_tu(tien_to: str, da_ton_tai) -> str:
+    """`YCGH-yymmdd-XXXX` / `DNXGH-yymmdd-XXXX` — cùng khuôn `YCMH-` bên Thu mua. Dùng chung cho
+    giao thẳng của gia công ngoài (không qua cửa lập yêu cầu)."""
+    hom_nay = _utcnow().strftime("%y%m%d")
+    bang_chu = string.ascii_uppercase + string.digits
+    for _ in range(20):
+        duoi = "".join(secrets.choice(bang_chu) for _ in range(4))
+        ma = f"{tien_to}-{hom_nay}-{duoi}"
+        if da_ton_tai(ma) is None:
+            return ma
+    raise DeliveryError("Không sinh được mã chứng từ duy nhất, vui lòng thử lại.")
+
+
 class DeliveryService:
     def __init__(self, deliveries, orders, employees, users, departments,
                  stock_requests=None, stock_vouchers=None, xe=None, muc_km=None) -> None:
@@ -122,14 +136,7 @@ class DeliveryService:
     # =====================================================================================
     def _sinh_ma(self, tien_to: str, da_ton_tai) -> str:
         """`YCGH-yymmdd-XXXX` / `DNXGH-yymmdd-XXXX` — cùng khuôn `YCMH-` bên Thu mua."""
-        hom_nay = _utcnow().strftime("%y%m%d")
-        bang_chu = string.ascii_uppercase + string.digits
-        for _ in range(20):
-            duoi = "".join(secrets.choice(bang_chu) for _ in range(4))
-            ma = f"{tien_to}-{hom_nay}-{duoi}"
-            if da_ton_tai(ma) is None:
-                return ma
-        raise DeliveryError("Không sinh được mã chứng từ duy nhất, vui lòng thử lại.")
+        return sinh_ma_chung_tu(tien_to, da_ton_tai)
 
     # =====================================================================================
     # Phạm vi — lọc DÒNG, không ẩn tab
@@ -868,6 +875,24 @@ class DeliveryService:
             return [f"Xe chạy ngoài sổ {so - cuoi} km kể từ lượt trước (số cuối đã ghi {cuoi})."]
         return [f"Số đồng hồ {so} nhỏ hơn số cuối đã ghi của xe ({cuoi}) — kiểm lại."]
 
+    def _chan_xuat_phat_bat_thuong(self, luot, so: int, xac_nhan_km_lon: bool) -> None:
+        """Số xuất phát NHỎ HƠN số cuối của xe, hoặc vượt quá KM_CANH_BAO km ⇒ chặn TRƯỚC khi lưu,
+        đòi xác nhận (cùng ngưỡng với chặng về kho). Gõ nối vào số cũ ra số tỉ km là lỗi thật đã
+        gặp; vẫn cho qua khi xác nhận vì chưa có màn sửa số cuối của xe."""
+        if xac_nhan_km_lon:
+            return
+        cuoi = self.deliveries.so_dong_ho_cuoi_cua_xe(luot.vehicle_id, bo_qua_luot_id=luot.id)
+        if cuoi is None:
+            return
+        if so < cuoi:
+            raise DeliveryError(
+                f"Số đồng hồ {so} nhỏ hơn số cuối đã ghi của xe ({cuoi}) — bất thường. "
+                "Kiểm lại số trên đồng hồ; xác nhận lại nếu đúng.")
+        if so - cuoi > KM_CANH_BAO:
+            raise DeliveryError(
+                f"Số đồng hồ {so} vượt số cuối đã ghi của xe ({cuoi}) {so - cuoi} km — lớn bất "
+                f"thường (> {KM_CANH_BAO}). Kiểm lại số trên đồng hồ; xác nhận lại nếu đúng.")
+
     def goi_y_xuat_phat(self, luot) -> int | None:
         return self.deliveries.so_dong_ho_cuoi_cua_xe(luot.vehicle_id, bo_qua_luot_id=luot.id)
 
@@ -1025,7 +1050,8 @@ class DeliveryService:
             self.da_lay_hang(t.id, actor=actor, scope=scope)
         return can
 
-    def bat_dau_giao_ca_luot(self, luot_id, *, actor, scope=None, so_dong_ho_xuat_phat=None) -> dict:
+    def bat_dau_giao_ca_luot(self, luot_id, *, actor, scope=None, so_dong_ho_xuat_phat=None,
+                             xac_nhan_km_lon=False) -> dict:
         """Xe rời kho với mọi chuyến ĐÃ LẤY HÀNG của lượt; số đồng hồ xuất phát ghi MỘT lần.
 
         Chuyến chưa lấy hàng thì để lại (không chặn) nhưng NHẮC: xe đi rồi mà còn đơn chưa lên xe
@@ -1038,7 +1064,8 @@ class DeliveryService:
         canh_bao: list[str] = []
         for t in can:
             canh_bao += self.bat_dau_giao(t.id, actor=actor, scope=scope,
-                                          so_dong_ho_xuat_phat=so_dong_ho_xuat_phat)["canh_bao"]
+                                          so_dong_ho_xuat_phat=so_dong_ho_xuat_phat,
+                                          xac_nhan_km_lon=xac_nhan_km_lon)["canh_bao"]
         chua_lay = [t for t in trips if t.trang_thai in (LG_DA_LEN_KE_HOACH, LG_DANG_CHUAN_BI)]
         if chua_lay:
             canh_bao.append(f"Còn {len(chua_lay)} chuyến của lượt chưa lấy hàng — chưa bắt đầu giao.")
@@ -1254,6 +1281,9 @@ class DeliveryService:
         ngay = ngay or date.today()
         xong, tong_km = 0, 0
         for t in self.deliveries.list_trips(employee_ids=[employee_id]):
+            # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người chốt số — người đó không chạy xe.
+            if t.gia_cong_ngoai_id:
+                continue
             ket = t.thoi_gian_ket_thuc
             if ket is None or (ket.year, ket.month) != (ngay.year, ngay.month):
                 continue
@@ -1535,7 +1565,8 @@ class DeliveryService:
         self._doi_trang_thai(trip, LG_DA_LAY_HANG, actor=actor)
         return trip
 
-    def bat_dau_giao(self, trip_id, *, actor, scope=None, so_dong_ho_xuat_phat=None):
+    def bat_dau_giao(self, trip_id, *, actor, scope=None, so_dong_ho_xuat_phat=None,
+                     xac_nhan_km_lon=False):
         """Chuyến ĐẦU của một lượt xe phải kèm số đồng hồ lúc xuất phát (PRD khoán km §14) — chặng
         đầu tiên trừ từ số này. Các chuyến sau của cùng lượt không phải nhập lại."""
         trip = self.deliveries.get_trip(trip_id)
@@ -1555,6 +1586,7 @@ class DeliveryService:
                 so = int(so_dong_ho_xuat_phat)
                 if so < 0:
                     raise DeliveryError("Số đồng hồ không được âm")
+                self._chan_xuat_phat_bat_thuong(luot, so, xac_nhan_km_lon)
                 canh_bao = self._canh_bao_xuat_phat(luot, so)
                 luot.so_dong_ho_xuat_phat = so
         self._doi_trang_thai(trip, LG_DANG_GIAO, actor=actor)
@@ -2050,6 +2082,9 @@ class DeliveryService:
         ngay = ngay or date.today()
         xong, tong_km = 0, 0
         for t in self.deliveries.list_trips(employee_ids=[employee_id]):
+            # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người chốt số — người đó không chạy xe.
+            if t.gia_cong_ngoai_id:
+                continue
             if t.thoi_gian_ket_thuc is None or t.thoi_gian_ket_thuc.date() != ngay:
                 continue
             if t.trang_thai in LAN_GIAO_CO_HANG_DEN_TAY:

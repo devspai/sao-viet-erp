@@ -1,4 +1,4 @@
-/* Confirmation popup — centered modal over a dim scrim (paper + ink system). */
+/* Confirmation popup — centered modal over a glassmorphism dim scrim. */
 .cdlg-overlay {
   position: fixed;
   inset: 0;
@@ -6,7 +6,9 @@
   display: grid;
   place-items: center;
   padding: var(--sp-5);
-  background: rgba(20, 19, 15, 0.42);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   animation: cdlgFade var(--duration-base) var(--easing-standard);
 }
 @keyframes cdlgFade {
@@ -20,14 +22,14 @@
 
 .cdlg {
   width: 100%;
-  max-width: 460px;
+  max-width: 480px;
   max-height: calc(100vh - 2 * var(--sp-5));
   display: flex;
   flex-direction: column;
-  background: var(--canvas);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-5);
-  box-shadow: var(--shadow-lg);
+  background: var(--canvas, #ffffff);
+  border: 1px solid var(--rule, #cbd5e1);
+  border-radius: var(--r-5, 12px);
+  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
   overflow: hidden;
   animation: cdlgRise var(--duration-base) var(--easing-standard);
 }
@@ -37,47 +39,93 @@
 @keyframes cdlgRise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
 .cdlg__head {
   flex: 0 0 auto;
-  padding: var(--sp-4) var(--sp-5);
-  border-bottom: 1px solid var(--rule-soft);
+  padding: 1.125rem 1.25rem;
+  border-bottom: 1px solid var(--rule-soft, #e2e8f0);
+  background: linear-gradient(180deg, var(--paper, #f8fafc) 0%, var(--canvas, #ffffff) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.cdlg__head-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.cdlg__icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--rust-soft, #f4e2d6);
+  color: var(--rust, #c5400a);
+  flex-shrink: 0;
 }
 .cdlg__title {
   margin: 0;
-  font-size: 16px;
-  font-weight: var(--fw-bold);
-  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--ink, #0f172a);
+  letter-spacing: -0.01em;
+}
+.cdlg__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-2, 6px);
+  background: transparent;
+  color: var(--ash, #475569);
+  cursor: pointer;
+  transition: all var(--duration-fast, 120ms) ease;
+}
+.cdlg__close:hover:not(:disabled) {
+  background: var(--rule-soft, #e2e8f0);
+  border-color: var(--rule, #cbd5e1);
+  color: var(--ink, #0f172a);
+}
+.cdlg__close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .cdlg__body {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: var(--sp-5);
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
+  gap: 1.125rem;
 }
 .cdlg__msg {
   margin: 0;
-  font-size: 14px;
+  font-size: 0.9375rem;
   line-height: 1.5;
-  color: var(--ink);
+  color: var(--ink, #0f172a);
 }
 
 .cdlg__foot {
   flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
-  gap: var(--sp-3);
-  padding: var(--sp-4) var(--sp-5);
-  border-top: 1px solid var(--rule-soft);
+  gap: var(--sp-3, 12px);
+  padding: 1rem 1.25rem;
+  background: var(--paper, #f8fafc);
+  border-top: 1px solid var(--rule-soft, #e2e8f0);
 }

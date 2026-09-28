@@ -159,6 +159,23 @@ class OrderRepository:
             c.id: c for c in self.db.execute(select(Customer).where(Customer.id.in_(ids))).scalars()
         }
 
+    def so_dong_bao_gia(self, quote_ids: set[int]) -> dict[int, tuple[int, int]]:
+        """(số mặt hàng khách ƯNG, tổng số mặt hàng) trong bản HIỆN HÀNH (`current_version_id`) của
+        từng báo giá — nguồn "tỷ lệ báo giá thành công" ở Báo cáo kinh doanh. Một câu cho cả lô."""
+        if not quote_ids:
+            return {}
+        from sqlalchemy import Integer as _Int
+
+        from ..models.quotation import Quote, QuoteItem
+
+        stmt = (
+            select(Quote.id, func.sum(cast(QuoteItem.accepted, _Int)), func.count(QuoteItem.id))
+            .join(QuoteItem, QuoteItem.quote_version_id == Quote.current_version_id)
+            .where(Quote.id.in_(quote_ids))
+            .group_by(Quote.id)
+        )
+        return {qid: (int(ung or 0), int(n)) for qid, ung, n in self.db.execute(stmt)}
+
     def ten_nguoi_dung(self, ids: set[int]) -> dict[int, str]:
         if not ids:
             return {}

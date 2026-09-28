@@ -17,7 +17,8 @@ Sáu bảng GHI đứng SAU khung phiên-chạy (Giai đoạn 2) và neo lên sn
                              phiếu NGUYÊN TRẠNG (không đẻ con số "tổ nhận" đối nghịch "kho giao"). Chỉ
                              phần đã xác nhận mới coi là khả dụng.
   san_xuat_ket_qua_nhanh  — SẢN LƯỢNG RIÊNG từng LSX tách ra từ một batch điểm-toả bài ghép (§
-                             điểm toả): `tot` của batch × `ty_le_ghep` (số con/tờ) của LSX đó.
+                             điểm toả): `tot` của batch quy ra đơn vị vào của bước riêng nhận
+                             (× `ty_le_ghep` số con/tờ, hoặc × 1 khi bước nhận ăn tờ ghép).
                              CHỈ-THÊM, không sửa — batch mới thì đẻ dòng mới.
 
 NEO snapshot: batch/bàn giao trỏ `san_xuat_cong_viec.id` (bản đóng băng, ổn định). Số dẫn xuất
@@ -263,8 +264,8 @@ class SanXuatKetQuaNhanh(Base):
     """Sản lượng RIÊNG từng LSX tách ra từ một batch của công việc ĐIỂM TOẢ bài ghép.
 
     Ghi khi `san_luong.tao_batch` phát hiện công việc vừa ghi có cạnh `san_xuat_phu_thuoc` toả đi
-    (nguồn = chính công việc này) — mỗi cạnh một dòng: `so_luong` = `tot` của batch × `ty_le_ghep`
-    (số con/tờ) của LSX đích. `ban_giao_id` neo bàn giao TỰ ĐỘNG-XÁC-NHẬN tương ứng (§11.2 biến
+    (nguồn = chính công việc này) — mỗi cạnh một dòng: `so_luong` = `tot` của batch ×
+    `san_luong.he_so_nhanh_toa` (số con/tờ; 1 khi bước nhận ăn tờ ghép). `ban_giao_id` neo bàn giao TỰ ĐỘNG-XÁC-NHẬN tương ứng (§11.2 biến
     thể: số suy MỘT CHIỀU từ `tot`, không thể vượt, nên bỏ qua vòng đề xuất/xác nhận hai bên).
     Bảng CHỈ-THÊM — dùng làm sổ cái quota để chặn LSX khác dùng nhầm phần đã toả (§10.3 biến thể)."""
 

@@ -63,6 +63,11 @@ def _lay_cong_viec(repo: SanXuatThucThiRepository, cong_viec_id: int) -> SanXuat
     cv = repo.cong_viec(cong_viec_id)
     if cv is None:
         raise ValueError("Không tìm thấy công việc.")
+    # Công việc gia công ngoài không phân công / bắt đầu / đổi máy / tạm dừng (spec gia công §10).
+    if cv.gia_cong_ngoai_id is not None:
+        from ..gia_cong_ngoai import CHAN_XUONG
+
+        raise ValueError(CHAN_XUONG)
     return cv
 
 

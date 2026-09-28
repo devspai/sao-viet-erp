@@ -21,6 +21,7 @@ import {
 import { useCan } from "../../../auth/permissions";
 import { useDebounced } from "../../../utils/useDebounced";
 import { useAuth } from "../../../auth/useAuth";
+import { useKhiTickDoi } from "../../../hooks/useKhiTickDoi";
 import { RequestDetailDrawer } from "./components/RequestDetailDrawer";
 import { RequestFormDrawer } from "./components/RequestFormDrawer";
 import { RequestModals } from "./components/RequestModals";
@@ -142,10 +143,7 @@ export function DepartmentPurchaseRequestsPage({
     load();
   }, [load]);
 
-  useEffect(() => {
-    if (eventTick <= 0 || !token) return;
-    load();
-  }, [eventTick, load, token]);
+  useKhiTickDoi(eventTick, load);
 
   useEffect(() => {
     if (!token) return;

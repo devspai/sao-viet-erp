@@ -1,5 +1,5 @@
 """Nền chung cho các repository DANH MỤC (`kho_hang`, `khuon_be`, `don_vi_do`,
-`loai_san_pham`, `may_thiet_bi`, `cong_doan`…).
+`may_thiet_bi`, `cong_doan`…).
 
 Vì sao có file này: tám repo danh mục viết đi viết lại đúng một khuôn — `list()` (đếm + lọc +
 cắt trang), `find_by_ma()` (chuẩn hoá mã rồi so không phân biệt hoa/thường), `create/update`

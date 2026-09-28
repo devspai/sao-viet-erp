@@ -194,6 +194,94 @@ def test_chi_tiet_ten_to_mot_truy_van(db, svc3, lenh):
     assert dem["n"] == 1, f"N+1 theo tổ: {dem['n']} câu cho {len(buoc)} bước"
 
 
+def test_chi_tiet_buoc_bi_bai_ghep_phu_bay_theo_buoc_chung(db, svc3, lenh):
+    """E2E 27/09/2026: popup in bước bị bài phủ theo cấu hình CỦA LỆNH ("Tổ cán phủ", loại Máy)
+    trong khi lượt chung là Thuê ngoài — phải bày loại, nhà gia công và mã bài của bước chung."""
+    from app.models.bai_ghep import BaiGhep
+    from app.models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
+    from app.models.lsx import LB_THUE_NGOAI, LsxCongDoan
+    from app.schemas.xep_lich import ChiTietOut
+
+    buoc = db.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == lenh.id).order_by(LsxCongDoan.id).all()
+    bi_phu = buoc[-1]
+    bg = BaiGhep(ma="GB-XL-1", ten="Bài xếp lịch")
+    db.add(bg)
+    db.flush()
+    chung = BaiGhepCongDoan(bai_ghep_id=bg.id, ten=bi_phu.ten, loai_buoc=LB_THUE_NGOAI,
+                            nha_cung_cap="Tân Phát", department_id=None)
+    db.add(chung)
+    db.flush()
+    db.add(BaiGhepCongDoanMap(bai_ghep_cong_doan_id=chung.id, lsx_id=lenh.id,
+                              lsx_step_key=bi_phu.step_key))
+    db.commit()
+
+    cds = {c["id"]: c for c in ChiTietOut.model_validate(svc3.chi_tiet(lenh.id)).model_dump()["cong_doans"]}
+    c = cds[bi_phu.id]
+    assert (c["loai_buoc"], c["la_thue_ngoai"], c["to_ten"], c["may_ten"], c["bai_ghep_ma"]) == (
+        LB_THUE_NGOAI, True, "Tân Phát", None, "GB-XL-1")
+    assert all(cds[b.id]["bai_ghep_ma"] is None for b in buoc[:-1])
+
+
+def test_chi_tiet_buoc_bi_bai_ghep_phu_co_trang_thai_thuc_te_cua_viec_chung(db, svc3, lenh):
+    """E2E 27/09/2026: bước In ghép trên popup không có chip trạng thái — việc chung mang
+    `lsx_id IS NULL` nên tra thực tế theo lệnh không thấy. Phải lấy qua bảng phủ."""
+    from app.models.bai_ghep import BaiGhep
+    from app.models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
+    from app.models.lsx import LsxCongDoan
+    from app.models.san_xuat import CV_DANG_CHAY, SanXuatCongViec, SanXuatGoiPhatHanh
+
+    buoc = db.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == lenh.id).order_by(LsxCongDoan.id).all()
+    bi_phu = buoc[0]
+    bg = BaiGhep(ma="GB-XL-2", ten="Bài xếp lịch 2")
+    db.add(bg)
+    db.flush()
+    chung = BaiGhepCongDoan(bai_ghep_id=bg.id, ten=bi_phu.ten, loai_buoc=bi_phu.loai_buoc)
+    db.add(chung)
+    db.flush()
+    db.add(BaiGhepCongDoanMap(bai_ghep_cong_doan_id=chung.id, lsx_id=lenh.id,
+                              lsx_step_key=bi_phu.step_key))
+    goi = SanXuatGoiPhatHanh(ma="GOI-XL-CHUNG")
+    db.add(goi)
+    db.flush()
+    db.add(SanXuatCongViec(goi_id=goi.id, bai_ghep_id=bg.id, bai_ghep_cong_doan_id=chung.id,
+                           lsx_id=None, step_key=None, ten_cong_doan=bi_phu.ten,
+                           trang_thai=CV_DANG_CHAY))
+    db.commit()
+
+    cds = {c["id"]: c for c in svc3.chi_tiet(lenh.id)["cong_doans"]}
+    assert cds[bi_phu.id]["trang_thai"] == CV_DANG_CHAY
+
+
+def test_buoc_bi_bai_ghep_phu_thue_ngoai_khong_chiem_gio_may(db, lenh):
+    """E2E 27/09/2026: bước chung Thuê ngoài mà lịch vẫn tính giờ máy theo cấu hình lệnh."""
+    from app.models.bai_ghep import BaiGhep
+    from app.models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
+    from app.models.lsx import LB_THUE_NGOAI, LsxCongDoan
+    from app.repositories.xep_lich_lenh_repo import XepLichLenhRepository
+    from app.services.xep_lich.service import XepLichLenhService
+
+    def _svc():
+        return XepLichLenhService(db, XepLichLenhRepository(db))
+
+    truoc = {c["id"]: c for c in _svc().chi_tiet(lenh.id)["cong_doans"]}
+    buoc = db.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == lenh.id).order_by(LsxCongDoan.id).all()
+    bi_phu = next(b for b in buoc if truoc[b.id]["chay_phut"] > 0)
+    bg = BaiGhep(ma="GB-XL-3", ten="Bài xếp lịch 3")
+    db.add(bg)
+    db.flush()
+    chung = BaiGhepCongDoan(bai_ghep_id=bg.id, ten=bi_phu.ten, loai_buoc=LB_THUE_NGOAI,
+                            nha_cung_cap="Tân Phát")
+    db.add(chung)
+    db.flush()
+    db.add(BaiGhepCongDoanMap(bai_ghep_cong_doan_id=chung.id, lsx_id=lenh.id,
+                              lsx_step_key=bi_phu.step_key))
+    db.commit()
+
+    sau = {c["id"]: c for c in _svc().chi_tiet(lenh.id)["cong_doans"]}
+    assert sau[bi_phu.id]["chay_phut"] == 0
+    assert sau[bi_phu.id]["la_thue_ngoai"] is True
+
+
 def test_chi_tiet_lenh_chua_xep_van_mo_duoc(svc3, lenh):
     """Bấm thẻ hàng chờ cũng mở panel — chưa có lịch thì các ô lịch để trống, không nổ."""
     ct = svc3.chi_tiet(lenh.id)

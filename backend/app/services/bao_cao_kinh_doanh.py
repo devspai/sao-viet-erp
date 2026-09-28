@@ -48,6 +48,7 @@ def lap_bao_cao(
     coc_nhan = accounting_repo.received_deposit_sums(ids)
     khach = orders_repo.khach_theo_ids({o.customer_id for o in don if o.customer_id})
     sale = orders_repo.ten_nguoi_dung({o.sale_user_id for o in don if o.sale_user_id})
+    so_dong_bg = orders_repo.so_dong_bao_gia({o.quotation_id for o in don if o.quotation_id})
 
     theo_khach: dict[int | None, dict] = {}
     for o in don:
@@ -67,6 +68,12 @@ def lap_bao_cao(
         # Cùng công thức `OrderService._money` — xem đầu file.
         coc_phai = int(round(pct * tong_vat / 100)) if pct else 0
         coc_da = int(coc_nhan.get(o.id, 0))
+        # Tỷ lệ báo giá thành công = số mặt hàng khách ƯNG (`quote_items.accepted`) / số mặt hàng
+        # trong bản báo giá hiện hành (báo 10 chốt 2 ⇒ 20%). 0 dòng ưng = báo giá chốt trước khi có
+        # cờ này, đơn kéo TẤT CẢ dòng (cùng fallback của order_service) ⇒ 100%. Đơn không đi từ báo
+        # giá ⇒ None (hiện "—").
+        ung, mau = so_dong_bg.get(o.quotation_id, (0, 0)) if o.quotation_id else (0, 0)
+        ty_le_bg = round((ung or mau) * 100 / mau) if mau else None
         muc["don"].append({
             "order_id": o.id,
             "order_no": o.order_no,
@@ -80,6 +87,7 @@ def lap_bao_cao(
             "coc_phai_thu": coc_phai,
             "coc_da_nhan": coc_da,
             "coc_con_thieu": max(0, coc_phai - coc_da),
+            "ty_le_bao_gia": ty_le_bg,
             "dong": [
                 {
                     "ten": (ln.description or "").strip(),

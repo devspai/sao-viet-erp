@@ -1588,4 +1588,13 @@ td.acct-count-cell {
 .acct-pt-drawer .acct-voucher-amount small {
   font-family: var(--ff-sans); font-variant-numeric: tabular-nums;
 }
+
+/* Hàng "Gia công chờ chi" (spec gia công ngoài §5) — flex-wrap, không bề rộng cứng (màn hẹp). */
+.acct-pc .acct-gc-cho { margin: 0 0 1rem; padding: 0.75rem 1rem; border-radius: var(--r-3, 10px); background: var(--amber-soft, #fff8ec); }
+.acct-pc .acct-gc-cho__title { margin: 0 0 0.5rem; font-size: 1rem; }
+.acct-pc .acct-gc-cho__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.acct-pc .acct-gc-cho__row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; min-width: 0; }
+.acct-pc .acct-gc-cho__row > span { overflow-wrap: anywhere; }
+.acct-pc .acct-gc-cho__ncc { font-weight: 600; }
+.acct-pc .acct-gc-cho__ai { color: var(--ash, #666); font-size: 0.875rem; }
 .acct-pt-drawer .acct-pt__body { padding: var(--sp-5) var(--sp-6); gap: var(--sp-5); }

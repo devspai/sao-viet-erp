@@ -15,7 +15,7 @@ import type {
   SxBatchIn, SxBanGiaoDeXuatIn, SxBanGiaoSuaIn, SxBanGiaoDieuChinhIn,
   SxHoTroDeXuatIn, SxKhoanCongDoan, SxViecPhatSinhChon,
   SxKetQuaNhanh, SxSuCoIn, SxVatTuCap, SxVatTuCapLan, SxVatTuCapDoiChieu,
-  SxVatTuDeNghiIn, SxVatTuDeNghiDongIn, SxTranGhi, SxCongDoanTruoc,
+  SxVatTuDeNghiIn, SxVatTuDeNghiDongIn, SxTranGhi,
 } from "../api/client";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
@@ -27,7 +27,6 @@ import { GIO_NHAP_MAX, GIO_NHAP_MIN, gioNhapHopLe } from "../lib/gioNhap";
 import { num, ngayGio, ngay, gioNgan } from "./keHoachSxShared";
 import { VoucherDrawer } from "./KhoYeuCauPage";
 import { nhanDonVi } from "./lsxBuoc";
-import { KCS_CD_TRANG_THAI } from "./kcs/kcsNhan";
 import { tinhTrangChon } from "./thsxTinhTrangNguoi";
 
 // ============================ hợp đồng hành động (controller cấp) ============================
@@ -86,6 +85,32 @@ const BG_TT: Record<string, { txt: string; cls: string }> = {
   confirmed: { txt: "đã xác nhận", cls: "thsx-x-pill--ok" },
   adjusted: { txt: "đã điều chỉnh", cls: "thsx-x-pill--adj" },
 };
+
+/** Một đầu của lần giao: công đoạn nào, thuộc tổ nào (bước thuê ngoài = nhà gia công), ai đứng ra,
+ *  lúc nào. `cho` = bên nhận chưa xác nhận — dòng "ai" tô màu chờ. */
+function BenBanGiao({ nhan, cd, to, ai, cho = false }: {
+  nhan: string; cd?: string | null; to?: string | null; ai: ReactNode; cho?: boolean;
+}) {
+  return (
+    <div className="thsx-hb-ben">
+      <span className="thsx-hb-ben__lbl">{nhan}</span>
+      <span className="thsx-hb-ben__cd">{cd || "—"}</span>
+      {to && <span className="thsx-hb-ben__to">{to}</span>}
+      <span className={`thsx-hb-ben__ai${cho ? " is-wait" : ""}`}>
+        {cho && <Icon name="clock" size={11} />}{ai}
+      </span>
+    </div>
+  );
+}
+/** Bên giao đã điều chỉnh mà bên nhận CHƯA xác nhận lại số mới (`ban_giao.cho_xac_nhan_lai`). Số mới
+ *  đã có hiệu lực — cờ này chỉ đòi bên nhận bấm Xác nhận lại. */
+function choXacNhanLai(g: SxBanGiao): boolean {
+  return g.trang_thai === "adjusted" && !g.xac_nhan_luc && !g.cung_to;
+}
+/** Lần giao bên nhận phải bấm: mới đề xuất, hoặc vừa bị bên giao điều chỉnh. */
+function choBenNhan(g: SxBanGiao): boolean {
+  return g.trang_thai === "proposed" || choXacNhanLai(g);
+}
 const HT_TT: Record<string, { txt: string; cls: string }> = {
   pending_both: { txt: "chờ hai bên", cls: "thsx-x-pill--wait" },
   confirmed: { txt: "đã chốt", cls: "thsx-x-pill--ok" },
@@ -194,18 +219,20 @@ function SanLuongSection({
   const [ketQuaToa, setKetQuaToa] = useState<SxKetQuaNhanh[] | null>(null);
 
   return (
-    <section className="thsx-psec thsx-x">
+    <section className="thsx-psec thsx-x thsx-psec-card">
       <div className="thsx-psec__h">
-        <span className="thsx-psec__title"><Icon name="layers" size={13} /> Sản lượng</span>
+        <span className="thsx-psec__title">
+          <span className="thsx-psec__icon-badge thsx-psec__icon-badge--blue"><Icon name="layers" size={13} /></span> Sản lượng
+        </span>
         {canAssign && (
-          <Button variant="ghost" onClick={() => setFormOpen(true)} disabled={busy} aria-haspopup="dialog">
+          <Button variant="accent" onClick={() => setFormOpen(true)} disabled={busy} aria-haspopup="dialog" className="thsx-btn-primary-action">
             <Icon name="plus" size={13} /> Ghi mẻ
           </Button>
         )}
       </div>
 
       <div className="thsx-batch-metric-strip">
-        <div className="thsx-batch-metric-tile">
+        <div className="thsx-batch-metric-tile thsx-metric-tile--done">
           <span className="thsx-metric-lbl">Đã làm</span>
           <span className="thsx-metric-val thsx-metric-val--done">{num(sl.tong_tot)}</span>
         </div>
@@ -220,9 +247,9 @@ function SanLuongSection({
           </div>
         </>}
         {sl.muc_tieu != null && (
-          <div className="thsx-batch-metric-tile">
+          <div className={`thsx-batch-metric-tile ${sl.con_thieu ? "thsx-metric-tile--thieu" : "thsx-metric-tile--done"}`}>
             <span className="thsx-metric-lbl">Còn thiếu</span>
-            <span className={`thsx-metric-val${sl.con_thieu ? " thsx-metric-val--thieu" : ""}`}>
+            <span className={`thsx-metric-val${sl.con_thieu ? " thsx-metric-val--thieu" : " thsx-metric-val--done"}`}>
               {sl.con_thieu ? `${num(sl.con_thieu)}${sl.don_vi ? ` ${nhanDonVi(sl.don_vi)}` : ""}` : "Đủ"}
             </span>
           </div>
@@ -257,7 +284,13 @@ function SanLuongSection({
       )}
 
       {sl.batches.length === 0 ? (
-        <p className="thsx-note">Chưa ghi mẻ sản lượng nào.</p>
+        <div className="thsx-empty-state-card">
+          <div className="thsx-empty-state-ic-wrap"><Icon name="layers" size={16} /></div>
+          <div className="thsx-empty-state-content">
+            <span className="thsx-empty-state-title">Chưa ghi mẻ sản lượng nào.</span>
+            <span className="thsx-empty-state-sub">Bấm nút <b>"+ Ghi mẻ"</b> ở trên để bắt đầu cập nhật sản lượng thực hiện.</span>
+          </div>
+        </div>
       ) : (
         <ul className="thsx-x-list">
           {sl.batches.map((b) => (
@@ -295,6 +328,27 @@ function cauTranGhi(t: SxTranGhi): string {
   return `${dau} ${t.nguon_ten} ${num(t.da_nhan)}${quyDoi}, đã ghi ${num(t.da_ghi)}`;
 }
 
+function shiftMinutesLocal(dtStr: string, minutes: number): string {
+  const base = (dtStr && gioNhapHopLe(dtStr)) ? new Date(dtStr) : new Date();
+  if (isNaN(base.getTime())) return nowDtLocal();
+  base.setMinutes(base.getMinutes() + minutes);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())}T${pad(base.getHours())}:${pad(base.getMinutes())}`;
+}
+
+function formatDurationLocal(batDau: string, ketThuc: string): string | null {
+  if (!gioNhapHopLe(batDau) || !gioNhapHopLe(ketThuc)) return null;
+  const t1 = new Date(batDau).getTime();
+  const t2 = new Date(ketThuc).getTime();
+  if (isNaN(t1) || isNaN(t2) || t2 <= t1) return null;
+  const diffMin = Math.round((t2 - t1) / (1000 * 60));
+  const h = Math.floor(diffMin / 60);
+  const m = diffMin % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}p`;
+  if (h > 0) return `${h} giờ`;
+  return `${m} phút`;
+}
+
 /** Form GHI MẺ theo CÔNG VIỆC KHOÁN (spec 2026-09-18 §7.1): chọn ĐÚNG MỘT việc của tổ (thấy đơn giá
  *  · ĐVT · ghi chú), gõ số của mẻ, rồi tick một hoặc nhiều VIỆC PHÁT SINH của chính việc đó kèm số
  *  lượng. Việc phát sinh KHÔNG cộng vào sản lượng; không có thành tiền ở đâu cả. Ô tìm hiện cho MỌI
@@ -322,6 +376,8 @@ export function BatchForm({
   // phải được GÕ (kể cả số 0), để trống thì chưa cho lưu.
   const soLuongDaGo = soLuong.trim() !== "" && Number.isFinite(Number(soLuong.replace(/,/g, "")));
   const donVi = cv.don_vi_ra ?? cv.don_vi_vao ?? null;
+  const donViHienThi = cv.don_vi_ra ? (nhanDonVi(cv.don_vi_ra) ?? cv.don_vi_ra) : (cv.don_vi_vao ? (nhanDonVi(cv.don_vi_vao) ?? cv.don_vi_vao) : "SP");
+
   function tickPs(p: SxViecPhatSinhChon) {
     setPsSl((cu) => {
       const moi = { ...cu };
@@ -343,7 +399,10 @@ export function BatchForm({
     && soLuongDaGo && nSoLuong >= 0 && !vuotTran
     && psHopLe;
 
+  const durationStr = formatDurationLocal(batDau, ketThuc);
+
   async function luu() {
+    if (!hopLe || busy) return;
     const body: SxBatchIn = {
       bat_dau: batDau, ket_thuc: ketThuc, tong: nSoLuong, tot: nSoLuong, hong: 0,
       don_vi: donVi,
@@ -355,105 +414,217 @@ export function BatchForm({
     if (ketQua) onXong(ketQua);
   }
 
+  function insertQuickQty(val: number) {
+    setSoLuong((prev) => {
+      const current = toNum(prev);
+      const next = Math.max(0, current + val);
+      if (tranGhi && next > tranGhi.con_ghi_duoc) {
+        return tranGhi.con_ghi_duoc.toString();
+      }
+      return next.toString();
+    });
+  }
+
   return (
-    <ThsxModal
-      title="Ghi mẻ sản lượng mới" icon="activity" busy={busy} onClose={() => onXong([])}
-      footer={<>
-        <Button variant="ghost" onClick={() => onXong([])} disabled={busy}>Huỷ</Button>
-        <Button variant="accent" onClick={luu} disabled={busy || !hopLe} className="thsx-glass-btn-save">
-          <Icon name="check" size={13} /> Ghi mẻ sản lượng
-        </Button>
-      </>}
-    >
-      {/* Khoán là cấu hình cố định của công đoạn — không còn radio/tìm/đổi nguồn lúc ghi mẻ. */}
-      <div className="thsx-vk">
-        <div className="thsx-vk__h">
-          <span className="thsx-x-fld__l">Khoán công đoạn</span>
+    <div onKeyDown={(e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && hopLe && !busy) {
+        e.preventDefault();
+        luu();
+      }
+    }}>
+      <ThsxModal
+        title="Ghi mẻ sản lượng mới" icon="activity" busy={busy} onClose={() => onXong([])}
+        footer={<>
+          <Button variant="ghost" onClick={() => onXong([])} disabled={busy}>Huỷ</Button>
+          <Button variant="accent" onClick={luu} disabled={busy || !hopLe} className="thsx-glass-btn-save">
+            <Icon name="check" size={13} /> Ghi mẻ sản lượng <span className="thsx-kbd-hint">(Ctrl + Enter)</span>
+          </Button>
+        </>}
+      >
+        {/* Khoán là cấu hình cố định của công đoạn — không còn radio/tìm/đổi nguồn lúc ghi mẻ. */}
+        <div className="thsx-vk">
+          <div className="thsx-vk__h">
+            <span className="thsx-x-fld__l">Khoán công đoạn</span>
+          </div>
+          {khoan ? (
+            <div className="thsx-vk__fixed">
+              <div className="thsx-vk__opt is-on">
+                <span className="thsx-vk__main">
+                  <span className="thsx-vk__ten">{khoan.ten}</span>
+                  {khoan.phat_sinh.length > 0 && (
+                    <span className="thsx-vk__psn">{khoan.phat_sinh.length} việc phát sinh</span>
+                  )}
+                </span>
+                <span className="thsx-vk__gia thsx-num">{giaKhoan(khoan)}</span>
+              </div>
+              {khoan.phat_sinh.length > 0 && (
+                <div className="thsx-vk__psbox">
+                  <span className="thsx-vk__psh">Việc phát sinh — không cộng vào sản lượng</span>
+                  <ul className="thsx-vk__list" aria-label={`Việc phát sinh của ${khoan.ten}`}>
+                    {khoan.phat_sinh.map((p) => {
+                      const tick = p.id in psSl;
+                      const sai = tick && psSl[p.id] !== "" && toNum(psSl[p.id]) <= 0;
+                      return (
+                        <li key={p.id} className={`thsx-vk__ps${tick ? " is-on" : ""}`}>
+                          <label className="thsx-vk__opt thsx-vk__opt--ps">
+                            <input type="checkbox" checked={tick} onChange={() => tickPs(p)} />
+                            <span className="thsx-vk__main"><span className="thsx-vk__ten">{p.ten}</span></span>
+                            <span className="thsx-vk__gia thsx-num">{giaKhoan(p)}</span>
+                          </label>
+                          {tick && (
+                            <div className="thsx-vk__sl">
+                              <input type="number" min={0} step="any" inputMode="decimal" autoFocus
+                                className="thsx-x-in thsx-glass-in thsx-glass-in--num" placeholder="Số lượng"
+                                aria-label={`Số lượng ${p.ten}`} value={psSl[p.id]}
+                                onChange={(e) => setPsSl((cu) => ({ ...cu, [p.id]: e.target.value }))} />
+                              <span className="thsx-vk__dv">{p.don_vi_ten ?? nhanDonVi(p.don_vi)}</span>
+                              {sai && <span className="thsx-x-err thsx-glass-err">Phải lớn hơn 0</span>}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="thsx-khoan-empty-badge">
+              <Icon name="info" size={13} className="thsx-khoan-empty-ic" />
+              <p className="thsx-x-hint">Công đoạn chưa cấu hình Khoán — vẫn có thể ghi mẻ sản lượng.</p>
+            </div>
+          )}
         </div>
-        {khoan ? (
-          <div className="thsx-vk__fixed">
-            <div className="thsx-vk__opt is-on">
-              <span className="thsx-vk__main">
-                <span className="thsx-vk__ten">{khoan.ten}</span>
-                {khoan.phat_sinh.length > 0 && (
-                  <span className="thsx-vk__psn">{khoan.phat_sinh.length} việc phát sinh</span>
+
+        {/* Card Giới hạn sản lượng (tranGhi) */}
+        {tranGhi && (
+          <div className="thsx-capacity-card">
+            <div className="thsx-capacity-card__h">
+              <span className="thsx-capacity-card__title">
+                <Icon name="barChart" size={13} /> Sản lượng khả dụng
+              </span>
+              <span className="thsx-capacity-card__stat thsx-num">
+                Đã ghi: <b>{num(tranGhi.da_ghi)}</b> / {num(tranGhi.toi_da)}
+              </span>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="thsx-capacity-progress-track">
+              <div
+                className={`thsx-capacity-progress-fill ${
+                  tranGhi.con_ghi_duoc <= 0.0005 ? "is-full" : ""
+                }`}
+                style={{
+                  width: `${Math.min(100, Math.max(0, (tranGhi.da_ghi / (tranGhi.toi_da || 1)) * 100))}%`,
+                }}
+              />
+            </div>
+
+            <div className="thsx-capacity-card__ftr">
+              <span className="thsx-capacity-card__hint">
+                {tranGhi.con_ghi_duoc > 0.0005 ? (
+                  <>Còn ghi được tối đa <b>{num(tranGhi.con_ghi_duoc)}</b> — {cauTranGhi(tranGhi)}.</>
+                ) : (
+                  <>Hết số {tranGhi.cung_to ? "bước trước làm ra" : "đã nhận"} ({cauTranGhi(tranGhi)}) — chỉ ghi được mẻ 0 cho tới khi công đoạn trước {tranGhi.cung_to ? "làm" : "giao"} thêm.</>
                 )}
               </span>
-              <span className="thsx-vk__gia thsx-num">{giaKhoan(khoan)}</span>
+              {tranGhi.con_ghi_duoc > 0.0005 && (
+                <button
+                  type="button"
+                  className="thsx-quick-max-btn"
+                  onClick={() => setSoLuong(tranGhi.con_ghi_duoc.toString())}
+                  title="Điền nhanh tối đa số lượng khả dụng"
+                >
+                  <Icon name="zap" size={12} /> Tối đa ({num(tranGhi.con_ghi_duoc)})
+                </button>
+              )}
             </div>
-            {khoan.phat_sinh.length > 0 && (
-              <div className="thsx-vk__psbox">
-                <span className="thsx-vk__psh">Việc phát sinh — không cộng vào sản lượng</span>
-                <ul className="thsx-vk__list" aria-label={`Việc phát sinh của ${khoan.ten}`}>
-                  {khoan.phat_sinh.map((p) => {
-                    const tick = p.id in psSl;
-                    const sai = tick && psSl[p.id] !== "" && toNum(psSl[p.id]) <= 0;
-                    return (
-                      <li key={p.id} className={`thsx-vk__ps${tick ? " is-on" : ""}`}>
-                        <label className="thsx-vk__opt thsx-vk__opt--ps">
-                          <input type="checkbox" checked={tick} onChange={() => tickPs(p)} />
-                          <span className="thsx-vk__main"><span className="thsx-vk__ten">{p.ten}</span></span>
-                          <span className="thsx-vk__gia thsx-num">{giaKhoan(p)}</span>
-                        </label>
-                        {tick && (
-                          <div className="thsx-vk__sl">
-                            <input type="number" min={0} step="any" inputMode="decimal" autoFocus
-                              className="thsx-x-in thsx-glass-in thsx-glass-in--num" placeholder="Số lượng"
-                              aria-label={`Số lượng ${p.ten}`} value={psSl[p.id]}
-                              onChange={(e) => setPsSl((cu) => ({ ...cu, [p.id]: e.target.value }))} />
-                            <span className="thsx-vk__dv">{p.don_vi_ten ?? nhanDonVi(p.don_vi)}</span>
-                            {sai && <span className="thsx-x-err thsx-glass-err">Phải lớn hơn 0</span>}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+          </div>
+        )}
+
+        {/* Khối Thời gian */}
+        <div className="thsx-time-section">
+          <div className="thsx-glass-time-grid thsx-x-grid2">
+            <Field label="Bắt đầu">
+              <input type="datetime-local" className="thsx-x-in thsx-glass-in" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
+                value={batDau} onChange={(e) => setBatDau(e.target.value)} />
+            </Field>
+            <Field label="Kết thúc">
+              <input type="datetime-local" className="thsx-x-in thsx-glass-in" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
+                value={ketThuc} onChange={(e) => setKetThuc(e.target.value)} />
+            </Field>
+          </div>
+
+          {/* Quick preset time buttons & duration badge */}
+          <div className="thsx-time-presets">
+            <div className="thsx-time-presets__btns">
+              {batDauMacDinh && batDau !== batDauMacDinh && (
+                <button type="button" className="thsx-chip-btn" onClick={() => setBatDau(batDauMacDinh)}>
+                  ⏮ Nối mẻ trước
+                </button>
+              )}
+              <button type="button" className="thsx-chip-btn" onClick={() => setKetThuc(nowDtLocal())}>
+                📍 Bây giờ
+              </button>
+              <button type="button" className="thsx-chip-btn" onClick={() => setKetThuc((cu) => shiftMinutesLocal(cu || nowDtLocal(), -15))}>
+                -15p
+              </button>
+              <button type="button" className="thsx-chip-btn" onClick={() => setKetThuc((cu) => shiftMinutesLocal(cu || nowDtLocal(), -30))}>
+                -30p
+              </button>
+            </div>
+            {durationStr && (
+              <span className="thsx-duration-badge" title="Tổng thời gian mẻ sản xuất">
+                <Icon name="clock" size={12} /> {durationStr}
+              </span>
             )}
           </div>
-        ) : (
-          <p className="thsx-x-hint">Công đoạn chưa cấu hình Khoán — vẫn có thể ghi mẻ sản lượng.</p>
+        </div>
+
+        {ketThucTuongLai && (
+          <span className="thsx-x-err thsx-glass-err">Giờ kết thúc đang ở sau lúc này — chỉ ghi mẻ đã làm xong.</span>
         )}
-      </div>
 
-      <div className="thsx-glass-time-grid thsx-x-grid2">
-        <Field label="Bắt đầu">
-          <input type="datetime-local" className="thsx-x-in thsx-glass-in" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
-            value={batDau} onChange={(e) => setBatDau(e.target.value)} />
+        {/* Ô Nhập Số Lượng & Quick Step Chips */}
+        <div className="thsx-qty-field-group">
+          <Field label="Số lượng làm được">
+            <div className="thsx-qty-input-wrapper">
+              <input type="number" min={0} className="thsx-x-in thsx-glass-in thsx-glass-in--num thsx-qty-input"
+                aria-label="Số lượng làm được"
+                placeholder="0" value={soLuong} onChange={(e) => setSoLuong(e.target.value)}
+                inputMode="numeric" />
+              <span className="thsx-input-unit-badge">{donViHienThi}</span>
+            </div>
+          </Field>
+
+          {/* Quick Step Buttons */}
+          <div className="thsx-quick-qty-chips">
+            <span className="thsx-quick-qty-label">Cộng nhanh:</span>
+            <button type="button" className="thsx-chip-btn" onClick={() => insertQuickQty(10)}>+10</button>
+            <button type="button" className="thsx-chip-btn" onClick={() => insertQuickQty(50)}>+50</button>
+            <button type="button" className="thsx-chip-btn" onClick={() => insertQuickQty(100)}>+100</button>
+            <button type="button" className="thsx-chip-btn" onClick={() => insertQuickQty(1000)}>+1.000</button>
+            {tranGhi && tranGhi.con_ghi_duoc > 0.0005 && (
+              <button type="button" className="thsx-chip-btn thsx-chip-btn--accent" onClick={() => setSoLuong(tranGhi.con_ghi_duoc.toString())}>
+                Max ({num(tranGhi.con_ghi_duoc)})
+              </button>
+            )}
+            <button type="button" className="thsx-chip-btn thsx-chip-btn--danger" onClick={() => setSoLuong("0")}>Xoá (0)</button>
+          </div>
+        </div>
+
+        {vuotTran && tranGhi && tranGhi.con_ghi_duoc > 0.0005 && (
+          <span className="thsx-x-err thsx-glass-err">
+            Vượt {tranGhi.cung_to ? "sản lượng" : "số nhận từ"} công đoạn trước — mẻ này ghi tối đa {num(tranGhi.con_ghi_duoc)}.
+          </span>
+        )}
+
+        <Field label="Ghi chú">
+          <input type="text" className="thsx-x-in thsx-glass-in" value={ghiChu} onChange={(e) => setGhiChu(e.target.value)}
+            placeholder="Tuỳ chọn" />
         </Field>
-        <Field label="Kết thúc">
-          <input type="datetime-local" className="thsx-x-in thsx-glass-in" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
-            value={ketThuc} onChange={(e) => setKetThuc(e.target.value)} />
-        </Field>
-      </div>
-      {ketThucTuongLai && (
-        <span className="thsx-x-err thsx-glass-err">Giờ kết thúc đang ở sau lúc này — chỉ ghi mẻ đã làm xong.</span>
-      )}
-
-      <Field label="Số lượng làm được">
-        <input type="number" min={0} className="thsx-x-in thsx-glass-in thsx-glass-in--num"
-          placeholder="Gõ số — không làm được gì thì gõ 0" value={soLuong} onChange={(e) => setSoLuong(e.target.value)}
-          inputMode="numeric" />
-      </Field>
-      {tranGhi && (
-        <p className={`thsx-x-hint${tranGhi.con_ghi_duoc <= 0.0005 ? " thsx-x-hint--canh" : ""}`}>
-          {tranGhi.con_ghi_duoc > 0.0005
-            ? <>Còn ghi được tối đa <b>{num(tranGhi.con_ghi_duoc)}</b> — {cauTranGhi(tranGhi)}.</>
-            : <>Hết số {tranGhi.cung_to ? "bước trước làm ra" : "đã nhận"} ({cauTranGhi(tranGhi)}) — chỉ ghi được mẻ 0 cho tới khi công đoạn trước {tranGhi.cung_to ? "làm" : "giao"} thêm.</>}
-        </p>
-      )}
-      {vuotTran && tranGhi && tranGhi.con_ghi_duoc > 0.0005 && (
-        <span className="thsx-x-err thsx-glass-err">
-          Vượt {tranGhi.cung_to ? "sản lượng" : "số nhận từ"} công đoạn trước — mẻ này ghi tối đa {num(tranGhi.con_ghi_duoc)}.
-        </span>
-      )}
-
-      <Field label="Ghi chú">
-        <input type="text" className="thsx-x-in thsx-glass-in" value={ghiChu} onChange={(e) => setGhiChu(e.target.value)}
-          placeholder="Tuỳ chọn" />
-      </Field>
-    </ThsxModal>
+      </ThsxModal>
+    </div>
   );
 }
 
@@ -659,18 +830,23 @@ function BanGiaoSection({
   const buocCuoi = chiTiet.ban_giao_chang_sau.length === 0;
 
   return (
-    <section className="thsx-psec thsx-x">
+    <section className="thsx-psec thsx-x thsx-psec-card">
       <div className="thsx-psec__h">
-        <span className="thsx-psec__title"><Icon name="truck" size={13} /> Bàn giao</span>
+        <span className="thsx-psec__title">
+          <span className="thsx-psec__icon-badge thsx-psec__icon-badge--cyan"><Icon name="truck" size={13} /></span> Bàn giao
+        </span>
         {canAssign && !buocCuoi && (
-          <Button variant="ghost" onClick={() => setFormOpen(true)} disabled={busy} aria-haspopup="dialog">
+          <Button variant="secondary" onClick={() => setFormOpen(true)} disabled={busy} aria-haspopup="dialog">
             <Icon name="send" size={13} /> Đề xuất giao
           </Button>
         )}
       </div>
 
       {buocCuoi && (
-        <p className="thsx-note">Bước cuối của lệnh — không bàn giao; thành phẩm vào kho qua KCS kiểm và đề nghị nhập kho.</p>
+        <div className="thsx-empty-state-card thsx-empty-state-card--info">
+          <div className="thsx-empty-state-ic-wrap"><Icon name="info" size={16} /></div>
+          <span className="thsx-empty-state-title">Bước cuối của lệnh — không bàn giao; thành phẩm vào kho qua KCS kiểm và đề nghị nhập kho.</span>
+        </div>
       )}
       {formOpen && !buocCuoi && (
         <BanGiaoForm chiTiet={chiTiet} conLai={conLai}
@@ -678,18 +854,21 @@ function BanGiaoSection({
       )}
 
       {di.length > 0 && (
-        <>
-          <div className="thsx-x-sub">Giao đi</div>
-          <ul className="thsx-x-list">
+        <ul className="thsx-x-list">
             {di.map((g) => (
               <BanGiaoRow key={g.id} g={g} phia="di" canAssign={canAssign} busy={busy} exec={exec}
                 batches={chiTiet.san_luong.batches} conLai={conLai} />
             ))}
           </ul>
-        </>
       )}
       {di.length === 0 && !buocCuoi && (
-        <p className="thsx-note">Chưa giao đi lần nào. Hàng công đoạn trước giao đến nằm ở tab Nhận.</p>
+        <div className="thsx-empty-state-card">
+          <div className="thsx-empty-state-ic-wrap"><Icon name="truck" size={16} /></div>
+          <div className="thsx-empty-state-content">
+            <span className="thsx-empty-state-title">Chưa giao đi lần nào.</span>
+            <span className="thsx-empty-state-sub">Hàng công đoạn trước giao đến nằm ở tab Nhận.</span>
+          </div>
+        </div>
       )}
     </section>
   );
@@ -705,34 +884,27 @@ export function ThsxNhanVe({
 }) {
   const canXacNhan = !!chiTiet.quyen?.confirm_output;
   const den = chiTiet.ban_giao_den ?? [];
-  const cho = den.filter((g) => g.trang_thai === "proposed");
-  const xong = den.filter((g) => g.trang_thai !== "proposed");
-  const truoc = chiTiet.cong_doan_truoc ?? [];
+  const cho = den.filter(choBenNhan);
+  const xong = den.filter((g) => !choBenNhan(g));
+  // Bước trước cùng tổ + cùng lệnh thì hàng không qua bàn giao — danh sách trống là ĐÚNG, phải nói
+  // ra, kẻo tổ đi tìm một lần giao không bao giờ có.
+  const cungTo = (chiTiet.cong_doan_truoc ?? []).filter((c) => c.cung_to).map((c) => c.ten_cong_doan);
 
+  // CHỈ các lần nhận (27/09/2026): tổ cần biết nhận mấy lần, mỗi lần bao nhiêu, từ công đoạn nào.
+  // Khối "Công đoạn trước" (thực tế · giao sang · đã nhận) bỏ: ba ô tổng đó lặp lại chính các dòng
+  // bên dưới. Câu "chưa nhận hàng thì chưa bắt đầu được" đã nằm ở chân ngăn.
   return (
-    <>
-    {truoc.length > 0 && (
-      <section className="thsx-psec thsx-x">
-        <div className="thsx-psec__h">
-          <span className="thsx-psec__title"><Icon name="layers" size={13} /> Công đoạn trước</span>
-        </div>
-        <ul className="thsx-x-list">
-          {truoc.map((c) => <CongDoanTruocRow key={c.cong_viec_id} c={c} />)}
-        </ul>
-        {(chiTiet.thieu_dau_vao ?? []).length > 0 && (chiTiet.trang_thai === "released" || chiTiet.trang_thai === "paused") && (
-          <p className="thsx-note thsx-note--warn">
-            <Icon name="alert" size={12} /> Chưa nhận hàng từ {(chiTiet.thieu_dau_vao ?? []).join(", ")} — chưa{" "}
-            {chiTiet.trang_thai === "paused" ? "tiếp tục" : "bắt đầu"} được công đoạn này.
-          </p>
-        )}
-      </section>
-    )}
     <section className="thsx-psec thsx-x">
       <div className="thsx-psec__h">
-        <span className="thsx-psec__title"><Icon name="packageCheck" size={13} /> Bàn giao đến</span>
+        <span className="thsx-psec__title"><Icon name="packageCheck" size={13} /> Các lần nhận</span>
+        {den.length > 0 && <span className="thsx-psec__meta thsx-num">{den.length} lần</span>}
       </div>
       {den.length === 0 ? (
-        <p className="thsx-note">Chưa có bàn giao nào đến công đoạn này.</p>
+        <p className="thsx-note">
+          {cungTo.length > 0
+            ? `${cungTo.join(", ")} cùng tổ — hàng không qua bàn giao, bước đó làm ra bao nhiêu thì ghi mẻ được bấy nhiêu.`
+            : "Chưa nhận lần nào từ công đoạn trước."}
+        </p>
       ) : (
         <ul className="thsx-x-list">
           {[...cho, ...xong].map((g) => (
@@ -744,62 +916,6 @@ export function ThsxNhanVe({
         <p className="thsx-note">Xác nhận nhận hàng cần quyền Xác nhận sản lượng của tổ.</p>
       )}
     </section>
-    </>
-  );
-}
-
-/** Một công đoạn đứng trước theo routing lệnh (`dau_vao.cong_doan_truoc`): kế hoạch, thực tế (cộng
- *  các mẻ), đã giao sang công đoạn này và phần tổ mình đã xác nhận nhận. */
-function CongDoanTruocRow({ c }: { c: SxCongDoanTruoc }) {
-  const dv = c.don_vi ? nhanDonVi(c.don_vi) : "";
-  const dvGiao = c.don_vi_giao ? nhanDonVi(c.don_vi_giao) : dv;
-  const lan = c.phan_doan_tong > 1 ? ` · lần ${c.phan_doan_so}/${c.phan_doan_tong}` : "";
-  const so = (v: number | null, d: string) => (
-    <span className="thsx-metric-val thsx-num">
-      {num(v)}{v != null && d ? <span className="thsx-metric-unit"> {d}</span> : null}
-    </span>
-  );
-  return (
-    <li className="thsx-x-bg">
-      <div className="thsx-x-bg__main">
-        <Icon name="layers" size={13} className="thsx-x-bg__ic" />
-        <span className="thsx-x-bg__to"><b>{c.ten_cong_doan}</b>{lan}{c.to_ten ? ` · ${c.to_ten}` : ""}</span>
-        <span className="thsx-x-item__spacer" />
-        <span className={`thsx-x-pill ${c.trang_thai === "completed" ? "thsx-x-pill--ok" : "thsx-x-pill--adj"}`}>
-          {KCS_CD_TRANG_THAI[c.trang_thai] ?? c.trang_thai}
-        </span>
-      </div>
-      {/* Cùng tổ + cùng lệnh: hàng chưa rời tổ nên KHÔNG có bàn giao (`dau_vao.cung_to_cung_lsx`).
-          Bày hai ô Giao sang / Đã nhận đứng 0 mãi là đẩy tổ đi tìm một cái nút không tồn tại. */}
-      <div className="thsx-batch-metric-strip">
-        <div className="thsx-batch-metric-tile">
-          <span className="thsx-metric-lbl">Kế hoạch</span>{so(c.ke_hoach, dv)}
-        </div>
-        <div className="thsx-batch-metric-tile" title="Cộng các mẻ công đoạn đó đã ghi">
-          <span className="thsx-metric-lbl">Thực tế</span>{so(c.thuc_te, dv)}
-        </div>
-        {!c.cung_to && (<>
-          <div className="thsx-batch-metric-tile">
-            <span className="thsx-metric-lbl">Giao sang</span>{so(c.da_giao, dvGiao)}
-          </div>
-          <div className="thsx-batch-metric-tile">
-            <span className="thsx-metric-lbl">Đã nhận</span>{so(c.da_xac_nhan, dvGiao)}
-          </div>
-        </>)}
-      </div>
-      {c.cung_to && (
-        <div className="thsx-x-bg__sub">
-          <span>Cùng tổ, cùng lệnh — hàng chưa rời tổ nên không phải bàn giao. Bước này làm ra bao
-          nhiêu thì bên đây ghi mẻ được bấy nhiêu.</span>
-        </div>
-      )}
-      {c.cho_xac_nhan > 0 && (
-        <div className="thsx-x-bg__sub">
-          <span className="thsx-x-pill thsx-x-pill--wait">chờ xác nhận</span>
-          <span><b className="thsx-num">{num(c.cho_xac_nhan)}</b>{dvGiao ? ` ${dvGiao}` : ""} — xác nhận ở “Bàn giao đến” bên dưới.</span>
-        </div>
-      )}
-    </li>
   );
 }
 
@@ -946,74 +1062,105 @@ function BanGiaoRow({
   const [suaOpen, setSuaOpen] = useState(false);
   const [dcOpen, setDcOpen] = useState(false);
   const [lsOpen, setLsOpen] = useState(false);
-  const st = BG_TT[g.trang_thai] ?? { txt: g.trang_thai, cls: "thsx-x-pill--wait" };
+  const st = choXacNhanLai(g)
+    ? { txt: "chờ xác nhận lại", cls: "thsx-x-pill--wait" }
+    : BG_TT[g.trang_thai] ?? { txt: g.trang_thai, cls: "thsx-x-pill--wait" };
   const dv = g.don_vi ? ` ${nhanDonVi(g.don_vi)}` : "";
   const daXacNhan = g.trang_thai === "confirmed" || g.trang_thai === "adjusted";
   // Mẻ sửa được = mẻ chưa đi theo lần giao nào + mẻ của chính lần giao này.
   const meSua = batches.filter((b) => b.tot > 0 && (!b.da_ban_giao || g.batch_ids.includes(b.id)));
-  // Nguồn (đi) sửa mẻ khi còn 'proposed'; đích (đến) xác nhận khi 'proposed'; điều chỉnh khi đã xác nhận.
+  // Nguồn (đi) sửa mẻ khi còn 'proposed'; đích (đến) CHỈ xác nhận khi 'proposed'. Điều chỉnh số đã
+  // xác nhận là việc của BÊN GIAO (27/09/2026) — bên nhận đếm lệch thì báo bên giao sửa, rồi xác
+  // nhận lại số mới.
   const canSua = canAssign && phia === "di" && g.trang_thai === "proposed" && meSua.length > 0;
-  const canXac = canAssign && phia === "den" && g.trang_thai === "proposed";
-  const canDc = canAssign && daXacNhan;
+  const canXac = canAssign && phia === "den" && choBenNhan(g);
+  const canDc = canAssign && phia === "di" && daXacNhan;
 
   return (
-    <li className="thsx-x-bg">
-      <div className="thsx-x-bg__main">
-        <Icon name={phia === "di" ? "send" : "packageCheck"} size={13} className="thsx-x-bg__ic" />
-        <span className="thsx-x-bg__to">{g.doi_tac_ten || (phia === "di" && g.doi_tac_cong_viec_id == null ? "Kho" : "")}{g.cung_to && <span className="thsx-x-tag-ht">cùng tổ</span>}</span>
-        {g.batch_ids.length > 0 && <span className="thsx-x-bg__me thsx-num">{g.batch_ids.length} mẻ</span>}
-        <span className="thsx-x-item__spacer" />
-        <span className="thsx-x-bg__q thsx-num">{num(g.so_luong)}{dv}</span>
+    <li className="thsx-x-bg thsx-handover-card-v2">
+      {/* Đầu thẻ: bao nhiêu + trạng thái. Công đoạn/tổ hai bên nằm ở tuyến bên dưới — không nhắc lại. */}
+      <div className="thsx-handover-card__head">
+        <div className="thsx-handover-card__qty-val">
+          {num(g.so_luong)}<small>{dv}</small>
+          {g.batch_ids.length > 0 && <span className="thsx-handover-card__me">· {g.batch_ids.length} mẻ</span>}
+          {g.cung_to && <span className="thsx-x-tag-ht">cùng tổ</span>}
+        </div>
         <span className={`thsx-x-pill ${st.cls}`}>{st.txt}</span>
       </div>
-      {/* Ai giao, ai nhận, lúc nào — tổ giao và tổ nhận đọc cùng một dòng. */}
-      <div className="thsx-x-bg__sub">
-        <span>Giao: <b>{g.nguoi_de_xuat ?? "—"}</b>{g.de_xuat_luc && <span className="thsx-num"> · {ngayGio(g.de_xuat_luc)}</span>}</span>
-        <span>
-          Nhận:{" "}
-          {g.xac_nhan_luc == null ? "chưa xác nhận"
-            : g.cung_to ? "tự nhận (cùng tổ)"
+
+      {/* Tuyến giao → nhận: mỗi bên công đoạn · tổ · ai · lúc nào. */}
+      <div className="thsx-handover-card__route">
+        <BenBanGiao
+          nhan="Giao"
+          cd={g.nguon_cong_doan ?? (phia === "den" ? g.doi_tac_ten : null)}
+          to={g.nguon_to}
+          ai={<><b>{g.nguoi_de_xuat ?? "—"}</b>{g.de_xuat_luc && <span className="thsx-num"> · {ngayGio(g.de_xuat_luc)}</span>}</>}
+        />
+        <Icon name="arrowRight" size={14} className="thsx-handover-card__route-arrow" />
+        <BenBanGiao
+          nhan="Nhận"
+          cd={g.dich_cong_doan ?? (phia === "di" ? (g.doi_tac_ten || "Kho") : null)}
+          to={g.dich_to}
+          cho={g.xac_nhan_luc == null}
+          ai={g.xac_nhan_luc == null ? "Chưa xác nhận"
+            : g.cung_to ? "Tự nhận (cùng tổ)"
               : <><b>{g.nguoi_xac_nhan ?? "—"}</b><span className="thsx-num"> · {ngayGio(g.xac_nhan_luc)}</span></>}
-        </span>
+        />
+      </div>
+
+      {/* Action Footer & History Toggle Button */}
+      <div className="thsx-handover-card__foot">
+        {canAssign && (canSua || canXac || canDc) && (
+          <div className="thsx-x-act thsx-x-act--row">
+            {canXac && (
+              <Button variant="accent" onClick={() => void exec.xacNhanBanGiao(g.id, g.version)} disabled={busy}>
+                <Icon name="check" size={13} /> Xác nhận
+              </Button>
+            )}
+            {canSua && (
+              <Button variant="ghost" onClick={() => { setSuaOpen((o) => !o); setDcOpen(false); }} disabled={busy}>
+                <Icon name="pencil" size={12} /> Sửa mẻ
+              </Button>
+            )}
+            {canDc && (
+              <Button variant="ghost" onClick={() => { setDcOpen((o) => !o); setSuaOpen(false); }} disabled={busy}>
+                <Icon name="edit" size={12} /> Điều chỉnh
+              </Button>
+            )}
+          </div>
+        )}
+
         {g.dieu_chinh.length > 0 && (
-          <button type="button" className="thsx-x-linkbtn" aria-expanded={lsOpen} onClick={() => setLsOpen((o) => !o)}>
-            Đã điều chỉnh {g.dieu_chinh.length} lần
+          <button type="button" className="thsx-adj-history-btn" aria-expanded={lsOpen} onClick={() => setLsOpen((o) => !o)}>
+            <Icon name="history" size={11} /> Đã điều chỉnh {g.dieu_chinh.length} lần
+            <Icon name="chevron" size={10} className="thsx-adj-chevron" style={{ transform: lsOpen ? "rotate(180deg)" : "none" }} />
           </button>
         )}
       </div>
+
       {lsOpen && (
-        <ol className="thsx-x-bg__ls" aria-label="Lịch sử điều chỉnh">
+        <ol className="thsx-audit-log-timeline" aria-label="Lịch sử điều chỉnh">
           {g.dieu_chinh.map((d, i) => (
-            <li key={i}>
-              <span className="thsx-num">{ngayGio(d.luc)}</span> · <b>{d.nguoi ?? "—"}</b> ·{" "}
-              <span className="thsx-num">{num(d.so_luong_truoc)} → {num(d.so_luong_sau)}{dv}</span>
-              {d.mo_ta && <> · {d.mo_ta}</>}
-              {d.khong_nhat_quan && <span className="thsx-x-bg__lech"> · thấp hơn số công đoạn sau đã dùng</span>}
+            <li key={i} className="thsx-audit-log-item">
+              <div className="thsx-audit-log-header">
+                <span className="thsx-audit-log-time thsx-num">{ngayGio(d.luc)}</span>
+                <span className="thsx-audit-log-user"><b>{d.nguoi ?? "—"}</b></span>
+                <span className="thsx-audit-log-delta thsx-num">
+                  {num(d.so_luong_truoc)} ➔ <b>{num(d.so_luong_sau)}</b>{dv}
+                </span>
+              </div>
+              {d.mo_ta && <div className="thsx-audit-log-note">“{d.mo_ta}”</div>}
+              {d.khong_nhat_quan && (
+                <div className="thsx-audit-log-warn">
+                  <Icon name="alert" size={11} /> Thấp hơn số công đoạn sau đã dùng
+                </div>
+              )}
             </li>
           ))}
         </ol>
       )}
       {g.khong_nhat_quan && (
         <p className="thsx-note thsx-note--warn"><Icon name="alert" size={12} /> Số nhận không khớp số giao.</p>
-      )}
-      {canAssign && (canSua || canXac || canDc) && (
-        <div className="thsx-x-act thsx-x-act--row">
-          {canXac && (
-            <Button variant="accent" onClick={() => void exec.xacNhanBanGiao(g.id, g.version)} disabled={busy}>
-              <Icon name="check" size={13} /> Xác nhận
-            </Button>
-          )}
-          {canSua && (
-            <Button variant="ghost" onClick={() => { setSuaOpen((o) => !o); setDcOpen(false); }} disabled={busy}>
-              <Icon name="pencil" size={12} /> Sửa mẻ
-            </Button>
-          )}
-          {canDc && (
-            <Button variant="ghost" onClick={() => { setDcOpen((o) => !o); setSuaOpen(false); }} disabled={busy}>
-              <Icon name="edit" size={12} /> Điều chỉnh
-            </Button>
-          )}
-        </div>
       )}
       {suaOpen && (
         <SuaMeForm g={g} me={meSua} conLai={conLai} busy={busy}
@@ -1060,7 +1207,7 @@ function SuaMeForm({
   );
 }
 
-function DieuChinhForm({
+export function DieuChinhForm({
   g, busy, onHuy, onXong, exec,
 }: {
   g: SxBanGiao; busy: boolean;
@@ -1070,6 +1217,7 @@ function DieuChinhForm({
   const [moTa, setMoTa] = useState("");
   const nSl = toNum(slSau);
   const hopLe = nSl > 0;
+  const chenhLech = nSl - g.so_luong;
 
   async function luu() {
     const body: SxBanGiaoDieuChinhIn = {
@@ -1078,22 +1226,124 @@ function DieuChinhForm({
     if (await exec.dieuChinhBanGiao(g.id, body)) onXong();
   }
 
-  return (
-    <div className="thsx-x-form thsx-x-form--sub">
-      <Field label={`Số lượng sau${g.don_vi ? ` (${nhanDonVi(g.don_vi)})` : ""}`}>
-        <input type="number" min={0} className="thsx-x-in" value={slSau} onChange={(e) => setSlSau(e.target.value)} inputMode="numeric" />
-      </Field>
-      <Field label="Mô tả">
-        <input type="text" className="thsx-x-in" value={moTa} onChange={(e) => setMoTa(e.target.value)}
-          placeholder="Điều chỉnh vì sao? (tuỳ chọn)" />
-      </Field>
-      <div className="thsx-x-act">
-        <Button variant="ghost" onClick={onHuy} disabled={busy}>Huỷ</Button>
-        <Button variant="accent" onClick={luu} disabled={busy || !hopLe}>
-          <Icon name="check" size={13} /> Điều chỉnh
-        </Button>
-      </div>
-    </div>
+  const adjustStepper = (delta: number) => {
+    const nextVal = Math.max(0, nSl + delta);
+    setSlSau(String(nextVal));
+  };
+
+  const handleChipClick = (chipText: string) => {
+    if (!moTa) {
+      setMoTa(chipText);
+    } else if (!moTa.includes(chipText)) {
+      setMoTa(`${moTa}, ${chipText}`);
+    }
+  };
+
+  // Quick reason chips (bỏ: Bù hao bế, Hỏng mảng)
+  const reasonChips = ["Đếm lại", "Gõ nhầm", "Giao thiếu", "Bổ sung"];
+
+  const dv = g.don_vi ? nhanDonVi(g.don_vi) : "";
+  // POPUP (27/09/2026), cùng khuôn hộp Ghi mẻ — form mở ngay trong dòng bị lẫn vào danh sách giao.
+  // PORTAL ra khung drawer (`.thsx-panel--open`) — đúng chỗ hộp Ghi mẻ đứng: ô dòng giao
+  // (`.thsx-x-bg`) tạo khung chứa riêng nên lớp phủ `fixed` bị nhốt trong ô đó; ra `body` thì lại
+  // lệch sang giữa cả màn, không giống Ghi mẻ (nằm giữa drawer).
+  return createPortal(
+    <div onKeyDown={(e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && hopLe && !busy) {
+        e.preventDefault();
+        void luu();
+      }
+    }}>
+      <ThsxModal
+        title="Điều chỉnh số giao" icon="edit" busy={busy} onClose={onHuy}
+        footer={
+          <div className="thsx-modal-ftr-row">
+            <span className="thsx-shortcut-badge">
+              <kbd>Ctrl</kbd> + <kbd>↵</kbd> để lưu
+            </span>
+            <div className="thsx-modal-ftr-btns">
+              <Button variant="ghost" onClick={onHuy} disabled={busy}>Huỷ</Button>
+              <Button variant="accent" onClick={luu} disabled={busy || !hopLe}>
+                <Icon name="check" size={13} /> Điều chỉnh
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="thsx-dieuchinh-card">
+          <div className="thsx-dieuchinh-card__header">
+            <span className="thsx-dieuchinh-card__lbl">Công đoạn nhận:</span>
+            <span className="thsx-dieuchinh-card__badge">
+              <Icon name="arrowRight" size={11} /> {g.doi_tac_ten || "Công đoạn sau"}
+            </span>
+          </div>
+          <div className="thsx-dieuchinh-card__grid">
+            <div className="thsx-dieuchinh-stat">
+              <span className="thsx-dieuchinh-stat__title">Số hiện tại</span>
+              <span className="thsx-dieuchinh-stat__num">{num(g.so_luong)} {dv ? <small>{dv}</small> : null}</span>
+            </div>
+            <div className="thsx-dieuchinh-stat thsx-dieuchinh-stat--new">
+              <span className="thsx-dieuchinh-stat__title">Số sau điều chỉnh</span>
+              <span className="thsx-dieuchinh-stat__num">
+                {slSau.trim() !== "" ? num(nSl) : "0"} {dv ? <small>{dv}</small> : null}
+                {slSau.trim() !== "" && Math.abs(chenhLech) > 0.0001 && (
+                  <span className={`thsx-delta-tag ${chenhLech > 0 ? "thsx-delta-tag--up" : "thsx-delta-tag--down"}`}>
+                    <Icon name={chenhLech > 0 ? "plus" : "minus"} size={10} />
+                    {chenhLech > 0 ? `+${num(chenhLech)}` : num(chenhLech)}
+                  </span>
+                )}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <Field label={`Số lượng sau${dv ? ` (${dv})` : ""}`}>
+          <div className="thsx-input-wrapper">
+            <input type="number" min={0} className="thsx-x-in thsx-glass-in thsx-glass-in--num" value={slSau}
+              onChange={(e) => setSlSau(e.target.value)} inputMode="numeric" />
+            {dv && <span className="thsx-input-suffix">{dv}</span>}
+          </div>
+          <div className="thsx-stepper-group">
+            <div className="thsx-stepper-segment">
+              <button type="button" className="thsx-stepper-btn" onClick={() => adjustStepper(-100)}>-100</button>
+              <button type="button" className="thsx-stepper-btn" onClick={() => adjustStepper(-10)}>-10</button>
+              <button type="button" className="thsx-stepper-btn" onClick={() => adjustStepper(10)}>+10</button>
+              <button type="button" className="thsx-stepper-btn" onClick={() => adjustStepper(100)}>+100</button>
+            </div>
+            {nSl !== g.so_luong && (
+              <button type="button" className="thsx-stepper-btn thsx-stepper-btn--reset" onClick={() => setSlSau(String(g.so_luong))}>
+                <Icon name="refresh" size={11} /> Khôi phục ({num(g.so_luong)})
+              </button>
+            )}
+          </div>
+        </Field>
+
+        <Field label="Mô tả lý do điều chỉnh">
+          <input type="text" className="thsx-x-in thsx-glass-in" value={moTa} onChange={(e) => setMoTa(e.target.value)}
+            placeholder="Điều chỉnh vì sao? (tuỳ chọn)" />
+          <div className="thsx-chip-group">
+            {reasonChips.map((chip) => (
+              <button key={chip} type="button" className={`thsx-chip-item ${moTa.includes(chip) ? "thsx-chip-item--active" : ""}`}
+                onClick={() => handleChipClick(chip)}>
+                <Icon name="plus" size={10} /> {chip}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {!g.cung_to && (
+          <div className="thsx-notice-box">
+            <div className="thsx-notice-box__icon">
+              <Icon name="info" size={16} />
+            </div>
+            <div className="thsx-notice-box__text">
+              Số mới sẽ gửi yêu cầu xác nhận lại cho đại diện tổ <b>{g.doi_tac_ten || "bên nhận"}</b>.
+            </div>
+          </div>
+        )}
+      </ThsxModal>
+    </div>,
+    document.querySelector(".thsx-panel--open") ?? document.body,
   );
 }
 
@@ -1151,9 +1401,11 @@ function VatTuSection({
   const trangThaiKho = chiTiet.vat_tu.length === 0 ? "Chưa xuất" : coKcsDaXuat ? "Đã xuất kho" : "Chờ nhận";
 
   return (
-    <section className="thsx-psec thsx-x">
+    <section className="thsx-psec thsx-x thsx-psec-card">
       <div className="thsx-psec__h">
-        <span className="thsx-psec__title"><Icon name="warehouse" size={13} /> Vật tư</span>
+        <span className="thsx-psec__title">
+          <span className="thsx-psec__icon-badge thsx-psec__icon-badge--amber"><Icon name="warehouse" size={13} /></span> Vật tư
+        </span>
         {canAssign && cta != null && (
           <Button variant="accent" onClick={() => setFormMode(cta)} disabled={busy} aria-haspopup="dialog">
             <Icon name={VT_CTA[cta].icon} size={13} /> {VT_CTA[cta].txt}
@@ -1190,9 +1442,13 @@ function VatTuSection({
       )}
 
       {cap.doi_chieu.length === 0 ? (
-        <p className="thsx-note">
-          Công đoạn này không có nhu cầu vật tư theo kế hoạch. Vẫn gửi đề nghị được nếu tổ cần xin thêm.
-        </p>
+        <div className="thsx-empty-state-card">
+          <div className="thsx-empty-state-ic-wrap"><Icon name="warehouse" size={16} /></div>
+          <div className="thsx-empty-state-content">
+            <span className="thsx-empty-state-title">Công đoạn này không có nhu cầu vật tư theo kế hoạch.</span>
+            <span className="thsx-empty-state-sub">Vẫn gửi đề nghị được nếu tổ cần xin thêm.</span>
+          </div>
+        </div>
       ) : (
         <table className="thsx-vattu-matrix-tbl thsx-x-tbl">
           <thead>
@@ -1239,11 +1495,10 @@ function VatTuSection({
           onHuy={() => setFormMode(null)} onXong={() => setFormMode(null)} exec={exec} />
       )}
 
-      <div className="thsx-x-sub">Lịch sử đề nghị</div>
       {cap.cac_de_nghi.length === 0 ? (
-        <div className="thsx-vattu-history-empty">
-          <Icon name="history" size={14} />
-          <span>Chưa có lịch sử đề nghị vật tư nào cho công đoạn này.</span>
+        <div className="thsx-empty-state-card thsx-empty-state-card--sm">
+          <div className="thsx-empty-state-ic-wrap"><Icon name="history" size={14} /></div>
+          <span className="thsx-empty-state-title">Chưa có lịch sử đề nghị vật tư nào cho công đoạn này.</span>
         </div>
       ) : (
         <ul className="thsx-x-list">
@@ -1912,11 +2167,13 @@ function HoTroSection({
   const ht = chiTiet.ho_tro;
 
   return (
-    <section className="thsx-psec thsx-x">
+    <section className="thsx-psec thsx-x thsx-psec-card">
       <div className="thsx-psec__h">
-        <span className="thsx-psec__title"><Icon name="users" size={13} /> Hỗ trợ chéo</span>
+        <span className="thsx-psec__title">
+          <span className="thsx-psec__icon-badge thsx-psec__icon-badge--purple"><Icon name="users" size={13} /></span> Hỗ trợ chéo
+        </span>
         {canAssign && (
-          <Button variant="ghost" onClick={() => { onMoChonNguoi?.(); setFormOpen(true); }} disabled={busy} aria-haspopup="dialog">
+          <Button variant="secondary" onClick={() => { onMoChonNguoi?.(); setFormOpen(true); }} disabled={busy} aria-haspopup="dialog">
             <Icon name="plus" size={13} /> Đề xuất hỗ trợ
           </Button>
         )}
@@ -1928,7 +2185,13 @@ function HoTroSection({
       )}
 
       {ht.length === 0 ? (
-        <p className="thsx-note">Chưa có thoả thuận hỗ trợ nào.</p>
+        <div className="thsx-empty-state-card">
+          <div className="thsx-empty-state-ic-wrap"><Icon name="users" size={16} /></div>
+          <div className="thsx-empty-state-content">
+            <span className="thsx-empty-state-title">Chưa có thoả thuận hỗ trợ nào.</span>
+            <span className="thsx-empty-state-sub">Tạo đề xuất hỗ trợ để điều chuyển nhân lực từ tổ khác.</span>
+          </div>
+        </div>
       ) : (
         <ul className="thsx-x-list">
           {ht.map((h) => (

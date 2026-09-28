@@ -22,6 +22,7 @@ from ..deps import (
 from ..models.purchase import PR_DRAFT
 from ..realtime import hub
 from ..models.user import User
+from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.module_notification_repo import (
     CHANNEL_THU_MUA,
@@ -35,6 +36,8 @@ from ..schemas.accounting import (
     CongNoKhoaSoRow,
     CongNoKhoaSoTrangThaiOut,
     CongNoKyRow,
+    GiaCongChoChiDemOut,
+    GiaCongChoChiOut,
     CancelSalesInvoiceIn,
     CancelPaymentReceiptIn,
     CancelPaymentVoucherIn,
@@ -67,6 +70,7 @@ from ..schemas.accounting import (
 )
 from ..schemas.purchase import PurchaseRequestListOut
 from ..services import bao_cao_cong_no, bao_cao_cong_no_excel
+from ..services.gia_cong_ngoai import cho_chi as gc_cho_chi
 from ..services.accounting_service import (
     AccountingBulkBlocked,
     AccountingConflict,
@@ -134,6 +138,21 @@ def _notify_accounting_changed(
         "recipient_user_id": recipient_user_id,
         **extra,
     })
+
+
+def _khoa_gia_cong(svc: AccountingService, gia_cong_ngoai_id: int | None) -> dict:
+    """Lệnh SX (hoặc bài ghép + các lệnh thành viên) của lần gia công — để SSE
+    `gia_cong_ngoai_changed` nạp lại đúng khối trên màn lệnh / màn bài ghép."""
+    if gia_cong_ngoai_id is None:
+        return {"lsx_id": None}
+    from ..services.gia_cong_ngoai.lan import nguon_lan
+
+    db = svc.repo.db
+    gcn = GiaCongNgoaiRepository(db).get(int(gia_cong_ngoai_id))
+    if gcn is None:
+        return {"lsx_id": None}
+    ids = [l["id"] for l in nguon_lan(db, gcn)["lenh"]] or [gcn.lsx_id]
+    return {"lsx_id": ids[0], "lsx_ids": ids, "bai_ghep_id": gcn.bai_ghep_id}
 
 
 def _map_error(exc: Exception) -> HTTPException:
@@ -773,6 +792,24 @@ def list_payment_vouchers(
     return PaymentVoucherListOut(items=rows, total=total, page=page, size=size, **totals)
 
 
+@router.get("/api/accounting/gia-cong-cho-chi", response_model=list[GiaCongChoChiOut])
+def gia_cong_cho_chi(
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
+):
+    """Lần gia công ngoài đã chốt số, chưa có phiếu chi (spec gia công ngoài §5). Tiền gia
+    công hiện cho mọi người xem được màn — chủ chốt 27/09/2026, KHÔNG gác `kho:view_cost`."""
+    return gc_cho_chi.hang_cho_chi(db)
+
+
+@router.get("/api/accounting/gia-cong-cho-chi/dem", response_model=GiaCongChoChiDemOut)
+def gia_cong_cho_chi_dem(
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
+):
+    return {"so": gc_cho_chi.dem_cho_chi(db)}
+
+
 @router.get("/api/accounting/payment-vouchers/{voucher_id}", response_model=PaymentVoucherOut)
 def get_payment_voucher(
     voucher_id: int,
@@ -810,6 +847,15 @@ def create_payment_voucher(
         actor_user_id=user.id,
         recipient_user_id=row.get("purchase_created_by_user_id"),
     )
+    if row.get("source_type") == "gia_cong_ngoai":
+        # Hàng "Gia công chờ chi" + badge Phiếu chi + khối Gia công ngoài trên lệnh đổi ngay.
+        # `lsx_id` để FE nạp lại đúng khối trên màn lệnh (Task 13 bắt cả hai khoá).
+        hub.broadcast({"type": "gia_cong_cho_chi_changed"})
+        hub.broadcast({
+            "type": "gia_cong_ngoai_changed",
+            "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id"),
+            **_khoa_gia_cong(svc, row.get("gia_cong_ngoai_id")),
+        })
     return PaymentVoucherOut(**row)
 
 
@@ -934,6 +980,14 @@ def cancel_payment_voucher(
     if row.get("source_type") == "salary_advance":
         # Huỷ phiếu chi tạm ứng ⇒ cả lô về "Chờ chi" — màn Tạm ứng của HCNS phải thấy ngay.
         hub.broadcast({"type": "advance_pending_changed", "code": row.get("code")})
+    if row.get("source_type") == "gia_cong_ngoai":
+        # Huỷ phiếu chi gia công ngoài ⇒ lần đó về lại "Chờ chi" ngay.
+        hub.broadcast({"type": "gia_cong_cho_chi_changed"})
+        hub.broadcast({
+            "type": "gia_cong_ngoai_changed",
+            "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id"),
+            **_khoa_gia_cong(svc, row.get("gia_cong_ngoai_id")),
+        })
     return PaymentVoucherOut(**row)
 
 

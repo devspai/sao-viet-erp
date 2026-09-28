@@ -20,9 +20,11 @@ import {
   type SupplierItemImportError,
   type SupplierItemInput,
   type SupplierRow,
+  type SupplierTongQuan,
 } from "../../../api/client";
 import { useDebounced } from "../../../utils/useDebounced";
 import { useAuth } from "../../../auth/useAuth";
+import { useKhiTickDoi } from "../../../hooks/useKhiTickDoi";
 import { useCan } from "../../../auth/permissions";
 import { Button } from "../../../components/Button";
 import { Icon } from "../../../components/Icons";
@@ -54,7 +56,7 @@ export function SuppliersPage({
   const canCreate = can("nha_cung_cap", "create");
   const canUpdate = can("nha_cung_cap", "update");
 
-  const [allSuppliers, setAllSuppliers] = useState<SupplierRow[]>([]);
+  const [tongQuan, setTongQuan] = useState<SupplierTongQuan | null>(null);
   const [rows, setRows] = useState<SupplierRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -159,24 +161,19 @@ export function SuppliersPage({
   const [poList, setPoList] = useState<PurchaseRequestRow[]>([]);
   const [poLoading, setPoLoading] = useState(false);
   const [poError, setPoError] = useState<string | null>(null);
+  // Tổng số PMH máy chủ đếm — bảng chỉ lấy 50 phiếu mới nhất, số trên tab phải là số THẬT.
+  const [poTotal, setPoTotal] = useState(0);
 
-  // Load all suppliers (active + inactive) để tính stats — gọi 2 lần riêng biệt rồi merge
-  // tránh phụ thuộc vào backend có hỗ trợ status=null hay không
+  // Thanh đếm + dải nhóm: đếm ở MÁY CHỦ cho toàn danh mục (`/api/suppliers/tong-quan`). Trước
+  // 27/09/2026 là hai lượt danh sách size=500 kéo cả bảng giá về chỉ để đếm — vượt trần size ≤ 200
+  // nên bị 422 và lặng lẽ rơi về đếm trên trang hiện tại.
   const loadAll = useCallback(() => {
     if (!token) return;
-    Promise.all([
-      api.suppliers.list(token, { size: 500, sort: "name", status: "active" }),
-      api.suppliers.list(token, {
-        size: 500,
-        sort: "name",
-        status: "inactive",
-      }),
-    ])
-      .then(([activeRes, inactiveRes]) => {
-        setAllSuppliers([...activeRes.items, ...inactiveRes.items]);
-      })
+    api.suppliers
+      .tongQuan(token)
+      .then(setTongQuan)
       .catch(() => {
-        // non-blocking; stats sẽ fallback về rows
+        // non-blocking; thanh đếm fallback về trang hiện tại
       });
   }, [token]);
 
@@ -215,77 +212,87 @@ export function SuppliersPage({
     load();
   }, [load]);
 
-  useEffect(() => {
-    if (eventTick <= 0 || !token) return;
+  useKhiTickDoi(eventTick, () => {
     loadAll();
     load();
-  }, [eventTick, token, loadAll, load]);
+  });
 
   // Dynamic Supplier Group Pills — chỉ lấy từ data thực, KHÔNG hardcode
   const groupPills = useMemo(() => {
-    const src = allSuppliers.length > 0 ? allSuppliers : rows;
+    if (tongQuan) {
+      return tongQuan.nhom
+        .map((n) => ({ group: n.supplier_group, count: n.so_ncc }))
+        .sort((a, b) => a.group.localeCompare(b.group, "vi"));
+    }
     const fromData = Array.from(
-      new Set(src.map((s) => s.supplier_group).filter(Boolean)),
+      new Set(rows.map((s) => s.supplier_group).filter(Boolean)),
     ) as string[];
     fromData.sort((a, b) => a.localeCompare(b, "vi"));
+    return fromData.map((grp) => ({
+      group: grp,
+      count: rows.filter((s) => s.supplier_group === grp).length,
+    }));
+  }, [tongQuan, rows]);
 
-    return fromData.map((grp) => {
-      const count =
-        allSuppliers.filter((s) => s.supplier_group === grp).length ||
-        rows.filter((s) => s.supplier_group === grp).length;
-      return { group: grp, count };
-    });
-  }, [allSuppliers, rows]);
+  // Dải pill lọc theo nhóm ngành hàng NCC (lấy từ dữ liệu thực).
 
-  // Dải pill lọc theo nhóm ĐANG TẮT (JSX bị comment ở ~500). Giữ nguyên phần tính ở trên để bật
-  // lại chỉ cần bỏ comment khối JSX. `selectedGroup` vẫn chạy thật — nó đi thẳng vào tham số
-  // `supplier_group` của API, chỉ là hiện chưa có nút nào đổi nó. Hai dòng `void` dưới đây chỉ để
-  // TypeScript thôi báo "khai mà không dùng" — không chạy gì, không đổi hành vi.
-  void groupPills;
-  void setSelectedGroup;
-
-  // Metric stats — fallback về rows khi allSuppliers chưa load xong
+  // Metric stats — fallback về trang hiện tại khi tổng quan chưa tải xong
   const stats = useMemo(() => {
-    if (allSuppliers.length > 0) {
+    if (tongQuan) {
       return {
-        totalCount: allSuppliers.length,
-        activeCount: allSuppliers.filter((s) => s.status === "active").length,
-        inactiveCount: allSuppliers.filter((s) => s.status === "inactive")
-          .length,
+        totalCount: tongQuan.tong,
+        activeCount: tongQuan.dang_hop_tac,
+        inactiveCount: tongQuan.tam_ngung,
       };
     }
-    // Fallback: dùng total từ API + rows để có thông tin cơ bản
     return {
       totalCount: total,
       activeCount: rows.filter((s) => s.status === "active").length,
       inactiveCount: rows.filter((s) => s.status === "inactive").length,
     };
-  }, [allSuppliers, rows, total]);
+  }, [tongQuan, rows, total]);
 
-  // Load Purchase Orders when Tab 3 is active and editing existing supplier
+  // Lịch sử PMH của NCC đang mở — nạp NGAY khi mở drawer, MỘT lần cho mỗi NCC (theo `id`).
+  // Trước 27/09/2026 chỉ nạp khi bấm vào tab và nạp lại MỖI lần quay lại tab ⇒ lần nào cũng thấy
+  // vòng "đang tải" rồi bảng mới hiện; số trên tab lại là `poList.length` không được xoá ⇒ mở NCC
+  // khác vẫn hiện số của NCC trước cho tới khi bấm vào tab.
+  const selectedId = selected?.id ?? null;
   useEffect(() => {
-    if (activeTab === "history" && selected && token) {
-      setPoLoading(true);
-      setPoError(null);
-      // api.purchaseRequests.list filters by supplier_id
-      api.purchaseRequests
-        .list(token, { supplier_id: selected.id, size: 50 })
-        .then((res) => {
-          setPoList(res.items);
-        })
-        .catch((err) => {
-          if (err instanceof ApiError) setPoError(err.message);
-          else
-            setPoError("Không tải được lịch sử mua hàng của nhà cung cấp này.");
-        })
-        .finally(() => setPoLoading(false));
+    setPoList([]);
+    setPoTotal(0);
+    setPoError(null);
+    if (selectedId == null || !token) {
+      setPoLoading(false);
+      return;
     }
-  }, [activeTab, selected, token]);
+    let alive = true;
+    setPoLoading(true);
+    api.purchaseRequests
+      .list(token, { supplier_id: selectedId, size: 50 })
+      .then((res) => {
+        if (!alive) return;
+        setPoList(res.items);
+        setPoTotal(res.total);
+      })
+      .catch((err) => {
+        if (!alive) return;
+        if (err instanceof ApiError) setPoError(err.message);
+        else setPoError("Không tải được lịch sử mua hàng của nhà cung cấp này.");
+      })
+      .finally(() => {
+        if (alive) setPoLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [selectedId, token]);
 
   function openCreate() {
     setSelected(null);
     setForm(emptySupplier());
     setFormError(null);
+    // Hệ số theo CHỈ SỐ dòng của NCC trước — không xoá là dòng i của NCC mới mượn số của NCC cũ.
+    setQuyDoiDong({});
     setActiveTab("info");
     setItemSearchQ("");
     setNhapKetQua(null);
@@ -293,11 +300,13 @@ export function SuppliersPage({
     setMode("create");
   }
 
-  function openEdit(row: SupplierRow) {
+  function openEdit(row: SupplierRow, initialTab: "info" | "items" | "history" = "info") {
     setSelected(row);
     setForm(fromSupplier(row));
     setFormError(null);
-    setActiveTab("info");
+    // Hệ số theo CHỈ SỐ dòng của NCC trước — không xoá là dòng i của NCC mới mượn số của NCC cũ.
+    setQuyDoiDong({});
+    setActiveTab(initialTab);
     setItemSearchQ("");
     setNhapKetQua(null);
     setPoList([]);
@@ -471,9 +480,8 @@ export function SuppliersPage({
       />
 
       {/* Lọc nhanh theo nhóm NCC. Nhóm lấy từ dữ liệu thật (`groupPills`), chưa nhóm nào được đặt
-          thì cả dải tự ẩn — không bày ô lọc rỗng. Lọc chạy ở SERVER qua `supplier_group`, nên
-          đếm ở pill là đếm toàn bộ NCC chứ không phải mỗi trang đang xem. */}
-      {/* {groupPills.length > 0 && (
+          thì cả dải tự ẩn — không bày ô lọc rỗng. Lọc chạy ở SERVER qua `supplier_group`. */}
+      {groupPills.length > 0 && (
         <div className="supplier-pills-bar">
           <button
             type="button"
@@ -485,7 +493,7 @@ export function SuppliersPage({
           >
             Tất cả
             <span className="supplier-pill__count">
-              {allSuppliers.length || rows.length}
+              {tongQuan?.tong ?? rows.length}
             </span>
           </button>
           {groupPills.map((p) => (
@@ -503,7 +511,7 @@ export function SuppliersPage({
             </button>
           ))}
         </div>
-      )} */}
+      )}
 
       {error && (
         <div className="banner banner--error" role="alert">
@@ -549,10 +557,19 @@ export function SuppliersPage({
                 </h2>
                 {selected && (
                   <span
-                    className={`md-purchase__status-badge ${
-                      selected.status === "active" ? "is-active" : "is-inactive"
+                    className={`supplier__status-pill ${
+                      selected.status === "active"
+                        ? "supplier__status-pill--active"
+                        : "supplier__status-pill--inactive"
                     }`}
                   >
+                    <span
+                      className={`supplier__status-dot ${
+                        selected.status === "active"
+                          ? "supplier__status-dot--active"
+                          : "supplier__status-dot--inactive"
+                      }`}
+                    />
                     {selected.status === "active" ? "Hoạt động" : "Tạm ngừng"}
                   </span>
                 )}
@@ -576,7 +593,7 @@ export function SuppliersPage({
                 }`}
                 onClick={() => setActiveTab("info")}
               >
-                Thông tin chung
+                1. Thông tin chung
               </button>
 
               <button
@@ -586,7 +603,7 @@ export function SuppliersPage({
                 }`}
                 onClick={() => setActiveTab("items")}
               >
-                Bảng giá vật tư
+                2. Bảng giá vật tư
                 {itemsInForm.length > 0 && (
                   <span className="supplier-tab-count">
                     {itemsInForm.length}
@@ -604,7 +621,12 @@ export function SuppliersPage({
                   }`}
                   onClick={() => setActiveTab("history")}
                 >
-                  Lịch sử mua hàng
+                  3. Lịch sử mua hàng
+                  {poTotal > 0 && (
+                    <span className="supplier-tab-count" style={{ background: "#2563eb" }}>
+                      {poTotal}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
@@ -662,6 +684,7 @@ export function SuppliersPage({
                     mode={mode}
                     selected={selected}
                     poList={poList}
+                    poTotal={poTotal}
                     poLoading={poLoading}
                     poError={poError}
                   />

@@ -326,7 +326,6 @@ def render_pdf(
         # routing ngay bên dưới in đơn vị "bản kẽm". Sai một dấu là tờ giấy nói khác cả hệ.
         [nhan("Số kẽm"), gia_tri(_so(ts.get("so_kem")))],
         [nhan("Số mảnh xả"), gia_tri(_so(ts.get("so_manh_xa")))],
-        [nhan("Loại sản phẩm"), gia_tri(ts.get("loai_san_pham"))],
         [nhan("Ghi chú kỹ thuật"), gia_tri(ts.get("ghi_chu_ky_thuat"))],
     ]
     thong_so_table = Table(thong_so_rows, colWidths=[40 * mm, 130 * mm])

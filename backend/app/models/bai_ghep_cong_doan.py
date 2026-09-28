@@ -24,11 +24,11 @@ Bảng MỚI → `create_all` tự tạo, KHÔNG migration (bám precedent `bai_
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, ForeignKey, Integer, JSON, Numeric, String, Text,
+    Boolean, DateTime, ForeignKey, Integer, JSON, Numeric, String,
     UniqueConstraint, false as sa_false, true as sa_true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -113,16 +113,14 @@ class BaiGhepCongDoan(Base):
     phat_sinh_phut: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, server_default="0", default=0)
     di_chuyen_phut: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, server_default="0", default=0)
 
-    # --- Gia công ngoài (DỰ KIẾN). Bước chung thuê ngoài thì cả bài đi một phiếu, một NCC. ---
+    # --- Gia công ngoài (spec 2026-09-27 §6). Bước chung thuê ngoài ⇒ cả bài đi MỘT lần gia công.
+    # Nhà gia công chọn từ danh mục Nhà cung cấp (tích "Nhận gia công"); `nha_cung_cap` giữ làm TÊN
+    # do máy chủ ghi theo (y `lsx_cong_doan`). Các ô dự kiến cũ (ngày gửi/nhận, số ngày vận
+    # chuyển/gia công, hao hụt cho phép, sl gửi, đơn giá, yêu cầu kỹ thuật) GỠ ở mg `0343`.
+    nha_cung_cap_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("suppliers.id"), index=True, nullable=True
+    )
     nha_cung_cap: Mapped[str | None] = mapped_column(String(150), nullable=True)
-    sl_gui: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    ngay_gui_dk: Mapped[date | None] = mapped_column(Date, nullable=True)
-    van_chuyen_ngay: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
-    gia_cong_ngay: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
-    ngay_nhan_dk: Mapped[date | None] = mapped_column(Date, nullable=True)
-    hao_hut_cho_phep: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    don_gia_gia_cong: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)
-    yeu_cau_ky_thuat: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Ghi chú của BÀI. Ghi chú kỹ thuật của từng lệnh KHÔNG bị đè — service gom lại kèm mã lệnh,
     # vì thợ chạy chung một lượt phải đọc được yêu cầu của mọi khách trên tờ đó.

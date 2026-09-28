@@ -238,6 +238,58 @@ class XepLichLenhRepository:
             )
         return ra
 
+    def thuc_te_buoc_chung(self, lsx_ids: list[int]) -> dict[int, list[tuple]]:
+        """Như `thuc_te_buoc` nhưng cho bước bị BÀI GHÉP phủ: việc chung mang `lsx_id IS NULL`, neo
+        `bai_ghep_cong_doan_id`; đi ngược bảng phủ ra `(lsx_id, lsx_step_key)` để popup Xếp lịch bày
+        được trạng thái thực tế của lượt chung trên dòng bước của từng lệnh. Tuple cùng hình, `cd_id`
+        = None (neo bằng step_key). Ba truy vấn cho cả lô."""
+        from ..models.bai_ghep_cong_doan import BaiGhepCongDoanMap
+
+        if not lsx_ids:
+            return {}
+        phu = self.db.execute(
+            select(BaiGhepCongDoanMap.lsx_id, BaiGhepCongDoanMap.lsx_step_key,
+                   BaiGhepCongDoanMap.bai_ghep_cong_doan_id)
+            .where(BaiGhepCongDoanMap.lsx_id.in_(lsx_ids))
+        ).all()
+        if not phu:
+            return {}
+        goi_dang = (
+            select(SanXuatGoiPhatHanh.id)
+            .where(SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH)
+            .scalar_subquery()
+        )
+        rows = self.db.execute(
+            select(
+                SanXuatCongViec.id, SanXuatCongViec.bai_ghep_cong_doan_id,
+                SanXuatCongViec.trang_thai,
+                SanXuatCongViec.du_kien_bat_dau, SanXuatCongViec.du_kien_ket_thuc,
+                SanXuatCongViec.hoan_thanh_luc,
+            )
+            .where(
+                SanXuatCongViec.bai_ghep_cong_doan_id.in_({r[2] for r in phu}),
+                SanXuatCongViec.lsx_id.is_(None),
+                SanXuatCongViec.goi_id.in_(goi_dang),
+            )
+            .order_by(SanXuatCongViec.phien_ban_so.desc(), SanXuatCongViec.phan_doan_so,
+                      SanXuatCongViec.id)
+        ).all()
+        if not rows:
+            return {}
+        moc = dict(self.db.execute(
+            select(SanXuatPhienChay.cong_viec_id, func.min(SanXuatPhienChay.bat_dau))
+            .where(SanXuatPhienChay.cong_viec_id.in_([r[0] for r in rows]))
+            .group_by(SanXuatPhienChay.cong_viec_id)
+        ).all())
+        theo_bgcd: dict[int, list[tuple]] = {}
+        for cv_id, bgcd_id, tt, kh_bd, kh_kt, xong in rows:
+            theo_bgcd.setdefault(bgcd_id, []).append((tt, kh_bd, kh_kt, xong, moc.get(cv_id)))
+        ra: dict[int, list[tuple]] = {}
+        for lsx_id, key, bgcd_id in phu:
+            for tt, kh_bd, kh_kt, xong, thuc_bd in theo_bgcd.get(bgcd_id, []):
+                ra.setdefault(lsx_id, []).append((None, key, tt, kh_bd, kh_kt, xong, thuc_bd))
+        return ra
+
     def lich_su_lich(self, lsx_id: int) -> tuple[list, list]:
         """`(công việc SỐNG, dòng lịch sử)` của gói đang phát hành cho MỘT lệnh — hai truy vấn.
 

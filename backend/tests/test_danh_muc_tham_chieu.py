@@ -15,11 +15,10 @@ from app.db_migrations import run_migrations
 from app.models.cong_doan import CongDoan
 from app.models.don_vi_do import DonViDo
 from app.models.khuon_be import KhuonBe
-from app.models.loai_san_pham import LoaiSanPham
 from app.models.may_thiet_bi import MayThietBi
 from app.models.san_xuat_kcs import SanXuatKcsTieuChi
 from app.models.xe import Xe
-from app.models.vat_lieu_kho import ChungLoaiGiay, GiayNguyen, VatTuInAn
+from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn
 from app.services.danh_muc_tham_chieu import DEM_THEO_LOAI, tham_chieu
 
 
@@ -35,9 +34,8 @@ def db():
 
 def _mau(db):
     """Một bản ghi cho mỗi loại — DB trắng, chưa ai dùng gì."""
-    cl = ChungLoaiGiay(ma="ZZCL", ten="ZZ Chủng loại")
     dv = DonViDo(ma="zzkg", ten="ZZ Ký")
-    db.add_all([cl, dv])
+    db.add(dv)
     db.commit()
     # Công đoạn phải có ID TRƯỚC: hạng mục kiểm KCS neo vào nó (`cong_doan_id` NOT NULL, mg `0285`).
     cd = CongDoan(ma="ZZCD", ten="ZZ Công đoạn", nhom="finishing")
@@ -47,12 +45,10 @@ def _mau(db):
         "cong_doan": cd,
         "don_vi_do": dv,
         "khuon_be": KhuonBe(ma="ZZKB", ten="ZZ Khuôn"),
-        "loai_san_pham": LoaiSanPham(ma="ZZSP", ten="ZZ SP", structural_type="flat"),
         # Nhóm máy đặt tên RIÊNG: `_may_thiet_bi` chặn khi đây là máy CUỐI của nhóm mà có
         # công đoạn chỉ cho phép nhóm đó. Lấy tên thật ("Máy in") là mẫu tự chặn chính mình.
         "may_thiet_bi": MayThietBi(ma="ZZMAY", ten="ZZ Máy", loai_may="ZZ Nhóm riêng"),
-        "chung_loai_giay": cl,
-        "giay": GiayNguyen(ma="ZZG", ten="ZZ Giấy", chung_loai_giay_id=cl.id, gsm=100),
+        "giay": GiayNguyen(ma="ZZG", ten="ZZ Giấy", gsm=100),
         "vat_tu": VatTuInAn(ma="ZZVT", ten="ZZ Vật tư"),
         # Hạng mục kiểm KCS — không ai trỏ ngược về nó (mg `0285` gỡ bảng nối) ⇒ xoá hẳn được.
         "san_xuat_kcs_tieu_chi": SanXuatKcsTieuChi(ma="ZZTC", ten="ZZ Tiêu chí", cong_doan_id=cd.id),
@@ -61,7 +57,7 @@ def _mau(db):
         "xe": Xe(ma="ZZ-XE", ten="ZZ Xe mẫu"),
     }
     db.add_all([v for k, v in rows.items()
-                if k not in ("don_vi_do", "chung_loai_giay", "cong_doan")])
+                if k not in ("don_vi_do", "cong_doan")])
     db.commit()
     return rows
 
@@ -72,9 +68,6 @@ def test_moi_ham_dem_chay_duoc_tren_schema_that(db):
     assert set(rows) == set(DEM_THEO_LOAI), "bản đồ và mẫu test phải phủ cùng bộ danh mục"
     for loai, obj in rows.items():
         tc = tham_chieu(db, loai, obj)              # chạy được là điều kiện tối thiểu
-        if loai == "chung_loai_giay":
-            # Mẫu có sẵn một loại giấy trỏ về nó ⇒ bị chặn là ĐÚNG (xem test riêng dưới).
-            continue
         assert tc.xoa_han_duoc, f"{loai}: chưa ai dùng mà vẫn báo bị chặn — {tc.chan}"
 
 
@@ -107,10 +100,10 @@ def test_bu_hao_khong_con_la_mot_loai_danh_muc(db):
     assert tc.chan == ["chưa rà được nơi dùng của danh mục này"] and not tc.xoa_han_duoc
 
 
-def test_chung_loai_giay_bi_giay_con_giu_lai(db):
-    rows = _mau(db)
-    tc = tham_chieu(db, "chung_loai_giay", rows["chung_loai_giay"])
-    assert not tc.xoa_han_duoc, "giấy ZZG đang trỏ về chủng loại này"
+def test_loai_san_pham_va_chung_loai_giay_khong_con_la_danh_muc(db):
+    """Hai danh mục GỠ 27/09/2026 (mg `0342`) — bản đồ còn nhận là mở đường xoá bằng khoá ma."""
+    for loai in ("loai_san_pham", "chung_loai_giay"):
+        assert loai not in DEM_THEO_LOAI
 
 
 def test_cascade_bao_bang_SO_chu_khong_chan(db):

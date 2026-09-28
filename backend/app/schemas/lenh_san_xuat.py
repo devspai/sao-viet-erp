@@ -192,7 +192,6 @@ class ThongSoOut(BaseModel):
     trang_moi_tay: int | None = None
     so_kem: int | None = None
     so_manh_xa: int | None = None
-    loai_san_pham: str | None = None
     ghi_chu_ky_thuat: str | None = None
     so_con: int = 1
     so_to_ke_hoach: int = 0
@@ -220,6 +219,8 @@ class RoutingNodeOut(BaseModel):
     nha_cung_cap: str | None = None
     cong_viec_id: int | None = None
     la_buoc_ghep: bool = False
+    # Mã bài ghép đang phủ bước này — khi có, loại/tổ/nhà gia công ở trên là của BƯỚC CHUNG.
+    bai_ghep_ma: str | None = None
     la_buoc_hien_tai: bool = False
     trang_thai: str | None = None
     may: str | None = None

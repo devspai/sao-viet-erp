@@ -66,3 +66,9 @@ export function tinhTrangKiem(
   if (tongLoi > 0) return { nhan: `Có lỗi · ${soLan} lần`, cls: "badge-sem--rust", loai: "loi" };
   return { nhan: `Đạt · ${soLan} lần`, cls: "badge-sem--moss", loai: "dat" };
 }
+
+/** Lời hỏi lại trước khi gửi kho nhập hàng KCS đã kiểm đạt. `donVi` là NHÃN đơn vị ra của công
+ *  đoạn (vd "thành phẩm", "cái") — không tự gắn thêm chữ "thành phẩm" kẻo lặp "thành phẩm thành phẩm". */
+export function loiHoiNhapKho(soLuong: string, donVi: string, lsxMa: string, tenCongDoan: string): string {
+  return `Đề nghị kho nhập ${soLuong} ${donVi} đã kiểm đạt của ${lsxMa} (${tenCongDoan}).`;
+}

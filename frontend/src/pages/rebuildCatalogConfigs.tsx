@@ -114,57 +114,6 @@ const dvCell = (r: Row) => {
 };
 
 
-export const CFG_LOAI_SAN_PHAM: CatalogConfig = {
-  title: "Loại sản phẩm",
-  moduleQuyen: "dm_loai_san_pham",
-  enableImport: true,
-  prefix: "/api/loai-san-pham",
-  nhatKyLoai: "loai_san_pham",
-  // Xoá MỀM: nút "Xóa" hỏi server "còn ai dùng không" rồi tự chọn kết cục — chưa ai dùng thì
-  // xoá hẳn, còn nơi dùng thì chỉ ngừng dùng. Mục đã ngừng xem lại ở công tắc trên dải lọc.
-  softDelete: true,
-  columns: [
-    {
-      key: "routing_template",
-      label: "Chuỗi công đoạn mặc định",
-      render: (r) => {
-        const arr = (r.routing_template ?? []) as unknown[];
-        if (!Array.isArray(arr) || arr.length === 0) {
-          return <span style={{ color: "var(--ash, #8a8577)", fontSize: "12.5px" }}>Chưa khai báo</span>;
-        }
-        return (
-          <div className="rc__formula-chips">
-            <span className="badge-sem badge-sem--rust">
-              {arr.length} bước sản xuất
-            </span>
-          </div>
-        );
-      },
-    },
-    { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
-  ],
-  fields: [
-    { key: "routing_template", label: "Chuỗi công đoạn mặc định", type: "ref-multi", refPrefix: "/api/cong-doan",
-      group: "Công đoạn mặc định", hint: "Các bước sản xuất, theo đúng thứ tự chạy" },
-    { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
-  ],
-  deriveInitial: (existing) => ({
-    structural_type: existing?.structural_type ?? "flat",
-    box_sub_type: existing?.box_sub_type ?? "",
-    has_cover: existing?.has_cover ?? false,
-    cover_type: existing?.cover_type ?? "",
-    default_binding: existing?.default_binding ?? "",
-  }),
-  transformSubmit: (body, form) => ({
-    ...body,
-    structural_type: form.structural_type ?? "flat",
-    box_sub_type: form.box_sub_type || null,
-    has_cover: form.has_cover || false,
-    cover_type: form.cover_type || null,
-    default_binding: form.default_binding || null,
-  }),
-};
-
 // Form MỞ (phẳng): mọi ô luôn hiện, không phân loại cứng. Chủ xưởng tự đặt "Nhóm máy"
 // (chữ tự do) rồi nhập khổ kẽm / nhíp / khổ giấy / vùng in / ghi chú.
 // Nhãn đơn vị tốc độ DỜI sang `fields/DonViTocDo` (08/09/2026): bảng "Máy chạy được công đoạn này"
@@ -502,23 +451,6 @@ export const CFG_CONG_DOAN: CatalogConfig = {
   },
 };
 
-export const CFG_CHUNG_LOAI_GIAY: CatalogConfig = {
-  title: "Chủng loại giấy",
-  moduleQuyen: "dm_chung_loai_giay",
-  enableImport: true,
-  prefix: "/api/vat-lieu-kho/chung-loai-giay",
-  nhatKyLoai: "chung_loai_giay",
-  // Xoá MỀM: nút "Xóa" hỏi server "còn ai dùng không" rồi tự chọn kết cục — chưa ai dùng thì
-  // xoá hẳn, còn nơi dùng thì chỉ ngừng dùng. Mục đã ngừng xem lại ở công tắc trên dải lọc.
-  softDelete: true,
-  columns: [
-    { key: "mo_ta", label: "Mô tả", render: (r) => (r.mo_ta ? String(r.mo_ta) : "") },
-  ],
-  fields: [
-    { key: "mo_ta", label: "Mô tả", type: "text", group: "Thông số" },
-  ],
-};
-
 /** Giấy này bán/đếm theo CÂN hay theo TỜ — câu hỏi quyết định cả hai công thức điền sẵn dưới đây.
  *
  *  ĐVT chưa chọn (ô đó không có `default`, mở drawer ra là trống) thì coi như theo CÂN: giấy ở
@@ -563,8 +495,6 @@ export const CFG_GIAY: CatalogConfig = {
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [
-    { key: "chung_loai_giay_id", label: "Chủng loại giấy", type: "ref", required: true,
-      refPrefix: "/api/vat-lieu-kho/chung-loai-giay", group: "Phân loại" },
     { key: "gsm", label: "Định lượng (g/m²)", type: "number", required: true, group: "Thông số" },
     // Đơn vị GỐC: tồn kho cộng dồn theo đơn vị này. Giấy để `kg` thì kho đếm theo cân; muốn đếm
     // theo tờ thì chọn `tờ` — cặp cố định "1 ram = 500 tờ" chạy sẵn, không cần khai khổ.
@@ -1042,12 +972,10 @@ export const CFG_XE: CatalogConfig = {
 
 
 export const REBUILD_CONFIGS: Record<string, CatalogConfig> = {
-  "loai-san-pham": CFG_LOAI_SAN_PHAM,
   "khai-bao-kho": CFG_KHO_HANG,
   "may-thiet-bi": CFG_MAY,
   "cong-doan": CFG_CONG_DOAN,
   "don-vi": CFG_DON_VI,
-  "chung-loai-giay": CFG_CHUNG_LOAI_GIAY,
   "giay": CFG_GIAY,
   "vat-tu-in-an": CFG_VAT_TU,
   "thanh-pham": CFG_THANH_PHAM,

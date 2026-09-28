@@ -29,6 +29,9 @@ import { DinhKemTep } from "../components/DinhKemTep";
 import { Icon } from "../components/Icons";
 import { MucInHang } from "../components/MucIn";
 import { Timeline } from "../components/Timeline";
+import { BAI_GHEP_ENABLED } from "../constants/features";
+import { GiaCongNgoaiPanel } from "./gia-cong/GiaCongNgoaiPanel";
+import { TronGoiDialog } from "./gia-cong/TronGoiDialog";
 import { ImpositionDiagram } from "./ImpositionDiagram";
 import { LsxRoutingTable, type RefRow } from "./LsxRoutingTable";
 import { LsxVatTuPanel } from "./LsxVatTuPanel";
@@ -220,6 +223,7 @@ export function LsxDetailView({
   const [routingDirty, setRoutingDirty] = useState(false);
   const [readyErr, setReadyErr] = useState<string | null>(null);
   const [askDelete, setAskDelete] = useState(false);
+  const [moTronGoi, setMoTronGoi] = useState(false);
   /** Bảng cũ → mới của nút "Cập nhật theo danh mục". KHÔNG ghi thẳng khi bấm: số khoán và định
    *  mức là thời lượng của bước, đổi lén một phát cả lệnh thì người lập kế hoạch không có cách nào
    *  biết cái gì vừa đổi. Mở bảng ra, đọc, rồi mới đồng ý. */
@@ -457,6 +461,9 @@ export function LsxDetailView({
   // gửi `quy_cach`, và xoá lệnh — cùng luật với routing. Tách ra thành cờ riêng để màn NÓI TRƯỚC
   // thay vì để người ta gõ xong cả bảng thông số rồi mới ăn 409 lúc bấm Lưu.
   const giuCho = !!d?.giu_cho_bat;
+  // Lệnh đã qua cửa Xếp lịch / phát hành: nút "Sẵn sàng lập kế hoạch" và "Xoá lệnh" đều bị máy chủ
+  // từ chối (`set_trang_thai`, `xoa`) — ẩn hẳn thay vì để một CTA sáng mà bấm là báo lỗi.
+  const daQuaKeHoach = d?.trang_thai === "da_lap_ke_hoach" || d?.trang_thai === "da_phat_hanh";
   // Danh mục đã đổi sau lúc lệnh chụp ảnh. `null` = còn khớp hết ⇒ KHÔNG băng, không chỗ trống.
   const dmDoi = d?.danh_muc_doi ?? null;
   // QUY CÁCH Ở LỆNH = CHỈ XEM, không chừa ô nào (07/09/2026). Cụm này là thứ đã chốt với khách ở
@@ -714,11 +721,20 @@ export function LsxDetailView({
               <Icon name="refresh" size={13} />
               {coDuLieuMoi ? "Có thay đổi mới — làm mới" : "Làm mới"}
             </button>
+            {/* Gia công trọn gói thay cho phát hành (spec gia công ngoài §4) — chỉ lệnh CHƯA phát
+                hành. Máy chủ chặn tiếp lệnh ghép cụm / đang có dòng xếp lịch và nói lý do. */}
+            {canUpdate && ["nhap", "cho_bo_sung", "san_sang", "da_lap_ke_hoach"].includes(d.trang_thai) && (
+              <Button variant="ghost" onClick={() => setMoTronGoi(true)}>
+                <Icon name="truck" size={14} /> Gia công trọn gói
+              </Button>
+            )}
             {/* Đang giữ chỗ thì server xoá không nổi (`_chan_dang_giu_cho`). Thay nút bằng CHIP nói
                 thẳng lý do chứ không để nút mờ đi im lặng: nút disabled chỉ có tooltip, người dùng
                 bấm không ăn rồi tự đoán là hết quyền. Chip hiện ở MỌI tab nên đây cũng là chỗ báo
                 cái khoá cho ai đang đứng ở tab khác tab Thông số. */}
-            {canUpdate && d.trang_thai !== "san_sang" && (
+            {/* Lệnh đã lập kế hoạch / đã phát hành: máy chủ từ chối xoá (xưởng đang giữ gói việc,
+                có thể có lần gia công ngoài) — không bày nút chắc chắn bị trả về. */}
+            {canUpdate && d.trang_thai !== "san_sang" && !daQuaKeHoach && (
               giuCho ? (
                 <span
                   className="khsx-khoa-chip"
@@ -878,7 +894,7 @@ export function LsxDetailView({
               </div>
             )}
 
-            {d.trang_thai === "san_sang" ? (
+            {daQuaKeHoach ? null : d.trang_thai === "san_sang" ? (
               <Button variant="ghost" onClick={() => doiTrangThai("nhap")}>
                 Mở lại để sửa
               </Button>
@@ -984,6 +1000,19 @@ export function LsxDetailView({
 
       {readyErr && <BangLoi text={readyErr} onRetry={load} />}
       {err && <BangLoi text={err} onRetry={load} />}
+
+      {/* Khối Gia công ngoài (spec 2026-09-26 §7) — hiện ở MỌI tab vì đây là việc hằng ngày của
+          người kế hoạch sau phát hành; không có lần nào thì khối không vẽ gì. Nó TỰ nạp theo tick
+          SSE (khác phần còn lại của màn chờ nút "Làm mới") — không có ô routing nào ở đây để mất. */}
+      <GiaCongNgoaiPanel
+        lsxId={lsxId}
+        eventTick={eventTick}
+        canUpdate={canUpdate}
+        onChanged={() => { load(); onChanged(); }}
+        // Màn Bài ghép đang ẩn (`BAI_GHEP_ENABLED`) thì route bị chặn — không mời bấm sang.
+        onMoBaiGhep={navigate && BAI_GHEP_ENABLED
+          ? (id) => navigate("bai-ghep-2", { openBaiGhepId: id }) : undefined}
+      />
 
       {/* Lưu ý "gỡ đầu việc mồ côi" GỠ 18/09/2026 (mg `0320`) — bước thôi ghim đầu việc. */}
 
@@ -1204,7 +1233,6 @@ export function LsxDetailView({
                           chỉ hiện "1" (không nói gì), còn với sách thì câu diễn giải đầy đủ
                           ("5 TỜ CHẠY MÁY = 1 cuốn") đã nằm sẵn dưới ô Con / tờ in — xem `giaiThichSach`. */}
                     <KV k="Tên sản phẩm" v={s("ten")} />
-                    <KV k="Loại sản phẩm" v={s("loai_san_pham_ten")} />
                     <KV k="Đơn vị tính" v={s("don_vi_tinh")} />
                     {/* Hai số PHÂN BIỆT sách với hàng cắt rời. Có sẵn trong ảnh chụp quy cách nhưng
                         trước đây không màn nào render → nhìn lệnh không biết đây là loại gì. */}
@@ -1554,6 +1582,15 @@ export function LsxDetailView({
         onConfirm={xoa}
         onCancel={() => setAskDelete(false)}
       />
+
+      {moTronGoi && (
+        <TronGoiDialog
+          lsx={d}
+          open={moTronGoi}
+          onClose={() => setMoTronGoi(false)}
+          onDone={() => { setMoTronGoi(false); load(); onChanged(); }}
+        />
+      )}
 
       {/* Bảng CŨ → MỚI. Bấm "Cập nhật theo danh mục" ở băng chỉ MỞ cái này; ghi thật là nút trong
           đây. Người lập kế hoạch phải nhìn thấy định mức đổi từ đâu sang đâu trước khi đồng ý. */}

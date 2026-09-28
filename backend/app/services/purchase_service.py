@@ -132,6 +132,14 @@ PURCHASE_REQUEST_READER_MODULES = ("thu_mua", "ke_toan")
 # cầu CHƯA xong. Cho nó bậc 3 là bộ phận đề nghị nhìn thấy "Hoàn tất" rồi thôi không hỏi nữa, trong
 # khi hai phần ba đơn còn nằm ở kho NCC — đúng kiểu báo lạc quan mà luật "lấy bậc thấp nhất" ở dưới
 # sinh ra để tránh.
+# Hành động audit của đợt giao đưa lên timeline phiếu mua (`_lich_su_don_mua_out`).
+_MOC_DOT_GIAO = {
+    "create_purchase_delivery": ("delivery_created", "Ghi nhận đợt giao"),
+    "update_purchase_delivery": ("delivery_updated", "Cập nhật đợt giao"),
+    "delete_purchase_delivery": ("delivery_deleted", "Xóa đợt giao"),
+    "assign_purchase_invoice": ("invoice_assigned", "Gán hóa đơn cho đợt giao"),
+}
+
 _BAC_PHIEU = {
     PR_REJECTED: 1,
     PR_CANCELLED: 0,
@@ -637,7 +645,8 @@ class PurchaseService:
             }
             try:
                 # 1 đơn vị NCC bán bằng `he_so_ve_goc` đơn vị gốc → giá/đơn-vị-gốc = giá ÷ hệ số.
-                qd = self.hang.quy_ve_goc(hang_loai, hang_id, it.unit, 1)
+                # `info` đã nạp ở trên — gọi `quy_ve_goc` là mỗi NCC đọc lại cả bảng đơn vị.
+                qd = self.hang.quy_tu_don_vi(info, it.unit, 1)
                 hs = qd["he_so_ve_goc"]
                 if hs > 0:
                     gia = int(round(int(it.unit_price or 0) / hs))
@@ -683,6 +692,21 @@ class PurchaseService:
         )
         return [(sup, tu_tong_hop(tho)) for sup, tho in rows], total
 
+    def tong_quan_ncc(self) -> dict:
+        """Đếm toàn danh mục NCC cho thanh số + dải lọc nhóm: tổng · đang hợp tác · tạm ngừng ·
+        số NCC mỗi nhóm ngành hàng (chỉ nhóm có thật trong dữ liệu, xếp theo tên)."""
+        dem = self.suppliers.dem_theo_nhom_trang_thai()
+        nhom: dict[str, int] = {}
+        for g, _st, n in dem:
+            if g:
+                nhom[g] = nhom.get(g, 0) + n
+        return {
+            "tong": sum(n for _g, _st, n in dem),
+            "dang_hop_tac": sum(n for _g, st, n in dem if st == "active"),
+            "tam_ngung": sum(n for _g, st, n in dem if st == "inactive"),
+            "nhom": [{"supplier_group": g, "so_ncc": n} for g, n in sorted(nhom.items())],
+        }
+
     def danh_gia_ncc(self, supplier_id: int) -> DanhGiaNcc:
         """Sổ điểm của MỘT nhà cung cấp — cho các cửa chỉ trả về một dòng (tạo · sửa · bật/tắt).
 
@@ -704,28 +728,26 @@ class PurchaseService:
         hai — CỐ Ý không lùi về hệ số 1: hệ số 1 sai thì giá sai mà không ai thấy dòng lỗi nào,
         đúng nếp `quy_ve_goc` đã đặt.
         """
-        from .vat_lieu_kho_service import VatLieuKhoError
-
-        cache: dict[tuple[str, int, str], float | None] = {}
+        items = [it for sup in suppliers for it in (getattr(sup, "items", None) or [])]
+        # Đơn vị của MỌI mặt hàng trong mẻ — một lượt (`don_vi_nhieu_mat_hang`), không phải một
+        # lượt mỗi mặt hàng.
+        don_vi = (
+            self.hang.don_vi_nhieu_mat_hang(
+                {(it.hang_loai, int(it.hang_id)) for it in items if it.hang_loai and it.hang_id}
+            )
+            if self.hang is not None
+            else {}
+        )
         ra: dict[int, dict] = {}
-        for sup in suppliers:
-            for it in getattr(sup, "items", None) or []:
-                hs = None
-                if it.hang_loai and it.hang_id and (it.unit or "").strip():
-                    khoa = (it.hang_loai, int(it.hang_id), (it.unit or "").strip().lower())
-                    if khoa not in cache:
-                        try:
-                            qd = self.hang.quy_ve_goc(it.hang_loai, int(it.hang_id), it.unit, 1)
-                            cache[khoa] = qd["he_so_ve_goc"] if qd["he_so_ve_goc"] > 0 else None
-                        except VatLieuKhoError:
-                            cache[khoa] = None
-                    hs = cache[khoa]
-                ra[it.id] = {
-                    "he_so_ve_goc": hs,
-                    "gia_quy_doi": (
-                        int(round(int(it.unit_price or 0) / hs)) if hs else None
-                    ),
-                }
+        for it in items:
+            hs = None
+            dv = don_vi.get((it.hang_loai, int(it.hang_id))) if it.hang_id else None
+            if dv is not None:
+                hs = self.hang.he_so_ve_goc(dv, it.unit)
+            ra[it.id] = {
+                "he_so_ve_goc": hs,
+                "gia_quy_doi": int(round(int(it.unit_price or 0) / hs)) if hs else None,
+            }
         return ra
 
     def get_supplier(self, supplier_id: int) -> Supplier:
@@ -809,6 +831,8 @@ class PurchaseService:
             "credit_limit": han_muc,
             "credit_days": so_ngay,
             "status": status,
+            # Tích "Nhận gia công" (26/09/2026) — ô chọn Nhà gia công ở Kế hoạch SX lọc theo cờ này.
+            "nhan_gia_cong": bool(values.get("nhan_gia_cong")),
             "note": (values.get("note") or "").strip() or None,
             "items": items,
         }
@@ -843,7 +867,7 @@ class PurchaseService:
             if hang_loai is not None:
                 # Đơn vị NCC bán phải nằm trong tập đổi được của mặt hàng, nếu không thì cột "giá
                 # quy về đơn vị gốc" vĩnh viễn trống và dòng này không bao giờ so giá được.
-                self._kiem_don_vi_ncc(hang_loai, int(hang_id), unit)
+                unit = self._kiem_don_vi_ncc(hang_loai, int(hang_id), unit)
             items.append(
                 SupplierItemInput(
                     hang_loai=hang_loai,
@@ -857,13 +881,18 @@ class PurchaseService:
             )
         return items
 
-    def _kiem_don_vi_ncc(self, hang_loai: str, hang_id: int, unit: str) -> None:
+    def _kiem_don_vi_ncc(self, hang_loai: str, hang_id: int, unit: str) -> str:
+        """Kiểm đơn vị NCC bán đổi được về gốc, trả về MÃ đơn vị chuẩn để lưu.
+
+        Nhận cả tên ("cái") lẫn mã ("cai") nhưng LƯU MÃ: trước 27/09/2026 lưu nguyên chữ người gửi,
+        dòng khai bằng tên thì màn bảng giá (so theo mã) không nhận ra ⇒ cột "Quy về gốc" gạch
+        ngang, ô ĐVT hiện nhầm lựa chọn đầu tiên."""
         from .vat_lieu_kho_service import VatLieuKhoError
 
         if self.hang is None:
-            return
+            return unit
         try:
-            self.hang.quy_ve_goc(hang_loai, hang_id, unit, 1)
+            return self.hang.quy_ve_goc(hang_loai, hang_id, unit, 1)["ma_don_vi"]
         except VatLieuKhoError as e:
             raise PurchaseValidationError(str(e)) from None
 
@@ -1211,7 +1240,8 @@ class PurchaseService:
             page=page,
             size=size,
         )
-        return [self._to_department_request_out(row) for row in rows], total
+        nap = self._nap_lo_yeu_cau(rows)
+        return [self._to_department_request_out(row, nap) for row in rows], total
 
     def _sees_all_department_requests(self, actor) -> bool:
         """Có nhìn được YCMH của TOÀN công ty không.
@@ -1657,7 +1687,8 @@ class PurchaseService:
             size=size,
             creator_ids=creator_ids, exclude_statuses=exclude_statuses,
         )
-        return [self._to_request_out(r) for r in rows], total
+        nap = self._nap_lo_phieu_mua(rows)
+        return [self._to_request_out(r, nap) for r in rows], total
 
     def _purchase_scope(self, actor) -> str | None:
         """Phạm vi phiếu mua actor được nhìn: `all` | `department` | `own`.
@@ -3100,7 +3131,12 @@ class PurchaseService:
         hang_text = "; ".join(hang) if hang else "không còn dòng hàng"
         return f"Đợt {dot.seq_no} ngày {dot.delivery_date}: {hang_text}"
 
-    def _lich_su_out(self, doc_type: str, doc_id: int) -> list[dict]:
+    def _lich_su_rows(self, doc_type: str, doc_id: int, nap: dict | None):
+        if nap is not None:
+            return nap["lich_su"].get(doc_id, [])
+        return self.lich_su.cua(doc_type, doc_id)
+
+    def _lich_su_out(self, doc_type: str, doc_id: int, nap: dict | None = None) -> list[dict]:
         """Lịch sử trạng thái, MỚI NHẤT TRƯỚC.
 
         Danh sách rỗng = phiếu lập TRƯỚC 07/08/2026 (không backfill — bịa ra ngày giờ không ai
@@ -3115,10 +3151,10 @@ class PurchaseService:
                 "reason": h.reason,
                 "created_at": h.created_at,
             }
-            for h in self.lich_su.cua(doc_type, doc_id)
+            for h in self._lich_su_rows(doc_type, doc_id, nap)
         ]
 
-    def _lich_su_don_mua_out(self, row: PurchaseRequest) -> list[dict]:
+    def _lich_su_don_mua_out(self, row: PurchaseRequest, nap: dict | None = None) -> list[dict]:
         """Ghép lịch sử đổi trạng thái với các mốc đợt giao thành một timeline.
 
         Không ghi đợt giao thành một ``status`` giả: thêm đợt 2 trong khi đơn vẫn "Giao một
@@ -3126,7 +3162,7 @@ class PurchaseService:
         sự kiện này, nên chỉ cần đưa chúng ra màn hình thay vì tạo thêm bảng lịch sử thứ ba.
         """
         events: list[dict] = []
-        for history in self.lich_su.cua(DOC_PMH, row.id):
+        for history in self._lich_su_rows(DOC_PMH, row.id, nap):
             events.append(
                 {
                     "id": f"status-{history.id}",
@@ -3142,13 +3178,13 @@ class PurchaseService:
                 }
             )
 
-        delivery_actions = {
-            "create_purchase_delivery": ("delivery_created", "Ghi nhận đợt giao"),
-            "update_purchase_delivery": ("delivery_updated", "Cập nhật đợt giao"),
-            "delete_purchase_delivery": ("delivery_deleted", "Xóa đợt giao"),
-            "assign_purchase_invoice": ("invoice_assigned", "Gán hóa đơn cho đợt giao"),
-        }
-        for log in self.audit.list_by_target(f"purchase_request:{row.id}", limit=200):
+        delivery_actions = _MOC_DOT_GIAO
+        logs = (
+            nap["audit"].get(f"purchase_request:{row.id}", [])
+            if nap is not None
+            else self.audit.list_by_target(f"purchase_request:{row.id}", limit=200)
+        )
+        for log in logs:
             info = delivery_actions.get(log.action)
             if info is None:
                 continue
@@ -3175,7 +3211,50 @@ class PurchaseService:
         u = self.users.get_by_id(user_id)
         return u.name if u is not None else None
 
-    def _to_request_out(self, row: PurchaseRequest) -> dict:
+    def _nap_lo_phieu_mua(self, rows) -> dict:
+        """Nạp MỘT LẦN cho cả trang danh sách phiếu mua những thứ `_to_request_out` cần ngoài
+        quan hệ ORM: lịch sử trạng thái, mốc đợt giao trong audit, mặt hàng gốc, yêu cầu nhập kho
+        của các đợt, tên người. Không có nó thì mỗi phiếu tự hỏi DB ~4 lượt (đo 27/09/2026: 2→10
+        phiếu là 21→53 câu SQL)."""
+        rows = list(rows)
+        ids = [r.id for r in rows]
+        dot_ids = [d.id for r in rows for d in (getattr(r, "deliveries", None) or [])]
+        cap = [
+            (l.hang_loai, l.hang_id) for r in rows for l in r.lines if l.hang_loai and l.hang_id
+        ]
+        nhap: dict[int, tuple[int, str]] = {}
+        if dot_ids:
+            for sr in self.requests.db.execute(
+                select(StockRequest.id, StockRequest.ma, StockRequest.purchase_delivery_id).where(
+                    StockRequest.purchase_delivery_id.in_(dot_ids),
+                    StockRequest.trang_thai != REQ_CANCELLED,
+                )
+            ).all():
+                nhap[sr.purchase_delivery_id] = (sr.id, sr.ma)
+        nap = {
+            "lich_su": self.lich_su.cua_nhieu(DOC_PMH, ids),
+            "audit": self.audit.list_by_targets(
+                [f"purchase_request:{i}" for i in ids], _MOC_DOT_GIAO.keys()
+            ),
+            "hang": self.hang.map_theo_cap(cap) if (cap and self.hang is not None) else {},
+            "nhap": nhap,
+        }
+        self._nap_ten_nguoi(
+            [u for r in rows for u in (r.created_by_user_id, r.approved_by_user_id)]
+            + [d.created_by_user_id for r in rows for d in (getattr(r, "deliveries", None) or [])]
+            + [a.uploaded_by for r in rows for a in (getattr(r, "attachments", None) or [])]
+            + [h.changed_by_user_id for ds in nap["lich_su"].values() for h in ds]
+            + [lg.actor_user_id for ds in nap["audit"].values() for lg in ds]
+        )
+        return nap
+
+    def _nap_ten_nguoi(self, user_ids) -> None:
+        """Nạp sẵn các User vào identity map của phiên ⇒ `_user_name` (db.get) khỏi hỏi DB."""
+        ids = {int(u) for u in user_ids if u}
+        if ids:
+            self.users.map_by_ids(ids)
+
+    def _to_request_out(self, row: PurchaseRequest, nap: dict | None = None) -> dict:
         # Mọi con TIỀN lấy từ `purchase_money` — dùng chung với màn Công nợ phải trả, không cộng lại
         # ở đây. Vòng lặp dưới chỉ dựng phần HIỂN THỊ của từng dòng.
         money = purchase_money(row)
@@ -3183,7 +3262,10 @@ class PurchaseService:
         lines = []
         # Mã/tên mặt hàng gốc (mg 0174) cho các dòng có liên kết danh mục — tra 1 lượt, tránh N+1.
         _pairs = [(l.hang_loai, l.hang_id) for l in row.lines if l.hang_loai and l.hang_id]
-        _hmap = self.hang.map_theo_cap(_pairs) if (_pairs and self.hang is not None) else {}
+        if nap is not None:
+            _hmap = nap["hang"]
+        else:
+            _hmap = self.hang.map_theo_cap(_pairs) if (_pairs and self.hang is not None) else {}
         for line in row.lines:
             qty = float(line.quantity)
             unit_price = int(line.expected_unit_price)
@@ -3271,7 +3353,9 @@ class PurchaseService:
         # Đợt giao nào ĐÃ sinh yêu cầu NHẬP (chưa hủy) → chặn nhập kho trùng (nút đổi "Đã nhập kho").
         _dot_ids = [d.id for d in getattr(row, "deliveries", []) or []]
         _nhap_map: dict[int, tuple[int, str]] = {}
-        if _dot_ids:
+        if nap is not None:
+            _nhap_map = nap["nhap"]
+        elif _dot_ids:
             for sr in self.requests.db.execute(
                 select(StockRequest.id, StockRequest.ma, StockRequest.purchase_delivery_id).where(
                     StockRequest.purchase_delivery_id.in_(_dot_ids),
@@ -3380,8 +3464,8 @@ class PurchaseService:
             "updated_at": row.updated_at,
             "content": row.content or row.purpose,
             "reject_reason": row.reject_reason,
-            "status_history": self._lich_su_out(DOC_PMH, row.id),
-            "activity_history": self._lich_su_don_mua_out(row),
+            "status_history": self._lich_su_out(DOC_PMH, row.id, nap),
+            "activity_history": self._lich_su_don_mua_out(row, nap),
             "contract_number": row.contract_number,
             "deposit_expected": int(row.deposit_expected or 0),
             "total_estimate": total,
@@ -3463,7 +3547,20 @@ class PurchaseService:
             muc.pop("_bac", None)
         return theo_dong
 
-    def _to_department_request_out(self, row: DepartmentPurchaseRequest) -> dict:
+    def _nap_lo_yeu_cau(self, rows) -> dict:
+        """Nạp một lần cho cả trang danh sách YCMH: lịch sử trạng thái + tên người huỷ món / người
+        đổi trạng thái (đo 27/09/2026: 2→10 yêu cầu là 17→33 câu SQL)."""
+        rows = list(rows)
+        nap = {"lich_su": self.lich_su.cua_nhieu(DOC_YCMH, [r.id for r in rows])}
+        self._nap_ten_nguoi(
+            [ln.cancelled_by_user_id for r in rows for ln in r.lines]
+            + [h.changed_by_user_id for ds in nap["lich_su"].values() for h in ds]
+        )
+        return nap
+
+    def _to_department_request_out(
+        self, row: DepartmentPurchaseRequest, nap: dict | None = None
+    ) -> dict:
         total = 0
         lines = []
         tinh_trang = self._tinh_trang_tung_dong(row)
@@ -3551,7 +3648,7 @@ class PurchaseService:
             # Ô GỘP. `purpose` giữ lại cho client cũ; cái đi vào giao diện mới là `content`.
             "content": row.content or row.purpose,
             "reject_reason": row.reject_reason,
-            "status_history": self._lich_su_out(DOC_YCMH, row.id),
+            "status_history": self._lich_su_out(DOC_YCMH, row.id, nap),
             "needed_date": row.needed_date,
             "note": row.note,
             "created_at": row.created_at,

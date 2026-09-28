@@ -38,7 +38,6 @@ class PhieuTinhGia(Base):
     # --- Thông tin phiếu ---
     ten_san_pham: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     kho_thanh_pham: Mapped[str | None] = mapped_column(String(100), nullable=True)   # spec tự do, vd "20×30×5 cm"
-    loai_san_pham_id: Mapped[int | None] = mapped_column(Integer, nullable=True)    # → loai_san_pham.id (soft)
     so_luong: Mapped[int] = mapped_column(Integer, nullable=False, default=0)        # SL đặt
 
     # --- Ảnh chụp kết quả (Σ mọi thành phần) ---
@@ -109,7 +108,6 @@ class PhieuThanhPhan(Base):
     # cũ không đổi một chữ. Gắn trên từng thành phần vì nhóm chỉ là cái nhãn, không có bảng riêng —
     # mọi dòng cùng nhãn mang cùng giá trị, màn Tính giá ghi đồng loạt.
     dvt_nhom: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    loai_san_pham_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → loai_san_pham.id (soft) — loại của sản phẩm này
 
     # --- Giấy ---
     giay_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)  # → giay_nguyen.id (soft)

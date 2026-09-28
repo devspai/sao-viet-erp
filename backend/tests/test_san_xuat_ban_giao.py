@@ -297,15 +297,54 @@ def test_ngan_chi_tiet_ghi_ai_giao_ai_nhan_va_tung_lan_dieu_chinh(db, orders, ls
     assert (cho["nguoi_xac_nhan"], cho["xac_nhan_luc"], cho["dieu_chinh"]) == (None, None, [])
 
     ban_giao.xac_nhan(db, user=ub, ban_giao_id=r["ban_giao_id"])
-    ban_giao.dieu_chinh(db, user=ub, ban_giao_id=r["ban_giao_id"], so_luong_sau=95,
+    # Bên nhận đếm thiếu 5 → báo bên GIAO sửa; bên nhận xác nhận lại số mới.
+    ban_giao.dieu_chinh(db, user=admin, ban_giao_id=r["ban_giao_id"], so_luong_sau=95,
                         mo_ta="Đếm lại thiếu 5")
+    assert dong(cv2, ub, "ban_giao_den")["xac_nhan_luc"] is None      # chờ xác nhận lại
+    ban_giao.xac_nhan(db, user=ub, ban_giao_id=r["ban_giao_id"])
     for cv, user, khoa in ((cv1, admin, "ban_giao_di"), (cv2, ub, "ban_giao_den")):
         g = dong(cv, user, khoa)
         assert (g["nguoi_de_xuat"], g["nguoi_xac_nhan"]) == (admin.name, "Tổ trưởng đích")
         assert g["xac_nhan_luc"] is not None
+        # Hai đầu: công đoạn + tổ — cả tổ giao lẫn tổ nhận đọc như nhau.
+        assert (g["nguon_cong_doan"], g["nguon_to"]) == (cv1.ten_cong_doan, to.name)
+        assert (g["dich_cong_doan"], g["dich_to"]) == (cv2.ten_cong_doan, to_b.name)
         assert [(d["so_luong_truoc"], d["so_luong_sau"], d["mo_ta"], d["nguoi"], d["khong_nhat_quan"])
-                for d in g["dieu_chinh"]] == [(100, 95, "Đếm lại thiếu 5", "Tổ trưởng đích", False)]
+                for d in g["dieu_chinh"]] == [(100, 95, "Đếm lại thiếu 5", admin.name, False)]
         assert g["dieu_chinh"][0]["luc"] is not None
+
+
+def test_ben_nhan_khong_dieu_chinh_chi_ben_giao_roi_ben_nhan_xac_nhan_lai(
+    db, orders, lsx_svc, admin, customer
+):
+    """27/09/2026: bên NHẬN chỉ có Xác nhận. Lệch số thì bên GIAO điều chỉnh — số mới có hiệu lực
+    ngay, lần giao hiện lại ở hộp chờ của tổ nhận cho tới khi họ xác nhận lại."""
+    to, cv1, cv2, _lsx = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-DC1")
+    to_b, ub = _to_dich(db, ma="TO-DC1-DICH")
+    cv2.department_id = to_b.id
+    db.commit()
+    b = _batch(db, admin, cv1, tot=100)
+    r = ban_giao.de_xuat(db, user=admin, nguon_cong_viec_id=cv1.id, dich_cong_viec_id=cv2.id,
+                         batch_ids=[b])
+    ban_giao.xac_nhan(db, user=ub, ban_giao_id=r["ban_giao_id"])
+
+    with pytest.raises(PermissionError):
+        ban_giao.dieu_chinh(db, user=ub, ban_giao_id=r["ban_giao_id"], so_luong_sau=90)
+
+    res = ban_giao.dieu_chinh(db, user=admin, ban_giao_id=r["ban_giao_id"], so_luong_sau=90)
+    assert res["so_luong"] == 90 and ub.id in res["notify_user_ids"]
+    bg = db.get(SanXuatBanGiao, r["ban_giao_id"])
+    assert bg.trang_thai == BG_DIEU_CHINH and bg.xac_nhan_luc is None
+    assert [x["id"] for x in board.cho_xac_nhan(db, ub, team_id=to_b.id)["ban_giao"]] == [bg.id]
+    assert {t["id"]: t["so_cho_xac_nhan"] for t in board.teams(db, ub, None)}[to_b.id] == 1
+
+    ban_giao.xac_nhan(db, user=ub, ban_giao_id=bg.id)
+    db.refresh(bg)
+    assert bg.trang_thai == BG_DIEU_CHINH and bg.xac_nhan_luc is not None
+    assert float(bg.so_luong) == 90
+    assert board.cho_xac_nhan(db, ub, team_id=to_b.id)["ban_giao"] == []
+    with pytest.raises(ValueError, match="không ở trạng thái chờ xác nhận"):
+        ban_giao.xac_nhan(db, user=ub, ban_giao_id=bg.id)
 
 
 def test_dieu_chinh_khong_con_doi_ly_do(db, orders, lsx_svc, admin, customer):
@@ -440,12 +479,12 @@ def test_giao_theo_me(db, orders, lsx_svc, admin, customer):
 def test_phat_sse_ban_giao_mot_goi_cho_ca_hai_to(monkeypatch, nguon, dich, ky_vong):
     """`broadcast` tới mọi kết nối và mỗi gói bump tick chung ở FE — mỗi tổ một gói là mọi màn
     đang mở nạp lại hai lượt cho một cú bấm."""
-    from app.routers import san_xuat as router_sx
+    from app import realtime
 
     goi: list[dict] = []
-    monkeypatch.setattr(router_sx.hub, "broadcast", goi.append)
-    monkeypatch.setattr(router_sx.hub, "publish", lambda *a, **k: None)
-    router_sx._phat_sse_ban_giao({
+    monkeypatch.setattr(realtime.hub, "broadcast", goi.append)
+    monkeypatch.setattr(realtime.hub, "publish", lambda *a, **k: None)
+    realtime.phat_ban_giao({
         "nguon_department_id": nguon, "dich_department_id": dich,
         "ban_giao_id": 11, "trang_thai_ban_giao": "cho_xac_nhan",
     })

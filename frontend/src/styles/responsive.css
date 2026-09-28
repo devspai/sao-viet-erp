@@ -1016,9 +1016,9 @@
   .kh__form-grid--3col,
   .khsx-form,
   .khsx-form--3,
-  .khsx-gn__form,
-  /* Đã gỡ `.lsx-dw__form` và `.lsx-fieldgrid` (lượt 21): grep toàn `frontend/src` cho thấy hai
-     lớp này không tồn tại ở BẤT KỲ file nào khác — kể cả CSS trang — nên là selector chết. */
+  /* Đã gỡ `.khsx-gn__form` (mg 0340 — sổ giao–nhận cũ gỡ hẳn) và `.lsx-dw__form`/`.lsx-fieldgrid`
+     (lượt 21): grep toàn `frontend/src` cho thấy các lớp này không tồn tại ở BẤT KỲ file nào khác
+     — kể cả CSS trang — nên là selector chết. */
   .md-page__form-grid,
   .pdot__form,
   .rc-modal__body-grid,

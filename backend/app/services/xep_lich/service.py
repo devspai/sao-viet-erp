@@ -59,24 +59,6 @@ def _chu(v: object) -> str | None:
     return s or None
 
 
-def _ngay_thue_ngoai(cd) -> int | None:
-    """Số NGÀY LỊCH một bước gia công ngoài chiếm chỗ. `None` = chưa khai đủ để biết.
-
-    Hai nguồn, ưu tiên nguồn KHAI TAY vì nó là cam kết của nhà cung cấp:
-      1. `van_chuyen_ngay` (MỘT chiều, nên nhân 2) + `gia_cong_ngay`;
-      2. `ngay_nhan_dk - ngay_gui_dk` nếu khai cả hai mốc.
-
-    Cờ nhận biết bước thuê ngoài là `loai_buoc == LB_THUE_NGOAI` — KHÔNG có cột boolean nào.
-    """
-    vc, gc = getattr(cd, "van_chuyen_ngay", None), getattr(cd, "gia_cong_ngay", None)
-    if vc is not None or gc is not None:
-        return int(round(float(vc or 0) * 2 + float(gc or 0)))
-    gui, nhan = getattr(cd, "ngay_gui_dk", None), getattr(cd, "ngay_nhan_dk", None)
-    if gui and nhan:
-        return max(0, (nhan - gui).days)
-    return None
-
-
 class _LsxCoRouting:
     """Proxy đọc-thuộc-tính cho `quy_cach_bien`: ép nó dùng routing ĐÃ NẠP SẴN.
 
@@ -109,6 +91,10 @@ class XepLichLenhService:
         self._nho_may: dict[int, object] = {}   # may_id -> MayThietBi
         # lsx_id -> {("id", cd_id) | ("key", step_key): dict lớp thực tế} — nạp theo LÔ
         self._thuc_te: dict[int, dict[tuple[str, object], dict]] = {}
+        # lsx_step_key -> (bước chung bài ghép ĐANG PHỦ bước đó, mã bài) — nạp theo LÔ
+        self._phu: dict[str, tuple] = {}
+        self._phu_da_nap: set[int] = set()
+        self._qc_bai: dict[int, dict] = {}   # bai_ghep_id -> bộ biến quy cách của bài
 
     # ================= nền tính =================
 
@@ -196,6 +182,10 @@ class XepLichLenhService:
         if not thieu:
             return
         theo_lsx = self.repo.thuc_te_buoc(thieu)
+        # Bước bị bài ghép phủ: việc chung không mang `lsx_id` — nối thêm theo bảng phủ (xếp SAU
+        # để dòng của chính lệnh, nếu có, vẫn thắng ở `setdefault`).
+        for i, ds in self.repo.thuc_te_buoc_chung(thieu).items():
+            theo_lsx.setdefault(i, []).extend(ds)
         for i in thieu:
             ban: dict[tuple[str, object], dict] = {}
             for cd_id, key, tt, kh_bd, kh_kt, xong, thuc_bd in theo_lsx.get(i, []):
@@ -247,6 +237,27 @@ class XepLichLenhService:
         if giao is not None:
             return int(giao), "thuc_thi"
         return (int(cd.may_id), "ke_hoach") if getattr(cd, "may_id", None) else (None, None)
+
+    def _nap_phu(self, lsx_ids) -> None:
+        """Nạp bước chung bài ghép đang phủ các bước của lô lệnh — MỘT truy vấn cho cả lô."""
+        thieu = sorted({int(i) for i in lsx_ids if i and int(i) not in self._phu_da_nap})
+        if not thieu:
+            return
+        from ...repositories.bai_ghep_repo import BaiGhepRepository
+
+        self._phu.update(BaiGhepRepository(self.db).buoc_chung_phu_lsx(thieu))
+        self._phu_da_nap.update(thieu)
+
+    def _quy_cach_bai(self, bai_ghep_id: int) -> dict:
+        if bai_ghep_id not in self._qc_bai:
+            from ...models.bai_ghep import BaiGhep
+            from ...repositories.bai_ghep_repo import BaiGhepRepository
+            from ..bai_ghep_service import BaiGhepService
+
+            bg = self.db.get(BaiGhep, bai_ghep_id)
+            svc = BaiGhepService(self.db, BaiGhepRepository(self.db), None, None)
+            self._qc_bai[bai_ghep_id] = svc.quy_cach_bien_cua_bai(bg) if bg is not None else {}
+        return self._qc_bai[bai_ghep_id]
 
     def _may(self, may_id: int | None):
         if not may_id:
@@ -302,15 +313,24 @@ class XepLichLenhService:
         qc = quy_cach_bien(_LsxCoRouting(lsx, cds))
         lsx_id = getattr(lsx, "id", None)
         self._nap_may([lsx_id] if lsx_id else [])
+        self._nap_phu([lsx_id] if lsx_id else [])
         self._nap_tai_nguyen({lsx_id: cds})
         ra: list[BuocVao] = []
         tin: dict[int, dict] = {}
         for cd in cds:
             tt = int(cd.thu_tu or 0)
             may_id, nguon = self._may_id_cua(cd, lsx_id)
+            # Bước bị bài ghép PHỦ chạy theo bước chung (loại, máy, số tờ ghép của bài), không
+            # theo cấu hình còn nằm ở `lsx_cong_doan` (E2E 27/09/2026: bước chung Thuê ngoài mà
+            # lịch vẫn tính giờ máy theo lệnh). Cùng nguồn với snapshot phát hành.
+            phu = (self._phu.get(cd.step_key) or (None,))[0] if getattr(cd, "step_key", None) else None
+            goc = phu if phu is not None else cd
+            if phu is not None and nguon != "thuc_thi" and phu.may_id:
+                may_id = phu.may_id
             may = self._may(may_id)
-            ngoai = (cd.loai_buoc or LB_MAY) == LB_THUE_NGOAI
-            t = thoi_luong_buoc(cd, may, svc.sl_tinh_cua_buoc(cd, may, qc))
+            ngoai = (goc.loai_buoc or LB_MAY) == LB_THUE_NGOAI
+            qc_goc = self._quy_cach_bai(phu.bai_ghep_id) if phu is not None else qc
+            t = thoi_luong_buoc(goc, may, svc.sl_tinh_cua_buoc(goc, may, qc_goc))
             dg = t.get("dien_giai") or {}
             phut = 0.0 if ngoai else float(t.get("chiem_may_phut") or 0.0)
             tin[cd.id] = {
@@ -329,7 +349,7 @@ class XepLichLenhService:
             }
             if ngoai:
                 ra.append(BuocVao(lsx_cong_doan_id=cd.id, thu_tu=tt, chay_phut=0.0,
-                                  thue_ngoai_ngay=_ngay_thue_ngoai(cd), la_thue_ngoai=True))
+                                  la_thue_ngoai=True))
             else:
                 ra.append(BuocVao(lsx_cong_doan_id=cd.id, thu_tu=tt, chay_phut=phut,
                                   canh_bao=tin[cd.id]["canh_bao"]))
@@ -350,6 +370,7 @@ class XepLichLenhService:
         )
         routing = self.repo.routing_theo_lo([r.id for r in rows])
         self._nap_may([r.id for r in rows])
+        self._nap_phu([r.id for r in rows])
         self._nap_tai_nguyen(routing)
         dong = []
         for l in rows:
@@ -381,6 +402,7 @@ class XepLichLenhService:
         lsx_map = self.repo.lsx_theo_ids([m.lsx_id for m in moc_rows])
         routing = self.repo.routing_theo_lo(list(lsx_map))
         self._nap_may(list(lsx_map))
+        self._nap_phu(list(lsx_map))
         self._nap_tai_nguyen(routing)
         self._nap_thuc_te(list(lsx_map))
 
@@ -444,7 +466,14 @@ class XepLichLenhService:
         ten_dv = self.repo.ten_don_vi(
             sorted({str(c.don_vi_vao) for c in cds if c.don_vi_vao})
         )
-        self._nap_to([c.department_id for c in cds])
+        # Bước bị bài ghép phủ chạy theo cấu hình của BƯỚC CHUNG (loại, tổ, nhà gia công) — cấu
+        # hình còn ở `lsx_cong_doan` là thứ bài đã đè (E2E 27/09/2026: popup in "Tổ cán phủ" cho
+        # lượt cán chung thuê ngoài).
+        from ...repositories.bai_ghep_repo import BaiGhepRepository
+
+        chung = BaiGhepRepository(self.db).buoc_chung_phu_lsx([lsx_id])
+        self._nap_to([c.department_id for c in cds]
+                     + [p.department_id for p, _ in chung.values()])
 
         qc = dict(l.quy_cach_json or {})         # ẢNH CHỤP lúc tạo lệnh — khoá có thể trống
         don = self._don_cua(l)
@@ -472,7 +501,7 @@ class XepLichLenhService:
             "cong_doans": [
                 self._cd_dict(c, i, tin.get(c.id) or {}, ten_dv,
                               lop.get(c.id, 0), dong_lop.get(lop.get(c.id, 0), 1) > 1,
-                              self._thuc_te_cua(c, l.id))
+                              self._thuc_te_cua(c, l.id), chung.get(c.step_key))
                 for i, c in enumerate(cds)
             ],
         }
@@ -559,6 +588,7 @@ class XepLichLenhService:
         lsx_map = self.repo.lsx_theo_ids(list(moc))
         routing = self.repo.routing_theo_lo(list(moc))
         self._nap_may(list(moc))
+        self._nap_phu(list(moc))
         self._nap_tai_nguyen(routing)
         self._nap_thuc_te(list(moc))
         ra: dict[int, list[MocBuoc]] = {}
@@ -703,7 +733,12 @@ class XepLichLenhService:
         for bg in self._bai_ghep(tp.bai_ghep_ids):
             if bg.trang_thai != BG_PHAT_HANH:
                 bg.trang_thai = BG_PHAT_HANH
-        _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids, actor=actor)
+        try:
+            _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids, actor=actor)
+        except ValueError as exc:
+            # Gom lần gia công ngoài từ chối (bước thuê ngoài chưa chọn nhà gia công) — trả 400.
+            self.db.rollback()
+            raise XepLichLenhError(str(exc)) from None
         if self.audit is not None:
             self.audit.create(
                 actor_user_id=getattr(actor, "id", None), action="xep_lich_phat_hanh",
@@ -1039,7 +1074,8 @@ class XepLichLenhService:
         return _lop_topo(ids, self.repo.phu_thuoc_theo_lo(ids)) if ids else {}
 
     def _cd_dict(self, cd, i: int, tin: dict, ten_dv: dict[str, str],
-                 lop: int, song_song: bool, thuc: dict | None = None) -> dict:
+                 lop: int, song_song: bool, thuc: dict | None = None,
+                 phu: tuple | None = None) -> dict:
         """Một dòng bảng công đoạn. Số giờ + máy lấy TỪ `tin` (lượt tính duy nhất), không tính lại.
 
         `thuc` là lớp THỰC TẾ của bước (`_thuc_te_cua`) — rỗng khi lệnh chưa phát hành, và khi đó
@@ -1047,7 +1083,9 @@ class XepLichLenhService:
         bày mốc bước KẾ HOẠCH). Lệnh ĐÃ phát hành thì mốc bước không còn là số thừa: nó là thứ
         duy nhất so được kế hoạch với việc đã xảy ra.
         """
-        ngoai = (cd.loai_buoc or LB_MAY) == LB_THUE_NGOAI
+        # `phu` = (bước chung, mã bài) khi bài ghép đè bước này: loại/tổ/nhà gia công lấy của bài.
+        goc = phu[0] if phu else cd
+        ngoai = (goc.loai_buoc or LB_MAY) == LB_THUE_NGOAI
         dv = str(cd.don_vi_vao) if cd.don_vi_vao else None
         # `lsx_cong_doan.so_luong_vao` là `NOT NULL default 0`, nên 0 CHÍNH LÀ "chưa khai" — không
         # có bước nào thật sự nhận vào 0 đơn vị. Đổi về `None` ngay ở mép API để màn khỏi phải in
@@ -1055,12 +1093,15 @@ class XepLichLenhService:
         sl = float(cd.so_luong_vao or 0)
         return {
             "id": cd.id, "thu_tu": int(cd.thu_tu or 0), "ten": cd.ten,
-            "loai_buoc": cd.loai_buoc,
-            "may_id": tin.get("may_id"),
-            "may_ten": tin.get("may_ten"),
-            "may_nguon": tin.get("may_nguon"),
-            "may_ke_hoach_ten": tin.get("may_ke_hoach_ten"),
-            "to_ten": self._ten_to(cd.department_id),
+            "loai_buoc": goc.loai_buoc,
+            "bai_ghep_ma": phu[1] if phu else None,
+            # Bước thuê ngoài không chạy máy xưởng: bỏ máy (kể cả máy công việc cũ còn sót), chỗ
+            # tên tổ in tên nhà gia công để popup không báo "Chưa gán máy" hay một máy nhầm.
+            "may_id": None if ngoai else tin.get("may_id"),
+            "may_ten": None if ngoai else tin.get("may_ten"),
+            "may_nguon": None if ngoai else tin.get("may_nguon"),
+            "may_ke_hoach_ten": None if ngoai else tin.get("may_ke_hoach_ten"),
+            "to_ten": (goc.nha_cung_cap or "Nhà gia công") if ngoai else self._ten_to(goc.department_id),
             "so_luong_vao": sl if sl > 0 else None,
             "don_vi_vao": dv,
             "don_vi_vao_ten": ten_dv.get(dv) if dv else None,
@@ -1069,7 +1110,7 @@ class XepLichLenhService:
             "canh_bao": tin.get("canh_bao"),
             "lop": lop,
             "song_song": song_song,
-            "thue_ngoai_ngay": _ngay_thue_ngoai(cd) if ngoai else None,
+            "la_thue_ngoai": ngoai,
             "mau_index": i % 4,     # sắc độ khối chạy — mã hoá THỨ TỰ bước, không mã hoá loại
             # --- lớp THỰC TẾ (chỉ có khi lệnh đã phát hành) ---
             "trang_thai": (thuc or {}).get("trang_thai"),

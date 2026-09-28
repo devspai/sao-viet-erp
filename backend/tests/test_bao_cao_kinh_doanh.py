@@ -163,3 +163,51 @@ def test_thieu_quyen_bi_chan_va_khoang_ngay_nguoc(client):
     r2 = client.get(URL, params={"tu_ngay": "2026-07-31", "den_ngay": "2026-07-01"},
                     headers=_h(client))
     assert r2.status_code == 422
+
+
+def _bao_gia(so: str, ung: list[bool]) -> int:
+    """Báo giá có bản hiện hành gồm len(ung) mặt hàng, cờ khách ưng theo `ung`."""
+    from app.models.quotation import Quote, QuoteItem, QuoteVersion
+
+    db = SessionLocal()
+    try:
+        q = Quote(quote_number=so, status="converted_to_order")
+        db.add(q)
+        db.flush()
+        v = QuoteVersion(quote_id=q.id, version_number=1)
+        db.add(v)
+        db.flush()
+        for i, a in enumerate(ung, 1):
+            db.add(QuoteItem(quote_version_id=v.id, line_no=i, product_type="hop",
+                             product_name=f"SP {i}", quantity=100, accepted=a))
+        q.current_version_id = v.id
+        db.commit()
+        return q.id
+    finally:
+        db.close()
+
+
+def test_ty_le_bao_gia_thanh_cong_moi_don(client):
+    kh = _khach("Công ty BCKD Tỷ lệ", "KH-BCKD-TL")
+    d_mot_phan = _don(kh, "DH-BCKD-TL1", chot_luc=_luc(2026, 9, 7))
+    d_cu = _don(kh, "DH-BCKD-TL2", chot_luc=_luc(2026, 9, 8))
+    _don(kh, "DH-BCKD-TL3", chot_luc=_luc(2026, 9, 9))                     # không từ báo giá
+    q1 = _bao_gia("BG-TL-1", [True, True] + [False] * 8)                   # báo 10 chốt 2
+    q2 = _bao_gia("BG-TL-2", [False, False, False])                        # chốt trước khi có cờ
+    db = SessionLocal()
+    try:
+        db.get(Order, d_mot_phan).quotation_id = q1
+        db.get(Order, d_cu).quotation_id = q2
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get(URL, params={"tu_ngay": "2026-09-01", "den_ngay": "2026-09-30"}, headers=_h(client))
+    k = next(x for x in r.json()["khach"] if x["ma"] == "KH-BCKD-TL")
+    assert [d["ty_le_bao_gia"] for d in k["don"]] == [20, 100, None]
+
+    x = client.get(f"{URL}/export.xlsx", params={"tu_ngay": "2026-09-01", "den_ngay": "2026-09-30",
+                                           "customer_id": kh}, headers=_h(client))
+    ws = load_workbook(BytesIO(x.content)).active
+    assert ws["O4"].value == "Tỷ lệ báo giá"
+    assert [ws[f"O{h}"].value for h in range(6, ws.max_row) if ws[f"A{h}"].value] == ["20%", "100%", None]

@@ -36,6 +36,7 @@ class LsxRepository:
         trang_thai: str | None = None,
         q: str | None = None,
         owner_ids: set[int] | None = None,
+        gia_cong: str | None = None,
     ) -> list:
         """Bộ lọc dùng CHUNG cho `list` và `dem_theo_trang_thai`, để số dòng trong bảng và số
         trên tab không bao giờ nói hai chuyện khác nhau (cùng lý do như `catalog_base._loc_q`)."""
@@ -67,6 +68,11 @@ class LsxRepository:
             conds.append(
                 or_(Lsx.nguoi_phu_trach_id.in_(owner_ids), Lsx.created_by.in_(owner_ids))
             )
+        if gia_cong:
+            # Ô lọc "Gia công ngoài" (spec gia công ngoài §7) — chờ mang đi / đang ở ngoài / trọn gói.
+            from .gia_cong_ngoai_repo import lsx_ids_loc_gia_cong
+
+            conds.append(Lsx.id.in_(lsx_ids_loc_gia_cong(gia_cong)))
         return conds
 
     def list(self, *, page: int = 1, size: int = 50, **kw) -> tuple[list[Lsx], int]:

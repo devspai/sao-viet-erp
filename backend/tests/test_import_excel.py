@@ -135,9 +135,7 @@ def _to() -> tuple[int, str, str]:
 PREFIX = {
     "kho_hang": "/api/kho",
     "khuon_be": "/api/khuon-be",
-    "loai_san_pham": "/api/loai-san-pham",
     "don_vi_do": "/api/don-vi",
-    "chung_loai_giay": "/api/vat-lieu-kho/chung-loai-giay",
     "giay": "/api/vat-lieu-kho/giay",
     "vat_tu": "/api/vat-lieu-kho/vat-tu-in-an",
     "thanh_pham": "/api/vat-lieu-kho/thanh-pham",
@@ -148,9 +146,9 @@ PREFIX = {
 assert set(PREFIX) == set(SPECS), "PREFIX và SPECS phải phủ đúng ngần ấy màn như nhau."
 
 MA = {
-    "kho_hang": "KHO-T1", "khuon_be": "KB-T1", "loai_san_pham": "LSP-T1",
+    "kho_hang": "KHO-T1", "khuon_be": "KB-T1",
     "don_vi_do": "dvt1",
-    "chung_loai_giay": "CL-T1", "giay": "GI-T1", "vat_tu": "VT-T1", "thanh_pham": "TP-T1",
+    "giay": "GI-T1", "vat_tu": "VT-T1", "thanh_pham": "TP-T1",
     "cong_doan": "CD-T1", "may_thiet_bi": "MAY-T1", "xe": "51K-99999",
 }
 
@@ -190,15 +188,13 @@ def _dung_nen(client, h) -> dict[str, dict]:
     ra["don_vi_do"] = _tao(client, h, "don_vi_do", {
         "ma": MA["don_vi_do"], "ten": "Đơn vị thử", "ho": "thanh_pham",
         "ghi_chu": "gc", "hieu_luc_tu": "2026-01-01"})
-    ra["chung_loai_giay"] = _tao(client, h, "chung_loai_giay", {
-        "ma": MA["chung_loai_giay"], "ten": "Couche thử", "mo_ta": "mô tả"})
     # Công thức nền dùng TÊN BIẾN THẬT (`bien_cong_thuc._BANG`). Trước 07/09/2026 chỗ này gõ
     # `khoi_luong * don_gia` · `so_kg * don_gia` · `so_to * 100` — ba tên không hề tồn tại, và
     # không ai phát hiện vì server chưa soi ô công thức lúc lưu. Nay có soi (`kiem_cong_thuc`) nên
     # nền phải là câu chạy được, đúng như dữ liệu thật.
     ra["giay"] = _tao(client, h, "giay", {
         "ma": MA["giay"], "ten": "Giấy thử", "gsm": 250,
-        "chung_loai_giay_id": ra["chung_loai_giay"]["id"], "caliper_micron": 300,
+        "caliper_micron": 300,
         "tho": "canh_dai", "don_vi_gia": "kg", "don_gia": 28000, "gia_thi_truong": 30000,
         "kho_tinh_gia": True, "ghi_chu": "gc", "cong_thuc_gia": "dinh_luong * don_gia_giay",
         "cong_thuc_luong": "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen"})
@@ -225,11 +221,6 @@ def _dung_nen(client, h) -> dict[str, dict]:
         "ghi_chu": "gc",
         # Tab VẬT TƯ của công đoạn (mg `0316`) — thay tầng đầu việc định mức đã gỡ (mg `0320`).
         "vat_tus": [{"vat_tu_id": ra["vat_tu"]["id"]}]})
-    ra["loai_san_pham"] = _tao(client, h, "loai_san_pham", {
-        "ma": MA["loai_san_pham"], "ten": "Hộp thử", "structural_type": "box",
-        "box_sub_type": "folding_carton", "has_cover": False,
-        "default_stock_class": "couche", "ghi_chu": "gc",
-        "routing_template": [ra["cong_doan"]["id"]]})
     ra["may_thiet_bi"] = _tao(client, h, "may_thiet_bi", {
         "ma": MA["may_thiet_bi"], "ten": "Máy thử", "loai_may": "Máy in",
         "hang_san_xuat": "Heidelberg", "model": "SM74", "so_seri": "X1",
@@ -388,12 +379,8 @@ def test_bat_lai_dong_da_ngung_bang_excel(client, seed_credentials):
 def test_xuat_dich_fk_thanh_ma_nghiep_vu_khong_phai_id(client, seed_credentials):
     """FK ra file dưới dạng MÃ (kèm cột tên để đối chiếu) — số id chỉ có nghĩa trong đúng một DB."""
     h = _login(client, **seed_credentials)
-    nen = _dung_nen(client, h)
+    _dung_nen(client, h)
     _, ma_to, ten_to = _to()
-
-    tieu_de, dong = _chinh(client, h, "giay")
-    d = _dong_theo_ma(tieu_de, dong, MA["giay"])
-    assert d[tieu_de.index("Chủng loại giấy")] == nen["chung_loai_giay"]["ma"]
 
     tieu_de, dong = _chinh(client, h, "cong_doan")
     d = _dong_theo_ma(tieu_de, dong, MA["cong_doan"])
@@ -691,15 +678,15 @@ def test_sai_kieu_bao_dung_cot_va_dong(client, seed_credentials):
 def test_tham_chieu_khong_ton_tai(client, seed_credentials):
     h = _login(client, **seed_credentials)
     _dung_nen(client, h)
-    noi_dung = _wb_tu(["Mã", "Tên", "Chủng loại giấy"],
-                      [[MA["giay"], "Giấy thử", "KHONG-CO-MA-NAY"]],
-                      ten_sheet=SPECS["giay"].tieu_de[:31], loai="giay")
-    kq = _nhap(client, h, PREFIX["giay"], noi_dung).json()
+    noi_dung = _wb_tu(["Mã", "Tên", "Mã khách hàng"],
+                      [[MA["khuon_be"], "Khuôn thử", "KHONG-CO-MA-NAY"]],
+                      ten_sheet=SPECS["khuon_be"].tieu_de[:31], loai="khuon_be")
+    kq = _nhap(client, h, PREFIX["khuon_be"], noi_dung).json()
     assert kq["hop_le"] is False
     assert "KHONG-CO-MA-NAY" in kq["loi"][0]["ly_do"]
     # Câu lỗi phải chỉ luôn MÀN phải khai trước — thứ tự nhập giữa các màn là ràng buộc thật,
     # người nhập không có cách nào đoán ra từ chữ "không tìm thấy".
-    assert "Chủng loại giấy" in kq["loi"][0]["ly_do"]
+    assert "Khách hàng" in kq["loi"][0]["ly_do"]
 
 
 def test_cap_quy_doi_tro_toi_don_vi_nam_DUOI_trong_cung_file(client, seed_credentials):

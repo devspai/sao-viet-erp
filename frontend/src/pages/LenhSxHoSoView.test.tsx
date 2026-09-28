@@ -46,7 +46,7 @@ const HOSO: LenhSxHoSoOut = {
     dai_thanh_pham: 120, rong_thanh_pham: 80, quy_cach_in: "hai_mat",
     so_mau_a: 4, so_mau_b: 1, muc_a: ["C", "M", "Y", "K"], muc_b: ["K"],
     so_trang: null, trang_moi_tay: null, so_kem: 5, so_manh_xa: 0,
-    loai_san_pham: "Hộp giấy", ghi_chu_ky_thuat: "Bế theo khuôn cũ",
+    ghi_chu_ky_thuat: "Bế theo khuôn cũ",
     so_con: 8, so_to_ke_hoach: 1580, so_to_nguyen: 1600, don_vi_tinh: "cái",
   },
   routing: {
@@ -373,6 +373,30 @@ describe("Hồ sơ lệnh sản xuất · chip khuôn đi theo bước", () => {
     expect(screen.getByText("KB-0007 · K-A3")).toBeInTheDocument();
     // Bước không cần dụng cụ thì KHÔNG được mọc chip rỗng: chỉ một bước trong ba có dao.
     expect(document.querySelectorAll(".chip-khuon")).toHaveLength(1);
+  });
+});
+
+// E2E 27/09/2026: bước bị bài ghép phủ in theo cấu hình của LỆNH (Máy, "Tổ cán phủ") trong khi
+// lượt chung là Thuê ngoài — máy chủ nay trả cấu hình bước chung + mã bài, màn phải nói ra mã bài.
+describe("Hồ sơ lệnh sản xuất · bước bị bài ghép phủ", () => {
+  it("bày loại Thuê ngoài, nhà gia công và chip đi chung bài ghép", async () => {
+    const [n1, n2, n3] = HOSO.routing!.nodes;
+    stubApi({
+      ...HOSO,
+      routing: {
+        ...HOSO.routing!,
+        nodes: [n1, {
+          ...n2, loai_buoc: "thue_ngoai", nha_cung_cap: "Tân Phát", may: null, to: null,
+          bai_ghep_ma: "GB26-0002",
+        }, n3],
+      },
+    });
+    ve();
+    await screen.findByText("LSX26-0031");
+    await moHetKhoi();
+
+    expect(screen.getByText("đi chung bài ghép GB26-0002")).toBeInTheDocument();
+    expect(screen.getByText("Tân Phát")).toBeInTheDocument();
   });
 });
 

@@ -217,8 +217,12 @@ def test_don_vi_khong_quy_doi_duoc_bao_loi(db, orders, lsx_svc, admin, customer)
     db.flush()
     tp.don_vi_gia = kien.ma
     db.commit()
-    with pytest.raises(ValueError, match="Không quy đổi được từ «cái» sang «kiện TP»"):
+    with pytest.raises(ValueError, match="Không quy đổi được từ «cái» sang «kiện TP»") as e:
         _gui(db, cv, rb)
+    # Câu lỗi phải CHỈ ĐƯỜNG: bước nào, món nào, sửa ở màn nào (ruling E2E 27/09/2026).
+    msg = str(e.value)
+    assert f"bước «{cv.ten_cong_doan}»" in msg and tp.ma in msg
+    assert "tab Công đoạn" in msg and "Cấu hình danh mục ▸ Thành phẩm" in msg
 
 
 def test_don_vi_quy_doi_duoc_nhan_he_so(db, orders, lsx_svc, admin, customer):

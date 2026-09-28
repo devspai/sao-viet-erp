@@ -233,14 +233,6 @@ export function ChipGap() {
   );
 }
 
-export function ChipNgoai({ ncc }: { ncc?: string | null }) {
-  return (
-    <span className="khsx-chip khsx-chip--ngoai" title={ncc ? `Thuê ngoài: ${ncc}` : "Thuê ngoài"}>
-      <Icon name="truck" size={11} /> {ncc || "thuê ngoài"}
-    </span>
-  );
-}
-
 // --- Hàng đèn tiến độ (Đợt 1 redesign 18/08/2026) ---------------------------
 // Bốn thứ bảng lệnh CHƯA nói: vật tư đã có chủ chưa · lịch đã đứng được chưa · có ai làm không ·
 // số trên lệnh còn khớp danh mục không (07/09/2026).

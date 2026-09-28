@@ -22,6 +22,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
 import { DagRoutingCanvas } from "../components/DagRoutingCanvas";
 import { LsxBuocDrawer, type TabKey as DrawerTabKey } from "./LsxBuocDrawer";
+import { viTriTrongDai } from "./gia-cong/giaCong";
 import { ChuoiCongDoan, ngay, num } from "./keHoachSxShared";
 import { nhanTram, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
@@ -773,7 +774,13 @@ export function LsxRoutingTable({
                     </button>
                   </td>
                   <td>
-                    <span className={lamO ? "" : "khsx-muted"}>{lamO || "tổ mặc định"}</span>
+                    {r.loai_buoc === "thue_ngoai" ? (
+                      <span className={r.nha_cung_cap ? "" : "khsx-muted"}>
+                        {r.nha_cung_cap || "chưa chọn nhà gia công"}
+                      </span>
+                    ) : (
+                      <span className={lamO ? "" : "khsx-muted"}>{lamO || "tổ mặc định"}</span>
+                    )}
                     {/* Dòng "Kíp N người" GỠ 18/09/2026 (mg `0321`) — bỏ hẳn logic kíp người.
                         Bước TỔ hiện SỐ GIỜ KẾ HOẠCH người lập lệnh gõ thay vào chỗ đó. */}
                     {r.loai_buoc === "to" && (
@@ -1029,6 +1036,7 @@ export function LsxRoutingTable({
           giayRefs={giayRefs}
           phuThuocRefs={phuThuocRefs}
           baiGhep={baiGhep}
+          daiGiaCong={viTriTrongDai(rows, moBuoc)}
           dvChuoi={dvChuoi}
           canUpdate={suaDuoc}
           onPatch={(p) => patch(rows[moBuoc].key, p)}

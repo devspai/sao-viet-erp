@@ -6,6 +6,7 @@ import { Icon, type IconName } from "./Icons";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ChipGap, classHan, ngay, num } from "../pages/keHoachSxShared";
 import { heSoChu, nhanChang, phut } from "../pages/lsxBuoc";
+import { useNapTenDonVi } from "../pages/tenDonVi";
 
 type Node = SoDo["nhanh"][number]["buoc"][number];
 type BuocChung = SoDo["gop"][number];
@@ -246,6 +247,9 @@ export function BaiGhepDagCanvas({
   onSuaCon,
   canUpdate = true,
 }: BaiGhepDagCanvasProps) {
+  // Nhãn chặng ("tờ in", "thành phẩm") nạp một lần cho cả phiên. Màn Bài ghép mở thẳng mà không
+  // gọi hook này thì chưa ai nạp bảng ⇒ thẻ in mã trần "to"/"cai" (E2E 27/09/2026).
+  useNapTenDonVi();
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Viewport State — vị trí do scrollLeft/scrollTop của vùng cuộn quyết, KHÔNG còn state `pan`.
@@ -890,10 +894,13 @@ export function BaiGhepDagCanvas({
                   </div>
                   <div className="dag-node__body">
                     <div className="dag-node__row">
-                      <span className="dag-node__badge">
-                        <Icon name="users" size={11} />
-                        {g.to_ten ? `Tổ ${g.to_ten}` : "Chưa chọn tổ"}
-                      </span>
+                      {/* Thuê ngoài không có tổ trong xưởng — "Chưa chọn tổ" ở đây là báo thiếu oan. */}
+                      {g.loai_buoc !== "thue_ngoai" && (
+                        <span className="dag-node__badge">
+                          <Icon name="users" size={11} />
+                          {g.to_ten ? `Tổ ${g.to_ten}` : "Chưa chọn tổ"}
+                        </span>
+                      )}
                       {g.loai_buoc === "thue_ngoai" ? (
                         <span className="dag-node__badge" title="Cả bài đi một phiếu, một nhà cung cấp">
                           <Icon name="truck" size={11} />
@@ -1172,10 +1179,12 @@ export function BaiGhepDagCanvas({
                           </div>
                           <div className="dag-node__body">
                             <div className="dag-node__row">
-                              <span className="dag-node__badge">
-                                <Icon name={getStepIcon(b)} size={11} />
-                                {b.to_ten ? `Tổ ${b.to_ten}` : "Chưa chọn tổ"}
-                              </span>
+                              {b.loai_buoc !== "thue_ngoai" && (
+                                <span className="dag-node__badge">
+                                  <Icon name={getStepIcon(b)} size={11} />
+                                  {b.to_ten ? `Tổ ${b.to_ten}` : "Chưa chọn tổ"}
+                                </span>
+                              )}
                               {b.loai_buoc === "thue_ngoai"
                                 ? <span className="dag-node__badge"><Icon name="truck" size={11} />{b.nha_cung_cap || "chưa có nhà gia công"}</span>
                                 : b.may_ten && <span className="dag-node__badge" title={`Máy: ${b.may_ten}`}><Icon name="cpu" size={11} />{b.may_ten}</span>}

@@ -20,21 +20,20 @@ from typing import Any, Callable
 
 from sqlalchemy import select
 
-from ..models.cong_doan import CongDoan, NHOM
+from ..models.cong_doan import NHOM
 from ..models.customer import Customer
 from ..models.department import Department
 from ..models.may_thiet_bi import MayThietBi
-from ..models.vat_lieu_kho import ChungLoaiGiay, VatTuInAn
+from ..models.vat_lieu_kho import VatTuInAn
 from ..models.xe import MucKhoanKm
 from ..repositories.cong_doan_repo import CongDoanRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.kho_hang_repo import KhoHangRepository
 from ..repositories.khuon_be_repo import KhuonBeRepository
-from ..repositories.loai_san_pham_repo import LoaiSanPhamRepository
 from ..repositories.may_thiet_bi_repo import MayThietBiRepository
 from ..repositories.xe_repo import XeRepository
 from ..repositories.vat_lieu_kho_repo import (
-    _ChungLoaiGiayRepo, _GiayRepo, _ThanhPhamRepo, _VatTuRepo,
+    _GiayRepo, _ThanhPhamRepo, _VatTuRepo,
 )
 from .catalog_excel import NHAN_TRANG_THAI, CatalogExcelSpec, Cot, NguCanh, SheetCon
 
@@ -110,7 +109,6 @@ class _Tra:
 
 TRA_TO = _Tra(Department, "code", "tổ/phòng ban", cot_ten="name", man="Phòng ban")
 TRA_KHACH = _Tra(Customer, "code", "khách hàng", cot_ten="name", man="Khách hàng")
-TRA_CONG_DOAN = _Tra(CongDoan, "ma", "mã công đoạn", cot_ten="ten", man="Công đoạn")
 # ⚠️ `TRA_DAU_VIEC` GỠ 18/09/2026 (mg `0320`): chỉ sheet "Đầu việc định mức" của Công đoạn tra
 #    theo mã công việc khoán, mà sheet đó đã bay cùng bảng `cong_doan_dau_viec`.
 TRA_MAY = _Tra(MayThietBi, "ma", "mã máy", cot_ten="ten", man="Thiết bị & Máy móc")
@@ -118,8 +116,6 @@ TRA_MAY = _Tra(MayThietBi, "ma", "mã máy", cot_ten="ten", man="Thiết bị & 
 TRA_MUC_KM = _Tra(MucKhoanKm, "ten", "mức khoán km",
                   man="Cấu hình lương › Khoán km giao hàng")
 TRA_VAT_TU = _Tra(VatTuInAn, "ma", "mã vật tư", cot_ten="ten", man="Vật tư khác")
-TRA_CHUNG_LOAI = _Tra(ChungLoaiGiay, "ma", "chủng loại giấy", cot_ten="ten",
-                      man="Chủng loại giấy")
 
 
 def _cot_to(field: str = "department_id", nhan: str = "Mã tổ", nhan_ten: str = "Tên tổ",
@@ -204,37 +200,6 @@ KHUON_BE = CatalogExcelSpec(
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
     ),
-)
-
-
-# ======================================================================================
-# 4 · Loại sản phẩm
-# ======================================================================================
-
-LOAI_SAN_PHAM = CatalogExcelSpec(
-    loai="loai_san_pham", tieu_de="Loại sản phẩm", repo_cls=LoaiSanPhamRepository,
-    cot=(
-        Cot("Mã", "ma"),
-        Cot("Tên", "ten", rong=32),
-        Cot("Kiểu cấu trúc", "structural_type", rong=18),
-        Cot("Kiểu hộp", "box_sub_type", rong=18),
-        Cot("Có bìa", "has_cover", kieu="bool", rong=12),
-        Cot("Loại bìa", "cover_type", rong=18),
-        Cot("Kiểu đóng mặc định", "default_binding", rong=20),
-        Cot("Nhóm giấy mặc định", "default_stock_class", rong=20),
-        Cot("Ghi chú", "ghi_chu", rong=32),
-        CO_ACTIVE,
-    ),
-    sheets_con=(
-        SheetCon(
-            "Chuỗi công đoạn mặc định", field="routing_template", rut_gon="cong_doan_id",
-            cot=(Cot("Mã công đoạn", "cong_doan_id",
-                     doc=TRA_CONG_DOAN.doc, ghi=TRA_CONG_DOAN.ghi),),
-        ),
-    ),
-    # `imposition_rule_id` trỏ tới `quy_tac_binh_bai` — bảng đó KHÔNG tồn tại trong hệ (không model,
-    # không màn khai). Đưa vào Excel là bắt người ta gõ một id không tra được ở đâu.
-    loai_tru=frozenset({"imposition_rule_id"}),
 )
 
 
@@ -338,23 +303,12 @@ def _sheet_thay_the(ten: str, nhan: str) -> SheetCon:
     )
 
 
-CHUNG_LOAI_GIAY = CatalogExcelSpec(
-    loai="chung_loai_giay", tieu_de="Chủng loại giấy", repo_cls=_ChungLoaiGiayRepo,
-    cot=(
-        Cot("Mã", "ma"),
-        Cot("Tên", "ten", rong=32),
-        Cot("Mô tả", "mo_ta", rong=40),
-        CO_ACTIVE,
-    ),
-)
 
 GIAY = CatalogExcelSpec(
     loai="giay", tieu_de="Giấy", repo_cls=_GiayRepo,
     cot=(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
-        Cot("Chủng loại giấy", "chung_loai_giay_id",
-            doc=TRA_CHUNG_LOAI.doc, ghi=TRA_CHUNG_LOAI.ghi),
         Cot("Định lượng (gsm)", "gsm", kieu="nguyen", rong=16),
         Cot("Độ dày (micron)", "caliper_micron", kieu="nguyen", rong=16),
         Cot("Thớ giấy", "tho", rong=12),
@@ -776,7 +730,7 @@ XE = CatalogExcelSpec(
 
 SPECS: dict[str, CatalogExcelSpec] = {
     s.loai: s for s in (
-        KHO_HANG, KHUON_BE, LOAI_SAN_PHAM,
-        DON_VI_DO, CHUNG_LOAI_GIAY, GIAY, VAT_TU, THANH_PHAM, CONG_DOAN, MAY_THIET_BI, XE,
+        KHO_HANG, KHUON_BE,
+        DON_VI_DO, GIAY, VAT_TU, THANH_PHAM, CONG_DOAN, MAY_THIET_BI, XE,
     )
 }

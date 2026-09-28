@@ -15995,3 +15995,278 @@ def _migrate_salary_advance_payment_voucher(db: Session) -> None:
 
 
 MIGRATIONS.append(("0337_salary_advance_payment_voucher", _migrate_salary_advance_payment_voucher))
+
+
+# mg 0338 — màn Nhật ký hoạt động: lọc/phân trang chuyển về MÁY CHỦ (25/09/2026).
+# (Viết ra lúc mang số 0336; gộp nhánh dev thì 0336/0337 đã có chủ nên đánh lại 0338. Chạy lại
+# VÔ HẠI — kiểm cột đã có + `CREATE INDEX IF NOT EXISTS` — nên DB dev từng ghi dưới tên
+# `0336_nhat_ky_loc_may_chu` chạy lại dưới tên mới cũng không đổi gì.)
+#
+# Trước đó `GET /api/audit` trả cứng 100 dòng mới nhất, không nhận tham số; màn hình lọc, cắt
+# trang và xuất CSV trên đúng 100 dòng ấy — dòng thứ 101 trở đi KHÔNG có đường nào lấy ra, và
+# "30 ngày qua" chỉ lọc trong ảnh chụp đó. Ba cột + hai index dưới đây là phần DB của việc mở ra.
+_COT_0338 = (
+    # Tên người thao tác CHỤP TẠI LÚC GHI. Trước đây tên tra từ `users` lúc ĐỌC ⇒ đổi tên một
+    # người là mọi dòng cũ của họ đổi theo, nhật ký nói sai về quá khứ.
+    ("actor_name_luc_do", "VARCHAR(120)"),
+    # Ai, TỪ ĐÂU. Điền tự động từ `app/audit_context.py` (middleware) nên mọi đường ghi audit đều
+    # có mà không phải sửa hơn 200 chữ ký hàm.
+    ("ip", "VARCHAR(45)"),
+    ("user_agent", "VARCHAR(255)"),
+)
+
+_INDEX_0338 = (
+    # Lọc theo hành động / theo người, luôn kèm sắp xếp theo thời gian. Không có hai index này thì
+    # mỗi lần lọc là quét cả bảng — mà mg `0301` đã ghi đây là bảng phình nhanh nhất hệ.
+    ("ix_audit_logs_action_created_at", ("action", "created_at")),
+    ("ix_audit_logs_actor_created_at", ("actor_user_id", "created_at")),
+)
+
+
+def _migrate_nhat_ky_loc_may_chu(db) -> None:
+    """Ba cột vết + hai index cho `audit_logs`.
+
+    KHÔNG backfill `actor_name_luc_do` cho dòng cũ: tên hôm nay chưa chắc là tên lúc đó, ghi bừa
+    vào là bịa lịch sử. Để rỗng và tầng đọc tự tra ngược sang `users` như trước — đúng chất lượng
+    dữ liệu mà dòng cũ vốn có, không giả vờ hơn.
+    """
+    insp = inspect(db.get_bind())
+    if "audit_logs" not in set(insp.get_table_names()):
+        return
+    co = _existing_columns(insp, "audit_logs")
+    for ten, kieu in _COT_0338:
+        if ten in co:
+            continue
+        # NOT NULL + server_default để `create_all` trên DB trắng và đường migration ra CÙNG hình
+        # dạng; chuỗi rỗng chứ không NULL vì tầng đọc coi rỗng là "không có vết", khỏi phải phân
+        # biệt hai kiểu vắng mặt.
+        db.execute(text(
+            f"ALTER TABLE audit_logs ADD COLUMN {ten} {kieu} NOT NULL DEFAULT ''"))
+    for ten_index, cot in _INDEX_0338:
+        db.execute(text(
+            f"CREATE INDEX IF NOT EXISTS {ten_index} ON audit_logs ({', '.join(cot)})"))
+    db.commit()
+
+
+MIGRATIONS.append(("0338_nhat_ky_loc_may_chu", _migrate_nhat_ky_loc_may_chu))
+
+
+# mg 0339 — GIA CÔNG NGOÀI (spec 2026-09-26). Bảng `gia_cong_ngoai` do `create_all` dựng (runner
+# chạy create_all TRƯỚC chuỗi migration); ở đây chỉ thêm cột nối vào các bảng ĐÃ có.
+_COT_0339 = (
+    ("suppliers", "nhan_gia_cong", "BOOLEAN NOT NULL DEFAULT false"),
+    ("lsx_cong_doan", "nha_cung_cap_id", "INTEGER"),
+    ("san_xuat_cong_viec", "gia_cong_ngoai_id",
+     "INTEGER REFERENCES gia_cong_ngoai(id) ON DELETE SET NULL"),
+    ("stock_requests", "gia_cong_ngoai_id", "INTEGER"),
+    ("delivery_trips", "gia_cong_ngoai_id", "INTEGER"),
+    ("payment_vouchers", "gia_cong_ngoai_id",
+     "INTEGER REFERENCES gia_cong_ngoai(id) ON DELETE RESTRICT"),
+)
+
+
+def _migrate_gia_cong_ngoai(db) -> None:
+    """Sáu cột nối + index của lần gia công ngoài. Idempotent (soi cột trước khi thêm).
+
+    KHÔNG backfill: NCC có sẵn mặc định KHÔNG nhận gia công (người mua hàng tự tích), bước thuê
+    ngoài cũ còn tên chữ mà chưa có `nha_cung_cap_id` ⇒ bảng "còn thiếu" sẽ nhắc chọn lại — đúng ý,
+    tên gõ tay không đối chiếu được với danh mục.
+    """
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for ten_bang, cot, kieu in _COT_0339:
+        if ten_bang not in bang or cot in _existing_columns(insp, ten_bang):
+            continue
+        db.execute(text(f"ALTER TABLE {ten_bang} ADD COLUMN {cot} {kieu}"))
+    for ten_bang, cot in (
+        ("lsx_cong_doan", "nha_cung_cap_id"),
+        ("san_xuat_cong_viec", "gia_cong_ngoai_id"),
+        ("stock_requests", "gia_cong_ngoai_id"),
+        ("delivery_trips", "gia_cong_ngoai_id"),
+    ):
+        if ten_bang in bang:
+            db.execute(text(
+                f"CREATE INDEX IF NOT EXISTS ix_{ten_bang}_{cot} ON {ten_bang} ({cot})"))
+    if "payment_vouchers" in bang:
+        # Cùng khuôn `uq_payment_voucher_salary_advance` (mg 0271): phiếu đã huỷ nhường chỗ.
+        db.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_voucher_gia_cong_ngoai "
+            "ON payment_vouchers (gia_cong_ngoai_id) WHERE status <> 'cancelled'"))
+    db.commit()
+
+
+MIGRATIONS.append(("0339_gia_cong_ngoai", _migrate_gia_cong_ngoai))
+
+
+_COT_THUE_NGOAI_CU = (
+    "sl_gui", "ngay_gui_dk", "van_chuyen_ngay", "gia_cong_ngay", "ngay_nhan_dk",
+    "hao_hut_cho_phep", "yeu_cau_ky_thuat",
+    "nguoi_giao_id", "giao_luc", "sl_giao_thuc", "nguoi_nhan_id", "nhan_luc", "sl_nhan_thuc",
+)
+
+
+def _migrate_go_cot_thue_ngoai_cu(db) -> None:
+    """mg 0340 — gỡ 13 cột thuê ngoài CŨ của `lsx_cong_doan` (spec gia công ngoài §10).
+
+    Chủ chốt 26/09/2026: không ngày gửi/hẹn về, không hao hụt cho phép; sổ giao–nhận của bước
+    thay bằng LẦN GIA CÔNG (`gia_cong_ngoai`). Dự án chưa có dữ liệu thật ⇒ gỡ thẳng, không chép.
+    Index trên `nguoi_giao_id` / `nguoi_nhan_id` (nếu có) phải DROP trước — SQLite từ chối DROP
+    COLUMN đang có index. Idempotent: cột nào đã mất thì bỏ qua.
+    """
+    insp = inspect(db.get_bind())
+    if "lsx_cong_doan" not in insp.get_table_names():
+        return
+    co = _existing_columns(insp, "lsx_cong_doan")
+    for ix in insp.get_indexes("lsx_cong_doan"):
+        if set(ix.get("column_names") or []) & set(_COT_THUE_NGOAI_CU):
+            db.execute(text(f"DROP INDEX IF EXISTS {ix['name']}"))
+    for cot in _COT_THUE_NGOAI_CU:
+        if cot in co:
+            db.execute(text(f"ALTER TABLE lsx_cong_doan DROP COLUMN {cot}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0340_go_cot_thue_ngoai_cu", _migrate_go_cot_thue_ngoai_cu))
+
+
+def _migrate_don_vi_ncc_ve_ma(db) -> None:
+    """mg 0341 — `supplier_items.unit` lưu bằng TÊN đơn vị ("cái") đổi về MÃ ("cai").
+
+    Trước 27/09/2026 cửa ghi bảng giá NCC kiểm đơn vị nhận cả tên lẫn mã nhưng lưu nguyên chữ người
+    gửi. Màn bảng giá so theo MÃ ⇒ dòng lưu tên hiện "Quy về gốc" gạch ngang và ô ĐVT chọn nhầm
+    lựa chọn đầu. Cửa ghi nay lưu mã (`_kiem_don_vi_ncc`); đây là phần dọn dữ liệu cũ (dev đo được
+    8 dòng). Chỉ đổi khi `unit` KHÔNG trùng mã nào VÀ trùng tên đúng MỘT đơn vị — mơ hồ thì để yên.
+    Idempotent.
+    """
+    bang = set(inspect(db.get_bind()).get_table_names())
+    if not {"supplier_items", "don_vi_do"} <= bang:
+        return
+    db.execute(text(
+        "UPDATE supplier_items SET unit = ("
+        "  SELECT d.ma FROM don_vi_do d WHERE lower(d.ten) = lower(trim(supplier_items.unit))"
+        ") WHERE NOT EXISTS ("
+        "  SELECT 1 FROM don_vi_do d WHERE lower(d.ma) = lower(trim(supplier_items.unit))"
+        ") AND (SELECT count(*) FROM don_vi_do d"
+        "       WHERE lower(d.ten) = lower(trim(supplier_items.unit))) = 1"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0341_don_vi_ncc_ve_ma", _migrate_don_vi_ncc_ve_ma))
+
+
+def _migrate_go_loai_san_pham_chung_loai_giay(db) -> None:
+    """mg 0342 — gỡ hai danh mục Loại sản phẩm + Chủng loại giấy (chủ chốt 27/09/2026).
+
+    Không engine nào đọc hai danh mục này để ra tiền, tồn hay lịch. Loại SP chỉ còn đúng một việc:
+    chọn loại ở màn Tính giá thì tự bung chuỗi công đoạn mặc định — chủ chấp nhận bỏ. Chủng loại giấy
+    chỉ là nhãn phân loại của Giấy.
+
+    Gỡ luôn `product_types_catalog` (loại SP ĐỜI CŨ): API của nó 403 cho mọi vai từ 15/08/2026
+    (`legacy_api.py`). `norms.product_type` còn trỏ khoá ngoại vào bảng đó ⇒ Postgres DROP ... CASCADE
+    (bỏ ràng buộc, GIỮ cột chuỗi — `norm_service` vẫn so khớp theo chuỗi).
+
+    Mất dữ liệu, không khôi phục được: các dòng của ba bảng, `phieu_tinh_gia.loai_san_pham_id`,
+    `phieu_thanh_phan.loai_san_pham_id`, `giay_nguyen.chung_loai_giay_id`, và dòng quyền của hai ô
+    `dm_loai_san_pham` · `dm_chung_loai_giay`. Tên loại đã chụp vào `lsx.quy_cach_json` của lệnh cũ
+    ở yên đó (JSON, không ai đọc nữa). Index trên cột phải DROP trước — SQLite từ chối DROP COLUMN
+    đang có index. Idempotent.
+    """
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    pg = bind.dialect.name == "postgresql"
+
+    for ten_bang, cot in (
+        ("phieu_tinh_gia", "loai_san_pham_id"),
+        ("phieu_thanh_phan", "loai_san_pham_id"),
+        ("giay_nguyen", "chung_loai_giay_id"),
+    ):
+        if ten_bang not in bang or cot not in _existing_columns(insp, ten_bang):
+            continue
+        for ix in insp.get_indexes(ten_bang):
+            if cot in (ix.get("column_names") or []):
+                db.execute(text(f"DROP INDEX IF EXISTS {ix['name']}"))
+        db.execute(text(f"ALTER TABLE {ten_bang} DROP COLUMN {cot}"))
+
+    for ten in ("loai_san_pham", "chung_loai_giay", "product_types_catalog"):
+        if ten in bang:
+            db.execute(text(f"DROP TABLE {ten}" + (" CASCADE" if pg else "")))
+
+    for key in ("dm_loai_san_pham", "dm_chung_loai_giay"):
+        if "role_permissions" in bang:
+            db.execute(text("DELETE FROM role_permissions WHERE module_key = :k"), {"k": key})
+        if "modules" in bang:
+            db.execute(text("DELETE FROM modules WHERE key = :k"), {"k": key})
+    db.commit()
+
+
+MIGRATIONS.append(("0342_go_loai_san_pham_chung_loai_giay", _migrate_go_loai_san_pham_chung_loai_giay))
+
+
+_COT_DU_KIEN_BUOC_CHUNG = (
+    "sl_gui", "ngay_gui_dk", "van_chuyen_ngay", "gia_cong_ngay", "ngay_nhan_dk",
+    "hao_hut_cho_phep", "don_gia_gia_cong", "yeu_cau_ky_thuat",
+)
+
+
+def _migrate_gia_cong_ngoai_bai_ghep(db) -> None:
+    """mg 0343 — gia công ngoài cho bước CHUNG bài ghép (spec 2026-09-27 §6).
+
+    · `gia_cong_ngoai.lsx_id` thành nullable, thêm `bai_ghep_id` (FK `bai_ghep` RESTRICT) + CHECK
+      đúng một trong hai có giá trị. SQLite không ALTER được ràng buộc — test dựng bằng
+      `create_all` đã có sẵn; ở đây chỉ thêm cột.
+    · `bai_ghep_cong_doan.nha_cung_cap_id` (FK `suppliers`) — nhà gia công chọn từ danh mục; cột
+      chữ `nha_cung_cap` giữ làm tên do máy chủ ghi. KHÔNG backfill: tên gõ tay cũ không đối chiếu
+      được danh mục ⇒ "Còn thiếu" nhắc chọn lại.
+    · Gỡ 8 cột dự kiến cũ của bước chung (ngày gửi/nhận, số ngày vận chuyển/gia công, hao hụt cho
+      phép, sl gửi, đơn giá, yêu cầu kỹ thuật) — cùng cách mg 0340 đã gỡ ở bước lệnh. Dự án chưa có
+      dữ liệu thật ⇒ gỡ thẳng; mất các giá trị đó, không khôi phục.
+    Idempotent (soi cột/ràng buộc trước khi đổi)."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    pg = bind.dialect.name == "postgresql"
+    # Đọc HẾT siêu dữ liệu TRƯỚC mọi ALTER: `insp` chạy trên một kết nối KHÁC `db`; soi ràng buộc
+    # sau khi `db` đã ALTER (giữ khoá ACCESS EXCLUSIVE, chưa commit) thì kết nối kia chờ khoá mãi —
+    # CI "Migration trên Postgres trắng" treo 6 tiếng ở đây.
+    cot_gcn = _existing_columns(insp, "gia_cong_ngoai") if "gia_cong_ngoai" in bang else set()
+    co_ck = ({c["name"] for c in insp.get_check_constraints("gia_cong_ngoai")}
+             if pg and "gia_cong_ngoai" in bang else set())
+    cot_bgcd = _existing_columns(insp, "bai_ghep_cong_doan") if "bai_ghep_cong_doan" in bang else set()
+    ix_bgcd = insp.get_indexes("bai_ghep_cong_doan") if "bai_ghep_cong_doan" in bang else []
+
+    if "gia_cong_ngoai" in bang:
+        cot = cot_gcn
+        if "bai_ghep_id" not in cot:
+            fk = " REFERENCES bai_ghep(id) ON DELETE RESTRICT" if "bai_ghep" in bang else ""
+            db.execute(text(f"ALTER TABLE gia_cong_ngoai ADD COLUMN bai_ghep_id INTEGER{fk}"))
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_gia_cong_ngoai_bai_ghep_id "
+            "ON gia_cong_ngoai (bai_ghep_id)"))
+        if pg:
+            db.execute(text("ALTER TABLE gia_cong_ngoai ALTER COLUMN lsx_id DROP NOT NULL"))
+            if "ck_gia_cong_ngoai_mot_nguon" not in co_ck:
+                db.execute(text(
+                    "ALTER TABLE gia_cong_ngoai ADD CONSTRAINT ck_gia_cong_ngoai_mot_nguon CHECK ("
+                    "(lsx_id IS NULL AND bai_ghep_id IS NOT NULL) "
+                    "OR (lsx_id IS NOT NULL AND bai_ghep_id IS NULL))"))
+
+    if "bai_ghep_cong_doan" in bang:
+        cot = cot_bgcd
+        if "nha_cung_cap_id" not in cot:
+            fk = " REFERENCES suppliers(id)" if "suppliers" in bang else ""
+            db.execute(text(f"ALTER TABLE bai_ghep_cong_doan ADD COLUMN nha_cung_cap_id INTEGER{fk}"))
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_bai_ghep_cong_doan_nha_cung_cap_id "
+            "ON bai_ghep_cong_doan (nha_cung_cap_id)"))
+        for ix in ix_bgcd:
+            if set(ix.get("column_names") or []) & set(_COT_DU_KIEN_BUOC_CHUNG):
+                db.execute(text(f"DROP INDEX IF EXISTS {ix['name']}"))
+        for c in _COT_DU_KIEN_BUOC_CHUNG:
+            if c in cot:
+                db.execute(text(f"ALTER TABLE bai_ghep_cong_doan DROP COLUMN {c}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0343_gia_cong_ngoai_bai_ghep", _migrate_gia_cong_ngoai_bai_ghep))

@@ -292,14 +292,12 @@ export const NAV: NavSection[] = [
     id: "cau-hinh-dm",
     label: "Cấu hình danh mục",
     items: [
-      { id: "loai-san-pham", label: "Loại sản phẩm", icon: "clipboard", module: "dm_loai_san_pham" },
       { id: "may-thiet-bi", label: "Thiết bị & Máy móc", icon: "warehouse", module: "dm_thiet_bi" },
       { id: "cong-doan", label: "Công đoạn", icon: "activity", module: "dm_cong_doan" },
       // Đơn vị & quy đổi: dùng chung cho khoán · kho · mua hàng, nên nằm ở danh mục chứ không
       // chôn trong màn Lương. MỘT mục cho hai bảng (đơn vị · cặp "1 tấn = 1.000 kg") — tách hai
       // mục thì hai cái tên gần trùng nhau, không ai đoán được vào đâu làm gì.
       { id: "don-vi", label: "Đơn vị & quy đổi", icon: "activity", module: "dm_don_vi" },
-      { id: "chung-loai-giay", label: "Chủng loại giấy", icon: "fileText", module: "dm_chung_loai_giay" },
       { id: "giay", label: "Giấy", icon: "bag", module: "dm_giay" },
       { id: "vat-tu-in-an", label: "Vật tư khác", icon: "bag", module: "dm_vat_tu" },
       // Thành phẩm: hàng của đơn hàng bán, hệ tự khai khi chốt đơn. Đứng CẠNH Vật tư khác vì

@@ -76,6 +76,29 @@ export function slText(w: SxWorkItem): string {
   return `${vao} → ${ra}`;
 }
 
+/** Ô khối lượng trên bảng / lịch của tổ — luật 27/09/2026: NHẬN bao nhiêu, TỐT bao nhiêu, bấm
+ *  Kết thúc thì phần còn lại là LỖI ("Nhận 1.300 tờ in · Tốt 1.200 tờ in · Lỗi 100"). Không bày
+ *  kế hoạch/mục tiêu ở đây. Số nhận do máy chủ chốt (`nhan`: bước đầu = số vào lấy từ kho). Bước
+ *  ngoài dòng giấy chỉ một đơn vị ⇒ chỉ số tốt. Drawer mục "Thông tin kế hoạch" vẫn dùng `slText`. */
+export function slThucTe(w: SxWorkItem): string {
+  const dvRa = nhanChang(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null));
+  const tot = `Tốt ${num(w.da_lam ?? 0)}${dvRa ? ` ${dvRa}` : ""}`;
+  const loi = w.loi != null ? ` · Lỗi ${num(w.loi)}` : "";
+  if (w.ngoai_dong || w.nhan == null) return `${tot}${loi}`;
+  const dvVao = w.don_vi_vao ? ` ${nhanChang(w.don_vi_vao)}` : "";
+  return `Nhận ${num(w.nhan)}${dvVao} · ${tot}${loi}`;
+}
+
+/** Thanh tiến độ: tốt / nhận (quy về đơn vị ra). Đã Kết thúc = xong, luôn 100% — phần hụt đã
+ *  thành số lỗi, không còn "thiếu" treo mãi. null = không biết số nhận ⇒ không vẽ thanh. */
+export function tienDoThucTe(w: SxWorkItem): { pct: number; tot: number; nhan: number | null } | null {
+  const tot = w.da_lam ?? 0;
+  const nhan = w.nhan_ra ?? null;
+  if (w.trang_thai === "completed") return { pct: 100, tot, nhan };
+  if (nhan == null || nhan <= 0) return null;
+  return { pct: Math.min(100, Math.round((tot / nhan) * 100)), tot, nhan };
+}
+
 /** "13 phút (11 – 15)" — phút CHẠY của thẻ kèm dải theo tốc độ máy (§7). Ba số bằng nhau ⇒ máy
  *  chưa khai `toc_do_min/max`, bỏ hẳn phần ngoặc thay vì in "(13 – 13)".
  *

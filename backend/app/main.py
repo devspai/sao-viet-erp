@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from . import audit_context
 from .config import assert_secure_config, settings
 from .db import SessionLocal, init_db
 from .db_migrations import run_migrations
@@ -30,7 +31,6 @@ from .routers import (
     files,
     machines,
     operations,
-    product_types_catalog,
     purchases,
     noi_quy,
     profile,
@@ -51,7 +51,6 @@ from .routers import (
     kho_voucher,
     public_scan,
     khuon_be,
-    loai_san_pham,
     danh_muc_xoa,
     nhat_ky_danh_muc,
     nhom_dung_chung,
@@ -69,6 +68,7 @@ from .routers import (
     lenh_san_xuat,
     theo_doi_san_xuat,
     tai_san,
+    gia_cong_ngoai,
 )
 from .seed import seed_all
 
@@ -144,6 +144,24 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],
 )
 
+
+@app.middleware("http")
+async def _vet_nguoi_goi(request, call_next):
+    """Đặt IP + thiết bị của request vào context để `AuditLogRepository` ghi kèm mỗi dòng nhật ký.
+
+    Đặt ở middleware chứ không truyền tham số: hơn 200 chỗ gọi `audit.create(...)` nằm trong
+    services, chúng không cầm `Request` và cũng không nên cầm. Sau proxy thì `request.client.host`
+    là IP của nginx, nên lấy `X-Forwarded-For` trước — chỉ phần tử ĐẦU (client thật), phần còn lại
+    là chuỗi proxy.
+    """
+    xff = request.headers.get("x-forwarded-for", "")
+    ip = xff.split(",")[0].strip() if xff else (request.client.host if request.client else "")
+    tokens = audit_context.dat(ip, request.headers.get("user-agent", ""))
+    try:
+        return await call_next(request)
+    finally:
+        audit_context.tra_lai(tokens)
+
 app.include_router(auth.router)
 app.include_router(files.router)
 app.include_router(profile.router)
@@ -161,7 +179,6 @@ app.include_router(payroll.router)
 app.include_router(quotations.router)
 app.include_router(orders.router)
 app.include_router(bao_cao_kinh_doanh.router)
-app.include_router(product_types_catalog.router)
 app.include_router(purchases.router)
 app.include_router(accounting.router)
 app.include_router(module_notifications.router)
@@ -194,7 +211,6 @@ app.include_router(notifications.router)
 app.include_router(public_scan.router)
 app.include_router(kho.router)
 app.include_router(khuon_be.router)
-app.include_router(loai_san_pham.router)
 app.include_router(nhat_ky_danh_muc.router)   # nhật ký 1 bản ghi — chung cho 11 màn danh mục
 app.include_router(danh_muc_xoa.router)       # "còn ai dùng không" — chung cho 9 màn danh mục
 app.include_router(tinh_gia.router)
@@ -212,6 +228,7 @@ app.include_router(san_xuat.router)          # bàn Thực hiện sản xuất t
 app.include_router(cong_doan_tag.router)     # nhãn gán cho bước công đoạn — dùng chung LSX + Bài ghép (module quyền `san_xuat`)
 app.include_router(lenh_san_xuat.router)    # màn Lệnh sản xuất (danh sách + KPI) — module quyền `lenh_san_xuat`, phạm vi theo NGƯỜI BÁN
 app.include_router(theo_doi_san_xuat.router)  # màn Theo dõi sản xuất (Kanban) — module quyền `theo_doi_san_xuat`, cột lấy động từ danh mục cong_doan (Ruling C113)
+app.include_router(gia_cong_ngoai.router)    # Gia công ngoài — cùng module quyền `san_xuat`
 app.include_router(tai_san.router)            # sổ tài sản cố định + CCDC (module quyền `tai_san`; không còn kỳ chốt từ 08/09/2026)
 
 

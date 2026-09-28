@@ -131,6 +131,9 @@ export interface NavParams {
   openSxOrderId?: number;
   /** Liên thông sơ đồ Bài ghép → Kế hoạch SX: mở thẳng chi tiết một lệnh. */
   openLsxId?: number;
+  /** Liên thông lệnh → Bài ghép (dòng chỉ đọc "đi chung bài ghép" của gia công ngoài): mở thẳng
+   *  chi tiết một bài ghép. */
+  openBaiGhepId?: number;
   /** Liên thông Phòng ban → Lương: mở thẳng tab "Cấu hình lương" (bảng lương của tổ). */
   luongTab?: "cauhinh";
   /** Deep-link QR tem kho: mở thẳng drawer lô + vị trí của đúng vật tư này trên màn Tồn kho. */
@@ -211,6 +214,8 @@ export function AppShell() {
   // `quoteTick` tăng mỗi event → truyền xuống BaoGiaPage cho nó refetch list/stats. Kênh SSE vẫn
   // DUY NHẤT ở đây (trang con mở kênh riêng = tốn kết nối + lệch trạng thái).
   const [quoteTick, setQuoteTick] = useState(0);
+  // Tách khỏi `quoteTick` — xem lý do ở nhánh `nhat_ky_moi` của kênh SSE bên dưới.
+  const [nhatKyTick, setNhatKyTick] = useState(0);
   // Tín hiệu ĐÍCH DANH cho bàn tổ: SỐ LẦN đề nghị cấp vật tư đổi, ĐẾM THEO TỪNG công việc. Tách
   // khỏi `quoteTick` có chủ đích — sự kiện này broadcast toàn hệ, đẩy vào tick chung là bắt mọi
   // màn đang mở của cả nhà máy gọi lại API mỗi lần một tổ bấm gửi (xem nhánh SSE bên dưới).
@@ -464,6 +469,14 @@ export function AppShell() {
         })
         .catch(() => {});
     }
+    // Badge Phiếu chi: số lần GIA CÔNG NGOÀI đã chốt mà chưa lập phiếu chi (spec 2026-09-26 §6).
+    // Treo ở mục Phiếu chi, KHÔNG dùng kênh `ke_toan` — kênh đó gắn màn Đơn mua hàng.
+    if (readable.has("phieu_chi")) {
+      api.giaCongNgoai
+        .demChoChi(token)
+        .then((r) => setBadges((prev) => ({ ...prev, "ke-toan-phieu-chi": r.so })))
+        .catch(() => {});
+    }
     // Badge Khách hàng: số việc chăm sóc ĐẾN HẠN trong scope (khảo sát #28) — kéo sale
     // quay lại panel "Cần chăm sóc" mà không cần notification center.
     if (readable.has("khach_hang")) {
@@ -702,6 +715,13 @@ export function AppShell() {
         reloadAccess(true);
         return;
       }
+      // Nhật ký có dòng mới. TICK RIÊNG, cố ý không đụng `quoteTick`: mọi thao tác trong hệ đều
+      // ghi một dòng audit, đẩy vào tick chung là bắt MỌI màn đang mở nạp lại theo. Màn Nhật ký
+      // cũng không tự chèn dòng vào danh sách người ta đang đọc — nó chỉ hiện băng "có N dòng mới".
+      if (e.type === "nhat_ky_moi") {
+        setNhatKyTick((n) => n + 1);
+        return;
+      }
       // Chuyến giao của CHÍNH tài xế này — máy chủ đẩy đích danh nên không lọc quyền lần nữa.
       // Tài xế đang ở kho hoặc trên đường, không ngồi canh màn hình (CLAUDE.md: nội bộ = tức thì).
       if (e.type === "giao_hang_chuyen") {
@@ -863,7 +883,14 @@ export function AppShell() {
         // Đẩy ĐÍCH DANH (máy chủ đã lọc người giữ Xác nhận sản lượng trọn tổ bên kia, trừ người bấm).
         const sl = e.so_luong != null ? `${e.so_luong.toLocaleString("vi-VN")} ${nhanDonVi(e.don_vi)}`.trim() : "";
         const tuyen = `${e.nguon_ten || "?"} → ${e.dich_ten || "?"}`;
-        if (e.su_kien === "xac_nhan") {
+        if (e.su_kien === "cho_mang_di") {
+          // Bàn giao sang dải GIA CÔNG NGOÀI — máy chủ đẩy tới người có quyền sửa lệnh (Task 6).
+          pushToast(
+            `📦 ${e.nguon_ten || "Bước trước"} vừa giao${sl ? " " + sl : ""} sang “${e.dich_ten || "gia công ngoài"}”${e.lsx_ma ? ` (${e.lsx_ma})` : ""} — chờ mang đi gia công`,
+            "info",
+            9000,
+          );
+        } else if (e.su_kien === "xac_nhan") {
           pushToast(`✓ Tổ nhận đã xác nhận bàn giao ${tuyen}${sl ? " · " + sl : ""}`, "ok");
         } else if (e.su_kien === "dieu_chinh") {
           pushToast(`✏️ Bàn giao ${tuyen} vừa được điều chỉnh${sl ? " thành " + sl : ""}`, "warn");
@@ -1139,6 +1166,21 @@ export function AppShell() {
         (e.type === "purchase_changed" || e.type === "accounting_changed")
       ) {
         reloadModuleNotificationBadges();
+      } else if (
+        readable.has("phieu_chi") &&
+        (e.type === "gia_cong_cho_chi" || e.type === "gia_cong_cho_chi_changed")
+      ) {
+        if (e.type === "gia_cong_cho_chi") {
+          pushToast(
+            `💸 Gia công ${e.ten_viec ?? ""} — ${e.nha_cung_cap_ten ?? ""}${e.lsx_ma ? ` (${e.lsx_ma})` : ""} đã chốt số, chờ lập phiếu chi`,
+            "info",
+            9000,
+          );
+        }
+        api.giaCongNgoai
+          .demChoChi(token)
+          .then((r) => setBadges((prev) => ({ ...prev, "ke-toan-phieu-chi": r.so })))
+          .catch(() => {});
       } else if (readable.has("luong") && e.type === "advance_pending_changed") {
         // Có đề nghị tạm ứng mới/đổi → refetch số 'chờ duyệt'; toast khi TĂNG (người duyệt).
         api.luong
@@ -1501,7 +1543,15 @@ export function AppShell() {
       // mục menu bị ẩn nên `MODULES_BY_NAV_ID` không có id `bai-ghep-2` và cổng `allowed` chặn
       // trước khi tới đây. Bỏ `case` đi thì bật cờ lại phải sửa hai chỗ thay vì một.
       case "bai-ghep-2":
-        return <BaiGhep2Page navigate={navigate} eventTick={quoteTick} onBadgeStale={reloadBadges} />;
+        return (
+          <BaiGhep2Page
+            navigate={navigate}
+            eventTick={quoteTick}
+            onBadgeStale={reloadBadges}
+            openBaiGhepId={navParams?.openBaiGhepId ?? null}
+            openSeq={navParams?.navSeq ?? null}
+          />
+        );
       case "xep-lich":
         return <XepLichPage eventTick={quoteTick} onBadgeStale={reloadBadges} />;
       case "sua-chua-may":
@@ -1574,7 +1624,7 @@ export function AppShell() {
           />
         );
       case "nhat-ky":
-        return <ActivityLogPage />;
+        return <ActivityLogPage navigate={navigate} eventTick={nhatKyTick} />;
       default:
         return <DashboardPage />;
     }

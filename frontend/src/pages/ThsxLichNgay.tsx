@@ -16,7 +16,7 @@ import type { SxThucTeKhoang, SxWorkItem } from "../api/client";
 import { Icon } from "../components/Icons";
 import { ChipKcs, ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import { khungLuoi, nhanNgay, ngayGio, soNgayGiua, themNgay } from "./xlShared";
-import { slText, sxSerial, ttMeta } from "./thsxShared";
+import { slThucTe, sxSerial, ttMeta } from "./thsxShared";
 import { ChamCho, type SxChoCuaViec } from "./thsxChoXacNhan";
 
 interface Props {
@@ -315,7 +315,7 @@ export function ThsxLichNgay({ tu, soNgay, viec, selectedId, onChon, dangTim = f
           const cd = w.ten_cong_doan || "";
           const o = oCuaViec.get(w.id) ?? null;
           const phu = [w.nguon_ten, w.khach_hang, w.may].filter(Boolean).join(" · ");
-          const sl = w.so_luong_ra != null || w.so_luong_vao != null ? slText(w) : "";
+          const sl = w.so_luong_ra != null || w.so_luong_vao != null ? slThucTe(w) : "";
           const acts = dayThucTe(w.thuc_te, tu, soNgay, bayGio);
           const thucTeTitle = (w.thuc_te ?? [])
             .map((p) => `${ngayGio(p.bat_dau)} → ${p.ket_thuc ? ngayGio(p.ket_thuc) : "đang chạy"}`)

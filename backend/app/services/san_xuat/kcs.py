@@ -263,6 +263,10 @@ def kiem_cong_doan(
     cv = repo.cong_viec(cong_viec_id)
     if cv is None:
         raise ValueError("Không tìm thấy công đoạn.")
+    if cv.gia_cong_ngoai_id is not None:
+        from ..gia_cong_ngoai import CHAN_XUONG
+
+        raise ValueError(CHAN_XUONG)
     if cv.trang_thai not in _TRANG_THAI_KIEM_DUOC:
         raise ValueError("Công đoạn chưa bắt đầu nên chưa kiểm được.")
 
@@ -373,6 +377,30 @@ def kiem_cong_doan(
     }
 
 
+def ghi_kcs_ngoai_phan_mem(db: Session, *, cv, so_dat: float, uid: int | None,
+                           ghi_chu: str, theo_lenh: tuple[int | None, str] | None = None,
+                           ) -> SanXuatKcsBatch:
+    """Bản ghi KCS ĐẠT tổng hợp cho công việc GIA CÔNG NGOÀI cuối nhóm (spec gia công §10).
+
+    KCS làm ngoài phần mềm; con số chốt đứng thay. Không gate, không commit — `gia_cong_ngoai.chot`
+    gác `san_xuat:update`. Nhờ bản ghi này "còn gửi kho" / đóng nhóm / trạng thái lệnh chạy nguyên
+    đường cũ. Báo cáo KCS loại nó (`kcs_bao_cao`).
+
+    `theo_lenh=(nhom_id, don_vi)`: công việc CHUNG của bài ghép ghi phần của TỪNG lệnh vào nhóm
+    của lệnh đó (spec gia công bài ghép 2026-09-27 §3)."""
+    luc = _moc()
+    nhom_id, don_vi = theo_lenh if theo_lenh is not None else (cv.nhom_id, cv.don_vi_ra)
+    kcs = SanXuatKcsBatch(
+        cong_viec_id=cv.id, nhom_id=nhom_id, bat_dau=luc, ket_thuc=luc,
+        so_luong_nhan=so_dat, so_luong_dat=so_dat, so_luong_khong_dat=0,
+        don_vi=(don_vi or "").strip(), ket_luan=_ket_luan(so_dat, 0),
+        ghi_chu=ghi_chu[:500], created_by=uid,
+    )
+    db.add(kcs)
+    db.flush()
+    return kcs
+
+
 def _so_da_gui_kho(db: Session, cv) -> float:
     """Σ đã đề nghị nhập kho còn hiệu lực của công đoạn (đơn vị KCS) — đọc yêu cầu kho thật."""
     from .kho import dong_nhap_kho_cua_cong_viec, so_da_de_nghi_kcs
@@ -405,6 +433,10 @@ def dieu_chinh_ket_qua(
     cv = repo.cong_viec(kcs.cong_viec_id)
     if cv is None:
         raise ValueError("Không tìm thấy công đoạn của lần kiểm.")
+    if cv.gia_cong_ngoai_id is not None:
+        from ..gia_cong_ngoai import CHAN_XUONG
+
+        raise ValueError(CHAN_XUONG)
     if expected_version != kcs.version:
         raise ValueError("Phiên bản không khớp — kết quả vừa được cập nhật, hãy tải lại.")
     dat = _so_khong_am(so_luong_dat, "Số đạt")
@@ -632,6 +664,7 @@ def _da_gui_kho(bc, cv) -> float:
 
 
 def _tom_cuoi(bc, cvs) -> dict | None:
+    cvs = [c for c in cvs if c.gia_cong_ngoai_id is None]
     cuoi = [cv for cv in cvs if cv.la_kcs_cuoi]
     if not cuoi:
         return None
@@ -735,7 +768,11 @@ def chuoi_cong_doan_kcs(db: Session, user, lsx_id: int) -> dict:
             "tong_dat": dat,
             "tong_loi": sum(float(k.so_luong_khong_dat or 0) for k in ds),
             "da_yeu_cau_kho": da_yc,
-            "con_gui_kho": max(0.0, min(dat, tot) - da_yc) if cv.la_kcs_cuoi else 0.0,
+            "con_gui_kho": (
+                max(0.0, min(dat, tot) - da_yc)
+                if cv.la_kcs_cuoi and cv.gia_cong_ngoai_id is None else 0.0
+            ),
+            "gia_cong_ngoai": cv.gia_cong_ngoai_id is not None,
             "yeu_cau_kho": [
                 {"request_id": d.request_id, "ma": d.request_ma, "trang_thai": d.trang_thai,
                  "sl_de_nghi": round(d.sl_hieu_luc, 3), "sl_da_nhan": round(d.sl_da_nhan, 3),

@@ -68,7 +68,6 @@ def _gom(*cau: str | None) -> list[str]:
 def _cong_doan(db: Session, obj) -> ThamChieu:
     from ..models.bai_ghep_cong_doan import BaiGhepCongDoan
     from ..models.cong_doan import CongDoan, CongDoanVatTu
-    from ..models.loai_san_pham import LoaiSanPham
     from ..models.lsx import LsxCongDoan
     from ..models.phieu_tinh_gia import PhieuThanhPham
 
@@ -80,15 +79,6 @@ def _cong_doan(db: Session, obj) -> ThamChieu:
         _cau(_dem(db, BaiGhepCongDoan, BaiGhepCongDoan.cong_doan_id == obj.id),
              "bước trong bài ghép"),
     )
-    # `routing_template` là JSON list id — không query được bằng SQL cho mọi phương ngữ, đọc trong
-    # Python. Bảng loại sản phẩm nhỏ (chục dòng), không đáng lo về hiệu năng.
-    n_tpl = sum(
-        1 for sp in db.execute(select(LoaiSanPham)).scalars()
-        if isinstance(sp.routing_template, list) and obj.id in sp.routing_template
-    )
-    if (c := _cau(n_tpl, "loại sản phẩm có bước này trong chuỗi mặc định")):
-        chan.append(c)
-
     # CASCADE thật ở DB (`cong_doan_vat_tu.cong_doan_id`): xoá công đoạn là bay sạch BOM vật tư
     # kèm công thức định mức của từng món. Khai tay hàng giờ, không hoàn tác được.
     n_vt = _dem(db, CongDoanVatTu, CongDoanVatTu.cong_doan_id == obj.id)
@@ -178,25 +168,6 @@ def _khuon_be(db: Session, obj) -> ThamChieu:
     kia — trả rỗng nghĩa là "hỏi rồi, không vướng gì", khác hẳn với 404 vì thiếu hàm.
     """
     return ThamChieu()
-
-
-def _loai_san_pham(db: Session, obj) -> ThamChieu:
-    from ..models.phieu_tinh_gia import PhieuThanhPhan, PhieuTinhGia
-
-    return ThamChieu(chan=_gom(
-        _cau(_dem(db, PhieuTinhGia, PhieuTinhGia.loai_san_pham_id == obj.id),
-             "phiếu tính giá"),
-        _cau(_dem(db, PhieuThanhPhan, PhieuThanhPhan.loai_san_pham_id == obj.id),
-             "thành phần phiếu tính giá"),
-    ))
-
-
-def _chung_loai_giay(db: Session, obj) -> ThamChieu:
-    from ..models.vat_lieu_kho import GiayNguyen
-
-    return ThamChieu(chan=_gom(_cau(
-        _dem(db, GiayNguyen, GiayNguyen.chung_loai_giay_id == obj.id),
-        "loại giấy thuộc chủng loại này")))
 
 
 def _mat_hang(db: Session, obj, hang_loai: str) -> ThamChieu:
@@ -311,8 +282,6 @@ DEM_THEO_LOAI = {
     "may_thiet_bi": _may_thiet_bi,
     "don_vi_do": _don_vi_do,
     "khuon_be": _khuon_be,
-    "loai_san_pham": _loai_san_pham,
-    "chung_loai_giay": _chung_loai_giay,
     "giay": lambda db, obj: _mat_hang(db, obj, "giay"),
     "vat_tu": lambda db, obj: _mat_hang(db, obj, "vat_tu"),
     "san_xuat_kcs_tieu_chi": _san_xuat_kcs_tieu_chi,

@@ -1169,16 +1169,6 @@
   border-radius: 4px;
   border: 1px solid #a7f3d0;
 }
-.thsx-ds__recv-badge {
-  font-size: 11px;
-  color: #047857;
-  font-weight: 600;
-  background: #ecfdf5;
-  padding: 1px 6px;
-  border-radius: 4px;
-  width: fit-content;
-}
-
 /* Material Inline Cell */
 .thsx-ds__vt-inline {
   display: flex;
@@ -1406,6 +1396,13 @@
   font-weight: var(--fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  color: var(--ash-2);
+}
+/* Số đếm nằm bên phải tiêu đề mục ("2 lần") */
+.thsx-psec__meta {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
   color: var(--ash-2);
 }
 
@@ -3186,17 +3183,57 @@
   padding: 5px 0;
 }
 
-/* ================= BATCH METRIC STRIP 4 CỘT ================= */
+/* ================= BATCH METRIC STRIP & SECTION CARDS ================= */
+.thsx-psec-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.thsx-psec__icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  margin-right: 2px;
+}
+
+.thsx-psec__icon-badge--blue { background: #eff6ff; color: #2563eb; }
+.thsx-psec__icon-badge--cyan { background: #ecfeff; color: #0891b2; }
+.thsx-psec__icon-badge--amber { background: #fffbeb; color: #d97706; }
+.thsx-psec__icon-badge--purple { background: #faf5ff; color: #9333ea; }
+
+.thsx-btn-primary-action {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 6px rgba(234, 88, 12, 0.28) !important;
+  transition: all 0.15s ease !important;
+}
+
+.thsx-btn-primary-action:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f97316 0%, #9a3412 100%) !important;
+  box-shadow: 0 4px 10px rgba(234, 88, 12, 0.38) !important;
+  transform: translateY(-1px);
+}
+
 .thsx-batch-metric-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0;
-  margin-top: 4px;
-  margin-bottom: 6px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 5px 0;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
 .thsx-batch-metric-tile {
@@ -3204,9 +3241,83 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2px 4px;
-  border-right: 1px solid #e2e8f0;
+  padding: 8px 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
   text-align: center;
+  transition: all 0.15s ease;
+}
+
+.thsx-batch-metric-tile:hover {
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+  border-color: #cbd5e1;
+}
+
+.thsx-metric-tile--done {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.thsx-metric-tile--thieu {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+/* --- Empty State Cards --- */
+.thsx-empty-state-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  margin-top: 6px;
+}
+
+.thsx-empty-state-card--sm {
+  padding: 8px 12px;
+}
+
+.thsx-empty-state-card--info {
+  background: #eff6ff;
+  border-style: solid;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.thsx-empty-state-ic-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.thsx-empty-state-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.thsx-empty-state-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.thsx-empty-state-sub {
+  font-size: 11px;
+  color: #64748b;
 }
 
 .thsx-batch-metric-tile:last-child {
@@ -3767,6 +3878,106 @@
   color: #94a3b8;
 }
 
+/* ================= WOW RECEIVE CARD & VISUAL TIMELINE STEPPER ================= */
+.thsx-bg-card-wow {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+  margin-bottom: 8px !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.thsx-bg-card-wow:hover {
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08) !important;
+  transform: translateY(-1px);
+}
+
+.thsx-bg-card-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+
+.thsx-bg-card-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  color: #0284c7;
+  flex-shrink: 0;
+}
+
+.thsx-bg-card-qty {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.thsx-bg-card-timeline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 2px 0;
+  margin-top: 4px;
+  border-top: 1px dashed #f1f5f9;
+  font-size: 11px;
+  flex-wrap: wrap;
+  color: #64748b;
+}
+
+.thsx-timeline-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #475569;
+}
+
+.thsx-timeline-node b {
+  color: #0f172a;
+}
+
+.thsx-timeline-ic {
+  color: #0284c7;
+  flex-shrink: 0;
+}
+
+.thsx-timeline-node--nhan.is-done {
+  color: #166534;
+}
+
+.thsx-timeline-node--nhan.is-done .thsx-timeline-ic {
+  color: #16a34a;
+}
+
+.thsx-timeline-node--nhan.is-wait {
+  color: #b45309;
+}
+
+.thsx-timeline-node--nhan.is-wait .thsx-timeline-ic {
+  color: #d97706;
+}
+
+.thsx-timeline-arrow {
+  color: #cbd5e1;
+  font-size: 10px;
+}
+
+.thsx-timeline-adj {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: #0284c7;
+}
+
 /* ================= HIGH-TECH GLASSMORPHIC BATCH FORM (OPTION 3) ================= */
 .thsx-glass-batch-card {
   background: rgba(255, 255, 255, 0.98);
@@ -3842,6 +4053,252 @@
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid #f1f5f9;
+}
+
+/* --- UI/UX Enhancements for Batch Modal --- */
+.thsx-khoan-empty-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 4px;
+}
+
+.thsx-khoan-empty-ic {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.thsx-capacity-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 6px 0 10px 0;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.6);
+}
+
+.thsx-capacity-card__h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+}
+
+.thsx-capacity-card__title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.thsx-capacity-card__stat {
+  color: #475569;
+  font-size: 11px;
+}
+
+.thsx-capacity-progress-track {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  margin: 7px 0;
+  overflow: hidden;
+}
+
+.thsx-capacity-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0284c7 0%, #0d9488 100%);
+  border-radius: 4px;
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.thsx-capacity-progress-fill.is-full {
+  background: linear-gradient(90deg, #e11d48 0%, #be123c 100%);
+}
+
+.thsx-capacity-card__ftr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.thsx-capacity-card__hint {
+  flex: 1;
+}
+
+.thsx-quick-max-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0284c7;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.thsx-quick-max-btn:hover {
+  background: #bae6fd;
+  transform: translateY(-1px);
+}
+
+.thsx-time-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.thsx-time-presets {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.thsx-time-presets__btns {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.thsx-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.thsx-chip-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.thsx-chip-btn--accent {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.thsx-chip-btn--accent:hover {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.thsx-chip-btn--danger {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
+}
+
+.thsx-chip-btn--danger:hover {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+.thsx-duration-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f766e;
+  background: #ccfbf1;
+  border: 1px solid #99f6e4;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.thsx-qty-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.thsx-qty-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.thsx-qty-input {
+  width: 100%;
+  padding-right: 50px !important;
+}
+
+.thsx-input-unit-badge {
+  position: absolute;
+  right: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  background: #e2e8f0;
+  padding: 2px 7px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.thsx-quick-qty-chips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.thsx-quick-qty-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+  margin-right: 2px;
+}
+
+.thsx-glass-btn-save {
+  background: linear-gradient(135deg, #d97706 0%, #c2410c 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(194, 65, 12, 0.3) !important;
+  font-weight: 600 !important;
+  transition: all 0.15s ease !important;
+}
+
+.thsx-glass-btn-save:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ea580c 0%, #9a3412 100%) !important;
+  box-shadow: 0 4px 12px rgba(194, 65, 12, 0.45) !important;
+  transform: translateY(-1px);
+}
+
+.thsx-kbd-hint {
+  font-size: 10px;
+  opacity: 0.85;
+  font-weight: 400;
+  margin-left: 3px;
 }
 
 /* ================= MODAL DIALOG OVERLAY (OPTION A - NO LAYOUT SHIFT) ================= */
@@ -4823,3 +5280,611 @@
   }
   .thsx-ray__b[data-tam] .thsx-ray__giao { margin-left: var(--sp-2); }
 }
+
+/* --- Hero Quantity Metric Pill (Con số sản lượng quan trọng) --- */
+.thsx-hero-qty-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 10px;
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.95) 0%, rgba(241, 245, 249, 0.95) 100%);
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  border-radius: var(--r-2, 6px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 3px rgba(15, 23, 42, 0.05);
+  transition: all 0.2s ease;
+  margin-right: 4px;
+}
+
+.thsx-hero-qty-pill:hover {
+  background: #ffffff;
+  border-color: #94a3b8;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+.thsx-hero-qty-val {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.thsx-hero-qty-pill .thsx-x-unit {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+/* ================= DIEU CHINH SO GIAO MODAL UI/UX ENHANCEMENTS (REFINED PREMIUM) ================= */
+.thsx-dieuchinh-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.thsx-dieuchinh-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+.thsx-dieuchinh-card__lbl {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.thsx-dieuchinh-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #e0f2fe;
+  color: #0284c7;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid #bae6fd;
+}
+
+.thsx-dieuchinh-card__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.thsx-dieuchinh-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.thsx-dieuchinh-stat--new {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+}
+
+.thsx-dieuchinh-stat__title {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.thsx-dieuchinh-stat__num {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.thsx-dieuchinh-stat__num small {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.thsx-delta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  line-height: 1;
+}
+
+.thsx-delta-tag--up {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.thsx-delta-tag--down {
+  background: #ffe4e6;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+}
+
+/* Integrated Input Wrapper & Suffix */
+.thsx-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.thsx-input-wrapper .thsx-glass-in--num {
+  padding-right: 50px !important;
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  letter-spacing: -0.01em;
+}
+
+.thsx-input-suffix {
+  position: absolute;
+  right: 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+  pointer-events: none;
+}
+
+/* Stepper Buttons for Quick Quantity Adjustment */
+.thsx-stepper-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.thsx-stepper-segment {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.thsx-stepper-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.thsx-stepper-segment .thsx-stepper-btn {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.thsx-stepper-segment .thsx-stepper-btn:hover {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.thsx-stepper-btn--reset {
+  background: #ffffff;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+  gap: 4px;
+}
+
+.thsx-stepper-btn--reset:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* Quick Reason Chips */
+.thsx-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.thsx-chip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 18px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.thsx-chip-item:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
+}
+
+.thsx-chip-item--active {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #93c5fd;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+/* Notice Callout Box */
+.thsx-notice-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #92400e;
+  margin-top: 14px;
+  box-shadow: 0 1px 3px rgba(180, 83, 9, 0.05);
+}
+
+.thsx-notice-box__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.thsx-notice-box__text {
+  line-height: 1.35;
+}
+
+/* Footer Action Bar Layout */
+.thsx-modal-ftr-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.thsx-shortcut-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.thsx-shortcut-badge kbd {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.68rem;
+  font-family: inherit;
+  font-weight: 600;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+  color: #334155;
+}
+
+.thsx-modal-ftr-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ================= SLEEK HANDOVER CARD & AUDIT TRAIL UI/UX ================= */
+.thsx-x-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 14px 0 8px 0;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  border-left: 3px solid #0284c7;
+}
+
+.thsx-bg-card-wow {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  transition: all 0.2s ease;
+}
+
+.thsx-bg-card-wow:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.thsx-adj-history-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  margin-left: auto;
+}
+
+.thsx-adj-history-btn:hover {
+  background: #e0f2fe;
+  color: #0284c7;
+  border-color: #7dd3fc;
+}
+
+.thsx-adj-chevron {
+  transition: transform 0.15s ease;
+}
+
+/* Audit Log Timeline Drawer */
+.thsx-audit-log-timeline {
+  list-style: none;
+  margin: 10px 0 4px 4px;
+  padding: 4px 0 4px 14px;
+  border-left: 2px solid #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+
+.thsx-audit-log-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+}
+
+.thsx-audit-log-item::before {
+  content: "";
+  position: absolute;
+  left: -19px;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #cbd5e1;
+}
+
+.thsx-audit-log-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.thsx-audit-log-time {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.thsx-audit-log-user {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.thsx-audit-log-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.thsx-audit-log-note {
+  font-style: italic;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  font-size: 0.75rem;
+}
+
+.thsx-audit-log-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #e11d48;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* ================= HANDOVER CARD V2 (REFINED MODERN DESIGN) ================= */
+.thsx-handover-card-v2 {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.thsx-handover-card-v2:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.thsx-handover-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.thsx-handover-card__me {
+  margin-left: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #64748b;
+}
+.thsx-handover-card__qty-val .thsx-x-tag-ht {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* Tuyến Giao → Nhận: hai cột ngang hàng, mũi tên giữa; hẹp thì xếp dọc. */
+.thsx-handover-card__route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e2e8f0;
+}
+.thsx-handover-card__route-arrow {
+  color: #94a3b8;
+  margin-top: 20px;
+}
+.thsx-hb-ben {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.thsx-hb-ben__lbl {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+.thsx-hb-ben__cd {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+.thsx-hb-ben__to {
+  font-size: 0.8rem;
+  color: #475569;
+  overflow-wrap: anywhere;
+}
+.thsx-hb-ben__ai {
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+.thsx-hb-ben__ai b {
+  color: #334155;
+  font-weight: 600;
+}
+.thsx-hb-ben__ai.is-wait {
+  color: #b45309;
+  font-weight: 600;
+}
+@media (max-width: 480px) {
+  .thsx-handover-card__route {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .thsx-handover-card__route-arrow {
+    margin-top: 0;
+    transform: rotate(90deg);
+  }
+}
+
+.thsx-handover-card__qty-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.thsx-handover-card__qty-val small {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-left: 2px;
+}
+
+/* Foot Row Actions */
+.thsx-handover-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+
+
+
+

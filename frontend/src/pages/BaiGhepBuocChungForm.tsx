@@ -14,9 +14,13 @@
 //
 // Form tự nạp `ke-hoach-sx.css` (khuôn `.khsx-*`) và `bai-ghep.css` (danh sách ghi chú của lệnh) để
 // style đi theo component chứ không đi theo trang nào.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { LSX_LOAI_BUOC_META, type BaiGhepBuocChungBody, type BaiGhepSoDo } from "../api/client";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  ApiError, LSX_LOAI_BUOC_META, api, type BaiGhepBuocChungBody, type BaiGhepSoDo, type LsxLoaiBuoc,
+  type NhaGiaCong,
+} from "../api/client";
 import { crud } from "../api/rebuildCatalog";
+import { nhanDonViTocDo } from "./danh-muc/fields/DonViTocDo";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -27,6 +31,8 @@ import "./bai-ghep.css";
 
 type TabKey = "cau_hinh" | "phan_cong" | "vat_tu" | "tien_do" | "gia_cong" | "cac_lenh";
 
+const LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "to", "thue_ngoai"];
+
 /** Máy đọc từ danh mục: nhóm để lọc + ba tốc độ và chuẩn bị để tính lại giờ NGAY khi đổi máy,
  *  không đợi lưu (`thoiLuongLive` dùng đúng bộ số này ở bước lệnh). */
 interface MayRef extends MayTinhGio {
@@ -36,6 +42,8 @@ interface MayRef extends MayTinhGio {
   /** Cờ NGỪNG DÙNG của danh mục Máy. Vẫn nạp về để đọc được tên máy bài cũ đang đeo; dropdown
    *  ở dưới mới là chỗ quyết định có mời máy đó nữa hay không. */
   active: boolean;
+  /** Nhãn đơn vị tốc độ đã dịch ("tờ in/h") — `donViTocDo` là MÃ (`to_gio`), in thẳng ra là mã trần. */
+  nhanTocDo: string;
 }
 
 /** Lập kế hoạch cho MỘT lượt chạy chung.
@@ -79,7 +87,26 @@ export function BuocChungForm({
   const [vtGo, setVtGo] = useState<Record<number, string>>({});
   const [tab, setTab] = useState<TabKey>("cau_hinh");
   const [dangLuu, setDangLuu] = useState(false);
+  /** `g` lúc vừa lưu xong — khác nó (sơ đồ mới về) thì mới xoá nháp. */
+  const choNapLai = useRef<BaiGhepSoDo["gop"][number] | null>(null);
   const [confirmTach, setConfirmTach] = useState(false);
+  // Loại bước của lượt chung ĐỔI ĐƯỢC ở đây (spec 2026-09-27 §2 bước 1: "ở bước chung Cán màng,
+  // loại bước Thuê ngoài") — gộp kế thừa loại của bước lệnh, nhưng người lập kế hoạch bài ghép
+  // quyết lượt chung đi máy, đi tổ hay gửi nhà gia công. Mọi chỗ trong form đọc `loai` (bản nháp
+  // trước, server sau) để đổi loại là tab/ô đổi theo ngay, chưa cần lưu.
+  const loai = f.loai_buoc ?? g.loai_buoc;
+  const ngoaiBuoc = loai === "thue_ngoai";
+  const [nhaDs, setNhaDs] = useState<NhaGiaCong[] | null>(null);
+  const [nhaLoi, setNhaLoi] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token || !ngoaiBuoc) return;
+    let song = true;
+    api.giaCongNgoai.nhaGiaCong(token)
+      .then((r) => { if (song) setNhaDs(r); })
+      .catch((e: unknown) => { if (song) setNhaLoi(e instanceof ApiError ? e.message : String(e)); });
+    return () => { song = false; };
+  }, [token, ngoaiBuoc]);
 
   useEffect(() => {
     if (!token) return;
@@ -99,6 +126,7 @@ export function BuocChungForm({
           tocDoMin: m.toc_do_min == null ? null : Number(m.toc_do_min),
           tocDoMax: m.toc_do_max == null ? null : Number(m.toc_do_max),
           donViTocDo: m.don_vi_toc_do ? String(m.don_vi_toc_do) : null,
+          nhanTocDo: nhanDonViTocDo(m),
           chuanBiPhut: m.makeready_time_default == null ? null : Number(m.makeready_time_default),
           chuanBiKhoan: Array.isArray(khoan) ? khoan : [],
         };
@@ -123,8 +151,24 @@ export function BuocChungForm({
   const val = <K extends keyof BaiGhepBuocChungBody>(k: K, hienCo: BaiGhepBuocChungBody[K]) =>
     (f[k] !== undefined ? f[k] : hienCo);
 
-  const meta = LSX_LOAI_BUOC_META[g.loai_buoc];
-  const ngoai = g.loai_buoc === "thue_ngoai";
+  const meta = LSX_LOAI_BUOC_META[loai];
+  const ngoai = loai === "thue_ngoai";
+  const doiLoaiBuoc = (k: LsxLoaiBuoc) => {
+    if (k === "thue_ngoai") {
+      // Nhà gia công lo người và máy — dọn tổ/máy trong bản nháp; máy chủ cũng dọn khi lưu.
+      setF({ ...f, loai_buoc: k, department_id: null, may_id: null });
+      setTab("gia_cong");
+      return;
+    }
+    // Bỏ thuê ngoài thì máy chủ dọn nhà gia công; bước tổ không có máy và chỉ một lượt.
+    const { nha_cung_cap_id: _bo, ...conLai } = f;
+    void _bo;
+    setF(k === "to" ? { ...conLai, loai_buoc: k, may_id: null, so_luot_chay: 1 } : { ...conLai, loai_buoc: k });
+  };
+  // Nhà gia công chọn từ danh mục NCC có tích "Nhận gia công" — cùng nguồn với bước lệnh; tên do
+  // máy chủ ghi theo id. Nhà đã chọn mà nay bỏ tích vẫn phải HIỆN (ô chọn không rơi về trống).
+  const nhaId = val("nha_cung_cap_id", g.nha_cung_cap_id);
+  const nhaMat = nhaId != null && nhaDs != null && !nhaDs.some((n) => n.id === nhaId);
   const dvVao = nhanChang(g.don_vi_vao);
   const dvRa = nhanChang(g.don_vi_ra);
 
@@ -165,9 +209,9 @@ export function BuocChungForm({
   const tg = useMemo(
     () => thoiLuongLive(
       {
-        loai_buoc: g.loai_buoc,
+        loai_buoc: loai,
         // Bước tổ: server ép 1 lượt (ô đã gỡ 08/09/2026) — bản xem trước phải nói cùng con số.
-        so_luot_chay: g.loai_buoc === "to" ? "1" : String(val("so_luot_chay", g.so_luot_chay) ?? 1),
+        so_luot_chay: loai === "to" ? "1" : String(val("so_luot_chay", g.so_luot_chay) ?? 1),
         // Bước TỔ: giờ = SỐ GIỜ KẾ HOẠCH gõ tay (xem `thoi_luong_buoc` ở backend, mg `0319`).
         so_gio_ke_hoach: String(val("so_gio_ke_hoach", g.so_gio_ke_hoach) ?? 0),
         phat_sinh_phut: String(val("phat_sinh_phut", g.phat_sinh_phut) ?? 0),
@@ -178,7 +222,7 @@ export function BuocChungForm({
       mayDaChon,
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [g, f.so_luot_chay, f.so_gio_ke_hoach, f.phat_sinh_phut, mayDaChon],
+    [g, loai, f.so_luot_chay, f.so_gio_ke_hoach, f.phat_sinh_phut, mayDaChon],
   );
 
   const setup = Number(tg.setup_phut ?? 0);
@@ -209,19 +253,26 @@ export function BuocChungForm({
       const saved = await onLuu(f);
       // Trang trả `false` khi API từ chối nhưng đã đưa lỗi lên banner — giữ nguyên draft để người
       // lập kế hoạch sửa tiếp, đừng xoá thứ họ vừa gõ.
-      if (saved !== false) {
-        setF({});
-        setVtGo({});
-      }
+      // Lưu xong KHÔNG xoá nháp ngay: trang nạp lại sơ đồ sau khi `onLuu` trả về, trong lúc đó `g`
+      // vẫn là bản cũ — xoá nháp là form rơi về loại/tổ cũ (Thuê ngoài vừa lưu hiện lại ô
+      // "— chọn tổ —" trống, E2E 27/09/2026). Đợi `g` mới về rồi mới xoá (effect dưới).
+      if (saved !== false) choNapLai.current = g;
     } finally {
       setDangLuu(false);
     }
   };
+  useEffect(() => {
+    if (choNapLai.current && choNapLai.current !== g) {
+      choNapLai.current = null;
+      setF({});
+      setVtGo({});
+    }
+  }, [g]);
 
   return (
     <>
       <header className="khsx-drawer__head">
-        <div className={`khsx-drawer__accent khsx-drawer__accent--${g.loai_buoc}`} />
+        <div className={`khsx-drawer__accent khsx-drawer__accent--${loai}`} />
 
         <div className="khsx-drawer__head-main">
           <div className="khsx-drawer__head-info">
@@ -233,7 +284,7 @@ export function BuocChungForm({
                   : ""}
               </span>
               <span className="khsx-dot-sep">·</span>
-              <span className={`khsx-type-tag khsx-type-tag--${g.loai_buoc}`}>{meta.label}</span>
+              <span className={`khsx-type-tag khsx-type-tag--${loai}`}>{meta.label}</span>
               <span className="khsx-dot-sep">·</span>
               <span className="khsx-tag-subtle">
                 {g.thanh_vien.length} lệnh chạy chung{g.ma_bai_ghep ? ` · ${g.ma_bai_ghep}` : ""}
@@ -406,7 +457,34 @@ export function BuocChungForm({
                 </div>
               ))}
 
+              <div className="khsx-field">
+                <span className="khsx-field__label">LOẠI BƯỚC THỰC HIỆN</span>
+                <div className="khsx-seg-std" role="group" aria-label="Loại bước">
+                  {LOAI_BUOC_ORDER.map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      className={loai === k ? "is-active" : ""}
+                      disabled={!canUpdate}
+                      aria-pressed={loai === k}
+                      title={LSX_LOAI_BUOC_META[k].hint}
+                      onClick={() => doiLoaiBuoc(k)}
+                    >
+                      {LSX_LOAI_BUOC_META[k].label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {ngoai && (
+                // Bước thuê ngoài không có tổ/máy trong xưởng — máy chủ gỡ khi lưu.
+                <div className="khsx-note-banner">
+                  <span>Bước thuê ngoài không cần tổ và máy — chọn nhà gia công ở thẻ “Gia công ngoài”.</span>
+                </div>
+              )}
+
               <div className="khsx-assign-grid">
+                {!ngoai && (
                 <label className="khsx-field">
                   <span className="khsx-field__label">TỔ PHỤ TRÁCH</span>
                   <select
@@ -425,6 +503,7 @@ export function BuocChungForm({
                     Đổi tổ thì bảng khoán đổi theo — lưu rồi mở lại mới thấy danh sách mới.
                   </span>
                 </label>
+                )}
 
                 {!ngoai && (
                   <label className="khsx-field">
@@ -459,7 +538,7 @@ export function BuocChungForm({
                     {mayDaChon && (
                       <span className="khsx-field__hint">
                         {mayDaChon.tocDo
-                          ? `Tốc độ ${num(Number(mayDaChon.tocDo))} ${mayDaChon.donViTocDo || "đv"}/giờ`
+                          ? `Tốc độ ${num(Number(mayDaChon.tocDo))} ${mayDaChon.nhanTocDo || "đv/h"}`
                           : "Máy chưa khai tốc độ"}
                         {mayDaChon.chuanBiPhut ? ` · chuẩn bị ${num(Number(mayDaChon.chuanBiPhut))}′` : ""}
                       </span>
@@ -718,7 +797,7 @@ export function BuocChungForm({
                     làm tay thì không có "lượt qua máy" nào để đếm. Bước tổ ép 1 lượt ở server
                     (`lap_ke_hoach_buoc_chung`), chip `so_luot_chay` của công thức giờ vẫn
                     có số thật để dùng, chỉ là luôn bằng 1. */}
-                {g.loai_buoc !== "to" && (
+                {loai !== "to" && (
                   <div className="khsx-field">
                     <span className="khsx-field__label">SỐ LƯỢT CHẠY QUA MÁY</span>
                     <div className="khsx-turns-control">
@@ -750,7 +829,7 @@ export function BuocChungForm({
                   </div>
                 )}
 
-                {g.loai_buoc === "to" ? (
+                {loai === "to" ? (
                   // SỐ GIỜ KẾ HOẠCH (mg `0319`) thay ô "Năng suất một người" — y như bước lệnh:
                   // mặc định 0, nhận số lẻ, để 0 không cảnh báo.
                   <label className="khsx-field">
@@ -962,7 +1041,7 @@ export function BuocChungForm({
                               : `${num(Number(tg.so_luong_vao ?? 0))} ${nhanChang(String(tg.don_vi_vao ?? ""))}`}
                             {" ÷ "}
                             {num(Number(tg.nang_suat_hieu_dung ?? 0))}/giờ
-                            {g.loai_buoc === "may" && Number(tg.so_luot_chay ?? 1) !== 1
+                            {loai === "may" && Number(tg.so_luot_chay ?? 1) !== 1
                               ? ` × ${Number(tg.so_luot_chay ?? 1)} lượt`
                               : ""}
                             {" = "}
@@ -1007,7 +1086,7 @@ export function BuocChungForm({
                   </div>
                 ) : (
                   <div className="khsx-tolerance-empty">
-                    {g.loai_buoc === "to"
+                    {loai === "to"
                       ? "Đầu việc chưa khai năng suất tối thiểu / tối đa nên chưa có khoảng nhanh–chậm."
                       : "Máy chưa khai tốc độ tối thiểu / tối đa nên chưa có khoảng nhanh–chậm."}
                   </div>
@@ -1040,113 +1119,47 @@ export function BuocChungForm({
             <section className="khsx-section-card">
               <div className="khsx-section-card__head">
                 <div>
-                  <h3 className="khsx-section-card__title">Đối tác & Khối lượng gia công</h3>
-                  {/* Bước chung nằm TRƯỚC điểm toả nên cả gửi lẫn nhận đều ở tầng bài — một phiếu. */}
-                  <p className="khsx-section-card__sub">Cả tờ ghép đi một phiếu, một nhà cung cấp.</p>
+                  <h3 className="khsx-section-card__title">Nhà gia công</h3>
+                  {/* Bước chung nằm TRƯỚC điểm toả nên cả tờ ghép đi MỘT lần gia công, một nhà. */}
+                  <p className="khsx-section-card__sub">
+                    Cả tờ ghép đi một lần gia công. Mang đi và chốt số làm ở khối “Gia công ngoài”
+                    của bài ghép sau khi phát hành.
+                  </p>
                 </div>
               </div>
-
-              <div className="khsx-subcontract-grid-full">
+              <div className="khsx-assign-grid">
                 <label className="khsx-field">
-                  <span className="khsx-field__label">NHÀ CUNG CẤP</span>
-                  <input
-                    type="text" className="khsx-select-std" disabled={!canUpdate}
-                    value={val("nha_cung_cap", g.nha_cung_cap) ?? ""}
-                    placeholder="tên nhà gia công"
-                    onChange={(e) => setF({ ...f, nha_cung_cap: e.target.value })}
-                  />
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">SỐ LƯỢNG GỬI</span>
-                  <div className="khsx-vattu-input-group">
-                    <input
-                      type="number" min="0" className="khsx-vattu-num-input" disabled={!canUpdate}
-                      value={val("sl_gui", g.sl_gui) ?? ""}
-                      onChange={(e) => setF({ ...f, sl_gui: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="khsx-vattu-unit-tag">{dvVao}</span>
-                  </div>
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">HAO HỤT CHO PHÉP</span>
-                  <div className="khsx-vattu-input-group">
-                    <input
-                      type="number" min="0" className="khsx-vattu-num-input" disabled={!canUpdate}
-                      title="Thoả thuận với nhà gia công"
-                      value={val("hao_hut_cho_phep", g.hao_hut_cho_phep) ?? ""}
-                      onChange={(e) => setF({ ...f, hao_hut_cho_phep: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="khsx-vattu-unit-tag">{dvVao}</span>
-                  </div>
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">ĐƠN GIÁ GIA CÔNG</span>
-                  <div className="khsx-vattu-input-group">
-                    <input
-                      type="number" min="0" className="khsx-vattu-num-input" disabled={!canUpdate}
-                      value={val("don_gia_gia_cong", g.don_gia_gia_cong) ?? ""}
-                      onChange={(e) => setF({ ...f, don_gia_gia_cong: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="khsx-vattu-unit-tag">đ/{dvVao || "đơn vị"}</span>
-                  </div>
+                  <span className="khsx-field__label">NHÀ GIA CÔNG</span>
+                  {nhaLoi ? (
+                    <span className="khsx-field__hint">{nhaLoi}</span>
+                  ) : (
+                    <select
+                      className="khsx-select-std"
+                      value={nhaId ?? ""}
+                      disabled={!canUpdate || nhaDs == null}
+                      onChange={(e) => setF({
+                        ...f, nha_cung_cap_id: e.target.value ? Number(e.target.value) : null,
+                      })}
+                    >
+                      <option value="">— chọn nhà gia công —</option>
+                      {nhaMat && (
+                        <option value={nhaId ?? ""}>
+                          {(g.nha_cung_cap || "Nhà đã chọn") + " (đã bỏ tích “Nhận gia công”)"}
+                        </option>
+                      )}
+                      {(nhaDs ?? []).map((n) => (
+                        <option key={n.id} value={n.id}>{n.ten}</option>
+                      ))}
+                    </select>
+                  )}
+                  {nhaDs != null && nhaDs.length === 0 && (
+                    <span className="khsx-field__hint">
+                      Chưa có nhà cung cấp nào tích “Nhận gia công” — vào màn Nhà cung cấp tích ô đó
+                      cho nhà gia công rồi chọn lại ở đây.
+                    </span>
+                  )}
                 </label>
               </div>
-            </section>
-
-            <section className="khsx-section-card">
-              <div className="khsx-section-card__head">
-                <h3 className="khsx-section-card__title">Lịch trình tiến độ dự kiến</h3>
-              </div>
-              <div className="khsx-subcontract-grid-full">
-                <label className="khsx-field">
-                  <span className="khsx-field__label">NGÀY GỬI (DK)</span>
-                  <input
-                    type="date" className="khsx-select-std" disabled={!canUpdate}
-                    value={val("ngay_gui_dk", g.ngay_gui_dk) ?? ""}
-                    onChange={(e) => setF({ ...f, ngay_gui_dk: e.target.value || null })}
-                  />
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">NGÀY NHẬN (DK)</span>
-                  <input
-                    type="date" className="khsx-select-std" disabled={!canUpdate}
-                    value={val("ngay_nhan_dk", g.ngay_nhan_dk) ?? ""}
-                    onChange={(e) => setF({ ...f, ngay_nhan_dk: e.target.value || null })}
-                  />
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">VẬN CHUYỂN</span>
-                  <div className="khsx-vattu-input-group">
-                    <input
-                      type="number" min="0" step="0.5" className="khsx-vattu-num-input" disabled={!canUpdate}
-                      title="Tính cả hai chiều"
-                      value={val("van_chuyen_ngay", g.van_chuyen_ngay) ?? ""}
-                      onChange={(e) => setF({ ...f, van_chuyen_ngay: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="khsx-vattu-unit-tag">ngày</span>
-                  </div>
-                </label>
-                <label className="khsx-field">
-                  <span className="khsx-field__label">GIA CÔNG</span>
-                  <div className="khsx-vattu-input-group">
-                    <input
-                      type="number" min="0" step="0.5" className="khsx-vattu-num-input" disabled={!canUpdate}
-                      value={val("gia_cong_ngay", g.gia_cong_ngay) ?? ""}
-                      onChange={(e) => setF({ ...f, gia_cong_ngay: e.target.value ? Number(e.target.value) : null })}
-                    />
-                    <span className="khsx-vattu-unit-tag">ngày</span>
-                  </div>
-                </label>
-              </div>
-
-              <label className="khsx-field">
-                <span className="khsx-field__label">YÊU CẦU KỸ THUẬT GỬI NHÀ GIA CÔNG</span>
-                <textarea
-                  rows={2} className="khsx-textarea" disabled={!canUpdate}
-                  value={val("yeu_cau_ky_thuat", g.yeu_cau_ky_thuat) ?? ""}
-                  onChange={(e) => setF({ ...f, yeu_cau_ky_thuat: e.target.value })}
-                />
-              </label>
             </section>
           </div>
         )}

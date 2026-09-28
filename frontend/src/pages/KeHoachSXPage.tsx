@@ -87,6 +87,7 @@ export function KeHoachSXPage({
   const [queue, setQueue] = useState<HangChoItem[] | null>(null);
   const [lenhs, setLenhs] = useState<LsxListItem[] | null>(null);
   const [ttFilter, setTtFilter] = useState("all");
+  const [gcFilter, setGcFilter] = useState("");
   const [q, setQ] = useState("");
   const [err, setErr] = useState<string | null>(null);
   // Phân trang + số trên tab đều do MÁY CHỦ trả. Đếm bằng `lenhs.length` như trước chỉ đúng khi
@@ -129,6 +130,7 @@ export function KeHoachSXPage({
         customer_id: khachFilter?.id,
         trang_thai: ttFilter === "all" ? undefined : ttFilter,
         q: q.trim() || undefined,
+        gia_cong: gcFilter || undefined,
         page,
         size: SIZE_TRANG,
       })
@@ -145,7 +147,7 @@ export function KeHoachSXPage({
         if (luot !== luotLenh.current) return;
         setErr(e instanceof ApiError ? e.message : String(e));
       });
-  }, [token, orderFilter, khachFilter, ttFilter, q, page]);
+  }, [token, orderFilter, khachFilter, ttFilter, q, gcFilter, page]);
 
   // Nguồn hai ô lọc — theo tab trạng thái + ô tìm đang áp, KHÔNG theo chính hai ô lọc đó.
   const loadNguonLoc = useCallback(() => {
@@ -154,14 +156,15 @@ export function KeHoachSXPage({
       .boLoc(token, {
         trang_thai: ttFilter === "all" ? undefined : ttFilter,
         q: q.trim() || undefined,
+        gia_cong: gcFilter || undefined,
       })
       .then(setNguonLoc)
       // Ô chọn hỏng thì bảng vẫn phải dùng được — giữ danh sách cũ, KHÔNG chặn cả màn bằng `err`.
       .catch(() => undefined);
-  }, [token, ttFilter, q]);
+  }, [token, ttFilter, q, gcFilter]);
 
   // Đổi bộ lọc thì về trang 1 — giữ nguyên trang cũ là rơi vào vùng trống của kết quả mới.
-  useEffect(() => setPage(1), [ttFilter, q, orderFilter, khachFilter]);
+  useEffect(() => setPage(1), [ttFilter, q, orderFilter, khachFilter, gcFilter]);
 
   useEffect(() => loadQueue(), [loadQueue, eventTick]);
   useEffect(() => {
@@ -330,6 +333,8 @@ export function KeHoachSXPage({
           onTtFilter={setTtFilter}
           q={q}
           onQ={setQ}
+          gcFilter={gcFilter}
+          onGcFilter={setGcFilter}
           orderFilter={orderFilter}
           onClearOrderFilter={() => setOrderFilter(null)}
           khachFilter={khachFilter}
@@ -505,6 +510,8 @@ function LenhTable({
   onTtFilter,
   q,
   onQ,
+  gcFilter,
+  onGcFilter,
   orderFilter,
   onClearOrderFilter,
   khachFilter,
@@ -525,6 +532,8 @@ function LenhTable({
   onTtFilter: (k: string) => void;
   q: string;
   onQ: (v: string) => void;
+  gcFilter: string;
+  onGcFilter: (v: string) => void;
   orderFilter: { id: number; code: string } | null;
   onClearOrderFilter: () => void;
   khachFilter: { id: number; name: string } | null;
@@ -542,7 +551,8 @@ function LenhTable({
   onNhay?: (nhay: { man: string; id: number }, ma: string) => void;
   dem: (key: string) => number;
 }) {
-  const coLoc = ttFilter !== "all" || q.trim() !== "" || orderFilter != null || khachFilter != null;
+  const coLoc = ttFilter !== "all" || q.trim() !== "" || orderFilter != null || khachFilter != null
+    || gcFilter !== "";
   // Chọn khách rồi thì ô đơn chỉ chào đơn của khách đó — hai ô đi cùng nhau chứ không đá nhau.
   const donChonDuoc = khachFilter
     ? nguonLoc.orders.filter((o) => o.customer_id === khachFilter.id)
@@ -595,11 +605,24 @@ function LenhTable({
             )}
           </select>
         </label>
-        {(orderFilter || khachFilter) && (
+        <label className="khsx__filtersel">
+          <span className="khsx__filtersel-label">Gia công ngoài</span>
+          <select
+            value={gcFilter}
+            aria-label="Lọc theo gia công ngoài"
+            onChange={(e) => onGcFilter(e.target.value)}
+          >
+            <option value="">Tất cả</option>
+            <option value="cho_mang_di">Chờ mang đi</option>
+            <option value="dang_o_ngoai">Đang ở nhà gia công</option>
+            <option value="tron_goi">Đang gia công trọn gói</option>
+          </select>
+        </label>
+        {(orderFilter || khachFilter || gcFilter) && (
           <button
             type="button"
             className="khsx__filterclear"
-            onClick={() => { onClearOrderFilter(); onKhachFilter(null); }}
+            onClick={() => { onClearOrderFilter(); onKhachFilter(null); onGcFilter(""); }}
           >
             <Icon name="x" size={12} /> Bỏ lọc
           </button>

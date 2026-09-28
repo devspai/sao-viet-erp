@@ -1,8 +1,7 @@
 """Danh mục THAM CHIẾU đọc-được-để-Tính-giá (require_any_permission).
 
-Màn Tính giá cần đổ dropdown Loại SP · Giấy · Máy · Công đoạn. Bốn danh mục này
-mặc định gate bằng module cấu hình riêng (dm_loai_san_pham / kho / dm_thiet_bi /
-dm_cong_doan) — thứ MỞ menu cấu hình. Ai làm Tính giá (tinh_gia_thanh:read) phải
+Màn Tính giá cần đổ dropdown Giấy · Máy · Công đoạn. Ba danh mục này
+mặc định gate bằng module cấu hình riêng (dm_giay / dm_thiet_bi / dm_cong_doan) — thứ MỞ menu cấu hình. Ai làm Tính giá (tinh_gia_thanh:read) phải
 ĐỌC được danh mục mà KHÔNG cần quyền cấu hình (không lộ menu). Ghi vẫn cần quyền module.
 """
 from __future__ import annotations
@@ -12,9 +11,8 @@ from app.repositories.rbac_repo import DepartmentRepository, RoleRepository
 from app.repositories.user_repo import UserRepository
 from app.security import create_access_token, hash_password
 
-# 4 endpoint LIST mà dropdown Tính giá gọi.
+# Endpoint LIST mà dropdown Tính giá gọi. (`/api/loai-san-pham` gỡ 27/09/2026, mg 0342.)
 LIST_ENDPOINTS = [
-    "/api/loai-san-pham",
     "/api/may-thiet-bi",
     "/api/cong-doan",
     "/api/vat-lieu-kho/giay",
@@ -68,11 +66,11 @@ def test_no_permission_still_forbidden_on_reference_catalogs(client):
 
 
 def test_costing_reader_cannot_create_catalog(client):
-    """OR-gate chỉ nới READ; GHI vẫn đòi quyền cấu hình module (dm_loai_san_pham:create)."""
+    """OR-gate chỉ nới READ; GHI vẫn đòi quyền cấu hình module (dm_cong_doan:create)."""
     token = _token_for_role("costing-only", [("tinh_gia_thanh", "all")])
     resp = client.post(
-        "/api/loai-san-pham",
-        json={"ma": "X-CT", "ten": "x", "structural_type": "flat"},
+        "/api/cong-doan",
+        json={"ma": "X-CT", "ten": "x", "nhom": "finishing", "pricing_basis": "per_finished_qty"},
         headers=_h(token),
     )
     assert resp.status_code == 403

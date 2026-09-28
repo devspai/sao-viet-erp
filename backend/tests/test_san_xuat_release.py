@@ -286,6 +286,54 @@ def test_dung_diem_toa_sinh_canh_theo_so_con(db, orders, lsx_svc, bg_svc, admin,
     assert cv_nguon.bai_ghep_id == bg.id
 
 
+def test_diem_toa_buoc_cat_doi_he_so_theo_so_con_tren_to_ghep(
+    db, orders, lsx_svc, bg_svc, admin, customer,
+):
+    """Bước riêng đầu tiên sau điểm toả tự cắt tờ ra con (vào tờ, ra con): trong bài ghép nó cắt TỜ
+    GHÉP, mỗi tờ cho đúng số con/tờ của lệnh ở bài — không phải hệ số theo bình bài riêng của lệnh.
+    Bước riêng vẫn ở tờ (Xả tờ, tờ → tờ) thì giữ nguyên hệ số."""
+    from tests.test_xep_lich_van_de import _gop_in_va_san_sang
+
+    a, b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
+    db.add(LsxCongDoan(
+        lsx_id=a.id, thu_tu=1, ten="Cắt thành phẩm", nhom="finishing", loai_buoc=LB_MAY,
+        may_id=_in_step(db, a.id).may_id, so_luong_vao=5000,
+        don_vi_vao="to", don_vi_ra="con", he_so_quy_doi=2,
+    ))
+    db.add(LsxCongDoan(
+        lsx_id=b.id, thu_tu=1, ten="Xả tờ", nhom="finishing", loai_buoc=LB_MAY,
+        may_id=_in_step(db, b.id).may_id, so_luong_vao=5000,
+        don_vi_vao="to", don_vi_ra="to", he_so_quy_doi=1,
+    ))
+    db.commit()
+    _nha_cho(db, [a.id, b.id])
+    bg = bg_svc.tao(lsx_ids=[a.id, b.id], actor=admin)
+    _gop_in_va_san_sang(db, bg_svc, bg, admin)
+    bg = bg_svc._get(bg.id)
+    for tv in bg.thanh_viens:
+        tv.so_con_tren_to = 8 if tv.lsx_id == a.id else 4
+    # Bước tự thêm (không neo danh mục Công đoạn) bị tính lại đơn vị khi dựng bài — khai lại cho
+    # đúng hình dạng Cắt thành phẩm ngoài đời: vào tờ, ra con, hệ số theo bình bài riêng = 2.
+    cat_cd = db.query(LsxCongDoan).filter_by(lsx_id=a.id, ten="Cắt thành phẩm").one()
+    cat_cd.don_vi_ra, cat_cd.he_so_quy_doi = "con", 2
+    db.commit()
+
+    goi = release.phat_hanh(db, lsx_ids={a.id, b.id}, bai_ghep_ids={bg.id}, actor=admin)
+    db.commit()
+
+    cat = db.query(SanXuatCongViec).filter_by(goi_id=goi.id, lsx_id=a.id).one()
+    xa = db.query(SanXuatCongViec).filter_by(goi_id=goi.id, lsx_id=b.id).one()
+    assert float(cat.he_so_quy_doi) == 8.0
+    assert float(xa.he_so_quy_doi) == 1.0
+    assert cat.quy_cach_json["so_con"] == 8.0  # thẻ quy cách: con / tờ GHÉP, không theo lệnh
+    # Kế hoạch VÀO của bước riêng ăn tờ = số tờ ra của lượt chung (nó nhận nguyên số tờ ghép), không
+    # phải 5.000 tờ theo bình bài riêng của lệnh (E2E 27/09/2026: "1.330 tờ in" ở khối kế hoạch).
+    in_chung = db.query(SanXuatCongViec).filter_by(goi_id=goi.id, bai_ghep_id=bg.id).one()
+    assert float(in_chung.so_luong_ra) > 0
+    assert float(cat.so_luong_vao) == float(in_chung.so_luong_ra)
+    assert float(xa.so_luong_vao) == float(in_chung.so_luong_ra)
+
+
 # --- Checklist KCS đóng băng vào snapshot khi phát hành (Task 3) -----------------------------
 def test_snapshot_checklist_chi_lay_tieu_chi_active(db, orders, lsx_svc, admin, customer):
     """Bước neo `cong_doan_id` tới danh mục có 2 tiêu chí (1 active, 1 đã ngừng) — snapshot chỉ

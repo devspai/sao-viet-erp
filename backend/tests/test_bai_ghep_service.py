@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from math import ceil
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,7 +20,7 @@ from app.db import engine
 from app.models.cong_doan import CongDoan
 from app.models.customer import Customer
 from app.models.department import Department
-from app.models.lsx import TT_SAN_SANG
+from app.models.lsx import LB_MAY, LB_THUE_NGOAI, TT_SAN_SANG
 from app.models.may_thiet_bi import MayThietBi
 from app.models.phieu_tinh_gia import PhieuThanhPhan, PhieuThanhPham, PhieuTinhGia
 from app.models.quotation import STATUS_ACCEPTED, Quote, QuoteItem, QuoteVersion
@@ -1553,3 +1554,38 @@ def test_ap_dinh_muc_giu_nguyen_dong_thu_cong(db, orders, lsx_svc, bg_svc, admin
     chung2 = bg_svc._buoc_chungs(bg_svc._get(bg.id))[0]
     vt = next(v for v in chung2.vat_tus if v.vat_tu_id == 1)
     assert float(vt.so_luong) == 777.0  # dòng thủ công KHÔNG bị tính lại đè số
+
+
+def test_thieu_buoc_chung_thue_ngoai_khong_doi_to_may(bg_svc):
+    """Fix round 1+2 (review Task 3, 26/09/2026): bước chung THUÊ NGOÀI không tổ, không máy —
+    server ép `department_id = may_id = None` cho loại này từ Task 3 (`replace_routing`; nhà gia
+    công chọn từ danh mục Nhà cung cấp, không khai như một tổ/máy trong danh mục). Trước sửa,
+    `_thieu_buoc_chung` vẫn đòi cả hai, khiến "Chưa chọn tổ" · "Chưa chọn máy" treo vĩnh viễn trên
+    mọi bước chung thuê ngoài."""
+    c = SimpleNamespace(department_id=None, loai_buoc=LB_THUE_NGOAI, may_id=None, nha_cung_cap_id=7)
+    assert bg_svc._thieu_buoc_chung(c) == []
+    # Spec 27/09/2026: thiếu nhà gia công (chọn từ danh mục) thì báo — thay cho tổ/máy.
+    c_thieu = SimpleNamespace(department_id=None, loai_buoc=LB_THUE_NGOAI, may_id=None, nha_cung_cap_id=None)
+    assert bg_svc._thieu_buoc_chung(c_thieu) == ["Chưa chọn nhà gia công"]
+
+    # Bước MÁY thật thì vẫn phải đòi tổ + máy như cũ.
+    c_may = SimpleNamespace(department_id=None, loai_buoc=LB_MAY, may_id=None)
+    thieu_may = bg_svc._thieu_buoc_chung(c_may)
+    assert "Chưa chọn tổ" in thieu_may and "Chưa chọn máy" in thieu_may
+
+
+def test_lenh_da_phat_hanh_khong_bi_bao_khong_con_san_sang(db, orders, lsx_svc, bg_svc, admin, customer):
+    """E2E 27/09/2026: bài đã phát hành vẫn treo "Có lệnh không còn sẵn sàng" — cảnh báo so trạng
+    thái lệnh với (sẵn sàng, đã lập KH) mà quên mốc ĐI TIẾP `da_phat_hanh`. Lệnh đi tới là bình
+    thường; chỉ lệnh LÙI về nháp/chờ bổ sung mới đáng báo."""
+    from app.models.lsx import TT_CHO_BO_SUNG, TT_DA_PHAT_HANH
+    created = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
+    bg = bg_svc.tao(lsx_ids=[l.id for l in created], actor=admin)
+    for l in created:
+        l.trang_thai = TT_DA_PHAT_HANH
+    db.commit()
+    assert "thanh_vien_khong_san_sang" not in bg_svc.canh_bao_cua(bg_svc._get(bg.id))
+
+    created[0].trang_thai = TT_CHO_BO_SUNG
+    db.commit()
+    assert "thanh_vien_khong_san_sang" in bg_svc.canh_bao_cua(bg_svc._get(bg.id))

@@ -114,28 +114,15 @@ def test_buoc_theo_THU_TU_khong_theo_thu_tu_list(lich_mot_ca):
     assert [b.lsx_cong_doan_id for b in kq.buoc] == [8, 9]
 
 
-def test_thue_ngoai_chiem_ngay_LICH_khong_tru_ca(lich_mot_ca):
-    """§3.3: nhà cung cấp chạy theo lịch của họ — 3 ngày là 3 ngày lịch, kể cả T7/CN."""
-    buoc = [
-        BuocVao(lsx_cong_doan_id=1, thu_tu=1, chay_phut=60),
-        BuocVao(lsx_cong_doan_id=2, thu_tu=2, chay_phut=0, thue_ngoai_ngay=3,
-                la_thue_ngoai=True),
-    ]
-    kq = trai_lich(datetime(2026, 9, 11, 8, 0), buoc, lich_mot_ca)
-    assert kq.buoc[1].bat_dau == datetime(2026, 9, 11, 9, 0)
-    assert kq.buoc[1].ket_thuc == datetime(2026, 9, 14, 9, 0)   # +3 ngày LỊCH, vắt qua T7/CN
-    assert kq.chay_phut == 60                                    # bước ngoài KHÔNG tính giờ máy
-
-
-def test_thue_ngoai_thieu_ngay_thi_chiem_0_va_GHI_CHU(lich_mot_ca):
-    """Thiếu ngày gửi/nhận ⇒ chiếm 0 + chú thích. KHÔNG chặn (spec §1: không chặn gì hết)."""
+def test_thue_ngoai_chiem_0_va_GHI_CHU(lich_mot_ca):
+    """Gia công ngoài không chiếm lịch (spec 2026-09-26 §8)."""
     buoc = [
         BuocVao(lsx_cong_doan_id=1, thu_tu=1, chay_phut=60),
         BuocVao(lsx_cong_doan_id=2, thu_tu=2, chay_phut=0, la_thue_ngoai=True),
     ]
     kq = trai_lich(datetime(2026, 9, 11, 8, 0), buoc, lich_mot_ca)
     assert kq.buoc[1].bat_dau == kq.buoc[1].ket_thuc
-    assert any("gia công ngoài" in g for g in kq.ghi_chu)
+    assert "Không tính thời gian gia công ngoài." in kq.ghi_chu
 
 
 def test_lenh_khong_co_buoc_nao(lich_mot_ca):
@@ -216,16 +203,16 @@ def test_phan_tach_nghi_ca_ket_thuc_nua_dem_ghi_24h_va_xep_theo_gio():
 
 
 def test_phan_tach_nghi_tach_rieng_gia_cong_ngoai(lich_mot_ca):
-    """Ba ngày lịch của nhà cung cấp KHÔNG phải nghỉ ca — tách thành một loại riêng."""
+    """Gia công ngoài không chiếm lịch (spec 2026-09-26 §8) — luôn 0 phút."""
     from app.services.xep_lich.trai_lich import phan_tach_nghi
 
     buoc = [
         BuocVao(lsx_cong_doan_id=1, thu_tu=1, chay_phut=60),
-        BuocVao(lsx_cong_doan_id=2, thu_tu=2, chay_phut=0, thue_ngoai_ngay=3, la_thue_ngoai=True),
+        BuocVao(lsx_cong_doan_id=2, thu_tu=2, chay_phut=0, la_thue_ngoai=True),
     ]
     kq = trai_lich(datetime(2026, 9, 11, 8, 0), buoc, lich_mot_ca)
     pt = phan_tach_nghi(kq, lich_mot_ca)
-    assert pt["gia_cong_ngoai_phut"] == 3 * 1440
+    assert pt["gia_cong_ngoai_phut"] == 0
     assert pt["ngay_nghi"] == [] and pt["ngoai_ca_phut"] == 0 and pt["nghi_giua_ca_phut"] == 0
 
 

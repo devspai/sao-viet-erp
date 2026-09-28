@@ -31,6 +31,7 @@ from ..models.accounting import (
     SALES_INVOICE_CANCELLED,
     SALES_INVOICE_ISSUED,
     VOUCHER_SOURCE_CUSTOMER_REFUND,
+    VOUCHER_SOURCE_GIA_CONG,
     VOUCHER_SOURCE_INTERNAL,
     VOUCHER_SOURCE_OTHER,
     VOUCHER_SOURCE_PURCHASE,
@@ -1019,10 +1020,16 @@ class AccountingService:
         return self._voucher_out(self._voucher(voucher_id))
 
     def create_voucher(self, *, actor, purchase_request_id: int | None = None,
-                       salary_advance_id: int | None = None, **values):
+                       salary_advance_id: int | None = None,
+                       gia_cong_ngoai_id: int | None = None, **values):
         source_type = (values.get("source_type") or VOUCHER_SOURCE_PURCHASE).strip()
         advance = None
-        if source_type == VOUCHER_SOURCE_SALARY_ADVANCE or salary_advance_id is not None:
+        gia_cong = None
+        if source_type == VOUCHER_SOURCE_GIA_CONG or gia_cong_ngoai_id is not None:
+            purchase = None
+            gia_cong = self._gia_cong_cho_phieu_chi(gia_cong_ngoai_id)
+            prepared = self._prepare_standalone_voucher(values, gia_cong=gia_cong)
+        elif source_type == VOUCHER_SOURCE_SALARY_ADVANCE or salary_advance_id is not None:
             purchase = None
             advance = self._advance_cho_phieu_chi(salary_advance_id)
             prepared = self._prepare_standalone_voucher(values, advance=advance)
@@ -2565,9 +2572,18 @@ class AccountingService:
             "note": _text(values.get("note"), label="Ghi chú", max_length=2000),
         }
 
-    def _prepare_standalone_voucher(self, values: dict, *, advance=None, lo_tam_ung=None) -> dict:
+    def _prepare_standalone_voucher(self, values: dict, *, advance=None, lo_tam_ung=None,
+                                    gia_cong=None) -> dict:
         source_type = (values.get("source_type") or "").strip()
-        if lo_tam_ung:
+        if gia_cong is not None:
+            # Số tiền kế toán GÕ (mặc định FE = SL chốt × đơn giá — thực tế hay có tiền lẻ, phí
+            # xe). Người nhận bỏ trống ⇒ tên nhà gia công. KHÔNG gắn `supplier_id` (spec §5: không
+            # công nợ 331 — `phieu_chi_cho_bao_cao` còn loại hẳn nguồn này).
+            source_type = VOUCHER_SOURCE_GIA_CONG
+            values = dict(values)
+            if not (values.get("cash_recipient_name") or "").strip():
+                values["cash_recipient_name"] = gia_cong.nha_cung_cap_ten
+        elif lo_tam_ung:
             # Phiếu chi MỘT LƯỢT cho nhiều phiếu tạm ứng (25/09/2026): số tiền = TỔNG lô, lấy từ
             # phiếu đã duyệt chứ không từ payload; người nhận do nơi gọi đặt ("Theo bảng kê…").
             source_type = VOUCHER_SOURCE_SALARY_ADVANCE
@@ -2659,6 +2675,7 @@ class AccountingService:
         # từ sổ quỹ về đúng phiếu đã duyệt.
         return {
             "salary_advance_id": advance.id if advance is not None else None,
+            "gia_cong_ngoai_id": gia_cong.id if gia_cong is not None else None,
             "source_type": source_type,
             "voucher_type": voucher_type,
             "payment_stage": "other",
@@ -2686,6 +2703,7 @@ class AccountingService:
             "note": _text(values.get("note"), label="Ghi chú", max_length=2000),
             "source_code_snapshot": (advance.code or f"TU#{advance.id}") if advance is not None
                                     else f"Lô {len(lo_tam_ung)} phiếu tạm ứng" if lo_tam_ung
+                                    else self._ma_lenh_gia_cong(gia_cong) if gia_cong is not None
                                     else source_labels[source_type],
             "supplier_name_snapshot": recipient_name,
             "supplier_tax_code_snapshot": None,
@@ -2695,6 +2713,14 @@ class AccountingService:
             "beneficiary_bank_name_snapshot": beneficiary_bank_name,
             "beneficiary_bank_branch_snapshot": beneficiary_bank_branch,
         }
+
+    def _ma_lenh_gia_cong(self, gcn) -> str:
+        from .gia_cong_ngoai.lan import nguon_lan
+
+        # Lần của bài ghép: mã bài ghép (mã lệnh thành viên nằm ở lý do chi — cột này chỉ 32 ký tự).
+        nguon = nguon_lan(self.repo.db, gcn)
+        ma = nguon["bai_ghep_ma"] or nguon["lsx_ma"] or f"#{gcn.id}"
+        return f"Gia công {ma}"[:32]  # cột String(32)
 
     def _next_voucher_doc_no(self) -> str:
         """Số IN trên mẫu 02-TT (PC00445) — chung bộ đếm cho tiền mặt lẫn UNC.
@@ -2943,6 +2969,26 @@ class AccountingService:
             )
         return a
 
+    def _gia_cong_cho_phieu_chi(self, gia_cong_ngoai_id: int | None):
+        """Lần gia công nguồn: phải ĐÃ CHỐT, chưa huỷ, chưa có phiếu chi còn hiệu lực. Khoá dòng để
+        hai kế toán bấm cùng lúc không đẻ hai phiếu (index partial unique là chốt chặn cuối)."""
+        from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+
+        if gia_cong_ngoai_id is None:
+            raise AccountingValidationError("Phiếu chi gia công ngoài phải chọn lần gia công nguồn.")
+        repo = GiaCongNgoaiRepository(self.repo.db)
+        gcn = repo.khoa(int(gia_cong_ngoai_id))
+        if gcn is None:
+            raise AccountingNotFound("Không tìm thấy lần gia công.")
+        if gcn.huy_luc is not None:
+            raise AccountingValidationError("Lần gia công đã huỷ.")
+        if gcn.chot_luc is None:
+            raise AccountingValidationError("Lần gia công chưa chốt số — chưa chi được.")
+        pc = repo.phieu_chi_song([gcn.id]).get(gcn.id)
+        if pc is not None:
+            raise AccountingConflict(f"Lần gia công này đã có phiếu chi {pc.code}.")
+        return gcn
+
     def _ten_nhan_vien(self, employee_id: int) -> str:
         if self._employees is None:
             raise AccountingValidationError("Chưa nối được phân hệ Nhân sự để lấy tên người nhận.")
@@ -3056,6 +3102,7 @@ class AccountingService:
             "credit_account": row.credit_account,
             "source_type": row.source_type or VOUCHER_SOURCE_PURCHASE,
             "salary_advance_id": row.salary_advance_id,
+            "gia_cong_ngoai_id": row.gia_cong_ngoai_id,
             "receipt_received_amount": receipt_received_amount,
             "receipt_pending_amount": receipt_pending_amount,
             "attachment_count": len(row.attachments),

@@ -20,6 +20,7 @@ import {
 } from "../../../api/client";
 import { useDebounced } from "../../../utils/useDebounced";
 import { useAuth } from "../../../auth/useAuth";
+import { useKhiTickDoi } from "../../../hooks/useKhiTickDoi";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import type { SeedLine } from "../../KhoDeNghiPage";
@@ -354,12 +355,11 @@ export function PurchaseRequestsPage({
     load();
   }, [load]);
 
-  useEffect(() => {
-    if (eventTick <= 0) return;
+  useKhiTickDoi(eventTick, () => {
     loadSuppliers();
     loadSources();
     load();
-  }, [eventTick, loadSuppliers, loadSources, load]);
+  });
 
   // ⚠️ ĐƯỜNG PHÒNG THỦ — HIỆN CHƯA CÓ AI GỌI, ĐỪNG GỠ.
   //

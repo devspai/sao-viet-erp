@@ -196,6 +196,7 @@ describe("ThsxDrawer · tab Nhận (§11.5)", () => {
           don_vi: "to", trang_thai: "adjusted", khong_nhat_quan: false, version: 3, batch_ids: [],
           nguoi_de_xuat: "Lê Cán Màng", de_xuat_luc: "2026-09-17T08:30:00",
           nguoi_xac_nhan: "Trần Tổ Bế", xac_nhan_luc: "2026-09-17T09:10:00",
+          nguon_cong_doan: "Cán màng mờ", nguon_to: "Tổ cán phủ", dich_cong_doan: "Bế", dich_to: "Tổ bế",
           dieu_chinh: [{ so_luong_truoc: 55, so_luong_sau: 50, mo_ta: "Đếm lại thiếu 5", khong_nhat_quan: false,
             nguoi: "Trần Tổ Bế", luc: "2026-09-17T10:00:00" }] },
         { id: 6, doi_tac_cong_viec_id: 9, doi_tac_ten: "Cán màng mờ", cung_to: false, so_luong: 30,
@@ -237,16 +238,19 @@ describe("ThsxDrawer · tab Nhận (§11.5)", () => {
   it("mỗi dòng ghi ai giao, ai nhận, lúc nào; lịch sử điều chỉnh mở ra đủ ai · trước → sau · mô tả", () => {
     moNhan({ tabDau: "nhan" });
     const [cho, daNhan] = Array.from(document.querySelectorAll<HTMLElement>(".thsx-x-bg"));
-    expect(cho.textContent).toContain("Giao: Lê Cán Màng");
-    expect(cho.textContent).toContain("Nhận: chưa xác nhận");
+    expect(cho.textContent).toMatch(/Giao.*Lê Cán Màng/);
+    expect(cho.textContent).toMatch(/Nhận.*Chưa xác nhận/);
     expect(within(cho).queryByRole("button", { name: /Đã điều chỉnh/ })).toBeNull();
 
-    expect(daNhan.textContent).toContain("Giao: Lê Cán Màng");
-    expect(daNhan.textContent).toMatch(/Nhận: Trần Tổ Bế · .*09:10/);
+    // Mỗi đầu ghi đủ công đoạn · tổ · ai · lúc nào.
+    expect(daNhan.textContent).toMatch(/GiaoCán màng mờTổ cán phủLê Cán Màng.*08:30/);
+    expect(daNhan.textContent).toMatch(/NhậnBếTổ bếTrần Tổ Bế.*09:10/);
+    // Tên công đoạn đầu kia chỉ hiện MỘT lần (không nhắc lại ở đầu thẻ).
+    expect(daNhan.textContent!.split("Cán màng mờ")).toHaveLength(2);
     expect(within(daNhan).queryByRole("list", { name: "Lịch sử điều chỉnh" })).toBeNull();
     fireEvent.click(within(daNhan).getByRole("button", { name: "Đã điều chỉnh 1 lần" }));
     const ls = within(daNhan).getByRole("list", { name: "Lịch sử điều chỉnh" });
-    expect(ls.textContent).toMatch(/10:00 · Trần Tổ Bế · 55 → 50 \S+ · Đếm lại thiếu 5/);
+    expect(ls.textContent).toMatch(/10:00.*Trần Tổ Bế.*55 (?:→|➔) 50 \S+.*Đếm lại thiếu 5/);
   });
 
   it("thiếu quyền Xác nhận sản lượng: không có nút, nói rõ cần quyền gì", () => {
@@ -257,7 +261,7 @@ describe("ThsxDrawer · tab Nhận (§11.5)", () => {
 });
 
 // Routing lệnh (19/09/2026, `dau_vao.py`): chưa nhận hàng từ công đoạn trước thì chưa Bắt đầu được;
-// tab Nhận bày kế hoạch · thực tế (cộng mẻ) · đã giao sang · đã nhận của từng công đoạn trước.
+// tab Nhận chỉ liệt kê các lần nhận (27/09/2026).
 describe("ThsxDrawer · công đoạn trước", () => {
   function moTruoc(thieu: string[], choXacNhan = 0) {
     const base = chiTiet(true, true);
@@ -286,13 +290,27 @@ describe("ThsxDrawer · công đoạn trước", () => {
     expect(document.body.textContent).toContain(
       "Chưa nhận hàng từ In offset — tổ trước giao sang và tổ mình xác nhận ở tab “Nhận” rồi mới Bắt đầu được.",
     );
-    const [dong] = Array.from(document.querySelectorAll<HTMLElement>(".thsx-x-bg"));
-    expect(dong.textContent).toContain("In offset · lần 1/2 · Tổ In");
-    expect(dong.textContent).toMatch(/Kế hoạch1\.200/);
-    expect(dong.textContent).toMatch(/Thực tế1\.150/);
-    expect(dong.textContent).toMatch(/Giao sang2\.000/);
-    expect(dong.textContent).toMatch(/Đã nhận0/);
-    expect(dong.textContent).toContain("chờ xác nhận");
+    // Tab Nhận CHỈ liệt kê các lần nhận — không còn khối tổng Kế hoạch/Thực tế/Giao sang/Đã nhận.
+    expect(document.body.textContent).not.toMatch(/Thực tế1\.150|Giao sang|Kế hoạch1\.200/);
+    expect(document.body.textContent).toContain("Chưa nhận lần nào từ công đoạn trước.");
+  });
+
+  it("bước trước cùng tổ: danh sách trống nhưng nói rõ vì sao không có lần nhận nào", () => {
+    const base = chiTiet(true, true);
+    const ct = {
+      ...base,
+      cong_viec: { ...base.cong_viec, khuon: null },
+      thieu_dau_vao: [],
+      ban_giao_den: [],
+      cong_doan_truoc: [{ cong_viec_id: 9, ten_cong_doan: "Tề giấy", cung_to: true }],
+    } as unknown as SxWorkItemChiTiet;
+    render(
+      <ThsxDrawer chiTiet={ct} loading={false} candidates={[]} hoTroUngVien={[]}
+        mayOptions={[]} exec={{} as ThsxExec} busy={false} onGiao={vi.fn()} onRut={vi.fn()}
+        onBatDau={vi.fn()} onNhanKhuon={vi.fn()} onTraKhuon={vi.fn()} onTamDung={vi.fn()}
+        onKetThuc={vi.fn()} onClose={vi.fn()} tabDau="nhan" />,
+    );
+    expect(document.body.textContent).toContain("Tề giấy cùng tổ — hàng không qua bàn giao");
   });
 
   it("đã nhận: Bắt đầu mở, không còn câu chưa nhận hàng", () => {

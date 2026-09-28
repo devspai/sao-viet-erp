@@ -1,7 +1,7 @@
 """Danh mục Giấy & Vật tư khác — DANH MỤC GỐC của mặt hàng (Kho + NCC đều trỏ về đây).
 
-BA danh mục trên một router, cả ba sinh từ `routers/catalog_base.make_catalog_router`
-(`/chung-loai-giay`, `/giay`, `/vat-tu-in-an`). Ngoài ra router phơi ba cửa dùng chung:
+Các danh mục trên một router, cùng sinh từ `routers/catalog_base.make_catalog_router`
+(`/giay`, `/vat-tu-in-an`, `/thanh-pham`). Ngoài ra router phơi ba cửa dùng chung:
   · `GET /mat-hang`                      — tìm gộp Giấy + Vật tư khác (picker mặt hàng)
   · `GET /mat-hang/{loai}/{id}/don-vi`   — đơn vị gốc + mọi đơn vị đổi được (dropdown ĐVT)
   · `GET|POST /giay/{id}/versions`       — lịch sử giá giấy
@@ -26,7 +26,7 @@ from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.purchase_repo import SupplierRepository
 from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
 from ..schemas.vat_lieu_kho import (
-    ChungLoaiGiayIn, ChungLoaiGiayRow, DonViCuaMatHangOut, GiayGiaVersionIn, GiayGiaVersionRow,
+    DonViCuaMatHangOut, DonViNhieuMatHangOut, GiayGiaVersionIn, GiayGiaVersionRow,
     GiayIn, GiayRow, ListOut, MatHangRow, ThanhPhamIn, ThanhPhamRow, VatLieuAnhOut,
     VatTuIn, VatTuRow,
 )
@@ -36,7 +36,7 @@ from ..services.vat_lieu_kho_service import (
 )
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from ..services.catalog_excel_specs import (
-    CHUNG_LOAI_GIAY, GIAY, THANH_PHAM, VAT_TU,
+    GIAY, THANH_PHAM, VAT_TU,
 )
 from .catalog_base import loi_http, make_catalog_router
 
@@ -46,7 +46,6 @@ router = APIRouter(prefix="/api/vat-lieu-kho", tags=["vat-lieu-kho"])
 # KHÔNG dùng chung `kho` như trước (kho hàng là chứng từ nhập/xuất + tồn; đây là danh mục khai
 # hàng, kèm đơn giá giấy → hai việc khác nhau, thường hai người khác nhau).
 MODULE_BY_KIND = {
-    "chung_loai_giay": "dm_chung_loai_giay",
     "giay": "dm_giay",
     "vat_tu": "dm_vat_tu",
     # Màn danh mục THỨ TƯ trên cùng router — chung bảng `vat_tu_in_an` với "vat_tu", chia nhau
@@ -119,8 +118,6 @@ def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool, enable_c
     )
 
 
-_khai("chung_loai_giay", ChungLoaiGiayIn, ChungLoaiGiayRow, "chung-loai-giay",
-      kem_don_vi=False, excel_spec=CHUNG_LOAI_GIAY)
 _khai("giay", GiayIn, GiayRow, "giay", kem_don_vi=True, enable_clone=True,
       cong_thuc_truong="cong_thuc_luong", excel_spec=GIAY)
 # Vật tư khác hết ô công thức (mg `0274`) — dòng GIẤY ngay trên GIỮ `cong_thuc_truong`.
@@ -174,6 +171,32 @@ def don_vi_cua_mat_hang(
         return DonViCuaMatHangOut(**svc.don_vi_cua_mat_hang(hang_loai, hang_id))
     except (VatLieuKhoNotFound, VatLieuKhoValidationError) as e:
         raise loi_http(e) from None
+
+
+@router.get("/mat-hang/don-vi-lo", response_model=DonViNhieuMatHangOut,
+            name="don_vi_nhieu_mat_hang")
+def don_vi_nhieu_mat_hang(
+    svc: Service,
+    _: Annotated[User, Depends(_doc_mat_hang)],
+    cap: str = Query(default="", max_length=8000,
+                     description="Các cặp `hang_loai:hang_id` cách nhau dấu phẩy"),
+) -> DonViNhieuMatHangOut:
+    """Như `/mat-hang/{hang_loai}/{hang_id}/don-vi` cho NHIỀU mặt hàng một lượt.
+
+    Form có nhiều dòng vật tư (bảng giá NCC, yêu cầu mua hàng) từng gọi cửa lẻ cho TỪNG dòng: bảng
+    giá 23 dòng là 23 request, mỗi request đọc lại cả bảng đơn vị + bảng cặp quy đổi. Món không
+    tồn tại / cặp sai cú pháp thì vắng mặt trong `items` — bên gọi tự báo "không tải được".
+    """
+    caps: set[tuple[str, int]] = set()
+    for manh in cap.split(","):
+        loai, _sep, so = manh.strip().partition(":")
+        if loai and so.isdigit():
+            caps.add((loai, int(so)))
+    if len(caps) > 500:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Tối đa 500 mặt hàng một lượt.")
+    return DonViNhieuMatHangOut(
+        items=[DonViCuaMatHangOut(**r) for r in svc.don_vi_nhieu_mat_hang(caps).values()]
+    )
 
 
 # -- Phiên bản giá giấy (lịch sử) — route custom, KHÔNG theo khuôn danh mục --
