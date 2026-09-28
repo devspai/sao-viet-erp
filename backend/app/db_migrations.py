@@ -16227,9 +16227,17 @@ def _migrate_gia_cong_ngoai_bai_ghep(db) -> None:
     insp = inspect(bind)
     bang = set(insp.get_table_names())
     pg = bind.dialect.name == "postgresql"
+    # Đọc HẾT siêu dữ liệu TRƯỚC mọi ALTER: `insp` chạy trên một kết nối KHÁC `db`; soi ràng buộc
+    # sau khi `db` đã ALTER (giữ khoá ACCESS EXCLUSIVE, chưa commit) thì kết nối kia chờ khoá mãi —
+    # CI "Migration trên Postgres trắng" treo 6 tiếng ở đây.
+    cot_gcn = _existing_columns(insp, "gia_cong_ngoai") if "gia_cong_ngoai" in bang else set()
+    co_ck = ({c["name"] for c in insp.get_check_constraints("gia_cong_ngoai")}
+             if pg and "gia_cong_ngoai" in bang else set())
+    cot_bgcd = _existing_columns(insp, "bai_ghep_cong_doan") if "bai_ghep_cong_doan" in bang else set()
+    ix_bgcd = insp.get_indexes("bai_ghep_cong_doan") if "bai_ghep_cong_doan" in bang else []
 
     if "gia_cong_ngoai" in bang:
-        cot = _existing_columns(insp, "gia_cong_ngoai")
+        cot = cot_gcn
         if "bai_ghep_id" not in cot:
             fk = " REFERENCES bai_ghep(id) ON DELETE RESTRICT" if "bai_ghep" in bang else ""
             db.execute(text(f"ALTER TABLE gia_cong_ngoai ADD COLUMN bai_ghep_id INTEGER{fk}"))
@@ -16238,7 +16246,6 @@ def _migrate_gia_cong_ngoai_bai_ghep(db) -> None:
             "ON gia_cong_ngoai (bai_ghep_id)"))
         if pg:
             db.execute(text("ALTER TABLE gia_cong_ngoai ALTER COLUMN lsx_id DROP NOT NULL"))
-            co_ck = {c["name"] for c in insp.get_check_constraints("gia_cong_ngoai")}
             if "ck_gia_cong_ngoai_mot_nguon" not in co_ck:
                 db.execute(text(
                     "ALTER TABLE gia_cong_ngoai ADD CONSTRAINT ck_gia_cong_ngoai_mot_nguon CHECK ("
@@ -16246,14 +16253,14 @@ def _migrate_gia_cong_ngoai_bai_ghep(db) -> None:
                     "OR (lsx_id IS NOT NULL AND bai_ghep_id IS NULL))"))
 
     if "bai_ghep_cong_doan" in bang:
-        cot = _existing_columns(insp, "bai_ghep_cong_doan")
+        cot = cot_bgcd
         if "nha_cung_cap_id" not in cot:
             fk = " REFERENCES suppliers(id)" if "suppliers" in bang else ""
             db.execute(text(f"ALTER TABLE bai_ghep_cong_doan ADD COLUMN nha_cung_cap_id INTEGER{fk}"))
         db.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_bai_ghep_cong_doan_nha_cung_cap_id "
             "ON bai_ghep_cong_doan (nha_cung_cap_id)"))
-        for ix in insp.get_indexes("bai_ghep_cong_doan"):
+        for ix in ix_bgcd:
             if set(ix.get("column_names") or []) & set(_COT_DU_KIEN_BUOC_CHUNG):
                 db.execute(text(f"DROP INDEX IF EXISTS {ix['name']}"))
         for c in _COT_DU_KIEN_BUOC_CHUNG:
