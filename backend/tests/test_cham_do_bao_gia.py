@@ -21,7 +21,7 @@ def test_cho_duyet_theo_phong_va_quyet_dinh(client):
     assert "bao_gia" not in tom_tat(client, dang_nhap(client, "duyet_khac"))
     assert "bao_gia" not in tom_tat(client, _h(sales))
 
-    d = client.post(f"/api/quotations/{q['id']}/approval", json={"decision": "approved"},
+    d = client.post(f"/api/quotations/{q['id']}/approval", json={"decision": "approved", "note": "ok"},
                     headers=_h(tpkd))
     assert d.status_code == 200, d.text
     assert tom_tat(client, _h(sales))["bao_gia"]["loai"] == "bao_gia_quyet_dinh"
