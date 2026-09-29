@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from sqlalchemy.orm import Session
 
 from ..deps import (
     get_authorization_service,
@@ -19,7 +20,9 @@ from ..deps import (
     get_order_service,
     require_permission,
 )
+from ..db import get_db
 from ..models.user import User
+from ..services.thong_bao_man import bao
 from ..schemas.order import (
     OrderActivityOut,
     OrderCancelIn,
@@ -193,12 +196,18 @@ def create_order(
     user: Annotated[User, Depends(require_permission(MODULE, "create"))],
     svc: Service,
     authz: Authz,
+    db: Annotated[Session, Depends(get_db)],
 ) -> OrderDetailOut:
     try:
         d = svc.create(actor=user, scope=_scope_for(authz, user), payload=payload)
     except Exception as exc:
         raise _map(exc)
     _order_changed(d.order_no)   # đơn nháp mới → Kế toán thấy 'chờ ghi cọc'
+    if (d.deposit_pct or 0) > 0:
+        # Chấm đỏ Đơn hàng cho người GHI CỌC trong phạm vi phòng của Sale đứng tên đơn.
+        sale = db.get(User, d.sale_user_id) if d.sale_user_id else None
+        bao(db, kenh="don_hang_ban", loai="don_cho_coc", actor_id=user.id, quyen="record_deposit",
+            phong_id=sale.department_id if sale else None, ma=d.order_no)
     return d
 
 
@@ -247,6 +256,7 @@ def release_production(
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
     svc: Service,
     authz: Authz,
+    db: Annotated[Session, Depends(get_db)],
 ) -> OrderDetailOut:
     try:
         d = svc.release_production(order_id=order_id, actor=user, scope=_scope_for(authz, user))
@@ -256,6 +266,8 @@ def release_production(
     # Hàng chờ Kế hoạch SX (badge + toast người có `san_xuat`) + nhóm `ban_hang`/`san_xuat`. Đơn
     # mới vào hàng chờ, chưa có công việc nào ở bàn tổ.
     hub.gui({"type": "order_ordered", "code": d.order_no, "order_id": order_id}, quyen=NGHE_LENH)
+    # Chấm đỏ Kế hoạch SX — bấm chuyển lại (idempotent) không đẻ thêm dòng.
+    bao(db, kenh="san_xuat", loai="don_chuyen_sx", actor_id=user.id, ma=d.order_no, chi_mot_lan=True)
     return d
 
 
@@ -329,6 +341,7 @@ def add_deposit_receipt(
     user: Annotated[User, Depends(require_permission(MODULE, "record_deposit"))],
     svc: Service,
     authz: Authz,
+    db: Annotated[Session, Depends(get_db)],
 ) -> OrderDetailOut:
     """Kế toán bấm trên drawer đơn → tạo PaymentReceipt(nguồn đơn, received) gắn order_id. Cổng đủ
     cọc = Σ phiếu thu received ≥ deposit_required."""
@@ -338,6 +351,8 @@ def add_deposit_receipt(
         raise _map(exc)
     if d.deposit_ok and d.sale_user_id:   # Kế toán thu ĐỦ cọc → báo Sale 'chốt được rồi' (Việc 3)
         hub.publish(d.sale_user_id, {"type": "order_deposit_ok", "code": d.order_no})
+        bao(db, kenh="don_hang_ban", loai="don_du_coc", actor_id=user.id,
+            nguoi_nhan=d.sale_user_id, ma=d.order_no)
     _order_changed(d.order_no)
     return d
 
