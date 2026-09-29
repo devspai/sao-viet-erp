@@ -207,6 +207,9 @@ def tao_batch(
 
         raise ValueError(CHAN_XUONG)
     _gate(db, user, cv)
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv, cho_viec_dang_chay=True)
     if cv.trang_thai not in _TRANG_THAI_GHI_DUOC:
         raise ValueError("Chỉ ghi sản lượng cho công việc đã bắt đầu.")
 

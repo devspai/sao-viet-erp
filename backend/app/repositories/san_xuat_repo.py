@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import and_, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, exists, not_, or_, select
+from sqlalchemy.orm import Session, aliased
 
 from ..models.bai_ghep import BaiGhep, BaiGhepThanhVien
 from ..models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
@@ -23,7 +23,10 @@ from ..models.may_thiet_bi import MayThietBi
 from ..models.order import Order, OrderLine
 from ..models.san_xuat import (
     CV_HOAN_THANH,
+    CV_PHAT_HANH,
+    CV_TAM_DUNG,
     GOI_DANG_PHAT_HANH,
+    NHOM_DONG,
     SanXuatCongViec,
     SanXuatGoiPhatHanh,
     SanXuatNhom,
@@ -320,6 +323,32 @@ class SanXuatRepository:
         ).scalars().first()
         return (a.actor_name_luc_do or "", a.created_at) if a else None
 
+    @staticmethod
+    def viec_con_hien():
+        """Điều kiện SQL: bỏ khỏi bàn tổ việc CHƯA LÀM / TẠM DỪNG của lệnh đã đóng (spec
+        2026-09-29). Việc đang chạy vẫn hiện tới khi tổ bấm Kết thúc; việc đã xong vẫn là lịch sử.
+        Việc chung bài ghép (`nhom_id` NULL) chỉ ẩn khi có nhóm đã đóng và KHÔNG còn nhóm nào mở."""
+        # Bí danh riêng để truy vấn ngoài có JOIN cùng bảng cũng không làm subquery tự tương quan nhầm.
+        n1 = aliased(SanXuatNhom)
+        nhom_dong = exists().where(n1.id == SanXuatCongViec.nhom_id, n1.trang_thai == NHOM_DONG)
+
+        def _tv(mo: bool):
+            n, nl, tv = aliased(SanXuatNhom), aliased(SanXuatNhomLsx), aliased(BaiGhepThanhVien)
+            dk = n.trang_thai != NHOM_DONG if mo else n.trang_thai == NHOM_DONG
+            return (exists()
+                    .where(tv.bai_ghep_id == SanXuatCongViec.bai_ghep_id,
+                           nl.lsx_id == tv.lsx_id, n.id == nl.nhom_id, dk))
+
+        bg_dong = and_(
+            SanXuatCongViec.nhom_id.is_(None),
+            SanXuatCongViec.bai_ghep_id.is_not(None),
+            _tv(False),
+            not_(_tv(True)),
+        )
+        an = and_(SanXuatCongViec.trang_thai.in_((CV_PHAT_HANH, CV_TAM_DUNG)),
+                  or_(nhom_dong, bg_dong))
+        return not_(an)
+
     def trang_thai_nhom_cua_bai_ghep(self, bai_ghep_id: int) -> list[str]:
         """Trạng thái nhóm của mọi lệnh thành viên một bài ghép (lặp theo lệnh)."""
         return list(self.db.execute(
@@ -539,6 +568,7 @@ class SanXuatRepository:
             .where(
                 pham_vi,
                 SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH,
+                self.viec_con_hien(),
             )
         )
         if chi_chua_xong:
@@ -634,6 +664,7 @@ class SanXuatRepository:
         dieu_kien = [
             pham_vi,
             SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH,
+            self.viec_con_hien(),
         ]
 
         nhom = (
@@ -738,6 +769,7 @@ class SanXuatRepository:
         dieu_kien = [
             pham_vi,
             SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH,
+            self.viec_con_hien(),
             or_(*nhanh) if nhanh else false(),
         ]
 
@@ -814,6 +846,7 @@ class SanXuatRepository:
             pham_vi,
             SanXuatCongViec.trang_thai != CV_HOAN_THANH,
             SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH,
+            self.viec_con_hien(),
         ]
         rows = self.db.execute(
             select(SanXuatCongViec.department_id, func.count(SanXuatCongViec.id))

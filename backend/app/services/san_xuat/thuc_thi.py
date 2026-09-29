@@ -131,6 +131,9 @@ def phan_cong(
     cho người mới (§7.2 "thêm người"), nhưng chặn nếu người đó còn khoảng mở ở việc khác (§7.1)."""
     repo = SanXuatThucThiRepository(db)
     cv = _lay_cong_viec(repo, cong_viec_id)
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv)
     _gate(db, user, cv)
     _kiem_version(cv, expected_version)
     if cv.trang_thai == CV_HOAN_THANH:
@@ -231,6 +234,9 @@ def bat_dau(
     CÓ MẶT, không phải về cỡ kíp."""
     repo = SanXuatThucThiRepository(db)
     cv = _lay_cong_viec(repo, cong_viec_id)
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv)
     _gate(db, user, cv)
     _kiem_version(cv, expected_version)
     if cv.trang_thai not in (CV_PHAT_HANH, CV_TAM_DUNG):
@@ -479,6 +485,9 @@ def doi_may(
     """
     repo = SanXuatThucThiRepository(db)
     cv = _lay_cong_viec(repo, cong_viec_id)
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv)
     _gate(db, user, cv)
     _kiem_version(cv, expected_version)
     if cv.trang_thai not in (CV_DANG_CHAY, CV_TAM_DUNG):
@@ -542,6 +551,9 @@ def nhan_khuon(db: Session, *, user, cong_viec_id: int) -> dict:
     """
     repo = SanXuatThucThiRepository(db)
     cv = _lay_cong_viec(repo, cong_viec_id)
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv)
     _gate(db, user, cv)
     if not cv.khuon_json:
         raise ValueError("Bước này không dùng khuôn/khung.")

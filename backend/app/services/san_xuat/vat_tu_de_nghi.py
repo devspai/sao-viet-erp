@@ -406,6 +406,9 @@ def tao(db: Session, *, user, cong_viec_id: int, can_luc: datetime,
     cv = repo.cong_viec(cong_viec_id)
     if cv is None:
         raise ValueError("Không tìm thấy công việc.")
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv)
     # Khoá công đoạn TRƯỚC khi đọc bất cứ thứ gì mình sắp ghi đè lên (`cac_de_nghi`, `lan_ke_tiep`).
     # `sua()` đã có khoá của nó (`StockRequestRepository.lock_for_update`), `tao()` thì trước đây
     # không khoá gì: tổ trưởng bấm "Gửi đề nghị" hai lần lúc mạng chậm là hai lượt cùng đọc

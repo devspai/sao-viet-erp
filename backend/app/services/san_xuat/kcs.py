@@ -271,6 +271,9 @@ def kiem_cong_doan(
         from ..gia_cong_ngoai import CHAN_XUONG
 
         raise ValueError(CHAN_XUONG)
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv)
     if cv.trang_thai not in _TRANG_THAI_KIEM_DUOC:
         raise ValueError("Công đoạn chưa bắt đầu nên chưa kiểm được.")
 
@@ -485,6 +488,9 @@ def dieu_chinh_ket_qua(
         from ..gia_cong_ngoai import CHAN_XUONG
 
         raise ValueError(CHAN_XUONG)
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv)
     if expected_version != kcs.version:
         raise ValueError("Phiên bản không khớp — kết quả vừa được cập nhật, hãy tải lại.")
     dat = _so_khong_am(so_luong_dat, "Số đạt")
