@@ -245,12 +245,13 @@ def test_permissions_doc_role_permissions_mot_lan(client):
     assert len(doc_quyen) == 1, doc_quyen
 
 
-def test_module_notifications_khong_quyen_thi_khong_dem(client):
-    _mk_user("khong_kenh", {"khach_hang": dict(can_read=True, scope=SCOPE_OWN)})
+def test_tom_tat_cham_do_mot_cau_sql(client):
+    """Cả thanh bên hỏi chấm đỏ bằng MỘT câu gom (không có dòng mới thì khỏi câu chi tiết)."""
+    _mk_user("khong_kenh", {"noi_quy": dict(can_read=True, scope=SCOPE_OWN)})
     hd = _login(client, "khong_kenh")
     r, _, sql = _dem(lambda: client.get("/api/module-notifications/summary", headers=hd))
-    assert r.status_code == 200 and r.json() == {"thu_mua": 0, "ke_toan": 0}
-    assert not [s for s in sql if "module_notification" in s], sql
+    assert r.status_code == 200 and r.json() == {"kenh": {}}
+    assert len([s for s in sql if "module_notification" in s]) <= 1, sql
 
 
 def test_memo_quyen_bo_khi_phien_ghi():

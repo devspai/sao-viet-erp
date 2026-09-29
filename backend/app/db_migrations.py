@@ -16342,3 +16342,28 @@ def _migrate_index_cham_cong(db) -> None:
 
 
 MIGRATIONS.append(("0345_index_cham_cong", _migrate_index_cham_cong))
+
+
+def _migrate_module_notification_quyen_phong(db: Session) -> None:
+    """Chấm đỏ thanh bên cho MỌI màn (29/09/2026): thêm ô quyền người nhận phải có + phòng của bản
+    ghi để lọc người duyệt theo phạm vi. Đọc siêu dữ liệu TRƯỚC mọi ALTER (bài học mg 0343)."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    if "module_notifications" not in set(insp.get_table_names()):
+        return
+    cot = _existing_columns(insp, "module_notifications")
+    if "required_action" not in cot:
+        db.execute(text("ALTER TABLE module_notifications ADD COLUMN required_action VARCHAR(40)"))
+    if "department_id" not in cot:
+        db.execute(text(
+            "ALTER TABLE module_notifications ADD COLUMN department_id INTEGER "
+            "REFERENCES departments(id) ON DELETE SET NULL"
+        ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_module_notifications_recipient_channel "
+        "ON module_notifications (recipient_user_id, channel, id)"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0346_module_notification_quyen_phong", _migrate_module_notification_quyen_phong))
