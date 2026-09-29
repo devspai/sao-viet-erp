@@ -22,7 +22,7 @@ class ModuleNotification(Base):
     # Badge đếm "id > mốc đã đọc" theo kênh (mg `0344`).
     __table_args__ = (
         Index("ix_module_notifications_channel_id", "channel", "id"),
-        # Dòng đích danh của một người theo kênh — vế `recipient_user_id = tôi` của tóm tắt (mg 0346).
+        # Dòng đích danh của một người theo kênh — vế `recipient_user_id = tôi` của tóm tắt (mg 0347).
         Index("ix_module_notifications_recipient_channel", "recipient_user_id", "channel", "id"),
     )
 
@@ -38,9 +38,9 @@ class ModuleNotification(Base):
     recipient_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    # Ô quyền người nhận PHẢI có trên module = kênh (vd `approve`); NULL = chỉ cần Xem màn (mg 0346).
+    # Ô quyền người nhận PHẢI có trên module = kênh (vd `approve`); NULL = chỉ cần Xem màn (mg 0347).
     required_action: Mapped[str | None] = mapped_column(String(40), nullable=True)
-    # Phòng của BẢN GHI gây ra thông báo — lọc theo phạm vi `department` của người nhận (mg 0346).
+    # Phòng của BẢN GHI gây ra thông báo — lọc theo phạm vi `department` của người nhận (mg 0347).
     # NULL = không gắn phòng (ai đủ quyền đều thấy).
     department_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True

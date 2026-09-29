@@ -15,7 +15,7 @@ from ..models.department import Department
 from ..models.lsx import Lsx, LsxCongDoan
 from ..models.order import Order
 from ..models.san_xuat import (
-    NHOM_CHO_DIEU_KIEN, NHOM_DANG_SX, SanXuatCongViec, SanXuatNhom, SanXuatNhomLsx,
+    NHOM_DANG_SX, SanXuatCongViec, SanXuatNhom, SanXuatNhomLsx,
 )
 from ..models.san_xuat_kcs import SanXuatKcsBatch, SanXuatKcsLoi, SanXuatKcsLoiAnh
 from ..models.user import User
@@ -135,7 +135,7 @@ class SanXuatKcsRepository:
             .outerjoin(Customer, Customer.id == Order.customer_id)
         )
         if not gom_da_dong:
-            q = q.where(SanXuatNhom.trang_thai.in_((NHOM_DANG_SX, NHOM_CHO_DIEU_KIEN)))
+            q = q.where(SanXuatNhom.trang_thai== NHOM_DANG_SX)
         tim = (tim or "").strip()
         if tim:
             mau = f"%{tim}%"

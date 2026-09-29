@@ -7,14 +7,15 @@ from datetime import date
 
 from app.models.delivery import LG_DA_HUY, LG_THANH_CONG, DeliveryTrip
 from app.models.gia_cong_ngoai import NOI_VE_KHACH, NOI_VE_KHO, GiaCongNgoai
-from app.models.lsx import Lsx
-from app.models.san_xuat import CV_HOAN_THANH, NHOM_DONG_DU, NHOM_DONG_THIEU, SanXuatNhom
+from app.models.lsx import TT_DA_PHAT_HANH, Lsx
+from app.models.san_xuat import CV_HOAN_THANH, NHOM_DANG_SX, NHOM_DONG, SanXuatNhom
 from app.models.san_xuat_kcs import SanXuatKcsBatch
 from app.models.stock_request import REQ_CANCELLED, StockRequest
 from app.models.stock_voucher import VOUCHER_DRAFT, VOUCHER_NHAP, StockVoucher
 from app.repositories.delivery_repo import DeliveryRepository
 from app.services.gia_cong_ngoai.chot import chot, mo_lai
 from app.services.gia_cong_ngoai.mot_phan import mang_di
+from app.services.san_xuat import dong_lenh
 from app.services.san_xuat.kcs import chuoi_cong_doan_kcs
 from tests.gia_cong_fixtures import (
     cv_ten, dung_lenh_gia_cong, giao_sang, ncc, nguoi_ke_hoach, nguoi_kcs, nhan_vien_cua,
@@ -53,9 +54,9 @@ def test_ve_kho_ghi_kcs_tong_hop_va_de_nghi_nhap(sess, admin, dai_cuoi):
     assert float(k.so_luong_dat) == 1000 and "ngoài phần mềm" in k.ghi_chu
     req = sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id).one()
     assert req.san_xuat_cong_viec_id == cuoi.id and req is kq["yeu_cau_kho"]
-    # Đủ mục tiêu + mọi việc xong ⇒ nhóm tự đóng đủ như hàng xưởng làm.
-    assert sess.get(SanXuatNhom, cuoi.nhom_id).trang_thai == NHOM_DONG_DU
-    assert kq["nhom_dong"]["kieu"] == "du"
+    # Không còn tự đóng: chốt về kho xong nhóm VẪN đang sản xuất, KCS đóng tay sau.
+    assert sess.get(SanXuatNhom, cuoi.nhom_id).trang_thai == NHOM_DANG_SX
+    assert "nhom_dong" not in kq and "nhoms_dong" not in kq
 
 
 def test_man_kcs_khong_bao_con_gui_kho_cho_viec_gia_cong(sess, admin, dai_cuoi):
@@ -67,7 +68,7 @@ def test_man_kcs_khong_bao_con_gui_kho_cho_viec_gia_cong(sess, admin, dai_cuoi):
     assert cuoi["con_gui_kho"] == 0 and cuoi["gia_cong_ngoai"] is True
 
 
-def test_mo_lai_ve_kho_huy_de_nghi_va_mo_lai_nhom(sess, admin, dai_cuoi):
+def test_mo_lai_ve_kho_huy_de_nghi_va_go_kcs(sess, admin, dai_cuoi):
     lsx_id, lan = dai_cuoi
     chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
          sl_cuoi=1000, noi_ve=NOI_VE_KHO)
@@ -76,7 +77,6 @@ def test_mo_lai_ve_kho_huy_de_nghi_va_mo_lai_nhom(sess, admin, dai_cuoi):
     cuoi = cv_ten(sess, lsx_id, "Đóng gói")
     assert sess.query(SanXuatKcsBatch).filter_by(cong_viec_id=cuoi.id).count() == 0
     assert sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id).one().trang_thai == REQ_CANCELLED
-    assert sess.get(SanXuatNhom, cuoi.nhom_id).trang_thai != NHOM_DONG_DU
 
 
 def test_mo_lai_ve_kho_chan_khi_da_lap_phieu(sess, admin, dai_cuoi):
@@ -93,18 +93,16 @@ def test_mo_lai_ve_kho_chan_khi_da_lap_phieu(sess, admin, dai_cuoi):
         mo_lai(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
 
 
-def test_mo_lai_ve_kho_chan_khi_nhom_dong_thieu(sess, admin, dai_cuoi):
+def test_mo_lai_ve_kho_chan_khi_lenh_da_dong(sess, admin, dai_cuoi):
     lsx_id, lan = dai_cuoi
     chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
          sl_cuoi=1000, noi_ve=NOI_VE_KHO)
     cuoi = cv_ten(sess, lsx_id, "Đóng gói")
-    nhom = sess.get(SanXuatNhom, cuoi.nhom_id)
-    # Trưởng KCS đã đóng thiếu (đường tắt: gán thẳng trạng thái, workflow đủ điều kiện đã kiểm ở
-    # `dong_nhom.py`, bài test này chỉ soi cửa mở lại) — trạng thái này KHOÁ CỨNG, không đảo được.
-    nhom.trang_thai = NHOM_DONG_THIEU
+    sess.get(Lsx, lsx_id).trang_thai = TT_DA_PHAT_HANH
     sess.commit()
+    dong_lenh.dong(sess, user=nguoi_kcs(sess), nhom_id=cuoi.nhom_id)
     sess.refresh(lan)
-    with pytest.raises(ValueError, match="đóng thiếu"):
+    with pytest.raises(ValueError, match="Lệnh đã đóng"):
         mo_lai(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
 
 

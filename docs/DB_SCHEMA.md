@@ -4106,7 +4106,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 | `quy_cach_json` | `JSON` | — | yes | — | Snapshot quy cách: khổ ①②③ · giấy + định lượng · số màu A/B · cách in · chừa · số kẽm · số lượt · ghi chú kỹ thuật. Read-only ở lát 1. |
 | `routing_goc_json` | `JSON` | — | yes | — | Ảnh chụp routing LÚC TẠO lệnh (list rút gọn: `ten`·`nhom`·`loai_buoc`). CHỈ để cảnh báo "routing đã đổi so với bài tính giá" — không dùng tính lại gì. |
 | `may_id` | `Integer` | IX | yes | — | Soft → `may_thiet_bi.id` — máy in dự kiến. |
-| `trang_thai` | `String(20)` | — | no | `nhap` | `nhap` → `cho_bo_sung` → `san_sang` → `da_lap_ke_hoach` (đã sinh dòng xếp lịch → routing khóa). Mốc phát hành/thực thi thuộc pha sau. |
+| `trang_thai` | `String(20)` | — | no | `nhap` | `nhap` → `cho_bo_sung` → `san_sang` → `da_lap_ke_hoach` (routing khóa) → `da_phat_hanh` (thả xuống xưởng) ⇄ `da_dong` (KCS đóng/mở lại). |
 | `nguoi_phu_trach_id` | `Integer` | IX | yes | — | Soft → `users.id` — người kế hoạch phụ trách lệnh. |
 | `ghi_chu` | `Text` | — | yes | — | Ghi chú kế hoạch. |
 | `created_by` | `Integer` | — | yes | — | Soft → `users.id`. |
@@ -4601,7 +4601,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `nhom_label` | `String(120)` | — | yes | — | Giá trị `OrderLine.nhom` (NULL = nhóm đơn lẻ). |
 | `ten` | `String(255)` | — | no | `""` | Tên hiển thị (dẫn xuất từ nhóm/sản phẩm). |
 | `than_chinh_lsx_id` | `Integer` FK→`lsx.id` | — | yes | — | LSX thân chính đi tới KCS cuối sau bước ghép đầu (§3.2). |
-| `trang_thai` | `String(24)` | — | no | `in_production` | `in_production`/`waiting_conditions`/`closed_full`/`closed_short` (§18). |
+| `trang_thai` | `String(24)` | — | no | `in_production` | `in_production`/`closed` — KCS bấm đóng/mở lại (§16). |
 | `version` | `Integer` | — | no | `1` | Chống bấm trùng / cập nhật đồng thời. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |

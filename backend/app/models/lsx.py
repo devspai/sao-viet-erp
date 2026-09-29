@@ -36,18 +36,21 @@ LOAI_MAU = "mau"
 LOAI_NOI_BO = "noi_bo"
 LOAI_LSX = (LOAI_MOI, LOAI_BO_SUNG, LOAI_BU, LOAI_LAM_LAI, LOAI_MAU, LOAI_NOI_BO)
 
-# --- Trạng thái (bám lifecycle print MIS / Dynamics BC). `da_lap_ke_hoach` (≈ Firm Planned) ĐÃ dùng:
-# set qua service xếp lịch (KHÔNG qua `set_trang_thai` chung) + KHÓA routing — gỡ kế hoạch để mở lại.
-# `da_phat_hanh` (≈ Released) ĐÃ dùng: gate xung đột 0-Chặn ở bàn xếp lịch → thả xuống xưởng (routing
-# vẫn khóa; thu hồi phát hành để về `da_lap_ke_hoach`). Các mốc sau (`dang_san_xuat`, `hoan_thanh`,
-# `da_dong`) thuộc pha thực thi, CHƯA dùng.
+# --- Trạng thái (bám lifecycle print MIS / Dynamics BC). `da_lap_ke_hoach` (≈ Firm Planned) set qua
+# service xếp lịch + KHÓA routing. `da_phat_hanh` (≈ Released) = đã thả xuống xưởng. `da_dong`
+# (≈ Finished, 29/09/2026) = KCS bấm "Đóng lệnh" (`services/san_xuat/dong_lenh.py`) — mở lại được,
+# về `da_phat_hanh`. Không có mốc "đang sản xuất" riêng: tiến độ thật đọc ở lớp thực thi.
 TT_NHAP = "nhap"                 # vừa tạo, dữ liệu đủ
 TT_CHO_BO_SUNG = "cho_bo_sung"   # thiếu file/khuôn/quy cách/routing
 TT_SAN_SANG = "san_sang"         # kế hoạch xác nhận đủ → chờ xếp lịch
 TT_DA_LAP_KE_HOACH = "da_lap_ke_hoach"  # đã sinh dòng xếp lịch → routing bị khóa
 TT_DA_PHAT_HANH = "da_phat_hanh"        # đã phát hành xuống xưởng (Released) — routing vẫn khóa
-TRANG_THAI_LSX = (TT_NHAP, TT_CHO_BO_SUNG, TT_SAN_SANG, TT_DA_LAP_KE_HOACH, TT_DA_PHAT_HANH)
+TT_DA_DONG = "da_dong"                  # KCS đã đóng lệnh — xưởng ngừng ghi mới
+TRANG_THAI_LSX = (TT_NHAP, TT_CHO_BO_SUNG, TT_SAN_SANG, TT_DA_LAP_KE_HOACH, TT_DA_PHAT_HANH, TT_DA_DONG)
 TRANG_THAI_SUA_DUOC = (TT_NHAP, TT_CHO_BO_SUNG, TT_SAN_SANG)  # chưa lập KH → sửa/xoá routing được
+# Lệnh ĐÃ XUỐNG XƯỞNG (đang chạy hoặc đã đóng) — mọi màn tra cứu/tiến độ dùng bộ này, đừng so
+# `== TT_DA_PHAT_HANH`, so thế thì lệnh vừa đóng biến mất khỏi màn.
+TT_DA_XUONG_XUONG = (TT_DA_PHAT_HANH, TT_DA_DONG)
 
 # --- Đơn vị đếm của 1 công đoạn (print MIS: mỗi operation có đơn vị riêng, đổi ở ranh giới xén).
 DV_TO_NGUYEN = "to_nguyen"  # tờ giấy NGUYÊN (khổ mua về, chưa xả) — khác tờ in!

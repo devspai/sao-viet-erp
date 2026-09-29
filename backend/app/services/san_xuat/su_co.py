@@ -35,7 +35,7 @@ MAX_LY_DO_PHIEN = 255
 
 
 def _bao_tin(db: Session, svc: KyThuatMayService, yc, cv) -> None:
-    """Báo tin SAU khi thao tác chính đã commit — hỏng thì NUỐT, cùng khuôn `_thu_dong_nhom`
+    """Báo tin SAU khi thao tác chính đã commit — hỏng thì NUỐT, cùng khuôn chốt chặn im lặng cũ
     (`routers/san_xuat.py`).
 
     `bao_to_sua_chua` không phải broadcast thuần bộ nhớ: nó còn `self._may(yc.may_id)` và join vai
