@@ -44,6 +44,7 @@ from ..schemas.late_early import (
     LateEarlySummaryOut,
     MyLateEarlyOut,
 )
+from ..services.thong_bao_man import bao
 from ..services.late_early_service import (
     LateEarlyError,
     LateEarlyForbidden,
@@ -164,12 +165,22 @@ def _notify_pending_changed() -> None:
     hub.gui({"type": "el_pending_changed"}, quyen=MAN_NHAN_SU)
 
 
-def _notify_decision(r, employees: EmployeeRepository, decision: str) -> None:
+def _cham_cho_duyet(r, employees: EmployeeRepository, actor_id: int) -> None:
+    """Chấm đỏ Chấm công cho người DUYỆT phiếu đi muộn/về sớm trong phạm vi phòng người nộp."""
+    emp = employees.get_by_id(r.employee_id)
+    bao(employees.db, kenh="cham_cong", loai="di_muon_moi", actor_id=actor_id,
+        quyen="approve_late_early", phong_id=emp.department_id if emp else None, ma=str(r.id))
+
+
+def _notify_decision(r, employees: EmployeeRepository, decision: str,
+                     actor_id: int | None = None) -> None:
     """Duyệt/từ chối → đẩy tới ĐÚNG NV nộp phiếu; kèm broadcast để badge người duyệt hạ xuống."""
     emp = employees.get_by_id(r.employee_id)
     if emp is not None and emp.user_id is not None:
         hub.publish(emp.user_id, {"type": "el_decision", "decision": decision,
                                   "code": emp.full_name})
+        bao(employees.db, kenh="cham_cong", loai="di_muon_quyet_dinh", actor_id=actor_id,
+            nguoi_nhan=emp.user_id, ma=str(r.id))
     _notify_pending_changed()
 
 
@@ -189,6 +200,7 @@ def create_my_request(body: LateEarlyRequestIn, svc: Service, employees: Employe
     except LateEarlyError as exc:
         _raise(exc)
     _notify_pending_changed()
+    _cham_cho_duyet(r, employees, user.id)
     return _resolve(employees, leaves, [r])[0]
 
 
@@ -237,7 +249,7 @@ def create_for_employee(body: LateEarlyRequestForIn, svc: Service, employees: Em
                                scope=_scope(authz, user))
     except LateEarlyError as exc:
         _raise(exc)
-    _notify_decision(r, employees, "approved")
+    _notify_decision(r, employees, "approved", user.id)
     return _resolve(employees, leaves, [r])[0]
 
 
@@ -288,7 +300,7 @@ def bulk_approve(body: LateEarlyBulkIn, svc: Service, employees: Employees, auth
                  user: Annotated[User, Depends(require_permission(MODULE_CHAM_CONG, "approve_late_early"))]):
     done = svc.bulk_approve(actor=user, request_ids=body.ids, scope=_scope(authz, user))
     for r in done:
-        _notify_decision(r, employees, "approved")
+        _notify_decision(r, employees, "approved", user.id)
     ids = {r.id for r in done}
     return LateEarlyBulkResultOut(done=sorted(ids), skipped=sorted(set(body.ids) - ids))
 
@@ -302,7 +314,7 @@ def bulk_reject(body: LateEarlyBulkRejectIn, svc: Service, employees: Employees,
     except LateEarlyError as exc:
         _raise(exc)
     for r in done:
-        _notify_decision(r, employees, "rejected")
+        _notify_decision(r, employees, "rejected", user.id)
     ids = {r.id for r in done}
     return LateEarlyBulkResultOut(done=sorted(ids), skipped=sorted(set(body.ids) - ids))
 
@@ -316,7 +328,7 @@ def approve(request_id: int, body: LateEarlyDecisionIn, svc: Service, employees:
                         scope=_scope(authz, user))
     except LateEarlyError as exc:
         _raise(exc)
-    _notify_decision(r, employees, "approved")
+    _notify_decision(r, employees, "approved", user.id)
     return _resolve(employees, leaves, [r])[0]
 
 
@@ -329,7 +341,7 @@ def reject(request_id: int, body: LateEarlyRejectIn, svc: Service, employees: Em
                        scope=_scope(authz, user))
     except LateEarlyError as exc:
         _raise(exc)
-    _notify_decision(r, employees, "rejected")
+    _notify_decision(r, employees, "rejected", user.id)
     return _resolve(employees, leaves, [r])[0]
 
 

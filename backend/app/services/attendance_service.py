@@ -2588,7 +2588,7 @@ class AttendanceService:
             target=f"attendance_shift_plan:{year}-{month:02d}",
             detail=f"{saved} ô khai, {cleared} ô về mặc định, {len(rejected)} ô bị từ chối",
         )
-        notified, not_notified = _push_shift_changes(logs)
+        notified, not_notified = _push_shift_changes(logs, db=self.employees.db)
         return {"saved": saved, "cleared": cleared, "rejected": rejected,
                 "changed": len(logs), "notified": notified, "not_notified": not_notified}
 
