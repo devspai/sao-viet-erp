@@ -21,10 +21,11 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from ..cong_dong_thoi import chay_ngoai_cong
 from ..doi_tuong_nhan import nap_quyen_nhan
-from ..db import SessionLocal
+from ..db import SessionLocal, get_db
 from ..deps import (
     get_authorization_service,
     get_quotation_service,
@@ -76,6 +77,7 @@ from ..services.quotation_service import (
     QuotationValidationError,
 )
 from ..services.quotation_state import TRANSITIONS
+from ..services.thong_bao_man import bao
 from ..services.rbac_service import AuthorizationService
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from ..tai_len import doc_gioi_han
@@ -600,6 +602,7 @@ def transition_quotation(
     payload: TransitionRequest,
     svc: Service,
     authz: Authz,
+    db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> QuotationDetailOut:
     scope = _scope_for(authz, user)
@@ -630,6 +633,12 @@ def transition_quotation(
     if payload.to_status in ("pending_approval", "cancelled"):
         # Nhóm `ban_hang`: badge + danh sách Báo giá, cùng các màn bán hàng nghe nhóm đó.
         hub.gui({"type": "quote_pending_changed", "code": q.quote_number}, quyen=MAN_BAN_HANG)
+    if payload.to_status == "pending_approval":
+        # Chấm đỏ Báo giá cho người duyệt đặc thù trong phạm vi phòng của Sale đứng tên.
+        sale = db.get(User, q.salesperson_id) if q.salesperson_id else None
+        bao(db, kenh="bao_gia", loai="bao_gia_cho_duyet", actor_id=user.id,
+            quyen="approve_exception", phong_id=sale.department_id if sale else None,
+            ma=q.quote_number)
     return _detail(svc, q, scope, can_approve=authz.can(user, MODULE, "approve"),
         can_approve_exception=authz.can(user, MODULE, "approve_exception"))
 
@@ -642,6 +651,7 @@ def record_quote_approval(
     payload: QuoteApprovalIn,
     svc: Service,
     authz: Authz,
+    db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "approve_exception"))],
 ) -> QuotationDetailOut:
     """GĐ DUYỆT / TỪ CHỐI báo giá đặc thù (perm `approve_exception` — CHỈ Giám đốc). Duyệt 'bao phủ' →
@@ -664,6 +674,8 @@ def record_quote_approval(
             "type": "quote_decision", "quote_id": q.id,
             "code": q.quote_number, "decision": payload.decision,
         })
+        bao(db, kenh="bao_gia", loai="bao_gia_quyet_dinh", actor_id=user.id,
+            nguoi_nhan=q.salesperson_id, ma=q.quote_number)
     hub.gui({"type": "quote_pending_changed", "code": q.quote_number}, quyen=MAN_BAN_HANG)
     return _detail(svc, q, scope, can_approve=authz.can(user, MODULE, "approve"),
         can_approve_exception=authz.can(user, MODULE, "approve_exception"))

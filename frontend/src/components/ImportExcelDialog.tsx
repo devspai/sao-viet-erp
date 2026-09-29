@@ -175,7 +175,7 @@ export function ImportExcelDialog({
                 }}
               />
               <span className="imx__dropzone-icon">
-                <Icon name="upload-cloud" size={24} />
+                <Icon name="upload" size={24} />
               </span>
               <span className="imx__dropzone-title">Kéo & thả file Excel (.xlsx) vào đây</span>
               <span className="imx__dropzone-sub">Hoặc bấm vào vùng này để chọn file từ máy tính</span>
@@ -185,7 +185,7 @@ export function ImportExcelDialog({
             <div className="imx__file-card">
               <div className="imx__file-info">
                 <div className="imx__file-icon">
-                  <Icon name="file-spreadsheet" size={20} />
+                  <Icon name="table" size={20} />
                 </div>
                 <div>
                   <div className="imx__file-name">{file.name}</div>

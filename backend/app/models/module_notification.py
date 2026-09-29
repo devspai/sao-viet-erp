@@ -20,7 +20,11 @@ def _utcnow() -> datetime:
 class ModuleNotification(Base):
     __tablename__ = "module_notifications"
     # Badge đếm "id > mốc đã đọc" theo kênh (mg `0344`).
-    __table_args__ = (Index("ix_module_notifications_channel_id", "channel", "id"),)
+    __table_args__ = (
+        Index("ix_module_notifications_channel_id", "channel", "id"),
+        # Dòng đích danh của một người theo kênh — vế `recipient_user_id = tôi` của tóm tắt (mg 0347).
+        Index("ix_module_notifications_recipient_channel", "recipient_user_id", "channel", "id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     channel: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
@@ -33,6 +37,13 @@ class ModuleNotification(Base):
     # báo cho người lập, không làm badge của mọi nhân viên mua hàng cùng nhảy).
     recipient_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    # Ô quyền người nhận PHẢI có trên module = kênh (vd `approve`); NULL = chỉ cần Xem màn (mg 0347).
+    required_action: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Phòng của BẢN GHI gây ra thông báo — lọc theo phạm vi `department` của người nhận (mg 0347).
+    # NULL = không gắn phòng (ai đủ quyền đều thấy).
+    department_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False, index=True

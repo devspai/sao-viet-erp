@@ -469,7 +469,7 @@ class EmployeeService:
                 effective_from=today,
                 created_by=actor.id,
             )
-            push_shift_changes([log] if log is not None else [])
+            push_shift_changes([log] if log is not None else [], db=self.employees.db)
         self._sync_user_from_employee(employee)  # Đ1: đồng bộ tên/ảnh/phòng xuống tài khoản
         self.audit.create(
             actor_user_id=actor.id,
@@ -521,7 +521,7 @@ class EmployeeService:
             detail=(f"{employee.code} → ca #{shift_id} từ {effective_from.isoformat()}"
                     if shift_id else f"{employee.code} → bỏ ca từ {effective_from.isoformat()}"),
         )
-        push_shift_changes([log] if log is not None else [])
+        push_shift_changes([log] if log is not None else [], db=self.employees.db)
         return employee, assignment
 
     def set_default_shift_bulk(
@@ -576,7 +576,7 @@ class EmployeeService:
                    + (f" · {adjusted} NV lùi về ngày vào làm" if adjusted else "")
                    + (f" · {len(failed)} NV bị bỏ qua" if failed else ""),
         )
-        notified, not_notified = push_shift_changes(logs)
+        notified, not_notified = push_shift_changes(logs, db=self.employees.db)
         return {"updated": updated, "adjusted": adjusted, "failed": failed,
                 "changed": len(logs), "notified": notified, "not_notified": not_notified}
 
@@ -612,7 +612,7 @@ class EmployeeService:
             actor_user_id=actor.id, action="delete_shift_assignment",
             target=f"employee:{employee.id}", detail=f"{employee.code} → xóa mốc #{assignment_id}",
         )
-        push_shift_changes([log] if log is not None else [])
+        push_shift_changes([log] if log is not None else [], db=self.employees.db)
         return employee
 
     def list_shift_assignments(self, *, employee_id: int, scope: str, actor):

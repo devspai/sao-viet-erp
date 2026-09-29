@@ -88,7 +88,7 @@ export function InboxDrawer({
             className={`acct-drawer__tab-btn${activeTab === "overview" ? " is-active" : ""}`}
             onClick={() => setActiveTab("overview")}
           >
-            <Icon name="package" size={15} />
+            <Icon name="box" size={15} />
             <span>Vật tư & Tổng quan</span>
           </button>
           <button
@@ -98,7 +98,7 @@ export function InboxDrawer({
             className={`acct-drawer__tab-btn${activeTab === "terms" ? " is-active" : ""}`}
             onClick={() => setActiveTab("terms")}
           >
-            <Icon name="credit-card" size={15} />
+            <Icon name="calculator" size={15} />
             <span>Điều khoản & Nợ</span>
           </button>
           <button

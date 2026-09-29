@@ -53,6 +53,7 @@ from ..models.ky_thuat_may import (
 )
 from ..models.may_thiet_bi import MayThietBi
 from ..realtime import hub
+from .thong_bao_man import bao
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.ky_thuat_may_repo import SUA_DUOC_SUA_CHUA, KyThuatMayRepository
 
@@ -453,8 +454,11 @@ class KyThuatMayService:
             "muc_do": yc.muc_do, "may_dung": bool(yc.may_dung),
             "nguoi_bao": yc.nguoi_bao_ten, "bo_phan": yc.bo_phan,
         }
-        for uid in self._nguoi_to_sua_chua():
+        nhan = self._nguoi_to_sua_chua()
+        for uid in nhan:
             hub.publish(uid, su_kien)
+        bao(self.db, kenh="ky_thuat_may", loai="bao_hong_moi", actor_id=yc.nguoi_bao_id,
+            nguoi_nhan=nhan, ma=yc.ma)
 
     def _bao_nguoi_bao(self, yc: YeuCauSuaChua, ket_qua: str, *,
                        phieu_ma: str | None = None) -> None:
