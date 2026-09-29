@@ -437,12 +437,11 @@ export interface PurchaseNotifySummary {
   dot_giao_qua_han: number;
 }
 
-export type ModuleNotificationChannel = "thu_mua" | "ke_toan";
-
-export interface ModuleNotificationSummary {
-  thu_mua: number;
-  ke_toan: number;
-}
+// Kênh chấm đỏ = khoá module của màn (danh sách ở máy chủ `services/thong_bao_man.py`); tổ SX
+// là `to_sx_<id>`. Tóm tắt chỉ trả kênh ĐANG có bản ghi mới kể từ lần mở màn trước.
+export type ModuleNotificationChannel = string;
+export interface ThongBaoMoi { id: number; loai: string; ma: string | null }
+export interface ModuleNotificationSummary { kenh: Record<string, ThongBaoMoi> }
 
 export type QuoteEvent =
   | { type: "quote_decision"; quote_id: number; code: string; decision: "approved" | "rejected" }
@@ -451,6 +450,8 @@ export type QuoteEvent =
   // chắc có quyền đọc dòng vừa ghi. Máy chủ tiết chế tối đa 3 giây một lần (mọi thao tác trong hệ
   // đều ghi audit, bắn từng dòng là ngập kênh).
   | { type: "nhat_ky_moi" }
+  // Có bản ghi mới ở một kênh chấm đỏ thanh bên (tín hiệu TRẦN — hỏi lại tóm tắt).
+  | { type: "thong_bao_man"; kenh: string }
   // Đơn hàng bán dùng CHUNG kênh hub (bám logic SSE báo giá): quyết định duyệt/đủ cọc gửi riêng
   // người soạn; 'pending_changed' là tín hiệu danh sách chờ đổi → refetch notify-summary theo vai.
   // `order_decision` đã gỡ cùng luồng duyệt đơn đặc thù (backend không publish nữa).

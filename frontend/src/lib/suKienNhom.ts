@@ -39,6 +39,8 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   // Hàng đợi tràn ⇒ AppShell tự nhích MỌI nhóm + nạp lại badge (như lúc kênh nối lại).
   dong_bo_lai: [],
   nhat_ky_moi: [],
+  // Chấm đỏ thanh bên: AppShell hỏi lại tóm tắt, không màn nào phải nạp lại.
+  thong_bao_man: [],
   notification_new: [],
   san_xuat_vat_tu_de_nghi_changed: [],
   lsx_dinh_kem_changed: [],
