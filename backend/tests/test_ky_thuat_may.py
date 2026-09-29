@@ -753,8 +753,10 @@ def test_ticker_sinh_phieu_cung_khong_N_query():
     ra = svc.sinh_phieu_den_han(hom_nay=hom_nay)
 
     assert len(ra) == 10                       # mỗi máy đúng 1 phiếu
-    # 2 query nạp bảng tra + 1 query máy, phần còn lại là insert/next_ma của chính 10 phiếu.
-    assert dem["n"] <= 3 + 10 * 5, f"ticker bắn {dem['n']} query"
+    # 2 query nạp bảng tra + 1 query máy, phần còn lại là insert/cấp mã của chính 10 phiếu. Mã cấp
+    # qua bộ đếm `document_sequences` (chống trùng mã) nên mỗi phiếu tốn thêm ~1 query — vẫn là hằng
+    # số theo phiếu, KHÔNG tăng theo số gói/bảng tra.
+    assert dem["n"] <= 3 + 10 * 7, f"ticker bắn {dem['n']} query"
 
     # Chạy lại NGAY: gói đã có phiếu mở ⇒ không đẻ thêm cái nào (idempotent).
     assert svc.sinh_phieu_den_han(hom_nay=hom_nay) == []
