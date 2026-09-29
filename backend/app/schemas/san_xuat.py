@@ -1381,45 +1381,6 @@ class NhapKhoYcKetQuaOut(BaseModel):
     dong: list[NhapKhoTpDongOut] = []
 
 
-# --- ĐÓNG NHÓM THÀNH PHẨM (§16 tự đóng đủ · §13.3 đóng thiếu) -------------------------------
-class DongNhomDieuKienItemOut(BaseModel):
-    """Một điều kiện của cổng đóng nhóm — FE dựng checklist "vì sao chưa đóng"."""
-    ma: str
-    ten: str
-    dat: bool
-    chi_tiet: str = ""
-
-
-class DongNhomDieuKienOut(BaseModel):
-    """Tình trạng cổng đóng nhóm: đủ đóng-đủ chưa, đủ đóng-thiếu chưa, và từng điều kiện."""
-    nhom_id: int
-    order_id: int | None = None
-    trang_thai: str
-    version: int
-    du_dong_du: bool
-    du_dong_thieu: bool
-    dieu_kien: list[DongNhomDieuKienItemOut]
-    # Còn thiếu CỦA CẢ NHÓM (§2.3) — DẪN XUẤT, chỉ để BÀY, không phải điều kiện thứ 7. `muc_tieu`
-    # None khi nhóm chưa xác định bước KCS cuối nào có khai `so_luong_ra` — `da_dat`/`con_thieu`
-    # cũng None theo (đừng bịa "đã đạt 0", đó là "không biết", khác hẳn "biết là 0").
-    muc_tieu: float | None = None
-    da_dat: float | None = None
-    con_thieu: float | None = None
-
-
-class DongThieuIn(BaseModel):
-    """Trưởng KCS đóng thiếu nhóm còn dở (§13.3) — không đòi lý do (danh mục lý do/lỗi ĐÃ GỠ)."""
-    expected_version: int | None = None
-
-
-class DongNhomKetQuaOut(BaseModel):
-    nhom_id: int
-    order_id: int | None = None
-    trang_thai: str
-    kieu: str                            # du | thieu
-    version: int
-
-
 # --- Tổ đề nghị cấp vật tư công đoạn (spec-de-nghi-cap-vat-tu-cong-doan §6) ------------------
 class VatTuDeNghiDongIn(BaseModel):
     hang_loai: str

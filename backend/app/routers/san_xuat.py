@@ -37,7 +37,7 @@ from ..deps import (
 )
 from ..models.user import User
 from ..doi_tuong_nhan import MAN_KHO, MAN_THEO_LENH, hop, kem_ban_to
-from ..realtime import hub, phat_ban_giao, phat_dong_nhom
+from ..realtime import hub, phat_ban_giao, phat_dong_lenh
 from ..repositories.san_xuat_repo import SanXuatRepository
 from ..storage import get_storage, make_key, url_from_key
 from ..tai_len import doc_gioi_han
@@ -50,9 +50,9 @@ from ..schemas.san_xuat import (
     BatchIn,
     BatDauIn,
     DoiMayIn,
-    DongNhomDieuKienOut,
-    DongNhomKetQuaOut,
-    DongThieuIn,
+    DongLenhIn,
+    DongLenhKetQuaOut,
+    DongLenhTinhTrangOut,
     GoPhanCongIn,
     HoTroDeXuatIn,
     HoTroHuyIn,
@@ -94,7 +94,7 @@ from ..services.rbac_service import AuthorizationService
 from ..services.san_xuat import (
     ban_giao,
     board,
-    dong_nhom,
+    dong_lenh,
     ho_tro,
     kcs,
     kcs_bao_cao,
@@ -228,28 +228,6 @@ def _phat_sse_kcs(res: dict) -> None:
                     "don_vi": res.get("don_vi"),
                     "nguoi_kiem": res.get("nguoi_kiem"),
                 })
-
-
-def _thu_dong_nhom(db: Session, res: dict, *, user=None, su_kien: str = "") -> None:
-    """CHỐT CHẶN §16 sau một thao tác có thể hoàn tất điều kiện cuối: lần ra `nhom_id` từ kết quả
-    (trực tiếp hoặc qua công việc), thử tự đóng ĐỦ, và nếu đóng thì bắn SSE. Lỗi lần-ra hay không đủ
-    điều kiện đều im lặng — chốt chặn không được làm hỏng thao tác chính đã commit."""
-    try:
-        nhom_id = res.get("nhom_id")
-        if not nhom_id:
-            cvid = res.get("cong_viec_id") or res.get("nguon_cong_viec_id")
-            if cvid:
-                cv = SanXuatRepository(db).cong_viec(cvid)
-                nhom_id = cv.nhom_id if cv else None
-        if not nhom_id:
-            return
-        ket = dong_nhom.tu_dong_dong_neu_du(db, nhom_id=nhom_id, actor=user, su_kien=su_kien)
-        if ket:
-            phat_dong_nhom(ket)
-    except Exception:
-        # Thao tác chính đã commit + bắn SSE; chốt chặn hỏng KHÔNG được hoá 500. Nhóm sẽ tự đóng ở
-        # lần chốt chặn kế tiếp (hoặc trưởng KCS đóng thiếu).
-        db.rollback()
 
 
 def _luu_anh_kcs(owner_id: int, files: list[UploadFile]) -> tuple[list[dict], list[str]]:
@@ -680,7 +658,6 @@ def ket_thuc(
         expected_version=body.expected_version,
     ))
     _phat_sse(res)
-    _thu_dong_nhom(db, res, user=user, su_kien="ket_thuc")
     return res
 
 
@@ -784,7 +761,6 @@ def xac_nhan_ban_giao(
         db, user=user, ban_giao_id=ban_giao_id, expected_version=body.expected_version,
     ))
     phat_ban_giao(res)
-    _thu_dong_nhom(db, res, user=user, su_kien="ban_giao_xac_nhan")
     return res
 
 
@@ -802,7 +778,6 @@ def dieu_chinh_ban_giao(
         expected_version=body.expected_version,
     ))
     phat_ban_giao(res)
-    _thu_dong_nhom(db, res, user=user, su_kien="ban_giao_dieu_chinh")
     return res
 
 
@@ -1001,7 +976,6 @@ def kiem_cong_doan(
         _don_anh(keys)
         return res
     _phat_sse_kcs(res)
-    _thu_dong_nhom(db, res, user=user, su_kien="kcs_kiem")
     return res
 
 
@@ -1023,7 +997,6 @@ def dieu_chinh_kcs(
         ghi_chu=body.ghi_chu, expected_version=body.expected_version,
     ))
     _phat_sse_kcs(res)
-    _thu_dong_nhom(db, res, user=user, su_kien="kcs_dieu_chinh")
     return res
 
 
@@ -1133,30 +1106,39 @@ def tao_yeu_cau_nhap_kho_cong_doan(
     return res
 
 
-# --- ĐÓNG NHÓM THÀNH PHẨM (§16 tự đóng đủ · §13.3 đóng thiếu) -------------------------------
-@router.get("/kho/nhom/{nhom_id}/dieu-kien-dong", response_model=DongNhomDieuKienOut)
-def dieu_kien_dong_nhom(
+# --- ĐÓNG LỆNH (KCS bấm tay — spec 2026-09-29-dong-lenh-thu-cong-design.md) ------------------
+@router.get("/kcs/nhom/{nhom_id}/dong", response_model=DongLenhTinhTrangOut)
+def tinh_trang_dong_lenh(
     nhom_id: int,
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_quyen_to("read", (KHO_MODULE, "read"), cho_kcs=True))],
 ) -> dict:
-    """Checklist cổng đóng nhóm (§16): từng điều kiện đạt/chưa + đủ-đóng-đủ / đủ-đóng-thiếu để FE
-    hiện "vì sao chưa đóng" và bật nút đóng thiếu."""
-    return _chay(lambda: dong_nhom.dieu_kien_dong_nhom(db, nhom_id))
+    """Số tóm tắt + cảnh báo cho hộp xác nhận "Đóng lệnh". Không có cổng điều kiện."""
+    return _chay(lambda: dong_lenh.tinh_trang_dong(db, nhom_id))
 
 
-@router.post("/kho/nhom/{nhom_id}/dong-thieu", response_model=DongNhomKetQuaOut)
-def dong_thieu_nhom(
+@router.post("/kcs/nhom/{nhom_id}/dong", response_model=DongLenhKetQuaOut)
+def dong_lenh_nhom(
     nhom_id: int,
-    body: DongThieuIn,
+    body: DongLenhIn,
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> dict:
-    """Trưởng tổ KCS đóng THIẾU nhóm còn dở (§13.3): vẫn phải sạch mọi điều kiện toàn vẹn TRỪ hoàn
-    thành. Ranh giới THẬT là trưởng phòng ban `is_kcs` ở service (403 nếu không phải).
-    Báo Sale + Kế hoạch SX NGAY."""
-    res = _chay(lambda: dong_nhom.dong_thieu(
-        db, user=user, nhom_id=nhom_id, expected_version=body.expected_version,
-    ))
-    phat_dong_nhom(res)
+    """Người KCS đóng mọi lệnh của nhóm. Ranh giới thật là `gate_kcs` ở service (403)."""
+    res = _chay(lambda: dong_lenh.dong(
+        db, user=user, nhom_id=nhom_id, expected_version=body.expected_version))
+    phat_dong_lenh(res)
+    return res
+
+
+@router.post("/kcs/nhom/{nhom_id}/mo-lai", response_model=DongLenhKetQuaOut)
+def mo_lai_lenh_nhom(
+    nhom_id: int,
+    body: DongLenhIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> dict:
+    res = _chay(lambda: dong_lenh.mo_lai(
+        db, user=user, nhom_id=nhom_id, expected_version=body.expected_version))
+    phat_dong_lenh(res)
     return res

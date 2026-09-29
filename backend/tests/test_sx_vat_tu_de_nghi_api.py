@@ -1,7 +1,7 @@
 """Đề nghị cấp vật tư công đoạn — đường dây HTTP `/api/san-xuat/work-items/{id}/material-requests`
 (spec-de-nghi-cap-vat-tu-cong-doan §6, Task 6).
 
-Soi tầng router + gác quyền, KHÔNG dựng lại cả luồng nghiệp vụ (khuôn `test_san_xuat_dong_nhom_api`
+Soi tầng router + gác quyền, KHÔNG dựng lại cả luồng nghiệp vụ (khuôn `test_san_xuat_dong_lenh_api`
 — luật đã có test SERVICE riêng ở `test_sx_vat_tu_de_nghi.py`, khớp response dict đã kiểm ở đó):
   · chưa đăng nhập → 401;
   · cổng router là `require_quyen_to("warehouse")` (mg 0302): người KHÔNG có quyền Kho ở tổ nào
