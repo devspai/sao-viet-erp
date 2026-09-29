@@ -35,6 +35,7 @@ from ..models.lsx import (
     LOAI_BUOC,
     LOAI_MOI,
     TT_CHO_BO_SUNG,
+    TT_DA_DONG,
     TT_DA_LAP_KE_HOACH,
     TT_DA_PHAT_HANH,
     TT_NHAP,
@@ -3164,6 +3165,8 @@ class LsxService:
             raise LsxValidationError("Lập kế hoạch qua màn Xếp lịch, không đổi trực tiếp ở đây")
         if lsx.trang_thai == TT_DA_LAP_KE_HOACH:
             raise LsxConflict("Lệnh đã lập kế hoạch — gỡ kế hoạch trước")
+        if trang_thai == TT_DA_DONG or lsx.trang_thai == TT_DA_DONG:
+            raise LsxConflict("Lệnh đã đóng — KCS đóng/mở lại ở màn KCS, không đổi trực tiếp ở đây")
         # "Đã phát hành" chỉ đến từ cửa PHÁT HÀNH (đóng băng gói công việc) — Xếp lịch hoặc Gia
         # công trọn gói. Đổi tay ở đây là lệnh "đã phát" mà xưởng không có việc nào.
         if trang_thai == TT_DA_PHAT_HANH:
@@ -3194,6 +3197,8 @@ class LsxService:
         if lsx.trang_thai == TT_DA_PHAT_HANH:
             raise LsxConflict(
                 "Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) trước khi xoá")
+        if lsx.trang_thai == TT_DA_DONG:
+            raise LsxConflict("Lệnh đã đóng — không xoá được")
         # Coupling bài ghép: neo thành viên là FK RESTRICT (chặn ở Postgres); SQLite dev tắt FK nên
         # chặn ở đây + báo đẹp. Gỡ LSX khỏi bài ghép trước rồi mới xoá được lệnh.
         ghep_ma = self.db.execute(
