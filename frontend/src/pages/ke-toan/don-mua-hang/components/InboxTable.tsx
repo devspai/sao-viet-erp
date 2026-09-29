@@ -22,7 +22,8 @@ export function InboxTable({
   rows: PurchaseRequestRow[];
   selected: PurchaseRequestRow | null;
   setSelectedId: Dispatch<SetStateAction<number | null>>;
-  openYcmh: (code: string) => void;
+  /** Thiếu = không có ô Xem màn Yêu cầu mua hàng ⇒ mã chỉ hiện dạng chữ. */
+  openYcmh?: (code: string) => void;
   total: number;
   page: number;
   setPage: Dispatch<SetStateAction<number>>;
@@ -78,25 +79,29 @@ export function InboxTable({
                   onClick={() => setSelectedId(row.id)}
                 >
                   <td className="acct-code-cell">
-                    <strong>{row.code}</strong>
-                    <div className="purchase__source-codes">
-                      {row.sources.map((source, index) => (
-                        <span key={source.id}>
-                          {index > 0 && ", "}
-                          <CodeLink code={source.code} onOpen={openYcmh} />
-                        </span>
-                      ))}
-                    </div>
+                    <span className="acct-dmh__code-badge">{row.code}</span>
+                    {row.sources.length > 0 && (
+                      <div className="purchase__source-codes">
+                        {row.sources.map((source, index) => (
+                          <span key={source.id} className="acct-dmh__source-tag">
+                            {index > 0 && ", "}
+                            <CodeLink code={source.code} onOpen={openYcmh} />
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td
                     className="acct-supplier-cell"
                     title={row.supplier_name ?? undefined}
                   >
-                    {row.supplier_name || "—"}
+                    <div className="acct-dmh__supplier-wrap">
+                      <span className="acct-dmh__supplier-name">{row.supplier_name || "—"}</span>
+                    </div>
                   </td>
                   <td className="acct-dmh__date">{fmtDate(row.created_at)}</td>
                   <td className="acct-amount-cell">
-                    <strong>{money(row.total_estimate)}</strong>
+                    <strong className="acct-dmh__total">{money(row.total_estimate)}</strong>
                   </td>
                   <td className="acct-amount-cell">
                     <DepositCell row={row} />
@@ -113,10 +118,14 @@ export function InboxTable({
                     </span>
                   </td>
                   <td>
-                    <strong className="acct-dmh__due">
-                      {money(row.outstanding_amount)}
-                    </strong>
-                    <small>{payment.label}</small>
+                    <div className="acct-dmh__pay-wrap">
+                      <strong className="acct-dmh__due">
+                        {money(row.outstanding_amount)}
+                      </strong>
+                      <span className={`acct-dmh__pay-badge acct-dmh__pay-badge--${row.payment_status}`}>
+                        {payment.label}
+                      </span>
+                    </div>
                   </td>
                 </tr>
               );

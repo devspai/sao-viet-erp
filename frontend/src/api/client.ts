@@ -659,7 +659,7 @@ export type QuoteEvent =
   // để panel/hộp đang mở refetch (quoteTick lo); `san_xuat_kcs_ket_qua` / `san_xuat_kho` = đẩy ĐÍCH
   // DANH tới người cần biết → toast cá nhân. `san_xuat_nhom_dong` = nhóm thành phẩm đã đóng, báo Sale
   // + Kế hoạch SX. `trang_thai` mang enum backend (kho: cho_kho/nhap_mot_phan/da_nhap/huy · nhóm:
-  // closed_full/closed_short).
+  // in_production/closed). `san_xuat_lenh_dong` = KCS đóng / mở lại lệnh (cả nhóm).
   | {
       type: "san_xuat_kcs_changed";
       cong_viec_id?: number | null;
@@ -700,6 +700,17 @@ export type QuoteEvent =
       ma?: string | null;
       trang_thai?: string | null;
     }
+  | {
+      type: "san_xuat_lenh_dong";
+      nhom_id?: number | null;
+      order_id?: number | null;
+      kieu?: "dong" | "mo_lai" | null;
+      lenh_ma?: string[];
+      da_dat?: number | null;
+      muc_tieu?: number | null;
+      don_vi?: string;
+    }
+  // cũ — xoá khi AppShell chuyển sang san_xuat_lenh_dong
   | {
       type: "san_xuat_nhom_dong";
       nhom_id?: number | null;
@@ -742,7 +753,8 @@ export type LsxTrangThai =
   | "cho_bo_sung"
   | "san_sang"
   | "da_lap_ke_hoach"   // đã sinh dòng xếp lịch (≈ Firm Planned) — routing khóa
-  | "da_phat_hanh";     // đã phát hành xuống xưởng (≈ Released)
+  | "da_phat_hanh"      // đã phát hành xuống xưởng (≈ Released)
+  | "da_dong";          // KCS đã đóng lệnh — mở lại về da_phat_hanh
 export type LsxDonVi = "to_nguyen" | "to" | "cai" | "kem" | "bai";
 /** Loại bước = tài nguyên mà bước chiếm khi lên lịch. */
 export type LsxLoaiBuoc = "may" | "to" | "thue_ngoai";
@@ -2558,41 +2570,37 @@ export interface SxNhapKhoYcKetQua {
   dong: SxNhapKhoTpDong[];
 }
 // ── G5: Đóng nhóm §16 + đóng thiếu §13.3 ─────────────────────────────────────
-export interface SxDongNhomDieuKienItem {
-  ma: string;
-  ten: string;
-  dat: boolean;
-  chi_tiet: string;
+export interface SxDongLenhCanhBao {
+  ma: "chua_kiem" | "chua_gui_kho" | "thieu_muc_tieu" | "viec_do";
+  cau: string;
 }
-export interface SxDongNhomDieuKien {
+export interface SxDongLenhTinhTrang {
+  nhom_id: number;
+  order_id?: number | null;
+  trang_thai: "in_production" | "closed";
+  version: number;
+  lenh: { id: number; ma: string }[];
+  muc_tieu: number | null;
+  da_dat: number;
+  don_vi: string;
+  canh_bao: SxDongLenhCanhBao[];
+  dong_boi: string | null;
+  dong_luc: string | null;
+}
+export interface SxDongLenhKetQua {
   nhom_id: number;
   order_id?: number | null;
   trang_thai: string;
+  kieu: "dong" | "mo_lai";
   version: number;
-  du_dong_du: boolean;
-  du_dong_thieu: boolean;
-  dieu_kien: SxDongNhomDieuKienItem[];
-  /** Mức NHÓM: Σ so_luong_ra của các công việc KCS cuối (mọi phân đoạn). null khi không bước KCS cuối
-   *  nào khai số — lúc đó điều kiện `dat_muc_tieu` chưa đạt, nhóm chỉ đóng thiếu được. */
+  lenh_ma: string[];
+  da_dat: number;
   muc_tieu: number | null;
-  /** Σ số KCS ĐẠT của chính các công việc KCS cuối đó — cổng đóng ĐỦ so số này với `muc_tieu`. */
-  da_dat: number | null;
-  /** max(muc_tieu − da_dat, 0). Không có đơn vị ở mức nhóm (nhiều bước có thể khác đơn vị). */
-  con_thieu: number | null;
+  don_vi: string;
 }
 /* `SxThuongToTruong` GỠ 11/09/2026 (mg `0297`): bảng `san_xuat_thuong_to_truong` và chuỗi ghi
    thưởng lúc ĐÓNG NHÓM đã xoá — thưởng/phạt tổ trưởng là TIỀN, mà sản xuất thôi giữ tiền. Bảng bậc
    `piece_leader_bonus_brackets` và cột lương `thuong_to_truong` cũng GỠ 13/09/2026 (mg `0300`). */
-export interface SxDongThieuIn {
-  expected_version?: number | null;
-}
-export interface SxDongNhomKetQua {
-  nhom_id: number;
-  order_id?: number | null;
-  trang_thai: string;
-  kieu: "du" | "thieu";
-  version: number;
-}
 
 
 export interface HangChoItem {
@@ -13120,13 +13128,17 @@ export const api = {
 
     // --- Giai đoạn 5: Đóng nhóm §16 + đóng thiếu §13.3 ------------------------------------
     /* `thuongToTruongNhom()` GỠ 11/09/2026 cùng route `/kho/nhom/{id}/thuong-to-truong`. */
-    /** Checklist điều kiện đóng nhóm thành phẩm (đủ / thiếu). */
-    dieuKienDongNhom(token: string, nhomId: number): Promise<SxDongNhomDieuKien> {
-      return authed<SxDongNhomDieuKien>(`/api/san-xuat/kho/nhom/${nhomId}/dieu-kien-dong`, token);
+    /** Số tóm tắt + cảnh báo cho hộp "Đóng lệnh" (không có cổng). */
+    tinhTrangDongLenh(token: string, nhomId: number): Promise<SxDongLenhTinhTrang> {
+      return authed<SxDongLenhTinhTrang>(`/api/san-xuat/kcs/nhom/${nhomId}/dong`, token);
     },
-    /** Trưởng KCS đóng thiếu nhóm kèm lý do (§13.3). */
-    dongThieu(token: string, nhomId: number, body: SxDongThieuIn): Promise<SxDongNhomKetQua> {
-      return authed<SxDongNhomKetQua>(`/api/san-xuat/kho/nhom/${nhomId}/dong-thieu`, token, {
+    dongLenh(token: string, nhomId: number, body: { expected_version: number }): Promise<SxDongLenhKetQua> {
+      return authed<SxDongLenhKetQua>(`/api/san-xuat/kcs/nhom/${nhomId}/dong`, token, {
+        method: "POST", body: JSON.stringify(body),
+      });
+    },
+    moLaiLenh(token: string, nhomId: number, body: { expected_version: number }): Promise<SxDongLenhKetQua> {
+      return authed<SxDongLenhKetQua>(`/api/san-xuat/kcs/nhom/${nhomId}/mo-lai`, token, {
         method: "POST", body: JSON.stringify(body),
       });
     },

@@ -9,7 +9,7 @@ from datetime import date, timedelta
 import pytest
 
 from app.db import SessionLocal
-from app.models.role import SCOPE_ALL, SCOPE_OWN
+from app.models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from app.models.purchase import Supplier, SupplierItem
 from app.models.vat_lieu_kho import GiayNguyen
 from app.repositories.rbac_repo import DepartmentRepository, RoleRepository
@@ -744,9 +744,42 @@ def test_department_purchase_request_update_permissions_and_status(client, auth_
     assert locked.status_code == 409
 
 
+def _cap_xem_ycmh_cho_nv_sales(scope: str) -> None:
+    """Cấp ô Xem màn Yêu cầu mua hàng cho vai NV Sales — từ 28/09/2026 quyền Báo giá KHÔNG còn mở
+    đường đọc YCMH, bộ phận nào cần xem thì cấp đúng ô này."""
+    db = SessionLocal()
+    try:
+        kd = DepartmentRepository(db).get_by_name("Kinh doanh")
+        roles = RoleRepository(db)
+        sales_role = roles.get_by_name_and_department("NV Sales", kd.id)
+        roles.set_permission(
+            role_id=sales_role.id, module_key="yeu_cau_mua_hang", can_read=True, scope=scope,
+        )
+    finally:
+        db.close()
+
+
+def test_quyen_bao_gia_khong_con_mo_duong_doc_ycmh(client, auth_headers):
+    """⭐ Chủ chốt 28/09/2026: "tôi có bật xem đâu mà hiển thị". Vai chỉ có Xem Báo giá (không có ô
+    Yêu cầu mua hàng) thì KHÔNG đọc được YCMH — trước đó `bao_gia` · `kho` · `san_xuat` · `dm_giay`
+    · `ke_toan` đều mượn được đường đọc nên menu tự hiện dù ô Xem của màn TẮT."""
+    requester_headers = {"Authorization": f"Bearer {_requester_token()}"}
+    sales_headers = {"Authorization": f"Bearer {_sales_token()}"}
+    nguon = _create_department_request(client, requester_headers)
+
+    assert client.get("/api/department-purchase-requests", headers=sales_headers).status_code == 403
+    assert client.get(
+        f"/api/department-purchase-requests/{nguon['id']}", headers=sales_headers,
+    ).status_code == 403
+
+    _cap_xem_ycmh_cho_nv_sales(SCOPE_DEPARTMENT)
+    assert client.get("/api/department-purchase-requests", headers=sales_headers).status_code == 200
+
+
 def test_department_purchase_request_list_is_scoped_by_department(client, auth_headers):
     requester_headers = {"Authorization": f"Bearer {_requester_token()}"}
     sales_headers = {"Authorization": f"Bearer {_sales_token()}"}
+    _cap_xem_ycmh_cho_nv_sales(SCOPE_DEPARTMENT)
     kinh_doanh_source = _create_department_request(client, requester_headers)
     admin_source = _create_department_request(client, auth_headers)
 
@@ -1667,7 +1700,9 @@ def test_purchase_permissions(client, auth_headers):
 
     assert client.get("/api/suppliers", headers=sales_headers).status_code == 403
     assert client.get("/api/purchase-requests", headers=sales_headers).status_code == 403
-    assert client.get("/api/department-purchase-requests", headers=sales_headers).status_code == 200
+    # Quyền Báo giá KHÔNG còn mở đường đọc YCMH (28/09/2026) — xem
+    # test_quyen_bao_gia_khong_con_mo_duong_doc_ycmh.
+    assert client.get("/api/department-purchase-requests", headers=sales_headers).status_code == 403
     denied = client.get("/api/department-purchase-requests/can-create", headers=sales_headers)
     assert denied.status_code == 200 and denied.json()["can_create"] is False
     blocked_source = client.post(

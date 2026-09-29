@@ -2588,21 +2588,32 @@ select.rc-input:focus {
   color: var(--ash, #7c766a);
 }
 
-/* Panel công thức NỔI, neo vào ô vừa bấm (07/09/2026 — xem `fields/FormulaPopover.tsx`). Toạ độ
-   do JS đặt (`position: fixed` + left/top/width), ở đây chỉ lo mặt mũi. Nằm trên drawer nên
-   z-index phải cao hơn lớp drawer; `--shadow-lg` để tách khỏi bảng phía dưới. */
-.rc-ct-pop {
+/* Hộp công thức GIỮA MÀN HÌNH, nền quanh mờ (29/09/2026 — xem `fields/FormulaPopover.tsx`).
+   Trước đó neo vào ô vừa bấm và bị kẹp theo chỗ trống quanh ô. Nằm trên drawer nên z-index phải cao
+   hơn lớp drawer. Không viền trái màu: nền mờ đã đủ tách hộp khỏi phần còn lại. */
+.rc-ct-pop__nen {
+  position: fixed;
+  inset: 0;
   z-index: 120;
-  /* `max-height` do JS đặt inline theo chỗ trống thật quanh ô; dòng này chỉ là trần chung. */
-  max-height: min(78vh, 640px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: rgba(20, 19, 15, 0.42);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  animation: rc-ct-nen-in 0.14s ease-out;
+}
+.rc-ct-pop {
+  width: min(1040px, 100%);
+  max-height: min(86vh, 900px);
   /* Cột: chỉ RUỘT cuộn, chân đứng yên — cuộn tới cuối danh sách biến mà mất luôn nút "Xong" thì
      đúng lúc cần nó nhất lại không thấy. */
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  padding: 12px;
   background: var(--canvas, #fff);
   border: 1px solid var(--rule, #e3ddd2);
-  border-left: 3px solid var(--rust, #c5400a);
   border-radius: var(--r-6, 8px);
   box-shadow: var(--shadow-lg, 0 18px 40px rgba(20, 19, 15, 0.18));
   animation: rc-ct-pop-in 0.14s var(--easing-standard, ease-out);
@@ -2617,9 +2628,46 @@ select.rc-input:focus {
 .rc-ct-pop__foot {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   flex: 0 0 auto;
   padding-top: 8px;
 }
+/* "Huỷ" = bỏ sửa, trả ô về công thức lúc mở (thay nút ✕ cũ — 29/09/2026). */
+.rc-ct-pop__huy {
+  padding: 6px 16px;
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--rule, #e3ddd2);
+  border-radius: 6px;
+  background: var(--canvas, #fff);
+  color: var(--ink, #14130f);
+  cursor: pointer;
+}
+.rc-ct-pop__huy:hover { background: var(--paper, #faf8f5); }
+/* Popup trống: "Bắt đầu từ: [Công thức chung] [Chép từ máy…]". */
+.rc-ct-pop__goc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-family: var(--ff-sans);
+  font-size: 12px;
+}
+.rc-ct-pop__goc-nhan { color: var(--ash, #7c766a); font-weight: 600; }
+.rc-ct-pop__goc-btn,
+.rc-ct-pop__goc-chon {
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--rule, #e3ddd2);
+  border-radius: 6px;
+  background: var(--canvas, #fff);
+  color: var(--ink, #14130f);
+  cursor: pointer;
+}
+.rc-ct-pop__goc-btn:hover { border-color: var(--rust, #c5400a); }
 .rc-ct-pop__ok {
   padding: 6px 20px;
   font-family: var(--ff-sans);
@@ -2638,7 +2686,11 @@ select.rc-input:focus {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-@media (prefers-reduced-motion: reduce) { .rc-ct-pop { animation: none; } }
+@keyframes rc-ct-nen-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .rc-ct-pop, .rc-ct-pop__nen { animation: none; } }
 
 .rc-dm-vt__row td {
   padding: 0 !important;
@@ -3339,43 +3391,65 @@ select.rc-input:focus {
   line-height: 1;
   transition: all 0.12s ease;
   margin-left: 2px;
+  /* Ẩn tới khi rê chuột vào chip (giữ chỗ để chip không nở ra dưới con trỏ chuột). Trước
+     29/09/2026 nút này luôn hiện và trùng hình phép nhân "×" đứng ngay cạnh. */
+  opacity: 0;
 }
+.rc-formula__chip-token--var:hover .rc-formula__chip-token-del,
+.rc-formula__chip-token-del:focus-visible { opacity: 1; }
 .rc-formula__chip-token-del:hover {
   background: #ef4444;
   color: #ffffff;
 }
 
-/* Chip Toán tử (+ - * / () ) */
+/* CHỈ BIẾN LÀ CHIP (29/09/2026). Toán tử, số, tên hàm hiện như CHỮ THƯỜNG — trước đó mỗi dấu
+   phẩy, ngoặc, phép nhân là một ô màu ngang hàng với biến, công thức 3 bậc thành một bức tường ô.
+   Vẫn là phần tử riêng (bấm đặt con trỏ, Backspace xoá) — chỉ bỏ nền và viền. */
 .rc-formula__chip-token--op {
-  background: #fffbe6;
-  border-color: #fef08a;
-  color: #b45309;
+  color: #92400e;
   font-family: var(--ff-sans);
   font-weight: 700;
-  font-size: 13px;
-  padding: 3px 8px;
+  font-size: 13.5px;
+  padding: 2px 1px;
 }
 
-/* Chip Hằng số (Numbers) */
 .rc-formula__chip-token--num {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  color: #15803d;
+  color: #14532d;
   font-family: var(--ff-sans);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
-  padding: 3px 8px;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 1px;
 }
 
-/* Chip Hàm (max, min, round, ceil, floor) */
 .rc-formula__chip-token--func {
-  background: #faf5ff;
-  border-color: #e9d5ff;
   color: #7e22ce;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 12.5px;
   text-transform: lowercase;
-  padding: 3px 8px;
+  padding: 2px 1px;
+}
+
+/* Khung của lệnh gọi hàm (tên hàm, ngoặc và dấu phẩy CỦA nó) in nhạt — mắt bám vào nội dung,
+   không bám vào dấu. Ngoặc của phép tính (`(a - b) * c`) vẫn đậm như toán tử thường. */
+.rc-formula__chip-token.is-khung { opacity: 0.55; }
+.rc-formula__chip-token--func.is-khung { opacity: 0.75; }
+/* Cặp ngoặc cạnh con trỏ — như Excel tô cặp ngoặc đang gõ. */
+.rc-formula__chip-token.is-sang {
+  opacity: 1;
+  background: #fde68a;
+  border-radius: 4px;
+}
+/* Bậc đang chọn (bấm nhãn "điều kiện k"). */
+.rc-formula__chip-token.is-chon {
+  background: #ffedd5;
+  box-shadow: 0 0 0 1px #fdba74;
+}
+/* Token gây lỗi — dòng báo lỗi trỏ vào đúng chip này. */
+.rc-formula__chip-token.is-loi {
+  opacity: 1;
+  box-shadow: 0 0 0 2px #ef4444;
+  border-radius: 4px;
 }
 
 /* Chip Lỗi / Biến không hợp lệ */
@@ -3414,8 +3488,153 @@ select.rc-input:focus {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: 4px 6px;
+  min-height: 26px;
+}
+/* Dòng ĐIỀU KIỆN của một bậc — nhấn nhẹ để mắt quét dọc cột ngưỡng (3 000 / 10 000 / 20 000). */
+.rc-formula__row.is-dieu-kien {
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+/* Nhãn mờ bên phải ("điều kiện 1", "nếu đúng", "còn lại") — KHÔNG phải token, không lưu. */
+.rc-formula__nhan-cum {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  min-height: 24px;
+  padding-left: 12px;
+}
+.rc-formula__nhan {
+  font-family: var(--ff-sans);
+  font-size: 11px;
+  font-style: italic;
+  color: #94a3b8;
+  white-space: nowrap;
+  user-select: none;
+}
+button.rc-formula__nhan--nut {
+  border: 1px dashed transparent;
+  background: none;
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+button.rc-formula__nhan--nut:hover,
+button.rc-formula__nhan--nut.is-chon {
+  color: #9a3412;
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+.rc-formula__bac-btn {
+  font-family: var(--ff-sans);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border: 1px solid #fdba74;
+  border-radius: 4px;
+  background: #fff;
+  color: #9a3412;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rc-formula__bac-btn:hover { background: #fff7ed; }
+.rc-formula__bac-btn--xoa { border-color: #fecaca; color: #b91c1c; }
+.rc-formula__bac-btn--xoa:hover { background: #fef2f2; }
+
+/* Hai chế độ xem + nút Sao chép trên hàng tên ô. */
+.rc-formula__che-do {
+  display: inline-flex;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.rc-formula__che-do button {
+  font-family: var(--ff-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border: 0;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+}
+.rc-formula__che-do button + button { border-left: 1px solid #cbd5e1; }
+.rc-formula__che-do button.is-active { background: #334155; color: #fff; }
+.rc-formula__thong-bao {
+  font-family: var(--ff-sans);
+  font-size: 11.5px;
+  color: #15803d;
+  font-weight: 600;
+}
+
+/* Chế độ Dạng chữ — ô chữ như thanh công thức Excel. */
+.rc-formula__chu { padding: 10px 12px; }
+.rc-formula__chu-o {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: var(--ff-mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
+  font-size: 13px;
+  line-height: 1.6;
+  color: #0f172a;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  white-space: pre;
+  overflow-x: auto;
+}
+.rc-formula__chu-o:focus { outline: none; border-color: var(--rust, #c5400a); }
+.rc-formula__bien-dung {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 6px;
+  font-family: var(--ff-sans);
+  font-size: 11.5px;
+  color: #64748b;
+}
+.rc-formula__bien-dung-nhan { font-weight: 700; }
+.rc-formula__bien-dung-muc code { color: #1e40af; }
+
+/* Gợi ý biến theo tên tiếng Việt — nằm trong luồng, ngay dưới ô. */
+.rc-formula__goi-y {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-top: 1px dashed #e2e8f0;
+}
+.rc-formula__goi-y-muc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1e40af;
+  cursor: pointer;
+}
+.rc-formula__goi-y-muc code { font-size: 10.5px; color: #64748b; }
+.rc-formula__goi-y-muc.is-active { border-color: var(--rust, #c5400a); box-shadow: 0 0 0 2px rgba(197, 64, 10, 0.18); }
+.rc-formula__goi-y-meo { font-size: 10.5px; color: #94a3b8; margin-left: auto; }
+.rc-formula__toi-loi {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  padding: 0 6px;
+  cursor: pointer;
 }
 
 /* Inline Input Container inside Chips Wrap */

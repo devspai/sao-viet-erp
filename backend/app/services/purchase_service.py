@@ -87,20 +87,15 @@ MAX_PURCHASE_ATTACHMENTS = 30
 # Những module được cấp quyền ĐỌC danh sách YCMH. Router dựng cổng quyền từ đúng danh sách này
 # (`DEPARTMENT_REQUEST_READERS`), nên hai nơi không thể lệch nhau.
 #
-# Dùng cả cho việc co danh sách về phòng ban: ai có scope `all` ở BẤT KỲ module nào trong đây thì
-# thấy YCMH toàn công ty. Chỉ hỏi mỗi `thu_mua` là sai — kế toán (SEAM-25) truy vết YCMH nguồn từ
-# PMH/Phiếu chi mà KHÔNG hề có quyền `thu_mua`, `scope_for` trả None nên bị co về phòng Kế toán và
-# nhìn thấy RỖNG. Người chỉ có scope phòng ban thì vẫn bị co như cũ.
+# CHỈ HAI KHOÁ (chủ chốt 28/09/2026: "tôi có bật xem đâu mà hiển thị"). Trước đó danh sách còn
+# bao_gia · kho · san_xuat · dm_giay · ke_toan — cấp Xem Báo giá hay Giấy là màn Yêu cầu mua hàng
+# tự mở dù ô Xem của nó TẮT, ngược luật "một mục menu = một ô quyền". Nay bộ phận nào cần xem/lập
+# YCMH thì cấp đúng ô "Yêu cầu mua hàng"; kế toán muốn bấm mã YCMH từ PMH/Phiếu chi cũng vậy.
 DEPARTMENT_REQUEST_READER_MODULES = (
-    # Khoá RIÊNG của màn Yêu cầu mua hàng (tách 10/08/2026) — phải đứng đầu: ai được cấp đúng màn
-    # này thì đọc được, không cần mượn quyền của phân hệ khác.
+    # Khoá RIÊNG của màn Yêu cầu mua hàng (tách 10/08/2026).
     "yeu_cau_mua_hang",
+    # Không mở menu (xem `Sidebar.tsx`) — chỉ để màn Mua hàng gọi API này nạp ô chọn nguồn.
     "thu_mua",
-    "bao_gia",
-    "kho",
-    "san_xuat",
-    "dm_giay",
-    "ke_toan",
 )
 
 
@@ -1252,8 +1247,8 @@ class PurchaseService:
           của họ: công việc của thu mua chính là biến đơn của phòng khác thành phiếu mua. Không
           phụ thuộc scope: nhân viên thu mua scope `own` (chỉ thấy PHIẾU MUA của mình) vẫn phải
           thấy đủ yêu cầu gửi đến, nếu không thì ngồi nhìn màn hình trống.
-        · **Người ĐỀ NGHỊ** (bao_gia · kho · san_xuat · dm_giay) — chỉ thấy yêu cầu của
-          phòng mình, trừ khi được cấp scope `all`.
+        · **Người ĐỀ NGHỊ** (vai có ô `yeu_cau_mua_hang`) — chỉ thấy yêu cầu của phòng mình, trừ
+          khi được cấp scope `all`.
 
         ⚠️ Ngày 04/08/2026 tôi hạ scope `thu_mua` của nhân viên mua hàng xuống `own` để họ chỉ
         thấy PHIẾU MUA của mình — và làm mù luôn hộp việc này, vì lúc đó cả hai danh sách cùng đọc

@@ -45,7 +45,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.db_migrations import run_migrations  # noqa: E402
-from app.seed import seed_all  # noqa: E402
+from app.seed import seed_du_lieu  # noqa: E402
 from app.main import app  # noqa: E402
 
 
@@ -55,8 +55,8 @@ def client():
     # single connection alive). Wipe the schema before each test so mutating tests (e.g.
     # change-password, lock user) can't leak seeded state into later tests.
     # Dán lại ảnh đã seed thay cho drop_all + create_all 192 bảng — xem `phien_da_seed`.
-    # Lifespan bên dưới vẫn chạy init_db + run_migrations + seed_all y như thật; nó chỉ
-    # rẻ đi vì mọi thứ đã có sẵn nên các bước đó thành no-op.
+    # Lifespan bên dưới vẫn chạy init_db + run_migrations + seed_all y như thật (SEED_DEMO=false ⇒
+    # seed_all không ghi gì — đúng như prod); bộ nền test đã nằm sẵn trong ảnh `_anh_da_seed`.
     _anh_da_seed().backup(_sqlite_that())
     # `with TestClient` triggers the lifespan (init_db + seed_all).
     with TestClient(app) as c:
@@ -98,7 +98,9 @@ def _anh_da_seed() -> sqlite3.Connection:
             # từ test thứ HAI trở đi migrations bị bỏ qua. Ảnh chụp giữ luôn cả bảng đó, nên mọi
             # test giờ đều đứng trên cùng một lượt migrations đã chạy thật.
             run_migrations(s)
-            seed_all(s)
+            # Bộ NỀN tối thiểu cho test (phòng ban · vai · admin · máy · đơn vị…). Gọi thẳng vì
+            # khởi động app với SEED_DEMO=false KHÔNG seed gì — xem `app.seed.seed_all`.
+            seed_du_lieu(s, demo=False)
             s.commit()
         finally:
             s.close()

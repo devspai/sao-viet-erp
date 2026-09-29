@@ -317,6 +317,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             options={optsRef(f)}
             nhomChoPhep={Array.isArray(form.nhom_may_cho_phep) ? form.nhom_may_cho_phep as string[] : []}
             nhomCongDoan={String(form.nhom ?? "")}
+            congThucChung={String(form.cong_thuc_gia ?? "")}
             onChange={(v) => set(f.key, v)} />
         ) : f.type === "vat-tu-cong-doan" ? (
           <VatTuCongDoanField value={Array.isArray(form[f.key]) ? form[f.key] as VatTuCongDoanRow[] : []}

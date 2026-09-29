@@ -480,7 +480,7 @@ const MODULE_HINTS: Record<string, string> = {
   // Hai chú giải dưới bổ sung 21/08/2026: trước đó hai màn này KHÔNG có dòng nào, người cấp quyền
   // phải tự đoán "Xem cái này thì thấy gì" (xem docs/RBAC_QUYEN_THEO_MODULE.md §5).
   yeu_cau_mua_hang:
-    "Xem: mở màn Yêu cầu mua hàng (YCMH của các bộ phận) trong phạm vi được cấp. Màn này CỐ Ý mở cho nhiều nhóm — báo giá, kho, sản xuất, giấy, kế toán, thu mua đều vào được bằng ô Xem của chính họ, nên bật ô này chỉ là MỘT trong bảy đường vào. Chỉnh sửa: lập yêu cầu cho bộ phận mình, sửa khi còn nháp, và hủy yêu cầu. Chuyển YCMH thành phiếu mua hàng là việc của ô Mua hàng.",
+    "Xem: mở màn Yêu cầu mua hàng (YCMH của các bộ phận) trong phạm vi được cấp — đây là đường vào DUY NHẤT; kinh doanh, kho, sản xuất, kế toán muốn xem hay bấm mã YCMH từ phiếu mua/phiếu chi đều phải bật ô này. Chỉnh sửa: lập yêu cầu cho bộ phận mình, sửa khi còn nháp, và hủy yêu cầu. Chuyển YCMH thành phiếu mua hàng là việc của ô Mua hàng.",
   nha_cung_cap:
     "Xem: danh mục Nhà cung cấp + bảng mặt hàng NCC đang bán (kèm tải mẫu và xuất Excel). Chỉnh sửa: thêm/sửa NCC, ngừng dùng, và nhập bảng mặt hàng từ Excel. Ô này còn mở TÀI KHOẢN NGÂN HÀNG của nhà cung cấp ở màn Kế toán — người quản danh mục NCC sửa được TK của họ mà không cần ô Tài khoản ngân hàng.",
   khach_hang:

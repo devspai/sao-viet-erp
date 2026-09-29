@@ -590,6 +590,31 @@ def test_tao_moi_va_cap_nhat_cung_mot_file(client, seed_credentials):
     assert dong["KHO-YEN"]["ten"] == "Kho không đụng tới"
 
 
+def test_cong_doan_chua_gan_to_xuat_roi_nhap_lai_khong_bi_dem_la_cap_nhat(client, seed_credentials):
+    """Ô "Mã tổ phụ trách" trống đọc ra None còn DB lưu `[]` — trước đây khác nhau nên công đoạn
+    chưa gán tổ nào luôn bị đếm "cập nhật" sau khi xuất rồi nhập lại y nguyên."""
+    h = _login(client, **seed_credentials)
+    _tao(client, h, "cong_doan", {"ma": "CD-KHONG-TO", "ten": "Không tổ", "nhom": "prepress",
+                                  "che_do_tinh": "theo_san_luong", "pricing_basis": "per_other"})
+    prefix = PREFIX["cong_doan"]
+    xem = _nhap(client, h, prefix, _bytes(_xuat(client, h, prefix))).json()
+    assert xem["hop_le"], xem
+    assert (xem["tao_moi"], xem["cap_nhat"]) == (0, 0), xem
+
+
+def test_dong_moi_thieu_o_bat_buoc_bao_theo_ten_cot_khong_phai_ten_truong(client, seed_credentials):
+    h = _login(client, **seed_credentials)
+    for loai, cot in (("cong_doan", "Nhóm"), ("giay", "Định lượng (gsm)"),
+                      ("may_thiet_bi", "Loại máy")):
+        noi_dung = _wb_tu(["Mã", "Tên"], [["ZZ-MOI", "Dòng mới"]],
+                          ten_sheet=SPECS[loai].tieu_de[:31], loai=loai)
+        kq = _nhap(client, h, PREFIX[loai], noi_dung).json()
+        assert not kq["hop_le"], (loai, kq)
+        loi = kq["loi"][0]
+        assert (loi["dong"], loi["cot"]) == (2, cot), (loai, loi)
+        assert f'"{cot}"' in loi["ly_do"] and "Thiếu" in loi["ly_do"], (loai, loi)
+
+
 def test_thanh_pham_MA_MOI_trong_file_bao_loi_dung_dong(client, seed_credentials):
     """Hết khai tay thành phẩm (18/09/2026) thì Excel cũng không đẻ được dòng: mã chưa có báo lỗi
     ĐÚNG dòng đó, mã đã có vẫn sửa được — nhưng cả file không ghi vì một file là một giao dịch."""

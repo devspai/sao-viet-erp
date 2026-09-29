@@ -74,8 +74,11 @@ export function PurchaseRequestsPage({
   // đợt, phiếu in) đọc TÊN đơn vị qua `tenDonVi()`. Thiếu dòng này là tất cả rơi về mã trần.
   useNapTenDonVi();
   const canCreate = can("thu_mua", "create");
-  const openYcmh = (code: string) =>
-    navigate("yeu-cau-mua-hang", { focusRequestCode: code });
+  // Mã YCMH chỉ bấm được khi có ô Xem của màn đó — ô Mua hàng đọc được dữ liệu YCMH nhưng KHÔNG
+  // mở màn (Sidebar.tsx), bấm vào là ăn màn chặn.
+  const openYcmh = can("yeu_cau_mua_hang", "read")
+    ? (code: string) => navigate("yeu-cau-mua-hang", { focusRequestCode: code })
+    : undefined;
   // Đợt giao ↔ phiếu nhập kho = CÙNG sự kiện hàng về: bấm "Nhập kho" ở một đợt → nhảy sang màn
   // Yêu cầu kho, mở sẵn form NHẬP điền theo hàng đã nhận. Ghi chú trỏ về mã đơn mua + số đợt.
   //

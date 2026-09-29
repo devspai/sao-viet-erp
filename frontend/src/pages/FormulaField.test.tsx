@@ -206,11 +206,12 @@ describe("bấm vào khoảng trống giữa các chip", () => {
     const user = userEvent.setup();
     render(<Harness dau="if ( dinh_luong , dai_in" />);
     biaHinhHoc();
-    // `tinhDong` tách 3 dòng: [if · (] · [dinh_luong · ,] · [dai_in]. Bấm mãi bên phải dòng đầu.
+    // Bậc thang (29/09/2026): `if (` đi chung dòng với điều kiện ⇒ 2 dòng: [if · ( · dinh_luong · ,]
+    // · [dai_in]. Bấm mãi bên phải dòng đầu ⇒ con trỏ đứng sau dấu phẩy, không nhảy về cuối.
     bamNenDong(0, 590);
     await user.type(o(), "1000");
     await user.tab();
-    expect(ct()).toBe("if ( 1000 dinh_luong , dai_in");
+    expect(ct()).toBe("if ( dinh_luong , 1000 dai_in");
   });
 });
 
@@ -258,5 +259,88 @@ describe("\"Lần trước\" — nhắc + lịch sử công thức (mục 3+7)",
     expect(screen.getByText("CU_1")).toBeInTheDocument();
     expect(screen.getByText("MOI_1")).toBeInTheDocument();
     expect(goi.some((u) => u.includes("/api/don-vi/7/lich-su-cong-thuc"))).toBe(true);
+  });
+});
+
+// BẬC THANG + HAI CHẾ ĐỘ (29/09/2026 — docs/superpowers/specs/2026-09-29-o-cong-thuc-bac-thang-hai-che-do-design.md).
+// Chế độ xem nhớ trong localStorage ⇒ mỗi test tự dọn, không thì test trước để lại "Dạng chữ".
+describe("bậc thang, hai chế độ, dán, hoàn tác", () => {
+  afterEach(() => { localStorage.clear(); });
+
+  const BAC = "if ( dai_in <= 3000 , 1 , if ( dai_in <= 10000 , 2 , 3 ) )";
+
+  it("chuyển sang Dạng chữ, sửa chữ ⇒ chuỗi lưu vẫn đúng định dạng token; quay lại Trực quan giữ nguyên", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau="dinh_luong * 2" />);
+    await user.click(screen.getByRole("button", { name: "Dạng chữ" }));
+    const ta = screen.getByRole("textbox", { name: "Công thức dạng chữ" }) as HTMLTextAreaElement;
+    expect(ta.value).toBe("dinh_luong * 2");
+    await user.clear(ta);
+    await user.type(ta, "max(dai_in,{Enter}   rong_in)");
+    expect(ct()).toBe("max ( dai_in , rong_in )");
+    await user.click(screen.getByRole("button", { name: "Trực quan" }));
+    expect(ct()).toBe("max ( dai_in , rong_in )");
+    expect(screen.getByTitle("Mã: dai_in")).toBeInTheDocument();
+  });
+
+  it("Dạng chữ: dán `;` của Excel ⇒ KHÔNG tự sửa, báo lỗi kèm dòng", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Dạng chữ" }));
+    const ta = screen.getByRole("textbox", { name: "Công thức dạng chữ" });
+    await user.click(ta);
+    await user.paste("if(dai_in > 1; 2; 3)");
+    expect(ct()).toBe("if ( dai_in > 1 ; 2 ; 3 )");
+    expect(screen.getByText(/dùng dấu phẩy/)).toBeInTheDocument();
+    expect(screen.getByText(/dòng 1/)).toBeInTheDocument();
+  });
+
+  it("Trực quan: Ctrl+V dán chuỗi thành chip ngay tại con trỏ", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau="dinh_luong" />);
+    await user.click(o());
+    await user.keyboard("{Home}");
+    await user.paste("max(dai_in, 2) *");
+    expect(ct()).toBe("max ( dai_in , 2 ) * dinh_luong");
+  });
+
+  it("xoá nhầm chip ⇒ Ctrl+Z lấy lại, Ctrl+Y làm lại", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau="dinh_luong * dai_in" />);
+    await user.click(screen.getByTitle("Xoá biến dinh_luong"));
+    expect(ct()).toBe("* dai_in");
+    await user.click(o());
+    await user.keyboard("{Control>}z{/Control}");
+    expect(ct()).toBe("dinh_luong * dai_in");
+    await user.keyboard("{Control>}y{/Control}");
+    expect(ct()).toBe("* dai_in");
+  });
+
+  it("bấm nhãn điều kiện ⇒ chọn bậc; Nhân đôi bậc rồi Xoá bậc — IF lồng vẫn hợp lệ", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={BAC} />);
+    expect(screen.getByText("còn lại")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "điều kiện 2" }));
+    await user.click(screen.getByRole("button", { name: "Nhân đôi bậc" }));
+    expect(ct()).toBe(
+      "if ( dai_in <= 3000 , 1 , if ( dai_in <= 10000 , 2 , if ( dai_in <= 10000 , 2 , 3 ) ) )");
+    await user.click(screen.getByRole("button", { name: "điều kiện 1" }));
+    await user.click(screen.getByRole("button", { name: "Xoá bậc" }));
+    expect(ct()).toBe("if ( dai_in <= 10000 , 2 , if ( dai_in <= 10000 , 2 , 3 ) )");
+  });
+
+  it("gõ vài chữ ⇒ gợi ý biến, Enter chèn chip", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.type(o(), "ron");
+    expect(screen.getByRole("listbox", { name: "Gợi ý biến" })).toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    expect(ct()).toBe("rong_in");
+  });
+
+  it("số hiện nhóm nghìn bằng khoảng trắng hẹp, chuỗi lưu vẫn liền", () => {
+    render(<Harness dau="dai_in * 700000" />);
+    expect(document.querySelector(".rc-formula__chip-token--num")?.textContent).toBe("700 000");
+    expect(ct()).toBe("dai_in * 700000");
   });
 });

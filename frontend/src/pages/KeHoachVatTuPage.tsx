@@ -17,6 +17,7 @@
 // nào", trong khi đây là cùng một việc nhìn từ hai phía.
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api, type DeNghiMuaXemTruoc } from "../api/client";
+import { useCan } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
 import { Icon } from "../components/Icons";
 import { GiuChoTheoLenhView } from "./GiuChoTheoLenhView";
@@ -52,6 +53,9 @@ export function KeHoachVatTuPage({
   // lỗi mạng cũng làm mọi nút "Mua" biến mất vĩnh viễn cho tới khi F5 — người dùng đọc thành
   // "phần mềm hỏng", đúng câu hỏi nhận ngày 20/08/2026.
   const [canDeNghiMua, setCanDeNghiMua] = useState<boolean | null>(null);
+  // Nút mở form ở MÀN Yêu cầu mua hàng ⇒ còn cần ô Xem của màn đó: quyền `san_xuat` không mở màn
+  // này nữa (28/09/2026), thiếu ô Xem thì bấm "Mua" là ăn màn chặn.
+  const coManYcmh = useCan()("yeu_cau_mua_hang", "read");
   const [gom, setGom] = useState<Gom>(focusLsxMa ? "lenh" : "hang");
   const [soDo, setSoDo] = useState(0);
   const [soGiuLau, setSoGiuLau] = useState(0);
@@ -184,7 +188,7 @@ export function KeHoachVatTuPage({
       {gom === "hang" ? (
         <VatTuKeHoachView
           eventTick={eventTick}
-          canDeNghiMua={canDeNghiMua !== false}
+          canDeNghiMua={coManYcmh && canDeNghiMua !== false}
           onSoDo={baoSoDo}
           onSoGiuLau={setSoGiuLau}
           onOpenLsx={navigate ? (id) => navigate("ke-hoach-sx", { openLsxId: id }) : undefined}
@@ -193,7 +197,7 @@ export function KeHoachVatTuPage({
       ) : (
         <GiuChoTheoLenhView
           eventTick={eventTick}
-          canDeNghiMua={canDeNghiMua !== false}
+          canDeNghiMua={coManYcmh && canDeNghiMua !== false}
           onSoGiuLau={setSoGiuLau}
           focusLsxMa={focusLsxMa}
           onOpenLsx={navigate ? (id) => navigate("ke-hoach-sx", { openLsxId: id }) : undefined}

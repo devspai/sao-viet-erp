@@ -39,12 +39,12 @@ def chuan_bi() -> None:
     from .db import init_db
     from .db_migrations import run_migrations
     from .migrate import phien_migrate
-    from .seed import seed_all
+    from .seed import dong_bo_danh_muc_he_thong, seed_all
     from .storage import ensure_storage_ready
 
     # Tạo bucket MinIO nếu chưa có (no-op khi chạy LocalStorage — test/dev không Docker).
     ensure_storage_ready()
-    # create_all + idempotent seed (RBAC catalog/roles + admin). Alembic is a later spec.
+    # create_all + migrations; seed dữ liệu CHỈ khi SEED_DEMO=true. Alembic is a later spec.
     init_db()
     # Phiên không hạn giờ câu lệnh (xem `migrate.phien_migrate`); không hạn chờ khoá vì lúc này
     # chưa worker nào phục vụ — chờ khoá chỉ có thể là tiến trình migrate khác, chờ là đúng.
@@ -53,6 +53,9 @@ def chuan_bi() -> None:
         # create_all never ALTERs existing tables; run tracked additive migrations so the
         # persistent prod DB picks up new columns before seed/queries touch them.
         run_migrations(db)
+        # Danh sách màn hình của code (FK quyền) — luôn chạy; KHÔNG phải seed dữ liệu.
+        dong_bo_danh_muc_he_thong(db)
+        # SEED_DEMO=false ⇒ seed_all không ghi gì (DB trắng: `python -m app.khoi_tao_admin`).
         seed_all(db)
     finally:
         db.close()

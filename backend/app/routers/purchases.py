@@ -80,7 +80,7 @@ MODULE_YCMH = "yeu_cau_mua_hang"  # màn Yêu cầu mua hàng
 MODULE_KE_TOAN = "ke_toan"    # màn Đơn mua hàng (Kế toán) — nơi DUYỆT / TỪ CHỐI PMH
 # Cổng quyền đọc YCMH dựng từ CHÍNH danh sách mà service dùng để quyết định có co danh sách về
 # phòng ban hay không — thêm/bớt một vai chỉ phải sửa một chỗ, không còn cảnh cấp quyền vào được
-# màn nhưng lại bị lọc ra rỗng. (Kế toán truy vết YCMH nguồn khi duyệt PMH / lập Phiếu chi: SEAM-25.)
+# màn nhưng lại bị lọc ra rỗng.
 DEPARTMENT_REQUEST_READERS = tuple(
     (module, "read") for module in DEPARTMENT_REQUEST_READER_MODULES
 )
@@ -144,9 +144,8 @@ def list_department_purchase_requests(
     # ô quyền nào, vẫn đọc được toàn bộ yêu cầu mua hàng. Đây là màn DUY NHẤT của Thu mua bị hở
     # (7 endpoint còn lại đều chặn 403).
     #
-    # Gác bằng `DEPARTMENT_REQUEST_READER_MODULES` chứ không bằng riêng `thu_mua`: màn này cố ý mở
-    # cho 6 nhóm đề nghị vật tư (báo giá · kho · sản xuất · vật tư · kế toán · thu mua), đúng như
-    # `Sidebar.tsx` khai. Gác riêng `thu_mua` là khoá đường xin vật tư của 5 nhóm còn lại.
+    # Gác bằng `DEPARTMENT_REQUEST_READER_MODULES`: ô Xem của chính màn + `thu_mua` (màn Mua hàng
+    # nạp ô chọn nguồn). Từ 28/09/2026 các phân hệ khác KHÔNG còn mượn đường đọc.
     user: Annotated[
         User,
         Depends(require_any_permission(
@@ -178,7 +177,7 @@ def can_create_department_purchase_request(
 def get_department_purchase_request(
     request_id: int,
     svc: Annotated[PurchaseService, Depends(get_purchase_service)],
-    # Cùng luật đọc với danh sách: 6 nhóm đề nghị vật tư, KHÔNG phải mọi tài khoản đăng nhập.
+    # Cùng luật đọc với danh sách, KHÔNG phải mọi tài khoản đăng nhập.
     user: Annotated[
         User,
         Depends(require_any_permission(

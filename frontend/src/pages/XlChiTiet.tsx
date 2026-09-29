@@ -25,6 +25,7 @@ const TRANG_THAI_NHAN: Record<string, string> = {
   san_sang: "Sẵn sàng",
   da_lap_ke_hoach: "Đã lập kế hoạch",
   da_phat_hanh: "Đã phát hành",
+  da_dong: "Đã đóng",
 };
 
 export interface XlChiTietProps {
@@ -203,6 +204,7 @@ export function XlChiTiet({
 
   const daXep = !!ct?.bat_dau_at;
   const daPhatHanh = ct?.trang_thai === "da_phat_hanh";
+  const daDong = ct?.trang_thai === "da_dong"; // KCS đã đóng: coi như đã xuống xưởng, không thu hồi/sửa
   // Gói đã có việc chạy ⇒ thu hồi CẢ gói là xoá việc thợ đã làm, server chặn (§4.3). Bày nút xám
   // kèm câu nói rõ ngay cạnh — tooltip thôi thì người dùng gõ xong lý do mới biết mình đâm tường.
   const soDaBatDau = goi?.co_goi ? (goi.so_da_bat_dau ?? 0) : 0;
@@ -923,7 +925,7 @@ export function XlChiTiet({
                     Đã có {soDaBatDau}/{goi?.so_cong_viec ?? 0} thẻ việc dưới xưởng bắt đầu — không rút cả gói về được.
                   </span>
                 )}
-                {suaDuoc && daXep && !daPhatHanh && (
+                {suaDuoc && daXep && !daPhatHanh && !daDong && (
                   <button type="button" className="xl-nut xl-nut--nguy-hiem" disabled={dangGhi} onClick={onBoLich}>
                     <Trash2 size={13} /> Bỏ lịch
                   </button>
@@ -958,7 +960,7 @@ export function XlChiTiet({
                     <Send size={13} /> Phát hành cập nhật
                   </button>
                 )}
-                {duyetDuoc && daXep && !daPhatHanh && (
+                {duyetDuoc && daXep && !daPhatHanh && !daDong && (
                   <button type="button" className="xl-nut xl-nut--chinh" disabled={dangGhi} onClick={onPhatHanh}>
                     <Send size={13} /> Phát hành ngay
                   </button>

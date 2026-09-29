@@ -22,9 +22,12 @@ function so(v: unknown): string {
   return Number.isFinite(n) && n > 0 ? n.toLocaleString("vi-VN") : "";
 }
 
-export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan, onChange }: {
+export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan, congThucChung = "", onChange }: {
   value: MayCongDoanRow[]; options: Row[]; nhomChoPhep: string[];
-  nhomCongDoan: string; onChange: (v: MayCongDoanRow[]) => void;
+  nhomCongDoan: string;
+  /** Công thức giá CHUNG của công đoạn — popup giá riêng đang trống thì mời "lấy làm gốc". */
+  congThucChung?: string;
+  onChange: (v: MayCongDoanRow[]) => void;
 }) {
   const chon = Array.isArray(value) ? value : [];
   // Nhóm chưa tick ⇒ bày MỌI máy: "chưa khai = không ràng buộc", cùng luật với nơi gán máy ở bước.
@@ -67,7 +70,12 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
   // Panel nằm NGOÀI vòng lặp bảng nên phải tra lại dòng theo `may_id`. Máy vừa bị xoá khỏi bảng
   // ⇒ `-1` ⇒ không vẽ panel (ô neo cũng đã rời DOM, `FormulaPopover` tự đóng).
   const iMo = mo ? chon.findIndex((r) => r.may_id === mo.may) : -1;
-  // BỎ SỬA: dùng chung cho nút ✕ trên hàng tên ô và cho phím Esc.
+  // Tiêu đề popup phải nói đang sửa cho MÁY NÀO — popup nổi lên che mất chính dòng máy đó.
+  const tenMay = (id: number) => {
+    const m = theoId.get(id);
+    return m ? `${String(m.ma)} · ${String(m.ten)}` : `#${id}`;
+  };
+  // BỎ SỬA: dùng chung cho nút "Huỷ" ở chân popup và cho phím Esc.
   const huy = () => {
     if (!mo || iMo < 0) return;
     patch(iMo, mo.o === "gio" ? { cong_thuc_gio: mo.banDau } : { cong_thuc_gia: mo.banDau });
@@ -158,15 +166,42 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
     </div>}
     {mo && iMo >= 0 && <FormulaPopover neo={mo.neo} onClose={() => setMo(null)} onHuy={huy}
       nhan={mo.o === "gio" ? "Công thức giờ chạy" : "Công thức giá"}>
+      {/* Popup TRỐNG có lối vào: 5 máy cùng công đoạn thường chung một khung công thức, chỉ khác vài
+          con số — chép công thức chung hoặc của máy khác làm gốc rồi sửa số, khỏi đi vòng bộ nhớ tạm.
+          Chỉ bày khi ô đang trống để không ai lỡ tay đè mất công thức đang có. */}
+      {(() => {
+        const cot = mo.o === "gio" ? "cong_thuc_gio" : "cong_thuc_gia";
+        if ((chon[iMo][cot] ?? "").trim()) return null;
+        const chung = mo.o === "gia" ? congThucChung.trim() : "";
+        const nguon = chon.filter((r, j) => j !== iMo && (r[cot] ?? "").trim());
+        if (!chung && !nguon.length) return null;
+        return <div className="rc-ct-pop__goc">
+          <span className="rc-ct-pop__goc-nhan">Bắt đầu từ:</span>
+          {chung && <button type="button" className="rc-ct-pop__goc-btn"
+            onClick={() => patch(iMo, { [cot]: chung })}>Công thức chung của công đoạn</button>}
+          {nguon.length > 0 && <select className="rc-ct-pop__goc-chon" value="" aria-label="Chép từ máy"
+            onChange={(e) => {
+              const r = chon.find((x) => x.may_id === Number(e.target.value));
+              if (r) patch(iMo, { [cot]: r[cot] ?? "" });
+            }}>
+            <option value="">Chép từ máy…</option>
+            {nguon.map((r) => {
+              const m = theoId.get(r.may_id);
+              return <option key={r.may_id} value={r.may_id}>
+                {m ? `${String(m.ma)} · ${String(m.ten)}` : `#${r.may_id}`}</option>;
+            })}
+          </select>}
+        </div>;
+      })()}
       {/* `id` phải DUY NHẤT: drawer còn những ô công thức khác, trùng id là hai ô dính nhau. */}
       {mo.o === "gio" ? <FormulaField
         id={`ct-gio-${mo.may}`} configPrefix="/api/cong-doan" loaiO="quy_doi"
-        nhanO="Công thức giờ chạy" onDong={huy}
+        nhanO={`Công thức giờ chạy — ${tenMay(mo.may)}`}
         goY="Ra LƯỢNG theo đơn vị tốc độ của máy. Bỏ trống = hệ tự quy đổi. vd máy 5 màu chạy 2 lượt: sl_vao * so_mau / 5. ĐỪNG nhân so_luot_chay — hệ đã tự nhân."
         value={chon[iMo].cong_thuc_gio ?? ""}
         onChange={(v) => patch(iMo, { cong_thuc_gio: v })} /> : <FormulaField
         id={`ct-gia-${mo.may}`} configPrefix="/api/cong-doan" loaiO="cong_doan"
-        nhanO="Công thức giá" onDong={huy}
+        nhanO={`Công thức giá riêng — ${tenMay(mo.may)}`}
         goY="Ghi đè công thức giá của công đoạn khi phiếu tính giá chọn đúng máy này. Bỏ trống = dùng công thức chung."
         value={chon[iMo].cong_thuc_gia ?? ""}
         onChange={(v) => patch(iMo, { cong_thuc_gia: v })} />}

@@ -1062,14 +1062,18 @@ export function KhoTonKhoPage({
               Đã chọn {selected.size} mặt hàng
             </div>
 
-            <button
-              type="button"
-              className="kho-dock__btn kho-dock__btn--primary"
-              onClick={createPurchaseFromSelected}
-            >
-              <ShoppingCart style={{ width: 15, height: 15 }} />
-              Tạo yêu cầu mua
-            </button>
+            {/* Nút mở form ở màn Yêu cầu mua hàng ⇒ cần đúng ô của màn đó (Xem để vào màn,
+                Thao tác để lập). Ô Kho không còn mở màn này từ 28/09/2026. */}
+            {can("yeu_cau_mua_hang", "read") && can("yeu_cau_mua_hang", "create") && (
+              <button
+                type="button"
+                className="kho-dock__btn kho-dock__btn--primary"
+                onClick={createPurchaseFromSelected}
+              >
+                <ShoppingCart style={{ width: 15, height: 15 }} />
+                Tạo yêu cầu mua
+              </button>
+            )}
 
             {!AN_DIEU_CHUYEN && khoOptions.filter((w) => w.id !== khoId).length > 0 && (
               <button

@@ -12,6 +12,15 @@
 .thsx {
   --thsx-label-w: 240px;
   --thsx-bar-h: 26px;
+  /* BỘ MÀU TRẠNG THÁI — NGUỒN DUY NHẤT (28/09/2026). Nhãn ở dòng, chip đếm, chú giải chân trang và
+     thanh ở view Lịch đều đọc bộ này; trước đó chip đếm và nhãn tự viết hai bảng màu khác nhau nên
+     cùng một trạng thái trên một màu dưới một màu. Ngoại lệ có chủ đích với luật "không hex thô"
+     ở đầu file: tokens.css không có xanh dương/xanh lá tươi đủ tách bốn trạng thái. Mỗi trạng
+     thái 4 sắc: chữ (fg) · nền (bg) · viền (bd) · đậm (dam — icon, sọc trái, thanh đang chạy). */
+  --tt-cho-fg: #075985;  --tt-cho-bg: #e0f2fe;  --tt-cho-bd: #bae6fd;  --tt-cho-dam: #0284c7;
+  --tt-chay-fg: #166534; --tt-chay-bg: #dcfce7; --tt-chay-bd: #bbf7d0; --tt-chay-dam: #16a34a;
+  --tt-dung-fg: #92400e; --tt-dung-bg: #fef3c7; --tt-dung-bd: #fde68a; --tt-dung-dam: #d97706;
+  --tt-xong-fg: #475569; --tt-xong-bg: #f1f5f9; --tt-xong-bd: #e2e8f0; --tt-xong-dam: #94a3b8;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -107,10 +116,11 @@
   font-weight: var(--fw-bold);
   color: var(--ink);
 }
-.thsx-kpi__pill--run i,
-.thsx-kpi__pill--done i { background: var(--moss); }
-.thsx-kpi__pill--pause i { background: var(--amber); }
-.thsx-kpi__pill--done i { background: var(--canvas); box-shadow: inset 0 0 0 2px var(--moss); }
+/* Chấm màu đọc CÙNG bộ `--tt-*` với chip đếm ở view Bảng. */
+.thsx-kpi__pill--run i { background: var(--tt-chay-dam); }
+.thsx-kpi__pill--pause i { background: var(--tt-dung-dam); }
+.thsx-kpi__pill--cho i { background: var(--tt-cho-dam); }
+.thsx-kpi__pill--done i { background: var(--tt-xong-dam); }
 .thsx-kpi__pill--0 { color: var(--ash-2); }
 .thsx-kpi__pill--0 strong { color: var(--ash-2); font-weight: var(--fw-medium); }
 .thsx-kpi__pill--0 i { opacity: 0.45; }
@@ -833,9 +843,15 @@
   opacity: 0.7;
 }
 
+/* Thanh lịch đọc CÙNG bộ `--tt-*` với nhãn/chip/chú giải. */
+.thsx-ln__thanh--released {
+  border-color: var(--tt-cho-bd);
+  border-left-color: var(--tt-cho-dam);
+  background: var(--tt-cho-bg);
+}
 .thsx-ln__thanh--running {
-  border-color: var(--moss-deep);
-  background: var(--moss);
+  border-color: var(--tt-chay-fg);
+  background: var(--tt-chay-dam);
   color: var(--canvas);
   animation: thsx-ln-pulse 1.8s ease-in-out infinite;
 }
@@ -844,29 +860,29 @@
 .thsx-ln__thanh--running .thsx-ln__thanh-d2 { color: var(--canvas); }
 @keyframes thsx-ln-pulse {
   0%, 100% { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
-  50% { box-shadow: 0 0 0 3px var(--moss-soft); }
+  50% { box-shadow: 0 0 0 3px var(--tt-chay-bd); }
 }
 .thsx-ln__thanh--paused {
-  border-color: var(--amber-soft);
-  border-left-color: var(--amber);
+  border-color: var(--tt-dung-bd);
+  border-left-color: var(--tt-dung-dam);
   background:
     repeating-linear-gradient(-45deg,
-      color-mix(in srgb, var(--amber) 14%, transparent) 0 5px,
+      color-mix(in srgb, var(--tt-dung-dam) 14%, transparent) 0 5px,
       transparent 5px 10px),
-    var(--amber-soft);
-  color: var(--amber-deep);
+    var(--tt-dung-bg);
+  color: var(--tt-dung-fg);
 }
 .thsx-ln__thanh--paused .thsx-ln__thanh-d1 > svg,
 .thsx-ln__thanh--paused .thsx-ln__thanh-cd,
-.thsx-ln__thanh--paused .thsx-ln__thanh-d2 { color: var(--amber-deep); }
+.thsx-ln__thanh--paused .thsx-ln__thanh-d2 { color: var(--tt-dung-fg); }
 .thsx-ln__thanh--completed {
-  border-color: var(--rule-soft);
-  border-left-color: var(--moss);
-  background: var(--canvas);
-  color: var(--ash);
+  border-color: var(--tt-xong-bd);
+  border-left-color: var(--tt-xong-dam);
+  background: var(--tt-xong-bg);
+  color: var(--tt-xong-fg);
 }
-.thsx-ln__thanh--completed .thsx-ln__thanh-d1 > svg { color: var(--moss); }
-.thsx-ln__thanh--completed .thsx-ln__thanh-d2 { color: var(--moss-deep); }
+.thsx-ln__thanh--completed .thsx-ln__thanh-d1 > svg { color: var(--tt-xong-dam); }
+.thsx-ln__thanh--completed .thsx-ln__thanh-d2 { color: var(--tt-xong-fg); }
 .thsx-ln__thanh--tran-trai {
   border-left-width: 1px;
   border-top-left-radius: 0;
@@ -1185,73 +1201,6 @@
 .thsx-ds__vt-val { color: var(--rust-deep); font-weight: var(--fw-bold); }
 .thsx-ds__vt-more { font-size: 10px; color: var(--ash-2); background: var(--paper); padding: 1px 5px; border-radius: var(--r-1); border: 1px solid var(--rule-soft); }
 .thsx-ds__vt-none { color: var(--ash-2); font-size: var(--fs-xs); }
-
-/* Actions & Status Cell */
-.thsx-ds__act-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-.thsx-ds__act-main {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-  flex: 1 1 auto;
-}
-.thsx-ds__act-grp { display: flex; align-items: center; gap: 4px; }
-.thsx-ds__actbtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  appearance: none;
-  border: 1px solid var(--rule);
-  border-radius: var(--r-pill);
-  padding: 3px 9px;
-  font-size: 11px;
-  font-weight: var(--fw-bold);
-  cursor: pointer;
-  background: var(--canvas);
-  color: var(--ink);
-  transition: background var(--duration-fast) ease, color var(--duration-fast) ease, border-color var(--duration-fast) ease;
-}
-.thsx-ds__actbtn--play {
-  background: var(--moss-soft);
-  color: var(--moss-deep);
-  border-color: var(--moss);
-}
-.thsx-ds__actbtn--play:hover {
-  background: var(--moss);
-  color: #ffffff;
-}
-.thsx-ds__actbtn--pause {
-  background: var(--amber-soft);
-  color: var(--amber-deep);
-  border-color: var(--amber);
-}
-.thsx-ds__actbtn--pause:hover {
-  background: var(--amber);
-  color: #ffffff;
-}
-.thsx-ds__actbtn--check {
-  background: var(--canvas);
-  color: var(--moss-deep);
-  border-color: var(--moss);
-}
-.thsx-ds__actbtn--check:hover {
-  background: var(--moss-soft);
-}
-.thsx-ds__actbtn--view {
-  padding: 3px 5px;
-  color: var(--ash-2);
-  border-color: transparent;
-}
-.thsx-ds__actbtn--view:hover {
-  color: var(--ink);
-  background: var(--paper);
-  border-color: var(--rule-soft);
-}
 
 .thsx-ds__empty-val { color: var(--ash-2); font-style: italic; font-size: var(--fs-xs); }
 .thsx-rot270 { transform: rotate(270deg); }
@@ -2198,26 +2147,10 @@
 }
 .thsx-tt--sm { font-size: var(--fs-2xs); padding: 2px 9px; }
 .thsx-tt--xs { font-size: 10px; padding: 1px 7px; }
-.thsx-tt--released {
-  color: var(--steel);
-  background: var(--steel-soft);
-  border-color: color-mix(in srgb, var(--steel) 22%, transparent);
-}
-.thsx-tt--running {
-  color: var(--moss-deep);
-  background: var(--moss-soft);
-  border-color: color-mix(in srgb, var(--moss) 30%, transparent);
-}
-.thsx-tt--paused {
-  color: var(--amber-deep);
-  background: var(--amber-soft);
-  border-color: color-mix(in srgb, var(--amber) 32%, transparent);
-}
-.thsx-tt--completed {
-  color: var(--ash);
-  background: var(--rule-hair);
-  border-color: var(--rule-soft);
-}
+.thsx-tt--released { color: var(--tt-cho-fg); background: var(--tt-cho-bg); border-color: var(--tt-cho-bd); }
+.thsx-tt--running { color: var(--tt-chay-fg); background: var(--tt-chay-bg); border-color: var(--tt-chay-bd); }
+.thsx-tt--paused { color: var(--tt-dung-fg); background: var(--tt-dung-bg); border-color: var(--tt-dung-bd); }
+.thsx-tt--completed { color: var(--tt-xong-fg); background: var(--tt-xong-bg); border-color: var(--tt-xong-bd); }
 
 /* ---------------- Dải chân — chú giải ------------------------------------- */
 .thsx-foot {
@@ -2246,22 +2179,18 @@
   background: var(--canvas);
 }
 /* Ô mẫu khớp màu thanh của lịch ngày (`.thsx-ln__thanh--*`): nền + sọc trái 3px. */
-.thsx-lg--released i {
-  border-color: var(--steel-soft);
-  border-left: 3px solid var(--steel);
-  background: color-mix(in srgb, var(--steel-soft) 65%, var(--canvas));
-}
-.thsx-lg--running i { border-color: var(--moss-deep); background: var(--moss); }
+.thsx-lg--released i { border-color: var(--tt-cho-bd); border-left: 3px solid var(--tt-cho-dam); background: var(--tt-cho-bg); }
+.thsx-lg--running i { border-color: var(--tt-chay-fg); background: var(--tt-chay-dam); }
 .thsx-lg--paused i {
-  border-color: var(--amber-soft);
-  border-left: 3px solid var(--amber);
+  border-color: var(--tt-dung-bd);
+  border-left: 3px solid var(--tt-dung-dam);
   background:
     repeating-linear-gradient(-45deg,
-      color-mix(in srgb, var(--amber) 22%, transparent) 0 3px,
+      color-mix(in srgb, var(--tt-dung-dam) 22%, transparent) 0 3px,
       transparent 3px 6px),
-    var(--amber-soft);
+    var(--tt-dung-bg);
 }
-.thsx-lg--completed i { border-color: var(--rule-soft); border-left: 3px solid var(--moss); background: var(--canvas); }
+.thsx-lg--completed i { border-color: var(--tt-xong-bd); border-left: 3px solid var(--tt-xong-dam); background: var(--tt-xong-bg); }
 /* Ô mẫu "Thực tế" = ruy-băng moss mảnh, khớp hình lớp thực-tế trên lịch (§5.1). */
 .thsx-lg--actual i { width: 14px; height: 4px; border: 0; border-radius: var(--r-pill); background: var(--moss); }
 .thsx-foot__spacer { flex: 1 1 auto; min-width: var(--sp-2); }
@@ -2517,30 +2446,15 @@
   color: var(--ash);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
-.thsx-digest__chip--run {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: rgba(16, 185, 129, 0.3);
-  color: #065f46;
-}
-.thsx-digest__chip--run svg { color: #10b981; }
-.thsx-digest__chip--pause {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.3);
-  color: #92400e;
-}
-.thsx-digest__chip--pause svg { color: #f59e0b; }
-.thsx-digest__chip--released {
-  background: rgba(2, 132, 199, 0.08);
-  border-color: rgba(2, 132, 199, 0.25);
-  color: #075985;
-}
-.thsx-digest__chip--released svg { color: #0284c7; }
-.thsx-digest__chip--done {
-  background: rgba(13, 148, 136, 0.08);
-  border-color: rgba(13, 148, 136, 0.25);
-  color: #115e59;
-}
-.thsx-digest__chip--done svg { color: #0d9488; }
+/* Chip đếm dùng CHUNG bộ màu với nhãn trạng thái ở dòng (`--tt-*` trên `.thsx`). */
+.thsx-digest__chip--released { background: var(--tt-cho-bg); border-color: var(--tt-cho-bd); color: var(--tt-cho-fg); }
+.thsx-digest__chip--run { background: var(--tt-chay-bg); border-color: var(--tt-chay-bd); color: var(--tt-chay-fg); }
+.thsx-digest__chip--pause { background: var(--tt-dung-bg); border-color: var(--tt-dung-bd); color: var(--tt-dung-fg); }
+.thsx-digest__chip--done { background: var(--tt-xong-bg); border-color: var(--tt-xong-bd); color: var(--tt-xong-fg); }
+.thsx-digest__chip--released svg { color: var(--tt-cho-dam); }
+.thsx-digest__chip--run svg { color: var(--tt-chay-dam); }
+.thsx-digest__chip--pause svg { color: var(--tt-dung-dam); }
+.thsx-digest__chip--done svg { color: var(--tt-xong-dam); }
 
 /* Khung thẻ gốc — view Thẻ đã gỡ 14/09/2026 nhưng các khối trong drawer (`ThsxDrawer`) vẫn mang
    `.thsx-card` và thừa hưởng flex/gap ở đây, nên giữ lại; bản gọn hơn đè bên dưới. */
@@ -2679,10 +2593,10 @@
   font-family: var(--ff-num);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
-.thsx-lenh__dg--run { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-.thsx-lenh__dg--pause { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
-.thsx-lenh__dg--wait { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
-.thsx-lenh__dg--done { background: #ccfbf1; color: #0f766e; border: 1px solid #99f6e4; }
+.thsx-lenh__dg--run { background: var(--tt-chay-bg); color: var(--tt-chay-fg); border: 1px solid var(--tt-chay-bd); }
+.thsx-lenh__dg--pause { background: var(--tt-dung-bg); color: var(--tt-dung-fg); border: 1px solid var(--tt-dung-bd); }
+.thsx-lenh__dg--wait { background: var(--tt-cho-bg); color: var(--tt-cho-fg); border: 1px solid var(--tt-cho-bd); }
+.thsx-lenh__dg--done { background: var(--tt-xong-bg); color: var(--tt-xong-fg); border: 1px solid var(--tt-xong-bd); }
 .thsx-lenh__body { padding: 14px 16px; border-top: 1px solid #e2e8f0; background: #ffffff; }
 
 /* ───────── Thanh phân trang (đếm theo LỆNH — máy chủ cắt trang) ───────── */
@@ -5758,130 +5672,232 @@
   font-weight: 600;
 }
 
-/* ================= HANDOVER CARD V2 (REFINED MODERN DESIGN) ================= */
+/* ================= HANDOVER CARD V2 (PREMIUM ELEGANT DESIGN) ================= */
 .thsx-handover-card-v2 {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  transition: all 0.15s ease-in-out;
 }
 
 .thsx-handover-card-v2:hover {
   border-color: #cbd5e1;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.06);
 }
+
+/* Viền màu cạnh trái theo trạng thái đã bỏ (28/09/2026) — pill trạng thái ở đầu thẻ đã nói đủ. */
 
 .thsx-handover-card__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   flex-wrap: wrap;
 }
 
-.thsx-handover-card__me {
-  margin-left: 6px;
-  font-size: 0.8rem;
+.thsx-handover-card__side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.thsx-handover-card__qty-val {
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.thsx-handover-card__qty-val small {
+  font-size: 0.85rem;
   font-weight: 500;
   color: #64748b;
 }
-.thsx-handover-card__qty-val .thsx-x-tag-ht {
-  margin-left: 8px;
-  vertical-align: middle;
+
+.thsx-handover-card__me {
+  margin-left: 2px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
 }
 
-/* Tuyến Giao → Nhận: hai cột ngang hàng, mũi tên giữa; hẹp thì xếp dọc. */
+.thsx-handover-card-v2 .thsx-x-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.thsx-handover-card-v2 .thsx-x-pill--adj {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.thsx-handover-card-v2 .thsx-x-pill--ok {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.thsx-handover-card-v2 .thsx-x-pill--wait {
+  color: #9a3412;
+  background: #ffedd5;
+  border-color: #fed7aa;
+}
+
+/* Khối Tuyến Bàn Giao (Route Transfer Container) */
 .thsx-handover-card__route {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: start;
+  align-items: center;
   gap: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed #e2e8f0;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
 }
-.thsx-handover-card__route-arrow {
+
+.thsx-handover-card__route-arrow-wrap {
   color: #94a3b8;
-  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
-.thsx-hb-ben {
+
+.thsx-hb-node {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
-.thsx-hb-ben__lbl {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #94a3b8;
-  letter-spacing: 0.02em;
+
+.thsx-hb-node__head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1px;
 }
-.thsx-hb-ben__cd {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #0f172a;
-  overflow-wrap: anywhere;
-}
-.thsx-hb-ben__to {
-  font-size: 0.8rem;
-  color: #475569;
-  overflow-wrap: anywhere;
-}
-.thsx-hb-ben__ai {
-  margin-top: 4px;
+
+.thsx-hb-node__chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  flex-wrap: wrap;
-  font-size: 0.76rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.thsx-hb-node__chip--sender {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.thsx-hb-node__chip--receiver {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.thsx-hb-node__label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #0284c7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.thsx-hb-node--receiver .thsx-hb-node__label {
+  color: #16a34a;
+}
+
+.thsx-hb-node__cd {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.thsx-hb-node__to {
+  font-weight: 500;
   color: #64748b;
 }
-.thsx-hb-ben__ai b {
+
+.thsx-hb-node__ai {
+  font-size: 0.74rem;
+  color: #64748b;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.thsx-hb-node__ai b {
   color: #334155;
   font-weight: 600;
 }
-.thsx-hb-ben__ai.is-wait {
+
+.thsx-hb-node__ai.is-wait {
   color: #b45309;
   font-weight: 600;
 }
+
 @media (max-width: 480px) {
   .thsx-handover-card__route {
     grid-template-columns: minmax(0, 1fr);
   }
-  .thsx-handover-card__route-arrow {
-    margin-top: 0;
+  .thsx-handover-card__route-arrow-wrap {
+    margin: 0 auto;
     transform: rotate(90deg);
   }
 }
 
-.thsx-handover-card__qty-val {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-
-.thsx-handover-card__qty-val small {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #64748b;
-  margin-left: 2px;
-}
-
-/* Foot Row Actions */
+/* Footer Row Actions */
 .thsx-handover-card__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+  padding-top: 2px;
+}
+
+.thsx-adj-history-btn {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 3px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.thsx-adj-history-btn:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0284c7;
 }
 
 

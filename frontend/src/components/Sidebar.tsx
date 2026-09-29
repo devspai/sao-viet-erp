@@ -171,25 +171,13 @@ export const NAV: NavSection[] = [
         id: "yeu-cau-mua-hang",
         label: "Yêu cầu mua hàng",
         icon: "clipboard",
-        module: "yeu_cau_mua_hang",
-        // ke_toan: kế toán bấm mã YCMH từ PMH/Phiếu chi để truy vết ngược.
-        // Danh sách dự phòng GIỮ NGUYÊN các phân hệ đề nghị vật tư — nó là TẬP CON của
-        // DEPARTMENT_REQUEST_READER_MODULES ở backend. Rộng hơn backend là menu hiện mà API trả
-        // 403; hẹp hơn thì chỉ ẩn menu, quyền đọc dữ liệu không suy suyển.
+        // CHỈ ô Xem của chính màn này mở menu (chủ chốt 28/09/2026: "tôi có bật xem đâu mà hiển
+        // thị"). Trước đó thêm danh sách `modules` gồm bao_gia · kho · san_xuat · dm_giay · ke_toan
+        // — cấp Xem Báo giá là mục này tự hiện dù ô của nó TẮT. Máy chủ đã thu cổng đọc theo.
         //
-        // ⚠️ CỐ Ý THIẾU "thu_mua" (chủ chốt 15/08/2026: "tôi chỉ cấp quyền cho mình nhìn thấy
-        // menu thu mua thôi"). Người mua hàng VẪN đọc được YCMH ở máy chủ — bắt buộc, vì màn Mua
-        // hàng gọi thẳng API đó để nạp ô chọn nguồn (`loadSources`). Chỉ là không tự động hiện
-        // thêm một mục menu khi quản trị mới cấp mỗi ô Mua hàng; muốn có menu thì cấp ô
-        // "Yêu cầu mua hàng". Gỡ dòng ngoại lệ trong `test_giao_dien_khop_may_chu.py` nếu đảo lại.
-        modules: [
-          "yeu_cau_mua_hang",
-          "bao_gia",
-          "kho",
-          "san_xuat",
-          "dm_giay",
-          "ke_toan",
-        ],
+        // `thu_mua` vẫn đọc được YCMH ở máy chủ (màn Mua hàng nạp ô chọn nguồn) nhưng KHÔNG mở
+        // menu — khai lý do ở `MENU_YCMH_CO_Y_AN` trong `test_giao_dien_khop_may_chu.py`.
+        module: "yeu_cau_mua_hang",
       },
       { id: "mua-hang", label: "Mua hàng", icon: "bag", module: "thu_mua" },
       { id: "nha-cung-cap", label: "Nhà cung cấp", icon: "truck", module: "nha_cung_cap" },
@@ -610,14 +598,13 @@ function NavRow({ item, activeId, isOpen, badge, coCon, dangGap, onSelect, onTog
       >
         <Icon name={item.icon} className="sidebar__icon" />
         <span className="sidebar__label">{item.label}</span>
+        {/* Chỉ CHẤM ĐỎ, không in số (chủ chốt 29/09/2026). */}
         {badge != null && badge > 0 && (
           <span
             className="sidebar__badge"
-            aria-label={`${badge} thông báo chưa đọc`}
-            title={`${badge} thông báo chưa đọc`}
-          >
-            {badge > 99 ? "99+" : badge}
-          </span>
+            aria-label="Có việc mới"
+            title="Có việc mới"
+          />
         )}
         {hasChildren && (
           <Icon
