@@ -23,8 +23,7 @@ from sqlalchemy.orm import Session
 
 from ...models.san_xuat import (
     CV_HOAN_THANH,
-    NHOM_DONG_DU,
-    NHOM_DONG_THIEU,
+    NHOM_DONG,
     SanXuatNhom,
 )
 from ...repositories.audit_repo import AuditLogRepository
@@ -148,12 +147,12 @@ def tu_dong_dong_neu_du(
     hoạch SX) khi có đóng; None khi chưa đóng."""
     repo = SanXuatRepository(db)
     nhom = repo.nhom(nhom_id)
-    if nhom is None or nhom.trang_thai in (NHOM_DONG_DU, NHOM_DONG_THIEU):
+    if nhom is None or nhom.trang_thai == NHOM_DONG:
         return None
     _n, dk, _so_lieu = _danh_gia(db, nhom_id)
     if not all(d["dat"] for d in dk):
         return None
-    nhom.trang_thai = NHOM_DONG_DU
+    nhom.trang_thai = NHOM_DONG
     nhom.version += 1
     AuditLogRepository(db).create(
         actor_user_id=getattr(actor, "id", None),
@@ -186,7 +185,7 @@ def dong_thieu(
     nhom = repo.nhom(nhom_id)
     if nhom is None:
         raise ValueError("Không tìm thấy nhóm thành phẩm.")
-    if nhom.trang_thai in (NHOM_DONG_DU, NHOM_DONG_THIEU):
+    if nhom.trang_thai == NHOM_DONG:
         raise ValueError("Nhóm đã đóng, không thể đóng thiếu lần nữa.")
     if expected_version is not None and expected_version != nhom.version:
         raise ValueError("Nhóm vừa được cập nhật, hãy tải lại rồi thao tác.")
@@ -196,7 +195,7 @@ def dong_thieu(
     if thieu:
         raise ValueError("Chưa thể đóng thiếu — " + "; ".join(d["ten"] for d in thieu) + ".")
 
-    nhom.trang_thai = NHOM_DONG_THIEU
+    nhom.trang_thai = NHOM_DONG
     nhom.version += 1
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None),

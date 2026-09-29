@@ -8,7 +8,7 @@ from datetime import date
 from app.models.delivery import LG_DA_HUY, LG_THANH_CONG, DeliveryTrip
 from app.models.gia_cong_ngoai import NOI_VE_KHACH, NOI_VE_KHO, GiaCongNgoai
 from app.models.lsx import Lsx
-from app.models.san_xuat import CV_HOAN_THANH, NHOM_DONG_DU, NHOM_DONG_THIEU, SanXuatNhom
+from app.models.san_xuat import CV_HOAN_THANH, NHOM_DONG as NHOM_DONG_DU, NHOM_DONG as NHOM_DONG_THIEU, SanXuatNhom
 from app.models.san_xuat_kcs import SanXuatKcsBatch
 from app.models.stock_request import REQ_CANCELLED, StockRequest
 from app.models.stock_voucher import VOUCHER_DRAFT, VOUCHER_NHAP, StockVoucher

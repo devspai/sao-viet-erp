@@ -16342,3 +16342,29 @@ def _migrate_index_cham_cong(db) -> None:
 
 
 MIGRATIONS.append(("0345_index_cham_cong", _migrate_index_cham_cong))
+
+
+def _migrate_dong_lenh_thu_cong(db) -> None:
+    """mg 0346 — đóng lệnh THỦ CÔNG (spec 2026-09-29-dong-lenh-thu-cong-design.md).
+
+    Nhóm thôi phân biệt đủ/thiếu: `closed_full`/`closed_short` → `closed`; `waiting_conditions` (không
+    ai ghi) → `in_production`. Lệnh của nhóm đã đóng mà còn `da_phat_hanh` → `da_dong`. Raw SQL đích
+    danh cột, chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if not {"san_xuat_nhom", "san_xuat_nhom_lsx", "lsx"} <= bang:
+        return
+    db.execute(text(
+        "UPDATE san_xuat_nhom SET trang_thai = 'closed' "
+        "WHERE trang_thai IN ('closed_full', 'closed_short')"))
+    db.execute(text(
+        "UPDATE san_xuat_nhom SET trang_thai = 'in_production' "
+        "WHERE trang_thai = 'waiting_conditions'"))
+    db.execute(text(
+        "UPDATE lsx SET trang_thai = 'da_dong' WHERE trang_thai = 'da_phat_hanh' AND id IN ("
+        "SELECT tv.lsx_id FROM san_xuat_nhom_lsx tv JOIN san_xuat_nhom n ON n.id = tv.nhom_id "
+        "WHERE n.trang_thai = 'closed')"))
+    db.commit()
+
+
+MIGRATIONS.append(("0346_dong_lenh_thu_cong", _migrate_dong_lenh_thu_cong))

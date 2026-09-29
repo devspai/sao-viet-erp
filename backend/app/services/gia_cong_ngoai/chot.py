@@ -11,7 +11,7 @@ from collections.abc import Callable
 from sqlalchemy.orm import Session
 
 from ...models.gia_cong_ngoai import KIEU_MOT_PHAN, NOI_VE_KHACH, NOI_VE_KHO, NOI_VE_XUONG, _utcnow
-from ...models.san_xuat import CV_HOAN_THANH, CV_PHAT_HANH, NHOM_DANG_SX, NHOM_DONG_DU, NHOM_DONG_THIEU
+from ...models.san_xuat import CV_HOAN_THANH, CV_PHAT_HANH, NHOM_DANG_SX, NHOM_DONG
 from ...models.san_xuat_san_luong import BG_DE_XUAT, SanXuatBatch
 from ...models.stock_request import REQ_CANCELLED
 from ...repositories.audit_repo import AuditLogRepository
@@ -97,13 +97,13 @@ def _nhom_ids(db: Session, gcn, cuoi) -> list[int]:
 def _go_kcs_va_nhom(db: Session, *, user, gcn, cuoi) -> None:
     sx = SanXuatRepository(db)
     nhoms = [n for n in (sx.nhom(i) for i in _nhom_ids(db, gcn, cuoi)) if n is not None]
-    if any(n.trang_thai == NHOM_DONG_THIEU for n in nhoms):
+    if any(n.trang_thai == NHOM_DONG for n in nhoms):
         raise ValueError("Trưởng KCS đã đóng thiếu nhóm thành phẩm này — không mở lại được.")
     kcs_repo = SanXuatKcsRepository(db)
     for k in kcs_repo.cac_kcs_batch(cuoi.id):
         db.delete(k)
     for nhom in nhoms:
-        if nhom.trang_thai == NHOM_DONG_DU:
+        if nhom.trang_thai == NHOM_DONG:
             # Chính số chốt đã làm nhóm đủ ⇒ gỡ số thì nhóm mở lại.
             nhom.trang_thai = NHOM_DANG_SX
             nhom.version += 1
@@ -339,7 +339,7 @@ def ly_do_khong_mo_lai(db: Session, gcn, *, pc=None, cuoi=None) -> str | None:
     sx = SanXuatRepository(db)
     for nhom_id in _nhom_ids(db, gcn, cuoi):
         nhom = sx.nhom(nhom_id)
-        if nhom is not None and nhom.trang_thai == NHOM_DONG_THIEU:
+        if nhom is not None and nhom.trang_thai == NHOM_DONG:
             return "Trưởng KCS đã đóng thiếu nhóm thành phẩm này — không mở lại được."
     if gcn.noi_ve == NOI_VE_KHO:
         req_repo = StockRequestRepository(db)

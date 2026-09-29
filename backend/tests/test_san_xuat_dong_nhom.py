@@ -21,8 +21,8 @@ import pytest
 
 from app.models.san_xuat import (
     CV_HOAN_THANH,
-    NHOM_DONG_DU,
-    NHOM_DONG_THIEU,
+    NHOM_DONG as NHOM_DONG_DU,
+    NHOM_DONG as NHOM_DONG_THIEU,
     SanXuatCongViec,
 )
 from app.models.san_xuat_san_luong import SanXuatBatch
