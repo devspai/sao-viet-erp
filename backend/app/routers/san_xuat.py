@@ -38,6 +38,7 @@ from ..deps import (
 from ..models.user import User
 from ..doi_tuong_nhan import MAN_KHO, MAN_THEO_LENH, hop, kem_ban_to
 from ..realtime import hub, phat_ban_giao, phat_dong_nhom
+from ..services.thong_bao_man import bao, kenh_to
 from ..repositories.san_xuat_repo import SanXuatRepository
 from ..storage import get_storage, make_key, url_from_key
 from ..tai_len import doc_gioi_han
@@ -141,6 +142,21 @@ def _phat_sse(res: dict) -> None:
         hub.publish(uid, {"type": "san_xuat_duoc_giao_viec",
                           "cong_viec_id": res.get("cong_viec_id")})
 
+
+
+def _cham_to(db: Session, to_id: int | None, loai: str, actor_id: int) -> None:
+    """Chấm đỏ trên mục bàn của tổ `to_id` (kênh `to_sx_<id>`)."""
+    if to_id:
+        bao(db, kenh=kenh_to(to_id), loai=loai, actor_id=actor_id)
+
+
+def _cham_kcs(db: Session, res: dict, actor_id: int) -> None:
+    """KCS bắt lỗi quy về tổ (tổ công đoạn vừa kiểm, hoặc tổ công đoạn TRƯỚC) ⇒ chấm bàn tổ đó."""
+    to_loi = {m.get("department_id") for m in res.get("bao_loi_nguon") or []}
+    if (res.get("so_loi_cua_to", res.get("so_loi")) or 0) > 0:
+        to_loi.add(res.get("department_id"))
+    for to in sorted(t for t in to_loi if t):
+        _cham_to(db, to, "kcs_bao_loi", actor_id)
 
 
 def _phat_sse_vat_tu(res: dict) -> None:
@@ -753,6 +769,7 @@ def de_xuat_ban_giao(
         dich_cong_viec_id=body.dich_cong_viec_id, don_vi=body.don_vi, batch_ids=body.batch_ids,
     ))
     phat_ban_giao(res)
+    _cham_to(db, res.get("dich_department_id"), "ban_giao_den", user.id)
     return res
 
 
@@ -769,6 +786,7 @@ def sua_ban_giao(
         batch_ids=body.batch_ids, expected_version=body.expected_version,
     ))
     phat_ban_giao(res)
+    _cham_to(db, res.get("dich_department_id"), "ban_giao_den", user.id)
     return res
 
 
@@ -853,6 +871,8 @@ def de_xuat_ho_tro(
         mo_ta=body.mo_ta,
     ))
     _phat_sse_ho_tro(res)
+    for to in {res.get("to_goc_id"), res.get("to_thuc_hien_id")}:
+        _cham_to(db, to, "ho_tro_cheo", user.id)
     return res
 
 
@@ -1001,6 +1021,7 @@ def kiem_cong_doan(
         _don_anh(keys)
         return res
     _phat_sse_kcs(res)
+    _cham_kcs(db, res, user.id)
     _thu_dong_nhom(db, res, user=user, su_kien="kcs_kiem")
     return res
 
@@ -1023,6 +1044,7 @@ def dieu_chinh_kcs(
         ghi_chu=body.ghi_chu, expected_version=body.expected_version,
     ))
     _phat_sse_kcs(res)
+    _cham_kcs(db, res, user.id)
     _thu_dong_nhom(db, res, user=user, su_kien="kcs_dieu_chinh")
     return res
 

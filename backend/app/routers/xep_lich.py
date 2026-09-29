@@ -23,7 +23,10 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import require_permission
+from ..models.lsx import Lsx
 from ..models.user import User
+from ..repositories.san_xuat_repo import SanXuatRepository
+from ..services.thong_bao_man import bao, kenh_to
 from ..doi_tuong_nhan import BAN_TO, MAN_KHVT, MAN_THEO_LENH, NGHE_LENH, hop
 from ..realtime import hub
 from ..services.can_doi_cache import xoa_cache_can_doi
@@ -178,7 +181,21 @@ def xoa_moc(
     except Exception as exc:
         raise _map(exc)
     _phat_lich_doi(lsx_id)
+    _cham_cho_xep(db, lsx_id, user.id)
     return {"ok": True}
+
+
+def _cham_cho_xep(db: Session, lsx_id: int, actor_id: int) -> None:
+    """Thẻ quay lại hàng chờ ⇒ chấm đỏ Xếp lịch."""
+    lsx = db.get(Lsx, lsx_id)
+    if lsx is not None:
+        bao(db, kenh="xep_lich", loai="lenh_cho_xep", actor_id=actor_id, ma=lsx.ma)
+
+
+def _cham_viec_moi(db: Session, lsx_id: int, actor_id: int) -> None:
+    """Phát hành ⇒ chấm đỏ bàn của từng tổ nhận việc."""
+    for to_id in sorted(SanXuatRepository(db).to_cua_lenh([lsx_id])):
+        bao(db, kenh=kenh_to(to_id), loai="viec_moi", actor_id=actor_id)
 
 
 @router.post("/phat-hanh/{lsx_id}", response_model=None)
@@ -194,6 +211,7 @@ def phat_hanh(
         raise _map(exc)
     xoa_cache_can_doi()
     _phat_goi_xuong_xuong(lsx_id)
+    _cham_viec_moi(db, lsx_id, user.id)
     return {"ok": True}
 
 
@@ -228,6 +246,7 @@ def phat_hanh_cap_nhat(
     except Exception as exc:
         raise _map(exc)
     xoa_cache_can_doi()
+    _cham_viec_moi(db, lsx_id, user.id)
     # (Từng bắn thêm `san_xuat_changed` — FE không có nhánh riêng, chỉ nhích nhóm `san_xuat` mà
     # `lsx_changed` ngay trong `_phat_goi_xuong_xuong` đã nhích cho cùng tập người. Bỏ 28/09/2026.)
     _phat_goi_xuong_xuong(lsx_id)
@@ -247,4 +266,5 @@ def thu_hoi(
         raise _map(exc)
     xoa_cache_can_doi()
     _phat_goi_xuong_xuong(lsx_id)
+    _cham_cho_xep(db, lsx_id, user.id)
     return {"ok": True}

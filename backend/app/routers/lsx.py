@@ -65,6 +65,8 @@ from ..services.lsx_service import (
     LsxValidationError,
 )
 from ..services.rbac_service import AuthorizationService
+from ..services.thong_bao_man import bao
+from ..services.xep_lich.service import TT_XEP_DUOC
 from ..services.sequence_service import SequenceService
 
 router = APIRouter(prefix="/api/lsx", tags=["lsx"])
@@ -570,12 +572,16 @@ def set_trang_thai(
 ) -> LsxOut:
     svc = _svc(db)
     try:
-        _guard_scope(db, svc.get(lsx_id), user, authz)
+        truoc = svc.get(lsx_id)
+        _guard_scope(db, truoc, user, authz)
+        tt_cu = truoc.trang_thai
         lsx = svc.set_trang_thai(lsx_id=lsx_id, trang_thai=payload.trang_thai, actor=user)
     except Exception as exc:
         raise _map(exc)
     xoa_cache_can_doi()
     hub.gui({"type": "lsx_changed", "order_id": lsx.order_id}, quyen=NGHE_LENH)
+    if lsx.trang_thai in TT_XEP_DUOC and tt_cu not in TT_XEP_DUOC:
+        bao(db, kenh="xep_lich", loai="lenh_cho_xep", actor_id=user.id, ma=lsx.ma)
     return _out(svc, lsx)
 
 

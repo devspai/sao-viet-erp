@@ -41,6 +41,21 @@ class SanXuatRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+    def to_cua_lenh(self, lsx_ids: list[int]) -> set[int]:
+        """Các tổ đứng tên công việc của những lệnh này — kể cả việc CHUNG của bài ghép chứa lệnh
+        (việc chung mang `lsx_id` NULL). Dùng để báo chấm đỏ bàn tổ khi phát hành."""
+        if not lsx_ids:
+            return set()
+        from ..models.san_xuat import SanXuatCongViec as CV
+
+        bai = self.bai_ghep_ids_cua_lsx(set(lsx_ids))
+        dk = CV.lsx_id.in_(lsx_ids)
+        if bai:
+            dk = or_(dk, CV.bai_ghep_id.in_(bai))
+        return set(self.db.execute(
+            select(CV.department_id).where(dk, CV.department_id.is_not(None)).distinct()
+        ).scalars())
+
     # ================= ĐỒ THỊ LIÊN THÔNG =================
 
     def bai_ghep_ids_cua_lsx(self, lsx_ids: set[int]) -> set[int]:
