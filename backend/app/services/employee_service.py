@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
+from ..storage import get_storage, key_from_url
 from ..models.role import SCOPE_ALL
 from ..models.employee import (
     ATTACHMENT_DOC_KINDS,
@@ -468,7 +469,7 @@ class EmployeeService:
                 effective_from=today,
                 created_by=actor.id,
             )
-            push_shift_changes([log] if log is not None else [])
+            push_shift_changes([log] if log is not None else [], db=self.employees.db)
         self._sync_user_from_employee(employee)  # Đ1: đồng bộ tên/ảnh/phòng xuống tài khoản
         self.audit.create(
             actor_user_id=actor.id,
@@ -520,7 +521,7 @@ class EmployeeService:
             detail=(f"{employee.code} → ca #{shift_id} từ {effective_from.isoformat()}"
                     if shift_id else f"{employee.code} → bỏ ca từ {effective_from.isoformat()}"),
         )
-        push_shift_changes([log] if log is not None else [])
+        push_shift_changes([log] if log is not None else [], db=self.employees.db)
         return employee, assignment
 
     def set_default_shift_bulk(
@@ -575,7 +576,7 @@ class EmployeeService:
                    + (f" · {adjusted} NV lùi về ngày vào làm" if adjusted else "")
                    + (f" · {len(failed)} NV bị bỏ qua" if failed else ""),
         )
-        notified, not_notified = push_shift_changes(logs)
+        notified, not_notified = push_shift_changes(logs, db=self.employees.db)
         return {"updated": updated, "adjusted": adjusted, "failed": failed,
                 "changed": len(logs), "notified": notified, "not_notified": not_notified}
 
@@ -611,7 +612,7 @@ class EmployeeService:
             actor_user_id=actor.id, action="delete_shift_assignment",
             target=f"employee:{employee.id}", detail=f"{employee.code} → xóa mốc #{assignment_id}",
         )
-        push_shift_changes([log] if log is not None else [])
+        push_shift_changes([log] if log is not None else [], db=self.employees.db)
         return employee
 
     def list_shift_assignments(self, *, employee_id: int, scope: str, actor):
@@ -1122,10 +1123,17 @@ class EmployeeService:
         att = self.employees.get_attachment(attachment_id)
         if att is None or att.employee_id != employee.id:
             raise EmployeeNotFound("Không tìm thấy tệp đính kèm.")
+        file_url, file_name = att.file_url, att.file_name
         self.employees.delete_attachment(att)
         self.audit.create(
             actor_user_id=actor.id,
             action="employee_delete_attachment",
             target=f"employee:{employee.id}",
-            detail=f"{employee.code} xóa tệp {att.file_name}",
+            detail=f"{employee.code} xóa tệp {file_name}",
         )
+        # Xoá luôn object trong kho tệp, SAU commit (xoá trước mà commit gãy thì dòng còn đó trỏ
+        # vào tệp đã mất). Trước đây chỉ xoá dòng DB: bản scan CCCD / hợp đồng vẫn nằm trong kho
+        # và vẫn tải được qua URL cũ. `delete` là best-effort, không raise.
+        key = key_from_url(file_url)
+        if key:
+            get_storage().delete(key)

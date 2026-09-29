@@ -1053,10 +1053,13 @@ def quyen_mac_dinh() -> dict[str, dict]:
     }
 
 
-def seed_roles(db: Session) -> None:
+def seed_roles(db: Session, *, chi_phong: str | None = None) -> None:
+    """`chi_phong`: chỉ dựng vai của đúng phòng đó (lệnh `app.khoi_tao_admin` dùng cho Ban giám đốc)."""
     depts = DepartmentRepository(db)
     roles = RoleRepository(db)
     for dept_name, role_name, perms in ROLES:
+        if chi_phong is not None and dept_name != chi_phong:
+            continue
         dept = depts.get_by_name(dept_name)
         if dept is None:
             continue
@@ -2018,7 +2021,7 @@ def backfill_user_codes(db: Session) -> None:
         db.commit()
 
 
-def backfill_employee_profiles(db: Session) -> None:
+def backfill_employee_profiles(db: Session, *, chi_user_id: int | None = None) -> None:
     """LUẬT: mọi tài khoản đăng nhập PHẢI thuộc một hồ sơ nhân viên — KHÔNG trừ ai, kể cả tài
     khoản hệ thống `admin` (chủ đầu tư chốt: admin có hồ sơ TRỐNG, HCNS sửa sau). Tạo hồ sơ cho
     mọi tài khoản còn mồ côi (tài khoản demo cũ hoặc dữ liệu cũ có trước luật này). Idempotent:
@@ -2036,6 +2039,8 @@ def backfill_employee_profiles(db: Session) -> None:
     repo = EmployeeRepository(db)
     users = UserRepository(db)
     for u in users.list_all():
+        if chi_user_id is not None and u.id != chi_user_id:
+            continue
         if repo.get_by_user_id(u.id) is not None:
             continue
         emp = repo.create(
@@ -3092,34 +3097,51 @@ def seed_ca_nen_san_xuat(db: Session) -> None:
     db.commit()
 
 
-def seed_all(db: Session) -> None:
-    """Full idempotent seed: RBAC catalog/roles, the admin user and its assignment.
-
-    Sample Kinh doanh staff + customers (spec-06 demo data) are seeded ONLY when
-    `SEED_DEMO=true` (dev / browser-validate) — off by default so the automated test
-    suite keeps a minimal, predictable dataset (e.g. RBAC delete-guard tests that assume
-    the Kinh doanh department has no users).
-    """
+def dong_bo_danh_muc_he_thong(db: Session) -> None:
+    """Chạy MỖI LẦN khởi động, bất kể `SEED_DEMO`. KHÔNG phải seed dữ liệu: đây là danh sách MÀN
+    HÌNH do code khai (`MODULES`) — `role_permissions.module_key` trỏ FK về `modules.key`, thiếu
+    hàng là không cấp nổi quyền cho màn mới ship. Cộng dòng quyền theo tổ (`to_sx_<id>`, mg 0302)
+    soi theo cây phòng ban NGƯỜI DÙNG đang có (chỉ phản chiếu, xoá tổ thì gỡ dòng, không đẻ tổ).
+    Người dùng không tạo/xoá được hàng `modules` nào nên không có gì của họ bị hồi sinh."""
     seed_modules(db)
-    seed_departments(db)
-    # Dòng quyền theo tổ (`to_sx_<id>`, mg 0302) khớp cây phòng ban hiện tại — KHÔNG gated demo:
-    # phòng ban sửa ở DB thật cũng phải có dòng quyền tương ứng lúc khởi động.
     from .services.quyen_to import dong_bo_dong_quyen_to
     dong_bo_dong_quyen_to(db)
+
+
+def seed_all(db: Session) -> None:
+    """Seeder lúc khởi động. `SEED_DEMO=false` ⇒ KHÔNG GHI GÌ vào DB — tuyệt đối, không có ngoại lệ
+    "danh mục nền" (chủ chốt 28/09/2026).
+
+    Trước đó phòng ban · vai · admin · máy · công đoạn · đơn vị · ngày lễ · thuế · khoản lương seed
+    NGOÀI cổng, tra theo TÊN/MÃ ⇒ phòng người dùng xoá trên prod (Hành chính nhân sự, Kinh doanh,
+    Kho, Mua hàng) mọc lại với mã PB mới sau mỗi lần deploy.
+
+    DB prod trắng lấy tài khoản quản trị bằng lệnh chạy tay MỘT lần: `python -m app.khoi_tao_admin`.
+    """
+    if not settings.seed_demo:
+        return
+    seed_du_lieu(db, demo=True)
+
+
+def seed_du_lieu(db: Session, *, demo: bool) -> None:
+    """Đổ dữ liệu vào DB. `demo=False` = bộ NỀN tối thiểu (phòng ban · vai · admin · máy · công
+    đoạn · đơn vị · lễ · thuế) — CHỈ bộ test gọi thẳng (`tests/conftest.py`). Khởi động app thì đi
+    qua `seed_all`, và chỉ khi `SEED_DEMO=true`."""
+    seed_departments(db)
+    # SAU phòng ban: dòng quyền theo tổ soi theo cây vừa dựng; TRƯỚC `seed_roles` (FK modules.key).
+    dong_bo_danh_muc_he_thong(db)
     seed_unit_levels(db)
     seed_roles(db)
     seed_admin(db)
     link_admin(db)
     seed_machines(db)
     seed_operations(db)
-    seed_special_days(db)  # dữ liệu vận hành thật (không gated demo) — nền lịch/lễ dùng chung
-    # Đơn vị đo & quy đổi: nền cho khoán · kho · mua hàng. KHÔNG gated demo — DB thật không bật
-    # SEED_DEMO, mà thiếu bảng này thì mọi quy đổi trả "đơn vị chưa khai".
+    seed_special_days(db)  # ngày lễ dương cố định
     from .seed_rebuild import seed_don_vi_do
-    seed_don_vi_do(db)
+    seed_don_vi_do(db)  # đơn vị đo & cặp quy đổi (khoán · kho · mua hàng)
     seed_payroll_components(db)  # danh mục khoản thu nhập + cờ chịu thuế TNCN
-    seed_pit_brackets(db)  # biểu thuế TNCN — dữ liệu vận hành thật (Lương đọc tính thuế)
-    if settings.seed_demo:
+    seed_pit_brackets(db)  # biểu thuế TNCN
+    if demo:
         seed_kd_staff(db)
         seed_kho_staff(db)
         seed_employees(db)
@@ -3175,14 +3197,12 @@ def seed_all(db: Session) -> None:
         # danh mục máy (`_ensure_may_nang_luc` ở trên) và vai "Thợ sửa chữa" từ seed RBAC.
         from .seed_ky_thuat_may import seed_ky_thuat_may
         seed_ky_thuat_may(db)
-    # Danh mục Nhóm máy — vận hành thật, KHÔNG gated demo (thiếu nó thì ô "Nhóm máy" trống trơn,
-    # không khai được máy nào). Chạy SAU khối demo để gom luôn nhóm của đám máy vừa seed.
+    # Danh mục Nhóm máy — SAU khối demo để gom luôn nhóm của đám máy vừa seed.
     from .seed_rebuild import seed_nhom_may
     seed_nhom_may(db)
     backfill_user_codes(db)
-    # Chạy NGOÀI khối demo: luật "mọi tài khoản phải có hồ sơ" áp cho mọi DB (dev/live),
-    # và phải chạy SAU các seed tài khoản demo ở trên để dọn luôn đám vừa tạo.
+    # "Mọi tài khoản phải có hồ sơ" — SAU các seed tài khoản demo ở trên để dọn luôn đám vừa tạo.
     backfill_employee_profiles(db)
-    if settings.seed_demo:
+    if demo:
         # Ca nền khối SX — CUỐI CÙNG: cần cả hồ sơ do backfill ở trên vừa đẻ ra.
         seed_ca_nen_san_xuat(db)

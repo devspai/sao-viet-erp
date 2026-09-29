@@ -28,7 +28,7 @@ async function batLoi(status: number, body: unknown): Promise<ApiError> {
 describe("thông báo lỗi 422", () => {
   it("nêu TÊN TRƯỜNG sai, không nói trống không", async () => {
     // 422 của FastAPI: `detail` là MẢNG. Trước 15/08/2026 chỉ nhánh chuỗi được xử ⇒ mọi lỗi kiểm
-    // dữ liệu của cả app hiện đúng câu "Request failed (422)." — người dùng không biết sửa ô nào.
+    // dữ liệu của cả app hiện đúng câu chung "Request failed (422)." (nay là "Yêu cầu thất bại (mã 422).") — người dùng không biết sửa ô nào.
     const e = await batLoi(422, {
       detail: [
         { type: "greater_than", loc: ["body", "nang_suat"], msg: "Input should be greater than 0" },
@@ -36,7 +36,7 @@ describe("thông báo lỗi 422", () => {
     });
     expect(e.status).toBe(422);
     expect(e.message).toContain("nang_suat");
-    expect(e.message).not.toContain("Request failed");
+    expect(e.message).not.toContain("Yêu cầu thất bại");
   });
 
   it("gộp nhiều lỗi nhưng CẮT ở 3 — form sai chục ô thì banner dài hơn cả form", async () => {

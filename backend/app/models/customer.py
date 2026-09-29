@@ -291,7 +291,7 @@ class CustomerCareTask(Base):
         Integer, ForeignKey("customers.id", ondelete="CASCADE"), index=True, nullable=False
     )
     note: Mapped[str] = mapped_column(String(500), nullable=False)  # việc cần làm
-    due_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    due_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=TASK_OPEN, server_default=TASK_OPEN, index=True
     )

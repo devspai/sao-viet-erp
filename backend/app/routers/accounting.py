@@ -19,6 +19,7 @@ from ..deps import (
     require_any_permission,
     require_permission,
 )
+from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_MUA_KE_TOAN, MAN_NHAN_SU, MAN_THEO_LENH, hop
 from ..models.purchase import PR_DRAFT
 from ..realtime import hub
 from ..models.user import User
@@ -77,8 +78,10 @@ from ..services.accounting_service import (
     AccountingNotFound,
     AccountingService,
     AccountingValidationError,
+    MAX_ATTACHMENT_BYTES,
 )
 from ..services.purchase_service import PurchaseService
+from ..tai_len import doc_gioi_han
 from ..services.order_service import OrderForbidden, OrderNotFound, OrderService
 from ..services.rbac_service import AuthorizationService
 
@@ -131,13 +134,30 @@ def _notify_accounting_changed(
             recipient_user_id=recipient_user_id,
             source_code=code,
         )
-    hub.broadcast({
+    # Nhóm `mua_ke_toan` (mọi màn Thu mua / Kế toán); hoá đơn bán còn nhích nhóm `ban_hang` (Công
+    # nợ phải thu, Phiếu thu, Đơn hàng bán). Người đứng tên phiếu mua (`recipient_user_id`) nhận
+    # đích danh — tin "kế toán đã lập / huỷ chứng từ cho đơn của bạn" là việc của chính họ.
+    quyen = (hop(MAN_MUA_KE_TOAN, MAN_BAN_HANG) if event_type.startswith("sales_invoice")
+             else MAN_MUA_KE_TOAN)
+    hub.gui({
         "type": event_type,
         "code": code,
         "actor_user_id": actor_user_id,
         "recipient_user_id": recipient_user_id,
         **extra,
-    })
+    }, quyen=quyen, nguoi=[recipient_user_id] if recipient_user_id else None)
+
+
+def _phat_gia_cong_chi_doi(svc: AccountingService, gia_cong_ngoai_id: int | None) -> None:
+    """Phiếu chi gia công ngoài vừa lập / huỷ ⇒ hàng "Gia công chờ chi" + badge Phiếu chi (nhóm
+    `mua_ke_toan`) và khối Gia công ngoài trên lệnh / bài ghép (màn theo lệnh, nhóm `san_xuat`).
+    Bàn tổ không bày tiền gia công nên không nhận."""
+    hub.gui({"type": "gia_cong_cho_chi_changed"}, quyen=MAN_MUA_KE_TOAN)
+    hub.gui({
+        "type": "gia_cong_ngoai_changed",
+        "gia_cong_ngoai_id": gia_cong_ngoai_id,
+        **_khoa_gia_cong(svc, gia_cong_ngoai_id),
+    }, quyen=MAN_THEO_LENH)
 
 
 def _khoa_gia_cong(svc: AccountingService, gia_cong_ngoai_id: int | None) -> dict:
@@ -850,12 +870,7 @@ def create_payment_voucher(
     if row.get("source_type") == "gia_cong_ngoai":
         # Hàng "Gia công chờ chi" + badge Phiếu chi + khối Gia công ngoài trên lệnh đổi ngay.
         # `lsx_id` để FE nạp lại đúng khối trên màn lệnh (Task 13 bắt cả hai khoá).
-        hub.broadcast({"type": "gia_cong_cho_chi_changed"})
-        hub.broadcast({
-            "type": "gia_cong_ngoai_changed",
-            "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id"),
-            **_khoa_gia_cong(svc, row.get("gia_cong_ngoai_id")),
-        })
+        _phat_gia_cong_chi_doi(svc, row.get("gia_cong_ngoai_id"))
     return PaymentVoucherOut(**row)
 
 
@@ -924,7 +939,8 @@ def create_payment_vouchers_from_advances(
     if rows:
         _notify_accounting_changed(rows[0].get("code"), voucher_code=rows[0].get("code"),
                                    actor_user_id=user.id)
-        hub.broadcast({"type": "advance_pending_changed", "code": rows[0].get("code")})
+        # Tạm ứng thuộc nhóm `nhan_su` — màn Lương (tab Tạm ứng) + các màn nhân sự cùng nhóm.
+        hub.gui({"type": "advance_pending_changed", "code": rows[0].get("code")}, quyen=MAN_NHAN_SU)
     return VoucherBatchOut(
         vouchers=[PaymentVoucherOut(**r) for r in rows],
         total_amount=sum(int(r.get("amount_vnd") or 0) for r in rows),
@@ -979,15 +995,10 @@ def cancel_payment_voucher(
     )
     if row.get("source_type") == "salary_advance":
         # Huỷ phiếu chi tạm ứng ⇒ cả lô về "Chờ chi" — màn Tạm ứng của HCNS phải thấy ngay.
-        hub.broadcast({"type": "advance_pending_changed", "code": row.get("code")})
+        hub.gui({"type": "advance_pending_changed", "code": row.get("code")}, quyen=MAN_NHAN_SU)
     if row.get("source_type") == "gia_cong_ngoai":
         # Huỷ phiếu chi gia công ngoài ⇒ lần đó về lại "Chờ chi" ngay.
-        hub.broadcast({"type": "gia_cong_cho_chi_changed"})
-        hub.broadcast({
-            "type": "gia_cong_ngoai_changed",
-            "gia_cong_ngoai_id": row.get("gia_cong_ngoai_id"),
-            **_khoa_gia_cong(svc, row.get("gia_cong_ngoai_id")),
-        })
+        _phat_gia_cong_chi_doi(svc, row.get("gia_cong_ngoai_id"))
     return PaymentVoucherOut(**row)
 
 
@@ -1020,7 +1031,8 @@ def upload_payment_voucher_attachment(
     user: Annotated[User, Depends(require_permission(MODULE_PC, "create"))],
     file: UploadFile = File(...),
 ):
-    data = file.file.read()
+    # Tệp rỗng để service báo bằng câu của nó.
+    data = doc_gioi_han(file, MAX_ATTACHMENT_BYTES, cho_rong=True)
     try:
         row = svc.add_voucher_attachment(
             voucher_id,
@@ -1220,7 +1232,7 @@ def upload_payment_receipt_attachment(
     user: Annotated[User, Depends(require_permission(MODULE_PT, "create"))],
     file: UploadFile = File(...),
 ):
-    data = file.file.read()
+    data = doc_gioi_han(file, MAX_ATTACHMENT_BYTES, cho_rong=True)
     try:
         row = svc.add_receipt_attachment(
             receipt_id,

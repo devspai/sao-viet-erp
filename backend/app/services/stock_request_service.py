@@ -9,8 +9,9 @@ Ba luật nghiệp vụ sống ở đây (router chỉ điều phối):
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+from .thong_bao_man import bao
 from ..models.document_sequence import (
     SEQ_DOC_TYPE_STOCK_REQUEST_IN,
     SEQ_DOC_TYPE_STOCK_REQUEST_OUT,
@@ -88,8 +89,43 @@ class StockRequestService:
 
     # --- Tạo / sửa ---------------------------------------------------------
 
+    # Cùng người, cùng nội dung trong khoảng này = một lần bấm "Gửi" bị gửi lại (máy chủ chậm, bấm
+    # thêm; mạng tự thử lại). Trước đây ra HAI yêu cầu y hệt, kho cấp hàng hai lần.
+    CHONG_GUI_LAI_GIAY = 30
+
+    def _yeu_cau_trung(self, *, user, loai: str, lines: list[dict], header: dict) -> StockRequest | None:
+        def so(x):
+            return None if x in (None, "") else round(float(x), 3)
+
+        def chu(x):
+            return (x or "").strip() or None
+
+        def dau_van(kho_id, ghi_chu, dong) -> tuple:
+            return (kho_id, chu(ghi_chu), tuple(sorted((
+                (d["hang_loai"], int(d["hang_id"]), (d.get("dvt") or "").strip(),
+                 so(d["sl_de_nghi"]), d.get("lsx_id"), d.get("bai_ghep_id"),
+                 so(d.get("don_gia")) if loai == "NHAP" else None,
+                 so(d.get("don_gia_ban")) if loai == "NHAP" else None, chu(d.get("ghi_chu")))
+                for d in dong
+            ), key=repr)))
+
+        can_tim = dau_van(header.get("kho_id"), header.get("ghi_chu"), lines)
+        if self.CHONG_GUI_LAI_GIAY <= 0:
+            return None
+        tu_luc = datetime.now(timezone.utc) - timedelta(seconds=self.CHONG_GUI_LAI_GIAY)
+        for req in self.requests.vua_tao_boi(nguoi_tao_id=user.id, loai=loai, tu_luc=tu_luc):
+            co = dau_van(req.kho_id, req.ghi_chu, [
+                {"hang_loai": ln.hang_loai, "hang_id": ln.hang_id, "dvt": ln.dvt,
+                 "sl_de_nghi": ln.sl_de_nghi, "lsx_id": ln.lsx_id, "bai_ghep_id": ln.bai_ghep_id,
+                 "don_gia": ln.don_gia, "don_gia_ban": ln.don_gia_ban, "ghi_chu": ln.ghi_chu}
+                for ln in req.lines
+            ])
+            if co == can_tim:
+                return req
+        return None
+
     def create(self, *, user, loai: str, lines: list[dict], ma: str | None = None,
-               commit: bool = True, **header) -> StockRequest:
+               commit: bool = True, chong_gui_lai: bool = False, **header) -> StockRequest:
         """`commit=False` = KHÔNG tự chốt giao dịch, chỉ `flush()` xuống DB.
 
         Dành cho người gọi đang ôm một giao dịch lớn hơn (`san_xuat/vat_tu_de_nghi.tao()` khoá công
@@ -99,6 +135,10 @@ class StockRequestService:
 
         Đẩy tin thì KHÔNG chạy khi `commit=False` — xem `thong_bao_yeu_cau_moi`, người gọi phải tự
         gọi nó SAU khi chốt giao dịch. Với `commit=True` (mọi cửa cũ) hành vi y như trước.
+
+        `chong_gui_lai=True` (chỉ cửa tạo từ MÀN HÌNH): yêu cầu y hệt của cùng người trong
+        `CHONG_GUI_LAI_GIAY` giây ⇒ trả lại yêu cầu đó, không tạo thêm. Luồng nội bộ (đề nghị vật tư
+        của xưởng, giao hàng…) không bật — chúng tự quyết số yêu cầu cần sinh.
         """
         if loai not in REQUEST_KINDS:
             raise StockRequestError("Loại yêu cầu không hợp lệ (chỉ NHAP hoặc XUAT).")
@@ -109,6 +149,11 @@ class StockRequestService:
         # Bộ phận mặc định = bộ phận người tạo, để scope `department` và ô "Bộ phận" trên
         # bản in luôn có dữ liệu mà không bắt người dùng chọn lại.
         header.setdefault("bo_phan_id", user.department_id)
+        if chong_gui_lai and not (ma or "").strip():
+            self.requests.khoa_nguoi_tao(user.id)
+            da_co = self._yeu_cau_trung(user=user, loai=loai, lines=lines, header=header)
+            if da_co is not None:
+                return da_co
 
         doc_type = (
             SEQ_DOC_TYPE_STOCK_REQUEST_IN if loai == REQ_NHAP
@@ -602,6 +647,9 @@ class StockRequestService:
         ]
         if not uids:
             return
+        # Chấm đỏ mục Kho cho đúng những người xử lý nhận chuông (commit cùng lượt chuông bên dưới).
+        bao(db, kenh="kho", loai="kho_yeu_cau_moi", actor_id=req.nguoi_tao_id, nguoi_nhan=uids,
+            ma=req.ma, commit=False)
         NotificationRepository(db).add_many(
             uids, loai="kho_moi",
             tieu_de=f"Yêu cầu {dir_} mới chờ cấp",
@@ -616,6 +664,9 @@ class StockRequestService:
         Yêu cầu tại đúng yêu cầu (link_loai='kho_mine')."""
         if not req.nguoi_tao_id:
             return
+        # Chấm đỏ mục Kho của người tạo (phản hồi kho) — đi chung commit của chuông bên dưới.
+        bao(self.requests.db, kenh="kho", loai="kho_phan_hoi", actor_id=None,
+            nguoi_nhan=req.nguoi_tao_id, ma=req.ma, commit=False)
         NotificationRepository(self.requests.db).add(
             user_id=req.nguoi_tao_id, loai=loai,
             tieu_de=tieu_de, noi_dung=req.ma,

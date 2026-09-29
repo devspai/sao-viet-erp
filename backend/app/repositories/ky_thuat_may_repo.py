@@ -7,11 +7,13 @@ Ba câu hỏi service hỏi nhiều nhất, gom hết vào đây để lớp tr�
 """
 from __future__ import annotations
 
-import re
 from datetime import date, timedelta
 
 from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.orm import Session
+
+from ..models.document_sequence import SEQ_YEAR_GLOBAL
+from .document_sequence_repo import DocumentSequenceRepository
 
 from ..models.ky_thuat_may import (
     GIAI_DOAN_SAU,
@@ -598,32 +600,12 @@ class KyThuatMayRepository:
     # ================= Dùng chung =================
 
     def _next_ma(self, col, prefix: str) -> str:
-        """Mã kế tiếp — chỉ tăng, chấp nhận có khoảng trống.
-
-        Hỏi DB đúng vài dòng thay vì kéo CẢ cột mã về rồi regex từng dòng (ticker sinh 10 phiếu là
-        10 lần kéo cả bảng). Sắp **dài trước, lớn sau** nên vẫn đúng khi vượt 4 chữ số: `PBT-10000`
-        dài hơn `PBT-9999`, còn trong cùng độ dài thì mã có đệm số 0 so chuỗi cũng là so số.
-        `limit(5)` để một mã lạc kiểu `PBT-XX` không làm tắc — bỏ qua nó và lấy mã hợp lệ kế tiếp.
-        """
-        rx = re.compile(rf"^{re.escape(prefix)}(\d+)$")
-        rows = self.db.execute(
-            select(col)
-            .where(col.like(f"{prefix}%"))
-            .order_by(func.length(col).desc(), col.desc())
-            .limit(5)
-        ).scalars()
-        for ma in rows:
-            m = rx.match((ma or "").strip().upper())
-            if m:
-                return f"{prefix}{int(m.group(1)) + 1:04d}"
-        # Cả 5 dòng đầu đều không khớp khuôn ⇒ quét đủ. Không được trả `0001` bừa: mã đó có thể đã
-        # tồn tại và cột `ma` là UNIQUE — vỡ ngay lúc lưu.
-        mx = 0
-        for ma in self.db.execute(select(col).where(col.like(f"{prefix}%"))).scalars():
-            m = rx.match((ma or "").strip().upper())
-            if m:
-                mx = max(mx, int(m.group(1)))
-        return f"{prefix}{mx + 1:04d}"
+        """Mã kế tiếp — chỉ tăng, chấp nhận có khoảng trống. Cấp qua bộ đếm `document_sequences`
+        nên hai người báo hỏng cùng lúc (hay ticker sinh loạt phiếu trong một giao dịch) không nhận
+        trùng mã; bộ đếm tự đẩy lên trên mã lớn nhất đang có."""
+        return DocumentSequenceRepository(self.db).cap_ma(
+            f"ktm:{prefix}", SEQ_YEAR_GLOBAL, col, prefix,
+        )
 
     def _paged(self, base, model, conds, page: int, size: int):
         count_stmt = select(func.count()).select_from(model)

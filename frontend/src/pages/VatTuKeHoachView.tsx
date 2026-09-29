@@ -5,7 +5,7 @@
 //
 // Click vào dòng → Mở Drawer trượt bên phải (.rc-drawer) xem phân bổ trừ tồn qua từng lệnh sản xuất.
 // Tick chọn dòng thiếu → Floating Action Dock ở đáy cho phép tạo Đề nghị mua hàng gộp.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   api,
@@ -121,19 +121,58 @@ export function VatTuKeHoachView({
   // KHÔNG gửi `chi_thieu` theo chip: năm chip lọc ngay trên bảng đã nạp (`nhomsHienThi`), còn
   // gửi lên thì mỗi lần bấm chip là chạy lại cả bảng cân đối toàn xưởng — và số trên các chip
   // khác tụt theo tập đã lọc. Chỉ ô tìm kiếm đi về máy chủ.
+  //
+  // `can-doi` là hàm nặng (duyệt mọi lệnh + bài ghép + lô kho). KHÔNG cho hai lượt chồng nhau: đang
+  // có lượt chạy thì chỉ đánh dấu "cần chạy lại", xong lượt đó mới chạy đúng MỘT lượt nữa (lấy tham
+  // số mới nhất). Sự kiện SSE dồn thì gộp trong 1 giây (xem effect `eventTick` bên dưới).
+  const dangChay = useRef(false);
+  const canChayLai = useRef(false);
+  const napRef = useRef<() => void>(() => {});
   const load = useCallback(() => {
     if (!token) return;
+    if (dangChay.current) {
+      canChayLai.current = true;
+      return;
+    }
+    dangChay.current = true;
     setErr(null);
     api.keHoachVatTu
       .canDoi(token, { q: q.trim() || undefined })
       .then(setData)
-      .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : String(e)));
+      .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : String(e)))
+      .finally(() => {
+        dangChay.current = false;
+        if (canChayLai.current) {
+          canChayLai.current = false;
+          napRef.current();
+        }
+      });
   }, [token, q]);
+  useEffect(() => {
+    napRef.current = load;
+  }, [load]);
 
   useEffect(() => {
     const t = setTimeout(load, q ? 250 : 0);
     return () => clearTimeout(t);
-  }, [load, eventTick, q]);
+  }, [load, q]);
+
+  // Sự kiện (tick nhóm kế hoạch vật tư · sản xuất · kho) ⇒ nạp lại, GỘP trong 1 giây tính từ sự
+  // kiện đầu (cửa sổ cố định: sự kiện dồn liên tục cũng không đẩy lùi lượt nạp mãi).
+  const tickDaNap = useRef(eventTick);
+  const henTick = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (tickDaNap.current === eventTick) return;
+    tickDaNap.current = eventTick;
+    if (henTick.current) return;
+    henTick.current = setTimeout(() => {
+      henTick.current = null;
+      napRef.current();
+    }, 1000);
+  }, [eventTick]);
+  useEffect(() => () => {
+    if (henTick.current) clearTimeout(henTick.current);
+  }, []);
 
   useEffect(() => {
     if (!flash) return;

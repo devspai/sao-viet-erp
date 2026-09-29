@@ -61,7 +61,7 @@ def test_loc_khsx_tinh_cho_moi_lenh_thanh_vien(client, sess, bai):
 def test_sse_mang_di_mang_ca_danh_sach_lenh(client, sess, bai, monkeypatch):
     bg, a, b, lan = bai
     goi = []
-    monkeypatch.setattr(r.hub, "broadcast", lambda e: goi.append(e))
+    monkeypatch.setattr(r.hub, "gui", lambda e, **_k: goi.append(e))
     rs = client.post(f"/api/gia-cong-ngoai/{lan.id}/mang-di", headers=_h(client),
                      json={"version": lan.version})
     assert rs.status_code == 200, rs.text

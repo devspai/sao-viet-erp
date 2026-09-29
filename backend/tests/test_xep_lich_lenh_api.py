@@ -178,8 +178,9 @@ def test_thu_hoi_thieu_ly_do_thi_400_chu_khong_phai_500(client):
 
 # ============================================================== hợp đồng router
 def test_moi_duong_GHI_deu_day_SSE():
-    """Soi NGUỒN chứ không soi hành vi: quên `hub.broadcast` thì màn người khác đứng im mà không
-    test nghiệp vụ nào đỏ — đúng kiểu lỗi lọt lưới."""
+    """Soi NGUỒN chứ không soi hành vi: quên đẩy SSE thì màn người khác đứng im mà không test
+    nghiệp vụ nào đỏ — đúng kiểu lỗi lọt lưới. Đẩy đi qua `_phat_lich_doi` (đặt / bỏ mốc) hoặc
+    `_phat_goi_xuong_xuong` (phát hành / cập nhật / thu hồi — thêm bàn tổ)."""
     from app.routers import xep_lich as r
 
     cay = ast.parse(_inspect.getsource(r))
@@ -187,7 +188,7 @@ def test_moi_duong_GHI_deu_day_SSE():
     thay = {
         n.name for n in ast.walk(cay)
         if isinstance(n, ast.FunctionDef) and n.name in ghi
-        and "hub.broadcast" in ast.unparse(n)
+        and ("_phat_lich_doi(" in ast.unparse(n) or "_phat_goi_xuong_xuong(" in ast.unparse(n))
     }
     assert thay == ghi, f"thiếu SSE ở: {sorted(ghi - thay)}"
 

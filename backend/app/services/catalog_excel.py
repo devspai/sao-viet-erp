@@ -316,7 +316,9 @@ def _chuan_de_so(gt: Any) -> Any:
     if isinstance(gt, str):
         return gt.strip() or None
     if isinstance(gt, (list, tuple)):
-        return [_chuan_de_so(x) for x in gt]
+        # Danh sách RỖNG ≡ ô trống ≡ None: ô "Mã tổ phụ trách" để trống đọc ra None, còn DB lưu `[]`.
+        # Không gộp thì công đoạn chưa gán tổ nào bị đếm "cập nhật" sau mỗi lần xuất rồi nhập lại.
+        return [_chuan_de_so(x) for x in gt] or None
     if isinstance(gt, dict):
         return {k: _chuan_de_so(v) for k, v in sorted(gt.items())}
     return gt
@@ -804,7 +806,7 @@ def nhap_excel(spec: CatalogExcelSpec, svc, InModel, du_lieu: bytes, *,
                 diem.commit()
             except (ValueError, *bat_loi) as e:
                 diem.rollback()
-                kq.loi.append(LoiDong(ten_chinh, so_dong, "—", str(e)))
+                kq.loi.append(LoiDong(ten_chinh, so_dong, getattr(e, "cot", "—"), str(e)))
                 continue
             if obj is not None:
                 cho_ap.append((so_dong, ma, obj))
@@ -961,7 +963,7 @@ def _ghi_mot_dong(spec: CatalogExcelSpec, svc, InModel, ctx: NguCanh, ma: str, c
     Sheet `ap_dung` KHÔNG chạy ở đây — người gọi gom lại chạy sau, xem `nhap_excel`.
     """
     if cu is None:
-        obj = svc.create(_dung_payload(InModel, thong), actor_id=actor_id)
+        obj = svc.create(_dung_payload(InModel, thong, spec), actor_id=actor_id)
         return "tao", obj
 
     doi_chinh = _co_doi(cu, thong, bo_qua)
@@ -969,18 +971,26 @@ def _ghi_mot_dong(spec: CatalogExcelSpec, svc, InModel, ctx: NguCanh, ma: str, c
     if not doi_chinh and not doi_con:
         return "khong_doi", None
 
-    svc.update(cu.id, _dung_payload(InModel, {**_mac_dinh_tu_ban_ghi(InModel, cu), **thong}),
+    svc.update(cu.id, _dung_payload(InModel, {**_mac_dinh_tu_ban_ghi(InModel, cu), **thong}, spec),
                actor_id=actor_id)
     return "sua", cu
 
 
-def _dung_payload(InModel, thong: dict) -> dict:
+class LoiO(ValueError):
+    """Lỗi gắn với MỘT hay vài cột của file — `cot` là tên cột người dùng thấy trên Excel."""
+
+    def __init__(self, msg: str, cot: str):
+        super().__init__(msg)
+        self.cot = cot
+
+
+def _dung_payload(InModel, thong: dict, spec: CatalogExcelSpec | None = None) -> dict:
     from pydantic import ValidationError
 
     try:
         return InModel(**thong).model_dump(exclude_unset=True)
     except ValidationError as e:
-        raise ValueError(_cau_loi_pydantic(e)) from None
+        raise _cau_loi_pydantic(e, spec) from None
 
 
 #: Kiểu giá trị được phép mồi lại từ bản ghi cũ ở `_mac_dinh_tu_ban_ghi` (xem docstring ở đó).
@@ -1014,9 +1024,29 @@ def _mac_dinh_tu_ban_ghi(InModel, obj) -> dict:
     return ra
 
 
-def _cau_loi_pydantic(e) -> str:
-    cot = ", ".join(str(x["loc"][0]) for x in e.errors() if x.get("loc"))
-    return f"Dữ liệu không hợp lệ ({cot})." if cot else "Dữ liệu không hợp lệ."
+def _cau_loi_pydantic(e, spec: CatalogExcelSpec | None = None) -> LoiO:
+    """Lỗi schema → câu gọi theo TÊN CỘT trên file (không phải tên trường trong code)."""
+    nhan_cua = {}
+    for c in (spec.cot if spec is not None else ()):
+        if not c.chi_doc:
+            nhan_cua.setdefault(c.field, c.nhan)
+    thieu: list[str] = []
+    sai: list[str] = []
+    for x in e.errors():
+        if not x.get("loc"):
+            continue
+        truong = str(x["loc"][0])
+        ten = nhan_cua.get(truong, truong)
+        ds = thieu if x.get("type") == "missing" else sai
+        if ten not in ds:
+            ds.append(ten)
+    ngoac = lambda ds: ", ".join(f'"{t}"' for t in ds)  # noqa: E731
+    cau = []
+    if thieu:
+        cau.append(f"Thiếu ô bắt buộc {ngoac(thieu)} — dòng mới phải điền đủ cột này.")
+    if sai:
+        cau.append(f"Giá trị không hợp lệ ở cột {ngoac(sai)}.")
+    return LoiO(" ".join(cau) or "Dữ liệu không hợp lệ.", ", ".join(thieu + sai) or "—")
 
 
 def _co_doi(cu, thong: dict, bo_qua: set[str]) -> bool:

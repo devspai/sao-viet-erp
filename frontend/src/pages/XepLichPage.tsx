@@ -328,7 +328,7 @@ export function XepLichPage({
 
   const kpi = useMemo(() => {
     const tong = dong.length;
-    const daPhatHanh = dong.filter((d) => d.trang_thai === "da_phat_hanh").length;
+    const daPhatHanh = dong.filter((d) => d.trang_thai === "da_phat_hanh" || d.trang_thai === "da_dong").length;
     const tre = dong.filter((d) => (treHan(d) ?? 0) > 0).length;
     const phutChay = phutChayTrongCuaSo(dong, tu, soNgay);
     return { tong, daPhatHanh, tre, tongCho, phutChay };

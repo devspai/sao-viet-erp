@@ -71,6 +71,9 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
   const tuPhucVuGhi = useSelfServiceWrite();
   const [emp, setEmp] = useState<EmployeeDetail | null>(null);
   const [hasEmp, setHasEmp] = useState<boolean | null>(null);
+  // Lỗi đọc hồ sơ (mạng / máy chủ). TÁCH khỏi `hasEmp`: trước đây lỗi gán `hasEmp = false` ⇒ nhân
+  // viên có hồ sơ đọc thấy nhánh "tài khoản chưa gắn hồ sơ" — nói sai sự thật, họ đi hỏi HCNS.
+  const [loiHoSo, setLoiHoSo] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [events, setEvents] = useState<EmployeeEvent[]>([]);
   const [files, setFiles] = useState<Tai<EmployeeAttachment[]>>(DANG_TAI);
@@ -118,7 +121,10 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
 
   const load = useCallback(() => {
     if (!token) return;
-    api.employees.me(token).then((r) => { setHasEmp(r.has_employee); setEmp(r.employee); }).catch(() => setHasEmp(false));
+    setLoiHoSo(null);
+    api.employees.me(token)
+      .then((r) => { setHasEmp(r.has_employee); setEmp(r.employee); })
+      .catch((e: unknown) => setLoiHoSo(e instanceof ApiError ? e.message : "Không đọc được hồ sơ."));
     api.profile(token).then(setProfile).catch(() => setProfile(null));
     api.employees.myEvents(token).then((r) => setEvents(r.items)).catch(() => setEvents([]));
     api.employees.myAttachments(token)
@@ -247,6 +253,13 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
     } catch (e) { setHuyErr(messageFor(e)); setHuyBusy(false); }
   }
 
+  if (hasEmp === null && loiHoSo) {
+    return (
+      <main className="ns">
+        <EmptyState trangThai="loi" loi={loiHoSo} onThuLai={load} />
+      </main>
+    );
+  }
   if (hasEmp === null) return <main className="ns"><p className="ns__empty">Đang tải…</p></main>;
 
   // Nút ✎ overlay trên avatar → mở AvatarModal (dùng chung 2 nhánh).

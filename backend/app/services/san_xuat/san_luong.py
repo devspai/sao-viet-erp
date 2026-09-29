@@ -16,7 +16,7 @@ chủ xưởng: *"ghi nhận thế thôi, đừng có chia bất cứ gì"*.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -43,6 +43,8 @@ _EPS = 0.0005
 _TRANG_THAI_GHI_DUOC = (CV_DANG_CHAY, CV_TAM_DUNG, CV_HOAN_THANH)
 # Độ lệch đồng hồ chấp nhận giữa máy tổ gõ giờ và máy chủ khi chặn mẻ ở tương lai.
 _LECH_DONG_HO = timedelta(minutes=5)
+# Mẻ Y HỆT (cùng việc, người, cửa sổ giờ, số) ghi lại trong khoảng này = một lần bấm bị gửi lại.
+_CHONG_GHI_LAI = timedelta(seconds=30)
 
 
 def _so_khong_am(x, ten: str) -> float:
@@ -205,6 +207,9 @@ def tao_batch(
 
         raise ValueError(CHAN_XUONG)
     _gate(db, user, cv)
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv, cho_viec_dang_chay=True)
     if cv.trang_thai not in _TRANG_THAI_GHI_DUOC:
         raise ValueError("Chỉ ghi sản lượng cho công việc đã bắt đầu.")
 
@@ -230,6 +235,20 @@ def tao_batch(
     # rơi vào đó nên cổng §7.3 chặn chốt phân bổ mãi. Nới vài phút cho đồng hồ máy tổ lệch máy chủ.
     if ket_thuc > _moc() + _LECH_DONG_HO:
         raise ValueError("Giờ kết thúc mẻ đang ở sau thời điểm hiện tại — chỉ ghi mẻ đã làm xong.")
+
+    # Chống ghi trùng: giờ cao điểm máy chủ chậm, tổ bấm "Ghi mẻ" lần nữa (hoặc mạng tự gửi lại) ⇒
+    # trước đây ra HAI mẻ y hệt, sản lượng nhân đôi. Khoá việc rồi mới tìm, để hai lượt đồng thời
+    # cũng xếp hàng. Mẻ y hệt trong `_CHONG_GHI_LAI` ⇒ trả lại mẻ đó, không ghi thêm. Phải đứng
+    # TRƯỚC `kiem_tran_ghi`: lượt gửi lại của một mẻ vừa chạm trần sẽ bị trần chặn oan.
+    repo.khoa_cong_viec(cv.id)
+    da_co = repo.me_vua_ghi(
+        cong_viec_id=cv.id, created_by=getattr(user, "id", None), bat_dau=bat_dau,
+        ket_thuc=ket_thuc, tong=tong_f, tot=tot_f, hong=hong_f,
+        # Giờ THẬT, không phải `_moc()`: so với `created_at` — cột này luôn ghi giờ thật.
+        tu_luc=datetime.now(timezone.utc) - _CHONG_GHI_LAI,
+    )
+    if da_co is not None:
+        return _ket_qua_batch(cv, da_co)
 
     don_vi_batch = (don_vi or cv.don_vi_ra or "").strip()
     if not don_vi_batch:

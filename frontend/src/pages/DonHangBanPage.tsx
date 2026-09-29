@@ -11,7 +11,6 @@ import { BangCum, BuocGiaoHang, CanhBaoTre, ThanhNho, tomTatTienDo, useTienDoDon
 import {
   api,
   ApiError,
-  connectQuoteEvents,
   type CompanyBankAccountRow,
   type DonTienDoYeuCau,
   type LsxListItem,
@@ -114,9 +113,14 @@ function RowFlags({ o }: { o: OrderRow }) {
 interface Props {
   navigate?: (id: string, params?: Record<string, unknown>) => void;
   openOrderId?: number | null;   // deep-link từ Báo giá ("Xem đơn") → mở drawer đơn vừa tạo
+  /** Tick nhóm bán hàng + sản xuất + kho + giao hàng (kênh SSE chung của AppShell) — drawer đơn nạp
+   *  lại tiến độ. Trước 28/09/2026 drawer tự mở kênh SSE riêng. */
+  eventTick?: number;
+  /** Tick nhóm mua hàng · kế toán — drawer nạp lại hoá đơn bán của đơn. */
+  keToanTick?: number;
 }
 
-export function DonHangBanPage({ navigate, openOrderId }: Props) {
+export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }: Props) {
   const { token } = useAuth();
   const can = useCan();
   // `create` KHÔNG còn được dùng ở màn này (đơn sinh từ Báo giá) — quyền vẫn tồn tại, gác ở đó.
@@ -344,6 +348,8 @@ export function DonHangBanPage({ navigate, openOrderId }: Props) {
             load();
           }}
           navigate={navigate}
+          eventTick={eventTick}
+          keToanTick={keToanTick}
         />
       )}
     </main>
@@ -408,6 +414,7 @@ function DepositBar({ o }: { o: OrderRow }) {
 // --- Drawer chi tiết ----------------------------------------------------------
 function OrderDrawer({
   order, canUpdate, canRecordDeposit, canApproveException, canManageStatus, onClose, onSaved, navigate,
+  eventTick, keToanTick,
 }: {
   order: OrderDetail;
   canUpdate: boolean;
@@ -417,6 +424,8 @@ function OrderDrawer({
   onClose: () => void;
   onSaved: (d: OrderDetail) => void;
   navigate?: (id: string, params?: Record<string, unknown>) => void;
+  eventTick?: number;
+  keToanTick?: number;
 }) {
   const { token } = useAuth();
   const can = useCan();
@@ -450,17 +459,14 @@ function OrderDrawer({
     void loadInvoices();
   }, [loadInvoices]);
 
+  // Kế toán ghi/huỷ hoá đơn, thu tiền ⇒ nạp lại sổ hoá đơn. Đi theo tick nhóm kế toán của kênh SSE
+  // CHUNG (AppShell) — trước đây drawer mở thêm một kênh riêng mỗi lần mở.
+  const keToanTickDaNap = useRef(keToanTick);
   useEffect(() => {
-    if (!token) return;
-    return connectQuoteEvents(token, (event) => {
-      if (
-        event.type === "accounting_changed"
-        || event.type === "sales_invoice_created"
-        || event.type === "sales_invoice_cancelled"
-        || event.type === "sales_invoice_receipt_created"
-      ) void loadInvoices();
-    });
-  }, [token, loadInvoices]);
+    if (keToanTickDaNap.current === keToanTick) return;
+    keToanTickDaNap.current = keToanTick;
+    void loadInvoices();
+  }, [keToanTick, loadInvoices]);
 
   async function upConsent(f: File) { if (token) onSaved(await api.orders.uploadConsent(token, order.id, f)); }
   async function delConsent(aid: number) { if (token) onSaved(await api.orders.deleteConsent(token, order.id, aid)); }
@@ -488,7 +494,7 @@ function OrderDrawer({
   }, [token, order.id, order.status, order.san_xuat_released_at]);
   const sxReleased = !!order.san_xuat_released_at;
   // Tiến độ SX → Nhập kho → Giao do máy chủ gộp theo sản phẩm (`/orders/{id}/tien-do`), tự tươi qua SSE.
-  const { td, taiLai: taiTienDo } = useTienDoDon(order.id, order.status !== "draft");
+  const { td, taiLai: taiTienDo } = useTienDoDon(order.id, order.status !== "draft", eventTick);
   const tt = tomTatTienDo(td);
   // SX xong = MỌI lệnh của đơn xong VÀ không còn món nào thiếu nguồn (không lệnh mà tồn kho không
   // đủ) — thiếu một món là bước này chưa thể xong, dù các lệnh đã chạy hết.

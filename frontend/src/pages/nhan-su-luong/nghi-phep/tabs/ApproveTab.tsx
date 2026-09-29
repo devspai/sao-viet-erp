@@ -85,7 +85,16 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
   function toggle(id: number) { setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
   function toggleAll() { setSel((s) => (s.size === pendingIds.length && pendingIds.length > 0 ? new Set() : new Set(pendingIds))); }
 
-  async function approve(id: number) { await api.leaves.approve(token, id); load(); onChanged?.(); }
+  /** Lỗi của nút Duyệt trên từng dòng — trước đây lỗi rơi im lặng (promise không ai bắt), người
+   *  duyệt tưởng đã duyệt xong. Nút cũng chặn bấm đúp trong lúc đang gửi. */
+  const [loiDuyet, setLoiDuyet] = useState<string | null>(null);
+  async function approve(id: number) {
+    if (busy) return;
+    setBusy(true); setLoiDuyet(null);
+    try { await api.leaves.approve(token, id); load(); onChanged?.(); }
+    catch (e) { setLoiDuyet(errMsg(e)); load(); }
+    finally { setBusy(false); }
+  }
   async function quyetXinHuy(ycId: number, dongY: boolean, ghiChu: string) {
     await api.leaves.quyetXinHuy(token, ycId, dongY, ghiChu || undefined);
     loadXinHuy(); load(); onChanged?.();
@@ -100,8 +109,10 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
   }
   async function bulkApprove() {
     setBusy(true);
+    setLoiDuyet(null);
+    // Lỗi duyệt hàng loạt hiện ở băng trên bảng — `error` chỉ hiện trong hộp thoại Từ chối (đang đóng).
     try { await api.leaves.bulkApprove(token, selArr); load(); onChanged?.(); }
-    catch (e) { setError(errMsg(e)); } finally { setBusy(false); }
+    catch (e) { setLoiDuyet(errMsg(e)); load(); } finally { setBusy(false); }
   }
   async function confirmReject() {
     if (!rejectNote.trim()) return;
@@ -159,6 +170,12 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
         }))}
         onQuyet={(yc, dongY, ghiChu) => quyetXinHuy(yc.id, dongY, ghiChu)}
       />
+      {loiDuyet && (
+        <div className="banner banner--error cc-ts-msg-banner" role="alert">
+          <span>{loiDuyet}</span>
+          <button type="button" className="btn btn--ghost" onClick={() => setLoiDuyet(null)}>Đóng</button>
+        </div>
+      )}
       <LeaveTable items={shown} showEmployee onApprove={approve}
         onHuyDaDuyet={(r) => { setHuyErr(null); setHuyDon(r); }}
         onReject={(r) => { setRejectTarget(r); setRejectNote(""); setError(null); }}

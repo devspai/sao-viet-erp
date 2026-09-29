@@ -451,12 +451,15 @@ class VatLieuKhoService:
             hang_loai, obj, don_vi_map(self.don_vi.all_rows()), list(self.don_vi.cap_rows())
         )
 
-    def don_vi_nhieu_mat_hang(self, caps) -> dict[tuple[str, int], dict]:
+    def don_vi_nhieu_mat_hang(self, caps, *, san: dict | None = None) -> dict[tuple[str, int], dict]:
         """`don_vi_cua_mat_hang` cho NHIỀU mặt hàng một lượt: bảng đơn vị và bảng cặp quy đổi đọc
         MỘT lần, mặt hàng nạp theo lô. Gọi lẻ từng món thì mỗi món đọc lại cả hai bảng dùng chung
         (đo 27/09/2026: bảng giá 23 dòng = 23 request × ~4 câu SQL). Món không tồn tại / loại sai
-        thì vắng mặt trong kết quả."""
-        objs = self.map_theo_cap(caps)
+        thì vắng mặt trong kết quả.
+
+        `san`: kết quả `map_theo_cap` người gọi ĐÃ nạp cho đúng tập `caps` — truyền vào để khỏi
+        đọc lại danh mục mặt hàng lần hai."""
+        objs = san if san is not None else self.map_theo_cap(caps)
         if not objs:
             return {}
         dvs = don_vi_map(self.don_vi.all_rows())

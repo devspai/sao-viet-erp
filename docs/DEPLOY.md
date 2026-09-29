@@ -3,15 +3,23 @@
 Kiến trúc chạy trên VPS:
 
 ```
-Internet ─▶ caddy (:80/:443, auto-HTTPS) ─▶ web (nginx) ──/api──▶ backend (uvicorn :8000) ──▶ db (Postgres)
-                                             └ phục vụ frontend build (Vite → dist)
+Internet ─▶ caddy (:80/:443, auto-HTTPS) ─▶ web (nginx) ──/api──▶ backend (uvicorn :8000, N worker) ──▶ db (Postgres)
+                                             └ phục vụ frontend build (Vite → dist)                  ├─▶ redis (SSE pub/sub + khoá)
+                                                                                                     └─▶ minio (kho tệp)
+backup (hằng ngày) ─▶ pg_dump + rclone MinIO ─▶ volume `backups` (+ đích ngoài VPS)
 ```
 
 Caddy tự xin & gia hạn chứng chỉ Let's Encrypt cho `SITE_DOMAIN`, tự chuyển http → https.
 
-Mỗi lần push lên `main`, workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml):
+Mỗi lần push lên `main` (production) hoặc `dev` (staging), workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml):
 1. **CI gate** — build frontend (`tsc + vite`) và chạy `pytest` (SQLite in-memory). Gãy ⇒ dừng, KHÔNG deploy.
-2. **Deploy** — SSH vào VPS: `git reset --hard origin/main` → `docker compose -f docker-compose.prod.yml up -d --build`.
+2. **Deploy** — SSH vào VPS, giữ khoá deploy chung của VPS (staging và prod không chạy chồng nhau):
+   `git reset --hard origin/<nhánh>` → kiểm `.env` → `docker compose build` → migrate bằng container
+   tạm → `docker compose up -d --build` → chờ backend `healthy` → kiểm `/api/health` qua nginx → dọn
+   image cũ của đúng project đó.
+
+Chỉ có MỘT file compose: `docker-compose.yml` (bản `docker-compose.prod.yml` đã bỏ). Lệnh nào trong
+tài liệu này còn `-f docker-compose.prod.yml` thì bỏ phần `-f …` đi.
 
 ---
 
@@ -79,7 +87,7 @@ sudo ufw allow 80/tcp && sudo ufw allow 443/tcp
 
 ```bash
 cd /var/www/erp-svn
-cp .env.prod.example .env
+cp .env.example .env    # rồi làm theo khối "TRIỂN KHAI THẬT" cuối file
 nano .env   # điền POSTGRES_PASSWORD, JWT_SECRET (openssl rand -hex 32), SEED_ADMIN_PASSWORD,
             # SITE_DOMAIN=subdomain, CORS_ORIGINS=https://subdomain
 ```
@@ -89,33 +97,120 @@ nano .env   # điền POSTGRES_PASSWORD, JWT_SECRET (openssl rand -hex 32), SEED
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f backend    # thấy "seeded admin" là OK
+docker compose -f docker-compose.prod.yml logs -f backend    # đợi "Application startup complete"
+# DB trắng: tạo tài khoản quản trị — chạy tay MỘT lần (SEED_DEMO=false ⇒ khởi động KHÔNG seed gì)
+docker compose -f docker-compose.prod.yml run --rm backend python -m app.khoi_tao_admin
 ```
 Mở `http://<VPS_HOST>` → đăng nhập bằng `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD`.
+
+`SEED_DEMO=false` nghĩa là backend **không ghi bất kỳ dữ liệu nào** lúc khởi động — không phòng ban,
+vai, máy, công đoạn, đơn vị… Phòng/danh mục người dùng xoá sẽ KHÔNG mọc lại sau deploy. Lệnh
+`khoi_tao_admin` chỉ dựng phòng "Ban giám đốc" + vai "Giám đốc" + tài khoản quản trị; phần còn lại
+người dùng tự khai (hoặc chạy có chủ đích `python -m app.import_danh_muc_prod`).
 
 ---
 
 ## 3. Vận hành
 
-- **Deploy tự động**: push lên `main`. Xem tiến trình ở tab **Actions**.
-- **Deploy tay**: Actions → *Deploy (production)* → *Run workflow*.
-- **Log**: `docker compose -f docker-compose.prod.yml logs -f backend`
-- **Backup DB**:
-  ```bash
-  docker compose -f docker-compose.prod.yml exec db \
-    pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > backup-$(date +%F).sql
-  ```
+- **Deploy tự động**: push lên `main` (prod) / `dev` (staging). Xem tiến trình ở tab **Actions**.
+- **Deploy tay**: Actions → *Deploy* → *Run workflow*.
+- **Log**: `docker compose logs -f backend` (log tự xoay vòng — mục 6).
+- **Sao lưu**: tự động hằng ngày bằng service `backup` — mục 7. Sao lưu tay ngay trước việc rủi ro
+  (migration xoá cột…): `docker compose exec backup sao-luu.sh ngay`.
 - **Dữ liệu Postgres** nằm ở volume `pgdata` — deploy KHÔNG xóa dữ liệu.
-- **File upload** (`/static`: avatar, đính kèm phiếu kho/LSX/phiếu chi kế toán) nằm ở volume
-  `uploads` (mount `/app/static`) — deploy không xóa. Backup kèm DB:
-  ```bash
-  docker compose -f docker-compose.prod.yml cp backend:/app/static ./static-backup-$(date +%F)
-  ```
+- **Tệp người dùng** (ảnh, CCCD, hợp đồng, đính kèm phiếu kho/LSX/kế toán…) nằm ở MinIO, volume
+  `miniodata`; người dùng đọc qua `/api/files` của backend. Volume `uploads`/thư mục `/app/static`
+  cũ đã bỏ.
 
 ## 4. Lưu ý
 - `git reset --hard origin/main` **ghi đè mọi thay đổi local** trên VPS (trừ file gitignore như `.env`). Đừng sửa code trực tiếp trên server.
 - Guard bảo mật: `APP_ENV=production` bắt buộc `JWT_SECRET` ≥ 32 ký tự, khác default — nếu không backend sẽ từ chối khởi động.
-- Chưa có TLS/HTTPS: production thật nên đặt sau reverse-proxy (Caddy/Traefik) hoặc thêm certbot cho nginx — đổi `CORS_ORIGINS`/domain tương ứng.
+- TLS: Caddy (profile `caddy`) tự xin/gia hạn chứng chỉ Let's Encrypt cho `SITE_DOMAIN`, và gánh
+  luôn tên miền staging (`STG_DOMAIN`) — xem `Caddyfile`. Đổi domain thì đổi cả `CORS_ORIGINS`.
 - Migration **xoá cột** (`DROP COLUMN`) làm mất dữ liệu cột đó, không lấy lại được: **backup DB
   trước khi deploy** nếu prod đã có dữ liệu. Hiện có: mg `0340_go_cot_thue_ngoai_cu` gỡ 13 cột thuê
   ngoài cũ của `lsx_cong_doan` (sổ giao–nhận cũ) — prod đã có lệnh thì phải backup trước.
+
+---
+
+## 5. Tự co giãn theo máy (backend + Postgres)
+
+Không cần chỉnh số nào khi đổi VPS to/nhỏ — cả hai tự đọc giới hạn CPU/RAM của CONTAINER (cgroup) lúc
+khởi động:
+
+- **Backend** (`python -m app.serve`, `backend/app/tai_nguyen.py`): chạy migrate + seed MỘT lần rồi
+  bật N worker uvicorn. N = 2 × CPU, không vượt RAM/350MB và không quá 8; không có Redis thì luôn 1
+  (SSE in-process). Pool kết nối DB mỗi worker = (`PG_MAX_CONNECTIONS` − 20 dự phòng) / N, trần 30.
+  Dòng `may: … CPU, … MB RAM -> N worker, moi worker pool …` trong `docker compose logs backend` cho
+  biết số đã chọn.
+- **Postgres** (`deploy/postgres/tu-chinh.sh`, chạy làm entrypoint của `db`): `shared_buffers` 25% RAM
+  (trần 8GB), `effective_cache_size` 65%, `maintenance_work_mem` RAM/16 (trần 1GB), `work_mem` =
+  25% RAM / `max_connections` (4–64MB), `max_connections` = `PG_MAX_CONNECTIONS`, ghi log câu SQL
+  chậm hơn `PG_LOG_CHAM_MS`. Dòng `[tu-chinh] …` đầu `docker compose logs db` in các số đã dùng; kiểm
+  lại: `docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "show shared_buffers"`.
+
+Chốt tay (đặt trong `.env`, rồi `docker compose up -d`):
+
+| Biến | Mặc định | Ý nghĩa |
+| --- | --- | --- |
+| `WEB_CONCURRENCY` | `0` (tự tính) | số worker backend |
+| `PG_MAX_CONNECTIONS` | `200` | `max_connections` của Postgres = ngân sách kết nối backend chia cho các worker. MỘT biến cho cả hai service. |
+| `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | `0` / `-1` (tự chia) | pool mỗi worker |
+| `DB_POOL_TIMEOUT` | `10` | chờ lấy kết nối tối đa N giây |
+| `DB_STATEMENT_TIMEOUT_MS` | `120000` | Postgres huỷ câu SQL chạy quá N ms |
+| `MAX_REQUEST_DONG_THOI` / `CHO_HANG_DOI_GIAY` | `0` / `30` | request chạy cùng lúc mỗi worker; xếp hàng quá N giây ⇒ 503 |
+| `PG_LOG_CHAM_MS` | `1000` | log câu SQL chậm (-1 = tắt) |
+
+Prod và staging chung VPS thì cả hai cùng tự tính theo RAM của CẢ máy: nên chốt staging thấp
+(vd `WEB_CONCURRENCY=2`, `PG_MAX_CONNECTIONS=60`) để nó không giành RAM của prod.
+
+Deploy ít gián đoạn: nginx phân giải `backend` lại mỗi 10s (không giữ IP cũ khi container backend được
+tạo lại); backend chưa lên thì `/api/*` trả 503 JSON tiếng Việt kèm `Retry-After`; Caddy giữ request
+tối đa 20s khi `web` đang khởi động lại thay vì trả 502 ngay.
+
+## 6. Log xoay vòng
+
+Mọi service dùng log driver `json-file` giới hạn 5 tệp × 20MB (neo `x-logging` trong
+`docker-compose.yml`) — log không thể lấp đầy đĩa. Cấu hình log chỉ áp khi container được TẠO
+LẠI; vì cấu hình của mọi service đều đổi, lần deploy ĐẦU TIÊN mang thay đổi này compose tự tạo lại cả
+db, redis, minio, caddy (Postgres/MinIO/Caddy khởi động lại vài giây) — nên deploy lần đó lúc vắng
+người, và sao lưu tay trước.
+Kiểm: `docker inspect <container> --format '{{json .HostConfig.LogConfig}}'`.
+
+Nginx (`web`) ghi log truy cập kèm thời gian xử lý `rt=` (giây) — lọc request chậm:
+`docker compose logs web | grep -E 'rt=[0-9]{2,}\.'`. Postgres ghi câu SQL chậm hơn `PG_LOG_CHAM_MS`:
+`docker compose logs db | grep duration`.
+
+## 7. Sao lưu & khôi phục
+
+Service `backup` (profile `backup`): mỗi ngày lúc `BACKUP_GIO` (02:00 giờ VN) `pg_dump` Postgres +
+`rclone sync` MinIO vào volume `backups`, giữ `BACKUP_GIU_NGAY` (14) ngày, đẩy lên `BACKUP_RCLONE_DICH`
+nếu có. Hướng dẫn đầy đủ — bật, đọc kết quả, khôi phục Postgres/MinIO, cấu hình đích ngoài VPS
+(S3/Backblaze/Google Drive): [`deploy/backup/khoi-phuc.md`](../deploy/backup/khoi-phuc.md).
+
+Bật lần đầu trên VPS:
+
+```bash
+# .env: COMPOSE_PROFILES=db,redis,minio,backend,web,caddy,backup   + BACKUP_RCLONE_DICH=...
+# .env.backup: RCLONE_CONFIG_DICH_* (thông tin đăng nhập đích ngoài)
+docker compose up -d --build backup
+docker compose exec backup sao-luu.sh ngay           # chạy thử, phải ra "Kết quả: OK"
+```
+
+**Volume `backups` nằm cùng ổ đĩa với dữ liệu gốc** — không đặt `BACKUP_RCLONE_DICH` thì hỏng đĩa/mất
+VPS là mất cả bản sao. `docker compose ps backup` báo `unhealthy` khi lượt gần nhất lỗi hoặc quá 26
+giờ chưa chạy; nên có người nhìn trạng thái này, và một dịch vụ theo dõi uptime bên ngoài gọi
+`https://<SITE_DOMAIN>/api/health` (trả 503 khi DB chết) để báo khi sập.
+
+## 8. Image MinIO
+
+Repo `minio/minio` đã bị gỡ khỏi Docker Hub (kiểm 28/09/2026: 404; `quay.io/minio/minio` đòi đăng
+nhập). `docker-compose.yml` giữ đúng tên `minio/minio` như trước — VPS đã có image này trong cache
+nên chạy bình thường, không phải kéo gì. Cố ý KHÔNG ghim digest: bản trong cache VPS có thể khác
+digest máy dev, ghim là compose đi kéo bản không tồn tại và deploy dừng. Nhưng:
+
+- ĐỪNG `docker image prune -a` / `docker system prune -a` trên VPS — mất image là không kéo lại được.
+  (Bước dọn của deploy chỉ xoá image lơ lửng của đúng project, không đụng image đang dùng.)
+- Lưu một bản phòng thân: `docker save minio/minio -o minio-image.tar` (khôi phục: `docker load -i …`).
+- VPS mới (không có image trong cache): nạp bản phòng thân (`docker load -i minio-image.tar`) hoặc
+  đặt `MINIO_IMAGE=<image kéo được>` trong `.env`. Sao lưu (mục 7) trước khi đổi sang bản MinIO khác.

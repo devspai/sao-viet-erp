@@ -13,7 +13,6 @@ import {
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
-import { UNC_ENABLED } from "../../../constants/features";
 import { PaymentVoucherDialog } from "../phieu-chi/PaymentVoucherDialog";
 import { InboxDrawer } from "./components/InboxDrawer";
 import { InboxRowActions } from "./components/InboxRowActions";
@@ -58,8 +57,10 @@ export function AccountingPurchaseInboxPage({
   // Nút "Lập phiếu chi" ⇒ quyền LẬP trên màn Phiếu chi. Trước đây hỏi `ke_toan:approve` —
   // cùng một ô với "gán chứng từ" và "lập phiếu thu", bật một cái là mở cả ba.
   const canCreateVoucher = can("phieu_chi", "create");
-  const openYcmh = (code: string) =>
-    navigate("yeu-cau-mua-hang", { focusRequestCode: code });
+  // Mã YCMH chỉ bấm được khi có ô Xem của màn đó — không thì bấm vào là ăn màn chặn.
+  const openYcmh = can("yeu_cau_mua_hang", "read")
+    ? (code: string) => navigate("yeu-cau-mua-hang", { focusRequestCode: code })
+    : undefined;
   const [rows, setRows] = useState<PurchaseRequestRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -311,14 +312,9 @@ export function AccountingPurchaseInboxPage({
 
   return (
     <main className="md-page acct-dmh">
-      <header className="md-page__head">
-        <p className="eyebrow">Kế toán thu mua</p>
+      <header className="md-page__head" style={{ marginBottom: "var(--sp-3)" }}>
         {/* Tên cũ "Yêu cầu mua hàng" SAI: màn này hiển thị PHIẾU MUA HÀNG (PMH), không phải YCMH. */}
         <h1 className="md-page__title">Đơn mua hàng</h1>
-        <p className="md-page__sub">
-          Giám đốc duyệt đơn Thu mua gửi đến; đơn đã duyệt thì Kế toán lập Phiếu chi
-          {UNC_ENABLED ? " hoặc Ủy nhiệm chi" : ""}. Hai bước, hai người.
-        </p>
       </header>
 
       {error && (

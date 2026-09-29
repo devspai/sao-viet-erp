@@ -1381,45 +1381,6 @@ class NhapKhoYcKetQuaOut(BaseModel):
     dong: list[NhapKhoTpDongOut] = []
 
 
-# --- ĐÓNG NHÓM THÀNH PHẨM (§16 tự đóng đủ · §13.3 đóng thiếu) -------------------------------
-class DongNhomDieuKienItemOut(BaseModel):
-    """Một điều kiện của cổng đóng nhóm — FE dựng checklist "vì sao chưa đóng"."""
-    ma: str
-    ten: str
-    dat: bool
-    chi_tiet: str = ""
-
-
-class DongNhomDieuKienOut(BaseModel):
-    """Tình trạng cổng đóng nhóm: đủ đóng-đủ chưa, đủ đóng-thiếu chưa, và từng điều kiện."""
-    nhom_id: int
-    order_id: int | None = None
-    trang_thai: str
-    version: int
-    du_dong_du: bool
-    du_dong_thieu: bool
-    dieu_kien: list[DongNhomDieuKienItemOut]
-    # Còn thiếu CỦA CẢ NHÓM (§2.3) — DẪN XUẤT, chỉ để BÀY, không phải điều kiện thứ 7. `muc_tieu`
-    # None khi nhóm chưa xác định bước KCS cuối nào có khai `so_luong_ra` — `da_dat`/`con_thieu`
-    # cũng None theo (đừng bịa "đã đạt 0", đó là "không biết", khác hẳn "biết là 0").
-    muc_tieu: float | None = None
-    da_dat: float | None = None
-    con_thieu: float | None = None
-
-
-class DongThieuIn(BaseModel):
-    """Trưởng KCS đóng thiếu nhóm còn dở (§13.3) — không đòi lý do (danh mục lý do/lỗi ĐÃ GỠ)."""
-    expected_version: int | None = None
-
-
-class DongNhomKetQuaOut(BaseModel):
-    nhom_id: int
-    order_id: int | None = None
-    trang_thai: str
-    kieu: str                            # du | thieu
-    version: int
-
-
 # --- Tổ đề nghị cấp vật tư công đoạn (spec-de-nghi-cap-vat-tu-cong-doan §6) ------------------
 class VatTuDeNghiDongIn(BaseModel):
     hang_loai: str
@@ -1433,3 +1394,45 @@ class VatTuDeNghiIn(BaseModel):
     # GIỜ cần, không phải ngày: kho soạn theo ca. `stock_requests.ngay_can` chỉ lưu phần DATE.
     can_luc: datetime
     lines: list[VatTuDeNghiDongIn] = []
+
+
+# --- ĐÓNG LỆNH THỦ CÔNG (spec 2026-09-29) ---
+class DongLenhCanhBaoOut(BaseModel):
+    ma: str          # chua_kiem | chua_gui_kho | thieu_muc_tieu | viec_do
+    cau: str
+
+
+class DongLenhLenhOut(BaseModel):
+    id: int
+    ma: str
+
+
+class DongLenhTinhTrangOut(BaseModel):
+    """Khối "Đóng lệnh" ở màn KCS — số tóm tắt + cảnh báo cho hộp xác nhận. KHÔNG có cổng."""
+    nhom_id: int
+    order_id: int | None = None
+    trang_thai: str                      # in_production | closed
+    version: int
+    lenh: list[DongLenhLenhOut]
+    muc_tieu: float | None = None
+    da_dat: float = 0.0
+    don_vi: str = ""
+    canh_bao: list[DongLenhCanhBaoOut] = []
+    dong_boi: str | None = None
+    dong_luc: datetime | None = None
+
+
+class DongLenhIn(BaseModel):
+    expected_version: int | None = None
+
+
+class DongLenhKetQuaOut(BaseModel):
+    nhom_id: int
+    order_id: int | None = None
+    trang_thai: str
+    kieu: str                            # dong | mo_lai
+    version: int
+    lenh_ma: list[str] = []
+    da_dat: float = 0.0
+    muc_tieu: float | None = None
+    don_vi: str = ""

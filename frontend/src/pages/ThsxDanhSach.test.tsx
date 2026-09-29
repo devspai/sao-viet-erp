@@ -59,44 +59,26 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     expect(screen.getByText(/Couche 300gsm/i)).toBeInTheDocument();
   });
 
-  it("kích hoạt 1-click Bắt đầu khi bấm nút trực tiếp trong bảng", () => {
-    const item = mockViec({ id: 202, trang_thai: "released", chay_duoc: true });
+  // 28/09/2026: cột cuối CHỈ còn nhãn trạng thái — nút chạy nhanh đứng cạnh nhãn đọc ra thành nhiều
+  // trạng thái. Kể cả người giữ quyền Thực hiện lệnh cũng không thấy nút ở dòng; thao tác ở drawer.
+  it("cột trạng thái chỉ có nhãn, không còn nút Bắt đầu / Tạm dừng / Kết thúc", () => {
     const onPick = vi.fn();
-    const onBatDau = vi.fn();
-
+    const item = mockViec({ id: 204, trang_thai: "running", chay_duoc: true });
     render(
       <ThsxDanhSach
-        lenh={mockLenh([item])}
+        lenh={mockLenh([mockViec({ id: 203, trang_thai: "released", chay_duoc: true }), item])}
         selectedId={null}
         onPick={onPick}
-        onBatDau={onBatDau}
       />
     );
 
-    const btnStart = screen.getByText("Bắt đầu");
-    expect(btnStart).toBeInTheDocument();
-    fireEvent.click(btnStart);
+    expect(screen.getByText("Trạng thái")).toBeInTheDocument();
+    expect(screen.getByText("Đang chạy")).toBeInTheDocument();
+    expect(screen.getByText("Chờ làm")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Bắt đầu|Tạm dừng|Kết thúc/ })).toBeNull();
 
-    expect(onBatDau).toHaveBeenCalledWith(item);
-  });
-
-  it("không có quyền Thực hiện lệnh thì dòng không hiện nút chạy nhanh", () => {
-    render(
-      <ThsxDanhSach
-        lenh={mockLenh([
-          mockViec({ id: 203, trang_thai: "released", chay_duoc: false }),
-          mockViec({ id: 204, trang_thai: "running", chay_duoc: false }),
-        ])}
-        selectedId={null}
-        onPick={vi.fn()}
-        onBatDau={vi.fn()}
-        onTamDung={vi.fn()}
-        onKetThuc={vi.fn()}
-      />
-    );
-
-    expect(screen.queryByText("Bắt đầu")).toBeNull();
-    expect(screen.queryByText("Tạm dừng")).toBeNull();
-    expect(screen.queryByText("Kết thúc")).toBeNull();
+    // Bấm dòng vẫn mở drawer — đường duy nhất tới các thao tác.
+    fireEvent.click(screen.getByText("Đang chạy"));
+    expect(onPick).toHaveBeenCalledWith(item);
   });
 });

@@ -1,7 +1,7 @@
 """Con số CÒN THIẾU — dẫn xuất (docs/spec-thuc-te-vs-ke-hoach.md §2.3).
 
 Ở mức BƯỚC nó chỉ để bày. Ở mức NHÓM, từ 17/09/2026 cổng đóng ĐỦ so chính số này (điều kiện
-`dat_muc_tieu`, soi ở `test_san_xuat_dong_nhom.py`); file này chỉ chốt số XUẤT HIỆN đúng.
+`dat_muc_tieu`, soi ở `test_san_xuat_dong_lenh.py`); file này chỉ chốt số XUẤT HIỆN đúng.
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from app.models.san_xuat import CV_DANG_CHAY
 from app.models.san_xuat_kcs import SanXuatKcsBatch
 from app.models.san_xuat_san_luong import SanXuatBatch
-from app.services.san_xuat import dong_nhom
+from app.services.san_xuat import dong_lenh
 
 # `_authz` đã có sẵn ở `tests/test_san_xuat_board.py:100` (và được `test_san_xuat_thuc_thi` re-export)
 # — dựng đúng như `deps.get_authorization_service`, nhận `RoleRepository` chứ KHÔNG nhận `Session`.
@@ -70,10 +70,9 @@ def test_buoc_khong_khai_muc_tieu_thi_khong_bia_so(db, orders, lsx_svc, admin, c
 def test_nhom_co_so_con_thieu_ma_cong_dong_khong_doi(
     db, orders, lsx_svc, admin, customer,
 ):
-    """Số còn thiếu XUẤT HIỆN ở nhóm, khớp với điều kiện `dat_muc_tieu` của cổng đóng.
+    """Số còn thiếu XUẤT HIỆN ở nhóm, khớp với cảnh báo `thieu_muc_tieu` của hộp đóng lệnh.
 
-    Kịch bản KHÔNG dựng đủ điều kiện đóng (CV còn `CV_DANG_CHAY`, KCS mới kiểm 9000/9400 tốt) —
-    `du_dong_du`/`du_dong_thieu` vì vậy đều False."""
+    Kịch bản: CV còn `CV_DANG_CHAY`, KCS mới kiểm 9000/9400 tốt ⇒ đạt 8800/10000."""
     _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-CT4")
     cv.trang_thai = CV_DANG_CHAY
     cv.la_kcs_cuoi = True
@@ -86,20 +85,13 @@ def test_nhom_co_so_con_thieu_ma_cong_dong_khong_doi(
                            so_luong_dat=8800, so_luong_khong_dat=200, don_vi="cuốn"))
     db.commit()
 
-    dk = dong_nhom.dieu_kien_dong_nhom(db, nhom_id=cv.nhom_id)
-    assert dk["muc_tieu"] == 10000.0
+    tt = dong_lenh.tinh_trang_dong(db, cv.nhom_id)
+    assert tt["muc_tieu"] == 10000.0
     # "Đã đạt" đếm số KCS ĐẠT (đi kho được), không đếm 9400 tốt tổ tự ghi.
-    assert dk["da_dat"] == 8800.0
-    assert dk["con_thieu"] == 1200.0
-    # Hàng rào thật của "cổng không đổi" — không phải suy đoán, là giá trị `_danh_gia` tính ra:
-    # CV chưa hoàn thành ⇒ chưa đóng đủ; KCS mới kiểm 9000/9400 tốt ⇒ điều kiện (3) "KCS đã kiểm hết
-    # công đoạn cuối" chưa đạt ⇒ chưa đủ đóng thiếu.
-    assert dk["du_dong_du"] is False
-    assert dk["du_dong_thieu"] is False
-    # `dieu_kien` là LIST các dict {"ma": ...}, so `in` với chuỗi trên chính list đó luôn False (bug
-    # im lặng) — phải rút mã ra thành set rồi mới so.
-    muc = next(d for d in dk["dieu_kien"] if d["ma"] == "dat_muc_tieu")
-    assert muc["dat"] is False and muc["chi_tiet"] == "mới đạt 8.800/10.000"
+    assert tt["da_dat"] == 8800.0
+    cau = {c["ma"]: c["cau"] for c in tt["canh_bao"]}
+    assert "thieu_muc_tieu" in cau and "8.800 / 10.000" in cau["thieu_muc_tieu"]
+    assert "1.200" in cau["thieu_muc_tieu"]
 
 
 def test_work_items_con_thieu_dung_tung_dong_khi_gop_nhieu_viec(

@@ -208,6 +208,9 @@ def de_xuat(
     if nguon_cv is None:
         raise ValueError("Không tìm thấy công việc nguồn.")
     _gate(db, user, nguon_cv, VIEC_XAC_NHAN)
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, nguon_cv)
 
     chang_sau = {c.id: c for c in repo.cong_viec_chang_sau(nguon_cv)}
     if not chang_sau:
@@ -306,6 +309,10 @@ def xac_nhan(
         # Hàng giao sang bước gia công ngoài: không tổ nào nhận — người kế hoạch bấm "Đã mang đi".
         raise ValueError("Bàn giao sang gia công ngoài — người kế hoạch nhận bằng nút “Đã mang đi”.")
     _gate(db, user, dich_cv, VIEC_XAC_NHAN)
+    if nguon_cv is not None:
+        from .dong_lenh import chan_neu_da_dong
+
+        chan_neu_da_dong(db, nguon_cv)
     _kiem_version(bg, expected_version)
 
     ghi_xac_nhan(db, bg=bg, user=user)

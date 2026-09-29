@@ -45,7 +45,9 @@ from sqlalchemy.orm import Session
 from ..models.bai_ghep import BaiGhep
 from ..models.lsx import Lsx
 from ..models.vat_tu_giu_cho import NGUON_DANG_VE, NGUON_KHO, VatTuGiuCho
+from ..doi_tuong_nhan import MAN_KHVT, MAN_THEO_LENH, hop
 from ..realtime import hub
+from .can_doi_cache import xoa_cache_can_doi
 from ..repositories.giu_cho_repo import GiuChoRepository
 
 Hang = tuple[str, int]
@@ -72,6 +74,13 @@ EPS_GIU = 0.004
 #: Nặng → nhẹ. Một chủ thể cần một mặt hàng ở NHIỀU bước; thẻ tóm tắt chỉ hiện được MỘT màu, và
 #: màu đó phải là màu tệ nhất. Lấy màu của bước đầu (hoặc bước cuối) là giấu đúng thứ phải lo.
 _NANG = {"khong_ro": 5, "do": 4, "vang": 2, "xanh": 1, "xam": 0}
+
+
+def _bao_ke_hoach_vat_tu_doi() -> None:
+    """Giữ chỗ vật tư đổi ⇒ nhóm `khvt` + `san_xuat` (Kế hoạch vật tư, đèn vật tư ở Kế hoạch SX…).
+    Bàn tổ không bày giữ chỗ nên không nhận. Toast "Kế hoạch vật tư vừa cập nhật" ở AppShell KHÔNG
+    gác quyền — gửi rộng là kế toán, lái xe cũng ăn toast đó; gửi theo màn nghe là đúng người."""
+    hub.gui({"type": "ke_hoach_vat_tu_thay_doi"}, quyen=hop(MAN_KHVT, MAN_THEO_LENH))
 
 
 class GiuChoError(Exception):
@@ -544,14 +553,16 @@ class GiuChoService:
         # thêm được gì (bật công tắc cũng là một thay đổi thật) — không thì bắn hai lần cho MỘT
         # cú bấm khi nhat_them() có nhặt thêm (toast đúp trên AppShell).
         self.nhat_them(chi_chu_the=(lsx_id, bai_ghep_id), bang=bang, broadcast=False)
-        hub.broadcast({"type": "ke_hoach_vat_tu_thay_doi"})
+        xoa_cache_can_doi()
+        _bao_ke_hoach_vat_tu_doi()
         return self.trang_thai(lsx_id=lsx_id, bai_ghep_id=bai_ghep_id, bang=bang)
 
     def tat(self, *, lsx_id: int | None = None, bai_ghep_id: int | None = None) -> dict:
         """Nhả HẾT. Không phải hoàn tác — bật lại có thể chẳng còn gì, nơi gọi phải hỏi trước."""
         self.repo.xoa_cua_chu_the(lsx_id=lsx_id, bai_ghep_id=bai_ghep_id)
         self._doi_co(lsx_id=lsx_id, bai_ghep_id=bai_ghep_id, bat=False)
-        hub.broadcast({"type": "ke_hoach_vat_tu_thay_doi"})
+        xoa_cache_can_doi()
+        _bao_ke_hoach_vat_tu_doi()
         return self.trang_thai(lsx_id=lsx_id, bai_ghep_id=bai_ghep_id)
 
     def doi_soat_dang_ve(self, purchase_request_line_id: int, *, broadcast: bool = True) -> bool:
@@ -612,7 +623,8 @@ class GiuChoService:
                 r.ngay_ve = ngay_ve
         self.db.commit()
         if broadcast:
-            hub.broadcast({"type": "ke_hoach_vat_tu_thay_doi"})
+            xoa_cache_can_doi()
+            _bao_ke_hoach_vat_tu_doi()
         return True
 
     def doi_soat_dang_ve_don(self, purchase_request_id: int) -> None:
@@ -632,7 +644,8 @@ class GiuChoService:
                 if self.doi_soat_dang_ve(ln.id, broadcast=False):
                     co_doi = True
         if co_doi:
-            hub.broadcast({"type": "ke_hoach_vat_tu_thay_doi"})
+            xoa_cache_can_doi()
+            _bao_ke_hoach_vat_tu_doi()
 
     def nhat_them(
         self, *, chi_chu_the: tuple | None = None, bang: dict | None = None,
@@ -700,7 +713,8 @@ class GiuChoService:
                         break
         self.repo.them(moi)
         if moi and broadcast:
-            hub.broadcast({"type": "ke_hoach_vat_tu_thay_doi"})
+            xoa_cache_can_doi()
+            _bao_ke_hoach_vat_tu_doi()
         return len(moi)
 
     def chuyen_dang_ve_sang_kho(self, hang: Hang, so_luong: float) -> None:
@@ -746,7 +760,8 @@ class GiuChoService:
                     purchase_request_line_id=None,
                 ))
         self.db.commit()
-        hub.broadcast({"type": "ke_hoach_vat_tu_thay_doi"})
+        xoa_cache_can_doi()
+        _bao_ke_hoach_vat_tu_doi()
 
     # ================== KHO GỌI VÀO ==================
 

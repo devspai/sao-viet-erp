@@ -4106,7 +4106,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 | `quy_cach_json` | `JSON` | — | yes | — | Snapshot quy cách: khổ ①②③ · giấy + định lượng · số màu A/B · cách in · chừa · số kẽm · số lượt · ghi chú kỹ thuật. Read-only ở lát 1. |
 | `routing_goc_json` | `JSON` | — | yes | — | Ảnh chụp routing LÚC TẠO lệnh (list rút gọn: `ten`·`nhom`·`loai_buoc`). CHỈ để cảnh báo "routing đã đổi so với bài tính giá" — không dùng tính lại gì. |
 | `may_id` | `Integer` | IX | yes | — | Soft → `may_thiet_bi.id` — máy in dự kiến. |
-| `trang_thai` | `String(20)` | — | no | `nhap` | `nhap` → `cho_bo_sung` → `san_sang` → `da_lap_ke_hoach` (đã sinh dòng xếp lịch → routing khóa). Mốc phát hành/thực thi thuộc pha sau. |
+| `trang_thai` | `String(20)` | — | no | `nhap` | `nhap` → `cho_bo_sung` → `san_sang` → `da_lap_ke_hoach` (routing khóa) → `da_phat_hanh` (thả xuống xưởng) ⇄ `da_dong` (KCS đóng/mở lại). |
 | `nguoi_phu_trach_id` | `Integer` | IX | yes | — | Soft → `users.id` — người kế hoạch phụ trách lệnh. |
 | `ghi_chu` | `Text` | — | yes | — | Ghi chú kế hoạch. |
 | `created_by` | `Integer` | — | yes | — | Soft → `users.id`. |
@@ -4601,7 +4601,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `nhom_label` | `String(120)` | — | yes | — | Giá trị `OrderLine.nhom` (NULL = nhóm đơn lẻ). |
 | `ten` | `String(255)` | — | no | `""` | Tên hiển thị (dẫn xuất từ nhóm/sản phẩm). |
 | `than_chinh_lsx_id` | `Integer` FK→`lsx.id` | — | yes | — | LSX thân chính đi tới KCS cuối sau bước ghép đầu (§3.2). |
-| `trang_thai` | `String(24)` | — | no | `in_production` | `in_production`/`waiting_conditions`/`closed_full`/`closed_short` (§18). |
+| `trang_thai` | `String(24)` | — | no | `in_production` | `in_production`/`closed` — KCS bấm đóng/mở lại (§16). |
 | `version` | `Integer` | — | no | `1` | Chống bấm trùng / cập nhật đồng thời. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
@@ -6275,30 +6275,34 @@ Không để trống bảng giá được khi mức còn xe đang ăn (`Delivery
 
 ### `module_notifications`
 
-**Purpose:** một sự kiện nội bộ cần hiện badge ở một màn Thu mua/Kế toán; một dòng được dùng chung
-cho mọi người có quyền đọc màn đó, không nhân bản theo người nhận.
+**Purpose:** một "bản ghi mới" làm sáng CHẤM ĐỎ của một mục thanh bên (29/09/2026: có chấm = có bản
+ghi mới kể từ lần mở màn trước; mở màn là mất). Dòng phát rộng (`recipient_user_id` NULL) dùng chung cho
+mọi người thấy được, lọc theo ô quyền + phòng; dòng đích danh chỉ người nhận thấy. Ghi qua
+`services/thong_bao_man.bao`, đọc qua `trang_thai` (một câu gom cho cả thanh bên).
 
 | Column | Type (SQLAlchemy → SQLite / Postgres) | Key | Null | Default | Meaning |
 | --- | --- | --- | --- | --- | --- |
 | `id` | `Integer` → `INTEGER` / `SERIAL` | **PK** | no | auto-increment | Thứ tự sự kiện, đồng thời là mốc đọc ổn định. |
-| `channel` | `String(32)` → `VARCHAR(32)` | **IX** | no | — | Kênh nhận: `thu_mua` hoặc `ke_toan`. |
+| `channel` | `String(32)` → `VARCHAR(32)` | **IX** | no | — | Kênh = khoá module RBAC của màn (`luong`, `kho`, `bao_gia`…, danh sách ở `thong_bao_man.KENH`) hoặc `to_sx_<department_id>` cho bàn tổ. |
 | `event_type` | `String(64)` → `VARCHAR(64)` | — | no | — | Loại sự kiện realtime, ví dụ duyệt đơn hoặc cập nhật đợt giao. |
 | `source_code` | `String(64)` → `VARCHAR(64)` | — | yes | — | Mã đơn/chứng từ nguồn để truy vết và soạn toast. |
 | `actor_user_id` | `Integer` → `INTEGER` | **FK→users.id**, **IX** | yes | — | Người tạo sự kiện; người này không tự nhận badge. |
-| `recipient_user_id` | `Integer` → `INTEGER` | **FK→users.id**, **IX** | yes | — | Người nhận đích danh; NULL nghĩa là mọi người có quyền đọc kênh. |
+| `recipient_user_id` | `Integer` → `INTEGER` | **FK→users.id**, **IX** | yes | — | Người nhận đích danh (không xét quyền màn); NULL nghĩa là phát rộng theo quyền. |
+| `required_action` | `String(40)` → `VARCHAR(40)` | — | yes | — | Dòng phát rộng đòi ô quyền nào trên module kênh (`approve`, `approve_late_early`…); NULL = chỉ cần Xem. Mg 0346. |
+| `department_id` | `Integer` → `INTEGER` | **FK→departments.id** (SET NULL) | yes | — | Phòng của bản ghi để lọc theo phạm vi: toàn công ty thấy hết, phạm vi phòng thấy cây phòng mình, phạm vi cá nhân chỉ thấy dòng NULL. NULL = mọi người có quyền. Mg 0346. |
 | `created_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | **IX** | no | now (UTC) | Thời điểm phát sinh. |
 
 **Keys & indexes**
 
 - Primary key: `id`.
-- Foreign keys: `actor_user_id FK→users.id` (`CASCADE`), `recipient_user_id FK→users.id` (`CASCADE`).
-- Indexes: `channel`, `actor_user_id`, `recipient_user_id`, `created_at`.
+- Foreign keys: `actor_user_id FK→users.id` (`CASCADE`), `recipient_user_id FK→users.id` (`CASCADE`), `department_id FK→departments.id` (`SET NULL`).
+- Indexes: `channel`, `actor_user_id`, `recipient_user_id`, `created_at`, `ix_module_notifications_recipient_channel` (`recipient_user_id`, `channel`, `id`).
 
 **Relationships**
 
-- Không giữ danh sách người nhận; quyền RBAC quyết định ai nhìn thấy badge của kênh.
+- Không giữ danh sách người nhận cho dòng phát rộng; quyền RBAC (+ `required_action`, `department_id`) quyết định ai thấy chấm.
 
-**Tất cả cột:** `id`, `channel`, `event_type`, `source_code`, `actor_user_id`, `recipient_user_id`, `created_at`.
+**Tất cả cột:** `id`, `channel`, `event_type`, `source_code`, `actor_user_id`, `recipient_user_id`, `required_action`, `department_id`, `created_at`.
 
 ---
 
@@ -6310,7 +6314,7 @@ cho mọi người có quyền đọc màn đó, không nhân bản theo ngườ
 | --- | --- | --- | --- | --- | --- |
 | `id` | `Integer` → `INTEGER` / `SERIAL` | **PK** | no | auto-increment | Khóa kỹ thuật. |
 | `user_id` | `Integer` → `INTEGER` | **FK→users.id**, **U**, **IX** | no | — | Người đã đọc. |
-| `channel` | `String(32)` → `VARCHAR(32)` | **U**, **IX** | no | — | Kênh `thu_mua` hoặc `ke_toan`. |
+| `channel` | `String(32)` → `VARCHAR(32)` | **U**, **IX** | no | — | Kênh chấm đỏ (cùng giá trị với `module_notifications.channel`). |
 | `last_read_notification_id` | `Integer` → `INTEGER` | — | no | `0` | Mọi thông báo cùng kênh có id không lớn hơn mốc này đã đọc. |
 | `updated_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | no | now/onupdate | Lần vào màn gần nhất. |
 

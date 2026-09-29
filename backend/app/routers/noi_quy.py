@@ -17,6 +17,7 @@ from ..services.noi_quy_service import (
     NoiQuyService,
     NoiQuyValidationError,
 )
+from ..tai_len import doc_gioi_han
 
 router = APIRouter(prefix="/api/noi-quy", tags=["noi_quy"])
 MODULE = "noi_quy"
@@ -93,7 +94,7 @@ def list_records(
 
 
 @router.post("", response_model=NoiQuyRecordOut, status_code=status.HTTP_201_CREATED)
-async def create_record(
+def create_record(
     svc: Service,
     users: Users,
     user: Creator,
@@ -101,11 +102,9 @@ async def create_record(
     note: Annotated[str | None, Form()] = None,
     file: UploadFile = File(...),
 ) -> NoiQuyRecordOut:
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="Tệp không được để trống.")
-    if len(data) > MAX_FILE_BYTES:
-        raise HTTPException(status_code=400, detail="Tệp vượt quá 20 MB.")
+    # `def` (không `async`): đọc tệp + ghi kho tệp + DB đều đồng bộ — để threadpool gánh, đừng chặn
+    # event loop của cả máy chủ.
+    data = doc_gioi_han(file, MAX_FILE_BYTES, ma_rong=400, loi_rong="Tệp không được để trống.")
     try:
         file_type = _file_type(file.filename or "", data)
         row = svc.create_record(

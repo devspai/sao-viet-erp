@@ -31,7 +31,9 @@ from ..deps import (
 from ..models.payroll import PERIOD_DRAFT
 from ..models.user import User
 from ..models.role import SCOPE_ALL
+from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
+from ..services.thong_bao_man import bao
 from ..services.payroll_component_service import (
     ComponentError,
     ComponentNotFound,
@@ -343,27 +345,45 @@ def _adv_out(advs, employees: EmployeeRepository,
 
 
 def _notify_advance_pending(name: str | None) -> None:
-    """Có đề nghị tạm ứng mới/đổi → tín hiệu mọi client refetch badge (người duyệt nhận)."""
-    hub.broadcast({"type": "advance_pending_changed", "code": name})
+    """Có đề nghị tạm ứng mới/đổi → người xem màn nhân sự refetch badge (người duyệt nhận).
+    Nhóm `nhan_su`: badge Lương + tab Tạm ứng; người đề nghị nhận kết quả qua `advance_decision`."""
+    hub.gui({"type": "advance_pending_changed", "code": name}, quyen=MAN_NHAN_SU)
 
 
-def _notify_advance_decisions(advs, employees: EmployeeRepository, decision: str) -> None:
+def _cham_tam_ung_moi(employees: EmployeeRepository, outs, actor_id: int) -> None:
+    """Chấm đỏ Lương cho người DUYỆT theo phòng của người đứng tên (một dòng mỗi phòng)."""
+    theo_phong: dict[int | None, list] = {}
+    for o in outs:
+        theo_phong.setdefault(o.department_id, []).append(o)
+    for phong, ds in theo_phong.items():
+        bao(employees.db, kenh="luong", loai="tam_ung_moi", actor_id=actor_id, quyen="approve",
+            phong_id=phong, ma=str(ds[0].id) if len(ds) == 1 else None)
+
+
+def _notify_advance_decisions(advs, employees: EmployeeRepository, decision: str,
+                              actor_id: int | None = None) -> None:
     """Như `_notify_advance_decision` cho NHIỀU phiếu — nạp hồ sơ MỘT lần (sau commit, hồ sơ trong
     phiên đã hết hạn: tra từng người là 1000 câu SELECT khi duyệt 1000 phiếu)."""
     nv = employees.map_by_ids({a.employee_id for a in advs})
+    nhan: list[int] = []
     for a in advs:
         emp = nv.get(a.employee_id)
         if emp is not None and emp.user_id is not None:
+            nhan.append(emp.user_id)
             hub.publish(emp.user_id, {"type": "advance_decision", "decision": decision,
                                       "code": emp.full_name})
+    bao(employees.db, kenh="luong", loai="tam_ung_quyet_dinh", actor_id=actor_id, nguoi_nhan=nhan)
 
 
-def _notify_advance_decision(a, employees: EmployeeRepository, decision: str) -> None:
+def _notify_advance_decision(a, employees: EmployeeRepository, decision: str,
+                             actor_id: int | None = None) -> None:
     """Kế toán duyệt/từ chối → đẩy tới ĐÚNG nhân viên đề nghị (nếu tài khoản đã gắn hồ sơ)."""
     emp = employees.get_by_id(a.employee_id)
     if emp is not None and emp.user_id is not None:
         hub.publish(emp.user_id, {"type": "advance_decision", "decision": decision,
                                   "code": emp.full_name})
+        bao(employees.db, kenh="luong", loai="tam_ung_quyet_dinh", actor_id=actor_id,
+            nguoi_nhan=emp.user_id, ma=str(a.id))
 
 
 # --- cấu hình: params + quy tắc ---------------------------------------------
@@ -673,6 +693,7 @@ def create_advance(body: AdvanceIn, svc: Service, employees: Employees, departme
         _raise(exc)
     out = _adv_out([a], employees, departments)[0]
     _notify_advance_pending(out.employee_name)
+    _cham_tam_ung_moi(employees, [out], user.id)
     return out
 
 
@@ -711,6 +732,7 @@ def create_advances_bulk(body: AdvanceBulkIn, svc: Service, employees: Employees
         _raise(exc)
     out = _adv_out(rows, employees, departments)
     _notify_advance_pending(f"{len(out)} người")
+    _cham_tam_ung_moi(employees, out, user.id)
     return AdvancesOut(items=out)
 
 
@@ -747,7 +769,8 @@ def decide_advances_bulk(body: AdvanceBulkDecisionIn, svc: Service, employees: E
     except PayrollError as exc:
         _raise(exc)
     # Mỗi người nhận ĐÚNG thông báo của phiếu mình (real-time), như duyệt lẻ.
-    _notify_advance_decisions(rows, employees, "approved" if body.approve else "rejected")
+    _notify_advance_decisions(rows, employees, "approved" if body.approve else "rejected",
+                              user.id)
     _notify_advance_pending(f"{len(rows)} phiếu")
     return AdvancesOut(items=_adv_out(rows, employees, departments))
 
@@ -761,7 +784,7 @@ def approve_advance(advance_id: int, body: AdvanceDecisionIn, svc: Service, empl
                                scope=_emp_scope_for(authz, user))
     except PayrollError as exc:
         _raise(exc)
-    _notify_advance_decision(a, employees, "approved")
+    _notify_advance_decision(a, employees, "approved", user.id)
     return _adv_out([a], employees, departments)[0]
 
 
@@ -774,7 +797,7 @@ def reject_advance(advance_id: int, body: AdvanceDecisionIn, svc: Service, emplo
                                scope=_emp_scope_for(authz, user))
     except PayrollError as exc:
         _raise(exc)
-    _notify_advance_decision(a, employees, "rejected")
+    _notify_advance_decision(a, employees, "rejected", user.id)
     return _adv_out([a], employees, departments)[0]
 
 
@@ -815,6 +838,7 @@ def create_my_advance(body: MyAdvanceIn, svc: Service, employees: Employees,
         _raise(exc)
     out = _adv_out([a], employees, departments)[0]
     _notify_advance_pending(out.employee_name)
+    _cham_tam_ung_moi(employees, [out], user.id)
     return out
 
 

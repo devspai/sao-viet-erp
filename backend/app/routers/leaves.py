@@ -20,6 +20,7 @@ from ..deps import (
     require_any_permission,
 )
 from ..models.user import User
+from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
 from ..repositories.employee_repo import EmployeeRepository
 from ..schemas.leave import (
@@ -43,6 +44,7 @@ from ..schemas.leave import (
     LeaveTypesOut,
     MyLeaveOut,
 )
+from ..services.thong_bao_man import bao
 from ..services.leave_service import (
     LeaveError,
     LeaveForbidden,
@@ -145,17 +147,28 @@ def _resolve(svc: LeaveService, employees: EmployeeRepository, reqs: list):
 # biết đơn bị từ chối — trái nguyên tắc "gửi nội bộ = real-time" (CLAUDE.md).
 
 def _notify_pending_changed() -> None:
-    """Có đơn / yêu cầu hủy mới hoặc vừa xử lý → mọi client tải lại badge chờ duyệt."""
-    hub.broadcast({"type": "leave_pending_changed"})
+    """Có đơn / yêu cầu hủy mới hoặc vừa xử lý → người xem màn nhân sự tải lại badge chờ duyệt.
+    Nhóm `nhan_su`: badge Nghỉ phép + các màn Chấm công / Tăng ca / Lương cùng nhóm."""
+    hub.gui({"type": "leave_pending_changed"}, quyen=MAN_NHAN_SU)
 
 
-def _notify_decision(r, employees: EmployeeRepository, decision: str) -> None:
+def _cham_cho_duyet(r, employees: EmployeeRepository, loai: str, actor_id: int) -> None:
+    """Chấm đỏ Nghỉ phép cho người DUYỆT trong phạm vi phòng của người đứng tên đơn."""
+    emp = employees.get_by_id(r.employee_id)
+    bao(employees.db, kenh="nghi_phep", loai=loai, actor_id=actor_id, quyen="approve",
+        phong_id=emp.department_id if emp else None, ma=str(r.id))
+
+
+def _notify_decision(r, employees: EmployeeRepository, decision: str,
+                     actor_id: int | None = None) -> None:
     """Quyết định về đơn → đẩy tới ĐÚNG người đứng tên đơn; kèm broadcast để badge người duyệt hạ.
     `decision`: approved | rejected | cancelled | huy_dong_y | huy_rut_ngan | huy_giu_nguyen."""
     emp = employees.get_by_id(r.employee_id)
     if emp is not None and emp.user_id is not None:
         hub.publish(emp.user_id, {"type": "leave_decision", "decision": decision,
                                   "code": emp.full_name})
+        bao(employees.db, kenh="nghi_phep", loai="nghi_phep_quyet_dinh", actor_id=actor_id,
+            nguoi_nhan=emp.user_id, ma=str(r.id))
     _notify_pending_changed()
 
 
@@ -226,6 +239,7 @@ def create_request(body: LeaveRequestIn, svc: Service, employees: Employees,
     except LeaveError as exc:
         _raise(exc)
     _notify_pending_changed()
+    _cham_cho_duyet(r, employees, "nghi_phep_moi", user.id)
     return _resolve(svc, employees, [r])[0]
 
 
@@ -301,7 +315,7 @@ def cancel_request(request_id: int, svc: Service, employees: Employees, authz: A
     except LeaveError as exc:
         _raise(exc)
     if da_duyet:
-        _notify_decision(r, employees, "cancelled")   # người đứng tên mất ngày nghỉ đã duyệt ⇒ báo
+        _notify_decision(r, employees, "cancelled", user.id)   # người đứng tên mất ngày nghỉ đã duyệt ⇒ báo
     else:
         _notify_pending_changed()
     return _resolve(svc, employees, [r])[0]
@@ -332,6 +346,7 @@ def xin_huy(request_id: int, body: XinHuyIn, svc: Service, employees: Employees,
     except LeaveError as exc:
         _raise(exc)
     _notify_pending_changed()
+    _cham_cho_duyet(r, employees, "nghi_phep_xin_huy", user.id)
     return _resolve(svc, employees, [r])[0]
 
 
@@ -357,11 +372,11 @@ def quyet_xin_huy(yc_id: int, body: QuyetXinHuyIn, svc: Service, employees: Empl
     except LeaveError as exc:
         _raise(exc)
     if not body.dong_y:
-        _notify_decision(r, employees, "huy_giu_nguyen")
+        _notify_decision(r, employees, "huy_giu_nguyen", user.id)
     elif yc.den_ngay_cu is not None:
-        _notify_decision(r, employees, "huy_rut_ngan")
+        _notify_decision(r, employees, "huy_rut_ngan", user.id)
     else:
-        _notify_decision(r, employees, "huy_dong_y")
+        _notify_decision(r, employees, "huy_dong_y", user.id)
     return _resolve(svc, employees, [r])[0]
 
 
@@ -398,7 +413,7 @@ def approve_request(request_id: int, body: LeaveDecisionIn, svc: Service, employ
                         scope=_scope(authz, user))
     except LeaveError as exc:
         _raise(exc)
-    _notify_decision(r, employees, "approved")
+    _notify_decision(r, employees, "approved", user.id)
     return _resolve(svc, employees, [r])[0]
 
 
@@ -411,7 +426,7 @@ def reject_request(request_id: int, body: LeaveDecisionIn, svc: Service, employe
                        scope=_scope(authz, user))
     except LeaveError as exc:
         _raise(exc)
-    _notify_decision(r, employees, "rejected")
+    _notify_decision(r, employees, "rejected", user.id)
     return _resolve(svc, employees, [r])[0]
 
 
@@ -422,7 +437,7 @@ def bulk_approve(body: LeaveBulkIn, svc: Service, employees: Employees, authz: A
     for rid in res["done"]:
         r = svc.get_request(rid)
         if r is not None:
-            _notify_decision(r, employees, "approved")
+            _notify_decision(r, employees, "approved", user.id)
     return LeaveBulkResultOut(**res)
 
 
@@ -437,5 +452,5 @@ def bulk_reject(body: LeaveBulkRejectIn, svc: Service, employees: Employees, aut
     for rid in res["done"]:
         r = svc.get_request(rid)
         if r is not None:
-            _notify_decision(r, employees, "rejected")
+            _notify_decision(r, employees, "rejected", user.id)
     return LeaveBulkResultOut(**res)

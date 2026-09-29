@@ -30,7 +30,9 @@ from .models.ky_thuat_may import TT_BT_DANG_MO, BaoTriMay
 from .models.may_thiet_bi import MayThietBi
 from .models.role import RolePermission
 from .models.user import User
+from .locks import giu_vai_chinh
 from .realtime import hub
+from .services.thong_bao_man import bao
 from .repositories.audit_repo import AuditLogRepository
 from .repositories.ky_thuat_may_repo import KyThuatMayRepository
 from .services.ky_thuat_may_service import KyThuatMayService, hom_nay_vn
@@ -106,12 +108,16 @@ def _scan_once(hom_nay: date) -> int:
                 "qua_han": p.ngay_ke_hoach < hom_nay,
             }
             if p.nguoi_thuc_hien_id:
-                hub.publish(p.nguoi_thuc_hien_id, su_kien)
+                nhan = [p.nguoi_thuc_hien_id]
             else:
                 if chung is None:
                     chung = _nguoi_nhan_thong_bao(db)
-                for uid in chung:
-                    hub.publish(uid, su_kien)
+                nhan = chung
+            for uid in nhan:
+                hub.publish(uid, su_kien)
+            # Chấm đỏ mỗi phiếu MỘT lần, nhớ trong DB (sổ `_da_ting` trong RAM chỉ lo toast theo ngày).
+            bao(db, kenh="phieu_bao_tri", loai="bao_tri_den_han", actor_id=None, nguoi_nhan=nhan,
+                ma=p.ma, chi_mot_lan=True)
             da.add(p.id)
         return len(moi)
     finally:
@@ -125,6 +131,11 @@ async def run_bao_tri_reminder_loop(interval: int) -> None:
     không bắt người ta đợi hết một chu kỳ ticker mới thấy việc của mình.
     """
     while True:
+        # Nhiều worker: chỉ worker giữ vai quét — sổ `_da_ting` nằm trong tiến trình, để worker nào
+        # cũng quét là mỗi phiếu bị ting một lần mỗi worker.
+        if not await asyncio.to_thread(giu_vai_chinh, "nhac_bao_tri", ttl_ms=interval * 3000):
+            await asyncio.sleep(interval)
+            continue
         try:
             # Ngày theo giờ NHÀ MÁY. Lấy UTC là 0h–7h sáng giờ VN ticker vẫn quét theo ngày HÔM QUA:
             # kỳ của hôm nay không ra phiếu, ca sáng vào làm không thấy việc của mình.

@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { AuthProvider } from "./auth/AuthContext";
+import { BienLoiGoc } from "./components/BienLoiGoc";
 import { chanLanChuotDoiSo } from "./lib/chanLanChuotDoiSo";
 import "./styles/global.css";
 // Nạp CUỐI: `import { App }` ở trên chạy trước nên CSS của từng màn đã được chèn xong, rồi
@@ -18,8 +19,10 @@ chanLanChuotDoiSo();
 
 createRoot(rootEl).render(
   <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <BienLoiGoc>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </BienLoiGoc>
   </StrictMode>,
 );

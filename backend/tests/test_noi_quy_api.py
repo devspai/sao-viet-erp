@@ -174,7 +174,8 @@ def test_validate_ten_file_rong_va_dung_luong_o_server(client):
         files={"file": ("lon.pdf", io.BytesIO(b"%PDF-" + b"x" * (20 * 1024 * 1024)), "application/pdf")},
         headers=_h(token),
     )
-    assert too_large.status_code == 400 and "20 MB" in too_large.json()["detail"]
+    # 413 từ Task 6 sức chịu tải (`tai_len.doc_gioi_han` — trần chung mọi upload).
+    assert too_large.status_code == 413 and "20 MB" in too_large.json()["detail"]
 
 
 def test_khong_co_api_sua_va_co_nhat_ky_them_xoa(client):

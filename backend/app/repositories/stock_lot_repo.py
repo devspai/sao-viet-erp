@@ -14,6 +14,8 @@ from datetime import date
 from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session
 
+from .document_sequence_repo import DocumentSequenceRepository
+
 from ..models.customer import Customer
 from ..models.lsx import Lsx
 from ..models.order import Order
@@ -83,11 +85,14 @@ class StockLotRepository:
 
         `ma_hang` giờ là mã trong danh mục gốc (GY001 / VT004), không phải mã `materials` cũ.
         """
-        prefix = f"LOT-{ma_hang.strip().upper()}-{ngay:%y%m%d}-"
-        n = self.db.execute(
-            select(func.count()).select_from(StockLot).where(StockLot.ma_lo.like(f"{prefix}%"))
-        ).scalar_one()
-        return f"{prefix}{n + 1:02d}"
+        ma = ma_hang.strip().upper()
+        prefix = f"LOT-{ma}-{ngay:%y%m%d}-"
+        # Bộ đếm theo (mã hàng, ngày): hai phiếu nhập cùng mặt hàng duyệt cùng lúc — hay hai dòng
+        # cùng mặt hàng trong MỘT phiếu (session không autoflush nên lô thứ nhất chưa xuống DB) —
+        # không còn cùng ra `-01` rồi vỡ UNIQUE.
+        return DocumentSequenceRepository(self.db).cap_ma(
+            f"lo:{ngay:%m%d}:{ma}", ngay.year, StockLot.ma_lo, prefix, rong=2,
+        )
 
     def nguon_lo(self, lot_ids) -> dict[int, dict]:
         """`{lot_id: nguồn}` đọc ở LÔ GỐC: lô gốc → dòng phiếu nhập → dòng yêu cầu → lệnh → đơn → khách.

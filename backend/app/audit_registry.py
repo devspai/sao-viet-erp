@@ -173,6 +173,8 @@ _HD += _dong("san_xuat", None, {
     "san_xuat_kcs_kiem": "KCS kiểm hàng",
     "san_xuat_kcs_dieu_chinh": "KCS điều chỉnh kết quả kiểm",
     "san_xuat_kcs_da_xem_loi": "KCS đánh dấu đã xem lỗi",
+    "san_xuat_dong_lenh": "Đóng lệnh sản xuất",
+    "san_xuat_mo_lai_lenh": "Mở lại lệnh sản xuất",
     "san_xuat_dong_nhom_du": "Đóng nhóm đủ số",
     "san_xuat_dong_nhom_thieu": "Đóng nhóm thiếu số",
     "san_xuat.phat_hanh_cap_nhat": "Phát hành cập nhật xuống xưởng",

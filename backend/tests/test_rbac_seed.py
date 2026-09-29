@@ -16,7 +16,7 @@ from app.repositories.rbac_repo import (
     RoleRepository,
 )
 from app.repositories.user_repo import UserRepository
-from app.seed import MODULES, seed_all
+from app.seed import MODULES, seed_du_lieu
 
 
 def test_rbac_tables_registered():
@@ -106,8 +106,8 @@ def test_seed_is_idempotent(client):
             )
 
         before = counts()
-        seed_all(db)
-        seed_all(db)
+        seed_du_lieu(db, demo=False)
+        seed_du_lieu(db, demo=False)
         assert counts() == before
     finally:
         db.close()

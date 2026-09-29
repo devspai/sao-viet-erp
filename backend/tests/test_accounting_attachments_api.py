@@ -292,7 +292,7 @@ def test_upload_rejects_bad_type_oversize_and_empty(client):
     exe = _upload(client, headers, voucher["id"], name="virus.exe", data=b"MZ", mime="application/x-msdownload")
     assert exe.status_code == 422
     big = _upload(client, headers, voucher["id"], data=b"x" * (10 * 1024 * 1024 + 1))
-    assert big.status_code == 422
+    assert big.status_code == 413  # trần chung mọi upload (`tai_len.doc_gioi_han`)
     empty = _upload(client, headers, voucher["id"], data=b"")
     assert empty.status_code == 422
 

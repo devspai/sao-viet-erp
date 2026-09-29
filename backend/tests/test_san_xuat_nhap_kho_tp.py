@@ -69,7 +69,7 @@ def _huy_boi_kho(db, request_id: int) -> None:
 # --- Một cụm, một dòng ------------------------------------------------------------------------
 def test_bam_gui_kho_lap_yeu_cau_nhap_that_tu_duyet(db, orders, lsx_svc, admin, customer, monkeypatch):
     phat: list[dict] = []
-    monkeypatch.setattr(kho.hub, "broadcast", lambda ev: phat.append(ev))
+    monkeypatch.setattr(kho.hub, "gui", lambda ev, **_k: phat.append(ev))
     _to, cv, rb = _batch(db, orders, lsx_svc, admin, customer, dat=90, khong_dat=10, cuoi=True)
 
     res = _gui(db, cv, rb)
@@ -285,7 +285,7 @@ def test_dieu_chinh_khong_ha_duoi_so_da_gui(db, orders, lsx_svc, admin, customer
 # --- Real-time + đọc cho Giao hàng -----------------------------------------------------------
 def test_phat_su_kien_kho_bao_nguoi_tao(monkeypatch):
     phat, rieng = [], []
-    monkeypatch.setattr(kho.hub, "broadcast", lambda ev: phat.append(ev))
+    monkeypatch.setattr(kho.hub, "gui", lambda ev, **_k: phat.append(ev))
     monkeypatch.setattr(kho.hub, "publish", lambda uid, ev: rieng.append((uid, ev)))
 
     class _Req:

@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import mimetypes
 import re
-from typing import Annotated
+from typing import Annotated, Iterator
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 
 from sqlalchemy.orm import Session
 
@@ -24,7 +25,7 @@ from ..db import get_db
 from ..deps import FileUser, get_authorization_service
 from ..services.quyen_to import VIEC_XEM, quyen_to_cua
 from ..services.rbac_service import AuthorizationService
-from ..storage import StorageFileNotFound, get_storage, is_safe_key
+from ..storage import LuongTep, StorageFileNotFound, get_storage, is_safe_key
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -72,13 +73,49 @@ def _xem_ban_to(db: Session, thu_muc: str, user) -> bool:
     return thu_muc == "san-xuat" and quyen_to_cua(db, user).co_viec(VIEC_XEM)
 
 
+# Khoá tệp KHÔNG BAO GIỜ trỏ sang nội dung khác: mọi chỗ ghi đều sinh khoá mới có đoạn ngẫu nhiên
+# (`storage.make_key` → `token_hex(4)`; ảnh đại diện → `token_hex(8)`; đính kèm phiếu kho tự ghép
+# `token_hex(4)`), sửa tệp = tải tệp mới = khoá mới. Nên cache được vĩnh viễn — `private` để proxy
+# dùng chung không giữ (tệp gắn với quyền của người xem). Trước đây 5 phút: danh sách 50 ảnh là 50
+# lượt tải lại ảnh gốc mỗi lần mở màn.
+_CACHE_VINH_VIEN = "private, max-age=31536000, immutable"
+
+
+def _etag(key: str) -> str:
+    # Header HTTP chỉ nhận latin-1, mà tên tệp có dấu tiếng Việt ⇒ mã hoá % (không đổi nghĩa: vẫn
+    # là "khoá tệp", khớp 1-1).
+    return f'"{quote(key, safe="/")}"'
+
+
+def _khop_etag(if_none_match: str | None, etag: str) -> bool:
+    """`If-None-Match` có thể là `*`, một danh sách `"a", "b"`, hoặc dạng yếu `W/"a"`."""
+    if not if_none_match:
+        return False
+    for phan in if_none_match.split(","):
+        phan = phan.strip()
+        if phan == "*" or phan.removeprefix("W/") == etag:
+            return True
+    return False
+
+
+def _phat(stream: LuongTep) -> Iterator[bytes]:
+    """Bọc luồng để `finally` đóng nó cả khi client ngắt giữa chừng (Starlette bỏ dở vòng lặp,
+    generator bị thu dọn ⇒ `finally` chạy). Hết luồng bình thường thì `BackgroundTask` đóng —
+    `close()` gọi hai lần vô hại."""
+    try:
+        yield from stream
+    finally:
+        stream.close()
+
+
 @router.get("/{key:path}")
 def download_file(
     key: str,
     user: FileUser,
     db: Annotated[Session, Depends(get_db)],
     authz: Annotated[AuthorizationService, Depends(get_authorization_service)],
-) -> StreamingResponse:
+    if_none_match: Annotated[str | None, Header()] = None,
+) -> Response:
     # Kiểm khoá TRƯỚC khi chạm storage: `key` tới thẳng từ URL người dùng gõ.
     if not is_safe_key(key):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Đường dẫn tệp không hợp lệ")
@@ -93,23 +130,35 @@ def download_file(
     if khoa and not any(authz.can(user, m, "read") for m in khoa) and not _xem_ban_to(db, doan[0], user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Bạn không có quyền xem tệp này")
 
+    # Kiểm quyền ở TRÊN đã chạy xong: 304 chỉ nói "bản bạn đang giữ vẫn đúng", nhưng người mất
+    # quyền vẫn phải nhận 403 chứ không được xác nhận gì.
+    etag = _etag(key)
+    headers = {
+        "Cache-Control": _CACHE_VINH_VIEN,
+        "ETag": etag,
+        # Tệp phục vụ CÙNG origin với app: không có `nosniff` + `attachment` thì một `.html`/`.svg`
+        # chèn script, mở thẳng đường dẫn là script chạy với phiên của người đang xem. `nosniff`
+        # chặn trình duyệt tự đoán lại kiểu; `attachment` ép tải về mọi thứ không nằm trong danh
+        # sách xem-trước.
+        "X-Content-Type-Options": "nosniff",
+    }
+    if _khop_etag(if_none_match, etag):
+        # KHÔNG mở luồng MinIO — cả mục đích của 304 là khỏi kéo byte nào.
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+
     try:
         stream, size, content_type = get_storage().open_stream(key)
     except StorageFileNotFound:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy tệp") from None
 
-    # `private`: chặn proxy/CDN dùng chung cache — file này gắn với một người dùng cụ thể.
-    headers = {"Cache-Control": "private, max-age=300"}
     if size is not None:
         headers["Content-Length"] = str(size)
     # LocalStorage không giữ content-type → đoán theo đuôi file.
     media = content_type or mimetypes.guess_type(key)[0] or "application/octet-stream"
-    # Tệp phục vụ CÙNG origin với app: không có hai header này thì một `.html`/`.svg` chèn script,
-    # mở thẳng đường dẫn là script chạy với phiên của người đang xem. `nosniff` chặn trình duyệt tự
-    # đoán lại kiểu; `attachment` ép tải về mọi thứ không nằm trong danh sách xem-trước.
-    headers["X-Content-Type-Options"] = "nosniff"
     headers["Content-Disposition"] = _content_disposition(key, media)
-    return StreamingResponse(stream, media_type=media, headers=headers)
+    return StreamingResponse(
+        _phat(stream), media_type=media, headers=headers, background=BackgroundTask(stream.close),
+    )
 
 
 # Kiểu được MỞ NGAY trong trình duyệt — đúng những gì các màn xem trước (ảnh thu nhỏ, PDF trong

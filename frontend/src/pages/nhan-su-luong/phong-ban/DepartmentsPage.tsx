@@ -292,6 +292,10 @@ export function DepartmentsPage({
 
   const [booting, setBooting] = useState(true);
   const [bootError, setBootError] = useState<string | null>(null);
+  // Bấm "Thử lại" chỉ chạy lại lượt nạp đầu — trước đây `location.reload()` tải lại CẢ app (quyền,
+  // badge, kênh thông báo) chỉ vì một danh sách phòng ban hỏng.
+  const [lanBoot, setLanBoot] = useState(0);
+  const [lanChiTiet, setLanChiTiet] = useState(0);
   const [forbidden, setForbidden] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -651,14 +655,17 @@ export function DepartmentsPage({
       .catch((err) => {
         if (cancelled) return;
         if (err instanceof ApiError && err.isForbidden) setForbidden(true);
-        else setBootError("Không tải được danh sách phòng ban.");
+        else
+          setBootError(
+            `Không tải được danh sách phòng ban.${err instanceof ApiError ? ` ${err.message}` : ""}`,
+          );
       })
       .finally(() => !cancelled && setBooting(false));
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, lanBoot]);
 
   useEffect(() => {
     setConfirmingDelete(false);
@@ -722,7 +729,7 @@ export function DepartmentsPage({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, selectedId]);
+  }, [token, selectedId, lanChiTiet]);
 
   // Meta cho form Thêm nhân viên (danh sách phòng/vai trò/ca…) — nạp 1 lần, chỉ khi có quyền thêm NV.
   useEffect(() => {
@@ -1490,7 +1497,7 @@ export function DepartmentsPage({
       <main className="depts">
         <div className="banner banner--error" role="alert">
           <span>{bootError}</span>
-          <button type="button" className="btn btn--ghost" onClick={() => location.reload()}>
+          <button type="button" className="btn btn--ghost" onClick={() => setLanBoot((n) => n + 1)}>
             Thử lại
           </button>
         </div>
@@ -2010,7 +2017,14 @@ export function DepartmentsPage({
                       <p className="depts__status">Đang tải…</p>
                     ) : detailError ? (
                       <span className="depts__inline-error" role="alert">
-                        {detailError}
+                        {detailError}{" "}
+                        <button
+                          type="button"
+                          className="btn btn--ghost"
+                          onClick={() => setLanChiTiet((n) => n + 1)}
+                        >
+                          Thử lại
+                        </button>
                       </span>
                     ) : (
                       <>

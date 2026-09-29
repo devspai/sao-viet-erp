@@ -253,8 +253,16 @@ MENU_YCMH_CO_Y_AN: dict[str, str] = {
 def _menu_ycmh() -> set[str]:
     """Danh sách khoá mở mục menu 'Yêu cầu mua hàng' ở thanh bên."""
     s = (FE / "components" / "Sidebar.tsx").read_text(encoding="utf-8")
-    khoi = s.split('id: "yeu-cau-mua-hang"', 1)[1].split("modules: [", 1)[1].split("]", 1)[0]
-    return set(re.findall(r'"([a-z_]+)"', khoi))
+    # Khối của đúng mục này (tới dấu đóng `},` đầu tiên). Từ 28/09/2026 mục chỉ khai `module:`
+    # đơn, KHÔNG còn `modules: [...]` — đọc cả hai dạng để guard không xanh giả nếu ai thêm lại.
+    khoi = s.split('id: "yeu-cau-mua-hang"', 1)[1].split("},", 1)[0]
+    khoi = re.sub(r"//[^\n]*", "", khoi)  # chú thích có nhắc tên khoá cũ, đừng đếm
+    ds = re.search(r"modules:\s*\[([^\]]*)\]", khoi)
+    if ds:
+        return set(re.findall(r'"([a-z_]+)"', ds.group(1)))
+    don = re.search(r'module:\s*"([a-z_]+)"', khoi)
+    assert don, "không đọc được khoá của mục menu 'Yêu cầu mua hàng'"
+    return {don.group(1)}
 
 
 def _may_chu_doc_ycmh() -> set[str]:

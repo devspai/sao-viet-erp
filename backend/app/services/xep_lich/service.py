@@ -395,10 +395,15 @@ class XepLichLenhService:
 
         Cắt hai nhịp: SQL loại lệnh bắt đầu sau mép phải, rồi sau khi trải mới loại được lệnh kết
         thúc trước mép trái — `ket_thuc` không có cột nên SQL không biết nó.
+
+        Riêng lệnh ĐÃ XONG TRỌN (mọi bước đóng, dấu đóng trước mép trái) thì SQL biết chắc thanh của
+        nó kết thúc trước cửa sổ, nên loại luôn ở nhịp một (A7, 28/09/2026 — xem
+        `XepLichLenhRepository._xong_tron_truoc`). Không có vế đó, mỗi lượt vẽ bàn trải lại MỌI lệnh
+        từng xếp lịch từ ngày đầu dùng phần mềm chỉ để vứt đi.
         """
         d_tu = datetime.combine(tu, time.min)
         d_den = datetime.combine(den, time.max)
-        moc_rows = self.repo.truoc_moc(_aware(d_den))
+        moc_rows = self.repo.truoc_moc(_aware(d_den), tu=_aware(d_tu))
         lsx_map = self.repo.lsx_theo_ids([m.lsx_id for m in moc_rows])
         routing = self.repo.routing_theo_lo(list(lsx_map))
         self._nap_may(list(lsx_map))
@@ -711,7 +716,7 @@ class XepLichLenhService:
         ghép), giống màn 2: gói công việc dưới xưởng dựng theo cụm, thả nửa cụm là snapshot lệch.
         """
         from ...models.bai_ghep import TT_DA_PHAT_HANH as BG_PHAT_HANH
-        from ...models.lsx import TT_DA_PHAT_HANH
+        from ...models.lsx import TT_DA_DONG, TT_DA_PHAT_HANH
         from ...repositories.san_xuat_repo import SanXuatRepository
         from ..san_xuat.component import thanh_phan_lien_thong
         from ..san_xuat.release import phat_hanh as _sx_phat_hanh
@@ -719,6 +724,8 @@ class XepLichLenhService:
         l = self.repo.lsx_theo_ids([lsx_id]).get(lsx_id)
         if l is None:
             raise XepLichLenhNotFound("Không tìm thấy lệnh sản xuất.")
+        if l.trang_thai == TT_DA_DONG:
+            raise XepLichLenhConflict(f"Lệnh {l.ma} đã đóng — KCS mở lại trước nếu muốn làm tiếp.")
         if l.trang_thai == TT_DA_PHAT_HANH:
             # Không phải cửa gác mà là chống bấm hai lần: phát hành lại đè lên gói đang chạy.
             raise XepLichLenhConflict(f"Lệnh {l.ma} đã phát hành rồi — thu hồi trước nếu muốn làm lại.")
@@ -728,7 +735,7 @@ class XepLichLenhService:
         sx_repo = SanXuatRepository(self.db)
         tp = thanh_phan_lien_thong(sx_repo, {lsx_id})
         for x in self.repo.lsx_theo_ids(sorted(tp.lsx_ids)).values():
-            if x.trang_thai != TT_DA_PHAT_HANH:
+            if x.trang_thai not in (TT_DA_PHAT_HANH, TT_DA_DONG):
                 x.trang_thai = TT_DA_PHAT_HANH
         for bg in self._bai_ghep(tp.bai_ghep_ids):
             if bg.trang_thai != BG_PHAT_HANH:
@@ -764,6 +771,9 @@ class XepLichLenhService:
         l = self.repo.lsx_theo_ids([lsx_id]).get(lsx_id)
         if l is None:
             raise XepLichLenhNotFound("Không tìm thấy lệnh sản xuất.")
+        from ...models.lsx import TT_DA_DONG
+        if l.trang_thai == TT_DA_DONG:
+            raise XepLichLenhConflict(f"Lệnh {l.ma} đã đóng — không thu hồi được.")
         # Chặn TRƯỚC để ra 400: đường chung ném `XepLichConflict` cho thiếu lý do, mà 409 nghĩa là
         # "người khác vừa đổi" — FE bắt theo mã sẽ hiện sai câu. Cùng ngưỡng 3 ký tự.
         if len((ly_do or "").strip()) < 3:

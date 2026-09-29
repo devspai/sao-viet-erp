@@ -35,6 +35,7 @@ from ..services.vat_lieu_kho_service import (
     MotDanhMucVatLieu, VatLieuKhoNotFound, VatLieuKhoService, VatLieuKhoValidationError,
 )
 from ..storage import get_storage, key_from_url, make_key, url_from_key
+from ..tai_len import doc_gioi_han, kiem_anh
 from ..services.catalog_excel_specs import (
     GIAY, THANH_PHAM, VAT_TU,
 )
@@ -252,14 +253,10 @@ def set_vat_lieu_anh(
     file: UploadFile = File(...),
 ) -> VatLieuAnhOut:
     _guard_anh(loai, user, authz)
-    ct = (file.content_type or "").lower()
-    if not ct.startswith("image/"):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Chỉ nhận ảnh (image/*).")
-    data = file.file.read()
-    if not data:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Tệp rỗng.")
-    if len(data) > _MAX_ANH_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Ảnh vượt quá 5 MB.")
+    # Chỉ ảnh raster — SVG bị chặn: ảnh này còn được phục vụ CÔNG KHAI ở trang quét QR
+    # (`public_scan.py`), một SVG chèn script mở thẳng là chạy cùng origin với app.
+    kiem_anh(file.content_type, file.filename)
+    data = doc_gioi_han(file, _MAX_ANH_BYTES, ten="Ảnh", loi_rong="Tệp rỗng.")
     try:
         obj = svc.get(loai, item_id)
     except VatLieuKhoNotFound as e:

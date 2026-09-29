@@ -8,7 +8,7 @@
 // KHÔNG có kỳ chốt (chốt 08/09/2026: "nó chỉ theo dõi khấu hao thôi"). Hao mòn lũy kế là số máy
 // chủ TÍNH từ lịch của từng tài sản tới hết tháng trước; bảng của một tháng cũng tính tại chỗ —
 // không có nút Tính, không Chốt, không Mở lại.
-import { authed, ApiError } from "./client";
+import { authed, ApiError, layTokenMoiNhat } from "./client";
 
 const P = "/api/tai-san";
 
@@ -230,7 +230,7 @@ export const taiSanApi = {
     const resp = await fetch(`${BASE_URL}${P}/thang/${nam}/${thang}/excel`, {
       credentials: "include",
       cache: "no-store",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${layTokenMoiNhat() ?? token}` },
     });
     if (resp.status === 401) {
       // `refreshAccessToken` nằm private trong client.ts. Token hết hạn đúng lúc bấm Xuất là hiếm

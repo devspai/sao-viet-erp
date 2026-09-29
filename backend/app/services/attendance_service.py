@@ -886,8 +886,8 @@ class AttendanceService:
         hoặc None. Dùng để (a) cho phép chấm VÀO tăng ca sau khi ra ca chính, (b) hiện nhãn nút."""
         if self.overtime is None or emp is None:
             return None
-        for t in self.overtime.approved_in_range(work_day, work_day):
-            if t.employee_id == emp.id and t.work_date == work_day:
+        for t in self.overtime.approved_in_range(work_day, work_day, employee_id=emp.id):
+            if t.work_date == work_day:
                 return (int(t.from_minute), int(t.to_minute))
         return None
 
@@ -1105,7 +1105,12 @@ class AttendanceService:
         """Attempt a GPS check-in/out. Returns a result dict; a log is created ONLY when
         the point is inside some active location's radius (chặn cứng)."""
         emp = self._employee_for_user(user)
+        # Hai lượt bấm của cùng một người (bấm đúp, mạng chậm bấm lại, hai máy) xếp hàng ở đây.
+        self.employees.khoa_de_cham(emp.id)
         now_local = datetime.now(timezone.utc).astimezone(VN_TZ)
+        vua_cham = self._luot_vua_cham(emp.id, now_local)
+        if vua_cham is not None:
+            return vua_cham
         shift, work_day = self._shift_for_check(emp, now_local)
         check_type, block_reason, ot_mode = self._check_timing(emp.id, shift, work_day, now_local)
         if block_reason is not None:
@@ -1151,6 +1156,35 @@ class AttendanceService:
             "message": f"Đã chấm {verb} tại '{nearest.name}' (cách {distance:.0f} m).",
             "log": log,
         }
+
+    # Hai lượt chấm của cùng một người cách nhau dưới bấy nhiêu giây = một lần bấm bị gửi lại (bấm
+    # đúp, mạng chập chờn tự thử lại, giờ cao điểm máy chủ chậm nên bấm thêm). Không chặn thì lượt
+    # sau thành "RA" ngay sau "VÀO" — cả ngày công bị ghi sai. Không ai vào rồi ra thật trong 90 giây.
+    CHONG_BAM_LAI_GIAY = 90
+
+    def _luot_vua_cham(self, employee_id: int, now_local: datetime) -> dict | None:
+        """Lượt hợp lệ vừa ghi trong `CHONG_BAM_LAI_GIAY` giây ⇒ trả lại ĐÚNG kết quả đó (không ghi
+        thêm), để người bấm lại vẫn thấy "đã chấm" chứ không thấy lỗi."""
+        last = self.attendance.last_log(employee_id)
+        if last is None or not last.within_range:
+            return None
+        luc = _as_utc(last.checked_at).astimezone(VN_TZ)
+        if not (0 <= (now_local - luc).total_seconds() < self.CHONG_BAM_LAI_GIAY):
+            return None
+        noi = (self.attendance.get_location(last.work_location_id)
+               if last.work_location_id is not None else None)
+        verb = "VÀO" if last.check_type == CHECK_IN else "RA"
+        ten = f" tại '{noi.name}'" if noi is not None else ""
+        return {
+            "success": True, "within_range": True, "check_type": last.check_type, "ot_mode": False,
+            "distance_m": last.distance_m, "nearest_location": noi,
+            "message": f"Bạn đã chấm {verb}{ten} lúc {luc:%H:%M} — lượt vừa rồi đã được ghi nhận.",
+            "log": last,
+        }
+
+    def my_employee_name(self, *, user) -> str | None:
+        emp = self.employees.get_by_user_id(user.id)
+        return emp.full_name if emp is not None else None
 
     def my_logs(self, *, user, limit: int = 30):
         emp = self._employee_for_user(user)
@@ -2554,7 +2588,7 @@ class AttendanceService:
             target=f"attendance_shift_plan:{year}-{month:02d}",
             detail=f"{saved} ô khai, {cleared} ô về mặc định, {len(rejected)} ô bị từ chối",
         )
-        notified, not_notified = _push_shift_changes(logs)
+        notified, not_notified = _push_shift_changes(logs, db=self.employees.db)
         return {"saved": saved, "cleared": cleared, "rejected": rejected,
                 "changed": len(logs), "notified": notified, "not_notified": not_notified}
 

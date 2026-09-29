@@ -267,7 +267,7 @@ def test_gay_giua_chung_thi_khong_bao_to_sua_chua(db, cv_dang_chay, to_truong, m
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("bể")))
     monkeypatch.setattr(ktm.KyThuatMayService, "bao_to_sua_chua",
                         lambda self, yc: goi.append("bao_to"))
-    monkeypatch.setattr(su_co.hub, "broadcast", lambda *a, **k: goi.append("broadcast"))
+    monkeypatch.setattr(su_co.hub, "gui", lambda *a, **k: goi.append("gui"))
 
     with pytest.raises(RuntimeError):
         su_co.bao_su_co(
@@ -290,7 +290,7 @@ def test_bao_to_sua_chua_chay_SAU_commit(db, cv_dang_chay, to_truong, monkeypatc
     event.listen(db, "after_commit", _ghi_commit)
     monkeypatch.setattr(ktm.KyThuatMayService, "bao_to_sua_chua",
                         lambda self, yc: moc.append("bao_to"))
-    monkeypatch.setattr(su_co.hub, "broadcast", lambda *a, **k: moc.append("broadcast"))
+    monkeypatch.setattr(su_co.hub, "gui", lambda *a, **k: moc.append("gui"))
     try:
         su_co.bao_su_co(
             db, user=to_truong, cong_viec_id=cv_dang_chay.id, bo_phan_hong="cụm cấp giấy",
@@ -299,9 +299,9 @@ def test_bao_to_sua_chua_chay_SAU_commit(db, cv_dang_chay, to_truong, monkeypatc
     finally:
         event.remove(db, "after_commit", _ghi_commit)
 
-    assert "commit" in moc and "bao_to" in moc and "broadcast" in moc
+    assert "commit" in moc and "bao_to" in moc and "gui" in moc
     assert moc.index("commit") < moc.index("bao_to")
-    assert moc.index("commit") < moc.index("broadcast")
+    assert moc.index("commit") < moc.index("gui")
     # ĐÚNG MỘT commit cho cả việc ghi yêu cầu + tạm dừng + audit — nhiều hơn nghĩa là còn chỗ
     # chốt lẻ, tức vẫn còn cửa sổ hỏng dù trạng thái cuối trông vẫn đúng.
     assert moc.count("commit") == 1, moc

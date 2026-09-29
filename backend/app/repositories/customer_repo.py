@@ -577,6 +577,21 @@ class CustomerRepository:
         stmt = stmt.order_by(CustomerCareTask.due_date.asc(), CustomerCareTask.id.asc())
         return [(t, c) for t, c in self.db.execute(stmt).all()]
 
+    def count_due_followups(self, *, scope: str, actor, due_before) -> int:
+        """Số dòng `list_due_followups` sẽ trả — CÙNG điều kiện + scope, đếm bằng COUNT ở SQL.
+        Badge menu chỉ cần con số; nạp cả danh sách + tên sale cho mỗi lần mở app là phí."""
+        stmt = (
+            select(func.count(CustomerCareTask.id))
+            .select_from(CustomerCareTask)
+            .join(Customer, CustomerCareTask.customer_id == Customer.id)
+            .where(CustomerCareTask.status == TASK_OPEN)
+            .where(CustomerCareTask.due_date <= due_before)
+        )
+        cond = self._scope_condition(scope=scope, actor=actor)
+        if cond is not None:
+            stmt = stmt.where(cond)
+        return int(self.db.execute(stmt).scalar_one() or 0)
+
     def list_due_in_window(self, *, after, until) -> list[tuple[CustomerCareTask, Customer]]:
         """Hẹn ĐANG MỞ có giờ hẹn vừa rơi vào (after, until] và CÓ người phụ trách — nguồn ticker
         đẩy "ting" real-time. Cửa sổ hở-trái/đóng-phải để mỗi hẹn chỉ lọt ĐÚNG 1 LẦN (không nhắc lặp)."""

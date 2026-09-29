@@ -30,18 +30,16 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     DateTime, ForeignKey, Index, Integer, JSON, Numeric, String, Text, UniqueConstraint,
-    false as sa_false,
+    false as sa_false, text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
 
-# --- Trạng thái nhóm thành phẩm (§18) --------------------------------------------------------
+# --- Trạng thái nhóm thành phẩm (§16, 29/09/2026) — KCS bấm tay đóng/mở lại, không còn tự đóng.
 NHOM_DANG_SX = "in_production"          # đang sản xuất
-NHOM_CHO_DIEU_KIEN = "waiting_conditions"  # chờ điều kiện (thiếu vật tư / chờ nhánh)
-NHOM_DONG_DU = "closed_full"           # đóng đủ
-NHOM_DONG_THIEU = "closed_short"       # đóng thiếu (short-close)
-TRANG_THAI_NHOM = (NHOM_DANG_SX, NHOM_CHO_DIEU_KIEN, NHOM_DONG_DU, NHOM_DONG_THIEU)
+NHOM_DONG = "closed"                    # KCS đã đóng (mọi lệnh của nhóm → `lsx.da_dong`)
+TRANG_THAI_NHOM = (NHOM_DANG_SX, NHOM_DONG)
 
 # --- Trạng thái gói phát hành ----------------------------------------------------------------
 GOI_DANG_PHAT_HANH = "dang_phat_hanh"  # đang hiệu lực
@@ -93,7 +91,9 @@ class SanXuatNhom(Base):
     than_chinh_lsx_id: Mapped[int | None] = mapped_column(
         ForeignKey("lsx.id", ondelete="SET NULL"), nullable=True
     )
-    trang_thai: Mapped[str] = mapped_column(String(24), nullable=False, default=NHOM_DANG_SX)
+    trang_thai: Mapped[str] = mapped_column(
+        String(24), nullable=False, default=NHOM_DANG_SX, index=True
+    )
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -141,7 +141,7 @@ class SanXuatGoiPhatHanh(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ma: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     trang_thai: Mapped[str] = mapped_column(
-        String(24), nullable=False, default=GOI_DANG_PHAT_HANH
+        String(24), nullable=False, default=GOI_DANG_PHAT_HANH, index=True
     )
     version_hien_tai: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -202,6 +202,13 @@ class SanXuatCongViec(Base):
     đang chạy. Lọc theo `goi_id`."""
 
     __tablename__ = "san_xuat_cong_viec"
+    __table_args__ = (
+        # Bàn tổ / badge chỉ hỏi việc CHƯA XONG theo tổ — partial index bỏ qua cả kho lịch sử
+        # việc đã xong (mg `0344`). Tên + điều kiện trùng migration.
+        Index("ix_san_xuat_cong_viec_to_chua_xong", "department_id",
+              postgresql_where=text("trang_thai <> 'completed'"),
+              sqlite_where=text("trang_thai <> 'completed'")),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     goi_id: Mapped[int] = mapped_column(
@@ -219,7 +226,8 @@ class SanXuatCongViec(Base):
         ForeignKey("bai_ghep.id", ondelete="SET NULL"), nullable=True, index=True
     )
     lsx_cong_doan_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    bai_ghep_cong_doan_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # index (mg `0344`): mọi vế "việc GHÉP của lệnh" join theo cột này (boi_canh, lọc lệnh còn sống).
+    bai_ghep_cong_doan_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     step_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
     # LẦN CHẠY của bước (mg `0254`). Một bước tách N lần chạy ⇒ N công việc CÙNG `step_key`; cặp
     # số này là thứ DUY NHẤT phân biệt chúng. Bước chưa tách = 1/1. (Cửa tách/gộp nằm ở bàn xếp

@@ -392,6 +392,23 @@ class StockRequestRepository:
         )
         return [(ln, tt) for ln, tt in self.db.execute(stmt)]
 
+    def khoa_nguoi_tao(self, user_id: int) -> None:
+        """Khoá dòng tài khoản tới hết transaction — hai lượt "Gửi yêu cầu" của CÙNG một người xếp
+        hàng nhau, lượt sau mới thấy lượt trước để nhận ra là gửi lại. SQLite bỏ FOR UPDATE."""
+        from ..models.user import User
+
+        self.db.execute(select(User.id).where(User.id == user_id).with_for_update())
+
+    def vua_tao_boi(self, *, nguoi_tao_id: int, loai: str, tu_luc: datetime) -> list[StockRequest]:
+        """Yêu cầu người này tạo (cùng loại) từ `tu_luc` tới giờ, kèm dòng — để so nội dung."""
+        return list(self.db.execute(
+            select(StockRequest)
+            .options(selectinload(StockRequest.lines))
+            .where(StockRequest.nguoi_tao_id == nguoi_tao_id, StockRequest.loai == loai,
+                   StockRequest.created_at >= tu_luc)
+            .order_by(StockRequest.id.desc())
+        ).scalars())
+
     def create(self, *, ma: str, loai: str, nguoi_tao_id: int, lines: list[dict],
                commit: bool = True, **header) -> StockRequest:
         """`commit=False` = chỉ `flush()`, để người gọi ở NGOÀI tự chốt giao dịch.

@@ -10,8 +10,8 @@ công đoạn (nối bù hao + gắn tổ qua seed_san_xuat_org) · công việc
 và bù NCC + kho + lô tồn cho mọi giấy/vật tư có đơn vị (seed_kho_ncc).
 
 KHÔNG gồm BẬC TAY NGHỀ (bộ đóng 5 bậc, giữ nguyên) và KHÔNG bật SEED_DEMO (không đẻ dữ liệu nghiệp
-vụ mẫu). Danh mục NỀN (đơn vị/máy/công đoạn base) gọi thẳng seed function, cố ý bỏ qua cổng demo —
-xem memory `don-vi-quy-doi-khong-gate-seed-demo`.
+vụ mẫu). Danh mục đơn vị/máy/công đoạn base gọi thẳng seed function — đây là lệnh CHẠY TAY có chủ
+đích; khởi động app với SEED_DEMO=false thì KHÔNG seed gì (xem `seed.seed_all`).
 
 Công thức bám TỪ ĐIỂN BIẾN `services/bien_cong_thuc.py`:
   - Công đoạn `cong_thuc_gia`: KHÔNG có biến đơn giá → nhét số thẳng vào công thức.

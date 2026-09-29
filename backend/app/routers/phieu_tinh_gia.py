@@ -26,6 +26,7 @@ from ..models.phieu_tinh_gia import (
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
+from ..repositories.document_sequence_repo import DocumentSequenceRepository
 from ..repositories.org_scope import dept_subtree_ids, nhom_dung_chung_user_ids
 from ..services.actor_display import actor_labels
 from ..schemas.phieu_tinh_gia import (
@@ -87,13 +88,12 @@ def _fetch_in_scope(db: Session, p_id: int, user: User, authz: AuthorizationServ
 
 
 def _next_ma(db: Session) -> str:
-    """PTG-{year}-{seq:04d} — seq = (số phiếu năm nay) + 1."""
+    """PTG-{year}-{seq:04d} qua bộ đếm. Trước là (số phiếu năm nay) + 1: xoá một phiếu là mã kế
+    trùng mã đang có, và hai người lưu cùng lúc cùng nhận một mã."""
     year = datetime.now().year
-    prefix = f"PTG-{year}-"
-    count = db.scalar(
-        select(func.count()).select_from(PhieuTinhGia).where(PhieuTinhGia.ma.like(f"{prefix}%"))
-    ) or 0
-    return f"{prefix}{count + 1:04d}"
+    return DocumentSequenceRepository(db).cap_ma(
+        "phieu_tinh_gia", year, PhieuTinhGia.ma, f"PTG-{year}-",
+    )
 
 
 def _con_cua_thanh_phan(tp: PhieuThanhPhan, rows_in: list[dict], vt_in: list[dict],

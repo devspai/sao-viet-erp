@@ -9,7 +9,7 @@ from datetime import date, timedelta
 import pytest
 
 from app.db import SessionLocal
-from app.models.role import SCOPE_ALL, SCOPE_OWN
+from app.models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from app.models.purchase import Supplier, SupplierItem
 from app.models.vat_lieu_kho import GiayNguyen
 from app.repositories.rbac_repo import DepartmentRepository, RoleRepository
@@ -195,13 +195,14 @@ def test_ba_man_thu_mua_gac_bang_ba_khoa_doc_lap(client):
     assert client.post("/api/suppliers", json={"name": "NCC lau"},
                        headers=h_ycmh).status_code == 403
     assert client.get("/api/purchase-requests", headers=h_ycmh).status_code == 403
-    # Endpoint badge không được rò số sự kiện của hai màn người này không có quyền.
+    # Endpoint chấm đỏ không được rò kênh của hai màn người này không có quyền. Đánh dấu đã xem
+    # chỉ dời mốc của CHÍNH người gọi nên không đòi quyền màn (29/09/2026).
     assert client.get(
         "/api/module-notifications/summary", headers=h_ycmh
-    ).json() == {"thu_mua": 0, "ke_toan": 0}
+    ).json() == {"kenh": {}}
     assert client.post(
         "/api/module-notifications/thu_mua/mark-read", headers=h_ycmh
-    ).status_code == 403
+    ).status_code == 204
 
 
 def test_badge_thu_mua_ke_toan_luu_trang_thai_da_doc(client, auth_headers):
@@ -213,7 +214,7 @@ def test_badge_thu_mua_ke_toan_luu_trang_thai_da_doc(client, auth_headers):
     # Phiếu nháp chưa phải thông báo gửi Kế toán.
     before = client.get("/api/module-notifications/summary", headers=approver_headers)
     assert before.status_code == 200, before.text
-    assert before.json()["ke_toan"] == 0
+    assert "ke_toan" not in before.json()["kenh"]
 
     sent = client.post(
         f"/api/purchase-requests/{pr['id']}/submit", headers=auth_headers
@@ -221,7 +222,7 @@ def test_badge_thu_mua_ke_toan_luu_trang_thai_da_doc(client, auth_headers):
     assert sent.status_code == 200, sent.text
     assert client.get(
         "/api/module-notifications/summary", headers=approver_headers
-    ).json()["ke_toan"] == 1
+    ).json()["kenh"]["ke_toan"]["loai"]
 
     seen = client.post(
         "/api/module-notifications/ke_toan/mark-read", headers=approver_headers
@@ -229,7 +230,7 @@ def test_badge_thu_mua_ke_toan_luu_trang_thai_da_doc(client, auth_headers):
     assert seen.status_code == 204, seen.text
     assert client.get(
         "/api/module-notifications/summary", headers=approver_headers
-    ).json()["ke_toan"] == 0
+    ).json()["kenh"].get("ke_toan") is None
 
     approved = client.post(
         f"/api/purchase-requests/{pr['id']}/approve", headers=approver_headers
@@ -238,7 +239,7 @@ def test_badge_thu_mua_ke_toan_luu_trang_thai_da_doc(client, auth_headers):
     # Admin là người lập/Thu mua, khác người duyệt nên nhận thông báo ngược lại.
     assert client.get(
         "/api/module-notifications/summary", headers=auth_headers
-    ).json()["thu_mua"] == 1
+    ).json()["kenh"]["thu_mua"]["loai"]
 
 
 def test_tao_ycmh_bao_ngay_cho_thu_mua_va_luu_den_khi_doc(client, auth_headers):
@@ -254,7 +255,7 @@ def test_tao_ycmh_bao_ngay_cho_thu_mua_va_luu_den_khi_doc(client, auth_headers):
 
     before = client.get("/api/module-notifications/summary", headers=auth_headers)
     assert before.status_code == 200, before.text
-    assert before.json()["thu_mua"] == 0
+    assert "thu_mua" not in before.json()["kenh"]
 
     created = client.post(
         "/api/department-purchase-requests",
@@ -266,7 +267,7 @@ def test_tao_ycmh_bao_ngay_cho_thu_mua_va_luu_den_khi_doc(client, auth_headers):
     # Đếm từ bản ghi server nên tải lại trang vẫn còn, không phụ thuộc người dùng đã mở Mua hàng.
     first = client.get("/api/module-notifications/summary", headers=auth_headers)
     second = client.get("/api/module-notifications/summary", headers=auth_headers)
-    assert first.json()["thu_mua"] == second.json()["thu_mua"] == 1
+    assert "thu_mua" in first.json()["kenh"] and "thu_mua" in second.json()["kenh"]
 
     seen = client.post(
         "/api/module-notifications/thu_mua/mark-read", headers=auth_headers
@@ -274,7 +275,7 @@ def test_tao_ycmh_bao_ngay_cho_thu_mua_va_luu_den_khi_doc(client, auth_headers):
     assert seen.status_code == 204, seen.text
     assert client.get(
         "/api/module-notifications/summary", headers=auth_headers
-    ).json()["thu_mua"] == 0
+    ).json()["kenh"].get("thu_mua") is None
 
 
 def test_khong_co_quyen_thi_khong_lap_duoc_yeu_cau_mua_hang(client):
@@ -744,9 +745,42 @@ def test_department_purchase_request_update_permissions_and_status(client, auth_
     assert locked.status_code == 409
 
 
+def _cap_xem_ycmh_cho_nv_sales(scope: str) -> None:
+    """Cấp ô Xem màn Yêu cầu mua hàng cho vai NV Sales — từ 28/09/2026 quyền Báo giá KHÔNG còn mở
+    đường đọc YCMH, bộ phận nào cần xem thì cấp đúng ô này."""
+    db = SessionLocal()
+    try:
+        kd = DepartmentRepository(db).get_by_name("Kinh doanh")
+        roles = RoleRepository(db)
+        sales_role = roles.get_by_name_and_department("NV Sales", kd.id)
+        roles.set_permission(
+            role_id=sales_role.id, module_key="yeu_cau_mua_hang", can_read=True, scope=scope,
+        )
+    finally:
+        db.close()
+
+
+def test_quyen_bao_gia_khong_con_mo_duong_doc_ycmh(client, auth_headers):
+    """⭐ Chủ chốt 28/09/2026: "tôi có bật xem đâu mà hiển thị". Vai chỉ có Xem Báo giá (không có ô
+    Yêu cầu mua hàng) thì KHÔNG đọc được YCMH — trước đó `bao_gia` · `kho` · `san_xuat` · `dm_giay`
+    · `ke_toan` đều mượn được đường đọc nên menu tự hiện dù ô Xem của màn TẮT."""
+    requester_headers = {"Authorization": f"Bearer {_requester_token()}"}
+    sales_headers = {"Authorization": f"Bearer {_sales_token()}"}
+    nguon = _create_department_request(client, requester_headers)
+
+    assert client.get("/api/department-purchase-requests", headers=sales_headers).status_code == 403
+    assert client.get(
+        f"/api/department-purchase-requests/{nguon['id']}", headers=sales_headers,
+    ).status_code == 403
+
+    _cap_xem_ycmh_cho_nv_sales(SCOPE_DEPARTMENT)
+    assert client.get("/api/department-purchase-requests", headers=sales_headers).status_code == 200
+
+
 def test_department_purchase_request_list_is_scoped_by_department(client, auth_headers):
     requester_headers = {"Authorization": f"Bearer {_requester_token()}"}
     sales_headers = {"Authorization": f"Bearer {_sales_token()}"}
+    _cap_xem_ycmh_cho_nv_sales(SCOPE_DEPARTMENT)
     kinh_doanh_source = _create_department_request(client, requester_headers)
     admin_source = _create_department_request(client, auth_headers)
 
@@ -1667,7 +1701,9 @@ def test_purchase_permissions(client, auth_headers):
 
     assert client.get("/api/suppliers", headers=sales_headers).status_code == 403
     assert client.get("/api/purchase-requests", headers=sales_headers).status_code == 403
-    assert client.get("/api/department-purchase-requests", headers=sales_headers).status_code == 200
+    # Quyền Báo giá KHÔNG còn mở đường đọc YCMH (28/09/2026) — xem
+    # test_quyen_bao_gia_khong_con_mo_duong_doc_ycmh.
+    assert client.get("/api/department-purchase-requests", headers=sales_headers).status_code == 403
     denied = client.get("/api/department-purchase-requests/can-create", headers=sales_headers)
     assert denied.status_code == 200 and denied.json()["can_create"] is False
     blocked_source = client.post(

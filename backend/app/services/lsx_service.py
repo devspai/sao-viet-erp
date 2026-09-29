@@ -35,6 +35,7 @@ from ..models.lsx import (
     LOAI_BUOC,
     LOAI_MOI,
     TT_CHO_BO_SUNG,
+    TT_DA_DONG,
     TT_DA_LAP_KE_HOACH,
     TT_DA_PHAT_HANH,
     TT_NHAP,
@@ -1174,13 +1175,15 @@ class LsxService:
 
     # ================= HÀNG CHỜ =================
 
-    def hang_cho(self, *, page: int = 1, size: int = 50) -> tuple[list[dict], int]:
+    def hang_cho(self, *, page: int = 1, size: int = 50,
+                 chi_dem: bool = False) -> tuple[list[dict], int]:
         """`(đơn của TRANG này, TỔNG số đơn còn nợ lệnh)`.
 
         Điều kiện "còn dòng chưa lên lệnh" đã chuyển xuống SQL (`repo.orders_ban_giao`) — ở đây
-        chỉ còn đếm để HIỆN "x/y dòng đã lên lệnh".
+        chỉ còn đếm để HIỆN "x/y dòng đã lên lệnh". `chi_dem` ⇒ chỉ đếm (badge menu): `([], total)`,
+        không nạp dòng đơn / tên khách / tên sale.
         """
-        orders, total = self.repo.orders_ban_giao(page=page, size=size)
+        orders, total = self.repo.orders_ban_giao(page=page, size=size, chi_dem=chi_dem)
         if not orders:
             return [], total
         line_ids = [ln.id for o in orders for ln in o.lines]
@@ -3162,6 +3165,8 @@ class LsxService:
             raise LsxValidationError("Lập kế hoạch qua màn Xếp lịch, không đổi trực tiếp ở đây")
         if lsx.trang_thai == TT_DA_LAP_KE_HOACH:
             raise LsxConflict("Lệnh đã lập kế hoạch — gỡ kế hoạch trước")
+        if trang_thai == TT_DA_DONG or lsx.trang_thai == TT_DA_DONG:
+            raise LsxConflict("Lệnh đã đóng — KCS đóng/mở lại ở màn KCS, không đổi trực tiếp ở đây")
         # "Đã phát hành" chỉ đến từ cửa PHÁT HÀNH (đóng băng gói công việc) — Xếp lịch hoặc Gia
         # công trọn gói. Đổi tay ở đây là lệnh "đã phát" mà xưởng không có việc nào.
         if trang_thai == TT_DA_PHAT_HANH:
@@ -3192,6 +3197,8 @@ class LsxService:
         if lsx.trang_thai == TT_DA_PHAT_HANH:
             raise LsxConflict(
                 "Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) trước khi xoá")
+        if lsx.trang_thai == TT_DA_DONG:
+            raise LsxConflict("Lệnh đã đóng — không xoá được")
         # Coupling bài ghép: neo thành viên là FK RESTRICT (chặn ở Postgres); SQLite dev tắt FK nên
         # chặn ở đây + báo đẹp. Gỡ LSX khỏi bài ghép trước rồi mới xoá được lệnh.
         ghep_ma = self.db.execute(

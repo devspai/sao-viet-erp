@@ -21,7 +21,7 @@ from ..models.bai_ghep import (
 )
 from ..models.lsx import (
     LB_THUE_NGOAI, TT_DA_LAP_KE_HOACH as LSX_DA_LAP,
-    TT_DA_PHAT_HANH as LSX_DA_PHAT_HANH, Lsx,
+    TT_DA_DONG as LSX_DA_DONG, TT_DA_PHAT_HANH as LSX_DA_PHAT_HANH, Lsx,
 )
 from ..models.san_xuat import CV_HOAN_THANH
 from ..models.xep_lich_van_de import (
@@ -765,6 +765,8 @@ class XepLichVanDeService:
         lsx = self.xl.lsx_repo.get(lsx_id)
         if lsx is None:
             raise XepLichNotFound("Không tìm thấy lệnh sản xuất")
+        if lsx.trang_thai == LSX_DA_DONG:
+            raise XepLichConflict(f"Lệnh {lsx.ma} đã đóng — KCS mở lại trước nếu muốn làm tiếp")
         if lsx.trang_thai != LSX_DA_LAP:
             # Nói ĐÚNG trạng thái đang có: câu cũ luôn kêu "chưa lập kế hoạch" nên lệnh đã
             # phát hành rồi mà bấm lại vẫn bị mắng sai chỗ, người dùng tưởng mất kế hoạch.
@@ -843,6 +845,8 @@ class XepLichVanDeService:
         lsx = self.xl.lsx_repo.get(lsx_id)
         if lsx is None:
             raise XepLichNotFound("Không tìm thấy lệnh sản xuất")
+        if lsx.trang_thai == LSX_DA_DONG:
+            raise XepLichConflict(f"Lệnh {lsx.ma} đã đóng — không thu hồi được")
         if lsx.trang_thai == LSX_DA_PHAT_HANH:
             ly_do = self._chot_ly_do_go(ly_do)
             from .san_xuat import release_update as _ru

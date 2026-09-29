@@ -20,6 +20,7 @@ from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ...repositories.san_xuat_vat_tu_repo import SanXuatVatTuRepository
 from ...repositories.stock_request_repo import StockRequestRepository
+from ...doi_tuong_nhan import kem_ban_to
 from ...realtime import hub
 from ..ke_hoach_vat_tu_service import KeHoachVatTuError
 from ..quyen_to import VIEC_KHO
@@ -375,6 +376,14 @@ def _req_service(db: Session, hang):
     )
 
 
+def _bao_de_nghi_doi(cv) -> None:
+    """Đề nghị cấp vật tư của MỘT công việc đổi. FE chỉ nghe ở bàn tổ (gác `coQuyenBanTo`, đếm theo
+    `cong_viec_id` cho drawer đang mở, không nhích nhóm nào) ⇒ chỉ bàn của tổ giữ việc; phía kho
+    nhận tin riêng của yêu cầu kho."""
+    hub.gui({"type": "san_xuat_vat_tu_de_nghi_changed", "cong_viec_id": cv.id},
+            **kem_ban_to((), [cv.department_id]))
+
+
 def tao(db: Session, *, user, cong_viec_id: int, can_luc: datetime,
         lines: list[dict], kh_svc=None, req_svc=None) -> dict:
     """Tạo một LẦN đề nghị. Lần 1 = `lan_dau`, từ lần 2 trở đi = `bo_sung`.
@@ -397,6 +406,9 @@ def tao(db: Session, *, user, cong_viec_id: int, can_luc: datetime,
     cv = repo.cong_viec(cong_viec_id)
     if cv is None:
         raise ValueError("Không tìm thấy công việc.")
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv)
     # Khoá công đoạn TRƯỚC khi đọc bất cứ thứ gì mình sắp ghi đè lên (`cac_de_nghi`, `lan_ke_tiep`).
     # `sua()` đã có khoá của nó (`StockRequestRepository.lock_for_update`), `tao()` thì trước đây
     # không khoá gì: tổ trưởng bấm "Gửi đề nghị" hai lần lúc mạng chậm là hai lượt cùng đọc
@@ -485,8 +497,7 @@ def tao(db: Session, *, user, cong_viec_id: int, can_luc: datetime,
     # gì — badge bỏ nhịp và SSE không tự thử lại (xem `StockRequestService.thong_bao_yeu_cau_moi`).
     if req is not None:
         req_svc.thong_bao_yeu_cau_moi(req)
-    hub.broadcast({"type": "san_xuat_vat_tu_de_nghi_changed",
-                   "cong_viec_id": cong_viec_id})
+    _bao_de_nghi_doi(cv)
     return {"de_nghi_id": dn.id, "stock_request_id": dn.stock_request_id, "lan_so": lan_so}
 
 
@@ -592,7 +603,7 @@ def sua(db: Session, *, user, cong_viec_id: int, de_nghi_id: int,
     # Nhánh đẻ mới đi `commit=False` nên `create` KHÔNG tự đẩy tin — báo kho ở đây, sau khi chốt.
     if req_moi is not None:
         req_svc.thong_bao_yeu_cau_moi(req_moi)
-    hub.broadcast({"type": "san_xuat_vat_tu_de_nghi_changed", "cong_viec_id": cong_viec_id})
+    _bao_de_nghi_doi(cv)
     # KHÔNG broadcast thêm `stock_request_pending_changed` toàn hệ ở đây (ruling task-4 minor-6):
     # ba nhánh đồng bộ/hủy đã tự `_notify(..., targeted=False)` bên trong, nhánh đẻ mới thì
     # `thong_bao_yeu_cau_moi` ngay trên — mà `_notify` cố ý đẩy THEO PHẠM VI (xem

@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import get_authorization_service, require_any_permission, require_permission
 from ..models.delivery import LAN_GIAO_DANG_CHAY
+from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_GIAO_HANG, hop
 from ..realtime import hub
 from ..models.role import SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
@@ -94,13 +95,16 @@ from ..services.delivery_service import (
 )
 from ..services.rbac_service import AuthorizationService
 from ..services.thanh_pham_khai_bao import cum_ban
+from ..tai_len import doc_gioi_han
 
 def _bao_giao_hang_doi(request: Request):
     """Mọi thao tác GHI thành công ở màn Giao hàng ⇒ đẩy một tín hiệu im lặng: drawer Đơn hàng bán
     đang mở tự đọc lại tiến độ (real-time, không toast — chủ chốt 19/09/2026 bỏ chuông báo Sales)."""
     yield
     if request.method != "GET":
-        hub.broadcast({"type": "giao_hang_changed"})
+        # Nhóm `giao_hang` + `ban_hang`: màn Giao hàng, drawer Đơn hàng bán (tiến độ giao) và các màn
+        # bán hàng nghe cùng nhóm.
+        hub.gui({"type": "giao_hang_changed"}, quyen=hop(MAN_GIAO_HANG, MAN_BAN_HANG))
 
 
 router = APIRouter(prefix="/api/giao-hang", tags=["giao-hang"],
@@ -984,7 +988,9 @@ def dinh_kem_them(trip_id: int, svc: Service, db: Db, authz: Authz, user: Writer
     try:
         row = svc.dinh_kem_them(
             trip_id, actor=user, scope=_scope(authz, user),
-            file_name=file.filename, content_type=file.content_type, data=file.file.read(),
+            file_name=file.filename, content_type=file.content_type,
+            # Tệp rỗng để service báo bằng câu của nó.
+            data=doc_gioi_han(file, DeliveryService.DINH_KEM_TOI_DA_BYTE, cho_rong=True),
         )
     except DeliveryError as e:
         raise _err(e)

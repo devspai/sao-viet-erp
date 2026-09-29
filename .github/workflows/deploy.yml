@@ -17,7 +17,13 @@ on:
         default: false
 
 # Không cho 2 lần deploy chồng nhau TRÊN CÙNG môi trường; không hủy lần đang chạy (deploy dở
-# nguy hiểm). Tách theo nhánh để deploy staging không phải xếp hàng sau production.
+# nguy hiểm).
+#
+# Staging + production chạy CHUNG một VPS nên cũng không được build/migrate cùng lúc — nhưng việc đó
+# khoá bằng `flock` TRÊN VPS (đầu script dưới), KHÔNG gộp chung một concurrency group: GitHub chỉ giữ
+# MỘT lượt chờ mỗi group, lượt mới vào sẽ HUỶ lượt đang chờ. Gộp chung thì một lần push `dev` có thể
+# lặng lẽ huỷ lần deploy production đang xếp hàng. Tách theo nhánh thì lượt bị thay luôn là bản cũ
+# hơn của CÙNG nhánh — đúng ý.
 concurrency:
   group: deploy-${{ github.ref_name }}
   cancel-in-progress: false
@@ -53,9 +59,22 @@ jobs:
           username: ${{ vars.VPS_USER }}
           port: ${{ vars.VPS_PORT }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          # Mặc định của action là 10 phút. Lượt này có thể phải chờ khoá (deploy môi trường kia đang
+          # chạy, tối đa 20 phút) rồi mới tới phần build của chính nó.
+          command_timeout: 40m
           script: |
             set -euo pipefail
             cd "${{ github.ref_name == 'main' && vars.APP_DIR || vars.APP_DIR_STG }}"
+
+            # Staging + production chung VPS: build (npm ci, vite), migrate, dựng container của hai
+            # môi trường KHÔNG được chạy chồng nhau — tranh CPU/RAM làm prod chậm, cả hai cùng migrate
+            # cùng lúc thì khó đoán. Khoá giữ tới khi shell này thoát.
+            echo "→ Chờ khoá deploy của VPS (môi trường kia có thể đang deploy)"
+            exec 9>/tmp/erp-svn-deploy.lock
+            if ! flock -w 1200 9; then
+              echo "DỪNG: chờ khoá deploy quá 20 phút — lần deploy khác đang kẹt? Kiểm: ps aux | grep 'docker compose'"
+              exit 1
+            fi
 
             echo "→ Kéo code mới nhất (origin/${{ github.ref_name }})"
             git fetch --all --prune
@@ -93,39 +112,66 @@ jobs:
             docker compose run --rm -T backend python -m app.migrate
 
             # Dựng service nào là do COMPOSE_PROFILES trong .env quyết (bản triển khai khai đủ
-            # 6). KHÔNG dùng --remove-orphans: chạy kèm profiles rất dễ xoá nhầm container của
-            # profile đang tắt.
+            # 6, thêm `backup` là 7). KHÔNG dùng --remove-orphans: chạy kèm profiles rất dễ xoá nhầm
+            # container của profile đang tắt.
+            # `web` chờ backend HEALTHY (depends_on) nên lệnh này tự đợi backend lên; backend hỏng
+            # thì nó trả lỗi. Không để `set -e` thoát ngay ở đây — bước kiểm dưới còn phải in log.
             echo "→ Dựng lại & khởi động containers"
-            docker compose up -d --build
+            UP_OK=1
+            docker compose up -d --build || UP_OK=0
 
             echo "→ Trạng thái"
             docker compose ps
 
-            # `docker compose up -d` trả về ngay khi container ĐƯỢC TẠO, không đợi app trong đó
-            # lên — nên `ps` ở trên gần như luôn đẹp kể cả khi backend crash-loop. 2026-08-09
-            # staging chết 21 giờ vì migration 0171 raise mà Actions vẫn xanh; cổng này chặn ca đó.
-            echo "→ Chờ backend trả /api/health (tối đa 90s)"
-            # Gọi từ TRONG container vì backend chỉ expose 8000 trong network nội bộ, host không
-            # map port; và mỗi môi trường bind cổng web khác nhau (stg 8181, prod 8180) nên curl từ
-            # host phải viết hai nhánh. `exec` fail cũng là tín hiệu đúng: container đang restart
-            # thì không exec vào được.
+            # `docker compose ps` gần như luôn đẹp kể cả khi backend crash-loop. 2026-08-09 staging
+            # chết 21 giờ vì migration 0171 raise mà Actions vẫn xanh; cổng này chặn ca đó.
+            # Chờ healthcheck của compose (backend tự gọi /api/health, kiểm cả DB) báo `healthy`.
+            echo "→ Chờ backend healthy (tối đa 120s)"
             OK=0
-            for i in $(seq 1 30); do
-              if docker compose exec -T backend python -c \
-                   "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status==200 else 1)" \
-                   >/dev/null 2>&1; then
-                OK=1; echo "  backend OK (lần thử $i)"; break
+            TT="?"
+            for i in $(seq 1 40); do
+              CID=$(docker compose ps -q backend 2>/dev/null || true)
+              if [ -n "$CID" ]; then
+                TT=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}khong-co-healthcheck{{end}}' "$CID" 2>/dev/null || echo "?")
+              fi
+              if [ "$TT" = "healthy" ]; then
+                OK=1; echo "  backend healthy (lần thử $i)"; break
               fi
               sleep 3
             done
             if [ "$OK" != "1" ]; then
-              echo "DỪNG: backend không trả /api/health sau 90s. Log 80 dòng cuối:"
+              echo "DỪNG: backend không healthy sau 120s (trạng thái cuối: $TT). Log 80 dòng cuối:"
               docker compose logs --tail 80 backend || true
               docker compose ps || true
               exit 1
             fi
 
+            # Kiểm thêm ĐƯỜNG THẬT người dùng đi: nginx (web) → backend. Backend healthy mà nginx
+            # không tới được (sai tên service, resolver, web chưa lên) thì người dùng vẫn chỉ thấy lỗi.
+            # Gọi trong container `web` vì mỗi môi trường bind cổng khác nhau (stg 8181, prod 8180).
+            echo "→ Kiểm /api/health qua nginx (web → backend)"
+            OK=0
+            for i in $(seq 1 10); do
+              if KQ=$(docker compose exec -T web wget -qO- http://127.0.0.1/api/health 2>/dev/null); then
+                OK=1; echo "  web → backend OK (lần thử $i): $KQ"; break
+              fi
+              sleep 3
+            done
+            if [ "$OK" != "1" ]; then
+              echo "DỪNG: backend healthy nhưng gọi qua web không được sau 30s. Log web:"
+              docker compose logs --tail 40 web || true
+              exit 1
+            fi
+            if [ "$UP_OK" != "1" ]; then
+              echo "DỪNG: \`docker compose up\` báo lỗi (xem ở trên) dù backend + web đã chạy — kiểm service khác (caddy, backup…)."
+              docker compose ps || true
+              exit 1
+            fi
+
             # Dọn image cũ SAU CÙNG: chạy trước health check thì lỡ cần lùi về image trước cũng
-            # không còn gì để lùi.
+            # không còn gì để lùi. CHỈ image của project này (nhãn compose tự gắn lúc build) — prod
+            # và staging chung VPS, không dọn hộ project kia.
             echo "→ Dọn image cũ"
-            docker image prune -f
+            PROJECT=$(grep -E '^COMPOSE_PROJECT_NAME=' .env | tail -n1 | cut -d= -f2- | tr -d "\"' " || true)
+            PROJECT=${PROJECT:-erp-svn}
+            docker image prune -f --filter "label=com.docker.compose.project=${PROJECT}"

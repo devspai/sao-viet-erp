@@ -595,7 +595,7 @@ const toForm = (d: BaiGhep2Detail): MetaForm => ({
 
 /** Bài đã lập kế hoạch / đã phát hành: máy chủ chặn mọi sửa (`_chan_da_lap`) — UI khoá theo. */
 export function baiDaChot(trangThai: string | null | undefined): boolean {
-  return trangThai === "da_lap_ke_hoach" || trangThai === "da_phat_hanh";
+  return trangThai === "da_lap_ke_hoach" || trangThai === "da_phat_hanh" || trangThai === "da_dong";
 }
 
 function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {

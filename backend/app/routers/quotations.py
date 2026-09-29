@@ -21,13 +21,17 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from ..db import SessionLocal
+from ..cong_dong_thoi import chay_ngoai_cong
+from ..doi_tuong_nhan import nap_quyen_nhan
+from ..db import SessionLocal, get_db
 from ..deps import (
     get_authorization_service,
     get_quotation_service,
     require_permission,
 )
+from ..doi_tuong_nhan import MAN_BAN_HANG
 from ..realtime import hub
 from ..repositories.user_repo import UserRepository
 from ..security import decode_access_token
@@ -73,8 +77,10 @@ from ..services.quotation_service import (
     QuotationValidationError,
 )
 from ..services.quotation_state import TRANSITIONS
+from ..services.thong_bao_man import bao
 from ..services.rbac_service import AuthorizationService
 from ..storage import get_storage, key_from_url, make_key, url_from_key
+from ..tai_len import doc_gioi_han
 
 router = APIRouter(prefix="/api/quotations", tags=["quotations"])
 
@@ -422,8 +428,11 @@ async def quote_events(
     token = access_token
     if not token and authorization and authorization.lower().startswith("bearer "):
         token = authorization[7:]
-    user_id = _authenticate_sse(token)
-    queue = hub.subscribe(user_id)
+    # Xác thực đụng DB (đồng bộ) — chạy thẳng trong hàm async là chặn event loop của CẢ worker
+    # trong lúc chờ DB; 200 người nối lại cùng lúc là mọi request khác đứng theo.
+    user_id = await chay_ngoai_cong(_authenticate_sse, token)
+    # Bộ quyền nhận tin — hub chỉ giao sự kiện `gui(quyen=…, to=…)` cho kết nối có quyền khớp.
+    queue = hub.subscribe(user_id, quyen=await chay_ngoai_cong(nap_quyen_nhan, user_id))
 
     async def stream():
         try:
@@ -431,6 +440,12 @@ async def quote_events(
             while True:
                 if await request.is_disconnected():
                     break
+                if hub.can_nap_lai_quyen(queue):
+                    # Vừa nhận `quyen_doi`: nạp lại bộ quyền trước khi nhận tin kế tiếp.
+                    try:
+                        hub.cap_nhat_quyen(queue, await chay_ngoai_cong(nap_quyen_nhan, user_id))
+                    except Exception:  # noqa: BLE001 — DB chớp: tạm nhận hết còn hơn lọt tin
+                        hub.cap_nhat_quyen(queue, None)
                 try:
                     evt = await asyncio.wait_for(queue.get(), timeout=20.0)
                 except asyncio.TimeoutError:
@@ -587,6 +602,7 @@ def transition_quotation(
     payload: TransitionRequest,
     svc: Service,
     authz: Authz,
+    db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> QuotationDetailOut:
     scope = _scope_for(authz, user)
@@ -615,7 +631,14 @@ def transition_quotation(
     # Real-time: TRÌNH DUYỆT (thêm vào 'chờ duyệt') hoặc HỦY (rời 'chờ duyệt') → báo người duyệt
     # ngay (họ tự refetch 'chờ tôi duyệt'; badge nhảy + toast khi số tăng).
     if payload.to_status in ("pending_approval", "cancelled"):
-        hub.broadcast({"type": "quote_pending_changed", "code": q.quote_number})
+        # Nhóm `ban_hang`: badge + danh sách Báo giá, cùng các màn bán hàng nghe nhóm đó.
+        hub.gui({"type": "quote_pending_changed", "code": q.quote_number}, quyen=MAN_BAN_HANG)
+    if payload.to_status == "pending_approval":
+        # Chấm đỏ Báo giá cho người duyệt đặc thù trong phạm vi phòng của Sale đứng tên.
+        sale = db.get(User, q.salesperson_id) if q.salesperson_id else None
+        bao(db, kenh="bao_gia", loai="bao_gia_cho_duyet", actor_id=user.id,
+            quyen="approve_exception", phong_id=sale.department_id if sale else None,
+            ma=q.quote_number)
     return _detail(svc, q, scope, can_approve=authz.can(user, MODULE, "approve"),
         can_approve_exception=authz.can(user, MODULE, "approve_exception"))
 
@@ -628,6 +651,7 @@ def record_quote_approval(
     payload: QuoteApprovalIn,
     svc: Service,
     authz: Authz,
+    db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "approve_exception"))],
 ) -> QuotationDetailOut:
     """GĐ DUYỆT / TỪ CHỐI báo giá đặc thù (perm `approve_exception` — CHỈ Giám đốc). Duyệt 'bao phủ' →
@@ -650,7 +674,9 @@ def record_quote_approval(
             "type": "quote_decision", "quote_id": q.id,
             "code": q.quote_number, "decision": payload.decision,
         })
-    hub.broadcast({"type": "quote_pending_changed", "code": q.quote_number})
+        bao(db, kenh="bao_gia", loai="bao_gia_quyet_dinh", actor_id=user.id,
+            nguoi_nhan=q.salesperson_id, ma=q.quote_number)
+    hub.gui({"type": "quote_pending_changed", "code": q.quote_number}, quyen=MAN_BAN_HANG)
     return _detail(svc, q, scope, can_approve=authz.can(user, MODULE, "approve"),
         can_approve_exception=authz.can(user, MODULE, "approve_exception"))
 
@@ -904,11 +930,9 @@ def upload_quote_attachment(
     if quote.status == STATUS_CANCELLED:
         raise HTTPException(status.HTTP_409_CONFLICT, "Báo giá đã hủy — không đính kèm tài liệu được.")
 
-    data = file.file.read()
-    if not data:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tệp rỗng.")
-    if len(data) > _MAX_ATTACH_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Tệp vượt quá 25MB.")
+    data = doc_gioi_han(
+        file, _MAX_ATTACH_BYTES, ma_rong=status.HTTP_400_BAD_REQUEST, loi_rong="Tệp rỗng.",
+    )
 
     key, safe = make_key(_BAO_GIA_SUBDIR, quotation_id, file.filename)
     get_storage().save(key, data, file.content_type)
@@ -976,16 +1000,15 @@ def set_quote_item_image(
     if quote.status == STATUS_CANCELLED:
         raise HTTPException(status.HTTP_409_CONFLICT, "Báo giá đã hủy — không đổi ảnh minh họa được.")
 
-    data = file.file.read()
-    if not data:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tệp rỗng.")
+    data = doc_gioi_han(
+        file, _MAX_ANH_BYTES, ten="Ảnh",
+        ma_rong=status.HTTP_400_BAD_REQUEST, loi_rong="Tệp rỗng.",
+    )
     if (file.content_type or "").lower() not in _ANH_CONTENT_TYPES:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "Ảnh minh họa chỉ nhận tệp ảnh (JPG, PNG, WEBP, GIF).",
         )
-    if len(data) > _MAX_ANH_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Ảnh vượt quá 5MB.")
 
     key, _safe = make_key(_BAO_GIA_SUBDIR, quotation_id, file.filename)
     get_storage().save(key, data, file.content_type)

@@ -102,8 +102,9 @@ from ...models.san_xuat import (
 )
 from ...models.san_xuat_thuc_thi import PC_HOAT_DONG, SanXuatPhanCong, SanXuatPhienChay
 from ...repositories.attendance_repo import AttendanceRepository
+from ...repositories.lenh_sx_doc_repo import LenhSxDocRepository
 from ..gio_xuong import gio_xuong, lich_hien_thi, thuc_te_hien_thi, ve_utc_that
-from . import boi_canh, danh_sach, pham_vi
+from . import boi_canh, danh_sach, pham_vi, trang_thai
 from .boi_canh import BoiCanh
 
 # Cột "Khác" — cố định, LUÔN có mặt trong `meta()` dù hôm nay chưa lệnh nào rơi vào đó. Đây là
@@ -788,8 +789,33 @@ def _the(
     }
 
 
+#: Lệnh đã giao hết rụng khỏi Kanban sau chừng này kể từ lần giao cuối (chủ dự án chốt 28/09/2026).
+KANBAN_GIU_SAU_GIAO = timedelta(days=3)
+
+
+def _bo_lenh_da_rung(db: Session, ids: list[int], *, bay_gio: datetime | None = None) -> list[int]:
+    """Bỏ khỏi `ids` lệnh ĐÃ RỤNG: giao hết (`trang_thai.giao_du` — cùng phán quyết tab Hoàn thành
+    của Lệnh SX), lần giao cuối cách đây quá `KANBAN_GIU_SAU_GIAO`, và KHÔNG còn công việc đang chạy
+    / tạm dừng. Vế cuối: đã giao đủ mà xưởng còn đang làm dở (làm lại, bù hàng lỗi) thì card vẫn
+    phải hiện — xong thì rụng, chưa xong thì không.
+
+    Ba câu nhẹ, lọc TRƯỚC `boi_canh.nap()` — lệnh cũ không còn bị nạp nặng mỗi lần mở màn. Lệnh
+    đã rụng vẫn tra được ở Hồ sơ lệnh sản xuất / tab Hoàn thành của Lệnh SX."""
+    if not ids:
+        return ids
+    repo = LenhSxDocRepository(db)
+    giao_het = [i for i, l in repo.lenh_nhe(ids).items() if trang_thai.giao_du(l.so_luong_dat, l.da_giao)]
+    if not giao_het:
+        return ids
+    moc = (bay_gio or datetime.now(timezone.utc)) - KANBAN_GIU_SAU_GIAO
+    rung = repo.giao_cuoi_truoc(giao_het, moc) - repo.lenh_con_viec_o_trang_thai(giao_het, _DANG_LAM)
+    return [i for i in ids if i not in rung]
+
+
 def kanban(db: Session, *, sale_ids: set[int] | None, loc: BoLoc | None = None) -> dict:
-    """`{cards: [...]}` — MỘT card mỗi lệnh ĐÃ PHÁT HÀNH trong phạm vi người gọi.
+    """`{cards: [...]}` — MỘT card mỗi lệnh ĐÃ PHÁT HÀNH trong phạm vi người gọi, TRỪ lệnh đã rụng
+    (giao hết quá `KANBAN_GIU_SAU_GIAO` và không còn việc đang làm — `_bo_lenh_da_rung`). Dải số đầu
+    màn đếm `cards.length`, nên cũng chỉ đếm lệnh còn hiện.
 
     `sale_ids` sinh từ token (`pham_vi.sale_ids_theo_pham_vi`), y hệt `danh_sach.danh_sach`; lệnh
     chưa phát hành (`san_sang`) không thuộc phạm vi của bất kỳ ai — `pham_vi.loc_lsx_da_phat_hanh`
@@ -803,7 +829,7 @@ def kanban(db: Session, *, sale_ids: set[int] | None, loc: BoLoc | None = None) 
     Ba lượt nạp cho CẢ lô, không phụ thuộc số lệnh: `boi_canh.nap()` (21 câu) + `_routing_index()`
     (1 câu) + danh mục `cong_doan` (1 câu, dùng để lọc soft-ref trỏ hụt — xem `_the`).
     """
-    ids = _ids_trong_pham_vi(db, sale_ids, loc=loc)
+    ids = _bo_lenh_da_rung(db, _ids_trong_pham_vi(db, sale_ids, loc=loc))
     bc = boi_canh.nap(db, ids)
     theo_khoa, theo_id = _routing_index(db, ids)
     cd_con_song = set(db.execute(select(CongDoan.id).where(_DANG_DUNG)).scalars())
@@ -1045,7 +1071,16 @@ def theo_may(
     """
     tu_dt, den_dt = _cua_so_ban_may(tu, den)
     cham = _cham_cua_so_sql(tu_dt, den_dt)
-    them = None if cham is None else _co_viec(cham)
+    # A7 (28/09/2026) — lệnh chỉ được NẠP khi có ÍT NHẤT MỘT công việc vừa CHƯA hoàn thành vừa
+    # chạm cửa sổ (CÙNG một công việc — hai `EXISTS` rời nhau thì lệnh có việc xong trong cửa sổ +
+    # việc dở ngoài cửa sổ vẫn lọt). Đúng bằng điều kiện để lệnh đẻ được ít nhất một block ở vòng
+    # dưới; lệnh không đẻ block nào thì không góp gì vào kết quả (lane dựng từ block + danh mục máy,
+    # "còn nợ việc" hỏi `_may_con_no_viec` riêng) — nên bỏ nó là không đổi một byte đầu ra. Trước
+    # đây không cửa sổ ⇒ nạp MỌI lệnh từng phát hành, kể cả lệnh đóng hết bước từ năm ngoái.
+    # Vế SQL RỘNG hơn Python ở hai chỗ, cả hai đều an toàn: không lọc gói thu hồi, và
+    # `_cham_cua_so_sql` rộng hơn `_cham_cua_so` (xem docstring hai hàm đó).
+    chua_xong = SanXuatCongViec.trang_thai != CV_HOAN_THANH
+    them = _co_viec(chua_xong) if cham is None else _co_viec(cham, chua_xong)
     ids = _ids_trong_pham_vi(db, sale_ids, loc=loc, them=them)
     bc = boi_canh.nap(db, ids)
     danh_muc_may = _may_danh_muc(db)

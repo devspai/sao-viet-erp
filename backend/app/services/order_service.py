@@ -605,8 +605,14 @@ class OrderService:
         `approval_pending` đã bỏ cùng luồng duyệt. Vẫn TRẢ khoá đó với giá trị 0 để client cũ
         (tab đang mở, bản FE chưa nạp lại) không vỡ khi đọc thiếu khoá."""
         deposit_pending = ready_to_confirm = 0
-        for o in self.repo.drafts_in_scope(scope=scope, actor=actor):
-            m = self._money(o)
+        drafts = list(self.repo.drafts_in_scope(scope=scope, actor=actor))
+        # Gom lô như màn danh sách: 2 câu cho cả tập nháp thay vì 4 câu mỗi đơn (badge này gọi lại
+        # mỗi lần mở app / có sự kiện đơn — N+1 ở đây nhân với số tab đang mở).
+        ids = [o.id for o in drafts]
+        sums = self.repo.money_sums(ids)
+        received = self.accounting_repo.received_deposit_sums(ids)
+        for o in drafts:
+            m = self._money(o, agg=sums.get(o.id, {}), received=received.get(o.id, 0))
             if can_record_deposit and (o.deposit_pct or 0) > 0 and not m["deposit_ok"]:
                 deposit_pending += 1
             if can_manage_status and m["deposit_ok"]:

@@ -33,11 +33,20 @@ function doiDuoiJpg(ten: string): string {
 }
 
 export async function nenAnh(file: File): Promise<KetQuaNen> {
+  return nenTheo(file, CANH_TOI_DA, CHAT_LUONG, NGUONG_BO_QUA);
+}
+
+async function nenTheo(
+  file: File,
+  canhDai: number,
+  chatLuong: number,
+  nguong: number,
+): Promise<KetQuaNen> {
   const goc = file.size;
   const nguyen: KetQuaNen = { file, goc, sau: goc, daNen: false };
 
   // GIF: nén là mất ảnh động. Không phải ảnh: để nguyên, backend tự chặn nếu không hợp lệ.
-  if (!file.type.startsWith("image/") || file.type === "image/gif" || goc <= NGUONG_BO_QUA) {
+  if (!laAnhNenDuoc(file) || goc <= nguong) {
     return nguyen;
   }
 
@@ -45,7 +54,7 @@ export async function nenAnh(file: File): Promise<KetQuaNen> {
     // `imageOrientation: "from-image"` để ảnh chụp dọc bằng điện thoại không bị quay ngang: vẽ lên
     // canvas là mất thẻ EXIF, không khai cờ này thì ảnh nằm nghiêng sau khi nén.
     const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-    const ti = Math.min(1, CANH_TOI_DA / Math.max(bitmap.width, bitmap.height));
+    const ti = Math.min(1, canhDai / Math.max(bitmap.width, bitmap.height));
     const w = Math.max(1, Math.round(bitmap.width * ti));
     const h = Math.max(1, Math.round(bitmap.height * ti));
 
@@ -58,7 +67,7 @@ export async function nenAnh(file: File): Promise<KetQuaNen> {
     bitmap.close?.();
 
     const blob = await new Promise<Blob | null>((ok) =>
-      canvas.toBlob(ok, "image/jpeg", CHAT_LUONG));
+      canvas.toBlob(ok, "image/jpeg", chatLuong));
     // Ảnh nhỏ sẵn, hoặc PNG chụp màn hình nhiều mảng phẳng: JPEG có khi còn to hơn ⇒ giữ bản gốc.
     if (!blob || blob.size >= goc) return nguyen;
 
@@ -74,4 +83,51 @@ export async function nenAnh(file: File): Promise<KetQuaNen> {
   } catch {
     return nguyen;   // HEIC không giải mã được, canvas bị chặn… — tải bản gốc, đừng chặn người dùng
   }
+}
+
+// --- Nén TỰ ĐỘNG ở tầng gửi request (mọi FormData đi qua `request()` trong api/client.ts) --------
+//
+// Trước 28/09/2026 chỉ hai màn (Kỹ thuật máy, KCS) tự nén; giao hàng, kho, mua hàng, phiếu chi/thu,
+// đơn hàng, báo giá đều đẩy ảnh gốc 4–8 MB qua Wi-Fi xưởng. Nay tầng request nén mọi ảnh lớn hơn
+// ngưỡng. Ngưỡng cao hơn `NGUONG_BO_QUA` và cạnh dài rộng hơn `CANH_TOI_DA` có chủ đích: ở đây nén
+// cho CẢ những ảnh cần đọc chữ (hoá đơn, chứng từ chụp), nên giữ nét hơn chỗ chỉ để chứng thực. Ảnh
+// đã được màn tự nén trước đó (~400 KB) nằm dưới ngưỡng nên không bị nén lần hai.
+export const NEN_TU_DONG_CANH_DAI = 2048;
+export const NEN_TU_DONG_CHAT_LUONG = 0.82;
+export const NEN_TU_DONG_NGUONG = 1.5 * 1024 * 1024;
+
+export interface TuyChonNen {
+  canhDai?: number;
+  chatLuong?: number;
+  nguongBytes?: number;
+}
+
+const DUOI_ANH = /\.(jpe?g|png|webp|heic|heif|bmp)$/i;
+
+/** Ảnh raster nén được (jpeg/png/webp/heic…). GIF (ảnh động) và SVG (vector) KHÔNG nén. HEIC có
+ *  trình duyệt để `type` rỗng nên xét thêm đuôi tên tệp. */
+function laAnhNenDuoc(file: File): boolean {
+  const t = (file.type || "").toLowerCase();
+  if (t === "image/gif" || t === "image/svg+xml") return false;
+  if (t.startsWith("image/")) return true;
+  return t === "" && DUOI_ANH.test(file.name || "");
+}
+
+/** Tệp này có đáng đem nén không (ảnh nén được và lớn hơn ngưỡng). Rẻ, không đọc nội dung tệp. */
+export function laAnhCanNen(file: File, nguongBytes = NEN_TU_DONG_NGUONG): boolean {
+  return typeof File !== "undefined" && file instanceof File && laAnhNenDuoc(file) && file.size > nguongBytes;
+}
+
+/** Nén nếu là ảnh lớn; mọi trường hợp khác (không phải ảnh, nhỏ sẵn, nén hỏng, nén không lợi) trả
+ *  lại CHÍNH tệp gốc. */
+export async function nenNeuLaAnh(file: File, tc: TuyChonNen = {}): Promise<File> {
+  const nguong = tc.nguongBytes ?? NEN_TU_DONG_NGUONG;
+  if (!laAnhCanNen(file, nguong)) return file;
+  const kq = await nenTheo(
+    file,
+    tc.canhDai ?? NEN_TU_DONG_CANH_DAI,
+    tc.chatLuong ?? NEN_TU_DONG_CHAT_LUONG,
+    nguong,
+  );
+  return kq.file;
 }

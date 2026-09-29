@@ -61,6 +61,12 @@ class EmployeeRepository:
             ).scalars()
         )
 
+    def khoa_de_cham(self, employee_id: int) -> None:
+        """Khoá dòng NV tới hết transaction (`SELECT … FOR UPDATE`) — hai lượt bấm chấm công của
+        CÙNG một người xếp hàng nhau thay vì cùng đọc "lượt kế là VÀO" rồi cùng ghi VÀO. SQLite
+        (test) không có FOR UPDATE, SQLAlchemy tự bỏ mệnh đề."""
+        self.db.execute(select(Employee.id).where(Employee.id == employee_id).with_for_update())
+
     def get_by_user_id(self, user_id: int) -> Employee | None:
         """The employee linked to this login account, if any (UNIQUE user_id)."""
         return self.db.execute(

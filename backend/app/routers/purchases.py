@@ -23,6 +23,7 @@ from ..deps import (
     require_permission,
 )
 from ..models.user import User
+from ..doi_tuong_nhan import MAN_KHVT, MAN_MUA_KE_TOAN, hop
 from ..realtime import hub
 from ..repositories.module_notification_repo import (
     CHANNEL_KE_TOAN,
@@ -55,6 +56,7 @@ from ..schemas.purchase import (
 from ..services.danh_gia_ncc import DanhGiaNcc
 from ..services.purchase_service import (
     DEPARTMENT_REQUEST_READER_MODULES,
+    MAX_PURCHASE_ATTACHMENT_BYTES,
     PurchaseConflict,
     # Bắt LỚP CHA `PurchaseError` ở mọi route: trước đây 14/18 chỗ chỉ liệt kê 3 loại lỗi và bỏ sót
     # `PurchaseForbidden`, nên mọi lỗi QUYỀN rơi ra ngoài thành **500** thay vì 403 — người dùng
@@ -66,6 +68,7 @@ from ..services.purchase_service import (
     PurchaseService,
     PurchaseValidationError,
 )
+from ..tai_len import TRAN_EXCEL, doc_gioi_han
 
 router = APIRouter(tags=["purchases"])
 # TÁCH THEO MÀN (chủ chốt 10/08/2026, đường A). `MODULE` giữ nguyên khoá `thu_mua` nhưng nay chỉ
@@ -77,7 +80,7 @@ MODULE_YCMH = "yeu_cau_mua_hang"  # màn Yêu cầu mua hàng
 MODULE_KE_TOAN = "ke_toan"    # màn Đơn mua hàng (Kế toán) — nơi DUYỆT / TỪ CHỐI PMH
 # Cổng quyền đọc YCMH dựng từ CHÍNH danh sách mà service dùng để quyết định có co danh sách về
 # phòng ban hay không — thêm/bớt một vai chỉ phải sửa một chỗ, không còn cảnh cấp quyền vào được
-# màn nhưng lại bị lọc ra rỗng. (Kế toán truy vết YCMH nguồn khi duyệt PMH / lập Phiếu chi: SEAM-25.)
+# màn nhưng lại bị lọc ra rỗng.
 DEPARTMENT_REQUEST_READERS = tuple(
     (module, "read") for module in DEPARTMENT_REQUEST_READER_MODULES
 )
@@ -107,13 +110,19 @@ def _notify_purchase_changed(
             recipient_user_id=recipient_user_id,
             source_code=code,
         )
-    hub.broadcast({
+    # Nhóm `mua_ke_toan` (mọi màn Thu mua / Kế toán); PMH đổi và đợt giao còn nhích nhóm `khvt`
+    # (hàng đang về của Kế hoạch vật tư). Người đứng tên phiếu (`recipient_user_id`) nhận đích danh
+    # kết quả duyệt / từ chối của phiếu mình.
+    quyen = (hop(MAN_MUA_KE_TOAN, MAN_KHVT)
+             if event_type == "purchase_changed" or event_type.startswith("purchase_delivery_")
+             else MAN_MUA_KE_TOAN)
+    hub.gui({
         "type": event_type,
         "code": code,
         "actor_user_id": actor_user_id,
         "recipient_user_id": recipient_user_id,
         **extra,
-    })
+    }, quyen=quyen, nguoi=[recipient_user_id] if recipient_user_id else None)
 
 
 def _map_error(exc: Exception) -> HTTPException:
@@ -135,9 +144,8 @@ def list_department_purchase_requests(
     # ô quyền nào, vẫn đọc được toàn bộ yêu cầu mua hàng. Đây là màn DUY NHẤT của Thu mua bị hở
     # (7 endpoint còn lại đều chặn 403).
     #
-    # Gác bằng `DEPARTMENT_REQUEST_READER_MODULES` chứ không bằng riêng `thu_mua`: màn này cố ý mở
-    # cho 6 nhóm đề nghị vật tư (báo giá · kho · sản xuất · vật tư · kế toán · thu mua), đúng như
-    # `Sidebar.tsx` khai. Gác riêng `thu_mua` là khoá đường xin vật tư của 5 nhóm còn lại.
+    # Gác bằng `DEPARTMENT_REQUEST_READER_MODULES`: ô Xem của chính màn + `thu_mua` (màn Mua hàng
+    # nạp ô chọn nguồn). Từ 28/09/2026 các phân hệ khác KHÔNG còn mượn đường đọc.
     user: Annotated[
         User,
         Depends(require_any_permission(
@@ -169,7 +177,7 @@ def can_create_department_purchase_request(
 def get_department_purchase_request(
     request_id: int,
     svc: Annotated[PurchaseService, Depends(get_purchase_service)],
-    # Cùng luật đọc với danh sách: 6 nhóm đề nghị vật tư, KHÔNG phải mọi tài khoản đăng nhập.
+    # Cùng luật đọc với danh sách, KHÔNG phải mọi tài khoản đăng nhập.
     user: Annotated[
         User,
         Depends(require_any_permission(
@@ -407,7 +415,7 @@ def supplier_items_export(
 
 
 @router.post("/api/suppliers/items/import", response_model=SupplierItemImportOut)
-async def supplier_items_import(
+def supplier_items_import(
     svc: Annotated[PurchaseService, Depends(get_purchase_service)],
     _: Annotated[User, Depends(require_permission(MODULE_NCC, "update"))],
     file: UploadFile = File(...),
@@ -416,12 +424,11 @@ async def supplier_items_import(
 
     Không nhận `supplier_id`: bảng giá được lưu bằng cú `PUT /api/suppliers/{id}` của form, nên
     ghi ở đây là đẻ đường ghi thứ hai — và NCC chưa lưu (đang tạo mới) thì cũng chưa có id để mà
-    nhập vào."""
-    data = await file.read()
-    if not data:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="File rỗng."
-        )
+    nhập vào.
+
+    `def` (không `async`): parse xlsx là việc CPU đồng bộ — chạy trong threadpool, đừng chặn event
+    loop của cả máy chủ."""
+    data = doc_gioi_han(file, TRAN_EXCEL, loi_rong="File rỗng.")
     try:
         ket_qua = svc.doc_vat_tu_xlsx(data)
     except PurchaseError as exc:
@@ -928,7 +935,8 @@ def upload_purchase_attachment(
     delivery_id: int | None = Query(default=None),
     file: UploadFile = File(...),
 ) -> PurchaseRequestOut:
-    data = file.file.read()
+    # Tệp rỗng để service báo bằng câu của nó.
+    data = doc_gioi_han(file, MAX_PURCHASE_ATTACHMENT_BYTES, cho_rong=True)
     try:
         row = svc.them_dinh_kem(
             request_id,

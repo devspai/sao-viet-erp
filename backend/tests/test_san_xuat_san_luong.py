@@ -62,6 +62,35 @@ def _hai_cv_chay(db, orders, lsx_svc, admin, customer):
     return to, cv1, cv2
 
 
+# --- Chống ghi trùng: bấm "Ghi mẻ" lần nữa lúc máy chủ chậm ------------------------------------
+def test_ghi_lai_me_y_het_trong_30_giay_tra_lai_me_cu(db, orders, lsx_svc, admin, customer):
+    """Giờ cao điểm tổ bấm "Ghi mẻ" hai lần (hoặc mạng tự gửi lại) — trước đây ra HAI mẻ, sản lượng
+    nhân đôi. Mẻ Y HỆT của cùng người trong 30 giây là một lần bấm: trả lại mẻ cũ, không ghi thêm."""
+    _to, cv = _cv_chay(db, orders, lsx_svc, admin, customer, ma="TO-SL-TRUNG")
+    moc = dict(bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=1), tong=100, tot=100)
+
+    a = tao_me(db, user=admin, cong_viec_id=cv.id, **moc)
+    b = tao_me(db, user=admin, cong_viec_id=cv.id, **moc)
+    assert a["batch_id"] == b["batch_id"]
+    assert san_luong.SanXuatSanLuongRepository(db).tong_tot(cv.id) == 100
+
+    # Khác số (dù cùng giờ) là mẻ thật thứ hai.
+    c = tao_me(db, user=admin, cong_viec_id=cv.id, **{**moc, "tong": 50, "tot": 50})
+    assert c["batch_id"] != a["batch_id"]
+    assert san_luong.SanXuatSanLuongRepository(db).tong_tot(cv.id) == 150
+
+
+def test_me_y_het_qua_30_giay_la_me_moi(db, orders, lsx_svc, admin, customer):
+    _to, cv = _cv_chay(db, orders, lsx_svc, admin, customer, ma="TO-SL-TRUNG2")
+    moc = dict(bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=1), tong=100, tot=100)
+    a = tao_me(db, user=admin, cong_viec_id=cv.id, **moc)
+    b0 = db.get(SanXuatBatch, a["batch_id"])
+    b0.created_at = b0.created_at - timedelta(seconds=45)
+    db.commit()
+    b = tao_me(db, user=admin, cong_viec_id=cv.id, **moc)
+    assert b["batch_id"] != a["batch_id"]
+
+
 # --- Ghi batch (§11.1) ----------------------------------------------------------------------
 def test_tao_batch_tot_hong_va_mo_ta_loi(db, orders, lsx_svc, admin, customer):
     to, cv = _cv_chay(db, orders, lsx_svc, admin, customer)
@@ -323,11 +352,13 @@ def test_chan_lsx_khac_dung_lot_diem_toa(db, orders, lsx_svc, admin, customer):
     )
     assert ok["batch_id"] is not None
 
-    # (2) Vượt phần đã toả cho lsx_a (100) — 60 đã dùng + 60 nữa = 120 > 100 → chặn.
+    # (2) Vượt phần đã toả cho lsx_a (100) — 60 đã dùng + 60 nữa = 120 > 100 → chặn. Mẻ thứ hai
+    # KHÁC giờ bắt đầu: mẻ y hệt trong 30 giây là một lần bấm bị gửi lại, được trả lại mẻ cũ
+    # (`tao_batch`, chống ghi trùng) chứ không phải mẻ mới đi qua trần.
     with pytest.raises(ValueError, match="Vượt phần đã toả"):
         tao_me(
             db, user=admin, cong_viec_id=cv_a.id,
-            bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=1), tong=60, tot=60,
+            bat_dau=_T0 + timedelta(minutes=5), ket_thuc=_T0 + timedelta(hours=1), tong=60, tot=60,
             lot_vao=[{"nguon_batch_id": batch_nguon_id, "so_luong": 60}],
         )
 

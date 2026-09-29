@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, exists, not_, or_, select
+from sqlalchemy.orm import Session, aliased
 
 from ..models.bai_ghep import BaiGhep, BaiGhepThanhVien
 from ..models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
@@ -23,7 +23,10 @@ from ..models.may_thiet_bi import MayThietBi
 from ..models.order import Order, OrderLine
 from ..models.san_xuat import (
     CV_HOAN_THANH,
+    CV_PHAT_HANH,
+    CV_TAM_DUNG,
     GOI_DANG_PHAT_HANH,
+    NHOM_DONG,
     SanXuatCongViec,
     SanXuatGoiPhatHanh,
     SanXuatNhom,
@@ -40,6 +43,21 @@ from ..models.xep_lich import XepLichCongDoan
 class SanXuatRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
+
+    def to_cua_lenh(self, lsx_ids: list[int]) -> set[int]:
+        """Các tổ đứng tên công việc của những lệnh này — kể cả việc CHUNG của bài ghép chứa lệnh
+        (việc chung mang `lsx_id` NULL). Dùng để báo chấm đỏ bàn tổ khi phát hành."""
+        if not lsx_ids:
+            return set()
+        from ..models.san_xuat import SanXuatCongViec as CV
+
+        bai = self.bai_ghep_ids_cua_lsx(set(lsx_ids))
+        dk = CV.lsx_id.in_(lsx_ids)
+        if bai:
+            dk = or_(dk, CV.bai_ghep_id.in_(bai))
+        return set(self.db.execute(
+            select(CV.department_id).where(dk, CV.department_id.is_not(None)).distinct()
+        ).scalars())
 
     # ================= ĐỒ THỊ LIÊN THÔNG =================
 
@@ -308,6 +326,53 @@ class SanXuatRepository:
             ).all()
         ]
 
+    def lan_dong_cuoi(self, nhom_id: int) -> tuple[str, datetime] | None:
+        """(tên người, lúc) của lần "Đóng lệnh" GẦN NHẤT của nhóm — đọc từ audit, không đẻ cột."""
+        from ..models.audit import AuditLog
+
+        a = self.db.execute(
+            select(AuditLog)
+            .where(AuditLog.action == "san_xuat_dong_lenh",
+                   AuditLog.target == f"san_xuat_nhom:{nhom_id}")
+            .order_by(AuditLog.id.desc()).limit(1)
+        ).scalars().first()
+        return (a.actor_name_luc_do or "", a.created_at) if a else None
+
+    @staticmethod
+    def viec_con_hien():
+        """Điều kiện SQL: bỏ khỏi bàn tổ việc CHƯA LÀM / TẠM DỪNG của lệnh đã đóng (spec
+        2026-09-29). Việc đang chạy vẫn hiện tới khi tổ bấm Kết thúc; việc đã xong vẫn là lịch sử.
+        Việc chung bài ghép (`nhom_id` NULL) chỉ ẩn khi có nhóm đã đóng và KHÔNG còn nhóm nào mở."""
+        # Bí danh riêng để truy vấn ngoài có JOIN cùng bảng cũng không làm subquery tự tương quan nhầm.
+        n1 = aliased(SanXuatNhom)
+        nhom_dong = exists().where(n1.id == SanXuatCongViec.nhom_id, n1.trang_thai == NHOM_DONG)
+
+        def _tv(mo: bool):
+            n, nl, tv = aliased(SanXuatNhom), aliased(SanXuatNhomLsx), aliased(BaiGhepThanhVien)
+            dk = n.trang_thai != NHOM_DONG if mo else n.trang_thai == NHOM_DONG
+            return (exists()
+                    .where(tv.bai_ghep_id == SanXuatCongViec.bai_ghep_id,
+                           nl.lsx_id == tv.lsx_id, n.id == nl.nhom_id, dk))
+
+        bg_dong = and_(
+            SanXuatCongViec.nhom_id.is_(None),
+            SanXuatCongViec.bai_ghep_id.is_not(None),
+            _tv(False),
+            not_(_tv(True)),
+        )
+        an = and_(SanXuatCongViec.trang_thai.in_((CV_PHAT_HANH, CV_TAM_DUNG)),
+                  or_(nhom_dong, bg_dong))
+        return not_(an)
+
+    def trang_thai_nhom_cua_bai_ghep(self, bai_ghep_id: int) -> list[str]:
+        """Trạng thái nhóm của mọi lệnh thành viên một bài ghép (lặp theo lệnh)."""
+        return list(self.db.execute(
+            select(SanXuatNhom.trang_thai)
+            .join(SanXuatNhomLsx, SanXuatNhomLsx.nhom_id == SanXuatNhom.id)
+            .join(BaiGhepThanhVien, BaiGhepThanhVien.lsx_id == SanXuatNhomLsx.lsx_id)
+            .where(BaiGhepThanhVien.bai_ghep_id == bai_ghep_id)
+        ).scalars())
+
     def member_of_lsx(self, lsx_id: int) -> SanXuatNhomLsx | None:
         return self.db.execute(
             select(SanXuatNhomLsx).where(SanXuatNhomLsx.lsx_id == lsx_id)
@@ -496,11 +561,19 @@ class SanXuatRepository:
         chi_chua_xong: bool = False,
         employee_id: int | None = None,
         rieng_ids: set[int] | None = None,
+        cham_tu: datetime | None = None,
+        cham_den: datetime | None = None,
     ) -> list[SanXuatCongViec]:
         """Công việc ĐÃ PHÁT HÀNH mà tổ (`department_id`) phải làm — timeline bàn tổ. Chỉ đọc gói
         đang hiệu lực (bỏ gói đã thu hồi). Sắp theo giờ dự kiến (chưa xếp giờ dồn cuối), rồi id.
 
-        `employee_id` / `rieng_ids`: phạm vi tổ, xem `_pham_vi_to`."""
+        `employee_id` / `rieng_ids`: phạm vi tổ, xem `_pham_vi_to`.
+
+        `cham_tu` / `cham_den` (A7, 28/09/2026) — cửa sổ THÔ cho Gantt bàn tổ: giữ việc chưa đủ hai
+        mốc dự kiến, hoặc có `du_kien_ket_thuc >= cham_tu` và `du_kien_bat_dau < cham_den`. Không có
+        nó thì mỗi lượt vẽ Gantt kéo TOÀN BỘ công việc lịch sử của tổ về rồi mới lọc bằng Python.
+        Bên gọi truyền mép ĐÃ NỚI (xem `board.work_items`) — câu này chỉ được RỘNG hơn phép lọc
+        chính xác `board._trong_cua_so`, không bao giờ hẹp hơn."""
         pham_vi = self._pham_vi_to(department_ids, employee_id, rieng_ids)
         if pham_vi is None:
             return []
@@ -510,10 +583,22 @@ class SanXuatRepository:
             .where(
                 pham_vi,
                 SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH,
+                self.viec_con_hien(),
             )
         )
         if chi_chua_xong:
             q = q.where(SanXuatCongViec.trang_thai != CV_HOAN_THANH)
+        chan = []
+        if cham_tu is not None:
+            chan.append(SanXuatCongViec.du_kien_ket_thuc >= cham_tu)
+        if cham_den is not None:
+            chan.append(SanXuatCongViec.du_kien_bat_dau < cham_den)
+        if chan:
+            q = q.where(or_(
+                SanXuatCongViec.du_kien_bat_dau.is_(None),
+                SanXuatCongViec.du_kien_ket_thuc.is_(None),
+                and_(*chan),
+            ))
         rows = list(self.db.execute(q).scalars())
         rows.sort(key=lambda cv: (cv.du_kien_bat_dau is None, cv.du_kien_bat_dau, cv.id))
         return rows
@@ -594,6 +679,7 @@ class SanXuatRepository:
         dieu_kien = [
             pham_vi,
             SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH,
+            self.viec_con_hien(),
         ]
 
         nhom = (
@@ -698,6 +784,7 @@ class SanXuatRepository:
         dieu_kien = [
             pham_vi,
             SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH,
+            self.viec_con_hien(),
             or_(*nhanh) if nhanh else false(),
         ]
 
@@ -774,6 +861,7 @@ class SanXuatRepository:
             pham_vi,
             SanXuatCongViec.trang_thai != CV_HOAN_THANH,
             SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH,
+            self.viec_con_hien(),
         ]
         rows = self.db.execute(
             select(SanXuatCongViec.department_id, func.count(SanXuatCongViec.id))

@@ -34,7 +34,8 @@ export function VouchersDrawer({
   selected: PaymentVoucherRow;
   setSelectedId: Dispatch<SetStateAction<number | null>>;
   canApprove: boolean;
-  openYcmh: (code: string) => void;
+  /** Thiếu = không có ô Xem màn Yêu cầu mua hàng ⇒ mã chỉ hiện dạng chữ. */
+  openYcmh?: (code: string) => void;
   openReceipts: (query: string) => void;
   attachments: PaymentVoucherAttachment[];
   attachmentBusy: boolean;

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from ...models.ky_thuat_may import MUC_DO
 from ...models.san_xuat import CV_DANG_CHAY, CV_TAM_DUNG
+from ...doi_tuong_nhan import MAN_THEO_LENH, kem_ban_to
 from ...realtime import hub
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.ky_thuat_may_repo import KyThuatMayRepository
@@ -34,7 +35,7 @@ MAX_LY_DO_PHIEN = 255
 
 
 def _bao_tin(db: Session, svc: KyThuatMayService, yc, cv) -> None:
-    """Báo tin SAU khi thao tác chính đã commit — hỏng thì NUỐT, cùng khuôn `_thu_dong_nhom`
+    """Báo tin SAU khi thao tác chính đã commit — hỏng thì NUỐT, cùng khuôn chốt chặn im lặng cũ
     (`routers/san_xuat.py`).
 
     `bao_to_sua_chua` không phải broadcast thuần bộ nhớ: nó còn `self._may(yc.may_id)` và join vai
@@ -47,12 +48,13 @@ def _bao_tin(db: Session, svc: KyThuatMayService, yc, cv) -> None:
     """
     try:
         svc.bao_to_sua_chua(yc)      # đẩy riêng tới từng người tổ sửa chữa (hàng chờ + badge)
-        hub.broadcast({              # bàn tổ đang mở tự cập nhật trạng thái công việc
+        # Bàn của ĐÚNG tổ giữ việc tự cập nhật trạng thái công việc + màn theo lệnh (nhóm `san_xuat`).
+        hub.gui({
             "type": "san_xuat_cong_viec_changed",
             "team_id": cv.department_id,
             "cong_viec_id": cv.id,
             "trang_thai": cv.trang_thai,
-        })
+        }, **kem_ban_to(MAN_THEO_LENH, [cv.department_id]))
     except Exception:
         db.rollback()
 

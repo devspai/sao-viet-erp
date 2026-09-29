@@ -179,7 +179,9 @@ class SanXuatBanGiao(Base):
     )
     so_luong: Mapped[float] = mapped_column(Numeric(18, 3), nullable=False)
     don_vi: Mapped[str] = mapped_column(String(24), nullable=False)
-    trang_thai: Mapped[str] = mapped_column(String(16), nullable=False, default=BG_DE_XUAT)
+    trang_thai: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=BG_DE_XUAT, index=True
+    )
     khong_nhat_quan: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )

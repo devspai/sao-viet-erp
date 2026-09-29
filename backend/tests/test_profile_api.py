@@ -116,7 +116,7 @@ def test_upload_avatar_wrong_type_is_400(client):
     assert resp.status_code == 400
 
 
-def test_upload_avatar_too_large_is_400(client):
+def test_upload_avatar_too_large_is_413(client):
     token = _login(client)
     big = b"\x89PNG" + b"0" * (2 * 1024 * 1024 + 1)  # > 2 MB
     resp = client.post(
@@ -124,7 +124,9 @@ def test_upload_avatar_too_large_is_400(client):
         headers=_auth(token),
         files={"file": ("big.png", big, "image/png")},
     )
-    assert resp.status_code == 400
+    # 413 (không còn 400) từ Task 6 sức chịu tải: `tai_len.doc_gioi_han` chặn trần chung mọi upload.
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "Ảnh vượt quá 2 MB."
 
 
 def test_remove_avatar_clears_it(client):

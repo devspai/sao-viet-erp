@@ -363,9 +363,18 @@ def _bao_co_dong_moi() -> None:
         return
     _lan_bao_cuoi = bay_gio
     try:
+        from ..doi_tuong_nhan import MAN_NHAT_KY
+        from ..locks import chay_mot_noi
         from ..realtime import hub
 
-        hub.broadcast({"type": "nhat_ky_moi"})
+        # Mốc trên chỉ chặn trong MỘT worker. Nhiều worker thì mỗi worker vẫn bắn một tiếng mỗi 3
+        # giây — nên giành lượt chung qua Redis (không Redis: luôn được).
+        if not chay_mot_noi("nhat_ky_moi", ttl_ms=int(_GIAN_CACH_BAO * 1000)):
+            return
+
+        # Chỉ màn Nhật ký nghe tin này (`nhatKyTick` ở AppShell) — người không có quyền Xem nhật ký
+        # nhận cũng chỉ để bỏ đi, mà mọi thao tác trong hệ đều ghi một dòng.
+        hub.gui({"type": "nhat_ky_moi"}, quyen=MAN_NHAT_KY)
     except Exception:
         # Kênh đẩy hỏng KHÔNG được làm hỏng việc ghi nhật ký — dòng đã commit rồi.
         pass

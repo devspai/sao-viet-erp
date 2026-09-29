@@ -10,6 +10,7 @@ from ..db import get_db
 from ..deps import require_permission
 from ..models.bai_ghep import BaiGhep
 from ..models.user import User
+from ..doi_tuong_nhan import MAN_KHVT, MAN_THEO_LENH, hop
 from ..realtime import hub
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.bai_ghep_2_repo import BaiGhep2Repository
@@ -75,7 +76,9 @@ def _detail(svc: BaiGhep2Service, bg: BaiGhep) -> BaiGhepDetailOut:
 
 
 def _changed() -> None:
-    hub.broadcast({"type": "bai_ghep_changed"})
+    # Nhóm `san_xuat` + `khvt`, badge Bài ghép. Không gồm bàn tổ: mọi cửa ghi ở đây chặn bài đã lập
+    # kế hoạch (`_chan_da_lap`), mà bàn tổ chỉ bày công việc của gói ĐÃ phát hành.
+    hub.gui({"type": "bai_ghep_changed"}, quyen=hop(MAN_THEO_LENH, MAN_KHVT))
 
 
 @router.get("/hang-cho", response_model=HangChoGhepOut)

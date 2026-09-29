@@ -22,6 +22,7 @@ from ..deps import (
 )
 from ..models.role import SCOPE_ALL
 from ..models.user import User
+from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.rbac_repo import DepartmentRepository
@@ -504,7 +505,8 @@ def my_logs(svc: Service, user: SelfUser) -> AttendanceLogsOut:
     except AttendanceError as exc:
         _raise(exc)
     loc_names = {l.id: l.name for l in svc.list_locations()}
-    name = svc.my_status(user=user).get("employee_name")
+    # Chỉ cần TÊN — trước gọi cả `my_status` (ca, lượt kế, tóm tắt hôm nay…) chỉ để lấy tên.
+    name = svc.my_employee_name(user=user)
     emp_names = {logs[0].employee_id: name} if logs else {}
     return AttendanceLogsOut(items=[_log_out(l, emp_names, loc_names) for l in logs])
 
@@ -820,7 +822,8 @@ def today_kpi(
 
 
 def _notify_adjust_pending() -> None:
-    hub.broadcast({"type": "adjust_pending_changed"})
+    # Nhóm `nhan_su`: badge + tab yêu cầu chỉnh công ở Chấm công, cùng các màn nhân sự nghe nhóm.
+    hub.gui({"type": "adjust_pending_changed"}, quyen=MAN_NHAN_SU)
 
 
 def _notify_adjust_decision(svc, data: dict, decision: str) -> None:
@@ -828,7 +831,7 @@ def _notify_adjust_decision(svc, data: dict, decision: str) -> None:
     if emp is not None and emp.user_id is not None:
         hub.publish(emp.user_id, {"type": "adjust_decision", "decision": decision,
                                   "code": data.get("work_date")})
-    hub.broadcast({"type": "adjust_pending_changed"})
+    _notify_adjust_pending()
 
 
 @router.post("/me/adjust-request", response_model=AdjustRequestOut)

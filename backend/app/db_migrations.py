@@ -16270,3 +16270,126 @@ def _migrate_gia_cong_ngoai_bai_ghep(db) -> None:
 
 
 MIGRATIONS.append(("0343_gia_cong_ngoai_bai_ghep", _migrate_gia_cong_ngoai_bai_ghep))
+
+
+# (bảng, tên index, cột, điều kiện WHERE hoặc None) — tên TRÙNG tên `create_all` đặt cho
+# `index=True` / `Index(...)` ở model (bài học mg `0287`/`0301`): DB trắng và DB đi đường migration
+# phải ra cùng một bộ index, không thì một DB có hai index trùng việc, DB kia thiếu.
+_INDEX_0344 = (
+    # Bàn tổ / badge: việc CHƯA XONG theo tổ. Partial ⇒ không phình theo kho lịch sử việc đã xong.
+    ("san_xuat_cong_viec", "ix_san_xuat_cong_viec_to_chua_xong", ("department_id",),
+     "trang_thai <> 'completed'"),
+    # Lọc lệnh còn sống (danh sách lệnh, KPI, theo máy, xếp lịch) join việc ghép + đợt KCS gần đây.
+    ("san_xuat_cong_viec", "ix_san_xuat_cong_viec_bai_ghep_cong_doan_id",
+     ("bai_ghep_cong_doan_id",), None),
+    ("san_xuat_kcs_batch", "ix_san_xuat_kcs_batch_ket_thuc", ("ket_thuc",), None),
+    ("san_xuat_goi_phat_hanh", "ix_san_xuat_goi_phat_hanh_trang_thai", ("trang_thai",), None),
+    ("san_xuat_nhom", "ix_san_xuat_nhom_trang_thai", ("trang_thai",), None),
+    ("san_xuat_ban_giao", "ix_san_xuat_ban_giao_trang_thai", ("trang_thai",), None),
+    ("san_xuat_ho_tro", "ix_san_xuat_ho_tro_trang_thai", ("trang_thai",), None),
+    ("san_xuat_kcs_loi", "ix_san_xuat_kcs_loi_phan_hoi_luc", ("phan_hoi_luc",), None),
+    ("refresh_tokens", "ix_refresh_tokens_expires_at", ("expires_at",), None),
+    ("module_notifications", "ix_module_notifications_channel_id", ("channel", "id"), None),
+    ("customer_care_tasks", "ix_customer_care_tasks_due_date", ("due_date",), None),
+    # Model khai `index=True` từ lâu nhưng chưa migration nào tạo cho DB cũ.
+    ("stock_requests", "ix_stock_requests_kho_id", ("kho_id",), None),
+    ("stock_requests", "ix_stock_requests_purchase_delivery_id", ("purchase_delivery_id",), None),
+    ("stock_requests", "ix_stock_requests_kho_nguon_id", ("kho_nguon_id",), None),
+    ("stock_requests", "ix_stock_requests_xuat_voucher_id", ("xuat_voucher_id",), None),
+    ("lsx_cong_doan", "ix_lsx_cong_doan_khuon_be_id", ("khuon_be_id",), None),
+    ("stock_vouchers", "ix_stock_vouchers_nguoi_ghi_so_id", ("nguoi_ghi_so_id",), None),
+)
+
+
+def _migrate_index_duong_nong(db) -> None:
+    """mg 0344 — index cho các đường đọc NÓNG (audit sức chịu tải 28/09/2026, mục B).
+
+    Bàn tổ, badge menu, danh sách yêu cầu kho, dọn refresh token, panel Cần chăm sóc đều lọc theo
+    trạng thái / cột ngày chưa có index ⇒ quét cả bảng mỗi lượt mở app. Chỉ TẠO index, không đụng
+    dữ liệu. `IF NOT EXISTS` lo phần chạy lại + DB trắng đã có sẵn từ `create_all`. Thiếu bảng/cột
+    (DB trung gian) thì bỏ qua dòng đó. Postgres và SQLite đều nhận partial index `WHERE`.
+
+    Không dùng `CONCURRENTLY`: `run_migrations` chạy trong transaction. Đọc HẾT siêu dữ liệu trước
+    mọi CREATE INDEX (bài học mg `0343`: inspector chạy kết nối khác, soi sau DDL là chờ khoá)."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    cot_cua = {b: _existing_columns(insp, b) for b in {x[0] for x in _INDEX_0344} if b in bang}
+    for ten_bang, ten_index, cot, dieu_kien in _INDEX_0344:
+        if ten_bang not in cot_cua or not set(cot) <= cot_cua[ten_bang]:
+            continue
+        where = f" WHERE {dieu_kien}" if dieu_kien else ""
+        db.execute(text(
+            f"CREATE INDEX IF NOT EXISTS {ten_index} ON {ten_bang} ({', '.join(cot)}){where}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0344_index_duong_nong", _migrate_index_duong_nong))
+
+
+def _migrate_index_cham_cong(db) -> None:
+    """mg 0345 — index ghép `attendance_logs (employee_id, checked_at)` (audit sức chịu tải A5).
+
+    Mỗi lượt chấm công hỏi "lượt cuối của người này" vài lần; giờ cao điểm 200 người cùng chấm.
+    Tên TRÙNG tên model khai (`AttendanceLog.__table_args__`) để DB trắng và DB đi đường migration
+    ra cùng một index. `IF NOT EXISTS` lo phần chạy lại; thiếu bảng (DB trung gian) thì bỏ qua."""
+    insp = inspect(db.get_bind())
+    if "attendance_logs" not in set(insp.get_table_names()):
+        return
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_attendance_logs_emp_checked "
+        "ON attendance_logs (employee_id, checked_at)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0345_index_cham_cong", _migrate_index_cham_cong))
+
+
+def _migrate_dong_lenh_thu_cong(db) -> None:
+    """mg 0346 — đóng lệnh THỦ CÔNG (spec 2026-09-29-dong-lenh-thu-cong-design.md).
+
+    Nhóm thôi phân biệt đủ/thiếu: `closed_full`/`closed_short` → `closed`; `waiting_conditions` (không
+    ai ghi) → `in_production`. Lệnh của nhóm đã đóng mà còn `da_phat_hanh` → `da_dong`. Raw SQL đích
+    danh cột, chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if not {"san_xuat_nhom", "san_xuat_nhom_lsx", "lsx"} <= bang:
+        return
+    db.execute(text(
+        "UPDATE san_xuat_nhom SET trang_thai = 'closed' "
+        "WHERE trang_thai IN ('closed_full', 'closed_short')"))
+    db.execute(text(
+        "UPDATE san_xuat_nhom SET trang_thai = 'in_production' "
+        "WHERE trang_thai = 'waiting_conditions'"))
+    db.execute(text(
+        "UPDATE lsx SET trang_thai = 'da_dong' WHERE trang_thai = 'da_phat_hanh' AND id IN ("
+        "SELECT tv.lsx_id FROM san_xuat_nhom_lsx tv JOIN san_xuat_nhom n ON n.id = tv.nhom_id "
+        "WHERE n.trang_thai = 'closed')"))
+    db.commit()
+
+
+MIGRATIONS.append(("0346_dong_lenh_thu_cong", _migrate_dong_lenh_thu_cong))
+
+
+def _migrate_module_notification_quyen_phong(db: Session) -> None:
+    """Chấm đỏ thanh bên cho MỌI màn (29/09/2026): thêm ô quyền người nhận phải có + phòng của bản
+    ghi để lọc người duyệt theo phạm vi. Đọc siêu dữ liệu TRƯỚC mọi ALTER (bài học mg 0343)."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    if "module_notifications" not in set(insp.get_table_names()):
+        return
+    cot = _existing_columns(insp, "module_notifications")
+    if "required_action" not in cot:
+        db.execute(text("ALTER TABLE module_notifications ADD COLUMN required_action VARCHAR(40)"))
+    if "department_id" not in cot:
+        db.execute(text(
+            "ALTER TABLE module_notifications ADD COLUMN department_id INTEGER "
+            "REFERENCES departments(id) ON DELETE SET NULL"
+        ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_module_notifications_recipient_channel "
+        "ON module_notifications (recipient_user_id, channel, id)"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0347_module_notification_quyen_phong", _migrate_module_notification_quyen_phong))

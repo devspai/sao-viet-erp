@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import CurrentUser, get_purchase_service, require_permission
+from ..services.can_doi_cache import lay_hoac_tinh, xoa_cache_can_doi
 from ..repositories.bai_ghep_repo import BaiGhepRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.lsx_repo import LsxRepository
@@ -91,10 +92,15 @@ def can_doi(
     q: str | None = Query(default=None, description="Mã lệnh / mã hoặc tên mặt hàng"),
     chi_thieu: bool = Query(default=False, description="Chỉ nhóm có dòng đỏ"),
 ) -> CanDoiOut:
-    try:
+    def tinh() -> dict:
         bang = svc.can_doi(q=q, chi_thieu=chi_thieu)
         giu.gan_giu_cho_vao_bang(bang)
-        return CanDoiOut(**bang, so_giu_lau=giu.dem_giu_lau())
+        return CanDoiOut(**bang, so_giu_lau=giu.dem_giu_lau()).model_dump(mode="json")
+
+    try:
+        # Cache 45 giây theo (q, chi_thieu) — kết quả không phụ thuộc người gọi (xem
+        # `services/can_doi_cache.py`); xoá sớm khi có `ke_hoach_vat_tu_thay_doi`/`lsx_changed`.
+        return CanDoiOut(**lay_hoac_tinh(tinh, q=q or "", chi_thieu=bool(chi_thieu)))
     except KeHoachVatTuError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
 
@@ -256,4 +262,7 @@ def de_nghi_mua(
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from None
     except PurchaseError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
+    # Bảng vừa đổi (dòng đã đề nghị mua) — bỏ cache để lượt tải lại ngay sau không thấy số cũ rồi
+    # bấm đề nghị mua lần hai.
+    xoa_cache_can_doi()
     return DeNghiMuaOut(id=row["id"], code=row["code"])

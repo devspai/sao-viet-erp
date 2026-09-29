@@ -30,6 +30,8 @@ vi.mock("../pages/DashboardPage", async () => {
   };
 });
 
+vi.mock("../pages/nhan-su-luong/luong", () => ({ LuongPage: () => <div data-testid="probe-luong" /> }));
+
 vi.mock("../pages/LenhSanXuatPage", () => ({
   LenhSanXuatPage: (props: { openHoSoId: number | null; openHoSoPv: number | null }) => (
     <div
@@ -74,18 +76,26 @@ const AUTH: AuthState = {
  *  `attendance.notifySummary` (unconditional). Thiếu một trong ba
  *  thì promise rơi vào nhánh `.catch` — vô hại cho bài này, nhưng để tránh nhiễu log lúc chạy vẫn
  *  khai đủ. */
-function stubApi(quyen: { modules: string[] } = { modules: ["dashboard", "lenh_san_xuat"] }) {
-  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+function stubApi(
+  quyen: { modules: string[] } = { modules: ["dashboard", "lenh_san_xuat"] },
+  thongBao: { kenh: Record<string, unknown> } = { kenh: {} },
+  daGoi: string[] = [],
+) {
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url =
       typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    daGoi.push(`${init?.method ?? "GET"} ${url}`);
     let data: unknown = {};
     if (url.includes("/api/auth/permissions")) {
       // Đọc `quyen.modules` LÚC GỌI, không chụp lúc dựng stub — bài tải lại quyền đổi nó giữa chừng.
       data = { modules: quyen.modules, permissions: [] };
     } else if (url.includes("/api/module-notifications/summary")) {
-      data = { thu_mua: 0, ke_toan: 0 };
-    } else if (url.includes("/api/attendance/notify-summary")) {
-      data = { unseen_shift_changes: 0 };
+      data = thongBao;
+    } else if (url.includes("/mark-read")) {
+      // Máy chủ đã dời mốc ⇒ lượt tóm tắt sau không còn kênh vừa xem.
+      const k = url.split("/api/module-notifications/")[1].split("/")[0];
+      delete thongBao.kenh[k];
+      return Promise.resolve({ ok: true, status: 204, headers: new Headers(), json: async () => null, text: async () => "" } as Response);
     }
     return Promise.resolve({
       ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
@@ -170,6 +180,41 @@ describe("AppShell · tải lại quyền không cần F5", () => {
   });
 });
 
+// Lượt hỏi quyền ĐẦU TIÊN hỏng (máy chủ khởi động lại, mạng chập): trước 28/09/2026 app gán menu
+// rỗng im lặng — người dùng tưởng bị rút hết quyền. Nay phải báo lỗi + có nút Thử lại.
+describe("AppShell · lượt hỏi quyền đầu tiên hỏng", () => {
+  it("⭐ hiện lỗi + Thử lại; bấm Thử lại thì vào được app", async () => {
+    let lan = 0;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      let status = 200;
+      let data: unknown = {};
+      if (url.includes("/api/auth/permissions")) {
+        lan += 1;
+        if (lan === 1) {
+          status = 500;
+          data = { detail: "Lỗi máy chủ thử nghiệm." };
+        } else {
+          data = { modules: ["dashboard"], permissions: [] };
+        }
+      } else if (url.includes("/api/module-notifications/summary")) {
+        data = { kenh: {} };
+      } else if (url.includes("/api/attendance/notify-summary")) {
+        data = { unseen_shift_changes: 0 };
+      }
+      return Promise.resolve({
+        ok: status < 400, status, headers: new Headers({ "content-type": "application/json" }),
+        json: async () => data, text: async () => JSON.stringify(data),
+      } as Response);
+    }));
+    ve();
+    expect(await screen.findByText(/Không tải được quyền truy cập/)).toBeInTheDocument();
+    expect(screen.getByText(/Lỗi máy chủ thử nghiệm\./)).toBeInTheDocument();
+    act(() => screen.getByRole("button", { name: "Thử lại" }).click());
+    await screen.findByTestId("probe-dashboard");
+  });
+});
+
 // Người KHÁC đổi quyền của mình (lưu ma trận vai mình đang giữ, gán/gỡ vai, đổi phòng) ⇒ máy chủ đẩy
 // `quyen_doi`. Bắt đầu bằng tài khoản chỉ có Dashboard: trước 17/09/2026 kênh SSE không mở cho tài
 // khoản như vậy, nên được gán vai xong vẫn nhìn menu trống tới khi F5.
@@ -206,5 +251,27 @@ describe("AppShell · máy chủ đẩy quyen_doi", () => {
     });
     expect(screen.queryByText("Quyền của bạn vừa được cập nhật.")).not.toBeInTheDocument();
     expect(kenh.phat).toBe(phatTruoc);
+  });
+});
+
+// Chấm đỏ = có bản ghi mới kể từ lần mở màn trước; mở màn là mất (29/09/2026).
+describe("AppShell · chấm đỏ thanh bên", () => {
+  it("⭐ kênh có bản ghi mới ⇒ mục có chấm; mở màn ⇒ đánh dấu đã xem và chấm biến mất", async () => {
+    const daGoi: string[] = [];
+    stubApi(
+      { modules: ["dashboard", "luong"] },
+      { kenh: { luong: { id: 5, loai: "tam_ung_moi", ma: null } } },
+      daGoi,
+    );
+    const { container } = ve();
+    const muc = (await screen.findByText("Lương")).closest("button, a") as HTMLElement;
+    await waitFor(() => expect(muc.querySelector(".sidebar__badge")).not.toBeNull());
+
+    act(() => muc.click());
+    await screen.findByTestId("probe-luong");
+    await waitFor(() =>
+      expect(daGoi.some((g) => g.startsWith("POST") && g.includes("/luong/mark-read"))).toBe(true),
+    );
+    await waitFor(() => expect(container.querySelector(".sidebar__badge")).toBeNull());
   });
 });

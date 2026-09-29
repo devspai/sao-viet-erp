@@ -15,7 +15,7 @@ from ..models.department import Department
 from ..models.lsx import Lsx, LsxCongDoan
 from ..models.order import Order
 from ..models.san_xuat import (
-    NHOM_CHO_DIEU_KIEN, NHOM_DANG_SX, SanXuatCongViec, SanXuatNhom, SanXuatNhomLsx,
+    NHOM_DANG_SX, SanXuatCongViec, SanXuatNhom, SanXuatNhomLsx,
 )
 from ..models.san_xuat_kcs import SanXuatKcsBatch, SanXuatKcsLoi, SanXuatKcsLoiAnh
 from ..models.user import User
@@ -32,6 +32,29 @@ class SanXuatKcsRepository:
 
     def flush(self) -> None:
         self.db.flush()
+
+    def lan_kiem_vua_ghi(self, *, cong_viec_id: int, created_by: int | None, so_loi: float,
+                         so_dat: float | None, ghi_chu: str | None, tu_luc):
+        """Lần kiểm Y HỆT (cùng công đoạn, người, số lỗi, số đạt nếu có, ghi chú) từ `tu_luc`."""
+        dk = [
+            SanXuatKcsBatch.cong_viec_id == cong_viec_id,
+            SanXuatKcsBatch.created_by == created_by if created_by is not None
+            else SanXuatKcsBatch.created_by.is_(None),
+            SanXuatKcsBatch.so_luong_khong_dat == so_loi,
+            SanXuatKcsBatch.created_at >= tu_luc,
+            SanXuatKcsBatch.ghi_chu == ghi_chu if ghi_chu is not None
+            else SanXuatKcsBatch.ghi_chu.is_(None),
+        ]
+        if so_dat is not None:
+            dk.append(SanXuatKcsBatch.so_luong_dat == so_dat)
+        return self.db.execute(
+            select(SanXuatKcsBatch).where(*dk).order_by(SanXuatKcsBatch.id.desc()).limit(1)
+        ).scalars().first()
+
+    def loi_dau_id(self, kcs_batch_id: int) -> int | None:
+        return self.db.execute(
+            select(func.min(SanXuatKcsLoi.id)).where(SanXuatKcsLoi.kcs_batch_id == kcs_batch_id)
+        ).scalar()
 
     # --- Ai là KCS ---------------------------------------------------------------------------
     def la_thanh_vien_to_kcs(self, user_id: int | None) -> bool:
@@ -112,7 +135,7 @@ class SanXuatKcsRepository:
             .outerjoin(Customer, Customer.id == Order.customer_id)
         )
         if not gom_da_dong:
-            q = q.where(SanXuatNhom.trang_thai.in_((NHOM_DANG_SX, NHOM_CHO_DIEU_KIEN)))
+            q = q.where(SanXuatNhom.trang_thai== NHOM_DANG_SX)
         tim = (tim or "").strip()
         if tim:
             mau = f"%{tim}%"

@@ -17,6 +17,7 @@ from ..schemas.auth import UserOut
 from ..schemas.profile import AvatarOut, UpdateNameRequest
 from ..services.profile_service import ProfileError, ProfileService
 from ..storage import get_storage, key_from_url, url_from_key
+from ..tai_len import doc_gioi_han
 
 router = APIRouter(prefix="/api/users", tags=["profile"])
 
@@ -41,27 +42,25 @@ def update_my_name(payload: UpdateNameRequest, user: CurrentUser, profiles: Prof
 
 
 @router.post("/me/avatar", response_model=AvatarOut)
-async def upload_my_avatar(
+def upload_my_avatar(
     user: CurrentUser,
     profiles: Profiles,
     file: Annotated[UploadFile, File()],
 ) -> AvatarOut:
     """Upload a new avatar (JPG/PNG ≤ 2 MB). Validates type + size server-side (defense in
-    depth — the client checks first), stores the file, and points the user at it."""
+    depth — the client checks first), stores the file, and points the user at it.
+
+    `def` (không `async`): đọc tệp + ghi kho tệp đồng bộ — chạy trong threadpool."""
     ext = ALLOWED_AVATAR_TYPES.get((file.content_type or "").lower())
     if ext is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ảnh phải là JPG hoặc PNG",
         )
-    data = await file.read()
-    if len(data) > MAX_AVATAR_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ảnh vượt quá 2 MB",
-        )
-    if not data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tệp ảnh rỗng")
+    data = doc_gioi_han(
+        file, MAX_AVATAR_BYTES, ten="Ảnh",
+        ma_rong=status.HTTP_400_BAD_REQUEST, loi_rong="Tệp ảnh rỗng",
+    )
 
     key = f"{AVATAR_SUBDIR}/user_{user.id}_{secrets.token_hex(8)}{ext}"
     get_storage().save(key, data, file.content_type)

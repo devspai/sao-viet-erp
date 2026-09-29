@@ -70,7 +70,7 @@ class Settings(BaseSettings):
 
     # Nhắc lịch hẹn chăm sóc real-time: chu kỳ (giây) của ticker in-process quét hẹn vừa tới giờ
     # để đẩy "ting" (SSE) cho người phụ trách. 0 = TẮT (test đặt 0 để không đụng DB in-memory).
-    # Chỉ đúng khi 1 uvicorn worker — giống ràng buộc SSE hub (app/realtime.py).
+    # Nhiều worker: mỗi vòng chỉ MỘT worker giành được quyền chạy (`locks.giu_vai_chinh`).
     care_reminder_seconds: int = 60
 
     # Seed illustrative Kinh doanh staff + customers (spec-06 CRM demo data) on startup.
@@ -78,6 +78,34 @@ class Settings(BaseSettings):
     # browser-validate runtime turns it ON (SEED_DEMO=true in .env) to exercise the
     # own/department/all data-scope on the Khách hàng screen.
     seed_demo: bool = False
+
+    # --- Sức chịu tải: TỰ CO GIÃN theo máy (app/tai_nguyen.py) -------------
+    # Mọi số 0 / -1 dưới đây nghĩa là "tự tính theo CPU/RAM của container". Đặt số dương qua biến
+    # môi trường khi muốn chốt tay (vd VPS dùng chung với dịch vụ khác).
+    #
+    # Số worker uvicorn (`app/serve.py`). 0 = 2×CPU, trần theo RAM và 8.
+    web_concurrency: int = 0
+    # Số worker THẬT đang chạy — `serve.py` đặt biến SVN_SO_WORKER cho các worker con để chia ngân
+    # sách kết nối DB. Chạy thẳng uvicorn (dev/test) thì 1.
+    svn_so_worker: int = 1
+    # `max_connections` của Postgres — ngân sách kết nối chung cho mọi worker (phải khớp cấu hình
+    # Postgres, xem deploy/postgres/tu-chinh.sh).
+    pg_max_connections: int = 200
+    db_pool_size: int = 0
+    db_max_overflow: int = -1
+    # Chờ lấy kết nối tối đa bấy nhiêu giây rồi báo lỗi. Ngắn có chủ đích: cổng đồng thời
+    # (`app/cong_dong_thoi.py`) đã giữ số request đang chạy ≤ số kết nối, nên chờ lâu ở đây là
+    # dấu hiệu kết nối bị giữ bất thường — báo sớm tốt hơn đứng hình 30 giây.
+    db_pool_timeout: int = 10
+    # Một câu SQL chạy quá lâu bị Postgres huỷ — không để một truy vấn chạy lạc giữ kết nối mãi.
+    # 0 = tắt. Khớp `proxy_read_timeout` của nginx (120s): quá mức đó người dùng đã nhận lỗi rồi.
+    db_statement_timeout_ms: int = 120_000
+    # Số request HTTP (trừ SSE, health) được chạy cùng lúc trong MỘT worker. 0 = pool + overflow − 2
+    # ⇒ request đang chạy không bao giờ phải tranh kết nối DB; dư ra thì XẾP HÀNG ở cổng (không tốn
+    # luồng, không giữ kết nối).
+    max_request_dong_thoi: int = 0
+    # Xếp hàng ở cổng quá bấy nhiêu giây ⇒ trả 503 "máy chủ đang bận" để client thử lại.
+    cho_hang_doi_giay: float = 30.0
 
     # --- Redis (pub/sub SSE + lock) ---------------------------------------
     # RỖNG = không có Redis → hub SSE chạy in-process và lock thành no-op (app/realtime.py,
