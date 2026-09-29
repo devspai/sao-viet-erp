@@ -46,6 +46,7 @@ from ..schemas.overtime import (
     OvertimeRosterOut,
     OvertimeSummaryOut,
 )
+from ..services.thong_bao_man import bao
 from ..services.overtime_service import (
     NoLinkedEmployee,
     OvertimeError,
@@ -162,12 +163,22 @@ def _notify_pending_changed() -> None:
     hub.gui({"type": "ot_pending_changed"}, quyen=MAN_NHAN_SU)
 
 
-def _notify_decision(r, employees: EmployeeRepository, decision: str) -> None:
+def _cham_cho_duyet(r, employees: EmployeeRepository, loai: str, actor_id: int) -> None:
+    """Chấm đỏ Tăng ca cho người DUYỆT trong phạm vi phòng của người đứng tên phiếu."""
+    emp = employees.get_by_id(r.employee_id)
+    bao(employees.db, kenh="tang_ca", loai=loai, actor_id=actor_id, quyen="approve",
+        phong_id=emp.department_id if emp else None, ma=str(r.id))
+
+
+def _notify_decision(r, employees: EmployeeRepository, decision: str,
+                     actor_id: int | None = None) -> None:
     """Duyệt/từ chối → đẩy tới ĐÚNG NV nộp phiếu; kèm broadcast để badge người duyệt hạ xuống."""
     emp = employees.get_by_id(r.employee_id)
     if emp is not None and emp.user_id is not None:
         hub.publish(emp.user_id, {"type": "ot_decision", "decision": decision,
                                   "code": emp.full_name})
+        bao(employees.db, kenh="tang_ca", loai="tang_ca_quyet_dinh", actor_id=actor_id,
+            nguoi_nhan=emp.user_id, ma=str(r.id))
     _notify_pending_changed()
 
 
@@ -188,6 +199,7 @@ def create_my_request(body: OvertimeRequestIn, svc: Service, employees: Employee
     except OvertimeError as exc:
         _raise(exc)
     _notify_pending_changed()
+    _cham_cho_duyet(r, employees, "tang_ca_moi", user.id)
     return _resolve(employees, [r], svc)[0]
 
 
@@ -282,7 +294,7 @@ def create_for_employee(body: OvertimeRequestForIn, svc: Service, employees: Emp
                                auto_approve=True, scope=_scope(authz, user))
     except OvertimeError as exc:
         _raise(exc)
-    _notify_decision(r, employees, "approved")
+    _notify_decision(r, employees, "approved", user.id)
     return _resolve(employees, [r], svc)[0]
 
 
@@ -311,7 +323,7 @@ def bulk_approve(body: OvertimeBulkIn, svc: Service, employees: Employees, authz
                  user: Annotated[User, Depends(require_permission(MODULE, "approve"))]):
     done = svc.bulk_approve(actor=user, request_ids=body.ids, scope=_scope(authz, user))
     for r in done:
-        _notify_decision(r, employees, "approved")
+        _notify_decision(r, employees, "approved", user.id)
     ids = {r.id for r in done}
     return OvertimeBulkResultOut(done=sorted(ids),
                                  skipped=sorted(set(body.ids) - ids))
@@ -326,7 +338,7 @@ def bulk_reject(body: OvertimeBulkRejectIn, svc: Service, employees: Employees, 
     except OvertimeError as exc:
         _raise(exc)
     for r in done:
-        _notify_decision(r, employees, "rejected")
+        _notify_decision(r, employees, "rejected", user.id)
     ids = {r.id for r in done}
     return OvertimeBulkResultOut(done=sorted(ids),
                                  skipped=sorted(set(body.ids) - ids))
@@ -341,7 +353,7 @@ def approve(request_id: int, body: OvertimeDecisionIn, svc: Service, employees: 
                         scope=_scope(authz, user))
     except OvertimeError as exc:
         _raise(exc)
-    _notify_decision(r, employees, "approved")
+    _notify_decision(r, employees, "approved", user.id)
     return _resolve(employees, [r], svc)[0]
 
 
@@ -354,7 +366,7 @@ def reject(request_id: int, body: OvertimeRejectIn, svc: Service, employees: Emp
                        scope=_scope(authz, user))
     except OvertimeError as exc:
         _raise(exc)
-    _notify_decision(r, employees, "rejected")
+    _notify_decision(r, employees, "rejected", user.id)
     return _resolve(employees, [r], svc)[0]
 
 
@@ -389,7 +401,7 @@ def cancel(request_id: int, svc: Service, employees: Employees, authz: Authz, us
     # Huỷ hộ phiếu ĐÃ DUYỆT = thợ mất giấy phép tăng ca mà tối vẫn đi làm ⇒ 0đ; phải báo tới đúng người
     # như lúc duyệt/từ chối (bản rà liên thông D8, 08/09/2026). Tự huỷ phiếu chờ của mình chỉ hạ badge.
     if da_duyet:
-        _notify_decision(r, employees, "cancelled")
+        _notify_decision(r, employees, "cancelled", user.id)
     else:
         _notify_pending_changed()
     return _resolve(employees, [r], svc)[0]
@@ -419,6 +431,7 @@ def xin_huy(request_id: int, body: XinHuyIn, svc: Service, employees: Employees,
     except OvertimeError as exc:
         _raise(exc)
     _notify_pending_changed()
+    _cham_cho_duyet(r, employees, "tang_ca_xin_huy", user.id)
     return _resolve(employees, [r], svc)[0]
 
 
@@ -441,5 +454,5 @@ def quyet_xin_huy(yc_id: int, body: QuyetXinHuyIn, svc: Service, employees: Empl
                                  ghi_chu=body.ghi_chu, scope=_scope(authz, user))
     except OvertimeError as exc:
         _raise(exc)
-    _notify_decision(r, employees, "huy_dong_y" if body.dong_y else "huy_giu_nguyen")
+    _notify_decision(r, employees, "huy_dong_y" if body.dong_y else "huy_giu_nguyen", user.id)
     return _resolve(employees, [r], svc)[0]
