@@ -29,7 +29,6 @@ import { MyTimesheetTab } from "./tabs/MyTimesheetTab";
 import { ShiftsTab } from "./tabs/ShiftsTab";
 import { TimesheetTab } from "./tabs/TimesheetTab";
 import "../../nhan-su.css";
-import "../../nghi-phep.css"; // LocationsTab dùng cc-calendar-stat-*, cc-switch, cc-leave-type-action-btn định nghĩa ở đây
 import "../../cham-cong.css";
 
 export function ChamCongPage({

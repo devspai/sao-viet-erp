@@ -2810,3 +2810,183 @@ button.ns__kpi {
     border-radius: 0;
   }
 }
+
+/* ===== Dùng chung Nghỉ phép + Chấm công (chuyển từ nghi-phep.css 29/09/2026 —
+   trước đó tab Điểm chấm công vỡ layout nếu chưa mở trang Nghỉ phép) ===== */
+.cc-btn-cta-compact {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 8px 16px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  background: #0f172a !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  border: none !important;
+  transition: all 0.15s ease !important;
+  white-space: nowrap;
+}
+
+.cc-btn-cta-compact:hover {
+  background: #1e293b !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.cc-calendar-dashboard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.cc-calendar-stats-strip {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.cc-calendar-stat-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  padding: 8px var(--sp-4);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.cc-calendar-stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-2);
+}
+
+.cc-calendar-stat-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cc-calendar-stat-icon--users {
+  background: var(--moss-soft);
+  color: var(--moss-deep);
+}
+
+.cc-calendar-stat-icon--clock {
+  background: var(--amber-soft);
+  color: var(--amber-deep);
+}
+
+.cc-calendar-stat-icon--check {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+.cc-calendar-stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.cc-calendar-stat-val {
+  font-size: 16px;
+  font-weight: var(--fw-bold);
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.cc-calendar-stat-label {
+  font-size: 10.5px;
+  color: var(--ash-2);
+  font-weight: var(--fw-medium);
+}
+
+.cc-leave-type-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: var(--fw-medium);
+  color: var(--ash);
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-2);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.cc-leave-type-action-btn:hover {
+  background: var(--rule-soft);
+  color: var(--ink);
+}
+
+.cc-leave-type-action-btn--danger:hover {
+  background: var(--signal-soft);
+  color: var(--signal-deep);
+  border-color: rgba(180, 40, 40, 0.2);
+}
+
+/* Switch Toggle Component */
+.cc-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.cc-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.cc-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: .25s;
+  border-radius: 20px;
+}
+
+.cc-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .25s;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+input:checked + .cc-slider {
+  background-color: #22c55e;
+}
+
+input:checked + .cc-slider:before {
+  transform: translateX(16px);
+}
+
+
+.cc-leave-type-active-switch {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
