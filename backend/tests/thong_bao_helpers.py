@@ -39,3 +39,37 @@ def tom_tat(client, h) -> dict:
 def da_xem(client, h, kenh: str) -> None:
     r = client.post(f"/api/module-notifications/{kenh}/mark-read", headers=h)
     assert r.status_code == 204, r.text
+
+
+def phong_id(ten: str) -> int:
+    db = SessionLocal()
+    try:
+        d = DepartmentRepository(db)
+        return (d.get_by_name(ten) or d.create(name=ten)).id
+    finally:
+        db.close()
+
+
+def admin(client) -> dict[str, str]:
+    r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+def tao_ho_so(client, h_admin, *, ten: str, phong: str, user_id: int | None = None) -> int:
+    """Hồ sơ nhân sự ở `phong`, gắn tài khoản `user_id` nếu có. Trả employee id."""
+    from app.repositories.employee_repo import EmployeeRepository
+
+    r = client.post("/api/employees", json={
+        "full_name": ten, "department_id": phong_id(phong), "hire_date": "2020-01-01",
+        "gender": "male", "probation_end_date": "2025-12-31", "status": "active",
+    }, headers=h_admin)
+    assert r.status_code in (200, 201), r.text
+    eid = r.json()["employee"]["id"]
+    if user_id is not None:
+        db = SessionLocal()
+        try:
+            emps = EmployeeRepository(db)
+            emps.update(emps.get_by_id(eid), user_id=user_id)
+        finally:
+            db.close()
+    return eid
