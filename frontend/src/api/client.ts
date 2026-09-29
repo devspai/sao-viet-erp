@@ -658,8 +658,7 @@ export type QuoteEvent =
     }
   // KCS theo lệnh (mg 0306) · kho §14 · đóng nhóm §16/§13.3. `*_changed` = tín hiệu NHẸ broadcast
   // để panel/hộp đang mở refetch (quoteTick lo); `san_xuat_kcs_ket_qua` / `san_xuat_kho` = đẩy ĐÍCH
-  // DANH tới người cần biết → toast cá nhân. `san_xuat_nhom_dong` = nhóm thành phẩm đã đóng, báo Sale
-  // + Kế hoạch SX. `trang_thai` mang enum backend (kho: cho_kho/nhap_mot_phan/da_nhap/huy · nhóm:
+  // DANH tới người cần biết → toast cá nhân. `trang_thai` mang enum backend (kho: cho_kho/nhap_mot_phan/da_nhap/huy · nhóm:
   // in_production/closed). `san_xuat_lenh_dong` = KCS đóng / mở lại lệnh (cả nhóm).
   | {
       type: "san_xuat_kcs_changed";
@@ -710,14 +709,6 @@ export type QuoteEvent =
       da_dat?: number | null;
       muc_tieu?: number | null;
       don_vi?: string;
-    }
-  // cũ — xoá khi AppShell chuyển sang san_xuat_lenh_dong
-  | {
-      type: "san_xuat_nhom_dong";
-      nhom_id?: number | null;
-      order_id?: number | null;
-      trang_thai?: string | null;
-      kieu?: string | null;
     }
   // Đề nghị cấp vật tư của MỘT công đoạn vừa đổi (tạo/sửa lần đề nghị — `services/san_xuat/
   // vat_tu_de_nghi.py`). Backend `hub.broadcast` gửi cho MỌI kết nối, KHÔNG theo phạm vi, nên hai

@@ -94,8 +94,6 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   // KCS gửi thành phẩm nhập kho: màn KCS / hồ sơ lệnh + màn Kho.
   san_xuat_kho_changed: ["san_xuat", "kho"],
   san_xuat_kho: ["san_xuat", "kho"],
-  // Nhóm thành phẩm đóng ⇒ đơn có thể giao: Kế hoạch SX, Đơn hàng, Giao hàng.
-  san_xuat_nhom_dong: ["san_xuat", "ban_hang", "giao_hang"],
   san_xuat_lenh_dong: ["san_xuat", "ban_hang", "giao_hang"],
   gia_cong_ngoai_changed: ["san_xuat"],
 
