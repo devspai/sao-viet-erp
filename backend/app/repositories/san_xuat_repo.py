@@ -308,6 +308,27 @@ class SanXuatRepository:
             ).all()
         ]
 
+    def lan_dong_cuoi(self, nhom_id: int) -> tuple[str, datetime] | None:
+        """(tên người, lúc) của lần "Đóng lệnh" GẦN NHẤT của nhóm — đọc từ audit, không đẻ cột."""
+        from ..models.audit import AuditLog
+
+        a = self.db.execute(
+            select(AuditLog)
+            .where(AuditLog.action == "san_xuat_dong_lenh",
+                   AuditLog.target == f"san_xuat_nhom:{nhom_id}")
+            .order_by(AuditLog.id.desc()).limit(1)
+        ).scalars().first()
+        return (a.actor_name_luc_do or "", a.created_at) if a else None
+
+    def trang_thai_nhom_cua_bai_ghep(self, bai_ghep_id: int) -> list[str]:
+        """Trạng thái nhóm của mọi lệnh thành viên một bài ghép (lặp theo lệnh)."""
+        return list(self.db.execute(
+            select(SanXuatNhom.trang_thai)
+            .join(SanXuatNhomLsx, SanXuatNhomLsx.nhom_id == SanXuatNhom.id)
+            .join(BaiGhepThanhVien, BaiGhepThanhVien.lsx_id == SanXuatNhomLsx.lsx_id)
+            .where(BaiGhepThanhVien.bai_ghep_id == bai_ghep_id)
+        ).scalars())
+
     def member_of_lsx(self, lsx_id: int) -> SanXuatNhomLsx | None:
         return self.db.execute(
             select(SanXuatNhomLsx).where(SanXuatNhomLsx.lsx_id == lsx_id)

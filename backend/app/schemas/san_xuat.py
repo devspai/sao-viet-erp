@@ -1433,3 +1433,45 @@ class VatTuDeNghiIn(BaseModel):
     # GIỜ cần, không phải ngày: kho soạn theo ca. `stock_requests.ngay_can` chỉ lưu phần DATE.
     can_luc: datetime
     lines: list[VatTuDeNghiDongIn] = []
+
+
+# --- ĐÓNG LỆNH THỦ CÔNG (spec 2026-09-29) ---
+class DongLenhCanhBaoOut(BaseModel):
+    ma: str          # chua_kiem | chua_gui_kho | thieu_muc_tieu | viec_do
+    cau: str
+
+
+class DongLenhLenhOut(BaseModel):
+    id: int
+    ma: str
+
+
+class DongLenhTinhTrangOut(BaseModel):
+    """Khối "Đóng lệnh" ở màn KCS — số tóm tắt + cảnh báo cho hộp xác nhận. KHÔNG có cổng."""
+    nhom_id: int
+    order_id: int | None = None
+    trang_thai: str                      # in_production | closed
+    version: int
+    lenh: list[DongLenhLenhOut]
+    muc_tieu: float | None = None
+    da_dat: float = 0.0
+    don_vi: str = ""
+    canh_bao: list[DongLenhCanhBaoOut] = []
+    dong_boi: str | None = None
+    dong_luc: datetime | None = None
+
+
+class DongLenhIn(BaseModel):
+    expected_version: int | None = None
+
+
+class DongLenhKetQuaOut(BaseModel):
+    nhom_id: int
+    order_id: int | None = None
+    trang_thai: str
+    kieu: str                            # dong | mo_lai
+    version: int
+    lenh_ma: list[str] = []
+    da_dat: float = 0.0
+    muc_tieu: float | None = None
+    don_vi: str = ""
