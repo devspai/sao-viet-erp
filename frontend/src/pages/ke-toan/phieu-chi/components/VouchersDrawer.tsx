@@ -1,7 +1,7 @@
 // Drawer CHI TIẾT một phiếu chi (tách từ pages/PaymentVouchersPage.tsx).
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
-  assetUrl,
+  anhNho, assetUrl,
   type PaymentVoucherAttachment,
   type PaymentVoucherRow,
 } from "../../../../api/client";
@@ -258,7 +258,7 @@ export function VouchersDrawer({
                     >
                       <img
                         className="acct-att-thumb"
-                        src={href}
+                        src={anhNho(attachment.file_url) ?? href}
                         alt={attachment.file_name}
                       />
                     </a>

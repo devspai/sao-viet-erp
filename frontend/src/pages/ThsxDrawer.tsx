@@ -14,7 +14,7 @@
 //
 // Component KHÔNG tự gọi API ghi: phát ý định qua callback; controller lo dialog lý do + version lạc quan.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { assetUrl } from "../api/client";
+import { anhNho } from "../api/client";
 import type {
   SxNhanVienChon, SxWorkItemChiTiet, SxHoTroUngVien,
 } from "../api/client";
@@ -118,7 +118,7 @@ function khoangTimeText(batDau: string | null | undefined, ketThuc: string | nul
 /** Ảnh đại diện của thợ; chưa có ảnh (hoặc ảnh tải hỏng) thì vẽ chữ cái đầu như cũ. */
 function AnhNguoi({ ten, url, size }: { ten: string; url?: string | null; size?: number }) {
   const [srcHong, setSrcHong] = useState<string | null>(null);
-  const src = assetUrl(url);
+  const src = anhNho(url);
   const style = size ? { width: size, height: size, fontSize: size / 2 } : undefined;
   return (
     <span className="thsx-roster-avatar-glow" style={style}>

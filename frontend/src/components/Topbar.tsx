@@ -2,7 +2,7 @@
 // scrolling content on every page. Hosts the user widget on the right — avatar +
 // name + a dropdown (Hồ sơ của tôi + Đăng xuất).
 import { useEffect, useRef, useState } from "react";
-import { assetUrl } from "../api/client";
+import { anhNho } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Icon } from "./Icons";
 import "./topbar.css";
@@ -59,7 +59,7 @@ function UserWidget({ onOpenProfile }: UserWidgetProps) {
   if (!user) return null;
 
   const display = user.name?.trim() || user.username;
-  const avatarSrc = assetUrl(user.avatar_url);
+  const avatarSrc = anhNho(user.avatar_url);
   const initials = display
     .trim()
     .split(/\s+/)

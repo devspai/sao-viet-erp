@@ -35,6 +35,15 @@ export function assetUrl(path?: string | null): string | null {
   return `${BASE_URL}${path}`;
 }
 
+/** Ảnh THU NHỎ cho ô lưới / danh sách / avatar: máy chủ trả JPEG cạnh ngắn `w` px (~10–25 KB)
+ *  thay vì ảnh gốc (~400 KB đến vài MB). Chỉ áp cho tệp trong kho tệp (`/api/files/`); còn lại
+ *  (data:/blob:/URL ngoài) trả như `assetUrl`. Khung xem ảnh lớn (lightbox) giữ `assetUrl`. */
+export function anhNho(path?: string | null, w: 160 | 320 = 160): string | null {
+  const url = assetUrl(path);
+  if (!url || !path?.startsWith("/api/files/")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}w=${w}`;
+}
+
 export interface LoginResponse {
   access_token: string;
   token_type: string;

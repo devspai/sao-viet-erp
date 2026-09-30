@@ -14,7 +14,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CodeLink } from "../components/CodeLink";
 import { useCan } from "../auth/permissions";
 import { useDieuHuongDanhMuc } from "./danh-muc/dieuHuong";
-import { ApiError, assetUrl, authed } from "../api/client";
+import { ApiError, anhNho, assetUrl, authed } from "../api/client";
 import { crud, trangThaiMay, type Row, type TrangThaiMay } from "../api/rebuildCatalog";
 
 // ── Bảng nhãn thuần Việt (in ấn) — 1 nguồn cho options + column render ──────────
@@ -682,7 +682,7 @@ function NguonGocThanhPham({ r }: { r: Row }) {
           <div className="rc-field rc-field--full">
             <span className="rc-field__label">Ảnh minh hoạ</span>
             <a href={anh} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start" }}>
-              <img src={anh} alt={String(r.ten)} style={{
+              <img src={anhNho(r.anh_url as string | null, 320) ?? anh} alt={String(r.ten)} style={{
                 maxWidth: 160, maxHeight: 160, objectFit: "cover", borderRadius: 8,
                 border: "1px solid var(--rule-soft, #e8e3d3)",
               }} />

@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import {
   ApiError,
   api,
-  assetUrl,
+  anhNho, assetUrl,
   type DieuChinhLichSu,
   type HangLoai,
   type StockAllocationLine,
@@ -1420,7 +1420,7 @@ export function InboxRequestDrawer({
                                 {l.hang_anh && (
                                   <img
                                     className="kho-lineimg__thumb"
-                                    src={assetUrl(l.hang_anh) ?? undefined}
+                                    src={anhNho(l.hang_anh) ?? undefined}
                                     alt=""
                                   />
                                 )}

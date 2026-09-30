@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import {
   ApiError,
   api,
-  assetUrl,
+  anhNho, assetUrl,
   type HangLoai,
   type SoGiaRow,
   type StockLevel,
@@ -1244,7 +1244,7 @@ function MaterialRow({
       <td>
         <div className="kho-lineimg" style={{ alignItems: "center" }}>
           {g.anh ? (
-            <img className="kho-ton__thumb" src={assetUrl(g.anh) ?? undefined} alt="" loading="lazy" />
+            <img className="kho-ton__thumb" src={anhNho(g.anh) ?? undefined} alt="" loading="lazy" />
           ) : (
             // Nền neutral (slate) đồng nhất — CHỦNG LOẠI đã phân biệt bằng icon, không cần pastel.
             <span className="kho-ton__thumb kho-ton__thumb--ph" aria-hidden="true">
@@ -1679,7 +1679,7 @@ function MaterialHistoryDrawer({
                         className="hero-avatar-btn"
                         onClick={() => setZoom(true)}
                       >
-                        <img src={assetUrl(anh) ?? undefined} alt={material.name ?? ""} />
+                        <img src={anhNho(anh, 320) ?? undefined} alt={material.name ?? ""} />
                       </button>
                     ) : (
                       <div className="hero-avatar-ph" aria-hidden="true">

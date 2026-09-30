@@ -13,7 +13,7 @@ import {
 import {
   ApiError,
   api,
-  assetUrl,
+  anhNho, assetUrl,
   type CustomerAddress,
   type CustomerContact,
   type EnumOption,
@@ -682,7 +682,7 @@ function AttachmentsPanel({
                     title={canPreview ? "Xem trước" : a.file_name}
                   >
                     {img ? (
-                      <img src={href} alt={a.file_name} loading="lazy" />
+                      <img src={anhNho(a.file_url) ?? "#"} alt={a.file_name} loading="lazy" />
                     ) : pdf ? (
                       <FileText size={20} />
                     ) : (
@@ -1120,7 +1120,7 @@ function QuotationDetailView({
               onClick={() => setAnhXem({ url, ten })}
               title="Xem ảnh lớn"
             >
-              <img src={url} alt={`Ảnh minh họa ${ten}`} />
+              <img src={anhNho(it.anh_minh_hoa) ?? url} alt={`Ảnh minh họa ${ten}`} />
             </button>
             {canRequote && (
               <button

@@ -5,7 +5,7 @@
 // Component KHÔNG gọi API: màn cha giữ danh sách và truyền hàm tải/xoá, nên gắn được vào bất kỳ
 // chứng từ nào có bảng đính kèm cùng hình `TepDinhKem`.
 import { useEffect, useRef, useState, type DragEvent } from "react";
-import { ApiError, assetUrl } from "../api/client";
+import { ApiError, anhNho, assetUrl } from "../api/client";
 import { ngayGio } from "../pages/keHoachSxShared";
 import { Button } from "./Button";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -376,7 +376,7 @@ export function DinhKemTep({
                       onClick={() => setXem(t)}
                     >
                       {kieu === "anh" ? (
-                        <img src={url} alt="" loading="lazy" />
+                        <img src={anhNho(t.file_url) ?? undefined} alt="" loading="lazy" />
                       ) : (
                         <span className="dkt-tep__thumb-label">PDF</span>
                       )}

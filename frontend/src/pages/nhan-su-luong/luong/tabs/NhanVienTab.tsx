@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import {
   api,
-  assetUrl,
+  anhNho,
   type EmployeeKpis,
   type EmployeeRow,
   type SalaryPreview,
@@ -400,7 +400,7 @@ export function NhanVienTab({
               };
 
               const p = previews[e.id];
-              const photoSrc = assetUrl(e.photo_url);
+              const photoSrc = anhNho(e.photo_url);
 
               return (
                 <tr key={e.id}>

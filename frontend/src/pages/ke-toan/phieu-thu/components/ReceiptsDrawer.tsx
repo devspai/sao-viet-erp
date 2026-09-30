@@ -1,7 +1,7 @@
 // Drawer CHI TIẾT một phiếu thu (tách từ pages/PaymentReceiptsPage.tsx).
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
-  assetUrl,
+  anhNho, assetUrl,
   type PaymentReceiptAttachment,
   type PaymentReceiptRow,
 } from "../../../../api/client";
@@ -223,7 +223,7 @@ export function ReceiptsDrawer({
                     >
                       <img
                         className="acct-att-thumb"
-                        src={href}
+                        src={anhNho(attachment.file_url) ?? href}
                         alt={attachment.file_name}
                       />
                     </a>

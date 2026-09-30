@@ -15,7 +15,7 @@ import re
 from typing import Annotated, Iterator
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import FileUser, get_authorization_service
+from ..services import anh_nho
 from ..services.quyen_to import VIEC_XEM, quyen_to_cua
 from ..services.rbac_service import AuthorizationService
 from ..config import settings
@@ -116,10 +117,16 @@ def download_file(
     db: Annotated[Session, Depends(get_db)],
     authz: Annotated[AuthorizationService, Depends(get_authorization_service)],
     if_none_match: Annotated[str | None, Header()] = None,
+    w: Annotated[int | None, Query(description="Ảnh thu nhỏ: 160 hoặc 320 (px, cạnh ngắn)")] = None,
 ) -> Response:
     # Kiểm khoá TRƯỚC khi chạm storage: `key` tới thẳng từ URL người dùng gõ.
     if not is_safe_key(key):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Đường dẫn tệp không hợp lệ")
+    # Ảnh nhỏ mang quyền của ảnh GỐC; đọc thẳng `_thumb/…` là lách bảng quyền theo thư mục bên dưới.
+    if key.startswith(anh_nho.TIEN_TO):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy tệp")
+    if w is not None and w not in anh_nho.CO_CHO_PHEP:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cỡ ảnh thu nhỏ không hợp lệ")
 
     doan = key.split("/")
     khoa = _PREFIX_2_PERMISSION.get((doan[0], doan[1] if len(doan) > 1 else ""))
@@ -133,7 +140,10 @@ def download_file(
 
     # Kiểm quyền ở TRÊN đã chạy xong: 304 chỉ nói "bản bạn đang giữ vẫn đúng", nhưng người mất
     # quyền vẫn phải nhận 403 chứ không được xác nhận gì.
+    thu_nho = w is not None and anh_nho.thu_nho_duoc(key)
     etag = _etag(key)
+    if thu_nho:
+        etag = f'{etag[:-1]}@w{w}"'
     headers = {
         "Cache-Control": _CACHE_VINH_VIEN,
         "ETag": etag,
@@ -148,6 +158,11 @@ def download_file(
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
 
     store = get_storage()
+    if thu_nho:
+        # Sinh lần đầu (một lần cho mỗi ảnh × cỡ), sau đó phục vụ y như tệp thường. Không thu nhỏ
+        # được (ảnh hỏng, gốc > 25 MB) ⇒ phục vụ ảnh gốc: màn vẫn có ảnh, chỉ nặng hơn. Hai trường
+        # hợp đó cố định theo tệp nên trình duyệt cache ảnh gốc dưới URL ảnh nhỏ cũng không sai.
+        key = anh_nho.dam_bao_anh_nho(store, key, w) or key
     if settings.kho_tep_qua_nginx and isinstance(store, MinioStorage):
         # Quyền đã kiểm xong ⇒ giao nginx kéo byte thẳng từ MinIO. Python bơm từng khúc qua threadpool
         # thì 200 người mở màn có ảnh là nghẽn cả app (đo 29/09/2026: p50 54s, 3,5 lõi cho 3,4 MB/s).

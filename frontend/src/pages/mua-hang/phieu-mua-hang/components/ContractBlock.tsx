@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import {
   ApiError,
   api,
-  assetUrl,
+  anhNho, assetUrl,
   type PurchaseAttachmentRow,
   type PurchaseRequestRow,
 } from "../../../../api/client";
@@ -267,7 +267,7 @@ export function ContractBlock({
                     {isImage ? (
                       <img
                         className="pdot__thumb"
-                        src={href}
+                        src={anhNho(a.file_url) ?? href}
                         alt={a.file_name}
                       />
                     ) : (

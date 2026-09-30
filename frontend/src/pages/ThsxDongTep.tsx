@@ -3,7 +3,7 @@
 // chỗ trông và bấm y như nhau. Đặt trong `.thsx-tep__ds` (khung viền chung); dòng phụ do nơi gọi soạn.
 // Có `onBo` là ảnh CHƯA lưu (đang chờ trong form, URL `blob:`) — nút Tải về đổi thành nút Bỏ.
 import type { ReactNode } from "react";
-import { assetUrl } from "../api/client";
+import { anhNho, assetUrl } from "../api/client";
 import { layLopDuoi } from "../components/DinhKemTep";
 import { Icon } from "../components/Icons";
 import { duoiTep, kieuXemTruoc, type TepXem } from "../components/tepDinhKem";
@@ -18,7 +18,7 @@ export function DongTep({
   const than = (
     <>
       <span className={`thsx-tep__thumb ${kieu === "anh" ? "thsx-tep__thumb--anh" : lop}`} aria-hidden="true">
-        {kieu === "anh" ? <img src={url} alt="" loading="lazy" /> : duoi || "TỆP"}
+        {kieu === "anh" ? <img src={anhNho(t.file_url) ?? undefined} alt="" loading="lazy" /> : duoi || "TỆP"}
       </span>
       <span className="thsx-tep__chu">
         <span className="thsx-tep__ten" title={t.ten_tep}>{t.ten_tep}</span>
