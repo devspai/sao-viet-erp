@@ -102,6 +102,7 @@ async def lifespan(app: FastAPI):
     reminder_task: asyncio.Task | None = None
     bao_tri_task: asyncio.Task | None = None
     don_dep_task: asyncio.Task | None = None
+    don_tep_task: asyncio.Task | None = None
     if settings.care_reminder_seconds > 0:
         from .care_reminders import run_care_reminder_loop
         reminder_task = asyncio.create_task(run_care_reminder_loop(settings.care_reminder_seconds))
@@ -115,6 +116,9 @@ async def lifespan(app: FastAPI):
         # Dọn refresh token quá hạn mỗi giờ (thay cho quét ở mỗi lượt đăng nhập).
         from .don_dinh_ky import run_don_dep_loop
         don_dep_task = asyncio.create_task(run_don_dep_loop())
+        if settings.don_tep_mo_coi:
+            from .don_dinh_ky import run_don_tep_loop
+            don_tep_task = asyncio.create_task(run_don_tep_loop())
     # Cầu Redis→SSE: nghe channel chung, bơm sự kiện vào các kết nối của worker này.
     bridge_task: asyncio.Task | None = None
     if hub.uses_redis:
@@ -122,7 +126,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        for task in (reminder_task, bao_tri_task, don_dep_task, bridge_task):
+        for task in (reminder_task, bao_tri_task, don_dep_task, don_tep_task, bridge_task):
             if task is not None:
                 task.cancel()
 

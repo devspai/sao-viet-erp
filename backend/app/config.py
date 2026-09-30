@@ -127,6 +127,9 @@ class Settings(BaseSettings):
     # `location /_kho_tep/` trong frontend/nginx.conf) thay vì Python bơm từng khúc. CHỈ bật khi
     # đứng sau nginx của image `web` (compose); chạy uvicorn trần ở dev thì để false.
     kho_tep_qua_nginx: bool = False
+    # Dọn object MinIO không còn dòng DB nào trỏ tới, mỗi ngày một lượt (`services/don_tep_mo_coi.py`).
+    # Chỉ chạy với MinIO — LocalStorage (dev/test) không bao giờ bị dọn.
+    don_tep_mo_coi: bool = True
 
     # --- CORS --------------------------------------------------------------
     # Comma-separated list of allowed frontend origins.

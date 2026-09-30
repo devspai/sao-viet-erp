@@ -186,6 +186,8 @@ services:
       # /api/files chỉ kiểm quyền, nginx của `web` kéo byte thẳng từ MinIO (location /_kho_tep/).
       # Service này luôn đứng sau `web` nên mặc định bật; đặt false chỉ khi gọi backend không qua nginx.
       KHO_TEP_QUA_NGINX: ${KHO_TEP_QUA_NGINX:-true}
+      # Dọn object MinIO không còn dòng DB nào trỏ tới, mỗi ngày (backend/app/services/don_tep_mo_coi.py).
+      DON_TEP_MO_COI: ${DON_TEP_MO_COI:-true}
       # --- Tự co giãn theo máy (backend/app/tai_nguyen.py + app/serve.py) ---
       # Mặc định dưới đây = mặc định trong backend/app/config.py; chỉ đặt trong .env khi muốn chốt
       # tay. Không được để RỖNG: backend đọc là số, chuỗi rỗng làm nó từ chối khởi động.
