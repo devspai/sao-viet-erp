@@ -490,6 +490,15 @@ class SanXuatRepository:
     def nhom(self, nhom_id: int) -> SanXuatNhom | None:
         return self.db.get(SanXuatNhom, nhom_id)
 
+    def nhom_khoa(self, nhom_id: int, *, chia_se: bool = False) -> SanXuatNhom | None:
+        """Nhóm kèm KHOÁ DÒNG. `chia_se` = FOR SHARE cho cửa ghi xưởng (không chặn nhau, nhưng chặn
+        đóng/mở lại đang chạy song song); mặc định FOR UPDATE cho chính việc đóng/mở lại."""
+        return self.db.execute(
+            select(SanXuatNhom).where(SanXuatNhom.id == nhom_id)
+            .with_for_update(read=chia_se)
+            .execution_options(populate_existing=True)
+        ).scalar_one_or_none()
+
     def lsx(self, lsx_id: int) -> Lsx | None:
         return self.db.get(Lsx, lsx_id)
 

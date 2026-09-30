@@ -87,3 +87,27 @@ def test_ghi_me_chi_duoc_khi_viec_dang_chay(db, orders, lsx_svc, admin, customer
     db.commit()
     with pytest.raises(ValueError, match="Lệnh đã đóng"):
         ghi()
+
+
+def test_da_dong_chan_bat_dau_nhung_van_ket_thuc_duoc(db, orders, lsx_svc, admin, customer):
+    from app.models.san_xuat import CV_HOAN_THANH
+    from app.services.san_xuat import thuc_thi
+
+    to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
+    nguoi = _nguoi_o_to(db, to, "tho1", viec=("run_order",))
+    _dong(db, cv, res)
+    cv.trang_thai = CV_TAM_DUNG
+    db.commit()
+    with pytest.raises(ValueError, match="Lệnh đã đóng"):
+        thuc_thi.bat_dau(db, user=nguoi, cong_viec_id=cv.id)
+    thuc_thi.ket_thuc(db, user=nguoi, cong_viec_id=cv.id)    # việc dở vẫn khép được
+    db.refresh(cv)
+    assert cv.trang_thai == CV_HOAN_THANH
+
+
+def test_dong_hai_lan_cung_version_bi_tu_choi(db, orders, lsx_svc, admin, customer):
+    _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
+    v = SanXuatRepository(db).nhom(cv.nhom_id).version
+    dong_lenh.dong(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=v)
+    with pytest.raises(ValueError, match="đã đóng rồi"):
+        dong_lenh.dong(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=v)
