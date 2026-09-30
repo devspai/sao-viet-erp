@@ -299,3 +299,33 @@ cạnh dài 1600px, ~400KB. Ảnh gốc 4–8MB chỉ lọt qua khi nén hỏng 
 
 ⇒ Không đổi code đường gửi: chuyển sang trình duyệt gửi thẳng MinIO (presigned) chỉ bớt ~20ms/ảnh đã nén
 mà phải sửa mọi màn tải tệp + dọn tệp mồ côi. Sức chứa thật phụ thuộc số worker = CPU/RAM của VPS.
+
+## Đo lại sau đợt 30/09 (chiều) — 200/400 người, `--client-moi-nguoi --seed 1`
+
+Stack dựng từ 0bea5b25 (4 việc sáng 30/09 + cân đối vật tư + danh sách Lệnh SX). Cùng máy, cùng VM Docker
+2 GB, 2 worker. Lượt đầu lộ ra hai lỗi MỚI (sinh sau lượt đo 28/09), vá ngay trong chiều rồi đo lại bằng
+cách chép tệp vào container + thay worker (Docker Desktop treo lệnh tạo container, không build lại được).
+
+| Lượt | 28/09 (sau.md) | 30/09 lần 1 | 30/09 sau vá |
+|---|---|---|---|
+| daudca 200 | 55 req/s · 0% · p95 0,54s | 54 req/s · 0% · p95 1,1s | — |
+| daudca 400 | 84 req/s · 0% · p95 9,9s | 63 req/s · 0% · p95 26s | — |
+| bando 200 | 85 req/s · 0,4% · p50 5,3s | **32 req/s · 9,1% · p50 22,6s** | **58 req/s · 1,1% · p50 8,9s** |
+| bando 400 | 86 req/s · 6,1% | 36 req/s · 24,4% | — |
+| anh 200 (byte ngẫu nhiên, ảnh gốc) | sáng 30/09: 5910 req · 24,6% · p50 20,9s | 3876 req · 13,7% (worker chết) | 6555 req · **8,4%** · p50 20,9s |
+| anh 200 JPEG thật, xem ảnh gốc | — | 3683 req · 25,4% | — |
+| anh 200 JPEG thật, xem `?w=320` | — | 5271 req · 24,8% · 2 worker OOM | 6837 req · 19,6% · 1 worker OOM |
+
+Lỗi 1 — chấm đỏ thanh bên (`/api/module-notifications/summary`, gộp 29/09): hỏi quyền 15 kênh, mỗi kênh một
+câu `SELECT role_permissions`. py-spy giữa ca: endpoint nặng nhất (12,8% mẫu), `rbac_repo.get_permission`
+13,7%. Vá ab431df5: `AuthorizationService.nap_ca_ma_tran()` nạp cả ma trận một câu.
+
+Lỗi 2 — ảnh thu nhỏ (b968c88f): lưới ảnh mới gửi ⇒ cả chục luồng mỗi worker cùng đọc trọn ảnh gốc 4–8 MB để
+sinh CÙNG một ảnh nhỏ ⇒ worker bị OOM giết (`memory.events oom_kill`), 60–80s mới dựng lại. Vá 0084de0c:
+mỗi ảnh chỉ sinh một lần, tối đa 2 lượt sinh/worker, chờ quá 10s thì trả ảnh gốc qua nginx.
+
+Còn lại là trần MÁY ĐO: VM 2 GB chạy 11 container (3 dự án), swap cạn (SwapFree 17 MB) ⇒ vẫn một lần OOM ở
+lượt `?w=320`; CPU host 86–98% nên độ trễ tuyệt đối bị máy phát tải thổi phồng. 4 lần worker chết ở lượt
+đầu không phải OOM (`oom_kill` = 0 lúc đó) — trùng lúc host 98%, nghi ping 30s quá hạn khi VM bị bỏ đói CPU.
+Lượt daudca 400 chậm hơn 28/09 (63 so với 84 req/s) CHƯA đo lại sau vá — chùm badge nay dài hơn (chấm đỏ).
+
