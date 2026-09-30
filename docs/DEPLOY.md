@@ -97,9 +97,16 @@ nano .env   # điền POSTGRES_PASSWORD, JWT_SECRET (openssl rand -hex 32), SEED
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f backend    # thấy "seeded admin" là OK
+docker compose -f docker-compose.prod.yml logs -f backend    # đợi "Application startup complete"
+# DB trắng: tạo tài khoản quản trị — chạy tay MỘT lần (SEED_DEMO=false ⇒ khởi động KHÔNG seed gì)
+docker compose -f docker-compose.prod.yml run --rm backend python -m app.khoi_tao_admin
 ```
 Mở `http://<VPS_HOST>` → đăng nhập bằng `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD`.
+
+`SEED_DEMO=false` nghĩa là backend **không ghi bất kỳ dữ liệu nào** lúc khởi động — không phòng ban,
+vai, máy, công đoạn, đơn vị… Phòng/danh mục người dùng xoá sẽ KHÔNG mọc lại sau deploy. Lệnh
+`khoi_tao_admin` chỉ dựng phòng "Ban giám đốc" + vai "Giám đốc" + tài khoản quản trị; phần còn lại
+người dùng tự khai (hoặc chạy có chủ đích `python -m app.import_danh_muc_prod`).
 
 ---
 

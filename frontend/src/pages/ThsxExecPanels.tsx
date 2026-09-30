@@ -26,7 +26,7 @@ import { useAuth } from "../auth/useAuth";
 import { GIO_NHAP_MAX, GIO_NHAP_MIN, gioNhapHopLe } from "../lib/gioNhap";
 import { num, ngayGio, ngay, gioNgan } from "./keHoachSxShared";
 import { VoucherDrawer } from "./KhoYeuCauPage";
-import { nhanDonVi } from "./lsxBuoc";
+import { nhanChang, nhanDonVi } from "./lsxBuoc";
 import { tinhTrangChon } from "./thsxTinhTrangNguoi";
 
 // ============================ hợp đồng hành động (controller cấp) ============================
@@ -86,19 +86,25 @@ const BG_TT: Record<string, { txt: string; cls: string }> = {
   adjusted: { txt: "đã điều chỉnh", cls: "thsx-x-pill--adj" },
 };
 
-/** Một đầu của lần giao: công đoạn nào, thuộc tổ nào (bước thuê ngoài = nhà gia công), ai đứng ra,
- *  lúc nào. `cho` = bên nhận chưa xác nhận — dòng "ai" tô màu chờ. */
-function BenBanGiao({ nhan, cd, to, ai, cho = false }: {
-  nhan: string; cd?: string | null; to?: string | null; ai: ReactNode; cho?: boolean;
+/** Một đầu của lần giao: công đoạn nào, thuộc tổ nào, ai đứng ra, lúc nào. */
+function BenBanGiao({ nhan, cd, to, ai, cho = false, isSender = false }: {
+  nhan: string; cd?: string | null; to?: string | null; ai: ReactNode; cho?: boolean; isSender?: boolean;
 }) {
   return (
-    <div className="thsx-hb-ben">
-      <span className="thsx-hb-ben__lbl">{nhan}</span>
-      <span className="thsx-hb-ben__cd">{cd || "—"}</span>
-      {to && <span className="thsx-hb-ben__to">{to}</span>}
-      <span className={`thsx-hb-ben__ai${cho ? " is-wait" : ""}`}>
-        {cho && <Icon name="clock" size={11} />}{ai}
-      </span>
+    <div className={`thsx-hb-node ${isSender ? "thsx-hb-node--sender" : "thsx-hb-node--receiver"}`}>
+      <div className="thsx-hb-node__head">
+        <span className={`thsx-hb-node__chip ${isSender ? "thsx-hb-node__chip--sender" : "thsx-hb-node__chip--receiver"}`}>
+          {isSender ? <Icon name="send" size={10} /> : <Icon name="check" size={10} />} {nhan}
+        </span>
+      </div>
+      {/* Công đoạn · tổ trên MỘT dòng — tách hai dòng làm thẻ cao gấp đôi mà không thêm gì để đọc. */}
+      <div className="thsx-hb-node__cd">
+        {cd || "—"}{to && <span className="thsx-hb-node__to"> · {to}</span>}
+      </div>
+      <div className={`thsx-hb-node__ai${cho ? " is-wait" : ""}`}>
+        {cho && <Icon name="clock" size={11} />}
+        {ai}
+      </div>
     </div>
   );
 }
@@ -215,6 +221,9 @@ function SanLuongSection({
   const sl = chiTiet.san_luong;
   const cv = chiTiet.cong_viec;
   const buocCuoi = chiTiet.ban_giao_chang_sau.length === 0;
+  const xong = cv.trang_thai === "completed";
+  const conPhaiLam = !xong && sl.nhan_ra != null ? Math.max(sl.nhan_ra - sl.tong_tot, 0) : null;
+  const dvRa = sl.don_vi ? <span className="thsx-metric-unit">{nhanChang(sl.don_vi)}</span> : null;
   const [formOpen, setFormOpen] = useState(false);
   const [ketQuaToa, setKetQuaToa] = useState<SxKetQuaNhanh[] | null>(null);
 
@@ -231,27 +240,34 @@ function SanLuongSection({
         )}
       </div>
 
+      {/* Cùng luật ô tiến độ (27/09/2026): tổ chỉ ghi TỐT; đang chạy thì "Còn phải làm" = nhận −
+          tốt, bấm Kết thúc thì phần đó thành LỖI. Không bày mục tiêu kế hoạch / "còn thiếu" nữa. */}
       <div className="thsx-batch-metric-strip">
         <div className="thsx-batch-metric-tile thsx-metric-tile--done">
-          <span className="thsx-metric-lbl">Đã làm</span>
-          <span className="thsx-metric-val thsx-metric-val--done">{num(sl.tong_tot)}</span>
+          <span className="thsx-metric-lbl">Tốt</span>
+          <span className="thsx-metric-val thsx-metric-val--done">{num(sl.tong_tot)}{dvRa}</span>
         </div>
         {!buocCuoi && <>
           <div className="thsx-batch-metric-tile">
-            <span className="thsx-metric-lbl">Đã giao</span>
-            <span className="thsx-metric-val">{num(sl.da_giao)}</span>
+            <span className="thsx-metric-lbl">Đã giao đi</span>
+            <span className="thsx-metric-val">{num(sl.da_giao)}{dvRa}</span>
           </div>
           <div className="thsx-batch-metric-tile">
-            <span className="thsx-metric-lbl">Còn lại</span>
-            <span className="thsx-metric-val">{num(Math.max(0, sl.tong_tot - sl.da_giao))}</span>
+            <span className="thsx-metric-lbl">Chưa giao</span>
+            <span className="thsx-metric-val">{num(Math.max(0, sl.tong_tot - sl.da_giao))}{dvRa}</span>
           </div>
         </>}
-        {sl.muc_tieu != null && (
-          <div className={`thsx-batch-metric-tile ${sl.con_thieu ? "thsx-metric-tile--thieu" : "thsx-metric-tile--done"}`}>
-            <span className="thsx-metric-lbl">Còn thiếu</span>
-            <span className={`thsx-metric-val${sl.con_thieu ? " thsx-metric-val--thieu" : " thsx-metric-val--done"}`}>
-              {sl.con_thieu ? `${num(sl.con_thieu)}${sl.don_vi ? ` ${nhanDonVi(sl.don_vi)}` : ""}` : "Đủ"}
-            </span>
+        {xong ? (
+          sl.loi != null && (
+            <div className={`thsx-batch-metric-tile${sl.loi > 0 ? " thsx-metric-tile--thieu" : ""}`}>
+              <span className="thsx-metric-lbl">Lỗi</span>
+              <span className={`thsx-metric-val${sl.loi > 0 ? " thsx-metric-val--thieu" : ""}`}>{num(sl.loi)}{dvRa}</span>
+            </div>
+          )
+        ) : conPhaiLam != null && (
+          <div className="thsx-batch-metric-tile">
+            <span className="thsx-metric-lbl">Còn phải làm</span>
+            <span className="thsx-metric-val">{num(conPhaiLam)}{dvRa}</span>
           </div>
         )}
       </div>
@@ -697,7 +713,7 @@ export function BatchRow({
         )}
         <span className="thsx-x-item__spacer" />
         <span className="thsx-batch-pill thsx-batch-pill--tot">
-          {num(b.tot)}{b.don_vi ? ` ${nhanDonVi(b.don_vi)}` : ""}
+          {num(b.tot)}{b.don_vi ? ` ${nhanChang(b.don_vi)}` : ""}
         </span>
       </button>
       {mo && (
@@ -1066,6 +1082,8 @@ function BanGiaoRow({
     ? { txt: "chờ xác nhận lại", cls: "thsx-x-pill--wait" }
     : BG_TT[g.trang_thai] ?? { txt: g.trang_thai, cls: "thsx-x-pill--wait" };
   const dv = g.don_vi ? ` ${nhanDonVi(g.don_vi)}` : "";
+  // Số đầu thẻ đọc nhãn CHẶNG ("tờ in") cho khớp khối Sản lượng ngay trên — `nhanDonVi` ra "tờ".
+  const dvChang = g.don_vi ? ` ${nhanChang(g.don_vi)}` : "";
   const daXacNhan = g.trang_thai === "confirmed" || g.trang_thai === "adjusted";
   // Mẻ sửa được = mẻ chưa đi theo lần giao nào + mẻ của chính lần giao này.
   const meSua = batches.filter((b) => b.tot > 0 && (!b.da_ban_giao || g.batch_ids.includes(b.id)));
@@ -1075,28 +1093,52 @@ function BanGiaoRow({
   const canSua = canAssign && phia === "di" && g.trang_thai === "proposed" && meSua.length > 0;
   const canXac = canAssign && phia === "den" && choBenNhan(g);
   const canDc = canAssign && phia === "di" && daXacNhan;
+  const stModClass = g.trang_thai === "confirmed" ? "thsx-handover-card--st-ok"
+    : g.trang_thai === "adjusted" ? "thsx-handover-card--st-adj"
+    : "thsx-handover-card--st-wait";
+  const hasHistory = g.dieu_chinh.length > 0;
 
   return (
-    <li className="thsx-x-bg thsx-handover-card-v2">
-      {/* Đầu thẻ: bao nhiêu + trạng thái. Công đoạn/tổ hai bên nằm ở tuyến bên dưới — không nhắc lại. */}
+    <li className={`thsx-x-bg thsx-handover-card-v2 ${stModClass}`}>
+      {/* Đầu thẻ: bao nhiêu + trạng thái + thao tác tác nghiệp. */}
       <div className="thsx-handover-card__head">
         <div className="thsx-handover-card__qty-val">
-          {num(g.so_luong)}<small>{dv}</small>
+          {num(g.so_luong)}<small>{dvChang}</small>
           {g.batch_ids.length > 0 && <span className="thsx-handover-card__me">· {g.batch_ids.length} mẻ</span>}
           {g.cung_to && <span className="thsx-x-tag-ht">cùng tổ</span>}
         </div>
-        <span className={`thsx-x-pill ${st.cls}`}>{st.txt}</span>
+        <div className="thsx-handover-card__side">
+          <span className={`thsx-x-pill ${st.cls}`}>{st.txt}</span>
+          {canXac && (
+            <Button variant="accent" onClick={() => void exec.xacNhanBanGiao(g.id, g.version)} disabled={busy}>
+              <Icon name="check" size={13} /> Xác nhận
+            </Button>
+          )}
+          {canSua && (
+            <Button variant="ghost" onClick={() => { setSuaOpen((o) => !o); setDcOpen(false); }} disabled={busy}>
+              <Icon name="pencil" size={12} /> Sửa mẻ
+            </Button>
+          )}
+          {canDc && (
+            <Button variant="ghost" onClick={() => { setDcOpen((o) => !o); setSuaOpen(false); }} disabled={busy}>
+              <Icon name="edit" size={12} /> Điều chỉnh
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tuyến giao → nhận: mỗi bên công đoạn · tổ · ai · lúc nào. */}
       <div className="thsx-handover-card__route">
         <BenBanGiao
           nhan="Giao"
+          isSender
           cd={g.nguon_cong_doan ?? (phia === "den" ? g.doi_tac_ten : null)}
           to={g.nguon_to}
           ai={<><b>{g.nguoi_de_xuat ?? "—"}</b>{g.de_xuat_luc && <span className="thsx-num"> · {ngayGio(g.de_xuat_luc)}</span>}</>}
         />
-        <Icon name="arrowRight" size={14} className="thsx-handover-card__route-arrow" />
+        <div className="thsx-handover-card__route-arrow-wrap" title="Hướng chuyển giao">
+          <Icon name="arrowRight" size={14} className="thsx-handover-card__route-arrow" />
+        </div>
         <BenBanGiao
           nhan="Nhận"
           cd={g.dich_cong_doan ?? (phia === "di" ? (g.doi_tac_ten || "Kho") : null)}
@@ -1108,35 +1150,15 @@ function BanGiaoRow({
         />
       </div>
 
-      {/* Action Footer & History Toggle Button */}
-      <div className="thsx-handover-card__foot">
-        {canAssign && (canSua || canXac || canDc) && (
-          <div className="thsx-x-act thsx-x-act--row">
-            {canXac && (
-              <Button variant="accent" onClick={() => void exec.xacNhanBanGiao(g.id, g.version)} disabled={busy}>
-                <Icon name="check" size={13} /> Xác nhận
-              </Button>
-            )}
-            {canSua && (
-              <Button variant="ghost" onClick={() => { setSuaOpen((o) => !o); setDcOpen(false); }} disabled={busy}>
-                <Icon name="pencil" size={12} /> Sửa mẻ
-              </Button>
-            )}
-            {canDc && (
-              <Button variant="ghost" onClick={() => { setDcOpen((o) => !o); setSuaOpen(false); }} disabled={busy}>
-                <Icon name="edit" size={12} /> Điều chỉnh
-              </Button>
-            )}
-          </div>
-        )}
-
-        {g.dieu_chinh.length > 0 && (
+      {hasHistory && (
+        <div className="thsx-handover-card__foot">
+          <div className="thsx-handover-card__foot-left" />
           <button type="button" className="thsx-adj-history-btn" aria-expanded={lsOpen} onClick={() => setLsOpen((o) => !o)}>
             <Icon name="history" size={11} /> Đã điều chỉnh {g.dieu_chinh.length} lần
             <Icon name="chevron" size={10} className="thsx-adj-chevron" style={{ transform: lsOpen ? "rotate(180deg)" : "none" }} />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {lsOpen && (
         <ol className="thsx-audit-log-timeline" aria-label="Lịch sử điều chỉnh">
@@ -1399,8 +1421,10 @@ function VatTuSection({
   const daXinCount = cap.doi_chieu.filter((d) => d.sl_yeu_cau > VT_EPS).length;
   const coKcsDaXuat = chiTiet.vat_tu.some((v) => v.da_nhan);
   const trangThaiKho = chiTiet.vat_tu.length === 0 ? "Chưa xuất" : coKcsDaXuat ? "Đã xuất kho" : "Chờ nhận";
+  const soPhieuDaNhan = vt.filter((v) => v.da_nhan).length;
 
   return (
+    <>
     <section className="thsx-psec thsx-x thsx-psec-card">
       <div className="thsx-psec__h">
         <span className="thsx-psec__title">
@@ -1509,35 +1533,77 @@ function VatTuSection({
         </ul>
       )}
 
-      {vt.length > 0 && (
-        <>
-          <div className="thsx-x-sub">Phiếu kho đã xuất</div>
-          <ul className="thsx-x-list">
-            {vt.map((v) => (
-              <li key={v.voucher_id} className="thsx-x-vt">
-                <button type="button" className="thsx-x-vt__open" aria-haspopup="dialog"
-                  title="Xem phiếu xuất kho" onClick={() => setPhieuMo(v.voucher_id)}>
-                  <Icon name={v.da_nhan ? "packageCheck" : "box"} size={13}
-                    className={v.da_nhan ? "thsx-x-vt__ic is-ok" : "thsx-x-vt__ic"} />
-                  <span className="thsx-x-vt__ma">{v.ma}</span>
-                </button>
-                {v.da_nhan ? (
-                  <span className="thsx-x-vt__at thsx-num">{v.xac_nhan_luc ? ngayGio(v.xac_nhan_luc) : "đã nhận"}</span>
-                ) : canAssign ? (
-                  <Button variant="secondary" onClick={() => void exec.xacNhanVatTu(v.voucher_id)} disabled={busy}>
-                    <Icon name="packageCheck" size={13} /> Xác nhận nhận
-                  </Button>
-                ) : (
-                  <span className="thsx-x-pill thsx-x-pill--wait">chờ nhận</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
       {phieuMo != null && <PhieuKhoNoi voucherId={phieuMo} token={token ?? ""} onClose={() => setPhieuMo(null)} />}
     </section>
+
+    {/* Phiếu xuất kho — khối RIÊNG, cùng khuôn khối Vật tư (đầu khối có huy hiệu, dải số, bảng). */}
+    {vt.length > 0 && (
+      <section className="thsx-psec thsx-x thsx-psec-card">
+        <div className="thsx-psec__h">
+          <span className="thsx-psec__title">
+            <span className="thsx-psec__icon-badge thsx-psec__icon-badge--cyan"><Icon name="packageCheck" size={13} /></span> Phiếu xuất kho
+          </span>
+        </div>
+
+        <div className="thsx-vattu-kpi-strip">
+          <div className="thsx-vattu-kpi-tile">
+            <span className="thsx-metric-lbl">Tổng phiếu</span>
+            <span className="thsx-metric-val thsx-num">{vt.length} <span className="thsx-metric-unit">phiếu</span></span>
+          </div>
+          <div className="thsx-vattu-kpi-tile">
+            <span className="thsx-metric-lbl">Đã nhận</span>
+            <span className={`thsx-metric-val thsx-num ${soPhieuDaNhan === vt.length ? "thsx-metric-val--done" : ""}`}>
+              {soPhieuDaNhan} / {vt.length}
+            </span>
+          </div>
+          <div className="thsx-vattu-kpi-tile">
+            <span className="thsx-metric-lbl">Chờ nhận</span>
+            <span className={`thsx-metric-val thsx-num ${soPhieuDaNhan < vt.length ? "thsx-metric-val--thieu" : ""}`}>
+              {vt.length - soPhieuDaNhan} <span className="thsx-metric-unit">phiếu</span>
+            </span>
+          </div>
+        </div>
+
+        <table className="thsx-vattu-matrix-tbl thsx-x-tbl">
+          <thead>
+            <tr>
+              <th>Mã phiếu</th>
+              <th>Trạng thái</th>
+              <th>Nhận lúc</th>
+              <th className="r">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vt.map((v) => (
+              <tr key={v.voucher_id}>
+                <td className="thsx-vattu-name-cell">
+                  <button type="button" className="thsx-x-vt__open" aria-haspopup="dialog"
+                    title="Xem phiếu xuất kho" onClick={() => setPhieuMo(v.voucher_id)}>
+                    <Icon name={v.da_nhan ? "packageCheck" : "box"} size={13}
+                      className={v.da_nhan ? "thsx-x-vt__ic is-ok" : "thsx-x-vt__ic"} />
+                    <b className="thsx-x-vt__ma">{v.ma}</b>
+                  </button>
+                </td>
+                <td>
+                  {v.da_nhan
+                    ? <span className="thsx-vattu-badge thsx-vattu-badge--ok">✓ Đã nhận</span>
+                    : <span className="thsx-vattu-badge thsx-vattu-badge--wait">Chờ nhận</span>}
+                </td>
+                <td className="thsx-num">{v.da_nhan && v.xac_nhan_luc ? ngayGio(v.xac_nhan_luc) : "—"}</td>
+                <td className="r">
+                  {!v.da_nhan && canAssign ? (
+                    <Button variant="secondary" onClick={() => void exec.xacNhanVatTu(v.voucher_id)} disabled={busy}>
+                      <Icon name="packageCheck" size={13} /> Xác nhận nhận
+                    </Button>
+                  ) : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    )}
+    </>
   );
 }
 

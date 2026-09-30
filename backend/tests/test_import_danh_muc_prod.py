@@ -61,8 +61,8 @@ _BANG_DEM = [GiayNguyen, VatTuInAn, MayThietBi,
 
 @pytest.fixture
 def db():
-    """DB test như prod SAU khởi động bình thường: migrations + seed_all (SEED_DEMO=false),
-    rồi script `run()` layer danh mục lên trên."""
+    """DB test: migrations + bộ nền test (`seed_du_lieu(demo=False)`), rồi script `run()` layer
+    danh mục lên trên."""
     yield from phien_da_seed()
 
 

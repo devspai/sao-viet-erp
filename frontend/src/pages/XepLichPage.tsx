@@ -328,10 +328,12 @@ export function XepLichPage({
 
   const kpi = useMemo(() => {
     const tong = dong.length;
+    // Đã đóng tách ô riêng: KCS đóng rồi thì không còn là "đang ở xưởng".
     const daPhatHanh = dong.filter((d) => d.trang_thai === "da_phat_hanh").length;
+    const daDong = dong.filter((d) => d.trang_thai === "da_dong").length;
     const tre = dong.filter((d) => (treHan(d) ?? 0) > 0).length;
     const phutChay = phutChayTrongCuaSo(dong, tu, soNgay);
-    return { tong, daPhatHanh, tre, tongCho, phutChay };
+    return { tong, daPhatHanh, daDong, tre, tongCho, phutChay };
   }, [dong, tongCho, tu, soNgay]);
 
   const nhanTuan = `${tu.slice(8)}/${tu.slice(5, 7)}${tu.slice(0, 4) !== den.slice(0, 4) ? `/${tu.slice(0, 4)}` : ""} – ${den.slice(8)}/${den.slice(5, 7)}/${den.slice(0, 4)}`;
@@ -354,6 +356,14 @@ export function XepLichPage({
               Đã phát hành: <strong>{kpi.daPhatHanh}</strong>
             </span>
             <span className="xl-kpi-sep" />
+            {kpi.daDong > 0 && (
+              <>
+                <span className="xl-kpi-pill">
+                  Đã đóng: <strong>{kpi.daDong}</strong>
+                </span>
+                <span className="xl-kpi-sep" />
+              </>
+            )}
             <span className="xl-kpi-pill xl-kpi-pill--amber">
               Chờ xếp: <strong>{kpi.tongCho}</strong>
             </span>

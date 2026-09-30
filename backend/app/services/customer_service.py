@@ -22,6 +22,7 @@ import re
 
 from datetime import date, datetime, timedelta, timezone
 
+from .thong_bao_man import bao
 from ..realtime import hub
 from ..models.customer import (
     CARE_KHAC,
@@ -892,6 +893,8 @@ class CustomerService:
                 "customer_id": customer.id,
                 "note": task.note,
             })
+            bao(self.customers.db, kenh="khach_hang", loai="cham_soc_duoc_giao", actor_id=actor.id,
+                nguoi_nhan=task.assignee_user_id, ma=f"CS{task.id}")
         return task
 
     def set_care_task_status(

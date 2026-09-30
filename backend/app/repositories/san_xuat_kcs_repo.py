@@ -15,7 +15,7 @@ from ..models.department import Department
 from ..models.lsx import Lsx, LsxCongDoan
 from ..models.order import Order
 from ..models.san_xuat import (
-    NHOM_CHO_DIEU_KIEN, NHOM_DANG_SX, SanXuatCongViec, SanXuatNhom, SanXuatNhomLsx,
+    NHOM_DANG_SX, SanXuatCongViec, SanXuatNhom, SanXuatNhomLsx,
 )
 from ..models.san_xuat_kcs import SanXuatKcsBatch, SanXuatKcsLoi, SanXuatKcsLoiAnh
 from ..models.user import User
@@ -65,16 +65,6 @@ class SanXuatKcsRepository:
             select(User.id)
             .join(Department, Department.id == User.department_id)
             .where(User.id == user_id, Department.is_kcs == true())
-            .limit(1)
-        ) is not None
-
-    def la_truong_to_kcs(self, user_id: int | None) -> bool:
-        """Tài khoản đứng đầu (`head_user_id`) ít nhất một phòng ban `is_kcs`."""
-        if user_id is None:
-            return False
-        return self.db.scalar(
-            select(Department.id)
-            .where(Department.head_user_id == user_id, Department.is_kcs == true())
             .limit(1)
         ) is not None
 
@@ -135,7 +125,7 @@ class SanXuatKcsRepository:
             .outerjoin(Customer, Customer.id == Order.customer_id)
         )
         if not gom_da_dong:
-            q = q.where(SanXuatNhom.trang_thai.in_((NHOM_DANG_SX, NHOM_CHO_DIEU_KIEN)))
+            q = q.where(SanXuatNhom.trang_thai== NHOM_DANG_SX)
         tim = (tim or "").strip()
         if tim:
             mau = f"%{tim}%"

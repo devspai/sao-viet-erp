@@ -243,8 +243,8 @@ describe("ThsxDrawer · tab Nhận (§11.5)", () => {
     expect(within(cho).queryByRole("button", { name: /Đã điều chỉnh/ })).toBeNull();
 
     // Mỗi đầu ghi đủ công đoạn · tổ · ai · lúc nào.
-    expect(daNhan.textContent).toMatch(/GiaoCán màng mờTổ cán phủLê Cán Màng.*08:30/);
-    expect(daNhan.textContent).toMatch(/NhậnBếTổ bếTrần Tổ Bế.*09:10/);
+    expect(daNhan.textContent).toMatch(/GiaoCán màng mờ · Tổ cán phủLê Cán Màng.*08:30/);
+    expect(daNhan.textContent).toMatch(/NhậnBế · Tổ bếTrần Tổ Bế.*09:10/);
     // Tên công đoạn đầu kia chỉ hiện MỘT lần (không nhắc lại ở đầu thẻ).
     expect(daNhan.textContent!.split("Cán màng mờ")).toHaveLength(2);
     expect(within(daNhan).queryByRole("list", { name: "Lịch sử điều chỉnh" })).toBeNull();

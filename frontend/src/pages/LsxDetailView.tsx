@@ -463,7 +463,7 @@ export function LsxDetailView({
   const giuCho = !!d?.giu_cho_bat;
   // Lệnh đã qua cửa Xếp lịch / phát hành: nút "Sẵn sàng lập kế hoạch" và "Xoá lệnh" đều bị máy chủ
   // từ chối (`set_trang_thai`, `xoa`) — ẩn hẳn thay vì để một CTA sáng mà bấm là báo lỗi.
-  const daQuaKeHoach = d?.trang_thai === "da_lap_ke_hoach" || d?.trang_thai === "da_phat_hanh";
+  const daQuaKeHoach = d?.trang_thai === "da_lap_ke_hoach" || d?.trang_thai === "da_phat_hanh" || d?.trang_thai === "da_dong";
   // Danh mục đã đổi sau lúc lệnh chụp ảnh. `null` = còn khớp hết ⇒ KHÔNG băng, không chỗ trống.
   const dmDoi = d?.danh_muc_doi ?? null;
   // QUY CÁCH Ở LỆNH = CHỈ XEM, không chừa ô nào (07/09/2026). Cụm này là thứ đã chốt với khách ở

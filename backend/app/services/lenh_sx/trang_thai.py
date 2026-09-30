@@ -269,7 +269,7 @@ def _dang_o_kcs(bc: BoiCanh, lsx_id: int) -> bool:
 
     Đòi MỌI công đoạn đã `completed`: KCS kiểm giữa chừng không có nghĩa là lệnh "đang ở KCS" —
     lệnh vẫn đang chạy, và xếp nó vào tab KCS là giấu nó khỏi tab Đang SX. Cùng thước đo với điều
-    kiện "KCS đã kiểm hết công đoạn cuối" của đóng nhóm (`dong_nhom._danh_gia`).
+    kiện "KCS đã kiểm hết công đoạn cuối" của đóng nhóm (cổng tự đóng cũ, đã gỡ 29/09/2026).
     """
     cuoi = [cv for cv in bc.cong_viec_du(lsx_id) if cv.la_kcs_cuoi]
     if not cuoi or not _sx_da_xong(bc, lsx_id):

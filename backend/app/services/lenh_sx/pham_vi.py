@@ -5,7 +5,7 @@ KHÁC `routers/lsx.py::_owner_ids_for_scope`, và khác một cách CỐ Ý. Ở
 ai, ai bán" — câu hỏi của Sale, Trưởng phòng KD, Giám đốc. Dùng chung một hàm cho cả hai
 nghĩa thì một trong hai bên sai âm thầm.
 
-Lệnh CHƯA phát hành không thuộc phạm vi của bất kỳ ai ở đây: hai màn này nói về việc đã thả
+Lệnh CHƯA xuống xưởng (đang chạy hoặc đã đóng) không thuộc phạm vi của bất kỳ ai ở đây: hai màn này nói về việc đã thả
 xuống xưởng. Lệnh nháp/đang lập vẫn xem ở màn Kế hoạch sản xuất.
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ...models.lsx import TT_DA_PHAT_HANH, Lsx
+from ...models.lsx import TT_DA_XUONG_XUONG, Lsx
 from ...models.order import Order
 from ...models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ...models.user import User
@@ -38,24 +38,24 @@ def sale_ids_theo_pham_vi(db: Session, user: User, authz, module_key: str) -> se
 
 
 def loc_lsx_da_phat_hanh(stmt, sale_ids: set[int] | None):
-    """Gắn hai điều kiện vào một `select(Lsx)`: đã phát hành + trong phạm vi người bán.
+    """Gắn hai điều kiện vào một `select(Lsx)`: đã xuống xưởng (đang chạy hoặc đã đóng) + trong phạm vi người bán.
 
     `sale_ids is None` ⇒ chỉ lọc trạng thái. Đơn KHÔNG có người bán (`sale_user_id IS NULL`)
     rơi ra ngoài mọi phạm vi hẹp — chỉ `all` thấy, đúng chủ ý: không gán bừa cho ai.
     """
-    stmt = stmt.where(Lsx.trang_thai == TT_DA_PHAT_HANH)
+    stmt = stmt.where(Lsx.trang_thai.in_(TT_DA_XUONG_XUONG))
     if sale_ids is None:
         return stmt
     return stmt.join(Order, Order.id == Lsx.order_id).where(Order.sale_user_id.in_(sale_ids))
 
 
 def chan_ngoai_pham_vi(db: Session, lsx: Lsx | None, sale_ids: set[int] | None) -> None:
-    """403 khi người dùng gõ thẳng id ngoài phạm vi (hoặc lệnh chưa phát hành).
+    """403 khi người dùng gõ thẳng id ngoài phạm vi (hoặc lệnh chưa xuống xưởng).
 
     Dùng 403 chứ không 404: hai màn này là bàn tra cứu, người dùng CẦN biết "có lệnh đó nhưng
     không thuộc phần việc của bạn" để đi hỏi đúng người, thay vì tưởng gõ nhầm mã.
     """
-    if lsx is None or lsx.trang_thai != TT_DA_PHAT_HANH:
+    if lsx is None or lsx.trang_thai not in TT_DA_XUONG_XUONG:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy lệnh sản xuất đã phát hành")
     if sale_ids is None:
         return

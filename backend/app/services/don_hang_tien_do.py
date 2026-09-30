@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from ..models.lsx import TT_DA_PHAT_HANH, Lsx
+from ..models.lsx import TT_DA_DONG, TT_DA_XUONG_XUONG, Lsx
 from ..models.san_xuat import CV_HOAN_THANH
 from ..repositories.delivery_repo import DeliveryRepository
 from ..repositories.employee_repo import EmployeeRepository
@@ -40,7 +40,7 @@ def tien_do_don(db: Session, order) -> dict:
 
     lsx_ids = sorted({s for n in nguon for s in n["lsx_ids"]})
     lenh = {l.id: l for l in db.query(Lsx).filter(Lsx.id.in_(lsx_ids)).all()} if lsx_ids else {}
-    chay = [i for i in lsx_ids if lenh[i].trang_thai == TT_DA_PHAT_HANH]
+    chay = [i for i in lsx_ids if lenh[i].trang_thai in TT_DA_XUONG_XUONG]
     bc, tinh = danh_sach._soi(db, chay, bay_gio) if chay else (None, {})
 
     def mot_lenh(i: int) -> dict:
@@ -50,12 +50,15 @@ def tien_do_don(db: Session, order) -> dict:
                     "xong": False, "buoc_hien_tai": None, "du_kien_xong": None,
                     "trang_thai": None, "canh_bao": []}
         pct, uoc = tien_do.phan_tram(bc, i)
+        if l.trang_thai == TT_DA_DONG:
+            pct = 100.0
         cvs = bc.cong_viec_du(i)
         cv = danh_sach.buoc_hien_tai(bc, i)
         return {
             "id": i, "ma": l.ma, "da_xuong_xuong": True,
             "pct": round(float(pct), 1), "uoc_tinh": bool(uoc),
-            "xong": bool(cvs) and all(c.trang_thai == CV_HOAN_THANH for c in cvs),
+            "xong": (bool(cvs) and all(c.trang_thai == CV_HOAN_THANH for c in cvs))
+            or l.trang_thai == TT_DA_DONG,
             "buoc_hien_tai": cv.ten_cong_doan if cv is not None else None,
             "du_kien_xong": tinh[i]["xong"],
             "trang_thai": tinh[i]["trang_thai"],

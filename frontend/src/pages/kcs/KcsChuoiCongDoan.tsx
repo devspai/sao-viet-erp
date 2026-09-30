@@ -18,7 +18,7 @@ import { Drawer } from "../danh-muc/components/Drawer";
 import { ngayGio, num } from "../keHoachSxShared";
 import { nhanChang, nhanDonVi } from "../lsxBuoc";
 import { useNapTenDonVi } from "../tenDonVi";
-import { KcsChotNhom } from "./KcsChotNhom";
+import { KcsDongLenh } from "./KcsDongLenh";
 import { KcsKiemForm } from "./KcsKiemForm";
 import { KcsLanKiemList } from "./KcsLanKiemList";
 import {
@@ -37,7 +37,7 @@ export function KcsChuoiCongDoan({
   onMoYeuCauKho?: (requestId: number) => void;
 }) {
   const { token } = useAuth();
-  const { kcs, truongKcs } = useKcs();
+  const { kcs } = useKcs();
   // Nhãn chặng + tên đơn vị nạp từ danh mục — không gọi thì bảng hiện mã trần ("to", "ma-0002").
   useNapTenDonVi();
   const [data, setData] = useState<SxKcsChuoiCongDoan | null>(null);
@@ -338,8 +338,8 @@ export function KcsChuoiCongDoan({
       </section>
 
       {lsx?.nhom_id != null && (
-        <KcsChotNhom nhomId={lsx.nhom_id} nhan={lsx.nhom_ma ?? `Nhóm #${lsx.nhom_id}`}
-          canDong={truongKcs} eventTick={eventTick}
+        <KcsDongLenh nhomId={lsx.nhom_id}
+          canDong={kcs} eventTick={eventTick}
           onDone={() => { tai(); onChanged(); }} />
       )}
 

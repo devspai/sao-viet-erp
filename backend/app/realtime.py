@@ -269,19 +269,19 @@ def phat_ban_giao(res: dict) -> None:
         })
 
 
-def phat_dong_nhom(ket: dict) -> None:
-    """Nhóm thành phẩm đã đóng (§16 đủ / §13.3 thiếu) → refresh chỗ hiển thị nhóm + báo Sale và Kế
-    hoạch SX NGAY (§17): đơn đã ra thành phẩm, có thể giao/đóng đơn. Gửi theo QUYỀN (người xem
-    sản xuất / bán hàng / giao hàng), không nhắm tài khoản vì người nhận là vai.
-
-    Dùng chung cho mọi cửa ghi có thể chốt chặn đóng nhóm — bàn tổ/KCS (`routers/san_xuat.py`) và
-    Chốt gia công ngoài (`routers/gia_cong_ngoai.py`)."""
-    from .doi_tuong_nhan import MAN_BAN_HANG, MAN_GIAO_HANG, MAN_THEO_LENH, hop
+def phat_dong_lenh(ket: dict) -> None:
+    """KCS vừa đóng / mở lại lệnh (cả nhóm thành phẩm) → mọi màn bày lệnh refresh + báo Sale/Kế
+    hoạch NGAY (§17). Gửi theo QUYỀN: người xem sản xuất (gồm bàn tổ, KCS, xếp lịch, kế hoạch SX) /
+    bán hàng / giao hàng."""
+    from .doi_tuong_nhan import BAN_TO, MAN_BAN_HANG, MAN_GIAO_HANG, MAN_THEO_LENH, hop
 
     hub.gui({
-        "type": "san_xuat_nhom_dong",
+        "type": "san_xuat_lenh_dong",
         "nhom_id": ket.get("nhom_id"),
         "order_id": ket.get("order_id"),
-        "trang_thai": ket.get("trang_thai"),
         "kieu": ket.get("kieu"),
-    }, quyen=hop(MAN_THEO_LENH, MAN_BAN_HANG, MAN_GIAO_HANG))
+        "lenh_ma": ket.get("lenh_ma") or [],
+        "da_dat": ket.get("da_dat"),
+        "muc_tieu": ket.get("muc_tieu"),
+        "don_vi": ket.get("don_vi") or "",
+    }, quyen=hop(MAN_THEO_LENH, MAN_BAN_HANG, MAN_GIAO_HANG, (BAN_TO,)))

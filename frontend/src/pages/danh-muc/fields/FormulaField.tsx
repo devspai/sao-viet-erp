@@ -5,69 +5,15 @@ import { useAuth } from "../../../auth/useAuth";
 import { ApiError } from "../../../api/client";
 import { crud, type CongThucLichSuItem } from "../../../api/rebuildCatalog";
 import { catToken, laToanTu } from "../formulaTokens";
+import {
+  boDau, inDangChu, khopNgoac, khungHam, kiemCongThuc, nhanDoiBac, noiGon, nhomNghin, timBac,
+  tinhDong, viTriToken, xoaBac, type Bac,
+} from "../congThucBacThang";
 import { traBien, useBienCongThuc, type BienCongThuc } from "../bienCongThuc";
 import { CircleXIcon, XIcon } from "../icons";
 import { nhanThoiGian } from "../nhat-ky/nhatKyNhan";
 
 const MATH_FUNCS = ["ceil", "floor", "round", "max", "min", "if"];
-
-/** Chỉ mấy hàm ĐA THAM SỐ mới đáng tách dòng theo tham số — `round/ceil/floor` chỉ bọc quanh một
- *  biểu thức số học đơn giản, tách dòng chúng chỉ thêm rối chứ không giúp đọc bậc giá dễ hơn. */
-const HAM_TACH_DONG = ["if", "max", "min"];
-
-/** Một DÒNG hiển thị = một đoạn token liên tục [start, end) cùng nằm ở một cấp lồng `if/max/min`.
- *  Công thức không có hàm đa tham số nào ⇒ luôn ra đúng MỘT dòng ở cấp 0 (giữ nguyên hành vi cũ,
- *  vẫn 1 dòng phẳng cho công thức số học bình thường). */
-type Dong = { start: number; end: number; cap: number };
-
-/** Cắt dãy token phẳng thành các DÒNG theo độ sâu lồng của if/max/min — kiểu code editor: mở hàm
- *  đa tham số thì xuống dòng thụt thêm 1 cấp, mỗi dấu `,` Ở ĐÚNG CẤP ĐÓ xuống dòng mới cùng cấp,
- *  đóng ngoặc thì xuống dòng thụt về cấp trước. Ngoặc/dấu phẩy nằm SÂU HƠN (bên trong một biểu
- *  thức số học con, vd `(a - b) * c`) không tách dòng — chỉ ngoặc của CHÍNH lệnh if/max/min mới
- *  đáng tách, không thì `(a - b) * c` bị vụn từng dấu ra một dòng.
- *
- *  Không đụng tới `caret`/token phẳng — hàm này chỉ dùng để VẼ, chỉ số token vẫn nguyên như cũ. */
-function tinhDong(toks: string[]): Dong[] {
-  const dong: Dong[] = [];
-  let dauDong = 0;
-  let cap = 0;
-  // Mỗi phần tử = độ sâu ngoặc (`(`) TẠI ĐÓ một lệnh if/max/min đang mở — dùng để nhận ra dấu `,`
-  // và `)` nào thuộc THẲNG lệnh đó (không phải của ngoặc con sâu hơn).
-  const stack: number[] = [];
-  let capNgoac = 0;
-
-  const chotDong = (end: number) => {
-    if (end > dauDong) dong.push({ start: dauDong, end, cap });
-    dauDong = end;
-  };
-
-  for (let i = 0; i < toks.length; i++) {
-    const t = toks[i];
-    if (t === "(") {
-      capNgoac++;
-      if (i > 0 && HAM_TACH_DONG.includes(toks[i - 1])) {
-        chotDong(i + 1);   // "if (" cùng một dòng với tên hàm
-        stack.push(capNgoac);
-        cap++;
-      }
-      continue;
-    }
-    if (t === ")") {
-      if (stack.length && capNgoac === stack[stack.length - 1]) {
-        chotDong(i);       // chốt dòng TRƯỚC dấu ")" — dấu ")" thuộc dòng mới, cấp thấp hơn
-        stack.pop();
-        cap--;
-      }
-      capNgoac--;
-      continue;
-    }
-    if (t === "," && stack.length && capNgoac === stack[stack.length - 1]) {
-      chotDong(i + 1);     // dấu "," ở lại cuối dòng hiện tại, tham số kế tiếp xuống dòng mới
-    }
-  }
-  chotDong(toks.length);
-  return dong;
-}
 
 /** Màu viền theo cấp lồng — lặp lại nếu lồng sâu hơn 4 cấp. Không dùng `--rust`: màu đó đã là
  *  accent chính của cả màn (viền focus, nút chính…), lẫn vào đây thì không còn phân biệt được
@@ -88,6 +34,7 @@ function veChip({
   whitelist,
   onXoa,
   onDatCaret,
+  them = "",
 }: {
   tok: string;
   idx: number;
@@ -96,6 +43,10 @@ function veChip({
   whitelist: string[];
   onXoa?: (index: number) => void;
   onDatCaret?: (index: number) => void;
+  /** Lớp phụ theo NGỮ CẢNH của chip trong cả công thức: `is-khung` (ngoặc/phẩy của lệnh gọi hàm —
+   *  vẽ nhạt), `is-chon` (đang nằm trong bậc được chọn), `is-sang` (cặp ngoặc cạnh con trỏ),
+   *  `is-loi` (token gây lỗi). Chip tự nó không biết mấy điều này. */
+  them?: string;
 }) {
   const info = tra(tok);
   const isValidVar = validVars ? validVars.includes(tok) : (whitelist.includes(tok) || !!info);
@@ -126,7 +77,7 @@ function veChip({
       <span
         key={idx}
         {...chung}
-        className="rc-formula__chip-token rc-formula__chip-token--var"
+        className={`rc-formula__chip-token rc-formula__chip-token--var ${them}`}
         title={info ? `${info.nhan} (Mã: ${tok})
 Đơn vị: ${info.don_vi}
 Nguồn: ${info.nguon}` : `Mã: ${tok}`}
@@ -155,7 +106,7 @@ Nguồn: ${info.nguon}` : `Mã: ${tok}`}
 
   if (MATH_FUNCS.includes(tok)) {
     return (
-      <span key={idx} {...chung} className="rc-formula__chip-token rc-formula__chip-token--func">
+      <span key={idx} {...chung} className={`rc-formula__chip-token rc-formula__chip-token--func ${them}`}>
         {tok}
       </span>
     );
@@ -163,8 +114,8 @@ Nguồn: ${info.nguon}` : `Mã: ${tok}`}
 
   if (/^\d+(?:\.\d+)?$/.test(tok)) {
     return (
-      <span key={idx} {...chung} className="rc-formula__chip-token rc-formula__chip-token--num">
-        {tok}
+      <span key={idx} {...chung} className={`rc-formula__chip-token rc-formula__chip-token--num ${them}`}>
+        {nhomNghin(tok)}
       </span>
     );
   }
@@ -172,7 +123,7 @@ Nguồn: ${info.nguon}` : `Mã: ${tok}`}
   if (laToanTu(tok)) {
     const displayOp = tok === "*" ? "×" : tok === "/" ? "÷" : tok === "-" ? "−" : tok;
     return (
-      <span key={idx} {...chung} className="rc-formula__chip-token rc-formula__chip-token--op">
+      <span key={idx} {...chung} className={`rc-formula__chip-token rc-formula__chip-token--op ${them}`}>
         {displayOp}
       </span>
     );
@@ -182,12 +133,51 @@ Nguồn: ${info.nguon}` : `Mã: ${tok}`}
     <span
       key={idx}
       {...chung}
-      className="rc-formula__chip-token rc-formula__chip-token--error"
+      className={`rc-formula__chip-token rc-formula__chip-token--error ${them}`}
       title={`Biến "${tok}" chưa hỗ trợ hoặc gõ sai`}
     >
       {tok}
     </span>
   );
+}
+
+/** Chuỗi thô → token sạch (bỏ khoảng trắng). Một bản cho cả ô: chỉ số chip phải khớp chuỗi. */
+function tachSach(tho: string): string[] {
+  return catToken(tho).map((x) => x.trim()).filter(Boolean);
+}
+
+type CheDo = "truc_quan" | "chu";
+/** Chế độ xem nhớ theo TRÌNH DUYỆT — tiện riêng từng người, không phải dữ liệu. Private mode hay
+ *  chặn bộ nhớ thì về mặc định, không được làm vỡ ô. */
+const KHOA_CHE_DO = "svn.congThuc.cheDo";
+function docCheDo(): CheDo {
+  try { return localStorage.getItem(KHOA_CHE_DO) === "chu" ? "chu" : "truc_quan"; } catch { return "truc_quan"; }
+}
+function luuCheDo(m: CheDo) {
+  try { localStorage.setItem(KHOA_CHE_DO, m); } catch { /* không nhớ được thì thôi */ }
+}
+
+/** Chép chữ vào bộ nhớ tạm. `navigator.clipboard` chỉ có ở trang an toàn (https/localhost) — ngoài
+ *  đó lùi về `execCommand` qua một ô ẩn. */
+async function chepVaoBoNho(chuoi: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(chuoi);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = chuoi;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
 }
 
 // Biến ẨN khỏi bảng chip ở MỌI ô công thức — giá lẫn lượng (03/09/2026).
@@ -217,7 +207,6 @@ export function FormulaField({
   recordId = null,
   truocGiaTri = null,
   truocSuaLuc = null,
-  onDong,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -245,10 +234,6 @@ export function FormulaField({
   truocGiaTri?: string | null;
   /** Thời điểm của lần sửa đó (ISO), đi kèm `truocGiaTri`. */
   truocSuaLuc?: string | null;
-  /** Có ⇒ hiện nút ✕ ngay cạnh "Cú pháp". Dành cho lúc ô này được bày trong popup nổi
-   *  (`FormulaPopover`): nút đóng phải nằm CÙNG hàng với tên ô, thêm một thanh tiêu đề riêng cho
-   *  popup là băng xám thứ hai chồng lên băng này. */
-  onDong?: () => void;
 }) {
   const isCd = configPrefix.includes("cong-doan");
   const isGiay = configPrefix.endsWith("/giay");
@@ -279,8 +264,36 @@ export function FormulaField({
   //
   // Token được CHUẨN HOÁ (bỏ khoảng trắng thừa, nối lại bằng đúng một dấu cách) — chỗ xoá chip cũ
   // đã làm vậy từ trước, nay cả ô làm một kiểu để chỉ số chip khớp với chuỗi công thức.
-  const toks = useMemo(() => catToken(value).map((t) => t.trim()).filter(Boolean), [value]);
+  const toks = useMemo(() => tachSach(value), [value]);
   const [caret, setCaret] = useState(toks.length);
+  const khop = useMemo(() => khopNgoac(toks), [toks]);
+  const khung = useMemo(() => khungHam(toks, MATH_FUNCS), [toks]);
+  const bacTheoIf = useMemo(() => timBac(toks), [toks]);
+  // Bậc đang được chọn (bấm nhãn "điều kiện k"), khoá theo vị trí chữ `if` của nó. Mọi lần ghi
+  // công thức đều bỏ chọn — chỉ số cũ không còn trỏ đúng bậc nữa.
+  const [chonIf, setChonIf] = useState<number | null>(null);
+  const bacChon: Bac | null = chonIf != null ? bacTheoIf.get(chonIf) ?? null : null;
+  // Ô gõ đang có focus ⇒ mới sáng cặp ngoặc cạnh con trỏ (mở popup mà đã sáng ngoặc cuối là nhiễu).
+  const [dangGo, setDangGo] = useState(false);
+
+  // ---- HAI CHẾ ĐỘ XEM (29/09/2026) ----
+  // Trực quan = chip + bậc thang; Dạng chữ = chuỗi mã kiểu thanh công thức Excel, copy/paste tự do.
+  // Hai cách xem CÙNG một chuỗi: chuyển qua lại không đổi gì trong dữ liệu.
+  const [cheDo, setCheDo] = useState<CheDo>(docCheDo);
+  const [chu, setChu] = useState(() => inDangChu(toks, MATH_FUNCS));
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // ---- HOÀN TÁC ----
+  // Ô ghi thẳng vào form theo từng nhịp nên phải tự giữ lịch sử: bấm nhầm "×" trên chip là mất.
+  const truoc = useRef<string[]>([]);
+  const sau = useRef<string[]>([]);
+  // Cả phiên sửa ở Dạng chữ tính là MỘT bước hoàn tác (trình duyệt đã tự lo Ctrl+Z trong ô chữ).
+  const daChupChu = useRef(false);
+  const ghiLichSu = () => {
+    truoc.current.push(value);
+    if (truoc.current.length > 200) truoc.current.shift();
+    sau.current = [];
+  };
   // Tách dòng chỉ phụ thuộc `toks` (cấu trúc if/max/min), không phụ thuộc `caret` — con trỏ chỉ
   // quyết định dòng nào đang hiện ô gõ, không đổi hình dạng các dòng.
   const dongHang = useMemo(() => tinhDong(toks), [toks]);
@@ -295,21 +308,46 @@ export function FormulaField({
   // Chuỗi do CHÍNH ô này vừa ghi ra. Value đổi mà không phải do mình (mở drawer, cha nạp dữ liệu,
   // bấm nút mẫu) thì con trỏ về cuối; do mình thì giữ nguyên chỗ vừa đặt.
   const tuMinh = useRef<string | null>(null);
+  // Đổi từ NGOÀI (mở ô của máy khác trong cùng popup, Huỷ, chép công thức chung…) ⇒ lịch sử hoàn
+  // tác của công thức cũ không còn nghĩa — giữ lại là Ctrl+Z bê công thức máy kia sang máy này.
   useEffect(() => {
     if (tuMinh.current === value) return;
-    setCaret(catToken(value).map((t) => t.trim()).filter(Boolean).length);
+    const t = tachSach(value);
+    setCaret(t.length);
+    setChonIf(null);
+    truoc.current = [];
+    sau.current = [];
+    setChu(inDangChu(t, MATH_FUNCS));
   }, [value]);
 
   /** Ghi công thức mới + đặt con trỏ, và nhớ là do mình ghi. */
   const ghi = (t: string[], caretMoi: number) => {
     const chuoi = t.join(" ");
+    if (chuoi !== value) ghiLichSu();
     tuMinh.current = chuoi;
     onChange(chuoi);
     setCaret(Math.max(0, Math.min(caretMoi, t.length)));
+    setChonIf(null);
   };
 
+  /** Hoàn tác / làm lại: đặt nguyên chuỗi từ lịch sử, con trỏ về cuối. */
+  const apLichSu = (tu: React.MutableRefObject<string[]>, sang: React.MutableRefObject<string[]>) => {
+    const v = tu.current.pop();
+    if (v === undefined) return;
+    sang.current.push(value);
+    tuMinh.current = v;
+    onChange(v);
+    const t = tachSach(v);
+    setCaret(t.length);
+    setChonIf(null);
+    setChu(inDangChu(t, MATH_FUNCS));
+    if (cheDo === "truc_quan") setTimeout(() => oInline()?.focus(), 0);
+  };
+  const hoanTac = () => apLichSu(truoc, sau);
+  const lamLai = () => apLichSu(sau, truoc);
+
   /** Cắt chuỗi thô thành token sạch (một cú bấm có thể sinh nhiều token: "max(" → max + "("). */
-  const catSach = (tho: string) => catToken(tho).map((x) => x.trim()).filter(Boolean);
+  const catSach = tachSach;
 
   /** Chèn vào ĐÚNG chỗ con trỏ — không phải cuối công thức. */
   const chenTaiCaret = (tho: string) => {
@@ -365,6 +403,7 @@ export function FormulaField({
    *  hiểu vì sao. Hàm và mở ngoặc dính liền tham số ("max(" → "max(dai_in"), còn lại tách bằng
    *  khoảng trắng cho tokenizer cắt đúng. */
   const insertVar = (text: string) => {
+    if (cheDo === "chu") { chenVaoChu(text); return; }
     const them = text.trim();
     if (!them) return;
     const moi = [...catSach(typedWord), ...catSach(them)];
@@ -395,8 +434,100 @@ export function FormulaField({
       setTypedWord("");
     } else {
       setCaret(Math.max(0, Math.min(i, toks.length)));
+      setChonIf(null);
     }
     setTimeout(() => oInline()?.focus(), 0);
+  };
+
+  // ---- DẠNG CHỮ ----
+  /** Sửa ô chữ ⇒ tách token, nối lại đúng định dạng lưu rồi ghi ngay (không đợi rời ô: bấm ra ngoài
+   *  popup là panel đóng liền, không có nhịp blur nào để chốt). Ký tự lạ vẫn thành token riêng
+   *  (xem `formulaTokens.regexMoi`) nên KHÔNG có gì bị nuốt — nó hiện lỗi, người khai tự sửa. */
+  const doiChu = (moi: string) => {
+    setChu(moi);
+    const chuoi = tachSach(moi).join(" ");
+    if (chuoi === value) return;
+    if (!daChupChu.current) { ghiLichSu(); daChupChu.current = true; }
+    tuMinh.current = chuoi;
+    onChange(chuoi);
+  };
+
+  /** Chèn vào ô chữ tại con trỏ (nút toán tử, chip biến, chọn gợi ý). */
+  const chenVaoChu = (them: string, tuVt?: number) => {
+    const ta = taRef.current;
+    const a = tuVt ?? ta?.selectionStart ?? chu.length;
+    const b = ta?.selectionEnd ?? chu.length;
+    doiChu(chu.slice(0, a) + them + chu.slice(Math.max(a, b)));
+    const p = a + them.length;
+    requestAnimationFrame(() => { ta?.focus(); ta?.setSelectionRange(p, p); });
+  };
+
+  const doiCheDo = (m: CheDo) => {
+    if (m === cheDo) return;
+    luuCheDo(m);
+    setCheDo(m);
+    setChonIf(null);
+    if (m === "chu") {
+      // Chữ đang gõ dở ở ô chip phải chốt trước, không thì nó bay mất khi ô gõ biến mất.
+      let t = toks;
+      const dang = catSach(typedWord);
+      if (dang.length) {
+        t = [...toks];
+        t.splice(caret, 0, ...dang);
+        ghi(t, caret + dang.length);
+        setTypedWord("");
+      }
+      setChu(inDangChu(t, MATH_FUNCS));
+      daChupChu.current = false;
+      requestAnimationFrame(() => taRef.current?.focus());
+    } else {
+      setCaret(toks.length);
+      setTimeout(() => oInline()?.focus(), 0);
+    }
+  };
+
+  // ---- SAO CHÉP / DÁN ----
+  // Mang theo số lần để bấm chép lần hai (cùng câu) vẫn đếm lại từ đầu, không tắt sớm theo hẹn giờ cũ.
+  const [thongBaoLan, setThongBaoLan] = useState<{ chu: string; lan: number } | null>(null);
+  const thongBao = thongBaoLan?.chu ?? null;
+  const setThongBao = (chu: string) => setThongBaoLan((c) => ({ chu, lan: (c?.lan ?? 0) + 1 }));
+  useEffect(() => {
+    if (!thongBaoLan) return;
+    const h = setTimeout(() => setThongBaoLan(null), 1800);
+    return () => clearTimeout(h);
+  }, [thongBaoLan]);
+  /** Chép ra chuỗi MÃ gọn kiểu Excel — dán được sang máy khác, ô khác, gửi qua Zalo. */
+  const chep = (t: string[], nhan: string) => {
+    void chepVaoBoNho(noiGon(t, MATH_FUNCS)).then((ok) =>
+      setThongBao(ok ? nhan : "Không chép được — trình duyệt chặn bộ nhớ tạm"));
+  };
+
+  /** Dán ở chế độ Trực quan: tách chuỗi thành chip chèn ngay tại con trỏ. Ký tự lạ thành chip đỏ và
+   *  dòng lỗi nói cách sửa — không tự sửa hộ (chủ chốt 29/09/2026). */
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const dan = e.clipboardData.getData("text");
+    if (!dan.trim()) return;
+    e.preventDefault();
+    const moi = [...catSach(typedWord), ...catSach(dan)];
+    const t = [...toks];
+    t.splice(caret, 0, ...moi);
+    ghi(t, caret + moi.length);
+    setTypedWord("");
+  };
+
+  // ---- THAO TÁC THEO BẬC ----
+  // Con trỏ đổi DÒNG là ô gõ được vẽ lại ở dòng khác (mất focus) — phải trả focus, không thì phím
+  // kế tiếp (Ctrl+Z, Delete) rơi ra ngoài ô.
+  const giuFocus = () => setTimeout(() => oInline()?.focus(), 0);
+  const nhanDoi = (b: Bac) => {
+    ghi(nhanDoiBac(toks, b), b.phay2 + 1);
+    // Chọn luôn bản sao để người khai thấy nó mọc ở đâu, rồi sửa số ngay trên đó.
+    setChonIf(b.phay2 + 1);
+    giuFocus();
+  };
+  const xoa = (b: Bac) => {
+    ghi(xoaBac(toks, b), b.ifIdx);
+    giuFocus();
   };
 
   /** Bấm vào NỀN ô (không trúng chip, không trúng ô gõ) → tìm khe gần chỗ bấm nhất rồi đặt con
@@ -409,7 +540,8 @@ export function FormulaField({
   const datCaretTheoDiem = (e: React.MouseEvent<HTMLDivElement>) => {
     const dich = e.target as HTMLElement;
     // Chip và ô gõ có handler riêng — không cướp cú bấm của chúng.
-    if (dich.closest(".rc-formula__chip-token") || dich.closest(".rc-formula__inline-input-box")) return;
+    if (dich.closest(".rc-formula__chip-token") || dich.closest(".rc-formula__inline-input-box")
+      || dich.closest(".rc-formula__nhan-cum")) return;
     e.preventDefault();
     const hang = Array.from(
       e.currentTarget.querySelectorAll<HTMLElement>(".rc-formula__row"),
@@ -449,7 +581,94 @@ export function FormulaField({
     commitTypedWord();
   };
 
+  // ---- GỢI Ý BIẾN THEO TÊN TIẾNG VIỆT ----
+  // Gõ "màu" hay "kem" là ra "Số màu pha", "Số bản kẽm" — trước đây phải gõ đúng MÃ hoặc cuộn xuống
+  // tận bảng biến cuối ô (công thức dài thì bảng đó trôi khỏi màn).
+  const [chiGoiY, setChiGoiY] = useState(0);
+  const [tatGoiY, setTatGoiY] = useState(false);
+  const goiYCho = (q: string) => {
+    const k = boDau(q.trim());
+    if (!k || /^\d/.test(k)) return [];
+    const diem = (ma: string, nhan: string) => {
+      const n = boDau(nhan);
+      if (ma === k) return 0;
+      if (ma.startsWith(k)) return 1;
+      if (n.startsWith(k)) return 2;
+      if (ma.includes(k) || n.includes(k)) return 3;
+      return 9;
+    };
+    return bienHienThi
+      .map((ma) => ({ ma, nhan: tra(ma)?.nhan ?? ma }))
+      .map((x) => ({ ...x, d: diem(x.ma, x.nhan) }))
+      .filter((x) => x.d < 9)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 8);
+  };
+  // Chữ đang gõ ở Dạng chữ = đoạn chữ/số liền ngay TRƯỚC con trỏ của ô chữ.
+  const [tuChu, setTuChu] = useState<{ tu: string; dau: number } | null>(null);
+  const docTuChu = (ta: HTMLTextAreaElement) => {
+    const p = ta.selectionStart;
+    if (p !== ta.selectionEnd) { setTuChu(null); return; }
+    const m = /[\p{L}\p{M}\p{N}_]+$/u.exec(ta.value.slice(0, p));
+    setTuChu(m ? { tu: m[0], dau: p - m[0].length } : null);
+    setTatGoiY(false);
+    setChiGoiY(0);
+  };
+  // Ô gõ chip có thể đang chứa cả dấu phép tính (dán/gõ nhanh "+ bản kẽm") — gợi ý theo đoạn chữ
+  // CUỐI CÙNG sau dấu phép tính, phần trước chốt thành chip khi chọn.
+  const duoiGo = typedWord.split(/[+\-*/(),<>=!]/).pop() ?? "";
+  const tuDangGo = cheDo === "chu" ? tuChu?.tu ?? "" : duoiGo;
+  const goiY = useMemo(() => {
+    if (tatGoiY) return [];
+    const ds = goiYCho(tuDangGo);
+    // Đã gõ trọn đúng một mã và không còn mã nào dài hơn ⇒ khỏi mời chọn lại chính nó.
+    return ds.length === 1 && ds[0].ma === tuDangGo ? [] : ds;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tuDangGo, tatGoiY, bienHienThi, tra]);
+  const chonGoiY = (ma: string) => {
+    if (cheDo === "chu") {
+      if (!tuChu) return;
+      const ta = taRef.current;
+      const cuoi = ta?.selectionStart ?? tuChu.dau + tuChu.tu.length;
+      const moi = chu.slice(0, tuChu.dau) + ma + chu.slice(cuoi);
+      doiChu(moi);
+      setTuChu(null);
+      const p = tuChu.dau + ma.length;
+      requestAnimationFrame(() => { ta?.focus(); ta?.setSelectionRange(p, p); });
+      return;
+    }
+    const moi = [...catSach(typedWord.slice(0, typedWord.length - duoiGo.length)), ma];
+    const t = [...toks];
+    t.splice(caret, 0, ...moi);
+    ghi(t, caret + moi.length);
+    setTypedWord("");
+    setTimeout(() => oInline()?.focus(), 0);
+  };
+  /** Phím điều hướng danh sách gợi ý — dùng chung cho ô gõ chip và ô chữ. `true` = đã xử lý. */
+  const phimGoiY = (e: React.KeyboardEvent): boolean => {
+    if (!goiY.length) return false;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const n = goiY.length;
+      setChiGoiY((i) => (e.key === "ArrowDown" ? (i + 1) % n : (i - 1 + n) % n));
+      return true;
+    }
+    if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      chonGoiY(goiY[Math.min(chiGoiY, goiY.length - 1)].ma);
+      return true;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setTatGoiY(true);
+      return true;
+    }
+    return false;
+  };
+
   const handleInlineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTatGoiY(false);
+    setChiGoiY(0);
     const text = e.target.value;
 
     // Nếu gõ toán tử (+ - * / ()), commit từ trước đó (nếu có) + toán tử
@@ -481,6 +700,41 @@ export function FormulaField({
   };
 
   const handleInlineKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (phimGoiY(e)) return;
+    const mod = e.ctrlKey || e.metaKey;
+    const phim = e.key.toLowerCase();
+
+    // Bậc đang chọn: Delete xoá cả bậc, Ctrl+C chép, Esc bỏ chọn.
+    if (bacChon) {
+      if (mod && phim === "c") {
+        e.preventDefault();
+        chep(toks.slice(bacChon.ifIdx, bacChon.phay2 + 1), "Đã chép bậc");
+        return;
+      }
+      if (!typedWord && (e.key === "Delete" || e.key === "Backspace")) {
+        e.preventDefault();
+        xoa(bacChon);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setChonIf(null);
+        return;
+      }
+    }
+
+    // Hoàn tác / làm lại — chỉ khi ô gõ trống; đang gõ dở thì để trình duyệt lo chữ trong ô.
+    if (mod && !typedWord && phim === "z" && !e.shiftKey) {
+      e.preventDefault();
+      hoanTac();
+      return;
+    }
+    if (mod && !typedWord && (phim === "y" || (phim === "z" && e.shiftKey))) {
+      e.preventDefault();
+      lamLai();
+      return;
+    }
+
     // Enter: chốt chữ đang gõ thành chip (số "1000" chẳng khớp biến nào cũng phải chốt được),
     // và chặn Enter lọt ra ngoài làm submit drawer.
     if (e.key === "Enter" && typedWord.trim()) {
@@ -599,44 +853,45 @@ export function FormulaField({
     ].filter(g => g.vars.length > 0);
   }, [bienHienThi]);
 
-  const { valid, error } = useMemo(() => {
-    if (!value.trim()) return { valid: true, error: null };
+  // Kiểm lỗi — MỘT bộ cho cả hai chế độ. Trả kèm chỉ số token gây lỗi để tô đỏ đúng chip (Trực
+  // quan) hoặc chỉ đúng dòng (Dạng chữ), thay vì chỉ một câu dưới đáy ô.
+  const kiem = useMemo(
+    () => (value.trim() ? kiemCongThuc(toks, validVars, MATH_FUNCS) : { loi: null, idx: null }),
+    [value, toks, validVars],
+  );
+  const valid = kiem.loi === null;
+  const error = kiem.loi;
+  const viTriLoi = cheDo === "chu" && kiem.idx != null ? viTriToken(chu)[kiem.idx] : undefined;
+  const dongLoi = viTriLoi ? chu.slice(0, viTriLoi.i).split("\n").length : null;
+  const toiChoLoi = () => {
+    const ta = taRef.current;
+    if (!ta || !viTriLoi) return;
+    ta.focus();
+    ta.setSelectionRange(viTriLoi.i, viTriLoi.i + viTriLoi.tok.length);
+  };
 
-    let openParen = 0;
-    for (const char of value) {
-      if (char === '(') openParen++;
-      if (char === ')') openParen--;
-      if (openParen < 0) {
-        return { valid: false, error: "Đóng mở ngoặc đơn không hợp lệ" };
-      }
+  // Cặp ngoặc cạnh con trỏ sáng lên (như Excel tô cặp ngoặc) — chỉ lúc đang gõ trong ô.
+  const sang = new Set<number>();
+  if (dangGo && cheDo === "truc_quan" && !typedWord) {
+    const p = toks[caret - 1] === "(" || toks[caret - 1] === ")" ? caret - 1
+      : toks[caret] === "(" || toks[caret] === ")" ? caret : -1;
+    if (p >= 0) {
+      sang.add(p);
+      if (khop[p] >= 0) sang.add(khop[p]);
     }
-    if (openParen !== 0) {
-      return { valid: false, error: "Thiếu dấu đóng hoặc mở ngoặc đơn" };
-    }
+  }
+  const lopPhu = (i: number) => [
+    khung.has(i) && "is-khung",
+    bacChon && i >= bacChon.ifIdx && i <= bacChon.phay2 && "is-chon",
+    sang.has(i) && "is-sang",
+    kiem.idx === i && "is-loi",
+  ].filter(Boolean).join(" ");
 
-    if (!validVars) return { valid: true, error: null };
-
-    const tokens = catToken(value);
-
-    for (const token of tokens) {
-      const trimmed = token.trim();
-      if (!trimmed) continue;
-
-      if (
-        !validVars.includes(trimmed) &&
-        !MATH_FUNCS.includes(trimmed) &&
-        !/^\d+(?:\.\d+)?$/.test(trimmed) &&
-        !laToanTu(trimmed)
-      ) {
-        return {
-          valid: false,
-          error: `Biến hoặc hàm "${trimmed}" không được hỗ trợ trong hệ thống`
-        };
-      }
-    }
-
-    return { valid: true, error: null };
-  }, [value, validVars]);
+  // Biến đang dùng — dòng tra nghĩa dưới ô chữ (ô chữ không rê chuột xem nghĩa từng chữ được).
+  const bienDangDung = useMemo(
+    () => [...new Set(toks)].filter((t) => whitelist.includes(t) || tra(t)),
+    [toks, whitelist, tra],
+  );
 
   // ---- "LẦN TRƯỚC" (mục 3+7) ----
   // Dòng nhắc đọc thẳng từ props (đã có sẵn trên response, không tốn request). "Xem thêm lịch sử"
@@ -654,11 +909,28 @@ export function FormulaField({
   };
 
   return (
-    <div className="rc-formula">
+    // `data-giu-esc`: đang có lớp nhỏ hơn cần Esc (gợi ý biến / bậc đang chọn) — popup nổi thấy dấu
+    // này thì nhường, không coi Esc là "Huỷ" (xem `FormulaPopover`).
+    <div className="rc-formula" data-giu-esc={goiY.length || bacChon ? "" : undefined}>
       {/* 1. Trình soạn thảo công thức ở trên cùng */}
       <div className="rc-formula__editor-container">
         <div className="rc-formula__editor-header">
           <span className="rc-formula__editor-label">{nhanO}</span>
+          {thongBao && <span className="rc-formula__thong-bao" role="status">{thongBao}</span>}
+          <div className="rc-formula__che-do" role="group" aria-label="Chế độ xem">
+            <button type="button" className={cheDo === "truc_quan" ? "is-active" : ""}
+              aria-pressed={cheDo === "truc_quan"} onClick={() => doiCheDo("truc_quan")}
+              title="Chip + bậc thang — dễ đọc">Trực quan</button>
+            <button type="button" className={cheDo === "chu" ? "is-active" : ""}
+              aria-pressed={cheDo === "chu"} onClick={() => doiCheDo("chu")}
+              title="Chuỗi mã như thanh công thức Excel — copy/paste tự do">Dạng chữ</button>
+          </div>
+          <button type="button" className="rc-formula__syntax-btn"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => chep(toks, "Đã chép công thức")} disabled={!toks.length}
+            title="Chép cả công thức ra chuỗi mã (dán được sang máy khác, ô khác)">
+            Sao chép
+          </button>
           <button
             ref={syntaxBtnRef}
             type="button"
@@ -673,12 +945,6 @@ export function FormulaField({
             </svg>
             Cú pháp
           </button>
-          {onDong && (
-            <button type="button" className="rc-formula__close-btn" onClick={onDong}
-              title="Bỏ sửa — trả ô về công thức lúc mở" aria-label="Bỏ sửa">
-              <XIcon size={13} />
-            </button>
-          )}
           {showSyntax && (
             <div ref={syntaxPopRef} className="rc-syntax" role="dialog" aria-label="Cú pháp công thức">
               <div className="rc-syntax__head">
@@ -711,7 +977,14 @@ export function FormulaField({
                   <tr><td><code>floor(x)</code></td><td>làm tròn xuống</td></tr>
                 </tbody></table>
                 <div className="rc-syntax__sec-title">Biến</div>
-                <p className="rc-syntax__note">Bấm chip biến ở dưới để chèn. Kích thước tính bằng <b>mét</b>.</p>
+                <p className="rc-syntax__note">Bấm chip biến ở dưới để chèn, hoặc gõ vài chữ tên tiếng Việt ("màu", "kẽm") rồi chọn gợi ý. Kích thước tính bằng <b>mét</b>.</p>
+                <div className="rc-syntax__sec-title">Thao tác</div>
+                <table className="rc-syntax__tbl"><tbody>
+                  <tr><td><code>Ctrl+Z · Ctrl+Y</code></td><td>hoàn tác · làm lại</td></tr>
+                  <tr><td><code>Ctrl+V</code></td><td>dán chuỗi công thức thành chip tại con trỏ</td></tr>
+                  <tr><td>nhãn <i>điều kiện</i></td><td>bấm để chọn cả bậc — Nhân đôi / Xoá / Ctrl+C</td></tr>
+                  <tr><td>Dạng chữ</td><td>sửa như ô chữ thường, copy/paste tự do</td></tr>
+                </tbody></table>
               </div>
             </div>
           )}
@@ -740,7 +1013,8 @@ export function FormulaField({
           <button type="button" className="rc-formula__op-btn" onClick={() => insertVar("if(")} title="Hàm if — điều kiện">if</button>
         </div>
 
-        {/* Ô công thức Chip Tiếng Việt duy nhất (Inline Chip Editor Container) */}
+        {cheDo === "truc_quan" ? (
+        /* Ô công thức Chip Tiếng Việt duy nhất (Inline Chip Editor Container) */
         <div
           className="rc-formula__single-stage"
           // Bấm vào KHOẢNG TRỐNG của ô (chip và ô gõ tự chặn cú bấm của mình) → con trỏ về khe GẦN
@@ -750,21 +1024,25 @@ export function FormulaField({
           onMouseDown={(e) => datCaretTheoDiem(e)}
         >
           <div className="rc-formula__chips-wrap">
-            {/* Mỗi DÒNG = một đoạn token liên tục cùng cấp lồng if/max/min (xem `tinhDong`). Con
-                trỏ vẫn là MỘT chỉ số duy nhất trên mảng token phẳng — chỉ có dòng NÀO hiện ô gõ
-                và ô gõ đứng ở đâu TRONG dòng đó là đổi theo `caret`, logic gõ/xoá/click giữ nguyên
-                như cũ (không đụng tới `datCaret`/`handleRemoveToken`). */}
+            {/* Mỗi DÒNG = một đoạn token liên tục (xem `tinhDong` — bậc thang: chuỗi else-if thẳng
+                một cột). Con trỏ vẫn là MỘT chỉ số duy nhất trên mảng token phẳng — chỉ có dòng NÀO
+                hiện ô gõ và ô gõ đứng ở đâu TRONG dòng đó là đổi theo `caret`. */}
             {dongHienThi.map((d, di) => {
               const laDongCoCaret = di === dongCuaCaret;
               const caretTrongDong = laDongCoCaret ? caret - d.start : 0;
               const veTuDong = (from: number, to: number) =>
                 toks.slice(from, to).map((tok, i) =>
-                  veChip({ tok, idx: from + i, tra, validVars, whitelist, onXoa: handleRemoveToken, onDatCaret: datCaret }),
+                  veChip({
+                    tok, idx: from + i, tra, validVars, whitelist, onXoa: handleRemoveToken,
+                    onDatCaret: datCaret, them: lopPhu(from + i),
+                  }),
                 );
+              const b = d.bac;
+              const dangChon = !!b && bacChon?.ifIdx === b.ifIdx;
               return (
                 <div
                   key={di}
-                  className="rc-formula__row"
+                  className={`rc-formula__row${d.dieuKien ? " is-dieu-kien" : ""}`}
                   style={d.cap > 0 ? {
                     marginLeft: d.cap * 18,
                     paddingLeft: 10,
@@ -789,7 +1067,9 @@ export function FormulaField({
                         value={typedWord}
                         onChange={handleInlineChange}
                         onKeyDown={handleInlineKeyDown}
-                        onBlur={handleInlineBlur}
+                        onPaste={handlePaste}
+                        onFocus={() => setDangGo(true)}
+                        onBlur={() => { setDangGo(false); handleInlineBlur(); }}
                         autoComplete="off"
                         spellCheck={false}
                         placeholder={value.trim() ? "" : goY}
@@ -798,11 +1078,83 @@ export function FormulaField({
                   )}
 
                   {laDongCoCaret && veTuDong(d.start + caretTrongDong, d.end)}
+
+                  {/* Nhãn mờ bên phải — KHÔNG phải token, không lưu (giống dòng gợi ý tham số của
+                      Excel). Nhãn điều kiện bấm được: chọn cả bậc để nhân đôi / xoá / chép. */}
+                  {d.nhan && (
+                    <span className="rc-formula__nhan-cum"
+                      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      onClick={(e) => e.stopPropagation()}>
+                      {dangChon && b && <>
+                        <button type="button" className="rc-formula__bac-btn" onClick={() => nhanDoi(b)}
+                          title="Chép bậc này ngay bên dưới — sửa số trên bản sao">Nhân đôi bậc</button>
+                        <button type="button" className="rc-formula__bac-btn rc-formula__bac-btn--xoa"
+                          onClick={() => xoa(b)} title="Bỏ bậc này — các bậc khác giữ nguyên">Xoá bậc</button>
+                      </>}
+                      {b ? (
+                        <button type="button"
+                          className={`rc-formula__nhan rc-formula__nhan--nut${dangChon ? " is-chon" : ""}`}
+                          aria-pressed={dangChon}
+                          title="Chọn cả bậc — Delete xoá, Ctrl+C chép"
+                          onClick={() => {
+                            if (typedWord.trim()) { commitTypedWord(); return; }
+                            setChonIf(dangChon ? null : b.ifIdx);
+                            oInline()?.focus();
+                          }}>{d.nhan}</button>
+                      ) : <span className="rc-formula__nhan">{d.nhan}</span>}
+                    </span>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
+        ) : (
+        <div className="rc-formula__chu">
+          <textarea
+            ref={taRef}
+            id={id}
+            className="rc-formula__chu-o"
+            value={chu}
+            rows={Math.min(18, Math.max(3, chu.split("\n").length + 1))}
+            spellCheck={false}
+            autoComplete="off"
+            placeholder={goY}
+            aria-label="Công thức dạng chữ"
+            onChange={(e) => { doiChu(e.target.value); docTuChu(e.target); }}
+            onSelect={(e) => docTuChu(e.currentTarget)}
+            onKeyDown={(e) => { phimGoiY(e); }}
+            onBlur={() => setTuChu(null)}
+          />
+          {bienDangDung.length > 0 && (
+            <div className="rc-formula__bien-dung">
+              <span className="rc-formula__bien-dung-nhan">Biến đang dùng:</span>
+              {bienDangDung.map((ma) => (
+                <span key={ma} className="rc-formula__bien-dung-muc">
+                  <code>{ma}</code> = {tra(ma)?.nhan ?? "—"}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* Gợi ý biến theo tên tiếng Việt — nằm TRONG luồng ngay dưới ô (không nổi), popup có cuộn
+            cũng không cắt mất nó. */}
+        {goiY.length > 0 && (
+          <div className="rc-formula__goi-y" role="listbox" aria-label="Gợi ý biến"
+            onMouseDown={(e) => e.preventDefault()}>
+            {goiY.map((g, i) => (
+              <button key={g.ma} type="button" role="option"
+                aria-selected={i === chiGoiY}
+                className={`rc-formula__goi-y-muc${i === chiGoiY ? " is-active" : ""}`}
+                onClick={() => chonGoiY(g.ma)}>
+                <span>{g.nhan}</span> <code>{g.ma}</code>
+              </button>
+            ))}
+            <span className="rc-formula__goi-y-meo">↑↓ chọn · Enter chèn · Esc ẩn</span>
+          </div>
+        )}
       </div>
 
       {/* 2. "Lần trước" (mục 3+7) — máy chỉ ghi nhận, người tự so sánh và quyết định. */}
@@ -854,6 +1206,10 @@ export function FormulaField({
           <div className="rc-formula__status rc-formula__status--error">
             <CircleXIcon size={12} sw={3} style={{ marginRight: "6px" }} />
             {error}
+            {dongLoi != null && <>
+              {" "}— dòng {dongLoi}
+              <button type="button" className="rc-formula__toi-loi" onClick={toiChoLoi}>Tới chỗ lỗi</button>
+            </>}
           </div>
         </div>
       )}

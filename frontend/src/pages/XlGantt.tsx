@@ -45,6 +45,7 @@ const TRANG_THAI_NHAN: Record<string, string> = {
   san_sang: "Sẵn sàng",
   da_lap_ke_hoach: "Kế hoạch",
   da_phat_hanh: "Đã phát hành",
+  da_dong: "Đã đóng",
 };
 
 export function XlGantt({
@@ -408,7 +409,7 @@ export function XlGantt({
 
                 {bao && (
                   <div
-                    className={`xl-thanh ${classHan(d)}${dangKeo ? " xl-thanh--keo" : ""}${d.trang_thai === "da_phat_hanh" ? " xl-thanh--phat" : ""}`}
+                    className={`xl-thanh ${classHan(d)}${dangKeo ? " xl-thanh--keo" : ""}${d.trang_thai === "da_phat_hanh" ? " xl-thanh--phat" : ""}${d.trang_thai === "da_dong" ? " xl-thanh--dong" : ""}`}
                     style={{
                       left: traiKeo ?? bao.trai,
                       width: traiKeo !== null ? Math.max(12, rongThat) : bao.rong,

@@ -11,7 +11,7 @@ from collections.abc import Callable
 from sqlalchemy.orm import Session
 
 from ...models.gia_cong_ngoai import KIEU_MOT_PHAN, NOI_VE_KHACH, NOI_VE_KHO, NOI_VE_XUONG, _utcnow
-from ...models.san_xuat import CV_HOAN_THANH, CV_PHAT_HANH, NHOM_DANG_SX, NHOM_DONG_DU, NHOM_DONG_THIEU
+from ...models.san_xuat import CV_HOAN_THANH, CV_PHAT_HANH, NHOM_DONG
 from ...models.san_xuat_san_luong import BG_DE_XUAT, SanXuatBatch
 from ...models.stock_request import REQ_CANCELLED
 from ...repositories.audit_repo import AuditLogRepository
@@ -23,7 +23,6 @@ from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ...repositories.stock_request_repo import StockRequestRepository
 from ..san_xuat import ban_giao
 from ..san_xuat import kho as sx_kho
-from ..san_xuat.dong_nhom import tu_dong_dong_neu_du
 from ..san_xuat.kcs import ghi_kcs_ngoai_phan_mem
 from ..san_xuat.san_luong import _toa_san_luong
 from . import GiaCongXungDot, kiem_version
@@ -70,14 +69,14 @@ def _ve_kho(db: Session, *, user, gcn, cuoi, me, so: float, chang_sau: list,
     req, _ra = sx_kho.lap_yeu_cau_nhap_tp(
         db, user=user, cv=cuoi, so_kcs=so,
         nguon_ghi=f"gia công ngoài ({gcn.nha_cung_cap_ten})", gia_cong_ngoai_id=gcn.id)
-    return {"yeu_cau_kho": req, "_dong_nhom": cuoi.nhom_id}
+    return {"yeu_cau_kho": req}
 
 
 def _ve_khach(db: Session, *, user, gcn, cuoi, me, so: float, chang_sau: list,
               dich_cong_viec_id: int | None) -> dict:
     ghi_kcs_ngoai_phan_mem(db, cv=cuoi, so_dat=so, uid=getattr(user, "id", None), ghi_chu=_GHI_KCS)
     ghi_giao_thang(db, user=user, gcn=gcn, cv=cuoi, so=so)
-    return {"_dong_nhom": cuoi.nhom_id}
+    return {}
 
 
 def _nhom_ids(db: Session, gcn, cuoi) -> list[int]:
@@ -97,16 +96,11 @@ def _nhom_ids(db: Session, gcn, cuoi) -> list[int]:
 def _go_kcs_va_nhom(db: Session, *, user, gcn, cuoi) -> None:
     sx = SanXuatRepository(db)
     nhoms = [n for n in (sx.nhom(i) for i in _nhom_ids(db, gcn, cuoi)) if n is not None]
-    if any(n.trang_thai == NHOM_DONG_THIEU for n in nhoms):
-        raise ValueError("Trưởng KCS đã đóng thiếu nhóm thành phẩm này — không mở lại được.")
+    if any(n.trang_thai == NHOM_DONG for n in nhoms):
+        raise ValueError("Lệnh đã đóng — KCS mở lại trước rồi mới gỡ số chốt.")
     kcs_repo = SanXuatKcsRepository(db)
     for k in kcs_repo.cac_kcs_batch(cuoi.id):
         db.delete(k)
-    for nhom in nhoms:
-        if nhom.trang_thai == NHOM_DONG_DU:
-            # Chính số chốt đã làm nhóm đủ ⇒ gỡ số thì nhóm mở lại.
-            nhom.trang_thai = NHOM_DANG_SX
-            nhom.version += 1
 
 
 def _ve_kho_tung_lenh(db: Session, *, user, gcn, cuoi, me, so: float, chang_sau: list,
@@ -117,7 +111,7 @@ def _ve_kho_tung_lenh(db: Session, *, user, gcn, cuoi, me, so: float, chang_sau:
     repo, sx = GiaCongNgoaiRepository(db), SanXuatRepository(db)
     uid = getattr(user, "id", None)
     don_vi = repo.don_vi_ra_buoc_bi_phu(cuoi.bai_ghep_cong_doan_id)
-    reqs, nhoms = [], []
+    reqs = []
     for lsx_id, con in sorted(sx.thanh_vien_so_con({gcn.bai_ghep_id}).items()):
         phan = round(so * float(con or 0), 3)
         if phan <= _EPS:
@@ -132,9 +126,7 @@ def _ve_kho_tung_lenh(db: Session, *, user, gcn, cuoi, me, so: float, chang_sau:
             nguon_ghi=f"gia công ngoài ({gcn.nha_cung_cap_ten})", gia_cong_ngoai_id=gcn.id,
             theo_lenh=(nhom_id, lsx_id, dv))
         reqs.append(req)
-        if nhom_id and nhom_id not in nhoms:
-            nhoms.append(nhom_id)
-    return {"yeu_cau_khos": reqs, "_dong_nhoms": nhoms}
+    return {"yeu_cau_khos": reqs}
 
 
 def _ve_toa(db: Session, *, user, gcn, cuoi, me, so: float, chang_sau: list,
@@ -277,12 +269,6 @@ def chot(db: Session, *, user, gcn_id: int, expected_version: int | None, sl_cuo
     )
     db.commit()
 
-    nhoms_dong = []
-    for nhom_id in ([kq["_dong_nhom"]] if kq.get("_dong_nhom") else []) + kq.get("_dong_nhoms", []):
-        # Đóng nhóm tự commit riêng — đặt SAU giao dịch chính như mọi cửa gọi khác (§16).
-        d = tu_dong_dong_neu_du(db, nhom_id=nhom_id, actor=user, su_kien="gia_cong_ngoai_chot")
-        if d is not None:
-            nhoms_dong.append(d)
     yeu_cau_khos = kq.get("yeu_cau_khos") or (
         [kq["yeu_cau_kho"]] if kq.get("yeu_cau_kho") is not None else [])
     for req in yeu_cau_khos:
@@ -294,15 +280,14 @@ def chot(db: Session, *, user, gcn_id: int, expected_version: int | None, sl_cuo
         "bai_ghep_id": gcn.bai_ghep_id, "nhan_nguon": nguon["nhan_nguon"],
         "lsx_ids": _lsx_ids(gcn, nguon),
         "nha_cung_cap_ten": gcn.nha_cung_cap_ten, "ten_viec": gcn.ten_viec,
-        "ban_giao": None, "yeu_cau_kho": None, "yeu_cau_khos": yeu_cau_khos, "nhom_dong": None,
-        "nhoms_dong": nhoms_dong, "toa": kq.get("toa") or [],
+        "ban_giao": None, "yeu_cau_kho": None, "yeu_cau_khos": yeu_cau_khos,
+        "toa": kq.get("toa") or [],
     }
     if "ban_giao" in kq:
         bg, nguon, dich = kq["ban_giao"]
         ra["ban_giao"] = ban_giao.ket_qua_cho_ben_nhan(db, user=user, bg=bg, nguon_cv=nguon,
                                                        dich_cv=dich)
     ra["yeu_cau_kho"] = yeu_cau_khos[0] if yeu_cau_khos else None
-    ra["nhom_dong"] = nhoms_dong[0] if nhoms_dong else None
     return ra
 
 
@@ -339,8 +324,8 @@ def ly_do_khong_mo_lai(db: Session, gcn, *, pc=None, cuoi=None) -> str | None:
     sx = SanXuatRepository(db)
     for nhom_id in _nhom_ids(db, gcn, cuoi):
         nhom = sx.nhom(nhom_id)
-        if nhom is not None and nhom.trang_thai == NHOM_DONG_THIEU:
-            return "Trưởng KCS đã đóng thiếu nhóm thành phẩm này — không mở lại được."
+        if nhom is not None and nhom.trang_thai == NHOM_DONG:
+            return "Lệnh đã đóng — KCS mở lại trước rồi mới gỡ số chốt."
     if gcn.noi_ve == NOI_VE_KHO:
         req_repo = StockRequestRepository(db)
         for req in repo.yeu_cau_nhap_cua(gcn.id):

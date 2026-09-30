@@ -2039,6 +2039,8 @@
 }
 
 .xl-tt--da_phat_hanh { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.xl-tt--da_dong { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.xl-thanh--dong { filter: grayscale(1); opacity: .6; }
 .xl-tt--san_sang { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
 .xl-tt--da_lap_ke_hoach { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
 

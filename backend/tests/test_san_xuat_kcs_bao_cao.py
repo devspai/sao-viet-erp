@@ -120,9 +120,10 @@ def test_xep_hang_to_theo_tong_so_luong(db, orders, lsx_svc, admin, customer):
     to_y, cv_y, res_y = _batch(db, orders, lsx_svc, admin, customer, dat=10, khong_dat=1,
                                ma="KCS-XH-Y")
     _ghi_tot(db, cv_y, 2)
-    for _ in range(2):
+    # Ghi chú khác nhau: hai lần kiểm Y HỆT trong 30 giây bị coi là một lần "Lưu" gửi lại (chống ghi lặp).
+    for i in range(2):
         kcs.kiem_cong_doan(db, user=res_y["nguoi_kcs"], cong_viec_id=cv_y.id, so_dat=0, so_loi=1,
-                           loi_mo_ta="Xước nhẹ", anh=_anh())
+                           loi_mo_ta="Xước nhẹ", anh=_anh(), ghi_chu=f"Lần kiểm {i + 1}")
 
     out = kcs_bao_cao.bao_cao_kcs(db, admin, _authz(db))
 

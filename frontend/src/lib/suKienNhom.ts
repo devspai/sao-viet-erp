@@ -39,6 +39,8 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   // Hàng đợi tràn ⇒ AppShell tự nhích MỌI nhóm + nạp lại badge (như lúc kênh nối lại).
   dong_bo_lai: [],
   nhat_ky_moi: [],
+  // Chấm đỏ thanh bên: AppShell hỏi lại tóm tắt, không màn nào phải nạp lại.
+  thong_bao_man: [],
   notification_new: [],
   san_xuat_vat_tu_de_nghi_changed: [],
   lsx_dinh_kem_changed: [],
@@ -92,8 +94,7 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   // KCS gửi thành phẩm nhập kho: màn KCS / hồ sơ lệnh + màn Kho.
   san_xuat_kho_changed: ["san_xuat", "kho"],
   san_xuat_kho: ["san_xuat", "kho"],
-  // Nhóm thành phẩm đóng ⇒ đơn có thể giao: Kế hoạch SX, Đơn hàng, Giao hàng.
-  san_xuat_nhom_dong: ["san_xuat", "ban_hang", "giao_hang"],
+  san_xuat_lenh_dong: ["san_xuat", "ban_hang", "giao_hang"],
   gia_cong_ngoai_changed: ["san_xuat"],
 
   // Mua hàng · kế toán.

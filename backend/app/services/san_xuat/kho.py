@@ -374,6 +374,9 @@ def tao_yeu_cau_nhap_kho_cong_doan(db: Session, *, user, cong_viec_id: int) -> d
         raise ValueError("Không tìm thấy công đoạn.")
     if not cv.la_kcs_cuoi:
         raise ValueError("Chỉ công đoạn cuối của nhóm thành phẩm mới tạo yêu cầu nhập kho.")
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv)
     if cv.gia_cong_ngoai_id is not None:
         raise ValueError("Công đoạn gia công ngoài — số chốt tự đi vào kho, KCS không gửi lại.")
 

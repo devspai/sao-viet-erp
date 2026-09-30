@@ -89,6 +89,12 @@ export function slThucTe(w: SxWorkItem): string {
   return `Nhận ${num(w.nhan)}${dvVao} · ${tot}${loi}`;
 }
 
+/** Cột "Sản lượng tốt" của bảng bàn tổ: CHỈ số tốt kèm đơn vị ra ("1.200 tờ in"). */
+export function slTot(w: SxWorkItem): string {
+  const dv = nhanChang(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null));
+  return `${num(w.da_lam ?? 0)}${dv ? ` ${dv}` : ""}`;
+}
+
 /** Thanh tiến độ: tốt / nhận (quy về đơn vị ra). Đã Kết thúc = xong, luôn 100% — phần hụt đã
  *  thành số lỗi, không còn "thiếu" treo mãi. null = không biết số nhận ⇒ không vẽ thanh. */
 export function tienDoThucTe(w: SxWorkItem): { pct: number; tot: number; nhan: number | null } | null {

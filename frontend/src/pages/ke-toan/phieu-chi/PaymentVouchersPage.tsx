@@ -44,8 +44,10 @@ export function PaymentVouchersPage({
   const can = useCan();
   // Khoá RIÊNG của màn Phiếu chi (tách 10/08/2026). `create` = LẬP phiếu + gán chứng từ.
   const canApprove = can("phieu_chi", "create");
-  const openYcmh = (code: string) =>
-    navigate("yeu-cau-mua-hang", { focusRequestCode: code });
+  // Mã YCMH chỉ bấm được khi có ô Xem của màn đó — không thì bấm vào là ăn màn chặn.
+  const openYcmh = can("yeu_cau_mua_hang", "read")
+    ? (code: string) => navigate("yeu-cau-mua-hang", { focusRequestCode: code })
+    : undefined;
   const openReceipts = (query: string) =>
     navigate("ke-toan-phieu-thu", { focusReceiptQuery: query });
   // KHÔNG còn `canMarkPaid`: bước "Xác nhận đã chi" đã bỏ cùng với trạng thái Chờ chi (Đ1).

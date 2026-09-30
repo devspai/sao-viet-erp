@@ -596,26 +596,8 @@ export function ThucHienSxPage({
     if (selectedId != null) void mutate(() => api.sanXuat.ketThuc(token!, selectedId, { expected_version: ver() }), "Đã kết thúc.");
   }, [chiTiet, mutate, token, selectedId]);
 
-  // Nút chạy nhanh trên DÒNG bảng: mở drawer rồi ĐỢI chi tiết của đúng việc đó về mới bấm. Ba hàm
-  // trên đọc `chiTiet`/`selectedId` hiện hành — gọi ngay trong cú bấm là nhắm vào việc đang mở
-  // trước đó (hoặc không làm gì khi chưa mở việc nào).
-  const [choLam, setChoLam] = useState<{ id: number; viec: "bat_dau" | "tam_dung" | "ket_thuc" } | null>(null);
-  const lamNhanh = useCallback((w: SxWorkItem, viec: "bat_dau" | "tam_dung" | "ket_thuc") => {
-    pickViec(w);
-    setChoLam({ id: w.id, viec });
-  }, [pickViec]);
-  useEffect(() => {
-    if (!choLam || ctLoading || !chiTiet || chiTiet.cong_viec.id !== choLam.id) return;
-    setChoLam(null);
-    if (!chiTiet.quyen?.run_order) return;
-    if (choLam.viec === "bat_dau") {
-      // Cùng cổng với nút Bắt đầu ở chân drawer. Chưa đủ thì chỉ mở drawer — chân drawer đã nói lý do.
-      const coKhoan = (chiTiet.phan_cong ?? []).some((p) => p.trang_thai === "active" && p.la_luong_khoan);
-      const choKhuon = !!chiTiet.cong_viec.khuon && !chiTiet.cong_viec.khuon_da_nhan;
-      if (coKhoan && !choKhuon) onBatDau();
-    } else if (choLam.viec === "tam_dung") onTamDung();
-    else onKetThuc();
-  }, [choLam, ctLoading, chiTiet, onBatDau, onTamDung, onKetThuc]);
+  // Nút chạy nhanh trên DÒNG bảng đã GỠ (28/09/2026): nhãn trạng thái đứng cạnh nút "Tạm dừng /
+  // Kết thúc" đọc ra thành ba trạng thái. Bắt đầu · Tạm dừng · Kết thúc chỉ còn ở chân drawer.
 
   const confirmReason = useCallback(() => {
     if (!reason || selectedId == null) return;
@@ -726,7 +708,7 @@ export function ThucHienSxPage({
                 ["run", digest.running, "đang chạy"],
                 ["pause", digest.paused, "tạm dừng"],
                 ["cho", digest.released, "chờ làm"],
-                ["done", digest.completed, "xong"],
+                ["done", digest.completed, "hoàn thành"],
               ] as const).map(([k, so, chu]) => (
                 <span key={chu} className={`thsx-kpi__pill${k ? ` thsx-kpi__pill--${k}` : ""}${so === 0 ? " thsx-kpi__pill--0" : ""}`}>
                   {k && <i aria-hidden="true" />}
@@ -765,7 +747,7 @@ export function ThucHienSxPage({
           <span className="thsx-digest__chip thsx-digest__chip--run"><Icon name="play" size={12} /> <b className="thsx-num">{digest.running}</b> đang chạy</span>
           <span className="thsx-digest__chip thsx-digest__chip--pause"><Icon name="pause" size={12} /> <b className="thsx-num">{digest.paused}</b> tạm dừng</span>
           <span className="thsx-digest__chip thsx-digest__chip--released"><Icon name="clock" size={12} /> <b className="thsx-num">{digest.released}</b> chờ làm</span>
-          <span className="thsx-digest__chip thsx-digest__chip--done"><Icon name="check" size={12} /> <b className="thsx-num">{digest.completed}</b> xong</span>
+          <span className="thsx-digest__chip thsx-digest__chip--done"><Icon name="check" size={12} /> <b className="thsx-num">{digest.completed}</b> hoàn thành</span>
         </div>
         <ThsxLocNangCao mo={moLoc} value={loc} onChange={setLoc} />
       </div>}
@@ -867,9 +849,6 @@ export function ThucHienSxPage({
                   lenh={lenh ?? []}
                   selectedId={selectedId}
                   onPick={pickViec}
-                  onBatDau={(w) => lamNhanh(w, "bat_dau")}
-                  onTamDung={(w) => lamNhanh(w, "tam_dung")}
-                  onKetThuc={(w) => lamNhanh(w, "ket_thuc")}
                   cho={choMap}
                 />
                 <ThanhTrang trang={trang} soTrang={soTrang} tong={tongLenh} onDoi={setTrang} />

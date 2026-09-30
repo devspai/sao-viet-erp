@@ -15,10 +15,15 @@ export const TOAN_TU = ["+", "-", "*", "/", "(", ")", ",", ">=", "<=", "==", "!=
 /** Hàm toán được phép — khớp với bộ `safe_eval` bên backend (`services/thanh_phan_engine.py`). */
 export const HAM_TOAN = ["ceil", "floor", "round", "max", "min", "abs", "if"] as const;
 
-function regexMoi(): RegExp {
+/** Mỗi lần gọi một regex MỚI (xem ⚠️ trên) — export dạng hàm tạo, không export chính regex. */
+export function regexMoi(): RegExp {
   // So sánh 2 ký tự (>=, <=, ==, !=) phải đứng TRƯỚC lớp ký tự đơn — không thì ">=" bị cắt vụn
   // thành ">" rồi "=" rời (mỗi lần chạy alternation, JS thử theo đúng thứ tự viết).
-  return /[a-zA-Z_][a-zA-Z0-9_]*|\d+(?:\.\d+)?|>=|<=|==|!=|[+\-*/(),<>]|\s+/g;
+  //
+  // `\S` cuối cùng (29/09/2026): ký tự lạ (`;` của Excel tiếng Việt, `≤`, `×`, `=` đơn…) thành một
+  // token RIÊNG thay vì bị nuốt im lặng — trước đây dán `if(a;b;c)` là mất sạch dấu `;` không dấu
+  // vết. Nay nó hiện chip đỏ và ô công thức báo đúng chỗ.
+  return /[a-zA-Z_][a-zA-Z0-9_]*|\d+(?:\.\d+)?|>=|<=|==|!=|[+\-*/(),<>]|\s+|\S/g;
 }
 
 /** Chuỗi công thức → mảng token (giữ cả khoảng trắng để chỗ vẽ chip dựng lại đúng hình). */

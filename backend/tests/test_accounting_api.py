@@ -1024,11 +1024,28 @@ def test_vouchers_group_sort_keeps_same_pmh_adjacent(client):
 
 
 def test_accounting_read_can_trace_department_requests(client):
-    """Kế toán (chỉ ke_toan:read) truy vết được YCMH nguồn từ PMH/Phiếu chi."""
+    """Kế toán truy vết YCMH nguồn từ PMH/Phiếu chi bằng ô Xem của CHÍNH màn Yêu cầu mua hàng.
+
+    Chủ chốt 28/09/2026: chỉ `ke_toan:read` thì KHÔNG còn đọc được YCMH (trước đó được — menu tự
+    hiện dù ô Xem của màn TẮT). Muốn bấm mã YCMH từ PMH thì cấp ô đó cho vai kế toán."""
     admin_headers = _headers(client)
     supplier = _supplier(client, admin_headers)
     _, source = _purchase(client, admin_headers, supplier["id"])
     reader_headers = {"Authorization": f"Bearer {_accounting_user_token(approve=False)}"}
+
+    chan = client.get(
+        f"/api/department-purchase-requests?q={source['code']}", headers=reader_headers
+    )
+    assert chan.status_code == 403, chan.text
+
+    db = SessionLocal()
+    try:
+        user = UserRepository(db).get_by_username("accounting-reader")
+        RoleRepository(db).set_permission(
+            role_id=user.role_id, module_key="yeu_cau_mua_hang", can_read=True, scope=SCOPE_ALL,
+        )
+    finally:
+        db.close()
 
     listed = client.get(
         f"/api/department-purchase-requests?q={source['code']}", headers=reader_headers

@@ -36,12 +36,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
 
-# --- Trạng thái nhóm thành phẩm (§18) --------------------------------------------------------
+# --- Trạng thái nhóm thành phẩm (§16, 29/09/2026) — KCS bấm tay đóng/mở lại, không còn tự đóng.
 NHOM_DANG_SX = "in_production"          # đang sản xuất
-NHOM_CHO_DIEU_KIEN = "waiting_conditions"  # chờ điều kiện (thiếu vật tư / chờ nhánh)
-NHOM_DONG_DU = "closed_full"           # đóng đủ
-NHOM_DONG_THIEU = "closed_short"       # đóng thiếu (short-close)
-TRANG_THAI_NHOM = (NHOM_DANG_SX, NHOM_CHO_DIEU_KIEN, NHOM_DONG_DU, NHOM_DONG_THIEU)
+NHOM_DONG = "closed"                    # KCS đã đóng (mọi lệnh của nhóm → `lsx.da_dong`)
+TRANG_THAI_NHOM = (NHOM_DANG_SX, NHOM_DONG)
 
 # --- Trạng thái gói phát hành ----------------------------------------------------------------
 GOI_DANG_PHAT_HANH = "dang_phat_hanh"  # đang hiệu lực

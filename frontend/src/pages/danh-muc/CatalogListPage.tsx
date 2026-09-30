@@ -623,6 +623,11 @@ export function CatalogListPage({ config, onMutate, navigate }: {
       {showImport && token && (
         <ImportExcelDialog
           ten={config.title.toLowerCase()}
+          // Màn `khongTaoTay` (Thành phẩm): máy chủ bác mọi mã mới ⇒ câu mặc định "Mã chưa có sẽ
+          // TẠO MỚI" là nói sai, người dùng làm theo là bị bác cả file.
+          luat={config.khongTaoTay
+            ? `Bấm "Xuất Excel" cạnh nút này để lấy file đúng định dạng đang chạy, sửa trên chính file đó rồi chọn lại ở đây. Chỉ SỬA được dòng đã có — ${config.title.toLowerCase()} không khai tay được nên mã chưa có trong hệ thống sẽ bị báo lỗi và cả file không được ghi. Ô để trống ở một cột CÓ trong file sẽ xoá giá trị cột đó, còn cột không có trong file thì giữ nguyên. Dòng không có trong file được giữ nguyên, không bị xoá. Cả file là MỘT lượt: còn một dòng lỗi thì không ghi gì cả.`
+            : undefined}
           chay={(f, mode) => crud(config.prefix).importExcel(token, f, mode)}
           onClose={() => setShowImport(false)}
           onImported={() => { setShowImport(false); lamMoi(); onMutate?.(); }}

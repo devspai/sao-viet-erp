@@ -87,11 +87,8 @@ _QUY_DOI_SEED: list[tuple[str, str, float]] = [
 
 
 def seed_don_vi_do(db: Session) -> None:
-    """Đơn vị đo + cặp quy đổi — DỮ LIỆU VẬN HÀNH THẬT, không phải demo.
-
-    Gọi NGOÀI khối `SEED_DEMO` (như biểu thuế TNCN / ngày lễ): thiếu bảng này thì mọi phép quy đổi
-    trả "chưa khai quy đổi" và tiền khoán không tính được — tê liệt trên chính DB thật, nơi không ai
-    bật seed demo.
+    """Đơn vị đo + cặp quy đổi. Chỉ chạy khi seed được phép (`SEED_DEMO=true`, bộ nền test) hoặc
+    qua lệnh tay `app.import_danh_muc_prod` — khởi động với SEED_DEMO=false KHÔNG gọi (28/09/2026).
 
     Bổ sung theo MÃ / CẶP CÒN THIẾU (không dùng `_empty`): thêm dòng mới vào hai danh sách trên là
     DB đang chạy cũng nhận, khỏi phải drop bảng. Cặp người dùng tự sửa thì KHÔNG bị ghi đè.
@@ -139,10 +136,8 @@ def seed_don_vi_do(db: Session) -> None:
 
 
 def seed_nhom_may(db: Session) -> None:
-    """Danh mục Nhóm máy — DỮ LIỆU VẬN HÀNH THẬT, không gated demo.
-
-    Gọi NGOÀI khối `SEED_DEMO`: thiếu bảng này thì ô "Nhóm máy" trống trơn và không khai được máy
-    nào. Nạp theo TÊN CÒN THIẾU (không `_empty`) nên DB đang chạy cũng nhận, khỏi drop bảng.
+    """Danh mục Nhóm máy. Chỉ chạy khi seed được phép (`SEED_DEMO=true`, bộ nền test) hoặc qua lệnh
+    tay `app.import_danh_muc_prod`. Nạp theo TÊN CÒN THIẾU (không `_empty`).
 
     Vì sao seed ĐÔI (ở đây + migration 0155): `schema_migrations` sống qua `drop_all` nên test
     KHÔNG chạy lại migration — chỉ seed mới dựng được DB test."""

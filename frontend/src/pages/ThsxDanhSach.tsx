@@ -7,16 +7,13 @@ import { num, ngayGio, thoiLuong } from "./keHoachSxShared";
 import { nhanDonVi } from "./lsxBuoc";
 import { ThsxLenhGroups } from "./ThsxLenhGroups";
 import { ChamCho, type SxChoCuaViec } from "./thsxChoXacNhan";
-import { slThucTe, tienDoThucTe, sxNguonIcon, sxSerial, ThsxTrangThaiPill } from "./thsxShared";
+import { slTot, sxNguonIcon, sxSerial, ThsxTrangThaiPill } from "./thsxShared";
 
 interface Props {
   /** MỘT TRANG lệnh/bài ghép (máy chủ đã cắt, đếm theo lệnh); bảng bước nằm trong từng lệnh. */
   lenh: SxLenhNhom[];
   selectedId: number | null;
   onPick: (w: SxWorkItem) => void;
-  onBatDau?: (w: SxWorkItem) => void;
-  onTamDung?: (w: SxWorkItem) => void;
-  onKetThuc?: (w: SxWorkItem) => void;
   /** Việc chờ tổ bấm theo công đoạn (§11.5) — chấm đỏ trên dòng lệnh + dòng công đoạn. */
   cho?: ReadonlyMap<number, SxChoCuaViec>;
 }
@@ -71,7 +68,7 @@ function phutChayGon(w: SxWorkItem): { main: string; sub?: string } | null {
 }
 
 export function ThsxDanhSach({
-  lenh, selectedId, onPick, onBatDau, onTamDung, onKetThuc, cho,
+  lenh, selectedId, onPick, cho,
 }: Props) {
   return (
     <div className="thsx-ds__scroll">
@@ -83,7 +80,7 @@ export function ThsxDanhSach({
           <DsBang
             viec={viec}
             selectedId={selectedId}
-            onPick={onPick} onBatDau={onBatDau} onTamDung={onTamDung} onKetThuc={onKetThuc}
+            onPick={onPick}
             cho={cho}
           />
         )}
@@ -95,14 +92,11 @@ export function ThsxDanhSach({
 /** Bảng bước CỦA MỘT LỆNH. Nhãn "đang chạy / tạm dừng" của khúc đầu bảng đã dời lên dòng lệnh
  *  (`LenhDigest`), ở đây chỉ còn bảng — khỏi đếm hai lần trên cùng một màn. */
 function DsBang({
-  viec, selectedId, onPick, onBatDau, onTamDung, onKetThuc, cho,
+  viec, selectedId, onPick, cho,
 }: {
   viec: SxWorkItem[];
   selectedId: number | null;
   onPick: (w: SxWorkItem) => void;
-  onBatDau?: (w: SxWorkItem) => void;
-  onTamDung?: (w: SxWorkItem) => void;
-  onKetThuc?: (w: SxWorkItem) => void;
   cho?: ReadonlyMap<number, SxChoCuaViec>;
 }) {
   if (viec.length === 0) return null;
@@ -117,9 +111,9 @@ function DsBang({
               <th className="thsx-ds__th-cd">Công đoạn & Quy cách</th>
               <th className="thsx-ds__th-may">Máy / Trạm</th>
               <th className="thsx-ds__th-gio">Thời gian dự kiến</th>
-              <th className="thsx-ds__th-sl">Tiến độ sản lượng</th>
+              <th className="thsx-ds__th-sl">Sản lượng tốt</th>
               <th className="thsx-ds__th-vt">Định mức vật tư</th>
-              <th className="thsx-ds__th-act">Trạng thái & Thao tác</th>
+              <th className="thsx-ds__th-act">Trạng thái</th>
             </tr>
           </thead>
           <tbody>
@@ -132,9 +126,6 @@ function DsBang({
                   selected={isSelected}
                   cho={cho?.get(w.id)}
                   onPick={() => onPick(w)}
-                  onBatDau={onBatDau ? () => onBatDau(w) : undefined}
-                  onTamDung={onTamDung ? () => onTamDung(w) : undefined}
-                  onKetThuc={onKetThuc ? () => onKetThuc(w) : undefined}
                 />
               );
             })}
@@ -146,18 +137,14 @@ function DsBang({
 }
 
 function DsRowBlock({
-  w, selected, onPick, onBatDau, onTamDung, onKetThuc, cho,
+  w, selected, onPick, cho,
 }: {
   w: SxWorkItem;
   selected: boolean;
   cho?: SxChoCuaViec;
   onPick: () => void;
-  onBatDau?: () => void;
-  onTamDung?: () => void;
-  onKetThuc?: () => void;
 }) {
   const durInfo = phutChayGon(w);
-  const tienDo = tienDoThucTe(w);
   const statusCls = `thsx-ds__row--${w.trang_thai}`;
 
   return (
@@ -219,85 +206,20 @@ function DsRowBlock({
         </div>
       </td>
 
-      {/* Sản lượng & Tiến độ */}
+      {/* Sản lượng tốt — CHỈ số tốt (28/09/2026). Nhận / lỗi / tiến độ xem trong drawer. */}
       <td>
         <div className="thsx-ds__sl-cell">
-          <div className="thsx-ds__sl-top">
-            <span
-              className="thsx-ds__sl-main thsx-num"
-              title="Nhận bao nhiêu, làm tốt bao nhiêu — bấm Kết thúc thì phần còn lại tính là lỗi"
-            >
-              {slThucTe(w)}
-            </span>
-          </div>
-          {tienDo ? (
-            <div className="thsx-ds__prog-wrap">
-              <div className="thsx-ds__prog-bar">
-                <div className="thsx-ds__prog-fill" style={{ width: `${tienDo.pct}%` }} />
-              </div>
-              <div className="thsx-ds__prog-txt thsx-num">
-                <span>
-                  {w.trang_thai === "completed"
-                    ? "Đã kết thúc"
-                    : `${num(tienDo.tot)}/${num(tienDo.nhan ?? 0)}`}
-                </span>
-                <b>{tienDo.pct}%</b>
-              </div>
-            </div>
-          ) : null}
+          <span className="thsx-ds__sl-main thsx-num">{slTot(w)}</span>
         </div>
       </td>
 
       {/* Định mức vật tư */}
       <td>{renderVatTuInline(w.dinh_muc_vat_tu)}</td>
 
-      {/* Trạng thái & Thao tác nhanh */}
+      {/* Trạng thái — CHỈ nhãn (28/09/2026). Nút Bắt đầu / Tạm dừng / Kết thúc đã gỡ khỏi dòng: đứng
+          cạnh nhãn thì đọc ra thành nhiều trạng thái. Thao tác làm ở chân drawer (bấm dòng để mở). */}
       <td>
-        <div className="thsx-ds__act-cell" onClick={(e) => e.stopPropagation()}>
-          <ThsxTrangThaiPill tt={w.trang_thai} size="xs" />
-          {(w.trang_thai === "released" || w.trang_thai === "paused") && w.chay_duoc && onBatDau && (
-            <button
-              type="button"
-              className="thsx-ds__actbtn thsx-ds__actbtn--play"
-              title="Bắt đầu thực hiện công việc"
-              onClick={onBatDau}
-            >
-              <Icon name="play" size={11} /> Bắt đầu
-            </button>
-          )}
-          {w.trang_thai === "running" && w.chay_duoc && (onTamDung || onKetThuc) && (
-            <div className="thsx-ds__act-grp">
-              {onTamDung && (
-                <button
-                  type="button"
-                  className="thsx-ds__actbtn thsx-ds__actbtn--pause"
-                  title="Tạm dừng công việc"
-                  onClick={onTamDung}
-                >
-                  <Icon name="pause" size={11} /> Tạm dừng
-                </button>
-              )}
-              {onKetThuc && (
-                <button
-                  type="button"
-                  className="thsx-ds__actbtn thsx-ds__actbtn--check"
-                  title="Hoàn thành & Kết thúc"
-                  onClick={onKetThuc}
-                >
-                  <Icon name="check" size={11} /> Kết thúc
-                </button>
-              )}
-            </div>
-          )}
-          <button
-            type="button"
-            className="thsx-ds__actbtn thsx-ds__actbtn--view"
-            title="Mở chi tiết công việc ở panel phải"
-            onClick={onPick}
-          >
-            <Icon name="chevron" size={11} className="thsx-rot270" />
-          </button>
-        </div>
+        <ThsxTrangThaiPill tt={w.trang_thai} size="xs" />
       </td>
     </tr>
   );

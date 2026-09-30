@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from .db import SessionLocal
 from .locks import giu_vai_chinh
 from .realtime import hub
+from .services.thong_bao_man import bao
 from .repositories.customer_repo import CustomerRepository
 
 log = logging.getLogger(__name__)
@@ -38,6 +39,8 @@ def _scan_once(after: datetime, until: datetime) -> int:
                 "customer_id": customer.id,
                 "note": task.note,
             })
+            bao(db, kenh="khach_hang", loai="cham_soc_den_han", actor_id=None,
+                nguoi_nhan=task.assignee_user_id, ma=f"CS{task.id}", chi_mot_lan=True)
         return len(rows)
     finally:
         db.close()

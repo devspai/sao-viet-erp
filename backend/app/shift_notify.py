@@ -12,7 +12,7 @@ from __future__ import annotations
 from .realtime import hub
 
 
-def push_shift_changes(logs) -> tuple[int, int]:
+def push_shift_changes(logs, db=None) -> tuple[int, int]:
     """Đẩy SSE cho các dòng `EmployeeShiftChangeLog` VỪA GHI. Trả `(đã báo, chưa báo được)`.
 
     ⚠️ **Gọi SAU `commit()`.** Bắn trước là báo cho người lao động một thay đổi còn có thể
@@ -35,4 +35,10 @@ def push_shift_changes(logs) -> tuple[int, int]:
         by_user[uid] = by_user.get(uid, 0) + 1
     for uid, n in by_user.items():
         hub.publish(uid, {"type": "shift_changed", "count": n})
+    # Chấm đỏ Chấm công ĐÍCH DANH người bị đổi ca (không cần quyền màn — thợ xưởng vẫn phải biết).
+    if db is not None and by_user:
+        from .services.thong_bao_man import bao
+
+        bao(db, kenh="cham_cong", loai="doi_ca",
+            actor_id=getattr(logs[0], "actor_user_id", None), nguoi_nhan=list(by_user))
     return sum(by_user.values()), not_notified

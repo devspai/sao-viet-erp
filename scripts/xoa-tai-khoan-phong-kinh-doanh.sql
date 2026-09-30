@@ -4,11 +4,14 @@
 --
 -- Chạy trên VPS, từ thư mục có docker-compose.yml + .env:
 --
---   docker compose exec -T db psql -v ON_ERROR_STOP=1 \
---       -U "$POSTGRES_USER" -d "$POSTGRES_DB" < scripts/xoa-tai-khoan-phong-kinh-doanh.sql
+--   docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+--       < scripts/xoa-tai-khoan-phong-kinh-doanh.sql
 --
--- SAO LƯU TRƯỚC (bắt buộc — xoá users là không hoàn lại được):
---   docker compose exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > svn-$(date +%F-%H%M).sql
+-- Biến POSTGRES_* chỉ có BÊN TRONG container — bọc `sh -c '…'` nháy đơn, không thì shell root trên
+-- VPS thay chúng thành rỗng và psql báo `role "root" does not exist`.
+--
+-- SAO LƯU TRƯỚC (bắt buộc — xoá users là không hoàn lại được; file phải cỡ MB, rỗng là hỏng):
+--   docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > svn-$(date +%F-%H%M).sql
 --
 -- LƯU Ý: app KHÔNG có đường xoá cứng tài khoản (chỉ có khoá/mở), nên mọi bảng
 -- đang trỏ vào `users` phải tự dọn tay — phần dưới làm việc đó bằng cách đọc

@@ -234,27 +234,60 @@
   white-space: nowrap;
 }
 
-/* Badge số (đỏ) — vd số đơn Nghỉ phép chờ duyệt. Ẩn khi 0 (render-gated). */
+/* Badge báo việc mới (dấu chấm đỏ) */
 .sidebar__badge {
+  position: relative;
   flex: 0 0 auto;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--r-pill);
-  background: var(--signal);
-  color: #fff;
-  font-family: var(--ff-sans);
-  font-size: 11px;
-  font-weight: var(--fw-medium);
-  line-height: 1;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.65);
+  transition: transform var(--duration-base) var(--easing-standard),
+    background-color var(--duration-base) var(--easing-standard),
+    box-shadow var(--duration-base) var(--easing-standard);
 }
-/* Trên hàng đang active (nền rust) → đảo thành pill sáng chữ đỏ để vẫn nổi. */
+
+/* Hiệu ứng viền lan tỏa (pulse) nhẹ nhàng thu hút ánh nhìn */
+.sidebar__badge::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(239, 68, 68, 0.7);
+  animation: sidebar-badge-pulse 2s infinite ease-in-out;
+  pointer-events: none;
+}
+
+@keyframes sidebar-badge-pulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+/* Trên hàng đang active (nền rust) → giữ chấm đỏ rực rỡ kèm viền trắng 2px sắc nét, nổi bật hoàn toàn */
 .sidebar__link.is-active .sidebar__badge {
-  background: var(--paper-contrast);
-  color: var(--rust-deep);
+  background: #ff3b30;
+  box-shadow: 0 0 0 2px #ffffff, 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar__link.is-active .sidebar__badge::after {
+  border-color: rgba(255, 255, 255, 0.85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar__badge::after {
+    animation: none;
+  }
 }
 
 .sidebar__link:hover {

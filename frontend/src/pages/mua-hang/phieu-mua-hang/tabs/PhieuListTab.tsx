@@ -72,7 +72,8 @@ export function PhieuListTab({
   rows: PurchaseRequestRow[];
   selected: PurchaseRequestRow | null;
   setSelectedId: Dispatch<SetStateAction<number | null>>;
-  openYcmh: (code: string) => void;
+  /** Thiếu = không có ô Xem màn Yêu cầu mua hàng ⇒ mã chỉ hiện dạng chữ. */
+  openYcmh?: (code: string) => void;
   total: number;
   totalPages: number;
 }) {

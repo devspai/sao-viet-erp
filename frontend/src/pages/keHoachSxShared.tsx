@@ -114,6 +114,7 @@ const PILL: Record<LsxTrangThai, { label: string; cls: string }> = {
   san_sang: { label: "Sẵn sàng", cls: "khsx-pill--sansang" },
   da_lap_ke_hoach: { label: "Đã lập kế hoạch", cls: "khsx-pill--dakethoach" },
   da_phat_hanh: { label: "Đã phát hành", cls: "khsx-pill--phathanh" },
+  da_dong: { label: "Đã đóng", cls: "khsx-pill--dadong" },
 };
 
 export function TrangThaiPill({ tt, lg = false }: { tt: LsxTrangThai; lg?: boolean }) {

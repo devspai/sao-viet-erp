@@ -13,8 +13,9 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.user import User
+from ..services.thong_bao_man import bao
 from ..doi_tuong_nhan import MAN_MUA_KE_TOAN, MAN_THEO_LENH, kem_ban_to
-from ..realtime import hub, phat_ban_giao, phat_dong_nhom
+from ..realtime import hub, phat_ban_giao
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ..repositories.san_xuat_repo import SanXuatRepository
 from ..schemas.gia_cong_ngoai import (
@@ -173,9 +174,10 @@ def mang_di(
 
 def _phat_cho_chi(res: dict, user: User, db: Session) -> None:
     """Lần vừa chốt ⇒ kế toán có việc "chờ chi" (spec §6): toast đích danh + badge mọi người."""
-    for uid in GiaCongNgoaiRepository(db).nguoi_lap_phieu_chi():
-        if uid == user.id:
-            continue
+    nhan = [u for u in GiaCongNgoaiRepository(db).nguoi_lap_phieu_chi() if u != user.id]
+    bao(db, kenh="phieu_chi", loai="gia_cong_cho_chi", actor_id=user.id, nguoi_nhan=nhan,
+        ma=str(res["gia_cong_ngoai_id"]))
+    for uid in nhan:
         hub.publish(uid, {
             "type": "gia_cong_cho_chi", "gia_cong_ngoai_id": res["gia_cong_ngoai_id"],
             # Nhãn nguồn: mã lệnh, hoặc "BG-.. (LSX-A, LSX-B)" cho lần của bài ghép.
@@ -200,8 +202,6 @@ def chot(
         noi_ve=body.noi_ve, dich_cong_viec_id=body.dich_cong_viec_id))
     if res["ban_giao"]:
         phat_ban_giao(res["ban_giao"])
-    for nhom in res.get("nhoms_dong") or ([res["nhom_dong"]] if res["nhom_dong"] else []):
-        phat_dong_nhom(nhom)
     if res.get("toa"):
         # Số toả sang bước riêng từng lệnh (bàn giao đã xác nhận) — bàn tổ nhận tự nạp lại. Gói
         # không nói tổ nào ⇒ mọi người có Bàn tổ, cộng các màn theo lệnh (nhóm `san_xuat`).

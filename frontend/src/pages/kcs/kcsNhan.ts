@@ -46,9 +46,7 @@ export function kiemDuoc(trangThai: string): boolean {
 /** Trạng thái nhóm thành phẩm của lệnh. */
 export const KCS_NHOM_TRANG_THAI: Record<string, { nhan: string; cls: string }> = {
   in_production: { nhan: "Đang sản xuất", cls: "badge-sem--steel" },
-  waiting_conditions: { nhan: "Chờ điều kiện", cls: "badge-sem--amber" },
-  closed_full: { nhan: "Đã đóng đủ", cls: "badge-sem--moss" },
-  closed_short: { nhan: "Đã đóng thiếu", cls: "badge-sem--muted" },
+  closed: { nhan: "Đã đóng", cls: "badge-sem--moss" },
 };
 
 /** Tình trạng kiểm của một công đoạn theo các lần kiểm đã ghi: chưa kiểm · đạt · có lỗi.

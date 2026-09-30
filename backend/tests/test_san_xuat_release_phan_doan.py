@@ -314,7 +314,7 @@ def test_kcs_cuoi_danh_dau_moi_phan_doan_cua_buoc(db, orders, lsx_svc, xl_svc, a
 
     Không phải chỉ phân đoạn cuối: `kho.tao_yeu_cau_nhap_kho_cong_doan` chặn thẳng công việc không
     có cờ này, nên bỏ cờ ở lần chạy 1 là số ĐẠT của mẻ 7.000 không có đường vào kho; và
-    `dong_nhom.dieu_kien_dong_nhom` cộng mục tiêu trên đúng tập ấy — thiếu một phân đoạn là mục
+    `dong_lenh.tinh_trang_dong` cộng mục tiêu trên đúng tập ấy — thiếu một phân đoạn là mục
     tiêu nhóm tụt còn 3.000.
     """
     from tests.test_san_xuat_release import _steps

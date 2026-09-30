@@ -106,7 +106,7 @@ export function VatTuCongDoanField({ value, onChange }: {
       onClose={() => setMo(null)} onHuy={huy}>
       <FormulaField
         id={`ct-vt-${mo.id}`} configPrefix="/api/cong-doan" loaiO="quy_doi"
-        nhanO="Công thức định mức" onDong={huy}
+        nhanO="Công thức định mức"
         goY="Ra LƯỢNG theo ĐVT của vật tư. vd mực ăn theo số tờ: sl_vao / 40000 · dung môi rửa máy ăn theo số màu: so_mau * 0.3. Bỏ trống = bước lệnh KHÔNG bung dòng này."
         value={value[k].cong_thuc_luong ?? ""}
         onChange={(nv) => sua(k, nv)} />

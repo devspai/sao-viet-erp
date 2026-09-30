@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from .thong_bao_man import bao
 from ..models.document_sequence import (
     SEQ_DOC_TYPE_STOCK_REQUEST_IN,
     SEQ_DOC_TYPE_STOCK_REQUEST_OUT,
@@ -646,6 +647,9 @@ class StockRequestService:
         ]
         if not uids:
             return
+        # Chấm đỏ mục Kho cho đúng những người xử lý nhận chuông (commit cùng lượt chuông bên dưới).
+        bao(db, kenh="kho", loai="kho_yeu_cau_moi", actor_id=req.nguoi_tao_id, nguoi_nhan=uids,
+            ma=req.ma, commit=False)
         NotificationRepository(db).add_many(
             uids, loai="kho_moi",
             tieu_de=f"Yêu cầu {dir_} mới chờ cấp",
@@ -660,6 +664,9 @@ class StockRequestService:
         Yêu cầu tại đúng yêu cầu (link_loai='kho_mine')."""
         if not req.nguoi_tao_id:
             return
+        # Chấm đỏ mục Kho của người tạo (phản hồi kho) — đi chung commit của chuông bên dưới.
+        bao(self.requests.db, kenh="kho", loai="kho_phan_hoi", actor_id=None,
+            nguoi_nhan=req.nguoi_tao_id, ma=req.ma, commit=False)
         NotificationRepository(self.requests.db).add(
             user_id=req.nguoi_tao_id, loai=loai,
             tieu_de=tieu_de, noi_dung=req.ma,

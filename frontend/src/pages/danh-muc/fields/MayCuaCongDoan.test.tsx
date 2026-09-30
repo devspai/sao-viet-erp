@@ -45,7 +45,7 @@ describe("MayCuaCongDoanField", () => {
     await user.click(screen.getByRole("button", { name: /Komori 5 màu/ }));
     // `nhanO` render ra `<span className="rc-formula__editor-label">`, KHÔNG phải `<label for>`
     // ⇒ dùng `getByText`, `getByLabelText` sẽ không thấy.
-    expect(screen.getByText("Công thức giờ chạy")).toBeInTheDocument();
+    expect(screen.getByText(/^Công thức giờ chạy — /)).toBeInTheDocument();
     expect(screen.queryByText("Công thức giá")).not.toBeInTheDocument();
   });
 
@@ -67,7 +67,7 @@ describe("MayCuaCongDoanField", () => {
     expect(document.querySelector("#ct-gio-2")).toBeNull();
   });
 
-  it("panel là POPUP nổi ngoài bảng, bấm ra ngoài thì đóng", async () => {
+  it("panel là POPUP nổi ngoài bảng, bấm nền mờ thì đóng", async () => {
     // Lối cũ chèn hàng phụ vào chính bảng nên bấm ô ở cuối bảng là panel mọc ngoài tầm nhìn —
     // người khai bấm xong không thấy gì đổi. Hai điều kiện của bản popup: nằm NGOÀI cây của bảng,
     // và tự đóng khi bấm chỗ khác.
@@ -81,11 +81,14 @@ describe("MayCuaCongDoanField", () => {
     const pop = screen.getByRole("dialog", { name: "Công thức giá" });
     expect(container.contains(pop)).toBe(false);
 
-    await user.click(document.body);
+    // Bấm TRONG hộp không đóng; bấm nền mờ (29/09/2026: hộp giữa màn, nền quanh mờ) thì đóng.
+    await user.click(pop);
+    expect(screen.getByRole("dialog", { name: "Công thức giá" })).toBeInTheDocument();
+    await user.click(document.querySelector(".rc-ct-pop__nen") as HTMLElement);
     expect(screen.queryByRole("dialog", { name: "Công thức giá" })).toBeNull();
   });
 
-  it("✕ trả ô về công thức lúc mở, Xong thì giữ nguyên bản vừa sửa", async () => {
+  it("Huỷ trả ô về công thức lúc mở, Xong thì giữ nguyên bản vừa sửa", async () => {
     // Ô công thức ghi thẳng vào form theo từng nhịp gõ, nên popup phải tự nhớ bản gốc — không thì
     // lỡ tay sửa một ô đã khai đúng là chỉ còn đường đóng cả drawer, mất luôn mọi thứ khai dở.
     const user = userEvent.setup();
@@ -101,7 +104,7 @@ describe("MayCuaCongDoanField", () => {
     await user.click(screen.getByRole("button", { name: "×" }));
     expect(o().textContent).toBe("sl_vao * 420 *");
 
-    await user.click(screen.getByRole("button", { name: "Bỏ sửa" }));
+    await user.click(screen.getByRole("button", { name: "Huỷ" }));
     expect(o().textContent).toBe("sl_vao * 420");
 
     await user.click(o());
@@ -116,8 +119,32 @@ describe("MayCuaCongDoanField", () => {
     bay({ value: [{ may_id: 2 }], options: MAY, nhomChoPhep: ["Bế"], nhomCongDoan: "finishing",
           onChange: () => {} });
     await user.click(screen.getByRole("button", { name: /Yawa 1050/ }));
-    expect(screen.getByText("Công thức giờ chạy")).toBeInTheDocument();
+    expect(screen.getByText(/^Công thức giờ chạy — /)).toBeInTheDocument();
     expect(screen.queryByText("Công thức giá")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Sửa cách tính giá của máy này")).not.toBeInTheDocument();
+  });
+  it("popup TRỐNG mời lấy công thức chung hoặc chép từ máy khác; tiêu đề ghi tên máy", async () => {
+    const user = userEvent.setup();
+    function Bang() {
+      const [v, setV] = useState<MayCongDoanRow[]>([
+        { may_id: 1, cong_thuc_gia: "sl_vao * 420" }, { may_id: 2, cong_thuc_gia: null }]);
+      return <MayCuaCongDoanField value={v} options={MAY} nhomChoPhep={[]}
+        nhomCongDoan="print" congThucChung="sl_vao * 999" onChange={setV} />;
+    }
+    render(<AuthContext.Provider value={AUTH}><Bang /></AuthContext.Provider>);
+    const oGia = () => screen.getAllByTitle("Sửa cách tính giá của máy này");
+
+    await user.click(oGia()[1]);
+    expect(screen.getByText("Công thức giá riêng — MAY-02 · Yawa 1050")).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Chép từ máy" }), "1");
+    expect(oGia()[1].textContent).toBe("sl_vao * 420");
+    // Ô đã có công thức ⇒ lối "bắt đầu từ" rút đi, không ai lỡ tay đè.
+    expect(screen.queryByRole("combobox", { name: "Chép từ máy" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Huỷ" }));
+    expect(oGia()[1].textContent).toBe("—");
+    await user.click(oGia()[1]);
+    await user.click(screen.getByRole("button", { name: "Công thức chung của công đoạn" }));
+    expect(oGia()[1].textContent).toBe("sl_vao * 999");
   });
 });
