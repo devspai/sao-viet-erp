@@ -95,3 +95,34 @@ def test_tep_khong_phai_anh_hoac_anh_hong_tra_ban_goc(client):
     assert not anh_nho.thu_nho_duoc("kho/1/0a1b2c3d_a.pdf")
     assert not anh_nho.thu_nho_duoc("kho/1/0a1b2c3d_ban-ve.svg")
     assert anh_nho.thu_nho_duoc("kho/1/0a1b2c3d_A.JPG")
+
+
+def test_nhieu_nguoi_cung_xin_mot_anh_nho_chi_sinh_mot_lan(tmp_path, monkeypatch):
+    """Đo tải 30/09/2026: cả lưới cùng xin ảnh nhỏ chưa có ⇒ mỗi luồng đọc trọn ảnh gốc vào RAM,
+    worker bị OOM giết. Người đến sau phải chờ người đầu rồi dùng lại kết quả."""
+    import threading
+    import time
+
+    from app.storage import LocalStorage
+
+    kho = LocalStorage(root=tmp_path)
+    kho.save("a/goc.jpg", _jpeg(1200, 900))
+    doc = []
+    mo_that = kho.open_stream
+
+    def mo_cham(key):
+        doc.append(key)
+        time.sleep(0.2)  # đủ lâu để các luồng khác chồng lên
+        return mo_that(key)
+
+    monkeypatch.setattr(kho, "open_stream", mo_cham)
+    kq: list = []
+    luong = [threading.Thread(target=lambda: kq.append(anh_nho.dam_bao_anh_nho(kho, "a/goc.jpg", 160)))
+             for _ in range(8)]
+    for t in luong:
+        t.start()
+    for t in luong:
+        t.join()
+    assert doc == ["a/goc.jpg"]
+    assert kq == [anh_nho.khoa_anh_nho("a/goc.jpg", 160)] * 8
+    assert anh_nho._dang_sinh == {}

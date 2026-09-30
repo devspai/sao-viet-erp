@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import logging
+import threading
 
 from ..storage import Storage
 
@@ -27,6 +28,17 @@ _DUOI_RASTER = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif")
 _TRAN_BYTE = 25 * 2**20
 #: Chặn ảnh "bom giải nén" (khai 50.000×50.000 điểm trong vài KB): Pillow ném lỗi thay vì chỉ cảnh báo.
 _TRAN_DIEM_ANH = 60_000_000
+#: Mỗi worker sinh tối đa ngần này ảnh nhỏ CÙNG LÚC; chờ quá `_CHO_LUOT_GIAY` thì phục vụ ảnh gốc
+#: (nginx kéo thẳng từ MinIO — gần như không tốn gì phía Python). Đo tải 30/09/2026: 200 người mở
+#: lưới ảnh chưa có ảnh nhỏ ⇒ vài chục luồng mỗi worker cùng đọc trọn ảnh gốc 4–8 MB vào RAM,
+#: VM 2 GB bị OOM giết worker.
+_SINH_DONG_THOI = 2
+_CHO_LUOT_GIAY = 10.0
+_luot_sinh = threading.BoundedSemaphore(_SINH_DONG_THOI)
+#: Một khoá cho mỗi ảnh nhỏ ĐANG sinh: người thứ hai hỏi cùng ảnh chờ người đầu rồi dùng lại kết
+#: quả, không sinh lại lần nữa (ảnh mới gửi lên là cả lưới cùng xin một lúc).
+_dang_sinh: dict[str, threading.Lock] = {}
+_khoa_bang = threading.Lock()
 
 
 def thu_nho_duoc(key: str) -> bool:
@@ -37,7 +49,7 @@ def khoa_anh_nho(key: str, w: int) -> str:
     return f"{TIEN_TO}w{w}/{key}.jpg"
 
 
-def thu_nho(du_lieu: bytes, w: int) -> bytes:
+def thu_nho(du_lieu: bytes | bytearray, w: int) -> bytes:
     """JPEG chất lượng 80, CẠNH NGẮN = `w` (ô lưới cắt `object-fit: cover` nên cạnh ngắn phải đủ),
     cạnh dài chặn ở 4w cho ảnh toàn cảnh. Xoay theo EXIF — ảnh điện thoại chụp dọc lưu ngang."""
     from PIL import Image, ImageOps
@@ -66,24 +78,48 @@ def thu_nho(du_lieu: bytes, w: int) -> bytes:
 
 def dam_bao_anh_nho(store: Storage, key: str, w: int) -> str | None:
     """Khoá ảnh nhỏ (sinh nếu chưa có). `None` ⇒ không thu nhỏ được, người gọi phục vụ ảnh gốc —
-    ảnh hỏng/quá lớn/kho tệp lỗi không được làm mất ảnh trên màn."""
+    ảnh hỏng/quá lớn/kho tệp lỗi/đang quá tải không được làm mất ảnh trên màn."""
     dich = khoa_anh_nho(key, w)
     try:
         if store.ton_tai(dich):
             return dich
-        luong, co, _ = store.open_stream(key)
+    except Exception:  # noqa: BLE001
+        log.warning("Không kiểm được ảnh nhỏ %s", dich, exc_info=True)
+        return None
+    with _khoa_bang:
+        khoa = _dang_sinh.setdefault(dich, threading.Lock())
+    if not khoa.acquire(timeout=_CHO_LUOT_GIAY):
+        return None
+    try:
+        if store.ton_tai(dich):  # người trước vừa sinh xong
+            return dich
+        if not _luot_sinh.acquire(timeout=_CHO_LUOT_GIAY):
+            return None
         try:
-            if co is not None and co > _TRAN_BYTE:
-                return None
-            du_lieu = bytearray()
-            for khuc in luong:
-                du_lieu += khuc
-                if len(du_lieu) > _TRAN_BYTE:
-                    return None
+            return _sinh(store, key, dich, w)
         finally:
-            luong.close()
-        store.save(dich, thu_nho(bytes(du_lieu), w), "image/jpeg")
-        return dich
+            _luot_sinh.release()
     except Exception:  # noqa: BLE001 — mọi lỗi đều lùi về ảnh gốc
         log.warning("Không thu nhỏ được ảnh %s (w=%s)", key, w, exc_info=True)
         return None
+    finally:
+        khoa.release()
+        with _khoa_bang:
+            if _dang_sinh.get(dich) is khoa and not khoa.locked():
+                del _dang_sinh[dich]
+
+
+def _sinh(store: Storage, key: str, dich: str, w: int) -> str | None:
+    luong, co, _ = store.open_stream(key)
+    try:
+        if co is not None and co > _TRAN_BYTE:
+            return None
+        du_lieu = bytearray()
+        for khuc in luong:
+            du_lieu += khuc
+            if len(du_lieu) > _TRAN_BYTE:
+                return None
+    finally:
+        luong.close()
+    store.save(dich, thu_nho(du_lieu, w), "image/jpeg")
+    return dich
