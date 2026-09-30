@@ -27,6 +27,7 @@ import argparse
 import asyncio
 import http.cookiejar
 import json
+import io
 import os
 import random
 import re
@@ -370,8 +371,26 @@ class May:
 
     _KHO_BYTE = os.urandom(9 * 1024 * 1024)
 
+    _KHO_JPEG: dict[str, list[bytes]] = {}
+
+    @classmethod
+    def sinh_jpeg_that(cls) -> None:
+        """`--anh-that`: ảnh JPEG GIẢI MÃ ĐƯỢC (nhiễu ngẫu nhiên, Pillow). Byte ngẫu nhiên không làm ảnh
+        thu nhỏ được — máy chủ lùi về ảnh gốc, nên đo `?w=` bằng byte ngẫu nhiên là đo sai. Sinh sẵn
+        một kho nhỏ: nén 4–8MB mỗi lượt gửi là chính máy phát tải ăn CPU."""
+        from PIL import Image  # chỉ cần khi bật cờ
+
+        def jpeg(w: int, h: int, q: int) -> bytes:
+            b = io.BytesIO()
+            Image.frombytes("RGB", (w, h), os.urandom(w * h * 3)).save(b, "JPEG", quality=q)
+            return b.getvalue()
+        cls._KHO_JPEG["nho"] = [jpeg(w, w * 3 // 4, 40) for w in (1000, 1100, 1200, 1300, 1400, 1500)]
+        cls._KHO_JPEG["lon"] = [jpeg(w, w * 3 // 4, 60) for w in (3200, 3600, 4000)]
+
     @classmethod
     def _anh(cls, kb_min: float, kb_max: float) -> bytes:
+        if cls._KHO_JPEG:
+            return random.choice(cls._KHO_JPEG["lon" if kb_min >= 2048 else "nho"])
         # Byte ngẫu nhiên = không nén thêm được, đúng như JPEG. Máy chủ không soi nội dung ảnh. Cắt từ
         # MỘT khối sinh sẵn: sinh mới 4–8MB mỗi lượt gửi là chính máy phát tải ăn CPU.
         n = int(random.uniform(kb_min, kb_max) * 1024)
@@ -423,7 +442,8 @@ class May:
             # Mở một màn danh sách có ảnh: kéo vài ảnh cùng lúc như trình duyệt vẽ lưới.
             if self.kho_url:
                 ds = random.sample(self.kho_url, min(self.args.anh_moi_man, len(self.kho_url)))
-                await asyncio.gather(*(self.xem_tep(nd, u) for u in ds))
+                w = self.args.anh_w
+                await asyncio.gather(*(self.xem_tep(nd, f"{u}?w={w}" if w else u) for u in ds))
             if con_gui > 0 and random.random() < 0.3:
                 con_gui -= 1
                 await (self.gui_anh_lon(nd) if la_ql else self.gui_anh_dai_dien(nd))
@@ -694,7 +714,9 @@ def bao_cao(args, ket: dict, tn: DoTaiNguyen, bat_dau: datetime) -> str:
                  f"{thu.so_304} lượt 304 (bản trong máy vẫn đúng, không kéo byte nào)")
         L.append(f"- Ảnh nhỏ (đã nén) {args.anh_nho_kb[0]:g}–{args.anh_nho_kb[1]:g} KB; quản lý gửi "
                  f"{args.so_anh_lon} ảnh GỐC {args.anh_lon_mb[0]:g}–{args.anh_lon_mb[1]:g} MB cùng lúc; "
-                 f"mỗi màn mở {args.anh_moi_man} ảnh; tối đa {args.luot_gui} lượt gửi/người")
+                 f"mỗi màn mở {args.anh_moi_man} ảnh; tối đa {args.luot_gui} lượt gửi/người"
+                 + ("; JPEG thật" if args.anh_that else "; byte ngẫu nhiên")
+                 + (f"; xem qua `?w={args.anh_w}`" if args.anh_w else "; xem ảnh gốc"))
     if args.kich_ban == "daudca":
         L.append(f"- Chấm công thành công: **{thu.cham_cong_ok}/{args.users}**"
                  + (f"; hỏng: {dict(thu.cham_cong_hong)}" if thu.cham_cong_hong else ""))
@@ -757,6 +779,10 @@ def main() -> None:
     ap.add_argument("--so-anh-lon", type=int, default=3, help="kịch bản anh: số ảnh gốc gửi cùng lúc mỗi lượt")
     ap.add_argument("--anh-moi-man", type=int, default=10, help="kịch bản anh: số ảnh kéo mỗi lần mở màn")
     ap.add_argument("--luot-gui", type=int, default=3, help="kịch bản anh: số lượt gửi tối đa mỗi người")
+    ap.add_argument("--anh-that", action="store_true",
+                    help="kịch bản anh: gửi JPEG thật (cần Pillow) thay byte ngẫu nhiên — bắt buộc khi đo --anh-w")
+    ap.add_argument("--anh-w", type=int, choices=[160, 320], default=None,
+                    help="kịch bản anh: xem ảnh qua `?w=` (ảnh thu nhỏ, như lưới/avatar của giao diện)")
     ap.add_argument("--thoi-gian", type=int, default=150, help="giây (kịch bản reconnect: tối thiểu tới 60s sau restart)")
     ap.add_argument("--mat-khau", default=os.environ.get("TAI_PASSWORD"), help="hoặc biến môi trường TAI_PASSWORD")
     ap.add_argument("--tien-to", default="tai_")
@@ -776,8 +802,12 @@ def main() -> None:
     args = ap.parse_args()
     if not args.mat_khau:
         ap.error("thiếu --mat-khau (hoặc TAI_PASSWORD)")
+    if args.anh_w and not args.anh_that:
+        ap.error("--anh-w cần --anh-that (byte ngẫu nhiên không thu nhỏ được)")
     if args.seed is not None:
         random.seed(args.seed)
+    if args.anh_that:
+        May.sinh_jpeg_that()
 
     cpu_truoc = None
     if psutil and args.cho_may_ranh > 0:
@@ -804,7 +834,7 @@ def main() -> None:
     print(md)
     ra = Path(args.ra) if args.ra else (
         Path(__file__).parent / "ket-qua" / "lan-chay"
-        / f"{bat_dau:%Y%m%d-%H%M%S}-{args.kich_ban}-{args.users}{'-cm' if args.client_moi_nguoi else ''}.md")
+        / f"{bat_dau:%Y%m%d-%H%M%S}-{args.kich_ban}-{args.users}{'-cm' if args.client_moi_nguoi else ''}{f'-w{args.anh_w}' if args.anh_w else ''}.md")
     ra.parent.mkdir(parents=True, exist_ok=True)
     ra.write_text(md, encoding="utf-8")
     print(f"\n(đã ghi {ra})")
