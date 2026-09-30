@@ -239,3 +239,38 @@ thân `{"detail":"Máy chủ đang khởi động lại hoặc quá tải, vui l
 - Chưa thử nhánh hỏng (`.loi`: chuẩn bị schema lỗi thì worker tự dừng). Lượt này không gây lỗi migration.
 
 Tệp: `lan-chay/20260928-221505-reconnect-100-cm.md`. Log thô nằm trong scratch của phiên, không commit.
+
+
+## Tải ảnh lên/xuống — `anh`, 200 người (30/09/2026)
+
+Sửa: `/api/files` chỉ kiểm quyền rồi trả `X-Accel-Redirect` — nginx kéo byte thẳng từ MinIO bằng đường dẫn
+đã ký 60s (`KHO_TEP_QUA_NGINX`, mặc định bật trong compose); uvicorn nới hạn ping worker 5s → 30s
+(`WORKER_PING_GIAY`); nginx đổi 429 của MinIO thành 503 JSON + Retry-After.
+
+| `--users 200 --kich-ban anh --client-moi-nguoi --seed 1` | Trước (29/09) | Sau (30/09) |
+|---|---:|---:|
+| Request / lỗi | 4776 / 37,8% | 5910 / **24,6%** |
+| p50 / p95 chung | 32,6s / 102,9s | **20,9s / 68,2s** |
+| 503 | 716 | 435 |
+| `GET /api/files` lần đầu: n / p50 | 1566 / 54,1s | 2522 / **30,6s** |
+| Tải về | 513 MB (3,4 MB/s) | 812 MB (5,4 MB/s) |
+| RAM đỉnh backend / minio | 634 / 302 MiB | 522 / 306 MiB |
+
+404×143 của lượt sau đều là ảnh đại diện CŨ (người khác vừa thay) — đúng hành vi. Cả hai lượt máy phát
+tải đều ở 97% CPU host ⇒ con số tuyệt đối bị máy phát tải chặn trần; chỉ nên đọc chiều so sánh.
+
+Đo riêng (bộ phát tải trong mạng Docker, 400 lượt ảnh 2MB):
+- CPU backend cho mỗi lượt `/api/files`: ~14ms (≈ `/api/health` 11ms) — Python không còn bơm byte.
+- Đường cũ ở 100 lượt đồng thời: 503 lặp lại được (luồng bơm giữ chỗ ở cổng đồng thời). Đường mới từ host:
+  400/400 thành công ở cả 40 và 100 lượt đồng thời.
+- Worker bị uvicorn giết vì trả ping chậm hơn 5s lúc máy bão hoà ⇒ sập dây chuyền; sau khi nới 30s: 0 worker chết.
+
+**Giới hạn của máy đo (không phải lỗi code):** VM Docker Desktop chỉ 2GB RAM, chạy 11 container của 3 dự
+án, swap 931/1024MB. Ở 100 lượt tải đồng thời, MinIO lên ~450MB RSS và bị OOM killer của VM giết
+(`dmesg`: `Out of memory: Killed process (minio)`); trước đó swap làm MinIO ghi-đọc thử quá 30s và tự ngắt
+ổ /data, DNS nội bộ Docker quá giờ. MinIO tự giới hạn 67 request đồng thời trên máy 2GB (`x-ratelimit-limit`).
+⇒ Trên VPS: dành cho MinIO ≥ 512MB khi nhiều người cùng mở màn nhiều ảnh.
+
+Kiểm UI thật (stack đo tải, `tai_020`): Sửa chữa máy → SC-0075 → bấm vùng "Kéo & thả ảnh…" của Ảnh hiện trạng
+hỏng → chọn `anh_thu_ui.jpg` (15.428 byte) → POST 201, thẻ đổi "1 ảnh", ảnh hiện; `GET /api/files/...` 200
+đúng 15.428 byte, log nginx có hai upstream (backend 0,032s rồi MinIO 0,004s) ⇒ đi đường X-Accel; "Xem phóng to" hiện ảnh đúng.

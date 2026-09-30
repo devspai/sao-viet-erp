@@ -6,7 +6,7 @@ Bộ công cụ đo sức chịu tải của ERP trên một stack Docker giốn
 
 | File | Việc |
 |---|---|
-| `do_tai.py` | Chạy trên HOST. asyncio + httpx, N người dùng ảo, 3 kịch bản, in bảng markdown + ghi file. |
+| `do_tai.py` | Chạy trên HOST. asyncio + httpx, N người dùng ảo, 4 kịch bản, in bảng markdown + ghi file. |
 | `tao_du_lieu.py` | Chạy TRONG container backend. Tạo tài khoản `tai_NNN`, hồ sơ NV, vai, tổ, ca, điểm chấm công. |
 | `ket-qua/` | `truoc.md` (nền), `sau.md` (sau sửa), `lan-chay/` (bảng thô từng lượt). |
 
@@ -105,6 +105,7 @@ export TAI_PASSWORD=...            # PowerShell: $env:TAI_PASSWORD="..."
 python scripts/do-tai/do_tai.py --users 200 --kich-ban daudca    --thoi-gian 150
 python scripts/do-tai/do_tai.py --users 200 --kich-ban bando     --thoi-gian 150
 python scripts/do-tai/do_tai.py --users 200 --kich-ban reconnect --thoi-gian 120
+python scripts/do-tai/do_tai.py --users 200 --kich-ban anh       --may-id <id in ra bởi tao_du_lieu.py> --client-moi-nguoi --seed 1
 ```
 
 | Kịch bản | Mô phỏng |
@@ -112,6 +113,7 @@ python scripts/do-tai/do_tai.py --users 200 --kich-ban reconnect --thoi-gian 120
 | `daudca` | N người vào dàn đều trong 60–120s (ngẫu nhiên). Mỗi người mở app (login → quyền → chùm badge + SSE) rồi: status chấm công → `POST /api/attendance/check` → status + logs. Giữ SSE tới hết giờ. |
 | `bando` | N người mở app (dàn 30s), rồi mỗi 3–8s: status chấm công, quyền, 2 badge ngẫu nhiên trong chùm của họ, `/api/san-xuat/teams` + `work-items` của tổ mình (nếu có bàn tổ). |
 | `reconnect` | N người mở app + giữ SSE; khi ≥95% đã nối, script chạy `docker compose -p erp-svn-tai restart backend`. Đo thời gian tới khi ≥95% SSE nối lại (client chờ CỐ ĐỊNH 3s như FE hiện tại) và lỗi request trong 60s sau restart. |
+| `anh` | N người mở app, mỗi lần mở màn kéo `--anh-moi-man` ảnh qua `/api/files` (cookie `file_access`, có ETag ⇒ lượt sau 304), gửi ảnh đại diện đã nén (`--anh-nho-kb`, xoá ảnh cũ bị thay), và cứ 10 người có 1 quản lý tạo phiếu sửa chữa trên máy `MAY-DO-TAI` rồi gửi `--so-anh-lon` ảnh GỐC (`--anh-lon-mb`) cùng lúc. Tối đa `--luot-gui` lượt gửi/người. Báo cáo thêm MB lên/xuống và RAM đỉnh backend/minio. |
 
 Tham số khác:
 - `--base` (mặc định `http://127.0.0.1:8460`), `--project` (mặc định `erp-svn-tai`).

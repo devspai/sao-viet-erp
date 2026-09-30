@@ -25,7 +25,8 @@ from ..db import get_db
 from ..deps import FileUser, get_authorization_service
 from ..services.quyen_to import VIEC_XEM, quyen_to_cua
 from ..services.rbac_service import AuthorizationService
-from ..storage import LuongTep, StorageFileNotFound, get_storage, is_safe_key
+from ..config import settings
+from ..storage import LuongTep, MinioStorage, StorageFileNotFound, get_storage, is_safe_key
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -146,8 +147,22 @@ def download_file(
         # KHÔNG mở luồng MinIO — cả mục đích của 304 là khỏi kéo byte nào.
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
 
+    store = get_storage()
+    if settings.kho_tep_qua_nginx and isinstance(store, MinioStorage):
+        # Quyền đã kiểm xong ⇒ giao nginx kéo byte thẳng từ MinIO. Python bơm từng khúc qua threadpool
+        # thì 200 người mở màn có ảnh là nghẽn cả app (đo 29/09/2026: p50 54s, 3,5 lõi cho 3,4 MB/s).
+        # Kiểu tệp lấy theo ĐUÔI (không hỏi MinIO — thêm một lượt mạng) và ký vào đường dẫn, nên
+        # content-type người gửi khai lúc tải lên không bao giờ tới được trình duyệt. Header trả về
+        # (ETag, Cache-Control, nosniff) do `location /_kho_tep/` gắn — xem frontend/nginx.conf.
+        media = mimetypes.guess_type(key)[0] or "application/octet-stream"
+        return Response(status_code=status.HTTP_200_OK, headers={
+            "X-Accel-Redirect": "/_kho_tep/",
+            "X-Kho-Duong": store.duong_ky_san(key, kieu=media, trinh_bay=_content_disposition(key, media)),
+            "X-Tep-Etag": etag,
+        })
+
     try:
-        stream, size, content_type = get_storage().open_stream(key)
+        stream, size, content_type = store.open_stream(key)
     except StorageFileNotFound:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy tệp") from None
 

@@ -158,3 +158,26 @@ def test_cha_chuan_bi_hong_thi_dat_tep_loi_va_tu_dung(monkeypatch, tmp_path):
     assert su_co.is_set() and giet and (tmp_path / "schema.loi").exists()
     assert not (tmp_path / "schema").exists()
 
+
+
+def test_noi_han_ping_worker_doi_mac_dinh_va_khong_boc_chong(monkeypatch):
+    """uvicorn giết worker không trả ping trong 5s (viết cứng). Vòng giám sát gọi `is_alive()` KHÔNG
+    tham số ⇒ phải đổi hạn MẶC ĐỊNH; gọi hai lần (test/khởi động lại) không được bọc chồng."""
+    from uvicorn.supervisors import multiprocess
+
+    from app import serve
+
+    monkeypatch.setattr(multiprocess.Process, "is_alive", multiprocess.Process.is_alive)
+    han: list[float] = []
+    monkeypatch.setattr(multiprocess.Process, "ping", lambda self, timeout=5: han.append(timeout) or True)
+
+    class _TienTrinh:
+        def is_alive(self):
+            return True
+
+    gia = multiprocess.Process.__new__(multiprocess.Process)
+    gia.process = _TienTrinh()
+    serve.noi_han_ping_worker(30)
+    serve.noi_han_ping_worker(45)
+    assert gia.is_alive() is True
+    assert han == [45]

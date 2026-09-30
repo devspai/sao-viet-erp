@@ -152,6 +152,8 @@ Chốt tay (đặt trong `.env`, rồi `docker compose up -d`):
 | `DB_POOL_TIMEOUT` | `10` | chờ lấy kết nối tối đa N giây |
 | `DB_STATEMENT_TIMEOUT_MS` | `120000` | Postgres huỷ câu SQL chạy quá N ms |
 | `MAX_REQUEST_DONG_THOI` / `CHO_HANG_DOI_GIAY` | `0` / `30` | request chạy cùng lúc mỗi worker; xếp hàng quá N giây ⇒ 503 |
+| `WORKER_PING_GIAY` | `30` | uvicorn giết worker không trả ping trong N giây (uvicorn mặc định 5: máy bão hoà CPU là giết oan worker đang bận, sập dây chuyền) |
+| `KHO_TEP_QUA_NGINX` | `true` | `/api/files` chỉ kiểm quyền, nginx (`location /_kho_tep/`) kéo byte thẳng từ MinIO. `false` = Python tự bơm: 100 người cùng mở ảnh là hết suất xử lý, trả 503 |
 | `PG_LOG_CHAM_MS` | `1000` | log câu SQL chậm (-1 = tắt) |
 
 Prod và staging chung VPS thì cả hai cùng tự tính theo RAM của CẢ máy: nên chốt staging thấp

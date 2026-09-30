@@ -89,3 +89,24 @@ def test_local_storage_ghi_doc_xoa(tmp_path):
 def test_local_storage_xoa_file_khong_co_thi_im_lang(tmp_path):
     # Xoá là dọn dẹp best-effort: file rác không được làm hỏng việc xoá bản ghi.
     LocalStorage(root=tmp_path).delete("khong/co/that.jpg")
+
+
+def test_minio_duong_ky_san_chi_path_va_ky_kieu_tep():
+    """Ký tại chỗ (không gọi mạng): trả path+query KHÔNG kèm host — nginx tự ghép `minio:9000` —
+    và kiểu/tên tệp nằm trong chữ ký để MinIO trả đúng header router đã chốt."""
+    pytest.importorskip("boto3")
+    from urllib.parse import parse_qs, urlsplit
+
+    from app.storage import MinioStorage
+
+    kho = MinioStorage(endpoint="http://minio:9000", access_key="k", secret_key="s", bucket="svn-files")
+    duong = kho.duong_ky_san("ky-thuat-may/sua_chua/1/0a1b2c3d_ảnh hỏng.jpg", kieu="image/jpeg",
+                             trinh_bay="inline; filename=\"x.jpg\"")
+    p = urlsplit(duong)
+    assert not p.scheme and not p.netloc
+    assert p.path.startswith("/svn-files/ky-thuat-may/sua_chua/1/")
+    q = parse_qs(p.query)
+    assert q["response-content-type"] == ["image/jpeg"]
+    assert q["response-content-disposition"] == ['inline; filename="x.jpg"']
+    assert q["X-Amz-Expires"] == ["60"]
+    assert "X-Amz-Signature" in q

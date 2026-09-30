@@ -34,7 +34,10 @@ LOCAL_ROOT = Path(__file__).resolve().parents[1] / "static"
 URL_PREFIX = "/api/files"
 
 _MAX_NAME_LEN = 180
-_CHUNK = 64 * 1024
+# Mỗi khúc là MỘT lượt nhảy sang threadpool (StreamingResponse với iterator đồng bộ): 64KB thì ảnh 8MB
+# là 128 lượt, đo 29/09/2026 ăn 3,5 lõi cho 3,4 MB/s. Đường chính giờ là nginx kéo thẳng MinIO
+# (`duong_ky_san`); khúc to chỉ để đường dự phòng (dev, không nginx) bớt phí.
+_CHUNK = 1024 * 1024
 
 
 log = logging.getLogger(__name__)
@@ -240,6 +243,26 @@ class MinioStorage:
             obj.get("ContentLength"),
             obj.get("ContentType"),
         )
+
+    def duong_ky_san(self, key: str, *, kieu: str, trinh_bay: str, giay: int = 60) -> str:
+        """Đường dẫn GET đã ký (path + query, KHÔNG kèm host) để nginx tự kéo tệp từ MinIO.
+
+        Ký tại chỗ bằng khoá bí mật — không có lượt gọi mạng nào. `kieu`/`trinh_bay` đi vào chữ ký
+        (`response-content-type`/`-disposition`) nên MinIO trả ĐÚNG hai header router đã chốt, bất
+        kể lúc tải lên người gửi khai content-type gì. Host ký là host của `endpoint` — nginx phải
+        gửi đúng `Host` đó (xem `location /_kho_tep/`)."""
+        from urllib.parse import urlsplit
+
+        url = self._client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": self.bucket, "Key": key,
+                "ResponseContentType": kieu, "ResponseContentDisposition": trinh_bay,
+            },
+            ExpiresIn=giay,
+        )
+        p = urlsplit(url)
+        return f"{p.path}?{p.query}"
 
     def delete(self, key: str) -> None:
         # Nuốt MỌI lỗi, không chỉ ClientError: MinIO sập/timeout ném EndpointConnectionError,

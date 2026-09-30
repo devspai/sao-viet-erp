@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     max_request_dong_thoi: int = 0
     # Xếp hàng ở cổng quá bấy nhiêu giây ⇒ trả 503 "máy chủ đang bận" để client thử lại.
     cho_hang_doi_giay: float = 30.0
+    # uvicorn giết worker không trả ping trong bấy nhiêu giây (mặc định của nó là 5 — quá ngắn khi
+    # máy bão hoà CPU, xem `serve.noi_han_ping_worker`).
+    worker_ping_giay: float = 30.0
 
     # --- Redis (pub/sub SSE + lock) ---------------------------------------
     # RỖNG = không có Redis → hub SSE chạy in-process và lock thành no-op (app/realtime.py,
@@ -120,6 +123,10 @@ class Settings(BaseSettings):
     minio_access_key: str = ""
     minio_secret_key: str = ""
     minio_bucket: str = "svn-files"
+    # true = /api/files chỉ KIỂM QUYỀN rồi giao nginx kéo byte thẳng từ MinIO (X-Accel-Redirect tới
+    # `location /_kho_tep/` trong frontend/nginx.conf) thay vì Python bơm từng khúc. CHỈ bật khi
+    # đứng sau nginx của image `web` (compose); chạy uvicorn trần ở dev thì để false.
+    kho_tep_qua_nginx: bool = False
 
     # --- CORS --------------------------------------------------------------
     # Comma-separated list of allowed frontend origins.

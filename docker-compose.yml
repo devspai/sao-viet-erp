@@ -183,6 +183,9 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: ${MINIO_BUCKET:-svn-files}
+      # /api/files chỉ kiểm quyền, nginx của `web` kéo byte thẳng từ MinIO (location /_kho_tep/).
+      # Service này luôn đứng sau `web` nên mặc định bật; đặt false chỉ khi gọi backend không qua nginx.
+      KHO_TEP_QUA_NGINX: ${KHO_TEP_QUA_NGINX:-true}
       # --- Tự co giãn theo máy (backend/app/tai_nguyen.py + app/serve.py) ---
       # Mặc định dưới đây = mặc định trong backend/app/config.py; chỉ đặt trong .env khi muốn chốt
       # tay. Không được để RỖNG: backend đọc là số, chuỗi rỗng làm nó từ chối khởi động.
@@ -203,6 +206,8 @@ services:
       # CHO_HANG_DOI_GIAY giây thì trả 503 "máy chủ đang bận".
       MAX_REQUEST_DONG_THOI: ${MAX_REQUEST_DONG_THOI:-0}
       CHO_HANG_DOI_GIAY: ${CHO_HANG_DOI_GIAY:-30}
+      # uvicorn giết worker không trả ping trong N giây (mặc định của nó 5s — giết oan lúc máy bận).
+      WORKER_PING_GIAY: ${WORKER_PING_GIAY:-30}
     expose:
       - "8000"                           # chỉ nội bộ; nginx proxy vào
     # KHÔNG còn volume cho /app/static: file người dùng nằm ở MinIO, không nằm trên đĩa container.
