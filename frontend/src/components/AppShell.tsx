@@ -214,7 +214,7 @@ export function AppShell() {
   const [caps, setCaps] = useState<Capabilities>(new Map());
   // KCS theo lệnh (mg 0306): tư cách thành viên / trưởng phòng ban "Tổ KCS" — KHÔNG phải ô quyền
   // của vai. Máy chủ trả kèm bộ quyền; mở mục menu "KCS" và nút "Đóng thiếu nhóm".
-  const [kcsTuCach, setKcsTuCach] = useState<{ kcs: boolean; truongKcs: boolean }>({ kcs: false, truongKcs: false });
+  const [kcsTuCach, setKcsTuCach] = useState<{ kcs: boolean }>({ kcs: false });
   // Chấm đỏ theo nav id (1 = có bản ghi mới chưa xem). Nguồn DUY NHẤT: tóm tắt thông báo
   // (`napThongBao`) — Sidebar chỉ vẽ chấm, không in số.
   const [badges, setBadges] = useState<Record<string, number>>({});
@@ -390,7 +390,7 @@ export function AppShell() {
         // thì API trả 403 — hai nơi nói hai kiểu.
         setReadable(new Set(acc.modules));
         setCaps(buildCapabilities(acc.permissions));
-        setKcsTuCach({ kcs: !!acc.kcs, truongKcs: !!acc.truong_kcs });
+        setKcsTuCach({ kcs: !!acc.kcs });
         if (baoNeuDoi && !lanDau) pushToast("Quyền của bạn vừa được cập nhật.", "info");
       })
       .catch((err: unknown) => {
@@ -1390,7 +1390,7 @@ export function AppShell() {
   }
 
   return (
-    <PermissionsProvider caps={caps} onReload={taiLaiQuyenTuMan} kcs={kcsTuCach.kcs} truongKcs={kcsTuCach.truongKcs}>
+    <PermissionsProvider caps={caps} onReload={taiLaiQuyenTuMan} kcs={kcsTuCach.kcs}>
       <div className={`shell${navOpen ? " is-nav-open" : ""}`}>
         {/* Màn che sau ngăn kéo — chỉ tồn tại khi ngăn kéo mở (màn hẹp). */}
         {navOpen && (

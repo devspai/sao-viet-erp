@@ -71,8 +71,6 @@ interface PermissionsCtx {
   reload: () => void;
   /** Người đang đăng nhập thuộc một phòng ban có cờ "Tổ KCS" (mg 0306) — kiểm được mọi tổ. */
   kcs: boolean;
-  /** Trưởng một phòng ban "Tổ KCS" — được "Đóng thiếu nhóm". */
-  truongKcs: boolean;
 }
 
 const PermissionsContext = createContext<PermissionsCtx>({
@@ -80,7 +78,6 @@ const PermissionsContext = createContext<PermissionsCtx>({
   scopeOf: () => null,
   reload: () => {},
   kcs: false,
-  truongKcs: false,
 });
 
 export function buildCapabilities(rows: ModuleCapability[]): Capabilities {
@@ -91,13 +88,11 @@ export function PermissionsProvider({
   caps,
   onReload,
   kcs = false,
-  truongKcs = false,
   children,
 }: {
   caps: Capabilities;
   onReload?: () => void;
   kcs?: boolean;
-  truongKcs?: boolean;
   children: ReactNode;
 }) {
   function can(moduleKey: string, action: PermAction): boolean {
@@ -118,7 +113,7 @@ export function PermissionsProvider({
     return caps.get(moduleKey)?.scope ?? null;
   }
   return (
-    <PermissionsContext.Provider value={{ can, scopeOf, reload: onReload ?? (() => {}), kcs, truongKcs }}>
+    <PermissionsContext.Provider value={{ can, scopeOf, reload: onReload ?? (() => {}), kcs }}>
       {children}
     </PermissionsContext.Provider>
   );
@@ -156,10 +151,9 @@ export function useCan(): (moduleKey: string, action: PermAction) => boolean {
 }
 
 /** KCS theo lệnh (mg 0306): KHÔNG phải ô quyền của vai — là tư cách thành viên phòng ban có cờ
- *  "Tổ KCS". Máy chủ trả hai cờ này ở `GET /api/auth/permissions`; cổng thật vẫn ở máy chủ. */
-export function useKcs(): { kcs: boolean; truongKcs: boolean } {
-  const c = useContext(PermissionsContext);
-  return { kcs: c.kcs, truongKcs: c.truongKcs };
+ *  "Tổ KCS". Máy chủ trả cờ này ở `GET /api/auth/permissions`; cổng thật vẫn ở máy chủ. */
+export function useKcs(): { kcs: boolean } {
+  return { kcs: useContext(PermissionsContext).kcs };
 }
 
 /** Tải lại quyền của người đang đăng nhập. AppShell chỉ hỏi quyền MỘT lần lúc vào phiên, nên màn

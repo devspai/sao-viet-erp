@@ -68,16 +68,6 @@ class SanXuatKcsRepository:
             .limit(1)
         ) is not None
 
-    def la_truong_to_kcs(self, user_id: int | None) -> bool:
-        """Tài khoản đứng đầu (`head_user_id`) ít nhất một phòng ban `is_kcs`."""
-        if user_id is None:
-            return False
-        return self.db.scalar(
-            select(Department.id)
-            .where(Department.head_user_id == user_id, Department.is_kcs == true())
-            .limit(1)
-        ) is not None
-
     # --- Neo lại (gate/đọc) ------------------------------------------------------------------
     def cong_viec(self, cong_viec_id: int) -> SanXuatCongViec | None:
         return self.db.get(SanXuatCongViec, cong_viec_id)

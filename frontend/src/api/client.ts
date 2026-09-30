@@ -10196,13 +10196,12 @@ export const api = {
     );
   },
 
-  /** Current user's readable modules + full CRUD matrix (spec-09 action gating). `kcs` /
-   *  `truong_kcs` = thành viên / người đứng đầu một phòng ban "Tổ KCS" (mg 0306) — không phải ô
-   *  quyền của vai. */
+  /** Current user's readable modules + full CRUD matrix (spec-09 action gating). `kcs` =
+   *  thành viên một phòng ban "Tổ KCS" (mg 0306) — không phải ô quyền của vai. */
   myAccess(
     token: string,
-  ): Promise<{ modules: string[]; permissions: ModuleCapability[]; kcs?: boolean; truong_kcs?: boolean }> {
-    return authed<{ modules: string[]; permissions: ModuleCapability[]; kcs?: boolean; truong_kcs?: boolean }>(
+  ): Promise<{ modules: string[]; permissions: ModuleCapability[]; kcs?: boolean }> {
+    return authed<{ modules: string[]; permissions: ModuleCapability[]; kcs?: boolean }>(
       "/api/auth/permissions",
       token,
     );
