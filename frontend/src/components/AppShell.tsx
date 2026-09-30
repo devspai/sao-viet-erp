@@ -417,8 +417,19 @@ export function AppShell() {
   // mới ⇒ chấm; đang đứng trong màn đó ⇒ coi như đã xem (đánh dấu luôn, không chấm). Toast khi id
   // MỚI NHẤT của kênh tăng so với lượt trước (lượt đầu sau đăng nhập thì im).
   const lastThongBao = useRef<Record<string, number> | null>(null);
+  // Mở app bắn 8–9 lượt tóm tắt liền nhau (effect sau khi có quyền, SSE mở, các màn báo
+  // `onBadgeStale` lúc gắn) — đo tải 30/09/2026 đây là endpoint nặng nhất giữa ca. Đang có lượt
+  // bay thì chỉ ĐÁNH DẤU, xong lượt đó hỏi lại đúng MỘT lần: số lần gọi không theo số nguồn kích.
+  const thongBaoDangHoi = useRef(false);
+  const thongBaoHoiLai = useRef(false);
+  const napThongBaoRef = useRef<() => void>(() => {});
   const napThongBao = useCallback(() => {
     if (!token || readable === null) return;
+    if (thongBaoDangHoi.current) {
+      thongBaoHoiLai.current = true;
+      return;
+    }
+    thongBaoDangHoi.current = true;
     api.moduleNotifications
       .summary(token)
       .then((s) => {
@@ -443,8 +454,16 @@ export function AppShell() {
         );
         setBadges(cham);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        thongBaoDangHoi.current = false;
+        if (thongBaoHoiLai.current) {
+          thongBaoHoiLai.current = false;
+          napThongBaoRef.current();
+        }
+      });
   }, [token, readable, pushToast]);
+  napThongBaoRef.current = napThongBao;
 
   // Mở màn = đã xem: tắt chấm NGAY rồi dời mốc ở máy chủ; lỗi thì hỏi lại tóm tắt.
   const markModuleNotificationsRead = useCallback(

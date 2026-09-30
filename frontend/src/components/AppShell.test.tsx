@@ -275,3 +275,57 @@ describe("AppShell · chấm đỏ thanh bên", () => {
     await waitFor(() => expect(container.querySelector(".sidebar__badge")).toBeNull());
   });
 });
+
+// Đo tải 30/09/2026: mở app bắn 8–9 lượt tóm tắt liền nhau. Đang có lượt bay thì mọi lời gọi thêm
+// gộp thành ĐÚNG MỘT lượt hỏi lại khi lượt đó xong.
+describe("AppShell · tóm tắt chấm đỏ không gọi dồn", () => {
+  beforeEach(() => {
+    kenh.phat = null;
+  });
+
+  it("⭐ nhiều nguồn kích trong lúc lượt đầu chưa về ⇒ chỉ thêm một lượt", async () => {
+    const tra: Array<() => void> = [];
+    let soLuot = 0;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      let data: unknown = {};
+      if (url.includes("/api/auth/permissions")) {
+        data = { modules: ["dashboard", "luong"], permissions: [] };
+      } else if (url.includes("/api/module-notifications/summary")) {
+        soLuot += 1;
+        const res = {
+          ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
+          json: async () => ({ kenh: {} }), text: async () => JSON.stringify({ kenh: {} }),
+        } as Response;
+        return new Promise<Response>((r) => tra.push(() => r(res)));
+      }
+      return Promise.resolve({
+        ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
+        json: async () => data, text: async () => JSON.stringify(data),
+      } as Response);
+    }));
+    ve();
+    await screen.findByTestId("probe-dashboard");
+    await waitFor(() => expect(kenh.phat).not.toBeNull());
+    await waitFor(() => expect(soLuot).toBe(1));
+    // Hai nhóm hoãn KHÁC khoá ⇒ hai lời gọi riêng sau ~800ms, cả hai rơi vào lúc lượt đầu còn bay.
+    act(() => {
+      kenh.phat!({ type: "thong_bao_man" } as never);
+      kenh.phat!({ type: "advance_pending_changed" } as never);
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1000));
+    });
+    expect(soLuot).toBe(1);
+    await act(async () => {
+      tra.shift()!();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(soLuot).toBe(2);
+    await act(async () => {
+      tra.shift()!();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(soLuot).toBe(2);
+  });
+});
