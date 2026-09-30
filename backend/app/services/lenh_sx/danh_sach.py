@@ -23,6 +23,9 @@ CHI PHÍ PHẢI BIẾT (đo lại 30/09/2026 — bản trước của đoạn n�
     tăng theo thời gian, nhưng chỉ tốn MỘT cột ID + ba cột nhẹ (`_tach_da_giao_het`). Lệnh ĐÃ GIAO
     HẾT xếp tab từ hai con số và chỉ nạp khi rơi vào trang đang xem (A7, 28/09/2026). Đi đường cũ
     (nạp cả lịch sử) chỉ còn bộ lọc `tre` — xem chú thích tại chỗ.
+    "Rẻ" chỉ đúng khi câu cộng số đã giao KHÔNG lọc trạng thái chuyến trong SQL (xem
+    `lenh_sx_doc_repo.lenh_nhe`): bản lọc trong SQL tăng theo bình phương lịch sử — 2.000 lệnh đã
+    giao làm danh sách 2,96s / KPI 2,66s; lọc ở Python còn 0,51s / 0,31s (30/09/2026).
   * Phần nặng (`_soi` → `boi_canh.nap` + đèn vật tư → `can_doi()`) tuyến tính theo lệnh CÒN SỐNG,
     không theo lịch sử: bảng cân đối chỉ tính `TRANG_THAI_TINH` (lệnh `da_dong` đã rời phạm vi).
     Đo engine cân đối: ~0,5 ms mỗi lệnh còn sống; số câu SQL KHÔNG đổi theo số lệnh lẫn số bài
