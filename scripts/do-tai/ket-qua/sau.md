@@ -274,3 +274,28 @@ tải đều ở 97% CPU host ⇒ con số tuyệt đối bị máy phát tải 
 Kiểm UI thật (stack đo tải, `tai_020`): Sửa chữa máy → SC-0075 → bấm vùng "Kéo & thả ảnh…" của Ảnh hiện trạng
 hỏng → chọn `anh_thu_ui.jpg` (15.428 byte) → POST 201, thẻ đổi "1 ảnh", ảnh hiện; `GET /api/files/...` 200
 đúng 15.428 byte, log nginx có hai upstream (backend 0,032s rồi MinIO 0,004s) ⇒ đi đường X-Accel; "Xem phóng to" hiện ảnh đúng.
+
+### Gửi ảnh lên — đo riêng (30/09/2026, chiều)
+
+Giao diện đã tự nén MỌI ảnh trước khi gửi (`lib/anhNen.ts`, gọi trong `api/client.ts` và màn Sửa chữa máy):
+cạnh dài 1600px, ~400KB. Ảnh gốc 4–8MB chỉ lọt qua khi nén hỏng (HEIC trình duyệt không giải mã được).
+
+| Tải gửi (tài khoản quản lý, `POST /api/ky-thuat-may/sua_chua/{id}/anh`) | Kết quả |
+|---|---|
+| 8MB, 1 lượt một lúc | 10/10 thành công, p50 0,40s · CPU backend 220ms/lượt, MinIO 104ms |
+| 8MB, 30 lượt đồng thời (từ host) | 60/60 thành công, p50 8–11s · CPU backend ~500ms/lượt |
+| 400KB (ảnh đã nén), 1 lượt | 20/20, p50 0,07s · CPU backend 34ms/lượt (`/api/health` 11ms) |
+| 400KB, 50 đồng thời (trong mạng Docker) | 274/300 thành công, 26×503 "máy chủ đang bận" sau 30s xếp hàng ở cổng |
+
+- Người dùng khác KHÔNG bị kéo theo: trong lúc 30 lượt gửi 8MB chạy, `/api/auth/permissions` p50 24ms,
+  p95 155ms (rảnh: 37ms / 131ms).
+- CPU một lượt gửi 8MB: tách multipart ~50–70ms (khúc 64KB), `put_object` sang MinIO ~80ms (băm SHA-256 thân
+  tệp: botocore luôn ký payload khi nối MinIO qua http). Tách multipart chạy trên event loop, nhưng đo
+  `/api/health` lúc tải chỉ tăng p95 36 → 58ms.
+- 50 đồng thời bị 503 vì stack đo chỉ có 2 worker (container 980MB RAM ⇒ trần theo RAM), mỗi worker ~1
+  lõi (GIL): ~14 lượt gửi/giây là trần. Đây là trần CHUNG của backend, không riêng đường ảnh.
+- 50/54 "ảnh gốc" `dang_cho` trong lượt 200 người: 20 quản lý × 3 ảnh ~6MB ≈ 360MB gửi lên + 812MB tải về
+  đi chung đường chuyển cổng Windows → Docker Desktop (~8–9 MB/s đo riêng) trong 150s — nghẽn ở máy đo.
+
+⇒ Không đổi code đường gửi: chuyển sang trình duyệt gửi thẳng MinIO (presigned) chỉ bớt ~20ms/ảnh đã nén
+mà phải sửa mọi màn tải tệp + dọn tệp mồ côi. Sức chứa thật phụ thuộc số worker = CPU/RAM của VPS.
