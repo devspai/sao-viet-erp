@@ -56,7 +56,7 @@ class StockVoucherError(Exception):
 
 class StockVoucherService:
     def __init__(self, vouchers, requests, lots, sequence, request_service, hang,
-                 giu_cho=None) -> None:
+                 giu_cho=None, hen_nhat_them=None) -> None:
         self.vouchers = vouchers
         self.requests = requests
         self.lots = lots
@@ -70,6 +70,10 @@ class StockVoucherService:
         #   · GHI SỔ — xuất xong thì nhả phần giữ tương ứng, nhập xong thì tự nhặt thêm cho lệnh
         #     đang chờ (`tieu_thu` / `nhat_them`).
         self.giu_cho = giu_cho
+        # Hẹn chạy `nhat_them()` SAU khi phản hồi đã trả (router gắn BackgroundTasks, session mới).
+        # Vắng ⇒ chạy ngay sau commit, trong cùng lượt gọi — `nhat_them` dựng cả bảng cân đối toàn
+        # xưởng, nên chỉ để vậy ở chỗ không có người đứng chờ (script, test).
+        self.hen_nhat_them = hen_nhat_them
         # `VatLieuKhoService` — tra danh mục gốc + quy đổi đơn vị.
         #
         # GỠ 2026-08-08: `materials` + `material_service` + `_create_new_material()`. Phiếu từng tự
@@ -323,7 +327,10 @@ class StockVoucherService:
             # nhập-trước-xuất-trước). Kiểm ở đây chứ không ở lúc lập phiếu — lập phiếu là nháp, còn
             # ghi sổ mới là lúc hàng thật rời kho, và giữa hai mốc đó tồn tự do có thể đã đổi.
             if self.giu_cho is not None:
-                for (hang, chu), sl in self._gom_theo_hang_va_chu_the(v, lines_by_id).items():
+                # Gom MỘT lần, pha 3 dùng lại: khi có dòng thuộc bài ghép, hàm này dựng cả bảng
+                # cân đối — trước đây chạy hai lần trong cùng lượt ghi sổ, đang giữ khoá phiếu.
+                gom_xuat = self._gom_theo_hang_va_chu_the(v, lines_by_id)
+                for (hang, chu), sl in gom_xuat.items():
                     loi = self.giu_cho.kiem_xuat(
                         hang=hang, so_luong=sl, lsx_id=chu[0], bai_ghep_id=chu[1])
                     if loi:
@@ -366,22 +373,25 @@ class StockVoucherService:
         # là đếm hai lần: tồn đã giảm khi ghi sổ, mà chỗ giữ vẫn trừ tiếp vào tồn tự do ⇒ mọi lệnh
         # khác báo thiếu oan.
         #
-        # NHẬP ⇒ hàng vừa vào kho, gọi `nhat_them` để lệnh nào đang bật công tắc mà còn thiếu thì
-        # được bù NGAY. Đây là toàn bộ ý nghĩa của "bật = đăng ký, không phải chụp một lần" —
-        # không ai phải nhớ quay lại bấm đúng lúc hàng nhập.
+        # NHẬP ⇒ hàng vừa vào kho, lệnh nào đang bật công tắc mà còn thiếu thì được bù NGAY
+        # (`nhat_them`). Đây là toàn bộ ý nghĩa của "bật = đăng ký, không phải chụp một lần" —
+        # không ai phải nhớ quay lại bấm đúng lúc hàng nhập. `nhat_them` chạy SAU commit (`post`),
+        # không ở đây: nó dựng cả bảng cân đối toàn xưởng.
+        #
+        # `commit=False`: cả lượt ghi sổ là MỘT giao dịch. Commit con ở đây từng nhả khoá dòng phiếu
+        # khi phiếu còn NHÁP ⇒ lượt ghi sổ thứ hai đang chờ khoá đọc thấy NHÁP và ghi sổ lần nữa.
         if self.giu_cho is not None:
             if v.loai == VOUCHER_XUAT:
-                for (hang, chu), sl in self._gom_theo_hang_va_chu_the(v, lines_by_id).items():
+                for (hang, chu), sl in gom_xuat.items():
                     if chu != (None, None):
                         self.giu_cho.tieu_thu(hang=hang, so_luong=sl,
-                                              lsx_id=chu[0], bai_ghep_id=chu[1])
+                                              lsx_id=chu[0], bai_ghep_id=chu[1], commit=False)
             else:
                 # Hàng vừa vào kho: TRƯỚC hết, phần đang giữ HỨA của đúng mặt hàng này (nếu có)
                 # phải chuyển thành giữ THẬT — không thì lệnh bị khoá lịch theo một ngày về đã
                 # thành quá khứ dù hàng đã nằm trong kho (xem `chuyen_dang_ve_sang_kho`).
                 for hang, sl in self._gom_theo_hang_nhap(v).items():
-                    self.giu_cho.chuyen_dang_ve_sang_kho(hang, sl)
-                self.giu_cho.nhat_them()
+                    self.giu_cho.chuyen_dang_ve_sang_kho(hang, sl, commit=False)
 
         v.trang_thai = VOUCHER_POSTED
         v.ghi_so_luc = datetime.now(timezone.utc)
@@ -392,10 +402,8 @@ class StockVoucherService:
     def post(self, voucher_id: int, user=None):
         """Ghi sổ phiếu — điểm DUY NHẤT tồn kho đổi.
 
-        ⚠️ KHÔNG chạy nguyên trong 1 transaction rollback-safe: phần giữ chỗ (nếu `self.giu_cho`
-        có gắn) — `chuyen_dang_ve_sang_kho()`, `doi_soat_dang_ve()`, `nhat_them()` — tự
-        `db.commit()` giữa chừng, cùng kiểu pre-existing với chính hàm này. Lỗi nửa chừng SAU một
-        commit con thì phần đã commit đó KHÔNG rollback theo.
+        MỘT giao dịch, MỘT commit — kể cả phần giữ chỗ (nhả khi xuất, chuyển đang-về → kho khi
+        nhập). Nhặt thêm giữ chỗ cho lệnh đang chờ (`nhat_them`) chạy SAU commit, ngoài khoá phiếu.
 
         ĐIỀU CHUYỂN (mô hình 2 yêu cầu): phiếu XUẤT nguồn được tạo NHÁP lúc ấn điều chuyển, CHƯA trừ
         tồn. Khi kho đích ghi sổ phiếu NHẬP → ghi sổ LUÔN phiếu xuất nguồn (draft) trong CÙNG một
@@ -434,6 +442,10 @@ class StockVoucherService:
         req = self._apply_post(v, user)                                          # cộng đích
         self.vouchers.db.commit()  # MỘT commit → trừ nguồn + cộng đích cùng nhịp (atomic)
         self.vouchers.db.refresh(v)
+        if self.giu_cho is not None:
+            self.giu_cho.sau_ghi_so()
+            if v.loai == VOUCHER_NHAP:
+                self._nhat_them_sau_commit()
         # Yêu cầu tự chuyển Hoàn tất / Đã cấp một phần + đẩy realtime (vế xuất nguồn im lặng).
         if src_req is not None:
             self.request_service.refresh_fulfillment(src_req)
@@ -550,14 +562,21 @@ class StockVoucherService:
                 # phân biệt được (spec §2.3).
                 rl.sl_chot_thuc_xuat = float(rl.sl_da_ung)
 
-        # Trả hàng về tồn tự do → lệnh khác đang chờ (giữ chỗ) có thể nhặt thêm ngay.
-        if self.giu_cho is not None:
-            self.giu_cho.nhat_them()
-
         self.vouchers.db.commit()
         self.vouchers.db.refresh(v)
+        # Trả hàng về tồn tự do → lệnh khác đang chờ (giữ chỗ) nhặt thêm — SAU commit, không giữ
+        # khoá phiếu + dòng lô suốt lúc dựng bảng cân đối.
+        if self.giu_cho is not None:
+            self.giu_cho.sau_ghi_so()
+            self._nhat_them_sau_commit()
         self.request_service.refresh_fulfillment(req)
         return v, changes
+
+    def _nhat_them_sau_commit(self) -> None:
+        if self.hen_nhat_them is not None:
+            self.hen_nhat_them()
+        else:
+            self.giu_cho.nhat_them()
 
     @staticmethod
     def _gom_theo_hang_nhap(v) -> dict[tuple, float]:

@@ -717,7 +717,7 @@ class GiuChoService:
             _bao_ke_hoach_vat_tu_doi()
         return len(moi)
 
-    def chuyen_dang_ve_sang_kho(self, hang: Hang, so_luong: float) -> None:
+    def chuyen_dang_ve_sang_kho(self, hang: Hang, so_luong: float, *, commit: bool = True) -> None:
         """Hàng NHẬP KHO xong: phần đang giữ HỨA (`dang_ve`) của CHÍNH mặt hàng đó phải chuyển
         thành giữ THẬT (`kho`) — không thì chủ thể vẫn bị `xep_som_nhat` khoá tới một `ngay_ve`
         đã lỗi thời, dù hàng nó bám vào đang nằm ngay trong kho.
@@ -729,6 +729,9 @@ class GiuChoService:
         Cũ nhất trước (`created_at` tăng dần) — cùng luật "cam kết cũ được bảo vệ" của mọi chỗ nhả
         khác trong file này. Cố ý KHÔNG neo theo `purchase_request_line_id` cụ thể: giữ chỗ chỉ ăn
         theo (mặt hàng, số lượng), không đích danh lô/dòng phiếu nào (luật ② docstring model).
+
+        `commit=False`: người gọi đang giữa một giao dịch của chính nó (ghi sổ phiếu) — KHÔNG commit
+        hộ, và tự gọi `sau_ghi_so()` sau khi CHÍNH nó commit.
         """
         con = round(float(so_luong), 2)
         if con <= 0:
@@ -759,7 +762,13 @@ class GiuChoService:
                     bai_ghep_id=r.bai_ghep_id, so_luong=bot, nguon=NGUON_KHO, ngay_ve=None,
                     purchase_request_line_id=None,
                 ))
-        self.db.commit()
+        if commit:
+            self.db.commit()
+            self.sau_ghi_so()
+
+    def sau_ghi_so(self) -> None:
+        """Việc SAU KHI giao dịch kho đã commit: bảng cân đối cache không còn đúng, màn Kế hoạch vật
+        tư phải tải lại. Không làm trước commit — rollback thì đã báo một thay đổi không có thật."""
         xoa_cache_can_doi()
         _bao_ke_hoach_vat_tu_doi()
 
@@ -796,7 +805,8 @@ class GiuChoService:
         )
 
     def tieu_thu(self, *, hang: Hang, so_luong: float,
-                 lsx_id: int | None = None, bai_ghep_id: int | None = None) -> float:
+                 lsx_id: int | None = None, bai_ghep_id: int | None = None,
+                 commit: bool = True) -> float:
         """Kho ĐÃ ghi sổ xuất — phần giữ chỗ tương ứng HOÁ THÀNH phần đã cấp, nhả khỏi bảng này.
 
         Không nhả thì đếm hai lần: tồn đã giảm khi kho ghi sổ, mà chỗ giữ vẫn còn trừ tiếp vào tồn
@@ -818,7 +828,8 @@ class GiuChoService:
                 self.db.delete(r)
             else:
                 r.so_luong = round(_f(r.so_luong) - bot, 2)
-        self.db.commit()
+        if commit:
+            self.db.commit()
         return float(so_luong) - con
 
     # ================== phụ ==================

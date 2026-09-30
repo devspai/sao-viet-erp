@@ -8,10 +8,12 @@ Bản in 01-VT/02-VT dùng chính response này nên tự động bỏ 2 cột t
 from __future__ import annotations
 
 import json
+import logging
 from typing import Annotated
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -22,7 +24,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+from ..db import SessionLocal, get_db
 from ..deps import get_authorization_service, require_any_permission, require_permission
 from ..models.stock_voucher import VOUCHER_NHAP
 from ..models.user import User
@@ -98,7 +100,11 @@ def _hang_service(db: Session) -> VatLieuKhoService:
     return VatLieuKhoService(VatLieuKhoRepository(db), DonViDoRepository(db))
 
 
-def get_service(db: Annotated[Session, Depends(get_db)]) -> StockVoucherService:
+_log = logging.getLogger(__name__)
+
+
+def get_service(db: Annotated[Session, Depends(get_db)],
+                nen: BackgroundTasks) -> StockVoucherService:
     sequence = SequenceService(DocumentSequenceRepository(db))
     requests = StockRequestRepository(db)
     lots = StockLotRepository(db)
@@ -108,7 +114,21 @@ def get_service(db: Annotated[Session, Depends(get_db)]) -> StockVoucherService:
     return StockVoucherService(
         StockVoucherRepository(db), requests, lots, sequence, request_service, hang,
         giu_cho=_giu_cho_service(db),
+        hen_nhat_them=lambda: nen.add_task(_nhat_them_nen),
     )
+
+
+def _nhat_them_nen() -> None:
+    """Nhặt thêm giữ chỗ SAU khi đã trả phản hồi ghi sổ: dựng cả bảng cân đối toàn xưởng, thủ kho
+    không phải đứng chờ. Session MỚI — session của request đã đóng trước khi việc nền chạy."""
+    db = SessionLocal()
+    try:
+        _giu_cho_service(db).nhat_them()
+    except Exception:  # noqa: BLE001 — việc nền, không còn ai để báo lỗi
+        db.rollback()
+        _log.exception("Nhặt thêm giữ chỗ sau ghi sổ lỗi")
+    finally:
+        db.close()
 
 
 def _giu_cho_service(db: Session):
