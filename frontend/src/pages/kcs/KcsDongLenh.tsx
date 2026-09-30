@@ -7,11 +7,13 @@ import { ApiError, api, type SxDongLenhTinhTrang } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { Icon } from "../../components/Icons";
 import { num } from "../keHoachSxShared";
+import { nhanDonVi } from "../lsxBuoc";
+import { useNapTenDonVi } from "../tenDonVi";
 
 function gioVN(iso: string): string {
-  return new Date(iso).toLocaleString("vi-VN", {
-    hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit",
-  });
+  const d = new Date(iso);
+  const hai = (n: number) => String(n).padStart(2, "0");
+  return `${hai(d.getHours())}:${hai(d.getMinutes())} ${hai(d.getDate())}/${hai(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
 export function tieuDeDong(tt: SxDongLenhTinhTrang): string {
@@ -33,6 +35,7 @@ export function KcsDongLenh({
   const [loi, setLoi] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [hop, setHop] = useState(false);
+  useNapTenDonVi();
 
   const tai = useCallback(() => {
     if (!token) return;
@@ -63,7 +66,7 @@ export function KcsDongLenh({
     }
   }
 
-  const dv = tt?.don_vi ? ` ${tt.don_vi}` : "";
+  const dv = tt?.don_vi ? ` ${nhanDonVi(tt.don_vi)}` : "";
 
   return (
     <section className="kcs-section">

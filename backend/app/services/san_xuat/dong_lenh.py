@@ -57,7 +57,9 @@ def _so_lieu(db: Session, nhom_id: int) -> dict:
         "chua_kiem": max(tot - dat - loi, 0.0),
         "chua_gui_kho": chua_gui,
         "viec_do": [cv for cv in cvs if cv.trang_thai != CV_HOAN_THANH],
-        "don_vi": next((cv.don_vi_ra for cv in cuoi if cv.don_vi_ra), "") or "",
+        # ĐVT của LỆNH ("hộp") — cùng chữ màn Kế hoạch SX; `don_vi_ra` là MÃ chặng ("cai").
+        "don_vi": next((l.don_vi_tinh for l, _tv in repo.lenh_cua_nhom(nhom_id) if l.don_vi_tinh), "")
+        or next((cv.don_vi_ra for cv in cuoi if cv.don_vi_ra), "") or "",
     }
 
 
