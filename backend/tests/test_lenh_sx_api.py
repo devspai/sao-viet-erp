@@ -859,8 +859,15 @@ def test_ket_thuc_lan_hai_bi_chan_nen_dau_khong_bi_ghi_de(sess, admin, lenh_that
 
 
 # --- N+1: số câu SQL hằng TRÊN TRỤC LỆNH (trục BÀI GHÉP thì nở — xem docstring dưới) -------------
-def _dem_sql(fn):
-    """Đếm câu SQL thật sự gửi xuống driver trong lúc chạy `fn`."""
+def _dem_sql(fn, *, xoa_cache: bool = True):
+    """Đếm câu SQL thật sự gửi xuống driver trong lúc chạy `fn`.
+
+    Mặc định xoá cache đèn vật tư trước (`danh_sach._den_vat_tu_co_cache`) ⇒ đo đường LẠNH — trần
+    thật của một request khi cache vừa bị xoá."""
+    from app.services.can_doi_cache import xoa_cache_can_doi
+
+    if xoa_cache:
+        xoa_cache_can_doi()
     n = 0
 
     def _ghi(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001, ARG001
@@ -939,6 +946,38 @@ def test_so_cau_sql_hang_tren_truc_lenh(sess, orders, lsx_svc, admin, customer):
     n5 = _dem_sql(lambda: danh_sach.danh_sach(sess, sale_ids=None, bay_gio=BAY_GIO))
     assert len(danh_sach.danh_sach(sess, sale_ids=None, bay_gio=BAY_GIO)["items"]) == 5
     assert n3 == n5, f"số câu SQL nở theo số lệnh: {n3} → {n5}"
+
+
+def test_den_vat_tu_dung_cache_giua_danh_sach_va_summary(sess, orders, lsx_svc, admin, customer):
+    """Màn tải `danh_sach` + `summary` sau MỖI sự kiện SSE: lượt thứ hai trên cùng tập lệnh không
+    dựng lại bảng cân đối; xoá cache (kho/giữ chỗ/lệnh đổi) thì dựng lại."""
+    from app.services.ke_hoach_vat_tu_service import KeHoachVatTuService
+
+    _dot_dong_don(sess, 8)
+    _nen_hinh_dang_that(sess, orders, lsx_svc, admin, customer)
+    lanh = _dem_sql(lambda: danh_sach.danh_sach(sess, sale_ids=None, bay_gio=BAY_GIO))
+    nong = _dem_sql(lambda: danh_sach.summary(sess, sale_ids=None, bay_gio=BAY_GIO),
+                    xoa_cache=False)
+    nong_ds = _dem_sql(lambda: danh_sach.danh_sach(sess, sale_ids=None, bay_gio=BAY_GIO),
+                       xoa_cache=False)
+    assert nong_ds < lanh, f"lượt hai vẫn dựng lại cân đối: {lanh} → {nong_ds}"
+    assert nong < lanh
+
+    goi = {"n": 0}
+    goc = KeHoachVatTuService.can_doi
+
+    def dem(self, *a, **kw):
+        goi["n"] += 1
+        return goc(self, *a, **kw)
+
+    KeHoachVatTuService.can_doi = dem
+    try:
+        danh_sach.danh_sach(sess, sale_ids=None, bay_gio=BAY_GIO)
+        assert goi["n"] == 0
+        _dem_sql(lambda: danh_sach.danh_sach(sess, sale_ids=None, bay_gio=BAY_GIO))
+        assert goi["n"] == 1
+    finally:
+        KeHoachVatTuService.can_doi = goc
 
 
 def test_summary_so_cau_sql_hang_tren_truc_lenh(sess, orders, lsx_svc, admin, customer):

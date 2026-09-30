@@ -92,6 +92,7 @@ from ...models.may_thiet_bi import MayThietBi
 from ...models.order import Order
 from ...models.san_xuat import CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG, SanXuatCongViec
 from ...repositories.lenh_sx_doc_repo import LenhNhe, LenhSxDocRepository
+from ..can_doi_cache import lay_hoac_tinh
 from . import boi_canh, pham_vi, tien_do, trang_thai
 from .boi_canh import BoiCanh
 
@@ -240,7 +241,7 @@ def _soi(db: Session, lsx_ids: list[int], bay_gio: datetime) -> tuple[BoiCanh, d
     biết. `xong` cũng truyền vào để đường găng chỉ duyệt MỘT lần cho mỗi lệnh thay vì bốn.
     """
     bc = boi_canh.nap(db, lsx_ids)
-    den = trang_thai.den_vat_tu_theo_lo(db, lsx_ids)
+    den = _den_vat_tu_co_cache(db, lsx_ids)
     ket: dict[int, dict] = {}
     for i in lsx_ids:
         xong = tien_do.du_kien_xong(bc, i, bay_gio)
@@ -253,6 +254,22 @@ def _soi(db: Session, lsx_ids: list[int], bay_gio: datetime) -> tuple[BoiCanh, d
             "tre": trang_thai.CO_TRE_HAN in co,
         }
     return bc, ket
+
+
+def _den_vat_tu_co_cache(db: Session, lsx_ids: list[int]) -> dict[int, str]:
+    """Đèn vật tư qua cache 45 giây của bảng cân đối (`services/can_doi_cache.py`), khoá theo TẬP
+    lệnh. Màn tải lại CẢ `danh_sach` lẫn `summary` sau MỖI sự kiện SSE, mỗi lượt là một lần
+    `can_doi()` — cache cho hai lượt ấy (và mọi tab đang mở cùng tập) dùng chung một kết quả.
+
+    Đèn không phụ thuộc người gọi: phạm vi người bán đã cắt ở tầng 1, nên cùng tập id ⇒ cùng đèn.
+    Xoá sớm ở chính những chỗ đang xoá cache cân đối (giữ chỗ, ghi sổ kho, lệnh, xếp lịch); chỗ
+    khác thì đèn trễ tối đa 45 giây — đèn chỉ để NHÌN, cửa chặn thật (`_chan_chua_giu_du`) vẫn tính
+    tươi. JSON làm khoá dict thành chuỗi nên đổi lại về int."""
+    tho = lay_hoac_tinh(
+        lambda: {str(k): v for k, v in trang_thai.den_vat_tu_theo_lo(db, lsx_ids).items()},
+        loai="den_lenh_sx", lsx_ids=sorted(lsx_ids),
+    )
+    return {int(k): v for k, v in tho.items()}
 
 
 def _bat_dau(cv: SanXuatCongViec) -> datetime:

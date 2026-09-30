@@ -104,7 +104,8 @@ _log = logging.getLogger(__name__)
 
 
 def get_service(db: Annotated[Session, Depends(get_db)],
-                nen: BackgroundTasks) -> StockVoucherService:
+                nen: BackgroundTasks = None) -> StockVoucherService:  # type: ignore[assignment]
+    # `nen` vắng khi test/service khác gọi thẳng `get_service(db)` ⇒ nhặt thêm chạy ngay sau commit.
     sequence = SequenceService(DocumentSequenceRepository(db))
     requests = StockRequestRepository(db)
     lots = StockLotRepository(db)
@@ -114,7 +115,7 @@ def get_service(db: Annotated[Session, Depends(get_db)],
     return StockVoucherService(
         StockVoucherRepository(db), requests, lots, sequence, request_service, hang,
         giu_cho=_giu_cho_service(db),
-        hen_nhat_them=lambda: nen.add_task(_nhat_them_nen),
+        hen_nhat_them=(lambda: nen.add_task(_nhat_them_nen)) if nen is not None else None,
     )
 
 

@@ -63,6 +63,17 @@ def client():
         yield c
 
 
+@pytest.fixture(autouse=True)
+def _don_cache_can_doi():
+    """Cache cân đối / đèn Lệnh SX là dict TRONG TIẾN TRÌNH (REDIS_URL rỗng) và khoá theo id lệnh —
+    mỗi test dán lại DB nên id dùng lại, không xoá thì test sau đọc đèn của test trước."""
+    from app.services.can_doi_cache import xoa_cache_can_doi
+
+    xoa_cache_can_doi()
+    yield
+    xoa_cache_can_doi()
+
+
 @pytest.fixture
 def seed_credentials() -> dict[str, str]:
     # Login is by username (spec-0001).
