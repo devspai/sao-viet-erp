@@ -195,6 +195,8 @@ class KeHoachVatTuService:
         # rơi vào `_quy_doi_dong` mà phần lớn là dựng lại đồ thị này.
         self._cap = cap_map(self._cap_rows)
         self._tram_cache = None
+        # Hệ số theo CẶP (từ, về) — xem `_he_so`. Xoá cùng lúc với danh mục đơn vị vừa nạp lại.
+        self._he_so_cache: dict[tuple[str, str], dict] = {}
 
     def _tram(self) -> dict[str, str]:
         """Bản đồ `{mã đơn vị: trạm}` — CACHE.
@@ -260,7 +262,6 @@ class KeHoachVatTuService:
         goc = (getattr(obj, "don_vi_gia", None) or "").strip()
         if not goc:
             return {"loi": f"“{obj.ten}” chưa chọn đơn vị tính ở danh mục."}
-        qc = self._quy_cach_cua(hang[0], obj, qc_lenh)
         # CÔNG THỨC LƯỢNG của chính mặt hàng đi TRƯỚC (mg 0194/0195): nó đã tự nhân số lượng của
         # lệnh nên ra thẳng TỔNG theo đơn vị gốc — không quy đổi từ `dvt` nữa.
         #
@@ -288,6 +289,9 @@ class KeHoachVatTuService:
         ct = (getattr(obj, "cong_thuc_luong", None) or "").strip() if (
             tong_lenh and hang[0] == HANG_GIAY) else ""
         if ct:
+            # Quy cách chỉ dựng ở đây — chỉ công thức lượng đọc nó, còn phép đổi đơn vị bên dưới
+            # không (đo 30/09/2026: dựng cho mọi dòng tốn ~0,1s mỗi 10 nghìn dòng mà vứt đi).
+            qc = self._quy_cach_cua(hang[0], obj, qc_lenh)
             # Đường này chạy ở TẦNG LỆNH cho GIẤY — không đứng trong bước nào, nên số lượt
             # lấy mặc định 1 chứ không hỏi được ai.
             ctx = {**ngu_canh_lenh(qc), **MAC_DINH_TANG_LENH}
@@ -298,21 +302,47 @@ class KeHoachVatTuService:
                 so_luong, dvt = float(safe_eval(ct, ctx)), goc
             except (ValueError, ZeroDivisionError) as e:
                 return {"loi": f"Công thức lượng của {obj.ten} không chạy được ({e})."}
-        # `doi` thẳng thay cho `doi_theo_quy_cach`: hàm kia chỉ làm thêm đúng hai việc — bỏ `qc`
-        # (đã hết dùng từ 14/08/2026) và dựng `cap_map`, thứ nay đã có sẵn ở `self._cap`.
-        kq = doi(so_luong, dvt, goc, self._dvs, self._cap)
-        if "gia_tri" not in kq:
-            return {"loi": kq.get("ly_do") or "Không đổi được đơn vị."}
-        goc_ten = (self._dvs.get(goc.lower()) or {}).get("ten") or goc
-        dvt_ten = (self._dvs.get((dvt or "").strip().lower()) or {}).get("ten") or dvt
+        hs = self._he_so(dvt, goc)
+        if "loi" in hs:
+            return {"loi": hs["loi"]}
+        gia_tri = _f(so_luong) * hs["he_so"]
+        goc_ten, dvt_ten = hs["goc_ten"], hs["dvt_ten"]
         # Hai đơn vị cùng lúc: kế hoạch NGHĨ theo tờ, kho ĐẾM theo đơn vị gốc. Hiện một cái thôi là
         # một trong hai bên phải nhẩm trong đầu, mà nhẩm thì sai.
         hien_thi = (
             f"{_so(so_luong)} {dvt_ten}"
             if dvt_ten == goc_ten
-            else f"{_so(so_luong)} {dvt_ten} ≈ {_so(kq['gia_tri'])} {goc_ten}"
+            else f"{_so(so_luong)} {dvt_ten} ≈ {_so(gia_tri)} {goc_ten}"
         )
-        return {"sl": float(kq["gia_tri"]), "don_vi_goc_ten": goc_ten, "hien_thi": hien_thi}
+        return {"sl": float(gia_tri), "don_vi_goc_ten": goc_ten, "hien_thi": hien_thi}
+
+    def _he_so(self, dvt: str, goc: str) -> dict:
+        """`{he_so, goc_ten, dvt_ten}` hoặc `{loi}` của cặp `dvt → goc` — NHỚ theo cặp.
+
+        Phép đổi theo cặp là TUYẾN TÍNH (`doi` = số × tích hệ số dọc đường, hoặc giữ nguyên khi
+        cùng đơn vị), nên hỏi engine MỘT lần với 1 rồi nhân là ra đúng từng bit như gọi cho từng
+        dòng. Bảng cân đối có hàng nghìn dòng mà chỉ vài chục cặp đơn vị; gọi `doi` mỗi dòng là tìm
+        đường + dựng chuỗi diễn giải hàng nghìn lần để vứt (đo 30/09/2026: ~0,4s / 10 nghìn dòng).
+        `doi` thẳng thay cho `doi_theo_quy_cach`: hàm kia chỉ làm thêm đúng hai việc — bỏ `qc`
+        (đã hết dùng từ 14/08/2026) và dựng `cap_map`, thứ nay đã có sẵn ở `self._cap`.
+        """
+        khoa = ((dvt or "").strip().lower(), goc)
+        nho = getattr(self, "_he_so_cache", None)
+        if nho is None:
+            nho = self._he_so_cache = {}
+        kq = nho.get(khoa)
+        if kq is None:
+            mot = doi(1.0, dvt, goc, self._dvs, self._cap)
+            if "gia_tri" not in mot:
+                kq = {"loi": mot.get("ly_do") or "Không đổi được đơn vị."}
+            else:
+                kq = {
+                    "he_so": float(mot["gia_tri"]),
+                    "goc_ten": (self._dvs.get(goc.lower()) or {}).get("ten") or goc,
+                    "dvt_ten": (self._dvs.get(khoa[0]) or {}).get("ten") or dvt,
+                }
+            nho[khoa] = kq
+        return kq
 
     # ================== (a) GOM DÒNG NHU CẦU ==================
 
