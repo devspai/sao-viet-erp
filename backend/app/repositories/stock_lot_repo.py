@@ -72,6 +72,16 @@ class StockLotRepository:
         self.db.refresh(lot)
         return lot
 
+    def ghi_dang_kho(self, lot: StockLot, *, dang: str, kho_rong: int, kho_dai: int,
+                     sl_ban_dau, sl_con_lai) -> StockLot:
+        """Ghi dạng/khổ + số lượng đã đổi cho MỘT lô; KHÔNG commit (người gọi gộp với nhật ký)."""
+        lot.dang_giay = dang
+        lot.kho_rong = kho_rong
+        lot.kho_dai = kho_dai
+        lot.sl_ban_dau = sl_ban_dau
+        lot.sl_con_lai = sl_con_lai
+        return lot
+
     def by_ids(self, ids) -> dict[int, StockLot]:
         """Nạp NHIỀU lô trong 1 query — tránh N+1 khi serialize danh sách phiếu xuất."""
         ids = [i for i in set(ids) if i is not None]

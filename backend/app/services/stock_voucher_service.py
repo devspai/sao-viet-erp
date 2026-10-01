@@ -924,6 +924,72 @@ class StockVoucherService:
             raise StockVoucherError("Không tìm thấy lô.")
         return lot
 
+    def bo_sung_dang_kho_lo(self, lot_id: int, *, user, dang_giay: str, kho_rong: int,
+                            kho_dai: int):
+        """Kho bổ sung DẠNG + KHỔ cho lô giấy CŨ (nhập trước khi có dạng/khổ, `dang_giay` NULL, đang
+        đếm theo đơn vị của mã — thường kg). Spec 2026-10-01 §6.
+
+        Cuộn: giữ số lượng, `kho_rong` = rộng, `kho_dai` = 0. Tờ: đổi khối lượng → TỜ NGUYÊN theo
+        khổ + gsm của mã (quy về kg qua module Đơn vị nếu mã không đếm bằng kg), làm tròn XUỐNG cho
+        cả `sl_ban_dau` lẫn `sl_con_lai` với CÙNG hệ số. Thiếu đường quy đổi ⇒ báo lỗi, không đoán.
+        """
+        from ..models.vat_lieu_kho import GiayNguyen
+        from ..repositories.audit_repo import AuditLogRepository
+        from .kho_giay import DANG_CUON, DANG_TO, chuan_kho
+        from .vat_lieu_kho_service import VatLieuKhoError
+
+        lot = self.lots.get(lot_id)
+        if lot is None:
+            raise StockVoucherError("Không tìm thấy lô.")
+        if lot.hang_loai != "giay":
+            raise StockVoucherError("Chỉ lô giấy mới có dạng/khổ.")
+        if lot.dang_giay:
+            raise StockVoucherError("Lô đã có dạng/khổ.")
+        if dang_giay not in (DANG_TO, DANG_CUON):
+            raise StockVoucherError("Dạng giấy phải là tờ hoặc cuộn.")
+        truoc = (float(lot.sl_ban_dau or 0), float(lot.sl_con_lai or 0))
+        if dang_giay == DANG_CUON:
+            kr, kd = chuan_kho(kho_rong, 0)[0], 0
+            if not kr:
+                raise StockVoucherError("Cuộn cần nhập khổ rộng (mm).")
+            sl0, sl1 = lot.sl_ban_dau, lot.sl_con_lai
+            sau_txt = f"cuộn khổ {kr} mm · SL giữ nguyên"
+        else:
+            kr, kd = chuan_kho(kho_rong, kho_dai)
+            if not (kr and kd):
+                raise StockVoucherError("Giấy tờ cần đủ hai cạnh khổ (mm).")
+            giay = self.lots.db.get(GiayNguyen, lot.hang_id)
+            gsm = float(getattr(giay, "gsm", 0) or 0)
+            if gsm <= 0:
+                raise StockVoucherError("Mã giấy chưa khai định lượng (gsm) nên không đổi ra tờ được.")
+            try:
+                # Hệ số kg → đơn vị của mã; kg_của_lô = sl ÷ hệ số.
+                he_so = self.hang.quy_ve_goc(
+                    "giay", lot.hang_id, "kg", 1, dang=DANG_CUON)["sl_goc"]
+            except VatLieuKhoError as e:
+                raise StockVoucherError(
+                    f"Không quy được đơn vị của mã về kg để đổi ra tờ: {e}") from None
+            if not he_so or he_so <= 0:
+                raise StockVoucherError("Không quy được đơn vị của mã về kg để đổi ra tờ.")
+            kg_moi_to = (kr / 1000.0) * (kd / 1000.0) * gsm / 1000.0
+            # Làm tròn XUỐNG cả hai số, cùng một hệ số; 1e-9 chống sai số nhị phân (1000 → 999,9999).
+            def _to(sl):
+                return int(((float(sl or 0) / he_so) / kg_moi_to) + 1e-9)
+            sl0, sl1 = _to(lot.sl_ban_dau), _to(lot.sl_con_lai)
+            if sl0 < 1:
+                raise StockVoucherError("Lô quá nhẹ so với khổ này — đổi ra chưa tới một tờ.")
+            sau_txt = f"tờ {kr}×{kd} mm · SL {sl0} / {sl1} tờ"
+        self.lots.ghi_dang_kho(lot, dang=dang_giay, kho_rong=kr, kho_dai=kd,
+                               sl_ban_dau=sl0, sl_con_lai=sl1)
+        AuditLogRepository(self.lots.db).create(
+            actor_user_id=user.id, action="kho_bo_sung_dang_kho_lo", target=f"stock_lot:{lot.id}",
+            detail=(f"{lot.ma_lo}: chưa rõ dạng/khổ (SL {truoc[0]:g} / {truoc[1]:g}) → {sau_txt}"),
+            commit=False,
+        )
+        self.lots.db.commit()
+        self.lots.db.refresh(lot)
+        return lot
+
     def set_draft_line_vi_tri(self, voucher_id: int, items: list[dict]):
         """Khai VỊ TRÍ cất lô cho DÒNG phiếu NHẬP còn NHÁP (ghi sổ sẽ chép sang lô). Dùng cho phiếu
         ĐIỀU CHUYỂN đích dựng sẵn — thủ kho đích khai chỗ cất TRƯỚC khi ghi sổ. Chỉ sửa khi phiếu

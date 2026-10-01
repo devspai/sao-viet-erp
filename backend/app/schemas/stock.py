@@ -688,6 +688,14 @@ class StockVoucherAttachmentListOut(BaseModel):
 
 # --- Lô & phân bổ ------------------------------------------------------------
 
+class StockLotDangKhoIn(BaseModel):
+    """Kho bổ sung dạng/khổ cho lô giấy cũ (chưa có dạng)."""
+
+    dang_giay: str = Field(pattern="^(to|cuon)$")
+    kho_rong: int = Field(ge=1, le=100000)
+    kho_dai: int = Field(default=0, ge=0, le=100000)
+
+
 class StockLotViTriIn(BaseModel):
     """Sửa vị trí cất lô (kệ/ô) trong kho."""
 

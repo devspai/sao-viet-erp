@@ -14764,6 +14764,18 @@ export const api = {
           body: JSON.stringify({ ly_do: lyDo }),
         });
       },
+      /** Kho BỔ SUNG dạng + khổ cho lô giấy cũ chưa có dạng (tờ: máy chủ đổi kg → tờ nguyên). */
+      boSungDangKhoLo(
+        token: string,
+        lotId: number,
+        body: { dang_giay: "to" | "cuon"; kho_rong: number; kho_dai: number },
+      ): Promise<{ id: number; dang_giay: "to" | "cuon"; kho_rong: number; kho_dai: number;
+        sl_ban_dau: number; sl_con_lai: number }> {
+        return authed(`/api/kho/phieu/lo/${lotId}/dang-kho`, token, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      },
       /** Sửa VỊ TRÍ cất lô (kệ/ô) — từ drawer Lịch sử của sản phẩm. Quyền `create` (thủ kho). */
       suaViTriLo(
         token: string,

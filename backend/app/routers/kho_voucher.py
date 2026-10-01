@@ -50,6 +50,7 @@ from ..schemas.stock import (
     MaterialHistoryOut,
     MaterialXuatRow,
     StockLotOut,
+    StockLotDangKhoIn,
     StockLotViTriIn,
     StockThresholdIn,
     StockThresholdOut,
@@ -527,6 +528,24 @@ def update_lot_vi_tri(
     except StockVoucherError as e:
         raise _err(e) from None
     return {"id": lot.id, "vi_tri": lot.vi_tri}
+
+
+@router.patch("/lo/{lot_id}/dang-kho")
+def bo_sung_dang_kho_lo(
+    lot_id: int, payload: StockLotDangKhoIn, svc: Service,
+    # Cùng quyền với sửa vị trí lô: người CẦM HÀNG biết cuộn/tờ và khổ thật.
+    user: Annotated[User, Depends(require_permission(MODULE, "create"))],
+):
+    """Kho bổ sung DẠNG + KHỔ cho lô giấy cũ chưa có (tờ: đổi kg → tờ nguyên; cuộn: giữ số)."""
+    try:
+        lot = svc.bo_sung_dang_kho_lo(
+            lot_id, user=user, dang_giay=payload.dang_giay,
+            kho_rong=payload.kho_rong, kho_dai=payload.kho_dai)
+    except StockVoucherError as e:
+        raise _err(e) from None
+    return {"id": lot.id, "dang_giay": lot.dang_giay, "kho_rong": lot.kho_rong,
+            "kho_dai": lot.kho_dai, "sl_ban_dau": float(lot.sl_ban_dau),
+            "sl_con_lai": float(lot.sl_con_lai)}
 
 
 @router.patch("/lo/{lot_id}/gia-goc", response_model=GiaGocOut)

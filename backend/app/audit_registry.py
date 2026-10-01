@@ -214,6 +214,7 @@ _HD += _dong("kho", "bao_cao_kho", {
 })
 _HD += _dong("kho", "kho", {
     "kho_xuat_dieu_chinh": "Điều chỉnh phiếu xuất kho",
+    "kho_bo_sung_dang_kho_lo": "Bổ sung dạng/khổ giấy cho lô cũ",
 })
 _HD += _dong("kho", "dm_kho_hang", {
     "kho_vi_tri_create": "Tạo vị trí trong kho",

@@ -59,9 +59,19 @@ export function khoaNguong(t: { hang_loai: string; hang_id: number; kho_rong?: n
   return `giay:${t.hang_id}:${t.kho_rong ?? 0}:${t.kho_dai ?? 0}`;
 }
 
-/** Nhãn dòng tồn giấy cạnh tên: tờ "780 × 905 mm", cuộn "cuộn". Hàng khác / giấy cũ ⇒ "". */
-export function nhanDongTon(dang: string | null | undefined, khoRong: number, khoDai: number): string {
+/** Nhãn dòng tồn giấy cạnh tên: tờ "780 × 905 mm"; cuộn "cuộn" (kèm khổ các lô nếu có:
+ *  "cuộn · khổ 790 mm" / "cuộn · khổ 790, 1090 mm"). `laGiay` + chưa có dạng ⇒ "chưa rõ dạng/khổ"
+ *  (lô nhập trước khi có dạng, đang đếm theo đơn vị của mã). Hàng khác ⇒ "". */
+export function nhanDongTon(
+  dang: string | null | undefined,
+  khoRong: number,
+  khoDai: number,
+  opts?: { laGiay?: boolean; khoCuon?: number[] },
+): string {
   if (dang === "to") return nhanKho(khoRong, khoDai);
-  if (dang === "cuon") return "cuộn";
-  return "";
+  if (dang === "cuon") {
+    const kho = [...new Set((opts?.khoCuon ?? []).filter((k) => k > 0))].sort((a, b) => a - b);
+    return kho.length ? `cuộn · khổ ${kho.join(", ")} mm` : "cuộn";
+  }
+  return opts?.laGiay ? "chưa rõ dạng/khổ" : "";
 }
