@@ -4,6 +4,7 @@
 // trong drawer có SƠ ĐỒ BÌNH BÀI live. Auto + override giữ nguyên. "Tính giá" = create (lần đầu,
 // khi phiếu còn nháp) hoặc update(pid) — BE replace-all + tính lại + snapshot → refresh từ Out.
 // LƯU = TÍNH, và phiếu KHÔNG vào DB cho tới lần lưu đầu tiên (chống phiếu rỗng bỏ lại).
+import BuocVatTu, { type BuocVatTuDong } from "./BuocVatTu";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   api,
@@ -15,12 +16,11 @@ import {
   type ThanhPhanIn,
   type ThanhPhanOut,
   type ThanhPhamOut,
-  type VatTuLineOut,
   type ChiPhiKhacOut,
   type TinhGiaComponentMeta,
   type TinhGiaPreviewOut,
 } from "../api/client";
-import { congDoan, donViDo, giay, mayThietBi, type Row } from "../api/rebuildCatalog";
+import { congDoan, donViDo, giay, mayThietBi, vatTu, type Row } from "../api/rebuildCatalog";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
@@ -510,14 +510,8 @@ interface EditableFinishing {
   dai_khuon: number;
   rong_khuon: number;
   so_khuon: number;
-}
-interface EditableVatTu {
-  uid: string;
-  vat_tu_id: number | null;
-  ten: string;
-  don_gia: number;
-  so_luong: number;
-  ghi_chu: string;
+  /** Vật tư của BƯỚC (01/10/2026): tự chép từ công đoạn lúc thêm, thêm/xoá riêng cho phiếu này. */
+  vat_tus: BuocVatTuDong[];
 }
 /** 1 dòng CHI PHÍ KHÁC — cặp (tên tự gõ, số tiền). Không trỏ danh mục, không công thức: đây là
  *  chỗ hứng khoản chưa có danh mục nào nhận (làm kẽm ngoài, phí thiết kế, tiền mẫu). */
@@ -581,10 +575,11 @@ interface EditableComponent {
   chi_phi_khacs: EditableChiPhiKhac[];
   gia_von_tp: number; // read-only từ lần tính gần nhất
   thanh_phams: EditableFinishing[];
-  vat_tus: EditableVatTu[];
 }
 
-function blankFinishing(ten = "", cong_doan_id: number | null = null): EditableFinishing {
+function blankFinishing(
+  ten = "", cong_doan_id: number | null = null, vat_tus: BuocVatTuDong[] = [],
+): EditableFinishing {
   return {
     uid: nextUid(),
     cong_doan_id,
@@ -606,6 +601,7 @@ function blankFinishing(ten = "", cong_doan_id: number | null = null): EditableF
     dai_khuon: 0,
     rong_khuon: 0,
     so_khuon: 0,
+    vat_tus,
   };
 }
 function blankComponent(ten = ""): EditableComponent {
@@ -648,7 +644,6 @@ function blankComponent(ten = ""): EditableComponent {
     chi_phi_khacs: [],
     gia_von_tp: 0,
     thanh_phams: [],
-    vat_tus: [],
   };
 }
 
@@ -670,16 +665,9 @@ function fromFinishing(f: ThanhPhamOut): EditableFinishing {
     dai_khuon: f.dai_khuon ?? 0,
     rong_khuon: f.rong_khuon ?? 0,
     so_khuon: f.so_khuon ?? 0,
-  };
-}
-function fromVatTu(v: VatTuLineOut): EditableVatTu {
-  return {
-    uid: nextUid(),
-    vat_tu_id: v.vat_tu_id ?? null,
-    ten: v.ten ?? "",
-    don_gia: v.don_gia ?? 0,
-    so_luong: v.so_luong ?? 0,
-    ghi_chu: v.ghi_chu ?? "",
+    vat_tus: (f.vat_tus ?? []).map((v) => ({
+      uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
+    })),
   };
 }
 function fromChiPhiKhac(c: ChiPhiKhacOut): EditableChiPhiKhac {
@@ -726,7 +714,6 @@ function fromComponent(c: ThanhPhanOut): EditableComponent {
     chi_phi_khacs: (c.chi_phi_khacs ?? []).map(fromChiPhiKhac),
     gia_von_tp: c.gia_von_tp ?? 0,
     thanh_phams: (c.thanh_phams ?? []).map(fromFinishing),
-    vat_tus: (c.vat_tus ?? []).map(fromVatTu),
   };
 }
 
@@ -783,13 +770,9 @@ function toThanhPhanIn(c: EditableComponent): ThanhPhanIn {
       dai_khuon: f.dai_khuon,
       rong_khuon: f.rong_khuon,
       so_khuon: f.so_khuon,
-    })),
-    vat_tus: c.vat_tus.map((v) => ({
-      vat_tu_id: v.vat_tu_id,
-      ten: v.ten,
-      don_gia: v.don_gia,
-      so_luong: v.so_luong,
-      ghi_chu: v.ghi_chu.trim() || null,
+      vat_tus: f.vat_tus.map((v, k) => ({
+        vat_tu_id: v.vat_tu_id, thu_tu: k, gia_tri_chip: v.gia_tri_chip,
+      })),
     })),
     // Dòng TRỐNG HẲN (chưa gõ tên, chưa gõ tiền) không gửi lên: bấm "+" rồi đổi ý là chuyện
     // thường, lưu xuống thì lần sau mở phiếu lại thấy một cặp ô rỗng không ai biết để làm gì.
@@ -869,14 +852,9 @@ function fromThanhPhanIn(cfg: ThanhPhanIn, giu: { uid: string; so_luong: number 
       dai_khuon: f.dai_khuon ?? 0,
       rong_khuon: f.rong_khuon ?? 0,
       so_khuon: f.so_khuon ?? 0,
-    })),
-    vat_tus: (cfg.vat_tus ?? []).map((v) => ({
-      uid: nextUid(),
-      vat_tu_id: v.vat_tu_id ?? null,
-      ten: v.ten ?? "",
-      don_gia: v.don_gia ?? 0,
-      so_luong: v.so_luong ?? 0,
-      ghi_chu: v.ghi_chu ?? "",
+      vat_tus: (f.vat_tus ?? []).map((v) => ({
+        uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
+      })),
     })),
   };
 }
@@ -1237,6 +1215,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
   const [giays, setGiays] = useState<Row[]>([]);
   const [mays, setMays] = useState<Row[]>([]);
   const [congDoans, setCongDoans] = useState<Row[]>([]);
+  const [vatTuDm, setVatTuDm] = useState<Row[]>([]);
   // Từ điển biến công thức — dùng để lấy nhãn ĐƠN VỊ khi diễn giải công thức đã thế số.
   // Cache theo phiên trong `useBienCongThuc`, nên nhiều màn mở cùng lúc vẫn một lượt gọi.
   const bienCt = useBienCongThuc();
@@ -1315,6 +1294,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
     giay.list(token).then((r) => setGiays(r.items)).catch(() => setGiays([]));
     mayThietBi.list(token).then((r) => setMays(r.items)).catch(() => setMays([]));
     congDoan.list(token).then((r) => setCongDoans(r.items)).catch(() => setCongDoans([]));
+    vatTu.list(token).then((r) => setVatTuDm(r.items)).catch(() => setVatTuDm([]));
   }, [token]);
   useEffect(() => {
     napDanhMuc();
@@ -1402,8 +1382,9 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
         nhom_bao_gia: "",
         muc_a: [...goc.muc_a],
         muc_b: [...goc.muc_b],
-        thanh_phams: goc.thanh_phams.map((f) => ({ ...f, uid: nextUid() })),
-        vat_tus: goc.vat_tus.map((v) => ({ ...v, uid: nextUid() })),
+        thanh_phams: goc.thanh_phams.map((f) => ({
+          ...f, uid: nextUid(), vat_tus: f.vat_tus.map((v) => ({ ...v, uid: nextUid() })),
+        })),
       };
       const next = [...cs];
       next.splice(idx + 1, 0, banSao);
@@ -1439,12 +1420,13 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
     cuid: string,
     cong_doan_id: number | null = null,
     ten = "",
-    insertIndex: number | null = null
+    insertIndex: number | null = null,
+    vat_tus: BuocVatTuDong[] = [],
   ) => {
     setComps((cs) =>
       cs.map((c) => {
         if (c.uid !== cuid) return c;
-        const newFin = blankFinishing(ten, cong_doan_id);
+        const newFin = blankFinishing(ten, cong_doan_id, vat_tus);
         const newThanhPhams = [...c.thanh_phams];
         if (insertIndex !== null) {
           newThanhPhams.splice(insertIndex, 0, newFin);
@@ -1571,6 +1553,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
       cds: c.thanh_phams.map((f) => [
         f.cong_doan_id, f.phi_khuon, f.khuon_nguon,
         f.dai_khuon, f.rong_khuon, f.so_khuon,
+        f.vat_tus.map((v) => [v.vat_tu_id, JSON.stringify(v.gia_tri_chip)]),
       ]),
     });
   }, [editingComp, phieuSL]);
@@ -2422,6 +2405,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
           giays={giays}
           mays={mays}
           congDoans={congDoans}
+          vatTuDm={vatTuDm}
           liveMeta={editMeta}
           liveGia={editGia}
           phieuSL={phieuSL}
@@ -2461,6 +2445,7 @@ function ComponentModal({
   giays,
   mays,
   congDoans,
+  vatTuDm,
   liveMeta,
   liveGia,
   phieuSL,
@@ -2479,6 +2464,7 @@ function ComponentModal({
   giays: Row[];
   mays: Row[];
   congDoans: Row[];
+  vatTuDm: Row[];
   liveMeta: TinhGiaComponentMeta | null;
   liveGia: PhieuTinhGiaGroupOut[] | null;
   phieuSL: number;
@@ -2489,7 +2475,7 @@ function ComponentModal({
   patchComp: (uid: string, patch: Partial<EditableComponent>) => void;
   patchFin: (cuid: string, fuid: string, patch: Partial<EditableFinishing>) => void;
   onPickGiay: (uid: string, gid: number | null) => void;
-  addFin: (cuid: string, cong_doan_id?: number | null, ten?: string, insertIndex?: number | null) => void;
+  addFin: (cuid: string, cong_doan_id?: number | null, ten?: string, insertIndex?: number | null, vat_tus?: BuocVatTuDong[]) => void;
   removeFin: (cuid: string, fuid: string) => void;
 }) {
   // Lấy token tại chỗ thay vì luồn prop qua 16 tham số — ô gợi ý tên sản phẩm cần gọi API
@@ -2708,7 +2694,13 @@ function ComponentModal({
       return;
     }
     setCanhBaoIn(null);
-    addFin(c.uid, cd ? cd.id : null, cd ? cdName(cd) : "", insertIdx);
+    // Vật tư mặc định của công đoạn tự hiện ở bước (chép một lần; sau đó sửa riêng cho phiếu).
+    const macDinh: BuocVatTuDong[] = Array.isArray(cd?.vat_tus)
+      ? (cd!.vat_tus as Array<{ vat_tu_id: number }>).map((v) => ({
+          uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: {},
+        }))
+      : [];
+    addFin(c.uid, cd ? cd.id : null, cd ? cdName(cd) : "", insertIdx, macDinh);
   };
 
   // Bình bài chỉ tính được khi có ĐỦ khổ thành phẩm ③ + khổ tờ in ② (khổ in tự lấy từ giấy/máy).
@@ -3219,6 +3211,23 @@ function ComponentModal({
                 >
                   {canhBaoIn}
                 </p>
+              )}
+
+              {/* VẬT TƯ THEO BƯỚC — vật tư của công đoạn tự hiện, thêm/xoá riêng cho phiếu này, mỗi
+                  vật tư mọc ô nhập cho chip riêng của nó. */}
+              {c.thanh_phams.length > 0 && (
+                <div className="tg-bvt-khoi">
+                  {c.thanh_phams.map((f) => (
+                    <BuocVatTu
+                      key={f.uid}
+                      tenBuoc={tenBuoc(f, congDoans) || "(công đoạn)"}
+                      dong={f.vat_tus}
+                      vatTuDm={vatTuDm}
+                      taoUid={nextUid}
+                      onChange={(next) => patchFin(c.uid, f.uid, { vat_tus: next })}
+                    />
+                  ))}
+                </div>
               )}
 
               {/* PHÍ KHUÔN — chỉ mọc khi chuỗi có bước cần dao lưu kho. Chuỗi toàn bước phẳng thì
