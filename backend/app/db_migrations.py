@@ -16562,3 +16562,19 @@ def _migrate_giu_cho_theo_kho(db: Session) -> None:
 
 
 MIGRATIONS.append(("0354_giu_cho_theo_kho", _migrate_giu_cho_theo_kho))
+
+
+def _migrate_department_la_to_cat(db: Session) -> None:
+    """Cờ TỔ CẮT trên phòng ban (spec giấy theo khổ §4.6): lệnh có giấy sau phát hành tới tổ này
+    để chốt cắt hay không cắt. Đích danh, không kế thừa cây. Mặc định false ⇒ chưa tổ nào bật thì
+    không có cổng "chờ tổ Cắt". Idempotent."""
+    insp = inspect(db.get_bind())
+    if "departments" not in set(insp.get_table_names()):
+        return
+    if "la_to_cat" not in _existing_columns(insp, "departments"):
+        db.execute(text(
+            "ALTER TABLE departments ADD COLUMN la_to_cat BOOLEAN NOT NULL DEFAULT false"))
+    db.commit()
+
+
+MIGRATIONS.append(("0355_department_la_to_cat", _migrate_department_la_to_cat))

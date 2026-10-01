@@ -111,6 +111,8 @@ def teams(db: Session, user: User, authz: AuthorizationService) -> list[dict]:
             "ma": (d.code if d else None) or "",
             "cap": cap,
             "la_kcs": bool(getattr(d, "is_kcs", False)),
+            # Tổ Cắt: FE bày khối "Chờ chốt giấy" trên bàn tổ này (spec giấy theo khổ §4.6).
+            "la_to_cat": bool(getattr(d, "la_to_cat", False)),
             # FE cần biết "tôi vào bàn này chỉ với phần CỦA TÔI" để bật băng *Sản lượng của tôi*
             # (§6). Trả con số đã tính sẵn, đừng để FE tự suy từ phạm vi.
             "la_tho": muc == MUC_CUA_TOI,

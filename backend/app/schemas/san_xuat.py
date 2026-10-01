@@ -18,6 +18,7 @@ class TeamOut(BaseModel):
     ten: str
     ma: str
     la_kcs: bool
+    la_to_cat: bool = False
     # Vai của NGƯỜI ĐANG XEM ở tổ này, không phải thuộc tính của tổ: cùng một tổ, tổ trưởng thấy
     # `false` còn thợ trong tổ thấy `true`. FE dựa vào đây để bật băng "Sản lượng của tôi" (§6).
     la_tho: bool = False

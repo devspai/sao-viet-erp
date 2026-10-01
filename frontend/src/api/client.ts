@@ -1384,6 +1384,8 @@ export interface SxTeam {
   ma: string;
   /** Phòng ban có cờ "Tổ KCS" (`is_kcs`) — thành viên là người KCS. */
   la_kcs: boolean;
+  /** Phòng ban có cờ "Tổ Cắt" (`la_to_cat`) — bàn tổ bày khối "Chờ chốt giấy". */
+  la_to_cat?: boolean;
   /** Độ sâu của nút trong cây khối sản xuất (0 = gốc) — menu thụt lề theo số này. */
   cap: number;
   /** Vai của NGƯỜI ĐANG XEM ở nút này, không phải thuộc tính của tổ: mức Xem của dòng quyền
@@ -3198,6 +3200,8 @@ export interface Department {
   la_giao_hang?: boolean;
   /** Tổ IN (mg 0304) — thợ in ăn khoán: ngày CN / lễ đi làm không có công gốc, trả hết ở phần thêm. */
   la_to_in?: boolean;
+  /** Tổ CẮT (mg 0355) — lệnh có giấy sau phát hành tới tổ này để chốt cắt hay không cắt. */
+  la_to_cat?: boolean;
   /** Khoán km giao hàng (mg 0231) — chỉ có nghĩa khi `la_giao_hang` bật. Đơn giá là số TÀI XẾ
    *  ĐƯỢC HƯỞNG, không phải cước cả xe. Hai ô % bắt buộc cộng đúng 100 (máy chủ chặn). */
   don_gia_km?: number;
@@ -10392,6 +10396,8 @@ export const api = {
       isKcs?: boolean,
       /** Cờ Tổ in (mg 0304). Cùng luật `undefined` = KHÔNG gửi ⇒ backend giữ nguyên. */
       laToIn?: boolean,
+      /** Cờ Tổ Cắt (mg 0355). Cùng luật `undefined` = KHÔNG gửi ⇒ backend giữ nguyên. */
+      laToCat?: boolean,
     ): Promise<Department> {
       return authed<Department>(`/api/departments/${id}`, token, {
         method: "PUT",
@@ -10408,6 +10414,7 @@ export const api = {
           ...(khoanKm ?? {}),
           ...(isKcs === undefined ? {} : { is_kcs: isKcs }),
           ...(laToIn === undefined ? {} : { la_to_in: laToIn }),
+          ...(laToCat === undefined ? {} : { la_to_cat: laToCat }),
         }),
       });
     },
