@@ -145,6 +145,9 @@ class VatTuInAn(Base):
     chips: Mapped[list["VatTuChip"]] = relationship(
         "VatTuChip", back_populates="vat_tu", order_by="VatTuChip.thu_tu",
         cascade="all, delete-orphan",
+        # selectin: mọi nơi quét danh mục vật tư (tính giá, bung lệnh) đọc chip của MỌI món —
+        # lazy-load là mỗi món một câu SQL.
+        lazy="selectin",
     )
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # NVL THAY THẾ (mg 0239) — mảng id VẬT TƯ KHÁC khác dùng thay được món này. MỘT CHIỀU, xem

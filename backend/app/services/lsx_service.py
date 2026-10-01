@@ -494,6 +494,28 @@ class LsxService:
         self._cap_cache: dict | None = None     # đồ thị cặp quy đổi (xem `_cap_quy_doi`)
         self._ma_dv_cache: dict | None = None   # tên đơn vị → mã (xem `_ma_don_vi`)
         self._mon_cache: dict | None = None     # giấy + vật tư đang dùng (xem `_mon_active`)
+        self._vt_theo_id_cache: dict | None = None
+        self._vt_theo_id_nguon: dict | None = None
+        self._cd_giu: list = []                 # công đoạn đã nạp sẵn (xem `_nap_cd`)
+
+    def _nap_cd(self, ids) -> None:
+        """Nạp TRƯỚC các công đoạn (kèm tổ phụ trách · máy · vật tư) bằng vài câu `IN (...)`.
+
+        Mọi vòng bước sau đó gọi `db.get(CongDoan, id)` + đọc `to_mac_dinh_id`/`may_lam_duoc`/
+        `vat_tus` đều trúng identity map — không thì mỗi bước tốn 1 + 3 câu SQL, tăng tuyến tính
+        theo số bước. Identity map của Session chỉ giữ THAM CHIẾU YẾU nên phải cầm các đối tượng
+        trong `_cd_giu` cho tới lần nạp kế tiếp (không giữ thì nạp xong là bị dọn ngay).
+        """
+        can = {int(i) for i in ids if i}
+        if not can:
+            self._cd_giu = []
+            return
+        self._cd_giu = list(self.db.execute(
+            select(CongDoan).where(CongDoan.id.in_(can)).options(
+                selectinload(CongDoan.to_phu_trach), selectinload(CongDoan.may_lam_duoc),
+                selectinload(CongDoan.vat_tus),
+            )
+        ).scalars())
 
     # ================= tra cứu phụ trợ =================
 
@@ -525,6 +547,14 @@ class LsxService:
                 ra[(HANG_GIAY, g.id)] = g
             self._mon_cache = ra
         return self._mon_cache
+
+    def _vat_tu_theo_id(self) -> dict:
+        """`{id: vật tư}` của vật tư đang dùng — dựng MỘT lần cùng `_mon_cache`, không dựng lại mỗi bước."""
+        mon = self._mon_active()
+        if self._vt_theo_id_cache is None or self._vt_theo_id_nguon is not mon:
+            self._vt_theo_id_cache = {i: m for (hl, i), m in mon.items() if hl == HANG_VAT_TU}
+            self._vt_theo_id_nguon = mon
+        return self._vt_theo_id_cache
 
     def _vat_tu_active(self) -> list:
         """Chỉ VẬT TƯ KHÁC — đường của ĐẦU VIỆC, vốn không bao giờ khai giấy.
@@ -638,7 +668,7 @@ class LsxService:
             return [], []
         sl = _f(getattr(buoc, "so_luong_vao", 0))
         can = {vid for vid, _ in dong_nguon}
-        mats = {m.id: m for m in self._vat_tu_active() if m.id in can}
+        mats = {i: m for i, m in self._vat_tu_theo_id().items() if i in can}
         # Bơm SỐ CỦA CHÍNH BƯỚC lên trên ngữ cảnh lệnh — `sl_vao`/`sl_ra` chỉ tồn tại ở tầng này.
         # Bơm SAU `ngu_canh_lenh` vì hàm đó assert bộ khoá của nó phải khớp `MA_NGU_CANH_PHIEU`.
         base = {**ngu_canh_lenh(quy_cach or {}), **MAC_DINH_TANG_LENH,
@@ -1234,6 +1264,7 @@ class LsxService:
         if tp is None:
             return {"comp": {}, "quy_cach": None, "routing": [], "sl_ptg": None}
 
+        self._nap_cd(r.cong_doan_id for r in tp.thanh_phams)
         resolved = _resolve_thanh_phan(self.db, tp)
         sl_ptg = int(resolved.get("so_luong") or 0)
         # ÉP số lượng theo ĐƠN: engine ưu tiên `tp["so_luong"]` nếu > 0, nên phải ghi đè.
@@ -1614,6 +1645,8 @@ class LsxService:
                     nha_cung_cap=r.get("nha_cung_cap"),
                     khuon_nguon=r.get("khuon_nguon"),
                     khuon_phi=r.get("khuon_phi") or 0,
+                    # Khởi tạo rỗng: không thì `cur.phu_thuoc.append` ở dưới lazy-load từng bước (1 câu/bước).
+                    phu_thuoc=[],
                     **d,
                 ))
             # Số lượng từng bước là DẪN XUẤT — chạy chuỗi ngược ngay sau khi dựng đủ routing.
@@ -1653,6 +1686,7 @@ class LsxService:
         lsx = self.repo.get(lsx_id)
         if lsx is None:
             raise LsxNotFound("Không tìm thấy lệnh sản xuất")
+        self._nap_cd(c.cong_doan_id for c in lsx.cong_doans)
         return lsx
 
     def thieu_cua(self, lsx: Lsx) -> list[str]:
@@ -2249,6 +2283,7 @@ class LsxService:
     def detail_dict(self, lsx: Lsx) -> dict:
         """Ghép dữ liệu hiển thị (tên đơn/khách/máy/tổ/khuôn) cho 1 lệnh."""
         order = self.db.get(Order, lsx.order_id)
+        self._nap_cd(c.cong_doan_id for c in lsx.cong_doans)
         dept_ids = {cd.department_id for cd in lsx.cong_doans if cd.department_id}
         may_ids = {cd.may_id for cd in lsx.cong_doans if cd.may_id}
         if lsx.may_id:
@@ -2372,7 +2407,7 @@ class LsxService:
                         quy_cach: dict | None = None, moi: dict | None = None,
                         khuon_map: dict | None = None) -> dict:
         vao = _f(cd.so_luong_vao)
-        vat_tu_theo_id = {m.id: m for m in self._vat_tu_active()}   # chip riêng của vật tư
+        vat_tu_theo_id = self._vat_tu_theo_id()   # chip riêng của vật tư
         may_cd = self._may_cua_buoc(cd)
         t = thoi_luong_buoc(cd, may_cd, self.sl_tinh_cua_buoc(cd, may_cd, quy_cach))
         cd_obj = self.db.get(CongDoan, cd.cong_doan_id) if cd.cong_doan_id else None
@@ -2969,6 +3004,8 @@ class LsxService:
         self._chan_dang_giu_cho(lsx)
         truoc = len(lsx.cong_doans)
         old_by_key = {r.step_key: r for r in lsx.cong_doans}
+        self._nap_cd([getattr(r, "cong_doan_id", None) for r in rows_in]
+                     + [c.cong_doan_id for c in lsx.cong_doans])
         rows: list[LsxCongDoan] = []
         payloads: list[dict] = []
         # Bước MỚI gắn công đoạn hoặc bước vừa ĐỔI công đoạn — lưu xong phải bung lại vật tư theo

@@ -198,13 +198,16 @@ class VatLieuKhoService:
         """
         dang_co = {c.ma: (c.don_vi or "") for c in (obj.chips if obj is not None else [])}
         theo_ten = None
+        ma_co: set[str] | None = None       # đọc danh mục đơn vị MỘT lần cho cả vòng chip
         for c in chips:
             dv = (c.get("don_vi") or "").strip()
             if not dv:
                 c["don_vi"] = None
                 continue
             if dv.lower() != dang_co.get(c["ma"], "").strip().lower():
-                if dv.lower() not in {(d.ma or "").strip().lower() for d in self.don_vi.all_rows()}:
+                if ma_co is None:
+                    ma_co = {(d.ma or "").strip().lower() for d in self.don_vi.all_rows()}
+                if dv.lower() not in ma_co:
                     theo_ten = theo_ten if theo_ten is not None else self.don_vi.ma_theo_ten()
                     dv = theo_ten.get(dv.lower(), dv)
             c["don_vi"] = dv

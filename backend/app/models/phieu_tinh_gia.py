@@ -265,6 +265,8 @@ class PhieuThanhPham(Base):
     vat_tus: Mapped[list["PhieuBuocVatTu"]] = relationship(
         "PhieuBuocVatTu", back_populates="buoc", order_by="PhieuBuocVatTu.thu_tu",
         cascade="all, delete-orphan", passive_deletes=True,
+        # selectin: nạp vật tư của MỌI bước trong MỘT câu thay vì mỗi bước một câu lazy-load.
+        lazy="selectin",
     )
 
 

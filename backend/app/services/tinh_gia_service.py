@@ -27,13 +27,27 @@ def _f(v, d: float = 0.0) -> float:
         return d
 
 
-def _vat_tus_cua_buoc(db: Session, buoc: PhieuThanhPham) -> list[dict]:
+def _nap_san_danh_muc(db: Session, tp) -> tuple[dict[int, CongDoan], dict[int, VatTuInAn]]:
+    """Nạp TRƯỚC công đoạn + vật tư (kèm chip) mà các bước của thành phần trỏ tới, mỗi loại MỘT
+    câu `IN (...)` — số câu SQL không còn tăng theo số bước × vật tư. Trả về hai map để vòng bước
+    tra thẳng (đồng thời giữ đối tượng sống: identity map của Session chỉ giữ tham chiếu yếu)."""
+    cd_ids = {int(r.cong_doan_id) for r in tp.thanh_phams if r.cong_doan_id is not None}
+    vt_ids = {int(v.vat_tu_id) for r in tp.thanh_phams for v in r.vat_tus if v.vat_tu_id is not None}
+    cds = ({c.id: c for c in db.execute(select(CongDoan).where(CongDoan.id.in_(cd_ids))).scalars()}
+           if cd_ids else {})
+    vts = ({v.id: v for v in db.execute(select(VatTuInAn).where(VatTuInAn.id.in_(vt_ids))).scalars()}
+           if vt_ids else {})
+    return cds, vts
+
+
+def _vat_tus_cua_buoc(db: Session, buoc: PhieuThanhPham,
+                      vat_tu_map: dict[int, VatTuInAn] | None = None) -> list[dict]:
     """Vật tư của MỘT bước kèm công thức giá + chip của vật tư (engine không tự tra DB).
 
     Vật tư đã xoá khỏi danh mục thì bỏ im lặng — danh mục là nguồn sống."""
     out: list[dict] = []
     for vt in sorted(buoc.vat_tus or [], key=lambda r: (r.thu_tu or 0, r.id or 0)):
-        m = db.get(VatTuInAn, vt.vat_tu_id)
+        m = vat_tu_map.get(vt.vat_tu_id) if vat_tu_map is not None else db.get(VatTuInAn, vt.vat_tu_id)
         if m is None:
             continue
         out.append({
@@ -190,6 +204,7 @@ def _resolve_thanh_phan(db: Session, tp) -> dict:
                 .where(CongDoanMay.may_id == int(tp.may_id))
             ).all()
         }
+    cd_map, vt_map = _nap_san_danh_muc(db, tp)
     rows: list[dict] = []
     for row in sorted(tp.thanh_phams, key=lambda r: (r.thu_tu or 0, r.id or 0)):
         rd: dict = {}
@@ -197,14 +212,14 @@ def _resolve_thanh_phan(db: Session, tp) -> dict:
             v = getattr(row, k, None)
             rd[k] = v if (isinstance(v, (int, str, bool)) or v is None) else _f(v)
         if row.cong_doan_id is not None:
-            cd = db.get(CongDoan, row.cong_doan_id)
+            cd = cd_map.get(row.cong_doan_id)
             if cd is not None:
                 # Chốt lại nhóm ở ĐÂY nữa dù `CongDoanService._validate` đã dọn lúc lưu: dòng
                 # cũ khai trước luật vẫn nằm trong DB, mà giá sai kiểu này không màn nào bày ra.
                 rd["cong_doan"] = _cong_doan_to_dict(
                     cd, tram,
                     ct_gia_may=ct_gia_theo_cd.get(cd.id) if cd.nhom == "print" else None)
-        rd["vat_tus"] = _vat_tus_cua_buoc(db, row)
+        rd["vat_tus"] = _vat_tus_cua_buoc(db, row, vt_map)
         rows.append(rd)
     d["thanh_phams"] = rows
 

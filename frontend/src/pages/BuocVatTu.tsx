@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Row } from "../api/rebuildCatalog";
 import { Select } from "../components/Select";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
@@ -53,7 +53,8 @@ interface Props {
 
 export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid }: Props) {
   useNapTenDonVi();   // đơn vị hiện bằng TÊN trong danh mục, không in mã trần
-  const tra = new Map(vatTuDm.map((v) => [v.id, v]));
+  // Dựng một lần theo danh mục — danh mục đứng yên trong khi người dùng gõ chip, mỗi nhịp gõ chỉ `dong` đổi.
+  const tra = useMemo(() => new Map(vatTuDm.map((v) => [v.id, v])), [vatTuDm]);
   const chuaCo = vatTuDm.filter((v) => !dong.some((d) => d.vat_tu_id === v.id));
 
   const setChip = (i: number, ma: string, raw: string) =>
