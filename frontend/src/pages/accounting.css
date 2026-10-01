@@ -3163,7 +3163,9 @@ td.acct-count-cell {
   flex-shrink: 0 !important;
 }
 
-:is(.acct-dmh-drawer, .acct-mh-drawer) .rc-drawer__body {
+/* Trỏ vào class thân của chính màn (`acct-dmh__body`/`acct-mh__body`), không tô thẳng
+   `.rc-drawer__body` — guard cssKhongCuop cấm file khác mượn họ rc-*. */
+:is(.acct-dmh-drawer, .acct-mh-drawer) :is(.acct-dmh__body, .acct-mh__body) {
   flex: 1 1 0% !important;
   min-height: 0 !important;
   overflow-y: auto !important;
@@ -3171,7 +3173,7 @@ td.acct-count-cell {
 }
 /* Thân drawer là flex cột (rebuild-catalog.css): khối con có overflow:hidden (khung bảng vật tư)
    mất min-height tự nhiên nên bị ÉP co cho vừa màn và cắt mất dòng, thay vì để thân cuộn. */
-:is(.acct-dmh-drawer, .acct-mh-drawer) .rc-drawer__body > * {
+:is(.acct-dmh-drawer, .acct-mh-drawer) :is(.acct-dmh__body, .acct-mh__body) > * {
   flex-shrink: 0;
 }
 
