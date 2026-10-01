@@ -151,3 +151,69 @@ def test_bai_buoc_chung_dau_nhan_to_in_lay_kho_in_va_tong_to(db, svc, customer):
     so_to = svc._tinh_so_to(bg, {a.id: a, b.id: b})
     kq = _khoa_giay(svc.can_doi(), g)
     assert kq == {("giay", g.id, 650, 860): pytest.approx(so_to["tong_to"])}
+
+
+def _bai_tuyen(db, customer, g, buoc):
+    """Bài 2 thành viên, tuyến chung `buoc` = [(ten, nhom, don_vi_vao)] theo thứ tự."""
+    a = _lenh(db, customer, ma="LSX-TA", giay_id=g.id, so_to_nguyen=1_000, han=MAI,
+              giay_o_buoc=False)
+    b = _lenh(db, customer, ma="LSX-TB", giay_id=g.id, so_to_nguyen=1_000, han=MAI,
+              giay_o_buoc=False)
+    bg = _bai(db, "GB-TUYEN", g, [a, b])
+    for i, (ten, nhom, vao) in enumerate(buoc, start=1):
+        db.add(BaiGhepCongDoan(bai_ghep_id=bg.id, thu_tu=i, ten=ten, nhom=nhom,
+                               loai_buoc="may", don_vi_vao=vao, don_vi_ra=vao,
+                               so_luong_vao=0, so_luong_ra=0))
+    db.commit()
+    return a, b, bg
+
+
+def test_bai_ghi_kem_dung_dau_in_nhan_to_in(db, svc, customer):
+    """I1 — CTP (đơn vị `kem`) đứng đầu tuyến bài KHÔNG phải bước lấy giấy: In nhận tờ in ⇒ mua
+    khổ in × tổng tờ, không phải cuộn kg."""
+    g = _giay(db)
+    a, b, bg = _bai_tuyen(db, customer, g, [("Ghi kẽm CTP", "prepress", "kem"),
+                                            ("In offset", "print", "to")])
+    so_to = svc._tinh_so_to(bg, {a.id: a, b.id: b})
+    assert _khoa_giay(svc.can_doi(), g) == {("giay", g.id, 650, 860): pytest.approx(so_to["tong_to"])}
+
+
+def test_bai_ghi_kem_cat_to_in_lay_to_nguyen(db, svc, customer):
+    g = _giay(db)
+    a, b, bg = _bai_tuyen(db, customer, g, [("Ghi kẽm CTP", "prepress", "kem"),
+                                            ("Cắt tờ", "prepress", "to_nguyen"),
+                                            ("In offset", "print", "to")])
+    so_to = svc._tinh_so_to(bg, {a.id: a, b.id: b})
+    assert _khoa_giay(svc.can_doi(), g) == {
+        ("giay", g.id, 780, 905): pytest.approx(so_to["to_nguyen_can"])}
+
+
+def test_bai_in_chua_khai_don_vi_mua_kho_in(db, svc, customer):
+    """Ghi kẽm bỏ trống đơn vị, In chưa khai đơn vị vào, không có bước cắt ⇒ mua khổ in (§5)."""
+    g = _giay(db)
+    a, b, bg = _bai_tuyen(db, customer, g, [("Ghi kẽm CTP", "prepress", None),
+                                            ("In offset", "print", None)])
+    so_to = svc._tinh_so_to(bg, {a.id: a, b.id: b})
+    assert _khoa_giay(svc.can_doi(), g) == {("giay", g.id, 650, 860): pytest.approx(so_to["tong_to"])}
+
+
+def test_bai_cuon_thieu_gsm_bo_so_kem_ly_do(db, svc, customer):
+    """I1 — bước chung đầu nhận cuộn mà giấy thiếu gsm ⇒ không lấy số tờ dán nhãn kg: nhu cầu 0,
+    có lý do cảnh báo."""
+    from app.models.department import Department
+
+    g = _giay(db, gsm=0)
+    _a, _b, bg = _bai_tuyen(db, customer, g, [("Cắt cuộn", "prepress", "kg"),
+                                              ("In offset", "print", "to")])
+    to_cat = Department(name="Tổ Cắt KH", code="TO-CAT-KH", la_san_xuat=True, la_to_cat=True)
+    db.add(to_cat)
+    db.flush()
+    cat = db.query(BaiGhepCongDoan).filter_by(bai_ghep_id=bg.id, thu_tu=1).one()
+    cat.department_id = to_cat.id
+    db.commit()
+    items = [i for i in svc.can_doi()["items"] if i["hang_loai"] == "giay" and i["hang_id"] == g.id]
+    dong = [d for i in items for d in i["dong"]]
+    assert len(dong) == 1
+    assert dong[0]["nhu_cau"] == 0
+    assert "gsm" in (dong[0]["ly_do_canh_bao"] or "")
+    assert "tờ" not in dong[0]["nhu_cau_hien_thi"]

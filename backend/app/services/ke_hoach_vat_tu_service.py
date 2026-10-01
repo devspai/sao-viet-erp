@@ -909,14 +909,28 @@ class KeHoachVatTuService:
             # không có cột: khổ in sửa ở bài, khổ nguyên đi theo thành viên.
             qc_bai = quy_cach_bien_bai(bg, thanh_vien=lsx_map.values(), so_to=so_to_dict)
             buoc = sorted(self._buoc_chung(bg.id), key=lambda c: c.thu_tu)
-            neo = buoc[0] if buoc else None
+            # Neo = bước chung THẬT nhận giấy — cùng luật với chốt giấy (`buoc_lay_giay`): Ghi kẽm
+            # CTP đứng đầu tuyến bài (đơn vị `kem`) không phải bước lấy giấy.
+            from .san_xuat.chot_giay import buoc_lay_giay
+
+            neo = buoc_lay_giay(self.db, ("bai", bg.id))
             gy = self._giay_bai_theo_buoc_dau(neo, qc_bai, so_to_dict)
             if gy is None:
                 gy = goi_y_dong_giay(qc_bai)
+            neo = neo or (buoc[0] if buoc else None)
+            dang = gy.get("dang") or DANG_TO
+            if dang == DANG_CUON and gy.get("so_luong") is None:
+                # Cuộn thiếu gsm / khổ: KHÔNG lấy số tờ dán nhãn kg — dòng cảnh báo, nhu cầu 0.
+                d = self._dong_bai(bg, khoa_ton(HANG_GIAY, bg.giay_id, dang=DANG_CUON),
+                                   gy.get("don_vi") or "kg", 0.0, neo)
+                d["dang"] = DANG_CUON
+                d["ly_do_loi"] = (gy.get("ly_do")
+                                  or "Bài ghép chưa tính được khối lượng cuộn giấy.")
+                tho.append(d)
+                continue
             so_to = _f(gy["so_luong"]) or _f(so_to_dict.get("to_nguyen_can"))
             if so_to <= 0:
                 continue
-            dang = gy.get("dang") or DANG_TO
             d = self._dong_bai(bg, khoa_ton(HANG_GIAY, bg.giay_id, dang=dang,
                                             kho_rong=gy["kho_rong"], kho_dai=gy["kho_dai"]),
                                self._dv_to() if dang == DANG_TO else gy["don_vi"], so_to, neo)
@@ -1000,11 +1014,15 @@ class KeHoachVatTuService:
         """Dòng giấy của BÀI theo đầu vào của bước chung ĐẦU (kể cả bước cắt tổ chèn). Số lượng lấy từ
         số tờ của bài, KHÔNG từ `so_luong_vao` của bước (bước cắt chung có thể để 0). Bước chưa khai
         đơn vị vào ⇒ None, tầng gọi dùng `goi_y_dong_giay` như trước."""
+        from ..models.don_vi_do import TRAM_TO
+        from .dong_giay import ban_do_tram, ma_cua_tram, tram_cua
+
         dv_vao = (getattr(neo, "don_vi_vao", None) or "").strip()
+        if not dv_vao and getattr(neo, "nhom", None) == "print":
+            # Bước In chưa khai đơn vị vào: In nhận TỜ IN (spec §5 — không bước cắt ⇒ mua khổ in).
+            dv_vao = ma_cua_tram(TRAM_TO, ban_do_tram()) or ""
         if not dv_vao:
             return None
-        from ..models.don_vi_do import TRAM_TO
-        from .dong_giay import ban_do_tram, tram_cua
 
         to_nguyen = _f(so_to.get("to_nguyen_can"))
         vao = _f(so_to.get("tong_to")) if tram_cua(dv_vao, ban_do_tram()) == TRAM_TO else to_nguyen
@@ -1176,7 +1194,9 @@ class KeHoachVatTuService:
         for d in tho:
             # Số trên dòng là số ĐÃ CHỐT (bước lệnh: người lập lệnh gõ / điền sẵn; bài ghép: engine
             # bài) — chỉ đổi ĐƠN VỊ ĐO, không chạy công thức nào nữa.
-            if (d["hang"][0] == HANG_GIAY and d.get("dang") != DANG_CUON
+            if d.get("ly_do_loi"):
+                kq = {"loi": d["ly_do_loi"], "cb": CB_KHONG_DOI_CHIEU}
+            elif (d["hang"][0] == HANG_GIAY and d.get("dang") != DANG_CUON
                     and not la_khoa_to(d["hang"])):
                 kq = {"loi": d.get("ly_do_chua_kho")
                       or "Dòng giấy chưa có khổ — sửa ở bước của lệnh.", "cb": CB_GIAY_CHUA_KHO}
@@ -1184,7 +1204,7 @@ class KeHoachVatTuService:
                 kq = self._ve_goc(d["hang"], d["dvt"], d["sl"], dang=d.get("dang"))
             if "loi" in kq:
                 d["nhu_cau"] = 0.0
-                d["nhu_cau_hien_thi"] = f"{_so(d['sl'])} {d['dvt']}"
+                d["nhu_cau_hien_thi"] = "—" if d.get("ly_do_loi") else f"{_so(d['sl'])} {d['dvt']}"
                 d["canh_bao"] = [kq.get("cb") or CB_KHONG_DOI_CHIEU]
                 d["ly_do_canh_bao"] = kq["loi"]
             else:

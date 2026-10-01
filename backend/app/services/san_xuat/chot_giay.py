@@ -138,7 +138,8 @@ def _buoc_co_giay(db: Session, chu_the: tuple[str, int]) -> list:
 
     Lệnh: bước có dòng `hang_loai='giay'`. Bài (có `giay_id`): bước chung mà bước thành viên nó phủ
     (`bai_ghep_cong_doan_map`) mang dòng giấy; bài chưa có dòng giấy nào ở thành viên thì xét chính
-    bước chung — đơn vị vào là chặng tờ (tờ nguyên / tờ in) hoặc công đoạn Giai đoạn In. Nhờ vậy bước
+    bước chung — đơn vị vào là chặng tờ (tờ nguyên / tờ in), công đoạn Giai đoạn In, hoặc bước trong
+    phạm vi tổ Cắt (§2, kể cả nhận cuộn). Nhờ vậy bước
     chung đứng trước In mà không nhận giấy (vd Ghi kẽm) không bị coi là bước lấy giấy."""
     loai, id_ = chu_the
     co = select(LsxCongDoanVatTu.lsx_cong_doan_id).where(LsxCongDoanVatTu.hang_loai == "giay")
@@ -168,7 +169,10 @@ def _nhan_giay_theo_buoc(db: Session, buoc, tram: dict) -> bool:
     if buoc.don_vi_vao and tram_cua(buoc.don_vi_vao, tram) in (TRAM_TO, TRAM_TO_NGUYEN):
         return True
     cd = db.get(CongDoan, buoc.cong_doan_id) if buoc.cong_doan_id else None
-    return (cd.nhom if cd is not None else buoc.nhom) == NHOM_IN
+    if (cd.nhom if cd is not None else buoc.nhom) == NHOM_IN:
+        return True
+    # Bước cắt của tổ Cắt (Trước In) nhận giấy dù đầu vào là cuộn (đơn vị không phải chặng tờ).
+    return la_buoc_truoc_in_to_cat(db, buoc)
 
 
 def buoc_lay_giay(db: Session, chu_the: tuple[str, int]):
