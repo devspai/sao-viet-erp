@@ -1606,31 +1606,36 @@ def test_phan_da_cap_cua_buoc_rung_KHONG_troi_sang_buoc_con_lai(db, svc, custome
     dòng mà không trừ phần của nó thì số đã cấp ấy trôi sang bước sau và dán "đã cấp đủ" lên một
     bước chưa hề nhận hàng.
     """
-    from app.models.lsx import LsxCongDoanVatTu
-
+    # Từ 01/10/2026 giấy chỉ tính ở BƯỚC ĐẦU mỗi mã (bước sau "nhận từ bước trước"), nên ca "cùng
+    # một món ở hai bước" dựng bằng vật tư THƯỜNG (mực), không phải giấy.
     g = _giay(db)
+    vt = _vat_tu(db)
     l = _lenh(db, customer, ma="LSX-2BUOC", giay_id=g.id, so_to_nguyen=1_000, han=MAI,
-              sl_giay=80)
+              giay_o_buoc=False)
     b1 = _buoc_cua(db, l)
-    b2 = LsxCongDoan(lsx_id=l.id, thu_tu=2, ten="In mặt sau", loai_buoc="may",
-                     may_id=_may(db).id, don_vi_vao="to", don_vi_ra="to",
-                     so_luong_vao=1_000, so_luong_ra=1_000)
-    db.add(b2)
+    b2 = _them_buoc(db, l, thu_tu=2, ten="In mặt sau")
+    _khai_vat_tu(db, b1, vt, 80)
+    _khai_vat_tu(db, b2, vt, 80)
+    kho_hang = db.query(KhoHang).first() or KhoHang(ma="K1", ten="Kho test")
+    db.add(kho_hang)
     db.flush()
-    db.add(LsxCongDoanVatTu(
-        lsx_cong_doan_id=b2.id, hang_loai="giay", vat_tu_id=g.id,
-        vat_tu_ma_snapshot=g.ma, vat_tu_ten_snapshot=g.ten, don_vi_snapshot=don_vi_goc_to(),
-        so_luong=80, kho_rong=KHO[0], kho_dai=KHO[1], thu_tu=0, tu_dong=False,
-    ))
+    db.add(StockLot(hang_loai="vat_tu", hang_id=vt.id, kho_id=kho_hang.id, ma_lo="LOT-MUC",
+                    sl_ban_dau=1_000, sl_con_lai=1_000, ngay_nhap=HOM_NAY,
+                    trang_thai=LOT_AVAILABLE))
+    r = StockRequest(ma="DNX-2BUOC", loai=REQ_XUAT, nguoi_tao_id=1, trang_thai=REQ_APPROVED)
+    db.add(r)
+    db.flush()
+    # Kho đã ứng ĐÚNG phần của bước 1 (80), bước 1 chạy xong.
+    db.add(StockRequestLine(request_id=r.id, hang_loai="vat_tu", hang_id=vt.id, lsx_id=l.id,
+                            dvt="kg", sl_de_nghi=80, sl_duyet=80, sl_da_ung=80))
     db.commit()
-    _ton(db, g, 1_000)
-    # Kho đã ứng ĐÚNG phần của bước 1 (80 tờ), bước 1 chạy xong.
-    _de_nghi_xuat(db, g, lsx_id=l.id, duyet=80, da_ung=80)
     _cong_viec(db, l, buoc_id=b1.id, xong=True)
 
-    dong = _nhom(svc.can_doi(), g)["dong"]
+    nhom = next(x for x in svc.can_doi()["items"]
+                if (x["hang_loai"], x["hang_id"]) == ("vat_tu", vt.id))
+    dong = nhom["dong"]
     assert len(dong) == 1, "bước 1 đã rụng, chỉ còn bước 2"
-    assert dong[0]["da_cap"] == 0, "80 tờ đó tiêu ở bước 1, không phải hàng của bước 2"
+    assert dong[0]["da_cap"] == 0, "80 đó tiêu ở bước 1, không phải hàng của bước 2"
     assert dong[0]["con_phai_co"] == 80
 
 

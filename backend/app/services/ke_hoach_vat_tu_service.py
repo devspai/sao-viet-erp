@@ -59,6 +59,7 @@ from .kho_giay import (
     DANG_TO,
     chuan_kho,
     don_vi_goc_to,
+    dong_giay_theo_dau_vao,
     goi_y_dong_giay,
     khoa_ton,
     khoa_ton_cua,
@@ -823,14 +824,15 @@ class KeHoachVatTuService:
             obj = self._obj(k)
             ten = obj.ten if obj is not None else f"#{hid}"
             giay = loai == HANG_GIAY
-            dvt_goc = (self._dv_to() if giay
+            cuon = giay and d.get("dang") == DANG_CUON
+            dvt_goc = (self._dv_to() if giay and not cuon
                        else getattr(obj, "don_vi_gia", None) if obj is not None else None)
             sl_goc = float(d.get("nhu_cau") or 0)
             cu = gom.get(k)
             if cu is None:
                 gom[k] = {
                     "hang_loai": loai, "hang_id": int(hid), "ten": ten,
-                    "dang_giay": DANG_TO if giay else None, "kho_rong": kr, "kho_dai": kd,
+                    "dang_giay": (DANG_CUON if cuon else DANG_TO) if giay else None, "kho_rong": kr, "kho_dai": kd,
                     "dvt": d["dvt"], "sl": float(d["sl"] or 0),
                     "dvt_goc": dvt_goc or d["dvt"], "sl_goc": sl_goc,
                 }
@@ -905,16 +907,20 @@ class KeHoachVatTuService:
             # Khổ + số tờ của giấy bài (spec §4.2), cùng luật với dòng giấy của lệnh: khổ nguyên của
             # bài với `to_nguyen_can`; thiếu khổ nguyên thì khổ tờ in của bài với `tong_to`. Dẫn xuất,
             # không có cột: khổ in sửa ở bài, khổ nguyên đi theo thành viên.
-            gy = goi_y_dong_giay(quy_cach_bien_bai(bg, thanh_vien=lsx_map.values(),
-                                                   so_to=so_to_dict))
+            qc_bai = quy_cach_bien_bai(bg, thanh_vien=lsx_map.values(), so_to=so_to_dict)
+            buoc = sorted(self._buoc_chung(bg.id), key=lambda c: c.thu_tu)
+            neo = buoc[0] if buoc else None
+            gy = self._giay_bai_theo_buoc_dau(neo, qc_bai, so_to_dict)
+            if gy is None:
+                gy = goi_y_dong_giay(qc_bai)
             so_to = _f(gy["so_luong"]) or _f(so_to_dict.get("to_nguyen_can"))
             if so_to <= 0:
                 continue
-            buoc = sorted(self._buoc_chung(bg.id), key=lambda c: c.thu_tu)
-            neo = buoc[0] if buoc else None
-            d = self._dong_bai(bg, khoa_ton(HANG_GIAY, bg.giay_id, dang=DANG_TO,
+            dang = gy.get("dang") or DANG_TO
+            d = self._dong_bai(bg, khoa_ton(HANG_GIAY, bg.giay_id, dang=dang,
                                             kho_rong=gy["kho_rong"], kho_dai=gy["kho_dai"]),
-                               self._dv_to(), so_to, neo)
+                               self._dv_to() if dang == DANG_TO else gy["don_vi"], so_to, neo)
+            d["dang"] = dang
             d["ly_do_chua_kho"] = "Bài ghép chưa có khổ giấy — khai khổ tờ in của bài."
             tho.append(d)
 
@@ -927,19 +933,29 @@ class KeHoachVatTuService:
 
         tron_goi = GiaCongNgoaiRepository(self.db).tron_goi_dang_chay({l.id for l in lenh})
         if buoc_map:
-            for vt in self.repo.vat_tu_theo_buoc_lenh(list(buoc_map)):
+            vts = self.repo.vat_tu_theo_buoc_lenh(list(buoc_map))
+            # Giấy: chỉ BƯỚC ĐẦU (theo thu_tu) mang mã đó lấy từ kho (spec 2026-10-01 §5); dòng ở các
+            # bước sau là "nhận từ bước trước" — không phải nhu cầu.
+            buoc_dau = self._buoc_dau_giay(vts, buoc_map)
+            for vt in vts:
                 cd, l = buoc_map[vt.lsx_cong_doan_id]
                 if cd.step_key in bi_buoc_chung_de or _f(vt.so_luong) <= 0:
                     continue
                 if l.id in tron_goi and not (tron_goi[l.id] and vt.hang_loai == HANG_GIAY):
                     continue
+                if vt.hang_loai == HANG_GIAY and buoc_dau.get((l.id, vt.vat_tu_id)) != cd.id:
+                    continue
                 # `vt.hang_loai` chứ không đóng đinh `"vat_tu"`: từ 08/09/2026 dòng của bước có thể
                 # trỏ vào danh mục GIẤY — đó là đường DUY NHẤT giấy vào bảng cân đối ở tầng lệnh.
-                # Giấy mang khổ của dòng (đếm tờ), vật tư khác khoá `(…, 0, 0)`.
-                hang = (khoa_ton(HANG_GIAY, vt.vat_tu_id, dang=DANG_TO,
+                # Giấy mang khổ của dòng (đếm tờ) hoặc cuộn (gom theo mã), vật tư khác `(…, 0, 0)`.
+                dang = (getattr(vt, "dang_giay", None) or DANG_TO) if vt.hang_loai == HANG_GIAY else None
+                hang = (khoa_ton(HANG_GIAY, vt.vat_tu_id, dang=dang,
                                  kho_rong=vt.kho_rong or 0, kho_dai=vt.kho_dai or 0)
                         if vt.hang_loai == HANG_GIAY else _khoa4((vt.hang_loai, vt.vat_tu_id)))
-                tho.append(self._dong_lenh(l, hang, vt.don_vi_snapshot, _f(vt.so_luong), cd))
+                d = self._dong_lenh(l, hang, vt.don_vi_snapshot, _f(vt.so_luong), cd)
+                if dang == DANG_CUON:
+                    d["dang"] = DANG_CUON
+                tho.append(d)
 
         # --- lệnh/bài không sinh dòng nào: KHÔNG nói gì (23/09/2026) --------
         # Trước đây khối này đẻ danh sách `bo_qua` ("Lệnh chưa khai vật tư nào ở bước — kể cả
@@ -964,6 +980,59 @@ class KeHoachVatTuService:
                                    _f(vt.so_luong), chung[vt.bai_ghep_cong_doan_id][0])
                 )
         return tho
+
+    @staticmethod
+    def _buoc_dau_giay(vts, buoc_map) -> dict[tuple[int, int], int]:
+        """`{(lsx_id, vat_tu_id): id bước}` — bước ĐẦU (thu_tu nhỏ nhất, hoà thì id nhỏ) có dòng giấy
+        của mã đó trong lệnh. Thứ tự theo `thu_tu` của bước, không theo đồ thị phụ thuộc."""
+        dau: dict[tuple[int, int], tuple] = {}
+        for vt in vts:
+            if vt.hang_loai != HANG_GIAY or _f(vt.so_luong) <= 0:
+                continue
+            cd, l = buoc_map[vt.lsx_cong_doan_id]
+            k = (l.id, int(vt.vat_tu_id))
+            moc = (cd.thu_tu or 0, cd.id)
+            if k not in dau or moc < dau[k][0]:
+                dau[k] = (moc, cd.id)
+        return {k: v[1] for k, v in dau.items()}
+
+    def _giay_bai_theo_buoc_dau(self, neo, qc_bai: dict, so_to: dict) -> dict | None:
+        """Dòng giấy của BÀI theo đầu vào của bước chung ĐẦU (kể cả bước cắt tổ chèn). Số lượng lấy từ
+        số tờ của bài, KHÔNG từ `so_luong_vao` của bước (bước cắt chung có thể để 0). Bước chưa khai
+        đơn vị vào ⇒ None, tầng gọi dùng `goi_y_dong_giay` như trước."""
+        dv_vao = (getattr(neo, "don_vi_vao", None) or "").strip()
+        if not dv_vao:
+            return None
+        from ..models.don_vi_do import TRAM_TO
+        from .dong_giay import ban_do_tram, tram_cua
+
+        to_nguyen = _f(so_to.get("to_nguyen_can"))
+        vao = _f(so_to.get("tong_to")) if tram_cua(dv_vao, ban_do_tram()) == TRAM_TO else to_nguyen
+        gy = dong_giay_theo_dau_vao(don_vi_vao=dv_vao, so_luong_vao=vao, so_luong_ra=to_nguyen,
+                                    quy_cach=qc_bai, gsm=qc_bai.get("gsm"))
+        gy["so_luong"] = _f(gy["so_luong"]) or None
+        return gy
+
+    def buoc_nhan_tu(self, lsx_id: int) -> dict[int, dict]:
+        """`{lsx_cong_doan_id: {"hang_id", "tu_buoc"}}` cho dòng giấy KHÔNG phải bước đầu của mã —
+        bước ấy nhận giấy từ bước trước (tên bước đứng ngay trước nó có cùng mã giấy)."""
+        lenh = self.lsx_repo.theo_ids({int(lsx_id)})
+        buoc_map = {cd.id: (cd, l) for l in lenh for cd in l.cong_doans}
+        if not buoc_map:
+            return {}
+        vts = [v for v in self.repo.vat_tu_theo_buoc_lenh(list(buoc_map))
+               if v.hang_loai == HANG_GIAY and _f(v.so_luong) > 0]
+        theo_ma: dict[int, list] = {}
+        for v in vts:
+            cd = buoc_map[v.lsx_cong_doan_id][0]
+            theo_ma.setdefault(int(v.vat_tu_id), []).append(((cd.thu_tu or 0, cd.id), cd))
+        kq: dict[int, dict] = {}
+        for hang_id, ds in theo_ma.items():
+            ds.sort(key=lambda x: x[0])
+            for i in range(1, len(ds)):
+                cd = ds[i][1]
+                kq[cd.id] = {"hang_id": hang_id, "tu_buoc": ds[i - 1][1].ten}
+        return kq
 
     def _bo_buoc_da_xong(self, tho: list[dict]) -> tuple[list[dict], dict[tuple, float]]:
         """Bỏ dòng của BƯỚC đã chạy xong — trả `(dòng còn lại, {khoá đã cấp: lượng coi như tiêu})`.
@@ -1091,11 +1160,12 @@ class KeHoachVatTuService:
         for d in tho:
             # Số trên dòng là số ĐÃ CHỐT (bước lệnh: người lập lệnh gõ / điền sẵn; bài ghép: engine
             # bài) — chỉ đổi ĐƠN VỊ ĐO, không chạy công thức nào nữa.
-            if d["hang"][0] == HANG_GIAY and not la_khoa_to(d["hang"]):
+            if (d["hang"][0] == HANG_GIAY and d.get("dang") != DANG_CUON
+                    and not la_khoa_to(d["hang"])):
                 kq = {"loi": d.get("ly_do_chua_kho")
                       or "Dòng giấy chưa có khổ — sửa ở bước của lệnh.", "cb": CB_GIAY_CHUA_KHO}
             else:
-                kq = self._ve_goc(d["hang"], d["dvt"], d["sl"])
+                kq = self._ve_goc(d["hang"], d["dvt"], d["sl"], dang=d.get("dang"))
             if "loi" in kq:
                 d["nhu_cau"] = 0.0
                 d["nhu_cau_hien_thi"] = f"{_so(d['sl'])} {d['dvt']}"
