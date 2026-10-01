@@ -3626,25 +3626,65 @@ td.khsx-num > .khsx-unit {
   background: #fff7ed;
   border: 1px solid #fed7aa;
 }
-/* Khổ dòng giấy (spec 2026-10-01 §4.2): hai ô mm ngay dưới tên — giấy đếm tờ theo khổ. */
+/* Khổ dòng giấy (spec 2026-10-01 §4.2): MỘT khung viền "[rộng] × [dài] mm" ngay dưới tên, không gãy
+   dòng — trước mượn `.khsx-vattu-num-input` (ô không viền, rộng 95px của nhóm số lượng) nên hai số
+   rơi thành hai dòng trơ trọi. */
 .khsx-vattu-kho {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-top: 6px;
 }
 .khsx-vattu-kho__label {
   font-size: 11.5px;
   color: var(--muted, #64748b);
 }
+.khsx-vattu-kho__nhom {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px 0 2px;
+  border: 1px solid var(--rule-soft, #cbd5e1);
+  border-radius: 6px;
+  background: #ffffff;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.khsx-vattu-kho__nhom:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
 .khsx-vattu-kho__o {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
 }
 .khsx-vattu-kho__input {
-  width: 76px;
+  width: 58px;
+  height: 26px;
+  padding: 0 4px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink, #0f172a);
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+.khsx-vattu-kho__input::placeholder {
+  font-weight: 400;
+  color: var(--ash, #94a3b8);
+}
+.khsx-vattu-kho__input::-webkit-outer-spin-button,
+.khsx-vattu-kho__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.khsx-vattu-kho__x,
+.khsx-vattu-kho__mm {
+  font-size: 12px;
+  color: var(--muted, #64748b);
 }
 .khsx-vattu-td--why {
   min-width: 220px;

@@ -977,15 +977,16 @@ export function LsxBuocDrawer({
                                 {/* Giấy đếm tờ theo KHỔ (mm) — mặc định từ quy cách lệnh, sửa được. */}
                                 {v.hang_loai === "giay" && (
                                   <div className="khsx-vattu-kho">
-                                    <span className="khsx-vattu-kho__label">Khổ (mm)</span>
+                                    <span className="khsx-vattu-kho__label">Khổ</span>
+                                    <span className="khsx-vattu-kho__nhom">
                                     {(["kho_rong", "kho_dai"] as const).map((k, idx) => (
                                       <span key={k} className="khsx-vattu-kho__o">
-                                        {idx === 1 && <span aria-hidden="true">×</span>}
+                                        {idx === 1 && <span className="khsx-vattu-kho__x" aria-hidden="true">×</span>}
                                         <input
                                           type="number"
                                           min="1"
                                           step="1"
-                                          className="khsx-vattu-num-input khsx-vattu-kho__input"
+                                          className="khsx-vattu-kho__input"
                                           aria-label={idx === 0 ? "Khổ giấy — cạnh rộng (mm)" : "Khổ giấy — cạnh dài (mm)"}
                                           value={v[k]}
                                           placeholder={idx === 0 ? "rộng" : "dài"}
@@ -1001,6 +1002,8 @@ export function LsxBuocDrawer({
                                         />
                                       </span>
                                     ))}
+                                      <span className="khsx-vattu-kho__mm" aria-hidden="true">mm</span>
+                                    </span>
                                   </div>
                                 )}
                               </td>

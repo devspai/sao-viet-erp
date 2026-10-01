@@ -1606,7 +1606,7 @@
 /* Khổ giấy (mm) dưới ô vật tư: "Khổ cần (mm) [rộng] × [dài]" — giấy tờ mua theo khổ. */
 .purchase__kho-mm {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
   margin-top: 6px;
@@ -1614,8 +1614,9 @@
   color: var(--muted, #64748b);
 }
 .purchase__kho-mm .purchase__input-flat {
-  width: 76px;
+  width: 72px;
   min-width: 0;
+  flex: 0 0 auto;
 }
 .purchase__kho-mm-nhan {
   white-space: nowrap;
