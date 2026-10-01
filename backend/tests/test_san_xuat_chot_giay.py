@@ -135,9 +135,9 @@ def test_them_cat_tao_buoc_ngay_truoc_in_canh_toi_in_va_cong_viec_cung_goi(
     assert cv_cat.goi_id == n.goi.id and cv_cat.department_id == n.to_cat.id
     assert cv_cat.nhom_id == cv_in.nhom_id
     db.expire_all()
-    # In nay chỉ chờ Cắt; chặng trước cũ của In chuyển sang Cắt.
-    assert {c.id for c in sl.cong_viec_chang_truoc(cv_in)} == {cv_cat.id}
-    assert {c.id for c in sl.cong_viec_chang_truoc(cv_cat)} == truoc_cu
+    # Cắt chạy SONG SONG chặng trước cũ của In: In chờ cả hai, Cắt không chờ ai.
+    assert {c.id for c in sl.cong_viec_chang_truoc(cv_in)} == truoc_cu | {cv_cat.id}
+    assert sl.cong_viec_chang_truoc(cv_cat) == []
     assert [c.id for c in sl.cong_viec_chang_sau(cv_cat)] == [cv_in.id]
 
 

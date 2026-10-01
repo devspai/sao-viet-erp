@@ -6,7 +6,8 @@ Lệnh / bài ghép có giấy, sau khi phát hành, tới bàn của tổ mang 
 theo tên. Cắt thành phẩm (tổ Cắt, giai đoạn sau in) chạy như mọi bước thường, không hiện ở đây.
 
   · THÊM công đoạn: chèn NGAY TRƯỚC bước "In" (bước mang giấy đầu tiên ngoài phạm vi), nối
-    Cắt₁ → … → Cắtₙ → In; cạnh đi vào In cũ chuyển sang Cắt₁. Bước mới mang dòng giấy cùng mã với In,
+    Cắt₁ → … → Cắtₙ → In SONG SONG với chặng trước cũ của In (Ghi kẽm vẫn vào In, Cắt₁ không chờ
+    ai). Bước mới mang dòng giấy cùng mã với In,
     số/khổ do chuỗi ngược dẫn xuất (`LsxService._ap_chuoi_nguoc`). Công việc dựng bằng đúng hàm dựng
     một bước của phát hành (`snapshot.cong_viec_buoc_*`), cùng gói đang chạy.
   · XOÁ công đoạn: MỌI bước trong phạm vi (kể cả người lập lệnh đặt sẵn) khi bước đó và In chưa bắt
@@ -96,6 +97,7 @@ def chu_the_cua(cv) -> tuple[str, int] | None:
 
 
 NHOM_TRUOC_IN = "prepress"
+NHOM_IN = "print"
 
 
 def la_buoc_truoc_in_to_cat(db: Session, buoc) -> bool:
@@ -131,16 +133,41 @@ def _cac_buoc(db: Session, chu_the: tuple[str, int]) -> list:
 
 
 def _buoc_co_giay(db: Session, chu_the: tuple[str, int]) -> list:
-    """Bước mang giấy theo `thu_tu`. Lệnh: bước có dòng `hang_loai='giay'`. Bài: giấy là của BÀI
-    (`bai_ghep.giay_id`) nên mọi bước chung đều xét — bài không giấy ⇒ rỗng."""
+    """Bước mang giấy theo `thu_tu` — bước THẬT SỰ nhận giấy.
+
+    Lệnh: bước có dòng `hang_loai='giay'`. Bài (có `giay_id`): bước chung mà bước thành viên nó phủ
+    (`bai_ghep_cong_doan_map`) mang dòng giấy; bài chưa có dòng giấy nào ở thành viên thì xét chính
+    bước chung — đơn vị vào là chặng tờ (tờ nguyên / tờ in) hoặc công đoạn Giai đoạn In. Nhờ vậy bước
+    chung đứng trước In mà không nhận giấy (vd Ghi kẽm) không bị coi là bước lấy giấy."""
     loai, id_ = chu_the
+    co = select(LsxCongDoanVatTu.lsx_cong_doan_id).where(LsxCongDoanVatTu.hang_loai == "giay")
     if loai == "lsx":
-        co = select(LsxCongDoanVatTu.lsx_cong_doan_id).where(LsxCongDoanVatTu.hang_loai == "giay")
         return list(db.scalars(
             select(LsxCongDoan).where(LsxCongDoan.lsx_id == id_, LsxCongDoan.id.in_(co))
             .order_by(LsxCongDoan.thu_tu, LsxCongDoan.id)))
     bg = db.get(BaiGhep, id_)
-    return _cac_buoc(db, chu_the) if bg is not None and bg.giay_id else []
+    if bg is None or not bg.giay_id:
+        return []
+    buoc = _cac_buoc(db, chu_the)
+    co_giay = set(db.scalars(
+        select(BaiGhepCongDoanMap.bai_ghep_cong_doan_id)
+        .join(LsxCongDoan, LsxCongDoan.step_key == BaiGhepCongDoanMap.lsx_step_key)
+        .where(BaiGhepCongDoanMap.bai_ghep_cong_doan_id.in_([b.id for b in buoc]),
+               LsxCongDoan.id.in_(co)))) if buoc else set()
+    if co_giay:
+        return [b for b in buoc if b.id in co_giay]
+    tram = ban_do_tram(db)
+    return [b for b in buoc if _nhan_giay_theo_buoc(db, b, tram)]
+
+
+def _nhan_giay_theo_buoc(db: Session, buoc, tram: dict) -> bool:
+    from ...models.don_vi_do import TRAM_TO, TRAM_TO_NGUYEN
+    from ..dong_giay import tram_cua
+
+    if buoc.don_vi_vao and tram_cua(buoc.don_vi_vao, tram) in (TRAM_TO, TRAM_TO_NGUYEN):
+        return True
+    cd = db.get(CongDoan, buoc.cong_doan_id) if buoc.cong_doan_id else None
+    return (cd.nhom if cd is not None else buoc.nhom) == NHOM_IN
 
 
 def buoc_lay_giay(db: Session, chu_the: tuple[str, int]):
@@ -210,13 +237,18 @@ def can_chot(db: Session, chu_the: tuple[str, int]) -> bool:
 def ly_do_cho_chot(db: Session, cv) -> str | None:
     """Spec §3.1. None = cổng này không chặn công việc. Chỉ khoá ĐÚNG bước lấy giấy (In) khi chủ thể
     còn chờ tổ Cắt xác nhận."""
+    # Bàn tổ gọi hàm này cho MỌI công việc ⇒ loại rẻ trước: không tổ Cắt / không phải bước lấy giấy.
     if not co_to_cat(db):
         return None
     ct = chu_the_cua(cv)
-    if ct is None or not can_chot(db, ct):
+    buoc_id = _id_buoc_cv(cv)
+    if ct is None or buoc_id is None:
         return None
     lay = buoc_lay_giay(db, ct)
-    if lay is None or _id_buoc_cv(cv) != lay.id:
+    if lay is None or buoc_id != lay.id:
+        return None
+    obj = _doi_tuong(db, ct)
+    if obj is None or obj.giay_chot_cach or la_buoc_truoc_in_to_cat(db, lay):
         return None
     return (f"Chờ tổ Cắt chốt giấy cho {ma_chu_the(db, ct)} — tổ Cắt thêm công đoạn cắt hoặc bấm "
             "\"Không cần cắt\" rồi mới bắt đầu được.")
@@ -522,11 +554,22 @@ def _buoc_lenh_moi(lsx_id: int, cd: CongDoan, team_id: int, thu_tu: int,
 
 def _chen_truoc_lenh(db: Session, lsx_id: int, cds: list[CongDoan], team_id: int,
                      dich: LsxCongDoan) -> list[LsxCongDoan]:
-    """Chèn n bước NGAY TRƯỚC `dich` (bước In) của lệnh: dời `dich` và mọi bước sau nó `+n`, nối
-    Cắt₁→…→Cắtₙ→`dich`, cạnh đi vào `dich` cũ chuyển sang Cắt₁. Bước mới mang dòng giấy cùng MÃ với
-    `dich` (số 0 — chuỗi ngược dẫn xuất ngay sau)."""
+    """Chèn n bước NGAY TRƯỚC `dich` (bước In) của lệnh, chạy SONG SONG với chặng trước sẵn có của
+    In (vd Ghi kẽm): nối Cắt₁→…→Cắtₙ→`dich`, GIỮ mọi chặng trước cũ của In, Cắt₁ không có chặng
+    trước. Chặng trước NGẦM theo `thu_tu` (bước liền trước In không khai cạnh ra) được ghi thành cạnh
+    tường minh trước khi chèn — không thì Cắt₁ đứng liền sau nó sẽ thành bước phải chờ nó, còn In mất
+    chặng trước ấy. Bước mới mang dòng giấy cùng MÃ với `dich` (số 0 — chuỗi ngược dẫn xuất ngay sau)."""
     n, moc = len(cds), dich.thu_tu or 0
-    for b in db.scalars(select(LsxCongDoan).where(LsxCongDoan.lsx_id == lsx_id)):
+    tuyen = list(db.scalars(select(LsxCongDoan).where(LsxCongDoan.lsx_id == lsx_id)
+                            .order_by(LsxCongDoan.thu_tu, LsxCongDoan.id)))
+    i_dich = next((i for i, b in enumerate(tuyen) if b.id == dich.id), 0)
+    if i_dich > 0:
+        lien_truoc = tuyen[i_dich - 1]
+        co_canh_ra = db.execute(select(LsxCongDoanPhuThuoc.id).where(
+            LsxCongDoanPhuThuoc.buoc_truoc_id == lien_truoc.id).limit(1)).first() is not None
+        if not co_canh_ra:
+            db.add(LsxCongDoanPhuThuoc(buoc_truoc_id=lien_truoc.id, buoc_sau_id=dich.id))
+    for b in tuyen:
         if (b.thu_tu or 0) >= moc:
             b.thu_tu = (b.thu_tu or 0) + n
     dvs = _don_vi_chuoi(cds, dich.don_vi_vao)
@@ -534,9 +577,6 @@ def _chen_truoc_lenh(db: Session, lsx_id: int, cds: list[CongDoan], team_id: int
            for i, (cd, dv) in enumerate(zip(cds, dvs))]
     db.add_all(moi)
     db.flush()
-    for e in db.scalars(select(LsxCongDoanPhuThuoc).where(
-            LsxCongDoanPhuThuoc.buoc_sau_id == dich.id)):
-        e.buoc_sau_id = moi[0].id
     for a, b in zip(moi, moi[1:] + [dich]):
         db.add(LsxCongDoanPhuThuoc(buoc_truoc_id=a.id, buoc_sau_id=b.id))
     giay = {v.vat_tu_id: v for v in db.scalars(select(LsxCongDoanVatTu).where(

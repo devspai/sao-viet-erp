@@ -1,6 +1,6 @@
 """Chốt giấy trên lệnh nhiều bước CTP → In → Đóng gói (spec dòng giấy theo đầu vào §3.3): tổ Cắt
-THÊM công đoạn Trước In vào NGAY TRƯỚC bước In ⇒ tuyến CTP → Cắt tờ → In → Đóng gói, đúng hình
-lệnh cấu hình sẵn bước cắt (§3.2). Chặng trước cũ của In chuyển sang Cắt; In chỉ chờ Cắt.
+THÊM công đoạn Trước In vào NGAY TRƯỚC bước In (thứ tự bảng CTP · Cắt tờ · In · Đóng gói) nhưng chạy
+SONG SONG với CTP: Cắt không chờ CTP, In chờ cả CTP lẫn Cắt (phán quyết controller 01/10/2026).
 
 Nền `lenh_that` (đã phát hành, không có giấy) + gắn một dòng giấy lên bước In sau phát hành — luật
 "bước mang giấy" đọc dòng vật tư sống của bước, không đọc snapshot."""
@@ -27,7 +27,7 @@ def _cv(sess, buoc) -> SanXuatCongViec:
     return sess.query(SanXuatCongViec).filter_by(lsx_cong_doan_id=buoc.id).one()
 
 
-def test_them_cat_dung_ngay_truoc_in_sau_ctp(sess, admin, lenh_that):
+def test_them_cat_song_song_ctp_ca_hai_vao_in(sess, admin, lenh_that):
     g = GiayNguyen(ma="G-CG-TUYEN", ten="Couche 150", gsm=150, kho_rong=790, kho_dai=1090)
     sess.add(g)
     sess.flush()
@@ -67,9 +67,10 @@ def test_them_cat_dung_ngay_truoc_in_sau_ctp(sess, admin, lenh_that):
     sl = SanXuatSanLuongRepository(sess)
     cv_cat = sess.get(SanXuatCongViec, kq["cong_viec_moi"][0])
     assert sl.cong_viec_chang_truoc(cv_ctp) == []
-    assert [c.id for c in sl.cong_viec_chang_truoc(cv_cat)] == [cv_ctp.id]
-    assert [c.id for c in sl.cong_viec_chang_truoc(cv_in)] == [cv_cat.id]
+    assert sl.cong_viec_chang_truoc(cv_cat) == []
+    assert {c.id for c in sl.cong_viec_chang_truoc(cv_in)} == {cv_ctp.id, cv_cat.id}
     assert [c.id for c in sl.cong_viec_chang_sau(cv_cat)] == [cv_in.id]
+    assert [c.id for c in sl.cong_viec_chang_sau(cv_ctp)] == [cv_in.id]
     # Cắt có dòng giấy rồi ⇒ cổng chờ chốt không còn khoá In.
     assert chot_giay.ly_do_cho_chot(sess, cv_in) is None
 
@@ -146,3 +147,109 @@ def test_bai_ghep_chen_mot_cong_viec_cat_cho_ca_bai(sess, orders, lsx_svc, admin
                                           LsxCongDoan.chen_boi_to_cat.is_(True)).count() == 0
     assert sess.get(SanXuatCongViec, cv_cat.id) is None
     assert [b_.thu_tu for b_ in sess.query(BaiGhepCongDoan).filter_by(bai_ghep_id=bg.id)] == [0]
+
+
+def _nen_tuyen(sess, admin, lenh_that):
+    g = GiayNguyen(ma="G-CG-TY2", ten="Couche 150", gsm=150, kho_rong=790, kho_dai=1090)
+    sess.add(g)
+    sess.flush()
+    in_ = _buoc(sess, lenh_that, "In")
+    sess.add(LsxCongDoanVatTu(
+        lsx_cong_doan_id=in_.id, hang_loai="giay", vat_tu_id=g.id, vat_tu_ma_snapshot=g.ma,
+        vat_tu_ten_snapshot=g.ten, don_vi_snapshot="to", so_luong=5000, kho_rong=790,
+        kho_dai=1090))
+    to_cat = Department(name="Tổ Cắt tuyến 2", code="TO-CAT-TY2", la_san_xuat=True, la_to_cat=True)
+    sess.add(to_cat)
+    sess.flush()
+    cap_quyen_to(sess, admin, to_cat)
+    cds = []
+    for ma, ten in (("CD-XEN-TY2", "Xén giấy"), ("CD-CAT-TY2", "Cắt tờ")):
+        cd = CongDoan(ma=ma, ten=ten, nhom="prepress", cong_thuc_gia="so_luong * don_gia")
+        sess.add(cd)
+        sess.flush()
+        cd.department_ids = [to_cat.id]
+        cds.append(cd)
+    sess.commit()
+    return to_cat, cds
+
+
+def test_xoa_cat1_cua_chuoi_song_song_khong_de_canh_ctp_moi(sess, admin, lenh_that):
+    from app.models.lsx import LsxCongDoanPhuThuoc
+
+    to_cat, (xen, cat) = _nen_tuyen(sess, admin, lenh_that)
+    chot_giay.them(sess, user=admin, team_id=to_cat.id, lsx_id=lenh_that, bai_ghep_id=None,
+                   cong_doan_ids=[xen.id, cat.id])
+    sess.commit()
+    sess.expire_all()
+    ctp, b_xen, b_cat = (_buoc(sess, lenh_that, t) for t in ("CTP", "Xén giấy", "Cắt tờ"))
+    chot_giay.xoa(sess, user=admin, team_id=to_cat.id, lsx_id=lenh_that, bai_ghep_id=None,
+                  buoc_id=b_xen.id)
+    sess.commit()
+    sess.expire_all()
+    ten = [b.ten for b in sess.query(LsxCongDoan).filter_by(lsx_id=lenh_that)
+           .order_by(LsxCongDoan.thu_tu)]
+    assert ten == ["CTP", "Cắt tờ", "In", "Đóng gói"]
+    assert sess.query(LsxCongDoanPhuThuoc).filter_by(
+        buoc_truoc_id=ctp.id, buoc_sau_id=b_cat.id).count() == 0
+    sl = SanXuatSanLuongRepository(sess)
+    cv_cat, cv_in, cv_ctp = _cv(sess, b_cat), _cv(sess, _buoc(sess, lenh_that, "In")), _cv(sess, ctp)
+    assert sl.cong_viec_chang_truoc(cv_cat) == []
+    assert {c.id for c in sl.cong_viec_chang_truoc(cv_in)} == {cv_ctp.id, cv_cat.id}
+
+
+def test_bai_ghep_ctp_chung_truoc_in_cong_khoa_in_cat_song_song(
+        sess, orders, lsx_svc, admin, customer):
+    """Bài có bước chung Ghi kẽm (Trước In, tổ khác) đứng trước In: In mới là bước nhận giấy."""
+    from app.models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
+    from app.services.san_xuat import release
+    from tests.gia_cong_fixtures import cv_chung, dung_bai_ghep_gia_cong
+
+    bg, a, b = dung_bai_ghep_gia_cong(sess, orders, lsx_svc, admin, customer, buoc=[
+        ("CTP", "may", None, 8, "kem", "kem"),
+        ("In", "may", None, 1000, "to", "to"),
+        ("Bế", "may", None, 4000, "to", "cai"),
+    ], chung=[0, 1], con=(4, 2), phat_hanh=False)
+    for ten, nhom in (("CTP", "prepress"), ("In", "print")):
+        for x in sess.query(BaiGhepCongDoan).filter_by(bai_ghep_id=bg.id, ten=ten):
+            x.nhom = nhom
+        for x in sess.query(LsxCongDoan).filter(LsxCongDoan.lsx_id.in_([a, b]),
+                                                LsxCongDoan.ten == ten):
+            x.nhom = nhom
+    bg.giay_id = sess.query(GiayNguyen).filter_by(ma="G-IV350X").one().id
+    sess.commit()
+    release.phat_hanh(sess, lsx_ids={a, b}, bai_ghep_ids={bg.id}, actor=admin)
+    sess.commit()
+    to_cat = Department(name="Tổ Cắt bài CTP", code="TO-CAT-BGC", la_san_xuat=True, la_to_cat=True)
+    sess.add(to_cat)
+    sess.flush()
+    cap_quyen_to(sess, admin, to_cat)
+    cd = CongDoan(ma="CD-CAT-BGC", ten="Cắt tờ", nhom="prepress", cong_thuc_gia="so_luong * don_gia")
+    sess.add(cd)
+    sess.flush()
+    cd.department_ids = [to_cat.id]
+    sess.commit()
+
+    cv_ctp, cv_in = cv_chung(sess, bg.id, "CTP"), cv_chung(sess, bg.id, "In")
+    assert chot_giay.ly_do_cho_chot(sess, cv_ctp) is None
+    assert chot_giay.ly_do_cho_chot(sess, cv_in)
+    assert chot_giay.buoc_lay_giay(sess, ("bai", bg.id)).ten == "In"
+
+    kq = chot_giay.them(sess, user=admin, team_id=to_cat.id, lsx_id=None, bai_ghep_id=bg.id,
+                        cong_doan_ids=[cd.id])
+    sess.commit()
+    sess.expire_all()
+    chung = [c.ten for c in sess.query(BaiGhepCongDoan).filter_by(bai_ghep_id=bg.id)
+             .order_by(BaiGhepCongDoan.thu_tu)]
+    assert chung == ["CTP", "Cắt tờ", "In"]
+    for lid in (a, b):
+        ten = [x.ten for x in sess.query(LsxCongDoan).filter_by(lsx_id=lid)
+               .order_by(LsxCongDoan.thu_tu)]
+        assert ten == ["CTP", "Cắt tờ", "In", "Bế"]
+    cv_cat = sess.get(SanXuatCongViec, kq["cong_viec_moi"][0])
+    sl = SanXuatSanLuongRepository(sess)
+    assert sl.cong_viec_chang_truoc(cv_cat) == []
+    assert {c.id for c in sl.cong_viec_chang_truoc(cv_in)} == {cv_ctp.id, cv_cat.id}
+    assert chot_giay.ly_do_cho_chot(sess, cv_in) is None
+    assert chot_giay.ly_do_cho_chot(sess, cv_ctp) is None
+    bc_cat = sess.query(BaiGhepCongDoan).filter_by(bai_ghep_id=bg.id, ten="Cắt tờ").one()
+    assert sess.query(BaiGhepCongDoanMap).filter_by(bai_ghep_cong_doan_id=bc_cat.id).count() == 2
