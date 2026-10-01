@@ -397,7 +397,7 @@ def test_xuat_bang_con_ra_sheet_doc_duoc_khong_phai_json(client, seed_credential
     # Bậc đơn giá / Bậc theo khổ KHÔNG có ô nhập trên form (UI ép `size_tiers=[]`) ⇒ không ra file.
     assert "Bậc theo khổ" not in wb.sheetnames and "Bậc đơn giá" not in wb.sheetnames
     assert [d[2] for d in _bang(wb["Nhóm máy cho phép"])[1]] == ["Bế"]
-    assert [d[2:] for d in _bang(wb["Vật tư công đoạn"])[1]] == [[nen["vat_tu"]["ma"], None]]
+    assert [d[2:] for d in _bang(wb["Vật tư công đoạn"])[1]] == [[nen["vat_tu"]["ma"]]]
     assert "Đầu việc định mức" not in wb.sheetnames, "sheet của tầng đã gỡ (mg `0320`)"
 
     wb = _xuat(client, h, PREFIX["may_thiet_bi"])
@@ -986,5 +986,5 @@ def test_excel_cong_doan_co_cot_cach_do_gio_chay():
 
     con = {s.field: [c.field for c in s.cot] for s in SPECS["cong_doan"].sheets_con}
     assert "dau_viec_dinh_muc" not in con, "tầng đầu việc định mức đã gỡ (mg `0320`)"
-    assert con["vat_tus"] == ["vat_tu_id", "cong_thuc_luong"]
+    assert con["vat_tus"] == ["vat_tu_id"]
     assert {"cong_thuc_gio", "cong_thuc_gia"} <= set(con["may_lam_duoc"])

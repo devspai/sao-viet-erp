@@ -165,7 +165,7 @@ class CongDoanRepository(CatalogRepo):
             cd.may_lam_duoc.append(CongDoanMay(**r))
 
     def _replace_vat_tu(self, cd: CongDoan, rows: list[dict]) -> None:
-        """Thay TRỌN danh sách vật tư (kèm công thức định mức từng món) của công đoạn.
+        """Thay TRỌN danh sách vật tư của công đoạn.
 
         BẮT BUỘC `flush()` giữa xoá và thêm: trong MỘT flush, SQLAlchemy phát INSERT trước DELETE
         cho cùng một bảng, nên lưu lại đúng một vật tư cũ là đụng `uq_cong_doan_vat_tu` → 500
@@ -178,7 +178,4 @@ class CongDoanRepository(CatalogRepo):
         for i, r in enumerate(rows):
             r = dict(r)
             r.pop("id", None)          # khoá chỉ-đọc của schema Row, client có thể gửi ngược lên
-            cd.vat_tus.append(CongDoanVatTu(
-                vat_tu_id=int(r["vat_tu_id"]), thu_tu=i,
-                cong_thuc_luong=((r.get("cong_thuc_luong") or "").strip() or None),
-            ))
+            cd.vat_tus.append(CongDoanVatTu(vat_tu_id=int(r["vat_tu_id"]), thu_tu=i))

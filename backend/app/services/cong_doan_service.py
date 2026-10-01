@@ -330,8 +330,8 @@ class CongDoanService(CatalogService):
 
         Vật tư đã ngừng dùng mà lọt vào đây thì tới lúc bung ở bước lệnh nó sẽ rơi im lặng (query
         bung lọc `active`), và người khai không hiểu vì sao dòng mình khai không hiện ra.
-        Chỉ kiểm DANH SÁCH — số lượng không khai ở tầng này, mỗi dòng chỉ mang CÔNG THỨC định
-        mức (`cong_thuc_luong`), số suy lúc bung theo quy cách lệnh.
+        Chỉ kiểm DANH SÁCH — định mức không khai ở tầng này (từ 01/10/2026 nó nằm ở công thức
+        của chính vật tư, `vat_tu_in_an.cong_thuc_dinh_muc`).
 
         `dang_co` = vật tư vốn đã khai trên công đoạn này. Chặn GÁN MỚI vật tư đã ngừng, nhưng
         không chặn khi giữ nguyên: nếu không thì đổi mỗi cái tên công đoạn cũng bị chặn chỉ vì một
@@ -357,15 +357,6 @@ class CongDoanService(CatalogService):
                 raise CongDoanValidationError(
                     f"Vật tư “{vt.ten}” chưa chọn đơn vị tính — chưa quy đổi ra số lượng được. "
                     f"Khai đơn vị ở màn Vật tư khác trước.")
-        # Ô công thức của TỪNG DÒNG vật tư (mg 0274) — soi ở đây vì chỉ chỗ này có tên vật tư để
-        # gọi trong câu lỗi; một công đoạn gắn nhiều món, không nói tên là bắt người khai dò.
-        # Chuẩn hoá luôn: khoảng trắng thừa làm `if cong_thuc:` ở engine tưởng có khai rồi
-        # `safe_eval("  ")` nổ.
-        for r in rows:
-            r["cong_thuc_luong"] = ((r.get("cong_thuc_luong") or "").strip()) or None
-            ten_vt = getattr(co.get(int(r["vat_tu_id"])), "ten", "")
-            self._kiem_o(r.get("cong_thuc_luong"),
-                         nhan=f"Công thức định mức của vật tư “{ten_vt}”", loai=LOAI_QUY_DOI)
 
     # GỠ 08/09/2026: `gan_ten_don_vi` — tra `don_vi_vao`/`don_vi_ra` vào danh mục Đơn vị & quy đổi
     # rồi gán `don_vi_vao_ten`/`don_vi_ra_ten`. Nó ra đời (12/08/2026) khi hai ô ấy CÒN trỏ danh

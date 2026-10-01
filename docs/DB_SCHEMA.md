@@ -3429,11 +3429,11 @@ việc khoán là VIỆC CỦA TỔ — bảng giao điểm giữa hai thứ đ�
 | `cong_doan_id` | `Integer` FK→`cong_doan.id` (CASCADE) | IX, **UQ**(cong_doan_id, vat_tu_id) | no | — | Công đoạn tiêu thụ. |
 | `vat_tu_id` | `Integer` | IX, **UQ**(cong_doan_id, vat_tu_id) | no | — | **Soft-ref** `vat_tu_in_an.id` (cùng lối `piece_rate_id`). Service chặn id không tồn tại, đã ngừng dùng, hoặc chưa chọn đơn vị tính. Một món chỉ một dòng trong một công đoạn. |
 | `thu_tu` | `Integer` | — | no | `0` | Thứ tự hiển thị trong tab. |
-| `cong_thuc_luong` | `Text` | — | yes | — | **ĐỊNH MỨC của CHÍNH dòng vật tư này** — ra LƯỢNG theo ĐVT của vật tư. Hai món cùng ĐVT vẫn ăn theo hai trục khác hẳn — mực theo số tờ chạy, dung môi theo số màu (`so_mau * 0,3`: in 5.000 hay 50.000 tờ vẫn 1,2 kg) — nên công thức thuộc về CẶP (công đoạn × vật tư), không thuộc về món hàng. Trống ⇒ bước lệnh KHÔNG bung dòng đó, kèm câu lý do — không đoán. |
+| `cong_thuc_luong` | `Text` | — | yes | — | 🔴 **NGƯNG DÙNG từ 01/10/2026.** Trước đó là định mức của chính dòng vật tư; nay định mức do công thức của CHÍNH vật tư tính (`vat_tu_in_an.cong_thuc_dinh_muc`, mg `0357` đã backfill từ cột này). Cột còn trong DB, KHÔNG ai đọc/ghi: schema `CongDoanVatTuIn/Row`, repo, Excel và Nhật ký đều đã bỏ; dòng mới luôn NULL. |
 
 **KHÔNG có cột số lượng** — cố ý. Định mức tuỳ quy cách từng lệnh (khổ tờ · số màu · số tờ chạy),
 một con số khai ở danh mục là số chết. Số lượng suy **lúc bung ở bước lệnh** bằng cách thế quy cách
-lệnh vào `cong_thuc_luong`.
+lệnh vào công thức định mức của vật tư (`vat_tu_in_an.cong_thuc_dinh_muc`, từ 01/10/2026).
 
 **Migration `0316`** chép từ `cong_doan_dau_viec_vat_tu` gộp theo (công đoạn × vật tư):
 `MAX(cong_thuc_luong)` — hàm gộp bỏ qua NULL nên dòng CÓ công thức thắng dòng trống, và kết quả lặp

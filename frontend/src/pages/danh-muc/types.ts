@@ -279,4 +279,4 @@ export interface MayCongDoanRow {
 /** Một dòng tab VẬT TƯ của công đoạn (mg `0316`): món nào + CÔNG THỨC ĐỊNH MỨC của riêng món đó.
  *  Mực ăn theo SỐ TỜ còn dung môi rửa máy ăn theo SỐ MÀU — cùng ĐVT kg mà hai cách khác hẳn, nên
  *  công thức treo ở dòng chứ không ở món hàng. Thay `DinhMucRow` (đầu việc định mức, gỡ mg `0320`). */
-export interface VatTuCongDoanRow { vat_tu_id: number; cong_thuc_luong?: string | null }
+export interface VatTuCongDoanRow { vat_tu_id: number }
