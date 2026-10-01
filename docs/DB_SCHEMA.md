@@ -5715,6 +5715,8 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `kho_id` | `Integer` → `INTEGER` | **FK→kho_hang.id (CASCADE)**, **IX** | no | — | Kho của dòng tồn cuối kỳ. |
 | `hang_loai` | `String(10)` → `VARCHAR(10)` | — | no | — | `giay` \| `vat_tu`. |
 | `hang_id` | `Integer` → `INTEGER` | — | no | — | ID mặt hàng trong danh mục gốc tương ứng `hang_loai`. |
+| `kho_rong` | `Integer` → `INTEGER` | **U** | no | `0` | Khổ giấy TỜ, cạnh ngắn (mm): dòng tờ của một mã tách theo khổ, đếm tờ nguyên (khác thang kg nên không bình quân chung). Cuộn / kg cũ / hàng khác = 0. mg 0350. |
+| `kho_dai` | `Integer` → `INTEGER` | **U** | no | `0` | Khổ giấy TỜ, cạnh dài (mm). Như `kho_rong`. mg 0350. |
 | `tu_ngay` | `Date` → `DATE` | — | no | — | Đầu kỳ đã chốt (tham chiếu). |
 | `den_ngay` | `Date` → `DATE` | **IX** | no | — | Cuối kỳ = mốc "as-of" snapshot (đầu kỳ sau đọc dòng có `den_ngay < tu` kỳ sau). |
 | `ten_ky` | `String(120)` → `VARCHAR(120)` | — | yes | — | Tên kỳ (chép từ khóa sổ). |
@@ -5728,13 +5730,13 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 
 - Primary key: `id`. Index trên `kho_id`, `den_ngay`, `khoa_so_id`.
 - Foreign keys: `kho_id FK→kho_hang.id (CASCADE)`, `khoa_so_id FK→kho_khoa_so.id (SET NULL)`.
-- UNIQUE `(kho_id, hang_loai, hang_id, den_ngay)` (`uq_kho_ky_ton`) — 1 mặt hàng/kho có đúng 1 tồn cuối cho 1 mốc kỳ; khóa lại kỳ cũ → upsert đè.
+- UNIQUE `(kho_id, hang_loai, hang_id, kho_rong, kho_dai, den_ngay)` (`uq_kho_ky_ton`, nới khổ mg 0350) — 1 mặt hàng/kho có đúng 1 tồn cuối cho 1 mốc kỳ; khóa lại kỳ cũ → upsert đè.
 
 **Relationships**
 
 - Bảng độc lập (không quan hệ ORM). Do `create_all` dựng. Thêm cùng Báo cáo N-X-T theo kỳ (docs/spec-bao-cao-kho.md).
 
-**Tất cả cột:** `id`, `kho_id`, `hang_loai`, `hang_id`, `tu_ngay`, `den_ngay`, `ten_ky`, `sl_cuoi`, `gt_cuoi`, `don_gia_bq`, `khoa_so_id`, `created_at`.
+**Tất cả cột:** `id`, `kho_id`, `hang_loai`, `hang_id`, `kho_rong`, `kho_dai`, `tu_ngay`, `den_ngay`, `ten_ky`, `sl_cuoi`, `gt_cuoi`, `don_gia_bq`, `khoa_so_id`, `created_at`.
 
 ### `notifications`
 
@@ -5973,7 +5975,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 
 ### `stock_thresholds`
 
-**Purpose:** ngưỡng tồn theo cặp (mặt hàng × kho). 1 dòng = 1 cặp. Khoá duy nhất `(hang_loai, hang_id, kho_id)` (mg 0171).
+**Purpose:** ngưỡng tồn theo (mặt hàng × kho), giấy tờ thêm khổ. Khoá duy nhất `(hang_loai, hang_id, kho_id, kho_rong, kho_dai)` (mg 0171, nới khổ mg 0350).
 
 > So sánh chạy trên **TỒN KHẢ DỤNG** (chỉ lô `available`), không phải tồn thực tế: hàng chờ
 > KCS / hàng lỗi nằm trong kho nhưng không dùng được nên không được tính.
@@ -5989,6 +5991,8 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 > Ngưỡng khai theo ĐƠN VỊ GỐC của mặt hàng — cùng thang với `stock_lots.sl_con_lai`, nếu khác thang thì so ngưỡng với tồn là so hai đơn vị khác nhau.
 
 | `kho_id` | `Integer` → `INTEGER` | **FK→kho_hang.id** (CASCADE), **IX** | no | — | Kho áp ngưỡng. |
+| `kho_rong` | `Integer` → `INTEGER` | **U** | no | `0` | Khổ giấy TỜ, cạnh ngắn (mm). Ngưỡng tờ đặt riêng từng khổ, đếm tờ nguyên; giấy cuộn và hàng khác = 0 (gom theo mã). mg 0350. |
+| `kho_dai` | `Integer` → `INTEGER` | **U** | no | `0` | Khổ giấy TỜ, cạnh dài (mm). Như `kho_rong`. mg 0350. |
 | `nguong_ton` | `Numeric(14,2)` → `NUMERIC(14,2)` | — | no | — | Dưới mức này = 🟠 phải mua ngay. CHECK `>= 0`. |
 | `nguong_can_ton` | `Numeric(14,2)` → `NUMERIC(14,2)` | — | yes | — | ⚠️ **ĐÃ BỎ** mức "cận tồn/sắp hết" (2026-07-29). Cột giữ lại và LUÔN NULL để tránh migration phá DB; không còn dùng khi tính mức tồn. FE không khai nữa; endpoint vẫn nhận optional cho tương thích. CHECK `>= 0`. |
 | `nguong_toi_da` | `Numeric(14,2)` → `NUMERIC(14,2)` | — | yes | — | Trần 🔵 — cảnh báo mua dư, hàng dễ quá date. CHECK `>= 0`. |
@@ -5998,15 +6002,15 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 
 **Keys & indexes**
 
-- Primary key: `id`. Unique constraint `uq_stock_thresholds_material_kho` trên (`material_id`, `kho_id`).
+- Primary key: `id`. Unique constraint `uq_stock_thresholds_hang_kho` trên (`hang_loai`, `hang_id`, `kho_id`, `kho_rong`, `kho_dai`).
 - CHECK: `nguong_ton >= 0`, `nguong_can_ton >= 0`, `nguong_toi_da >= 0`.
-- Foreign keys: `material_id FK→materials.id` (CASCADE), `kho_id FK→kho_hang.id` (CASCADE).
+- Foreign keys: `kho_id FK→kho_hang.id` (CASCADE).
 
 **Relationships**
 
-- Bảng nối (`materials` × `kho_hang`) mang ngưỡng. Chỉ vai có `role_permissions.can_set_threshold` mới sửa được.
+- Bảng nối (mặt hàng gốc × `kho_hang`) mang ngưỡng. Chỉ vai có `role_permissions.can_set_threshold` mới sửa được.
 
-**Tất cả cột:** `id`, `material_id`, `kho_id`, `nguong_ton`, `nguong_can_ton`, `nguong_toi_da`, `canh_bao`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `hang_loai`, `hang_id`, `kho_id`, `kho_rong`, `kho_dai`, `nguong_ton`, `nguong_can_ton`, `nguong_toi_da`, `canh_bao`, `created_at`, `updated_at`.
 
 ---
 

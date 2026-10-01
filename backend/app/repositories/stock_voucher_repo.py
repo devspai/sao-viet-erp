@@ -140,7 +140,8 @@ class StockVoucherRepository:
             stmt = stmt.where(StockVoucher.id != exclude_voucher_id)
         return float(self.db.execute(stmt).scalar_one() or 0)
 
-    def xuat_history(self, hang: tuple[str, int], kho_id: int) -> list[dict]:
+    def xuat_history(self, hang: tuple[str, int], kho_id: int, *, dang: str | None = None,
+                     kho_rong: int = 0, kho_dai: int = 0) -> list[dict]:
         """Lịch sử XUẤT của 1 mặt hàng tại 1 kho — mỗi dòng phiếu XUẤT ĐÃ GHI SỔ, đích danh lô.
 
         Giá vốn của dòng xuất = giá của lô bị trừ (`don_gia_nhap`), không phải `line.don_gia`
@@ -178,6 +179,9 @@ class StockVoucherRepository:
             )
             .order_by(StockVoucher.ngay.desc(), StockVoucher.id.desc())
         )
+        # Giấy: chỉ dòng xuất từ lô đúng dạng (+ khổ với tờ) — cùng luật lọc lô của tồn.
+        from .stock_lot_repo import StockLotRepository
+        stmt = StockLotRepository._loc_dang_kho(stmt, dang, kho_rong, kho_dai)
         return [
             {
                 "voucher_id": r.id, "voucher_ma": r.ma, "ngay": r.ngay,

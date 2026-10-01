@@ -8521,6 +8521,10 @@ export interface BaoCaoKhoRow {
   ma_hang: string | null;
   ten_hang: string | null;
   dvt: string | null;
+  /** Giấy: dạng + khổ của dòng phiếu (cột Khổ). Hàng khác: null · 0 · 0. */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   so_luong: number;
   don_gia: number | null;
   thanh_tien: number | null;
@@ -8613,6 +8617,9 @@ export interface BaoCaoNXTRow {
   ten_hang: string | null;
   hang_nhom: string | null;
   dvt: string | null;
+  /** Khổ giấy TỜ (mm) — dòng tờ tách theo khổ, đếm tờ nguyên. Cuộn / hàng khác: 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
   dau_sl: number;
   // Bốn ô GIÁ TRỊ về null khi vai không có ô "Xem giá thành" của Kho — xem `_an_tien` bên
   // `routers/kho_baocao.py`. Số lượng vẫn đủ, chỉ tiền là trống.
@@ -9930,6 +9937,9 @@ export interface StockThreshold {
   hang_ma: string | null;
   hang_ten: string | null;
   kho_id: number;
+  /** Khổ giấy TỜ (mm) của ngưỡng — giấy cuộn / hàng khác: 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
   nguong_ton: number;
   nguong_can_ton: number | null;
   nguong_toi_da: number | null;
@@ -9988,6 +9998,9 @@ export interface StockThresholdInput {
   hang_loai: HangLoai;
   hang_id: number;
   kho_id: number;
+  /** Giấy tờ: khổ của dòng tồn (đủ hai cạnh). Giấy cuộn / hàng khác: bỏ trống. */
+  kho_rong?: number;
+  kho_dai?: number;
   nguong_ton: number;
   /** Bỏ trống → backend tự suy ra = nguong_ton × 1.3. */
   nguong_can_ton?: number | null;
@@ -14697,8 +14710,15 @@ export const api = {
         hangLoai: HangLoai,
         hangId: number,
         khoId: number,
+        /** Giấy: lọc đúng một dòng tồn (dạng + khổ) — một mã có thể nhiều dòng theo khổ. */
+        giay?: { dang: "to" | "cuon"; kho_rong: number; kho_dai: number },
       ): Promise<StockMaterialHistory> {
         const qs = new URLSearchParams({ kho_id: String(khoId) });
+        if (giay) {
+          qs.set("dang_giay", giay.dang);
+          qs.set("kho_rong", String(giay.kho_rong));
+          qs.set("kho_dai", String(giay.kho_dai));
+        }
         return authed<StockMaterialHistory>(
           `/api/kho/phieu/mat-hang/${hangLoai}/${hangId}/lich-su?${qs.toString()}`,
           token,

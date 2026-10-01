@@ -40,6 +40,7 @@ from ..schemas.stock import (
     StockRequestReject,
     StockRequestUpdate,
 )
+from ..services.kho_giay import khoa_ton_cua
 from ..services.rbac_service import AuthorizationService
 from ..services.san_xuat.kho import phat_su_kien_kho
 from ..services.san_xuat.vat_tu_de_nghi import can_luc_hien_thi
@@ -242,8 +243,8 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             don_ban_ma=don_map.get(ln.lsx_id) if ln.lsx_id else None,
             ly_do_thieu=ln.ly_do_thieu,
             ghi_chu=ln.ghi_chu,
-            muc_ton=(levels or {}).get(key),
-            ton_kha_dung=(on_hand or {}).get(key) if can_view_stock else None,
+            muc_ton=(levels or {}).get(khoa_ton_cua(ln)),
+            ton_kha_dung=(on_hand or {}).get(khoa_ton_cua(ln)) if can_view_stock else None,
         ))
     if ten_map is None:
         ten_map = _ten_map(db, [req])
@@ -281,8 +282,8 @@ def _levels(svc: StockRequestService, req):
     `levels_and_on_hand` tính CẢ đèn lẫn tồn trong 1 lượt: đèn theo ngưỡng của kho (kho_id None thì
     chưa có ngưỡng → chỉ phân biệt hết/còn). UI đã bỏ cột đèn nên không nhiễu, nhưng GIỮ `muc_ton`
     cho API/test (bỏ hẳn làm vỡ test đèn + mất tín hiệu cho ai còn dùng)."""
-    cap = [(ln.hang_loai, ln.hang_id) for ln in req.lines]
-    return svc.levels_and_on_hand(cap, req.kho_id)
+    # Giấy tờ đọc tồn ĐÚNG khổ, giấy cuộn theo mã (spec §3.2) — khoá của chính dòng.
+    return svc.levels_and_on_hand([khoa_ton_cua(ln) for ln in req.lines], req.kho_id)
 
 
 def _scoped_filters(db: Session, user: User, authz: AuthorizationService) -> dict:

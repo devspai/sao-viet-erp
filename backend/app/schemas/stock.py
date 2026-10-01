@@ -221,6 +221,10 @@ class BaoCaoKhoRow(BaseModel):
     ma_hang: str | None = None
     ten_hang: str | None = None
     dvt: str | None = None
+    # Giấy: dạng + khổ của dòng phiếu (cột "Khổ"). Hàng khác: None · 0 · 0.
+    dang_giay: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     so_luong: float
     don_gia: int | None = None
     thanh_tien: float | None = None
@@ -279,6 +283,9 @@ class BaoCaoNXTRow(BaseModel):
     ten_hang: str | None = None
     hang_nhom: str | None = None          # "Giấy" | "Vật tư" — cho FE gom nhóm
     dvt: str | None = None
+    # Khổ giấy TỜ (mm) — dòng tờ tách theo khổ, đếm tờ nguyên. Cuộn / hàng khác: 0 · 0 (gom theo mã).
+    kho_rong: int = 0
+    kho_dai: int = 0
     dau_sl: float = 0
     # Bốn ô GIÁ TRỊ nhận None (không phải 0) khi người xem thiếu `kho:view_cost`: họ vẫn đọc được
     # SỐ LƯỢNG nhập-xuất-tồn, chỉ không thấy tiền (xem `_an_tien` ở `routers/kho_baocao.py`).
@@ -870,6 +877,21 @@ class StockThresholdIn(BaseModel):
     nguong_can_ton: float | None = Field(default=None, ge=0)
     nguong_toi_da: float | None = Field(default=None, ge=0)
     canh_bao: bool = True
+    # Khổ giấy TỜ (mm) — ngưỡng tờ đặt riêng từng khổ. Giấy cuộn bỏ trống (0 · 0, gom theo mã);
+    # hàng khác máy chủ ép 0 · 0. Một cạnh lẻ không thành khổ nào ⇒ chặn.
+    kho_rong: int = 0
+    kho_dai: int = 0
+
+    @model_validator(mode="after")
+    def _khoa_kho(self):
+        if self.hang_loai != "giay":
+            self.kho_rong, self.kho_dai = 0, 0
+            return self
+        kr, kd = chuan_kho(self.kho_rong, self.kho_dai)
+        if kr and not kd:
+            raise ValueError("Ngưỡng giấy tờ phải khai đủ khổ (hai cạnh, mm); giấy cuộn để trống khổ.")
+        self.kho_rong, self.kho_dai = kr, kd
+        return self
 
 
 class StockThresholdOut(BaseModel):
@@ -881,6 +903,8 @@ class StockThresholdOut(BaseModel):
     hang_ma: str | None = None
     hang_ten: str | None = None
     kho_id: int
+    kho_rong: int = 0
+    kho_dai: int = 0
     nguong_ton: float
     nguong_can_ton: float | None = None
     nguong_toi_da: float | None = None

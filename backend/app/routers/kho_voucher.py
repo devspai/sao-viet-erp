@@ -63,7 +63,7 @@ from ..schemas.stock import (
     StockVoucherPage,
 )
 from ..services import kho_gia_goc_service
-from ..services.kho_giay import don_vi_goc_to
+from ..services.kho_giay import don_vi_goc_to, khoa_ton
 from ..services.qr_token import sign_scan
 from ..services.vat_lieu_kho_service import HANG_NHAN, VatLieuKhoService
 from ..services.rbac_service import AuthorizationService
@@ -892,6 +892,9 @@ def material_history(
     user: Annotated[User, Depends(
         require_any_permission((MODULE, "read"), (MODULE_TON_KHO, "read")))],
     kho_id: int = Query(...),
+    dang_giay: str | None = Query(default=None, pattern="^(to|cuon)$"),
+    kho_rong: int = Query(default=0, ge=0),
+    kho_dai: int = Query(default=0, ge=0),
 ) -> MaterialHistoryOut:
     """Lịch sử NHẬP (mọi lô, kể cả đã hết) + XUẤT (dòng phiếu xuất đã ghi sổ) của 1 mặt hàng
     tại 1 kho — cho popup màn Tồn kho, tách theo dõi nhập/xuất riêng. Giá vốn ẩn nếu thiếu
@@ -901,9 +904,13 @@ def material_history(
     hang = (hang_loai, hang_id)
     m = svc.hang.map_theo_cap([hang]).get(hang)
     dvt = getattr(m, "don_vi_gia", None)
+    # Giấy: một dòng màn Tồn = một (mã, dạng, khổ) ⇒ lịch sử + tồn lọc đúng dòng đó (spec §3.2).
+    dang = dang_giay if hang_loai == "giay" else None
+    loc = {"dang": dang, "kho_rong": kho_rong, "kho_dai": kho_dai}
+    khoa = khoa_ton(hang_loai, hang_id, dang=dang, kho_rong=kho_rong, kho_dai=kho_dai) if dang else hang
 
     # NHẬP = mọi lô của mặt hàng tại kho (con_hang=False để giữ cả lô đã xuất hết), FIFO theo ngày.
-    lots = svc.lots.list_lots(hang=hang, kho_id=kho_id, con_hang=False)
+    lots = svc.lots.list_lots(hang=hang, kho_id=kho_id, con_hang=False, **loc)
     # Mã phiếu NHẬP của từng lô (hiển thị lô THEO PHIẾU thay mã lô kỹ thuật) — nạp 1 lượt, tránh N+1.
     voucher_ids = list({lot.voucher_id for lot in lots if lot.voucher_id is not None})
     voucher_ma_map = svc.vouchers.ma_by_ids(voucher_ids)
@@ -939,7 +946,7 @@ def material_history(
             don_gia=r["don_gia"] if can_view_cost else None,
             dieu_chuyen=r["dieu_chuyen"],
         )
-        for r in svc.vouchers.xuat_history(hang, kho_id)
+        for r in svc.vouchers.xuat_history(hang, kho_id, **loc)
     ]
 
     return MaterialHistoryOut(
@@ -947,8 +954,8 @@ def material_history(
         hang_id=hang_id,
         hang_ma=getattr(m, "ma", None),
         hang_ten=getattr(m, "ten", None),
-        dvt=dvt,
-        on_hand=svc.lots.on_hand(hang, kho_id),
+        dvt=don_vi_goc_to() if dang == "to" else dvt,
+        on_hand=svc.lots.on_hand(khoa, kho_id),
         nhap=nhap, xuat=xuat,
     )
 
@@ -1047,7 +1054,8 @@ def upsert_threshold(
             detail="Ngưỡng tối đa phải lớn hơn hoặc bằng ngưỡng tồn.",
         )
     obj = StockThresholdRepository(db).upsert(
-        hang=(payload.hang_loai, payload.hang_id), kho_id=payload.kho_id,
+        hang=(payload.hang_loai, payload.hang_id, payload.kho_rong, payload.kho_dai),
+        kho_id=payload.kho_id,
         nguong_ton=payload.nguong_ton, nguong_can_ton=payload.nguong_can_ton,
         nguong_toi_da=payload.nguong_toi_da, canh_bao=payload.canh_bao,
     )

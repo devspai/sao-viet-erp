@@ -35,3 +35,33 @@ export function nhanDangKho(
   if (dang !== "to" && dang !== "cuon") return "";
   return `${DANG_GIAY_NHAN[dang]} · ${nhanKho(khoRong, khoDai)}`;
 }
+
+/** Khoá DÒNG TỒN dạng chuỗi — phản chiếu `khoa_ton_cua` (backend): giấy tờ `giay:id:rộng:dài`, giấy
+ *  cuộn `giay:id:0:0` (gom theo mã), hàng khác hoặc giấy cũ chưa có dạng `loai:id`. */
+export function khoaTon(x: {
+  hang_loai: string;
+  hang_id: number;
+  dang_giay?: string | null;
+  kho_rong?: number | null;
+  kho_dai?: number | null;
+}): string {
+  if (x.hang_loai !== "giay" || (x.dang_giay !== "to" && x.dang_giay !== "cuon")) {
+    return `${x.hang_loai}:${x.hang_id}`;
+  }
+  if (x.dang_giay === "cuon") return `giay:${x.hang_id}:0:0`;
+  const [r, d] = chuanKho(x.kho_rong, x.kho_dai);
+  return `giay:${x.hang_id}:${r}:${d}`;
+}
+
+/** Khoá dòng tồn của một NGƯỠNG: giấy luôn kèm khổ (cuộn = 0:0), hàng khác `loai:id`. */
+export function khoaNguong(t: { hang_loai: string; hang_id: number; kho_rong?: number; kho_dai?: number }): string {
+  if (t.hang_loai !== "giay") return `${t.hang_loai}:${t.hang_id}`;
+  return `giay:${t.hang_id}:${t.kho_rong ?? 0}:${t.kho_dai ?? 0}`;
+}
+
+/** Nhãn dòng tồn giấy cạnh tên: tờ "780 × 905 mm", cuộn "cuộn". Hàng khác / giấy cũ ⇒ "". */
+export function nhanDongTon(dang: string | null | undefined, khoRong: number, khoDai: number): string {
+  if (dang === "to") return nhanKho(khoRong, khoDai);
+  if (dang === "cuon") return "cuộn";
+  return "";
+}

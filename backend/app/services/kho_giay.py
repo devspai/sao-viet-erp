@@ -71,3 +71,15 @@ def don_vi_goc_to() -> str:
     from .dong_giay import ban_do_tram, ma_cua_tram
 
     return ma_cua_tram(TRAM_TO_NGUYEN, ban_do_tram()) or TRAM_TO_NGUYEN
+
+
+def khoa_ton_cua(obj) -> tuple:
+    """Khoá tra tồn của một lô / dòng (có `hang_loai`, `hang_id`, `dang_giay`, `kho_rong`, `kho_dai`).
+    Giấy đã có dạng ⇒ `khoa_ton` (tờ đúng khổ / cuộn theo mã). Hàng khác, hoặc giấy CŨ chưa có dạng
+    (dữ liệu kg trước mg 0349) ⇒ cặp `(loai, id)` — gom mọi lô của mã như trước."""
+    loai, hid = obj.hang_loai, int(obj.hang_id)
+    dang = getattr(obj, "dang_giay", None)
+    if loai != "giay" or not dang:
+        return (loai, hid)
+    return khoa_ton(loai, hid, dang=dang, kho_rong=getattr(obj, "kho_rong", 0) or 0,
+                    kho_dai=getattr(obj, "kho_dai", 0) or 0)

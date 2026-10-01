@@ -22,7 +22,7 @@ from ..models.order import Order
 from ..models.stock_lot import LOT_AVAILABLE, LOT_EMPTY, LOT_ISSUABLE, StockLot, StockThreshold
 from ..models.stock_request import StockRequest, StockRequestLine
 from ..models.stock_voucher import VOUCHER_NHAP, StockVoucher, StockVoucherLine
-from ..services.kho_giay import DANG_TO, chuan_kho
+from ..services.kho_giay import DANG_CUON, DANG_TO, chuan_kho
 
 # (hang_loai, hang_id) — một mặt hàng gốc.
 Hang = tuple[str, int]
@@ -211,64 +211,81 @@ class StockLotRepository:
         if float(lot.sl_con_lai) > 1e-6 and lot.trang_thai == LOT_EMPTY:
             lot.trang_thai = LOT_AVAILABLE
 
-    def on_hand(self, hang: Hang, kho_id: int | None = None) -> float:
+    def on_hand(self, hang: tuple, kho_id: int | None = None) -> float:
         """**Tồn khả dụng** = Σ sl_con_lai của lô ở trạng thái xuất được, theo ĐƠN VỊ GỐC.
 
         Cố tình KHÔNG trả tồn thực tế: hàng chờ KCS / hàng lỗi nằm trong kho nhưng không
         dùng được, cộng vào là hứa suông với người yêu cầu (BRD §1.5).
+
+        `hang` là cặp `(loai, id)` hoặc khoá tồn 4 phần tử — cùng luật `on_hand_map`.
         """
-        stmt = select(func.coalesce(func.sum(StockLot.sl_con_lai), 0)).where(
-            StockLot.hang_loai == hang[0],
-            StockLot.hang_id == hang[1],
-            StockLot.trang_thai.in_(LOT_ISSUABLE),
-        )
-        if kho_id is not None:
-            stmt = stmt.where(StockLot.kho_id == kho_id)
-        return float(self.db.execute(stmt).scalar_one() or 0)
+        return self.on_hand_map([hang], kho_id).get(tuple(hang), 0.0)
 
-    def on_hand_map(self, hangs: list[Hang], kho_id: int | None = None) -> dict[Hang, float]:
-        """Tồn khả dụng của NHIỀU mặt hàng trong 1 query — dùng khi vẽ đèn tín hiệu cho cả
-        danh sách đề nghị (tránh N+1). Khoá dict là chính cặp `(hang_loai, hang_id)`."""
-        if not hangs:
-            return {}
-        stmt = (
-            select(StockLot.hang_loai, StockLot.hang_id,
-                   func.coalesce(func.sum(StockLot.sl_con_lai), 0))
-            .where(
-                # `tuple_(...).in_(...)` để lọc đúng CẶP: lọc rời hai cột sẽ quét nhầm sang tổ hợp
-                # không ai hỏi (giay#3 hỏi cùng vat_tu#7 thì kéo luôn vat_tu#3).
-                tuple_(StockLot.hang_loai, StockLot.hang_id).in_([tuple(h) for h in hangs]),
-                StockLot.trang_thai.in_(LOT_ISSUABLE),
-            )
-            .group_by(StockLot.hang_loai, StockLot.hang_id)
-        )
-        if kho_id is not None:
-            stmt = stmt.where(StockLot.kho_id == kho_id)
-        found = {(loai, hid): float(total or 0) for loai, hid, total in self.db.execute(stmt)}
-        return {tuple(h): found.get(tuple(h), 0.0) for h in hangs}
+    def _tong_theo_khoa(self, keys: list[tuple], kho_id: int | None,
+                        theo_kho: bool) -> dict[tuple, dict]:
+        """Σ tồn khả dụng của từng khoá, chia theo kho (`theo_kho`) hoặc gom một ô `None`.
 
-    def on_hand_by_kho(self, hangs: list[Hang]) -> dict[Hang, dict[int, float]]:
-        """Tồn khả dụng của từng mã hàng, TÁCH THEO KHO — để xếp hạng "kho nào có nhiều hàng
-        nhất" khi gợi ý kho xuất. Khoá ngoài là cặp `(hang_loai, hang_id)`, khoá trong là
-        `kho_id`; kho không có lô nào của mặt hàng thì vắng mặt (không phải 0 rải khắp)."""
-        if not hangs:
-            return {}
-        stmt = (
-            select(StockLot.hang_loai, StockLot.hang_id, StockLot.kho_id,
-                   func.coalesce(func.sum(StockLot.sl_con_lai), 0))
-            .where(
-                tuple_(StockLot.hang_loai, StockLot.hang_id).in_([tuple(h) for h in hangs]),
-                StockLot.trang_thai.in_(LOT_ISSUABLE),
-                StockLot.sl_con_lai > 0,
-            )
-            .group_by(StockLot.hang_loai, StockLot.hang_id, StockLot.kho_id)
-        )
-        out: dict[Hang, dict[int, float]] = {tuple(h): {} for h in hangs}
-        for loai, hid, kho_id, total in self.db.execute(stmt):
-            if kho_id is None:
-                continue
-            out.setdefault((loai, hid), {})[int(kho_id)] = float(total or 0)
+        Luật khoá (spec §3.2): cặp 2 phần tử hoặc hàng khác giấy ⇒ gom mọi lô của mã; giấy có đủ khổ
+        ⇒ chỉ lô TỜ đúng khổ; giấy `(…, 0, 0)` ⇒ chỉ lô CUỘN. Lô giấy chưa có dạng (dữ liệu kg cũ)
+        không vào khoá 4 phần tử nào. Tối đa ba câu (theo mã / tờ / cuộn) cho cả tập."""
+        theo_ma = {(k[0], int(k[1])) for k in keys if len(k) == 2 or k[0] != "giay"}
+        to = {(int(k[1]), int(k[2]), int(k[3])) for k in keys
+              if len(k) == 4 and k[0] == "giay" and k[2] and k[3]}
+        cuon = {int(k[1]) for k in keys if len(k) == 4 and k[0] == "giay" and not (k[2] and k[3])}
+        base = [StockLot.trang_thai.in_(LOT_ISSUABLE)]
+        if kho_id is not None:
+            base.append(StockLot.kho_id == kho_id)
+        if theo_kho:
+            base.append(StockLot.sl_con_lai > 0)
+        sl = func.coalesce(func.sum(StockLot.sl_con_lai), 0)
+        cot_kho = [StockLot.kho_id] if theo_kho else []
+
+        def gom(cot_khoa, *loc) -> dict[tuple, dict]:
+            out: dict[tuple, dict] = {}
+            for r in self.db.execute(select(*cot_khoa, *cot_kho, sl).where(*loc, *base)
+                                     .group_by(*cot_khoa, *cot_kho)):
+                n = len(cot_khoa)
+                kho = r[n] if theo_kho else None
+                if theo_kho and kho is None:
+                    continue
+                out.setdefault(tuple(r[:n]), {})[int(kho) if kho is not None else None] = float(r[-1] or 0)
+            return out
+
+        f_ma = gom([StockLot.hang_loai, StockLot.hang_id],
+                   # `tuple_(...).in_(...)` lọc đúng CẶP: lọc rời hai cột quét nhầm tổ hợp không ai hỏi.
+                   tuple_(StockLot.hang_loai, StockLot.hang_id).in_(sorted(theo_ma))) if theo_ma else {}
+        f_to = gom([StockLot.hang_id, StockLot.kho_rong, StockLot.kho_dai],
+                   StockLot.hang_loai == "giay", StockLot.dang_giay == DANG_TO,
+                   tuple_(StockLot.hang_id, StockLot.kho_rong, StockLot.kho_dai).in_(sorted(to))) if to else {}
+        f_cuon = gom([StockLot.hang_id], StockLot.hang_loai == "giay", StockLot.dang_giay == DANG_CUON,
+                     StockLot.hang_id.in_(sorted(cuon))) if cuon else {}
+        out: dict[tuple, dict] = {}
+        for k in keys:
+            if len(k) == 2 or k[0] != "giay":
+                out[k] = f_ma.get((k[0], int(k[1])), {})
+            elif k[2] and k[3]:
+                out[k] = f_to.get((int(k[1]), int(k[2]), int(k[3])), {})
+            else:
+                out[k] = f_cuon.get((int(k[1]),), {})
         return out
+
+    def on_hand_map(self, hangs: list[tuple], kho_id: int | None = None) -> dict[tuple, float]:
+        """Tồn khả dụng của NHIỀU mặt hàng trong ít query — dùng khi vẽ đèn tín hiệu cho cả
+        danh sách đề nghị (tránh N+1). Khoá là cặp `(hang_loai, hang_id)` (gom mọi lô của mã, hành vi
+        cũ) hoặc khoá tồn 4 phần tử `kho_giay.Khoa`; dict trả về khoá ĐÚNG như đầu vào."""
+        if not hangs:
+            return {}
+        keys = [tuple(h) for h in hangs]
+        return {k: v.get(None, 0.0) for k, v in self._tong_theo_khoa(keys, kho_id, False).items()}
+
+    def on_hand_by_kho(self, hangs: list[tuple]) -> dict[tuple, dict[int, float]]:
+        """Tồn khả dụng của từng khoá, TÁCH THEO KHO — để xếp hạng "kho nào có nhiều hàng
+        nhất" khi gợi ý kho xuất. Khoá ngoài như `on_hand_map`, khoá trong là `kho_id`; kho không có
+        lô nào của khoá thì vắng mặt (không phải 0 rải khắp)."""
+        if not hangs:
+            return {}
+        keys = [tuple(h) for h in hangs]
+        return {k: dict(v) for k, v in self._tong_theo_khoa(keys, None, True).items()}
 
     def list_lots(self, *, hang: Hang | None = None, kho_id: int | None = None,
                   con_hang: bool = True, dang: str | None = None,
@@ -287,26 +304,42 @@ class StockThresholdRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def get_for(self, hang: Hang, kho_id: int) -> StockThreshold | None:
+    @staticmethod
+    def _khoa4(hang: tuple) -> tuple[str, int, int, int]:
+        """Cặp `(loai, id)` = khoá `(loai, id, 0, 0)` — ngưỡng của mã gom (vật tư, giấy cuộn)."""
+        h = tuple(hang)
+        return (h[0], int(h[1]), int(h[2]), int(h[3])) if len(h) == 4 else (h[0], int(h[1]), 0, 0)
+
+    def get_for(self, hang: tuple, kho_id: int) -> StockThreshold | None:
+        loai, hid, kr, kd = self._khoa4(hang)
         return self.db.execute(
             select(StockThreshold).where(
-                StockThreshold.hang_loai == hang[0],
-                StockThreshold.hang_id == hang[1],
+                StockThreshold.hang_loai == loai,
+                StockThreshold.hang_id == hid,
+                StockThreshold.kho_rong == kr,
+                StockThreshold.kho_dai == kd,
                 StockThreshold.kho_id == kho_id,
             )
         ).scalars().first()
 
-    def map_for(self, hangs: list[Hang], kho_id: int) -> dict[Hang, StockThreshold]:
+    def map_for(self, hangs: list[tuple], kho_id: int) -> dict[tuple, StockThreshold]:
+        """`{khoá như đầu vào: ngưỡng}` — khoá 2 phần tử đọc ngưỡng `(…, 0, 0)`."""
         if not hangs:
             return {}
+        theo4 = {self._khoa4(h): tuple(h) for h in hangs}
         rows = self.db.execute(
             select(StockThreshold).where(
-                tuple_(StockThreshold.hang_loai, StockThreshold.hang_id)
-                .in_([tuple(h) for h in hangs]),
+                tuple_(StockThreshold.hang_loai, StockThreshold.hang_id,
+                       StockThreshold.kho_rong, StockThreshold.kho_dai).in_(sorted(theo4)),
                 StockThreshold.kho_id == kho_id,
             )
         ).scalars()
-        return {(r.hang_loai, r.hang_id): r for r in rows}
+        out = {}
+        for r in rows:
+            k = theo4.get((r.hang_loai, r.hang_id, int(r.kho_rong or 0), int(r.kho_dai or 0)))
+            if k is not None:
+                out[k] = r
+        return out
 
     def list_active(self) -> list[StockThreshold]:
         """Mọi ngưỡng đang bật cảnh báo — nguồn quét để đẩy nhắc realtime (spec §8)."""
@@ -314,10 +347,12 @@ class StockThresholdRepository:
             select(StockThreshold).where(StockThreshold.canh_bao.is_(True))
         ).scalars())
 
-    def upsert(self, *, hang: Hang, kho_id: int, **data) -> StockThreshold:
+    def upsert(self, *, hang: tuple, kho_id: int, **data) -> StockThreshold:
         obj = self.get_for(hang, kho_id)
         if obj is None:
-            obj = StockThreshold(hang_loai=hang[0], hang_id=hang[1], kho_id=kho_id, nguong_ton=0)
+            loai, hid, kr, kd = self._khoa4(hang)
+            obj = StockThreshold(hang_loai=loai, hang_id=hid, kho_rong=kr, kho_dai=kd,
+                                 kho_id=kho_id, nguong_ton=0)
             self.db.add(obj)
         for k, v in data.items():
             setattr(obj, k, v)

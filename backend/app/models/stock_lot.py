@@ -154,6 +154,10 @@ class StockThreshold(Base):
     kho_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("kho_hang.id", ondelete="CASCADE"), index=True, nullable=False
     )
+    # Khổ giấy TỜ (mm, cạnh ngắn × cạnh dài) — ngưỡng tờ đặt riêng từng khổ, đếm tờ nguyên. Giấy cuộn
+    # và hàng khác: 0 · 0 (gom theo mã). Cùng khoá tồn `kho_giay.khoa_ton`. mg 0350.
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     # Dưới mức này = 🟠 phải mua ngay.
     nguong_ton: Mapped[float] = mapped_column(
         Numeric(14, 2), CheckConstraint("nguong_ton >= 0"), nullable=False
@@ -179,5 +183,6 @@ class StockThreshold(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("hang_loai", "hang_id", "kho_id", name="uq_stock_thresholds_hang_kho"),
+        UniqueConstraint("hang_loai", "hang_id", "kho_id", "kho_rong", "kho_dai",
+                         name="uq_stock_thresholds_hang_kho"),
     )

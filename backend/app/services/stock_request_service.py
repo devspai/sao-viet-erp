@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from .kho_giay import khoa_dong
+from .kho_giay import khoa_dong, khoa_ton_cua
 from .thong_bao_man import bao
 from ..models.document_sequence import (
     SEQ_DOC_TYPE_STOCK_REQUEST_IN,
@@ -546,7 +546,7 @@ class StockRequestService:
         self, hangs: list[tuple[str, int]], kho_id: int
     ) -> tuple[dict[tuple[str, int], str], dict[tuple[str, int], float]]:
         """Trả CẢ mức tồn lẫn tồn khả dụng trong MỘT lượt (2 query) — router cần cả hai, tránh
-        gọi `on_hand_map` hai lần. Khoá là cặp `(hang_loai, hang_id)`."""
+        gọi `on_hand_map` hai lần. Khoá là cặp `(hang_loai, hang_id)` hoặc khoá tồn 4 phần tử (giấy)."""
         hangs = [tuple(h) for h in hangs]
         on_hand = self.lots.on_hand_map(hangs, kho_id)
         th = self.thresholds.map_for(hangs, kho_id)
@@ -558,8 +558,7 @@ class StockRequestService:
         dòng của yêu cầu — kho nào tồn mặt hàng ĐẦU tiên nhiều nhất thì chọn; hoà thì xét mặt
         hàng thứ 2, thứ 3… (so sánh từ điển). Không kho nào còn lô của các mặt hàng này → None
         (giữ nguyên kho đang chọn, không ép bừa). Chỉ đọc — không đụng tồn."""
-        hangs = [(l.hang_loai, int(l.hang_id)) for l in (req.lines or [])
-                 if l.hang_loai and l.hang_id]
+        hangs = [khoa_ton_cua(l) for l in (req.lines or []) if l.hang_loai and l.hang_id]
         if not hangs:
             return None
         by_kho = self.lots.on_hand_by_kho(hangs)
