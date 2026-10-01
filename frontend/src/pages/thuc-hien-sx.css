@@ -5941,6 +5941,14 @@
 .thsx-chot__act { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .thsx-chot__act .btn { min-height: 44px; }
 .thsx-chot__nhan { display: inline-flex; align-items: center; gap: 4px; flex: 1 1 200px; }
+.thsx-chot__trong { margin: 0; font-size: var(--fs-sm); opacity: .8; }
+.thsx-chot__buoc { display: grid; gap: 4px; }
+.thsx-chot__buoc-h { font-size: var(--fs-sm); opacity: .8; overflow-wrap: anywhere; }
+.thsx-chot__buoc-ds { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.thsx-chot__buoc-ds li { display: flex; align-items: center; gap: var(--sp-2); }
+.thsx-chot__buoc-ds .btn { min-height: 44px; }
+.thsx-chot__buoc-ten { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-md, 1rem); }
+.thsx-chot__buoc-khoa { font-size: var(--fs-sm); opacity: .7; }
 .thsx-chot__scrim {
   position: fixed; inset: 0; z-index: 60;
   background: rgb(0 0 0 / 0.35);

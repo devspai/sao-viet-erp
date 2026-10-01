@@ -1,9 +1,10 @@
-// Khối "Chờ chốt giấy" trên bàn tổ Cắt (spec giấy theo khổ §4.6).
+// Khối "Chờ chốt giấy" trên bàn tổ Cắt (spec dòng giấy theo đầu vào §3.0–3.3).
 //
-// Lệnh / bài ghép có giấy, sau phát hành, hiện ở đây: dòng giấy cần (mã · khổ · số tờ), tồn tờ ĐÚNG
-// khổ và các lô cuộn cùng mã để tổ tự xem — máy không kết luận. Tổ chốt một trong hai: chèn bước
-// cắt (chọn công đoạn của tổ, sắp thứ tự) hoặc "Không cần cắt — đủ giấy". Chốt xong mới mở bước
-// mang giấy của tổ khác (cổng "chờ tổ Cắt", §4.7).
+// Lệnh / bài ghép có giấy, sau phát hành, hiện ở đây: dòng giấy của bước LẤY giấy (mã · khổ · số),
+// tồn tờ ĐÚNG khổ và các lô cuộn cùng mã để tổ tự xem — máy không kết luận. Tổ Cắt CHỈ thấy công
+// đoạn Trước In của tổ mình: thêm (chèn ngay trước In) hoặc xoá được — kể cả bước người lập lệnh đặt
+// sẵn. Chưa có công đoạn nào thì chọn "Không cần cắt". Lệnh chưa có bước cắt mà chưa chốt thì bước
+// In bị khoá (cổng "chờ tổ Cắt"); lệnh đặt sẵn bước cắt thì không khoá gì.
 //
 // Nạp lại theo `eventTick` (SSE nhóm sản xuất, mắc ở AppShell): lệnh mới phát hành tự hiện, không
 // bắt bấm tải lại. Màn xưởng: nút to, chữ to.
@@ -20,7 +21,7 @@ export function ThsxChotGiay({
 }: {
   teamId: number;
   eventTick?: number;
-  /** Chốt / gỡ chốt xong — bàn tổ nạp lại danh sách việc (bước cắt vừa chèn là việc của tổ này). */
+  /** Thêm / xoá / chốt xong — bàn tổ nạp lại danh sách việc (bước cắt vừa thêm là việc của tổ này). */
   onDaGhi?: () => void;
 }) {
   const { token } = useAuth();
@@ -59,7 +60,8 @@ export function ThsxChotGiay({
   if (!ds || ds.length === 0) {
     return loi ? <div className="thsx-chot"><p className="thsx-chot__loi" role="alert">{loi}</p></div> : null;
   }
-  const choChot = ds.filter((d) => !d.chot).length;
+  const xacNhan = (d: ChotGiayDong) => !!d.chot || d.cau_hinh_san;
+  const choChot = ds.filter((d) => !xacNhan(d)).length;
 
   return (
     <section className="thsx-chot" aria-label="Chờ chốt giấy">
@@ -71,7 +73,7 @@ export function ThsxChotGiay({
       {loi && <p className="thsx-chot__loi" role="alert">{loi}</p>}
       <ul className="thsx-chot__list">
         {ds.map((d) => (
-          <li key={`${d.chu_the}${d.id}`} className={`thsx-chot__it${d.chot ? " is-da-chot" : ""}`}>
+          <li key={`${d.chu_the}${d.id}`} className={`thsx-chot__it${xacNhan(d) ? " is-da-chot" : ""}`}>
             <div className="thsx-chot__dau">
               <b className="thsx-chot__ma">{d.ma}</b>
               <span className="thsx-chot__ten">{d.chu_the === "bai" ? "Bài ghép · " : ""}{d.ten}</span>
@@ -94,13 +96,10 @@ export function ThsxChotGiay({
                 ).join(" · ")}
               </p>
             )}
-            {d.chot ? (
+            {d.chot?.cach === "khong_cat" ? (
               <div className="thsx-chot__act">
                 <span className="thsx-chot__nhan">
-                  <Icon name="check" size={15} />{" "}
-                  {d.chot.cach === "cat"
-                    ? `Đã chốt: chèn ${d.chot.cong_doan.join(", ") || "bước cắt"}`
-                    : "Đã chốt: không cắt"}
+                  <Icon name="check" size={15} /> Đã chốt: không cắt
                   {d.chot.boi_ten ? ` · ${d.chot.boi_ten}` : ""}
                   {d.chot.luc ? ` · ${ngayGio(d.chot.luc)}` : ""}
                 </span>
@@ -112,20 +111,60 @@ export function ThsxChotGiay({
                 )}
               </div>
             ) : (
-              <div className="thsx-chot__act">
-                <Button variant="accent" disabled={busy || d.cong_doan_chen_duoc.length === 0}
-                  title={d.cong_doan_chen_duoc.length === 0
-                    ? "Chưa có công đoạn nào giao cho tổ này trong danh mục Công đoạn" : undefined}
-                  onClick={() => setChon(d)}>
-                  <Icon name="scissors" size={15} /> Chèn bước cắt
-                </Button>
-                <Button variant="secondary" disabled={busy}
-                  onClick={() => ghi(() => api.sanXuat.chotGiay.chot(token!, {
-                    team_id: teamId, ...khoa(d), cach: "khong_cat",
-                  }))}>
-                  Không cần cắt — đủ giấy
-                </Button>
-              </div>
+              <>
+                {d.buoc_truoc_in.length === 0 ? (
+                  <p className="thsx-chot__trong">Chưa có công đoạn cắt</p>
+                ) : (
+                  <div className="thsx-chot__buoc">
+                    <span className="thsx-chot__buoc-h">
+                      Công đoạn trước In
+                      {d.cau_hinh_san ? " · đặt sẵn trong lệnh" : ""}
+                      {d.chot?.cach === "cat" && d.chot.boi_ten ? ` · ${d.chot.boi_ten}` : ""}
+                      {d.chot?.cach === "cat" && d.chot.luc ? ` · ${ngayGio(d.chot.luc)}` : ""}
+                    </span>
+                    <ol className="thsx-chot__buoc-ds">
+                      {d.buoc_truoc_in.map((b, i) => (
+                        <li key={b.buoc_id}>
+                          <span className="thsx-chot__buoc-ten">{i + 1}. {b.ten}</span>
+                          {b.xoa_duoc ? (
+                            <Button variant="ghost" disabled={busy}
+                              aria-label={`Xoá công đoạn ${b.ten} của ${d.ma}`}
+                              onClick={() => ghi(() => api.sanXuat.chotGiay.xoa(token!, {
+                                team_id: teamId, ...khoa(d), buoc_id: b.buoc_id,
+                              }))}>
+                              Xoá
+                            </Button>
+                          ) : (
+                            <span className="thsx-chot__buoc-khoa" title="Bước đã bắt đầu — không xoá được">
+                              Đã bắt đầu
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                <div className="thsx-chot__act">
+                  {d.sua_duoc && (
+                    <Button variant={d.buoc_truoc_in.length === 0 ? "accent" : "secondary"}
+                      disabled={busy || d.cong_doan_chen_duoc.length === 0}
+                      title={d.cong_doan_chen_duoc.length === 0
+                        ? "Chưa có công đoạn Giai đoạn Trước In nào giao cho tổ này trong danh mục Công đoạn"
+                        : undefined}
+                      onClick={() => setChon(d)}>
+                      <Icon name="plus" size={15} /> Thêm công đoạn
+                    </Button>
+                  )}
+                  {d.buoc_truoc_in.length === 0 && (
+                    <Button variant="secondary" disabled={busy}
+                      onClick={() => ghi(() => api.sanXuat.chotGiay.chot(token!, {
+                        team_id: teamId, ...khoa(d), cach: "khong_cat",
+                      }))}>
+                      Không cần cắt
+                    </Button>
+                  )}
+                </div>
+              </>
             )}
           </li>
         ))}
@@ -134,8 +173,8 @@ export function ThsxChotGiay({
         <HopChenCat
           dong={chon} busy={busy}
           onDong={() => setChon(null)}
-          onChen={(ids) => ghi(() => api.sanXuat.chotGiay.chot(token!, {
-            team_id: teamId, ...khoa(chon), cach: "cat", cong_doan_ids: ids,
+          onChen={(ids) => ghi(() => api.sanXuat.chotGiay.them(token!, {
+            team_id: teamId, ...khoa(chon), cong_doan_ids: ids,
           }))}
         />
       )}
@@ -143,7 +182,7 @@ export function ThsxChotGiay({
   );
 }
 
-/** Hộp chọn công đoạn cắt: tick nhiều, lên/xuống để sắp thứ tự chạy. */
+/** Hộp "Thêm công đoạn": chỉ công đoạn Trước In của tổ; tick nhiều, lên/xuống để sắp thứ tự chạy. */
 function HopChenCat({
   dong, busy, onDong, onChen,
 }: {
@@ -172,9 +211,9 @@ function HopChenCat({
   return (
     <div className="thsx-chot__scrim" role="presentation" onClick={onDong}>
       <div className="thsx-chot__hop" role="dialog" aria-modal="true"
-        aria-label={`Chèn bước cắt cho ${dong.ma}`} onClick={(e) => e.stopPropagation()}>
-        <h3 className="thsx-chot__hop-h">Chèn bước cắt · {dong.ma}</h3>
-        <p className="thsx-chot__hop-mo">Chọn công đoạn — bước chạy theo thứ tự tick, sắp lại bằng nút lên/xuống.</p>
+        aria-label={`Thêm công đoạn trước In cho ${dong.ma}`} onClick={(e) => e.stopPropagation()}>
+        <h3 className="thsx-chot__hop-h">Thêm công đoạn · {dong.ma}</h3>
+        <p className="thsx-chot__hop-mo">Công đoạn chèn vào ngay trước In, chạy theo thứ tự tick — sắp lại bằng nút lên/xuống.</p>
         <ul className="thsx-chot__cd">
           {dong.cong_doan_chen_duoc.map((c) => (
             <li key={c.id}>
@@ -202,7 +241,7 @@ function HopChenCat({
         <div className="thsx-chot__act">
           <Button variant="ghost" onClick={onDong} disabled={busy}>Huỷ</Button>
           <Button variant="accent" disabled={busy || thuTu.length === 0} onClick={() => onChen(thuTu)}>
-            <Icon name="scissors" size={15} /> Chèn
+            <Icon name="plus" size={15} /> Thêm
           </Button>
         </div>
       </div>

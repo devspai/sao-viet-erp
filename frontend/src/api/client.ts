@@ -12930,14 +12930,15 @@ export const api = {
   // Ghi trả `SxLenhKetQua` (version lạc quan). Lỗi: 400 = lệch version/ràng buộc → refetch + toast;
   // 403 = ngoài phạm vi tổ. `teams` một cú gọi ra cả list lẫn badge (`so_viec_cho`).
   sanXuat: {
-    /** Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6). Tổ không mang cờ ⇒ danh sách rỗng. */
+    /** Tổ Cắt chốt giấy sau phát hành (spec dòng giấy theo đầu vào §3). Tổ không mang cờ ⇒ rỗng. */
     chotGiay: {
       list(token: string, teamId: number): Promise<ChotGiayDong[]> {
         return authed<ChotGiayDong[]>(`/api/san-xuat/chot-giay${qs({ team_id: teamId })}`, token);
       },
+      /** Chốt "Không cần cắt" — thêm bước cắt đi qua `them`. */
       chot(token: string, body: {
         team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null;
-        cach: "cat" | "khong_cat"; cong_doan_ids?: number[];
+        cach: "khong_cat";
       }): Promise<unknown> {
         return authed<unknown>("/api/san-xuat/chot-giay", token, {
           method: "POST", body: JSON.stringify(body),
@@ -12946,6 +12947,22 @@ export const api = {
       go(token: string, body: { team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null }):
         Promise<unknown> {
         return authed<unknown>("/api/san-xuat/chot-giay/go", token, {
+          method: "POST", body: JSON.stringify(body),
+        });
+      },
+      /** Thêm công đoạn Trước In của tổ vào ngay trước bước In, đúng thứ tự `cong_doan_ids`. */
+      them(token: string, body: {
+        team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null; cong_doan_ids: number[];
+      }): Promise<unknown> {
+        return authed<unknown>("/api/san-xuat/chot-giay/them", token, {
+          method: "POST", body: JSON.stringify(body),
+        });
+      },
+      /** Xoá một công đoạn Trước In (kể cả bước đặt sẵn). Xoá hết ⇒ "không cắt". */
+      xoa(token: string, body: {
+        team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null; buoc_id: number;
+      }): Promise<unknown> {
+        return authed<unknown>("/api/san-xuat/chot-giay/xoa", token, {
           method: "POST", body: JSON.stringify(body),
         });
       },
@@ -15860,6 +15877,12 @@ export interface ChotGiayDong {
     kho_ten: string;
   }[];
   chot: { cach: "cat" | "khong_cat"; luc: string | null; boi_ten: string | null; cong_doan: string[] } | null;
+  /** In chưa bắt đầu ⇒ gỡ chốt "không cắt" / thêm công đoạn được. */
   sua_duoc: boolean;
+  /** Công đoạn Trước In của tổ Cắt đang có trong tuyến (kể cả bước đặt sẵn), theo thứ tự. */
+  buoc_truoc_in: { buoc_id: number; cong_doan_id: number | null; ma: string; ten: string; xoa_duoc: boolean }[];
+  /** Người lập lệnh đã đặt sẵn bước cắt trước In ⇒ đã xác nhận, không khoá gì. */
+  cau_hinh_san: boolean;
+  /** Chỉ công đoạn Giai đoạn Trước In của tổ. */
   cong_doan_chen_duoc: { id: number; ma: string; ten: string }[];
 }

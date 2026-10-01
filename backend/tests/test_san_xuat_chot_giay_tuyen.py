@@ -1,5 +1,6 @@
-"""Chốt giấy trên lệnh nhiều bước CTP → In → Đóng gói (spec giấy theo khổ §4.6): bước cắt chèn đầu
-tuyến chỉ đứng trước BƯỚC MANG GIẤY — CTP không chờ Cắt, In chờ cả CTP lẫn Cắt.
+"""Chốt giấy trên lệnh nhiều bước CTP → In → Đóng gói (spec dòng giấy theo đầu vào §3.3): tổ Cắt
+THÊM công đoạn Trước In vào NGAY TRƯỚC bước In ⇒ tuyến CTP → Cắt tờ → In → Đóng gói, đúng hình
+lệnh cấu hình sẵn bước cắt (§3.2). Chặng trước cũ của In chuyển sang Cắt; In chỉ chờ Cắt.
 
 Nền `lenh_that` (đã phát hành, không có giấy) + gắn một dòng giấy lên bước In sau phát hành — luật
 "bước mang giấy" đọc dòng vật tư sống của bước, không đọc snapshot."""
@@ -26,7 +27,7 @@ def _cv(sess, buoc) -> SanXuatCongViec:
     return sess.query(SanXuatCongViec).filter_by(lsx_cong_doan_id=buoc.id).one()
 
 
-def test_ctp_khong_cho_cat_in_cho_ca_ctp_lan_cat(sess, admin, lenh_that):
+def test_them_cat_dung_ngay_truoc_in_sau_ctp(sess, admin, lenh_that):
     g = GiayNguyen(ma="G-CG-TUYEN", ten="Couche 150", gsm=150, kho_rong=790, kho_dai=1090)
     sess.add(g)
     sess.flush()
@@ -55,20 +56,22 @@ def test_ctp_khong_cho_cat_in_cho_ca_ctp_lan_cat(sess, admin, lenh_that):
     assert chot_giay.ly_do_cho_chot(sess, _cv(sess, dong_goi)) is None
     assert chot_giay.ly_do_cho_chot(sess, cv_in)
 
-    kq = chot_giay.chot(sess, user=admin, team_id=to_cat.id, lsx_id=lenh_that, bai_ghep_id=None,
-                        cach="cat", cong_doan_ids=[cd.id])
+    kq = chot_giay.them(sess, user=admin, team_id=to_cat.id, lsx_id=lenh_that, bai_ghep_id=None,
+                        cong_doan_ids=[cd.id])
     sess.commit()
     sess.expire_all()
     ten = [b.ten for b in sess.query(LsxCongDoan).filter_by(lsx_id=lenh_that)
            .order_by(LsxCongDoan.thu_tu)]
-    assert ten == ["Cắt tờ", "CTP", "In", "Đóng gói"]
+    assert ten == ["CTP", "Cắt tờ", "In", "Đóng gói"]
 
     sl = SanXuatSanLuongRepository(sess)
     cv_cat = sess.get(SanXuatCongViec, kq["cong_viec_moi"][0])
     assert sl.cong_viec_chang_truoc(cv_ctp) == []
-    assert {c.id for c in sl.cong_viec_chang_truoc(cv_in)} == {cv_ctp.id, cv_cat.id}
+    assert [c.id for c in sl.cong_viec_chang_truoc(cv_cat)] == [cv_ctp.id]
+    assert [c.id for c in sl.cong_viec_chang_truoc(cv_in)] == [cv_cat.id]
     assert [c.id for c in sl.cong_viec_chang_sau(cv_cat)] == [cv_in.id]
-    assert [c.id for c in sl.cong_viec_chang_sau(cv_ctp)] == [cv_in.id]
+    # Cắt có dòng giấy rồi ⇒ cổng chờ chốt không còn khoá In.
+    assert chot_giay.ly_do_cho_chot(sess, cv_in) is None
 
 
 def test_bai_ghep_chen_mot_cong_viec_cat_cho_ca_bai(sess, orders, lsx_svc, admin, customer):
@@ -105,8 +108,8 @@ def test_bai_ghep_chen_mot_cong_viec_cat_cho_ca_bai(sess, orders, lsx_svc, admin
     ds = chot_giay.danh_sach(sess, team_id=to_cat.id)
     assert [(d["chu_the"], d["id"]) for d in ds] == [("bai", bg.id)]
 
-    kq = chot_giay.chot(sess, user=admin, team_id=to_cat.id, lsx_id=None, bai_ghep_id=bg.id,
-                        cach="cat", cong_doan_ids=[cd.id])
+    kq = chot_giay.them(sess, user=admin, team_id=to_cat.id, lsx_id=None, bai_ghep_id=bg.id,
+                        cong_doan_ids=[cd.id])
     sess.commit()
     sess.expire_all()
     assert len(kq["cong_viec_moi"]) == 1
@@ -129,9 +132,15 @@ def test_bai_ghep_chen_mot_cong_viec_cat_cho_ca_bai(sess, orders, lsx_svc, admin
     assert chot_giay.la_buoc_mang_giay(sess, cv_in)
     assert not chot_giay.la_buoc_mang_giay(sess, cv_cat)
 
-    chot_giay.go_chot(sess, user=admin, team_id=to_cat.id, lsx_id=None, bai_ghep_id=bg.id)
+    assert chot_giay.ly_do_cho_chot(sess, cv_in) is None
+    row = chot_giay.danh_sach(sess, team_id=to_cat.id)[0]
+    assert [b["buoc_id"] for b in row["buoc_truoc_in"]] == [chung[0].id]
+
+    chot_giay.xoa(sess, user=admin, team_id=to_cat.id, lsx_id=None, bai_ghep_id=bg.id,
+                  buoc_id=chung[0].id)
     sess.commit()
     sess.expire_all()
+    assert sess.get(type(bg), bg.id).giay_chot_cach == "khong_cat"
     assert [c.ten for c in sess.query(BaiGhepCongDoan).filter_by(bai_ghep_id=bg.id)] == ["In"]
     assert sess.query(LsxCongDoan).filter(LsxCongDoan.lsx_id.in_([a, b]),
                                           LsxCongDoan.chen_boi_to_cat.is_(True)).count() == 0

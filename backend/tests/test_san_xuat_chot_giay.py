@@ -70,8 +70,13 @@ def _cv_buoc(db, buoc_id) -> SanXuatCongViec:
 
 
 def _chot(db, n, admin, lsx_id, cach="cat", ids=None):
-    kq = chot_giay.chot(db, user=admin, team_id=n.to_cat.id, lsx_id=lsx_id, bai_ghep_id=None,
-                        cach=cach, cong_doan_ids=ids if ids is not None else [n.cd.id])
+    """`cach="cat"` = THÊM công đoạn (`chot_giay.them`); "khong_cat" = chốt không cắt."""
+    if cach == "cat":
+        kq = chot_giay.them(db, user=admin, team_id=n.to_cat.id, lsx_id=lsx_id, bai_ghep_id=None,
+                            cong_doan_ids=ids if ids is not None else [n.cd.id])
+    else:
+        kq = chot_giay.chot(db, user=admin, team_id=n.to_cat.id, lsx_id=lsx_id, bai_ghep_id=None,
+                            cach=cach, cong_doan_ids=[])
     db.commit()
     return kq
 
@@ -105,13 +110,12 @@ def test_khong_cat_ghi_chot(db, orders, lsx_svc, admin, customer):
         _chot(db, n, admin, n.a.id, cach="khong_cat", ids=[])
 
 
-# --- Chèn bước cắt ---------------------------------------------------------------------------
-def test_chen_cat_tao_buoc_dau_tuyen_canh_toi_buoc_in_va_cong_viec_cung_goi(
+# --- Thêm bước cắt (luật mới: chèn NGAY TRƯỚC In, xem test_san_xuat_chot_giay_truoc_in.py) -----
+def test_them_cat_tao_buoc_ngay_truoc_in_canh_toi_in_va_cong_viec_cung_goi(
         db, orders, lsx_svc, admin, customer):
     n = _nen(db, orders, lsx_svc, admin, customer)
     cu = [(b.id, b.ten) for b in _tuyen(db, n.a.id)]
     in_ = _buoc_giay(db, n.a.id)
-    vi_tri_in = [i for i, (bid, _) in enumerate(cu) if bid == in_.id][0]
     cv_in = _cv_buoc(db, in_.id)
     sl = SanXuatSanLuongRepository(db)
     truoc_cu = {c.id for c in sl.cong_viec_chang_truoc(cv_in)}
@@ -131,12 +135,9 @@ def test_chen_cat_tao_buoc_dau_tuyen_canh_toi_buoc_in_va_cong_viec_cung_goi(
     assert cv_cat.goi_id == n.goi.id and cv_cat.department_id == n.to_cat.id
     assert cv_cat.nhom_id == cv_in.nhom_id
     db.expire_all()
-    assert {c.id for c in sl.cong_viec_chang_truoc(cv_in)} == truoc_cu | {cv_cat.id}
-    assert sl.cong_viec_chang_truoc(cv_cat) == []
-    # Bước đứng ngay sau Cắt theo thu_tu nhưng không phải bước mang giấy KHÔNG chờ Cắt.
-    if vi_tri_in > 0:
-        dau_cu = _cv_buoc(db, cu[0][0])
-        assert cv_cat.id not in {c.id for c in sl.cong_viec_chang_truoc(dau_cu)}
+    # In nay chỉ chờ Cắt; chặng trước cũ của In chuyển sang Cắt.
+    assert {c.id for c in sl.cong_viec_chang_truoc(cv_in)} == {cv_cat.id}
+    assert {c.id for c in sl.cong_viec_chang_truoc(cv_cat)} == truoc_cu
     assert [c.id for c in sl.cong_viec_chang_sau(cv_cat)] == [cv_in.id]
 
 
@@ -199,38 +200,49 @@ def test_khong_quyen_run_order_bi_tu_choi(db, orders, lsx_svc, admin, customer):
                        cach="khong_cat", cong_doan_ids=[])
 
 
-# --- Gỡ chốt ---------------------------------------------------------------------------------
-def test_go_chot_xoa_dung_buoc_chen_va_tra_thu_tu(db, orders, lsx_svc, admin, customer):
+# --- Xoá bước cắt / gỡ chốt "không cắt" ------------------------------------------------------
+def test_xoa_buoc_them_tra_lai_tuyen_va_thu_tu(db, orders, lsx_svc, admin, customer):
     n = _nen(db, orders, lsx_svc, admin, customer)
     cu = [(b.id, b.thu_tu) for b in _tuyen(db, n.a.id)]
     canh_cu = db.query(LsxCongDoanPhuThuoc).count()
     kq = _chot(db, n, admin, n.a.id)
     cv_cat_id = kq["cong_viec_moi"][0]
-    chot_giay.go_chot(db, user=admin, team_id=n.to_cat.id, lsx_id=n.a.id, bai_ghep_id=None)
+    # "Gỡ chốt" chỉ dành cho "không cắt" — bước cắt thì xoá từng công đoạn.
+    with pytest.raises(ChotGiayLoi, match="xoá từng công đoạn"):
+        chot_giay.go_chot(db, user=admin, team_id=n.to_cat.id, lsx_id=n.a.id, bai_ghep_id=None)
+    buoc_cat = db.get(SanXuatCongViec, cv_cat_id).lsx_cong_doan_id
+    chot_giay.xoa(db, user=admin, team_id=n.to_cat.id, lsx_id=n.a.id, bai_ghep_id=None,
+                  buoc_id=buoc_cat)
     db.commit()
     db.expire_all()
     assert [(b.id, b.thu_tu) for b in _tuyen(db, n.a.id)] == cu
     assert db.query(LsxCongDoanPhuThuoc).count() == canh_cu
     assert db.get(SanXuatCongViec, cv_cat_id) is None
     db.refresh(n.a)
+    assert n.a.giay_chot_cach == "khong_cat"     # xoá hết bước cắt = không cắt
+    chot_giay.go_chot(db, user=admin, team_id=n.to_cat.id, lsx_id=n.a.id, bai_ghep_id=None)
+    db.commit()
+    db.refresh(n.a)
     assert n.a.giay_chot_cach is None and n.a.giay_chot_luc is None
     # Gỡ xong chốt lại được.
     _chot(db, n, admin, n.a.id, cach="khong_cat", ids=[])
 
 
-def test_go_chot_khi_buoc_cat_co_me_bi_chan(db, orders, lsx_svc, admin, customer):
+def test_xoa_khi_buoc_cat_co_me_bi_chan(db, orders, lsx_svc, admin, customer):
     n = _nen(db, orders, lsx_svc, admin, customer)
     kq = _chot(db, n, admin, n.a.id)
     from datetime import datetime, timezone
 
     luc = datetime(2026, 10, 1, 8, tzinfo=timezone.utc)
-    db.add(SanXuatBatch(cong_viec_id=kq["cong_viec_moi"][0], bat_dau=luc, ket_thuc=luc,
+    cv_cat = db.get(SanXuatCongViec, kq["cong_viec_moi"][0])
+    db.add(SanXuatBatch(cong_viec_id=cv_cat.id, bat_dau=luc, ket_thuc=luc,
                         tong=10, tot=10, don_vi="to"))
     db.commit()
     with pytest.raises(ChotGiayLoi, match="đã ghi sản lượng"):
-        chot_giay.go_chot(db, user=admin, team_id=n.to_cat.id, lsx_id=n.a.id, bai_ghep_id=None)
+        chot_giay.xoa(db, user=admin, team_id=n.to_cat.id, lsx_id=n.a.id, bai_ghep_id=None,
+                      buoc_id=cv_cat.lsx_cong_doan_id)
     row = {d["id"]: d for d in chot_giay.danh_sach(db, team_id=n.to_cat.id)}[n.a.id]
-    assert row["sua_duoc"] is False
+    assert row["buoc_truoc_in"][0]["xoa_duoc"] is False
 
 
 def test_go_chot_khi_in_da_bat_dau_bi_chan(db, orders, lsx_svc, admin, customer):
@@ -259,13 +271,18 @@ def test_audit_chot_va_go_chot(db, orders, lsx_svc, admin, customer):
     from app.audit_registry import tra
 
     n = _nen(db, orders, lsx_svc, admin, customer)
-    _chot(db, n, admin, n.a.id)
+    kq = _chot(db, n, admin, n.a.id)
+    buoc_cat = db.get(SanXuatCongViec, kq["cong_viec_moi"][0]).lsx_cong_doan_id
+    chot_giay.xoa(db, user=admin, team_id=n.to_cat.id, lsx_id=n.a.id, bai_ghep_id=None,
+                  buoc_id=buoc_cat)
     chot_giay.go_chot(db, user=admin, team_id=n.to_cat.id, lsx_id=n.a.id, bai_ghep_id=None)
     db.commit()
     rows = db.query(AuditLog).filter(AuditLog.target == f"lsx:{n.a.id}",
                                      AuditLog.action.like("san_xuat.%chot_giay")).all()
-    assert [r.action for r in rows] == ["san_xuat.chot_giay", "san_xuat.go_chot_giay"]
+    assert [r.action for r in rows] == ["san_xuat.chot_giay", "san_xuat.chot_giay",
+                                        "san_xuat.go_chot_giay"]
     assert "Cắt tờ" in rows[0].detail and n.a.ma in rows[0].detail
+    assert "xoá" in rows[1].detail and "Cắt tờ" in rows[1].detail
     assert tra("san_xuat.chot_giay").nhan == "Tổ Cắt chốt giấy"
     assert tra("san_xuat.go_chot_giay").nhan == "Tổ Cắt gỡ chốt giấy"
 
@@ -289,9 +306,14 @@ def test_router_chot_va_loi_nghiep_vu(db, orders, lsx_svc, admin, customer):
     n = _nen(db, orders, lsx_svc, admin, customer)
     ds = r.chot_giay_ds(db=db, user=admin, team_id=n.to_cat.id)
     assert n.a.id in {ChotGiayDongOut.model_validate(d).id for d in ds}
-    res = r.chot_giay_ghi(ChotGiayIn(team_id=n.to_cat.id, lsx_id=n.a.id, cach="cat",
-                                     cong_doan_ids=[n.cd.id]), db=db, user=admin)
-    assert res["cach"] == "cat" and res["to_mang_giay"] == [n.to_sx.id]
+    # Thêm bước cắt không còn đi qua POST /chot-giay.
+    with pytest.raises(HTTPException) as e:
+        r.chot_giay_ghi(ChotGiayIn(team_id=n.to_cat.id, lsx_id=n.a.id, cach="cat",
+                                   cong_doan_ids=[n.cd.id]), db=db, user=admin)
+    assert e.value.status_code == 409 and "Thêm công đoạn" in e.value.detail
+    res = r.chot_giay_ghi(ChotGiayIn(team_id=n.to_cat.id, lsx_id=n.a.id, cach="khong_cat"),
+                          db=db, user=admin)
+    assert res["cach"] == "khong_cat" and res["to_mang_giay"] == [n.to_sx.id]
     with pytest.raises(HTTPException) as e:
         r.chot_giay_ghi(ChotGiayIn(team_id=n.to_cat.id, lsx_id=n.a.id, cach="khong_cat"),
                         db=db, user=admin)

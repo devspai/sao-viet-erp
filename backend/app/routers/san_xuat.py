@@ -46,6 +46,8 @@ from ..schemas.san_xuat import (
     ChotGiayDongOut,
     ChotGiayIn,
     GoChotGiayIn,
+    ThemBuocCatIn,
+    XoaBuocCatIn,
     BanGiaoDeXuatIn,
     BanGiaoDieuChinhIn,
     BanGiaoKetQuaOut,
@@ -418,7 +420,7 @@ def chot_giay_ghi(
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_quyen_to("run_order"))],
 ) -> dict:
-    """Tổ Cắt chốt: chèn bước cắt đầu tuyến (`cach="cat"`) hoặc không cắt."""
+    """Tổ Cắt chốt "Không cần cắt". Thêm bước cắt đi qua `/chot-giay/them`."""
     try:
         res = chot_giay.chot(db, user=user, team_id=payload.team_id, lsx_id=payload.lsx_id,
                              bai_ghep_id=payload.bai_ghep_id, cach=payload.cach,
@@ -440,7 +442,7 @@ def chot_giay_go(
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_quyen_to("run_order"))],
 ) -> dict:
-    """Gỡ chốt khi bước mang giấy chưa bắt đầu và bước cắt chưa có sản lượng."""
+    """Gỡ chốt "không cắt" khi bước In chưa bắt đầu."""
     try:
         res = chot_giay.go_chot(db, user=user, team_id=payload.team_id, lsx_id=payload.lsx_id,
                                 bai_ghep_id=payload.bai_ghep_id)
@@ -452,6 +454,49 @@ def chot_giay_go(
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     _phat_sse_chot_giay(db, res, payload.team_id, user.id, bao_viec_mo=False)
+    return res
+
+
+@router.post("/chot-giay/them")
+def chot_giay_them(
+    payload: ThemBuocCatIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("run_order"))],
+) -> dict:
+    """Tổ Cắt thêm công đoạn Trước In của tổ vào ngay trước bước In (spec dòng giấy §3.3)."""
+    try:
+        res = chot_giay.them(db, user=user, team_id=payload.team_id, lsx_id=payload.lsx_id,
+                             bai_ghep_id=payload.bai_ghep_id, cong_doan_ids=payload.cong_doan_ids)
+        db.commit()
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except chot_giay.ChotGiayLoi as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    _phat_sse_chot_giay(db, res, payload.team_id, user.id, bao_viec_mo=True)
+    return res
+
+
+@router.post("/chot-giay/xoa")
+def chot_giay_xoa(
+    payload: XoaBuocCatIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("run_order"))],
+) -> dict:
+    """Tổ Cắt xoá một công đoạn Trước In của tổ (kể cả bước đặt sẵn) khi nó và bước In chưa bắt
+    đầu. Xoá hết ⇒ chốt "không cắt" — bước In mở."""
+    try:
+        res = chot_giay.xoa(db, user=user, team_id=payload.team_id, lsx_id=payload.lsx_id,
+                            bai_ghep_id=payload.bai_ghep_id, buoc_id=payload.buoc_id)
+        db.commit()
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except chot_giay.ChotGiayLoi as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    _phat_sse_chot_giay(db, res, payload.team_id, user.id, bao_viec_mo=True)
     return res
 
 

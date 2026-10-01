@@ -1488,6 +1488,14 @@ class ChotGiayCongDoanOut(BaseModel):
     ten: str
 
 
+class ChotGiayBuocOut(BaseModel):
+    buoc_id: int
+    cong_doan_id: int | None = None
+    ma: str
+    ten: str
+    xoa_duoc: bool
+
+
 class ChotGiayDongOut(BaseModel):
     chu_the: Literal["lsx", "bai"]
     id: int
@@ -1498,6 +1506,11 @@ class ChotGiayDongOut(BaseModel):
     cuon_cung_ma: list[ChotGiayCuonOut]
     chot: ChotGiayDaChotOut | None = None
     sua_duoc: bool
+    #: Bước trong phạm vi (công đoạn Trước In của tổ Cắt) theo thứ tự tuyến — kể cả bước đặt sẵn.
+    buoc_truoc_in: list[ChotGiayBuocOut] = []
+    #: Người lập lệnh đã đặt sẵn bước cắt trước In ⇒ coi là đã xác nhận, không khoá gì.
+    cau_hinh_san: bool = False
+    #: Công đoạn tổ THÊM được: Giai đoạn Trước In, có tổ này trong tổ phụ trách.
     cong_doan_chen_duoc: list[ChotGiayCongDoanOut]
 
 
@@ -1505,8 +1518,8 @@ class ChotGiayIn(BaseModel):
     team_id: int = Field(ge=1)
     lsx_id: int | None = Field(default=None, ge=1)
     bai_ghep_id: int | None = Field(default=None, ge=1)
+    #: Chỉ còn "không cắt" — thêm bước cắt đi qua `POST /chot-giay/them`.
     cach: Literal["cat", "khong_cat"]
-    #: Công đoạn chèn, ĐÚNG thứ tự tổ Cắt sắp (chỉ dùng khi `cach="cat"`).
     cong_doan_ids: list[int] = []
 
 
@@ -1514,3 +1527,18 @@ class GoChotGiayIn(BaseModel):
     team_id: int = Field(ge=1)
     lsx_id: int | None = Field(default=None, ge=1)
     bai_ghep_id: int | None = Field(default=None, ge=1)
+
+
+class ThemBuocCatIn(BaseModel):
+    team_id: int = Field(ge=1)
+    lsx_id: int | None = Field(default=None, ge=1)
+    bai_ghep_id: int | None = Field(default=None, ge=1)
+    #: Công đoạn thêm, ĐÚNG thứ tự tổ Cắt sắp — chèn ngay trước bước In.
+    cong_doan_ids: list[int] = Field(min_length=1)
+
+
+class XoaBuocCatIn(BaseModel):
+    team_id: int = Field(ge=1)
+    lsx_id: int | None = Field(default=None, ge=1)
+    bai_ghep_id: int | None = Field(default=None, ge=1)
+    buoc_id: int = Field(ge=1)
