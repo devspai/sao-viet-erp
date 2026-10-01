@@ -16647,3 +16647,24 @@ def _migrate_lsx_vat_tu_gia_tri_chip(db: Session) -> None:
 
 
 MIGRATIONS.append(("0358_lsx_vat_tu_gia_tri_chip", _migrate_lsx_vat_tu_gia_tri_chip))
+
+
+def _migrate_khuon_cot_cho_phep_bo_trong(db: Session) -> None:
+    """0359 — cột khuôn cũ của `phieu_thanh_pham` còn trong DB nhưng model KHÔNG còn ghi chúng
+    (01/10/2026: khuôn nay là một vật tư thường có chip). Cột NOT NULL không DEFAULT ở Postgres
+    sẽ làm INSERT bước mới vỡ ⇒ đặt DEFAULT 0 cho bốn cột số. Idempotent (SET DEFAULT chạy lại
+    vô hại); không đụng dữ liệu. SQLite bỏ qua: test dựng bảng từ model, không có các cột này."""
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+    insp = inspect(bind)
+    if "phieu_thanh_pham" not in set(insp.get_table_names()):
+        return
+    co = _existing_columns(insp, "phieu_thanh_pham")
+    for cot in ("phi_khuon", "dai_khuon", "rong_khuon", "so_khuon"):
+        if cot in co:
+            db.execute(text(f"ALTER TABLE phieu_thanh_pham ALTER COLUMN {cot} SET DEFAULT 0"))
+    db.commit()
+
+
+MIGRATIONS.append(("0359_khuon_cot_cho_phep_bo_trong", _migrate_khuon_cot_cho_phep_bo_trong))

@@ -5,7 +5,7 @@ Thân CRUD dùng chung ở `services/catalog_base.CatalogService`; ở đây ch�
 from __future__ import annotations
 
 from ..models.cong_doan import (
-    CHE_DO_TINH, DON_VI_BAC, KIEU_BU_HAO, NHOM, PRICING_BASIS, TOOLING_TYPE, CongDoan,
+    CHE_DO_TINH, DON_VI_BAC, KIEU_BU_HAO, NHOM, PRICING_BASIS, CongDoan,
 )
 from ..models.don_vi_do import TRAM_DONG_GIAY, tram_chay_xuoi
 from ..repositories.cong_doan_repo import CongDoanRepository
@@ -217,14 +217,6 @@ class CongDoanService(CatalogService):
             raise CongDoanValidationError("Chế độ tính không hợp lệ.")
         if data.get("pricing_basis") not in PRICING_BASIS:
             raise CongDoanValidationError("Tính theo sản lượng cần pricing_basis hợp lệ. [E-CD-BASIS]")
-        # GIỮ ĐƯỢC giá trị vốn có, chỉ chặn GÁN MỚI — cùng luật với đơn vị đã ngừng dùng
-        # (`vat_lieu_kho_service._kiem_don_vi`). Cần vì `"kem"` vừa bị gỡ khỏi `TOOLING_TYPE`
-        # (16/08/2026): công đoạn cũ nào còn mang giá trị đó thì sửa TÊN thôi cũng ăn lỗi
-        # "Loại dụng cụ không hợp lệ", trong khi người dùng chẳng đụng vào ô ấy. Đo trên DB dev
-        # là 0/13, nhưng prod chưa đếm được nên không đoán.
-        tooling = data.get("tooling_type")
-        if tooling not in (None, "") and tooling not in TOOLING_TYPE                 and tooling != getattr(obj, "tooling_type", None):
-            raise CongDoanValidationError("Loại dụng cụ không hợp lệ.")
         if data.get("kieu_bu_hao", "khong") not in KIEU_BU_HAO:
             raise CongDoanValidationError("Kiểu bù hao không hợp lệ. [E-CD-BUHAO]")
         self._kiem_bac_bu_hao(data)

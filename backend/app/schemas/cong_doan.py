@@ -109,8 +109,6 @@ class CongDoanIn(BaseModel):
     size_tiers: list | None = None
     first_unit_floor: float | None = None
     min_charge: float | None = None
-    requires_tooling: bool = False
-    tooling_type: str | None = None
     spoilage_pct: float = Field(default=0, ge=0, le=100)
     inline_flag: bool = False
     ghi_chu: str | None = None
@@ -153,8 +151,6 @@ class CongDoanRow(BaseModel):
     size_tiers: list | None = None
     first_unit_floor: float | None = None
     min_charge: float | None = None
-    requires_tooling: bool
-    tooling_type: str | None = None
     spoilage_pct: float
     inline_flag: bool
     ghi_chu: str | None = None

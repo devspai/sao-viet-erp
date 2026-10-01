@@ -276,20 +276,8 @@ def _buoc_can_khuon(db: Session, buocs: list[LsxCongDoan]) -> set[int]:
     "bước này CÓ CẦN dao không". Thiếu vế thứ hai thì bước cần dao mà chưa chốt lại hiện y hệt bước
     không cần — đúng chỗ đang chặn ở cửa "Sẵn sàng lập kế hoạch" mà hồ sơ lại im lặng.
     """
-    from ..lsx_service import can_chot_khuon   # cùng luật với cửa "Sẵn sàng" (khung lụa miễn)
-
-    ids = {b.cong_doan_id for b in buocs if b.cong_doan_id}
-    if not ids:
-        return set()
-    can = {
-        cd_id
-        for cd_id, co, loai in db.execute(
-            select(CongDoan.id, CongDoan.requires_tooling, CongDoan.tooling_type)
-            .where(CongDoan.id.in_(ids))
-        )
-        if can_chot_khuon(co, loai)
-    }
-    return {b.id for b in buocs if b.cong_doan_id in can}
+    # Công đoạn không còn cờ dụng cụ (01/10/2026): không bước nào "phải chốt khuôn". Task 9 gỡ nốt.
+    return set()
 
 
 def _routing(bc: BoiCanh, lsx_id: int, buocs: list[LsxCongDoan], ten_to: dict[int, str],

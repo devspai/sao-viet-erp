@@ -205,7 +205,6 @@ _DOC_TRAM, _GHI_TRAM = _enum_viet(
     TRAM_NHAN, "Đơn vị", bi_danh={v: k for k, v in TRAM_NHAN_NGAN.items()})
 _DOC_NHOM, _GHI_NHOM = _enum_viet(_NHAN_NHOM, "Nhóm", bi_danh={"che ban": "prepress"})
 _DOC_BU_HAO, _GHI_BU_HAO = _enum_viet(_NHAN_BU_HAO, "Kiểu bù hao")
-_DOC_DUNG_CU, _GHI_DUNG_CU = _enum_viet(_NHAN_LOAI_KHUON, "Loại dụng cụ")
 _DOC_LOAI_DAO, _GHI_LOAI_DAO = _enum_viet(_NHAN_LOAI_KHUON, "Loại dao")
 _DOC_TINH_TRANG, _GHI_TINH_TRANG = _enum_viet(_NHAN_TINH_TRANG, "Tình trạng")
 
@@ -466,8 +465,6 @@ CONG_DOAN = CatalogExcelSpec(
         # NHIỀU tổ (mg `0312`): "PB012, PB013" — tổ đầu là mặc định của bước lệnh.
         *_cot_nhieu_to(nhan="Mã tổ phụ trách", nhan_ten="Tên tổ phụ trách",
                        nhan_cu=("Tổ phụ trách",)),
-        Cot("Cần dụng cụ", "requires_tooling", kieu="bool", rong=14),
-        Cot("Loại dụng cụ", "tooling_type", doc=_DOC_DUNG_CU, ghi=_GHI_DUNG_CU, rong=16),
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
         # Cột đời cũ (một ô "Máy in, Bế") — nay là sheet con "Nhóm máy cho phép".

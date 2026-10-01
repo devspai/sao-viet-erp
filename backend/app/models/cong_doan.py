@@ -40,10 +40,6 @@ PRICING_BASIS = (
     "per_job",            # Trọn gói một lần (cả đơn) — engine ÷ SL ở đơn giá bình quân (khuôn bế…)
     "per_other",          # Khác (nhập tay, giá phẳng)
 )
-# Dụng cụ DÙNG CHUNG mà bước phải mượn từ kho khuôn. Bật `requires_tooling` nghĩa là: lệnh PHẢI
-# gán một dòng khuôn có thật, và hai lệnh mượn cùng một khuôn không được xếp trùng giờ.
-#
-TOOLING_TYPE = ("khuon_be", "khuon_ep", "khung_lua")
 # Cách công đoạn tính bù hao: không / theo bậc số lượng (bảng bậc khai ngay trên công đoạn →
 # tra bậc theo SL) / cộng cố định `so_to_bu_hao` tờ (ép kim, UV… — không theo bảng).
 # 22/09/2026: `tra_bang` (trỏ 1 mã ở module Bù hao) đổi thành `theo_bac`, module Bù hao đã gỡ.
@@ -126,8 +122,8 @@ class CongDoan(Base):
     first_unit_floor: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)  # sàn bậc đầu (≠ min_charge)
     min_charge: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)         # sàn cả công đoạn
 
-    requires_tooling: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_false(), default=False)
-    tooling_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Cột `requires_tooling`/`tooling_type` còn trong DB (không drop), KHÔNG còn model/đọc/ghi từ
+    # 01/10/2026: khuôn nay là một VẬT TƯ thường có chip, không còn cờ ở công đoạn.
     spoilage_pct: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False, server_default="0", default=0)  # KHÔNG áp bước in
     inline_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_false(), default=False)
     cong_thuc_gia: Mapped[str | None] = mapped_column(Text, nullable=True)

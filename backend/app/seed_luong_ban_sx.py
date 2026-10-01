@@ -170,7 +170,7 @@ def _ensure_cong_doan(db: Session) -> dict[str, int]:
             cong_thuc_gia=ct, run_rate=rate, setup_time=setup, nang_suat=ns,
             department_id=to_ids.get(to_ten),
             kieu_bu_hao=kieu_bh, so_to_bu_hao=so_to_bh,
-            requires_tooling=tooling, tooling_type=tooling_type, ghi_chu=ghi_chu,
+            ghi_chu=ghi_chu,   # `tooling`/`tooling_type` của bộ dữ liệu cũ: công đoạn không còn cờ khuôn
         ))
     cd_in = co_san.get("CD-0002")
     if cd_in is not None and not cd_in.setup_time:

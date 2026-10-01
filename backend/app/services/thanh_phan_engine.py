@@ -477,52 +477,6 @@ def chuan_hoa_cot(result: dict | None) -> dict | None:
               for g in result["groups"]]
     return {**result, "groups": groups}
 
-# Loại dụng cụ ĐƯỢC PHÉP mang phí khuôn — dao lưu kho, mua một lần rồi cất kho dùng lại.
-# `kem` (bản kẽm) CỐ Ý ĐỨNG NGOÀI: nó là vật tư tiêu hao, mỗi bài phơi mới, và tiền nó đã nằm
-# trong công thức của bước chế bản (`so_kem × đơn giá`). Cho nó ô phí nữa là tính hai lần.
-TOOLING_CO_PHI = frozenset({"khuon_be", "khuon_ep", "khung_lua"})
-# Nhãn đọc được của loại dao — vào thẳng tên dòng tiền ("Xén 3 mặt · phí khuôn bế"). Khớp
-# `DAO_CO_PHI` bên frontend; lệch thì hai màn gọi cùng một con dao bằng hai tên.
-TOOLING_NHAN = {"khuon_be": "khuôn bế", "khuon_ep": "khuôn ép kim", "khung_lua": "khung lụa"}
-
-
-def _canh_bao_khuon(chain: list[dict]) -> list[str]:
-    """Lời nhắc về phí khuôn, đọc theo NGUỒN KHUÔN sale đã chọn (chốt 04/09/2026).
-
-    · `co_san` → im lặng: đó là một câu trả lời đúng, không phải chỗ trống bị bỏ quên.
-    · `lam_moi` mà 0đ → nhắc: đã chọn làm dao mới thì phải có tiền, không thì báo giá thiếu.
-    · chưa chọn (NULL, phiếu cũ) → giữ nguyên lời nhắc cũ.
-
-    Gom MỘT câu cho cả chuỗi thay vì kêu từng bước — ba bước cần dao là ba dòng đọc rất mệt, mà
-    nhắc nhiều thì người lập phiếu tắt mắt với lời nhắc.
-    """
-    thieu_cu: list[str] = []
-    thieu_moi: list[str] = []
-    for row in chain:
-        cd = row.get("cong_doan") or {}
-        if not cd.get("requires_tooling") or cd.get("tooling_type") not in TOOLING_CO_PHI:
-            continue
-        if _f(row.get("phi_khuon")) > 0:
-            continue
-        ten_b = row.get("ten") or cd.get("ten") or "Công đoạn"
-        nguon = row.get("khuon_nguon")
-        if nguon == "co_san":
-            continue
-        (thieu_moi if nguon == "lam_moi" else thieu_cu).append(ten_b)
-    ra: list[str] = []
-    if thieu_moi:
-        ra.append(
-            "Đã chọn làm khuôn mới nhưng chưa nhập tiền khuôn: "
-            + ", ".join(thieu_moi) + " — báo giá đang thiếu khoản này."
-        )
-    if thieu_cu:
-        ra.append(
-            "Chưa cho biết khuôn có sẵn hay làm mới: " + ", ".join(thieu_cu)
-            + " — để trống thì hiểu là dùng khuôn cũ, không tính tiền."
-        )
-    return ra
-
-
 def _pre(name: str, label: str) -> str:
     name = (name or "").strip()
     return f"{name} · {label}" if name else label
@@ -1081,12 +1035,6 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         _b_nay = buoc.get(idx_buoc)
         ctx["sl_vao"] = ceil(_b_nay["vao"]) if _b_nay else to_dau_vao
         ctx["sl_ra"] = ceil(_b_nay["ra"]) if _b_nay else to_dau_vao
-        # Kích thước/số lượng KHUÔN của CHÍNH bước — ba ô nhập riêng ở phiếu, TÁCH BIỆT với
-        # `phi_khuon`. Bơm cho MỌI bước (không chỉ bước khuôn ép): công thức không gõ tới thì vô
-        # hại, gõ tới mà không bơm mới là thứ nổ `KeyError` ở vòng `MA_TANG_BUOC_TIEN` dưới đây.
-        ctx["dai_khuon"] = _f(row.get("dai_khuon"))
-        ctx["rong_khuon"] = _f(row.get("rong_khuon"))
-        ctx["so_khuon"] = _f(row.get("so_khuon"))
         # so_mat: dòng IN (nhom=print) LUÔN theo số mặt cách in (passes) — KHÔNG để field mặc định=1
         # nuốt (N2: model so_mat default=1 khiến fallback passes thành code chết). Finishing tự set
         # so_mat (cán 1/2 mặt); ≤0 → dùng passes.
@@ -1142,49 +1090,6 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         })
 
 
-    # --- PHÍ KHUÔN: khoản MỘT LẦN, GỘP vào giá vốn ---------------------------------------------
-    #
-    # Chốt 15/08/2026: gộp thẳng thành dòng tiền trong nhóm Công đoạn để báo giá chỉ còn MỘT dòng.
-    # Bản đầu tách riêng (giá vốn không gồm dao, báo giá đẻ dòng thứ hai) — chủ dự án đổi sang gộp
-    # cho gọn khâu báo giá. Hệ quả đã biết: tiền dao bị chia theo sản lượng, xem chú thích ở dưới.
-    #
-    # CHỈ nhận phí ở bước có cờ dụng cụ là dao lưu kho. `kem` bị loại: bản kẽm là vật tư tiêu hao và
-    # tiền nó đã nằm trong công thức của bước chế bản — lấy thêm ở đây là tính hai lần.
-    khuon_dong: list[dict] = []
-    for row in chain:
-        cd = row.get("cong_doan") or {}
-        if not cd.get("requires_tooling") or cd.get("tooling_type") not in TOOLING_CO_PHI:
-            continue
-        ten_b = row.get("ten") or cd.get("ten") or "Công đoạn"
-        tien = _f(row.get("phi_khuon"))
-        if tien > 0:
-            nhan_dao = TOOLING_NHAN.get(cd.get("tooling_type") or "", "khuôn")
-            khuon_dong.append({"ten": ten_b, "loai": cd.get("tooling_type"), "thanh_tien": _r(tien)})
-            # Thành DÒNG TIỀN THẬT trong nhóm Công đoạn ⇒ `total` cộng nó vào, kéo theo `gia_von_tp`
-            # và đơn giá/sản phẩm. Chủ dự án chọn gộp (15/08/2026) để báo giá chỉ còn MỘT dòng.
-            #
-            # ⚠️ Hệ quả đã biết và đã chấp nhận: tiền dao KHÔNG đổi theo sản lượng nên khi bị chia,
-            # đơn nhỏ gánh nặng hơn đơn lớn — cùng con dao 734.300đ, đơn 500 cuốn thành 1.469 đ/cuốn
-            # còn đơn 5.000 cuốn chỉ 147 đ/cuốn.
-            #
-            # KHÔNG gắn `buoc_idx`: khoá đó dùng để ghép dòng tiền với thẻ số tờ của bước. Gắn vào
-            # đây là hai dòng cùng khoá, map `tienTheoBuoc` bên FE nuốt mất một — thẻ bước sẽ hiện
-            # tiền dao thay cho tiền công chạy máy.
-            rows["cong_doan"].append({
-                "loai": "khuon",
-                "ten": _pre(name, f"{ten_b} · phí {nhan_dao}"),
-                "thanh_tien": _r(tien),
-                "gia_don_sp": _r(tien / sl) if sl > 0 else 0.0,
-                # Cũng phải quy ra đ/sp. Tiền dao KHÔNG co giãn theo sản lượng (chú thích ở trên),
-                # nhưng nó ĐANG bị chia vào giá vốn — giấu con số bị chia đi thì người lập phiếu
-                # không thấy đơn nhỏ đang gánh bao nhiêu, mà đó chính là lúc cần thấy nhất.
-                "cong_thuc": _ct(f"{_vi(_r(tien))}đ làm {nhan_dao}, một lần", tien, sl),
-            })
-    # NHẮC, không chặn: dùng lại dao cũ là chuyện thường ngày, chặn là phiền vô cớ. Nội dung lời
-    # nhắc do `_canh_bao_khuon` quyết theo nguồn khuôn sale đã chọn.
-    for _cb in _canh_bao_khuon(chain):
-        warnings.append(f"Thành phần '{name}': {_cb}")
-
     # --- PHÍ GIAO HÀNG: khoản MỘT LẦN của CẢ SẢN PHẨM, GỘP vào giá vốn --------------------------
     #
     # Người lập phiếu gõ TỔNG tiền chở hàng cho toàn bộ sản lượng của sản phẩm này (v1: số phẳng
@@ -1239,8 +1144,6 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
     return {
         "name": name,
         "rows": rows,
-        "phi_khuon_dong": khuon_dong,
-        "phi_khuon": _r(sum(_f(d["thanh_tien"]) for d in khuon_dong)),
         "phi_giao_hang": _r(phi_gh),
         "chi_phi_khac_dong": chi_phi_khac_dong,
         "chi_phi_khac": _r(sum(_f(d["thanh_tien"]) for d in chi_phi_khac_dong)),
@@ -1287,11 +1190,6 @@ def compute_phieu(*, so_luong: int, thanh_phans: list[dict], warnings: list[str]
             grouped[idx].extend(one["rows"][idx])
         components.append({
             "idx": i, "name": one["name"], "gia_von_tp": one["total"],
-            # ⚠️ Phí khuôn ĐÃ NẰM TRONG `gia_von_tp` — nó là một dòng tiền của nhóm Công đoạn
-            # (xem `_compute_one`) nên `total` cộng rồi. Hai khoá dưới chỉ để BÀY RA "trong giá vốn
-            # có bao nhiêu tiền dao"; cộng thêm lần nữa là tính hai lần, mà báo giá lấy thẳng
-            # `gia_von_tp` làm giá vốn khoá nên sai sẽ chạy tới tận hoá đơn.
-            "phi_khuon": one["phi_khuon"], "phi_khuon_dong": one["phi_khuon_dong"],
             # ⚠️ Phí giao hàng CŨNG đã nằm trong `gia_von_tp` (một dòng của nhóm Giao hàng). Khoá
             # này chỉ để BÀY RA, cộng thêm lần nữa là tính hai lần — mà Báo giá lấy thẳng
             # `gia_von_tp` làm giá vốn khoá nên sai sẽ chạy tới tận hoá đơn.
@@ -1328,10 +1226,6 @@ def compute_phieu(*, so_luong: int, thanh_phans: list[dict], warnings: list[str]
             "tong_so_luong": tong_sl,        # Σ SL các sản phẩm
             "so_thanh_phan": len(thanh_phans or []),   # = SỐ SẢN PHẨM
             "gia_von_don": _r(gia_von_don),            # đơn giá BÌNH QUÂN (Σ giá vốn / Σ SL)
-            # Σ phí khuôn CẢ PHIẾU — số để SOI, đã nằm SẴN trong `grand_total` và `gia_von_don`.
-            # Báo giá KHÔNG đẻ dòng riêng cho nó: nó lấy `gia_von_tp` của từng sản phẩm làm giá vốn
-            # rồi markup, nên tiền dao được markup cùng phần còn lại. Đừng cộng nó vào đâu nữa.
-            "phi_khuon": _r(sum(_f(c.get("phi_khuon")) for c in components)),
             "components": components,
         },
         "groups": groups,
