@@ -35,7 +35,7 @@ from ..models.stock_voucher import (
 
 from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
 from ..repositories.stock_lot_repo import goc_cua
-from .kho_giay import chuan_kho, khoa_dong, nhan_kho
+from .kho_giay import chuan_kho, khoa_dong, khoa_ton, nhan_kho
 from ..storage import get_storage, key_from_url, url_from_key
 
 # Đính kèm phiếu kho: byte đi qua storage.py (LocalStorage <backend>/static hoặc MinIO) rồi phục vụ
@@ -617,16 +617,17 @@ class StockVoucherService:
 
     @staticmethod
     def _gom_theo_hang_nhap(v) -> dict[tuple, float]:
-        """`{(hang_loai, hang_id): Σ sl_goc}` của MỘT phiếu NHẬP — vào kho bao nhiêu, theo mặt
-        hàng, không cần biết chủ thể (nhập kho không gắn lệnh nào)."""
+        """`{khoá tồn: Σ sl_goc}` của MỘT phiếu NHẬP — vào kho bao nhiêu, theo mặt hàng (giấy tờ:
+        mã + khổ), không cần biết chủ thể (nhập kho không gắn lệnh nào)."""
         ra: dict[tuple, float] = {}
         for ln in v.lines:
-            h = (ln.hang_loai, ln.hang_id)
+            h = khoa_ton(ln.hang_loai, ln.hang_id, dang=ln.dang_giay,
+                         kho_rong=ln.kho_rong or 0, kho_dai=ln.kho_dai or 0)
             ra[h] = ra.get(h, 0.0) + float(ln.sl_goc)
         return ra
 
     def _gom_theo_hang_va_chu_the(self, v, lines_by_id: dict) -> dict[tuple, float]:
-        """`{((hang_loai, hang_id), (lsx_id, bai_ghep_id)): Σ sl_goc}` của phiếu.
+        """`{(khoá tồn, (lsx_id, bai_ghep_id)): Σ sl_goc}` của phiếu — giấy tờ khoá theo mã + khổ.
 
         Gộp theo ĐƠN VỊ GỐC (`sl_goc`) vì giữ chỗ đếm bằng đơn vị gốc — so `so_luong` (đơn vị người
         khai) với chỗ giữ là so hai thang khác nhau, đúng bẫy mà cửa kiểm lô ngay trên đã dặn.
@@ -671,7 +672,8 @@ class StockVoucherService:
             rl = lines_by_id.get(ln.request_line_id)
             lsx_id = getattr(rl, "lsx_id", None)
             bg_id = getattr(rl, "bai_ghep_id", None)
-            hang = (ln.hang_loai, ln.hang_id)
+            hang = khoa_ton(ln.hang_loai, ln.hang_id, dang=ln.dang_giay,
+                            kho_rong=ln.kho_rong or 0, kho_dai=ln.kho_dai or 0)
             if nhu_cau is not None and lsx_id is not None and bg_id is None and lsx_id in ghep_cua:
                 if hang not in nhu_cau.get((lsx_id, None), {}):
                     bid = ghep_cua[lsx_id]
@@ -681,8 +683,9 @@ class StockVoucherService:
                         # Hiện TÊN/MÃ dễ đọc thay vì id thô — cùng lý do cửa kiểm lô ngay trên đã
                         # dặn (dòng ~279): người xem lỗi này là kho, họ đọc mã "LSX-A"/"GB-1", không
                         # đọc id nội bộ. Fallback về id khi không tra được (danh mục/lệnh đã mất).
+                        cap = (hang[0], hang[1])
                         ten_hang = getattr(
-                            self.hang.map_theo_cap([hang]).get(hang), "ten", None
+                            self.hang.map_theo_cap([cap]).get(cap), "ten", None
                         ) or f"{hang[0]}#{hang[1]}"
                         ma_lsx = getattr(
                             self.vouchers.db.get(Lsx, lsx_id), "ma", None

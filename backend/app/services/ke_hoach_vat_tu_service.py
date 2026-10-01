@@ -931,9 +931,8 @@ class KeHoachVatTuService:
         # Trước đây khối này đẻ danh sách `bo_qua` ("Lệnh chưa khai vật tư nào ở bước — kể cả
         # giấy.", "Bài ghép chưa chọn giấy chung.") để ba màn bày lên thành băng cảnh báo. Đã gỡ
         # hẳn: bảng cân đối chỉ cân đối thứ ĐÃ được khai, chưa khai thì vắng mặt, không phải một
-        # cảnh báo phải đọc mỗi lần mở màn. Cửa chặn thật vẫn nguyên ở xếp lịch —
-        # `xep_lich_service._chan_chua_giu_du` (giữ chỗ đủ mới cho xếp) và cửa phát hành
-        # `xep_lich/release.py`, cả hai đều tự hỏi `GiuChoService.trang_thai`, không đọc danh sách
+        # cảnh báo phải đọc mỗi lần mở màn. Đèn vật tư ở Kế hoạch SX (`lsx_tong_quan`) và cảnh báo
+        # phát hành (`xep_lich/release.py`) tự hỏi `GiuChoService.trang_thai`, không đọc danh sách
         # này. Đừng dựng lại nó ở tầng engine.
 
         # --- vật tư khai tay ở bước CHUNG của bài ---------------------------

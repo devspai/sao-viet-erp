@@ -85,8 +85,8 @@ def _rows(*lsx_ids: int) -> list[dict]:
             for i in lsx_ids]
 
 
-def test_chi_dong_DO_chan_phat_hanh_hang_dang_ve_thi_khong(db, vd_svc, monkeypatch):
-    """Chỉ `do` (tồn + hàng đang về vẫn không đủ) mới chặn. Từ 18/09/2026 bảng cân đối không so
+def test_chi_dong_DO_bao_thieu_hang_dang_ve_thi_khong(db, vd_svc, monkeypatch):
+    """Chỉ `do` (tồn + hàng đang về vẫn không đủ) mới báo — mức LƯU Ý, không chặn (01/10/2026). Từ 18/09/2026 bảng cân đối không so
     ngày về với ngày cần nữa — hàng đang về (vàng) là đủ, dù NCC hẹn giao muộn đến đâu."""
     monkeypatch.setattr(vd_svc, "_can_doi_vat_tu", lambda: _bang_gia([
         {"trang_thai": "do", "lsx_id": 1, "bai_ghep_id": None},
@@ -96,7 +96,7 @@ def test_chi_dong_DO_chan_phat_hanh_hang_dang_ve_thi_khong(db, vd_svc, monkeypat
     out = vd_svc._thieu_vat_tu(_rows(1, 2, 3))
 
     assert [v["issue_key"].split(":", 1)[1] for v in out] == ["lsx:1"]
-    assert out[0]["severity"] == "chan"
+    assert out[0]["severity"] == "luu_y", "thiếu vật tư chỉ cảnh báo, không chặn phát hành"
     assert "Couché 300" in out[0]["title"]
 
 
@@ -621,3 +621,20 @@ def test_lich_da_qua_noi_dung_cua_no_khong_muon_thu_tu_cong_doan(db, orders, lsx
     assert "chưa ai vào việc" in it["title"]
     assert "Xếp lại giờ" in it["nguyen_nhan"]
     assert it["delay_phut"] and it["delay_phut"] > 0
+
+
+def test_phat_hanh_duoc_khi_thieu_giay_va_co_canh_bao(db, orders, lsx_svc, vd_svc, admin, customer):
+    """Thiếu giấy (tắt giữ chỗ ⇒ không giữ được gì) thì cửa phát hành KHÔNG chặn, chỉ cảnh báo thiếu
+    gì — lệnh cần cắt giấy phải phát hành được để tới tổ Cắt (spec giấy đếm tờ × khổ §4.3)."""
+    from app.services.xep_lich import release
+    from app.services.xep_lich.constraint import MUC_CANH_BAO
+
+    lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
+    release._giu_cho_service(db).tat(lsx_id=lsx.id)
+
+    soat = release.soat_vat_tu(db, lsx_id=lsx.id)
+    assert soat["chan"] == []
+    assert "vat_tu_chua_du" in [i["ma"] for i in soat["canh_bao"]]
+    assert all(i["muc"] == MUC_CANH_BAO for i in soat["canh_bao"])
+    assert release.van_de_vat_tu(db, lsx_id=lsx.id) == []
+    vd_svc._chan_thieu_vat_tu(lsx_id=lsx.id)            # không ném

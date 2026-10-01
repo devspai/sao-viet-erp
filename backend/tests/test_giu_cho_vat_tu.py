@@ -114,9 +114,10 @@ def _lenh(db, customer, *, ma, giay_id, so_to_nguyen, han=MAI, giay_o_buoc=True,
     """Lệnh + bước In, có sẵn DÒNG GIẤY trên bước.
 
     Từ 08/09/2026 giấy vào bảng cân đối qua `lsx_cong_doan_vat_tu` (`hang_loai='giay'`), không còn
-    suy từ `quy_cach_json.giay_id` nữa. Dòng giấy đếm TỜ NGUYÊN khổ `KHO`; số trên dòng giữ con số cũ
-    của bộ test (`so_to_nguyen × 0,08385`) để các phép so giữ chỗ không đổi — Task 6 (giữ chỗ theo
-    mã + khổ) viết lại số. `dvt_giay` ⇒ dòng ghi đơn vị đó với số `so_to_nguyen`.
+    suy từ `quy_cach_json.giay_id` nữa. Dòng giấy đếm TỜ NGUYÊN khổ `KHO`. Số tờ trên dòng là
+    `so_to_nguyen × 0,08385` — chỉ là hệ số co của bộ test (giữ nguyên các con số so sánh viết từ
+    thời đếm kg), không phải quy đổi: giữ chỗ cộng trừ số tờ y như cộng trừ kg. `dvt_giay` ⇒ dòng ghi
+    đơn vị đó với số `so_to_nguyen`.
     """
     from app.models.lsx import LsxCongDoanVatTu
 
@@ -157,18 +158,20 @@ def _ton(db, hang, so_luong) -> None:
         db.add(kho)
         db.flush()
     giay = hang[0] == "giay"
+    kr, kd = (hang[2], hang[3]) if len(hang) == 4 else KHO     # lô tờ đúng khổ của khoá
     db.add(StockLot(hang_loai=hang[0], hang_id=hang[1], kho_id=kho.id,
-                    ma_lo=f"LOT-{hang[0]}{hang[1]}-{so_luong}", sl_ban_dau=so_luong,
+                    ma_lo=f"LOT-{hang[0]}{hang[1]}-{kr}x{kd}-{so_luong}", sl_ban_dau=so_luong,
                     sl_con_lai=so_luong, ngay_nhap=HOM_NAY, trang_thai=LOT_AVAILABLE,
-                    dang_giay="to" if giay else None, kho_rong=KHO[0] if giay else 0,
-                    kho_dai=KHO[1] if giay else 0))
+                    dang_giay="to" if giay else None, kho_rong=kr if giay else 0,
+                    kho_dai=kd if giay else 0))
     db.commit()
 
 
 def _kho_va_dv(hang, unit):
     """Dòng mua giấy: khổ `KHO`, đơn vị tờ nguyên; vật tư khác: 0 · 0, kg."""
     if hang[0] == "giay":
-        return {"kho_rong": KHO[0], "kho_dai": KHO[1], "unit": unit or don_vi_goc_to()}
+        kr, kd = (hang[2], hang[3]) if len(hang) == 4 else KHO
+        return {"kho_rong": kr, "kho_dai": kd, "unit": unit or don_vi_goc_to()}
     return {"kho_rong": 0, "kho_dai": 0, "unit": unit or "kg"}
 
 
@@ -199,8 +202,9 @@ def _ycmh(db, *, hang, so_luong, status=DPR_OPEN, unit=None) -> DepartmentPurcha
     return yc
 
 
-def _giay_hang(g) -> tuple[str, int]:
-    return ("giay", g.id)
+def _giay_hang(g, kho=KHO) -> tuple[str, int, int, int]:
+    """Khoá giữ chỗ của giấy tờ = (mã, khổ)."""
+    return ("giay", g.id, *kho)
 
 
 # ================== TỒN TỰ DO ==================
@@ -385,7 +389,7 @@ def test_cung_vat_tu_o_hai_buoc_phai_giu_TONG_ca_hai(db, svc, customer):
 
     tt = svc.bat(lsx_id=a.id)
     assert tt["du"] is False, "7 kg < 10 kg cần cho hai bước"
-    assert tt["dang_giu"][("vat_tu", vt.id)] == pytest.approx(7)
+    assert tt["dang_giu"][("vat_tu", vt.id, 0, 0)] == pytest.approx(7)
 
 
 # ================== KHÔNG ĐÁNH GIÁ ĐƯỢC ==================
@@ -1418,8 +1422,13 @@ def _dung_phieu_xuat(db, hang, *, lsx_id, bai_ghep_id, kho_id=None):
                      ngay=HOM_NAY, nguoi_lap_id=1, trang_thai=VOUCHER_DRAFT)
     db.add(v)
     db.flush()
+    # Giấy tờ mang dạng + khổ của khoá (`khoa_ton` của dòng phiếu là khoá giữ chỗ).
+    giay_to = hang[0] == "giay" and len(hang) == 4 and hang[2] and hang[3]
     db.add(StockVoucherLine(voucher_id=v.id, request_line_id=rl.id, hang_loai=hang[0],
-                            hang_id=hang[1], so_luong=10, sl_goc=10, lot_id=None))
+                            hang_id=hang[1], so_luong=10, sl_goc=10, lot_id=None,
+                            dang_giay="to" if giay_to else None,
+                            kho_rong=hang[2] if giay_to else 0,
+                            kho_dai=hang[3] if giay_to else 0))
     db.commit()
     return v, {rl.id: rl}
 
@@ -1619,3 +1628,50 @@ def test_the_lenh_mang_khach_va_han_giao_khach(db, svc, customer):
     row = [r for r in svc.theo_chu_the()["items"] if r["lsx_id"] == a.id][0]
     assert row["khach_ten"] == customer.name
     assert row["han_giao_khach"] == HOM_NAY + timedelta(days=11)
+
+
+# ================== KHOÁ (MÃ, KHỔ) ==================
+
+KHO_KHAC = (800, 1090)
+
+
+def test_giu_cho_giay_theo_kho(db, svc, customer):
+    """Lô 800×1090 cùng mã KHÔNG giữ hộ nhu cầu 780×905 — khổ là một phần mặt hàng."""
+    g = _giay(db)
+    _ton(db, _giay_hang(g, KHO_KHAC), 100)
+    a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=200)   # cần 780×905
+
+    tt = svc.bat(lsx_id=a.id)
+    assert tt["du"] is False
+    assert tt["dang_giu"] == {}, "không được nhặt lô khác khổ"
+    assert svc.ton_tu_do([_giay_hang(g, KHO_KHAC)])[_giay_hang(g, KHO_KHAC)] == pytest.approx(100)
+
+
+def test_kiem_xuat_so_dung_kho(db, svc, customer):
+    """Lệnh A giữ khổ 780×905 thì chỉ khổ đó bị khoá — khổ khác cùng mã vẫn xuất tự do."""
+    g = _giay(db)
+    _ton(db, _giay_hang(g), 20)
+    _ton(db, _giay_hang(g, KHO_KHAC), 20)
+    a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=200)
+    svc.bat(lsx_id=a.id)
+
+    assert svc.kiem_xuat(hang=_giay_hang(g, KHO_KHAC), so_luong=10) is None
+    loi = svc.kiem_xuat(hang=_giay_hang(g), so_luong=10)
+    assert loi and "đang được lệnh khác giữ chỗ" in loi
+
+
+def test_hang_ve_dung_kho_tu_giu(db, svc, customer):
+    """Bật giữ khi kho trống: hàng khác khổ về thì không bù; đúng khổ về thì tự giữ, dòng mang khổ."""
+    g = _giay(db)
+    a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=200)
+    svc.bat(lsx_id=a.id)
+
+    _ton(db, _giay_hang(g, KHO_KHAC), 100)
+    svc.nhat_them()
+    assert svc.du_chua(lsx_id=a.id) is False, "khác khổ không bù được"
+
+    _ton(db, _giay_hang(g), 100)
+    svc.nhat_them()
+    assert svc.du_chua(lsx_id=a.id) is True
+    rows = svc.repo.cua_chu_the(lsx_id=a.id, bai_ghep_id=None)
+    assert rows and all((r.kho_rong, r.kho_dai) == KHO for r in rows)

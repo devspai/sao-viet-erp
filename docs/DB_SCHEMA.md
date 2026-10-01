@@ -4268,6 +4268,8 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `id` | `Integer` → `INTEGER` / `SERIAL` | **PK** | no | auto | Surrogate PK. |
 | `hang_loai` | `String(8)` → `VARCHAR(8)` | IX¹ | no | — | `giay` \| `vat_tu`. Cùng cặp khoá mặt hàng gốc mà `stock_lots` và bảng cân đối dùng. Soft-ref (không FK) vì hai danh mục nguồn nằm ở hai bảng. |
 | `hang_id` | `Integer` | IX¹ | no | — | → `giay_nguyen.id` hoặc `vat_tu_in_an.id` tuỳ `hang_loai`. |
+| `kho_rong` | `Integer` | IX¹ | no | `0` | (mg `0354`) Cạnh ngắn khổ giấy TỜ, mm — cùng khoá tồn `kho_giay.khoa_ton`. Vật tư và giấy cuộn để 0. Lô 780×905 không giữ hộ nhu cầu 800×1090 cùng mã. |
+| `kho_dai` | `Integer` | IX¹ | no | `0` | (mg `0354`) Cạnh dài khổ giấy TỜ, mm. Vật tư và giấy cuộn để 0. |
 | `lsx_id` | `Integer` | **FK→lsx.id** (CASCADE), IX | yes | — | Chủ thể giữ chỗ khi lệnh in RIÊNG. |
 | `bai_ghep_id` | `Integer` | **FK→bai_ghep.id** (CASCADE), IX | yes | — | Chủ thể giữ chỗ khi lệnh đã GHÉP — bài đại diện, lệnh thành viên không giữ riêng. |
 | `purchase_request_line_id` | `Integer` | **FK→purchase_request_lines.id** (SET NULL), IX | yes | — | [MỚI 30/08/2026] Dòng phiếu mua làm phát sinh phần giữ — CHỈ có ý nghĩa khi `nguon='dang_ve'`. Để đối soát đúng dòng khi PMH đổi thay vì đoán theo mặt hàng. |
@@ -4277,9 +4279,9 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
 
-**Tất cả cột:** `id`, `hang_loai`, `hang_id`, `lsx_id`, `bai_ghep_id`, `purchase_request_line_id`, `so_luong`, `nguon`, `ngay_ve`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `hang_loai`, `hang_id`, `kho_rong`, `kho_dai`, `lsx_id`, `bai_ghep_id`, `purchase_request_line_id`, `so_luong`, `nguon`, `ngay_ve`, `created_at`, `updated_at`.
 
-¹ Index gộp `ix_giu_cho_hang (hang_loai, hang_id)` — tra "mặt hàng này ai đang giữ, tổng bao nhiêu", chạy mỗi lần tính tồn tự do.
+¹ Index gộp `ix_giu_cho_hang (hang_loai, hang_id, kho_rong, kho_dai)` (mg `0354` thêm hai cột khổ) — tra "mặt hàng này ai đang giữ, tổng bao nhiêu", chạy mỗi lần tính tồn tự do.
 
 **Ràng buộc:**
 - `ck_giu_cho_mot_chu_the` — đúng MỘT trong `lsx_id`/`bai_ghep_id`. Cả hai cùng có (hoặc cùng trống) là dòng **mồ côi**: không tra ngược ra ai đang giữ, mà vẫn trừ vào tồn tự do của mọi người khác.

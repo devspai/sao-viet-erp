@@ -550,16 +550,11 @@ def test_bai_ghep_in_chung_mot_dong_loai_tru_in(db, orders, lsx_svc, bg_svc, xl_
         xl_svc.go_lsx(lsx_id=created[0].id, actor=admin)
 
 
-def test_lenh_chua_khai_vat_tu_nao_bi_chan_va_cau_bao_chi_dung_viec_phai_lam(
+def test_xep_lich_khong_chan_vi_vat_tu(
     db, orders, lsx_svc, xl_svc, admin, customer,
 ):
-    """Từ 08/09/2026 giấy chỉ vào bảng cân đối qua DÒNG VẬT TƯ của bước, nên "lệnh chưa ra được nhu
-    cầu nào" là ca thường gặp chứ không còn là ca lạ.
-
-    Vẫn CHẶN (chưa ai nói lệnh này ăn giấy gì thì đừng xếp máy), nhưng câu báo cũ — "còn thiếu 0
-    mặt hàng" — vô nghĩa với người đọc: họ đi lập yêu cầu mua cho 0 món. Câu mới phải chỉ đúng chỗ
-    bấm: vào bước, ô Thêm vật tư.
-    """
+    """Từ 01/10/2026 vật tư KHÔNG còn là cửa xếp lịch (spec giấy đếm tờ × khổ §4.3): lệnh chưa giữ
+    đủ giấy — ở đây là chưa khai vật tư nào, giữ chỗ không ra món nào — vẫn vào kế hoạch được."""
     from app.models.lsx import LsxCongDoanVatTu
 
     lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
@@ -569,11 +564,9 @@ def test_lenh_chua_khai_vat_tu_nao_bi_chan_va_cau_bao_chi_dung_viec_phai_lam(
     ).delete(synchronize_session=False)
     db.commit()
 
-    with pytest.raises(XepLichConflict) as e:
-        xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
-    assert "chưa khai vật tư nào ở bước" in str(e.value)
-    assert "Thêm vật tư" in str(e.value)
-    assert "0 mặt hàng" not in str(e.value)
+    xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
+    db.refresh(lsx)
+    assert lsx.trang_thai == TT_DA_LAP_KE_HOACH
 
 
 def test_som_nhat_theo_gio_thuc_cua_buoc_truoc(db, orders, lsx_svc, xl_svc, admin, customer, monkeypatch):

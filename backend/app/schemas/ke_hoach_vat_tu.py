@@ -148,6 +148,9 @@ class TheoLenhHang(BaseModel):
 
     hang_loai: str
     hang_id: int
+    #: Khổ giấy tờ (mm) — giữ chỗ khoá (mã, khổ); vật tư và giấy cuộn 0 · 0.
+    kho_rong: int = 0
+    kho_dai: int = 0
     hang_ma: str | None = None
     hang_ten: str | None = None
     don_vi_goc: str | None = None

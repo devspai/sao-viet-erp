@@ -70,7 +70,8 @@ class VatTuGiuCho(Base):
         ),
         CheckConstraint("so_luong > 0", name="ck_giu_cho_so_duong"),
         # Tra "mặt hàng này ai đang giữ, tổng bao nhiêu" — chạy mỗi lần tính tồn tự do.
-        Index("ix_giu_cho_hang", "hang_loai", "hang_id"),
+        # Khổ là một phần khoá (mg 0354): giấy tờ 780×905 và 800×1090 cùng mã là hai món.
+        Index("ix_giu_cho_hang", "hang_loai", "hang_id", "kho_rong", "kho_dai"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -79,6 +80,10 @@ class VatTuGiuCho(Base):
     # Soft-ref (không FK) vì hai danh mục nguồn nằm ở hai bảng khác nhau; service chặn id không có.
     hang_loai: Mapped[str] = mapped_column(String(8), nullable=False)
     hang_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Khổ giấy TỜ (mm, cạnh ngắn · cạnh dài) — cùng khoá tồn `kho_giay.khoa_ton`. Vật tư và giấy
+    #: cuộn để 0 · 0 (gom theo mã).
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     lsx_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("lsx.id", ondelete="CASCADE"), index=True, nullable=True

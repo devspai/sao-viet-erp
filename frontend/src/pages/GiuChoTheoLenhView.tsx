@@ -20,6 +20,18 @@ import { BangLoi, ChipGap, EmptyState, Skeleton, classHan, ngay, num } from "./k
 import { nhanDonVi } from "./lsxBuoc";
 import { moTaPhieuMua, tomTatPhieuMua, vetDangKep } from "./phieuMuaNhan";
 import { useNapTenDonVi } from "./tenDonVi";
+import { nhanKho } from "../lib/khoGiay";
+
+/** Giữ chỗ khoá (mã, khổ): hai khổ của một mã giấy là hai món. */
+const khoaHang = (h: TheoLenhHang) => `${h.hang_loai}-${h.hang_id}-${h.kho_rong}-${h.kho_dai}`;
+
+/** Tên món kèm khổ khi là giấy tờ: "C-300 · 780 × 905 mm". */
+const tenHang = (h: TheoLenhHang, rong: string) => {
+  const ten = h.hang_ten ?? h.hang_ma ?? rong;
+  return h.hang_loai === "giay" && h.kho_rong && h.kho_dai
+    ? `${ten} · ${nhanKho(h.kho_rong, h.kho_dai)}`
+    : ten;
+};
 
 /** Nhãn ngắn & màu cho trạng thái GIỮ CHỖ 6 mức — đây LÀ màn "giữ chỗ theo lệnh":
  *  `co_the_giu`/`da_giu`/`da_cap` mới đúng câu hỏi màn này trả lời ("lệnh này chạy được chưa"),
@@ -528,13 +540,13 @@ export function GiuChoTheoLenhView({
                               : null;
                             return (
                               <div
-                                key={`${h.hang_loai}-${h.hang_id}`}
+                                key={khoaHang(h)}
                                 className={`khvt-stream-chip ${meta.cls}`}
-                                title={`${h.hang_ten ?? h.hang_ma}\n• Nhu cầu: ${soGoc(h.can)} ${nhanDonVi(h.don_vi_goc)}\n• Đang giữ: ${soGoc(h.dang_giu)} ${nhanDonVi(h.don_vi_goc)}${h.thieu > 0 ? `\n• Thiếu: ${soGoc(h.thieu)}` : ""}${coTheGiuNgay(h) ? `\n• ${moTaCoTheGiuNgay(h)}` : ""}${vet ? `\n${vet.title}` : ""}`}
+                                title={`${tenHang(h, "Vật tư")}\n• Nhu cầu: ${soGoc(h.can)} ${nhanDonVi(h.don_vi_goc)}\n• Đang giữ: ${soGoc(h.dang_giu)} ${nhanDonVi(h.don_vi_goc)}${h.thieu > 0 ? `\n• Thiếu: ${soGoc(h.thieu)}` : ""}${coTheGiuNgay(h) ? `\n• ${moTaCoTheGiuNgay(h)}` : ""}${vet ? `\n${vet.title}` : ""}`}
                               >
                                 <Icon name={icon} size={12} />
                                 <span className="khvt-stream-chip__name">
-                                  {h.hang_ten ?? h.hang_ma ?? "Vật tư"}
+                                  {tenHang(h, "Vật tư")}
                                 </span>
                                 {h.thieu > 0 ? (
                                   <span className="khvt-stream-chip__deficit">
@@ -780,13 +792,13 @@ export function GiuChoTheoLenhView({
                       const meta = mauVatTuGiu(h.trang_thai_giu);
                       const icon = iconLoaiHang(h.hang_loai);
                       return (
-                        <li key={`${h.hang_loai}-${h.hang_id}`} className="khvt-bcard__item">
+                        <li key={khoaHang(h)} className="khvt-bcard__item">
                           <div className="khvt-bcard__item-main">
                             <span className="khvt-bcard__item-icon" style={{ color: meta.dotColor }}>
                               <Icon name={icon} size={14} />
                             </span>
                             <span className="khvt-bcard__item-name">
-                              {h.hang_ten ?? h.hang_ma ?? "(đã gỡ khỏi danh mục)"}
+                              {tenHang(h, "(đã gỡ khỏi danh mục)")}
                             </span>
                             {h.so_buoc > 1 && (
                               <span className="khvt-bcard__buoc-tag">{h.so_buoc} bước</span>
@@ -1055,12 +1067,12 @@ function LenhVatTuDrawer({
                     const meta = mauVatTuGiu(h.trang_thai_giu);
                     const tag = nhanLoaiHang(h.hang_loai);
                     return (
-                      <tr key={`${h.hang_loai}-${h.hang_id}`}>
+                      <tr key={khoaHang(h)}>
                         <td>
                           <div className="khvt-cell-item">
                             <div className="khvt-cell-item__top">
                               <span className="khvt-item-name" title={h.hang_ten ?? undefined}>
-                                {h.hang_ten ?? "(đã gỡ khỏi danh mục)"}
+                                {tenHang(h, "(đã gỡ khỏi danh mục)")}
                               </span>
                               <span className={`khvt-item-tag ${tag.cls}`}>{tag.label}</span>
                               {h.so_buoc > 1 && (
@@ -1231,11 +1243,11 @@ function HopNhaCho({
           <p className="gclv-hop__dau">Sắp trả lại kho:</p>
           <ul className="gclv-hop__ds">
             {dangGiu.map((h) => (
-              <li key={`${h.hang_loai}-${h.hang_id}`}>
+              <li key={khoaHang(h)}>
                 <b>
                   {soGoc(h.dang_giu)} {nhanDonVi(h.don_vi_goc)}
                 </b>{" "}
-                {h.hang_ten ?? h.hang_ma ?? "(đã gỡ khỏi danh mục)"}
+                {tenHang(h, "(đã gỡ khỏi danh mục)")}
                 {h.so_lenh_khac_thieu > 0 && (
                   <span className="gclv-hop__doi">
                     {" "}— {h.so_lenh_khac_thieu} lệnh khác đang thiếu món này

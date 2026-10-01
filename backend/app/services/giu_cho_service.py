@@ -1,6 +1,8 @@
 """GIỮ CHỖ vật tư — bật · tắt · tự nhặt thêm · tồn tự do. Chủ dự án chốt 17/08/2026.
 
-Một câu: **lệnh phải giữ được vật tư thì mới được xếp lịch.**
+Một câu: **tồn đã có chủ thì không ai khác lĩnh được.** Từ 01/10/2026 giữ chỗ KHÔNG còn là cửa
+xếp lịch hay phát hành (spec giấy đếm tờ × khổ §4.3) — thiếu vật tư chỉ còn là CẢNH BÁO, giữ chỗ
+vẫn bảo vệ phần đã giữ khỏi bị lệnh khác lĩnh mất.
 
 Trước đó bảng cân đối chỉ đọc, tồn không thuộc về ai. Lệnh A xếp lịch 22/8 dựa trên 60 kg giấy
 đang có; chiều hôm sau lệnh B lĩnh mất 50 kg; lịch của A thành lịch ma mà không ai báo.
@@ -20,7 +22,7 @@ không cần giữ chỗ nữa, nó đã nằm ở xưởng.
 Giữ được bao nhiêu hay bấy nhiêu; công tắc vẫn BẬT dù chưa đủ. Hàng về sau thì `nhat_them()` tự bù
 — không bắt người dùng nhớ quay lại bấm đúng lúc hàng nhập kho, vì chẳng ai nhớ.
 
-**Mở khoá xếp lịch chỉ khi giữ ĐỦ 100%** (`du_chua`).
+`du` = giữ ĐỦ 100% — đèn ở Kế hoạch vật tư / Theo lệnh, KHÔNG còn mở khoá gì.
 
 ## Ai nhặt trước
 
@@ -30,7 +32,8 @@ cho hàng đang về.
 
 ## Ba thứ CỐ Ý KHÔNG làm
 
-* **Không giữ đích danh lô** — phá nhập-trước-xuất-trước của kho. Chỉ giữ cặp (mặt hàng, số lượng).
+* **Không giữ đích danh lô** — phá nhập-trước-xuất-trước của kho. Chỉ giữ (mặt hàng, số lượng);
+  mặt hàng của giấy TỜ là (mã, khổ) — lô 780×905 không giữ hộ nhu cầu 800×1090 cùng mã.
 * **Không tự hết hạn** — thứ chạy ngầm mà nhả nhầm đúng hôm gấp thì không ai truy ra được. Thay
   bằng danh sách "giữ lâu chưa chạy" để người nhìn rồi tự quyết.
 * **Không xử lý ưu tiên hộ** — lệnh gấp tranh chỗ với lệnh đang giữ thì máy chỉ BÀY cờ gấp, người
@@ -49,8 +52,10 @@ from ..doi_tuong_nhan import MAN_KHVT, MAN_THEO_LENH, hop
 from ..realtime import hub
 from .can_doi_cache import xoa_cache_can_doi
 from ..repositories.giu_cho_repo import GiuChoRepository
+from .kho_giay import Khoa
 
-Hang = tuple[str, int]
+#: Khoá giữ chỗ = khoá tồn (loai, id, kho_rong, kho_dai) — vật tư và giấy cuộn khổ 0 · 0.
+Hang = Khoa
 
 #: Giữ quá ngần này ngày mà chưa đưa vào kế hoạch ⇒ vào danh sách "giữ lâu chưa chạy".
 #:
@@ -92,6 +97,17 @@ def _f(v) -> float:
         return float(v or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _k_dong(r) -> Hang:
+    """Khoá của một dòng `VatTuGiuCho`."""
+    return (r.hang_loai, int(r.hang_id), int(r.kho_rong or 0), int(r.kho_dai or 0))
+
+
+def _k_nhom(nhom: dict) -> Hang:
+    """Khoá của một nhóm bảng cân đối — nhóm đã là (mã, khổ)."""
+    return (nhom["hang_loai"], int(nhom["hang_id"]), int(nhom.get("kho_rong") or 0),
+            int(nhom.get("kho_dai") or 0))
 
 
 def _aware(dt: datetime) -> datetime:
@@ -141,7 +157,7 @@ class GiuChoService:
 
         `khong_ro` = dòng KHÔNG quy đổi được đơn vị. `nhu_cau` của nó là 0 vì máy chưa tính nổi,
         KHÔNG phải vì không cần — nên không giữ được gì, và chủ thể đó KHÔNG bao giờ được tính là
-        "đủ". Coi nó là 0 rồi mở khoá xếp lịch là mở cho một lệnh chưa ai biết cần bao nhiêu.
+        "đủ". Coi nó là 0 rồi báo đủ là nói dối về một lệnh chưa ai biết cần bao nhiêu.
 
         Nhớ tạm theo đúng `bang` (xem `self._nhu_cau_cache`): `trang_thai()` gọi hàm này cho MỖI
         chủ thể, mà `giu_theo_chu_the_hang()`/`lsx_tong_quan._dung_vat_tu` hỏi hàng trăm chủ thể
@@ -154,7 +170,7 @@ class GiuChoService:
         for nhom in bang.get("items", []):
             if nhom.get("loai_nhom") != "vat_tu":
                 continue
-            hang = (nhom["hang_loai"], nhom["hang_id"])
+            hang = _k_nhom(nhom)
             for d in nhom.get("dong", []):
                 khoa = (d.get("lsx_id"), d.get("bai_ghep_id"))
                 if khoa == (None, None):
@@ -174,7 +190,7 @@ class GiuChoService:
                                           bool] | None = None) -> dict:
         """Kết quả sau khi bấm — ba trạng thái người dùng thấy.
 
-        `du` = giữ đủ 100% ⇒ xếp lịch mở khoá. `xep_som_nhat` = ngày sớm nhất được xếp bước tiêu
+        `du` = giữ đủ 100% (đèn, không còn là cửa xếp lịch). `xep_som_nhat` = ngày sớm nhất được xếp bước tiêu
         thụ: `None` khi mọi phần đều giữ CHẮC (hàng trong kho ⇒ ngày tháng vô nghĩa), là ngày về
         MUỘN NHẤT trong các phần giữ HỨA khi có — phải chờ đủ MỌI món mới chạy được, không phải
         món đầu tiên.
@@ -220,7 +236,7 @@ class GiuChoService:
         giu_dang_ve: dict[Hang, float] = {}
         nguon_dang_ve: dict[Hang, list[dict]] = {}
         for r in dang:
-            h = (r.hang_loai, r.hang_id)
+            h = _k_dong(r)
             giu_theo_hang[h] = giu_theo_hang.get(h, 0.0) + _f(r.so_luong)
             if r.nguon == NGUON_KHO:
                 giu_kho[h] = giu_kho.get(h, 0.0) + _f(r.so_luong)
@@ -246,12 +262,10 @@ class GiuChoService:
             "bat": (bat_theo_chu_the[chu] if bat_theo_chu_the is not None and chu in bat_theo_chu_the
                     else self._co_bat(lsx_id=lsx_id, bai_ghep_id=bai_ghep_id)),
             # `bool(can)` GIỮ NGUYÊN (rà lại 08/09/2026): lệnh không ra được nhu cầu nào thì KHÔNG
-            # phải "đủ". Từ 08/09/2026 giấy không còn tự suy từ `quy_cach_json` nữa mà là dòng vật
-            # tư người lập lệnh khai tay lên bước, nên `can` rỗng nghĩa là chưa ai nói lệnh này ăn
-            # giấy gì — chặn xếp lịch ở đó là đúng, chỉ CÂU BÁO phải nói thẳng (xem
-            # `xep_lich_service._chan_chua_giu_du`), đừng bảo "còn thiếu 0 mặt hàng".
+            # phải "đủ" — `can` rỗng nghĩa là chưa ai nói lệnh này ăn giấy gì. Cảnh báo phát hành
+            # (`xep_lich/release.py`) nói thẳng việc đó, đừng bảo "còn thiếu 0 mặt hàng".
             "du": not thieu and not khong_ro and bool(can),
-            # Lệnh/bài KHÔNG ra được món nào. Tách hẳn khỏi `thieu` để đèn và cửa chặn nói đúng
+            # Lệnh/bài KHÔNG ra được món nào. Tách hẳn khỏi `thieu` để đèn và cảnh báo nói đúng
             # việc phải làm ("vào bước khai giấy") thay vì "còn thiếu 0 mặt hàng".
             "chua_co_nhu_cau": not can,
             "khong_ro": khong_ro,
@@ -308,7 +322,7 @@ class GiuChoService:
             tt = tt_by_chu[chu]
             hangs = list(o["hang"].values())
             for h in hangs:
-                k = (h["hang_loai"], h["hang_id"])
+                k = (h["hang_loai"], h["hang_id"], h["kho_rong"], h["kho_dai"])
                 h["dang_giu"] = round(_f(tt["dang_giu"].get(k)), 4)
                 h["can"] = round(h["can"], 4)
                 h["thieu"] = round(h["thieu"], 4)
@@ -417,10 +431,10 @@ class GiuChoService:
         for chu, rs in mo_coi.items():
             hang: dict[Hang, dict] = {}
             for r in rs:
-                k = (r.hang_loai, r.hang_id)
-                obj = objs.get(k)
+                k = _k_dong(r)
+                obj = objs.get((k[0], k[1]))
                 hang.setdefault(k, {
-                    "hang_loai": k[0], "hang_id": k[1],
+                    "hang_loai": k[0], "hang_id": k[1], "kho_rong": k[2], "kho_dai": k[3],
                     "hang_ma": getattr(obj, "ma", None), "hang_ten": getattr(obj, "ten", None),
                     "don_vi_goc": getattr(obj, "don_vi_gia", None),
                     # `can = 0` là ĐÚNG, không phải thiếu dữ liệu: lệnh đã rơi khỏi kế hoạch nên
@@ -460,7 +474,7 @@ class GiuChoService:
         for nhom in bang.get("items", []):
             if nhom.get("loai_nhom") != "vat_tu":
                 continue
-            hang = (nhom["hang_loai"], nhom["hang_id"])
+            hang = _k_nhom(nhom)
             for d in nhom.get("dong", []):
                 chu = (d.get("lsx_id"), d.get("bai_ghep_id"))
                 if chu == (None, None):
@@ -482,6 +496,7 @@ class GiuChoService:
                     o["ngay_can"] = ngay
                 h = o["hang"].setdefault(hang, {
                     "hang_loai": hang[0], "hang_id": hang[1],
+                    "kho_rong": hang[2], "kho_dai": hang[3],
                     "hang_ma": nhom.get("hang_ma"), "hang_ten": nhom.get("hang_ten"),
                     "don_vi_goc": nhom.get("don_vi_goc"),
                     "can": 0.0, "thieu": 0.0, "dang_giu": 0.0, "so_buoc": 0,
@@ -503,7 +518,7 @@ class GiuChoService:
                     h["khoa_do"].append({
                         "hang_loai": hang[0], "hang_id": hang[1],
                         # Khổ là một phần khoá dòng của bảng cân đối (`_khoa_dong`).
-                        "kho_rong": nhom.get("kho_rong", 0), "kho_dai": nhom.get("kho_dai", 0),
+                        "kho_rong": hang[2], "kho_dai": hang[3],
                         "lsx_id": d.get("lsx_id"), "bai_ghep_id": d.get("bai_ghep_id"),
                         "buoc_id": d.get("buoc_id"),
                     })
@@ -593,7 +608,7 @@ class GiuChoService:
         )
         if not held:
             return False
-        hang = (held[0].hang_loai, held[0].hang_id)
+        hang = _k_dong(held[0])
         self._khoa_nguon([hang])
         # `_hang_dang_ve()` đòi `self.kh._objs`/`_dvs`/`_cap` đã nạp, mà cả ba chỉ được set bên
         # trong `can_doi()`. Instance `kh_vt` mà `deps.py` ráp cho MỖI request là hàng mới tinh,
@@ -602,10 +617,7 @@ class GiuChoService:
         # dựng cả bảng cân đối ở đây là chạy nguyên engine cho TOÀN kế hoạch chỉ để đọc một con số.
         self.kh.nap_nen_quy_doi([hang])
         con_ve, ngay_ve = 0.0, None
-        # Bảng cân đối khoá hàng đang về theo (mã, khổ); giữ chỗ còn theo cặp mã — dò mọi khổ.
-        ve = [x for k, ds in self.kh._hang_dang_ve().items() if (k[0], int(k[1])) == hang
-              for x in ds]
-        for ngay, sl, _ma, line_id in ve:
+        for ngay, sl, _ma, line_id in self.kh._hang_dang_ve().get(hang, []):
             if line_id == purchase_request_line_id:
                 con_ve, ngay_ve = sl, ngay
                 break
@@ -734,6 +746,7 @@ class GiuChoService:
         Cũ nhất trước (`created_at` tăng dần) — cùng luật "cam kết cũ được bảo vệ" của mọi chỗ nhả
         khác trong file này. Cố ý KHÔNG neo theo `purchase_request_line_id` cụ thể: giữ chỗ chỉ ăn
         theo (mặt hàng, số lượng), không đích danh lô/dòng phiếu nào (luật ② docstring model).
+        `hang` là khoá tồn 4 phần tử — giấy tờ nhập khổ nào chỉ chuyển phần hứa của đúng khổ đó.
 
         `commit=False`: người gọi đang giữa một giao dịch của chính nó (ghi sổ phiếu) — KHÔNG commit
         hộ, và tự gọi `sau_ghi_so()` sau khi CHÍNH nó commit.
@@ -745,6 +758,7 @@ class GiuChoService:
         rows = (
             self.db.query(VatTuGiuCho)
             .filter(VatTuGiuCho.hang_loai == hang[0], VatTuGiuCho.hang_id == hang[1],
+                    VatTuGiuCho.kho_rong == hang[2], VatTuGiuCho.kho_dai == hang[3],
                     VatTuGiuCho.nguon == NGUON_DANG_VE)
             .order_by(VatTuGiuCho.created_at.asc())
             .all()
@@ -763,7 +777,8 @@ class GiuChoService:
             else:
                 r.so_luong = round(_f(r.so_luong) - bot, 2)
                 self.db.add(VatTuGiuCho(
-                    hang_loai=hang[0], hang_id=hang[1], lsx_id=r.lsx_id,
+                    hang_loai=hang[0], hang_id=hang[1], kho_rong=hang[2], kho_dai=hang[3],
+                    lsx_id=r.lsx_id,
                     bai_ghep_id=r.bai_ghep_id, so_luong=bot, nguon=NGUON_KHO, ngay_ve=None,
                     purchase_request_line_id=None,
                 ))
@@ -798,7 +813,7 @@ class GiuChoService:
             cua_minh = sum(
                 _f(r.so_luong) for r in self.repo.cua_chu_the(
                     lsx_id=lsx_id, bai_ghep_id=bai_ghep_id)
-                if (r.hang_loai, r.hang_id) == hang
+                if _k_dong(r) == hang
             )
         if so_luong <= tu_do + cua_minh + 1e-9:
             return None
@@ -822,7 +837,7 @@ class GiuChoService:
         """
         con = float(so_luong)
         rows = [r for r in self.repo.cua_chu_the(lsx_id=lsx_id, bai_ghep_id=bai_ghep_id)
-                if (r.hang_loai, r.hang_id) == hang]
+                if _k_dong(r) == hang]
         rows.sort(key=lambda r: 0 if r.nguon == NGUON_KHO else 1)
         for r in rows:
             if con <= 0:
@@ -855,7 +870,8 @@ class GiuChoService:
 
         from ..models.vat_lieu_kho import GiayNguyen, VatTuInAn
 
-        for hang_loai, hang_id in sorted(set(hangs)):
+        # Khoá dòng DANH MỤC ⇒ theo cặp mã (hai khổ của một mã giấy chung một dòng gốc).
+        for hang_loai, hang_id in sorted({(h[0], int(h[1])) for h in hangs}):
             model = GiayNguyen if hang_loai == "giay" else VatTuInAn
             self.db.execute(_select(model.id).where(model.id == hang_id).with_for_update())
 
@@ -872,18 +888,13 @@ class GiuChoService:
         ra: dict[Hang, list[tuple[date, float, int]]] = {}
         da_hua = {h: 0.0 for h in hangs}
         for r in self.db.query(VatTuGiuCho).filter(VatTuGiuCho.nguon == NGUON_DANG_VE).all():
-            h = (r.hang_loai, r.hang_id)
+            h = _k_dong(r)
             if h in da_hua:
                 da_hua[h] += _f(r.so_luong)
-        # Bảng cân đối khoá hàng đang về theo (mã, khổ); giữ chỗ còn theo cặp mã ⇒ gộp mọi khổ của
-        # một mã về cặp, sắp lại theo ngày về.
-        theo_cap: dict[Hang, list] = {}
-        for k, ds in self.kh._hang_dang_ve().items():
-            theo_cap.setdefault((k[0], int(k[1])), []).extend(ds)
-        for hang, ds in theo_cap.items():
-            if hang not in set(hangs):
+        # Hàng đang về đã khoá theo (mã, khổ MUA) và sắp theo ngày ở `_hang_dang_ve`.
+        for hang, ds in self.kh._hang_dang_ve().items():
+            if hang not in da_hua:
                 continue
-            ds.sort(key=lambda x: x[0])
             con_hua = da_hua.get(hang, 0.0)
             con_lai: list[tuple[date, float, int]] = []
             for ngay, sl, _ma, line_id in ds:
@@ -1029,7 +1040,7 @@ class GiuChoService:
         for nhom in bang.get("items", []):
             if nhom.get("loai_nhom") != "vat_tu":
                 continue
-            hang = (nhom["hang_loai"], nhom["hang_id"])
+            hang = _k_nhom(nhom)
             for d in nhom.get("dong", []):
                 chu = (d.get("lsx_id"), d.get("bai_ghep_id"))
                 h = tra_cuu.get((chu, hang))
@@ -1046,7 +1057,8 @@ class GiuChoService:
     def _dong(chu: tuple, hang: Hang, sl: float, nguon: str, ngay: date | None,
               purchase_request_line_id: int | None = None) -> VatTuGiuCho:
         return VatTuGiuCho(
-            hang_loai=hang[0], hang_id=hang[1], lsx_id=chu[0], bai_ghep_id=chu[1],
+            hang_loai=hang[0], hang_id=hang[1], kho_rong=hang[2], kho_dai=hang[3],
+            lsx_id=chu[0], bai_ghep_id=chu[1],
             so_luong=round(sl, 2), nguon=nguon, ngay_ve=ngay,
             purchase_request_line_id=purchase_request_line_id,
         )

@@ -677,7 +677,8 @@ class XepLichVanDeService:
 
     def _chan_thieu_vat_tu(self, *, lsx_id: int | None = None,
                            bai_ghep_id: int | None = None) -> None:
-        """GATE phát hành (§9.3): chưa giữ đủ vật tư thì KHÔNG phát hành.
+        """GATE phát hành (§9.3) — từ 01/10/2026 `van_de_vat_tu` luôn rỗng (vật tư chỉ cảnh báo,
+        spec giấy đếm tờ × khổ §4.3), nên cửa này không còn chặn gì; giữ cho cấu trúc cũ.
 
         Màn cũ trước đây chỉ soi bảng CÂN ĐỐI (tồn tự do) nên nhả giữ chỗ mà kho vẫn đầy thì cửa
         này mở — lệnh phát hành ra xưởng trong khi vật tư đã bị lệnh khác lĩnh mất. Luật chốt lại
@@ -960,13 +961,13 @@ class XepLichVanDeService:
         return out
 
     def _thieu_vat_tu(self, rows: list[dict]) -> list[dict]:
-        """Lệnh / bài có dòng ĐỎ trên bảng cân đối vật tư → vấn đề mức Chặn (F).
+        """Lệnh / bài có dòng ĐỎ trên bảng cân đối vật tư → vấn đề mức LƯU Ý (F).
 
         Đọc THẲNG `ke_hoach_vat_tu_service`, không chép lại phép cân đối — hai nơi tính là hai nơi
         lệch, mà lệch ở đây là phát hành một lệnh không có giấy.
 
-        **KHÔNG chặn lúc xếp** (chủ chốt): xếp lịch trước rồi mới biết bao giờ cần hàng, cấm xếp
-        khi thiếu là cấm đúng bước sinh ra thông tin để đi mua. Chỉ chặn ở cửa PHÁT HÀNH.
+        **KHÔNG chặn** lúc xếp lẫn lúc phát hành (01/10/2026, spec giấy đếm tờ × khổ §4.3): lệnh
+        cần cắt giấy (kho không có đúng khổ) phải phát hành được để tới tổ Cắt. Chỉ NÓI thiếu gì.
 
         Gộp MỘT vấn đề cho mỗi lệnh/bài (không phải mỗi mặt hàng): người xử lý cần biết "lệnh này
         thiếu vật tư", còn thiếu những gì thì mở bảng cân đối ra xem — đẻ 5 vấn đề cho 5 loại giấy
@@ -1031,7 +1032,7 @@ class XepLichVanDeService:
         hien = ", ".join(ds[:3]) + (f" và {len(ds) - 3} thứ khác" if len(ds) > 3 else "")
         return {
             "issue_key": f"{K_THIEU_VAT_TU}:{khoa}",
-            "category": CAT_VAT_TU, "severity": SEV_CHAN,
+            "category": CAT_VAT_TU, "severity": SEV_LUU_Y,
             "title": f"{ma or khoa}: thiếu {hien}",
             "nguyen_nhan": "Bảng cân đối vật tư báo thiếu — tồn cộng hàng đang về vẫn không đủ.",
             "impacts": self._impact(lien_quan, extra_bg=[bg_id] if bg_id else None),

@@ -8905,6 +8905,9 @@ export interface DeNghiMuaXemTruoc {
 export interface TheoLenhHang {
   hang_loai: HangLoai;
   hang_id: number;
+  /** Khổ giấy tờ (mm); vật tư và giấy cuộn 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
   hang_ma: string | null;
   hang_ten: string | null;
   don_vi_goc: string | null;

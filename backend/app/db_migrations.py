@@ -16538,3 +16538,27 @@ def _migrate_de_nghi_cap_kho_giay(db: Session) -> None:
 
 
 MIGRATIONS.append(("0353_de_nghi_cap_kho_giay", _migrate_de_nghi_cap_kho_giay))
+
+
+def _migrate_giu_cho_theo_kho(db: Session) -> None:
+    """Giữ chỗ vật tư theo (mã, khổ) (spec 2026-10-01-giay-dem-to-theo-kho §4.3): thêm `kho_rong` /
+    `kho_dai` (mm, NOT NULL default 0) vào `vat_tu_giu_cho`; chỉ mục `ix_giu_cho_hang` dựng lại với
+    hai cột khổ. Dòng cũ để 0 · 0 (giữ theo mã như trước). Idempotent: hỏi inspector trước ADD
+    COLUMN; chỉ mục DROP IF EXISTS rồi CREATE."""
+    insp = inspect(db.get_bind())
+    bang = "vat_tu_giu_cho"
+    if bang not in set(insp.get_table_names()):
+        return
+    co = _existing_columns(insp, bang)
+    if {"kho_rong", "kho_dai"} <= co:
+        return
+    for ten in ("kho_rong", "kho_dai"):
+        if ten not in co:
+            db.execute(text(f"ALTER TABLE {bang} ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    db.execute(text("DROP INDEX IF EXISTS ix_giu_cho_hang"))
+    db.execute(text(f"CREATE INDEX ix_giu_cho_hang ON {bang} "
+                    "(hang_loai, hang_id, kho_rong, kho_dai)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0354_giu_cho_theo_kho", _migrate_giu_cho_theo_kho))
