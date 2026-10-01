@@ -529,11 +529,11 @@ def _con_cua_cong_doan(obj: Any) -> dict[str, dict[str, Any]]:
         for truong in ("cong_thuc_gio", "cong_thuc_gia"):
             may[f"{_ten_con(ten_may.get(r.may_id), 'máy', r.may_id)} › {NHAN[truong]}"] = getattr(
                 r, truong, None)
-    # Vật tư của công đoạn (mg `0316`) — MỘT tầng, mỗi món một dòng.
+    # Vật tư của công đoạn (mg `0316`) — MỘT tầng, mỗi món một dòng. Từ 01/10/2026 dòng không còn
+    # định mức riêng (nó ở công thức của vật tư), nên chỉ ghi "có mặt": thêm/bỏ món ra một dòng.
     vt: dict[str, Any] = {}
     for v in vts:
-        vt[f"{_ten_con(ten_vt.get(v.vat_tu_id), 'vật tư', v.vat_tu_id)} › "
-           f"{NHAN['cong_thuc_luong']}"] = getattr(v, "cong_thuc_luong", None)
+        vt[f"Vật tư › {_ten_con(ten_vt.get(v.vat_tu_id), 'vật tư', v.vat_tu_id)}"] = "Có"
     # Khoán là aggregate 1–1 của công đoạn (mg 0326). Chụp cả công thức lẫn từng việc phát sinh;
     # nếu không, người sửa đơn giá trong tab Khoán mà Nhật ký chỉ báo "đã sửa Công đoạn" trống.
     khoan_obj = getattr(obj, "khoan", None)

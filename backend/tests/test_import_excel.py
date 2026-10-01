@@ -397,7 +397,7 @@ def test_xuat_bang_con_ra_sheet_doc_duoc_khong_phai_json(client, seed_credential
     # Bậc đơn giá / Bậc theo khổ KHÔNG có ô nhập trên form (UI ép `size_tiers=[]`) ⇒ không ra file.
     assert "Bậc theo khổ" not in wb.sheetnames and "Bậc đơn giá" not in wb.sheetnames
     assert [d[2] for d in _bang(wb["Nhóm máy cho phép"])[1]] == ["Bế"]
-    assert [d[2:] for d in _bang(wb["Vật tư công đoạn"])[1]] == [[nen["vat_tu"]["ma"], None]]
+    assert [d[2:] for d in _bang(wb["Vật tư công đoạn"])[1]] == [[nen["vat_tu"]["ma"]]]
     assert "Đầu việc định mức" not in wb.sheetnames, "sheet của tầng đã gỡ (mg `0320`)"
 
     wb = _xuat(client, h, PREFIX["may_thiet_bi"])
@@ -659,18 +659,18 @@ def test_dat_trang_thai_false_de_ngung_dung(client, seed_credentials):
 def test_xuat_ghi_nhan_viet_nhap_nhan_ca_ma(client, seed_credentials):
     """Enum ra file bằng NHÃN Việt (Có/Không, Khuôn bế, Đang đặt làm); nhập nhận cả nhãn lẫn mã gốc."""
     h = _login(client, **seed_credentials)
-    _tao(client, h, "khuon_be", {"ma": "KB-NV1", "ten": "Dao một", "loai": "khuon_ep",
+    _tao(client, h, "khuon_be", {"ma": "KB-NV1", "ten": "Dao một", "loai": "khuon_be",
                                  "tinh_trang": "dang_dat_lam"})
     tieu_de, dong = _chinh(client, h, "khuon_be")
     d = _dong_theo_ma(tieu_de, dong, "KB-NV1")
-    assert d[tieu_de.index("Loại dao")] == "Khuôn ép kim"
+    assert d[tieu_de.index("Loại dao")] == "Khuôn bế"
     assert d[tieu_de.index("Tình trạng")] == "Đang đặt làm"
     assert d[tieu_de.index("Trạng thái")] == "Có"
 
     # nhập lại: nhãn Việt, mã gốc và "Không" đều hiểu
     ws = SPECS["khuon_be"].tieu_de[:31]
     noi_dung = _wb_tu(["Mã", "Tên", "Loại dao", "Tình trạng", "Trạng thái"],
-                      [["KB-NV1", "Dao một", "khung lụa", "Hỏng", "Không"]],
+                      [["KB-NV1", "Dao một", "khuon_be", "Hỏng", "Không"]],
                       ten_sheet=ws, loai="khuon_be")
     kq = _nhap(client, h, PREFIX["khuon_be"], noi_dung, mode="commit").json()
     assert kq["hop_le"] and kq["cap_nhat"] == 1, kq
@@ -678,7 +678,7 @@ def test_xuat_ghi_nhan_viet_nhap_nhan_ca_ma(client, seed_credentials):
     # dòng đã ngừng vẫn xuất (Trạng thái = Không)
     d = _dong_theo_ma(tieu_de, dong, "KB-NV1")
     assert (d[tieu_de.index("Loại dao")], d[tieu_de.index("Tình trạng")],
-            d[tieu_de.index("Trạng thái")]) == ("Khung lụa", "Hỏng", "Không")
+            d[tieu_de.index("Trạng thái")]) == ("Khuôn bế", "Hỏng", "Không")
 
     xau = _wb_tu(["Mã", "Tên", "Loại dao"], [["KB-NV1", "Dao một", "dao lạ"]],
                  ten_sheet=ws, loai="khuon_be")
@@ -986,5 +986,5 @@ def test_excel_cong_doan_co_cot_cach_do_gio_chay():
 
     con = {s.field: [c.field for c in s.cot] for s in SPECS["cong_doan"].sheets_con}
     assert "dau_viec_dinh_muc" not in con, "tầng đầu việc định mức đã gỡ (mg `0320`)"
-    assert con["vat_tus"] == ["vat_tu_id", "cong_thuc_luong"]
+    assert con["vat_tus"] == ["vat_tu_id"]
     assert {"cong_thuc_gio", "cong_thuc_gia"} <= set(con["may_lam_duoc"])

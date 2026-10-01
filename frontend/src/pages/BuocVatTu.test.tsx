@@ -2,6 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import BuocVatTu from "./BuocVatTu";
 
+vi.mock("./tenDonVi", () => ({
+  useNapTenDonVi: () => 1,
+  tenDonVi: (ma?: string | null) => ({ mm: "milimét", ghi: "gam" } as Record<string, string>)[ma ?? ""],
+}));
+
 const DM = [
   { id: 1, ma: "SUP", ten: "Support", chips: [
     { ma: "dai_support", ten: "Dài support", don_vi: "mm" },
@@ -27,6 +32,14 @@ describe("BuocVatTu", () => {
     expect(screen.getByLabelText(/Rộng support/)).toBeTruthy();
   });
 
+  it("đơn vị hiện bằng TÊN trong danh mục, mã lạ thì không in mã trần", () => {
+    const dm = [{ id: 3, ma: "X", ten: "Cũ", chips: [{ ma: "a", ten: "Dài", don_vi: "mm" }, { ma: "b", ten: "Rộng", don_vi: "khong_co" }] }];
+    render(<BuocVatTu {...props({ vatTuDm: dm as never, dong: [{ uid: "c", vat_tu_id: 3, gia_tri_chip: {} }] })} />);
+    expect(screen.getByText("milimét")).toBeTruthy();
+    expect(screen.queryByText("mm")).toBeNull();
+    expect(screen.queryByText("khong_co")).toBeNull();
+  });
+
   it("vật tư không chip thì không có ô nhập", () => {
     render(<BuocVatTu {...props({ dong: [{ uid: "b", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
     expect(screen.queryByRole("spinbutton")).toBeNull();
@@ -37,7 +50,8 @@ describe("BuocVatTu", () => {
     render(<BuocVatTu {...props({ onChange, dong: [{ uid: "a", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
     fireEvent.click(screen.getByRole("button", { name: /Xóa vật tư Support/ }));
     expect(onChange).toHaveBeenLastCalledWith([]);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: /Thêm vật tư vào bước/ }));
+    fireEvent.mouseDown(screen.getByRole("option", { name: /Keo dán/ }));
     expect(onChange).toHaveBeenLastCalledWith([
       { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }, { uid: "u1", vat_tu_id: 2, gia_tri_chip: {} }]);
   });

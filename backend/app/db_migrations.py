@@ -16649,8 +16649,31 @@ def _migrate_lsx_vat_tu_gia_tri_chip(db: Session) -> None:
 MIGRATIONS.append(("0358_lsx_vat_tu_gia_tri_chip", _migrate_lsx_vat_tu_gia_tri_chip))
 
 
+
+def _migrate_ngung_o_khuon_ep_kim(db: Session) -> None:
+    """0359 — NGƯNG ba ô Dài/Rộng/Số khuôn của khuôn ép kim (`phieu_thanh_pham.dai_khuon` ·
+    `rong_khuon` · `so_khuon`). Cột GIỮ NGUYÊN (không drop, không đổi dữ liệu); code thôi ghi
+    chúng nên đặt `DEFAULT 0` ở máy chủ Postgres để insert không nhắc tới chúng vẫn qua NOT NULL.
+    Idempotent; SQLite không hỗ trợ `ALTER COLUMN ... SET DEFAULT` nên bỏ qua (test dựng bảng
+    bằng `create_all` đã mang `server_default`)."""
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+    insp = inspect(bind)
+    if "phieu_thanh_pham" not in set(insp.get_table_names()):
+        return
+    co = _existing_columns(insp, "phieu_thanh_pham")
+    for cot in ("dai_khuon", "rong_khuon", "so_khuon"):
+        if cot in co:
+            db.execute(text(f"ALTER TABLE phieu_thanh_pham ALTER COLUMN {cot} SET DEFAULT 0"))
+    db.commit()
+
+
+MIGRATIONS.append(("0359_ngung_o_khuon_ep_kim", _migrate_ngung_o_khuon_ep_kim))
+
+
 def _migrate_lsx_vat_tu_dang_giay(db: Session) -> None:
-    """0359 — cột `dang_giay` cho dòng vật tư của bước lệnh; dòng giấy cũ đều là TỜ (trước đó giấy
+    """0360 — cột `dang_giay` cho dòng vật tư của bước lệnh; dòng giấy cũ đều là TỜ (trước đó giấy
     của bước luôn đếm tờ nguyên). Idempotent; dòng `vat_tu` giữ NULL."""
     insp = inspect(db.get_bind())
     if "lsx_cong_doan_vat_tu" not in set(insp.get_table_names()):
@@ -16662,11 +16685,11 @@ def _migrate_lsx_vat_tu_dang_giay(db: Session) -> None:
     db.commit()
 
 
-MIGRATIONS.append(("0359_lsx_vat_tu_dang_giay", _migrate_lsx_vat_tu_dang_giay))
+MIGRATIONS.append(("0360_lsx_vat_tu_dang_giay", _migrate_lsx_vat_tu_dang_giay))
 
 
 def _migrate_stock_request_vat_tu_tra(db: Session) -> None:
-    """0360 — cột `vat_tu_tra_cong_viec_id` (tổ yêu cầu nhập lại vật tư thừa) + index. Idempotent;
+    """0361 — cột `vat_tu_tra_cong_viec_id` (tổ yêu cầu nhập lại vật tư thừa) + index. Idempotent;
     không backfill (trước đó chưa có đường nhập lại từ tổ)."""
     insp = inspect(db.get_bind())
     if "stock_requests" not in set(insp.get_table_names()):
@@ -16679,4 +16702,4 @@ def _migrate_stock_request_vat_tu_tra(db: Session) -> None:
     db.commit()
 
 
-MIGRATIONS.append(("0360_stock_request_vat_tu_tra", _migrate_stock_request_vat_tu_tra))
+MIGRATIONS.append(("0361_stock_request_vat_tu_tra", _migrate_stock_request_vat_tu_tra))

@@ -199,19 +199,19 @@ def test_cong_doan_mang_nhieu_vat_tu_moi_mon_mot_cong_thuc():
                 department_ids=[to.id], pricing_basis="per_finished_qty")
 
     cd = svc.create({**base, "vat_tus": [
-        {"vat_tu_id": muc.id, "cong_thuc_luong": "  sl_vao / 1000 "},
-        {"vat_tu_id": con.id, "cong_thuc_luong": "sl_vao * 0.002"},
+        {"vat_tu_id": muc.id},
+        {"vat_tu_id": con.id, "cong_thuc_luong": "sl_vao * 0.002"},   # khoá thừa: schema bỏ, DB không ghi
     ]})
     assert [v.vat_tu_id for v in cd.vat_tus] == [muc.id, con.id], "giữ đúng thứ tự người khai"
     assert [v.thu_tu for v in cd.vat_tus] == [0, 1]
-    assert [v.cong_thuc_luong for v in cd.vat_tus] == ["sl_vao / 1000", "sl_vao * 0.002"]
+    assert [v.cong_thuc_luong for v in cd.vat_tus] == [None, None], "cột cũ ngưng ghi (01/10/2026)"
     row = CongDoanRow.model_validate(cd)
-    assert [(v.vat_tu_id, v.cong_thuc_luong) for v in row.vat_tus] == [
-        (muc.id, "sl_vao / 1000"), (con.id, "sl_vao * 0.002")]
+    assert [v.vat_tu_id for v in row.vat_tus] == [muc.id, con.id]
+    assert "cong_thuc_luong" not in row.vat_tus[0].model_dump()
 
-    # Sửa lại danh sách: thay trọn, không cộng dồn; ô trắng về None.
-    cd = svc.update(cd.id, {**base, "vat_tus": [{"vat_tu_id": con.id, "cong_thuc_luong": "  "}]})
-    assert [(v.vat_tu_id, v.cong_thuc_luong) for v in cd.vat_tus] == [(con.id, None)]
+    # Sửa lại danh sách: thay trọn, không cộng dồn.
+    cd = svc.update(cd.id, {**base, "vat_tus": [{"vat_tu_id": con.id}]})
+    assert [v.vat_tu_id for v in cd.vat_tus] == [con.id]
 
 
 def test_chan_vat_tu_ngung_dung_va_vat_tu_chua_co_don_vi():
@@ -437,21 +437,6 @@ def test_cong_thuc_san_luong_da_go():
     cd = svc.create(dict(ma="CTP2", ten="Ghi kẽm CTP", nhom="prepress", pricing_basis="per_sheet",
                          cong_thuc_san_luong="so_kem", don_vi_san_luong="kem"))
     assert (cd.don_vi_vao, cd.don_vi_ra) == (None, None)
-
-
-def test_cong_thuc_vat_tu_sai_cu_phap_bi_chan_goi_ten_mon():
-    """Câu lỗi phải GỌI TÊN món vật tư — tab nhiều dòng, không nói tên thì người khai phải dò."""
-    from app.models.vat_lieu_kho import VatTuInAn
-
-    db, svc = _svc()
-    to, _rate = _to_va_rate(svc, db, ma_to="CTG2", ma_rate="XENG2")
-    muc = VatTuInAn(ma="MUC-SAI", ten="Mực sai", don_vi_gia="kg", don_gia=1)
-    db.add(muc)
-    db.commit()
-    with pytest.raises(CongDoanValidationError, match="Mực sai"):
-        svc.create(dict(ma="CD-CTG2", ten="Xén 2", nhom="finishing", department_ids=[to.id],
-                        pricing_basis="per_finished_qty",
-                        vat_tus=[{"vat_tu_id": muc.id, "cong_thuc_luong": "sl_vao * *"}]))
 
 
 # ---- bù hao khai ngay trên công đoạn (22/09/2026) ----

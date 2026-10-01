@@ -119,9 +119,6 @@ _ROW_SCALAR_FIELDS = (
     # (`_canh_bao_khuon`), còn lệnh SX đọc lại để so ý định của sale với con dao kế hoạch thật sự
     # chọn.
     "khuon_nguon",
-    # Kích thước/số lượng KHUÔN — TÁCH BIỆT với `phi_khuon`, chỉ để công thức của công đoạn
-    # (bước dùng `tooling_type = "khuon_ep"`) tự quy ra tiền. Xem `bien_cong_thuc._TANG_BUOC`.
-    "dai_khuon", "rong_khuon", "so_khuon",
 )
 
 

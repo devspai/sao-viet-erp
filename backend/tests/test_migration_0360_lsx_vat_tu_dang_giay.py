@@ -49,4 +49,4 @@ def test_chua_co_bang_thi_im_lang():
 
 
 def test_da_dang_ky():
-    assert "0359_lsx_vat_tu_dang_giay" in {m[0] for m in MIGRATIONS}
+    assert "0360_lsx_vat_tu_dang_giay" in {m[0] for m in MIGRATIONS}

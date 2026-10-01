@@ -38,7 +38,7 @@ _HEADER_FIELDS = ("bo_phan_id", "kho_id", "ngay_can", "uu_tien", "ghi_chu", "loa
                   "san_xuat_cong_viec_id",
                   # NGUỒN GIA CÔNG NGOÀI (Task 8): lần chốt về kho đẻ ra đề nghị này.
                   "gia_cong_ngoai_id",
-                  # NHẬP LẠI VẬT TƯ THỪA (mg 0360): công việc của tổ trả vật tư dư về kho.
+                  # NHẬP LẠI VẬT TƯ THỪA (mg 0361): công việc của tổ trả vật tư dư về kho.
                   "vat_tu_tra_cong_viec_id")
 
 

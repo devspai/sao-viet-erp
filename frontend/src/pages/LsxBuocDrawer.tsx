@@ -18,7 +18,7 @@ import type { ViTriDai } from "./gia-cong/giaCong";
 import { dvNhan as dvNhanChung, type RefRow } from "./LsxRoutingTable";
 import { nhanDangKho } from "../lib/khoGiay";
 import { num } from "./keHoachSxShared";
-import { donViOptions, useNapTenDonVi } from "./tenDonVi";
+import { donViOptions, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
   type EditRow,
   type HangLoai,
@@ -949,7 +949,7 @@ export function LsxBuocDrawer({
                                 {v.hang_loai !== "giay" && (v.chips ?? []).length > 0 && (
                                   <div className="lsx-vt-chip">
                                     {(v.chips ?? []).map((c) => (
-                                      <span key={c.ma}>{c.ten}: <b>{v.gia_tri_chip?.[c.ma] ?? 0}</b>{c.don_vi ? ` ${c.don_vi}` : ""}</span>
+                                      <span key={c.ma}>{c.ten}: <b>{v.gia_tri_chip?.[c.ma] ?? 0}</b>{c.don_vi && tenDonVi(c.don_vi) ? ` ${tenDonVi(c.don_vi)}` : ""}</span>
                                     ))}
                                   </div>
                                 )}
@@ -1567,15 +1567,11 @@ export function LsxBuocDrawer({
   );
 }
 
-/** Nhãn loại dụng cụ — khớp `khuon_be.LOAI_KHUON` (mg 0205; `khung_lua` thêm 04/09/2026 vì khung
- *  lụa cũng nằm kho dùng lại, không phải vật tư tiêu hao). Trước đây chỗ này là phép hỏi
- *  `=== "khuon_ep" ? … : "khuôn bế"`, nên bước IN LỤA mở thẻ ra thấy chữ "khuôn bế" — kho đã nhận
- *  khung lụa mà màn vẫn gọi sai tên. Dòng chưa phân loại (`loai = null`, 6 dòng khai trước mg
- *  0205) rơi về chữ chung. */
+/** Nhãn loại dụng cụ — khớp `khuon_be.LOAI_KHUON`. 01/10/2026: chỉ còn khuôn bế (ép kim / khung
+ *  lụa đã gỡ; máy chủ không bật cờ "phải chốt khuôn" cho hai loại đó nên thẻ này không mở ra với
+ *  chúng). Dòng chưa phân loại (`loai = null`) rơi về chữ chung. */
 const NHAN_TOOLING: Record<string, string> = {
   khuon_be: "khuôn bế",
-  khuon_ep: "khuôn ép kim",
-  khung_lua: "khung lụa",
 };
 
 /** Tình trạng khuôn rút thành CHỮ NGẮN đứng cạnh tên trong ô chọn — chỉ hiện khi KHÔNG bình

@@ -415,7 +415,7 @@ def _giu_vat_tu_cong_doan(obj, _ctx: NguCanh) -> list[dict]:
     `_gop_vat_tu_dau_viec` GỠ 18/09/2026 (mg `0320`): vật tư nay treo THẲNG vào công đoạn nên
     hết cấu trúc hai tầng, không còn gì để `gop_con` ghép lại.
     """
-    return [{"vat_tu_id": v.vat_tu_id, "cong_thuc_luong": v.cong_thuc_luong}
+    return [{"vat_tu_id": v.vat_tu_id}
             for v in (getattr(obj, "vat_tus", None) or [])]
 
 
@@ -497,8 +497,7 @@ CONG_DOAN = CatalogExcelSpec(
         SheetCon(
             "Vật tư công đoạn", field="vat_tus",
             cot=(Cot("Mã vật tư", "vat_tu_id", doc=TRA_VAT_TU.doc, ghi=TRA_VAT_TU.ghi,
-                     rong=22),
-                 Cot("Công thức định mức", "cong_thuc_luong", rong=36)),
+                     rong=22),),
             giu_khi_vang=_giu_vat_tu_cong_doan,
         ),
         SheetCon(

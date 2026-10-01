@@ -247,20 +247,13 @@ class PhieuThanhPham(Base):
     # là DỰ TRÙ, không nơi nào đọc. Ngày dự kiến bên kho khuôn (`khuon_be.ngay_ve_du_kien`) sau đó
     # cũng gỡ nốt (mg `0293`) — không còn mốc "bao giờ có dao" ở đâu trong hệ, chỉ còn tình trạng.
     khuon_nguon: Mapped[str | None] = mapped_column(String(10), nullable=True)  # co_san|lam_moi
-    # Kích thước/số lượng KHUÔN dùng ở CHÍNH bước này — CHỈ có nghĩa khi bước dùng công đoạn
-    # `tooling_type = "khuon_ep"` (nhãn màn hình "Khuôn ép kim"). BA Ô NÀY TÁCH BIỆT với `phi_khuon` ở
-    # trên: không dùng để tự tính phí, chỉ bơm vào công thức của công đoạn (chip `dai_khuon`/
-    # `rong_khuon`/`so_khuon`, xem `bien_cong_thuc.py`) để NGƯỜI DÙNG tự quy ra tiền theo công thức
-    # họ khai (vd đơn giá/cm² × dài × rộng × số khuôn). 0 = chưa khai, công thức không dùng thì bỏ
-    # qua.
-    #
-    # ĐỔI CHỦ 06/09/2026: trước đây ba ô này mở cho bước `khung_lua` và mang tên `*_khung_lua`.
-    # Sai nghề: khung lụa xưởng trả một cục theo cái khung (ô `phi_khuon` ở trên là đủ), còn khuôn
-    # ép nhũ / dập nổi mới là thứ nhà làm khuôn báo giá theo DIỆN TÍCH khắc — đúng chỗ cần dài ×
-    # rộng × số con. Hai cơ chế đảo chỗ cho nhau, tên cột đổi theo (migration `0268`).
-    dai_khuon: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
-    rong_khuon: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
-    so_khuon: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # 🔴 NGƯNG 01/10/2026 (mg `0359`): ba ô Dài/Rộng/Số khuôn của khuôn ÉP KIM + ba chip công thức
+    # `dai_khuon`/`rong_khuon`/`so_khuon` đã gỡ — API không còn nhận/trả, engine không còn bơm. Cột
+    # GIỮ nguyên (không drop) để tra dữ liệu cũ; `server_default` để insert không ghi chúng vẫn qua
+    # được ràng buộc NOT NULL.
+    dai_khuon: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0, server_default="0")
+    rong_khuon: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0, server_default="0")
+    so_khuon: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

@@ -406,7 +406,7 @@ class LsxCongDoanVatTu(Base):
     # `so_luong` bằng `vat_tu_in_an.cong_thuc_dinh_muc` mỗi lần bung/bung lại. mg 0358.
     gia_tri_chip: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # DẠNG của dòng GIẤY: `"to"` (đếm tờ theo khổ) / `"cuon"` (đếm theo khối lượng) — do máy chủ ghi
-    # theo ĐẦU VÀO của bước (spec 2026-10-01 dong-giay-theo-dau-vao §4), không ai gõ. Hàng khác NULL. mg 0359.
+    # theo ĐẦU VÀO của bước (spec 2026-10-01 dong-giay-theo-dau-vao §4), không ai gõ. Hàng khác NULL. mg 0360.
     dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)
     buoc: Mapped["LsxCongDoan"] = relationship("LsxCongDoan", back_populates="vat_tus")
 

@@ -337,7 +337,7 @@ def test_snapshot_chep_du_moi_o_nhap(db):
     tp.thanh_phams.append(PhieuThanhPham(
         thanh_phan_id=tp.id, thu_tu=0, cong_doan_id=300, ten="Bế", don_gia=100, bu_hao=True,
         so_mat=2, so_vi_tri=3, dien_tich=12.5, nha_cung_cap="Xưởng khuôn A", ghi_chu="dao sắc",
-        phi_khuon=800_000, khuon_nguon="lam_moi", dai_khuon=100, rong_khuon=50, so_khuon=2,
+        phi_khuon=800_000, khuon_nguon="lam_moi",
     ))
     tp.thanh_phams[0].vat_tus.append(PhieuBuocVatTu(
         thu_tu=0, vat_tu_id=401, gia_tri_chip={"dai_support": 5, "rong_support": 6}))

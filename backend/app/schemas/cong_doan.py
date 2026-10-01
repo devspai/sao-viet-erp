@@ -16,7 +16,8 @@ class CongDoanVatTuIn(BaseModel):
     công thức phải nằm ở TỪNG DÒNG, không phải ở món hàng."""
 
     vat_tu_id: int
-    cong_thuc_luong: str | None = None
+    # Ô "định mức" của dòng đã GỠ 01/10/2026: định mức nay do công thức của CHÍNH vật tư tính
+    # (`vat_tu_in_an.cong_thuc_dinh_muc`). Cột DB `cong_doan_vat_tu.cong_thuc_luong` còn nhưng không đọc/ghi.
 
 
 class CongDoanVatTuRow(CongDoanVatTuIn):

@@ -18,6 +18,13 @@ from app.services.khuon_be_service import (
 )
 
 
+@pytest.fixture
+def loai_cu(monkeypatch):
+    """Cho phép TẠO dòng mang loại đã gỡ (ép kim / khung lụa, gỡ 01/10/2026) — để dựng dữ liệu CŨ
+    mà các test lọc/đếm theo loại cần. Production chỉ còn nhận `khuon_be` khi gán mới."""
+    monkeypatch.setattr("app.services.khuon_be_service.LOAI_KHUON", ("khuon_be", "khuon_ep", "khung_lua"))
+
+
 def _svc():
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(eng)
@@ -98,7 +105,7 @@ def test_search_theo_ten_va_so_ke():
     assert total2 == 1 and rows2[0].so_ke == "Kệ B2"
 
 
-def test_search_theo_ten_khach():
+def test_search_theo_ten_khach(loai_cu):
     """Ô tìm quét cả TÊN KHÁCH (chủ yêu cầu 18/09/2026) — qua FK `khach_hang_id`, không phải cột
     chuỗi `khach_hang` cũ (đã gỡ ở mg `0202`). Gõ tên khách ra MỌI khuôn của khách đó, và số trên
     chip đếm theo đúng ô tìm ấy."""
@@ -117,7 +124,7 @@ def test_search_theo_ten_khach():
     assert svc.dem_theo_loai(q="minh long") == {"khuon_be": 1, "khung_lua": 1}
 
 
-def test_chip_loai_dem_theo_loc_nang_cao():
+def test_chip_loai_dem_theo_loc_nang_cao(loai_cu):
     """Chip lọc theo LOẠI; lọc nâng cao (khách · tình trạng) ghép VÀ với chip.
 
     Số trên chip đếm DƯỚI lọc nâng cao — lọc khách X rồi mà chip vẫn khoe số của cả kho thì bấm
@@ -139,7 +146,7 @@ def test_chip_loai_dem_theo_loc_nang_cao():
     assert total == 1 and rows[0].ten == "C"
 
 
-def test_api_loc_nhieu_tieu_chi(client):
+def test_api_loc_nhieu_tieu_chi(client, loai_cu):
     """Ba bộ lọc đi được qua QUERY STRING của `GET /api/khuon-be`, không chỉ ở tầng service.
 
     Nền router danh mục ban đầu chỉ mở ĐÚNG MỘT bộ lọc riêng (`loc`); tham số lạ thì FastAPI bỏ
@@ -168,7 +175,7 @@ def test_api_loc_nhieu_tieu_chi(client):
     assert {x["ten"] for x in tim["items"]} == {"ZZ Dao A", "ZZ Dao B", "ZZ Ép C"}
 
 
-def test_loc_so_ke_khop_chua(client):
+def test_loc_so_ke_khop_chua(client, loai_cu):
     """Lọc SỐ KỆ khớp CHỨA, không phân hoa thường, ghép VÀ với chip + lọc khác — qua query string.
 
     Ô số kệ gõ tự do ("Kệ B3 — xưởng sau in"); người tìm chỉ nhớ "b3". Chip loại cũng phải đếm
@@ -232,7 +239,7 @@ def test_dang_dat_lam_KHONG_con_doi_ngay():
     assert not hasattr(svc.get(k.id), "ngay_ve_du_kien")
 
 
-def test_khach_va_loai_duoc_luu_va_loc_duoc():
+def test_khach_va_loai_duoc_luu_va_loc_duoc(loai_cu):
     """Hai chiều lọc của ô chọn dao ở bước lệnh. Không lưu được thì ô chọn bày cả kho."""
     db, svc = _svc()
     a = svc.create(dict(ten="Dao bế hộp A", khach_hang_id=7, loai="khuon_be"))
@@ -255,9 +262,14 @@ def test_loai_khong_hop_le_bi_chan():
         svc.create(dict(ten="Khuôn lạ", loai="khuon_dap_noi"))
 
 
-def test_accept_loai_khung_lua():
-    """Khung lụa cũng lưu kho dùng lại như khuôn bế (chốt 04/09/2026) — kho phải nhận loại này,
-    không thì bước lụa ở lệnh mở ô chọn ra rỗng và bấm 'làm mới' thì service ném 400."""
+def test_loai_da_go_khong_gan_moi_duoc_nhung_dong_cu_van_sua_duoc(monkeypatch):
+    """Ép kim / khung lụa đã gỡ (01/10/2026): GÁN MỚI bị chặn, nhưng dòng cũ mang loại đó vẫn sửa
+    được (đổi tên, kệ…) mà không ăn lỗi 'Loại khuôn không hợp lệ'."""
     db, svc = _svc()
+    with pytest.raises(KhuonBeValidationError):
+        svc.create(dict(ten="Khung lụa mới", loai="khung_lua"))
+    monkeypatch.setattr("app.services.khuon_be_service.LOAI_KHUON", ("khuon_be", "khung_lua"))
     k = svc.create(dict(ten="Khung lụa hộp bánh A", loai="khung_lua", so_ke="Kệ C1"))
-    assert k.loai == "khung_lua"
+    monkeypatch.undo()
+    svc.update(k.id, dict(ten="Khung lụa hộp bánh A (đổi tên)", loai="khung_lua"))
+    assert svc.get(k.id).loai == "khung_lua"

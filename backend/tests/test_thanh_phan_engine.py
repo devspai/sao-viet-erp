@@ -723,13 +723,13 @@ def test_ba_buoc_can_dao_thi_ba_dong_phi_rieng():
     chỉ làm lại MỘT con dao sẽ không biết trừ ra bao nhiêu."""
     res = compute_phieu(so_luong=500, thanh_phans=[_phieu_co_dao(
         _buoc_dao("Bế thành phẩm", "khuon_be", 1_500_000),
-        _buoc_dao("Ép kim", "khuon_ep", 900_000),
-        _buoc_dao("Bế nổi", "khuon_ep", 0),          # dùng lại dao cũ
+        _buoc_dao("Bế hộp phụ", "khuon_be", 900_000),
+        _buoc_dao("Bế nổi", "khuon_be", 0),          # dùng lại dao cũ
     )])
     m = res["meta"]["components"][0]
     assert m["phi_khuon"] == 2_400_000
     assert [(d["ten"], d["thanh_tien"]) for d in m["phi_khuon_dong"]] == [
-        ("Bế thành phẩm", 1_500_000), ("Ép kim", 900_000)]
+        ("Bế thành phẩm", 1_500_000), ("Bế hộp phụ", 900_000)]
     # Bước để trống KHÔNG đẻ dòng 0đ, nhưng PHẢI được nhắc.
     # Lời nhắc đổi văn 04/09/2026: hỏi thẳng "có sẵn hay làm mới" thay vì "chưa khai phí".
     assert any("Bế nổi" in w and "có sẵn hay làm mới" in w for w in res["warnings"]), res["warnings"]

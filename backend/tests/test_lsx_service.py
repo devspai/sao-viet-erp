@@ -766,7 +766,7 @@ def _gan_dao_cho_buoc_can(db, lsx):
 
     can = {
         r.id for r in db.query(CongDoan).all()
-        if r.requires_tooling and r.tooling_type in ("khuon_be", "khuon_ep", "khung_lua")
+        if r.requires_tooling and r.tooling_type == "khuon_be"
     }
     if not any(cd.cong_doan_id in can for cd in lsx.cong_doans):
         return
@@ -2583,15 +2583,15 @@ def test_mac_dinh_buoc_tra_kem_co_dung_cu(db, orders, lsx_svc, admin, customer):
 
     Ô chọn dao ở drawer bước lọc kho Khuôn & khung theo đúng hai cờ này (khách của lệnh × loại của
     bước). Không trả kèm thì dòng giữ cờ của công đoạn CŨ và frontend không suy lại được — đổi bước
-    Bế sang một công đoạn cần KHUÔN ÉP KIM vẫn thấy thẻ "Khuôn của bước (khuôn bế)" và ô chọn vẫn
+    Bế sang một công đoạn KHÔNG cần khuôn vẫn thấy thẻ "Khuôn của bước (khuôn bế)" và ô chọn vẫn
     bày dao bế, sai loại và im lặng cho tới lúc lưu rồi nạp lại màn.
     """
     ptg = _ptg_2_san_pham(db)
     to_id = _to_san_xuat(db).id
-    ep = CongDoan(ma="CD-EP-T", ten="Ép kim", nhom="finishing",
+    ep = CongDoan(ma="CD-BE-TEST9", ten="Bế hộp", nhom="finishing",
                   cong_thuc_gia="so_luong * don_gia", department_ids=[to_id], setup_time=20,
                   don_vi_vao="to", don_vi_ra="to",
-                  requires_tooling=True, tooling_type="khuon_ep")
+                  requires_tooling=True, tooling_type="khuon_be")
     xen = CongDoan(ma="CD-XEN-D", ten="Xén thành phẩm", nhom="finishing",
                    cong_thuc_gia="so_luong * don_gia", department_ids=[to_id], setup_time=10,
                    don_vi_vao="to", don_vi_ra="to")
@@ -2602,7 +2602,7 @@ def test_mac_dinh_buoc_tra_kem_co_dung_cu(db, orders, lsx_svc, admin, customer):
     hop = lsx_svc.tao(order_id=d.id, order_line_ids=ids[:1], actor=admin)[0]
 
     m = lsx_svc.mac_dinh_buoc(lsx_id=hop.id, cong_doan_id=ep.id)
-    assert m["requires_tooling"] is True and m["tooling_type"] == "khuon_ep"
+    assert m["requires_tooling"] is True and m["tooling_type"] == "khuon_be"
     BuocMacDinhOut.model_validate(m)
     # Công đoạn KHÔNG cần dụng cụ phải nói ra điều đó, không để client tự đoán bằng cách giữ cờ cũ.
     m2 = lsx_svc.mac_dinh_buoc(lsx_id=hop.id, cong_doan_id=xen.id)
@@ -2610,7 +2610,7 @@ def test_mac_dinh_buoc_tra_kem_co_dung_cu(db, orders, lsx_svc, admin, customer):
 
 
 def test_buoc_khung_lua_o_lenh_la_buoc_binh_thuong(db, orders, lsx_svc, admin, customer):
-    """Chủ chốt 18/09/2026: khung lụa vẫn lưu kho + sale vẫn tính phí khung, nhưng ở LỆNH bước khung
+    """01/10/2026: khung lụa / ép kim đã gỡ — công đoạn CŨ còn mang mã đó là bước BÌNH THƯỜNG ở LỆNH; xưa: bước khung
     lụa KHÔNG hỏi khuôn — không thẻ "Khuôn của bước", không chặn "Sẵn sàng" vì chưa chọn khung.
     Loại dụng cụ vẫn trả về (phiếu / nhãn còn dùng), chỉ cờ "phải chốt khuôn" tắt."""
     ptg = _ptg_2_san_pham(db)

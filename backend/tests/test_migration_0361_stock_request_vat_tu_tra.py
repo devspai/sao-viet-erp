@@ -40,4 +40,4 @@ def test_chua_co_bang_thi_im_lang():
 
 
 def test_da_dang_ky():
-    assert "0360_stock_request_vat_tu_tra" in {m[0] for m in MIGRATIONS}
+    assert "0361_stock_request_vat_tu_tra" in {m[0] for m in MIGRATIONS}

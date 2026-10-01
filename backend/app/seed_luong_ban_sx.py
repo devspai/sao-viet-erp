@@ -168,7 +168,7 @@ def _ensure_cong_doan(db: Session) -> dict[str, int]:
         db.add(CongDoan(
             ma=ma, ten=ten, nhom=nhom, che_do_tinh="theo_san_luong", pricing_basis="per_other",
             cong_thuc_gia=ct, run_rate=rate, setup_time=setup, nang_suat=ns,
-            department_id=to_ids.get(to_ten),
+            department_ids=[to_ids[to_ten]] if to_ten in to_ids else [],
             kieu_bu_hao=kieu_bh, so_to_bu_hao=so_to_bh,
             requires_tooling=tooling, tooling_type=tooling_type, ghi_chu=ghi_chu,
         ))
