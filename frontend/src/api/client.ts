@@ -2090,6 +2090,10 @@ export interface SxVatTuCapDoiChieu {
   sl_yeu_cau: number;
   sl_yeu_cau_goc: number;
   sl_thuc_xuat: number;
+  /** Phần tổ đã nhập lại kho (phiếu NHẬP ghi sổ), thang gốc. */
+  sl_nhap_lai: number;
+  /** THỰC DÙNG = kho thực xuất − nhập lại (thang gốc). */
+  sl_thuc_dung: number;
   lech_ke_hoach: number;
   lech_thuc_te: number;
   cac_ly_do: { lan_so: number; ly_do: string }[];
@@ -2122,6 +2126,25 @@ export interface SxVatTuDeNghiIn {
   /** GIỜ cần (ISO datetime), không phải ngày: kho soạn theo ca. */
   can_luc: string;
   lines: SxVatTuDeNghiDongIn[];
+}
+/** Một dòng vật tư thừa tổ trả về kho (số + đơn vị người gõ; giấy kèm dạng + khổ). */
+export interface SxVatTuNhapLaiDongIn {
+  hang_loai: string;
+  hang_id: number;
+  dvt: string;
+  so_luong: number;
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
+}
+export interface SxVatTuNhapLaiIn {
+  ghi_chu?: string | null;
+  lines: SxVatTuNhapLaiDongIn[];
+}
+export interface SxVatTuNhapLaiKetQua {
+  id: number;
+  ma: string;
+  trang_thai: string;
 }
 export interface SxVatTuDeNghiKetQua {
   de_nghi_id: number;
@@ -13170,6 +13193,14 @@ export const api = {
         `/api/san-xuat/work-items/${congViecId}/material-requests/${deNghiId}`, token,
         { method: "PUT", body: JSON.stringify(body) },
       );
+    },
+
+    /** Tổ yêu cầu NHẬP LẠI vật tư thừa vào kho (không cột kế hoạch, không lý do). 400 = câu tiếng
+     *  Việt trong `detail`; 403 = không có quyền Kho ở tổ này. */
+    nhapLaiVatTu(token: string, congViecId: number, body: SxVatTuNhapLaiIn): Promise<SxVatTuNhapLaiKetQua> {
+      return authed<SxVatTuNhapLaiKetQua>(`/api/san-xuat/work-items/${congViecId}/material-returns`, token, {
+        method: "POST", body: JSON.stringify(body),
+      });
     },
 
     // --- Giai đoạn 4: hỗ trợ chéo · phân bổ ------------------------------------------------

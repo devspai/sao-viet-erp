@@ -15,7 +15,7 @@ import type {
   SxBatchIn, SxBanGiaoDeXuatIn, SxBanGiaoSuaIn, SxBanGiaoDieuChinhIn,
   SxHoTroDeXuatIn, SxKhoanCongDoan, SxViecPhatSinhChon,
   SxKetQuaNhanh, SxSuCoIn, SxVatTuCap, SxVatTuCapLan, SxVatTuCapDoiChieu,
-  SxVatTuDeNghiIn, SxVatTuDeNghiDongIn, SxTranGhi,
+  SxVatTuDeNghiIn, SxVatTuDeNghiDongIn, SxTranGhi, SxVatTuNhapLaiIn,
 } from "../api/client";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
@@ -48,6 +48,8 @@ export interface ThsxExec {
   // Đề nghị cấp vật tư theo công đoạn — `deNghiId` là id ĐỀ NGHỊ SẢN XUẤT, không phải id yêu cầu kho.
   deNghiVatTu: (congViecId: number, body: SxVatTuDeNghiIn) => Promise<boolean>;
   suaDeNghiVatTu: (congViecId: number, deNghiId: number, body: SxVatTuDeNghiIn) => Promise<boolean>;
+  /** Tổ yêu cầu NHẬP LẠI vật tư thừa vào kho (spec 2026-10-01 §3.5). */
+  nhapLaiVatTu: (congViecId: number, body: SxVatTuNhapLaiIn) => Promise<boolean>;
   deXuatHoTro: (body: SxHoTroDeXuatIn) => Promise<boolean>;
   xacNhanHoTro: (hoTroId: number, version: number) => Promise<boolean>;
   huyHoTro: (hoTroId: number, lyDo: string, version: number) => Promise<boolean>;
@@ -1381,7 +1383,8 @@ export function DieuChinhForm({
 //
 // Vật tư KHÔNG BAO GIỜ chặn bắt đầu/kết thúc công đoạn (spec §8) — không có gì ở đây gài vào
 // `disabled` của hai nút đó.
-type VtFormMode = "moi" | "sua" | "bo_sung";
+/** `nhap_lai` = tổ trả vật tư thừa về kho (yêu cầu NHẬP): cùng form, không cột kế hoạch/lý do/giờ cần. */
+type VtFormMode = "moi" | "sua" | "bo_sung" | "nhap_lai";
 
 /** Đúng MỘT nút CTA hiện ở header. Thứ tự kiểm là CỐ ĐỊNH: `de_nghi_co_the_sua_id` trước, rồi
  *  "chưa từng đề nghị", cuối cùng mới tới bổ sung — `co_the_tao_bo_sung` có thể `true` ngay cả khi
@@ -1393,10 +1396,11 @@ function ctaMode(vt: SxVatTuCap): VtFormMode | null {
   return null;
 }
 
-const VT_CTA: Record<VtFormMode, { txt: string; icon: "send" | "pencil" | "plus" }> = {
+const VT_CTA: Record<VtFormMode, { txt: string; icon: "send" | "pencil" | "plus" | "packageCheck" }> = {
   moi: { txt: "Yêu cầu cấp vật tư", icon: "send" },
   sua: { txt: "Sửa đề nghị", icon: "pencil" },
   bo_sung: { txt: "Yêu cầu bổ sung", icon: "plus" },
+  nhap_lai: { txt: "Yêu cầu nhập kho", icon: "packageCheck" },
 };
 
 function VatTuSection({
@@ -1434,10 +1438,18 @@ function VatTuSection({
         <span className="thsx-psec__title">
           <span className="thsx-psec__icon-badge thsx-psec__icon-badge--amber"><Icon name="warehouse" size={13} /></span> Vật tư
         </span>
-        {canAssign && cta != null && (
-          <Button variant="accent" onClick={() => setFormMode(cta)} disabled={busy} aria-haspopup="dialog">
-            <Icon name={VT_CTA[cta].icon} size={13} /> {VT_CTA[cta].txt}
-          </Button>
+        {canAssign && (
+          <span className="thsx-psec__acts">
+            {cta != null && (
+              <Button variant="accent" onClick={() => setFormMode(cta)} disabled={busy} aria-haspopup="dialog">
+                <Icon name={VT_CTA[cta].icon} size={13} /> {VT_CTA[cta].txt}
+              </Button>
+            )}
+            {/* Trả vật tư thừa về kho — logic chung mọi vật tư, mở được bất kể đã xin hay chưa. */}
+            <Button variant="secondary" onClick={() => setFormMode("nhap_lai")} disabled={busy} aria-haspopup="dialog">
+              <Icon name={VT_CTA.nhap_lai.icon} size={13} /> {VT_CTA.nhap_lai.txt}
+            </Button>
+          </span>
         )}
       </div>
 
@@ -1484,7 +1496,7 @@ function VatTuSection({
               <th>Vật tư</th>
               <th className="r">Kế hoạch</th>
               <th className="r">Đã yêu cầu</th>
-              <th className="r">Kho thực xuất</th>
+              <th className="r" title="Thực dùng = kho thực xuất − tổ nhập lại kho">Thực dùng</th>
               <th className="r">Chênh lệch</th>
               <th>Lý do</th>
             </tr>
@@ -1507,7 +1519,13 @@ function VatTuSection({
                 <td className="r thsx-num">{num(d.sl_yeu_cau)}<span className="thsx-x-unit"> {nhanDonVi(d.dvt)}</span></td>
                 {/* `sl_thuc_xuat` đọc thẳng từ dòng chứng từ nên LUÔN ở thang GỐC (board.py:
                     `_vat_tu_cap`) — dán nhãn `dvt` (thang tổ khai) vào đây là in sai đơn vị. */}
-                <td className="r thsx-num">{num(d.sl_thuc_xuat)}<span className="thsx-x-unit"> {nhanDonVi(d.dvt_goc)}</span></td>
+                <td className="r thsx-num"
+                  title={`Xuất ${num(d.sl_thuc_xuat)} − nhập lại ${num(d.sl_nhap_lai)} ${nhanDonVi(d.dvt_goc)}`}>
+                  {num(d.sl_thuc_dung)}<span className="thsx-x-unit"> {nhanDonVi(d.dvt_goc)}</span>
+                  {(d.sl_nhap_lai > VT_EPS || d.sl_thuc_xuat > VT_EPS) && (
+                    <div className="kho-lines__code">xuất {num(d.sl_thuc_xuat)} − nhập lại {num(d.sl_nhap_lai)}</div>
+                  )}
+                </td>
                 <td className="r"><VtDeltaCell d={d} soLan={soLan} /></td>
                 <td><VtLyDoCacLanCell ds={d.cac_ly_do} /></td>
               </tr>
@@ -1880,11 +1898,21 @@ function vtCanTro(
   // Tạo mới thì phải có cái gì đó để gửi: một lần đề nghị RỖNG vẫn thành `de_nghi_co_the_sua_id`
   // và khoá luôn đường "Yêu cầu bổ sung" cho tới khi sửa.
   if (mode !== "sua" && lines.length === 0) {
+    if (mode === "nhap_lai") return "Chưa có dòng nào để nhập lại — thêm vật tư và điền số lượng.";
     return loai === "bo_sung"
       ? "Đề nghị bổ sung phải có ít nhất một mặt hàng với số lớn hơn 0."
       : "Chưa có dòng nào để gửi — thêm mặt hàng và điền số trước khi gửi.";
   }
   return null;
+}
+
+/** Dòng form → thân yêu cầu NHẬP LẠI: chỉ dòng dương, không lý do. Giấy mang dạng + khổ. */
+export function vtPayloadNhapLai(dongs: VtDongForm[]): SxVatTuNhapLaiIn["lines"] {
+  return vtPayloadLines(dongs, "bo_sung").map((l) => ({
+    hang_loai: l.hang_loai, hang_id: l.hang_id, dvt: l.dvt, so_luong: l.sl_yeu_cau,
+    ...(l.hang_loai === "giay"
+      ? { dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai } : {}),
+  }));
 }
 
 export function vtPayloadLines(dongs: VtDongForm[], loai: "lan_dau" | "bo_sung"): SxVatTuDeNghiDongIn[] {
@@ -1958,7 +1986,7 @@ function vtDongKhoiTao(cap: SxVatTuCap, mode: VtFormMode, lanSua: SxVatTuCapLan 
   const kh = new Map(cap.ke_hoach.map((k) => [vtKhoa(k), k]));
   // Bổ sung: RỖNG — chỉ thêm đúng mặt hàng đang thiếu; liệt kê lại cả kế hoạch rồi bắt gõ lý do
   // cho từng dòng 0 là phiền vô ích (chỉ lần ĐẦU mới cần lưu đủ kế hoạch).
-  if (mode === "bo_sung") return [];
+  if (mode === "bo_sung" || mode === "nhap_lai") return [];
   if (mode === "moi") {
     return cap.ke_hoach.map((k) => ({
       key: vtKhoa(k),
@@ -2013,11 +2041,13 @@ function VatTuDeNghiForm({
   const { token } = useAuth();
   // Loại HIỆU LỰC quyết luật lý do + luật lọc dòng: sửa thì theo `loai` của chính lần đang sửa.
   const loaiHieuLuc: "lan_dau" | "bo_sung" =
-    mode === "bo_sung" ? "bo_sung" : mode === "sua" ? (lanSua?.loai === "bo_sung" ? "bo_sung" : "lan_dau") : "lan_dau";
+    mode === "bo_sung" || mode === "nhap_lai" ? "bo_sung" : mode === "sua" ? (lanSua?.loai === "bo_sung" ? "bo_sung" : "lan_dau") : "lan_dau";
   // Giờ cần: sửa = giờ CỦA CHÍNH lần đó (chỉnh lại cái tổ đã chọn, không quay về mốc gốc).
   const [canLuc, setCanLuc] = useState(
     (mode === "sua" ? toDtLocal(lanSua?.can_luc) : toDtLocal(cv.du_kien_bat_dau)) || nowDtLocal(),
   );
+  const nhapLai = mode === "nhap_lai";
+  const [ghiChu, setGhiChu] = useState("");
   const [dongs, setDongs] = useState<VtDongForm[]>(() => vtDongKhoiTao(cap, mode, lanSua));
   const seq = useRef(0);
   const nganKeoRef = useRef<HTMLElement>(null);
@@ -2051,9 +2081,16 @@ function VatTuDeNghiForm({
   // `moi`/`sua` (lần đầu) vẫn cho gửi TOÀN 0 khi công đoạn CÓ kế hoạch: đó chính là "tổ xác nhận
   // không cần cấp" (spec §5.3) — dòng kế hoạch vẫn nằm trong `lines` nên không bị chặn.
   const canTro = vtCanTro(dongs, lines, mode, loaiHieuLuc);
-  const hopLe = gioNhapHopLe(canLuc) && canTro == null;
+  const hopLe = (nhapLai || gioNhapHopLe(canLuc)) && canTro == null;
 
   async function luu() {
+    if (nhapLai) {
+      const okNl = await exec.nhapLaiVatTu(cv.id, {
+        ghi_chu: ghiChu.trim() || null, lines: vtPayloadNhapLai(dongs),
+      });
+      if (okNl) onXong();
+      return;
+    }
     const body: SxVatTuDeNghiIn = { can_luc: canLuc, lines };
     // Sửa mà không tra ra lần nào ⇒ THOÁT, tuyệt đối không rơi sang nhánh tạo mới: đó là đẻ thêm
     // một lần đề nghị nữa (cộng dồn vào bản đối chiếu) thay vì sửa lần đang mở.
@@ -2066,7 +2103,7 @@ function VatTuDeNghiForm({
 
   const tieuDe = mode === "sua"
     ? `Sửa đề nghị${lanSua ? ` · Lần ${lanSua.lan_so}` : ""}`
-    : mode === "bo_sung" ? "Yêu cầu bổ sung" : "Yêu cầu mới";
+    : mode === "bo_sung" ? "Yêu cầu bổ sung" : nhapLai ? "Nhập lại vật tư thừa" : "Yêu cầu mới";
   const soMatHang = lines.filter((l) => l.sl_yeu_cau > VT_EPS).length;
 
   // Cùng khuôn ngăn kéo "Yêu cầu mới" của màn Yêu cầu nhập xuất (`KhoDeNghiPage`): tổ trưởng xin
@@ -2083,7 +2120,7 @@ function VatTuDeNghiForm({
         if (nhanTrenNen.current && e.target === e.currentTarget && !busy) onHuy();
       }}>
       <aside ref={nganKeoRef} className="rc-drawer rc-drawer--wide" role="dialog" aria-modal="true"
-        aria-label={`Yêu cầu cấp vật tư — ${tieuDe}`} tabIndex={-1}
+        aria-label={`${nhapLai ? "Yêu cầu nhập kho" : "Yêu cầu cấp vật tư"} — ${tieuDe}`} tabIndex={-1}
         // Esc nuốt tại đây: trang nghe Esc ở `document` để đóng cả drawer bàn tổ, chỉ nhường phím
         // đã `defaultPrevented` (ô gợi ý mặt hàng đang xổ cũng tự nuốt Esc của nó).
         onKeyDown={(e) => {
@@ -2093,7 +2130,7 @@ function VatTuDeNghiForm({
         }}>
         <header className="rc-drawer__head">
           <div>
-            <div className="rc-drawer__kicker">Yêu cầu cấp vật tư</div>
+            <div className="rc-drawer__kicker">{nhapLai ? "Yêu cầu nhập kho" : "Yêu cầu cấp vật tư"}</div>
             <h2 className="rc-drawer__title">{tieuDe}</h2>
           </div>
           <button type="button" className="rc-drawer__x" onClick={onHuy} disabled={busy} aria-label="Đóng">
@@ -2105,11 +2142,19 @@ function VatTuDeNghiForm({
           <section className="rc-sec">
             <h3 className="rc-sec__title">Thông tin chung</h3>
             <div className="kho-info-grid">
-              <label className="kho-info-item">
-                <span className="kho-info-item__label">Giờ cần</span>
-                <input type="datetime-local" className="rc-input" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
-                  value={canLuc} disabled={busy} onChange={(e) => setCanLuc(e.target.value)} />
-              </label>
+              {nhapLai ? (
+                <label className="kho-info-item">
+                  <span className="kho-info-item__label">Ghi chú</span>
+                  <input type="text" className="rc-input" maxLength={500} value={ghiChu} disabled={busy}
+                    placeholder="Tuỳ chọn — vd. thừa do hỏng ít" onChange={(e) => setGhiChu(e.target.value)} />
+                </label>
+              ) : (
+                <label className="kho-info-item">
+                  <span className="kho-info-item__label">Giờ cần</span>
+                  <input type="datetime-local" className="rc-input" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
+                    value={canLuc} disabled={busy} onChange={(e) => setCanLuc(e.target.value)} />
+                </label>
+              )}
               {cv.nguon_ma && (
                 <div className="kho-info-item">
                   <span className="kho-info-item__label">Cho lệnh</span>
@@ -2124,7 +2169,7 @@ function VatTuDeNghiForm({
           </section>
 
           <section className="rc-sec">
-            <h3 className="rc-sec__title">Vật tư yêu cầu</h3>
+            <h3 className="rc-sec__title">{nhapLai ? "Vật tư nhập lại kho" : "Vật tư yêu cầu"}</h3>
             <div className="kho-lines__wrap kho-lines-card">
               <table className="kho-lines thsx-vtdn">
                 <thead className="kho-lines__head">
@@ -2132,26 +2177,30 @@ function VatTuDeNghiForm({
                     <th style={{ width: 40, textAlign: "center" }}>STT</th>
                     <th style={{ minWidth: 180 }}>Vật tư</th>
                     {/* Bổ sung không có "kế hoạch" để so — nền của nó là số ĐÃ xin qua các lần trước. */}
-                    <th className="kho-num" style={{ width: 120 }}>
-                      {loaiHieuLuc === "bo_sung" ? "Đã yêu cầu" : "Kế hoạch"}
-                    </th>
+                    {!nhapLai && (
+                      <th className="kho-num" style={{ width: 120 }}>
+                        {loaiHieuLuc === "bo_sung" ? "Đã yêu cầu" : "Kế hoạch"}
+                      </th>
+                    )}
                     <th style={{ width: 70, textAlign: "center" }}>ĐVT</th>
-                    <th className="kho-num" style={{ width: 110 }}>SL yêu cầu</th>
+                    <th className="kho-num" style={{ width: 110 }}>{nhapLai ? "SL nhập lại" : "SL yêu cầu"}</th>
                     <th style={{ width: 56 }} aria-label="Thao tác" />
                   </tr>
                 </thead>
                 <tbody>
                   {dongs.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="kho-lines__empty">
-                        {loaiHieuLuc === "bo_sung"
+                      <td colSpan={nhapLai ? 5 : 6} className="kho-lines__empty">
+                        {nhapLai
+                          ? "Thêm vật tư thừa tổ trả về kho — chọn mặt hàng, giấy thì chọn dạng và khổ."
+                          : loaiHieuLuc === "bo_sung"
                           ? "Thêm đúng mặt hàng đang thiếu — đề nghị bổ sung là xin THÊM trên nền đã yêu cầu."
                           : "Công đoạn chưa có nhu cầu vật tư theo kế hoạch — thêm mặt hàng nếu tổ cần xin."}
                       </td>
                     </tr>
                   )}
                   {dongs.map((d, i) => {
-                    const ly = vtCanLyDo(d, loaiHieuLuc);
+                    const ly = nhapLai ? { hien: false, batBuoc: false } : vtCanLyDo(d, loaiHieuLuc);
                     const lk = luyKe.get(vtKhoa(d));
                     return (
                       <Fragment key={d.key}>
@@ -2181,9 +2230,11 @@ function VatTuDeNghiForm({
                                   const giay = m.hang_loai === "giay";
                                   const dv = giay ? "" : vtDvtLanTruoc(cap.cac_de_nghi, m.hang_loai, m.hang_id)
                                     ?? m.don_vi_goc ?? "";
+                                  // Giấy mặc định dạng TỜ (spec 2026-10-01 §3.4): ô khổ hiện NGAY khi chọn
+                                  // mã giấy, không đợi chọn dạng; đổi sang cuộn nếu cần.
                                   sua(d.key, {
                                     hang_loai: m.hang_loai, hang_id: m.hang_id, ten: m.ten,
-                                    dang_giay: null, kho_rong: 0, kho_dai: 0,
+                                    dang_giay: giay ? "to" : null, kho_rong: 0, kho_dai: 0,
                                     dvt: dv, dvtKeHoach: dv,
                                   });
                                 }} />
@@ -2246,11 +2297,13 @@ function VatTuDeNghiForm({
                           </td>
                           {/* Số nền mang ĐƠN VỊ CỦA NÓ ngay trong ô: tổ có thể khai bằng đơn vị khác kế
                               hoạch, cột ĐVT bên cạnh là đơn vị của số ĐANG XIN. */}
-                          <td className="kho-num">
-                            {loaiHieuLuc === "bo_sung"
-                              ? (lk ? `${num(lk.sl_yeu_cau)} ${nhanDonVi(lk.dvt)}` : "—")
-                              : (d.tuKeHoach ? `${num(d.sl_ke_hoach)} ${nhanDonVi(d.dvtKeHoach)}` : "—")}
-                          </td>
+                          {!nhapLai && (
+                            <td className="kho-num">
+                              {loaiHieuLuc === "bo_sung"
+                                ? (lk ? `${num(lk.sl_yeu_cau)} ${nhanDonVi(lk.dvt)}` : "—")
+                                : (d.tuKeHoach ? `${num(d.sl_ke_hoach)} ${nhanDonVi(d.dvtKeHoach)}` : "—")}
+                            </td>
+                          )}
                           <td style={{ textAlign: "center" }}>
                             {vtGiayTuKhai(d) && d.dang_giay ? (
                               <DonViChonTheoHang token={token ?? ""} hangLoai="giay" hangId={d.hang_id}
@@ -2312,7 +2365,7 @@ function VatTuDeNghiForm({
               {/* Không cộng "Tổng SL" như màn Kho: các dòng ở đây khác đơn vị (kg mực, tờ giấy…),
                   cộng lại ra một con số vô nghĩa. */}
               <div className="kho-live-summary-bar">
-                <span>Đang xin <strong>{soMatHang}</strong> mặt hàng</span>
+                <span>{nhapLai ? "Đang nhập lại" : "Đang xin"} <strong>{soMatHang}</strong> mặt hàng</span>
               </div>
             </div>
             <button type="button" className="rc-bands__add" onClick={themDong} disabled={busy}>
@@ -2326,7 +2379,7 @@ function VatTuDeNghiForm({
           {canTro && <span className="kho-hint kho-hint--rust thsx-vtdn__cantro">{canTro}</span>}
           <Button variant="accent" onClick={luu} disabled={busy || !hopLe}>
             <Icon name={mode === "sua" ? "check" : "send"} size={13} />
-            {mode === "sua" ? " Lưu thay đổi" : " Gửi đề nghị"}
+            {mode === "sua" ? " Lưu thay đổi" : nhapLai ? " Gửi yêu cầu nhập kho" : " Gửi đề nghị"}
           </Button>
         </footer>
       </aside>

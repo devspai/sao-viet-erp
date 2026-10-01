@@ -1355,6 +1355,9 @@
   color: var(--ash-2);
 }
 
+/* Cụm nút ở đầu khối Vật tư (Yêu cầu cấp/bổ sung + Yêu cầu nhập kho) */
+.thsx-psec__acts { margin-left: auto; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); }
+
 /* ô nhãn–giá trị */
 .thsx-kv {
   display: flex;

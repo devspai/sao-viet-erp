@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { vtPayloadLines } from "./ThsxExecPanels";
+import { vtPayloadLines, vtPayloadNhapLai } from "./ThsxExecPanels";
 
 /** Dòng kế hoạch mẫu — Ivory 350, kế hoạch 554 tờ. */
 function dong(over: Partial<Parameters<typeof vtPayloadLines>[0][number]> = {}) {
@@ -77,5 +77,23 @@ describe("vtPayloadLines — giấy mang dạng + khổ", () => {
   it("vật tư khác không mang dạng/khổ", () => {
     const [ln] = vtPayloadLines([dong()], "lan_dau");
     expect("dang_giay" in ln).toBe(false);
+  });
+});
+
+describe("vtPayloadNhapLai — yêu cầu nhập lại vật tư thừa", () => {
+  it("chỉ dòng dương, đổi sl_yeu_cau → so_luong, không mang lý do", () => {
+    const ds = vtPayloadNhapLai([
+      dong({ tuKeHoach: false, sl_yeu_cau: 2, slText: "2", dvt: "kg" }),
+      dong({ key: "vat_tu:8", hang_id: 8, tuKeHoach: false, sl_yeu_cau: 0, slText: "0", dvt: "kg" }),
+    ]);
+    expect(ds).toEqual([{ hang_loai: "vat_tu", hang_id: 7, dvt: "kg", so_luong: 2 }]);
+  });
+
+  it("giấy mang dạng + khổ (ngắn × dài)", () => {
+    const [ln] = vtPayloadNhapLai([dong({
+      hang_loai: "giay", hang_id: 3, tuKeHoach: false, dang_giay: "to",
+      kho_rong: 1090, kho_dai: 790, dvt: "to_nguyen", sl_yeu_cau: 70, slText: "70",
+    })]);
+    expect(ln).toMatchObject({ hang_loai: "giay", so_luong: 70, dang_giay: "to", kho_rong: 790, kho_dai: 1090 });
   });
 });
