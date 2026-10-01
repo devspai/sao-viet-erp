@@ -159,3 +159,20 @@ def test_replace_routing_bo_so_luong_gui_len_cho_vat_tu_khac_va_tinh_lai(
     buoc = _buoc(lsx_svc.get(lsx.id))
     assert float(buoc.vat_tus[0].so_luong) == pytest.approx(0.2)    # số 999 gửi lên bị bỏ
     assert buoc.vat_tus[0].gia_tri_chip == {"dai_support": 500, "rong_support": 400}
+
+
+def test_dien_giai_dinh_muc_doc_nhan_chip_va_thay_so_chip_rieng(db, orders, lsx_svc, admin, customer):
+    """Chip riêng của vật tư không nằm trong từ điển biến chung: diễn giải phải đọc được nhãn chip
+    và thay số chip, không để lộ mã `dai_support × rong_support = dai_support × rong_support`."""
+    ptg = _ptg_2_san_pham(db)
+    vt = _support(db)
+    lsx = _tao_lenh_hop(db, orders, lsx_svc, admin, customer, ptg)
+    cd_dan = db.query(CongDoan).filter(CongDoan.ma == "CD-DAN-T").one()
+
+    rows, _ = lsx_svc._vat_tu_bung(
+        cd_dan, _buoc(lsx), quy_cach_bien(lsx),
+        dong_nguon=[(vt.id, {"dai_support": 500, "rong_support": 400})])
+
+    dg = rows[0]["dien_giai"]
+    assert "dai_support" not in dg and "rong_support" not in dg, dg
+    assert dg.startswith("Dài support × Rộng support ÷ 1000000 = 500 × 400 ÷ 1000000 = 0,2")

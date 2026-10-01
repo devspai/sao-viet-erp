@@ -3736,6 +3736,21 @@ td.khsx-num > .khsx-unit {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
+.khsx-vattu-input-group.is-readonly {
+  border-color: transparent;
+  background: transparent;
+}
+.khsx-vattu-input-group.is-readonly strong {
+  padding: 0 4px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink, #0f172a);
+}
+.khsx-vattu-input-group.is-readonly .khsx-vattu-unit-tag {
+  border-left: none;
+  background: transparent;
+  padding: 0 4px 0 0;
+}
 .khsx-vattu-num-input {
   width: 95px;
   height: 30px;
@@ -8288,3 +8303,36 @@ th.khsx-vtbang__buoc {
   background: var(--paper, #faf8f2); color: var(--muted, #64748b); font-size: 12px;
 }
 .lsx-vt-chip > span b { color: var(--ink, #14130f); font-variant-numeric: tabular-nums; }
+
+/* Điện thoại: bảng vật tư của bước xếp dọc mỗi vật tư một khối — bảng 4 cột bị cắt mất cột định mức. */
+@media (max-width: 640px) {
+  .khsx-vattu-table--lsx,
+  .khsx-vattu-table--lsx tbody,
+  .khsx-vattu-table--lsx tfoot,
+  .khsx-vattu-table--lsx tr,
+  .khsx-vattu-table--lsx td {
+    display: block;
+    width: 100%;
+  }
+  .khsx-vattu-table--lsx thead {
+    display: none;
+  }
+  .khsx-vattu-table--lsx .khsx-vattu-tr {
+    position: relative;
+    padding: 10px 0;
+  }
+  .khsx-vattu-table--lsx .khsx-vattu-td {
+    padding: 4px 12px;
+    min-width: 0;
+  }
+  .khsx-vattu-table--lsx .khsx-vattu-td--input {
+    text-align: left;
+  }
+  .khsx-vattu-table--lsx .khsx-vattu-td--action {
+    position: absolute;
+    top: 8px;
+    right: 4px;
+    width: auto;
+    padding: 0;
+  }
+}
