@@ -66,19 +66,21 @@ def _nen(db, orders, lsx_svc, admin, customer, *, cau_hinh: str | None = None) -
         db.query(LsxCongDoan).filter(LsxCongDoan.lsx_id.in_([a.id, b.id])).update(
             {LsxCongDoan.department_id: to_sx.id}, synchronize_session=False)
         in_ = _in(db, a.id)
-        if cau_hinh in ("cat_to", "cat_to_khong_giay"):
+        if cau_hinh in ("cat_to", "cat_to_khong_giay", "cat_to_giay_chi_o_cat"):
             in_.thu_tu = 1
             buoc = _buoc_moi(a.id, cat_to, to_cat.id, 0)
             db.add(buoc)
             db.flush()
         if cau_hinh == "cat_to_khong_giay":
             pass   # người lập lệnh chỉ chọn giấy ở In (LSX26-0003, spec §1)
-        elif cau_hinh == "cat_to":
+        elif cau_hinh in ("cat_to", "cat_to_giay_chi_o_cat"):
             g = next(v for v in in_.vat_tus if v.hang_loai == "giay")
             db.add(LsxCongDoanVatTu(
                 lsx_cong_doan_id=buoc.id, hang_loai="giay", vat_tu_id=g.vat_tu_id,
                 vat_tu_ma_snapshot=g.vat_tu_ma_snapshot, vat_tu_ten_snapshot=g.vat_tu_ten_snapshot,
                 don_vi_snapshot=g.don_vi_snapshot, so_luong=0))
+            if cau_hinh == "cat_to_giay_chi_o_cat":   # LSX26-0016: giấy chỉ ở Cắt tờ
+                db.delete(g)
         else:
             db.add(_buoc_moi(a.id, cat_tp, to_cat.id, (in_.thu_tu or 0) + 1))
         db.flush()
@@ -344,3 +346,27 @@ def test_them_lan_hai_noi_sau_buoc_cat_cu(db, orders, lsx_svc, admin, customer):
     thu_tu = [b.id for b in _tuyen(db, n.a.id)]
     assert thu_tu.index(cat_id) < thu_tu.index(b_xen.id) < thu_tu.index(b_xen2.id)         < thu_tu.index(in_id)
     assert chot_giay.buoc_lay_giay(db, ("lsx", n.a.id)).id == cat_id
+
+
+def test_xoa_buoc_cat_duy_nhat_mang_giay_chuyen_giay_sang_in(db, orders, lsx_svc, admin, customer):
+    """B1 — giấy chỉ đặt ở Cắt tờ, In không có dòng giấy; tổ Cắt xoá Cắt tờ ⇒ In nhận mã giấy, dẫn
+    xuất theo đầu vào của In (tờ in, khổ in), In thành bước lấy giấy — lệnh không mất giấy."""
+    n = _nen(db, orders, lsx_svc, admin, customer, cau_hinh="cat_to_giay_chi_o_cat")
+    n.admin = admin
+    in_ = _in(db, n.a.id)
+    assert not [v for v in in_.vat_tus if v.hang_loai == "giay"]
+    cat = next(b for b in _tuyen(db, n.a.id) if b.cong_doan_id == n.cat_to.id)
+    ma_giay = next(v.vat_tu_id for v in cat.vat_tus if v.hang_loai == "giay")
+    in_id = in_.id
+
+    _xoa(db, n, n.a.id, cat.id)
+
+    in_ = db.get(LsxCongDoan, in_id)
+    g = [v for v in in_.vat_tus if v.hang_loai == "giay"]
+    assert [v.vat_tu_id for v in g] == [ma_giay]
+    assert g[0].dang_giay == "to"
+    assert float(g[0].so_luong) == pytest.approx(float(in_.so_luong_vao))
+    assert float(g[0].so_luong) > 0
+    assert g[0].kho_rong > 0 and {g[0].kho_rong, g[0].kho_dai} != {790, 1090}   # khổ tờ in
+    assert chot_giay.buoc_lay_giay(db, ("lsx", n.a.id)).id == in_id
+    assert n.a.id in {d["id"] for d in chot_giay.danh_sach(db, team_id=n.to_cat.id)}

@@ -625,12 +625,43 @@ def _chen_truoc_lenh(db: Session, lsx_id: int, cds: list[CongDoan], team_id: int
     return moi
 
 
+def _chuyen_giay_sang_buoc_nhan(db: Session, buoc: LsxCongDoan, sau: list[int]) -> None:
+    """Bước sắp xoá mang dòng giấy mà bước NHẬN đầu ra của nó chưa có mã ấy ⇒ chép MÃ giấy sang
+    (số/khổ/dạng do chuỗi ngược dẫn xuất theo đầu vào bước nhận). Không thì xoá bước cắt duy nhất
+    mang giấy là lệnh mất giấy — trái §3.2/§5 "xoá bước cắt ⇒ In lại là bước lấy giấy"."""
+    giay = list(db.scalars(select(LsxCongDoanVatTu).where(
+        LsxCongDoanVatTu.lsx_cong_doan_id == buoc.id, LsxCongDoanVatTu.hang_loai == "giay")
+        .order_by(LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id)))
+    if not giay:
+        return
+    nhan_ids = list(sau)
+    if not nhan_ids:     # chặng sau NGẦM theo `thu_tu`
+        ke = db.scalars(select(LsxCongDoan).where(
+            LsxCongDoan.lsx_id == buoc.lsx_id, LsxCongDoan.id != buoc.id,
+            LsxCongDoan.thu_tu > (buoc.thu_tu or 0))
+            .order_by(LsxCongDoan.thu_tu, LsxCongDoan.id)).first()
+        nhan_ids = [ke.id] if ke is not None else []
+    for bid in nhan_ids:
+        nhan = db.get(LsxCongDoan, bid)
+        if nhan is None:
+            continue
+        co = {int(v.vat_tu_id) for v in nhan.vat_tus if v.hang_loai == "giay"}
+        n0 = len(nhan.vat_tus)
+        for i, v in enumerate(x for x in giay if int(x.vat_tu_id) not in co):
+            nhan.vat_tus.append(LsxCongDoanVatTu(
+                hang_loai="giay", vat_tu_id=v.vat_tu_id, vat_tu_ma_snapshot=v.vat_tu_ma_snapshot,
+                vat_tu_ten_snapshot=v.vat_tu_ten_snapshot, don_vi_snapshot=v.don_vi_snapshot,
+                so_luong=0, thu_tu=n0 + i))
+
+
 def _go_buoc_lenh(db: Session, buoc: LsxCongDoan) -> None:
-    """Xoá một bước của lệnh: nối mọi bước trước ↔ mọi bước sau của nó, trả `thu_tu` liền mạch."""
+    """Xoá một bước của lệnh: nối mọi bước trước ↔ mọi bước sau của nó, trả `thu_tu` liền mạch.
+    Mã giấy của bước bị xoá chuyển sang bước nhận đầu ra của nó nếu bước ấy chưa có."""
     truoc = list(db.scalars(select(LsxCongDoanPhuThuoc.buoc_truoc_id).where(
         LsxCongDoanPhuThuoc.buoc_sau_id == buoc.id)))
     sau = list(db.scalars(select(LsxCongDoanPhuThuoc.buoc_sau_id).where(
         LsxCongDoanPhuThuoc.buoc_truoc_id == buoc.id)))
+    _chuyen_giay_sang_buoc_nhan(db, buoc, sau)
     db.execute(delete(LsxCongDoanPhuThuoc).where(or_(
         LsxCongDoanPhuThuoc.buoc_truoc_id == buoc.id, LsxCongDoanPhuThuoc.buoc_sau_id == buoc.id)))
     co = {(a, b) for a, b in db.execute(select(
