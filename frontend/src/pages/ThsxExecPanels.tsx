@@ -1522,7 +1522,9 @@ function VatTuSection({
                 <td className="r thsx-num"
                   title={d.sl_thuc_dung == null
                     ? `Nhập lại ${num(d.sl_nhap_lai)} ${nhanDonVi(d.dvt_goc)} — đã trừ ở dòng ${d.nhap_lai_vao}`
-                    : `Xuất ${num(d.sl_thuc_xuat)} − nhập lại ${num(d.sl_nhap_lai)} ${nhanDonVi(d.dvt_goc)}`}>
+                    : d.nhan_tu
+                      ? `Nhận ${num(d.sl_ke_hoach_goc)} − nhập lại ${num(d.sl_nhap_lai)} ${nhanDonVi(d.dvt_goc)}`
+                      : `Xuất ${num(d.sl_thuc_xuat)} − nhập lại ${num(d.sl_nhap_lai)} ${nhanDonVi(d.dvt_goc)}`}>
                   {d.sl_thuc_dung == null ? (
                     // Dòng THÔNG TIN: trả khác khổ đã xuất, phần trừ đã nằm ở dòng đích.
                     <div className="kho-lines__code">
@@ -1532,7 +1534,11 @@ function VatTuSection({
                   ) : (
                     <>
                       {num(d.sl_thuc_dung)}<span className="thsx-x-unit"> {nhanDonVi(d.dvt_goc)}</span>
-                      {(d.sl_nhap_lai > VT_EPS || d.sl_thuc_xuat > VT_EPS) && (
+                      {d.nhan_tu ? (
+                        d.sl_nhap_lai > VT_EPS && (
+                          <div className="kho-lines__code">nhận {num(d.sl_ke_hoach_goc)} − nhập lại {num(d.sl_nhap_lai)}</div>
+                        )
+                      ) : (d.sl_nhap_lai > VT_EPS || d.sl_thuc_xuat > VT_EPS) && (
                         <div className="kho-lines__code">xuất {num(d.sl_thuc_xuat)} − nhập lại {num(d.sl_nhap_lai)}</div>
                       )}
                     </>

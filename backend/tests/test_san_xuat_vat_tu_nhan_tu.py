@@ -81,3 +81,73 @@ def test_buoc_cat_la_nhu_cau_that_khong_co_nhan_tu(db, admin, cat_in):
     (d,) = _giay_dong(ct)
     assert d["nhan_tu"] is None
     assert d["sl_ke_hoach"] == pytest.approx(5_260)
+
+
+def test_nhap_lai_o_buoc_nhan_tu_giu_dong_va_gia_von(db, admin, cat_in):
+    """I4 — In nhận 10.520 tờ in từ Cắt tờ, trả thừa 70 tờ 545×790: dòng "Nhận từ Cắt tờ" vẫn còn,
+    thực dùng = 10.520 − 70 (không âm), lô trả mang giá vốn quy từ phần Cắt tờ đã xuất (theo diện
+    tích tờ), không phải 0."""
+    from app.models.stock_lot import StockLot
+    from app.models.stock_request import StockRequest
+    from app.models.stock_voucher import (
+        VOUCHER_POSTED, VOUCHER_XUAT, StockVoucher, StockVoucherLine,
+    )
+    from app.services.san_xuat import vat_tu_de_nghi as V
+    from app.services.san_xuat import vat_tu_nhap_lai as NL
+    from tests.test_sx_vat_tu_de_nghi import _T0, _dang_kho, _kh_service
+    from tests.test_sx_vat_tu_nhap_lai import _ghi_so_phieu_nhap
+
+    cv_cat, cv_in, g = cat_in
+    kh = _kh_service(db).nhu_cau_cua_cong_viec(cv_cat)
+    k0 = next(k for k in kh if k["hang_loai"] == "giay")
+    ra = V.tao(db, user=admin, cong_viec_id=cv_cat.id, can_luc=_T0, lines=[
+        {"hang_loai": "giay", "hang_id": g.id, **_dang_kho(k0), "dvt": k0["dvt"],
+         "sl_yeu_cau": k0["sl"]}])
+    req = db.get(StockRequest, ra["stock_request_id"])
+    rl = req.lines[0]
+    v = StockVoucher(ma="PXK-NT1", loai=VOUCHER_XUAT, request_id=req.id, kho_id=1,
+                     ngay=_T0.date(), nguoi_lap_id=admin.id, trang_thai=VOUCHER_POSTED)
+    db.add(v)
+    db.flush()
+    lot = StockLot(ma_lo="L-NT1", hang_loai="giay", hang_id=g.id, kho_id=1, ngay_nhap=_T0.date(),
+                   don_gia_nhap=4000, sl_ban_dau=6000, sl_con_lai=740, dang_giay="to",
+                   kho_rong=790, kho_dai=1090)
+    db.add(lot)
+    db.flush()
+    db.add(StockVoucherLine(voucher_id=v.id, request_line_id=rl.id, hang_loai="giay",
+                            hang_id=g.id, dang_giay="to", kho_rong=790, kho_dai=1090,
+                            lot_id=lot.id, so_luong=5_260, sl_goc=5_260))
+    db.commit()
+
+    nl = NL.tao(db, user=admin, cong_viec_id=cv_in.id, ghi_chu=None, lines=[{
+        "hang_loai": "giay", "hang_id": g.id, "dvt": don_vi_goc_to(), "so_luong": 70,
+        "dang_giay": "to", "kho_rong": 545, "kho_dai": 790}])
+    [ln] = db.get(StockRequest, nl["id"]).lines
+    assert ln.don_gia == round(4000 * (545 * 790) / (790 * 1090))     # 2.000 đ/tờ in
+    _ghi_so_phieu_nhap(db, admin, nl["id"], 70)
+
+    ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv_in.id)
+    (d,) = _giay_dong(ct)
+    assert d["nhan_tu"] == "Cắt tờ"
+    assert d["sl_nhap_lai"] == pytest.approx(70)
+    assert d["sl_thuc_dung"] == pytest.approx(10_520 - 70)
+    assert d["nhap_lai_vao"] is None
+
+
+def test_nhap_lai_khac_kho_o_buoc_nhan_tu_tru_vao_dong_nhan_tu(db, admin, cat_in):
+    """Trả khổ khác khổ nhận (còn nguyên 790×1090) ở bước nhận-từ ⇒ trừ vào dòng nhận-từ cùng
+    (mã, dạng); dòng trả là dòng thông tin, không thực dùng âm."""
+    from app.services.san_xuat import vat_tu_nhap_lai as NL
+    from tests.test_sx_vat_tu_nhap_lai import _ghi_so_phieu_nhap
+
+    _cv_cat, cv_in, g = cat_in
+    nl = NL.tao(db, user=admin, cong_viec_id=cv_in.id, ghi_chu=None, lines=[{
+        "hang_loai": "giay", "hang_id": g.id, "dvt": don_vi_goc_to(), "so_luong": 20,
+        "dang_giay": "to", "kho_rong": 790, "kho_dai": 1090}])
+    _ghi_so_phieu_nhap(db, admin, nl["id"], 20)
+    ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv_in.id)
+    rows = _giay_dong(ct)
+    nhan = next(d for d in rows if d["nhan_tu"])
+    tra = next(d for d in rows if not d["nhan_tu"])
+    assert nhan["sl_thuc_dung"] == pytest.approx(10_520 - 20)
+    assert tra["sl_thuc_dung"] is None and tra["nhap_lai_vao"]
