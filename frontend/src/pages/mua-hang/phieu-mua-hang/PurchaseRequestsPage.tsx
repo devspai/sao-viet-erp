@@ -37,9 +37,11 @@ import {
   emptyLine,
   emptyRequest,
   fromRequest,
+  khoNhapTuDongMua,
   lineTotal,
   todayInputValue,
 } from "./shared/helpers";
+import { dongDuocChon } from "./shared/types";
 import type {
   DepositFilter,
   FormLine,
@@ -100,6 +102,8 @@ export function PurchaseRequestsPage({
         sl_de_nghi: dl.quantity,
         don_gia: pl?.expected_unit_price ?? null,
         ghi_chu: [dl.item_name, dl.note].filter(Boolean).join(" — ") || null,
+        // Giấy: nhập đúng dạng + khổ MUA của dòng đơn (form khoá ⇒ thủ kho không phải khai lại).
+        ...khoNhapTuDongMua(pl),
       };
     });
     navigate("kho-main", {
@@ -192,7 +196,7 @@ export function PurchaseRequestsPage({
   const phieuSeTao = useMemo(() => {
     const theoNcc = new Map<number, { ten: string; soDong: number; tien: number }>();
     for (const line of form.lines) {
-      if (!line.supplier_id) continue;
+      if (!line.supplier_id || !dongDuocChon(line)) continue;
       const cu = theoNcc.get(line.supplier_id) ?? {
         ten:
           suppliers.find((s) => s.id === line.supplier_id)?.name ??
@@ -432,6 +436,14 @@ export function PurchaseRequestsPage({
     }
     const source = pickedSource;
     const lines = source.lines.map((line) => ({
+      // Mọi dòng còn sống được tick sẵn; thu mua bỏ tick dòng không mua ở đơn này. Dòng đã huỷ
+      // không tick được (server chặn lập đơn cho nó).
+      chon: !line.cancelled_at,
+      hang_loai: line.hang_loai,
+      hang_id: line.hang_id,
+      // Khổ MUA mặc định = khổ CẦN; thu mua sửa được (vd mua 80×109 thay 79×109 rồi tề).
+      kho_rong: line.kho_rong,
+      kho_dai: line.kho_dai,
       item_name: line.item_name,
       unit: line.unit,
       quantity: line.quantity,
@@ -505,6 +517,9 @@ export function PurchaseRequestsPage({
         department_request_line_id: line.department_request_line_id ?? null,
         hang_loai: line.hang_loai ?? null,
         hang_id: line.hang_id ?? null,
+        kho_rong: line.kho_rong ?? null,
+        kho_dai: line.kho_dai ?? null,
+        chon: dongDuocChon(line),
       })),
     };
   }
@@ -513,6 +528,12 @@ export function PurchaseRequestsPage({
     e.preventDefault();
     if (!token || saving) return;
     const payload = cleanRequest(form);
+    // Chỉ dòng được tick mới vào đơn (lúc sửa, mọi dòng đều tick).
+    payload.lines = payload.lines.filter(dongDuocChon);
+    if (payload.lines.length === 0) {
+      setFormError("Chọn ít nhất một dòng.");
+      return;
+    }
     // Chế độ TẠO: NCC gán ở từng DÒNG (kiểm ở dưới), không có ô NCC ở đầu phiếu.
     // Chế độ SỬA: phiếu đã thuộc về một NCC, giữ nguyên ô đầu phiếu.
     const missingHeader = [
@@ -588,7 +609,7 @@ export function PurchaseRequestsPage({
       if (mode === "edit" && editing) {
         const saved = await api.purchaseRequests.update(token, editing.id, {
           ...payload,
-          lines: payload.lines.map(({ supplier_id: _bo, ...line }) => line),
+          lines: payload.lines.map(({ supplier_id: _bo, chon: _chon, ...line }) => line),
         });
         updateRow(saved);
       } else {
@@ -611,6 +632,10 @@ export function PurchaseRequestsPage({
             note: line.note,
             supplier_id: line.supplier_id as number,
             department_request_line_id: line.department_request_line_id,
+            // Khổ MUA chỉ gửi cho giấy; hàng khác để server ép 0.
+            ...(line.hang_loai === "giay"
+              ? { kho_rong: line.kho_rong ?? 0, kho_dai: line.kho_dai ?? 0 }
+              : {}),
           })),
         });
         setRows((current) => [...items, ...current]);

@@ -3,7 +3,22 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from ..services.kho_giay import chuan_kho
+
+
+def _chuan_kho_dong(obj, *, de_trong: bool):
+    """Khổ giấy của một dòng mua: hai cạnh mm chuẩn (ngắn, dài); hàng khác giấy ép 0 · 0.
+    `de_trong`: dòng đơn mua không gửi khổ (cả hai None) ⇒ để None cho server chép khổ cần; dòng
+    đơn mua chưa gửi mặt hàng (server kế thừa từ dòng yêu cầu) thì chỉ chuẩn hoá, server ép 0 sau."""
+    if de_trong and obj.kho_rong is None and obj.kho_dai is None:
+        return obj
+    if obj.hang_loai is not None and obj.hang_loai != "giay":
+        obj.kho_rong, obj.kho_dai = 0, 0
+    else:
+        obj.kho_rong, obj.kho_dai = chuan_kho(obj.kho_rong, obj.kho_dai)
+    return obj
 
 
 class SupplierItemIn(BaseModel):
@@ -208,6 +223,13 @@ class PurchaseRequestLineIn(BaseModel):
     # Dòng YCMH đẻ ra dòng này. Không bắt buộc — thu mua vẫn được thêm dòng ngoài yêu cầu, và
     # phiếu lập trước 05/08/2026 không có. Server chốt id phải thuộc đúng yêu cầu nguồn.
     department_request_line_id: int | None = Field(default=None, gt=0)
+    #: Khổ MUA (mm) của giấy tờ. KHÔNG gửi ⇒ server chép khổ cần của dòng YCMH nguồn.
+    kho_rong: int | None = Field(default=None, ge=0)
+    kho_dai: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _kho(self):
+        return _chuan_kho_dong(self, de_trong=True)
 
 
 class DepartmentPurchaseRequestLineIn(BaseModel):
@@ -221,6 +243,13 @@ class DepartmentPurchaseRequestLineIn(BaseModel):
     unit: str = Field(min_length=1, max_length=32)
     quantity: float = Field(gt=0)
     note: str | None = Field(default=None, max_length=2000)
+    #: Khổ CẦN (mm) của giấy tờ — Kế hoạch vật tư gửi theo dòng cân đối; vật tư khác ép 0 · 0.
+    kho_rong: int = Field(default=0, ge=0)
+    kho_dai: int = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def _kho(self):
+        return _chuan_kho_dong(self, de_trong=False)
 
 
 class YeuCauMuaNguonLenhIn(BaseModel):
@@ -350,6 +379,9 @@ class PurchaseRequestLineOut(BaseModel):
     hang_id: int | None = None
     hang_ma: str | None = None
     hang_ten: str | None = None
+    #: Khổ MUA (mm) — giấy tờ; vật tư khác 0 · 0. Nhập kho từ đợt giao chép sang yêu cầu nhập.
+    kho_rong: int = 0
+    kho_dai: int = 0
     # Dòng YCMH đẻ ra dòng này. Form SỬA đơn dựng lại payload từ chính bản trả về, nên thiếu nó ở
     # đây là sửa đơn một cái làm ĐỨT liên kết mặt hàng (server hết đường kế thừa lại).
     department_request_line_id: int | None = None
@@ -374,6 +406,9 @@ class DepartmentPurchaseRequestLineOut(BaseModel):
     # Chỉ trả tên + ĐVT sẽ làm ô ĐVT bị khóa dù bản ghi vẫn có đơn vị.
     hang_loai: str | None = None
     hang_id: int | None = None
+    #: Khổ CẦN (mm) — giấy tờ; vật tư khác 0 · 0.
+    kho_rong: int = 0
+    kho_dai: int = 0
     item_name: str
     unit: str
     quantity: float

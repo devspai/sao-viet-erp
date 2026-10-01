@@ -165,9 +165,41 @@ export function RequestFormDrawer({
                                 hang_id: m.hang_id,
                                 item_name: m.ten,
                                 unit: "",
+                                kho_rong: 0,
+                                kho_dai: 0,
                               })
                             }
                           />
+                          {line.hang_loai === "giay" && (
+                            <div className="purchase__kho-mm">
+                              <span className="purchase__kho-mm-nhan">Khổ cần (mm)</span>
+                              <input
+                                className="input purchase__input-flat pay-num"
+                                type="number"
+                                min="0"
+                                step="1"
+                                aria-label="Khổ cần — cạnh ngắn (mm)"
+                                placeholder="Rộng"
+                                value={line.kho_rong ? line.kho_rong : ""}
+                                onChange={(e) =>
+                                  setLine(index, { kho_rong: Number(e.target.value || 0) })
+                                }
+                              />
+                              <span aria-hidden="true">×</span>
+                              <input
+                                className="input purchase__input-flat pay-num"
+                                type="number"
+                                min="0"
+                                step="1"
+                                aria-label="Khổ cần — cạnh dài (mm)"
+                                placeholder="Dài"
+                                value={line.kho_dai ? line.kho_dai : ""}
+                                onChange={(e) =>
+                                  setLine(index, { kho_dai: Number(e.target.value || 0) })
+                                }
+                              />
+                            </div>
+                          )}
                         </td>
                         <td>
                           <DonViChonTheoHang

@@ -1745,3 +1745,29 @@ def test_de_nghi_mua_mang_kho_can(db, svc, customer):
                   for ln in gom["lines"]) == [
         (780, 905, 2_000, don_vi_goc_to()), (800, 1_090, 3_000, don_vi_goc_to()),
     ]
+
+
+def test_de_nghi_mua_tao_ycmh_co_kho(client, db, svc, customer):
+    """Đường thật: tick dòng giấy trên bảng cân đối → POST /de-nghi-mua ⇒ YCMH có dòng mang khổ cần."""
+    g = _giay(db)
+    s = Supplier(name="NCC giấy khổ", status="active")
+    db.add(s)
+    db.flush()
+    db.add(SupplierItem(supplier_id=s.id, hang_loai="giay", hang_id=g.id,
+                        item_name=g.ten, unit="kg", unit_price=1))
+    db.commit()
+    a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=2_000, han=MAI,
+              kho=(800, 1_090))
+    resp = client.post(
+        "/api/ke-hoach-vat-tu/de-nghi-mua",
+        json={"dong": [{"hang_loai": "giay", "hang_id": g.id, "kho_rong": 800, "kho_dai": 1_090,
+                        "lsx_id": a.id, "bai_ghep_id": None, "buoc_id": _buoc_dau(db, a).id}],
+              "needed_date": (HOM_NAY + timedelta(days=5)).isoformat()},
+        headers={"Authorization": f"Bearer {_admin_token()}"},
+    )
+    assert resp.status_code == 201, resp.text
+    yc = client.get(f"/api/department-purchase-requests/{resp.json()['id']}",
+                    headers={"Authorization": f"Bearer {_admin_token()}"}).json()
+    assert [(ln["kho_rong"], ln["kho_dai"], ln["quantity"]) for ln in yc["lines"]] == [
+        (800, 1_090, 2_000)]
+

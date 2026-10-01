@@ -585,6 +585,8 @@ class PurchaseRequestLineInput:
         department_request_line_id: int | None = None,
         hang_loai: str | None = None,
         hang_id: int | None = None,
+        kho_rong: int = 0,
+        kho_dai: int = 0,
     ) -> None:
         self.item_name = item_name
         self.unit = unit
@@ -597,6 +599,9 @@ class PurchaseRequestLineInput:
         # Mặt hàng gốc (mg 0174) — KẾ THỪA từ dòng YCMH, không đoán từ `item_name`.
         self.hang_loai = hang_loai
         self.hang_id = hang_id
+        # Khổ MUA (mm, mg 0352) — mặc định chép khổ CẦN của dòng YCMH, thu mua sửa được.
+        self.kho_rong = kho_rong
+        self.kho_dai = kho_dai
 
 
 class DepartmentPurchaseRequestLineInput:
@@ -610,6 +615,8 @@ class DepartmentPurchaseRequestLineInput:
         note: str | None = None,
         hang_loai: str | None = None,
         hang_id: int | None = None,
+        kho_rong: int = 0,
+        kho_dai: int = 0,
     ) -> None:
         self.item_name = item_name
         self.unit = unit
@@ -619,6 +626,9 @@ class DepartmentPurchaseRequestLineInput:
         # Mặt hàng gốc (mg 0174) — bảng cân đối vật tư ghi vào đây khi bấm "Đề nghị mua".
         self.hang_loai = hang_loai
         self.hang_id = hang_id
+        # Khổ CẦN (mm, mg 0352) — giấy tờ; vật tư khác 0 · 0.
+        self.kho_rong = kho_rong
+        self.kho_dai = kho_dai
 
 
 # Phiếu mua sinh ra từ yêu cầu, kèm dòng + NCC. Cần cho HAI việc, cả hai đều chạy trên MỌI yêu
@@ -874,6 +884,8 @@ class DepartmentPurchaseRequestRepository:
                 note=line.note,
                 hang_loai=getattr(line, "hang_loai", None),
                 hang_id=getattr(line, "hang_id", None),
+                kho_rong=int(getattr(line, "kho_rong", 0) or 0),
+                kho_dai=int(getattr(line, "kho_dai", 0) or 0),
             )
             for line in lines
         ]
@@ -987,6 +999,8 @@ class DepartmentPurchaseRequestRepository:
                 note=line.note,
                 hang_loai=getattr(line, "hang_loai", None),
                 hang_id=getattr(line, "hang_id", None),
+                kho_rong=int(getattr(line, "kho_rong", 0) or 0),
+                kho_dai=int(getattr(line, "kho_dai", 0) or 0),
             )
             for line in lines
         ]
@@ -1302,6 +1316,8 @@ class PurchaseRequestRepository:
                 department_request_line_id=getattr(line, "department_request_line_id", None),
                 hang_loai=getattr(line, "hang_loai", None),
                 hang_id=getattr(line, "hang_id", None),
+                kho_rong=int(getattr(line, "kho_rong", 0) or 0),
+                kho_dai=int(getattr(line, "kho_dai", 0) or 0),
             )
             for line in lines
         ]
@@ -1381,6 +1397,8 @@ class PurchaseRequestRepository:
                 department_request_line_id=getattr(line, "department_request_line_id", None),
                 hang_loai=getattr(line, "hang_loai", None),
                 hang_id=getattr(line, "hang_id", None),
+                kho_rong=int(getattr(line, "kho_rong", 0) or 0),
+                kho_dai=int(getattr(line, "kho_dai", 0) or 0),
             )
             for line in lines
         ]

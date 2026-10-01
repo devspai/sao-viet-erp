@@ -534,6 +534,9 @@ export function KhoTonKhoPage({
           unit: g.dvtCode ?? "",
           quantity: Math.max(0, target - g.total),
           note: "",
+          // Giấy tờ: nhóm tồn đã tách theo khổ ⇒ khổ cần = khổ của nhóm.
+          kho_rong: g.khoRong,
+          kho_dai: g.khoDai,
         };
       }),
       purchaseSeedPurpose: `Bổ sung tồn kho ${ten}`,

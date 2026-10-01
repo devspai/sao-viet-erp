@@ -1578,6 +1578,47 @@
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
 }
 
+/* Khổ giấy (mm) dưới ô vật tư: "Khổ cần (mm) [rộng] × [dài]" — giấy tờ mua theo khổ. */
+.purchase__kho-mm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+.purchase__kho-mm .purchase__input-flat {
+  width: 76px;
+  min-width: 0;
+}
+.purchase__kho-mm-nhan {
+  white-space: nowrap;
+}
+/* Ô Vật tư của form đơn mua: [tick] tên, dưới là khổ mua (giấy) hoặc lời nhắc dòng bỏ tick. */
+.purchase__line-ten {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.purchase__line-ten-hang {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.purchase__line-ten-hang .input {
+  flex: 1;
+  min-width: 0;
+}
+.purchase__line-edit--bo > :not(.purchase__line-ten) {
+  opacity: 0.45;
+}
+.purchase__line-bo-ghi {
+  font-size: 12px;
+}
+
 .purchase__modal-items-head {
   display: flex;
   align-items: center;

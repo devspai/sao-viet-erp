@@ -6769,6 +6769,9 @@ export interface PurchaseRequestLineInput {
   note?: string | null;
   /** Dòng YCMH đẻ ra dòng này — nền cho "tình trạng từng sản phẩm" ở chi tiết yêu cầu. */
   department_request_line_id?: number | null;
+  /** Khổ MUA (mm) của giấy tờ. Không gửi ⇒ server chép khổ cần của dòng YCMH nguồn. */
+  kho_rong?: number | null;
+  kho_dai?: number | null;
 }
 
 // --- Công nợ phải trả ------------------------------------------------------
@@ -7234,6 +7237,9 @@ export interface DepartmentPurchaseRequestLineInput {
   unit: string;
   quantity: number;
   note?: string | null;
+  /** Khổ CẦN (mm) của giấy tờ; vật tư khác 0 · 0 (server ép). */
+  kho_rong?: number;
+  kho_dai?: number;
   /** UI-only (KHÔNG gửi API): dòng lấy từ mặt hàng Kho đã có → khoá Tên + ĐVT, bỏ qua canh danh
    *  mục NCC. Payload gửi đi pick field tường minh nên cờ này không lọt lên backend. */
   locked?: boolean;
@@ -7293,6 +7299,9 @@ export interface PurchaseRequestLineOut {
   hang_id: number | null;
   hang_ma: string | null;
   hang_ten: string | null;
+  /** Khổ MUA (mm) — giấy tờ; vật tư khác 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
 }
 
 /** Một dòng yêu cầu đã vào phiếu nào, của NCC nào, tới đâu rồi. */
@@ -7311,6 +7320,9 @@ export interface DepartmentPurchaseRequestLineOut {
   id: number;
   hang_loai: HangLoai | null;
   hang_id: number | null;
+  /** Khổ CẦN (mm) — giấy tờ; vật tư khác 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
   item_name: string;
   unit: string;
   quantity: number;

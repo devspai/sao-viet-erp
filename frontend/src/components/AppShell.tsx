@@ -150,6 +150,9 @@ export interface NavParams {
     unit: string;
     quantity: number;
     note?: string | null;
+    /** Khổ CẦN (mm) của giấy tờ. */
+    kho_rong?: number;
+    kho_dai?: number;
   }[];
   purchaseSeedPurpose?: string;
   /** Liên thông Kế hoạch vật tư → YCMH: điền sẵn cả ĐẦU PHIẾU (nguồn + vết lệnh sản xuất), không

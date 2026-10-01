@@ -6,6 +6,7 @@ import type {
   DepartmentPurchaseRequestRow,
   DepartmentPurchaseSourceType,
 } from "../../../../api/client";
+import { chuanKho } from "../../../../lib/khoGiay";
 
 export function emptyLine(): DepartmentPurchaseRequestLineInput {
   return {
@@ -81,6 +82,12 @@ export function cleanRequest(
       unit: (line.unit ?? "").trim(),
       quantity: Number(line.quantity),
       note: trimOptional(line.note),
+      // Khổ CẦN chỉ có nghĩa với giấy (server cũng ép 0 cho hàng khác).
+      ...(() => {
+        const [kho_rong, kho_dai] =
+          line.hang_loai === "giay" ? chuanKho(line.kho_rong, line.kho_dai) : [0, 0];
+        return { kho_rong, kho_dai };
+      })(),
     })),
     // Lệnh nguồn chỉ có khi form mở từ Kế hoạch vật tư — form gõ tay / form sửa không mang theo.
     ...(input.nguon_lenh?.length ? { nguon_lenh: input.nguon_lenh } : {}),

@@ -90,6 +90,8 @@ export function KeHoachVatTuPage({
           item_name: d.item_name,
           unit: d.unit,
           quantity: d.quantity,
+          kho_rong: d.kho_rong,
+          kho_dai: d.kho_dai,
         })),
         purchaseSeedPurpose: nhap.noi_dung,
         purchaseSeedHeader: {
