@@ -16647,3 +16647,26 @@ def _migrate_lsx_vat_tu_gia_tri_chip(db: Session) -> None:
 
 
 MIGRATIONS.append(("0358_lsx_vat_tu_gia_tri_chip", _migrate_lsx_vat_tu_gia_tri_chip))
+
+
+
+def _migrate_ngung_o_khuon_ep_kim(db: Session) -> None:
+    """0359 — NGƯNG ba ô Dài/Rộng/Số khuôn của khuôn ép kim (`phieu_thanh_pham.dai_khuon` ·
+    `rong_khuon` · `so_khuon`). Cột GIỮ NGUYÊN (không drop, không đổi dữ liệu); code thôi ghi
+    chúng nên đặt `DEFAULT 0` ở máy chủ Postgres để insert không nhắc tới chúng vẫn qua NOT NULL.
+    Idempotent; SQLite không hỗ trợ `ALTER COLUMN ... SET DEFAULT` nên bỏ qua (test dựng bảng
+    bằng `create_all` đã mang `server_default`)."""
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+    insp = inspect(bind)
+    if "phieu_thanh_pham" not in set(insp.get_table_names()):
+        return
+    co = _existing_columns(insp, "phieu_thanh_pham")
+    for cot in ("dai_khuon", "rong_khuon", "so_khuon"):
+        if cot in co:
+            db.execute(text(f"ALTER TABLE phieu_thanh_pham ALTER COLUMN {cot} SET DEFAULT 0"))
+    db.commit()
+
+
+MIGRATIONS.append(("0359_ngung_o_khuon_ep_kim", _migrate_ngung_o_khuon_ep_kim))

@@ -32,7 +32,8 @@ TINH_TRANG = ("dang_dung", "dang_dat_lam", "hong", "thanh_ly")
 # `cong_doan.tooling_type == khuon_be.loai`, hai bộ mã lệch nhau là lọc ra rỗng. Đó đúng là lỗi
 # khung lụa mắc suốt từ trước: công đoạn khai được loại đó mà kho không nhận, nên bước lụa mở ô
 # chọn ra RỖNG và bấm "làm dao mới" thì service ném 400.
-LOAI_KHUON = ("khuon_be", "khuon_ep", "khung_lua")
+# 01/10/2026: chỉ còn `khuon_be`; ép kim / khung lụa gỡ (dòng cũ mang hai mã đó vẫn đọc được).
+LOAI_KHUON = ("khuon_be",)
 
 
 def _utcnow() -> datetime:

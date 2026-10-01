@@ -435,9 +435,8 @@ function humanizeFormula(s: string, tra: TraBien): string {
  *  hoặc ngược lại. `kem` (bản kẽm) CỐ Ý VẮNG: nó là vật tư tiêu hao, mỗi bài phơi mới, và tiền nó
  *  đã nằm trong công thức của bước chế bản (`so_kem × đơn giá`) — cho ô nữa là tính hai lần. */
 const DAO_CO_PHI: Record<string, string> = {
+  // 01/10/2026: chỉ còn khuôn bế — ép kim / khung lụa đã gỡ, bước cũ mang hai mã đó không hỏi phí.
   khuon_be: "khuôn bế",
-  khuon_ep: "khuôn ép kim",
-  khung_lua: "khung lụa",
 };
 
 /** Bước này có cần dao lưu kho không → trả NHÃN loại dao, hoặc `null` nếu không hỏi phí.
@@ -474,15 +473,6 @@ function daoCuaBuoc(f: { cong_doan_id: number | null }, congDoans: Row[]): strin
   return DAO_CO_PHI[String(cd.tooling_type ?? "")] ?? null;
 }
 
-/** Mã LOẠI dụng cụ trần (vd "khuon_ep"), khác `daoCuaBuoc` trả nhãn tiếng Việt để hiện — khối
- *  PHÍ KHUÔN cần mã trần để biết có vẽ thêm 3 ô kích thước khuôn hay không. */
-function loaiDaoCuaBuoc(f: { cong_doan_id: number | null }, congDoans: Row[]): string | null {
-  if (f.cong_doan_id == null) return null;
-  const cd = congDoans.find((x) => x.id === f.cong_doan_id);
-  if (!cd || !cd.requires_tooling) return null;
-  return cd.tooling_type ? String(cd.tooling_type) : null;
-}
-
 // ------------------------------- Editable model -------------------------------
 interface EditableFinishing {
   uid: string;
@@ -503,13 +493,6 @@ interface EditableFinishing {
   /** Khuôn có sẵn hay làm mới — MỘT câu hỏi, hai nhánh. `null` = chưa chọn (phiếu cũ hoặc bỏ qua);
    *  engine nhắc khi chưa chọn, im khi chọn `co_san`. Chọn `lam_moi` mới mở ô tiền. */
   khuon_nguon: "co_san" | "lam_moi" | null;
-  /** Ba ô riêng của bước khuôn ép kim (`tooling_type = "khuon_ep"`) — kích thước/số
-   *  lượng khuôn, TÁCH BIỆT với `phi_khuon`: không tự tính ra tiền, chỉ bơm vào công thức của
-   *  CHÍNH công đoạn đó (biến `dai_khuon`/`rong_khuon`/`so_khuon`, xem `bien_cong_thuc.py`).
-   *  0 = chưa khai. Đổi chủ từ bước khung lụa 06/09/2026. */
-  dai_khuon: number;
-  rong_khuon: number;
-  so_khuon: number;
   /** Vật tư của BƯỚC (01/10/2026): tự chép từ công đoạn lúc thêm, thêm/xoá riêng cho phiếu này. */
   vat_tus: BuocVatTuDong[];
 }
@@ -598,9 +581,6 @@ function blankFinishing(
     ghi_chu: "",
     phi_khuon: 0,
     khuon_nguon: null,
-    dai_khuon: 0,
-    rong_khuon: 0,
-    so_khuon: 0,
     vat_tus,
   };
 }
@@ -662,9 +642,6 @@ function fromFinishing(f: ThanhPhamOut): EditableFinishing {
     ghi_chu: f.ghi_chu ?? "",
     phi_khuon: f.phi_khuon ?? 0,
     khuon_nguon: f.khuon_nguon ?? null,
-    dai_khuon: f.dai_khuon ?? 0,
-    rong_khuon: f.rong_khuon ?? 0,
-    so_khuon: f.so_khuon ?? 0,
     vat_tus: (f.vat_tus ?? []).map((v) => ({
       uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
     })),
@@ -767,9 +744,6 @@ function toThanhPhanIn(c: EditableComponent): ThanhPhanIn {
       ghi_chu: f.ghi_chu.trim() || null,
       phi_khuon: f.phi_khuon,
       khuon_nguon: f.khuon_nguon,
-      dai_khuon: f.dai_khuon,
-      rong_khuon: f.rong_khuon,
-      so_khuon: f.so_khuon,
       vat_tus: f.vat_tus.map((v, k) => ({
         vat_tu_id: v.vat_tu_id, thu_tu: k, gia_tri_chip: v.gia_tri_chip,
       })),
@@ -849,9 +823,6 @@ function fromThanhPhanIn(cfg: ThanhPhanIn, giu: { uid: string; so_luong: number 
       ghi_chu: f.ghi_chu ?? "",
       phi_khuon: f.phi_khuon ?? 0,
       khuon_nguon: f.khuon_nguon ?? null,
-      dai_khuon: f.dai_khuon ?? 0,
-      rong_khuon: f.rong_khuon ?? 0,
-      so_khuon: f.so_khuon ?? 0,
       vat_tus: (f.vat_tus ?? []).map((v) => ({
         uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
       })),
@@ -1552,7 +1523,6 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
       cpk: c.chi_phi_khacs.map((k) => [k.ten, k.so_tien]),
       cds: c.thanh_phams.map((f) => [
         f.cong_doan_id, f.phi_khuon, f.khuon_nguon,
-        f.dai_khuon, f.rong_khuon, f.so_khuon,
         f.vat_tus.map((v) => [v.vat_tu_id, JSON.stringify(v.gia_tri_chip)]),
       ]),
     });
@@ -3237,7 +3207,7 @@ function ComponentModal({
                   mất luôn nghĩa "kéo thả thứ tự". Nên tách thành khối con ngay dưới dãy chip. */}
               {(() => {
                 const daos = c.thanh_phams
-                  .map((f) => ({ f, dao: daoCuaBuoc(f, congDoans), loai: loaiDaoCuaBuoc(f, congDoans) }))
+                  .map((f) => ({ f, dao: daoCuaBuoc(f, congDoans) }))
                   .filter((x) => x.dao !== null);
                 if (daos.length === 0) return null;
                 const tong = daos.reduce((s, x) => s + (Number(x.f.phi_khuon) || 0), 0);
@@ -3247,7 +3217,7 @@ function ComponentModal({
                       <span className="tg-khuon__title">Phí khuôn</span>
                       <span className="tg-khuon__note">một lần · không chia theo số lượng</span>
                     </div>
-                    {daos.map(({ f, dao, loai }) => (
+                    {daos.map(({ f, dao }) => (
                       <Fragment key={f.uid}>
                         {/* NGUỒN KHUÔN — một câu hỏi, hai nhánh (chốt 04/09/2026). Trước đây chỉ
                             có ô tiền với quy ước NGẦM "để trống = dùng dao cũ", nên không phân
@@ -3311,76 +3281,6 @@ function ComponentModal({
                                 }
                               />
                               <small>đ</small>
-                            </div>
-                          </div>
-                        )}
-                        {loai === "khuon_ep" && (
-                          /* Kích thước/số khuôn TÁCH RIÊNG khỏi phí ở trên — không cộng dồn vào
-                             Σ phí khuôn, chỉ bơm vào công thức của chính công đoạn này (xem
-                             dai_khuon/rong_khuon/so_khuon ở bien_cong_thuc.py).
-                             Ba ô này đổi chủ 06/09/2026: trước mở cho bước khung lụa, nay mở cho
-                             bước khuôn ép kim — nhà làm khuôn báo giá theo diện tích
-                             khắc, còn khung lụa xưởng trả một cục nên ô "Phí khuôn" ở trên là đủ. */
-                          <div className="tg-khuon__kl">
-                            <div className="tg-khuon__row">
-                              <span className="tg-khuon__ten">Dài khuôn ép kim</span>
-                              <div className="tg-khuon__input">
-                                <input
-                                  className="tg-khuon__num"
-                                  type="number"
-                                  min={0}
-                                  step={1}
-                                  aria-label={`Dài khuôn ép kim của bước ${tenBuoc(f, congDoans) || "công đoạn"}`}
-                                  value={f.dai_khuon || ""}
-                                  placeholder="0"
-                                  onChange={(e) =>
-                                    patchFin(c.uid, f.uid, {
-                                      dai_khuon: Math.max(0, Number(e.target.value) || 0),
-                                    })
-                                  }
-                                />
-                                <small>mm</small>
-                              </div>
-                            </div>
-                            <div className="tg-khuon__row">
-                              <span className="tg-khuon__ten">Rộng khuôn ép kim</span>
-                              <div className="tg-khuon__input">
-                                <input
-                                  className="tg-khuon__num"
-                                  type="number"
-                                  min={0}
-                                  step={1}
-                                  aria-label={`Rộng khuôn ép kim của bước ${tenBuoc(f, congDoans) || "công đoạn"}`}
-                                  value={f.rong_khuon || ""}
-                                  placeholder="0"
-                                  onChange={(e) =>
-                                    patchFin(c.uid, f.uid, {
-                                      rong_khuon: Math.max(0, Number(e.target.value) || 0),
-                                    })
-                                  }
-                                />
-                                <small>mm</small>
-                              </div>
-                            </div>
-                            <div className="tg-khuon__row">
-                              <span className="tg-khuon__ten">Số khuôn ép kim</span>
-                              <div className="tg-khuon__input">
-                                <input
-                                  className="tg-khuon__num"
-                                  type="number"
-                                  min={0}
-                                  step={1}
-                                  aria-label={`Số khuôn ép kim của bước ${tenBuoc(f, congDoans) || "công đoạn"}`}
-                                  value={f.so_khuon || ""}
-                                  placeholder="0"
-                                  onChange={(e) =>
-                                    patchFin(c.uid, f.uid, {
-                                      so_khuon: Math.max(0, Number(e.target.value) || 0),
-                                    })
-                                  }
-                                />
-                                <small>khuôn</small>
-                              </div>
                             </div>
                           </div>
                         )}

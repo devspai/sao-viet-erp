@@ -791,7 +791,7 @@ export const LSX_THIEU_LABELS: Record<string, NhanMa> = {
   thieu_ngay_giao: "Thiếu ngày giao",
   thieu_to_may: "Có công đoạn chưa gán tổ / máy",
   thieu_nha_gia_cong: "Có bước thuê ngoài chưa chọn nhà gia công",
-  // Bước cần dụng cụ lưu kho (bế · ép nhũ · khung lụa) mà chưa trỏ con dao nào. Đứng NGANG HÀNG
+  // Bước cần dụng cụ lưu kho (khuôn bế) mà chưa trỏ con dao nào. Đứng NGANG HÀNG
   // với thiếu nhà gia công — cùng một danh sách, người dùng không phải học luật mới.
   thieu_khuon: "Có công đoạn cần khuôn / khung mà chưa chọn",
   // Bước Máy/Tổ giao cho một tổ chưa khai công việc khoán nào (18/09/2026, spec §5.4): thợ mở bàn
@@ -4095,17 +4095,11 @@ export interface ThanhPhamOut {
   /** Phí làm khuôn của CHÍNH bước này — khoản MỘT LẦN (không nhân SL), nhưng engine CÓ cộng vào
    *  `gia_von_tp`, nên khi chia ra đ/sản phẩm thì đơn nhỏ gánh nặng hơn đơn lớn. Đó là đánh đổi đã
    *  chọn 15/08/2026 để báo giá chỉ còn MỘT dòng — đừng "sửa" bằng cách rút nó ra khỏi giá vốn.
-   *  0 = dùng lại dao cũ. Chỉ có nghĩa ở bước mà công đoạn nguồn cần dao lưu kho (bế / ép nhũ). */
+   *  0 = dùng lại dao cũ. Chỉ có nghĩa ở bước mà công đoạn nguồn cần khuôn bế. */
   phi_khuon: number;
   /** Khuôn có sẵn hay làm mới — sale trả lời ở phiếu tính giá (chốt 04/09/2026). `null` = chưa
    *  chọn (phiếu cũ), engine giữ nguyên lời nhắc. Kế hoạch đọc lại để biết ý định của sale. */
   khuon_nguon: "co_san" | "lam_moi" | null;
-  /** Ba ô riêng của bước khuôn ép kim (`tooling_type = "khuon_ep"`) — kích thước/số
-   *  lượng khuôn, TÁCH BIỆT với `phi_khuon`: không tự tính ra tiền, chỉ bơm vào công thức của
-   *  CHÍNH công đoạn đó. Đổi chủ từ bước khung lụa 06/09/2026 (khung lụa nay chỉ còn `phi_khuon`). */
-  dai_khuon: number;
-  rong_khuon: number;
-  so_khuon: number;
   /** Vật tư của BƯỚC này (01/10/2026) — số đã nhập cho chip riêng của từng vật tư. */
   vat_tus: BuocVatTuOut[];
 }
@@ -4242,9 +4236,6 @@ export interface ThanhPhamIn {
   ghi_chu?: string | null;
   phi_khuon?: number;
   khuon_nguon?: "co_san" | "lam_moi" | null;
-  dai_khuon?: number;
-  rong_khuon?: number;
-  so_khuon?: number;
   vat_tus?: BuocVatTuIn[];
 }
 /** Input 1 thành phần — mọi field optional + list gia công. */
@@ -8206,7 +8197,7 @@ export interface KhoNhanBuocRow {
   so_buoc: number;
 }
 
-// --- Khuôn (danh mục dùng chung — chứa cả khuôn bế lẫn khuôn ép nhũ) --------
+// --- Khuôn bế (danh mục dùng chung; ép kim / khung lụa đã gỡ 01/10/2026, dòng cũ còn đọc được) ---
 // Tên bảng + module quyền vẫn là `khuon_be`; chỉ nhan đề màn đổi thành "Khuôn" (16/08/2026).
 export interface KhuonBeRow {
   id: number;

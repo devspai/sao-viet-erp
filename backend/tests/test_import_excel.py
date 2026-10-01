@@ -659,18 +659,18 @@ def test_dat_trang_thai_false_de_ngung_dung(client, seed_credentials):
 def test_xuat_ghi_nhan_viet_nhap_nhan_ca_ma(client, seed_credentials):
     """Enum ra file bằng NHÃN Việt (Có/Không, Khuôn bế, Đang đặt làm); nhập nhận cả nhãn lẫn mã gốc."""
     h = _login(client, **seed_credentials)
-    _tao(client, h, "khuon_be", {"ma": "KB-NV1", "ten": "Dao một", "loai": "khuon_ep",
+    _tao(client, h, "khuon_be", {"ma": "KB-NV1", "ten": "Dao một", "loai": "khuon_be",
                                  "tinh_trang": "dang_dat_lam"})
     tieu_de, dong = _chinh(client, h, "khuon_be")
     d = _dong_theo_ma(tieu_de, dong, "KB-NV1")
-    assert d[tieu_de.index("Loại dao")] == "Khuôn ép kim"
+    assert d[tieu_de.index("Loại dao")] == "Khuôn bế"
     assert d[tieu_de.index("Tình trạng")] == "Đang đặt làm"
     assert d[tieu_de.index("Trạng thái")] == "Có"
 
     # nhập lại: nhãn Việt, mã gốc và "Không" đều hiểu
     ws = SPECS["khuon_be"].tieu_de[:31]
     noi_dung = _wb_tu(["Mã", "Tên", "Loại dao", "Tình trạng", "Trạng thái"],
-                      [["KB-NV1", "Dao một", "khung lụa", "Hỏng", "Không"]],
+                      [["KB-NV1", "Dao một", "khuon_be", "Hỏng", "Không"]],
                       ten_sheet=ws, loai="khuon_be")
     kq = _nhap(client, h, PREFIX["khuon_be"], noi_dung, mode="commit").json()
     assert kq["hop_le"] and kq["cap_nhat"] == 1, kq
@@ -678,7 +678,7 @@ def test_xuat_ghi_nhan_viet_nhap_nhan_ca_ma(client, seed_credentials):
     # dòng đã ngừng vẫn xuất (Trạng thái = Không)
     d = _dong_theo_ma(tieu_de, dong, "KB-NV1")
     assert (d[tieu_de.index("Loại dao")], d[tieu_de.index("Tình trạng")],
-            d[tieu_de.index("Trạng thái")]) == ("Khung lụa", "Hỏng", "Không")
+            d[tieu_de.index("Trạng thái")]) == ("Khuôn bế", "Hỏng", "Không")
 
     xau = _wb_tu(["Mã", "Tên", "Loại dao"], [["KB-NV1", "Dao một", "dao lạ"]],
                  ten_sheet=ws, loai="khuon_be")

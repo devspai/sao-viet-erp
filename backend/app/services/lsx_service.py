@@ -88,10 +88,9 @@ _QC_BO_QUA = frozenset({
 # Dụng cụ mà bước ở LỆNH phải chốt MỘT CON cụ thể trong kho (`khuon_be_id`). `kem` KHÔNG có mặt
 # (bản kẽm là vật tư tiêu hao, mỗi bài phơi một bản mới nên không có gì để "đi lấy ở kệ").
 #
-# `khung_lua` cũng KHÔNG có mặt (chủ chốt 18/09/2026): khung lụa vẫn là đồ lưu kho dùng lại, sale
-# vẫn tính phí khung ở phiếu tính giá, nhưng ở lệnh bước khung lụa là bước BÌNH THƯỜNG — không thẻ
-# "Khuôn của bước", không chọn / làm khung mới, không nhắc lệch với sale, không chặn "Sẵn sàng".
-TOOLING_CO_KHO = frozenset({"khuon_be", "khuon_ep"})
+# 01/10/2026: CHỈ còn `khuon_be`. Ép kim / khung lụa đã gỡ — công đoạn cũ còn mang hai mã đó là
+# bước BÌNH THƯỜNG ở lệnh (không thẻ "Khuôn của bước", không chặn "Sẵn sàng").
+TOOLING_CO_KHO = frozenset({"khuon_be"})
 
 
 def can_chot_khuon(requires_tooling, tooling_type) -> bool:

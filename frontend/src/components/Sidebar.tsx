@@ -296,7 +296,7 @@ export const NAV: NavSection[] = [
       // Thành phẩm: hàng của đơn hàng bán, hệ tự khai khi chốt đơn. Đứng CẠNH Vật tư khác vì
       // chung một bảng và người dùng hay nhầm hai chỗ (docs/prd-thanh-pham.md).
       { id: "thanh-pham", label: "Thành phẩm", icon: "bag", module: "dm_thanh_pham" },
-      // Khuôn: kho dụng cụ của xưởng (bế + ép kim + khung lụa) — khách · loại · số kệ ·
+      // Khuôn: kho khuôn bế của xưởng — khách · loại · số kệ ·
       // tình trạng. Bước cần dụng cụ ở Lệnh sản xuất chọn từ đây. Nhan đề đổi 18/09/2026;
       // `module` GIỮ chuỗi `khuon_be` vì nó nằm trong bảng phân quyền của DB thật.
       { id: "khuon-be", label: "Khuôn", icon: "clipboard", module: "khuon_be" },

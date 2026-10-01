@@ -324,7 +324,7 @@ _CONG_DOAN = [
         kieu_bu_hao="co_dinh", so_to_bu_hao=30, requires_tooling=True, tooling_type="khuon_be",
         nhom_may_cho_phep=[_BE], don_vi_vao="to", don_vi_ra="con", run_rate=300),
     _cd("CD-1016", "Ép nhũ (khuôn ép)", "finishing", "so_luong * 350",
-        kieu_bu_hao="co_dinh", so_to_bu_hao=50, requires_tooling=True, tooling_type="khuon_ep",
+        kieu_bu_hao="co_dinh", so_to_bu_hao=50,
         nhom_may_cho_phep=[_BE], don_vi_vao="to", don_vi_ra="to", run_rate=350),
     # --- Khoán tay (nhom_may = None → không ràng buộc máy; ghi khoán theo NGƯỜI) ---
     _cd("CD-1017", "Gấp tay", "finishing", "so_luong * 30",

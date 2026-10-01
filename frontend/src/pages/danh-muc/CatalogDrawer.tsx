@@ -339,7 +339,15 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
               {(() => {
                 const ds = typeof f.options === "function" ? f.options() : f.options;
                 if (f.options && !ds?.length) return <option disabled>Đang nạp danh sách…</option>;
-                return ds?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>);
+                const cur = String(form[f.key] ?? "");
+                const cu = f.nhanCu?.[cur];
+                return (
+                  <>
+                    {ds?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    {cur && cu && !ds?.some((o) => o.value === cur)
+                      && <option value={cur}>{cu} (đã gỡ)</option>}
+                  </>
+                );
               })()}
             </select>
           </div>
@@ -420,10 +428,8 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             // một màn có thể có hai ô công thức hỏi hai câu khác nhau.
             loaiO={f.loaiO}
             bienThem={f.chipsTu ? chipsThanhBien(Array.isArray(form[f.chipsTu]) ? form[f.chipsTu] as VatTuChipRow[] : []) : undefined}
-            // `an` nhận cả HÀM theo form đang gõ (xem `types.ts`) — ba chip khuôn ép kim chỉ hiện
-            // khi bước khai "Loại khuôn = Khuôn ép kim", vì chỉ bước đó phiếu tính giá
-            // mới hỏi ba ô Dài/Rộng/Số. Bước khung lụa hay khuôn bế mà bày chip là mời gõ vào chỗ
-            // luôn bằng 0. Ẩn CHỈ ở khâu hiển thị: công thức cũ lỡ dùng vẫn hợp lệ, vẫn tính như cũ.
+            // `an` nhận cả HÀM theo form đang gõ (xem `types.ts`). Ẩn CHỈ ở khâu hiển thị: công
+            // thức cũ lỡ dùng vẫn hợp lệ, vẫn tính như cũ.
             an={typeof f.an === "function" ? f.an(form) : f.an}
             id={`formula-${f.key}`}
             // Nhãn TRONG khung đi theo nhãn của CHÍNH field. Trước 17/08/2026 nó đóng đinh
