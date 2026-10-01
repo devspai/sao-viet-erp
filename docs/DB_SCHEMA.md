@@ -4238,9 +4238,11 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 
 **Purpose:** nhu cầu vật tư khai trực tiếp trên từng bước LSX; chỉ snapshot nhận diện/đơn vị, không lưu giá hay trạng thái tồn.
 
-Dòng GIẤY (`hang_loai='giay'`) ghi mã + khổ + số tờ nguyên, không công thức: `kho_rong` / `kho_dai` (`Integer`, mm, NOT NULL default 0, mg 0351) là cạnh ngắn × cạnh dài đã chuẩn hoá, `don_vi_snapshot` luôn là đơn vị tờ nguyên. Hàng khác 0 · 0.
+Dòng GIẤY (`hang_loai='giay'`) ghi mã + khổ + số tờ nguyên, không công thức: `kho_rong` / `kho_dai` (`Integer`, mm, NOT NULL default 0, mg 0351) là cạnh ngắn × cạnh dài đã chuẩn hoá, `don_vi_snapshot` theo dạng (xem `dang_giay`): tờ in / tờ nguyên / đơn vị của mã giấy khi là cuộn. Hàng khác 0 · 0.
 
-**Tất cả cột:** `id`, `lsx_cong_doan_id`, `hang_loai`, `vat_tu_id`, `vat_tu_ma_snapshot`, `vat_tu_ten_snapshot`, `don_vi_snapshot`, `so_luong`, `kho_rong`, `kho_dai`, `thu_tu`, `tu_dong`, `gia_tri_chip`.
+**Tất cả cột:** `id`, `lsx_cong_doan_id`, `hang_loai`, `vat_tu_id`, `vat_tu_ma_snapshot`, `vat_tu_ten_snapshot`, `don_vi_snapshot`, `so_luong`, `kho_rong`, `kho_dai`, `thu_tu`, `tu_dong`, `gia_tri_chip`, `dang_giay`.
+
+`dang_giay` (VARCHAR(8) NULL, migration `0359`): dạng dòng GIẤY — `'to'` (đếm tờ theo khổ) hoặc `'cuon'` (đếm khối lượng, `kho_rong` = khổ cuộn, `kho_dai` = 0). Máy chủ tự ghi theo đầu vào của bước (`LsxService._dong_bo_dong_giay`), không ai gõ; hàng khác NULL. Migration gán `'to'` cho dòng giấy cũ.
 
 `gia_tri_chip` (JSON NULL, migration `0358`) = {mã chip: số} chép từ phiếu tính giá lúc tạo lệnh; dùng để tính `so_luong` bằng `vat_tu_in_an.cong_thuc_dinh_muc`.
 

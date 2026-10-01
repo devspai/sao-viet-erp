@@ -8,7 +8,7 @@
 // cột "Cần xem lại". Không có test thì lần sau ai đó "dọn" cái cờ `tren_dong_giay` là nó lặng lẽ
 // quay lại.
 import { describe, expect, it } from "vitest";
-import { boBuoc, chenBuoc, emptyRow, loiDong, mayChonDuoc, toBody, type EditRow } from "./lsxBuoc";
+import { boBuoc, chenBuoc, emptyRow, loiDong, mayChonDuoc, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
 
 /** Dòng routing tối thiểu. `may_id` đặt sẵn để khỏi dính cảnh báo "chưa gán tổ / máy" — thứ đang
  *  không phải chủ đề của phần lớn test dưới đây. */
@@ -251,30 +251,39 @@ describe("toBody — số lượt qua máy", () => {
   });
 });
 
-describe("toBody — khổ dòng giấy", () => {
+describe("toBody — dòng giấy dẫn xuất từ đầu vào của bước", () => {
   const mon = (hang_loai: "giay" | "vat_tu", kho_rong: string, kho_dai: string) => ({
     hang_loai, vat_tu_id: 7, vat_tu_ma: "M", vat_tu_ten: "Món", don_vi: "to_nguyen",
     so_luong: "5000", tu_dong: false, kho_rong, kho_dai,
   });
 
-  it("dòng giấy gửi kèm khổ (mm); dòng vật tư không gửi khổ", () => {
+  it("dòng giấy chỉ gửi MÃ (số + khổ máy chủ tự ghi); dòng vật tư không gửi khổ", () => {
     const [body] = toBody([dong({ ten: "In offset", vat_tus: [
       mon("giay", "905", "780"), mon("vat_tu", "", "")] })]);
     expect(body.vat_tus).toEqual([
-      { hang_loai: "giay", vat_tu_id: 7, so_luong: 5000, tu_dong: false, kho_rong: 905, kho_dai: 780 },
+      { hang_loai: "giay", vat_tu_id: 7, so_luong: null, tu_dong: false, kho_rong: 0, kho_dai: 0 },
       { hang_loai: "vat_tu", vat_tu_id: 7, tu_dong: false, gia_tri_chip: {} },
     ]);
   });
 });
 
 describe("toBody — vật tư khác giấy", () => {
-  it("vật tư khác gửi chip, KHÔNG gửi so_luong; giấy vẫn gửi so_luong", () => {
+  it("vật tư khác gửi chip, KHÔNG gửi so_luong; giấy gửi so_luong null", () => {
     const r = { ...emptyRow(), vat_tus: [
       { hang_loai: "vat_tu", vat_tu_id: 1, so_luong: "0.2", tu_dong: true, gia_tri_chip: { dai_support: 500 }, chips: [] },
       { hang_loai: "giay", vat_tu_id: 9, so_luong: "10", tu_dong: false, kho_rong: "0", kho_dai: "0" },
     ] } as never;
     const body = toBody([r])[0];
     expect(body.vat_tus![0]).toEqual({ hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: true, gia_tri_chip: { dai_support: 500 } });
-    expect(body.vat_tus![1].so_luong).toBe(10);
+    expect(body.vat_tus![1].so_luong).toBeNull();
+  });
+});
+
+describe("nhanGiayTheoDauVao", () => {
+  it("nhãn bộ chọn theo đầu vào của bước", () => {
+    expect(nhanGiayTheoDauVao("to", "kg")).toBe("tờ in");
+    expect(nhanGiayTheoDauVao("to_nguyen", "kg")).toBe("tờ nguyên");
+    expect(nhanGiayTheoDauVao("cuon", "kg")).toBe("cuộn · kg");
+    expect(nhanGiayTheoDauVao(null, "tấn")).toBe("cuộn · tấn");
   });
 });

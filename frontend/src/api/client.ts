@@ -2793,7 +2793,7 @@ export interface LsxCongDoanBody extends Partial<Omit<LsxThueNgoaiFields, "nha_c
   phat_sinh_phut?: number;
   phu_thuoc_step_keys?: string[];
   /** Bỏ trống `hang_loai` là server hiểu `"vat_tu"` — giữ đúng nghĩa client cũ. */
-  vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong?: number;
+  vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong?: number | null;
               tu_dong?: boolean; gia_tri_chip?: Record<string, number>;
               kho_rong?: number; kho_dai?: number }[];
   ghi_chu?: string | null;

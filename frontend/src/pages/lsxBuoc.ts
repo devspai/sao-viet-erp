@@ -95,6 +95,8 @@ export interface EditRow {
     kho_rong?: number;
     kho_dai?: number;
     don_vi?: string;
+    /** Giấy: dạng suy từ ĐẦU VÀO của bước — `to` (tờ) / `cuon` (cuộn, đếm kg → đơn vị của mã). */
+    dang_giay?: "to" | "cuon" | null;
   }[];
   /** Số tính lại theo danh mục HIỆN TẠI khi lệch số đã lưu — READ-ONLY, không gửi lên. */
   so_luong_vao_moi: number | null;
@@ -104,8 +106,8 @@ export interface EditRow {
    *  hoặc đã sửa số thì về `false` và máy chừa ra — không thì đổi công đoạn là mất số vừa gõ. */
   vat_tus: { hang_loai: HangLoai; vat_tu_id: number; vat_tu_ma: string; vat_tu_ten: string;
              don_vi: string; so_luong: string; tu_dong: boolean;
-             /** Khổ dòng GIẤY (mm) — ô gõ; hàng khác để trống, không gửi. */
-             kho_rong: string; kho_dai: string;
+             /** Dòng GIẤY: khổ (mm) + dạng do MÁY CHỦ dẫn xuất từ đầu vào của bước — chỉ đọc, không gửi. */
+             kho_rong: string; kho_dai: string; dang_giay?: "to" | "cuon" | null;
              /** Vật tư KHÁC giấy: chip đã chép từ phiếu (gửi lại để máy tính định mức) + nhãn chip. */
              gia_tri_chip?: Record<string, number>;
              chips?: { ma: string; ten: string; don_vi?: string | null }[] }[];
@@ -380,9 +382,9 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
       phat_sinh_phut: on(r.phat_sinh_phut),
       phu_thuoc_step_keys: r.phu_thuoc_step_keys,
       vat_tus: ngoai ? [] : r.vat_tus.map((v) => (v.hang_loai === "giay"
-        // Giấy: số do người nhập + khổ (máy chủ chuẩn hoá ngắn × dài, thiếu cạnh thì từ chối).
-        ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, so_luong: n(v.so_luong),
-            tu_dong: v.tu_dong, kho_rong: n(v.kho_rong), kho_dai: n(v.kho_dai) }
+        // Giấy: chỉ chọn MÃ — số + khổ + dạng + đơn vị máy chủ tự ghi theo đầu vào của bước.
+        ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, so_luong: null,
+            tu_dong: v.tu_dong, kho_rong: 0, kho_dai: 0 }
         // Vật tư KHÁC: định mức do MÁY tính từ công thức + chip ⇒ không gửi so_luong.
         : { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, tu_dong: v.tu_dong,
             gia_tri_chip: v.gia_tri_chip ?? {} })),
@@ -694,4 +696,13 @@ export function heSoChu(
   return hs < 1
     ? `${so(1 / hs)} ${nhanChang(dvVao)} = 1 ${nhanChang(dvRa)}`
     : `1 ${nhanChang(dvVao)} = ${so(hs)} ${nhanChang(dvRa)}`;
+}
+
+/** Nhãn trong bộ chọn giấy của một bước — theo ĐẦU VÀO của bước (spec 2026-10-01
+ *  dong-giay-theo-dau-vao §4): bước nhận tờ in ⇒ "tờ in", nhận tờ nguyên ⇒ "tờ nguyên", còn lại
+ *  (nhận cuộn) ⇒ "cuộn · <đơn vị của mã>". `donViMa` đã là nhãn hiển thị (qua `nhanDonVi`). */
+export function nhanGiayTheoDauVao(donViVao: string | null | undefined, donViMa: string): string {
+  if (donViVao === "to") return "tờ in";
+  if (donViVao === "to_nguyen") return "tờ nguyên";
+  return `cuộn · ${donViMa}`;
 }

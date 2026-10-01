@@ -62,7 +62,9 @@ from ..services.dong_giay import (
     ban_do_tram, dich_chuoi, don_vi_chuoi, ma_cua_tram, tram_cua, tren_dong_giay,
 )
 from ..models.don_vi_do import DonViDo
-from ..services.kho_giay import chuan_kho, don_vi_goc_to, goi_y_dong_giay
+from ..services.kho_giay import (
+    DANG_CUON, dong_giay_theo_dau_vao, don_vi_goc_to, nhan_kho,
+)
 from ..services.bien_cong_thuc import MAC_DINH_TANG_LENH, ngu_canh_lenh, quy_cach_bien
 from ..services.don_vi_do_service import cong_thuc_chu, cong_thuc_the_so
 from ..services.lsx_danh_muc_doi import vat_tu_lech
@@ -709,12 +711,22 @@ class LsxService:
             if getattr(v, "hang_loai", HANG_VAT_TU) == HANG_VAT_TU
         }
         ra: list[dict] = []
-        # Giấy không có công thức (spec 2026-10-01 §4.2): mọi mã giấy cùng một gợi ý khổ + số tờ
-        # đọc thẳng từ quy cách lệnh — tính MỘT lần cho cả vòng.
-        giay = goi_y_dong_giay(quy_cach or {})
+        # Giấy không có công thức (spec 2026-10-01 dong-giay-theo-dau-vao §4): số + khổ + dạng suy từ
+        # ĐẦU VÀO của chính bước, đổi sang đơn vị của từng mã.
+        qc_giay = quy_cach or {}
         for (hang_loai, mon_id), mat in self._mon_active().items():
             if hang_loai == HANG_GIAY:
-                ra.append({"hang_loai": HANG_GIAY, "vat_tu_id": mon_id, **giay})
+                d = self._dong_giay_cho_ma(buoc, qc_giay, mon_id)
+                dien_giai = None
+                if d["so_luong"] is not None:
+                    dien_giai = (("Cuộn " if d["dang"] == DANG_CUON else "Tờ ")
+                                 + f"theo đầu vào của bước · {nhan_kho(d['kho_rong'], d['kho_dai'])}")
+                ra.append({
+                    "hang_loai": HANG_GIAY, "vat_tu_id": mon_id, "dang_giay": d["dang"],
+                    "so_luong": (round(d["so_luong"], 3) if d["so_luong"] is not None else None),
+                    "kho_rong": d["kho_rong"], "kho_dai": d["kho_dai"], "don_vi": d["don_vi"],
+                    "dien_giai": dien_giai, "ly_do": d["ly_do"],
+                })
                 continue
             dvt = (mat.don_vi_gia or "").strip()
             if not dvt:
@@ -764,7 +776,7 @@ class LsxService:
         ten = getattr(mat, "ten", None) or dvt
         dv_ten = (self._don_vis().get(dvt.strip().lower()) or {}).get("ten") or dvt
         rieng = (cong_thuc or "").strip()
-        # Giấy không đi qua đây — xem `goi_y_dong_giay` (mã + khổ + số tờ, không công thức).
+        # Giấy không đi qua đây — xem `dong_giay_theo_dau_vao` (dòng giấy dẫn xuất từ đầu vào của bước).
         if not rieng:
             return None, None, (
                 f"chưa khai công thức định mức. Mở danh mục Vật tư khác → “{ten}” → tab "
@@ -2110,6 +2122,49 @@ class LsxService:
             # Chuỗi không có bước xả → quy đổi ở đây, đúng fallback `thanh_phan_engine` đang dùng.
             xa = self._he_so_cau(lsx)[(TRAM_TO_NGUYEN, TRAM_TO)]
             lsx.so_to_nguyen = ceil(lsx.so_to_ke_hoach / xa) if lsx.so_to_ke_hoach else 0
+        # CUỐI CÙNG: dòng giấy của từng bước đọc số vào/ra vừa ghi ở trên.
+        self._dong_bo_dong_giay(lsx)
+
+    def _dong_giay_cho_ma(self, cd, qc: dict, giay_id: int) -> dict:
+        """Dòng giấy của MỘT bước ứng với mã giấy `giay_id`, ĐÃ đổi sang đơn vị của mã (spec
+        2026-10-01 dong-giay-theo-dau-vao §4). Trả `dong_giay_theo_dau_vao` + `so_luong`/`don_vi`
+        theo mã; không đổi được (thiếu cặp quy đổi kg → đơn vị của mã) thì `so_luong=None` + `ly_do`."""
+        giay = self.db.get(GiayNguyen, giay_id)
+        d = dong_giay_theo_dau_vao(
+            don_vi_vao=getattr(cd, "don_vi_vao", None), so_luong_vao=_f(cd.so_luong_vao),
+            so_luong_ra=_f(cd.so_luong_ra), quy_cach=qc, gsm=_f(getattr(giay, "gsm", None)) or None)
+        if d["dang"] == DANG_CUON and d["so_luong"] is not None:
+            from ..repositories.don_vi_do_repo import DonViDoRepository
+            from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
+            from .vat_lieu_kho_service import VatLieuKhoError, VatLieuKhoService
+
+            try:
+                r = VatLieuKhoService(
+                    VatLieuKhoRepository(self.db), DonViDoRepository(self.db)
+                ).quy_ve_goc(HANG_GIAY, giay_id, "kg", d["so_luong"], dang=DANG_CUON)
+                d["so_luong"], d["don_vi"] = float(r["sl_goc"]), r["don_vi_goc"]
+            except VatLieuKhoError as e:
+                d["so_luong"], d["ly_do"] = None, str(e)
+        if d["dang"] == DANG_CUON and d["so_luong"] is None:
+            d["don_vi"] = (getattr(giay, "don_vi_gia", None) or "kg")
+        return d
+
+    def _dong_bo_dong_giay(self, lsx: Lsx) -> None:
+        """Ghi lại MỌI dòng giấy của lệnh theo ĐẦU VÀO của bước chứa nó. KHÔNG commit.
+
+        Số/khổ/dạng/đơn vị của dòng giấy là dẫn xuất — không ai gõ. Cửa duy nhất là cuối
+        `_ap_chuoi_nguoc`, nên chèn thêm bước rồi gọi chuỗi ngược là dòng giấy của bước ấy đúng ngay."""
+        qc = quy_cach_bien(lsx)
+        for cd in lsx.cong_doans:
+            for v in cd.vat_tus:
+                if v.hang_loai != HANG_GIAY:
+                    continue
+                d = self._dong_giay_cho_ma(cd, qc, int(v.vat_tu_id))
+                v.dang_giay = d["dang"]
+                v.so_luong = d["so_luong"] if d["so_luong"] is not None else 0
+                v.kho_rong, v.kho_dai = d["kho_rong"], d["kho_dai"]
+                if d["don_vi"]:
+                    v.don_vi_snapshot = d["don_vi"]
 
     def _may_cua_buoc(self, cd) -> MayThietBi | None:
         """Máy ĐANG GÁN của bước — nguồn SỐNG của tốc độ + thời gian chuẩn bị sau chốt 2026-08-04.
@@ -2361,6 +2416,7 @@ class LsxService:
                  "vat_tu_ma": v.vat_tu_ma_snapshot, "vat_tu_ten": v.vat_tu_ten_snapshot,
                  "don_vi": v.don_vi_snapshot, "so_luong": _f(v.so_luong),
                  "kho_rong": int(v.kho_rong or 0), "kho_dai": int(v.kho_dai or 0),
+                 "dang_giay": v.dang_giay,
                  "tu_dong": bool(v.tu_dong),
                  "gia_tri_chip": dict(v.gia_tri_chip or {}),
                  "chips": [{"ma": c.ma, "ten": c.ten, "don_vi": c.don_vi}
@@ -3039,15 +3095,8 @@ class LsxService:
                     for v in vat_tus]
             if len(caps) != len(set(caps)):
                 raise LsxValidationError("Một vật tư không được chọn trùng trong cùng công đoạn")
-            # Khổ dòng giấy (mm, cạnh ngắn × cạnh dài). Giấy thiếu cạnh ⇒ chặn; hàng khác ép 0 · 0.
-            kho = []
-            for v, cap in zip(vat_tus, caps):
-                kr, kd = chuan_kho(v.get("kho_rong"), v.get("kho_dai"))
-                if cap[0] != HANG_GIAY:
-                    kr = kd = 0
-                elif not (kr and kd):
-                    raise LsxValidationError("Dòng giấy phải có khổ (rộng × dài, mm).")
-                kho.append((kr, kd))
+            # Dòng giấy: khổ/số/dạng/đơn vị do MÁY ghi theo đầu vào của bước (`_dong_bo_dong_giay`, cuối
+            # `_ap_chuoi_nguoc`) — số + khổ client gửi lên bị bỏ, người lập lệnh chỉ chọn MÃ giấy.
             # Món ĐÃ nằm trên bước từ trước — giữ lại được kể cả khi danh mục đã ngừng nó. Chặn cả
             # hai kiểu như trước thì một lệnh cũ có vật tư ngừng dùng là KHÔNG LƯU LẠI ĐƯỢC routing
             # nữa, kể cả khi người ta chỉ sửa cái khác.
@@ -3094,11 +3143,13 @@ class LsxService:
                     vat_tu_ten_snapshot=(getattr(mon, "ten", None)
                                          or getattr(cu, "vat_tu_ten_snapshot", None) or ""),
                     # Giấy đếm TỜ NGUYÊN theo luật (spec §4.2) — không mượn `don_vi_gia` (kg) của mã.
-                    don_vi_snapshot=(don_vi_goc_to() if cap[0] == HANG_GIAY else
+                    don_vi_snapshot=((getattr(cu, "don_vi_snapshot", None) or don_vi_goc_to())
+                                     if cap[0] == HANG_GIAY else
                                      (getattr(mon, "don_vi_gia", None)
                                       or getattr(cu, "don_vi_snapshot", None) or "")),
-                    kho_rong=kho[pos][0], kho_dai=kho[pos][1],
-                    so_luong=(float(item["so_luong"]) if cap[0] == HANG_GIAY else tinh_lai[cap]),
+                    kho_rong=0, kho_dai=0,
+                    # Giấy: số tạm 0 (cùng đơn vị, dạng, khổ) — `_dong_bo_dong_giay` ghi đè ngay sau.
+                    so_luong=(0 if cap[0] == HANG_GIAY else tinh_lai[cap]),
                     gia_tri_chip=(None if cap[0] == HANG_GIAY
                                   else dict(item.get("gia_tri_chip") or {})),
                     thu_tu=pos,

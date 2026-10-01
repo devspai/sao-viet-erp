@@ -108,6 +108,53 @@ def goi_y_dong_giay(qc: dict) -> dict:
     return out
 
 
+def dong_giay_theo_dau_vao(*, don_vi_vao: str | None, so_luong_vao: float, so_luong_ra: float,
+                           quy_cach: dict, gsm: float | None) -> dict:
+    """Dòng giấy của MỘT bước, dẫn xuất từ ĐẦU VÀO của bước (spec 2026-10-01 dong-giay-theo-dau-vao §4).
+
+    Bước nhận tờ in (`TRAM_TO`) ⇒ tờ khổ in; nhận tờ nguyên (`TRAM_TO_NGUYEN`) ⇒ tờ khổ nguyên; còn lại
+    (bước nhận cuộn, vd Cắt cuộn) ⇒ cuộn, đếm bằng **kg** = tờ nguyên ra × diện tích × gsm. Cuộn luôn trả
+    `don_vi="kg"` — bên gọi đổi sang đơn vị của mã giấy. Thiếu khổ / gsm ⇒ `so_luong=None` + `ly_do`.
+    """
+    from ..models.don_vi_do import TRAM_TO, TRAM_TO_NGUYEN
+    from .dong_giay import ban_do_tram, tram_cua
+
+    def so(*khoa):
+        for k in khoa:
+            try:
+                v = float((quy_cach or {}).get(k) or 0)
+            except (TypeError, ValueError):
+                v = 0.0
+            if v > 0:
+                return v
+        return 0.0
+
+    ng_r, ng_d = chuan_kho(so("kho_nguyen_rong"), so("kho_nguyen_dai"))
+    in_r, in_d = chuan_kho(so("kho_in_rong"), so("kho_in_dai"))
+    tram = tram_cua(don_vi_vao, ban_do_tram()) if don_vi_vao else None
+    out = {"dang": DANG_TO, "so_luong": None, "don_vi": don_vi_vao or "", "kho_rong": 0,
+           "kho_dai": 0, "ly_do": None}
+    if tram == TRAM_TO:
+        kr, kd = (in_r, in_d) if (in_r and in_d) else (ng_r, ng_d)
+        out.update(so_luong=float(so_luong_vao or 0), kho_rong=kr, kho_dai=kd)
+        if not (kr and kd):
+            out.update(so_luong=None, ly_do="Lệnh chưa có khổ giấy (khổ tờ in / khổ nguyên).")
+        return out
+    if tram == TRAM_TO_NGUYEN:
+        out.update(so_luong=float(so_luong_vao or 0), kho_rong=ng_r, kho_dai=ng_d)
+        if not (ng_r and ng_d):
+            out.update(so_luong=None, ly_do="Lệnh chưa có khổ nguyên của giấy.")
+        return out
+    out.update(dang=DANG_CUON, don_vi="kg", kho_rong=ng_r, kho_dai=0)
+    if not (ng_r and ng_d):
+        out.update(so_luong=None, ly_do="Lệnh chưa có khổ nguyên để tính kg cuộn.")
+    elif not gsm or float(gsm) <= 0:
+        out.update(so_luong=None, ly_do="Giấy chưa khai định lượng (gsm) nên không tính được kg cuộn.")
+    else:
+        out["so_luong"] = float(so_luong_ra or 0) * (ng_r / 1000) * (ng_d / 1000) * float(gsm) / 1000
+    return out
+
+
 def khoa_ton_cua(obj) -> tuple:
     """Khoá tra tồn của một lô / dòng (có `hang_loai`, `hang_id`, `dang_giay`, `kho_rong`, `kho_dai`).
     Giấy đã có dạng ⇒ `khoa_ton` (tờ đúng khổ / cuộn theo mã). Hàng khác, hoặc giấy CŨ chưa có dạng

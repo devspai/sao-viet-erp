@@ -16,6 +16,7 @@ import { Button } from "../components/Button";
 import { Select, type SelectOption } from "../components/Select";
 import type { ViTriDai } from "./gia-cong/giaCong";
 import { dvNhan as dvNhanChung, type RefRow } from "./LsxRoutingTable";
+import { nhanDangKho } from "../lib/khoGiay";
 import { num } from "./keHoachSxShared";
 import { donViOptions, useNapTenDonVi } from "./tenDonVi";
 import {
@@ -26,6 +27,7 @@ import {
   mayChonDuoc,
   nhanChang,
   nhanDonVi,
+  nhanGiayTheoDauVao,
   phut,
   tenBuoc,
   thoiLuong,
@@ -231,7 +233,7 @@ export function LsxBuocDrawer({
       if (daCo("giay", x.id)) continue;
       ds.push({
         value: capMon("giay", x.id),
-        label: `${x.ten} (${nhanDonVi(x.donVi)})`,
+        label: `${x.ten} (${nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi))})`,
         search: x.ma ?? "",
         group: "NVL chính — danh mục Giấy",
       });
@@ -246,7 +248,7 @@ export function LsxBuocDrawer({
       });
     }
     return ds;
-  }, [giayRefs, vatTuRefs, row.vat_tus]);
+  }, [giayRefs, vatTuRefs, row.vat_tus, row.don_vi_vao]);
 
   const mayForm = mayRefs?.find((m) => m.id === row.may_id) ?? null;
   const t = useMemo(() => thoiLuong(row, mayForm), [row, mayForm]);
@@ -902,35 +904,6 @@ export function LsxBuocDrawer({
                       </span>
                     </div>
 
-                    {canUpdate &&
-                      row.vat_tus.some((v) => {
-                        const g = row.vat_tu_goi_y.find(
-                          (x) => capMon(x.hang_loai, x.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
-                        return (
-                          v.hang_loai === "giay" && g?.so_luong != null &&
-                          (!v.tu_dong || Math.abs(g.so_luong - Number(v.so_luong)) > 0.0005)
-                        );
-                      }) && (
-                        <button
-                          type="button"
-                          className="khsx-vattu-sync-all-btn"
-                          title="Cập nhật toàn bộ số lượng theo công thức định mức"
-                          onClick={() => {
-                            set(
-                              "vat_tus",
-                              row.vat_tus.map((v) => {
-                                const g = row.vat_tu_goi_y.find(
-                          (x) => capMon(x.hang_loai, x.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
-                                return v.hang_loai === "giay" && g?.so_luong != null
-                                  ? { ...v, so_luong: String(g.so_luong), tu_dong: true }
-                                  : v;
-                              }),
-                            );
-                          }}
-                        >
-                          Đồng bộ tất cả theo công thức
-                        </button>
-                      )}
                   </div>
                 )}
 
@@ -957,14 +930,6 @@ export function LsxBuocDrawer({
                         row.vat_tus.map((v, i) => {
                           const goiY = row.vat_tu_goi_y.find(
                             (g) => capMon(g.hang_loai, g.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
-                          const soMay = goiY?.so_luong ?? null;
-                          const soLuu = v.so_luong.trim() === "" ? null : Number(v.so_luong);
-                          const lech =
-                            v.hang_loai === "giay" &&
-                            soMay !== null &&
-                            soLuu !== null &&
-                            Number.isFinite(soLuu) &&
-                            Math.abs(soMay - soLuu) > 0.0005;
                           return (
                             <tr className="khsx-vattu-tr" key={capMon(v.hang_loai, v.vat_tu_id)}>
                               <td className="khsx-vattu-td khsx-vattu-td--info">
@@ -983,35 +948,15 @@ export function LsxBuocDrawer({
                                     ))}
                                   </div>
                                 )}
-                                {/* Giấy đếm tờ theo KHỔ (mm) — mặc định từ quy cách lệnh, sửa được. */}
+                                {/* Giấy: dạng + khổ do MÁY CHỦ suy từ đầu vào của bước — chỉ đọc. */}
                                 {v.hang_loai === "giay" && (
                                   <div className="khsx-vattu-kho">
-                                    <span className="khsx-vattu-kho__label">Khổ</span>
-                                    <span className="khsx-vattu-kho__nhom">
-                                    {(["kho_rong", "kho_dai"] as const).map((k, idx) => (
-                                      <span key={k} className="khsx-vattu-kho__o">
-                                        {idx === 1 && <span className="khsx-vattu-kho__x" aria-hidden="true">×</span>}
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          step="1"
-                                          className="khsx-vattu-kho__input"
-                                          aria-label={idx === 0 ? "Khổ giấy — cạnh rộng (mm)" : "Khổ giấy — cạnh dài (mm)"}
-                                          value={v[k]}
-                                          placeholder={idx === 0 ? "rộng" : "dài"}
-                                          disabled={!canUpdate}
-                                          onChange={(e) =>
-                                            set(
-                                              "vat_tus",
-                                              row.vat_tus.map((x, j) =>
-                                                j === i ? { ...x, [k]: e.target.value, tu_dong: false } : x,
-                                              ),
-                                            )
-                                          }
-                                        />
-                                      </span>
-                                    ))}
-                                      <span className="khsx-vattu-kho__mm" aria-hidden="true">mm</span>
+                                    <span className="khsx-vattu-kho__label">
+                                      {nhanDangKho(
+                                        v.dang_giay ?? goiY?.dang_giay,
+                                        Number(v.kho_rong) || goiY?.kho_rong,
+                                        Number(v.kho_dai) || goiY?.kho_dai,
+                                      ) || "Dạng và khổ do máy tính khi lưu"}
                                     </span>
                                   </div>
                                 )}
@@ -1020,29 +965,6 @@ export function LsxBuocDrawer({
                                 {goiY?.dien_giai ? (
                                   <div className="khsx-formula-wrap">
                                     <code className="khsx-formula-code">{goiY.dien_giai}</code>
-                                    {lech && (
-                                      <div className="khsx-diff-badge">
-                                        <span>Lệch: {num(soMay as number)} {nhanDonVi(v.don_vi)}</span>
-                                        {canUpdate && v.hang_loai === "giay" && (
-                                          <button
-                                            type="button"
-                                            className="khsx-vattu-fix-btn"
-                                            onClick={() =>
-                                              set(
-                                                "vat_tus",
-                                                row.vat_tus.map((x, j) =>
-                                                  j === i
-                                                    ? { ...x, so_luong: String(soMay), tu_dong: true }
-                                                    : x,
-                                                ),
-                                              )
-                                            }
-                                          >
-                                            Dùng số này
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
                                   </div>
                                 ) : (
                                   <span className="khsx-vattu-no-formula">
@@ -1057,27 +979,9 @@ export function LsxBuocDrawer({
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--input">
                                 <div className="khsx-vattu-input-group">
-                                  {v.hang_loai !== "giay" ? (
-                                    <strong>{v.so_luong}</strong>
-                                  ) : (
-                                  <input
-                                    type="number"
-                                    min="0.001"
-                                    step="any"
-                                    className="khsx-vattu-num-input"
-                                    value={v.so_luong}
-                                    placeholder="0"
-                                    disabled={!canUpdate}
-                                    onChange={(e) =>
-                                      set(
-                                        "vat_tus",
-                                        row.vat_tus.map((x, j) =>
-                                          j === i ? { ...x, so_luong: e.target.value, tu_dong: false } : x,
-                                        ),
-                                      )
-                                    }
-                                  />
-                                  )}
+                                  {/* Số lượng: vật tư tính bằng công thức, giấy suy từ đầu vào của bước —
+                                      cả hai chỉ đọc. */}
+                                  <strong>{v.so_luong}</strong>
                                   <span className="khsx-vattu-unit-tag">{nhanDonVi(v.don_vi)}</span>
                                 </div>
                               </td>
@@ -1141,14 +1045,15 @@ export function LsxBuocDrawer({
                                       vat_tu_id: item.id,
                                       vat_tu_ma: item.ma ?? "",
                                       vat_tu_ten: item.ten,
-                                      // Giấy đếm TỜ NGUYÊN theo khổ (máy chủ gợi ý đơn vị + khổ
-                                      // từ quy cách lệnh) — không mượn đơn vị gốc kg của mã.
+                                      // Giấy: đơn vị + khổ + dạng do máy chủ gợi ý theo đầu vào của
+                                      // bước (chỉ để hiện — lưu xong máy chủ ghi lại).
                                       don_vi: (hangLoai === "giay" ? goiY?.don_vi : undefined)
                                         ?? item.donVi ?? "",
                                       so_luong: goiY?.so_luong != null ? String(goiY.so_luong) : "",
                                       tu_dong: false,
                                       kho_rong: hangLoai === "giay" && goiY?.kho_rong ? String(goiY.kho_rong) : "",
                                       kho_dai: hangLoai === "giay" && goiY?.kho_dai ? String(goiY.kho_dai) : "",
+                                      dang_giay: hangLoai === "giay" ? goiY?.dang_giay ?? null : null,
                                     },
                                   ]);
                                 }}

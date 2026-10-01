@@ -16647,3 +16647,19 @@ def _migrate_lsx_vat_tu_gia_tri_chip(db: Session) -> None:
 
 
 MIGRATIONS.append(("0358_lsx_vat_tu_gia_tri_chip", _migrate_lsx_vat_tu_gia_tri_chip))
+
+
+def _migrate_lsx_vat_tu_dang_giay(db: Session) -> None:
+    """0359 — cột `dang_giay` cho dòng vật tư của bước lệnh; dòng giấy cũ đều là TỜ (trước đó giấy
+    của bước luôn đếm tờ nguyên). Idempotent; dòng `vat_tu` giữ NULL."""
+    insp = inspect(db.get_bind())
+    if "lsx_cong_doan_vat_tu" not in set(insp.get_table_names()):
+        return
+    if "dang_giay" not in _existing_columns(insp, "lsx_cong_doan_vat_tu"):
+        db.execute(text("ALTER TABLE lsx_cong_doan_vat_tu ADD COLUMN dang_giay VARCHAR(8)"))
+    db.execute(text("UPDATE lsx_cong_doan_vat_tu SET dang_giay = 'to' "
+                    "WHERE hang_loai = 'giay' AND dang_giay IS NULL"))
+    db.commit()
+
+
+MIGRATIONS.append(("0359_lsx_vat_tu_dang_giay", _migrate_lsx_vat_tu_dang_giay))
