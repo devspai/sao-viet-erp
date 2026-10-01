@@ -233,6 +233,9 @@ class YeuCauMuaNguonLenhIn(BaseModel):
 
     hang_loai: str = Field(pattern="^(giay|vat_tu)$")
     hang_id: int = Field(gt=0)
+    #: Khổ của dòng giấy (0 · 0 với vật tư khác) — `_khoa_dong` mang khổ từ spec giấy tờ × khổ.
+    kho_rong: int = Field(default=0, ge=0)
+    kho_dai: int = Field(default=0, ge=0)
     lsx_id: int | None = Field(default=None, gt=0)
     bai_ghep_id: int | None = Field(default=None, gt=0)
     buoc_id: int | None = Field(default=None, gt=0)

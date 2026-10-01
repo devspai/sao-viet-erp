@@ -8821,6 +8821,9 @@ export interface CanDoiNhom {
   hang_id: number;
   hang_ma: string | null;
   hang_ten: string | null;
+  /** Khổ giấy tờ (mm, ngắn × dài) — nhóm giấy là (mã, khổ); vật tư khác và giấy chưa khổ 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
   don_vi_goc: string | null;
   ton: number | null;
   tong_can: number | null;
@@ -8844,12 +8847,15 @@ export interface CanDoiOut {
 
 /** Khoá của một dòng trên bảng — đủ để server tìm lại và TỰ tính phần thiếu.
  *
- *  ⚠️ NĂM phần tử, phải khớp `_khoa_dong()` bên `services/ke_hoach_vat_tu_service.py`. Lệch một
+ *  ⚠️ BẢY phần tử, phải khớp `_khoa_dong()` bên `services/ke_hoach_vat_tu_service.py`. Lệch một
  *  phần tử là server tra không ra dòng nào và MỌI lần bấm "Đề nghị mua" trả 400 với câu lỗi chỉ
  *  sai đường ("tải lại bảng" — tải lại vẫn lỗi). */
 export interface CanDoiKhoaDong {
   hang_loai: HangLoai;
   hang_id: number;
+  /** Khổ của dòng giấy (0 · 0 với vật tư khác) — cùng mã khác khổ là hai dòng khác nhau. */
+  kho_rong: number;
+  kho_dai: number;
   lsx_id: number | null;
   bai_ghep_id: number | null;
   buoc_id: number | null;
@@ -8871,6 +8877,9 @@ export interface DeNghiMuaXemTruoc {
     item_name: string;
     unit: string;
     quantity: number;
+    /** Khổ CẦN của dòng giấy (0 · 0 với vật tư khác). */
+    kho_rong: number;
+    kho_dai: number;
   }[];
   /** Khoá các dòng đã tick — form gửi nguyên văn vào `nguon_lenh` lúc Lưu. */
   nguon: CanDoiKhoaDong[];
@@ -8907,7 +8916,7 @@ export interface TheoLenhHang {
   /** MỌI phiếu đang chạy của món (kể cả YCMH chưa duyệt, kể cả PMH chưa hẹn ngày), xếp CHẮC →
    *  LỎNG — "ai đang lo món này". */
   phieu_mua: PhieuMuaTom[];
-  /** Khoá 5 phần của TỪNG dòng đỏ — gửi thẳng vào `deNghiMua`. Cố ý không gộp về một khoá cho
+  /** Khoá 7 phần của TỪNG dòng đỏ — gửi thẳng vào `deNghiMua`. Cố ý không gộp về một khoá cho
    *  mỗi mặt hàng: một lệnh ăn cùng món ở hai công đoạn là hai dòng, gộp là mua một nửa. */
   khoa_do: CanDoiKhoaDong[];
 }

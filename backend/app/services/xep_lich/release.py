@@ -114,8 +114,9 @@ def soat_vat_tu(db: Session, *, lsx_id: int | None = None,
                 goi_y="Kiểm lại đơn vị của mặt hàng ở màn Kế hoạch vật tư.",
             ))
         elif tt["thieu"]:
-            short = {(loai, int(hid)) for (loai, hid) in tt["thieu"].keys()}
-            no_eta = giu.kh.hang_dang_mua_khong_ngay()
+            # So theo cặp mã: giữ chỗ khoá cặp, đơn mua khoá (mã, khổ) — rút cả hai về cặp.
+            short = {(k[0], int(k[1])) for k in tt["thieu"].keys()}
+            no_eta = {(k[0], int(k[1])) for k in giu.kh.hang_dang_mua_khong_ngay()}
             if short & no_eta:
                 chan.append(issue(
                     "vat_tu_chua_co_ngay", MUC_CHAN_PHAT_HANH,

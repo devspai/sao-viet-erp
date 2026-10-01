@@ -2219,6 +2219,8 @@ có gì báo lỗi.
 | `department_request_id` | `Integer` → `INTEGER`                 | **FK→department_purchase_requests.id**, **IX** | no   | —              | Phiếu yêu cầu nguồn cha.                                                                     |
 | `hang_loai`             | `String(8)` → `VARCHAR(8)`            | **IX** (cặp)                                   | yes  | —              | Mặt hàng gốc: `giay` \| `vat_tu` (mg 0174). Nút "Đề nghị mua" ở bảng cân đối vật tư ghi thẳng vào đây. |
 | `hang_id`               | `Integer` → `INTEGER`                 | **IX** (cặp)                                   | yes  | —              | Id trong `giay_nguyen` / `vat_tu_in_an`. Soft ref. `NULL` = khai tay ngoài danh mục.          |
+| `kho_rong`              | `Integer` → `INTEGER`                 | —                                              | no   | `0`            | Khổ CẦN của dòng GIẤY — cạnh ngắn, mm (mg 0352). Hàng khác `0`. |
+| `kho_dai`               | `Integer` → `INTEGER`                 | —                                              | no   | `0`            | Khổ CẦN — cạnh dài, mm. Cuộn / hàng khác `0`. |
 | `item_name`             | `String(255)` → `VARCHAR(255)`        | —                                              | no   | —              | Tên vật tư/dịch vụ cần mua.                                                                  |
 | `unit`                  | `String(32)` → `VARCHAR(32)`          | —                                              | no   | —              | Đơn vị tính.                                                                                 |
 | `quantity`              | `Numeric(14,2)` → `NUMERIC(14,2)`     | —                                              | no   | `0`            | Số lượng cần mua.                                                                            |
@@ -2320,6 +2322,8 @@ cần mua trong phiếu.
 | `department_request_line_id` | `Integer` → `INTEGER`          | **FK→department_purchase_request_lines.id**, **IX** | yes | — | Dòng YCMH đã đẻ ra dòng này (nối DÒNG↔DÒNG, khác `purchase_request_sources` nối PHIẾU↔YÊU CẦU). Nền cho "trạng thái từng sản phẩm" ở chi tiết YCMH. `NULL` = phiếu lập trước 05/08/2026 hoặc dòng thu mua tự thêm. ⚠️ Khoá ngoại CHỈ có trên DB dựng bằng `create_all`; migration 0163 chỉ thêm cột (SQLite không ALTER được constraint) nên DB live có thể có id mồ côi — chỗ đọc phải chịu được. |
 | `hang_loai`           | `String(8)` → `VARCHAR(8)`            | **IX** (cặp)                        | yes  | —              | Mặt hàng gốc dòng này mua: `giay` \| `vat_tu` (mg 0174). KẾ THỪA từ dòng YCMH qua `department_request_line_id` lúc lập phiếu. |
 | `hang_id`             | `Integer` → `INTEGER`                 | **IX** (cặp)                        | yes  | —              | Id trong `giay_nguyen` / `vat_tu_in_an`. Soft ref. `NULL` = mua thứ ngoài danh mục (dịch vụ, gia công) ⇒ bảng cân đối vật tư **không** cộng dòng này vào "hàng đang về" (không đoán ngược từ `item_name`). |
+| `kho_rong`            | `Integer` → `INTEGER`                 | —                                   | no   | `0`            | Khổ MUA của dòng GIẤY — cạnh ngắn (cuộn: khổ rộng), mm (mg 0352). Bảng cân đối chỉ cộng "hàng đang về" giấy cho nhu cầu đúng mã + đúng khổ. Hàng khác `0`. |
+| `kho_dai`             | `Integer` → `INTEGER`                 | —                                   | no   | `0`            | Khổ MUA — cạnh dài, mm. Cuộn / hàng khác `0`. |
 | `item_name`           | `String(255)` → `VARCHAR(255)`        | —                                   | no   | —              | Tên vật tư/dịch vụ cần mua.                        |
 | `unit`                | `String(32)` → `VARCHAR(32)`          | —                                   | no   | `"cái"`        | Đơn vị tính.                                       |
 | `quantity`            | `Numeric(14,2)` → `NUMERIC(14,2)`     | —                                   | no   | `0`            | Số lượng cần mua.                                  |
@@ -3973,7 +3977,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 **Purpose:** Thu mua — dòng hàng của PMH (mặt hàng, SL đặt, SL thực nhận, đơn giá, giảm giá %, VAT %). Tiền tính động.
 
-**Tất cả cột:** `id`, `purchase_request_id`, `department_request_line_id`, `item_name`, `unit`, `quantity`, `received_quantity`, `expected_unit_price`, `discount_percent`, `vat_percent`, `note`.
+**Tất cả cột:** `id`, `purchase_request_id`, `department_request_line_id`, `kho_rong`, `kho_dai`, `item_name`, `unit`, `quantity`, `received_quantity`, `expected_unit_price`, `discount_percent`, `vat_percent`, `note`.
 
 ---
 

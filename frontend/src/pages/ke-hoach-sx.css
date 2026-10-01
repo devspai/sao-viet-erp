@@ -5358,6 +5358,7 @@ td.khsx-num > .khsx-unit {
 .khsx .khvt-tag--muc { background: var(--plum-soft); color: var(--plum-deep); }
 .khsx .khvt-tag--khuon { background: var(--rust-soft); color: var(--rust-deep); }
 .khsx .khvt-tag--vattu { background: var(--paper); color: var(--ash); border: 1px solid var(--rule-soft); }
+.khsx .khvt-item-kho { font-size: 12px; color: var(--ash); font-variant-numeric: tabular-nums; }
 
 .khsx .khvt-item-name {
   font-size: 13.5px;

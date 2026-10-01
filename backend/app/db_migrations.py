@@ -16490,3 +16490,23 @@ def _migrate_kho_dong_giay_buoc(db: Session) -> None:
 
 
 MIGRATIONS.append(("0351_kho_dong_giay_buoc", _migrate_kho_dong_giay_buoc))
+
+
+def _migrate_mua_hang_kho_giay(db: Session) -> None:
+    """Dòng mua mang khổ giấy (spec 2026-10-01-giay-dem-to-theo-kho §4.4): `kho_rong` + `kho_dai` (mm,
+    NOT NULL default 0) trên `department_purchase_request_lines` (khổ CẦN) và `purchase_request_lines`
+    (khổ MUA). Dòng cũ để 0 · 0 — bảng cân đối không đem dòng mua giấy chưa khổ ra bù nhu cầu tờ nào.
+    Idempotent: hỏi inspector trước ADD COLUMN."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for ten_bang in ("department_purchase_request_lines", "purchase_request_lines"):
+        if ten_bang not in bang:
+            continue
+        co = _existing_columns(insp, ten_bang)
+        for ten in ("kho_rong", "kho_dai"):
+            if ten not in co:
+                db.execute(text(f"ALTER TABLE {ten_bang} ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    db.commit()
+
+
+MIGRATIONS.append(("0352_mua_hang_kho_giay", _migrate_mua_hang_kho_giay))

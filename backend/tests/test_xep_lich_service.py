@@ -185,7 +185,7 @@ def _giu_cho_du(db, *, lsx_ids=(), bai_ghep_ids=()):
     """
     from app.models.kho_hang import KhoHang
     from app.models.stock_lot import LOT_AVAILABLE, StockLot
-    from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn
+    from app.models.vat_lieu_kho import VatTuInAn
     from app.repositories.bai_ghep_repo import BaiGhepRepository
     from app.repositories.don_vi_do_repo import DonViDoRepository
     from app.repositories.lsx_repo import LsxRepository
@@ -202,14 +202,20 @@ def _giu_cho_du(db, *, lsx_ids=(), bai_ghep_ids=()):
         kho = KhoHang(ma="K-XL", ten="Kho test xếp lịch")
         db.add(kho)
         db.flush()
-    for loai, model in (("giay", GiayNguyen), ("vat_tu", VatTuInAn)):
-        for mh in db.query(model).all():
-            ma_lo = f"LOT-XL-{loai}-{mh.id}"
-            if db.query(StockLot).filter(StockLot.ma_lo == ma_lo).first():
-                continue
-            db.add(StockLot(hang_loai=loai, hang_id=mh.id, kho_id=kho.id, ma_lo=ma_lo,
-                            sl_ban_dau=1_000_000, sl_con_lai=1_000_000,
-                            ngay_nhap=date.today(), trang_thai=LOT_AVAILABLE))
+
+    def _lo(loai, hid, kr=0, kd=0):
+        ma_lo = f"LOT-XL-{loai}-{hid}-{kr}x{kd}"
+        if db.query(StockLot).filter(StockLot.ma_lo == ma_lo).first():
+            return
+        db.add(StockLot(hang_loai=loai, hang_id=hid, kho_id=kho.id, ma_lo=ma_lo,
+                        sl_ban_dau=1_000_000, sl_con_lai=1_000_000,
+                        ngay_nhap=date.today(), trang_thai=LOT_AVAILABLE,
+                        dang_giay="to" if loai == "giay" else None, kho_rong=kr, kho_dai=kd))
+
+    for mh in db.query(VatTuInAn).all():
+        _lo("vat_tu", mh.id)
+    for i in lsx_ids:
+        _khai_giay_len_buoc_in(db, i)
     db.commit()
 
     kh = KeHoachVatTuService(
@@ -219,9 +225,13 @@ def _giu_cho_du(db, *, lsx_ids=(), bai_ghep_ids=()):
         purchases=PurchaseRequestRepository(db), suppliers=SupplierRepository(db),
         don_vi=DonViDoRepository(db),
     )
+    # Giấy đếm tờ theo KHỔ: lô đầy cho ĐÚNG mỗi (mã, khổ) mà bảng cân đối đang cần — dòng lệnh lẫn
+    # dòng bài ghép (khổ bài dẫn xuất từ thành viên / khổ in của bài).
+    for nhom in kh.can_doi(include_lsx_ids=set(lsx_ids))["items"]:
+        if nhom["hang_loai"] == "giay" and nhom["kho_rong"] and nhom["kho_dai"]:
+            _lo("giay", nhom["hang_id"], nhom["kho_rong"], nhom["kho_dai"])
+    db.commit()
     gc = GiuChoService(db, kh)
-    for i in lsx_ids:
-        _khai_giay_len_buoc_in(db, i)
     for i in lsx_ids:
         gc.bat(lsx_id=i)
     for i in bai_ghep_ids:
@@ -238,10 +248,13 @@ def _khai_giay_len_buoc_in(db, lsx_id: int) -> None:
     """
     from app.models.lsx import Lsx, LsxCongDoanVatTu
     from app.models.vat_lieu_kho import GiayNguyen
+    from app.services.bien_cong_thuc import quy_cach_bien
+    from app.services.kho_giay import don_vi_goc_to, goi_y_dong_giay
 
     lsx = db.get(Lsx, lsx_id)
     if lsx is None:
         return
+    goi = goi_y_dong_giay(quy_cach_bien(lsx))
     giay_id = (lsx.quy_cach_json or {}).get("giay_id")
     buoc = _in_step(db, lsx_id)
     if not giay_id or buoc is None:
@@ -258,8 +271,10 @@ def _khai_giay_len_buoc_in(db, lsx_id: int) -> None:
     db.add(LsxCongDoanVatTu(
         lsx_cong_doan_id=buoc.id, hang_loai="giay", vat_tu_id=g.id,
         vat_tu_ma_snapshot=g.ma, vat_tu_ten_snapshot=g.ten,
-        don_vi_snapshot=g.don_vi_gia or "kg",
-        so_luong=1.0, thu_tu=0, tu_dong=False,
+        # Giấy đếm tờ nguyên theo khổ: khổ nguyên của quy cách (thiếu thì khổ in), mặc định
+        # 780 × 905 khi lệnh test không khai khổ nào.
+        don_vi_snapshot=don_vi_goc_to(), so_luong=1.0,
+        kho_rong=goi["kho_rong"] or 780, kho_dai=goi["kho_dai"] or 905, thu_tu=0, tu_dong=False,
     ))
     db.commit()
 
@@ -447,7 +462,6 @@ def _gop_in_va_san_sang(db, bg_svc, bg, admin, keys=None):
     return ra
 
 
-@pytest.mark.skip(reason="Bài ghép giấy từng quy ra kg bằng giay_nguyen.cong_thuc_luong (đã gỡ, mg 0348) — Task 5 (giấy đếm theo tờ × khổ) viết lại")
 def test_moi_buoc_chung_mot_dong_lich_khong_bi_boc_hoi(
     db, orders, lsx_svc, bg_svc, xl_svc, admin, customer
 ):
@@ -509,7 +523,6 @@ def test_moi_buoc_chung_mot_dong_lich_khong_bi_boc_hoi(
         assert XepLichRepository(db).by_lsx(lsx.id) == []
 
 
-@pytest.mark.skip(reason="Bài ghép giấy từng quy ra kg bằng giay_nguyen.cong_thuc_luong (đã gỡ, mg 0348) — Task 5 (giấy đếm theo tờ × khổ) viết lại")
 def test_bai_ghep_in_chung_mot_dong_loai_tru_in(db, orders, lsx_svc, bg_svc, xl_svc, admin, customer):
     created = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
     # Mỗi LSX thêm bước xả tờ (sau in) để thành viên còn công đoạn xếp riêng sau khi in chung.
@@ -977,7 +990,6 @@ def test_xem_truoc_bao_xung_dot(db, orders, lsx_svc, xl_svc, admin, customer, mo
     assert a_id in res["xung_dot_ids"]
 
 
-@pytest.mark.skip(reason="Bài ghép giấy từng quy ra kg bằng giay_nguyen.cong_thuc_luong (đã gỡ, mg 0348) — Task 5 (giấy đếm theo tờ × khổ) viết lại")
 def test_lenh_in_hai_luot_chi_loai_dung_luot_duoc_ghep(
     db, orders, lsx_svc, bg_svc, xl_svc, admin, customer
 ):

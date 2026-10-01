@@ -502,6 +502,8 @@ class GiuChoService:
                 if d.get("trang_thai") == "do":
                     h["khoa_do"].append({
                         "hang_loai": hang[0], "hang_id": hang[1],
+                        # Khổ là một phần khoá dòng của bảng cân đối (`_khoa_dong`).
+                        "kho_rong": nhom.get("kho_rong", 0), "kho_dai": nhom.get("kho_dai", 0),
                         "lsx_id": d.get("lsx_id"), "bai_ghep_id": d.get("bai_ghep_id"),
                         "buoc_id": d.get("buoc_id"),
                     })
@@ -600,7 +602,10 @@ class GiuChoService:
         # dựng cả bảng cân đối ở đây là chạy nguyên engine cho TOÀN kế hoạch chỉ để đọc một con số.
         self.kh.nap_nen_quy_doi([hang])
         con_ve, ngay_ve = 0.0, None
-        for ngay, sl, _ma, line_id in self.kh._hang_dang_ve().get(hang, []):
+        # Bảng cân đối khoá hàng đang về theo (mã, khổ); giữ chỗ còn theo cặp mã — dò mọi khổ.
+        ve = [x for k, ds in self.kh._hang_dang_ve().items() if (k[0], int(k[1])) == hang
+              for x in ds]
+        for ngay, sl, _ma, line_id in ve:
             if line_id == purchase_request_line_id:
                 con_ve, ngay_ve = sl, ngay
                 break
@@ -870,9 +875,15 @@ class GiuChoService:
             h = (r.hang_loai, r.hang_id)
             if h in da_hua:
                 da_hua[h] += _f(r.so_luong)
-        for hang, ds in self.kh._hang_dang_ve().items():
+        # Bảng cân đối khoá hàng đang về theo (mã, khổ); giữ chỗ còn theo cặp mã ⇒ gộp mọi khổ của
+        # một mã về cặp, sắp lại theo ngày về.
+        theo_cap: dict[Hang, list] = {}
+        for k, ds in self.kh._hang_dang_ve().items():
+            theo_cap.setdefault((k[0], int(k[1])), []).extend(ds)
+        for hang, ds in theo_cap.items():
             if hang not in set(hangs):
                 continue
+            ds.sort(key=lambda x: x[0])
             con_hua = da_hua.get(hang, 0.0)
             con_lai: list[tuple[date, float, int]] = []
             for ngay, sl, _ma, line_id in ds:
