@@ -28,6 +28,27 @@ const lbl = (m: Lbls) => (v: unknown) => (v == null || v === "" ? "" : (m[String
 // Bí danh cục bộ giữ nguyên để 3 chỗ dùng bên dưới không phải đổi.
 const NHOM_CD: Lbls = NHOM_CONG_DOAN;
 
+// Dụng cụ DÙNG CHUNG mà bước phải mượn từ kho khuôn — khớp `cong_doan.TOOLING_TYPE` ở backend
+// (service chặn giá trị ngoài danh sách). "Bản kẽm" đã gỡ 16/08/2026: kẽm là vật tư tiêu hao,
+// không có dòng nào trong kho khuôn để trỏ tới — xem lý do đầy đủ ở `models/cong_doan.TOOLING_TYPE`.
+const TOOLING_TYPE: Lbls = {
+  khuon_be: "Khuôn bế",
+  khuon_ep: "Khuôn ép kim",
+  khung_lua: "Khung lụa",
+};
+
+/** Ba chip khuôn ép kim chỉ hiện ở bước khai `Loại khuôn = Khuôn ép kim`.
+ *
+ *  Nguồn số của chúng là ba ô Dài/Rộng/Số khuôn ở phiếu tính giá, mà phiếu CHỈ hỏi ba ô đó cho
+ *  bước `khuon_ep` (đổi chủ 06/09/2026 — trước là bước khung lụa). Bày chip ở bước khuôn bế hay
+ *  khung lụa là mời người ta gõ vào thứ mãi mãi bằng 0 rồi công thức ra 0đ không báo gì.
+ *
+ *  Ẩn CHỈ ở khâu hiển thị (xem `FormulaField`): công thức cũ lỡ dùng vẫn hợp lệ và vẫn tính y như
+ *  trước, không bị gạch đỏ, không bị chặn lưu. */
+const CHIP_KHUON = ["dai_khuon", "rong_khuon", "so_khuon"];
+const AN_CHIP_KHUON = (form: Record<string, unknown>) =>
+  form.requires_tooling && String(form.tooling_type ?? "") === "khuon_ep" ? [] : CHIP_KHUON;
+
 // 5 CHẶNG của dòng giấy — nhãn lấy từ `/api/don-vi/tram` (hằng `models/don_vi_do.TRAM_NHAN`),
 // màn này KHÔNG giữ bản sao nữa. Bảng cứng `TRAM_DONG_GIAY` từng nằm đây GỠ 09/09/2026: nó là
 // bảng nhãn THỨ HAI cho cùng 5 mã, nên một bước Đóng gói hiện "Con → Thành phẩm" ở màn này mà
@@ -321,6 +342,23 @@ export const CFG_CONG_DOAN: CatalogConfig = {
         }
         return lbl(KIEU_BU_HAO)(r.kieu_bu_hao ?? "khong");
       } },
+    // Nhìn ra công đoạn nào chưa khai số cho Lệnh sản xuất (giống cột Tốc độ bên màn Máy).
+    // Ba thứ ĐI CÙNG NHAU ở một cột vì chúng cùng trả lời "bước này ăn bao nhiêu thời gian, và có
+    // vướng dụng cụ không" — tách ba cột thì bảng dài mà vẫn phải đọc cả ba mới hiểu.
+    { key: "requires_tooling", label: "Ràng buộc", width: "13%",
+      render: (r) => {
+        if (!r.requires_tooling) return "";
+        const chuDayDu = `Cần ${lbl(TOOLING_TYPE)(r.tooling_type).toLowerCase()}`;
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: "12px" }}>
+            {!!r.requires_tooling && (
+              <span className="rc__formula-pill" title={chuDayDu}>
+                {chuDayDu}
+              </span>
+            )}
+          </div>
+        );
+      } },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [
@@ -333,6 +371,10 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     { key: "khoan", label: "", type: "khoan-cong-doan", refPrefix: "/api/don-vi", group: "Khoán" },
 
     // ── Nguồn nuôi thẳng thời lượng bước ở Lệnh sản xuất ──────────────────────────────────────
+    { key: "requires_tooling", label: "Bước này cần khuôn", type: "checkbox",
+      group: "Khuôn & dụng cụ",},
+    { key: "tooling_type", label: "Loại khuôn", type: "select", group: "Khuôn & dụng cụ",
+      options: mapOpt(TOOLING_TYPE), showIf: (f) => !!f.requires_tooling },
     // Bảng "Đầu việc và định mức của tổ" GỠ 18/09/2026 (mg `0320`) — công đoạn là CÔNG NGHỆ, việc
     // của tổ khai ở danh mục Công việc khoán. Vật tư (nền BOM) chuyển sang tab "Vật tư" bên dưới.
     { key: "vat_tus", label: "Vật tư công đoạn tiêu thụ", type: "vat-tu-cong-doan", group: "Vật tư" },
@@ -355,7 +397,7 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     // `to_dau_vao`/`to_sau_in` không còn chip ở đây — từ 03/09/2026 hai biến bị ẩn ở MỌI ô công
     // thức (`AN_MOI_O` trong `fields/FormulaField.tsx`), không riêng công đoạn nữa.
     { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula", group: "Giá",
-      nhanTab: "Công thức tính giá" },
+      nhanTab: "Công thức tính giá", an: AN_CHIP_KHUON },
     // ── Đơn vị đứng TRƯỚC Bù hao: nó quyết định bù hao được tra theo số gì (tờ hay con) ────────
     // MENU ĐÓNG 5 TRẠM của dòng giấy (06/09/2026). Hai ô này KHÔNG còn trỏ vào danh mục Đơn vị &
     // quy đổi: danh mục đó phục vụ kho/mua hàng (kg, ram, thùng…), mời hết vào đây thì người khai
@@ -396,6 +438,11 @@ export const CFG_CONG_DOAN: CatalogConfig = {
       || !!String(khoan.cong_thuc_khoan ?? "").trim()
       || phatSinh.length > 0;
     body.khoan = coCauHinh ? { ...khoan, viec_phat_sinh: phatSinh } : null;
+    // Bỏ tick "cần khuôn" thì ô Loại dụng cụ bị `showIf` ẩn ⇒ không nằm trong body ⇒ backend giữ
+    // giá trị cũ. Xoá thẳng ở đây, không thì công đoạn hiện "không cần khuôn" mà vẫn đeo nhãn
+    // "Khuôn bế" trong dữ liệu.
+    body.requires_tooling = !!body.requires_tooling;
+    if (!body.requires_tooling) body.tooling_type = null;
     body.che_do_tinh = "theo_san_luong";
     body.pricing_basis = "per_other";
     body.run_rate = null;
@@ -446,7 +493,7 @@ export const CFG_GIAY: CatalogConfig = {
     // Đơn giá theo cân — CHỐT CỨNG ở danh mục (engine lấy thẳng, phiếu không sửa).
     { key: "don_gia", label: "Đơn giá (đ/kg)", type: "number", group: "Giá", hint: "Đơn giá theo ĐVT đã chọn (mặc định đ/kg)" },
     { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula", group: "Giá",
-      nhanTab: "Công thức tính giá",
+      nhanTab: "Công thức tính giá", an: AN_CHIP_KHUON,
       // ĐIỀN SẴN khi thêm mới (11/09/2026), sửa/xoá được. Trước đó ô này để trống và engine âm
       // thầm chạy đúng hai chuỗi dưới đây làm dự phòng — thứ đang tính tiền giấy mà người khai
       // không nhìn thấy ở đâu cả. Hai chuỗi phải khớp nhánh dự phòng bên
@@ -744,7 +791,8 @@ export const CFG_KHO_HANG: CatalogConfig = {
 // `dang_dat_lam` (mg 0177): dao CHƯA có trong tay — thuê ngoài chưa về, hoặc xưởng đang tự làm.
 // Đi kèm NGÀY CÓ KHUÔN (dự kiến): bước dùng dao ở Lệnh sản xuất hiện ngày đó để người xếp việc
 // biết chờ tới bao giờ. Không có nó thì "đang đặt làm" chỉ là một chữ.
-// Loại dao (kho Khuôn & khung).
+// Loại dao — CÙNG bộ mã với `TOOLING_TYPE` của công đoạn (ô chọn dao ở bước lệnh lọc bằng phép so
+// thẳng hai giá trị, lệch bộ mã là lọc ra rỗng).
 export const LOAI_KHUON: Lbls = {
   khuon_be: "Khuôn bế",
   khuon_ep: "Khuôn ép kim",

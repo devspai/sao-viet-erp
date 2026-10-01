@@ -19,8 +19,8 @@ ASSIGNABLE = (
     "kieu_bu_hao", "bac_bu_hao", "so_to_bu_hao", "nhom", "nhom_may_cho_phep", "department_ids", "khoan_ghi_theo",
     "allowed_defect_pct", "allowed_defect_abs",
     "che_do_tinh", "pricing_basis", "setup_cost", "setup_time", "nang_suat",
-    "run_rate", "rate_tiers", "size_tiers", "first_unit_floor", "min_charge",
-    "spoilage_pct", "inline_flag", "ghi_chu", "active", "cong_thuc_gia",
+    "run_rate", "rate_tiers", "size_tiers", "first_unit_floor", "min_charge", "requires_tooling",
+    "tooling_type", "spoilage_pct", "inline_flag", "ghi_chu", "active", "cong_thuc_gia",
 )
 
 

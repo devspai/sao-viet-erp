@@ -1267,6 +1267,8 @@ class LsxService:
                 obj = self.db.get(CongDoan, cd_id)
                 if obj is not None:
                     cd = {"nhom": obj.nhom, "ten": obj.ten, "department_id": obj.to_mac_dinh_id,
+                          "requires_tooling": obj.requires_tooling,
+                          "tooling_type": obj.tooling_type,
                           "don_vi_vao": obj.don_vi_vao, "don_vi_ra": obj.don_vi_ra}
             else:
                 # `_cong_doan_to_dict` không bơm department_id + cờ dụng cụ → lấy thêm.
@@ -1274,6 +1276,8 @@ class LsxService:
                     obj = self.db.get(CongDoan, cd_id)
                     if obj is not None:
                         cd = {**cd, "department_id": obj.to_mac_dinh_id,
+                              "requires_tooling": obj.requires_tooling,
+                              "tooling_type": obj.tooling_type,
                               "don_vi_vao": obj.don_vi_vao, "don_vi_ra": obj.don_vi_ra}
             ten = row.get("ten") or cd.get("ten") or "Công đoạn"
             nhom = cd.get("nhom")
@@ -1292,8 +1296,8 @@ class LsxService:
                 "nha_cung_cap": row.get("nha_cung_cap"),
                 # Ý ĐỊNH của sale về khuôn — chép nguyên si, KHÔNG diễn giải. Kế hoạch vẫn tự chốt
                 # con dao (`khuon_be_id`); hai thứ đứng cạnh nhau để so ra chỗ lệch.
-                "khuon_nguon": None,
-                "khuon_phi": 0.0,
+                "khuon_nguon": row.get("khuon_nguon"),
+                "khuon_phi": float(row.get("phi_khuon") or 0),
                 # Đơn vị KHAI ở danh mục — bảng "lệnh dự kiến" cần chúng để nói số tờ bằng đúng
                 # tên xưởng đặt. Chỉ là NHÃN ở đây; hệ số quy đổi vẫn do `_don_vi_theo_buoc` lo.
                 "don_vi_vao": cd.get("don_vi_vao"),
@@ -1639,8 +1643,14 @@ class LsxService:
         # Nạp cờ dụng cụ theo LÔ (1 query) — bước của lệnh chỉ giữ `cong_doan_id`, mà hỏi lẻ từng
         # bước là N+1 trên màn danh sách lệnh.
         cd_ids = [cd.cong_doan_id for cd in lsx.cong_doans if cd.cong_doan_id]
-        # Công đoạn không còn cờ dụng cụ (01/10/2026) — khuôn là vật tư thường; Task 9 gỡ nốt chỗ này.
         co_dung_cu: dict[int, tuple[bool, str | None]] = {}
+        if cd_ids:
+            co_dung_cu = {
+                r.id: (bool(r.requires_tooling), r.tooling_type)
+                for r in self.db.query(CongDoan)
+                .filter(CongDoan.id.in_(set(cd_ids)))
+                .all()
+            }
         routing = [
             {
                 "ten": cd.ten,
@@ -1752,8 +1762,8 @@ class LsxService:
             # kho theo `tooling_type`, mà FE không suy ra được nó từ tên công đoạn. Không trả kèm
             # thì đổi bước Bế sang một công đoạn cần KHUÔN ÉP KIM vẫn thấy thẻ "Khuôn của bước (khuôn
             # bế)" và ô chọn vẫn bày dao bế — sai loại, im lặng, cho tới lúc lưu rồi nạp lại màn.
-            "requires_tooling": False,
-            "tooling_type": None,
+            "requires_tooling": can_chot_khuon(cd.requires_tooling, cd.tooling_type),
+            "tooling_type": cd.tooling_type,
             "setup_phut": _f(cd.setup_time),
             # GỢI Ý máy, không phải lệnh gán (09/09/2026): chỉ có số khi công đoạn mới khai ĐÚNG
             # MỘT máy còn dùng, và client chỉ áp khi dòng đang TRỐNG máy. Máy người ta đã chọn vẫn
@@ -2283,8 +2293,9 @@ class LsxService:
             # Hai cờ dụng cụ đọc từ danh mục Công đoạn (KHÔNG suy từ tên bước — tên là chữ người
             # dùng gõ, đặt "Die-cut" hay "Ép kim" đều được). Chúng quyết định bước này có hỏi khuôn
             # hay không, và `tooling_type` còn là chiều lọc thứ hai của ô chọn dao.
-            "requires_tooling": False,
-            "tooling_type": None,
+            "requires_tooling": can_chot_khuon(getattr(cd_obj, "requires_tooling", False),
+                                               getattr(cd_obj, "tooling_type", None)),
+            "tooling_type": getattr(cd_obj, "tooling_type", None),
             # Con dao của bước + thông tin bày cho thợ. Nạp theo LÔ ở `_khuon_map`, không tra ở đây.
             "khuon_be_id": cd.khuon_be_id,
             **(khuon_map or {}).get(cd.khuon_be_id, {}),

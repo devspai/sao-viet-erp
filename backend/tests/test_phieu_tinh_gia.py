@@ -716,6 +716,44 @@ def test_preview_live_tra_nhom_chi_phi_khac(client, auth_headers):
     assert grp["rows"][0]["gia_don_sp"] == pytest.approx(200)   # 800.000 ÷ 4.000
 
 
+# --- Nguồn khuôn: có sẵn hay làm mới (chốt 04/09/2026) -------------------------------------------
+def _row_khuon(**kw):
+    return {"cong_doan": {"requires_tooling": True, "tooling_type": "khuon_be", "ten": "Bế"},
+            "ten": "Bế", "phi_khuon": 0, **kw}
+
+
+def test_khuon_nguon_co_san_khong_canh_bao():
+    """Chọn 'dùng khuôn có sẵn' là một câu trả lời ĐÚNG, không phải chỗ trống bị bỏ quên — engine
+    không được nhắc nữa. Trước đây mọi bước để trống phí đều bị nhắc, nên lời nhắc thành tiếng ồn
+    và người lập phiếu tắt mắt với nó."""
+    from app.services import thanh_phan_engine as eng
+    assert eng._canh_bao_khuon([_row_khuon(khuon_nguon="co_san")]) == []
+
+
+def test_khuon_nguon_lam_moi_ma_khong_tien_thi_nhac():
+    from app.services import thanh_phan_engine as eng
+    cb = eng._canh_bao_khuon([_row_khuon(khuon_nguon="lam_moi")])
+    assert len(cb) == 1 and "làm khuôn mới" in cb[0]
+
+
+def test_khuon_nguon_chua_chon_giu_nhac_cu():
+    from app.services import thanh_phan_engine as eng
+    cb = eng._canh_bao_khuon([_row_khuon()])
+    assert len(cb) == 1 and "có sẵn hay làm mới" in cb[0]
+
+
+def test_khuon_da_co_tien_thi_im_lang():
+    from app.services import thanh_phan_engine as eng
+    assert eng._canh_bao_khuon([_row_khuon(khuon_nguon="lam_moi", phi_khuon=900_000)]) == []
+
+
+def test_buoc_khong_can_dung_cu_thi_khong_xet():
+    from app.services import thanh_phan_engine as eng
+    row = {"cong_doan": {"requires_tooling": False, "tooling_type": None, "ten": "In"},
+           "ten": "In", "phi_khuon": 0}
+    assert eng._canh_bao_khuon([row]) == []
+
+
 # ===================== GIỮ ID THÀNH PHẦN KHI LƯU LẠI (pin ấn phẩm) =====================
 # `quote_items` / `order_lines` / `lsx` ghim MỀM `phieu_thanh_phan.id`. Trước 07/09/2026 mỗi lần
 # lưu phiếu là router xoá–chèn lại nên id đổi hết ⇒ pin chết: drawer "Lệnh dự kiến" hiện "—" ở mọi

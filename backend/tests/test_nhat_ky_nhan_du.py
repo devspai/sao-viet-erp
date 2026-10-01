@@ -90,7 +90,7 @@ def test_moi_ma_cua_o_chon_deu_co_nhan():
 
     bo = {
         "tinh_trang": khuon_be.TINH_TRANG, "loai": khuon_be.LOAI_KHUON,
-        "nhom": cong_doan.NHOM,
+        "nhom": cong_doan.NHOM, "tooling_type": cong_doan.TOOLING_TYPE,
         "kieu_bu_hao": cong_doan.KIEU_BU_HAO,
     }
     thieu = {truong: sorted(set(ma) - set(GIA_TRI_NHAN.get(truong, {})))

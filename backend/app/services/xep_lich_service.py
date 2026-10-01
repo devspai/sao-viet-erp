@@ -61,7 +61,7 @@ from ..repositories.rbac_repo import DepartmentRepository
 from ..services.bai_ghep_service import BaiGhepService
 from ..services.calendar_service import CalendarService
 from ..services._may_fit import kiem_kha_nang
-from ..services.lsx_service import _f, thoi_luong_buoc
+from ..services.lsx_service import _f, can_chot_khuon, thoi_luong_buoc
 
 NHOM_PRINT = "print"
 GIO_BAT_DAU = 8          # 08:00 — giờ bắt đầu ca ngày (giờ nhà máy)
@@ -994,7 +994,14 @@ class XepLichService:
             select(LsxCongDoan.id, LsxCongDoan.cong_doan_id, LsxCongDoan.khuon_be_id)
             .where(LsxCongDoan.id.in_(ids))
         ).all()
-        can_dc: dict[int, bool] = {}   # công đoạn không còn cờ dụng cụ (01/10/2026); Task 9 gỡ nốt
+        cd_ids = {int(b[1]) for b in buocs if b[1]}
+        can_dc = {
+            int(r[0]): can_chot_khuon(r[1], r[2])
+            for r in self.db.execute(
+                select(CongDoan.id, CongDoan.requires_tooling, CongDoan.tooling_type)
+                .where(CongDoan.id.in_(cd_ids))
+            ).all()
+        } if cd_ids else {}
         k_ids = {int(b[2]) for b in buocs if b[2]}
         daos = {
             k.id: k

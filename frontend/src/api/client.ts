@@ -3959,6 +3959,12 @@ export interface TinhGiaComponentMeta {
   so_to_per_sp?: number; // số bài in — DẪN XUẤT: so_trang / trang_moi_tay
   to_ra_cuoi?: number; // tờ ra khỏi bước cuối chuỗi
   so_tp_ra?: number; // thành phẩm thật sự có = to_ra_cuoi × con/tờ
+  /** Σ phí khuôn của sản phẩm này — khoản MỘT LẦN, nhưng ĐÃ NẰM TRONG `gia_von_tp` (và do đó
+   *  trong `gia_von_don`). Số này chỉ để BÀY RA cho người đọc biết trong giá vốn có bao nhiêu
+   *  tiền dao — ĐỪNG cộng nó vào tổng lần nữa. */
+  phi_khuon?: number;
+  /** Phân rã theo bước: bước nào con dao nào bao nhiêu tiền. */
+  phi_khuon_dong?: { ten: string; loai: string | null; thanh_tien: number }[];
   /** Phí giao hàng của sản phẩm này — khoản MỘT LẦN cho cả sản lượng. CŨNG đã nằm trong
    *  `gia_von_tp` (một dòng của nhóm kết quả `giao_hang`), nên ĐỪNG cộng lại lần nữa. */
   phi_giao_hang?: number;
@@ -4086,6 +4092,20 @@ export interface ThanhPhamOut {
   dien_tich: number;
   nha_cung_cap: string | null;
   ghi_chu: string | null;
+  /** Phí làm khuôn của CHÍNH bước này — khoản MỘT LẦN (không nhân SL), nhưng engine CÓ cộng vào
+   *  `gia_von_tp`, nên khi chia ra đ/sản phẩm thì đơn nhỏ gánh nặng hơn đơn lớn. Đó là đánh đổi đã
+   *  chọn 15/08/2026 để báo giá chỉ còn MỘT dòng — đừng "sửa" bằng cách rút nó ra khỏi giá vốn.
+   *  0 = dùng lại dao cũ. Chỉ có nghĩa ở bước mà công đoạn nguồn cần dao lưu kho (bế / ép nhũ). */
+  phi_khuon: number;
+  /** Khuôn có sẵn hay làm mới — sale trả lời ở phiếu tính giá (chốt 04/09/2026). `null` = chưa
+   *  chọn (phiếu cũ), engine giữ nguyên lời nhắc. Kế hoạch đọc lại để biết ý định của sale. */
+  khuon_nguon: "co_san" | "lam_moi" | null;
+  /** Ba ô riêng của bước khuôn ép kim (`tooling_type = "khuon_ep"`) — kích thước/số
+   *  lượng khuôn, TÁCH BIỆT với `phi_khuon`: không tự tính ra tiền, chỉ bơm vào công thức của
+   *  CHÍNH công đoạn đó. Đổi chủ từ bước khung lụa 06/09/2026 (khung lụa nay chỉ còn `phi_khuon`). */
+  dai_khuon: number;
+  rong_khuon: number;
+  so_khuon: number;
   /** Vật tư của BƯỚC này (01/10/2026) — số đã nhập cho chip riêng của từng vật tư. */
   vat_tus: BuocVatTuOut[];
 }
@@ -4220,6 +4240,11 @@ export interface ThanhPhamIn {
   dien_tich?: number;
   nha_cung_cap?: string | null;
   ghi_chu?: string | null;
+  phi_khuon?: number;
+  khuon_nguon?: "co_san" | "lam_moi" | null;
+  dai_khuon?: number;
+  rong_khuon?: number;
+  so_khuon?: number;
   vat_tus?: BuocVatTuIn[];
 }
 /** Input 1 thành phần — mọi field optional + list gia công. */

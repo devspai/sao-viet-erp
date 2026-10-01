@@ -663,7 +663,15 @@ def test_dong_giay_co_co_rieng_de_panel_tach_khoi_vat_tu():
     assert len([r for r in nvl if r["loai"] == "giay"]) == 1
 
 
-# --- Khuôn KHÔNG còn là khái niệm của engine (01/10/2026): khuôn là một vật tư thường có chip ---
+# --- PHÍ KHUÔN: khoản MỘT LẦN, đứng ngoài giá vốn -----------------------------------------------
+
+
+def _buoc_dao(ten: str, loai: str | None, phi: float = 0.0) -> dict:
+    """Bước gia công có cờ dụng cụ. `loai=None` = không cần dao."""
+    cd = {"ten": ten, "nhom": "finishing", "kieu_bu_hao": "khong",
+          "don_vi_vao": "to", "don_vi_ra": "to", "cong_thuc_gia": "to_dau_vao * 10",
+          "requires_tooling": loai is not None, "tooling_type": loai}
+    return {"ten": ten, "cong_doan": cd, "phi_khuon": phi}
 
 
 def _phieu_co_dao(*buocs) -> dict:
@@ -677,20 +685,70 @@ def _phieu_co_dao(*buocs) -> dict:
     return tp
 
 
-def test_du_lieu_khuon_cu_trong_buoc_khong_sinh_dong_nao():
-    """Phiếu cũ còn mang `phi_khuon`/`khuon_nguon` trong dict: engine bỏ qua, không dòng `khuon`."""
-    buoc = {"ten": "Bế thành phẩm", "phi_khuon": 1_500_000, "khuon_nguon": "lam_moi",
-            "cong_doan": {"ten": "Bế thành phẩm", "nhom": "finishing", "kieu_bu_hao": "khong",
-                          "don_vi_vao": "to", "don_vi_ra": "to", "cong_thuc_gia": "to_dau_vao * 10",
-                          "requires_tooling": True, "tooling_type": "khuon_be"}}
-    res = compute_phieu(so_luong=5000, thanh_phans=[_phieu_co_dao(buoc)])
-    assert not [r for g in res["groups"] for r in g["rows"] if r.get("loai") == "khuon"]
-    assert "phi_khuon" not in res["meta"] and "phi_khuon" not in res["meta"]["components"][0]
-    assert not [w for w in res["warnings"] if "khuôn" in w]
+def test_phi_khuon_CONG_vao_gia_von_va_bi_chia_theo_san_luong():
+    """Chốt 15/08/2026: gộp phí dao vào giá vốn để báo giá chỉ còn MỘT dòng.
+
+    Hệ quả đã biết và đã chọn: tiền dao KHÔNG đổi theo sản lượng nên khi bị chia, đơn nhỏ gánh
+    nặng hơn đơn lớn. Test ghim luôn con số để lần sau ai đổi ý thì thấy ngay mình đang đổi cái gì.
+    """
+    def _don(sl: int):
+        return compute_phieu(so_luong=sl, thanh_phans=[
+            _phieu_co_dao(_buoc_dao("Bế thành phẩm", "khuon_be", 1_500_000))])["meta"]["components"][0]
+
+    m = _don(5000)
+    assert m["phi_khuon"] == 1_500_000
+    assert [d["ten"] for d in m["phi_khuon_dong"]] == ["Bế thành phẩm"]
+
+    # Giá vốn = Σ mọi dòng tiền, và dòng dao NẰM TRONG đó.
+    res = compute_phieu(so_luong=5000, thanh_phans=[
+        _phieu_co_dao(_buoc_dao("Bế thành phẩm", "khuon_be", 1_500_000))])
+    dong_dao = [r for g in res["groups"] for r in g["rows"] if r.get("loai") == "khuon"]
+    assert len(dong_dao) == 1 and dong_dao[0]["thanh_tien"] == 1_500_000
+    # Dòng dao KHÔNG mang `buoc_idx` — khoá đó để ghép với thẻ số tờ, trùng khoá là nuốt mất dòng.
+    assert "buoc_idx" not in dong_dao[0]
+    tong_dong = sum(r["thanh_tien"] for g in res["groups"] for r in g["rows"])
+    assert round(tong_dong, 2) == m["gia_von_tp"]
+
+    # Đơn giá CÓ nhúc nhích vì con dao, và nhúc nhích ngược chiều sản lượng.
+    khong_dao = compute_phieu(so_luong=5000, thanh_phans=[
+        _phieu_co_dao(_buoc_dao("Bế thành phẩm", "khuon_be", 0))])["meta"]["components"][0]
+    assert m["gia_von_don"] - khong_dao["gia_von_don"] == pytest.approx(1_500_000 / 5000)
+    # Cùng con dao, đơn nhỏ gánh nặng gấp 10 lần đơn lớn.
+    nho, lon = _don(500), _don(5000)
+    assert nho["gia_von_don"] > lon["gia_von_don"]
+
+
+def test_ba_buoc_can_dao_thi_ba_dong_phi_rieng():
+    """Hộp cần ba con dao ở ba bước — mỗi con một dòng, tổng cộng lại. Gộp một cục thì lúc tái đơn
+    chỉ làm lại MỘT con dao sẽ không biết trừ ra bao nhiêu."""
+    res = compute_phieu(so_luong=500, thanh_phans=[_phieu_co_dao(
+        _buoc_dao("Bế thành phẩm", "khuon_be", 1_500_000),
+        _buoc_dao("Ép kim", "khuon_ep", 900_000),
+        _buoc_dao("Bế nổi", "khuon_ep", 0),          # dùng lại dao cũ
+    )])
+    m = res["meta"]["components"][0]
+    assert m["phi_khuon"] == 2_400_000
+    assert [(d["ten"], d["thanh_tien"]) for d in m["phi_khuon_dong"]] == [
+        ("Bế thành phẩm", 1_500_000), ("Ép kim", 900_000)]
+    # Bước để trống KHÔNG đẻ dòng 0đ, nhưng PHẢI được nhắc.
+    # Lời nhắc đổi văn 04/09/2026: hỏi thẳng "có sẵn hay làm mới" thay vì "chưa khai phí".
+    assert any("Bế nổi" in w and "có sẵn hay làm mới" in w for w in res["warnings"]), res["warnings"]
+    assert res["meta"]["phi_khuon"] == 2_400_000
+
+
+def test_ban_kem_khong_co_phi_khuon():
+    """`kem` là vật tư tiêu hao, tiền đã nằm trong công thức chế bản (`so_kem × đơn giá`).
+    Nhận thêm phí ở đây là tính hai lần — nên bỏ qua cả số lẫn lời nhắc."""
+    res = compute_phieu(so_luong=500, thanh_phans=[_phieu_co_dao(
+        _buoc_dao("Ghi kẽm CTP", "kem", 900_000),
+    )])
+    m = res["meta"]["components"][0]
+    assert m["phi_khuon"] == 0 and m["phi_khuon_dong"] == []
+    assert not [w for w in res["warnings"] if "chưa khai phí" in w]
 
 
 def test_moi_dong_tien_deu_khep_bang_don_gia_moi_san_pham():
-    """Giấy · vật tư · công đoạn — dòng nào cũng phải khép bằng "÷ SL = …đ/sp".
+    """Giấy · vật tư · công đoạn · phí khuôn — dòng nào cũng phải khép bằng "÷ SL = …đ/sp".
 
     Kêu 25/08/2026: trên panel giá vốn chỉ dòng công đoạn có đuôi đ/sp; dòng Giấy (khoản TO NHẤT
     phiếu) và dòng Phí khuôn thì không, nên muốn so đắt rẻ giữa các dòng phải bấm máy tính tay.
@@ -700,7 +758,7 @@ def test_moi_dong_tien_deu_khep_bang_don_gia_moi_san_pham():
       mất số đ/sp. Nay đóng ngoặc vế trước rồi mới chia, để "a ÷ b ÷ SL" không đọc thành nhập nhằng.
     · Bước THIẾU công thức — 0đ vì chưa khai, KHÔNG được nối "÷ 4.000 = 0đ/sp" vào câu báo lỗi.
     """
-    tp = _phieu_co_dao()
+    tp = _phieu_co_dao(_buoc_dao("Bế thành phẩm", "khuon_be", 800_000))
     tp["cong_thuc_gia"] = "dinh_luong * dai_nguyen * rong_nguyen * don_gia_giay * to_nguyen"
     gan_vat_tu_buoc(tp, [{"ten": "Màng bóng", "don_gia": 60_000, "don_vi_gia": "kg",
                       "cong_thuc_gia": "dai_in * rong_in * to_sau_in * don_gia_vat_tu"}])
@@ -716,9 +774,9 @@ def test_moi_dong_tien_deu_khep_bang_don_gia_moi_san_pham():
     # Tên dòng mang tiền tố tên thành phần ("Card · …") nên tra theo ĐUÔI.
     moi_dong = [r for g in res["groups"] for r in g["rows"]]
     dong = {ten: next(r for r in moi_dong if r["ten"].endswith(ten))
-            for ten in ("Couche 300", "Màng bóng", "In offset", "Gấp tay", "Đóng gói")}
+            for ten in ("Couche 300", "Màng bóng", "In offset", "Gấp tay", "Đóng gói", "phí khuôn bế")}
 
-    for ten in ("Couche 300", "Màng bóng", "In offset", "Gấp tay"):
+    for ten in ("Couche 300", "Màng bóng", "In offset", "Gấp tay", "phí khuôn bế"):
         r = dong[ten]
         assert r["cong_thuc"].endswith("đ/sp"), (ten, r["cong_thuc"])
         # Đuôi phải khớp CHÍNH con số engine tính, không phải một phép chia thứ hai lệch pha.
@@ -729,6 +787,16 @@ def test_moi_dong_tien_deu_khep_bang_don_gia_moi_san_pham():
 
     # Bước chưa khai công thức: giữ nguyên câu báo lỗi, KHÔNG đội lốt phép tính.
     assert dong["Đóng gói"]["cong_thuc"] == "thiếu công thức — 0đ"
+
+
+def test_buoc_khong_can_dao_thi_khong_nhac():
+    """Chuỗi toàn bước phẳng ⇒ không dòng phí, không cảnh báo, không khối nào mọc trên màn."""
+    res = compute_phieu(so_luong=500, thanh_phans=[_phieu_co_dao(
+        _buoc_dao("Cán màng mờ", None),
+    )])
+    m = res["meta"]["components"][0]
+    assert m["phi_khuon"] == 0 and m["phi_khuon_dong"] == []
+    assert not [w for w in res["warnings"] if "khuôn" in w]
 
 
 # --- Mực in: TẬP mã, không phải con số ----------------------------------------------------------

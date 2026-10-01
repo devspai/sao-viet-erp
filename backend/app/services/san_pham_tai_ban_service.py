@@ -74,6 +74,13 @@ def _cau_hinh_tu_thanh_phan(tp: PhieuThanhPhan) -> dict:
                 dien_tich=cd.dien_tich,
                 nha_cung_cap=cd.nha_cung_cap,
                 ghi_chu=cd.ghi_chu,
+                phi_khuon=cd.phi_khuon,
+                # Đi CẶP với `phi_khuon`: thiếu nó thì thẻ nạp lại có tiền dao mà không nút nào được
+                # chọn, còn ô tiền (chỉ mở khi "làm mới") thì ẩn mất.
+                khuon_nguon=cd.khuon_nguon,
+                dai_khuon=cd.dai_khuon,
+                rong_khuon=cd.rong_khuon,
+                so_khuon=cd.so_khuon,
                 vat_tus=[
                     BuocVatTuIn(vat_tu_id=v.vat_tu_id, gia_tri_chip=dict(v.gia_tri_chip or {}))
                     for v in sorted(cd.vat_tus, key=lambda x: x.thu_tu)

@@ -47,6 +47,14 @@ class ThanhPhamIn(BaseModel):
     dien_tich: float | None = None
     nha_cung_cap: str | None = None
     ghi_chu: str | None = None
+    # Phí làm khuôn của CHÍNH bước này — MỘT LẦN, không nhân SL. 0 = dùng lại dao cũ.
+    phi_khuon: float | None = Field(default=None, ge=0)
+    # Khuôn có sẵn hay làm mới (`co_san`/`lam_moi`). None = chưa chọn.
+    khuon_nguon: str | None = None
+    # Kích thước/số lượng KHUÔN (bước `khuon_ep`) — TÁCH BIỆT với `phi_khuon`, chỉ ăn vào công thức.
+    dai_khuon: float | None = Field(default=None, ge=0)
+    rong_khuon: float | None = Field(default=None, ge=0)
+    so_khuon: int | None = Field(default=None, ge=0)
     # Vật tư của bước. None/vắng = bước không mang vật tư nào.
     vat_tus: list[BuocVatTuIn] | None = None
 
@@ -67,6 +75,11 @@ class ThanhPhamOut(BaseModel):
     dien_tich: float
     nha_cung_cap: str | None = None
     ghi_chu: str | None = None
+    phi_khuon: float = 0
+    khuon_nguon: str | None = None
+    dai_khuon: float = 0
+    rong_khuon: float = 0
+    so_khuon: int = 0
     vat_tus: list[BuocVatTuOut] = Field(default_factory=list)
 
 

@@ -89,11 +89,11 @@ def _thanh_phan(db, *, ten="Card visit 350gsm", giay_id=101, may_id=201, phi_gia
     db.flush()
     tp.thanh_phams.append(PhieuThanhPham(
         thanh_phan_id=tp.id, thu_tu=1, cong_doan_id=301, ten="Cán màng", don_gia=200,
-        so_mat=1, ghi_chu="mờ",
+        so_mat=1, phi_khuon=0, ghi_chu="mờ",
     ))
     tp.thanh_phams.append(PhieuThanhPham(
         thanh_phan_id=tp.id, thu_tu=0, cong_doan_id=300, ten="Cắt xén", don_gia=100,
-        so_mat=1,
+        so_mat=1, phi_khuon=50_000,
     ))
     # Vật tư thuộc BƯỚC (01/10/2026): gắn vào bước "Cắt xén" (thu_tu 0).
     next(f for f in tp.thanh_phams if f.ten == "Cắt xén").vat_tus.append(
@@ -150,6 +150,8 @@ def test_confirm_creates_full_snapshot(svc, admin, db):
     assert cfg["muc_a"] == ["C", "M", "Y", "K"]
     # Công đoạn giữ ĐÚNG THỨ TỰ (thu_tu 0 rồi 1), dù insert ngược.
     assert [c["ten"] for c in cfg["thanh_phams"]] == ["Cắt xén", "Cán màng"]
+    assert cfg["thanh_phams"][1]["phi_khuon"] == 0
+    assert cfg["thanh_phams"][0]["phi_khuon"] == 50_000
     assert cfg["thanh_phams"][0]["vat_tus"][0]["vat_tu_id"] == 401
     assert cfg["thanh_phams"][0]["vat_tus"][0]["gia_tri_chip"] == {"dai_support": 5}
     assert cfg["thanh_phams"][1]["vat_tus"] == []
@@ -273,6 +275,26 @@ def test_snapshot_giu_chi_phi_khac(svc, admin, db):
     ]
 
 
+def test_snapshot_giu_nguon_khuon(svc, admin, db):
+    """Sale đã trả lời "khuôn có sẵn hay làm mới" thì tái bản phải nạp lại đúng câu trả lời đó.
+    Mất nó thì thẻ nạp ra còn 800.000đ phí khuôn mà không nút nào được chọn, ô tiền ẩn, và lệnh
+    xuống xưởng không còn so được ý sale với con dao kế hoạch chốt."""
+    cust = _customer(db, code="KH-KN")
+    tp = _thanh_phan(db, ten="Hộp bế dao mới")
+    tp.thanh_phams[0].khuon_nguon = "lam_moi"   # Cắt xén, phi_khuon 50.000
+    tp.thanh_phams[1].khuon_nguon = "co_san"    # Cán màng, phi_khuon 0
+    db.commit()
+    d = _confirm_ready_order(svc, db, admin, _quote_for(db, cust, tp))
+    svc.confirm(order_id=d.id, actor=admin, scope="all")
+
+    row = db.query(SanPhamTaiBan).filter(
+        SanPhamTaiBan.ten_chuan_hoa == san_pham_tai_ban_service.chuan_hoa_ten(tp.ten)
+    ).one()
+    assert [(c["ten"], c["phi_khuon"], c["khuon_nguon"]) for c in row.cau_hinh_json["thanh_phams"]] == [
+        ("Cắt xén", 50_000, "lam_moi"), ("Cán màng", 0, "co_san"),
+    ]
+
+
 def _chuan(v):
     """Numeric của DB về float để so với JSON của ảnh chụp."""
     from decimal import Decimal
@@ -293,7 +315,7 @@ def _so_du_o(cfg: dict, nguon, schema, bo_qua: set[str], cap: str) -> None:
 
 def test_snapshot_chep_du_moi_o_nhap(db):
     """Chặn tái phát: hàm chụp liệt kê TAY từng ô, nên thêm ô nhập mới mà quên chép là tái bản
-    nạp thiếu im lặng (đã xảy ra với một ô thêm sau khi hàm chụp viết).
+    nạp thiếu im lặng (đã xảy ra với `khuon_nguon`, thêm 04/09 sau khi hàm chụp viết 30/08).
     Test đi theo schema đầu vào: schema có ô nào thì ảnh chụp phải có đúng giá trị ô đó, trừ các
     ô CỐ Ý bỏ (số lượng của đơn cũ + số dẫn xuất engine tự tính lại)."""
     p = PhieuTinhGia(ma="PTG-T-DU-O", ten_san_pham="Hộp đủ ô", so_luong=1000)
@@ -315,6 +337,7 @@ def test_snapshot_chep_du_moi_o_nhap(db):
     tp.thanh_phams.append(PhieuThanhPham(
         thanh_phan_id=tp.id, thu_tu=0, cong_doan_id=300, ten="Bế", don_gia=100, bu_hao=True,
         so_mat=2, so_vi_tri=3, dien_tich=12.5, nha_cung_cap="Xưởng khuôn A", ghi_chu="dao sắc",
+        phi_khuon=800_000, khuon_nguon="lam_moi", dai_khuon=100, rong_khuon=50, so_khuon=2,
     ))
     tp.thanh_phams[0].vat_tus.append(PhieuBuocVatTu(
         thu_tu=0, vat_tu_id=401, gia_tri_chip={"dai_support": 5, "rong_support": 6}))

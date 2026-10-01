@@ -219,9 +219,48 @@ class PhieuThanhPham(Base):
     dien_tich: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)  # cm²/thành phẩm
     nha_cung_cap: Mapped[str | None] = mapped_column(String(150), nullable=True)   # thuê ngoài
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # Cột `phi_khuon`/`khuon_nguon`/`dai_khuon`/`rong_khuon`/`so_khuon` còn trong DB (không drop),
-    # KHÔNG còn model/đọc/ghi từ 01/10/2026: khuôn nay là một VẬT TƯ thường có chip (spec vật tư chip
-    # công thức). Mg `0359` đặt DEFAULT cho các cột NOT NULL để INSERT không vỡ.
+    # PHÍ KHUÔN của CHÍNH bước này — khoản MỘT LẦN (không nhân số lượng).
+    #
+    # Chỉ có nghĩa khi công đoạn nguồn bật `requires_tooling` với `tooling_type` là dao/dụng cụ lưu
+    # kho (`khuon_be` · `khuon_ep` · `khung_lua`). `kem` KHÔNG có ô: bản kẽm là vật tư tiêu hao, mỗi
+    # bài phơi mới, và tiền nó đã nằm trong công thức của bước chế bản (`so_kem × đơn giá`) — thêm
+    # ô là tính hai lần.
+    #
+    # 0 / để trống = DÙNG LẠI dao cũ ⇒ không tính tiền. Đúng thông lệ ngành: phí dao thu ở đơn đầu,
+    # dao giữ lại trong kho, đơn tái đặt không thu lại.
+    #
+    # ⚠️ CÓ cộng vào `gia_von_tp` — engine đẻ nó thành một dòng tiền trong nhóm Công đoạn (chốt
+    # 15/08/2026: gộp để báo giá chỉ còn MỘT dòng). Nghĩa là tiền dao BỊ CHIA theo sản lượng: cùng
+    # con dao 734.300đ, đơn 500 cuốn gánh 1.469 đ/cuốn còn đơn 5.000 cuốn chỉ 147 đ/cuốn. Đây là
+    # đánh đổi đã biết và đã chọn, KHÔNG phải lỗi — đừng "sửa" bằng cách rút nó ra khỏi giá vốn.
+    phi_khuon: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    # NGUỒN KHUÔN — sale trả lời ĐÚNG MỘT CÂU: dao này có sẵn hay phải làm mới (chốt 04/09/2026).
+    #
+    # Trước đây chỉ có ô tiền ở trên, với quy ước NGẦM "để trống = dùng dao cũ" — nên hệ thống
+    # không phân biệt được "đã cân nhắc và dùng dao cũ" với "quên nhập". Kế hoạch đọc phiếu không
+    # biết sale định thế nào, tới lúc lập lệnh mới lòi ra phải đặt dao mới: mất tiền và mất luôn
+    # thời gian chờ dao.
+    #
+    # NULL = chưa chọn (phiếu cũ, hoặc người lập bỏ qua) → engine giữ nguyên lời nhắc như trước.
+    #
+    # Ô "Dự kiến có khuôn" đi kèm (`khuon_ngay_du_kien`) ĐÃ GỠ 06/09/2026, migration `0269`: nó chỉ
+    # là DỰ TRÙ, không nơi nào đọc. Ngày dự kiến bên kho khuôn (`khuon_be.ngay_ve_du_kien`) sau đó
+    # cũng gỡ nốt (mg `0293`) — không còn mốc "bao giờ có dao" ở đâu trong hệ, chỉ còn tình trạng.
+    khuon_nguon: Mapped[str | None] = mapped_column(String(10), nullable=True)  # co_san|lam_moi
+    # Kích thước/số lượng KHUÔN dùng ở CHÍNH bước này — CHỈ có nghĩa khi bước dùng công đoạn
+    # `tooling_type = "khuon_ep"` (nhãn màn hình "Khuôn ép kim"). BA Ô NÀY TÁCH BIỆT với `phi_khuon` ở
+    # trên: không dùng để tự tính phí, chỉ bơm vào công thức của công đoạn (chip `dai_khuon`/
+    # `rong_khuon`/`so_khuon`, xem `bien_cong_thuc.py`) để NGƯỜI DÙNG tự quy ra tiền theo công thức
+    # họ khai (vd đơn giá/cm² × dài × rộng × số khuôn). 0 = chưa khai, công thức không dùng thì bỏ
+    # qua.
+    #
+    # ĐỔI CHỦ 06/09/2026: trước đây ba ô này mở cho bước `khung_lua` và mang tên `*_khung_lua`.
+    # Sai nghề: khung lụa xưởng trả một cục theo cái khung (ô `phi_khuon` ở trên là đủ), còn khuôn
+    # ép nhũ / dập nổi mới là thứ nhà làm khuôn báo giá theo DIỆN TÍCH khắc — đúng chỗ cần dài ×
+    # rộng × số con. Hai cơ chế đảo chỗ cho nhau, tên cột đổi theo (migration `0268`).
+    dai_khuon: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
+    rong_khuon: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
+    so_khuon: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
