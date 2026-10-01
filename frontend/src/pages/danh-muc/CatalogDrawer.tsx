@@ -429,11 +429,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             nhanO={laDonVi ? "Cách đo của đơn vị này" : cleanLabel}
             goY={laDonVi
               ? "vd: dai_in * rong_in * sl_ra  (một m² tờ in đo thế nào)"
-              : (hint || undefined)}
-            // "Lần trước" (mục 3+7): chỉ có khi ĐANG SỬA — dòng mới tạo chưa có lịch sử.
-            recordId={isEdit && existing ? Number(existing.id) : null}
-            truocGiaTri={existing ? (existing[`${f.key}_truoc`] as string | null | undefined) ?? null : null}
-            truocSuaLuc={existing ? (existing[`${f.key}_sua_luc`] as string | null | undefined) ?? null : null} />
+              : (hint || undefined)} />
         ) : f.type === "checkbox" ? (
           <label className="rc-switch">
             <input type="checkbox" checked={!!form[f.key]} onChange={(e) => set(f.key, e.target.checked)} />

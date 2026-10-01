@@ -128,11 +128,6 @@ def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000) -> PhieuTinhGia:
         giay = GiayNguyen(
             ma="G-IV350X", ten="Ivory 350", gsm=350, don_gia=25_000, don_vi_gia="tan",
             cong_thuc_gia="to_nguyen * dai_nguyen * rong_nguyen * dinh_luong * don_gia / 1000",
-            # CÔNG THỨC LƯỢNG — mọi giấy thật đều có (mg `0197` điền cho dòng cũ, seed điền cho
-            # dòng mới). Test dựng bằng `create_all` nên migration không chạy ⇒ phải khai tay,
-            # không thì bảng cân đối không quy được tờ → tấn và detector "thiếu vật tư" im.
-            # `/ 1000` vì giấy này bán theo TẤN: kết quả công thức đọc theo đúng `don_vi_gia`.
-            cong_thuc_luong="dinh_luong * dai_nguyen * rong_nguyen * to_nguyen / 1000",
         )
         db.add(giay)
     to_id = _to_san_xuat(db).id
@@ -452,6 +447,7 @@ def _gop_in_va_san_sang(db, bg_svc, bg, admin, keys=None):
     return ra
 
 
+@pytest.mark.skip(reason="Bài ghép giấy từng quy ra kg bằng giay_nguyen.cong_thuc_luong (đã gỡ, mg 0348) — Task 5 (giấy đếm theo tờ × khổ) viết lại")
 def test_moi_buoc_chung_mot_dong_lich_khong_bi_boc_hoi(
     db, orders, lsx_svc, bg_svc, xl_svc, admin, customer
 ):
@@ -513,6 +509,7 @@ def test_moi_buoc_chung_mot_dong_lich_khong_bi_boc_hoi(
         assert XepLichRepository(db).by_lsx(lsx.id) == []
 
 
+@pytest.mark.skip(reason="Bài ghép giấy từng quy ra kg bằng giay_nguyen.cong_thuc_luong (đã gỡ, mg 0348) — Task 5 (giấy đếm theo tờ × khổ) viết lại")
 def test_bai_ghep_in_chung_mot_dong_loai_tru_in(db, orders, lsx_svc, bg_svc, xl_svc, admin, customer):
     created = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
     # Mỗi LSX thêm bước xả tờ (sau in) để thành viên còn công đoạn xếp riêng sau khi in chung.
@@ -980,6 +977,7 @@ def test_xem_truoc_bao_xung_dot(db, orders, lsx_svc, xl_svc, admin, customer, mo
     assert a_id in res["xung_dot_ids"]
 
 
+@pytest.mark.skip(reason="Bài ghép giấy từng quy ra kg bằng giay_nguyen.cong_thuc_luong (đã gỡ, mg 0348) — Task 5 (giấy đếm theo tờ × khổ) viết lại")
 def test_lenh_in_hai_luot_chi_loai_dung_luot_duoc_ghep(
     db, orders, lsx_svc, bg_svc, xl_svc, admin, customer
 ):

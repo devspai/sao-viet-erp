@@ -760,18 +760,11 @@ class LsxService:
         ten = getattr(mat, "ten", None) or dvt
         dv_ten = (self._don_vis().get(dvt.strip().lower()) or {}).get("ten") or dvt
         rieng = (cong_thuc or "").strip()
-        # GIẤY (08/09/2026): công thức nằm ở CHÍNH MÓN (`giay_nguyen.cong_thuc_luong`), không ở đầu
-        # việc. Giấy tuỳ TỪNG ĐƠN — cùng công đoạn "chạy sóng" mà đơn này ăn kraft, đơn kia ăn
-        # duplex — nên không khai trước ở danh mục công đoạn được. Đây là lý do đúng để món tự mang
-        # công thức, khác hẳn mực: cùng "Mực Cyan" mà hai khổ in ăn hai định mức, nên mực phải khai
-        # theo đầu việc.
-        if not rieng and hang_loai == HANG_GIAY:
-            rieng = (getattr(mat, "cong_thuc_luong", None) or "").strip()
+        # GIẤY: không còn công thức định mức (mg `0348`) — tạm trả "chưa có số", Task 4 thay bằng
+        # số tờ theo khổ.
+        if hang_loai == HANG_GIAY:
+            return None, None, "Giấy lấy số tờ theo khổ — xem Task 4"
         if not rieng:
-            if hang_loai == HANG_GIAY:
-                return None, None, (
-                    f"chưa khai công thức định mức. Mở danh mục Giấy → sửa “{ten}” → điền ô "
-                    f"“Công thức tính lượng” (ra {dv_ten}).")
             return None, None, (
                 f"chưa khai công thức định mức. Mở danh mục Công đoạn → sửa công đoạn → bảng "
                 f"“Đầu việc và định mức của tổ” → bấm dòng “{ten}” trong khối vật tư → điền ô "

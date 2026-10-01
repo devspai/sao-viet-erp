@@ -87,13 +87,9 @@ def svc(db):
 
 def _giay(db, *, ma="GY-TEST", don_vi="kg", gsm=150, dai=860, rong=650) -> GiayNguyen:
     """Giấy 65×86 định lượng 150 ⇒ 1 tờ = 0,15 × 0,86 × 0,65 = 0,08385 kg.
-
-    `cong_thuc_luong` mặc định BẬT (14/08/2026): cặp quy đổi động `tờ → kg` đã gỡ, nên giấy phải tự
-    khai cách đo mới ra được kg. Đúng chuỗi mà seed và migration `0197` điền cho giấy bán theo cân.
     """
     g = GiayNguyen(ma=ma, ten=f"Giấy {ma}", gsm=gsm, kho_dai=dai, kho_rong=rong,
-                   don_vi_gia=don_vi,
-                   cong_thuc_luong="dinh_luong * dai_nguyen * rong_nguyen * to_nguyen")
+                   don_vi_gia=don_vi)
     db.add(g)
     db.commit()
     return g
@@ -651,84 +647,6 @@ def test_phieu_mua_da_nhan_mot_phan_thi_chi_con_phan_chua_ve(db, svc, customer):
     dong = {d["ma"]: d for d in _nhom(svc.can_doi(), g)["dong"]}
     assert dong["LSX-A"]["trang_thai"] == "xanh"
     assert dong["LSX-B"]["trang_thai"] == "do"
-
-
-def test_giay_khong_co_kho_o_danh_muc_van_quy_ra_kg_bang_kho_CUA_BAI(db, svc, customer):
-    """Danh mục Giấy KHÔNG có ô khổ (chốt 21/07) — khổ lấy từ chính bài/lệnh.
-
-    Không có luật này thì mọi giấy do người dùng tự khai đều rơi vào "chưa đánh giá được", vì chỉ
-    giấy seed demo mới tình cờ còn khổ trong dữ liệu. Mà bài/lệnh thì LUÔN mang khổ tờ in + định
-    lượng, và đó mới là khổ giấy thực sự bị tiêu thụ.
-
-    Từ 08/09/2026 luật này chỉ còn chạy ở dòng BÀI GHÉP — dòng của bước đã mang sẵn kg. Công thức
-    dựng với hằng 1.000 tờ để số ra kiểm được bằng mắt mà không phụ thuộc engine bình bài:
-    0,79 × 1,09 × 150 g × 1.000 = 129,165 kg.
-    """
-    g = _giay(db, ma="GY-KHONG-KHO", dai=0, rong=0, gsm=0)   # danh mục trống khổ + định lượng
-    g.cong_thuc_luong = "dinh_luong * dai_nguyen * rong_nguyen * 1000"
-    a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=1_000, han=MAI,
-              giay_o_buoc=False, qc_them={"gsm": 150})
-    b = _lenh(db, customer, ma="LSX-B", giay_id=g.id, so_to_nguyen=1_000, han=MAI,
-              giay_o_buoc=False, qc_them={"gsm": 150})
-    bg = BaiGhep(ma="GB-QC", giay_id=g.id, kho_in_dai=1090, kho_in_rong=790)
-    db.add(bg)
-    db.flush()
-    db.add_all([
-        BaiGhepThanhVien(bai_ghep_id=bg.id, lsx_id=a.id, so_con_tren_to=1),
-        BaiGhepThanhVien(bai_ghep_id=bg.id, lsx_id=b.id, so_con_tren_to=1),
-    ])
-    db.commit()
-
-    dong = _nhom(svc.can_doi(), g)["dong"][0]
-    assert "khong_doi_chieu_duoc" not in dong["canh_bao"], dong.get("ly_do_canh_bao")
-    assert dong["nhu_cau"] == pytest.approx(129.165, abs=0.01)
-    assert "kg" in dong["nhu_cau_hien_thi"]
-
-
-def test_dong_giay_cua_BUOC_KHONG_bi_chay_lai_cong_thuc_luong_cua_mat_hang(db, svc, customer):
-    """Số trên dòng của bước ĐÃ LÀ kết quả công thức — bảng cân đối không được tính lần hai.
-
-    `LsxService._luong_vat_tu` chạy công thức lúc lưu công đoạn, bằng ngữ cảnh ĐẦY ĐỦ có cả
-    `sl_vao`/`sl_ra` của bước; ngữ cảnh ở đây nghèo hơn hẳn. Chạy lại là VỨT số thật của bước rồi
-    thay bằng một con số khác — im lặng, và sai theo hướng mua thừa hoặc mua thiếu.
-
-    Dựng để phân biệt được: giấy khai công thức ra 83,85 kg cho 1.000 tờ, nhưng người lập kế hoạch
-    đã sửa tay xuống 50 kg (ghép được với đầu thừa của lệnh khác). Bảng phải hiện ĐÚNG 50.
-    """
-    g = _giay(db, ma="GY-CTL")
-    _lenh(db, customer, ma="LSX-CTL", giay_id=g.id, so_to_nguyen=1_000,
-          han=HOM_NAY + timedelta(days=10), kg_giay=50)
-
-    dong = _nhom(svc.can_doi(), g)["dong"][0]
-    assert "khong_doi_chieu_duoc" not in dong["canh_bao"], dong.get("ly_do_canh_bao")
-    assert dong["nhu_cau"] == pytest.approx(50), "phải lấy thẳng số của bước, không tính lại"
-
-
-def test_dong_giay_cua_BAI_GHEP_VAN_chay_cong_thuc_luong_vi_no_mang_so_TO(db, svc, customer):
-    """Mặt kia của test trên: dòng BÀI GHÉP mang SỐ TỜ nên vẫn phải chạy công thức mới ra kg.
-
-    Bài ghép giữ nguyên `bai_ghep.giay_id` — giấy in của một lượt chạy chung thuộc về BÀI, không
-    về bước của lệnh nào. Công thức ở đây trả HẰNG SỐ để tách bạch: nếu cờ `ct_mat_hang` tắt thì
-    số ra là "số tờ quy đổi", cách 1.234 rất xa.
-    """
-    g = _giay(db, ma="GY-BAI")
-    g.cong_thuc_luong = "1234"
-    a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=1_000, han=MAI,
-              giay_o_buoc=False)
-    b = _lenh(db, customer, ma="LSX-B", giay_id=g.id, so_to_nguyen=1_000, han=MAI,
-              giay_o_buoc=False)
-    bg = BaiGhep(ma="GB-CTL", giay_id=g.id, kho_in_dai=860, kho_in_rong=650)
-    db.add(bg)
-    db.flush()
-    db.add_all([
-        BaiGhepThanhVien(bai_ghep_id=bg.id, lsx_id=a.id, so_con_tren_to=1),
-        BaiGhepThanhVien(bai_ghep_id=bg.id, lsx_id=b.id, so_con_tren_to=1),
-    ])
-    db.commit()
-
-    dong = _nhom(svc.can_doi(), g)["dong"][0]
-    assert dong["ma"] == "GB-CTL"
-    assert dong["nhu_cau"] == pytest.approx(1_234)
 
 
 def test_giay_thieu_kho_o_CA_HAI_noi_thi_van_bao_khong_doi_chieu_duoc(db, svc, customer):

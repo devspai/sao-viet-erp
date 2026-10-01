@@ -16393,3 +16393,23 @@ def _migrate_module_notification_quyen_phong(db: Session) -> None:
 
 
 MIGRATIONS.append(("0347_module_notification_quyen_phong", _migrate_module_notification_quyen_phong))
+
+
+def _migrate_bo_cong_thuc_luong_giay(db: Session) -> None:
+    """mg 0348 — gỡ "Công thức tính định mức" của Giấy (`giay_nguyen.cong_thuc_luong`) và bảng
+    `cong_thuc_lich_su` (Giấy là danh mục DUY NHẤT còn ghi vào đó).
+
+    Giấy đếm theo TỜ × KHỔ nên không còn ra kg bằng công thức. Mất dữ liệu, không khôi phục được:
+    câu công thức đã khai ở từng mã giấy + toàn bộ lịch sử đổi công thức. `audit_logs` giữ nguyên.
+    Phải là migration MỚI: mg 0195 thêm lại cột này trên DB trắng. Cột không có index/FK. Idempotent.
+    """
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    if "giay_nguyen" in bang and "cong_thuc_luong" in _existing_columns(insp, "giay_nguyen"):
+        db.execute(text("ALTER TABLE giay_nguyen DROP COLUMN cong_thuc_luong"))
+    db.execute(text("DROP TABLE IF EXISTS cong_thuc_lich_su"))
+    db.commit()
+
+
+MIGRATIONS.append(("0348_bo_cong_thuc_luong_giay", _migrate_bo_cong_thuc_luong_giay))

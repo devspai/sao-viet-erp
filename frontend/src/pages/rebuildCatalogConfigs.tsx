@@ -471,15 +471,6 @@ const congThucGiaGiay = (donViGia: unknown): string =>
     ? "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen * don_gia_giay"
     : "don_gia_giay * to_nguyen");
 
-/** Công thức ĐỊNH MỨC điền sẵn — cùng phép đếm, nhưng dừng trước đơn giá: ô này trả lời "một lệnh
- *  ăn bao nhiêu giấy" cho bảng cân đối vật tư, và tuyệt đối không được nhắc tới tiền.
- *
- *  Số nó trả về đi so với TỒN KHO, mà kho cộng dồn theo ĐVT gốc của mặt hàng — nên giấy đếm theo
- *  tờ thì định mức cũng phải ra tờ, không ra kg. Chuỗi theo cân là chuỗi mg `0197` đã backfill cho
- *  giấy bán theo cân (`_CT_LUONG_GIAY_CAN` ở `seed_rebuild.py`). */
-const congThucLuongGiay = (donViGia: unknown): string =>
-  (giayTheoCan(donViGia) ? "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen" : "to_nguyen");
-
 export const CFG_GIAY: CatalogConfig = {
   title: "Giấy",
   moduleQuyen: "dm_giay",
@@ -508,18 +499,6 @@ export const CFG_GIAY: CatalogConfig = {
       // không nhìn thấy ở đâu cả. Hai chuỗi phải khớp nhánh dự phòng bên
       // `thanh_phan_engine.py`: sửa một bên thì sửa cả hai.
       macDinhTheo: (f) => congThucGiaGiay(f.don_vi_gia) },
-    // Ô thứ hai ra LƯỢNG, không ra tiền — MỞ LẠI 07/09/2026 sau khi ẩn một ngày (06/09/2026), và
-    // đổi tên thành "Công thức tính định mức": chữ "lượng" đứng cạnh ô "tính giá" không nói được
-    // nó trả lời câu gì, còn "định mức" là chữ xưởng vẫn dùng cho "một lệnh ăn bao nhiêu giấy".
-    // Cùng chữ đó ở cột Excel danh mục Giấy và ở nhãn nhật ký (`nhat_ky_danh_muc`) — một ô thì
-    // một tên, không để ba màn gọi ba kiểu.
-    //
-    // Nó là thứ DUY NHẤT còn đổi được tờ → kg cho bảng cân đối vật tư sau khi gỡ cặp quy đổi động
-    // (mg 0198); mg 0197 đã điền sẵn cho giấy bán theo cân. `loaiO: "quy_doi"` ⇒ chip có
-    // `sl_vao`/`sl_ra` và KHÔNG có đơn giá — ô này không được phép nhắc tới tiền.
-    { key: "cong_thuc_luong", label: "Công thức tính định mức", type: "formula", loaiO: "quy_doi",
-      group: "Giá", nhanTab: "Công thức tính định mức",
-      macDinhTheo: (f) => congThucLuongGiay(f.don_vi_gia)},
     { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
     // NVL thay thế (mục 5 "Bảng định mức", mg 0239) — tra cứu/gợi ý khi thiếu giấy, MỘT CHIỀU.
     { key: "thay_the_ids", label: "Giấy thay thế", type: "self-ref-multi",

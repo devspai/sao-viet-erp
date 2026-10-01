@@ -286,8 +286,8 @@ class KeHoachVatTuService:
         #     đều 0), nên mọi món có công thức đều rơi vào "Chưa biết <biến>" và nhu cầu về 0 —
         #     đúng hỏng đã thấy ở LSX26-0020: BOM ghi 10 bản kẽm · 100 kg mực · 91.000 m² màng,
         #     kế hoạch vật tư hiện "0 · Chưa rõ ĐVT" cho cả năm dòng.
-        ct = (getattr(obj, "cong_thuc_luong", None) or "").strip() if (
-            tong_lenh and hang[0] == HANG_GIAY) else ""
+        # Cột `giay_nguyen.cong_thuc_luong` ĐÃ GỠ (mg `0348`): nhánh công thức giấy chờ Task 5 dọn.
+        ct = ""
         if ct:
             # Quy cách chỉ dựng ở đây — chỉ công thức lượng đọc nó, còn phép đổi đơn vị bên dưới
             # không (đo 30/09/2026: dựng cho mọi dòng tốn ~0,1s mỗi 10 nghìn dòng mà vứt đi).

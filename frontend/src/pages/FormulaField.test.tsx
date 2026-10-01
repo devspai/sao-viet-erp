@@ -8,7 +8,7 @@
 // Vì thế test ở đây phải RENDER và BẤM thật, không grep chuỗi: chỉ cần một identifier trong JSX
 // mất chỗ dựa là cả bộ này đỏ.
 import { useState } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -27,17 +27,15 @@ const BIEN = ["dinh_luong", "dai_in", "rong_in", "so_mau", "so_mau_pha"];
 
 /** Cha giữ `value` — đúng như drawer thật, để thấy chuỗi công thức thay đổi ra sao. */
 function Harness({
-  dau = "", bien = BIEN, auth = AUTH, recordId = null, truocGiaTri = null, truocSuaLuc = null,
+  dau = "", bien = BIEN, auth = AUTH,
 }: {
   dau?: string; bien?: string[]; auth?: AuthState;
-  recordId?: number | null; truocGiaTri?: string | null; truocSuaLuc?: string | null;
 }) {
   const [v, setV] = useState(dau);
   return (
     <AuthContext.Provider value={auth}>
       <FormulaField
         id="ct-test" value={v} onChange={setV} configPrefix="/api/don-vi" bienGoiY={bien}
-        recordId={recordId} truocGiaTri={truocGiaTri} truocSuaLuc={truocSuaLuc}
       />
       <output data-testid="ct">{v}</output>
     </AuthContext.Provider>
@@ -212,53 +210,6 @@ describe("bấm vào khoảng trống giữa các chip", () => {
     await user.type(o(), "1000");
     await user.tab();
     expect(ct()).toBe("if ( dinh_luong , 1000 dai_in");
-  });
-});
-
-// "Lần trước" (mục 3+7): dòng nhắc đọc thẳng từ props (không tốn request) + link "Xem thêm lịch sử"
-// mới gọi API, một cửa cho cả 4 ô công thức / 5 danh mục qua `catalog_base.py`.
-describe("\"Lần trước\" — nhắc + lịch sử công thức (mục 3+7)", () => {
-  it("có truocGiaTri → hiện dòng nhắc kèm giờ sửa", () => {
-    render(<Harness dau="dinh_luong" truocGiaTri="LAN_TRUOC_HINT" truocSuaLuc="2026-08-20T08:00:00Z" />);
-    expect(screen.getByText("Lần trước:")).toBeInTheDocument();
-    expect(screen.getByText("LAN_TRUOC_HINT")).toBeInTheDocument();
-  });
-
-  it("dòng MỚI TẠO (chưa từng sửa) → KHÔNG hiện dòng nhắc", () => {
-    render(<Harness dau="dinh_luong" />);
-    expect(screen.queryByText("Lần trước:")).not.toBeInTheDocument();
-  });
-
-  it("bấm 'Xem thêm lịch sử' → gọi đúng route và hiện đủ danh sách mốc cũ", async () => {
-    const user = userEvent.setup();
-    const goi: string[] = [];
-    vi.stubGlobal("fetch", vi.fn((url: string) => {
-      goi.push(String(url));
-      // `useBienCongThuc` (mount tự gọi, vì auth có token) đọc từ điển ở URL này — phải trả đúng
-      // phong bì `{items:[]}` của nó, khác hẳn phong bì mảng phẳng của lịch sử công thức.
-      const data = String(url).includes("/api/bien-cong-thuc")
-        ? { items: [] }
-        : [
-          { id: 2, gia_tri_cu: "CU_2", gia_tri_moi: "MOI_2", sua_boi: 1, sua_luc: "2026-08-20T08:00:00Z" },
-          { id: 1, gia_tri_cu: "CU_1", gia_tri_moi: "MOI_1", sua_boi: 1, sua_luc: "2026-08-10T08:00:00Z" },
-        ];
-      return Promise.resolve(new Response(
-        JSON.stringify(data),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ));
-    }));
-    render(
-      <Harness
-        dau="dinh_luong" recordId={7} truocGiaTri="LAN_TRUOC_HINT" truocSuaLuc="2026-08-20T08:00:00Z"
-        auth={{ ...AUTH, status: "authenticated", token: "t" }}
-      />,
-    );
-    await user.click(screen.getByText("Xem thêm lịch sử"));
-    await waitFor(() => expect(screen.getByText("CU_2")).toBeInTheDocument());
-    expect(screen.getByText("MOI_2")).toBeInTheDocument();
-    expect(screen.getByText("CU_1")).toBeInTheDocument();
-    expect(screen.getByText("MOI_1")).toBeInTheDocument();
-    expect(goi.some((u) => u.includes("/api/don-vi/7/lich-su-cong-thuc"))).toBe(true);
   });
 });
 

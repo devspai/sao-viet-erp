@@ -26,7 +26,7 @@ from app.models.khuon_be import KhuonBe
 from app.models.may_thiet_bi import MayThietBi
 from app.models.piece_work import PieceRate
 from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn
-from app.services.bien_cong_thuc import BIEN, LOAI_CONG_DOAN, LOAI_QUY_DOI, LOAI_VAT_TU
+from app.services.bien_cong_thuc import BIEN, LOAI_CONG_DOAN, LOAI_VAT_TU
 from app.services.thanh_phan_engine import kiem_cong_thuc, safe_eval
 
 # Ngữ cảnh phủ ĐỦ MỌI biến hợp lệ (16 chung + dinh_luong + sl_vao/sl_ra + 2 đơn giá).
@@ -47,7 +47,6 @@ _CTX_DAY_DU.update(
 # ship kèm mà phạm là người dùng không sửa nổi dòng ấy trên màn khai nữa.
 _BANG_CONG_THUC = [
     (CongDoan, [("cong_thuc_gia", LOAI_CONG_DOAN)]),
-    (GiayNguyen, [("cong_thuc_luong", LOAI_QUY_DOI)]),
     # Máy · Công việc khoán không còn ô công thức nào (mg `0274`) nên rơi khỏi danh sách này;
     # Vật tư khác chỉ còn ô giá.
     (VatTuInAn, [("cong_thuc_gia", LOAI_VAT_TU)]),

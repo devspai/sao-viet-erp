@@ -118,11 +118,6 @@ export function crud(prefix: string) {
       boNhoThamChieu(prefix);
       return authed<Row>(`${prefix}/${id}/clone`, token, { method: "POST" });
     },
-    /** Lịch sử ĐẦY ĐỦ một ô công thức (mục 3+7) — "Xem thêm lịch sử" trong `FormulaField`. Chỉ
-     *  danh mục bật `cong_thuc_truong` ở router mới có route này. */
-    lichSuCongThuc(token: string, id: number): Promise<CongThucLichSuItem[]> {
-      return authed<CongThucLichSuItem[]>(`${prefix}/${id}/lich-su-cong-thuc`, token);
-    },
     /** Xuất Excel — blob URL, tải về ngay. CHỈ dòng đang dùng, nhưng ĐỦ ô cấu hình hiện hành:
      *  mọi công thức, bậc tính và bảng con (bậc bù hao, đầu việc, gói bảo trì…) đi ra sheet con
      *  đọc được. Không kèm lịch sử. Danh mục rỗng thì chỉ còn dòng tiêu đề, tự đóng vai file mẫu. */
@@ -160,15 +155,6 @@ export interface ImportExcelOut {
   /** Đã thực sự ghi xuống DB. Luôn `false` ở `mode=preview`. */
   da_ghi: boolean;
   loi: { sheet: string; dong: number; cot: string; ly_do: string }[];
-}
-
-/** Một mốc trong lịch sử một ô công thức — xem `crud().lichSuCongThuc`. */
-export interface CongThucLichSuItem {
-  id: number;
-  gia_tri_cu: string | null;
-  gia_tri_moi: string | null;
-  sua_boi: number | null;
-  sua_luc: string;
 }
 
 export const mayThietBi = crud("/api/may-thiet-bi");

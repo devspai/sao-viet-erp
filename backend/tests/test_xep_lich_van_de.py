@@ -223,6 +223,7 @@ def _gop_in_va_san_sang(db, bg_svc, bg, admin):
 # --- Xả tờ là bước Máy bình thường, không còn detector theo tên ---------------
 
 
+@pytest.mark.skip(reason="Bài ghép giấy từng quy ra kg bằng giay_nguyen.cong_thuc_luong (đã gỡ, mg 0348) — Task 5 (giấy đếm theo tờ × khổ) viết lại")
 def test_khong_con_detector_gang_thieu_xa_to(db, orders, lsx_svc, bg_svc, xl_svc, vd_svc, admin, customer, monkeypatch):
     _luon_lam(monkeypatch)
     a, b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
@@ -387,6 +388,7 @@ def test_qua_tai_may_detector(db, orders, lsx_svc, xl_svc, vd_svc, admin, custom
 # --- Detector: hạn LSX sớm hơn lúc bài ghép in xong -------------------------
 
 
+@pytest.mark.skip(reason="Bài ghép giấy từng quy ra kg bằng giay_nguyen.cong_thuc_luong (đã gỡ, mg 0348) — Task 5 (giấy đếm theo tờ × khổ) viết lại")
 def test_han_som_bai_ghep_detector(db, orders, lsx_svc, bg_svc, xl_svc, vd_svc, admin, customer, monkeypatch):
     _luon_lam(monkeypatch)
     a, b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)

@@ -96,7 +96,7 @@ def _rows_thanh_pham(svc: MotDanhMucVatLieu, objs: list, RowModel) -> list:
 
 
 def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool, enable_clone: bool = False,
-          cong_thuc_truong: str | None = None, excel_spec=None):
+          excel_spec=None):
     mod = MODULE_BY_KIND[kind]
     make_catalog_router(
         router, goc=f"/{path}", ten=kind, ServiceDep=_mot(kind), module=mod,
@@ -114,14 +114,11 @@ def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool, enable_c
         # Không mở `/ma-goi-y`: mã ở ba danh mục này là chữ có nghĩa (`COUCHE`, `MUC-CMYK`,
         # `COUCHE-300-65x86`), không phải một dãy số ⇒ không có "mã kế tiếp" nào đúng.
         enable_clone=enable_clone,
-        cong_thuc_truong=cong_thuc_truong,
         excel_spec=excel_spec,
     )
 
 
-_khai("giay", GiayIn, GiayRow, "giay", kem_don_vi=True, enable_clone=True,
-      cong_thuc_truong="cong_thuc_luong", excel_spec=GIAY)
-# Vật tư khác hết ô công thức (mg `0274`) — dòng GIẤY ngay trên GIỮ `cong_thuc_truong`.
+_khai("giay", GiayIn, GiayRow, "giay", kem_don_vi=True, enable_clone=True, excel_spec=GIAY)
 _khai("vat_tu", VatTuIn, VatTuRow, "vat-tu-in-an", kem_don_vi=True, enable_clone=True,
       excel_spec=VAT_TU)
 # Thành phẩm: CÙNG nền CRUD, nhưng `VatLieuKhoService._chan_tao_tay` / `_chan_go_tay` chặn tạo/xoá — dòng ở

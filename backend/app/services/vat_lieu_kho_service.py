@@ -19,7 +19,7 @@ from ..repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ..repositories.purchase_repo import SupplierRepository
 from ..repositories.vat_lieu_kho_repo import VERSION_SNAPSHOT, VatLieuKhoRepository
 from . import nhat_ky_danh_muc as nk
-from .bien_cong_thuc import LOAI_GIAY, LOAI_QUY_DOI, LOAI_VAT_TU
+from .bien_cong_thuc import LOAI_GIAY, LOAI_VAT_TU
 from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogNotFound, CatalogValidationError, ma_ban_sao,
 )
@@ -34,11 +34,9 @@ HANG_NHAN = {"giay": "Giấy", "vat_tu": "Vật tư khác", "thanh_pham": "Thàn
 
 # Ô công thức của từng màn: (cột, NHÃN đúng như trên màn khai, loại ô để tra tập biến hợp lệ).
 # Nhãn phải trùng chữ ở `rebuildCatalogConfigs.tsx` — câu lỗi hiện thẳng cho người đang gõ, gọi
-# tên khác thì họ không biết đang nói ô nào. Giấy có HAI ô khác loại: `cong_thuc_gia` ra TIỀN nên
-# được dùng `don_gia_giay`, `cong_thuc_luong` ra LƯỢNG nên KHÔNG được nhắc tới tiền (`quy_doi`).
+# tên khác thì họ không biết đang nói ô nào.
 _O_CONG_THUC: dict[str, tuple[tuple[str, str, str], ...]] = {
-    "giay": (("cong_thuc_gia", "Công thức tính giá", LOAI_GIAY),
-             ("cong_thuc_luong", "Công thức tính định mức", LOAI_QUY_DOI)),
+    "giay": (("cong_thuc_gia", "Công thức tính giá", LOAI_GIAY),),
     "vat_tu": (("cong_thuc_gia", "Công thức tính giá", LOAI_VAT_TU),),
 }
 

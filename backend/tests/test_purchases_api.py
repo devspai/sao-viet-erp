@@ -1957,7 +1957,6 @@ def test_sua_pmh_khong_duoc_xoa_lien_ket_mat_hang_goc(client, auth_headers):
         giay = GiayNguyen(
             ma="GY-RT", ten="Giay round-trip", gsm=150, kho_dai=860, kho_rong=650,
             don_vi_gia="kg",
-            cong_thuc_luong="dinh_luong * dai_nguyen * rong_nguyen * to_nguyen",
         )
         db.add(giay)
         db.commit()

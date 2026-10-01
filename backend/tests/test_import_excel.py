@@ -196,8 +196,7 @@ def _dung_nen(client, h) -> dict[str, dict]:
         "ma": MA["giay"], "ten": "Giấy thử", "gsm": 250,
         "caliper_micron": 300,
         "tho": "canh_dai", "don_vi_gia": "kg", "don_gia": 28000, "gia_thi_truong": 30000,
-        "kho_tinh_gia": True, "ghi_chu": "gc", "cong_thuc_gia": "dinh_luong * don_gia_giay",
-        "cong_thuc_luong": "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen"})
+        "kho_tinh_gia": True, "ghi_chu": "gc", "cong_thuc_gia": "dinh_luong * don_gia_giay"})
     ra["vat_tu"] = _tao(client, h, "vat_tu", {
         "ma": MA["vat_tu"], "ten": "Mực thử", "don_vi_gia": "kg", "don_gia": 450000,
         "ghi_chu": "gc", "cong_thuc_gia": "to_sau_in * don_gia_vat_tu"})
@@ -316,10 +315,8 @@ def test_xuat_du_moi_o_cong_thuc_dang_chay(client, seed_credentials):
     _dung_nen(client, h)
 
     mong = {
-        # Cột của Giấy đổi tên "Công thức lượng" → "Công thức tính định mức" (07/09/2026), cùng
-        # đợt mở lại ô đó trong drawer. Cột trỏ đúng `giay_nguyen.cong_thuc_luong` như cũ.
-        "giay": {"Công thức giá": "dinh_luong * don_gia_giay",
-                 "Công thức tính định mức": "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen"},
+        # Giấy hết cột "Công thức tính định mức" (mg `0348`) — chỉ còn công thức giá.
+        "giay": {"Công thức giá": "dinh_luong * don_gia_giay"},
         "vat_tu": {"Công thức giá": "to_sau_in * don_gia_vat_tu"},
         "cong_doan": {"Công thức giá": "to_dau_vao * 100"},
     }

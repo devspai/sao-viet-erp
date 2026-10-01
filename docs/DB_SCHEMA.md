@@ -3312,11 +3312,11 @@ dùng cho bình bài.
 
 **Purpose:** tờ giấy nguyên (khổ mua). Một row = một loại giấy cụ thể. (`chung_loai_giay_id` GỠ ở mg 0342 cùng danh mục Chủng loại giấy.)
 
-**Tất cả cột:** `id`, `ma`, `ten`, `kho_dai`, `kho_rong`, `gsm`, `caliper_micron`, `tho`, `don_vi_gia`, `don_gia`, `gia_thi_truong`, `kho_tinh_gia`, `cong_thuc_gia`, `cong_thuc_luong`, `ghi_chu`, `thay_the_ids`, `anh_url`, `version_no`, `active`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma`, `ten`, `kho_dai`, `kho_rong`, `gsm`, `caliper_micron`, `tho`, `don_vi_gia`, `don_gia`, `gia_thi_truong`, `kho_tinh_gia`, `cong_thuc_gia`, `ghi_chu`, `thay_the_ids`, `anh_url`, `version_no`, `active`, `created_at`, `updated_at`.
 
 `thay_the_ids` (JSON nullable, mảng int, mg 0239): **NVL THAY THẾ** — id các dòng `giay_nguyen` KHÁC dùng thay được món này. MỘT CHIỀU (khai A→B không tự suy B→A; cần cả hai chiều thì người khai tự thêm cả hai). Chỉ để tra cứu/gợi ý khi thiếu hàng, không ràng buộc gì ở engine tính giá/kế hoạch vật tư.
 
-`cong_thuc_luong` (TEXT nullable, mg 0195): **CÔNG THỨC RA LƯỢNG** — vế giấy của cặp với `vat_tu_in_an.cong_thuc_luong` (mg 0194). Vd `dinh_luong * dai_in * rong_in * to_dau_vao` = số kg giấy cả lệnh. Có nó thì giấy khai ĐVT `kg` THẬT rồi tự ra kg, khỏi đi vòng qua cạnh quy đổi động `tờ → kg` — cạnh đó là chỗ duy nhất còn giữ "công thức mà lại có đích". `ke_hoach_vat_tu_service._ve_goc` hỏi cột này TRƯỚC, không có mới quy đổi.
+🔴 **`cong_thuc_luong` GỠ (mg `0348`)** — ô "Công thức tính định mức" của Giấy (mg 0195 + 0197) và bảng `cong_thuc_lich_su` đi kèm. Giấy đếm theo TỜ × KHỔ nên không còn ra kg bằng công thức; mất câu đã khai ở từng mã giấy, không khôi phục được. `audit_logs` giữ nguyên.
 
 `anh_url` (mg 0191, VARCHAR(500) nullable) = ảnh minh hoạ vật tư (1 ảnh). Lưu đường `/api/files/materials/giay/<id>/…` (đọc qua router có đăng nhập); trang QR công khai serve lại chính key này qua `/api/public/vat-lieu-anh` bằng token QR. NULL = chưa có ảnh.
 
@@ -3350,7 +3350,7 @@ dùng cho bình bài.
 
 ⚠️ Đây **KHÔNG** phải `hang_loai` thứ ba: với kho, thành phẩm vẫn là `hang_loai="vat_tu"` — `VatLieuKhoService._mat_hang_row` ép về đúng giá trị đó. Soft-ref, không FK cứng: huỷ đơn KHÔNG xoá thành phẩm (có thể đã nhập kho, xoá là làm mồ côi lô tồn).
 
-🔴 **`cong_thuc_luong` GỠ 06/09/2026 (mg `0274`)** — ô "Công thức tính lượng" của món hàng. Định mức nay khai theo TỪNG DÒNG vật tư của đầu việc (`cong_doan_dau_viec_vat_tu.cong_thuc_luong`): hai món cùng ĐVT `kg` vẫn ăn theo hai trục khác hẳn — mực theo số tờ chạy, dung môi rửa máy theo số màu — nên công thức thuộc về CẶP (đầu việc × vật tư), không thuộc về món hàng. `giay_nguyen.cong_thuc_luong` GIỮ NGUYÊN.
+🔴 **`cong_thuc_luong` GỠ 06/09/2026 (mg `0274`)** — ô "Công thức tính lượng" của món hàng. Định mức nay khai theo TỪNG DÒNG vật tư của đầu việc (`cong_doan_dau_viec_vat_tu.cong_thuc_luong`): hai món cùng ĐVT `kg` vẫn ăn theo hai trục khác hẳn — mực theo số tờ chạy, dung môi rửa máy theo số màu — nên công thức thuộc về CẶP (đầu việc × vật tư), không thuộc về món hàng.
 
 ⚠️ Vì sao đặt ở VẬT TƯ chứ không ở đơn vị (chủ chốt 13/08/2026): `kg` dùng chung cho keo · mực · giấy mà mỗi thứ tiêu hao một kiểu. Gắn công thức lên `kg` là mọi vật tư đo bằng kg đều tính theo cùng một công thức; né bằng cách đẻ `kg_keo`/`kg_giay_to_in`… thì kho và mua hàng phải nhìn mấy cái tên đó thay vì `kg` thật. `LsxService._luong_vat_tu` hỏi cột này TRƯỚC, không có mới lùi về quy đổi từ đơn vị của bước. (Đường giữa — `don_vi_do.cong_thuc` — gỡ 17/08/2026, mg `0215`.)
 
@@ -3595,7 +3595,6 @@ là mặc định lúc tạo lệnh / đổi công đoạn. Định mức đầu
 
 | Ở đâu | Ra cái gì | Trả lời câu |
 |---|---|---|
-| `giay_nguyen.cong_thuc_luong` | **LƯỢNG** | một lệnh cần bao nhiêu kg giấy (ô DUY NHẤT còn tên này ở tầng món hàng) |
 | `cong_doan_may.cong_thuc_gio` (mg `0271`) | **LƯỢNG** | bước chạy CÔNG ĐOẠN này trên MÁY này bằng bao nhiêu <đơn vị tốc độ> |
 | `cong_doan_dau_viec.cong_thuc_khoan` (mg `0272`) | **LƯỢNG** | ĐẦU VIỆC này trong CÔNG ĐOẠN này khoán theo lượng nào (× đơn giá ⇒ tiền) |
 | `cong_doan_dau_viec.cong_thuc_gio` (mg `0276`) | **LƯỢNG** | ĐẦU VIỆC này trong CÔNG ĐOẠN này đo giờ theo lượng nào (÷ năng suất ⇒ phút) |
@@ -3640,7 +3639,6 @@ Vì sao bỏ: cặp-mang-công-thức trả lời câu *"một tờ nặng mấy
 | Khai ở đâu | Migration | Dùng khi |
 |---|---|---|
 | `cong_doan_dau_viec_vat_tu.cong_thuc_luong` | `0272` | mọi vật tư khác — **bắt buộc**, không khai thì bước lệnh để trống |
-| `giay_nguyen.cong_thuc_luong` | `0195` + `0197` điền sẵn `dinh_luong * dai_nguyen * rong_nguyen * to_nguyen` | giấy |
 
 (`don_vi_do.cong_thuc` — cách đo treo ở chính ĐƠN VỊ, mg `0192` — GỠ 17/08/2026 ở mg `0215`: nó trả lời hộ mọi món cùng đo bằng `kg`, trong khi keo và mực ăn khác nhau.)
 
@@ -6329,40 +6327,6 @@ mọi người thấy được, lọc theo ô quyền + phòng; dòng đích dan
 - Nhiều mốc đọc thuộc một người dùng; không FK cứng tới thông báo cuối để việc dọn thông báo cũ không khóa nhau.
 
 **Tất cả cột:** `id`, `user_id`, `channel`, `last_read_notification_id`, `updated_at`.
-
----
-
-## Bảng định mức — lịch sử công thức (mục 3+7)
-
-### `cong_thuc_lich_su`
-
-**Purpose:** một lần đổi giá trị ô công thức lượng/sản lượng ở 5 danh mục (Giấy, Vật tư khác, Máy
-thiết bị, Công đoạn, Đầu việc khoán) — 1 dòng / 1 trường / 1 lần lưu thực sự đổi giá trị. Ghi qua
-đúng hook đang ghi `audit_log` (`services/nhat_ky_danh_muc.ghi_sua`), cùng giao dịch nên không bao
-giờ lệch với nhật ký. Router (`routers/catalog_base.make_catalog_router`) đọc dòng mới nhất để hiện
-"Lần trước: …" ngay dưới ô công thức, và có route riêng liệt kê đầy đủ lịch sử một dòng. Bảng mới →
-`create_all` tự tạo, KHÔNG migration (như `xep_lich_van_de` / `machine_unavailable_periods`).
-
-| Column        | Type (SQLAlchemy → SQLite / Postgres)                   | Key    | Null | Default   | Meaning                                                                 |
-| ------------- | -------------------------------------------------------- | ------ | ---- | --------- | ------------------------------------------------------------------------ |
-| `id`          | `Integer` → `INTEGER` / `SERIAL`                          | **PK** | no   | auto      | Surrogate PK.                                                             |
-| `bang`        | `String(40)` → `VARCHAR(40)`                              | **IX** | no   | —         | Tên bảng nguồn (`giay`, `vat_tu`, `may_thiet_bi`, `cong_doan`, `cong_viec_khoan`) — khớp `ten=` của router, không FK cứng vì trỏ tới 5 bảng khác nhau. |
-| `row_id`      | `Integer` → `INTEGER`                                     | **IX** | no   | —         | Soft → id của dòng trong bảng `bang`.                                    |
-| `truong`      | `String(40)` → `VARCHAR(40)`                              | —      | no   | —         | Tên trường đổi (`cong_thuc_luong`; `cong_thuc_san_luong` gỡ mg `0324`). |
-| `gia_tri_cu`  | `Text`                                                    | —      | yes  | —         | Giá trị TRƯỚC khi đổi.                                                    |
-| `gia_tri_moi` | `Text`                                                    | —      | yes  | —         | Giá trị SAU khi đổi.                                                      |
-| `sua_boi`     | `Integer` → `INTEGER`                                     | —      | yes  | —         | Soft → `users.id` — người lưu.                                           |
-| `sua_luc`     | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ`    | —      | no   | now (UTC) | Khi lưu.                                                                  |
-
-**Keys & indexes**
-
-- Primary key: `id`. Index: `bang`, `row_id`. FK mềm theo convention (trỏ tới 5 bảng khác nhau qua `bang`+`row_id` phẳng, cùng lối `AuditLog.target`).
-
-**Relationships**
-
-- Không FK cấu trúc. Đọc theo (`bang`, `row_id`, `truong`) — xem `repositories/cong_thuc_lich_su_repo.py`.
-
-**Tất cả cột:** `id`, `bang`, `row_id`, `truong`, `gia_tri_cu`, `gia_tri_moi`, `sua_boi`, `sua_luc`.
 
 ---
 

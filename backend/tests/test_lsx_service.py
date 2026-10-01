@@ -3413,49 +3413,6 @@ def lenh_giay(db):
     return l, b
 
 
-def test_goi_y_luong_co_ca_GIAY_va_ra_kg_bang_cong_thuc_cua_chinh_loai_giay(db, lsx_svc, lenh_giay):
-    """Giấy chọn tay ở bước ⇒ lượng suy bằng `giay_nguyen.cong_thuc_luong`, ra ĐƠN VỊ GỐC (kg).
-
-    Không có đầu việc nào khai giấy — đó chính là ca thật: giấy tuỳ từng đơn, không khai trước ở
-    danh mục công đoạn được. Nên nguồn công thức phải là CHÍNH MÓN GIẤY, khác hẳn mực.
-    """
-    from app.services.bien_cong_thuc import quy_cach_bien
-
-    lsx, buoc = lenh_giay
-    g = GiayNguyen(
-        ma="GY-C300", ten="Giấy C300", gsm=300, kho_dai=860, kho_rong=650, don_vi_gia="kg",
-        cong_thuc_luong="dinh_luong * dai_nguyen * rong_nguyen * to_nguyen",
-    )
-    db.add(g)
-    db.commit()
-
-    goi_y = lsx_svc._goi_y_luong_vat_tu(buoc, quy_cach_bien(lsx))
-    dong = next(x for x in goi_y if x["hang_loai"] == "giay" and x["vat_tu_id"] == g.id)
-
-    # 0,3 kg/m² × 0,86 m × 0,65 m × 553 tờ nguyên = 92,73 kg
-    assert dong["so_luong"] == pytest.approx(92.73, abs=0.01)
-    assert dong["ly_do"] is None
-
-
-def test_goi_y_GIAY_chua_khai_cong_thuc_thi_chi_thang_danh_muc_GIAY_khong_chi_dau_viec(
-    db, lsx_svc, lenh_giay,
-):
-    """Câu lý do phải chỉ đúng ô người dùng cần mở — giấy khai ở danh mục Giấy, không ở đầu việc."""
-    from app.services.bien_cong_thuc import quy_cach_bien
-
-    lsx, buoc = lenh_giay
-    g = GiayNguyen(ma="GY-TRONG", ten="Giấy chưa khai", gsm=300, kho_dai=860, kho_rong=650,
-                   don_vi_gia="kg")
-    db.add(g)
-    db.commit()
-
-    dong = next(x for x in lsx_svc._goi_y_luong_vat_tu(buoc, quy_cach_bien(lsx))
-                if x["hang_loai"] == "giay" and x["vat_tu_id"] == g.id)
-    assert dong["so_luong"] is None
-    assert "danh mục Giấy" in dong["ly_do"]
-    assert "Đầu việc" not in dong["ly_do"]
-
-
 # ============================ Lọc bảng lệnh ============================
 def _hai_don_hai_khach(db, orders, admin, customer):
     """Hai đơn đã chuyển SX của HAI khách khác nhau, mỗi đơn lên đủ lệnh.

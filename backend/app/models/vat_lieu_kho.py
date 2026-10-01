@@ -64,17 +64,8 @@ class GiayNguyen(Base):
     gia_thi_truong: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)   # giá tham khảo thị trường
     kho_tinh_gia: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)  # khổ này dùng để tính giá?
     cong_thuc_gia: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # CÔNG THỨC LƯỢNG (mg 0195) — "một lệnh cần bao nhiêu <đơn vị này>". Ra LƯỢNG cho kế hoạch vật
-    # tư, khác `cong_thuc_gia` ngay trên (ra TIỀN cho phiếu tính giá).
-    #
-    # GIỮ LẠI khi ba ô cùng tên ở Máy · Công việc khoán · Vật tư khác bị gỡ (mg `0274`, 06/09/2026):
-    # ô này trả lời câu của MẶT HÀNG — một lệnh cần bao nhiêu kg giấy — chứ không của bước, nên
-    # không có công đoạn nào để neo vào.
-    #
-    # Có ô này thì giấy khai ĐVT `kg` THẬT rồi tự tính ra kg — không phải đi vòng qua cạnh quy đổi
-    # động `tờ → kg` nữa. Cạnh đó là thứ duy nhất còn giữ "công thức mà lại có đích", thứ chủ chốt
-    # 13/08/2026 là vô lý; khai ở đây xong thì xoá nó bằng tay trên UI được.
-    cong_thuc_luong: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Ô "Công thức tính định mức" (`cong_thuc_luong`, mg 0195) ĐÃ GỠ, mg `0348`: giấy đếm theo TỜ × KHỔ,
+    # không còn ra kg bằng công thức.
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # NVL THAY THẾ (mg 0239) — mảng id GIẤY khác dùng thay được món này. MỘT CHIỀU: khai A→B
     # không tự suy B→A, cần cả hai chiều thì người khai tự thêm cả hai. NULL = chưa khai.
