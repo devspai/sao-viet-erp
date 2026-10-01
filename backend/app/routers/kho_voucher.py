@@ -562,15 +562,21 @@ def suggest_allocation(
     kho_id: int = Query(...),
     so_luong: float = Query(..., gt=0, description="Số theo ĐƠN VỊ GỐC của mặt hàng"),
     request_id: int | None = Query(default=None, gt=0, description="Yêu cầu xuất — xuất cho Giao hàng thì ưu tiên lô của đúng đơn"),
+    dang_giay: str | None = Query(default=None, pattern="^(to|cuon)$", description="Giấy: chỉ lấy lô đúng dạng"),
+    kho_rong: int = Query(default=0, ge=0, description="Giấy tờ: khổ mm — chỉ lấy lô đúng khổ"),
+    kho_dai: int = Query(default=0, ge=0),
 ) -> AllocationOut:
     """Gợi ý lấy hàng từ lô nào (FEFO → FIFO). Thủ kho sửa được — giá xuất là ĐÍCH DANH."""
-    rows, thieu = svc.suggest_allocation((hang_loai, hang_id), kho_id, so_luong, request_id=request_id)
+    rows, thieu = svc.suggest_allocation(
+        (hang_loai, hang_id), kho_id, so_luong, request_id=request_id,
+        dang=dang_giay, kho_rong=kho_rong, kho_dai=kho_dai)
     can_view_cost = authz.can(user, MODULE, "view_cost")
     return AllocationOut(
         lines=[
             AllocationLineOut(
                 lot_id=r["lot_id"], ma_lo=r["ma_lo"], ngay_nhap=r["ngay_nhap"],
                 hsd=r["hsd"], sl_con_lai=r["sl_con_lai"], so_luong=r["so_luong"],
+                dang_giay=r["dang_giay"], kho_rong=r["kho_rong"] or 0, kho_dai=r["kho_dai"] or 0,
                 don_gia_nhap=r["don_gia_nhap"] if can_view_cost else None,
                 order_ma=r["order_ma"], khach_hang=r["khach_hang"], canh_bao=r["canh_bao"],
             )
@@ -825,11 +831,15 @@ def list_lots(
     hang_id: int | None = Query(default=None),
     kho_id: int | None = Query(default=None),
     con_hang: bool = Query(default=True),
+    dang_giay: str | None = Query(default=None, pattern="^(to|cuon)$"),
+    kho_rong: int = Query(default=0, ge=0),
+    kho_dai: int = Query(default=0, ge=0),
 ) -> list[StockLotOut]:
     _chan_neu_khong_xem_ton(authz, user)
     can_view_cost = authz.can(user, MODULE, "view_cost")
     hang = (hang_loai, hang_id) if (hang_loai and hang_id) else None
-    lots = svc.lots.list_lots(hang=hang, kho_id=kho_id, con_hang=con_hang)
+    lots = svc.lots.list_lots(hang=hang, kho_id=kho_id, con_hang=con_hang,
+                              dang=dang_giay, kho_rong=kho_rong, kho_dai=kho_dai)
     # Nạp SẴN mọi mặt hàng của các lô trong 1 lượt (tránh N+1).
     hang_map = svc.hang.map_theo_cap([(lot.hang_loai, lot.hang_id) for lot in lots])
     # Mã phiếu NHẬP sinh ra từng lô — để hiển thị lô THEO MÃ PHIẾU (đợt hàng vào kho) thay mã lô

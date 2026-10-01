@@ -25,6 +25,7 @@ import { Icon } from "../components/Icons";
 import { DiscardChangesDialog } from "../components/DiscardChangesDialog";
 import { DonViChonTheoHang, MaterialCombobox } from "../components/MaterialCombobox";
 import { PrintSheet } from "../components/PrintSheet";
+import { DANG_GIAY_NHAN, chuanKho, nhanDangKho, type DangGiay } from "../lib/khoGiay";
 import { fmtDate, fmtDateISO } from "../utils/format";
 import { AN_IN_YEU_CAU, DateFilterHead, DecimalInput, GiaBanDong, GiaGocKcs, LoaiYeuCauChip, RequestStatusBadge, VoucherStatusBadge, PageSizeSelect, DEFAULT_PAGE_SIZE, fmtQty, isOverdue, todayISO, useHeaderTitles } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
@@ -701,6 +702,11 @@ export interface SeedLine {
   /** MÃ lệnh/bài server gửi kèm dòng — nhãn hiện tại chỗ, khỏi tra ngược một danh sách đã tải. */
   lsx_ma?: string | null;
   bai_ghep_ma?: string | null;
+  /** GIẤY: dạng (tờ / cuộn) + khổ mm (rộng × dài; cuộn chỉ khổ rộng). Hàng khác để trống. Dạng quyết
+   *  đơn vị gốc của dòng: tờ ⇒ tờ nguyên, cuộn ⇒ kg. */
+  dang_giay?: DangGiay | null;
+  kho_rong?: number;
+  kho_dai?: number;
   ghi_chu: string | null;
 }
 
@@ -756,6 +762,9 @@ function newLine(seed?: Partial<SeedLine>): DraftLine {
     bai_ghep_id: seed?.bai_ghep_id ?? null,
     lsx_ma: seed?.lsx_ma ?? null,
     bai_ghep_ma: seed?.bai_ghep_ma ?? null,
+    dang_giay: seed?.dang_giay ?? null,
+    kho_rong: seed?.kho_rong ?? 0,
+    kho_dai: seed?.kho_dai ?? 0,
     ghi_chu: seed?.ghi_chu ?? null,
     sl_duyet: 0,
     sl_da_ung: 0,
@@ -859,6 +868,9 @@ function RequestDrawer({
             bai_ghep_id: l.bai_ghep_id,
             lsx_ma: l.lsx_ma,
             bai_ghep_ma: l.bai_ghep_ma,
+            dang_giay: l.dang_giay,
+            kho_rong: l.kho_rong,
+            kho_dai: l.kho_dai,
             ghi_chu: l.ghi_chu,
             sl_duyet: l.sl_duyet,
             sl_da_ung: l.sl_da_ung,
@@ -922,7 +934,9 @@ function RequestDrawer({
           l.hang_loai === m.hang_loai &&
           l.hang_id === m.hang_id &&
           (l.lsx_id ?? null) === (dong?.lsx_id ?? null) &&
-          (l.bai_ghep_id ?? null) === (dong?.bai_ghep_id ?? null),
+          (l.bai_ghep_id ?? null) === (dong?.bai_ghep_id ?? null) &&
+          // Giấy: cùng mã khác dạng/khổ là hai dòng hợp lệ — dòng mới chưa chọn dạng thì chưa tính trùng.
+          (m.hang_loai !== "giay" || (!l.dang_giay && !l.kho_rong && !l.kho_dai)),
       )
     ) {
       setError("Một mặt hàng cho cùng một lệnh chỉ được xuất hiện 1 dòng — gộp số lượng lại.");
@@ -938,7 +952,33 @@ function RequestDrawer({
       hang_ten: m.ten,
       dvt: "",
       he_so_ve_goc: null,
+      // Đổi mặt hàng thì dạng + khổ của món trước không còn đúng.
+      dang_giay: null,
+      kho_rong: 0,
+      kho_dai: 0,
     });
+  }
+
+  /** Đổi dạng giấy: xoá đơn vị (gốc của dạng mới khác — tờ nguyên / kg) để ô ĐVT tự điền lại. */
+  function doiDang(key: string, dang: DangGiay | null) {
+    patchLine(key, {
+      dang_giay: dang,
+      dvt: "",
+      he_so_ve_goc: null,
+      ...(dang === "cuon" ? { kho_dai: 0 } : {}),
+    });
+  }
+
+  /** Giấy thiếu dạng, hoặc tờ thiếu một cạnh khổ ⇒ câu báo; không thì null. */
+  function loiGiay(l: DraftLine): string | null {
+    if (l.hang_loai !== "giay" || !l.hang_id || !(Number(l.sl_de_nghi) > 0)) return null;
+    const ten = l.hang_ten ?? "Giấy";
+    if (!l.dang_giay) return `“${ten}”: chọn dạng giấy (tờ hoặc cuộn).`;
+    const [r, d] = chuanKho(l.kho_rong, l.kho_dai);
+    if (l.dang_giay === "to" && !(r && d)) {
+      return `“${ten}”: giấy dạng tờ phải khai đủ khổ (hai cạnh, mm).`;
+    }
+    return null;
   }
 
   function payloadLines(): StockRequestLineInput[] {
@@ -948,6 +988,14 @@ function RequestDrawer({
       .map((l) => ({
         hang_loai: l.hang_loai as HangLoai,
         hang_id: l.hang_id as number,
+        // Giấy mang dạng + khổ (cạnh ngắn × cạnh dài); máy chủ chuẩn hoá lại.
+        ...(l.hang_loai === "giay"
+          ? {
+              dang_giay: l.dang_giay ?? null,
+              kho_rong: chuanKho(l.kho_rong, l.kho_dai)[0],
+              kho_dai: l.dang_giay === "to" ? chuanKho(l.kho_rong, l.kho_dai)[1] : 0,
+            }
+          : {}),
         dvt: l.dvt,
         sl_de_nghi: Number(l.sl_de_nghi),
         // Đơn giá chỉ gửi cho yêu cầu NHẬP (người yêu cầu biết giá NCC). XUẤT lấy giá vốn từ lô.
@@ -964,6 +1012,11 @@ function RequestDrawer({
     const body = payloadLines();
     if (!body.length) {
       setError("Thêm ít nhất một dòng vật tư có số lượng lớn hơn 0.");
+      return;
+    }
+    const loiDongGiay = lines.map(loiGiay).find((x) => x);
+    if (loiDongGiay) {
+      setError(loiDongGiay);
       return;
     }
     setBusy(true);
@@ -1256,6 +1309,51 @@ function RequestDrawer({
                                   <div className="kho-lines__code">{l.hang_ma ?? ""}</div>
                                 </div>
                               )}
+                              {l.hang_loai === "giay" && l.hang_id && (
+                                editable ? (
+                                  <div className="kho-giay-kho">
+                                    <select
+                                      className="rc-input"
+                                      aria-label="Dạng giấy"
+                                      value={l.dang_giay ?? ""}
+                                      onChange={(e) => doiDang(l.key, (e.target.value || null) as DangGiay | null)}
+                                    >
+                                      <option value="">Dạng…</option>
+                                      {(Object.keys(DANG_GIAY_NHAN) as DangGiay[]).map((d) => (
+                                        <option key={d} value={d}>{DANG_GIAY_NHAN[d]}</option>
+                                      ))}
+                                    </select>
+                                    {l.dang_giay && (
+                                      <>
+                                        <DecimalInput
+                                          className="rc-input kho-num"
+                                          value={l.kho_rong || null}
+                                          onChange={(n) => patchLine(l.key, { kho_rong: n ?? 0 })}
+                                          aria-label={l.dang_giay === "to" ? "Khổ giấy, cạnh thứ nhất (mm)" : "Khổ rộng cuộn (mm)"}
+                                          placeholder={l.dang_giay === "to" ? "Rộng" : "Khổ rộng"}
+                                        />
+                                        {l.dang_giay === "to" && (
+                                          <>
+                                            <span aria-hidden="true">×</span>
+                                            <DecimalInput
+                                              className="rc-input kho-num"
+                                              value={l.kho_dai || null}
+                                              onChange={(n) => patchLine(l.key, { kho_dai: n ?? 0 })}
+                                              aria-label="Khổ giấy, cạnh thứ hai (mm)"
+                                              placeholder="Dài"
+                                            />
+                                          </>
+                                        )}
+                                        <span className="kho-lines__code">mm</span>
+                                      </>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="kho-lines__code">
+                                    {nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai) || "chưa có dạng"}
+                                  </div>
+                                )
+                              )}
                             </td>
                             <td>
                               {editable ? (
@@ -1278,11 +1376,13 @@ function RequestDrawer({
                               )}
                             </td>
                             <td style={{ textAlign: "center" }}>
-                              {(editable || (seedLocked && !l.dvt)) && l.hang_loai && l.hang_id ? (
+                              {(editable || (seedLocked && !l.dvt)) && l.hang_loai && l.hang_id
+                                && (l.hang_loai !== "giay" || l.dang_giay) ? (
                                 <DonViChonTheoHang
                                   token={token}
                                   hangLoai={l.hang_loai}
                                   hangId={l.hang_id}
+                                  dang={l.hang_loai === "giay" ? l.dang_giay ?? null : null}
                                   value={l.dvt}
                                   onChange={(ma, hs) =>
                                     patchLine(l.key, { dvt: ma, he_so_ve_goc: hs })
@@ -1481,6 +1581,9 @@ function RequestDrawer({
                   hang_id: l.hang_id,
                   hang_ma: l.hang_ma,
                   hang_ten: l.hang_ten,
+                  dang_giay: l.dang_giay,
+                  kho_rong: l.kho_rong,
+                  kho_dai: l.kho_dai,
                   dvt: l.dvt,
                   he_so_ve_goc: l.he_so_ve_goc,
                   sl_de_nghi: l.sl_de_nghi,

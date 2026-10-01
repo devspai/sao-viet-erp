@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from .kho_giay import khoa_dong
 from .thong_bao_man import bao
 from ..models.document_sequence import (
     SEQ_DOC_TYPE_STOCK_REQUEST_IN,
@@ -102,7 +103,9 @@ class StockRequestService:
 
         def dau_van(kho_id, ghi_chu, dong) -> tuple:
             return (kho_id, chu(ghi_chu), tuple(sorted((
-                (d["hang_loai"], int(d["hang_id"]), (d.get("dvt") or "").strip(),
+                (khoa_dong(d["hang_loai"], int(d["hang_id"]), d.get("dang_giay"),
+                           d.get("kho_rong"), d.get("kho_dai")),
+                 (d.get("dvt") or "").strip(),
                  so(d["sl_de_nghi"]), d.get("lsx_id"), d.get("bai_ghep_id"),
                  so(d.get("don_gia")) if loai == "NHAP" else None,
                  so(d.get("don_gia_ban")) if loai == "NHAP" else None, chu(d.get("ghi_chu")))
@@ -116,6 +119,7 @@ class StockRequestService:
         for req in self.requests.vua_tao_boi(nguoi_tao_id=user.id, loai=loai, tu_luc=tu_luc):
             co = dau_van(req.kho_id, req.ghi_chu, [
                 {"hang_loai": ln.hang_loai, "hang_id": ln.hang_id, "dvt": ln.dvt,
+                 "dang_giay": ln.dang_giay, "kho_rong": ln.kho_rong, "kho_dai": ln.kho_dai,
                  "sl_de_nghi": ln.sl_de_nghi, "lsx_id": ln.lsx_id, "bai_ghep_id": ln.bai_ghep_id,
                  "don_gia": ln.don_gia, "don_gia_ban": ln.don_gia_ban, "ghi_chu": ln.ghi_chu}
                 for ln in req.lines
@@ -279,14 +283,18 @@ class StockRequestService:
             # Khoá trùng gồm CẢ lệnh/bài (mg 0175): cùng một loại giấy xin cho HAI lệnh khác nhau
             # là hai dòng hợp lệ — gộp lại thì mất luôn thông tin "phần nào cho lệnh nào", mà đó
             # đúng là thứ bảng cân đối cần để trừ đã-cấp vào đúng chỗ.
-            key = (loai, int(hid), ln.get("lsx_id"), ln.get("bai_ghep_id"))
+            # Giấy: cùng mã khác dạng/khổ là hai dòng hợp lệ (spec 2026-10-01 §4.5).
+            key = (khoa_dong(loai, int(hid), ln.get("dang_giay"),
+                             ln.get("kho_rong"), ln.get("kho_dai")),
+                   ln.get("lsx_id"), ln.get("bai_ghep_id"))
             if key in seen:
                 raise StockRequestError(
                     "Một mặt hàng cho cùng một lệnh chỉ được xuất hiện 1 dòng — gộp số lượng lại."
                 )
             seen.add(key)
             self._kiem_hang_va_don_vi(loai, int(hid), ln.get("dvt"), ln["sl_de_nghi"],
-                                      giu_duoc=(loai, int(hid)) in (dang_co or set()))
+                                      giu_duoc=(loai, int(hid)) in (dang_co or set()),
+                                      dang=ln.get("dang_giay"))
             self._kiem_lenh(ln.get("lsx_id"), ln.get("bai_ghep_id"))
 
     def _kiem_lenh(self, lsx_id, bai_ghep_id) -> None:
@@ -303,7 +311,7 @@ class StockRequestService:
             raise StockRequestError(f"Bài ghép #{bai_ghep_id} không tồn tại — chọn lại.")
 
     def _kiem_hang_va_don_vi(self, hang_loai: str, hang_id: int, dvt, so_luong,
-                             *, giu_duoc: bool = False) -> None:
+                             *, giu_duoc: bool = False, dang: str | None = None) -> None:
         """Mặt hàng còn dùng được + đơn vị quy được về gốc. Lỗi trả nguyên văn lý do của danh mục
         (vd "chưa chọn đơn vị tính", "không đổi được từ tờ về kg") để người khai biết sửa ở đâu.
 
@@ -319,7 +327,7 @@ class StockRequestService:
             obj = self.hang.get(hang_loai, hang_id)
             if not getattr(obj, "active", True) and not giu_duoc:
                 raise StockRequestError(f"“{obj.ten}” đã ngừng dùng — chọn mặt hàng khác.")
-            self.hang.quy_ve_goc(hang_loai, hang_id, dvt, so_luong)
+            self.hang.quy_ve_goc(hang_loai, hang_id, dvt, so_luong, dang=dang)
         except VatLieuKhoError as e:
             raise StockRequestError(str(e)) from None
 

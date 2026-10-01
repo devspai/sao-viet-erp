@@ -63,6 +63,7 @@ import {
   writeStoredKho,
 } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
+import { nhanDangKho, nhanKho } from "../lib/khoGiay";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
 
@@ -995,6 +996,9 @@ export function TransferDrawer({
                               <td>
                                 <div className="kho-lines__name" style={{ fontWeight: 600 }}>{l.hang_ten ?? "—"}</div>
                                 <div className="kho-lines__code" style={{ fontSize: 12, color: "var(--ash-2)" }}>{l.hang_ma ?? ""}</div>
+                                {l.dang_giay && (
+                                  <div className="kho-lines__code" style={{ fontSize: 12 }}>{nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai)}</div>
+                                )}
                               </td>
                               <td className="kho-num">
                                 <strong>{fmtQty(l.so_luong)}</strong> {tenDonVi(l.dvt) ?? l.dvt ?? ""}
@@ -1432,6 +1436,9 @@ export function InboxRequestDrawer({
                                     {l.hang_ten ?? "—"}
                                   </div>
                                   <div className="kho-lines__code">{l.hang_ma ?? ""}</div>
+                                  {l.dang_giay && (
+                                    <div className="kho-lines__code">{nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai)}</div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -1632,6 +1639,10 @@ interface LotPick {
   /** Tồn còn lại CỦA LÔ. */
   sl_con_lai: number;
   so_luong: number;
+  /** Giấy: dạng + khổ của lô (hàng khác: null · 0 · 0). */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   don_gia_nhap: number | null;
   /** Nguồn lô thành phẩm (đơn / khách) + cảnh báo khi lô thuộc đơn khác cùng khách. */
   order_ma: string | null;
@@ -1685,6 +1696,9 @@ function toLotPick(a: StockAllocationLine, catalog: StockLot[]): LotPick {
     vi_tri: full?.vi_tri ?? null,
     sl_con_lai: a.sl_con_lai,
     so_luong: a.so_luong,
+    dang_giay: a.dang_giay ?? full?.dang_giay ?? null,
+    kho_rong: a.kho_rong ?? full?.kho_rong ?? 0,
+    kho_dai: a.kho_dai ?? full?.kho_dai ?? 0,
     don_gia_nhap: a.don_gia_nhap,
     order_ma: a.order_ma ?? null,
     khach_hang: a.khach_hang ?? null,
@@ -1806,12 +1820,15 @@ function VoucherCreateDrawer({
           api.kho.phieu
             .danhSachLo(token, {
               hang_loai: l.hang_loai, hang_id: l.hang_id, kho_id: khoId, con_hang: true,
+              // Giấy: chỉ lô đúng dạng/khổ dòng xin.
+              dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai,
             })
             .catch(() => [] as StockLot[]),
           api.kho.phieu
             .goiYLo(token, {
               hang_loai: l.hang_loai, hang_id: l.hang_id, kho_id: khoId,
               so_luong: l.sl_con_lai * hs,
+              dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai,
               // Xuất cho Giao hàng: máy chủ ưu tiên lô của đúng đơn, bỏ lô của khách khác.
               request_id: request.id,
             })
@@ -2395,6 +2412,7 @@ function AllocRow({
     api.kho.phieu
       .danhSachLo(token, {
         hang_loai: l.hang_loai, hang_id: l.hang_id, kho_id: khoId, con_hang: true,
+        dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai,
       })
       .then((lots) => {
         if (cancelled) return;
@@ -2406,7 +2424,7 @@ function AllocRow({
     return () => {
       cancelled = true;
     };
-  }, [l.hang_loai, l.hang_id, khoId, token]);
+  }, [l.hang_loai, l.hang_id, l.dang_giay, l.kho_rong, l.kho_dai, khoId, token]);
 
   const chosen = block.lots.reduce((s, x) => s + x.so_luong, 0);   // tổng đã lấy — ĐƠN VỊ GỐC (lô)
   const target = block.cap;                                         // mốc cần — ĐƠN VỊ YÊU CẦU
@@ -2482,6 +2500,9 @@ function AllocRow({
             {block.matLabel}
           </div>
           {block.matCode ? <div className="kho-lines__code">{block.matCode}</div> : null}
+          {l.dang_giay ? (
+            <div className="kho-lines__code">{nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai)}</div>
+          ) : null}
         </td>
         {/* Ảnh mặt hàng — NGAY cạnh cột Vật tư (cả nhập lẫn xuất). Chọn file = GIỮ client, lưu khi lập
             phiếu. `stopPropagation` để bấm nút ảnh KHÔNG kích hoạt xổ/gập bảng lô của dòng XUẤT. */}
@@ -2697,6 +2718,9 @@ function AllocRow({
                                 phẩm kèm đơn / khách, lô đơn khác cùng khách kèm cảnh báo. */}
                             <td className="kho-lines__code">
                               {lot.voucher_ma ?? lot.ma_lo}
+                              {lot.dang_giay && (
+                                <div>{nhanDangKho(lot.dang_giay, lot.kho_rong, lot.kho_dai)}</div>
+                              )}
                               {lot.order_ma && (
                                 <div>Đơn {lot.order_ma}{lot.khach_hang ? ` · ${lot.khach_hang}` : ""}</div>
                               )}
@@ -3117,6 +3141,9 @@ export function VoucherDrawer({
                             <td style={{ minWidth: 300 }}>
                               <div className="kho-lines__name" style={{ fontWeight: "var(--fw-bold)", color: "var(--ink)" }}>{l.hang_ten ?? "—"}</div>
                               <div className="kho-lines__code" style={{ fontFamily: "var(--ff-sans)", fontSize: 12, color: "var(--ash)" }}>{l.hang_ma ?? ""}</div>
+                              {l.dang_giay && (
+                                <div className="kho-lines__code" style={{ fontSize: 12 }}>{nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai)}</div>
+                              )}
                               {nguonDong(l) && <div className="kho-hint kho-hint--xuong-dong">{nguonDong(l)}</div>}
                             </td>
                             <td className="kho-lines__code" style={{ textAlign: "center" }}>{tenDonVi(l.dvt) ?? l.dvt ?? "—"}</td>

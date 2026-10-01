@@ -5792,6 +5792,9 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `he_so_quy_doi` | `Numeric(14,4)` → `NUMERIC(14,4)` | — | yes | — | Hệ số đi kèm `don_vi_phu`. |
 | `ly_do_thieu` | `String(500)` → `VARCHAR(500)` | — | yes | — | **KHO PHẢN HỒI:** lý do kho cấp/nhập ÍT HƠN số còn phải cấp (vd NCC giao thiếu). Kho khai lúc lập phiếu khi SL < còn phải cấp; hiện ở mục "Kho phản hồi" của đề nghị. |
 | `ghi_chu` | `String(500)` → `VARCHAR(500)` | — | yes | — | Ghi chú riêng của dòng. |
+| `dang_giay` | `String(8)` → `VARCHAR(8)` | — | yes | — | **Dạng giấy** (mg 0349): `to` \| `cuon`. Chỉ hàng Giấy; vật tư khác NULL. Dạng quyết đơn vị gốc của dòng yêu cầu: tờ ⇒ tờ nguyên, cuộn ⇒ kg (`don_vi_gia` của mã giấy, họ Khối lượng). |
+| `kho_rong` | `Integer` → `INTEGER` | — | no | `0` | **Khổ** mm (mg 0349): cạnh NGẮN của tờ, hoặc khổ rộng của cuộn. Chuẩn hoá lúc ghi (`services/kho_giay.chuan_kho`: 780×905 và 905×780 là một khổ). 0 = không có. |
+| `kho_dai` | `Integer` → `INTEGER` | — | no | `0` | **Khổ** mm (mg 0349): cạnh DÀI của tờ; cuộn luôn 0. 0 = không có. |
 
 **Keys & indexes**
 
@@ -5803,7 +5806,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 
 - Nhiều dòng thuộc một `stock_requests`; được `stock_voucher_lines.request_line_id` trỏ vào để chặn ứng vượt.
 
-**Tất cả cột:** `id`, `request_id`, `material_id`, `ten_tu_do`, `dvt`, `sl_de_nghi`, `sl_duyet`, `sl_da_ung`, `don_gia`, `don_vi_phu`, `he_so_quy_doi`, `ly_do_thieu`, `ghi_chu`.
+**Tất cả cột:** `id`, `request_id`, `material_id`, `ten_tu_do`, `dvt`, `sl_de_nghi`, `sl_duyet`, `sl_da_ung`, `don_gia`, `don_vi_phu`, `he_so_quy_doi`, `ly_do_thieu`, `ghi_chu`, `dang_giay`, `kho_rong`, `kho_dai`.
 
 ---
 
@@ -5873,6 +5876,9 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `vi_tri` | `String(100)` → `VARCHAR(100)` | — | yes | — | Phiếu NHẬP: vị trí cất lô trong kho (kệ/ô) — thủ kho khai; ghi sổ chép sang `stock_lots.vi_tri`. Null với XUẤT. Thêm qua migration 0115. |
 | `hsd` | `Date` → `DATE` | — | yes | — | Phiếu NHẬP: hạn sử dụng của lô sắp tạo (tuỳ chọn). Tách hạn = nhiều dòng (mỗi (hạn, SL) một dòng), phần dư không hạn để NULL; ghi sổ chép sang `stock_lots.hsd`. Null với XUẤT. Thêm qua migration 0205. |
 | `lo_goc_id` | `Integer` → `INTEGER` | **IX** | yes | — | Phiếu NHẬP của ĐIỀU CHUYỂN: lô gốc của lô nguồn bị trừ (`lo_goc_id` của nó, hoặc chính nó). Ghi sổ chép sang `stock_lots.lo_goc_id` của lô mới ở kho đích. NULL với phiếu nhập thường. Soft ref, mg 0309. |
+| `dang_giay` | `String(8)` → `VARCHAR(8)` | — | yes | — | **Dạng giấy** (mg 0349): `to` \| `cuon`. Chỉ hàng Giấy; vật tư khác NULL. Dòng phiếu chép từ dòng yêu cầu (nhập có thể khai lại); ghi sổ NHẬP chép sang lô. |
+| `kho_rong` | `Integer` → `INTEGER` | — | no | `0` | **Khổ** mm (mg 0349): cạnh NGẮN của tờ, hoặc khổ rộng của cuộn. Chuẩn hoá lúc ghi (`services/kho_giay.chuan_kho`: 780×905 và 905×780 là một khổ). 0 = không có. |
+| `kho_dai` | `Integer` → `INTEGER` | — | no | `0` | **Khổ** mm (mg 0349): cạnh DÀI của tờ; cuộn luôn 0. 0 = không có. |
 
 **Keys & indexes**
 
@@ -5884,7 +5890,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 
 - Nhiều dòng thuộc một `stock_vouchers`; mỗi dòng trỏ đúng 1 dòng đề nghị và (sau khi ghi sổ) đúng 1 lô.
 
-**Tất cả cột:** `id`, `voucher_id`, `request_line_id`, `hang_loai`, `hang_id`, `lot_id`, `so_luong`, `sl_goc`, `don_gia`, `ghi_chu`, `vi_tri`, `hsd`, `lo_goc_id`.
+**Tất cả cột:** `id`, `voucher_id`, `request_line_id`, `hang_loai`, `hang_id`, `lot_id`, `so_luong`, `sl_goc`, `don_gia`, `ghi_chu`, `vi_tri`, `hsd`, `lo_goc_id`, `dang_giay`, `kho_rong`, `kho_dai`.
 
 ---
 
@@ -5944,13 +5950,16 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `sl_con_lai` | `Numeric(14,4)` → `NUMERIC(14,4)` | — | no | — | Số còn lại của lô, đơn vị gốc. CHECK `>= 0` và `<= sl_ban_dau`. **Tồn của một mã hàng = tổng cột này qua các lô.** Scale 4dp khớp `sl_goc` (migration 0238). |
 | `hsd` | `Date` → `DATE` | — | yes | — | Hạn sử dụng / date in bao bì — nền cho gợi ý FEFO khi xuất. |
 | `lo_goc_id` | `Integer` → `INTEGER` | **IX** | yes | — | **LÔ GỐC** (mg 0309): lô sinh ra từ điều chuyển nhớ lô đầu chuỗi (A → B → C đều trỏ A). NULL = chính nó là lô gốc. Nguồn hàng (lệnh / đơn / khách / giá bán) và sửa giá gốc đi theo lô gốc — kho là danh mục động nên không đoán nguồn theo kho. Soft ref. |
+| `dang_giay` | `String(8)` → `VARCHAR(8)` | **IX**¹ | yes | — | **Dạng giấy** (mg 0349): `to` \| `cuon`. Lô tờ đếm bằng tờ nguyên; lô cuộn đếm bằng đơn vị gốc của mã giấy (họ Khối lượng). Lô giấy cũ để NULL (không backfill); vật tư khác NULL. |
+| `kho_rong` | `Integer` → `INTEGER` | **IX**¹ | no | `0` | **Khổ** mm (mg 0349): cạnh NGẮN của lô tờ, hoặc khổ rộng của cuộn (chỉ để xem — cuộn gom theo mã). 0 = không có. |
+| `kho_dai` | `Integer` → `INTEGER` | **IX**¹ | no | `0` | **Khổ** mm (mg 0349): cạnh DÀI của lô tờ; cuộn luôn 0. |
 | `trang_thai` | `String(16)` → `VARCHAR(16)` | **IX** | no | `available` | `available` (chỉ trạng thái này tính vào TỒN KHẢ DỤNG và được chọn khi xuất) · `hold` giữ chỗ cho đơn/LSX · `qc_wait` chờ KCS · `defect` hàng lỗi · `empty` đã xuất hết. Hàng chờ KCS / lỗi vẫn nằm trong kho (tồn thực tế) nhưng không được xuất. |
 | `created_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | no | now (UTC) | Khi tạo lô. |
 | `updated_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | no | now/onupdate | Sửa lần cuối. |
 
 **Keys & indexes**
 
-- Primary key: `id`. Unique index trên `ma_lo`. Indexes: `material_id`, `voucher_id`, `kho_id`, `trang_thai`.
+- Primary key: `id`. Unique index trên `ma_lo`. Indexes: `material_id`, `voucher_id`, `kho_id`, `trang_thai`. ¹ `ix_stock_lots_giay_kho` trên (`hang_loai`, `hang_id`, `dang_giay`, `kho_rong`, `kho_dai`) — lọc lô giấy theo dạng + khổ (mg 0349).
 - CHECK: `don_gia_nhap >= 0`, `sl_ban_dau > 0`, `sl_con_lai >= 0`, `chk_stock_lots_con_lai` (`sl_con_lai <= sl_ban_dau`).
 - Foreign keys: `material_id FK→materials.id`, `voucher_id FK→stock_vouchers.id`, `kho_id FK→kho_hang.id`.
 
@@ -5958,7 +5967,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 
 - Nhiều lô thuộc một `materials` và một `kho_hang`. Sinh ra từ `stock_vouchers` (phiếu nhập); bị `stock_voucher_lines.lot_id` trỏ vào khi xuất.
 
-**Tất cả cột:** `id`, `ma_lo`, `material_id`, `voucher_id`, `kho_id`, `vi_tri`, `ngay_nhap`, `ncc`, `don_gia_nhap`, `sl_ban_dau`, `sl_con_lai`, `hsd`, `lo_goc_id`, `trang_thai`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma_lo`, `material_id`, `voucher_id`, `kho_id`, `vi_tri`, `ngay_nhap`, `ncc`, `don_gia_nhap`, `sl_ban_dau`, `sl_con_lai`, `hsd`, `lo_goc_id`, `dang_giay`, `kho_rong`, `kho_dai`, `trang_thai`, `created_at`, `updated_at`.
 
 ---
 

@@ -16413,3 +16413,32 @@ def _migrate_bo_cong_thuc_luong_giay(db: Session) -> None:
 
 
 MIGRATIONS.append(("0348_bo_cong_thuc_luong_giay", _migrate_bo_cong_thuc_luong_giay))
+
+
+def _migrate_kho_giay_dang_kho(db: Session) -> None:
+    """mg 0349 — lô, dòng phiếu và dòng yêu cầu kho mang DẠNG + KHỔ của giấy (spec
+    2026-10-01-giay-dem-to-theo-kho §3.1): `dang_giay` (to | cuon, NULL) + `kho_rong` + `kho_dai`
+    (mm, NOT NULL default 0) trên `stock_lots`, `stock_voucher_lines`, `stock_request_lines`, và chỉ
+    mục `ix_stock_lots_giay_kho`. Không backfill: lô giấy cũ để NULL · 0 · 0 (hiện "chưa có khổ").
+    Idempotent: hỏi inspector trước từng ADD COLUMN."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for ten_bang in ("stock_lots", "stock_voucher_lines", "stock_request_lines"):
+        if ten_bang not in bang:
+            continue
+        co = _existing_columns(insp, ten_bang)
+        for ten, kieu in (("dang_giay", "VARCHAR(8)"),
+                          ("kho_rong", "INTEGER NOT NULL DEFAULT 0"),
+                          ("kho_dai", "INTEGER NOT NULL DEFAULT 0")):
+            if ten not in co:
+                db.execute(text(f"ALTER TABLE {ten_bang} ADD COLUMN {ten} {kieu}"))
+                db.commit()
+    if "stock_lots" in bang:
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_stock_lots_giay_kho "
+            "ON stock_lots (hang_loai, hang_id, dang_giay, kho_rong, kho_dai)"
+        ))
+        db.commit()
+
+
+MIGRATIONS.append(("0349_kho_giay_dang_kho", _migrate_kho_giay_dang_kho))

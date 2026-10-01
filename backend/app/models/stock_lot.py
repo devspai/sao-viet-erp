@@ -87,6 +87,12 @@ class StockLot(Base):
     )
     vi_tri: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # GIẤY mang DẠNG (`to` | `cuon`) + KHỔ mm (cạnh ngắn × cạnh dài; cuộn: rộng × 0) — spec
+    # 2026-10-01-giay-dem-to-theo-kho §3.1, mg 0349. Vật tư khác: NULL · 0 · 0. Chuẩn hoá qua
+    # `services/kho_giay.chuan_kho`. NOT NULL default 0 để khoá so sánh không vướng NULL.
+    dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     ngay_nhap: Mapped[date] = mapped_column(Date, nullable=False)
     ncc: Mapped[str | None] = mapped_column(String(150), nullable=True)
     # Giá vốn của RIÊNG lô này (VND/đvt). Chỉ vai có `can_view_cost` được xem — router
@@ -126,6 +132,8 @@ class StockLot(Base):
         CheckConstraint("sl_con_lai <= sl_ban_dau", name="chk_stock_lots_con_lai"),
         # Mọi câu hỏi về tồn đều lọc/gộp theo cặp này — không có index thì quét cả bảng lô.
         Index("ix_stock_lots_hang", "hang_loai", "hang_id"),
+        # Giấy: lọc lô theo (mã, dạng, khổ) — gợi ý xuất, tồn theo khổ. mg 0349.
+        Index("ix_stock_lots_giay_kho", "hang_loai", "hang_id", "dang_giay", "kho_rong", "kho_dai"),
     )
 
 

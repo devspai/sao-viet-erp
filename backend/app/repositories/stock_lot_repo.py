@@ -22,6 +22,7 @@ from ..models.order import Order
 from ..models.stock_lot import LOT_AVAILABLE, LOT_EMPTY, LOT_ISSUABLE, StockLot, StockThreshold
 from ..models.stock_request import StockRequest, StockRequestLine
 from ..models.stock_voucher import VOUCHER_NHAP, StockVoucher, StockVoucherLine
+from ..services.kho_giay import DANG_TO, chuan_kho
 
 # (hang_loai, hang_id) — một mặt hàng gốc.
 Hang = tuple[str, int]
@@ -144,11 +145,27 @@ class StockLotRepository:
         self.db.flush()
         return lot
 
-    def issuable_lots(self, hang: Hang, kho_id: int) -> list[StockLot]:
+    @staticmethod
+    def _loc_dang_kho(stmt, dang: str | None, kho_rong: int, kho_dai: int):
+        """Lọc lô giấy theo DẠNG và (lô TỜ) đúng KHỔ — so bằng nhau tuyệt đối trên hai số đã chuẩn hoá
+        (spec §3.1). Cuộn gom theo mã nên khổ rộng không lọc. `dang=None` ⇒ không lọc gì."""
+        if dang is None:
+            return stmt
+        stmt = stmt.where(StockLot.dang_giay == dang)
+        kr, kd = chuan_kho(kho_rong, kho_dai)
+        if dang == DANG_TO and kr and kd:
+            stmt = stmt.where(StockLot.kho_rong == kr, StockLot.kho_dai == kd)
+        return stmt
+
+    def issuable_lots(self, hang: Hang, kho_id: int, *, dang: str | None = None,
+                      kho_rong: int = 0, kho_dai: int = 0) -> list[StockLot]:
         """Các lô còn hàng và được phép xuất, xếp theo gợi ý **FEFO rồi FIFO**: lô có hạn
         dùng gần nhất đi trước (tránh để quá date), hết hạn dùng thì tới lô nhập trước.
 
         Đây chỉ là GỢI Ý — thủ kho vẫn đổi được lô, vì BRD §3.19 chốt giá xuất là đích danh.
+
+        Giấy: `dang` (+ khổ với tờ) lọc đúng dạng/khổ dòng xin — lô khác dạng hoặc khác khổ không bao
+        giờ được gợi ý.
         """
         stmt = (
             select(StockLot)
@@ -167,7 +184,7 @@ class StockLotRepository:
                 StockLot.id.asc(),
             )
         )
-        return list(self.db.execute(stmt).scalars())
+        return list(self.db.execute(self._loc_dang_kho(stmt, dang, kho_rong, kho_dai)).scalars())
 
     def consume(self, lot: StockLot, qty: float) -> None:
         """Trừ `qty` khỏi lô. Lô hết hàng thì đánh dấu `empty` để khỏi lọt vào gợi ý xuất.
@@ -254,8 +271,9 @@ class StockLotRepository:
         return out
 
     def list_lots(self, *, hang: Hang | None = None, kho_id: int | None = None,
-                  con_hang: bool = True) -> list[StockLot]:
-        stmt = select(StockLot)
+                  con_hang: bool = True, dang: str | None = None,
+                  kho_rong: int = 0, kho_dai: int = 0) -> list[StockLot]:
+        stmt = self._loc_dang_kho(select(StockLot), dang, kho_rong, kho_dai)
         if hang is not None:
             stmt = stmt.where(StockLot.hang_loai == hang[0], StockLot.hang_id == hang[1])
         if kho_id is not None:

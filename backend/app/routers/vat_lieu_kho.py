@@ -159,6 +159,8 @@ def don_vi_cua_mat_hang(
     hang_id: int,
     svc: Service,
     _: Annotated[User, Depends(_doc_mat_hang)],
+    dang: Annotated[str | None, Query(pattern="^(to|cuon)$", description=(
+        "Giấy: dạng dòng kho — tờ ⇒ gốc là tờ nguyên, cuộn ⇒ gốc là kg"))] = None,
 ) -> DonViCuaMatHangOut:
     """Đơn vị gốc + mọi đơn vị đổi được với nó, TÍNH THEO CHÍNH MẶT HÀNG.
 
@@ -166,7 +168,7 @@ def don_vi_cua_mat_hang(
     Chưa khai đơn vị gốc → `ds` rỗng kèm `ly_do` để UI khoá ô và chỉ đường về danh mục.
     """
     try:
-        return DonViCuaMatHangOut(**svc.don_vi_cua_mat_hang(hang_loai, hang_id))
+        return DonViCuaMatHangOut(**svc.don_vi_cua_mat_hang(hang_loai, hang_id, dang=dang))
     except (VatLieuKhoNotFound, VatLieuKhoValidationError) as e:
         raise loi_http(e) from None
 

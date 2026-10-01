@@ -8343,6 +8343,10 @@ export interface StockRequestLine {
   bai_ghep_id: number | null;
   lsx_ma: string | null;
   bai_ghep_ma: string | null;
+  /** GIẤY: dạng (`to` | `cuon`) + khổ mm (cạnh ngắn × cạnh dài; cuộn: rộng × 0). Hàng khác: null · 0 · 0. */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   /** Đơn vị NGƯỜI ĐỀ NGHỊ chọn; mọi `sl_*` của dòng theo đơn vị này. */
   dvt: string;
   /** Số quy về ĐƠN VỊ GỐC + câu diễn giải — dòng nhắc "10 ram ≈ 419,25 kg" dưới ô SL.
@@ -8471,6 +8475,10 @@ export interface StockRequestLineInput {
   /** Xin CHO LỆNH NÀO (mg 0175) — bỏ trống được (xin lặt vặt). Server kiểm id có thật. */
   lsx_id?: number | null;
   bai_ghep_id?: number | null;
+  /** GIẤY: bắt buộc dạng; tờ bắt buộc đủ hai cạnh (mm). Hàng khác: bỏ trống (máy chủ ép null · 0 · 0). */
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
   dvt: string;
   sl_de_nghi: number;
   /** Đơn giá NHẬP người đề nghị khai (chỉ đề nghị NHẬP), theo `dvt`. Phiếu kế thừa; kho không sửa. */
@@ -9647,6 +9655,10 @@ export interface StockVoucherLine {
   hang_ma: string | null;
   hang_ten: string | null;
   dvt: string | null;
+  /** Giấy: dạng + khổ mm của dòng phiếu (hàng khác: null · 0 · 0). */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   lot_id: number | null;
   ma_lo: string | null;
   /** SL đề nghị gốc của dòng (đọc-nối) — đối chiếu "đề nghị vs thực nhận/xuất". null = không nối được. */
@@ -9802,6 +9814,10 @@ export interface StockLot {
   dvt_ten: string | null;
   kho_id: number;
   vi_tri: string | null;
+  /** Giấy: dạng + khổ mm của lô (lô cũ / vật tư khác: null · 0 · 0). */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   ngay_nhap: string;
   ncc: string | null;
   sl_ban_dau: number;
@@ -9836,6 +9852,9 @@ export interface StockAllocationLine {
   hsd: string | null;
   sl_con_lai: number;
   so_luong: number;
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
   don_gia_nhap: number | null;
   /** Nguồn lô thành phẩm (đơn / khách) — trống với giấy, vật tư. */
   order_ma?: string | null;
@@ -14407,7 +14426,14 @@ export const api = {
     /** Đơn vị gốc + mọi đơn vị đổi được — danh sách TỰ THÍCH NGHI theo từng mặt hàng. */
     /** Đơn vị của MỘT mặt hàng. Các lời gọi trong CÙNG một nhịp (vd. mỗi dòng của form bảng giá
      *  tự gọi khi mở) được GỘP thành một request `/mat-hang/don-vi-lo` — xem `gomDonVi`. */
-    donVi(token: string, hangLoai: HangLoai, hangId: number): Promise<DonViCuaMatHang> {
+    donVi(token: string, hangLoai: HangLoai, hangId: number, dang?: "to" | "cuon" | null): Promise<DonViCuaMatHang> {
+      // Giấy theo DẠNG (kho): tờ ⇒ gốc là tờ nguyên, cuộn ⇒ gốc là kg — không đi đường gộp lô
+      // (đường đó trả đơn vị gốc của mã giấy, không biết dạng).
+      if (hangLoai === "giay" && dang) {
+        return authed<DonViCuaMatHang>(
+          `/api/vat-lieu-kho/mat-hang/${hangLoai}/${hangId}/don-vi?dang=${dang}`, token,
+        );
+      }
       return gomDonVi(token, hangLoai, hangId);
     },
     /** Các NCC bán mặt hàng này, giá đã quy về đơn vị gốc — rẻ nhất đứng đầu. */
@@ -14613,7 +14639,11 @@ export const api = {
       /** Gợi ý lấy hàng từ lô nào (FEFO → FIFO). `thieu` > 0 = kho không đủ hàng. */
       goiYLo(
         token: string,
-        params: { hang_loai: HangLoai; hang_id: number; kho_id: number; so_luong: number; request_id?: number | null },
+        params: {
+          hang_loai: HangLoai; hang_id: number; kho_id: number; so_luong: number; request_id?: number | null;
+          /** Giấy: chỉ lấy lô đúng dạng (+ đúng khổ với tờ). */
+          dang_giay?: "to" | "cuon" | null; kho_rong?: number; kho_dai?: number;
+        },
       ): Promise<StockAllocation> {
         // `so_luong` ở ĐƠN VỊ GỐC — lô lưu theo đơn vị đó, gửi số theo đơn vị người khai là lệch.
         const qs = new URLSearchParams({
@@ -14624,13 +14654,27 @@ export const api = {
         });
         // Yêu cầu xuất do Giao hàng gửi ⇒ máy chủ ưu tiên lô của đúng đơn, bỏ lô của khách khác.
         if (params.request_id != null) qs.set("request_id", String(params.request_id));
+        if (params.dang_giay) {
+          qs.set("dang_giay", params.dang_giay);
+          if (params.kho_rong) qs.set("kho_rong", String(params.kho_rong));
+          if (params.kho_dai) qs.set("kho_dai", String(params.kho_dai));
+        }
         return authed<StockAllocation>(`/api/kho/phieu/lo/goi-y?${qs.toString()}`, token);
       },
       danhSachLo(
         token: string,
-        params: { hang_loai?: HangLoai | null; hang_id?: number | null; kho_id?: number | null; con_hang?: boolean },
+        params: {
+          hang_loai?: HangLoai | null; hang_id?: number | null; kho_id?: number | null; con_hang?: boolean;
+          /** Giấy: chỉ liệt kê lô đúng dạng (+ đúng khổ với tờ). */
+          dang_giay?: "to" | "cuon" | null; kho_rong?: number; kho_dai?: number;
+        },
       ): Promise<StockLot[]> {
         const qs = new URLSearchParams();
+        if (params.dang_giay) {
+          qs.set("dang_giay", params.dang_giay);
+          if (params.kho_rong) qs.set("kho_rong", String(params.kho_rong));
+          if (params.kho_dai) qs.set("kho_dai", String(params.kho_dai));
+        }
         if (params.hang_loai && params.hang_id != null) {
           qs.set("hang_loai", params.hang_loai);
           qs.set("hang_id", String(params.hang_id));

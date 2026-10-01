@@ -11,6 +11,25 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from ..services.kho_giay import DANG_GIAY, DANG_TO, chuan_kho
+
+
+def _chuan_giay(hang_loai: str | None, dang: str | None, kho_rong, kho_dai, *, bat_buoc: bool):
+    """Dạng + khổ của dòng kho (spec 2026-10-01 §3.1). Giấy: dạng bắt buộc (`bat_buoc`), tờ phải đủ hai
+    cạnh > 0, khổ chuẩn hoá cạnh ngắn × cạnh dài. Hàng khác: ép NULL · 0 · 0 (client gửi gì cũng bỏ)."""
+    if hang_loai is not None and hang_loai != "giay":
+        return None, 0, 0
+    if dang is not None and dang not in DANG_GIAY:
+        raise ValueError("Dạng giấy chỉ có tờ hoặc cuộn.")
+    kr, kd = chuan_kho(kho_rong, kho_dai)
+    if dang is None:
+        if hang_loai == "giay" and bat_buoc:
+            raise ValueError("Giấy phải chọn dạng: tờ hoặc cuộn.")
+        return None, kr, kd
+    if dang == DANG_TO and not (kr and kd):
+        raise ValueError("Giấy dạng tờ phải khai đủ khổ (hai cạnh, mm).")
+    return dang, kr, (kd if dang == DANG_TO else 0)
+
 
 # --- Yêu cầu ----------------------------------------------------------------
 
@@ -30,6 +49,17 @@ class StockRequestLineIn(BaseModel):
     # Đơn giá NHẬP do người đề nghị khai (chỉ đề nghị NHẬP), theo `dvt`. Phiếu kế thừa; kho không sửa.
     don_gia: int | None = Field(default=None, ge=0)
     ghi_chu: str | None = Field(default=None, max_length=500)
+    # GIẤY: dạng (`to` | `cuon`) + khổ mm. Giấy bắt buộc dạng; tờ bắt buộc đủ hai cạnh; hàng khác bị ép
+    # NULL · 0 · 0. Chuẩn hoá cạnh ngắn × cạnh dài lúc nhận.
+    dang_giay: str | None = None
+    kho_rong: int | float | None = Field(default=0, ge=0)
+    kho_dai: int | float | None = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def _chuan_dang_kho(self) -> "StockRequestLineIn":
+        self.dang_giay, self.kho_rong, self.kho_dai = _chuan_giay(
+            self.hang_loai, self.dang_giay, self.kho_rong, self.kho_dai, bat_buoc=True)
+        return self
 
 
 class StockRequestCreate(BaseModel):
@@ -84,6 +114,10 @@ class StockRequestLineOut(BaseModel):
     lsx_ma: str | None = None
     bai_ghep_ma: str | None = None
     dvt: str
+    # Giấy: dạng + khổ mm của dòng (hàng khác: None · 0 · 0).
+    dang_giay: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     # Số đã quy về ĐƠN VỊ GỐC + câu diễn giải ("1 ram = 41,93 kg") — FE hiện dòng nhắc dưới ô SL
     # để người khai thấy trước con số sẽ vào tồn. None = không đổi được (kèm `canh_bao_dv`).
     don_vi_goc: str | None = None
@@ -456,6 +490,17 @@ class StockVoucherLineIn(BaseModel):
     # Phiếu NHẬP: hạn sử dụng của lô sắp tạo (tuỳ chọn). Tách hạn = nhiều dòng (mỗi hạn 1 dòng),
     # phần dư không hạn để None. XUẤT bỏ qua.
     hsd: date | None = None
+    # Phiếu NHẬP giấy: dạng + khổ của lô sắp tạo. Bỏ trống ⇒ kế thừa dòng yêu cầu. Khai thì phải hợp lệ
+    # (tờ đủ hai cạnh). Phiếu XUẤT: bỏ qua — dạng/khổ lấy từ dòng yêu cầu, lô phải khớp.
+    dang_giay: str | None = None
+    kho_rong: int | float | None = Field(default=0, ge=0)
+    kho_dai: int | float | None = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def _chuan_dang_kho(self) -> "StockVoucherLineIn":
+        self.dang_giay, self.kho_rong, self.kho_dai = _chuan_giay(
+            None, self.dang_giay, self.kho_rong, self.kho_dai, bat_buoc=False)
+        return self
 
 
 class StockVoucherCreate(BaseModel):
@@ -479,6 +524,9 @@ class StockVoucherLineOut(BaseModel):
     hang_ma: str | None = None
     hang_ten: str | None = None
     dvt: str | None = None
+    dang_giay: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     lot_id: int | None = None
     ma_lo: str | None = None
     # Hạn sử dụng của lô (phiếu NHẬP) — để phiếu điều chuyển hiện HSD đích danh theo TỪNG LÔ. Không
@@ -670,6 +718,10 @@ class StockLotOut(BaseModel):
     dvt_ten: str | None = None
     kho_id: int
     vi_tri: str | None = None
+    # Giấy: dạng + khổ của lô (lô cũ / vật tư khác: None · 0 · 0).
+    dang_giay: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     ngay_nhap: date
     ncc: str | None = None
     sl_ban_dau: float
@@ -707,6 +759,9 @@ class AllocationLineOut(BaseModel):
     hsd: date | None = None
     sl_con_lai: float
     so_luong: float
+    dang_giay: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     don_gia_nhap: int | None = None
     # Nguồn lô thành phẩm (đọc ở lô gốc) + cảnh báo "Lô này sản xuất cho đơn DH…" khi xuất cho Giao
     # hàng mà lô thuộc đơn khác cùng khách.
