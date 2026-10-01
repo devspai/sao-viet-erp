@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..models.customer import Customer
 from ..models.order import Order
-from ..models.vat_lieu_kho import GiayGiaVersion, GiayNguyen, VatTuInAn
+from ..models.vat_lieu_kho import GiayGiaVersion, GiayNguyen, VatTuChip, VatTuInAn
 from .catalog_base import CatalogRepo
 
 # Các trường "ảnh chụp" của 1 phiên bản giá giấy (khớp cột GiayGiaVersion + GiayNguyen).
@@ -27,8 +27,24 @@ class _GiayRepo(CatalogRepo):
 class _VatTuRepo(CatalogRepo):
     model = VatTuInAn
     fields = ("ten", "don_vi_gia", "don_gia", "ghi_chu", "active", "cong_thuc_gia",
-              "thay_the_ids")
+              "cong_thuc_dinh_muc", "thay_the_ids")
     commit_on_write = False
+
+    def _base_select(self):
+        return super()._base_select().options(selectinload(VatTuInAn.chips))
+
+    def _sau_gan(self, obj, data) -> None:
+        if "chips" in data:
+            self._replace_chips(obj, data["chips"] or [])
+
+    def _replace_chips(self, obj, chips: list[dict]) -> None:
+        """Thay TRỌN danh sách chip. `flush()` giữa xoá và chèn: UNIQUE (vat_tu_id, ma)."""
+        if obj.chips:
+            obj.chips.clear()
+            if obj.id is not None:
+                self.db.flush()
+        for i, c in enumerate(chips):
+            obj.chips.append(VatTuChip(ma=c["ma"], ten=c["ten"], don_vi=c.get("don_vi"), thu_tu=i))
 
     # THÀNH PHẨM ĐI MÀN RIÊNG (mg 0204 · docs/prd-thanh-pham.md §3). Dòng có `customer_id` là
     # thành phẩm của một khách — nó thuộc màn "Thành phẩm", không phải màn này.

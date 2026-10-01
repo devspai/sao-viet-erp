@@ -382,7 +382,7 @@ VAT_TU = CatalogExcelSpec(
         CO_ACTIVE,
     ),
     # Không có ô nhập trên form (15/10/2026) — bày ra Excel là mời sửa thứ không ai thấy ở màn; cột vắng mặt khi nhập thì giữ nguyên giá trị cũ.
-    loai_tru=frozenset({"cong_thuc_gia", "don_gia", "thay_the_ids"}),
+    loai_tru=frozenset({"cong_thuc_gia", "cong_thuc_dinh_muc", "don_gia", "thay_the_ids"}),
 )
 
 THANH_PHAM = CatalogExcelSpec(

@@ -907,7 +907,7 @@ export function LsxBuocDrawer({
                         const g = row.vat_tu_goi_y.find(
                           (x) => capMon(x.hang_loai, x.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
                         return (
-                          g?.so_luong != null &&
+                          v.hang_loai === "giay" && g?.so_luong != null &&
                           (!v.tu_dong || Math.abs(g.so_luong - Number(v.so_luong)) > 0.0005)
                         );
                       }) && (
@@ -921,7 +921,7 @@ export function LsxBuocDrawer({
                               row.vat_tus.map((v) => {
                                 const g = row.vat_tu_goi_y.find(
                           (x) => capMon(x.hang_loai, x.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
-                                return g?.so_luong != null
+                                return v.hang_loai === "giay" && g?.so_luong != null
                                   ? { ...v, so_luong: String(g.so_luong), tu_dong: true }
                                   : v;
                               }),
@@ -960,6 +960,7 @@ export function LsxBuocDrawer({
                           const soMay = goiY?.so_luong ?? null;
                           const soLuu = v.so_luong.trim() === "" ? null : Number(v.so_luong);
                           const lech =
+                            v.hang_loai === "giay" &&
                             soMay !== null &&
                             soLuu !== null &&
                             Number.isFinite(soLuu) &&
@@ -974,6 +975,14 @@ export function LsxBuocDrawer({
                                     <span className="khsx-vattu-nvl-badge">NVL chính</span>
                                   )}
                                 </div>
+                                {/* Vật tư khác: chip đã chép từ phiếu — chỉ đọc. */}
+                                {v.hang_loai !== "giay" && (v.chips ?? []).length > 0 && (
+                                  <div className="lsx-vt-chip">
+                                    {(v.chips ?? []).map((c) => (
+                                      <span key={c.ma}>{c.ten}: <b>{v.gia_tri_chip?.[c.ma] ?? 0}</b>{c.don_vi ? ` ${c.don_vi}` : ""}</span>
+                                    ))}
+                                  </div>
+                                )}
                                 {/* Giấy đếm tờ theo KHỔ (mm) — mặc định từ quy cách lệnh, sửa được. */}
                                 {v.hang_loai === "giay" && (
                                   <div className="khsx-vattu-kho">
@@ -1014,7 +1023,7 @@ export function LsxBuocDrawer({
                                     {lech && (
                                       <div className="khsx-diff-badge">
                                         <span>Lệch: {num(soMay as number)} {nhanDonVi(v.don_vi)}</span>
-                                        {canUpdate && (
+                                        {canUpdate && v.hang_loai === "giay" && (
                                           <button
                                             type="button"
                                             className="khsx-vattu-fix-btn"
@@ -1048,6 +1057,9 @@ export function LsxBuocDrawer({
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--input">
                                 <div className="khsx-vattu-input-group">
+                                  {v.hang_loai !== "giay" ? (
+                                    <strong>{v.so_luong}</strong>
+                                  ) : (
                                   <input
                                     type="number"
                                     min="0.001"
@@ -1065,6 +1077,7 @@ export function LsxBuocDrawer({
                                       )
                                     }
                                   />
+                                  )}
                                   <span className="khsx-vattu-unit-tag">{nhanDonVi(v.don_vi)}</span>
                                 </div>
                               </td>

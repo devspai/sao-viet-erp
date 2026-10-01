@@ -105,7 +105,10 @@ export interface EditRow {
   vat_tus: { hang_loai: HangLoai; vat_tu_id: number; vat_tu_ma: string; vat_tu_ten: string;
              don_vi: string; so_luong: string; tu_dong: boolean;
              /** Khổ dòng GIẤY (mm) — ô gõ; hàng khác để trống, không gửi. */
-             kho_rong: string; kho_dai: string }[];
+             kho_rong: string; kho_dai: string;
+             /** Vật tư KHÁC giấy: chip đã chép từ phiếu (gửi lại để máy tính định mức) + nhãn chip. */
+             gia_tri_chip?: Record<string, number>;
+             chips?: { ma: string; ten: string; don_vi?: string | null }[] }[];
   // Gia công ngoài (spec 2026-09-26): nhà gia công từ danh mục NCC + đơn giá cả lần.
   nha_cung_cap_id: number | null;
   /** Tên do máy chủ ghi — chỉ để hiện, không gửi lên. */
@@ -376,12 +379,13 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
       // Ô trống = để máy tính từ năng suất (KHÔNG phải 0 phút).
       phat_sinh_phut: on(r.phat_sinh_phut),
       phu_thuoc_step_keys: r.phu_thuoc_step_keys,
-      vat_tus: ngoai ? [] : r.vat_tus.map((v) => ({
-        hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id,
-        so_luong: n(v.so_luong), tu_dong: v.tu_dong,
-        // Giấy mang khổ (máy chủ chuẩn hoá ngắn × dài, thiếu cạnh thì từ chối).
-        ...(v.hang_loai === "giay" ? { kho_rong: n(v.kho_rong), kho_dai: n(v.kho_dai) } : {}),
-      })),
+      vat_tus: ngoai ? [] : r.vat_tus.map((v) => (v.hang_loai === "giay"
+        // Giấy: số do người nhập + khổ (máy chủ chuẩn hoá ngắn × dài, thiếu cạnh thì từ chối).
+        ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, so_luong: n(v.so_luong),
+            tu_dong: v.tu_dong, kho_rong: n(v.kho_rong), kho_dai: n(v.kho_dai) }
+        // Vật tư KHÁC: định mức do MÁY tính từ công thức + chip ⇒ không gửi so_luong.
+        : { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, tu_dong: v.tu_dong,
+            gia_tri_chip: v.gia_tri_chip ?? {} })),
       // Chỉ gửi khi bước ĐANG là thuê ngoài — đổi loại rồi thì server tự dọn (Task 3).
       nha_cung_cap_id: ngoai ? r.nha_cung_cap_id : null,
       don_gia_gia_cong: ngoai ? on(r.don_gia_gia_cong) : undefined,

@@ -830,3 +830,43 @@ def test_luu_lai_o_bo_trong_ve_default_chu_khong_giu_so_cu(client, auth_headers)
     assert _ids(lan2) == _ids(tao)
     assert lan2["thanh_phans"][0]["ghi_chu_ky_thuat"] is None
     assert lan2["thanh_phans"][0]["phi_giao_hang"] == 0
+
+
+def _seed_vat_tu_chip() -> int:
+    from app.models.vat_lieu_kho import VatTuChip, VatTuInAn
+    db = SessionLocal()
+    try:
+        vt = VatTuInAn(ma="VT-SUP", ten="Support", don_gia=0, don_vi_gia="kg",
+                       cong_thuc_gia="dai_support * rong_support")
+        vt.chips = [VatTuChip(ma="dai_support", ten="Dài support", thu_tu=0),
+                    VatTuChip(ma="rong_support", ten="Rộng support", thu_tu=1)]
+        db.add(vt)
+        db.commit()
+        return vt.id
+    finally:
+        db.close()
+
+
+def test_vat_tu_theo_buoc_luu_mo_lai_va_xoa_duoc(client, auth_headers):
+    giay_id, cd_id = _seed_catalog()
+    vt_id = _seed_vat_tu_chip()
+    pid = client.post("/api/phieu-tinh-gia", json={"ten_san_pham": "K"}, headers=auth_headers).json()["id"]
+    tp = _component(giay_id, cd_id)
+    tp["thanh_phams"][0]["vat_tus"] = [
+        {"thu_tu": 0, "vat_tu_id": vt_id, "gia_tri_chip": {"dai_support": 3, "rong_support": 4}}]
+    put = client.put(f"/api/phieu-tinh-gia/{pid}", json={"so_luong": 1000, "thanh_phans": [tp]},
+                     headers=auth_headers)
+    assert put.status_code == 200, put.text
+    buoc = put.json()["thanh_phans"][0]["thanh_phams"]
+    assert buoc[0]["vat_tus"][0]["vat_tu_id"] == vt_id
+    assert buoc[0]["vat_tus"][0]["gia_tri_chip"] == {"dai_support": 3, "rong_support": 4}
+    assert buoc[1]["vat_tus"] == []
+
+    mo = client.get(f"/api/phieu-tinh-gia/{pid}", headers=auth_headers).json()
+    assert mo["thanh_phans"][0]["thanh_phams"][0]["vat_tus"][0]["gia_tri_chip"]["dai_support"] == 3
+
+    # Gỡ vật tư khỏi bước, lưu lại → mở ra không còn.
+    tp["thanh_phams"][0]["vat_tus"] = []
+    client.put(f"/api/phieu-tinh-gia/{pid}", json={"thanh_phans": [tp]}, headers=auth_headers)
+    mo2 = client.get(f"/api/phieu-tinh-gia/{pid}", headers=auth_headers).json()
+    assert mo2["thanh_phans"][0]["thanh_phams"][0]["vat_tus"] == []

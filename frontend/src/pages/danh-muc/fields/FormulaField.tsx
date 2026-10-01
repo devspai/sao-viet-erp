@@ -197,6 +197,7 @@ export function FormulaField({
   an,
   hien,
   loaiO: loaiOEp,
+  bienThem,
   nhanO = "Công thức tính giá",
   goY = "Nhập công thức tính giá (vd: dai_tp * rong_tp * don_gia)...",
   id = "formula-textarea",
@@ -216,6 +217,8 @@ export function FormulaField({
    *  mời người ta gõ vào thứ mãi mãi bằng 0. */
   hien?: string[];
   loaiO?: string;
+  /** Biến BỔ SUNG ngoài từ điển hệ thống (chip riêng của vật tư) — hiện thành chip và hợp lệ. */
+  bienThem?: BienCongThuc[];
   nhanO?: React.ReactNode;
   goY?: string;
   id?: string;
@@ -224,7 +227,11 @@ export function FormulaField({
   const isGiay = configPrefix.endsWith("/giay");
   const isDonVi = configPrefix.includes("don-vi");
   const loaiO = loaiOEp ?? (isDonVi ? "quy_doi" : isCd ? "cong_doan" : isGiay ? "giay" : "vat_tu");
-  const tuDien = useBienCongThuc();
+  const tuDienHeThong = useBienCongThuc();
+  const tuDien = useMemo(
+    () => (bienThem && bienThem.length ? [...tuDienHeThong, ...bienThem] : tuDienHeThong),
+    [tuDienHeThong, bienThem],
+  );
   const tra = useMemo(() => traBien(tuDien), [tuDien]);
   const whitelist = useMemo(
     () => bienGoiY ?? tuDien.filter((b) => b.loai.includes(loaiO)).map((b) => b.ma),

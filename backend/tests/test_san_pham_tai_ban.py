@@ -11,7 +11,7 @@ from tests.conftest import phien_da_seed
 
 from app.models.customer import Customer
 from app.models.phieu_tinh_gia import (
-    PhieuChiPhiKhac, PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia, PhieuVatTu, SanPhamTaiBan,
+    PhieuBuocVatTu, PhieuChiPhiKhac, PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia, SanPhamTaiBan,
 )
 from app.models.quotation import STATUS_ACCEPTED, Quote, QuoteItem, QuoteVersion
 from app.models.user import User
@@ -95,7 +95,9 @@ def _thanh_phan(db, *, ten="Card visit 350gsm", giay_id=101, may_id=201, phi_gia
         thanh_phan_id=tp.id, thu_tu=0, cong_doan_id=300, ten="Cắt xén", don_gia=100,
         so_mat=1, phi_khuon=50_000,
     ))
-    tp.vat_tus.append(PhieuVatTu(thanh_phan_id=tp.id, thu_tu=0, vat_tu_id=401, ten="Keo dán", don_gia=300))
+    # Vật tư thuộc BƯỚC (01/10/2026): gắn vào bước "Cắt xén" (thu_tu 0).
+    next(f for f in tp.thanh_phams if f.ten == "Cắt xén").vat_tus.append(
+        PhieuBuocVatTu(thu_tu=0, vat_tu_id=401, gia_tri_chip={"dai_support": 5}))
     for i, (ten_cp, tien_cp) in enumerate(chi_phi_khac or []):
         tp.chi_phi_khacs.append(PhieuChiPhiKhac(
             thanh_phan_id=tp.id, thu_tu=i, ten=ten_cp, so_tien=tien_cp))
@@ -150,7 +152,9 @@ def test_confirm_creates_full_snapshot(svc, admin, db):
     assert [c["ten"] for c in cfg["thanh_phams"]] == ["Cắt xén", "Cán màng"]
     assert cfg["thanh_phams"][1]["phi_khuon"] == 0
     assert cfg["thanh_phams"][0]["phi_khuon"] == 50_000
-    assert cfg["vat_tus"][0]["ten"] == "Keo dán"
+    assert cfg["thanh_phams"][0]["vat_tus"][0]["vat_tu_id"] == 401
+    assert cfg["thanh_phams"][0]["vat_tus"][0]["gia_tri_chip"] == {"dai_support": 5}
+    assert cfg["thanh_phams"][1]["vat_tus"] == []
     # KHÔNG lưu: SL của đơn cũ, giá vốn đã tính, số bài in/số màu dẫn xuất.
     assert cfg.get("so_luong") is None
     assert cfg.get("so_to_per_sp") is None
@@ -335,22 +339,21 @@ def test_snapshot_chep_du_moi_o_nhap(db):
         so_mat=2, so_vi_tri=3, dien_tich=12.5, nha_cung_cap="Xưởng khuôn A", ghi_chu="dao sắc",
         phi_khuon=800_000, khuon_nguon="lam_moi", dai_khuon=100, rong_khuon=50, so_khuon=2,
     ))
-    tp.vat_tus.append(PhieuVatTu(
-        thanh_phan_id=tp.id, thu_tu=0, vat_tu_id=401, ten="Keo dán", don_gia=300, ghi_chu="keo sữa",
-    ))
+    tp.thanh_phams[0].vat_tus.append(PhieuBuocVatTu(
+        thu_tu=0, vat_tu_id=401, gia_tri_chip={"dai_support": 5, "rong_support": 6}))
     tp.chi_phi_khacs.append(PhieuChiPhiKhac(thanh_phan_id=tp.id, thu_tu=0, ten="làm kẽm", so_tien=800_000))
     db.commit()
     db.refresh(tp)
 
-    from app.schemas.phieu_tinh_gia import ChiPhiKhacIn, ThanhPhamIn, ThanhPhanIn, VatTuLineIn
+    from app.schemas.phieu_tinh_gia import BuocVatTuIn, ChiPhiKhacIn, ThanhPhamIn, ThanhPhanIn
 
     cfg = san_pham_tai_ban_service._cau_hinh_tu_thanh_phan(tp)
     _so_du_o(cfg, tp, ThanhPhanIn, {
         "thu_tu", "so_luong", "so_to_per_sp", "so_mau_a", "so_mau_b", "so_mau_pha",
-        "thanh_phams", "vat_tus", "chi_phi_khacs",
+        "thanh_phams", "chi_phi_khacs",
     }, "san_pham")
     # `so_luong` của bước/vật tư: "0 = dùng SL đặt" — cùng lẽ SL của đơn cũ, màn Tính giá cũng không
     # có ô nào sửa nó.
-    _so_du_o(cfg["thanh_phams"][0], tp.thanh_phams[0], ThanhPhamIn, {"thu_tu", "so_luong"}, "cong_doan")
-    _so_du_o(cfg["vat_tus"][0], tp.vat_tus[0], VatTuLineIn, {"thu_tu", "so_luong"}, "vat_tu")
+    _so_du_o(cfg["thanh_phams"][0], tp.thanh_phams[0], ThanhPhamIn, {"thu_tu", "so_luong", "vat_tus"}, "cong_doan")
+    _so_du_o(cfg["thanh_phams"][0]["vat_tus"][0], tp.thanh_phams[0].vat_tus[0], BuocVatTuIn, {"thu_tu"}, "vat_tu")
     _so_du_o(cfg["chi_phi_khacs"][0], tp.chi_phi_khacs[0], ChiPhiKhacIn, {"thu_tu"}, "chi_phi_khac")

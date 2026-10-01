@@ -49,7 +49,7 @@ from ..models.lsx import (
 )
 from ..models.may_thiet_bi import MayThietBi, ma_don_vi_goc
 from ..models.order import STATUS_CANCELLED, STATUS_ORDERED, Order, OrderLine
-from ..models.phieu_tinh_gia import PhieuThanhPhan, PhieuTinhGia
+from ..models.phieu_tinh_gia import PhieuThanhPhan, PhieuThanhPham, PhieuTinhGia
 from ..models.quotation import QuoteVersion
 from ..models.user import User
 from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, GiayNguyen, VatTuInAn
@@ -610,66 +610,66 @@ class LsxService:
     #    khoán chọn LÚC GHI MẺ ở bàn tổ, lọc theo ĐÚNG MỘT chiều — tổ của bước
     #    (`san_xuat/viec_khoan.danh_sach_cua_to`).
 
-    def _vat_tu_bung(self, cd_obj, buoc, quy_cach: dict | None) -> tuple[list[dict], list[str]]:
-        """Vật tư của MỘT CÔNG ĐOẠN, kèm số lượng tính cho ĐÚNG bước này — nền BOM.
+    def _vat_tu_bung(self, cd_obj, buoc, quy_cach: dict | None,
+                     dong_nguon: list[tuple[int, dict]] | None = None) -> tuple[list[dict], list[str]]:
+        """Vật tư của MỘT BƯỚC, kèm số lượng tính cho ĐÚNG bước này — nền BOM.
 
-        Số lượng suy ở đây vì định mức tuỳ quy cách của từng lệnh. MỘT đường duy nhất: **công thức
-        của chính DÒNG vật tư** (`cong_doan_vat_tu.cong_thuc_luong`). Riêng tới từng dòng nên đúng
-        nhất: trong cùng một công đoạn in, mực ăn theo SỐ TỜ còn dung môi rửa máy ăn theo SỐ MÀU,
-        dù cả hai cùng đo bằng `kg`.
+        01/10/2026 (spec Đ5): danh sách + chip do PHIẾU TÍNH GIÁ chốt (`dong_nguon` = [(vat_tu_id,
+        {mã chip: số})]); `dong_nguon=None` (lệnh không có phiếu, bài ghép, đổi công đoạn) ⇒ lấy danh
+        sách vật tư của `cd_obj` trong danh mục với chip rỗng. Định mức tính bằng CÔNG THỨC CỦA CHÍNH
+        VẬT TƯ (`vat_tu_in_an.cong_thuc_dinh_muc`) với ngữ cảnh lệnh + `sl_vao`/`sl_ra`/`so_luot_chay`
+        của bước + chip. (Trước đó công thức treo ở dòng công đoạn × vật tư, `cong_doan_vat_tu.
+        cong_thuc_luong` — nay ngưng đọc.)
 
-        ⚠️ 18/09/2026 (mg `0316`): neo đổi từ ĐẦU VIỆC sang chính CÔNG ĐOẠN — nơi gọi truyền `cd_obj`
-        (bản ghi danh mục Công đoạn) thay cho `dm`. Vật tư thôi phụ thuộc việc bước có chọn đầu việc
-        hay không, nên MỌI bước gắn công đoạn đều bung được vật tư của nó.
+        KHÔNG ĐOÁN: chưa khai công thức thì bỏ dòng đó ra khỏi kết quả và trả câu lý do. Chip chưa có
+        số mà công thức dùng tới ⇒ trả cảnh báo nêu đúng chip. Trả `([], [])` khi chưa đủ ngữ cảnh.
 
-        Hai đường "trả lời hộ" đã gỡ, cùng một lý do — thứ dùng chung không biết món nào đang hỏi:
-        cách đo của ĐƠN VỊ (`don_vi_do.cong_thuc`, mg `0215`, 17/08/2026) và quy đổi từ đơn vị của
-        BƯỚC sang đơn vị vật tư (BFS trên cầu quy đổi, 18/08/2026 — xem `_luong_vat_tu`).
-
-        KHÔNG ĐOÁN: chưa khai công thức thì bỏ dòng đó ra khỏi kết quả và trả câu lý do — thà người
-        kế hoạch tự thêm còn hơn bung một con số sai trông như thật.
-
-        Trả `([], [])` khi chưa đủ ngữ cảnh (công đoạn chưa khai vật tư, hoặc chưa có bước).
+        Không chặn khi bước chưa có số lượng: công thức nhiều món chẳng đụng `sl_vao`; món nào thật sự
+        cần thì `_luong_vat_tu` đã trả "ra 0 — thiếu sl_vao".
         """
-        vat_tus = list(getattr(cd_obj, "vat_tus", None) or []) if cd_obj is not None else []
-        if not vat_tus or buoc is None:
+        if buoc is None:
             return [], []
-        # KHÔNG chặn khi bước chưa có số lượng (gỡ 09/09/2026). Cửa ấy viết 12/08/2026, hồi lượng
-        # vật tư còn suy RA TỪ số của bước (cách đo của đơn vị · BFS quy đổi — cả hai đã gỡ), nên
-        # SL = 0 đúng là "không có gì để quy đổi". Nay công thức khai ở CHÍNH DÒNG vật tư, nhiều
-        # món chẳng đụng `sl_vao`: `so_kem` ở bước Ghi kẽm CTP là một, mà bước ấy ngoài dòng giấy
-        # nên SL luôn 0 ⇒ bản kẽm không bao giờ bung ra bước. Công thức nào thật sự cần SL thì
-        # `_luong_vat_tu` đã trả "ra 0 — thiếu sl_vao", vẫn không đoán số.
+        if dong_nguon is None:
+            dong_nguon = [(v.vat_tu_id, {})
+                          for v in (getattr(cd_obj, "vat_tus", None) or [])] if cd_obj is not None else []
+        if not dong_nguon:
+            return [], []
         sl = _f(getattr(buoc, "so_luong_vao", 0))
-        can = {v.vat_tu_id for v in vat_tus}
+        can = {vid for vid, _ in dong_nguon}
         mats = {m.id: m for m in self._vat_tu_active() if m.id in can}
         # Bơm SỐ CỦA CHÍNH BƯỚC lên trên ngữ cảnh lệnh — `sl_vao`/`sl_ra` chỉ tồn tại ở tầng này.
         # Bơm SAU `ngu_canh_lenh` vì hàm đó assert bộ khoá của nó phải khớp `MA_NGU_CANH_PHIEU`.
-        # Ba ô khuôn mặc định 0 — tầng lệnh không có nguồn tương đương phiếu tính giá.
-        ctx = {**ngu_canh_lenh(quy_cach or {}), **MAC_DINH_TANG_LENH,
-               "sl_vao": sl, "sl_ra": _f(getattr(buoc, "so_luong_ra", 0)),
-               "so_luot_chay": float(max(int(getattr(buoc, "so_luot_chay", 1) or 1), 1))}
+        base = {**ngu_canh_lenh(quy_cach or {}), **MAC_DINH_TANG_LENH,
+                "sl_vao": sl, "sl_ra": _f(getattr(buoc, "so_luong_ra", 0)),
+                "so_luot_chay": float(max(int(getattr(buoc, "so_luot_chay", 1) or 1), 1))}
         ra: list[dict] = []
         canh_bao: list[str] = []
-        for v in vat_tus:
-            mat = mats.get(v.vat_tu_id)
+        for vid, chip_val in dong_nguon:
+            mat = mats.get(vid)
             if mat is None:
-                continue        # đã ngừng dùng sau khi khai — im lặng bỏ, danh mục là nguồn sống
+                continue        # đã ngừng dùng — danh mục là nguồn sống
             dvt = (mat.don_vi_gia or "").strip()
             if not dvt:
                 canh_bao.append(f"{mat.ten}: chưa chọn đơn vị tính ở danh mục Vật tư khác.")
                 continue
-            so_luong, dien_giai, ly_do = self._luong_vat_tu(
-                dvt, ctx, mat=mat, cong_thuc=(v.cong_thuc_luong or ""))
+            chip_val = dict(chip_val or {})
+            ct = mat.cong_thuc_dinh_muc or ""
+            dung = set(bien_trong(ct)) if ct.strip() else set()
+            ctx = {**base, **{c.ma: _f(chip_val.get(c.ma)) for c in mat.chips}}
+            for c in mat.chips:
+                if c.ma in dung and _f(chip_val.get(c.ma)) == 0:
+                    canh_bao.append(
+                        f"{mat.ten}: chip '{c.ten}' chưa có số (nhập ở phiếu tính giá) — tính theo 0.")
+            so_luong, dien_giai, ly_do = self._luong_vat_tu(dvt, ctx, mat=mat, cong_thuc=ct)
             if so_luong is None:
                 canh_bao.append(f"{mat.ten}: {ly_do}")
                 continue
             ra.append({
-                # Đường CÔNG ĐOẠN chỉ đẻ ra vật tư khác — giấy vào bước bằng cửa người lập lệnh
-                # tự chọn, không qua đây.
+                # Đường BƯỚC chỉ đẻ ra vật tư khác — giấy vào bước bằng cửa người lập lệnh tự chọn.
                 "hang_loai": HANG_VAT_TU,
                 "vat_tu_id": mat.id, "ma": mat.ma, "ten": mat.ten, "don_vi": dvt,
                 "so_luong": round(so_luong, 3), "dien_giai": dien_giai,
+                "gia_tri_chip": chip_val,
             })
         return ra, canh_bao
 
@@ -702,12 +702,11 @@ class LsxService:
         ctx = {**ngu_canh_lenh(quy_cach or {}), **MAC_DINH_TANG_LENH,
                "sl_vao": sl, "sl_ra": _f(getattr(buoc, "so_luong_ra", 0)),
                "so_luot_chay": float(max(int(getattr(buoc, "so_luot_chay", 1) or 1), 1))}
-        # Công thức của những món CÔNG ĐOẠN của bước này đã khai.
-        cd_obj = (self.db.get(CongDoan, buoc.cong_doan_id)
-                  if getattr(buoc, "cong_doan_id", None) else None)
-        ct_theo_mon: dict[int, str] = {
-            v.vat_tu_id: (v.cong_thuc_luong or "")
-            for v in (getattr(cd_obj, "vat_tus", None) or [])
+        # Chip đã nhập của các dòng vật tư ĐANG có ở bước (cùng `vat_tu_id`) — món khác thì chip = 0.
+        chip_co_san: dict[int, dict] = {
+            v.vat_tu_id: dict(getattr(v, "gia_tri_chip", None) or {})
+            for v in (getattr(buoc, "vat_tus", None) or [])
+            if getattr(v, "hang_loai", HANG_VAT_TU) == HANG_VAT_TU
         }
         ra: list[dict] = []
         # Giấy không có công thức (spec 2026-10-01 §4.2): mọi mã giấy cùng một gợi ý khổ + số tờ
@@ -720,8 +719,10 @@ class LsxService:
             dvt = (mat.don_vi_gia or "").strip()
             if not dvt:
                 continue
+            chip_val = chip_co_san.get(mon_id, {})
+            ctx_mon = {**ctx, **{c.ma: _f(chip_val.get(c.ma)) for c in mat.chips}}
             so_luong, dien_giai, ly_do = self._luong_vat_tu(
-                dvt, ctx, mat=mat, cong_thuc=ct_theo_mon.get(mon_id, ""))
+                dvt, ctx_mon, mat=mat, cong_thuc=(mat.cong_thuc_dinh_muc or ""))
             ra.append({
                 "hang_loai": hang_loai,
                 "vat_tu_id": mon_id,
@@ -766,8 +767,7 @@ class LsxService:
         # Giấy không đi qua đây — xem `goi_y_dong_giay` (mã + khổ + số tờ, không công thức).
         if not rieng:
             return None, None, (
-                f"chưa khai công thức định mức. Mở danh mục Công đoạn → sửa công đoạn → bảng "
-                f"“Đầu việc và định mức của tổ” → bấm dòng “{ten}” trong khối vật tư → điền ô "
+                f"chưa khai công thức định mức. Mở danh mục Vật tư khác → “{ten}” → tab "
                 f"“Công thức định mức” (ra {dv_ten}).")
         try:
             gt = float(safe_eval(rieng, dict(ctx)))
@@ -1161,8 +1161,7 @@ class LsxService:
             select(PhieuThanhPhan)
             .where(PhieuThanhPhan.id == tp_id)
             .options(
-                selectinload(PhieuThanhPhan.thanh_phams),
-                selectinload(PhieuThanhPhan.vat_tus),
+                selectinload(PhieuThanhPhan.thanh_phams).selectinload(PhieuThanhPham.vat_tus),
             )
         ).scalar_one_or_none()
 
@@ -1242,8 +1241,9 @@ class LsxService:
             "ghi_chu_ky_thuat": getattr(tp, "ghi_chu_ky_thuat", None),
             # Vật tư in ấn (mực · màng · keo): tên + lượng, KHÔNG kèm đơn giá.
             "vat_tus": [
-                {"ten": vt.get("ten"), "so_luong": vt.get("so_luong")}
-                for vt in (resolved.get("vat_tus") or [])
+                {"ten": vt.get("ten"), "so_luong": None}
+                for row in (resolved.get("thanh_phams") or [])
+                for vt in (row.get("vat_tus") or [])
             ],
             # MỰC: hai trường này là LIST nên bộ lọc `not isinstance(v, (list, dict))` ở trên
             # nuốt mất — phải chép tay. Không có chúng thì bản lệnh chỉ biết "4/1 màu" mà không
@@ -1302,6 +1302,11 @@ class LsxService:
                 # tên xưởng đặt. Chỉ là NHÃN ở đây; hệ số quy đổi vẫn do `_don_vi_theo_buoc` lo.
                 "don_vi_vao": cd.get("don_vi_vao"),
                 "don_vi_ra": cd.get("don_vi_ra"),
+                # Vật tư + chip của bước theo PHIẾU (01/10/2026) — nguồn BOM lúc tạo lệnh.
+                "vat_tus": [
+                    {"vat_tu_id": v["vat_tu_id"], "gia_tri_chip": dict(v.get("gia_tri_chip") or {})}
+                    for v in (row.get("vat_tus") or [])
+                ],
             })
         return {"comp": comp, "quy_cach": quy_cach, "routing": routing, "sl_ptg": sl_ptg}
 
@@ -1464,6 +1469,7 @@ class LsxService:
                 continue
             co = {(v.hang_loai, int(v.vat_tu_id)) for v in cd.vat_tus if v.vat_tu_id}
             thu_tu = max((v.thu_tu for v in cd.vat_tus), default=-1)
+            # Chỉ gọi cho bước ĐỔI công đoạn ⇒ danh sách = vật tư của công đoạn MỚI, chip rỗng.
             rows, _canh_bao = self._vat_tu_bung(cd_obj, cd, quy_cach)
             for v in rows:
                 cap = (v.get("hang_loai") or HANG_VAT_TU, int(v["vat_tu_id"]))
@@ -1475,10 +1481,11 @@ class LsxService:
                     hang_loai=cap[0], vat_tu_id=cap[1], vat_tu_ma_snapshot=v["ma"],
                     vat_tu_ten_snapshot=v["ten"], don_vi_snapshot=v["don_vi"] or "",
                     so_luong=float(v["so_luong"]), thu_tu=thu_tu, tu_dong=True,
+                    gia_tri_chip=v.get("gia_tri_chip") or {},
                 ))
         self.db.flush()
 
-    def _bung_vat_tu_cong_doan(self, lsx: Lsx, quy_cach: dict) -> None:
+    def _bung_vat_tu_cong_doan(self, lsx: Lsx, quy_cach: dict, nguon: list[dict] | None = None) -> None:
         """Bung VẬT TƯ của CÔNG ĐOẠN vào từng bước, ngay lúc tạo lệnh.
 
         Vì sao ở SERVER chứ không đợi frontend (13/08/2026): frontend chỉ bung vật tư khi người
@@ -1492,7 +1499,12 @@ class LsxService:
         ⚠️ 18/09/2026 (mg `0316`): trước đây chỉ bung khi bước đã GHIM một đầu việc khoán
         (`khoan_json.rate_id`) — tầng ấy đã gỡ. Nay MỌI bước gắn công đoạn đều bung, nên lệnh
         không còn cảnh trống vật tư chỉ vì tổ khớp hai đầu việc nên máy không dám chọn hộ.
+
+        01/10/2026: `nguon` = `calc["routing"]` (lệnh có phiếu) ⇒ danh sách + chip của bước LẤY TỪ
+        PHIẾU, khớp theo VỊ TRÍ `thu_tu`; phiếu đã xoá vật tư thì lệnh KHÔNG đẻ lại từ danh mục công
+        đoạn. `nguon=None` (không có phiếu) ⇒ danh mục công đoạn, chip rỗng.
         """
+        theo_vi_tri = {r["thu_tu"]: r.get("vat_tus") or [] for r in (nguon or [])}
         for cd in lsx.cong_doans:
             # THUÊ NGOÀI không bung — nhà gia công tự lo vật tư (tiền nằm trong đơn giá, spec §3).
             if cd.loai_buoc == LB_THUE_NGOAI:
@@ -1502,13 +1514,17 @@ class LsxService:
             cd_obj = self.db.get(CongDoan, cd.cong_doan_id)
             if cd_obj is None:
                 continue
-            rows, _canh_bao = self._vat_tu_bung(cd_obj, cd, quy_cach)
+            dong_nguon = (
+                [(v["vat_tu_id"], v["gia_tri_chip"]) for v in theo_vi_tri.get(cd.thu_tu, [])]
+                if nguon is not None else None)
+            rows, _canh_bao = self._vat_tu_bung(cd_obj, cd, quy_cach, dong_nguon=dong_nguon)
             for pos, v in enumerate(rows):
                 cd.vat_tus.append(LsxCongDoanVatTu(
                     hang_loai=v.get("hang_loai") or HANG_VAT_TU,
                     vat_tu_id=v["vat_tu_id"], vat_tu_ma_snapshot=v["ma"],
                     vat_tu_ten_snapshot=v["ten"], don_vi_snapshot=v["don_vi"] or "",
                     so_luong=float(v["so_luong"]), thu_tu=pos, tu_dong=True,
+                    gia_tri_chip=v.get("gia_tri_chip") or {},
                 ))
 
     def tao(self, *, order_id: int, order_line_ids: list[int], actor) -> list[Lsx]:
@@ -1588,7 +1604,8 @@ class LsxService:
             # `quy_cach_bien` chứ KHÔNG phải `calc["quy_cach"]` thô: năm biến dẫn xuất (SL đặt ·
             # con/tờ · tờ in · tờ nguyên · tờ sau in) nằm ở CỘT của lệnh. Thiếu chúng thì công thức
             # nào dùng `so_luong`/`to_dau_vao` cũng ra 0 ⇒ bị coi là thiếu biến và không bung gì.
-            self._bung_vat_tu_cong_doan(lsx, quy_cach_bien(lsx))
+            self._bung_vat_tu_cong_doan(
+                lsx, quy_cach_bien(lsx), nguon=(calc["routing"] if tp is not None else None))
             lsx.routing_goc_json = _routing_van_tay(lsx.cong_doans)
             self.repo.add(lsx)
             # Giữ hành vi tuyến tính hiện tại làm mặc định; sau đó kế hoạch có thể bỏ/thêm cạnh
@@ -2259,6 +2276,7 @@ class LsxService:
                         quy_cach: dict | None = None, moi: dict | None = None,
                         khuon_map: dict | None = None) -> dict:
         vao = _f(cd.so_luong_vao)
+        vat_tu_theo_id = {m.id: m for m in self._vat_tu_active()}   # chip riêng của vật tư
         may_cd = self._may_cua_buoc(cd)
         t = thoi_luong_buoc(cd, may_cd, self.sl_tinh_cua_buoc(cd, may_cd, quy_cach))
         cd_obj = self.db.get(CongDoan, cd.cong_doan_id) if cd.cong_doan_id else None
@@ -2343,7 +2361,12 @@ class LsxService:
                  "vat_tu_ma": v.vat_tu_ma_snapshot, "vat_tu_ten": v.vat_tu_ten_snapshot,
                  "don_vi": v.don_vi_snapshot, "so_luong": _f(v.so_luong),
                  "kho_rong": int(v.kho_rong or 0), "kho_dai": int(v.kho_dai or 0),
-                 "tu_dong": bool(v.tu_dong)}
+                 "tu_dong": bool(v.tu_dong),
+                 "gia_tri_chip": dict(v.gia_tri_chip or {}),
+                 "chips": [{"ma": c.ma, "ten": c.ten, "don_vi": c.don_vi}
+                           for c in (vat_tu_theo_id[v.vat_tu_id].chips
+                                     if v.hang_loai == HANG_VAT_TU and v.vat_tu_id in vat_tu_theo_id
+                                     else [])]}
                 for v in cd.vat_tus
             ],
             # Lượng tính sẵn cho MỌI vật tư — drawer chọn món nào là điền được ngay, khỏi gõ tay.
@@ -2737,7 +2760,12 @@ class LsxService:
             }
             # Vật tư soi thẳng theo CÔNG ĐOẠN (mg `0316`) — không còn phải đợi bước chọn đầu việc.
             if not ngoai:
-                moi_rows, _ = self._vat_tu_bung(cd_obj, cd, quy_cach)
+                # Danh sách + chip là của PHIẾU (đã chép vào dòng bước) — danh mục công đoạn đổi sau
+                # KHÔNG còn là "lệch". Chỉ soi: định mức lưu có khác định mức tính lại từ công thức
+                # hiện hành của vật tư không.
+                nguon_hien_co = [(v.vat_tu_id, dict(v.gia_tri_chip or {}))
+                                 for v in cd.vat_tus if v.hang_loai == HANG_VAT_TU]
+                moi_rows, _ = self._vat_tu_bung(cd_obj, cd, quy_cach, dong_nguon=nguon_hien_co)
                 hien_co = [
                     {"hang_loai": v.hang_loai, "vat_tu_id": v.vat_tu_id,
                      "ma": v.vat_tu_ma_snapshot,
@@ -2816,6 +2844,7 @@ class LsxService:
                     vat_tu_id=int(r["vat_tu_id"]), vat_tu_ma_snapshot=r.get("ma") or "",
                     vat_tu_ten_snapshot=r.get("ten") or "", don_vi_snapshot=r.get("don_vi") or "",
                     so_luong=float(r["so_luong"]), thu_tu=thu_tu, tu_dong=True,
+                    gia_tri_chip=r.get("gia_tri_chip") or {},
                 ))
         self.db.flush()
         # Lượt đồng bộ có thể gỡ nốt chỗ "thiếu" cuối cùng — cùng luật với lưu routing, để trạng
@@ -3028,6 +3057,22 @@ class LsxService:
             if thieu:
                 raise LsxValidationError(
                     "Vật tư không tồn tại hoặc đã ngừng dùng — chọn món khác")
+            # Định mức vật tư khác KHÔNG nhập tay (01/10/2026): máy tính bằng công thức định mức của
+            # chính vật tư + chip + số của bước; số client gửi lên bị bỏ. Không tính được (chưa khai
+            # công thức / chip thiếu) thì giữ số cũ của dòng cùng món, chưa có thì 0.
+            tinh_lai: dict[tuple[str, int], float] = {}
+            quy_cach_tl = quy_cach_bien(lsx)
+            for item, cap in zip(vat_tus, caps):
+                if cap[0] == HANG_GIAY:
+                    continue
+                rows_tl, _ = self._vat_tu_bung(
+                    None, row, quy_cach_tl,
+                    dong_nguon=[(cap[1], dict(item.get("gia_tri_chip") or {}))])
+                if rows_tl:
+                    tinh_lai[cap] = float(rows_tl[0]["so_luong"])
+                else:
+                    cu_tl = cu_theo_cap.get(cap)
+                    tinh_lai[cap] = _f(getattr(cu_tl, "so_luong", 0))
             row.vat_tus.clear()
             # FLUSH giữa xoá và thêm: bảng có UNIQUE (lsx_cong_doan_id, hang_loai, vat_tu_id), mà
             # lưu lại bước với ĐÚNG món cũ là xoá rồi thêm lại chính cặp đó. Không ép DELETE chạy
@@ -3053,7 +3098,10 @@ class LsxService:
                                      (getattr(mon, "don_vi_gia", None)
                                       or getattr(cu, "don_vi_snapshot", None) or "")),
                     kho_rong=kho[pos][0], kho_dai=kho[pos][1],
-                    so_luong=float(item["so_luong"]), thu_tu=pos,
+                    so_luong=(float(item["so_luong"]) if cap[0] == HANG_GIAY else tinh_lai[cap]),
+                    gia_tri_chip=(None if cap[0] == HANG_GIAY
+                                  else dict(item.get("gia_tri_chip") or {})),
+                    thu_tu=pos,
                     # Cờ MÁY BUNG / NGƯỜI KHAI đi theo từng dòng: lần bung sau chỉ thay dòng máy,
                     # dòng người đã sửa thì chừa ra. Client cũ không gửi ⇒ False = người khai.
                     tu_dong=bool(item.get("tu_dong")),

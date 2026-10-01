@@ -154,10 +154,13 @@ describe("ô Cách đo lượng ĐÃ GỠ khỏi Máy · Vật tư khác (06/09/
       .toEqual([3, 7]);
   });
 
-  it("Vật tư khác: drawer KHÔNG còn ô công thức nào", () => {
-    // Ô giá ẩn từ trước (xưởng không thêm dòng mực/màng/keo rời vào phiếu tính giá), ô lượng gỡ
-    // 06/09/2026 — cả hai câu hỏi nay trả lời ở chỗ khác.
-    expect(CFG_VAT_TU.fields.some((f) => f.key === "cong_thuc_gia")).toBe(false);
+  it("Vật tư khác: có chip riêng + hai ô công thức, mỗi ô một tab", () => {
+    // 01/10/2026 — mở lại hai ô công thức, kèm chip riêng của chính vật tư.
+    const ct = CFG_VAT_TU.fields.filter((f) => f.type === "formula");
+    expect(ct.map((f) => f.key)).toEqual(["cong_thuc_gia", "cong_thuc_dinh_muc"]);
+    expect(ct.map((f) => f.nhanTab)).toEqual(["Công thức tính giá", "Công thức định mức"]);
+    expect(ct.every((f) => f.chipsTu === "chips")).toBe(true);
+    expect(CFG_VAT_TU.fields.some((f) => f.type === "vat-tu-chip" && f.key === "chips")).toBe(true);
     expect(CFG_VAT_TU.fields.some((f) => f.key === "cong_thuc_luong")).toBe(false);
   });
 

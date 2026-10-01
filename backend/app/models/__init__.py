@@ -92,7 +92,7 @@ from .user import User
 from .plate_die_rate import PlateDieRate
 from .norm import Norm
 from .may_thiet_bi import MayThietBi, NhomMay
-from .vat_lieu_kho import GiayGiaVersion, GiayNguyen, VatTuInAn
+from .vat_lieu_kho import GiayGiaVersion, GiayNguyen, VatTuChip, VatTuInAn
 from .cong_doan import (
     CongDoan, CongDoanKhoan, CongDoanKhoanPhatSinh, CongDoanMay, CongDoanTo, CongDoanVatTu,
 )

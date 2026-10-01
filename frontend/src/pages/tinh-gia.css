@@ -3717,3 +3717,15 @@ select.tg-input--sm {
   font-size: 12.5px;
   color: var(--ash);
 }
+
+/* Vật tư theo bước (01/10/2026) */
+.tg-bvt-khoi { display: grid; gap: 12px; margin-top: 12px; }
+.tg-bvt { border: 1px solid var(--line, #e3e1dc); border-radius: 8px; padding: 10px 12px; }
+.tg-bvt__head { font-weight: 600; margin-bottom: 6px; }
+.tg-bvt__rong { color: var(--muted, #6b6b6b); margin: 4px 0; }
+.tg-bvt__row { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr auto; gap: 8px; align-items: center; padding: 4px 0; }
+.tg-bvt__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tg-bvt__chip { display: inline-flex; align-items: center; gap: 4px; }
+.tg-bvt__chip input { width: 88px; text-align: right; }
+.tg-bvt__xoa { min-width: 32px; min-height: 32px; }
+@media (max-width: 640px) { .tg-bvt__row { grid-template-columns: 1fr; } }

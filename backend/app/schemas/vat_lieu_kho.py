@@ -85,6 +85,19 @@ class GiayRow(BaseModel):
 
 
 # ---- Vật tư in ấn (phẳng: mã · tên · ĐVT · giá · ghi chú) ----
+class VatTuChipIn(BaseModel):
+    ma: str | None = None            # vắng = máy sinh từ `ten`; có = chip cũ, GIỮ mã (công thức trỏ vào)
+    ten: str = Field(min_length=1, max_length=80)
+    don_vi: str | None = Field(default=None, max_length=24)
+
+
+class VatTuChipRow(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    ma: str
+    ten: str
+    don_vi: str | None = None
+
+
 class VatTuIn(BaseModel):
     ma: str = Field(min_length=1, max_length=30)
     ten: str = Field(min_length=1, max_length=150)
@@ -92,6 +105,8 @@ class VatTuIn(BaseModel):
     don_gia: float = Field(default=0, ge=0)
     ghi_chu: str | None = None
     cong_thuc_gia: str | None = None
+    cong_thuc_dinh_muc: str | None = None
+    chips: list[VatTuChipIn] | None = None       # None/vắng = không đụng chip hiện có
     # Ô công thức tính lượng ĐÃ GỠ khỏi Vật tư khác (mg `0274`) — định mức nay khai theo
     # TỪNG DÒNG vật tư của đầu việc trong công đoạn. Schema Giấy ở trên GIỮ NGUYÊN.
     # NVL thay thế (mg 0239) — id các Vật tư khác dùng thay được món này. MỘT CHIỀU.
@@ -110,6 +125,8 @@ class VatTuRow(BaseModel):
     don_gia: float
     ghi_chu: str | None = None
     cong_thuc_gia: str | None = None
+    cong_thuc_dinh_muc: str | None = None
+    chips: list[VatTuChipRow] = Field(default_factory=list)
     thay_the_ids: list[int] | None = None
     active: bool
     updated_at: datetime | None = None

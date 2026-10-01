@@ -401,6 +401,10 @@ class LsxCongDoanVatTu(Base):
     tu_dong: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
+    # CHIP của dòng này (spec 2026-10-01 Đ5): {mã chip: số}, CHÉP từ phiếu tính giá lúc tạo lệnh —
+    # không tra ngược phiếu lúc chạy, để phiếu sửa sau không làm đổi lệnh đã lập. Dùng để tính
+    # `so_luong` bằng `vat_tu_in_an.cong_thuc_dinh_muc` mỗi lần bung/bung lại. mg 0358.
+    gia_tri_chip: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     buoc: Mapped["LsxCongDoan"] = relationship("LsxCongDoan", back_populates="vat_tus")
 
 

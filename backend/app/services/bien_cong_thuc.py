@@ -21,7 +21,9 @@ TypeError ngay, không im lặng ra 0 như dict rời trước kia.
 """
 from __future__ import annotations
 
+import keyword
 import re
+import unicodedata
 
 # Bốn ô gõ công thức. Ba ô đầu là công thức TIỀN (thế số ra đồng), ô cuối là công thức HỆ SỐ.
 LOAI_GIAY = "giay"
@@ -204,6 +206,32 @@ BIEN: tuple[dict, ...] = tuple(
 )
 
 _THEO_MA = {b["ma"]: b for b in BIEN}
+
+# Tên hàm công thức — chip riêng của vật tư không được trùng, kẻo `if`/`max`… bị hiểu thành biến.
+TEN_HAM_CAM = frozenset({"if", "if_", "ceil", "floor", "round", "max", "min", "abs"})
+
+
+def ma_tu_ten_chip(ten: str) -> str:
+    """Mã biến sinh từ tên chip: bỏ dấu, thường, ký tự lạ → `_`. `Định lượng support` → `dinh_luong_support`.
+
+    Mã sinh MỘT lần lúc tạo chip rồi KHÔNG đổi theo tên (công thức đang trỏ vào mã)."""
+    s = unicodedata.normalize("NFD", (ten or "").replace("đ", "d").replace("Đ", "D"))
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
+    s = re.sub(r"[^a-z0-9]+", "_", s).strip("_")
+    if not s:
+        return "chip"
+    return f"c_{s}" if s[0].isdigit() else s
+
+
+def ma_chip_hop_le(ma: str) -> bool:
+    """Mã chip dùng được làm tên biến: snake_case, không trùng biến hệ thống / hàm / từ khoá Python."""
+    return (
+        bool(re.fullmatch(r"[a-z][a-z0-9_]*", ma or ""))
+        and ma not in TEN_HAM_CAM
+        and not keyword.iskeyword(ma)
+        and ma not in _THEO_MA
+    )
+
 
 # Biến engine bơm sẵn cho BA ô công thức tiền (`ngu_canh_phieu`). Biến đơn giá KHÔNG nằm đây —
 # chúng lấy từ chính mục đang khai nên nơi gọi bơm thêm sau.

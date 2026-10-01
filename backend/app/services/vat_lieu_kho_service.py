@@ -22,7 +22,7 @@ from ..repositories.vat_lieu_kho_repo import VERSION_SNAPSHOT, VatLieuKhoReposit
 from . import nhat_ky_danh_muc as nk
 from .dong_giay import ban_do_tram, ma_cua_tram
 from .kho_giay import DANG_CUON, DANG_TO
-from .bien_cong_thuc import LOAI_GIAY, LOAI_VAT_TU
+from .bien_cong_thuc import LOAI_GIAY, LOAI_QUY_DOI, LOAI_VAT_TU, ma_chip_hop_le, ma_tu_ten_chip
 from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogNotFound, CatalogValidationError, ma_ban_sao,
 )
@@ -40,8 +40,35 @@ HANG_NHAN = {"giay": "Giấy", "vat_tu": "Vật tư khác", "thanh_pham": "Thàn
 # tên khác thì họ không biết đang nói ô nào.
 _O_CONG_THUC: dict[str, tuple[tuple[str, str, str], ...]] = {
     "giay": (("cong_thuc_gia", "Công thức tính giá", LOAI_GIAY),),
-    "vat_tu": (("cong_thuc_gia", "Công thức tính giá", LOAI_VAT_TU),),
+    "vat_tu": (
+        ("cong_thuc_gia", "Công thức tính giá", LOAI_VAT_TU),
+        ("cong_thuc_dinh_muc", "Công thức định mức", LOAI_QUY_DOI),
+    ),
 }
+
+_MAX_CHIP = 12
+
+
+def _chuan_chips(chips_in: list) -> list[dict]:
+    """Chuẩn hoá chip vào: giữ `ma` đã có, sinh `ma` cho dòng mới, chặn trùng/không hợp lệ."""
+    if len(chips_in) > _MAX_CHIP:
+        raise VatLieuKhoValidationError(f"Tối đa {_MAX_CHIP} chip cho một vật tư.")
+    ra: list[dict] = []
+    da_dung: set[str] = set()
+    for c in chips_in:
+        c = c if isinstance(c, dict) else c.model_dump()
+        ten = (c.get("ten") or "").strip()
+        if not ten:
+            raise VatLieuKhoValidationError("Chip chưa có tên.")
+        ma = (c.get("ma") or "").strip() or ma_tu_ten_chip(ten)
+        if not ma_chip_hop_le(ma):
+            raise VatLieuKhoValidationError(
+                f"Chip '{ten}': mã biến '{ma}' trùng biến có sẵn của hệ thống hoặc không hợp lệ — đổi tên chip.")
+        if ma in da_dung:
+            raise VatLieuKhoValidationError(f"Hai chip cùng mã biến '{ma}' — đổi tên một trong hai.")
+        da_dung.add(ma)
+        ra.append({"ma": ma, "ten": ten, "don_vi": (c.get("don_vi") or "").strip() or None})
+    return ra
 
 
 class VatLieuKhoError(CatalogError):
@@ -144,10 +171,26 @@ class VatLieuKhoService:
             # mục" — nửa đầu là `thanh_pham_khai_bao` chép thẳng ĐVT của dòng đơn sang.
             self._kiem_don_vi(data.get("don_vi_gia"), "Đơn vị tính",
                               dang_co=getattr(obj, "don_vi_gia", None))
-        self._kiem_cong_thuc(kind, data)
+        self._kiem_chip_va_cong_thuc(kind, data, obj)
+
+    def _kiem_chip_va_cong_thuc(self, kind: str, data: dict, obj=None) -> None:
+        """Vật tư: chuẩn hoá chip rồi kiểm công thức với tập biến = hệ thống ∪ chip của chính vật tư.
+        Đổi bộ chip thì soi lại cả công thức ĐANG LƯU — xoá chip mà công thức còn dùng thì bị chặn."""
+        if kind != "vat_tu":
+            return self._kiem_cong_thuc(kind, data)
+        if "chips" in data:
+            data["chips"] = _chuan_chips(list(data["chips"] or []))
+            ma = [c["ma"] for c in data["chips"]]
+        else:
+            ma = [c.ma for c in (obj.chips if obj is not None else [])]
+        kiem = dict(data)
+        if obj is not None and "chips" in data:
+            for cot, _nhan, _loai in _O_CONG_THUC["vat_tu"]:
+                kiem.setdefault(cot, getattr(obj, cot, None))
+        self._kiem_cong_thuc(kind, kiem, ma)
 
     @staticmethod
-    def _kiem_cong_thuc(kind: str, data: dict) -> None:
+    def _kiem_cong_thuc(kind: str, data: dict, chips_ma=()) -> None:
         """Công thức phải CHẠY ĐƯỢC mới cho lưu — xem `thanh_phan_engine.kiem_cong_thuc`.
 
         Chỉ soi ô CÓ MẶT trong `data`: sửa một phần (đổi mỗi cái tên) thì không đụng tới ô công
@@ -158,7 +201,7 @@ class VatLieuKhoService:
             if cot not in data:
                 continue
             try:
-                kiem_cong_thuc(data.get(cot), nhan=nhan_o, loai=loai)
+                kiem_cong_thuc(data.get(cot), nhan=nhan_o, loai=loai, bien_them=chips_ma)
             except ValueError as e:
                 raise VatLieuKhoValidationError(str(e)) from e
 
@@ -245,6 +288,8 @@ class VatLieuKhoService:
         """Nhân bản một dòng: copy mọi cột nghiệp vụ, đổi mã + tên để không trùng bản gốc."""
         goc = self.get(kind, item_id)
         data = nk.anh_chup(goc)
+        if kind == "vat_tu":
+            data["chips"] = [{"ma": c.ma, "ten": c.ten, "don_vi": c.don_vi} for c in goc.chips]
         ma_goc = data.get("ma") or ""
         data["ten"] = f"{data.get('ten', '')} (bản sao)"
         data["ma"] = ma_ban_sao(lambda ma: self.repo.find_by_ma(kind, ma), ma_goc)

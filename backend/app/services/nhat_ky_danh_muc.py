@@ -155,6 +155,8 @@ NHAN: dict[str, str] = {
     "spoilage_pct": "Tỷ lệ hao",
     "inline_flag": "Chạy nối tuyến (inline)",
     "cong_thuc_gia": "Công thức tính giá",
+    "cong_thuc_dinh_muc": "Công thức định mức",
+    "chips": "Chip riêng",
     # Ô của Giấy (mở lại 07/09/2026) và dòng vật tư của đầu việc dùng CHUNG nhãn này — cả hai đều
     # trả lời "một lệnh ăn bao nhiêu", nên gọi cùng một tên: "định mức".
     "cong_thuc_luong": "Công thức tính định mức",
@@ -454,6 +456,7 @@ def anh_chup(obj: Any) -> dict[str, Any]:
     cols = sa_inspect(type(obj)).columns.keys()
     ra = {c: getattr(obj, c, None) for c in cols if c not in BO_QUA}
     ra.update(_con_cua_cong_doan(obj))
+    ra.update(_con_cua_vat_tu(obj))
     ra.update(_con_cua_cong_viec_khoan(obj))
     return ra
 
@@ -485,6 +488,13 @@ def _con_cua_cong_viec_khoan(obj: Any) -> dict[str, Any]:
             v.ten: f"{_so(v.don_gia)} đ/{nhan_don_vi(bang, v.don_vi)}" for v in viecs
         },
     }
+
+
+def _con_cua_vat_tu(obj: Any) -> dict[str, Any]:
+    """Chip riêng của vật tư gom thành MỘT chuỗi "Tên (mã biến), …" để nhật ký so được."""
+    if getattr(obj, "__tablename__", "") != "vat_tu_in_an":
+        return {}
+    return {"chips": ", ".join(f"{c.ten} ({c.ma})" for c in (getattr(obj, "chips", None) or [])) or None}
 
 
 def _con_cua_cong_doan(obj: Any) -> dict[str, dict[str, Any]]:

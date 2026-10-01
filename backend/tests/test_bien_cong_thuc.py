@@ -15,7 +15,7 @@ from app.services.bien_cong_thuc import (
 )
 from app.services.thanh_phan_engine import compute_phieu
 
-from .test_thanh_phan_engine import _component
+from .test_thanh_phan_engine import _component, gan_vat_tu_buoc
 
 # Khoá trong ngữ cảnh eval KHÔNG phải biến người dùng gõ — hàm toán học engine phơi sẵn.
 _KHONG_PHAI_BIEN = set(tpe.MATH_FUNCS)
@@ -24,11 +24,12 @@ _KHONG_PHAI_BIEN = set(tpe.MATH_FUNCS)
 def _phieu(*, giay: str = "", vat_tu: str = "", cong_doan: str = "") -> dict:
     tp = _component()
     tp["cong_thuc_gia"] = giay
-    tp["vat_tus"] = [{"ten": "Mực", "don_gia": 100, "don_vi_gia": "kg",
-                      "cong_thuc_gia": vat_tu}] if vat_tu else []
     tp["thanh_phams"] = [{"ten": "Bế", "don_gia": 0, "cong_doan": {
         "ten": "Bế", "nhom": "finishing", "don_vi_vao": "to", "don_vi_ra": "cai",
         "tram_vao": "to", "tram_ra": "cai", "cong_thuc_gia": cong_doan}}] if cong_doan else []
+    if vat_tu:   # vật tư thuộc BƯỚC từ 01/10/2026
+        gan_vat_tu_buoc(tp, [{"ten": "Mực", "don_gia": 100, "don_vi_gia": "kg",
+                              "cong_thuc_gia": vat_tu}])
     return tp
 
 

@@ -3339,7 +3339,9 @@ dùng cho bình bài.
 
 **Purpose:** vật tư in ấn — danh mục PHẲNG (mực/kẽm/hoá chất/màng/keo… chung 1 bảng, phân biệt bằng tên) theo bảng xưởng: Mã · Tên · ĐVT · Giá · Ghi chú. Thay 2 bảng cũ `muc`+`ban_kem`.
 
-**Tất cả cột:** `id`, `ma`, `ten`, `don_vi_gia`, `don_vi_dong_goi`, `he_so_dong_goi`, `don_gia`, `cong_thuc_gia`, `ghi_chu`, `thay_the_ids`, `anh_url`, `active`, `created_at`, `updated_at`, `customer_id`, `la_thanh_pham`, `order_id`, `order_line_id`.
+**Tất cả cột:** `id`, `ma`, `ten`, `don_vi_gia`, `don_vi_dong_goi`, `he_so_dong_goi`, `don_gia`, `cong_thuc_gia`, `cong_thuc_dinh_muc`, `ghi_chu`, `thay_the_ids`, `anh_url`, `active`, `created_at`, `updated_at`, `customer_id`, `la_thanh_pham`, `order_id`, `order_line_id`.
+
+`cong_thuc_dinh_muc` (TEXT nullable, mg 0357, 01/10/2026): **CÔNG THỨC ĐỊNH MỨC** — số lượng vật tư này tiêu hao cho MỘT bước; biến = bộ `LOAI_QUY_DOI` + chip riêng (`vat_tu_chip`). Lệnh sản xuất tự tính, người dùng không nhập tay. Backfill từ `cong_doan_vat_tu.cong_thuc_luong` khi vật tư chỉ có đúng một công thức.
 
 `thay_the_ids` (JSON nullable, mảng int, mg 0239): **NVL THAY THẾ** — id các dòng `vat_tu_in_an` KHÁC dùng thay được món này. Xem ghi chú đầy đủ ở `giay_nguyen.thay_the_ids` (một chiều, chỉ tra cứu/gợi ý).
 
@@ -3364,6 +3366,14 @@ dùng cho bình bài.
 `don_vi_gia` (mg 0170): **ĐƠN VỊ GỐC** — mã trong `don_vi_do`, NULL = chưa chọn. Xem ghi chú ở `giay_nguyen`.
 
 `don_vi_dong_goi` + `he_so_dong_goi` (mg 0170) — **ĐÃ BỎ 10/08/2026, cột chết**: quy cách đóng gói riêng của món ("1 thùng = 3 kg"). Gỡ vì khai quy đổi ở hai nơi (đây và danh mục Đơn vị & quy đổi) là bắt người dùng nhớ luật vô ích; cần "thùng keo 20 kg" thì khai thẳng một đơn vị như vậy ở `don_vi_do` rồi chọn làm ĐVT. Đã gỡ khỏi model · schema · form · đồ thị quy đổi; hai cột để nguyên trong DB (dự án không có Alembic, không drop) nhưng KHÔNG còn code nào đọc/ghi.
+
+### `vat_tu_chip`
+
+**Purpose:** chip RIÊNG do người dùng đặt tên cho MỘT vật tư (vd "Dài support"); dùng làm biến trong `vat_tu_in_an.cong_thuc_gia` và `cong_thuc_dinh_muc`. Bảng mới (spec 2026-10-01); do `create_all` dựng.
+
+**Tất cả cột:** `id`, `vat_tu_id`, `ma`, `ten`, `don_vi`, `thu_tu`.
+
+`vat_tu_id` FK→`vat_tu_in_an.id` (CASCADE), index. `ma` (VARCHAR(40)) là tên biến trong công thức — sinh từ tên lúc tạo, KHÔNG đổi khi đổi tên chip; unique (`vat_tu_id`, `ma`) `uq_vat_tu_chip_ma`. `ten` (VARCHAR(80)) nhãn hiện trên màn. `don_vi` (VARCHAR(24) nullable) hiện sau ô nhập. `thu_tu` (INTEGER default 0).
 
 ### `cong_doan`
 
@@ -3921,9 +3931,18 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 ### `phieu_vat_tu`
 
-**Purpose:** 1 dòng VẬT TƯ IN ẤN (mực/màng/keo…) thêm tay của 1 thành phần → NGUYÊN VẬT LIỆU (song song giấy) — con của `phieu_thanh_phan` (`thanh_phan_id` FK thật, cascade xoá). Trỏ 1 mã `vat_tu_id` (soft → `vat_tu_in_an.id`, index `ix_phieu_vat_tu_vat_tu_id` — migration `0301`); engine kéo `cong_thuc_gia` + `don_gia` + `don_vi_gia` từ danh mục rồi thế biến vào công thức — HỆT giấy. `don_gia` = ghi đè (0 → lấy danh mục); `so_luong` (0 → SL đặt) cho công thức nếu cần; `ten` nhãn hiển thị; `ghi_chu` ghi chú.
+**NGƯNG từ 01/10/2026** — thay bởi `phieu_buoc_vat_tu` (vật tư thuộc BƯỚC, không thuộc thành phần). Bảng và dữ liệu cũ giữ nguyên, code không đọc/ghi nữa. 
+**Purpose (cũ):** 1 dòng VẬT TƯ IN ẤN (mực/màng/keo…) thêm tay của 1 thành phần → NGUYÊN VẬT LIỆU (song song giấy) — con của `phieu_thanh_phan` (`thanh_phan_id` FK thật, cascade xoá). Trỏ 1 mã `vat_tu_id` (soft → `vat_tu_in_an.id`, index `ix_phieu_vat_tu_vat_tu_id` — migration `0301`); engine kéo `cong_thuc_gia` + `don_gia` + `don_vi_gia` từ danh mục rồi thế biến vào công thức — HỆT giấy. `don_gia` = ghi đè (0 → lấy danh mục); `so_luong` (0 → SL đặt) cho công thức nếu cần; `ten` nhãn hiển thị; `ghi_chu` ghi chú.
 
 **Tất cả cột:** `id`, `thanh_phan_id`, `thu_tu`, `vat_tu_id`, `ten`, `don_gia`, `so_luong`, `ghi_chu`, `created_at`, `updated_at`.
+
+---
+
+### `phieu_buoc_vat_tu`
+
+**Purpose:** 1 vật tư gắn vào 1 BƯỚC (công đoạn) của phiếu tính giá — con của `phieu_thanh_pham` (`thanh_pham_id` FK thật, cascade xoá). Vật tư của công đoạn tự hiện khi chọn công đoạn; sale thêm/bớt riêng cho phiếu. `vat_tu_id` soft → `vat_tu_in_an.id`; `gia_tri_chip` (JSON) = số sale nhập cho từng chip riêng của vật tư (khoá = `vat_tu_chip.ma`), engine thế vào `cong_thuc_gia` của vật tư. Lưu phiếu là replace-all nên `id` không được ghim; lệnh SX nối với bước theo vị trí (`thu_tu`).
+
+**Tất cả cột:** `id`, `thanh_pham_id`, `thu_tu`, `vat_tu_id`, `gia_tri_chip`, `created_at`, `updated_at`.
 
 ---
 
@@ -4221,7 +4240,9 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 
 Dòng GIẤY (`hang_loai='giay'`) ghi mã + khổ + số tờ nguyên, không công thức: `kho_rong` / `kho_dai` (`Integer`, mm, NOT NULL default 0, mg 0351) là cạnh ngắn × cạnh dài đã chuẩn hoá, `don_vi_snapshot` luôn là đơn vị tờ nguyên. Hàng khác 0 · 0.
 
-**Tất cả cột:** `id`, `lsx_cong_doan_id`, `hang_loai`, `vat_tu_id`, `vat_tu_ma_snapshot`, `vat_tu_ten_snapshot`, `don_vi_snapshot`, `so_luong`, `kho_rong`, `kho_dai`, `thu_tu`, `tu_dong`.
+**Tất cả cột:** `id`, `lsx_cong_doan_id`, `hang_loai`, `vat_tu_id`, `vat_tu_ma_snapshot`, `vat_tu_ten_snapshot`, `don_vi_snapshot`, `so_luong`, `kho_rong`, `kho_dai`, `thu_tu`, `tu_dong`, `gia_tri_chip`.
+
+`gia_tri_chip` (JSON NULL, migration `0358`) = {mã chip: số} chép từ phiếu tính giá lúc tạo lệnh; dùng để tính `so_luong` bằng `vat_tu_in_an.cong_thuc_dinh_muc`.
 
 `hang_loai` (VARCHAR(8) NOT NULL DEFAULT `'vat_tu'`, IX, mg `0280`): **danh mục nào chứa món này** — `'giay'` → `giay_nguyen`, `'vat_tu'` → `vat_tu_in_an`. Thêm 08/09/2026 khi bước bắt đầu chọn được **NVL chính** từ danh mục Giấy; trước đó giấy đi đường riêng, suy từ `quy_cach_json.giay_id` rồi tự treo lên "bước đầu tiên chạm tờ" (hệ đoán cả loại lẫn bước, và một lệnh chỉ ôm được đúng một loại giấy). Cặp `(hang_loai, vat_tu_id)` là khuôn `stock_lots` / `vat_tu_giu_cho` / `stock_requests` / `san_xuat_vat_tu_de_nghi_dong` đã dùng, nên bảng cân đối và tầng kho nhận dòng giấy không phải rẽ nhánh. Cột id vẫn tên `vat_tu_id` nhưng **đọc là `hang_id`**. Unique key `uq_lsx_buoc_vat_tu` gồm cả ba cột: Giấy #7 và Vật tư #7 là hai món khác nhau.
 

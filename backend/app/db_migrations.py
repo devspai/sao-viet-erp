@@ -16603,3 +16603,47 @@ def _migrate_chot_giay_to_cat(db: Session) -> None:
 
 
 MIGRATIONS.append(("0356_chot_giay_to_cat", _migrate_chot_giay_to_cat))
+
+
+
+def _migrate_vat_tu_cong_thuc_dinh_muc(db: Session) -> None:
+    """0357 — cột CÔNG THỨC ĐỊNH MỨC trên vật tư (spec 2026-10-01 Đ2).
+
+    Bảng `vat_tu_chip` do `create_all` dựng. Ở đây: (1) thêm cột nếu thiếu, (2) backfill từ
+    `cong_doan_vat_tu.cong_thuc_luong` khi vật tư đó chỉ có ĐÚNG MỘT công thức khác rỗng — có ≥2
+    công thức khác nhau thì để trống (không đoán). Chỉ điền ô còn trống nên chạy lại không đè công
+    thức người dùng đã sửa. SQL thô đích danh cột."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if "vat_tu_in_an" not in bang:
+        return
+    co_dv = "cong_doan_vat_tu" in bang
+    if "cong_thuc_dinh_muc" not in _existing_columns(insp, "vat_tu_in_an"):
+        db.execute(text("ALTER TABLE vat_tu_in_an ADD COLUMN cong_thuc_dinh_muc TEXT"))
+    if co_dv:
+        co_ct = ("cv.vat_tu_id = vat_tu_in_an.id AND cv.cong_thuc_luong IS NOT NULL "
+                 "AND TRIM(cv.cong_thuc_luong) <> ''")
+        db.execute(text(
+            "UPDATE vat_tu_in_an SET cong_thuc_dinh_muc = ("
+            f"SELECT MIN(cv.cong_thuc_luong) FROM cong_doan_vat_tu cv WHERE {co_ct}) "
+            "WHERE (cong_thuc_dinh_muc IS NULL OR TRIM(cong_thuc_dinh_muc) = '') AND ("
+            f"SELECT COUNT(DISTINCT cv.cong_thuc_luong) FROM cong_doan_vat_tu cv WHERE {co_ct}) = 1"
+        ))
+    db.commit()
+
+
+MIGRATIONS.append(("0357_vat_tu_cong_thuc_dinh_muc", _migrate_vat_tu_cong_thuc_dinh_muc))
+
+
+def _migrate_lsx_vat_tu_gia_tri_chip(db: Session) -> None:
+    """0358 — cột `gia_tri_chip` (JSON) cho dòng vật tư của bước lệnh. Idempotent; không backfill
+    (lệnh cũ không có chip, định mức đã tính giữ nguyên)."""
+    insp = inspect(db.get_bind())
+    if "lsx_cong_doan_vat_tu" not in set(insp.get_table_names()):
+        return
+    if "gia_tri_chip" not in _existing_columns(insp, "lsx_cong_doan_vat_tu"):
+        db.execute(text("ALTER TABLE lsx_cong_doan_vat_tu ADD COLUMN gia_tri_chip JSON"))
+    db.commit()
+
+
+MIGRATIONS.append(("0358_lsx_vat_tu_gia_tri_chip", _migrate_lsx_vat_tu_gia_tri_chip))

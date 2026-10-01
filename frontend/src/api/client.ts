@@ -2751,7 +2751,10 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
   vat_tus: { id: number; hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; vat_tu_ma: string;
              vat_tu_ten: string; don_vi: string; so_luong: number; tu_dong?: boolean;
              /** Khổ dòng GIẤY (mm, ngắn × dài) — giấy đếm tờ nguyên theo khổ. Hàng khác 0 · 0. */
-             kho_rong?: number; kho_dai?: number }[];
+             kho_rong?: number; kho_dai?: number;
+             /** Vật tư KHÁC giấy: số chip đã chép từ phiếu + danh sách chip của vật tư (chỉ đọc). */
+             gia_tri_chip?: Record<string, number>;
+             chips?: { ma: string; ten: string; don_vi?: string | null }[] }[];
   ghi_chu: string | null;
   /* Đầu việc ghim ở bước (`khoan_rate_id` · `khoan_ten` · `khoan_chon_duoc`) GỠ 18/09/2026 (mg
      `0320`): việc khoán chọn LÚC GHI MẺ ở bàn tổ, lọc theo tổ của bước. */
@@ -2790,7 +2793,8 @@ export interface LsxCongDoanBody extends Partial<Omit<LsxThueNgoaiFields, "nha_c
   phat_sinh_phut?: number;
   phu_thuoc_step_keys?: string[];
   /** Bỏ trống `hang_loai` là server hiểu `"vat_tu"` — giữ đúng nghĩa client cũ. */
-  vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong: number;
+  vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong?: number;
+              tu_dong?: boolean; gia_tri_chip?: Record<string, number>;
               kho_rong?: number; kho_dai?: number }[];
   ghi_chu?: string | null;
 }
@@ -4102,6 +4106,21 @@ export interface ThanhPhamOut {
   dai_khuon: number;
   rong_khuon: number;
   so_khuon: number;
+  /** Vật tư của BƯỚC này (01/10/2026) — số đã nhập cho chip riêng của từng vật tư. */
+  vat_tus: BuocVatTuOut[];
+}
+
+/** 1 vật tư gắn vào 1 bước của phiếu — `gia_tri_chip` khoá theo mã chip của vật tư. */
+export interface BuocVatTuOut {
+  id: number;
+  thu_tu: number;
+  vat_tu_id: number;
+  gia_tri_chip: Record<string, number>;
+}
+export interface BuocVatTuIn {
+  vat_tu_id: number;
+  thu_tu?: number;
+  gia_tri_chip?: Record<string, number>;
 }
 
 /** 1 thành phần giấy (paper component): giấy + kỹ thuật in + màu + list gia công. */
@@ -4161,7 +4180,6 @@ export interface ThanhPhanOut {
   phi_giao_hang: number; // ⑤ phí giao hàng — khoản MỘT LẦN, ĐÃ nằm trong `gia_von_tp`
   gia_von_tp: number;
   thanh_phams: ThanhPhamOut[];
-  vat_tus: VatTuLineOut[];
   /** ⑥ Chi phí khác — các khoản lẻ tự khai (làm kẽm ngoài, phí thiết kế…). Mỗi dòng MỘT LẦN cho
    *  cả sản lượng, ĐÃ nằm trong `gia_von_tp`. */
   chi_phi_khacs: ChiPhiKhacOut[];
@@ -4174,18 +4192,6 @@ export interface ChiPhiKhacOut {
   thu_tu: number;
   ten: string;
   so_tien: number;
-}
-
-/** 1 dòng vật tư in ấn thêm (mực/màng/keo…) → Nguyên vật liệu. */
-export interface VatTuLineOut {
-  id: number;
-  thanh_phan_id: number;
-  thu_tu: number;
-  vat_tu_id: number | null;
-  ten: string;
-  don_gia: number;
-  so_luong: number;
-  ghi_chu: string | null;
 }
 
 /** Detail đầy đủ 1 phiếu — `result` tái dùng TinhGiaPreviewOut (engine dict 4 nhóm). */
@@ -4239,6 +4245,7 @@ export interface ThanhPhamIn {
   dai_khuon?: number;
   rong_khuon?: number;
   so_khuon?: number;
+  vat_tus?: BuocVatTuIn[];
 }
 /** Input 1 thành phần — mọi field optional + list gia công. */
 export interface ThanhPhanIn {
@@ -4284,7 +4291,6 @@ export interface ThanhPhanIn {
    *  cộng thẳng vào giá vốn (⇒ chịu markup ở Báo giá). 0 = không thu. */
   phi_giao_hang?: number;
   thanh_phams?: ThanhPhamIn[];
-  vat_tus?: VatTuLineIn[];
   /** ⑥ Chi phí khác: khoản lẻ MỘT LẦN (làm kẽm ngoài, phí thiết kế…) — cộng thẳng vào giá vốn
    *  như `phi_giao_hang`. Dòng 0đ vẫn lưu (để gõ tiếp) nhưng server không đẻ dòng tiền. */
   chi_phi_khacs?: ChiPhiKhacIn[];
@@ -4299,14 +4305,6 @@ export interface SanPhamTaiBanGoiY {
   id: number;
   ten: string;
   updated_at: string;
-}
-/** Input 1 dòng vật tư thêm — optional (BE kéo công thức + giá từ danh mục). */
-export interface VatTuLineIn {
-  vat_tu_id?: number | null;
-  ten?: string;
-  don_gia?: number;
-  so_luong?: number;
-  ghi_chu?: string | null;
 }
 /** Field khởi tạo phiếu (tất cả optional — BE auto `ma`). */
 export interface PhieuTinhGiaCreate {

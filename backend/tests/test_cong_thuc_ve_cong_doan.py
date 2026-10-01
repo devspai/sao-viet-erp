@@ -74,14 +74,16 @@ def test_hai_vat_tu_cung_kg_trong_mot_cong_doan_an_theo_hai_cach(db, orders, lsx
 
     cd = CongDoan(ma="CD-G5", ten="In offset khổ nhỏ", nhom="print",
                   don_vi_vao="to", don_vi_ra="to")
-    muc = VatTuInAn(ma="VT-MUC-C", ten="Mực offset Cyan", don_vi_gia="kg", active=True)
-    dm_moi = VatTuInAn(ma="VT-DM-01", ten="Dung môi rửa máy in", don_vi_gia="kg", active=True)
+    muc = VatTuInAn(ma="VT-MUC-C", ten="Mực offset Cyan", don_vi_gia="kg", active=True,
+                    cong_thuc_dinh_muc="sl_vao / 40000")
+    dm_moi = VatTuInAn(ma="VT-DM-01", ten="Dung môi rửa máy in", don_vi_gia="kg", active=True,
+                       cong_thuc_dinh_muc="so_mau * 0.3")
     db.add_all([cd, muc, dm_moi])
     db.flush()
 
     # Tab VẬT TƯ của công đoạn (mg `0316`) — neo ở CÔNG ĐOẠN, không còn qua đầu việc.
-    cd.vat_tus.append(CongDoanVatTu(vat_tu_id=muc.id, thu_tu=0, cong_thuc_luong="sl_vao / 40000"))
-    cd.vat_tus.append(CongDoanVatTu(vat_tu_id=dm_moi.id, thu_tu=1, cong_thuc_luong="so_mau * 0.3"))
+    cd.vat_tus.append(CongDoanVatTu(vat_tu_id=muc.id, thu_tu=0))
+    cd.vat_tus.append(CongDoanVatTu(vat_tu_id=dm_moi.id, thu_tu=1))
     db.commit()
 
     buoc = SimpleNamespace(so_luong_vao=5000, so_luong_ra=5000, so_luot_chay=1)
@@ -102,7 +104,7 @@ def test_dong_vat_tu_chua_khai_cong_thuc_thi_bo_ra_kem_ly_do(db, orders, lsx_svc
 
     cd = CongDoan(ma="CD-G6", ten="Vào gáy", nhom="finishing",
                   don_vi_vao="to", don_vi_ra="cai")
-    keo = VatTuInAn(ma="VT-KEO-9", ten="Keo vào gáy", don_vi_gia="kg", active=True)
+    keo = VatTuInAn(ma="VT-KEO-9", ten="Keo vào gáy", don_vi_gia="kg", active=True)   # chưa khai công thức
     db.add_all([cd, keo])
     db.flush()
     cd.vat_tus.append(CongDoanVatTu(vat_tu_id=keo.id, thu_tu=0, cong_thuc_luong=None))
@@ -127,13 +129,15 @@ def test_buoc_ngoai_dong_giay_van_bung_vat_tu_khong_an_theo_sl(db, orders, lsx_s
     from app.models.vat_lieu_kho import VatTuInAn
 
     cd = CongDoan(ma="CD-CTP", ten="Ghi kẽm CTP", nhom="prepress")
-    kem = VatTuInAn(ma="VT-KEM-01", ten="Bản kẽm CTP 1030x790", don_vi_gia="cai", active=True)
-    muc = VatTuInAn(ma="VT-MUC-K", ten="Mực offset Đen", don_vi_gia="kg", active=True)
+    kem = VatTuInAn(ma="VT-KEM-01", ten="Bản kẽm CTP 1030x790", don_vi_gia="cai", active=True,
+                    cong_thuc_dinh_muc="so_kem")
+    muc = VatTuInAn(ma="VT-MUC-K", ten="Mực offset Đen", don_vi_gia="kg", active=True,
+                    cong_thuc_dinh_muc="sl_vao / 40000")
     db.add_all([cd, kem, muc])
     db.flush()
 
-    cd.vat_tus.append(CongDoanVatTu(vat_tu_id=kem.id, thu_tu=0, cong_thuc_luong="so_kem"))
-    cd.vat_tus.append(CongDoanVatTu(vat_tu_id=muc.id, thu_tu=1, cong_thuc_luong="sl_vao / 40000"))
+    cd.vat_tus.append(CongDoanVatTu(vat_tu_id=kem.id, thu_tu=0))
+    cd.vat_tus.append(CongDoanVatTu(vat_tu_id=muc.id, thu_tu=1))
     db.commit()
 
     buoc = SimpleNamespace(so_luong_vao=0, so_luong_ra=0, so_luot_chay=1)
