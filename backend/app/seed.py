@@ -3175,6 +3175,7 @@ def seed_du_lieu(db: Session, *, demo: bool) -> None:
         # Cây tổ vừa dựng ⇒ dòng quyền theo tổ + chép quyền `san_xuat` của các vai sang đó (cùng
         # luật với migration 0302 — DB trắng chạy migration TRƯỚC khi có tổ nên nó không làm gì).
         from .db_migrations import chuyen_quyen_san_xuat_sang_to
+        from .services.quyen_to import dong_bo_dong_quyen_to
         dong_bo_dong_quyen_to(db)
         chuyen_quyen_san_xuat_sang_to(db)
         # Khối VĂN PHÒNG: mỗi vai trò có một người thật cầm (tài khoản + hồ sơ + lương). Cũng
