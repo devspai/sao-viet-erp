@@ -20,9 +20,9 @@ from typing import Any, Callable
 
 from sqlalchemy import select
 
-from ..models.cong_doan import NHOM
 from ..models.customer import Customer
 from ..models.department import Department
+from ..models.don_vi_do import TRAM_NHAN, TRAM_NHAN_NGAN
 from ..models.may_thiet_bi import MayThietBi
 from ..models.vat_lieu_kho import VatTuInAn
 from ..models.xe import MucKhoanKm
@@ -162,6 +162,54 @@ def _tach_danh_sach(gt: Any, _ctx: NguCanh) -> list[str]:
     return [t.strip() for t in str(gt or "").split(",") if t.strip()]
 
 
+def _enum_viet(nhan_cua: dict[str, str], ten_cot: str, *, bi_danh: dict[str, str] | None = None):
+    """Cặp `(doc, ghi)` cho cột MÃ enum: file xuất ra NHÃN tiếng Việt, nhập nhận cả nhãn lẫn mã gốc.
+
+    Không phân biệt hoa/thường/dấu. Chữ lạ là lỗi kèm danh sách nhãn hợp lệ. `bi_danh` — nhãn đời
+    cũ vẫn nhận.
+    """
+    tra = {_bo_dau(k).lower(): k for k in nhan_cua}
+    tra.update({_bo_dau(v).lower(): k for k, v in nhan_cua.items()})
+    tra.update({_bo_dau(k).lower(): v for k, v in (bi_danh or {}).items()})
+
+    def doc(gt: Any, _ctx: NguCanh) -> str:
+        goc = str(gt or "").strip()
+        ma = tra.get(_bo_dau(goc).lower())
+        if ma:
+            return ma
+        raise ValueError(f'{ten_cot} "{goc}" không hợp lệ — chọn: {", ".join(nhan_cua.values())}.')
+
+    def ghi(gt: Any, _ctx: NguCanh) -> Any:
+        return nhan_cua.get(gt, gt) if gt else gt
+
+    return doc, ghi
+
+
+def _bo_dau(s: str) -> str:
+    import unicodedata
+
+    return "".join(c for c in unicodedata.normalize("NFD", s.replace("đ", "d").replace("Đ", "D"))
+                   if unicodedata.category(c) != "Mn")
+
+
+_NHAN_NHOM = {"prepress": "Trước In", "print": "In", "finishing": "Gia công sau in",
+              "other": "Dịch vụ khác"}
+_NHAN_BU_HAO = {"khong": "Không bù hao", "theo_bac": "Theo bậc số lượng",
+                "co_dinh": "Cộng cố định (số tờ)"}
+_NHAN_LOAI_KHUON = {"khuon_be": "Khuôn bế", "khuon_ep": "Khuôn ép kim", "khung_lua": "Khung lụa"}
+_NHAN_TINH_TRANG = {"dang_dung": "Đang dùng", "dang_dat_lam": "Đang đặt làm", "hong": "Hỏng",
+                    "thanh_ly": "Thanh lý"}
+
+# Chặng dòng giấy: nhãn xuất = TRAM_NHAN; nhập nhận thêm dạng ngắn ("Tờ in", "tờ nguyên").
+_DOC_TRAM, _GHI_TRAM = _enum_viet(
+    TRAM_NHAN, "Đơn vị", bi_danh={v: k for k, v in TRAM_NHAN_NGAN.items()})
+_DOC_NHOM, _GHI_NHOM = _enum_viet(_NHAN_NHOM, "Nhóm", bi_danh={"che ban": "prepress"})
+_DOC_BU_HAO, _GHI_BU_HAO = _enum_viet(_NHAN_BU_HAO, "Kiểu bù hao")
+_DOC_DUNG_CU, _GHI_DUNG_CU = _enum_viet(_NHAN_LOAI_KHUON, "Loại dụng cụ")
+_DOC_LOAI_DAO, _GHI_LOAI_DAO = _enum_viet(_NHAN_LOAI_KHUON, "Loại dao")
+_DOC_TINH_TRANG, _GHI_TINH_TRANG = _enum_viet(_NHAN_TINH_TRANG, "Tình trạng")
+
+
 CO_ACTIVE = Cot(NHAN_TRANG_THAI, "active", kieu="bool", rong=12)
 """Cột bật/ngừng dùng. File XUẤT có CẢ dòng đã ngừng (`FALSE`) — xem `_moi_dong` để biết vì sao —
 nên đổi ô này rồi nhập lại là ngừng dùng hoặc bật lại được cả hai chiều."""
@@ -194,9 +242,9 @@ KHUON_BE = CatalogExcelSpec(
         Cot("Tên", "ten", rong=32),
         Cot("Mã khách hàng", "khach_hang_id", doc=TRA_KHACH.doc, ghi=TRA_KHACH.ghi),
         Cot("Tên khách hàng", "khach_hang_id", ghi=TRA_KHACH.ghi_ten, chi_doc=True, rong=30),
-        Cot("Loại dao", "loai"),
+        Cot("Loại dao", "loai", doc=_DOC_LOAI_DAO, ghi=_GHI_LOAI_DAO),
         Cot("Số kệ", "so_ke", rong=14),
-        Cot("Tình trạng", "tinh_trang", rong=16),
+        Cot("Tình trạng", "tinh_trang", doc=_DOC_TINH_TRANG, ghi=_GHI_TINH_TRANG, rong=16),
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
     ),
@@ -252,9 +300,6 @@ DON_VI_DO = CatalogExcelSpec(
     cot=(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=28),
-        Cot("Loại đo", "ho", rong=16),
-        Cot("Hiệu lực từ", "hieu_luc_tu", kieu="ngay", rong=16),
-        Cot("Dùng làm đơn vị tốc độ", "dung_lam_toc_do", kieu="bool", rong=22),
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
     ),
@@ -271,6 +316,8 @@ DON_VI_DO = CatalogExcelSpec(
             doc_hien_co=_doc_cap, ap_dung=_ap_cap,
         ),
     ),
+    # Không có ô nhập trên form (15/10/2026) — bày ra Excel là mời sửa thứ không ai thấy ở màn; cột vắng mặt khi nhập thì giữ nguyên giá trị cũ.
+    loai_tru=frozenset({"dung_lam_toc_do", "hieu_luc_tu", "ho"}),
 )
 
 
@@ -310,12 +357,8 @@ GIAY = CatalogExcelSpec(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
         Cot("Định lượng (gsm)", "gsm", kieu="nguyen", rong=16),
-        Cot("Độ dày (micron)", "caliper_micron", kieu="nguyen", rong=16),
-        Cot("Thớ giấy", "tho", rong=12),
         Cot("Đơn vị giá", "don_vi_gia", rong=14),
         Cot("Đơn giá", "don_gia", kieu="so", rong=16),
-        Cot("Giá thị trường", "gia_thi_truong", kieu="so", rong=16),
-        Cot("Dùng tính giá", "kho_tinh_gia", kieu="bool", rong=14),
         Cot("Ghi chú", "ghi_chu", rong=32),
         Cot("Công thức giá", "cong_thuc_gia", rong=36),
         CO_ACTIVE,
@@ -325,6 +368,8 @@ GIAY = CatalogExcelSpec(
             doc=lambda gt, ctx: [_doc_thay_the(m, ctx) for m in _tach_danh_sach(gt, ctx)]),
     ),
     sheets_con=(_sheet_thay_the("Giấy thay thế", "Mã giấy"),),
+    # Không có ô nhập trên form (15/10/2026) — bày ra Excel là mời sửa thứ không ai thấy ở màn; cột vắng mặt khi nhập thì giữ nguyên giá trị cũ.
+    loai_tru=frozenset({"caliper_micron", "gia_thi_truong", "kho_tinh_gia", "tho"}),
 )
 
 VAT_TU = CatalogExcelSpec(
@@ -333,14 +378,11 @@ VAT_TU = CatalogExcelSpec(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
         Cot("Đơn vị giá", "don_vi_gia", rong=14),
-        Cot("Đơn giá", "don_gia", kieu="so", rong=16),
         Cot("Ghi chú", "ghi_chu", rong=32),
-        Cot("Công thức giá", "cong_thuc_gia", rong=36),
         CO_ACTIVE,
-        Cot("NVL thay thế", "thay_the_ids", chi_nhap=True,
-            doc=lambda gt, ctx: [_doc_thay_the(m, ctx) for m in _tach_danh_sach(gt, ctx)]),
     ),
-    sheets_con=(_sheet_thay_the("Vật tư thay thế", "Mã vật tư"),),
+    # Không có ô nhập trên form (15/10/2026) — bày ra Excel là mời sửa thứ không ai thấy ở màn; cột vắng mặt khi nhập thì giữ nguyên giá trị cũ.
+    loai_tru=frozenset({"cong_thuc_gia", "don_gia", "thay_the_ids"}),
 )
 
 THANH_PHAM = CatalogExcelSpec(
@@ -361,32 +403,6 @@ THANH_PHAM = CatalogExcelSpec(
 # ======================================================================================
 # 12 · Công đoạn
 # ======================================================================================
-
-_NHOM_NHAN = {
-    # "che ban" giữ lại làm BÍ DANH: nhãn cũ của `prepress` trước 04/09/2026, file người dùng đã
-    # tải về từ trước vẫn nhập lại được. Nhãn hiện hành là "Trước In".
-    "truoc in": "prepress", "che ban": "prepress", "in": "print",
-    "gia cong sau in": "finishing", "dich vu khac": "other",
-}
-
-
-def _bo_dau(s: str) -> str:
-    import unicodedata
-
-    return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
-
-
-def _doc_nhom(gt: Any, _ctx: NguCanh) -> str:
-    """Nhận CẢ nhãn tiếng Việt của màn LẪN mã gốc — dropdown hiện "Trước In", DB lưu `prepress`."""
-    goc = str(gt or "").strip()
-    if goc in NHOM:
-        return goc
-    ma = _NHOM_NHAN.get(_bo_dau(goc).lower())
-    if not ma:
-        raise ValueError(
-            f'Nhóm "{goc}" không hợp lệ — chọn: Trước In, In, Gia công sau in, Dịch vụ khác.')
-    return ma
-
 
 def _giu_vat_tu_cong_doan(obj, _ctx: NguCanh) -> list[dict]:
     """Vật tư của công đoạn ĐANG CÓ — gán lại khi file KHÔNG có sheet đó (mg `0316`).
@@ -441,29 +457,17 @@ CONG_DOAN = CatalogExcelSpec(
     cot=(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
-        Cot("Tên hiển thị", "ten_hien_thi", rong=28),
-        Cot("Nhóm", "nhom", doc=_doc_nhom, rong=18),
-        Cot("Đơn vị vào", "don_vi_vao", rong=14),
-        Cot("Đơn vị ra", "don_vi_ra", rong=14),
+        Cot("Nhóm", "nhom", doc=_DOC_NHOM, ghi=_GHI_NHOM, rong=18),
+        Cot("Đơn vị vào", "don_vi_vao", doc=_DOC_TRAM, ghi=_GHI_TRAM, rong=24),
+        Cot("Đơn vị ra", "don_vi_ra", doc=_DOC_TRAM, ghi=_GHI_TRAM, rong=24),
         Cot("Công thức giá", "cong_thuc_gia", rong=36),
-        Cot("Kiểu bù hao", "kieu_bu_hao", rong=16),
+        Cot("Kiểu bù hao", "kieu_bu_hao", doc=_DOC_BU_HAO, ghi=_GHI_BU_HAO, rong=22),
         Cot("Số tờ bù hao", "so_to_bu_hao", kieu="nguyen", rong=16),
         # NHIỀU tổ (mg `0312`): "PB012, PB013" — tổ đầu là mặc định của bước lệnh.
         *_cot_nhieu_to(nhan="Mã tổ phụ trách", nhan_ten="Tên tổ phụ trách",
                        nhan_cu=("Tổ phụ trách",)),
-        Cot("Khoán ghi theo", "khoan_ghi_theo", rong=18),
-        Cot("% hao cho phép", "allowed_defect_pct", kieu="so", rong=16),
-        Cot("Số hao cho phép", "allowed_defect_abs", kieu="so", rong=16),
-        Cot("Chi phí chuẩn bị", "setup_cost", kieu="so", rong=18),
-        Cot("Thời gian chuẩn bị", "setup_time", kieu="so", rong=18),
-        Cot("Năng suất mặc định", "nang_suat", kieu="so", rong=18),
-        Cot("Đơn giá theo cơ sở", "run_rate", kieu="so", rong=18),
-        Cot("Sàn bậc đầu", "first_unit_floor", kieu="so", rong=16),
-        Cot("Sàn cả công đoạn", "min_charge", kieu="so", rong=18),
         Cot("Cần dụng cụ", "requires_tooling", kieu="bool", rong=14),
-        Cot("Loại dụng cụ", "tooling_type", rong=16),
-        Cot("% phế", "spoilage_pct", kieu="so", rong=12),
-        Cot("Chạy inline", "inline_flag", kieu="bool", rong=14),
+        Cot("Loại dụng cụ", "tooling_type", doc=_DOC_DUNG_CU, ghi=_GHI_DUNG_CU, rong=16),
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
         # Cột đời cũ (một ô "Máy in, Bế") — nay là sheet con "Nhóm máy cho phép".
@@ -473,15 +477,6 @@ CONG_DOAN = CatalogExcelSpec(
         SheetCon(
             "Nhóm máy cho phép", field="nhom_may_cho_phep", rut_gon="ten",
             cot=(Cot("Nhóm máy", "ten", rong=24),),
-        ),
-        SheetCon(
-            "Bậc đơn giá", field="rate_tiers",
-            cot=(
-                Cot("Từ sản lượng", "from_qty", kieu="so", rong=16),
-                Cot("Đơn giá", "rate", kieu="so", rong=16),
-                Cot("Kiểu", "kieu", rong=14),
-                Cot("Theo biến", "driver", rong=18),
-            ),
         ),
         # Bậc bù hao: SHEET CON chứ không nén vào một ô JSON — đây chính là thứ người ta mở
         # file Excel ra để sửa. Mỗi bậc chỉ khai MỐC TRÊN; "Đến SL" để TRỐNG = bậc vô hạn, và nó
@@ -494,13 +489,6 @@ CONG_DOAN = CatalogExcelSpec(
                 Cot("Đơn vị", "don_vi", rong=12),
             ),
             giu_khi_vang=_giu_bac_bu_hao,
-        ),
-        SheetCon(
-            "Bậc theo khổ", field="size_tiers",
-            cot=(
-                Cot("Đến (cm)", "den_cm", kieu="so", rong=14),
-                Cot("Đơn giá", "don_gia", kieu="so", rong=16),
-            ),
         ),
         # VẬT TƯ của công đoạn (mg `0316`) — MỘT tầng phẳng, mỗi món một dòng với công thức
         # định mức riêng. Trước 18/09/2026 chỗ này là hai sheet lồng nhau ("Đầu việc định mức"
@@ -526,7 +514,12 @@ CONG_DOAN = CatalogExcelSpec(
     truoc_khi_ghi=_cong_doan_truoc_khi_ghi,
     # Hai ô này KHÔNG có trên màn: `rebuildCatalogConfigs.tsx` luôn ép `theo_san_luong`+`per_other`
     # ("CHỈ TÍNH THEO CÔNG THỨC"). Bày ra Excel là mở lại một cách tính mà UI đã bỏ.
-    loai_tru=frozenset({"che_do_tinh", "pricing_basis"}),
+    loai_tru=frozenset({
+        "che_do_tinh", "pricing_basis", "allowed_defect_abs", "allowed_defect_pct",
+        "first_unit_floor", "inline_flag", "khoan_ghi_theo", "min_charge", "nang_suat",
+        "rate_tiers", "run_rate", "setup_cost", "setup_time", "size_tiers", "spoilage_pct",
+        "ten_hien_thi",
+    }),
 )
 
 
@@ -590,7 +583,12 @@ def _gop_hang_muc(du_lieu: dict, rieng: dict, _ctx: NguCanh) -> None:
         g["hang_muc"] = theo_goi.get(g.get("id"), [])
 
 
-def _may_truoc_khi_ghi(du_lieu: dict, _ctx: NguCanh, _cu) -> dict:
+#: Khoá của gói bảo trì KHÔNG có ô trên form và không có cột Excel — nhập thay trọn danh sách gói
+#: thì phải chép lại từ gói cũ cùng mã, không thì mất.
+_KHOA_GOI_AN = ("dung_phut", "lan_cuoi")
+
+
+def _may_truoc_khi_ghi(du_lieu: dict, _ctx: NguCanh, cu) -> dict:
     """Cấp mã cho gói bảo trì / hạng mục mới khai trong Excel.
 
     Mã gói (`hm-...`) là NEO của phiếu bảo trì (`ky_thuat_bao_tri.goi_id`): gói cũ giữ NGUYÊN mã đã
@@ -600,10 +598,16 @@ def _may_truoc_khi_ghi(du_lieu: dict, _ctx: NguCanh, _cu) -> dict:
     tui = du_lieu.get("fields_theo_loai")
     if not isinstance(tui, dict):
         return du_lieu
+    cu_theo_ma = {g.get("id"): g for g in ((getattr(cu, "fields_theo_loai", None) or {})
+                                           .get("lich_bao_tri") or []) if isinstance(g, dict)}
     n = 0
     for g in tui.get("lich_bao_tri") or []:
         if not isinstance(g, dict):
             continue
+        goi_cu = cu_theo_ma.get(g.get("id")) or {}
+        for khoa in _KHOA_GOI_AN:
+            if khoa in goi_cu and khoa not in g:
+                g[khoa] = goi_cu[khoa]
         if not g.get("id"):
             n += 1
             g["id"] = f"hm-x{n}-{(du_lieu.get('ma') or '').lower()}"
@@ -643,17 +647,6 @@ MAY_THIET_BI = CatalogExcelSpec(
         Cot("Tốc độ tối đa", "toc_do_max", kieu="so", rong=18),
         Cot("Đơn vị tốc độ", "don_vi_toc_do", rong=16),
         Cot("Thời gian canh máy mặc định", "makeready_time_default", kieu="so", rong=26),
-        Cot("Khổ tối đa - dài (mm)", "kho_max_dai", kieu="nguyen", rong=20),
-        Cot("Khổ tối đa - rộng (mm)", "kho_max_rong", kieu="nguyen", rong=20),
-        Cot("Khổ tối thiểu - dài (mm)", "kho_min_dai", kieu="nguyen", rong=22),
-        Cot("Khổ tối thiểu - rộng (mm)", "kho_min_rong", kieu="nguyen", rong=22),
-        Cot("Khổ kèm - dài (mm)", "kho_kem_dai", kieu="nguyen", rong=20),
-        Cot("Khổ kèm - rộng (mm)", "kho_kem_rong", kieu="nguyen", rong=20),
-        Cot("Vùng in - dài (mm)", "vung_in_dai", kieu="nguyen", rong=20),
-        Cot("Vùng in - rộng (mm)", "vung_in_rong", kieu="nguyen", rong=20),
-        Cot("Nhịp giấy (mm)", "nhip_giay_mm", kieu="nguyen", rong=16),
-        Cot("Lề hông (mm)", "le_hong_mm", kieu="nguyen", rong=16),
-        Cot("Đuôi thẳng màu (mm)", "duoi_thang_mau_mm", kieu="nguyen", rong=20),
         CO_ACTIVE,
         # Cột đời cũ: cả túi JSON trong MỘT ô. Nay tách thành ba sheet đọc được; sheet con áp SAU
         # nên file mới thắng, file cũ vẫn nhập được nguyên trạng.
@@ -681,8 +674,6 @@ MAY_THIET_BI = CatalogExcelSpec(
                 Cot("Chu kỳ số", "so", kieu="nguyen", rong=14),
                 Cot("Chu kỳ đơn vị", "don_vi", rong=16),
                 Cot("Ngày bắt đầu", "ngay_bat_dau", rong=16),
-                Cot("Dừng máy (phút)", "dung_phut", kieu="so", rong=18),
-                Cot("Lần cuối", "lan_cuoi", rong=16),
             ),
         ),
         SheetCon(
@@ -699,6 +690,12 @@ MAY_THIET_BI = CatalogExcelSpec(
     truoc_khi_ghi=_may_truoc_khi_ghi,
     sheet_an=_khoa_la,
     gop_an=_gop_khoa_la,
+    # Không có ô nhập trên form (15/10/2026) — bày ra Excel là mời sửa thứ không ai thấy ở màn; cột vắng mặt khi nhập thì giữ nguyên giá trị cũ.
+    loai_tru=frozenset({
+        "duoi_thang_mau_mm", "kho_kem_dai", "kho_kem_rong", "kho_max_dai", "kho_max_rong",
+        "kho_min_dai", "kho_min_rong", "le_hong_mm", "nhip_giay_mm", "vung_in_dai",
+        "vung_in_rong",
+    }),
 )
 
 
