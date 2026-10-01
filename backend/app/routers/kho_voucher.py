@@ -63,6 +63,7 @@ from ..schemas.stock import (
     StockVoucherPage,
 )
 from ..services import kho_gia_goc_service
+from ..services.kho_giay import don_vi_goc_to
 from ..services.qr_token import sign_scan
 from ..services.vat_lieu_kho_service import HANG_NHAN, VatLieuKhoService
 from ..services.rbac_service import AuthorizationService
@@ -226,6 +227,12 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
     # "yêu cầu vs thực nhận/xuất". Đọc-nối, không lưu cột.
     line_sl_de_nghi = {ln.id: float(ln.sl_de_nghi) for ln in req_lines}
     goc_map = svc.hang.don_vi_goc_map([(ln.hang_loai, ln.hang_id) for ln in v.lines])
+
+    def goc_cua_dong(ln):
+        """Đơn vị gốc của dòng: giấy TỜ đếm bằng tờ nguyên, còn lại theo mã hàng."""
+        if ln.hang_loai == "giay" and ln.dang_giay == "to":
+            return don_vi_goc_to()
+        return goc_map.get((ln.hang_loai, ln.hang_id))
     # Phiếu NHẬP ứng theo yêu cầu KCS: lúc còn nháp chưa có lô để truy nguồn, nên dựa vào yêu cầu gốc.
     nhap_tu_kcs = getattr(req, "san_xuat_cong_viec_id", None) is not None
 
@@ -249,12 +256,13 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
                 hang_ma=getattr(m, "ma", None),
                 hang_ten=getattr(m, "ten", None),
                 dvt=line_dvt.get(ln.request_line_id),
+                dang_giay=ln.dang_giay, kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
                 lot_id=ln.lot_id,
                 ma_lo=getattr(lot, "ma_lo", None),
                 sl_de_nghi=line_sl_de_nghi.get(ln.request_line_id),
                 so_luong=float(ln.so_luong),
                 sl_goc=float(ln.sl_goc),
-                don_vi_goc=goc_map.get(key),
+                don_vi_goc=goc_cua_dong(ln),
                 ghi_chu=ln.ghi_chu,
                 hsd=ln.hsd,   # HSD đích danh theo lô (phiếu điều chuyển hiện được); không phải tiền → không ẩn
                 vi_tri=ln.vi_tri,   # vị trí cất lô — phiếu điều chuyển khai/hiện per-lô
@@ -306,12 +314,14 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
                 hang_ma=getattr(m, "ma", None),
                 hang_ten=getattr(m, "ten", None),
                 dvt=line_dvt.get(k),
+                dang_giay=first.dang_giay, kho_rong=int(first.kho_rong or 0),
+                kho_dai=int(first.kho_dai or 0),
                 lot_id=None,
                 ma_lo=None,
                 sl_de_nghi=line_sl_de_nghi.get(k),
                 so_luong=qty,
                 sl_goc=qty_goc,
-                don_vi_goc=goc_map.get(key),
+                don_vi_goc=goc_cua_dong(first),
                 ghi_chu=ghi_chu,
                 don_gia=blended if can_view_cost else None,
                 thanh_tien=thanh_tien if can_view_cost else None,
@@ -857,7 +867,7 @@ def list_lots(
         row.hang_ma = getattr(m, "ma", None)
         row.hang_ten = getattr(m, "ten", None)
         row.hang_anh = getattr(m, "anh_url", None)
-        row.dvt = getattr(m, "don_vi_gia", None)
+        row.dvt = don_vi_goc_to() if lot.dang_giay == "to" else getattr(m, "don_vi_gia", None)
         row.dvt_ten = dv_ten.get(row.dvt, row.dvt)
         row.voucher_ma = voucher_ma_map.get(lot.voucher_id) if lot.voucher_id else None
         # Thủ kho chọn lô nhưng KHÔNG thấy giá (spec §6).
@@ -907,7 +917,7 @@ def material_history(
         row = StockLotOut.model_validate(lot)
         row.hang_ma = getattr(m, "ma", None)
         row.hang_ten = getattr(m, "ten", None)
-        row.dvt = dvt
+        row.dvt = don_vi_goc_to() if lot.dang_giay == "to" else dvt
         row.voucher_ma = voucher_ma_map.get(lot.voucher_id) if lot.voucher_id else None
         row.don_gia_nhap = int(lot.don_gia_nhap or 0) if can_view_cost else None
         # SL yêu cầu KHÔNG phải tiền → luôn hiện (không gate theo can_view_cost). Kèm ĐƠN VỊ người

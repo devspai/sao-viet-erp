@@ -63,3 +63,11 @@ def nhan_kho(kho_rong: int, kho_dai: int) -> str:
     if kho_rong:
         return f"khổ {kho_rong} mm"
     return "chưa có khổ"
+
+
+def don_vi_goc_to() -> str:
+    """MÃ đơn vị đếm lô/dòng giấy TỜ = đơn vị đứng ở chặng tờ nguyên (hỏi `dong_giay`, không viết cứng)."""
+    from ..models.don_vi_do import TRAM_TO_NGUYEN
+    from .dong_giay import ban_do_tram, ma_cua_tram
+
+    return ma_cua_tram(TRAM_TO_NGUYEN, ban_do_tram()) or TRAM_TO_NGUYEN

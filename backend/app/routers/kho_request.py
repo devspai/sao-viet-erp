@@ -199,8 +199,14 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         try:
             dv = don_vi_map.get(key)
             # Món vắng trong map (không tồn tại / loại sai) đi đường lẻ cũ để giữ ĐÚNG câu lỗi.
-            qd = (hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi)) if dv is not None
-                  else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt, float(ln.sl_de_nghi)))
+            # Giấy có DẠNG: gốc theo dạng (tờ ⇒ tờ nguyên, cuộn ⇒ kg), không phải gốc của mã giấy.
+            if ln.hang_loai == "giay" and ln.dang_giay:
+                qd = hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt, float(ln.sl_de_nghi),
+                                         dang=ln.dang_giay)
+            else:
+                qd = (hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi)) if dv is not None
+                      else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt,
+                                               float(ln.sl_de_nghi)))
         except VatLieuKhoError as e:
             canh_bao = str(e)
         lines.append(StockRequestLineOut(
@@ -216,6 +222,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             lsx_ma=lenh_map.get(("lsx", ln.lsx_id)),
             bai_ghep_ma=lenh_map.get(("bai_ghep", ln.bai_ghep_id)),
             dvt=ln.dvt,
+            dang_giay=ln.dang_giay, kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
             don_vi_goc=(qd or {}).get("don_vi_goc_ten"),
             sl_quy_doi=(qd or {}).get("sl_goc"),
             quy_doi_dien_giai=(qd or {}).get("dien_giai"),

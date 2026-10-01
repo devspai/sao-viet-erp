@@ -9757,6 +9757,10 @@ export interface StockVoucherLineInput {
   /** Phiếu NHẬP: hạn sử dụng của lô (ISO yyyy-mm-dd, tuỳ chọn). Tách hạn = nhiều dòng; phần dư
    *  không hạn để null. */
   hsd?: string | null;
+  /** Phiếu NHẬP giấy: dạng + khổ của lô sắp tạo (bỏ trống = kế thừa dòng đề nghị). */
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
 }
 
 export interface StockVoucherInput {
@@ -9777,6 +9781,10 @@ export interface DieuChuyenItemInput {
   so_luong: number;
   /** Vị trí cất ở KHO ĐÍCH (kệ/ô) — tuỳ chọn, khai lúc ấn; áp cho mọi lô của mặt hàng. */
   vi_tri?: string | null;
+  /** Giấy: nhóm lô cần chuyển — bắt buộc dạng; tờ thì kèm khổ (mm). */
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
 }
 
 /** Ấn ĐIỀU CHUYỂN 1 hay NHIỀU mặt hàng kho nguồn → kho đích (gộp vào MỘT yêu cầu điều chuyển). */

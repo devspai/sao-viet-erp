@@ -35,7 +35,7 @@ from ..models.stock_voucher import (
 
 from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
 from ..repositories.stock_lot_repo import goc_cua
-from .kho_giay import chuan_kho, nhan_kho
+from .kho_giay import chuan_kho, khoa_dong, nhan_kho
 from ..storage import get_storage, key_from_url, url_from_key
 
 # Đính kèm phiếu kho: byte đi qua storage.py (LocalStorage <backend>/static hoặc MinIO) rồi phục vụ
@@ -720,22 +720,38 @@ class StockVoucherService:
         # Điều chuyển theo ĐƠN VỊ GỐC (spec §13) → dòng yêu cầu lấy dvt = đơn vị gốc, hệ số quy đổi
         # = 1: số trên phiếu = số vào lô, giá vốn (đ/gốc) khớp thẳng.
         prepared: list[dict] = []
-        seen: set[tuple[str, int]] = set()
+        seen: set = set()
         for it in items:
             hang_loai, hang_id = it["hang_loai"], int(it["hang_id"])
             key = (hang_loai, hang_id)
-            if key in seen:
+            # GIẤY chuyển theo NHÓM LÔ (dạng, khổ): mỗi nhóm một dòng, đơn vị gốc theo dạng.
+            dang_g = it.get("dang_giay") if hang_loai == "giay" else None
+            if hang_loai == "giay" and not dang_g:
+                # Không biết dạng thì lô tờ (đếm tờ) và lô cuộn (đếm kg) bị cộng lẫn — chặn.
+                raise StockVoucherError(
+                    "Điều chuyển giấy phải chọn dạng (tờ/cuộn) và khổ — mỗi khổ một dòng.")
+            kr, kd = (chuan_kho(it.get("kho_rong"), it.get("kho_dai"))
+                      if hang_loai == "giay" else (0, 0))
+            if dang_g == "cuon":
+                kd = 0
+            kd_key = khoa_dong(hang_loai, hang_id, dang_g, kr, kd) if dang_g else key
+            if kd_key in seen:
                 raise StockVoucherError("Một mặt hàng chỉ được điều chuyển 1 dòng — gộp số lượng lại.")
-            seen.add(key)
+            seen.add(kd_key)
             qty = float(it.get("so_luong") or 0)
             if qty <= 0:
                 raise StockVoucherError("Số lượng điều chuyển phải lớn hơn 0.")
-            dv = self.hang.don_vi_cua_mat_hang(hang_loai, hang_id)
+            from .vat_lieu_kho_service import VatLieuKhoError
+            try:
+                dv = self.hang.don_vi_cua_mat_hang(hang_loai, hang_id, dang=dang_g)
+            except VatLieuKhoError as e:
+                raise StockVoucherError(str(e)) from None
             dvt_goc = dv.get("don_vi_goc")
             ten = dv.get("ten") or "Mặt hàng"
             if not dvt_goc:
                 raise StockVoucherError(f"“{ten}” chưa khai đơn vị tính — không điều chuyển được.")
-            alloc, thieu = self.suggest_allocation(key, kho_nguon_id, qty)
+            alloc, thieu = self.suggest_allocation(
+                key, kho_nguon_id, qty, dang=dang_g, kho_rong=kr, kho_dai=kd)
             if thieu > 1e-9:
                 raise StockVoucherError(
                     f"“{ten}”: kho nguồn không đủ tồn để điều chuyển (thiếu {thieu:g} {dvt_goc})."
@@ -743,6 +759,7 @@ class StockVoucherService:
             tong_tien = sum(float(a["so_luong"]) * int(a["don_gia_nhap"] or 0) for a in alloc)
             prepared.append({
                 "hang_loai": hang_loai, "hang_id": hang_id, "dvt_goc": dvt_goc,
+                "dang_giay": dang_g, "kho_rong": kr, "kho_dai": kd, "khoa": kd_key,
                 "qty": qty, "alloc": alloc, "gia_von": int(round(tong_tien / qty)) if qty else 0,
                 # Vị trí kho đích khai lúc ấn (tuỳ chọn) — áp cho MỌI lô của mặt hàng này.
                 "vi_tri": (str(it.get("vi_tri") or "").strip() or None),
@@ -758,15 +775,20 @@ class StockVoucherService:
             user=user, loai=VOUCHER_XUAT, kho_id=kho_nguon_id, ghi_chu=ghi_chu, notify=False,
             lines=[
                 {"hang_loai": p["hang_loai"], "hang_id": p["hang_id"],
+                 "dang_giay": p["dang_giay"], "kho_rong": p["kho_rong"], "kho_dai": p["kho_dai"],
                  "dvt": p["dvt_goc"], "sl_de_nghi": p["qty"]}
                 for p in prepared
             ],
         )
-        # Nối dòng yêu cầu ↔ mặt hàng theo CẶP (hang_loai, hang_id) — không dựa thứ tự (bền hơn).
-        src_by_hang = {(rl.hang_loai, rl.hang_id): rl for rl in src_req.lines}
+        # Nối dòng yêu cầu ↔ mặt hàng theo khoá dòng (mã [+ dạng/khổ với giấy]) — không dựa thứ tự.
+        def khoa_rl(rl):
+            return (khoa_dong(rl.hang_loai, rl.hang_id, rl.dang_giay, rl.kho_rong, rl.kho_dai)
+                    if rl.dang_giay else (rl.hang_loai, rl.hang_id))
+
+        src_by_hang = {khoa_rl(rl): rl for rl in src_req.lines}
         xuat_lines: list[dict] = []
         for p in prepared:
-            rl = src_by_hang[(p["hang_loai"], p["hang_id"])]
+            rl = src_by_hang[p["khoa"]]
             for a in p["alloc"]:
                 xuat_lines.append({
                     "request_line_id": rl.id, "so_luong": float(a["so_luong"]),
@@ -786,6 +808,7 @@ class StockVoucherService:
             doc_type=SEQ_DOC_TYPE_STOCK_TRANSFER,   # số phiếu điều chuyển DC… (đầu mối mặt tiền)
             lines=[
                 {"hang_loai": p["hang_loai"], "hang_id": p["hang_id"], "dvt": p["dvt_goc"],
+                 "dang_giay": p["dang_giay"], "kho_rong": p["kho_rong"], "kho_dai": p["kho_dai"],
                  "sl_de_nghi": p["qty"], "don_gia": p["gia_von"]}
                 for p in prepared
             ],
@@ -793,10 +816,10 @@ class StockVoucherService:
         # (4) DỰNG SẴN phiếu NHẬP đích (nháp) — MỖI LÔ nguồn 1 dòng, khoá GIÁ VỐN + HSD ĐÍCH DANH
         # theo lô (không bình quân) để kho đích chạy FEFO/giá vốn y như nguồn. Điều chuyển theo đơn
         # vị gốc (hệ số 1) ⇒ so_luong = sl_goc. Kho đích chỉ xem lại + ghi sổ (trừ nguồn + cộng đích).
-        dest_rl_by_hang = {(rl.hang_loai, rl.hang_id): rl for rl in dest_req.lines}
+        dest_rl_by_hang = {khoa_rl(rl): rl for rl in dest_req.lines}
         nhap_lines: list[dict] = []
         for p in prepared:
-            rl = dest_rl_by_hang[(p["hang_loai"], p["hang_id"])]
+            rl = dest_rl_by_hang[p["khoa"]]
             for a in p["alloc"]:
                 nhap_lines.append({
                     "request_line_id": rl.id,

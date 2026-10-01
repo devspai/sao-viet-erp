@@ -11,7 +11,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..services.kho_giay import DANG_GIAY, DANG_TO, chuan_kho
+from ..services.kho_giay import DANG_GIAY, DANG_TO, chuan_kho, khoa_dong
 
 
 def _chuan_giay(hang_loai: str | None, dang: str | None, kho_rong, kho_dai, *, bat_buoc: bool):
@@ -609,6 +609,17 @@ class DieuChuyenItemIn(BaseModel):
     # Vị trí cất ở KHO ĐÍCH (kệ/ô) — tuỳ chọn, khai ngay lúc ấn điều chuyển; áp cho MỌI lô của mặt
     # hàng này. Thủ kho đích còn sửa lại được ở drawer trước khi ghi sổ.
     vi_tri: str | None = Field(default=None, max_length=100)
+    # GIẤY: nhóm lô nguồn cần chuyển — dạng (+ khổ với tờ). `so_luong` theo đơn vị gốc CỦA DẠNG
+    # (tờ ⇒ tờ nguyên, cuộn ⇒ đơn vị gốc của mã giấy). Cùng mã hai khổ/dạng = hai dòng.
+    dang_giay: str | None = None
+    kho_rong: int | float | None = Field(default=0, ge=0)
+    kho_dai: int | float | None = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def _chuan_dang_kho(self) -> "DieuChuyenItemIn":
+        self.dang_giay, self.kho_rong, self.kho_dai = _chuan_giay(
+            self.hang_loai, self.dang_giay, self.kho_rong, self.kho_dai, bat_buoc=False)
+        return self
 
 
 class DieuChuyenIn(BaseModel):
@@ -623,9 +634,11 @@ class DieuChuyenIn(BaseModel):
     def _valid(self) -> "DieuChuyenIn":
         if self.kho_nguon_id == self.kho_den_id:
             raise ValueError("Kho nguồn và kho đích phải khác nhau.")
-        seen: set[tuple[str, int]] = set()
+        seen: set = set()
         for it in self.items:
-            key = (it.hang_loai, it.hang_id)
+            # Giấy: cùng mã khác dạng/khổ là hai dòng hợp lệ.
+            key = (khoa_dong(it.hang_loai, it.hang_id, it.dang_giay, it.kho_rong, it.kho_dai)
+                   if it.dang_giay else (it.hang_loai, it.hang_id))
             if key in seen:
                 raise ValueError("Một mặt hàng chỉ được điều chuyển 1 dòng — gộp số lượng lại.")
             seen.add(key)

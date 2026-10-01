@@ -63,7 +63,7 @@ import {
   writeStoredKho,
 } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
-import { nhanDangKho, nhanKho } from "../lib/khoGiay";
+import { chuanKho, nhanDangKho } from "../lib/khoGiay";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
 
@@ -1677,6 +1677,10 @@ interface AllocBlock {
   /** Phiếu NHẬP: HẠN SỬ DỤNG của đợt nhập này (tuỳ chọn, ISO). Một đợt = 1 lô = 1 hạn; nhiều hạn
    *  của cùng vật tư là do NHIỀU đợt nhập, tồn/báo cáo tự gom. */
   hsd: string;
+  /** Phiếu NHẬP giấy: dạng + khổ của lô sắp tạo — mặc định chép từ dòng đề nghị, kho sửa được. */
+  dang: "to" | "cuon" | null;
+  khoRong: number;
+  khoDai: number;
   /** Phiếu NHẬP: đơn vị đang gõ ở ô SL nhập — "ton" (đơn vị tồn) hoặc "phu" (đơn vị quy đổi). */
   unit: "ton" | "phu";
   touched: boolean;
@@ -1799,6 +1803,9 @@ function VoucherCreateDrawer({
       ghiChu: "",
       viTri: "",
       hsd: "",
+      dang: l.dang_giay,
+      khoRong: l.kho_rong,
+      khoDai: l.kho_dai,
       unit: "ton",
       touched: false,
       warn: null,
@@ -1920,6 +1927,13 @@ function VoucherCreateDrawer({
           don_gia: canViewCost ? Math.round(Number(b.donGia) || 0) : undefined,
           vi_tri: b.viTri.trim() || undefined,
           hsd: b.hsd || undefined,
+          ...(b.line.hang_loai === "giay" && b.dang
+            ? {
+                dang_giay: b.dang,
+                kho_rong: chuanKho(b.khoRong, b.khoDai)[0],
+                kho_dai: b.dang === "to" ? chuanKho(b.khoRong, b.khoDai)[1] : 0,
+              }
+            : {}),
           ly_do: ly,
           ghi_chu: ghi,
         });
@@ -2235,6 +2249,7 @@ function VoucherCreateDrawer({
                           onLotQty={(lotId, v) => setLotQty(b.line.id, lotId, v)}
                           onViTri={(v) => patch(b.line.id, (cur) => ({ ...cur, touched: true, viTri: v }))}
                           onHsd={(v) => patch(b.line.id, (cur) => ({ ...cur, touched: true, hsd: v }))}
+                          onDangKho={(p) => patch(b.line.id, (cur) => ({ ...cur, touched: true, ...p }))}
                           onAnhPick={(file) =>
                             patch(b.line.id, (cur) => ({ ...cur, anhFile: file, anhRemove: false }))
                           }
@@ -2366,6 +2381,7 @@ function AllocRow({
   onLotQty,
   onViTri,
   onHsd,
+  onDangKho,
   onAnhPick,
   onAnhClear,
 }: {
@@ -2384,6 +2400,8 @@ function AllocRow({
   onLotQty: (lotId: number, v: number) => void;
   onViTri: (v: string) => void;
   onHsd: (v: string) => void;
+  /** Phiếu NHẬP giấy: sửa dạng/khổ của lô sắp tạo. */
+  onDangKho: (p: { dang?: "to" | "cuon" | null; khoRong?: number; khoDai?: number }) => void;
   /** Chọn/đổi ảnh mặt hàng (chỉ phiếu NHẬP) — GIỮ file client-side, chỉ lưu khi LẬP PHIẾU. */
   onAnhPick: (file: File) => void;
   /** Bỏ ảnh: có file đang chờ thì huỷ chọn; không thì đánh dấu gỡ ảnh cũ (áp khi lập phiếu). */
@@ -2500,7 +2518,47 @@ function AllocRow({
             {block.matLabel}
           </div>
           {block.matCode ? <div className="kho-lines__code">{block.matCode}</div> : null}
-          {l.dang_giay ? (
+          {isNhap && !settled && l.hang_loai === "giay" ? (
+            <div className="kho-giay-kho" onClick={(e) => e.stopPropagation()}>
+              <select
+                className="rc-input"
+                aria-label="Dạng giấy"
+                value={block.dang ?? ""}
+                onChange={(e) => {
+                  const d = (e.target.value || null) as "to" | "cuon" | null;
+                  onDangKho({ dang: d, ...(d === "cuon" ? { khoDai: 0 } : {}) });
+                }}
+              >
+                <option value="">Dạng…</option>
+                <option value="to">Tờ</option>
+                <option value="cuon">Cuộn</option>
+              </select>
+              {block.dang && (
+                <>
+                  <DecimalInput
+                    className="rc-input kho-num"
+                    value={block.khoRong || null}
+                    onChange={(n) => onDangKho({ khoRong: n ?? 0 })}
+                    aria-label={block.dang === "to" ? "Khổ giấy, cạnh thứ nhất (mm)" : "Khổ rộng cuộn (mm)"}
+                    placeholder={block.dang === "to" ? "Rộng" : "Khổ rộng"}
+                  />
+                  {block.dang === "to" && (
+                    <>
+                      <span aria-hidden="true">×</span>
+                      <DecimalInput
+                        className="rc-input kho-num"
+                        value={block.khoDai || null}
+                        onChange={(n) => onDangKho({ khoDai: n ?? 0 })}
+                        aria-label="Khổ giấy, cạnh thứ hai (mm)"
+                        placeholder="Dài"
+                      />
+                    </>
+                  )}
+                  <span className="kho-lines__code">mm</span>
+                </>
+              )}
+            </div>
+          ) : l.dang_giay ? (
             <div className="kho-lines__code">{nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai)}</div>
           ) : null}
         </td>

@@ -8,7 +8,7 @@ from app.db import SessionLocal
 from app.models.don_vi_do import DonViDo, DonViQuyDoi
 from app.models.stock_lot import StockLot
 from app.models.vat_lieu_kho import GiayNguyen
-from tests.test_kho_de_nghi import _login, _setup
+from tests.test_kho_de_nghi import _admin, _login, _setup
 
 BASE = "/api/kho"
 
@@ -211,10 +211,80 @@ def test_xuat_chon_lo_sai_kho_bi_chan(client):
 
 
 def test_vat_tu_khac_khong_doi_hanh_vi(client):
+    from app.models.stock_request import StockRequestLine
+
     kho_id, mat = _setup(client)
     r = _de_nghi(client, kho_id, "NHAP", [{
         "hang_loai": mat[0], "hang_id": mat[1], "dvt": "to", "sl_de_nghi": 5,
         "dang_giay": "to", "kho_rong": 780, "kho_dai": 905}])
     assert r.status_code == 201, r.text
+    db = SessionLocal()
+    try:
+        ln = db.get(StockRequestLine, r.json()["lines"][0]["id"])
+        assert (ln.dang_giay, ln.kho_rong, ln.kho_dai) == (None, 0, 0)   # đọc từ DB, không từ phản hồi
+    finally:
+        db.close()
+
+
+def test_phan_hoi_dong_giay_mang_dang_kho_va_quy_doi_theo_dang(client):
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="ram", sl=2, dang="to", kr=905, kd=780, gia=1000)])
+    assert r.status_code == 201, r.text
     ln = r.json()["lines"][0]
-    assert (ln["dang_giay"], ln["kho_rong"], ln["kho_dai"]) == (None, 0, 0)
+    assert (ln["dang_giay"], ln["kho_rong"], ln["kho_dai"]) == ("to", 780, 905)
+    assert ln["sl_quy_doi"] == 1000 and ln["canh_bao_dv"] is None     # tờ nguyên, không phải kg
+    tk = _login(client, "t_thukho")
+    r = client.post(f"{BASE}/phieu", headers=tk, json={
+        "request_id": r.json()["id"], "kho_id": kho_id,
+        "lines": [{"request_line_id": ln["id"], "so_luong": 2}]})
+    assert r.status_code == 201, r.text
+    pl = r.json()["lines"][0]
+    assert (pl["dang_giay"], pl["kho_rong"], pl["kho_dai"]) == ("to", 780, 905)
+    assert pl["don_vi_goc"] == "to_nguyen"
+    client.post(f"{BASE}/phieu/{r.json()['id']}/ghi-so", headers=tk)
+    lo = client.get(f"{BASE}/phieu/lo/danh-sach", headers=_login(client, "t_ketoan"),
+                    params={"hang_loai": "giay", "hang_id": g}).json()[0]
+    assert lo["dvt"] == "to_nguyen"
+
+
+def test_dieu_chuyen_giay_tach_theo_dang_va_kho(client):
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    _ba_lo(client, kho_id, g)
+    adm = _login(client, "t_thukho")
+    r = client.post("/api/kho", json={"ten": "Kho đích"}, headers=_admin(client))
+    den = r.json()["id"]
+    r = client.post("/api/kho/dieu-chuyen", headers=adm, json={
+        "kho_nguon_id": kho_id, "kho_den_id": den, "items": [
+            {"hang_loai": "giay", "hang_id": g, "so_luong": 300,
+             "dang_giay": "to", "kho_rong": 905, "kho_dai": 780},
+            {"hang_loai": "giay", "hang_id": g, "so_luong": 40, "dang_giay": "cuon", "kho_rong": 1000},
+        ]})
+    assert r.status_code == 201, r.text
+    assert r.json()["so_dong"] == 2
+    r = client.post(f"{BASE}/phieu/{r.json()['phieu_nhap_id']}/ghi-so", headers=adm)
+    assert r.status_code == 200, r.text
+    db = SessionLocal()
+    try:
+        moi = sorted((lo.dang_giay, lo.kho_rong, lo.kho_dai, float(lo.sl_ban_dau))
+                     for lo in db.query(StockLot).filter(StockLot.kho_id == den).all())
+        assert moi == [("cuon", 1000, 0, 40.0), ("to", 780, 905, 300.0)]
+    finally:
+        db.close()
+
+
+def test_dieu_chuyen_giay_thieu_dang_bi_chan(client):
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    _ba_lo(client, kho_id, g)
+    adm = _login(client, "t_thukho")
+    den = client.post("/api/kho", json={"ten": "Kho đích 2"}, headers=_admin(client)).json()["id"]
+    r = client.post("/api/kho/dieu-chuyen", headers=adm, json={
+        "kho_nguon_id": kho_id, "kho_den_id": den,
+        "items": [{"hang_loai": "giay", "hang_id": g, "so_luong": 10}]})
+    assert r.status_code in (400, 409, 422), r.text
+    assert "dạng" in r.text
