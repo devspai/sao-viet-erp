@@ -21,7 +21,9 @@ from ..models.lsx import Lsx
 from ..models.order import Order
 from ..models.stock_lot import LOT_AVAILABLE, LOT_EMPTY, LOT_ISSUABLE, StockLot, StockThreshold
 from ..models.stock_request import StockRequest, StockRequestLine
-from ..models.stock_voucher import VOUCHER_NHAP, StockVoucher, StockVoucherLine
+from ..models.stock_voucher import (
+    VOUCHER_DRAFT, VOUCHER_NHAP, VOUCHER_XUAT, StockVoucher, StockVoucherLine,
+)
 from ..services.kho_giay import DANG_CUON, DANG_TO, chuan_kho
 
 # (hang_loai, hang_id) — một mặt hàng gốc.
@@ -61,6 +63,22 @@ class StockLotRepository:
 
     def get(self, lot_id: int) -> StockLot | None:
         return self.db.get(StockLot, lot_id)
+
+    def get_for_update(self, lot_id: int) -> StockLot | None:
+        """Đọc lô KHOÁ DÒNG — hai người cùng bổ sung dạng/khổ không đổi số lượng hai lần."""
+        return self.db.execute(
+            select(StockLot).where(StockLot.id == lot_id).with_for_update()
+        ).scalar_one_or_none()
+
+    def ma_phieu_xuat_nhap_tro_vao(self, lot_id: int) -> str | None:
+        """Mã một phiếu XUẤT còn NHÁP có dòng trỏ vào lô (None nếu không có)."""
+        return self.db.execute(
+            select(StockVoucher.ma)
+            .join(StockVoucherLine, StockVoucherLine.voucher_id == StockVoucher.id)
+            .where(StockVoucherLine.lot_id == lot_id, StockVoucher.loai == VOUCHER_XUAT,
+                   StockVoucher.trang_thai == VOUCHER_DRAFT)
+            .limit(1)
+        ).scalar_one_or_none()
 
     def set_vi_tri(self, lot_id: int, vi_tri: str | None) -> StockLot | None:
         """Sửa vị trí cất lô. Trả None nếu không có lô."""

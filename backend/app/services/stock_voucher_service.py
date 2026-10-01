@@ -33,9 +33,11 @@ from ..models.stock_voucher import (
     StockVoucherAttachment,
 )
 
+from ..models.vat_lieu_kho import GiayNguyen
+from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
 from ..repositories.stock_lot_repo import goc_cua
-from .kho_giay import chuan_kho, khoa_dong, khoa_ton, nhan_kho
+from .kho_giay import DANG_CUON, DANG_TO, chuan_kho, khoa_dong, khoa_ton, nhan_kho
 from ..storage import get_storage, key_from_url, url_from_key
 
 # Đính kèm phiếu kho: byte đi qua storage.py (LocalStorage <backend>/static hoặc MinIO) rồi phục vụ
@@ -933,18 +935,19 @@ class StockVoucherService:
         khổ + gsm của mã (quy về kg qua module Đơn vị nếu mã không đếm bằng kg), làm tròn XUỐNG cho
         cả `sl_ban_dau` lẫn `sl_con_lai` với CÙNG hệ số. Thiếu đường quy đổi ⇒ báo lỗi, không đoán.
         """
-        from ..models.vat_lieu_kho import GiayNguyen
-        from ..repositories.audit_repo import AuditLogRepository
-        from .kho_giay import DANG_CUON, DANG_TO, chuan_kho
-        from .vat_lieu_kho_service import VatLieuKhoError
+        from .vat_lieu_kho_service import VatLieuKhoError   # import vòng với service này
 
-        lot = self.lots.get(lot_id)
+        lot = self.lots.get_for_update(lot_id)   # khoá dòng rồi mới kiểm lại dạng
         if lot is None:
             raise StockVoucherError("Không tìm thấy lô.")
         if lot.hang_loai != "giay":
             raise StockVoucherError("Chỉ lô giấy mới có dạng/khổ.")
         if lot.dang_giay:
             raise StockVoucherError("Lô đã có dạng/khổ.")
+        ma_nhap = self.lots.ma_phieu_xuat_nhap_tro_vao(lot.id)
+        if ma_nhap:
+            raise StockVoucherError(
+                f"Lô đang nằm trong phiếu xuất nháp {ma_nhap}, hoàn tất hoặc huỷ phiếu trước.")
         if dang_giay not in (DANG_TO, DANG_CUON):
             raise StockVoucherError("Dạng giấy phải là tờ hoặc cuộn.")
         truoc = (float(lot.sl_ban_dau or 0), float(lot.sl_con_lai or 0))
