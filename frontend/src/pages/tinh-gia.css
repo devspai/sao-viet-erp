@@ -3719,13 +3719,56 @@ select.tg-input--sm {
 }
 
 /* Vật tư theo bước (01/10/2026) */
-.tg-bvt-khoi { display: grid; gap: 12px; margin-top: 12px; }
-.tg-bvt { border: 1px solid var(--line, #e3e1dc); border-radius: 8px; padding: 10px 12px; }
-.tg-bvt__head { font-weight: 600; margin-bottom: 6px; }
-.tg-bvt__rong { color: var(--muted, #6b6b6b); margin: 4px 0; }
-.tg-bvt__row { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr auto; gap: 8px; align-items: center; padding: 4px 0; }
-.tg-bvt__chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.tg-bvt__chip { display: inline-flex; align-items: center; gap: 4px; }
-.tg-bvt__chip input { width: 88px; text-align: right; }
-.tg-bvt__xoa { min-width: 32px; min-height: 32px; }
-@media (max-width: 640px) { .tg-bvt__row { grid-template-columns: 1fr; } }
+.tg-bvt-khoi { display: grid; gap: var(--sp-3); margin-top: var(--sp-3); }
+.tg-bvt {
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  background: var(--paper-contrast);
+  padding: var(--sp-3);
+  display: grid;
+  gap: var(--sp-3);
+}
+.tg-bvt__head { font-weight: 600; font-size: 14px; color: var(--ink); }
+.tg-bvt__rong { color: var(--ash); font-size: 13px; margin: 0; }
+/* Mỗi vật tư một thẻ: tên + nút xoá ở trên, lưới ô chip (có đơn vị trong ô) ở dưới. */
+.tg-bvt__row {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  background: var(--paper);
+}
+.tg-bvt__top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.tg-bvt__ten { font-weight: 600; font-size: 14px; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.tg-bvt__chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--sp-3);
+}
+.tg-bvt__chip .tg-input--num { text-align: right; }
+.tg-bvt__wrap .tg-input { padding-right: 44px; }
+.tg-bvt__xoa {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  background: transparent;
+  color: var(--ash);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tg-bvt__xoa:hover { color: var(--rust); border-color: var(--rust); }
+.tg-bvt__them { max-width: 320px; }
+.tg-bvt__them .tg-input { color: var(--ash); }
+.tg-bvt__chip { justify-content: flex-end; }
+@media (max-width: 640px) {
+  .tg-bvt__chips { grid-template-columns: 1fr 1fr; align-items: end; }
+  .tg-bvt__them { max-width: none; }
+}
+/* Điện thoại hẹp: nhãn chip dài xuống dòng làm lệch hàng — xếp một cột cho thẳng. */
+@media (max-width: 420px) {
+  .tg-bvt__chips { grid-template-columns: 1fr; }
+}

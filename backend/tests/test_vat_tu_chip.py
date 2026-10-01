@@ -32,14 +32,21 @@ from tests.test_danh_muc_http_contract import _admin
 
 URL = "/api/vat-lieu-kho/vat-tu-in-an"
 BA_CHIP = [
-    {"ten": "Định lượng support", "don_vi": "g/m2"},
-    {"ten": "Dài support", "don_vi": "mm"},
-    {"ten": "Rộng support", "don_vi": "mm"},
+    {"ten": "Định lượng support", "don_vi": "zzgm2"},
+    {"ten": "Dài support", "don_vi": "zzmm"},
+    {"ten": "Rộng support", "don_vi": "zzmm"},
 ]
 CT_GIA = "dinh_luong_support * dai_support * rong_support"
 
 
+def _khai_don_vi(client, h):
+    for ma, ten in (("zzgm2", "g/m²"), ("zzmm", "mm")):
+        r = client.post("/api/don-vi", json={"ma": ma, "ten": ten}, headers=h)
+        assert r.status_code in (200, 201, 409, 422), r.text
+
+
 def _tao(client, h, ma="ZZSUP1", **kw):
+    _khai_don_vi(client, h)
     return client.post(URL, json={"ma": ma, "ten": "ZZ Support", **kw}, headers=h)
 
 
@@ -98,3 +105,37 @@ def test_cong_thuc_dinh_muc_dung_bien_he_thong_cua_buoc(client):
     h = _admin(client)
     r = _tao(client, h, cong_thuc_dinh_muc="sl_vao / 40000")
     assert r.status_code in (200, 201), r.text
+
+
+def test_don_vi_chip_khong_co_trong_danh_muc_bi_chan_nen_ten_chip(client):
+    h = _admin(client)
+    r = _tao(client, h, chips=[{"ten": "Dài support", "don_vi": "khong_co_dau"}])
+    assert r.status_code in (400, 422), r.text
+    assert "Dài support" in r.text and "danh mục" in r.text
+
+
+def test_don_vi_chip_rong_van_cho_phep_va_go_ten_thi_doi_ra_ma(client):
+    h = _admin(client)
+    r = _tao(client, h, chips=[{"ten": "Dài support", "don_vi": ""}, {"ten": "Rộng support", "don_vi": "g/m²"}])
+    assert r.status_code in (200, 201), r.text
+    assert [c["don_vi"] for c in r.json()["chips"]] == [None, "zzgm2"]
+
+
+def test_chip_cu_go_tay_giu_nguyen_don_vi_thi_sua_ten_van_duoc(client):
+    from app.db import SessionLocal
+    from app.models.vat_lieu_kho import VatTuChip
+    h = _admin(client)
+    vt = _tao(client, h, chips=[{"ten": "Dài support", "don_vi": "zzmm"}]).json()
+    db = SessionLocal()
+    try:
+        c = db.query(VatTuChip).filter_by(vat_tu_id=vt["id"]).one()
+        c.don_vi = "mm_cu"          # dữ liệu cũ gõ tay, không có trong danh mục
+        db.commit()
+    finally:
+        db.close()
+    giu = [{"ma": "dai_support", "ten": "Dài support (mới)", "don_vi": "mm_cu"}]
+    r = client.put(f"{URL}/{vt['id']}", json={"ma": vt["ma"], "ten": vt["ten"], "chips": giu}, headers=h)
+    assert r.status_code == 200, r.text
+    doi = [{"ma": "dai_support", "ten": "Dài support", "don_vi": "mm_khac"}]
+    r = client.put(f"{URL}/{vt['id']}", json={"ma": vt["ma"], "ten": vt["ten"], "chips": doi}, headers=h)
+    assert r.status_code in (400, 422), r.text

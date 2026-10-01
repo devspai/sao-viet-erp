@@ -2391,6 +2391,18 @@ select.rc-input:focus {
 .rc-bands--vps .rc-bands__table th:nth-child(3) { width: 34%; }
 .rc-bands--vps .rc-bands__table th:nth-child(4) { width: 44px; }
 
+/* ── Bảng Chip riêng của vật tư (VatTuChipsField): hai cột CHỮ như bảng Việc phát sinh — tiêu đề
+   căn theo chữ trong ô, cột đơn vị cố định để các ô chọn thẳng hàng. */
+.rc-bands--chip .rc-bands__table { table-layout: fixed; }
+.rc-bands--chip .rc-bands__table th:nth-child(1),
+.rc-bands--chip .rc-bands__table th:nth-child(2) { text-align: left; padding-left: 19px; }
+.rc-bands--chip .rc-bands__table th:nth-child(2) { width: 38%; }
+.rc-bands--chip .rc-bands__table th:nth-child(3) { width: 44px; }
+.rc-bands--chip .rc-bands__table td { vertical-align: top; }
+.rc-chip-bien { display: block; margin: 4px 0 0 11px; color: var(--ink-mute, #6b6b6b); font-size: 11.5px; }
+.rc-chip-bien code { font-family: var(--ff-mono, ui-monospace, monospace); background: var(--paper-2, #f1ede1); padding: 0 4px; border-radius: 3px; }
+@media (max-width: 640px) { .rc-bands--chip .rc-bands__table th:nth-child(2) { width: 46%; } }
+
 /* ── Bảng định mức dạng lưới (sinh ra cho bảng đầu việc của tổ — gỡ 18/09/2026; nay dùng ở
    `MayCuaCongDoan`, `VatTuCongDoan`, `SelfRefMulti`) ── */
 .rc-bands--dinh-muc {

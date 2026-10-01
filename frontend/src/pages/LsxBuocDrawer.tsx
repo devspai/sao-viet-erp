@@ -17,7 +17,7 @@ import { Select, type SelectOption } from "../components/Select";
 import type { ViTriDai } from "./gia-cong/giaCong";
 import { dvNhan as dvNhanChung, type RefRow } from "./LsxRoutingTable";
 import { num } from "./keHoachSxShared";
-import { donViOptions, useNapTenDonVi } from "./tenDonVi";
+import { donViOptions, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
   type EditRow,
   type HangLoai,
@@ -979,7 +979,7 @@ export function LsxBuocDrawer({
                                 {v.hang_loai !== "giay" && (v.chips ?? []).length > 0 && (
                                   <div className="lsx-vt-chip">
                                     {(v.chips ?? []).map((c) => (
-                                      <span key={c.ma}>{c.ten}: <b>{v.gia_tri_chip?.[c.ma] ?? 0}</b>{c.don_vi ? ` ${c.don_vi}` : ""}</span>
+                                      <span key={c.ma}>{c.ten}: <b>{v.gia_tri_chip?.[c.ma] ?? 0}</b>{c.don_vi && tenDonVi(c.don_vi) ? ` ${tenDonVi(c.don_vi)}` : ""}</span>
                                     ))}
                                   </div>
                                 )}

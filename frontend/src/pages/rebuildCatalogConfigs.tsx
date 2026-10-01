@@ -552,6 +552,7 @@ export const CFG_VAT_TU: CatalogConfig = {
     // vật tư của Công đoạn (đã bỏ).
     { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
     { key: "chips", label: "Chip riêng của vật tư", type: "vat-tu-chip", group: "Chip riêng",
+      refPrefix: "/api/don-vi",
       hint: "Tên các con số bạn nhập khi tính giá cho vật tư này (vd Dài support, Rộng support). Dùng làm biến trong hai công thức." },
     { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula",
       nhanTab: "Công thức tính giá", loaiO: "vat_tu", chipsTu: "chips",

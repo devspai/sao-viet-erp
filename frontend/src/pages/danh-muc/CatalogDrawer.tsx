@@ -69,7 +69,7 @@ function locConDung(rows: Row[], dangChon: unknown, nhan = true): Row[] {
 
 const KIEU_CO_THAM_CHIEU = new Set<string>([
   "ref", "ref-multi", "self-ref-multi", "ref-search", "ref-search-ma",
-  "may-cua-cong-doan", "don_vi_toc_do", "nhom_may", "nhom_may-multi", "viec-phat-sinh", "khoan-cong-doan", "to-multi",
+  "may-cua-cong-doan", "don_vi_toc_do", "nhom_may", "nhom_may-multi", "viec-phat-sinh", "khoan-cong-doan", "to-multi", "vat-tu-chip",
 ]);
 
 /** Danh mục nguồn cần nạp cho các ô chọn của drawer: `{prefix: query}`. Gộp `refParams` theo
@@ -325,6 +325,9 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             onChange={(v) => set(f.key, v)} />
         ) : f.type === "vat-tu-chip" ? (
           <VatTuChipsField value={Array.isArray(form[f.key]) ? form[f.key] as VatTuChipRow[] : []}
+            // Đơn vị chọn từ danh mục Đơn vị & quy đổi (giữ lại đơn vị đang được chip chọn dù đã ngừng dùng).
+            donViOptions={locConDung(refData[f.refPrefix ?? ""] ?? [],
+              Array.isArray(form[f.key]) ? (form[f.key] as VatTuChipRow[]).map((r) => r.don_vi ?? "") : [])}
             onChange={(v) => set(f.key, v)} />
         ) : f.type === "select" ? (
           <div className="rc-input-wrapper">

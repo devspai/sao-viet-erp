@@ -3,8 +3,11 @@
 // Người khai chỉ gõ TÊN; mã biến do máy sinh (bỏ dấu, snake_case) và KHÔNG đổi khi đổi tên chip,
 // vì công thức đang trỏ vào mã. Chip mới chưa lưu vẫn hiện thành chip bấm được ở hai ô công thức
 // nhờ `chipsThanhBien`.
+import { RefSearchField } from "./RefFields";
 import { RowEditor } from "./RowEditor";
 import type { BienCongThuc } from "../bienCongThuc";
+import type { Row } from "../types";
+import { tenDonVi } from "../../tenDonVi";
 
 export interface VatTuChipRow { ma?: string; ten: string; don_vi?: string | null }
 
@@ -25,7 +28,7 @@ export function chipsThanhBien(chips: VatTuChipRow[]): BienCongThuc[] {
     .map((c) => ({
       ma: c.ma || maTuTenChip(c.ten),
       nhan: c.ten.trim(),
-      mo_ta: `Chip riêng của vật tư này${c.don_vi ? ` (${c.don_vi})` : ""}`,
+      mo_ta: `Chip riêng của vật tư này${c.don_vi ? ` (${tenDonVi(c.don_vi) ?? c.don_vi})` : ""}`,
       don_vi: c.don_vi ?? "",
       nguon: "số nhập ở phiếu tính giá, theo từng bước",
       loai: ["vat_tu", "quy_doi"],
@@ -34,14 +37,21 @@ export function chipsThanhBien(chips: VatTuChipRow[]): BienCongThuc[] {
 
 export function VatTuChipsField({
   value,
+  donViOptions,
   onChange,
-}: { value: VatTuChipRow[]; onChange: (v: VatTuChipRow[]) => void }) {
+}: {
+  value: VatTuChipRow[];
+  /** Danh mục Đơn vị & quy đổi (đã bỏ mục ngừng dùng, trừ mục đang chọn). */
+  donViOptions: Row[];
+  onChange: (v: VatTuChipRow[]) => void;
+}) {
   const rows = value ?? [];
   const setRow = (i: number, patch: Partial<VatTuChipRow>) =>
     onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   return (
     <RowEditor
       rows={rows}
+      khoa="rc-bands--chip"
       cot={["Tên chip", "Đơn vị"]}
       trong="Vật tư này chưa có chip riêng — bấm “＋ Thêm chip”."
       themNhan="＋ Thêm chip"
@@ -59,16 +69,15 @@ export function VatTuChipsField({
               placeholder="vd: Dài support"
               onChange={(e) => setRow(i, { ten: e.target.value })}
             />
-            <small>Biến trong công thức: {r.ma || maTuTenChip(r.ten ?? "")}</small>
+            <small className="rc-chip-bien">Tên biến trong công thức: <code>{r.ma || maTuTenChip(r.ten ?? "")}</code></small>
           </td>
           <td>
-            <input
-              className="rc-input"
-              aria-label={`Đơn vị chip ${i + 1}`}
-              value={r.don_vi ?? ""}
-              maxLength={24}
-              placeholder="mm, g/m²…"
-              onChange={(e) => setRow(i, { don_vi: e.target.value })}
+            <RefSearchField
+              value={r.don_vi ? r.don_vi : null}
+              options={donViOptions}
+              placeholder="Chọn đơn vị…"
+              byMa
+              onChange={(v) => setRow(i, { don_vi: v == null ? "" : String(v) })}
             />
           </td>
         </>

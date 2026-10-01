@@ -180,6 +180,7 @@ class VatLieuKhoService:
             return self._kiem_cong_thuc(kind, data)
         if "chips" in data:
             data["chips"] = _chuan_chips(list(data["chips"] or []))
+            self._kiem_don_vi_chip(data["chips"], obj)
             ma = [c["ma"] for c in data["chips"]]
         else:
             ma = [c.ma for c in (obj.chips if obj is not None else [])]
@@ -188,6 +189,26 @@ class VatLieuKhoService:
             for cot, _nhan, _loai in _O_CONG_THUC["vat_tu"]:
                 kiem.setdefault(cot, getattr(obj, cot, None))
         self._kiem_cong_thuc(kind, kiem, ma)
+
+    def _kiem_don_vi_chip(self, chips: list[dict], obj=None) -> None:
+        """Đơn vị của chip phải CHỌN từ danh mục Đơn vị & quy đổi (lưu MÃ), không gõ tự do.
+
+        Chip cũ đã gõ tay ("mm") mà giữ NGUYÊN đơn vị thì cho qua (`dang_co`) — sửa mỗi cái tên chip
+        không bị chặn vì đơn vị cũ; chỉ đổi/thêm đơn vị mới thì mới bị soi.
+        """
+        dang_co = {c.ma: (c.don_vi or "") for c in (obj.chips if obj is not None else [])}
+        theo_ten = None
+        for c in chips:
+            dv = (c.get("don_vi") or "").strip()
+            if not dv:
+                c["don_vi"] = None
+                continue
+            if dv.lower() != dang_co.get(c["ma"], "").strip().lower():
+                if dv.lower() not in {(d.ma or "").strip().lower() for d in self.don_vi.all_rows()}:
+                    theo_ten = theo_ten if theo_ten is not None else self.don_vi.ma_theo_ten()
+                    dv = theo_ten.get(dv.lower(), dv)
+            c["don_vi"] = dv
+            self._kiem_don_vi(dv, f"Đơn vị của chip “{c['ten']}”", dang_co=dang_co.get(c["ma"]))
 
     @staticmethod
     def _kiem_cong_thuc(kind: str, data: dict, chips_ma=()) -> None:

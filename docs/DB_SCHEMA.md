@@ -3373,7 +3373,7 @@ dùng cho bình bài.
 
 **Tất cả cột:** `id`, `vat_tu_id`, `ma`, `ten`, `don_vi`, `thu_tu`.
 
-`vat_tu_id` FK→`vat_tu_in_an.id` (CASCADE), index. `ma` (VARCHAR(40)) là tên biến trong công thức — sinh từ tên lúc tạo, KHÔNG đổi khi đổi tên chip; unique (`vat_tu_id`, `ma`) `uq_vat_tu_chip_ma`. `ten` (VARCHAR(80)) nhãn hiện trên màn. `don_vi` (VARCHAR(24) nullable) hiện sau ô nhập. `thu_tu` (INTEGER default 0).
+`vat_tu_id` FK→`vat_tu_in_an.id` (CASCADE), index. `ma` (VARCHAR(40)) là tên biến trong công thức — sinh từ tên lúc tạo, KHÔNG đổi khi đổi tên chip; unique (`vat_tu_id`, `ma`) `uq_vat_tu_chip_ma`. `ten` (VARCHAR(80)) nhãn hiện trên màn. `don_vi` (VARCHAR(24) nullable) = MÃ đơn vị trong `don_vi_do` (chọn từ danh mục, máy chủ chặn mã lạ khi gán MỚI/đổi; giữ nguyên giá trị cũ thì cho qua), hiện bằng tên sau ô nhập. `thu_tu` (INTEGER default 0).
 
 ### `cong_doan`
 

@@ -8281,4 +8281,10 @@ th.khsx-vtbang__buoc {
   font-weight: 700;
 }
 
-.lsx-vt-chip { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted, #64748b); font-size: 12px; margin-top: 4px; }
+.lsx-vt-chip { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
+.lsx-vt-chip > span {
+  display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 8px;
+  border: 1px solid var(--rule-soft, #e8e3d3); border-radius: 999px;
+  background: var(--paper, #faf8f2); color: var(--muted, #64748b); font-size: 12px;
+}
+.lsx-vt-chip > span b { color: var(--ink, #14130f); font-variant-numeric: tabular-nums; }

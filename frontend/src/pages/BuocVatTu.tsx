@@ -1,10 +1,47 @@
+import { useEffect, useState } from "react";
 import type { Row } from "../api/rebuildCatalog";
+import { Select } from "../components/Select";
+import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 
 export interface BuocVatTuDong { uid: string; vat_tu_id: number; gia_tri_chip: Record<string, number> }
 interface Chip { ma: string; ten: string; don_vi?: string | null }
 
 const chipsCua = (vt: Row | undefined): Chip[] =>
   Array.isArray(vt?.chips) ? (vt!.chips as Chip[]) : [];
+
+/** Ô số của một chip: ô chữ + bàn phím số (gõ "3,5" hay "3.5" đều ăn — dấu thập phân của
+ *  `type="number"` phụ thuộc ngôn ngữ trình duyệt), đơn vị nằm TRONG ô, bên phải. */
+function OChip({ nhan, don_vi, value, onChange }: {
+  nhan: string; don_vi: string; value: number | undefined; onChange: (raw: string) => void;
+}) {
+  const [chu, setChu] = useState(value === undefined ? "" : String(value));
+  useEffect(() => {
+    if ((chu === "" ? undefined : Number(chu)) !== value) setChu(value === undefined ? "" : String(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <label className="tg-field tg-bvt__chip">
+      <span className="tg-microlabel">{nhan}</span>
+      <div className={don_vi ? "tg-suffixwrap tg-bvt__wrap" : undefined}>
+        <input
+          className="tg-input tg-input--num"
+          type="text"
+          inputMode="decimal"
+          aria-label={nhan}
+          value={chu}
+          placeholder="0"
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => {
+            const raw = e.target.value.replace(",", ".").replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+            setChu(raw);
+            onChange(raw);
+          }}
+        />
+        {don_vi ? <span className="tg-suffix">{don_vi}</span> : null}
+      </div>
+    </label>
+  );
+}
 
 interface Props {
   tenBuoc: string;
@@ -15,6 +52,7 @@ interface Props {
 }
 
 export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid }: Props) {
+  useNapTenDonVi();   // đơn vị hiện bằng TÊN trong danh mục, không in mã trần
   const tra = new Map(vatTuDm.map((v) => [v.id, v]));
   const chuaCo = vatTuDm.filter((v) => !dong.some((d) => d.vat_tu_id === v.id));
 
@@ -33,50 +71,54 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid }: 
       {dong.map((d, i) => {
         const vt = tra.get(d.vat_tu_id);
         const ten = vt ? String(vt.ten) : `Vật tư #${d.vat_tu_id} (đã ngừng dùng)`;
+        const chips = chipsCua(vt);
         return (
           <div className="tg-bvt__row" key={d.uid}>
-            <span className="tg-bvt__ten">{ten}</span>
-            <div className="tg-bvt__chips">
-              {chipsCua(vt).map((c) => (
-                <label key={c.ma} className="tg-bvt__chip">
-                  <span>{c.ten}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step="any"
-                    aria-label={`${c.ten} của ${ten}`}
-                    value={d.gia_tri_chip[c.ma] ?? ""}
-                    placeholder="0"
-                    onChange={(e) => setChip(i, c.ma, e.target.value)}
-                  />
-                  {c.don_vi ? <small>{c.don_vi}</small> : null}
-                </label>
-              ))}
+            <div className="tg-bvt__top">
+              <span className="tg-bvt__ten">{ten}</span>
+              <button
+                type="button"
+                className="tg-bvt__xoa"
+                aria-label={`Xóa vật tư ${ten}`}
+                title="Xóa vật tư khỏi bước này"
+                onClick={() => onChange(dong.filter((_, j) => j !== i))}
+              >
+                ×
+              </button>
             </div>
-            <button
-              type="button"
-              className="tg-bvt__xoa"
-              aria-label={`Xóa vật tư ${ten}`}
-              onClick={() => onChange(dong.filter((_, j) => j !== i))}
-            >
-              ×
-            </button>
+            {chips.length > 0 && (
+              <div className="tg-bvt__chips">
+                {chips.map((c) => (
+                  <OChip
+                    key={c.ma}
+                    nhan={c.ten}
+                    don_vi={c.don_vi ? (tenDonVi(c.don_vi) ?? "") : ""}
+                    value={d.gia_tri_chip[c.ma]}
+                    onChange={(raw) => setChip(i, c.ma, raw)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
       {chuaCo.length > 0 && (
-        <select
-          className="tg-bvt__them"
-          aria-label={`Thêm vật tư vào bước ${tenBuoc}`}
-          value=""
-          onChange={(e) => {
-            const id = Number(e.target.value);
-            if (id) onChange([...dong, { uid: taoUid(), vat_tu_id: id, gia_tri_chip: {} }]);
-          }}
-        >
-          <option value="">+ Thêm vật tư…</option>
-          {chuaCo.map((v) => <option key={v.id} value={v.id}>{String(v.ten)}</option>)}
-        </select>
+        <div className="tg-bvt__them">
+          <Select
+            options={chuaCo.map((v) => ({ value: String(v.id), label: String(v.ten) }))}
+            value=""
+            placeholder="+ Thêm vật tư…"
+            onChange={(v) => {
+              const id = Number(v);
+              if (id) onChange([...dong, { uid: taoUid(), vat_tu_id: id, gia_tri_chip: {} }]);
+            }}
+            ariaLabel={`Thêm vật tư vào bước ${tenBuoc}`}
+            searchable
+            portal
+            className="tg-input"
+            listClassName="tg-pop"
+          />
+        </div>
       )}
     </div>
   );
