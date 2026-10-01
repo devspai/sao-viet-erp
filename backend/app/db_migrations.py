@@ -16578,3 +16578,28 @@ def _migrate_department_la_to_cat(db: Session) -> None:
 
 
 MIGRATIONS.append(("0355_department_la_to_cat", _migrate_department_la_to_cat))
+
+
+def _migrate_chot_giay_to_cat(db: Session) -> None:
+    """Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6): ba cột chốt trên `lsx` / `bai_ghep`
+    + cờ `chen_boi_to_cat` trên bước lệnh / bước chung của bài. Thuần cộng thêm, NULL / false ⇒
+    lệnh cũ coi như chưa chốt — cổng chỉ chạy khi có tổ bật cờ Tổ Cắt. Idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for t in ("lsx", "bai_ghep"):
+        if t not in bang:
+            continue
+        cot = _existing_columns(insp, t)
+        for ten, kieu in (("giay_chot_cach", "VARCHAR(12)"),
+                          ("giay_chot_luc", "TIMESTAMP WITH TIME ZONE"),
+                          ("giay_chot_boi_id", "INTEGER")):
+            if ten not in cot:
+                db.execute(text(f"ALTER TABLE {t} ADD COLUMN {ten} {kieu}"))
+    for t in ("lsx_cong_doan", "bai_ghep_cong_doan"):
+        if t in bang and "chen_boi_to_cat" not in _existing_columns(insp, t):
+            db.execute(text(
+                f"ALTER TABLE {t} ADD COLUMN chen_boi_to_cat BOOLEAN NOT NULL DEFAULT false"))
+    db.commit()
+
+
+MIGRATIONS.append(("0356_chot_giay_to_cat", _migrate_chot_giay_to_cat))

@@ -172,6 +172,11 @@ class Lsx(Base):
     trang_thai: Mapped[str] = mapped_column(String(20), nullable=False, default=TT_NHAP)
     nguoi_phu_trach_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)  # → users.id
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # TỔ CẮT CHỐT GIẤY sau phát hành (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt
+    # đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt (bước mang giấy chờ, §4.7).
+    giay_chot_cach: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    giay_chot_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    giay_chot_boi_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → users.id (mềm)
 
     created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -258,6 +263,10 @@ class LsxCongDoan(Base):
     )
     bat_buoc: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_true(), default=True
+    )
+    # Bước do TỔ CẮT chèn đầu tuyến sau phát hành (mg 0356) — gỡ chốt xoá đúng các bước này.
+    chen_boi_to_cat: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
     )
 
     # --- Số lượng & hao hụt ---

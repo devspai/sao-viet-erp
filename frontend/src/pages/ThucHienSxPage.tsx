@@ -31,6 +31,7 @@ import { ChipKcs, ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import { ThsxDrawer, type ThsxDrawerTab } from "./ThsxDrawer";
 import { type ThsxExec } from "./ThsxExecPanels";
 import { ThsxChoNgoaiBan } from "./ThsxChoNgoaiBan";
+import { ThsxChotGiay } from "./ThsxChotGiay";
 import { LOC_TRONG, ThsxLocNangCao, ThsxNutLoc, soTieuChi, thamSoLoc, type ThsxLoc } from "./ThsxLocNangCao";
 import { ChamCho, choNgoaiBan, choTheoViec, tabCho, tongCho, type SxChoCuaViec } from "./thsxChoXacNhan";
 import { ThsxSanLuongCuaToi } from "./ThsxSanLuongCuaToi";
@@ -100,6 +101,7 @@ export function ThucHienSxPage({
   teamId,
   tenTo,
   laTho = false,
+  laToCat = false,
   eventTick,
   vatTuDeNghiDem,
   dinhKemDem,
@@ -111,6 +113,8 @@ export function ThucHienSxPage({
   /** Người đang xem vào tổ này với tư cách THỢ (cờ `la_tho` của `GET /teams`, do máy chủ tính).
    *  Bật băng "Sản lượng của tôi" theo cờ này chứ không suy từ scope ở FE. */
   laTho?: boolean;
+  /** Tổ mang cờ Tổ Cắt (`la_to_cat` của `GET /teams`) ⇒ bày khối "Chờ chốt giấy" trên danh sách. */
+  laToCat?: boolean;
   eventTick?: number;
   /** Số lần đề nghị cấp vật tư đổi, ĐẾM THEO công việc (SSE, mắc ở AppShell). CỐ TÌNH không đi qua
    *  `eventTick`: sự kiện này broadcast TOÀN HỆ, nếu bump tick chung thì mỗi lần bất kỳ tổ nào
@@ -751,6 +755,10 @@ export function ThucHienSxPage({
         </div>
         <ThsxLocNangCao mo={moLoc} value={loc} onChange={setLoc} />
       </div>}
+
+      {view === "danh_sach" && laToCat && (
+        <ThsxChotGiay teamId={teamId} eventTick={eventTick} onDaGhi={() => { loadItems(); onBadgeStale?.(); }} />
+      )}
 
       {/* Việc chờ TỔ bấm (bàn giao đến, hỗ trợ chéo, lỗi KCS) gắn vào công đoạn của nó (§11.5); chỉ
           việc không có dòng trên bàn mới liệt kê riêng, khi bật ô "chờ xác nhận". */}

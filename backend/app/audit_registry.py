@@ -180,6 +180,9 @@ _HD += _dong("san_xuat", None, {
     "san_xuat.phat_hanh_cap_nhat": "Phát hành cập nhật xuống xưởng",
     "san_xuat.thu_hoi_goi": "Thu hồi gói phát hành",
     "san_xuat.ho_tro.huy_phat_hanh_lai": "Huỷ phát hành lại",
+    # Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6).
+    "san_xuat.chot_giay": "Tổ Cắt chốt giấy",
+    "san_xuat.go_chot_giay": "Tổ Cắt gỡ chốt giấy",
     # Bàn tổ — điều hành công việc tại chỗ.
     "san_xuat_phan_cong": "Phân công thợ",
     "san_xuat_go_phan_cong": "Gỡ phân công thợ",

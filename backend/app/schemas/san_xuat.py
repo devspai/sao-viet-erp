@@ -1448,3 +1448,67 @@ class DongLenhKetQuaOut(BaseModel):
     da_dat: float = 0.0
     muc_tieu: float | None = None
     don_vi: str = ""
+
+
+# --- Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6) ---------------------------------
+class ChotGiayGiayOut(BaseModel):
+    giay_id: int
+    ma: str
+    ten: str
+    kho_rong: int
+    kho_dai: int
+    nhan_kho: str
+    so_to: float
+    don_vi: str | None = None
+    #: Tồn lô TỜ đúng khổ; None khi dòng chưa có khổ (không so được).
+    ton_to_dung_kho: float | None = None
+
+
+class ChotGiayCuonOut(BaseModel):
+    ma_lo: str
+    giay_ma: str
+    kho_rong: int
+    sl_con_lai: float
+    don_vi: str | None = None
+    kho_ten: str
+
+
+class ChotGiayDaChotOut(BaseModel):
+    cach: Literal["cat", "khong_cat"]
+    luc: datetime | None = None
+    boi_ten: str | None = None
+    cong_doan: list[str] = []
+
+
+class ChotGiayCongDoanOut(BaseModel):
+    id: int
+    ma: str
+    ten: str
+
+
+class ChotGiayDongOut(BaseModel):
+    chu_the: Literal["lsx", "bai"]
+    id: int
+    ma: str
+    ten: str
+    han: str | None = None
+    giay: list[ChotGiayGiayOut]
+    cuon_cung_ma: list[ChotGiayCuonOut]
+    chot: ChotGiayDaChotOut | None = None
+    sua_duoc: bool
+    cong_doan_chen_duoc: list[ChotGiayCongDoanOut]
+
+
+class ChotGiayIn(BaseModel):
+    team_id: int = Field(ge=1)
+    lsx_id: int | None = Field(default=None, ge=1)
+    bai_ghep_id: int | None = Field(default=None, ge=1)
+    cach: Literal["cat", "khong_cat"]
+    #: Công đoạn chèn, ĐÚNG thứ tự tổ Cắt sắp (chỉ dùng khi `cach="cat"`).
+    cong_doan_ids: list[int] = []
+
+
+class GoChotGiayIn(BaseModel):
+    team_id: int = Field(ge=1)
+    lsx_id: int | None = Field(default=None, ge=1)
+    bai_ghep_id: int | None = Field(default=None, ge=1)

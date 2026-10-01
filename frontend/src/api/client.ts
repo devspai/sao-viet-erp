@@ -12919,6 +12919,26 @@ export const api = {
   // Ghi trả `SxLenhKetQua` (version lạc quan). Lỗi: 400 = lệch version/ràng buộc → refetch + toast;
   // 403 = ngoài phạm vi tổ. `teams` một cú gọi ra cả list lẫn badge (`so_viec_cho`).
   sanXuat: {
+    /** Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6). Tổ không mang cờ ⇒ danh sách rỗng. */
+    chotGiay: {
+      list(token: string, teamId: number): Promise<ChotGiayDong[]> {
+        return authed<ChotGiayDong[]>(`/api/san-xuat/chot-giay${qs({ team_id: teamId })}`, token);
+      },
+      chot(token: string, body: {
+        team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null;
+        cach: "cat" | "khong_cat"; cong_doan_ids?: number[];
+      }): Promise<unknown> {
+        return authed<unknown>("/api/san-xuat/chot-giay", token, {
+          method: "POST", body: JSON.stringify(body),
+        });
+      },
+      go(token: string, body: { team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null }):
+        Promise<unknown> {
+        return authed<unknown>("/api/san-xuat/chot-giay/go", token, {
+          method: "POST", body: JSON.stringify(body),
+        });
+      },
+    },
     /** Danh sách tổ user thấy + badge số việc chờ (navbar + màn). */
     teams(token: string): Promise<SxTeamsOut> {
       return authed<SxTeamsOut>("/api/san-xuat/teams", token);
@@ -15809,4 +15829,26 @@ export interface DonNoiNhan {
   luu_y: string | null;
   so_dia_chi: { id: number; nhan: string; dia_chi: string; sdt: string | null; mac_dinh: boolean }[];
   lien_he: { id: number; ten: string; chuc_vu: string | null; sdt: string | null; chinh: boolean }[];
+}
+
+/** Một lệnh / bài ghép trong khối "Chờ chốt giấy" của tổ Cắt (`GET /api/san-xuat/chot-giay`). */
+export interface ChotGiayDong {
+  chu_the: "lsx" | "bai";
+  id: number;
+  ma: string;
+  ten: string;
+  han: string | null;
+  giay: {
+    giay_id: number; ma: string; ten: string; kho_rong: number; kho_dai: number; nhan_kho: string;
+    so_to: number; don_vi: string | null;
+    /** Tồn lô tờ ĐÚNG khổ; null khi dòng chưa có khổ. */
+    ton_to_dung_kho: number | null;
+  }[];
+  cuon_cung_ma: {
+    ma_lo: string; giay_ma: string; kho_rong: number; sl_con_lai: number; don_vi: string | null;
+    kho_ten: string;
+  }[];
+  chot: { cach: "cat" | "khong_cat"; luc: string | null; boi_ten: string | null; cong_doan: string[] } | null;
+  sua_duoc: boolean;
+  cong_doan_chen_duoc: { id: number; ma: string; ten: string }[];
 }

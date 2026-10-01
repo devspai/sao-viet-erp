@@ -4115,8 +4115,11 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 | `created_by` | `Integer` | — | yes | — | Soft → `users.id`. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
+| `giay_chot_cach` | `String(12)` | — | yes | — | **Tổ Cắt chốt giấy** (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt — khi có tổ bật `departments.la_to_cat`, bước mang giấy chờ chốt mới bắt đầu được (§4.7). |
+| `giay_chot_luc` | `DateTime(timezone=True)` | — | yes | — | Lúc tổ Cắt chốt (mg 0356). Gỡ chốt ⇒ NULL. |
+| `giay_chot_boi_id` | `Integer` | — | yes | — | Soft → `users.id` — người chốt (mg 0356). |
 
-**Tất cả cột:** `id`, `ma`, `loai`, `lsx_goc_id`, `ten`, `order_id`, `order_line_id`, `quote_version_id`, `phieu_thanh_phan_id`, `so_luong_dat`, `don_vi_tinh`, `so_to_ke_hoach`, `so_to_nguyen`, `so_con`, `ban_giao_at`, `han_giao_khach`, `han_hoan_thanh_sx`, `is_rush`, `giu_cho_bat`, `quy_cach_json`, `routing_goc_json`, `may_id`, `trang_thai`, `nguoi_phu_trach_id`, `ghi_chu`, `created_by`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma`, `loai`, `lsx_goc_id`, `ten`, `order_id`, `order_line_id`, `quote_version_id`, `phieu_thanh_phan_id`, `so_luong_dat`, `don_vi_tinh`, `so_to_ke_hoach`, `so_to_nguyen`, `so_con`, `ban_giao_at`, `han_giao_khach`, `han_hoan_thanh_sx`, `is_rush`, `giu_cho_bat`, `quy_cach_json`, `routing_goc_json`, `may_id`, `trang_thai`, `nguoi_phu_trach_id`, `ghi_chu`, `created_by`, `created_at`, `updated_at`, `giay_chot_cach`, `giay_chot_luc`, `giay_chot_boi_id`.
 
 - Indexes hiệu năng: `ix_lsx_sap_xep` trên `(created_at DESC, id DESC)` và `ix_lsx_trang_thai_sx` trên `(trang_thai, created_at DESC, id DESC)` — cắt trang bảng Kế hoạch SX khỏi phải sắp xếp cả bảng (mg `0315_index_bang_lenh`, thay cho `ix_lsx_created_at` / `ix_lsx_trang_thai_created_at` của mg 0217 đã bị xoá). Riêng Postgres còn `ix_lsx_ma_trgm` / `ix_lsx_ten_trgm` (GIN `gin_trgm_ops`, cần extension `pg_trgm`, mg 0217) để ô tìm kiếm `ILIKE '%…%'` không quét toàn bảng. Tất cả là index THUẦN hiệu năng, migration tạo/xoá kiểu best-effort (lỗi thì bỏ qua, không chặn deploy).
 
@@ -4170,12 +4173,13 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 | `ghi_chu` | `String(500)` | — | yes | — | |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
+| `chen_boi_to_cat` | `Boolean` → `BOOLEAN` | — | no | `false` | Bước do **tổ Cắt chèn đầu tuyến** sau phát hành (mg 0356, spec giấy theo khổ §4.6), nối cạnh tường minh tới bước mang giấy. Gỡ chốt xoá đúng các bước này. |
 
 > **Derived, KHÔNG lưu cột** (engine `lsx_service.thoi_luong_buoc(cd, may)` tính): `chiem_may_phut = phat_sinh + chuẩn bị(máy) + chạy(theo tốc độ máy)` · `chiem_may_phut_min`/`_max` theo `toc_do_max`/`toc_do_min` · `tong_phut = chiem_may_phut` (chờ/di chuyển đã bỏ) · `ty_le_hao_hut = hao_hut / so_luong_vao` · lead time cả lệnh.
 > **Đã BỎ ở migration `0093`:** `thue_ngoai` (tập con của `loai_buoc`) · `don_vi` (tách thành `don_vi_vao`/`don_vi_ra`).
 > 🔴 **GỠ 18/09/2026 (mg `0321`):** `so_nhan_cong_tieu_chuan` (kíp chuẩn) · `khoan_json` (đầu việc khoán của bước) · `nang_suat` + `don_vi_nang_suat` (hai cột SAO CHÉP từ định mức, không ai đồng bộ lại bản sao). Chủ xưởng: *"bỏ luôn logic kíp người, mà mấy cái chặn hoặc cảnh báo hoặc phép tính liên quan đến kíp người"*. Luật "phải có ít nhất 1 thợ mới bắt đầu được việc" GIỮ — đó là luật về người có mặt. Thợ chọn công việc khoán LÚC GHI MẺ (`san_xuat_batch.piece_rate_id`), không ở bước lệnh.
 
-**Tất cả cột:** `id`, `step_key`, `lsx_id`, `thu_tu`, `cong_doan_id`, `ten`, `nhom`, `department_id`, `may_id`, `loai_buoc`, `bat_buoc`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `hao_hut`, `hao_hut_pct`, `so_luot_chay`, `setup_phut`, `so_gio_ke_hoach`, `chay_phut`, `ve_sinh_phut`, `phat_sinh_phut`, `cho_phut`, `di_chuyen_phut`, `nha_cung_cap_id`, `nha_cung_cap`, `don_gia_gia_cong`, `ghi_chu`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `step_key`, `lsx_id`, `thu_tu`, `cong_doan_id`, `ten`, `nhom`, `department_id`, `may_id`, `loai_buoc`, `bat_buoc`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `hao_hut`, `hao_hut_pct`, `so_luot_chay`, `setup_phut`, `so_gio_ke_hoach`, `chay_phut`, `ve_sinh_phut`, `phat_sinh_phut`, `cho_phut`, `di_chuyen_phut`, `nha_cung_cap_id`, `nha_cung_cap`, `don_gia_gia_cong`, `ghi_chu`, `created_at`, `updated_at`, `chen_boi_to_cat`.
 
 13 cột thuê ngoài cũ (ngày gửi/nhận, hao hụt cho phép, sổ giao–nhận) gỡ ở mg `0340` — thay bằng bảng `gia_cong_ngoai`.
 
@@ -4318,6 +4322,9 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `created_by` | `Integer` | — | yes | — | Soft → `users.id`. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
+| `giay_chot_cach` | `String(12)` | — | yes | — | **Tổ Cắt chốt giấy** (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt — khi có tổ bật `departments.la_to_cat`, bước mang giấy chờ chốt mới bắt đầu được (§4.7). |
+| `giay_chot_luc` | `DateTime(timezone=True)` | — | yes | — | Lúc tổ Cắt chốt (mg 0356). Gỡ chốt ⇒ NULL. |
+| `giay_chot_boi_id` | `Integer` | — | yes | — | Soft → `users.id` — người chốt (mg 0356). |
 
 > **Derived, KHÔNG lưu cột** (engine `bai_ghep_service` tính lúc đọc): số tờ tốt = `max_i(ceil(lsx.so_luong_dat / so_con_tren_to))` · sản lượng dự kiến/dư mỗi thành viên · tổng tờ cấp = số tờ tốt + hao hụt · hạn in muộn nhất = `min(han_hoan_thanh_sx)` · % tờ dùng (fill).
 
@@ -4329,7 +4336,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 
 - Một `bai_ghep` có nhiều `bai_ghep_thanh_vien` (cascade delete). Các FK danh mục (`giay_id`, `may_id`) là MỀM.
 
-**Tất cả cột:** `id`, `ma`, `ten`, `han_hoan_thanh_sx`, `is_rush`, `nguoi_phu_trach_id`, `trang_thai`, `giu_cho_bat`, `giay_id`, `kho_in_dai`, `kho_in_rong`, `may_id`, `hao_hut_setup`, `hao_hut_chay`, `ghi_chu`, `created_by`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma`, `ten`, `han_hoan_thanh_sx`, `is_rush`, `nguoi_phu_trach_id`, `trang_thai`, `giu_cho_bat`, `giay_id`, `kho_in_dai`, `kho_in_rong`, `may_id`, `hao_hut_setup`, `hao_hut_chay`, `ghi_chu`, `created_by`, `created_at`, `updated_at`, `giay_chot_cach`, `giay_chot_luc`, `giay_chot_boi_id`.
 
 ---
 
@@ -4394,6 +4401,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `ghi_chu` | `String(500)` | — | yes | — | Ghi chú của BÀI. Ghi chú kỹ thuật của từng lệnh **KHÔNG bị đè** — service gom lại kèm mã lệnh, vì thợ chạy chung một lượt phải đọc được yêu cầu của mọi khách trên tờ đó. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
+| `chen_boi_to_cat` | `Boolean` → `BOOLEAN` | — | no | `false` | Bước do **tổ Cắt chèn đầu tuyến** sau phát hành (mg 0356, spec giấy theo khổ §4.6), nối cạnh tường minh tới bước mang giấy. Gỡ chốt xoá đúng các bước này. |
 
 > 🔴 **GỠ 18/09/2026 (mg `0321`)** — mirror đúng `lsx_cong_doan`: `so_nhan_cong_tieu_chuan` · `khoan_json` · `nang_suat` · `don_vi_nang_suat`.
 
@@ -4410,7 +4418,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 - Một `bai_ghep` có nhiều `bai_ghep_cong_doan`. Mỗi dòng có nhiều `bai_ghep_cong_doan_map` (đè lên bước nào của lệnh nào) và nhiều `bai_ghep_cong_doan_vat_tu` — cả hai cascade delete.
 - **GHI ĐÈ, KHÔNG PHÁ GỐC:** bước của LSX vẫn còn nguyên trong `lsx_cong_doan` với số của nó; tách gộp là số cũ quay lại, không phải khôi phục từ đâu. Engine chỉ việc "chỗ nào bị đè thì lấy số của bài".
 
-**Tất cả cột:** `id`, `step_key`, `bai_ghep_id`, `thu_tu`, `cong_doan_id`, `ten`, `nhom`, `loai_buoc`, `bat_buoc`, `department_id`, `may_id`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `hao_hut`, `hao_hut_pct`, `so_luot_chay`, `setup_phut`, `so_gio_ke_hoach`, `chay_phut`, `ve_sinh_phut`, `phat_sinh_phut`, `cho_phut`, `di_chuyen_phut`, `nha_cung_cap_id`, `nha_cung_cap`, `ghi_chu`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `step_key`, `bai_ghep_id`, `thu_tu`, `cong_doan_id`, `ten`, `nhom`, `loai_buoc`, `bat_buoc`, `department_id`, `may_id`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `hao_hut`, `hao_hut_pct`, `so_luot_chay`, `setup_phut`, `so_gio_ke_hoach`, `chay_phut`, `ve_sinh_phut`, `phat_sinh_phut`, `cho_phut`, `di_chuyen_phut`, `nha_cung_cap_id`, `nha_cung_cap`, `ghi_chu`, `created_at`, `updated_at`, `chen_boi_to_cat`.
 
 ---
 

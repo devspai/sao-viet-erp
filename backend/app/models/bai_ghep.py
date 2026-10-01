@@ -80,6 +80,11 @@ class BaiGhep(Base):
     hao_hut_chay: Mapped[int | None] = mapped_column(Integer, nullable=True)   # bù khi chạy
 
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # TỔ CẮT CHỐT GIẤY sau phát hành (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt
+    # đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt (bước mang giấy chờ, §4.7).
+    giay_chot_cach: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    giay_chot_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    giay_chot_boi_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → users.id (mềm)
 
     created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → users.id
     created_at: Mapped[datetime] = mapped_column(
