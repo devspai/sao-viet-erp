@@ -381,6 +381,10 @@ class LsxCongDoanVatTu(Base):
     vat_tu_ten_snapshot: Mapped[str] = mapped_column(String(150), nullable=False)
     don_vi_snapshot: Mapped[str] = mapped_column(String(16), nullable=False)
     so_luong: Mapped[float] = mapped_column(Numeric(14, 3), nullable=False)
+    # Khổ dòng GIẤY (mm, cạnh ngắn × cạnh dài) — giấy đếm tờ nguyên theo khổ, không công thức (spec
+    # 2026-10-01-giay-dem-to-theo-kho §4.2). Hàng khác: 0 · 0. mg 0351.
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # MÁY BUNG hay NGƯỜI KHAI (mg 0191). True = dòng máy tự thêm khi chọn công việc khoán ⇒ lần bung
     # sau được thay bộ mới. False = người tự thêm, hoặc đã sửa số lượng ⇒ máy CHỪA RA, không ghi đè.

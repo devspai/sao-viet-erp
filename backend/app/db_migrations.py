@@ -16473,3 +16473,20 @@ def _migrate_nguong_ton_theo_kho(db: Session) -> None:
 
 
 MIGRATIONS.append(("0350_nguong_ton_theo_kho", _migrate_nguong_ton_theo_kho))
+
+
+def _migrate_kho_dong_giay_buoc(db: Session) -> None:
+    """Dòng giấy của bước lệnh mang khổ (spec 2026-10-01-giay-dem-to-theo-kho §4.2): `kho_rong` +
+    `kho_dai` (mm, NOT NULL default 0) trên `lsx_cong_doan_vat_tu`. Dòng cũ để 0 · 0 (hiện "chưa có
+    khổ", người lập lệnh khai lại). Idempotent: hỏi inspector trước ADD COLUMN."""
+    insp = inspect(db.get_bind())
+    if "lsx_cong_doan_vat_tu" not in set(insp.get_table_names()):
+        return
+    co = _existing_columns(insp, "lsx_cong_doan_vat_tu")
+    for ten in ("kho_rong", "kho_dai"):
+        if ten not in co:
+            db.execute(text(f"ALTER TABLE lsx_cong_doan_vat_tu ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    db.commit()
+
+
+MIGRATIONS.append(("0351_kho_dong_giay_buoc", _migrate_kho_dong_giay_buoc))

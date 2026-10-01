@@ -73,6 +73,41 @@ def don_vi_goc_to() -> str:
     return ma_cua_tram(TRAM_TO_NGUYEN, ban_do_tram()) or TRAM_TO_NGUYEN
 
 
+def goi_y_dong_giay(qc: dict) -> dict:
+    """Gợi ý dòng giấy của bước lệnh (spec §4.2) từ quy cách đã gộp số cột (`quy_cach_bien`):
+    khổ nguyên + số tờ nguyên; thiếu khổ nguyên thì khổ tờ in + số tờ vào máy. Không công thức.
+
+    Trả `{so_luong, kho_rong, kho_dai, don_vi, dien_giai, ly_do}`; chưa đủ dữ kiện ⇒ `so_luong=None`
+    kèm `ly_do` (ô để trống cho người lập lệnh gõ, khổ vẫn điền nếu có)."""
+    def so(*khoa):
+        for k in khoa:
+            try:
+                v = float(qc.get(k) or 0)
+            except (TypeError, ValueError):
+                v = 0.0
+            if v > 0:
+                return v
+        return 0.0
+
+    kr, kd = chuan_kho(so("kho_nguyen_dai", "kho_dai"), so("kho_nguyen_rong", "kho_rong"))
+    nguon, to = "khổ nguyên", so("to_nguyen")
+    if not (kr and kd):
+        kr, kd = chuan_kho(so("kho_in_dai"), so("kho_in_rong"))
+        nguon, to = "khổ tờ in", so("to_dau_vao")
+    if not (kr and kd):
+        kr = kd = 0
+    out = {"kho_rong": kr, "kho_dai": kd, "don_vi": don_vi_goc_to(),
+           "so_luong": None, "dien_giai": None, "ly_do": None}
+    if not (kr and kd):
+        out["ly_do"] = "Lệnh chưa có khổ giấy — gõ tay."
+    elif to <= 0:
+        out["ly_do"] = "Lệnh chưa có số tờ — gõ tay."
+    else:
+        out["so_luong"] = round(to, 3)
+        out["dien_giai"] = f"Theo {nguon} của lệnh {nhan_kho(kr, kd)}"
+    return out
+
+
 def khoa_ton_cua(obj) -> tuple:
     """Khoá tra tồn của một lô / dòng (có `hang_loai`, `hang_id`, `dang_giay`, `kho_rong`, `kho_dai`).
     Giấy đã có dạng ⇒ `khoa_ton` (tờ đúng khổ / cuộn theo mã). Hàng khác, hoặc giấy CŨ chưa có dạng

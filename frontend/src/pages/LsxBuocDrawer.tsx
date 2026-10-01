@@ -974,6 +974,35 @@ export function LsxBuocDrawer({
                                     <span className="khsx-vattu-nvl-badge">NVL chính</span>
                                   )}
                                 </div>
+                                {/* Giấy đếm tờ theo KHỔ (mm) — mặc định từ quy cách lệnh, sửa được. */}
+                                {v.hang_loai === "giay" && (
+                                  <div className="khsx-vattu-kho">
+                                    <span className="khsx-vattu-kho__label">Khổ (mm)</span>
+                                    {(["kho_rong", "kho_dai"] as const).map((k, idx) => (
+                                      <span key={k} className="khsx-vattu-kho__o">
+                                        {idx === 1 && <span aria-hidden="true">×</span>}
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          step="1"
+                                          className="khsx-vattu-num-input khsx-vattu-kho__input"
+                                          aria-label={idx === 0 ? "Khổ giấy — cạnh rộng (mm)" : "Khổ giấy — cạnh dài (mm)"}
+                                          value={v[k]}
+                                          placeholder={idx === 0 ? "rộng" : "dài"}
+                                          disabled={!canUpdate}
+                                          onChange={(e) =>
+                                            set(
+                                              "vat_tus",
+                                              row.vat_tus.map((x, j) =>
+                                                j === i ? { ...x, [k]: e.target.value, tu_dong: false } : x,
+                                              ),
+                                            )
+                                          }
+                                        />
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--why">
                                 {goiY?.dien_giai ? (
@@ -1096,9 +1125,14 @@ export function LsxBuocDrawer({
                                       vat_tu_id: item.id,
                                       vat_tu_ma: item.ma ?? "",
                                       vat_tu_ten: item.ten,
-                                      don_vi: item.donVi ?? "",
+                                      // Giấy đếm TỜ NGUYÊN theo khổ (máy chủ gợi ý đơn vị + khổ
+                                      // từ quy cách lệnh) — không mượn đơn vị gốc kg của mã.
+                                      don_vi: (hangLoai === "giay" ? goiY?.don_vi : undefined)
+                                        ?? item.donVi ?? "",
                                       so_luong: goiY?.so_luong != null ? String(goiY.so_luong) : "",
                                       tu_dong: false,
+                                      kho_rong: hangLoai === "giay" && goiY?.kho_rong ? String(goiY.kho_rong) : "",
+                                      kho_dai: hangLoai === "giay" && goiY?.kho_dai ? String(goiY.kho_dai) : "",
                                     },
                                   ]);
                                 }}

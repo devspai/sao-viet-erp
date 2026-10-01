@@ -2729,7 +2729,9 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
    *  `"vat_tu"` = mực/keo/màng. `vat_tu_id` là id TRONG danh mục đó ⇒ so sánh phải đi theo CẶP,
    *  Giấy #7 và Vật tư #7 là hai món khác nhau (08/09/2026). */
   vat_tus: { id: number; hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; vat_tu_ma: string;
-             vat_tu_ten: string; don_vi: string; so_luong: number; tu_dong?: boolean }[];
+             vat_tu_ten: string; don_vi: string; so_luong: number; tu_dong?: boolean;
+             /** Khổ dòng GIẤY (mm, ngắn × dài) — giấy đếm tờ nguyên theo khổ. Hàng khác 0 · 0. */
+             kho_rong?: number; kho_dai?: number }[];
   ghi_chu: string | null;
   /* Đầu việc ghim ở bước (`khoan_rate_id` · `khoan_ten` · `khoan_chon_duoc`) GỠ 18/09/2026 (mg
      `0320`): việc khoán chọn LÚC GHI MẺ ở bàn tổ, lọc theo tổ của bước. */
@@ -2742,6 +2744,10 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
     so_luong: number | null;
     dien_giai: string | null;
     ly_do: string | null;
+    /** Giấy: khổ + đơn vị (tờ nguyên) gợi ý từ quy cách lệnh. */
+    kho_rong?: number;
+    kho_dai?: number;
+    don_vi?: string;
   }[];
   /** Số ĐÚNG RA phải là theo danh mục HIỆN TẠI, chỉ có khi KHÁC số đã lưu. null = không lệch.
    *  Lệnh là ảnh chụp nên server không tự đè — màn gạch số cũ rồi mời bấm Lưu. */
@@ -2764,7 +2770,8 @@ export interface LsxCongDoanBody extends Partial<Omit<LsxThueNgoaiFields, "nha_c
   phat_sinh_phut?: number;
   phu_thuoc_step_keys?: string[];
   /** Bỏ trống `hang_loai` là server hiểu `"vat_tu"` — giữ đúng nghĩa client cũ. */
-  vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong: number }[];
+  vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong: number;
+              kho_rong?: number; kho_dai?: number }[];
   ghi_chu?: string | null;
 }
 export interface LsxPhuThuocOption {

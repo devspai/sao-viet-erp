@@ -250,3 +250,19 @@ describe("toBody — số lượt qua máy", () => {
     expect(body.so_luot_chay).toBe(2);
   });
 });
+
+describe("toBody — khổ dòng giấy", () => {
+  const mon = (hang_loai: "giay" | "vat_tu", kho_rong: string, kho_dai: string) => ({
+    hang_loai, vat_tu_id: 7, vat_tu_ma: "M", vat_tu_ten: "Món", don_vi: "to_nguyen",
+    so_luong: "5000", tu_dong: false, kho_rong, kho_dai,
+  });
+
+  it("dòng giấy gửi kèm khổ (mm); dòng vật tư không gửi khổ", () => {
+    const [body] = toBody([dong({ ten: "In offset", vat_tus: [
+      mon("giay", "905", "780"), mon("vat_tu", "", "")] })]);
+    expect(body.vat_tus).toEqual([
+      { hang_loai: "giay", vat_tu_id: 7, so_luong: 5000, tu_dong: false, kho_rong: 905, kho_dai: 780 },
+      { hang_loai: "vat_tu", vat_tu_id: 7, so_luong: 5000, tu_dong: false },
+    ]);
+  });
+});

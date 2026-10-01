@@ -9,7 +9,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from ..services.kho_giay import chuan_kho
 
 
 # ============================ Hàng chờ ============================
@@ -117,6 +119,20 @@ class LsxBuocVatTuIn(BaseModel):
     # True = dòng MÁY bung khi chọn công việc khoán ⇒ lần bung sau thay được. False = người tự thêm
     # hoặc đã sửa số ⇒ máy chừa ra. Mặc định False: client cũ không gửi thì coi như người khai.
     tu_dong: bool = False
+    # Khổ dòng GIẤY (mm, thứ tự cạnh tuỳ ý — máy chủ chuẩn hoá ngắn × dài). Hàng khác: ép 0 · 0.
+    kho_rong: int = 0
+    kho_dai: int = 0
+
+    @model_validator(mode="after")
+    def _kho_giay(self):
+        if self.hang_loai != "giay":
+            self.kho_rong, self.kho_dai = 0, 0
+            return self
+        kr, kd = chuan_kho(self.kho_rong, self.kho_dai)
+        if not (kr and kd):
+            raise ValueError("Dòng giấy phải có khổ (rộng × dài, mm).")
+        self.kho_rong, self.kho_dai = kr, kd
+        return self
 
 
 class LsxBuocVatTuOut(BaseModel):
@@ -127,6 +143,8 @@ class LsxBuocVatTuOut(BaseModel):
     vat_tu_ten: str
     don_vi: str
     so_luong: float
+    kho_rong: int = 0
+    kho_dai: int = 0
     tu_dong: bool = False
 
 
