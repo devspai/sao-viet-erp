@@ -896,6 +896,12 @@ class KeHoachVatTuService:
         self._chung_nap = self.bai_ghep_repo.buoc_chung_theo_bai(bai_ids)
         if bais:
             self._bg().nap_truoc(bai_ids, tv_ids, buoc_chung=self._chung_nap)
+        # Neo giấy bài = bước chung THẬT nhận giấy — cùng luật với chốt giấy (`buoc_lay_giay`):
+        # Ghi kẽm CTP đứng đầu tuyến bài (đơn vị `kem`) không phải bước lấy giấy. Nạp LÔ cho mọi bài.
+        from .san_xuat.chot_giay import buoc_lay_giay_bai_lo
+
+        neo_bai = buoc_lay_giay_bai_lo(
+            self.db, {bg.id: list(self._buoc_chung(bg.id)) for bg in bais if bg.giay_id})
         for bg in bais:
             ids = [tv.lsx_id for tv in bg.thanh_viens]
             lsx_map = {i: lenh_map[i] if i in lenh_map else ngoai[i]
@@ -909,11 +915,7 @@ class KeHoachVatTuService:
             # không có cột: khổ in sửa ở bài, khổ nguyên đi theo thành viên.
             qc_bai = quy_cach_bien_bai(bg, thanh_vien=lsx_map.values(), so_to=so_to_dict)
             buoc = sorted(self._buoc_chung(bg.id), key=lambda c: c.thu_tu)
-            # Neo = bước chung THẬT nhận giấy — cùng luật với chốt giấy (`buoc_lay_giay`): Ghi kẽm
-            # CTP đứng đầu tuyến bài (đơn vị `kem`) không phải bước lấy giấy.
-            from .san_xuat.chot_giay import buoc_lay_giay
-
-            neo = buoc_lay_giay(self.db, ("bai", bg.id))
+            neo = neo_bai.get(bg.id)
             gy = self._giay_bai_theo_buoc_dau(neo, qc_bai, so_to_dict)
             if gy is None:
                 gy = goi_y_dong_giay(qc_bai)

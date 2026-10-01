@@ -108,19 +108,30 @@ def la_buoc_truoc_in_to_cat(db: Session, buoc) -> bool:
     if buoc is None:
         return False
     cd = db.get(CongDoan, buoc.cong_doan_id) if getattr(buoc, "cong_doan_id", None) else None
+
+    def _to_cat(dept_id) -> bool:
+        d = db.get(Department, dept_id)
+        return bool(d is not None and d.la_to_cat)
+
+    def _cd_co_to_cat(cd_id) -> bool:
+        return db.execute(
+            select(CongDoanTo.department_id)
+            .join(Department, Department.id == CongDoanTo.department_id)
+            .where(CongDoanTo.cong_doan_id == cd_id, Department.la_to_cat.is_(True))
+            .limit(1)
+        ).first() is not None
+
+    return _trong_pham_vi(buoc, cd, _to_cat, _cd_co_to_cat)
+
+
+def _trong_pham_vi(buoc, cd, to_cat, cd_co_to_cat) -> bool:
+    """Luật §2 tách khỏi chỗ đọc DB: `to_cat(dept_id)` / `cd_co_to_cat(cd_id)` do người gọi cấp —
+    hỏi từng câu (`la_buoc_truoc_in_to_cat`) hoặc tra tập đã nạp lô (`buoc_lay_giay_bai_lo`)."""
     if (cd.nhom if cd is not None else getattr(buoc, "nhom", None)) != NHOM_TRUOC_IN:
         return False
     if getattr(buoc, "department_id", None):
-        d = db.get(Department, buoc.department_id)
-        return bool(d is not None and d.la_to_cat)
-    if cd is None:
-        return False
-    return db.execute(
-        select(CongDoanTo.department_id)
-        .join(Department, Department.id == CongDoanTo.department_id)
-        .where(CongDoanTo.cong_doan_id == cd.id, Department.la_to_cat.is_(True))
-        .limit(1)
-    ).first() is not None
+        return to_cat(buoc.department_id)
+    return cd is not None and cd_co_to_cat(cd.id)
 
 
 def _cac_buoc(db: Session, chu_the: tuple[str, int]) -> list:
@@ -142,43 +153,91 @@ def _buoc_co_giay(db: Session, chu_the: tuple[str, int]) -> list:
     phạm vi tổ Cắt (§2, kể cả nhận cuộn). Nhờ vậy bước
     chung đứng trước In mà không nhận giấy (vd Ghi kẽm) không bị coi là bước lấy giấy."""
     loai, id_ = chu_the
-    co = select(LsxCongDoanVatTu.lsx_cong_doan_id).where(LsxCongDoanVatTu.hang_loai == "giay")
     if loai == "lsx":
         return list(db.scalars(
-            select(LsxCongDoan).where(LsxCongDoan.lsx_id == id_, LsxCongDoan.id.in_(co))
+            select(LsxCongDoan).where(LsxCongDoan.lsx_id == id_, LsxCongDoan.id.in_(_co_dong_giay()))
             .order_by(LsxCongDoan.thu_tu, LsxCongDoan.id)))
     bg = db.get(BaiGhep, id_)
     if bg is None or not bg.giay_id:
         return []
     buoc = _cac_buoc(db, chu_the)
-    co_giay = set(db.scalars(
-        select(BaiGhepCongDoanMap.bai_ghep_cong_doan_id)
-        .join(LsxCongDoan, LsxCongDoan.step_key == BaiGhepCongDoanMap.lsx_step_key)
-        .where(BaiGhepCongDoanMap.bai_ghep_cong_doan_id.in_([b.id for b in buoc]),
-               LsxCongDoan.id.in_(co)))) if buoc else set()
+    co_giay = _buoc_chung_co_giay(db, buoc)
     if co_giay:
         return [b for b in buoc if b.id in co_giay]
     tram = ban_do_tram(db)
     return [b for b in buoc if _nhan_giay_theo_buoc(db, b, tram)]
 
 
+def _co_dong_giay():
+    return select(LsxCongDoanVatTu.lsx_cong_doan_id).where(LsxCongDoanVatTu.hang_loai == "giay")
+
+
+def _buoc_chung_co_giay(db: Session, buoc: list) -> set[int]:
+    """Id các bước chung (của một hay nhiều bài) mà bước thành viên nó phủ mang dòng giấy."""
+    if not buoc:
+        return set()
+    return set(db.scalars(
+        select(BaiGhepCongDoanMap.bai_ghep_cong_doan_id)
+        .join(LsxCongDoan, LsxCongDoan.step_key == BaiGhepCongDoanMap.lsx_step_key)
+        .where(BaiGhepCongDoanMap.bai_ghep_cong_doan_id.in_([b.id for b in buoc]),
+               LsxCongDoan.id.in_(_co_dong_giay()))))
+
+
 def _nhan_giay_theo_buoc(db: Session, buoc, tram: dict) -> bool:
+    cd = db.get(CongDoan, buoc.cong_doan_id) if buoc.cong_doan_id else None
+    return _nhan_giay(buoc, cd, tram, lambda b: la_buoc_truoc_in_to_cat(db, b))
+
+
+def _nhan_giay(buoc, cd, tram: dict, trong_pham_vi) -> bool:
     from ...models.don_vi_do import TRAM_TO, TRAM_TO_NGUYEN
     from ..dong_giay import tram_cua
 
     if buoc.don_vi_vao and tram_cua(buoc.don_vi_vao, tram) in (TRAM_TO, TRAM_TO_NGUYEN):
         return True
-    cd = db.get(CongDoan, buoc.cong_doan_id) if buoc.cong_doan_id else None
     if (cd.nhom if cd is not None else buoc.nhom) == NHOM_IN:
         return True
     # Bước cắt của tổ Cắt (Trước In) nhận giấy dù đầu vào là cuộn (đơn vị không phải chặng tờ).
-    return la_buoc_truoc_in_to_cat(db, buoc)
+    return trong_pham_vi(buoc)
 
 
 def buoc_lay_giay(db: Session, chu_the: tuple[str, int]):
     """Bước LẤY giấy từ kho = bước mang giấy đầu tiên theo `thu_tu` (spec §5)."""
     ds = _buoc_co_giay(db, chu_the)
     return ds[0] if ds else None
+
+
+def buoc_lay_giay_bai_lo(db: Session, buoc_theo_bai: dict[int, list]) -> dict[int, object]:
+    """`buoc_lay_giay` cho NHIỀU bài (đã có giấy) một lượt — CÙNG luật, nạp lô nên số câu truy vấn
+    không chạy theo số bài (bảng cân đối Kế hoạch vật tư). `buoc_theo_bai`: bài → bước chung đã nạp."""
+    tat_ca = [b for ds in buoc_theo_bai.values() for b in ds]
+    co_giay = _buoc_chung_co_giay(db, tat_ca)
+    can_xet = [b for ds in buoc_theo_bai.values() if not any(x.id in co_giay for x in ds)
+               for b in ds]
+    tram: dict = {}
+    cd_map: dict = {}
+    dept_cat: set = set()
+    cd_cat: set = set()
+    if can_xet:
+        tram = ban_do_tram(db)
+        cd_ids = {b.cong_doan_id for b in can_xet if b.cong_doan_id}
+        if cd_ids:
+            cd_map = {c.id: c for c in db.scalars(select(CongDoan).where(CongDoan.id.in_(cd_ids)))}
+        dept_cat = set(db.scalars(select(Department.id).where(Department.la_to_cat.is_(True))))
+        if cd_ids and dept_cat:
+            cd_cat = set(db.scalars(select(CongDoanTo.cong_doan_id).where(
+                CongDoanTo.cong_doan_id.in_(cd_ids), CongDoanTo.department_id.in_(dept_cat))))
+
+    def _pham_vi(b) -> bool:
+        return _trong_pham_vi(b, cd_map.get(b.cong_doan_id), lambda d: d in dept_cat,
+                              lambda c: c in cd_cat)
+
+    kq: dict[int, object] = {}
+    for bai_id, ds in buoc_theo_bai.items():
+        ds = sorted(ds, key=lambda b: (b.thu_tu or 0, b.id))
+        mang = [b for b in ds if b.id in co_giay] or [
+            b for b in ds if _nhan_giay(b, cd_map.get(b.cong_doan_id), tram, _pham_vi)]
+        kq[bai_id] = mang[0] if mang else None
+    return kq
 
 
 def _buoc_in(db: Session, chu_the: tuple[str, int]):
