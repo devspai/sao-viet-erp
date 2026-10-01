@@ -3931,9 +3931,18 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 ### `phieu_vat_tu`
 
-**Purpose:** 1 dòng VẬT TƯ IN ẤN (mực/màng/keo…) thêm tay của 1 thành phần → NGUYÊN VẬT LIỆU (song song giấy) — con của `phieu_thanh_phan` (`thanh_phan_id` FK thật, cascade xoá). Trỏ 1 mã `vat_tu_id` (soft → `vat_tu_in_an.id`, index `ix_phieu_vat_tu_vat_tu_id` — migration `0301`); engine kéo `cong_thuc_gia` + `don_gia` + `don_vi_gia` từ danh mục rồi thế biến vào công thức — HỆT giấy. `don_gia` = ghi đè (0 → lấy danh mục); `so_luong` (0 → SL đặt) cho công thức nếu cần; `ten` nhãn hiển thị; `ghi_chu` ghi chú.
+**NGƯNG từ 01/10/2026** — thay bởi `phieu_buoc_vat_tu` (vật tư thuộc BƯỚC, không thuộc thành phần). Bảng và dữ liệu cũ giữ nguyên, code không đọc/ghi nữa. 
+**Purpose (cũ):** 1 dòng VẬT TƯ IN ẤN (mực/màng/keo…) thêm tay của 1 thành phần → NGUYÊN VẬT LIỆU (song song giấy) — con của `phieu_thanh_phan` (`thanh_phan_id` FK thật, cascade xoá). Trỏ 1 mã `vat_tu_id` (soft → `vat_tu_in_an.id`, index `ix_phieu_vat_tu_vat_tu_id` — migration `0301`); engine kéo `cong_thuc_gia` + `don_gia` + `don_vi_gia` từ danh mục rồi thế biến vào công thức — HỆT giấy. `don_gia` = ghi đè (0 → lấy danh mục); `so_luong` (0 → SL đặt) cho công thức nếu cần; `ten` nhãn hiển thị; `ghi_chu` ghi chú.
 
 **Tất cả cột:** `id`, `thanh_phan_id`, `thu_tu`, `vat_tu_id`, `ten`, `don_gia`, `so_luong`, `ghi_chu`, `created_at`, `updated_at`.
+
+---
+
+### `phieu_buoc_vat_tu`
+
+**Purpose:** 1 vật tư gắn vào 1 BƯỚC (công đoạn) của phiếu tính giá — con của `phieu_thanh_pham` (`thanh_pham_id` FK thật, cascade xoá). Vật tư của công đoạn tự hiện khi chọn công đoạn; sale thêm/bớt riêng cho phiếu. `vat_tu_id` soft → `vat_tu_in_an.id`; `gia_tri_chip` (JSON) = số sale nhập cho từng chip riêng của vật tư (khoá = `vat_tu_chip.ma`), engine thế vào `cong_thuc_gia` của vật tư. Lưu phiếu là replace-all nên `id` không được ghim; lệnh SX nối với bước theo vị trí (`thu_tu`).
+
+**Tất cả cột:** `id`, `thanh_pham_id`, `thu_tu`, `vat_tu_id`, `gia_tri_chip`, `created_at`, `updated_at`.
 
 ---
 

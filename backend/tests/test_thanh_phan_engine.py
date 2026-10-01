@@ -93,6 +93,13 @@ def _component() -> dict:
     }
 
 
+def gan_vat_tu_buoc(tp: dict, vat_tus: list[dict]) -> None:
+    """Vật tư nay thuộc BƯỚC (01/10/2026): gắn vào bước đầu của thành phần (tạo bước trống nếu chưa có)."""
+    if not tp.get("thanh_phams"):
+        tp["thanh_phams"] = [{"ten": "Bước vật tư"}]
+    tp["thanh_phams"][0]["vat_tus"] = vat_tus
+
+
 def _grp(res, idx):
     return next(g for g in res["groups"] if g["idx"] == idx)
 
@@ -608,8 +615,8 @@ def test_moi_dong_mang_ca_cong_thuc_GOC_lan_ban_THE_SO():
     `5.200 × 2 × 350` — không biết 5.200 là tờ vào máy hay tờ nguyên, mà hai số đó đều có mặt
     trên màn và khác nhau."""
     tp = _chuoi_co_tien()
-    tp["vat_tus"] = [{"ten": "Keo gáy", "don_gia": 40000, "don_vi_gia": "kg",
-                      "cong_thuc_gia": "0.002 * so_luong * don_gia_vat_tu"}]
+    gan_vat_tu_buoc(tp, [{"ten": "Keo gáy", "don_gia": 40000, "don_vi_gia": "kg",
+                      "cong_thuc_gia": "0.002 * so_luong * don_gia_vat_tu"}])
     res = compute_phieu(so_luong=1000, thanh_phans=[tp])
 
     cd = {r["ten"].split(" · ")[-1]: r for r in _grp(res, "cong_doan")["rows"]}
@@ -649,8 +656,8 @@ def test_dong_giay_co_co_rieng_de_panel_tach_khoi_vat_tu():
     """Nhóm `nvl` trộn giấy với mực/màng/keo. Panel cần dòng GIẤY riêng, mà dò bằng "dòng đầu
     tiên" là đúng hôm nay và sai ngay hôm engine đổi thứ tự."""
     tp = _chuoi_co_tien()
-    tp["vat_tus"] = [{"ten": "Keo gáy", "don_gia": 40000, "don_vi_gia": "kg",
-                      "cong_thuc_gia": "0.002 * so_luong * don_gia_vat_tu"}]
+    gan_vat_tu_buoc(tp, [{"ten": "Keo gáy", "don_gia": 40000, "don_vi_gia": "kg",
+                      "cong_thuc_gia": "0.002 * so_luong * don_gia_vat_tu"}])
     nvl = _grp(compute_phieu(so_luong=1000, thanh_phans=[tp]), "nvl")["rows"]
     assert [r["loai"] for r in nvl] == ["giay", "vat_tu"]
     assert len([r for r in nvl if r["loai"] == "giay"]) == 1
@@ -753,8 +760,8 @@ def test_moi_dong_tien_deu_khep_bang_don_gia_moi_san_pham():
     """
     tp = _phieu_co_dao(_buoc_dao("Bế thành phẩm", "khuon_be", 800_000))
     tp["cong_thuc_gia"] = "dinh_luong * dai_nguyen * rong_nguyen * don_gia_giay * to_nguyen"
-    tp["vat_tus"] = [{"ten": "Màng bóng", "don_gia": 60_000, "don_vi_gia": "kg",
-                      "cong_thuc_gia": "dai_in * rong_in * to_sau_in * don_gia_vat_tu"}]
+    gan_vat_tu_buoc(tp, [{"ten": "Màng bóng", "don_gia": 60_000, "don_vi_gia": "kg",
+                      "cong_thuc_gia": "dai_in * rong_in * to_sau_in * don_gia_vat_tu"}])
     tp["thanh_phams"] += [
         # Chia cho 1.000 ngay trong công thức: đây là ca từng làm mất đuôi đ/sp.
         {"ten": "Gấp tay", "cong_doan": {"ten": "Gấp tay", "nhom": "finishing", "kieu_bu_hao": "khong",
@@ -996,10 +1003,10 @@ def test_so_sanh_chuoi_khong_duoc_ho_tro():
 def test_dong_vat_tu_phoi_luong_va_don_vi_ra_ngoai():
     """Engine trả `luong` + `luong_don_vi` + `vat_tu_id` để kế hoạch đọc mà không phải tính lại."""
     tp = _component()
-    tp["vat_tus"] = [{
+    gan_vat_tu_buoc(tp, [{
         "vat_tu_id": 77, "ten": "Màng bóng", "don_gia": 3_000, "don_vi_gia": "m2",
         "cong_thuc_gia": "dai_in * rong_in * don_gia_vat_tu * to_sau_in",
-    }]
+    }])
     res = compute_phieu(so_luong=1000, thanh_phans=[tp])
     dong = [r for r in _grp(res, "nvl")["rows"] if "Màng bóng" in r["ten"]]
     assert len(dong) == 1

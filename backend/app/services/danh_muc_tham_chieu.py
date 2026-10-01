@@ -198,7 +198,7 @@ def _mat_hang(db: Session, obj, hang_loai: str) -> ThamChieu:
         from ..models.bai_ghep_cong_doan import BaiGhepCongDoanVatTu
         from ..models.cong_doan import CongDoanVatTu
         from ..models.lsx import LsxCongDoanVatTu
-        from ..models.phieu_tinh_gia import PhieuVatTu
+        from ..models.phieu_tinh_gia import PhieuBuocVatTu
         chan += _gom(
             _cau(_dem(db, CongDoanVatTu,
                       CongDoanVatTu.vat_tu_id == obj.id), "định mức của công đoạn"),
@@ -206,7 +206,7 @@ def _mat_hang(db: Session, obj, hang_loai: str) -> ThamChieu:
                  "dòng vật tư của bước lệnh"),
             _cau(_dem(db, BaiGhepCongDoanVatTu,
                       BaiGhepCongDoanVatTu.vat_tu_id == obj.id), "dòng vật tư của bài ghép"),
-            _cau(_dem(db, PhieuVatTu, PhieuVatTu.vat_tu_id == obj.id),
+            _cau(_dem(db, PhieuBuocVatTu, PhieuBuocVatTu.vat_tu_id == obj.id),
                  "dòng vật tư phiếu tính giá"),
         )
     return ThamChieu(chan=chan)

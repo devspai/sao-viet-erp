@@ -27,6 +27,27 @@ def _f(v, d: float = 0.0) -> float:
         return d
 
 
+def _vat_tus_cua_buoc(db: Session, buoc: PhieuThanhPham) -> list[dict]:
+    """Vật tư của MỘT bước kèm công thức giá + chip của vật tư (engine không tự tra DB).
+
+    Vật tư đã xoá khỏi danh mục thì bỏ im lặng — danh mục là nguồn sống."""
+    out: list[dict] = []
+    for vt in sorted(buoc.vat_tus or [], key=lambda r: (r.thu_tu or 0, r.id or 0)):
+        m = db.get(VatTuInAn, vt.vat_tu_id)
+        if m is None:
+            continue
+        out.append({
+            "vat_tu_id": m.id,
+            "ten": m.ten,
+            "don_gia": _f(m.don_gia),
+            "don_vi_gia": m.don_vi_gia,
+            "cong_thuc_gia": m.cong_thuc_gia,
+            "chips": [{"ma": c.ma, "ten": c.ten, "don_vi": c.don_vi} for c in m.chips],
+            "gia_tri_chip": dict(vt.gia_tri_chip or {}),
+        })
+    return out
+
+
 def _cong_doan_to_dict(cd: CongDoan, tram: dict[str, str] | None = None,
                        *, ct_gia_may: str | None = None) -> dict:
     return {
@@ -186,31 +207,9 @@ def _resolve_thanh_phan(db: Session, tp) -> dict:
                 rd["cong_doan"] = _cong_doan_to_dict(
                     cd, tram,
                     ct_gia_may=ct_gia_theo_cd.get(cd.id) if cd.nhom == "print" else None)
+        rd["vat_tus"] = _vat_tus_cua_buoc(db, row)
         rows.append(rd)
     d["thanh_phams"] = rows
-
-    # Vật tư in ấn thêm tay → dòng NVL: kéo CÔNG THỨC + đơn giá + đơn vị + tên từ danh mục
-    # (giống Giấy). don_gia dòng = ghi đè; 0 → lấy danh mục.
-    vts: list[dict] = []
-    for vt in sorted(getattr(tp, "vat_tus", []) or [], key=lambda r: (r.thu_tu or 0, r.id or 0)):
-        vd: dict = {
-            "vat_tu_id": vt.vat_tu_id,
-            "ten": vt.ten or "",
-            "don_gia": _f(vt.don_gia),
-            "so_luong": vt.so_luong,
-            "ghi_chu": vt.ghi_chu,
-        }
-        if vt.vat_tu_id is not None:
-            m = db.get(VatTuInAn, vt.vat_tu_id)
-            if m is not None:
-                vd["cong_thuc_gia"] = m.cong_thuc_gia
-                vd["don_vi_gia"] = m.don_vi_gia
-                if not vd["ten"]:
-                    vd["ten"] = m.ten
-                if not vd["don_gia"]:
-                    vd["don_gia"] = _f(m.don_gia)
-        vts.append(vd)
-    d["vat_tus"] = vts
 
     # Chi phí khác: KHÔNG tra danh mục, KHÔNG công thức — chép nguyên cặp (tên, tiền) người lập
     # phiếu gõ. Đây chính là chỗ hứng khoản chưa có danh mục nào nhận, nên resolve cái gì cũng
@@ -314,9 +313,9 @@ def danh_muc_doi_sau_khi_tinh(db: Session, phieu) -> dict | None:
                 cd_ids.add(cid)
                 if f.ten and cid not in ten_luu_cd:
                     ten_luu_cd[cid] = str(f.ten)
-        for vt in tp.vat_tus:
-            if vt.vat_tu_id:
-                vt_ids.add(int(vt.vat_tu_id))
+            for vt in f.vat_tus:
+                if vt.vat_tu_id:
+                    vt_ids.add(int(vt.vat_tu_id))
 
     # Bậc bù hao NAY nằm trên chính công đoạn (22/09/2026) nên đã được soi cùng dòng Công đoạn
     # ngay dưới — sửa bậc là `cong_doan.updated_at` nhảy. Trước đây bù hao là danh mục riêng, công

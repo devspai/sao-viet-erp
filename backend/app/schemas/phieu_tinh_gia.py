@@ -8,7 +8,29 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+
+
+# ============================ VẬT TƯ CỦA BƯỚC (spec 2026-10-01) ============================
+class BuocVatTuIn(BaseModel):
+    """1 vật tư của một bước (đầu vào). `gia_tri_chip` = {mã chip riêng của vật tư: số}."""
+    thu_tu: int | None = None
+    vat_tu_id: int
+    gia_tri_chip: dict[str, float] | None = None
+
+
+class BuocVatTuOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    thu_tu: int
+    vat_tu_id: int
+    gia_tri_chip: dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("gia_tri_chip", mode="before")
+    @classmethod
+    def _none_thanh_rong(cls, v):
+        return v or {}
 
 
 # ============================ THÀNH PHẨM (finishing op) ============================
@@ -33,6 +55,8 @@ class ThanhPhamIn(BaseModel):
     dai_khuon: float | None = Field(default=None, ge=0)
     rong_khuon: float | None = Field(default=None, ge=0)
     so_khuon: int | None = Field(default=None, ge=0)
+    # Vật tư của bước. None/vắng = bước không mang vật tư nào.
+    vat_tus: list[BuocVatTuIn] | None = None
 
 
 class ThanhPhamOut(BaseModel):
@@ -56,6 +80,7 @@ class ThanhPhamOut(BaseModel):
     dai_khuon: float = 0
     rong_khuon: float = 0
     so_khuon: int = 0
+    vat_tus: list[BuocVatTuOut] = Field(default_factory=list)
 
 
 # ============================ SẢN PHẨM TÁI BẢN (docs/spec-san-pham-tai-ban.md) ============================
@@ -66,30 +91,6 @@ class SanPhamTaiBanGoiY(BaseModel):
     id: int
     ten: str
     updated_at: datetime
-
-
-# ============================ VẬT TƯ (nguyên vật liệu thêm) ============================
-class VatTuLineIn(BaseModel):
-    """1 dòng vật tư in ấn thêm tay (đầu vào — mọi trường optional)."""
-    thu_tu: int | None = None
-    vat_tu_id: int | None = None
-    ten: str | None = None
-    don_gia: float | None = None
-    so_luong: int | None = Field(default=None, ge=0)
-    ghi_chu: str | None = None
-
-
-class VatTuLineOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    thanh_phan_id: int
-    thu_tu: int
-    vat_tu_id: int | None = None
-    ten: str
-    don_gia: float
-    so_luong: int
-    ghi_chu: str | None = None
 
 
 # ============================ CHI PHÍ KHÁC (khoản lẻ một lần) ============================
@@ -164,7 +165,6 @@ class ThanhPhanIn(BaseModel):
     # thẳng vào giá vốn (⇒ chịu markup ở Báo giá). 0 = không thu.
     phi_giao_hang: float | None = Field(default=None, ge=0)
     thanh_phams: list[ThanhPhamIn] | None = None
-    vat_tus: list[VatTuLineIn] | None = None
     # ⑥ Chi phí khác: các khoản lẻ MỘT LẦN (làm kẽm ngoài, phí thiết kế…) — mỗi dòng một cặp
     # (tên tự gõ, số tiền), cộng thẳng vào giá vốn như `phi_giao_hang`.
     chi_phi_khacs: list[ChiPhiKhacIn] | None = None
@@ -219,7 +219,6 @@ class ThanhPhanOut(BaseModel):
     phi_giao_hang: float = 0
     gia_von_tp: float
     thanh_phams: list[ThanhPhamOut] = Field(default_factory=list)
-    vat_tus: list[VatTuLineOut] = Field(default_factory=list)
     chi_phi_khacs: list[ChiPhiKhacOut] = Field(default_factory=list)
 
 

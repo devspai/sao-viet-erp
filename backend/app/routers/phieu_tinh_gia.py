@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.phieu_tinh_gia import (
-    PhieuChiPhiKhac, PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia, PhieuVatTu, SanPhamTaiBan,
+    PhieuChiPhiKhac, PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia, PhieuBuocVatTu, SanPhamTaiBan,
 )
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
@@ -96,23 +96,25 @@ def _next_ma(db: Session) -> str:
     )
 
 
-def _con_cua_thanh_phan(tp: PhieuThanhPhan, rows_in: list[dict], vt_in: list[dict],
+def _con_cua_thanh_phan(tp: PhieuThanhPhan, rows_in: list[dict],
                         cpk_in: list[dict] | None = None) -> None:
-    """Dựng lại TOÀN BỘ dòng gia công + vật tư + chi phí khác của một thành phần.
+    """Dựng lại TOÀN BỘ dòng gia công (kèm vật tư của từng bước) + chi phí khác của một thành phần.
 
     Con sâu vẫn REPLACE-ALL (delete-orphan lo xoá): không nơi nào ghim `phieu_thanh_pham.id`,
-    `phieu_vat_tu.id` hay `phieu_chi_phi_khac.id`, nên id của chúng đổi cũng không gãy gì — khác
-    hẳn `phieu_thanh_phan.id`."""
+    `phieu_buoc_vat_tu.id` hay `phieu_chi_phi_khac.id`, nên id của chúng đổi cũng không gãy gì —
+    khác hẳn `phieu_thanh_phan.id`. `vat_tus` của bước bị `pop` khỏi dict TRƯỚC khi dựng
+    `PhieuThanhPham(**rd)` — để nguyên thì SQLAlchemy nổ vì list-dict không phải ORM."""
     tp.thanh_phams.clear()
     for j, row in enumerate(rows_in):
         rd = dict(row)
+        vt_in = rd.pop("vat_tus", None) or []
         rd.setdefault("thu_tu", j)
-        tp.thanh_phams.append(PhieuThanhPham(**rd))
-    tp.vat_tus.clear()
-    for k, vt in enumerate(vt_in):
-        vd = dict(vt)
-        vd.setdefault("thu_tu", k)
-        tp.vat_tus.append(PhieuVatTu(**vd))
+        buoc = PhieuThanhPham(**rd)
+        for k, vt in enumerate(vt_in):
+            vd = dict(vt)
+            vd.setdefault("thu_tu", k)
+            buoc.vat_tus.append(PhieuBuocVatTu(**vd))
+        tp.thanh_phams.append(buoc)
     tp.chi_phi_khacs.clear()
     for m, cp in enumerate(cpk_in or []):
         cd = dict(cp)
@@ -124,11 +126,10 @@ def _build_thanh_phan(tp_in: ThanhPhanIn, thu_tu: int) -> PhieuThanhPhan:
     """Dựng ORM thành phần MỚI + con finishing từ payload (chỉ set field được gửi → giữ default model)."""
     data = tp_in.model_dump(exclude_unset=True)
     rows_in = data.pop("thanh_phams", None) or []
-    vt_in = data.pop("vat_tus", None) or []
     cpk_in = data.pop("chi_phi_khacs", None) or []
     data.setdefault("thu_tu", thu_tu)
     tp = PhieuThanhPhan(**data)
-    _con_cua_thanh_phan(tp, rows_in, vt_in, cpk_in)
+    _con_cua_thanh_phan(tp, rows_in, cpk_in)
     return tp
 
 
@@ -153,13 +154,12 @@ def _ghi_de_thanh_phan(tp: PhieuThanhPhan, tp_in: ThanhPhanIn, thu_tu: int) -> N
     """Ghi payload lên thành phần CÓ SẴN, GIỮ NGUYÊN `id` (đây là chỗ cứu pin ấn phẩm)."""
     data = tp_in.model_dump(exclude_unset=True)
     rows_in = data.pop("thanh_phams", None) or []
-    vt_in = data.pop("vat_tus", None) or []
     cpk_in = data.pop("chi_phi_khacs", None) or []
     data.setdefault("thu_tu", thu_tu)
     for cot in _COT_THANH_PHAN:
         gia_tri = data.get(cot)
         setattr(tp, cot, _mac_dinh_cot(cot) if gia_tri is None else gia_tri)
-    _con_cua_thanh_phan(tp, rows_in, vt_in, cpk_in)
+    _con_cua_thanh_phan(tp, rows_in, cpk_in)
 
 
 def _khoa_ten(ten: str | None) -> str:

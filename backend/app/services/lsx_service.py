@@ -49,7 +49,7 @@ from ..models.lsx import (
 )
 from ..models.may_thiet_bi import MayThietBi, ma_don_vi_goc
 from ..models.order import STATUS_CANCELLED, STATUS_ORDERED, Order, OrderLine
-from ..models.phieu_tinh_gia import PhieuThanhPhan, PhieuTinhGia
+from ..models.phieu_tinh_gia import PhieuThanhPhan, PhieuThanhPham, PhieuTinhGia
 from ..models.quotation import QuoteVersion
 from ..models.user import User
 from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, GiayNguyen, VatTuInAn
@@ -1161,8 +1161,7 @@ class LsxService:
             select(PhieuThanhPhan)
             .where(PhieuThanhPhan.id == tp_id)
             .options(
-                selectinload(PhieuThanhPhan.thanh_phams),
-                selectinload(PhieuThanhPhan.vat_tus),
+                selectinload(PhieuThanhPhan.thanh_phams).selectinload(PhieuThanhPham.vat_tus),
             )
         ).scalar_one_or_none()
 

@@ -995,9 +995,10 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         "cong_thuc": _ct(format_substituted_formula(formula, eval_ctx), gia_giay, sl),
     })
 
-    # --- Vật tư in ấn thêm (mực/màng/keo…) → Nguyên vật liệu: thế biến vào CÔNG THỨC của vật tư
+    # --- Vật tư THEO BƯỚC (01/10/2026): mỗi bước mang danh sách vật tư riêng + số chip nhập ở phiếu.
+    # Vật tư → Nguyên vật liệu: thế biến vào CÔNG THỨC của vật tư
     # (HỆT giấy — công thức nằm ở danh mục vật tư, engine chỉ thế số). `don_gia_vat_tu` phơi sẵn. ---
-    for vt in tp.get("vat_tus") or []:
+    for vt in (v for r_buoc in (tp.get("thanh_phams") or []) for v in (r_buoc.get("vat_tus") or [])):
         vt_ten = vt.get("ten") or "Vật tư"
         vt_formula = vt.get("cong_thuc_gia")
         vt_don_gia = _f(vt.get("don_gia"))
@@ -1009,6 +1010,14 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         else:
             eval_ctx = dict(ctx_vars)
             eval_ctx["don_gia_vat_tu"] = _don_gia_co_so(vt_don_gia, vt_don_vi)
+            # CHIP RIÊNG của vật tư (spec 2026-10-01): số nhập ở phiếu, theo từng bước.
+            gia_tri_chip = vt.get("gia_tri_chip") or {}
+            for c in vt.get("chips") or []:
+                v_chip = _f(gia_tri_chip.get(c["ma"]))
+                eval_ctx[c["ma"]] = v_chip
+                if v_chip == 0 and re.search(rf"\b{re.escape(c['ma'])}\b", vt_formula):
+                    warnings.append(
+                        f"Vật tư '{vt_ten}': chip '{c.get('ten') or c['ma']}' chưa nhập số — tính theo 0.")
             try:
                 tien_vt = safe_eval(vt_formula, eval_ctx)
                 dan_vt = format_substituted_formula(vt_formula, eval_ctx)
