@@ -107,6 +107,9 @@ def la_buoc_truoc_in_to_cat(db: Session, buoc) -> bool:
     sách tổ phụ trách của công đoạn."""
     if buoc is None:
         return False
+    nap = _nap(db)
+    if nap is not None and (type(buoc).__name__, buoc.id) in nap["pham_vi"]:
+        return nap["pham_vi"][(type(buoc).__name__, buoc.id)]
     cd = db.get(CongDoan, buoc.cong_doan_id) if getattr(buoc, "cong_doan_id", None) else None
 
     def _to_cat(dept_id) -> bool:
@@ -134,8 +137,78 @@ def _trong_pham_vi(buoc, cd, to_cat, cd_co_to_cat) -> bool:
     return cd is not None and cd_co_to_cat(cd.id)
 
 
+# --- Nạp lô cho lượt ĐỌC (`danh_sach`) ----------------------------------------------------------
+# Bàn tổ Cắt dựng một dòng cho MỖI lệnh / bài đang chạy; hỏi từng bước, từng công việc là ~12 câu
+# mỗi lệnh. `danh_sach` nạp trước một lần vào `db.info[_NAP]` (chỉ sống trong lượt đọc đó, xoá ở
+# `finally`); các hàm đọc dưới đây tra bộ nhớ này trước khi hỏi DB — luật không đổi.
+_NAP = "_chot_giay_nap"
+
+
+def _nap(db: Session) -> dict | None:
+    return db.info.get(_NAP)
+
+
+def _nap_truoc(db: Session, cts: list[tuple[str, int]]) -> dict:
+    lsx_ids = [i for l, i in cts if l == "lsx"]
+    bai_ids = [i for l, i in cts if l == "bai"]
+    nap: dict = {"cac_buoc": {}, "co_giay": {}, "pham_vi": {}, "giay_rows": {}, "cuon": {}}
+    # Nạp chính lệnh / bài vào identity map ⇒ `db.get` ở `_doi_tuong` không hỏi lại từng cái. Giữ
+    # tham chiếu trong `nap` vì identity map chỉ giữ yếu — bỏ list là đối tượng bị dọn mất.
+    nap["giu"] = (list(db.scalars(select(Lsx).where(Lsx.id.in_(lsx_ids)))) if lsx_ids else []) + (
+        list(db.scalars(select(BaiGhep).where(BaiGhep.id.in_(bai_ids)))) if bai_ids else [])
+    if lsx_ids:
+        buoc = list(db.scalars(select(LsxCongDoan).where(LsxCongDoan.lsx_id.in_(lsx_ids))
+                               .order_by(LsxCongDoan.thu_tu, LsxCongDoan.id)))
+        rows = list(db.scalars(
+            select(LsxCongDoanVatTu)
+            .where(LsxCongDoanVatTu.lsx_cong_doan_id.in_([b.id for b in buoc]),
+                   LsxCongDoanVatTu.hang_loai == "giay")
+            .order_by(LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id))) if buoc else []
+        for r in rows:
+            nap["giay_rows"].setdefault(r.lsx_cong_doan_id, []).append(r)
+        for i in lsx_ids:
+            ds = [b for b in buoc if b.lsx_id == i]
+            nap["cac_buoc"][("lsx", i)] = ds
+            nap["co_giay"][("lsx", i)] = [b for b in ds if b.id in nap["giay_rows"]]
+    if bai_ids:
+        buoc_bai = list(db.scalars(
+            select(BaiGhepCongDoan).where(BaiGhepCongDoan.bai_ghep_id.in_(bai_ids))
+            .order_by(BaiGhepCongDoan.thu_tu, BaiGhepCongDoan.id)))
+        for i in bai_ids:
+            nap["cac_buoc"][("bai", i)] = [b for b in buoc_bai if b.bai_ghep_id == i]
+    # Phạm vi §2 cho mọi bước đã nạp: ba câu cho cả lượt thay vì một câu mỗi bước.
+    tat_ca = [b for ds in nap["cac_buoc"].values() for b in ds]
+    cd_ids = {b.cong_doan_id for b in tat_ca if b.cong_doan_id}
+    cd_map = ({c.id: c for c in db.scalars(select(CongDoan).where(CongDoan.id.in_(cd_ids)))}
+              if cd_ids else {})
+    dept_cat = set(db.scalars(select(Department.id).where(Department.la_to_cat.is_(True))))
+    cd_cat = set(db.scalars(select(CongDoanTo.cong_doan_id).where(
+        CongDoanTo.cong_doan_id.in_(cd_ids), CongDoanTo.department_id.in_(dept_cat)))) \
+        if cd_ids and dept_cat else set()
+    for b in tat_ca:
+        nap["pham_vi"][(type(b).__name__, b.id)] = _trong_pham_vi(
+            b, cd_map.get(b.cong_doan_id), lambda d: d in dept_cat, lambda c: c in cd_cat)
+    # Công việc gói sống + đã bắt đầu + đã có sổ sách: mỗi thứ một lượt cho mọi chủ thể.
+    cvs = _cv_goi_song(db, lsx_ids=lsx_ids or None, bai_ids=bai_ids or None)
+    nap["cvs"] = {ct: [] for ct in cts}
+    for cv in cvs:
+        ct = chu_the_cua(cv)
+        if ct in nap["cvs"]:
+            nap["cvs"][ct].append(cv)
+    ids = {cv.id for cv in cvs}
+    nap["phien"] = SanXuatThucThiRepository(db).cong_viec_co_phien(ids)
+    nap["phat_sinh"] = set()
+    if ids:
+        for cot in _COT_PHAT_SINH:
+            nap["phat_sinh"] |= set(db.scalars(select(cot).where(cot.in_(ids)).distinct()))
+    return nap
+
+
 def _cac_buoc(db: Session, chu_the: tuple[str, int]) -> list:
     """Mọi bước của lệnh (`LsxCongDoan`) / bước chung của bài (`BaiGhepCongDoan`) theo `thu_tu`."""
+    nap = _nap(db)
+    if nap is not None and chu_the in nap["cac_buoc"]:
+        return list(nap["cac_buoc"][chu_the])
     loai, id_ = chu_the
     if loai == "lsx":
         return list(db.scalars(select(LsxCongDoan).where(LsxCongDoan.lsx_id == id_)
@@ -152,6 +225,9 @@ def _buoc_co_giay(db: Session, chu_the: tuple[str, int]) -> list:
     bước chung — đơn vị vào là chặng tờ (tờ nguyên / tờ in), công đoạn Giai đoạn In, hoặc bước trong
     phạm vi tổ Cắt (§2, kể cả nhận cuộn). Nhờ vậy bước
     chung đứng trước In mà không nhận giấy (vd Ghi kẽm) không bị coi là bước lấy giấy."""
+    nap = _nap(db)
+    if nap is not None and chu_the in nap["co_giay"]:
+        return list(nap["co_giay"][chu_the])
     loai, id_ = chu_the
     if loai == "lsx":
         return list(db.scalars(
@@ -163,9 +239,13 @@ def _buoc_co_giay(db: Session, chu_the: tuple[str, int]) -> list:
     buoc = _cac_buoc(db, chu_the)
     co_giay = _buoc_chung_co_giay(db, buoc)
     if co_giay:
-        return [b for b in buoc if b.id in co_giay]
-    tram = ban_do_tram(db)
-    return [b for b in buoc if _nhan_giay_theo_buoc(db, b, tram)]
+        ra = [b for b in buoc if b.id in co_giay]
+    else:
+        tram = ban_do_tram(db)
+        ra = [b for b in buoc if _nhan_giay_theo_buoc(db, b, tram)]
+    if nap is not None:
+        nap["co_giay"][chu_the] = ra
+    return list(ra)
 
 
 def _co_dong_giay():
@@ -367,6 +447,9 @@ def _cv_goi_song(db: Session, *, lsx_ids=None, bai_ids=None) -> list[SanXuatCong
 
 
 def _cv_cua_chu_the(db: Session, chu_the: tuple[str, int]) -> list[SanXuatCongViec]:
+    nap = _nap(db)
+    if nap is not None and chu_the in nap.get("cvs", {}):
+        return list(nap["cvs"][chu_the])
     loai, id_ = chu_the
     return _cv_goi_song(db, lsx_ids=[id_] if loai == "lsx" else None,
                         bai_ids=[id_] if loai == "bai" else None)
@@ -378,17 +461,27 @@ def _cv_cua_buoc(cvs: list[SanXuatCongViec], buoc_id: int | None) -> list[SanXua
 
 def _da_bat_dau(db: Session, cvs: list[SanXuatCongViec]) -> set[int]:
     ids = {cv.id for cv in cvs}
-    da = SanXuatThucThiRepository(db).cong_viec_co_phien(ids)
+    nap = _nap(db)
+    if nap is not None and "phien" in nap:
+        da = ids & nap["phien"]
+    else:
+        da = SanXuatThucThiRepository(db).cong_viec_co_phien(ids)
     return da | {cv.id for cv in cvs if cv.trang_thai != CV_PHAT_HANH}
+
+
+_COT_PHAT_SINH = (SanXuatBatch.cong_viec_id, SanXuatBanGiao.nguon_cong_viec_id,
+                  SanXuatBanGiao.dich_cong_viec_id, SanXuatKcsBatch.cong_viec_id,
+                  SanXuatVatTuDeNghi.cong_viec_id)
 
 
 def _co_phat_sinh(db: Session, cv_ids: set[int]) -> bool:
     """Bước đã có sổ sách (mẻ, bàn giao, KCS, đề nghị vật tư) ⇒ không xoá được."""
     if not cv_ids:
         return False
-    for cot in (SanXuatBatch.cong_viec_id, SanXuatBanGiao.nguon_cong_viec_id,
-                SanXuatBanGiao.dich_cong_viec_id, SanXuatKcsBatch.cong_viec_id,
-                SanXuatVatTuDeNghi.cong_viec_id):
+    nap = _nap(db)
+    if nap is not None and "phat_sinh" in nap:
+        return bool(cv_ids & nap["phat_sinh"])
+    for cot in _COT_PHAT_SINH:
         if db.execute(select(cot).where(cot.in_(cv_ids)).limit(1)).first() is not None:
             return True
     return False
@@ -416,11 +509,16 @@ def _giay_lenh(db: Session, lsx_id: int) -> list[dict]:
     lay = buoc_lay_giay(db, ("lsx", lsx_id))
     if lay is None:
         return []
-    rows = db.execute(
-        select(LsxCongDoanVatTu)
-        .where(LsxCongDoanVatTu.lsx_cong_doan_id == lay.id, LsxCongDoanVatTu.hang_loai == "giay")
-        .order_by(LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id)
-    ).scalars().all()
+    nap = _nap(db)
+    if nap is not None and lay.id in nap["giay_rows"]:
+        rows = nap["giay_rows"][lay.id]
+    else:
+        rows = db.execute(
+            select(LsxCongDoanVatTu)
+            .where(LsxCongDoanVatTu.lsx_cong_doan_id == lay.id,
+                   LsxCongDoanVatTu.hang_loai == "giay")
+            .order_by(LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id)
+        ).scalars().all()
     return [{
         "giay_id": int(v.vat_tu_id), "ma": v.vat_tu_ma_snapshot, "ten": v.vat_tu_ten_snapshot,
         "kho_rong": int(v.kho_rong or 0), "kho_dai": int(v.kho_dai or 0),
@@ -456,7 +554,12 @@ def _them_ton(db: Session, giay: list[dict]) -> tuple[list[dict], list[dict]]:
     lots = StockLotRepository(db)
     khoa = [khoa_ton("giay", d["giay_id"], dang=DANG_TO, kho_rong=d["kho_rong"],
                      kho_dai=d["kho_dai"]) for d in giay]
-    ton = lots.on_hand_map([k for k in khoa if k[2] and k[3]])
+    nap = _nap(db)
+    can = [k for k in khoa if k[2] and k[3]]
+    if nap is not None and "ton" in nap and all(k in nap["ton"] for k in can):
+        ton = nap["ton"]
+    else:
+        ton = lots.on_hand_map(can)
     for d, k in zip(giay, khoa):
         d["nhan_kho"] = nhan_kho(d["kho_rong"], d["kho_dai"])
         d["ton_to_dung_kho"] = float(ton.get(k, 0.0)) if k[2] and k[3] else None
@@ -464,6 +567,10 @@ def _them_ton(db: Session, giay: list[dict]) -> tuple[list[dict], list[dict]]:
     kho_ten: dict[int, str] = {}
     for gid in dict.fromkeys(d["giay_id"] for d in giay):
         g = db.get(GiayNguyen, gid)
+        if nap is not None and gid in nap["cuon"]:
+            cuon.extend(dict(c) for c in nap["cuon"][gid])
+            continue
+        dau = len(cuon)
         for lo in lots.list_lots(hang=("giay", gid), dang=DANG_CUON):
             if lo.kho_id not in kho_ten:
                 k = db.get(KhoHang, lo.kho_id)
@@ -473,6 +580,8 @@ def _them_ton(db: Session, giay: list[dict]) -> tuple[list[dict], list[dict]]:
                 "kho_rong": int(lo.kho_rong or 0), "sl_con_lai": float(lo.sl_con_lai or 0),
                 "don_vi": getattr(g, "don_vi_gia", None), "kho_ten": kho_ten[lo.kho_id],
             })
+        if nap is not None:
+            nap["cuon"][gid] = [dict(c) for c in cuon[dau:]]
     return giay, cuon
 
 
@@ -485,7 +594,11 @@ def _dong(db: Session, chu_the: tuple[str, int], cong_doan: list[CongDoan]) -> d
     obj = _doi_tuong(db, chu_the)
     if obj is None:
         return None
-    giay = _giay_lenh(db, obj.id) if chu_the[0] == "lsx" else _giay_bai(db, obj)
+    nap = _nap(db)
+    if nap is not None and chu_the in nap.get("giay", {}):
+        giay = nap["giay"][chu_the]
+    else:
+        giay = _giay_lenh(db, obj.id) if chu_the[0] == "lsx" else _giay_bai(db, obj)
     giay, cuon = _them_ton(db, giay)
     cvs = _cv_cua_chu_the(db, chu_the)
     in_da = _in_da_bat_dau(db, chu_the, cvs)
@@ -540,12 +653,37 @@ def chu_the_cho_to_cat(db: Session, *, lsx_ids=None, bai_ids=None) -> list[tuple
         cvs = [cv for cv in _cv_goi_song(db, lsx_ids=lsx_ids, bai_ids=bai_ids)
                if cv.trang_thai != CV_HOAN_THANH]
     ra: dict[tuple[str, int], None] = {}
-    for cv in cvs:
-        if la_buoc_mang_giay(db, cv):
-            ct = chu_the_cua(cv)
-            if ct is not None:
-                ra[ct] = None
+    for cv in _loc_mang_giay(db, cvs):
+        ct = chu_the_cua(cv)
+        if ct is not None:
+            ra[ct] = None
     return list(ra)
+
+
+def _loc_mang_giay(db: Session, cvs: list) -> list:
+    """`la_buoc_mang_giay` cho NHIỀU công việc — cùng luật, nhưng một câu cho mọi bước lệnh và mỗi
+    BÀI tính bước In đúng một lần (bàn tổ Cắt quét mọi công việc đang chạy: hỏi từng cái là N+1)."""
+    buoc_lenh = {cv.lsx_cong_doan_id for cv in cvs
+                 if not getattr(cv, "bai_ghep_cong_doan_id", None) and cv.lsx_cong_doan_id}
+    co_giay = set(db.scalars(
+        select(LsxCongDoanVatTu.lsx_cong_doan_id).where(
+            LsxCongDoanVatTu.lsx_cong_doan_id.in_(buoc_lenh), LsxCongDoanVatTu.hang_loai == "giay")
+    )) if buoc_lenh else set()
+    in_bai: dict[int, int | None] = {}
+    ra = []
+    for cv in cvs:
+        if getattr(cv, "bai_ghep_cong_doan_id", None):
+            if not cv.bai_ghep_id:
+                continue
+            bai_id = int(cv.bai_ghep_id)
+            if bai_id not in in_bai:
+                in_ = _buoc_in(db, ("bai", bai_id))
+                in_bai[bai_id] = in_.id if in_ is not None else None
+            if in_bai[bai_id] == cv.bai_ghep_cong_doan_id:
+                ra.append(cv)
+        elif getattr(cv, "lsx_cong_doan_id", None) in co_giay:
+            ra.append(cv)
+    return ra
 
 
 def danh_sach(db: Session, *, team_id: int) -> list[dict]:
@@ -554,7 +692,27 @@ def danh_sach(db: Session, *, team_id: int) -> list[dict]:
     if not _la_to_cat(db, team_id):
         return []
     cong_doan = _cong_doan_cua_to(db, team_id)
-    ds = [d for ct in chu_the_cho_to_cat(db) if (d := _dong(db, ct, cong_doan)) is not None]
+    cts = chu_the_cho_to_cat(db)
+    db.info[_NAP] = nap = _nap_truoc(db, cts)
+    try:
+        # Giấy của mọi dòng trước, rồi tồn đúng khổ MỘT câu cho cả lượt.
+        nap["giay"] = {}
+        for ct in cts:
+            obj = _doi_tuong(db, ct)
+            if obj is not None:
+                nap["giay"][ct] = (_giay_lenh(db, obj.id) if ct[0] == "lsx"
+                                   else _giay_bai(db, obj))
+        khoa = {khoa_ton("giay", d["giay_id"], dang=DANG_TO, kho_rong=d["kho_rong"],
+                         kho_dai=d["kho_dai"]) for ds in nap["giay"].values() for d in ds}
+        gids = {d["giay_id"] for ds in nap["giay"].values() for d in ds}
+        if gids:   # nạp mã giấy một lượt (giữ tham chiếu — identity map chỉ giữ yếu)
+            nap["giu"] += list(db.scalars(select(GiayNguyen).where(GiayNguyen.id.in_(gids))))
+        khoa = [k for k in khoa if k[2] and k[3]]
+        ton = StockLotRepository(db).on_hand_map(khoa) if khoa else {}
+        nap["ton"] = {k: ton.get(k, 0.0) for k in khoa}
+        ds = [d for ct in cts if (d := _dong(db, ct, cong_doan)) is not None]
+    finally:
+        db.info.pop(_NAP, None)
     ds.sort(key=lambda d: (d["chot"] is not None or d["cau_hinh_san"], d["han"] or "9999",
                            d["ma"]))
     return ds
@@ -591,8 +749,7 @@ def _goi_va_cv(db: Session, chu_the: tuple[str, int]):
 
 
 def _to_mang_giay(db: Session, cvs: list[SanXuatCongViec]) -> list[int]:
-    return sorted({cv.department_id for cv in cvs
-                   if cv.department_id and la_buoc_mang_giay(db, cv)})
+    return sorted({cv.department_id for cv in _loc_mang_giay(db, cvs) if cv.department_id})
 
 
 def _ghi_chot(obj, cach: str | None, user) -> None:

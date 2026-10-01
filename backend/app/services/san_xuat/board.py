@@ -862,12 +862,7 @@ def _dong_giay_nhan_tu(kh_svc, cv) -> list[tuple]:
     nhan = kh_svc.buoc_nhan_tu(cv.lsx_id).get(cv.lsx_cong_doan_id)
     if not nhan:
         return []
-    return [
-        (v, nhan["tu_buoc"])
-        for v in kh_svc.repo.vat_tu_theo_buoc_lenh([cv.lsx_cong_doan_id])
-        if v.hang_loai == "giay" and int(v.vat_tu_id) == int(nhan["hang_id"])
-        and float(v.so_luong or 0) > 0
-    ]
+    return [(v, nhan["tu_buoc"]) for v in nhan["dong"]]
 
 
 def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:

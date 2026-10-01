@@ -76,7 +76,11 @@ def test_khong_buoc_cat_thi_in_la_buoc_dau(db, svc, customer):
 def test_buoc_nhan_tu(db, svc, customer):
     g = _giay(db)
     l, cat, in_ = _lenh_cat_in(db, customer, g)
-    assert svc.buoc_nhan_tu(l.id) == {in_.id: {"hang_id": g.id, "tu_buoc": "Cắt tờ"}}
+    kq = svc.buoc_nhan_tu(l.id)
+    dong = kq[in_.id].pop("dong")
+    assert kq == {in_.id: {"hang_id": g.id, "tu_buoc": "Cắt tờ"}}
+    # Trả kèm dòng giấy của chính bước để bàn tổ khỏi đọc lại DB.
+    assert [(v.lsx_cong_doan_id, int(v.vat_tu_id)) for v in dong] == [(in_.id, g.id)]
 
 
 def test_buoc_nhan_tu_bo_qua_buoc_bi_buoc_chung_de(db, svc, customer):
@@ -96,7 +100,9 @@ def test_buoc_nhan_tu_bo_qua_buoc_bi_buoc_chung_de(db, svc, customer):
     db.add(BaiGhepCongDoanMap(bai_ghep_cong_doan_id=chung.id, lsx_id=l.id,
                               lsx_step_key=cat.step_key))
     db.commit()
-    assert svc.buoc_nhan_tu(l.id) == {can.id: {"hang_id": g.id, "tu_buoc": "In offset"}}
+    kq = svc.buoc_nhan_tu(l.id)
+    kq[can.id].pop("dong")
+    assert kq == {can.id: {"hang_id": g.id, "tu_buoc": "In offset"}}
 
 
 def test_buoc_nhan_tu_bo_qua_lenh_tron_goi(db, svc, customer):

@@ -1067,7 +1067,12 @@ class KeHoachVatTuService:
                     continue
                 truoc = [x[1] for x in ds[:i] if x[2]]
                 if truoc:
-                    kq[cd.id] = {"hang_id": hang_id, "tu_buoc": truoc[-1].ten}
+                    kq[cd.id] = {
+                        "hang_id": hang_id, "tu_buoc": truoc[-1].ten,
+                        # Dòng giấy (mã này, > 0) của chính bước — người gọi khỏi đọc lại DB.
+                        "dong": [v for v in vts
+                                 if v.lsx_cong_doan_id == cd.id and int(v.vat_tu_id) == hang_id],
+                    }
         return kq
 
     def _bo_buoc_da_xong(self, tho: list[dict]) -> tuple[list[dict], dict[tuple, float]]:
