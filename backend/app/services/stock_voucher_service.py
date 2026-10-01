@@ -982,8 +982,14 @@ class StockVoucherService:
             if sl0 < 1:
                 raise StockVoucherError("Lô quá nhẹ so với khổ này — đổi ra chưa tới một tờ.")
             sau_txt = f"tờ {kr}×{kd} mm · SL {sl0} / {sl1} tờ"
+        gia_cu = int(lot.don_gia_nhap or 0)
+        gia_moi = gia_cu
+        if dang_giay == DANG_TO and gia_cu:
+            # Giá vốn theo đơn vị CŨ (đ/kg) ⇒ quy sang đ/tờ, GIỮ tổng giá trị lô (SL đầu × giá).
+            gia_moi = int(round(gia_cu * truoc[0] / sl0))
+            sau_txt += f" · đơn giá nhập {gia_cu:,} → {gia_moi:,} đ".replace(",", ".")
         self.lots.ghi_dang_kho(lot, dang=dang_giay, kho_rong=kr, kho_dai=kd,
-                               sl_ban_dau=sl0, sl_con_lai=sl1)
+                               sl_ban_dau=sl0, sl_con_lai=sl1, don_gia_nhap=gia_moi)
         AuditLogRepository(self.lots.db).create(
             actor_user_id=user.id, action="kho_bo_sung_dang_kho_lo", target=f"stock_lot:{lot.id}",
             detail=(f"{lot.ma_lo}: chưa rõ dạng/khổ (SL {truoc[0]:g} / {truoc[1]:g}) → {sau_txt}"),

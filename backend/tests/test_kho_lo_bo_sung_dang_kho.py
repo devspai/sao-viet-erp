@@ -189,3 +189,46 @@ def test_lo_trong_phieu_xuat_nhap_bi_chan(client):
     assert r.status_code == 400
     assert "phiếu xuất nháp PXK-NHAP-1" in r.json()["detail"]
     assert _lay(lot_id).dang_giay is None
+
+def test_bo_sung_to_giu_tong_gia_tri_lo(client):
+    """Đổi kg → tờ phải quy đơn giá nhập (đ/kg → đ/tờ) để SL × giá của lô không phình."""
+    kho_id, _ = _setup(client)
+    _don_vi()
+    lot_id = _lo_cu(kho_id, "giay", _giay(), 129.2, con=64.6)
+    db = SessionLocal()
+    try:
+        db.get(StockLot, lot_id).don_gia_nhap = 20000
+        db.commit()
+    finally:
+        db.close()
+    gia_tri_truoc = 129.2 * 20000
+    r = _patch(client, lot_id, dang_giay="to", kho_rong=1090, kho_dai=790)
+    assert r.status_code == 200, r.text
+    lot = _lay(lot_id)
+    assert float(lot.sl_ban_dau) == 1000
+    assert lot.don_gia_nhap == 2584
+    assert abs(float(lot.sl_ban_dau) * lot.don_gia_nhap - gia_tri_truoc) <= float(lot.sl_ban_dau)
+    assert abs(float(lot.sl_con_lai) * lot.don_gia_nhap - 64.6 * 20000) <= float(lot.sl_con_lai)
+    db = SessionLocal()
+    try:
+        row = db.query(AuditLog).filter(
+            AuditLog.action == "kho_bo_sung_dang_kho_lo",
+            AuditLog.target == f"stock_lot:{lot_id}").one()
+        assert "20.000" in row.detail and "2.584" in row.detail
+    finally:
+        db.close()
+
+
+def test_bo_sung_cuon_giu_don_gia(client):
+    kho_id, _ = _setup(client)
+    _don_vi()
+    lot_id = _lo_cu(kho_id, "giay", _giay(), 129.2)
+    db = SessionLocal()
+    try:
+        db.get(StockLot, lot_id).don_gia_nhap = 20000
+        db.commit()
+    finally:
+        db.close()
+    r = _patch(client, lot_id, dang_giay="cuon", kho_rong=790, kho_dai=0)
+    assert r.status_code == 200, r.text
+    assert _lay(lot_id).don_gia_nhap == 20000

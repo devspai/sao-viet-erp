@@ -91,13 +91,15 @@ class StockLotRepository:
         return lot
 
     def ghi_dang_kho(self, lot: StockLot, *, dang: str, kho_rong: int, kho_dai: int,
-                     sl_ban_dau, sl_con_lai) -> StockLot:
+                     sl_ban_dau, sl_con_lai, don_gia_nhap: int | None = None) -> StockLot:
         """Ghi dạng/khổ + số lượng đã đổi cho MỘT lô; KHÔNG commit (người gọi gộp với nhật ký)."""
         lot.dang_giay = dang
         lot.kho_rong = kho_rong
         lot.kho_dai = kho_dai
         lot.sl_ban_dau = sl_ban_dau
         lot.sl_con_lai = sl_con_lai
+        if don_gia_nhap is not None:
+            lot.don_gia_nhap = don_gia_nhap
         return lot
 
     def by_ids(self, ids) -> dict[int, StockLot]:
