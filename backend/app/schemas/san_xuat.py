@@ -927,6 +927,8 @@ class WorkItemChiTietOut(BaseModel):
     cong_doan_truoc: list[CongDoanTruocOut] = []
     tran_ghi: TranGhiOut | None = None
     thieu_dau_vao: list[str] = []
+    #: Câu "Chờ tổ Cắt chốt giấy…" khi bước mang giấy chưa được tổ Cắt chốt; None = không chặn.
+    cho_chot_giay: str | None = None
     ban_giao_chang_sau: list[BanGiaoChangSauOut]
     vat_tu: list[VatTuNhanOut]
     vat_tu_cap: VatTuCapOut = VatTuCapOut()

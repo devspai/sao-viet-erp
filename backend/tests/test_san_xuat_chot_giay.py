@@ -283,3 +283,80 @@ def test_router_chot_va_loi_nghiep_vu(db, orders, lsx_svc, admin, customer):
     r.chot_giay_go(GoChotGiayIn(team_id=n.to_cat.id, lsx_id=n.a.id), db=db, user=admin)
     db.expire_all()
     assert db.get(type(n.a), n.a.id).giay_chot_cach is None
+
+
+# --- Cổng "chờ tổ Cắt" ở bước mang giấy (§4.7) -----------------------------------------------
+def _kiem(db, cv):
+    from app.services.san_xuat.dau_vao import kiem_bat_dau
+
+    kiem_bat_dau(SanXuatSanLuongRepository(db), cv)
+
+
+def test_in_bi_chan_khi_chua_chot(db, orders, lsx_svc, admin, customer):
+    from app.models.employee import Employee
+    from app.services.san_xuat import thuc_thi
+
+    n = _nen(db, orders, lsx_svc, admin, customer)
+    n.to_sx.has_piece_work = True
+    nv = Employee(code="NV-CG-1", full_name="Thợ In", department_id=n.to_sx.id)
+    db.add(nv)
+    db.commit()
+    cv_in = _cv_buoc(db, _buoc_giay(db, n.a.id).id)
+    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv_in.id, employee_id=nv.id)
+    with pytest.raises(ValueError, match=rf"^Chờ tổ Cắt chốt giấy cho {n.a.ma}"):
+        thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv_in.id)
+
+    _chot(db, n, admin, n.a.id, cach="khong_cat", ids=[])
+    assert thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv_in.id)["trang_thai"] == CV_DANG_CHAY
+
+
+def test_chi_tiet_bay_cau_cho_chot(db, orders, lsx_svc, admin, customer):
+    from app.repositories.rbac_repo import RoleRepository
+    from app.services.rbac_service import AuthorizationService
+    from app.services.san_xuat import board
+
+    n = _nen(db, orders, lsx_svc, admin, customer)
+    cv_in = _cv_buoc(db, _buoc_giay(db, n.a.id).id)
+    ct = board.chi_tiet_cong_viec(db, admin, AuthorizationService(RoleRepository(db)),
+                                  cong_viec_id=cv_in.id)
+    assert ct["cho_chot_giay"].startswith(f"Chờ tổ Cắt chốt giấy cho {n.a.ma}")
+    _chot(db, n, admin, n.a.id, cach="khong_cat", ids=[])
+    ct = board.chi_tiet_cong_viec(db, admin, AuthorizationService(RoleRepository(db)),
+                                  cong_viec_id=cv_in.id)
+    assert ct["cho_chot_giay"] is None
+
+
+def test_chen_cat_in_van_cho_ban_giao_cua_cat(db, orders, lsx_svc, admin, customer):
+    from app.services.san_xuat import ban_giao
+    from tests.test_san_xuat_ban_giao import _batch
+
+    n = _nen(db, orders, lsx_svc, admin, customer)
+    cv_in = _cv_buoc(db, _buoc_giay(db, n.a.id).id)
+    kq = _chot(db, n, admin, n.a.id)
+    cv_cat = db.get(SanXuatCongViec, kq["cong_viec_moi"][0])
+    assert chot_giay.ly_do_cho_chot(db, cv_in) is None
+    with pytest.raises(ValueError, match=r"^Chưa nhận hàng từ công đoạn trước \(Cắt tờ\)"):
+        _kiem(db, cv_in)
+
+    # Bước cắt vừa chèn không bị cổng chờ chốt chặn — nó là chặng đầu tuyến.
+    assert chot_giay.ly_do_cho_chot(db, cv_cat) is None
+    _kiem(db, cv_cat)
+
+    cv_cat.trang_thai = CV_DANG_CHAY
+    cv_cat.don_vi_ra = cv_cat.don_vi_vao = "to"
+    db.commit()
+    bid = _batch(db, admin, cv_cat, tot=100)
+    r = ban_giao.de_xuat(db, user=admin, nguon_cong_viec_id=cv_cat.id,
+                         dich_cong_viec_id=cv_in.id, batch_ids=[bid])
+    ban_giao.xac_nhan(db, user=admin, ban_giao_id=r["ban_giao_id"])
+    _kiem(db, cv_in)
+
+
+def test_khong_co_to_cat_thi_khong_chan(db, orders, lsx_svc, admin, customer):
+    n = _nen(db, orders, lsx_svc, admin, customer)
+    cv_in = _cv_buoc(db, _buoc_giay(db, n.a.id).id)
+    assert chot_giay.ly_do_cho_chot(db, cv_in)
+    n.to_cat.la_to_cat = False
+    db.commit()
+    assert chot_giay.ly_do_cho_chot(db, cv_in) is None
+    _kiem(db, cv_in)

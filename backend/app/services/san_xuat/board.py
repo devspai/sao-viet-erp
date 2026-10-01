@@ -45,7 +45,7 @@ from ..quyen_to import (
 )
 from ..gio_xuong import lich_hien_thi, thuc_te_hien_thi, ve_utc_that
 from ..kho_giay import khoa_dong
-from . import dau_vao, routing_dai, viec_khoan
+from . import chot_giay, dau_vao, routing_dai, viec_khoan
 from .nguoi_trong_me import nguoi_theo_me
 from .thuc_thi import _aware
 from .tinh_trang_nguoi import hom_nay, tinh_trang_nhieu
@@ -1285,6 +1285,8 @@ def chi_tiet_cong_viec(
             if (t := dau_vao.tran_ghi(db, cv, repo=sl)) else None
         ),
         "thieu_dau_vao": dau_vao.thieu_dau_vao(sl, cv),
+        # Cổng "chờ tổ Cắt" (§4.7) — cùng hàm `kiem_bat_dau` dùng để chặn.
+        "cho_chot_giay": chot_giay.ly_do_cho_chot(db, cv),
         "ban_giao_chang_sau": [
             {
                 "cong_viec_id": c.id,

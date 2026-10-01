@@ -50,6 +50,10 @@ def test_ctp_khong_cho_cat_in_cho_ca_ctp_lan_cat(sess, admin, lenh_that):
     assert chot_giay.la_buoc_mang_giay(sess, cv_in)
     assert not chot_giay.la_buoc_mang_giay(sess, cv_ctp)
     assert not chot_giay.la_buoc_mang_giay(sess, _cv(sess, dong_goi))
+    # Cổng §4.7 chỉ đứng ở bước mang giấy: CTP / Đóng gói bắt đầu không phải chờ tổ Cắt.
+    assert chot_giay.ly_do_cho_chot(sess, cv_ctp) is None
+    assert chot_giay.ly_do_cho_chot(sess, _cv(sess, dong_goi)) is None
+    assert chot_giay.ly_do_cho_chot(sess, cv_in)
 
     kq = chot_giay.chot(sess, user=admin, team_id=to_cat.id, lsx_id=lenh_that, bai_ghep_id=None,
                         cach="cat", cong_doan_ids=[cd.id])
@@ -89,6 +93,15 @@ def test_bai_ghep_chen_mot_cong_viec_cat_cho_ca_bai(sess, orders, lsx_svc, admin
 
     cv_in = cv_chung(sess, bg.id, "In")
     assert chot_giay.la_buoc_mang_giay(sess, cv_in)
+    # Cổng §4.7: bước chung đầu bài chờ tổ Cắt, câu gọi mã BÀI chứ không mã lệnh con.
+    ly_do = chot_giay.ly_do_cho_chot(sess, cv_in)
+    assert ly_do and ly_do.startswith(f"Chờ tổ Cắt chốt giấy cho {bg.ma}")
+    import pytest
+
+    from app.repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository as _R
+    from app.services.san_xuat.dau_vao import kiem_bat_dau
+    with pytest.raises(ValueError, match="Chờ tổ Cắt"):
+        kiem_bat_dau(_R(sess), cv_in)
     ds = chot_giay.danh_sach(sess, team_id=to_cat.id)
     assert [(d["chu_the"], d["id"]) for d in ds] == [("bai", bg.id)]
 
