@@ -16468,6 +16468,10 @@ def _migrate_nguong_ton_theo_kho(db: Session) -> None:
                 db.execute(text(f"ALTER TABLE {ten_bang} ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
         if db.get_bind().dialect.name == "postgresql":
             db.execute(text(f"ALTER TABLE {ten_bang} DROP CONSTRAINT IF EXISTS {ten_rb}"))
+            # DB nâng cấp dần có `uq_stock_thresholds_hang_kho` là UNIQUE INDEX (mg 0171 tạo bằng
+            # CREATE UNIQUE INDEX), DB trắng có CONSTRAINT (create_all) — DROP CONSTRAINT bỏ qua
+            # index nên ADD bên dưới vỡ "already exists" (deploy staging 02/10/2026). Xoá cả hai dạng.
+            db.execute(text(f"DROP INDEX IF EXISTS {ten_rb}"))
             db.execute(text(f"ALTER TABLE {ten_bang} ADD CONSTRAINT {ten_rb} UNIQUE ({cot_rb})"))
         db.commit()
 
