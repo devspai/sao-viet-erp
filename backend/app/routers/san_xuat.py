@@ -119,6 +119,7 @@ from ..services.san_xuat import (
 from ..services.san_xuat.san_luong_cua_toi import san_luong_cua_toi as san_luong_cua_toi_svc
 from ..services.san_xuat import san_luong_to as san_luong_to_svc
 from ..services.san_xuat.vat_tu_de_nghi import VatTuDeNghiError
+from ..services.san_xuat.vat_tu_nhap_lai import VatTuNhapLaiError
 from ..services.stock_request_service import StockRequestError
 
 router = APIRouter(prefix="/api/san-xuat", tags=["san-xuat"])
@@ -666,8 +667,10 @@ def tao_nhap_lai_vat_tu(
         )
     except PermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
-    except ValueError as exc:
+    except VatTuNhapLaiError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
 @router.put("/work-items/{cong_viec_id}/material-requests/{de_nghi_id}", response_model=None)

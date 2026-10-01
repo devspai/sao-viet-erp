@@ -44,7 +44,7 @@ from ..quyen_to import (
     quyen_tren_viec,
 )
 from ..gio_xuong import lich_hien_thi, thuc_te_hien_thi, ve_utc_that
-from ..kho_giay import khoa_dong
+from ..kho_giay import khoa_dong, nhan_kho
 from . import chot_giay, dau_vao, routing_dai, viec_khoan
 from .nguoi_trong_me import nguoi_theo_me
 from .thuc_thi import _aware
@@ -947,20 +947,43 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     for key, sl_ra in thuc_xuat.items():
         if key in gom:
             gom[key]["sl_thuc_xuat"] = sl_ra
-    # Nhập lại một mặt hàng/khổ chưa có dòng nào (tổ trả thứ không nằm trong kế hoạch lẫn đề nghị)
-    # vẫn phải hiện — đừng nuốt số kho đã nhận. Đơn vị hiển thị = đơn vị gốc (kho ghi thang gốc).
+    # NHẬP LẠI trừ vào ĐÚNG dòng đã xuất cùng `khoa_dong`. Trả khác khổ với mọi dòng đã xuất (xin
+    # 2.700 tờ 800×1090, trả 70 tờ 790×1090) thì trừ vào dòng đã xuất cùng (mã, dạng) có thực xuất
+    # lớn nhất — thang gốc cùng một đơn vị nên trừ được — còn dòng trả hiện như dòng THÔNG TIN
+    # ("nhập lại 70 · 790×1090", `nhap_lai_vao` = nhãn dòng đích), KHÔNG có thực dùng riêng. Không có
+    # dòng đã xuất nào cùng (mã, dạng) thì dòng trả đứng riêng, thực dùng âm là bất thường thật.
+    def _dv_goc(loai, hid, dang) -> str:
+        try:
+            return kh_svc.hang.don_vi_cua_mat_hang(
+                loai, int(hid), dang=dang if loai == "giay" else None).get("don_vi_goc") or ""
+        except Exception:  # noqa: BLE001 - chỉ để dán nhãn đơn vị: không có thì để trống
+            return ""
+
     for key, sl_vao in nhap_lai.items():
         if key not in gom:
+            dv = _dv_goc(key[0], key[1], key[2])
             gom[key] = {
                 "hang_loai": key[0], "hang_id": key[1],
                 "ten": ten_map.get((key[0], key[1])) or f"#{key[1]}",
                 **_giay(key[2], key[3], key[4]),
-                "dvt": "", "dvt_goc": "",
+                "dvt": dv, "dvt_goc": dv,
                 "sl_ke_hoach": 0.0, "sl_ke_hoach_goc": 0.0,
                 "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
-                "sl_thuc_xuat": 0.0, "cac_ly_do": [], "_cac_dvt": {""},
+                "sl_thuc_xuat": 0.0, "cac_ly_do": [], "_cac_dvt": {dv},
             }
-        gom[key]["sl_nhap_lai"] = sl_vao
+        if key in thuc_xuat:
+            gom[key]["sl_nhap_lai"] = gom[key].get("sl_nhap_lai", 0.0) + sl_vao
+            continue
+        dich = [k for k in thuc_xuat if k in gom and k[:3] == key[:3]]
+        if not dich:
+            gom[key]["sl_nhap_lai"] = gom[key].get("sl_nhap_lai", 0.0) + sl_vao
+            continue
+        k_dich = max(dich, key=lambda k: thuc_xuat[k])
+        gom[k_dich]["sl_nhap_lai"] = gom[k_dich].get("sl_nhap_lai", 0.0) + sl_vao
+        gom[key]["sl_nhap_lai"] = gom[key].get("sl_nhap_lai", 0.0) + sl_vao
+        gom[key]["nhap_lai_vao"] = (
+            nhan_kho(k_dich[3], k_dich[4]) if key[0] == "giay" and k_dich[2] == "to"
+            else gom[k_dich]["ten"])
 
     for v, tu_buoc in dong_nhan_tu:
         key = khoa_dong("giay", int(v.vat_tu_id), v.dang_giay, v.kho_rong, v.kho_dai)
@@ -996,7 +1019,9 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
         row.setdefault("sl_nhap_lai", 0.0)
         # THỰC DÙNG = kho thực xuất − tổ nhập lại (thang gốc). Không kẹp ≥ 0: nhập lại nhiều hơn đã
         # xuất là dữ liệu bất thường, để số âm lộ ra thay vì che.
-        row["sl_thuc_dung"] = row["sl_thuc_xuat"] - row["sl_nhap_lai"]
+        row.setdefault("nhap_lai_vao", None)
+        # Dòng THÔNG TIN (trả khác khổ đã xuất): phần trừ nằm ở dòng đích, không có thực dùng riêng.
+        row["sl_thuc_dung"] = None if row["nhap_lai_vao"] else row["sl_thuc_xuat"] - row["sl_nhap_lai"]
         row["lech_ke_hoach"] = row["sl_yeu_cau_goc"] - row["sl_ke_hoach_goc"]
         row["lech_thuc_te"] = row["sl_thuc_xuat"] - row["sl_yeu_cau_goc"]
         if row["nhan_tu"]:  # dòng "nhận từ": không có gì để lệch

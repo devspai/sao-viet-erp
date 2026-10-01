@@ -28,44 +28,55 @@ from .vat_tu_de_nghi import (
 )
 
 
+class VatTuNhapLaiError(ValueError):
+    """Lỗi NGHIỆP VỤ (400) — khác `ValueError` thường "không thấy công việc" (404)."""
+
+
 def _chuan_dong(kh_svc, hang, ln: dict, don_gia_goc: dict) -> dict:
-    """Một dòng người gõ → dòng yêu cầu kho. Ném `ValueError` tiếng Việt nêu đích danh mặt hàng."""
+    """Một dòng người gõ → dòng yêu cầu kho. Ném `VatTuNhapLaiError` tiếng Việt nêu đích danh mặt hàng."""
     loai, hid = ln.get("hang_loai"), ln.get("hang_id")
     if not loai or not hid:
-        raise ValueError("Mỗi dòng phải chọn một mặt hàng trong danh mục.")
+        raise VatTuNhapLaiError("Mỗi dòng phải chọn một mặt hàng trong danh mục.")
     try:
         ten = hang.get(loai, int(hid)).ten
     except Exception:  # noqa: BLE001 - mặt hàng không có: để câu lỗi bên dưới nói
-        raise ValueError("Mặt hàng không có trong danh mục — chọn lại.") from None
+        raise VatTuNhapLaiError("Mặt hàng không có trong danh mục — chọn lại.") from None
     try:
         so = float(ln.get("so_luong") or 0)
     except (TypeError, ValueError):
         so = 0.0
     if so <= 0 or round(so, 2) <= 0:
-        raise ValueError(f"«{ten}» phải nhập số lượng lớn hơn 0.")
+        raise VatTuNhapLaiError(f"«{ten}» phải nhập số lượng lớn hơn 0.")
     dvt = (ln.get("dvt") or "").strip()
     if not dvt:
-        raise ValueError(f"«{ten}» chưa chọn đơn vị.")
+        raise VatTuNhapLaiError(f"«{ten}» chưa chọn đơn vị.")
 
     dang = kr = kd = None
     if loai == "giay":
         dang = ln.get("dang_giay")
         if dang not in DANG_GIAY:
-            raise ValueError(f"«{ten}» là giấy — chọn dạng tờ hay cuộn.")
+            raise VatTuNhapLaiError(f"«{ten}» là giấy — chọn dạng tờ hay cuộn.")
         kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai"))
         if dang == DANG_TO and not (kr and kd):
-            raise ValueError(f"«{ten}» là giấy tờ — khai đủ hai cạnh khổ (mm).")
+            raise VatTuNhapLaiError(f"«{ten}» là giấy tờ — khai đủ hai cạnh khổ (mm).")
         if dang == DANG_CUON:
             kd = 0
     try:
         sl_goc, _ = kh_svc.ve_don_vi_goc(loai, int(hid), dvt, so, dang=dang)
     except KeHoachVatTuError as e:
-        raise ValueError(f"«{ten}»: {e}") from None
+        raise VatTuNhapLaiError(f"«{ten}»: {e}") from None
     if sl_goc <= 0:
-        raise ValueError(f"«{ten}» quy ra số lượng không hợp lệ.")
+        raise VatTuNhapLaiError(f"«{ten}» quy ra số lượng không hợp lệ.")
 
     k = khoa_dong(loai, int(hid), dang, kr or 0, kd or 0)
-    gia_goc = don_gia_goc.get(k, 0.0)
+    # Giá vốn: đúng khoá (mã+dạng+khổ) trước; trả khác khổ thì bình quân gia quyền phần đã xuất
+    # cùng (mã, dạng) cho công việc này; không có thì 0.
+    if k in don_gia_goc:
+        gia_goc = don_gia_goc[k][1]
+    else:
+        cung = [v for kk, v in don_gia_goc.items() if kk[:3] == k[:3]]
+        tong = sum(sl for sl, _ in cung)
+        gia_goc = sum(sl * g for sl, g in cung) / tong if tong > 0 else 0.0
     # Giá khai theo ĐƠN VỊ NGƯỜI GÕ (đ/ram nếu gõ ram): quy từ giá đ/đơn vị gốc theo đúng tỉ lệ của dòng.
     don_gia = int(round(gia_goc * sl_goc / so)) if gia_goc > 0 else 0
     return {
@@ -85,14 +96,13 @@ def tao(db: Session, *, user, cong_viec_id: int, lines: list[dict],
     repo = SanXuatRepository(db)
     cv = repo.cong_viec(cong_viec_id)
     if cv is None:
-        raise ValueError("Không tìm thấy công việc.")
-    from .dong_lenh import chan_neu_da_dong
-
-    chan_neu_da_dong(db, cv)
+        raise ValueError("Không tìm thấy công việc.")   # ValueError thường ⇒ router trả 404
+    # KHÔNG chặn khi lệnh đã đóng: trả vật tư thừa về kho là việc SAU khi chạy xong, đóng lệnh rồi
+    # tổ vẫn phải trả được.
     repo.khoa_cong_viec(cong_viec_id)       # bấm đúp không đẻ hai yêu cầu: lượt sau chờ khoá
     _gate(db, user, cv, VIEC_KHO)
     if not lines:
-        raise ValueError("Chưa chọn vật tư nào để nhập lại.")
+        raise VatTuNhapLaiError("Chưa chọn vật tư nào để nhập lại.")
 
     hang = _hang_service(db)
     kh_svc = kh_svc or _kh_service(db, hang)
@@ -118,7 +128,7 @@ def tao(db: Session, *, user, cong_viec_id: int, lines: list[dict],
         )
     except StockRequestError as e:
         db.rollback()
-        raise ValueError(str(e)) from None
+        raise VatTuNhapLaiError(str(e)) from None
 
     # ⚠️ `audit_repo.create` tự commit — mọi lệnh ghi phải đứng TRƯỚC nó.
     AuditLogRepository(db).create(

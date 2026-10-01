@@ -212,3 +212,124 @@ def test_thuc_dung_tru_nhap_lai(db, orders, lsx_svc, admin, customer):
 
     d = dong_muc()
     assert (d["sl_thuc_xuat"], d["sl_nhap_lai"], d["sl_thuc_dung"]) == (5, 2, 3)
+
+
+def _ghi_so_phieu_nhap(db, admin, nl_id, so):
+    from app.models.kho_hang import KhoHang
+    from app.routers.kho_voucher import get_service as voucher_service
+
+    kho_ = db.query(KhoHang).first()
+    if kho_ is None:
+        kho_ = KhoHang(ma="KHO-NLX", ten="Kho test")
+        db.add(kho_)
+        db.commit()
+    svc = voucher_service(db)
+    [rl] = db.get(StockRequest, nl_id).lines
+    v = svc.create(user=admin, request_id=nl_id, kho_id=kho_.id,
+                   lines=[{"request_line_id": rl.id, "so_luong": so}])
+    svc.post(v.id, admin)
+
+
+def test_tra_khac_kho_tru_vao_dong_da_xuat_cung_ma_dang(db, orders, lsx_svc, admin, customer):
+    """Xin + xuất 2.700 tờ; trả 70 tờ KHỔ KHÁC ⇒ dòng đã xuất ra thực dùng 2.630; dòng trả là dòng
+    thông tin (không thực dùng riêng, không âm)."""
+    from app.services.kho_giay import don_vi_goc_to
+    from app.services.san_xuat import board
+
+    cv, k0 = _cv_giay_da_cap(db, orders, lsx_svc, admin, customer, "TO-NL9")
+    kr, kd = k0["kho_rong"] - 10, k0["kho_dai"]
+    nl = _nhap_lai(db, admin, cv, [{
+        "hang_loai": "giay", "hang_id": k0["hang_id"], "dvt": don_vi_goc_to(), "so_luong": 70,
+        "dang_giay": "to", "kho_rong": kr, "kho_dai": kd}])
+    _ghi_so_phieu_nhap(db, admin, nl["id"], 70)
+
+    ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
+    rows = [d for d in ct["vat_tu_cap"]["doi_chieu"] if d["hang_loai"] == "giay"]
+    xuat = next(d for d in rows if (d["kho_rong"], d["kho_dai"]) == (k0["kho_rong"], k0["kho_dai"]))
+    tra = next(d for d in rows if (d["kho_rong"], d["kho_dai"]) == (kr, kd))
+    assert xuat["sl_thuc_xuat"] == pytest.approx(k0["sl_goc"])
+    assert xuat["sl_nhap_lai"] == pytest.approx(70)
+    assert xuat["sl_thuc_dung"] == pytest.approx(k0["sl_goc"] - 70)
+    assert xuat["nhap_lai_vao"] is None
+    assert tra["sl_nhap_lai"] == pytest.approx(70)
+    assert tra["sl_thuc_dung"] is None
+    assert tra["nhap_lai_vao"]
+    assert tra["dvt"] and tra["dvt_goc"]            # mang đơn vị gốc của mã, không rỗng
+
+
+def test_tra_giay_khong_co_dong_da_xuat_cung_ma_dang_thi_dung_rieng(db, orders, lsx_svc, admin,
+                                                                       customer):
+    """Trả CUỘN trong khi chỉ xuất TỜ ⇒ không có dòng đích: dòng trả đứng riêng, thực dùng âm
+    (bất thường thật) — và vẫn mang đơn vị gốc."""
+    from app.services.san_xuat import board
+
+    cv, k0 = _cv_giay_da_cap(db, orders, lsx_svc, admin, customer, "TO-NL10")
+    from app.models.vat_lieu_kho import GiayNguyen
+    g = db.get(GiayNguyen, k0["hang_id"])
+    nl = _nhap_lai(db, admin, cv, [{
+        "hang_loai": "giay", "hang_id": g.id, "dvt": g.don_vi_gia, "so_luong": 5,
+        "dang_giay": "cuon", "kho_rong": 790}])
+    _ghi_so_phieu_nhap(db, admin, nl["id"], 5)
+    ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
+    cuon = next(d for d in ct["vat_tu_cap"]["doi_chieu"]
+                if d["hang_loai"] == "giay" and d["dang_giay"] == "cuon")
+    assert cuon["sl_thuc_dung"] == pytest.approx(-cuon["sl_nhap_lai"])
+    assert cuon["nhap_lai_vao"] is None and cuon["dvt_goc"]
+
+
+def test_don_gia_khac_kho_lay_binh_quan_cung_ma_dang(db, orders, lsx_svc, admin, customer):
+    from app.models.stock_lot import StockLot
+    from app.models.stock_voucher import (
+        VOUCHER_POSTED, VOUCHER_XUAT, StockVoucher, StockVoucherLine,
+    )
+    from app.services.kho_giay import don_vi_goc_to
+
+    cv, k0 = _cv_giay_da_cap(db, orders, lsx_svc, admin, customer, "TO-NL11")
+    req = db.query(StockRequest).filter(StockRequest.loai == "XUAT").order_by(
+        StockRequest.id.desc()).first()
+    rl = next(l for l in req.lines if l.hang_loai == "giay")
+    v = StockVoucher(ma="PXK-NL11", loai=VOUCHER_XUAT, request_id=req.id, kho_id=1,
+                     ngay=_T0.date(), nguoi_lap_id=admin.id, trang_thai=VOUCHER_POSTED)
+    db.add(v)
+    db.flush()
+    lot = StockLot(ma_lo="L-NL11", hang_loai="giay", hang_id=k0["hang_id"], kho_id=1,
+                   ngay_nhap=_T0.date(), don_gia_nhap=50000, sl_ban_dau=100, sl_con_lai=100,
+                   dang_giay="to", kho_rong=k0["kho_rong"], kho_dai=k0["kho_dai"])
+    db.add(lot)
+    db.flush()
+    db.add(StockVoucherLine(voucher_id=v.id, request_line_id=rl.id, hang_loai="giay",
+                            hang_id=k0["hang_id"], dang_giay="to", kho_rong=k0["kho_rong"],
+                            kho_dai=k0["kho_dai"], lot_id=lot.id, so_luong=100, sl_goc=100))
+    db.commit()
+    nl = _nhap_lai(db, admin, cv, [{
+        "hang_loai": "giay", "hang_id": k0["hang_id"], "dvt": don_vi_goc_to(), "so_luong": 10,
+        "dang_giay": "to", "kho_rong": k0["kho_rong"] - 10, "kho_dai": k0["kho_dai"]}])
+    [ln] = db.get(StockRequest, nl["id"]).lines
+    assert ln.don_gia == 50000
+
+
+def test_cho_tra_ca_khi_lenh_da_dong(db, orders, lsx_svc, admin, customer, monkeypatch):
+    from app.services.san_xuat import dong_lenh
+
+    def _chan(*_a, **_k):
+        raise ValueError("Lệnh đã đóng")
+
+    monkeypatch.setattr(dong_lenh, "chan_neu_da_dong", _chan)
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-NL12")
+    db.commit()
+    muc = _khai_them_vat_tu_vao_buoc(db, cv, ma="VT-NL12", ten="Mực tím", so_luong=5)
+    ra = _nhap_lai(db, admin, cv, [{"hang_loai": "vat_tu", "hang_id": muc.id, "dvt": "kg",
+                                    "so_luong": 1}])
+    assert ra["id"]
+
+
+def test_loi_phan_loai_404_va_400(db, orders, lsx_svc, admin, customer):
+    from app.services.san_xuat import vat_tu_nhap_lai as NL
+
+    with pytest.raises(ValueError) as e404:
+        NL.tao(db, user=admin, cong_viec_id=999999, lines=[], ghi_chu=None)
+    assert not isinstance(e404.value, NL.VatTuNhapLaiError)
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-NL13")
+    db.commit()
+    with pytest.raises(NL.VatTuNhapLaiError):
+        NL.tao(db, user=admin, cong_viec_id=cv.id, lines=[], ghi_chu=None)

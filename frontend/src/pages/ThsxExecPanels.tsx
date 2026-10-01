@@ -1520,10 +1520,22 @@ function VatTuSection({
                 {/* `sl_thuc_xuat` đọc thẳng từ dòng chứng từ nên LUÔN ở thang GỐC (board.py:
                     `_vat_tu_cap`) — dán nhãn `dvt` (thang tổ khai) vào đây là in sai đơn vị. */}
                 <td className="r thsx-num"
-                  title={`Xuất ${num(d.sl_thuc_xuat)} − nhập lại ${num(d.sl_nhap_lai)} ${nhanDonVi(d.dvt_goc)}`}>
-                  {num(d.sl_thuc_dung)}<span className="thsx-x-unit"> {nhanDonVi(d.dvt_goc)}</span>
-                  {(d.sl_nhap_lai > VT_EPS || d.sl_thuc_xuat > VT_EPS) && (
-                    <div className="kho-lines__code">xuất {num(d.sl_thuc_xuat)} − nhập lại {num(d.sl_nhap_lai)}</div>
+                  title={d.sl_thuc_dung == null
+                    ? `Nhập lại ${num(d.sl_nhap_lai)} ${nhanDonVi(d.dvt_goc)} — đã trừ ở dòng ${d.nhap_lai_vao}`
+                    : `Xuất ${num(d.sl_thuc_xuat)} − nhập lại ${num(d.sl_nhap_lai)} ${nhanDonVi(d.dvt_goc)}`}>
+                  {d.sl_thuc_dung == null ? (
+                    // Dòng THÔNG TIN: trả khác khổ đã xuất, phần trừ đã nằm ở dòng đích.
+                    <div className="kho-lines__code">
+                      nhập lại {num(d.sl_nhap_lai)}<span className="thsx-x-unit"> {nhanDonVi(d.dvt_goc)}</span>
+                      {" · "}trừ vào dòng {d.nhap_lai_vao}
+                    </div>
+                  ) : (
+                    <>
+                      {num(d.sl_thuc_dung)}<span className="thsx-x-unit"> {nhanDonVi(d.dvt_goc)}</span>
+                      {(d.sl_nhap_lai > VT_EPS || d.sl_thuc_xuat > VT_EPS) && (
+                        <div className="kho-lines__code">xuất {num(d.sl_thuc_xuat)} − nhập lại {num(d.sl_nhap_lai)}</div>
+                      )}
+                    </>
                   )}
                 </td>
                 <td className="r"><VtDeltaCell d={d} soLan={soLan} /></td>

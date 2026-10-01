@@ -823,7 +823,9 @@ class VatTuCapDoiChieuOut(BaseModel):
     sl_thuc_xuat: float
     # Phần tổ đã nhập lại kho (phiếu NHẬP ghi sổ) và THỰC DÙNG = thực xuất − nhập lại (thang gốc).
     sl_nhap_lai: float = 0.0
-    sl_thuc_dung: float = 0.0
+    # None ⇒ dòng THÔNG TIN của phần trả khác khổ đã xuất: phần trừ nằm ở dòng đích (`nhap_lai_vao`).
+    sl_thuc_dung: float | None = 0.0
+    nhap_lai_vao: str | None = None
     lech_ke_hoach: float
     lech_thuc_te: float
     cac_ly_do: list[dict] = []

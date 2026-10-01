@@ -750,8 +750,8 @@ class SanXuatSanLuongRepository:
             ra[k] = ra.get(k, 0.0) + float(tong or 0)
         return ra
 
-    def gia_von_xuat_theo_hang(self, stock_request_ids: list[int]) -> dict[tuple, float]:
-        """{`khoa_dong`: giá vốn bình quân / đơn vị GỐC} của phần ĐÃ XUẤT (phiếu XUẤT `posted`) cho
+    def gia_von_xuat_theo_hang(self, stock_request_ids: list[int]) -> dict[tuple, tuple[float, float]]:
+        """{`khoa_dong`: (tổng `sl_goc`, giá vốn bình quân / đơn vị GỐC)} của phần ĐÃ XUẤT (phiếu XUẤT `posted`) cho
         các yêu cầu này, bình quân gia quyền theo `sl_goc`. Phiếu xuất không lưu `don_gia` (NULL) —
         giá thật nằm ở lô đã xuất (`stock_lots.don_gia_nhap`, đ/đơn vị gốc). Dòng không có lô bị bỏ."""
         if not stock_request_ids:
@@ -775,7 +775,7 @@ class SanXuatSanLuongRepository:
             k = khoa_dong(loai, int(hid), dang, kr, kd)
             tong_sl[k] = tong_sl.get(k, 0.0) + float(sl or 0)
             tong_tien[k] = tong_tien.get(k, 0.0) + float(tien or 0)
-        return {k: tong_tien[k] / s for k, s in tong_sl.items() if s > 0}
+        return {k: (s, tong_tien[k] / s) for k, s in tong_sl.items() if s > 0}
 
     def yeu_cau_tom_tat(self, request_ids: list[int]) -> dict[int, dict]:
         """`{request_id: {"ma", "trang_thai"}}` — MỘT truy vấn cho cả danh sách. Drawer công đoạn

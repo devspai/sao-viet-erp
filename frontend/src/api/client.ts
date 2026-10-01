@@ -2092,8 +2092,10 @@ export interface SxVatTuCapDoiChieu {
   sl_thuc_xuat: number;
   /** Phần tổ đã nhập lại kho (phiếu NHẬP ghi sổ), thang gốc. */
   sl_nhap_lai: number;
-  /** THỰC DÙNG = kho thực xuất − nhập lại (thang gốc). */
-  sl_thuc_dung: number;
+  /** THỰC DÙNG = kho thực xuất − nhập lại (thang gốc). `null` ở dòng THÔNG TIN của phần trả khác khổ
+   *  đã xuất — phần trừ nằm ở dòng đích (`nhap_lai_vao` = nhãn dòng đó). */
+  sl_thuc_dung: number | null;
+  nhap_lai_vao?: string | null;
   lech_ke_hoach: number;
   lech_thuc_te: number;
   cac_ly_do: { lan_so: number; ly_do: string }[];
