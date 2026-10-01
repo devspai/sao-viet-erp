@@ -12,6 +12,7 @@ Nguyên tắc:
 """
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta, timezone
 from math import ceil, floor
 
@@ -790,9 +791,16 @@ class LsxService:
                 f"công thức lượng ra 0 — thiếu {', '.join(thieu)}." if thieu
                 else "công thức lượng ra 0.")
         # Cùng khuôn diễn giải với `_sl_theo_don_vi`: công thức chữ = thay số = kết quả.
+        # Chip RIÊNG của vật tư không nằm trong từ điển biến chung nên hai hàm trên để nguyên mã
+        # (`dai_support × rong_support = dai_support × rong_support`) — tự đọc nhãn + thay số ở đây.
+        chu = cong_thuc_chu(rieng)
         the_so = cong_thuc_the_so(rieng, ctx)
+        for c in sorted(getattr(mat, "chips", None) or [], key=lambda x: -len(x.ma)):
+            mau = rf"\b{re.escape(c.ma)}\b"
+            chu = re.sub(mau, lambda _m, t=c.ten: t, chu)
+            the_so = re.sub(mau, lambda _m, v=_so_vn(_f(ctx.get(c.ma))): v, the_so)
         dau = "" if the_so == _so_vn(gt) else f"{the_so} = "
-        return gt, f"{cong_thuc_chu(rieng)} = {dau}{_so_vn(gt)} {dv_ten}", ""
+        return gt, f"{chu} = {dau}{_so_vn(gt)} {dv_ten}", ""
 
     # ⚠️ `_dau_viec_option_dicts()` · `dau_viec_options()` · `_khoan_thu()` GỠ 18/09/2026 (mg
     #    `0320`): cả ba chỉ phục vụ ô "Đầu việc thợ làm" của drawer bước, nay đã biến. Vật tư của

@@ -912,7 +912,7 @@ export function LsxBuocDrawer({
 
                 {/* Bảng Kỹ Thuật Data Table */}
                 <div className="khsx-vattu-table-wrap">
-                  <table className="khsx-vattu-table">
+                  <table className="khsx-vattu-table khsx-vattu-table--lsx">
                     <thead className="khsx-vattu-thead">
                       <tr>
                         <th className="khsx-vattu-th" style={{ width: "28%" }}>VẬT TƯ & QUY CÁCH</th>
@@ -987,14 +987,18 @@ export function LsxBuocDrawer({
                                 </span>
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--input">
-                                <div className="khsx-vattu-input-group">
+                                <div className="khsx-vattu-input-group is-readonly">
                                   {/* Số lượng: vật tư tính bằng công thức, giấy suy từ đầu vào của bước —
                                       cả hai chỉ đọc. */}
                                   {choLuu ? (
                                     <span className="khsx-vattu-unit-tag">Tính khi lưu</span>
                                   ) : (
                                     <>
-                                      <strong>{v.so_luong}</strong>
+                                      <strong>
+                                        {Number.isFinite(Number(v.so_luong))
+                                          ? Number(v.so_luong).toLocaleString("vi-VN", { maximumFractionDigits: 3 })
+                                          : v.so_luong}
+                                      </strong>
                                       <span className="khsx-vattu-unit-tag">{nhanDonVi(v.don_vi)}</span>
                                     </>
                                   )}

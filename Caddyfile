@@ -53,3 +53,22 @@
 		}
 	}
 }
+
+# --- MES Vĩnh Phát (compose project `vinhphat`, /opt/vinhphat-mes) ---
+# Stack riêng, mạng Docker riêng nên KHÔNG gọi được theo tên service như khối
+# production của Sao Việt. Đi qua host.docker.internal (đã khai host-gateway trong
+# docker-compose.yml của erp-svn) → trỏ tới cổng mà fe/be publish trên 172.17.0.1.
+vinhphat.superbai.io {
+	encode gzip
+
+	# /api/* → NestJS. Giữ NGUYÊN tiền tố /api vì BE đã setGlobalPrefix('api'),
+	# tức đường dẫn thật của nó cũng bắt đầu bằng /api. Không strip gì cả.
+	handle /api/* {
+		reverse_proxy host.docker.internal:8101
+	}
+
+	# Còn lại → Next.js (trang, tài nguyên tĩnh, /_next/*).
+	handle {
+		reverse_proxy host.docker.internal:8100
+	}
+}
