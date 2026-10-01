@@ -42,7 +42,7 @@ Nay router chỉ nhận MỘT tham số `excel_spec`; toàn bộ cơ chế nằm
 Luật chung:
 
 1. Sheet chính luôn có `Mã`, các trường cấu hình/công thức và `Trạng thái`. File xuất có **CẢ dòng
-   đã ngừng dùng** (`Trạng thái=FALSE`) — vì một dòng đang dùng ở màn này hoàn toàn có thể trỏ tới
+   đã ngừng dùng** (`Trạng thái=Không` (file cũ ghi FALSE vẫn nhận)) — vì một dòng đang dùng ở màn này hoàn toàn có thể trỏ tới
    một dòng đã ngừng ở màn kia, lọc đi thì bộ file xuất ra không tự nhập lại được sang máy khác.
    Đổi ô `Trạng thái` rồi nhập là ngừng/bật lại được cả hai chiều.
 2. FK và danh sách liên kết dùng **mã nghiệp vụ**; phòng ban và khách hàng dùng mã hệ thống kèm
@@ -132,7 +132,7 @@ BÊN TRONG một test vì fixture `client` dựng lại schema mỗi test (~3s/t
 
 1. Gộp "Tải mẫu" + "Xuất Excel" thành MỘT nút: danh mục rỗng thì file xuất tự đóng vai file mẫu.
 2. Nhập là UPSERT theo mã, KHÔNG xoá qua Excel — dòng biến mất khỏi file không có nghĩa là xoá.
-   Muốn ngừng dùng thì đặt `Trạng thái=FALSE`.
+   Muốn ngừng dùng thì đặt `Trạng thái=Không` (file cũ ghi FALSE vẫn nhận).
 3. Loại trừ cả 3 loại "lịch sử": nhật ký sửa đổi, phiên bản giá giấy (`giay/{id}/versions`), và cột
    "lần trước công thức" (`cong_thuc_*_truoc` / `*_sua_luc`).
 4. `fields_theo_loai` của Máy: đợt trước chốt "một cột JSON thô". Đợt này ĐÃ THAY — hai khoá đã
