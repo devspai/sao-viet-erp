@@ -100,9 +100,9 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
      "quy cách in của lệnh — CÔNG ĐOẠN gõ số riêng vào ô của bước thì ăn số đó, để trống mới theo quy cách", _MOI_O),
     ("so_kem", "Số bản kẽm", "Số bản kẽm = số bản mỗi tay × số tay", "bản",
      "số bản mỗi tay × số tay", _MOI_O),
-    # Định lượng là thuộc tính CỦA GIẤY — chỉ ô Giấy khai được. Ô Quy đổi vẫn phải có: dòng
-    # `1 tờ = dinh_luong × dai_in × rong_in` kg là thứ DUY NHẤT biến tờ thành cân, bỏ là gãy phép
-    # đổi tờ→kg và kéo theo gãy bảng so tồn giấy.
+    # Định lượng là thuộc tính CỦA GIẤY — chỉ ô Giấy khai được. Ô Quy đổi vẫn phải có: cạnh quy đổi
+    # `tờ → kg` còn dùng nó. (Ô "Công thức tính định mức" của Giấy đã gỡ, mg `0348`: giấy đếm theo
+    # tờ × khổ, không ra kg bằng công thức.)
     ("dinh_luong", "Định lượng giấy", "Định lượng giấy, kg/m² (= gsm ÷ 1.000)", "kg/m²",
      "gsm của giấy ÷ 1.000", (LOAI_GIAY, LOAI_QUY_DOI)),
     # --- Đơn giá: MỖI Ô MỘT BIẾN, tên nói rõ của ai -------------------------------------------
@@ -125,9 +125,9 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
     # `so_luong` (SL đặt). Hệ quả đo được: bước "Gấp tay sách" chạm 5.000 tờ nhưng khai
     # `to_dau_vao * 120` nên tính tiền trên 5.200 — dư đúng 200 tờ mà máy in đã đốt.
     #
-    # Ô "Công thức tính lượng" của Vật tư/Giấy vẫn với tới hai biến này qua bộ chip `quy_doi`
-    # (xem `rebuildCatalogConfigs`). Giấy/Vật tư KHÔNG mở: hai ô đó tính tiền cho một MẶT HÀNG, nó
-    # không đứng ở bước nào cả.
+    # Các ô ra LƯỢNG (cách đo của bước, định mức dòng vật tư) với tới hai biến này qua bộ chip
+    # `quy_doi`. Giấy/Vật tư KHÔNG mở: hai ô giá đó tính tiền cho một MẶT HÀNG, nó không đứng ở
+    # bước nào cả.
     #
     # Nơi bơm: `thanh_phan_engine` (vòng lặp công đoạn) · `LsxService._vat_tu_bung` +
     # `_goi_y_luong_vat_tu`. Ngữ cảnh nào không có (công thức của cặp · công thức đơn vị RA lúc
@@ -157,7 +157,7 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
     # còn khung lụa trả một cục qua `phi_khuon`. Tên biến đổi theo (`*_khung_lua` → `*_khuon`).
     #
     # MỞ CHO CẢ Ô QUY ĐỔI 29/08/2026 (yêu cầu người dùng): ô Quy đổi (Cách đo lượng khoán/tốc độ
-    # máy · Công thức tính lượng của Giấy/Vật tư) chạy ở TẦNG LỆNH, nơi
+    # máy · định mức dòng vật tư) chạy ở TẦNG LỆNH, nơi
     # không có khái niệm "khuôn của bước" (dữ liệu chỉ khai per-phiếu-tính-giá) — nên MỌI nơi
     # bơm `ngu_canh_lenh` phải bơm thêm `KHUON_MAC_DINH` (mặc định 0.0) ngay sau, giống hệt cách
     # `sl_vao`/`sl_ra` được bơm thêm ở từng nơi gọi. Gõ chip này vào công thức quy đổi thì luôn ra 0

@@ -96,6 +96,11 @@ class SanXuatVatTuDeNghiDong(Base):
     )
     hang_loai: Mapped[str] = mapped_column(String(8), nullable=False)
     hang_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: Giấy: dạng (`to`/`cuon`) + khổ mm (ngắn × dài; cuộn chỉ khổ rộng). Vật tư khác: NULL · 0 · 0.
+    #: Cùng mã khác dạng/khổ là hai dòng (spec 2026-10-01-giay-dem-to-theo-kho §4.5).
+    dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     dvt: Mapped[str] = mapped_column(String(24), nullable=False)
     dvt_goc: Mapped[str] = mapped_column(String(24), nullable=False)
     sl_ke_hoach: Mapped[float] = mapped_column(Numeric(18, 3), nullable=False, default=0.0)
@@ -109,5 +114,6 @@ class SanXuatVatTuDeNghiDong(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("de_nghi_id", "hang_loai", "hang_id", name="uq_sx_vt_dn_dong_hang"),
+        UniqueConstraint("de_nghi_id", "hang_loai", "hang_id", "kho_rong", "kho_dai",
+                         name="uq_sx_vt_dn_dong_hang"),
     )

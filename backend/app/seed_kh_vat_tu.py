@@ -7,7 +7,7 @@ vị khai ở bước lệnh. File này dựng nền đó bằng LUỒNG THẬT 
 
 Bản đồ ca (1 đơn hàng, 5 lệnh mới):
 
-  ① Tờ hướng dẫn A4 · Ford 70 (tồn 1.000 kg)      → giấy XANH
+  ① Tờ hướng dẫn A4 · Ford 70 (lô tờ đủ khổ)      → giấy XANH
      + mực CMYK đã xuất kho đủ                     → XÁM (đã cấp đủ, hết phải lo)
      + mực Pantone khai đơn vị "hộp"               → KHÔNG RÕ (không có cầu hộp→kg)
      ⇒ giữ chỗ BẬT: giấy giữ đủ 100% mà VẪN chưa mở khoá xếp lịch vì còn dòng không rõ.
@@ -35,7 +35,7 @@ Bản đồ ca (1 đơn hàng, 5 lệnh mới):
 Hai pha, cố ý:
   · Pha A dựng lệnh rồi ĐỌC LẠI `can_doi()` để lấy lượng cần THẬT do engine tính.
   · Pha B mới cân số lô tồn / phiếu mua theo đúng số vừa đọc.
-Làm ngược lại (đoán trước số kg rồi chèn lô) là gán số chết: engine đổi công thức một cái là màu
+Làm ngược lại (đoán trước số tờ rồi chèn lô) là gán số chết: engine đổi công thức một cái là màu
 đổi hết mà không ai biết.
 
 Idempotent: guard theo tên phiếu tính giá. KHÔNG đụng schema, không migration.
@@ -75,6 +75,8 @@ from .seed_luong_ban_sx import (
     _tao_don_hang,
     _utcnow,
 )
+from .services.bien_cong_thuc import quy_cach_bien
+from .services.kho_giay import DANG_TO, don_vi_goc_to, goi_y_dong_giay
 from .services.sequence_service import SequenceService
 from .services.tinh_gia_service import compute_phieu_snapshot
 
@@ -200,28 +202,46 @@ def _khai_vat_tu(db: Session, lsx: Lsx, cong_doan_id: int, vt: VatTuInAn,
     ))
 
 
-def _ton(db: Session, hang_loai: str, hang_id: int) -> float:
-    """Tồn kho hiện có của một mặt hàng — cộng phần CÒN LẠI của mọi lô còn hiệu lực."""
-    return float(sum(
-        float(l.sl_con_lai or 0)
-        for l in db.execute(
-            select(StockLot).where(StockLot.hang_loai == hang_loai,
-                                   StockLot.hang_id == hang_id,
-                                   StockLot.trang_thai == LOT_AVAILABLE)
-        ).scalars()
+def _khai_giay(db: Session, lsx: Lsx, cong_doan_id: int) -> None:
+    """Dòng GIẤY ở bước In — đường duy nhất giấy của lệnh vào bảng cân đối. Mã, khổ và số tờ
+    nguyên lấy đúng gợi ý màn bước lệnh đưa ra từ quy cách (không công thức)."""
+    buoc = next((c for c in lsx.cong_doans if c.cong_doan_id == cong_doan_id), None)
+    qc = quy_cach_bien(lsx)
+    g = db.get(GiayNguyen, int(qc["giay_id"])) if qc.get("giay_id") else None
+    goi = goi_y_dong_giay(qc)
+    if buoc is None or g is None or not goi["so_luong"]:
+        return
+    db.add(LsxCongDoanVatTu(
+        lsx_cong_doan_id=buoc.id, hang_loai=HANG_GIAY, vat_tu_id=g.id,
+        vat_tu_ma_snapshot=g.ma, vat_tu_ten_snapshot=g.ten, don_vi_snapshot=goi["don_vi"],
+        so_luong=goi["so_luong"], kho_rong=goi["kho_rong"], kho_dai=goi["kho_dai"],
+        thu_tu=len(buoc.vat_tus or []), tu_dong=False,
     ))
 
 
+def _ton(db: Session, hang_loai: str, hang_id: int, kho_rong: int = 0, kho_dai: int = 0) -> float:
+    """Tồn kho hiện có của một mặt hàng — cộng phần CÒN LẠI của mọi lô còn hiệu lực. Giấy tờ chỉ
+    cộng lô ĐÚNG khổ."""
+    q = select(StockLot).where(StockLot.hang_loai == hang_loai, StockLot.hang_id == hang_id,
+                               StockLot.trang_thai == LOT_AVAILABLE)
+    if hang_loai == HANG_GIAY:
+        q = q.where(StockLot.dang_giay == DANG_TO, StockLot.kho_rong == kho_rong,
+                    StockLot.kho_dai == kho_dai)
+    return float(sum(float(l.sl_con_lai or 0) for l in db.execute(q).scalars()))
+
+
 def _lo(db: Session, *, ma: str, kho_id: int, hang_loai: str, hang_id: int,
-        sl: float, don_gia: int, ngay: date) -> None:
+        sl: float, don_gia: int, ngay: date, kho: tuple[int, int] | None = None) -> None:
+    """Lô tồn. `kho` (rộng, dài) ⇒ lô GIẤY TỜ đếm tờ nguyên theo khổ đó."""
+    giay = {"dang_giay": DANG_TO, "kho_rong": kho[0], "kho_dai": kho[1]} if kho else {}
     db.add(StockLot(ma_lo=ma, hang_loai=hang_loai, hang_id=hang_id, kho_id=kho_id,
                     ngay_nhap=ngay, don_gia_nhap=don_gia, sl_ban_dau=sl, sl_con_lai=sl,
-                    trang_thai=LOT_AVAILABLE))
+                    trang_thai=LOT_AVAILABLE, **giay))
 
 
 def _phieu_mua(db: Session, *, code: str, ncc: Supplier, ngay_ve: date, hang_loai: str,
                hang_id: int, ten: str, dvt: str, sl: float, don_gia: int,
-               nguoi_id: int, ghi_chu: str) -> None:
+               nguoi_id: int, ghi_chu: str, kho: tuple[int, int] = (0, 0)) -> None:
     """Phiếu mua ĐÃ DUYỆT + CÓ ngày về ⇒ engine đếm là "hàng đang về". Thiếu ngày về là không đếm."""
     now = _utcnow()
     pr = PurchaseRequest(
@@ -232,6 +252,7 @@ def _phieu_mua(db: Session, *, code: str, ncc: Supplier, ngay_ve: date, hang_loa
     )
     pr.lines.append(PurchaseRequestLine(
         hang_loai=hang_loai, hang_id=hang_id, item_name=ten, unit=dvt, quantity=sl,
+        kho_rong=kho[0], kho_dai=kho[1],
         expected_unit_price=don_gia, discount_percent=0, vat_percent=8,
     ))
     db.add(pr)
@@ -275,14 +296,15 @@ def _kh_service(db: Session):
     )
 
 
-def _dong_giay(bang: dict, lsx_id: int) -> dict | None:
-    """Dòng GIẤY của riêng lệnh trong bảng cân đối (bỏ dòng của bài ghép)."""
+def _dong_giay(bang: dict, lsx_id: int) -> tuple[float, tuple[int, int]] | None:
+    """(số tờ cần, khổ) của dòng GIẤY riêng lệnh trong bảng cân đối (bỏ dòng của bài ghép)."""
     for nhom in bang.get("items", []):
         if nhom.get("hang_loai") != HANG_GIAY:
             continue
         for d in nhom.get("dong", []):
             if d.get("lsx_id") == lsx_id and not d.get("bai_ghep_id"):
-                return d
+                return (float(d.get("nhu_cau") or 0),
+                        (int(nhom.get("kho_rong") or 0), int(nhom.get("kho_dai") or 0)))
     return None
 
 
@@ -353,6 +375,8 @@ def seed_kh_vat_tu(db: Session) -> None:
 
     vts = {v.ma: v for v in db.execute(select(VatTuInAn)).scalars()}
     cd_in = cd["CD-0002"]
+    for khoa in ("xanh", "do", "vang", "dang_ve"):
+        _khai_giay(db, lenh[khoa], cd_in)
     _khai_vat_tu(db, lenh["xanh"], cd_in, vts["MUC-CMYK"], 12, "kg")
     # KHÔNG RÕ: mực pha Pantone xưởng mua theo HỘP, mà danh mục để đơn vị gốc là kg và bảng
     # `don_vi_quy_doi` không có cầu hộp→kg ⇒ engine từ chối đoán, dán nhãn "không đối chiếu được".
@@ -368,11 +392,12 @@ def seed_kh_vat_tu(db: Session) -> None:
 
     # ══ PHA B — đọc số THẬT engine tính rồi mới cân lô tồn / phiếu mua ═════════════════════
     bang = _kh_service(db).can_doi()
-    can: dict[str, float] = {}
+    can: dict[str, tuple[float, tuple[int, int]]] = {}
     for khoa in ("xanh", "do", "vang", "dang_ve"):
         d = _dong_giay(bang, lenh[khoa].id)
-        if d:
-            can[khoa] = float(d.get("nhu_cau") or 0)
+        if d and d[1][0] and d[1][1]:
+            can[khoa] = d
+    dv_to = don_vi_goc_to()
 
     giay = {g.ma: g for g in db.execute(select(GiayNguyen)).scalars()}
 
@@ -380,31 +405,32 @@ def seed_kh_vat_tu(db: Session) -> None:
     # như xưởng vẫn nhập nguyên kiện) TRỪ tồn sẵn có, nên bộ ca tự đúng trên mọi DB: DB dev đã có
     # lô Ford khai tay thì lô này chỉ bù phần thiếu, DB trắng thì nó gánh cả.
     if "xanh" in can:
-        con_thieu = can["xanh"] * 1.25 - _ton(db, HANG_GIAY, giay["FORD-70-65x86"].id)
+        sl, kho_to = can["xanh"]
+        con_thieu = sl * 1.25 - _ton(db, HANG_GIAY, giay["FORD-70-65x86"].id, *kho_to)
         if con_thieu > 0:
             _lo(db, ma="LO-FORD70-VT01", kho_id=kho.id, hang_loai=HANG_GIAY,
-                hang_id=giay["FORD-70-65x86"].id, sl=round(con_thieu, 2), don_gia=28000,
-                ngay=hom_nay - timedelta(days=12))
+                hang_id=giay["FORD-70-65x86"].id, sl=float(round(con_thieu)), don_gia=1200,
+                ngay=hom_nay - timedelta(days=12), kho=kho_to)
     # VÀNG — hàng về TRƯỚC hạn SX 4 ngày; mua dư 15% như xưởng vẫn mua.
     if "vang" in can:
-        sl = can["vang"]
+        sl, kho_to = can["vang"]
         _phieu_mua(
             db, code="PMH-VT-01", ncc=ncc["Giấy Vĩnh Tiến"],
             ngay_ve=hom_nay + timedelta(days=max(1, _HAN_SAU["vang"] - 4)),
             hang_loai=HANG_GIAY, hang_id=giay["IVORY-350-79x109"].id,
-            ten="Giấy Ivory 350 79×109", dvt="kg", sl=round(sl * 1.15, 2), don_gia=32000,
-            nguoi_id=mua_hang.id,
+            ten="Giấy Ivory 350 79×109", dvt=dv_to, sl=float(round(sl * 1.15)), don_gia=9500,
+            nguoi_id=mua_hang.id, kho=kho_to,
             ghi_chu="Mua cho thực đơn khai trương — NCC hẹn giao trước ngày lên máy.",
         )
     # Cùng cách mua nhưng NCC hẹn giao SAU hạn SX 7 ngày — vẫn là hàng đang về (vàng).
     if "dang_ve" in can:
-        sl = can["dang_ve"]
+        sl, kho_to = can["dang_ve"]
         _phieu_mua(
             db, code="PMH-VT-02", ncc=ncc["Giấy Vĩnh Tiến"],
             ngay_ve=hom_nay + timedelta(days=_HAN_SAU["dang_ve"] + 7),
             hang_loai=HANG_GIAY, hang_id=giay["DUPLEX-300"].id,
-            ten="Giấy Duplex 300 79×109", dvt="kg", sl=round(sl * 1.15, 2), don_gia=24000,
-            nguoi_id=mua_hang.id,
+            ten="Giấy Duplex 300 79×109", dvt=dv_to, sl=float(round(sl * 1.15)), don_gia=6200,
+            nguoi_id=mua_hang.id, kho=kho_to,
             ghi_chu="NCC hết khổ 79×109, hẹn lô kế tiếp — đã báo kế hoạch dời bước in.",
         )
 

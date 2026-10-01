@@ -91,6 +91,10 @@ export interface EditRow {
     so_luong: number | null;
     dien_giai: string | null;
     ly_do: string | null;
+    /** Giấy: khổ (mm) + đơn vị tờ nguyên gợi ý từ quy cách lệnh. */
+    kho_rong?: number;
+    kho_dai?: number;
+    don_vi?: string;
   }[];
   /** Số tính lại theo danh mục HIỆN TẠI khi lệch số đã lưu — READ-ONLY, không gửi lên. */
   so_luong_vao_moi: number | null;
@@ -99,7 +103,9 @@ export interface EditRow {
   /** `tu_dong` = dòng MÁY bung từ tab Vật tư của CÔNG ĐOẠN ⇒ lần bung sau thay được. Người tự thêm
    *  hoặc đã sửa số thì về `false` và máy chừa ra — không thì đổi công đoạn là mất số vừa gõ. */
   vat_tus: { hang_loai: HangLoai; vat_tu_id: number; vat_tu_ma: string; vat_tu_ten: string;
-             don_vi: string; so_luong: string; tu_dong: boolean }[];
+             don_vi: string; so_luong: string; tu_dong: boolean;
+             /** Khổ dòng GIẤY (mm) — ô gõ; hàng khác để trống, không gửi. */
+             kho_rong: string; kho_dai: string }[];
   // Gia công ngoài (spec 2026-09-26): nhà gia công từ danh mục NCC + đơn giá cả lần.
   nha_cung_cap_id: number | null;
   /** Tên do máy chủ ghi — chỉ để hiện, không gửi lên. */
@@ -180,6 +186,7 @@ export function toEdit(cd: LsxCongDoan): EditRow {
     vat_tus: (cd.vat_tus ?? []).map((v) => ({
       ...v, hang_loai: v.hang_loai ?? "vat_tu",
       so_luong: String(v.so_luong), tu_dong: Boolean(v.tu_dong),
+      kho_rong: v.kho_rong ? String(v.kho_rong) : "", kho_dai: v.kho_dai ? String(v.kho_dai) : "",
     })),
     nha_cung_cap_id: cd.nha_cung_cap_id ?? null,
     nha_cung_cap: cd.nha_cung_cap ?? "",
@@ -372,6 +379,8 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
       vat_tus: ngoai ? [] : r.vat_tus.map((v) => ({
         hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id,
         so_luong: n(v.so_luong), tu_dong: v.tu_dong,
+        // Giấy mang khổ (máy chủ chuẩn hoá ngắn × dài, thiếu cạnh thì từ chối).
+        ...(v.hang_loai === "giay" ? { kho_rong: n(v.kho_rong), kho_dai: n(v.kho_dai) } : {}),
       })),
       // Chỉ gửi khi bước ĐANG là thuê ngoài — đổi loại rồi thì server tự dọn (Task 3).
       nha_cung_cap_id: ngoai ? r.nha_cung_cap_id : null,

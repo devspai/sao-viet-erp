@@ -25,8 +25,7 @@ export interface FieldDef {
    *  cần chip `sl_vao`/`sl_ra`, không cần chip đơn giá). */
   loaiO?: string;
   /** Ô `formula`: NHÃN của tab công thức chứa ô này. Cho phép MỘT màn tách nhiều tab công thức
-   *  riêng — vd Giấy: ô `cong_thuc_gia` vào tab "Công thức tính giá", ô `cong_thuc_luong` vào tab
-   *  "Công thức tính lượng". Ô công thức KHÔNG khai `nhanTab` rơi vào tab mặc định (nhãn
+   *  riêng — vd một màn có hai ô công thức (giá · lượng) thì mỗi ô vào một tab riêng. Ô công thức KHÔNG khai `nhanTab` rơi vào tab mặc định (nhãn
    *  `config.nhanTabCongThuc`, mặc định "Công thức tính giá") — nên màn 1 tab như cũ giữ nguyên. */
   nhanTab?: string;
   /** Ô `formula`: mã biến CẦN ẨN khỏi bảng chip của riêng Ô NÀY, dù `loaiO` cho phép — biến vẫn

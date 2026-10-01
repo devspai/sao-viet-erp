@@ -10,7 +10,7 @@ import { useAuth } from "../../../../auth/useAuth";
 import { useCan } from "../../../../auth/permissions";
 import { CodeLink } from "../../../../components/CodeLink";
 import { PurchaseActivityTimeline } from "../../../../components/PurchaseActivityTimeline";
-import { daGiaoKhac } from "../shared/helpers";
+import { daGiaoKhac, nhanKhoMua } from "../shared/helpers";
 import { RowActionButton } from "../../../../components/RowActionButton";
 import { fmtDate, money } from "../../../../utils/format";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị — xem pages/tenDonVi.ts.
@@ -437,6 +437,7 @@ export function PurchaseDetailDrawer({
                             <td style={{ textAlign: "center", color: "#94a3b8" }}>{idx + 1}</td>
                             <td>
                               <div className="acct-table-item-name">{line.item_name}</div>
+                              {nhanKhoMua(line) && <div className="acct-table-item-note">{nhanKhoMua(line)}</div>}
                               {line.note && <div className="acct-table-item-note">{line.note}</div>}
                               {du > 0 && (
                                 <span

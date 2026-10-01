@@ -175,9 +175,11 @@ export function ThsxDrawer({
   const khuonChoNhan = !!cv?.khuon && !cv?.khuon_da_nhan;
   // Cổng routing (`dau_vao.kiem_bat_dau`): công đoạn trước chưa giao sang + mình chưa xác nhận nhận.
   const thieuDauVao = chiTiet?.thieu_dau_vao ?? [];
+  // Cổng "chờ tổ Cắt" (`chot_giay.ly_do_cho_chot`) — đứng trước cổng đầu vào.
+  const choChotGiay = chiTiet?.cho_chot_giay ?? null;
   const canBatDau =
     canAssign && !busy && (tt === "released" || tt === "paused") && hasKhoan && !khuonChoNhan &&
-    thieuDauVao.length === 0;
+    thieuDauVao.length === 0 && !choChotGiay;
   const canTamDung = canAssign && !busy && tt === "running";
   const canKetThuc = canAssign && !busy && (tt === "running" || tt === "paused");
   const canGiao = canAssign && !done;
@@ -667,7 +669,13 @@ export function ThsxDrawer({
               </span>
             </div>
           )}
-          {thieuDauVao.length > 0 && tt !== "running" && (
+          {choChotGiay && tt !== "running" && (
+            <div className="thsx-alert-capsule">
+              <Icon name="scissors" size={14} style={{ color: "#d97706" }} />
+              <span>{choChotGiay}</span>
+            </div>
+          )}
+          {thieuDauVao.length > 0 && !choChotGiay && tt !== "running" && (
             <div className="thsx-alert-capsule">
               <Icon name="alert" size={14} style={{ color: "#d97706" }} />
               <span>

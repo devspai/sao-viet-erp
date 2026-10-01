@@ -8,10 +8,10 @@ chỉ khi có đường cặp nối chúng.
 🔴 Hệ số CHỈ là con số. Quy đổi ĐỘNG (hệ số là công thức) đã gỡ hết: `don_vi_quy_doi.cong_thuc`
 mg `0198` (14/08/2026), `don_vi_do.cong_thuc` mg `0215` (17/08/2026). Bảng cặp nay chỉ chở quan hệ
 BẤT BIẾN — "1 ram = 500 tờ" đúng ở mọi lệnh, mọi món. Thứ đổi theo từng món/lệnh ("1 tờ bằng mấy
-kg": tờ 65×86 Ford 70 là 0,039 kg, tờ 79×109 Couché 300 là 0,258 kg) thuộc về **công thức lượng của
-chính món/máy/đầu việc** (`cong_thuc_luong`) — hỏi bảng cặp câu đó là để một cạnh trả lời hộ mọi
-món cùng đơn vị. Tham số `quy_cach` còn nằm trong chữ ký vài hàm nhưng đã `del` ngay dòng đầu —
-rút hẳn phải sửa 20 chỗ gọi trên 8 file, để lượt sau.
+kg": tờ 65×86 Ford 70 là 0,039 kg, tờ 79×109 Couché 300 là 0,258 kg) KHÔNG thuộc bảng cặp — hỏi
+bảng cặp câu đó là để một cạnh trả lời hộ mọi món cùng đơn vị. Với giấy, số tờ đếm thẳng theo khổ
+(công thức lượng của Giấy đã gỡ, mg `0348`); với vật tư là định mức của dòng công đoạn.
+Tham số `quy_cach` còn nằm trong chữ ký vài hàm nhưng đã `del` ngay dòng đầu — rút hẳn phải sửa 20 chỗ gọi trên 8 file, để lượt sau.
 
 Mọi kết quả kèm `dien_giai` khoe cách tính (`241 tờ × 0,168 kg/tờ = 40,49 kg`) — người đọc kiểm
 được bằng mắt; thiếu dữ liệu thì nói thiếu gì, KHÔNG đoán.

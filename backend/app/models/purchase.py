@@ -320,6 +320,10 @@ class PurchaseRequestLine(Base):
     # Bảng cân đối CHỈ cộng "hàng đang về" cho dòng CÓ gắn — không đoán ngược từ `item_name`.
     hang_loai: Mapped[str | None] = mapped_column(String(8), nullable=True)
     hang_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Khổ MUA của dòng GIẤY (mm, cạnh ngắn × cạnh dài; cuộn: khổ rộng · 0) — "hàng đang về" chỉ bù
+    # cho nhu cầu đúng mã + đúng khổ. Hàng khác 0 · 0. mg 0352.
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     item_name: Mapped[str] = mapped_column(String(255), nullable=False)
     unit: Mapped[str] = mapped_column(String(32), nullable=False, default="cái")
     quantity: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
@@ -585,6 +589,9 @@ class DepartmentPurchaseRequestLine(Base):
     # nên phiếu mua sinh ra sau đó kế thừa được mà không phải đoán tên. NULL = khai tay ngoài danh mục.
     hang_loai: Mapped[str | None] = mapped_column(String(8), nullable=True)
     hang_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Khổ CẦN của dòng GIẤY (mm) — chép từ bảng cân đối, thu mua lấy làm khổ mua mặc định. mg 0352.
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     item_name: Mapped[str] = mapped_column(String(255), nullable=False)
     unit: Mapped[str] = mapped_column(String(32), nullable=False)
     quantity: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)

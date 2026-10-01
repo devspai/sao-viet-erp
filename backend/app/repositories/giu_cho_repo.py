@@ -6,7 +6,14 @@ from sqlalchemy.orm import Session
 
 from ..models.vat_tu_giu_cho import VatTuGiuCho
 
-Hang = tuple[str, int]
+#: Khoá giữ chỗ = khoá tồn `kho_giay.Khoa`: (loai, id, kho_rong, kho_dai).
+Hang = tuple[str, int, int, int]
+
+
+def khoa4(h) -> Hang:
+    """Cặp `(loai, id)` ⇒ `(loai, id, 0, 0)`; khoá 4 phần tử giữ nguyên."""
+    h = tuple(h)
+    return (h[0], int(h[1]), int(h[2]), int(h[3])) if len(h) == 4 else (h[0], int(h[1]), 0, 0)
 
 
 class GiuChoRepository:
@@ -14,21 +21,24 @@ class GiuChoRepository:
         self.db = db
 
     def da_giu_map(self, hangs: list[Hang]) -> dict[Hang, float]:
-        """`{(loại, id): TỔNG đang giữ}` — gộp MỌI chủ thể, MỌI nguồn.
+        """`{(loại, id, rộng, dài): TỔNG đang giữ}` — gộp MỌI chủ thể, MỌI nguồn.
 
         Đây là số bị trừ khỏi tồn để ra TỒN TỰ DO, nên phải gộp cả `dang_ve`: phần bám vào lô đang
         mua cũng đã có chủ, hàng về tới nơi là thuộc về lệnh đó rồi.
         """
         if not hangs:
             return {}
+        cot = (VatTuGiuCho.hang_loai, VatTuGiuCho.hang_id, VatTuGiuCho.kho_rong,
+               VatTuGiuCho.kho_dai)
+        keys = sorted({khoa4(h) for h in hangs})
         rows = self.db.execute(
-            select(VatTuGiuCho.hang_loai, VatTuGiuCho.hang_id, func.sum(VatTuGiuCho.so_luong))
-            .where(tuple_(VatTuGiuCho.hang_loai, VatTuGiuCho.hang_id).in_(
-                [tuple(h) for h in hangs]))
-            .group_by(VatTuGiuCho.hang_loai, VatTuGiuCho.hang_id)
+            select(*cot, func.sum(VatTuGiuCho.so_luong))
+            .where(tuple_(*cot).in_(keys))
+            .group_by(*cot)
         )
-        found = {(loai, hid): float(tong or 0) for loai, hid, tong in rows}
-        return {tuple(h): found.get(tuple(h), 0.0) for h in hangs}
+        found = {(loai, int(hid), int(kr or 0), int(kd or 0)): float(tong or 0)
+                 for loai, hid, kr, kd, tong in rows}
+        return {tuple(h): found.get(khoa4(h), 0.0) for h in hangs}
 
     def cua_chu_the(self, *, lsx_id: int | None, bai_ghep_id: int | None) -> list[VatTuGiuCho]:
         stmt = select(VatTuGiuCho)

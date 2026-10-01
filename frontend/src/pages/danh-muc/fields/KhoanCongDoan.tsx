@@ -56,9 +56,6 @@ export function KhoanCongDoanField({ value, donViOptions, onChange }: {
           id="formula-cong-thuc-khoan"
           nhanO="Công thức khoán"
           goY="Bỏ trống nếu chưa khai cách tính lượng khoán."
-          recordId={null}
-          truocGiaTri={null}
-          truocSuaLuc={null}
         />
       </section>
 

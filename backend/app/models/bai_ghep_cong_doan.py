@@ -69,6 +69,10 @@ class BaiGhepCongDoan(Base):
     bat_buoc: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_true(), default=True
     )
+    # Bước cắt chung do TỔ CẮT chèn đầu bài sau phát hành (mg 0356).
+    chen_boi_to_cat: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
+    )
     # --- Phân công: MỘT lượt chạy thì một tổ, một máy, một kíp ---
     department_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     may_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)

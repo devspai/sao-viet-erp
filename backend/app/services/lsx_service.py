@@ -62,6 +62,7 @@ from ..services.dong_giay import (
     ban_do_tram, dich_chuoi, don_vi_chuoi, ma_cua_tram, tram_cua, tren_dong_giay,
 )
 from ..models.don_vi_do import DonViDo
+from ..services.kho_giay import chuan_kho, don_vi_goc_to, goi_y_dong_giay
 from ..services.bien_cong_thuc import MAC_DINH_TANG_LENH, ngu_canh_lenh, quy_cach_bien
 from ..services.don_vi_do_service import cong_thuc_chu, cong_thuc_the_so
 from ..services.lsx_danh_muc_doi import vat_tu_lech
@@ -709,16 +710,18 @@ class LsxService:
             for v in (getattr(cd_obj, "vat_tus", None) or [])
         }
         ra: list[dict] = []
+        # Giấy không có công thức (spec 2026-10-01 §4.2): mọi mã giấy cùng một gợi ý khổ + số tờ
+        # đọc thẳng từ quy cách lệnh — tính MỘT lần cho cả vòng.
+        giay = goi_y_dong_giay(quy_cach or {})
         for (hang_loai, mon_id), mat in self._mon_active().items():
+            if hang_loai == HANG_GIAY:
+                ra.append({"hang_loai": HANG_GIAY, "vat_tu_id": mon_id, **giay})
+                continue
             dvt = (mat.don_vi_gia or "").strip()
             if not dvt:
                 continue
-            # Giấy KHÔNG mượn công thức của công đoạn: công đoạn không bao giờ khai giấy (xem
-            # `_vat_tu_active`), mà mượn nhầm là gán định mức mực cho một loại giấy trùng id.
             so_luong, dien_giai, ly_do = self._luong_vat_tu(
-                dvt, ctx, mat=mat,
-                cong_thuc=("" if hang_loai == HANG_GIAY else ct_theo_mon.get(mon_id, "")),
-                hang_loai=hang_loai)
+                dvt, ctx, mat=mat, cong_thuc=ct_theo_mon.get(mon_id, ""))
             ra.append({
                 "hang_loai": hang_loai,
                 "vat_tu_id": mon_id,
@@ -734,8 +737,8 @@ class LsxService:
     # (`cong_thuc_luong` của giấy · vật tư · máy · đầu việc khoán). Đừng dựng lại: mượn-trong-cụm
     # của hàm cũ là chỗ hai đơn vị cùng cụm tranh nhau trả lời.
 
-    def _luong_vat_tu(self, dvt: str, ctx: dict, *, mat=None, cong_thuc: str = "",
-                      hang_loai: str = HANG_VAT_TU) -> tuple[float | None, str | None, str]:
+    def _luong_vat_tu(self, dvt: str, ctx: dict, *, mat=None,
+                      cong_thuc: str = "") -> tuple[float | None, str | None, str]:
         """Số lượng một vật tư đo bằng `dvt`. Trả `(số, diễn giải, lý do nếu tịt)`.
 
         MỘT đường duy nhất: công thức của DÒNG VẬT TƯ của công đoạn
@@ -760,18 +763,8 @@ class LsxService:
         ten = getattr(mat, "ten", None) or dvt
         dv_ten = (self._don_vis().get(dvt.strip().lower()) or {}).get("ten") or dvt
         rieng = (cong_thuc or "").strip()
-        # GIẤY (08/09/2026): công thức nằm ở CHÍNH MÓN (`giay_nguyen.cong_thuc_luong`), không ở đầu
-        # việc. Giấy tuỳ TỪNG ĐƠN — cùng công đoạn "chạy sóng" mà đơn này ăn kraft, đơn kia ăn
-        # duplex — nên không khai trước ở danh mục công đoạn được. Đây là lý do đúng để món tự mang
-        # công thức, khác hẳn mực: cùng "Mực Cyan" mà hai khổ in ăn hai định mức, nên mực phải khai
-        # theo đầu việc.
-        if not rieng and hang_loai == HANG_GIAY:
-            rieng = (getattr(mat, "cong_thuc_luong", None) or "").strip()
+        # Giấy không đi qua đây — xem `goi_y_dong_giay` (mã + khổ + số tờ, không công thức).
         if not rieng:
-            if hang_loai == HANG_GIAY:
-                return None, None, (
-                    f"chưa khai công thức định mức. Mở danh mục Giấy → sửa “{ten}” → điền ô "
-                    f"“Công thức tính lượng” (ra {dv_ten}).")
             return None, None, (
                 f"chưa khai công thức định mức. Mở danh mục Công đoạn → sửa công đoạn → bảng "
                 f"“Đầu việc và định mức của tổ” → bấm dòng “{ten}” trong khối vật tư → điền ô "
@@ -2349,6 +2342,7 @@ class LsxService:
                 {"id": v.id, "hang_loai": v.hang_loai, "vat_tu_id": v.vat_tu_id,
                  "vat_tu_ma": v.vat_tu_ma_snapshot, "vat_tu_ten": v.vat_tu_ten_snapshot,
                  "don_vi": v.don_vi_snapshot, "so_luong": _f(v.so_luong),
+                 "kho_rong": int(v.kho_rong or 0), "kho_dai": int(v.kho_dai or 0),
                  "tu_dong": bool(v.tu_dong)}
                 for v in cd.vat_tus
             ],
@@ -3016,6 +3010,15 @@ class LsxService:
                     for v in vat_tus]
             if len(caps) != len(set(caps)):
                 raise LsxValidationError("Một vật tư không được chọn trùng trong cùng công đoạn")
+            # Khổ dòng giấy (mm, cạnh ngắn × cạnh dài). Giấy thiếu cạnh ⇒ chặn; hàng khác ép 0 · 0.
+            kho = []
+            for v, cap in zip(vat_tus, caps):
+                kr, kd = chuan_kho(v.get("kho_rong"), v.get("kho_dai"))
+                if cap[0] != HANG_GIAY:
+                    kr = kd = 0
+                elif not (kr and kd):
+                    raise LsxValidationError("Dòng giấy phải có khổ (rộng × dài, mm).")
+                kho.append((kr, kd))
             # Món ĐÃ nằm trên bước từ trước — giữ lại được kể cả khi danh mục đã ngừng nó. Chặn cả
             # hai kiểu như trước thì một lệnh cũ có vật tư ngừng dùng là KHÔNG LƯU LẠI ĐƯỢC routing
             # nữa, kể cả khi người ta chỉ sửa cái khác.
@@ -3045,8 +3048,11 @@ class LsxService:
                                         or getattr(cu, "vat_tu_ma_snapshot", None) or ""),
                     vat_tu_ten_snapshot=(getattr(mon, "ten", None)
                                          or getattr(cu, "vat_tu_ten_snapshot", None) or ""),
-                    don_vi_snapshot=(getattr(mon, "don_vi_gia", None)
-                                     or getattr(cu, "don_vi_snapshot", None) or ""),
+                    # Giấy đếm TỜ NGUYÊN theo luật (spec §4.2) — không mượn `don_vi_gia` (kg) của mã.
+                    don_vi_snapshot=(don_vi_goc_to() if cap[0] == HANG_GIAY else
+                                     (getattr(mon, "don_vi_gia", None)
+                                      or getattr(cu, "don_vi_snapshot", None) or "")),
+                    kho_rong=kho[pos][0], kho_dai=kho[pos][1],
                     so_luong=float(item["so_luong"]), thu_tu=pos,
                     # Cờ MÁY BUNG / NGƯỜI KHAI đi theo từng dòng: lần bung sau chỉ thay dòng máy,
                     # dòng người đã sửa thì chừa ra. Client cũ không gửi ⇒ False = người khai.

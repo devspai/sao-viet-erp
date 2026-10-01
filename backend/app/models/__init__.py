@@ -130,7 +130,6 @@ from .machine_unavailable import MachineUnavailablePeriod
 # chạy, không đăng ký lên `Base.metadata`, và bảng lặng lẽ không tồn tại (không lỗi nào bật ra).
 from .to_quan_so import ToQuanSoNgay
 from .document_sequence import DocumentSequence
-from .cong_thuc_lich_su import CongThucLichSu
 from .ky_thuat_may import BaoTriMay, KyThuatMayAnh, SuaChuaMay, YeuCauSuaChua
 from .module_notification import ModuleNotification, ModuleNotificationRead
 from .san_xuat import (
@@ -310,7 +309,6 @@ __all__ = [
     "KyThuatMayAnh",
     "YeuCauSuaChua",
     "ToQuanSoNgay",
-    "CongThucLichSu",
     "DonViDo",
     "DonViQuyDoi",
     "SanXuatNhom",

@@ -16393,3 +16393,213 @@ def _migrate_module_notification_quyen_phong(db: Session) -> None:
 
 
 MIGRATIONS.append(("0347_module_notification_quyen_phong", _migrate_module_notification_quyen_phong))
+
+
+def _migrate_bo_cong_thuc_luong_giay(db: Session) -> None:
+    """mg 0348 — gỡ "Công thức tính định mức" của Giấy (`giay_nguyen.cong_thuc_luong`) và bảng
+    `cong_thuc_lich_su` (Giấy là danh mục DUY NHẤT còn ghi vào đó).
+
+    Giấy đếm theo TỜ × KHỔ nên không còn ra kg bằng công thức. Mất dữ liệu, không khôi phục được:
+    câu công thức đã khai ở từng mã giấy + toàn bộ lịch sử đổi công thức. `audit_logs` giữ nguyên.
+    Phải là migration MỚI: mg 0195 thêm lại cột này trên DB trắng. Cột không có index/FK. Idempotent.
+    """
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    if "giay_nguyen" in bang and "cong_thuc_luong" in _existing_columns(insp, "giay_nguyen"):
+        db.execute(text("ALTER TABLE giay_nguyen DROP COLUMN cong_thuc_luong"))
+    db.execute(text("DROP TABLE IF EXISTS cong_thuc_lich_su"))
+    db.commit()
+
+
+MIGRATIONS.append(("0348_bo_cong_thuc_luong_giay", _migrate_bo_cong_thuc_luong_giay))
+
+
+def _migrate_kho_giay_dang_kho(db: Session) -> None:
+    """mg 0349 — lô, dòng phiếu và dòng yêu cầu kho mang DẠNG + KHỔ của giấy (spec
+    2026-10-01-giay-dem-to-theo-kho §3.1): `dang_giay` (to | cuon, NULL) + `kho_rong` + `kho_dai`
+    (mm, NOT NULL default 0) trên `stock_lots`, `stock_voucher_lines`, `stock_request_lines`, và chỉ
+    mục `ix_stock_lots_giay_kho`. Không backfill: lô giấy cũ để NULL · 0 · 0 (hiện "chưa có khổ").
+    Idempotent: hỏi inspector trước từng ADD COLUMN."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for ten_bang in ("stock_lots", "stock_voucher_lines", "stock_request_lines"):
+        if ten_bang not in bang:
+            continue
+        co = _existing_columns(insp, ten_bang)
+        for ten, kieu in (("dang_giay", "VARCHAR(8)"),
+                          ("kho_rong", "INTEGER NOT NULL DEFAULT 0"),
+                          ("kho_dai", "INTEGER NOT NULL DEFAULT 0")):
+            if ten not in co:
+                db.execute(text(f"ALTER TABLE {ten_bang} ADD COLUMN {ten} {kieu}"))
+                db.commit()
+    if "stock_lots" in bang:
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_stock_lots_giay_kho "
+            "ON stock_lots (hang_loai, hang_id, dang_giay, kho_rong, kho_dai)"
+        ))
+        db.commit()
+
+
+MIGRATIONS.append(("0349_kho_giay_dang_kho", _migrate_kho_giay_dang_kho))
+
+
+def _migrate_nguong_ton_theo_kho(db: Session) -> None:
+    """Ngưỡng tồn + snapshot tồn cuối kỳ của giấy TỜ tách theo khổ (spec 2026-10-01-giay-dem-to-theo-kho
+    §3.2): `kho_rong` + `kho_dai` (mm, NOT NULL default 0) trên `stock_thresholds` và `kho_ky_ton`;
+    dòng cũ thành 0 · 0 (gom theo mã — đúng nghĩa cũ, đều đếm theo đơn vị gốc của mã). Unique
+    `uq_stock_thresholds_hang_kho` / `uq_kho_ky_ton` nới thêm hai cột, GIỮ tên — chỉ nhánh Postgres
+    như mg 0280 (SQLite test dựng bảng từ model). Idempotent: hỏi inspector trước ADD COLUMN."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    rang_buoc = {
+        "stock_thresholds": ("uq_stock_thresholds_hang_kho",
+                             "hang_loai, hang_id, kho_id, kho_rong, kho_dai"),
+        "kho_ky_ton": ("uq_kho_ky_ton", "kho_id, hang_loai, hang_id, kho_rong, kho_dai, den_ngay"),
+    }
+    for ten_bang, (ten_rb, cot_rb) in rang_buoc.items():
+        if ten_bang not in bang:
+            continue
+        co = _existing_columns(insp, ten_bang)
+        if "kho_rong" in co and "kho_dai" in co:
+            continue
+        for ten in ("kho_rong", "kho_dai"):
+            if ten not in co:
+                db.execute(text(f"ALTER TABLE {ten_bang} ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+        if db.get_bind().dialect.name == "postgresql":
+            db.execute(text(f"ALTER TABLE {ten_bang} DROP CONSTRAINT IF EXISTS {ten_rb}"))
+            db.execute(text(f"ALTER TABLE {ten_bang} ADD CONSTRAINT {ten_rb} UNIQUE ({cot_rb})"))
+        db.commit()
+
+
+MIGRATIONS.append(("0350_nguong_ton_theo_kho", _migrate_nguong_ton_theo_kho))
+
+
+def _migrate_kho_dong_giay_buoc(db: Session) -> None:
+    """Dòng giấy của bước lệnh mang khổ (spec 2026-10-01-giay-dem-to-theo-kho §4.2): `kho_rong` +
+    `kho_dai` (mm, NOT NULL default 0) trên `lsx_cong_doan_vat_tu`. Dòng cũ để 0 · 0 (hiện "chưa có
+    khổ", người lập lệnh khai lại). Idempotent: hỏi inspector trước ADD COLUMN."""
+    insp = inspect(db.get_bind())
+    if "lsx_cong_doan_vat_tu" not in set(insp.get_table_names()):
+        return
+    co = _existing_columns(insp, "lsx_cong_doan_vat_tu")
+    for ten in ("kho_rong", "kho_dai"):
+        if ten not in co:
+            db.execute(text(f"ALTER TABLE lsx_cong_doan_vat_tu ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    db.commit()
+
+
+MIGRATIONS.append(("0351_kho_dong_giay_buoc", _migrate_kho_dong_giay_buoc))
+
+
+def _migrate_mua_hang_kho_giay(db: Session) -> None:
+    """Dòng mua mang khổ giấy (spec 2026-10-01-giay-dem-to-theo-kho §4.4): `kho_rong` + `kho_dai` (mm,
+    NOT NULL default 0) trên `department_purchase_request_lines` (khổ CẦN) và `purchase_request_lines`
+    (khổ MUA). Dòng cũ để 0 · 0 — bảng cân đối không đem dòng mua giấy chưa khổ ra bù nhu cầu tờ nào.
+    Idempotent: hỏi inspector trước ADD COLUMN."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for ten_bang in ("department_purchase_request_lines", "purchase_request_lines"):
+        if ten_bang not in bang:
+            continue
+        co = _existing_columns(insp, ten_bang)
+        for ten in ("kho_rong", "kho_dai"):
+            if ten not in co:
+                db.execute(text(f"ALTER TABLE {ten_bang} ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    db.commit()
+
+
+MIGRATIONS.append(("0352_mua_hang_kho_giay", _migrate_mua_hang_kho_giay))
+
+
+def _migrate_de_nghi_cap_kho_giay(db: Session) -> None:
+    """Dòng đề nghị cấp vật tư của tổ mang DẠNG + KHỔ giấy (spec 2026-10-01-giay-dem-to-theo-kho
+    §4.5): `dang_giay` (NULL được) + `kho_rong`/`kho_dai` (mm, NOT NULL default 0) trên
+    `san_xuat_vat_tu_de_nghi_dong`. Dòng cũ để NULL · 0 · 0. Unique `uq_sx_vt_dn_dong_hang` nới thêm
+    hai cột khổ, GIỮ tên — chỉ nhánh Postgres như mg 0350 (SQLite test dựng bảng từ model).
+    Idempotent: hỏi inspector trước ADD COLUMN."""
+    insp = inspect(db.get_bind())
+    bang = "san_xuat_vat_tu_de_nghi_dong"
+    if bang not in set(insp.get_table_names()):
+        return
+    co = _existing_columns(insp, bang)
+    if {"dang_giay", "kho_rong", "kho_dai"} <= co:
+        return
+    if "dang_giay" not in co:
+        db.execute(text(f"ALTER TABLE {bang} ADD COLUMN dang_giay VARCHAR(8)"))
+    for ten in ("kho_rong", "kho_dai"):
+        if ten not in co:
+            db.execute(text(f"ALTER TABLE {bang} ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(text(f"ALTER TABLE {bang} DROP CONSTRAINT IF EXISTS uq_sx_vt_dn_dong_hang"))
+        db.execute(text(f"ALTER TABLE {bang} ADD CONSTRAINT uq_sx_vt_dn_dong_hang "
+                        "UNIQUE (de_nghi_id, hang_loai, hang_id, kho_rong, kho_dai)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0353_de_nghi_cap_kho_giay", _migrate_de_nghi_cap_kho_giay))
+
+
+def _migrate_giu_cho_theo_kho(db: Session) -> None:
+    """Giữ chỗ vật tư theo (mã, khổ) (spec 2026-10-01-giay-dem-to-theo-kho §4.3): thêm `kho_rong` /
+    `kho_dai` (mm, NOT NULL default 0) vào `vat_tu_giu_cho`; chỉ mục `ix_giu_cho_hang` dựng lại với
+    hai cột khổ. Dòng cũ để 0 · 0 (giữ theo mã như trước). Idempotent: hỏi inspector trước ADD
+    COLUMN; chỉ mục DROP IF EXISTS rồi CREATE."""
+    insp = inspect(db.get_bind())
+    bang = "vat_tu_giu_cho"
+    if bang not in set(insp.get_table_names()):
+        return
+    co = _existing_columns(insp, bang)
+    if {"kho_rong", "kho_dai"} <= co:
+        return
+    for ten in ("kho_rong", "kho_dai"):
+        if ten not in co:
+            db.execute(text(f"ALTER TABLE {bang} ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    db.execute(text("DROP INDEX IF EXISTS ix_giu_cho_hang"))
+    db.execute(text(f"CREATE INDEX ix_giu_cho_hang ON {bang} "
+                    "(hang_loai, hang_id, kho_rong, kho_dai)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0354_giu_cho_theo_kho", _migrate_giu_cho_theo_kho))
+
+
+def _migrate_department_la_to_cat(db: Session) -> None:
+    """Cờ TỔ CẮT trên phòng ban (spec giấy theo khổ §4.6): lệnh có giấy sau phát hành tới tổ này
+    để chốt cắt hay không cắt. Đích danh, không kế thừa cây. Mặc định false ⇒ chưa tổ nào bật thì
+    không có cổng "chờ tổ Cắt". Idempotent."""
+    insp = inspect(db.get_bind())
+    if "departments" not in set(insp.get_table_names()):
+        return
+    if "la_to_cat" not in _existing_columns(insp, "departments"):
+        db.execute(text(
+            "ALTER TABLE departments ADD COLUMN la_to_cat BOOLEAN NOT NULL DEFAULT false"))
+    db.commit()
+
+
+MIGRATIONS.append(("0355_department_la_to_cat", _migrate_department_la_to_cat))
+
+
+def _migrate_chot_giay_to_cat(db: Session) -> None:
+    """Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6): ba cột chốt trên `lsx` / `bai_ghep`
+    + cờ `chen_boi_to_cat` trên bước lệnh / bước chung của bài. Thuần cộng thêm, NULL / false ⇒
+    lệnh cũ coi như chưa chốt — cổng chỉ chạy khi có tổ bật cờ Tổ Cắt. Idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for t in ("lsx", "bai_ghep"):
+        if t not in bang:
+            continue
+        cot = _existing_columns(insp, t)
+        for ten, kieu in (("giay_chot_cach", "VARCHAR(12)"),
+                          ("giay_chot_luc", "TIMESTAMP WITH TIME ZONE"),
+                          ("giay_chot_boi_id", "INTEGER")):
+            if ten not in cot:
+                db.execute(text(f"ALTER TABLE {t} ADD COLUMN {ten} {kieu}"))
+    for t in ("lsx_cong_doan", "bai_ghep_cong_doan"):
+        if t in bang and "chen_boi_to_cat" not in _existing_columns(insp, t):
+            db.execute(text(
+                f"ALTER TABLE {t} ADD COLUMN chen_boi_to_cat BOOLEAN NOT NULL DEFAULT false"))
+    db.commit()
+
+
+MIGRATIONS.append(("0356_chot_giay_to_cat", _migrate_chot_giay_to_cat))

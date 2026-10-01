@@ -13,13 +13,16 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from ..models.don_vi_do import TRAM_TO_NGUYEN
 from ..models.vat_lieu_kho import HANG_LOAI, THO
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ..repositories.purchase_repo import SupplierRepository
 from ..repositories.vat_lieu_kho_repo import VERSION_SNAPSHOT, VatLieuKhoRepository
 from . import nhat_ky_danh_muc as nk
-from .bien_cong_thuc import LOAI_GIAY, LOAI_QUY_DOI, LOAI_VAT_TU
+from .dong_giay import ban_do_tram, ma_cua_tram
+from .kho_giay import DANG_CUON, DANG_TO
+from .bien_cong_thuc import LOAI_GIAY, LOAI_VAT_TU
 from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogNotFound, CatalogValidationError, ma_ban_sao,
 )
@@ -34,11 +37,9 @@ HANG_NHAN = {"giay": "Giấy", "vat_tu": "Vật tư khác", "thanh_pham": "Thàn
 
 # Ô công thức của từng màn: (cột, NHÃN đúng như trên màn khai, loại ô để tra tập biến hợp lệ).
 # Nhãn phải trùng chữ ở `rebuildCatalogConfigs.tsx` — câu lỗi hiện thẳng cho người đang gõ, gọi
-# tên khác thì họ không biết đang nói ô nào. Giấy có HAI ô khác loại: `cong_thuc_gia` ra TIỀN nên
-# được dùng `don_gia_giay`, `cong_thuc_luong` ra LƯỢNG nên KHÔNG được nhắc tới tiền (`quy_doi`).
+# tên khác thì họ không biết đang nói ô nào.
 _O_CONG_THUC: dict[str, tuple[tuple[str, str, str], ...]] = {
-    "giay": (("cong_thuc_gia", "Công thức tính giá", LOAI_GIAY),
-             ("cong_thuc_luong", "Công thức tính định mức", LOAI_QUY_DOI)),
+    "giay": (("cong_thuc_gia", "Công thức tính giá", LOAI_GIAY),),
     "vat_tu": (("cong_thuc_gia", "Công thức tính giá", LOAI_VAT_TU),),
 }
 
@@ -378,7 +379,8 @@ class VatLieuKhoService:
         """
         return None, []
 
-    def quy_ve_goc(self, hang_loai: str, hang_id: int, dvt: str, so_luong: float) -> dict:
+    def quy_ve_goc(self, hang_loai: str, hang_id: int, dvt: str, so_luong: float,
+                   *, dang: str | None = None) -> dict:
         """Quy `so_luong` từ đơn vị `dvt` về ĐƠN VỊ GỐC của mặt hàng.
 
         MỘT cửa duy nhất cho cả đề nghị (kiểm lúc khai) lẫn phiếu (chốt lúc ghi sổ) — hai nơi tự
@@ -387,8 +389,12 @@ class VatLieuKhoService:
         Trả `{sl_goc, don_vi_goc, he_so_ve_goc, dien_giai}`. Không đổi được thì raise kèm ĐÚNG lý
         do (thiếu đường quy đổi / mặt hàng chưa khai đơn vị), chứ không lặng lẽ lấy hệ số 1 —
         hệ số 1 sai thì tồn kho sai mà không ai thấy dòng lỗi nào.
+
+        `dang` (giấy): `to` ⇒ gốc là tờ nguyên; `cuon` ⇒ gốc là `don_vi_gia`, phải là khối lượng. Xem
+        `don_vi_cua_mat_hang`.
         """
-        return self.quy_tu_don_vi(self.don_vi_cua_mat_hang(hang_loai, hang_id), dvt, so_luong)
+        return self.quy_tu_don_vi(
+            self.don_vi_cua_mat_hang(hang_loai, hang_id, dang=dang), dvt, so_luong)
 
     def quy_tu_don_vi(self, ra: dict, dvt: str, so_luong: float) -> dict:
         """Phần tính của `quy_ve_goc` trên kết quả `don_vi_cua_mat_hang` đã có sẵn. Nơi chỉ cần
@@ -440,16 +446,42 @@ class VatLieuKhoService:
         hs = float(d["he_so_ve_goc"]) if d is not None else 0.0
         return hs if hs > 0 else None
 
-    def don_vi_cua_mat_hang(self, hang_loai: str, hang_id: int) -> dict:
-        """Đơn vị gốc + MỌI đơn vị đổi được với nó — nguồn của dropdown ĐVT ở Kho / NCC."""
+    def don_vi_cua_mat_hang(self, hang_loai: str, hang_id: int, *, dang: str | None = None) -> dict:
+        """Đơn vị gốc + MỌI đơn vị đổi được với nó — nguồn của dropdown ĐVT ở Kho / NCC.
+
+        `dang` CHỈ có nghĩa với giấy (spec 2026-10-01 §3.2): `to` ⇒ gốc = chặng tờ nguyên, `ds` = mọi
+        đơn vị đổi được về nó theo cặp ở module Đơn vị (ram → tờ nguyên…); `cuon` ⇒ gốc =
+        `don_vi_gia` của mã giấy, bắt buộc thuộc họ Khối lượng — không thì báo lỗi, không đoán.
+        `None` ⇒ như cũ (đường không phải kho).
+        """
         if hang_loai not in HANG_LOAI:
             raise VatLieuKhoValidationError("Loại mặt hàng không hợp lệ.")
         obj = self.get(hang_loai, hang_id)
         # `all_rows`: mặt hàng cũ có thể lấy đơn vị gốc là một đơn vị nay đã ngừng. Lọc ở đây thì
         # `quy_ve_goc` không tìm ra nút gốc và NÉM LỖI ⇒ mọi dòng phiếu kho cũ hiện cảnh báo đỏ.
-        return self._don_vi_tu(
-            hang_loai, obj, don_vi_map(self.don_vi.all_rows()), list(self.don_vi.cap_rows())
-        )
+        dvs = don_vi_map(self.don_vi.all_rows())
+        cap_rows = list(self.don_vi.cap_rows())
+        if hang_loai == "giay" and dang == DANG_TO:
+            return self._don_vi_giay_to(obj, dvs, cap_rows)
+        if hang_loai == "giay" and dang == DANG_CUON:
+            goc = (obj.don_vi_gia or "").strip()
+            if goc and (dvs.get(goc.lower()) or {}).get("ho") != "khoi_luong":
+                raise VatLieuKhoValidationError(
+                    f"“{obj.ma}” đơn vị gốc không phải khối lượng nên không nhập cuộn được — "
+                    "sửa đơn vị gốc ở danh mục Giấy."
+                )
+        return self._don_vi_tu(hang_loai, obj, dvs, cap_rows)
+
+    def _don_vi_giay_to(self, obj, dvs: dict, cap_rows: list) -> dict:
+        """Giấy dạng TỜ: gốc là mã đơn vị đứng ở chặng tờ nguyên (hỏi `dong_giay`, không viết cứng)."""
+        goc = ma_cua_tram(TRAM_TO_NGUYEN, ban_do_tram()) or TRAM_TO_NGUYEN
+        ds = don_vi_dung_duoc(goc, dvs, cap_rows, None)
+        return {
+            "hang_loai": "giay", "hang_id": obj.id, "ma": obj.ma, "ten": obj.ten,
+            "don_vi_goc": goc,
+            "don_vi_goc_ten": (dvs.get(goc.lower()) or {}).get("ten") or goc,
+            "ds": ds, "ly_do": None,
+        }
 
     def don_vi_nhieu_mat_hang(self, caps, *, san: dict | None = None) -> dict[tuple[str, int], dict]:
         """`don_vi_cua_mat_hang` cho NHIỀU mặt hàng một lượt: bảng đơn vị và bảng cặp quy đổi đọc

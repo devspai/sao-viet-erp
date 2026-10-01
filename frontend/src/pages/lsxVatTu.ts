@@ -19,6 +19,7 @@
 // (Có thật ngay ở lệnh đầu tiên: màng cán bóng khai ở 2 bước, mỗi bước 5.200 m² ⇒ tổng 10.400 m².)
 import type { LsxCongDoan } from "../api/client";
 import { nhanTram, tenDonVi } from "./tenDonVi";
+import { nhanKho } from "../lib/khoGiay";
 
 export type NhomVatTu = "nvl" | "vat_tu" | "dung_cu";
 
@@ -103,14 +104,17 @@ export function bangKeVatTu(args: {
       // `hang_loai`: Giấy #7 và Vật tư #7 là hai món khác nhau, gom chung một khoá `7` là cộng
       // nhầm kg giấy vào kg keo.
       const giay = v.hang_loai === "giay";
+      // Giấy đếm tờ theo KHỔ: cùng mã hai khổ là hai dòng (khoá mang khổ), không cộng lẫn.
+      const kr = giay ? v.kho_rong ?? 0 : 0;
+      const kd = giay ? v.kho_dai ?? 0 : 0;
       dong.push({
         nhom: giay ? "nvl" : "vat_tu",
-        khoa: `${giay ? "giay" : "vat_tu"}:${v.vat_tu_id}`,
+        khoa: giay ? `giay:${v.vat_tu_id}:${kr}:${kd}` : `vat_tu:${v.vat_tu_id}`,
         ma: v.vat_tu_ma ?? null,
         ten: v.vat_tu_ten ?? "",
         so_luong: soHoac0(v.so_luong),
         don_vi: nhanDv(v.don_vi),
-        chu_thich: giay ? "NVL chính" : null,
+        chu_thich: giay ? `NVL chính · ${nhanKho(kr, kd)}` : null,
       });
     }
 

@@ -233,5 +233,11 @@ class StockRequestLine(Base):
     # lập phiếu khi SL < còn phải cấp; hiện ở mục "Kho phản hồi" của yêu cầu.
     ly_do_thieu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # GIẤY mang DẠNG (`to` | `cuon`) + KHỔ mm (cạnh ngắn × cạnh dài; cuộn: rộng × 0) — spec
+    # 2026-10-01-giay-dem-to-theo-kho §3.1, mg 0349. Vật tư khác: NULL · 0 · 0. Chuẩn hoá qua
+    # `services/kho_giay.chuan_kho`. Dạng quyết đơn vị gốc của dòng (tờ ⇒ tờ nguyên, cuộn ⇒ kg).
+    dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
 
     request: Mapped[StockRequest] = relationship("StockRequest", back_populates="lines")

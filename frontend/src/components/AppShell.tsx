@@ -150,6 +150,9 @@ export interface NavParams {
     unit: string;
     quantity: number;
     note?: string | null;
+    /** Khổ CẦN (mm) của giấy tờ. */
+    kho_rong?: number;
+    kho_dai?: number;
   }[];
   purchaseSeedPurpose?: string;
   /** Liên thông Kế hoạch vật tư → YCMH: điền sẵn cả ĐẦU PHIẾU (nguồn + vết lệnh sản xuất), không
@@ -1187,6 +1190,7 @@ export function AppShell() {
           teamId={teamId}
           tenTo={t?.ten}
           laTho={t?.la_tho ?? false}
+          laToCat={t?.la_to_cat ?? false}
           eventTick={tickCua("san_xuat", "kho")}
           vatTuDeNghiDem={vatTuDeNghiDem}
           dinhKemDem={lsxDinhKemDem}

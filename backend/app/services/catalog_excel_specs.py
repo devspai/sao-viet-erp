@@ -361,7 +361,6 @@ GIAY = CatalogExcelSpec(
         Cot("Đơn giá", "don_gia", kieu="so", rong=16),
         Cot("Ghi chú", "ghi_chu", rong=32),
         Cot("Công thức giá", "cong_thuc_gia", rong=36),
-        Cot("Công thức tính định mức", "cong_thuc_luong", rong=36),
         CO_ACTIVE,
         # Cột đời cũ: một ô "MÃ1, MÃ2". Nay là sheet con — sheet con áp SAU nên nó thắng nếu file
         # có cả hai.

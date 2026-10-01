@@ -38,6 +38,7 @@ from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
 from ..repositories.kho_ky_ton_repo import KhoKyTonRepository
 from ..repositories.user_repo import UserRepository
 from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
+from ..services.kho_giay import don_vi_goc_to, nhan_kho
 from ..services.rbac_service import AuthorizationService
 from ..services.vat_lieu_kho_service import VatLieuKhoService
 from ..schemas.stock import (
@@ -155,6 +156,7 @@ def _report_rows(
     # ĐVT trên báo cáo hiện TÊN có dấu (tờ · cái · bản kẽm) thay vì MÃ ascii (to · cai · kem) —
     # `mh.don_vi_gia` là MÃ đơn vị; tra danh mục `don_vi_do` để đổi sang tên hiển thị (khớp danh mục).
     dv_ten = {d.ma: d.ten for d in DonViDoRepository(db).all_active()}
+    dv_to = don_vi_goc_to()
 
     rows: list[BaoCaoKhoRow] = []
     for v, ln, req, kho, lot in results:
@@ -184,7 +186,10 @@ def _report_rows(
             loai_kho=req.loai_kho if req else None,
             ma_hang=getattr(mh, "ma", None),
             ten_hang=getattr(mh, "ten", None),
-            dvt=dv_ten.get(getattr(mh, "don_vi_gia", None), getattr(mh, "don_vi_gia", None)),
+            # Dòng giấy TỜ đếm tờ nguyên (lô/phiếu tờ lưu số tờ); còn lại đơn vị gốc của mã.
+            dvt=(dv_ten.get(dv_to, dv_to) if ln.dang_giay == "to" else
+                 dv_ten.get(getattr(mh, "don_vi_gia", None), getattr(mh, "don_vi_gia", None))),
+            dang_giay=ln.dang_giay, kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
             so_luong=qty,
             don_gia=price,
             thanh_tien=round(price * qty) if price is not None else None,
@@ -343,6 +348,14 @@ def bao_cao_chuyen_kho(
 # (định giá BQ gộp lịch sử trước — chỉ dùng cho lần bootstrap). SL khớp tồn thật (Σ nhập − Σ xuất);
 # GT là bản dựng theo BQ. BAO GỒM điều chuyển (nhập/xuất thật của từng kho).
 
+def _kho_nxt(ln) -> tuple[int, int]:
+    """Khổ của dòng phiếu trong N-X-T: giấy TỜ ⇒ (rộng, dài) — tách dòng, đếm tờ; còn lại (cuộn, kg
+    cũ, hàng khác) ⇒ (0, 0) gom theo mã. Tờ với kg khác thang nên không bao giờ chung một dòng."""
+    if ln.hang_loai == "giay" and ln.dang_giay == "to" and ln.kho_rong and ln.kho_dai:
+        return (int(ln.kho_rong), int(ln.kho_dai))
+    return (0, 0)
+
+
 def _nxt_compute(
     db: Session, *, tu: date, den: date, kho_ids: list[int] | None,
 ) -> dict[tuple, dict]:
@@ -373,7 +386,7 @@ def _nxt_compute(
         d = v.ngay        # NGÀY HẠCH TOÁN (ngày nhập/xuất kho) — cùng mốc với khóa kỳ
         if d is None or d > den:
             continue
-        key = (v.kho_id, ln.hang_loai, ln.hang_id)
+        key = (v.kho_id, ln.hang_loai, ln.hang_id, *_kho_nxt(ln))
         snap = snap_map.get(key)
         # Chuyển động ĐÃ nằm trong snapshot đầu kỳ (d ≤ ngày chốt snapshot) → bỏ, khỏi đếm 2 lần.
         if snap is not None and d <= snap.den_ngay:
@@ -432,13 +445,14 @@ def _nxt_rows(
     comp = _nxt_compute(db, tu=tu, den=den, kho_ids=kho_ids)
 
     hang_svc = VatLieuKhoService(VatLieuKhoRepository(db), DonViDoRepository(db))
-    hang_map = hang_svc.map_theo_cap(list({(hl, hi) for _k, hl, hi in comp}))
+    hang_map = hang_svc.map_theo_cap(list({(k[1], k[2]) for k in comp}))
     dv_ten = {d.ma: d.ten for d in DonViDoRepository(db).all_active()}
     kho_repo = KhoHangRepository(db)
     kho_ten = {kid: getattr(kho_repo.get(kid), "ten", None) for kid in {k[0] for k in comp}}
+    dv_to = don_vi_goc_to()
 
     rows: list[BaoCaoNXTRow] = []
-    for (kid, hloai, hid), c in comp.items():
+    for (kid, hloai, hid, kr, kd), c in comp.items():
         # Bỏ dòng RỖNG hoàn toàn (không tồn đầu, không phát sinh).
         if (abs(c["dau_sl"]) < 1e-9 and abs(c["nhap_sl"]) < 1e-9 and abs(c["xuat_sl"]) < 1e-9
                 and c["dau_gt"] == 0):
@@ -449,7 +463,10 @@ def _nxt_rows(
             hang_loai=hloai, hang_id=hid,
             ma_hang=getattr(mh, "ma", None), ten_hang=getattr(mh, "ten", None),
             hang_nhom="Giấy" if hloai == "giay" else "Vật tư",
-            dvt=dv_ten.get(getattr(mh, "don_vi_gia", None), getattr(mh, "don_vi_gia", None)),
+            # Dòng giấy tờ đếm TỜ NGUYÊN; còn lại theo đơn vị gốc của mã (spec §3.2).
+            dvt=(dv_ten.get(dv_to, dv_to) if kr and kd else
+                 dv_ten.get(getattr(mh, "don_vi_gia", None), getattr(mh, "don_vi_gia", None))),
+            kho_rong=kr, kho_dai=kd,
             dau_sl=c["dau_sl"], dau_gt=c["dau_gt"],
             nhap_sl=c["nhap_sl"], nhap_gt=c["nhap_gt"],
             xuat_sl=c["xuat_sl"], xuat_gt=c["xuat_gt"],
@@ -459,7 +476,8 @@ def _nxt_rows(
         if ql and not any(ql in (val or "").lower() for val in (row.ma_hang, row.ten_hang)):
             continue
         rows.append(row)
-    rows.sort(key=lambda r: ((r.kho_ten or "").lower(), (r.ten_hang or "").lower()))
+    rows.sort(key=lambda r: ((r.kho_ten or "").lower(), (r.ten_hang or "").lower(),
+                             r.kho_rong, r.kho_dai))
     return rows
 
 
@@ -510,15 +528,15 @@ def _chot_ky(
     comp = _nxt_compute(db, tu=tu, den=den, kho_ids=kho_ids)
     ky_repo = KhoKyTonRepository(db)
     ky_repo.delete_for_den(den, kho_ids)
-    for (kid, hloai, hid), c in comp.items():
+    for (kid, hloai, hid, kr, kd), c in comp.items():
         # Bỏ dòng rỗng hoàn toàn (không tồn cuối, không phát sinh) — khỏi phình snapshot.
         if (abs(c["cuoi_sl"]) < 1e-9 and c["cuoi_gt"] == 0
                 and abs(c["nhap_sl"]) < 1e-9 and abs(c["xuat_sl"]) < 1e-9
                 and abs(c["dau_sl"]) < 1e-9):
             continue
         ky_repo.upsert(
-            kho_id=kid, hang_loai=hloai, hang_id=hid, tu_ngay=tu, den_ngay=den,
-            ten_ky=ten, sl_cuoi=c["cuoi_sl"], gt_cuoi=int(c["cuoi_gt"]),
+            kho_id=kid, hang_loai=hloai, hang_id=hid, kho_rong=kr, kho_dai=kd,
+            tu_ngay=tu, den_ngay=den, ten_ky=ten, sl_cuoi=c["cuoi_sl"], gt_cuoi=int(c["cuoi_gt"]),
             don_gia_bq=c["don_gia_bq"], khoa_so_id=khoa_so_id,
         )
 
@@ -719,6 +737,14 @@ def _fmt_date(d: date | None) -> str | None:
     return d.strftime("%d/%m/%Y") if d else None
 
 
+def _ten_kem_kho(r) -> str | None:
+    """Tên hàng trên file Excel: dòng giấy TỜ kèm khổ (mẫu MISA không có cột Khổ — cùng mã hai khổ
+    là hai dòng đếm tờ khác nhau, thiếu khổ thì đọc như trùng)."""
+    if r.kho_rong and r.kho_dai:
+        return f"{r.ten_hang or ''} ({nhan_kho(r.kho_rong, r.kho_dai)})".strip()
+    return r.ten_hang
+
+
 def _map_nhap(r: BaoCaoKhoRow) -> dict:
     return {
         # "Loại nhập kho" để TRỐNG — kế toán tự gõ mã 0/1/2/3 trong Excel/MISA.
@@ -726,7 +752,7 @@ def _map_nhap(r: BaoCaoKhoRow) -> dict:
         "Ngày chứng từ (*)": _fmt_date(r.ngay_ct),
         "Số chứng từ (*)": r.so_ct,
         "Mã hàng (*)": r.ma_hang,
-        "Tên hàng": r.ten_hang,
+        "Tên hàng": _ten_kem_kho(r),
         "Kho (*)": r.kho_ten,
         "ĐVT": r.dvt,
         "Số lượng": r.so_luong,
@@ -743,7 +769,7 @@ def _map_xuat(r: BaoCaoKhoRow) -> dict:
         "Ngày chứng từ (*)": _fmt_date(r.ngay_ct),
         "Số chứng từ (*)": r.so_ct,
         "Mã hàng (*)": r.ma_hang,
-        "Tên hàng": r.ten_hang,
+        "Tên hàng": _ten_kem_kho(r),
         "Xuất tại kho": r.kho_ten,
         "Kho (*)": r.kho_ten,
         "ĐVT": r.dvt,
@@ -1094,7 +1120,7 @@ def _build_nxt_xlsx(rows: list[BaoCaoNXTRow], *, tu: date, den: date, hien_cuoi:
 
         for r in grs:
             vals = [
-                r.ma_hang or "", r.ten_hang or "", r.dvt or "",
+                r.ma_hang or "", _ten_kem_kho(r) or "", r.dvt or "",
                 r.dau_sl, r.dau_gt, r.nhap_sl, r.nhap_gt,
                 r.xuat_sl, r.xuat_gt, r.cuoi_sl,
                 r.cuoi_gt if hien_cuoi else None,

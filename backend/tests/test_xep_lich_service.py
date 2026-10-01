@@ -128,11 +128,6 @@ def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000) -> PhieuTinhGia:
         giay = GiayNguyen(
             ma="G-IV350X", ten="Ivory 350", gsm=350, don_gia=25_000, don_vi_gia="tan",
             cong_thuc_gia="to_nguyen * dai_nguyen * rong_nguyen * dinh_luong * don_gia / 1000",
-            # CÔNG THỨC LƯỢNG — mọi giấy thật đều có (mg `0197` điền cho dòng cũ, seed điền cho
-            # dòng mới). Test dựng bằng `create_all` nên migration không chạy ⇒ phải khai tay,
-            # không thì bảng cân đối không quy được tờ → tấn và detector "thiếu vật tư" im.
-            # `/ 1000` vì giấy này bán theo TẤN: kết quả công thức đọc theo đúng `don_vi_gia`.
-            cong_thuc_luong="dinh_luong * dai_nguyen * rong_nguyen * to_nguyen / 1000",
         )
         db.add(giay)
     to_id = _to_san_xuat(db).id
@@ -190,7 +185,7 @@ def _giu_cho_du(db, *, lsx_ids=(), bai_ghep_ids=()):
     """
     from app.models.kho_hang import KhoHang
     from app.models.stock_lot import LOT_AVAILABLE, StockLot
-    from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn
+    from app.models.vat_lieu_kho import VatTuInAn
     from app.repositories.bai_ghep_repo import BaiGhepRepository
     from app.repositories.don_vi_do_repo import DonViDoRepository
     from app.repositories.lsx_repo import LsxRepository
@@ -207,14 +202,20 @@ def _giu_cho_du(db, *, lsx_ids=(), bai_ghep_ids=()):
         kho = KhoHang(ma="K-XL", ten="Kho test xếp lịch")
         db.add(kho)
         db.flush()
-    for loai, model in (("giay", GiayNguyen), ("vat_tu", VatTuInAn)):
-        for mh in db.query(model).all():
-            ma_lo = f"LOT-XL-{loai}-{mh.id}"
-            if db.query(StockLot).filter(StockLot.ma_lo == ma_lo).first():
-                continue
-            db.add(StockLot(hang_loai=loai, hang_id=mh.id, kho_id=kho.id, ma_lo=ma_lo,
-                            sl_ban_dau=1_000_000, sl_con_lai=1_000_000,
-                            ngay_nhap=date.today(), trang_thai=LOT_AVAILABLE))
+
+    def _lo(loai, hid, kr=0, kd=0):
+        ma_lo = f"LOT-XL-{loai}-{hid}-{kr}x{kd}"
+        if db.query(StockLot).filter(StockLot.ma_lo == ma_lo).first():
+            return
+        db.add(StockLot(hang_loai=loai, hang_id=hid, kho_id=kho.id, ma_lo=ma_lo,
+                        sl_ban_dau=1_000_000, sl_con_lai=1_000_000,
+                        ngay_nhap=date.today(), trang_thai=LOT_AVAILABLE,
+                        dang_giay="to" if loai == "giay" else None, kho_rong=kr, kho_dai=kd))
+
+    for mh in db.query(VatTuInAn).all():
+        _lo("vat_tu", mh.id)
+    for i in lsx_ids:
+        _khai_giay_len_buoc_in(db, i)
     db.commit()
 
     kh = KeHoachVatTuService(
@@ -224,9 +225,13 @@ def _giu_cho_du(db, *, lsx_ids=(), bai_ghep_ids=()):
         purchases=PurchaseRequestRepository(db), suppliers=SupplierRepository(db),
         don_vi=DonViDoRepository(db),
     )
+    # Giấy đếm tờ theo KHỔ: lô đầy cho ĐÚNG mỗi (mã, khổ) mà bảng cân đối đang cần — dòng lệnh lẫn
+    # dòng bài ghép (khổ bài dẫn xuất từ thành viên / khổ in của bài).
+    for nhom in kh.can_doi(include_lsx_ids=set(lsx_ids))["items"]:
+        if nhom["hang_loai"] == "giay" and nhom["kho_rong"] and nhom["kho_dai"]:
+            _lo("giay", nhom["hang_id"], nhom["kho_rong"], nhom["kho_dai"])
+    db.commit()
     gc = GiuChoService(db, kh)
-    for i in lsx_ids:
-        _khai_giay_len_buoc_in(db, i)
     for i in lsx_ids:
         gc.bat(lsx_id=i)
     for i in bai_ghep_ids:
@@ -243,10 +248,13 @@ def _khai_giay_len_buoc_in(db, lsx_id: int) -> None:
     """
     from app.models.lsx import Lsx, LsxCongDoanVatTu
     from app.models.vat_lieu_kho import GiayNguyen
+    from app.services.bien_cong_thuc import quy_cach_bien
+    from app.services.kho_giay import don_vi_goc_to, goi_y_dong_giay
 
     lsx = db.get(Lsx, lsx_id)
     if lsx is None:
         return
+    goi = goi_y_dong_giay(quy_cach_bien(lsx))
     giay_id = (lsx.quy_cach_json or {}).get("giay_id")
     buoc = _in_step(db, lsx_id)
     if not giay_id or buoc is None:
@@ -263,8 +271,10 @@ def _khai_giay_len_buoc_in(db, lsx_id: int) -> None:
     db.add(LsxCongDoanVatTu(
         lsx_cong_doan_id=buoc.id, hang_loai="giay", vat_tu_id=g.id,
         vat_tu_ma_snapshot=g.ma, vat_tu_ten_snapshot=g.ten,
-        don_vi_snapshot=g.don_vi_gia or "kg",
-        so_luong=1.0, thu_tu=0, tu_dong=False,
+        # Giấy đếm tờ nguyên theo khổ: khổ nguyên của quy cách (thiếu thì khổ in), mặc định
+        # 780 × 905 khi lệnh test không khai khổ nào.
+        don_vi_snapshot=don_vi_goc_to(), so_luong=1.0,
+        kho_rong=goi["kho_rong"] or 780, kho_dai=goi["kho_dai"] or 905, thu_tu=0, tu_dong=False,
     ))
     db.commit()
 
@@ -540,16 +550,11 @@ def test_bai_ghep_in_chung_mot_dong_loai_tru_in(db, orders, lsx_svc, bg_svc, xl_
         xl_svc.go_lsx(lsx_id=created[0].id, actor=admin)
 
 
-def test_lenh_chua_khai_vat_tu_nao_bi_chan_va_cau_bao_chi_dung_viec_phai_lam(
+def test_xep_lich_khong_chan_vi_vat_tu(
     db, orders, lsx_svc, xl_svc, admin, customer,
 ):
-    """Từ 08/09/2026 giấy chỉ vào bảng cân đối qua DÒNG VẬT TƯ của bước, nên "lệnh chưa ra được nhu
-    cầu nào" là ca thường gặp chứ không còn là ca lạ.
-
-    Vẫn CHẶN (chưa ai nói lệnh này ăn giấy gì thì đừng xếp máy), nhưng câu báo cũ — "còn thiếu 0
-    mặt hàng" — vô nghĩa với người đọc: họ đi lập yêu cầu mua cho 0 món. Câu mới phải chỉ đúng chỗ
-    bấm: vào bước, ô Thêm vật tư.
-    """
+    """Từ 01/10/2026 vật tư KHÔNG còn là cửa xếp lịch (spec giấy đếm tờ × khổ §4.3): lệnh chưa giữ
+    đủ giấy — ở đây là chưa khai vật tư nào, giữ chỗ không ra món nào — vẫn vào kế hoạch được."""
     from app.models.lsx import LsxCongDoanVatTu
 
     lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
@@ -559,11 +564,9 @@ def test_lenh_chua_khai_vat_tu_nao_bi_chan_va_cau_bao_chi_dung_viec_phai_lam(
     ).delete(synchronize_session=False)
     db.commit()
 
-    with pytest.raises(XepLichConflict) as e:
-        xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
-    assert "chưa khai vật tư nào ở bước" in str(e.value)
-    assert "Thêm vật tư" in str(e.value)
-    assert "0 mặt hàng" not in str(e.value)
+    xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
+    db.refresh(lsx)
+    assert lsx.trang_thai == TT_DA_LAP_KE_HOACH
 
 
 def test_som_nhat_theo_gio_thuc_cua_buoc_truoc(db, orders, lsx_svc, xl_svc, admin, customer, monkeypatch):

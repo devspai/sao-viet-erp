@@ -20,13 +20,12 @@ class _GiayRepo(CatalogRepo):
     model = GiayNguyen
     fields = ("ten", "gsm", "caliper_micron",
               "tho", "don_vi_gia", "don_gia", "gia_thi_truong", "kho_tinh_gia", "ghi_chu",
-              "active", "cong_thuc_gia", "cong_thuc_luong", "thay_the_ids")
+              "active", "cong_thuc_gia", "thay_the_ids")
     commit_on_write = False
 
 
 class _VatTuRepo(CatalogRepo):
     model = VatTuInAn
-    # `cong_thuc_luong` GỠ ở mg `0274` — tuple của GIẤY ngay trên vẫn giữ, đừng gỡ nhầm.
     fields = ("ten", "don_vi_gia", "don_gia", "ghi_chu", "active", "cong_thuc_gia",
               "thay_the_ids")
     commit_on_write = False

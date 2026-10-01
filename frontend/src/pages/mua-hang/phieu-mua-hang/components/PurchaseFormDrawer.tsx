@@ -15,6 +15,7 @@ import {
   lineDiscountAmount,
   lineTotal,
 } from "../shared/helpers";
+import { dongDuocChon } from "../shared/types";
 import type { FormLine, FormState, PhieuSeTao } from "../shared/types";
 import { LineSupplierPicker } from "./LineSupplierPicker";
 import { LocalField, StatusBadge } from "./purchaseCells";
@@ -260,19 +261,72 @@ export function PurchaseFormDrawer({
                 <span></span>
               </div>
               {form.lines.map((line, index) => (
-                <div className="purchase__line-edit" key={index}>
+                <div
+                  className={`purchase__line-edit${
+                    dongDuocChon(line) ? "" : " purchase__line-edit--bo"
+                  }`}
+                  key={index}
+                >
                   {/* Vật tư và ĐVT do BỘ PHẬN ĐỀ NGHỊ quyết, thu mua không được đổi — đổi ở
                       đây là mua thứ khác với thứ người ta xin mà không ai hay. Thu mua chỉ
                       chọn MUA CỦA AI và giá. Cùng lý do: không thêm/xoá dòng. */}
                   <NhanO chu="Vật tư" sao />
-                  <input
-                    className="input purchase__line-name purchase__readonly-field"
-                    required
-                    readOnly
-                    aria-label="Tên vật tư"
-                    title="Vật tư do bộ phận đề nghị khai — Thu mua không sửa được"
-                    value={line.item_name}
-                  />
+                  <div className="purchase__line-name purchase__line-ten">
+                    <div className="purchase__line-ten-hang">
+                      {/* Lúc TẠO: bỏ tick = dòng không vào đơn này; dòng yêu cầu vẫn mở. */}
+                      {mode !== "edit" && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Đưa “${line.item_name}” vào đơn`}
+                          checked={dongDuocChon(line)}
+                          onChange={(e) => setLine(index, { chon: e.target.checked })}
+                        />
+                      )}
+                      <input
+                        className="input purchase__readonly-field"
+                        required
+                        readOnly
+                        aria-label="Tên vật tư"
+                        title="Vật tư do bộ phận đề nghị khai — Thu mua không sửa được"
+                        value={line.item_name}
+                      />
+                    </div>
+                    {line.hang_loai === "giay" && dongDuocChon(line) && (
+                      <div className="purchase__kho-mm">
+                        <span className="purchase__kho-mm-nhan">Khổ mua (mm)</span>
+                        <input
+                          className="input purchase__input-flat pay-num"
+                          type="number"
+                          min="0"
+                          step="1"
+                          aria-label="Khổ mua — cạnh ngắn (mm)"
+                          placeholder="Rộng"
+                          value={line.kho_rong ? line.kho_rong : ""}
+                          onChange={(e) =>
+                            setLine(index, { kho_rong: Number(e.target.value || 0) })
+                          }
+                        />
+                        <span aria-hidden="true">×</span>
+                        <input
+                          className="input purchase__input-flat pay-num"
+                          type="number"
+                          min="0"
+                          step="1"
+                          aria-label="Khổ mua — cạnh dài (mm)"
+                          placeholder="Dài"
+                          value={line.kho_dai ? line.kho_dai : ""}
+                          onChange={(e) =>
+                            setLine(index, { kho_dai: Number(e.target.value || 0) })
+                          }
+                        />
+                      </div>
+                    )}
+                    {!dongDuocChon(line) && (
+                      <span className="md-page__muted purchase__line-bo-ghi">
+                        Dòng yêu cầu vẫn mở — huỷ dòng ở phiếu yêu cầu nếu không mua nữa.
+                      </span>
+                    )}
+                  </div>
                   {mode !== "edit" && <NhanO chu="Nhà cung cấp" sao />}
                   {mode !== "edit" && (
                     <LineSupplierPicker
@@ -304,8 +358,8 @@ export function PurchaseFormDrawer({
                       }
                     />
                   )}
-                  {/* ĐVT + SỐ LƯỢNG là số liệu bộ phận đề nghị khai, Thu mua KHÔNG sửa được. Nên
-                      để là THẺ CHỮ chứ không phải `<input readOnly>`:
+                  {/* ĐVT là số liệu bộ phận đề nghị khai, Thu mua KHÔNG sửa được. Nên để là THẺ
+                      CHỮ chứ không phải `<input readOnly>`:
                        - `<input>` trong bảng này bị ép `width: 100%` của ô, mà bề rộng ô lại do
                          TIÊU ĐỀ quyết định — nội dung dài hơn thì tràn ra ngoài một cách vô hình
                          ("500.000.000" cụt còn "500.000."). Thẻ chữ thì cột tự nở vừa nội dung.
@@ -320,22 +374,22 @@ export function PurchaseFormDrawer({
                   >
                     {tenDonVi(line.unit) ?? line.unit}
                   </span>
+                  {/* SỐ LƯỢNG MUA sửa được (spec giấy theo khổ §4.4): mua khổ to hơn rồi tề thì số tờ
+                      khác số tờ cần; NCC chỉ bán chẵn ram cũng vậy. Mặc định = số yêu cầu. */}
                   <NhanO chu="Số lượng" sao />
-                  <span
-                    className="input purchase__number-input purchase__readonly-field"
-                    aria-label="Số lượng"
-                    title={
-                      // Số ĐẦY ĐỦ đứng TRƯỚC: ô hẹp thì chữ bị cắt "…", và thứ người ta rê chuột
-                      // vào để xem là CON SỐ, không phải câu giải thích.
-                      line.quantity > 0
-                        ? `${line.quantity.toLocaleString("vi-VN")} ${tenDonVi(line.unit) ?? line.unit} — số lượng do bộ phận đề nghị khai, Thu mua không sửa được`
-                        : "Số lượng do bộ phận đề nghị khai — Thu mua không sửa được"
+                  <input
+                    className="input purchase__number-input"
+                    type="number"
+                    min="0"
+                    step="any"
+                    required={dongDuocChon(line)}
+                    disabled={!dongDuocChon(line)}
+                    aria-label="Số lượng mua"
+                    value={line.quantity > 0 ? line.quantity : ""}
+                    onChange={(e) =>
+                      setLine(index, { quantity: Number(e.target.value || 0) })
                     }
-                  >
-                    {line.quantity > 0
-                      ? line.quantity.toLocaleString("vi-VN")
-                      : ""}
-                  </span>
+                  />
                   <NhanO chu="Đơn giá" sao />
                   <input
                     className="input purchase__number-input"
@@ -426,9 +480,8 @@ export function PurchaseFormDrawer({
                       <span className="md-page__muted">Chưa tính</span>
                     )}
                   </strong>
-                  {/* Ô trống giữ chỗ cột cuối — bỏ hẳn thì lưới lệch một cột. Không cho xoá
-                      dòng vì bỏ bớt là mua thiếu so với thứ bộ phận đã xin, mà phiếu vẫn
-                      trông như đã xử lý xong yêu cầu đó. */}
+                  {/* Ô trống giữ chỗ cột cuối — bỏ hẳn thì lưới lệch một cột. Không xoá dòng:
+                      lúc tạo thì BỎ TICK (dòng yêu cầu vẫn mở, còn hiện ở hộp yêu cầu chờ mua). */}
                   <span aria-hidden="true" />
                 </div>
               ))}
@@ -438,7 +491,7 @@ export function PurchaseFormDrawer({
               <strong>
                 {money(
                   form.lines.reduce(
-                    (sum, line) => sum + lineTotal(line),
+                    (sum, line) => (dongDuocChon(line) ? sum + lineTotal(line) : sum),
                     0,
                   ),
                 )}

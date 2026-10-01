@@ -1384,6 +1384,8 @@ export interface SxTeam {
   ma: string;
   /** Phòng ban có cờ "Tổ KCS" (`is_kcs`) — thành viên là người KCS. */
   la_kcs: boolean;
+  /** Phòng ban có cờ "Tổ Cắt" (`la_to_cat`) — bàn tổ bày khối "Chờ chốt giấy". */
+  la_to_cat?: boolean;
   /** Độ sâu của nút trong cây khối sản xuất (0 = gốc) — menu thụt lề theo số này. */
   cap: number;
   /** Vai của NGƯỜI ĐANG XEM ở nút này, không phải thuộc tính của tổ: mức Xem của dòng quyền
@@ -2029,6 +2031,10 @@ export interface SxVatTuCapKeHoach {
   hang_loai: string;
   hang_id: number;
   ten: string;
+  /** Giấy: dạng (`to`/`cuon`) + khổ mm — cùng mã khác dạng/khổ là hai dòng. Hàng khác: null · 0 · 0. */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   dvt: string;
   sl: number;
   dvt_goc: string;
@@ -2040,6 +2046,10 @@ export interface SxVatTuCapDong {
   hang_loai: string;
   hang_id: number;
   ten: string;
+  /** Giấy: dạng (`to`/`cuon`) + khổ mm — cùng mã khác dạng/khổ là hai dòng. Hàng khác: null · 0 · 0. */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   dvt: string;
   dvt_goc: string;
   sl_ke_hoach: number;
@@ -2069,6 +2079,10 @@ export interface SxVatTuCapDoiChieu {
   hang_loai: string;
   hang_id: number;
   ten: string;
+  /** Giấy: dạng (`to`/`cuon`) + khổ mm — cùng mã khác dạng/khổ là hai dòng. Hàng khác: null · 0 · 0. */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   dvt: string;
   dvt_goc: string;
   sl_ke_hoach: number;
@@ -2094,6 +2108,10 @@ export interface SxVatTuCap {
 export interface SxVatTuDeNghiDongIn {
   hang_loai: string;
   hang_id: number;
+  /** Giấy: dạng + khổ (tờ bắt buộc đủ hai cạnh; cuộn khổ rộng tuỳ chọn). Hàng khác bỏ trống. */
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
   dvt: string;
   sl_yeu_cau: number;
   ly_do_chenh_lech: string | null;
@@ -2152,6 +2170,8 @@ export interface SxWorkItemChiTiet {
   tran_ghi: SxTranGhi | null;
   /** Tên công đoạn trước chưa giao được gì sang — khác rỗng thì chưa bắt đầu được. */
   thieu_dau_vao: string[];
+  /** Câu "Chờ tổ Cắt chốt giấy…" — bước mang giấy chưa được tổ Cắt chốt; null = không chặn. */
+  cho_chot_giay?: string | null;
   ban_giao_chang_sau: SxBanGiaoChangSau[];
   vat_tu: SxVatTuNhan[];
   vat_tu_cap: SxVatTuCap;
@@ -2729,7 +2749,9 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
    *  `"vat_tu"` = mực/keo/màng. `vat_tu_id` là id TRONG danh mục đó ⇒ so sánh phải đi theo CẶP,
    *  Giấy #7 và Vật tư #7 là hai món khác nhau (08/09/2026). */
   vat_tus: { id: number; hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; vat_tu_ma: string;
-             vat_tu_ten: string; don_vi: string; so_luong: number; tu_dong?: boolean }[];
+             vat_tu_ten: string; don_vi: string; so_luong: number; tu_dong?: boolean;
+             /** Khổ dòng GIẤY (mm, ngắn × dài) — giấy đếm tờ nguyên theo khổ. Hàng khác 0 · 0. */
+             kho_rong?: number; kho_dai?: number }[];
   ghi_chu: string | null;
   /* Đầu việc ghim ở bước (`khoan_rate_id` · `khoan_ten` · `khoan_chon_duoc`) GỠ 18/09/2026 (mg
      `0320`): việc khoán chọn LÚC GHI MẺ ở bàn tổ, lọc theo tổ của bước. */
@@ -2742,6 +2764,10 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
     so_luong: number | null;
     dien_giai: string | null;
     ly_do: string | null;
+    /** Giấy: khổ + đơn vị (tờ nguyên) gợi ý từ quy cách lệnh. */
+    kho_rong?: number;
+    kho_dai?: number;
+    don_vi?: string;
   }[];
   /** Số ĐÚNG RA phải là theo danh mục HIỆN TẠI, chỉ có khi KHÁC số đã lưu. null = không lệch.
    *  Lệnh là ảnh chụp nên server không tự đè — màn gạch số cũ rồi mời bấm Lưu. */
@@ -2764,7 +2790,8 @@ export interface LsxCongDoanBody extends Partial<Omit<LsxThueNgoaiFields, "nha_c
   phat_sinh_phut?: number;
   phu_thuoc_step_keys?: string[];
   /** Bỏ trống `hang_loai` là server hiểu `"vat_tu"` — giữ đúng nghĩa client cũ. */
-  vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong: number }[];
+  vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong: number;
+              kho_rong?: number; kho_dai?: number }[];
   ghi_chu?: string | null;
 }
 export interface LsxPhuThuocOption {
@@ -3175,6 +3202,8 @@ export interface Department {
   la_giao_hang?: boolean;
   /** Tổ IN (mg 0304) — thợ in ăn khoán: ngày CN / lễ đi làm không có công gốc, trả hết ở phần thêm. */
   la_to_in?: boolean;
+  /** Tổ CẮT (mg 0355) — lệnh có giấy sau phát hành tới tổ này để chốt cắt hay không cắt. */
+  la_to_cat?: boolean;
   /** Khoán km giao hàng (mg 0231) — chỉ có nghĩa khi `la_giao_hang` bật. Đơn giá là số TÀI XẾ
    *  ĐƯỢC HƯỞNG, không phải cước cả xe. Hai ô % bắt buộc cộng đúng 100 (máy chủ chặn). */
   don_gia_km?: number;
@@ -6746,6 +6775,9 @@ export interface PurchaseRequestLineInput {
   note?: string | null;
   /** Dòng YCMH đẻ ra dòng này — nền cho "tình trạng từng sản phẩm" ở chi tiết yêu cầu. */
   department_request_line_id?: number | null;
+  /** Khổ MUA (mm) của giấy tờ. Không gửi ⇒ server chép khổ cần của dòng YCMH nguồn. */
+  kho_rong?: number | null;
+  kho_dai?: number | null;
 }
 
 // --- Công nợ phải trả ------------------------------------------------------
@@ -7211,6 +7243,9 @@ export interface DepartmentPurchaseRequestLineInput {
   unit: string;
   quantity: number;
   note?: string | null;
+  /** Khổ CẦN (mm) của giấy tờ; vật tư khác 0 · 0 (server ép). */
+  kho_rong?: number;
+  kho_dai?: number;
   /** UI-only (KHÔNG gửi API): dòng lấy từ mặt hàng Kho đã có → khoá Tên + ĐVT, bỏ qua canh danh
    *  mục NCC. Payload gửi đi pick field tường minh nên cờ này không lọt lên backend. */
   locked?: boolean;
@@ -7270,6 +7305,9 @@ export interface PurchaseRequestLineOut {
   hang_id: number | null;
   hang_ma: string | null;
   hang_ten: string | null;
+  /** Khổ MUA (mm) — giấy tờ; vật tư khác 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
 }
 
 /** Một dòng yêu cầu đã vào phiếu nào, của NCC nào, tới đâu rồi. */
@@ -7288,6 +7326,9 @@ export interface DepartmentPurchaseRequestLineOut {
   id: number;
   hang_loai: HangLoai | null;
   hang_id: number | null;
+  /** Khổ CẦN (mm) — giấy tờ; vật tư khác 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
   item_name: string;
   unit: string;
   quantity: number;
@@ -8343,6 +8384,10 @@ export interface StockRequestLine {
   bai_ghep_id: number | null;
   lsx_ma: string | null;
   bai_ghep_ma: string | null;
+  /** GIẤY: dạng (`to` | `cuon`) + khổ mm (cạnh ngắn × cạnh dài; cuộn: rộng × 0). Hàng khác: null · 0 · 0. */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   /** Đơn vị NGƯỜI ĐỀ NGHỊ chọn; mọi `sl_*` của dòng theo đơn vị này. */
   dvt: string;
   /** Số quy về ĐƠN VỊ GỐC + câu diễn giải — dòng nhắc "10 ram ≈ 419,25 kg" dưới ô SL.
@@ -8471,6 +8516,10 @@ export interface StockRequestLineInput {
   /** Xin CHO LỆNH NÀO (mg 0175) — bỏ trống được (xin lặt vặt). Server kiểm id có thật. */
   lsx_id?: number | null;
   bai_ghep_id?: number | null;
+  /** GIẤY: bắt buộc dạng; tờ bắt buộc đủ hai cạnh (mm). Hàng khác: bỏ trống (máy chủ ép null · 0 · 0). */
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
   dvt: string;
   sl_de_nghi: number;
   /** Đơn giá NHẬP người đề nghị khai (chỉ đề nghị NHẬP), theo `dvt`. Phiếu kế thừa; kho không sửa. */
@@ -8513,6 +8562,10 @@ export interface BaoCaoKhoRow {
   ma_hang: string | null;
   ten_hang: string | null;
   dvt: string | null;
+  /** Giấy: dạng + khổ của dòng phiếu (cột Khổ). Hàng khác: null · 0 · 0. */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   so_luong: number;
   don_gia: number | null;
   thanh_tien: number | null;
@@ -8605,6 +8658,9 @@ export interface BaoCaoNXTRow {
   ten_hang: string | null;
   hang_nhom: string | null;
   dvt: string | null;
+  /** Khổ giấy TỜ (mm) — dòng tờ tách theo khổ, đếm tờ nguyên. Cuộn / hàng khác: 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
   dau_sl: number;
   // Bốn ô GIÁ TRỊ về null khi vai không có ô "Xem giá thành" của Kho — xem `_an_tien` bên
   // `routers/kho_baocao.py`. Số lượng vẫn đủ, chỉ tiền là trống.
@@ -8799,6 +8855,9 @@ export interface CanDoiNhom {
   hang_id: number;
   hang_ma: string | null;
   hang_ten: string | null;
+  /** Khổ giấy tờ (mm, ngắn × dài) — nhóm giấy là (mã, khổ); vật tư khác và giấy chưa khổ 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
   don_vi_goc: string | null;
   ton: number | null;
   tong_can: number | null;
@@ -8822,12 +8881,15 @@ export interface CanDoiOut {
 
 /** Khoá của một dòng trên bảng — đủ để server tìm lại và TỰ tính phần thiếu.
  *
- *  ⚠️ NĂM phần tử, phải khớp `_khoa_dong()` bên `services/ke_hoach_vat_tu_service.py`. Lệch một
+ *  ⚠️ BẢY phần tử, phải khớp `_khoa_dong()` bên `services/ke_hoach_vat_tu_service.py`. Lệch một
  *  phần tử là server tra không ra dòng nào và MỌI lần bấm "Đề nghị mua" trả 400 với câu lỗi chỉ
  *  sai đường ("tải lại bảng" — tải lại vẫn lỗi). */
 export interface CanDoiKhoaDong {
   hang_loai: HangLoai;
   hang_id: number;
+  /** Khổ của dòng giấy (0 · 0 với vật tư khác) — cùng mã khác khổ là hai dòng khác nhau. */
+  kho_rong: number;
+  kho_dai: number;
   lsx_id: number | null;
   bai_ghep_id: number | null;
   buoc_id: number | null;
@@ -8849,6 +8911,9 @@ export interface DeNghiMuaXemTruoc {
     item_name: string;
     unit: string;
     quantity: number;
+    /** Khổ CẦN của dòng giấy (0 · 0 với vật tư khác). */
+    kho_rong: number;
+    kho_dai: number;
   }[];
   /** Khoá các dòng đã tick — form gửi nguyên văn vào `nguon_lenh` lúc Lưu. */
   nguon: CanDoiKhoaDong[];
@@ -8858,6 +8923,9 @@ export interface DeNghiMuaXemTruoc {
 export interface TheoLenhHang {
   hang_loai: HangLoai;
   hang_id: number;
+  /** Khổ giấy tờ (mm); vật tư và giấy cuộn 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
   hang_ma: string | null;
   hang_ten: string | null;
   don_vi_goc: string | null;
@@ -8885,7 +8953,7 @@ export interface TheoLenhHang {
   /** MỌI phiếu đang chạy của món (kể cả YCMH chưa duyệt, kể cả PMH chưa hẹn ngày), xếp CHẮC →
    *  LỎNG — "ai đang lo món này". */
   phieu_mua: PhieuMuaTom[];
-  /** Khoá 5 phần của TỪNG dòng đỏ — gửi thẳng vào `deNghiMua`. Cố ý không gộp về một khoá cho
+  /** Khoá 7 phần của TỪNG dòng đỏ — gửi thẳng vào `deNghiMua`. Cố ý không gộp về một khoá cho
    *  mỗi mặt hàng: một lệnh ăn cùng món ở hai công đoạn là hai dòng, gộp là mua một nửa. */
   khoa_do: CanDoiKhoaDong[];
 }
@@ -9647,6 +9715,10 @@ export interface StockVoucherLine {
   hang_ma: string | null;
   hang_ten: string | null;
   dvt: string | null;
+  /** Giấy: dạng + khổ mm của dòng phiếu (hàng khác: null · 0 · 0). */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   lot_id: number | null;
   ma_lo: string | null;
   /** SL đề nghị gốc của dòng (đọc-nối) — đối chiếu "đề nghị vs thực nhận/xuất". null = không nối được. */
@@ -9745,6 +9817,10 @@ export interface StockVoucherLineInput {
   /** Phiếu NHẬP: hạn sử dụng của lô (ISO yyyy-mm-dd, tuỳ chọn). Tách hạn = nhiều dòng; phần dư
    *  không hạn để null. */
   hsd?: string | null;
+  /** Phiếu NHẬP giấy: dạng + khổ của lô sắp tạo (bỏ trống = kế thừa dòng đề nghị). */
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
 }
 
 export interface StockVoucherInput {
@@ -9765,6 +9841,10 @@ export interface DieuChuyenItemInput {
   so_luong: number;
   /** Vị trí cất ở KHO ĐÍCH (kệ/ô) — tuỳ chọn, khai lúc ấn; áp cho mọi lô của mặt hàng. */
   vi_tri?: string | null;
+  /** Giấy: nhóm lô cần chuyển — bắt buộc dạng; tờ thì kèm khổ (mm). */
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
 }
 
 /** Ấn ĐIỀU CHUYỂN 1 hay NHIỀU mặt hàng kho nguồn → kho đích (gộp vào MỘT yêu cầu điều chuyển). */
@@ -9802,6 +9882,10 @@ export interface StockLot {
   dvt_ten: string | null;
   kho_id: number;
   vi_tri: string | null;
+  /** Giấy: dạng + khổ mm của lô (lô cũ / vật tư khác: null · 0 · 0). */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   ngay_nhap: string;
   ncc: string | null;
   sl_ban_dau: number;
@@ -9836,6 +9920,9 @@ export interface StockAllocationLine {
   hsd: string | null;
   sl_con_lai: number;
   so_luong: number;
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
   don_gia_nhap: number | null;
   /** Nguồn lô thành phẩm (đơn / khách) — trống với giấy, vật tư. */
   order_ma?: string | null;
@@ -9903,6 +9990,9 @@ export interface StockThreshold {
   hang_ma: string | null;
   hang_ten: string | null;
   kho_id: number;
+  /** Khổ giấy TỜ (mm) của ngưỡng — giấy cuộn / hàng khác: 0 · 0. */
+  kho_rong: number;
+  kho_dai: number;
   nguong_ton: number;
   nguong_can_ton: number | null;
   nguong_toi_da: number | null;
@@ -9961,6 +10051,9 @@ export interface StockThresholdInput {
   hang_loai: HangLoai;
   hang_id: number;
   kho_id: number;
+  /** Giấy tờ: khổ của dòng tồn (đủ hai cạnh). Giấy cuộn / hàng khác: bỏ trống. */
+  kho_rong?: number;
+  kho_dai?: number;
   nguong_ton: number;
   /** Bỏ trống → backend tự suy ra = nguong_ton × 1.3. */
   nguong_can_ton?: number | null;
@@ -10305,6 +10398,8 @@ export const api = {
       isKcs?: boolean,
       /** Cờ Tổ in (mg 0304). Cùng luật `undefined` = KHÔNG gửi ⇒ backend giữ nguyên. */
       laToIn?: boolean,
+      /** Cờ Tổ Cắt (mg 0355). Cùng luật `undefined` = KHÔNG gửi ⇒ backend giữ nguyên. */
+      laToCat?: boolean,
     ): Promise<Department> {
       return authed<Department>(`/api/departments/${id}`, token, {
         method: "PUT",
@@ -10321,6 +10416,7 @@ export const api = {
           ...(khoanKm ?? {}),
           ...(isKcs === undefined ? {} : { is_kcs: isKcs }),
           ...(laToIn === undefined ? {} : { la_to_in: laToIn }),
+          ...(laToCat === undefined ? {} : { la_to_cat: laToCat }),
         }),
       });
     },
@@ -12836,6 +12932,26 @@ export const api = {
   // Ghi trả `SxLenhKetQua` (version lạc quan). Lỗi: 400 = lệch version/ràng buộc → refetch + toast;
   // 403 = ngoài phạm vi tổ. `teams` một cú gọi ra cả list lẫn badge (`so_viec_cho`).
   sanXuat: {
+    /** Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6). Tổ không mang cờ ⇒ danh sách rỗng. */
+    chotGiay: {
+      list(token: string, teamId: number): Promise<ChotGiayDong[]> {
+        return authed<ChotGiayDong[]>(`/api/san-xuat/chot-giay${qs({ team_id: teamId })}`, token);
+      },
+      chot(token: string, body: {
+        team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null;
+        cach: "cat" | "khong_cat"; cong_doan_ids?: number[];
+      }): Promise<unknown> {
+        return authed<unknown>("/api/san-xuat/chot-giay", token, {
+          method: "POST", body: JSON.stringify(body),
+        });
+      },
+      go(token: string, body: { team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null }):
+        Promise<unknown> {
+        return authed<unknown>("/api/san-xuat/chot-giay/go", token, {
+          method: "POST", body: JSON.stringify(body),
+        });
+      },
+    },
     /** Danh sách tổ user thấy + badge số việc chờ (navbar + màn). */
     teams(token: string): Promise<SxTeamsOut> {
       return authed<SxTeamsOut>("/api/san-xuat/teams", token);
@@ -14418,7 +14534,14 @@ export const api = {
     /** Đơn vị gốc + mọi đơn vị đổi được — danh sách TỰ THÍCH NGHI theo từng mặt hàng. */
     /** Đơn vị của MỘT mặt hàng. Các lời gọi trong CÙNG một nhịp (vd. mỗi dòng của form bảng giá
      *  tự gọi khi mở) được GỘP thành một request `/mat-hang/don-vi-lo` — xem `gomDonVi`. */
-    donVi(token: string, hangLoai: HangLoai, hangId: number): Promise<DonViCuaMatHang> {
+    donVi(token: string, hangLoai: HangLoai, hangId: number, dang?: "to" | "cuon" | null): Promise<DonViCuaMatHang> {
+      // Giấy theo DẠNG (kho): tờ ⇒ gốc là tờ nguyên, cuộn ⇒ gốc là kg — không đi đường gộp lô
+      // (đường đó trả đơn vị gốc của mã giấy, không biết dạng).
+      if (hangLoai === "giay" && dang) {
+        return authed<DonViCuaMatHang>(
+          `/api/vat-lieu-kho/mat-hang/${hangLoai}/${hangId}/don-vi?dang=${dang}`, token,
+        );
+      }
       return gomDonVi(token, hangLoai, hangId);
     },
     /** Các NCC bán mặt hàng này, giá đã quy về đơn vị gốc — rẻ nhất đứng đầu. */
@@ -14624,7 +14747,11 @@ export const api = {
       /** Gợi ý lấy hàng từ lô nào (FEFO → FIFO). `thieu` > 0 = kho không đủ hàng. */
       goiYLo(
         token: string,
-        params: { hang_loai: HangLoai; hang_id: number; kho_id: number; so_luong: number; request_id?: number | null },
+        params: {
+          hang_loai: HangLoai; hang_id: number; kho_id: number; so_luong: number; request_id?: number | null;
+          /** Giấy: chỉ lấy lô đúng dạng (+ đúng khổ với tờ). */
+          dang_giay?: "to" | "cuon" | null; kho_rong?: number; kho_dai?: number;
+        },
       ): Promise<StockAllocation> {
         // `so_luong` ở ĐƠN VỊ GỐC — lô lưu theo đơn vị đó, gửi số theo đơn vị người khai là lệch.
         const qs = new URLSearchParams({
@@ -14635,13 +14762,27 @@ export const api = {
         });
         // Yêu cầu xuất do Giao hàng gửi ⇒ máy chủ ưu tiên lô của đúng đơn, bỏ lô của khách khác.
         if (params.request_id != null) qs.set("request_id", String(params.request_id));
+        if (params.dang_giay) {
+          qs.set("dang_giay", params.dang_giay);
+          if (params.kho_rong) qs.set("kho_rong", String(params.kho_rong));
+          if (params.kho_dai) qs.set("kho_dai", String(params.kho_dai));
+        }
         return authed<StockAllocation>(`/api/kho/phieu/lo/goi-y?${qs.toString()}`, token);
       },
       danhSachLo(
         token: string,
-        params: { hang_loai?: HangLoai | null; hang_id?: number | null; kho_id?: number | null; con_hang?: boolean },
+        params: {
+          hang_loai?: HangLoai | null; hang_id?: number | null; kho_id?: number | null; con_hang?: boolean;
+          /** Giấy: chỉ liệt kê lô đúng dạng (+ đúng khổ với tờ). */
+          dang_giay?: "to" | "cuon" | null; kho_rong?: number; kho_dai?: number;
+        },
       ): Promise<StockLot[]> {
         const qs = new URLSearchParams();
+        if (params.dang_giay) {
+          qs.set("dang_giay", params.dang_giay);
+          if (params.kho_rong) qs.set("kho_rong", String(params.kho_rong));
+          if (params.kho_dai) qs.set("kho_dai", String(params.kho_dai));
+        }
         if (params.hang_loai && params.hang_id != null) {
           qs.set("hang_loai", params.hang_loai);
           qs.set("hang_id", String(params.hang_id));
@@ -14656,8 +14797,15 @@ export const api = {
         hangLoai: HangLoai,
         hangId: number,
         khoId: number,
+        /** Giấy: lọc đúng một dòng tồn (dạng + khổ) — một mã có thể nhiều dòng theo khổ. */
+        giay?: { dang: "to" | "cuon"; kho_rong: number; kho_dai: number },
       ): Promise<StockMaterialHistory> {
         const qs = new URLSearchParams({ kho_id: String(khoId) });
+        if (giay) {
+          qs.set("dang_giay", giay.dang);
+          qs.set("kho_rong", String(giay.kho_rong));
+          qs.set("kho_dai", String(giay.kho_dai));
+        }
         return authed<StockMaterialHistory>(
           `/api/kho/phieu/mat-hang/${hangLoai}/${hangId}/lich-su?${qs.toString()}`,
           token,
@@ -15694,4 +15842,26 @@ export interface DonNoiNhan {
   luu_y: string | null;
   so_dia_chi: { id: number; nhan: string; dia_chi: string; sdt: string | null; mac_dinh: boolean }[];
   lien_he: { id: number; ten: string; chuc_vu: string | null; sdt: string | null; chinh: boolean }[];
+}
+
+/** Một lệnh / bài ghép trong khối "Chờ chốt giấy" của tổ Cắt (`GET /api/san-xuat/chot-giay`). */
+export interface ChotGiayDong {
+  chu_the: "lsx" | "bai";
+  id: number;
+  ma: string;
+  ten: string;
+  han: string | null;
+  giay: {
+    giay_id: number; ma: string; ten: string; kho_rong: number; kho_dai: number; nhan_kho: string;
+    so_to: number; don_vi: string | null;
+    /** Tồn lô tờ ĐÚNG khổ; null khi dòng chưa có khổ. */
+    ton_to_dung_kho: number | null;
+  }[];
+  cuon_cung_ma: {
+    ma_lo: string; giay_ma: string; kho_rong: number; sl_con_lai: number; don_vi: string | null;
+    kho_ten: string;
+  }[];
+  chot: { cach: "cat" | "khong_cat"; luc: string | null; boi_ten: string | null; cong_doan: string[] } | null;
+  sua_duoc: boolean;
+  cong_doan_chen_duoc: { id: number; ma: string; ten: string }[];
 }

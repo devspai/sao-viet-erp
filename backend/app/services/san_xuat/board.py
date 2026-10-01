@@ -44,7 +44,8 @@ from ..quyen_to import (
     quyen_tren_viec,
 )
 from ..gio_xuong import lich_hien_thi, thuc_te_hien_thi, ve_utc_that
-from . import dau_vao, routing_dai, viec_khoan
+from ..kho_giay import khoa_dong
+from . import chot_giay, dau_vao, routing_dai, viec_khoan
 from .nguoi_trong_me import nguoi_theo_me
 from .thuc_thi import _aware
 from .tinh_trang_nguoi import hom_nay, tinh_trang_nhieu
@@ -110,6 +111,8 @@ def teams(db: Session, user: User, authz: AuthorizationService) -> list[dict]:
             "ma": (d.code if d else None) or "",
             "cap": cap,
             "la_kcs": bool(getattr(d, "is_kcs", False)),
+            # Tổ Cắt: FE bày khối "Chờ chốt giấy" trên bàn tổ này (spec giấy theo khổ §4.6).
+            "la_to_cat": bool(getattr(d, "la_to_cat", False)),
             # FE cần biết "tôi vào bàn này chỉ với phần CỦA TÔI" để bật băng *Sản lượng của tôi*
             # (§6). Trả con số đã tính sẵn, đừng để FE tự suy từ phạm vi.
             "la_tho": muc == MUC_CUA_TOI,
@@ -873,10 +876,16 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     }
     ten_map = sl.ten_hang_nhieu(tat_ca_khoa)
 
+    # Gom theo `khoa_dong`: giấy cùng mã khác dạng/khổ là hai hàng đối chiếu (spec giấy tờ × khổ).
+    def _giay(dang, kr, kd) -> dict:
+        return {"dang_giay": dang, "kho_rong": int(kr or 0), "kho_dai": int(kd or 0)}
+
     gom: dict[tuple, dict] = {}
     for k in ke_hoach:
-        gom[(k["hang_loai"], k["hang_id"])] = {
+        gom[khoa_dong(k["hang_loai"], k["hang_id"], k.get("dang_giay"),
+                      k.get("kho_rong"), k.get("kho_dai"))] = {
             "hang_loai": k["hang_loai"], "hang_id": k["hang_id"], "ten": k["ten"],
+            **_giay(k.get("dang_giay"), k.get("kho_rong"), k.get("kho_dai")),
             "dvt": k["dvt"], "dvt_goc": k["dvt_goc"],
             "sl_ke_hoach": k["sl"], "sl_ke_hoach_goc": k["sl_goc"],
             "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
@@ -890,10 +899,12 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     for dn in cac_dn:
         dongs_theo_lan[dn.id] = []
         for d in dn.dongs:
-            key = (d.hang_loai, d.hang_id)
+            key = khoa_dong(d.hang_loai, d.hang_id, d.dang_giay, d.kho_rong, d.kho_dai)
+            ten = ten_map.get((d.hang_loai, d.hang_id)) or f"#{d.hang_id}"
             row = gom.setdefault(key, {
                 "hang_loai": d.hang_loai, "hang_id": d.hang_id,
-                "ten": ten_map.get(key) or f"#{d.hang_id}", "dvt": d.dvt, "dvt_goc": d.dvt_goc,
+                "ten": ten, **_giay(d.dang_giay, d.kho_rong, d.kho_dai),
+                "dvt": d.dvt, "dvt_goc": d.dvt_goc,
                 "sl_ke_hoach": float(d.sl_ke_hoach), "sl_ke_hoach_goc": float(d.sl_ke_hoach_goc),
                 "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
                 "sl_thuc_xuat": 0.0, "cac_ly_do": [], "_cac_dvt": set(),
@@ -905,7 +916,8 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
                 row["cac_ly_do"].append({"lan_so": dn.lan_so, "ly_do": d.ly_do_chenh_lech})
             dongs_theo_lan[dn.id].append({
                 "hang_loai": d.hang_loai, "hang_id": d.hang_id,
-                "ten": ten_map.get(key) or f"#{d.hang_id}", "dvt": d.dvt, "dvt_goc": d.dvt_goc,
+                "ten": ten, **_giay(d.dang_giay, d.kho_rong, d.kho_dai),
+                "dvt": d.dvt, "dvt_goc": d.dvt_goc,
                 "sl_ke_hoach": float(d.sl_ke_hoach), "sl_ke_hoach_goc": float(d.sl_ke_hoach_goc),
                 "sl_yeu_cau": float(d.sl_yeu_cau), "sl_yeu_cau_goc": float(d.sl_yeu_cau_goc),
                 "ly_do_chenh_lech": d.ly_do_chenh_lech,
@@ -921,7 +933,7 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
         # là so 100 tờ với 12 kg (vòng sửa 1, Important 2+3).
         row["lech_ke_hoach"] = row["sl_yeu_cau_goc"] - row["sl_ke_hoach_goc"]
         row["lech_thuc_te"] = row["sl_thuc_xuat"] - row["sl_yeu_cau_goc"]
-        # Khoá gom là (hang_loai, hang_id) — KHÔNG có đơn vị, nên một hàng có thể ôm dòng kế hoạch
+        # Khoá gom là `khoa_dong` — KHÔNG có đơn vị, nên một hàng có thể ôm dòng kế hoạch
         # khai "ram" và dòng tổ khai "tờ". Cộng hai số đó lại rồi in ra là nói dối. Thang gốc là
         # thứ DUY NHẤT chắc chắn chung, nên hàng lẫn đơn vị thì hiện bằng nó (vòng sửa 1, 2c).
         if len(row.pop("_cac_dvt")) > 1:
@@ -1273,6 +1285,8 @@ def chi_tiet_cong_viec(
             if (t := dau_vao.tran_ghi(db, cv, repo=sl)) else None
         ),
         "thieu_dau_vao": dau_vao.thieu_dau_vao(sl, cv),
+        # Cổng "chờ tổ Cắt" (§4.7) — cùng hàm `kiem_bat_dau` dùng để chặn.
+        "cho_chot_giay": chot_giay.ly_do_cho_chot(db, cv),
         "ban_giao_chang_sau": [
             {
                 "cong_viec_id": c.id,

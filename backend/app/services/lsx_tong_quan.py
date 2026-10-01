@@ -4,8 +4,8 @@ Câu hỏi màn Kế hoạch SX phải trả lời trong một cái liếc: *l�
 muốn biết phải mở 3 màn (Kế hoạch vật tư · Bài ghép · Xếp lịch). Bốn đèn ở đây là bốn thứ bảng
 lệnh CHƯA hề nói:
 
-  · **Vật tư**    — giữ chỗ đủ chưa. Cố ý soi ĐÚNG cửa `XepLichService._chan_chua_giu_du`: đèn đỏ
-    nghĩa là bấm "Đưa vào kế hoạch" sẽ bị chặn, không phải "hình như có vấn đề".
+  · **Vật tư**    — giữ chỗ đủ chưa. Đèn để NHÌN: từ 01/10/2026 vật tư không còn chặn xếp lịch
+    hay phát hành (spec giấy đếm tờ × khổ §4.3), đèn đỏ là lời cảnh báo thiếu hàng thật.
   · **Máy & giờ** — bước nào chưa lên được lịch, hoặc lịch đang đá nhau.
   · **Người**     — tổ có đủ quân cho khung giờ đã xếp không.
   · **Danh mục**  — (07/09/2026) lệnh còn giữ số của lần bung trong khi danh mục Công đoạn đã đổi.
@@ -85,7 +85,7 @@ def _den(muc: str, chu: str = "", man: str | None = None, lsx_id: int | None = N
 
 
 def _den_vat_tu(tt: dict, lsx_id: int) -> dict:
-    """Soi ĐÚNG thứ tự của `_chan_chua_giu_du` để đèn nói cùng một câu với cửa chặn.
+    """Đèn vật tư từ trạng thái giữ chỗ — cảnh báo, không còn là cửa chặn (01/10/2026).
 
     `du=True` mà còn hàng đang trên đường về → vàng kèm ngày: chạy được, nhưng đừng xếp trước ngày
     đó. Đây là thông tin điều độ cần TRƯỚC khi kéo thanh, không phải sau khi bị báo đỏ.
@@ -97,8 +97,7 @@ def _den_vat_tu(tt: dict, lsx_id: int) -> dict:
                         MAN_VAT_TU, lsx_id)
         return _den(MUC_OK)
     if not tt.get("bat"):
-        # Lệnh không ra được nhu cầu nào cũng rơi vào đây (`du` cần `bool(can)`), và cửa chặn thật
-        # cũng chặn — đèn nói y hệt cửa thì người dùng không phải đoán vì sao bấm không được.
+        # Lệnh không ra được nhu cầu nào cũng rơi vào đây (`du` cần `bool(can)`).
         return _den(MUC_DO, "Chưa giữ chỗ vật tư", MAN_VAT_TU, lsx_id)
     if tt.get("chua_co_nhu_cau"):
         # ĐANG giữ chỗ mà không ra món nào ⇒ chắc chắn là chưa ai khai. Từ 08/09/2026 giấy chỉ vào
@@ -199,7 +198,7 @@ def _dung_vat_tu(db: Session, lsx_ids: list[int] | None = None):
     thuộc lệnh khác — nhưng giá thì theo TRANG thay vì theo cả xưởng. Bỏ trống là phạm vi toàn
     xưởng như cũ (đường Kế hoạch vật tư).
 
-    Import trễ y như `XepLichService._chan_chua_giu_du`: cả chuỗi kho/mua/đơn vị kéo theo nhau,
+    Import trễ: cả chuỗi kho/mua/đơn vị kéo theo nhau,
     nạp sẵn ở đầu module chỉ để phục vụ một endpoint đọc là nặng import graph vô ích.
     """
     from ..repositories.bai_ghep_repo import BaiGhepRepository

@@ -21,7 +21,7 @@ import {
   DonViChonTheoHang,
   MaterialCombobox,
 } from "../../../../components/MaterialCombobox";
-import { emptyLine } from "../shared/helpers";
+import { dangGiayDong, emptyLine } from "../shared/helpers";
 
 export function RequestFormDrawer({
   editing,
@@ -165,9 +165,51 @@ export function RequestFormDrawer({
                                 hang_id: m.hang_id,
                                 item_name: m.ten,
                                 unit: "",
+                                kho_rong: 0,
+                                kho_dai: 0,
                               })
                             }
                           />
+                          {line.hang_loai === "giay" && (
+                            <div className="purchase__kho-mm">
+                              <span className="purchase__kho-mm-nhan">Khổ cần (mm)</span>
+                              <input
+                                className="input purchase__input-flat pay-num"
+                                type="number"
+                                min="0"
+                                step="1"
+                                aria-label="Khổ cần — cạnh ngắn (mm)"
+                                placeholder="Rộng"
+                                value={line.kho_rong ? line.kho_rong : ""}
+                                onChange={(e) => {
+                                  const moi = { ...line, kho_rong: Number(e.target.value || 0) };
+                                  // Khổ đổi dạng tờ ↔ cuộn ⇒ xoá ĐVT để ô tự điền lại đơn vị gốc
+                                  // của dạng mới.
+                                  setLine(index, {
+                                    kho_rong: moi.kho_rong,
+                                    ...(dangGiayDong(moi) !== dangGiayDong(line) ? { unit: "" } : {}),
+                                  });
+                                }}
+                              />
+                              <span aria-hidden="true">×</span>
+                              <input
+                                className="input purchase__input-flat pay-num"
+                                type="number"
+                                min="0"
+                                step="1"
+                                aria-label="Khổ cần — cạnh dài (mm)"
+                                placeholder="Dài"
+                                value={line.kho_dai ? line.kho_dai : ""}
+                                onChange={(e) => {
+                                  const moi = { ...line, kho_dai: Number(e.target.value || 0) };
+                                  setLine(index, {
+                                    kho_dai: moi.kho_dai,
+                                    ...(dangGiayDong(moi) !== dangGiayDong(line) ? { unit: "" } : {}),
+                                  });
+                                }}
+                              />
+                            </div>
+                          )}
                         </td>
                         <td>
                           <DonViChonTheoHang
@@ -175,6 +217,7 @@ export function RequestFormDrawer({
                             token={token ?? ""}
                             hangLoai={line.hang_loai ?? null}
                             hangId={line.hang_id ?? null}
+                            dang={dangGiayDong(line)}
                             value={line.unit}
                             onChange={(ma) => setLine(index, { unit: ma })}
                             disabled={!line.hang_loai || !line.hang_id}

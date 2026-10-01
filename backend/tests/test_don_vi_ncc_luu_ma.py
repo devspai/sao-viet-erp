@@ -21,8 +21,7 @@ def _giay_theo_to() -> int:
     db = SessionLocal()
     try:
         g = GiayNguyen(ma="GY-TO-MA", ten="Giay dem to", gsm=150, kho_dai=860, kho_rong=650,
-                       don_vi_gia="to",
-                       cong_thuc_luong="dinh_luong * dai_nguyen * rong_nguyen * to_nguyen")
+                       don_vi_gia="to")
         db.add(g)
         db.commit()
         return g.id

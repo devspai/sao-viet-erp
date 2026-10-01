@@ -260,8 +260,7 @@ def _den_vat_tu_co_cache(db: Session, lsx_ids: list[int]) -> dict[int, str]:
 
     Đèn không phụ thuộc người gọi: phạm vi người bán đã cắt ở tầng 1, nên cùng tập id ⇒ cùng đèn.
     Xoá sớm ở chính những chỗ đang xoá cache cân đối (giữ chỗ, ghi sổ kho, lệnh, xếp lịch); chỗ
-    khác thì đèn trễ tối đa 45 giây — đèn chỉ để NHÌN, cửa chặn thật (`_chan_chua_giu_du`) vẫn tính
-    tươi. JSON làm khoá dict thành chuỗi nên đổi lại về int."""
+    khác thì đèn trễ tối đa 45 giây — đèn chỉ để NHÌN, vật tư không chặn xếp lịch hay phát hành. JSON làm khoá dict thành chuỗi nên đổi lại về int."""
     tho = lay_hoac_tinh(
         lambda: {str(k): v for k, v in trang_thai.den_vat_tu_theo_lo(db, lsx_ids).items()},
         loai="den_lenh_sx", lsx_ids=sorted(lsx_ids),

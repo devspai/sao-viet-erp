@@ -41,8 +41,7 @@ def _giay(n: int, tien_to: str) -> list[int]:
     try:
         rows = [
             GiayNguyen(ma=f"{tien_to}{i}", ten=f"Giay {tien_to} {i}", gsm=150, kho_dai=860,
-                       kho_rong=650, don_vi_gia="kg",
-                       cong_thuc_luong="dinh_luong * dai_nguyen * rong_nguyen * to_nguyen")
+                       kho_rong=650, don_vi_gia="kg")
             for i in range(n)
         ]
         db.add_all(rows)

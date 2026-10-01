@@ -3413,49 +3413,6 @@ def lenh_giay(db):
     return l, b
 
 
-def test_goi_y_luong_co_ca_GIAY_va_ra_kg_bang_cong_thuc_cua_chinh_loai_giay(db, lsx_svc, lenh_giay):
-    """Giấy chọn tay ở bước ⇒ lượng suy bằng `giay_nguyen.cong_thuc_luong`, ra ĐƠN VỊ GỐC (kg).
-
-    Không có đầu việc nào khai giấy — đó chính là ca thật: giấy tuỳ từng đơn, không khai trước ở
-    danh mục công đoạn được. Nên nguồn công thức phải là CHÍNH MÓN GIẤY, khác hẳn mực.
-    """
-    from app.services.bien_cong_thuc import quy_cach_bien
-
-    lsx, buoc = lenh_giay
-    g = GiayNguyen(
-        ma="GY-C300", ten="Giấy C300", gsm=300, kho_dai=860, kho_rong=650, don_vi_gia="kg",
-        cong_thuc_luong="dinh_luong * dai_nguyen * rong_nguyen * to_nguyen",
-    )
-    db.add(g)
-    db.commit()
-
-    goi_y = lsx_svc._goi_y_luong_vat_tu(buoc, quy_cach_bien(lsx))
-    dong = next(x for x in goi_y if x["hang_loai"] == "giay" and x["vat_tu_id"] == g.id)
-
-    # 0,3 kg/m² × 0,86 m × 0,65 m × 553 tờ nguyên = 92,73 kg
-    assert dong["so_luong"] == pytest.approx(92.73, abs=0.01)
-    assert dong["ly_do"] is None
-
-
-def test_goi_y_GIAY_chua_khai_cong_thuc_thi_chi_thang_danh_muc_GIAY_khong_chi_dau_viec(
-    db, lsx_svc, lenh_giay,
-):
-    """Câu lý do phải chỉ đúng ô người dùng cần mở — giấy khai ở danh mục Giấy, không ở đầu việc."""
-    from app.services.bien_cong_thuc import quy_cach_bien
-
-    lsx, buoc = lenh_giay
-    g = GiayNguyen(ma="GY-TRONG", ten="Giấy chưa khai", gsm=300, kho_dai=860, kho_rong=650,
-                   don_vi_gia="kg")
-    db.add(g)
-    db.commit()
-
-    dong = next(x for x in lsx_svc._goi_y_luong_vat_tu(buoc, quy_cach_bien(lsx))
-                if x["hang_loai"] == "giay" and x["vat_tu_id"] == g.id)
-    assert dong["so_luong"] is None
-    assert "danh mục Giấy" in dong["ly_do"]
-    assert "Đầu việc" not in dong["ly_do"]
-
-
 # ============================ Lọc bảng lệnh ============================
 def _hai_don_hai_khach(db, orders, admin, customer):
     """Hai đơn đã chuyển SX của HAI khách khác nhau, mỗi đơn lên đủ lệnh.
@@ -3606,3 +3563,117 @@ def test_xem_truoc_buoc_CHUA_LUU_tinh_duoc_nho_cong_doan_id(
 
     db.expire_all()
     assert len(lsx_svc.get(lsx.id).cong_doans) == truoc       # bước ảo không rơi vào DB
+
+
+# ============ Dòng giấy của bước: mã + khổ + số tờ (spec 2026-10-01 §4.2) ============
+def _goi_y_giay(lsx_svc, lsx, buoc, giay_id):
+    from app.services.bien_cong_thuc import quy_cach_bien
+
+    goi_y = lsx_svc._goi_y_luong_vat_tu(buoc, quy_cach_bien(lsx))
+    return next(g for g in goi_y if g["hang_loai"] == "giay" and g["vat_tu_id"] == giay_id)
+
+
+def _giay_kg(db, ma="C-300"):
+    g = GiayNguyen(ma=ma, ten=f"Giấy {ma}", gsm=300, don_gia=25_000, don_vi_gia="kg")
+    db.add(g)
+    db.commit()
+    return g
+
+
+def test_goi_y_giay_lay_kho_nguyen_va_so_to_nguyen(db, lsx_svc, lenh_giay):
+    from app.services.kho_giay import don_vi_goc_to
+
+    l, b = lenh_giay
+    l.quy_cach_json = {"kho_nguyen_dai": 905, "kho_nguyen_rong": 780, "kho_in_dai": 520,
+                       "kho_in_rong": 390, "gsm": 300}
+    l.so_to_nguyen, l.so_to_ke_hoach = 5000, 20000
+    g = _giay_kg(db)
+    gy = _goi_y_giay(lsx_svc, l, b, g.id)
+    assert (gy["kho_rong"], gy["kho_dai"], gy["so_luong"]) == (780, 905, 5000)
+    assert gy["don_vi"] == don_vi_goc_to() and gy["ly_do"] is None
+
+
+def test_goi_y_giay_thieu_kho_nguyen_lay_kho_in_va_so_to_in(db, lsx_svc, lenh_giay):
+    l, b = lenh_giay
+    l.quy_cach_json = {"kho_in_dai": 520, "kho_in_rong": 390}
+    l.so_to_nguyen, l.so_to_ke_hoach = 5000, 20000
+    g = _giay_kg(db)
+    gy = _goi_y_giay(lsx_svc, l, b, g.id)
+    assert (gy["kho_rong"], gy["kho_dai"], gy["so_luong"]) == (390, 520, 20000)
+
+
+def test_goi_y_giay_khong_kho_khong_so_tra_ly_do(db, lsx_svc, lenh_giay):
+    l, b = lenh_giay
+    g = _giay_kg(db)
+    l.quy_cach_json = {}
+    gy = _goi_y_giay(lsx_svc, l, b, g.id)
+    assert gy["so_luong"] is None and gy["ly_do"] == "Lệnh chưa có khổ giấy — gõ tay."
+    l.quy_cach_json = {"kho_nguyen_dai": 905, "kho_nguyen_rong": 780}
+    l.so_to_nguyen = 0
+    gy = _goi_y_giay(lsx_svc, l, b, g.id)
+    assert gy["so_luong"] is None and gy["ly_do"] == "Lệnh chưa có số tờ — gõ tay."
+    assert (gy["kho_rong"], gy["kho_dai"]) == (780, 905)
+
+
+def _lenh_hai_buoc(db, orders, lsx_svc, admin, customer):
+    ptg = _ptg_2_san_pham(db)
+    d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
+    line_id = lsx_svc.preview(d.id)["lines"][0]["order_line_id"]
+    return lsx_svc.tao(order_id=d.id, order_line_ids=[line_id], actor=admin)[0]
+
+
+def _mot_buoc_giay(buoc, vat_tus):
+    return [LsxCongDoanIn(
+        step_key=buoc.step_key, cong_doan_id=buoc.cong_doan_id, ten=buoc.ten, nhom=buoc.nhom,
+        loai_buoc=buoc.loai_buoc, department_id=buoc.department_id, may_id=buoc.may_id,
+        phu_thuoc_step_keys=[], vat_tus=vat_tus)]
+
+
+def test_luu_dong_giay_chuan_hoa_kho_va_don_vi_to_nguyen(db, orders, lsx_svc, admin, customer):
+    from app.services.kho_giay import don_vi_goc_to
+
+    lsx = _lenh_hai_buoc(db, orders, lsx_svc, admin, customer)
+    buoc = sorted(lsx.cong_doans, key=lambda x: x.thu_tu)[0]
+    g = _giay_kg(db)
+    saved = lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=_mot_buoc_giay(buoc, [
+        {"hang_loai": "giay", "vat_tu_id": g.id, "so_luong": 5000, "kho_rong": 905, "kho_dai": 780}]))
+    dong = next(v for cd in saved.cong_doans for v in cd.vat_tus if v.hang_loai == "giay")
+    assert (dong.kho_rong, dong.kho_dai) == (780, 905)
+    assert dong.don_vi_snapshot == don_vi_goc_to()          # không phải "kg" của danh mục
+    b = next(x for x in lsx_svc.detail_dict(saved)["cong_doans"] if x["step_key"] == buoc.step_key)
+    v = next(x for x in b["vat_tus"] if x["hang_loai"] == "giay")
+    assert (v["kho_rong"], v["kho_dai"], v["so_luong"]) == (780, 905, 5000)
+
+
+def test_dong_giay_thieu_kho_bi_tu_choi(db, orders, lsx_svc, admin, customer):
+    import pydantic
+
+    with pytest.raises(pydantic.ValidationError, match="Dòng giấy phải có khổ"):
+        LsxCongDoanIn(ten="In", nhom="print", vat_tus=[
+            {"hang_loai": "giay", "vat_tu_id": 1, "so_luong": 10, "kho_rong": 780}])
+    # Hàng khác: khổ bị ép 0 · 0.
+    r = LsxCongDoanIn(ten="In", nhom="print", vat_tus=[
+        {"vat_tu_id": 1, "so_luong": 10, "kho_rong": 780, "kho_dai": 905}])
+    assert (r.vat_tus[0].kho_rong, r.vat_tus[0].kho_dai) == (0, 0)
+
+    # Tầng service cũng chặn (đường gọi nội bộ không qua validator của schema).
+    lsx = _lenh_hai_buoc(db, orders, lsx_svc, admin, customer)
+    buoc = sorted(lsx.cong_doans, key=lambda x: x.thu_tu)[0]
+    g = _giay_kg(db)
+    rows = _mot_buoc_giay(buoc, [
+        {"hang_loai": "giay", "vat_tu_id": g.id, "so_luong": 5, "kho_rong": 780, "kho_dai": 905}])
+    rows[0].vat_tus[0].kho_dai = 0
+    with pytest.raises(LsxValidationError, match="Dòng giấy phải có khổ"):
+        lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=rows)
+
+
+def test_bang_danh_muc_doi_khong_bao_dong_giay_vi_don_vi(db, orders, lsx_svc, admin, customer):
+    lsx = _lenh_hai_buoc(db, orders, lsx_svc, admin, customer)
+    buoc = sorted(lsx.cong_doans, key=lambda x: x.thu_tu)[0]
+    g = _giay_kg(db)
+    saved = lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=_mot_buoc_giay(buoc, [
+        {"hang_loai": "giay", "vat_tu_id": g.id, "so_luong": 5000, "kho_rong": 780, "kho_dai": 905}]))
+    doi = lsx_svc.danh_muc_doi(saved) or {"buocs": []}
+    assert not any(v.get("hang_loai") == "giay"
+                   for b in doi["buocs"] for k in ("vat_tu_them", "vat_tu_bo", "vat_tu_lech")
+                   for v in b[k])

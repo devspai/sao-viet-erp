@@ -73,6 +73,7 @@ from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.user_repo import UserRepository
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from .danh_gia_ncc import DanhGiaNcc, tu_tong_hop
+from .kho_giay import chuan_kho
 from .rbac_service import AuthorizationService
 
 
@@ -223,6 +224,21 @@ def _doc_mat_hang(get) -> tuple[str | None, int | None]:
     if loai not in HANG_LOAI:
         raise PurchaseValidationError(f'Loại mặt hàng "{loai}" không hợp lệ.')
     return loai, hid
+
+
+def _doc_kho(get, hang_loai: str | None, *, de_trong: bool = False) -> tuple[int | None, int | None]:
+    """Khổ giấy của một dòng (mm, chuẩn ngắn × dài). Hàng khác giấy ⇒ 0 · 0. `de_trong`: dòng đơn
+    mua không gửi khổ ⇒ (None, None) để `_chot_noi_dong` chép khổ cần của dòng yêu cầu."""
+    r, d = get("kho_rong"), get("kho_dai")
+    if de_trong and r is None and d is None:
+        return None, None
+    if hang_loai is not None and hang_loai != "giay":
+        return 0, 0
+    if hang_loai is None and not de_trong:
+        return 0, 0
+    # Dòng đơn mua chưa có mặt hàng: chuẩn hoá trước, `_chot_noi_dong` ép 0 nếu hàng kế thừa không
+    # phải giấy.
+    return chuan_kho(r, d)
 
 
 def _purchase_line_amounts(
@@ -1388,6 +1404,7 @@ class PurchaseService:
             quantity = float(get("quantity"))
             if quantity <= 0:
                 raise PurchaseValidationError("So luong phai lon hon 0.")
+            kho_rong, kho_dai = _doc_kho(get, hang_loai)
             lines.append(
                 DepartmentPurchaseRequestLineInput(
                     item_name=item_name,
@@ -1397,6 +1414,8 @@ class PurchaseService:
                     note=(get("note") or "").strip() or None,
                     hang_loai=hang_loai,
                     hang_id=hang_id,
+                    kho_rong=kho_rong,
+                    kho_dai=kho_dai,
                 )
             )
         return lines
@@ -1897,6 +1916,8 @@ class PurchaseService:
         for line in cleaned_lines:
             src_line_id = getattr(line, "department_request_line_id", None)
             if src_line_id is None:
+                if getattr(line, "hang_loai", None) != "giay":
+                    line.kho_rong, line.kho_dai = 0, 0
                 continue
             if src_line_id not in dong_nguon:
                 raise PurchaseValidationError(
@@ -1910,6 +1931,17 @@ class PurchaseService:
             if getattr(line, "hang_loai", None) is None and getattr(line, "hang_id", None) is None:
                 line.hang_loai = getattr(goc, "hang_loai", None)
                 line.hang_id = getattr(goc, "hang_id", None)
+            # Khổ MUA mặc định = khổ CẦN của dòng yêu cầu (spec §4.4); client gửi khổ thì giữ khổ
+            # mua (thu mua đổi khổ khi lập đơn là hợp lệ). Hàng khác giấy luôn 0 · 0.
+            if getattr(line, "kho_rong", None) is None:
+                if line.hang_loai == "giay" and (line.hang_loai, line.hang_id) == (
+                        getattr(goc, "hang_loai", None), getattr(goc, "hang_id", None)):
+                    line.kho_rong = int(getattr(goc, "kho_rong", 0) or 0)
+                    line.kho_dai = int(getattr(goc, "kho_dai", 0) or 0)
+                else:
+                    line.kho_rong, line.kho_dai = 0, 0
+            elif line.hang_loai != "giay":
+                line.kho_rong, line.kho_dai = 0, 0
 
     def _clean_lines(
         self, raw_lines, *, supplier_id: int | None = None
@@ -1955,6 +1987,7 @@ class PurchaseService:
             raw_src = get("department_request_line_id")
             src_line_id = int(raw_src) if raw_src not in (None, "") else None
             hang_loai, hang_id = _doc_mat_hang(get)
+            kho_rong, kho_dai = _doc_kho(get, hang_loai, de_trong=True)
             lines.append(
                 PurchaseRequestLineInput(
                     item_name=item_name,
@@ -1967,6 +2000,8 @@ class PurchaseService:
                     department_request_line_id=src_line_id,
                     hang_loai=hang_loai,
                     hang_id=hang_id,
+                    kho_rong=kho_rong,
+                    kho_dai=kho_dai,
                 )
             )
         return lines
@@ -3111,9 +3146,12 @@ class PurchaseService:
 
     # --- output helpers ----------------------------------------------------
 
-    @staticmethod
-    def _tom_tat_dot_giao(dot: PurchaseDelivery, row: PurchaseRequest) -> str:
-        """Mô tả ngắn của một đợt để audit còn đọc được cả sau khi đợt bị xoá."""
+    def _tom_tat_dot_giao(self, dot: PurchaseDelivery, row: PurchaseRequest) -> str:
+        """Mô tả ngắn của một đợt để audit còn đọc được cả sau khi đợt bị xoá. Đơn vị in bằng TÊN
+        (`nhan_don_vi`) — lịch sử đơn bày thẳng câu này, in mã là người đọc thấy "5200 to_nguyen"."""
+        from ..repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
+
+        ten_dv = DonViDoRepository(self.requests.db).ten_theo_ma()
         line_by_id = {line.id: line for line in row.lines}
         hang = []
         for delivery_line in dot.lines:
@@ -3121,7 +3159,8 @@ class PurchaseService:
             if line is None:
                 continue
             hang.append(
-                f"{line.item_name} {float(delivery_line.quantity):g} {line.unit}"
+                f"{line.item_name} {float(delivery_line.quantity):g} "
+                f"{nhan_don_vi(ten_dv, line.unit)}"
             )
         hang_text = "; ".join(hang) if hang else "không còn dòng hàng"
         return f"Đợt {dot.seq_no} ngày {dot.delivery_date}: {hang_text}"
@@ -3293,6 +3332,8 @@ class PurchaseService:
                     "hang_id": line.hang_id,
                     "hang_ma": getattr(_hmap.get((line.hang_loai, line.hang_id)), "ma", None),
                     "hang_ten": getattr(_hmap.get((line.hang_loai, line.hang_id)), "ten", None),
+                    "kho_rong": int(line.kho_rong or 0),
+                    "kho_dai": int(line.kho_dai or 0),
                     "department_request_line_id": line.department_request_line_id,
                 }
             )
@@ -3577,6 +3618,8 @@ class PurchaseService:
                     "id": line.id,
                     "hang_loai": line.hang_loai,
                     "hang_id": line.hang_id,
+                    "kho_rong": int(line.kho_rong or 0),
+                    "kho_dai": int(line.kho_dai or 0),
                     "item_name": line.item_name,
                     "unit": line.unit,
                     "quantity": qty,

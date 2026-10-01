@@ -238,6 +238,8 @@ export function DepartmentPurchaseRequestsPage({
           unit: line.unit,
           quantity: line.quantity,
           note: line.note,
+          kho_rong: line.kho_rong,
+          kho_dai: line.kho_dai,
         })),
     });
     setFormError(null);

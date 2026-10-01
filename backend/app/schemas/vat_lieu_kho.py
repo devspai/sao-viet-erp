@@ -57,7 +57,6 @@ class GiayIn(BaseModel):
     kho_tinh_gia: bool = True
     ghi_chu: str | None = None
     cong_thuc_gia: str | None = None
-    cong_thuc_luong: str | None = None
     # NVL thay thế (mg 0239) — id các Giấy khác dùng thay được món này. MỘT CHIỀU.
     thay_the_ids: list[int] | None = None
     active: bool = True
@@ -80,10 +79,6 @@ class GiayRow(BaseModel):
     ghi_chu: str | None = None
     version_no: int = 1
     cong_thuc_gia: str | None = None
-    cong_thuc_luong: str | None = None
-    # "Lần trước công thức lượng" (mục 3+7) — router gán từ `cong_thuc_lich_su`, không có trong DB.
-    cong_thuc_luong_truoc: str | None = None
-    cong_thuc_luong_sua_luc: datetime | None = None
     thay_the_ids: list[int] | None = None
     active: bool
     updated_at: datetime | None = None

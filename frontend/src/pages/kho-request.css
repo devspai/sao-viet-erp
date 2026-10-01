@@ -365,6 +365,16 @@ input.kho-num,
   color: var(--ash);
   margin-top: var(--sp-1);
 }
+/* Dạng + khổ của giấy dưới ô Vật tư (form yêu cầu kho): chọn Tờ/Cuộn rồi gõ rộng × dài (mm). */
+.kho-giay-kho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}
+.kho-giay-kho select.rc-input { width: 84px; }
+.kho-giay-kho input.rc-input { width: 64px; }
 .kho-hint--amber { color: var(--amber-deep); }
 .kho-hint--rust { color: var(--rust-deep); }
 /* Dòng phụ trong ô số (`.kho-num` cấm xuống dòng) — vd "Giá bán 2.708 đ/cái · DH003" dưới ô Đơn giá:
