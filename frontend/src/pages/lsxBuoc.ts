@@ -127,6 +127,21 @@ export interface EditRow {
 
 /** Điều kiện bắt đầu (§4.5) — "công đoạn trước xong" là mặc định nên không có ô riêng. */
 let seq = 0;
+type DongVatTu = EditRow["vat_tus"][number];
+
+/** Dòng vật tư có số do MÁY tính (badge "Tự tính", không đếm vào "Đã sửa"). Giấy LUÔN là máy tính:
+ *  số/khổ/dạng dẫn xuất từ đầu vào của bước ("Tờ theo đầu vào của bước"), không ai gõ — cờ
+ *  `tu_dong` của dòng giấy chỉ nói dòng do ai thêm vào, không nói số do ai sửa. */
+export function laMayTinh(v: Pick<DongVatTu, "hang_loai" | "tu_dong">): boolean {
+  return v.hang_loai === "giay" || Boolean(v.tu_dong);
+}
+
+/** Dòng giấy vừa chọn, CHƯA lưu nên máy chủ chưa dẫn xuất dạng/số — đừng hiện "chưa có công thức
+ *  lượng" hay đơn vị giá (kg) của mã. */
+export function giayChoLuu(v: Pick<DongVatTu, "hang_loai" | "dang_giay">): boolean {
+  return v.hang_loai === "giay" && !v.dang_giay;
+}
+
 export function newKey(): string {
   // Bước MỚI mang sẵn step_key là UUID THẬT (không phải mã tạm "r…"). Lý do: khi chèn 1 bước
   // vào giữa DAG rồi bấm Lưu, bước SAU nó tham chiếu step_key này trong `phu_thuoc_step_keys`;

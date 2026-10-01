@@ -23,7 +23,9 @@ import {
   type EditRow,
   type HangLoai,
   capMon,
+  giayChoLuu,
   heSoChu,
+  laMayTinh,
   mayChonDuoc,
   nhanChang,
   nhanDonVi,
@@ -897,11 +899,11 @@ export function LsxBuocDrawer({
                       </span>
                       <span className="khsx-vattu-metric-dot" />
                       <span className="khsx-vattu-metric-chip">
-                        Tự tính: <strong>{row.vat_tus.filter((v) => v.tu_dong).length}</strong>
+                        Tự tính: <strong>{row.vat_tus.filter(laMayTinh).length}</strong>
                       </span>
                       <span className="khsx-vattu-metric-dot" />
                       <span className="khsx-vattu-metric-chip">
-                        Đã sửa: <strong>{row.vat_tus.filter((v) => !v.tu_dong).length}</strong>
+                        Đã sửa: <strong>{row.vat_tus.filter((v) => !laMayTinh(v)).length}</strong>
                       </span>
                     </div>
 
@@ -931,6 +933,8 @@ export function LsxBuocDrawer({
                         row.vat_tus.map((v, i) => {
                           const goiY = row.vat_tu_goi_y.find(
                             (g) => capMon(g.hang_loai, g.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
+                          // Giấy vừa chọn chưa lưu: máy chủ chưa dẫn xuất — có lý do lỗi thì vẫn nói lý do.
+                          const choLuu = giayChoLuu(v) && !goiY?.ly_do;
                           return (
                             <tr className="khsx-vattu-tr" key={capMon(v.hang_loai, v.vat_tu_id)}>
                               <td className="khsx-vattu-td khsx-vattu-td--info">
@@ -967,6 +971,10 @@ export function LsxBuocDrawer({
                                   <div className="khsx-formula-wrap">
                                     <code className="khsx-formula-code">{goiY.dien_giai}</code>
                                   </div>
+                                ) : choLuu ? (
+                                  <span className="khsx-vattu-no-formula">
+                                    Số tờ theo đầu vào của bước — máy tính khi lưu.
+                                  </span>
                                 ) : (
                                   <span className="khsx-vattu-no-formula">
                                     Chưa tự tính được — {goiY?.ly_do ?? "chưa có công thức lượng."}
@@ -974,16 +982,22 @@ export function LsxBuocDrawer({
                                 )}
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--status">
-                                <span className={`khsx-vattu-src-badge ${v.tu_dong ? "is-auto" : "is-manual"}`}>
-                                  {v.tu_dong ? "Tự tính" : "Đã sửa"}
+                                <span className={`khsx-vattu-src-badge ${laMayTinh(v) ? "is-auto" : "is-manual"}`}>
+                                  {laMayTinh(v) ? "Tự tính" : "Đã sửa"}
                                 </span>
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--input">
                                 <div className="khsx-vattu-input-group">
                                   {/* Số lượng: vật tư tính bằng công thức, giấy suy từ đầu vào của bước —
                                       cả hai chỉ đọc. */}
-                                  <strong>{v.so_luong}</strong>
-                                  <span className="khsx-vattu-unit-tag">{nhanDonVi(v.don_vi)}</span>
+                                  {choLuu ? (
+                                    <span className="khsx-vattu-unit-tag">Tính khi lưu</span>
+                                  ) : (
+                                    <>
+                                      <strong>{v.so_luong}</strong>
+                                      <span className="khsx-vattu-unit-tag">{nhanDonVi(v.don_vi)}</span>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--action" style={{ textAlign: "center" }}>

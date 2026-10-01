@@ -8,7 +8,7 @@
 // cột "Cần xem lại". Không có test thì lần sau ai đó "dọn" cái cờ `tren_dong_giay` là nó lặng lẽ
 // quay lại.
 import { describe, expect, it } from "vitest";
-import { boBuoc, chenBuoc, emptyRow, loiDong, mayChonDuoc, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
+import { boBuoc, chenBuoc, emptyRow, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
 
 /** Dòng routing tối thiểu. `may_id` đặt sẵn để khỏi dính cảnh báo "chưa gán tổ / máy" — thứ đang
  *  không phải chủ đề của phần lớn test dưới đây. */
@@ -287,5 +287,18 @@ describe("nhanGiayTheoDauVao", () => {
     expect(nhanGiayTheoDauVao(null, "tấn")).toBe("");
     expect(nhanGiayTheoDauVao("", "kg")).toBe("");
     expect(nhanGiayTheoDauVao("cai", "kg")).toBe("");
+  });
+});
+
+describe("dòng giấy là số MÁY tính", () => {
+  it("giấy luôn là Tự tính, kể cả dòng người lập lệnh tự chọn (tu_dong=false)", () => {
+    expect(laMayTinh({ hang_loai: "giay", tu_dong: false })).toBe(true);
+    expect(laMayTinh({ hang_loai: "vat_tu", tu_dong: false })).toBe(false);
+    expect(laMayTinh({ hang_loai: "vat_tu", tu_dong: true })).toBe(true);
+  });
+  it("giấy chưa có dạng = chờ lưu; đã dẫn xuất hoặc vật tư khác thì không", () => {
+    expect(giayChoLuu({ hang_loai: "giay", dang_giay: null })).toBe(true);
+    expect(giayChoLuu({ hang_loai: "giay", dang_giay: "to" })).toBe(false);
+    expect(giayChoLuu({ hang_loai: "vat_tu" })).toBe(false);
   });
 });
