@@ -2093,6 +2093,8 @@ export interface SxVatTuCapDoiChieu {
   lech_ke_hoach: number;
   lech_thuc_te: number;
   cac_ly_do: { lan_so: number; ly_do: string }[];
+  /** Giấy bước này NHẬN từ bước trước (tên bước trước) — không phải nhu cầu, không xin cấp. */
+  nhan_tu?: string | null;
 }
 export interface SxVatTuCap {
   ke_hoach: SxVatTuCapKeHoach[];

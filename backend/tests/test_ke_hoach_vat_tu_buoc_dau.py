@@ -79,6 +79,43 @@ def test_buoc_nhan_tu(db, svc, customer):
     assert svc.buoc_nhan_tu(l.id) == {in_.id: {"hang_id": g.id, "tu_buoc": "Cắt tờ"}}
 
 
+def test_buoc_nhan_tu_bo_qua_buoc_bi_buoc_chung_de(db, svc, customer):
+    """Bước Cắt tờ bị bước chung của bài đè ⇒ không đóng góp ⇒ nhãn của Cán màng nêu In offset,
+    không nêu Cắt tờ; còn In (đứng sau Cắt tờ, trước không còn bước nào đóng góp) không có nhãn."""
+    from app.models.bai_ghep_cong_doan import BaiGhepCongDoanMap
+
+    g = _giay(db)
+    l, cat, in_ = _lenh_cat_in(db, customer, g)
+    can = _buoc_giay(db, l, thu_tu=3, ten="Cán màng", giay=g, so_luong=10_520, kho=(545, 790),
+                     don_vi_vao="to")
+    bg = _bai(db, "GB-DE", g, [l])
+    chung = BaiGhepCongDoan(bai_ghep_id=bg.id, thu_tu=1, ten="Cắt chung", loai_buoc="may",
+                            don_vi_vao="to_nguyen", don_vi_ra="to")
+    db.add(chung)
+    db.flush()
+    db.add(BaiGhepCongDoanMap(bai_ghep_cong_doan_id=chung.id, lsx_id=l.id,
+                              lsx_step_key=cat.step_key))
+    db.commit()
+    assert svc.buoc_nhan_tu(l.id) == {can.id: {"hang_id": g.id, "tu_buoc": "In offset"}}
+
+
+def test_buoc_nhan_tu_bo_qua_lenh_tron_goi(db, svc, customer):
+    from app.models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
+    from app.models.purchase import Supplier
+
+    g = _giay(db)
+    l, _cat, _in = _lenh_cat_in(db, customer, g)
+    s = Supplier(name="NCC trọn gói", tax_code="0900000001", phone="0900000000",
+                 email="tg@x.vn", address="HN", contact_name="A", supplier_group="giay",
+                 status="active")
+    db.add(s)
+    db.flush()
+    db.add(GiaCongNgoai(kieu=KIEU_TRON_GOI, lsx_id=l.id, nha_cung_cap_id=s.id,
+                        xuong_cap_giay=False))
+    db.commit()
+    assert svc.buoc_nhan_tu(l.id) == {}
+
+
 def test_cuon_gom_theo_ma(db, svc, customer):
     g = _giay(db)
     l = _lenh(db, customer, ma="LSX-CU", giay_id=g.id, so_to_nguyen=100, han=MAI, buoc=False)

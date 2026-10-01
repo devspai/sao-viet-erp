@@ -854,6 +854,22 @@ def _bg_dict(b, doi_tac_id, doi_tac_map, me_map, dc_map, ten, ben_map=None) -> d
     }
 
 
+def _dong_giay_nhan_tu(kh_svc, cv) -> list[tuple]:
+    """`[(dòng giấy LsxCongDoanVatTu của bước, tên bước trước)]` — giấy bước của `cv` nhận từ bước
+    trước vì không phải bước đầu mang mã đó (`buoc_nhan_tu`)."""
+    if not cv.lsx_id or not cv.lsx_cong_doan_id:
+        return []
+    nhan = kh_svc.buoc_nhan_tu(cv.lsx_id).get(cv.lsx_cong_doan_id)
+    if not nhan:
+        return []
+    return [
+        (v, nhan["tu_buoc"])
+        for v in kh_svc.repo.vat_tu_theo_buoc_lenh([cv.lsx_cong_doan_id])
+        if v.hang_loai == "giay" and int(v.vat_tu_id) == int(nhan["hang_id"])
+        and float(v.so_luong or 0) > 0
+    ]
+
+
 def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     """Khối vật tư cấp của drawer công đoạn (spec-de-nghi-cap-vat-tu-cong-doan §6).
 
@@ -871,9 +887,14 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     thuc_xuat = sl.thuc_xuat_theo_hang(req_ids)
     tom_tat = sl.yeu_cau_tom_tat(req_ids)
 
+    # Giấy bước này NHẬN từ bước trước (spec 2026-10-01 §5): không phải nhu cầu, không xin cấp —
+    # chỉ hiện một dòng trung tính "Nhận từ …" để người ở tổ biết giấy đi đâu. Chỉ bước của LỆNH
+    # mang dòng giấy (bước chung của bài không có) nên công việc của bài bỏ qua.
+    dong_nhan_tu = _dong_giay_nhan_tu(kh_svc, cv)
+
     tat_ca_khoa = {(k["hang_loai"], k["hang_id"]) for k in ke_hoach} | {
         (d.hang_loai, d.hang_id) for dn in cac_dn for d in dn.dongs
-    }
+    } | {("giay", int(v.vat_tu_id)) for v, _ in dong_nhan_tu}
     ten_map = sl.ten_hang_nhieu(tat_ca_khoa)
 
     # Gom theo `khoa_dong`: giấy cùng mã khác dạng/khổ là hai hàng đối chiếu (spec giấy tờ × khổ).
@@ -926,13 +947,41 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
         if key in gom:
             gom[key]["sl_thuc_xuat"] = sl_ra
 
+    for v, tu_buoc in dong_nhan_tu:
+        key = khoa_dong("giay", int(v.vat_tu_id), v.dang_giay, v.kho_rong, v.kho_dai)
+        if key in gom:  # đã có dòng thật (kế hoạch/đề nghị) cùng mã+khổ ⇒ không đè nhãn lên nó
+            continue
+        dvt = v.don_vi_snapshot or ""
+        sl_kh = float(v.so_luong)
+        try:
+            sl_goc, dvt_goc = kh_svc.ve_don_vi_goc("giay", int(v.vat_tu_id), dvt, sl_kh,
+                                                   dang=v.dang_giay)
+            if v.dang_giay != "cuon":  # cùng nhãn gốc với dòng kế hoạch thật (`nhu_cau_cua_cong_viec`)
+                dvt_goc = kh_svc._dv_to()
+        except Exception:  # noqa: BLE001 - dòng thông tin: không quy đổi được thì hiện thang khai
+            sl_goc, dvt_goc = sl_kh, dvt
+        gom[key] = {
+            "hang_loai": "giay", "hang_id": int(v.vat_tu_id),
+            "ten": ten_map.get(("giay", int(v.vat_tu_id))) or v.vat_tu_ten_snapshot
+                   or f"#{v.vat_tu_id}",
+            **_giay(v.dang_giay, v.kho_rong, v.kho_dai),
+            "dvt": dvt, "dvt_goc": dvt_goc,
+            "sl_ke_hoach": sl_kh, "sl_ke_hoach_goc": sl_goc,
+            "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
+            "sl_thuc_xuat": 0.0, "cac_ly_do": [], "_cac_dvt": {dvt},
+            "nhan_tu": tu_buoc,
+        }
+
     doi_chieu = []
     for row in gom.values():
         # MÁY so bằng thang GỐC (models/san_xuat_vat_tu.py:85-87); `sl_thuc_xuat` (từ
         # `StockVoucherLine.sl_goc`) vốn đã là thang gốc — so nó với `sl_yeu_cau` (thang tổ khai)
         # là so 100 tờ với 12 kg (vòng sửa 1, Important 2+3).
+        row.setdefault("nhan_tu", None)
         row["lech_ke_hoach"] = row["sl_yeu_cau_goc"] - row["sl_ke_hoach_goc"]
         row["lech_thuc_te"] = row["sl_thuc_xuat"] - row["sl_yeu_cau_goc"]
+        if row["nhan_tu"]:  # dòng "nhận từ": không có gì để lệch
+            row["lech_ke_hoach"] = row["lech_thuc_te"] = 0.0
         # Khoá gom là `khoa_dong` — KHÔNG có đơn vị, nên một hàng có thể ôm dòng kế hoạch
         # khai "ram" và dòng tổ khai "tờ". Cộng hai số đó lại rồi in ra là nói dối. Thang gốc là
         # thứ DUY NHẤT chắc chắn chung, nên hàng lẫn đơn vị thì hiện bằng nó (vòng sửa 1, 2c).

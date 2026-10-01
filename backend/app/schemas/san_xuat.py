@@ -824,6 +824,8 @@ class VatTuCapDoiChieuOut(BaseModel):
     lech_ke_hoach: float
     lech_thuc_te: float
     cac_ly_do: list[dict] = []
+    # Giấy bước này nhận từ bước trước (spec 2026-10-01 §5): tên bước trước; None = tự lấy từ kho.
+    nhan_tu: str | None = None
 
 
 class VatTuCapDongOut(BaseModel):

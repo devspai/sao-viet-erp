@@ -1419,8 +1419,10 @@ function VatTuSection({
   // vẫn còn nguyên khi màn đã là việc B ⇒ bấm Gửi là B nhận vật tư của A. Đóng form khi đổi việc.
   useEffect(() => { setFormMode(null); setPhieuMo(null); }, [cvId]);
 
-  const tongMatHang = cap.doi_chieu.length;
-  const daXinCount = cap.doi_chieu.filter((d) => d.sl_yeu_cau > VT_EPS).length;
+  // Dòng "Nhận từ bước trước" không phải thứ phải xin cấp — không tính vào mẫu số/tử số.
+  const canXin = cap.doi_chieu.filter((d) => !d.nhan_tu);
+  const tongMatHang = canXin.length;
+  const daXinCount = canXin.filter((d) => d.sl_yeu_cau > VT_EPS).length;
   const coKcsDaXuat = chiTiet.vat_tu.some((v) => v.da_nhan);
   const trangThaiKho = chiTiet.vat_tu.length === 0 ? "Chưa xuất" : coKcsDaXuat ? "Đã xuất kho" : "Chờ nhận";
   const soPhieuDaNhan = vt.filter((v) => v.da_nhan).length;
@@ -1641,6 +1643,11 @@ function VtDeltaCell({ d, soLan }: { d: SxVatTuCapDoiChieu; soLan: number }) {
   const soKh = d.sl_yeu_cau - d.sl_ke_hoach;
   const soYc = d.lech_thuc_te;
   const lechYc = vtCoLechThucTe(d, soLan);
+
+  // 0. Giấy nhận từ bước trước (spec 2026-10-01 §5): trung tính — không phải thiếu, không phải đủ.
+  if (d.nhan_tu) {
+    return <span className="thsx-vattu-badge thsx-vattu-badge--nhan">Nhận từ {d.nhan_tu}</span>;
+  }
 
   // 1. Tổ chưa xin cấp (đã yêu cầu = 0 & kế hoạch > 0)
   if (d.sl_yeu_cau <= VT_EPS && d.sl_ke_hoach > VT_EPS) {

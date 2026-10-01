@@ -3769,6 +3769,12 @@
   border: 1px solid #fde68a;
 }
 
+.thsx-vattu-badge--nhan {
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
 .thsx-vattu-badge--ok {
   color: #059669;
   background: #ecfdf5;

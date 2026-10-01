@@ -1022,16 +1022,32 @@ class KeHoachVatTuService:
             return {}
         vts = [v for v in self.repo.vat_tu_theo_buoc_lenh(list(buoc_map))
                if v.hang_loai == HANG_GIAY and _f(v.so_luong) > 0]
+        # Cùng tập bước với `_gom_nhu_cau`: bước bị bước chung của bài đè, hay lệnh gia công trọn gói
+        # mà xưởng không cấp giấy, không đóng góp gì — không được làm nhãn "nhận từ" nêu tên nó.
+        bais = self._bai_trong_pham_vi({int(lsx_id)})
+        bi_de = self.repo.step_keys_bi_buoc_chung_de({bg.id for bg in bais})
+        from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+
+        tron_goi = GiaCongNgoaiRepository(self.db).tron_goi_dang_chay({l.id for l in lenh})
+
+        def _dong_gop(v) -> bool:
+            cd, l = buoc_map[v.lsx_cong_doan_id]
+            return not (cd.step_key in bi_de or (l.id in tron_goi and not tron_goi[l.id]))
+
         theo_ma: dict[int, list] = {}
         for v in vts:
             cd = buoc_map[v.lsx_cong_doan_id][0]
-            theo_ma.setdefault(int(v.vat_tu_id), []).append(((cd.thu_tu or 0, cd.id), cd))
+            theo_ma.setdefault(int(v.vat_tu_id), []).append(((cd.thu_tu or 0, cd.id), cd, _dong_gop(v)))
         kq: dict[int, dict] = {}
         for hang_id, ds in theo_ma.items():
             ds.sort(key=lambda x: x[0])
             for i in range(1, len(ds)):
-                cd = ds[i][1]
-                kq[cd.id] = {"hang_id": hang_id, "tu_buoc": ds[i - 1][1].ten}
+                _, cd, ok = ds[i]
+                if not ok:
+                    continue
+                truoc = [x[1] for x in ds[:i] if x[2]]
+                if truoc:
+                    kq[cd.id] = {"hang_id": hang_id, "tu_buoc": truoc[-1].ten}
         return kq
 
     def _bo_buoc_da_xong(self, tho: list[dict]) -> tuple[list[dict], dict[tuple, float]]:
