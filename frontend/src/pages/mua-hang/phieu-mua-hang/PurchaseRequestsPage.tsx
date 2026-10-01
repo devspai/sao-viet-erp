@@ -49,10 +49,12 @@ import type {
   StatusFilter,
 } from "./shared/types";
 import "../../master-data.css";
+import "../../accounting.css";
 // Hộp khai số thực nhận mượn bảng gọn `.pay-table` của màn Công nợ — cùng một loại bảng phụ trong
 // hộp thoại, không dựng bộ lớp thứ hai cho y hệt một việc.
 import "../../payables.css";
 import "../../purchase.css";
+import "./phieu-mua-hang-chuan.css";
 
 export function PurchaseRequestsPage({
   navigate,
@@ -775,30 +777,26 @@ export function PurchaseRequestsPage({
   ) : null;
 
   return (
-    <main className="md-page acct-mh">
-      {/* Đầu màn gọn 1 HÀNG như màn "Yêu cầu mua hàng": tiêu đề trái, 2 tab con phải.
-          Bỏ eyebrow + đoạn mô tả để không chiếm chiều cao. Số trên tab yêu cầu là số ĐANG
-          CHỜ MUA (`open`), KHÁC số dòng bảng bên trong (bảng lọc "Tất cả") — xem `choMua`. */}
-      <div className="purchase__topbar-unified">
-        <div className="purchase__topbar-left">
-          <h1 className="purchase__topbar-title">Mua hàng</h1>
-        </div>
-        <div className="purchase__topbar-actions">
-          <StatusTabs
-            active={tab}
-            onChange={(key) => setTab(key as PurchaseTab)}
-            tabs={[
-              {
-                key: "yeu-cau",
-                label: "Yêu cầu chờ xử lý",
-                count: choMua.soLuong,
-                tone: coYcQuaHan ? "alert" : "default",
-              },
-              { key: "phieu", label: "Đơn mua hàng", count: total },
-            ]}
-          />
-        </div>
-      </div>
+    <main className="md-page acct-std pmh">
+      {/* Đầu màn theo CHUẨN Đơn mua hàng (Kế toán): chỉ tiêu đề, không eyebrow/mô tả; hai tab lớn
+          cùng hàng bên phải. Số trên tab yêu cầu là số ĐANG CHỜ MUA (`open`), KHÁC số dòng bảng
+          bên trong (bảng lọc "Tất cả") — xem `choMua`. */}
+      <header className="md-page__head pmh__head">
+        <h1 className="md-page__title">Mua hàng</h1>
+        <StatusTabs
+          active={tab}
+          onChange={(key) => setTab(key as PurchaseTab)}
+          tabs={[
+            {
+              key: "yeu-cau",
+              label: "Yêu cầu chờ xử lý",
+              count: choMua.soLuong,
+              tone: coYcQuaHan ? "alert" : "default",
+            },
+            { key: "phieu", label: "Đơn mua hàng", count: total },
+          ]}
+        />
+      </header>
 
       {/* Chỉ dựng nội dung của tab ĐANG MỞ (bảng kia không nằm dưới mép màn nữa, nó không tồn tại).
           Nhưng DỮ LIỆU vẫn tải cả hai ngay từ đầu — số đếm trên tab kia phải đúng ngay. */}

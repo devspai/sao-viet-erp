@@ -227,6 +227,22 @@ class GiuChoIn(BaseModel):
     bai_ghep_id: int | None = None
 
 
+class GiuChoNhieuIn(BaseModel):
+    """Bật giữ chỗ hàng loạt — mỗi phần tử vẫn phải đúng MỘT chủ thể như `GiuChoIn`."""
+
+    chu_the: list[GiuChoIn] = Field(min_length=1, max_length=200)
+
+
+class GiuChoNhieuDong(BaseModel):
+    lsx_id: int | None = None
+    bai_ghep_id: int | None = None
+    du: bool
+
+
+class GiuChoNhieuOut(BaseModel):
+    items: list[GiuChoNhieuDong]
+
+
 class DeNghiMuaIn(BaseModel):
     dong: list[DeNghiMuaDong] = Field(min_length=1)
     ghi_chu: str | None = Field(default=None, max_length=2000)

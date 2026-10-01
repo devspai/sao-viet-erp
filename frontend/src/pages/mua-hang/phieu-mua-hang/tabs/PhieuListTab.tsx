@@ -1,15 +1,28 @@
 // Tab "Đơn mua hàng" — bảng phiếu mua + bộ lọc (tách từ pages/PurchaseRequestsPage.tsx).
+// Giao diện theo CHUẨN Đơn mua hàng (Kế toán): một thẻ lọc `ToolbarChuan` + bảng `acct-dmh__frame`.
 import type { Dispatch, SetStateAction } from "react";
 import type { PurchaseRequestRow, SupplierRow } from "../../../../api/client";
+import { Button } from "../../../../components/Button";
 import { CodeLink } from "../../../../components/CodeLink";
 import { EmptyRow } from "../../../../components/EmptyState";
 import { Icon } from "../../../../components/Icons";
 import { Select, type SelectOption } from "../../../../components/Select";
 import { fmtDate, money } from "../../../../utils/format";
+import { ToolbarChuan } from "../../../ke-toan/components/ToolbarChuan";
 import { STATUS_META } from "../shared/constants";
 import { noiDung } from "../shared/helpers";
 import type { DepositFilter, PurchaseTab, StatusFilter } from "../shared/types";
-import { DepositCell, StatusBadge } from "../components/purchaseCells";
+import { DepositCell, StatusBadge, VendorCell, ApproverCell } from "../components/purchaseCells";
+
+/** Tab trạng thái hay dùng (≤6); phần còn lại nằm ở ô chọn "Trạng thái khác" để không mất đường lọc. */
+const STATUS_TABS: { value: string; label: string }[] = [
+  { value: "all", label: "Tất cả" },
+  { value: "draft", label: "Nháp" },
+  { value: "pending_approval", label: "Chờ duyệt" },
+  { value: "approved", label: "Đã duyệt" },
+  { value: "purchased", label: "Đang mua" },
+  { value: "received", label: "Đã nhận" },
+];
 
 export function PhieuListTab({
   coYcQuaHan,
@@ -83,6 +96,31 @@ export function PhieuListTab({
     { value: "all", label: "Tất cả nhà cung cấp" },
     ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name })),
   ];
+  const coLoc =
+    q.trim() !== "" ||
+    status !== "all" ||
+    supplierFilter !== "all" ||
+    depositFilter !== "all" ||
+    createdFrom !== "" ||
+    createdTo !== "" ||
+    neededFrom !== "" ||
+    neededTo !== "";
+  const xoaLoc = () => {
+    setQ("");
+    setStatus("all");
+    setSupplierFilter("all");
+    setDepositFilter("all");
+    setCreatedFrom("");
+    setCreatedTo("");
+    setNeededFrom("");
+    setNeededTo("");
+    setPage(1);
+  };
+  // Đang lọc một trạng thái ÍT GẶP (không có tab) ⇒ không tab nào sáng, ô "Trạng thái khác" giữ giá trị.
+  const tabStatus = STATUS_TABS.some((t) => t.value === status) ? status : "";
+  const trangThaiKhac = Object.entries(STATUS_META).filter(
+    ([value]) => !STATUS_TABS.some((t) => t.value === value),
+  );
   return (
     <>
     {/* Dải nhắc CHỈ hiện khi có yêu cầu đã quá ngày cần hàng — nó là lời cảnh báo, không phải
@@ -104,45 +142,42 @@ export function PhieuListTab({
       </div>
     )}
 
-    <section className="md-page__tablewrap acct-mh__frame purchase__list">
-      {/* Ô tìm + bộ lọc ngay đầu thẻ, dồn TRÁI; KHÔNG lặp tiêu đề "Đơn mua hàng" — đã có trên tab. */}
-      <div className="purchase__list-tools purchase__source-toolbar">
-          <form
-            className="md-page__search purchase__search-wrap"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setPage(1);
-            }}
-          >
-            <span className="purchase__search-icon">
-              <Icon name="search" size={16} />
-            </span>
-            <input
-              className="input purchase__search-input"
-              placeholder="Tìm mã phiếu, mục đích, ghi chú..."
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setPage(1);
-              }}
-            />
-          </form>
+    <ToolbarChuan
+      tabs={STATUS_TABS}
+      tab={tabStatus}
+      ariaTabs="Lọc trạng thái đơn mua"
+      onTab={(v) => {
+        setStatus(v as StatusFilter);
+        setPage(1);
+      }}
+      q={q}
+      onQ={(v) => {
+        setQ(v);
+        setPage(1);
+      }}
+      onSearchSubmit={() => setPage(1)}
+      placeholder="Tìm mã phiếu, mục đích, ghi chú..."
+      hasFilter={coLoc}
+      onReset={xoaLoc}
+      selects={
+        <>
           <select
-            className="input purchase__select-modern"
-            value={status}
+            className="input acct-toolbar__select"
+            aria-label="Trạng thái khác"
+            value={tabStatus === "" ? status : "all"}
             onChange={(e) => {
               setStatus(e.target.value as StatusFilter);
               setPage(1);
             }}
           >
-            <option value="all">Tất cả trạng thái</option>
-            {Object.entries(STATUS_META).map(([value, meta]) => (
+            <option value="all">Trạng thái khác</option>
+            {trangThaiKhac.map(([value, meta]) => (
               <option key={value} value={value}>
                 {meta.label}
               </option>
             ))}
           </select>
-          <div className="purchase__filter-select">
+          <div className="acct-toolbar__filter-select">
             <Select
               options={supplierOptions}
               value={supplierFilter}
@@ -154,11 +189,11 @@ export function PhieuListTab({
               searchable
               searchPlaceholder="Tìm nhà cung cấp…"
               portal
-              className="purchase__select-modern"
+              className="acct-toolbar__select"
             />
           </div>
           <select
-            className="input purchase__select-modern"
+            className="input acct-toolbar__select"
             value={depositFilter}
             onChange={(e) => {
               setDepositFilter(e.target.value as DepositFilter);
@@ -171,54 +206,39 @@ export function PhieuListTab({
             <option value="partial">Cọc thiếu</option>
             <option value="enough">Cọc đủ</option>
           </select>
-          <div className="purchase__date-group">
-            <span>Ngày tạo</span>
-            <input
-              className="input purchase__date-filter"
-              type="date"
-              title="Ngày tạo từ"
-              value={createdFrom}
-              onChange={(e) => {
-                setCreatedFrom(e.target.value);
-                setPage(1);
-              }}
-            />
-            <input
-              className="input purchase__date-filter"
-              type="date"
-              title="Ngày tạo đến"
-              value={createdTo}
-              onChange={(e) => {
-                setCreatedTo(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <div className="purchase__date-group">
-            <span>Ngày cần hàng</span>
-            <input
-              className="input purchase__date-filter"
-              type="date"
-              title="Ngày cần từ"
-              value={neededFrom}
-              onChange={(e) => {
-                setNeededFrom(e.target.value);
-                setPage(1);
-              }}
-            />
-            <input
-              className="input purchase__date-filter"
-              type="date"
-              title="Ngày cần đến"
-              value={neededTo}
-              onChange={(e) => {
-                setNeededTo(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-      </div>
+        </>
+      }
+      dateGroups={[
+        {
+          label: "Ngày tạo",
+          from: createdFrom,
+          to: createdTo,
+          onFrom: (v) => {
+            setCreatedFrom(v);
+            setPage(1);
+          },
+          onTo: (v) => {
+            setCreatedTo(v);
+            setPage(1);
+          },
+        },
+        {
+          label: "Ngày cần hàng",
+          from: neededFrom,
+          to: neededTo,
+          onFrom: (v) => {
+            setNeededFrom(v);
+            setPage(1);
+          },
+          onTo: (v) => {
+            setNeededTo(v);
+            setPage(1);
+          },
+        },
+      ]}
+    />
 
+    <section className="md-page__tablewrap acct-list acct-dmh__frame">
       <table className="md-page__table">
         <thead>
           <tr>
@@ -228,7 +248,7 @@ export function PhieuListTab({
             <th>Mã đơn</th>
             <th>Nhà cung cấp</th>
             <th>Ngày tạo</th>
-            <th>Cần / Dự kiến nhận</th>
+            <th>Ngày cần / nhận</th>
             <th className="acct-amount-cell">Tổng dự kiến</th>
             <th className="acct-amount-cell">Tiền cọc</th>
             <th>Người tạo / duyệt</th>
@@ -257,41 +277,13 @@ export function PhieuListTab({
               icon="cart"
               title="Chưa có đơn mua hàng nào khớp"
               sub={
-                q.trim() ||
-                status !== "all" ||
-                supplierFilter !== "all" ||
-                depositFilter !== "all" ||
-                createdFrom ||
-                createdTo ||
-                neededFrom ||
-                neededTo
+                coLoc
                   ? "Thử bỏ bớt bộ lọc hoặc xoá từ khoá tìm kiếm."
                   : "Sang tab Yêu cầu chờ xử lý để chọn một yêu cầu rồi lập đơn mua."
               }
               action={
-                q.trim() ||
-                status !== "all" ||
-                supplierFilter !== "all" ||
-                depositFilter !== "all" ||
-                createdFrom ||
-                createdTo ||
-                neededFrom ||
-                neededTo ? (
-                  <button
-                    type="button"
-                    className="btn btn--ghost"
-                    onClick={() => {
-                      setQ("");
-                      setStatus("all");
-                      setSupplierFilter("all");
-                      setDepositFilter("all");
-                      setCreatedFrom("");
-                      setCreatedTo("");
-                      setNeededFrom("");
-                      setNeededTo("");
-                      setPage(1);
-                    }}
-                  >
+                coLoc ? (
+                  <button type="button" className="btn btn--ghost" onClick={xoaLoc}>
                     Xoá bộ lọc
                   </button>
                 ) : undefined
@@ -301,62 +293,51 @@ export function PhieuListTab({
             rows.map((row) => (
               <tr
                 key={row.id}
-                className={`md-page__row${selected?.id === row.id ? " purchase__row--selected" : ""}`}
+                className={selected?.id === row.id ? "purchase__row--selected" : ""}
+                title={noiDung(row) ? `Mục đích / Ghi chú: ${noiDung(row)}` : undefined}
                 onClick={() => setSelectedId(row.id)}
               >
-                <td className="purchase__code-cell">
-                  <strong className="md-page__mono">{row.code}</strong>
-                  <div className="purchase__source-codes">
-                    {row.sources.length
-                      ? row.sources.map((source, index) => (
-                          <span key={source.id}>
-                            {index > 0 && ", "}
-                            <CodeLink
-                              code={source.code}
-                              onOpen={openYcmh}
-                            />
-                          </span>
-                        ))
-                      : "Chưa gắn yêu cầu"}
-                  </div>
-                  <div className="md-page__muted purchase__row-purpose">
-                    {noiDung(row) || "—"}
-                  </div>
-                </td>
-                <td
-                  className="purchase__supplier-cell"
-                  title={row.supplier_name ?? undefined}
-                >
-                  {row.supplier_name || (
-                    <span className="md-page__muted">Chưa chọn</span>
-                  )}
-                </td>
-                <td className="purchase__date-cell">
-                  {fmtDate(row.created_at)}
-                </td>
-                <td className="purchase__date-cell">
-                  {fmtDate(row.needed_date)}
-                  {row.expected_receipt_date && (
-                    <div className="md-page__muted">
-                      Nhận: {fmtDate(row.expected_receipt_date)}
+                <td className="acct-code-cell">
+                  <span className="acct-dmh__code-badge">{row.code}</span>
+                  {row.sources.length > 0 && (
+                    <div className="purchase__source-codes">
+                      {row.sources.map((source, index) => (
+                        <span key={source.id} className="acct-dmh__source-tag">
+                          {index > 0 && ", "}
+                          <CodeLink code={source.code} onOpen={openYcmh} />
+                        </span>
+                      ))}
                     </div>
                   )}
                 </td>
-                <td className="md-page__price purchase__money-cell acct-amount-cell">
-                  {money(row.total_estimate)}
+                <td
+                  className="acct-supplier-cell"
+                  title={row.supplier_name ?? undefined}
+                >
+                  <VendorCell name={row.supplier_name} />
                 </td>
-                <td className="md-page__price purchase__money-cell acct-amount-cell">
+                <td className="acct-dmh__date">{fmtDate(row.created_at)}</td>
+                <td className="acct-dmh__date">
+                  <div>{fmtDate(row.needed_date)}</div>
+                  {row.expected_receipt_date && row.expected_receipt_date !== row.needed_date && (
+                    <div className="pmh__sub" style={{ color: "#2563eb", fontWeight: 500 }}>
+                      Dự kiến: {fmtDate(row.expected_receipt_date)}
+                    </div>
+                  )}
+                </td>
+                <td className="acct-amount-cell">
+                  <strong className="acct-dmh__total" style={{ color: "#0f172a", fontSize: 13.5 }}>
+                    {money(row.total_estimate)}
+                  </strong>
+                </td>
+                <td className="acct-amount-cell">
                   <DepositCell row={row} />
                 </td>
                 <td>
-                  <div>
-                    {row.created_by_name || (
-                      <span className="md-page__muted">—</span>
-                    )}
-                  </div>
-                  <div className="md-page__muted">
-                    {row.approved_by_name || "Chưa duyệt"}
-                  </div>
+                  <ApproverCell
+                    creator={row.created_by_name}
+                    approver={row.approved_by_name}
+                  />
                 </td>
                 <td>
                   <StatusBadge status={row.status} />
@@ -366,36 +347,29 @@ export function PhieuListTab({
           )}
         </tbody>
       </table>
-      {/* Chân bảng CÙNG KHUÔN với bảng yêu cầu phía trên: tổng bên trái, nút chuyển trang bên
-          phải, và CHỈ hiện nút khi thật sự có nhiều hơn một trang. Trước 08/08/2026 khối này
-          nằm ngoài thẻ và luôn in "Trang 1/1" kèm hai nút mờ — nhiễu mà không nói thêm gì. */}
       {!loading && (
-      <div className="purchase__source-foot">
-        <span className="md-page__muted">
-          Tổng {total} đơn
-          {totalPages > 1 ? ` · Trang ${page}/${totalPages}` : ""}
-        </span>
-        {totalPages > 1 && (
-          <div className="md-page__pager-btns">
-            <button
-              type="button"
-              className="btn btn--ghost"
-              disabled={page <= 1 || loading}
+        <div className="md-page__pager">
+          <span>{total} đơn</span>
+          <div>
+            <Button
+              variant="ghost"
+              disabled={page <= 1}
               onClick={() => setPage((p) => p - 1)}
             >
               Trước
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost"
-              disabled={page >= totalPages || loading}
+            </Button>
+            <span>
+              {page}/{totalPages}
+            </span>
+            <Button
+              variant="ghost"
+              disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
             >
               Sau
-            </button>
+            </Button>
           </div>
-        )}
-      </div>
+        </div>
       )}
     </section>
     </>

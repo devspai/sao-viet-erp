@@ -119,6 +119,9 @@ export function GiuChoTheoLenhView({
   const [flash, setFlash] = useState<string | null>(null);
   const [hoiNha, setHoiNha] = useState<TheoLenhRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<TheoLenhRow | null>(null);
+  // Tick chọn nhiều lệnh để giữ chỗ / đề nghị mua MỘT lượt. Khoá = `khoaChu`.
+  const [chon, setChon] = useState<Set<string>>(new Set());
+  const [dangNhieu, setDangNhieu] = useState<"giu" | "mua" | null>(null);
 
   useEffect(() => {
     if (focusLsxMa) setQ(focusLsxMa);
@@ -223,6 +226,78 @@ export function GiuChoTheoLenhView({
   }
 
   const rows = data?.items ?? [];
+
+  // Lệnh rơi khỏi bảng sau khi nạp lại thì rụng khỏi tập tick — không gửi khoá ma.
+  useEffect(() => {
+    const con = new Set(rows.map(khoaChu));
+    setChon((cu) => {
+      const moi = new Set([...cu].filter((k) => con.has(k)));
+      return moi.size === cu.size ? cu : moi;
+    });
+  }, [rows]);
+
+  const rowsChon = useMemo(() => rows.filter((r) => chon.has(khoaChu(r))), [rows, chon]);
+  const chonChuaGiu = rowsChon.filter((r) => !r.bat);
+  const dongMuaChon: CanDoiKhoaDong[] = rowsChon.flatMap((r) => r.hang.flatMap((h) => h.khoa_do));
+  const soLenhCanMua = rowsChon.filter((r) => r.hang.some((h) => h.khoa_do.length > 0)).length;
+
+  function toggleChon(r: TheoLenhRow) {
+    const k = khoaChu(r);
+    setChon((cu) => {
+      const s = new Set(cu);
+      if (s.has(k)) s.delete(k);
+      else s.add(k);
+      return s;
+    });
+  }
+
+  async function giuChoNhieu() {
+    if (!token || chonChuaGiu.length === 0) return;
+    setDangNhieu("giu");
+    setErr(null);
+    try {
+      const kq = await api.keHoachVatTu.giuChoNhieu(
+        token,
+        chonChuaGiu.map((r) => ({ lsx_id: r.lsx_id, bai_ghep_id: r.bai_ghep_id })),
+      );
+      const soDu = kq.items.filter((x) => x.du).length;
+      const soCho = kq.items.length - soDu;
+      setFlash(
+        `✓ Đã bật giữ chỗ ${kq.items.length} lệnh — ${soDu} lệnh giữ đủ` +
+          (soCho > 0 ? `, ${soCho} lệnh chờ hàng về tự nhặt bù.` : "."),
+      );
+      setChon(new Set());
+      load();
+    } catch (e: unknown) {
+      setErr(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setDangNhieu(null);
+    }
+  }
+
+  async function deNghiMuaNhieu() {
+    if (!token || dongMuaChon.length === 0) return;
+    setDangNhieu("mua");
+    setErr(null);
+    try {
+      // Cùng cửa với nút Mua từng lệnh: mở form đã điền sẵn, máy chủ gộp số theo mặt hàng.
+      const nhap = await api.keHoachVatTu.xemTruocDeNghiMua(token, dongMuaChon);
+      if (onMoFormMua) {
+        onMoFormMua(nhap);
+        setChon(new Set());
+        return;
+      }
+      const kq = await api.keHoachVatTu.deNghiMua(token, dongMuaChon);
+      setFlash(`✓ Đã tạo đề nghị mua hàng ${kq.code} cho ${soLenhCanMua} lệnh.`);
+      setChon(new Set());
+      load();
+    } catch (e: unknown) {
+      setErr(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setDangNhieu(null);
+    }
+  }
+
   const tomTat = useMemo(
     () => ({
       daGiu: rows.filter((r) => r.du).length,
@@ -239,6 +314,19 @@ export function GiuChoTheoLenhView({
     if (filterType === "giu_lau") return rows.filter((r) => r.giu_lau_chua_chay);
     return rows;
   }, [rows, filterType]);
+
+  const daTickHetHienThi =
+    rowsHienThi.length > 0 && rowsHienThi.every((r) => chon.has(khoaChu(r)));
+  function toggleTickHienThi() {
+    setChon((cu) => {
+      const s = new Set(cu);
+      for (const r of rowsHienThi) {
+        if (daTickHetHienThi) s.delete(khoaChu(r));
+        else s.add(khoaChu(r));
+      }
+      return s;
+    });
+  }
 
   return (
     <div className="khvt-view">
@@ -407,6 +495,15 @@ export function GiuChoTheoLenhView({
             <table className="khvt-master-table khvt-master-table--lenh">
               <thead>
                 <tr>
+                  <th className="khvt-th--tick" style={{ width: 40 }}>
+                    <input
+                      type="checkbox"
+                      checked={daTickHetHienThi}
+                      onChange={toggleTickHienThi}
+                      title="Chọn tất cả lệnh đang hiển thị"
+                      aria-label="Chọn tất cả lệnh đang hiển thị"
+                    />
+                  </th>
                   <th style={{ width: 140 }}>Lệnh sản xuất</th>
                   {/* Không khai bề rộng: Khách hàng và Vật tư là hai cột chữ dài nhất, cứ để
                       chúng chia nhau chỗ còn dư — màn rộng thì tên công ty hiện đủ. */}
@@ -439,9 +536,17 @@ export function GiuChoTheoLenhView({
                   return (
                     <tr
                       key={k}
-                      className={`khvt-row ${r.du ? "khvt-row--du" : !r.bat ? "khvt-row--tat" : "khvt-row--thieu"}`}
+                      className={`khvt-row ${r.du ? "khvt-row--du" : !r.bat ? "khvt-row--tat" : "khvt-row--thieu"} ${chon.has(k) ? "khvt-row--chon" : ""}`}
                       onClick={() => setSelectedRow(r)}
                     >
+                      <td className="khvt-td--tick" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={chon.has(k)}
+                          onChange={() => toggleChon(r)}
+                          aria-label={`Chọn lệnh ${r.ma}`}
+                        />
+                      </td>
                       {/* Cột 1: Lệnh sản xuất */}
                       <td>
                         <div className="khvt-cell-lsx">
@@ -672,6 +777,13 @@ export function GiuChoTheoLenhView({
                 <div className="khvt-bcard__left">
                   <div className="khvt-bcard__header">
                     <div className="khvt-bcard__id-group">
+                      <input
+                        type="checkbox"
+                        checked={chon.has(k)}
+                        onChange={() => toggleChon(r)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Chọn lệnh ${r.ma}`}
+                      />
                       {r.lsx_id && onOpenLsx ? (
                         <button
                           type="button"
@@ -839,6 +951,42 @@ export function GiuChoTheoLenhView({
               </section>
             );
           })}
+        </div>
+      )}
+
+      {/* ── THANH THAO TÁC HÀNG LOẠT: giữ chỗ / đề nghị mua cho các lệnh đã tick ── */}
+      {rowsChon.length > 0 && (
+        <div className="khvt-floating-dock" role="region" aria-label="Thao tác với lệnh đã chọn">
+          <div className="khvt-floating-dock__inner">
+            <div className="khvt-floating-dock__info">
+              <span className="khvt-floating-dock__count">
+                Đã chọn <b>{rowsChon.length}</b> lệnh
+              </span>
+              <span className="khvt-floating-dock__hint">
+                {chonChuaGiu.length > 0
+                  ? `${chonChuaGiu.length} lệnh chưa giữ chỗ — lệnh cần sớm được nhặt tồn trước.`
+                  : "Các lệnh đã chọn đều đang giữ chỗ."}
+                {dongMuaChon.length > 0 && ` ${soLenhCanMua} lệnh còn thiếu hàng cần mua.`}
+              </span>
+            </div>
+            <div className="khvt-floating-dock__actions">
+              <Button variant="secondary" onClick={() => setChon(new Set())} disabled={!!dangNhieu}>
+                Bỏ chọn
+              </Button>
+              {chonChuaGiu.length > 0 && (
+                <Button onClick={() => void giuChoNhieu()} disabled={!!dangNhieu} className="khvt-btn-action">
+                  <Icon name="lock" size={14} />
+                  {dangNhieu === "giu" ? "Đang giữ…" : `Giữ chỗ (${chonChuaGiu.length} lệnh)`}
+                </Button>
+              )}
+              {canDeNghiMua && dongMuaChon.length > 0 && (
+                <Button onClick={() => void deNghiMuaNhieu()} disabled={!!dangNhieu} className="khvt-btn-buy">
+                  <Icon name="cart" size={14} />
+                  {dangNhieu === "mua" ? "Đang mở form…" : `Đề nghị mua (${soLenhCanMua} lệnh)`}
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

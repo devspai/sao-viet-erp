@@ -34,7 +34,7 @@ export function PayCell({
     <button
       type="button"
       className={`pay-cell pay-cell--link${tone ? ` pay-cell--${tone}` : ""}${
-        strong ? " pay-cell--strong" : ""
+        strong ? " pay-cell--strong acct-dmh__total" : ""
       }`}
       onClick={() => onOpen({ row, bucket })}
       title={`Xem ${BUCKET_LABEL[bucket].toLowerCase()} của ${row.supplier_name}`}

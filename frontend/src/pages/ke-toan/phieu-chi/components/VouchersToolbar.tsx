@@ -1,7 +1,18 @@
-// Thanh LỌC của màn Phiếu chi (tách từ pages/PaymentVouchersPage.tsx).
+// Thanh LỌC của màn Phiếu chi — dùng khuôn chung `ToolbarChuan` (cùng màn Đơn mua hàng):
+// tab trạng thái + ô tìm có icon + ô chọn hình thức + "Xóa bộ lọc" + nút "+ Tạo phiếu chi".
+// Máy chủ chưa có bộ lọc ngày cho phiếu chi nên KHÔNG dựng nút "Khoảng ngày".
 import type { Dispatch, SetStateAction } from "react";
 import { Button } from "../../../../components/Button";
+import { ToolbarChuan, type ToolbarTab } from "../../components/ToolbarChuan";
 import { STATUS_META } from "../shared/list-constants";
+
+const STATUS_TABS: ToolbarTab[] = [
+  { value: "all", label: "Tất cả" },
+  ...Object.entries(STATUS_META).map(([value, meta]) => ({
+    value,
+    label: meta.label,
+  })),
+];
 
 export function VouchersToolbar({
   q,
@@ -26,29 +37,29 @@ export function VouchersToolbar({
   canApprove: boolean;
   setStandaloneOpen: Dispatch<SetStateAction<boolean>>;
 }) {
+  const hasFilter =
+    q.trim() !== "" || statusFilter !== "all" || typeFilter !== "all";
+
   return (
-    <section className="acct-toolbar">
-      <form
-        className="md-page__search"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setPage(1);
-          load();
-        }}
-      >
-        <input
-          className="input"
-          value={q}
-          onChange={(event) => setQ(event.target.value)}
-          placeholder="Tìm PC, UNC, PMH, YCMH..."
-        />
-        {/* <Button type="submit" variant="ghost">
-          Tìm
-        </Button> */}
-      </form>
-      <div className="acct-toolbar__filters">
+    <ToolbarChuan
+      tabs={STATUS_TABS}
+      tab={statusFilter}
+      onTab={(value) => {
+        setStatusFilter(value);
+        setPage(1);
+      }}
+      ariaTabs="Lọc trạng thái phiếu chi"
+      q={q}
+      onQ={setQ}
+      placeholder="Tìm PC, UNC, PMH, YCMH..."
+      onSearchSubmit={() => {
+        setPage(1);
+        load();
+      }}
+      selects={
         <select
-          className="input"
+          className="input acct-toolbar__select"
+          aria-label="Lọc hình thức chi"
           value={typeFilter}
           onChange={(event) => {
             setTypeFilter(event.target.value);
@@ -59,27 +70,21 @@ export function VouchersToolbar({
           <option value="cash">Tiền mặt</option>
           <option value="bank_transfer">Chuyển khoản</option>
         </select>
-        <select
-          className="input"
-          value={statusFilter}
-          onChange={(event) => {
-            setStatusFilter(event.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="all">Tất cả trạng thái</option>
-          {Object.entries(STATUS_META).map(([value, meta]) => (
-            <option key={value} value={value}>
-              {meta.label}
-            </option>
-          ))}
-        </select>
-        {canApprove && (
+      }
+      hasFilter={hasFilter}
+      onReset={() => {
+        setQ("");
+        setStatusFilter("all");
+        setTypeFilter("all");
+        setPage(1);
+      }}
+      actions={
+        canApprove ? (
           <Button variant="accent" onClick={() => setStandaloneOpen(true)}>
             + Tạo phiếu chi
           </Button>
-        )}
-      </div>
-    </section>
+        ) : undefined
+      }
+    />
   );
 }

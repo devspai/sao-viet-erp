@@ -12581,6 +12581,17 @@ export const api = {
         },
       );
     },
+    /** Bật giữ chỗ cho NHIỀU lệnh/bài một lượt — máy chủ nhặt theo hạn sản xuất, không theo thứ
+     *  tự tick. Không có bản tắt-nhiều: nhả không hoàn tác được, hỏi từng lệnh. */
+    giuChoNhieu(
+      token: string,
+      chu: { lsx_id: number | null; bai_ghep_id: number | null }[],
+    ): Promise<{ items: { lsx_id: number | null; bai_ghep_id: number | null; du: boolean }[] }> {
+      return authed(`/api/ke-hoach-vat-tu/giu-cho/bat-nhieu`, token, {
+        method: "POST",
+        body: JSON.stringify({ chu_the: chu }),
+      });
+    },
   },
 
   // --- Hồ sơ lệnh sản xuất (module `lenh_san_xuat`) — bàn TRA CỨU, không ghi -

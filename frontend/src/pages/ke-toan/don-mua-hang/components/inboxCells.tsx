@@ -8,11 +8,16 @@ export function DepositCell({ row }: { row: PurchaseRequestRow }) {
   }
   const paid = row.coc_da_chi ?? 0;
   const expected = row.deposit_expected ?? 0;
+  const percent = Math.min(100, Math.round((paid / expected) * 100));
   const tone = paid >= expected ? "ok" : paid > 0 ? "warn" : "empty";
   return (
-    <div className={`purchase__deposit purchase__deposit--${tone}`}>
-      <strong>{money(paid)}</strong>
-      <span>/ {money(expected)}</span>
+    <div
+      className={`acct-deposit-pill acct-deposit-pill--${tone}`}
+      title={`Đã chi cọc ${money(paid)} trên tổng cọc dự kiến ${money(expected)} (${percent}%)`}
+    >
+      <span className="acct-deposit-pill__val">{money(paid)}</span>
+      <span className="acct-deposit-pill__sep">/</span>
+      <span className="acct-deposit-pill__max">{money(expected)}</span>
     </div>
   );
 }

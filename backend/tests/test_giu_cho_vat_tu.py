@@ -1601,3 +1601,41 @@ def test_the_lenh_mang_khach_va_han_giao_khach(db, svc, customer):
     row = [r for r in svc.theo_chu_the()["items"] if r["lsx_id"] == a.id][0]
     assert row["khach_ten"] == customer.name
     assert row["han_giao_khach"] == HOM_NAY + timedelta(days=11)
+
+
+# ================== BẬT HÀNG LOẠT ==================
+
+
+def test_bat_nhieu_nhat_theo_HAN_khong_theo_thu_tu_tick(db, svc, customer):
+    """Tick lệnh muộn trước vẫn không cho nó ăn trước — cùng luật hạn với `nhat_them`."""
+    g = _giay(db)
+    _ton(db, _giay_hang(g), 20)                      # chỉ đủ cho MỘT lệnh
+    muon = _lenh(db, customer, ma="LSX-MUON", giay_id=g.id, so_to_nguyen=200,
+                 han=HOM_NAY + timedelta(days=30))
+    som = _lenh(db, customer, ma="LSX-SOM", giay_id=g.id, so_to_nguyen=200, han=MAI)
+
+    kq = svc.bat_nhieu([(muon.id, None), (som.id, None)])
+    assert [(r["lsx_id"], r["du"]) for r in kq] == [(muon.id, False), (som.id, True)]
+    assert db.get(Lsx, muon.id).giu_cho_bat is True, "lệnh chưa đủ vẫn phải BẬT (đăng ký chờ hàng)"
+
+
+def test_bat_nhieu_chu_the_khong_ton_tai_thi_KHONG_bat_ai(db, svc, customer):
+    from app.services.giu_cho_service import GiuChoError
+
+    g = _giay(db)
+    a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=200)
+    with pytest.raises(GiuChoError):
+        svc.bat_nhieu([(a.id, None), (999_999, None)])
+    db.expire_all()
+    assert db.get(Lsx, a.id).giu_cho_bat is False
+
+
+def test_gop_ma_lenh_KHONG_cat_im_lang():
+    from app.services.ke_hoach_vat_tu_service import _gop_ma
+
+    mas = [f"LSX26-{i:04d}" for i in range(1, 9)]
+    ra = _gop_ma(mas)
+    assert len(ra) <= 64
+    so_hien = ra.count("LSX26-")
+    assert ra.endswith(f"+{len(mas) - so_hien}")
+    assert _gop_ma(mas[:2]) == "LSX26-0001, LSX26-0002"

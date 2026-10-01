@@ -76,6 +76,7 @@ export function InboxTable({
                   className={
                     row.id === selected?.id ? "purchase__row--selected" : ""
                   }
+                  title={row.content || row.purpose || row.note ? `Mục đích / Ghi chú: ${[row.content, row.purpose, row.note].filter(Boolean).join(" — ")}` : undefined}
                   onClick={() => setSelectedId(row.id)}
                 >
                   <td className="acct-code-cell">
@@ -101,7 +102,9 @@ export function InboxTable({
                   </td>
                   <td className="acct-dmh__date">{fmtDate(row.created_at)}</td>
                   <td className="acct-amount-cell">
-                    <strong className="acct-dmh__total">{money(row.total_estimate)}</strong>
+                    <strong className="acct-dmh__total" style={{ color: "#0f172a", fontSize: 13.5 }}>
+                      {money(row.total_estimate)}
+                    </strong>
                   </td>
                   <td className="acct-amount-cell">
                     <DepositCell row={row} />

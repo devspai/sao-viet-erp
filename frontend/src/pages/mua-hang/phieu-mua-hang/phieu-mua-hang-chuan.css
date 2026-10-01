@@ -1,0 +1,128 @@
+/* Màn MUA HÀNG — phần CSS riêng bổ sung cho CHUẨN UI của Kế toán → Đơn mua hàng.
+   Phần lớn giao diện ăn thẳng class có sẵn trong accounting.css (`acct-std`, `acct-dmh__*`,
+   `acct-toolbar__*`, `acct-drawer__*`, `acct-kpi-*`); file này CHỈ chứa chỗ chuẩn còn thiếu,
+   khoanh vùng bằng `.pmh` (main của PurchaseRequestsPage) và tiền tố `pmh__`. */
+
+/* Đầu trang: tiêu đề trái, hai tab lớn (Yêu cầu chờ xử lý / Đơn mua hàng) cùng hàng bên phải. */
+.pmh__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.pmh__head .md-page__title { margin-bottom: var(--sp-1); }
+
+/* Trạng thái "Nháp" chưa có tone trong accounting.css (màn Kế toán không thấy phiếu nháp):
+   chấm xám để pill không mất chấm. */
+.pmh .acct-dmh__state--draft .acct-dmh__dot { background: var(--ash); }
+
+/* Dòng không bấm được (yêu cầu đã có phiếu / không có quyền lập) — bỏ bàn tay và nền hover. */
+.pmh table tbody tr.pmh__row--khoa { cursor: default; }
+.pmh table tbody tr.pmh__row--khoa:hover { background: transparent; }
+
+/* Dòng phụ dưới mã đơn (mã yêu cầu nguồn, nội dung). */
+.pmh__sub {
+  margin-top: 2px;
+  font-size: var(--fs-2xs);
+  color: var(--ash-2);
+}
+.pmh__sub--clip {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nút ✕ trong hero drawer — khớp Đơn mua hàng (Kế toán). */
+.pmh-drawer .purchase__hero-x { font-size: 16px; line-height: 1; }
+
+/* Tab con của drawer: nhãn dài không được vỡ dòng ở màn hẹp. */
+.pmh-drawer .acct-drawer__tabs { flex-shrink: 0; }
+
+/* Custom Vendor Avatar & Name Badge */
+.pmh__vendor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.pmh__vendor-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--heat-1);
+  color: var(--rust-deep);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(197, 64, 10, 0.15);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Custom Person / Approver Flow */
+.pmh__person-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pmh__person-creator {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.pmh__person-approver {
+  font-size: var(--fs-2xs);
+  color: var(--ash-2);
+}
+
+.pmh__person-approver-label {
+  color: var(--ash);
+  font-weight: 500;
+}
+
+/* Deposit Badges */
+.pmh__deposit-badge--none {
+  color: var(--ash-2);
+}
+
+/* Frame and Row Hover Effects */
+.pmh .acct-dmh__frame {
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  transition: border-color var(--duration-fast) var(--easing-standard);
+}
+
+.pmh .acct-dmh__frame tbody tr {
+  transition: background-color var(--duration-fast) var(--easing-standard),
+              box-shadow var(--duration-fast) var(--easing-standard);
+}
+
+.pmh .acct-dmh__frame tbody tr:hover {
+  background-color: var(--rust-soft) !important;
+  box-shadow: inset 3px 0 0 var(--rust);
+}
+
+.pmh .acct-dmh__code-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: var(--r-3);
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+  transition: all var(--duration-fast) var(--easing-standard);
+}
+
+.pmh .acct-dmh__code-badge:hover {
+  border-color: var(--rule);
+  background: #e2e8f0;
+}
+

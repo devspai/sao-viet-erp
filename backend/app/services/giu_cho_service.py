@@ -557,6 +557,29 @@ class GiuChoService:
         _bao_ke_hoach_vat_tu_doi()
         return self.trang_thai(lsx_id=lsx_id, bai_ghep_id=bai_ghep_id, bang=bang)
 
+    def bat_nhieu(self, chu_thes: list[tuple[int | None, int | None]]) -> list[dict]:
+        """Bật giữ chỗ cho NHIỀU chủ thể trong một cú bấm — cùng luật với `bat()`.
+
+        Dựng bảng MỘT lần rồi nhặt một lượt: thứ tự ăn tồn vẫn theo hạn sản xuất (`nhat_them`),
+        không theo thứ tự người tick — gọi `bat()` lần lượt từ client thì lệnh được tick trước ăn
+        trước, tức đẻ ra luật ưu tiên thứ hai. Trả trạng thái từng chủ thể theo đúng thứ tự gửi lên.
+        """
+        chon = list(dict.fromkeys(chu_thes))
+        if not chon:
+            raise GiuChoError("Chưa chọn lệnh nào.")
+        for lsx_id, bg_id in chon:
+            self._doi_co(lsx_id=lsx_id, bai_ghep_id=bg_id, bat=True, commit=False)
+        self.db.commit()
+        bang = self.kh.can_doi()
+        self.nhat_them(chi_chu_the=set(chon), bang=bang, broadcast=False)
+        xoa_cache_can_doi()
+        _bao_ke_hoach_vat_tu_doi()
+        return [
+            {"lsx_id": l, "bai_ghep_id": b,
+             "du": self.trang_thai(lsx_id=l, bai_ghep_id=b, bang=bang)["du"]}
+            for l, b in chon
+        ]
+
     def tat(self, *, lsx_id: int | None = None, bai_ghep_id: int | None = None) -> dict:
         """Nhả HẾT. Không phải hoàn tác — bật lại có thể chẳng còn gì, nơi gọi phải hỏi trước."""
         self.repo.xoa_cua_chu_the(lsx_id=lsx_id, bai_ghep_id=bai_ghep_id)
@@ -648,7 +671,7 @@ class GiuChoService:
             _bao_ke_hoach_vat_tu_doi()
 
     def nhat_them(
-        self, *, chi_chu_the: tuple | None = None, bang: dict | None = None,
+        self, *, chi_chu_the: tuple | set[tuple] | None = None, bang: dict | None = None,
         broadcast: bool = True,
     ) -> int:
         """Bù thêm cho MỌI chủ thể đang bật công tắc mà chưa giữ đủ. Trả số dòng giữ chỗ đẻ ra.
@@ -678,8 +701,11 @@ class GiuChoService:
             (l_id, b_id): ((l_id in bat_lsx) if l_id is not None else (b_id in bat_bai))
             for l_id, b_id in self._thu_tu_chu_the(bang)
         }
+        # `chi_chu_the` là MỘT chủ thể (tuple) hoặc một tập (bật hàng loạt) — thứ tự nhặt vẫn là
+        # thứ tự hạn của bảng, tập chỉ lọc ai được nhặt.
+        chi = ({chi_chu_the} if isinstance(chi_chu_the, tuple) else chi_chu_the)
         for chu in self._thu_tu_chu_the(bang):
-            if chi_chu_the is not None and chu != chi_chu_the:
+            if chi is not None and chu not in chi:
                 continue
             lsx_id, bg_id = chu
             if not ((lsx_id in bat_lsx) if lsx_id is not None else (bg_id in bat_bai)):
@@ -1045,10 +1071,13 @@ class GiuChoService:
                else self.db.get(BaiGhep, bai_ghep_id))
         return bool(getattr(obj, "giu_cho_bat", False))
 
-    def _doi_co(self, *, lsx_id: int | None, bai_ghep_id: int | None, bat: bool) -> None:
+    def _doi_co(self, *, lsx_id: int | None, bai_ghep_id: int | None, bat: bool,
+                commit: bool = True) -> None:
         obj = (self.db.get(Lsx, lsx_id) if lsx_id is not None
                else self.db.get(BaiGhep, bai_ghep_id))
         if obj is None:
+            self.db.rollback()
             raise GiuChoError("Không tìm thấy lệnh / bài ghép.")
         obj.giu_cho_bat = bat
-        self.db.commit()
+        if commit:
+            self.db.commit()

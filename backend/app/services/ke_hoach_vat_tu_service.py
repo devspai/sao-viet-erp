@@ -132,6 +132,20 @@ def _xep_vet(v: dict) -> int:
     }.get(v.get("trang_thai"), 5)
 
 
+def _gop_ma(mas: list[str], toi_da: int = 64) -> str:
+    """Mã các lệnh nguồn cho ô chứng từ liên quan (String(64)) — hết chỗ thì ghi "+n" số lệnh còn
+    lại, không cắt im lặng: gộp 8 lệnh mà ô chỉ hiện 5 là người đọc tưởng yêu cầu mua cho 5 lệnh.
+    Danh sách đủ vẫn nằm ở `nguon`."""
+    ra = ""
+    for i, ma in enumerate(mas):
+        thu = f"{ra}, {ma}" if ra else ma
+        con = len(mas) - i - 1
+        if len(thu) + (len(f" +{con}") if con else 0) > toi_da:
+            return f"{ra} +{len(mas) - i}" if ra else ma[:toi_da]
+        ra = thu
+    return ra
+
+
 def _khoa_dong(hang_loai, hang_id, d: dict) -> tuple:
     """KHOÁ nhận dạng MỘT dòng của bảng cân đối — hợp đồng giữa bảng và nút "Đề nghị mua".
 
@@ -1388,6 +1402,6 @@ class KeHoachVatTuService:
         return {
             "lines": lines,
             "needed_date": None,
-            "related_document_code": ", ".join(mas[:5]),
+            "related_document_code": _gop_ma(mas),
             "nguon": nguon,
         }

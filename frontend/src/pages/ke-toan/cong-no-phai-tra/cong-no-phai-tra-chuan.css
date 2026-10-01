@@ -1,0 +1,120 @@
+/* Công nợ phải trả — áp CHUẨN UI của Kế toán / Đơn mua hàng (tiền tố riêng `cnt-chuan`).
+   Tái dùng class có sẵn của accounting.css (`acct-dmh__*`, `acct-drawer__*`, `acct-kpi-*`,
+   `acct-hero-facts`, `acct-toolbar__*`). File này CHỈ chứa phần còn thiếu + ghi đè rule cũ của
+   payables.css (dùng chung với màn Công nợ phải thu) bằng selector đặc hiệu hơn, khoanh vùng
+   `.acct-cnt` / `.acct-cnt-drawer` để KHÔNG lan sang màn phải thu.
+   Không khai selector `rc-*` (cssKhongCuop.test.ts). */
+
+/* --- Dải KPI tổng: cùng bo góc / bóng / khoảng cách với thẻ lọc --- */
+.acct-cnt .pay-kpibar {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  gap: var(--sp-5);
+  padding: 10px 16px;
+  margin-bottom: var(--sp-3);
+  border-radius: var(--r-3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+/* --- Thẻ phân tuổi nợ --- */
+.acct-cnt .aging-strip {
+  margin-bottom: var(--sp-3);
+}
+.acct-cnt .aging-strip__o {
+  border-radius: var(--r-3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+.acct-cnt .aging-strip__o.is-chon {
+  border-color: var(--charcoal);
+  box-shadow: inset 0 0 0 1px var(--charcoal);
+}
+
+/* --- Bảng ngoài --- */
+.acct-cnt .cnt-chuan__tenncc {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.acct-cnt .acct-dmh__total.pay-cell--link {
+  font-size: 13.5px;
+}
+
+/* `.acct-std` ép mọi <table> trong main có con trỏ tay + nền hover — kể cả bảng con trong drawer
+   và popup vốn KHÔNG bấm được. Trả về mặc định, chỉ dòng mở được hàng mới giữ con trỏ tay. */
+.acct-cnt .pay-table tbody tr {
+  cursor: default;
+}
+.acct-cnt .pay-table tbody tr.pay-row--mo {
+  cursor: pointer;
+}
+
+/* --- Trạng thái rỗng / lỗi trong bảng --- */
+.cnt-chuan__rong {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 16px;
+  color: var(--ash);
+  text-align: center;
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+}
+.cnt-chuan__rong-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ash-2);
+}
+
+/* --- Drawer --- */
+.acct-cnt-drawer .cnt-chuan__hero-facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.acct-cnt-drawer .cnt-chuan__fact--do {
+  color: #fca5a5;
+}
+
+/* Thân drawer: skeleton khi đang tải */
+.cnt-chuan__skel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* Cảnh báo mềm trong tab Tổng quan cách thẻ KPI một nhịp */
+.cnt-chuan__canh-bao {
+  margin-bottom: var(--sp-3);
+}
+
+/* Dải chọn rổ (Tất cả đợt còn nợ / Quá hạn) trong tab "Đợt còn nợ": dáng segmented giống thanh lọc */
+.cnt-chuan__rosub {
+  margin-bottom: var(--sp-3);
+}
+
+/* Trạng thái rỗng trong khối đợt nợ / đã trả */
+.acct-cnt-drawer .cnt-chuan__rong-khoi {
+  margin: var(--sp-2) 0;
+}
+
+@media (max-width: 900px) {
+  .acct-cnt-drawer .cnt-chuan__hero-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Bảng trong drawer: đệm ô hẹp lại (chuẩn bảng .acct-std cho 14px) và cho khung cuộn ngang, khỏi cắt cột Còn nợ. */
+.acct-cnt-drawer .pay-don,
+.acct-cnt-drawer .pay-block {
+  overflow-x: auto;
+}
+.acct-cnt-drawer .pay-table th,
+.acct-cnt-drawer .pay-table td {
+  padding-left: 10px;
+  padding-right: 10px;
+}

@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { PayablesDetail } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { Icon } from "../../../../components/Icons";
 import { fmtDate, money } from "../../../../utils/format";
 import { PAID_PAGE } from "../shared/constants";
 import { HoaDon } from "./payablesCells";
@@ -31,11 +32,16 @@ export function DaTraBlock({
       </header>
       {(detail.paid.length === 0 ? (
           <>
-            <p className="pay-empty">
-              {detail.all_history
-                ? "Chưa trả lần nào cho nhà cung cấp này."
-                : `Chưa trả lần nào trong ${detail.period_months} tháng gần nhất.`}
-            </p>
+            <div className="acct-empty-state cnt-chuan__rong-khoi">
+              <div className="acct-empty-state__icon">
+                <Icon name="fileText" size={20} />
+              </div>
+              <div className="acct-empty-state__text">
+                {detail.all_history
+                  ? "Chưa trả lần nào cho nhà cung cấp này."
+                  : `Chưa trả lần nào trong ${detail.period_months} tháng gần nhất.`}
+              </div>
+            </div>
             {!detail.all_history && (
               <Button
                 variant="ghost"

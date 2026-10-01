@@ -560,6 +560,822 @@ td.acct-count-cell {
   overflow-wrap: anywhere;
 }
 
+.acct-hero-purpose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid #3b82f6;
+  border-radius: 0 6px 6px 0;
+  color: #e2e8f0;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.acct-hero-purpose .icon-svg {
+  color: #60a5fa;
+  flex: 0 0 auto;
+}
+
+.acct-hero-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 18px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+}
+
+.acct-hero-facts div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.acct-hero-facts dt {
+  font-family: var(--ff-sans);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.acct-hero-facts dt .icon-svg {
+  color: #60a5fa;
+}
+
+.acct-hero-facts dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.acct-hero-facts .code-link {
+  color: #60a5fa;
+  font-weight: 600;
+  text-decoration: none;
+  background: rgba(96, 165, 250, 0.12);
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  transition: all 0.15s ease;
+}
+
+.acct-hero-facts .code-link:hover {
+  color: #93c5fd;
+  background: rgba(96, 165, 250, 0.25);
+  border-color: rgba(96, 165, 250, 0.4);
+}
+
+/* Modern Compact 4-Card KPI Stat Grid */
+.acct-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.acct-kpi-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+}
+
+.acct-kpi-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+  border-color: var(--rule-hair);
+}
+
+.acct-kpi-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 3px;
+}
+
+.acct-kpi-card__label {
+  font-family: var(--ff-sans);
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ash);
+}
+
+.acct-kpi-card__val {
+  font-size: 13.5px;
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.acct-kpi-card--due.is-overdue { background: #fff5f5; }
+
+.acct-kpi-card__tag {
+  display: inline-flex;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.acct-kpi-card--total .acct-kpi-card__tag { background: #eff6ff; color: #1d4ed8; }
+.acct-kpi-card--delivered .acct-kpi-card__tag { background: #eef2ff; color: #4338ca; }
+.acct-kpi-card--paid .acct-kpi-card__tag { background: #ecfdf5; color: #047857; }
+.acct-kpi-card--due .acct-kpi-card__tag { background: #fffbebf; color: #b45309; }
+
+/* ==========================================================================
+   DUAL PROGRESS TRACKER (Giao Hàng & Thanh Toán)
+   ========================================================================== */
+.acct-dual-progress {
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.acct-dual-progress__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule-hair);
+}
+
+.acct-dual-progress__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--ff-sans);
+  font-size: 11px;
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ash);
+}
+
+.acct-dual-progress__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.acct-dual-progress__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.acct-dual-progress__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+
+.acct-dual-progress__meta small {
+  font-size: 11px;
+  font-weight: var(--fw-medium);
+  color: var(--ash-2);
+}
+
+.acct-dual-progress__track {
+  height: 8px;
+  width: 100%;
+  background: #f1f5f9;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+
+.acct-dual-progress__fill--delivered {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, #6366f1 0%, #3b82f6 100%);
+  transition: width 0.4s ease-out;
+}
+
+.acct-dual-progress__fill--paid {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  transition: width 0.4s ease-out;
+}
+
+/* ==========================================================================
+   INSIGHT CALLOUT BANNER (Mục Đích Mua Hàng)
+   ========================================================================== */
+.acct-purpose-card--insight {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.04) 0%, rgba(15, 23, 42, 0.02) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-left: 4px solid #2563eb;
+  border-radius: var(--r-3);
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.05);
+}
+
+.acct-purpose-card__icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  flex: 0 0 auto;
+}
+
+.acct-purpose-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.acct-purpose-card__label {
+  font-family: var(--ff-sans);
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #3b82f6;
+}
+
+.acct-purpose-card__text {
+  font-size: 13.5px;
+  font-weight: var(--fw-semibold);
+  color: #0f172a;
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   ENTERPRISE DATA TABLE (Bảng Vật Tư Chia Cột)
+   ========================================================================== */
+.acct-items-frame {
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-bottom: 16px;
+}
+
+.acct-items-frame__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--ff-sans);
+  font-size: 11px;
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+}
+
+.acct-items-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.acct-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.acct-items-table th {
+  padding: 6px 10px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  font-family: var(--ff-sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.acct-items-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.acct-items-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.acct-items-table tfoot td {
+  padding: 8px 12px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-weight: 700;
+  font-size: 12.5px;
+  border-top: 2px solid #334155;
+}
+
+.acct-items-table tfoot .acct-total-val {
+  font-size: 15px;
+  color: #38bdf8;
+  font-variant-numeric: tabular-nums;
+}
+
+.acct-table-item-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.acct-table-item-note {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.acct-discount-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #fef2f2;
+  color: #dc2626;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.acct-vat-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #eff6ff;
+  color: #2563eb;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Bảng Mặt Hàng Đã Nhận Trong Đợt Giao (Mini Data Table) */
+.acct-delivery-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.acct-delivery-mini-table th {
+  padding: 6px 10px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-family: var(--ff-sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.acct-delivery-mini-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.acct-delivery-mini-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.acct-delivery-mini-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* Modern Empty State Banner for Delivery & Attachments */
+.acct-empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 20px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  text-align: center;
+  margin-top: 10px;
+  margin-bottom: 16px;
+}
+
+.acct-empty-box__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #2563eb;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+}
+
+.acct-empty-box__title {
+  font-family: var(--ff-sans);
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.acct-empty-box__desc {
+  font-size: 12.5px;
+  color: #64748b;
+  max-width: 440px;
+  line-height: 1.45;
+}
+
+.acct-totals-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: 12px 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.acct-totals-bar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.acct-totals-bar__item strong {
+  font-family: var(--ff-sans);
+  color: #0f172a;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.acct-totals-bar__item--due {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #fff7ed;
+  border: 1px solid #ffedd5;
+  color: #c2410c;
+}
+
+.acct-totals-bar__item--due strong {
+  color: #ea580c;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.pdot-container {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.pdot-container .pdot__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 14px;
+}
+
+
+/* ==========================================================================
+   TAB 2: FINANCIAL & CONTRACT DASHBOARD STYLES
+   ========================================================================== */
+.acct-tab2-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.acct-card-section {
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.acct-card-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule-hair);
+}
+
+.acct-card-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #1e293b;
+}
+
+.acct-contract-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.acct-field-hint {
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.acct-field-hint--error {
+  background: #fff5f5;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.acct-field-hint strong {
+  color: #0f172a;
+}
+
+.acct-upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.acct-upload-zone:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.acct-upload-zone__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.acct-upload-zone__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.acct-upload-zone__sub {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.acct-items-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.acct-items-container__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.acct-items-container__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--ff-sans);
+  font-size: 11px;
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+.acct-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acct-item-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.acct-item-card:hover {
+  transform: translateY(-1px);
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.acct-item-card__left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.acct-item-card__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.acct-item-card__tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.acct-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.acct-tag-pill--qty {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.acct-tag-pill--vat {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.acct-tag-pill--note {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.acct-item-card__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.acct-item-card__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+.acct-item-card__price {
+  font-size: 15.5px;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Floating Summary Card */
+.acct-items-summary-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 12px;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  margin-top: 4px;
+}
+
+.acct-items-summary-card__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+.acct-items-summary-card__val {
+  font-size: 17px;
+  font-weight: 800;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.acct-purpose-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acct-purpose-card__label {
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ash-2);
+}
+
+.acct-purpose-card__text {
+  font-size: 13.5px;
+  font-weight: var(--fw-medium);
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+
+
 .acct-modal {
   position: fixed;
   z-index: 120;
@@ -1290,11 +2106,462 @@ td.acct-count-cell {
   color: var(--signal);
 }
 
+/* ==========================================================================
+   FINANCIAL CREDIT DASHBOARD (Tab Điều khoản & Nợ)
+   ========================================================================== */
+.acct-credit-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.acct-credit-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.acct-credit-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 14px;
+}
+
+.acct-credit-card__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ff-sans);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #475569;
+}
+
+.acct-credit-card__title .icon-svg {
+  color: #2563eb;
+}
+
+.acct-credit-card__supplier {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acct-terms-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.acct-terms-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+}
+
+.acct-terms-detail-item__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.acct-terms-detail-item__val {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.acct-credit-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.acct-credit-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.acct-credit-stat-item__label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.acct-credit-stat-item__val {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.acct-credit-stat-item--due .acct-credit-stat-item__val {
+  color: #d97706;
+}
+
+.acct-credit-stat-item--due.is-overdue .acct-credit-stat-item__val {
+  color: #dc2626;
+}
+
+/* Utilization Bar */
+.acct-utilization {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.acct-utilization__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.acct-utilization__track {
+  height: 8px;
+  width: 100%;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.acct-utilization__fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+  transition: width 0.4s ease;
+}
+
+.acct-utilization__fill--warn {
+  background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+}
+
+.acct-utilization__fill--danger {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+/* Contract & Deposit Card */
+.acct-contract-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.acct-contract-card__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.acct-contract-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.acct-contract-card__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.acct-contract-card__val {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* ==========================================================================
+   DELIVERY TIMELINE CARDS & VOUCHERS (Tab Đợt giao & Chi)
+   ========================================================================== */
+.acct-deliveries-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.acct-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--ff-sans);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+.acct-delivery-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.acct-delivery-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.acct-delivery-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.acct-delivery-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.acct-delivery-card__seq {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.acct-delivery-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.acct-delivery-date {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.acct-delivery-due {
+  font-size: 12px;
+  color: #d97706;
+  font-weight: 600;
+}
+
+.acct-delivery-card__body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acct-delivery-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.acct-delivery-line-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #1e293b;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.acct-delivery-card__foot {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-top: 1px solid #f1f5f9;
+}
+
+.acct-delivery-foot-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acct-delivery-foot-item__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.acct-delivery-foot-item__val {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.acct-delivery-foot-item--due .acct-delivery-foot-item__val {
+  color: #d97706;
+}
+
+/* Empty State Card */
+.acct-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 16px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  text-align: center;
+  color: #64748b;
+}
+
+.acct-empty-state__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.acct-empty-state__text {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Voucher Cards */
+.acct-voucher-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acct-voucher-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.acct-voucher-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.acct-voucher-card__left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.acct-voucher-card__code {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.acct-voucher-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.acct-voucher-card__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.acct-voucher-card__amount {
+  font-size: 15px;
+  font-weight: 800;
+  color: #059669;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Nút "Xem lịch sử thu cũ hơn" — tách khỏi bảng phía trên, không dính sát mép. */
 .ar-more {
   margin-top: var(--sp-3);
 }
 
+/* `.acct-std` = cờ đặt lên <main> của màn Kế toán/Thu mua khác để ăn CHUẨN bảng của Đơn mua hàng
+   (khung, tiêu đề cột, dòng hover/chọn, phân trang) mà không phải chép lại CSS. */
 /* ===== Kế toán / Đơn mua hàng — khoanh vùng .acct-dmh, KHÔNG sửa class dùng chung =====
    Khoanh vùng bằng 3 class: `.acct-dmh` (main của AccountingPurchaseInboxPage),
    `.acct-dmh-drawer` (aside của InboxDrawer/RejectModal), `.acct-dmh__body` (thân drawer).
@@ -1309,13 +2576,13 @@ td.acct-count-cell {
    kết quả là bảng bị CẮT MẤT cột ở màn hẹp thay vì cuộn được. Bỏ hẳn overflow:hidden — để
    `.md-page__tablewrap` tự lo cuộn ngang như thiết kế gốc; `.md-page__pager` đã tự có padding
    riêng nên không đụng bo góc dưới. */
-.acct-dmh .acct-dmh__frame {
+:is(.acct-dmh, .acct-std) .acct-dmh__frame {
   background: var(--canvas);
   border: 1px solid var(--rule);
   border-radius: var(--r-5);
 }
 
-.acct-dmh table thead th {
+:is(.acct-dmh, .acct-std) table thead th {
   font-size: var(--fs-2xs);
   font-weight: var(--fw-bold);
   text-transform: uppercase;
@@ -1327,23 +2594,23 @@ td.acct-count-cell {
   background: var(--paper);
   border-bottom: 1.5px solid var(--rule);
 }
-.acct-dmh table thead th.acct-amount-cell { text-align: right; }
-.acct-dmh table tbody td {
+:is(.acct-dmh, .acct-std) table thead th.acct-amount-cell { text-align: right; }
+:is(.acct-dmh, .acct-std) table tbody td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--rule-hair);
   vertical-align: middle;
 }
-.acct-dmh table tbody tr:last-child td { border-bottom: 0; }
-.acct-dmh table tbody tr { cursor: pointer; }
-.acct-dmh table tbody tr:hover { background: var(--rust-soft); }
-.acct-dmh table tbody tr.purchase__row--selected {
+:is(.acct-dmh, .acct-std) table tbody tr:last-child td { border-bottom: 0; }
+:is(.acct-dmh, .acct-std) table tbody tr { cursor: pointer; }
+:is(.acct-dmh, .acct-std) table tbody tr:hover { background: var(--rust-soft); }
+:is(.acct-dmh, .acct-std) table tbody tr.purchase__row--selected {
   background: var(--rust-soft);
   box-shadow: inset 3px 0 0 var(--rust);
 }
 
 /* Mã đơn (cột đầu) là MÃ nên dùng font số theo UI_DESIGN §7 — bản thiết kế gọi đây là việc
    của ".acct-dmh__frame" thay vì đổi tên class riêng cho ô, nên ép trực tiếp qua khung. */
-.acct-dmh .acct-dmh__frame td.acct-code-cell strong {
+:is(.acct-dmh, .acct-std) .acct-dmh__frame td.acct-code-cell strong {
   font-family: var(--ff-sans);
   font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
@@ -1730,12 +2997,12 @@ td.acct-count-cell {
   font-size: 13px;
 }
 
-/* Khung bảng Đơn mua hàng cao cấp */
+/* Khung bảng Đơn mua hàng cao cấp (Modern Enterprise Data Grid) */
 .acct-dmh__frame {
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-3);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  background: var(--canvas);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  background: #ffffff;
   overflow: hidden;
 }
 
@@ -1746,41 +3013,95 @@ td.acct-count-cell {
 }
 
 .acct-dmh__frame .md-page__table thead th {
-  background: var(--paper);
-  color: var(--ash);
+  background: #f8fafc;
+  color: #475569;
   font-size: 11px;
-  font-weight: var(--fw-bold);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--rule);
+  letter-spacing: 0.07em;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .acct-dmh__frame .md-page__table tbody tr {
-  transition: background-color var(--duration-base) var(--easing-standard);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .acct-dmh__frame .md-page__table tbody tr:hover {
-  background: rgba(244, 226, 214, 0.28);
+  background: rgba(37, 99, 235, 0.03);
 }
 
 .acct-dmh__frame .md-page__table tbody tr.purchase__row--selected {
-  background: rgba(197, 64, 10, 0.06);
-  box-shadow: inset 3px 0 0 var(--rust);
+  background: rgba(37, 99, 235, 0.06);
+  box-shadow: inset 4px 0 0 #2563eb;
 }
 
 .acct-dmh__code-badge {
   display: inline-block;
   font-family: var(--ff-sans);
-  font-size: 13.5px;
-  font-weight: var(--fw-bold);
-  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
   letter-spacing: -0.01em;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
 }
 
 .acct-dmh__source-tag {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.acct-deposit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.acct-deposit-pill--ok {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.acct-deposit-pill--warn {
+  background: #fffbe3;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.acct-deposit-pill__val {
+  font-weight: 800;
+}
+
+.acct-deposit-pill__sep {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.acct-deposit-pill__max {
+  color: #64748b;
+  font-weight: 600;
 }
 
 .acct-dmh__supplier-wrap {
@@ -1790,17 +3111,17 @@ td.acct-count-cell {
 }
 
 .acct-dmh__supplier-name {
-  font-size: 13px;
-  font-weight: var(--fw-medium);
-  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .acct-dmh__total {
   font-family: var(--ff-sans);
-  font-size: 13.5px;
-  font-weight: var(--fw-bold);
+  font-size: 14px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--ink);
+  color: #0f172a;
 }
 
 .acct-dmh__pay-wrap {
@@ -1823,15 +3144,41 @@ td.acct-count-cell {
 /* Hero drawer phẳng hoá — có trong bản thiết kế gốc (soi lần 1) nhưng bị sót khi chép sang
    khối CSS giao cho agent BUILD. `.purchase__hero-banner` gốc (purchase.css) dùng chung 19
    file nên KHÔNG sửa định nghĩa gốc, chỉ khoanh vùng qua `.acct-dmh-drawer`. */
+/* Hero drawer phẳng hoá — khoanh vùng qua .acct-dmh-drawer & .acct-mh-drawer */
 .acct-dmh-drawer .purchase__hero-banner {
   background: var(--charcoal);
   border-bottom: none;
 }
 
+/* Đảm bảo khung Drawer khóa 100dvh và thân .rc-drawer__body cuộn dọc mượt mà */
+:is(.acct-dmh-drawer, .acct-mh-drawer) {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+}
+
+:is(.acct-dmh-drawer, .acct-mh-drawer) :is(.purchase__hero-banner, .acct-drawer__tabs, .purchase__drawer-footer) {
+  flex-shrink: 0 !important;
+}
+
+:is(.acct-dmh-drawer, .acct-mh-drawer) .rc-drawer__body {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+/* Thân drawer là flex cột (rebuild-catalog.css): khối con có overflow:hidden (khung bảng vật tư)
+   mất min-height tự nhiên nên bị ÉP co cho vừa màn và cắt mất dòng, thay vì để thân cuộn. */
+:is(.acct-dmh-drawer, .acct-mh-drawer) .rc-drawer__body > * {
+  flex-shrink: 0;
+}
+
 /* `.md-page__pager` (master-data.css) dùng chung nhiều màn, KHÔNG có padding/border/nền —
    trong khung bảng mới (`.acct-dmh__frame`, viền + bo góc riêng) nó dính sát mép dưới không
    có gì tách khỏi thân bảng. Khoanh vùng bằng `.acct-dmh`, không sửa định nghĩa gốc. */
-.acct-dmh .md-page__pager {
+:is(.acct-dmh, .acct-std) .md-page__pager {
   padding: var(--sp-3) var(--sp-5);
   border-top: 1px solid var(--rule-soft);
   background: var(--canvas);
@@ -2008,3 +3355,35 @@ td.acct-count-cell {
 .acct-pc .acct-gc-cho__ncc { font-weight: 600; }
 .acct-pc .acct-gc-cho__ai { color: var(--ash, #666); font-size: 0.875rem; }
 .acct-pt-drawer .acct-pt__body { padding: var(--sp-5) var(--sp-6); gap: var(--sp-5); }
+
+/* Bảng vật tư trong ngăn chi tiết đơn mua */
+.acct-lines {
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  overflow-x: auto;
+}
+.acct-lines__table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.acct-lines__table th {
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3, #64748b);
+  background: var(--canvas-2, #f8fafc);
+  border-bottom: 1px solid var(--rule-soft);
+  white-space: nowrap;
+}
+.acct-lines__table td { padding: 9px 14px; border-bottom: 1px solid var(--rule-soft); vertical-align: middle; }
+.acct-lines__table tbody tr:last-child td { border-bottom: 0; }
+.acct-lines__table .is-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.acct-lines__name { font-weight: 600; }
+.acct-lines__money { font-weight: 600; }
+.acct-lines__table tfoot td {
+  border-top: 1px solid var(--rule);
+  border-bottom: 0;
+  background: var(--canvas-2, #f8fafc);
+  font-weight: 600;
+}

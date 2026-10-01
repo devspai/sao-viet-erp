@@ -617,7 +617,6 @@ const MODULE_GROUPS: {
       "don_hang_ban",
       "giao_hang",
       "khach_hang",
-      "bao_cao_kinh_doanh",
     ],
   },
   // MỘT MÀN = MỘT DÒNG, xếp đúng thứ tự menu "Sản xuất" để người cấp quyền dò theo màn hình.
@@ -668,7 +667,6 @@ const MODULE_GROUPS: {
       "cong_no_phai_tra",
       "phieu_thu",
       "cong_no_phai_thu",
-      "bao_cao_cong_no",
       "tk_ngan_hang",
       "tai_san",
     ],
@@ -685,7 +683,14 @@ const MODULE_GROUPS: {
     //   • `bao_cao_kho` — sổ nhập-xuất của kế toán, tách cùng ngày (mg `0329`).
     // Cả hai lần tách cùng một lý do: trước đó chúng là MÀN không có dòng nào mang tên mình, muốn
     // cấp phải mò vào panel chi tiết của màn Kho.
-    modules: ["kho", "ton_kho", "bao_cao_kho"],
+    modules: ["kho", "ton_kho"],
+  },
+  {
+    key: "bao_cao",
+    label: "Báo cáo",
+    // PHÂN HỆ "Báo cáo" (01/10/2026) — ba màn trước nằm rải ở Kinh doanh · Kế toán · Kho hàng, nay
+    // gom về một khối, đúng thứ tự mục menu. Khoá quyền KHÔNG đổi, chỉ đổi nhóm hiển thị.
+    modules: ["bao_cao_kinh_doanh", "bao_cao_kho", "bao_cao_cong_no"],
   },
   {
     key: "cau_hinh_danh_muc",

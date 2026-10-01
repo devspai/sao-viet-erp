@@ -27,8 +27,10 @@ import { PaymentVoucherDialog } from "./PaymentVoucherDialog";
 import { printVoucher } from "./print";
 import { taiVaInBangKe } from "../../../utils/printBangKeTamUng";
 import { PAGE_SIZE } from "./shared/list-constants";
+import "../../master-data.css";
 import "../../accounting.css";
 import "../../purchase.css";
+import "./phieu-chi-chuan.css";
 
 export function PaymentVouchersPage({
   navigate,
@@ -304,15 +306,14 @@ export function PaymentVouchersPage({
   }
 
   return (
-    <main className="md-page acct-pc">
-      <header className="md-page__head">
-        <p className="eyebrow">Kế toán</p>
-        <h1 className="md-page__title">{VOUCHER_PAGE_LABEL}</h1>
-        <p className="md-page__sub">
-          Lập phiếu chi là tiền đã ra khỏi két — phiếu sinh ra đã là "Đã chi".
-          Ghi nhận nhầm thì hủy phiếu (bắt lý do), nguồn chi có thể là Đơn mua hàng,
-          gia công ngoài, chi phí nội bộ, hoàn tiền khách hàng hoặc khoản chi khác.
-        </p>
+    <main className="md-page acct-pc acct-std">
+      <header className="md-page__head" style={{ marginBottom: "var(--sp-3)" }}>
+        <h1
+          className="md-page__title"
+          title="Lập phiếu chi là tiền đã ra khỏi két — phiếu sinh ra đã là Đã chi. Ghi nhận nhầm thì hủy phiếu (bắt lý do). Nguồn chi: Đơn mua hàng, gia công ngoài, chi phí nội bộ, hoàn tiền khách hàng hoặc khoản chi khác."
+        >
+          {VOUCHER_PAGE_LABEL}
+        </h1>
       </header>
       {error && (
         <div className="banner banner--error" role="alert">

@@ -67,6 +67,19 @@ export function InboxDrawer({
                   {STATUS_META[selected.status].label}
                 </span>
               </div>
+              {/* Nội dung / Mục đích mua hàng ở Subtitle Header */}
+              {(selected.content?.trim() || selected.purpose?.trim() || selected.note?.trim()) && (
+                <div className="acct-hero-purpose">
+                  <Icon name="book" size={13} />
+                  <span>
+                    {selected.content?.trim() ||
+                      [selected.purpose, selected.note]
+                        .map((x) => (x ?? "").trim())
+                        .filter(Boolean)
+                        .join(" — ")}
+                  </span>
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -77,6 +90,69 @@ export function InboxDrawer({
               ✕
             </button>
           </div>
+
+          {/* Khối Thông Tin Đơn Hàng Tích Hợp Trực Tiếp Trong Header */}
+          <dl className="acct-hero-facts">
+            <div>
+              <dt>
+                <Icon name="truck" size={13} />
+                Nhà cung cấp
+              </dt>
+              <dd title={selected.supplier_name ?? undefined}>{selected.supplier_name || "—"}</dd>
+            </div>
+            <div>
+              <dt>
+                <Icon name="calendar" size={13} />
+                Ngày cần hàng
+              </dt>
+              <dd>{fmtDate(selected.needed_date)}</dd>
+            </div>
+            <div>
+              <dt>
+                <Icon name="users" size={13} />
+                Người lập
+              </dt>
+              <dd>{selected.created_by_name || "—"}</dd>
+            </div>
+            <div>
+              <dt>
+                <Icon name="send" size={13} />
+                Gửi duyệt
+              </dt>
+              <dd>{fmtDate(selected.submitted_at)}</dd>
+            </div>
+            <div>
+              <dt>
+                <Icon name="fileText" size={13} />
+                Yêu cầu nguồn
+              </dt>
+              <dd>
+                {selected.sources.length > 0
+                  ? selected.sources.map((source, index) => (
+                      <span key={source.id}>
+                        {index > 0 && ", "}
+                        <CodeLink code={source.code} onOpen={openYcmh} />
+                      </span>
+                    ))
+                  : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <Icon name="building" size={13} />
+                Phòng ban nguồn
+              </dt>
+              <dd>
+                {[
+                  ...new Set(
+                    selected.sources
+                      .map((source) => source.requesting_department_name)
+                      .filter(Boolean),
+                  ),
+                ].join(", ") || "—"}
+              </dd>
+            </div>
+          </dl>
         </div>
 
         {/* Dải 4 Tab Con Chuyên Biệt trong Drawer */}
@@ -148,326 +224,445 @@ export function InboxDrawer({
           {/* TAB 1: VẬT TƯ & TỔNG QUAN */}
           {activeTab === "overview" && (
             <>
-              <div className="acct-payment-grid">
-                <div>
-                  <span>Tổng đơn</span>
-                  <strong>{money(selected.total_estimate)}</strong>
+              {/* Thẻ Chỉ số KPI 4 Ô Độc Lập */}
+              <div className="acct-kpi-grid">
+                <div className="acct-kpi-card acct-kpi-card--total">
+                  <div className="acct-kpi-card__head">
+                    <span className="acct-kpi-card__label">Tổng đơn mua</span>
+                    <span className="acct-kpi-card__tag">Dự kiến</span>
+                  </div>
+                  <div className="acct-kpi-card__val">{money(selected.total_estimate)}</div>
                 </div>
-                <div>
-                  <span>Hàng đã giao</span>
-                  <strong>{money(selected.gia_tri_da_giao)}</strong>
+
+                <div className="acct-kpi-card acct-kpi-card--delivered">
+                  <div className="acct-kpi-card__head">
+                    <span className="acct-kpi-card__label">Hàng đã giao</span>
+                    <span className="acct-kpi-card__tag">
+                      {selected.total_estimate > 0
+                        ? `${Math.round((selected.gia_tri_da_giao / selected.total_estimate) * 100)}%`
+                        : "0%"}
+                    </span>
+                  </div>
+                  <div className="acct-kpi-card__val">{money(selected.gia_tri_da_giao)}</div>
                 </div>
-                <div>
-                  <span>Đã chi ròng</span>
-                  <strong>{money(selected.net_paid)}</strong>
+
+                <div className="acct-kpi-card acct-kpi-card--paid">
+                  <div className="acct-kpi-card__head">
+                    <span className="acct-kpi-card__label">Đã chi ròng</span>
+                    <span className="acct-kpi-card__tag">Thực tế</span>
+                  </div>
+                  <div className="acct-kpi-card__val">{money(selected.net_paid)}</div>
                 </div>
-                <div className="acct-dmh__lead">
-                  <span>Còn nợ</span>
-                  <strong>{money(selected.outstanding_amount)}</strong>
+
+                <div
+                  className={`acct-kpi-card acct-kpi-card--due ${
+                    selected.outstanding_amount > 0 ? "is-overdue" : ""
+                  }`}
+                >
+                  <div className="acct-kpi-card__head">
+                    <span className="acct-kpi-card__label">Còn nợ</span>
+                    <span className="acct-kpi-card__tag">
+                      {selected.outstanding_amount > 0 ? "Chờ chi" : "Đã xong"}
+                    </span>
+                  </div>
+                  <div className="acct-kpi-card__val">{money(selected.outstanding_amount)}</div>
                 </div>
               </div>
 
-              <dl className="purchase__facts">
-                <div>
-                  <dt>Nhà cung cấp</dt>
-                  <dd>{selected.supplier_name}</dd>
+              {/* Bảng Danh Sách Vật Tư Phân Cột Chuẩn Enterprise */}
+              <div className="acct-items-frame">
+                <div className="acct-items-table-wrap">
+                  <table className="acct-items-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 40 }} className="text-center">#</th>
+                        <th>Tên vật tư</th>
+                        <th style={{ textAlign: "right" }}>Số lượng</th>
+                        <th style={{ textAlign: "right" }}>Đơn giá</th>
+                        <th style={{ textAlign: "center" }}>CK</th>
+                        <th style={{ textAlign: "center" }}>VAT</th>
+                        <th style={{ textAlign: "right" }}>Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selected.lines.map((line, idx) => {
+                        const dvt = tenDonVi(line.unit) ?? line.unit;
+                        return (
+                          <tr key={line.id}>
+                            <td style={{ textAlign: "center", color: "#94a3b8" }}>{idx + 1}</td>
+                            <td>
+                              <div className="acct-table-item-name">{line.item_name}</div>
+                              {line.note && <div className="acct-table-item-note">{line.note}</div>}
+                            </td>
+                            <td style={{ textAlign: "right", fontWeight: 600 }}>
+                              {line.quantity.toLocaleString("vi-VN")}{" "}
+                              <small style={{ color: "#64748b", fontWeight: 400 }}>{dvt}</small>
+                            </td>
+                            <td style={{ textAlign: "right" }}>{money(line.expected_unit_price)}</td>
+                            <td style={{ textAlign: "center" }}>
+                              {line.discount_percent > 0 ? (
+                                <span className="acct-discount-badge">-{line.discount_percent}%</span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <span className="acct-vat-badge">{line.vat_percent}%</span>
+                            </td>
+                            <td style={{ textAlign: "right", fontWeight: 700, color: "#1d4ed8" }}>
+                              {money(line.line_total)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: "right", fontWeight: 700 }}>
+                          TỔNG DỰ KIẾN ({selected.lines.length} MẶT HÀNG)
+                        </td>
+                        <td style={{ textAlign: "right" }} className="acct-total-val">
+                          {money(selected.total_estimate)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
-                <div>
-                  <dt>Ngày cần hàng</dt>
-                  <dd>{fmtDate(selected.needed_date)}</dd>
-                </div>
-                <div>
-                  <dt>Người lập</dt>
-                  <dd>{selected.created_by_name || "—"}</dd>
-                </div>
-                <div>
-                  <dt>Gửi duyệt</dt>
-                  <dd>{fmtDate(selected.submitted_at)}</dd>
-                </div>
-                <div>
-                  <dt>Yêu cầu nguồn</dt>
-                  <dd>
-                    {selected.sources.map((source, index) => (
-                      <span key={source.id}>
-                        {index > 0 && ", "}
-                        <CodeLink code={source.code} onOpen={openYcmh} />
-                      </span>
-                    ))}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Phòng ban nguồn</dt>
-                  <dd>
-                    {[
-                      ...new Set(
-                        selected.sources
-                          .map((source) => source.requesting_department_name)
-                          .filter(Boolean),
-                      ),
-                    ].join(", ") || "—"}
-                  </dd>
-                </div>
-              </dl>
-
-              <div className="acct-purpose">
-                <span>Nội dung / mục đích</span>
-                <strong>
-                  {selected.content?.trim() ||
-                    [selected.purpose, selected.note]
-                      .map((x) => (x ?? "").trim())
-                      .filter(Boolean)
-                      .join(" — ") ||
-                    "—"}
-                </strong>
               </div>
-
-              <table className="md-page__table purchase__lines-table">
-                <thead>
-                  <tr>
-                    <th>Vật tư</th>
-                    <th className="num">Số lượng</th>
-                    <th className="num">VAT</th>
-                    <th className="num">Thành tiền</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selected.lines.map((line) => (
-                    <tr key={line.id}>
-                      <td>
-                        <strong>{line.item_name}</strong>
-                      </td>
-                      <td className="num">
-                        {line.quantity.toLocaleString("vi-VN")} {tenDonVi(line.unit) ?? line.unit}
-                      </td>
-                      <td className="num">{line.vat_percent}%</td>
-                      <td className="num">
-                        <strong>{money(line.line_total)}</strong>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </>
           )}
 
           {/* TAB 2: ĐIỀU KHOẢN & CÔNG NỢ */}
           {activeTab === "terms" && (
-            <>
+            <div className="acct-credit-dashboard">
               {credit ? (
-                <section className="acct-terms">
-                  <header className="acct-terms__head">
-                    <span>Điều kiện thanh toán</span>
-                    <strong>{selected.supplier_name || "—"}</strong>
-                  </header>
-                  <div className="acct-terms__row">
-                    <span>Điều khoản</span>
-                    <strong className={credit.payment_terms ? "" : "acct-terms__trong"}>
-                      {credit.payment_terms?.trim() || "Chưa khai"}
-                    </strong>
+                <section className="acct-credit-card">
+                  {/* Banner tiêu đề tín dụng */}
+                  <div className="acct-credit-card__head">
+                    <div className="acct-credit-card__title">
+                      <Icon name="shield" size={15} />
+                      Hạn mức & Tín dụng nhà cung cấp
+                    </div>
+                    <span className="acct-credit-card__supplier">
+                      {selected.supplier_name || "—"}
+                    </span>
                   </div>
-                  <div className="acct-terms__row">
-                    <span>Chốt công nợ</span>
-                    <strong className={selected.debt_cutoff_date ? "" : "acct-terms__trong"}>
-                      {selected.debt_cutoff_date ? (
-                        <>
-                          {fmtDate(selected.debt_cutoff_date)}
-                          {selected.supplier_credit_days != null && (
-                            <>
-                              {" → hạn trả "}
-                              {hanTraTuMoc(selected.debt_cutoff_date, selected.supplier_credit_days)}
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        "Chưa báo — hạn trả tính từ ngày hoá đơn từng đợt"
-                      )}
-                    </strong>
+
+                  {/* Thông tin điều khoản & chốt nợ */}
+                  <div className="acct-terms-details">
+                    <div className="acct-terms-detail-item">
+                      <span className="acct-terms-detail-item__label">Điều khoản thanh toán</span>
+                      <span className="acct-terms-detail-item__val">
+                        {credit.payment_terms?.trim() || "Chưa khai báo điều khoản"}
+                      </span>
+                    </div>
+                    <div className="acct-terms-detail-item">
+                      <span className="acct-terms-detail-item__label">Mốc chốt công nợ & Hạn trả</span>
+                      <span className="acct-terms-detail-item__val">
+                        {selected.debt_cutoff_date ? (
+                          <>
+                            {fmtDate(selected.debt_cutoff_date)}
+                            {selected.supplier_credit_days != null && (
+                              <>
+                                {" → hạn trả "}
+                                {hanTraTuMoc(selected.debt_cutoff_date, selected.supplier_credit_days)}
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          "Chưa báo — hạn trả tính từ ngày hoá đơn từng đợt giao hàng"
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <div className="acct-terms__grid">
-                    <div>
-                      <span>Cho nợ</span>
-                      <strong className={credit.credit_days == null ? "acct-terms__trong" : ""}>
+
+                  {/* 3 Thẻ chỉ số tín dụng */}
+                  <div className="acct-credit-stats">
+                    <div className="acct-credit-stat-item">
+                      <span className="acct-credit-stat-item__label">
+                        <Icon name="clock" size={12} />
+                        Cho nợ
+                      </span>
+                      <span className="acct-credit-stat-item__val">
                         {credit.credit_days == null
-                          ? "Chưa đặt hạn"
+                          ? "Chưa đặt"
                           : credit.credit_days === 0
-                            ? "Trả ngay"
-                            : `${credit.credit_days} ngày`}
-                      </strong>
+                          ? "Trả ngay"
+                          : `${credit.credit_days} ngày`}
+                      </span>
                     </div>
-                    <div>
-                      <span>Hạn mức</span>
-                      <strong className={credit.credit_limit > 0 ? "" : "acct-terms__trong"}>
+
+                    <div className="acct-credit-stat-item">
+                      <span className="acct-credit-stat-item__label">
+                        <Icon name="shield" size={12} />
+                        Hạn mức
+                      </span>
+                      <span className="acct-credit-stat-item__val">
                         {credit.credit_limit > 0 ? money(credit.credit_limit) : "Không đặt"}
-                      </strong>
+                      </span>
                     </div>
-                    <div>
-                      <span>Đang nợ</span>
-                      <strong className={credit.vuot_han_muc ? "acct-terms__vuot" : ""}>
+
+                    <div
+                      className={`acct-credit-stat-item acct-credit-stat-item--due ${
+                        credit.vuot_han_muc ? "is-overdue" : ""
+                      }`}
+                    >
+                      <span className="acct-credit-stat-item__label">
+                        <Icon name="calculator" size={12} />
+                        Đang nợ
+                      </span>
+                      <span className="acct-credit-stat-item__val">
                         {money(credit.no_hien_tai)}
-                      </strong>
+                      </span>
                     </div>
                   </div>
+
+                  {/* Thanh tỷ lệ sử dụng hạn mức (Credit Utilization Bar) */}
+                  {credit.credit_limit > 0 && (
+                    <div className="acct-utilization">
+                      <div className="acct-utilization__meta">
+                        <span>Tỷ lệ sử dụng hạn mức nợ</span>
+                        <span>
+                          {money(credit.no_hien_tai)} / {money(credit.credit_limit)}{" "}
+                          ({Math.min(100, Math.round((credit.no_hien_tai / credit.credit_limit) * 100))}%)
+                        </span>
+                      </div>
+                      <div className="acct-utilization__track">
+                        <div
+                          className={`acct-utilization__fill ${
+                            credit.vuot_han_muc
+                              ? "acct-utilization__fill--danger"
+                              : credit.no_hien_tai / credit.credit_limit > 0.7
+                              ? "acct-utilization__fill--warn"
+                              : ""
+                          }`}
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.round((credit.no_hien_tai / credit.credit_limit) * 100),
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </section>
               ) : (
                 <div className="md-page__muted">Chưa có thông tin công nợ nhà cung cấp.</div>
               )}
 
+              {/* Thẻ Hợp đồng & Cọc dự kiến */}
               {(selected.contract_number || selected.deposit_expected > 0) && (
-                <dl className="purchase__facts acct-contract-facts">
+                <div className="acct-contract-card">
                   {selected.contract_number && (
-                    <div>
-                      <dt>Số hợp đồng</dt>
-                      <dd>{selected.contract_number}</dd>
+                    <div className="acct-contract-card__item">
+                      <div className="acct-contract-card__icon">
+                        <Icon name="fileCheck" size={18} />
+                      </div>
+                      <div>
+                        <div className="acct-contract-card__label">Số hợp đồng</div>
+                        <div className="acct-contract-card__val">{selected.contract_number}</div>
+                      </div>
                     </div>
                   )}
+
                   {selected.deposit_expected > 0 && (
-                    <div>
-                      <dt>Cọc dự kiến</dt>
-                      <dd>
-                        <strong>{money(selected.deposit_expected)}</strong>
-                        <small> — điền sẵn khi lập phiếu Đặt cọc</small>
-                      </dd>
+                    <div className="acct-contract-card__item">
+                      <div className="acct-contract-card__icon">
+                        <Icon name="calculator" size={18} />
+                      </div>
+                      <div>
+                        <div className="acct-contract-card__label">Cọc dự kiến</div>
+                        <div className="acct-contract-card__val">
+                          {money(selected.deposit_expected)}
+                        </div>
+                      </div>
                     </div>
                   )}
-                </dl>
+                </div>
               )}
-            </>
+            </div>
           )}
 
           {/* TAB 3: ĐỢT GIAO & PHIẾU CHI */}
           {activeTab === "deliveries" && (
             <>
-              <section className="acct-deliveries" style={{ marginTop: 0 }}>
-                <p className="eyebrow">Đợt giao hàng ({selected.deliveries.length})</p>
+              {/* Phần Đợt Giao Hàng */}
+              <section className="acct-deliveries-section">
+                <div className="acct-section-title">
+                  <Icon name="truck" size={14} />
+                  Đợt giao hàng ({selected.deliveries.length})
+                </div>
+
                 {selected.deliveries.length === 0 ? (
-                  <div className="md-page__muted">Chưa có đợt giao nào.</div>
+                  <div className="acct-empty-state">
+                    <div className="acct-empty-state__icon">
+                      <Icon name="truck" size={20} />
+                    </div>
+                    <div className="acct-empty-state__text">Chưa có đợt giao hàng nào.</div>
+                  </div>
                 ) : (
-                  <div className="acct-dmh__scroll">
-                    <table className="md-page__table acct-deliveries__table">
-                      <thead>
-                        <tr>
-                          <th>Đợt</th>
-                          <th>Hàng đã nhận</th>
-                          <th>Hạn trả</th>
-                          <th className="acct-amount-cell">Giá trị</th>
-                          <th className="acct-amount-cell">Đã chi</th>
-                          <th className="acct-amount-cell">Trừ cọc</th>
-                          <th className="acct-amount-cell">Còn nợ</th>
-                          <th>Người ghi</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selected.deliveries.map((dot) => (
-                          <tr key={dot.id}>
-                            <td className="acct-code-cell">
-                              <strong>Đợt {dot.seq_no}</strong>
-                              <small>{fmtDate(dot.delivery_date)}</small>
-                            </td>
-                            <td>
-                              <div className="acct-deliveries__lines">
-                                {dot.lines.map((line) => (
-                                  <span key={line.id}>
-                                    <strong>{line.item_name}</strong>
-                                    {": "}
+                  <div className="acct-delivery-cards">
+                    {selected.deliveries.map((dot) => (
+                      <div className="acct-delivery-card" key={dot.id}>
+                        {/* Header Thẻ Đợt Giao */}
+                        <div className="acct-delivery-card__head">
+                          <div className="acct-delivery-card__seq">
+                            <span className="acct-delivery-badge">Đợt {dot.seq_no}</span>
+                            <span className="acct-delivery-date">
+                              Ngày nhận: {fmtDate(dot.delivery_date)}
+                            </span>
+                          </div>
+                          <div className="acct-delivery-due">
+                            Hạn trả: {dot.chua_dat_han ? "Chưa đặt hạn" : fmtDate(dot.due_date)}
+                          </div>
+                        </div>
+
+                        {/* Body: Danh sách hàng nhận dạng Bảng phân cột */}
+                        <div className="acct-delivery-card__body">
+                          <table className="acct-delivery-mini-table">
+                            <thead>
+                              <tr>
+                                <th style={{ width: 32 }} className="text-center">#</th>
+                                <th>Mặt hàng đã nhận</th>
+                                <th style={{ textAlign: "right" }}>Số lượng nhận</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {dot.lines.map((line, idx) => (
+                                <tr key={line.id}>
+                                  <td style={{ textAlign: "center", color: "#94a3b8" }}>{idx + 1}</td>
+                                  <td style={{ fontWeight: 600 }}>{line.item_name}</td>
+                                  <td style={{ textAlign: "right", fontWeight: 700, color: "#0f172a" }}>
                                     {line.quantity.toLocaleString("vi-VN")}{" "}
-                                    {tenDonVi(line.unit) ?? line.unit}
+                                    <small style={{ color: "#64748b", fontWeight: 400 }}>
+                                      {tenDonVi(line.unit) ?? line.unit}
+                                    </small>
                                     {line.quantity_du > 0 && (
-                                      <em
-                                        className="pdot__du"
+                                      <span
+                                        className="acct-tag-pill acct-tag-pill--note"
+                                        style={{ marginLeft: 6, display: "inline-flex" }}
                                         title={`${line.quantity_tinh_tien.toLocaleString("vi-VN")} tính tiền · ${line.quantity_du.toLocaleString("vi-VN")} vượt số đặt, giá 0đ`}
                                       >
-                                        {" · "}
-                                        {line.quantity_du.toLocaleString("vi-VN")} dư
-                                      </em>
+                                        Đã nhận {line.quantity.toLocaleString("vi-VN")} · {line.quantity_du.toLocaleString("vi-VN")} dư
+                                      </span>
                                     )}
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                            <td>{dot.chua_dat_han ? "Chưa đặt hạn" : fmtDate(dot.due_date)}</td>
-                            <td className="acct-amount-cell">{money(dot.amount)}</td>
-                            <td className="acct-amount-cell">
-                              {dot.paid_amount > 0 ? money(dot.paid_amount) : <span className="pay-cell--zero">—</span>}
-                            </td>
-                            <td className="acct-amount-cell">
-                              {dot.coc_bu > 0 ? money(dot.coc_bu) : <span className="pay-cell--zero">—</span>}
-                            </td>
-                            <td className="acct-amount-cell">
-                              {dot.con_no > 0 ? (
-                                <strong>{money(dot.con_no)}</strong>
-                              ) : (
-                                <span className="pay-cell--zero">xong</span>
-                              )}
-                            </td>
-                            <td className="acct-user-cell">
-                              <div title={dot.created_by_name ?? undefined}>
-                                {dot.created_by_name || "—"}
-                              </div>
-                              {dot.created_at && <small>{fmtDate(dot.created_at)}</small>}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Footer: Giá trị & nợ đợt */}
+                        <div className="acct-delivery-card__foot">
+                          <div className="acct-delivery-foot-item">
+                            <span className="acct-delivery-foot-item__label">Giá trị đợt</span>
+                            <span className="acct-delivery-foot-item__val">{money(dot.amount)}</span>
+                          </div>
+
+                          <div className="acct-delivery-foot-item">
+                            <span className="acct-delivery-foot-item__label">Đã chi</span>
+                            <span className="acct-delivery-foot-item__val">
+                              {dot.paid_amount > 0 ? money(dot.paid_amount) : "0 đ"}
+                            </span>
+                          </div>
+
+                          <div className="acct-delivery-foot-item">
+                            <span className="acct-delivery-foot-item__label">Trừ cọc</span>
+                            <span className="acct-delivery-foot-item__val">
+                              {dot.coc_bu > 0 ? money(dot.coc_bu) : "0 đ"}
+                            </span>
+                          </div>
+
+                          <div className="acct-delivery-foot-item acct-delivery-foot-item--due">
+                            <span className="acct-delivery-foot-item__label">Còn nợ</span>
+                            <span className="acct-delivery-foot-item__val">
+                              {dot.con_no > 0 ? money(dot.con_no) : "Đã xong"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </section>
 
-              <section className="acct-vouchers">
-                <p className="eyebrow">Chứng từ chi / UNC ({vouchers.length})</p>
+              {/* Phần Chứng Từ Chi / UNC */}
+              <section className="acct-deliveries-section">
+                <div className="acct-section-title">
+                  <Icon name="fileText" size={14} />
+                  Chứng từ chi / UNC ({vouchers.length})
+                </div>
+
                 {vouchersLoading ? (
-                  <div className="md-page__muted">Đang tải chứng từ...</div>
+                  <div className="acct-empty-state">
+                    <div className="acct-empty-state__text">Đang tải chứng từ...</div>
+                  </div>
                 ) : vouchers.length === 0 ? (
-                  <div className="md-page__muted">Chưa lập chứng từ chi nào.</div>
+                  <div className="acct-empty-state">
+                    <div className="acct-empty-state__icon">
+                      <Icon name="fileText" size={20} />
+                    </div>
+                    <div className="acct-empty-state__text">Chưa lập chứng từ chi nào cho đơn hàng này.</div>
+                  </div>
                 ) : (
-                  <div className="acct-dmh__scroll">
-                    <table className="md-page__table acct-vouchers__table">
-                      <thead>
-                        <tr>
-                          <th>Mã chứng từ</th>
-                          <th>Loại</th>
-                          <th>Đợt thanh toán</th>
-                          <th>Ngày chứng từ</th>
-                          <th className="acct-amount-cell">Số tiền</th>
-                          <th>Trạng thái</th>
-                          <th>Người lập / chi</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {vouchers.map((voucher) => (
-                          <tr key={voucher.id}>
-                            <td className="acct-code-cell">
-                              <strong>{voucher.code}</strong>
-                              {voucher.delivery_seq_no && (
-                                <small>Đợt giao {voucher.delivery_seq_no}</small>
-                              )}
-                            </td>
-                            <td>{VOUCHER_TYPE_LABEL[voucher.voucher_type]}</td>
-                            <td>{PAYMENT_STAGE_LABEL[voucher.payment_stage]}</td>
-                            <td>{fmtDate(voucher.voucher_date)}</td>
-                            <td className="acct-amount-cell">{money(voucher.amount_vnd)}</td>
-                            <td>
-                              <span className={`acct-dmh__state acct-dmh__state--${voucher.status}`}>
-                                <i className="acct-dmh__dot" />
-                                {VOUCHER_STATUS_LABEL[voucher.status]}
-                              </span>
-                            </td>
-                            <td>
-                              {voucher.created_by_name || "—"}
-                              <small>
-                                {fmtDate(voucher.created_at)}
-                                {voucher.paid_by_name ? ` · Chi bởi ${voucher.paid_by_name}` : ""}
+                  <div className="acct-voucher-cards">
+                    {vouchers.map((voucher) => (
+                      <div className="acct-voucher-card" key={voucher.id}>
+                        <div className="acct-voucher-card__left">
+                          <div className="acct-voucher-card__code">
+                            {voucher.code}
+                            {voucher.delivery_seq_no && (
+                              <small style={{ color: "#64748b", marginLeft: 6 }}>
+                                (Đợt {voucher.delivery_seq_no})
                               </small>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            )}
+                          </div>
+                          <div className="acct-voucher-card__meta">
+                            <span>{VOUCHER_TYPE_LABEL[voucher.voucher_type]}</span>
+                            <span>•</span>
+                            <span>{PAYMENT_STAGE_LABEL[voucher.payment_stage]}</span>
+                            <span>•</span>
+                            <span>{fmtDate(voucher.voucher_date)}</span>
+                          </div>
+                        </div>
+
+                        <div className="acct-voucher-card__right">
+                          <span className="acct-voucher-card__amount">
+                            {money(voucher.amount_vnd)}
+                          </span>
+                          <span className={`acct-dmh__state acct-dmh__state--${voucher.status}`}>
+                            <i className="acct-dmh__dot" />
+                            {VOUCHER_STATUS_LABEL[voucher.status]}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </section>
+
+              {/* Dải tổng công nợ ở chân tab 3 (chỉ hiện khi có > 1 đợt giao) */}
+              {selected.deliveries.length > 1 && (
+                <div className="acct-totals-bar">
+                  <span className="acct-totals-bar__item">
+                    Đã giao <strong>{money(selected.gia_tri_da_giao)}</strong>
+                  </span>
+                  <span className="acct-totals-bar__item">
+                    Đã chi <strong>{money(selected.net_paid)}</strong>
+                    {selected.receipt_received_amount > 0 && (
+                      <small style={{ color: "#64748b" }}> (đã trừ {money(selected.receipt_received_amount)} thu về)</small>
+                    )}
+                  </span>
+                  <span className="acct-totals-bar__item acct-totals-bar__item--due">
+                    Còn nợ <strong>{money(selected.outstanding_amount)}</strong>
+                  </span>
+                </div>
+              )}
             </>
           )}
+
 
           {/* TAB 4: LỊCH SỬ HOẠT ĐỘNG */}
           {activeTab === "history" && (

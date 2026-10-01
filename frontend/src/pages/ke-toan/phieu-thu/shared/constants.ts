@@ -11,3 +11,10 @@ export const STATUS_META: Record<
   received: { label: "Đã thu", tone: "paid" },
   cancelled: { label: "Đã hủy", tone: "cancelled" },
 };
+
+/** Tông pill chuẩn `acct-dmh__state--*` (màn Đơn mua hàng) gần nghĩa nhất với từng trạng thái phiếu thu. */
+export const PILL_TONE: Record<PaymentReceiptStatus, string> = {
+  waiting_receipt: "pending",
+  received: "received",
+  cancelled: "cancelled",
+};
