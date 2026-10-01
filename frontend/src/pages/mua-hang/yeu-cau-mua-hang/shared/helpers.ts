@@ -93,3 +93,12 @@ export function cleanRequest(
     ...(input.nguon_lenh?.length ? { nguon_lenh: input.nguon_lenh } : {}),
   };
 }
+
+/** Dạng giấy của dòng yêu cầu mua — quyết ĐVT hiện trên form (spec giấy theo khổ §4.4): đủ hai
+ *  cạnh khổ ⇒ tờ (đếm tờ nguyên), thiếu khổ ⇒ cuộn (đơn vị gốc của mã). Không phải giấy ⇒ null. */
+export function dangGiayDong(
+  line: Pick<DepartmentPurchaseRequestLineInput, "hang_loai" | "kho_rong" | "kho_dai">,
+): "to" | "cuon" | null {
+  if (line.hang_loai !== "giay") return null;
+  return (line.kho_rong ?? 0) > 0 && (line.kho_dai ?? 0) > 0 ? "to" : "cuon";
+}

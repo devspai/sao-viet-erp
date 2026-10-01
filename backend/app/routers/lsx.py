@@ -580,9 +580,11 @@ def set_trang_thai(
         raise _map(exc)
     xoa_cache_can_doi()
     hub.gui({"type": "lsx_changed", "order_id": lsx.order_id}, quyen=NGHE_LENH)
-    if lsx.trang_thai in TT_XEP_DUOC and tt_cu not in TT_XEP_DUOC:
-        bao(db, kenh="xep_lich", loai="lenh_cho_xep", actor_id=user.id, ma=lsx.ma)
-    return _out(svc, lsx)
+    # Dựng kết quả TRƯỚC khi báo: `bao` commit ⇒ `lsx` hết hạn, `lsx.__dict__` rỗng ⇒ 500.
+    out = _out(svc, lsx)
+    if out.trang_thai in TT_XEP_DUOC and tt_cu not in TT_XEP_DUOC:
+        bao(db, kenh="xep_lich", loai="lenh_cho_xep", actor_id=user.id, ma=out.ma)
+    return out
 
 
 @router.delete("/{lsx_id}")

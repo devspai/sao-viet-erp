@@ -28,7 +28,16 @@ from ...models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
 from ...models.cong_doan import CongDoan, CongDoanTo
 from ...models.department import Department
 from ...models.kho_hang import KhoHang
-from ...models.lsx import LB_MAY, LB_TO, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
+from ...models.lsx import (
+    DV_TO,
+    DV_TO_NGUYEN,
+    LB_MAY,
+    LB_TO,
+    Lsx,
+    LsxCongDoan,
+    LsxCongDoanPhuThuoc,
+    LsxCongDoanVatTu,
+)
 from ...models.san_xuat import (
     CV_HOAN_THANH,
     CV_PHAT_HANH,
@@ -374,12 +383,26 @@ def _goi_va_cv(db: Session, chu_the: tuple[str, int]):
     return goi, cvs
 
 
-def _buoc_lenh_moi(lsx_id: int, cd: CongDoan, team_id: int, thu_tu: int) -> LsxCongDoan:
+def _don_vi_chuoi(cds: list[CongDoan], dv_dich: str | None) -> list[tuple[str, str]]:
+    """(vào, ra) cho từng bước cắt chèn. Công đoạn không khai đơn vị trong danh mục thì bước đầu nhận
+    tờ nguyên, bước sau nhận đúng cái bước trước ra, và ra theo đơn vị bước mang giấy nhận — thiếu
+    đơn vị thì tổ Cắt không ghi được mẻ, không bàn giao được."""
+    out, truoc = [], DV_TO_NGUYEN
+    for cd in cds:
+        vao = cd.don_vi_vao or truoc
+        ra = cd.don_vi_ra or dv_dich or DV_TO
+        out.append((vao, ra))
+        truoc = ra
+    return out
+
+
+def _buoc_lenh_moi(lsx_id: int, cd: CongDoan, team_id: int, thu_tu: int,
+                   dv: tuple[str, str]) -> LsxCongDoan:
     return LsxCongDoan(
         lsx_id=lsx_id, thu_tu=thu_tu, cong_doan_id=cd.id, ten=cd.ten_hien_thi or cd.ten,
         nhom=cd.nhom, department_id=team_id,
         loai_buoc=LB_MAY if cd.may_lam_duoc else LB_TO,
-        don_vi_vao=cd.don_vi_vao, don_vi_ra=cd.don_vi_ra,
+        don_vi_vao=dv[0], don_vi_ra=dv[1],
         so_luong_vao=0, so_luong_ra=0, chen_boi_to_cat=True,
     )
 
@@ -390,7 +413,8 @@ def _chen_vao_lenh(db: Session, lsx_id: int, cds: list[CongDoan], team_id: int,
     n = len(cds)
     for b in db.scalars(select(LsxCongDoan).where(LsxCongDoan.lsx_id == lsx_id)):
         b.thu_tu = (b.thu_tu or 0) + n
-    moi = [_buoc_lenh_moi(lsx_id, cd, team_id, i) for i, cd in enumerate(cds)]
+    dvs = _don_vi_chuoi(cds, dich.don_vi_vao)
+    moi = [_buoc_lenh_moi(lsx_id, cd, team_id, i, dv) for i, (cd, dv) in enumerate(zip(cds, dvs))]
     db.add_all(moi)
     db.flush()
     for a, b in zip(moi, moi[1:] + [dich]):
@@ -455,9 +479,9 @@ def chot(db: Session, *, user, team_id: int, lsx_id: int | None, bai_ghep_id: in
             chung = [BaiGhepCongDoan(
                 bai_ghep_id=obj.id, thu_tu=i, cong_doan_id=cd.id, ten=cd.ten_hien_thi or cd.ten,
                 nhom=cd.nhom, loai_buoc=LB_MAY if cd.may_lam_duoc else LB_TO,
-                department_id=team_id, don_vi_vao=cd.don_vi_vao, don_vi_ra=cd.don_vi_ra,
+                department_id=team_id, don_vi_vao=vao, don_vi_ra=ra,
                 so_luong_vao=0, so_luong_ra=0, chen_boi_to_cat=True,
-            ) for i, cd in enumerate(cds)]
+            ) for i, (cd, (vao, ra)) in enumerate(zip(cds, _don_vi_chuoi(cds, dau.don_vi_vao)))]
             db.add_all(chung)
             db.flush()
             for tv in db.scalars(select(BaiGhepThanhVien).where(

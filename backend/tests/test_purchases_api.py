@@ -2073,6 +2073,8 @@ def test_lich_su_don_mua_co_cac_moc_dot_giao_va_so_luong(client, auth_headers):
     created = next(item for item in body["activity_history"] if item["event_type"] == "delivery_created")
     assert "Đợt 1" in created["detail"]
     assert "400" in created["detail"]
+    # Lịch sử in TÊN đơn vị (dòng đặt mã `to`), không in mã máy.
+    assert "400 tờ" in created["detail"] and "400 to" not in created["detail"]
     assert created["actor_name"] == "Admin"
 
     delivery_id = body["deliveries"][0]["id"]

@@ -79,7 +79,7 @@ export function ThsxChotGiay({
             </div>
             {d.giay.map((g, i) => (
               <p key={i} className="thsx-chot__giay">
-                {g.ma} · {g.nhan_kho} · cần <b className="thsx-num">{num(g.so_to)}</b> {nhanDonVi(g.don_vi)} nguyên
+                {g.ma} · {g.nhan_kho} · cần <b className="thsx-num">{num(g.so_to)}</b> {nhanDonVi(g.don_vi)}
                 {" · "}
                 {g.ton_to_dung_kho == null
                   ? "chưa có khổ để so tồn"

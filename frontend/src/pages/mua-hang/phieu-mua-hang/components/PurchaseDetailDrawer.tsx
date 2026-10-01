@@ -10,7 +10,7 @@ import { useAuth } from "../../../../auth/useAuth";
 import { useCan } from "../../../../auth/permissions";
 import { CodeLink } from "../../../../components/CodeLink";
 import { PurchaseActivityTimeline } from "../../../../components/PurchaseActivityTimeline";
-import { daGiaoKhac } from "../shared/helpers";
+import { daGiaoKhac, nhanKhoMua } from "../shared/helpers";
 import { RowActionButton } from "../../../../components/RowActionButton";
 import { fmtDate, money } from "../../../../utils/format";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị — xem pages/tenDonVi.ts.
@@ -349,6 +349,9 @@ export function PurchaseDetailDrawer({
             <tr key={line.id}>
               <td>
                 <strong>{line.item_name}</strong>
+                {nhanKhoMua(line) && (
+                  <div className="purchase__line-src">{nhanKhoMua(line)}</div>
+                )}
                 {line.note && (
                   <div className="purchase__line-src">{line.note}</div>
                 )}

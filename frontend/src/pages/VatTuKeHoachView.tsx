@@ -265,16 +265,18 @@ export function VatTuKeHoachView({
     return nhoms.find((n) => idNhom(n) === selectedNhomId) ?? null;
   }, [nhoms, selectedNhomId]);
 
-  // Tổng lượng thiếu tính theo các dòng đã chọn
-  const tongKgChon = useMemo(() => {
-    let sum = 0;
+  // Tổng lượng thiếu các dòng đã chọn — cộng RIÊNG theo đơn vị gốc của mặt hàng: giấy đếm tờ
+  // nguyên, mực/dung môi kg; cộng chung rồi gắn một chữ đơn vị là ra "5.000 kg" cho 5.000 tờ.
+  const tongThieuChon = useMemo(() => {
+    const theoDv = new Map<string, number>();
     for (const k of chon) {
       const item = dongDo.get(k);
       if (item?.dong.thieu) {
-        sum += item.dong.thieu;
+        const dv = item.nhom.don_vi_goc ?? "";
+        theoDv.set(dv, (theoDv.get(dv) ?? 0) + item.dong.thieu);
       }
     }
-    return sum;
+    return [...theoDv].filter(([, sl]) => sl > 0);
   }, [chon, dongDo]);
 
   // Tất cả các dòng đỏ trong danh sách hiển thị đã được tick hết chưa
@@ -728,9 +730,10 @@ export function VatTuKeHoachView({
               <span className="khvt-floating-dock__count">
                 Đã chọn <b>{chon.size}</b> dòng thiếu
               </span>
-              {tongKgChon > 0 && (
+              {tongThieuChon.length > 0 && (
                 <span className="khvt-floating-dock__total">
-                  Tổng nhu cầu: <b>{soGoc(tongKgChon)} kg</b>
+                  Tổng nhu cầu:{" "}
+                  <b>{tongThieuChon.map(([dv, sl]) => `${soGoc(sl)} ${nhanDonVi(dv)}`.trim()).join(" · ")}</b>
                 </span>
               )}
               <span className="khvt-floating-dock__hint">

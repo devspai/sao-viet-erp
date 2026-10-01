@@ -25,6 +25,15 @@ export function khoNhapTuDongMua(
   return { dang_giay: "cuon", kho_rong: 0, kho_dai: 0 };
 }
 
+/** "Khổ 800 × 1090 mm" dưới tên dòng giấy của đơn mua (chi tiết + phiếu in gửi NCC) — NCC giao
+ *  sai khổ là lô nhập sai khoá tồn. Giấy không khổ (cuộn) hoặc hàng khác ⇒ chuỗi rỗng. */
+export function nhanKhoMua(
+  pl: Pick<PurchaseRequestLineOut, "hang_loai" | "kho_rong" | "kho_dai">,
+): string {
+  if (pl.hang_loai !== "giay" || !(pl.kho_rong > 0 && pl.kho_dai > 0)) return "";
+  return `Khổ ${pl.kho_rong} × ${pl.kho_dai} mm`;
+}
+
 export function emptyLine(): FormLine {
   return {
     item_name: "",

@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { khoNhapTuDongMua } from "./helpers";
+import { khoNhapTuDongMua, nhanKhoMua } from "./helpers";
+
+describe("nhanKhoMua", () => {
+  it("giấy có khổ mua ⇒ ghi khổ", () => {
+    expect(nhanKhoMua({ hang_loai: "giay", kho_rong: 800, kho_dai: 1090 })).toBe("Khổ 800 × 1090 mm");
+  });
+  it("giấy không khổ hoặc hàng khác ⇒ rỗng", () => {
+    expect(nhanKhoMua({ hang_loai: "giay", kho_rong: 0, kho_dai: 0 })).toBe("");
+    expect(nhanKhoMua({ hang_loai: "vat_tu", kho_rong: 0, kho_dai: 0 })).toBe("");
+  });
+});
 
 /** Nhập kho từ đợt giao: dòng yêu cầu nhập (form khoá) phải mang đúng dạng + khổ MUA của dòng đơn,
  *  vì tồn giấy tờ tách theo khổ — nhập sai khổ là giữ chỗ/kiểm xuất đếm nhầm lô. */

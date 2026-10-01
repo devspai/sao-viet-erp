@@ -3146,9 +3146,12 @@ class PurchaseService:
 
     # --- output helpers ----------------------------------------------------
 
-    @staticmethod
-    def _tom_tat_dot_giao(dot: PurchaseDelivery, row: PurchaseRequest) -> str:
-        """Mô tả ngắn của một đợt để audit còn đọc được cả sau khi đợt bị xoá."""
+    def _tom_tat_dot_giao(self, dot: PurchaseDelivery, row: PurchaseRequest) -> str:
+        """Mô tả ngắn của một đợt để audit còn đọc được cả sau khi đợt bị xoá. Đơn vị in bằng TÊN
+        (`nhan_don_vi`) — lịch sử đơn bày thẳng câu này, in mã là người đọc thấy "5200 to_nguyen"."""
+        from ..repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
+
+        ten_dv = DonViDoRepository(self.requests.db).ten_theo_ma()
         line_by_id = {line.id: line for line in row.lines}
         hang = []
         for delivery_line in dot.lines:
@@ -3156,7 +3159,8 @@ class PurchaseService:
             if line is None:
                 continue
             hang.append(
-                f"{line.item_name} {float(delivery_line.quantity):g} {line.unit}"
+                f"{line.item_name} {float(delivery_line.quantity):g} "
+                f"{nhan_don_vi(ten_dv, line.unit)}"
             )
         hang_text = "; ".join(hang) if hang else "không còn dòng hàng"
         return f"Đợt {dot.seq_no} ngày {dot.delivery_date}: {hang_text}"

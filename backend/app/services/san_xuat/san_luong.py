@@ -252,7 +252,7 @@ def tao_batch(
 
     don_vi_batch = (don_vi or cv.don_vi_ra or "").strip()
     if not don_vi_batch:
-        raise ValueError("Batch chưa có đơn vị.")
+        raise ValueError("Mẻ chưa có đơn vị — báo kỹ thuật khai đơn vị ra cho công đoạn này.")
     # Sản lượng được CỘNG THẲNG rồi đem trừ `so_luong_ra` (mục tiêu bước) — không có tầng quy đổi ở
     # đây. Nhận đơn vị khác `don_vi_ra` là cộng táo với cam: 20 ram ghi vào bước khai 10.000 tờ ra
     # "còn thiếu 9.980" dù việc đã xong. Từ chối rõ ràng đúng hơn là cộng nhầm im lặng.

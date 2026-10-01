@@ -154,6 +154,22 @@ def test_chen_hai_cong_doan_noi_chuoi(db, orders, lsx_svc, admin, customer):
     assert sau == {moi[0].id: moi[1].id, moi[1].id: in_.id}
 
 
+def test_cong_doan_khong_khai_don_vi_thi_buoc_chen_van_co_don_vi(
+        db, orders, lsx_svc, admin, customer):
+    # Danh mục thật có công đoạn Cắt tờ để trống đơn vị — bước chèn thiếu đơn vị thì tổ Cắt không
+    # ghi được mẻ ("chưa có đơn vị"). Vào = tờ nguyên, ra = đơn vị bước mang giấy nhận.
+    n = _nen(db, orders, lsx_svc, admin, customer)
+    trong = _cong_doan_cat(db, n.to_cat.id, ma="CD-TRONG", ten="Cắt trống")
+    trong.don_vi_vao = trong.don_vi_ra = None
+    db.commit()
+    in_ = _buoc_giay(db, n.a.id)
+    _chot(db, n, admin, n.a.id, ids=[trong.id, n.cd.id])
+    moi = _tuyen(db, n.a.id)
+    assert (moi[0].don_vi_vao, moi[0].don_vi_ra) == ("to_nguyen", in_.don_vi_vao)
+    assert (moi[1].don_vi_vao, moi[1].don_vi_ra) == ("to", "to")
+    assert _cv_buoc(db, moi[0].id).don_vi_ra == in_.don_vi_vao
+
+
 def test_cong_doan_khong_thuoc_to_bi_tu_choi(db, orders, lsx_svc, admin, customer):
     n = _nen(db, orders, lsx_svc, admin, customer)
     khac = _cong_doan_cat(db, n.to_sx.id, ma="CD-KHAC", ten="Bồi")
