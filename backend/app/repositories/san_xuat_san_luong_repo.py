@@ -32,11 +32,13 @@ from ..models.san_xuat_san_luong import (
 from ..models.san_xuat_vat_tu import SanXuatVatTuDeNghi
 from ..models.stock_request import StockRequest, StockRequestLine
 from ..models.stock_voucher import (
+    VOUCHER_NHAP,
     VOUCHER_POSTED,
     VOUCHER_XUAT,
     StockVoucher,
     StockVoucherLine,
 )
+from ..models.stock_lot import StockLot
 from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, GiayNguyen, VatTuInAn
 from ..services.kho_giay import khoa_dong
 
@@ -725,6 +727,55 @@ class SanXuatSanLuongRepository:
             k = khoa_dong(loai, int(hid), dang, kr, kd)
             ra[k] = ra.get(k, 0.0) + float(tong or 0)
         return ra
+
+    def nhap_lai_theo_hang(self, cong_viec_id: int) -> dict[tuple, float]:
+        """{`khoa_dong`: tổng `sl_goc`} của DÒNG phiếu NHẬP `posted` thuộc các yêu cầu "nhập lại vật
+        tư thừa" của công việc này (`stock_requests.vat_tu_tra_cong_viec_id`). Bảng đối chiếu trừ nó
+        khỏi thực xuất để ra thực dùng. Yêu cầu chưa có phiếu ghi sổ thì chưa tính."""
+        cot = (StockVoucherLine.hang_loai, StockVoucherLine.hang_id, StockVoucherLine.dang_giay,
+               StockVoucherLine.kho_rong, StockVoucherLine.kho_dai)
+        rows = self.db.execute(
+            select(*cot, func.sum(StockVoucherLine.sl_goc))
+            .select_from(StockVoucherLine)
+            .join(StockVoucher, StockVoucher.id == StockVoucherLine.voucher_id)
+            .join(StockRequest, StockRequest.id == StockVoucher.request_id)
+            .where(StockVoucher.loai == VOUCHER_NHAP,
+                   StockVoucher.trang_thai == VOUCHER_POSTED,
+                   StockRequest.vat_tu_tra_cong_viec_id == cong_viec_id)
+            .group_by(*cot)
+        )
+        ra: dict[tuple, float] = {}
+        for loai, hid, dang, kr, kd, tong in rows:
+            k = khoa_dong(loai, int(hid), dang, kr, kd)
+            ra[k] = ra.get(k, 0.0) + float(tong or 0)
+        return ra
+
+    def gia_von_xuat_theo_hang(self, stock_request_ids: list[int]) -> dict[tuple, float]:
+        """{`khoa_dong`: giá vốn bình quân / đơn vị GỐC} của phần ĐÃ XUẤT (phiếu XUẤT `posted`) cho
+        các yêu cầu này, bình quân gia quyền theo `sl_goc`. Phiếu xuất không lưu `don_gia` (NULL) —
+        giá thật nằm ở lô đã xuất (`stock_lots.don_gia_nhap`, đ/đơn vị gốc). Dòng không có lô bị bỏ."""
+        if not stock_request_ids:
+            return {}
+        cot = (StockVoucherLine.hang_loai, StockVoucherLine.hang_id, StockVoucherLine.dang_giay,
+               StockVoucherLine.kho_rong, StockVoucherLine.kho_dai)
+        rows = self.db.execute(
+            select(*cot, func.sum(StockVoucherLine.sl_goc),
+                   func.sum(StockVoucherLine.sl_goc * StockLot.don_gia_nhap))
+            .select_from(StockVoucherLine)
+            .join(StockVoucher, StockVoucher.id == StockVoucherLine.voucher_id)
+            .join(StockLot, StockLot.id == StockVoucherLine.lot_id)
+            .where(StockVoucher.loai == VOUCHER_XUAT,
+                   StockVoucher.trang_thai == VOUCHER_POSTED,
+                   StockVoucher.request_id.in_(stock_request_ids))
+            .group_by(*cot)
+        )
+        tong_sl: dict[tuple, float] = {}
+        tong_tien: dict[tuple, float] = {}
+        for loai, hid, dang, kr, kd, sl, tien in rows:
+            k = khoa_dong(loai, int(hid), dang, kr, kd)
+            tong_sl[k] = tong_sl.get(k, 0.0) + float(sl or 0)
+            tong_tien[k] = tong_tien.get(k, 0.0) + float(tien or 0)
+        return {k: tong_tien[k] / s for k, s in tong_sl.items() if s > 0}
 
     def yeu_cau_tom_tat(self, request_ids: list[int]) -> dict[int, dict]:
         """`{request_id: {"ma", "trang_thai"}}` — MỘT truy vấn cho cả danh sách. Drawer công đoạn

@@ -130,6 +130,12 @@ class StockRequest(Base):
     # NGUỒN GIA CÔNG NGOÀI (mg 0339): đề nghị xuất giấy cấp cho nhà gia công trọn gói, hoặc đề
     # nghị nhập thành phẩm từ lần gia công đã chốt. Soft ref cùng khuôn `delivery_trip_id`.
     gia_cong_ngoai_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    # NGUỒN NHẬP LẠI VẬT TƯ THỪA (mg 0360): công việc (`san_xuat_cong_viec.id`) của tổ yêu cầu trả
+    # vật tư dư về kho. KHÁC `san_xuat_cong_viec_id` (nhập THÀNH PHẨM — `dong_nhap_tu_cong_viec` đếm
+    # mọi NHẬP có cột đó) nên PHẢI là cột riêng. Bảng đối chiếu trừ phần nhập lại khỏi thực xuất.
+    vat_tu_tra_cong_viec_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("san_xuat_cong_viec.id", ondelete="SET NULL"), index=True, nullable=True
+    )
 
     trang_thai: Mapped[str] = mapped_column(
         String(16), index=True, nullable=False, server_default=REQ_DRAFT, default=REQ_DRAFT

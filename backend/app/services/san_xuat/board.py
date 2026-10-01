@@ -885,6 +885,7 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     ke_hoach = kh_svc.nhu_cau_cua_cong_viec(cv)
     req_ids = [d.stock_request_id for d in cac_dn if d.stock_request_id]
     thuc_xuat = sl.thuc_xuat_theo_hang(req_ids)
+    nhap_lai = sl.nhap_lai_theo_hang(cv.id)      # phần tổ đã trả kho (phiếu NHẬP ghi sổ)
     tom_tat = sl.yeu_cau_tom_tat(req_ids)
 
     # Giấy bước này NHẬN từ bước trước (spec 2026-10-01 §5): không phải nhu cầu, không xin cấp —
@@ -894,7 +895,7 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
 
     tat_ca_khoa = {(k["hang_loai"], k["hang_id"]) for k in ke_hoach} | {
         (d.hang_loai, d.hang_id) for dn in cac_dn for d in dn.dongs
-    } | {("giay", int(v.vat_tu_id)) for v, _ in dong_nhan_tu}
+    } | {("giay", int(v.vat_tu_id)) for v, _ in dong_nhan_tu} | {(k[0], k[1]) for k in nhap_lai}
     ten_map = sl.ten_hang_nhieu(tat_ca_khoa)
 
     # Gom theo `khoa_dong`: giấy cùng mã khác dạng/khổ là hai hàng đối chiếu (spec giấy tờ × khổ).
@@ -946,6 +947,20 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     for key, sl_ra in thuc_xuat.items():
         if key in gom:
             gom[key]["sl_thuc_xuat"] = sl_ra
+    # Nhập lại một mặt hàng/khổ chưa có dòng nào (tổ trả thứ không nằm trong kế hoạch lẫn đề nghị)
+    # vẫn phải hiện — đừng nuốt số kho đã nhận. Đơn vị hiển thị = đơn vị gốc (kho ghi thang gốc).
+    for key, sl_vao in nhap_lai.items():
+        if key not in gom:
+            gom[key] = {
+                "hang_loai": key[0], "hang_id": key[1],
+                "ten": ten_map.get((key[0], key[1])) or f"#{key[1]}",
+                **_giay(key[2], key[3], key[4]),
+                "dvt": "", "dvt_goc": "",
+                "sl_ke_hoach": 0.0, "sl_ke_hoach_goc": 0.0,
+                "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
+                "sl_thuc_xuat": 0.0, "cac_ly_do": [], "_cac_dvt": {""},
+            }
+        gom[key]["sl_nhap_lai"] = sl_vao
 
     for v, tu_buoc in dong_nhan_tu:
         key = khoa_dong("giay", int(v.vat_tu_id), v.dang_giay, v.kho_rong, v.kho_dai)
@@ -978,6 +993,10 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
         # `StockVoucherLine.sl_goc`) vốn đã là thang gốc — so nó với `sl_yeu_cau` (thang tổ khai)
         # là so 100 tờ với 12 kg (vòng sửa 1, Important 2+3).
         row.setdefault("nhan_tu", None)
+        row.setdefault("sl_nhap_lai", 0.0)
+        # THỰC DÙNG = kho thực xuất − tổ nhập lại (thang gốc). Không kẹp ≥ 0: nhập lại nhiều hơn đã
+        # xuất là dữ liệu bất thường, để số âm lộ ra thay vì che.
+        row["sl_thuc_dung"] = row["sl_thuc_xuat"] - row["sl_nhap_lai"]
         row["lech_ke_hoach"] = row["sl_yeu_cau_goc"] - row["sl_ke_hoach_goc"]
         row["lech_thuc_te"] = row["sl_thuc_xuat"] - row["sl_yeu_cau_goc"]
         if row["nhan_tu"]:  # dòng "nhận từ": không có gì để lệch

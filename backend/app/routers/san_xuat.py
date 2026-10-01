@@ -90,6 +90,7 @@ from ..schemas.san_xuat import (
     TeamsOut,
     ThemLotIn,
     VatTuDeNghiIn,
+    VatTuNhapLaiIn,
     VatTuNhanKetQuaOut,
     VatTuXacNhanIn,
     TepLenhOut,
@@ -112,6 +113,7 @@ from ..services.san_xuat import (
     thuc_thi,
     vat_tu_de_nghi,
     vat_tu_nhan,
+    vat_tu_nhap_lai,
     viec_khoan,
 )
 from ..services.san_xuat.san_luong_cua_toi import san_luong_cua_toi as san_luong_cua_toi_svc
@@ -645,6 +647,27 @@ def tao_de_nghi_vat_tu(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.post("/work-items/{cong_viec_id}/material-returns",
+             status_code=status.HTTP_201_CREATED, response_model=None)
+def tao_nhap_lai_vat_tu(
+    cong_viec_id: int,
+    body: VatTuNhapLaiIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("warehouse"))],
+) -> dict:
+    """Tổ yêu cầu NHẬP LẠI vật tư thừa vào kho (spec 2026-10-01 §3.5). Cùng cổng quyền Kho theo tổ
+    với đề nghị cấp; kho lập phiếu nhập như mọi yêu cầu NHẬP."""
+    try:
+        return vat_tu_nhap_lai.tao(
+            db, user=user, cong_viec_id=cong_viec_id, ghi_chu=body.ghi_chu,
+            lines=[l.model_dump() for l in body.lines],
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 @router.put("/work-items/{cong_viec_id}/material-requests/{de_nghi_id}", response_model=None)

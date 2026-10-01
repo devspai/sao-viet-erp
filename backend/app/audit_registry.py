@@ -163,6 +163,7 @@ _HD += _dong("san_xuat", None, {
     "san_xuat_tao_batch": "Tạo mẻ sản xuất",
     "san_xuat_me_cap_nhat_danh_muc": "Cập nhật mẻ theo danh mục",
     "san_xuat_de_nghi_vat_tu": "Đề nghị cấp vật tư",
+    "san_xuat_nhap_lai_vat_tu": "Yêu cầu nhập lại vật tư thừa vào kho",
     "san_xuat_sua_de_nghi_vat_tu": "Sửa đề nghị cấp vật tư",
     "san_xuat_xac_nhan_vat_tu": "Xác nhận nhận vật tư",
     "san_xuat_kho_yeu_cau_nhap": "Yêu cầu kho nhập hàng",

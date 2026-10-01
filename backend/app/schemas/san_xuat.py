@@ -821,6 +821,9 @@ class VatTuCapDoiChieuOut(BaseModel):
     sl_yeu_cau: float
     sl_yeu_cau_goc: float
     sl_thuc_xuat: float
+    # Phần tổ đã nhập lại kho (phiếu NHẬP ghi sổ) và THỰC DÙNG = thực xuất − nhập lại (thang gốc).
+    sl_nhap_lai: float = 0.0
+    sl_thuc_dung: float = 0.0
     lech_ke_hoach: float
     lech_thuc_te: float
     cac_ly_do: list[dict] = []
@@ -1410,6 +1413,22 @@ class VatTuDeNghiIn(BaseModel):
     # GIỜ cần, không phải ngày: kho soạn theo ca. `stock_requests.ngay_can` chỉ lưu phần DATE.
     can_luc: datetime
     lines: list[VatTuDeNghiDongIn] = []
+
+
+class VatTuNhapLaiDongIn(BaseModel):
+    """Một dòng vật tư thừa tổ trả về kho. Giấy: dạng + khổ mm (server chuẩn hoá và kiểm đủ cạnh)."""
+    hang_loai: Literal["giay", "vat_tu"]
+    hang_id: int
+    dvt: str
+    so_luong: float
+    dang_giay: Literal["to", "cuon"] | None = None
+    kho_rong: int = Field(default=0, ge=0)
+    kho_dai: int = Field(default=0, ge=0)
+
+
+class VatTuNhapLaiIn(BaseModel):
+    ghi_chu: str | None = Field(default=None, max_length=500)
+    lines: list[VatTuNhapLaiDongIn] = []
 
 
 # --- ĐÓNG LỆNH THỦ CÔNG (spec 2026-09-29) ---

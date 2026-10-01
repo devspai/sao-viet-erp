@@ -16663,3 +16663,20 @@ def _migrate_lsx_vat_tu_dang_giay(db: Session) -> None:
 
 
 MIGRATIONS.append(("0359_lsx_vat_tu_dang_giay", _migrate_lsx_vat_tu_dang_giay))
+
+
+def _migrate_stock_request_vat_tu_tra(db: Session) -> None:
+    """0360 — cột `vat_tu_tra_cong_viec_id` (tổ yêu cầu nhập lại vật tư thừa) + index. Idempotent;
+    không backfill (trước đó chưa có đường nhập lại từ tổ)."""
+    insp = inspect(db.get_bind())
+    if "stock_requests" not in set(insp.get_table_names()):
+        return
+    if "vat_tu_tra_cong_viec_id" not in _existing_columns(insp, "stock_requests"):
+        db.execute(text("ALTER TABLE stock_requests ADD COLUMN vat_tu_tra_cong_viec_id INTEGER "
+                        "REFERENCES san_xuat_cong_viec(id) ON DELETE SET NULL"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS ix_stock_requests_vat_tu_tra_cong_viec_id "
+                    "ON stock_requests (vat_tu_tra_cong_viec_id)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0360_stock_request_vat_tu_tra", _migrate_stock_request_vat_tu_tra))
