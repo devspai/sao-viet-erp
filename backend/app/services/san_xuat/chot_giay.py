@@ -7,7 +7,8 @@ theo tên. Cắt thành phẩm (tổ Cắt, giai đoạn sau in) chạy như m�
 
   · THÊM công đoạn: chèn NGAY TRƯỚC bước "In" (bước mang giấy đầu tiên ngoài phạm vi), nối
     Cắt₁ → … → Cắtₙ → In SONG SONG với chặng trước cũ của In (Ghi kẽm vẫn vào In, Cắt₁ không chờ
-    ai). Bước mới mang dòng giấy cùng mã với In,
+    ai); In đã có bước cắt thì nối SAU bước cắt cuối (Cắt cũ → Mới → In). Bước mới mang dòng giấy
+    cùng mã với In,
     số/khổ do chuỗi ngược dẫn xuất (`LsxService._ap_chuoi_nguoc`). Công việc dựng bằng đúng hàm dựng
     một bước của phát hành (`snapshot.cong_viec_buoc_*`), cùng gói đang chạy.
   · XOÁ công đoạn: MỌI bước trong phạm vi (kể cả người lập lệnh đặt sẵn) khi bước đó và In chưa bắt
@@ -224,14 +225,26 @@ def ma_chu_the(db: Session, chu_the: tuple[str, int]) -> str:
     return getattr(obj, "ma", "") or ""
 
 
+def _co_cat_truoc_in(db: Session, chu_the: tuple[str, int]) -> bool:
+    """Tuyến đã có bước trong phạm vi (§2) đứng trước bước In (theo `thu_tu`) — lệnh cấu hình sẵn
+    bước cắt (§3.2). Dù bước cắt ấy chưa mang dòng giấy (dữ liệu trước khi `LsxService` chép mã giấy
+    sang bước cắt), cổng chờ cũng không khoá: tổ Cắt không có cách xác nhận nào khác ngoài xoá bước."""
+    in_ = _buoc_in(db, chu_the)
+    if in_ is None:
+        return False
+    moc = (in_.thu_tu or 0, in_.id)
+    return any((b.thu_tu or 0, b.id) < moc for b in buoc_truoc_in(db, chu_the))
+
+
 def can_chot(db: Session, chu_the: tuple[str, int]) -> bool:
-    """Còn chờ tổ Cắt xác nhận: chưa chốt VÀ bước lấy giấy không thuộc phạm vi (§3.1). Lệnh cấu
-    hình sẵn bước cắt trước In (§3.2) thì bước cắt đã là bước lấy giấy ⇒ không chờ gì."""
+    """Còn chờ tổ Cắt xác nhận: chưa chốt VÀ bước lấy giấy không thuộc phạm vi (§3.1) VÀ chưa có
+    bước cắt đặt sẵn trước In. Lệnh cấu hình sẵn bước cắt trước In (§3.2) ⇒ không chờ gì."""
     obj = _doi_tuong(db, chu_the)
     if obj is None or obj.giay_chot_cach:
         return False
     lay = buoc_lay_giay(db, chu_the)
-    return lay is not None and not la_buoc_truoc_in_to_cat(db, lay)
+    return (lay is not None and not la_buoc_truoc_in_to_cat(db, lay)
+            and not _co_cat_truoc_in(db, chu_the))
 
 
 def ly_do_cho_chot(db: Session, cv) -> str | None:
@@ -249,6 +262,8 @@ def ly_do_cho_chot(db: Session, cv) -> str | None:
         return None
     obj = _doi_tuong(db, ct)
     if obj is None or obj.giay_chot_cach or la_buoc_truoc_in_to_cat(db, lay):
+        return None
+    if _co_cat_truoc_in(db, ct):
         return None
     return (f"Chờ tổ Cắt chốt giấy cho {ma_chu_the(db, ct)} — tổ Cắt thêm công đoạn cắt hoặc bấm "
             "\"Không cần cắt\" rồi mới bắt đầu được.")
@@ -436,7 +451,9 @@ def _dong(db: Session, chu_the: tuple[str, int], cong_doan: list[CongDoan]) -> d
         "sua_duoc": not in_da,
         "buoc_truoc_in": buoc_ra,
         # §3.2 — người lập lệnh đặt sẵn bước cắt trước In: coi là ĐÃ xác nhận, không khoá gì.
-        "cau_hinh_san": obj.giay_chot_cach is None and bool(pham_vi),
+        # Chỉ báo "đã xác nhận" khi cổng chờ thật sự mở — không thì In bị khoá mà khối lại ẩn
+        # nút "Không cần cắt" và không đếm vào badge.
+        "cau_hinh_san": obj.giay_chot_cach is None and bool(pham_vi) and not can_chot(db, chu_the),
         "cong_doan_chen_duoc": [{"id": c.id, "ma": c.ma, "ten": c.ten_hien_thi or c.ten}
                                 for c in cong_doan],
     }
@@ -554,21 +571,31 @@ def _buoc_lenh_moi(lsx_id: int, cd: CongDoan, team_id: int, thu_tu: int,
 
 def _chen_truoc_lenh(db: Session, lsx_id: int, cds: list[CongDoan], team_id: int,
                      dich: LsxCongDoan) -> list[LsxCongDoan]:
-    """Chèn n bước NGAY TRƯỚC `dich` (bước In) của lệnh, chạy SONG SONG với chặng trước sẵn có của
-    In (vd Ghi kẽm): nối Cắt₁→…→Cắtₙ→`dich`, GIỮ mọi chặng trước cũ của In, Cắt₁ không có chặng
-    trước. Chặng trước NGẦM theo `thu_tu` (bước liền trước In không khai cạnh ra) được ghi thành cạnh
+    """Chèn n bước NGAY TRƯỚC `dich` (bước In) của lệnh.
+
+    In CHƯA có bước cắt nào đứng liền trước (chặng trước trong phạm vi §2): chuỗi mới chạy SONG SONG
+    với chặng trước sẵn có của In (vd Ghi kẽm) — nối Cắt₁→…→Cắtₙ→`dich`, GIỮ mọi chặng trước cũ của
+    In, Cắt₁ không có chặng trước. In ĐÃ có bước cắt (đặt sẵn / tổ vừa thêm): chuỗi mới NỐI SAU bước
+    cắt cuối cùng — Cắt cũ→Mới₁→…→Mớiₙ→`dich`, gỡ cạnh Cắt cũ→In — đúng thứ tự `thu_tu` mà nhãn
+    "Nhận từ" và chuỗi ngược đọc (giấy đi qua lần lượt từng bước cắt).
+    Chặng trước NGẦM theo `thu_tu` (bước liền trước In không khai cạnh ra) được ghi thành cạnh
     tường minh trước khi chèn — không thì Cắt₁ đứng liền sau nó sẽ thành bước phải chờ nó, còn In mất
     chặng trước ấy. Bước mới mang dòng giấy cùng MÃ với `dich` (số 0 — chuỗi ngược dẫn xuất ngay sau)."""
     n, moc = len(cds), dich.thu_tu or 0
     tuyen = list(db.scalars(select(LsxCongDoan).where(LsxCongDoan.lsx_id == lsx_id)
                             .order_by(LsxCongDoan.thu_tu, LsxCongDoan.id)))
     i_dich = next((i for i, b in enumerate(tuyen) if b.id == dich.id), 0)
+    truoc_dich = set(db.scalars(select(LsxCongDoanPhuThuoc.buoc_truoc_id).where(
+        LsxCongDoanPhuThuoc.buoc_sau_id == dich.id)))
     if i_dich > 0:
         lien_truoc = tuyen[i_dich - 1]
         co_canh_ra = db.execute(select(LsxCongDoanPhuThuoc.id).where(
             LsxCongDoanPhuThuoc.buoc_truoc_id == lien_truoc.id).limit(1)).first() is not None
         if not co_canh_ra:
             db.add(LsxCongDoanPhuThuoc(buoc_truoc_id=lien_truoc.id, buoc_sau_id=dich.id))
+            truoc_dich.add(lien_truoc.id)
+    cat_cu = [b for b in tuyen if b.id in truoc_dich and la_buoc_truoc_in_to_cat(db, b)]
+    noi_sau = cat_cu[-1] if cat_cu else None
     for b in tuyen:
         if (b.thu_tu or 0) >= moc:
             b.thu_tu = (b.thu_tu or 0) + n
@@ -579,6 +606,13 @@ def _chen_truoc_lenh(db: Session, lsx_id: int, cds: list[CongDoan], team_id: int
     db.flush()
     for a, b in zip(moi, moi[1:] + [dich]):
         db.add(LsxCongDoanPhuThuoc(buoc_truoc_id=a.id, buoc_sau_id=b.id))
+    if noi_sau is not None:
+        db.flush()
+        for c in db.scalars(select(LsxCongDoanPhuThuoc).where(
+                LsxCongDoanPhuThuoc.buoc_truoc_id == noi_sau.id,
+                LsxCongDoanPhuThuoc.buoc_sau_id == dich.id)):
+            db.delete(c)
+        db.add(LsxCongDoanPhuThuoc(buoc_truoc_id=noi_sau.id, buoc_sau_id=moi[0].id))
     giay = {v.vat_tu_id: v for v in db.scalars(select(LsxCongDoanVatTu).where(
         LsxCongDoanVatTu.lsx_cong_doan_id == dich.id, LsxCongDoanVatTu.hang_loai == "giay"))}
     for b in moi:
@@ -796,7 +830,7 @@ def chot(db: Session, *, user, team_id: int, lsx_id: int | None, bai_ghep_id: in
     _goi, cvs = _goi_va_cv(db, ct)
     if buoc_lay_giay(db, ct) is None:
         raise ChotGiayLoi(f"{obj.ma} không có bước mang giấy.")
-    if buoc_truoc_in(db, ct):
+    if _co_cat_truoc_in(db, ct):
         raise ChotGiayLoi("Lệnh đã có công đoạn cắt trước In — Xoá công đoạn cắt nếu không cần cắt.")
     _ghi_chot(obj, CHOT_KHONG_CAT, user)
     db.flush()

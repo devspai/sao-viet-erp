@@ -66,11 +66,14 @@ def _nen(db, orders, lsx_svc, admin, customer, *, cau_hinh: str | None = None) -
         db.query(LsxCongDoan).filter(LsxCongDoan.lsx_id.in_([a.id, b.id])).update(
             {LsxCongDoan.department_id: to_sx.id}, synchronize_session=False)
         in_ = _in(db, a.id)
-        if cau_hinh == "cat_to":
+        if cau_hinh in ("cat_to", "cat_to_khong_giay"):
             in_.thu_tu = 1
             buoc = _buoc_moi(a.id, cat_to, to_cat.id, 0)
             db.add(buoc)
             db.flush()
+        if cau_hinh == "cat_to_khong_giay":
+            pass   # người lập lệnh chỉ chọn giấy ở In (LSX26-0003, spec §1)
+        elif cau_hinh == "cat_to":
             g = next(v for v in in_.vat_tus if v.hang_loai == "giay")
             db.add(LsxCongDoanVatTu(
                 lsx_cong_doan_id=buoc.id, hang_loai="giay", vat_tu_id=g.vat_tu_id,
@@ -279,3 +282,65 @@ def test_router_them_xoa(db, orders, lsx_svc, admin, customer):
                                  buoc_id=d.buoc_truoc_in[0].buoc_id), db=db, user=admin)
     db.expire_all()
     assert db.get(type(n.a), n.a.id).giay_chot_cach == "khong_cat"
+
+
+def test_cau_hinh_san_cat_giay_chi_o_in_khong_ket(db, orders, lsx_svc, admin, customer):
+    """I2 — đặt sẵn Cắt tờ nhưng chỉ chọn giấy ở In: bước cắt nhận mã giấy của In và thành bước
+    lấy giấy; In không bị khoá; khối hiện đã xác nhận."""
+    n = _nen(db, orders, lsx_svc, admin, customer, cau_hinh="cat_to_khong_giay")
+    cat = next(b for b in _tuyen(db, n.a.id) if b.cong_doan_id == n.cat_to.id)
+    in_ = _in(db, n.a.id)
+    g = [v for v in cat.vat_tus if v.hang_loai == "giay"]
+    assert len(g) == 1 and float(g[0].so_luong) > 0
+    assert {g[0].kho_rong, g[0].kho_dai} == {790, 1090}
+    assert chot_giay.buoc_lay_giay(db, ("lsx", n.a.id)).id == cat.id
+    assert chot_giay.ly_do_cho_chot(db, _cv(db, in_.id)) is None
+    assert chot_giay.can_chot(db, ("lsx", n.a.id)) is False
+    d = _dong(db, n, n.a.id)
+    assert d["cau_hinh_san"] is True
+
+
+def test_cau_hinh_san_cat_khong_dong_giay_van_khong_khoa(db, orders, lsx_svc, admin, customer):
+    """I2 — dữ liệu cũ: bước cắt đặt sẵn đã phát hành mà chưa mang dòng giấy ⇒ cổng vẫn mở, khối
+    không báo "đã xác nhận" sai (cổng mở thật)."""
+    n = _nen(db, orders, lsx_svc, admin, customer, cau_hinh="cat_to_khong_giay")
+    cat = next(b for b in _tuyen(db, n.a.id) if b.cong_doan_id == n.cat_to.id)
+    db.query(LsxCongDoanVatTu).filter(LsxCongDoanVatTu.lsx_cong_doan_id == cat.id).delete()
+    db.commit()
+    db.expire_all()
+    in_ = _in(db, n.a.id)
+    assert chot_giay.buoc_lay_giay(db, ("lsx", n.a.id)).id == in_.id
+    assert chot_giay.ly_do_cho_chot(db, _cv(db, in_.id)) is None
+    assert _dong(db, n, n.a.id)["cau_hinh_san"] is True
+
+
+def test_them_lan_hai_noi_sau_buoc_cat_cu(db, orders, lsx_svc, admin, customer):
+    """I3 — In đã có Cắt tờ, thêm Xén giấy rồi thêm nữa: chuỗi nối tiếp Cắt tờ → Xén → Xén₂ → In,
+    khớp thứ tự `thu_tu` (nhãn "Nhận từ" + chuỗi ngược)."""
+    n = _nen(db, orders, lsx_svc, admin, customer, cau_hinh="cat_to")
+    n.admin = admin
+    xen = _cd(db, n.to_cat.id, ma="CD-XEN-TI2", ten="Xén giấy", nhom="prepress",
+              vao="to_nguyen", ra="to_nguyen")
+    xen2 = _cd(db, n.to_cat.id, ma="CD-XEN-TI3", ten="Xén lại", nhom="prepress",
+               vao="to_nguyen", ra="to_nguyen")
+    db.commit()
+    in_id = _in(db, n.a.id).id
+    cat_id = next(b for b in _tuyen(db, n.a.id) if b.cong_doan_id == n.cat_to.id).id
+
+    def _canh():
+        ids = {b.id for b in _tuyen(db, n.a.id)}
+        return {(c.buoc_truoc_id, c.buoc_sau_id) for c in db.query(LsxCongDoanPhuThuoc)
+                if c.buoc_sau_id in ids}
+
+    _them(db, n, n.a.id, [xen.id])
+    b_xen = next(b for b in _tuyen(db, n.a.id) if b.cong_doan_id == xen.id)
+    c = _canh()
+    assert (cat_id, b_xen.id) in c and (b_xen.id, in_id) in c and (cat_id, in_id) not in c
+    _them(db, n, n.a.id, [xen2.id])
+    b_xen2 = next(b for b in _tuyen(db, n.a.id) if b.cong_doan_id == xen2.id)
+    c = _canh()
+    assert (b_xen.id, b_xen2.id) in c and (b_xen2.id, in_id) in c and (b_xen.id, in_id) not in c
+    assert (cat_id, in_id) not in c
+    thu_tu = [b.id for b in _tuyen(db, n.a.id)]
+    assert thu_tu.index(cat_id) < thu_tu.index(b_xen.id) < thu_tu.index(b_xen2.id)         < thu_tu.index(in_id)
+    assert chot_giay.buoc_lay_giay(db, ("lsx", n.a.id)).id == cat_id
