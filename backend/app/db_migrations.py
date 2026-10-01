@@ -16510,3 +16510,31 @@ def _migrate_mua_hang_kho_giay(db: Session) -> None:
 
 
 MIGRATIONS.append(("0352_mua_hang_kho_giay", _migrate_mua_hang_kho_giay))
+
+
+def _migrate_de_nghi_cap_kho_giay(db: Session) -> None:
+    """Dòng đề nghị cấp vật tư của tổ mang DẠNG + KHỔ giấy (spec 2026-10-01-giay-dem-to-theo-kho
+    §4.5): `dang_giay` (NULL được) + `kho_rong`/`kho_dai` (mm, NOT NULL default 0) trên
+    `san_xuat_vat_tu_de_nghi_dong`. Dòng cũ để NULL · 0 · 0. Unique `uq_sx_vt_dn_dong_hang` nới thêm
+    hai cột khổ, GIỮ tên — chỉ nhánh Postgres như mg 0350 (SQLite test dựng bảng từ model).
+    Idempotent: hỏi inspector trước ADD COLUMN."""
+    insp = inspect(db.get_bind())
+    bang = "san_xuat_vat_tu_de_nghi_dong"
+    if bang not in set(insp.get_table_names()):
+        return
+    co = _existing_columns(insp, bang)
+    if {"dang_giay", "kho_rong", "kho_dai"} <= co:
+        return
+    if "dang_giay" not in co:
+        db.execute(text(f"ALTER TABLE {bang} ADD COLUMN dang_giay VARCHAR(8)"))
+    for ten in ("kho_rong", "kho_dai"):
+        if ten not in co:
+            db.execute(text(f"ALTER TABLE {bang} ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(text(f"ALTER TABLE {bang} DROP CONSTRAINT IF EXISTS uq_sx_vt_dn_dong_hang"))
+        db.execute(text(f"ALTER TABLE {bang} ADD CONSTRAINT uq_sx_vt_dn_dong_hang "
+                        "UNIQUE (de_nghi_id, hang_loai, hang_id, kho_rong, kho_dai)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0353_de_nghi_cap_kho_giay", _migrate_de_nghi_cap_kho_giay))

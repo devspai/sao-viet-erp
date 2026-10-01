@@ -20,10 +20,12 @@ import type {
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
 import type { IconName } from "../components/Icons";
-import { MaterialCombobox } from "../components/MaterialCombobox";
+import { DonViChonTheoHang, MaterialCombobox } from "../components/MaterialCombobox";
 import { Select, type SelectOption } from "../components/Select";
 import { useAuth } from "../auth/useAuth";
 import { GIO_NHAP_MAX, GIO_NHAP_MIN, gioNhapHopLe } from "../lib/gioNhap";
+import { DANG_GIAY_NHAN, chuanKho, nhanDangKho, type DangGiay } from "../lib/khoGiay";
+import { DecimalInput } from "./khoShared";
 import { num, ngayGio, ngay, gioNgan } from "./keHoachSxShared";
 import { VoucherDrawer } from "./KhoYeuCauPage";
 import { nhanChang, nhanDonVi } from "./lsxBuoc";
@@ -156,13 +158,13 @@ const VT_EPS_KHO = 0.005;
  *  lần không đóng góp sai số nào, tức bịt bớt cờ lệch THẬT. Xét ở thang GỐC (`sl_yeu_cau_goc`),
  *  đúng thang mà `board.py` cộng dồn để ra `lech_thuc_te`. */
 export function vtSoLanCoMon(
-  cacDeNghi: { dongs: { hang_loai: string; hang_id: number; sl_yeu_cau_goc: number }[] }[],
-  d: { hang_loai: string; hang_id: number },
+  cacDeNghi: { dongs: (VtKhoaVao & { sl_yeu_cau_goc: number })[] }[],
+  d: VtKhoaVao,
 ): number {
+  // Cùng khoá với hàng đối chiếu (`vtKhoa`): giấy khác dạng/khổ là món khác.
+  const k = vtKhoa(d);
   return cacDeNghi.filter(
-    (l) => l.dongs.some(
-      (x) => x.hang_loai === d.hang_loai && x.hang_id === d.hang_id && x.sl_yeu_cau_goc > 0,
-    ),
+    (l) => l.dongs.some((x) => vtKhoa(x) === k && x.sl_yeu_cau_goc > 0),
   ).length;
 }
 
@@ -1492,9 +1494,13 @@ function VatTuSection({
               return (
               // Tô nền hàng kho xuất KHÁC số đã xin: đó là chỗ tổ trưởng KHÔNG chủ động được,
               // đáng chú ý hơn lệch kế-hoạch↔yêu-cầu (vốn là quyết định của chính tổ).
-              <tr key={`${d.hang_loai}:${d.hang_id}`}
+              <tr key={vtKhoa(d)}
                 className={vtCoLechThucTe(d, soLan) ? "is-lech" : undefined}>
-                <td className="thsx-vattu-name-cell"><b>{d.ten}</b></td>
+                <td className="thsx-vattu-name-cell"><b>{d.ten}</b>
+                  {d.hang_loai === "giay" && nhanDangKho(d.dang_giay, d.kho_rong, d.kho_dai) && (
+                    <div className="kho-lines__code">{nhanDangKho(d.dang_giay, d.kho_rong, d.kho_dai)}</div>
+                  )}
+                </td>
                 <td className="r thsx-num">{num(d.sl_ke_hoach)}<span className="thsx-x-unit"> {nhanDonVi(d.dvt)}</span></td>
                 <td className="r thsx-num">{num(d.sl_yeu_cau)}<span className="thsx-x-unit"> {nhanDonVi(d.dvt)}</span></td>
                 {/* `sl_thuc_xuat` đọc thẳng từ dòng chứng từ nên LUÔN ở thang GỐC (board.py:
@@ -1709,8 +1715,9 @@ function VtDeNghiLanRow({ d, tenNguoi }: { d: SxVatTuCapLan; tenNguoi: Map<numbe
               <thead><tr><th>Vật tư</th><th className="r">Xin cấp</th><th>Lý do</th></tr></thead>
               <tbody>
                 {d.dongs.map((x) => (
-                  <tr key={`${x.hang_loai}:${x.hang_id}`}>
-                    <td>{x.ten}</td>
+                  <tr key={vtKhoa(x)}>
+                    <td>{x.ten}{x.hang_loai === "giay" && nhanDangKho(x.dang_giay, x.kho_rong, x.kho_dai)
+                      ? ` · ${nhanDangKho(x.dang_giay, x.kho_rong, x.kho_dai)}` : ""}</td>
                     <td className="r thsx-num">{num(x.sl_yeu_cau)}<span className="thsx-x-unit"> {nhanDonVi(x.dvt)}</span></td>
                     <td><span className="thsx-x-butru__mo">{x.ly_do_chenh_lech || "—"}</span></td>
                   </tr>
@@ -1730,6 +1737,10 @@ interface VtDongForm {
   hang_loai: string;
   hang_id: number;          // 0 = dòng vừa thêm, chưa chọn mặt hàng
   ten: string;
+  /** Giấy: dạng + khổ mm (spec giấy đếm tờ × khổ) — cùng mã khác dạng/khổ là hai dòng. */
+  dang_giay: DangGiay | null;
+  kho_rong: number;
+  kho_dai: number;
   dvt: string;
   /** Đơn vị của dòng KẾ HOẠCH cùng mặt hàng — để biết tổ có đang khai bằng đơn vị khác không. */
   dvtKeHoach: string;
@@ -1742,6 +1753,23 @@ interface VtDongForm {
   ly_do_chenh_lech: string;
   /** Dòng đến TỪ kế hoạch: lần đầu phải lưu đủ kể cả khi = 0, nên không cho xoá (dùng "Về 0"). */
   tuKeHoach: boolean;
+}
+
+type VtKhoaVao = { hang_loai: string; hang_id: number; dang_giay?: string | null;
+  kho_rong?: number; kho_dai?: number };
+
+/** Khoá một dòng vật tư — phản chiếu `khoa_dong` của máy chủ: loại · mã · dạng · khổ (ngắn × dài;
+ *  cuộn chỉ khổ rộng). Hàng khác chỉ loại · mã. */
+export function vtKhoa(x: VtKhoaVao): string {
+  if (x.hang_loai !== "giay") return `${x.hang_loai}:${x.hang_id}`;
+  const [r, d] = chuanKho(x.kho_rong, x.kho_dai);
+  const dang = x.dang_giay || (r && d ? "to" : "cuon");
+  return `giay:${x.hang_id}:${dang}:${r}:${dang === "to" ? d : 0}`;
+}
+
+/** Dòng giấy NGOÀI kế hoạch — tổ phải tự nói dạng + khổ (dòng kế hoạch mang sẵn từ bước lệnh). */
+function vtGiayTuKhai(d: VtDongForm): boolean {
+  return d.hang_loai === "giay" && d.hang_id > 0 && !d.tuKeHoach;
 }
 
 /** Hiện/bắt buộc ô Lý do — CHỈ để ra mắt sớm ô nhập, KHÔNG bao giờ dùng làm `disabled` nút gửi.
@@ -1796,6 +1824,8 @@ function vtCanLyDo(d: VtDongForm, loai: "lan_dau" | "bo_sung"): { hien: boolean;
  *  `true` cho ca thật sự không có mốc nào để gộp (dòng ngoài kế hoạch hiện tại, hoặc chính kế
  *  hoạch cũng chưa có đơn vị). */
 function vtThieuDonVi(d: VtDongForm): boolean {
+  // Giấy tự khai chưa chọn dạng: ô đơn vị trống vì CHƯA chọn dạng, `vtCanTro` nói đúng chuyện đó.
+  if (vtGiayTuKhai(d) && !d.dang_giay) return false;
   return d.hang_id > 0 && !d.dvt;
 }
 
@@ -1815,6 +1845,14 @@ function vtCanTro(
     return "Còn mặt hàng chưa có đơn vị tính nên chưa xin được — đưa dòng đó về 0 rồi gửi phần còn "
       + "lại, hoặc nhờ kỹ thuật kiểm lại đơn vị rồi xin lại.";
   }
+  // Giấy tự khai: phải nói dạng, tờ phải đủ hai cạnh khổ — kho soạn theo lô đúng khổ.
+  for (const d of dongs) {
+    if (!vtGiayTuKhai(d) || d.sl_yeu_cau <= VT_EPS) continue;
+    const ten = d.ten || "Giấy";
+    if (!d.dang_giay) return `«${ten}»: chọn dạng giấy (tờ hoặc cuộn).`;
+    const [r, k] = chuanKho(d.kho_rong, d.kho_dai);
+    if (d.dang_giay === "to" && !(r && k)) return `«${ten}» là giấy tờ — khai đủ hai cạnh khổ (mm).`;
+  }
   // Gõ số rồi quên chọn mặt hàng: cũng là một dòng sẽ bị loại trước khi rời trình duyệt.
   if (dongs.some((d) => d.hang_id <= 0 && d.sl_yeu_cau > VT_EPS)) {
     return "Còn dòng đã điền số nhưng chưa chọn mặt hàng.";
@@ -1823,11 +1861,13 @@ function vtCanTro(
   const dem = new Map<string, number>();
   for (const d of dongs) {
     if (d.hang_id <= 0) continue;
-    const k = `${d.hang_loai}:${d.hang_id}`;
+    // Giấy tự khai chưa chọn dạng thì chưa tính trùng (chưa biết là dòng nào).
+    if (vtGiayTuKhai(d) && !d.dang_giay) continue;
+    const k = vtKhoa(d);
     dem.set(k, (dem.get(k) ?? 0) + 1);
   }
   if ([...dem.values()].some((n) => n > 1)) {
-    return "Một mặt hàng chỉ được khai một dòng — gộp số lượng lại.";
+    return "Một mặt hàng cùng dạng, cùng khổ chỉ được khai một dòng — gộp số lượng lại.";
   }
   // Sửa được phép đưa HẾT về 0 (đó là đường tự huỷ yêu cầu, spec §5.3) nên không đòi số dương.
   // Tạo mới thì phải có cái gì đó để gửi: một lần đề nghị RỖNG vẫn thành `de_nghi_co_the_sua_id`
@@ -1860,7 +1900,16 @@ export function vtPayloadLines(dongs: VtDongForm[], loai: "lan_dau" | "bo_sung")
     // hoạch mà = 0 thì bỏ. Bổ sung: chỉ dòng dương.
     .filter((d) => (loai === "lan_dau" ? d.tuKeHoach || d.sl_yeu_cau > VT_EPS : d.sl_yeu_cau > VT_EPS));
   return giu.map((d) => ({
-    hang_loai: d.hang_loai, hang_id: d.hang_id, dvt: d.dvt,
+    hang_loai: d.hang_loai, hang_id: d.hang_id,
+    // Giấy mang dạng + khổ (ngắn × dài; cuộn chỉ khổ rộng) — máy chủ chuẩn hoá lại.
+    ...(d.hang_loai === "giay"
+      ? {
+          dang_giay: d.dang_giay,
+          kho_rong: chuanKho(d.kho_rong, d.kho_dai)[0],
+          kho_dai: d.dang_giay === "cuon" ? 0 : chuanKho(d.kho_rong, d.kho_dai)[1],
+        }
+      : {}),
+    dvt: d.dvt,
     sl_yeu_cau: d.sl_yeu_cau,
     // Ô Lý do ĐÓNG lại thì chữ cũ trong state phải thôi đi theo. Kéo một dòng đang lệch về đúng
     // kế hoạch (hoặc về 0 rồi xin lại đủ) làm ô biến mất, nhưng `d.ly_do_chenh_lech` vẫn giữ câu
@@ -1899,14 +1948,15 @@ export function vtDvtLanTruoc(
 }
 
 function vtDongKhoiTao(cap: SxVatTuCap, mode: VtFormMode, lanSua: SxVatTuCapLan | null): VtDongForm[] {
-  const kh = new Map(cap.ke_hoach.map((k) => [`${k.hang_loai}:${k.hang_id}`, k]));
+  const kh = new Map(cap.ke_hoach.map((k) => [vtKhoa(k), k]));
   // Bổ sung: RỖNG — chỉ thêm đúng mặt hàng đang thiếu; liệt kê lại cả kế hoạch rồi bắt gõ lý do
   // cho từng dòng 0 là phiền vô ích (chỉ lần ĐẦU mới cần lưu đủ kế hoạch).
   if (mode === "bo_sung") return [];
   if (mode === "moi") {
     return cap.ke_hoach.map((k) => ({
-      key: `${k.hang_loai}:${k.hang_id}`,
+      key: vtKhoa(k),
       hang_loai: k.hang_loai, hang_id: k.hang_id, ten: k.ten,
+      dang_giay: k.dang_giay, kho_rong: k.kho_rong, kho_dai: k.kho_dai,
       dvt: k.dvt, dvtKeHoach: k.dvt,
       sl_ke_hoach: k.sl, sl_yeu_cau: k.sl, slText: String(k.sl),
       ly_do_chenh_lech: "", tuKeHoach: true,
@@ -1915,10 +1965,11 @@ function vtDongKhoiTao(cap: SxVatTuCap, mode: VtFormMode, lanSua: SxVatTuCapLan 
   // Sửa: điền số CỦA RIÊNG lần đang sửa (`dongs`), KHÔNG phải số cộng dồn của `doi_chieu` —
   // dùng nhầm là thổi phồng lần đang sửa bằng số của các lần trước.
   const ds: VtDongForm[] = (lanSua?.dongs ?? []).map((d) => {
-    const k = `${d.hang_loai}:${d.hang_id}`;
+    const k = vtKhoa(d);
     return {
       key: k,
       hang_loai: d.hang_loai, hang_id: d.hang_id, ten: d.ten,
+      dang_giay: d.dang_giay, kho_rong: d.kho_rong, kho_dai: d.kho_dai,
       // Vá GỐC (không phải triệu chứng): dòng đã lưu có thể mang `dvt=""` (routing mập mờ lúc
       // gửi lần đầu) trong khi kế hoạch nay đã có đơn vị. BE gộp `ln.dvt or k_row.dvt` nên FE
       // phải hiện ĐÚNG thứ BE sẽ dùng — không được hiện "—" trên màn rồi tính theo "to" ở BE.
@@ -1932,10 +1983,11 @@ function vtDongKhoiTao(cap: SxVatTuCap, mode: VtFormMode, lanSua: SxVatTuCapLan 
   if (lanSua?.loai === "lan_dau") {
     const co = new Set(ds.map((d) => d.key));
     for (const k of cap.ke_hoach) {
-      const key = `${k.hang_loai}:${k.hang_id}`;
+      const key = vtKhoa(k);
       if (co.has(key)) continue;
       ds.push({
         key, hang_loai: k.hang_loai, hang_id: k.hang_id, ten: k.ten,
+        dang_giay: k.dang_giay, kho_rong: k.kho_rong, kho_dai: k.kho_dai,
         dvt: k.dvt, dvtKeHoach: k.dvt, sl_ke_hoach: k.sl, sl_yeu_cau: 0, slText: "0",
         ly_do_chenh_lech: "", tuKeHoach: true,
       });
@@ -1967,7 +2019,7 @@ function VatTuDeNghiForm({
   useEffect(() => { nganKeoRef.current?.focus({ preventScroll: true }); }, []);
 
   // "Đã yêu cầu luỹ kế" cho dòng bổ sung — nền để tổ trưởng biết mình đang xin thêm trên cái gì.
-  const luyKe = new Map(cap.doi_chieu.map((d) => [`${d.hang_loai}:${d.hang_id}`, d]));
+  const luyKe = new Map(cap.doi_chieu.map((d) => [vtKhoa(d), d]));
 
   function sua(key: string, patch: Partial<VtDongForm>) {
     setDongs((ds) => ds.map((d) => (d.key === key ? { ...d, ...patch } : d)));
@@ -1980,7 +2032,8 @@ function VatTuDeNghiForm({
   function themDong() {
     seq.current += 1;
     setDongs((ds) => [...ds, {
-      key: `moi-${seq.current}`, hang_loai: "", hang_id: 0, ten: "", dvt: "", dvtKeHoach: "",
+      key: `moi-${seq.current}`, hang_loai: "", hang_id: 0, ten: "",
+      dang_giay: null, kho_rong: 0, kho_dai: 0, dvt: "", dvtKeHoach: "",
       sl_ke_hoach: 0, sl_yeu_cau: 0, slText: "", ly_do_chenh_lech: "", tuKeHoach: false,
     }]);
   }
@@ -2092,14 +2145,21 @@ function VatTuDeNghiForm({
                   )}
                   {dongs.map((d, i) => {
                     const ly = vtCanLyDo(d, loaiHieuLuc);
-                    const lk = luyKe.get(`${d.hang_loai}:${d.hang_id}`);
+                    const lk = luyKe.get(vtKhoa(d));
                     return (
                       <Fragment key={d.key}>
                         <tr>
                           <td className="kho-lines__code" style={{ textAlign: "center" }}>{i + 1}</td>
                           <td>
                             {d.tuKeHoach ? (
-                              <div className="kho-lines__name">{d.ten}</div>
+                              <>
+                                <div className="kho-lines__name">{d.ten}</div>
+                                {d.hang_loai === "giay" && (
+                                  <div className="kho-lines__code">
+                                    {nhanDangKho(d.dang_giay, d.kho_rong, d.kho_dai) || "chưa có khổ"}
+                                  </div>
+                                )}
+                              </>
                             ) : (
                               <MaterialCombobox
                                 token={token ?? ""} hangTen={d.ten || null} disabled={busy}
@@ -2109,13 +2169,54 @@ function VatTuDeNghiForm({
                                   // `mode`: lần "moi" chưa có đề nghị nào nên hàm trả `null` và mọi thứ y
                                   // như cũ, còn lần "sua"/"bo_sung" thì bám lần trước mới là thứ đúng —
                                   // thêm điều kiện mode chỉ có thể làm dòng lật đơn vị trở lại.
-                                  const dv = vtDvtLanTruoc(cap.cac_de_nghi, m.hang_loai, m.hang_id)
+                                  // Giấy: đơn vị đi theo DẠNG (tờ nguyên / đơn vị gốc của cuộn) — để trống,
+                                  // chọn dạng xong ô ĐVT tự điền.
+                                  const giay = m.hang_loai === "giay";
+                                  const dv = giay ? "" : vtDvtLanTruoc(cap.cac_de_nghi, m.hang_loai, m.hang_id)
                                     ?? m.don_vi_goc ?? "";
                                   sua(d.key, {
                                     hang_loai: m.hang_loai, hang_id: m.hang_id, ten: m.ten,
+                                    dang_giay: null, kho_rong: 0, kho_dai: 0,
                                     dvt: dv, dvtKeHoach: dv,
                                   });
                                 }} />
+                            )}
+                            {vtGiayTuKhai(d) && (
+                              <div className="kho-giay-kho">
+                                <select className="rc-input" aria-label="Dạng giấy" disabled={busy}
+                                  value={d.dang_giay ?? ""}
+                                  onChange={(e) => {
+                                    const dang = (e.target.value || null) as DangGiay | null;
+                                    sua(d.key, {
+                                      dang_giay: dang, dvt: "", dvtKeHoach: "",
+                                      ...(dang === "cuon" ? { kho_dai: 0 } : {}),
+                                    });
+                                  }}>
+                                  <option value="">Dạng…</option>
+                                  {(Object.keys(DANG_GIAY_NHAN) as DangGiay[]).map((x) => (
+                                    <option key={x} value={x}>{DANG_GIAY_NHAN[x]}</option>
+                                  ))}
+                                </select>
+                                {d.dang_giay && (
+                                  <>
+                                    <DecimalInput className="rc-input kho-num" disabled={busy}
+                                      value={d.kho_rong || null}
+                                      onChange={(n) => sua(d.key, { kho_rong: n ?? 0 })}
+                                      aria-label={d.dang_giay === "to" ? "Khổ giấy, cạnh thứ nhất (mm)" : "Khổ rộng cuộn (mm)"}
+                                      placeholder={d.dang_giay === "to" ? "Rộng" : "Khổ rộng"} />
+                                    {d.dang_giay === "to" && (
+                                      <>
+                                        <span aria-hidden="true">×</span>
+                                        <DecimalInput className="rc-input kho-num" disabled={busy}
+                                          value={d.kho_dai || null}
+                                          onChange={(n) => sua(d.key, { kho_dai: n ?? 0 })}
+                                          aria-label="Khổ giấy, cạnh thứ hai (mm)" placeholder="Dài" />
+                                      </>
+                                    )}
+                                    <span className="kho-lines__code">mm</span>
+                                  </>
+                                )}
+                              </div>
                             )}
                             {/* Giọng đi theo SỐ ĐANG XIN, không theo "có đơn vị hay không". Ở 0 thì dòng
                              *  này hợp lệ — BE nhận và miễn cả luật lý do, ô Lý do ngay dưới ghi "Tuỳ
@@ -2144,9 +2245,15 @@ function VatTuDeNghiForm({
                               : (d.tuKeHoach ? `${num(d.sl_ke_hoach)} ${nhanDonVi(d.dvtKeHoach)}` : "—")}
                           </td>
                           <td style={{ textAlign: "center" }}>
-                            <span className="badge-sem badge-sem--muted" style={{ fontSize: 12 }}>
-                              {d.dvt ? nhanDonVi(d.dvt) : "—"}
-                            </span>
+                            {vtGiayTuKhai(d) && d.dang_giay ? (
+                              <DonViChonTheoHang token={token ?? ""} hangLoai="giay" hangId={d.hang_id}
+                                dang={d.dang_giay} value={d.dvt} chiDoc disabled={busy}
+                                onChange={(ma) => sua(d.key, { dvt: ma, dvtKeHoach: ma })} />
+                            ) : (
+                              <span className="badge-sem badge-sem--muted" style={{ fontSize: 12 }}>
+                                {d.dvt ? nhanDonVi(d.dvt) : "—"}
+                              </span>
+                            )}
                           </td>
                           <td className="kho-num">
                             <input type="number" min={0} className="rc-input kho-num" inputMode="decimal"

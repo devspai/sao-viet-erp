@@ -2029,6 +2029,10 @@ export interface SxVatTuCapKeHoach {
   hang_loai: string;
   hang_id: number;
   ten: string;
+  /** Giấy: dạng (`to`/`cuon`) + khổ mm — cùng mã khác dạng/khổ là hai dòng. Hàng khác: null · 0 · 0. */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   dvt: string;
   sl: number;
   dvt_goc: string;
@@ -2040,6 +2044,10 @@ export interface SxVatTuCapDong {
   hang_loai: string;
   hang_id: number;
   ten: string;
+  /** Giấy: dạng (`to`/`cuon`) + khổ mm — cùng mã khác dạng/khổ là hai dòng. Hàng khác: null · 0 · 0. */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   dvt: string;
   dvt_goc: string;
   sl_ke_hoach: number;
@@ -2069,6 +2077,10 @@ export interface SxVatTuCapDoiChieu {
   hang_loai: string;
   hang_id: number;
   ten: string;
+  /** Giấy: dạng (`to`/`cuon`) + khổ mm — cùng mã khác dạng/khổ là hai dòng. Hàng khác: null · 0 · 0. */
+  dang_giay: "to" | "cuon" | null;
+  kho_rong: number;
+  kho_dai: number;
   dvt: string;
   dvt_goc: string;
   sl_ke_hoach: number;
@@ -2094,6 +2106,10 @@ export interface SxVatTuCap {
 export interface SxVatTuDeNghiDongIn {
   hang_loai: string;
   hang_id: number;
+  /** Giấy: dạng + khổ (tờ bắt buộc đủ hai cạnh; cuộn khổ rộng tuỳ chọn). Hàng khác bỏ trống. */
+  dang_giay?: "to" | "cuon" | null;
+  kho_rong?: number;
+  kho_dai?: number;
   dvt: string;
   sl_yeu_cau: number;
   ly_do_chenh_lech: string | null;

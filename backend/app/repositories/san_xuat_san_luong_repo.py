@@ -38,6 +38,7 @@ from ..models.stock_voucher import (
     StockVoucherLine,
 )
 from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, GiayNguyen, VatTuInAn
+from ..services.kho_giay import khoa_dong
 
 
 class SanXuatSanLuongRepository:
@@ -702,23 +703,28 @@ class SanXuatSanLuongRepository:
         cu = self.voucher_xuat_cua_lsx(cv.lsx_id, tru_yeu_cau=yc_cua_de_nghi)
         return cu, bool(cu)
 
-    def thuc_xuat_theo_hang(self, stock_request_ids: list[int]) -> dict[tuple[str, int], float]:
-        """{(hang_loai, hang_id): tổng `sl_goc`} của DÒNG phiếu XUẤT `posted` thuộc các yêu cầu
-        này — MỘT truy vấn GỘP cho cả danh sách, không theo từng yêu cầu (ruling task-7 25).
-        Danh sách rỗng trả `{}` mà KHÔNG chạm DB."""
+    def thuc_xuat_theo_hang(self, stock_request_ids: list[int]) -> dict[tuple, float]:
+        """{`khoa_dong`: tổng `sl_goc`} của DÒNG phiếu XUẤT `posted` thuộc các yêu cầu này — giấy
+        tách theo dạng + khổ (spec giấy tờ × khổ). MỘT truy vấn GỘP cho cả danh sách, không theo
+        từng yêu cầu (ruling task-7 25). Danh sách rỗng trả `{}` mà KHÔNG chạm DB."""
         if not stock_request_ids:
             return {}
+        cot = (StockVoucherLine.hang_loai, StockVoucherLine.hang_id, StockVoucherLine.dang_giay,
+               StockVoucherLine.kho_rong, StockVoucherLine.kho_dai)
         rows = self.db.execute(
-            select(StockVoucherLine.hang_loai, StockVoucherLine.hang_id,
-                   func.sum(StockVoucherLine.sl_goc))
+            select(*cot, func.sum(StockVoucherLine.sl_goc))
             .select_from(StockVoucherLine)
             .join(StockVoucher, StockVoucher.id == StockVoucherLine.voucher_id)
             .where(StockVoucher.loai == VOUCHER_XUAT,
                    StockVoucher.trang_thai == VOUCHER_POSTED,
                    StockVoucher.request_id.in_(stock_request_ids))
-            .group_by(StockVoucherLine.hang_loai, StockVoucherLine.hang_id)
+            .group_by(*cot)
         )
-        return {(loai, int(hid)): float(tong or 0) for loai, hid, tong in rows}
+        ra: dict[tuple, float] = {}
+        for loai, hid, dang, kr, kd, tong in rows:
+            k = khoa_dong(loai, int(hid), dang, kr, kd)
+            ra[k] = ra.get(k, 0.0) + float(tong or 0)
+        return ra
 
     def yeu_cau_tom_tat(self, request_ids: list[int]) -> dict[int, dict]:
         """`{request_id: {"ma", "trang_thai"}}` — MỘT truy vấn cho cả danh sách. Drawer công đoạn

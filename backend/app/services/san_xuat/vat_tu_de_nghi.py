@@ -23,6 +23,7 @@ from ...repositories.stock_request_repo import StockRequestRepository
 from ...doi_tuong_nhan import kem_ban_to
 from ...realtime import hub
 from ..ke_hoach_vat_tu_service import KeHoachVatTuError
+from ..kho_giay import DANG_TO, don_vi_goc_to, khoa_dong
 from ..quyen_to import VIEC_KHO
 from .thuc_thi import _gate
 
@@ -87,13 +88,13 @@ def _f(v) -> float:
 
 
 def _ve_goc_dong(kh_svc, k, k_row, dvt, sl):
-    """Quy số tổ khai về đơn vị gốc. Trả `(sl_goc, dvt_goc, theo_goc: bool)`.
+    """Quy số tổ khai về đơn vị gốc. Trả `(sl_goc, dvt_goc, theo_goc: bool)`. `k` = `khoa_dong`.
 
-    Giấy khai bằng "tờ" không có cạnh quy đổi tĩnh sang tấn (ruling 10). Ba nhánh:
-      (1) tổ giữ NGUYÊN đơn vị kế hoạch ⇒ nội suy theo TỈ LỆ mà chính engine vừa tính cho ĐÚNG
-          lệnh này (đã dùng khổ giấy thật): `sl * sl_goc_kh / sl_kh`. Chính xác, không cần cạnh
-          quy đổi nào. Đây là ca thường gặp nhất.
-      (2) tổ ĐỔI đơn vị, hoặc dòng ngoài kế hoạch ⇒ cầu quy đổi tĩnh (`ve_don_vi_goc`).
+    Ba nhánh:
+      (1) VẬT TƯ KHÁC, tổ giữ NGUYÊN đơn vị kế hoạch ⇒ nội suy theo TỈ LỆ engine vừa tính cho ĐÚNG
+          lệnh này: `sl * sl_goc_kh / sl_kh`. GIẤY không đi nhánh này (spec giấy đếm tờ × khổ):
+          tờ đếm thẳng tờ nguyên, cuộn quy về đơn vị gốc của mã — đều là cầu quy đổi tĩnh.
+      (2) giấy, tổ ĐỔI đơn vị, hoặc dòng ngoài kế hoạch ⇒ cầu quy đổi tĩnh (`ve_don_vi_goc`).
       (3) không quy được: nếu tổ đang xin số DƯƠNG thì NỔ lỗi nghiệp vụ — ta không thể xin kho
           một lượng không diễn đạt được bằng đơn vị kho nhận (`create` sẽ chặn y hệt). Nếu tổ xin
           0 thì không cần số gốc: trả 0 + `theo_goc=False`, `_chuan_hoa` so lệch theo đơn vị
@@ -103,11 +104,13 @@ def _ve_goc_dong(kh_svc, k, k_row, dvt, sl):
     """
     kh_sl = _f((k_row or {}).get("sl"))
     kh_goc = _f((k_row or {}).get("sl_goc"))
+    giay = k[0] == "giay"
     cung_dvt = k_row is not None and (dvt or "") == (k_row.get("dvt") or "")
-    if cung_dvt and kh_sl > _EPS and kh_goc > _EPS:
+    if not giay and cung_dvt and kh_sl > _EPS and kh_goc > _EPS:
         return sl * kh_goc / kh_sl, k_row.get("dvt_goc") or "", True
     try:
-        sl_goc, dvt_goc = kh_svc.ve_don_vi_goc(k[0], k[1], dvt, sl)
+        sl_goc, dvt_goc = kh_svc.ve_don_vi_goc(k[0], k[1], dvt, sl,
+                                               dang=k[2] if giay else None)
     except KeHoachVatTuError as e:
         if sl > _EPS:
             raise VatTuDeNghiError(str(e)) from None
@@ -121,12 +124,17 @@ def _chuan_hoa(kh_svc, cv, lines: list[dict], *, bat_buoc_ly_do: bool) -> list[d
     Không tin đơn vị/số của client: nó chỉ nói "xin 3 ram" — quy 3 ram ra bao nhiêu kg là việc của
     engine đơn vị, và phải là CÙNG engine mà bảng cân đối dùng, không thì hai bên đếm hai kiểu.
     """
-    kh = {(k["hang_loai"], int(k["hang_id"])): k for k in kh_svc.nhu_cau_cua_cong_viec(cv)}
+    # Khoá dòng = `khoa_dong`: giấy cùng mã khác dạng/khổ là hai dòng (spec 2026-10-01 §4.5).
+    kh = {khoa_dong(k["hang_loai"], k["hang_id"], k.get("dang_giay"),
+                    k.get("kho_rong"), k.get("kho_dai")): k
+          for k in kh_svc.nhu_cau_cua_cong_viec(cv)}
     khai: dict[tuple, dict] = {}
     for ln in lines:
-        k = (ln["hang_loai"], int(ln["hang_id"]))
+        k = khoa_dong(ln["hang_loai"], ln["hang_id"], ln.get("dang_giay"),
+                      ln.get("kho_rong"), ln.get("kho_dai"))
         if k in khai:
-            raise VatTuDeNghiError("Một mặt hàng chỉ được khai một dòng — gộp số lượng lại.")
+            raise VatTuDeNghiError("Một mặt hàng cùng dạng, cùng khổ chỉ được khai một dòng — "
+                                   "gộp số lượng lại.")
         khai[k] = ln
 
     ra: list[dict] = []
@@ -174,6 +182,10 @@ def _chuan_hoa(kh_svc, cv, lines: list[dict], *, bat_buoc_ly_do: bool) -> list[d
                 f"của mặt hàng này rồi xin lại. Trong lúc chờ, để dòng này ở 0 rồi gửi những "
                 f"món còn lại."
             )
+        # Giấy TỜ ngoài kế hoạch phải nói khổ: kho soạn theo lô đúng khổ, thiếu một cạnh là kho
+        # không biết lấy lô nào.
+        if k_row is None and k[0] == "giay" and k[2] == DANG_TO and not (k[3] and k[4]):
+            raise VatTuDeNghiError(f"«{ten}» là giấy tờ — khai đủ hai cạnh khổ (mm).")
         sl_goc, dvt_goc, theo_goc = _ve_goc_dong(kh_svc, k, k_row, dvt, sl)
         kh_goc = _f((k_row or {}).get("sl_goc"))
         ly_do = ((ln or {}).get("ly_do_chenh_lech") or "").strip() or None
@@ -206,6 +218,7 @@ def _chuan_hoa(kh_svc, cv, lines: list[dict], *, bat_buoc_ly_do: bool) -> list[d
             raise VatTuDeNghiError(f"«{ten}» lệch kế hoạch — phải ghi lý do.")
         ra.append({
             "hang_loai": k[0], "hang_id": k[1],
+            "dang_giay": k[2], "kho_rong": k[3], "kho_dai": k[4],
             "ten": ten,
             "dvt": dvt, "dvt_goc": dvt_goc,
             "sl_ke_hoach": _f((k_row or {}).get("sl")), "sl_ke_hoach_goc": kh_goc,
@@ -244,8 +257,12 @@ def lan_con_mo(dn, *, co_voucher: bool, trang_thai_kho: str | None) -> bool:
     return True
 
 
-def _don_vi_gui_kho(hang, hang_loai, hang_id, sl_goc: float) -> tuple[str, float]:
+def _don_vi_gui_kho(hang, hang_loai, hang_id, sl_goc: float,
+                    dang: str | None = None) -> tuple[str, float]:
     """Chọn đơn vị gửi kho cho một lượng đã quy về gốc. Trả `(dvt, so_luong_theo_dvt)`.
+
+    Giấy TỜ gửi thẳng tờ nguyên — đúng đơn vị lô tờ đếm (spec giấy đếm tờ × khổ). Luật dò dưới đây
+    chỉ còn cho vật tư khác và giấy cuộn (gốc theo `don_vi_gia` của mã).
 
     KHÔNG mặc định dùng đơn vị gốc: `StockRequestLine.sl_de_nghi` là `Numeric(14, 2)` kèm
     `CheckConstraint("> 0")`, nên với giấy (gốc = "tấn") một đề nghị 10 tờ ≈ 0.003 tấn bị ép về
@@ -264,6 +281,8 @@ def _don_vi_gui_kho(hang, hang_loai, hang_id, sl_goc: float) -> tuple[str, float
     thành 2,31 tấn = 2 310 kg, kho soạn thiếu 4,5 kg mà không ai thấy con số nào sai. Lên thô hơn
     gốc CHỈ làm mất số ở cột `Numeric(14, 2)`, không bao giờ cứu được gì.
     """
+    if hang_loai == "giay" and dang == DANG_TO:
+        return don_vi_goc_to(), float(sl_goc)
     ra = hang.don_vi_cua_mat_hang(hang_loai, hang_id)
     ds = [d for d in (ra.get("ds") or []) if float(d.get("he_so_ve_goc") or 0) > 0]
     if not ds:
@@ -301,7 +320,8 @@ def _lines_kho(hang, cv, dongs: list[dict]) -> list[dict]:
     for d in dongs:
         if d["sl_yeu_cau"] <= _EPS:
             continue
-        dvt, sl = _don_vi_gui_kho(hang, d["hang_loai"], d["hang_id"], d["sl_yeu_cau_goc"])
+        dvt, sl = _don_vi_gui_kho(hang, d["hang_loai"], d["hang_id"], d["sl_yeu_cau_goc"],
+                                  d.get("dang_giay"))
         # Cột kho là `Numeric(14, 2)` + `CHECK > 0`: lượng nhỏ hơn nửa đơn vị làm tròn sẽ thành
         # 0.00 và vỡ ràng buộc lúc commit. Chặn ở đây, có câu người dùng đọc được, thay vì để
         # `IntegrityError` thoát ra thành 500.
@@ -312,6 +332,8 @@ def _lines_kho(hang, cv, dongs: list[dict]) -> list[dict]:
             )
         ra.append({
             "hang_loai": d["hang_loai"], "hang_id": d["hang_id"], "dvt": dvt,
+            "dang_giay": d.get("dang_giay"), "kho_rong": d.get("kho_rong") or 0,
+            "kho_dai": d.get("kho_dai") or 0,
             "sl_de_nghi": sl, "lsx_id": cv.lsx_id, "bai_ghep_id": cv.bai_ghep_id,
         })
     return ra
@@ -391,14 +413,12 @@ def tao(db: Session, *, user, cong_viec_id: int, can_luc: datetime,
     BA thang đơn vị chạy song song ở đây:
       · `SanXuatVatTuDeNghiDong.sl_yeu_cau`/`dvt` — đơn vị TỔ KHAI (tờ, ram…), giữ để bản đối
         chiếu hiện đúng chữ tổ gõ (ruling 10).
-      · `sl_yeu_cau_goc`/`dvt_goc` — đơn vị GỐC của danh mục, dùng để SO LỆCH kế hoạch. Giấy khai
-        bằng "tờ" không có cạnh quy đổi tĩnh sang gốc (đo thật: "Ivory 350" không đổi được từ "to"
-        về tấn — xem `_ve_goc_dong`), nên `ve_don_vi_goc` ném lỗi khi không quy được.
+      · `sl_yeu_cau_goc`/`dvt_goc` — đơn vị GỐC, dùng để SO LỆCH kế hoạch. Giấy tờ: tờ nguyên;
+        giấy cuộn + vật tư khác: đơn vị gốc của mã. Không quy được thì `ve_don_vi_goc` ném lỗi.
       · `StockRequestLine.sl_de_nghi`/`dvt` — đơn vị GỬI KHO, do `_don_vi_gui_kho` chọn từ
-        `sl_yeu_cau_goc` (ruling 11b, thay ruling 11 cũ). KHÔNG PHẢI lúc nào cũng trùng `dvt_goc`:
-        giấy gốc là "tấn" nhưng gửi kho bằng "kg" — `StockRequestLine.sl_de_nghi` là
-        `Numeric(14, 2)` kèm `CHECK > 0`, tấn thì bước lượng tử 0.01 tấn ≈ 33 tờ, lệch xa số tổ
-        khai; lượng nhỏ còn bị ép về 0.00 và vỡ ràng buộc.
+        `sl_yeu_cau_goc` (ruling 11b). Giấy tờ gửi thẳng tờ nguyên; hàng gốc thô (tấn) bước xuống
+        đơn vị mịn hơn vì `sl_de_nghi` là `Numeric(14, 2)` kèm `CHECK > 0`. Dòng kho mang dạng +
+        khổ của dòng đề nghị.
     So sánh giữa `SanXuatVatTuDeNghiDong` và `StockRequestLine` vì thế PHẢI đi qua
     `sl_yeu_cau_goc`/`dvt_goc`, không phải `sl_yeu_cau`/`dvt` lẫn `sl_de_nghi`/`dvt` của dòng kho.
     """

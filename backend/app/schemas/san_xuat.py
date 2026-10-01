@@ -6,6 +6,7 @@ LẶNG — thêm field ở service phải thêm ở đây, xem [[pydantic-nuot-f
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -809,6 +810,9 @@ class VatTuCapDoiChieuOut(BaseModel):
     hang_loai: str
     hang_id: int
     ten: str
+    dang_giay: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     dvt: str
     dvt_goc: str
     sl_ke_hoach: float
@@ -829,6 +833,9 @@ class VatTuCapDongOut(BaseModel):
     hang_loai: str
     hang_id: int
     ten: str
+    dang_giay: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     dvt: str
     dvt_goc: str
     sl_ke_hoach: float
@@ -1385,6 +1392,10 @@ class NhapKhoYcKetQuaOut(BaseModel):
 class VatTuDeNghiDongIn(BaseModel):
     hang_loai: str
     hang_id: int
+    #: Giấy: dạng + khổ mm (spec giấy đếm tờ × khổ §4.5) — server chuẩn hoá lại khổ. Vật tư khác bỏ qua.
+    dang_giay: Literal["to", "cuon"] | None = None
+    kho_rong: int = Field(default=0, ge=0)
+    kho_dai: int = Field(default=0, ge=0)
     dvt: str
     sl_yeu_cau: float = 0.0
     ly_do_chenh_lech: str | None = None

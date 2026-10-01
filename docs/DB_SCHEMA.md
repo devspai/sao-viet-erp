@@ -5263,9 +5263,12 @@ KHÔNG còn cột TIỀN nào: `don_gia` đã bỏ (mg 0296, 11/09/2026) — s�
 | Column | Type | Key | Null | Default | Meaning |
 | --- | --- | --- | --- | --- | --- |
 | `id` | `Integer` | **PK** | no | auto | Surrogate PK. |
-| `de_nghi_id` | `Integer` FK→`san_xuat_vat_tu_de_nghi.id` (CASCADE) | IX, **U** (cặp `hang_loai`+`hang_id`) | no | — | Lần đề nghị chứa dòng này. |
+| `de_nghi_id` | `Integer` FK→`san_xuat_vat_tu_de_nghi.id` (CASCADE) | IX, **U** (`hang_loai`+`hang_id`+`kho_rong`+`kho_dai`, mg `0353`) | no | — | Lần đề nghị chứa dòng này. |
 | `hang_loai` | `String(8)` | **U** (cặp) | no | — | Loại mặt hàng gốc: `giay` \| `vat_tu`. |
 | `hang_id` | `Integer` | **U** (cặp) | no | — | Id trong `giay_nguyen` / `vat_tu_in_an`. Soft ref (2 bảng đích nên không FK thật được). |
+| `dang_giay` | `String(8)` | — | yes | — | mg `0353`. Giấy: `to` (đếm tờ nguyên) \| `cuon` (đếm theo đơn vị gốc của mã). Vật tư khác và dòng cũ: NULL. Spec 2026-10-01-giay-dem-to-theo-kho §4.5. |
+| `kho_rong` | `Integer` | **U** | no | `0` | mg `0353`. Khổ cạnh ngắn (mm) của dòng giấy; cuộn: khổ rộng (tuỳ chọn). Vật tư khác 0. Cùng mã khác khổ là hai dòng. |
+| `kho_dai` | `Integer` | **U** | no | `0` | mg `0353`. Khổ cạnh dài (mm) của giấy tờ; cuộn và vật tư khác 0. |
 | `dvt` | `String(24)` | — | no | — | Đơn vị người khai nhìn thấy (tờ, ram, thùng…). |
 | `dvt_goc` | `String(24)` | — | no | — | Đơn vị gốc của mặt hàng — dùng để MÁY so lệch. |
 | `sl_ke_hoach` | `Numeric(18,3)` | — | no | `0` | Số kế hoạch, theo `dvt`. |
@@ -5274,7 +5277,7 @@ KHÔNG còn cột TIỀN nào: `don_gia` đã bỏ (mg 0296, 11/09/2026) — s�
 | `sl_yeu_cau_goc` | `Numeric(18,3)` | — | no | `0` | Số tổ đề nghị, theo `dvt_goc`. |
 | `ly_do_chenh_lech` | `String(500)` | — | yes | — | Lý do lệch kế hoạch ↔ đề nghị. Không chuyển sang yêu cầu kho (kho không cần thấy — spec §7). |
 
-**Tất cả cột:** `id`, `de_nghi_id`, `hang_loai`, `hang_id`, `dvt`, `dvt_goc`, `sl_ke_hoach`, `sl_ke_hoach_goc`, `sl_yeu_cau`, `sl_yeu_cau_goc`, `ly_do_chenh_lech`.
+**Tất cả cột:** `id`, `de_nghi_id`, `hang_loai`, `hang_id`, `dang_giay`, `kho_rong`, `kho_dai`, `dvt`, `dvt_goc`, `sl_ke_hoach`, `sl_ke_hoach_goc`, `sl_yeu_cau`, `sl_yeu_cau_goc`, `ly_do_chenh_lech`.
 
 ---
 
