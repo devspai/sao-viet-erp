@@ -14,4 +14,6 @@ export { RowEditor } from "./RowEditor";
 export { SelfRefMultiField } from "./SelfRefMulti";
 export { ToMultiField } from "./ToMulti";
 export { VatTuCongDoanField } from "./VatTuCongDoan";
+export { VatTuChipsField, chipsThanhBien, maTuTenChip } from "./VatTuChips";
+export type { VatTuChipRow } from "./VatTuChips";
 export { ViecPhatSinhField } from "./ViecPhatSinh";

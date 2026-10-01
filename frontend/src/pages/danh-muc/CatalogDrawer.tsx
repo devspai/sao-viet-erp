@@ -15,7 +15,8 @@ import {
   BandsField, ChuanBiKhoanField, DonViTocDoField, FormulaField,
   KhoanCongDoanField, LichBaoTriField, MayCuaCongDoanField, NhomMayField, NhomMayMultiField, RefMultiField,
   RefSearchField,
-  SelfRefMultiField, ToMultiField, VatTuCongDoanField, ViecPhatSinhField,
+  SelfRefMultiField, ToMultiField, VatTuChipsField, VatTuCongDoanField, ViecPhatSinhField, chipsThanhBien,
+  type VatTuChipRow,
 } from "./fields";
 import { goiYMaTiepTheo } from "./maGoiY";
 import { useNapTenDonVi } from "../tenDonVi";
@@ -30,7 +31,7 @@ import type {
 /** Ô mà GIÁ TRỊ là một MẢNG (bảng con / chọn nhiều) — khởi tạo `[]` và gửi lên nguyên mảng. */
 const KIEU_MANG = new Set<string>([
   "ref-multi", "self-ref-multi", "nhom_may-multi", "bands", "vat-tu-cong-doan", "may-cua-cong-doan",
-  "viec-phat-sinh", "to-multi",
+  "viec-phat-sinh", "to-multi", "vat-tu-chip",
 ]);
 
 /** Bỏ mục đã NGỪNG DÙNG khỏi một ô chọn — TRỪ mục bản ghi đang trỏ tới; mục đó ở lại, và mang
@@ -279,7 +280,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
     const { cleanLabel, suffix } = parseLabelAndSuffix(f.label);
     const hint = typeof f.hint === "function" ? f.hint(form) : f.hint;
     const laDonVi = config.prefix.includes("don-vi");
-    const isFullWidth = f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "ref-multi" || f.type === "self-ref-multi" || f.type === "nhom_may-multi" || f.type === "vat-tu-cong-doan" || f.type === "may-cua-cong-doan" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "to-multi" || f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta";
+    const isFullWidth = f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "ref-multi" || f.type === "self-ref-multi" || f.type === "nhom_may-multi" || f.type === "vat-tu-cong-doan" || f.type === "vat-tu-chip" || f.type === "may-cua-cong-doan" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "to-multi" || f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta";
     // "div" chứ không "label": khối này chứa NHIỀU input, bọc trong <label> là bấm đâu cũng nhảy
     // focus vào ô đầu tiên.
     const Tag = f.type === "formula" || f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" ? "div" : "label";
@@ -321,6 +322,9 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             onChange={(v) => set(f.key, v)} />
         ) : f.type === "vat-tu-cong-doan" ? (
           <VatTuCongDoanField value={Array.isArray(form[f.key]) ? form[f.key] as VatTuCongDoanRow[] : []}
+            onChange={(v) => set(f.key, v)} />
+        ) : f.type === "vat-tu-chip" ? (
+          <VatTuChipsField value={Array.isArray(form[f.key]) ? form[f.key] as VatTuChipRow[] : []}
             onChange={(v) => set(f.key, v)} />
         ) : f.type === "select" ? (
           <div className="rc-input-wrapper">
@@ -412,6 +416,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             // Ô tự khai loại (vd "Công thức tính lượng" ở Vật tư/Giấy) thì ÉP bộ chip theo nó —
             // một màn có thể có hai ô công thức hỏi hai câu khác nhau.
             loaiO={f.loaiO}
+            bienThem={f.chipsTu ? chipsThanhBien(Array.isArray(form[f.chipsTu]) ? form[f.chipsTu] as VatTuChipRow[] : []) : undefined}
             // `an` nhận cả HÀM theo form đang gõ (xem `types.ts`) — ba chip khuôn ép kim chỉ hiện
             // khi bước khai "Loại khuôn = Khuôn ép kim", vì chỉ bước đó phiếu tính giá
             // mới hỏi ba ô Dài/Rộng/Số. Bước khung lụa hay khuôn bế mà bày chip là mời gõ vào chỗ

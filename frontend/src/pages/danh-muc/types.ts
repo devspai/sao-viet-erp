@@ -15,7 +15,7 @@ export interface FieldDef {
   // mã như `don_vi_gia` (quy đổi làm việc trên mã `kg`/`to`, không trên id).
   // `self-ref-multi` = như `ref-multi` nhưng nguồn chọn là CHÍNH danh mục đang mở (NVL thay thế) —
   // CatalogDrawer tự loại dòng đang sửa khỏi danh sách, người khai không tự chọn được chính mình.
-  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "self-ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi";
+  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "self-ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "vat-tu-chip" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi";
   /** Ô `select`: danh sách chọn. Nhận cả HÀM (như `hint`/`an`) cho menu mà nhãn đến MUỘN hơn
    *  lúc khai config — 5 chặng dòng giấy nạp từ `/api/don-vi/tram`, mảng dựng sẵn ở tầm module sẽ
    *  đóng băng lúc bảng còn rỗng. Hàm được gọi MỖI lần vẽ, nên vẽ lại là menu tự đầy. */
@@ -28,6 +28,9 @@ export interface FieldDef {
    *  riêng — vd một màn có hai ô công thức (giá · lượng) thì mỗi ô vào một tab riêng. Ô công thức KHÔNG khai `nhanTab` rơi vào tab mặc định (nhãn
    *  `config.nhanTabCongThuc`, mặc định "Công thức tính giá") — nên màn 1 tab như cũ giữ nguyên. */
   nhanTab?: string;
+  /** Ô `formula`: tên field MẢNG chip của CHÍNH form này (kiểu `vat-tu-chip`); chip đó thành biến
+   *  bổ sung của ô (chip riêng của vật tư — không nằm trong từ điển hệ thống). */
+  chipsTu?: string;
   /** Ô `formula`: mã biến CẦN ẨN khỏi bảng chip của riêng Ô NÀY, dù `loaiO` cho phép — biến vẫn
    *  hợp lệ nếu gõ tay/đã lưu, chỉ không hiện chip bấm-để-chèn. Dùng khi có chip khác đúng hơn cho
    *  ngữ cảnh của ô (vd `to_dau_vao`/`to_sau_in` là số CẢ CHUỖI, còn `sl_vao`/`sl_ra` là số của

@@ -514,8 +514,7 @@ export const CFG_VAT_TU: CatalogConfig = {
   enableImport: true,
   prefix: "/api/vat-lieu-kho/vat-tu-in-an",
   nhatKyLoai: "vat_tu",
-  // Vật tư khác nay KHÔNG còn ô công thức nào trong drawer (06/09/2026): ô giá ẩn từ trước, ô
-  // lượng chuyển về từng dòng vật tư của đầu việc trong drawer Công đoạn — nên bỏ luôn nhãn tab.
+  // Hai tab công thức (giá · định mức) khai bằng `nhanTab` trên từng ô — xem `fields` bên dưới.
   // Xoá MỀM: nút "Xóa" hỏi server "còn ai dùng không" rồi tự chọn kết cục — chưa ai dùng thì
   // xoá hẳn, còn nơi dùng thì chỉ ngừng dùng. Mục đã ngừng xem lại ở công tắc trên dải lọc.
   softDelete: true,
@@ -547,10 +546,19 @@ export const CFG_VAT_TU: CatalogConfig = {
     // và trả cột `don_gia` vào `columns`. Ô của GIẤY (CFG_GIAY) GIỮ NGUYÊN — giấy chốt đơn giá/kg
     // ở danh mục là luật riêng của nó, đừng gỡ theo.
     //
-    // Ô "cong_thuc_gia" (công thức ra TIỀN cho dòng vật tư trên phiếu tính giá) ĐÃ ẨN từ trước.
-    // Ô "Công thức tính lượng" ĐÃ GỠ (06/09/2026): định mức khai theo TỪNG DÒNG vật tư trong đầu
-    // việc của công đoạn.
+    // 01/10/2026: vật tư MỞ LẠI hai ô công thức, mỗi ô một tab, kèm CHIP RIÊNG của chính vật tư
+    // (vd Support: Dài support, Rộng support). Chip khai một lần ở đây, dùng ở cả hai công thức;
+    // số cụ thể nhập ở phiếu tính giá theo từng bước. Định mức khai ở đây thay cho ô định mức ở dòng
+    // vật tư của Công đoạn (đã bỏ).
     { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
+    { key: "chips", label: "Chip riêng của vật tư", type: "vat-tu-chip", group: "Chip riêng",
+      hint: "Tên các con số bạn nhập khi tính giá cho vật tư này (vd Dài support, Rộng support). Dùng làm biến trong hai công thức." },
+    { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula",
+      nhanTab: "Công thức tính giá", loaiO: "vat_tu", chipsTu: "chips",
+      hint: "Ra TIỀN của vật tư này ở phiếu tính giá." },
+    { key: "cong_thuc_dinh_muc", label: "Công thức định mức", type: "formula",
+      nhanTab: "Công thức định mức", loaiO: "quy_doi", chipsTu: "chips",
+      hint: "Số lượng vật tư này tiêu hao cho MỘT bước; lệnh sản xuất tự tính, không nhập tay." },
   ],
 };
 
