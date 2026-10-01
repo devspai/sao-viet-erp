@@ -16633,3 +16633,17 @@ def _migrate_vat_tu_cong_thuc_dinh_muc(db: Session) -> None:
 
 
 MIGRATIONS.append(("0357_vat_tu_cong_thuc_dinh_muc", _migrate_vat_tu_cong_thuc_dinh_muc))
+
+
+def _migrate_lsx_vat_tu_gia_tri_chip(db: Session) -> None:
+    """0358 — cột `gia_tri_chip` (JSON) cho dòng vật tư của bước lệnh. Idempotent; không backfill
+    (lệnh cũ không có chip, định mức đã tính giữ nguyên)."""
+    insp = inspect(db.get_bind())
+    if "lsx_cong_doan_vat_tu" not in set(insp.get_table_names()):
+        return
+    if "gia_tri_chip" not in _existing_columns(insp, "lsx_cong_doan_vat_tu"):
+        db.execute(text("ALTER TABLE lsx_cong_doan_vat_tu ADD COLUMN gia_tri_chip JSON"))
+    db.commit()
+
+
+MIGRATIONS.append(("0358_lsx_vat_tu_gia_tri_chip", _migrate_lsx_vat_tu_gia_tri_chip))

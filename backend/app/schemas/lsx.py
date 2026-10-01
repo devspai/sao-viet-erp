@@ -115,19 +115,25 @@ class LsxBuocVatTuIn(BaseModel):
     # trước khi bước chọn được NVL chính (08/09/2026).
     hang_loai: Literal["giay", "vat_tu"] = "vat_tu"
     vat_tu_id: int
-    so_luong: float = Field(gt=0)
+    # Vật tư khác: máy TỰ TÍNH bằng công thức định mức của vật tư + chip — số gửi lên bị bỏ
+    # (01/10/2026). Giấy: bắt buộc (đếm tờ, không công thức).
+    so_luong: float | None = Field(default=None, gt=0)
     # True = dòng MÁY bung khi chọn công việc khoán ⇒ lần bung sau thay được. False = người tự thêm
     # hoặc đã sửa số ⇒ máy chừa ra. Mặc định False: client cũ không gửi thì coi như người khai.
     tu_dong: bool = False
     # Khổ dòng GIẤY (mm, thứ tự cạnh tuỳ ý — máy chủ chuẩn hoá ngắn × dài). Hàng khác: ép 0 · 0.
     kho_rong: int = 0
     kho_dai: int = 0
+    # CHIP của vật tư: {mã chip: số} — chép từ phiếu tính giá, sửa được ở lệnh nháp.
+    gia_tri_chip: dict[str, float] | None = None
 
     @model_validator(mode="after")
     def _kho_giay(self):
         if self.hang_loai != "giay":
             self.kho_rong, self.kho_dai = 0, 0
             return self
+        if self.so_luong is None:
+            raise ValueError("Dòng giấy phải có số lượng.")
         kr, kd = chuan_kho(self.kho_rong, self.kho_dai)
         if not (kr and kd):
             raise ValueError("Dòng giấy phải có khổ (rộng × dài, mm).")
@@ -146,6 +152,8 @@ class LsxBuocVatTuOut(BaseModel):
     kho_rong: int = 0
     kho_dai: int = 0
     tu_dong: bool = False
+    gia_tri_chip: dict[str, float] = Field(default_factory=dict)
+    chips: list[dict] = Field(default_factory=list)
 
 
 class KhuonMoiIn(BaseModel):

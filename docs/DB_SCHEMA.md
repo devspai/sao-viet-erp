@@ -4240,7 +4240,9 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 
 Dòng GIẤY (`hang_loai='giay'`) ghi mã + khổ + số tờ nguyên, không công thức: `kho_rong` / `kho_dai` (`Integer`, mm, NOT NULL default 0, mg 0351) là cạnh ngắn × cạnh dài đã chuẩn hoá, `don_vi_snapshot` luôn là đơn vị tờ nguyên. Hàng khác 0 · 0.
 
-**Tất cả cột:** `id`, `lsx_cong_doan_id`, `hang_loai`, `vat_tu_id`, `vat_tu_ma_snapshot`, `vat_tu_ten_snapshot`, `don_vi_snapshot`, `so_luong`, `kho_rong`, `kho_dai`, `thu_tu`, `tu_dong`.
+**Tất cả cột:** `id`, `lsx_cong_doan_id`, `hang_loai`, `vat_tu_id`, `vat_tu_ma_snapshot`, `vat_tu_ten_snapshot`, `don_vi_snapshot`, `so_luong`, `kho_rong`, `kho_dai`, `thu_tu`, `tu_dong`, `gia_tri_chip`.
+
+`gia_tri_chip` (JSON NULL, migration `0358`) = {mã chip: số} chép từ phiếu tính giá lúc tạo lệnh; dùng để tính `so_luong` bằng `vat_tu_in_an.cong_thuc_dinh_muc`.
 
 `hang_loai` (VARCHAR(8) NOT NULL DEFAULT `'vat_tu'`, IX, mg `0280`): **danh mục nào chứa món này** — `'giay'` → `giay_nguyen`, `'vat_tu'` → `vat_tu_in_an`. Thêm 08/09/2026 khi bước bắt đầu chọn được **NVL chính** từ danh mục Giấy; trước đó giấy đi đường riêng, suy từ `quy_cach_json.giay_id` rồi tự treo lên "bước đầu tiên chạm tờ" (hệ đoán cả loại lẫn bước, và một lệnh chỉ ôm được đúng một loại giấy). Cặp `(hang_loai, vat_tu_id)` là khuôn `stock_lots` / `vat_tu_giu_cho` / `stock_requests` / `san_xuat_vat_tu_de_nghi_dong` đã dùng, nên bảng cân đối và tầng kho nhận dòng giấy không phải rẽ nhánh. Cột id vẫn tên `vat_tu_id` nhưng **đọc là `hang_id`**. Unique key `uq_lsx_buoc_vat_tu` gồm cả ba cột: Giấy #7 và Vật tư #7 là hai món khác nhau.
 
