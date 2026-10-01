@@ -2751,7 +2751,10 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
   vat_tus: { id: number; hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; vat_tu_ma: string;
              vat_tu_ten: string; don_vi: string; so_luong: number; tu_dong?: boolean;
              /** Khổ dòng GIẤY (mm, ngắn × dài) — giấy đếm tờ nguyên theo khổ. Hàng khác 0 · 0. */
-             kho_rong?: number; kho_dai?: number }[];
+             kho_rong?: number; kho_dai?: number;
+             /** Vật tư KHÁC giấy: số chip đã chép từ phiếu + danh sách chip của vật tư (chỉ đọc). */
+             gia_tri_chip?: Record<string, number>;
+             chips?: { ma: string; ten: string; don_vi?: string | null }[] }[];
   ghi_chu: string | null;
   /* Đầu việc ghim ở bước (`khoan_rate_id` · `khoan_ten` · `khoan_chon_duoc`) GỠ 18/09/2026 (mg
      `0320`): việc khoán chọn LÚC GHI MẺ ở bàn tổ, lọc theo tổ của bước. */
@@ -2790,7 +2793,8 @@ export interface LsxCongDoanBody extends Partial<Omit<LsxThueNgoaiFields, "nha_c
   phat_sinh_phut?: number;
   phu_thuoc_step_keys?: string[];
   /** Bỏ trống `hang_loai` là server hiểu `"vat_tu"` — giữ đúng nghĩa client cũ. */
-  vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong: number;
+  vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong?: number;
+              tu_dong?: boolean; gia_tri_chip?: Record<string, number>;
               kho_rong?: number; kho_dai?: number }[];
   ghi_chu?: string | null;
 }

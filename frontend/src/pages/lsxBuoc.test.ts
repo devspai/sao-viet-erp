@@ -262,7 +262,19 @@ describe("toBody — khổ dòng giấy", () => {
       mon("giay", "905", "780"), mon("vat_tu", "", "")] })]);
     expect(body.vat_tus).toEqual([
       { hang_loai: "giay", vat_tu_id: 7, so_luong: 5000, tu_dong: false, kho_rong: 905, kho_dai: 780 },
-      { hang_loai: "vat_tu", vat_tu_id: 7, so_luong: 5000, tu_dong: false },
+      { hang_loai: "vat_tu", vat_tu_id: 7, tu_dong: false, gia_tri_chip: {} },
     ]);
+  });
+});
+
+describe("toBody — vật tư khác giấy", () => {
+  it("vật tư khác gửi chip, KHÔNG gửi so_luong; giấy vẫn gửi so_luong", () => {
+    const r = { ...emptyRow(), vat_tus: [
+      { hang_loai: "vat_tu", vat_tu_id: 1, so_luong: "0.2", tu_dong: true, gia_tri_chip: { dai_support: 500 }, chips: [] },
+      { hang_loai: "giay", vat_tu_id: 9, so_luong: "10", tu_dong: false, kho_rong: "0", kho_dai: "0" },
+    ] } as never;
+    const body = toBody([r])[0];
+    expect(body.vat_tus![0]).toEqual({ hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: true, gia_tri_chip: { dai_support: 500 } });
+    expect(body.vat_tus![1].so_luong).toBe(10);
   });
 });

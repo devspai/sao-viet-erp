@@ -8280,3 +8280,5 @@ th.khsx-vtbang__buoc {
   border: 1px solid #fecdd3;
   font-weight: 700;
 }
+
+.lsx-vt-chip { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted, #64748b); font-size: 12px; margin-top: 4px; }
