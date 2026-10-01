@@ -3339,7 +3339,9 @@ dùng cho bình bài.
 
 **Purpose:** vật tư in ấn — danh mục PHẲNG (mực/kẽm/hoá chất/màng/keo… chung 1 bảng, phân biệt bằng tên) theo bảng xưởng: Mã · Tên · ĐVT · Giá · Ghi chú. Thay 2 bảng cũ `muc`+`ban_kem`.
 
-**Tất cả cột:** `id`, `ma`, `ten`, `don_vi_gia`, `don_vi_dong_goi`, `he_so_dong_goi`, `don_gia`, `cong_thuc_gia`, `ghi_chu`, `thay_the_ids`, `anh_url`, `active`, `created_at`, `updated_at`, `customer_id`, `la_thanh_pham`, `order_id`, `order_line_id`.
+**Tất cả cột:** `id`, `ma`, `ten`, `don_vi_gia`, `don_vi_dong_goi`, `he_so_dong_goi`, `don_gia`, `cong_thuc_gia`, `cong_thuc_dinh_muc`, `ghi_chu`, `thay_the_ids`, `anh_url`, `active`, `created_at`, `updated_at`, `customer_id`, `la_thanh_pham`, `order_id`, `order_line_id`.
+
+`cong_thuc_dinh_muc` (TEXT nullable, mg 0357, 01/10/2026): **CÔNG THỨC ĐỊNH MỨC** — số lượng vật tư này tiêu hao cho MỘT bước; biến = bộ `LOAI_QUY_DOI` + chip riêng (`vat_tu_chip`). Lệnh sản xuất tự tính, người dùng không nhập tay. Backfill từ `cong_doan_vat_tu.cong_thuc_luong` khi vật tư chỉ có đúng một công thức.
 
 `thay_the_ids` (JSON nullable, mảng int, mg 0239): **NVL THAY THẾ** — id các dòng `vat_tu_in_an` KHÁC dùng thay được món này. Xem ghi chú đầy đủ ở `giay_nguyen.thay_the_ids` (một chiều, chỉ tra cứu/gợi ý).
 
@@ -3364,6 +3366,14 @@ dùng cho bình bài.
 `don_vi_gia` (mg 0170): **ĐƠN VỊ GỐC** — mã trong `don_vi_do`, NULL = chưa chọn. Xem ghi chú ở `giay_nguyen`.
 
 `don_vi_dong_goi` + `he_so_dong_goi` (mg 0170) — **ĐÃ BỎ 10/08/2026, cột chết**: quy cách đóng gói riêng của món ("1 thùng = 3 kg"). Gỡ vì khai quy đổi ở hai nơi (đây và danh mục Đơn vị & quy đổi) là bắt người dùng nhớ luật vô ích; cần "thùng keo 20 kg" thì khai thẳng một đơn vị như vậy ở `don_vi_do` rồi chọn làm ĐVT. Đã gỡ khỏi model · schema · form · đồ thị quy đổi; hai cột để nguyên trong DB (dự án không có Alembic, không drop) nhưng KHÔNG còn code nào đọc/ghi.
+
+### `vat_tu_chip`
+
+**Purpose:** chip RIÊNG do người dùng đặt tên cho MỘT vật tư (vd "Dài support"); dùng làm biến trong `vat_tu_in_an.cong_thuc_gia` và `cong_thuc_dinh_muc`. Bảng mới (spec 2026-10-01); do `create_all` dựng.
+
+**Tất cả cột:** `id`, `vat_tu_id`, `ma`, `ten`, `don_vi`, `thu_tu`.
+
+`vat_tu_id` FK→`vat_tu_in_an.id` (CASCADE), index. `ma` (VARCHAR(40)) là tên biến trong công thức — sinh từ tên lúc tạo, KHÔNG đổi khi đổi tên chip; unique (`vat_tu_id`, `ma`) `uq_vat_tu_chip_ma`. `ten` (VARCHAR(80)) nhãn hiện trên màn. `don_vi` (VARCHAR(24) nullable) hiện sau ô nhập. `thu_tu` (INTEGER default 0).
 
 ### `cong_doan`
 

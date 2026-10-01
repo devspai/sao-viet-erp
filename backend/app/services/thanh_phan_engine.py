@@ -26,6 +26,7 @@ from __future__ import annotations
 import ast
 import operator
 import re
+from collections.abc import Iterable
 from math import ceil, floor
 
 from .routing_engine import basis_qty, compute_step_cost
@@ -307,7 +308,8 @@ class _MoiBienDeuCo(dict):
 _LOI_CUA_SO_GIA = (ZeroDivisionError, OverflowError)
 
 
-def kiem_cong_thuc(cong_thuc: str | None, *, nhan: str, loai: str | None = None) -> None:
+def kiem_cong_thuc(cong_thuc: str | None, *, nhan: str, loai: str | None = None,
+                   bien_them: Iterable[str] = ()) -> None:
     """Kiểm MỘT câu công thức lúc LƯU, khi chưa có số thật. Hợp lệ thì im, sai thì `ValueError`.
 
     Trước 07/09/2026 không tầng nào ở server kiểm: `PUT /api/vat-lieu-kho/giay/6` với
@@ -327,7 +329,10 @@ def kiem_cong_thuc(cong_thuc: str | None, *, nhan: str, loai: str | None = None)
     """
     if not cong_thuc or not cong_thuc.strip():
         return
-    bien = dict.fromkeys(ma_hop_le(loai), 1.0) if loai else _MoiBienDeuCo()
+    if loai:
+        bien = {**dict.fromkeys(ma_hop_le(loai), 1.0), **dict.fromkeys(bien_them, 1.0)}
+    else:
+        bien = _MoiBienDeuCo()
     try:
         node = ast.parse(_chuan_hoa(cong_thuc), mode='eval').body
     except SyntaxError:
