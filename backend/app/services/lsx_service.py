@@ -2160,8 +2160,12 @@ class LsxService:
                 if v.hang_loai != HANG_GIAY:
                     continue
                 d = self._dong_giay_cho_ma(cd, qc, int(v.vat_tu_id))
+                if d["so_luong"] is None:
+                    # Chưa tính được (thiếu khổ/gsm/cặp quy đổi/đơn vị vào) ⇒ GIỮ nguyên giá trị đã
+                    # lưu; lý do hiện qua `vat_tu_goi_y`. Ghi 0 là xoá im lặng dòng đang đúng.
+                    continue
                 v.dang_giay = d["dang"]
-                v.so_luong = d["so_luong"] if d["so_luong"] is not None else 0
+                v.so_luong = d["so_luong"]
                 v.kho_rong, v.kho_dai = d["kho_rong"], d["kho_dai"]
                 if d["don_vi"]:
                     v.don_vi_snapshot = d["don_vi"]

@@ -284,6 +284,8 @@ describe("nhanGiayTheoDauVao", () => {
     expect(nhanGiayTheoDauVao("to", "kg")).toBe("tờ in");
     expect(nhanGiayTheoDauVao("to_nguyen", "kg")).toBe("tờ nguyên");
     expect(nhanGiayTheoDauVao("cuon", "kg")).toBe("cuộn · kg");
-    expect(nhanGiayTheoDauVao(null, "tấn")).toBe("cuộn · tấn");
+    expect(nhanGiayTheoDauVao(null, "tấn")).toBe("");
+    expect(nhanGiayTheoDauVao("", "kg")).toBe("");
+    expect(nhanGiayTheoDauVao("cai", "kg")).toBe("");
   });
 });

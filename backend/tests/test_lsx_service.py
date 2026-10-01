@@ -3654,28 +3654,26 @@ def _mot_buoc_giay(buoc, vat_tus):
 def test_luu_dong_giay_bo_so_va_kho_cua_client_lay_theo_dau_vao_buoc(
         db, orders, lsx_svc, admin, customer):
     # Spec 2026-10-01 dong-giay-theo-dau-vao: số + khổ client gửi lên bị BỎ; máy chủ ghi theo đầu
-    # vào của bước (trước đây test này khẳng định số/khổ client được lưu nguyên).
-    from app.services.bien_cong_thuc import quy_cach_bien
-    from app.services.kho_giay import dong_giay_theo_dau_vao
+    # vào của bước. Ghim đơn vị vào của danh mục công đoạn = tờ nguyên để khẳng định số CỤ THỂ.
+    from app.models.don_vi_do import TRAM_TO_NGUYEN
 
     lsx = _lenh_hai_buoc(db, orders, lsx_svc, admin, customer)
     buoc = sorted(lsx.cong_doans, key=lambda x: x.thu_tu)[0]
+    cd_obj = db.get(CongDoan, buoc.cong_doan_id)
+    cd_obj.don_vi_vao = cd_obj.don_vi_ra = TRAM_TO_NGUYEN
+    lsx.quy_cach_json = {**(lsx.quy_cach_json or {}), "kho_nguyen_rong": 780, "kho_nguyen_dai": 905}
+    db.commit()
     g = _giay_kg(db)
     saved = lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=_mot_buoc_giay(buoc, [
         {"hang_loai": "giay", "vat_tu_id": g.id, "so_luong": 7, "kho_rong": 1, "kho_dai": 2}]))
     cd = next(c for c in saved.cong_doans if c.step_key == buoc.step_key)
+    assert cd.don_vi_vao == TRAM_TO_NGUYEN and float(cd.so_luong_vao) > 0
     dong = next(v for v in cd.vat_tus if v.hang_loai == "giay")
-    mong = dong_giay_theo_dau_vao(
-        don_vi_vao=cd.don_vi_vao, so_luong_vao=float(cd.so_luong_vao),
-        so_luong_ra=float(cd.so_luong_ra), quy_cach=quy_cach_bien(saved), gsm=300)
-    if mong["dang"] == "to":
-        assert (dong.kho_rong, dong.kho_dai) == (mong["kho_rong"], mong["kho_dai"])
-        assert float(dong.so_luong) == pytest.approx(mong["so_luong"])
-        assert dong.don_vi_snapshot == mong["don_vi"] and dong.dang_giay == "to"
-    assert (dong.kho_rong, dong.kho_dai) != (1, 2) and float(dong.so_luong) != 7
+    assert (dong.dang_giay, dong.kho_rong, dong.kho_dai, dong.don_vi_snapshot) ==         ("to", 780, 905, TRAM_TO_NGUYEN)
+    assert float(dong.so_luong) == pytest.approx(float(cd.so_luong_vao)) and float(dong.so_luong) != 7
     b = next(x for x in lsx_svc.detail_dict(saved)["cong_doans"] if x["step_key"] == buoc.step_key)
     v = next(x for x in b["vat_tus"] if x["hang_loai"] == "giay")
-    assert v["dang_giay"] == dong.dang_giay and v["kho_rong"] == dong.kho_rong
+    assert (v["dang_giay"], v["kho_rong"], v["kho_dai"]) == ("to", 780, 905)
 
 
 def test_dong_giay_khong_con_bat_client_gui_kho_hay_so():

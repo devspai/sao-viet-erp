@@ -113,7 +113,7 @@ def dong_giay_theo_dau_vao(*, don_vi_vao: str | None, so_luong_vao: float, so_lu
     """Dòng giấy của MỘT bước, dẫn xuất từ ĐẦU VÀO của bước (spec 2026-10-01 dong-giay-theo-dau-vao §4).
 
     Bước nhận tờ in (`TRAM_TO`) ⇒ tờ khổ in; nhận tờ nguyên (`TRAM_TO_NGUYEN`) ⇒ tờ khổ nguyên; còn lại
-    (bước nhận cuộn, vd Cắt cuộn) ⇒ cuộn, đếm bằng **kg** = tờ nguyên ra × diện tích × gsm. Cuộn luôn trả
+    (đơn vị vào có khai nhưng KHÔNG phải mã chặng giấy — bước nhận cuộn, vd Cắt cuộn) ⇒ cuộn, đếm bằng **kg** = tờ nguyên ra × diện tích × gsm. Cuộn luôn trả
     `don_vi="kg"` — bên gọi đổi sang đơn vị của mã giấy. Thiếu khổ / gsm ⇒ `so_luong=None` + `ly_do`.
     """
     from ..models.don_vi_do import TRAM_TO, TRAM_TO_NGUYEN
@@ -144,6 +144,13 @@ def dong_giay_theo_dau_vao(*, don_vi_vao: str | None, so_luong_vao: float, so_lu
         out.update(so_luong=float(so_luong_vao or 0), kho_rong=ng_r, kho_dai=ng_d)
         if not (ng_r and ng_d):
             out.update(so_luong=None, ly_do="Lệnh chưa có khổ nguyên của giấy.")
+        return out
+    if not (don_vi_vao or "").strip():
+        out.update(ly_do="Bước chưa khai đơn vị vào.")
+        return out
+    if tram is not None:
+        # Chặng giấy nhưng không phải tờ (con / cai / tay): đầu vào không còn là tờ hay cuộn giấy.
+        out.update(ly_do="Đầu vào của bước không phải tờ hay cuộn giấy nên không tính được dòng giấy.")
         return out
     out.update(dang=DANG_CUON, don_vi="kg", kho_rong=ng_r, kho_dai=0)
     if not (ng_r and ng_d):

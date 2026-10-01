@@ -233,7 +233,8 @@ export function LsxBuocDrawer({
       if (daCo("giay", x.id)) continue;
       ds.push({
         value: capMon("giay", x.id),
-        label: `${x.ten} (${nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi))})`,
+        label: nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi))
+          ? `${x.ten} (${nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi))})` : x.ten,
         search: x.ma ?? "",
         group: "NVL chính — danh mục Giấy",
       });

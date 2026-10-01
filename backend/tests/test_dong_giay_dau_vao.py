@@ -33,6 +33,16 @@ def test_buoc_nhan_cuon_tinh_kg_tu_to_nguyen_ra():
     assert (d["kho_rong"], d["kho_dai"]) == (790, 0)
 
 
+def test_don_vi_vao_trong_hoac_khong_phai_to_cuon_thi_khong_doan():
+    for dv in (None, "", "cai", "con", "tay"):
+        d = dong_giay_theo_dau_vao(don_vi_vao=dv, so_luong_vao=10, so_luong_ra=10,
+                                   quy_cach=QC, gsm=250)
+        assert d["so_luong"] is None and d["ly_do"], dv
+        assert d["dang"] == "to"      # không bị lật sang cuộn
+    assert "chưa khai" in dong_giay_theo_dau_vao(
+        don_vi_vao=None, so_luong_vao=1, so_luong_ra=1, quy_cach=QC, gsm=250)["ly_do"]
+
+
 def test_thieu_kho_thi_khong_doan():
     d = dong_giay_theo_dau_vao(don_vi_vao=TRAM_TO_NGUYEN, so_luong_vao=10, so_luong_ra=10,
                                quy_cach={}, gsm=250)
@@ -145,4 +155,21 @@ def test_buoc_nhan_cuon_thieu_cap_quy_doi_khong_raise(db):
     db.commit()
     lsx, b = _cuon(db, "tan")
     _svc(db)._dong_bo_dong_giay(lsx)
-    assert _dong_giay(b)[:2] == ("cuon", 0.0)
+    # Không đổi được ⇒ giữ NGUYÊN giá trị đã lưu (số rác ban đầu 1), không ghi 0.
+    assert _dong_giay(b)[:2] == (None, 1.0)
+
+
+def test_buoc_khong_tinh_duoc_giu_nguyen_dong_giay_da_luu(db):
+    from app.models.customer import Customer
+    c = Customer(code="KH-GN", name="Khách giữ")
+    db.add(c)
+    db.commit()
+    g = _giay(db, ma="C250G", gsm=250)
+    lsx = _lenh(db, c, g)
+    b = _buoc(db, lsx, 1, "Dán", "cai", "cai", g)
+    v = b.vat_tus[0]
+    v.so_luong, v.kho_rong, v.kho_dai, v.don_vi_snapshot, v.dang_giay = 123, 790, 1090, "to_nguyen", "to"
+    b.so_luong_vao = 50
+    db.refresh(lsx)
+    _svc(db)._dong_bo_dong_giay(lsx)
+    assert _dong_giay(b) == ("to", 123.0, 790, 1090, "to_nguyen")

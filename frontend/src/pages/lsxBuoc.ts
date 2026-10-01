@@ -702,7 +702,9 @@ export function heSoChu(
  *  dong-giay-theo-dau-vao §4): bước nhận tờ in ⇒ "tờ in", nhận tờ nguyên ⇒ "tờ nguyên", còn lại
  *  (nhận cuộn) ⇒ "cuộn · <đơn vị của mã>". `donViMa` đã là nhãn hiển thị (qua `nhanDonVi`). */
 export function nhanGiayTheoDauVao(donViVao: string | null | undefined, donViMa: string): string {
+  if (!donViVao) return ""; // chưa khai đơn vị vào ⇒ chưa biết tờ hay cuộn: chỉ hiện tên
   if (donViVao === "to") return "tờ in";
   if (donViVao === "to_nguyen") return "tờ nguyên";
+  if (donViVao === "con" || donViVao === "cai" || donViVao === "tay") return ""; // đầu vào không phải giấy
   return `cuộn · ${donViMa}`;
 }
