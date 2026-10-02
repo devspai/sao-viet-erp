@@ -4,7 +4,7 @@
 // trong drawer có SƠ ĐỒ BÌNH BÀI live. Auto + override giữ nguyên. "Tính giá" = create (lần đầu,
 // khi phiếu còn nháp) hoặc update(pid) — BE replace-all + tính lại + snapshot → refresh từ Out.
 // LƯU = TÍNH, và phiếu KHÔNG vào DB cho tới lần lưu đầu tiên (chống phiếu rỗng bỏ lại).
-import BuocVatTu, { type BuocVatTuDong } from "./BuocVatTu";
+import BuocVatTu, { tomTatBuoc, type BuocVatTuDong } from "./BuocVatTu";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   api,
@@ -3103,6 +3103,7 @@ function ComponentModal({
                 )}
                 {c.thanh_phams.map((f, fIdx) => {
                   const canh = tinhTrangBuoc(f, congDoans);
+                  const tt = tomTatBuoc(f.vat_tus, vatTuDm);
                   return (
                   <div key={f.uid} className="tg-timeline-item">
                     <span
@@ -3118,6 +3119,19 @@ function ComponentModal({
                       <span className="tg-chip__name">
                         {tenBuoc(f, congDoans) || "(công đoạn)"}
                       </span>
+                      {tt.so > 0 && (
+                        <span className="tg-chip__bvt" title={`${tt.so} vật tư trong bước này`}>
+                          · {tt.so}
+                        </span>
+                      )}
+                      {tt.chipTrong > 0 && (
+                        <span
+                          className="tg-chip__bvt-canh"
+                          role="img"
+                          aria-label="Còn ô chip chưa nhập số"
+                          title="Còn ô chip chưa nhập số"
+                        />
+                      )}
                       {canh ? (
                         <span className="tg-chip__canh">
                           {canh === "mat" ? "đã xóa" : "ngừng dùng"}

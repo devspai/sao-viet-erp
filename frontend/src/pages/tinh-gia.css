@@ -3697,57 +3697,186 @@ select.tg-input--sm {
   color: var(--ash);
 }
 
-/* Vật tư theo bước (01/10/2026) */
-.tg-bvt-khoi { display: grid; gap: var(--sp-3); margin-top: var(--sp-3); }
+/* Vật tư theo bước (01/10/2026 · làm gọn 02/10/2026) */
+.tg-bvt-khoi { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); }
 .tg-bvt {
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-5);
   background: var(--paper-contrast);
-  padding: var(--sp-3);
-  display: grid;
-  gap: var(--sp-3);
-}
-.tg-bvt__head { font-weight: 600; font-size: 14px; color: var(--ink); }
-.tg-bvt__rong { color: var(--ash); font-size: 13px; margin: 0; }
-/* Mỗi vật tư một thẻ: tên + nút xoá ở trên, lưới ô chip (có đơn vị trong ô) ở dưới. */
-.tg-bvt__row {
+  padding: var(--sp-2) var(--sp-3);
   display: grid;
   gap: var(--sp-2);
-  padding: var(--sp-3);
+  min-width: 0;
+}
+.tg-bvt__head { font-weight: 600; font-size: 13px; color: var(--ink); }
+.tg-bvt__rong { color: var(--ash); font-size: 12.5px; margin: 0; }
+
+/* Vật tư CÓ chip: một dòng — tên · các ô chip (tự xuống dòng khi hẹp) · nút xoá cuối dòng. */
+.tg-bvt__dong {
+  display: grid;
+  grid-template-columns: minmax(72px, max-content) minmax(0, 1fr) auto;
+  grid-template-areas: "ten chips xoa";
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.tg-bvt__ten {
+  grid-area: ten;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tg-bvt__ochips {
+  grid-area: chips;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+/* Một ô chip = một khung: nhãn ngắn · ô số · đơn vị. Viền đổi màu khi đang gõ / khi còn trống. */
+.tg-bvt__o {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 8px;
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-5);
   background: var(--paper);
+  cursor: text;
+  min-width: 0;
+  max-width: 100%;
+  transition: border-color var(--duration-fast) var(--easing-standard),
+    box-shadow var(--duration-fast) var(--easing-standard);
 }
-.tg-bvt__top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
-.tg-bvt__ten { font-weight: 600; font-size: 14px; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
-.tg-bvt__chips {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--sp-3);
+.tg-bvt__o:hover { border-color: var(--ash-2); }
+.tg-bvt__o--trong { border-color: var(--amber); background: var(--amber-soft); }
+.tg-bvt__o--trong:hover { border-color: var(--amber-deep); }
+.tg-bvt__o:focus-within {
+  border-color: var(--rust);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rust) 15%, transparent);
 }
-.tg-bvt__chip .tg-input--num { text-align: right; }
-.tg-bvt__wrap .tg-input { padding-right: 44px; }
+.tg-bvt__o-nhan {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ash);
+  white-space: nowrap;
+}
+.tg-bvt__o--trong .tg-bvt__o-nhan { color: var(--amber-deep); }
+.tg-bvt__o-so {
+  width: 56px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  font-family: var(--ff-sans);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink);
+}
+.tg-bvt__o-so:focus { outline: none; }
+.tg-bvt__o-dv { font-size: 12px; color: var(--ash-2); white-space: nowrap; }
 .tg-bvt__xoa {
+  grid-area: xoa;
   flex: none;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border: 1px solid var(--rule-soft);
-  border-radius: var(--r-5);
+  border-radius: var(--r-pill);
   background: transparent;
   color: var(--ash);
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
   cursor: pointer;
 }
 .tg-bvt__xoa:hover { color: var(--rust); border-color: var(--rust); }
-.tg-bvt__them { max-width: 320px; }
-.tg-bvt__them .tg-input { color: var(--ash); }
-.tg-bvt__chip { justify-content: flex-end; }
-@media (max-width: 640px) {
-  .tg-bvt__chips { grid-template-columns: 1fr 1fr; align-items: end; }
-  .tg-bvt__them { max-width: none; }
+
+/* Vật tư KHÔNG chip: thẻ nhỏ chung một hàng, "+ Thêm" đứng cuối hàng, cùng cỡ thẻ. */
+.tg-bvt__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
-/* Điện thoại hẹp: nhãn chip dài xuống dòng làm lệch hàng — xếp một cột cho thẳng. */
-@media (max-width: 420px) {
-  .tg-bvt__chips { grid-template-columns: 1fr; }
+.tg-bvt__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 28px;
+  max-width: 100%;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: var(--fw-medium);
+}
+.tg-bvt__tag-ten { min-width: 0; overflow-wrap: anywhere; }
+.tg-bvt__tag-x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ash);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tg-bvt__tag-x:hover { color: var(--rust); background: var(--rule-hair); }
+.tg-bvt__them { display: inline-flex; }
+.tg-bvt__them .sel { width: auto; }
+.tg-bvt__them .sel__trigger.tg-bvt__them-btn {
+  width: auto;
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 1px dashed var(--rule);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ash);
+  font-family: var(--ff-sans);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.tg-bvt__them .sel__trigger.tg-bvt__them-btn:hover { border-color: var(--ash-2); background: var(--rule-hair); }
+
+/* Số vật tư + chấm cảnh báo trên viên công đoạn (mục 4). */
+.tg-chip__bvt {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ash);
+  font-variant-numeric: tabular-nums;
+}
+.tg-chip__bvt-canh {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--amber);
+  flex: none;
+}
+
+/* Điện thoại: tên + nút xoá cùng hàng trên, ô chip chiếm trọn hàng dưới; ô chip nở chia đôi hàng. */
+@media (max-width: 640px) {
+  .tg-bvt__dong {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "ten xoa" "chips chips";
+    padding-bottom: var(--sp-1);
+  }
+  .tg-bvt__o { flex: 1 1 140px; min-height: 36px; }
+  .tg-bvt__o-so { flex: 1 1 auto; width: 40px; }
+  .tg-bvt__xoa { width: 32px; height: 32px; }
+  .tg-bvt__tag { min-height: 32px; }
+  .tg-bvt__tag-x { width: 26px; height: 26px; }
+  .tg-bvt__them .sel__trigger.tg-bvt__them-btn { min-height: 32px; }
 }
