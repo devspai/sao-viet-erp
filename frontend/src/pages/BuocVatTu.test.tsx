@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import BuocVatTu, { nhanNgan, tomTatBuoc } from "./BuocVatTu";
+import BuocVatTu, { nhanNgan, soOChipTrong } from "./BuocVatTu";
 
 vi.mock("./tenDonVi", () => ({
   useNapTenDonVi: () => 1,
@@ -19,9 +19,12 @@ const props = (over = {}) => ({
 });
 
 describe("BuocVatTu", () => {
-  it("bước chưa có vật tư thì nói rõ", () => {
-    render(<BuocVatTu {...props()} />);
-    expect(screen.getByText(/chưa có vật tư/i)).toBeTruthy();
+  it("bước chưa có vật tư: không câu chữ thừa, chỉ có nút + vật tư", () => {
+    const { container } = render(<BuocVatTu {...props()} />);
+    expect(screen.queryByText(/chưa có vật tư/i)).toBeNull();
+    expect(screen.queryByText(/Vật tư của bước/)).toBeNull();
+    expect(container.querySelectorAll(".tg-bvt__tag, .tg-bvt__dong").length).toBe(0);
+    expect(screen.getByRole("button", { name: /Thêm vật tư vào bước Cán màng/ }).textContent).toMatch(/\+ vật tư/);
   });
 
   it("vật tư có chip → mọc đúng ô nhập, gõ số báo ra ngoài", () => {
@@ -78,11 +81,58 @@ describe("BuocVatTu", () => {
     expect(screen.getByLabelText("Rộng support").closest("label")?.className).toMatch(/tg-bvt__o--trong/);
   });
 
-  it("vật tư không chip thành thẻ nhỏ chung hàng với nút Thêm", () => {
-    const { container } = render(<BuocVatTu {...props({ dong: [{ uid: "b", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
-    const hang = container.querySelector(".tg-bvt__tags")!;
+  it("chưa nhập ≠ đã nhập 0: ô trống không placeholder \"0\", ô 0 hiện 0 viền thường", () => {
+    const onChange = vi.fn();
+    render(<BuocVatTu {...props({ onChange, dong: [{ uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 0 } }] })} />);
+    const dai = screen.getByLabelText("Dài support") as HTMLInputElement;
+    const rong = screen.getByLabelText("Rộng support") as HTMLInputElement;
+    expect(dai.value).toBe("0");
+    expect(dai.closest("label")?.className).not.toMatch(/--trong/);
+    expect(rong.value).toBe("");
+    expect(rong.getAttribute("placeholder") ?? "").toBe("");
+    expect(rong.closest("label")?.className).toMatch(/--trong/);
+    fireEvent.change(rong, { target: { value: "0" } });
+    expect(onChange).toHaveBeenLastCalledWith([
+      { uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 0, rong_support: 0 } }]);
+  });
+
+  it("vật tư có chip mỗi món một dòng lưới trước; thẻ vật tư không chip + '+ vật tư' chung một hàng sau", () => {
+    const dm = [...DM, { id: 4, ma: "MUC", ten: "Mực", chips: [] }];
+    const { container } = render(<BuocVatTu {...props({ vatTuDm: dm as never, dong: [
+      { uid: "b", vat_tu_id: 2, gia_tri_chip: {} }, { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
+    const khoi = container.querySelector(".tg-bvt")!;
+    expect(Array.from(khoi.children).map((e) => e.className)).toEqual(["tg-bvt__dong", "tg-bvt__hang"]);
+    const dong = khoi.querySelector(".tg-bvt__dong")!;
+    expect(Array.from(dong.children).map((e) => e.className))
+      .toEqual(["tg-bvt__ten", "tg-bvt__luoi", "tg-bvt__xoa"]);
+    expect(dong.querySelector(".tg-bvt__ten")?.textContent).toBe("Support");
+    const hang = khoi.querySelector(".tg-bvt__hang")!;
+    expect(Array.from(hang.children).map((e) => e.className)).toEqual(["tg-bvt__tag", "tg-bvt__them"]);
     expect(hang.querySelector(".tg-bvt__tag")?.textContent).toMatch(/Keo dán/);
     expect(hang.querySelector('[aria-label^="Thêm vật tư vào bước"]')).toBeTruthy();
+  });
+
+  it("vật tư 5 chip: đủ 5 ô trong MỘT lưới, nhãn nằm trên khung ô", () => {
+    const ten = ["Dài", "Rộng", "Số dao", "Dài đường bế", "Độ dày"];
+    const dm = [{ id: 9, ma: "KB", ten: "Khuôn bế", chips: ten.map((t, k) => ({ ma: `c${k}`, ten: t, don_vi: "mm" })) }];
+    const { container } = render(<BuocVatTu {...props({ vatTuDm: dm as never, dong: [
+      { uid: "k", vat_tu_id: 9, gia_tri_chip: { c0: 420 } }] })} />);
+    const luoi = container.querySelectorAll(".tg-bvt__luoi");
+    expect(luoi).toHaveLength(1);
+    const o = luoi[0].querySelectorAll(".tg-bvt__o");
+    expect(o).toHaveLength(5);
+    expect(Array.from(o[0].children).map((e) => e.className)).toEqual(["tg-bvt__o-nhan", "tg-bvt__o-khung"]);
+    expect(container.querySelectorAll(".tg-bvt__o--trong")).toHaveLength(4);
+  });
+});
+
+describe("soOChipTrong", () => {
+  it("đếm ô chưa nhập theo chip danh mục; đã nhập 0 không tính", () => {
+    expect(soOChipTrong([
+      { uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 0 } },
+      { uid: "b", vat_tu_id: 2, gia_tri_chip: {} },
+    ], DM as never)).toBe(1);
+    expect(soOChipTrong([], DM as never)).toBe(0);
   });
 });
 
@@ -96,15 +146,5 @@ describe("nhanNgan", () => {
     expect(nhanNgan("Support", "Support")).toBe("Support");
     expect(nhanNgan("Chiều dài", "Support")).toBe("Chiều dài");
     expect(nhanNgan("Supportx dài", "Support")).toBe("Supportx dài");
-  });
-});
-
-describe("tomTatBuoc", () => {
-  it("đếm vật tư và ô chip chưa nhập số", () => {
-    expect(tomTatBuoc([
-      { uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 5 } },
-      { uid: "b", vat_tu_id: 2, gia_tri_chip: {} },
-    ], DM as never)).toEqual({ so: 2, chipTrong: 1 });
-    expect(tomTatBuoc([], DM as never)).toEqual({ so: 0, chipTrong: 0 });
   });
 });

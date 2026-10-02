@@ -4,7 +4,7 @@
 // trong drawer có SƠ ĐỒ BÌNH BÀI live. Auto + override giữ nguyên. "Tính giá" = create (lần đầu,
 // khi phiếu còn nháp) hoặc update(pid) — BE replace-all + tính lại + snapshot → refresh từ Out.
 // LƯU = TÍNH, và phiếu KHÔNG vào DB cho tới lần lưu đầu tiên (chống phiếu rỗng bỏ lại).
-import BuocVatTu, { tomTatBuoc, type BuocVatTuDong } from "./BuocVatTu";
+import BuocVatTu, { chipsCua, soOChipTrong, type BuocVatTuDong } from "./BuocVatTu";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   api,
@@ -31,7 +31,7 @@ import { SanPhamTaiBanGoiY as SanPhamTaiBanCombo } from "../components/SanPhamTa
 import { Select, type SelectOption } from "../components/Select";
 import { ImpositionDiagram } from "./ImpositionDiagram";
 import { heSoChu, nhanChang, nhanDonVi } from "./lsxBuoc";
-import { useNapTenDonVi } from "./tenDonVi";
+import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 // Nhãn ĐƠN VỊ của biến công thức lấy từ TỪ ĐIỂN BIẾN (`/api/bien-cong-thuc`), không khai lại ở đây —
 // xem ghi chú chỗ `humanizeFormula`.
 import { traBien, useBienCongThuc, type TraBien } from "./RebuildCatalogPage";
@@ -235,6 +235,27 @@ export interface DongTien {
   tien: number;
   congThuc: string;
   congThucGoc: string;
+  /** Chỉ dòng vật tư theo bước có: để tra CHIP RIÊNG của vật tư đó khi đọc công thức. */
+  vatTuId?: number | null;
+}
+
+/** Bản tra biến có thêm CHIP RIÊNG của một vật tư. Chip là động (khai ở danh mục vật tư), không
+ *  nằm trong từ điển biến chung nên `dienGiaiFormula` / `humanizeFormula` để nguyên mã thô
+ *  (`dinh_luong_support × dai_support`). Chip đè từ điển chung — engine cũng thế: số chip được ghi
+ *  sau cùng vào ngữ cảnh tính. Cùng cách `lsx_service._luong_vat_tu` đọc nhãn chip cho lệnh SX:
+ *  nhãn = tên chip, đơn vị = tên đơn vị trong danh mục. */
+function traKemChip(tra: TraBien, vt: Row | undefined): TraBien {
+  const chips = chipsCua(vt);
+  if (chips.length === 0) return tra;
+  const theoMa = new Map(chips.map((c) => [c.ma, c]));
+  return (ma) => {
+    const c = theoMa.get(ma);
+    if (!c) return tra(ma);
+    return {
+      ma, nhan: c.ten, mo_ta: "", nguon: "chip", loai: [],
+      don_vi: c.don_vi ? (tenDonVi(c.don_vi) ?? "") : "",
+    };
+  };
 }
 
 /** `"to_dau_vao * so_mat * 350"` → `"Tờ vào máy × Số mặt in × 350"`.
@@ -402,6 +423,7 @@ function nvlTheoLoai(groups: PhieuTinhGiaGroupOut[] | null): { giay: DongTien[];
     const dong: DongTien = {
       ten: _chuoi(r.ten), tien,
       congThuc: _chuoi(r.cong_thuc), congThucGoc: _chuoi(r.cong_thuc_goc),
+      vatTuId: _so(r.vat_tu_id),
     };
     if (r.loai === "giay") ra.giay.push(dong);
     else if (r.loai === "vat_tu") ra.vatTu.push(dong);
@@ -2647,8 +2669,8 @@ function ComponentModal({
     return () => window.clearTimeout(t);
   }, [canhBaoIn]);
 
-  // Một đường thêm chip cho CẢ ba chỗ: nút "+" chèn lên đầu, mũi tên chèn giữa chuỗi và nút
-  // "+ Thêm công đoạn" ở cuối.
+  // Một đường thêm công đoạn cho CẢ ba chỗ: nút "+" chèn lên đầu, nút "+" chèn giữa hai dòng và
+  // nút "+ Thêm công đoạn" ở cuối danh sách.
   const themCongDoan = (v: string, insertIdx: number | null = null) => {
     if (!v) return;
     if (v === "__blank") {
@@ -3077,116 +3099,107 @@ function ComponentModal({
               <div className="rc-sec__title">
                 <span className="tg-step-badge">4</span> Chuỗi công đoạn thực hiện
               </div>
-              <div className="tg-timeline">
+              {/* DANH SÁCH DỌC (02/10/2026): mỗi công đoạn một dòng — số thứ tự · tên · vật tư của
+                  bước (thẻ nhỏ / ô chip, "+ vật tư") · nút xoá công đoạn. Thay cho dãy viên ngang +
+                  các khối "Vật tư của bước" rời bên dưới. Chuỗi này không có kéo-thả đổi thứ tự —
+                  sắp lại bằng CHÈN: nút "+" nhỏ nằm trên đường kẻ (lên đầu chuỗi · vào giữa hai bước),
+                  cùng một `themCongDoan` với nút cuối. */}
+              <div className="tg-cdv">
                 {c.thanh_phams.length === 0 && (
-                  <p className="tg-chipgrid__empty" style={{ margin: "6px 0" }}>
+                  <p className="tg-chipgrid__empty tg-cdv__rong">
                     Chưa có công đoạn — thêm ở ô «+ Thêm công đoạn».
                   </p>
                 )}
-                {/* Chèn TRƯỚC bước đầu — mũi tên giữa chuỗi chỉ chèn được sau một bước có sẵn, nút
-                    cuối chỉ nối đuôi, nên thiếu chỗ này thì muốn thêm bước đứng đầu phải xoá cả
-                    chuỗi rồi khai lại. Chuỗi rỗng thì nút cuối đã lo, không hiện. */}
-                {c.thanh_phams.length > 0 && (
-                  <div className="tg-timeline-arrow-wrap" title="Chèn công đoạn lên đầu chuỗi">
-                    <Select
-                      options={cdOpts}
-                      value=""
-                      onChange={(v) => themCongDoan(v, 0)}
-                      placeholder="+"
-                      ariaLabel="Chèn công đoạn lên đầu chuỗi"
-                      searchable
-                      portal
-                      className="tg-timeline-select-arrow"
-                      listClassName="tg-pop"
-                    />
-                  </div>
-                )}
                 {c.thanh_phams.map((f, fIdx) => {
                   const canh = tinhTrangBuoc(f, congDoans);
-                  const tt = tomTatBuoc(f.vat_tus, vatTuDm);
+                  const ten = tenBuoc(f, congDoans) || "(công đoạn)";
+                  const stepNum = fIdx + 1 < 10 ? `0${fIdx + 1}` : `${fIdx + 1}`;
+                  const oTrong = soOChipTrong(f.vat_tus, vatTuDm);
                   return (
-                  <div key={f.uid} className="tg-timeline-item">
-                    <span
-                      className={`tg-chip${canh ? " tg-chip--canh" : ""}`}
-                      title={
-                        canh === "mat"
-                          ? "Công đoạn này đã bị xóa khỏi danh mục — chọn công đoạn khác thay vào."
-                          : canh === "ngung"
-                            ? "Công đoạn này đã ngừng dùng — vẫn tính được, nhưng lần sau không chọn lại được."
-                            : undefined
-                      }
-                    >
-                      <span className="tg-chip__name">
-                        {tenBuoc(f, congDoans) || "(công đoạn)"}
-                      </span>
-                      {tt.so > 0 && (
-                        <span className="tg-chip__bvt" title={`${tt.so} vật tư trong bước này`}>
-                          · {tt.so}
-                        </span>
-                      )}
-                      {tt.chipTrong > 0 && (
-                        <span
-                          className="tg-chip__bvt-canh"
-                          role="img"
-                          aria-label="Còn ô chip chưa nhập số"
-                          title="Còn ô chip chưa nhập số"
-                        />
-                      )}
-                      {canh ? (
-                        <span className="tg-chip__canh">
-                          {canh === "mat" ? "đã xóa" : "ngừng dùng"}
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="tg-chip__x"
-                        aria-label="Xóa công đoạn"
-                        title="Xóa khỏi chuỗi"
-                        onClick={() => removeFin(c.uid, f.uid)}
+                    <Fragment key={f.uid}>
+                      {/* `title` nằm ở thẻ bọc: `Select` không nhận `title`, mà nút "+" không có
+                          chữ nên mất tooltip là mất luôn manh mối "bấm được". */}
+                      <div
+                        className="tg-cdv__chen"
+                        title={fIdx === 0 ? "Chèn công đoạn mới lên đầu quy trình" : `Chèn công đoạn mới trước bước ${stepNum}`}
                       >
-                        <CloseIcon />
-                      </button>
-                    </span>
-                    {/* `title` chuyển lên thẻ bọc: `Select` không nhận `title`, mà mũi tên 22px
-                        không có chữ nên mất tooltip là mất luôn manh mối "bấm được". */}
-                    {fIdx < c.thanh_phams.length - 1 && (
-                      <div className="tg-timeline-arrow-wrap" title="Chèn công đoạn vào giữa">
                         <Select
                           options={cdOpts}
                           value=""
-                          onChange={(v) => themCongDoan(v, fIdx + 1)}
-                          placeholder="➔"
-                          ariaLabel="Chèn công đoạn vào giữa"
+                          onChange={(v) => themCongDoan(v, fIdx)}
+                          placeholder="+"
+                          ariaLabel={fIdx === 0 ? "Chèn công đoạn lên đầu chuỗi" : "Chèn công đoạn vào giữa"}
                           searchable
                           portal
-                          className="tg-timeline-select-arrow"
+                          className="tg-cdv__chen-btn"
                           listClassName="tg-pop"
                         />
                       </div>
-                    )}
-                  </div>
+                      <div className={`tg-cdv__dong${canh ? " tg-cdv__dong--canh" : ""}`}>
+                        {/* Dòng TIÊU ĐỀ của bước: vòng số · tên (+ nhắc ô chip còn trống) · ×.
+                            Vật tư nằm BÊN DƯỚI, dùng hết bề ngang khối. */}
+                        <div className="tg-cdv__dau">
+                          <span className="tg-cdv__so" aria-hidden="true">{stepNum}</span>
+                          <span
+                            className="tg-cdv__ten"
+                            title={
+                              canh === "mat"
+                                ? "Công đoạn này đã bị xóa khỏi danh mục — chọn công đoạn khác thay vào."
+                                : canh === "ngung"
+                                  ? "Công đoạn này đã ngừng dùng — vẫn tính được, nhưng lần sau không chọn lại được."
+                                  : undefined
+                            }
+                          >
+                            <span className="tg-cdv__ten-chu">{ten}</span>
+                            {canh ? (
+                              <span className="tg-cdv__canh">
+                                {canh === "mat" ? "đã xóa" : "ngừng dùng"}
+                              </span>
+                            ) : null}
+                            {oTrong > 0 && (
+                              <span className="tg-cdv__thieu">· còn {oTrong} ô chưa nhập</span>
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            className="tg-cdv__x"
+                            aria-label={`Xóa công đoạn ${ten}`}
+                            title="Xóa khỏi chuỗi"
+                            onClick={() => removeFin(c.uid, f.uid)}
+                          >
+                            <CloseIcon />
+                          </button>
+                        </div>
+                        <div className="tg-cdv__vt">
+                          <BuocVatTu
+                            tenBuoc={ten}
+                            dong={f.vat_tus}
+                            vatTuDm={vatTuDm}
+                            taoUid={nextUid}
+                            onChange={(next) => patchFin(c.uid, f.uid, { vat_tus: next })}
+                          />
+                        </div>
+                      </div>
+                    </Fragment>
                   );
                 })}
-                <div
-                  className="tg-chip-add-wrap"
-                  style={{ marginLeft: c.thanh_phams.length > 0 ? "8px" : "0" }}
-                >
+                <div className="tg-cdv__them">
                   <Select
                     options={cdOpts}
                     value=""
                     onChange={(v) => themCongDoan(v)}
-                    placeholder="+ Thêm công đoạn…"
+                    placeholder="+ Thêm công đoạn mới vào chuỗi"
                     ariaLabel="Thêm công đoạn"
                     searchable
                     portal
-                    className="tg-chip-add"
+                    className="tg-cdv__them-btn"
                     listClassName="tg-pop"
                   />
                 </div>
               </div>
-              {/* Băng nhắc CHẶN thêm bước in thứ hai. Đặt ngay dưới dãy chip vì cả hai đường thêm
-                  (mũi tên chèn giữa · nút cuối) đều nằm trong dãy đó — nhắc ở đây thì bấm ở chỗ
-                  nào cũng thấy. Màn này chưa có toast chung nên dùng đúng lối `tg-hint` đỏ như ③. */}
+              {/* Băng nhắc CHẶN thêm bước in thứ hai. Đặt ngay dưới danh sách vì mọi đường thêm
+                  (nút "+" chèn · nút cuối) đều nằm trong đó — nhắc ở đây thì bấm ở chỗ nào cũng
+                  thấy. Màn này chưa có toast chung nên dùng đúng lối `tg-hint` đỏ như ③. */}
               {canhBaoIn && (
                 <p
                   className="tg-hint"
@@ -3195,23 +3208,6 @@ function ComponentModal({
                 >
                   {canhBaoIn}
                 </p>
-              )}
-
-              {/* VẬT TƯ THEO BƯỚC — vật tư của công đoạn tự hiện, thêm/xoá riêng cho phiếu này, mỗi
-                  vật tư mọc ô nhập cho chip riêng của nó. */}
-              {c.thanh_phams.length > 0 && (
-                <div className="tg-bvt-khoi">
-                  {c.thanh_phams.map((f) => (
-                    <BuocVatTu
-                      key={f.uid}
-                      tenBuoc={tenBuoc(f, congDoans) || "(công đoạn)"}
-                      dong={f.vat_tus}
-                      vatTuDm={vatTuDm}
-                      taoUid={nextUid}
-                      onChange={(next) => patchFin(c.uid, f.uid, { vat_tus: next })}
-                    />
-                  ))}
-                </div>
               )}
 
               {/* PHÍ KHUÔN — chỉ mọc khi chuỗi có bước cần dao lưu kho. Chuỗi toàn bước phẳng thì
@@ -3680,7 +3676,10 @@ function ComponentModal({
                   <div className="tg-sheetrow" key={`v${i}`}>
                     <span className="tg-sheetrow__stack">
                       {d.ten.split(" · ").pop()}
-                      <HaiDongCongThuc d={d} tra={tra} />
+                      <HaiDongCongThuc
+                        d={d}
+                        tra={traKemChip(tra, vatTuDm.find((v) => v.id === d.vatTuId))}
+                      />
                     </span>
                     <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
                   </div>

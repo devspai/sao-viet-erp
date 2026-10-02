@@ -347,25 +347,6 @@ select.tg-input {
   outline-offset: 2px;
 }
 
-/* Bước trỏ vào công đoạn đã NGỪNG DÙNG hoặc đã XOÁ khỏi danh mục. Không giấu bước đi (giấu là
-   người lập phiếu tưởng phần mềm nuốt mất), cũng không đổi số — chỉ bày cho thấy chỗ phải thay. */
-.tg-chip--canh {
-  border-color: var(--amber);
-  border-style: dashed;
-  background: var(--amber-soft);
-  color: var(--amber-deep);
-}
-.tg-chip--canh:hover {
-  border-color: var(--amber-deep);
-  background: var(--amber-soft);
-}
-.tg-chip__canh {
-  font-size: 11px;
-  font-weight: var(--fw-semibold);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  opacity: 0.85;
-}
 .tg-chipgrid__empty {
   font-size: 12.5px;
   color: var(--ash-2);
@@ -373,54 +354,6 @@ select.tg-input {
   margin: 0;
 }
 
-/* Chip công đoạn: tên (bấm mở chi tiết) + nút xóa ✕ */
-.tg-chip__name {
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-.tg-chip__x {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-left: 2px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--r-pill);
-  background: none;
-  color: inherit;
-  opacity: 0.55;
-  cursor: pointer;
-  transition: opacity var(--duration-fast) var(--easing-standard);
-}
-.tg-chip__x:hover {
-  opacity: 1;
-}
-.tg-chip__x svg {
-  width: 12px;
-  height: 12px;
-}
-/* Ô "+ Thêm công đoạn" dạng chip nét đứt */
-.tg-chip-add {
-  min-height: 36px;
-  padding: 6px 14px;
-  border: 1px dashed var(--rule);
-  border-radius: var(--r-pill);
-  background: transparent;
-  color: var(--ash-2);
-  font-family: var(--ff-sans);
-  font-size: 13px;
-  cursor: pointer;
-}
-.tg-chip-add:hover {
-  border-color: var(--ash-2);
-  background: var(--rule-hair);
-}
 /* Bảng chi tiết công đoạn khi bấm vào chip */
 .tg-chip-detail {
   margin-top: var(--sp-3);
@@ -2287,61 +2220,6 @@ select.tg-input--sm {
   box-shadow: 0 1px 2px rgba(20, 19, 15, 0.08);
 }
 
-/* Timeline Flow layout for Step 4 */
-.tg-timeline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-}
-.tg-timeline-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-.tg-timeline-arrow-wrap {
-  display: inline-flex;
-  align-items: center;
-  position: relative;
-}
-.tg-timeline-select-arrow {
-  appearance: none;
-  -webkit-appearance: none;
-  background: var(--paper-contrast);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-pill);
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  text-align-last: center;
-  font-family: var(--ff-sans);
-  font-size: 11px;
-  color: var(--ash);
-  cursor: pointer;
-  padding: 0;
-  outline: none;
-  transition: all var(--duration-fast) var(--easing-standard);
-  text-indent: 0;
-  line-height: 1;
-}
-.tg-timeline-select-arrow:hover {
-  background: var(--rust-soft);
-  border-color: var(--rust);
-  color: var(--rust-deep);
-  transform: scale(1.15);
-  box-shadow: 0 2px 4px rgba(20, 19, 15, 0.08);
-}
-.tg-timeline-select-arrow option {
-  background: var(--paper);
-  color: var(--ink);
-  text-align: left;
-  font-family: var(--ff-sans);
-  font-size: 13px;
-}
-
 /* Right column styling overrides */
 .rc-modal__right-col .tg-imp-card {
   background: var(--paper);
@@ -3550,76 +3428,6 @@ select.tg-input--sm {
   background: var(--paper);
 }
 
-/* "+ Thêm công đoạn…" — chip nét đứt ôm chữ. `.sel` mặc định rộng 100% nên phải có thẻ bọc. */
-.tg-chip-add-wrap {
-  display: inline-flex;
-  vertical-align: middle;
-}
-.tg-chip-add-wrap .sel {
-  width: auto;
-}
-.rdx-cost .sel__trigger.tg-chip-add {
-  width: auto;
-  min-height: 36px;
-  padding: 6px 14px;
-  border: 1px dashed var(--rule);
-  border-radius: var(--r-pill);
-  background: transparent;
-  color: var(--ash-2);
-  font-family: var(--ff-sans);
-  font-size: 13px;
-}
-.rdx-cost .sel__trigger.tg-chip-add:hover:not(:disabled) {
-  border-color: var(--ash-2);
-  background: var(--rule-hair);
-}
-.rdx-cost .sel__trigger.tg-chip-add.is-open {
-  border-color: var(--rust);
-  color: var(--rust-deep);
-  box-shadow: none;
-}
-.rdx-cost .sel__trigger.tg-chip-add .sel__value--ph,
-.rdx-cost .sel__trigger.tg-chip-add .sel__caret {
-  color: inherit;
-}
-
-/* Mũi tên chèn công đoạn vào GIỮA chuỗi — nút tròn 22px, chỉ có mỗi ký tự ➔. */
-.rdx-cost .tg-timeline-arrow-wrap .sel {
-  width: auto;
-}
-.rdx-cost .sel__trigger.tg-timeline-select-arrow {
-  width: 22px;
-  height: 22px;
-  min-height: 0;
-  padding: 0;
-  gap: 0;
-  justify-content: center;
-  background: var(--paper-contrast);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-pill);
-  font-family: var(--ff-sans);
-  font-size: 11px;
-  color: var(--ash);
-  line-height: 1;
-}
-.rdx-cost .sel__trigger.tg-timeline-select-arrow .sel__caret {
-  display: none;
-}
-.rdx-cost .sel__trigger.tg-timeline-select-arrow .sel__value--ph {
-  color: inherit;
-  overflow: visible;
-}
-.rdx-cost .sel__trigger.tg-timeline-select-arrow:hover:not(:disabled) {
-  transform: scale(1.15);
-}
-.rdx-cost .sel__trigger.tg-timeline-select-arrow:hover:not(:disabled),
-.rdx-cost .sel__trigger.tg-timeline-select-arrow.is-open {
-  background: var(--rust-soft);
-  border-color: var(--rust);
-  color: var(--rust-deep);
-  box-shadow: 0 2px 4px rgba(20, 19, 15, 0.08);
-}
-
 /* Danh sách bung ra. Bản `portal` treo ở `document.body` ⇒ NẰM NGOÀI `.rdx-cost`, không selector
    nào của màn với tới được — nên nó mang class riêng `tg-pop` (prop `listClassName`). */
 .sel__list.tg-pop {
@@ -3697,105 +3505,275 @@ select.tg-input--sm {
   color: var(--ash);
 }
 
-/* Vật tư theo bước (01/10/2026 · làm gọn 02/10/2026) */
-.tg-bvt-khoi { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); }
-.tg-bvt {
+/* Chuỗi công đoạn mục 4 (02/10/2026) — MỘT khung, mỗi công đoạn một đoạn ngăn bằng đường kẻ mảnh
+   (không khung lồng khung). Đoạn = dòng TIÊU ĐỀ [vòng số · tên · "còn N ô chưa nhập" · ×] + vùng vật
+   tư BÊN DƯỚI dùng hết bề ngang (thụt theo mép tên). Giữa các đoạn là dải "+" chèn công đoạn. */
+.tg-cdv {
   border: 1px solid var(--rule-soft);
-  border-radius: var(--r-5);
-  background: var(--paper-contrast);
-  padding: var(--sp-2) var(--sp-3);
-  display: grid;
-  gap: var(--sp-2);
+  border-radius: var(--r-6, 12px);
+  background: #ffffff;
   min-width: 0;
+  padding: 4px 0;
 }
-.tg-bvt__head { font-weight: 600; font-size: 13px; color: var(--ink); }
-.tg-bvt__rong { color: var(--ash); font-size: 12.5px; margin: 0; }
+.tg-cdv__rong { padding: var(--sp-3); }
 
-/* Vật tư CÓ chip: một dòng — tên · các ô chip (tự xuống dòng khi hẹp) · nút xoá cuối dòng. */
-.tg-bvt__dong {
-  display: grid;
-  grid-template-columns: minmax(72px, max-content) minmax(0, 1fr) auto;
-  grid-template-areas: "ten chips xoa";
-  align-items: center;
-  gap: var(--sp-2);
+.tg-cdv__dong {
+  padding: 10px 14px 12px;
   min-width: 0;
 }
-.tg-bvt__ten {
-  grid-area: ten;
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--ink);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.tg-bvt__ochips {
-  grid-area: chips;
+.tg-cdv__dau {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
-/* Một ô chip = một khung: nhãn ngắn · ô số · đơn vị. Viền đổi màu khi đang gõ / khi còn trống. */
-.tg-bvt__o {
+.tg-cdv__so {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 0 8px;
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-5);
-  background: var(--paper);
-  cursor: text;
-  min-width: 0;
-  max-width: 100%;
-  transition: border-color var(--duration-fast) var(--easing-standard),
-    box-shadow var(--duration-fast) var(--easing-standard);
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--rust-soft);
+  color: var(--rust-deep);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
-.tg-bvt__o:hover { border-color: var(--ash-2); }
-.tg-bvt__o--trong { border-color: var(--amber); background: var(--amber-soft); }
-.tg-bvt__o--trong:hover { border-color: var(--amber-deep); }
-.tg-bvt__o:focus-within {
+.tg-cdv__ten {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.tg-cdv__ten-chu { min-width: 0; overflow-wrap: break-word; }
+.tg-cdv__thieu {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--amber-deep);
+}
+.tg-cdv__dong--canh .tg-cdv__ten-chu { color: var(--amber-deep); }
+.tg-cdv__dong--canh .tg-cdv__so {
+  border: 1px dashed var(--amber);
+  background: var(--amber-soft);
+  color: var(--amber-deep);
+}
+.tg-cdv__canh {
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--amber-deep);
+}
+.tg-cdv__x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ash-2);
+  cursor: pointer;
+}
+.tg-cdv__x:hover { color: var(--rust-deep); background: var(--rust-soft); }
+.tg-cdv__x svg { width: 13px; height: 13px; }
+/* Vật tư dùng HẾT bề ngang đoạn (không thụt theo tên) — chỗ cho lưới ô chip. */
+.tg-cdv__vt { margin-top: 8px; min-width: 0; }
+
+/* Dải chèn công đoạn giữa hai đoạn: chính là đường kẻ ngăn, nút "+" nhỏ nằm trên đường. */
+.tg-cdv__chen {
+  position: relative;
+  height: 14px;
+  margin: 0 14px;
+  display: flex;
+  align-items: center;
+}
+.tg-cdv__chen::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid var(--rule-hair);
+}
+.tg-cdv__chen:first-child::before { border-top: 0; }
+.tg-cdv__chen > .sel { position: relative; z-index: 1; }
+.rdx-cost .sel__trigger.tg-cdv__chen-btn {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: none;
+  color: var(--ash-2);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.6;
+}
+.rdx-cost .sel__trigger.tg-cdv__chen-btn .sel__caret { display: none; }
+.rdx-cost .sel__trigger.tg-cdv__chen-btn .sel__value--ph { color: inherit; overflow: visible; }
+.rdx-cost .sel__trigger.tg-cdv__chen-btn:hover:not(:disabled),
+.rdx-cost .sel__trigger.tg-cdv__chen-btn.is-open {
+  opacity: 1;
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rust) 15%, transparent);
+  color: var(--rust);
+}
+
+/* "+ Thêm công đoạn mới vào chuỗi" ở cuối khung */
+.tg-cdv__them { margin: 6px 14px 8px; }
+.tg-cdv__them .sel { width: 100%; }
+.rdx-cost .sel__trigger.tg-cdv__them-btn {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px dashed var(--rule);
+  border-radius: var(--r-3, 6px);
+  background: transparent;
+  box-shadow: none;
+  color: var(--rust-deep);
+  font-size: 13px;
+  font-weight: 600;
+  justify-content: center;
+}
+.rdx-cost .sel__trigger.tg-cdv__them-btn .sel__value--ph { color: inherit; }
+.rdx-cost .sel__trigger.tg-cdv__them-btn .sel__caret { display: none; }
+.rdx-cost .sel__trigger.tg-cdv__them-btn:hover:not(:disabled),
+.rdx-cost .sel__trigger.tg-cdv__them-btn.is-open {
+  background: var(--rust-soft);
+  border-color: var(--rust);
+  color: var(--rust);
+  box-shadow: none;
+}
+
+/* Vật tư của một công đoạn (BuocVatTu): mỗi vật tư CÓ chip một dòng [tên · lưới ô · ×], mọi dòng
+   chung khuôn cột nên ô chip thẳng cột giữa các vật tư; sau cùng MỘT hàng thẻ vật tư KHÔNG chip,
+   "+ vật tư" dạng chữ đứng cuối hàng. */
+.tg-bvt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.tg-bvt__dong {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 24px;
+  grid-template-areas: "ten luoi x";
+  align-items: end;
+  column-gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--rule-soft);
+  min-width: 0;
+}
+.tg-bvt > .tg-bvt__dong:last-child { border-bottom: 0; padding-bottom: 0; }
+.tg-bvt__ten {
+  grid-area: ten;
+  align-self: end;
+  padding-bottom: 8px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* 80px/ô ⇒ 5 ô vừa một hàng ở bề ngang panel trái của thẻ sản phẩm (lưới ~440px); nhiều hơn thì
+   xuống hàng, vẫn thẳng cột. */
+.tg-bvt__luoi {
+  grid-area: luoi;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Một ô chip: nhãn nhỏ TRÊN, khung chữ nhật bo nhẹ DƯỚI (số căn phải · đơn vị cuối ô). */
+.tg-bvt__o {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  cursor: text;
 }
 .tg-bvt__o-nhan {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ash);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ash-2);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.tg-bvt__o-khung {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3, 6px);
+  background: #ffffff;
+  min-width: 0;
+}
+.tg-bvt__o:hover .tg-bvt__o-khung { border-color: var(--ash-2); }
+/* CHƯA nhập: ô trống, CHỈ viền đổi màu cảnh báo — không tô nền. Đã nhập 0 thì viền thường. */
+.tg-bvt__o--trong .tg-bvt__o-khung { border-color: var(--amber); }
 .tg-bvt__o--trong .tg-bvt__o-nhan { color: var(--amber-deep); }
+.tg-bvt__o:focus-within .tg-bvt__o-khung {
+  border-color: var(--rust);
+  box-shadow: 0 0 0 3px var(--rust-soft);
+}
 .tg-bvt__o-so {
-  width: 56px;
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
   border: 0;
   background: transparent;
-  padding: 4px 0;
+  padding: 0;
   font-family: var(--ff-sans);
-  font-size: 13.5px;
+  font-size: 13px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: right;
   color: var(--ink);
 }
 .tg-bvt__o-so:focus { outline: none; }
-.tg-bvt__o-dv { font-size: 12px; color: var(--ash-2); white-space: nowrap; }
+.tg-bvt__o-dv { flex: none; font-size: 11.5px; color: var(--ash-2); white-space: nowrap; }
+
 .tg-bvt__xoa {
-  grid-area: xoa;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-pill);
+  grid-area: x;
+  align-self: end;
+  margin-bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
   background: transparent;
-  color: var(--ash);
-  font-size: 16px;
+  color: var(--ash-2);
+  font-size: 15px;
   line-height: 1;
   cursor: pointer;
 }
-.tg-bvt__xoa:hover { color: var(--rust); border-color: var(--rust); }
+.tg-bvt__xoa:hover { color: var(--rust-deep); background: var(--rust-soft); }
 
-/* Vật tư KHÔNG chip: thẻ nhỏ chung một hàng, "+ Thêm" đứng cuối hàng, cùng cỡ thẻ. */
-.tg-bvt__tags {
+/* Hàng thẻ vật tư KHÔNG chip + "+ vật tư" — thẻ nối tiếp nhau, hết chỗ mới xuống dòng. */
+.tg-bvt__hang {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -3810,11 +3788,11 @@ select.tg-input--sm {
   max-width: 100%;
   padding: 2px 4px 2px 10px;
   border: 1px solid var(--rule-soft);
-  border-radius: var(--r-pill);
+  border-radius: 999px;
   background: var(--paper);
   color: var(--ink);
   font-size: 12.5px;
-  font-weight: var(--fw-medium);
+  font-weight: 500;
 }
 .tg-bvt__tag-ten { min-width: 0; overflow-wrap: anywhere; }
 .tg-bvt__tag-x {
@@ -3822,61 +3800,62 @@ select.tg-input--sm {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 0;
-  border-radius: var(--r-pill);
+  border-radius: 50%;
   background: transparent;
-  color: var(--ash);
-  font-size: 15px;
+  color: var(--ash-2);
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
 }
-.tg-bvt__tag-x:hover { color: var(--rust); background: var(--rule-hair); }
+.tg-bvt__tag-x:hover { color: var(--rust-deep); background: var(--rust-soft); }
+
+/* "+ vật tư": chữ màu nhấn, không viền — không tranh chỗ với thẻ vật tư thật. */
 .tg-bvt__them { display: inline-flex; }
 .tg-bvt__them .sel { width: auto; }
-.tg-bvt__them .sel__trigger.tg-bvt__them-btn {
+.rdx-cost .sel__trigger.tg-bvt__them-btn {
   width: auto;
   min-height: 28px;
-  padding: 2px 10px;
-  border: 1px dashed var(--rule);
-  border-radius: var(--r-pill);
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--r-3, 6px);
   background: transparent;
-  color: var(--ash);
+  box-shadow: none;
+  color: var(--rust);
   font-family: var(--ff-sans);
   font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
 }
-.tg-bvt__them .sel__trigger.tg-bvt__them-btn:hover { border-color: var(--ash-2); background: var(--rule-hair); }
-
-/* Số vật tư + chấm cảnh báo trên viên công đoạn (mục 4). */
-.tg-chip__bvt {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--ash);
-  font-variant-numeric: tabular-nums;
-}
-.tg-chip__bvt-canh {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: var(--r-pill);
-  background: var(--amber);
-  flex: none;
+.rdx-cost .sel__trigger.tg-bvt__them-btn .sel__value--ph { color: inherit; }
+.rdx-cost .sel__trigger.tg-bvt__them-btn .sel__caret { display: none; }
+.rdx-cost .sel__trigger.tg-bvt__them-btn:hover:not(:disabled),
+.rdx-cost .sel__trigger.tg-bvt__them-btn.is-open {
+  background: var(--rust-soft);
+  color: var(--rust-deep);
+  box-shadow: none;
 }
 
-/* Điện thoại: tên + nút xoá cùng hàng trên, ô chip chiếm trọn hàng dưới; ô chip nở chia đôi hàng. */
+/* Điện thoại: vật tư thôi thụt; tên vật tư + × lên hàng trên, lưới ô (~3 ô/hàng) chiếm trọn hàng
+   dưới; vùng bấm ≥ 28–32px. */
 @media (max-width: 640px) {
+  .tg-cdv__dong { padding: 10px; }
+  .tg-cdv__chen, .tg-cdv__them { margin-left: 10px; margin-right: 10px; }
+  .tg-cdv__x { width: 32px; height: 32px; }
   .tg-bvt__dong {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "ten xoa" "chips chips";
-    padding-bottom: var(--sp-1);
+    grid-template-columns: minmax(0, 1fr) 32px;
+    grid-template-areas: "ten x" "luoi luoi";
+    row-gap: 6px;
+    align-items: center;
   }
-  .tg-bvt__o { flex: 1 1 140px; min-height: 36px; }
-  .tg-bvt__o-so { flex: 1 1 auto; width: 40px; }
-  .tg-bvt__xoa { width: 32px; height: 32px; }
+  .tg-bvt__ten { padding-bottom: 0; align-self: center; }
+  .tg-bvt__xoa { width: 32px; height: 32px; margin-bottom: 0; align-self: center; }
+  .tg-bvt__luoi { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+  .tg-bvt__o-khung { height: 36px; }
   .tg-bvt__tag { min-height: 32px; }
   .tg-bvt__tag-x { width: 26px; height: 26px; }
-  .tg-bvt__them .sel__trigger.tg-bvt__them-btn { min-height: 32px; }
+  .rdx-cost .sel__trigger.tg-bvt__them-btn { min-height: 32px; }
 }

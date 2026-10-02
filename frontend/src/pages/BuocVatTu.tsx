@@ -4,9 +4,9 @@ import { Select } from "../components/Select";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 
 export interface BuocVatTuDong { uid: string; vat_tu_id: number; gia_tri_chip: Record<string, number> }
-interface Chip { ma: string; ten: string; don_vi?: string | null }
+export interface Chip { ma: string; ten: string; don_vi?: string | null }
 
-const chipsCua = (vt: Row | undefined): Chip[] =>
+export const chipsCua = (vt: Row | undefined): Chip[] =>
   Array.isArray(vt?.chips) ? (vt!.chips as Chip[]) : [];
 
 /** Chuẩn hoá để SO tên: thường hoá, bỏ dấu, đ→d. Chỉ dùng để so, không bao giờ in ra. */
@@ -31,19 +31,23 @@ export function nhanNgan(tenChip: string, tenVatTu: string): string {
   return tenChip;
 }
 
-/** Tóm tắt một bước cho viên công đoạn: số vật tư + số ô chip CHƯA nhập số. */
-export function tomTatBuoc(dong: BuocVatTuDong[], vatTuDm: Row[]): { so: number; chipTrong: number } {
-  let chipTrong = 0;
+/** Số ô chip CHƯA nhập của một bước — đếm trên đúng những chip mà danh mục vật tư đang khai (vắng
+ *  mã trong `gia_tri_chip` = chưa nhập; đã nhập 0 vẫn tính là ĐÃ nhập). Dòng tiêu đề công đoạn hiện
+ *  "· còn N ô chưa nhập" theo số này. */
+export function soOChipTrong(dong: BuocVatTuDong[], vatTuDm: Row[]): number {
+  let n = 0;
   for (const d of dong) {
     const vt = vatTuDm.find((v) => v.id === d.vat_tu_id);
-    for (const c of chipsCua(vt)) if (d.gia_tri_chip[c.ma] === undefined) chipTrong++;
+    for (const c of chipsCua(vt)) if (d.gia_tri_chip[c.ma] === undefined) n++;
   }
-  return { so: dong.length, chipTrong };
+  return n;
 }
 
-/** Ô số của một chip, gọn một dòng: nhãn ngắn · ô số · đơn vị — cả ba nằm TRONG một khung.
- *  Ô chữ + bàn phím số (gõ "3,5" hay "3.5" đều ăn — dấu thập phân của `type="number"` phụ thuộc
- *  ngôn ngữ trình duyệt). Chưa có số thì viền màu cảnh báo. Tên đầy đủ ở tooltip + aria-label. */
+/** Một ô của lưới chip: NHÃN NHỎ nằm trên, dưới là khung chữ nhật bo nhẹ chứa ô số (căn phải) +
+ *  đơn vị đứng cuối. Ô chữ + bàn phím số (gõ "3,5" hay "3.5" đều ăn — dấu thập phân của
+ *  `type="number"` phụ thuộc ngôn ngữ trình duyệt). CHƯA nhập (vắng mã trong `gia_tri_chip`) thì ô
+ *  để trống + CHỈ viền đổi màu cảnh báo; đã nhập 0 thì hiện "0", viền thường — không placeholder
+ *  "0" để hai ca không lẫn vào nhau. Tên đầy đủ ở tooltip + aria-label. */
 function OChip({ nhan, nhanDu, don_vi, value, onChange }: {
   nhan: string; nhanDu: string; don_vi: string; value: number | undefined; onChange: (raw: string) => void;
 }) {
@@ -58,23 +62,24 @@ function OChip({ nhan, nhanDu, don_vi, value, onChange }: {
       className={`tg-bvt__o${trong ? " tg-bvt__o--trong" : ""}`}
       title={trong ? `${nhanDu} — chưa nhập số` : nhanDu}
     >
-      <span className="tg-bvt__o-nhan">{nhan}</span>
-      <input
-        className="tg-bvt__o-so"
-        type="text"
-        inputMode="decimal"
-        aria-label={nhanDu}
-        aria-invalid={trong || undefined}
-        value={chu}
-        placeholder="0"
-        onFocus={(e) => e.target.select()}
-        onChange={(e) => {
-          const raw = e.target.value.replace(",", ".").replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
-          setChu(raw);
-          onChange(raw);
-        }}
-      />
-      {don_vi ? <span className="tg-bvt__o-dv">{don_vi}</span> : null}
+      <span className="tg-bvt__o-nhan" title={nhanDu}>{nhan}</span>
+      <span className="tg-bvt__o-khung">
+        <input
+          className="tg-bvt__o-so"
+          type="text"
+          inputMode="decimal"
+          aria-label={nhanDu}
+          aria-invalid={trong || undefined}
+          value={chu}
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => {
+            const raw = e.target.value.replace(",", ".").replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+            setChu(raw);
+            onChange(raw);
+          }}
+        />
+        {don_vi ? <span className="tg-bvt__o-dv">{don_vi}</span> : null}
+      </span>
     </label>
   );
 }
@@ -113,8 +118,9 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid }: 
     </button>
   );
 
-  // Hai nhóm, giữ thứ tự gốc trong từng nhóm: vật tư có chip mỗi cái một DÒNG (cần chỗ cho ô số),
-  // vật tư không chip thu thành thẻ nhỏ chung một hàng, nút "+ Thêm" đứng cuối hàng thẻ.
+  // Vùng vật tư nằm DƯỚI dòng tiêu đề công đoạn, dùng hết bề ngang khối: mỗi vật tư CÓ chip là
+  // một dòng lưới [tên · lưới ô chip · ×] — mọi dòng chung một khuôn cột nên ô chip thẳng cột giữa
+  // các vật tư; sau cùng là MỘT hàng thẻ nhỏ của vật tư KHÔNG chip, "+ vật tư" đứng cuối hàng đó.
   const ds = dong.map((d, i) => {
     const vt = tra.get(d.vat_tu_id);
     const ten = vt ? String(vt.ten) : `Vật tư #${d.vat_tu_id} (đã ngừng dùng)`;
@@ -124,13 +130,11 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid }: 
   const khongChip = ds.filter((x) => x.chips.length === 0);
 
   return (
-    <div className="tg-bvt">
-      <div className="tg-bvt__head">Vật tư của bước {tenBuoc}</div>
-      {dong.length === 0 && <p className="tg-bvt__rong">Bước này chưa có vật tư.</p>}
+    <div className="tg-bvt" role="group" aria-label={`Vật tư của bước ${tenBuoc}`}>
       {coChip.map(({ d, i, ten, chips }) => (
         <div className="tg-bvt__dong" key={d.uid}>
-          <span className="tg-bvt__ten">{ten}</span>
-          <div className="tg-bvt__ochips">
+          <span className="tg-bvt__ten" title={ten}>{ten}</span>
+          <div className="tg-bvt__luoi">
             {chips.map((c) => (
               <OChip
                 key={c.ma}
@@ -146,7 +150,7 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid }: 
         </div>
       ))}
       {(khongChip.length > 0 || chuaCo.length > 0) && (
-        <div className="tg-bvt__tags">
+        <div className="tg-bvt__hang">
           {khongChip.map(({ d, i, ten }) => (
             <span className="tg-bvt__tag" key={d.uid}>
               <span className="tg-bvt__tag-ten">{ten}</span>
@@ -158,7 +162,7 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid }: 
               <Select
                 options={chuaCo.map((v) => ({ value: String(v.id), label: String(v.ten) }))}
                 value=""
-                placeholder="+ Thêm"
+                placeholder="+ vật tư"
                 onChange={(v) => {
                   const id = Number(v);
                   if (id) onChange([...dong, { uid: taoUid(), vat_tu_id: id, gia_tri_chip: {} }]);

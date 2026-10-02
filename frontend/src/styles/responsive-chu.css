@@ -1138,7 +1138,6 @@
   .tg-pill,
   .tg-microlabel__opt,
   .tg-readout__how,
-  .tg-chip__canh,
   .tg-cost__grphead {
     font-size: 12px !important;
   }
@@ -1182,7 +1181,6 @@
   .rc-modal__kicker,
   .tg-step-badge,
   .rc-modal__left-col .tg-microlabel,
-  .tg-timeline-select-arrow,
   .rc-modal__right-col .tg-sheetrow--total .tg-val__dv,
   .rc-modal__right-col .tg-hao-pill,
   .rc-modal__right-col .tg-step-card__flow,
@@ -1211,7 +1209,6 @@
 
   .rdx-cost .subrow .lbl,
   .rdx-cost .dk__eyebrow,
-  .rdx-cost .sel__trigger.tg-timeline-select-arrow,
   .users__table thead th,
   .users__badge,
   .users__saved {
