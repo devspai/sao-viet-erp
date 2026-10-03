@@ -5,7 +5,7 @@
 // khi phiếu còn nháp) hoặc update(pid) — BE replace-all + tính lại + snapshot → refresh từ Out.
 // LƯU = TÍNH, và phiếu KHÔNG vào DB cho tới lần lưu đầu tiên (chống phiếu rỗng bỏ lại).
 import BuocVatTu, { chipsCua, soOChipTrong, type BuocVatTuDong } from "./BuocVatTu";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   api,
   ApiError,
@@ -306,6 +306,44 @@ function dongCongDoan(groups: PhieuTinhGiaGroupOut[] | null): DongTien[] {
   return ra;
 }
 
+/** Câu hàm dài hơn mức này (ký tự) mới ngắt dòng — `max ( a , b )` ngắn đứng một dòng là đọc được. */
+const NGAT_KHI_DAI = 70;
+
+/** Ngắt một lời gọi hàm thành nhiều dòng, các vế thụt vào một bậc, hàm lồng thì thụt tiếp.
+ *  KHÔNG đổi chữ nào của công thức — chỉ chèn chỗ xuống dòng.
+ *  · `if ( đk , đúng , sai )`: LUÔN ngắt, điều kiện đứng cùng dòng với `if`.
+ *  · hàm khác (`max`, `min`…): chỉ ngắt khi câu dài quá `NGAT_KHI_DAI`, mỗi vế một dòng.
+ *  Câu không phải TRỌN MỘT lời gọi hàm (`a + max(...)`), hoặc ngoặc lệch, thì trả nguyên một dòng. */
+function ngatDongIf(s: string, sau = 0): { sau: number; text: string }[] {
+  const t = s.trim();
+  const motDong = [{ sau, text: t }];
+  const m = /^([a-zA-Z_]+)\s*\(/.exec(t);
+  if (!m || !(m[1] === "if" || (HAM_TOAN as readonly string[]).includes(m[1]))) return motDong;
+  const laIf = m[1] === "if";
+  if (!laIf && t.length <= NGAT_KHI_DAI) return motDong;
+  // Ngoặc mở của hàm phải đóng đúng ở ký tự cuối — `max(...) + 5` thì để nguyên một dòng.
+  let sauNgoac = 0;
+  const phay: number[] = [];
+  for (let i = m[0].length - 1; i < t.length; i++) {
+    const c = t[i];
+    if (c === "(") sauNgoac++;
+    else if (c === ")") {
+      sauNgoac--;
+      if (sauNgoac === 0 && i !== t.length - 1) return motDong;
+    } else if (c === "," && sauNgoac === 1) phay.push(i);
+  }
+  if (sauNgoac !== 0 || (laIf && phay.length !== 2)) return motDong;
+  const cat = [m[0].length, ...phay.map((p) => p + 1)];
+  const ve = cat.map((dau, k) => t.slice(dau, k < phay.length ? phay[k] : -1).trim());
+  const dau = laIf ? [{ sau, text: `if ( ${ve[0]} ,` }] : [{ sau, text: `${m[1]} (` }];
+  const con = (laIf ? ve.slice(1) : ve).map((v, k, arr) => {
+    const dong = ngatDongIf(v, sau + 1);
+    dong[dong.length - 1].text += k < arr.length - 1 ? " ," : " )";
+    return dong;
+  });
+  return [...dau, ...con.flat()];
+}
+
 /** Hai dòng dưới một khoản tiền: DIỄN GIẢI (tính bằng gì) rồi THAY SỐ (ra số nào).
  *
  *  Một dòng thế số đứng trơ thì đọc lên là "5.200 × 2 × 350" — không biết 5.200 là tờ vào máy hay
@@ -314,9 +352,19 @@ function HaiDongCongThuc({ d, tra }: { d: DongTien; tra: TraBien }) {
   const goc = dienGiaiFormula(d.congThucGoc, tra);
   const so = d.congThuc ? humanizeFormula(d.congThuc, tra) : "";
   if (!goc && !so) return null;
+  const dongGoc = goc ? ngatDongIf(goc) : [];
   return (
     <>
-      {goc && <em className="tg-sheetrow__derive">{goc}</em>}
+      {dongGoc.length > 1 ? (
+        <em className="tg-sheetrow__derive">
+          {dongGoc.map((l, i) => (
+            <span key={i} className="tg-sheetrow__if-dong"
+              style={{ "--sau": l.sau } as CSSProperties}>
+              {l.text}
+            </span>
+          ))}
+        </em>
+      ) : goc && <em className="tg-sheetrow__derive">{goc}</em>}
       {so && <em className="tg-sheetrow__derive tg-sheetrow__derive--so">= {so}</em>}
     </>
   );
@@ -2221,6 +2269,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
                       <table>
                         <thead>
                           <tr>
+                            <th>Sản phẩm</th>
                             {g.columns.map((col) => (
                               <th key={col.key} className={headClass(col) || undefined}>
                                 {col.kind === "formula" ? "Diễn giải" : col.label}
@@ -2231,15 +2280,20 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
                         <tbody>
                           {g.rows.length === 0 ? (
                             <tr>
-                              <td colSpan={g.columns.length} className="tg-cost__none">
+                              <td colSpan={g.columns.length + 1} className="tg-cost__none">
                                 (không có dòng)
                               </td>
                             </tr>
                           ) : (
                             g.rows.map((r, ri) => (
                               <tr key={ri}>
+                                {/* Sản phẩm cột riêng — `ten_dong` là tên dòng đã bỏ tiền tố
+                                    "SP · "; ảnh chụp cũ chưa có thì rơi về `ten` ghép. */}
+                                <td>{cellValue(r.san_pham)}</td>
                                 {g.columns.map((col) => {
-                                  const val = cellValue(r[col.key]);
+                                  const val = cellValue(
+                                    col.key === "ten" && r.ten_dong != null ? r.ten_dong : r[col.key],
+                                  );
                                   return (
                                     <td key={col.key} className={cellClass(col) || undefined}>
                                       {col.kind === "formula" && val ? (
@@ -2254,7 +2308,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
                             ))
                           )}
                           <tr className="sub">
-                            <td colSpan={g.columns.length}>
+                            <td colSpan={g.columns.length + 1}>
                               <div className="subrow">
                                 <span className="lbl">Cộng {g.name}</span>
                                 <span className="val">{fmt(g.subtotal)} đ</span>

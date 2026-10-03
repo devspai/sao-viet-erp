@@ -2293,7 +2293,10 @@ select.tg-input--sm {
   justify-content: flex-end;
   column-gap: 5px;
   row-gap: 0;
-  min-width: 0;
+  /* Co được tới bề rộng CON SỐ, không hơn: `min-width: 0` cũ để khối co hẹp hơn chính số
+     (`nowrap`) nên số tràn sang trái, đè lên dòng công thức dài bên cạnh. */
+  min-width: min-content;
+  margin-left: var(--sp-3);
   max-width: 62%;
   text-align: right;
   line-height: 1.25;
@@ -2753,6 +2756,11 @@ select.tg-input--sm {
   color: var(--ash);
   opacity: 0.75;
   font-variant-numeric: tabular-nums;
+}
+/* Công thức có `if`: mỗi khối một dòng, thụt theo độ sâu — cùng cỡ/màu với dòng diễn giải. */
+.rc-modal__right-col .tg-sheetrow__if-dong {
+  display: block;
+  padding-left: calc(var(--sau, 0) * 1.6em);
 }
 /* Dòng khép mạch cuối bảng phân rã: tờ cuối chuỗi quy ngược về đơn vị khách đặt. */
 .rc-modal__right-col .tg-sheetbreak__end {

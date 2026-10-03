@@ -402,9 +402,54 @@ def luong_tu_cong_thuc(formula_str: str, eval_ctx: dict) -> float | None:
     return luong if luong > 0 else None
 
 
+_CO_HAM_RUT_GON = re.compile(r'\b(if|max|min)\s*\(')
+
+
+def _rut_gon_the_so(formula_str: str, variables: dict) -> tuple[str, dict[str, str]]:
+    """Rút gọn câu TRƯỚC khi thế số, để dòng thế số chỉ nói cái đã quyết định ra tiền:
+
+    · `if(đk, đúng, sai)` → chỉ còn NHÁNH đang được dùng (không in lại cả cây if với số).
+    · `max(...)` / `min(...)` → giữ hàm, nhưng mỗi vế PHỨC HỢP được tính sẵn ra một số, để người
+      đọc so ngay vế nào thắng. Vế đơn (một biến / một hằng) giữ nguyên để còn thấy tên + đơn vị.
+
+    Vế tính sẵn được thay bằng tên giữ chỗ, trả kèm bảng {tên giữ chỗ: số đã định dạng} cho
+    `format_substituted_formula` thay lại sau cùng. Lỗi (thiếu biến…) thì trả nguyên câu: thà thế
+    cả câu còn hơn thế sai nhánh."""
+    giu_cho: dict[str, str] = {}
+    if not formula_str or not _CO_HAM_RUT_GON.search(formula_str):
+        return formula_str, giu_cho
+
+    class _RutGon(ast.NodeTransformer):
+        def visit_Call(self, node):
+            ten = node.func.id if isinstance(node.func, ast.Name) else None
+            if ten == "if_" and len(node.args) == 3:
+                dk = _eval_node(node.args[0], variables)
+                return self.visit(node.args[1] if dk else node.args[2])
+            if ten in ("max", "min"):
+                args = []
+                for a in node.args:
+                    if isinstance(a, (ast.Name, ast.Constant)):
+                        args.append(a)
+                        continue
+                    ma = f"giu_cho_{len(giu_cho)}"
+                    giu_cho[ma] = _vi(_r(_eval_node(a, variables)))
+                    args.append(ast.Name(id=ma, ctx=ast.Load()))
+                node.args = args
+                return node
+            self.generic_visit(node)
+            return node
+
+    try:
+        cay = ast.parse(_chuan_hoa(formula_str), mode="eval")
+        return ast.unparse(_RutGon().visit(cay).body), giu_cho
+    except Exception:  # noqa: BLE001 — chỉ là cách BÀY, tiền đã tính ở `safe_eval`
+        return formula_str, {}
+
+
 def format_substituted_formula(formula_str: str, variables: dict) -> str:
     if not formula_str or not formula_str.strip():
         return ""
+    formula_str, giu_cho = _rut_gon_the_so(formula_str, variables)
     word_regex = re.compile(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b')
     def replacer(match):
         word = match.group(1)
@@ -417,6 +462,10 @@ def format_substituted_formula(formula_str: str, variables: dict) -> str:
     substituted = word_regex.sub(replacer, formula_str)
     substituted = substituted.replace('*', ' × ').replace('/', ' ÷ ').replace('-', ' − ').replace('+', ' + ')
     substituted = re.sub(r'\s+', ' ', substituted).strip()
+    # Thay vế đã tính sẵn của max/min SAU CÙNG — số có thể mang dấu "−"/"." mà các bước trên
+    # lại đi chèn khoảng trắng quanh dấu phép tính.
+    for ma, so in giu_cho.items():
+        substituted = re.sub(rf"\b{ma}\b", so, substituted)
     return substituted
 
 
@@ -473,7 +522,22 @@ def chuan_hoa_cot(result: dict | None) -> dict | None:
     """
     if not result or not isinstance(result.get("groups"), list):
         return result
-    groups = [{**g, "columns": _COLS.get(g.get("idx")) or g.get("columns")}
+    # Ảnh chụp trước khi có cột Sản phẩm: tách tiền tố "SP · " theo tên sản phẩm trong meta.
+    ten_sp = sorted({(c.get("name") or "").strip()
+                     for c in ((result.get("meta") or {}).get("components") or [])} - {""},
+                    key=len, reverse=True)
+
+    def _tach(r: dict) -> dict:
+        if "ten_dong" in r:
+            return r
+        ten = r.get("ten") or ""
+        for sp in ten_sp:
+            if ten.startswith(f"{sp} · "):
+                return {**r, "san_pham": sp, "ten_dong": ten[len(sp) + 3:]}
+        return r
+
+    groups = [{**g, "columns": _COLS.get(g.get("idx")) or g.get("columns"),
+               "rows": [_tach(r) for r in g.get("rows") or []]}
               for g in result["groups"]]
     return {**result, "groups": groups}
 
@@ -1277,7 +1341,14 @@ def compute_phieu(*, so_luong: int, thanh_phans: list[dict], warnings: list[str]
 
     for i, tp in enumerate(thanh_phans or []):
         one = _compute_one(tp, so_luong, warns, flags)
+        # `san_pham` + `ten_dong` để bảng chi tiết bày cột Sản phẩm riêng thay vì đọc tên ghép
+        # "SP · dòng". `ten` giữ nguyên dạng ghép vì nơi khác (in, lệnh SX, test) còn đọc nó.
+        dau = f"{(one['name'] or '').strip()} · "
         for idx in _NHOM:
+            for r in one["rows"][idx]:
+                ten = r.get("ten") or ""
+                r["san_pham"] = (one["name"] or "").strip()
+                r["ten_dong"] = ten[len(dau):] if dau != " · " and ten.startswith(dau) else ten
             grouped[idx].extend(one["rows"][idx])
         components.append({
             "idx": i, "name": one["name"], "gia_von_tp": one["total"],

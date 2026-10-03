@@ -984,6 +984,37 @@ def test_ham_if_va_so_sanh_re_nhanh_theo_dieu_kien():
     assert safe_eval(ct, ctx) == 200
 
 
+def test_the_so_chi_the_nhanh_if_dang_dung():
+    """Dòng thế số chỉ in nhánh đã ra tiền, không in lại cả cây if với số."""
+    from app.services.thanh_phan_engine import format_substituted_formula
+
+    ct = ("if(sl_ra >= 20000, 2500000 * so_mat, "
+          "if(sl_ra >= 10000, 1500000 * so_mat, sl_ra * 400 * so_mat + 100000 * so_kem))")
+    the = format_substituted_formula(ct, {"sl_ra": 0, "so_mat": 2, "so_kem": 1})
+    assert "if" not in the
+    assert the == "sl_ra(0) × 400 × so_mat(2) + 100000 × so_kem(1)"
+    the = format_substituted_formula(ct, {"sl_ra": 12000, "so_mat": 2, "so_kem": 1})
+    assert the == "1500000 × so_mat(2)"
+    # Thiếu biến ở điều kiện ⇒ không đoán nhánh, trả nguyên cây.
+    assert "if" in format_substituted_formula(ct, {"so_mat": 2})
+
+
+def test_the_so_max_min_tinh_san_ve_phuc_hop():
+    """max/min: vế phức hợp tính sẵn ra số để thấy vế nào thắng; vế đơn giữ tên + số."""
+    from app.services.thanh_phan_engine import format_substituted_formula
+
+    ctx = {"sl_ra": 300, "so_mat": 2, "phi_toi_thieu": 150000}
+    assert (format_substituted_formula("max(sl_ra * 400 * so_mat, 100000)", ctx)
+            == "max(240.000, 100000)")
+    assert (format_substituted_formula("min(sl_ra * 400, phi_toi_thieu)", ctx)
+            == "min(120.000, phi_toi_thieu(150.000))")
+    # if bên trong max: chọn nhánh rồi mới tính vế.
+    assert (format_substituted_formula("max(if(sl_ra > 100, sl_ra * 10, 0), 500)", ctx)
+            == "max(3.000, 500)")
+    # Không có if/max/min ⇒ y như cũ.
+    assert format_substituted_formula("sl_ra * 400", ctx) == "sl_ra(300) × 400"
+
+
 def test_so_sanh_ma_khong_boc_trong_if_bao_loi_ro():
     """Quên bọc `if(...)` thì phải báo lỗi, không được âm thầm trả 1.0/0.0 làm tiền."""
     from app.services.thanh_phan_engine import safe_eval
