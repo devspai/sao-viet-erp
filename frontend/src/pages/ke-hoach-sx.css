@@ -3791,6 +3791,22 @@ td.khsx-num > .khsx-unit {
   background: transparent;
   padding: 0 4px 0 0;
 }
+/* Định mức vật tư khác giấy sửa được ở ngăn bước: ô số + nút "Tính lại theo công thức" khi đã gõ tay. */
+.khsx-vattu-dinh-muc {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.khsx-vattu-tinh-lai {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 11px;
+  color: #2563eb;
+  cursor: pointer;
+  text-decoration: underline;
+}
 .khsx-vattu-num-input {
   width: 95px;
   height: 30px;

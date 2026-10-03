@@ -16707,3 +16707,18 @@ def _migrate_stock_request_vat_tu_tra(db: Session) -> None:
 
 
 MIGRATIONS.append(("0361_stock_request_vat_tu_tra", _migrate_stock_request_vat_tu_tra))
+
+
+def _migrate_lsx_vat_tu_sua_tay(db: Session) -> None:
+    """0362 — cột `sua_tay` cho dòng vật tư của bước lệnh (định mức gõ tay, máy không tính đè).
+    Idempotent; dòng cũ = false (trước đó định mức vật tư khác luôn do máy tính)."""
+    insp = inspect(db.get_bind())
+    if "lsx_cong_doan_vat_tu" not in set(insp.get_table_names()):
+        return
+    if "sua_tay" not in _existing_columns(insp, "lsx_cong_doan_vat_tu"):
+        db.execute(text("ALTER TABLE lsx_cong_doan_vat_tu "
+                        "ADD COLUMN sua_tay BOOLEAN NOT NULL DEFAULT false"))
+    db.commit()
+
+
+MIGRATIONS.append(("0362_lsx_vat_tu_sua_tay", _migrate_lsx_vat_tu_sua_tay))

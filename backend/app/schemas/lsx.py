@@ -126,6 +126,8 @@ class LsxBuocVatTuIn(BaseModel):
     kho_dai: int = 0
     # CHIP của vật tư: {mã chip: số} — chép từ phiếu tính giá, sửa được ở lệnh nháp.
     gia_tri_chip: dict[str, float] | None = None
+    # True = người gõ định mức ⇒ máy giữ `so_luong` gửi lên thay vì tính bằng công thức (vật tư khác).
+    sua_tay: bool = False
 
 
 class LsxBuocVatTuOut(BaseModel):
@@ -140,6 +142,7 @@ class LsxBuocVatTuOut(BaseModel):
     kho_dai: int = 0
     dang_giay: str | None = None   # giấy: `to` / `cuon` (máy chủ ghi theo đầu vào của bước)
     tu_dong: bool = False
+    sua_tay: bool = False
     gia_tri_chip: dict[str, float] = Field(default_factory=dict)
     chips: list[dict] = Field(default_factory=list)
 

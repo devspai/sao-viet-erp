@@ -161,6 +161,33 @@ def test_replace_routing_bo_so_luong_gui_len_cho_vat_tu_khac_va_tinh_lai(
     assert buoc.vat_tus[0].gia_tri_chip == {"dai_support": 500, "rong_support": 400}
 
 
+def test_dinh_muc_go_tay_sua_tay_thi_giu_dung_so_va_khong_con_la_dong_may(
+    db, orders, lsx_svc, admin, customer,
+):
+    ptg = _ptg_2_san_pham(db)
+    vt = _support(db)
+    lsx = _tao_lenh_hop(db, orders, lsx_svc, admin, customer, ptg)
+
+    def luu(**dong):
+        lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=[
+            LsxCongDoanIn(
+                ten="Dán hộp", nhom="finishing", so_luong_vao=1000, so_luong_ra=1000, don_vi_vao="cai",
+                phu_thuoc_step_keys=[],
+                vat_tus=[{"vat_tu_id": vt.id, "gia_tri_chip": {"dai_support": 500, "rong_support": 400},
+                          **dong}],
+            ),
+        ])
+        return _buoc(lsx_svc.get(lsx.id)).vat_tus[0]
+
+    v = luu(so_luong=12.5, tu_dong=True, sua_tay=True)
+    assert float(v.so_luong) == pytest.approx(12.5)
+    assert v.sua_tay is True and v.tu_dong is False
+
+    v = luu(tu_dong=False)                         # bấm "Tính lại theo công thức"
+    assert float(v.so_luong) == pytest.approx(0.2)
+    assert v.sua_tay is False
+
+
 def test_dien_giai_dinh_muc_doc_nhan_chip_va_thay_so_chip_rieng(db, orders, lsx_svc, admin, customer):
     """Chip riêng của vật tư không nằm trong từ điển biến chung: diễn giải phải đọc được nhãn chip
     và thay số chip, không để lộ mã `dai_support × rong_support = dai_support × rong_support`."""

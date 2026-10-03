@@ -106,6 +106,8 @@ export interface EditRow {
    *  hoặc đã sửa số thì về `false` và máy chừa ra — không thì đổi công đoạn là mất số vừa gõ. */
   vat_tus: { hang_loai: HangLoai; vat_tu_id: number; vat_tu_ma: string; vat_tu_ten: string;
              don_vi: string; so_luong: string; tu_dong: boolean;
+             /** Vật tư khác giấy: người đã GÕ định mức ⇒ gửi kèm `so_luong`, máy không tính đè. */
+             sua_tay?: boolean;
              /** Dòng GIẤY: khổ (mm) + dạng do MÁY CHỦ dẫn xuất từ đầu vào của bước — chỉ đọc, không gửi. */
              kho_rong: string; kho_dai: string; dang_giay?: "to" | "cuon" | null;
              /** Vật tư KHÁC giấy: chip đã chép từ phiếu (gửi lại để máy tính định mức) + nhãn chip. */
@@ -132,8 +134,9 @@ type DongVatTu = EditRow["vat_tus"][number];
 /** Dòng vật tư có số do MÁY tính (badge "Tự tính", không đếm vào "Đã sửa"). Giấy LUÔN là máy tính:
  *  số/khổ/dạng dẫn xuất từ đầu vào của bước ("Tờ theo đầu vào của bước"), không ai gõ — cờ
  *  `tu_dong` của dòng giấy chỉ nói dòng do ai thêm vào, không nói số do ai sửa. */
-export function laMayTinh(v: Pick<DongVatTu, "hang_loai" | "tu_dong">): boolean {
-  return v.hang_loai === "giay" || Boolean(v.tu_dong);
+export function laMayTinh(v: Pick<DongVatTu, "hang_loai" | "sua_tay">): boolean {
+  // Vật tư khác giấy: máy chủ luôn tính định mức từ công thức, trừ dòng người đã gõ tay.
+  return v.hang_loai === "giay" || !v.sua_tay;
 }
 
 /** Dòng giấy vừa chọn, CHƯA lưu nên máy chủ chưa dẫn xuất dạng/số — đừng hiện "chưa có công thức
@@ -205,7 +208,7 @@ export function toEdit(cd: LsxCongDoan): EditRow {
     phu_thuoc_step_keys: cd.phu_thuoc_step_keys ?? [],
     vat_tus: (cd.vat_tus ?? []).map((v) => ({
       ...v, hang_loai: v.hang_loai ?? "vat_tu",
-      so_luong: String(v.so_luong), tu_dong: Boolean(v.tu_dong),
+      so_luong: String(v.so_luong), tu_dong: Boolean(v.tu_dong), sua_tay: Boolean(v.sua_tay),
       kho_rong: v.kho_rong ? String(v.kho_rong) : "", kho_dai: v.kho_dai ? String(v.kho_dai) : "",
     })),
     nha_cung_cap_id: cd.nha_cung_cap_id ?? null,
@@ -400,9 +403,13 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
         // Giấy: chỉ chọn MÃ — số + khổ + dạng + đơn vị máy chủ tự ghi theo đầu vào của bước.
         ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, so_luong: null,
             tu_dong: v.tu_dong, kho_rong: 0, kho_dai: 0 }
-        // Vật tư KHÁC: định mức do MÁY tính từ công thức + chip ⇒ không gửi so_luong.
-        : { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, tu_dong: v.tu_dong,
-            gia_tri_chip: v.gia_tri_chip ?? {} })),
+        // Vật tư KHÁC: định mức do MÁY tính từ công thức + chip ⇒ không gửi so_luong — trừ dòng
+        // người đã gõ định mức (`sua_tay`): gửi đúng số đó, máy chủ giữ nguyên.
+        : v.sua_tay && v.so_luong.trim() !== "" && Number.isFinite(Number(v.so_luong))
+          ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, tu_dong: false, sua_tay: true,
+              so_luong: Number(v.so_luong), gia_tri_chip: v.gia_tri_chip ?? {} }
+          : { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, tu_dong: v.tu_dong,
+              gia_tri_chip: v.gia_tri_chip ?? {} })),
       // Chỉ gửi khi bước ĐANG là thuê ngoài — đổi loại rồi thì server tự dọn (Task 3).
       nha_cung_cap_id: ngoai ? r.nha_cung_cap_id : null,
       don_gia_gia_cong: ngoai ? on(r.don_gia_gia_cong) : undefined,

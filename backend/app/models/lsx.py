@@ -405,6 +405,12 @@ class LsxCongDoanVatTu(Base):
     # không tra ngược phiếu lúc chạy, để phiếu sửa sau không làm đổi lệnh đã lập. Dùng để tính
     # `so_luong` bằng `vat_tu_in_an.cong_thuc_dinh_muc` mỗi lần bung/bung lại. mg 0358.
     gia_tri_chip: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # ĐỊNH MỨC GÕ TAY (03/10/2026, mg 0362): người lập lệnh sửa số của dòng vật tư khác ⇒ máy KHÔNG
+    # tính lại bằng công thức định mức nữa, giữ đúng số người gõ. `tu_dong` không thay được cờ này:
+    # nó chỉ nói dòng do ai THÊM, dòng người tự thêm vẫn để máy tính số.
+    sua_tay: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
+    )
     # DẠNG của dòng GIẤY: `"to"` (đếm tờ theo khổ) / `"cuon"` (đếm theo khối lượng) — do máy chủ ghi
     # theo ĐẦU VÀO của bước (spec 2026-10-01 dong-giay-theo-dau-vao §4), không ai gõ. Hàng khác NULL. mg 0360.
     dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)

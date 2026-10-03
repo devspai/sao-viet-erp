@@ -2493,7 +2493,7 @@ class LsxService:
                  "don_vi": v.don_vi_snapshot, "so_luong": _f(v.so_luong),
                  "kho_rong": int(v.kho_rong or 0), "kho_dai": int(v.kho_dai or 0),
                  "dang_giay": v.dang_giay,
-                 "tu_dong": bool(v.tu_dong),
+                 "tu_dong": bool(v.tu_dong), "sua_tay": bool(v.sua_tay),
                  "gia_tri_chip": dict(v.gia_tri_chip or {}),
                  "chips": [{"ma": c.ma, "ten": c.ten, "don_vi": c.don_vi}
                            for c in (vat_tu_theo_id[v.vat_tu_id].chips
@@ -3184,13 +3184,17 @@ class LsxService:
             if thieu:
                 raise LsxValidationError(
                     "Vật tư không tồn tại hoặc đã ngừng dùng — chọn món khác")
-            # Định mức vật tư khác KHÔNG nhập tay (01/10/2026): máy tính bằng công thức định mức của
-            # chính vật tư + chip + số của bước; số client gửi lên bị bỏ. Không tính được (chưa khai
-            # công thức / chip thiếu) thì giữ số cũ của dòng cùng món, chưa có thì 0.
+            # Định mức vật tư khác: máy tính bằng công thức định mức của chính vật tư + chip + số
+            # của bước. Không tính được (chưa khai công thức / chip thiếu) thì giữ số cũ của dòng
+            # cùng món, chưa có thì 0. NGOẠI LỆ (03/10/2026): dòng người đã gõ định mức (`sua_tay`)
+            # thì giữ đúng số gửi lên — máy không tính đè.
             tinh_lai: dict[tuple[str, int], float] = {}
             quy_cach_tl = quy_cach_bien(lsx)
             for item, cap in zip(vat_tus, caps):
                 if cap[0] == HANG_GIAY:
+                    continue
+                if item.get("sua_tay") and item.get("so_luong") is not None:
+                    tinh_lai[cap] = float(item["so_luong"])
                     continue
                 rows_tl, _ = self._vat_tu_bung(
                     None, row, quy_cach_tl,
@@ -3207,6 +3211,8 @@ class LsxService:
             # bấm Lưu lần thứ hai mà không đổi gì.
             self.db.flush()
             for pos, (item, cap) in enumerate(zip(vat_tus, caps)):
+                sua_tay_dong = (cap[0] != HANG_GIAY and bool(item.get("sua_tay"))
+                                and item.get("so_luong") is not None)
                 # Món đã ngừng dùng thì `_mon_active` không có — mượn SNAPSHOT của chính dòng cũ,
                 # đúng thứ đang hiện trên màn, thay vì để tên/đơn vị rỗng.
                 mon = mons.get(cap)
@@ -3233,7 +3239,9 @@ class LsxService:
                     thu_tu=pos,
                     # Cờ MÁY BUNG / NGƯỜI KHAI đi theo từng dòng: lần bung sau chỉ thay dòng máy,
                     # dòng người đã sửa thì chừa ra. Client cũ không gửi ⇒ False = người khai.
-                    tu_dong=bool(item.get("tu_dong")),
+                    # Dòng gõ tay định mức luôn là người khai — bung lại / đồng bộ danh mục chừa ra.
+                    tu_dong=bool(item.get("tu_dong")) and not sua_tay_dong,
+                    sua_tay=sua_tay_dong,
                 ))
 
         # Ghi lại cạnh đến từng bước; key có thể trỏ bước cùng LSX hoặc LSX khác cùng đơn hàng.

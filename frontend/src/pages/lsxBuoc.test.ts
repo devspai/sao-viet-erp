@@ -277,6 +277,13 @@ describe("toBody — vật tư khác giấy", () => {
     expect(body.vat_tus![0]).toEqual({ hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: true, gia_tri_chip: { dai_support: 500 } });
     expect(body.vat_tus![1].so_luong).toBeNull();
   });
+  it("dòng người đã gõ định mức gửi kèm so_luong + sua_tay", () => {
+    const r = { ...emptyRow(), vat_tus: [
+      { hang_loai: "vat_tu", vat_tu_id: 1, so_luong: "12.5", tu_dong: true, sua_tay: true, gia_tri_chip: {}, chips: [] },
+    ] } as never;
+    expect(toBody([r])[0].vat_tus![0]).toEqual(
+      { hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: false, sua_tay: true, so_luong: 12.5, gia_tri_chip: {} });
+  });
 });
 
 describe("nhanGiayTheoDauVao", () => {
@@ -292,9 +299,9 @@ describe("nhanGiayTheoDauVao", () => {
 
 describe("dòng giấy là số MÁY tính", () => {
   it("giấy luôn là Tự tính, kể cả dòng người lập lệnh tự chọn (tu_dong=false)", () => {
-    expect(laMayTinh({ hang_loai: "giay", tu_dong: false })).toBe(true);
-    expect(laMayTinh({ hang_loai: "vat_tu", tu_dong: false })).toBe(false);
-    expect(laMayTinh({ hang_loai: "vat_tu", tu_dong: true })).toBe(true);
+    expect(laMayTinh({ hang_loai: "giay", sua_tay: true })).toBe(true);
+    expect(laMayTinh({ hang_loai: "vat_tu", sua_tay: false })).toBe(true);
+    expect(laMayTinh({ hang_loai: "vat_tu", sua_tay: true })).toBe(false);
   });
   it("giấy chưa có dạng = chờ lưu; đã dẫn xuất hoặc vật tư khác thì không", () => {
     expect(giayChoLuu({ hang_loai: "giay", dang_giay: null })).toBe(true);

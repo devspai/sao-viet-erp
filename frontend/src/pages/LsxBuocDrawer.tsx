@@ -987,9 +987,45 @@ export function LsxBuocDrawer({
                                 </span>
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--input">
+                                {/* Vật tư khác giấy: máy tính sẵn từ công thức nhưng người lập lệnh SỬA được —
+                                    gõ là thành "Đã sửa", máy thôi tính đè. Giấy suy từ đầu vào của bước — chỉ đọc. */}
+                                {v.hang_loai !== "giay" && canUpdate ? (
+                                  <div className="khsx-vattu-dinh-muc">
+                                    <div className="khsx-vattu-input-group">
+                                      <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        min={0}
+                                        step="any"
+                                        className="khsx-vattu-num-input"
+                                        aria-label={`Định mức ${v.vat_tu_ten}`}
+                                        value={v.so_luong}
+                                        onChange={(e) =>
+                                          set("vat_tus", row.vat_tus.map((x, j) => (j === i
+                                            ? { ...x, so_luong: e.target.value, sua_tay: true, tu_dong: false }
+                                            : x)))
+                                        }
+                                      />
+                                      <span className="khsx-vattu-unit-tag">{nhanDonVi(v.don_vi)}</span>
+                                    </div>
+                                    {v.sua_tay && (
+                                      <button
+                                        type="button"
+                                        className="khsx-vattu-tinh-lai"
+                                        title="Bỏ số đã gõ, để máy tính lại theo công thức khi lưu"
+                                        onClick={() =>
+                                          set("vat_tus", row.vat_tus.map((x, j) => (j === i
+                                            ? { ...x, sua_tay: false,
+                                                so_luong: goiY?.so_luong != null ? String(goiY.so_luong) : x.so_luong }
+                                            : x)))
+                                        }
+                                      >
+                                        Tính lại theo công thức
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
                                 <div className="khsx-vattu-input-group is-readonly">
-                                  {/* Số lượng: vật tư tính bằng công thức, giấy suy từ đầu vào của bước —
-                                      cả hai chỉ đọc. */}
                                   {choLuu ? (
                                     <span className="khsx-vattu-unit-tag">Tính khi lưu</span>
                                   ) : (
@@ -1003,6 +1039,7 @@ export function LsxBuocDrawer({
                                     </>
                                   )}
                                 </div>
+                                )}
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--action" style={{ textAlign: "center" }}>
                                 {canUpdate && (
