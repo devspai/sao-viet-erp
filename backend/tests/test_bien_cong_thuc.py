@@ -96,20 +96,21 @@ def test_bon_o_dung_chung_bo_bien_va_hai_chip_rieng_cua_buoc():
     # mở cho ô công đoạn vì ô đó là công thức TIỀN, nhân đơn giá vào là tính hai lần.
     RIENG_QUY_DOI = {"dinh_luong", "don_gia_khoan"}
     dem = {loai: len(bien_cho(loai)) for loai in LOAI}
-    assert dem == {LOAI_GIAY: 19, LOAI_VAT_TU: 18, LOAI_CONG_DOAN: 19, LOAI_QUY_DOI: 22}, dem
+    assert dem == {LOAI_GIAY: 19, LOAI_VAT_TU: 22, LOAI_CONG_DOAN: 19, LOAI_QUY_DOI: 22}, dem
 
     chung = ma_hop_le(LOAI_CONG_DOAN) - CUA_BUOC    # 17 biến ai cũng có
     assert {"so_trang", "trang_moi_tay"} <= chung, "hai chip quy cách sách phải có ở MỌI ô"
     assert ma_hop_le(LOAI_GIAY) - chung == {"dinh_luong", "don_gia_giay"}
-    assert ma_hop_le(LOAI_VAT_TU) - chung == {"don_gia_vat_tu"}
+    # 03/10/2026: ô giá Vật tư dùng CHUNG bộ chip với công thức định mức (vật tư đứng ở bước) —
+    # gồm cả ba chip tầng bước và định lượng; đơn giá vẫn có (ẩn trên màn khai, gõ dạng chữ được).
+    assert ma_hop_le(LOAI_VAT_TU) - chung == {"don_gia_vat_tu", "dinh_luong"} | CUA_BUOC
     # Định lượng là thuộc tính CỦA GIẤY — chỉ ô Giấy khai được; Quy đổi giữ vì cần cho tờ→kg.
     assert ma_hop_le(LOAI_QUY_DOI) - chung == RIENG_QUY_DOI | CUA_BUOC
     # Năm chip tầng BƯỚC (`sl_*` + 3 chip khuôn). Công đoạn có (15/08/2026, mở rộng 29/08/2026) vì
     # công thức tiền của nó phải đếm được đúng lượng/dụng cụ đi qua chính nó; Quy đổi có vì chạy ở
     # tầng lệnh cần cùng bộ chip đó cho "Công thức sản lượng ra"/"Cách đo lượng khoán". Giấy/Vật tư
     # KHÔNG — hai ô đó tính tiền/lượng cho một MẶT HÀNG, không đứng ở bước nào cả.
-    for loai in (LOAI_GIAY, LOAI_VAT_TU):
-        assert not (CUA_BUOC & ma_hop_le(loai)), f"{loai} không được có chip của bước"
+    assert not (CUA_BUOC & ma_hop_le(LOAI_GIAY)), "Giấy không được có chip của bước"
     assert (CUA_BUOC - {"so_luot_chay"}) <= ma_hop_le(LOAI_CONG_DOAN)
     assert CUA_BUOC <= ma_hop_le(LOAI_QUY_DOI)
     assert not any(m.startswith("don_gia") for m in chung), "Công đoạn không có biến tiền"

@@ -39,7 +39,7 @@ _MOI_O = (*_TIEN, LOAI_QUY_DOI)                    # bộ CHUNG — có mặt �
 #
 # BỘ CHUNG 17 BIẾN (15 + hai chip quy cách sách, 03/09/2026) + đúng MỘT biến đơn giá cho ô nào có
 # mục để lấy giá, + năm chip TẦNG BƯỚC cho hai ô đứng ở một bước:
-#     Giấy 19 · Vật tư 18 · Công đoạn 22 · Quy đổi 25
+#     Giấy 19 · Vật tư 22 · Công đoạn 19 · Quy đổi 22 (Vật tư mở thêm chip bước 03/10/2026)
 # Con số này bị khoá bằng test (`test_bon_o_dung_chung_bo_bien_va_hai_chip_rieng_cua_buoc`).
 # Công đoạn KHÔNG có biến tiền — không có ô nhập đơn giá ở cả phiếu lẫn danh mục, và 13/13 công
 # thức đang gõ đơn giá thẳng vào công thức. Quy đổi dùng chung bộ 16: nó chỉ chạy ở TẦNG LỆNH
@@ -106,7 +106,7 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
     # `tờ → kg` còn dùng nó. (Ô "Công thức tính định mức" của Giấy đã gỡ, mg `0348`: giấy đếm theo
     # tờ × khổ, không ra kg bằng công thức.)
     ("dinh_luong", "Định lượng giấy", "Định lượng giấy, kg/m² (= gsm ÷ 1.000)", "kg/m²",
-     "gsm của giấy ÷ 1.000", (LOAI_GIAY, LOAI_QUY_DOI)),
+     "gsm của giấy ÷ 1.000", (LOAI_GIAY, LOAI_VAT_TU, LOAI_QUY_DOI)),
     # --- Đơn giá: MỖI Ô MỘT BIẾN, tên nói rõ của ai -------------------------------------------
     # Trước 11/08/2026 cả ba ô dùng chung một chữ `don_gia`, nhìn chip không biết giá của cái gì.
     # Nay ô nào có mục để lấy giá thì có biến của riêng nó; ô Công đoạn KHÔNG có, vì không có chỗ
@@ -134,12 +134,16 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
     # Nơi bơm: `thanh_phan_engine` (vòng lặp công đoạn) · `LsxService._vat_tu_bung` +
     # `_goi_y_luong_vat_tu`. Ngữ cảnh nào không có (công thức của cặp · công thức đơn vị RA lúc
     # đang tính chính SL bước) thì `_thieu_bien` coi là THIẾU ⇒ để trống + báo lý do, không đoán.
+    #
+    # 03/10/2026: ô GIÁ của Vật tư mở cả ba chip tầng bước (và `dinh_luong`) — vật tư nay đứng ở
+    # bước (vật tư theo bước, 01/10/2026) nên engine biết số của bước; công thức giá và công thức
+    # định mức dùng CHUNG một bộ chip, đúng như spec vật tư-chip đã ghi.
     ("sl_vao", "SL vào của công đoạn", "Số lượng VÀO của chính bước đang tính",
      "đơn vị của bước", "chuỗi bù hao ngược — có sau khi engine chạy xong",
-     (LOAI_CONG_DOAN, LOAI_QUY_DOI)),
+     (LOAI_CONG_DOAN, LOAI_VAT_TU, LOAI_QUY_DOI)),
     ("sl_ra", "SL ra của công đoạn", "Số lượng RA của chính bước đang tính",
      "đơn vị của bước", "chuỗi bù hao ngược — có sau khi engine chạy xong",
-     (LOAI_CONG_DOAN, LOAI_QUY_DOI)),
+     (LOAI_CONG_DOAN, LOAI_VAT_TU, LOAI_QUY_DOI)),
     # SỐ LƯỢT của chính bước (06/09/2026). Nguồn: ô "Số lượt chạy qua máy" ở drawer bước, nay hiện
     # cho MỌI loại bước với mặc định 1. In trở 2 mặt = 2 lượt ⇒ công thợ và mực đều gấp đôi.
     #
@@ -149,7 +153,7 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
     # ⚠️ ĐỪNG gõ chip này vào công thức GIỜ CHẠY của máy: engine ĐÃ tự nhân số lượt vào giờ máy
     # (`SL ÷ tốc độ × lượt` ở `thoi_luong_buoc`). Viết `sl_vao * so_luot_chay` ở đó là đếm HAI LẦN.
     ("so_luot_chay", "Số lượt qua máy", "Số lần hàng đi qua chính bước này (in trở 2 mặt = 2)",
-     "lượt", "ô Số lượt chạy qua máy của bước — mặc định 1", (LOAI_QUY_DOI,)),
+     "lượt", "ô Số lượt chạy qua máy của bước — mặc định 1", (LOAI_VAT_TU, LOAI_QUY_DOI)),
     ("don_gia_vat_tu", "Đơn giá vật tư",
      "Đơn giá của CHÍNH vật tư đang mở — đã quy về đơn vị công thức đang đếm", "đ",
      "ô Đơn giá của dòng vật tư, quy về đơn vị cơ sở (khai đ/tấn thì máy ÷ 1.000)",

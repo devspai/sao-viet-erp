@@ -1061,53 +1061,71 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
 
     # --- Vật tư THEO BƯỚC (01/10/2026): mỗi bước mang danh sách vật tư riêng + số chip nhập ở phiếu.
     # Vật tư → Nguyên vật liệu: thế biến vào CÔNG THỨC của vật tư
-    # (HỆT giấy — công thức nằm ở danh mục vật tư, engine chỉ thế số). `don_gia_vat_tu` phơi sẵn. ---
-    for vt in (v for r_buoc in (tp.get("thanh_phams") or []) for v in (r_buoc.get("vat_tus") or [])):
-        vt_ten = vt.get("ten") or "Vật tư"
-        vt_formula = vt.get("cong_thuc_gia")
-        vt_don_gia = _f(vt.get("don_gia"))
-        vt_don_vi = vt.get("don_vi_gia", "kg")
-        luong_vt = None
-        if not vt_formula or not vt_formula.strip():
-            warnings.append(f"Vật tư '{vt_ten}' (thành phần '{name}'): chưa có công thức — tính 0đ.")
-            tien_vt, dan_vt = 0.0, "thiếu công thức — 0đ"
+    # (HỆT giấy — công thức nằm ở danh mục vật tư, engine chỉ thế số). ---
+    #
+    # 03/10/2026: công thức giá dùng ĐỦ bộ chip của công thức định mức, kể cả số của CHÍNH bước
+    # (`sl_vao`/`sl_ra`/`so_luot_chay`/`so_mat`) — vật tư nay đứng ở bước nên có số đó, bơm y như
+    # vòng công đoạn dưới đây. Kết quả công thức LÀ tiền — máy không tự nhân thêm gì.
+    for idx_vt, r_buoc in enumerate(chain):
+        _b_vt = buoc.get(idx_vt)
+        _cd_vt = r_buoc.get("cong_doan") or {}
+        if _cd_vt.get("nhom") == "print":
+            _so_mat_vt = passes
         else:
-            eval_ctx = dict(ctx_vars)
-            eval_ctx["don_gia_vat_tu"] = _don_gia_co_so(vt_don_gia, vt_don_vi)
-            # CHIP RIÊNG của vật tư (spec 2026-10-01): số nhập ở phiếu, theo từng bước.
-            gia_tri_chip = vt.get("gia_tri_chip") or {}
-            for c in vt.get("chips") or []:
-                v_chip = _f(gia_tri_chip.get(c["ma"]))
-                eval_ctx[c["ma"]] = v_chip
-                if v_chip == 0 and re.search(rf"\b{re.escape(c['ma'])}\b", vt_formula):
-                    warnings.append(
-                        f"Vật tư '{vt_ten}': chip '{c.get('ten') or c['ma']}' chưa nhập số — tính theo 0.")
-            try:
-                tien_vt = safe_eval(vt_formula, eval_ctx)
-                dan_vt = format_substituted_formula(vt_formula, eval_ctx)
-            except Exception as e:
-                warnings.append(f"Vật tư '{vt_ten}': lỗi công thức ({e}) — tính 0đ.")
-                tien_vt, dan_vt = 0.0, "lỗi công thức — 0đ"
-            # LƯỢNG tiêu thụ (Đợt 4 · L) — suy từ chính công thức tiền, không khai định mức riêng.
-            # `don_gia` đã quy về đơn vị cơ sở ở trên, nên lượng ra theo kg kể cả khi giá khai đ/tấn.
-            luong_vt = luong_tu_cong_thuc(vt_formula, eval_ctx)
-        rows["nvl"].append({
-            "loai": "vat_tu",
-            "cong_thuc_goc": (vt_formula or "").strip(),
-            "ten": _pre(name, vt_ten),
-            "so_to": to_dau_vao,
-            "don_gia": _r(vt_don_gia),
-            "thanh_tien": _r(tien_vt),
-            "gia_don_sp": _r(tien_vt / sl) if sl > 0 else 0.0,
-            "cong_thuc": _ct(dan_vt, tien_vt, sl) if _chia_duoc(dan_vt) else dan_vt,
-            # Kế hoạch vật tư đọc hai field này. `None` = công thức không suy được lượng ⇒ KHÔNG
-            # có dòng cân đối, thà thiếu còn hơn bịa một con số để đi mua hàng theo.
-            # 4 số lẻ chứ KHÔNG dùng `_r` (2 số lẻ như tiền): lượng mực cho một lệnh nhỏ có thể là
-            # 0,003 kg — làm tròn 2 số lẻ là biến nó thành 0 và dòng cân đối biến mất.
-            "luong": round(luong_vt, 4) if luong_vt is not None else None,
-            "luong_don_vi": vt_don_vi if luong_vt is not None else None,
-            "vat_tu_id": vt.get("vat_tu_id"),
-        })
+            _rm_vt = _i(r_buoc.get("so_mat"))
+            _so_mat_vt = _rm_vt if _rm_vt > 0 else passes
+        _buoc_vt = {
+            "sl_vao": ceil(_b_vt["vao"]) if _b_vt else to_dau_vao,
+            "sl_ra": ceil(_b_vt["ra"]) if _b_vt else to_dau_vao,
+            "so_luot_chay": max(_i(r_buoc.get("so_luot_chay"), 1), 1),
+            "so_mat": _so_mat_vt,
+        }
+        for vt in (r_buoc.get("vat_tus") or []):
+            vt_ten = vt.get("ten") or "Vật tư"
+            vt_formula = vt.get("cong_thuc_gia")
+            vt_don_gia = _f(vt.get("don_gia"))
+            vt_don_vi = vt.get("don_vi_gia", "kg")
+            luong_vt = None
+            if not vt_formula or not vt_formula.strip():
+                warnings.append(f"Vật tư '{vt_ten}' (thành phần '{name}'): chưa có công thức — tính 0đ.")
+                tien_vt, dan_vt = 0.0, "thiếu công thức — 0đ"
+            else:
+                eval_ctx = {**ctx_vars, **_buoc_vt}
+                eval_ctx["don_gia_vat_tu"] = _don_gia_co_so(vt_don_gia, vt_don_vi)
+                # CHIP RIÊNG của vật tư (spec 2026-10-01): số nhập ở phiếu, theo từng bước.
+                gia_tri_chip = vt.get("gia_tri_chip") or {}
+                for c in vt.get("chips") or []:
+                    v_chip = _f(gia_tri_chip.get(c["ma"]))
+                    eval_ctx[c["ma"]] = v_chip
+                    if v_chip == 0 and re.search(rf"\b{re.escape(c['ma'])}\b", vt_formula):
+                        warnings.append(
+                            f"Vật tư '{vt_ten}': chip '{c.get('ten') or c['ma']}' chưa nhập số — tính theo 0.")
+                try:
+                    tien_vt = safe_eval(vt_formula, eval_ctx)
+                    dan_vt = format_substituted_formula(vt_formula, eval_ctx)
+                    # LƯỢNG suy ngược từ công thức tiền (đặt đơn giá = 1) — `don_gia` đã quy về
+                    # đơn vị cơ sở ở trên, nên lượng ra theo kg kể cả khi giá khai đ/tấn.
+                    luong_vt = luong_tu_cong_thuc(vt_formula, eval_ctx)
+                except Exception as e:
+                    warnings.append(f"Vật tư '{vt_ten}': lỗi công thức ({e}) — tính 0đ.")
+                    tien_vt, dan_vt = 0.0, "lỗi công thức — 0đ"
+            rows["nvl"].append({
+                "loai": "vat_tu",
+                "cong_thuc_goc": (vt_formula or "").strip(),
+                "ten": _pre(name, vt_ten),
+                "so_to": to_dau_vao,
+                "don_gia": _r(vt_don_gia),
+                "thanh_tien": _r(tien_vt),
+                "gia_don_sp": _r(tien_vt / sl) if sl > 0 else 0.0,
+                "cong_thuc": _ct(dan_vt, tien_vt, sl) if _chia_duoc(dan_vt) else dan_vt,
+                # Kế hoạch vật tư đọc hai field này. `None` = công thức không suy được lượng ⇒ KHÔNG
+                # có dòng cân đối, thà thiếu còn hơn bịa một con số để đi mua hàng theo.
+                # 4 số lẻ chứ KHÔNG dùng `_r` (2 số lẻ như tiền): lượng mực cho một lệnh nhỏ có thể là
+                # 0,003 kg — làm tròn 2 số lẻ là biến nó thành 0 và dòng cân đối biến mất.
+                "luong": round(luong_vt, 4) if luong_vt is not None else None,
+                "luong_don_vi": vt_don_vi if luong_vt is not None else None,
+                "vat_tu_id": vt.get("vat_tu_id"),
+            })
 
     # Chuỗi công đoạn là NGUỒN DUY NHẤT: In / Chế bản phải nằm trong routing như mọi công đoạn
     # khác. KHÔNG tự đẻ dòng thay thế khi chuỗi thiếu — chỉ NHẮC để người dùng tự thêm.
@@ -1145,6 +1163,8 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         _b_nay = buoc.get(idx_buoc)
         ctx["sl_vao"] = ceil(_b_nay["vao"]) if _b_nay else to_dau_vao
         ctx["sl_ra"] = ceil(_b_nay["ra"]) if _b_nay else to_dau_vao
+        # Ô công đoạn không có chip này, nhưng bộ tầng bước bơm chung với ô giá vật tư.
+        ctx["so_luot_chay"] = max(_i(row.get("so_luot_chay"), 1), 1)
         # so_mat: dòng IN (nhom=print) LUÔN theo số mặt cách in (passes) — KHÔNG để field mặc định=1
         # nuốt (N2: model so_mat default=1 khiến fallback passes thành code chết). Finishing tự set
         # so_mat (cán 1/2 mặt); ≤0 → dùng passes.

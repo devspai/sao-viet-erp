@@ -32,10 +32,19 @@ def _dong_support(res):
 
 
 def test_chip_the_vao_cong_thuc_gia_cua_vat_tu_trong_buoc():
-    dong = _dong_support(_phieu([_vat_tu_support()]))
+    """Kết quả công thức LÀ tiền — máy không nối đơn giá danh mục vào (03/10/2026)."""
+    dong = _dong_support(_phieu([_vat_tu_support(don_gia=1000)]))
     assert len(dong) == 1
-    assert dong[0]["thanh_tien"] == 24          # 2 × 3 × 4
+    assert dong[0]["thanh_tien"] == 24          # 2 × 3 × 4, KHÔNG nhân đơn giá 1.000
     assert dong[0]["vat_tu_id"] == 77
+
+
+def test_cong_thuc_gia_vat_tu_doc_duoc_so_cua_CHINH_buoc():
+    """`sl_vao` ở ô giá vật tư là số vào của bước chứa vật tư — cùng số với vòng công đoạn."""
+    res = _phieu([_vat_tu_support(cong_thuc_gia="sl_vao * 0.001")])
+    dong = _dong_support(res)
+    assert dong[0]["thanh_tien"] > 0
+    assert not any("lỗi công thức" in w for w in res["warnings"])
 
 
 def test_chip_chua_nhap_so_thi_tinh_0_va_canh_bao():

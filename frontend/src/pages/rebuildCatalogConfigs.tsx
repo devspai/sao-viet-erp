@@ -550,8 +550,9 @@ export const CFG_VAT_TU: CatalogConfig = {
     { key: "chips", label: "Chip riêng của vật tư", type: "vat-tu-chip", group: "Chip riêng",
       refPrefix: "/api/don-vi",
       hint: "Tên các con số bạn nhập khi tính giá cho vật tư này (vd Dài support, Rộng support). Dùng làm biến trong hai công thức." },
+    // 03/10/2026: ẩn chip Đơn giá vật tư khỏi bảng chip; công thức cũ đã gõ nó vẫn hợp lệ.
     { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula",
-      nhanTab: "Công thức tính giá", loaiO: "vat_tu", chipsTu: "chips",
+      nhanTab: "Công thức tính giá", loaiO: "vat_tu", chipsTu: "chips", an: ["don_gia_vat_tu"],
       hint: "Ra TIỀN của vật tư này ở phiếu tính giá." },
     { key: "cong_thuc_dinh_muc", label: "Công thức định mức", type: "formula",
       nhanTab: "Công thức định mức", loaiO: "quy_doi", chipsTu: "chips",
