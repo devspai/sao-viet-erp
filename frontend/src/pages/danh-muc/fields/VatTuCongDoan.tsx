@@ -11,6 +11,7 @@ import { useAuth } from "../../../auth/useAuth";
 import { crud } from "../../../api/rebuildCatalog";
 import { TrashIcon } from "../icons";
 import type { Row, VatTuCongDoanRow } from "../types";
+import { RefSearchField } from "./RefFields";
 
 export function VatTuCongDoanField({ value, onChange }: {
   value: VatTuCongDoanRow[];
@@ -30,23 +31,27 @@ export function VatTuCongDoanField({ value, onChange }: {
     return () => { alive = false; };
   }, [token]);
   const theoId = useMemo(() => new Map(vatTu.map((v) => [Number(v.id), v])), [vatTu]);
+  // Ô thêm: tìm GẦN ĐÚNG theo tên (bỏ dấu, từ nào trước cũng được), chỉ hiện tên kèm ĐVT — mã vẫn
+  // gõ được nhưng không in ra. Món đã có trong bảng thì không mời chọn lại.
+  const conLai = useMemo(() => vatTu
+    .filter((v) => !value.some((x) => x.vat_tu_id === Number(v.id)))
+    .map((v) => ({ ...v, ten: `${String(v.ten)} (${String(v.don_vi_gia ?? "—")})` })),
+  [vatTu, value]);
 
   return <div className="rc-bands rc-bands--dinh-muc">
     <div className="rc-dm-vt">
       <table className="rc-dinh-muc-table">
         <thead><tr>
-          <th className="rc-col--left">Mã</th>
           <th className="rc-col--left">Tên vật tư</th>
           <th className="rc-col--unit">ĐVT</th>
           <th className="rc-col--center" style={{ width: 36 }} />
         </tr></thead>
         <tbody>
-          {value.length === 0 && <tr><td colSpan={4} className="rc-bands__empty">
+          {value.length === 0 && <tr><td colSpan={3} className="rc-bands__empty">
             Chưa khai vật tư nào — chọn ở ô bên dưới.
           </td></tr>}
           {value.map((v, i) => { const vt = theoId.get(v.vat_tu_id); return (
             <tr key={v.vat_tu_id}>
-              <td className="rc-col--left">{String(vt?.ma ?? `#${v.vat_tu_id}`)}</td>
               <td className="rc-col--left">{String(vt?.ten ?? "(đã gỡ khỏi danh mục)")}</td>
               <td className="rc-col--unit">{String(vt?.don_vi_gia ?? "—")}</td>
               <td className="rc-col--center">
@@ -59,14 +64,9 @@ export function VatTuCongDoanField({ value, onChange }: {
           ); })}
         </tbody>
       </table>
-      <select className="rc-dinh-muc-add__select" value="" aria-label="Thêm vật tư"
-        onChange={(e) => { const id = Number(e.target.value); if (id)
-          onChange([...value, { vat_tu_id: id }]); }}>
-        <option value="">＋ chọn từ danh mục vật tư khác</option>
-        {vatTu.filter((v) => !value.some((x) => x.vat_tu_id === Number(v.id))).map((v) => (
-          <option key={v.id} value={v.id}>{String(v.ma)} · {String(v.ten)} ({String(v.don_vi_gia ?? "—")})</option>
-        ))}
-      </select>
+      <RefSearchField value={null} options={conLai} anMa
+        placeholder="＋ Gõ tên vật tư để thêm…"
+        onChange={(id) => { if (id != null) onChange([...value, { vat_tu_id: Number(id) }]); }} />
       <p className="rc-dm-vt__note">
         Định mức khai ở danh mục Vật tư → tab Công thức định mức.
       </p>
