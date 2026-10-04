@@ -150,7 +150,7 @@
   background: var(--rule-hair);
 }
 .users__row.is-active {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 /* Filler rows keep the table height constant across pages (no layout jump). */
 .users__row--filler {

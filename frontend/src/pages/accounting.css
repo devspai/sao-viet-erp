@@ -1805,7 +1805,7 @@ td.acct-count-cell {
 /* Dòng hoá đơn đang mở popup thu tiền — tô nhạt để vẫn biết đang thu hoá đơn nào dù popup
    giờ nổi lên GIỮA màn hình (khuôn .acct-modal), không còn nằm ngay dưới dòng như trước. */
 .ar-row--active td {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 /* 3 cột mặc định (Tiền mặt: Người nộp/Ngày thu/Số tiền). Chuyển khoản thêm ô "Tài khoản nhận"
@@ -1838,8 +1838,8 @@ td.acct-count-cell {
 /* ===== B3: Cọc đơn hàng chờ ghi (hàng chờ + popup + lập cọc trong module Phiếu thu) ===== */
 .odq {
   margin: 0 0 16px;
-  border: 1px solid var(--rust-soft, #f4ddcf);
-  background: var(--rust-wash, #fdf6f1);
+  border: 1px solid var(--rule-hair);
+  background: var(--rust-wash, var(--paper));
   border-radius: 12px;
   padding: 12px 14px;
 }
@@ -2602,9 +2602,9 @@ td.acct-count-cell {
 }
 :is(.acct-dmh, .acct-std) table tbody tr:last-child td { border-bottom: 0; }
 :is(.acct-dmh, .acct-std) table tbody tr { cursor: pointer; }
-:is(.acct-dmh, .acct-std) table tbody tr:hover { background: var(--rust-soft); }
+:is(.acct-dmh, .acct-std) table tbody tr:hover { background: var(--rule-hair); }
 :is(.acct-dmh, .acct-std) table tbody tr.purchase__row--selected {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   box-shadow: inset 3px 0 0 var(--rust);
 }
 
@@ -2909,7 +2909,7 @@ td.acct-count-cell {
 .acct-toolbar__search-input:focus {
   outline: none;
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
 }
 .acct-toolbar__clear-search {
   position: absolute;
@@ -2952,7 +2952,7 @@ td.acct-count-cell {
   color: var(--ink);
 }
 .acct-toolbar__date-toggle.is-active {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   border-color: var(--rust);
   font-weight: var(--fw-bold);
@@ -3210,9 +3210,9 @@ td.acct-count-cell {
   background: var(--canvas);
 }
 .acct-pc strong { font-weight: var(--fw-bold); }
-.acct-pc .acct-list--voucher tbody tr:hover { background: var(--rust-soft); }
+.acct-pc .acct-list--voucher tbody tr:hover { background: var(--rule-hair); }
 .acct-pc .acct-list--voucher tr.purchase__row--selected {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   box-shadow: inset 3px 0 0 var(--rust);
 }
 .acct-pc td.acct-code-cell strong,
@@ -3291,9 +3291,9 @@ td.acct-count-cell {
 .acct-pt table thead th.acct-amount-cell { text-align: right; }
 .acct-pt table tbody td { padding: 12px 14px; border-bottom: 1px solid var(--rule-hair); vertical-align: middle; }
 .acct-pt table tbody tr:last-child td { border-bottom: 0; }
-.acct-pt table tbody tr:hover { background: var(--rust-soft); }
+.acct-pt table tbody tr:hover { background: var(--rule-hair); }
 .acct-pt table tbody tr.purchase__row--selected {
-  background: var(--rust-soft); box-shadow: inset 3px 0 0 var(--rust);
+  background: var(--rule-hair); box-shadow: inset 3px 0 0 var(--rust);
 }
 .acct-pt table td.acct-code-cell strong {
   font-family: var(--ff-sans); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums;

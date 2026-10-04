@@ -1664,7 +1664,7 @@ function MaterialHistoryDrawer({
                 onClick={() => setShowQr((v) => !v)}
                 aria-pressed={showQr}
                 title="Tem QR vật tư — quét ra tồn & vị trí"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", background: showQr ? "var(--rust-soft)" : "var(--paper)", color: showQr ? "var(--rust)" : "var(--ink)", border: "1px solid var(--rule)", borderRadius: 6, cursor: "pointer", fontSize: 12.5, fontWeight: 600 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", background: showQr ? "var(--rule-hair)" : "var(--paper)", color: showQr ? "var(--rust)" : "var(--ink)", border: "1px solid var(--rule)", borderRadius: 6, cursor: "pointer", fontSize: 12.5, fontWeight: 600 }}
               >
                 <QrCode style={{ width: 14, height: 14 }} /> {showQr ? "Ẩn QR" : "Tem QR"}
               </button>

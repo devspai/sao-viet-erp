@@ -11,7 +11,7 @@
   background-color: var(--paper, #f8fafc);
   background-image: 
     radial-gradient(circle at 50% 38%, rgba(244, 226, 214, 0.65) 0%, rgba(248, 250, 252, 0.96) 65%),
-    radial-gradient(circle at 15% 20%, rgba(197, 64, 10, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 15% 20%, rgba(100, 116, 139, 0.08) 0%, transparent 45%),
     radial-gradient(circle at 85% 80%, rgba(138, 45, 7, 0.06) 0%, transparent 45%);
   padding: var(--sp-6);
   font-family: var(--ff-sans);
@@ -44,7 +44,7 @@
   height: 420px;
   bottom: 10%;
   right: 20%;
-  background: radial-gradient(circle, rgba(197, 64, 10, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(100, 116, 139, 0.15) 0%, transparent 70%);
   animation: glowFloat 12s ease-in-out infinite alternate-reverse;
 }
 
@@ -74,7 +74,7 @@
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.95);
   border-radius: 24px;
-  box-shadow: 0 24px 48px -12px rgba(197, 64, 10, 0.16),
+  box-shadow: 0 24px 48px -12px rgba(100, 116, 139, 0.16),
               0 12px 28px -6px rgba(15, 23, 42, 0.05),
               inset 0 1px 1px rgba(255, 255, 255, 1);
   padding: 0;
@@ -128,7 +128,7 @@
   align-items: center;
   justify-content: center;
   margin-bottom: 8px;
-  box-shadow: 0 8px 20px rgba(197, 64, 10, 0.16), 0 2px 6px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 8px 20px rgba(100, 116, 139, 0.16), 0 2px 6px rgba(15, 23, 42, 0.05);
   border: 1px solid var(--rule-soft, #e2e8f0);
 }
 
@@ -188,7 +188,7 @@
 
 .field__input-wrap .input:focus {
   border-color: var(--rust, #c5400a);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.15), inset 0 1px 2px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.15), inset 0 1px 2px rgba(0, 0, 0, 0.02);
   background: #ffffff;
 }
 
@@ -238,7 +238,7 @@
 
 .auth__toggle-pw:hover {
   color: var(--rust, #c5400a);
-  background-color: rgba(197, 64, 10, 0.08);
+  background-color: var(--rule-hair);
 }
 
 .auth__options {
@@ -277,7 +277,7 @@
 
 .auth__actions .btn--accent {
   background: linear-gradient(135deg, #e05218 0%, #c5400a 100%);
-  box-shadow: 0 4px 16px rgba(197, 64, 10, 0.35);
+  box-shadow: 0 4px 16px rgba(100, 116, 139, 0.35);
   font-weight: 600;
   font-size: 14px;
   height: 46px;
@@ -326,8 +326,8 @@ button:hover .auth__btn-label svg {
   gap: 6px;
   padding: 4px 12px;
   border-radius: var(--r-pill);
-  background: var(--rust-soft, #f4e2d6);
-  border: 1px solid rgba(197, 64, 10, 0.2);
+  background: var(--rule-hair);
+  border: 1px solid rgba(100, 116, 139, 0.2);
   font-size: 11px;
   font-weight: 500;
   color: var(--rust-deep, #8a2d07);
@@ -386,7 +386,7 @@ button:hover .auth__btn-label svg {
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  background: var(--rust-soft, #f4e2d6);
+  background: var(--rule-hair);
   color: var(--rust, #c5400a);
   display: flex;
   align-items: center;
@@ -463,7 +463,7 @@ button:hover .auth__btn-label svg {
   position: absolute;
   inset: -12px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--rust-soft) 0%, rgba(197, 64, 10, 0) 70%);
+  background: radial-gradient(circle, var(--rule-hair) 0%, rgba(100, 116, 139, 0) 70%);
   animation: splashPulseGlow 3s ease-in-out infinite alternate;
 }
 

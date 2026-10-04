@@ -4,7 +4,7 @@
 .nqr .required { color: var(--signal); }
 .nqr__tools { display: grid; grid-template-columns: auto minmax(180px, 420px) 1fr; align-items: center; gap: 9px; margin: var(--sp-5) 0 var(--sp-3); color: var(--ash); }
 .nqr__tools input { width: 100%; min-height: 38px; padding: 8px 10px; color: var(--ink); background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--r-3); font: inherit; }
-.nqr__tools input:focus { outline: 2px solid var(--rust-soft); border-color: var(--rust); }
+.nqr__tools input:focus { outline: 2px solid var(--rule-hair); border-color: var(--rust); }
 .nqr__tools > span { justify-self: end; font-family: var(--ff-sans); font-size: 11px; }
 
 .nqr__table-wrap { overflow-x: auto; background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--r-3); box-shadow: var(--shadow-1); }
@@ -44,8 +44,8 @@
 .nqr-modal__head button:hover, .nqr-preview__actions a:hover { color: var(--ink); background: var(--paper); border-color: var(--rule); }
 .nqr-modal__body { display: grid; gap: var(--sp-4); padding: 18px; overflow-y: auto; }
 .nqr-create__note { min-height: 88px; resize: vertical; }
-.nqr-picker { display: flex; width: 100%; min-height: 78px; align-items: center; gap: 12px; padding: 14px; color: var(--ash); background: var(--paper); border: 1px dashed var(--rule); border-radius: var(--r-3); cursor: pointer; text-align: left; }
-.nqr-picker:hover, .nqr-picker.has-file { color: var(--ink); border-color: var(--rust); background: color-mix(in srgb, var(--rust-soft) 35%, var(--canvas)); }
+.nqr-picker { display: flex; width: 100%; min-height: 78px; align-items: center; gap: 12px; padding: 14px; color: var(--ash); background: var(--paper); border: 1px dashed var(--rule); border-radius: var(--r-3); cursor: pointer; text-align: left; } .nqr-picker.has-file { color: var(--ink); border-color: var(--rust); background: color-mix(in srgb, var(--rule-hair) 35%, var(--canvas)); }
+.nqr-picker:hover { color: var(--ink); border-color: var(--rust); background: color-mix(in srgb, var(--rule-hair) 35%, var(--canvas)); }
 .nqr-picker > span { display: flex; min-width: 0; flex-direction: column; font-weight: var(--fw-bold); overflow-wrap: anywhere; }
 .nqr-picker small { margin-top: 3px; color: var(--ash); font-weight: var(--fw-regular); }
 .nqr-modal__foot { display: flex; justify-content: flex-end; gap: var(--sp-2); padding: 12px 18px; border-top: 1px solid var(--rule); }

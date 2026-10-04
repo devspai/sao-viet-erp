@@ -68,3 +68,30 @@ def test_hai_buoc_cung_dung_mot_vat_tu_ra_hai_dong():
 def test_vat_tu_khong_co_cong_thuc_tinh_0_va_canh_bao():
     res = _phieu([_vat_tu_support(cong_thuc_gia=None)])
     assert any("chưa có công thức" in w for w in res["warnings"])
+
+
+def test_dinh_muc_chay_cong_thuc_dinh_muc_cua_vat_tu_gan_dung_buoc():
+    """Thẻ công đoạn hiện LƯỢNG từ công thức định mức (04/10/2026) — dòng mang `buoc_idx` để FE
+    ghép đúng bước, vì một vật tư có thể nằm ở nhiều bước."""
+    tp = _component()
+    tp["thanh_phams"] = [
+        {**_buoc("Cán màng", "to", "to"), "vat_tus": [_vat_tu_support(
+            cong_thuc_dinh_muc="dai_support * rong_support / 1000 + sl_vao * 0")]},
+        {**_buoc("Bế", "to", "to"), "vat_tus": [_vat_tu_support()]},
+    ]
+    res = compute_phieu(so_luong=1000, thanh_phans=[tp])
+    theo_buoc = {r["buoc_idx"]: r for r in _dong_support(res)}
+    assert theo_buoc[0]["dinh_muc"] == 0.012      # 3 × 4 ÷ 1000
+    assert theo_buoc[0]["dinh_muc_don_vi"] == "kg"
+    assert theo_buoc[0]["dinh_muc_ly_do"] is None
+    assert theo_buoc[0]["dinh_muc_cong_thuc_goc"].startswith("dai_support * rong_support")
+    assert "dai_support(3)" in theo_buoc[0]["dinh_muc_cong_thuc"]
+    # Bước 2 không khai công thức định mức ⇒ không bịa số, nói lý do.
+    assert theo_buoc[1]["dinh_muc"] is None
+    assert "chưa khai công thức định mức" in theo_buoc[1]["dinh_muc_ly_do"]
+
+
+def test_dinh_muc_van_tinh_khi_vat_tu_chua_co_cong_thuc_gia():
+    dong = _dong_support(_phieu([_vat_tu_support(cong_thuc_gia=None, cong_thuc_dinh_muc="dai_support * 2")]))
+    assert dong[0]["thanh_tien"] == 0
+    assert dong[0]["dinh_muc"] == 6

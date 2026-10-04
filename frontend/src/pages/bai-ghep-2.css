@@ -51,7 +51,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 3px 9px;
   border-radius: var(--r-pill);
 }
@@ -167,7 +167,7 @@
 }
 .bg2-search:focus-within {
   border-color: var(--rust);
-  box-shadow: 0 0 0 2px var(--rust-soft);
+  box-shadow: 0 0 0 2px var(--rule-hair);
 }
 .bg2-search input {
   border: none;
@@ -191,7 +191,7 @@
 .bg2-toolbar__stat-picked {
   color: var(--rust-deep);
   font-weight: 600;
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 3px 10px;
   border-radius: var(--r-pill);
 }
@@ -243,7 +243,7 @@
   background: var(--paper);
 }
 .bg2-queue-row.is-picked td {
-  background: #fff8f5;
+  background: var(--paper);
   border-bottom-color: #fed7aa;
 }
 .bg2-queue-row.is-picked td:first-child {

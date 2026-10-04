@@ -35,7 +35,7 @@
   gap: var(--sp-3);
   flex-wrap: wrap;
   padding: var(--sp-3) var(--sp-4);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-3);
 }
@@ -218,7 +218,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  background: var(--rust-soft, #fdf4ef);
+  background: var(--rule-hair);
   border: 1px solid rgba(194, 91, 41, 0.25);
   border-radius: var(--r-full, 9999px);
   color: var(--rust-deep, #9a3412);
@@ -407,7 +407,7 @@
   font-weight: var(--fw-bold);
   letter-spacing: 0.02em;
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-radius: var(--r-2);
   padding: 1px 6px;
 }
@@ -486,7 +486,7 @@
 }
 .depts__toggle:hover {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .depts__toggle:focus-visible {
   outline: 2px solid var(--rust);
@@ -530,7 +530,7 @@
 .depts__item.is-active .depts__item-main {
   border-color: var(--rule);
   border-left-color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .depts__item-top {
   display: flex;
@@ -738,7 +738,7 @@
   width: 52px;
   height: 52px;
   border-radius: var(--r-5);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   display: grid;
   place-items: center;
@@ -777,7 +777,7 @@
   font-size: 11px;
   font-weight: var(--fw-bold);
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-radius: var(--r-pill);
   padding: 1px 9px;
 }
@@ -807,7 +807,7 @@
   width: 34px;
   height: 34px;
   border-radius: var(--r-pill);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   display: grid;
   place-items: center;
@@ -869,7 +869,7 @@
 }
 .depts__badge--head {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .depts__badge--locked {
   color: var(--signal);
@@ -1216,7 +1216,7 @@
 }
 .deptbl__toggle:hover {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .deptbl__toggle:focus-visible {
   outline: 2px solid var(--rust);
@@ -1365,7 +1365,7 @@
   font-size: 13px;
   line-height: 1.55;
   color: var(--ash);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-3);
   padding: var(--sp-3) var(--sp-4);

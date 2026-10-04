@@ -12,7 +12,7 @@
   --rdx-text-slate: #475569;
   --rdx-text-light: #94a3b8;
   --rdx-primary: #c5400a;
-  --rdx-primary-soft: #fff5f0;
+  --rdx-primary-soft: var(--paper);
 }
 
 .rdx-dept__head {
@@ -160,7 +160,7 @@
 .rdx-tree__search-input:focus {
   outline: none;
   border-color: var(--rdx-primary);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.18);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.18);
 }
 
 /* Chip lọc phân loại phòng */
@@ -190,7 +190,7 @@
 .rdx-chip:hover {
   border-color: var(--rdx-primary);
   color: var(--rdx-primary);
-  background: var(--rdx-primary-soft);
+  background: var(--rule-hair);
 }
 .rdx-chip.is-active {
   color: #ffffff;
@@ -249,9 +249,9 @@
 }
 
 .rdx-tree__tile.is-active {
-  background: #fff5f0;
+  background: var(--paper);
   border-color: var(--rdx-primary);
-  box-shadow: 0 0 0 1px var(--rdx-primary), 0 4px 14px rgba(197, 64, 10, 0.15);
+  box-shadow: 0 0 0 1px var(--rdx-primary), 0 4px 14px rgba(100, 116, 139, 0.15);
 }
 
 .rdx-tree__tile::before {
@@ -535,7 +535,7 @@
   place-items: center;
   color: var(--rdx-primary);
   background: var(--rdx-primary-soft);
-  border: 1px solid rgba(197, 64, 10, 0.15);
+  border: 1px solid rgba(100, 116, 139, 0.15);
 }
 .rdx-drawer__idmain {
   min-width: 0;
@@ -612,7 +612,7 @@
 .rdx-drawer__ghost:hover {
   border-color: var(--rdx-primary);
   color: var(--rdx-primary);
-  background: var(--rdx-primary-soft);
+  background: var(--rule-hair);
 }
 .rdx-drawer__close {
   display: grid;
@@ -817,7 +817,7 @@
   font-size: 10px;
   font-weight: var(--fw-bold);
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-radius: var(--r-pill);
   padding: 0 6px;
 }
@@ -1133,8 +1133,8 @@
 
 .rdx-org-node.is-selected {
   border-color: var(--rust);
-  box-shadow: 0 0 0 2px rgba(197, 64, 10, 0.16), 0 4px 12px rgba(20, 19, 15, 0.06);
-  background: #fffbf9;
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.16), 0 4px 12px rgba(20, 19, 15, 0.06);
+  background: var(--paper);
 }
 
 .rdx-org-node__head {
@@ -1182,7 +1182,7 @@
   font-size: 9.5px;
   font-weight: var(--fw-bold);
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 1px 5px;
   border-radius: var(--r-pill);
 }
@@ -1330,8 +1330,8 @@
 
 /* Đang gập = còn thứ chưa xem → tô rust nhạt cho nổi, khác hẳn nút mở (xám trung tính). */
 .rdx-org-node__toggle.is-collapsed {
-  background: var(--rust-soft);
-  border-color: rgba(197, 64, 10, 0.28);
+  background: var(--rule-hair);
+  border-color: rgba(100, 116, 139, 0.28);
   color: var(--rust-deep);
 }
 
@@ -1421,8 +1421,8 @@
 
 .rdx-kpi-card__icon--primary {
   color: var(--rust);
-  background: var(--rust-soft);
-  border-color: rgba(197, 64, 10, 0.15);
+  background: var(--rule-hair);
+  border-color: rgba(100, 116, 139, 0.15);
 }
 
 .rdx-kpi-card__icon--moss {
@@ -1573,7 +1573,7 @@
   align-items: center;
   gap: 14px;
   padding: 16px 18px;
-  background: linear-gradient(135deg, #fff5f0 0%, #ffffff 100%);
+  background: linear-gradient(135deg, var(--paper) 0%, #ffffff 100%);
   border: 1px solid #cbd5e1;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
@@ -1584,7 +1584,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border: 2px solid var(--paper);
   color: var(--rust-deep);
   font-weight: var(--fw-bold);
@@ -1667,9 +1667,9 @@
 
 .rdx-subdept-card:hover {
   border-color: var(--rust);
-  background: #fffbf9;
+  background: var(--paper);
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(197, 64, 10, 0.06);
+  box-shadow: 0 4px 10px rgba(100, 116, 139, 0.06);
 }
 
 .rdx-subdept-card__name {
@@ -1686,7 +1686,7 @@
   font-size: 10px;
   font-weight: var(--fw-bold);
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 1px 5px;
   border-radius: var(--r-pill);
   flex-shrink: 0;
@@ -1858,7 +1858,7 @@
 .rdx-tree__tile.is-active {
   background: var(--paper);
   border-color: var(--rust);
-  box-shadow: 0 0 0 2px rgba(197, 64, 10, 0.14);
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.14);
 }
 
 .rdx-tree__tile::before {
@@ -1940,7 +1940,7 @@
   font-size: 10px;
   font-weight: var(--fw-bold);
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 1px 6px;
   border-radius: var(--r-pill);
 }
@@ -2142,8 +2142,8 @@
   display: grid;
   place-items: center;
   color: var(--rust);
-  background: var(--rust-soft);
-  border: 1px solid rgba(197, 64, 10, 0.15);
+  background: var(--rule-hair);
+  border: 1px solid rgba(100, 116, 139, 0.15);
 }
 .rdx-drawer__idmain {
   min-width: 0;
@@ -2179,7 +2179,7 @@
   font-size: 10.5px;
   font-weight: var(--fw-bold);
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border: none;
   border-radius: var(--r-pill);
   padding: 1px 7px;
@@ -2426,7 +2426,7 @@
   font-size: 10px;
   font-weight: var(--fw-bold);
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-radius: var(--r-pill);
   padding: 0 6px;
 }
@@ -2595,8 +2595,8 @@
 
 .rdx-kpi-card__icon--primary {
   color: var(--rust);
-  background: var(--rust-soft);
-  border-color: rgba(197, 64, 10, 0.15);
+  background: var(--rule-hair);
+  border-color: rgba(100, 116, 139, 0.15);
 }
 
 .rdx-kpi-card__icon--moss {
@@ -2758,7 +2758,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border: 2px solid var(--paper);
   color: var(--rust-deep);
   font-weight: var(--fw-bold);
@@ -2858,7 +2858,7 @@
   font-size: 10px;
   font-weight: var(--fw-bold);
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 1px 5px;
   border-radius: var(--r-pill);
   flex-shrink: 0;
@@ -2917,7 +2917,7 @@
   font-size: 11.5px;
   font-weight: var(--fw-bold);
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 0 10px;
 }
 
@@ -3004,9 +3004,9 @@
 }
 
 .rdx-tree__tile.is-active {
-  background: #fff8f6;
+  background: var(--paper);
   border-color: var(--rdx-primary);
-  box-shadow: 0 0 0 1px var(--rdx-primary), 0 6px 20px -4px rgba(197, 64, 10, 0.2);
+  box-shadow: 0 0 0 1px var(--rdx-primary), 0 6px 20px -4px rgba(100, 116, 139, 0.2);
 }
 
 .rdx-tree__tile-icon-bg {
@@ -3018,7 +3018,7 @@
 
 .rdx-tree__code {
   letter-spacing: 0.02em;
-  box-shadow: 0 1px 2px rgba(197, 64, 10, 0.08);
+  box-shadow: 0 1px 2px rgba(100, 116, 139, 0.08);
 }
 
 /* View Mode Toggle Switcher (Orange Brand Accent Theme) */
@@ -3026,11 +3026,11 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  background: #fff5f0;
-  border: 1px solid rgba(197, 64, 10, 0.2);
+  background: var(--paper);
+  border: 1px solid rgba(100, 116, 139, 0.2);
   border-radius: 9px;
   padding: 3px;
-  box-shadow: inset 0 1px 2px rgba(197, 64, 10, 0.05);
+  box-shadow: inset 0 1px 2px rgba(100, 116, 139, 0.05);
 }
 
 .rdx-view-mode-btn {
@@ -3052,14 +3052,14 @@
 
 .rdx-view-mode-btn:hover {
   color: var(--rust);
-  background: rgba(197, 64, 10, 0.08);
+  background: var(--rule-hair);
 }
 
 .rdx-view-mode-btn.is-active {
   color: #ffffff;
   background: linear-gradient(135deg, var(--rust) 0%, #d97706 100%);
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(197, 64, 10, 0.3);
+  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.3);
 }
 
 /* Expand All / Collapse All Action Buttons */
@@ -3082,10 +3082,10 @@
 }
 
 .rdx-org-toolbar__btn:hover {
-  background: #fff5f0;
+  background: var(--rule-hair);
   border-color: var(--rust, #c5400a);
   color: var(--rust, #c5400a);
-  box-shadow: 0 2px 8px rgba(197, 64, 10, 0.1);
+  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.1);
   transform: translateY(-1px);
 }
 
@@ -3134,7 +3134,7 @@
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(197, 64, 10, 0.3);
+  box-shadow: 0 3px 10px rgba(100, 116, 139, 0.3);
   transition: all 0.15s ease-in-out;
 }
 
@@ -3152,8 +3152,8 @@
 
 .rdx-subdept-card:hover {
   border-color: var(--rdx-primary);
-  background: #fff5f0;
-  box-shadow: 0 4px 12px rgba(197, 64, 10, 0.08);
+  background: var(--rule-hair);
+  box-shadow: 0 4px 12px rgba(100, 116, 139, 0.08);
 }
 
 /* Floating Canvas Zoom Controls */
@@ -3180,8 +3180,8 @@
 
 .rdx-org-node.is-selected {
   border-color: var(--rdx-primary);
-  background: #fff8f6;
-  box-shadow: 0 0 0 2px rgba(197, 64, 10, 0.2), 0 8px 20px -4px rgba(197, 64, 10, 0.15);
+  background: var(--paper);
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.2), 0 8px 20px -4px rgba(100, 116, 139, 0.15);
 }
 
 /* Interactive Tabs Counter Badge */
@@ -3244,9 +3244,9 @@
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust);
-  border: 1px solid rgba(197, 64, 10, 0.2);
+  border: 1px solid rgba(100, 116, 139, 0.2);
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -3330,7 +3330,7 @@
 .cdlg textarea.input:focus {
   outline: none !important;
   border-color: var(--rust) !important;
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.15) !important;
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.15) !important;
 }
 
 .cdlg textarea.input {
@@ -3353,15 +3353,15 @@
 }
 
 .rdx-switch-card:hover {
-  background: #fffbf9;
+  background: var(--paper);
   border-color: var(--rust);
-  box-shadow: 0 4px 12px rgba(197, 64, 10, 0.06);
+  box-shadow: 0 4px 12px rgba(100, 116, 139, 0.06);
 }
 
 .rdx-switch-card.is-checked {
-  background: #fff5f0;
+  background: var(--paper);
   border-color: var(--rust);
-  box-shadow: 0 4px 14px rgba(197, 64, 10, 0.12);
+  box-shadow: 0 4px 14px rgba(100, 116, 139, 0.12);
 }
 
 .rdx-switch-card__left {
@@ -3460,10 +3460,10 @@
   font-size: 15px;
   font-weight: 700;
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 3px 10px;
   border-radius: 6px;
-  border: 1px solid rgba(197, 64, 10, 0.15);
+  border: 1px solid rgba(100, 116, 139, 0.15);
 }
 
 .rdx-info-card__text {
@@ -3494,7 +3494,7 @@
   font-size: 11px;
   font-weight: 700;
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 2px 8px;
   border-radius: 99px;
 }
@@ -3522,7 +3522,7 @@
 .depts__staff-search:focus {
   outline: none !important;
   border-color: var(--rust) !important;
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.15) !important;
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.15) !important;
 }
 
 /* Elevated Staff Card List (High-Density View) */
@@ -3555,9 +3555,9 @@
 }
 
 .depts__member.is-selected {
-  background: #fff5f0;
+  background: var(--paper);
   border-color: var(--rust);
-  box-shadow: 0 0 0 1px var(--rust), 0 2px 8px rgba(197, 64, 10, 0.1);
+  box-shadow: 0 0 0 1px var(--rust), 0 2px 8px rgba(100, 116, 139, 0.1);
 }
 
 .depts__member-check {
@@ -3573,7 +3573,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #fbfaf5 0%, #f4e2d6 100%);
+  background: linear-gradient(135deg, #fbfaf5 0%, var(--rule-hair) 100%);
   border: 1px solid var(--rule);
   color: var(--rust-deep);
   font-family: var(--ff-sans);
@@ -3619,7 +3619,7 @@
   font-size: 10px;
   font-weight: 700;
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 1px 6px;
   border-radius: 99px;
 }
@@ -3722,13 +3722,13 @@
 }
 
 .rdx-candidate-card:hover {
-  background: #fffbf9;
+  background: var(--paper);
   border-color: var(--rust);
-  box-shadow: 0 2px 8px rgba(197, 64, 10, 0.08);
+  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.08);
 }
 
 .rdx-candidate-card.is-selected {
-  background: #fff5f0;
+  background: var(--paper);
   border-color: var(--rust);
   box-shadow: 0 0 0 1px var(--rust);
 }
@@ -3752,7 +3752,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #fbfaf5 0%, #f4e2d6 100%);
+  background: linear-gradient(135deg, #fbfaf5 0%, var(--rule-hair) 100%);
   border: 1px solid var(--rule);
   color: var(--rust-deep);
   font-family: var(--ff-sans);
@@ -3811,7 +3811,7 @@
 .rdx-tree__pill--kd,
 .rdx-drawer__pill--kd {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rust) 22%, transparent);
 }
 

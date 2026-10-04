@@ -82,7 +82,7 @@
 .kkf-chip--paused { background: var(--amber-soft); border-color: transparent; color: var(--amber-deep); }
 .kkf-chip--completed { background: var(--steel-soft); border-color: transparent; color: var(--steel); }
 .kkf-chip--released { color: var(--ash-2); }
-.kkf-chip--cuoi { background: var(--rust-soft); border-color: transparent; color: var(--rust-deep); }
+.kkf-chip--cuoi { background: var(--rule-hair); border-color: transparent; color: var(--rust-deep); }
 .kkf-chip--cuoi svg { color: inherit; }
 
 /* ---- 2 · Dải số + thanh tiến độ ------------------------------------------------------------ */
@@ -288,7 +288,7 @@
   background: var(--canvas);
   font-variant-numeric: tabular-nums;
 }
-.kkf-loi__o:focus { outline: none; border-color: var(--rust); box-shadow: 0 0 0 3px var(--rust-soft); }
+.kkf-loi__o:focus { outline: none; border-color: var(--rust); box-shadow: 0 0 0 3px var(--rule-hair); }
 .kkf-loi__kq { display: flex; flex-wrap: wrap; gap: 6px; }
 .kkf-loi__kq span {
   padding: 4px 10px;
@@ -300,7 +300,7 @@
 .kkf-loi__kq b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .kkf-loi__kq .is-dat { background: var(--moss-soft); color: var(--moss-deep); }
 .kkf-loi__kq .is-dat b { color: var(--moss-deep); }
-.kkf-loi__kq .is-loi { background: var(--rust-soft); color: var(--rust-deep); }
+.kkf-loi__kq .is-loi { background: var(--rule-hair); color: var(--rust-deep); }
 .kkf-loi__kq .is-loi b { color: var(--rust-deep); }
 .kkf-ghi .kcs-drawer__anh-hint { margin: 0; }
 
@@ -320,7 +320,7 @@
   color: var(--ink);
   background: var(--canvas);
 }
-.kkf-dl__nguon select:focus { outline: none; border-color: var(--rust); box-shadow: 0 0 0 3px var(--rust-soft); }
+.kkf-dl__nguon select:focus { outline: none; border-color: var(--rust); box-shadow: 0 0 0 3px var(--rule-hair); }
 .kkf-dl__bo {
   flex: none;
   width: 36px;

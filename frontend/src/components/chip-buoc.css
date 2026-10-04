@@ -17,11 +17,11 @@
 
 .chip-buoc--may { background: var(--steel-soft); color: var(--steel); }
 .chip-buoc--to { background: var(--rule-hair); color: var(--ash); }
-.chip-buoc--ngoai { background: var(--rust-soft); color: var(--rust-deep); }
+.chip-buoc--ngoai { background: var(--rule-hair); color: var(--rust-deep); }
 .chip-buoc--canhbao { background: var(--amber-soft); color: var(--amber-deep); }
 
 /* Bốn trạng thái khuôn: thiếu (chặn) · đang đặt làm · có trong kho · tổ đã cầm trong tay. */
-.chip-khuon--thieu { background: var(--rust-soft); color: var(--rust-deep); }
+.chip-khuon--thieu { background: var(--rule-hair); color: var(--rust-deep); }
 .chip-khuon--cho { background: var(--amber-soft); color: var(--amber-deep); }
 .chip-khuon--co { background: var(--moss-soft); color: var(--moss-deep); }
 .chip-khuon--nhan { background: var(--moss-deep); color: #fff; }
@@ -29,4 +29,4 @@
 /* Dấu KCS của công đoạn: đạt (mọi lần kiểm không lỗi) · có lỗi. */
 .chip-kcs { font-weight: var(--fw-bold); }
 .chip-kcs--dat { background: var(--moss-soft); color: var(--moss-deep); }
-.chip-kcs--loi { background: var(--rust-soft); color: var(--rust-deep); }
+.chip-kcs--loi { background: var(--rule-hair); color: var(--rust-deep); }

@@ -70,9 +70,11 @@
 .acct-std .cnpt-drawer table tbody tr:hover {
   background: transparent;
 }
-.acct-std .cnpt-drawer table tbody tr.ar-row--active,
+.acct-std .cnpt-drawer table tbody tr.ar-row--active{
+  background: var(--rule-hair);
+}
 .acct-std .cnpt-drawer table tbody tr.ar-row--active:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 /* Thân drawer: các khối xếp dọc, cách đều. */

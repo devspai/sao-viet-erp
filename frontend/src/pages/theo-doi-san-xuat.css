@@ -88,7 +88,7 @@
 }
 
 .tdsx__reload:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--rust);
   color: var(--rust-deep);
 }
@@ -509,7 +509,7 @@
 }
 
 .tdsx-kb__card:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--rust);
 }
 
@@ -783,7 +783,7 @@
 }
 
 .tdsx-tm__label.is-chua-xep {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 /* KHÔNG `text-overflow: ellipsis` (khuôn lỗi ⓓ — dấu ba chấm nuốt đúng phần định danh). Đo thật
@@ -834,7 +834,7 @@
 }
 
 .tdsx-tm__track.is-chua-xep {
-  background-color: color-mix(in srgb, var(--rust-soft) 35%, var(--canvas));
+  background-color: color-mix(in srgb, var(--rule-hair) 35%, var(--canvas));
 }
 
 .tdsx-tm__trongchu {
@@ -1048,7 +1048,7 @@
 }
 
 .tdsx-picker__row:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 .tdsx-picker__ma {
@@ -1252,7 +1252,7 @@
 }
 
 .tdsx-tc__viec:hover:not(:disabled) {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 .tdsx-tc__viec:focus-visible {
@@ -1381,7 +1381,7 @@
 }
 
 .tdsx-gt__label:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 .tdsx-gt__label:focus-visible {

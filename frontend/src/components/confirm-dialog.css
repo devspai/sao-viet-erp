@@ -69,7 +69,7 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: var(--rust-soft, #f4e2d6);
+  background: var(--rule-hair);
   color: var(--rust, #c5400a);
   flex-shrink: 0;
 }

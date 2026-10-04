@@ -476,7 +476,7 @@
 
 .kh__search-input.input:focus {
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.12);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.12);
   background: var(--canvas);
   outline: none;
 }
@@ -1149,9 +1149,9 @@
   transition: all var(--duration-base) var(--easing-standard);
 }
 
-/* Hover nút phụ = rust-soft + viền/chữ rust (UI_DESIGN §2, giống .rdx-chip:hover). */
+/* Hover nút phụ = nền xám nhạt + viền/chữ rust (UI_DESIGN §2, giống .rdx-chip:hover). */
 .kh__pager-btn:hover:not(:disabled) {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--rust);
   color: var(--rust-deep);
 }
@@ -1577,7 +1577,7 @@
 .kh__bar-fill {
   width: 60%;
   min-height: 2px;
-  background: linear-gradient(to top, var(--rust-soft), var(--rust));
+  background: linear-gradient(to top, var(--rule-hair), var(--rust));
   border-radius: var(--r-2) var(--r-2) 0 0;
   transition: height var(--duration-base) var(--easing-standard),
               filter var(--duration-base) var(--easing-standard);
@@ -2038,9 +2038,12 @@
   cursor: pointer;
   transition: background var(--duration-fast) var(--easing-standard);
 }
-.kh__table--drill .kh__drillrow:hover,
 .kh__table--drill .kh__drillrow:focus-visible {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
+  outline: none;
+}
+.kh__table--drill .kh__drillrow:hover {
+  background: var(--rule-hair);
   outline: none;
 }
 .kh__link {
@@ -2106,7 +2109,7 @@
 .kh__tl-search-input:focus {
   outline: none;
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
   background: var(--canvas);
 }
 
@@ -2170,7 +2173,7 @@
 }
 
 .kh__tl-chip.is-active {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--rust);
   color: var(--rust);
 }
@@ -2223,10 +2226,15 @@
 .kh__tl-item.is-drillable {
   cursor: pointer;
 }
-
-.kh__tl-item.is-drillable:hover,
 .kh__tl-item.is-drillable:focus-visible {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
+  border-color: var(--rule-soft);
+  transform: translateX(4px);
+  outline: none;
+}
+
+.kh__tl-item.is-drillable:hover {
+  background: var(--rule-hair);
   border-color: var(--rule-soft);
   transform: translateX(4px);
   outline: none;
@@ -2509,7 +2517,7 @@
 
 /* --- Nhóm B: chăm sóc khách hàng (#20/#27/#28) --- */
 .kh__badge--warn {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 .kh__kpi-value--alert {
@@ -2805,9 +2813,13 @@
   transform: translateY(-1px);
 }
 /* Accent DUY NHẤT là rust — pill active không dùng rainbow ngoài palette. */
-.care-kind-pill--active,
+.care-kind-pill--active{
+  background: var(--rule-hair);
+  border-color: var(--rust);
+  color: var(--rust-deep);
+}
 .care-kind-pill--active:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--rust);
   color: var(--rust-deep);
 }
@@ -3028,7 +3040,7 @@
 .timeline-icon--nhan_tin,
 .timeline-icon--email,
 .timeline-icon--gap_truc_tiep {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--heat-2);
   color: var(--rust);
 }
@@ -3137,7 +3149,7 @@
   margin-left: var(--sp-3);
 }
 .closed-task-action-btn:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 /* =============================================================================
@@ -5074,7 +5086,7 @@
   color: var(--ink);
 }
 .due-chip--active {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--rust);
   color: var(--rust-deep);
   font-weight: var(--fw-medium);
@@ -5310,7 +5322,7 @@
   border-left: 3px solid var(--rust);
   /* Ghi chú đã ghim = cần để ý → nền ấm cùng họ với viền rust. Trước đây nền NHẠT hơn
      ghi chú thường nên nó lại tụt xuống, ngược với ý nghĩa "ghim lên trên". */
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .kh__note-header {
   display: flex;
@@ -5896,7 +5908,7 @@
 }
 
 .kh__tl-item-v2.is-drillable:hover .kh__tl-card-v2 {
-  border-color: var(--rust-soft);
+  border-color: var(--rule);
 }
 
 /* Single Row Inline Layout */
@@ -5997,7 +6009,7 @@
 }
 
 .kh__tl-tag--primary {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   border: 1px solid var(--rust);
 }
@@ -6382,7 +6394,7 @@
   color: #ffffff !important;
   border: none !important;
   font-weight: 600 !important;
-  box-shadow: 0 2px 8px rgba(197, 64, 10, 0.25) !important;
+  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.25) !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
@@ -6510,7 +6522,7 @@
 .kh__avatar--d { background: linear-gradient(135deg, #f5f0eb 0%, #e5dcd3 100%) !important; color: #7c2d12 !important; }
 .kh__avatar--e { background: linear-gradient(135deg, #fae8ff 0%, #f5d0fe 100%) !important; color: #a21caf !important; }
 .kh__avatar--g { background: linear-gradient(135deg, #ffe4e6 0%, #fecdd3 100%) !important; color: #be123c !important; }
-.kh__avatar--h { background: linear-gradient(135deg, #fff5f0 0%, #ffedd5 100%) !important; color: #c5400a !important; }
+.kh__avatar--h { background: linear-gradient(135deg, var(--paper) 0%, #ffedd5 100%) !important; color: #c5400a !important; }
 .kh__avatar--k { background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%) !important; color: #0f766e !important; }
 .kh__avatar--l { background: linear-gradient(135deg, #ffedd5 0%, #fdba74 100%) !important; color: #c5400a !important; }
 .kh__avatar--m { background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%) !important; color: #6d28d9 !important; }
@@ -6522,7 +6534,7 @@
 .kh__avatar--u { background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%) !important; color: #b45309 !important; }
 .kh__avatar--v { background: linear-gradient(135deg, #fff1f2 0%, #fecdd3 100%) !important; color: #e11d48 !important; }
 .kh__avatar--x { background: linear-gradient(135deg, #fefce8 0%, #fef08a 100%) !important; color: #a16207 !important; }
-.kh__avatar--default { background: linear-gradient(135deg, #fff5f0 0%, #f5f0eb 100%) !important; color: #c5400a !important; }
+.kh__avatar--default { background: linear-gradient(135deg, var(--paper) 0%, #f5f0eb 100%) !important; color: #c5400a !important; }
 .kh__avatar--rust { background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%) !important; color: #c5400a !important; }
 .kh__avatar--plum { background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%) !important; color: #6d28d9 !important; }
 .kh__avatar--moss { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%) !important; color: #15803d !important; }
@@ -6590,7 +6602,7 @@
 
 .kh__search-input.input:focus {
   border-color: var(--rust, #c5400a) !important;
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.12) !important;
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.12) !important;
 }
 
 /* ==========================================================================
@@ -6792,7 +6804,7 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--rust-deep, #9a3412);
-  background: var(--rust-soft, #fdf4ef);
+  background: var(--rule-hair);
   border: 1px solid rgba(194, 91, 41, 0.2);
   padding: 2px 8px;
   border-radius: var(--r-full, 9999px);
@@ -7464,7 +7476,7 @@
 .kh__im-step--active .kh__im-step-bubble {
   background: var(--rust);
   color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.15);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.15);
 }
 
 .kh__im-step--done .kh__im-step-bubble {
@@ -7562,7 +7574,7 @@
 .kh__im-template-btn:hover {
   border-color: var(--rust);
   color: var(--rust);
-  box-shadow: 0 2px 6px rgba(197, 64, 10, 0.12);
+  box-shadow: 0 2px 6px rgba(100, 116, 139, 0.12);
   transform: translateY(-1px);
 }
 

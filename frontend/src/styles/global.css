@@ -193,7 +193,7 @@ body {
 }
 
 .btn--ghost:hover:not(:disabled) {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--rule);
 }
 
@@ -275,7 +275,7 @@ body {
 }
 
 .banner--warn {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   border: 1px solid #e6c3ab;
 }
@@ -410,7 +410,7 @@ body {
   padding: 2px 8px;
   white-space: nowrap;
 }
-.badge-sem--rust { background: var(--rust-soft); color: var(--rust-deep); }
+.badge-sem--rust { background: var(--rule-hair); color: var(--rust-deep); }
 .badge-sem--rust-solid { background: var(--rust); color: var(--on-charcoal); }
 .badge-sem--plum { background: var(--plum-soft); color: var(--plum-deep); }
 .badge-sem--plum-solid { background: var(--plum); color: var(--on-charcoal); }
@@ -465,7 +465,7 @@ body {
 
 /* Hàng bảng đang chọn: nền ấm + viền trái rust (mockup danh bạ). */
 .row-selected {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   box-shadow: inset 3px 0 0 var(--rust);
 }
 

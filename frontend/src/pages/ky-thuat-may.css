@@ -211,7 +211,7 @@
 }
 .ktm-buoc__nut:hover:not(:disabled) { border-color: var(--rust, #c5400a); color: var(--rust-deep, #8a3208); }
 .ktm-buoc__nut.is-active {
-  background: var(--rust-soft, #f6e2d6);
+  background: var(--rule-hair);
   border-color: var(--rust, #c5400a);
   color: var(--rust-deep, #8a3208);
   font-weight: var(--fw-medium, 500);
@@ -367,7 +367,7 @@
   outline: 2px dashed var(--rust, #c5400a);
   outline-offset: 4px;
 }
-.ktm-anh__them:hover:not(:disabled), .ktm-anh__them.is-dragging { border-color: var(--rust, #c5400a); color: var(--rust-deep, #8a3208); background: #fffaf7; }
+.ktm-anh__them:hover:not(:disabled), .ktm-anh__them.is-dragging { border-color: var(--rust, #c5400a); color: var(--rust-deep, #8a3208); background: var(--paper); }
 .ktm-anh__them:disabled { opacity: .6; cursor: progress; }
 .ktm-anh__loi { margin: 8px 0 0; font-size: 12px; color: var(--signal-deep, #6b1717); }
 
@@ -421,7 +421,7 @@
 }
 .ktm-nhom-chip:hover { border-color: var(--rust, #c5400a); color: var(--rust-deep, #8a3208); }
 .ktm-nhom-chip.is-active {
-  background: var(--rust-soft, #f6e2d6); border-color: var(--rust, #c5400a);
+  background: var(--rule-hair); border-color: var(--rust, #c5400a);
   color: var(--rust-deep, #8a3208);
 }
 
@@ -461,7 +461,7 @@
   background: var(--paper, #fff); cursor: pointer; color: var(--ash, #475569);
   transition: all .15s ease;
 }
-.ktm-lich__nut:hover { border-color: var(--rust, #c5400a); color: var(--rust-deep, #8a3208); background: var(--rust-soft, #f6e2d6); }
+.ktm-lich__nut:hover { border-color: var(--rust, #c5400a); color: var(--rust-deep, #8a3208); background: var(--rule-hair); }
 .ktm-lich__homnay {
   padding: 5px 14px; border: 1px solid var(--rule-soft, #e2e8f0); border-radius: 999px;
   background: var(--paper, #fff); cursor: pointer; font: inherit; font-size: 12.5px;
@@ -543,7 +543,7 @@
 /* Các biến thể màu card */
 .ktm-card--cho_thuc_hien {
   border-left-color: var(--rust, #c5400a);
-  background: #fffaf7;
+  background: var(--paper);
 }
 .ktm-card--cho_thuc_hien .ktm-card__badge { background: #fee2e2; color: #991b1b; }
 
@@ -568,7 +568,7 @@
 }
 .ktm-card--du-kien:hover {
   border-color: var(--rust, #c5400a);
-  background: #fffaf7;
+  background: var(--paper);
 }
 .ktm-card--du-kien .ktm-card__badge { background: #f1f5f9; color: var(--ash-2); }
 
@@ -588,7 +588,7 @@
   cursor: pointer; text-align: left; width: fit-content;
   border-radius: 3px; transition: background .12s ease;
 }
-.ktm-card__more:hover { background: var(--rust-soft, #f6e2d6); text-decoration: underline; }
+.ktm-card__more:hover { background: var(--rule-hair); text-decoration: underline; }
 
 /* Floating Tooltip */
 .ktm-tooltip {
@@ -811,7 +811,7 @@
   min-height: 32px;                      /* vùng chạm đủ rộng cho ngón tay */
 }
 .ktm-check-card:hover {
-  border-color: var(--rust, #c5400a); background: #fffaf7;
+  border-color: var(--rust, #c5400a); background: var(--paper);
 }
 .ktm-check-card input[type="checkbox"] { display: none; }
 .ktm-check-card__box {
@@ -893,13 +893,13 @@
   transition: all .2s ease; text-align: center;
 }
 .ktm-dropzone:hover, .ktm-dropzone.is-dragging {
-  border-color: var(--rust, #c5400a); background: #fffaf7;
+  border-color: var(--rust, #c5400a); background: var(--paper);
 }
 .ktm-dropzone.is-batbuoc {
   border-color: #fecdd3; background: #fff1f2;
 }
 .ktm-dropzone.is-batbuoc:hover {
-  border-color: var(--rust, #c5400a); background: #fffaf7;
+  border-color: var(--rust, #c5400a); background: var(--paper);
 }
 .ktm-dropzone__icon {
   width: 48px; height: 48px; border-radius: 999px;
@@ -976,7 +976,7 @@
   background: var(--paper, #fff); cursor: pointer;
   transition: border-color .15s ease, background .15s ease;
 }
-.ktm-tomtat__o:hover { border-color: var(--rust, #c5400a); background: #fffaf7; }
+.ktm-tomtat__o:hover { border-color: var(--rust, #c5400a); background: var(--paper); }
 .ktm-tomtat__so {
   font-size: 20px; font-weight: 700; line-height: 1; color: var(--ink, #0f172a);
   font-variant-numeric: tabular-nums;
@@ -1197,7 +1197,7 @@
 .ktm-loc:hover { border-color: var(--ash-2, #94a3b8); color: var(--ink, #0f172a); }
 .ktm-loc.is-active {
   border-color: var(--rust, #c5400a);
-  background: var(--rust-soft, #f6e2d6);
+  background: var(--rule-hair);
   color: var(--rust-deep, #8a3208);
   font-weight: var(--fw-medium, 500);
 }

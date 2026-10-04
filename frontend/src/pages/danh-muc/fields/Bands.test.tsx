@@ -17,7 +17,7 @@ describe("BandsField", () => {
   it("không còn cột 'Từ SL'", () => {
     render(<BandsField value={BA_BAC} onChange={() => {}} />);
     expect(screen.queryByRole("columnheader", { name: "Từ SL" })).not.toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Khoảng số lượng" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Khi số lượng ra của công đoạn" })).toBeInTheDocument();
   });
 
   it("nhãn khoảng nối từ mốc của bậc liền trước", () => {
@@ -42,8 +42,18 @@ describe("BandsField", () => {
     await user.click(screen.getByRole("button", { name: "＋ Thêm bậc" }));
     const moi = onChange.mock.calls[0][0] as BacRow[];
     expect(moi).toHaveLength(4);
-    expect(moi[2].sl_den).toBe(10000);            // bậc mới nằm giữa, chưa khai mốc riêng
+    expect(moi[2].sl_den).toBe(20000);            // bậc mới nằm giữa, mốc gợi ý = gấp đôi cận dưới
     expect(moi[3].sl_den).toBeNull();             // bậc vô hạn vẫn ở cuối
+  });
+
+  it("bậc mới chèn vào bảng một dòng KHÔNG bị tô đỏ ngay", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<BandsField value={[{ sl_den: null, gia_tri: 0, don_vi: "to" }]} onChange={onChange} />);
+    await user.click(screen.getByRole("button", { name: "＋ Thêm bậc" }));
+    const moi = onChange.mock.calls[0][0] as BacRow[];
+    expect(moi[0].sl_den).toBe(1000);
+    expect(moi[1].sl_den).toBeNull();
   });
 
   it("danh sách rỗng thì bậc đầu tiên mở ra là bậc vô hạn", async () => {

@@ -1086,17 +1086,42 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
             vt_don_gia = _f(vt.get("don_gia"))
             vt_don_vi = vt.get("don_vi_gia", "kg")
             luong_vt = None
+            # Ngữ cảnh dựng TRƯỚC, ngoài nhánh công thức giá: công thức ĐỊNH MỨC (dưới) cần nó kể
+            # cả khi vật tư chưa khai công thức giá.
+            eval_ctx = {**ctx_vars, **_buoc_vt}
+            eval_ctx["don_gia_vat_tu"] = _don_gia_co_so(vt_don_gia, vt_don_vi)
+            gia_tri_chip = vt.get("gia_tri_chip") or {}
+            for c in vt.get("chips") or []:
+                eval_ctx[c["ma"]] = _f(gia_tri_chip.get(c["ma"]))
+            # ĐỊNH MỨC (04/10/2026): lượng vật tư bước này ăn, chạy CÔNG THỨC ĐỊNH MỨC của chính vật
+            # tư (`vat_tu_in_an.cong_thuc_dinh_muc` — cùng ô Lệnh SX dùng để bung BOM) trên số của
+            # phiếu. Thẻ công đoạn hiện số này cạnh từng vật tư. KHÔNG đoán: chưa khai / lỗi / ra 0
+            # ⇒ `dinh_muc=None` kèm lý do ngắn, ô hiện gạch thay vì một con số bịa.
+            ct_dm = (vt.get("cong_thuc_dinh_muc") or "").strip()
+            dinh_muc_vt: float | None = None
+            dinh_muc_ly_do: str | None = None
+            dinh_muc_the_so = ""
+            if not ct_dm:
+                dinh_muc_ly_do = "chưa khai công thức định mức"
+            else:
+                try:
+                    _gt = float(safe_eval(ct_dm, eval_ctx))
+                    # Bản thế số cho tooltip ở thẻ công đoạn — cùng khuôn `cong_thuc` của dòng tiền.
+                    dinh_muc_the_so = format_substituted_formula(ct_dm, eval_ctx)
+                    if _gt > 0:
+                        dinh_muc_vt = _gt
+                    else:
+                        dinh_muc_ly_do = "công thức định mức ra 0"
+                except Exception as e:   # noqa: BLE001 — công thức người khai, lỗi gì cũng chỉ báo
+                    dinh_muc_ly_do = f"công thức định mức lỗi ({e})"
             if not vt_formula or not vt_formula.strip():
                 warnings.append(f"Vật tư '{vt_ten}' (thành phần '{name}'): chưa có công thức — tính 0đ.")
                 tien_vt, dan_vt = 0.0, "thiếu công thức — 0đ"
             else:
-                eval_ctx = {**ctx_vars, **_buoc_vt}
-                eval_ctx["don_gia_vat_tu"] = _don_gia_co_so(vt_don_gia, vt_don_vi)
-                # CHIP RIÊNG của vật tư (spec 2026-10-01): số nhập ở phiếu, theo từng bước.
-                gia_tri_chip = vt.get("gia_tri_chip") or {}
+                # CHIP RIÊNG của vật tư (spec 2026-10-01): số nhập ở phiếu, theo từng bước — đã
+                # bơm vào `eval_ctx` ở trên; ở đây chỉ nhắc chip công thức giá dùng mà còn 0.
                 for c in vt.get("chips") or []:
-                    v_chip = _f(gia_tri_chip.get(c["ma"]))
-                    eval_ctx[c["ma"]] = v_chip
+                    v_chip = eval_ctx[c["ma"]]
                     if v_chip == 0 and re.search(rf"\b{re.escape(c['ma'])}\b", vt_formula):
                         warnings.append(
                             f"Vật tư '{vt_ten}': chip '{c.get('ten') or c['ma']}' chưa nhập số — tính theo 0.")
@@ -1125,15 +1150,23 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
                 "luong": round(luong_vt, 4) if luong_vt is not None else None,
                 "luong_don_vi": vt_don_vi if luong_vt is not None else None,
                 "vat_tu_id": vt.get("vat_tu_id"),
+                # Khoá ghép với bước của chuỗi (cùng nghĩa `rows["cong_doan"][].buoc_idx`) — một vật
+                # tư có thể nằm ở nhiều bước (kẽm ở In lẫn Gấp), chỉ `vat_tu_id` thì không phân được.
+                "buoc_idx": idx_vt,
+                "dinh_muc": round(dinh_muc_vt, 4) if dinh_muc_vt is not None else None,
+                "dinh_muc_don_vi": vt_don_vi,
+                "dinh_muc_ly_do": dinh_muc_ly_do,
+                "dinh_muc_cong_thuc_goc": ct_dm,
+                "dinh_muc_cong_thuc": dinh_muc_the_so,
             })
 
-    # Chuỗi công đoạn là NGUỒN DUY NHẤT: In / Chế bản phải nằm trong routing như mọi công đoạn
-    # khác. KHÔNG tự đẻ dòng thay thế khi chuỗi thiếu — chỉ NHẮC để người dùng tự thêm.
+    # Chuỗi công đoạn là NGUỒN DUY NHẤT: In phải nằm trong routing như mọi công đoạn khác. KHÔNG
+    # tự đẻ dòng thay thế khi chuỗi thiếu — chỉ NHẮC để người dùng tự thêm.
+    # Không nhắc thiếu CHẾ BẢN nữa (04/10/2026): kẽm nay là VẬT TƯ gắn vào bước In, chuỗi không có
+    # bước nhóm prepress vẫn đủ tiền kẽm — lời nhắc cũ báo sai.
     chain_nhoms = {((r.get("cong_doan") or {}).get("nhom")) for r in (tp.get("thanh_phams") or [])}
     if co_in and "print" not in chain_nhoms:
         warnings.append(f"Thành phần '{name}': chuỗi chưa có công đoạn IN — chưa tính tiền in.")
-    if co_in and so_kem > 0 and "prepress" not in chain_nhoms:
-        warnings.append(f"Thành phần '{name}': chuỗi chưa có công đoạn CHẾ BẢN/KẼM — chưa tính tiền kẽm.")
 
     # --- Công đoạn trong chuỗi (chế bản/in/gia công) theo thứ tự routing ---
     ctx_base = {
@@ -1195,9 +1228,9 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
                 dan_d = "lỗi công thức — 0đ"
         else:
             # Formula-only (chốt 2026-07-22, siết trọn 11/08/2026): công đoạn CHƯA khai công thức
-            # → 0đ + cảnh báo, KHÔNG trừ nhóm nào. Không dùng fallback đơn giá routing / rate cũ
-            # (tránh "×400đ ma" không ai chủ ý nhập).
-            warnings.append(f"Công đoạn '{ten_r}': chưa khai công thức tính giá — tính 0đ.")
+            # → 0đ, KHÔNG trừ nhóm nào. Không dùng fallback đơn giá routing / rate cũ (tránh "×400đ
+            # ma" không ai chủ ý nhập). Không đẩy vào `warnings` (04/10/2026): cột diễn giải của
+            # chính dòng đã ghi "thiếu công thức — 0đ", nhắc lại trên băng cảnh báo chỉ là nhiễu.
             tien = 0.0
             dan_d = "thiếu công thức — 0đ"
 

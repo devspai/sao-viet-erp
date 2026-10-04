@@ -865,7 +865,21 @@ export function LsxBuocDrawer({
                       tenKhach={tenKhach}
                       khuonRefs={khuonRefs}
                       canUpdate={canUpdate}
-                      onChon={(id) => set("khuon_be_id", id)}
+                      onChon={(id) => {
+                        // Gán ĐỦ bộ trường của dao, không chỉ id: thẻ DAG / bảng công đoạn đọc
+                        // `khuon_be_ma` + tình trạng, mà mấy trường đó trước chỉ có sau khi Lưu ⇒
+                        // chọn xong thẻ vẫn kêu "chưa chốt khuôn". Bỏ chọn thì xoá sạch, kẻo thẻ
+                        // còn giữ mã cũ. Dao vừa tạo chưa kịp vào danh sách ⇒ chỉ có id, Lưu xong
+                        // máy chủ trả đủ.
+                        const dao = id == null ? null : (khuonRefs ?? []).find((k) => k.id === id);
+                        onPatch({
+                          khuon_be_id: id,
+                          khuon_be_ma: dao?.ma ?? null,
+                          khuon_be_ten: dao?.ten ?? null,
+                          khuon_be_so_ke: dao?.so_ke ?? null,
+                          khuon_be_tinh_trang: dao?.tinh_trang ?? null,
+                        });
+                      }}
                       onTaoMoi={onTaoKhuon}
                     />
                   )}

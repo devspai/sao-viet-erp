@@ -43,6 +43,12 @@ const TOOLING_TYPE_CU: Lbls = {
 };
 const TOOLING_TYPE_NHAN: Lbls = { ...TOOLING_TYPE, ...TOOLING_TYPE_CU };
 
+// Chặng `cai` (Thành phẩm) ẨN khỏi menu Đơn vị đầu vào/ra (03/10/2026, user yêu cầu). Chỉ ẩn ở MENU:
+// engine vẫn biết chặng này, công đoạn cũ đang mang `cai` vẫn hiện "Thành phẩm (đã gỡ)" qua `nhanCu`
+// và lưu lại không mất giá trị.
+const TRAM_AN: Record<string, string> = { cai: "Thành phẩm" };
+const tramChonDuoc = () => tramOptions().filter((o) => !(o.value in TRAM_AN));
+
 // 5 CHẶNG của dòng giấy — nhãn lấy từ `/api/don-vi/tram` (hằng `models/don_vi_do.TRAM_NHAN`),
 // màn này KHÔNG giữ bản sao nữa. Bảng cứng `TRAM_DONG_GIAY` từng nằm đây GỠ 09/09/2026: nó là
 // bảng nhãn THỨ HAI cho cùng 5 mã, nên một bước Đóng gói hiện "Con → Thành phẩm" ở màn này mà
@@ -400,12 +406,10 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     // chúng (`CAU_TRAM` bên backend) — thêm chặng thứ 6 là phải sửa code chứ không phải khai danh mục.
     // Để TRỐNG cả hai = bước NGOÀI dòng giấy (ghi kẽm, đóng thùng…): không dính chuỗi bù hao của
     // giấy; đơn vị + số của nó do người lập lệnh TỰ KHAI ở drawer bước lệnh.
-    { key: "don_vi_vao", label: "Đơn vị đầu vào", type: "select", options: tramOptions,
-      group: "Đơn vị", default: "to",
-      hint: "Để trống = bước không nằm trên dòng giấy (ghi kẽm, đóng thùng…). Trống thì phải trống CẢ HAI ô." },
-    { key: "don_vi_ra", label: "Đơn vị đầu ra", type: "select", options: tramOptions,
-      group: "Đơn vị", default: "to",
-      hint: "Chảy một chiều: tờ nguyên → tờ in → con / tay sách → thành phẩm. Không đi ngược." },
+    { key: "don_vi_vao", label: "Đơn vị đầu vào", type: "select", options: tramChonDuoc, nhanCu: TRAM_AN,
+      group: "Đơn vị", default: "to" },
+    { key: "don_vi_ra", label: "Đơn vị đầu ra", type: "select", options: tramChonDuoc, nhanCu: TRAM_AN,
+      group: "Đơn vị", default: "to" },
     // GỠ 18/09/2026 (mg `0324`): "Công thức sản lượng ra" + "Đơn vị sản lượng" của bước ngoài dòng
     // giấy (cùng `he_so_ngoai_dong` đã ngưng từ 20/08) — số của bước ấy nay khai tay ở bước lệnh.
     { key: "kieu_bu_hao", label: "Bù hao", type: "select", group: "Bù hao", options: mapOpt(KIEU_BU_HAO), default: "khong" },

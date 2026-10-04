@@ -394,7 +394,7 @@ export function CareCalendar({ customerId, onChange }: { customerId: number; onC
       <div className="cc__legend">
         <span className="cc__lg"><span className="cc__sw" style={{ background: "var(--rule-soft)" }} />chưa tới</span>
         <span className="cc__lg"><span className="cc__sw" style={{ background: "var(--amber-soft)" }} />đến hạn</span>
-        <span className="cc__lg"><span className="cc__sw" style={{ background: "var(--rust-soft)" }} />quá hạn</span>
+        <span className="cc__lg"><span className="cc__sw" style={{ background: "var(--rule-hair)" }} />quá hạn</span>
         <span className="cc__lg"><Check size={13} /> xong<span className="cc__lg-strike"> (gạch ngang)</span></span>
         <span className="cc__lg"><Repeat size={13} /> hẹn lặp</span>
       </div>

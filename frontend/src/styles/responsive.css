@@ -347,7 +347,7 @@
    #f1f5f9, #fff7ed, #e2e8f0 — và ở đó nó chỉ còn 3,86-4,48:1, tức dưới ngưỡng đọc được.
    Hạ thêm một nấc xuống #556274: trên #e2e8f0 (nền đậm nhất đang dùng) đạt 5,0:1, mà vẫn sáng
    hơn `--ash` nên ba bậc chữ không bị dính làm một.
-   `--rust` trên `--rust-soft` (mã phòng ban PB001, nút "Xem lệnh dự kiến") chỉ 4,06:1 — đậm lại
+   `--rust` trên nền pha nhạt (mã phòng ban PB001, nút "Xem lệnh dự kiến") chỉ 4,06:1 — đậm lại
    thành #b03a09 cho đủ 4,86:1; chữ trắng trên nền rust đặc cũng khá hơn theo (5,1 -> 6,1:1).
    Chỉ đổi ở màn hẹp: máy tính giữ nguyên bảng màu đã duyệt. */
 @media screen and (max-width: 768px) {

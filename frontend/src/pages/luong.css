@@ -260,7 +260,7 @@
 }
 .lg-table .ns__table th, .lg-table .ns__table td { padding: 9px 12px; white-space: nowrap; }
 .lg-table .ns__table tbody tr:hover td {
-  background: var(--rust-soft) !important;
+  background: var(--rule-hair) !important;
 }
 /* Dấu • sau số công: hàng này có công ngày lễ / nghỉ tuần (ăn hệ số) — chi tiết ở tooltip,
    cột riêng nằm trong file Excel. */
@@ -332,7 +332,7 @@
 .lg-table .ns__table tbody tr:hover td.lg-sticky-code,
 .lg-table .ns__table tbody tr:hover td.lg-sticky-name,
 .lg-table .ns__table tbody tr:hover td.lg-sticky-act {
-  background: var(--rust-soft) !important;
+  background: var(--rule-hair) !important;
 }
 
 /* Modal rộng cho Lương nhân viên */
@@ -511,7 +511,7 @@
 .lg-kpi-card--net .lg-kpi-card-icon { background: var(--moss-soft); color: var(--moss-deep); }
 .lg-kpi-card--staff .lg-kpi-card-icon { background: var(--steel-soft); color: var(--steel); }
 .lg-kpi-card--workday .lg-kpi-card-icon { background: var(--amber-soft); color: var(--amber-deep); }
-.lg-kpi-card--deduct .lg-kpi-card-icon { background: var(--rust-soft); color: var(--rust-deep); }
+.lg-kpi-card--deduct .lg-kpi-card-icon { background: var(--rule-hair); color: var(--rust-deep); }
 
 .lg-kpi-card-label {
   font-size: 11px;
@@ -906,7 +906,7 @@
   margin-bottom: 16px;
 }
 .lg-payslip-empty-icon--warn {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust);
 }
 .lg-payslip-empty-title {
@@ -1454,7 +1454,7 @@
 }
 .lg-linkbtn:hover {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 /* ==========================================================================
@@ -1635,7 +1635,7 @@
    danh mục ngay bên dưới. */
 .lg-comp__row--sys {
   background: var(--canvas, #ffffff);
-  box-shadow: inset 3px 0 0 var(--rust-soft, #fed7aa);
+  box-shadow: inset 3px 0 0 var(--rule-hair);
 }
 .lg-comp__head {
   display: grid;
@@ -1805,7 +1805,7 @@
   border-color: var(--rust);
   outline: none;
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.08);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.08);
 }
 .lg-lc__ro {
     font-family: var(--ff-num);
@@ -2929,7 +2929,7 @@
 
 .lg-emp-search-input:focus {
   border-color: var(--rust, #c5400a);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.12);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.12);
 }
 
 .lg-emp-search-clear {
@@ -2989,7 +2989,7 @@
 
 .lg-emp-select:focus {
   border-color: var(--rust, #c5400a);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.12);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.12);
   background: #ffffff;
 }
 
@@ -3663,7 +3663,7 @@
   width: 38px;
   height: 38px;
   border-radius: var(--r-5);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   flex-shrink: 0;
 }

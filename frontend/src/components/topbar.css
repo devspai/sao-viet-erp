@@ -203,7 +203,7 @@
   cursor: pointer;
 }
 .topbar__nav-toggle:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .topbar__nav-toggle:focus-visible {
   outline: 2px solid var(--rust);

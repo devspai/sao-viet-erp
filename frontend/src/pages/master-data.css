@@ -205,7 +205,7 @@
   font-size: 12px;
   font-family: var(--ff-sans);
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 1px 6px;
   border-radius: var(--r-2);
 }
@@ -460,14 +460,14 @@
   color: var(--ash-2);
 }
 .md-page__tab--active .md-page__tab__count {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 .md-page__tab--warn.md-page__tab--active { border-bottom-color: var(--signal); }
 
 /* "Sắp áp dụng" status */
 .md-page__status-badge.is-upcoming {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 

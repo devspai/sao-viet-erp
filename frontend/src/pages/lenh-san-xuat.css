@@ -542,7 +542,7 @@
 }
 
 .hslsx__linkbtn:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 
@@ -671,9 +671,9 @@
   transition: background-color var(--duration-fast) var(--easing-standard);
 }
 
-/* Hover hàng KHÔNG dùng xám (luật `tokens.css` §2: rust-soft là "bề mặt được tô"). */
+/* Hover hàng = nền xám nhạt --rule-hair (UI_DESIGN §2, 04/10/2026). */
 .hslsx__row.is-mo-duoc:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 .hslsx__table tbody.is-mo {
@@ -1797,7 +1797,7 @@
 }
 
 .hslsx-hs__bang tr.is-buoc-hien-tai td {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 /* Trần chưa tính được: tô NHẸ để dòng vẫn đọc như dòng bình thường (hàng vẫn còn trong kho thật),
    nhưng mắt biết ngay chỗ phải đối chiếu tay. */
@@ -1832,7 +1832,7 @@
 }
 .hslsx-hs__chip.is-now {
   border-color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import type { Row } from "../api/rebuildCatalog";
 import { Select } from "../components/Select";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
@@ -43,8 +44,8 @@ export function soOChipTrong(dong: BuocVatTuDong[], vatTuDm: Row[]): number {
   return n;
 }
 
-/** Một ô của lưới chip: NHÃN NHỎ nằm trên, dưới là khung chữ nhật bo nhẹ chứa ô số (căn phải) +
- *  đơn vị đứng cuối. Ô chữ + bàn phím số (gõ "3,5" hay "3.5" đều ăn — dấu thập phân của
+/** Một ô chip trên hàng vật tư: NHÃN NHỎ đứng trước, liền sau là khung chữ nhật bo nhẹ chứa ô số
+ *  (căn phải) + đơn vị đứng cuối. Ô chữ + bàn phím số (gõ "3,5" hay "3.5" đều ăn — dấu thập phân của
  *  `type="number"` phụ thuộc ngôn ngữ trình duyệt). CHƯA nhập (vắng mã trong `gia_tri_chip`) thì ô
  *  để trống + CHỈ viền đổi màu cảnh báo; đã nhập 0 thì hiện "0", viền thường — không placeholder
  *  "0" để hai ca không lẫn vào nhau. Tên đầy đủ ở tooltip + aria-label. */
@@ -84,15 +85,69 @@ function OChip({ nhan, nhanDu, don_vi, value, onChange }: {
   );
 }
 
+/** Lượng vật tư bước này ăn — engine chạy công thức định mức của vật tư (`dinh_muc` ở dòng NVL).
+ *  `so=null` = không tính ra được, `lyDo` nói vì sao (chưa khai công thức, ra 0, lỗi). */
+export interface DinhMuc {
+  so: number | null;
+  donVi: string;
+  lyDo: string | null;
+  /** Công thức định mức đọc bằng chữ ("Số bản kẽm") và bản đã thế số ("32 bản") — nơi gọi dịch sẵn
+   *  bằng từ điển biến + chip của vật tư, cùng cách dòng tiền ở bảng giá vốn. Rỗng = không có. */
+  dienGiai?: string;
+  thaySo?: string;
+}
+
+/** Số định mức kiểu Việt: lượng dưới 1 giữ 4 chữ số lẻ để không thành 0 (0,0012 kg), còn lại 2
+ *  (1.706,4 m² — bỏ lẻ là mất cả 0,4 m² màng). */
+export function soDinhMuc(v: number): string {
+  const le = v < 1 ? 4 : 2;
+  return v.toLocaleString("vi-VN", { maximumFractionDigits: le });
+}
+
+/** Ô lượng + tooltip HAI DÒNG khi rê chuột / chạm (04/10/2026), cùng khuôn với dòng tiền ở bảng giá
+ *  vốn: dòng 1 công thức bằng chữ, dòng 2 "= thế số = kết quả". Công thức chỉ là một biến ("Số bản
+ *  kẽm") thì dòng 2 chỉ "= 32 bản", khỏi lặp kết quả hai lần. Ô nhận focus để bàn phím / chạm cũng mở. */
+function OLuong({ dm, dvMacDinh }: { dm: DinhMuc | undefined; dvMacDinh: string }) {
+  const id = useId();
+  const dv = (dm?.donVi ? tenDonVi(dm.donVi) : undefined) ?? dvMacDinh;
+  const co = dm?.so != null;
+  const ketQua = co ? `${soDinhMuc(dm!.so!)}${dv ? ` ${dv}` : ""}` : "";
+  const thaySo = (dm?.thaySo ?? "").trim();
+  const coPhepTinh = /[×÷+−()]/.test(thaySo);
+  const dong2 = !co ? "" : thaySo && coPhepTinh ? `= ${thaySo} = ${ketQua}` : `= ${thaySo || ketQua}`;
+  return (
+    <span
+      className={`tg-bvt__luong${co ? "" : " tg-bvt__luong--chua"}`}
+      tabIndex={0}
+      aria-describedby={id}
+    >
+      <span className="tg-bvt__luong-so">{co ? soDinhMuc(dm!.so!) : "—"}</span>
+      {dv ? <span className="tg-bvt__dv">{dv}</span> : null}
+      <span role="tooltip" id={id} className="tg-bvt__tip">
+        {dm?.dienGiai ? <span className="tg-bvt__tip-goc">{dm.dienGiai}</span> : null}
+        {co ? (
+          <span className="tg-bvt__tip-so">{dong2}</span>
+        ) : (
+          <span className="tg-bvt__tip-so">
+            {dm ? `Chưa tính được: ${dm.lyDo ?? "không rõ lý do"}` : "Đang chờ tính…"}
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
 interface Props {
   tenBuoc: string;
   dong: BuocVatTuDong[];
   vatTuDm: Row[];
   onChange: (next: BuocVatTuDong[]) => void;
   taoUid: () => string;
+  /** Định mức theo `vat_tu_id` của CHÍNH bước này. Vắng (chưa có kết quả tính) ⇒ hiện gạch. */
+  dinhMuc?: Map<number, DinhMuc>;
 }
 
-export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid }: Props) {
+export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid, dinhMuc }: Props) {
   useNapTenDonVi();   // đơn vị hiện bằng TÊN trong danh mục, không in mã trần
   // Dựng một lần theo danh mục — danh mục đứng yên trong khi người dùng gõ chip, mỗi nhịp gõ chỉ `dong` đổi.
   const tra = useMemo(() => new Map(vatTuDm.map((v) => [v.id, v])), [vatTuDm]);
@@ -106,76 +161,83 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid }: 
       return { ...d, gia_tri_chip: raw.trim() === "" || !Number.isFinite(so) ? con : { ...con, [ma]: so } };
     }));
 
-  const nutXoa = (i: number, ten: string, cls: string) => (
+  const nutXoa = (i: number, ten: string) => (
     <button
       type="button"
-      className={cls}
+      className="tg-bvt__xoa"
       aria-label={`Xóa vật tư ${ten}`}
-      title="Xóa vật tư khỏi bước này"
+      title="Bỏ vật tư khỏi bước này"
       onClick={() => onChange(dong.filter((_, j) => j !== i))}
     >
-      ×
+      <X aria-hidden="true" />
     </button>
   );
 
-  // Vùng vật tư nằm DƯỚI dòng tiêu đề công đoạn, dùng hết bề ngang khối: mỗi vật tư CÓ chip là
-  // một dòng lưới [tên · lưới ô chip · ×] — mọi dòng chung một khuôn cột nên ô chip thẳng cột giữa
-  // các vật tư; sau cùng là MỘT hàng thẻ nhỏ của vật tư KHÔNG chip, "+ vật tư" đứng cuối hàng đó.
+  // Cột LƯỢNG bên phải mọi hàng (04/10/2026): số định mức engine tính + đơn vị, thẳng cột giữa các
+  // vật tư. Chưa tính ra thì gạch, rê chuột đọc lý do — không bịa số.
+  const oLuong = (vatTuId: number, dvDm: string) => <OLuong dm={dinhMuc?.get(vatTuId)} dvMacDinh={dvDm} />;
+
+  // Danh sách GỌN (thiết kế B, 04/10/2026): mỗi vật tư một hàng [tên, lượng + đơn vị, ×]. Vật tư có
+  // chip đứng trước, ô chip nằm ở dòng dưới của chính hàng đó, dồn về mép phải. Cuối cùng là ô nét
+  // đứt "+ Thêm vật tư".
   const ds = dong.map((d, i) => {
     const vt = tra.get(d.vat_tu_id);
     const ten = vt ? String(vt.ten) : `Vật tư #${d.vat_tu_id} (đã ngừng dùng)`;
-    return { d, i, ten, chips: chipsCua(vt) };
+    const dv = vt?.don_vi_gia ? (tenDonVi(String(vt.don_vi_gia)) ?? "") : "";
+    return { d, i, ten, dv, chips: chipsCua(vt) };
   });
-  const coChip = ds.filter((x) => x.chips.length > 0);
-  const khongChip = ds.filter((x) => x.chips.length === 0);
+  const sapXep = [...ds.filter((x) => x.chips.length > 0), ...ds.filter((x) => x.chips.length === 0)];
 
   return (
     <div className="tg-bvt" role="group" aria-label={`Vật tư của bước ${tenBuoc}`}>
-      {coChip.map(({ d, i, ten, chips }) => (
-        <div className="tg-bvt__dong" key={d.uid}>
-          <span className="tg-bvt__ten" title={ten}>{ten}</span>
-          <div className="tg-bvt__luoi">
-            {chips.map((c) => (
-              <OChip
-                key={c.ma}
-                nhan={nhanNgan(c.ten, ten)}
-                nhanDu={c.ten}
-                don_vi={c.don_vi ? (tenDonVi(c.don_vi) ?? "") : ""}
-                value={d.gia_tri_chip[c.ma]}
-                onChange={(raw) => setChip(i, c.ma, raw)}
-              />
-            ))}
-          </div>
-          {nutXoa(i, ten, "tg-bvt__xoa")}
-        </div>
-      ))}
-      {(khongChip.length > 0 || chuaCo.length > 0) && (
-        <div className="tg-bvt__hang">
-          {khongChip.map(({ d, i, ten }) => (
-            <span className="tg-bvt__tag" key={d.uid}>
-              <span className="tg-bvt__tag-ten">{ten}</span>
-              {nutXoa(i, ten, "tg-bvt__tag-x")}
-            </span>
-          ))}
-          {chuaCo.length > 0 && (
-            <div className="tg-bvt__them">
-              <Select
-                options={chuaCo.map((v) => ({ value: String(v.id), label: String(v.ten) }))}
-                value=""
-                placeholder="+ vật tư"
-                onChange={(v) => {
-                  const id = Number(v);
-                  if (id) onChange([...dong, { uid: taoUid(), vat_tu_id: id, gia_tri_chip: {} }]);
-                }}
-                ariaLabel={`Thêm vật tư vào bước ${tenBuoc}`}
-                searchable
-                portal
-                className="tg-bvt__them-btn"
-                listClassName="tg-pop"
-              />
-            </div>
+      {sapXep.length === 0 ? (
+        <p className="tg-bvt__rong">Chưa có vật tư.</p>
+      ) : (
+        <ul className="tg-bvt__ds">
+          {sapXep.map(({ d, i, ten, dv, chips }) =>
+            chips.length > 0 ? (
+              <li className="tg-bvt__dong tg-bvt__dong--chip" key={d.uid}>
+                <span className="tg-bvt__ten" title={ten}>{ten}</span>
+                {oLuong(d.vat_tu_id, dv)}
+                {nutXoa(i, ten)}
+                <div className="tg-bvt__luoi">
+                  {chips.map((c) => (
+                    <OChip
+                      key={c.ma}
+                      nhan={nhanNgan(c.ten, ten)}
+                      nhanDu={c.ten}
+                      don_vi={c.don_vi ? (tenDonVi(c.don_vi) ?? "") : ""}
+                      value={d.gia_tri_chip[c.ma]}
+                      onChange={(raw) => setChip(i, c.ma, raw)}
+                    />
+                  ))}
+                </div>
+              </li>
+            ) : (
+              <li className="tg-bvt__dong" key={d.uid}>
+                <span className="tg-bvt__ten" title={ten}>{ten}</span>
+                {oLuong(d.vat_tu_id, dv)}
+                {nutXoa(i, ten)}
+              </li>
+            ),
           )}
-        </div>
+        </ul>
+      )}
+      {chuaCo.length > 0 && (
+        <Select
+          options={chuaCo.map((v) => ({ value: String(v.id), label: String(v.ten) }))}
+          value=""
+          placeholder="+ Thêm vật tư — gõ tên…"
+          onChange={(v) => {
+            const id = Number(v);
+            if (id) onChange([...dong, { uid: taoUid(), vat_tu_id: id, gia_tri_chip: {} }]);
+          }}
+          ariaLabel={`Thêm vật tư vào bước ${tenBuoc}`}
+          searchable
+          portal
+          className="tg-bvt__them"
+          listClassName="tg-pop"
+        />
       )}
     </div>
   );

@@ -133,7 +133,7 @@ export function LocationForm({
                 borderStyle: "dashed",
                 borderColor: "var(--rust)",
                 color: "var(--rust-deep)",
-                background: "var(--rust-soft)",
+                background: "var(--rule-hair)",
                 padding: "8px 14px",
                 borderRadius: "var(--r-3)",
                 fontWeight: "var(--fw-bold)",

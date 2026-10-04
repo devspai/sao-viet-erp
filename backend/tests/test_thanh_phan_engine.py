@@ -127,7 +127,9 @@ def test_compute_phieu_auto_binhbai_xa_giay():
     assert _grp(res, "cong_doan")["rows"] == []
     assert _grp(res, "cong_doan")["subtotal"] == 0
     w = " ".join(res["warnings"])
-    assert "chưa có công đoạn IN" in w and "CHẾ BẢN/KẼM" in w
+    assert "chưa có công đoạn IN" in w
+    # Kẽm nay là vật tư của bước In — không còn nhắc thiếu bước chế bản.
+    assert "CHẾ BẢN/KẼM" not in w
     # Tổng = Σ nhóm
     assert res["grand_total"] == round(sum(g["subtotal"] for g in res["groups"]), 2)
 
@@ -403,7 +405,8 @@ def test_cong_doan_chua_khai_cong_thuc_thi_KEU_chu_khong_bia_tien():
     """Bỏ hai công thức MẶC ĐỊNH theo nhóm (11/08/2026) — chúng dựa vào `don_gia` của công đoạn,
     một biến CHẾT (không có ô nhập ở phiếu lẫn danh mục) nên vẫn ra 0đ, chỉ là 0đ trông như đã tính.
 
-    Nay chưa khai công thức thì engine nói thẳng và tính 0đ — bắt người ta viết một công thức.
+    Nay chưa khai công thức thì engine nói thẳng NGAY TRÊN DÒNG ("thiếu công thức — 0đ") và tính
+    0đ. Không nhắc lại trên băng cảnh báo (04/10/2026) — trùng với cột diễn giải.
     """
     tp = _component()
     tp["thanh_phams"] = [
@@ -411,9 +414,10 @@ def test_cong_doan_chua_khai_cong_thuc_thi_KEU_chu_khong_bia_tien():
         {"ten": "Ghi kẽm", "don_gia": 90000, "cong_doan": {"nhom": "prepress"}},
     ]
     res = compute_phieu(so_luong=5000, thanh_phans=[tp])
-    assert _grp(res, "cong_doan")["subtotal"] == 0
-    w = " ".join(res["warnings"])
-    assert "In offset" in w and "Ghi kẽm" in w and "chưa khai công thức tính giá" in w
+    cd = _grp(res, "cong_doan")
+    assert cd["subtotal"] == 0
+    assert [r["cong_thuc"] for r in cd["rows"]] == ["thiếu công thức — 0đ"] * 2
+    assert "chưa khai công thức tính giá" not in " ".join(res["warnings"])
 
 
 def _fin_row(**kw) -> dict:

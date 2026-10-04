@@ -89,7 +89,7 @@
 .kcs-loc__ma:focus {
   outline: none;
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
 }
 
 .kcs-loc__cd {
@@ -142,7 +142,7 @@
 }
 .kcs-kpi__ic--steel { background: var(--steel-soft); color: var(--steel); }
 .kcs-kpi__ic--moss { background: var(--moss-soft); color: var(--moss-deep); }
-.kcs-kpi__ic--rust { background: var(--rust-soft); color: var(--rust-deep); }
+.kcs-kpi__ic--rust { background: var(--rule-hair); color: var(--rust-deep); }
 .kcs-kpi__ic--amber { background: var(--amber-soft); color: var(--amber-deep); }
 
 /* Nhãn một dòng trên; số + dòng phụ chung một dòng dưới (canh theo chân chữ). */
@@ -326,7 +326,7 @@
 .kcs-lenh__tim input[type="search"]:focus {
   outline: none;
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
 }
 .kcs-lenh__chip {
   grid-area: chip;
@@ -401,7 +401,7 @@
   transition: background-color var(--duration-fast) var(--easing-standard);
 }
 .kcs-row--clickable:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .kcs-row--clickable:focus-visible {
   outline: 2px solid var(--rust);
@@ -562,7 +562,7 @@
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-radius: var(--r-3);
 }
 .kcs-drawer__loi textarea {
@@ -811,11 +811,11 @@
     border-color var(--duration-fast) var(--easing-standard);
 }
 .kcs-pipeline__step-box:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--rust);
 }
 .kcs-pipeline__step-box--dat { border-color: var(--moss-soft); }
-.kcs-pipeline__step-box--loi { border-color: var(--rust-soft); }
+.kcs-pipeline__step-box--loi { border-color: var(--rule-hair); }
 .kcs-pipeline__num {
   display: inline-flex;
   align-items: center;
@@ -829,7 +829,7 @@
   color: var(--ink);
 }
 .kcs-pipeline__step-box--dat .kcs-pipeline__num { background: var(--moss-soft); color: var(--moss-deep); }
-.kcs-pipeline__step-box--loi .kcs-pipeline__num { background: var(--rust-soft); color: var(--rust-deep); }
+.kcs-pipeline__step-box--loi .kcs-pipeline__num { background: var(--rule-hair); color: var(--rust-deep); }
 .kcs-pipeline__name {
   font-size: 13px;
   font-weight: var(--fw-bold);
@@ -1246,7 +1246,7 @@ button.kcs-chuoi__kho-ma {
   gap: 2px;
   margin-top: var(--sp-1);
   padding-left: var(--sp-3);
-  border-left: 1px solid var(--rust-soft);
+  border-left: 1px solid var(--rule-hair);
 }
 .kcs-lk__loi-dau {
   display: flex;
@@ -1285,7 +1285,7 @@ button.kcs-chuoi__kho-ma {
   margin-left: auto;
   padding: 1px 8px;
   border-radius: var(--r-pill);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   font-size: 12px;
   font-weight: var(--fw-bold);

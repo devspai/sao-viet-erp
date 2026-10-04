@@ -16,11 +16,10 @@
      phần lớn là chữ. slate-500 đạt 4,55–4,76:1 và vẫn cách --ash 1,59:1 nên ba bậc chữ
      còn phân biệt được (UI_DESIGN §9). */
   --ash-2: #64748b;
-  /* Accent — MỘT màu, và nó ẤM (UI_DESIGN §2). rust-soft là "bề mặt được tô": header
-     bảng, hover hàng, hover nút phụ, nền phần tử đang chọn. Hover hàng KHÔNG dùng xám. */
+  /* Accent — MỘT màu, và nó ẤM (UI_DESIGN §2). KHÔNG còn nền hồng/đào nhạt `--rust-soft` (gỡ
+     04/10/2026): hover, nền đang chọn, vòng icon đều dùng xám nhạt --rule-hair. */
   --rust: #c5400a;
   --rust-deep: #8a2d07;
-  --rust-soft: #f4e2d6;
   --paper-contrast: #f8fafc;
   --rule: #cbd5e1;
   --rule-soft: #e2e8f0;

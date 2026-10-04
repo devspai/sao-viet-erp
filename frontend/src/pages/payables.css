@@ -198,7 +198,7 @@
 }
 
 .pay-pill:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 /* Lựa chọn LỌC dùng charcoal, không dùng rust (rust dành cho HÀNH ĐỘNG) — UI_DESIGN §5. */
@@ -384,7 +384,7 @@
 }
 
 .pay-table tbody tr:hover td {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 /* Cột tiền: KHÔNG dùng flex trên td (phá hàng của bảng) — cùng luật đã áp ở accounting.css. */

@@ -4,7 +4,7 @@
 // trong drawer có SƠ ĐỒ BÌNH BÀI live. Auto + override giữ nguyên. "Tính giá" = create (lần đầu,
 // khi phiếu còn nháp) hoặc update(pid) — BE replace-all + tính lại + snapshot → refresh từ Out.
 // LƯU = TÍNH, và phiếu KHÔNG vào DB cho tới lần lưu đầu tiên (chống phiếu rỗng bỏ lại).
-import BuocVatTu, { chipsCua, soOChipTrong, type BuocVatTuDong } from "./BuocVatTu";
+import BuocVatTu, { chipsCua, soOChipTrong, type BuocVatTuDong, type DinhMuc } from "./BuocVatTu";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   api,
@@ -20,6 +20,7 @@ import {
   type TinhGiaComponentMeta,
   type TinhGiaPreviewOut,
 } from "../api/client";
+import { ArrowDown, ArrowRight, ArrowUp, Package, Plus, Trash2 } from "lucide-react";
 import { congDoan, donViDo, giay, mayThietBi, vatTu, type Row } from "../api/rebuildCatalog";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
@@ -31,6 +32,7 @@ import { SanPhamTaiBanGoiY as SanPhamTaiBanCombo } from "../components/SanPhamTa
 import { Select, type SelectOption } from "../components/Select";
 import { ImpositionDiagram } from "./ImpositionDiagram";
 import { heSoChu, nhanChang, nhanDonVi } from "./lsxBuoc";
+import { NHOM_CONG_DOAN } from "./keHoachSxShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 // Nhãn ĐƠN VỊ của biến công thức lấy từ TỪ ĐIỂN BIẾN (`/api/bien-cong-thuc`), không khai lại ở đây —
 // xem ghi chú chỗ `humanizeFormula`.
@@ -456,6 +458,34 @@ function tienTheoBuoc(groups: PhieuTinhGiaGroupOut[] | null): Map<number, DongTi
     out.set(key, {
       ten: _chuoi(r.ten), tien,
       congThuc: _chuoi(r.cong_thuc), congThucGoc: _chuoi(r.cong_thuc_goc),
+    });
+  }
+  return out;
+}
+
+/** Định mức vật tư theo BƯỚC: `buoc_idx` → (`vat_tu_id` → lượng). Engine gắn cả hai khoá vào dòng
+ *  NVL loại `vat_tu`; một vật tư có thể nằm ở nhiều bước nên phải ghép theo bước, không chỉ theo id. */
+function dinhMucTheoBuoc(
+  groups: PhieuTinhGiaGroupOut[] | null, tra: TraBien, vatTuDm: Row[],
+): Map<number, Map<number, DinhMuc>> {
+  const out = new Map<number, Map<number, DinhMuc>>();
+  const grp = groups?.find((g) => g.idx === "nvl");
+  for (const r of grp?.rows ?? []) {
+    if (r.loai !== "vat_tu") continue;
+    const b = _so(r.buoc_idx);
+    const id = _so(r.vat_tu_id);
+    if (b === null || id === null) continue;
+    if (!out.has(b)) out.set(b, new Map());
+    // Chip riêng của vật tư phải đọc được tên ("Dài vùng ép"), không để mã thô.
+    const traVt = traKemChip(tra, vatTuDm.find((v) => v.id === id));
+    const goc = _chuoi(r.dinh_muc_cong_thuc_goc);
+    const theSo = _chuoi(r.dinh_muc_cong_thuc);
+    out.get(b)!.set(id, {
+      so: _so(r.dinh_muc),
+      donVi: _chuoi(r.dinh_muc_don_vi),
+      lyDo: r.dinh_muc_ly_do == null ? null : _chuoi(r.dinh_muc_ly_do),
+      dienGiai: dienGiaiFormula(goc, traVt),
+      thaySo: theSo ? humanizeFormula(theSo, traVt) : "",
     });
   }
   return out;
@@ -2573,7 +2603,9 @@ function ComponentModal({
   // PHIÊN nên gọi ở đây không đẻ thêm request, khỏi phải luồn thêm một prop qua modal.
   const bienCt = useBienCongThuc();
   const tra = useMemo(() => traBien(bienCt), [bienCt]);
+  const mapDinhMuc = useMemo(() => dinhMucTheoBuoc(liveGia, tra, vatTuDm), [liveGia, tra, vatTuDm]);
   const mapTien = useMemo(() => tienTheoBuoc(liveGia), [liveGia]);
+
   const dsCongDoan = useMemo(() => dongCongDoan(liveGia), [liveGia]);
   const dsKhuon = useMemo(() => dongKhuon(liveGia), [liveGia]);
   const tienKhuon = useMemo(() => dsKhuon.reduce((s2, d) => s2 + d.tien, 0), [dsKhuon]);
@@ -2695,13 +2727,12 @@ function ComponentModal({
   // làm hỏng phiếu/lệnh cũ). Danh sách nạp về cố ý KHÔNG lọc — tên cũ vẫn phải tra được để phiếu
   // cũ gọi đúng tên bước — nhưng ô CHỌN thì phải sạch, không thì công đoạn vừa xoá vẫn mời chọn
   // lại và nằm cạnh bản thay thế cùng tên (lỗi 9, 25/08/2026).
+  // Mục "+ Tự nhập…" (bước không gắn danh mục) GỠ 04/10/2026 theo yêu cầu: mọi bước phải chọn từ
+  // danh mục Công đoạn. Bước tự nhập đã lưu ở phiếu cũ vẫn hiện bình thường, chỉ không tạo thêm.
   const cdOpts = useMemo<SelectOption<string>[]>(
-    () => [
-      ...congDoans
-        .filter((cd) => cd.active !== false)
-        .map((cd) => ({ value: String(cd.id), label: cdName(cd) })),
-      { value: "__blank", label: "+ Tự nhập…" },
-    ],
+    () => congDoans
+      .filter((cd) => cd.active !== false)
+      .map((cd) => ({ value: String(cd.id), label: cdName(cd) })),
     [congDoans],
   );
   // MỘT sản phẩm chỉ chạy MỘT bước in (`nhom === "print"`). Hai bước in trong cùng chuỗi làm
@@ -2727,10 +2758,6 @@ function ComponentModal({
   // nút "+ Thêm công đoạn" ở cuối danh sách.
   const themCongDoan = (v: string, insertIdx: number | null = null) => {
     if (!v) return;
-    if (v === "__blank") {
-      addFin(c.uid, null, "", insertIdx);
-      return;
-    }
     const cd = congDoans.find((x) => String(x.id) === v);
     if (cd && String(cd.nhom) === "print" && buocInDaCo) {
       setCanhBaoIn(
@@ -2740,6 +2767,7 @@ function ComponentModal({
       return;
     }
     setCanhBaoIn(null);
+    viTriThemRef.current = insertIdx ?? c.thanh_phams.length;
     // Vật tư mặc định của công đoạn tự hiện ở bước (chép một lần; sau đó sửa riêng cho phiếu).
     const macDinh: BuocVatTuDong[] = Array.isArray(cd?.vat_tus)
       ? (cd!.vat_tus as Array<{ vat_tu_id: number }>).map((v) => ({
@@ -2748,6 +2776,56 @@ function ComponentModal({
       : [];
     addFin(c.uid, cd ? cd.id : null, cd ? cdName(cd) : "", insertIdx, macDinh);
   };
+
+  // ---- Bước đang chọn của khối master–detail ④ ----
+  // LUÔN có một bước được chọn: uid đã chọn mà không còn trong chuỗi (vừa xoá, đổi sản phẩm) thì
+  // rơi về bước ĐẦU TIÊN còn ô chưa nhập — chỗ người lập phiếu cần tới tiếp — không có thì bước 01.
+  const [chonUid, setChonUid] = useState<string | null>(null);
+  const buocChon = useMemo(
+    () =>
+      c.thanh_phams.find((f) => f.uid === chonUid)
+      ?? c.thanh_phams.find((f) => soOChipTrong(f.vat_tus, vatTuDm) > 0)
+      ?? c.thanh_phams[0]
+      ?? null,
+    [c.thanh_phams, chonUid, vatTuDm],
+  );
+  // Thêm bước xong thì chọn NGAY bước mới: `addFin` tự sinh uid nên chỉ biết được nó khi chuỗi
+  // dài thêm — bước mới là bước ở vị trí vừa chèn (mặc định cuối chuỗi).
+  const viTriThemRef = useRef<number | null>(null);
+  const soBuocTruocRef = useRef(c.thanh_phams.length);
+  useEffect(() => {
+    if (c.thanh_phams.length > soBuocTruocRef.current && viTriThemRef.current !== null) {
+      const f = c.thanh_phams[Math.min(viTriThemRef.current, c.thanh_phams.length - 1)];
+      if (f) setChonUid(f.uid);
+    }
+    viTriThemRef.current = null;
+    soBuocTruocRef.current = c.thanh_phams.length;
+  }, [c.thanh_phams]);
+  const doiCho = (tu: number, toi: number) => {
+    if (toi < 0 || toi >= c.thanh_phams.length) return;
+    const ds = [...c.thanh_phams];
+    const [f] = ds.splice(tu, 1);
+    ds.splice(toi, 0, f);
+    patchComp(c.uid, { thanh_phams: ds });
+  };
+  // Xoá xong chọn bước đứng SAU nó (xoá bước cuối thì bước trước) — mắt không phải đi tìm lại.
+  const xoaBuoc = (fIdx: number) => {
+    const f = c.thanh_phams[fIdx];
+    if (!f) return;
+    const ke = c.thanh_phams[fIdx + 1] ?? c.thanh_phams[fIdx - 1];
+    setChonUid(ke ? ke.uid : null);
+    removeFin(c.uid, f.uid);
+  };
+  // Gợi ý nhanh lúc chuỗi còn trống: bước ĐẦU của mỗi giai đoạn theo thứ tự xưởng (Trước In → In →
+  // Sau in), tối đa 3 — bấm một phát là có bước đầu, không thành bảng chọn thứ hai.
+  const goiYNhanh = useMemo(() => {
+    const ds: SelectOption<string>[] = [];
+    for (const nhom of ["prepress", "print", "finishing"]) {
+      const cd = congDoans.find((x) => x.active !== false && String(x.nhom) === nhom);
+      if (cd) ds.push({ value: String(cd.id), label: cdName(cd) });
+    }
+    return ds;
+  }, [congDoans]);
 
   // Bình bài chỉ tính được khi có ĐỦ khổ thành phẩm ③ + khổ tờ in ② (khổ in tự lấy từ giấy/máy).
   const canBinhBai =
@@ -3152,105 +3230,182 @@ function ComponentModal({
             <section className="rc-sec">
               <div className="rc-sec__title">
                 <span className="tg-step-badge">4</span> Chuỗi công đoạn thực hiện
-              </div>
-              {/* DANH SÁCH DỌC (02/10/2026): mỗi công đoạn một dòng — số thứ tự · tên · vật tư của
-                  bước (thẻ nhỏ / ô chip, "+ vật tư") · nút xoá công đoạn. Thay cho dãy viên ngang +
-                  các khối "Vật tư của bước" rời bên dưới. Chuỗi này không có kéo-thả đổi thứ tự —
-                  sắp lại bằng CHÈN: nút "+" nhỏ nằm trên đường kẻ (lên đầu chuỗi · vào giữa hai bước),
-                  cùng một `themCongDoan` với nút cuối. */}
-              <div className="tg-cdv">
-                {c.thanh_phams.length === 0 && (
-                  <p className="tg-chipgrid__empty tg-cdv__rong">
-                    Chưa có công đoạn — thêm ở ô «+ Thêm công đoạn».
-                  </p>
+                {c.thanh_phams.length > 0 && (
+                  <span className="tg-cdv__dem">
+                    {c.thanh_phams.length} công đoạn
+                    {(() => {
+                      const n = c.thanh_phams.reduce((s, f) => s + f.vat_tus.length, 0);
+                      return n > 0 ? `, ${n} vật tư` : "";
+                    })()}
+                  </span>
                 )}
-                {c.thanh_phams.map((f, fIdx) => {
-                  const canh = tinhTrangBuoc(f, congDoans);
-                  const ten = tenBuoc(f, congDoans) || "(công đoạn)";
-                  const stepNum = fIdx + 1 < 10 ? `0${fIdx + 1}` : `${fIdx + 1}`;
-                  const oTrong = soOChipTrong(f.vat_tus, vatTuDm);
-                  return (
-                    <Fragment key={f.uid}>
-                      {/* `title` nằm ở thẻ bọc: `Select` không nhận `title`, mà nút "+" không có
-                          chữ nên mất tooltip là mất luôn manh mối "bấm được". */}
-                      <div
-                        className="tg-cdv__chen"
-                        title={fIdx === 0 ? "Chèn công đoạn mới lên đầu quy trình" : `Chèn công đoạn mới trước bước ${stepNum}`}
-                      >
-                        <Select
-                          options={cdOpts}
-                          value=""
-                          onChange={(v) => themCongDoan(v, fIdx)}
-                          placeholder="+"
-                          ariaLabel={fIdx === 0 ? "Chèn công đoạn lên đầu chuỗi" : "Chèn công đoạn vào giữa"}
-                          searchable
-                          portal
-                          className="tg-cdv__chen-btn"
-                          listClassName="tg-pop"
-                        />
-                      </div>
-                      <div className={`tg-cdv__dong${canh ? " tg-cdv__dong--canh" : ""}`}>
-                        {/* Dòng TIÊU ĐỀ của bước: vòng số · tên (+ nhắc ô chip còn trống) · ×.
-                            Vật tư nằm BÊN DƯỚI, dùng hết bề ngang khối. */}
-                        <div className="tg-cdv__dau">
-                          <span className="tg-cdv__so" aria-hidden="true">{stepNum}</span>
-                          <span
-                            className="tg-cdv__ten"
-                            title={
-                              canh === "mat"
-                                ? "Công đoạn này đã bị xóa khỏi danh mục — chọn công đoạn khác thay vào."
-                                : canh === "ngung"
-                                  ? "Công đoạn này đã ngừng dùng — vẫn tính được, nhưng lần sau không chọn lại được."
-                                  : undefined
-                            }
-                          >
-                            <span className="tg-cdv__ten-chu">{ten}</span>
-                            {canh ? (
-                              <span className="tg-cdv__canh">
-                                {canh === "mat" ? "đã xóa" : "ngừng dùng"}
-                              </span>
-                            ) : null}
-                            {oTrong > 0 && (
-                              <span className="tg-cdv__thieu">· còn {oTrong} ô chưa nhập</span>
-                            )}
-                          </span>
-                          <button
-                            type="button"
-                            className="tg-cdv__x"
-                            aria-label={`Xóa công đoạn ${ten}`}
-                            title="Xóa khỏi chuỗi"
-                            onClick={() => removeFin(c.uid, f.uid)}
-                          >
-                            <CloseIcon />
-                          </button>
-                        </div>
-                        <div className="tg-cdv__vt">
-                          <BuocVatTu
-                            tenBuoc={ten}
-                            dong={f.vat_tus}
-                            vatTuDm={vatTuDm}
-                            taoUid={nextUid}
-                            onChange={(next) => patchFin(c.uid, f.uid, { vat_tus: next })}
-                          />
-                        </div>
-                      </div>
-                    </Fragment>
-                  );
-                })}
-                <div className="tg-cdv__them">
+              </div>
+              {/* MASTER–DETAIL (thiết kế B, 04/10/2026): trái là danh sách bước gọn (số · tên · số vật
+                  tư · chấm vàng khi còn ô chưa nhập), phải là thẻ của MỘT bước đang chọn — đỡ phải
+                  cuộn dài và dùng được bề ngang. Luôn có một bước được chọn. Đổi thứ tự bằng ↑ ↓ trên
+                  thẻ; không kéo-thả. Chưa có bước nào thì chỉ một hộp tìm + vài gợi ý nhanh. */}
+              {c.thanh_phams.length === 0 ? (
+                <div className="tg-cdv-rong">
                   <Select
                     options={cdOpts}
                     value=""
                     onChange={(v) => themCongDoan(v)}
-                    placeholder="+ Thêm công đoạn mới vào chuỗi"
+                    placeholder="Thêm công đoạn đầu tiên — gõ tên…"
                     ariaLabel="Thêm công đoạn"
                     searchable
                     portal
-                    className="tg-cdv__them-btn"
+                    className="tg-cdv-rong__tim"
                     listClassName="tg-pop"
                   />
+                  {goiYNhanh.length > 0 && (
+                    <div className="tg-cdv-rong__goi-y" role="group" aria-label="Thêm nhanh">
+                      {goiYNhanh.map((o) => (
+                        <button
+                          key={o.value}
+                          type="button"
+                          className="tg-cdv-rong__chip"
+                          onClick={() => themCongDoan(o.value)}
+                        >
+                          <Plus aria-hidden="true" />
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <span className="tg-cdv-rong__nhac">Chọn theo đúng thứ tự giấy đi qua xưởng.</span>
                 </div>
-              </div>
+              ) : (
+                <div className="tg-cdv">
+                  <ol className="tg-cdv__ds" aria-label="Các bước của chuỗi">
+                    {c.thanh_phams.map((f, fIdx) => {
+                      const cd = f.cong_doan_id == null ? undefined : congDoans.find((x) => x.id === f.cong_doan_id);
+                      const ten = tenBuoc(f, congDoans) || "(công đoạn)";
+                      const oTrong = soOChipTrong(f.vat_tus, vatTuDm);
+                      const on = f.uid === buocChon?.uid;
+                      return (
+                        <li key={f.uid}>
+                          <button
+                            type="button"
+                            className={`tg-cdv__muc${on ? " tg-cdv__muc--chon" : ""}`}
+                            aria-current={on ? "step" : undefined}
+                            onClick={() => setChonUid(f.uid)}
+                            title={ten}
+                          >
+                            <span className={`tg-cdv__so${String(cd?.nhom ?? "") === "print" ? " tg-cdv__so--in" : ""}`}>
+                              {fIdx + 1 < 10 ? `0${fIdx + 1}` : fIdx + 1}
+                            </span>
+                            <span className="tg-cdv__ten">{ten}</span>
+                            {tinhTrangBuoc(f, congDoans) && (
+                              <span className="tg-cdv__cham tg-cdv__cham--loi" title="Công đoạn không còn dùng được trong danh mục" />
+                            )}
+                            {oTrong > 0 && <span className="tg-cdv__cham" title={`Còn ${oTrong} ô chưa nhập`} />}
+                            {f.vat_tus.length > 0 && (
+                              <span className="tg-cdv__vt" title={`${f.vat_tus.length} vật tư`}>
+                                <Package aria-hidden="true" />
+                                {f.vat_tus.length}
+                              </span>
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                    <li>
+                      <Select
+                        options={cdOpts}
+                        value=""
+                        onChange={(v) => themCongDoan(v)}
+                        placeholder="Thêm công đoạn"
+                        ariaLabel="Thêm công đoạn"
+                        searchable
+                        portal
+                        className="tg-cdv__them"
+                        listClassName="tg-pop"
+                      />
+                    </li>
+                  </ol>
+                  {buocChon && (() => {
+                    const f = buocChon;
+                    const fIdx = c.thanh_phams.findIndex((x) => x.uid === f.uid);
+                    const canh = tinhTrangBuoc(f, congDoans);
+                    const ten = tenBuoc(f, congDoans) || "(công đoạn)";
+                    const oTrong = soOChipTrong(f.vat_tus, vatTuDm);
+                    const cd = f.cong_doan_id == null ? undefined : congDoans.find((x) => x.id === f.cong_doan_id);
+                    const nhom = cd?.nhom ? String(cd.nhom) : "";
+                    const vao = nhanChang(cd?.don_vi_vao as string | null | undefined);
+                    const ra = nhanChang(cd?.don_vi_ra as string | null | undefined);
+                    return (
+                      // Thẻ KHÔNG nhắc lại tên bước: tên đã đậm ở mục đang chọn bên trái, ngay cạnh
+                      // (04/10/2026). Đầu thẻ chỉ còn thông tin danh sách chưa có — giai đoạn (thẻ
+                      // nhỏ), đơn vị vào → ra, số ô còn trống — đặt cạnh nhau bằng khoảng trống,
+                      // KHÔNG nối bằng dấu chấm giữa.
+                      <div className="tg-cdv__the" role="group" aria-label={`Công đoạn ${ten}`}>
+                        <div className="tg-cdv__dau">
+                          {nhom && <span className="tg-cdv__nhom">{NHOM_CONG_DOAN[nhom] ?? nhom}</span>}
+                          {canh && (
+                              <span
+                                className="tg-cdv__canh"
+                                title={
+                                  canh === "mat"
+                                    ? "Công đoạn này đã bị xóa khỏi danh mục — chọn công đoạn khác thay vào."
+                                    : "Công đoạn này đã ngừng dùng — vẫn tính được, nhưng lần sau không chọn lại được."
+                                }
+                              >
+                                {canh === "mat" ? "đã xóa" : "ngừng dùng"}
+                              </span>
+                          )}
+                          {(vao || ra) && (
+                            <span className="tg-cdv__luong" title="Đơn vị vào → đơn vị ra">
+                              {vao && ra && vao !== ra ? (
+                                <>{vao}<ArrowRight aria-label="thành" />{ra}</>
+                              ) : (vao || ra)}
+                            </span>
+                          )}
+                          {oTrong > 0 && <span className="tg-cdv__thieu">còn {oTrong} ô chưa nhập</span>}
+                          <span className="tg-cdv__cong-cu">
+                            <button
+                              type="button"
+                              className="tg-cdv__nut"
+                              aria-label={`Đưa ${ten} lên trước`}
+                              title="Đưa lên trước"
+                              disabled={fIdx <= 0}
+                              onClick={() => doiCho(fIdx, fIdx - 1)}
+                            >
+                              <ArrowUp aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="tg-cdv__nut"
+                              aria-label={`Đưa ${ten} xuống sau`}
+                              title="Đưa xuống sau"
+                              disabled={fIdx >= c.thanh_phams.length - 1}
+                              onClick={() => doiCho(fIdx, fIdx + 1)}
+                            >
+                              <ArrowDown aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="tg-cdv__nut tg-cdv__nut--xoa"
+                              aria-label={`Xóa công đoạn ${ten}`}
+                              title="Xóa công đoạn khỏi chuỗi"
+                              onClick={() => xoaBuoc(fIdx)}
+                            >
+                              <Trash2 aria-hidden="true" />
+                            </button>
+                          </span>
+                        </div>
+                        <BuocVatTu
+                          tenBuoc={ten}
+                          dong={f.vat_tus}
+                          vatTuDm={vatTuDm}
+                          taoUid={nextUid}
+                          onChange={(next) => patchFin(c.uid, f.uid, { vat_tus: next })}
+                          dinhMuc={mapDinhMuc.get(fIdx)}
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
               {/* Băng nhắc CHẶN thêm bước in thứ hai. Đặt ngay dưới danh sách vì mọi đường thêm
                   (nút "+" chèn · nút cuối) đều nằm trong đó — nhắc ở đây thì bấm ở chỗ nào cũng
                   thấy. Màn này chưa có toast chung nên dùng đúng lối `tg-hint` đỏ như ③. */}

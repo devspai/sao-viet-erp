@@ -175,7 +175,7 @@
 }
 .thsx-nutnay:hover {
   border-color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust);
 }
 .thsx-kyngay {
@@ -359,7 +359,7 @@
   font-size: var(--fs-xs);
   font-weight: var(--fw-bold);
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-radius: var(--r-pill);
   padding: 1px 8px;
 }
@@ -628,7 +628,7 @@
 .thsx-ln__ngay--cn { background: var(--paper); }
 /* Hôm nay: nền cam nhạt + gạch chân — cùng tông với cột tô nhạt bên dưới (`__nen-cot--nay`). */
 .thsx-ln__ngay--nay {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   box-shadow: inset 0 -2px 0 var(--rust);
 }
 .thsx-ln__ngay--nay .thsx-ln__thu,
@@ -673,7 +673,7 @@
   border-left: 1px solid var(--rule-soft);
 }
 .thsx-ln__nen-cot--cn { background: color-mix(in srgb, var(--rule-soft) 35%, transparent); }
-.thsx-ln__nen-cot--nay { background: color-mix(in srgb, var(--rust-soft) 45%, transparent); }
+.thsx-ln__nen-cot--nay { background: color-mix(in srgb, var(--rule-hair) 45%, transparent); }
 
 /* Dòng TRONG SUỐT để vạch cột + tô hôm nay lộ qua; rê/chọn phủ màu bán trong suốt. */
 .thsx-ln__hang {
@@ -683,8 +683,8 @@
   transition: background var(--duration-fast) ease;
 }
 .thsx-ln__hang:hover { background: color-mix(in srgb, var(--steel-soft) 30%, transparent); }
-.thsx-ln__hang--chon,
-.thsx-ln__hang--chon:hover { background: color-mix(in srgb, var(--rust-soft) 40%, transparent); }
+.thsx-ln__hang--chon{ background: color-mix(in srgb, var(--rule-hair) 40%, transparent); }
+.thsx-ln__hang--chon:hover { background: color-mix(in srgb, var(--rule-hair) 40%, transparent); }
 
 /* Ô nhãn: sọc 3px bên trái theo TRẠNG THÁI (icon cạnh mã nói bằng hình, không chỉ bằng màu). */
 .thsx-ln__nhan {
@@ -706,8 +706,8 @@
 .thsx-ln__nhan--paused { box-shadow: inset 3px 0 0 var(--amber), 2px 0 6px rgba(15, 23, 42, 0.04); }
 .thsx-ln__nhan--completed { box-shadow: inset 3px 0 0 var(--rule), 2px 0 6px rgba(15, 23, 42, 0.04); }
 .thsx-ln__hang:hover .thsx-ln__nhan { background: color-mix(in srgb, var(--steel-soft) 30%, var(--canvas)); }
-.thsx-ln__hang--chon .thsx-ln__nhan,
-.thsx-ln__hang--chon:hover .thsx-ln__nhan { background: color-mix(in srgb, var(--rust-soft) 40%, var(--canvas)); }
+.thsx-ln__hang--chon .thsx-ln__nhan{ background: color-mix(in srgb, var(--rule-hair) 40%, var(--canvas)); }
+.thsx-ln__hang--chon:hover .thsx-ln__nhan { background: color-mix(in srgb, var(--rule-hair) 40%, var(--canvas)); }
 .thsx-ln__ma {
   display: flex;
   align-items: center;
@@ -999,7 +999,7 @@
 .thsx-ds__secn {
   font-size: var(--fs-xs);
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   font-weight: var(--fw-bold);
   padding: 1px 8px;
   border-radius: var(--r-pill);
@@ -1473,7 +1473,7 @@
   text-align: left;
 }
 .thsx-tep__chinh--xem { cursor: zoom-in; transition: background-color 0.15s ease; }
-.thsx-tep__chinh--xem:hover { background: color-mix(in srgb, var(--rust-soft) 45%, transparent); }
+.thsx-tep__chinh--xem:hover { background: color-mix(in srgb, var(--rule-hair) 45%, transparent); }
 .thsx-tep__chinh--xem:hover .thsx-tep__ten { color: var(--rust-deep); }
 .thsx-tep__chinh--xem:focus-visible { outline: 2px solid var(--rust); outline-offset: -2px; }
 .thsx-tep__thumb {
@@ -1515,7 +1515,7 @@
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
-.thsx-tep__icon:hover { background: var(--rust-soft); color: var(--rust-deep); }
+.thsx-tep__icon:hover { background: var(--rule-hair); color: var(--rust-deep); }
 .thsx-tep__icon:focus-visible { outline: 2px solid var(--rust); outline-offset: -2px; }
 .thsx-tep__them {
   display: flex;
@@ -1534,7 +1534,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.thsx-tep__them:hover { background: color-mix(in srgb, var(--rust-soft) 60%, transparent); }
+.thsx-tep__them:hover { background: color-mix(in srgb, var(--rule-hair) 60%, transparent); }
 .thsx-tep__them:focus-visible { outline: 2px solid var(--rust); outline-offset: 1px; }
 .thsx-tep__them svg { transition: transform 0.15s ease; }
 .thsx-tep__chev--len { transform: rotate(180deg); }
@@ -1684,7 +1684,7 @@
   padding: var(--sp-2);
   cursor: pointer;
 }
-.thsx-giao__opt:hover:not(:disabled) { background: var(--rust-soft); }
+.thsx-giao__opt:hover:not(:disabled) { background: var(--rule-hair); }
 .thsx-giao__opt:focus-visible { outline: 2px solid var(--rust); outline-offset: -2px; }
 /* Người không giao được: mờ TÊN thôi, lý do (đỏ) vẫn đọc rõ — mờ cả dòng thì không ai đọc được vì sao. */
 .thsx-giao__opt:disabled { cursor: not-allowed; }
@@ -1957,7 +1957,7 @@
 .thsx-x-pbwarn {
   display: flex; align-items: flex-start; gap: 8px;
   margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3);
-  background: var(--rust-soft); border-radius: var(--r-3);
+  background: var(--rule-hair); border-radius: var(--r-3);
   border-left: 3px solid var(--rust);
 }
 .thsx-x-pbwarn svg { color: var(--rust-deep); flex: none; margin-top: 1px; }
@@ -2050,7 +2050,7 @@
 /* ======================================================================== */
 /* GIAI ĐOẠN 5 — KCS §13 · Kho §14 · Đóng nhóm §16/§13.3                     */
 /* ======================================================================== */
-.thsx-x-pill--bad { color: var(--rust-deep); background: var(--rust-soft); border-color: color-mix(in srgb, var(--rust) 22%, transparent); }
+.thsx-x-pill--bad { color: var(--rust-deep); background: var(--rule-hair); border-color: color-mix(in srgb, var(--rust) 22%, transparent); }
 .thsx-note--ok {
   display: flex; align-items: center; gap: 6px; margin-top: var(--sp-2);
   color: var(--moss-deep); background: var(--moss-soft);
@@ -2112,7 +2112,7 @@
 }
 .thsx-hopthu__col {
   border: 1px solid color-mix(in srgb, var(--rust) 24%, var(--rule-soft));
-  border-radius: var(--r-3); background: var(--rust-soft);
+  border-radius: var(--r-3); background: var(--rule-hair);
   padding: var(--sp-2) var(--sp-3);
 }
 .thsx-hopthu__h {
@@ -4206,7 +4206,7 @@
   background: linear-gradient(135deg, #d97706 0%, #c2410c 100%) !important;
   color: #ffffff !important;
   border: none !important;
-  box-shadow: 0 2px 8px rgba(194, 65, 12, 0.3) !important;
+  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.3) !important;
   font-weight: 600 !important;
   transition: all 0.15s ease !important;
 }
@@ -4533,7 +4533,7 @@
   margin-left: var(--sp-2);
   padding: 0 6px;
   border-radius: var(--r-pill);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   font-size: var(--fs-2xs);
   font-weight: var(--fw-medium);
@@ -4590,7 +4590,7 @@
 .thsx-vk__gia { flex: none; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--ink); white-space: nowrap; }
 .thsx-vk__psbox {
   margin: 6px 0 2px 26px; padding-left: var(--sp-2);
-  border-left: 2px solid var(--rust-soft); display: flex; flex-direction: column; gap: 6px;
+  border-left: 2px solid var(--rule-hair); display: flex; flex-direction: column; gap: 6px;
 }
 .thsx-vk__psh { font-size: var(--fs-2xs); color: var(--ash); font-weight: var(--fw-medium); }
 .thsx-vk__opt--ps { padding: 8px 10px; min-height: 40px; }
@@ -5936,7 +5936,7 @@
 }
 .thsx-chot__it {
   border: 1px solid color-mix(in srgb, var(--rust) 24%, var(--rule-soft));
-  border-radius: var(--r-3); background: var(--rust-soft);
+  border-radius: var(--r-3); background: var(--rule-hair);
   padding: var(--sp-3);
   display: flex; flex-direction: column; gap: var(--sp-2);
 }

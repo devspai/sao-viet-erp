@@ -3789,7 +3789,7 @@ span.pdot__readonly-money {
 }
 
 .pdot__pick:hover {
-  background: color-mix(in srgb, var(--rust-soft) 35%, var(--canvas));
+  background: color-mix(in srgb, var(--rule-hair) 35%, var(--canvas));
   border-color: var(--rust);
   color: var(--ink);
 }
@@ -3797,7 +3797,7 @@ span.pdot__readonly-money {
 /* Bàn phím: cùng bộ màu như hover, cộng vành focus. Khai riêng chứ KHÔNG gộp chung selector rồi
    thêm rule thứ hai — khai một selector hai lần trong cùng file là bẫy đã ghi ở UI_DESIGN §11. */
 .pdot__pick:focus-visible {
-  background: color-mix(in srgb, var(--rust-soft) 35%, var(--canvas));
+  background: color-mix(in srgb, var(--rule-hair) 35%, var(--canvas));
   border-color: var(--rust);
   color: var(--ink);
   outline: 2px solid var(--rust);
@@ -3805,7 +3805,7 @@ span.pdot__readonly-money {
 }
 
 .pdot__pick.is-drop {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-style: solid;
   border-color: var(--rust);
   color: var(--rust-deep);
@@ -4069,9 +4069,9 @@ span.pdot__readonly-money {
   background: var(--paper);
   border-bottom: 1.5px solid var(--rule);
 }
-.acct-mh__frame .md-page__row:hover { background: var(--rust-soft); }
+.acct-mh__frame .md-page__row:hover { background: var(--rule-hair); }
 .acct-mh__frame .purchase__row--selected {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   box-shadow: inset 3px 0 0 var(--rust);
 }
 .acct-mh__frame th.acct-amount-cell,

@@ -129,7 +129,7 @@
   font-weight: 500;
 }
 .tg-muc__reuse:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .tg-muc__count {
   margin-left: auto;
@@ -364,7 +364,7 @@
 .tg-pantone-popover__reuse-chip:hover {
   border-color: #fdba74;
   background: #fff7ed;
-  box-shadow: 0 2px 4px rgba(194, 65, 12, 0.08);
+  box-shadow: 0 2px 4px rgba(100, 116, 139, 0.08);
   transform: translateY(-1px);
 }
 

@@ -22,8 +22,9 @@ export function BandsField({ value, onChange }: { value: BacRow[]; onChange: (v:
   };
 
   // "Thêm bậc" CHÈN TRƯỚC bậc vô hạn — nó phải ở cuối, không thì chuỗi tra bậc đứt ở giữa. Bậc mới
-  // mượn mốc của bậc vô hạn liền trước (bằng cận dưới của nó) để hàng hiện lên đã có số, người khai
-  // chỉ việc sửa; chưa có bậc nào thì bậc đầu tiên mở ra chính là bậc vô hạn.
+  // mang sẵn một mốc GỢI Ý lớn hơn cận dưới (gấp đôi; cận dưới 0 thì 1.000) để hàng hiện lên đã hợp
+  // lệ, người khai chỉ việc sửa. Trước 03/10/2026 nó mượn đúng cận dưới ⇒ vừa bấm thêm đã tô đỏ.
+  // Chưa có bậc nào thì bậc đầu tiên mở ra chính là bậc vô hạn.
   const add = () => {
     const iVo = rows.findIndex(voHan);
     const donVi = rows[rows.length - 1]?.don_vi ?? "to";
@@ -31,7 +32,8 @@ export function BandsField({ value, onChange }: { value: BacRow[]; onChange: (v:
       onChange([...rows, { sl_den: null, gia_tri: 0, don_vi: donVi }]);
       return;
     }
-    const moi: BacRow = { sl_den: canDuoi(iVo), gia_tri: 0, don_vi: donVi };
+    const duoi = canDuoi(iVo);
+    const moi: BacRow = { sl_den: duoi > 0 ? duoi * 2 : 1000, gia_tri: 0, don_vi: donVi };
     onChange([...rows.slice(0, iVo), moi, ...rows.slice(iVo)]);
   };
 
@@ -43,7 +45,11 @@ export function BandsField({ value, onChange }: { value: BacRow[]; onChange: (v:
   return (
     <RowEditor
       rows={rows}
-      cot={["Khoảng số lượng", "Giá trị", "Đơn vị"]}
+      // HAI cột đọc liền thành một câu: "Khi số lượng ra đến 1.000 → bù thêm 50 tờ". Trước 03/10/2026
+      // ba cột "Khoảng số lượng · Giá trị · Đơn vị" đứng xa nhau; bảng một dòng chỉ còn MỘT ô gõ
+      // được (ô hao) nằm ngay cạnh chữ "Mọi số lượng" ⇒ người khai gõ số lượng 10.000 vào ô hao.
+      cot={["Khi số lượng ra của công đoạn", "Thì bù hao cộng thêm"]}
+
       khoa="rc-bands--bac"
       trong="Chưa có bậc — bấm “＋ Thêm bậc”."
       themNhan="＋ Thêm bậc"
@@ -76,30 +82,32 @@ export function BandsField({ value, onChange }: { value: BacRow[]; onChange: (v:
               </div>
             </td>
             <td>
-              <input
-                className="rc-input rc-input--num"
-                type="number"
-                step="any"
-                value={num(r.gia_tri)}
-                onChange={(e) => setRow(i, { gia_tri: e.target.value === "" ? 0 : Number(e.target.value) })}
-              />
-            </td>
-            <td style={{ textAlign: "center" }}>
-              <div className="rc-bands__unit-toggle">
-                <button
-                  type="button"
-                  className={`rc-bands__unit-btn${(r.don_vi ?? "to") === "to" ? " is-active" : ""}`}
-                  onClick={() => setRow(i, { don_vi: "to" })}
-                >
-                  Tờ
-                </button>
-                <button
-                  type="button"
-                  className={`rc-bands__unit-btn${(r.don_vi ?? "to") === "pct" ? " is-active" : ""}`}
-                  onClick={() => setRow(i, { don_vi: "pct" })}
-                >
-                  %
-                </button>
+              <div className="rc-bands__hao">
+                <input
+                  className="rc-input rc-input--num"
+                  type="number"
+                  step="any"
+                  min={0}
+                  aria-label="Bù hao cộng thêm"
+                  value={num(r.gia_tri)}
+                  onChange={(e) => setRow(i, { gia_tri: e.target.value === "" ? 0 : Number(e.target.value) })}
+                />
+                <div className="rc-bands__unit-toggle">
+                  <button
+                    type="button"
+                    className={`rc-bands__unit-btn${(r.don_vi ?? "to") === "to" ? " is-active" : ""}`}
+                    onClick={() => setRow(i, { don_vi: "to" })}
+                  >
+                    Tờ
+                  </button>
+                  <button
+                    type="button"
+                    className={`rc-bands__unit-btn${(r.don_vi ?? "to") === "pct" ? " is-active" : ""}`}
+                    onClick={() => setRow(i, { don_vi: "pct" })}
+                  >
+                    %
+                  </button>
+                </div>
               </div>
             </td>
           </>

@@ -19,12 +19,11 @@ const props = (over = {}) => ({
 });
 
 describe("BuocVatTu", () => {
-  it("bước chưa có vật tư: không câu chữ thừa, chỉ có nút + vật tư", () => {
+  it("bước chưa có vật tư: một dòng 'Chưa có vật tư.' + ô thêm vật tư", () => {
     const { container } = render(<BuocVatTu {...props()} />);
-    expect(screen.queryByText(/chưa có vật tư/i)).toBeNull();
-    expect(screen.queryByText(/Vật tư của bước/)).toBeNull();
-    expect(container.querySelectorAll(".tg-bvt__tag, .tg-bvt__dong").length).toBe(0);
-    expect(screen.getByRole("button", { name: /Thêm vật tư vào bước Cán màng/ }).textContent).toMatch(/\+ vật tư/);
+    expect(screen.getByText("Chưa có vật tư.")).toBeTruthy();
+    expect(container.querySelectorAll(".tg-bvt__dong").length).toBe(0);
+    expect(screen.getByRole("button", { name: /Thêm vật tư vào bước Cán màng/ }).textContent).toMatch(/Thêm vật tư/);
   });
 
   it("vật tư có chip → mọc đúng ô nhập, gõ số báo ra ngoài", () => {
@@ -96,23 +95,23 @@ describe("BuocVatTu", () => {
       { uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 0, rong_support: 0 } }]);
   });
 
-  it("vật tư có chip mỗi món một dòng lưới trước; thẻ vật tư không chip + '+ vật tư' chung một hàng sau", () => {
-    const dm = [...DM, { id: 4, ma: "MUC", ten: "Mực", chips: [] }];
+  it("mỗi vật tư một hàng [tên, lượng, ×]; vật tư có chip đứng trước và thêm dòng ô chip", () => {
+    const dm = [...DM, { id: 4, ma: "MUC", ten: "Mực", don_vi_gia: "ghi", chips: [] }];
     const { container } = render(<BuocVatTu {...props({ vatTuDm: dm as never, dong: [
-      { uid: "b", vat_tu_id: 2, gia_tri_chip: {} }, { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
-    const khoi = container.querySelector(".tg-bvt")!;
-    expect(Array.from(khoi.children).map((e) => e.className)).toEqual(["tg-bvt__dong", "tg-bvt__hang"]);
-    const dong = khoi.querySelector(".tg-bvt__dong")!;
-    expect(Array.from(dong.children).map((e) => e.className))
-      .toEqual(["tg-bvt__ten", "tg-bvt__luoi", "tg-bvt__xoa"]);
-    expect(dong.querySelector(".tg-bvt__ten")?.textContent).toBe("Support");
-    const hang = khoi.querySelector(".tg-bvt__hang")!;
-    expect(Array.from(hang.children).map((e) => e.className)).toEqual(["tg-bvt__tag", "tg-bvt__them"]);
-    expect(hang.querySelector(".tg-bvt__tag")?.textContent).toMatch(/Keo dán/);
-    expect(hang.querySelector('[aria-label^="Thêm vật tư vào bước"]')).toBeTruthy();
+      { uid: "b", vat_tu_id: 4, gia_tri_chip: {} }, { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
+    const hang = Array.from(container.querySelectorAll(".tg-bvt__ds > li"));
+    expect(hang.map((e) => e.className)).toEqual(["tg-bvt__dong tg-bvt__dong--chip", "tg-bvt__dong"]);
+    expect(Array.from(hang[0].children).map((e) => e.className))
+      .toEqual(["tg-bvt__ten", "tg-bvt__luong tg-bvt__luong--chua", "tg-bvt__xoa", "tg-bvt__luoi"]);
+    expect(hang[0].querySelector(".tg-bvt__ten")?.textContent).toBe("Support");
+    expect(Array.from(hang[1].children).map((e) => e.className))
+      .toEqual(["tg-bvt__ten", "tg-bvt__luong tg-bvt__luong--chua", "tg-bvt__xoa"]);
+    expect(hang[1].querySelector(".tg-bvt__luong-so")?.textContent).toBe("—");
+    expect(hang[1].querySelector(".tg-bvt__dv")?.textContent).toBe("gam");
+    expect(container.querySelector('[aria-label^="Thêm vật tư vào bước"]')).toBeTruthy();
   });
 
-  it("vật tư 5 chip: đủ 5 ô trong MỘT lưới, nhãn nằm trên khung ô", () => {
+  it("vật tư 5 chip: đủ 5 ô trên MỘT hàng, nhãn đứng trước khung ô", () => {
     const ten = ["Dài", "Rộng", "Số dao", "Dài đường bế", "Độ dày"];
     const dm = [{ id: 9, ma: "KB", ten: "Khuôn bế", chips: ten.map((t, k) => ({ ma: `c${k}`, ten: t, don_vi: "mm" })) }];
     const { container } = render(<BuocVatTu {...props({ vatTuDm: dm as never, dong: [
@@ -146,5 +145,39 @@ describe("nhanNgan", () => {
     expect(nhanNgan("Support", "Support")).toBe("Support");
     expect(nhanNgan("Chiều dài", "Support")).toBe("Chiều dài");
     expect(nhanNgan("Supportx dài", "Support")).toBe("Supportx dài");
+  });
+});
+
+describe("BuocVatTu — định mức", () => {
+  it("hiện lượng engine tính theo công thức định mức + tên đơn vị; chưa tính được thì gạch kèm lý do", () => {
+    const dinhMuc = new Map([
+      [1, { so: 0.0012, donVi: "mm", lyDo: null, dienGiai: "Dài support × Rộng support ÷ 10000",
+            thaySo: "3 milimét × 4 milimét ÷ 10000" }],
+      [2, { so: null, donVi: "ghi", lyDo: "chưa khai công thức định mức" }],
+    ]);
+    const { container } = render(<BuocVatTu {...props({ dinhMuc, dong: [
+      { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }, { uid: "b", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
+    const luong = container.querySelectorAll(".tg-bvt__luong");
+    expect(luong[0].querySelector(".tg-bvt__luong-so")?.textContent).toBe("0,0012");
+    expect(luong[0].querySelector(".tg-bvt__dv")?.textContent).toBe("milimét");
+    expect(luong[1].querySelector(".tg-bvt__luong-so")?.textContent).toBe("—");
+    expect(luong[1].querySelector("[role=tooltip]")?.textContent).toMatch(/chưa khai công thức định mức/);
+  });
+
+  it("tooltip hai dòng: công thức bằng chữ, rồi '= thế số = kết quả'; công thức một biến thì chỉ '= số'", () => {
+    const dinhMuc = new Map([
+      [1, { so: 0.0012, donVi: "mm", lyDo: null, dienGiai: "Dài support × Rộng support ÷ 10000",
+            thaySo: "3 milimét × 4 milimét ÷ 10000" }],
+      [2, { so: 32, donVi: "ghi", lyDo: null, dienGiai: "Số bản kẽm", thaySo: "32 bản" }],
+    ]);
+    const { container } = render(<BuocVatTu {...props({ dinhMuc, dong: [
+      { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }, { uid: "b", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
+    const tip = Array.from(container.querySelectorAll("[role=tooltip]"));
+    expect(tip[0].querySelector(".tg-bvt__tip-goc")?.textContent).toBe("Dài support × Rộng support ÷ 10000");
+    expect(tip[0].querySelector(".tg-bvt__tip-so")?.textContent).toBe("= 3 milimét × 4 milimét ÷ 10000 = 0,0012 milimét");
+    expect(tip[1].querySelector(".tg-bvt__tip-goc")?.textContent).toBe("Số bản kẽm");
+    expect(tip[1].querySelector(".tg-bvt__tip-so")?.textContent).toBe("= 32 bản");
+    // Ô lượng nhận focus để chạm / bàn phím cũng mở được tooltip.
+    expect(tip[0].parentElement?.getAttribute("tabindex")).toBe("0");
   });
 });

@@ -56,6 +56,7 @@ def _vat_tus_cua_buoc(db: Session, buoc: PhieuThanhPham,
             "don_gia": _f(m.don_gia),
             "don_vi_gia": m.don_vi_gia,
             "cong_thuc_gia": m.cong_thuc_gia,
+            "cong_thuc_dinh_muc": m.cong_thuc_dinh_muc,
             "chips": [{"ma": c.ma, "ten": c.ten, "don_vi": c.don_vi} for c in m.chips],
             "gia_tri_chip": dict(vt.gia_tri_chip or {}),
         })

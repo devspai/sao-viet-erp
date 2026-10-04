@@ -321,7 +321,7 @@
 .dhb__order-source-bg {
   display: inline-block;
   padding: 2px 6px;
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   border-radius: var(--r-2);
   border: 1px solid color-mix(in srgb, var(--rust) 15%, transparent);
@@ -446,7 +446,7 @@
   color: var(--steel);
 }
 .tone--rush {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 
@@ -631,7 +631,7 @@
    cho người trong nhà. Cùng ngôn ngữ với dải nhóm ở màn Báo giá. */
 .dhb__comm-table tr.dhb__comm-nhom > td {
   font-weight: 500;
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-top: 1px solid var(--rust);
   border-bottom-color: transparent;
 }
@@ -647,7 +647,7 @@
 }
 .dhb__comm-table tr.dhb__comm-con > td:first-child {
   padding-left: 18px;
-  box-shadow: inset 3px 0 0 var(--rust-soft);
+  box-shadow: inset 3px 0 0 var(--rule-hair);
 }
 .dhb__comm-table tr.dhb__comm-conCuoi > td {
   border-bottom: 1px solid var(--rust);
@@ -1363,7 +1363,7 @@
 }
 
 .dhb__timeline-step.is-selected .dhb__timeline-dot {
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
   border-color: var(--rust);
 }
 

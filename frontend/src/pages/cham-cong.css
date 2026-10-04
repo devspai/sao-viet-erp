@@ -67,7 +67,7 @@
 
 /* Card Chấm Công Trung Tâm */
 .cc-main-card {
-  background: radial-gradient(circle at top right, rgba(197, 64, 10, 0.04) 0%, var(--canvas) 70%), var(--canvas);
+  background: radial-gradient(circle at top right, rgba(100, 116, 139, 0.04) 0%, var(--canvas) 70%), var(--canvas);
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-6);
   padding: var(--sp-6) var(--sp-6) var(--sp-5);
@@ -1271,7 +1271,7 @@
   background: #ffffff;
   border-color: var(--rust, #c5400a);
   color: var(--rust-deep, #9a3005);
-  box-shadow: 0 4px 12px rgba(197, 64, 10, 0.08);
+  box-shadow: 0 4px 12px rgba(100, 116, 139, 0.08);
 }
 .cc-loc-actions {
   display: flex;
@@ -1312,7 +1312,7 @@
 .cc-loc-card-v2:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-3);
-  border-color: rgba(197, 64, 10, 0.3);
+  border-color: rgba(100, 116, 139, 0.3);
 }
 
 .cc-loc-card-v2.is-inactive {
@@ -1397,8 +1397,8 @@
   font-size: 11px;
   font-weight: var(--fw-bold);
   color: var(--rust-deep);
-  background: var(--rust-soft);
-  border: 1px solid rgba(197, 64, 10, 0.15);
+  background: var(--rule-hair);
+  border: 1px solid rgba(100, 116, 139, 0.15);
   padding: 3px 8px;
   border-radius: var(--r-pill);
   text-decoration: none;
@@ -1415,8 +1415,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(197, 64, 10, 0.05);
-  border: 1px solid rgba(197, 64, 10, 0.15);
+  background: rgba(100, 116, 139, 0.05);
+  border: 1px solid rgba(100, 116, 139, 0.15);
   padding: 6px 10px;
   border-radius: var(--r-3);
   font-size: 12px;
@@ -1430,14 +1430,14 @@
   height: 8px;
   border-radius: 50%;
   background: var(--rust);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.2);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.2);
   flex-shrink: 0;
   animation: radarPulse 2s infinite ease-in-out;
 }
 
 @keyframes radarPulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.25); }
-  50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(197, 64, 10, 0.08); }
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.25); }
+  50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(100, 116, 139, 0.08); }
 }
 
 .cc-loc-note-box {
@@ -1875,7 +1875,7 @@
 }
 .cc-badge-pill--primary { background: var(--moss-soft); color: var(--moss-deep); }
 .cc-badge-pill--purple { background: var(--plum-soft); color: var(--plum-deep); }
-.cc-badge-pill--orange { background: var(--rust-soft); color: var(--rust-deep); }
+.cc-badge-pill--orange { background: var(--rule-hair); color: var(--rust-deep); }
 .cc-badge-pill--gray { background: var(--steel-soft); color: var(--steel); }
 .cc-badge-pill--red { background: var(--signal-soft); color: var(--signal-deep); }
 /* Bản "nhạt" của --red: viền thay vì nền đặc. Dùng cho ngày lễ NGHỈ — vẫn là ngày lễ nên
@@ -1987,7 +1987,7 @@
 .ns__table select:focus,
 .cc-assign__bar select:focus {
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
 }
 
 .cc-assign__date {
@@ -2172,7 +2172,7 @@
 .cc-ts-pager__icon-btn:hover:not(:disabled) {
   border-color: var(--rust);
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .cc-ts-pager__icon-btn:disabled {
   opacity: 0.35;
@@ -2199,7 +2199,7 @@
 .cc-ts-pager__btn:hover:not(:disabled) {
   border-color: var(--rust);
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .cc-ts-pager__btn:disabled {
   opacity: 0.35;
@@ -2233,14 +2233,14 @@
 .cc-ts-pager__page-num:hover:not(.cc-ts-pager__page-num--active) {
   border-color: var(--rust-mid);
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .cc-ts-pager__page-num--active {
   background: var(--rust) !important;
   color: #fff !important;
   border-color: var(--rust) !important;
   font-weight: 700;
-  box-shadow: 0 1px 2px rgba(197, 64, 10, 0.25);
+  box-shadow: 0 1px 2px rgba(100, 116, 139, 0.25);
 }
 .cc-ts-pager__ellipsis {
   display: inline-flex;
@@ -2489,7 +2489,7 @@
   color: var(--ash);
 }
 .cc-month-cell--holiday {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--rust);
   color: var(--rust-deep);
 }
@@ -2620,10 +2620,10 @@
   gap: var(--sp-1.5);
   font-size: 12.5px;
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 6px 14px;
   border-radius: var(--r-pill);
-  border: 1px solid rgba(197, 64, 10, 0.15);
+  border: 1px solid rgba(100, 116, 139, 0.15);
 }
 
 @media (max-width: 900px) {
@@ -2814,7 +2814,7 @@
   align-items: center;
   border-radius: var(--r-3);
   padding: 12px var(--sp-4);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   border: 1px solid var(--rule-soft);
   border-left: 4px solid var(--rust);
@@ -2881,7 +2881,7 @@
 }
 
 .cal-lg--holiday::before {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border: 1px solid var(--rust);
 }
 
@@ -3114,7 +3114,7 @@
   border-left: 3px solid var(--rust);
 }
 .cc-ts-kpi-card--period.is-draft .cc-ts-kpi-icon {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 .cc-ts-kpi-card--period.is-draft .cc-ts-kpi-num {
@@ -3205,7 +3205,7 @@
   margin-top: 1px;
 }
 .cc-ts-alert-icon--ot {
-  background: rgba(194, 65, 12, 0.12);
+  background: rgba(100, 116, 139, 0.12);
   color: var(--rust-deep, #9a3412);
 }
 .cc-ts-alert-body {
@@ -3404,7 +3404,7 @@
 }
 .cc-ts-input-month:focus {
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
 }
 
 .cc-ts-select-dept {
@@ -3446,7 +3446,7 @@
 }
 .cc-ts-search:focus-within {
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
 }
 .cc-ts-search__icon {
   color: var(--ash);
@@ -3545,12 +3545,12 @@
   border: none;
   cursor: pointer;
   transition: all var(--duration-fast);
-  box-shadow: 0 2px 4px rgba(197, 64, 10, 0.15);
+  box-shadow: 0 2px 4px rgba(100, 116, 139, 0.15);
 }
 .cc-ts-btn-lock:hover {
   background: var(--rust-deep);
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(197, 64, 10, 0.25);
+  box-shadow: 0 4px 8px rgba(100, 116, 139, 0.25);
 }
 
 /* 14.3 Table Calendar Strip Header styling (Light Premium Theme - matching ns__table th) */
@@ -3600,7 +3600,7 @@
 
 /* Weekend specific styles in light calendar header */
 .cc-day-hdr-v2--weekend {
-  background: rgba(197, 64, 10, 0.05) !important;
+  background: rgba(100, 116, 139, 0.05) !important;
   border-right: 1px solid var(--rule-hair) !important;
 }
 .cc-day-hdr-v2--weekend .cc-day-hdr-v2-weekday {
@@ -3775,7 +3775,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust);
   display: flex;
   align-items: center;
@@ -3783,8 +3783,8 @@
   font-weight: 700;
   font-size: 15px;
   letter-spacing: 0.05em;
-  border: 1px solid rgba(197, 64, 10, 0.2);
-  box-shadow: inset 0 1px 2px rgba(197, 64, 10, 0.1);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  box-shadow: inset 0 1px 2px rgba(100, 116, 139, 0.1);
   flex-shrink: 0;
 }
 .cc-emp-cal-info {
@@ -3812,10 +3812,10 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   padding: 3px 10px;
   border-radius: 9999px;
-  border: 1px solid rgba(197, 64, 10, 0.15);
+  border: 1px solid rgba(100, 116, 139, 0.15);
 }
 .cc-emp-cal-badges {
   display: flex;
@@ -3912,9 +3912,9 @@
   border: 1px solid rgba(31, 108, 166, 0.15);
 }
 .cc-emp-cal-kpi-icon--rust {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust);
-  border: 1px solid rgba(197, 64, 10, 0.15);
+  border: 1px solid rgba(100, 116, 139, 0.15);
 }
 .cc-emp-cal-kpi-icon--amber {
   background: var(--amber-soft, rgba(217, 119, 6, 0.08));
@@ -3977,8 +3977,8 @@
 }
 .cc-emp-cal-head-cell--weekend {
   color: var(--rust);
-  background: rgba(197, 64, 10, 0.04);
-  border-color: rgba(197, 64, 10, 0.15);
+  background: rgba(100, 116, 139, 0.04);
+  border-color: rgba(100, 116, 139, 0.15);
 }
 
 .cc-emp-cal-grid-body {
@@ -4005,7 +4005,7 @@
 }
 .cc-emp-cal-cell:hover:not(.cc-emp-cal-cell--empty) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(197, 64, 10, 0.1), 0 0 0 1px var(--rust);
+  box-shadow: 0 6px 16px rgba(100, 116, 139, 0.1), 0 0 0 1px var(--rust);
   z-index: 5;
 }
 .cc-emp-cal-cell--empty {
@@ -4021,7 +4021,7 @@
   background: var(--paper);
 }
 .cc-emp-cal-cell--sunday {
-  background: rgba(197, 64, 10, 0.02);
+  background: rgba(100, 116, 139, 0.02);
 }
 .cc-emp-cal-cell.cc-month-cell--work {
   border-left: 3.5px solid var(--moss);
@@ -4479,7 +4479,7 @@
 
 /* 15.3 Form Adjust Section */
 .cc-adjust-section {
-  background: radial-gradient(circle at top right, rgba(197, 64, 10, 0.02) 0%, var(--canvas) 90%), var(--canvas);
+  background: radial-gradient(circle at top right, rgba(100, 116, 139, 0.02) 0%, var(--canvas) 90%), var(--canvas);
   border: 1px dashed var(--rule);
   border-radius: var(--r-5);
   padding: var(--sp-4);
@@ -4539,7 +4539,7 @@
 .cc-input-text:focus,
 .cc-input-time-wrapper input:focus {
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
 }
 
 /* Bộ chọn tâm geofence nằm trong đúng modal tạo/sửa điểm chấm công. */
@@ -4659,13 +4659,13 @@
   background: var(--rust) !important;
   color: #fff !important;
   border-radius: var(--r-4) !important;
-  box-shadow: 0 2px 4px rgba(197, 64, 10, 0.15) !important;
+  box-shadow: 0 2px 4px rgba(100, 116, 139, 0.15) !important;
   border: none !important;
 }
 
 .cc-btn-add-punch:hover {
   background: var(--rust-deep) !important;
-  box-shadow: 0 4px 8px rgba(197, 64, 10, 0.25) !important;
+  box-shadow: 0 4px 8px rgba(100, 116, 139, 0.25) !important;
 }
 
 /* Nhắc chấm bù cặp tăng ca — callout amber nhẹ (accent trái), KHÔNG dùng banner đỏ nặng. */
@@ -4873,7 +4873,7 @@
 
 .cc-time-selects:focus-within {
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.08);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.08);
 }
 
 .cc-time-select {
@@ -5066,7 +5066,7 @@
   color: var(--ash-2);
   transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
 }
-.cc-sp-search:focus-within { border-color: var(--rust); box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.08); }
+.cc-sp-search:focus-within { border-color: var(--rust); box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.08); }
 .cc-sp-search input {
   width: 148px;
   min-width: 0;
@@ -5180,7 +5180,7 @@
 .cc-sp-pill--amber .cc-sp-pill__code { background: var(--amber-soft); color: var(--amber-deep); }
 .cc-sp-pill--steel .cc-sp-pill__code { background: var(--steel-soft); color: var(--steel); }
 .cc-sp-pill--plum .cc-sp-pill__code { background: var(--plum-soft); color: var(--plum-deep); }
-.cc-sp-pill--rust .cc-sp-pill__code { background: var(--rust-soft); color: var(--rust-deep); }
+.cc-sp-pill--rust .cc-sp-pill__code { background: var(--rule-hair); color: var(--rust-deep); }
 .cc-sp-pill--erase { color: var(--ash); }
 
 /* --- Chú giải ------------------------------------------------------------- */
@@ -5232,9 +5232,9 @@
     linear-gradient(to top right, transparent 50%, var(--moss) 50%) top right / 7px 7px no-repeat,
     var(--canvas);
 }
-.cc-sp-lg--hol::before { background: rgba(197, 64, 10, 0.16); }
+.cc-sp-lg--hol::before { background: rgba(100, 116, 139, 0.16); }
 .cc-sp-lg--make::before { background: rgba(95, 77, 158, 0.16); }
-.cc-sp-lg--x1::before { background: rgba(197, 64, 10, 0.16); border-bottom: 2px dashed var(--rust); }
+.cc-sp-lg--x1::before { background: rgba(100, 116, 139, 0.16); border-bottom: 2px dashed var(--rust); }
 .cc-sp-lg--dirty::before { background: var(--canvas); border: 1px solid var(--rule); box-shadow: inset 3px 0 0 var(--rust); }
 
 /* --- Lưới: cột dính + mật độ --------------------------------------------- */
@@ -5406,7 +5406,7 @@
    :where() để hàng "chưa có ca" không thắng wash lễ/làm bù. */
 .cc-sp-table tbody :where(tr.cc-sp-row--nodef) td.cc-sp-cell { --sp-wash: rgba(156, 119, 20, 0.05); }
 .cc-sp-table tbody td.cc-sp-cell--make { --sp-wash: rgba(95, 77, 158, 0.055); }
-.cc-sp-table tbody td.cc-sp-cell--hol { --sp-wash: rgba(197, 64, 10, 0.055); }
+.cc-sp-table tbody td.cc-sp-cell--hol { --sp-wash: rgba(100, 116, 139, 0.055); }
 .cc-sp-table td.cc-sp-cell--we {
   --sp-hatch: repeating-linear-gradient(45deg, rgba(107, 102, 91, 0.055) 0 6px, transparent 6px 12px);
 }
@@ -5486,7 +5486,7 @@
 .cc-sp-chip--plum { color: var(--plum-deep); }
 .cc-sp-chip--plum.is-hand { background: var(--plum-soft); }
 .cc-sp-chip--rust { color: var(--rust-deep); }
-.cc-sp-chip--rust.is-hand { background: var(--rust-soft); }
+.cc-sp-chip--rust.is-hand { background: var(--rule-hair); }
 .cc-sp-chip--none { color: var(--ash-2); opacity: 0.32; }
 
 .cc-sp-rest {
@@ -5900,7 +5900,7 @@
 .cc-qf-chip--amber { background: var(--amber-soft); color: var(--amber-deep); }
 .cc-qf-chip--steel { background: var(--steel-soft); color: var(--steel); }
 .cc-qf-chip--plum { background: var(--plum-soft); color: var(--plum-deep); }
-.cc-qf-chip--rust { background: var(--rust-soft); color: var(--rust-deep); }
+.cc-qf-chip--rust { background: var(--rule-hair); color: var(--rust-deep); }
 .cc-qf-chip--rest { background: var(--rule-soft); color: var(--ash-2); }
 
 .cc-qf-opts {
@@ -6928,7 +6928,7 @@
   border-color: var(--rust, #c5400a);
   color: var(--rust, #c5400a);
   transform: translateY(-1.5px);
-  box-shadow: 0 4px 12px rgba(197, 64, 10, 0.12);
+  box-shadow: 0 4px 12px rgba(100, 116, 139, 0.12);
 }
 
 .cc-outside-hint-box {
@@ -7005,7 +7005,7 @@
 
 .cc-history-dot.is-out {
   background: var(--rust, #c5400a) !important;
-  box-shadow: 0 0 0 3px #f4e2d6 !important;
+  box-shadow: 0 0 0 3px var(--rule-hair) !important;
 }
 
 .cc-history-card {
@@ -7051,7 +7051,7 @@
 }
 
 .cc-history-action-badge.is-out {
-  background: var(--rust-soft, #f4e2d6);
+  background: var(--rule-hair);
   color: var(--rust-deep, #8a2d07);
   border: 1px solid #e8b18e;
 }
@@ -7161,7 +7161,7 @@
 }
 
 .cc-history-stat-chip.is-out {
-  background: var(--rust-soft, #f4e2d6);
+  background: var(--rule-hair);
   border-color: #e8b18e;
   color: var(--rust-deep, #8a2d07);
 }
@@ -8167,7 +8167,7 @@
 
 .shift-time-picker .cc-time-selects:focus-within {
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.08);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.08);
 }
 
 .shift-time-picker .cc-time-select select {
@@ -8271,7 +8271,7 @@
 }
 
 .shift-preset-chip.is-active {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   font-weight: var(--fw-bold);
 }

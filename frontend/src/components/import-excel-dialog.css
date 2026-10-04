@@ -54,11 +54,14 @@
   position: relative;
   min-height: 140px;
 }
-
-.imx__dropzone:hover,
 .imx__dropzone--active {
   border-color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
+}
+
+.imx__dropzone:hover {
+  border-color: var(--rust);
+  background: var(--rule-hair);
 }
 
 .imx__dropzone-icon {
