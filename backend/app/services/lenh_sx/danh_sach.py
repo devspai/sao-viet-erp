@@ -38,12 +38,6 @@ from .boi_canh import BoiCanh
 TAB_TAT_CA = "tat_ca"
 TAB_CHO_PHEP = (TAB_TAT_CA,) + trang_thai.KHAU
 
-# Giá trị hợp lệ của bộ lọc `uu_tien`. Bám nguyên chuỗi của `schemas/stock.py:42` để cả hệ nói
-# cùng một từ; cột thật trên lệnh là `lsx.is_rush` (Boolean), không phải một cột chuỗi.
-UU_TIEN_GAP = "gap"
-UU_TIEN_THUONG = "binh_thuong"
-UU_TIEN_CHO_PHEP = (UU_TIEN_GAP, UU_TIEN_THUONG)
-
 PAGE_SIZE_MAC_DINH = 50
 PAGE_SIZE_TOI_DA = 200
 
