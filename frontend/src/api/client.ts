@@ -9140,9 +9140,6 @@ export interface TheoLenhOut {
 export type LsxTheoDoiTrangThai =
   | "dang_sx" | "canh_bao" | "kcs" | "cho_nhap_kho" | "san_sang_giao" | "hoan_thanh";
 
-/** Tab thứ bảy của màn — "tất cả", KHÔNG phải một trạng thái. */
-export type LsxTheoDoiTab = "tat_ca" | LsxTheoDoiTrangThai;
-
 export type LsxTheoDoiCanhBao =
   | "su_co" | "tam_dung" | "tre_han" | "kcs_khong_dat" | "thieu_vat_tu";
 
@@ -9165,87 +9162,59 @@ export interface LenhSxChang {
   hien_tai: boolean;
 }
 
+/** Bốn tab của Hồ sơ lệnh: "tất cả" + ba khâu. Khoá đi thẳng ra `?tab=` — hợp đồng. */
+export type LenhSxTab = "tat_ca" | LenhSxKhau;
+
+/** MỘT dòng bảng Hồ sơ lệnh (làm gọn 05/10/2026) — chỉ cột TĨNH. Không cờ cảnh báo, không tiến độ:
+ *  việc đó của màn Theo dõi sản xuất. */
 export interface LenhSxItem {
   id: number;
   ma: string;
   ten: string | null;
-  khach_hang: string | null;
-  /** CÓ trả về nhưng màn danh sách KHÔNG dùng: bấm tên khách để nhảy sang màn Khách hàng đòi
-   *  quyền `khach_hang`, mà vai QC / tổ trưởng không có ⇒ bày link ra là mời ăn 403 giữa luồng. */
-  khach_hang_id: number | null;
-  sale: string | null;
   so_luong_dat: number;
   don_vi_tinh: string | null;
-  /** Số đã giao THẬT (`delivery_trip_lines.qty_giao`), không phải số yêu cầu giao. */
-  da_giao: number;
-  is_rush: boolean;
-  buoc_hien_tai: string | null;
-  nhom_cong_doan: string | null;
-  may: string | null;
-  /** TÊN người đang được giao ở đúng bước đang hiện, theo THỨ TỰ GIAO (cắt từ cuối là an toàn). */
-  nguoi: string[];
-  /** Cả chuỗi công đoạn của lệnh, sắp theo giờ dự kiến bắt đầu — nguồn của dải chặng trong hàng.
-   *  Có thể RỖNG (lệnh chưa phát hành gói / routing rỗng): đừng vẽ đốt giả, hiện gạch "–". */
-  chang: LenhSxChang[];
-  tien_do_pct: number;
-  /** `true` = phần trăm đo bằng THỜI LƯỢNG kế hoạch vì bước chưa khai sản lượng. Phải ra tới mặt
-   *  màn: 40% "đo được" và 40% "ước tính" là hai mức tin cậy khác hẳn nhau. */
-  tien_do_uoc_tinh: boolean;
-  /** Giờ máy đã chạy. ĐỪNG CỘNG qua nhiều lệnh: một lượt in ghép 3 lệnh được đếm đủ cho cả 3. */
-  gio_may: number;
-  /** `date` (không có giờ) ⇒ format bằng `ngay()`, KHÔNG `ngayGio()`. */
+  khach_hang: string | null;
+  order_id: number | null;
+  order_no: string | null;
+  /** `date` (không có giờ) ⇒ format bằng `ngay()`. */
   han_hoan_thanh_sx: string | null;
-  /** `date`, cùng luật với `han_hoan_thanh_sx`. */
-  han_giao_khach: string | null;
-  /** `datetime` ⇒ `ngayGio()`. `null` = máy chủ CỐ Ý im vì có bước thiếu thời lượng. */
-  du_kien_xong: string | null;
-  trang_thai: LsxTheoDoiTrangThai;
-  canh_bao: LsxTheoDoiCanhBao[];
+  is_rush: boolean;
+  khau: LenhSxKhau;
+  khau_chi_tiet: LenhSxKhauChiTiet | null;
+  /** KCS đã đóng lệnh (`lsx.trang_thai = da_dong`). Thẻ phụ, không phải khâu. */
+  da_dong: boolean;
 }
 
 export interface LenhSxListOut {
   items: LenhSxItem[];
-  /** Tổng SAU cả `tab` — chỉ dùng cho Pager. Con số cạnh tiêu đề là `dem_theo_tab.tat_ca`. */
+  /** Tổng SAU cả `tab` — cho chân bảng. Con số cạnh tiêu đề là `dem_theo_tab.tat_ca`. */
   total: number;
   page: number;
   page_size: number;
-  /** FACET của tập ĐÃ LỌC, KHÔNG bị chính `tab` đang chọn lọc lại: bấm sang tab khác thì bảy con
-   *  số đứng yên, chỉ đổi ô tìm / bộ lọc mới làm chúng đổi. Cấm đếm lại từ `items`. */
-  dem_theo_tab: Partial<Record<LsxTheoDoiTab, number>>;
+  /** Đếm của tập ĐÃ LỌC, KHÔNG bị chính `tab` lọc lại. Cấm đếm lại từ `items`. */
+  dem_theo_tab: Partial<Record<LenhSxTab, number>>;
 }
 
-export interface LenhSxSummaryOut {
-  dang_sx: number;
-  cong_doan_xong_hom_nay: number;
-  du_kien_tre: number;
-  /** `null` = CHƯA kiểm lô nào hôm nay, khác hẳn `0` = kiểm rồi và trượt sạch. UI phải hiện "—". */
-  ty_le_kcs_dat_hom_nay: number | null;
-}
-
-export interface LenhSxMayLoc {
+/** MỘT ô chọn của ô Khách. `id` là SỐ (khác bộ lọc Theo dõi, nơi `id` là chuỗi). */
+export interface LenhSxKhachLoc {
   id: number;
-  ma: string | null;
   ten: string | null;
-  /** Số LỆNH đang dính máy này trong phạm vi người gọi — ca in ghép phục vụ 2 lệnh thì đếm 2. */
-  so_lenh: number;
 }
 
+/** Nguồn ô Khách — khách của chính các lệnh trong phạm vi người gọi (gác `lenh_san_xuat:read`). */
 export interface LenhSxBoLocOut {
-  may: LenhSxMayLoc[];
+  khach_hang: LenhSxKhachLoc[];
 }
 
 export interface LenhSxDanhSachParams {
-  tab?: LsxTheoDoiTab;
+  tab?: LenhSxTab;
   q?: string;
-  page?: number;
-  page_size?: number;
-  nhom_cong_doan?: string;
-  may_id?: number;
-  uu_tien?: "gap" | "binh_thuong";
-  /** CHỈ gửi khi bật. Không có nấc "chỉ lệnh không trễ" — không ai hỏi câu đó. */
-  tre?: boolean;
+  khach_hang_id?: number;
+  /** Khoảng HẠN SX, `YYYY-MM-DD`. Lệnh chưa khai hạn không nằm trong khoảng nào. */
   tu_ngay?: string;
   den_ngay?: string;
+  page?: number;
+  page_size?: number;
 }
 
 // --- Hồ sơ MỘT lệnh (Task 10 dựng API, Task 12 dựng màn) ---------------------
@@ -12856,35 +12825,25 @@ export const api = {
   // lệnh vẫn ở Kế hoạch sản xuất, module `san_xuat`). Phạm vi dữ liệu do MÁY CHỦ gắn từ token;
   // không có tham số nào cho client tự nới, gửi thêm cũng bị bỏ qua.
   lenhSanXuat: {
-    /** 4 thẻ KPI. KHÔNG nhận tham số lọc — luôn là TOÀN PHẠM VI của token, nên số ở đây và số
-     *  trên tab không bao giờ khớp, và đó là đúng (màn phải nói ra điều đó). */
-    summary(token: string): Promise<LenhSxSummaryOut> {
-      return authed<LenhSxSummaryOut>("/api/lenh-san-xuat/summary", token);
-    },
-    /** Nguồn ô lọc Máy — chỉ máy CÓ THẬT trong tập lệnh của người gọi.
+    /** Nguồn ô Khách — khách của chính các lệnh trong phạm vi người gọi.
      *
-     *  KHÔNG mượn `/api/may-thiet-bi`: bên đó gác `dm_thiet_bi:read` hoặc `tinh_gia_thanh:read`,
-     *  mà vai QC — vai đứng ở màn này nhiều nhất — không có ô nào trong hai ô ấy ⇒ 403. */
+     *  KHÔNG mượn `/api/khach-hang` hay `/api/theo-doi-san-xuat/bo-loc`: hai đường đó gác ô quyền
+     *  khác, vai QC đứng ở màn này không có ⇒ 403. */
     boLoc(token: string): Promise<LenhSxBoLocOut> {
       return authed<LenhSxBoLocOut>("/api/lenh-san-xuat/bo-loc", token);
     },
     /** MỘT trang bảng. Lọc + đếm tab + cắt trang đều Ở MÁY CHỦ — không `rows.filter`, không
-     *  `rows.slice`, không đếm tab từ `items` (trang chỉ cầm 50 dòng trên một tập cả trăm). */
+     *  `rows.slice`, không đếm tab từ `items`. */
     danhSach(token: string, params: LenhSxDanhSachParams = {}): Promise<LenhSxListOut> {
       return authed<LenhSxListOut>(
         `/api/lenh-san-xuat${qs({
           tab: params.tab,
           q: params.q,
-          page: params.page,
-          page_size: params.page_size,
-          nhom_cong_doan: params.nhom_cong_doan,
-          may_id: params.may_id,
-          uu_tien: params.uu_tien,
-          // `qs` bỏ qua `undefined`/`null`/`""` — nên `tre: false` vẫn được gửi. Người gọi phải
-          // truyền `undefined` khi tắt công tắc, không phải `false` (đó là "chỉ lệnh KHÔNG trễ").
-          tre: params.tre,
+          khach_hang_id: params.khach_hang_id,
           tu_ngay: params.tu_ngay,
           den_ngay: params.den_ngay,
+          page: params.page,
+          page_size: params.page_size,
         })}`,
         token,
       );
