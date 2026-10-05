@@ -1,4 +1,4 @@
-.nqr { max-width: 1500px; margin: 0 auto; padding: 20px 24px 40px; }
+.nqr { max-width: var(--page-max-w); margin: 0 auto; padding: 20px var(--page-pad-x) 40px; }
 .nqr__head { align-items: flex-end; }
 .nqr__head .btn { display: inline-flex; align-items: center; gap: 7px; }
 .nqr .required { color: var(--signal); }

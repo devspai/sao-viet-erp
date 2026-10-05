@@ -144,6 +144,7 @@ class QuoteItemOut(BaseModel):
     total_cost_snapshot: float
     margin_percent: float
     selling_price: float
+    gia_go_tay: bool = False       # giá bán gõ tay, không theo markup
     unit_price: float
     discount_amount: float
     vat_percent: float
@@ -165,6 +166,8 @@ class QuotationDetailOut(BaseModel):
     customer: CustomerDisplayOut | None = None
     phieu_tinh_gia_id: int | None = None
     phieu_tinh_gia_ma: str | None = None
+    # Phiếu nguồn đã đổi SL / giá vốn / sản phẩm so với phiên bản đang xem → băng "Cập nhật theo phiếu".
+    phieu_doi: bool = False
     valid_until: date | None
     status: str
     cancel_reason: str | None

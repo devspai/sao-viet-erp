@@ -2,9 +2,9 @@
    Tokens-only (rust là accent duy nhất). Phiếu in có style riêng (phieu-tinh-gia.css). */
 
 .tg-page {
-  max-width: 1540px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: var(--sp-5) var(--sp-8);
+  padding: var(--sp-5) var(--page-pad-x);
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
@@ -74,6 +74,18 @@
   align-items: center;
   gap: var(--sp-3);
   flex-wrap: wrap;
+}
+/* Người lập + ngày lập dưới tiêu đề phiếu (thay thẻ "Phiếu này" ở cột phụ, 04/10/2026). */
+.tg-head__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+/* Tên người giữ nguyên hoa/thường như tài khoản — tag chung viết hoa toàn bộ. */
+.rdx-cost .tg-head__meta .tag {
+  text-transform: none;
+  letter-spacing: 0;
 }
 .tg-head__title-sub {
   font-family: var(--ff-sans);
@@ -724,6 +736,36 @@ select.tg-input {
 .ptg-strong {
   font-weight: var(--fw-bold);
 }
+/* Khách + ghi chú chọn ở phiếu (04/10/2026). Ghi chú cắt 2 dòng, rê chuột xem đủ. */
+.ptg-cust {
+  min-width: 150px;
+  max-width: 220px;
+}
+.ptg-cust__name {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+.ptg-cust__none {
+  font-size: 12px;
+  color: var(--ash-2);
+}
+.ptg-note {
+  min-width: 160px;
+  max-width: 260px;
+}
+.ptg-note__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ash);
+  white-space: normal;
+}
+.ptg-pager__page {
+  margin-left: var(--sp-4);
+}
 .ptg-tech {
   display: inline-block;
   font-family: var(--ff-sans);
@@ -749,12 +791,6 @@ select.tg-input {
   margin-top: 2px;
   font-size: 11.5px;
   color: var(--ash-2);
-}
-.ptg-msg {
-  padding: var(--sp-8) var(--sp-6);
-  text-align: center;
-  color: var(--ash-2);
-  font-size: 13px;
 }
 .ptg-empty-td {
   padding: 0;
@@ -3582,6 +3618,22 @@ select.tg-input--sm {
   font-weight: 600;
 }
 .tg-cdv__muc:focus-visible { outline: 2px solid var(--rust); outline-offset: 1px; }
+/* Kéo-thả: bước đang kéo mờ đi; chỗ sẽ thả hiện một vạch màu nhấn ở mép trên/dưới bước đích. */
+.tg-cdv__ds > li[draggable="true"] { cursor: grab; }
+.tg-cdv__muc--keo { opacity: 0.45; }
+.tg-cdv__muc--tha-truoc::after,
+.tg-cdv__muc--tha-sau::after {
+  content: "";
+  position: absolute;
+  left: var(--sp-2);
+  right: var(--sp-2);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--rust);
+  pointer-events: none;
+}
+.tg-cdv__muc--tha-truoc::after { top: -2px; }
+.tg-cdv__muc--tha-sau::after { bottom: -2px; }
 .tg-cdv__so {
   position: relative;
   z-index: 1;

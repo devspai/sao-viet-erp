@@ -54,15 +54,7 @@ export function TamUngCuaToiTab({
   };
 
   if (!data && loi) return <EmptyState trangThai="loi" loi={loi} onThuLai={load} />;
-  if (!data)
-    return (
-      <p
-        className="lg-payslip-empty-desc"
-        style={{ textAlign: "center", marginTop: 24 }}
-      >
-        Đang tải…
-      </p>
-    );
+  if (!data) return <EmptyState trangThai="dang-tai" />;
   if (!data.has_employee)
     return (
       <div className="lg-table-empty-state">

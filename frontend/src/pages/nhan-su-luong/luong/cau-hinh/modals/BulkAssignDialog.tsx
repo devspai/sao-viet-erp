@@ -9,6 +9,7 @@ import {
 import { ConfirmDialog } from "../../../../../components/ConfirmDialog";
 import { money } from "../../../../../utils/format";
 import { errText, fetchAllEmployees } from "../shared/helpers";
+import { EmptyState } from "../../../../../components/EmptyState";
 
 export function BulkAssignDialog({
   token,
@@ -189,7 +190,7 @@ export function BulkAssignDialog({
             </div>
             <div className="cl-bulk__list">
               {emps === null ? (
-                <p className="cl-hint-inline">Đang tải danh sách nhân viên…</p>
+                <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải danh sách nhân viên…" />
               ) : shown.length === 0 ? (
                 <p className="cl-hint-inline">Không tìm thấy ai khớp.</p>
               ) : (

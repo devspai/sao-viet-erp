@@ -1322,9 +1322,9 @@ select.input {
   --on-dark: #e6e0d2;
   --on-dark-muted: #928c7e;
   --dark-hair: rgba(230, 224, 210, 0.1);
-  max-width: 1200px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: 20px 24px 40px;
+  padding: 20px var(--page-pad-x) 40px;
   color: var(--ink);
 }
 .rdx-quote .num { font-family: var(--ff-sans); font-variant-numeric: tabular-nums; text-align: right; }
@@ -2044,3 +2044,51 @@ select.input {
     flex: 1 1 100%;
   }
 }
+
+/* ---- Bảng giá phương án B (04/10/2026, docs/mockups/bao-gia-ke-thua-tu-ptg.html) ----
+   Ô số có đơn vị NẰM TRONG ô, không mũi tên tăng giảm. Giá bán tự tính = nền giấy, chữ thường;
+   gõ tay = viền đậm + thẻ "Gõ tay" + nút "Về theo markup"; ô markup khi đó xám, ghi "suy ra". */
+.rdx-quote .nf {
+  display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 10px 0 8px;
+  border: 1px solid var(--rule); border-radius: var(--r-3); background: var(--canvas);
+  vertical-align: middle; cursor: text;
+}
+.rdx-quote .nf:hover { border-color: var(--ash-2); }
+.rdx-quote .nf:focus-within { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.18); }
+.rdx-quote .nf input {
+  width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: none;
+  font: inherit; font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; color: var(--ink);
+}
+.rdx-quote .nf input:disabled { color: var(--ash); cursor: default; }
+.rdx-quote .nf .u { font-size: 12px; font-weight: 600; color: var(--ash-2); }
+.rdx-quote .nf.pct { width: 76px; }
+.rdx-quote .nf.money { width: 132px; }
+.rdx-quote .nf.auto { background: var(--paper); }
+.rdx-quote .nf.auto input { font-weight: 500; color: var(--ash); }
+.rdx-quote .nf.manual { border-color: var(--ink); }
+.rdx-quote .markcell,
+.rdx-quote .pricecell { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.rdx-quote .markcell .meta { font-size: 11px; color: var(--ash-2); white-space: nowrap; }
+.rdx-quote .pricecell .meta { display: flex; align-items: center; gap: 8px; font-size: 11px; white-space: nowrap; }
+.rdx-quote .pricecell .tag { padding: 1px 7px; font-size: 10px; }
+.rdx-quote .reset {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none;
+  font-size: 11px; font-weight: 600; color: var(--ash); cursor: pointer;
+}
+.rdx-quote .reset:hover { color: var(--ink); text-decoration: underline; }
+.rdx-quote .qgrouphd__sub { display: inline-flex; gap: 6px; margin-left: 8px; color: inherit; }
+.rdx-quote .qgrouphd__sub .tag { padding: 1px 7px; font-size: 10px; }
+.rdx-quote .subline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rdx-quote .dk__ver {
+  padding: 0 6px; border-radius: var(--r-2); background: rgba(245, 241, 232, 0.12);
+  letter-spacing: 0; font-weight: 700;
+}
+/* Ô chiết khấu trên thẻ tối: rộng ngang nút VAT, % nằm trong ô. */
+.rdx-quote .dk .nf.dnf {
+  width: 76px; height: 30px; margin-left: 10px; padding: 0 8px;
+  border-color: rgba(230, 224, 210, 0.22); background: rgba(230, 224, 210, 0.06);
+}
+.rdx-quote .dk .nf.dnf:hover { border-color: rgba(230, 224, 210, 0.4); }
+.rdx-quote .dk .nf.dnf:focus-within { border-color: var(--on-dark); box-shadow: none; }
+.rdx-quote .dk .nf.dnf input { color: var(--on-dark); }
+.rdx-quote .dk .nf.dnf .u { color: var(--on-dark-muted); }

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { DeliveryTrip, HangCanXuat } from "../../../../api/client";
 import { api } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { EmptyRow } from "../../../../components/EmptyState";
 import { Icon } from "../../../../components/Icons";
 import { nhanDonVi } from "../../../lsxBuoc";
 import { useNapTenDonVi } from "../../../tenDonVi";
@@ -84,11 +85,7 @@ export function DialogYeuCauXuatKho({
                 </tr>
               </thead>
               <tbody>
-                {hang === null && (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: "center", padding: "20px", color: "#64748b" }}>Đang tải…</td>
-                  </tr>
-                )}
+                {hang === null && <EmptyRow colSpan={4} trangThai="dang-tai" />}
                 {hang?.map((d, i) => (
                   <tr key={`${d.hang_loai}-${d.hang_id}`}>
                     <td className="kho-lines__code">{i + 1}</td>

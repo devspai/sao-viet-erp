@@ -59,6 +59,10 @@ class KhoHangService(CatalogService):
         if not (data.get("ten") or "").strip():
             raise KhoHangValidationError("Tên kho không được trống.")
 
+    def so_vi_tri(self, kho_ids) -> dict[int, int]:
+        """Số vị trí cất đang dùng của từng kho — cột "Vị trí cất" ở màn Khai báo kho."""
+        return self.repo.dem_vi_tri(kho_ids)
+
     def _blockers(self, obj) -> list[str]:
         dem = self.repo.dem_rang_buoc(obj.id)
         return [f"{dem[k]} {nhan}" for k, nhan in _LY_DO if dem[k]]

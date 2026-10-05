@@ -6509,7 +6509,6 @@
 /* 1.5. Executive Hero Top Banner */
 .cc-checkin-hero-wrapper {
   width: 100%;
-  max-width: 1280px;
   margin: 0 auto 20px auto;
 }
 
@@ -6707,7 +6706,6 @@
   gap: var(--sp-6, 24px);
   align-items: stretch;
   width: 100%;
-  max-width: 1280px;
   margin: 0 auto;
 }
 

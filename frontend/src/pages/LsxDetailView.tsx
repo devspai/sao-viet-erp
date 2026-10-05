@@ -26,6 +26,7 @@ import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DinhKemTep } from "../components/DinhKemTep";
+import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
 import { MucInHang } from "../components/MucIn";
 import { Timeline } from "../components/Timeline";
@@ -1555,7 +1556,7 @@ export function LsxDetailView({
                 </div>
                 <div className="khsx-spec__card-body">
                   {acts === null ? (
-                    <p className="khsx-muted">Đang tải nhật ký…</p>
+                    <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải nhật ký…" />
                   ) : (
                     <Timeline
                       emptyText="Chưa có hoạt động."

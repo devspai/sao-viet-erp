@@ -1,5 +1,5 @@
 // Khay hồ sơ nhân viên: điều phối tab + chuỗi reload (tách từ pages/NhanSuPage.tsx).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   assetUrl,
@@ -26,14 +26,15 @@ import {
 } from "lucide-react";
 import type { Tab } from "./shared/types";
 import { errMsg } from "./shared/helpers";
-import { StatusBadge } from "./components/badges";
+import { StatusBadge, useHoaHong } from "./components/badges";
 import { InfoTab } from "./tabs/InfoTab";
 import { SalaryTab } from "./tabs/SalaryTab";
-import { AccountTab } from "./tabs/AccountTab";
+import { AccountTab, useTaiKhoan } from "./tabs/AccountTab";
 import { EventsTab } from "./tabs/EventsTab";
 import { FilesTab } from "./tabs/FilesTab";
 import { ActivityTab } from "./tabs/ActivityTab";
 import { ActionDialog } from "./modals/ActionDialog";
+import type { BoNhoTab } from "./shared/useNapGiuQuaTab";
 
 export function EmployeeDetailPanel({
   token,
@@ -63,7 +64,22 @@ export function EmployeeDetailPanel({
   const canViewAccount = can("nhan_su", "read");
   // Nút "Đặt ca nền" ở tab Thông tin đi theo đúng ô của tab Khai ca bên Chấm công.
   const canKhaiCa = can("cham_cong", "manage_shifts");
+  // % hoa hồng đọc từ hồ sơ lương bên Lương (`GET /api/luong/salaries/{id}`, cùng cổng quyền).
+  // Tải NGAY lúc mở khay, song song với hồ sơ, một lần cho mỗi người — xem `useHoaHong`.
+  const hoaHong = useHoaHong(
+    token,
+    employeeId,
+    canViewSalary &&
+      (can("luong", "view_salary") || can("luong", "manage_salary_profiles")),
+  );
   const [emp, setEmp] = useState<EmployeeDetail | null>(null);
+  // Tài khoản / phiên / nhật ký tài khoản: tải ngay khi hồ sơ về (biết `user_id`), giữ qua các lần
+  // chuyển tab — xem `useTaiKhoan`. `user_id` của hồ sơ CŨ thì đừng tải (đổi người giữa chừng).
+  const taiKhoan = useTaiKhoan(
+    token,
+    emp && emp.id === employeeId ? emp.user_id : null,
+    canViewAccount,
+  );
   const [tab, setTab] = useState<Tab>("info");
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<string | null>(null); // dialog kind
@@ -98,6 +114,10 @@ export function EmployeeDetailPanel({
   // `employeeId` nên không biết hồ sơ vừa đổi: thiếu dấu này thì đang mở tab mà bấm "Đổi chức
   // danh" xong, đầu hồ sơ đã đổi còn timeline vẫn cũ tới khi chuyển tab.
   const [lanNap, setLanNap] = useState(0);
+  // Dữ liệu các tab Quá trình công tác / Đính kèm / Nhật ký giữ ở đây qua các lần chuyển tab
+  // (tab bị gỡ khi bấm sang tab khác) — đổi hồ sơ là bộ nhớ mới.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const boNho = useMemo<BoNhoTab>(() => new Map(), [employeeId]);
   const reload = useCallback(() => {
     api.employees
       .get(token, employeeId)
@@ -464,6 +484,7 @@ export function EmployeeDetailPanel({
             emp={emp}
             edit={editSalary}
             setEdit={setEditSalary}
+            hoaHong={hoaHong}
             onSaved={() => {
               reload();
               onChanged();
@@ -475,6 +496,7 @@ export function EmployeeDetailPanel({
             token={token}
             emp={emp}
             meta={meta}
+            taiKhoan={taiKhoan}
             onChanged={() => {
               reload();
               onChanged();
@@ -482,17 +504,19 @@ export function EmployeeDetailPanel({
           />
         )}
         {tab === "events" && (
-          <EventsTab token={token} employeeId={employeeId} meta={meta} lanNap={lanNap} />
+          <EventsTab token={token} employeeId={employeeId} meta={meta} lanNap={lanNap}
+            boNho={boNho} />
         )}
         {tab === "files" && (
           <FilesTab
             token={token}
             employeeId={employeeId}
             canUpdate={canUpdate}
+            boNho={boNho}
           />
         )}
         {tab === "activity" && (
-          <ActivityTab token={token} employeeId={employeeId} lanNap={lanNap} />
+          <ActivityTab token={token} employeeId={employeeId} lanNap={lanNap} boNho={boNho} />
         )}
       </div>
 

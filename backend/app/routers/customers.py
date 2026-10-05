@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import (
@@ -32,6 +32,7 @@ from ..deps import (
     get_authorization_service,
     get_customer_analytics_service,
     get_customer_service,
+    get_so_lieu_khach_service,
     get_department_repository,
     get_role_repository,
     get_user_repository,
@@ -61,15 +62,19 @@ from ..schemas.customer import (
     ContactIn,
     ContactOut,
     ContactsOut,
-    FollowupRow,
-    FollowupsOut,
+    LichHenDong,
+    LichHenOut,
     CustomerAttachmentOut,
     CustomerAttachmentsOut,
     CustomerAuditOut,
     CustomerAuditRowOut,
+    DongBaoGiaOut,
+    DongDonOut,
+    ThongKeKhachOut,
+    TrangBaoGiaOut,
+    TrangDonOut,
     CustomerCreate,
     CustomerCreateOut,
-    CustomerDashboardOut,
     CustomerDetailOut,
     CustomerFinancialIn,
     CustomerKpis,
@@ -80,8 +85,6 @@ from ..schemas.customer import (
     CustomerUpdate,
     DuplicateRef,
     DuplicateWarn,
-    HeatCellOut,
-    MonthPointOut,
     NhapExcelCanhBao,
     NhapExcelLoi,
     NhapExcelOut,
@@ -90,12 +93,6 @@ from ..schemas.customer import (
     NoteOut,
     NotesOut,
     NoteUpdateIn,
-    OrderHistoryOut,
-    OrderHistoryRowOut,
-    OrderLineBriefOut,
-    ProductSliceOut,
-    QuoteHistoryOut,
-    QuoteHistoryRowOut,
     ReceivableCard,
     SaleOption,
     KhoNhanOut,
@@ -108,6 +105,12 @@ from ..schemas.customer import (
 from ..services import customer_excel
 from ..services.catalog_excel import ExcelSaiMan
 from ..services.customer_analytics import CustomerAnalyticsService, CustomerStat
+from ..services.khach_hang_so_lieu import (
+    BUOC,
+    TRAN_KHOANG_NGAY,
+    SoLieuKhachService,
+    hom_nay_vn,
+)
 from ..services.customer_service import (
     CustomerForbidden,
     CustomerNotFound,
@@ -130,6 +133,7 @@ _CRM_SUBDIR = "crm"
 
 Service = Annotated[CustomerService, Depends(get_customer_service)]
 Analytics = Annotated[CustomerAnalyticsService, Depends(get_customer_analytics_service)]
+SoLieu = Annotated[SoLieuKhachService, Depends(get_so_lieu_khach_service)]
 Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
 Users = Annotated[UserRepository, Depends(get_user_repository)]
 Audit = Annotated[AuditLogRepository, Depends(get_audit_repository)]
@@ -162,18 +166,15 @@ def _row(
     # Derived-from-real-orders fields (default honest zeros when no history).
     if stat is not None:
         row.revenue_12m = stat.revenue_12m
+        row.orders_12m = stat.orders_12m
         row.orders_total = stat.orders_total
         row.last_order_at = stat.last_order_at
     return row
 
 
 def _sale_names(users: UserRepository, ids: set[int]) -> dict[int, str]:
-    out: dict[int, str] = {}
-    for uid in ids:
-        u = users.get_by_id(uid)
-        if u is not None:
-            out[uid] = u.name or u.username
-    return out
+    # Một truy vấn IN cho cả trang (trước là get_by_id từng người).
+    return {uid: (u.name or u.username) for uid, u in users.map_by_ids(ids).items()}
 
 
 def _sort_key(sort: str):
@@ -196,14 +197,14 @@ def list_customers(
     # "Chưa gán ai" — khách chưa có NV phụ trách. Chỉ người phạm vi `all` mới có khách loại này
     # trong tầm nhìn (phạm vi own/department lọc theo chủ sổ nên khách vô chủ tự rơi ra ngoài).
     chua_gan: bool = Query(default=False),
-    followup: bool = Query(default=False),
     tag: str | None = Query(default=None),
     sort: str = Query(default="code"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
 ) -> CustomerListOut:
     """Danh bạ + KPI header. Số dẫn xuất (doanh số/#đơn) + KPI tính từ ĐƠN HÀNG THẬT.
-    Redesign spec-06 v2: bỏ lọc theo tier/trạng thái; lọc theo THẺ gán tay + "Cần theo dõi"."""
+    Redesign spec-06 v2: bỏ lọc theo tier/trạng thái; lọc theo THẺ gán tay. Tab "Cần theo dõi" gỡ
+    05/10/2026 — trùng việc với nút "Lịch hẹn" (`GET /lich-hen`)."""
     scope = _scope_for(authz, user)
     book = svc.list_scoped_all(scope=scope, actor=user)
     stats = analytics.list_stats(book)
@@ -223,10 +224,6 @@ def list_customers(
         filtered = [c for c in filtered if c.sale_user_id is None]
     elif sale is not None:
         filtered = [c for c in filtered if c.sale_user_id == sale]
-    if followup:  # tab "Cần theo dõi" — việc chăm sóc đến/quá hạn (số thật, care-task)
-        due_followups = svc.list_due_followups(scope=scope, actor=user)
-        followup_customer_ids = {c.id for _, c, _, _ in due_followups}
-        filtered = [c for c in filtered if c.id in followup_customer_ids]
     if tag and tag.strip():
         # Lọc theo nhãn thủ công (#7) — case-insensitive.
         tagged_ids = svc.customers.ids_with_label(tag)
@@ -569,51 +566,37 @@ def delete_customer_tag(
         raise _not_found() from None
 
 
-# --- panel "Cần chăm sóc" (#28: việc đến hạn / quá hạn, nhắc lần 1-2-3) --------
+# --- nút "Lịch hẹn" trên danh bạ (lịch hẹn chăm sóc kiểu Google Calendar, 05/10/2026) ----------
 
 
-@router.get("/care-followups", response_model=FollowupsOut)
-def care_followups(
+@router.get("/lich-hen", response_model=LichHenOut)
+def lich_hen(
     svc: Service,
     authz: Authz,
     users: Users,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-) -> FollowupsOut:
-    """Việc chăm sóc đang mở đã đến hạn (tính đến hết hôm nay) trên các khách trong scope
-    của người gọi — mức nhắc 1/2/3 tính từ số ngày quá hạn, không bịa."""
+    pham_vi: str = Query(default="toi", pattern="^(toi|nhom)$"),
+    den: date | None = Query(default=None),
+) -> LichHenOut:
+    """Hẹn trễ + hẹn từ hôm nay tới `den` (mặc định 30 ngày) của nhiều khách, dạng lịch biểu.
+
+    `pham_vi=toi`: hẹn giao cho người gọi, dù khách thuộc NV nào — số đỏ trên nút chỉ đếm phần
+    này, nên giám đốc không bị đếm việc của cả công ty. `pham_vi=nhom`: mọi hẹn trên những khách
+    người gọi được xem, đúng phạm vi đang áp cho danh bạ. Khai TRƯỚC các route `/{customer_id}`."""
     scope = _scope_for(authz, user)
-    rows = svc.list_due_followups(scope=scope, actor=user)
-    names = _sale_names(
-        users, {t.assignee_user_id for t, _, _, _ in rows if t.assignee_user_id}
-    )
-    return FollowupsOut(
+    rows, so = svc.lich_hen(scope=scope, actor=user, chi_cua_toi=(pham_vi == "toi"), den_ngay=den)
+    names = _sale_names(users, {o["assignee_user_id"] for o, _ in rows if o["assignee_user_id"]})
+    return LichHenOut(
         items=[
-            FollowupRow(
-                id=t.id,
-                customer_id=c.id,
-                customer_code=c.code,
-                customer_name=c.name,
-                note=t.note,
-                due_date=t.due_date,
-                remind_level=level,
-                overdue_days=overdue,
-                assignee_name=names.get(t.assignee_user_id) if t.assignee_user_id else None,
+            LichHenDong(
+                **o, assignee_name=names.get(o["assignee_user_id"]),
+                customer_code=c.code, customer_name=c.name,
             )
-            for t, c, level, overdue in rows
-        ]
+            for o, c in rows
+        ],
+        so=so,
+        co_nhom=svc.thay_hen_nguoi_khac(scope=scope, actor=user),
     )
-
-
-@router.get("/care-followups/count")
-def care_followups_count(
-    svc: Service,
-    authz: Authz,
-    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-) -> dict:
-    """Chỉ SỐ việc của panel "Cần chăm sóc" — badge menu gọi mỗi lần mở app nên đếm bằng COUNT,
-    không nạp danh sách. Cùng quyền + scope với `/care-followups` nên số luôn khớp danh sách.
-    Khai TRƯỚC các route `/{customer_id}/...` để không bị nuốt."""
-    return {"so": svc.count_due_followups(scope=_scope_for(authz, user), actor=user)}
 
 
 # --- xuất / nhập danh bạ (#23) -----------------------------------------------
@@ -758,6 +741,7 @@ def get_customer(
     customer_id: int,
     svc: Service,
     analytics: Analytics,
+    so_lieu: SoLieu,
     authz: Authz,
     users: Users,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
@@ -769,88 +753,103 @@ def get_customer(
     )
     stat = analytics.list_stats([customer]).per_customer.get(customer.id)
     tag_map = svc.customers.tags_for([customer.id])
+    so_don, so_bao_gia = so_lieu.dem_tab(customer.id)
     return CustomerDetailOut(
         customer=_row(customer, names, stat, tags=tag_map.get(customer.id)),
         receivable=_receivable_card(
             svc, customer, can_view=True  # Xem công nợ MẶC ĐỊNH BẬT (gỡ quyền `view_debt` 24/08/2026)
         ),
+        so_don=so_don,
+        so_bao_gia=so_bao_gia,
     )
 
 
 # --- CRM-360 Object-page: Dashboard + history + Excel (computed from real data) ---
 
 
-@router.get("/{customer_id}/dashboard", response_model=CustomerDashboardOut)
-def customer_dashboard(
+def _ky(tu: date | None, den: date | None) -> tuple[date, date]:
+    """Khoảng ngày của kỳ đang xem. Mặc định: đầu năm nay → hôm nay (giờ VN)."""
+    hn = hom_nay_vn()
+    tu = tu or date(hn.year, 1, 1)
+    den = den or hn
+    if tu > den:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            "Ngày bắt đầu phải trước ngày kết thúc.")
+    if (den - tu).days > TRAN_KHOANG_NGAY:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Khoảng ngày tối đa 10 năm.")
+    return tu, den
+
+
+@router.get("/{customer_id}/thong-ke", response_model=ThongKeKhachOut)
+def customer_thong_ke(
     customer_id: int,
     svc: Service,
-    analytics: Analytics,
+    so_lieu: SoLieu,
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-) -> CustomerDashboardOut:
-    """The Object-page Dashboard: doanh số 12T (bar), số đơn/TB/đơn, cơ cấu SP (donut), tần
-    suất đặt (heatmap) — ALL from real orders/quotations. No history → has_data=False so the
-    UI shows an honest empty state (không bịa số)."""
-    scope = _scope_for(authz, user)
-    customer = _load_scoped(svc, customer_id, scope, user)
-    d = analytics.dashboard(customer)
-    return CustomerDashboardOut(
-        revenue_12m=d.revenue_12m,
-        orders_12m=d.orders_12m,
-        avg_order_value=d.avg_order_value,
-        orders_total=d.orders_total,
-        quotes_total=d.quotes_total,
-        win_rate_pct=d.win_rate_pct,
-        first_order_at=d.first_order_at,
-        last_order_at=d.last_order_at,
-        months=[MonthPointOut(**vars(m)) for m in d.months],
-        product_mix=[ProductSliceOut(**vars(s)) for s in d.product_mix],
-        heatmap=[HeatCellOut(**vars(h)) for h in d.heatmap],
-        has_data=d.has_data,
-        receivable=_receivable_card(
-            svc, customer, can_view=True  # Xem công nợ MẶC ĐỊNH BẬT (gỡ quyền `view_debt` 24/08/2026)
-        ),
-    )
+    tu: date | None = Query(default=None),
+    den: date | None = Query(default=None),
+    buoc: str = Query(default="thang"),
+) -> ThongKeKhachOut:
+    """Tab Tổng quan: số theo KỲ + cùng kỳ năm trước, biểu đồ theo tuần/tháng/quý, sản phẩm,
+    nhịp đặt hàng, báo giá đang chờ. Mọi số tính từ đơn/báo giá THẬT."""
+    _load_scoped(svc, customer_id, _scope_for(authz, user), user)
+    if buoc not in BUOC:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Bước biểu đồ không hợp lệ.")
+    tu, den = _ky(tu, den)
+    t = so_lieu.thong_ke(customer_id, tu, den, buoc)
+    return ThongKeKhachOut.model_validate(t, from_attributes=True)
 
 
-@router.get("/{customer_id}/orders", response_model=OrderHistoryOut)
+@router.get("/{customer_id}/orders", response_model=TrangDonOut)
 def customer_order_history(
     customer_id: int,
     svc: Service,
-    analytics: Analytics,
+    so_lieu: SoLieu,
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-) -> OrderHistoryOut:
-    """Lịch sử mua hàng — the customer's REAL orders (wired from Đơn hàng bán)."""
-    scope = _scope_for(authz, user)
-    _load_scoped(svc, customer_id, scope, user)  # scope guard (404 if out of scope)
-    rows = analytics.order_history(customer_id)
-    # Dựng `lines` TƯỜNG MINH thay vì để `**vars(r)` ném cả list dataclass vào pydantic: nested
-    # model không có `from_attributes` thì đây là chỗ vỡ, mà kiểu vỡ của pydantic ở tầng này là
-    # im lặng nuốt field — FE nhận `undefined`, không lỗi, không log (đã dính 4 lần).
-    return OrderHistoryOut(items=[
-        OrderHistoryRowOut(
-            **{k: v for k, v in vars(r).items() if k != "lines"},
-            lines=[OrderLineBriefOut(description=d.description, line_total=d.line_total)
-                   for d in r.lines],
-        )
-        for r in rows
-    ])
+    tu: date | None = Query(default=None),
+    den: date | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
+    nhom: str | None = Query(default=None),
+    sap_xep: str = Query(default="-ngay"),
+    trang: int = Query(default=1, ge=1),
+    co: int = Query(default=50, ge=1, le=200),
+) -> TrangDonOut:
+    """Lịch sử mua hàng — lọc kỳ / tìm / nhóm trạng thái / sắp xếp / phân trang ở MÁY CHỦ."""
+    _load_scoped(svc, customer_id, _scope_for(authz, user), user)
+    tu, den = _ky(tu, den)
+    r = so_lieu.lich_su_don(customer_id, tu=tu, den=den, q=q, nhom=nhom, sap_xep=sap_xep,
+                            trang=trang, co=co)
+    return TrangDonOut(
+        items=[DongDonOut.model_validate(d, from_attributes=True) for d in r.items],
+        tong_so=r.tong_so, dem=r.dem, tien_chot=r.tien_chot, tien_huy=r.tien_huy,
+        trang=trang, co=co,
+    )
 
 
-@router.get("/{customer_id}/quotations", response_model=QuoteHistoryOut)
+@router.get("/{customer_id}/quotations", response_model=TrangBaoGiaOut)
 def customer_quote_history(
     customer_id: int,
     svc: Service,
-    analytics: Analytics,
+    so_lieu: SoLieu,
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-) -> QuoteHistoryOut:
-    """Lịch sử báo giá — the customer's REAL quotations (wired from Báo giá)."""
-    scope = _scope_for(authz, user)
-    _load_scoped(svc, customer_id, scope, user)
-    rows = analytics.quote_history(customer_id)
-    return QuoteHistoryOut(items=[QuoteHistoryRowOut(**vars(r)) for r in rows])
+    tu: date | None = Query(default=None),
+    den: date | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
+    nhom: str | None = Query(default=None),
+    trang: int = Query(default=1, ge=1),
+    co: int = Query(default=50, ge=1, le=200),
+) -> TrangBaoGiaOut:
+    """Lịch sử báo giá — lọc kỳ / tìm / nhóm kết quả / phân trang ở MÁY CHỦ, kèm đơn sinh ra."""
+    _load_scoped(svc, customer_id, _scope_for(authz, user), user)
+    tu, den = _ky(tu, den)
+    r = so_lieu.lich_su_bao_gia(customer_id, tu=tu, den=den, q=q, nhom=nhom, trang=trang, co=co)
+    return TrangBaoGiaOut(
+        items=[DongBaoGiaOut.model_validate(d, from_attributes=True) for d in r.items],
+        tong_so=r.tong_so, dem=r.dem, trang=trang, co=co,
+    )
 
 
 _ORDER_STATUS_LABELS = {
@@ -904,9 +903,16 @@ def customer_audit(
 
     items: list[CustomerAuditRowOut] = []
 
+    audit_rows = audit.list_by_target(f"customer:{customer_id}")
+    care_rows = svc.list_care_events(customer_id=customer_id, scope=scope, actor=user)
+    # Tên người thao tác: MỘT truy vấn cho cả nhật ký (trước là get_by_id từng dòng — N+1).
+    nguoi = users.map_by_ids(
+        [a.actor_user_id for a in audit_rows] + [ev.created_by for ev in care_rows]
+    )
+
     # 1) Profile edits from the audit log (target == customer:<id>).
-    for a in audit.list_by_target(f"customer:{customer_id}"):
-        actor = users.get_by_id(a.actor_user_id) if a.actor_user_id is not None else None
+    for a in audit_rows:
+        actor = nguoi.get(a.actor_user_id) if a.actor_user_id is not None else None
         items.append(
             CustomerAuditRowOut(
                 at=a.created_at,
@@ -937,8 +943,8 @@ def customer_audit(
         )
 
     # 3) Care events (#20) — hoạt động chăm sóc gộp vào cùng dòng thời gian.
-    for ev in svc.list_care_events(customer_id=customer_id, scope=scope, actor=user):
-        actor_u = users.get_by_id(ev.created_by) if ev.created_by is not None else None
+    for ev in care_rows:
+        actor_u = nguoi.get(ev.created_by) if ev.created_by is not None else None
         items.append(
             CustomerAuditRowOut(
                 at=ev.happened_at,
@@ -972,32 +978,40 @@ def customer_audit(
 def customer_order_history_csv(
     customer_id: int,
     svc: Service,
-    analytics: Analytics,
+    so_lieu: SoLieu,
     authz: Authz,
     # Xuất file MẶC ĐỊNH BẬT: chỉ cần quyền Xem khách (gỡ quyền chi tiết `export` 24/08/2026).
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    tu: date | None = Query(default=None),
+    den: date | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
+    nhom: str | None = Query(default=None),
 ) -> Response:
-    """Xuất Excel (CSV UTF-8 BOM mở được bằng Excel) — lịch sử mua hàng THẬT của khách."""
+    """Xuất Excel (CSV UTF-8 BOM) — ĐÚNG kỳ và bộ lọc đang xem trên tab Lịch sử mua hàng."""
     scope = _scope_for(authz, user)
     customer = _load_scoped(svc, customer_id, scope, user)
-    rows = analytics.order_history(customer_id)
-
-    import csv
+    tu, den = _ky(tu, den)
 
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["Mã đơn", "Ngày", "Loại đơn", "Sản phẩm", "Trạng thái", "Thành tiền (VND)"])
-    for r in rows:
-        w.writerow(
-            [
-                r.order_no,
-                r.created_at.date().isoformat(),
-                _ORDER_KIND_LABELS.get(r.order_kind, r.order_kind),
-                r.summary,
-                _ORDER_STATUS_LABELS.get(r.status, r.status),
-                r.total if r.total is not None else "",
-            ]
-        )
+    w.writerow(["Mã đơn", "Ngày", "Loại đơn", "Sản phẩm", "Từ báo giá", "Trạng thái",
+                "Thành tiền (VND)"])
+    trang = 1
+    while True:  # theo trang 200 dòng — không dựng một câu không giới hạn
+        r = so_lieu.lich_su_don(customer_id, tu=tu, den=den, q=q, nhom=nhom, trang=trang, co=200)
+        for d in r.items:
+            w.writerow([
+                d.order_no,
+                d.created_at.date().isoformat(),
+                _ORDER_KIND_LABELS.get(d.order_kind, d.order_kind),
+                ", ".join(d.san_pham),
+                d.bao_gia_ma or "",
+                _ORDER_STATUS_LABELS.get(d.status, d.status),
+                d.tong if d.tong is not None else "",
+            ])
+        if trang * 200 >= r.tong_so:
+            break
+        trang += 1
     # UTF-8 BOM so Excel opens Vietnamese correctly.
     data = b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
     filename = f"lich-su-mua-hang-{customer.code}.csv"
@@ -1280,8 +1294,7 @@ def _care_task_out(svc: CustomerService, t, names: dict[int, str]) -> CareTaskOu
     out = CareTaskOut.model_validate(t)
     if t.assignee_user_id is not None:
         out.assignee_name = names.get(t.assignee_user_id)
-    if t.status == "open":
-        out.remind_level, out.overdue_days = svc.remind_level(t.due_date)
+    out.tre = svc.la_tre(t.status, t.due_date)
     return out
 
 
@@ -1445,12 +1458,12 @@ def act_on_occurrence(
     users: Users,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
 ) -> CareCalendarOut:
-    """Thao tác 1 lần hẹn (complete/cancel/reschedule) rồi TRẢ LẠI lịch [from,to] đã cập nhật."""
+    """Thao tác 1 lần hẹn (complete/cancel/reschedule/ghi) rồi TRẢ LẠI lịch [from,to] đã cập nhật."""
     try:
         svc.act_on_occurrence(
             customer_id=customer_id, head_id=head_id, action=payload.action,
             occurrence_date=payload.occurrence_date, new_due=payload.new_due,
-            log_kind=payload.log_kind, log_note=payload.log_note,
+            log_kind=payload.log_kind, log_note=payload.log_note, ket_qua=payload.ket_qua,
             scope=_scope_for(authz, user), actor=user,
         )
         occs = svc.expand_occurrences(

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../../../../../api/client";
 import { Button } from "../../../../../components/Button";
 import { ParamField } from "./fields";
+import { EmptyState } from "../../../../../components/EmptyState";
 
 export function KhoanKmEditor({
   token,
@@ -115,7 +116,7 @@ export function KhoanKmEditor({
         {ok && !dirty && <div className="banner banner--success">{ok}</div>}
 
         {loading ? (
-          <p className="cl-hint-inline">Đang tải tỷ lệ chia kíp…</p>
+          <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải tỷ lệ chia kíp…" />
         ) : (
           <>
             <div className="rc-grid" style={{ maxWidth: 560 }}>

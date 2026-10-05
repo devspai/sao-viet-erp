@@ -12,6 +12,7 @@ import { useCan } from "../../../../auth/permissions";
 import type { NavigateFn } from "../../../../components/AppShell";
 import { Button } from "../../../../components/Button";
 import { CodeLink } from "../../../../components/CodeLink";
+import { EmptyState } from "../../../../components/EmptyState";
 import { Icon } from "../../../../components/Icons";
 import { fmtDate, money } from "../../../../utils/format";
 import { methodText } from "../shared/helpers";
@@ -187,7 +188,7 @@ export function ReceivablesDrawer({
         </div>
         <div className="rc-drawer__body">
       {error && <div className="banner banner--error">{error}</div>}
-      {!detail && !error && <p>Đang tải chi tiết...</p>}
+      {!detail && !error && <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải chi tiết…" />}
       {detail && (
         <>
           {view === "open" && (

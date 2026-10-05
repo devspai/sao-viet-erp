@@ -1,6 +1,6 @@
 /* "Hồ sơ của tôi" — self-service. Dùng chung tokens + nhan-su.css. */
 
-.mine { max-width: 960px; margin: 0 auto; padding-bottom: var(--sp-8); }
+.mine { max-width: var(--page-max-w); margin: 0 auto; padding-bottom: var(--sp-8); }
 
 /* Hero tối (trang trọng, Slate Dark tone chuẩn SVN design tokens) */
 .mine__hero {

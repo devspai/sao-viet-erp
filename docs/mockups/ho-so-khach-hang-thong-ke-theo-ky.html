@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hồ sơ khách hàng — thống kê theo kỳ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Token lấy đúng từ frontend/src/styles/tokens.css để bản xem giống app thật. */
+:root {
+  --paper: #f8fafc; --canvas: #ffffff; --ink: #0f172a; --ash: #475569; --muted: #64748b;
+  --rust: #c5400a; --rust-deep: #8a2d07; --rust-wash: #fbe9e1;
+  --rule: #cbd5e1; --rule-soft: #e2e8f0; --rule-hair: #f1f5f9;
+  --moss: #2f5d3a; --moss-soft: #dbe7dd; --moss-deep: #244a2e;
+  --amber: #9c7714; --amber-soft: #efe4c4; --amber-deep: #7a5c0f;
+  --charcoal: #0f172a; --on-charcoal: #f8fafc;
+  --ff-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --r-3: 6px; --r-5: 10px; --r-6: 12px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #e9edf2; font-family: var(--ff-sans); color: var(--ink); font-size: 14px; }
+button { font: inherit; }
+
+/* ---- Thanh điều khiển của bản xem (KHÔNG thuộc thiết kế) ---- */
+.demo { display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+  padding: 10px 16px; background: #fff7d6; border-bottom: 1px solid #e6d48a; font-size: 13px; }
+.demo__grp { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--r-3); overflow: hidden; background: #fff; }
+.demo__grp button { font-size: 12.5px; padding: 6px 10px; border: 0; background: #fff; color: var(--ash); cursor: pointer; }
+.demo__grp button + button { border-left: 1px solid var(--rule); }
+.demo__grp button.on { background: var(--ink); color: #fff; }
+
+/* ---- Khung ngăn kéo ---- */
+.stage { display: flex; justify-content: flex-end; min-height: calc(100vh - 46px); background: rgba(15,23,42,.35); }
+.drawer { width: min(1140px, 100%); background: var(--paper); }
+
+/* Đầu hồ sơ rút gọn — chỉ để giữ bối cảnh, phần này đã duyệt ở mockup trước. */
+.hd { background: var(--charcoal); color: var(--on-charcoal); padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+.hd h2 { margin: 0; font-size: 20px; font-weight: 700; }
+.hd small { color: #94a3b8; font-size: 12px; letter-spacing: .08em; }
+
+.tabs { display: flex; gap: 4px; padding: 0 24px; background: var(--canvas); border-bottom: 1px solid var(--rule-soft); overflow-x: auto; }
+.tab { padding: 12px 12px; border: 0; background: none; color: var(--ash); cursor: pointer; border-bottom: 2px solid transparent;
+  white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.tab.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--rust); }
+.tab[disabled] { color: #aab4c3; cursor: default; }
+.tab .n { font-size: 11.5px; background: var(--rule-hair); border: 1px solid var(--rule-soft); border-radius: 999px; padding: 0 7px; }
+.tab.on .n { background: var(--rust); border-color: var(--rust); color: #fff; }
+
+/* ---- THANH CHỌN KỲ — dùng chung ba tab ---- */
+.ky { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center;
+  padding: 10px 24px; background: var(--canvas); border-bottom: 1px solid var(--rule-soft); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--r-5); overflow: hidden; background: #fff; }
+.seg button { border: 0; background: none; padding: 7px 12px; font-size: 13px; color: var(--ash); cursor: pointer; white-space: nowrap; }
+.seg button + button { border-left: 1px solid var(--rule-soft); }
+.seg button.on { background: var(--ink); color: #fff; font-weight: 600; }
+.ky__tuy { display: none; gap: 6px; align-items: center; font-size: 13px; color: var(--ash); }
+.ky__tuy.on { display: inline-flex; }
+.ky__tuy input { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: var(--r-3); }
+.ky__so { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ash); cursor: pointer; user-select: none; }
+.ky__so input { accent-color: var(--rust); width: 16px; height: 16px; }
+.ky__nhan { margin-left: auto; font-size: 12.5px; color: var(--muted); text-align: right; line-height: 1.4; }
+.ky__nhan b { color: var(--ink); font-weight: 600; }
+
+.body { padding: 18px 24px 32px; display: grid; gap: 16px; }
+.card { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); }
+.card__hd { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
+.card__hd h3 { margin: 0; font-size: 14.5px; font-weight: 600; }
+.card__hd .phu { font-size: 12px; color: var(--muted); }
+.card__hd .r { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.seg--nho button { padding: 4px 10px; font-size: 12px; }
+
+/* ---- Dải con số ---- */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; }
+.kpi { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); padding: 12px 14px; display: grid; gap: 4px; }
+.kpi__lbl { font-size: 12px; color: var(--muted); }
+.kpi__val { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.kpi__sub { font-size: 12px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.d { font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.d--len { background: var(--moss-soft); color: var(--moss-deep); }
+.d--xuong { background: var(--rust-wash); color: var(--rust-deep); }
+.d--bang { background: var(--rule-hair); color: var(--ash); }
+.pill { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; display: inline-block; }
+.pill--ok { background: var(--moss-soft); color: var(--moss-deep); }
+.pill--warn { background: var(--amber-soft); color: var(--amber-deep); }
+.pill--bad { background: var(--rust-wash); color: var(--rust-deep); }
+.pill--mute { background: var(--rule-hair); color: var(--ash); border: 1px solid var(--rule-soft); }
+
+/* ---- Biểu đồ ---- */
+.chart { padding: 4px 16px 14px; position: relative; }
+.chart svg { width: 100%; height: 240px; display: block; }
+.chart .bar { fill: var(--rust); cursor: pointer; }
+.chart .bar:hover { fill: var(--rust-deep); }
+.chart .bar-cu { fill: #cbd5e1; }
+.chart .ax { font-size: 11px; fill: var(--muted); font-family: var(--ff-sans); }
+.chart .grid { stroke: var(--rule-hair); }
+.chart .hot { fill: transparent; cursor: pointer; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); align-items: center; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.tip { position: absolute; pointer-events: none; background: var(--charcoal); color: #fff; font-size: 12px; padding: 8px 10px;
+  border-radius: var(--r-5); line-height: 1.5; white-space: nowrap; display: none; z-index: 3; }
+.tip b { font-weight: 600; }
+.tip .goi { color: #94a3b8; font-size: 11px; }
+.hint { font-size: 12px; color: var(--muted); padding: 0 16px 12px; }
+
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: minmax(0,1fr); } .ky__nhan { margin-left: 0; text-align: left; } }
+
+/* ---- Nhịp đặt hàng ---- */
+.nhip { padding: 6px 16px 16px; display: grid; gap: 12px; }
+.nhip__cau { font-size: 14px; line-height: 1.5; }
+.nhip__cau b { font-weight: 700; }
+.nhip svg { width: 100%; height: 64px; display: block; }
+.nhip .dot { fill: var(--rust); opacity: .85; }
+.nhip .dot--huy { fill: none; stroke: var(--muted); stroke-dasharray: 2 2; }
+.nhip .line { stroke: var(--rule); }
+.nhip .du { stroke: var(--amber); stroke-dasharray: 4 3; }
+.nhip .ax { font-size: 10.5px; fill: var(--muted); font-family: var(--ff-sans); }
+.nhip__so { display: flex; gap: 22px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.nhip__so b { display: block; color: var(--ink); font-size: 15px; font-weight: 700; }
+
+/* ---- Bảng ---- */
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600;
+  padding: 9px 12px; background: var(--paper); border-bottom: 1px solid var(--rule-soft); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--rule-hair); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.sx { cursor: pointer; user-select: none; }
+th.sx:hover { color: var(--ink); }
+th.sx .mui { opacity: .35; margin-left: 4px; }
+th.sx.on .mui { opacity: 1; color: var(--rust); }
+tfoot td { font-weight: 700; background: var(--paper); border-top: 1px solid var(--rule-soft); }
+.ma { font-weight: 600; }
+.lnk { color: var(--rust); font-weight: 600; text-decoration: none; cursor: pointer; }
+.lnk:hover { text-decoration: underline; }
+.mute { color: var(--muted); }
+.nho { font-size: 12px; color: var(--muted); }
+.tytrong { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.tytrong span { display: inline-block; width: 70px; height: 6px; background: var(--rule-hair); border-radius: 3px; overflow: hidden; }
+.tytrong span i { display: block; height: 100%; background: var(--rust); }
+.tblwrap { overflow-x: auto; }
+
+/* ---- Bộ lọc trong tab ---- */
+.loc { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.loc input[type=search] { flex: 1 1 260px; font: inherit; font-size: 13.5px; padding: 8px 12px; border: 1px solid var(--rule); border-radius: var(--r-5); background: #fff; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--rule); background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; color: var(--ash); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.chip b { font-weight: 600; color: var(--ink); }
+.chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.chip.on b { color: #fff; }
+.btn { border: 1px solid var(--rule); background: #fff; border-radius: var(--r-5); padding: 7px 12px; font-size: 13px; cursor: pointer; color: var(--ink); }
+.khoan { display: none; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--r-5); background: var(--amber-soft); color: var(--amber-deep); font-size: 13px; }
+.khoan.on { display: flex; }
+.khoan button { border: 0; background: none; color: var(--amber-deep); font-weight: 600; text-decoration: underline; cursor: pointer; padding: 0; }
+.rong { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 13.5px; }
+
+/* ---- Chính sách tài chính (giữ nguyên, chỉ để đủ bố cục) ---- */
+.cs { padding: 4px 16px 14px; display: grid; }
+.cs div { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px dashed var(--rule-soft); font-size: 13px; }
+.cs div:last-child { border-bottom: 0; }
+.cs span { color: var(--muted); }
+
+/* ---- Ghi chú thiết kế (KHÔNG thuộc thiết kế) ---- */
+.notes { max-width: 1140px; margin: 0 0 0 auto; padding: 18px 24px 40px; background: #fffdf3; border-top: 1px solid #e6d48a; font-size: 13px; line-height: 1.6; color: #3b3a33; }
+.notes h4 { margin: 0 0 6px; font-size: 14px; }
+.notes ol { margin: 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+
+<div class="demo">
+  <b>Bản xem thử</b>
+  <span>Dữ liệu:</span>
+  <div class="demo__grp" id="demoData">
+    <button class="on" data-v="co">Khách đặt đều (minh hoạ ~3 năm)</button>
+    <button data-v="moi">Khách mới, chưa có đơn</button>
+  </div>
+  <span class="mute">Hôm nay giả định là 04/10/2026. Bấm cột biểu đồ để thử xem chi tiết.</span>
+</div>
+
+<div class="stage"><div class="drawer">
+  <div class="hd"><small>CÔNG TY</small><h2>CÔNG TY CỔ PHẦN BIBICA</h2></div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-t="tq">Tổng quan</button>
+    <button class="tab" data-t="mua">Lịch sử mua hàng <span class="n" id="nMua">0</span></button>
+    <button class="tab" data-t="bg">Lịch sử báo giá <span class="n" id="nBg">0</span></button>
+    <button class="tab" disabled>Chăm sóc</button>
+    <button class="tab" disabled>Ghi chú</button>
+    <button class="tab" disabled>Liên hệ</button>
+    <button class="tab" disabled>Giao hàng</button>
+  </div>
+
+  <!-- Thanh chọn kỳ: MỘT chỗ, ba tab cùng nghe -->
+  <div class="ky">
+    <div class="seg" id="kySeg">
+      <button data-k="thang">Tháng này</button>
+      <button data-k="quy">Quý này</button>
+      <button data-k="nam" class="on">Năm nay</button>
+      <button data-k="12t">12 tháng qua</button>
+      <button data-k="namtruoc">Năm trước</button>
+      <button data-k="tuy">Tuỳ chọn</button>
+    </div>
+    <div class="ky__tuy" id="kyTuy">
+      <input type="date" id="tuTu" value="2026-03-01"> đến <input type="date" id="tuDen" value="2026-03-31">
+    </div>
+    <label class="ky__so"><input type="checkbox" id="soSanh" checked> So với cùng kỳ năm trước</label>
+    <div class="ky__nhan" id="kyNhan"></div>
+  </div>
+
+  <div class="body" id="body"></div>
+</div></div>
+
+<div class="notes">
+  <h4>Ghi chú thiết kế (không thuộc giao diện)</h4>
+  <ol>
+    <li><b>Một thanh chọn kỳ cho cả ba tab.</b> Đổi kỳ ở tab nào thì cả ba tab đổi theo. Kỳ đang chọn được nhớ khi chuyển sang khách khác (bấm ↑↓ ở đầu hồ sơ).</li>
+    <li><b>Mọi con số kèm mức tăng/giảm so cùng kỳ năm trước.</b> Tắt ô "So với cùng kỳ" thì mất cột mờ và mũi tên, chỉ còn số của kỳ.</li>
+    <li><b>Biểu đồ tự đổi bước:</b> kỳ ≤ 3 tháng thì vẽ theo tuần, dài hơn thì theo tháng; chọn được "Quý". Bấm một cột thì mở Lịch sử mua hàng, lọc sẵn đúng khoảng đó, có dải vàng để bỏ lọc.</li>
+    <li><b>Heatmap thứ×tháng và donut sản phẩm đã bỏ.</b> Thay bằng "Nhịp đặt hàng" (để biết khi nào nên gọi) và bảng sản phẩm có tăng/giảm.</li>
+    <li><b>Doanh số chỉ tính đơn "Đã chốt".</b> Hiện máy chủ (customer_analytics) chỉ loại đơn huỷ, nên đơn nháp đang bị cộng vào doanh số. Làm thật thì sửa luôn chỗ này.</li>
+    <li><b>Cột "Thành đơn" và tỉ lệ chốt</b> lấy từ <code>orders.quotation_id</code> (đã có sẵn). Tỉ lệ chốt = đã thành đơn / số báo giá đã có kết quả (không tính nháp và đang chờ).</li>
+    <li><b>Cần thêm ở máy chủ:</b> API số liệu hồ sơ nhận khoảng ngày (từ, đến) thay cho cứng 12 tháng; trả kèm số của cùng kỳ năm trước.</li>
+  </ol>
+</div>
+
+<script>
+/* ======================= DỮ LIỆU MINH HOẠ ======================= */
+const HOM_NAY = new Date(2026, 9, 4);
+const MS = 864e5;
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const cong = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const luiNam = (d, n) => { const x = new Date(d); x.setFullYear(x.getFullYear() + n); return x; };
+const dauNgay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const cuoiNgay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59);
+const ngay = d => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+const ngayNgan = d => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+const soNgay = (a, b) => Math.round((dauNgay(b) - dauNgay(a)) / MS);
+
+function taoDuLieu() {
+  const r = rng(42);
+  const tang = { 2024: 0.82, 2025: 1, 2026: 1.18 };
+  const don = [], bg = [];
+  let t = new Date(2024, 0, 9, 9);
+  let so = 0;
+  while (t <= HOM_NAY) {
+    const m = t.getMonth() + 1, k = tang[t.getFullYear()];
+    const dong = [];
+    if (m >= 6 && m <= 9) dong.push(["Hộp bánh Trung thu cao cấp", (180 + r() * 200) * 1e6 * k]);
+    if (m >= 11 || m <= 1) dong.push(["Hộp bánh quy bơ Tết", (90 + r() * 130) * 1e6 * k]);
+    if (r() < 0.7) dong.push(["Túi giấy kraft quai xoắn", (15 + r() * 55) * 1e6 * k]);
+    if (r() < 0.35) dong.push(["Thùng carton 5 lớp", (10 + r() * 25) * 1e6 * k]);
+    if (!dong.length) dong.push(["Túi giấy kraft quai xoắn", (20 + r() * 40) * 1e6 * k]);
+    so++;
+    const huy = r() < 0.07;
+    const d = { ma: "DH" + String(so).padStart(3, "0"), ngay: new Date(t), dong: dong.map(([sp, v]) => ({ sp, v: Math.round(v / 1e5) * 1e5 })),
+      tt: huy ? "huy" : "chot" };
+    d.tong = d.dong.reduce((s, x) => s + x.v, 0);
+    don.push(d);
+    // báo giá gốc của đơn
+    const tao = cong(t, -(3 + Math.floor(r() * 12)));
+    bg.push({ tao, han: cong(tao, 30), tong: Math.round(d.tong * (1 + r() * 0.06) / 1e5) * 1e5, tt: "chot", don: d });
+    d.bgRef = bg[bg.length - 1];
+    // báo giá trượt giữa hai đơn
+    if (r() < 0.45) {
+      const tao2 = cong(t, 6 + Math.floor(r() * 12));
+      if (tao2 < cong(HOM_NAY, -35)) bg.push({ tao: tao2, han: cong(tao2, 30), tong: Math.round((20 + r() * 180) * 10) * 1e5, tt: r() < 0.6 ? "tuchoi" : "hethan" });
+    }
+    t = cong(t, 22 + Math.floor(r() * 26));
+    t.setHours(8 + Math.floor(r() * 9), Math.floor(r() * 60));
+  }
+  // đơn mới nhất là nháp
+  don[don.length - 1].tt = "nhap";
+  // báo giá đang mở
+  bg.push({ tao: new Date(2026, 8, 24, 10), han: new Date(2026, 9, 8), tong: 186_400_000, tt: "gui" });
+  bg.push({ tao: new Date(2026, 8, 30, 15), han: new Date(2026, 9, 30), tong: 42_800_000, tt: "gui" });
+  bg.push({ tao: new Date(2026, 9, 3, 16), han: new Date(2026, 10, 2), tong: 26_940_000, tt: "nhap" });
+  bg.sort((a, b) => a.tao - b.tao);
+  const dem = {};
+  for (const b of bg) { const y = b.tao.getFullYear(); dem[y] = (dem[y] || 0) + 1; b.ma = `BG${String(y).slice(2)}-${String(dem[y]).padStart(4, "0")}`; }
+  return { don, bg };
+}
+const DU_LIEU = { co: taoDuLieu(), moi: { don: [], bg: [] } };
+let DL = DU_LIEU.co;
+
+/* ======================= TRẠNG THÁI ======================= */
+const S = { tab: "tq", ky: "nam", soSanh: true, buoc: "auto", khoan: null, timDon: "", ttDon: "all", sxDon: ["ngay", -1],
+  timBg: "", ttBg: "all" };
+
+function kyHienTai() {
+  const y = HOM_NAY.getFullYear(), m = HOM_NAY.getMonth();
+  let tu, den = cuoiNgay(HOM_NAY), ten;
+  switch (S.ky) {
+    case "thang": tu = new Date(y, m, 1); ten = `Tháng ${m + 1}/${y}`; break;
+    case "quy": { const q = Math.floor(m / 3); tu = new Date(y, q * 3, 1); ten = `Quý ${q + 1}/${y}`; break; }
+    case "nam": tu = new Date(y, 0, 1); ten = `Năm ${y}`; break;
+    case "12t": tu = cong(dauNgay(HOM_NAY), -364); ten = "12 tháng qua"; break;
+    case "namtruoc": tu = new Date(y - 1, 0, 1); den = new Date(y - 1, 11, 31, 23, 59, 59); ten = `Năm ${y - 1}`; break;
+    case "tuy": {
+      const a = document.getElementById("tuTu").value, b = document.getElementById("tuDen").value;
+      tu = a ? new Date(a + "T00:00") : new Date(y, 0, 1); den = b ? new Date(b + "T23:59:59") : cuoiNgay(HOM_NAY);
+      ten = "Tuỳ chọn"; break;
+    }
+  }
+  return { tu, den, ten, tuCu: luiNam(tu, -1), denCu: luiNam(den, -1) };
+}
+function kyDangXem() {
+  // Bấm cột biểu đồ ⇒ khoanh riêng khoảng đó cho tab Lịch sử mua hàng.
+  if (S.khoan && S.tab === "mua") return { ...S.khoan, tuCu: luiNam(S.khoan.tu, -1), denCu: luiNam(S.khoan.den, -1) };
+  return kyHienTai();
+}
+
+/* ======================= TIỆN ÍCH SỐ ======================= */
+function tien(n) {
+  if (n == null) return "—";
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n / 1e9).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " tỷ đ";
+  if (a >= 1e6) return (n / 1e6).toLocaleString("vi-VN", { maximumFractionDigits: 1 }) + " Mđ";
+  return Math.round(n).toLocaleString("vi-VN") + " đ";
+}
+function delta(nay, cu, kieu = "pt") {
+  if (!S.soSanh) return "";
+  if (!cu && !nay) return `<span class="d d--bang">Cùng kỳ: 0</span>`;
+  if (!cu) return `<span class="d d--len">Mới so cùng kỳ</span>`;
+  if (kieu === "so") {
+    const x = nay - cu;
+    if (x === 0) return `<span class="d d--bang">Bằng cùng kỳ</span>`;
+    return `<span class="d ${x > 0 ? "d--len" : "d--xuong"}">${x > 0 ? "▲" : "▼"} ${Math.abs(x)} so cùng kỳ</span>`;
+  }
+  const p = Math.round((nay - cu) / cu * 100);
+  if (p === 0) return `<span class="d d--bang">Bằng cùng kỳ</span>`;
+  return `<span class="d ${p > 0 ? "d--len" : "d--xuong"}">${p > 0 ? "▲" : "▼"} ${Math.abs(p)}% so cùng kỳ</span>`;
+}
+const trong = (d, tu, den) => d >= tu && d <= den;
+const donTinh = (tu, den) => DL.don.filter(o => o.tt === "chot" && trong(o.ngay, tu, den));
+
+/* ======================= DỰNG GIAO DIỆN ======================= */
+const $ = s => document.querySelector(s);
+function veNhanKy() {
+  const k = kyHienTai();
+  $("#kyNhan").innerHTML = `<b>${ngay(k.tu)} – ${ngay(k.den > HOM_NAY ? HOM_NAY : k.den)}</b>` +
+    (S.soSanh ? `<br>so với ${ngay(k.tuCu)} – ${ngay(k.denCu > luiNam(HOM_NAY, -1) && S.ky !== "namtruoc" ? luiNam(HOM_NAY, -1) : k.denCu)}` : "");
+  $("#nMua").textContent = DL.don.length;
+  $("#nBg").textContent = DL.bg.length;
+}
+
+function ve() {
+  veNhanKy();
+  document.querySelectorAll("#tabs .tab").forEach(b => b.classList.toggle("on", b.dataset.t === S.tab));
+  const body = $("#body");
+  if (S.tab === "tq") body.innerHTML = veTongQuan();
+  if (S.tab === "mua") body.innerHTML = veMua();
+  if (S.tab === "bg") body.innerHTML = veBaoGia();
+  ganSuKien();
+}
+
+/* ---------- TỔNG QUAN ---------- */
+function nhipDat() {
+  const ds = DL.don.filter(o => o.tt !== "huy" && o.ngay >= cong(HOM_NAY, -365)).sort((a, b) => a.ngay - b.ngay);
+  if (ds.length < 2) return null;
+  const kc = [];
+  for (let i = 1; i < ds.length; i++) kc.push(soNgay(ds[i - 1].ngay, ds[i].ngay));
+  const tb = Math.round(kc.reduce((s, x) => s + x, 0) / kc.length);
+  const cuoi = ds[ds.length - 1].ngay;
+  const da = soNgay(cuoi, HOM_NAY);
+  return { tb, cuoi, da, duKien: cong(cuoi, tb), tre: da - tb, ds };
+}
+function tiLeChot(tu, den) {
+  const ds = DL.bg.filter(b => trong(b.tao, tu, den) && ["chot", "tuchoi", "hethan"].includes(b.tt));
+  const chot = ds.filter(b => b.tt === "chot").length;
+  return { chot, tong: ds.length, p: ds.length ? Math.round(chot / ds.length * 100) : null };
+}
+
+function veTongQuan() {
+  const k = kyHienTai();
+  const nay = donTinh(k.tu, k.den), cu = donTinh(k.tuCu, k.denCu);
+  const ds = nay.reduce((s, o) => s + o.tong, 0), dsCu = cu.reduce((s, o) => s + o.tong, 0);
+  const tb = nay.length ? ds / nay.length : null, tbCu = cu.length ? dsCu / cu.length : null;
+  const n = nhipDat();
+  const tl = tiLeChot(k.tu, k.den), tlCu = tiLeChot(k.tuCu, k.denCu);
+
+  let nhipKpi;
+  if (!n) nhipKpi = `<div class="kpi__val">—</div><div class="kpi__sub">Cần ít nhất 2 đơn để tính</div>`;
+  else nhipKpi = `<div class="kpi__val">${n.tb} ngày/đơn</div><div class="kpi__sub">Lần cuối ${n.da} ngày trước
+      ${n.tre > 7 ? `<span class="pill pill--bad">Quá nhịp ${n.tre} ngày</span>` : n.tre > 0 ? `<span class="pill pill--warn">Sắp tới hạn đặt</span>` : `<span class="pill pill--ok">Đúng nhịp</span>`}</div>`;
+
+  return `
+  <div class="kpis">
+    <div class="kpi"><div class="kpi__lbl">Doanh số</div><div class="kpi__val">${tien(ds)}</div>
+      <div class="kpi__sub">${delta(ds, dsCu)}${S.soSanh ? `<span>Cùng kỳ ${tien(dsCu)}</span>` : ""}</div></div>
+    <div class="kpi"><div class="kpi__lbl">Số đơn đã chốt</div><div class="kpi__val">${nay.length} đơn</div>
+      <div class="kpi__sub">${delta(nay.length, cu.length, "so")}</div></div>
+    <div class="kpi"><div class="kpi__lbl">Giá trị trung bình một đơn</div><div class="kpi__val">${tb ? tien(tb) : "—"}</div>
+      <div class="kpi__sub">${tb && tbCu ? delta(tb, tbCu) : ""}</div></div>
+    <div class="kpi"><div class="kpi__lbl">Nhịp đặt hàng (12 tháng qua)</div>${nhipKpi}</div>
+    <div class="kpi"><div class="kpi__lbl">Tỉ lệ chốt báo giá</div><div class="kpi__val">${tl.p == null ? "—" : tl.p + "%"}</div>
+      <div class="kpi__sub"><span>${tl.chot}/${tl.tong} báo giá có kết quả</span>${tl.p != null && tlCu.p != null && S.soSanh
+        ? `<span class="d ${tl.p >= tlCu.p ? "d--len" : "d--xuong"}">${tl.p >= tlCu.p ? "▲" : "▼"} ${Math.abs(tl.p - tlCu.p)} điểm</span>` : ""}</div></div>
+  </div>
+
+  <section class="card">
+    <div class="card__hd"><h3>Doanh số theo ${tenBuoc(buocThuc(k))}</h3><span class="phu">Đơn vị: triệu đ</span>
+      <div class="r">
+        <div class="legend"><span><i style="background:var(--rust)"></i>Kỳ này</span>${S.soSanh ? `<span><i style="background:#cbd5e1"></i>Cùng kỳ năm trước</span>` : ""}</div>
+        <div class="seg seg--nho" id="buocSeg">
+          <button data-b="auto" class="${S.buoc === "auto" ? "on" : ""}">Tự động</button>
+          <button data-b="tuan" class="${S.buoc === "tuan" ? "on" : ""}">Tuần</button>
+          <button data-b="thang" class="${S.buoc === "thang" ? "on" : ""}">Tháng</button>
+          <button data-b="quy" class="${S.buoc === "quy" ? "on" : ""}">Quý</button>
+        </div>
+      </div></div>
+    ${DL.don.length ? `<div class="chart" id="chart">${veBieuDo(k)}<div class="tip" id="tip"></div></div>
+      <div class="hint">Bấm vào một cột để xem các đơn trong khoảng đó.</div>` : `<div class="rong">Khách chưa có đơn nào. Biểu đồ sẽ hiện khi có đơn đầu tiên.</div>`}
+  </section>
+
+  <section class="card">
+    <div class="card__hd"><h3>Sản phẩm mua trong kỳ</h3><span class="phu">${nay.length} đơn</span></div>
+    ${veBangSanPham(nay, cu)}
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <div class="card__hd"><h3>Nhịp đặt hàng</h3><span class="phu">12 tháng qua</span></div>
+      ${veNhip(n)}
+    </section>
+    <section class="card">
+      <div class="card__hd"><h3>Chính sách tài chính</h3><div class="r"><button class="btn">Sửa</button></div></div>
+      <div class="cs"><div><span>Hạn mức công nợ</span><b>500 Mđ</b></div><div><span>Số ngày công nợ tối đa</span><b>45 ngày</b></div>
+        <div><span>Chiết khấu cho phép</span><b>3%</b></div><div><span>Lãi trên giá vốn</span><b>18%</b></div></div>
+    </section>
+  </div>`;
+}
+
+function buocThuc(k) {
+  if (S.buoc !== "auto") return S.buoc;
+  return soNgay(k.tu, k.den) <= 93 ? "tuan" : "thang";
+}
+const tenBuoc = b => ({ tuan: "tuần", thang: "tháng", quy: "quý" })[b];
+
+function chiaKhoang(k, buoc) {
+  const out = [];
+  let a = dauNgay(k.tu);
+  if (buoc === "thang") a = new Date(a.getFullYear(), a.getMonth(), 1);
+  if (buoc === "quy") a = new Date(a.getFullYear(), Math.floor(a.getMonth() / 3) * 3, 1);
+  if (buoc === "tuan") { const t = (a.getDay() + 6) % 7; a = cong(a, -t); }
+  while (a <= k.den && out.length < 60) {
+    let b;
+    if (buoc === "tuan") b = cong(a, 7);
+    if (buoc === "thang") b = new Date(a.getFullYear(), a.getMonth() + 1, 1);
+    if (buoc === "quy") b = new Date(a.getFullYear(), a.getMonth() + 3, 1);
+    const den = new Date(b - 1000);
+    const ten = buoc === "tuan" ? ngayNgan(a) : buoc === "thang" ? `T${a.getMonth() + 1}${a.getMonth() === 0 || out.length === 0 ? "/" + String(a.getFullYear()).slice(2) : ""}`
+      : `Q${Math.floor(a.getMonth() / 3) + 1}/${String(a.getFullYear()).slice(2)}`;
+    const tenDu = buoc === "tuan" ? `Tuần ${ngay(a)} – ${ngay(den)}` : buoc === "thang" ? `Tháng ${a.getMonth() + 1}/${a.getFullYear()}` : `Quý ${Math.floor(a.getMonth() / 3) + 1}/${a.getFullYear()}`;
+    out.push({ tu: a, den, ten, tenDu });
+    a = b;
+  }
+  return out;
+}
+
+let KHOANG = [];
+function veBieuDo(k) {
+  const buoc = buocThuc(k);
+  KHOANG = chiaKhoang(k, buoc).map(x => {
+    const ds = donTinh(x.tu, x.den), cu = donTinh(luiNam(x.tu, -1), luiNam(x.den, -1));
+    return { ...x, v: ds.reduce((s, o) => s + o.tong, 0), n: ds.length, vCu: cu.reduce((s, o) => s + o.tong, 0), nCu: cu.length, tuongLai: x.tu > HOM_NAY };
+  });
+  const W = 1000, H = 240, L = 46, B = 26, T = 10;
+  const max = Math.max(1, ...KHOANG.map(x => Math.max(x.v, S.soSanh ? x.vCu : 0)));
+  const buocTruc = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000].map(x => x * 1e6).find(s => max / s <= 4) || 5e9;
+  const top = Math.ceil(max / buocTruc) * buocTruc;
+  const y = v => T + (H - T - B) * (1 - v / top);
+  const w = (W - L) / KHOANG.length;
+  const bw = Math.min(46, w * (S.soSanh ? 0.36 : 0.6));
+  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+  for (let v = 0; v <= top; v += buocTruc) {
+    s += `<line class="grid" x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${Math.round(v / 1e6)}</text>`;
+  }
+  const nhan = Math.ceil(KHOANG.length / 14);
+  KHOANG.forEach((x, i) => {
+    const cx = L + w * i + w / 2;
+    if (S.soSanh) s += `<rect class="bar-cu" x="${cx - bw - 1}" y="${y(x.vCu)}" width="${bw}" height="${H - B - y(x.vCu)}" rx="2"/>`;
+    const bx = S.soSanh ? cx + 1 : cx - bw / 2;
+    if (x.v) s += `<rect class="bar" x="${bx}" y="${y(x.v)}" width="${bw}" height="${H - B - y(x.v)}" rx="2"/>`;
+    s += `<rect class="hot" data-i="${i}" x="${L + w * i}" y="0" width="${w}" height="${H - B}"/>`;
+    if (i % nhan === 0) s += `<text class="ax" x="${cx}" y="${H - 8}" text-anchor="middle">${x.ten}</text>`;
+  });
+  s += `</svg>`;
+  return s;
+}
+
+function veBangSanPham(nay, cu) {
+  if (!nay.length) return `<div class="rong">Không có đơn đã chốt trong kỳ này.</div>`;
+  const gom = (ds) => { const m = new Map(); for (const o of ds) for (const d of o.dong) {
+    const x = m.get(d.sp) || { v: 0, n: 0, cuoi: null }; x.v += d.v; x.n++; if (!x.cuoi || o.ngay > x.cuoi) x.cuoi = o.ngay; m.set(d.sp, x); } return m; };
+  const a = gom(nay), b = gom(cu);
+  const tong = [...a.values()].reduce((s, x) => s + x.v, 0);
+  const rows = [...a.entries()].sort((p, q) => q[1].v - p[1].v);
+  return `<div class="tblwrap"><table><thead><tr><th>Sản phẩm</th><th class="num">Doanh số</th><th class="num">Tỉ trọng</th><th class="num">Số lần</th><th class="num">Lần cuối</th></tr></thead><tbody>
+    ${rows.map(([sp, x]) => `<tr><td><div class="ma">${sp}</div>${S.soSanh ? `<div style="margin-top:3px">${delta(x.v, b.get(sp)?.v || 0)}</div>` : ""}</td>
+      <td class="num"><b>${tien(x.v)}</b></td>
+      <td class="num"><div class="tytrong"><span><i style="width:${Math.round(x.v / tong * 100)}%"></i></span>${Math.round(x.v / tong * 100)}%</div></td>
+      <td class="num">${x.n}</td><td class="num">${ngay(x.cuoi)}</td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+
+function veNhip(n) {
+  if (!n) return `<div class="rong">Cần ít nhất 2 đơn trong 12 tháng để tính nhịp.</div>`;
+  const tu = cong(HOM_NAY, -365), den = cong(HOM_NAY, 45);
+  const W = 1000, x = d => 10 + (W - 20) * (d - tu) / (den - tu);
+  const maxV = Math.max(...n.ds.map(o => o.tong));
+  let s = `<svg viewBox="0 0 ${W} 64" preserveAspectRatio="none"><line class="line" x1="10" x2="${W - 10}" y1="28" y2="28"/>`;
+  for (const o of DL.don.filter(o => o.ngay >= tu)) {
+    const r = 4 + 9 * Math.sqrt(o.tong / maxV);
+    s += `<circle class="dot ${o.tt === "huy" ? "dot--huy" : ""}" cx="${x(o.ngay)}" cy="28" r="${r}"><title>${o.ma} ${ngay(o.ngay)}: ${tien(o.tong)}${o.tt === "huy" ? " (đã huỷ)" : ""}</title></circle>`;
+  }
+  s += `<line class="du" x1="${x(n.duKien)}" x2="${x(n.duKien)}" y1="8" y2="48"/><text class="ax" x="${x(n.duKien)}" y="60" text-anchor="middle">Dự kiến ${ngayNgan(n.duKien)}</text>`;
+  s += `<line class="line" x1="${x(HOM_NAY)}" x2="${x(HOM_NAY)}" y1="12" y2="44"/><text class="ax" x="${x(HOM_NAY)}" y="8" text-anchor="middle">Hôm nay</text></svg>`;
+  const cau = n.tre > 7
+    ? `Khách thường đặt <b>${n.tb} ngày một lần</b>, lần này đã <b>${n.da} ngày</b> chưa đặt, quá nhịp ${n.tre} ngày. Nên gọi hỏi nhu cầu.`
+    : n.tre > 0 ? `Khách thường đặt <b>${n.tb} ngày một lần</b>, đã ${n.da} ngày từ đơn cuối. Sắp tới lúc đặt đơn mới.`
+    : `Khách thường đặt <b>${n.tb} ngày một lần</b>. Đơn tới dự kiến khoảng <b>${ngay(n.duKien)}</b>.`;
+  const kc = []; for (let i = 1; i < n.ds.length; i++) kc.push(soNgay(n.ds[i - 1].ngay, n.ds[i].ngay));
+  return `<div class="nhip"><div class="nhip__cau">${cau}</div>${s}
+    <div class="nhip__so"><span>Đơn cuối<b>${ngay(n.cuoi)}</b></span><span>Nhanh nhất<b>${Math.min(...kc)} ngày</b></span><span>Lâu nhất<b>${Math.max(...kc)} ngày</b></span><span>Số đơn<b>${n.ds.length}</b></span></div></div>`;
+}
+
+/* ---------- LỊCH SỬ MUA HÀNG ---------- */
+const TT_DON = { chot: ["Đã chốt", "pill--ok"], nhap: ["Nháp", "pill--warn"], huy: ["Đã huỷ", "pill--mute"] };
+function veMua() {
+  const k = kyDangXem();
+  const trongKy = DL.don.filter(o => trong(o.ngay, k.tu, k.den));
+  const q = S.timDon.trim().toLowerCase();
+  const timDuoc = trongKy.filter(o => !q || (o.ma + " " + o.dong.map(d => d.sp).join(" ") + " " + o.bgRef?.ma).toLowerCase().includes(q));
+  const dem = st => timDuoc.filter(o => st === "all" || o.tt === st).length;
+  let rows = timDuoc.filter(o => S.ttDon === "all" || o.tt === S.ttDon);
+  const [cot, chieu] = S.sxDon;
+  rows = rows.slice().sort((a, b) => (cot === "ngay" ? a.ngay - b.ngay : a.tong - b.tong) * chieu);
+
+  const chot = timDuoc.filter(o => o.tt === "chot"), huy = timDuoc.filter(o => o.tt === "huy");
+  const cuChot = DL.don.filter(o => o.tt === "chot" && trong(o.ngay, k.tuCu, k.denCu));
+  const tong = chot.reduce((s, o) => s + o.tong, 0), tongCu = cuChot.reduce((s, o) => s + o.tong, 0);
+  const tongHuy = huy.reduce((s, o) => s + o.tong, 0);
+  const mui = c => `<span class="mui">${S.sxDon[0] === c ? (S.sxDon[1] > 0 ? "▲" : "▼") : "▼"}</span>`;
+
+  return `
+  <div class="khoan ${S.khoan ? "on" : ""}">Đang xem riêng <b>${S.khoan?.tenDu || ""}</b> (bấm từ biểu đồ). <button id="boKhoan">Trở về ${kyHienTai().ten.toLowerCase()}</button></div>
+  <div class="kpis">
+    <div class="kpi"><div class="kpi__lbl">Giá trị đơn đã chốt</div><div class="kpi__val">${tien(tong)}</div><div class="kpi__sub">${delta(tong, tongCu)}</div></div>
+    <div class="kpi"><div class="kpi__lbl">Số đơn đã chốt</div><div class="kpi__val">${chot.length} đơn</div><div class="kpi__sub">${delta(chot.length, cuChot.length, "so")}</div></div>
+    <div class="kpi"><div class="kpi__lbl">Trung bình một đơn</div><div class="kpi__val">${chot.length ? tien(tong / chot.length) : "—"}</div>
+      <div class="kpi__sub">${chot.length && cuChot.length ? delta(tong / chot.length, tongCu / cuChot.length) : ""}</div></div>
+    <div class="kpi"><div class="kpi__lbl">Đơn huỷ</div><div class="kpi__val">${huy.length} đơn</div><div class="kpi__sub">${huy.length ? `<span>${tien(tongHuy)} bị huỷ</span>` : "<span>Không có</span>"}</div></div>
+  </div>
+
+  <section class="card">
+    <div class="card__hd" style="padding-bottom:12px">
+      <div class="loc" style="flex:1">
+        <input type="search" id="timDon" placeholder="Tìm mã đơn, sản phẩm, mã báo giá…" value="${S.timDon.replace(/"/g, "&quot;")}">
+        <div class="chips" id="ttDon">
+          ${[["all", "Tất cả"], ["chot", "Đã chốt"], ["nhap", "Nháp"], ["huy", "Đã huỷ"]].map(([v, t]) =>
+            `<button class="chip ${S.ttDon === v ? "on" : ""}" data-v="${v}">${t} <b>${dem(v)}</b></button>`).join("")}
+        </div>
+        <button class="btn">Xuất Excel</button>
+      </div>
+    </div>
+    ${rows.length ? `<div class="tblwrap"><table>
+      <thead><tr><th class="sx ${cot === "ngay" ? "on" : ""}" data-c="ngay">Mã đơn, ngày đặt ${mui("ngay")}</th><th>Sản phẩm</th><th>Từ báo giá</th>
+        <th class="sx num ${cot === "tong" ? "on" : ""}" data-c="tong">Giá trị ${mui("tong")}</th><th>Trạng thái</th></tr></thead>
+      <tbody>${rows.map(o => `<tr>
+        <td><div class="ma">${o.ma}</div><div class="nho">${ngay(o.ngay)}</div></td>
+        <td>${o.dong.map(d => d.sp).join(", ")}<div class="nho">${o.dong.length} dòng hàng</div></td>
+        <td>${o.bgRef ? `<a class="lnk" data-bg="${o.bgRef.ma}">${o.bgRef.ma}</a>` : `<span class="mute">—</span>`}</td>
+        <td class="num" style="${o.tt === "huy" ? "text-decoration:line-through;color:var(--muted)" : ""}"><b>${tien(o.tong)}</b></td>
+        <td><span class="pill ${TT_DON[o.tt][1]}">${TT_DON[o.tt][0]}</span></td></tr>`).join("")}</tbody>
+      <tfoot><tr><td colspan="3">Cộng ${rows.filter(o => o.tt === "chot").length} đơn đã chốt trong danh sách (không tính nháp, đơn huỷ)</td><td class="num">${tien(rows.filter(o => o.tt === "chot").reduce((s, o) => s + o.tong, 0))}</td><td></td></tr></tfoot>
+    </table></div>` : `<div class="rong">${DL.don.length ? "Không có đơn nào khớp kỳ và bộ lọc đang chọn." : "Khách chưa có đơn nào."}</div>`}
+  </section>`;
+}
+
+/* ---------- LỊCH SỬ BÁO GIÁ ---------- */
+const TT_BG = { nhap: ["Nháp", "pill--mute"], gui: ["Đã gửi, chờ khách", "pill--warn"], chot: ["Thành đơn", "pill--ok"], tuchoi: ["Khách từ chối", "pill--bad"], hethan: ["Hết hạn", "pill--mute"] };
+function veBaoGia() {
+  const k = kyHienTai();
+  const trongKy = DL.bg.filter(b => trong(b.tao, k.tu, k.den));
+  const q = S.timBg.trim().toLowerCase();
+  const tim = trongKy.filter(b => !q || (b.ma + " " + (b.don?.ma || "")).toLowerCase().includes(q));
+  const dem = st => tim.filter(b => st === "all" || b.tt === st).length;
+  const rows = tim.filter(b => S.ttBg === "all" || b.tt === S.ttBg).sort((a, b) => b.tao - a.tao);
+
+  const tl = tiLeChot(k.tu, k.den), tlCu = tiLeChot(k.tuCu, k.denCu);
+  const cuKy = DL.bg.filter(b => trong(b.tao, k.tuCu, k.denCu));
+  // "Đang chờ" và "Sắp hết hạn" là tình trạng HIỆN TẠI, không phụ thuộc kỳ.
+  const cho = DL.bg.filter(b => b.tt === "gui");
+  const sapHet = cho.filter(b => soNgay(HOM_NAY, b.han) <= 7);
+  const thanhDon = tim.filter(b => b.tt === "chot");
+  const tgChot = thanhDon.length ? Math.round(thanhDon.reduce((s, b) => s + soNgay(b.tao, b.don.ngay), 0) / thanhDon.length) : null;
+
+  const hieuLuc = b => {
+    if (b.tt === "chot") return `<span class="mute">—</span>`;
+    const con = soNgay(HOM_NAY, b.han);
+    if (con < 0) return `<span class="mute">Hết ${ngay(b.han)}</span>`;
+    return `<span class="pill ${con <= 7 ? "pill--bad" : "pill--ok"}">Còn ${con} ngày</span><div class="nho">đến ${ngay(b.han)}</div>`;
+  };
+
+  return `
+  <div class="kpis">
+    <div class="kpi"><div class="kpi__lbl">Báo giá đã lập</div><div class="kpi__val">${tim.length}</div><div class="kpi__sub">${delta(tim.length, cuKy.length, "so")}</div></div>
+    <div class="kpi"><div class="kpi__lbl">Tổng giá trị đã báo</div><div class="kpi__val">${tien(tim.reduce((s, b) => s + b.tong, 0))}</div>
+      <div class="kpi__sub">${delta(tim.reduce((s, b) => s + b.tong, 0), cuKy.reduce((s, b) => s + b.tong, 0))}</div></div>
+    <div class="kpi"><div class="kpi__lbl">Tỉ lệ thành đơn</div><div class="kpi__val">${tl.p == null ? "—" : tl.p + "%"}</div>
+      <div class="kpi__sub"><span>${tl.chot}/${tl.tong} có kết quả</span>${tl.p != null && tlCu.p != null && S.soSanh
+        ? `<span class="d ${tl.p >= tlCu.p ? "d--len" : "d--xuong"}">${tl.p >= tlCu.p ? "▲" : "▼"} ${Math.abs(tl.p - tlCu.p)} điểm</span>` : ""}</div></div>
+    <div class="kpi"><div class="kpi__lbl">Từ báo đến chốt</div><div class="kpi__val">${tgChot == null ? "—" : tgChot + " ngày"}</div><div class="kpi__sub"><span>Trung bình</span></div></div>
+    <div class="kpi" style="${sapHet.length ? "border-color:#f0b9a3;background:#fff8f5" : ""}"><div class="kpi__lbl">Đang chờ khách trả lời</div>
+      <div class="kpi__val">${cho.length} báo giá</div>
+      <div class="kpi__sub"><span>${tien(cho.reduce((s, b) => s + b.tong, 0))}</span>${sapHet.length ? `<span class="pill pill--bad">${sapHet.length} sắp hết hạn</span>` : ""}</div></div>
+  </div>
+
+  <section class="card">
+    <div class="card__hd" style="padding-bottom:12px">
+      <div class="loc" style="flex:1">
+        <input type="search" id="timBg" placeholder="Tìm mã báo giá hoặc mã đơn…" value="${S.timBg.replace(/"/g, "&quot;")}">
+        <div class="chips" id="ttBg">
+          ${[["all", "Tất cả"], ["gui", "Đang chờ"], ["chot", "Thành đơn"], ["tuchoi", "Từ chối"], ["hethan", "Hết hạn"], ["nhap", "Nháp"]].map(([v, t]) =>
+            `<button class="chip ${S.ttBg === v ? "on" : ""}" data-v="${v}">${t} <b>${dem(v)}</b></button>`).join("")}
+        </div>
+      </div>
+    </div>
+    ${rows.length ? `<div class="tblwrap"><table>
+      <thead><tr><th>Mã báo giá, ngày lập</th><th class="num">Giá trị</th><th>Hiệu lực</th><th>Kết quả</th><th>Thành đơn</th></tr></thead>
+      <tbody>${rows.map(b => `<tr id="bg-${b.ma}">
+        <td><div class="ma lnk">${b.ma}</div><div class="nho">${ngay(b.tao)}</div></td>
+        <td class="num"><b>${tien(b.tong)}</b></td>
+        <td>${hieuLuc(b)}</td>
+        <td><span class="pill ${TT_BG[b.tt][1]}">${TT_BG[b.tt][0]}</span></td>
+        <td>${b.don ? `<a class="lnk" data-don="${b.don.ma}">${b.don.ma}</a><div class="nho">sau ${soNgay(b.tao, b.don.ngay)} ngày</div>` : `<span class="mute">—</span>`}</td></tr>`).join("")}</tbody>
+    </table></div>` : `<div class="rong">${DL.bg.length ? "Không có báo giá nào khớp kỳ và bộ lọc đang chọn." : "Khách chưa có báo giá nào."}</div>`}
+  </section>`;
+}
+
+/* ======================= SỰ KIỆN ======================= */
+function ganSuKien() {
+  const chart = $("#chart");
+  if (chart) {
+    const tip = $("#tip");
+    chart.querySelectorAll(".hot").forEach(h => {
+      const x = KHOANG[+h.dataset.i];
+      h.addEventListener("mousemove", e => {
+        const r = chart.getBoundingClientRect();
+        tip.style.display = "block";
+        tip.innerHTML = `<b>${x.tenDu}</b><br>Kỳ này: ${tien(x.v)}, ${x.n} đơn${S.soSanh ? `<br>Cùng kỳ: ${tien(x.vCu)}, ${x.nCu} đơn` : ""}<br><span class="goi">Bấm để xem các đơn</span>`;
+        const left = Math.min(e.clientX - r.left + 12, r.width - tip.offsetWidth - 4);
+        tip.style.left = left + "px"; tip.style.top = (e.clientY - r.top - 10) + "px";
+      });
+      h.addEventListener("mouseleave", () => tip.style.display = "none");
+      h.addEventListener("click", () => { S.khoan = { tu: x.tu, den: x.den, tenDu: x.tenDu }; S.tab = "mua"; S.ttDon = "all"; ve(); window.scrollTo(0, 0); });
+    });
+  }
+  document.querySelectorAll("#buocSeg button").forEach(b => b.onclick = () => { S.buoc = b.dataset.b; ve(); });
+  const bk = $("#boKhoan"); if (bk) bk.onclick = () => { S.khoan = null; ve(); };
+  const td = $("#timDon"); if (td) td.oninput = e => { S.timDon = e.target.value; const p = e.target.selectionStart; ve(); const n = $("#timDon"); n.focus(); n.setSelectionRange(p, p); };
+  const tb = $("#timBg"); if (tb) tb.oninput = e => { S.timBg = e.target.value; const p = e.target.selectionStart; ve(); const n = $("#timBg"); n.focus(); n.setSelectionRange(p, p); };
+  document.querySelectorAll("#ttDon .chip").forEach(c => c.onclick = () => { S.ttDon = c.dataset.v; ve(); });
+  document.querySelectorAll("#ttBg .chip").forEach(c => c.onclick = () => { S.ttBg = c.dataset.v; ve(); });
+  document.querySelectorAll("th.sx").forEach(th => th.onclick = () => {
+    const c = th.dataset.c; S.sxDon = S.sxDon[0] === c ? [c, -S.sxDon[1]] : [c, -1]; ve(); });
+  document.querySelectorAll("[data-bg]").forEach(a => a.onclick = () => { S.tab = "bg"; S.ttBg = "all"; S.timBg = a.dataset.bg; S.khoan = null; chonKyChua(a.dataset.bg); ve(); });
+  document.querySelectorAll("[data-don]").forEach(a => a.onclick = () => { S.tab = "mua"; S.ttDon = "all"; S.timDon = a.dataset.don; S.khoan = null; chonKyChuaDon(a.dataset.don); ve(); });
+}
+// Nhảy giữa báo giá và đơn: nếu bản ghi nằm ngoài kỳ đang chọn thì nới kỳ cho thấy được, đừng ra bảng rỗng.
+function chonKyChua(ma) { const b = DL.bg.find(x => x.ma === ma); if (b) moRongKy(b.tao); }
+function chonKyChuaDon(ma) { const o = DL.don.find(x => x.ma === ma); if (o) moRongKy(o.ngay); }
+function moRongKy(d) {
+  const k = kyHienTai(); if (trong(d, k.tu, k.den)) return;
+  S.ky = "tuy"; $("#tuTu").value = `${d.getFullYear()}-01-01`; $("#tuDen").value = d.getFullYear() === HOM_NAY.getFullYear() ? "2026-10-04" : `${d.getFullYear()}-12-31`;
+  dongBoKy();
+}
+function dongBoKy() {
+  document.querySelectorAll("#kySeg button").forEach(b => b.classList.toggle("on", b.dataset.k === S.ky));
+  $("#kyTuy").classList.toggle("on", S.ky === "tuy");
+}
+
+document.querySelectorAll("#tabs .tab:not([disabled])").forEach(b => b.onclick = () => { S.tab = b.dataset.t; if (S.tab !== "mua") S.khoan = null; ve(); });
+document.querySelectorAll("#kySeg button").forEach(b => b.onclick = () => { S.ky = b.dataset.k; S.khoan = null; dongBoKy(); ve(); });
+$("#tuTu").onchange = $("#tuDen").onchange = () => { S.khoan = null; ve(); };
+$("#soSanh").onchange = e => { S.soSanh = e.target.checked; ve(); };
+document.querySelectorAll("#demoData button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#demoData button").forEach(x => x.classList.toggle("on", x === b));
+  DL = DU_LIEU[b.dataset.v]; S.khoan = null; ve(); });
+
+dongBoKy();
+ve();
+</script>
+</body>
+</html>

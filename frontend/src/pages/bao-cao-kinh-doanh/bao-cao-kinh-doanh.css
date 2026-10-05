@@ -7,8 +7,8 @@
  * các đơn của khách đó ngay bên dưới, mỗi đơn kèm bảng dòng sản phẩm. */
 
 .bckd {
-  max-width: 1280px;
-  padding: var(--sp-5) var(--sp-6) var(--sp-7);
+  max-width: var(--page-max-w);
+  padding: var(--sp-5) var(--page-pad-x) var(--sp-7);
   margin: 0 auto;
 }
 

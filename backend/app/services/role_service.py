@@ -441,6 +441,11 @@ class RoleService:
         if role is None:
             raise RoleNotFound("Không tìm thấy vai trò")
         valid_keys = {m.key for m in self.modules.list_all()}
+        # Cả ma trận (~80 dòng) đi trong MỘT giao dịch: nạp sẵn dòng cũ một truy vấn, mỗi dòng chỉ
+        # gán giá trị (commit=False), chốt một lần ở dòng nhật ký cuối hàm. Bản cũ SELECT + COMMIT +
+        # đọc lại cho TỪNG dòng (~180 truy vấn, ~80 lần commit mỗi lần bấm Lưu) — vừa chậm vừa
+        # để lại ma trận nửa cũ nửa mới nếu gãy giữa chừng.
+        co_san = {p.module_key: p for p in self.roles.permissions_for(role_id)}
         for row in rows:
             if row["module_key"] not in valid_keys:
                 continue  # ignore unknown modules rather than create dangling rows
@@ -512,7 +517,10 @@ class RoleService:
                 can_run_order=normalized.get("can_run_order", False),
                 can_confirm_output=normalized.get("can_confirm_output", False),
                 can_warehouse=normalized.get("can_warehouse", False),
+                commit=False,
+                co_san=co_san,
             )
+        # `audit.create` mặc định commit ⇒ chốt luôn cả ma trận ở trên, cùng sống cùng chết.
         self.audit.create(
             actor_user_id=actor_id,
             action="update_role_permissions",

@@ -508,10 +508,10 @@ KHÔNG khoá ngoại. Bảng do `create_all` tự dựng (không cần migration
 
 ### `customer_care_tasks`
 
-**Purpose:** việc chăm sóc CẦN LÀM / lịch hẹn follow-up (khảo sát #27–#28: "hẹn ngày 15
-gọi lại", nhắc lần 1/2/3). Mức nhắc KHÔNG lưu — tính từ số ngày quá hạn khi đọc (lần 1 =
-đến hạn, lần 2 = quá ≥2 ngày, lần 3 = quá ≥5 ngày) nên không cần cron và số luôn thật.
-Panel "Cần chăm sóc" trên danh bạ đọc các việc `open` đã đến hạn trong scope người xem.
+**Purpose:** lịch hẹn chăm sóc khách (khảo sát #27–#28: "hẹn ngày 15 gọi lại"), hiển thị kiểu
+Google Calendar (05/10/2026). Một hẹn chỉ có ba dạng nhìn, TÍNH khi đọc chứ không lưu: sắp tới,
+trễ (`open` mà `due_date` đã qua), xong. Nút "Lịch hẹn" trên danh bạ đọc hẹn theo NGƯỜI PHỤ TRÁCH
+hẹn (Của tôi) hoặc theo phạm vi khách người xem được xem (Cả nhóm).
 
 | Column             | Type (SQLAlchemy → SQLite / Postgres)                  | Key                                   | Null | Default        | Meaning                                                          |
 | ------------------ | ------------------------------------------------------ | ------------------------------------- | ---- | -------------- | ---------------------------------------------------------------- |
@@ -527,6 +527,7 @@ Panel "Cần chăm sóc" trên danh bạ đọc các việc `open` đã đến h
 | `repeat_until`     | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                                     | yes  | —              | Lặp đến hết ngày này (null = không giới hạn; bung có cap chân trời). Migration 0077. |
 | `series_id`        | `Integer` → `INTEGER`                                  | **IX**                                | yes  | —              | Dòng ngoại-lệ trỏ về id hẹn-đầu-chuỗi (soft, cùng bảng). Migration 0077. |
 | `occurrence_date`  | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                                     | yes  | —              | (Ngoại lệ) thay cho lần nào của chuỗi. Migration 0077.          |
+| `ket_qua`          | `Text` → `TEXT`                                        | —                                     | yes  | —              | Ghi chú kết quả của lần hẹn (như mô tả sự kiện Google Calendar). Migration 0366. |
 | `created_by`       | `Integer` → `INTEGER`                                  | **FK→users.id**                       | yes  | —              | Người tạo việc.                                                  |
 | `created_at`       | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                                     | no   | now (UTC)      | Thời điểm tạo.                                                   |
 
@@ -601,7 +602,7 @@ phẳng cũ (bảng cũ còn trong dev.db như orphan, model đã gỡ). Header 
 | `quote_number` | `String(20)` | **UQ**, **IX** | no | — | Mã phiếu (BG26-0001…) — duy nhất; version nằm ở `quote_versions.version_number`. |
 | `customer_id` | `Integer` | **FK→customers.id** (SET NULL), **IX** | yes | — | Khách hàng (SEAM-14 CRM read). |
 | `customer_name_snapshot` | `String(255)` | — | yes | — | Tên KH chốt tại thời điểm tạo (copy-on-write hiển thị). |
-| `phieu_tinh_gia_id` | `Integer` → `INTEGER` | **IX** (soft) | yes | — | **BG-1**: nguồn MỚI = 1 Phiếu tính giá (PTG). Soft link (plain int). 1 PTG → 1 BG đang hiệu lực — guard ở service (KHÔNG unique cứng; cancelled/rejected/expired nhả chỗ). Migration 0051. |
+| `phieu_tinh_gia_id` | `Integer` → `INTEGER` | **UQ IX** (soft) | yes | — | **BG-1**: nguồn = 1 Phiếu tính giá (PTG). Soft link (plain int). MỘT phiếu ↔ MỘT báo giá, MỌI trạng thái — UNIQUE index `ix_quotes_phieu_tinh_gia_id` (mg `0365`, 04/10/2026) + guard ở service. Báo giá khác = nhân bản phiếu. Migration 0051. |
 | `salesperson_id` | `Integer` | **FK→users.id** (CASCADE), **IX** | yes | — | Sale phụ trách — RBAC data-scope owner. |
 | `status` | `String(20)` | — | no | `draft` | draft/**pending_approval**/sent/accepted/rejected/expired/converted_to_order/cancelled (redesign-bao-gia §3). |
 | `current_version_id` | `Integer` | **IX** | yes | — | Phiên bản đang hiệu lực (con trỏ, không FK để tránh vòng). |
@@ -678,6 +679,7 @@ Phiếu tính giá nguồn** (báo giá không soạn tay). Giá vốn đóng b�
 | `total_cost_snapshot` | `Numeric(15,2)` | — | no | `0` | Giá vốn KHÓA của dòng (không sửa ở Báo giá). |
 | `margin_percent` | `Numeric(5,2)` | — | no | `0` | % biên lợi nhuận dòng. |
 | `selling_price` | `Numeric(15,2)` | — | no | `0` | Giá bán dòng (trước VAT). |
+| `gia_go_tay` | `Boolean` | — | no | `false` | Giá bán do sale GÕ TAY, không theo markup (migration `0364`). Màn báo giá giữ trạng thái "Gõ tay" + nút "Về theo markup" sau khi tải lại; sửa markup dòng đó là về false. Tạo phiên bản mới chép theo. |
 | `unit_price` | `Numeric(15,2)` | — | no | `0` | Đơn giá bán /sp. |
 | `discount_amount` | `Numeric(15,2)` | — | no | `0` | Chiết khấu dòng. |
 | `vat_percent` | `Numeric(5,2)` | — | no | `0` | %VAT dòng. |
@@ -3893,10 +3895,12 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 ### `phieu_tinh_gia`
 
-**Purpose:** Phiếu tính giá (costing ticket) THEO THÀNH PHẦN — bản LƯU của máy tính giá vốn. 1 phiếu = header (thông tin chung + SL đặt) + NHIỀU thành phần (`phieu_thanh_phan`, mỗi thành phần = 1 tờ giấy). Giữ ẢNH CHỤP kết quả engine (`result_json`, `tong_gia_von`, `gia_von_don`, `warnings_json`) để FE liệt kê + mở lại xem/sửa/tính lại. Số con / màu / mặt / giấy / máy / công đoạn ĐÃ DỜI xuống `phieu_thanh_phan`. Không có công nghệ / khách hàng / trạng thái (thuộc module Báo giá).
+**Purpose:** Phiếu tính giá (costing ticket) THEO THÀNH PHẦN — bản LƯU của máy tính giá vốn. 1 phiếu = header (thông tin chung + SL đặt) + NHIỀU thành phần (`phieu_thanh_phan`, mỗi thành phần = 1 tờ giấy). Giữ ẢNH CHỤP kết quả engine (`result_json`, `tong_gia_von`, `gia_von_don`, `warnings_json`) để FE liệt kê + mở lại xem/sửa/tính lại. Số con / màu / mặt / giấy / máy / công đoạn ĐÃ DỜI xuống `phieu_thanh_phan`. Không có công nghệ / trạng thái (thuộc module Báo giá). KHÁCH HÀNG chọn ở phiếu từ 04/10/2026 (mg `0363`).
 
-**Tất cả cột:** `id`, `ma`, `ten_san_pham`, `kho_thanh_pham`, `so_luong`, `tong_gia_von`, `gia_von_don`, `result_json`, `warnings_json`, `ktv`, `created_by`, `ghi_chu`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma`, `ten_san_pham`, `kho_thanh_pham`, `so_luong`, `tong_gia_von`, `gia_von_don`, `result_json`, `warnings_json`, `ktv`, `created_by`, `ghi_chu`, `customer_id`, `delivery_address`, `contact_name_snapshot`, `contact_phone_snapshot`, `contact_title_snapshot`, `contact_email_snapshot`, `created_at`, `updated_at`.
 
+- `ghi_chu`: ghi chú NỘI BỘ của phiếu. Báo giá lập từ phiếu hiện nó ở ô "Ghi chú nội bộ" (chép vào `quotes.internal_note`, chỉ đọc ở báo giá), không in ra khách.
+- `customer_id` (soft → `customers.id`, index `ix_phieu_tinh_gia_customer_id`), `delivery_address`, `contact_name_snapshot` / `contact_phone_snapshot` / `contact_title_snapshot` / `contact_email_snapshot` (migration `0363`): khách, địa chỉ giao, người nhận — CHỌN Ở PHIẾU, cùng khuôn với `quotes`. Đổi khách mà không gửi kèm địa chỉ/người nhận thì máy điền địa chỉ mặc định + liên hệ chính. Báo giá chép sang và KHÔNG sửa được ở báo giá (máy chủ trả 422); phiếu đổi thì báo giá NHÁP theo ngay, báo giá đã gửi giữ nguyên. Phiếu chưa có khách thì không lập được báo giá. Backfill: phiếu cũ lấy theo báo giá mới nhất có khách của nó.
 - `created_by`: `Integer` soft → `users.id` — chủ sở hữu phiếu (P8, migration 0053). Lọc phạm vi Tính giá: NV Sales scope "Của tôi" chỉ thấy phiếu mình lập, TP KD/GĐ scope phòng/tất cả thấy hết. Dữ liệu cũ backfill từ `ktv` (khớp name/username), không khớp = NULL (chỉ scope 'all' thấy).
 
 ---

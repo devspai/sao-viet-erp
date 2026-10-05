@@ -1,5 +1,6 @@
 // XẾP LỊCH 3 — POPUP MODAL COMPACT STUDIO (TINH GỌN CAO CẤP)
 import { useEffect, useRef, useState } from "react";
+import { EmptyState } from "../components/EmptyState";
 import {
   AlertCircle, ArrowRightLeft, Box, Calendar, CalendarCheck, Check, Clock, Copy,
   FoldVertical, Gauge, History, Layers, PackageCheck, PauseCircle,
@@ -253,9 +254,7 @@ export function XlChiTiet({
     <div className="xl-modal-overlay" onClick={(e) => e.target === e.currentTarget && onDong()}>
       <div className="xl-modal xl-modal--compact" role="dialog" aria-modal="true">
         {dangTai && !ct ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "var(--ash-2)" }}>
-            Đang tải dữ liệu lệnh sản xuất…
-          </div>
+          <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải dữ liệu lệnh sản xuất…" />
         ) : ct ? (
           <>
             {/* Header Tinh gọn 2 dòng sắc nét */}

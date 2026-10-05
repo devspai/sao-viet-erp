@@ -20,20 +20,23 @@ import {
   type TinhGiaComponentMeta,
   type TinhGiaPreviewOut,
 } from "../api/client";
-import { ArrowDown, ArrowRight, ArrowUp, Package, Plus, Trash2 } from "lucide-react";
-import { congDoan, donViDo, giay, mayThietBi, vatTu, type Row } from "../api/rebuildCatalog";
+import { ArrowDown, ArrowRight, ArrowUp, Copy, Info, Package, Plus, Trash2 } from "lucide-react";
+import { DaiKhachHang, type DoiKhach, type KhachCuaPhieu } from "../components/DaiKhachHang";
+import { congDoan, giay, mayThietBi, vatTu, type Row } from "../api/rebuildCatalog";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DiscardChangesDialog } from "../components/DiscardChangesDialog";
+import { EmptyState } from "../components/EmptyState";
 import { MucInHang } from "../components/MucIn";
 import { SanPhamTaiBanGoiY as SanPhamTaiBanCombo } from "../components/SanPhamTaiBanGoiY";
 import { Select, type SelectOption } from "../components/Select";
 import { ImpositionDiagram } from "./ImpositionDiagram";
 import { heSoChu, nhanChang, nhanDonVi } from "./lsxBuoc";
 import { NHOM_CONG_DOAN } from "./keHoachSxShared";
-import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
+import { donViDangDung, tenDonVi, useNapTenDonVi } from "./tenDonVi";
+import { chonBinhBaiCanGoi, type DongBinhBai } from "./binhBaiCanGoi";
 // Nhãn ĐƠN VỊ của biến công thức lấy từ TỪ ĐIỂN BIẾN (`/api/bien-cong-thuc`), không khai lại ở đây —
 // xem ghi chú chỗ `humanizeFormula`.
 import { traBien, useBienCongThuc, type TraBien } from "./RebuildCatalogPage";
@@ -1224,43 +1227,89 @@ function KhuonCalc({ domId, soTrangDaLuu, moiTayDaLuu, onApply, onClose }: {
  *
  *  Trả về TÊN ("cái") chứ không mã ("cai"): chuỗi này chảy thẳng sang Báo giá rồi ra
  *  `order_lines.don_vi_tinh` và IN LÊN GIẤY. Đổi sang mã là mọi báo giá cũ in ra chữ khác. */
-function useDanhMucDonVi(token: string | null): string[] {
-  const [dvtOpts, setDvtOpts] = useState<string[]>([]);
-  useEffect(() => {
-    if (!token) return;
-    donViDo
-      .list(token, { active: true, size: 200 })
-      .then((r) => {
-        // Danh mục có cả m² · kg · mm · bản kẽm — đúng cho vật tư, vô nghĩa cho ĐVT sản phẩm.
-        // KHÔNG lọc bỏ (danh mục là của chủ, lọc là tự quyết hộ), chỉ ĐẨY LÊN TRƯỚC những họ
-        // dùng để BÁN: thành phẩm (cái/hộp/cuốn/bộ/con) · tờ (tờ rơi bán theo tờ) · thùng.
-        // Không gom thành optgroup vì họ trong danh mục chỉ có mã thô (`khoi_luong`…), chưa
-        // có nhãn hiển thị — bịa nhãn ở đây là đẻ nguồn sự thật thứ hai.
-        const uu_tien = ["thanh_pham", "to", "thung"];
-        const hang = (ho: string) => {
-          const i = uu_tien.indexOf(ho);
-          return i < 0 ? uu_tien.length : i;
-        };
-        const ds = r.items
-          .map((d: Row) => ({ ten: String(d.ten ?? ""), ho: String(d.ho ?? "") }))
-          .filter((d) => d.ten);
-        ds.sort((a, b) => hang(a.ho) - hang(b.ho) || a.ten.localeCompare(b.ten, "vi"));
-        setDvtOpts(ds.map((d) => d.ten));
-      })
-      .catch(() => setDvtOpts([]));
-  }, [token]);
-  return dvtOpts;
+function useDanhMucDonVi(): string[] {
+  // Đọc từ bộ nhớ chung của `useNapTenDonVi` (04/10/2026) — trước đây hook này gọi `/api/don-vi`
+  // thêm một lần riêng, trùng với chuyến nạp nhãn đơn vị ngay cạnh nó.
+  const v = useNapTenDonVi();
+  return useMemo(() => {
+    // Danh mục có cả m² · kg · mm · bản kẽm — đúng cho vật tư, vô nghĩa cho ĐVT sản phẩm.
+    // KHÔNG lọc bỏ (danh mục là của chủ, lọc là tự quyết hộ), chỉ ĐẨY LÊN TRƯỚC những họ
+    // dùng để BÁN: thành phẩm (cái/hộp/cuốn/bộ/con) · tờ (tờ rơi bán theo tờ) · thùng.
+    // Không gom thành optgroup vì họ trong danh mục chỉ có mã thô (`khoi_luong`…), chưa
+    // có nhãn hiển thị — bịa nhãn ở đây là đẻ nguồn sự thật thứ hai.
+    const uu_tien = ["thanh_pham", "to", "thung"];
+    const hang = (ho: string) => {
+      const i = uu_tien.indexOf(ho);
+      return i < 0 ? uu_tien.length : i;
+    };
+    const ds = donViDangDung().map((d) => ({ ten: d.ten, ho: d.ho }));
+    ds.sort((a, b) => hang(a.ho) - hang(b.ho) || a.ten.localeCompare(b.ten, "vi"));
+    return ds.map((d) => d.ten);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v]);
 }
 
 
 // ------------------------------- Component -------------------------------
-export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
+const KHACH_TRONG: KhachCuaPhieu = {
+  customer_id: null, customer_name: null, delivery_address: null, contact_name_snapshot: null,
+  contact_phone_snapshot: null, contact_title_snapshot: null, contact_email_snapshot: null,
+};
+
+/** MST + nhãn điểm giao máy chủ trả kèm phiếu — chỉ đúng với khách `cid` (đổi khách là bỏ). */
+type KhachPhu = { cid: number | null; mst: string | null; nhanDiemGiao: string | null; diaChi: string | null };
+function phuTuOut(out: PhieuTinhGiaOut): KhachPhu {
+  return {
+    cid: out.customer_id ?? null,
+    mst: out.customer_tax_code ?? null,
+    nhanDiemGiao: out.delivery_label ?? null,
+    diaChi: out.delivery_address ?? null,
+  };
+}
+
+function khachTuOut(out: PhieuTinhGiaOut): KhachCuaPhieu {
+  return {
+    customer_id: out.customer_id ?? null,
+    customer_name: out.customer_name ?? null,
+    delivery_address: out.delivery_address ?? null,
+    contact_name_snapshot: out.contact_name_snapshot ?? null,
+    contact_phone_snapshot: out.contact_phone_snapshot ?? null,
+    contact_title_snapshot: out.contact_title_snapshot ?? null,
+    contact_email_snapshot: out.contact_email_snapshot ?? null,
+  };
+}
+
+// Bốn danh mục (giấy, máy, công đoạn, vật tư) DÙNG CHUNG cho mọi phiếu trong phiên: mở phiếu thứ
+// hai, quay lại danh sách rồi mở lại, hay StrictMode chạy effect hai lần đều dùng lại MỘT chuyến
+// tải. Tải lại khi máy chủ báo danh mục đổi (`eventTick` nhóm `danh_muc` khác lúc tải), khi đổi
+// người đăng nhập, hoặc quá 5 phút. Lỗi một danh mục thì không giữ — lần mở sau tải lại.
+type DanhMucPhieu = { giays: Row[]; mays: Row[]; congDoans: Row[]; vatTus: Row[] };
+let dmPhieu: { token: string; tick: number; luc: number; p: Promise<DanhMucPhieu> } | null = null;
+function layDanhMucPhieu(token: string, tick: number): Promise<DanhMucPhieu> {
+  const c = dmPhieu;
+  if (c && c.token === token && c.tick === tick && Date.now() - c.luc < 300_000) return c.p;
+  let loi = false;
+  const lay = (f: Promise<{ items: Row[] }>) => f.then((r) => r.items).catch(() => { loi = true; return [] as Row[]; });
+  const p = Promise.all([lay(giay.list(token)), lay(mayThietBi.list(token)), lay(congDoan.list(token)), lay(vatTu.list(token))])
+    .then(([giays, mays, congDoans, vatTus]) => {
+      if (loi && dmPhieu?.p === p) dmPhieu = null;
+      return { giays, mays, congDoans, vatTus };
+    });
+  dmPhieu = { token, tick, luc: Date.now(), p };
+  return p;
+}
+
+export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventTick = 0 }: {
   // null = phiếu NHÁP chưa ghi DB (vừa bấm "Lập phiếu tính giá"). Form chạy đủ — bình bài và số
   // tờ live đều tính không cần id — chỉ LƯU là hoãn tới khi có sản phẩm thật, để không đẻ phiếu rỗng.
   id: number | null;
   onBack: () => void;
+  // Mở một phiếu khác trong cùng màn (sau khi nhân bản). Không truyền → ẩn nút Nhân bản.
+  onMoPhieu?: (id: number) => void;
   // BG-3: điều hướng sang Báo giá (openQuoteId đã wired ở AppShell). Không truyền → ẩn nút báo giá.
   navigate?: (pageId: string, params?: { openQuoteId?: number }) => void;
+  // Tick nhóm SSE `danh_muc` (AppShell): nhích khi danh mục nguồn đổi ở bất kỳ đâu.
+  eventTick?: number;
 }) {
   const { token } = useAuth();
   const can = useCan();
@@ -1269,11 +1318,14 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
   // và KHÔNG mở được thẻ sản phẩm — chỗ khai giấy/khổ/công đoạn. Máy chủ cũng cắt phần đó khỏi
   // phản hồi, nên đây chỉ là cho giao diện khỏi bày ô trống.
   const xemRuotGia = can("tinh_gia_thanh", "view_cost");
-  // Nhãn đơn vị ở bảng phân rã bù hao đọc từ danh mục — nạp một lần cho cả phiên.
-  useNapTenDonVi();
-  // Danh sách ĐVT cho ô ĐVT của từng sản phẩm (modal) VÀ ô ĐVT của dải nhóm (bảng).
-  const dvtOpts = useDanhMucDonVi(token);
+  // Nhãn đơn vị ở bảng phân rã bù hao + danh sách ĐVT cho ô ĐVT của từng sản phẩm (modal) VÀ ô ĐVT
+  // của dải nhóm (bảng) — cùng MỘT chuyến nạp danh mục Đơn vị cho cả phiên.
+  const dvtOpts = useDanhMucDonVi();
   const [quoting, setQuoting] = useState(false);
+  const [nhanBanDang, setNhanBanDang] = useState(false);
+  // Báo giá DUY NHẤT của phiếu (một phiếu ↔ một báo giá): có rồi thì nút Báo giá mở nó, không lập mới.
+  const [baoGiaCo, setBaoGiaCo] = useState<{ id: number; so: string } | null>(null);
+  const [khachPhu, setKhachPhu] = useState<KhachPhu | null>(null);
   // Id THẬT của phiếu: null tới khi lần lưu đầu tiên chạy xong (POST). Từ đó trở đi là PUT.
   const [pid, setPid] = useState<number | null>(id);
   const daLuu = pid != null;
@@ -1301,6 +1353,11 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
   // `result` rỗng, số phải lấy từ ẢNH CHỤP mà BE đã lưu cùng phiếu.
   const [giaVonDonLuu, setGiaVonDonLuu] = useState<number | null>(null);
   const [nhomTongLuu, setNhomTongLuu] = useState<{ ten: string; tong: number }[]>([]);
+
+  // --- Khách hàng + ghi chú (chọn Ở PHIẾU từ 04/10/2026; báo giá chép sang, chỉ đọc) ---
+  const [khach, setKhach] = useState<KhachCuaPhieu>(KHACH_TRONG);
+  const [ghiChuPhieu, setGhiChuPhieu] = useState<string | null>(null);
+  const [luuKhach, setLuuKhach] = useState(false);
 
   // --- Form ---
   const [khoThanhPham, setKhoThanhPham] = useState("");
@@ -1343,6 +1400,9 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
     setGiaVonDonLuu(out.gia_von_don);
     setNhomTongLuu(out.nhom_tong ?? []);
     setKhoThanhPham(out.kho_thanh_pham ?? "");
+    setKhach(khachTuOut(out));
+    setKhachPhu(phuTuOut(out));
+    setGhiChuPhieu(out.ghi_chu);
     setComps((out.thanh_phans ?? []).map(fromComponent));
     setResult(out.result);
     // POST/PUT vừa tính lại xong nên BE luôn trả null → bấm "Tính giá" là băng nhắc tự tắt.
@@ -1359,46 +1419,44 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
       .catch(() => setActs([]));
   }, [token, pid]);
 
-  // Nạp 3 danh mục. Tách ra hàm riêng vì còn gọi lại khi quay về màn (xem effect ngay dưới).
-  const napDanhMuc = useCallback(() => {
+  // Nạp 4 danh mục (qua bộ nhớ phiên `layDanhMucPhieu`). Gọi lại khi danh mục đổi (effect dưới).
+  const napDanhMuc = useCallback((tick: number) => {
     if (!token) return;
-    giay.list(token).then((r) => setGiays(r.items)).catch(() => setGiays([]));
-    mayThietBi.list(token).then((r) => setMays(r.items)).catch(() => setMays([]));
-    congDoan.list(token).then((r) => setCongDoans(r.items)).catch(() => setCongDoans([]));
-    vatTu.list(token).then((r) => setVatTuDm(r.items)).catch(() => setVatTuDm([]));
-  }, [token]);
-  useEffect(() => {
-    napDanhMuc();
-  }, [napDanhMuc]);
-
-  // Sửa/xoá danh mục ở TAB KHÁC (hoặc cửa sổ khác) rồi quay lại tab phiếu ĐANG MỞ: React không tự
-  // biết, danh sách trong bộ nhớ vẫn là bản chụp lúc mở phiếu ⇒ ô tìm "Chuỗi công đoạn" còn thấy
-  // mục đã xoá, băng nhắc "cần tính lại" cũng không hiện. Nghe `focus`/`visibilitychange` để nạp
-  // lại danh mục + hỏi lại BE lời nhắc.
-  // ⚠️ CHỈ lấy `danh_muc_doi`, KHÔNG `applyOut(out)`: applyOut ghi đè cả `comps`, quay lại tab là
-  // mất sạch chỗ đang gõ dở.
-  const moiLamTuoiRef = useRef(0);
-  useEffect(() => {
-    if (!token) return;
-    const lamTuoi = () => {
-      if (document.visibilityState !== "visible") return;
-      const now = Date.now();
-      if (now - moiLamTuoiRef.current < 3000) return; // chống dội khi focus/visibility cùng bắn
-      moiLamTuoiRef.current = now;
-      napDanhMuc();
-      if (pid != null)
-        api.phieuTinhGia
-          .get(token, pid)
-          .then((out) => setDanhMucDoi(out.danh_muc_doi ?? null))
-          .catch(() => {});
-    };
-    window.addEventListener("focus", lamTuoi);
-    document.addEventListener("visibilitychange", lamTuoi);
+    let alive = true;
+    layDanhMucPhieu(token, tick).then((dm) => {
+      if (!alive) return;
+      setGiays(dm.giays);
+      setMays(dm.mays);
+      setCongDoans(dm.congDoans);
+      setVatTuDm(dm.vatTus);
+    });
     return () => {
-      window.removeEventListener("focus", lamTuoi);
-      document.removeEventListener("visibilitychange", lamTuoi);
+      alive = false;
     };
-  }, [token, pid, napDanhMuc]);
+  }, [token]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => napDanhMuc(eventTick), [napDanhMuc]);
+
+  // Danh mục bị sửa/xoá ở nơi khác (tab khác, máy người khác) trong lúc phiếu ĐANG MỞ: danh sách
+  // trong bộ nhớ vẫn là bản chụp lúc mở ⇒ ô tìm "Chuỗi công đoạn" còn thấy mục đã xoá, băng nhắc
+  // "cần tính lại" cũng không hiện. Máy chủ ĐẨY tín hiệu `danh_muc_doi` sau mỗi lần ghi danh mục
+  // (SSE, nhóm `danh_muc`) ⇒ nạp lại danh mục + hỏi lại lời nhắc. Tab ẩn thì AppShell giữ dấu, hiện
+  // lại mới xả; kênh đứt rồi nối lại cũng nhích tick nên không lọt tin.
+  // Trước 04/10/2026 màn này tự nạp lại MỖI LẦN cửa sổ được focus — bốn danh mục + cả phiếu, dù
+  // không ai sửa gì; người hay chuyển cửa sổ là dội hàng trăm request.
+  // ⚠️ CHỈ lấy `danh_muc_doi`, KHÔNG `applyOut(...)`: applyOut ghi đè cả `comps`, mất sạch chỗ
+  // đang gõ dở.
+  const tickDauRef = useRef(eventTick);
+  useEffect(() => {
+    if (!token || eventTick === tickDauRef.current) return;
+    napDanhMuc(eventTick);
+    if (pid != null)
+      api.phieuTinhGia
+        .danhMucDoi(token, pid)
+        .then((r) => setDanhMucDoi(r.danh_muc_doi ?? null))
+        .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventTick]);
 
   // Nạp phiếu. id null = phiếu nháp chưa có gì trên server → form rỗng, không gọi API.
   useEffect(() => {
@@ -1406,13 +1464,11 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
     let alive = true;
     setLoading(true);
     setErr(null);
+    loadActs(id); // nhật ký tải SONG SONG với phiếu, không đợi phiếu xong
     api.phieuTinhGia
       .get(token, id)
       .then((out) => {
-        if (alive) {
-          applyOut(out);
-          loadActs(id);
-        }
+        if (alive) applyOut(out);
       })
       .catch((e) => {
         if (alive) setErr(e instanceof ApiError ? e.message : "Không tải được phiếu.");
@@ -1555,24 +1611,16 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
       ),
     [comps, mays],
   );
+  const binhBaiDaGuiRef = useRef(new Map<string, string>());
   useEffect(() => {
     if (!token) return;
-    const rows = JSON.parse(binhBaiSig) as {
-      u: string;
-      a: boolean;
-      kd: number;
-      kr: number;
-      d: number;
-      r: number;
-      cd: number;
-      cr: number;
-      bl: number;
-      ke: number;
-    }[];
-    const targets = rows.filter((x) => x.a && x.kd > 0 && x.kr > 0 && x.d > 0 && x.r > 0);
+    // Chỉ sản phẩm có số bình bài CỦA CHÍNH NÓ vừa đổi — xem `chonBinhBaiCanGoi`.
+    const daGui = binhBaiDaGuiRef.current;
+    const targets = chonBinhBaiCanGoi(JSON.parse(binhBaiSig) as DongBinhBai[], daGui);
     if (targets.length === 0) return;
     const h = window.setTimeout(() => {
       targets.forEach((x) => {
+        daGui.set(x.u, JSON.stringify(x));
         api.tinhGia
           .binhBai(token, {
             kho_in_dai: x.kd,
@@ -1588,7 +1636,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
             if (con >= 1)
               setComps((cs) => cs.map((c) => (c.uid === x.u && c.con_auto ? { ...c, so_con: con } : c)));
           })
-          .catch(() => {});
+          .catch(() => daGui.delete(x.u)); // hỏng thì lần đổi sau thử lại
       });
     }, 300);
     return () => window.clearTimeout(h);
@@ -1665,7 +1713,16 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
     setCalcing(true);
     setErr(null);
     const req = pid == null
-      ? api.phieuTinhGia.create(token, payload)
+      ? api.phieuTinhGia.create(token, {
+          ...payload,
+          ghi_chu: ghiChuPhieu,
+          customer_id: khach.customer_id,
+          delivery_address: khach.delivery_address,
+          contact_name_snapshot: khach.contact_name_snapshot,
+          contact_phone_snapshot: khach.contact_phone_snapshot,
+          contact_title_snapshot: khach.contact_title_snapshot,
+          contact_email_snapshot: khach.contact_email_snapshot,
+        })
       : api.phieuTinhGia.update(token, pid, payload);
     req
       .then((out) => {
@@ -1675,7 +1732,29 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
       })
       .catch((e) => setErr(e instanceof ApiError ? e.message : "Không tính được giá. Thử lại."))
       .finally(() => setCalcing(false));
-  }, [token, pid, khoThanhPham, comps, applyOut, loadActs]);
+  }, [token, pid, khoThanhPham, comps, applyOut, loadActs, khach, ghiChuPhieu]);
+
+  // Dải khách: phiếu ĐÃ lưu thì ghi ngay (PATCH riêng, không tính lại giá, báo giá nháp theo);
+  // phiếu CHƯA lưu thì giữ tạm, lần "Tính giá & lưu" đầu tiên gửi kèm.
+  const doiKhach = useCallback((patch: DoiKhach) => {
+    const { ghi_chu, customer_name, ...oKhach } = patch;
+    setKhach((k) => ({ ...k, ...oKhach, ...(customer_name !== undefined ? { customer_name } : {}) }));
+    if (ghi_chu !== undefined) setGhiChuPhieu(ghi_chu);
+    if (!token || pid == null) return;
+    setLuuKhach(true);
+    setErr(null);
+    const body = { ...oKhach, ...(ghi_chu !== undefined ? { ghi_chu } : {}) };
+    api.phieuTinhGia
+      .khachHang(token, pid, body)
+      .then((out) => {
+        setKhach(khachTuOut(out));
+        setKhachPhu(phuTuOut(out));
+        setGhiChuPhieu(out.ghi_chu);
+        loadActs(pid);
+      })
+      .catch((e) => setErr(e instanceof ApiError ? e.message : "Không lưu được khách hàng của phiếu."))
+      .finally(() => setLuuKhach(false));
+  }, [token, pid, loadActs]);
 
   // #1 — Sửa sản phẩm XONG (đóng modal: Xong / X / bấm ra ngoài) mà CÓ thay đổi → tự tính lại
   // giá ngay, khỏi bấm "Tính giá" riêng. Chụp snapshot lúc mở để so khi đóng (chỉ tính khi dirty).
@@ -1701,13 +1780,33 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingCalc]);
 
-  // BG-3: từ phiếu tính giá → LUÔN tạo 1 phiếu báo giá MỚI (1 PTG → nhiều BG). Không ghi tiếp
-  // phiếu cũ; muốn điều chỉnh 1 báo giá đã có thì dùng "Tạo phiên bản mới" TRONG phiếu đó.
+  // Phiếu đã có báo giá chưa — hỏi lại mỗi khi phiếu có id (mở phiếu, lưu lần đầu).
+  useEffect(() => {
+    if (!token || pid == null) return;
+    let alive = true;
+    api.quotations
+      .byPhieu(token, pid)
+      .then((r) => {
+        if (alive) setBaoGiaCo(r.quote_id != null ? { id: r.quote_id, so: r.quote_number ?? "" } : null);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [token, pid]);
+
+  // MỘT phiếu ↔ MỘT báo giá (04/10/2026): có rồi thì mở nó; điều chỉnh = "Tạo phiên bản mới" trong
+  // báo giá đó; báo giá khác (khách khác, số lượng khác) = nhân bản phiếu.
   async function openOrCreateQuote() {
     if (!token || !navigate || pid == null) return;
+    if (baoGiaCo) {
+      navigate("bao-gia", { openQuoteId: baoGiaCo.id });
+      return;
+    }
     setQuoting(true);
     setErr(null);
     try {
+      // Khách, điểm giao, người nhận, ghi chú: máy chủ chép từ PHIẾU (payload không mang).
       const q = await api.quotations.create(token, {
         phieu_tinh_gia_id: pid, customer_id: null, valid_until: null,
         customer_note: null, internal_note: null,
@@ -1717,6 +1816,19 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
       setErr(e instanceof ApiError ? e.message : "Không mở được báo giá cho phiếu này.");
     } finally {
       setQuoting(false);
+    }
+  }
+
+  async function nhanBan() {
+    if (!token || pid == null || !onMoPhieu) return;
+    setNhanBanDang(true);
+    setErr(null);
+    try {
+      const moi = await api.phieuTinhGia.nhanBan(token, pid);
+      onMoPhieu(moi.id);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "Không nhân bản được phiếu này.");
+      setNhanBanDang(false);
     }
   }
 
@@ -1878,10 +1990,16 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
             <LockIcon /> Giá vốn nội bộ
           </div>
           <div className="tg-head__titlerow">
-            <h1 className="tg-head__title">{ma || "Phiếu mới"}</h1>
+            <h1 className="tg-head__title">{ma || (loading ? "Đang tải…" : "Phiếu mới")}</h1>
             {/* Nói thẳng phiếu chưa nằm trong sổ — mã PTG chỉ được cấp khi lưu thật. */}
             {!daLuu && <span className="badge neutral"><span className="d" />Chưa lưu</span>}
           </div>
+          {daLuu && (ktv || ngay) ? (
+            <div className="tg-head__meta">
+              {ktv ? <span className="tag">Người lập {ktv}</span> : null}
+              {ngay ? <span className="tag">{new Date(ngay).toLocaleDateString("vi-VN")}</span> : null}
+            </div>
+          ) : null}
         </div>
         <div className="tg-head__actions">
           <Button
@@ -1899,23 +2017,67 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
           >
             {daLuu ? "Tính giá" : "Tính giá & lưu"}
           </Button>
+          {onMoPhieu && daLuu && xemRuotGia && can("tinh_gia_thanh", "create") && (
+            <Button
+              variant="secondary"
+              onClick={nhanBan}
+              loading={nhanBanDang}
+              disabled={!token || loading || calcing}
+              title="Tạo phiếu mới chép nguyên khách, ghi chú và sản phẩm của phiếu này — để lập một báo giá khác"
+            >
+              <Copy size={14} aria-hidden="true" /> Nhân bản
+            </Button>
+          )}
           {navigate && (
             <Button
               variant="primary"
               onClick={openOrCreateQuote}
               loading={quoting}
-              disabled={!token || loading || !daLuu}
+              disabled={!token || loading || !daLuu || (!baoGiaCo && (khach.customer_id == null || luuKhach))}
               title={
-                !daLuu
-                  ? "Tính giá & lưu phiếu trước khi báo giá"
-                  : "Tạo / mở báo giá từ phiếu tính giá này"
+                baoGiaCo
+                  ? `Phiếu này đã có báo giá ${baoGiaCo.so} — mỗi phiếu một báo giá. Cần báo giá khác thì nhân bản phiếu.`
+                  : !daLuu
+                    ? "Tính giá & lưu phiếu trước khi báo giá"
+                    : khach.customer_id == null
+                      ? "Chọn khách hàng ở dải phía trên trước khi lập báo giá"
+                      : "Lập báo giá từ phiếu tính giá này"
               }
             >
-              Báo giá →
+              {baoGiaCo ? `Mở ${baoGiaCo.so} →` : "Báo giá →"}
             </Button>
           )}
         </div>
       </header>
+
+      {/* Đang tải phiếu thì chưa có khách để bày — hiện dải trống "Chọn khách hàng" là nói sai. */}
+      {!loading && <DaiKhachHang
+        giaTri={khach}
+        ghiChu={ghiChuPhieu}
+        phuKhach={khachPhu && khachPhu.cid === khach.customer_id ? (khachPhu.mst ? `MST ${khachPhu.mst}` : null) : undefined}
+        nhanDiemGiao={
+          khachPhu && khachPhu.cid === khach.customer_id && khachPhu.diaChi === khach.delivery_address
+            ? khachPhu.nhanDiemGiao : null
+        }
+        onDoi={suaDuoc ? doiKhach : undefined}
+        khoa={loading || luuKhach}
+        chan={
+          khach.customer_id == null ? (
+            <>
+              <Info size={13} aria-hidden="true" />
+              <span>Chưa chọn khách nên nút Báo giá đang khoá. Phiếu vẫn lưu và tính giá bình thường.</span>
+            </>
+          ) : baoGiaCo ? (
+            <>
+              <Info size={13} aria-hidden="true" />
+              <span>
+                Phiếu đã có báo giá {baoGiaCo.so}. Mỗi phiếu chỉ một báo giá; cần báo giá khác thì
+                bấm Nhân bản rồi sửa trên bản sao.
+              </span>
+            </>
+          ) : undefined
+        }
+      />}
 
       {err ? (
         <div className="banner banner--error" role="alert" style={{ marginTop: "var(--sp-4)" }}>
@@ -1960,8 +2122,8 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
       ) : null}
 
       {loading ? (
-        <div className="tg-empty" style={{ marginTop: "var(--sp-5)" }}>
-          <p className="tg-empty__title">Đang tải phiếu…</p>
+        <div style={{ marginTop: "var(--sp-5)" }}>
+          <EmptyState trangThai="dang-tai" nhanTai="Đang tải phiếu…" />
         </div>
       ) : (
         <div className="tg-split">
@@ -2400,33 +2562,6 @@ export function PhieuTinhGiaDetailView({ id, onBack, navigate }: {
             </div>
 
 
-            {/* Phiếu này */}
-            <section className="panel">
-              <div className="panel__hd"><h3><FileIcon /> Phiếu này</h3></div>
-              <div className="info">
-                <div className="irow"><span className="k">Mã phiếu</span><span className="v mono">{ma || "Cấp khi lưu"}</span></div>
-                <div className="irow"><span className="k">Người lập</span><span className="v">{ktv ?? "—"}</span></div>
-                <div className="irow"><span className="k">Ngày lập</span><span className="v">{ngay ? new Date(ngay).toLocaleDateString("vi-VN") : "—"}</span></div>
-                <div className="irow">
-                  <span className="k">Trạng thái</span>
-                  <span className="v">
-                    {!daLuu ? (
-                      <span className="badge neutral"><span className="d" />Chưa lưu</span>
-                    ) : (result ? result.grand_total : (tongGiaVon ?? 0)) > 0 ? (
-                      <span className="badge soft"><span className="d" />Đã tính giá</span>
-                    ) : (
-                      <span className="badge neutral"><span className="d" />Nháp</span>
-                    )}
-                  </span>
-                </div>
-                <div className="irow"><span className="k">Giá vốn tổng</span><span className="v mono">{tongGiaVon == null ? "—" : `${fmt(tongGiaVon)} đ`}</span></div>
-                <div className="irow"><span className="k">Số sản phẩm</span><span className="v mono">{fmt(comps.length)}</span></div>
-                {tongSoLuong > 0 ? (
-                  <div className="irow"><span className="k">Tổng SL</span><span className="v mono">{fmt(tongSoLuong)}</span></div>
-                ) : null}
-              </div>
-            </section>
-
             {/* Hoạt động — ai làm gì · khi nào (dữ liệu THẬT; empty-state khi chưa có) */}
             <section className="panel">
               <div className="panel__hd">
@@ -2808,6 +2943,11 @@ function ComponentModal({
     ds.splice(toi, 0, f);
     patchComp(c.uid, { thanh_phams: ds });
   };
+  // Kéo-thả ở danh sách bước bên trái: thả lên bước nào thì bước kéo chiếm đúng chỗ đó (kéo xuống ⇒
+  // đứng sau, kéo lên ⇒ đứng trước) — cùng luật với `doiCho`, ↑ ↓ trên thẻ vẫn giữ cho bàn phím.
+  const [keoIdx, setKeoIdx] = useState<number | null>(null);
+  const [thaIdx, setThaIdx] = useState<number | null>(null);
+  const boKeo = () => { setKeoIdx(null); setThaIdx(null); };
   // Xoá xong chọn bước đứng SAU nó (xoá bước cuối thì bước trước) — mắt không phải đi tìm lại.
   const xoaBuoc = (fIdx: number) => {
     const f = c.thanh_phams[fIdx];
@@ -3242,8 +3382,8 @@ function ComponentModal({
               </div>
               {/* MASTER–DETAIL (thiết kế B, 04/10/2026): trái là danh sách bước gọn (số · tên · số vật
                   tư · chấm vàng khi còn ô chưa nhập), phải là thẻ của MỘT bước đang chọn — đỡ phải
-                  cuộn dài và dùng được bề ngang. Luôn có một bước được chọn. Đổi thứ tự bằng ↑ ↓ trên
-                  thẻ; không kéo-thả. Chưa có bước nào thì chỉ một hộp tìm + vài gợi ý nhanh. */}
+                  cuộn dài và dùng được bề ngang. Luôn có một bước được chọn. Đổi thứ tự bằng kéo-thả
+                  ở danh sách hoặc ↑ ↓ trên thẻ. Chưa có bước nào thì chỉ một hộp tìm + vài gợi ý nhanh. */}
               {c.thanh_phams.length === 0 ? (
                 <div className="tg-cdv-rong">
                   <Select
@@ -3282,11 +3422,38 @@ function ComponentModal({
                       const ten = tenBuoc(f, congDoans) || "(công đoạn)";
                       const oTrong = soOChipTrong(f.vat_tus, vatTuDm);
                       const on = f.uid === buocChon?.uid;
+                      const thaO = keoIdx != null && thaIdx === fIdx && keoIdx !== fIdx
+                        ? (keoIdx < fIdx ? " tg-cdv__muc--tha-sau" : " tg-cdv__muc--tha-truoc")
+                        : "";
                       return (
-                        <li key={f.uid}>
+                        <li
+                          key={f.uid}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = "move";
+                            // Firefox không bắt đầu kéo nếu dataTransfer trống.
+                            e.dataTransfer.setData("text/plain", f.uid);
+                            setKeoIdx(fIdx);
+                          }}
+                          onDragOver={(e) => {
+                            if (keoIdx == null) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            if (thaIdx !== fIdx) setThaIdx(fIdx);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (keoIdx != null && keoIdx !== fIdx) {
+                              doiCho(keoIdx, fIdx);
+                              setChonUid(c.thanh_phams[keoIdx].uid);
+                            }
+                            boKeo();
+                          }}
+                          onDragEnd={boKeo}
+                        >
                           <button
                             type="button"
-                            className={`tg-cdv__muc${on ? " tg-cdv__muc--chon" : ""}`}
+                            className={`tg-cdv__muc${on ? " tg-cdv__muc--chon" : ""}${keoIdx === fIdx ? " tg-cdv__muc--keo" : ""}${thaO}`}
                             aria-current={on ? "step" : undefined}
                             onClick={() => setChonUid(f.uid)}
                             title={ten}
@@ -4118,12 +4285,6 @@ const GridIcon = () => (
 const RowsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-  </svg>
-);
-const FileIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    <path d="M14 2v6h6M9 13h6M9 17h4" />
   </svg>
 );
 const BoltIcon = () => (

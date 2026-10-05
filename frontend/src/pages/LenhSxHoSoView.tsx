@@ -29,6 +29,7 @@ import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { ChipKhuon } from "../components/ChipBuoc";
+import { EmptyState as EmptyStateChung } from "../components/EmptyState";
 import { Icon, type IconName } from "../components/Icons";
 import {
   BangLoi,
@@ -569,7 +570,7 @@ export function LenhSxHoSoView({
 
         <div className="hslsx-hs__body">
           {loading && !d ? (
-            <p className="hslsx-hs__dangtai">Đang tải hồ sơ lệnh…</p>
+            <EmptyStateChung trangThai="dang-tai" inline nhanTai="Đang tải hồ sơ lệnh…" />
           ) : loi && !d ? (
             <EmptyState
               icon="alert"

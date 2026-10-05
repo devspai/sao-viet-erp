@@ -4,6 +4,7 @@
 // Máy chủ trang hoá theo khối (`/bang-giao`) nên một lượt không bị cắt đôi qua hai trang.
 import type { BangGiaoItem, DeliveryTrip } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { EmptyState } from "../../../../components/EmptyState";
 import { fmtDateTime } from "../../../../utils/format";
 import { nhanChuyen, toneChuyen } from "../shared/helpers";
 import { CHUA_CAM_HANG, KhoangTrong, NutCho, Pill, TraHang } from "../components/giaoHangCells";
@@ -53,7 +54,7 @@ export function BangKeHoach({
     );
   return (
     <div className="gh-ds">
-      {loading && items.length === 0 && <p className="rc__sub" style={{ textAlign: "center", padding: "24px" }}>Đang tải…</p>}
+      {loading && items.length === 0 && <EmptyState trangThai="dang-tai" />}
       {items.map((it) =>
         it.luot ? (
           <KhoiLuot key={`luot-${it.luot.id}`} luot={it.luot} token={token}

@@ -25,7 +25,7 @@ import {
 } from "../../../../api/client";
 import { fmtDateTime } from "../../../../utils/format";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
-import { EmptyRow } from "../../../../components/EmptyState";
+import { EmptyRow, EmptyState } from "../../../../components/EmptyState";
 import type { CompRow } from "../shared/types";
 import { errText, fmtYmd, money, todayYmd } from "../shared/helpers";
 
@@ -690,22 +690,18 @@ export function SalaryModal({
                     <span>Ghi chú</span>
                     <span style={{ textAlign: "center" }}>Gỡ</span>
                   </div>
-                  {comps === null ? (
+                  {comps === null && !compsErr ? (
+                    <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải các khoản đang gán…" />
+                  ) : comps === null ? (
                     <div className="lg-comp__empty">
-                      {compsErr ? (
-                        <>
-                          Không đọc được khoản của người này ({compsErr}).{" "}
-                          <button
-                            type="button"
-                            className="lg-linkbtn"
-                            onClick={() => void loadComps()}
-                          >
-                            Thử lại
-                          </button>
-                        </>
-                      ) : (
-                        "Đang tải các khoản đang gán…"
-                      )}
+                      Không đọc được khoản của người này ({compsErr}).{" "}
+                      <button
+                        type="button"
+                        className="lg-linkbtn"
+                        onClick={() => void loadComps()}
+                      >
+                        Thử lại
+                      </button>
                     </div>
                   ) : comps.length === 0 ? (
                     <div className="lg-comp__empty">

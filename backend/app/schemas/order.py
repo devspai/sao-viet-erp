@@ -132,6 +132,11 @@ class OrderRow(BaseModel):
     sale_name: str | None
     created_at: datetime
     ordered_at: datetime | None
+    # Thêm cho màn danh sách (04/10/2026): PO khách, mốc chuyển xuống SX, tóm tắt hàng.
+    customer_po_no: str | None = None
+    san_xuat_released_at: datetime | None = None
+    first_line_desc: str | None = None   # mô tả dòng đầu (theo id)
+    line_count: int = 0
 
 
 class OrderListOut(BaseModel):

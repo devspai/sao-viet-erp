@@ -49,6 +49,7 @@ import {
   isWeekend,
   getInitials,
 } from "../shared/helpers";
+import { EmptyState } from "../../../../components/EmptyState";
 
 // --- Tab: Bảng công tháng (HR) ----------------------------------------------
 
@@ -659,7 +660,7 @@ export function TimesheetTab({
       )}
 
       {/* 3. Timesheet Scroll Table */}
-      {loading && <p className="ns__empty">Đang tải biểu công…</p>}
+      {loading && <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải biểu công…" />}
       {!loading && data && (
         <div className="cc-timesheet-scroll-container">
           <table className="cc-timesheet-table">
@@ -1317,7 +1318,7 @@ function DayDetailModal({
         <div className="ns-modal__body cc-day-detail-modal-body">
           {error && <div className="banner banner--error">{error}</div>}
           {!detail ? (
-            <p className="ns__empty">Đang tải…</p>
+            <EmptyState trangThai="dang-tai" inline />
           ) : (
             <>
               {/* Summary Strip */}

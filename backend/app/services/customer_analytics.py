@@ -31,15 +31,18 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models.customer import Customer
-from ..models.order import STATUS_CANCELLED as ORDER_CANCELLED
+from ..models.order import STATUS_ORDERED
 from ..models.order import Order, OrderLine
 from ..models.quotation import Quote, QuoteVersion
 
 # Redesign spec-06 v2: BỎ tier (tự phân loại thân thiết/đối tác/mới) — thay bằng thẻ gán tay.
 # Chỉ giữ số THẬT (doanh số / số đơn / recency) cho danh sách + dashboard.
 
-# Orders in these statuses are excluded from realised revenue (đã hủy).
-_EXCLUDED_ORDER_STATUSES = (ORDER_CANCELLED,)
+# Doanh số / số đơn / ngày đặt gần nhất chỉ tính đơn ĐÃ CHỐT (04/10/2026). Bản cũ chỉ loại đơn huỷ
+# nên đơn NHÁP — còn sửa được, chưa chắc thành — cũng cộng vào doanh số của khách. Cùng luật với
+# `khach_hang_so_lieu.DON_TINH_TIEN` (hồ sơ khách theo kỳ) để cột "Mua hàng" ở danh sách khớp số
+# trong hồ sơ.
+_REVENUE_ORDER_STATUSES = (STATUS_ORDERED,)
 
 # --- TỈ LỆ CHỐT: định nghĩa "thắng" và "đã chào" ở ĐÚNG MỘT CHỖ ---------------------------
 #
@@ -89,28 +92,6 @@ class CustomerListStats:
 
 
 @dataclass
-class MonthPoint:
-    month: str          # "YYYY-MM"
-    label: str          # "T7" (tháng 7)
-    revenue: int
-    orders: int
-
-
-@dataclass
-class ProductSlice:
-    label: str
-    revenue: int
-    orders: int
-
-
-@dataclass
-class HeatCell:
-    month_index: int    # 0..11 (oldest→newest, aligns with revenue_12m order)
-    weekday: int        # 0=Mon .. 6=Sun
-    count: int
-
-
-@dataclass
 class OrderLineBrief:
     """1 dòng của đơn: tên sản phẩm + TIỀN THẬT của chính dòng đó."""
 
@@ -146,22 +127,6 @@ class QuoteHistoryRow:
     created_at: datetime
 
 
-@dataclass
-class CustomerDashboard:
-    revenue_12m: int
-    orders_12m: int
-    avg_order_value: int | None
-    orders_total: int
-    quotes_total: int
-    win_rate_pct: int | None        # đơn / báo giá đã gửi (tỉ lệ chốt), None nếu chưa có BG
-    first_order_at: date | None
-    last_order_at: date | None
-    months: list[MonthPoint]
-    product_mix: list[ProductSlice]
-    heatmap: list[HeatCell]
-    has_data: bool
-
-
 class CustomerAnalyticsService:
     """Read-only analytics over the live sales tables. Framework-agnostic (takes a Session)."""
 
@@ -180,7 +145,10 @@ class CustomerAnalyticsService:
             return stats
 
         ids = [c.id for c in customers]
-        since = _utcnow() - timedelta(days=365)
+        # "12 tháng qua" tính theo NGÀY giờ VN, y hệt kỳ "12 tháng qua" ở hồ sơ khách
+        # (khach_hang_so_lieu) — hai nơi cùng một nhãn mà lệch ngày là lệch số.
+        from .khach_hang_so_lieu import hom_nay_vn, moc  # import trễ: module kia import ngược file này
+        since = moc(hom_nay_vn() - timedelta(days=364))
 
         # Realised revenue + order count per customer over trailing 12 months (non-cancelled).
         rev_rows = self.db.execute(
@@ -192,7 +160,7 @@ class CustomerAnalyticsService:
             .join(OrderLine, OrderLine.order_id == Order.id)
             .where(
                 Order.customer_id.in_(ids),
-                Order.status.notin_(_EXCLUDED_ORDER_STATUSES),
+                Order.status.in_(_REVENUE_ORDER_STATUSES),
                 Order.created_at >= since,
             )
             .group_by(Order.customer_id)
@@ -210,7 +178,7 @@ class CustomerAnalyticsService:
             )
             .where(
                 Order.customer_id.in_(ids),
-                Order.status.notin_(_EXCLUDED_ORDER_STATUSES),
+                Order.status.in_(_REVENUE_ORDER_STATUSES),
             )
             .group_by(Order.customer_id)
         ).all()
@@ -246,145 +214,6 @@ class CustomerAnalyticsService:
         )
         stats.total_revenue = total_rev_12m
         return stats
-
-    # --- detail dashboard ---------------------------------------------------
-
-    def dashboard(self, customer: Customer) -> CustomerDashboard:
-        now = _utcnow()
-        cid = customer.id
-
-        # 12-month window aligned to calendar months (oldest → newest).
-        months: list[tuple[int, int]] = []  # (year, month)
-        y, m = now.year, now.month
-        for _ in range(12):
-            months.append((y, m))
-            m -= 1
-            if m == 0:
-                m = 12
-                y -= 1
-        months.reverse()
-        index_of: dict[tuple[int, int], int] = {ym: i for i, ym in enumerate(months)}
-
-        # All non-cancelled orders for this customer with line totals + created_at.
-        order_rows = self.db.execute(
-            select(
-                Order.id,
-                Order.created_at,
-                func.coalesce(func.sum(OrderLine.line_total), 0),
-            )
-            .join(OrderLine, OrderLine.order_id == Order.id, isouter=True)
-            .where(
-                Order.customer_id == cid,
-                Order.status.notin_(_EXCLUDED_ORDER_STATUSES),
-            )
-            .group_by(Order.id, Order.created_at)
-        ).all()
-
-        revenue_by_month = [0] * 12
-        orders_by_month = [0] * 12
-        heat: dict[tuple[int, int], int] = {}
-        revenue_12m = 0
-        orders_12m = 0
-        orders_total = 0
-        first_order_at: date | None = None
-        last_order_at: date | None = None
-        for _oid, created, total in order_rows:
-            orders_total += 1
-            created_dt = created
-            if isinstance(created_dt, datetime) and created_dt.tzinfo is None:
-                created_dt = created_dt.replace(tzinfo=timezone.utc)
-            d = _as_date(created)
-            if first_order_at is None or d < first_order_at:
-                first_order_at = d
-            if last_order_at is None or d > last_order_at:
-                last_order_at = d
-            key = (d.year, d.month)
-            idx = index_of.get(key)
-            if idx is not None:
-                revenue_by_month[idx] += int(total or 0)
-                orders_by_month[idx] += 1
-                revenue_12m += int(total or 0)
-                orders_12m += 1
-                heat_key = (idx, d.weekday())
-                heat[heat_key] = heat.get(heat_key, 0) + 1
-
-        month_points = [
-            MonthPoint(
-                month=f"{yy:04d}-{mm:02d}",
-                label=f"T{mm}",
-                revenue=revenue_by_month[i],
-                orders=orders_by_month[i],
-            )
-            for i, (yy, mm) in enumerate(months)
-        ]
-        heatmap = [
-            HeatCell(month_index=mi, weekday=wd, count=cnt)
-            for (mi, wd), cnt in sorted(heat.items())
-        ]
-
-        # Cơ cấu sản phẩm (donut): group non-cancelled order lines by description over 12T.
-        since = now - timedelta(days=365)
-        mix_rows = self.db.execute(
-            select(
-                OrderLine.description,
-                func.coalesce(func.sum(OrderLine.line_total), 0),
-                func.count(OrderLine.id),
-            )
-            .join(Order, Order.id == OrderLine.order_id)
-            .where(
-                Order.customer_id == cid,
-                Order.status.notin_(_EXCLUDED_ORDER_STATUSES),
-                Order.created_at >= since,
-            )
-            .group_by(OrderLine.description)
-            .order_by(func.coalesce(func.sum(OrderLine.line_total), 0).desc())
-        ).all()
-        product_mix = [
-            ProductSlice(
-                label=(desc or "Khác").strip() or "Khác",
-                revenue=int(rev or 0),
-                orders=int(cnt or 0),
-            )
-            for desc, rev, cnt in mix_rows
-            if int(rev or 0) > 0
-        ]
-
-        # Quotation totals (đã gửi trở lên) for the win-rate + count.
-        quotes_total = self.db.execute(
-            select(func.count(Quote.id)).where(Quote.customer_id == cid)
-        ).scalar_one()
-        da_chao = self.db.execute(
-            select(func.count(Quote.id)).where(
-                Quote.customer_id == cid, Quote.status.in_(CHOT_DA_CHAO),
-            )
-        ).scalar_one()
-        thang = self.db.execute(
-            select(func.count(Quote.id)).where(
-                Quote.customer_id == cid, Quote.status.in_(CHOT_THANG),
-            )
-        ).scalar_one()
-
-        avg_order_value = round(revenue_12m / orders_12m) if orders_12m else None
-        # Cả tử lẫn mẫu đều là SỐ BÁO GIÁ. Bản cũ lấy `orders_total / sent_quotes` — số ĐƠN chia
-        # cho số BÁO GIÁ, hai đại lượng khác loại, nên một đơn tách làm hai báo giá (hoặc một
-        # báo giá đẻ hai đơn) là tỉ lệ vọt qua 100%.
-        win_rate = round(thang / da_chao * 100) if da_chao else None
-        has_data = orders_total > 0 or quotes_total > 0
-
-        return CustomerDashboard(
-            revenue_12m=revenue_12m,
-            orders_12m=orders_12m,
-            avg_order_value=avg_order_value,
-            orders_total=orders_total,
-            quotes_total=quotes_total,
-            win_rate_pct=win_rate,
-            first_order_at=first_order_at,
-            last_order_at=last_order_at,
-            months=month_points,
-            product_mix=product_mix,
-            heatmap=heatmap,
-            has_data=has_data,
-        )
 
     # --- history tables -----------------------------------------------------
 

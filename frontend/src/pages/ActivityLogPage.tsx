@@ -17,8 +17,6 @@ import {
   Copy,
   Check,
   RotateCcw,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   EyeOff,
   X,
@@ -49,6 +47,7 @@ import {
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import type { NavigateFn } from "../components/AppShell";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { Select } from "../components/Select";
 import "./activity.css";
 
@@ -284,26 +283,6 @@ function locMacDinh(): BoLoc {
   return { q: "", ...khoangNgay(CUA_SO_MAC_DINH_NGAY), nhom: "", action: "", actorId: "", loai: "" };
 }
 
-/** Dãy ô trang để vẽ "1 · 2 · 3 … n": luôn giữ trang ĐẦU và trang CUỐI, cộng một cửa sổ quanh
- *  trang đang xem, chỗ đứt thì chèn "…". Không đổ hết n nút ra vì lọc 30 ngày ở đây đã ra ngót
- *  trăm trang — một hàng nút dài bằng màn hình thì không ai bấm trúng. */
-function dayTrang(hienTai: number, tong: number): (number | "…")[] {
-  const TOI_DA = 7;
-  if (tong <= TOI_DA) return Array.from({ length: tong }, (_, i) => i + 1);
-  const giu = new Set<number>([1, tong, hienTai, hienTai - 1, hienTai + 1]);
-  // Ở sát hai đầu thì nới cửa sổ về phía còn lại, để số ô luôn bằng nhau — dãy không co giãn
-  // giật cục mỗi lần bấm.
-  if (hienTai <= 3) [2, 3, 4].forEach((n) => giu.add(n));
-  if (hienTai >= tong - 2) [tong - 1, tong - 2, tong - 3].forEach((n) => giu.add(n));
-  const ds = [...giu].filter((n) => n >= 1 && n <= tong).sort((a, b) => a - b);
-  const ra: (number | "…")[] = [];
-  ds.forEach((n, i) => {
-    if (i > 0 && n - ds[i - 1] > 1) ra.push("…");
-    ra.push(n);
-  });
-  return ra;
-}
-
 export function ActivityLogPage({
   navigate,
   eventTick = 0,
@@ -460,7 +439,6 @@ export function ActivityLogPage({
   }, [selectedRow]);
 
   const rows = trang?.items ?? [];
-  const tongSoTrang = Math.max(1, Math.ceil((trang?.tong ?? rows.length) / limit));
 
   const groupedTimeline = useMemo(() => {
     const groups: { label: string; items: AuditRow[] }[] = [];
@@ -1010,70 +988,17 @@ export function ActivityLogPage({
         )}
 
         {!error && rows.length > 0 && (
-          <footer className="act-footer">
-            <div className="act-footer-info">
-              Trang <strong>{soTrang}</strong>/{tongSoTrang} · {rows.length} dòng
-              {trang?.tong != null && (
-                <>
-                  {" "}
-                  / tổng <strong>{trang.tong}</strong> bản ghi khớp bộ lọc
-                </>
-              )}
-            </div>
-
-            <div className="act-footer-nav">
-              <label className="act-size-select">
-                <span>Dòng/trang:</span>
-                <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
-                  <option value={15}>15</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </label>
-
-              <nav className="act-page-btns" aria-label="Phân trang nhật ký">
-                <button
-                  type="button"
-                  className="act-btn-p"
-                  disabled={soTrang <= 1 || loading}
-                  onClick={() => napTrang(soTrang - 1)}
-                  title="Trang trước"
-                  aria-label="Trang trước"
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                {dayTrang(soTrang, tongSoTrang).map((o, i) =>
-                  o === "…" ? (
-                    <span className="act-page-dots" key={`d${i}`} aria-hidden="true">
-                      …
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      key={o}
-                      className={`act-page-num${o === soTrang ? " act-page-num--active" : ""}`}
-                      disabled={loading}
-                      aria-current={o === soTrang ? "page" : undefined}
-                      onClick={() => o !== soTrang && napTrang(o)}
-                    >
-                      {o}
-                    </button>
-                  ),
-                )}
-                <button
-                  type="button"
-                  className="act-btn-p"
-                  disabled={soTrang >= tongSoTrang || loading}
-                  onClick={() => napTrang(soTrang + 1)}
-                  title="Trang sau"
-                  aria-label="Trang sau"
-                >
-                  <ChevronRight size={14} />
-                </button>
-              </nav>
-            </div>
-          </footer>
+          <PhanTrangDayDu
+            trang={soTrang}
+            size={limit}
+            tong={trang?.tong ?? null}
+            soDong={rows.length}
+            onTrang={napTrang}
+            onSize={setLimit}
+            loading={loading}
+            hauTo="khớp bộ lọc"
+            ariaLabel="Phân trang nhật ký"
+          />
         )}
       </section>
 

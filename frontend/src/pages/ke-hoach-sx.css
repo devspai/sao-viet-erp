@@ -2,9 +2,9 @@
    Token lấy nguyên từ styles/tokens.css (không thêm biến :root, không hex thô). */
 
 .khsx {
-  max-width: 1280px;          /* rộng hơn .rc (1200) vì bảng lệnh 9 cột — chủ ý */
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: var(--sp-5) var(--sp-6);
+  padding: var(--sp-5) var(--page-pad-x);
 }
 
 /* Bảng màu TRẠNG THÁI dùng chung cho hai cách nhìn của Kế hoạch vật tư (Theo mặt hàng ↔ Theo lệnh).

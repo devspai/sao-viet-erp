@@ -19,6 +19,7 @@ from . import khoi_dong
 from .config import assert_secure_config, settings
 from .cong_dong_thoi import CongDongThoi, gioi_han_mac_dinh
 from .db import SessionLocal
+from .services import su_kien_danh_muc  # noqa: F401 — đăng ký listener SSE "danh mục đã đổi"
 from .routers import (
     accounting,
     module_notifications,

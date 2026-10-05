@@ -3,6 +3,7 @@
 // "chưa có ảnh chứng thực thì chưa đóng được phiếu".
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/useAuth";
+import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
 import { anhNho, assetUrl } from "../api/client";
 import { nhatKyDanhMuc, type NhatKyItem } from "../api/rebuildCatalog";
@@ -117,7 +118,7 @@ export function NhatKyPhieu({ loai, phieuId }: { loai: LoaiNhatKy; phieuId: numb
       .finally(() => setDangTai(false));
   }, [token, loai, phieuId, lan]);
 
-  if (dangTai) return <p className="ktm-hint">Đang tải lịch sử…</p>;
+  if (dangTai) return <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải lịch sử…" />;
   if (loi) {
     return (
       <p className="ktm-hint ktm-hint--loi">

@@ -1,7 +1,7 @@
 /* Redesign màn Phòng ban — High-Contrast Modern SaaS Visual System */
 
 .rdx-dept {
-  max-width: 1540px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
   /* Local design system overrides to eliminate dull/muddy beige colors */
   --rdx-slate-bg: #f8fafc;
@@ -3594,7 +3594,7 @@
 /* Staff Card Main Content */
 .depts__member-main {
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: 160px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -3612,6 +3612,28 @@
   font-size: 13.5px;
   font-weight: 700;
   color: var(--ink);
+}
+
+/* Tên bấm được → mở khay Hồ sơ nhân sự. */
+.depts__member-name--link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.depts__member-name--link:hover {
+  color: var(--rust);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.depts__member-name--link:focus-visible {
+  outline: 2px solid var(--rust);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .depts__member-code {
@@ -3660,8 +3682,12 @@
 .depts__member-right {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  /* Khung hẹp thì thẻ vai trò/trạng thái xuống dòng, đừng bóp mất tên. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 8px;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .depts__role-pill {

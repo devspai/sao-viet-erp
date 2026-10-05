@@ -16722,3 +16722,153 @@ def _migrate_lsx_vat_tu_sua_tay(db: Session) -> None:
 
 
 MIGRATIONS.append(("0362_lsx_vat_tu_sua_tay", _migrate_lsx_vat_tu_sua_tay))
+
+
+def _migrate_ptg_khach_hang(db: Session) -> None:
+    """0363 — khách hàng chọn Ở PHIẾU TÍNH GIÁ (chủ dự án chốt 04/10/2026): thêm `customer_id` (+ index),
+    `delivery_address`, `contact_*_snapshot` cho `phieu_tinh_gia`, cùng khuôn với `quotes`.
+
+    Backfill: phiếu chưa có khách lấy theo báo giá MỚI NHẤT (id lớn nhất) của nó có khách — trước đây
+    khách chọn ở báo giá. Ghi chú phiếu đang trống thì lấy ghi chú nội bộ của chính báo giá đó, vì từ
+    nay báo giá chỉ hiện ghi chú kế thừa từ phiếu. Raw SQL đích danh cột; idempotent."""
+    insp = inspect(db.get_bind())
+    tables = set(insp.get_table_names())
+    if "phieu_tinh_gia" not in tables:
+        return
+    cols = _existing_columns(insp, "phieu_tinh_gia")
+    for name, ddl in (
+        ("customer_id", "INTEGER"),
+        ("delivery_address", "VARCHAR(500)"),
+        ("contact_name_snapshot", "VARCHAR(255)"),
+        ("contact_phone_snapshot", "VARCHAR(30)"),
+        ("contact_title_snapshot", "VARCHAR(120)"),
+        ("contact_email_snapshot", "VARCHAR(255)"),
+    ):
+        if name not in cols:
+            db.execute(text(f"ALTER TABLE phieu_tinh_gia ADD COLUMN {name} {ddl}"))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_phieu_tinh_gia_customer_id ON phieu_tinh_gia (customer_id)"
+    ))
+    if "quotes" in tables:
+        nguon = (
+            "(SELECT q.{col} FROM quotes q WHERE q.phieu_tinh_gia_id = phieu_tinh_gia.id "
+            "AND q.customer_id IS NOT NULL ORDER BY q.id DESC LIMIT 1)"
+        )
+        gan = ", ".join(
+            f"{c} = {nguon.format(col=c)}"
+            for c in ("delivery_address", "contact_name_snapshot", "contact_phone_snapshot",
+                      "contact_title_snapshot", "contact_email_snapshot")
+        )
+        db.execute(text(
+            f"UPDATE phieu_tinh_gia SET {gan}, "
+            f"ghi_chu = COALESCE(NULLIF(ghi_chu, ''), {nguon.format(col='internal_note')}), "
+            f"customer_id = {nguon.format(col='customer_id')} "
+            "WHERE customer_id IS NULL AND EXISTS (SELECT 1 FROM quotes q "
+            "WHERE q.phieu_tinh_gia_id = phieu_tinh_gia.id AND q.customer_id IS NOT NULL)"
+        ))
+    db.commit()
+
+
+MIGRATIONS.append(("0363_ptg_khach_hang", _migrate_ptg_khach_hang))
+
+def _migrate_don_tu_chuyen_sx_khi_du_coc(db: Session) -> None:
+    """0364 — luật mới (chủ chốt 04/10/2026): đơn đã CHỐT + ĐỦ CỌC thì TỰ xuống sản xuất, không chờ
+    Sale bấm. Đơn cũ đang kẹt ở trạng thái đó được chuyển một lần ở đây; từ nay `OrderService`
+    tự chuyển lúc chốt / lúc ghi phiếu thu cọc. Raw SQL đích danh cột; công thức đủ cọc khớp
+    `OrderService._money` (required = round(pct·Σ(line_total·(100+vat))/100/100), cọc đã thu =
+    Σ phiếu thu cọc 'received'). Idempotent: chỉ đụng đơn chưa có mốc."""
+    insp = inspect(db.get_bind())
+    tables = set(insp.get_table_names())
+    if not {"orders", "order_lines", "payment_receipts"} <= tables:
+        return
+    if "san_xuat_released_at" not in _existing_columns(insp, "orders"):
+        return
+    rows = db.execute(text(
+        "SELECT id, deposit_pct FROM orders "
+        "WHERE status = 'ordered' AND san_xuat_released_at IS NULL"
+    )).all()
+    if not rows:
+        return
+    twv = {
+        int(oid): int(v) // 100
+        for oid, v in db.execute(text(
+            "SELECT order_id, SUM(CAST(line_total AS BIGINT) * (100 + vat_pct_estimate)) "
+            "FROM order_lines GROUP BY order_id"
+        )).all()
+        if v is not None
+    }
+    received = {
+        int(oid): int(v or 0)
+        for oid, v in db.execute(text(
+            "SELECT order_id, SUM(amount) FROM payment_receipts "
+            "WHERE source_type = 'order_deposit' AND status = 'received' AND order_id IS NOT NULL "
+            "GROUP BY order_id"
+        )).all()
+    }
+    ids = []
+    for oid, pct in rows:
+        required = int(round(float(pct) * twv.get(oid, 0) / 100)) if pct else 0
+        if required == 0 or received.get(oid, 0) >= required:
+            ids.append(int(oid))
+    for oid in ids:
+        db.execute(text(
+            "UPDATE orders SET san_xuat_released_at = CURRENT_TIMESTAMP "
+            "WHERE id = :i AND san_xuat_released_at IS NULL"
+        ), {"i": oid})
+    db.commit()
+
+
+MIGRATIONS.append(("0364_don_tu_chuyen_sx_khi_du_coc", _migrate_don_tu_chuyen_sx_khi_du_coc))
+
+
+def _migrate_quote_item_gia_go_tay(db: Session) -> None:
+    """0364 — `quote_items.gia_go_tay`: giá bán sale gõ tay (không theo markup). Màn báo giá cần
+    biết để giữ trạng thái "Gõ tay" + nút "Về theo markup" sau khi tải lại. Dòng cũ = false."""
+    insp = inspect(db.get_bind())
+    if "quote_items" not in set(insp.get_table_names()):
+        return
+    if "gia_go_tay" not in _existing_columns(insp, "quote_items"):
+        db.execute(text("ALTER TABLE quote_items ADD COLUMN gia_go_tay BOOLEAN NOT NULL DEFAULT false"))
+    db.commit()
+
+
+MIGRATIONS.append(("0364_quote_item_gia_go_tay", _migrate_quote_item_gia_go_tay))
+
+
+def _migrate_quote_mot_phieu_mot_bao_gia(db: Session) -> None:
+    """0365 — một phiếu tính giá chỉ MỘT báo giá (chốt 04/10/2026): đổi index thường
+    `ix_quotes_phieu_tinh_gia_id` thành UNIQUE (cùng tên, đúng dạng `create_all` dựng trên DB trắng).
+    Còn phiếu đang mang ≥2 báo giá thì KHÔNG dựng (dựng sẽ nổ) — in ra để xử lý tay; guard ở
+    service vẫn chặn phiếu thứ hai từ nay."""
+    insp = inspect(db.get_bind())
+    if "quotes" not in set(insp.get_table_names()):
+        return
+    if any(ix.get("unique") and ix.get("column_names") == ["phieu_tinh_gia_id"]
+           for ix in insp.get_indexes("quotes")):
+        return
+    trung = db.execute(text(
+        "SELECT phieu_tinh_gia_id FROM quotes WHERE phieu_tinh_gia_id IS NOT NULL "
+        "GROUP BY phieu_tinh_gia_id HAVING COUNT(*) > 1"
+    )).scalars().all()
+    if trung:
+        print(f"[mg 0365] Bỏ qua UNIQUE quotes.phieu_tinh_gia_id — phiếu có ≥2 báo giá: {list(trung)}")
+        return
+    db.execute(text("DROP INDEX IF EXISTS ix_quotes_phieu_tinh_gia_id"))
+    db.execute(text("CREATE UNIQUE INDEX ix_quotes_phieu_tinh_gia_id ON quotes (phieu_tinh_gia_id)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0365_quote_mot_phieu_mot_bao_gia", _migrate_quote_mot_phieu_mot_bao_gia))
+
+def _migrate_cham_soc_ket_qua(db: Session) -> None:
+    """0366 — `customer_care_tasks.ket_qua`: ghi chú kết quả của một lần hẹn (lịch hẹn chăm sóc
+    kiểu Google Calendar, 05/10/2026 — thay khối "Nhật ký hoạt động" riêng). Dòng cũ = NULL."""
+    insp = inspect(db.get_bind())
+    if "customer_care_tasks" not in set(insp.get_table_names()):
+        return
+    if "ket_qua" not in _existing_columns(insp, "customer_care_tasks"):
+        db.execute(text("ALTER TABLE customer_care_tasks ADD COLUMN ket_qua TEXT"))
+    db.commit()
+
+
+MIGRATIONS.append(("0366_cham_soc_ket_qua", _migrate_cham_soc_ket_qua))

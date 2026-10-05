@@ -11,7 +11,7 @@ def test_cho_duyet_theo_phong_va_quyet_dinh(client):
     tpkd = _role_token("tpkd_cham", "Trưởng phòng KD")
     tao_nguoi("duyet_khac", {"bao_gia": dict(can_read=True, can_approve_exception=True,
                                              scope=SCOPE_DEPARTMENT)}, phong="Phòng B chấm")
-    q = client.post("/api/quotations", json={"phieu_tinh_gia_id": _seed_ptg(gia_von_tp=1_000_000_000)},
+    q = client.post("/api/quotations", json={"phieu_tinh_gia_id": _seed_ptg(gia_von_tp=1_000_000_000, cua=sales)},
                     headers=_h(sales)).json()
     r = client.post(f"/api/quotations/{q['id']}/transition",
                     json={"to_status": "pending_approval"}, headers=_h(sales))

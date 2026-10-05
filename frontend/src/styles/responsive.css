@@ -511,7 +511,6 @@
   }
 }
 
-
 /* ---- 21. Sơ đồ quy trình kinh doanh: đừng thu cả bản đồ vào 375px --------- */
 /* `.qtkd-svg` đang `width: 100%` trên khung vẽ 1280×500, nên ở 375px cả sơ đồ bị co còn 27%:
    ô công đoạn 140×28 hiện ra đúng 33×7 px — chữ không đọc nổi, ngón tay không bấm trúng.
@@ -948,7 +947,6 @@
    trừ ba khung vẽ (.ps-ov, .bgsd-canvas, .kho-chart__plot) — chúng cuộn theo nội dung vẽ. */
 @media screen and (max-width: 1024px) {
   .kh__so-tabs > *,
-  .kh__sub-tabs > *,
   .kh__tag-summary-chips > *,
   .kh__tl-filters > *,
   .khsx-tabs-bar > *,
@@ -2263,60 +2261,10 @@
    TNHH Sản xuất Thương mại Dịch vụ …"), không phải mã cố định như `BG25-0006` — ở 24px mỗi dòng
    chỉ chứa ~18 ký tự nên tên thật sẽ ăn 3 dòng đầu ngăn kéo.
 
-   (c) KHUÔN 5 — LỊCH HẸN (tab Chăm sóc) LỆCH CỘT + CHIP HẸN RỖNG RUỘT:
-   ảnh `t4-lich-TRUOC.png` cho thấy hàng thứ "T2 T3 T4 T5 T6 T7 CN" không khớp cột ngày bên dưới.
-   Đo `.cc__grid`: `grid-template-columns` tính ra
-   `29,99px 30px 29,99px 93,03px 30px 29,99px 30px` — một cột phình gấp ba.
-   Truy nguyên bằng cách liệt kê MỌI luật khớp `.cc__tick` trong trang: thủ phạm là LUẬT CỦA CHÍNH
-   TA, và là HAI luật thay nhau bắt tùy trạng thái hẹn. Nút tick khai 14×14px
-   (`care-calendar.css:91-93`) nhưng:
-   - hẹn CHƯA xong ⇒ `<button aria-label="Đánh dấu đã xong"></button>` RỖNG ⇒ dính §9
-     `.shell__content button[aria-label]:empty { min-width: 44px }` (`responsive.css:238-241`);
-   - hẹn ĐÃ xong ⇒ nút chứa đúng một `<svg>` dấu check ⇒ dính §29
-     `.shell__content button:has(> svg:only-child) { min-width: 44px; min-height: 44px }`.
-   Ô ngày chứa chip do đó có min-content ~93px, mà `.cc__grid` khai `repeat(7, 1fr)` — `1fr`
-   thực chất là `minmax(auto, 1fr)` nên NỚI cột theo min-content thay vì chia đều ⇒ 6 cột còn
-   30px, 1 cột 93px, hàng thứ và hàng ngày lệch hẳn.
-   Vòng 1 vá bằng `minmax(0, 1fr)` + hạ tick xuống 20px. Đo lại sau khi đặt được một hẹn THẬT
-   vào ô (ảnh `t4-toast-care-due.png`): cột đã đều 39px, nhưng chip thành một hòn ô-van RỖNG —
-   `.cc__pill-note` đo được `width: 0` (scrollWidth 194px), tick vẫn 44px bề ngang. Hai chuyện:
-   - Luật 20px KHÔNG ăn phần bề ngang: `.shell__content .cc__pill .cc__tick` là (0,3,0), THUA
-     `.shell__content button[aria-label]:empty` (0,3,1) — `:empty` là pseudo-class nên tính vào
-     cột b. Riêng `height` thì ăn, vì luật đối thủ đặt min-height ở (0,1,1).
-   - Kể cả tick có xuống 20px cũng vô ích: ô 39px trừ padding còn 33px; tick 20 + gap 2 + padding 4
-     ⇒ chữ còn 7px. Ở 375px, lưới 7 cột KHÔNG có chỗ cho chữ, chỉnh cỡ kiểu gì cũng vậy.
-   Chữa (thiết kế lại cho màn hẹp, không phải co chữ):
-   1. `minmax(0, 1fr)` để bảy cột chia ĐỀU bất kể nội dung — đây mới là thứ giữ hàng thứ thẳng
-      với hàng ngày.
-   2. Chip thành THANH: ẨN ĐÚNG PHẦN CHỮ (`.cc__pill-note`), giữ nguyên hai dấu hiệu nhìn là
-      hiểu — vòng tick (rỗng = chưa xong, xanh + dấu check = đã xong) và biểu tượng lặp. Ô ngày
-      còn nói đủ "ngày này mấy hẹn, đến hạn hay chưa (màu nền), xong hay chưa (vòng tick), có lặp
-      không". Bấm thanh mở popover đầy đủ, trong đó có sẵn "Đã xong" / "Dời" / "Huỷ lần này"
-      (`CareCalendar.tsx:360-375`). Đo thật: tick 12 + gap 2 + dấu lặp 10 = 24px, lọt trong 25px lòng
-      thanh — còn chữ thì không bao giờ đủ (đo được 7px cho một chuỗi 194px).
-      ẨN LUÔN NÚT TICK và thay tín hiệu trạng thái bằng MỘT DẤU VẼ BẰNG `::after`. Hai bản đã thử
-      và bỏ, ghi lại để không ai quay lại:
-      - Bản 1 — giữ tick bấm được: ở 12px nó không còn là đích bấm hợp lệ (WCAG 2.5.8 đòi 24px) mà
-        lại nằm đúng chỗ ngón tay chạm vào thanh ⇒ mỗi lần định "xem chi tiết" lại có nguy cơ đánh
-        dấu XONG nhầm, sửa dữ liệu im lặng.
-      - Bản 2 — giữ tick nhưng `pointer-events: none`: hết bấm nhầm, nhưng VẪN SAI ở hai cảnh thật
-        mà người rà soát chỉ ra: (i) hẹn ĐÃ HUỶ không hề có tick — `CareCalendar.tsx:253` khai
-        `tickable = canUpdate && o.status !== "cancelled"`; (ii) người xem KHÔNG có quyền
-        `khach_hang.update` thì `canUpdate` luôn false nên MỌI hẹn đều không có tick. Hai cảnh đó
-        cộng với việc ẩn chữ ⇒ thanh rỗng tuết, mà nền `--done` (`--rule-hair`), `--cancelled`
-        (`--rule-hair` + opacity .7) và `--future` (`--rule-soft`) gần như cùng một xám ⇒ xong / đã huỷ /
-        chưa tới trông y hệt nhau.
-      Bản chốt dùng `::after`: dấu hoàn toàn độc lập với quyền và với việc có render nút hay không —
-      `✓` cho đã xong, `✕` cho đã huỷ, còn ba trạng thái đang mở (chưa tới / đến hạn / quá hạn) đã có
-      màu nền phân biệt và có chú giải ngay dưới lịch. `min-height: 12px` là BẮT BUỘC: hẹn đang mở,
-      không lặp, không tick thì lòng thanh RỖNG — không ghim chiều cao là thanh sập còn 0px, hẹn biến
-      mất khỏi lịch.
-      Muốn đánh dấu xong trên điện thoại: bấm thanh ⇒ popover ⇒ nút "Đã xong" (2 chạm thay vì 1,
-      đổi lấy việc không bao giờ sửa nhầm).
-      Máy tính không đổi — mọi luật nằm trong `@media screen and (max-width: 768px)`.
-      Trọng số: `.shell__content .cc__grid .cc__pill .cc__tick` (0,4,0) nặng hơn cả (0,3,1) của §9
-      lẫn (0,2,2) của §29 — cả hai luật đó chỉ đặt min-width/min-height nên `display: none` thắng
-      tuyệt đối, nhưng giữ (0,4,0) để ai đổi sang thuộc tính kích thước cũng không dính bẫy cũ.
+   (c) KHUÔN 5 — LỊCH HẸN (tab Chăm sóc): luật màn hẹp của lịch đã chuyển về
+   `pages/care-calendar.css` khi lịch viết lại kiểu Google Calendar (05/10/2026). Bài học cũ vẫn
+   giữ ở đó: lưới 7 cột phải là `minmax(0, 1fr)`, và ở 375px ô ngày không có chỗ cho chữ nên thẻ
+   hẹn chỉ còn thanh màu; muốn xem/tick thì dùng chế độ Lịch biểu.
 
    (d) KHUÔN 3 — NÚT XOÁ Ở Ô TìM BƯỚC CHỈ RỘNG 14px: `.qtkd__search-clear`
    (`QuyTrinhKinhDoanhPage.tsx:338-342`) đo được **14×44px** — cao thì đủ (ăn sàn §9) nhưng bề
@@ -2337,53 +2285,6 @@
   .shell__content .kh__so-title-row > h2 {
     font-size: clamp(19px, 5.6vw, 22px);
     line-height: 1.22;
-  }
-
-  .shell__content .cc__grid {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-  }
-  .shell__content .cc__cell {
-    padding: 3px;
-  }
-  .shell__content .cc__grid .cc__pill {
-    box-sizing: border-box;
-    min-height: 12px;
-    padding: 0 2px;
-    gap: 2px;
-    border-radius: 999px;
-    justify-content: center;
-  }
-  .shell__content .cc__grid .cc__pill .cc__pill-note,
-  .shell__content .cc__grid .cc__pill .cc__tick {
-    display: none;
-  }
-  .shell__content .cc__grid .cc__pill::after {
-    flex: 0 0 auto;
-    font-size: 9px;
-    line-height: 1;
-    text-decoration: none;
-  }
-  .shell__content .cc__grid .cc__pill--done::after {
-    content: "✓";
-  }
-  .shell__content .cc__grid .cc__pill--cancelled::after {
-    content: "✕";
-  }
-
-  /* Máy tính dạy "tick tròn khi làm xong" (dòng gợi ý) và "kéo thẻ sang ô khác để dời"
-     (mẹo trong popover). Ở màn hẹp KHÔNG CÒN cái tick nào — mục (c) ẩn hẳn `.cc__tick` bằng
-     `display: none` và thay tín hiệu trạng thái bằng dấu `::after` — và kéo-thả bằng ngón tay
-     cũng không chạy, để nguyên hai câu đó là dạy thao tác không tồn tại. Chú giải
-     "xong (gạch ngang)" thì hỏng nửa sau: chữ "xong" vẫn đúng (dấu `✓` thay cho vòng tick),
-     nhưng chữ trong thanh đã ẩn nên không còn cái "gạch ngang" nào để nhìn ⇒ chỉ ẩn cái ngoặc.
-     Ẩn đúng ba mẩu; phần "Bấm 1 ô ngày để đặt hẹn" và
-     "xong" vẫn còn vì chúng vẫn đúng. Ba chỗ đã tách sẵn mệnh đề cần ẩn ra `<span>` riêng vì CSS
-     không cắt được nửa nút văn bản: `CareCalendar.tsx:228` và `KhachHangPage.tsx:4310` dùng
-     `cc__hint-tick`, `CareCalendar.tsx:398` dùng `cc__lg-strike`. */
-  .shell__content .cc__hint-tick,
-  .shell__content .cc__lg-strike,
-  .shell__content .cc__pop-tip {
-    display: none;
   }
 
   .shell__content .qtkd__search-clear {

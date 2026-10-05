@@ -459,6 +459,9 @@ export type QuoteEvent =
   // chắc có quyền đọc dòng vừa ghi. Máy chủ tiết chế tối đa 3 giây một lần (mọi thao tác trong hệ
   // đều ghi audit, bắn từng dòng là ngập kênh).
   | { type: "nhat_ky_moi" }
+  // Danh mục nguồn của phiếu tính giá (giấy · máy · công đoạn · vật tư, kể cả bảng con) vừa đổi.
+  // Màn phiếu đang mở nạp lại danh mục + hỏi lại lời nhắc "danh mục đã đổi" (nhóm `danh_muc`).
+  | { type: "danh_muc_doi"; loai: string[] }
   // Có bản ghi mới ở một kênh chấm đỏ thanh bên (tín hiệu TRẦN — hỏi lại tóm tắt).
   | { type: "thong_bao_man"; kenh: string }
   // Đơn hàng bán dùng CHUNG kênh hub (bám logic SSE báo giá): quyết định duyệt/đủ cọc gửi riêng
@@ -470,6 +473,8 @@ export type QuoteEvent =
   // "care_assigned" khi giao hẹn cho người khác — gửi riêng người phụ trách.
   | { type: "care_due"; customer: string; customer_id: number; note: string }
   | { type: "care_assigned"; customer: string; customer_id: number; note: string }
+  // Điều chuyển khách ⇒ hẹn đang mở đi theo: `nhan` = mình là người nhận (toast), không thì mất hẹn.
+  | { type: "care_moved"; so: number; nhan: boolean }
   // Phiếu bảo trì tới ngày (ticker `bao_tri_reminders.py`): gửi riêng người NHẬN việc, phiếu chưa
   // ai nhận thì gửi mọi tài khoản có quyền sửa `ky_thuat_may` (tổ sửa chữa).
   | { type: "bao_tri_due"; phieu_id: number; ma: string; may: string; goi: string; qua_han: boolean }
@@ -3574,6 +3579,8 @@ export interface CustomerRow {
   no_ar_module: boolean;
   /** Derived from real orders (số THẬT; redesign spec-06 v2 bỏ tier). */
   revenue_12m: number;
+  /** Số đơn đã chốt trong cùng 12 tháng với `revenue_12m`. */
+  orders_12m: number;
   orders_total: number;
   last_order_at: string | null;
   /** Chính sách tài chính (ai cũng xem; sửa qua /financial, gate set_credit_terms). */
@@ -3603,64 +3610,126 @@ export interface CustomerListOut {
   kpis: CustomerKpis;
 }
 
-// --- CRM-360 Object-page dashboard + history (real data) --------------------
+// --- Hồ sơ khách: số liệu THEO KỲ (04/10/2026) -------------------------------
+// Mọi khối nhận khoảng ngày [tu, den] (YYYY-MM-DD, giờ VN) và trả kèm cùng kỳ năm trước (`*_cu`).
+// Tiền chỉ cộng đơn ĐÃ CHỐT. Lọc / đếm / phân trang ở máy chủ.
 
-export interface MonthPoint {
-  month: string;
-  label: string;
-  revenue: number;
-  orders: number;
+export type BuocBieuDo = "tuan" | "thang" | "quy";
+export interface KyXem {
+  tu: string;
+  den: string;
 }
-export interface ProductSlice {
-  label: string;
-  revenue: number;
-  orders: number;
+export interface TongDon {
+  doanh_so: number;
+  so_don: number;
+  tb_don: number | null;
+  so_huy: number;
+  tien_huy: number;
 }
-export interface HeatCell {
-  month_index: number;
-  weekday: number;
-  count: number;
+export interface TongBaoGia {
+  so_bg: number;
+  tong_gia_tri: number;
+  thang: number;
+  da_chao: number;
+  ti_le: number | null;
+  tb_ngay_chot: number | null;
 }
-export interface CustomerDashboard {
-  revenue_12m: number;
-  orders_12m: number;
-  avg_order_value: number | null;
-  orders_total: number;
-  quotes_total: number;
-  win_rate_pct: number | null;
-  first_order_at: string | null;
-  last_order_at: string | null;
-  months: MonthPoint[];
-  product_mix: ProductSlice[];
-  heatmap: HeatCell[];
-  has_data: boolean;
-  receivable: ReceivableCard;
+export interface CotBieuDo {
+  tu: string;
+  den: string;
+  doanh_so: number;
+  so_don: number;
+  doanh_so_cu: number;
+  so_don_cu: number;
 }
-export interface OrderLineBrief {
-  description: string;
-  line_total: number;
+export interface SanPhamKy {
+  ten: string;
+  doanh_so: number;
+  so_lan: number;
+  lan_cuoi: string | null;
+  doanh_so_cu: number;
 }
-export interface OrderHistoryRow {
+export interface NhipDatHang {
+  tb_ngay: number;
+  lan_cuoi: string;
+  so_ngay_tu_lan_cuoi: number;
+  nhanh_nhat: number;
+  lau_nhat: number;
+  so_don: number;
+  du_kien: string;
+}
+export interface ThongKeKhach {
+  tu: string;
+  den: string;
+  tu_cu: string;
+  den_cu: string;
+  buoc: BuocBieuDo;
+  don: TongDon;
+  don_cu: TongDon;
+  bao_gia: TongBaoGia;
+  bao_gia_cu: TongBaoGia;
+  cot: CotBieuDo[];
+  san_pham: SanPhamKy[];
+  nhip: NhipDatHang | null;
+  diem_don: { ngay: string; tong: number; huy: boolean }[];
+  dang_cho: { so: number; tong: number; sap_het_han: number };
+}
+export interface DongDon {
   id: number;
   order_no: string;
   status: string;
   order_kind: string;
-  summary: string;
-  /** Từng dòng kèm TIỀN THẬT. Khối "Sản phẩm mua nhiều nhất" cộng theo đây — trước 16/08/2026
-   *  chỉ có `summary` (chuỗi nối) nên nó phải chia đều tổng đơn cho số dấu phẩy, xếp sai hạng.
-   *  Đơn cũ có thể trả mảng rỗng; `gopTienTheoSanPham` lùi về đếm số đơn, KHÔNG bịa tiền. */
-  lines: OrderLineBrief[];
-  total: number | null;
+  tong: number | null;
   created_at: string;
+  bao_gia_id: number | null;
+  bao_gia_ma: string | null;
+  san_pham: string[];
 }
-export interface QuoteHistoryRow {
+export interface TrangDon {
+  items: DongDon[];
+  tong_so: number;
+  /** Số đơn theo nhóm chot / nhap / huy trong kỳ + ô tìm (số trên nút lọc). */
+  dem: Record<string, number>;
+  tien_chot: number;
+  tien_huy: number;
+  trang: number;
+  co: number;
+}
+export type NhomBaoGia = "cho" | "thanh_don" | "tu_choi" | "het_han" | "chua_gui" | "huy";
+export interface DongBaoGia {
   id: number;
   code: string;
   version: number;
   status: string;
+  nhom: NhomBaoGia;
   total: number | null;
   valid_until: string | null;
   created_at: string;
+  don_id: number | null;
+  don_ma: string | null;
+  don_ngay: string | null;
+}
+export interface TrangBaoGia {
+  items: DongBaoGia[];
+  tong_so: number;
+  dem: Record<string, number>;
+  trang: number;
+  co: number;
+}
+export interface LocLichSu {
+  q?: string;
+  nhom?: string;
+  sap_xep?: string;
+  trang?: number;
+  co?: number;
+}
+
+function _qsKy(ky: KyXem, them: Record<string, string | number | undefined> = {}): string {
+  const p = new URLSearchParams({ tu: ky.tu, den: ky.den });
+  for (const [k, v] of Object.entries(them)) {
+    if (v !== undefined && v !== "") p.set(k, String(v));
+  }
+  return p.toString();
 }
 
 export interface CustomerAuditRow {
@@ -3773,9 +3842,9 @@ export interface CareTask {
   repeat_interval: number;    // mỗi N đơn vị
   repeat_until: string | null;
   series_id: number | null;
-  /** Mức nhắc tính từ số ngày quá hạn: 0 chưa đến hạn, 1/2/3 = nhắc lần 1/2/3. */
-  remind_level: number;
-  overdue_days: number;
+  ket_qua: string | null;
+  /** Đang mở mà giờ hẹn đã qua. */
+  tre: boolean;
 }
 
 export interface CareTasksOut {
@@ -3794,29 +3863,33 @@ export interface CareOccurrence {
   status: "open" | "done" | "cancelled";
   is_virtual: boolean;
   repeat_freq: string;
-  remind_level: number;
-  overdue_days: number;
+  /** Đang mở mà giờ hẹn đã qua. */
+  tre: boolean;
+  /** Lần nào của chuỗi — gửi lại NGUYÊN VĂN khi thao tác (lần đã dời thì khác `due_date`). */
+  occurrence_date: string | null;
+  /** Ghi chú kết quả của lần hẹn. */
+  ket_qua: string | null;
   assignee_user_id: number | null;
   assignee_name: string | null;
-  is_event: boolean;    // true = tương tác ĐÃ GHI (CareEvent) hiện trên lịch
-  kind: string | null;  // hình thức khi is_event (goi_dien/nhan_tin/…)
 }
 
 export interface CareCalendarOut {
   items: CareOccurrence[];
 }
 
-/** Một việc đến hạn/quá hạn trong panel "Cần chăm sóc" trên danh bạ. */
-export interface FollowupRow {
-  id: number;
+/** Một lần hẹn trên nút "Lịch hẹn" của danh bạ — như trên lịch một khách, kèm khách. */
+export interface LichHenDong extends CareOccurrence {
   customer_id: number;
   customer_code: string;
   customer_name: string;
-  note: string;
-  due_date: string;
-  remind_level: number;
-  overdue_days: number;
-  assignee_name: string | null;
+}
+
+export interface LichHenOut {
+  items: LichHenDong[];
+  /** Trễ + hôm nay còn mở — số đỏ trên nút. */
+  so: number;
+  /** Người xem thấy hẹn của người khác không (hiện nút Của tôi / Cả nhóm). */
+  co_nhom: boolean;
 }
 
 /** Một dòng KHÔNG ghi được. Còn một dòng lỗi thì CẢ FILE không ghi gì.
@@ -3879,6 +3952,9 @@ export interface ReceivableCard {
 export interface CustomerDetailOut {
   customer: CustomerRow;
   receivable: ReceivableCard;
+  /** Số trên nhãn tab lịch sử (mọi trạng thái, mọi thời gian). */
+  so_don: number;
+  so_bao_gia: number;
 }
 
 export interface SaleOption {
@@ -3934,7 +4010,6 @@ export interface CustomerListParams {
   sale?: number | null;
   /** Lọc "Chưa gán ai" — khách chưa có NV phụ trách. Đè lên `sale` khi bật. */
   chua_gan?: boolean;
-  followup?: boolean;
   tag?: string | null;
   sort?: string;
   page?: number;
@@ -4092,6 +4167,10 @@ export interface PhieuTinhGiaListItem {
    *  đầu phiếu bỏ trống (ô đó là chữ tự do, không ai bắt buộc gõ). */
   ten_thanh_phans: string[];
   ngay: string | null;
+  /** Ghi chú nội bộ của phiếu — cột "Ghi chú" ngoài danh sách. */
+  ghi_chu: string | null;
+  customer_id: number | null;
+  customer_name: string | null;
 }
 export interface PhieuTinhGiaListOut {
   items: PhieuTinhGiaListItem[];
@@ -4231,6 +4310,18 @@ export interface PhieuTinhGiaOut {
   nhom_tong?: { ten: string; tong: number }[];
   ktv: string | null;
   ghi_chu: string | null;
+  /** Khách hàng chọn Ở PHIẾU (04/10/2026) — báo giá chép sang, không sửa được ở báo giá. */
+  customer_id: number | null;
+  /** Tên khách (BE tra từ danh mục Khách hàng, không lưu ở phiếu). */
+  customer_name: string | null;
+  /** MST + nhãn điểm giao khớp `delivery_address` — cho dải khách, khỏi gọi thêm API khách. */
+  customer_tax_code?: string | null;
+  delivery_label?: string | null;
+  delivery_address: string | null;
+  contact_name_snapshot: string | null;
+  contact_phone_snapshot: string | null;
+  contact_title_snapshot: string | null;
+  contact_email_snapshot: string | null;
   thanh_phans: ThanhPhanOut[];
   created_at: string | null;
   updated_at: string | null;
@@ -4330,10 +4421,28 @@ export interface PhieuTinhGiaCreate {
   kho_thanh_pham?: string | null;
   so_luong?: number;
   ghi_chu?: string | null;
+  /** Chỉ POST nhận (phiếu chưa lưu đã chọn khách); phiếu đã lưu đổi khách qua `khachHang`. */
+  customer_id?: number | null;
+  delivery_address?: string | null;
+  contact_name_snapshot?: string | null;
+  contact_phone_snapshot?: string | null;
+  contact_title_snapshot?: string | null;
+  contact_email_snapshot?: string | null;
   thanh_phans?: ThanhPhanIn[];
 }
 /** PUT: REPLACE-ALL con — BE tự tính lại + snapshot. */
 export type PhieuTinhGiaUpdate = PhieuTinhGiaCreate;
+/** PATCH khách / điểm giao / người nhận / ghi chú — chỉ ô gửi lên mới đổi. Đổi `customer_id` mà
+ *  không gửi kèm điểm giao/người nhận thì BE điền điểm giao mặc định + liên hệ chính. */
+export interface PhieuTinhGiaKhachHangPatch {
+  customer_id?: number | null;
+  delivery_address?: string | null;
+  contact_name_snapshot?: string | null;
+  contact_phone_snapshot?: string | null;
+  contact_title_snapshot?: string | null;
+  contact_email_snapshot?: string | null;
+  ghi_chu?: string | null;
+}
 
 // --- Báo giá (Quotation), spec-09 --------------------------------------------
 
@@ -4425,6 +4534,8 @@ export interface QuoteItemDetail {
   total_cost_snapshot: number;
   margin_percent: number;
   selling_price: number;
+  /** Giá bán sale GÕ TAY (không theo markup) — giữ trạng thái "Gõ tay" sau khi tải lại. */
+  gia_go_tay: boolean;
   unit_price: number;
   discount_amount: number;
   vat_percent: number;
@@ -4458,6 +4569,8 @@ export interface QuotationDetail {
   customer: CustomerDisplay | null;
   phieu_tinh_gia_id: number | null;
   phieu_tinh_gia_ma: string | null;
+  /** Phiếu nguồn đã đổi SL / giá vốn / sản phẩm so với phiên bản đang xem. */
+  phieu_doi?: boolean;
   valid_until: string | null;
   status: string;
   cancel_reason: string | null;
@@ -4532,20 +4645,12 @@ export interface QuoteItemUpdateInput {
 }
 
 export interface QuotationUpdateInput {
-  customer_id: number | null;
   valid_until: string | null;
   /** Điều khoản in ra phiếu (mỗi dòng = 1 điều khoản); bỏ trống → backend điền bộ mặc định. */
   terms_text?: string | null;
-  // Ghi chú đối ngoại/nội bộ đã BỎ khỏi UI — vẫn optional để tương thích payload cũ.
   customer_note?: string | null;
-  internal_note?: string | null;
-  /** ĐC giao + người nhận — chọn từ danh bạ/điểm giao của khách. BE overwrite trực tiếp (không giữ
-   *  field cũ khi bỏ trống) → luôn echo giá trị hiện có ở mọi lần gọi update. */
-  delivery_address?: string | null;
-  contact_name_snapshot?: string | null;
-  contact_phone_snapshot?: string | null;
-  contact_title_snapshot?: string | null;
-  contact_email_snapshot?: string | null;
+  // Khách / điểm giao / người nhận / ghi chú nội bộ KẾ THỪA từ phiếu tính giá (04/10/2026) — không
+  // gửi ở đây; máy chủ trả 422 nếu gửi khác giá trị đang có. Sửa ở phiếu: `phieuTinhGia.khachHang`.
   items: QuoteItemUpdateInput[] | null;
 }
 
@@ -4559,6 +4664,8 @@ export interface QuotationListParams {
   sort?: string;
   page?: number;
   size?: number;
+  /** Hộp lọc NV phụ trách — id người; máy chủ AND với phạm vi. */
+  nguoi?: number | null;
 }
 
 // --- Nhân sự · Hồ sơ nhân sự (nhan_su), lát #1 -----------------------------
@@ -8103,6 +8210,10 @@ export interface OrderRow {
   sale_name: string | null;
   created_at: string;
   ordered_at: string | null;
+  customer_po_no: string | null;
+  san_xuat_released_at: string | null;
+  first_line_desc: string | null;
+  line_count: number;
 }
 export interface OrderListOut {
   items: OrderRow[];
@@ -8198,6 +8309,8 @@ export interface OrderListParams {
   sort?: string;
   page?: number;
   size?: number;
+  /** Hộp lọc NV phụ trách — id người; máy chủ AND với phạm vi. */
+  nguoi?: number | null;
 }
 
 /** 1 nhãn trong KHO nhãn khách + số khách đang mang nó.
@@ -10672,7 +10785,6 @@ export const api = {
       if (params.q) qs.set("q", params.q);
       if (params.chua_gan) qs.set("chua_gan", "true");
       else if (params.sale != null) qs.set("sale", String(params.sale));
-      if (params.followup) qs.set("followup", "true");
       if (params.tag) qs.set("tag", params.tag);
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
@@ -10714,22 +10826,24 @@ export const api = {
     get(token: string, id: number): Promise<CustomerDetailOut> {
       return authed<CustomerDetailOut>(`/api/customers/${id}`, token);
     },
-    dashboard(token: string, id: number): Promise<CustomerDashboard> {
-      return authed<CustomerDashboard>(`/api/customers/${id}/dashboard`, token);
+    thongKe(token: string, id: number, ky: KyXem, buoc: BuocBieuDo): Promise<ThongKeKhach> {
+      return authed<ThongKeKhach>(`/api/customers/${id}/thong-ke?${_qsKy(ky, { buoc })}`, token);
     },
-    orderHistory(token: string, id: number): Promise<{ items: OrderHistoryRow[] }> {
-      return authed<{ items: OrderHistoryRow[] }>(`/api/customers/${id}/orders`, token);
+    orderHistory(token: string, id: number, ky: KyXem, loc: LocLichSu = {}): Promise<TrangDon> {
+      return authed<TrangDon>(`/api/customers/${id}/orders?${_qsKy(ky, { ...loc })}`, token);
     },
-    quoteHistory(token: string, id: number): Promise<{ items: QuoteHistoryRow[] }> {
-      return authed<{ items: QuoteHistoryRow[] }>(`/api/customers/${id}/quotations`, token);
+    quoteHistory(token: string, id: number, ky: KyXem, loc: LocLichSu = {}): Promise<TrangBaoGia> {
+      return authed<TrangBaoGia>(`/api/customers/${id}/quotations?${_qsKy(ky, { ...loc })}`, token);
     },
     audit(token: string, id: number): Promise<{ items: CustomerAuditRow[] }> {
       return authed<{ items: CustomerAuditRow[] }>(`/api/customers/${id}/audit`, token);
     },
     /** Xuất Excel (CSV) lịch sử mua hàng — fetch as a blob (bearer + refresh-aware). */
-    async orderCsvBlobUrl(token: string, id: number): Promise<string> {
+    async orderCsvBlobUrl(token: string, id: number, ky: KyXem, loc: LocLichSu = {}): Promise<string> {
+      // Xuất ĐÚNG kỳ + bộ lọc đang xem (không xuất cả lịch sử).
+      const qs = _qsKy(ky, { q: loc.q, nhom: loc.nhom });
       const doFetch = (bearer: string) =>
-        fetch(`${BASE_URL}/api/customers/${id}/orders.csv`, {
+        fetch(`${BASE_URL}/api/customers/${id}/orders.csv?${qs}`, {
           credentials: "include",
           cache: "no-store",
           headers: authHeader(bearer),
@@ -10898,11 +11012,13 @@ export const api = {
       from: string,
       to: string,
       input: {
-        action: "complete" | "cancel" | "reschedule";
+        action: "complete" | "cancel" | "reschedule" | "ghi";
         occurrence_date?: string | null;
         new_due?: string | null;
         log_kind?: string | null;
         log_note?: string | null;
+        /** Ghi chú kết quả; bỏ trống = không đụng, chuỗi rỗng = xoá. */
+        ket_qua?: string | null;
       },
     ): Promise<CareCalendarOut> {
       return authed<CareCalendarOut>(
@@ -10939,13 +11055,12 @@ export const api = {
         body: JSON.stringify(input),
       });
     },
-    /** Panel "Cần chăm sóc": việc đến hạn/quá hạn trong scope của tôi. */
-    careFollowups(token: string): Promise<{ items: FollowupRow[] }> {
-      return authed<{ items: FollowupRow[] }>("/api/customers/care-followups", token);
-    },
-    /** Chỉ ĐẾM việc chăm sóc đến hạn (badge menu) — khỏi tải cả danh sách để lấy `.length`. */
-    careFollowupsCount(token: string): Promise<{ so: number }> {
-      return authed<{ so: number }>("/api/customers/care-followups/count", token);
+    /** Nút "Lịch hẹn" trên danh bạ: hẹn trễ + từ hôm nay tới `den` (mặc định 30 ngày).
+     *  `toi` = hẹn giao cho tôi; `nhom` = mọi hẹn trên những khách tôi được xem. */
+    lichHen(token: string, phamVi: "toi" | "nhom", den?: string): Promise<LichHenOut> {
+      const qs = new URLSearchParams({ pham_vi: phamVi });
+      if (den) qs.set("den", den);
+      return authed<LichHenOut>(`/api/customers/lich-hen?${qs}`, token);
     },
     // --- tài liệu đính kèm (#21) ---
     attachments(token: string, id: number): Promise<{ items: CustomerAttachment[] }> {
@@ -12247,10 +12362,12 @@ export const api = {
   phieuTinhGia: {
     list(
       token: string,
-      params: { q?: string; status?: string; sort?: string; page?: number; size?: number } = {},
+      params: { q?: string; status?: string; sort?: string; page?: number; size?: number;
+        nguoi?: number | null } = {},
     ): Promise<PhieuTinhGiaListOut> {
       const qs = new URLSearchParams();
       if (params.q) qs.set("q", params.q);
+      if (params.nguoi != null) qs.set("nguoi", String(params.nguoi));
       if (params.status) qs.set("status", params.status);
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
@@ -12258,11 +12375,20 @@ export const api = {
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<PhieuTinhGiaListOut>(`/api/phieu-tinh-gia${suffix}`, token);
     },
-    stats(token: string): Promise<PhieuTinhGiaStatsOut> {
-      return authed<PhieuTinhGiaStatsOut>("/api/phieu-tinh-gia/stats", token);
+    stats(token: string, nguoi?: number | null): Promise<PhieuTinhGiaStatsOut> {
+      return authed<PhieuTinhGiaStatsOut>(`/api/phieu-tinh-gia/stats${nguoi != null ? `?nguoi=${nguoi}` : ""}`, token);
+    },
+    /** Hộp lọc người lập — chỉ người có phiếu TRONG tầm nhìn (phạm vi + nhóm dùng chung). */
+    nguoiLap(token: string): Promise<SaleOption[]> {
+      return authed<SaleOption[]>("/api/phieu-tinh-gia/nguoi-lap", token);
     },
     get(token: string, id: number): Promise<PhieuTinhGiaOut> {
       return authed<PhieuTinhGiaOut>(`/api/phieu-tinh-gia/${id}`, token);
+    },
+    /** Chỉ lời nhắc "danh mục đã đổi sau lần tính" — khỏi tải lại cả phiếu để đọc một trường. */
+    danhMucDoi(token: string, id: number): Promise<{ danh_muc_doi: PhieuTinhGiaOut["danh_muc_doi"] }> {
+      return authed<{ danh_muc_doi: PhieuTinhGiaOut["danh_muc_doi"] }>(
+        `/api/phieu-tinh-gia/${id}/danh-muc-doi`, token);
     },
     create(token: string, body: PhieuTinhGiaCreate): Promise<PhieuTinhGiaOut> {
       return authed<PhieuTinhGiaOut>("/api/phieu-tinh-gia", token, {
@@ -12278,6 +12404,18 @@ export const api = {
     },
     remove(token: string, id: number): Promise<void> {
       return authed<void>(`/api/phieu-tinh-gia/${id}`, token, { method: "DELETE" });
+    },
+    /** Khách, điểm giao, người nhận, ghi chú của phiếu (dải đầu màn phiếu). Không tính lại giá;
+     *  báo giá NHÁP của phiếu theo ngay. */
+    khachHang(token: string, id: number, body: PhieuTinhGiaKhachHangPatch): Promise<PhieuTinhGiaOut> {
+      return authed<PhieuTinhGiaOut>(`/api/phieu-tinh-gia/${id}/khach-hang`, token, {
+        method: "PATCH", body: JSON.stringify(body),
+      });
+    },
+    /** Nhân bản phiếu: mã mới, người lập là mình, chép nguyên khách + ghi chú + sản phẩm; giá
+     *  vốn tính lại theo danh mục hôm nay. Một phiếu chỉ một báo giá — đây là đường báo giá thứ hai. */
+    nhanBan(token: string, id: number): Promise<PhieuTinhGiaOut> {
+      return authed<PhieuTinhGiaOut>(`/api/phieu-tinh-gia/${id}/nhan-ban`, token, { method: "POST" });
     },
     /** Nhật ký hoạt động THẬT (ai làm gì · khi nào) của phiếu tính giá này. */
     activity(token: string, id: number): Promise<{ items: PtgActivity[] }> {
@@ -13317,6 +13455,7 @@ export const api = {
     list(token: string, params: QuotationListParams = {}): Promise<QuotationListOut> {
       const qs = new URLSearchParams();
       if (params.q) qs.set("q", params.q);
+      if (params.nguoi != null) qs.set("nguoi", String(params.nguoi));
       if (params.status) qs.set("status", params.status);
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
@@ -13328,8 +13467,12 @@ export const api = {
       return authed<QuotationEnumsOut>("/api/quotations/enums", token);
     },
     /** Số đếm cho thanh tab list. */
-    stats(token: string): Promise<QuotationStats> {
-      return authed<QuotationStats>("/api/quotations/stats", token);
+    stats(token: string, nguoi?: number | null): Promise<QuotationStats> {
+      return authed<QuotationStats>(`/api/quotations/stats${nguoi != null ? `?nguoi=${nguoi}` : ""}`, token);
+    },
+    /** Hộp lọc NV phụ trách — chỉ người có báo giá TRONG tầm nhìn (phạm vi + nhóm dùng chung). */
+    nguoiPhuTrach(token: string): Promise<SaleOption[]> {
+      return authed<SaleOption[]>("/api/quotations/nguoi-phu-trach", token);
     },
     get(token: string, id: number): Promise<QuotationDetail> {
       return authed<QuotationDetail>(`/api/quotations/${id}`, token);
@@ -13462,11 +13605,16 @@ export const api = {
       if (params.status) qs.set("status", params.status);
       if (params.order_kind) qs.set("order_kind", params.order_kind);
       if (params.view_scope) qs.set("view_scope", params.view_scope);
+      if (params.nguoi != null) qs.set("nguoi", String(params.nguoi));
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<OrderListOut>(`/api/orders${suffix}`, token);
+    },
+    /** Hộp lọc NV phụ trách — chỉ người có đơn TRONG tầm nhìn (phạm vi + nhóm dùng chung). */
+    nguoiPhuTrach(token: string): Promise<SaleOption[]> {
+      return authed<SaleOption[]>("/api/orders/nguoi-phu-trach", token);
     },
     enums(token: string): Promise<OrderEnumsOut> {
       return authed<OrderEnumsOut>("/api/orders/enums", token);
@@ -13531,8 +13679,12 @@ export const api = {
         body: JSON.stringify({ reason, fault }),
       });
     },
-    stats(token: string, viewScope?: string): Promise<OrderStatsOut> {
-      return authed<OrderStatsOut>(`/api/orders/stats${viewScope ? `?view_scope=${viewScope}` : ""}`, token);
+    stats(token: string, viewScope?: string, nguoi?: number | null): Promise<OrderStatsOut> {
+      const qs = new URLSearchParams();
+      if (viewScope) qs.set("view_scope", viewScope);
+      if (nguoi != null) qs.set("nguoi", String(nguoi));
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      return authed<OrderStatsOut>(`/api/orders/stats${suffix}`, token);
     },
     uploadConsent(token: string, id: number, file: File): Promise<OrderDetail> {
       const form = new FormData();

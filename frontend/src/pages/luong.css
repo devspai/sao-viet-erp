@@ -926,7 +926,7 @@
    phận · Phụ cấp & Bảo hiểm. Primitive drawer / field / switch / skeleton tái
    dùng từ rebuild-catalog.css (.rc-*); ở đây chỉ khai phần riêng của màn. ==== */
 .cl {
-  max-width: 1200px;
+  max-width: none; /* lấp đủ khổ trang chung của .ns */
 }
 
 /* Thanh tab con — gạch chân (bám .rc__tab), cố tình khác tab CHA đang là pill. */

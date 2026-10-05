@@ -8,6 +8,7 @@
 // bằng điện thoại nên đây là màn họ mở nhiều nhất.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/useAuth";
+import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
 import {
   kyThuatMay, NHAN_DON_VI_CHU_KY, NHAN_TT_BAO_TRI, type BaoTri, type DuKien,
@@ -269,7 +270,9 @@ export function LichBaoTri({ thang, onDoiThang, onMoPhieu, onTaoTuDuKien, nap }:
         <div className={`ktm-agenda${loading ? " is-loading" : ""}`}>
           {dongTheoNgay.length === 0 ? (
             <div className="ktm-agenda__rong">
-              <p>{loading ? "Đang tải lịch…" : "Tháng này không có việc bảo trì nào khớp bộ lọc."}</p>
+              {loading
+                ? <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải lịch…" />
+                : <p>Tháng này không có việc bảo trì nào khớp bộ lọc.</p>}
               {/* Tắt hết chú giải là màn trắng trơn — phải có đường ra ngay tại chỗ, đừng bắt người
                   ta tự đoán mình vừa tắt cái gì ở thanh trên. */}
               {!loading && dangLoc && (

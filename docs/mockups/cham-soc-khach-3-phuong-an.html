@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chăm sóc khách — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Token lấy đúng từ frontend/src/styles/tokens.css để bản xem giống app thật. */
+:root {
+  --paper: #f8fafc; --canvas: #ffffff; --ink: #0f172a; --ash: #475569; --muted: #64748b;
+  --rust: #c5400a; --rust-deep: #8a2d07;
+  --rule: #cbd5e1; --rule-soft: #e2e8f0; --rule-hair: #f1f5f9;
+  --moss: #2f5d3a; --moss-soft: #dbe7dd; --moss-deep: #244a2e;
+  --amber: #9c7714; --amber-soft: #efe4c4; --amber-deep: #7a5c0f;
+  --red: #b42318; --red-soft: #fde8e6;
+  --sky: #1d4f91; --sky-soft: #e3ecf8;
+  --charcoal: #0f172a; --on-charcoal: #f8fafc;
+  --ff-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --r-3: 6px; --r-5: 10px; --r-6: 12px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #e9edf2; font-family: var(--ff-sans); color: var(--ink); font-size: 14px; }
+button, input, select, textarea { font: inherit; }
+b { font-weight: 500; }
+
+/* ---- Thanh điều khiển của bản xem (KHÔNG thuộc thiết kế) ---- */
+.demo { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center;
+  padding: 10px 16px; background: #fff7d6; border-bottom: 1px solid #e6d48a; font-size: 13px; }
+.demo__grp { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--r-3); overflow: hidden; background: #fff; }
+.demo__grp button { font-size: 12.5px; padding: 6px 10px; border: 0; background: #fff; color: var(--ash); cursor: pointer; }
+.demo__grp button + button { border-left: 1px solid var(--rule); }
+.demo__grp button.on { background: var(--ink); color: #fff; }
+.demo__ghi { color: #6b5a14; }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; gap: 18px; }
+.vung { display: grid; gap: 8px; }
+.vung__nhan { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* ---- Ý tưởng của phương án ---- */
+.y { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); padding: 14px 16px; display: grid; gap: 8px; }
+.y h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.y p { margin: 0; color: var(--ash); line-height: 1.55; }
+.y__tham { display: flex; flex-wrap: wrap; gap: 6px; }
+.the { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px;
+  background: var(--rule-hair); border: 1px solid var(--rule-soft); color: var(--ash); white-space: nowrap; }
+.the--do { background: var(--red-soft); border-color: #f6c7c1; color: var(--red); }
+.the--vang { background: var(--amber-soft); border-color: #e2d3a4; color: var(--amber-deep); }
+.the--xanh { background: var(--moss-soft); border-color: #c3d6c6; color: var(--moss-deep); }
+.the--lam { background: var(--sky-soft); border-color: #c9d9ef; color: var(--sky); }
+
+/* ---- Danh sách khách (rút gọn) ---- */
+.ds { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); overflow: hidden; }
+.ds__dau { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--rule-soft); }
+.ds__so { display: flex; gap: 18px; color: var(--muted); font-size: 13px; }
+.ds__so span b { color: var(--ink); font-size: 16px; font-weight: 600; margin-right: 4px; }
+.ds__phai { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.nut { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: var(--r-5);
+  border: 1px solid var(--rule); background: #fff; color: var(--ink); cursor: pointer; white-space: nowrap; font-size: 13px; }
+.nut:hover { background: var(--rule-hair); }
+.nut--chinh { background: var(--ink); border-color: var(--ink); color: #fff; }
+.nut--chinh:hover { background: #1e293b; }
+.nut--nho { padding: 4px 9px; font-size: 12.5px; }
+.nut--tron { border-radius: 999px; }
+.dem { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: 999px; font-size: 11.5px; font-weight: 500; background: var(--rule-hair); color: var(--ash); }
+.dem--do { background: var(--red); color: #fff; }
+.dem--vang { background: var(--amber-soft); color: var(--amber-deep); }
+
+.loc { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--rule-soft); background: #fcfdfe; }
+.loc button { border: 1px solid var(--rule-soft); background: #fff; border-radius: 999px; padding: 4px 10px; font-size: 12.5px;
+  color: var(--ash); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.loc button.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); color: var(--ink); }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--rule-hair); vertical-align: top; }
+th { font-size: 12px; font-weight: 500; color: var(--muted); background: #fcfdfe; }
+td small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--rule-hair); }
+.mo { color: var(--muted); }
+.cuon { overflow-x: auto; }
+
+/* ---- Ngăn kéo hồ sơ (rút gọn) ---- */
+.hs { background: var(--paper); border: 1px solid var(--rule-soft); border-radius: var(--r-6); overflow: hidden; }
+.hs__dau { background: var(--charcoal); color: var(--on-charcoal); padding: 12px 20px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.hs__dau h3 { margin: 0; font-size: 18px; font-weight: 600; }
+.hs__dau small { color: #94a3b8; font-size: 12px; }
+.tabs { display: flex; gap: 4px; padding: 0 20px; background: var(--canvas); border-bottom: 1px solid var(--rule-soft); overflow-x: auto; }
+.tab { padding: 11px 10px; border: 0; background: none; color: var(--ash); border-bottom: 2px solid transparent; white-space: nowrap; }
+.tab.on { color: var(--ink); font-weight: 500; border-bottom-color: var(--rust); }
+.hs__than { padding: 16px 20px 24px; display: grid; gap: 14px; }
+
+.khoi { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); }
+.khoi__dau { display: flex; align-items: center; gap: 10px; padding: 12px 14px 4px; flex-wrap: wrap; }
+.khoi__dau h4 { margin: 0; font-size: 14px; font-weight: 500; }
+.khoi__dau .phu { font-size: 12px; color: var(--muted); }
+.khoi__dau .r { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.khoi__than { padding: 8px 14px 14px; }
+
+/* Ô nhập nhanh */
+.nhap { display: grid; gap: 10px; }
+.nhap__hang { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.nhap input[type=text], .nhap textarea, .nhap select { border: 1px solid var(--rule); border-radius: var(--r-5); padding: 8px 10px; background: #fff; color: var(--ink); }
+.nhap input[type=text] { flex: 1 1 260px; min-width: 0; }
+.nhap textarea { width: 100%; min-height: 64px; resize: vertical; }
+.seg { display: inline-flex; padding: 2px; border-radius: var(--r-5); background: var(--rule-hair); gap: 2px; flex-wrap: wrap; }
+.seg button { border: 0; background: none; padding: 5px 10px; border-radius: 8px; font-size: 12.5px; color: var(--ash); cursor: pointer; white-space: nowrap; }
+.seg button.on { background: #fff; color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgba(15,23,42,.12); }
+.nhan-o { font-size: 12px; color: var(--muted); }
+.hop { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ash); }
+.hop input { accent-color: var(--ink); }
+
+/* Danh sách việc */
+.nhom { display: grid; gap: 2px; }
+.nhom + .nhom { margin-top: 10px; }
+.nhom__ten { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); padding: 4px 0; }
+.viec { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: start; padding: 8px 8px; border-radius: var(--r-5); }
+.viec:hover { background: var(--rule-hair); }
+.tick { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--rule); background: #fff; margin-top: 1px; cursor: pointer; padding: 0; }
+.tick:hover { border-color: var(--moss); }
+.tick--xong { background: var(--moss); border-color: var(--moss); position: relative; }
+.tick--xong::after { content: ""; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.viec__ten { line-height: 1.4; }
+.viec__phu { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.viec__han { font-size: 12.5px; color: var(--muted); white-space: nowrap; text-align: right; }
+.viec__han--tre { color: var(--red); }
+.viec--xong .viec__ten { color: var(--muted); text-decoration: line-through; }
+
+/* Hộp kết quả khi tick xong (Pipedrive: "lên lịch việc tiếp theo") */
+.ketqua { margin: 4px 0 6px 32px; padding: 12px; border: 1px solid var(--rule); border-radius: var(--r-5); background: #fff; display: grid; gap: 10px; box-shadow: 0 4px 14px rgba(15,23,42,.06); }
+
+/* Dòng thời gian */
+.dtg { display: grid; }
+.dtg__thang { font-size: 12px; color: var(--muted); padding: 12px 0 6px; }
+.muc { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; padding: 8px 0; position: relative; }
+.muc::before { content: ""; position: absolute; left: 13px; top: 0; bottom: 0; width: 1px; background: var(--rule-soft); }
+.muc:first-of-type::before { top: 18px; }
+.bieu { position: relative; z-index: 1; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 11px; background: #fff; border: 1px solid var(--rule); color: var(--ash); }
+.bieu--goi { background: var(--sky-soft); border-color: #c9d9ef; color: var(--sky); }
+.bieu--xong { background: var(--moss-soft); border-color: #c3d6c6; color: var(--moss-deep); }
+.bieu--may { background: var(--rule-hair); border-color: var(--rule-soft); color: var(--muted); }
+.muc__ten { line-height: 1.45; }
+.muc__ghi { color: var(--ash); margin-top: 3px; line-height: 1.5; }
+.muc__phu { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+.muc__gio { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.muc--may .muc__ten { color: var(--ash); }
+
+/* Thẻ "vì sao nên liên hệ" */
+.ly { display: grid; gap: 8px; }
+.ly__dong { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--rule-soft); border-radius: var(--r-5); background: #fff; }
+.ly__dong p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+
+/* Hàng đợi (phương án C) */
+.hd { display: grid; grid-template-columns: 300px 1fr; min-height: 420px; }
+.hd__ds { border-right: 1px solid var(--rule-soft); overflow: auto; max-height: 560px; }
+.hd__muc { padding: 10px 14px; border-bottom: 1px solid var(--rule-hair); cursor: pointer; display: grid; gap: 4px; }
+.hd__muc:hover { background: var(--rule-hair); }
+.hd__muc.on { background: var(--rule-hair); box-shadow: inset 0 0 0 1px var(--rule); }
+.hd__muc .ten { display: flex; justify-content: space-between; gap: 8px; }
+.hd__muc .ten span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.hd__ct { padding: 16px; display: grid; gap: 14px; align-content: start; }
+.hd__ct h4 { margin: 0; font-size: 16px; font-weight: 600; }
+.hd__lienhe { display: flex; gap: 14px; flex-wrap: wrap; color: var(--ash); font-size: 13px; }
+.hd__nut { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Bảng so sánh logic */
+.ss { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); overflow: hidden; }
+.ss td, .ss th { font-size: 13px; line-height: 1.5; }
+.ss td:first-child { color: var(--muted); width: 170px; }
+
+.an { display: none !important; }
+
+@media (max-width: 760px) {
+  .wrap { padding: 12px; }
+  .hd { grid-template-columns: 1fr; }
+  .hd__ds { border-right: 0; border-bottom: 1px solid var(--rule-soft); max-height: 260px; }
+  .ds__phai { margin-left: 0; }
+  th, td { padding: 8px 10px; }
+  .hs__than { padding: 12px; }
+  .ss td:first-child { width: 110px; }
+}
+</style>
+</head>
+<body>
+
+<div class="demo">
+  <span class="demo__grp" id="chonPa">
+    <button data-pa="A" class="on">A. Danh sách việc</button>
+    <button data-pa="B">B. Dòng thời gian</button>
+    <button data-pa="C">C. Hàng đợi gợi ý</button>
+  </span>
+  <span class="demo__ghi">Bản xem — dữ liệu giả, chưa đụng code. Bấm tick tròn để thấy bước ghi kết quả.</span>
+</div>
+
+<div class="wrap">
+
+<!-- ============================ PHƯƠNG ÁN A ============================ -->
+<section data-pa="A" class="vung">
+  <div class="y">
+    <h2>A. Danh sách việc: bỏ lịch tháng, thay bằng việc theo nhóm hạn</h2>
+    <p>Mỗi khách có một danh sách việc chia theo Quá hạn, Hôm nay, Sắp tới. Thêm việc bằng một dòng gõ nhanh với nút ngày có sẵn.
+       Tick xong thì máy hỏi luôn "kết quả thế nào" và "việc tiếp theo là gì", nên khách luôn có bước kế tiếp.
+       Ở danh sách khách, nút xám "Không có việc chăm sóc" đổi thành "Việc của tôi" đếm theo hạn, kèm cột "Việc kế tiếp".</p>
+    <div class="y__tham"><span class="the">Pipedrive: hoạt động và lời nhắc lên lịch việc tiếp theo</span><span class="the">HubSpot: hàng việc cần làm</span><span class="the">Todoist: nút ngày nhanh</span></div>
+  </div>
+
+  <div class="vung__nhan">Danh sách khách hàng</div>
+  <div class="ds">
+    <div class="ds__dau">
+      <div class="ds__so"><span><b>24</b>khách hàng</span><span><b>0</b>mới tháng này</span></div>
+      <div class="ds__phai">
+        <button class="nut">Việc của tôi <span class="dem dem--do">2 quá hạn</span><span class="dem dem--vang">3 hôm nay</span><span class="dem">5 tuần này</span></button>
+      </div>
+    </div>
+    <div class="cuon"><table>
+      <thead><tr><th>Khách hàng</th><th>Phụ trách</th><th>Mua hàng 12 tháng</th><th>Việc kế tiếp</th></tr></thead>
+      <tbody>
+        <tr><td>Công ty CP Bibica<small>KH0007</small></td><td>Luyến</td><td>6 đơn<small>412 triệu</small></td><td><span class="viec__han--tre">Quá hạn 2 ngày</span><small>Gọi hỏi mẫu hộp Tết</small></td></tr>
+        <tr><td>Vinamilk<small>KH0002</small></td><td>Luyến</td><td>11 đơn<small>1,2 tỷ</small></td><td>Hôm nay<small>Gửi báo giá tem nhãn</small></td></tr>
+        <tr><td>Kinh Đô<small>KH0011</small></td><td>Hùng</td><td>3 đơn<small>96 triệu</small></td><td>Thứ năm 09/10<small>Gặp duyệt bản in</small></td></tr>
+        <tr><td>Nhựa Duy Tân<small>KH0019</small></td><td>Hùng</td><td>2 đơn<small>41 triệu</small></td><td class="mo">Chưa có việc nào</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="vung__nhan">Hồ sơ khách, tab Chăm sóc</div>
+  <div class="hs">
+    <div class="hs__dau"><h3>Công ty CP Bibica</h3><small>KH0007</small></div>
+    <div class="tabs"><button class="tab">Tổng quan</button><button class="tab">Mua hàng</button><button class="tab">Báo giá</button><button class="tab on">Chăm sóc</button><button class="tab">Liên hệ</button></div>
+    <div class="hs__than">
+      <div class="khoi"><div class="khoi__than nhap" style="padding-top:14px">
+        <div class="nhap__hang">
+          <span class="seg"><button class="on">Gọi điện</button><button>Nhắn tin</button><button>Email</button><button>Gặp</button></span>
+          <input type="text" placeholder="Việc cần làm, ví dụ: gọi hỏi số lượng đợt 2">
+        </div>
+        <div class="nhap__hang">
+          <span class="nhan-o">Hạn</span>
+          <span class="seg"><button>Hôm nay</button><button class="on">Mai</button><button>3 ngày nữa</button><button>Tuần sau</button><button>Chọn ngày</button></span>
+          <span class="nhan-o">lúc</span><select><option>09:00</option></select>
+          <label class="hop"><input type="checkbox"> Lặp lại</label>
+          <button class="nut nut--chinh" style="margin-left:auto">Thêm việc</button>
+        </div>
+      </div></div>
+
+      <div class="khoi"><div class="khoi__than" style="padding-top:12px">
+        <div class="nhom">
+          <div class="nhom__ten">Quá hạn <span class="dem dem--do">1</span></div>
+          <div class="viec"><button class="tick" data-mo="kqA"></button><div><div class="viec__ten">Gọi hỏi mẫu hộp Tết</div><div class="viec__phu"><span class="the">Gọi điện</span><span class="the">Luyến</span><span class="the the--do">Nhắc lần 2</span></div></div><div class="viec__han viec__han--tre">03/10, trễ 2 ngày</div></div>
+          <div class="ketqua an" id="kqA">
+            <div class="nhan-o">Kết quả cuộc gọi</div>
+            <span class="seg"><button class="on">Đã nói chuyện</button><button>Không nghe máy</button><button>Hẹn gọi lại</button></span>
+            <div class="nhap"><textarea placeholder="Ghi nhanh nội dung, ví dụ: chị Hoa cần 5.000 hộp, gửi mẫu trước 15/10"></textarea></div>
+            <div class="nhap__hang"><span class="nhan-o">Việc tiếp theo</span><span class="seg"><button>Không cần</button><button class="on">Gửi báo giá</button><button>Gọi lại</button><button>Gặp</button></span><span class="seg"><button>Mai</button><button class="on">3 ngày nữa</button><button>Tuần sau</button></span></div>
+            <div class="nhap__hang"><button class="nut nut--chinh">Lưu</button><button class="nut" data-dong="kqA">Huỷ</button></div>
+          </div>
+        </div>
+        <div class="nhom">
+          <div class="nhom__ten">Hôm nay <span class="dem dem--vang">1</span></div>
+          <div class="viec"><button class="tick"></button><div><div class="viec__ten">Nhắn Zalo xác nhận ngày giao đợt 1</div><div class="viec__phu"><span class="the">Nhắn tin</span><span class="the">Luyến</span></div></div><div class="viec__han">14:00</div></div>
+        </div>
+        <div class="nhom">
+          <div class="nhom__ten">Sắp tới <span class="dem">2</span></div>
+          <div class="viec"><button class="tick"></button><div><div class="viec__ten">Gặp duyệt bản in thử</div><div class="viec__phu"><span class="the">Gặp</span><span class="the">Hùng</span></div></div><div class="viec__han">Thứ năm 09/10</div></div>
+          <div class="viec"><button class="tick"></button><div><div class="viec__ten">Hỏi thăm sau giao hàng</div><div class="viec__phu"><span class="the">Gọi điện</span><span class="the">Luyến</span><span class="the">Lặp mỗi tháng</span></div></div><div class="viec__han">01/11</div></div>
+        </div>
+        <div class="nhom">
+          <div class="nhom__ten">Đã xong <span class="dem">12</span> <button class="nut nut--nho" style="margin-left:auto">Xem</button></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ PHƯƠNG ÁN B ============================ -->
+<section data-pa="B" class="vung an">
+  <div class="y">
+    <h2>B. Dòng thời gian: một nơi ghi lại mọi lần chạm khách</h2>
+    <p>Trên cùng là ô "Ghi lại" ba kiểu: ghi một cuộc gọi vừa xong (không cần hẹn trước), ghi chú, hoặc đặt hẹn.
+       Dưới đó ghim các hẹn sắp tới, rồi tới dòng thời gian gộp: lần gọi, ghi chú, hẹn đã xong, cùng các mốc máy tự có như đơn hàng và báo giá.
+       Đọc một lượt là biết lần trước nói gì, sau đó khách có đặt không.
+       Ở danh sách khách: thêm cột "Liên hệ gần nhất" và "Bước tiếp". Tab "Cần theo dõi" tách thành ba bộ lọc có số đếm.</p>
+    <div class="y__tham"><span class="the">Salesforce: dòng thời gian hoạt động</span><span class="the">HubSpot: ghi cuộc gọi trên hồ sơ</span><span class="the">Attio và Close: liên hệ gần nhất, bước tiếp theo</span></div>
+  </div>
+
+  <div class="vung__nhan">Danh sách khách hàng</div>
+  <div class="ds">
+    <div class="ds__dau">
+      <div class="ds__so"><span><b>24</b>khách hàng</span><span><b>0</b>mới tháng này</span></div>
+    </div>
+    <div class="loc">
+      <button>Tất cả <span class="dem">24</span></button>
+      <button class="on">Hẹn quá hạn <span class="dem dem--do">2</span></button>
+      <button>Chưa có bước tiếp <span class="dem">8</span></button>
+      <button>Quá 30 ngày chưa liên hệ <span class="dem">5</span></button>
+    </div>
+    <div class="cuon"><table>
+      <thead><tr><th>Khách hàng</th><th>Phụ trách</th><th>Mua hàng 12 tháng</th><th>Liên hệ gần nhất</th><th>Bước tiếp</th></tr></thead>
+      <tbody>
+        <tr><td>Công ty CP Bibica<small>KH0007</small></td><td>Luyến</td><td>6 đơn<small>412 triệu</small></td><td>12 ngày trước<small>Gọi điện, Luyến</small></td><td><span class="viec__han--tre">Quá hạn 2 ngày</span><small>Gọi hỏi mẫu hộp Tết</small></td></tr>
+        <tr><td>Masan Consumer<small>KH0014</small></td><td>Hùng</td><td>4 đơn<small>230 triệu</small></td><td>3 ngày trước<small>Gặp, Hùng</small></td><td><span class="viec__han--tre">Quá hạn 1 ngày</span><small>Gửi lại báo giá có VAT</small></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="vung__nhan">Hồ sơ khách, tab Chăm sóc</div>
+  <div class="hs">
+    <div class="hs__dau"><h3>Công ty CP Bibica</h3><small>KH0007</small></div>
+    <div class="tabs"><button class="tab">Tổng quan</button><button class="tab">Mua hàng</button><button class="tab">Báo giá</button><button class="tab on">Chăm sóc</button><button class="tab">Liên hệ</button></div>
+    <div class="hs__than">
+      <div class="khoi"><div class="khoi__than nhap" style="padding-top:12px">
+        <span class="seg"><button class="on">Ghi lại cuộc gọi, tin nhắn</button><button>Ghi chú</button><button>Đặt hẹn</button></span>
+        <div class="nhap__hang">
+          <span class="seg"><button class="on">Gọi điện</button><button>Nhắn tin</button><button>Email</button><button>Gặp</button></span>
+          <select><option>Với: chị Hoa (Thu mua)</option></select>
+          <span class="seg"><button class="on">Đã nói chuyện</button><button>Không nghe máy</button></span>
+        </div>
+        <textarea placeholder="Nội dung, ví dụ: khách hỏi giá hộp 5.000 cái, cần mẫu trước 15/10"></textarea>
+        <div class="nhap__hang">
+          <label class="hop"><input type="checkbox" checked> Đặt bước tiếp</label>
+          <input type="text" value="Gửi báo giá hộp Tết" style="flex:1 1 200px">
+          <span class="seg"><button>Mai</button><button class="on">3 ngày nữa</button><button>Tuần sau</button><button>Chọn ngày</button></span>
+          <button class="nut nut--chinh" style="margin-left:auto">Lưu</button>
+        </div>
+      </div></div>
+
+      <div class="khoi">
+        <div class="khoi__dau"><h4>Sắp tới</h4><span class="dem">2</span></div>
+        <div class="khoi__than">
+          <div class="viec"><button class="tick"></button><div><div class="viec__ten">Gọi hỏi mẫu hộp Tết</div><div class="viec__phu"><span class="the">Gọi điện</span><span class="the">Luyến</span></div></div><div class="viec__han viec__han--tre">03/10, trễ 2 ngày</div></div>
+          <div class="viec"><button class="tick"></button><div><div class="viec__ten">Gặp duyệt bản in thử</div><div class="viec__phu"><span class="the">Gặp</span><span class="the">Hùng</span></div></div><div class="viec__han">Thứ năm 09/10</div></div>
+        </div>
+      </div>
+
+      <div class="khoi">
+        <div class="khoi__dau"><h4>Đã qua</h4>
+          <div class="r"><span class="seg"><button class="on">Tất cả</button><button>Chăm sóc</button><button>Đơn hàng</button><button>Báo giá</button></span></div>
+        </div>
+        <div class="khoi__than dtg">
+          <div class="dtg__thang">Tháng 9 năm 2026</div>
+          <div class="muc"><span class="bieu bieu--goi">Gọi</span><div><div class="muc__ten">Gọi chị Hoa (Thu mua)</div><div class="muc__ghi">Khách sắp có đợt hộp Tết, hẹn đầu tháng 10 gửi mẫu. Đơn trước giao chậm 1 ngày, đã xin lỗi.</div><div class="muc__phu"><span class="the the--xanh">Đã nói chuyện</span><span class="the">Luyến</span></div></div><span class="muc__gio">23/09 10:15</span></div>
+          <div class="muc muc--may"><span class="bieu bieu--may">ĐH</span><div><div class="muc__ten">Đơn DH0031 giao xong</div><div class="muc__phu"><span class="the">48 triệu</span><span class="the">Từ báo giá BG26-0012</span></div></div><span class="muc__gio">20/09</span></div>
+          <div class="muc"><span class="bieu bieu--xong">Xong</span><div><div class="muc__ten">Hẹn gửi mẫu giấy couché 300</div><div class="muc__phu"><span class="the the--xanh">Xong đúng hạn</span><span class="the">Hùng</span></div></div><span class="muc__gio">12/09</span></div>
+          <div class="muc muc--may"><span class="bieu bieu--may">BG</span><div><div class="muc__ten">Báo giá BG26-0012 thành đơn</div></div><span class="muc__gio">05/09</span></div>
+          <div class="dtg__thang">Tháng 8 năm 2026</div>
+          <div class="muc"><span class="bieu">Ghi</span><div><div class="muc__ten">Ghi chú</div><div class="muc__ghi">Kế toán đổi người, hoá đơn gửi chị Ngân từ tháng 9.</div><div class="muc__phu"><span class="the">Luyến</span></div></div><span class="muc__gio">28/08</span></div>
+          <div style="text-align:center;padding-top:8px"><button class="nut nut--nho">Xem cũ hơn</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ PHƯƠNG ÁN C ============================ -->
+<section data-pa="C" class="vung an">
+  <div class="y">
+    <h2>C. Hàng đợi gợi ý: máy chỉ ra hôm nay nên gọi ai và vì sao</h2>
+    <p>Ngoài hẹn do người đặt, máy tự nêu lý do cần liên hệ từ dữ liệu sẵn có: khách quá nhịp đặt hàng, báo giá chờ phản hồi lâu, đơn vừa giao cần hỏi thăm, lâu không liên hệ.
+       Sale mở "Hàng đợi hôm nay" và đi lần lượt từng khách. Mỗi khách có ba nút: ghi kết quả, hoãn, hoặc bỏ qua kèm lý do.
+       Lý do tự mất khi hết đúng (khách đặt đơn thì "quá nhịp" rụng). Hồ sơ khách có thêm thẻ "Vì sao nên liên hệ" phía trên dòng thời gian của phương án B.</p>
+    <div class="y__tham"><span class="the">Close: hàng đợi và gọi lần lượt</span><span class="the">Salesforce: gợi ý việc nên làm</span><span class="the">HubSpot: không gian làm việc bán hàng</span></div>
+  </div>
+
+  <div class="vung__nhan">Danh sách khách hàng, bấm "Hàng đợi hôm nay"</div>
+  <div class="ds">
+    <div class="ds__dau">
+      <div class="ds__so"><span><b>24</b>khách hàng</span><span><b>0</b>mới tháng này</span></div>
+      <div class="ds__phai"><button class="nut nut--chinh">Hàng đợi hôm nay <span class="dem dem--do">7</span></button></div>
+    </div>
+    <div class="hd">
+      <div class="hd__ds">
+        <div class="hd__muc on"><div class="ten"><b>Công ty CP Bibica</b><span>1/7</span></div><div class="viec__phu"><span class="the the--do">Hẹn quá hạn 2 ngày</span><span class="the the--vang">Quá nhịp 18 ngày</span></div></div>
+        <div class="hd__muc"><div class="ten"><b>Masan Consumer</b></div><div class="viec__phu"><span class="the the--vang">Báo giá chờ 9 ngày</span></div></div>
+        <div class="hd__muc"><div class="ten"><b>Vinamilk</b></div><div class="viec__phu"><span class="the the--lam">Đơn giao 3 ngày, hỏi thăm</span></div></div>
+        <div class="hd__muc"><div class="ten"><b>Nhựa Duy Tân</b></div><div class="viec__phu"><span class="the">62 ngày chưa liên hệ</span></div></div>
+        <div class="hd__muc"><div class="ten"><b>Thiên Long</b></div><div class="viec__phu"><span class="the the--vang">Quá nhịp 6 ngày</span></div></div>
+      </div>
+      <div class="hd__ct">
+        <div><h4>Công ty CP Bibica</h4><div class="hd__lienhe"><span>Chị Hoa, Thu mua</span><span>0903 123 456</span><span>Phụ trách: Luyến</span></div></div>
+        <div class="ly">
+          <div class="ly__dong"><div><b>Hẹn "Gọi hỏi mẫu hộp Tết" quá hạn 2 ngày</b><p>Đặt ngày 23/09 sau cuộc gọi với chị Hoa</p></div><span class="the the--do">Nhắc lần 2</span></div>
+          <div class="ly__dong"><div><b>Quá nhịp đặt hàng 18 ngày</b><p>Thường 30 ngày đặt một lần, đơn cuối 17/08 đã 48 ngày</p></div><span class="the the--vang">Nhịp</span></div>
+        </div>
+        <div class="muc__ghi" style="margin:0"><span class="nhan-o">Lần trước, 23/09:</span> Khách sắp có đợt hộp Tết, hẹn đầu tháng 10 gửi mẫu.</div>
+        <div class="hd__nut">
+          <button class="nut nut--chinh" data-mo="kqC">Đã liên hệ, ghi kết quả</button>
+          <button class="nut">Hoãn tới…</button>
+          <button class="nut">Bỏ qua lần này</button>
+          <button class="nut" style="margin-left:auto">Khách tiếp theo</button>
+        </div>
+        <div class="ketqua an" id="kqC" style="margin-left:0">
+          <span class="seg"><button class="on">Gọi điện</button><button>Nhắn tin</button><button>Gặp</button></span>
+          <span class="seg"><button class="on">Đã nói chuyện</button><button>Không nghe máy</button></span>
+          <div class="nhap"><textarea placeholder="Nội dung cuộc gọi"></textarea></div>
+          <div class="nhap__hang"><label class="hop"><input type="checkbox" checked> Bước tiếp</label><input type="text" value="Gửi mẫu hộp Tết" style="flex:1 1 200px;border:1px solid var(--rule);border-radius:10px;padding:8px 10px"><span class="seg"><button>Mai</button><button class="on">3 ngày nữa</button></span></div>
+          <div class="nhap__hang"><button class="nut nut--chinh">Lưu và sang khách tiếp theo</button><button class="nut" data-dong="kqC">Huỷ</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ SO SÁNH LOGIC ============================ -->
+<section class="vung">
+  <div class="vung__nhan">So sánh phần logic</div>
+  <div class="ss cuon"><table>
+    <thead><tr><th></th><th>A. Danh sách việc</th><th>B. Dòng thời gian</th><th>C. Hàng đợi gợi ý</th></tr></thead>
+    <tbody>
+      <tr><td>Nguồn "cần chăm sóc"</td><td>Chỉ hẹn do người đặt</td><td>Hẹn do người đặt, cộng khách chưa có bước tiếp và khách lâu không liên hệ</td><td>Như B, cộng tín hiệu máy tự tính: quá nhịp, báo giá chờ, đơn vừa giao</td></tr>
+      <tr><td>Ghi cuộc gọi không hẹn trước</td><td>Không, phải tạo việc rồi tick</td><td>Có, ghi thẳng</td><td>Có, ghi thẳng</td></tr>
+      <tr><td>Nút trên danh sách khách</td><td>"Việc của tôi" đếm quá hạn, hôm nay, tuần này</td><td>Ba bộ lọc có số đếm trong tab Cần theo dõi</td><td>"Hàng đợi hôm nay" mở màn gọi lần lượt</td></tr>
+      <tr><td>Lịch tháng hiện tại</td><td>Bỏ, giữ nút "xem dạng lịch" nếu cần</td><td>Bỏ</td><td>Bỏ</td></tr>
+      <tr><td>Đổi dữ liệu</td><td>Thêm 2 cột vào việc: kiểu liên hệ, kết quả</td><td>Như A. Dùng lại bảng ghi chăm sóc đang có sẵn nhưng màn chưa dùng. Đơn và báo giá đọc từ bảng sẵn có, không chép</td><td>Như B, cộng 1 bảng nhỏ lưu "hoãn tới ngày, bỏ qua vì sao". Ngưỡng gợi ý khai ở danh mục, không viết cứng</td></tr>
+      <tr><td>Khối lượng</td><td>Nhỏ, khoảng 2 ngày</td><td>Vừa, khoảng 4 ngày</td><td>Lớn, khoảng 7 ngày, phải chỉnh ngưỡng để khỏi nhiễu</td></tr>
+      <tr><td>Rủi ro</td><td>Vẫn mù với khách bị bỏ quên, vì không ai đặt hẹn thì không có gì hiện</td><td>Dòng thời gian dài ở khách lâu năm, cần phân trang ở máy chủ</td><td>Gợi ý sai ngưỡng thì sale quen bấm bỏ qua, mất tác dụng</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</div>
+
+<script>
+document.querySelectorAll('#chonPa button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#chonPa button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('section[data-pa]').forEach(s => s.classList.toggle('an', s.dataset.pa !== b.dataset.pa));
+  window.scrollTo({ top: 0 });
+});
+document.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => {
+  document.getElementById(b.dataset.mo).classList.remove('an');
+  if (b.classList.contains('tick')) b.classList.add('tick--xong');
+});
+document.querySelectorAll('[data-dong]').forEach(b => b.onclick = () => {
+  document.getElementById(b.dataset.dong).classList.add('an');
+  document.querySelectorAll('[data-mo="' + b.dataset.dong + '"]').forEach(t => t.classList.remove('tick--xong'));
+});
+document.querySelectorAll('.seg').forEach(g => g.addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  g.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === t));
+}));
+</script>
+</body>
+</html>

@@ -21,6 +21,7 @@ import type {
 import type { MayChon } from "../api/kyThuatMay";
 import { Button } from "../components/Button";
 import { ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
+import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
 import { num, ngayGio } from "./keHoachSxShared";
 import { nhanChang } from "./lsxBuoc";
@@ -309,7 +310,7 @@ export function ThsxDrawer({
 
       <div className="thsx-panel__body" ref={bodyRef}>
         {loading && !chiTiet ? (
-          <div className="thsx-panel__loading">Đang tải…</div>
+          <EmptyState trangThai="dang-tai" inline />
         ) : !cv || !chiTiet ? (
           <div className="thsx-panel__empty">Không tải được chi tiết công việc.</div>
         ) : (

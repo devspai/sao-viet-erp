@@ -13,6 +13,7 @@ import { ConfirmDialog } from "../../../../../components/ConfirmDialog";
 import { RowActionButton } from "../../../../../components/RowActionButton";
 import { fmtYmd, money, todayYmd } from "../../shared/helpers";
 import { NumInput } from "./fields";
+import { EmptyState } from "../../../../../components/EmptyState";
 
 export function ChiTieuNgayEditor({
   token,
@@ -130,7 +131,7 @@ export function ChiTieuNgayEditor({
         {err && <div className="banner banner--error">{err}</div>}
 
         {loading ? (
-          <p className="cl-hint-inline">Đang tải chỉ tiêu ngày…</p>
+          <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải chỉ tiêu ngày…" />
         ) : (
           <>
             {!readOnly && (

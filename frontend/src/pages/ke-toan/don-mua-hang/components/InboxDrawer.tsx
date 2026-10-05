@@ -6,6 +6,7 @@ import type {
   SupplierCredit,
 } from "../../../../api/client";
 import { CodeLink } from "../../../../components/CodeLink";
+import { EmptyState } from "../../../../components/EmptyState";
 import { Icon } from "../../../../components/Icons";
 import { PurchaseActivityTimeline } from "../../../../components/PurchaseActivityTimeline";
 import { fmtDate, hanTraTuMoc, money } from "../../../../utils/format";
@@ -596,9 +597,7 @@ export function InboxDrawer({
                 </div>
 
                 {vouchersLoading ? (
-                  <div className="acct-empty-state">
-                    <div className="acct-empty-state__text">Đang tải chứng từ...</div>
-                  </div>
+                  <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải chứng từ…" />
                 ) : vouchers.length === 0 ? (
                   <div className="acct-empty-state">
                     <div className="acct-empty-state__icon">

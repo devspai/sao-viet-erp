@@ -9,6 +9,7 @@ import { ApiError, anhNho, assetUrl } from "../api/client";
 import { ngayGio } from "../pages/keHoachSxShared";
 import { Button } from "./Button";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { EmptyState } from "./EmptyState";
 import { Icon } from "./Icons";
 import {
   chonViecKeTiep,
@@ -347,10 +348,7 @@ export function DinhKemTep({
           )}
         </div>
       ) : items === null ? (
-        <div className="dkt-loading">
-          <span className="spinner" />
-          <span>Đang nạp danh sách tệp đính kèm…</span>
-        </div>
+        <EmptyState trangThai="dang-tai" inline nhanTai="Đang nạp danh sách tệp đính kèm…" />
       ) : items.length > 0 && (
         <div className="dkt-sec">
           <div className="dkt-sec__head">

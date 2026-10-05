@@ -4,9 +4,9 @@
 
 .qtkd {
   width: 100%;
-  max-width: 100%;
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: var(--sp-4) var(--sp-5) var(--sp-6);
+  padding: var(--sp-4) var(--page-pad-x) var(--sp-6);
   animation: qtkd-fade-in var(--duration-enter, 0.3s) var(--easing-standard, ease);
 }
 
@@ -222,7 +222,6 @@
   padding: var(--sp-4);
   overflow: auto;
   position: relative;
-  max-width: 1280px;
   margin: 0 auto;
 }
 

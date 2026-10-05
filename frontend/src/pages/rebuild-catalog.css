@@ -1,9 +1,9 @@
 /* Danh mục rebuild — dùng chung cho 6 module. On-brand tokens (rust/ink/paper). */
 
 .rc {
-  max-width: 1200px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: var(--sp-5) var(--sp-6);
+  padding: var(--sp-5) var(--page-pad-x);
   animation: rc-fade-in 0.4s ease;
 }
 
@@ -1236,6 +1236,24 @@
 /* Cột Hành động của MÀN DANH MỤC — bề rộng tính bằng px ở `CatalogListPage` (NUT_RONG), khớp đúng
    đệm trái 8px ở đây. Nút xếp trong một hàng flex dồn phải, khe 4px, không dùng `margin-left` của
    `.rc__link-btn` (luật chung đó còn phục vụ Kho / Kỹ thuật máy nên để nguyên). */
+/* Màn danh mục cuộn THEO TRANG như Nhật ký (05/10/2026, chủ: "không cố định chiều cao nữa"): bỏ trần
+   `max-height: calc(100vh - 320px)` của `.rc__tablewrap` — trần đó sinh ra để thanh cuộn NGANG
+   nằm trong tầm mắt, mà bảng danh mục nay vừa khổ 1480px nên không còn cuộn ngang. Chân phân
+   trang (`.ptdd`) nối liền vào đáy thẻ bảng thành MỘT khối, đúng khuôn màn Nhật ký. */
+.rc--dm .rc__tablewrap {
+  max-height: none;
+}
+.rc--dm .rc__tablewrap:has(+ .ptdd) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.rc--dm .rc__tablewrap + .ptdd {
+  border: 1px solid var(--rule-soft);
+  border-top: 0;
+  border-radius: 0 0 var(--r-5) var(--r-5);
+  box-shadow: var(--shadow-1);
+}
+
 .rc--dm .rc__table :is(th, td).rc__actcol {
   padding-left: 8px;
   /* Tiêu đề phải dồn phải theo cụm nút: `.rc__table thead th` (0-1-2) đặt `left` đè mất
@@ -1247,6 +1265,39 @@
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
+}
+/* Nút CHỈ ICON của cột Hành động màn danh mục (05/10/2026) — vuông 34px cho dễ bấm, viền mảnh để
+   nhìn ra là nút. Bề rộng khớp `NUT_RONG` ở `CatalogListPage`: đổi cỡ ở đây thì đổi cả bên đó. */
+.rc--dm .rc__acts {
+  gap: 6px;
+}
+.rc__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--rule-soft);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ash, #8a8676);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.rc__icon-btn:hover {
+  color: var(--rust, #c5400a);
+  background: var(--rule-hair);
+  border-color: var(--rule);
+}
+.rc__icon-btn--danger:hover {
+  color: var(--signal, #8a1f1f);
+  background: var(--signal-soft, #efd5d5);
+  border-color: transparent;
+}
+.rc__icon-btn:focus-visible {
+  outline: 2px solid var(--rust, #c5400a);
+  outline-offset: 1px;
 }
 .rc__acts .rc__link-btn {
   margin-left: 0;

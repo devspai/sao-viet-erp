@@ -1319,7 +1319,6 @@
   overflow-y: auto;
   padding: var(--sp-3);
 }
-.thsx-panel__loading,
 .thsx-panel__empty {
   padding: var(--sp-8) var(--sp-4);
   text-align: center;

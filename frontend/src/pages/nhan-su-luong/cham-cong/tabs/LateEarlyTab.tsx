@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { statusText, statusBadge } from "../components/badges";
 import { fmtDateTime, isoToday, getInitials, elErr } from "../shared/helpers";
+import { EmptyState } from "../../../../components/EmptyState";
 
 // --- Tab: Đi muộn / về sớm / nghỉ nửa buổi (module `di_muon`) ----------------
 // Phiếu CHẤM CÔNG ngoại lệ — KHÔNG phải đơn nghỉ phép. 1 phiếu/ngày, khai khoảng VẮNG MẶT,
@@ -1140,7 +1141,7 @@ export function LateEarlyTab({
           )}
 
           {mine === null ? (
-            <p className="ns__empty">Đang tải phiếu…</p>
+            <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải phiếu…" />
           ) : mine.length === 0 ? (
             <div className="el-empty">
               <p className="el-empty__title">
@@ -1276,7 +1277,7 @@ export function LateEarlyTab({
           )}
 
           {queueRows === null ? (
-            <p className="ns__empty">Đang tải phiếu…</p>
+            <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải phiếu…" />
           ) : queueRows.length === 0 ? (
             <div className="el-empty">
               <p className="el-empty__title">

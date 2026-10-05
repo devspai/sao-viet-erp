@@ -98,6 +98,12 @@
   right: 0;
 }
 
+/* Bản inline lật lên khi dưới ô không đủ chỗ — Select.tsx đo rồi gắn class này. */
+.sel__list--up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
 /* Rộng bằng ô chọn là SÀN, không phải TRẦN (03/09/2026): tên dài hơn ô thì danh sách tự nở theo
    nội dung thay vì để `text-overflow: ellipsis` ở `.sel__opt-label` cắt cụt — ô hẹp mà danh mục
    tên dài (vd "+ Thêm công đoạn…") thì mọi dòng đều cụt như nhau, không đọc được cái nào.

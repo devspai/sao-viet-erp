@@ -13,6 +13,7 @@ import {
 import { useAuth } from "../../auth/useAuth";
 import { useKcs } from "../../auth/permissions";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { EmptyState } from "../../components/EmptyState";
 import { Icon } from "../../components/Icons";
 import { Drawer } from "../danh-muc/components/Drawer";
 import { ngayGio, num } from "../keHoachSxShared";
@@ -198,7 +199,7 @@ export function KcsChuoiCongDoan({
       <section className="kcs-section">
         <h2>Chuỗi công đoạn <span className="rc__count">{congDoan.length}</span></h2>
         {data == null && !loi ? (
-          <p className="rc__empty-text">Đang tải…</p>
+          <EmptyState trangThai="dang-tai" inline />
         ) : congDoan.length === 0 ? (
           <div className="rc__empty-state">
             <p className="rc__empty-text">Lệnh này chưa có công đoạn nào.</p>

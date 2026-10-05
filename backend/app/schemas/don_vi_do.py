@@ -42,6 +42,8 @@ class DonViDoRow(BaseModel):
     # gỡ 17/08/2026 cùng cột `don_vi_do.cong_thuc`, mg `0215`). Khoá `loai` GIỮ: màn đang đọc nó để
     # tô màu, và cột Quy đổi còn có thể mọc thêm loại mảnh khác.
     quy_doi_chips: list[dict] = Field(default_factory=list)
+    #: `{"giay"|"vat_tu"|"thanh_pham": n}` — số mặt hàng đang dùng đơn vị này làm ĐVT (router gắn theo trang).
+    mat_hang_dung: dict[str, int] = Field(default_factory=dict)
 
 
 class DonViDoListOut(BaseModel):

@@ -61,9 +61,7 @@ body {
   place-items: center;
   color: var(--ash);
   font-family: var(--ff-sans);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--fs-sm);
 }
 
 .shell__forbidden {

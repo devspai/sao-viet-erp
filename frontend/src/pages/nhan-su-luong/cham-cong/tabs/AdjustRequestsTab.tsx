@@ -5,6 +5,7 @@ import { Info } from "lucide-react";
 import { statusBadge } from "../components/badges";
 import { FAULT_OPTIONS } from "../shared/constants";
 import { getInitials } from "../shared/helpers";
+import { EmptyState } from "../../../../components/EmptyState";
 
 // --- Tab: Yêu cầu chỉnh công (HCNS duyệt) -----------------------------------
 
@@ -96,7 +97,7 @@ export function AdjustRequestsTab({
       )}
 
       {!items ? (
-        <p className="ns__empty">Đang tải…</p>
+        <EmptyState trangThai="dang-tai" inline />
       ) : (
         <div className="cc-timesheet-scroll-container">
           <table className="cc-timesheet-table">

@@ -19,6 +19,7 @@ from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
 from .org_scope import dept_subtree_ids
 from .org_scope import nhom_dung_chung_user_ids
+from .tim_khong_dau import like_khong_dau
 
 # Columns a caller may sort by (whitelist — never interpolate a raw sort key).
 def _line_total_with_vat():
@@ -215,6 +216,22 @@ class OrderRepository:
             }
         return out
 
+    def line_summaries(self, order_ids: list[int]) -> dict[int, tuple[str, int]]:
+        """Tóm tắt hàng của mỗi đơn cho màn danh sách: (mô tả dòng ĐẦU, số dòng) — MỘT câu cả trang."""
+        if not order_ids:
+            return {}
+        stmt = (
+            select(OrderLine.order_id, OrderLine.description)
+            .where(OrderLine.order_id.in_(order_ids))
+            .order_by(OrderLine.order_id, OrderLine.id)
+        )
+        out: dict[int, tuple[str, int]] = {}
+        for oid, desc in self.db.execute(stmt):
+            oid = int(oid)
+            first, n = out.get(oid, (desc or "", 0))
+            out[oid] = (first, n + 1)
+        return out
+
     def list(
         self,
         *,
@@ -226,6 +243,7 @@ class OrderRepository:
         sort: str = "-created_at",
         page: int = 1,
         size: int = 20,
+        nguoi: int | None = None,
     ) -> tuple[list[Order], int, dict[int, str], dict[int, int | None]]:
         """Return (rows, total, customer_names, totals). `q` matches order_no + customer
         name (case-insensitive substring). `status`/`order_kind` are exact filters. `total`
@@ -238,19 +256,25 @@ class OrderRepository:
 
         base = select(Order)
         count_stmt = select(func.count()).select_from(Order)
-        if q:
-            like = f"%{q.strip().lower()}%"
-            cust_ids = select(Customer.id).where(func.lower(Customer.name).like(like))
+        if q and q.strip():
+            # Tìm TƯƠNG ĐỐI (không dấu, không phân biệt hoa thường): mã đơn, tên khách, PO khách,
+            # tên hàng trong đơn — đúng những gì cột bảng bày ra.
+            cust_ids = select(Customer.id).where(like_khong_dau(Customer.name, q))
+            line_ids = select(OrderLine.order_id).where(like_khong_dau(OrderLine.description, q))
             conditions.append(
                 or_(
-                    func.lower(Order.order_no).like(like),
+                    like_khong_dau(Order.order_no, q),
+                    like_khong_dau(Order.customer_po_no, q),
                     Order.customer_id.in_(cust_ids),
+                    Order.id.in_(line_ids),
                 )
             )
         if status:
             conditions.append(Order.status == status)
         if order_kind:
             conditions.append(Order.order_kind == order_kind)
+        if nguoi is not None:   # hộp lọc NV phụ trách — AND với phạm vi, không vượt được tầm nhìn
+            conditions.append(Order.sale_user_id == nguoi)
 
         for c in conditions:
             base = base.where(c)
@@ -333,8 +357,8 @@ class OrderRepository:
         self.db.refresh(order)
         return order
 
-    def stats(self, *, scope: str, actor) -> dict[str, int]:
-        """Đếm đơn theo trạng thái (cho thanh tab), tôn trọng data-scope."""
+    def stats(self, *, scope: str, actor, nguoi: int | None = None) -> dict[str, int]:
+        """Đếm đơn theo trạng thái (cho thanh tab), tôn trọng data-scope + hộp lọc NV phụ trách."""
         from ..models.order import STATUS_CANCELLED, STATUS_DRAFT, STATUS_ORDERED
 
         base = self._scope_condition(scope=scope, actor=actor)
@@ -343,6 +367,8 @@ class OrderRepository:
             stmt = select(func.count()).select_from(Order)
             if base is not None:
                 stmt = stmt.where(base)
+            if nguoi is not None:
+                stmt = stmt.where(Order.sale_user_id == nguoi)
             for c in extra:
                 stmt = stmt.where(c)
             return int(self.db.execute(stmt).scalar_one())
@@ -354,7 +380,20 @@ class OrderRepository:
             "cancelled": cnt(Order.status == STATUS_CANCELLED),
         }
 
-    def value_rows(self, *, scope: str, actor, statuses: tuple[str, ...]) -> dict[int, dict]:
+    def dem_theo_nguoi(self, *, scope: str, actor) -> dict[int, int]:
+        """{sale_user_id: số đơn} CHỈ trong tầm nhìn của người xem — nguồn hộp lọc NV phụ trách."""
+        stmt = (
+            select(Order.sale_user_id, func.count())
+            .where(Order.sale_user_id.is_not(None))
+            .group_by(Order.sale_user_id)
+        )
+        cond = self._scope_condition(scope=scope, actor=actor)
+        if cond is not None:
+            stmt = stmt.where(cond)
+        return {int(uid): int(c) for uid, c in self.db.execute(stmt)}
+
+    def value_rows(self, *, scope: str, actor, statuses: tuple[str, ...],
+                   nguoi: int | None = None) -> dict[int, dict]:
         """Nguyên liệu tính KPI tiền cho từng đơn trong phạm vi (status ∈ statuses):
         `{order_id: {status, deposit_pct, total_with_vat}}`. total_with_vat khớp ĐÚNG helper
         `total_with_vat` (Σ line_total·(100+vat) rồi //100 theo TỪNG đơn) → KPI = tổng số per-row,
@@ -374,6 +413,8 @@ class OrderRepository:
         )
         if base is not None:
             stmt = stmt.where(base)
+        if nguoi is not None:
+            stmt = stmt.where(Order.sale_user_id == nguoi)
         out: dict[int, dict] = {}
         for oid, status, pct, num in self.db.execute(stmt):
             out[int(oid)] = {"status": status, "deposit_pct": pct, "total_with_vat": int(num) // 100}

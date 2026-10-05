@@ -16,11 +16,11 @@
          `line-clamp: 2` + `title`, ≤768px BỎ clamp (thà xuống dòng). */
 
 .hslsx {
-  /* Rộng hơn `.khsx` (1280) — và rộng hơn hẳn `min-width` của bảng 6 cột (920px), nên ở màn
-     desktop bảng KHÔNG phải cuộn ngang lần nào. */
-  max-width: 1360px;
+  /* Khổ chung (1480) rộng hơn hẳn `min-width` của bảng 6 cột (920px), nên ở màn desktop bảng
+     KHÔNG phải cuộn ngang lần nào. */
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: var(--sp-5) var(--sp-6);
+  padding: var(--sp-5) var(--page-pad-x);
   color: var(--ink);
   font-family: var(--ff-sans);
   /* KHÔNG đặt `overflow-x: hidden` ở đây: nó phá `position: sticky` của `thead`. Thay vào đó mọi
@@ -1337,13 +1337,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-}
-
-.hslsx-hs__dangtai {
-  margin: var(--sp-8) 0;
-  text-align: center;
-  color: var(--ash-2);
-  font-size: var(--fs-sm);
 }
 
 /* ---------- Dải tổng quan ---------- */

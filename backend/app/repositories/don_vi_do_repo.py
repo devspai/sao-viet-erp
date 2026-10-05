@@ -7,6 +7,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import aliased
 
 from ..models.don_vi_do import DonViDo, DonViQuyDoi
+from ..models.vat_lieu_kho import GiayNguyen, VatTuInAn
 from .catalog_base import CatalogRepo
 
 # `tram_dong_giay` GỠ 06/09/2026 — cột thành cột chết, xem `services/dong_giay.py`.
@@ -54,6 +55,28 @@ class DonViDoRepository(CatalogRepo):
     # `DonViDoService` chốt sau khi ghi nhật ký — xem `services/catalog_base`. Chỉ áp cho CRUD của
     # ĐƠN VỊ; ba hàm `*_cap` bên dưới là bảng khác và vẫn tự commit.
     commit_on_write = False
+
+    def dem_mat_hang(self, mas) -> dict[str, dict[str, int]]:
+        """`{mã đơn vị: {"giay"|"vat_tu"|"thanh_pham": số mặt hàng ĐANG DÙNG lấy nó làm ĐVT}}` cho
+        một trang danh sách — hai câu GROUP BY (Vật tư khác và Thành phẩm chung bảng `vat_tu_in_an`,
+        tách bằng `la_thanh_pham`). Đơn vị không ai dùng thì vắng mặt trong map."""
+        keys = {str(m).strip().lower() for m in mas if m}
+        if not keys:
+            return {}
+        out: dict[str, dict[str, int]] = {}
+        g_ma = func.lower(GiayNguyen.don_vi_gia)
+        for ma, n in self.db.execute(
+            select(g_ma, func.count()).where(g_ma.in_(keys), GiayNguyen.active.is_(True)).group_by(g_ma)
+        ).all():
+            out.setdefault(ma, {})["giay"] = int(n)
+        v_ma = func.lower(VatTuInAn.don_vi_gia)
+        for ma, tp, n in self.db.execute(
+            select(v_ma, VatTuInAn.la_thanh_pham, func.count())
+            .where(v_ma.in_(keys), VatTuInAn.active.is_(True))
+            .group_by(v_ma, VatTuInAn.la_thanh_pham)
+        ).all():
+            out.setdefault(ma, {})["thanh_pham" if tp else "vat_tu"] = int(n)
+        return out
 
     def extra_conds(self, *, ho: str | None = None, **_) -> list:
         return [func.lower(DonViDo.ho) == ho.strip().lower()] if ho else []

@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nhóm dùng chung — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f6f5f2; --card:#fff; --ink:#1c1b18; --ink-2:#55534d; --ink-3:#8a877f;
+  --rule:#e6e3dc; --rule-hair:#f0eee9; --rust:#c2410c; --rust-ink:#9a3412;
+  --blue-bg:#eff6ff; --blue-bd:#bfdbfe; --blue:#1d4ed8;
+  --green-bg:#f0fdf4; --green-bd:#bbf7d0; --green:#15803d;
+  --violet:#6d28d9; --violet-bd:#ddd6fe;
+  --danger:#b91c1c; --r:8px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+input{font:inherit;color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 80px}
+
+/* đầu trang: chọn phương án */
+.picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.pa{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:12px 14px;text-align:left}
+.pa:hover{border-color:var(--ink-3)}
+.pa.on{border:2px solid var(--rust);padding:11px 13px}
+.pa b{display:block;font-weight:600;font-size:15px;margin-bottom:2px}
+.pa small{color:var(--ink-2);font-size:12.5px;display:block}
+.pa .src{margin-top:6px;font-size:11.5px;color:var(--ink-3)}
+.badge{display:inline-block;font-size:11px;font-weight:600;color:var(--rust-ink);border:1px solid #fed7aa;border-radius:99px;padding:0 8px;margin-left:6px;vertical-align:2px}
+
+/* khung màn */
+.screen{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start}
+.tree{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:12px}
+.dept{border:2px solid var(--rust);border-radius:10px;padding:10px 12px}
+.dept b{font-weight:600}
+.code{font-size:11px;font-weight:600;color:var(--rust-ink);border:1px solid #fed7aa;border-radius:4px;padding:0 5px;margin-left:6px}
+.detail{background:var(--card);border:1px solid var(--rule);border-radius:12px;position:relative;min-height:600px}
+.dhead{display:flex;align-items:center;gap:12px;padding:16px 20px 0}
+.dhead h2{margin:0;font-size:20px;font-weight:600}
+.tabs{display:flex;gap:4px;padding:0 20px;border-bottom:1px solid var(--rule);margin-top:10px}
+.tab{background:none;border:0;padding:10px 12px;color:var(--ink-2);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--rust-ink);border-bottom-color:var(--rust);font-weight:600}
+.tab .n{font-size:11.5px;margin-left:4px;color:var(--ink-3)}
+.body{padding:16px 20px}
+
+/* thanh công cụ + thanh chọn hàng loạt */
+.bar{display:flex;align-items:center;gap:8px;min-height:44px;margin-bottom:12px;flex-wrap:wrap}
+.search{flex:0 1 260px;height:36px;border:1px solid var(--rule);border-radius:var(--r);padding:0 10px;background:var(--card)}
+.btn{height:34px;border:1px solid var(--rule);background:var(--card);border-radius:var(--r);padding:0 12px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--ink-3)}
+.btn.primary{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.primary:hover{background:var(--rust-ink)}
+.btn.ghost{border-color:transparent;background:none}
+.btn.ghost:hover{background:var(--rule-hair)}
+.btn.danger{color:var(--danger)}
+.btn.sm{height:28px;min-width:28px;padding:0 9px;font-size:12.5px;justify-content:center}
+.caret{font-size:10px;color:var(--ink-3)}
+.batch{background:var(--card);border:1px solid var(--ink);border-radius:10px;padding:5px 6px 5px 12px}
+.batch .count{font-weight:600}
+.batch .sep{width:1px;height:20px;background:var(--rule);margin:0 4px}
+.kbd{font-size:10.5px;border:1px solid var(--rule);border-radius:4px;padding:0 4px;color:var(--ink-3)}
+.spacer{flex:1}
+
+/* danh sách người */
+.rows{border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--rule-hair);background:var(--card)}
+.row:first-child{border-top:0}
+.row:hover{background:#fbfaf8}
+.row.sel{box-shadow:inset 0 0 0 1.5px var(--rust)}
+.av{width:32px;height:32px;border-radius:50%;border:1px solid var(--rule);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--rust-ink);background:#fff;flex:none}
+.av.s{width:22px;height:22px;font-size:10px}
+.main{flex:1 1 auto;min-width:170px}
+.name{font-weight:600}
+.sub{font-size:12.5px;color:var(--ink-2);display:flex;gap:10px;flex-wrap:wrap}
+.right{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.pill{font-size:11.5px;font-weight:600;border-radius:99px;padding:1px 9px;border:1px solid}
+.role{color:var(--blue);background:var(--blue-bg);border-color:var(--blue-bd)}
+.ok{color:var(--green);background:var(--green-bg);border-color:var(--green-bd)}
+.head{color:#92400e;background:#fffbeb;border-color:#fde68a}
+.gtag{font-size:11.5px;font-weight:500;color:var(--violet);background:none;border:1px solid var(--violet-bd);border-radius:99px;padding:1px 8px;display:inline-flex;align-items:center;gap:4px}
+.gtag:hover{border-color:var(--violet)}
+.gtag svg{width:11px;height:11px}
+.pager{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:13px;color:var(--ink-2)}
+
+/* nhóm (thẻ) */
+.gintro{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.gintro p{margin:0;color:var(--ink-2);font-size:13px;max-width:560px}
+.gcard{border:1px solid var(--rule);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--card);transition:box-shadow .3s}
+.gcard.flash{box-shadow:0 0 0 2px var(--violet)}
+.ghead{display:flex;align-items:center;gap:8px}
+.gname{font-weight:600;font-size:15px}
+.gmeta{font-size:12px;color:var(--ink-3)}
+.mchips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.mchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:99px;padding:2px 4px 2px 3px;font-size:13px}
+.mchip .x{border:0;background:none;width:20px;height:20px;border-radius:50%;color:var(--ink-3);line-height:1}
+.mchip .x:hover{background:var(--rule-hair);color:var(--danger)}
+.addchip{border:1px dashed var(--ink-3);border-radius:99px;background:none;padding:2px 10px;font-size:13px;color:var(--ink-2)}
+.addchip:hover{border-style:solid;color:var(--ink)}
+.iname{height:30px;border:1px solid var(--ink-3);border-radius:6px;padding:0 8px;font-weight:600;width:240px}
+.empty{color:var(--ink-3);font-size:13px;padding:18px;text-align:center;border:1px dashed var(--rule);border-radius:10px}
+
+/* panel neo (SelectPanel) + popover */
+.pop{position:absolute;z-index:50;background:var(--card);border:1px solid var(--rule);border-radius:10px;box-shadow:0 10px 30px rgba(20,19,15,.14),0 2px 6px rgba(20,19,15,.08);width:300px;overflow:hidden}
+.pop .ph{padding:10px 12px 6px;font-size:12.5px;color:var(--ink-2)}
+.pop .ph b{color:var(--ink);font-weight:600}
+.pop .ps{margin:0 10px 6px;width:calc(100% - 20px);height:32px;border:1px solid var(--rule);border-radius:6px;padding:0 8px}
+.pop .pl{max-height:240px;overflow:auto;padding:2px 4px}
+.opt{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;text-align:left;padding:6px 8px;border-radius:6px}
+.opt:hover{background:var(--rule-hair)}
+.opt .meta{margin-left:auto;font-size:12px;color:var(--ink-3)}
+.box{width:16px;height:16px;border:1.5px solid var(--ink-3);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none;color:#fff}
+.box.on{background:var(--rust);border-color:var(--rust)}
+.box.mid{background:var(--rust);border-color:var(--rust)}
+.pf{border-top:1px solid var(--rule-hair);padding:6px 4px}
+.pf .opt{color:var(--rust-ink)}
+.newrow{display:flex;gap:6px;padding:4px 8px 8px}
+.newrow input{flex:1;height:30px;border:1px solid var(--ink-3);border-radius:6px;padding:0 8px}
+.menu{width:200px;padding:4px}
+
+/* ngăn kéo bên phải (phương án C) */
+.drawer{position:absolute;top:0;right:0;bottom:0;width:360px;background:var(--card);border-left:1px solid var(--rule);border-radius:0 12px 12px 0;box-shadow:-12px 0 30px rgba(20,19,15,.08);display:flex;flex-direction:column;z-index:20}
+.drawer .dh{display:flex;align-items:center;gap:8px;padding:16px 16px 4px}
+.drawer .dd{padding:0 16px;color:var(--ink-2);font-size:12.5px}
+.drawer .dl{flex:1;overflow:auto;padding:10px 8px}
+.mrow{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:6px}
+.mrow:hover{background:var(--rule-hair)}
+.mrow .x{margin-left:auto;border:0;background:none;color:var(--ink-3);border-radius:6px;padding:2px 6px}
+.mrow .x:hover{color:var(--danger);background:#fef2f2}
+.drawer .df{border-top:1px solid var(--rule);padding:12px 16px;display:flex;gap:8px;align-items:center}
+.hint{font-size:12px;color:var(--ink-3)}
+.callout{border:1px solid var(--violet-bd);border-radius:8px;padding:8px 10px;margin:8px 8px 0;font-size:12.5px;display:flex;align-items:center;gap:8px}
+
+/* xác nhận + toast */
+.scrim{position:fixed;inset:0;background:rgba(20,19,15,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+.dlg{background:var(--card);border-radius:12px;padding:18px 20px;width:400px;max-width:calc(100% - 32px)}
+.dlg h3{margin:0 0 6px;font-size:16px;font-weight:600}
+.dlg p{margin:0 0 16px;color:var(--ink-2);font-size:13.5px}
+.dlg .f{display:flex;justify-content:flex-end;gap:8px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+/* ghi chú tham khảo */
+.refs{margin-top:28px;background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:16px 20px}
+.refs h3{margin:0 0 10px;font-size:15px;font-weight:600}
+.refs table{width:100%;border-collapse:collapse;font-size:13px}
+.refs td{padding:7px 8px;border-top:1px solid var(--rule-hair);vertical-align:top}
+.refs td:first-child{white-space:nowrap;font-weight:600;width:150px}
+.refs a{color:var(--blue)}
+.note{font-size:12.5px;color:var(--ink-2);margin:0 0 14px}
+
+@media (max-width:860px){
+  .screen{grid-template-columns:minmax(0,1fr)}
+  .tree{display:none}
+  .picker{grid-template-columns:minmax(0,1fr)}
+  .drawer{position:fixed;width:auto;left:0;border-radius:0}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="note">Bản mẫu bấm thử, dữ liệu giả, không nối máy chủ. Chọn một phương án rồi thử: tick người, bấm “Thêm vào nhóm”, bấm thẻ tím trên dòng, đổi tên nhóm, gỡ người, xoá nhóm, mở ô “Hiển thị” ở chân danh sách. Thanh chọn hàng loạt và ô chọn tự lật lên là phần CHUNG cả ba phương án đều dùng.</p>
+  <div class="picker" id="picker"></div>
+  <div class="screen">
+    <aside class="tree">
+      <div class="dept"><b>Phòng Kinh Doanh</b><span class="code">PB032</span>
+        <div style="font-size:12.5px;color:var(--ink-2);margin-top:4px">10 người <span class="pill ok" style="margin-left:6px">Có trưởng</span></div>
+      </div>
+    </aside>
+    <section class="detail" id="detail"></section>
+  </div>
+
+  <div class="refs">
+    <h3>Đã tham khảo gì, lấy gì</h3>
+    <table>
+      <tr><td>GitHub Teams</td><td>Nhóm có trang riêng, tab “Members”, nút “Add a member” nằm ngay trên danh sách, gõ tên để thêm. → Phương án B: tab riêng, nút “Thêm người” ngay trong thẻ nhóm. <a href="https://docs.github.com/en/organizations/organizing-members-into-teams/adding-organization-members-to-a-team" target="_blank">Tài liệu</a></td></tr>
+      <tr><td>Slack User Groups</td><td>Nhóm liệt kê ở Directories → User Groups; sửa người bằng “Edit Members”; menu ba chấm có “Edit group details” và “Deactivate group” kèm hỏi lại. → Xoá nhóm cất vào menu ⋯, có hỏi lại. <a href="https://slack.com/help/articles/212906697-Create-a-user-group" target="_blank">Tài liệu</a></td></tr>
+      <tr><td>Linear Teams</td><td>Thành viên quản ở Team settings → Members, thao tác qua menu ⋯ của đội. → Menu ⋯ trên thẻ nhóm. <a href="https://linear.app/docs/teams" target="_blank">Tài liệu</a></td></tr>
+      <tr><td>GitHub Primer SelectPanel</td><td>Panel neo vào nút, có ô lọc, chọn nhiều, avatar đầu dòng; panel neo thì áp ngay, không cần nút Lưu. → “Thêm vào nhóm ▾” và “Thêm người”. <a href="https://primer.style/product/components/select-panel/" target="_blank">Tài liệu</a></td></tr>
+      <tr><td>IBM Carbon Data table</td><td>Thanh hàng loạt hiện khi chọn ≥1 dòng, nằm trên đầu bảng, có số đã chọn và nút huỷ; tối đa ~5 nút, còn lại vào menu. → Thanh một dòng, ba nút. <a href="https://carbondesignsystem.com/components/data-table/usage/" target="_blank">Tài liệu</a></td></tr>
+      <tr><td>HashiCorp Helios</td><td>Luôn hiện số đã chọn; xoá phải hỏi lại; hành động gom vào dropdown cạnh số đếm. <a href="https://helios.hashicorp.design/patterns/table-multi-select" target="_blank">Tài liệu</a></td></tr>
+      <tr><td>Notion side peek</td><td>Mở chi tiết ở bên phải, phần danh sách bên trái vẫn bấm được. → Phương án C: ngăn kéo, vừa mở vừa tick thêm người. <a href="https://www.notion.com/help/views-filters-and-sorts" target="_blank">Tài liệu</a></td></tr>
+      <tr><td>Panel tự lật</td><td>Thiếu chỗ bên dưới thì lật lên trên, vẫn thiếu thì co lại và cuộn bên trong. → Sửa ô “Hiển thị 8” bị cắt. <a href="https://github.com/aziontech/webkit/pull/973" target="_blank">PR tham khảo</a></td></tr>
+    </table>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const PA = {
+  A:{ten:"A. Thẻ nhóm mở popover",mo:"Không thêm tab. Bấm thẻ tím → ô nổi ngay cạnh: xem người, đổi tên, thêm/gỡ, xoá.",src:"Primer SelectPanel, Carbon, Helios"},
+  B:{ten:"B. Nhóm là một tab riêng",mo:"Tab “Nhóm dùng chung” liệt kê mọi nhóm của phòng, sửa tại chỗ. Bấm thẻ tím → nhảy tới đúng nhóm.",src:"GitHub Teams, Slack User Groups, Linear",de:true},
+  C:{ten:"C. Ngăn kéo bên phải",mo:"Bấm thẻ tím → ngăn kéo mở bên phải; danh sách vẫn tick được để thêm người vào nhóm đang mở.",src:"Notion side peek"}
+};
+const P = [
+  [9,"NV009","Nguyễn Thị Kim Luyến","Trợ lý Kinh Doanh","nguyenthikimluyen","Trợ lý kinh doanh"],
+  [10,"NV010","Trịnh Khắc Thịnh","Nhân viên Kinh Doanh","trinhkhacthinh","sale"],
+  [11,"NV011","Đào Thị Kim Hiệp","Nhân viên Kinh Doanh","daothikimhiep","sale"],
+  [12,"NV012","Lưu Ngọc Thanh Thanh","Trợ lý Kinh Doanh","luungocthanhthanh","Trợ lý kinh doanh"],
+  [13,"NV013","Nguyễn Thị Huyên","Nhân viên Kinh Doanh","nguyenthihuyen",""],
+  [14,"NV014","Bùi Thị Hoa","Trưởng phòng Kinh Doanh","buithihoa","",true],
+  [15,"NV015","Đặng Nguyễn Tiến","Nhân viên Kinh Doanh","dangnguyentien",""],
+  [16,"NV016","Lê Thị Trang Đài","Trợ lý Kinh Doanh","lethitrangdai",""],
+  [17,"NV017","Phạm Minh Quân","Nhân viên Kinh Doanh","phamminhquan","sale"],
+  [18,"NV018","Võ Thị Ngọc Hân","Nhân viên Kinh Doanh","vothingochan","sale"],
+].map(([id,ma,ten,chuc,user,role,truong])=>({id,ma,ten,chuc,user,role,truong:!!truong}));
+const byId = Object.fromEntries(P.map(p=>[p.id,p]));
+let nextG = 3;
+const S = {
+  pa:"B", tab:"nhansu", sel:new Set(), groups:[{id:1,ten:"luyến - hiệp",ids:[9,11],tao:"24/09"},{id:2,ten:"luyến - huyên",ids:[9,13],tao:"24/09"}],
+  page:1, size:8, drawer:null, renaming:null, flash:null
+};
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ini = t=>{const w=t.split(" ");return (w[0][0]+(w[1]||"")[0]).toUpperCase()};
+const ngan = t=>t.split(" ").slice(-2).join(" ");
+const icoUsers = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M3 21v-1a6 6 0 0 1 12 0v1"/><path d="M16 3.5a4 4 0 0 1 0 7.5M21 21v-1a6 6 0 0 0-4-5.6"/></svg>';
+function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("on");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("on"),1800)}
+const nhomCua = id=>S.groups.filter(g=>g.ids.includes(id));
+
+/* ---------- panel neo có lật ---------- */
+let popEl=null;
+function closePop(){ if(popEl){popEl.remove();popEl=null;} }
+function openPop(anchor, html, wire, w){
+  closePop();
+  const el=document.createElement("div"); el.className="pop"; if(w) el.style.width=w+"px";
+  el.innerHTML=html; document.body.appendChild(el); popEl=el; el._anchor=anchor;
+  place(); wire && wire(el);
+  const s=el.querySelector(".ps,.newrow input,input"); s && s.focus();
+  return el;
+}
+function place(){
+  if(!popEl) return;
+  const a=popEl._anchor.getBoundingClientRect(), h=popEl.offsetHeight, w=popEl.offsetWidth;
+  const duoi=innerHeight-a.bottom-8, tren=a.top-8;
+  let top = (duoi>=h || duoi>=tren) ? a.bottom+6 : a.top-6-h;           // lật lên khi bên dưới thiếu chỗ
+  const conLai = (duoi>=h || duoi>=tren) ? duoi : tren;
+  const pl=popEl.querySelector(".pl"); if(pl && h>conLai) pl.style.maxHeight=Math.max(120,conLai-110)+"px"; // vẫn thiếu thì co + cuộn
+  let left=Math.min(a.left, innerWidth-w-8); left=Math.max(8,left);
+  popEl.style.top=(top+scrollY)+"px"; popEl.style.left=(left+scrollX)+"px";
+}
+addEventListener("scroll",place,true); addEventListener("resize",place);
+document.addEventListener("mousedown",e=>{ if(popEl && !popEl.contains(e.target) && !popEl._anchor.contains(e.target)) closePop(); });
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape") return;
+  if(popEl){closePop();return}
+  if(S.renaming){S.renaming=null;render();return}
+  if(S.sel.size){S.sel.clear();render();return}
+  if(S.drawer){S.drawer=null;render()}
+});
+
+/* ---------- thao tác nhóm ---------- */
+function themVaoNhom(g, ids){ ids.forEach(i=>{ if(!g.ids.includes(i)) g.ids.push(i) }); }
+function goKhoiNhom(g, ids){ g.ids=g.ids.filter(i=>!ids.includes(i)); }
+function taoNhom(ten, ids){ const g={id:nextG++,ten,ids:[...ids],tao:"hôm nay"}; S.groups.push(g); return g; }
+function hoiXoa(g){
+  const d=document.createElement("div"); d.className="scrim";
+  d.innerHTML=`<div class="dlg"><h3>Xoá nhóm “${esc(g.ten)}”?</h3><p>${g.ids.length} người trong nhóm sẽ trở lại chỉ thấy dữ liệu của chính mình. Dữ liệu không mất, chỉ là hết dùng chung.</p><div class="f"><button class="btn" data-k="0">Huỷ</button><button class="btn primary" data-k="1" style="background:var(--danger);border-color:var(--danger)">Xoá nhóm</button></div></div>`;
+  d.onclick=e=>{const k=e.target.dataset.k; if(k===undefined && e.target!==d) return;
+    if(k==="1"){S.groups=S.groups.filter(x=>x!==g); if(S.drawer===g.id) S.drawer=null; toast(`Đã xoá nhóm “${g.ten}”`); render();}
+    d.remove();};
+  document.body.appendChild(d); d.querySelector('[data-k="0"]').focus();
+}
+
+/* panel “Thêm vào nhóm” cho người đang tick */
+function panelThemVaoNhom(anchor){
+  const ids=[...S.sel];
+  const ve=()=>{
+    const q=(popEl?.querySelector(".ps")?.value||"").toLowerCase();
+    return S.groups.filter(g=>g.ten.toLowerCase().includes(q)).map(g=>{
+      const co=ids.filter(i=>g.ids.includes(i)).length;
+      const st=co===ids.length?"on":co?"mid":"";
+      return `<button class="opt" data-g="${g.id}"><span class="box ${st}">${st==="on"?"✓":st==="mid"?"–":""}</span>${esc(g.ten)}<span class="meta">${g.ids.length} người</span></button>`;
+    }).join("") || `<div class="hint" style="padding:8px">Không có nhóm khớp.</div>`;
+  };
+  const html=`<div class="ph"><b>Thêm ${ids.length} người vào nhóm</b><br>Bấm nhóm để thêm; bấm lại để gỡ cả ${ids.length} người ra.</div>
+    <input class="ps" placeholder="Lọc nhóm">
+    <div class="pl">${ve()}</div>
+    <div class="pf"><button class="opt" data-new="1">+ Tạo nhóm mới từ ${ids.length} người này</button></div>`;
+  openPop(anchor, html, el=>{
+    el.querySelector(".ps").oninput=()=>{el.querySelector(".pl").innerHTML=ve()};
+    el.addEventListener("click",e=>{
+      const o=e.target.closest("[data-g]");
+      if(o){const g=S.groups.find(x=>x.id==o.dataset.g); const du=ids.every(i=>g.ids.includes(i));
+        du?goKhoiNhom(g,ids):themVaoNhom(g,ids); toast(du?`Đã gỡ ${ids.length} người khỏi “${g.ten}”`:`Đã thêm ${ids.length} người vào “${g.ten}”`);
+        el.querySelector(".pl").innerHTML=ve(); renderKeepPop(); return;}
+      if(e.target.closest("[data-new]")){
+        el.querySelector(".pf").innerHTML=`<div class="newrow"><input placeholder="Tên nhóm, vd: Cặp KD 3" maxlength="60"><button class="btn sm primary">Tạo</button></div><div class="hint" style="padding:0 12px 8px">Enter để tạo, Esc để huỷ.</div>`;
+        const inp=el.querySelector(".newrow input"); inp.focus();
+        const ok=()=>{const t=inp.value.trim(); if(!t){inp.style.borderColor="var(--danger)";inp.placeholder="Nhập tên nhóm trước";return}
+          if(S.groups.some(g=>g.ten===t)){inp.style.borderColor="var(--danger)";inp.value="";inp.placeholder="Đã có nhóm tên này";return}
+          taoNhom(t,ids); toast(`Đã tạo nhóm “${t}” gồm ${ids.length} người`); closePop(); S.sel.clear(); render();};
+        inp.onkeydown=e2=>{if(e2.key==="Enter")ok()}; el.querySelector(".newrow .btn").onclick=ok;
+      }
+    });
+  });
+}
+/* panel “Thêm người” vào một nhóm */
+function panelThemNguoi(anchor, g){
+  const ve=()=>{
+    const q=(popEl?.querySelector(".ps")?.value||"").toLowerCase();
+    return P.filter(p=>(p.ten+p.user+p.ma).toLowerCase().includes(q)).map(p=>{
+      const on=g.ids.includes(p.id);
+      return `<button class="opt" data-p="${p.id}"><span class="box ${on?"on":""}">${on?"✓":""}</span><span class="av s">${ini(p.ten)}</span>${esc(p.ten)}<span class="meta">${p.ma}</span></button>`;
+    }).join("");
+  };
+  openPop(anchor, `<div class="ph"><b>Người trong “${esc(g.ten)}”</b><br>Tick để thêm, bỏ tick để gỡ. Áp ngay, không cần Lưu.</div><input class="ps" placeholder="Tìm tên, mã, tài khoản"><div class="pl">${ve()}</div>`, el=>{
+    el.querySelector(".ps").oninput=()=>{el.querySelector(".pl").innerHTML=ve()};
+    el.addEventListener("click",e=>{const o=e.target.closest("[data-p]"); if(!o) return; const id=+o.dataset.p;
+      g.ids.includes(id)?goKhoiNhom(g,[id]):themVaoNhom(g,[id]); el.querySelector(".pl").innerHTML=ve(); renderKeepPop();});
+  }, 320);
+}
+/* menu ⋯ của nhóm */
+function menuNhom(anchor, g){
+  openPop(anchor, `<div class="pl menu"><button class="opt" data-a="ren">Đổi tên</button><button class="opt" data-a="add">Thêm người</button><div style="height:1px;background:var(--rule-hair);margin:4px 0"></div><button class="opt" data-a="del" style="color:var(--danger)">Xoá nhóm…</button></div>`, el=>{
+    el.onclick=e=>{const a=e.target.closest("[data-a]")?.dataset.a; if(!a) return; closePop();
+      if(a==="ren"){S.renaming=g.id;render();}
+      if(a==="add"){const b=document.querySelector(`[data-addto="${g.id}"]`); b && panelThemNguoi(b,g);}
+      if(a==="del") hoiXoa(g);};
+  }, 200);
+}
+/* popover chi tiết nhóm — phương án A */
+function popNhom(anchor, g){
+  const ve=()=>`<div class="ph" style="display:flex;align-items:center;gap:8px"><span style="color:var(--violet)">${icoUsers.replace('<svg','<svg width="14" height="14"')}</span>
+      ${S.renaming===g.id?`<input class="iname" value="${esc(g.ten)}" style="width:180px">`:`<b style="font-size:14px">${esc(g.ten)}</b><button class="btn ghost sm" data-a="ren" title="Đổi tên">✎</button>`}
+      <span class="spacer"></span><span class="meta">${g.ids.length} người</span></div>
+    <div class="pl">${g.ids.map(i=>`<div class="mrow"><span class="av s">${ini(byId[i].ten)}</span>${esc(byId[i].ten)}<button class="x" data-rm="${i}" title="Gỡ khỏi nhóm">Gỡ</button></div>`).join("")||'<div class="hint" style="padding:8px">Nhóm chưa có ai.</div>'}</div>
+    <div class="pf" style="display:flex;padding:6px 8px;gap:6px"><button class="btn sm" data-a="add" data-addto="${g.id}">+ Thêm người</button><span class="spacer"></span><button class="btn ghost sm danger" data-a="del">Xoá nhóm</button></div>`;
+  const el=openPop(anchor, ve(), el=>{
+    el.addEventListener("click",e=>{
+      const rm=e.target.closest("[data-rm]"); if(rm){goKhoiNhom(g,[+rm.dataset.rm]); el.innerHTML=ve(); renderKeepPop(); return;}
+      const a=e.target.closest("[data-a]")?.dataset.a;
+      if(a==="ren"){S.renaming=g.id; el.innerHTML=ve(); wireRename(el,g,()=>{el.innerHTML=ve()});}
+      if(a==="add"){const b=e.target.closest("[data-a]"); panelThemNguoi(anchor,g);}
+      if(a==="del"){closePop(); hoiXoa(g);}
+    });
+  }, 300);
+}
+function wireRename(root, g, after){
+  const inp=root.querySelector(".iname"); if(!inp) return; inp.focus(); inp.select();
+  let da=false;
+  const xong=luu=>{ if(da) return; da=true; if(luu){const t=inp.value.trim(); if(t && t!==g.ten){ if(S.groups.some(x=>x!==g&&x.ten===t)){toast("Đã có nhóm tên này");da=false;inp.focus();return} toast(`Đã đổi tên thành “${t}”`); g.ten=t; } }
+    S.renaming=null; after?after():render(); renderKeepPop(); };
+  inp.onkeydown=e=>{ if(e.key==="Enter") xong(true); if(e.key==="Escape"){e.stopPropagation(); xong(false);} };
+  inp.onblur=()=>xong(true);
+}
+
+/* ---------- vẽ ---------- */
+function renderKeepPop(){ const p=popEl; popEl=null; render(); popEl=p; }
+function render(){
+  $("#picker").innerHTML=Object.entries(PA).map(([k,v])=>`<button class="pa ${S.pa===k?"on":""}" data-pa="${k}"><b>${v.ten}${v.de?'<span class="badge">Đề xuất</span>':""}</b><small>${v.mo}</small><div class="src">Học từ: ${v.src}</div></button>`).join("");
+  const tabs=[["tongquan","Tổng quan"],["nhansu","Nhân sự",P.length],["vaitro","Vai trò & Quyền",2]];
+  if(S.pa==="B") tabs.push(["nhom","Nhóm dùng chung",S.groups.length]);
+  if(S.pa!=="B" && S.tab==="nhom") S.tab="nhansu";
+  if(S.pa!=="C") S.drawer=null;
+  const d=$("#detail");
+  d.innerHTML=`<div class="dhead"><div class="av" style="width:40px;height:40px">PB</div><div><div class="hint">Văn phòng</div><h2>Phòng Kinh Doanh <span class="code">PB032</span></h2></div></div>
+    <div class="tabs">${tabs.map(([k,t,n])=>`<button class="tab ${S.tab===k?"on":""}" data-tab="${k}">${t}${n!=null?`<span class="n">${n}</span>`:""}</button>`).join("")}</div>
+    <div class="body" style="${S.drawer?"padding-right:380px":""}">${S.tab==="nhansu"?veNhanSu():S.tab==="nhom"?veNhom():`<div class="empty">Tab này giữ nguyên, không thuộc phạm vi mẫu.</div>`}</div>
+    ${S.drawer?veDrawer():""}`;
+  const r=d.querySelector(".iname"); if(r){ const g=S.groups.find(x=>x.id===S.renaming); wireRename(d,g); }
+  if(S.flash){ const c=d.querySelector(`[data-card="${S.flash}"]`); if(c){c.scrollIntoView({block:"center",behavior:"smooth"}); c.classList.add("flash"); setTimeout(()=>c.classList.remove("flash"),1400);} S.flash=null; }
+}
+function veNhanSu(){
+  const n=S.sel.size, pages=Math.ceil(P.length/S.size); if(S.page>pages) S.page=pages;
+  const rows=P.slice((S.page-1)*S.size, S.page*S.size);
+  const bar = n ? `<div class="bar batch" role="region" aria-label="Thao tác hàng loạt">
+      <span class="count" role="status">${n} người đã chọn</span>
+      <button class="btn ghost sm" data-act="clear">Bỏ chọn <span class="kbd">Esc</span></button>
+      <span class="spacer"></span>
+      <button class="btn sm" data-act="role">Gán vai trò <span class="caret">▼</span></button>
+      <button class="btn sm" data-act="group">Thêm vào nhóm <span class="caret">▼</span></button>
+      <span class="sep"></span>
+      <button class="btn sm" data-act="move">Chuyển phòng <span class="caret">▼</span></button>
+    </div>`
+    : `<div class="bar"><input class="search" placeholder="Tìm tên, mã, tài khoản…"><span class="spacer"></span><button class="btn primary">+ Thêm nhân viên</button></div>`;
+  const drawerG = S.drawer && S.groups.find(g=>g.id===S.drawer);
+  return bar + `<div class="rows">${rows.map(p=>{
+      const gs=nhomCua(p.id), on=S.sel.has(p.id), inDrawer=drawerG&&drawerG.ids.includes(p.id);
+      return `<div class="row ${on?"sel":""}">
+        <input type="checkbox" data-pick="${p.id}" ${on?"checked":""} aria-label="Chọn ${esc(p.ten)}">
+        <span class="av">${ini(p.ten)}</span>
+        <div class="main"><div class="name">${esc(p.ten)} <span class="code">${p.ma}</span>${p.truong?' <span class="pill head">Trưởng phòng</span>':""}</div>
+          <div class="sub"><span>${esc(p.chuc)}</span><span>@${p.user}</span></div></div>
+        <div class="right">
+          ${gs.map(g=>`<button class="gtag" data-gtag="${g.id}" aria-label="Nhóm ${esc(g.ten)}" title="Dùng chung với: ${esc(g.ids.filter(i=>i!==p.id).map(i=>byId[i].ten).join(", ")||"(chưa có ai khác)")}">${icoUsers}${esc(g.ten)}</button>`).join("")}
+          ${p.role?`<span class="pill role">${esc(p.role)}</span>`:""}
+          <span class="pill ok">● Đang hoạt động</span>
+          ${inDrawer?'<span class="hint">✓ trong nhóm</span>':""}
+        </div></div>`;}).join("")}</div>
+    <div class="pager"><span>${(S.page-1)*S.size+1}–${Math.min(S.page*S.size,P.length)} trên ${P.length} người</span>
+      <span>Hiển thị</span><button class="btn sm" data-act="size">${S.size} <span class="caret">▲▼</span></button>
+      <span class="spacer"></span><button class="btn sm" data-act="prev" ${S.page<=1?"disabled":""}>‹ Trước</button><span>Trang ${S.page}/${pages}</span><button class="btn sm" data-act="next" ${S.page>=pages?"disabled":""}>Sau ›</button></div>`;
+}
+function veNhomThe(g){
+  return `<div class="gcard" data-card="${g.id}">
+    <div class="ghead"><span style="color:var(--violet)">${icoUsers.replace('<svg','<svg width="16" height="16"')}</span>
+      ${S.renaming===g.id?`<input class="iname" value="${esc(g.ten)}">`:`<span class="gname" data-ren="${g.id}" title="Bấm để đổi tên" style="cursor:text">${esc(g.ten)}</span><button class="btn ghost sm" data-ren="${g.id}" title="Đổi tên">✎</button>`}
+      <span class="spacer"></span><span class="gmeta">${g.ids.length} người</span><span class="gmeta">Tạo ${g.tao}</span>
+      <button class="btn ghost sm" data-menu="${g.id}" aria-label="Thêm thao tác">⋯</button></div>
+    <div class="mchips">${g.ids.map(i=>`<span class="mchip"><span class="av s">${ini(byId[i].ten)}</span>${esc(byId[i].ten)}<button class="x" data-rmg="${g.id}" data-rmp="${i}" title="Gỡ ${esc(byId[i].ten)} khỏi nhóm">×</button></span>`).join("")}
+      <button class="addchip" data-addto="${g.id}">+ Thêm người</button></div></div>`;
+}
+function veNhom(){
+  return `<div class="gintro"><p>Người cùng một nhóm xem và sửa được dữ liệu của nhau ở Tính giá, Báo giá, Đơn hàng và Khách hàng, kể cả khi phạm vi của họ là “Của tôi”. Nhóm không cấp thêm quyền nào khác.</p><span class="spacer"></span><button class="btn primary" data-act="newgroup">+ Tạo nhóm</button></div>
+    ${S.groups.length?S.groups.map(veNhomThe).join(""):`<div class="empty">Phòng này chưa có nhóm dùng chung. Tạo nhóm để hai người xem được phiếu của nhau.</div>`}`;
+}
+function veDrawer(){
+  const g=S.groups.find(x=>x.id===S.drawer); if(!g) return "";
+  const moi=[...S.sel].filter(i=>!g.ids.includes(i));
+  return `<aside class="drawer" aria-label="Chi tiết nhóm">
+    <div class="dh"><span style="color:var(--violet)">${icoUsers.replace('<svg','<svg width="18" height="18"')}</span>
+      ${S.renaming===g.id?`<input class="iname" value="${esc(g.ten)}">`:`<b style="font-size:16px;cursor:text" data-ren="${g.id}" title="Bấm để đổi tên">${esc(g.ten)}</b><button class="btn ghost sm" data-ren="${g.id}" title="Đổi tên">✎</button>`}
+      <span class="spacer"></span><button class="btn ghost sm" data-act="closedrawer" aria-label="Đóng">✕</button></div>
+    <div class="dd">Xem và sửa dữ liệu của nhau ở bốn màn Kinh doanh. Không cấp thêm quyền.</div>
+    ${moi.length?`<div class="callout">Đang tick ${moi.length} người ngoài nhóm<span class="spacer"></span><button class="btn sm primary" data-act="addsel">Thêm vào nhóm</button></div>`:`<div class="callout hint" style="border-style:dashed">Tick người ở danh sách bên trái để thêm nhanh vào nhóm này.</div>`}
+    <div class="dl">${g.ids.map(i=>`<div class="mrow"><span class="av s">${ini(byId[i].ten)}</span><div><div>${esc(byId[i].ten)}</div><div class="hint">@${byId[i].user}</div></div><button class="x" data-rmg="${g.id}" data-rmp="${i}">Gỡ</button></div>`).join("")||'<div class="hint" style="padding:8px">Nhóm chưa có ai.</div>'}</div>
+    <div class="df"><button class="btn sm" data-addto="${g.id}">+ Thêm người</button><span class="spacer"></span><button class="btn ghost sm danger" data-act="delgroup">Xoá nhóm</button></div>
+  </aside>`;
+}
+
+/* ---------- sự kiện ---------- */
+document.addEventListener("click",e=>{
+  const t=e.target;
+  const pa=t.closest("[data-pa]"); if(pa){S.pa=pa.dataset.pa; closePop(); render(); return;}
+  if(!t.closest("#detail")) return;
+  const tab=t.closest("[data-tab]"); if(tab){S.tab=tab.dataset.tab; render(); return;}
+  const pick=t.closest("[data-pick]"); if(pick){const id=+pick.dataset.pick; S.sel.has(id)?S.sel.delete(id):S.sel.add(id); render(); return;}
+  const gt=t.closest("[data-gtag]"); if(gt){const g=S.groups.find(x=>x.id==gt.dataset.gtag);
+    if(S.pa==="A") popNhom(gt,g);
+    if(S.pa==="B"){S.tab="nhom"; S.flash=g.id; render();}
+    if(S.pa==="C"){S.drawer=g.id; render();}
+    return;}
+  const rn=t.closest("[data-ren]"); if(rn){S.renaming=+rn.dataset.ren; render(); return;}
+  const mn=t.closest("[data-menu]"); if(mn){menuNhom(mn,S.groups.find(x=>x.id==mn.dataset.menu)); return;}
+  const at=t.closest("[data-addto]"); if(at && !t.closest(".pop")){panelThemNguoi(at,S.groups.find(x=>x.id==at.dataset.addto)); return;}
+  const rm=t.closest("[data-rmg]"); if(rm){const g=S.groups.find(x=>x.id==rm.dataset.rmg); const p=byId[rm.dataset.rmp]; goKhoiNhom(g,[p.id]); toast(`Đã gỡ ${p.ten} khỏi “${g.ten}”`); render(); return;}
+  const a=t.closest("[data-act]")?.dataset.act; if(!a) return;
+  if(a==="clear"){S.sel.clear(); render();}
+  if(a==="group") panelThemVaoNhom(t.closest("[data-act]"));
+  if(a==="role"||a==="move"){ const b=t.closest("[data-act]"); const ds=a==="role"?["Trợ lý kinh doanh","sale","Trưởng phòng"]:["Phòng Kế toán","Phòng Kế hoạch","Tổ in"];
+    openPop(b,`<div class="ph"><b>${a==="role"?"Gán vai trò cho":"Chuyển"} ${S.sel.size} người${a==="move"?" sang":""}</b></div><input class="ps" placeholder="Lọc"><div class="pl">${ds.map(x=>`<button class="opt" data-x>${x}</button>`).join("")}</div>`,
+      el=>el.addEventListener("click",e2=>{if(e2.target.closest("[data-x]")){toast("Mẫu: bước này sẽ hỏi xác nhận như hiện tại");closePop();}}),260); }
+  if(a==="size"){ const b=t.closest("[data-act]");
+    openPop(b,`<div class="pl menu">${[8,16,32,50].map(v=>`<button class="opt" data-sz="${v}">${v} dòng${v===S.size?'<span class="meta">✓</span>':""}</button>`).join("")}</div>`,
+      el=>el.onclick=e2=>{const z=e2.target.closest("[data-sz]"); if(z){S.size=+z.dataset.sz; S.page=1; closePop(); render();}},140); }
+  if(a==="prev"){S.page--; render();} if(a==="next"){S.page++; render();}
+  if(a==="closedrawer"){S.drawer=null; render();}
+  if(a==="addsel"){const g=S.groups.find(x=>x.id===S.drawer); const moi=[...S.sel].filter(i=>!g.ids.includes(i)); themVaoNhom(g,moi); toast(`Đã thêm ${moi.length} người vào “${g.ten}”`); S.sel.clear(); render();}
+  if(a==="delgroup") hoiXoa(S.groups.find(x=>x.id===S.drawer));
+  if(a==="newgroup"){ const b=t.closest("[data-act]");
+    openPop(b,`<div class="ph"><b>Tạo nhóm dùng chung</b><br>Đặt tên trước, thêm người ngay sau đó.</div><div class="newrow"><input placeholder="Tên nhóm, vd: Cặp KD 3" maxlength="60"><button class="btn sm primary">Tạo</button></div>`, el=>{
+      const inp=el.querySelector("input"); const ok=()=>{const v=inp.value.trim(); if(!v){inp.style.borderColor="var(--danger)";inp.placeholder="Nhập tên nhóm trước";return}
+        if(S.groups.some(g=>g.ten===v)){inp.style.borderColor="var(--danger)";inp.value="";inp.placeholder="Đã có nhóm tên này";return}
+        const g=taoNhom(v,[]); closePop(); S.flash=g.id; render(); const add=document.querySelector(`[data-addto="${g.id}"]`); add && panelThemNguoi(add,g);};
+      inp.onkeydown=e2=>{if(e2.key==="Enter")ok()}; el.querySelector(".btn").onclick=ok; },300); }
+});
+render();
+</script>
+</body>
+</html>

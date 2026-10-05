@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import type { DeliveryRequest } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { EmptyRow } from "../../../../components/EmptyState";
 import { fmtDate } from "../../../../utils/format";
 import { KhoangTrong } from "../components/giaoHangCells";
 
@@ -90,13 +91,8 @@ export function BangChoLenKeHoach({
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={onLenLuot ? 8 : 7} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
-                  Đang tải…
-                </td>
-              </tr>
-            )}
+            {/* Xương chỉ khi CHƯA có hàng nào — tải lại thì giữ hàng cũ, đừng chồng 5 hàng xương lên trên. */}
+            {loading && rows.length === 0 && <EmptyRow colSpan={onLenLuot ? 8 : 7} trangThai="dang-tai" />}
             {rows.map((r) => (
               <tr key={r.id} style={chon.has(r.id) ? { background: "#f8fafc" } : undefined}>
                 {onLenLuot && (

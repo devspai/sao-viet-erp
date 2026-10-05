@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api, type SxKcsCongViec } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
 import { KcsLoiCuaTo, loiCuaTo } from "./kcs/KcsLanKiemList";
 import { num } from "./keHoachSxShared";
@@ -95,7 +96,9 @@ export function ThsxKetQuaKcs({
       )}
       {dong.length > 0
         ? <KcsLoiCuaTo congViecId={congViecId} dong={dong} />
-        : <p className="thsx-note">{data ? "KCS chưa ghi lỗi nào cho công đoạn này." : "Đang tải lỗi KCS…"}</p>}
+        : data
+          ? <p className="thsx-note">KCS chưa ghi lỗi nào cho công đoạn này.</p>
+          : <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải lỗi KCS…" />}
     </section>
   );
 }

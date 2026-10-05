@@ -299,16 +299,6 @@
 .dkt-viec__nut { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ---- Trạng thái Tải / Lỗi -------------------------------------------------------------------- */
-.dkt-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 24px 0;
-  font-size: 13px;
-  color: var(--ash, #64748b);
-}
-
 .dkt-loi-nap {
   display: flex;
   flex-wrap: wrap;

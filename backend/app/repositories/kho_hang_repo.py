@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from ..models.kho_hang import KhoHang
+from ..models.kho_hang import KhoHang, KhoViTri
 from ..models.stock_lot import StockLot
 from ..models.stock_request import REQUEST_FULFILLABLE, StockRequest
 from ..models.stock_voucher import VOUCHER_DRAFT, StockVoucher
@@ -24,6 +24,16 @@ class KhoHangRepository(CatalogRepo):
             return {}
         return {int(i): t for i, t in self.db.execute(
             select(KhoHang.id, KhoHang.ten).where(KhoHang.id.in_(ids))).all()}
+
+    def dem_vi_tri(self, kho_ids) -> dict[int, int]:
+        """`{kho_id: số vị trí cất ĐANG DÙNG}` cho một trang danh sách — một câu GROUP BY. Kho chưa
+        khai vị trí nào thì vắng mặt trong map (đọc ra 0)."""
+        ids = {int(i) for i in kho_ids if i is not None}
+        if not ids:
+            return {}
+        return {int(k): int(n) for k, n in self.db.execute(
+            select(KhoViTri.kho_id, func.count()).where(KhoViTri.kho_id.in_(ids), KhoViTri.active.is_(True))
+            .group_by(KhoViTri.kho_id)).all()}
 
     def dem_rang_buoc(self, kho_id: int) -> dict[str, int]:
         """Ba con số CHẶN xoá một kho: lô còn tồn · phiếu chờ ghi sổ · đề nghị đang xử lý.

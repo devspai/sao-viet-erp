@@ -1,6 +1,7 @@
 // Authenticated app shell: persistent left Sidebar + the active screen.
 // On entry it loads the current user's readable modules (feat-010) to gate both
 // the sidebar (handled in Sidebar) and the content (a forbidden module → 403).
+import { EmptyState } from "./EmptyState";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
@@ -142,6 +143,9 @@ export interface NavParams {
   focusReceiptQuery?: string;
   /** P3 (redesign-bao-gia §6): mở thẳng 1 Phiếu tính giá (link "↳ PTG" từ Báo giá). */
   focusPhieuId?: number;
+  /** Liên thông Hồ sơ khách → Tính giá: mở thẳng form phiếu tính giá MỚI (phiếu nháp, chưa ghi DB).
+   *  Phiếu tính giá không mang khách hàng — khách chỉ được chọn ở bước Báo giá. */
+  taoPhieuTinhGia?: boolean;
   /** Liên thông Kho → YCMH: mở form Yêu cầu mua hàng điền sẵn dòng vật tư (Tên + ĐVT). */
   purchaseSeedLines?: {
     hang_loai?: HangLoai | null;
@@ -789,6 +793,10 @@ export function AppShell() {
     } else if (readable.has("khach_hang") && e.type === "care_assigned") {
       pushToast(`📋 Bạn có hẹn chăm sóc mới: ${e.customer}${e.note ? " — " + e.note : ""}`, "info");
       napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("khach_hang") && e.type === "care_moved") {
+      // Người mất hẹn chỉ cần màn nạp lại (nhóm ban_hang đã nhích) — không toast.
+      if (e.nhan) pushToast(`📋 Bạn nhận ${e.so} hẹn chăm sóc do điều chuyển khách`, "info");
+      napBadge("tat_ca", reloadBadges);
     } else if (e.type === "advance_decision") {
       // Nhân viên đề nghị nhận quyết định của kế toán — đẩy riêng tới đúng người.
       pushToast(
@@ -1045,8 +1053,8 @@ export function AppShell() {
       );
     }
     return (
-      <div className="shell__center" role="status" aria-live="polite">
-        Đang tải…
+      <div className="shell__center">
+        <EmptyState trangThai="dang-tai" />
       </div>
     );
   }
@@ -1220,7 +1228,7 @@ export function AppShell() {
       case "quy-trinh-kinh-doanh":
         return <QuyTrinhKinhDoanhPage navigate={navigate} />;
       case "phong-ban":
-        return <DepartmentsPage />;
+        return <DepartmentsPage navigate={navigate} />;
       case "nhan-su":
         return <NhanSuPage navigate={navigate} />;
       case "ho-so-cua-toi":
@@ -1255,9 +1263,16 @@ export function AppShell() {
           />
         );
       case "khach-hang":
-        return <KhachHangPage navigate={navigate} onBadgeStale={reloadBadges} />;
+        return <KhachHangPage navigate={navigate} onBadgeStale={reloadBadges} eventTick={tickCua("ban_hang")} />;
       case "tinh-gia":
-        return <TinhGiaPage navigate={navigate} openPhieuId={navParams?.focusPhieuId} />;
+        return (
+          <TinhGiaPage
+            navigate={navigate}
+            openPhieuId={navParams?.focusPhieuId}
+            taoMoi={navParams?.taoPhieuTinhGia}
+            eventTick={tickCua("danh_muc")}
+          />
+        );
       case "bao-gia":
         return (
           <BaoGiaPage
@@ -1444,8 +1459,8 @@ export function AppShell() {
             {/* Mỗi màn là một chunk nạp khi mở lần đầu — chờ tải thì báo nhẹ, không trắng màn. */}
             <Suspense
               fallback={
-                <div className="shell__center" role="status" aria-live="polite">
-                  Đang tải màn…
+                <div className="shell__center">
+                  <EmptyState trangThai="dang-tai" />
                 </div>
               }
             >

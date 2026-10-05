@@ -7,10 +7,10 @@ import {
   type EmployeeInput,
 } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
-import { CreditCard, FileText, Lock, Users } from "lucide-react";
+import { Check, Copy, CreditCard, FileText, Users } from "lucide-react";
 import { errMsg } from "../shared/helpers";
 import { Field } from "../components/form-fields";
-import { CommissionCard } from "../components/badges";
+import { CommissionCard, type HoaHongState } from "../components/badges";
 import { InfoCard, InfoField } from "../components/info-display";
 
 // Tab Lương & BHXH — dữ liệu nhạy cảm (chỉ hiện với quyền `nhan_su:view_salary`).
@@ -24,12 +24,15 @@ export function SalaryTab({
   edit,
   setEdit,
   onSaved,
+  hoaHong,
 }: {
   token: string;
   emp: EmployeeDetail;
   edit: boolean;
   setEdit: (e: boolean) => void;
   onSaved: () => void;
+  /** % hoa hồng do KHAY tải một lần (`useHoaHong`) — tab chỉ hiển thị, Sửa/Huỷ không tải lại. */
+  hoaHong: HoaHongState;
 }) {
   const [form, setForm] = useState<EmployeeInput>({
     ...emp,
@@ -114,7 +117,14 @@ export function SalaryTab({
   return (
     <div>
       <div className="ns-info-sections">
-        <CommissionCard token={token} employeeId={emp.id} />
+        {/* Cột trái xếp chồng Hoa hồng + Nhận lương — thẻ Ngân hàng một ô trải hết khay để trống
+            nửa thẻ, nên chui xuống dưới Hoa hồng (mockup docs/mockups/ho-so-luong-ngan-hang-3-phuong-an.html, B). */}
+        <div>
+          <CommissionCard state={hoaHong} />
+          <InfoCard title="Nhận lương" icon={CreditCard}>
+            <TheNhanLuong soTk={emp.bank_account} nganHang={emp.bank_name} />
+          </InfoCard>
+        </div>
         <InfoCard title="BHXH / TNCN" icon={FileText}>
           <InfoField
             label="Số sổ BHXH"
@@ -139,17 +149,63 @@ export function SalaryTab({
           />
         </InfoCard>
       </div>
-      <InfoCard title="Ngân hàng" icon={Lock}>
-        <InfoField
-          label="Tài khoản NH"
-          value={
-            emp.bank_account
-              ? `${emp.bank_account} · ${emp.bank_name ?? ""}`
-              : null
-          }
-          icon={CreditCard}
-        />
-      </InfoCard>
+    </div>
+  );
+}
+
+// Nhóm số tài khoản 4-3-3… cho dễ đọc khi đọc qua điện thoại; Sao chép vẫn ra chuỗi gốc.
+function nhomSoTk(s: string): string {
+  return /^\d{8,}$/.test(s) ? s.replace(/^(\d{4})(\d{3})/, "$1 $2 ").replace(/(\d{3})(?=\d{4,})/g, "$1 ") : s;
+}
+
+// Ô Ngân hàng đang gõ tự do. Kiểu "MB - Ngân hàng TMCP Quân đội" thì tách được chữ viết tắt;
+// không có dấu "-" thì hiện biểu tượng thẻ, đừng đoán chữ viết tắt.
+function tachNganHang(s: string | null): { vietTat: string | null; ten: string | null } {
+  const t = (s ?? "").trim();
+  if (!t) return { vietTat: null, ten: null };
+  const m = t.match(/^(\S{1,8})\s+-\s+(.+)$/);
+  return m ? { vietTat: m[1].toUpperCase(), ten: m[2] } : { vietTat: null, ten: t };
+}
+
+function TheNhanLuong({ soTk, nganHang }: { soTk: string | null; nganHang: string | null }) {
+  const [daChep, setDaChep] = useState(false);
+  const { vietTat, ten } = tachNganHang(nganHang);
+  if (!soTk) {
+    return (
+      <div className="ns-pay ns-pay--trong">
+        <div className="ns-pay__mono ns-pay__mono--trong">
+          <CreditCard size={18} />
+        </div>
+        <div className="ns-pay__main">
+          <span className="ns-pay__trong">Chưa khai tài khoản nhận lương</span>
+          {ten && <span className="ns-pay__bank">{ten}</span>}
+        </div>
+      </div>
+    );
+  }
+  function chep() {
+    navigator.clipboard?.writeText(soTk!).catch(() => {});
+    setDaChep(true);
+    setTimeout(() => setDaChep(false), 1500);
+  }
+  return (
+    <div className="ns-pay">
+      <div className="ns-pay__mono" aria-hidden="true">
+        {vietTat ?? <CreditCard size={18} />}
+      </div>
+      <div className="ns-pay__main">
+        <span className="ns-pay__acc">{nhomSoTk(soTk)}</span>
+        <span className="ns-pay__bank">{ten ?? "Chưa ghi ngân hàng"}</span>
+      </div>
+      <button
+        type="button"
+        className={`ns-pay__copy${daChep ? " is-copied" : ""}`}
+        onClick={chep}
+        aria-label="Sao chép số tài khoản"
+      >
+        {daChep ? <Check size={12} /> : <Copy size={12} />}
+        {daChep ? "Đã chép" : "Sao chép"}
+      </button>
     </div>
   );
 }

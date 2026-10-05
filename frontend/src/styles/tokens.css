@@ -94,6 +94,11 @@
   --sp-12: 48px;
   --sp-16: 64px;
 
+  /* Khổ trang — MỌI màn ở thanh bên dùng chung, chuẩn theo màn Khách hàng (04/10/2026).
+     Đổi khổ cả app thì sửa ở đây, đừng gõ max-width riêng cho từng màn. */
+  --page-max-w: 1480px;
+  --page-pad-x: var(--sp-6);
+
   /* Radius */
   --r-2: 4px;
   --r-3: 6px;

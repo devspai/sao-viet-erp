@@ -10,11 +10,12 @@ KHÔNG phải biên trên giá bán (chủ đầu tư chốt 29/08/2026).
 """
 from __future__ import annotations
 
+from tests.khach_phieu_fixtures import gan_khach_phieu, khach_mac_dinh
 from app.db import SessionLocal
 from app.models.phieu_tinh_gia import PhieuThanhPhan, PhieuTinhGia
 from app.repositories.rbac_repo import DepartmentRepository, RoleRepository
 from app.repositories.user_repo import UserRepository
-from app.security import create_access_token, hash_password
+from app.security import create_access_token, decode_access_token, hash_password
 
 ADMIN = {"username": "admin", "password": "admin123"}   # GĐ: có approve_exception trên bao_gia + don_hang_ban
 
@@ -43,12 +44,15 @@ def _role_token(username: str, role_name: str, dept="Kinh doanh") -> str:
         db.close()
 
 
-def _seed_ptg(*, gia_von_tp: int, so_luong=1_000) -> int:
+def _seed_ptg(*, gia_von_tp: int, so_luong=1_000, cua: str | None = None) -> int:
+    """`cua` = token người lập phiếu. NV Sales (phạm vi Tính giá "Của tôi") chỉ lập được báo giá
+    từ phiếu mình thấy — phiếu không chủ (created_by NULL) chỉ phạm vi Tất cả thấy."""
+    created_by = int(decode_access_token(cua)["sub"]) if cua else None
     db = SessionLocal()
     try:
         n = db.query(PhieuTinhGia).count() + 1
-        p = PhieuTinhGia(ma=f"PTG-BG2-{n:04d}", ten_san_pham="SP đặc thù", so_luong=so_luong,
-                         tong_gia_von=gia_von_tp, gia_von_don=0, ktv="KTV")
+        p = PhieuTinhGia(customer_id=khach_mac_dinh(db), ma=f"PTG-BG2-{n:04d}", ten_san_pham="SP đặc thù", so_luong=so_luong,
+                         tong_gia_von=gia_von_tp, gia_von_don=0, ktv="KTV", created_by=created_by)
         db.add(p)
         db.flush()
         db.add(PhieuThanhPhan(phieu_id=p.id, thu_tu=0, ten="SP", so_luong=so_luong,
@@ -166,7 +170,7 @@ def test_truong_phong_kd_can_approve_exception(client):
     # Luồng thật: NV Sales cùng phòng Kinh doanh soạn + trình duyệt; TP KD (scope phòng) duyệt.
     sales = _role_token("sale_for_tpkd", "NV Sales")
     tpkd = _role_token("tpkd_bg2", "Trưởng phòng KD")
-    pid = _seed_ptg(gia_von_tp=1_000_000_000)
+    pid = _seed_ptg(gia_von_tp=1_000_000_000, cua=sales)
     q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(sales)).json()
     client.post(f"/api/quotations/{q['id']}/transition",
                 json={"to_status": "pending_approval"}, headers=_h(sales))
@@ -181,7 +185,7 @@ def test_sales_can_submit_own_quote_for_approval(client):
     """NV Sales tự soạn báo giá đặc thù + tự TRÌNH DUYỆT (có manage_status), NHƯNG không tự duyệt."""
     _token(client)  # đảm bảo roles đã seed
     sales = _role_token("nv_sales_submit", "NV Sales")
-    pid = _seed_ptg(gia_von_tp=1_000_000_000)  # giá bán 1.25 tỷ → đặc thù (giá trị cao)
+    pid = _seed_ptg(gia_von_tp=1_000_000_000, cua=sales)  # giá bán 1.25 tỷ → đặc thù (giá trị cao)
     q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(sales)).json()
     assert q["exception_required"] is True
     # NV Sales tự set biên khi soạn → thấy số biên (không còn giấu).
@@ -201,7 +205,7 @@ def test_sales_can_accept_own_normal_quote(client):
     """NV Sales tự đánh dấu 'Khách hàng đồng ý' cho báo giá THƯỜNG của mình (can_approve, scope own)."""
     _token(client)  # đảm bảo roles đã seed
     sales = _role_token("nv_sales_accept", "NV Sales")
-    pid = _seed_ptg(gia_von_tp=1_000_000)  # giá bán 1.25tr → KHÔNG đặc thù
+    pid = _seed_ptg(gia_von_tp=1_000_000, cua=sales)  # giá bán 1.25tr → KHÔNG đặc thù
     q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(sales)).json()
     assert q["exception_required"] is False
     # Gửi khách (manage_status) rồi khách chốt (approve) — cả hai đều là quyền của NV Sales.
@@ -244,7 +248,7 @@ def test_detail_shows_salesperson_and_approver(client):
     _token(client)  # seed roles
     sales = _role_token("nv_sales_names", "NV Sales")
     admin = _token(client)
-    pid = _seed_ptg(gia_von_tp=1_000_000_000)
+    pid = _seed_ptg(gia_von_tp=1_000_000_000, cua=sales)
     q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(sales)).json()
     d0 = client.get(f"/api/quotations/{q['id']}", headers=_h(admin)).json()
     assert d0["salesperson_name"] == "nv_sales_names"          # người duyệt thấy NV soạn
@@ -294,6 +298,7 @@ def _customer_with_markup_bounds(client, token, *, name: str, mmin=None, mmax=No
 
 def _quote(client, token, *, customer_id: int, markup: float, cost=10_000_000) -> dict:
     pid = _seed_ptg(gia_von_tp=cost)
+    gan_khach_phieu(pid, customer_id)        # khách chọn Ở PHIẾU, payload báo giá bị bỏ qua
     r = client.post("/api/quotations",
                     json={"phieu_tinh_gia_id": pid, "customer_id": customer_id, "margin_percent": markup},
                     headers=_h(token))
@@ -345,6 +350,7 @@ def test_ha_markup_sau_khi_duyet_thi_het_bao_phu(client):
     token = _token(client)
     cid = _customer_with_markup_bounds(client, token, name="KH Bao Phu", mmin=10, mmax=20)
     pid = _seed_ptg(gia_von_tp=10_000_000)
+    gan_khach_phieu(pid, cid)
     qid = client.post("/api/quotations",
                       json={"phieu_tinh_gia_id": pid, "customer_id": cid, "margin_percent": 9},
                       headers=_h(token)).json()["id"]

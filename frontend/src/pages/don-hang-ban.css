@@ -1,9 +1,9 @@
 /* Giao diện Đơn hàng bán (dhb) — thiết kế cao cấp "Paper + Ink pigment" */
 
 .dhb-container {
-  max-width: 1200px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: var(--sp-6) var(--sp-8);
+  padding: var(--sp-6) var(--page-pad-x);
   animation: dhb-fade-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -315,6 +315,36 @@
   font-family: var(--ff-sans);
   font-size: 13px;
   font-weight: 700;
+  color: var(--ink);
+}
+
+/* Dòng phụ dưới ô của bảng đơn (tóm tắt hàng, "còn N ngày") */
+.dhb__row-sub {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--ash);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dhb__row-sub--warn {
+  color: var(--amber-deep);
+  font-weight: 600;
+}
+
+.dhb__row-more {
+  color: var(--ash-2);
+}
+
+.dhb__sx {
+  font-size: 12px;
+  color: var(--ash);
+  white-space: nowrap;
+}
+
+.dhb__sx--on {
   color: var(--ink);
 }
 
@@ -933,13 +963,6 @@
   color: var(--signal);
 }
 
-.dhb__lifecycle-desc {
-  font-size: 12px;
-  color: var(--ash);
-  margin: 0;
-  line-height: 1.4;
-}
-
 /* Bước Hóa đơn — sổ hóa đơn nằm ngay trong vòng đời đơn, không tách thành màn riêng. */
 .dhb__invoice-panel {
   gap: var(--sp-3);
@@ -1367,55 +1390,7 @@
   border-color: var(--rust);
 }
 
-/* --- KPI strip đầu list (mật độ cao, rule-based từ stats) --- */
-.dhb__kpis {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin: 0 0 var(--sp-4);
-}
-
-.dhb__kpi {
-  background: var(--paper-contrast);
-  border: 1px solid var(--rule-hair);
-  border-radius: var(--r-3);
-  padding: 8px 12px;
-}
-
-.dhb__kpi-l {
-  font-size: 11px;
-  color: var(--ash);
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.dhb__kpi-n {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--ink);
-  letter-spacing: -0.01em;
-  margin-top: 2px;
-}
-
-.dhb__kpi-u {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ash);
-}
-
-.dhb__kpi-s {
-  font-size: 11px;
-  color: var(--ash-2);
-  margin-top: 1px;
-}
-
 @media (max-width: 760px) {
-  .dhb__kpis {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .dhb__drawer-content {
     width: 100%;
     /* PHẢI gỡ luôn `min-width` của bản rộng — máy hẹp hơn 580px thì cái sàn đó đẩy ô tràn khỏi

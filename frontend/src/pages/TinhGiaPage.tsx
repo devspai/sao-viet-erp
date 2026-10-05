@@ -10,22 +10,30 @@ import "./tinh-gia.css";
 // được tạo thật khi có ≥1 sản phẩm và bấm Tính giá — bỏ ngang thì không để lại phiếu rỗng.
 type View = { mode: "list" } | { mode: "detail"; id: number | null };
 
-export function TinhGiaPage({ navigate, openPhieuId }: {
+export function TinhGiaPage({ navigate, openPhieuId, taoMoi, eventTick = 0 }: {
   // BG-3: điều hướng sang Báo giá (nút "Báo giá →" trên phiếu). Không truyền → ẩn nút.
   navigate?: (pageId: string, params?: { openQuoteId?: number }) => void;
   // P3 (redesign-bao-gia §6): mở thẳng 1 phiếu tính giá (link "↳ PTG" từ Báo giá).
   openPhieuId?: number;
+  // Nút "Lập phiếu tính giá" ở hồ sơ khách: vào thẳng form phiếu mới, khỏi qua danh sách.
+  taoMoi?: boolean;
+  // Tick nhóm SSE `danh_muc`: nhích khi danh mục nguồn đổi ⇒ phiếu đang mở nạp lại danh mục.
+  eventTick?: number;
 } = {}) {
   const [view, setView] = useState<View>(
-    openPhieuId ? { mode: "detail", id: openPhieuId } : { mode: "list" },
+    openPhieuId ? { mode: "detail", id: openPhieuId } : taoMoi ? { mode: "detail", id: null } : { mode: "list" },
   );
 
   if (view.mode === "detail") {
     return (
       <PhieuTinhGiaDetailView
+        // key theo id: nhân bản xong mở phiếu MỚI trong cùng màn — dựng lại từ đầu, không dính state cũ.
+        key={view.id ?? "moi"}
         id={view.id}
         onBack={() => setView({ mode: "list" })}
+        onMoPhieu={(id) => setView({ mode: "detail", id })}
         navigate={navigate}
+        eventTick={eventTick}
       />
     );
   }

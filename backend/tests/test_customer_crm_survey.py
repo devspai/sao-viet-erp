@@ -311,7 +311,7 @@ def test_care_log_and_timeline_merge(client):
     assert len(care_rows) == 1 and care_rows[0]["title"] == "Gọi điện"
 
 
-def test_care_task_lifecycle_and_remind_levels(client):
+def test_care_task_tre_va_danh_gia(client):
     from datetime import datetime, timedelta, timezone
 
     token = _admin_token(client)
@@ -326,19 +326,18 @@ def test_care_task_lifecycle_and_remind_levels(client):
         assert r.status_code == 201, r.text
         return r.json()
 
-    future = mk(+3)   # chưa đến hạn → nhắc 0
-    due_now = mk(0)   # đến hạn hôm nay → nhắc 1
-    late2 = mk(-3)    # quá 3 ngày → nhắc 2
-    late3 = mk(-7)    # quá 7 ngày → nhắc 3
-    assert future["remind_level"] == 0
-    assert due_now["remind_level"] == 1
-    assert late2["remind_level"] == 2 and late2["overdue_days"] == 3
-    assert late3["remind_level"] == 3
+    future = mk(+3)
+    mk(-3)
+    late3 = mk(-7)
+    # Chỉ còn một khái niệm "trễ": đang mở mà giờ hẹn đã qua (bỏ nhắc lần 1/2/3).
+    assert future["tre"] is False and late3["tre"] is True
 
-    # Panel "Cần chăm sóc": chỉ các việc đã đến hạn (3 việc, sớm nhất trước).
-    fu = client.get("/api/customers/care-followups", headers=_h(token)).json()["items"]
-    fu_cid = [f for f in fu if f["customer_id"] == cid]
-    assert [f["remind_level"] for f in fu_cid] == [3, 2, 1]
+    # Nút "Lịch hẹn → Của tôi": hẹn trễ trước, rồi hẹn sắp tới; số đỏ chỉ đếm trễ + hôm nay.
+    lh = client.get("/api/customers/lich-hen", headers=_h(token)).json()
+    cua_khach = [o for o in lh["items"] if o["customer_id"] == cid]
+    assert [o["tre"] for o in cua_khach] == [True, True, False]
+    assert cua_khach[0]["customer_name"] == "Cty Follow Up"
+    assert lh["so"] >= 2
 
     # Hoàn thành việc quá hạn kèm ghi log chăm sóc trong cùng thao tác.
     r = client.put(
@@ -350,9 +349,9 @@ def test_care_task_lifecycle_and_remind_levels(client):
     assert r.json()["status"] == "done" and r.json()["done_at"]
 
     tasks = client.get(f"/api/customers/{cid}/care-tasks", headers=_h(token)).json()
-    # Đánh giá #28: 1 việc xong (trễ — done sau due 7 ngày), 2 việc đang quá hạn.
+    # Đánh giá #28: 1 việc xong (trễ — done sau due 7 ngày), 1 việc đang trễ.
     assert tasks["done_late"] == 1 and tasks["done_on_time"] == 0
-    assert tasks["overdue_open"] == 2
+    assert tasks["overdue_open"] == 1
     # Log đi kèm đã vào nhật ký chăm sóc.
     care = client.get(f"/api/customers/{cid}/care", headers=_h(token)).json()["items"]
     assert any("khách chốt" in e["note"] for e in care)
@@ -408,8 +407,24 @@ def test_care_recurrence_calendar(client):
     care = client.get(f"/api/customers/{cid}/care", headers=_h(token)).json()["items"]
     assert any("Đã gọi xong" in e["note"] for e in care)
 
+    # Ghi kết quả cho một lần ẢO tương lai → thành dòng ngoại lệ đang mở, các lần khác không đổi.
+    ao = m[day(14)]
+    r = client.post(
+        f"/api/customers/{cid}/care-tasks/{head['id']}/occurrence?from={day(-1)}&to={day(30)}",
+        json={"action": "ghi", "occurrence_date": ao["occurrence_date"], "ket_qua": "Khách hẹn gửi mẫu"},
+        headers=_h(token),
+    )
+    assert r.status_code == 200, r.text
+    m = {o["due_date"][:10]: o for o in r.json()["items"]}
+    assert m[day(14)]["ket_qua"] == "Khách hẹn gửi mẫu" and not m[day(14)]["is_virtual"]
+    assert m[day(14)]["status"] == "open" and m[day(21)]["ket_qua"] is None
+    assert len(r.json()["items"]) == 5    # không đẻ thêm lần trùng
+    # Lần lặp giữ GIỜ của hẹn đầu chuỗi (trước đây rơi về 00:00).
+    # (SQLite trả dòng cụ thể dạng naive, lần ảo có "Z" — cả hai đều là giờ UTC.)
+    assert {o["due_date"][11:16] for o in r.json()["items"]} == {start.strftime("%H:%M")}
 
-def test_care_followups_scoped_to_caller(client):
+
+def test_lich_hen_pham_vi_cua_toi_va_ca_nhom(client):
     from datetime import datetime, timedelta, timezone
 
     _seed_demo()
@@ -422,20 +437,100 @@ def test_care_followups_scoped_to_caller(client):
         db.close()
 
     cid = _create(client, admin, name="Cty Cua Sale1", sale_user_id=sale1.id)["customer"]["id"]
+    hom_qua = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
     client.post(f"/api/customers/{cid}/care-tasks", json={
-        "note": "Gọi chốt hợp đồng",
-        "due_date": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
-    }, headers=_h(admin))
+        "note": "Gọi chốt hợp đồng", "due_date": hom_qua}, headers=_h(admin))
+    # Hẹn giao cho sale2 trên khách của sale1 — trước đây sale2 KHÔNG thấy (lọc theo chủ khách).
+    client.post(f"/api/customers/{cid}/care-tasks", json={
+        "note": "Gửi mẫu", "due_date": hom_qua, "assignee_user_id": sale2.id}, headers=_h(admin))
 
-    # sale1 (scope own) thấy việc trên khách của mình; sale2 không thấy.
+    def lay(token, pham_vi="toi"):
+        return client.get(f"/api/customers/lich-hen?pham_vi={pham_vi}", headers=_h(token)).json()
+
     t1 = create_access_token(str(sale1.id))
     t2 = create_access_token(str(sale2.id))
-    fu1 = client.get("/api/customers/care-followups", headers=_h(t1)).json()["items"]
-    fu2 = client.get("/api/customers/care-followups", headers=_h(t2)).json()["items"]
-    assert any(f["customer_name"] == "Cty Cua Sale1" for f in fu1)
-    assert not any(f["customer_name"] == "Cty Cua Sale1" for f in fu2)
-    # Việc mặc định gán cho Sale phụ trách khách.
-    assert fu1[0]["assignee_name"]
+    # Hẹn mặc định gán cho Sale phụ trách khách.
+    assert [o["note"] for o in lay(t1)["items"]] == ["Gọi chốt hợp đồng"]
+    assert lay(t1)["items"][0]["assignee_name"]
+    assert [o["note"] for o in lay(t2)["items"]] == ["Gửi mẫu"]
+    assert lay(t2)["so"] == 1
+    # Admin: "Của tôi" không gánh việc của người khác; "Cả nhóm" (phạm vi toàn công ty) thấy hết.
+    assert not [o for o in lay(admin)["items"] if o["customer_id"] == cid]
+    nhom = lay(admin, "nhom")
+    assert nhom["co_nhom"] is True
+    assert sorted(o["note"] for o in nhom["items"] if o["customer_id"] == cid) == [
+        "Gọi chốt hợp đồng", "Gửi mẫu"]
+
+
+def test_lich_hen_hom_nay_tinh_theo_gio_viet_nam(client):
+    """Số đỏ "trễ + hôm nay" chốt theo ngày VN: hẹn 6h sáng mai giờ VN là 23h UTC hôm nay — trước
+    đây (mốc hết ngày UTC) bị đếm nhầm vào hôm nay."""
+    from datetime import timedelta, timezone
+
+    from app.services.khach_hang_so_lieu import hom_nay_vn, moc
+
+    token = _admin_token(client)
+    cid = _create(client, token, name="Cty Gio VN")["customer"]["id"]
+    mai = hom_nay_vn() + timedelta(days=1)
+    for note, gio in (("Tối nay 23h", moc(mai) - timedelta(hours=1)),
+                      ("Sáng mai 6h", moc(mai) + timedelta(hours=6))):
+        client.post(f"/api/customers/{cid}/care-tasks",
+                    json={"note": note, "due_date": gio.astimezone(timezone.utc).isoformat()}, headers=_h(token))
+    lh = client.get("/api/customers/lich-hen", headers=_h(token)).json()
+    assert [o["note"] for o in lh["items"] if o["customer_id"] == cid] == ["Tối nay 23h", "Sáng mai 6h"]
+    assert lh["so"] == 1
+
+
+def test_dieu_chuyen_khach_hen_mo_di_theo(client, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    from app.realtime import hub
+
+    _seed_demo()
+    admin = _admin_token(client)
+    db = SessionLocal()
+    try:
+        sale1 = UserRepository(db).get_by_username("sale1")
+        sale2 = UserRepository(db).get_by_username("sale2")
+    finally:
+        db.close()
+    cid = _create(client, admin, name="Cty Ban Giao", sale_user_id=sale1.id)["customer"]["id"]
+    mai = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    mo = client.post(f"/api/customers/{cid}/care-tasks", json={"note": "Hẹn mở", "due_date": mai},
+                     headers=_h(admin)).json()
+    xong = client.post(f"/api/customers/{cid}/care-tasks", json={"note": "Hẹn xong", "due_date": mai},
+                       headers=_h(admin)).json()
+    client.put(f"/api/customers/{cid}/care-tasks/{xong['id']}/status", json={"status": "done"},
+               headers=_h(admin))
+
+    events: list = []
+    monkeypatch.setattr(hub, "publish", lambda uid, e: events.append((uid, e)))
+    r = client.post("/api/customers/reassign",
+                    json={"customer_ids": [cid], "to_sale_user_id": sale2.id}, headers=_h(admin))
+    assert r.status_code == 200, r.text
+    tasks = {t["id"]: t for t in client.get(f"/api/customers/{cid}/care-tasks",
+                                             headers=_h(admin)).json()["items"]}
+    assert tasks[mo["id"]]["assignee_user_id"] == sale2.id      # hẹn đang mở đi theo khách
+    assert tasks[xong["id"]]["assignee_user_id"] == sale1.id    # hẹn đã xong giữ người đã làm
+    # Real-time: người nhận được ting kèm số hẹn, người mất hẹn nạp lại im lặng.
+    moved = {uid: e for uid, e in events if e["type"] == "care_moved"}
+    assert moved == {sale2.id: {"type": "care_moved", "so": 1, "nhan": True},
+                     sale1.id: {"type": "care_moved", "so": 1, "nhan": False}}
+
+    # Chuyển trả: hẹn mở của sale2 quay về sale1. Xong hẹn rồi chuyển tiếp → không còn hẹn mở
+    # của người cũ để đi theo ⇒ không báo gì.
+    events.clear()
+    r = client.post("/api/customers/reassign",
+                    json={"customer_ids": [cid], "to_sale_user_id": sale1.id}, headers=_h(admin))
+    assert r.status_code == 200, r.text
+    assert [e for _, e in events if e["type"] == "care_moved"]
+    events.clear()
+    client.put(f"/api/customers/{cid}/care-tasks/{mo['id']}/status", json={"status": "done"},
+               headers=_h(admin))
+    r = client.post("/api/customers/reassign",
+                    json={"customer_ids": [cid], "to_sale_user_id": sale2.id}, headers=_h(admin))
+    assert r.status_code == 200, r.text
+    assert not [e for _, e in events if e["type"] == "care_moved"]
 
 
 # --- Nhãn thủ công (#7: sales gán tay) -----------------------------------------

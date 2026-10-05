@@ -301,6 +301,15 @@ def get_customer_analytics_service(
     return CustomerAnalyticsService(db)
 
 
+def get_so_lieu_khach_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> "SoLieuKhachService":
+    """Số liệu hồ sơ khách THEO KỲ (Tổng quan / Lịch sử mua hàng / Lịch sử báo giá)."""
+    from .services.khach_hang_so_lieu import SoLieuKhachService
+
+    return SoLieuKhachService(db)
+
+
 def get_employee_repository(
     db: Annotated[Session, Depends(get_db)],
 ) -> EmployeeRepository:

@@ -78,6 +78,8 @@ from ..services.quotation_service import (
 )
 from ..services.quotation_state import TRANSITIONS
 from ..services.thong_bao_man import bao
+from ..schemas.customer import SaleOption
+from ..services.nguoi_phu_trach_service import lua_chon_nguoi
 from ..services.rbac_service import AuthorizationService
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from ..tai_len import doc_gioi_han
@@ -218,6 +220,7 @@ def _detail(
                     total_cost_snapshot=float(item.total_cost_snapshot),
                     margin_percent=float(item.margin_percent),
                     selling_price=float(item.selling_price),
+                    gia_go_tay=bool(item.gia_go_tay),
                     unit_price=float(item.unit_price),
                     discount_amount=float(item.discount_amount),
                     vat_percent=float(item.vat_percent),
@@ -267,6 +270,7 @@ def _detail(
         customer=customer,
         phieu_tinh_gia_id=q.phieu_tinh_gia_id,
         phieu_tinh_gia_ma=svc.phieu_tinh_gia_ref(q)["ma"],
+        phieu_doi=svc.phieu_doi_theo(q, active_version),
         valid_until=q.valid_until,
         status=q.status,
         cancel_reason=q.cancel_reason,
@@ -327,10 +331,12 @@ def list_quotations(
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
+    nguoi: int | None = Query(default=None),
 ) -> QuotationListOut:
     scope = _scope_for(authz, user)
     rows, total, names = svc.list_quotations(
-        scope=scope, actor=user, q=q, status=status_filter, sort=sort, page=page, size=size
+        scope=scope, actor=user, q=q, status=status_filter, sort=sort, page=page, size=size,
+        nguoi=nguoi,
     )
 
     # Bulk map cho hiển thị 2 tầng: tên người phụ trách
@@ -348,10 +354,23 @@ def list_quotations(
 @router.get("/stats", response_model=QuotationStatsOut)
 def quotation_stats(
     svc: Service,
-    _: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    nguoi: int | None = Query(default=None),
 ) -> QuotationStatsOut:
-    """Số đếm cho thanh tab list Báo giá."""
-    return QuotationStatsOut(**svc.stats())
+    """Số đếm cho thanh tab list Báo giá — cùng phạm vi + hộp lọc người với bảng."""
+    return QuotationStatsOut(**svc.stats(scope=_scope_for(authz, user), actor=user, nguoi=nguoi))
+
+
+@router.get("/nguoi-phu-trach", response_model=list[SaleOption])
+def list_nguoi_phu_trach(
+    svc: Service,
+    authz: Authz,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[SaleOption]:
+    """Hộp lọc NV phụ trách: người đang giữ báo giá TRONG tầm nhìn (phạm vi + nhóm dùng chung)."""
+    return lua_chon_nguoi(db, svc.dem_theo_nguoi(scope=_scope_for(authz, user), actor=user), user)
 
 
 @router.get("/pending-approval-count")
@@ -476,6 +495,16 @@ def create_quotation(
     user: Annotated[User, Depends(require_permission(MODULE, "create"))],
 ) -> QuotationDetailOut:
     scope = _scope_for(authz, user)
+    # Phải THẤY được phiếu nguồn (phạm vi Tính giá) mới lập được báo giá từ nó — không thì ai có
+    # quyền Tạo báo giá cũng chép được giá vốn phiếu người khác bằng cách gọi thẳng API. Ẩn = 404.
+    from ..models.phieu_tinh_gia import PhieuTinhGia
+    from .phieu_tinh_gia import _owner_ids_for_scope as _ptg_owner_ids
+
+    if payload.phieu_tinh_gia_id is not None:
+        ptg = svc.quotations.db.get(PhieuTinhGia, payload.phieu_tinh_gia_id)
+        owner_ids = _ptg_owner_ids(svc.quotations.db, user, authz)
+        if ptg is not None and owner_ids is not None and ptg.created_by not in owner_ids:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy phiếu tính giá.")
     try:
         q = svc.create_quotation(
             customer_id=payload.customer_id,
@@ -502,9 +531,9 @@ def quote_id_for_phieu(
     svc: Service,
     _: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> dict:
-    """BG-1: báo giá ĐANG HIỆU LỰC của 1 Phiếu tính giá (để màn PTG quyết 'Tạo mới' hay 'Mở BG có sẵn').
-    Trả `{quote_id, quote_number}` hoặc `{quote_id: null}` nếu chưa có."""
-    existing = svc.quotations.active_for_phieu(phieu_tinh_gia_id)
+    """Báo giá (duy nhất, mọi trạng thái) của 1 Phiếu tính giá — để màn phiếu quyết 'Lập báo giá'
+    hay 'Mở báo giá có sẵn'. Trả `{quote_id, quote_number}` hoặc `{quote_id: null}` nếu chưa có."""
+    existing = svc.quotations.cua_phieu(phieu_tinh_gia_id)
     if existing is None:
         return {"quote_id": None, "quote_number": None}
     return {"quote_id": existing.id, "quote_number": existing.quote_number}
@@ -570,16 +599,14 @@ def update_quotation(
             quotation_id=quotation_id,
             scope=scope,
             actor=user,
-            customer_id=payload.customer_id,
             valid_until=payload.valid_until,
             terms_text=payload.terms_text,
             customer_note=payload.customer_note,
-            internal_note=payload.internal_note,
-            delivery_address=payload.delivery_address,
-            contact_name_snapshot=payload.contact_name_snapshot,
-            contact_phone_snapshot=payload.contact_phone_snapshot,
-            contact_title_snapshot=payload.contact_title_snapshot,
-            contact_email_snapshot=payload.contact_email_snapshot,
+            # Ô kế thừa từ phiếu tính giá: chỉ chuyển ô client CÓ gửi, service từ chối nếu khác.
+            ke_thua_gui={
+                k: getattr(payload, k)
+                for k in svc.KE_THUA_TU_PHIEU if k in payload.model_fields_set
+            },
             items_payload=items_payload_list,
         )
     except (QuotationNotFound, QuotationForbidden):

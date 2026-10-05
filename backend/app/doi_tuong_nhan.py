@@ -56,6 +56,8 @@ MAN_GIAO_HANG = ("don_hang_ban", "giao_hang")
 MAN_KHVT = ("san_xuat", "ke_hoach_vat_tu")
 #: Nhật ký — tick RIÊNG (`nhatKyTick`), không thuộc nhóm nào.
 MAN_NHAT_KY = ("activity_log",)
+#: nhóm `danh_muc`: màn phiếu tính giá đang mở (nạp lại danh mục nguồn + lời nhắc "danh mục đã đổi").
+MAN_DANH_MUC = ("tinh_gia_thanh",)
 
 
 def hop(*tap: Iterable[str]) -> list[str]:

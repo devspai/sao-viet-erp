@@ -87,6 +87,14 @@ class EmployeeRepository:
             select(func.count()).select_from(Employee).where(Employee.department_id == department_id)
         ).scalar_one()
 
+    def counts_by_department(self) -> dict[int, int]:
+        """`{department_id: số hồ sơ}` của MỌI phòng trong MỘT truy vấn (danh sách phòng ban)."""
+        return dict(self.db.execute(
+            select(Employee.department_id, func.count())
+            .where(Employee.department_id.is_not(None))
+            .group_by(Employee.department_id)
+        ).all())
+
     def find_by_national_id(self, national_id: str | None) -> Employee | None:
         """First employee carrying this CCCD, for the soft duplicate warning. None for
         an empty value. Does NOT enforce uniqueness (deliberate soft check)."""
@@ -391,7 +399,8 @@ class EmployeeRepository:
         ).first()
         return None if has_history is not None else employee.default_shift_id
 
-    def delete_shift_assignment(self, employee: Employee, assignment_id: int) -> bool:
+    def delete_shift_assignment(self, employee: Employee, assignment_id: int, *,
+                                commit: bool = True) -> bool:
         """Xóa một MỐC ca nền gán nhầm. Trả False nếu mốc không thuộc NV này.
 
         Sau khi xóa, đồng bộ lại `default_shift_id` theo mốc mới nhất còn lại — nó là
@@ -407,8 +416,9 @@ class EmployeeRepository:
         remaining = self.list_shift_assignments(employee.id)
         if remaining:
             employee.default_shift_id = remaining[0].shift_id
-        self.db.commit()
-        self.db.refresh(employee)
+        if commit:
+            self.db.commit()
+            self.db.refresh(employee)
         return True
 
     def shift_is_referenced(self, shift_id: int) -> bool:
@@ -671,33 +681,47 @@ class EmployeeRepository:
                     continue
         return f"NV{max_n + 1:03d}"
 
-    def create(self, *, code: str | None = None, **fields) -> Employee:
+    def create(self, *, code: str | None = None, commit: bool = True, **fields) -> Employee:
         """Tạo hồ sơ. `code` bỏ trống ⇒ máy tự cấp mã kế tiếp (đường thường: nút "Thêm nhân
         viên"). Truyền `code` vào là đường của lượt NHẬP EXCEL chuyển dữ liệu sang máy khác:
         mã NV in trên hợp đồng / thẻ / bảng lương nên phải giữ nguyên, cấp lại là lệch hết.
-        Chống trùng nằm ở service (`create_employee`), không phải ở đây."""
+        Chống trùng nằm ở service (`create_employee`), không phải ở đây.
+        `commit=False`: chỉ flush (có id ngay), người gọi chốt cả thao tác một lần."""
         employee = Employee(code=code or self._next_code(), **fields)
         self.db.add(employee)
-        self.db.commit()
-        self.db.refresh(employee)
+        if commit:
+            self.db.commit()
+            self.db.refresh(employee)
+        else:
+            self.db.flush()
         return employee
 
-    def update(self, employee: Employee, **fields) -> Employee:
-        """Assign the given attributes (code is never among them) and persist."""
+    def update(self, employee: Employee, *, commit: bool = True, **fields) -> Employee:
+        """Assign the given attributes (code is never among them) and persist.
+        `commit=False`: người gọi gom cả lô vào MỘT giao dịch (điều chuyển hàng loạt)."""
         for key, value in fields.items():
             setattr(employee, key, value)
-        self.db.commit()
-        self.db.refresh(employee)
+        if commit:
+            self.db.commit()
+            self.db.refresh(employee)
         return employee
 
     # --- events (Quá trình công tác) ---------------------------------------
 
-    def add_event(self, **fields) -> EmployeeEvent:
+    def add_event(self, *, commit: bool = True, **fields) -> EmployeeEvent:
         event = EmployeeEvent(**fields)
         self.db.add(event)
-        self.db.commit()
-        self.db.refresh(event)
+        if commit:
+            self.db.commit()
+            self.db.refresh(event)
         return event
+
+    def get_many(self, employee_ids) -> dict[int, Employee]:
+        """`{id: hồ sơ}` của nhiều hồ sơ trong MỘT truy vấn; id không có thì vắng mặt."""
+        ids = sorted({int(i) for i in (employee_ids or []) if i is not None})
+        if not ids:
+            return {}
+        return {e.id: e for e in self.db.execute(select(Employee).where(Employee.id.in_(ids))).scalars()}
 
     def list_events(self, employee_id: int) -> list[EmployeeEvent]:
         """Timeline dọc theo effective_date desc (mới nhất trên cùng), tie-break id desc."""
@@ -729,11 +753,14 @@ class EmployeeRepository:
 
     # --- attachments --------------------------------------------------------
 
-    def add_attachment(self, **fields) -> EmployeeAttachment:
+    def add_attachment(self, *, commit: bool = True, **fields) -> EmployeeAttachment:
         att = EmployeeAttachment(**fields)
         self.db.add(att)
-        self.db.commit()
-        self.db.refresh(att)
+        if commit:
+            self.db.commit()
+            self.db.refresh(att)
+        else:
+            self.db.flush()
         return att
 
     def get_attachment(self, attachment_id: int) -> EmployeeAttachment | None:
@@ -748,9 +775,10 @@ class EmployeeRepository:
             ).scalars()
         )
 
-    def delete_attachment(self, attachment: EmployeeAttachment) -> None:
+    def delete_attachment(self, attachment: EmployeeAttachment, *, commit: bool = True) -> None:
         self.db.delete(attachment)
-        self.db.commit()
+        if commit:
+            self.db.commit()
 
     # --- profile update requests (NV đề nghị → HCNS duyệt) ------------------
 
@@ -764,11 +792,13 @@ class EmployeeRepository:
     def get_update_request(self, request_id: int) -> ProfileUpdateRequest | None:
         return self.db.get(ProfileUpdateRequest, request_id)
 
-    def update_update_request(self, req: ProfileUpdateRequest, **fields) -> ProfileUpdateRequest:
+    def update_update_request(self, req: ProfileUpdateRequest, *, commit: bool = True,
+                              **fields) -> ProfileUpdateRequest:
         for k, v in fields.items():
             setattr(req, k, v)
-        self.db.commit()
-        self.db.refresh(req)
+        if commit:
+            self.db.commit()
+            self.db.refresh(req)
         return req
 
     def list_update_requests_by_employee(

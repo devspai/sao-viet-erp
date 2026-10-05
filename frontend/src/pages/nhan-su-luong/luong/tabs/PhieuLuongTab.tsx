@@ -71,14 +71,7 @@ export function PhieuLuongTab({ token }: { token: string }) {
   }, [token, ky, lanThu]);
 
   if (loi) return <EmptyState trangThai="loi" loi={loi} onThuLai={() => setLanThu((n) => n + 1)} />;
-  if (!data)
-    return (
-      <div className="lg-payslip-empty-container">
-        <div className="lg-payslip-empty-card">
-          <p className="lg-payslip-empty-desc">Đang tải dữ liệu...</p>
-        </div>
-      </div>
-    );
+  if (!data) return <EmptyState trangThai="dang-tai" />;
   if (!data.has_employee) {
     return (
       <div className="lg-payslip-empty-container">

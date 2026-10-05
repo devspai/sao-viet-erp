@@ -177,6 +177,12 @@ describe("ô Cách đo lượng ĐÃ GỠ khỏi Máy · Vật tư khác (06/09/
     expect(CFG_GIAY.fields.some((f) => f.key === "thay_the_ids")).toBe(true);
     expect(CFG_GIAY.columns.some((c) => c.key === "don_gia")).toBe(true);
   });
+
+  it("GIẤY: bảng bỏ cột Cách tính tiền + Giấy thay thế, thẻ vẫn khai được (05/10/2026)", () => {
+    expect(CFG_GIAY.columns.some((c) => c.key === "cong_thuc_gia")).toBe(false);
+    expect(CFG_GIAY.columns.some((c) => c.key === "thay_the_ids")).toBe(false);
+    expect(CFG_GIAY.fields.some((f) => f.key === "cong_thuc_gia")).toBe(true);
+  });
 });
 
 describe("Thành phẩm — hàng đặt riêng của MỘT khách (docs/prd-thanh-pham.md)", () => {

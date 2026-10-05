@@ -295,6 +295,11 @@ class DonViDoService(CatalogService):
         self._dv_rows = None
         self._cap_rows_c = None
 
+    def mat_hang_dung(self, mas) -> dict[str, dict[str, int]]:
+        """Số giấy / vật tư / thành phẩm đang lấy từng đơn vị làm ĐVT — cột "Đang dùng ở" của màn
+        Đơn vị: nhìn ra ngay đơn vị nào sửa/xoá là đụng hàng thật."""
+        return self.repo.dem_mat_hang(mas)
+
     def canh_bao(self, obj) -> list[str]:
         """Cảnh báo mềm — hiện ở màn khai, KHÔNG chặn lưu."""
         rows = self._cap_cache()

@@ -274,7 +274,7 @@ class EmployeeService:
                 out[key] = value
         return out
 
-    def _sync_user_from_employee(self, employee) -> None:
+    def _sync_user_from_employee(self, employee, *, commit: bool = True) -> None:
         """Đồng bộ danh tính hồ sơ → tài khoản đã gắn (Đ1: hồ sơ là nguồn). No-op nếu chưa
         gắn tài khoản. Ảnh chỉ ghi khi hồ sơ có ảnh (repo tự lo)."""
         if employee.user_id is None:
@@ -284,6 +284,7 @@ class EmployeeService:
             self.users.sync_from_employee(
                 user, name=employee.full_name,
                 department_id=employee.department_id, avatar_url=employee.photo_url,
+                commit=commit,
             )
 
     # --- reads --------------------------------------------------------------
@@ -384,11 +385,14 @@ class EmployeeService:
             social_insurance_no=clean.get("social_insurance_no"),
         )
 
+        # Hồ sơ + mốc ca + mốc "Vào làm" + nhật ký là MỘT giao dịch, chốt một lần ở `audit.create`
+        # (bản cũ chốt 3–4 lần; gãy giữa chừng là hồ sơ có mà thiếu mốc Quá trình công tác).
         employee = self.employees.create(
             code=code,
             department_id=department_id,
             status=status,
             hire_date=hire_date,
+            commit=False,
             **clean,
         )
         if employee.default_shift_id is not None:
@@ -397,6 +401,7 @@ class EmployeeService:
                 shift_id=employee.default_shift_id,
                 effective_from=hire_date or date.today(),
                 created_by=actor.id,
+                commit=False,
             )
         # First stage on the Quá trình công tác timeline (effective = ngày vào).
         self.employees.add_event(
@@ -408,6 +413,7 @@ class EmployeeService:
             to_value=status,
             note="Vào làm",
             actor_user_id=actor.id,
+            commit=False,
         )
         self.audit.create(
             actor_user_id=actor.id,
@@ -457,26 +463,32 @@ class EmployeeService:
             exclude_id=employee.id,
         )
         shift_marker = clean.pop("default_shift_id", ...)
-        self.employees.update(employee, **clean)
+        # Cả lần sửa (hồ sơ + mốc ca + tài khoản + nhật ký) chốt MỘT lần ở `audit.create`.
+        self.employees.update(employee, commit=False, **clean)
+        logs = []
         if shift_marker is not ... and shift_marker != employee.default_shift_id:
             today = date.today()
             log = self._log_base_shift(
                 employee=employee, origin=SHIFT_LOG_ORIGIN_PROFILE,
                 effective_from=today, shift_id_after=shift_marker, actor=actor)
+            if log is not None:
+                logs.append(log)
             self.employees.set_shift_assignment(
                 employee=employee,
                 shift_id=shift_marker,
                 effective_from=today,
                 created_by=actor.id,
+                commit=False,
             )
-            push_shift_changes([log] if log is not None else [], db=self.employees.db)
-        self._sync_user_from_employee(employee)  # Đ1: đồng bộ tên/ảnh/phòng xuống tài khoản
+        # Đ1: đồng bộ tên/ảnh/phòng xuống tài khoản
+        self._sync_user_from_employee(employee, commit=False)
         self.audit.create(
             actor_user_id=actor.id,
             action="update_employee",
             target=f"employee:{employee.id}",
             detail=f"{employee.code} sửa hồ sơ",
         )
+        push_shift_changes(logs, db=self.employees.db)  # SAU commit
         return employee, dup_nid, dup_si
 
     def _log_base_shift(self, *, employee, origin: str, effective_from: date,
@@ -514,6 +526,7 @@ class EmployeeService:
             shift_id=shift_id,
             effective_from=effective_from,
             created_by=actor.id,
+            commit=False,  # chốt cùng dòng nhật ký ở `audit.create` — một commit
         )
         self.audit.create(
             actor_user_id=actor.id, action="assign_default_shift",
@@ -567,7 +580,7 @@ class EmployeeService:
                 updated += 1
             except EmployeeError as exc:
                 failed.append({"employee_id": eid, "reason": str(exc)})
-        self.employees.commit()
+        # `audit.create` chốt cả lô lẫn dòng nhật ký trong MỘT commit.
         self.audit.create(
             actor_user_id=actor.id, action="assign_default_shift_bulk",
             target=f"employee_shift_bulk:{effective_from.isoformat()}",
@@ -596,18 +609,19 @@ class EmployeeService:
             raise EmployeeValidationError(
                 f"Mốc ca nền hiệu lực từ {goc.effective_from:%d/%m/%Y} chạm kỳ công ĐÃ CHỐT — gỡ là "
                 "Bảng công lệch ảnh chụp. Mở lại kỳ công đó trước, hoặc đặt mốc mới từ hôm nay.")
-        if not self.employees.delete_shift_assignment(employee, assignment_id):
+        # Xoá mốc + dòng lịch sử ca + nhật ký: MỘT commit ở `audit.create`.
+        if not self.employees.delete_shift_assignment(employee, assignment_id, commit=False):
             raise EmployeeNotFound("Không tìm thấy mốc ca này của nhân viên.")
         log = None
         if goc is not None:
-            # Gỡ mốc ⇒ ca rơi về mốc CÒN LẠI đang hiệu lực (đọc SAU khi xoá mới ra đúng).
+            # Gỡ mốc ⇒ ca rơi về mốc CÒN LẠI đang hiệu lực (đọc SAU khi xoá mới ra đúng — repo đã
+            # flush lệnh xoá nên câu đọc này thấy được).
             log = self._log_base_shift(
                 employee=employee, origin=SHIFT_LOG_ORIGIN_BASE_REMOVE,
                 action=SHIFT_LOG_ACTION_REMOVE, effective_from=goc.effective_from,
                 shift_id_before=goc.shift_id,
                 shift_id_after=self.employees.base_shift_id_on(employee, goc.effective_from),
                 actor=actor)
-            self.employees.commit()
         self.audit.create(
             actor_user_id=actor.id, action="delete_shift_assignment",
             target=f"employee:{employee.id}", detail=f"{employee.code} → xóa mốc #{assignment_id}",
@@ -639,7 +653,7 @@ class EmployeeService:
         if emp is None:
             raise EmployeeValidationError("Tài khoản chưa gắn hồ sơ nhân viên.")
         clean = self._clean_fields({k: v for k, v in fields.items() if k in SELF_EDITABLE_FIELDS})
-        self.employees.update(emp, **clean)
+        self.employees.update(emp, commit=False, **clean)  # chốt cùng nhật ký — một commit
         self.audit.create(
             actor_user_id=user.id, action="update_my_contact",
             target=f"employee:{emp.id}", detail=f"{emp.code} tự cập nhật liên lạc",
@@ -690,7 +704,7 @@ class EmployeeService:
             raise EmployeeValidationError("Đề nghị đã được xử lý, không rút lại được.")
         req = self.employees.update_update_request(
             req, status=REQ_CANCELLED, decided_by=user.id,
-            decided_at=datetime.now(timezone.utc),
+            decided_at=datetime.now(timezone.utc), commit=False,
         )
         self.audit.create(
             actor_user_id=user.id, action="cancel_profile_request",
@@ -740,16 +754,22 @@ class EmployeeService:
             if not can_edit_salary:
                 allowed = {k: v for k, v in allowed.items() if k not in SENSITIVE_FIELDS}
             clean = self._clean_fields(allowed)
-            self.employees.update(emp, **clean)
-            self._sync_user_from_employee(emp)  # Đ1: duyệt đổi tên → đồng bộ tài khoản
+            # Áp thay đổi + đồng bộ tài khoản + nhật ký + trạng thái đề nghị: MỘT commit ở dưới
+            # (bản cũ 4 commit — gãy giữa chừng là hồ sơ đã đổi mà đề nghị vẫn "chờ duyệt").
+            self.employees.update(emp, commit=False, **clean)
+            self._sync_user_from_employee(emp, commit=False)  # Đ1: duyệt đổi tên → đồng bộ tài khoản
             self.audit.create(
                 actor_user_id=actor.id, action="approve_profile_request",
                 target=f"employee:{emp.id}", detail=f"{emp.code} duyệt yêu cầu #{req.id}",
+                commit=False,
             )
-        return self.employees.update_update_request(
+        req = self.employees.update_update_request(
             req, status="approved" if approve else "rejected",
             decided_by=actor.id, decided_at=datetime.now(timezone.utc), decision_note=_clean(note),
         )
+        if approve:
+            self.audit.bao_co_dong_moi()
+        return req
 
     # --- transitions (stage changes) ---------------------------------------
 
@@ -793,7 +813,10 @@ class EmployeeService:
             return self._apply_promote(employee, actor, effective_date, note, new_position)
         raise EmployeeValidationError(f"Loại thao tác không hợp lệ: {kind!r}")
 
-    def _apply_status(self, employee, actor, kind, effective_date, note, resign_reason) -> Employee:
+    def _apply_status(self, employee, actor, kind, effective_date, note, resign_reason,
+                      *, commit: bool = True) -> Employee:
+        """Mọi bước ghi đi `commit=False`; chốt MỘT lần ở `audit.create` (bản cũ 3–5 commit).
+        `commit=False` (lượt máy quét cả lô): dòng nhật ký cũng chỉ flush, người gọi tự chốt."""
         allowed_from, to_status, event_type = _STATUS_TRANSITIONS[kind]
         if employee.status not in allowed_from:
             raise EmployeeValidationError(
@@ -821,21 +844,21 @@ class EmployeeService:
             # Reopening: clear the resignation stamp.
             updates["resign_date"] = None
             updates["resign_reason"] = None
-        self.employees.update(employee, **updates)
+        self.employees.update(employee, commit=False, **updates)
         if kind == "resign" and employee.user_id is not None:
             # Login đã tự chặn theo trạng thái hồ sơ, nhưng token đã phát thì vẫn còn hạn —
             # bump token_version để cắt luôn phiên đang sống của người vừa nghỉ.
             account = self.users.get_by_id(employee.user_id)
             if account is not None:
-                self.users.bump_token_version(account)
+                self.users.bump_token_version(account, commit=False)
                 # Bump chỉ giết access token; `/api/auth/refresh` chỉ hỏi `is_active` rồi cấp token
                 # MỚI theo token_version mới ⇒ người vừa nghỉ còn tab mở là vào tiếp (bản rà C7,
                 # 07/09/2026). Khoá tài khoản luôn — tuyển lại thì mở (nhánh `reinstate`).
-                self.users.set_active(account, False)
+                self.users.set_active(account, False, commit=False)
         if kind == "reinstate" and employee.user_id is not None:
             account = self.users.get_by_id(employee.user_id)
             if account is not None and not account.is_active:
-                self.users.set_active(account, True)
+                self.users.set_active(account, True, commit=False)
         self.employees.add_event(
             employee_id=employee.id,
             event_type=event_type,
@@ -848,27 +871,16 @@ class EmployeeService:
             # để rỗng là trung thực hơn gán bừa người đang mở màn hình — người đó không quyết
             # định gì cả. Ghi chú của sự kiện là chỗ nói rõ vì sao trạng thái đổi.
             actor_user_id=getattr(actor, "id", None),
+            commit=False,
         )
         self.audit.create(
             actor_user_id=getattr(actor, "id", None),
             action=f"employee_{event_type}",
             target=f"employee:{employee.id}",
             detail=f"{employee.code} {old_status}→{to_status}",
+            commit=commit,
         )
         return employee
-
-    def _trang_thai_truoc_dinh_chi(self, employee) -> str:
-        """Trạng thái để trả về khi GỠ đình chỉ = `from_value` của mốc đình chỉ gần nhất. Đang thử
-        việc mà bị đình chỉ thì gỡ xong vẫn thử việc (không được "lên chính thức chui"); đang nghỉ
-        dài hạn mà bị đình chỉ thì gỡ xong là đi làm lại (active) — muốn nghỉ tiếp thì bấm Cho nghỉ
-        dài hạn. Không tìm thấy mốc (dữ liệu tồn) ⇒ active."""
-        for ev in self.employees.list_events(employee.id):      # mới nhất trước
-            if ev.event_type == EVENT_SUSPENDED and ev.field == "status":
-                truoc = ev.from_value
-                if truoc in (STATUS_PROBATION, STATUS_PROBATION_ENDED, STATUS_ACTIVE):
-                    return truoc
-                return STATUS_ACTIVE
-        return STATUS_ACTIVE
 
     def _trang_thai_truoc_dinh_chi(self, employee) -> str:
         """Trạng thái để trả về khi GỠ đình chỉ = `from_value` của mốc đình chỉ gần nhất. Đang thử
@@ -906,9 +918,12 @@ class EmployeeService:
         for e in self.employees.list_probation_qua_han(
                 moc=moc or MOC_TU_DANH_DAU_HET_THU_VIEC, den_ngay=hom_nay):
             try:
+                # Cả lô chốt MỘT lần ở cuối. Bản cũ 3 commit cho MỖI người — mà đây là request
+                # ĐỌC: mở danh sách Nhân sự hôm có 30 người hết hạn là 90 commit trước khi ra bảng.
                 self._apply_status(
                     e, None, "probation_end", e.probation_end_date + timedelta(days=1),
-                    "Tự động: đã qua ngày hết thử việc, chờ HCNS xác nhận chính thức", None)
+                    "Tự động: đã qua ngày hết thử việc, chờ HCNS xác nhận chính thức", None,
+                    commit=False)
             except EmployeeValidationError:
                 # ĐUA: hàm này chạy trong request ĐỌC (mở danh sách Nhân sự / chạy Tính lương),
                 # nên hai người mở cùng lúc là hai lượt quét cùng nhắm một hồ sơ. Người thua thấy
@@ -917,9 +932,20 @@ class EmployeeService:
                 # làm xong rồi.
                 continue
             doi += 1
+        if doi:
+            self.employees.commit()
+            self.audit.bao_co_dong_moi()
         return doi
 
-    def _apply_transfer(self, employee, actor, effective_date, note, new_department_id) -> Employee:
+    def _apply_transfer(self, employee, actor, effective_date, note, new_department_id,
+                        lo: dict | None = None) -> Employee:
+        """Điều chuyển MỘT người. `lo` (điều chuyển hàng loạt): không commit ở đây — dòng nhật ký
+        gom vào `lo["nhat_ky"]`, tài khoản cần hỏi lại quyền gom vào `lo["bao"]`; người gọi chốt cả
+        lô trong MỘT giao dịch. Bản cũ chốt 5–6 lần cho mỗi người.
+
+        Điều chuyển lẻ (`lo=None`) cũng chỉ MỘT commit — ở `audit.create` cuối hàm; báo "quyền
+        đổi" đẩy SAU commit."""
+        bao: list[int] = []
         if employee.status == STATUS_RESIGNED:
             raise EmployeeValidationError("Nhân viên đã nghỉ việc — không điều chuyển được.")
         if new_department_id is None:
@@ -927,13 +953,14 @@ class EmployeeService:
         old = employee.department_id
         if old == new_department_id:
             raise EmployeeValidationError("Phòng/tổ mới trùng phòng hiện tại.")
-        self.employees.update(employee, department_id=new_department_id)
-        self._sync_user_from_employee(employee)  # Đ1/Đ2: chuyển phòng → tài khoản đổi phòng (scope)
+        self.employees.update(employee, department_id=new_department_id, commit=False)
+        # Đ1/Đ2: chuyển phòng → tài khoản đổi phòng (scope)
+        self._sync_user_from_employee(employee, commit=False)
         # Đ2: NV đang là trưởng phòng CŨ → gỡ chức (không để head phòng cũ treo người đã đi).
         if old is not None and employee.user_id is not None:
             old_dept = self.departments.get_by_id(old)
             if old_dept is not None and old_dept.head_user_id == employee.user_id:
-                self.departments.set_head(old_dept, None)
+                self.departments.set_head(old_dept, None, commit=False)
         # Vai trò thuộc ĐÚNG 1 phòng → chuyển phòng phải GỠ vai trò cũ, về mức tối thiểu tới khi
         # trưởng phòng mới gán lại (khớp bulk transfer_users). Không gỡ thì tài khoản giữ vai trò
         # của phòng khác — trạng thái mà chính API gán-vai-trò từ chối (400).
@@ -942,9 +969,9 @@ class EmployeeService:
             if account is not None and account.role_id is not None:
                 self.users.set_assignment(
                     account, department_id=new_department_id, role_id=None,
-                    is_active=account.is_active,
+                    is_active=account.is_active, commit=False,
                 )
-                bao_quyen_doi([account.id])
+                (bao if lo is None else lo["bao"]).append(account.id)
         self.employees.add_event(
             employee_id=employee.id,
             event_type=EVENT_TRANSFERRED,
@@ -954,13 +981,19 @@ class EmployeeService:
             to_value=str(new_department_id),
             note=note,
             actor_user_id=actor.id,
+            commit=False,
         )
-        self.audit.create(
-            actor_user_id=actor.id,
-            action="employee_transferred",
-            target=f"employee:{employee.id}",
-            detail=f"{employee.code} phòng {old}→{new_department_id}",
-        )
+        dong = {
+            "actor_user_id": actor.id,
+            "action": "employee_transferred",
+            "target": f"employee:{employee.id}",
+            "detail": f"{employee.code} phòng {old}→{new_department_id}",
+        }
+        if lo is None:
+            self.audit.create(**dong)
+            bao_quyen_doi(bao)
+        else:
+            lo["nhat_ky"].append(dong)
         return employee
 
     def transfer_many(
@@ -974,12 +1007,20 @@ class EmployeeService:
         xuống tài khoản, gỡ vai trò cũ, gỡ chức trưởng phòng cũ, ghi Quá trình công tác +
         nhật ký. (Bản cũ chuyển theo TÀI KHOẢN nên bỏ sót người không có tài khoản và
         không ghi Quá trình công tác.)
+
+        Cả lô là MỘT giao dịch: hồ sơ nạp một truy vấn, tài khoản nạp một truy vấn, chốt một lần ở
+        cuối (bản cũ ~6 lần commit mỗi người). Gãy giữa chừng thì không ai bị chuyển.
         """
         if self.departments.get_by_id(target_department_id) is None:
             raise EmployeeNotFound("Không tìm thấy phòng đích.")
+        theo_id = self.employees.get_many(employee_ids)
         employees = []
         for eid in employee_ids:
-            emp = self.get_employee(employee_id=eid, scope=scope, actor=actor)
+            emp = theo_id.get(eid)
+            if emp is None:
+                raise EmployeeNotFound("Không tìm thấy nhân viên.")
+            if not self.employees.can_access(employee=emp, scope=scope, actor=actor):
+                raise EmployeeForbidden("Bạn không có quyền xem nhân viên này.")
             if emp.status == STATUS_RESIGNED:
                 raise EmployeeValidationError(
                     f"{emp.code} đã nghỉ việc — không điều chuyển được."
@@ -987,8 +1028,16 @@ class EmployeeService:
             if emp.department_id == target_department_id:
                 raise EmployeeValidationError(f"{emp.code} đã thuộc phòng đích.")
             employees.append(emp)
+        # Nạp sẵn tài khoản cả lô vào phiên — `_apply_transfer` hỏi `get_by_id` là trúng bộ nhớ.
+        self.users.get_many(e.user_id for e in employees)
+        lo: dict = {"nhat_ky": [], "bao": []}
+        # Gãy giữa chừng thì chưa commit gì — phiên của request đóng lại là huỷ cả lô.
         for emp in employees:
-            self._apply_transfer(emp, actor, date.today(), note, target_department_id)
+            self._apply_transfer(emp, actor, date.today(), note, target_department_id, lo=lo)
+        self.audit.create_many(lo["nhat_ky"])
+        self.employees.commit()
+        self.audit.bao_co_dong_moi()
+        bao_quyen_doi(lo["bao"])
         return len(employees)
 
     def _apply_promote(self, employee, actor, effective_date, note, new_position) -> Employee:
@@ -1001,7 +1050,8 @@ class EmployeeService:
         old_position = employee.position
         if new_position == old_position:
             raise EmployeeValidationError("Chức danh mới trùng chức danh hiện tại.")
-        self.employees.update(employee, position=new_position)
+        # Hồ sơ + mốc Quá trình công tác + nhật ký: MỘT commit ở `audit.create`.
+        self.employees.update(employee, position=new_position, commit=False)
         self.employees.add_event(
             employee_id=employee.id,
             event_type=EVENT_PROMOTED,
@@ -1011,6 +1061,7 @@ class EmployeeService:
             to_value=new_position,
             note=note,
             actor_user_id=actor.id,
+            commit=False,
         )
         self.audit.create(
             actor_user_id=actor.id,
@@ -1030,8 +1081,9 @@ class EmployeeService:
         other = self.employees.get_by_user_id(user_id)
         if other is not None and other.id != employee.id:
             raise EmployeeValidationError(f"Tài khoản này đã gắn với nhân viên {other.code}.")
-        self.employees.update(employee, user_id=user_id)
-        self._sync_user_from_employee(employee)  # Đ1: nối tài khoản → đồng bộ danh tính theo hồ sơ
+        self.employees.update(employee, user_id=user_id, commit=False)
+        # Đ1: nối tài khoản → đồng bộ danh tính theo hồ sơ. Chốt cùng nhật ký — một commit.
+        self._sync_user_from_employee(employee, commit=False)
         self.audit.create(
             actor_user_id=actor.id,
             action="employee_link_account",
@@ -1071,17 +1123,22 @@ class EmployeeService:
         if employee.user_id is not None:
             raise EmployeeValidationError("Nhân viên đã có tài khoản.")
         username = self.kiem_tai_khoan_moi(username=username, password=password)
+        # Tạo tài khoản + gán phòng/vai + nối hồ sơ + nhật ký: MỘT commit ở `audit.create` (bản cũ
+        # 5 commit — gãy giữa chừng là tài khoản mồ côi chiếm mất tên đăng nhập).
         user = self.users.create(
             username=username,
             name=(name or employee.full_name),
             password_hash=hash_password(password),
+            commit=False,
         )
         # Default the account's department to the employee's; role/head assigned elsewhere.
         self.users.set_assignment(
-            user, department_id=employee.department_id, role_id=role_id, is_active=True
+            user, department_id=employee.department_id, role_id=role_id, is_active=True,
+            commit=False,
         )
-        self.employees.update(employee, user_id=user.id)
-        self._sync_user_from_employee(employee)  # Đ1: đồng bộ danh tính hồ sơ xuống tài khoản mới
+        self.employees.update(employee, user_id=user.id, commit=False)
+        # Đ1: đồng bộ danh tính hồ sơ xuống tài khoản mới
+        self._sync_user_from_employee(employee, commit=False)
         self.audit.create(
             actor_user_id=actor.id,
             action="employee_create_account",
@@ -1109,6 +1166,7 @@ class EmployeeService:
             file_url=file_url,
             file_type=file_type,
             uploaded_by=actor.id,
+            commit=False,  # chốt cùng nhật ký — một commit
         )
         self.audit.create(
             actor_user_id=actor.id,
@@ -1124,7 +1182,7 @@ class EmployeeService:
         if att is None or att.employee_id != employee.id:
             raise EmployeeNotFound("Không tìm thấy tệp đính kèm.")
         file_url, file_name = att.file_url, att.file_name
-        self.employees.delete_attachment(att)
+        self.employees.delete_attachment(att, commit=False)  # chốt cùng nhật ký — một commit
         self.audit.create(
             actor_user_id=actor.id,
             action="employee_delete_attachment",

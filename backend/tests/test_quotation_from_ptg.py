@@ -6,6 +6,7 @@ Kiểm: tạo báo giá TỪ 1 PTG (dòng = mỗi sản phẩm PhieuThanhPhan, g
 """
 from __future__ import annotations
 
+from tests.khach_phieu_fixtures import gan_khach_phieu, khach_mac_dinh
 from app.db import SessionLocal
 from app.models.customer import Customer, CustomerAddress, CustomerContact
 from app.models.phieu_tinh_gia import PhieuThanhPhan, PhieuTinhGia
@@ -30,7 +31,7 @@ def _seed_ptg(*, so_luong=10_000, products: list[tuple[str, int, int]] | None = 
     db = SessionLocal()
     try:
         n = db.query(PhieuTinhGia).count() + 1
-        p = PhieuTinhGia(
+        p = PhieuTinhGia(customer_id=khach_mac_dinh(db), 
             ma=f"PTG-TEST-{n:04d}", ten_san_pham=(products[0][0] if products else "PTG rỗng"), so_luong=so_luong,
             tong_gia_von=sum(x[2] for x in products), gia_von_don=0, ktv="KTV Test",
         )
@@ -63,17 +64,14 @@ def test_create_quote_from_ptg_one_line_per_product(client):
     assert round(ruot["margin_percent"]) == 20
 
 
-def test_ptg_can_spawn_multiple_quotes(client):
+def test_ptg_chi_mot_bao_gia(client):
     token = _token(client)
     pid = _seed_ptg()
-    # Mỗi lần bấm "Báo giá" từ 1 PTG → tạo 1 phiếu báo giá MỚI (1 PTG → nhiều BG).
+    # MỘT phiếu ↔ MỘT báo giá (04/10/2026) — lần bấm thứ hai bị 409, báo giá khác = nhân bản phiếu.
     r1 = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(token))
     assert r1.status_code == 201
     r2 = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(token))
-    assert r2.status_code == 201, r2.text
-    # 2 báo giá khác nhau (mã khác, id khác) — không ghi tiếp phiếu cũ.
-    assert r1.json()["id"] != r2.json()["id"]
-    assert r1.json()["code"] != r2.json()["code"]
+    assert r2.status_code == 409, r2.text
 
 
 def test_by_phieu_lookup(client):
@@ -125,6 +123,7 @@ def test_create_quote_autofills_contact_and_delivery(client):
     token = _token(client)
     cid = _seed_customer_full()
     pid = _seed_ptg()
+    gan_khach_phieu(pid, cid)
     r = client.post("/api/quotations",
                     json={"phieu_tinh_gia_id": pid, "customer_id": cid}, headers=_h(token))
     assert r.status_code == 201, r.text
@@ -151,6 +150,7 @@ def test_contact_falls_back_to_customer_record(client):
     finally:
         db.close()
     pid = _seed_ptg()
+    gan_khach_phieu(pid, cid)
     r = client.post("/api/quotations",
                     json={"phieu_tinh_gia_id": pid, "customer_id": cid}, headers=_h(token))
     assert r.status_code == 201, r.text
@@ -238,18 +238,20 @@ def test_detail_exposes_ptg_ref(client):
 
 
 def test_change_customer_refreshes_contact_and_delivery(client):
-    """P3 (customer picker): đổi khách → làm mới liên hệ chính + ĐC giao mặc định của khách mới."""
+    """Đổi khách Ở PHIẾU (từ 04/10/2026 khách chọn ở phiếu tính giá) → báo giá NHÁP theo ngay, kèm
+    liên hệ chính + ĐC giao mặc định của khách mới."""
     token = _token(client)
-    cid_a = _seed_customer_full()  # Anh Thanh · Lô A5...
+    cid_a = _seed_customer_full()  # Anh Thanh, Lô A5...
     pid = _seed_ptg()
-    q = client.post("/api/quotations",
-                    json={"phieu_tinh_gia_id": pid, "customer_id": cid_a}, headers=_h(token)).json()
+    gan_khach_phieu(pid, cid_a)
+    q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(token)).json()
     assert q["contact_name_snapshot"] == "Anh Thanh"
     cid_b = _seed_customer_full(name="Cty B", primary="Chị Mai", title="Kho",
                                 phone="0911222333", addr="KCN Sóng Thần, Bình Dương")
-    r = client.put(f"/api/quotations/{q['id']}", json={"customer_id": cid_b}, headers=_h(token))
+    r = client.patch(f"/api/phieu-tinh-gia/{pid}/khach-hang", json={"customer_id": cid_b},
+                     headers=_h(token))
     assert r.status_code == 200, r.text
-    d = r.json()
+    d = client.get(f"/api/quotations/{q['id']}", headers=_h(token)).json()
     assert d["customer_id"] == cid_b
     assert d["contact_name_snapshot"] == "Chị Mai"
     assert d["contact_phone_snapshot"] == "0911222333"
@@ -455,7 +457,7 @@ def _seed_ptg_nhom(nhan: str = "Sách hướng dẫn A5") -> int:
     db = SessionLocal()
     try:
         n = db.query(PhieuTinhGia).count() + 1
-        p = PhieuTinhGia(
+        p = PhieuTinhGia(customer_id=khach_mac_dinh(db), 
             ma=f"PTG-NHOM-{n:04d}", ten_san_pham="Sách hướng dẫn A5", so_luong=1_200,
             tong_gia_von=20_000_000, gia_von_don=0, ktv="KTV Test",
         )
@@ -524,6 +526,7 @@ def test_bao_gia_khoa_gia_von_da_gom_phi_giao_hang(client):
                          "co_in": False, "phi_giao_hang": 500_000}],
     }, headers=_h(token)).json()
     assert ptg["thanh_phans"][0]["gia_von_tp"] == 500_000
+    gan_khach_phieu(ptg["id"])
 
     r = client.post("/api/quotations", json={"phieu_tinh_gia_id": ptg["id"]}, headers=_h(token))
     assert r.status_code == 201, r.text
@@ -538,7 +541,7 @@ def _seed_ptg_nhom_dvt(*, dvt_nhom: str | None) -> int:
     db = SessionLocal()
     try:
         n = db.query(PhieuTinhGia).count() + 1
-        p = PhieuTinhGia(
+        p = PhieuTinhGia(customer_id=khach_mac_dinh(db), 
             ma=f"PTG-NHOM-{n:04d}", ten_san_pham="Sách bìa mềm", so_luong=2_000,
             tong_gia_von=49_554_879, gia_von_don=0, ktv="KTV Test",
         )
@@ -582,7 +585,7 @@ def test_dvt_nhom_khong_dinh_toi_dong_ngoai_nhom(client):
     """Dòng KHÔNG có nhãn nhóm thì `dvt_nhom` lạc vào cũng bị bỏ qua — đơn vị của nó là của nó."""
     db = SessionLocal()
     try:
-        p = PhieuTinhGia(
+        p = PhieuTinhGia(customer_id=khach_mac_dinh(db), 
             ma=f"PTG-LE-{db.query(PhieuTinhGia).count() + 1:04d}", ten_san_pham="Tờ rơi",
             so_luong=1_000, tong_gia_von=1_000_000, gia_von_don=0, ktv="KTV Test",
         )
@@ -600,3 +603,24 @@ def test_dvt_nhom_khong_dinh_toi_dong_ngoai_nhom(client):
     d = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(token)).json()
     assert d["items"][0]["unit"] == "tờ"
     assert d["items"][0]["dvt_nhom"] is None
+
+
+def test_gia_go_tay_luu_co_va_sua_markup_thi_bo(client):
+    """Giá bán gõ tay giữ cờ `gia_go_tay` sau khi tải lại; sửa markup dòng đó là về theo markup."""
+    token = _token(client)
+    pid = _seed_ptg(products=[("Tờ rơi", 1_000, 1_000_000)])
+    q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(token)).json()
+    it = q["items"][0]
+    assert it["gia_go_tay"] is False
+    url = f"/api/quotations/{q['id']}"
+    r = client.put(url, json={"valid_until": None, "items": [
+        {"id": it["id"], "margin_percent": 25, "manual_selling_price": 1_250_000, "vat_percent": 10},
+    ]}, headers=_h(token))
+    assert r.status_code == 200, r.text
+    d = client.get(url, headers=_h(token)).json()["items"][0]
+    assert d["gia_go_tay"] is True and d["selling_price"] == 1_250_000
+    r = client.put(url, json={"valid_until": None, "items": [
+        {"id": it["id"], "margin_percent": 20, "vat_percent": 10},
+    ]}, headers=_h(token))
+    d = r.json()["items"][0]
+    assert d["gia_go_tay"] is False and d["selling_price"] == 1_200_000

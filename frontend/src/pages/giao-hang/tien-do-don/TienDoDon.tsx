@@ -15,6 +15,7 @@ import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import { Button } from "../../../components/Button";
 import { DetailModal } from "../../../components/DetailModal";
+import { EmptyState } from "../../../components/EmptyState";
 import { fmtDate, fmtDateTime } from "../../../utils/format";
 import { NHAN_TRANG_THAI_YC } from "../giao-hang/shared/constants";
 import { nhanChuyen } from "../giao-hang/shared/helpers";
@@ -154,7 +155,7 @@ const KHUC = [
 
 /** Thanh chồng theo từng sản phẩm — dùng chung cho ba bước SX / Nhập kho / Giao. */
 export function BangCum({ td, buoc }: { td: DonTienDo | null; buoc: "sanxuat" | "nhapkho" | "giao" }) {
-  if (!td) return <p className="dhb__td-note">Đang tải tiến độ…</p>;
+  if (!td) return <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải tiến độ…" />;
   if (td.cum.length === 0) return <p className="dhb__td-note">Đơn chưa có sản phẩm.</p>;
   return (
     <div className="dhb__td-cums">
@@ -266,7 +267,7 @@ export function BuocGiaoHang({
   const [loi, setLoi] = useState<string | null>(null);
 
   if (!canRead) return <p className="dhb__td-note">Vai của bạn chưa được xem màn Giao hàng.</p>;
-  if (!td) return <p className="dhb__td-note">Đang tải…</p>;
+  if (!td) return <EmptyState trangThai="dang-tai" gon />;
   if (order.status !== "ordered" && td.yeu_cau.length === 0) {
     return <p className="dhb__td-note">Đơn phải chốt trước mới lập yêu cầu giao được.</p>;
   }

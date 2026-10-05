@@ -37,10 +37,10 @@
 
 /* Base Styles */
 .ns {
-  padding: 20px 24px;
+  padding: 20px var(--page-pad-x);
   color: var(--ink, #14130f);
   font-family: var(--ff-sans);
-  max-width: 1600px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
   min-height: calc(100vh - 60px);
 }
@@ -1168,6 +1168,83 @@ button.ns__kpi {
 
 .ns-info-card__title svg {
   color: var(--rust);
+}
+
+/* Thẻ "Nhận lương" ở tab Lương & BHXH: ô viết tắt ngân hàng + số tài khoản + nút Sao chép. */
+.ns-pay {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 4px 0;
+  border: 1px solid var(--rule-soft);
+  border-radius: 8px;
+  background: var(--canvas);
+}
+.ns-pay__mono {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.02em;
+}
+.ns-pay__mono--trong {
+  background: var(--rule-hair);
+  color: var(--ash-2);
+  border: 1px dashed var(--rule);
+}
+.ns-pay__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ns-pay__acc {
+  font-size: 16px;
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.ns-pay__bank {
+  font-size: 12.5px;
+  color: var(--ash);
+  overflow-wrap: anywhere;
+}
+.ns-pay__trong {
+  font-size: 13.5px;
+  color: var(--ash-2);
+}
+.ns-pay__copy {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  color: var(--ash);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ns-pay__copy:hover {
+  background: var(--rule-hair);
+  color: var(--ink);
+}
+.ns-pay__copy.is-copied {
+  color: #15803d;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
 }
 
 .ns-info-grid {

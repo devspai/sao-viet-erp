@@ -3,7 +3,7 @@
    đã chốt hình, dựng lại một bộ nữa là hai nơi phải sửa mỗi lần đổi. Ở đây chỉ khai những khối
    không có bên đó: ảnh, checklist, dải bước, hộp kết quả sinh phiếu. */
 
-.ktm { max-width: 1280px; }
+.ktm { max-width: var(--page-max-w); }
 
 /* Dòng phụ dưới ô chính trong bảng (tên máy, chu kỳ, thời điểm báo) */
 .ktm-phu {

@@ -1,103 +1,57 @@
-/** Hai phép tính SỐ của màn Khách hàng — cả hai từng cho ra con số sai mà trông vẫn hợp lý.
- *
- *  Không ai bắt được loại lỗi này bằng mắt: "18%" và "67,5 Mđ" đọc lên đều bình thường. Chỉ khi
- *  đặt cạnh dữ liệu thật (11 báo giá ĐÃ LÊN ĐƠN mà tỉ lệ chốt 18%) mới lộ.
- */
+/** Ngày của kỳ xem và cách so cùng kỳ — sai một ngày là số kỳ này lệch số cùng kỳ mà vẫn trông hợp lý. */
 import { describe, expect, it } from "vitest";
 
-import { gopTienTheoSanPham, tinhTiLeChot } from "./khachHangSo";
-import type { OrderHistoryRow, QuoteHistoryRow } from "../api/client";
+import { buocTuDong, homNayVN, loiKhoang, luiNam, nhanCot, soCungKy, tinhKy } from "./khachHangSo";
 
-function bg(status: string, total = 1_000_000): QuoteHistoryRow {
-  return {
-    id: Math.round(total + status.length), code: "BG", version: 1, status,
-    total, valid_until: null, created_at: "2026-08-01T00:00:00Z",
-  };
-}
-
-function don(lines: [string, number][], summary?: string): OrderHistoryRow {
-  return {
-    id: 1, order_no: "DH", status: "ordered", order_kind: "moi",
-    summary: summary ?? lines.map(([d]) => d).join(", "),
-    lines: lines.map(([description, line_total]) => ({ description, line_total })),
-    total: lines.reduce((s, [, v]) => s + v, 0),
-    created_at: "2026-08-01T00:00:00Z",
-  };
-}
-
-describe("tỉ lệ chốt", () => {
-  it("báo giá ĐÃ LÊN ĐƠN là THẮNG — đây là lỗi đã làm màn hình ghi 18% thay vì 88%", () => {
-    // Đúng bộ trạng thái của khách An Phát trong ảnh chụp màn hình 16/08/2026.
-    const rows = [
-      ...Array.from({ length: 11 }, () => bg("converted_to_order", 16_326_000)),
-      ...Array.from({ length: 3 }, () => bg("accepted", 24_750_000)),
-      bg("draft", 8_650_000),
-      bg("sent", 3_960_000),
-      bg("rejected", 19_800_000),
-    ];
-    const r = tinhTiLeChot(rows);
-    expect(r.thang).toBe(14);            // 11 đã lên đơn + 3 đã chốt
-    expect(r.daChao).toBe(16);           // 17 trừ 1 bản nháp (khách chưa thấy)
-    expect(r.pct).toBe(88);              // bản cũ ra 18%
+describe("ngày giờ Việt Nam", () => {
+  it("23h giờ UTC đã là ngày hôm sau ở Việt Nam", () => {
+    expect(homNayVN(Date.UTC(2026, 9, 3, 18, 0))).toBe("2026-10-04");
+    expect(homNayVN(Date.UTC(2026, 9, 3, 16, 59))).toBe("2026-10-03");
   });
-
-  it("`approved` KHÔNG phải thắng — GĐ duyệt xong nhưng sale chưa gửi, khách chưa thấy", () => {
-    const r = tinhTiLeChot([bg("approved"), bg("accepted")]);
-    expect(r.thang).toBe(1);
-    // `approved` cũng không nằm trong mẫu số: chưa ra khỏi cửa thì chưa chào ai.
-    expect(r.daChao).toBe(1);
-    expect(r.pct).toBe(100);
-  });
-
-  it("bản nháp và báo giá tự huỷ không kéo tỉ lệ xuống", () => {
-    const r = tinhTiLeChot([bg("accepted"), bg("draft"), bg("cancelled"), bg("pending_approval")]);
-    expect(r.daChao).toBe(1);
-    expect(r.pct).toBe(100);
-  });
-
-  it("chưa chào báo giá nào thì trả null, KHÔNG phải 0% (0% đọc ra là chào mãi không ai mua)", () => {
-    expect(tinhTiLeChot([]).pct).toBeNull();
-    expect(tinhTiLeChot([bg("draft")]).pct).toBeNull();
-  });
-
-  it("giá trị đã chốt cộng cả báo giá đã lên đơn", () => {
-    const r = tinhTiLeChot([bg("converted_to_order", 30_000_000), bg("accepted", 5_000_000),
-                            bg("rejected", 99_000_000)]);
-    expect(r.giaTriThang).toBe(35_000_000);
+  it("lùi năm từ 29/02 thành 28/02", () => {
+    expect(luiNam("2028-02-29")).toBe("2027-02-28");
+    expect(luiNam("2026-10-04")).toBe("2025-10-04");
   });
 });
 
-describe("gộp tiền theo sản phẩm", () => {
-  it("dùng TIỀN THẬT của từng dòng, không chia đều tổng đơn", () => {
-    // Chia đều sẽ ra 15tr/15tr và xếp hai thứ ngang nhau — số thật là 28tr/2tr.
-    const r = gopTienTheoSanPham([don([["Ruột sách 160 trang", 28_000_000],
-                                       ["Thẻ nhân viên", 2_000_000]])]);
-    expect(r.map((x) => [x.name, x.total])).toEqual([
-      ["Ruột sách 160 trang", 28_000_000],
-      ["Thẻ nhân viên", 2_000_000],
-    ]);
+describe("kỳ xem", () => {
+  const hn = "2026-10-04";
+  it("các kỳ có sẵn kết thúc ở hôm nay, trừ năm trước", () => {
+    expect(tinhKy("thang", hn)).toEqual({ tu: "2026-10-01", den: hn });
+    expect(tinhKy("quy", hn)).toEqual({ tu: "2026-10-01", den: hn });
+    expect(tinhKy("quy", "2026-08-15")).toEqual({ tu: "2026-07-01", den: "2026-08-15" });
+    expect(tinhKy("nam", hn)).toEqual({ tu: "2026-01-01", den: hn });
+    expect(tinhKy("12t", hn)).toEqual({ tu: "2025-10-05", den: hn });
+    expect(tinhKy("namtruoc", hn)).toEqual({ tu: "2025-01-01", den: "2025-12-31" });
   });
-
-  it("cộng dồn qua nhiều đơn và đếm số ĐƠN có mặt sản phẩm", () => {
-    const r = gopTienTheoSanPham([
-      don([["Name card", 1_000_000]]),
-      don([["Name card", 2_000_000], ["Tờ rơi", 500_000]]),
-    ]);
-    expect(r[0]).toEqual({ name: "Name card", qty: 2, total: 3_000_000 });
+  it("khoảng tự chọn phải đúng chiều và không quá 10 năm", () => {
+    expect(loiKhoang("2026-03-01", "2026-03-31")).toBeNull();
+    expect(loiKhoang("2026-04-01", "2026-03-31")).not.toBeNull();
+    expect(loiKhoang("2010-01-01", "2026-03-31")).not.toBeNull();
+    expect(loiKhoang("", "2026-03-31")).not.toBeNull();
   });
-
-  it("cắt đúng TOP n, xếp theo tiền", () => {
-    const r = gopTienTheoSanPham(
-      [don([["A", 1], ["B", 5], ["C", 3], ["D", 4], ["E", 2]])], 3);
-    expect(r.map((x) => x.name)).toEqual(["B", "D", "C"]);
+  it("kỳ ngắn vẽ theo tuần, dài vẽ theo tháng", () => {
+    expect(buocTuDong({ tu: "2026-07-01", den: "2026-09-30" })).toBe("tuan");
+    expect(buocTuDong({ tu: "2026-01-01", den: "2026-10-04" })).toBe("thang");
   });
+  it("nhãn cột tháng ghi năm ở cột đầu và tháng 1", () => {
+    expect(nhanCot("2025-11-01", "2025-11-30", "thang", true).ngan).toBe("T11/25");
+    expect(nhanCot("2025-12-01", "2025-12-31", "thang", false).ngan).toBe("T12");
+    expect(nhanCot("2026-01-01", "2026-01-31", "thang", false).ngan).toBe("T1/26");
+    expect(nhanCot("2026-07-01", "2026-09-30", "quy", false).du).toBe("Quý 3/2026");
+  });
+});
 
-  it("đơn cũ chưa có `lines` thì vẫn đếm được số đơn, nhưng KHÔNG bịa tiền", () => {
-    const cu: OrderHistoryRow = { ...don([], "Catalogue A4, Tờ rơi A5"), lines: [], total: 9_000_000 };
-    const r = gopTienTheoSanPham([cu]);
-    expect(r.map((x) => [x.name, x.qty, x.total])).toEqual([
-      ["Catalogue A4", 1, 0],
-      ["Tờ rơi A5", 1, 0],
-    ]);
+describe("so cùng kỳ", () => {
+  it("phần trăm, mới, bằng", () => {
+    expect(soCungKy(120, 100)).toEqual({ huong: "len", chu: "▲ 20% so cùng kỳ" });
+    expect(soCungKy(80, 100)).toEqual({ huong: "xuong", chu: "▼ 20% so cùng kỳ" });
+    expect(soCungKy(50, 0).chu).toBe("Mới so cùng kỳ");
+    expect(soCungKy(0, 0).chu).toBe("Cùng kỳ: 0");
+    expect(soCungKy(100, 100).huong).toBe("bang");
+  });
+  it("số đếm ra chênh lệch, không ra phần trăm", () => {
+    expect(soCungKy(5, 3, "so").chu).toBe("▲ 2 so cùng kỳ");
+    expect(soCungKy(3, 0, "so").chu).toBe("▲ 3 so cùng kỳ");
   });
 });

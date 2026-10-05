@@ -690,7 +690,6 @@
 .kcs-chot__cau svg { flex: none; margin-top: 2px; color: var(--amber-deep); }
 .kcs-chot__cau--ok svg { color: var(--moss-deep); }
 .kcs-chot__cau--dong svg { color: var(--ash-2); }
-.kcs-chot__phu { margin: 0; font-size: 13px; color: var(--ash); }
 .kcs-chot__chan {
   font-size: 13px;
   color: var(--amber-deep);

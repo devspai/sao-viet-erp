@@ -1,74 +1,153 @@
-/** Hai phép tính SỐ của màn Khách hàng, tách ra khỏi component để test được.
+/** Phép tính NGÀY và SỐ của hồ sơ khách — tách khỏi component để test được.
  *
- *  Cả hai từng cho ra con số SAI mà vẫn trông hợp lý — đúng loại lỗi không ai phát hiện bằng mắt,
- *  nên chúng ở đây kèm test thay vì nằm trong một `useMemo` giữa 4000 dòng JSX.
+ *  Mọi số liệu tiền/đơn/báo giá do máy chủ cộng (`/api/customers/{id}/thong-ke`, lịch sử phân
+ *  trang). Ở đây chỉ còn: tính khoảng ngày của kỳ đang chọn, lùi một năm để so cùng kỳ, chọn bước
+ *  biểu đồ, và cách viết số. Ngày là chuỗi "YYYY-MM-DD" theo giờ Việt Nam.
  */
-import type { OrderHistoryRow, QuoteHistoryRow } from "../api/client";
+import type { BuocBieuDo, KyXem } from "../api/client";
 
-// --- TỈ LỆ CHỐT ---------------------------------------------------------------------------
-//
-// Phải khớp Y HỆT `CHOT_THANG` / `CHOT_DA_CHAO` ở `backend/app/services/customer_analytics.py`.
-// Hai nơi cùng tính một chỉ số là mầm lệch số; giữ được vì frontend BẮT BUỘC tính lại — bộ lọc
-// theo năm cắt tập báo giá, mà backend chỉ trả con số lifetime.
-//
-export const CHOT_THANG = ["accepted", "converted_to_order"];
+const MS_NGAY = 86_400_000;
+const GIO_VN = 7 * 3_600_000;
 
-// Mẫu số CHỈ gồm báo giá khách ĐÃ THẤY. Loại `draft` · `pending_approval` · `approved` (chưa ra
-// khỏi cửa) và `cancelled` (mình tự huỷ, không phải khách chê) — để chúng trong mẫu số là tự trừ
-// điểm vì những việc khách chưa hề biết. `sent` đang chờ trả lời thì VẪN tính: đã chào mà chưa
-// chốt được thì chưa phải thắng.
-export const CHOT_DA_CHAO = ["sent", "accepted", "rejected", "expired", "converted_to_order"];
+export type LoaiKy = "thang" | "quy" | "nam" | "12t" | "namtruoc" | "tuy";
+export const LOAI_KY: [LoaiKy, string][] = [
+  ["thang", "Tháng này"],
+  ["quy", "Quý này"],
+  ["nam", "Năm nay"],
+  ["12t", "12 tháng qua"],
+  ["namtruoc", "Năm trước"],
+  ["tuy", "Tuỳ chọn"],
+];
 
-export interface TiLeChot {
-  thang: number;
-  daChao: number;
-  pct: number | null;      // null = chưa chào báo giá nào ⇒ KHÔNG hiện 0% (0% đọc ra là "chào mãi không ai mua")
-  giaTriThang: number;
+/** Khoảng tối đa máy chủ nhận (~10 năm, khớp `TRAN_KHOANG_NGAY` bên backend có dư). */
+export const TRAN_KHOANG_NGAY = 3650;
+
+const dd = (n: number) => String(n).padStart(2, "0");
+const iso = (y: number, m: number, d: number) => `${y}-${dd(m)}-${dd(d)}`;
+const tach = (s: string): [number, number, number] => {
+  const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+  return [y, m, d];
+};
+const utc = (s: string) => {
+  const [y, m, d] = tach(s);
+  return Date.UTC(y, m - 1, d);
+};
+
+/** Hôm nay theo giờ Việt Nam, không phụ thuộc múi giờ của máy đang mở trang. */
+export function homNayVN(now: number = Date.now()): string {
+  return new Date(now + GIO_VN).toISOString().slice(0, 10);
 }
 
-export function tinhTiLeChot(rows: QuoteHistoryRow[]): TiLeChot {
-  const thangRows = rows.filter((q) => CHOT_THANG.includes(q.status));
-  const daChao = rows.filter((q) => CHOT_DA_CHAO.includes(q.status)).length;
-  return {
-    thang: thangRows.length,
-    daChao,
-    pct: daChao > 0 ? Math.round((thangRows.length / daChao) * 100) : null,
-    giaTriThang: thangRows.reduce((s, q) => s + (q.total ?? 0), 0),
-  };
+/** Ngày (giờ VN) của một mốc thời gian máy chủ trả về. */
+export function ngayCuaMoc(moc: string): string {
+  const t = new Date(moc).getTime();
+  return Number.isNaN(t) ? moc.slice(0, 10) : homNayVN(t);
 }
 
-// --- TOP SẢN PHẨM -------------------------------------------------------------------------
-
-export interface SanPhamGop {
-  name: string;
-  qty: number;      // số ĐƠN có mặt sản phẩm này (không phải số lượng in)
-  total: number;
+export function congNgay(s: string, n: number): string {
+  return new Date(utc(s) + n * MS_NGAY).toISOString().slice(0, 10);
 }
 
-/** Gộp tiền theo sản phẩm từ TIỀN THẬT của từng dòng đơn (`lines[].line_total`).
- *
- *
- *  Đơn cũ (trước khi backend trả `lines`) vẫn lùi về tách `summary`, nhưng KHÔNG chia tiền nữa —
- *  thà thiếu tiền còn hơn tiền bịa; số đơn vẫn đếm được nên dòng đó không biến mất.
- */
-export function gopTienTheoSanPham(rows: OrderHistoryRow[], top = 4): SanPhamGop[] {
-  const gop: Record<string, { qty: number; total: number }> = {};
-  const cong = (ten: string, tien: number) => {
-    const k = ten.trim();
-    if (!k) return;
-    if (!gop[k]) gop[k] = { qty: 0, total: 0 };
-    gop[k].qty += 1;
-    gop[k].total += tien;
-  };
-  for (const o of rows) {
-    if (o.lines && o.lines.length > 0) {
-      for (const d of o.lines) cong(d.description || "Sản phẩm khác", d.line_total ?? 0);
-    } else {
-      for (const p of (o.summary || "Sản phẩm khác").split(",")) cong(p, 0);
-    }
+export function soNgay(tu: string, den: string): number {
+  return Math.round((utc(den) - utc(tu)) / MS_NGAY);
+}
+
+/** Lùi n năm. 29/02 sang năm không nhuận thành 28/02 — khớp `lui_nam` bên backend. */
+export function luiNam(s: string, n = 1): string {
+  const [y, m, d] = tach(s);
+  const nam = y - n;
+  const cuoiThang = new Date(Date.UTC(nam, m, 0)).getUTCDate();
+  return iso(nam, m, Math.min(d, cuoiThang));
+}
+
+export function tinhKy(loai: LoaiKy, homNay: string, tuy?: KyXem | null): KyXem {
+  const [y, m] = tach(homNay);
+  switch (loai) {
+    case "thang":
+      return { tu: iso(y, m, 1), den: homNay };
+    case "quy":
+      return { tu: iso(y, Math.floor((m - 1) / 3) * 3 + 1, 1), den: homNay };
+    case "12t":
+      return { tu: congNgay(homNay, -364), den: homNay };
+    case "namtruoc":
+      return { tu: iso(y - 1, 1, 1), den: iso(y - 1, 12, 31) };
+    case "tuy":
+      if (tuy) return tuy;
+      return { tu: iso(y, 1, 1), den: homNay };
+    case "nam":
+    default:
+      return { tu: iso(y, 1, 1), den: homNay };
   }
-  return Object.entries(gop)
-    .map(([name, stat]) => ({ name, ...stat }))
-    .sort((a, b) => b.total - a.total || b.qty - a.qty)
-    .slice(0, top);
+}
+
+/** Lỗi của khoảng tự gõ, hoặc null nếu dùng được. */
+export function loiKhoang(tu: string, den: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tu) || !/^\d{4}-\d{2}-\d{2}$/.test(den)) return "Chọn đủ hai ngày.";
+  if (tu > den) return "Ngày bắt đầu phải trước ngày kết thúc.";
+  if (soNgay(tu, den) > TRAN_KHOANG_NGAY) return "Khoảng xem tối đa 10 năm.";
+  return null;
+}
+
+/** Kỳ ≤ ~3 tháng vẽ theo tuần, dài hơn theo tháng. Máy chủ tự gộp thô hơn nếu quá 60 cột. */
+export function buocTuDong(ky: KyXem): BuocBieuDo {
+  return soNgay(ky.tu, ky.den) <= 93 ? "tuan" : "thang";
+}
+
+export const TEN_BUOC: Record<BuocBieuDo, string> = { tuan: "tuần", thang: "tháng", quy: "quý" };
+
+/** "dd/mm/yyyy" từ "YYYY-MM-DD" hoặc mốc thời gian đầy đủ. */
+export function ngayDeDoc(s: string | null | undefined): string {
+  if (!s) return "—";
+  const [y, m, d] = tach(s.length > 10 ? ngayCuaMoc(s) : s);
+  return `${dd(d)}/${dd(m)}/${y}`;
+}
+
+export function ngayNgan(s: string): string {
+  const [, m, d] = tach(s);
+  return `${dd(d)}/${dd(m)}`;
+}
+
+/** Nhãn ngắn dưới trục và nhãn đầy đủ (tooltip, dải "Đang xem riêng") của một cột biểu đồ. */
+export function nhanCot(tu: string, den: string, buoc: BuocBieuDo, dauTien: boolean): { ngan: string; du: string } {
+  const [y, m] = tach(tu);
+  const q = Math.floor((m - 1) / 3) + 1;
+  if (buoc === "tuan") return { ngan: ngayNgan(tu), du: `Tuần ${ngayDeDoc(tu)} – ${ngayDeDoc(den)}` };
+  if (buoc === "quy") return { ngan: `Q${q}/${String(y).slice(2)}`, du: `Quý ${q}/${y}` };
+  return { ngan: `T${m}${m === 1 || dauTien ? "/" + String(y).slice(2) : ""}`, du: `Tháng ${m}/${y}` };
+}
+
+/** Tiền gọn: "1,25 tỷ đ", "350,5 Mđ", "820 Kđ" — cùng quy ước với cột Mua hàng ở danh sách. */
+export function tienGon(n: number | null | undefined): string {
+  if (n == null) return "—";
+  const a = Math.abs(n);
+  if (a >= 1_000_000_000) return (n / 1_000_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " tỷ đ";
+  if (a >= 1_000_000) return (n / 1_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " Mđ";
+  if (a >= 1_000) return (n / 1_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " Kđ";
+  return n.toLocaleString("vi-VN") + " đ";
+}
+
+export type HuongDoi = "len" | "xuong" | "bang";
+export interface MucDoi {
+  huong: HuongDoi;
+  chu: string;
+}
+
+/** Mức đổi so với cùng kỳ. `kieu = "pt"` ra phần trăm, `"so"` ra chênh lệch số đếm. */
+export function soCungKy(nay: number, cu: number, kieu: "pt" | "so" = "pt"): MucDoi {
+  if (!nay && !cu) return { huong: "bang", chu: "Cùng kỳ: 0" };
+  if (kieu === "so") {
+    const x = nay - cu;
+    if (x === 0) return { huong: "bang", chu: "Bằng cùng kỳ" };
+    return { huong: x > 0 ? "len" : "xuong", chu: `${x > 0 ? "▲" : "▼"} ${Math.abs(x)} so cùng kỳ` };
+  }
+  if (!cu) return { huong: "len", chu: "Mới so cùng kỳ" };
+  const p = Math.round(((nay - cu) / cu) * 100);
+  if (p === 0) return { huong: "bang", chu: "Bằng cùng kỳ" };
+  return { huong: p > 0 ? "len" : "xuong", chu: `${p > 0 ? "▲" : "▼"} ${Math.abs(p)}% so cùng kỳ` };
+}
+
+/** Bước chia trục Y (đơn vị đồng) để có ≤ 4 vạch. */
+export function buocTruc(max: number): number {
+  const ung = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000].map((x) => x * 1_000_000);
+  return ung.find((s) => max / s <= 4) ?? 20_000_000_000;
 }

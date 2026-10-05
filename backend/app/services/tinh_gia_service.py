@@ -6,10 +6,11 @@
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..models.cong_doan import CongDoan, CongDoanMay
 from ..models.may_thiet_bi import MayThietBi
@@ -27,17 +28,47 @@ def _f(v, d: float = 0.0) -> float:
         return d
 
 
-def _nap_san_danh_muc(db: Session, tp) -> tuple[dict[int, CongDoan], dict[int, VatTuInAn]]:
-    """Nạp TRƯỚC công đoạn + vật tư (kèm chip) mà các bước của thành phần trỏ tới, mỗi loại MỘT
-    câu `IN (...)` — số câu SQL không còn tăng theo số bước × vật tư. Trả về hai map để vòng bước
-    tra thẳng (đồng thời giữ đối tượng sống: identity map của Session chỉ giữ tham chiếu yếu)."""
-    cd_ids = {int(r.cong_doan_id) for r in tp.thanh_phams if r.cong_doan_id is not None}
-    vt_ids = {int(v.vat_tu_id) for r in tp.thanh_phams for v in r.vat_tus if v.vat_tu_id is not None}
-    cds = ({c.id: c for c in db.execute(select(CongDoan).where(CongDoan.id.in_(cd_ids))).scalars()}
-           if cd_ids else {})
-    vts = ({v.id: v for v in db.execute(select(VatTuInAn).where(VatTuInAn.id.in_(vt_ids))).scalars()}
-           if vt_ids else {})
-    return cds, vts
+@dataclass
+class DanhMucNapSan:
+    """Danh mục mà CẢ PHIẾU trỏ tới, nạp một lượt (04/10/2026). Trước đây mỗi sản phẩm tự hỏi lại
+    giấy, máy, công thức theo máy, công đoạn, vật tư, chip — 6 câu SQL mỗi sản phẩm, phiếu 10 sản
+    phẩm là 60 câu cho một lần xem trước. Nay mỗi loại MỘT câu `IN (...)` cho cả phiếu, số câu không
+    tăng theo số sản phẩm / bước / vật tư. Giữ map cũng là giữ đối tượng sống: identity map của
+    Session chỉ giữ tham chiếu yếu."""
+    giay: dict[int, GiayNguyen] = field(default_factory=dict)
+    may: dict[int, MayThietBi] = field(default_factory=dict)
+    # may_id → {cong_doan_id: công thức giá của cặp (công đoạn, máy)}
+    ct_gia_may: dict[int, dict[int, str]] = field(default_factory=dict)
+    cong_doan: dict[int, CongDoan] = field(default_factory=dict)
+    vat_tu: dict[int, VatTuInAn] = field(default_factory=dict)
+
+
+def nap_danh_muc_phieu(db: Session, tps) -> DanhMucNapSan:
+    giay_ids = {int(tp.giay_id) for tp in tps if tp.giay_id is not None}
+    may_ids = {int(tp.may_id) for tp in tps if tp.may_id is not None}
+    cd_ids = {int(r.cong_doan_id) for tp in tps for r in tp.thanh_phams if r.cong_doan_id is not None}
+    vt_ids = {int(v.vat_tu_id) for tp in tps for r in tp.thanh_phams for v in r.vat_tus
+              if v.vat_tu_id is not None}
+    nap = DanhMucNapSan()
+    if giay_ids:
+        nap.giay = {g.id: g for g in db.execute(
+            select(GiayNguyen).where(GiayNguyen.id.in_(giay_ids))).scalars()}
+    if may_ids:
+        nap.may = {m.id: m for m in db.execute(
+            select(MayThietBi).where(MayThietBi.id.in_(may_ids))).scalars()}
+        for may_id, cd_id, ct in db.execute(
+            select(CongDoanMay.may_id, CongDoanMay.cong_doan_id, CongDoanMay.cong_thuc_gia)
+            .where(CongDoanMay.may_id.in_(may_ids))
+        ).all():
+            nap.ct_gia_may.setdefault(int(may_id), {})[int(cd_id)] = ct or ""
+    if cd_ids:
+        nap.cong_doan = {c.id: c for c in db.execute(
+            select(CongDoan).where(CongDoan.id.in_(cd_ids))).scalars()}
+    if vt_ids:
+        nap.vat_tu = {v.id: v for v in db.execute(
+            select(VatTuInAn).where(VatTuInAn.id.in_(vt_ids))
+            .options(selectinload(VatTuInAn.chips))).scalars()}
+    return nap
 
 
 def _vat_tus_cua_buoc(db: Session, buoc: PhieuThanhPham,
@@ -137,8 +168,13 @@ _ROW_SCALAR_FIELDS = (
 )
 
 
-def _resolve_thanh_phan(db: Session, tp) -> dict:
-    """ORM PhieuThanhPhan → dict phẳng ĐÃ resolve danh mục (giấy khổ/gsm + công đoạn) cho engine."""
+def _resolve_thanh_phan(db: Session, tp, nap: DanhMucNapSan | None = None) -> dict:
+    """ORM PhieuThanhPhan → dict phẳng ĐÃ resolve danh mục (giấy khổ/gsm + công đoạn) cho engine.
+
+    `nap` = danh mục đã nạp sẵn cho cả phiếu (`nap_danh_muc_phieu`). Vắng thì tự nạp cho riêng
+    thành phần này — nơi gọi lặp qua nhiều thành phần nên truyền vào để khỏi hỏi lại từng cái."""
+    if nap is None:
+        nap = nap_danh_muc_phieu(db, [tp])
     d: dict = {}
     for k in _TP_SCALAR_FIELDS:
         v = getattr(tp, k, None)
@@ -152,7 +188,7 @@ def _resolve_thanh_phan(db: Session, tp) -> dict:
     # Giấy: bơm định lượng + tên + CÔNG THỨC + đơn giá. Đơn giá/kg CHỐT CỨNG ở danh mục Giấy —
     # luôn lấy theo record (phiếu không sửa). Khổ KHÔNG còn ở danh mục → nhập tay ở phiếu (kho_nguyen).
     if tp.giay_id is not None:
-        giay = db.get(GiayNguyen, tp.giay_id)
+        giay = nap.giay.get(int(tp.giay_id))
         if giay is not None:
             d["gsm"] = giay.gsm
             d["giay_ten"] = giay.ten
@@ -174,7 +210,7 @@ def _resolve_thanh_phan(db: Session, tp) -> dict:
     #  · chừa + vùng in = thông số kỹ thuật để engine trừ đúng chiều / cảnh báo. Phiếu để trống thì
     #                 lấy theo máy (xem `_compute_one`). Chừa lấy nhíp GIẤY, không lấy mép nhíp bản kẽm.
     if tp.may_id is not None:
-        may = db.get(MayThietBi, tp.may_id)
+        may = nap.may.get(int(tp.may_id))
         if may is not None:
             if may.kho_max_dai:
                 d["kho_may_dai"] = may.kho_max_dai
@@ -195,17 +231,8 @@ def _resolve_thanh_phan(db: Session, tp) -> dict:
     tram = ban_do_tram(db)   # đọc MỘT lần cho cả phiếu, không hỏi lại từng dòng
     # Máy in được chọn ở khối In của THÀNH PHẦN (`PhieuThanhPhan.may_id`) — đây là chỗ DUY NHẤT
     # phiếu tính giá chọn máy, nên chỉ dòng công đoạn nhóm In mới có cơ hội ăn công thức riêng.
-    # Đọc MỘT lần cho cả thành phần, không hỏi lại từng dòng.
-    ct_gia_theo_cd: dict[int, str] = {}
-    if tp.may_id is not None:
-        ct_gia_theo_cd = {
-            int(cd_id): (ct or "")
-            for cd_id, ct in db.execute(
-                select(CongDoanMay.cong_doan_id, CongDoanMay.cong_thuc_gia)
-                .where(CongDoanMay.may_id == int(tp.may_id))
-            ).all()
-        }
-    cd_map, vt_map = _nap_san_danh_muc(db, tp)
+    ct_gia_theo_cd = nap.ct_gia_may.get(int(tp.may_id), {}) if tp.may_id is not None else {}
+    cd_map, vt_map = nap.cong_doan, nap.vat_tu
     rows: list[dict] = []
     for row in sorted(tp.thanh_phams, key=lambda r: (r.thu_tu or 0, r.id or 0)):
         rd: dict = {}
@@ -241,7 +268,8 @@ def compute_phieu_snapshot(db: Session, phieu) -> dict:
     """
     so_luong = int(phieu.so_luong or 0)
     tps = sorted(phieu.thanh_phans, key=lambda t: (t.thu_tu or 0, t.id or 0))
-    resolved = [_resolve_thanh_phan(db, tp) for tp in tps]
+    nap = nap_danh_muc_phieu(db, tps)
+    resolved = [_resolve_thanh_phan(db, tp, nap) for tp in tps]
     result = compute_phieu(so_luong=so_luong, thanh_phans=resolved)
 
     # gán giá vốn từng thành phần + ghi ngược SỐ BÀI IN dẫn xuất (so_trang / trang_moi_tay) để

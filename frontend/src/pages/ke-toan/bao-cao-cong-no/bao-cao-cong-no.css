@@ -8,10 +8,10 @@
  * xuống chi tiết, đúng thứ tự kế toán mở màn này ra để hỏi. */
 
 .bccn {
-  /* Sổ chỉ có 8 cột; thả trôi hết bề ngang 1900px thì các cột tiền cách nhau cả gang tay và mắt
-   * không nối được số với tiêu đề cụm của nó. Chặn bề ngang là cách rẻ nhất để bảng đọc được. */
-  max-width: 1280px;
-  padding: var(--sp-5) var(--sp-6) var(--sp-7);
+  /* Sổ chỉ có 8 cột; thả trôi hết bề ngang 1900px thì các cột tiền cách nhau cả gang tay — chặn ở
+   * khổ trang chung như mọi màn khác. */
+  max-width: var(--page-max-w);
+  padding: var(--sp-5) var(--page-pad-x) var(--sp-7);
   margin: 0 auto;
 }
 

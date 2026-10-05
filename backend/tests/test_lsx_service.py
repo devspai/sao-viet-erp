@@ -490,6 +490,15 @@ def _ptg_2_san_pham(db, *, sl_hop=20_000, sl_tem=35_000) -> PhieuTinhGia:
 
 
 def _quote_from_ptg(db, customer, ptg: PhieuTinhGia) -> Quote:
+    # Một phiếu chỉ MỘT báo giá (UNIQUE từ 04/10/2026): phiếu đã có báo giá thì dựng đơn tiếp theo
+    # trên BẢN NHÂN BẢN của phiếu — đúng cách người dùng làm khi cần báo giá thứ hai.
+    if db.query(Quote).filter(Quote.phieu_tinh_gia_id == ptg.id).count():
+        from types import SimpleNamespace
+        from app.services.ptg_nhan_ban_service import nhan_ban
+        ptg = nhan_ban(ptg, ma=f"{ptg.ma}-B{db.query(PhieuTinhGia).count()}",
+                       actor=SimpleNamespace(id=None, name="test", username="test"))
+        db.add(ptg)
+        db.flush()
     # Số báo giá đánh số tăng dần: có test cần DỰNG HAI ĐƠN trong cùng một ca, để mã cứng là
     # đụng ràng buộc unique `quotes.quote_number`.
     q = Quote(quote_number=f"BG-SX{db.query(Quote).count() + 1}", customer_id=customer.id,
@@ -514,14 +523,20 @@ def _quote_from_ptg(db, customer, ptg: PhieuTinhGia) -> Quote:
     return q
 
 
-def _don_da_chot(db, orders, admin, customer, ptg):
-    """Đơn từ báo giá đã qua cổng chốt (đủ cọc + PO + ngày giao) — CHƯA chuyển xuống sản xuất."""
+def _thu_du_coc(orders, admin, d):
+    return orders.add_deposit_receipt(order_id=d.id, actor=admin, scope="all",
+                                      payload=OrderDepositReceiptIn(receipt_method="cash",
+                                                                    amount=d.deposit_required))
+
+
+def _don_da_chot(db, orders, admin, customer, ptg, *, thu_coc=True):
+    """Đơn từ báo giá đã qua cổng chốt (PO + ngày giao). `thu_coc=True` ⇒ đủ cọc nên TỰ xuống sản
+    xuất ngay lúc chốt (luật 04/10/2026); `False` ⇒ chốt mà chưa thu cọc, CHƯA xuống SX."""
     q = _quote_from_ptg(db, customer, ptg)
     d = orders.create(actor=admin, scope="all",
                       payload=OrderCreate(source_type="bao_gia", quotation_id=q.id, deposit_pct=50))
-    orders.add_deposit_receipt(order_id=d.id, actor=admin, scope="all",
-                               payload=OrderDepositReceiptIn(receipt_method="cash",
-                                                             amount=d.deposit_required))
+    if thu_coc:
+        _thu_du_coc(orders, admin, d)
     orders.update(order_id=d.id, actor=admin, scope="all", payload=OrderUpdate(
         customer_po_no="PO-SX", delivery_committed_date=date.today() + timedelta(days=10),
     ))
@@ -529,18 +544,19 @@ def _don_da_chot(db, orders, admin, customer, ptg):
 
 
 def _don_da_chuyen_sx(db, orders, admin, customer, ptg):
-    """Đơn đã chốt + Sale đã bấm 'Chuyển xuống sản xuất' → nằm trong hàng chờ Kế hoạch."""
+    """Đơn đã chốt + đủ cọc → TỰ xuống sản xuất, nằm trong hàng chờ Kế hoạch."""
     d = _don_da_chot(db, orders, admin, customer, ptg)
-    return orders.release_production(order_id=d.id, actor=admin, scope="all")
+    assert d.san_xuat_released_at is not None
+    return d
 
 
 # ============================ Hàng chờ + preview ============================
 def test_hang_cho_chi_hien_don_da_chuyen_va_con_no_lenh(db, orders, lsx_svc, admin, customer):
     ptg = _ptg_2_san_pham(db)
-    d = _don_da_chot(db, orders, admin, customer, ptg)
-    assert not any(r["order_id"] == d.id for r in lsx_svc.hang_cho()[0])  # chốt rồi nhưng chưa chuyển
+    d = _don_da_chot(db, orders, admin, customer, ptg, thu_coc=False)
+    assert not any(r["order_id"] == d.id for r in lsx_svc.hang_cho()[0])  # chốt rồi nhưng chưa đủ cọc
 
-    orders.release_production(order_id=d.id, actor=admin, scope="all")
+    _thu_du_coc(orders, admin, d)   # đủ cọc → tự xuống hàng chờ
 
     row = next(r for r in lsx_svc.hang_cho()[0] if r["order_id"] == d.id)
     assert row["so_dong"] == 2 and row["so_dong_co_lsx"] == 0
@@ -642,11 +658,11 @@ def test_tao_chan_trung_lenh_tren_cung_dong_don(db, orders, lsx_svc, admin, cust
 
 def test_tao_chan_don_chua_chuyen_va_dong_khong_thuoc_don(db, orders, lsx_svc, admin, customer):
     ptg = _ptg_2_san_pham(db)
-    d = _don_da_chot(db, orders, admin, customer, ptg)
-    with pytest.raises(LsxConflict):        # chốt rồi nhưng Sale chưa bấm chuyển xuống SX
+    d = _don_da_chot(db, orders, admin, customer, ptg, thu_coc=False)
+    with pytest.raises(LsxConflict):        # chốt rồi nhưng chưa đủ cọc → chưa xuống SX
         lsx_svc.tao(order_id=d.id, order_line_ids=[d.lines[0].id], actor=admin)
 
-    orders.release_production(order_id=d.id, actor=admin, scope="all")
+    _thu_du_coc(orders, admin, d)
     with pytest.raises(LsxValidationError):  # id dòng không thuộc đơn
         lsx_svc.tao(order_id=d.id, order_line_ids=[d.lines[0].id, 999_999], actor=admin)
 

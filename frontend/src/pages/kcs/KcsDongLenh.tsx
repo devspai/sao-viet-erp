@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api, type SxDongLenhTinhTrang } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
+import { EmptyState } from "../../components/EmptyState";
 import { Icon } from "../../components/Icons";
 import { num } from "../keHoachSxShared";
 import { nhanDonVi } from "../lsxBuoc";
@@ -74,7 +75,7 @@ export function KcsDongLenh({
       <div className="kcs-chot">
         {loi && <div className="banner banner--error" role="alert"><span>{loi}</span></div>}
         {tt == null ? (
-          !loi && <p className="kcs-chot__phu">Đang tải…</p>
+          !loi && <EmptyState trangThai="dang-tai" gon />
         ) : (
           <>
             <div className="kcs-chot__so">

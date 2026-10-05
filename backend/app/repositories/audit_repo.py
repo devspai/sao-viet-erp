@@ -82,6 +82,12 @@ class AuditLogRepository:
         ).all()
         return {i: (t or "")[:120] for i, t in rows}
 
+    @staticmethod
+    def bao_co_dong_moi() -> None:
+        """Báo màn Nhật ký "có dòng mới" — người gọi `create_many` / `create(commit=False)` tự gọi
+        SAU KHI đã commit (chỉ `create` có commit mới tự báo)."""
+        _bao_co_dong_moi()
+
     def create_many(self, entries: list[dict]) -> None:
         """Nhiều dòng nhật ký một lượt, KHÔNG commit — cho thao tác hàng loạt gom một giao dịch
         (duyệt 1000 phiếu tạm ứng vẫn phải có đủ 1000 dòng vết, chỉ không chốt 1000 lần).
@@ -109,6 +115,7 @@ class AuditLogRepository:
         action: str,
         target: str,
         detail: str = "",
+        commit: bool = True,
     ) -> AuditLog:
         """Như `create` nhưng GỘP thao tác lặp liên tiếp: nếu bản ghi MỚI NHẤT của cùng `target`
         trùng cả `action` lẫn actor → CẬP NHẬT thời điểm + chi tiết của nó thay vì thêm dòng mới.
@@ -123,11 +130,14 @@ class AuditLogRepository:
         if latest is not None and latest.action == action and latest.actor_user_id == actor_user_id:
             latest.created_at = datetime.now(timezone.utc)
             latest.detail = detail
-            self.db.commit()
-            self.db.refresh(latest)
+            if commit:
+                self.db.commit()
+                self.db.refresh(latest)
+            else:
+                self.db.flush()
             return latest
         return self.create(
-            actor_user_id=actor_user_id, action=action, target=target, detail=detail
+            actor_user_id=actor_user_id, action=action, target=target, detail=detail, commit=commit
         )
 
     def max_created_at(self, actions) -> datetime | None:

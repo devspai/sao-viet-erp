@@ -47,16 +47,53 @@ def test_cho_coc_du_coc_va_chuyen_san_xuat(client):
                                                     "delivery_committed_date": date.today().isoformat()},
                    headers=ha)
     assert u.status_code == 200, u.text
-    assert client.post(f"/api/orders/{d['id']}/confirm", headers=ha).status_code == 200
-    for _ in range(2):
-        rel = client.post(f"/api/orders/{d['id']}/release-production", headers=ha)
-        assert rel.status_code == 200, rel.text
+    # Cọc đã đủ từ trước → chốt là TỰ xuống SX (04/10/2026); bấm tay lại vẫn idempotent.
+    ch = client.post(f"/api/orders/{d['id']}/confirm", headers=ha)
+    assert ch.status_code == 200 and ch.json()["san_xuat_released_at"], ch.text
+    rel = client.post(f"/api/orders/{d['id']}/release-production", headers=ha)
+    assert rel.status_code == 200, rel.text
     assert tom_tat(client, dang_nhap(client, "ke_hoach"))["san_xuat"]["loai"] == "don_chuyen_sx"
     db = SessionLocal()
     try:
         assert db.query(ModuleNotification).filter_by(channel="san_xuat").count() == 1
     finally:
         db.close()
+
+
+def test_chot_truoc_thu_coc_sau_thi_du_coc_tu_xuong_san_xuat(client):
+    ha = admin(client)
+    tao_nguoi("ke_toan_coc3", {"don_hang_ban": dict(can_read=True, can_record_deposit=True,
+                                                    scope=SCOPE_ALL)})
+    tao_nguoi("ke_hoach3", {"san_xuat": dict(can_read=True, scope=SCOPE_ALL)})
+    hk = dang_nhap(client, "ke_toan_coc3")
+    r = client.post("/api/orders", json={"source_type": "bao_gia", "quotation_id": _bao_gia_da_chot(),
+                                         "deposit_pct": 50}, headers=ha)
+    d = r.json()
+    client.put(f"/api/orders/{d['id']}", json={"customer_po_no": "PO3",
+                                               "delivery_committed_date": date.today().isoformat()},
+               headers=ha)
+    ch = client.post(f"/api/orders/{d['id']}/confirm", headers=ha)
+    assert ch.status_code == 200 and ch.json()["san_xuat_released_at"] is None, ch.text
+
+    thieu = client.post(f"/api/orders/{d['id']}/deposit-receipts",
+                        json={"receipt_method": "cash", "amount": 100_000}, headers=hk)
+    assert thieu.status_code == 200 and thieu.json()["san_xuat_released_at"] is None, thieu.text
+    du = client.post(f"/api/orders/{d['id']}/deposit-receipts",
+                     json={"receipt_method": "cash", "amount": 400_000}, headers=hk)
+    assert du.status_code == 200 and du.json()["san_xuat_released_at"], du.text
+    assert tom_tat(client, dang_nhap(client, "ke_hoach3"))["san_xuat"]["loai"] == "don_chuyen_sx"
+
+
+def test_don_khong_coc_chot_la_xuong_san_xuat(client):
+    ha = admin(client)
+    r = client.post("/api/orders", json={"source_type": "bao_gia", "quotation_id": _bao_gia_da_chot(),
+                                         "deposit_pct": 0}, headers=ha)
+    d = r.json()
+    client.put(f"/api/orders/{d['id']}", json={"customer_po_no": "PO4",
+                                               "delivery_committed_date": date.today().isoformat()},
+               headers=ha)
+    ch = client.post(f"/api/orders/{d['id']}/confirm", headers=ha)
+    assert ch.status_code == 200 and ch.json()["san_xuat_released_at"], ch.text
 
 
 def test_don_khong_coc_thi_khong_cham(client):

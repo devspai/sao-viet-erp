@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tab Lương & BHXH — khối Ngân hàng, 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --card:#fff; --ink:#0f172a; --ink-2:#475569; --ink-3:#94a3b8;
+  --rule:#e2e8f0; --rule-hair:#f1f5f9; --rust:#c5400a; --rust-ink:#8a2d07;
+  --green:#15803d; --green-bg:#f0fdf4; --green-bd:#bbf7d0; --r:10px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 80px}
+
+.picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.pa{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:12px 14px;text-align:left}
+.pa:hover{border-color:var(--ink-3)}
+.pa.on{border:2px solid var(--rust);padding:11px 13px}
+.pa b{display:block;font-weight:600;font-size:15px;margin-bottom:2px}
+.pa small{color:var(--ink-2);font-size:12.5px;display:block}
+.pa .src{margin-top:6px;font-size:11.5px;color:var(--ink-3)}
+.tools{display:flex;gap:16px;align-items:center;margin:0 0 14px;font-size:13px;color:var(--ink-2);flex-wrap:wrap}
+.tools label{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+
+/* khay hồ sơ */
+.drawer{background:var(--card);border:1px solid var(--rule);border-radius:14px;overflow:hidden}
+.dhead{padding:18px 24px 14px;display:flex;gap:14px;align-items:center}
+.ava{width:52px;height:52px;border-radius:50%;border:1px solid var(--rule);display:grid;place-items:center;font-weight:700;color:var(--rust);background:var(--paper)}
+.kick{font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--rust)}
+.name{font-size:20px;font-weight:700;margin:0}
+.meta{font-size:13px;color:var(--ink-2)}
+.actions{display:flex;justify-content:space-between;gap:8px;padding:10px 24px;border-top:1px solid var(--rule);background:var(--paper);flex-wrap:wrap}
+.btn{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:500}
+.btn:hover{background:var(--rule-hair)}
+.tabs{display:flex;gap:4px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--paper);overflow-x:auto}
+.tabs span{padding:10px 12px;font-size:14px;color:var(--ink-2);white-space:nowrap}
+.tabs span.on{color:var(--rust);font-weight:600;box-shadow:inset 0 -2px 0 var(--rust)}
+.body{padding:20px 24px 28px;background:#fff;min-height:420px}
+
+/* thẻ chung */
+.card{border:1px solid var(--rule);border-radius:var(--r);background:#fff;padding:16px 18px}
+.ctitle{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--rust);text-transform:uppercase;padding-bottom:10px;border-bottom:1px solid var(--rule-hair);margin-bottom:12px}
+.lbl{font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.03em}
+.val{font-size:15px;font-weight:600}
+.hint{font-size:12.5px;color:var(--ink-3);margin-top:2px}
+.num{font-variant-numeric:tabular-nums}
+.empty{color:var(--ink-3);font-weight:400}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 20px}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.stack{display:grid;gap:16px}
+
+.copy{border:1px solid var(--rule);background:#fff;border-radius:6px;padding:2px 8px;font-size:12px;color:var(--ink-2);display:inline-flex;align-items:center;gap:4px}
+.copy:hover{background:var(--rule-hair);color:var(--ink)}
+.copy.ok{color:var(--green);border-color:var(--green-bd);background:var(--green-bg)}
+.tag{display:inline-block;font-size:11.5px;font-weight:500;color:var(--ink-2);border:1px solid var(--rule);border-radius:99px;padding:0 8px}
+.link{color:var(--rust);font-size:13px;font-weight:500;background:none;border:0;padding:0}
+.link:hover{text-decoration:underline}
+
+/* A — danh sách khoá–giá trị */
+.dl{border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
+.dl + .dl{margin-top:16px}
+.dl h4{margin:0;padding:10px 18px;font-size:12.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rust);background:var(--paper);border-bottom:1px solid var(--rule)}
+.row{display:grid;grid-template-columns:220px minmax(0,1fr) auto;gap:16px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--rule-hair);min-height:46px}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--rule-hair)}
+.row .k{font-size:13px;color:var(--ink-2)}
+.row .v{font-size:14.5px;font-weight:600}
+.row .copy{visibility:hidden}
+.row:hover .copy,.row .copy.ok{visibility:visible}
+
+/* B — thẻ phương thức chi trả */
+.pay{display:flex;gap:14px;align-items:center;border:1px solid var(--rule);border-radius:10px;padding:12px 14px}
+.mono{width:44px;height:44px;border-radius:10px;background:#0f2a6b;color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
+.mono.none{background:var(--rule-hair);color:var(--ink-3);border:1px dashed var(--rule)}
+.pay .acc{font-size:17px;font-weight:700;letter-spacing:.02em}
+.pay .bank{font-size:13px;color:var(--ink-2)}
+.pay .grow{flex:1;min-width:0}
+
+/* C — dải tóm tắt chi trả */
+.strip{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border:1px solid var(--rule);border-radius:10px;padding:10px 16px;margin-bottom:16px;background:var(--paper)}
+.strip .lead{font-size:12px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.03em}
+.strip .acc{font-size:16px;font-weight:700}
+.strip .bank{font-size:13.5px;color:var(--ink-2)}
+.strip .sp{flex:1}
+.strip.warn{background:#fffbeb;border-color:#fde68a}
+
+.notes{margin-top:18px;background:#fff;border:1px solid var(--rule);border-radius:12px;padding:14px 18px;font-size:13.5px;color:var(--ink-2)}
+.notes b{color:var(--ink)}
+.notes p{margin:6px 0}
+
+@media (max-width:760px){
+  .picker{grid-template-columns:1fr}
+  .cols,.g2{grid-template-columns:1fr}
+  .row{grid-template-columns:1fr auto;gap:2px 12px}
+  .row .k{grid-column:1/-1}
+  .row .copy{visibility:visible}
+  .body{padding:16px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="picker" id="picker">
+    <button class="pa on" data-pa="A">
+      <b>A. Danh sách khoá – giá trị</b>
+      <small>Bỏ lưới thẻ; mỗi nhóm là một bảng hàng mảnh, nhãn trái giá trị phải. Ngân hàng tách 2 hàng, rê vào hàng hiện nút Sao chép.</small>
+      <div class="src">Tham khảo: Stripe Dashboard (chi tiết khách hàng), Linear (thuộc tính issue)</div>
+    </button>
+    <button class="pa" data-pa="B">
+      <b>B. Thẻ phương thức chi trả</b>
+      <small>Giữ lưới 2 cột nhưng xếp lại: Ngân hàng chui xuống dưới Hoa hồng ở cột trái, hiển thị như một "phương thức nhận lương".</small>
+      <div class="src">Tham khảo: Gusto, Rippling (Payment method), Wise (tài khoản nhận)</div>
+    </button>
+    <button class="pa" data-pa="C">
+      <b>C. Dải tóm tắt chi trả</b>
+      <small>Ngân hàng thành một dải mảnh đầu tab — câu trả lời cho câu hỏi hay gặp nhất "lương chuyển vào đâu". Hai thẻ còn lại giữ nguyên.</small>
+      <div class="src">Tham khảo: Deel, Workday (tóm tắt trả lương đầu trang)</div>
+    </button>
+  </div>
+  <div class="tools">
+    <label><input type="checkbox" id="chuaKhai"> Xem trường hợp chưa khai ngân hàng</label>
+  </div>
+
+  <div class="drawer">
+    <div class="dhead">
+      <div class="ava">L</div>
+      <div>
+        <div class="kick">HỒ SƠ NHÂN SỰ  NV014</div>
+        <h2 class="name">Nguyễn Thị Kim Luyến</h2>
+        <div class="meta">Vào làm 2/3/2021</div>
+      </div>
+    </div>
+    <div class="actions">
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Chấm công</button><button class="btn">Nghỉ phép</button><button class="btn">Lương</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Sửa lương & BHXH</button><button class="btn">Thao tác hồ sơ ▾</button></div>
+    </div>
+    <div class="tabs"><span>Thông tin</span><span class="on">Lương & BHXH</span><span>Tài khoản & Quyền</span><span>Quá trình công tác</span><span>Đính kèm</span><span>Nhật ký</span></div>
+    <div class="body" id="body"></div>
+  </div>
+
+  <div class="notes" id="notes"></div>
+</div>
+
+<script>
+const D = { stk: "0939911125", ngan: "MB - Ngan hang TMCP Quan Doi", bhxh: "9314006159", mst: "093190013887" };
+let pa = "A", chuaKhai = false;
+
+// Nhóm số tài khoản 4-3-3 cho dễ đọc khi đọc qua điện thoại; sao chép vẫn ra chuỗi liền.
+const nhom = s => s.replace(/\D/g,"").replace(/^(\d{4})(\d{3})(\d+)$/, "$1 $2 $3") || s;
+// Chữ viết tắt ngân hàng: đoạn trước " - " nếu có (dữ liệu đang gõ tự do).
+const viettat = s => (s.split(/\s+-\s+/)[0] || "").slice(0,4).toUpperCase();
+const tenDai = s => s.includes(" - ") ? s.split(/\s+-\s+/).slice(1).join(" - ") : s;
+const copyBtn = v => `<button class="copy" data-copy="${v}">⧉ Sao chép</button>`;
+const em = t => `<span class="empty">${t}</span>`;
+
+function hoaHong(){ return `<div class="card"><div class="ctitle">↗ Hoa hồng kinh doanh</div>
+  <div class="lbl">% Hoa hồng</div><div class="val">${em("—")}</div>
+  <div class="hint">Máy tự tính theo hoá đơn bán trong kỳ. Đổi % ở Lương → Lương nhân viên.</div></div>`; }
+function bhxh(){ return `<div class="card"><div class="ctitle">▤ BHXH / TNCN</div><div class="g2">
+  <div><div class="lbl">Số sổ BHXH</div><div class="val num">${D.bhxh}</div></div>
+  <div><div class="lbl">MST cá nhân</div><div class="val num">${D.mst}</div></div>
+  <div><div class="lbl">Người phụ thuộc</div><div class="val num">0</div></div>
+  <div><div class="lbl">Cách tính thuế TNCN</div><div class="val">Luỹ tiến từng phần</div><div class="hint">Đổi ở Lương → Lương nhân viên → Sửa lương.</div></div>
+  </div></div>`; }
+
+const R = {
+A(){
+  const row = (k,v,c) => `<div class="row"><div class="k">${k}</div><div class="v">${v}</div>${c||"<span></span>"}</div>`;
+  return `
+  <div class="dl"><h4>Chi trả lương</h4>
+    ${chuaKhai
+      ? row("Số tài khoản", em("Chưa khai — bấm Sửa lương & BHXH để thêm"))
+      : row("Số tài khoản", `<span class="num">${nhom(D.stk)}</span>`, copyBtn(D.stk)) + row("Ngân hàng", D.ngan, copyBtn(D.ngan))}
+  </div>
+  <div class="dl"><h4>BHXH / TNCN</h4>
+    ${row("Số sổ BHXH", `<span class="num">${D.bhxh}</span>`, copyBtn(D.bhxh))}
+    ${row("MST cá nhân", `<span class="num">${D.mst}</span>`, copyBtn(D.mst))}
+    ${row("Người phụ thuộc", "0")}
+    ${row("Cách tính thuế TNCN", "Luỹ tiến từng phần")}
+  </div>
+  <div class="dl"><h4>Hoa hồng kinh doanh</h4>
+    ${row("% Hoa hồng", em("Chưa đặt — đổi ở Lương → Lương nhân viên"))}
+  </div>`;
+},
+B(){
+  const pay = chuaKhai
+    ? `<div class="pay"><div class="mono none">?</div><div class="grow"><div class="acc empty" style="font-size:14px">Chưa khai tài khoản nhận lương</div><div class="bank">Bảng lương sẽ không xuất được dòng chuyển khoản cho người này.</div></div><button class="link">+ Thêm</button></div>`
+    : `<div class="pay"><div class="mono">${viettat(D.ngan)}</div><div class="grow">
+         <div class="acc num">${nhom(D.stk)}</div><div class="bank">${tenDai(D.ngan)}</div></div>${copyBtn(D.stk)}</div>`;
+  return `<div class="cols">
+    <div class="stack">${hoaHong()}
+      <div class="card"><div class="ctitle">▭ Nhận lương</div>${pay}</div>
+    </div>
+    ${bhxh()}
+  </div>`;
+},
+C(){
+  const strip = chuaKhai
+    ? `<div class="strip warn"><span class="lead">Lương chuyển vào</span><span class="bank">Chưa khai tài khoản ngân hàng</span><span class="sp"></span><button class="link">+ Thêm tài khoản</button></div>`
+    : `<div class="strip"><span class="lead">Lương chuyển vào</span><span class="acc num">${nhom(D.stk)}</span>${copyBtn(D.stk)}<span class="tag">${viettat(D.ngan)}</span><span class="bank">${tenDai(D.ngan)}</span></div>`;
+  return strip + `<div class="cols">${hoaHong()}${bhxh()}</div>`;
+}};
+
+const N = {
+A:`<p><b>Được:</b> hết khoảng trắng vì không còn thẻ "nửa vời"; số tài khoản và tên ngân hàng tách 2 hàng, mỗi hàng sao chép riêng. Thêm trường mới (chủ tài khoản, chi nhánh) chỉ là thêm hàng.</p>
+<p><b>Mất:</b> khác kiểu với tab Thông tin (đang lưới thẻ 2 cột) — muốn đồng bộ thì về sau đổi cả tab Thông tin theo.</p>`,
+B:`<p><b>Được:</b> giữ đúng ngôn ngữ thẻ của khay, chỉ xếp lại để cột trái lấp chỗ trống dưới Hoa hồng. Ô viết tắt ngân hàng nhìn lướt là nhận ra.</p>
+<p><b>Mất:</b> ô viết tắt đang tách từ chữ gõ tự do (đoạn trước dấu "-"); gõ lệch là ra chữ lạ. Làm chuẩn thì ô Ngân hàng nên chọn từ danh sách ngân hàng thay vì gõ tay.</p>`,
+C:`<p><b>Được:</b> sửa ít nhất — chỉ đổi khối Ngân hàng thành dải mảnh đầu tab; thông tin kế toán hỏi nhiều nhất nằm ngay trên cùng, chưa khai thì dải chuyển vàng nhắc.</p>
+<p><b>Mất:</b> dải đầu tab là chỗ "đắt" — sau này muốn đặt thứ khác (cảnh báo hồ sơ thiếu, lương hiện hành) thì phải chia chỗ.</p>`
+};
+
+function ve(){
+  document.getElementById("body").innerHTML = R[pa]();
+  document.getElementById("notes").innerHTML = `<p style="margin-top:0"><b>Chung cho cả 3:</b> bỏ kiểu nối "số · tên ngân hàng" thành một chuỗi; số tài khoản nhóm 4-3-3 cho dễ đọc, sao chép vẫn ra chuỗi liền. Tên ngân hàng đang hiện đúng như người nhập gõ ("Ngan hang TMCP Quan Doi" không dấu) — đó là dữ liệu, không phải lỗi hiển thị.</p>` + N[pa];
+}
+document.getElementById("picker").addEventListener("click", e => {
+  const b = e.target.closest(".pa"); if(!b) return;
+  pa = b.dataset.pa;
+  document.querySelectorAll(".pa").forEach(x => x.classList.toggle("on", x === b));
+  ve();
+});
+document.getElementById("chuaKhai").addEventListener("change", e => { chuaKhai = e.target.checked; ve(); });
+document.addEventListener("click", e => {
+  const b = e.target.closest(".copy"); if(!b) return;
+  try { navigator.clipboard.writeText(b.dataset.copy); } catch(_) {}
+  b.classList.add("ok"); b.textContent = "✓ Đã chép";
+  setTimeout(() => { b.classList.remove("ok"); b.textContent = "⧉ Sao chép"; }, 1400);
+});
+ve();
+</script>
+</body>
+</html>

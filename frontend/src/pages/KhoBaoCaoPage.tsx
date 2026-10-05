@@ -29,6 +29,7 @@ import { crud } from "../api/rebuildCatalog";
 import { useCan } from "../auth/permissions";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icons";
+import { EmptyRow, EmptyState } from "../components/EmptyState";
 import { Select } from "../components/Select";
 import { KhoGiaGocThanhPham } from "./KhoGiaGocThanhPham";
 import { VoucherDrawer } from "./KhoYeuCauPage";
@@ -1063,7 +1064,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
           </div>
 
           {loading ? (
-            <div className="rc__empty-state">Đang tải…</div>
+            <EmptyState trangThai="dang-tai" inline />
           ) : dashRows.length === 0 ? (
             <div className="rc__empty-state">Chưa có phiếu ghi sổ nào trong phạm vi lọc.</div>
           ) : (
@@ -1420,7 +1421,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={11} className="rc__empty-state">Đang tải…</td></tr>
+                  <EmptyRow colSpan={11} trangThai="dang-tai" />
                 ) : filteredChuyen.length === 0 ? (
                   <tr><td colSpan={11} className="rc__empty-state">Không có dòng điều chuyển nào (đã ghi sổ) trong kỳ / bộ lọc.</td></tr>
                 ) : (
@@ -1526,7 +1527,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={12} className="rc__empty-state">Đang tải…</td></tr>
+                  <EmptyRow colSpan={12} trangThai="dang-tai" />
                 ) : filteredRows.length === 0 ? (
                   <tr><td colSpan={12} className="rc__empty-state">Không có dòng nào (phiếu đã ghi sổ) trong kỳ / bộ lọc.</td></tr>
                 ) : (
@@ -1789,7 +1790,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={13} className="rc__empty-state">Đang tải…</td></tr>
+                  <EmptyRow colSpan={13} trangThai="dang-tai" />
                 ) : filtered.length === 0 ? (
                   <tr><td colSpan={13} className="rc__empty-state">Không có mặt hàng nào phát sinh / còn tồn trong kỳ.</td></tr>
                 ) : (
@@ -2374,7 +2375,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
       >
         {matErr && <div className="banner banner--error" style={{ marginBottom: 8 }}>{matErr}</div>}
         {matLoading || !matHist ? (
-          <p className="kho-hint">Đang tải lịch sử mặt hàng…</p>
+          <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải lịch sử mặt hàng…" />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>

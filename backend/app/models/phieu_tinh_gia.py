@@ -48,7 +48,18 @@ class PhieuTinhGia(Base):
 
     ktv: Mapped[str | None] = mapped_column(String(255), nullable=True)     # tên người tạo (hiển thị)
     created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → users.id: chủ sở hữu (lọc scope)
+    # Ghi chú NỘI BỘ của phiếu — báo giá lập từ phiếu hiện nó ở ô "Ghi chú nội bộ" (chỉ đọc), không in.
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # --- Khách hàng (chọn Ở PHIẾU từ 04/10/2026, mg 0363) ---
+    # Báo giá lập từ phiếu CHÉP bốn thứ này và KHÔNG sửa được ở báo giá; báo giá nháp tự theo khi
+    # phiếu đổi (`quotation_service.dong_bo_nhap_theo_phieu`). Cùng khuôn với `quotes` để chép thẳng.
+    customer_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)  # soft → customers.id
+    delivery_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    contact_name_snapshot: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    contact_phone_snapshot: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    contact_title_snapshot: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    contact_email_snapshot: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

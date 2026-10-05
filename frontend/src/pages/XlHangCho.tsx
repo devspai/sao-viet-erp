@@ -1,6 +1,7 @@
 // XẾP LỊCH 3 — CỘT HÀNG CHỜ (REDESIGN STUDIO DOCK)
 import { CheckCircle2, ChevronLeft, Clock, Layers, Search, X } from "lucide-react";
 import type { XlThe } from "../api/client";
+import { EmptyState } from "../components/EmptyState";
 import { gioChu, ngayNgan } from "./xlShared";
 
 export interface XlHangChoProps {
@@ -83,9 +84,7 @@ export function XlHangCho({
 
       <div className="xl-cho__list">
         {dangTai && the.length === 0 && (
-          <div className="xl-cho__trong-box">
-            <p>Đang tải dữ liệu hàng chờ…</p>
-          </div>
+          <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải dữ liệu hàng chờ…" />
         )}
         {!dangTai && the.length === 0 && (
           <div className="xl-cho__trong-box">
