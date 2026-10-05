@@ -100,6 +100,10 @@ class ThongTinOut(BaseModel):
     ban_giao_at: datetime | None = None
     ghi_chu: str | None = None
     tao_luc: datetime | None = None
+    # KCS đã đóng lệnh (`lsx.trang_thai = da_dong`) — phần đầu hồ sơ (làm gọn 05/10/2026).
+    da_dong: bool = False
+    # Tên nhóm sản xuất của lệnh (`san_xuat_nhom`), `None` khi chưa vào nhóm nào.
+    nhom_ten: str | None = None
 
 
 class TienDoOut(BaseModel):
@@ -118,6 +122,10 @@ class TienDoOut(BaseModel):
     may: str | None = None
     nguoi: list[str] = []
     da_giao: int = 0
+    # KHÂU của lệnh (`trang_thai.khau`) — không xét cờ cảnh báo; `khau_chi_tiet` chỉ có khi
+    # `khau = sau_sx` (`dang_kcs` / `cho_nhap_kho` / `san_sang_giao`).
+    khau: str = "dang_sx"
+    khau_chi_tiet: str | None = None
 
 
 class ThongSoOut(BaseModel):
@@ -298,9 +306,8 @@ class SanLuongBatchOut(BaseModel):
 
 
 class SanLuongOut(BaseModel):
-    tong: float = 0.0
-    tot: float = 0.0
-    hong: float = 0.0
+    """Chỉ còn từng batch — ba tổng cộng lẫn tờ in với thành phẩm đã gỡ (05/10/2026)."""
+
     batch: list[SanLuongBatchOut] = []
 
 

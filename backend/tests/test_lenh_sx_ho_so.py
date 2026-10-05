@@ -865,24 +865,19 @@ def test_kcs_ty_le_dat_tinh_theo_so_khong_phai_trung_binh(
     assert len(k["batch"]) == 3
 
 
-def test_san_luong_cong_don_moi_batch(client, seed_credentials, sess, admin, lenh_that):
-    """Tổng `san_luong` phải CỘNG mọi batch, và `hong` phải ra số thật.
-
-    Ép cả ba tổng về 0 mà bộ test cũ vẫn xanh. Đây là số nuôi phần trăm tiến độ và số vào kho, nên
-    trả 0 lúc xưởng đã chạy 500 tờ là hồ sơ nói dối đúng chỗ đau nhất. Hai batch trên CÙNG một bước
-    để bắt luôn kiểu "gán = batch cuối" thay vì "+=".
-    """
+def test_san_luong_chi_con_tung_batch(client, seed_credentials, sess, admin, lenh_that):
+    """Ba tổng `tong/tot/hong` đã GỠ (05/10/2026): chúng cộng mọi bước, tờ in lẫn thành phẩm. Số
+    đúng nằm ở từng batch, gom theo bước ở giao diện."""
     cv = _cvs(sess, lenh_that)[0]
     _ghi_san_luong(sess, admin, cv, tong=300, tot=300)
     _ghi_san_luong(sess, admin, cv, tong=200, tot=180, hong=20)
 
     sl = _ho_so(client, seed_credentials, lenh_that)["san_luong"]
-    assert sl["tong"] == 500.0, "cộng dồn, không phải lấy batch cuối (200)"
-    assert sl["tot"] == 480.0
-    assert sl["hong"] == 20.0
+    assert set(sl) == {"batch"}
     assert len(sl["batch"]) == 2
     assert [b["tong"] for b in sl["batch"]] == [300.0, 200.0], "sắp theo mốc kết thúc"
-    assert sl["batch"][1]["mo_ta_loi"] is None
+    assert [b["tot"] for b in sl["batch"]] == [300.0, 180.0]
+    assert sl["batch"][1]["hong"] == 20.0
     assert all(b["la_buoc_ghep"] is False for b in sl["batch"])
 
 
@@ -1074,3 +1069,15 @@ def test_chi_khoi_khoa_la_bao_loi_ngay(sess, lenh_that):
 
     with pytest.raises(ValueError, match="chi_khoi"):
         ho_so_svc.ho_so(sess, lenh_that, sale_ids=None, chi_khoi={"routing", "khoi_khong_co"})
+
+
+def test_phan_dau_ho_so_co_khau_da_dong_va_nhom(client, seed_credentials, sess, lenh_that):
+    d = _ho_so(client, seed_credentials, lenh_that)
+    assert d["tien_do"]["khau"] == "dang_sx"
+    assert d["tien_do"]["khau_chi_tiet"] is None
+    assert d["thong_tin"]["da_dong"] is False
+    assert "nhom_ten" in d["thong_tin"]
+
+    sess.get(Lsx, lenh_that).trang_thai = "da_dong"
+    sess.commit()
+    assert _ho_so(client, seed_credentials, lenh_that)["thong_tin"]["da_dong"] is True
