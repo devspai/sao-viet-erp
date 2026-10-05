@@ -55,7 +55,10 @@ describe("cột ĐVT của mặt hàng gốc", () => {
 
 describe("màn Đơn vị & quy đổi", () => {
   it("KHÔNG còn cột Lưu ý (`canh_bao`) — chủ gỡ 18/09/2026", () => {
-    expect(CFG_DON_VI.columns.map((c) => c.key)).toEqual(["quy_doi_text", "ghi_chu"]);
+    const keys = CFG_DON_VI.columns.map((c) => c.key);
+    expect(keys).not.toContain("canh_bao");
+    // "Đang dùng ở" (`mat_hang_dung`, server đếm) thêm 04/10/2026: sửa/xoá đơn vị là đụng các mặt hàng đó.
+    expect(keys).toEqual(["quy_doi_text", "mat_hang_dung", "ghi_chu"]);
   });
 });
 
