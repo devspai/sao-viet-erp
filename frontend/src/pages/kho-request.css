@@ -365,6 +365,16 @@ input.kho-num,
   color: var(--ash);
   margin-top: var(--sp-1);
 }
+/* Dạng + khổ của giấy dưới ô Vật tư (form yêu cầu kho): chọn Tờ/Cuộn rồi gõ rộng × dài (mm). */
+.kho-giay-kho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}
+.kho-giay-kho select.rc-input { width: 84px; }
+.kho-giay-kho input.rc-input { width: 64px; }
 .kho-hint--amber { color: var(--amber-deep); }
 .kho-hint--rust { color: var(--rust-deep); }
 /* Dòng phụ trong ô số (`.kho-num` cấm xuống dòng) — vd "Giá bán 2.708 đ/cái · DH003" dưới ô Đơn giá:
@@ -724,7 +734,7 @@ input.kho-num,
   cursor: pointer;
 }
 .kho-xuat__row:hover td {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .kho-xuat__detail > td {
   padding: 0 var(--sp-3) var(--sp-2);
@@ -910,7 +920,7 @@ input.kho-num,
   align-items: center;
   padding: 2px 8px;
   border-radius: var(--r-2, 4px);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   font-family: var(--ff-sans);
   font-weight: var(--fw-bold);
@@ -922,7 +932,7 @@ input.kho-num,
   align-items: flex-end;
   padding: 6px 14px;
   background: color-mix(in srgb, var(--rust) 8%, var(--paper));
-  border: 1px solid var(--rust-soft);
+  border: 1px solid var(--rule-hair);
   border-radius: var(--r-2, 6px);
 }
 .kho-top-kpi-pill__label {
@@ -1122,7 +1132,7 @@ input.kho-num,
   color: #2f5d3a;
 }
 .kho-badge-status--warn {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 .kho-badge-status--none {
@@ -1374,7 +1384,7 @@ input.kho-num,
   line-height: 1;
 }
 .kho-filterpill__x:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust);
 }
 .kho-filterbar__clear {
@@ -1787,7 +1797,7 @@ input.kho-num,
 .rc__row:hover .kho-code-pill {
   border-color: var(--rust);
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .kho-user-cell {
   display: flex;
@@ -1809,9 +1819,9 @@ input.kho-num,
   border: 1px solid var(--rule);
 }
 .rc__row:hover .kho-user-avatar {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
-  border-color: var(--rust-soft);
+  border-color: var(--rule);
 }
 
 /* Status dot trong badge */
@@ -2133,7 +2143,7 @@ input.kho-num,
 }
 
 .kho-stepper__step--active .kho-stepper__dot {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: var(--rust);
   color: var(--rust-deep);
 }
@@ -2191,7 +2201,7 @@ input.kho-num,
   color: var(--ink);
 }
 .kho-kpi-pill--rust {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: color-mix(in srgb, var(--rust) 25%, transparent);
   color: var(--rust-deep);
 }
@@ -2505,7 +2515,7 @@ input.kho-num,
 /* --- Tem QR vật tư (drawer Tồn kho): quét ra deep-link lô + vị trí --- */
 .rc__link-btn.is-active {
   color: var(--rust, #c5400a);
-  background: var(--rust-soft, #f4e2d6);
+  background: var(--rule-hair);
 }
 .kho-qr {
   display: flex;
@@ -2709,7 +2719,7 @@ input.kho-num,
   cursor: pointer;
 }
 .kho-ton__setth:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   box-shadow: inset 0 -2px 0 var(--rust);
 }
 
@@ -3584,7 +3594,7 @@ input.kho-num,
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 .drawer-kpi-card__icon--moss { background: var(--moss-soft); color: var(--moss-deep); }
-.drawer-kpi-card__icon--rust { background: var(--rust-soft); color: var(--rust-deep); }
+.drawer-kpi-card__icon--rust { background: var(--rule-hair); color: var(--rust-deep); }
 .drawer-kpi-card__icon--plum { background: var(--plum-soft); color: var(--plum-deep); }
 .drawer-kpi-card__icon--amber { background: var(--amber-soft); color: var(--amber-deep); }
 .drawer-kpi-card__icon--steel { background: var(--steel-soft); color: var(--steel); }
@@ -3727,7 +3737,7 @@ button.kho-qr-card__btn {
   transition: all 0.15s ease !important;
 }
 button.kho-qr-card__btn:hover {
-  background: var(--rust-soft) !important;
+  background: var(--rule-hair) !important;
   color: var(--rust) !important;
 }
 
@@ -4108,7 +4118,7 @@ button.hero-del-img-btn {
 }
 .pill-stat--xuat {
   color: var(--rust-deep) !important;
-  background: var(--rust-soft) !important;
+  background: var(--rule-hair) !important;
   border-color: color-mix(in srgb, var(--rust) 22%, transparent) !important;
 }
 .pill-stat--peak {
@@ -4191,4 +4201,48 @@ button.hero-del-img-btn {
   .drawer-top-grid > * {
     min-width: 0;
   }
+}
+
+/* Hộp "Bổ sung dạng/khổ" cho lô giấy cũ — cùng dáng khung khổ của bước vật tư ở Kế hoạch SX. */
+.kho-bsdk__kho {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 10px 0 4px;
+  border: 1px solid var(--rule-soft, #cbd5e1);
+  border-radius: 6px;
+  background: #ffffff;
+  white-space: nowrap;
+}
+.kho-bsdk__kho:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.kho-bsdk__kho input {
+  width: 64px;
+  height: 28px;
+  border: none;
+  outline: none;
+  background: transparent;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.kho-bsdk__kho span {
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+.kho-bsdk__nut {
+  margin-left: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  border: 1px solid var(--rule-soft, #cbd5e1);
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+}
+.kho-bsdk__nut:hover {
+  border-color: #2563eb;
+  color: #2563eb;
 }

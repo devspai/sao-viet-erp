@@ -173,10 +173,10 @@ def test_orders_notify_summary_dung_so_va_so_cau_khong_theo_so_don(client):
     assert n9 == n3, (n3, n9)
 
 
-# ------------------------------------------------------------ (c) care-followups/count --
+# ------------------------------------------------------------------- (c) lịch hẹn --
 
 
-def test_care_followups_count_khop_danh_sach(client):
+def test_lich_hen_so_khop_danh_sach(client):
     h = _admin(client)
     sale_id = _mk_user("sale_nong", {"khach_hang": dict(can_read=True, scope=SCOPE_OWN)})
     db = SessionLocal()
@@ -195,14 +195,18 @@ def test_care_followups_count_khop_danh_sach(client):
     finally:
         db.close()
 
-    for hd in (h, _login(client, "sale_nong")):
-        ds = client.get("/api/customers/care-followups", headers=hd)
-        so = client.get("/api/customers/care-followups/count", headers=hd)
-        assert ds.status_code == 200 and so.status_code == 200, (ds.text, so.text)
-        assert so.json() == {"so": len(ds.json()["items"])}
-    assert client.get("/api/customers/care-followups/count", headers=h).json()["so"] == 3
-    assert client.get("/api/customers/care-followups/count",
-                      headers=_login(client, "sale_nong")).json()["so"] == 2
+    def lay(hd, pham_vi="toi"):
+        r = client.get(f"/api/customers/lich-hen?pham_vi={pham_vi}", headers=hd)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    # Hẹn chưa gán ai tính cho NV phụ trách khách. Số đỏ = trễ + hôm nay còn mở, khớp danh sách;
+    # hẹn sắp tới (+5) có trong danh sách nhưng không vào số, hẹn đã xong ngày cũ không hiện.
+    sale = lay(_login(client, "sale_nong"))
+    assert sale["so"] == 2 and len(sale["items"]) == 3
+    assert sale["so"] == sum(o["tre"] for o in sale["items"])
+    assert lay(h)["so"] == 1
+    assert lay(h, "nhom")["so"] == 3
 
 
 # ------------------------------------------------------------------ (d) lsx hang-cho --

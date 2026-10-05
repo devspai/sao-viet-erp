@@ -43,6 +43,11 @@ from ..repositories.san_xuat_repo import SanXuatRepository
 from ..storage import get_storage, make_key, url_from_key
 from ..tai_len import doc_gioi_han
 from ..schemas.san_xuat import (
+    ChotGiayDongOut,
+    ChotGiayIn,
+    GoChotGiayIn,
+    ThemBuocCatIn,
+    XoaBuocCatIn,
     BanGiaoDeXuatIn,
     BanGiaoDieuChinhIn,
     BanGiaoKetQuaOut,
@@ -85,6 +90,7 @@ from ..schemas.san_xuat import (
     TeamsOut,
     ThemLotIn,
     VatTuDeNghiIn,
+    VatTuNhapLaiIn,
     VatTuNhanKetQuaOut,
     VatTuXacNhanIn,
     TepLenhOut,
@@ -95,6 +101,7 @@ from ..services.rbac_service import AuthorizationService
 from ..services.san_xuat import (
     ban_giao,
     board,
+    chot_giay,
     dong_lenh,
     ho_tro,
     kcs,
@@ -106,11 +113,13 @@ from ..services.san_xuat import (
     thuc_thi,
     vat_tu_de_nghi,
     vat_tu_nhan,
+    vat_tu_nhap_lai,
     viec_khoan,
 )
 from ..services.san_xuat.san_luong_cua_toi import san_luong_cua_toi as san_luong_cua_toi_svc
 from ..services.san_xuat import san_luong_to as san_luong_to_svc
 from ..services.san_xuat.vat_tu_de_nghi import VatTuDeNghiError
+from ..services.san_xuat.vat_tu_nhap_lai import VatTuNhapLaiError
 from ..services.stock_request_service import StockRequestError
 
 router = APIRouter(prefix="/api/san-xuat", tags=["san-xuat"])
@@ -381,6 +390,119 @@ def work_items(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
 
 
+def _phat_sse_chot_giay(db: Session, res: dict, team_id: int, actor_id: int, *,
+                        bao_viec_mo: bool) -> None:
+    """Sau chốt / gỡ chốt: bàn tổ Cắt + bàn của tổ giữ bước mang giấy tự nạp lại (§18). Chốt xong
+    thì chấm đỏ tổ mang giấy — việc của họ vừa mở (hoặc vừa có chặng trước mới)."""
+    cac_to = sorted({team_id, *(res.get("to_mang_giay") or [])})
+    hub.gui({"type": "san_xuat_cong_viec_changed", "team_id": team_id},
+            **kem_ban_to(MAN_THEO_LENH, cac_to))
+    if bao_viec_mo:
+        for to in res.get("to_mang_giay") or []:
+            _cham_to(db, to, "viec_mo", actor_id)
+
+
+@router.get("/chot-giay", response_model=list[ChotGiayDongOut])
+def chot_giay_ds(
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("read"))],
+    team_id: int = Query(..., ge=1),
+) -> list[dict]:
+    """Khối "Chờ chốt giấy" trên bàn tổ Cắt (spec giấy theo khổ §4.6). Cùng cổng xem như
+    `/work-items`; tổ không mang cờ Tổ Cắt ⇒ rỗng."""
+    try:
+        board._pham_vi_doc(db, user, team_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    return chot_giay.danh_sach(db, team_id=team_id)
+
+
+@router.post("/chot-giay")
+def chot_giay_ghi(
+    payload: ChotGiayIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("run_order"))],
+) -> dict:
+    """Tổ Cắt chốt "Không cần cắt". Thêm bước cắt đi qua `/chot-giay/them`."""
+    try:
+        res = chot_giay.chot(db, user=user, team_id=payload.team_id, lsx_id=payload.lsx_id,
+                             bai_ghep_id=payload.bai_ghep_id, cach=payload.cach,
+                             cong_doan_ids=payload.cong_doan_ids)
+        db.commit()
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except chot_giay.ChotGiayLoi as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    _phat_sse_chot_giay(db, res, payload.team_id, user.id, bao_viec_mo=True)
+    return res
+
+
+@router.post("/chot-giay/go")
+def chot_giay_go(
+    payload: GoChotGiayIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("run_order"))],
+) -> dict:
+    """Gỡ chốt "không cắt" khi bước In chưa bắt đầu."""
+    try:
+        res = chot_giay.go_chot(db, user=user, team_id=payload.team_id, lsx_id=payload.lsx_id,
+                                bai_ghep_id=payload.bai_ghep_id)
+        db.commit()
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except chot_giay.ChotGiayLoi as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    _phat_sse_chot_giay(db, res, payload.team_id, user.id, bao_viec_mo=False)
+    return res
+
+
+@router.post("/chot-giay/them")
+def chot_giay_them(
+    payload: ThemBuocCatIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("run_order"))],
+) -> dict:
+    """Tổ Cắt thêm công đoạn Trước In của tổ vào ngay trước bước In (spec dòng giấy §3.3)."""
+    try:
+        res = chot_giay.them(db, user=user, team_id=payload.team_id, lsx_id=payload.lsx_id,
+                             bai_ghep_id=payload.bai_ghep_id, cong_doan_ids=payload.cong_doan_ids)
+        db.commit()
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except chot_giay.ChotGiayLoi as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    _phat_sse_chot_giay(db, res, payload.team_id, user.id, bao_viec_mo=True)
+    return res
+
+
+@router.post("/chot-giay/xoa")
+def chot_giay_xoa(
+    payload: XoaBuocCatIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("run_order"))],
+) -> dict:
+    """Tổ Cắt xoá một công đoạn Trước In của tổ (kể cả bước đặt sẵn) khi nó và bước In chưa bắt
+    đầu. Xoá hết ⇒ chốt "không cắt" — bước In mở."""
+    try:
+        res = chot_giay.xoa(db, user=user, team_id=payload.team_id, lsx_id=payload.lsx_id,
+                            bai_ghep_id=payload.bai_ghep_id, buoc_id=payload.buoc_id)
+        db.commit()
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except chot_giay.ChotGiayLoi as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    _phat_sse_chot_giay(db, res, payload.team_id, user.id, bao_viec_mo=True)
+    return res
+
+
 @router.get("/toi/san-luong", response_model=SanLuongCuaToiOut)
 def san_luong_cua_toi(
     db: Annotated[Session, Depends(get_db)],
@@ -523,6 +645,29 @@ def tao_de_nghi_vat_tu(
     except PermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     except (VatTuDeNghiError, StockRequestError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.post("/work-items/{cong_viec_id}/material-returns",
+             status_code=status.HTTP_201_CREATED, response_model=None)
+def tao_nhap_lai_vat_tu(
+    cong_viec_id: int,
+    body: VatTuNhapLaiIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("warehouse"))],
+) -> dict:
+    """Tổ yêu cầu NHẬP LẠI vật tư thừa vào kho (spec 2026-10-01 §3.5). Cùng cổng quyền Kho theo tổ
+    với đề nghị cấp; kho lập phiếu nhập như mọi yêu cầu NHẬP."""
+    try:
+        return vat_tu_nhap_lai.tao(
+            db, user=user, cong_viec_id=cong_viec_id, ghi_chu=body.ghi_chu,
+            lines=[l.model_dump() for l in body.lines],
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except VatTuNhapLaiError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

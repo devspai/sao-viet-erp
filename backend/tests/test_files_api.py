@@ -165,3 +165,75 @@ def test_ten_tai_ve_bo_ma_ngau_nhien_va_giu_dau_tieng_viet(client):
     # RFC 5987: tên có dấu đi qua `filename*`, mã hoá UTF-8; tiền tố token lúc lưu không lọt ra.
     assert "filename*=UTF-8''Maket%20h%E1%BB%99p%20b%C3%A1nh.ai" in cd
     assert "0a1b2c3d" not in cd
+
+
+# --- đường nginx kéo MinIO (KHO_TEP_QUA_NGINX) ----------------------------------------------------
+# Python KHÔNG bơm byte nữa: kiểm quyền xong trả X-Accel-Redirect + đường dẫn MinIO đã ký. Hai điều
+# phải giữ: kiểm quyền vẫn chạy TRƯỚC khi ký (không ký cho người thiếu quyền), và kiểu tệp ký vào
+# đường dẫn do MÁY CHỦ quyết theo đuôi — không phải content-type người gửi khai lúc tải lên.
+
+
+class _KhoGia:
+    """MinioStorage giả: chỉ ghi lại tham số ký, không cần boto3/MinIO."""
+
+    def __init__(self):
+        self.da_ky: list[tuple[str, str, str]] = []
+
+    def duong_ky_san(self, key, *, kieu, trinh_bay, giay=60):
+        self.da_ky.append((key, kieu, trinh_bay))
+        return f"/svn-files/{key}?X-Amz-Signature=abc"
+
+
+def _bat_nginx(monkeypatch) -> _KhoGia:
+    from app.config import settings
+    from app.routers import files as files_router
+    from app.storage import MinioStorage
+
+    kho = _KhoGia()
+    monkeypatch.setattr(MinioStorage, "__init__", lambda self: None)
+    gia = type("KhoGiaMinio", (MinioStorage,), {"duong_ky_san": kho.duong_ky_san})()
+    monkeypatch.setattr(files_router, "get_storage", lambda: gia)
+    monkeypatch.setattr(settings, "kho_tep_qua_nginx", True)
+    return kho
+
+
+def test_qua_nginx_tra_x_accel_voi_duong_dan_da_ky(client, monkeypatch):
+    _login(client)
+    kho = _bat_nginx(monkeypatch)
+    got = client.get("/api/files/avatars/0a1b2c3d_anh.png")
+    assert got.status_code == 200
+    assert got.content == b""                      # không một byte nào đi qua Python
+    assert got.headers["x-accel-redirect"] == "/_kho_tep/"
+    assert got.headers["x-kho-duong"] == "/svn-files/avatars/0a1b2c3d_anh.png?X-Amz-Signature=abc"
+    assert got.headers["x-tep-etag"] == '"avatars/0a1b2c3d_anh.png"'
+    assert kho.da_ky == [("avatars/0a1b2c3d_anh.png", "image/png",
+                          "inline; filename=\"anh.png\"; filename*=UTF-8''anh.png")]
+
+
+def test_qua_nginx_kieu_tep_theo_duoi_va_tep_script_bi_ep_tai_ve(client, monkeypatch):
+    _login(client)
+    kho = _bat_nginx(monkeypatch)
+    client.get("/api/files/avatars/0a1b2c3d_trang.html")
+    client.get("/api/files/avatars/0a1b2c3d_khong-duoi")
+    (_, kieu_html, cd_html), (_, kieu_trong, cd_trong) = kho.da_ky
+    assert kieu_html == "text/html" and cd_html.startswith("attachment")
+    assert kieu_trong == "application/octet-stream" and cd_trong.startswith("attachment")
+
+
+def test_qua_nginx_van_kiem_quyen_truoc_khi_ky(client, monkeypatch):
+    _make_limited_user()
+    _login(client, _LIMITED_USERNAME, _LIMITED_PASSWORD)
+    kho = _bat_nginx(monkeypatch)
+    assert client.get("/api/files/hr/1/ho-so.jpg").status_code == 403
+    client.cookies.clear()
+    assert client.get("/api/files/avatars/0a1b2c3d_anh.png").status_code == 401
+    assert kho.da_ky == []
+
+
+def test_qua_nginx_304_khong_ky_gi(client, monkeypatch):
+    _login(client)
+    kho = _bat_nginx(monkeypatch)
+    got = client.get("/api/files/avatars/0a1b2c3d_anh.png",
+                     headers={"If-None-Match": '"avatars/0a1b2c3d_anh.png"'})
+    assert got.status_code == 304
+    assert kho.da_ky == []

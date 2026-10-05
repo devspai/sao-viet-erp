@@ -12,6 +12,8 @@ import { useCan } from "../../../../auth/permissions";
 import type { NavigateFn } from "../../../../components/AppShell";
 import { Button } from "../../../../components/Button";
 import { CodeLink } from "../../../../components/CodeLink";
+import { EmptyState } from "../../../../components/EmptyState";
+import { Icon } from "../../../../components/Icons";
 import { fmtDate, money } from "../../../../utils/format";
 import { methodText } from "../shared/helpers";
 import { InvoiceReceiptForm } from "./InvoiceReceiptForm";
@@ -37,7 +39,7 @@ export function ReceivablesDrawer({
   const [allHistory, setAllHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receiptFor, setReceiptFor] = useState<ReceivableItemRow | null>(null);
-  const [view, setView] = useState<"open" | "history">("open");
+  const [view, setView] = useState<"open" | "terms" | "history">("open");
   // Cùng công thức với Công nợ phải trả (PayablesDrawer): còn được nợ = hạn mức trừ đang nợ,
   // không giới hạn dưới 0.
   const conDuocNo = detail ? Math.max(0, detail.credit_limit - detail.total_due) : 0;
@@ -96,7 +98,7 @@ export function ReceivablesDrawer({
   return (
     <div className="rc-drawer__scrim" onClick={closeIfIdle}>
       <aside
-        className="rc-drawer purchase__drawer-780"
+        className="rc-drawer purchase__drawer-780 cnpt-drawer"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -125,101 +127,102 @@ export function ReceivablesDrawer({
               ✕
             </button>
           </div>
-          <div className="purchase__hero-meta">
-            <span>{row.invoice_count} hóa đơn</span>
-            {detail && (
-              <>
-                <span className="purchase__hero-dot">•</span>
-                <span>Còn phải thu {money(detail.total_due)}</span>
-                {detail.overdue_amount > 0 && (
-                  <>
-                    <span className="purchase__hero-dot">•</span>
-                    <span>Quá hạn {money(detail.overdue_amount)}</span>
-                  </>
-                )}
-                {detail.credit_limit > 0 && (
-                  <>
-                    <span className="purchase__hero-dot">•</span>
-                    <span>Hạn mức {money(detail.credit_limit)}</span>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-        <div className="rc-drawer__body">
-      {error && <div className="banner banner--error">{error}</div>}
-      {!detail && !error && <p>Đang tải chi tiết...</p>}
-      {detail && (
-        <>
-          {/* Chính sách "cho nợ" của khách — cùng khuôn `.pay-credit` với Công nợ phải trả, đọc
-              từ Customer.credit_limit/payment_term_days (đã có sẵn, sửa ở màn Khách hàng, quyền
-              `set_credit_terms`) — không phải trường mới. */}
-          <dl className="pay-credit">
+          <dl className="acct-hero-facts">
             <div>
-              <dt>Hạn mức công nợ</dt>
-              <dd>
-                {detail.credit_limit > 0 ? (
-                  money(detail.credit_limit)
-                ) : (
-                  <span className="pay-cell--zero">Chưa đặt</span>
-                )}
-              </dd>
+              <dt><Icon name="fileText" size={13} />Hóa đơn còn nợ</dt>
+              <dd>{row.invoice_count}</dd>
             </div>
             <div>
-              <dt>Đang nợ</dt>
-              <dd className={detail.vuot_han_muc ? "pay-cell--danger" : ""}>
-                {money(detail.total_due)}
-              </dd>
+              <dt><Icon name="shield" size={13} />Hạn mức</dt>
+              <dd>{detail ? (detail.credit_limit > 0 ? money(detail.credit_limit) : "Chưa đặt") : "—"}</dd>
             </div>
             <div>
-              <dt>Còn được nợ</dt>
+              <dt><Icon name="clock" size={13} />Số ngày cho nợ</dt>
               <dd>
-                {detail.credit_limit > 0 ? (
-                  money(conDuocNo)
-                ) : (
-                  <span className="pay-cell--zero">Không giới hạn</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Số ngày cho nợ</dt>
-              <dd>
-                {detail.payment_term_days == null ? (
-                  <span className="pay-cell--zero">Chưa đặt</span>
-                ) : detail.payment_term_days === 0 ? (
-                  "Trả ngay"
-                ) : (
-                  `${detail.payment_term_days} ngày`
-                )}
+                {!detail || detail.payment_term_days == null
+                  ? "Chưa đặt"
+                  : detail.payment_term_days === 0
+                    ? "Trả ngay"
+                    : `${detail.payment_term_days} ngày`}
               </dd>
             </div>
           </dl>
+        </div>
 
-          {/* Hai tab tách "còn phải thu" (việc phải làm) khỏi "lịch sử" (tra cứu) — cùng dáng
-              `.rc-drawer__tab` với Công nợ phải trả, để hai màn đọc như nhau. */}
-          <div className="rc-drawer__tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === "open"}
-              className={`rc-drawer__tab ${view === "open" ? "is-active" : ""}`}
-              onClick={() => setView("open")}
-            >
-              Hóa đơn còn phải thu
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === "history"}
-              className={`rc-drawer__tab ${view === "history" ? "is-active" : ""}`}
-              onClick={() => setView("history")}
-            >
-              Lịch sử thanh toán
-            </button>
-          </div>
-
+        {/* Dải tab con — chia theo nội dung thật của drawer: hóa đơn đang nợ, chính sách cho nợ,
+            lịch sử thu. Cùng khuôn `acct-drawer__tabs` với drawer Đơn mua hàng. */}
+        <div className="acct-drawer__tabs" role="tablist" aria-label="Chi tiết công nợ phải thu">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "open"}
+            className={`acct-drawer__tab-btn${view === "open" ? " is-active" : ""}`}
+            onClick={() => setView("open")}
+          >
+            <Icon name="fileText" size={15} />
+            <span>Hóa đơn còn phải thu</span>
+            {detail && detail.items.length > 0 && (
+              <span className="acct-drawer__tab-badge">{detail.items.length}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "terms"}
+            className={`acct-drawer__tab-btn${view === "terms" ? " is-active" : ""}`}
+            onClick={() => setView("terms")}
+          >
+            <Icon name="shield" size={15} />
+            <span>Hạn mức & Điều khoản</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "history"}
+            className={`acct-drawer__tab-btn${view === "history" ? " is-active" : ""}`}
+            onClick={() => setView("history")}
+          >
+            <Icon name="history" size={15} />
+            <span>Lịch sử thanh toán</span>
+          </button>
+        </div>
+        <div className="rc-drawer__body">
+      {error && <div className="banner banner--error">{error}</div>}
+      {!detail && !error && <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải chi tiết…" />}
+      {detail && (
+        <>
           {view === "open" && (
+          <div className="cnpt-drawer__stack">
+            <div className="acct-kpi-grid">
+              <div className="acct-kpi-card acct-kpi-card--total">
+                <div className="acct-kpi-card__head">
+                  <span className="acct-kpi-card__label">Tổng phải thu</span>
+                  <span className="acct-kpi-card__tag">{detail.items.length} hóa đơn</span>
+                </div>
+                <div className="acct-kpi-card__val">{money(detail.total_due)}</div>
+              </div>
+              <div className={`acct-kpi-card acct-kpi-card--due${detail.overdue_amount > 0 ? " is-overdue" : ""}`}>
+                <div className="acct-kpi-card__head">
+                  <span className="acct-kpi-card__label">Quá hạn</span>
+                  <span className="acct-kpi-card__tag">{detail.overdue_amount > 0 ? "Cần đòi" : "Không có"}</span>
+                </div>
+                <div className={`acct-kpi-card__val${detail.overdue_amount > 0 ? " pay-cell--danger" : ""}`}>{money(detail.overdue_amount)}</div>
+              </div>
+              <div className="acct-kpi-card acct-kpi-card--paid">
+                <div className="acct-kpi-card__head">
+                  <span className="acct-kpi-card__label">Đã thu trong kỳ</span>
+                  <span className="acct-kpi-card__tag">Thực tế</span>
+                </div>
+                <div className="acct-kpi-card__val">{money(detail.received_in_period)}</div>
+              </div>
+              <div className="acct-kpi-card acct-kpi-card--delivered">
+                <div className="acct-kpi-card__head">
+                  <span className="acct-kpi-card__label">Còn được nợ</span>
+                  <span className="acct-kpi-card__tag">Hạn mức</span>
+                </div>
+                <div className="acct-kpi-card__val">{detail.credit_limit > 0 ? money(conDuocNo) : "Không giới hạn"}</div>
+              </div>
+            </div>
           <section className="pay-block ar-invoices">
             <div className="pay-block__head"><h3>Hóa đơn còn phải thu</h3><strong>{money(detail.total_due)}</strong></div>
             <p className="pay-block__hint">Tiền cấn cọc và phiếu thu được tách riêng để dễ đối soát.</p>
@@ -246,7 +249,16 @@ export function ReceivablesDrawer({
                   </tr>
                 </thead>
                 <tbody>
-                  {detail.items.length === 0 && <tr><td colSpan={7}>Khách hàng này không còn hóa đơn phải thu.</td></tr>}
+                  {detail.items.length === 0 && (
+                    <tr>
+                      <td colSpan={7}>
+                        <div className="acct-empty-state">
+                          <div className="acct-empty-state__icon"><Icon name="fileCheck" size={20} /></div>
+                          <div className="acct-empty-state__text">Khách hàng này không còn hóa đơn phải thu.</div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {detail.items.map((item) => (
                     <tr
                       key={item.invoice_id}
@@ -299,6 +311,55 @@ export function ReceivablesDrawer({
               </table>
             </div>
           </section>
+          </div>
+          )}
+
+          {view === "terms" && (
+            <div className="cnpt-drawer__stack">
+          {/* Chính sách "cho nợ" của khách — cùng khuôn `.pay-credit` với Công nợ phải trả, đọc
+              từ Customer.credit_limit/payment_term_days (đã có sẵn, sửa ở màn Khách hàng, quyền
+              `set_credit_terms`) — không phải trường mới. */}
+          <dl className="pay-credit">
+            <div>
+              <dt>Hạn mức công nợ</dt>
+              <dd>
+                {detail.credit_limit > 0 ? (
+                  money(detail.credit_limit)
+                ) : (
+                  <span className="pay-cell--zero">Chưa đặt</span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Đang nợ</dt>
+              <dd className={detail.vuot_han_muc ? "pay-cell--danger" : ""}>
+                {money(detail.total_due)}
+              </dd>
+            </div>
+            <div>
+              <dt>Còn được nợ</dt>
+              <dd>
+                {detail.credit_limit > 0 ? (
+                  money(conDuocNo)
+                ) : (
+                  <span className="pay-cell--zero">Không giới hạn</span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Số ngày cho nợ</dt>
+              <dd>
+                {detail.payment_term_days == null ? (
+                  <span className="pay-cell--zero">Chưa đặt</span>
+                ) : detail.payment_term_days === 0 ? (
+                  "Trả ngay"
+                ) : (
+                  `${detail.payment_term_days} ngày`
+                )}
+              </dd>
+            </div>
+          </dl>
+            </div>
           )}
 
           {receiptFor && (
@@ -319,7 +380,10 @@ export function ReceivablesDrawer({
             {/* Rỗng thì nói một câu, ĐỪNG bày 7 tiêu đề cột cho một dòng "chưa có gì" — bảng
                 trống trông như đang hỏng chứ không như đang trống. */}
             {detail.paid.length === 0 ? (
-              <p className="pay-block__hint">Chưa có khoản thu trong kỳ đang xem.</p>
+              <div className="acct-empty-state">
+                <div className="acct-empty-state__icon"><Icon name="fileText" size={20} /></div>
+                <div className="acct-empty-state__text">Chưa có khoản thu trong kỳ đang xem.</div>
+              </div>
             ) : (
             <div className="ar-tablewrap">
               <table className="pay-table ar-history-table">

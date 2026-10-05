@@ -1,0 +1,29 @@
+/* Hộp lọc NV phụ trách dùng chung (Tính giá thành · Báo giá · Đơn hàng bán) — dáng theo `.kh__filter`
+   của màn Khách hàng. Cao bám theo ô tìm kiếm đứng cạnh nó (align-self: stretch). */
+.loc-nguoi {
+  min-width: 200px;
+  flex: 0 1 auto;
+  display: flex;
+  align-self: stretch;
+}
+
+.loc-nguoi > * {
+  flex: 1;
+}
+
+.loc-nguoi .sel__trigger {
+  height: 100%;
+  min-height: 34px;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border-color: var(--rule);
+  background: var(--canvas);
+}
+
+@media (max-width: 760px) {
+  .loc-nguoi {
+    flex: 1 1 160px;
+    min-width: 0;
+  }
+}

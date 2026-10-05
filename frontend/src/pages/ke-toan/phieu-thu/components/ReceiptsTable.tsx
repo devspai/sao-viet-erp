@@ -3,8 +3,9 @@ import type { Dispatch, SetStateAction } from "react";
 import type { PaymentReceiptRow } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
 import { CodeLink } from "../../../../components/CodeLink";
+import { Icon } from "../../../../components/Icons";
 import { fmtDateTime, money, originalMoney } from "../../../../utils/format";
-import { STATUS_META } from "../shared/constants";
+import { PILL_TONE, STATUS_META } from "../shared/constants";
 import { methodText, sourceCode, sourceLabel } from "../shared/helpers";
 
 export function ReceiptsTable({
@@ -29,7 +30,7 @@ export function ReceiptsTable({
   totalPages: number;
 }) {
   return (
-    <section className="md-page__tablewrap acct-list acct-pt__frame">
+    <section className="md-page__tablewrap acct-list acct-dmh__frame">
       <table className="md-page__table">
         <thead>
           <tr>
@@ -58,8 +59,18 @@ export function ReceiptsTable({
           {!loading && rows.length === 0 && (
             <tr>
               <td colSpan={6}>
-                Chưa có phiếu thu phù hợp. Có thể tạo phiếu thu trực tiếp tại đây,
-                hoặc lập từ đơn bán/phiếu chi nguồn khi phát sinh nghiệp vụ.
+                <div
+                  className="acct-empty-state"
+                  title="Phiếu thu ghi nhận tiền vào công ty: thu cọc đơn bán, thu hóa đơn, thu hoàn từ phiếu chi và các khoản thu khác."
+                >
+                  <div className="acct-empty-state__icon">
+                    <Icon name="fileText" size={20} />
+                  </div>
+                  <div className="acct-empty-state__text">
+                    Chưa có phiếu thu phù hợp. Có thể tạo phiếu thu trực tiếp, hoặc
+                    lập từ đơn bán/phiếu chi nguồn khi phát sinh nghiệp vụ.
+                  </div>
+                </div>
               </td>
             </tr>
           )}
@@ -73,7 +84,7 @@ export function ReceiptsTable({
                 onClick={() => setSelectedId(row.id)}
               >
                 <td className="acct-code-cell">
-                  <strong>{row.code}</strong>
+                  <span className="acct-dmh__code-badge">{row.code}</span>
                   <div className="purchase__source-codes">
                     {sourceCode(row) ? (
                       <>
@@ -103,11 +114,11 @@ export function ReceiptsTable({
                     {row.created_by_name || "—"}
                   </div>
                 </td>
-                <td className="acct-time-cell">
+                <td className="acct-time-cell acct-dmh__date">
                   {fmtDateTime(row.created_at)}
                 </td>
                 <td className="acct-amount-cell">
-                  <strong>{money(row.amount_vnd)}</strong>
+                  <strong className="acct-dmh__total">{money(row.amount_vnd)}</strong>
                   {row.currency !== "VND" && (
                     <small>
                       {originalMoney(row.amount, row.currency)}
@@ -116,9 +127,9 @@ export function ReceiptsTable({
                 </td>
                 <td>
                   <span
-                    className={`acct-pt__state acct-pt__state--${STATUS_META[row.status].tone}`}
+                    className={`acct-dmh__state acct-dmh__state--${PILL_TONE[row.status]}`}
                   >
-                    <i className="acct-pt__dot" aria-hidden="true" />
+                    <i className="acct-dmh__dot" aria-hidden="true" />
                     {STATUS_META[row.status].label}
                   </span>
                   {row.status === "received" &&

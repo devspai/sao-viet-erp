@@ -154,6 +154,8 @@ class OrderService:
         self.audit = audit
         self.quotations = quotations
         self.db = db
+        # Bật khi `_tu_chuyen_sx` vừa chuyển đơn xuống SX trong request này (router báo Kế hoạch).
+        self.vua_chuyen_sx = False
         # V5: cọc = PaymentReceipt (Kế toán). accounting_repo → đọc Σ received + list phiếu; accounting
         # (service) → LẬP phiếu thu cọc. Cùng Session request-scoped nên chung transaction.
         self.accounting_repo = accounting_repo
@@ -243,7 +245,8 @@ class OrderService:
 
     def _row(self, order: Order, customer_name: str | None, sale_name: str | None,
              quotation_code: str | None = None, *, agg: dict | None = None,
-             received: int | None = None) -> OrderRow:
+             received: int | None = None,
+             line_sum: tuple[str, int] | None = None) -> OrderRow:
         m = self._money(order, agg=agg, received=received)
         return OrderRow(
             id=order.id,
@@ -268,6 +271,10 @@ class OrderService:
             sale_name=sale_name,
             created_at=order.created_at,
             ordered_at=order.ordered_at,
+            customer_po_no=order.customer_po_no,
+            san_xuat_released_at=order.san_xuat_released_at,
+            first_line_desc=(line_sum[0] or None) if line_sum else None,
+            line_count=line_sum[1] if line_sum else 0,
         )
 
     def _detail(self, order: Order) -> OrderDetailOut:
@@ -313,7 +320,6 @@ class OrderService:
             quotation_version=order.quotation_version,
             quotation_effective_from=order.quotation_effective_from,
             parent_order_id=order.parent_order_id,
-            customer_po_no=order.customer_po_no,
             delivery_address=order.delivery_address,
             delivery_contact_name=order.delivery_contact_name,
             delivery_contact_phone=order.delivery_contact_phone,
@@ -330,17 +336,16 @@ class OrderService:
             can_confirm=can_confirm,
             confirm_blockers=blockers,
             quote_expired=quote_expired,
-            san_xuat_released_at=order.san_xuat_released_at,
         )
 
     # --- reads --------------------------------------------------------------
     def list(
         self, *, actor, scope: str, q: str | None, status: str | None,
-        order_kind: str | None, sort: str, page: int, size: int,
+        order_kind: str | None, sort: str, page: int, size: int, nguoi: int | None = None,
     ) -> OrderListOut:
         rows, total, names, _totals = self.repo.list(
             scope=scope, actor=actor, q=q, status=status, order_kind=order_kind,
-            sort=sort, page=page, size=size,
+            sort=sort, page=page, size=size, nguoi=nguoi,
         )
         sale_names = self._user_names([r.sale_user_id for r in rows])
         q_codes = self._quote_codes([r.quotation_id for r in rows])
@@ -348,21 +353,24 @@ class OrderService:
         order_ids = [r.id for r in rows]
         sums = self.repo.money_sums(order_ids)
         received = self.accounting_repo.received_deposit_sums(order_ids)
+        line_sums = self.repo.line_summaries(order_ids)
         items = [
             self._row(o, names.get(o.id), sale_names.get(o.sale_user_id),
                       q_codes.get(o.quotation_id),
-                      agg=sums.get(o.id, {}), received=received.get(o.id, 0))
+                      agg=sums.get(o.id, {}), received=received.get(o.id, 0),
+                      line_sum=line_sums.get(o.id))
             for o in rows
         ]
         return OrderListOut(items=items, total=total, page=page, size=size)
 
-    def stats(self, *, actor, scope: str) -> OrderStatsOut:
+    def stats(self, *, actor, scope: str, nguoi: int | None = None) -> OrderStatsOut:
         from ..models.order import STATUS_DRAFT, STATUS_ORDERED
 
-        counts = self.repo.stats(scope=scope, actor=actor)
+        counts = self.repo.stats(scope=scope, actor=actor, nguoi=nguoi)
         # KPI tiền: dùng CÙNG công thức _money (required = round(pct·twv/100), received từ phiếu thu)
         # nên số KPI = tổng đúng số hiện trên từng dòng.
-        rows = self.repo.value_rows(scope=scope, actor=actor, statuses=(STATUS_DRAFT, STATUS_ORDERED))
+        rows = self.repo.value_rows(scope=scope, actor=actor, statuses=(STATUS_DRAFT, STATUS_ORDERED),
+                                    nguoi=nguoi)
         received = self.accounting_repo.received_deposit_sums(list(rows.keys()))
         awaiting = shortfall = ordered_value = 0
         for oid, r in rows.items():
@@ -558,14 +566,25 @@ class OrderService:
             raise OrderConflict("Chỉ chuyển sản xuất đơn đã chốt")
         if not self._money(order)["deposit_ok"]:
             raise OrderConflict("Chưa đủ cọc — kế toán thu đủ cọc rồi mới chuyển sản xuất")
-        if order.san_xuat_released_at is None:
-            order.san_xuat_released_at = datetime.now(timezone.utc)
-            self.db.commit()
-            self.audit.create(
-                actor_user_id=actor.id, action="release_production",
-                target=f"order:{order.id}", detail=f"Chuyển đơn {order.order_no} xuống sản xuất",
-            )
+        self._tu_chuyen_sx(order, actor)
         return self._detail(self.repo.get_with_lines(order_id))
+
+    def _tu_chuyen_sx(self, order: Order, actor) -> bool:
+        """TỰ chuyển đơn xuống sản xuất khi đã CHỐT + ĐỦ CỌC (chủ chốt 04/10/2026: qua cọc là xuống
+        SX luôn, không chờ Sale bấm). Gọi sau chốt và sau mỗi phiếu thu cọc. Đã chuyển thì giữ mốc
+        đầu. Trả True nếu LẦN NÀY mới chuyển — router dựa vào đó để báo hàng chờ Kế hoạch."""
+        if order.status != STATUS_ORDERED or order.san_xuat_released_at is not None:
+            return False
+        if not self._money(order)["deposit_ok"]:
+            return False
+        order.san_xuat_released_at = datetime.now(timezone.utc)
+        self.db.commit()
+        self.audit.create(
+            actor_user_id=actor.id, action="release_production",
+            target=f"order:{order.id}", detail=f"Chuyển đơn {order.order_no} xuống sản xuất (đủ cọc)",
+        )
+        self.vua_chuyen_sx = True
+        return True
 
     def extend_source_quote(self, *, order_id: int, actor, scope: str) -> OrderDetailOut:
         """Việc 4 — Gia hạn báo giá NGUỒN ngay từ đơn (gỡ blocker 'báo giá hết hạn' ở cổng chốt).
@@ -654,6 +673,7 @@ class OrderService:
             actor_user_id=actor.id, action="record_deposit", target=f"order:{order.id}",
             detail=f"Thu cọc {int(payload.amount):,}đ ({payload.receipt_method}) — đơn {order.order_no}",
         )
+        self._tu_chuyen_sx(order, actor)
         return self._detail(self.repo.get_with_lines(order_id))
 
     # --- Chốt đơn (P4) — transaction compare-and-set + khóa báo giá ---------
@@ -723,6 +743,10 @@ class OrderService:
         # push Sản xuất (SEAM-01) — Sản xuất chưa build → ghi vết idempotent theo order_id
         self.audit.create(actor_user_id=actor.id, action="push_production",
             target=f"order:{order.id}", detail=f"Đẩy đơn {order.order_no} xuống Sản xuất (seam)")
+        # Đơn không cần cọc (hoặc cọc đã đủ từ trước) → xuống SX ngay lúc chốt.
+        # `order` đọc TRƯỚC câu UPDATE compare-and-set (synchronize_session=False) → nạp lại.
+        self.db.refresh(order)
+        self._tu_chuyen_sx(order, actor)
         return self._detail(self.repo.get_with_lines(order_id))
 
     # --- Hủy đơn (P5) — nháp (tự do) vs đã chốt (TP/GĐ + lỗi + seam) --------

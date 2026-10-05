@@ -1,8 +1,8 @@
 /* Phòng ban (RBAC departments) — master/detail on the paper + ink + rust system. */
 .depts {
-  max-width: 1480px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: var(--sp-7) var(--sp-8);
+  padding: var(--sp-7) var(--page-pad-x);
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
@@ -35,7 +35,7 @@
   gap: var(--sp-3);
   flex-wrap: wrap;
   padding: var(--sp-3) var(--sp-4);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-3);
 }
@@ -66,11 +66,13 @@
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Nền xám rất nhạt + viền mảnh đủ 4 cạnh: tách khỏi danh sách mà không trông như ô nhập liệu
+   (viền mực đen cũ bị chê 04/10/2026). Không nền hồng nhạt — đã gỡ khỏi app. */
 .depts__staff-toolbar--morphed {
-  background: linear-gradient(135deg, rgba(253, 244, 239, 0.95) 0%, rgba(255, 255, 255, 0.98) 100%);
-  border: 1px solid rgba(194, 91, 41, 0.3);
-  box-shadow: 0 4px 16px -2px rgba(184, 75, 41, 0.12);
-  padding: 6px 12px;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  box-shadow: none;
+  padding: 6px 6px 6px 8px;
   animation: headerMorphIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -218,7 +220,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  background: var(--rust-soft, #fdf4ef);
+  background: var(--rule-hair);
   border: 1px solid rgba(194, 91, 41, 0.25);
   border-radius: var(--r-full, 9999px);
   color: var(--rust-deep, #9a3412);
@@ -407,7 +409,7 @@
   font-weight: var(--fw-bold);
   letter-spacing: 0.02em;
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-radius: var(--r-2);
   padding: 1px 6px;
 }
@@ -486,7 +488,7 @@
 }
 .depts__toggle:hover {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .depts__toggle:focus-visible {
   outline: 2px solid var(--rust);
@@ -530,7 +532,7 @@
 .depts__item.is-active .depts__item-main {
   border-color: var(--rule);
   border-left-color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .depts__item-top {
   display: flex;
@@ -738,7 +740,7 @@
   width: 52px;
   height: 52px;
   border-radius: var(--r-5);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   display: grid;
   place-items: center;
@@ -777,7 +779,7 @@
   font-size: 11px;
   font-weight: var(--fw-bold);
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-radius: var(--r-pill);
   padding: 1px 9px;
 }
@@ -807,7 +809,7 @@
   width: 34px;
   height: 34px;
   border-radius: var(--r-pill);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   display: grid;
   place-items: center;
@@ -869,7 +871,7 @@
 }
 .depts__badge--head {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .depts__badge--locked {
   color: var(--signal);
@@ -1216,7 +1218,7 @@
 }
 .deptbl__toggle:hover {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .deptbl__toggle:focus-visible {
   outline: 2px solid var(--rust);
@@ -1301,7 +1303,7 @@
   }
 }
 
-/* ---------- Gộp nhóm dùng chung (khối Kinh doanh) ---------- */
+/* ---------- Khuôn hộp thoại ndc-modal — nay chỉ còn hộp "Nhân bản vai trò" dùng ---------- */
 /* Dùng lại đúng bộ token paper/ink/rust của màn Phòng ban; khuôn scrim + hộp bám theo
    .rc-modal ở tinh-gia.css để hai màn không lệch cảm giác. */
 .ndc-modal__scrim {
@@ -1365,7 +1367,7 @@
   font-size: 13px;
   line-height: 1.55;
   color: var(--ash);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-3);
   padding: var(--sp-3) var(--sp-4);
@@ -1480,4 +1482,514 @@
 }
 .ndc-modal__spacer {
   flex: 1;
+}
+
+/* ---------- Thanh chọn hàng loạt: MỘT dòng (khuôn IBM Carbon / HashiCorp Helios) ---------- */
+.depts__batch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+.depts__batch-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.depts__batch-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--ink);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.depts__batch-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--ash);
+  cursor: pointer;
+}
+.depts__batch-clear:hover {
+  background: var(--rule-soft);
+  color: var(--ink);
+}
+.depts__batch-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #92400e;
+}
+.depts__batch-spacer {
+  flex: 1;
+}
+.depts__batch-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--rule);
+}
+.depts__batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: #ffffff;
+  font-family: var(--ff-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.depts__batch-btn > svg:first-child {
+  color: var(--ash-2);
+}
+.depts__batch-btn:hover:not(:disabled) {
+  border-color: var(--ash-2);
+  background: var(--rule-hair);
+}
+.depts__batch-btn[aria-expanded="true"] {
+  border-color: var(--ink);
+}
+.depts__batch-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.depts__batch-caret {
+  color: var(--ash-2);
+  margin-left: -2px;
+}
+
+/* ---------- Thẻ nhóm dùng chung trên dòng nhân sự ---------- */
+/* Chỉ VIỀN, không tô nền — để không tranh với thẻ vai trò (xanh) và trạng thái (xanh lá). */
+.depts__ndc-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--ff-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #6d28d9;
+  background: none;
+  border: 1px solid #ddd6fe;
+  padding: 1px 8px;
+  border-radius: 99px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.depts__ndc-tag:hover {
+  border-color: #8b5cf6;
+}
+
+/* ---------- Ô nổi neo vào nút (khuôn GitHub Primer SelectPanel) ---------- */
+.ndc-pop {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid var(--rule-soft);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+  font-family: var(--ff-sans);
+  font-size: 13px;
+  color: var(--ink);
+  animation: ndcPopIn 0.12s ease-out;
+}
+@keyframes ndcPopIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ndc-pop__hd {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px 8px;
+}
+.ndc-pop__hd b {
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.ndc-pop__hd span {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ash-2);
+}
+.ndc-pop__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--rule-hair);
+}
+.ndc-pop__icon {
+  color: #7c3aed;
+  flex: none;
+}
+.ndc-pop__name {
+  border: 0;
+  background: none;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  color: inherit;
+  cursor: text;
+  text-align: left;
+}
+.ndc-pop__name:hover {
+  background: var(--rule-hair);
+}
+.ndc-pop__rename {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 600;
+}
+.ndc-pop__dim {
+  color: var(--ash-2);
+  flex: none;
+}
+.ndc-pop__spacer {
+  flex: 1;
+}
+.ndc-pop__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  flex: none;
+  font-size: 12px;
+  color: var(--ash-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ndc-pop__meta--ok {
+  color: #15803d;
+  font-weight: 500;
+}
+.ndc-pop__sub {
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--ash-2);
+}
+
+/* Ô tìm: kính lúp bên trái, nền xám nhạt, focus nền trắng + vòng mờ (không viền đen). */
+.ndc-pop__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 10px 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ash-2);
+  cursor: text;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.ndc-pop__search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+}
+.ndc-pop__search input::placeholder {
+  color: var(--ash-2);
+}
+.ndc-pop__search:focus-within {
+  background: #ffffff;
+  border-color: var(--rule);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.14);
+}
+.ndc-pop__rename:focus,
+.ndc-pop__new input:focus {
+  outline: none;
+  border-color: var(--ash-2);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.14);
+}
+
+.ndc-pop__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 6px 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+.ndc-pop__list::-webkit-scrollbar {
+  width: 6px;
+}
+.ndc-pop__list::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border-radius: 99px;
+}
+.ndc-pop__opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ndc-pop__opt:hover:not(:disabled),
+.ndc-pop__opt:focus-visible {
+  background: var(--rule-hair);
+  outline: none;
+}
+.ndc-pop__opt:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.ndc-pop__opt-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.ndc-pop__opt-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.ndc-pop__lead {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--rule-hair);
+  color: var(--ash);
+}
+.ndc-pop__opt:hover .ndc-pop__lead {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--rule-soft);
+}
+.ndc-pop__avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 99px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.ndc-pop__opt--accent {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* Ô tick: màu MỰC (không cam — cam dễ đọc thành nút xoá); "một phần" = vạch ngắn giữa ô trắng. */
+.ndc-pop__box {
+  flex: none;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--rule);
+  border-radius: 4px;
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+.ndc-pop__opt:hover .ndc-pop__box:not(.is-on) {
+  border-color: var(--ash-2);
+}
+.ndc-pop__box.is-on {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.ndc-pop__box.is-mid {
+  border-color: var(--ink);
+}
+.ndc-pop__box.is-mid::after {
+  content: "";
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink);
+}
+
+.ndc-pop__mem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 5px 8px;
+  border-radius: 8px;
+}
+.ndc-pop__mem:hover {
+  background: var(--rule-hair);
+}
+.ndc-pop__mem-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.ndc-pop__go {
+  flex: none;
+  border: 1px solid transparent;
+  background: none;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ash-2);
+  cursor: pointer;
+}
+.ndc-pop__go:hover:not(:disabled) {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+.ndc-pop__empty {
+  padding: 14px 8px;
+  font-size: 12.5px;
+  color: var(--ash-2);
+  text-align: center;
+}
+.ndc-pop__loi {
+  margin: 0 10px 8px;
+  padding: 6px 8px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  font-size: 12.5px;
+  color: #b91c1c;
+}
+.ndc-pop__ft {
+  border-top: 1px solid var(--rule-hair);
+  padding: 6px;
+}
+.ndc-pop__ft--row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.ndc-pop__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ndc-pop__btn:hover:not(:disabled) {
+  border-color: var(--ash-2);
+  background: var(--rule-hair);
+}
+.ndc-pop__btn--primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #ffffff;
+}
+.ndc-pop__btn--primary:hover:not(:disabled) {
+  background: #1e293b;
+  border-color: #1e293b;
+}
+.ndc-pop__btn--danger {
+  border-color: transparent;
+  color: #b91c1c;
+}
+.ndc-pop__btn--danger:hover:not(:disabled) {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+.ndc-pop__new {
+  display: flex;
+  gap: 6px;
+  padding: 2px;
+}
+.ndc-pop__new input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  font: inherit;
+}
+.depts__member-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+/* Đầu/ô tìm/chân giữ nguyên cao — chỉ danh sách co lại và cuộn; danh sách dài (39 phòng) thì
+   dừng ở ~8 dòng, không để ô nổi cao hết màn. */
+.ndc-pop__hd,
+.ndc-pop__head,
+.ndc-pop__search,
+.ndc-pop__loi,
+.ndc-pop__ft {
+  flex: none;
+}
+.ndc-pop__list {
+  max-height: 320px;
 }

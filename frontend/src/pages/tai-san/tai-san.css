@@ -3,7 +3,7 @@
    Ở đây chỉ khai những khối bên đó không có: cột tiền, bảng dòng chi phí, bảng dự kiến, băng
    chip sự kiện, ngăn xem chi tiết. */
 
-.ts { max-width: 1360px; }
+.ts { max-width: var(--page-max-w); }
 
 /* --- Thanh công cụ ----------------------------------------------------------
    `.rc__unified-bar` dựng cho màn Kỹ thuật máy (một ô tìm + một nút). Ở đây có thêm BA ô lọc,

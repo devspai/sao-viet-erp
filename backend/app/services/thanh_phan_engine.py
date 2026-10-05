@@ -26,6 +26,7 @@ from __future__ import annotations
 import ast
 import operator
 import re
+from collections.abc import Iterable
 from math import ceil, floor
 
 from .routing_engine import basis_qty, compute_step_cost
@@ -307,7 +308,8 @@ class _MoiBienDeuCo(dict):
 _LOI_CUA_SO_GIA = (ZeroDivisionError, OverflowError)
 
 
-def kiem_cong_thuc(cong_thuc: str | None, *, nhan: str, loai: str | None = None) -> None:
+def kiem_cong_thuc(cong_thuc: str | None, *, nhan: str, loai: str | None = None,
+                   bien_them: Iterable[str] = ()) -> None:
     """Kiểm MỘT câu công thức lúc LƯU, khi chưa có số thật. Hợp lệ thì im, sai thì `ValueError`.
 
     Trước 07/09/2026 không tầng nào ở server kiểm: `PUT /api/vat-lieu-kho/giay/6` với
@@ -327,7 +329,10 @@ def kiem_cong_thuc(cong_thuc: str | None, *, nhan: str, loai: str | None = None)
     """
     if not cong_thuc or not cong_thuc.strip():
         return
-    bien = dict.fromkeys(ma_hop_le(loai), 1.0) if loai else _MoiBienDeuCo()
+    if loai:
+        bien = {**dict.fromkeys(ma_hop_le(loai), 1.0), **dict.fromkeys(bien_them, 1.0)}
+    else:
+        bien = _MoiBienDeuCo()
     try:
         node = ast.parse(_chuan_hoa(cong_thuc), mode='eval').body
     except SyntaxError:
@@ -397,9 +402,54 @@ def luong_tu_cong_thuc(formula_str: str, eval_ctx: dict) -> float | None:
     return luong if luong > 0 else None
 
 
+_CO_HAM_RUT_GON = re.compile(r'\b(if|max|min)\s*\(')
+
+
+def _rut_gon_the_so(formula_str: str, variables: dict) -> tuple[str, dict[str, str]]:
+    """Rút gọn câu TRƯỚC khi thế số, để dòng thế số chỉ nói cái đã quyết định ra tiền:
+
+    · `if(đk, đúng, sai)` → chỉ còn NHÁNH đang được dùng (không in lại cả cây if với số).
+    · `max(...)` / `min(...)` → giữ hàm, nhưng mỗi vế PHỨC HỢP được tính sẵn ra một số, để người
+      đọc so ngay vế nào thắng. Vế đơn (một biến / một hằng) giữ nguyên để còn thấy tên + đơn vị.
+
+    Vế tính sẵn được thay bằng tên giữ chỗ, trả kèm bảng {tên giữ chỗ: số đã định dạng} cho
+    `format_substituted_formula` thay lại sau cùng. Lỗi (thiếu biến…) thì trả nguyên câu: thà thế
+    cả câu còn hơn thế sai nhánh."""
+    giu_cho: dict[str, str] = {}
+    if not formula_str or not _CO_HAM_RUT_GON.search(formula_str):
+        return formula_str, giu_cho
+
+    class _RutGon(ast.NodeTransformer):
+        def visit_Call(self, node):
+            ten = node.func.id if isinstance(node.func, ast.Name) else None
+            if ten == "if_" and len(node.args) == 3:
+                dk = _eval_node(node.args[0], variables)
+                return self.visit(node.args[1] if dk else node.args[2])
+            if ten in ("max", "min"):
+                args = []
+                for a in node.args:
+                    if isinstance(a, (ast.Name, ast.Constant)):
+                        args.append(a)
+                        continue
+                    ma = f"giu_cho_{len(giu_cho)}"
+                    giu_cho[ma] = _vi(_r(_eval_node(a, variables)))
+                    args.append(ast.Name(id=ma, ctx=ast.Load()))
+                node.args = args
+                return node
+            self.generic_visit(node)
+            return node
+
+    try:
+        cay = ast.parse(_chuan_hoa(formula_str), mode="eval")
+        return ast.unparse(_RutGon().visit(cay).body), giu_cho
+    except Exception:  # noqa: BLE001 — chỉ là cách BÀY, tiền đã tính ở `safe_eval`
+        return formula_str, {}
+
+
 def format_substituted_formula(formula_str: str, variables: dict) -> str:
     if not formula_str or not formula_str.strip():
         return ""
+    formula_str, giu_cho = _rut_gon_the_so(formula_str, variables)
     word_regex = re.compile(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b')
     def replacer(match):
         word = match.group(1)
@@ -412,6 +462,10 @@ def format_substituted_formula(formula_str: str, variables: dict) -> str:
     substituted = word_regex.sub(replacer, formula_str)
     substituted = substituted.replace('*', ' × ').replace('/', ' ÷ ').replace('-', ' − ').replace('+', ' + ')
     substituted = re.sub(r'\s+', ' ', substituted).strip()
+    # Thay vế đã tính sẵn của max/min SAU CÙNG — số có thể mang dấu "−"/"." mà các bước trên
+    # lại đi chèn khoảng trắng quanh dấu phép tính.
+    for ma, so in giu_cho.items():
+        substituted = re.sub(rf"\b{ma}\b", so, substituted)
     return substituted
 
 
@@ -468,17 +522,32 @@ def chuan_hoa_cot(result: dict | None) -> dict | None:
     """
     if not result or not isinstance(result.get("groups"), list):
         return result
-    groups = [{**g, "columns": _COLS.get(g.get("idx")) or g.get("columns")}
+    # Ảnh chụp trước khi có cột Sản phẩm: tách tiền tố "SP · " theo tên sản phẩm trong meta.
+    ten_sp = sorted({(c.get("name") or "").strip()
+                     for c in ((result.get("meta") or {}).get("components") or [])} - {""},
+                    key=len, reverse=True)
+
+    def _tach(r: dict) -> dict:
+        if "ten_dong" in r:
+            return r
+        ten = r.get("ten") or ""
+        for sp in ten_sp:
+            if ten.startswith(f"{sp} · "):
+                return {**r, "san_pham": sp, "ten_dong": ten[len(sp) + 3:]}
+        return r
+
+    groups = [{**g, "columns": _COLS.get(g.get("idx")) or g.get("columns"),
+               "rows": [_tach(r) for r in g.get("rows") or []]}
               for g in result["groups"]]
     return {**result, "groups": groups}
 
 # Loại dụng cụ ĐƯỢC PHÉP mang phí khuôn — dao lưu kho, mua một lần rồi cất kho dùng lại.
 # `kem` (bản kẽm) CỐ Ý ĐỨNG NGOÀI: nó là vật tư tiêu hao, mỗi bài phơi mới, và tiền nó đã nằm
 # trong công thức của bước chế bản (`so_kem × đơn giá`). Cho nó ô phí nữa là tính hai lần.
-TOOLING_CO_PHI = frozenset({"khuon_be", "khuon_ep", "khung_lua"})
+TOOLING_CO_PHI = frozenset({"khuon_be"})
 # Nhãn đọc được của loại dao — vào thẳng tên dòng tiền ("Xén 3 mặt · phí khuôn bế"). Khớp
 # `DAO_CO_PHI` bên frontend; lệch thì hai màn gọi cùng một con dao bằng hai tên.
-TOOLING_NHAN = {"khuon_be": "khuôn bế", "khuon_ep": "khuôn ép kim", "khung_lua": "khung lụa"}
+TOOLING_NHAN = {"khuon_be": "khuôn bế"}
 
 
 def _canh_bao_khuon(chain: list[dict]) -> list[str]:
@@ -990,54 +1059,114 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         "cong_thuc": _ct(format_substituted_formula(formula, eval_ctx), gia_giay, sl),
     })
 
-    # --- Vật tư in ấn thêm (mực/màng/keo…) → Nguyên vật liệu: thế biến vào CÔNG THỨC của vật tư
-    # (HỆT giấy — công thức nằm ở danh mục vật tư, engine chỉ thế số). `don_gia_vat_tu` phơi sẵn. ---
-    for vt in tp.get("vat_tus") or []:
-        vt_ten = vt.get("ten") or "Vật tư"
-        vt_formula = vt.get("cong_thuc_gia")
-        vt_don_gia = _f(vt.get("don_gia"))
-        vt_don_vi = vt.get("don_vi_gia", "kg")
-        luong_vt = None
-        if not vt_formula or not vt_formula.strip():
-            warnings.append(f"Vật tư '{vt_ten}' (thành phần '{name}'): chưa có công thức — tính 0đ.")
-            tien_vt, dan_vt = 0.0, "thiếu công thức — 0đ"
+    # --- Vật tư THEO BƯỚC (01/10/2026): mỗi bước mang danh sách vật tư riêng + số chip nhập ở phiếu.
+    # Vật tư → Nguyên vật liệu: thế biến vào CÔNG THỨC của vật tư
+    # (HỆT giấy — công thức nằm ở danh mục vật tư, engine chỉ thế số). ---
+    #
+    # 03/10/2026: công thức giá dùng ĐỦ bộ chip của công thức định mức, kể cả số của CHÍNH bước
+    # (`sl_vao`/`sl_ra`/`so_luot_chay`/`so_mat`) — vật tư nay đứng ở bước nên có số đó, bơm y như
+    # vòng công đoạn dưới đây. Kết quả công thức LÀ tiền — máy không tự nhân thêm gì.
+    for idx_vt, r_buoc in enumerate(chain):
+        _b_vt = buoc.get(idx_vt)
+        _cd_vt = r_buoc.get("cong_doan") or {}
+        if _cd_vt.get("nhom") == "print":
+            _so_mat_vt = passes
         else:
-            eval_ctx = dict(ctx_vars)
+            _rm_vt = _i(r_buoc.get("so_mat"))
+            _so_mat_vt = _rm_vt if _rm_vt > 0 else passes
+        _buoc_vt = {
+            "sl_vao": ceil(_b_vt["vao"]) if _b_vt else to_dau_vao,
+            "sl_ra": ceil(_b_vt["ra"]) if _b_vt else to_dau_vao,
+            "so_luot_chay": max(_i(r_buoc.get("so_luot_chay"), 1), 1),
+            "so_mat": _so_mat_vt,
+        }
+        for vt in (r_buoc.get("vat_tus") or []):
+            vt_ten = vt.get("ten") or "Vật tư"
+            vt_formula = vt.get("cong_thuc_gia")
+            vt_don_gia = _f(vt.get("don_gia"))
+            vt_don_vi = vt.get("don_vi_gia", "kg")
+            luong_vt = None
+            # Ngữ cảnh dựng TRƯỚC, ngoài nhánh công thức giá: công thức ĐỊNH MỨC (dưới) cần nó kể
+            # cả khi vật tư chưa khai công thức giá.
+            eval_ctx = {**ctx_vars, **_buoc_vt}
             eval_ctx["don_gia_vat_tu"] = _don_gia_co_so(vt_don_gia, vt_don_vi)
-            try:
-                tien_vt = safe_eval(vt_formula, eval_ctx)
-                dan_vt = format_substituted_formula(vt_formula, eval_ctx)
-            except Exception as e:
-                warnings.append(f"Vật tư '{vt_ten}': lỗi công thức ({e}) — tính 0đ.")
-                tien_vt, dan_vt = 0.0, "lỗi công thức — 0đ"
-            # LƯỢNG tiêu thụ (Đợt 4 · L) — suy từ chính công thức tiền, không khai định mức riêng.
-            # `don_gia` đã quy về đơn vị cơ sở ở trên, nên lượng ra theo kg kể cả khi giá khai đ/tấn.
-            luong_vt = luong_tu_cong_thuc(vt_formula, eval_ctx)
-        rows["nvl"].append({
-            "loai": "vat_tu",
-            "cong_thuc_goc": (vt_formula or "").strip(),
-            "ten": _pre(name, vt_ten),
-            "so_to": to_dau_vao,
-            "don_gia": _r(vt_don_gia),
-            "thanh_tien": _r(tien_vt),
-            "gia_don_sp": _r(tien_vt / sl) if sl > 0 else 0.0,
-            "cong_thuc": _ct(dan_vt, tien_vt, sl) if _chia_duoc(dan_vt) else dan_vt,
-            # Kế hoạch vật tư đọc hai field này. `None` = công thức không suy được lượng ⇒ KHÔNG
-            # có dòng cân đối, thà thiếu còn hơn bịa một con số để đi mua hàng theo.
-            # 4 số lẻ chứ KHÔNG dùng `_r` (2 số lẻ như tiền): lượng mực cho một lệnh nhỏ có thể là
-            # 0,003 kg — làm tròn 2 số lẻ là biến nó thành 0 và dòng cân đối biến mất.
-            "luong": round(luong_vt, 4) if luong_vt is not None else None,
-            "luong_don_vi": vt_don_vi if luong_vt is not None else None,
-            "vat_tu_id": vt.get("vat_tu_id"),
-        })
+            gia_tri_chip = vt.get("gia_tri_chip") or {}
+            for c in vt.get("chips") or []:
+                eval_ctx[c["ma"]] = _f(gia_tri_chip.get(c["ma"]))
+            # ĐỊNH MỨC (04/10/2026): lượng vật tư bước này ăn, chạy CÔNG THỨC ĐỊNH MỨC của chính vật
+            # tư (`vat_tu_in_an.cong_thuc_dinh_muc` — cùng ô Lệnh SX dùng để bung BOM) trên số của
+            # phiếu. Thẻ công đoạn hiện số này cạnh từng vật tư. KHÔNG đoán: chưa khai / lỗi / ra 0
+            # ⇒ `dinh_muc=None` kèm lý do ngắn, ô hiện gạch thay vì một con số bịa.
+            ct_dm = (vt.get("cong_thuc_dinh_muc") or "").strip()
+            dinh_muc_vt: float | None = None
+            dinh_muc_ly_do: str | None = None
+            dinh_muc_the_so = ""
+            if not ct_dm:
+                dinh_muc_ly_do = "chưa khai công thức định mức"
+            else:
+                try:
+                    _gt = float(safe_eval(ct_dm, eval_ctx))
+                    # Bản thế số cho tooltip ở thẻ công đoạn — cùng khuôn `cong_thuc` của dòng tiền.
+                    dinh_muc_the_so = format_substituted_formula(ct_dm, eval_ctx)
+                    if _gt > 0:
+                        dinh_muc_vt = _gt
+                    else:
+                        dinh_muc_ly_do = "công thức định mức ra 0"
+                except Exception as e:   # noqa: BLE001 — công thức người khai, lỗi gì cũng chỉ báo
+                    dinh_muc_ly_do = f"công thức định mức lỗi ({e})"
+            if not vt_formula or not vt_formula.strip():
+                warnings.append(f"Vật tư '{vt_ten}' (thành phần '{name}'): chưa có công thức — tính 0đ.")
+                tien_vt, dan_vt = 0.0, "thiếu công thức — 0đ"
+            else:
+                # CHIP RIÊNG của vật tư (spec 2026-10-01): số nhập ở phiếu, theo từng bước — đã
+                # bơm vào `eval_ctx` ở trên; ở đây chỉ nhắc chip công thức giá dùng mà còn 0.
+                for c in vt.get("chips") or []:
+                    v_chip = eval_ctx[c["ma"]]
+                    if v_chip == 0 and re.search(rf"\b{re.escape(c['ma'])}\b", vt_formula):
+                        warnings.append(
+                            f"Vật tư '{vt_ten}': chip '{c.get('ten') or c['ma']}' chưa nhập số — tính theo 0.")
+                try:
+                    tien_vt = safe_eval(vt_formula, eval_ctx)
+                    dan_vt = format_substituted_formula(vt_formula, eval_ctx)
+                    # LƯỢNG suy ngược từ công thức tiền (đặt đơn giá = 1) — `don_gia` đã quy về
+                    # đơn vị cơ sở ở trên, nên lượng ra theo kg kể cả khi giá khai đ/tấn.
+                    luong_vt = luong_tu_cong_thuc(vt_formula, eval_ctx)
+                except Exception as e:
+                    warnings.append(f"Vật tư '{vt_ten}': lỗi công thức ({e}) — tính 0đ.")
+                    tien_vt, dan_vt = 0.0, "lỗi công thức — 0đ"
+            rows["nvl"].append({
+                "loai": "vat_tu",
+                "cong_thuc_goc": (vt_formula or "").strip(),
+                "ten": _pre(name, vt_ten),
+                "so_to": to_dau_vao,
+                "don_gia": _r(vt_don_gia),
+                "thanh_tien": _r(tien_vt),
+                "gia_don_sp": _r(tien_vt / sl) if sl > 0 else 0.0,
+                "cong_thuc": _ct(dan_vt, tien_vt, sl) if _chia_duoc(dan_vt) else dan_vt,
+                # Kế hoạch vật tư đọc hai field này. `None` = công thức không suy được lượng ⇒ KHÔNG
+                # có dòng cân đối, thà thiếu còn hơn bịa một con số để đi mua hàng theo.
+                # 4 số lẻ chứ KHÔNG dùng `_r` (2 số lẻ như tiền): lượng mực cho một lệnh nhỏ có thể là
+                # 0,003 kg — làm tròn 2 số lẻ là biến nó thành 0 và dòng cân đối biến mất.
+                "luong": round(luong_vt, 4) if luong_vt is not None else None,
+                "luong_don_vi": vt_don_vi if luong_vt is not None else None,
+                "vat_tu_id": vt.get("vat_tu_id"),
+                # Khoá ghép với bước của chuỗi (cùng nghĩa `rows["cong_doan"][].buoc_idx`) — một vật
+                # tư có thể nằm ở nhiều bước (kẽm ở In lẫn Gấp), chỉ `vat_tu_id` thì không phân được.
+                "buoc_idx": idx_vt,
+                "dinh_muc": round(dinh_muc_vt, 4) if dinh_muc_vt is not None else None,
+                "dinh_muc_don_vi": vt_don_vi,
+                "dinh_muc_ly_do": dinh_muc_ly_do,
+                "dinh_muc_cong_thuc_goc": ct_dm,
+                "dinh_muc_cong_thuc": dinh_muc_the_so,
+            })
 
-    # Chuỗi công đoạn là NGUỒN DUY NHẤT: In / Chế bản phải nằm trong routing như mọi công đoạn
-    # khác. KHÔNG tự đẻ dòng thay thế khi chuỗi thiếu — chỉ NHẮC để người dùng tự thêm.
+    # Chuỗi công đoạn là NGUỒN DUY NHẤT: In phải nằm trong routing như mọi công đoạn khác. KHÔNG
+    # tự đẻ dòng thay thế khi chuỗi thiếu — chỉ NHẮC để người dùng tự thêm.
+    # Không nhắc thiếu CHẾ BẢN nữa (04/10/2026): kẽm nay là VẬT TƯ gắn vào bước In, chuỗi không có
+    # bước nhóm prepress vẫn đủ tiền kẽm — lời nhắc cũ báo sai.
     chain_nhoms = {((r.get("cong_doan") or {}).get("nhom")) for r in (tp.get("thanh_phams") or [])}
     if co_in and "print" not in chain_nhoms:
         warnings.append(f"Thành phần '{name}': chuỗi chưa có công đoạn IN — chưa tính tiền in.")
-    if co_in and so_kem > 0 and "prepress" not in chain_nhoms:
-        warnings.append(f"Thành phần '{name}': chuỗi chưa có công đoạn CHẾ BẢN/KẼM — chưa tính tiền kẽm.")
 
     # --- Công đoạn trong chuỗi (chế bản/in/gia công) theo thứ tự routing ---
     ctx_base = {
@@ -1067,12 +1196,8 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         _b_nay = buoc.get(idx_buoc)
         ctx["sl_vao"] = ceil(_b_nay["vao"]) if _b_nay else to_dau_vao
         ctx["sl_ra"] = ceil(_b_nay["ra"]) if _b_nay else to_dau_vao
-        # Kích thước/số lượng KHUÔN của CHÍNH bước — ba ô nhập riêng ở phiếu, TÁCH BIỆT với
-        # `phi_khuon`. Bơm cho MỌI bước (không chỉ bước khuôn ép): công thức không gõ tới thì vô
-        # hại, gõ tới mà không bơm mới là thứ nổ `KeyError` ở vòng `MA_TANG_BUOC_TIEN` dưới đây.
-        ctx["dai_khuon"] = _f(row.get("dai_khuon"))
-        ctx["rong_khuon"] = _f(row.get("rong_khuon"))
-        ctx["so_khuon"] = _f(row.get("so_khuon"))
+        # Ô công đoạn không có chip này, nhưng bộ tầng bước bơm chung với ô giá vật tư.
+        ctx["so_luot_chay"] = max(_i(row.get("so_luot_chay"), 1), 1)
         # so_mat: dòng IN (nhom=print) LUÔN theo số mặt cách in (passes) — KHÔNG để field mặc định=1
         # nuốt (N2: model so_mat default=1 khiến fallback passes thành code chết). Finishing tự set
         # so_mat (cán 1/2 mặt); ≤0 → dùng passes.
@@ -1103,9 +1228,9 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
                 dan_d = "lỗi công thức — 0đ"
         else:
             # Formula-only (chốt 2026-07-22, siết trọn 11/08/2026): công đoạn CHƯA khai công thức
-            # → 0đ + cảnh báo, KHÔNG trừ nhóm nào. Không dùng fallback đơn giá routing / rate cũ
-            # (tránh "×400đ ma" không ai chủ ý nhập).
-            warnings.append(f"Công đoạn '{ten_r}': chưa khai công thức tính giá — tính 0đ.")
+            # → 0đ, KHÔNG trừ nhóm nào. Không dùng fallback đơn giá routing / rate cũ (tránh "×400đ
+            # ma" không ai chủ ý nhập). Không đẩy vào `warnings` (04/10/2026): cột diễn giải của
+            # chính dòng đã ghi "thiếu công thức — 0đ", nhắc lại trên băng cảnh báo chỉ là nhiễu.
             tien = 0.0
             dan_d = "thiếu công thức — 0đ"
 
@@ -1269,7 +1394,14 @@ def compute_phieu(*, so_luong: int, thanh_phans: list[dict], warnings: list[str]
 
     for i, tp in enumerate(thanh_phans or []):
         one = _compute_one(tp, so_luong, warns, flags)
+        # `san_pham` + `ten_dong` để bảng chi tiết bày cột Sản phẩm riêng thay vì đọc tên ghép
+        # "SP · dòng". `ten` giữ nguyên dạng ghép vì nơi khác (in, lệnh SX, test) còn đọc nó.
+        dau = f"{(one['name'] or '').strip()} · "
         for idx in _NHOM:
+            for r in one["rows"][idx]:
+                ten = r.get("ten") or ""
+                r["san_pham"] = (one["name"] or "").strip()
+                r["ten_dong"] = ten[len(dau):] if dau != " · " and ten.startswith(dau) else ten
             grouped[idx].extend(one["rows"][idx])
         components.append({
             "idx": i, "name": one["name"], "gia_von_tp": one["total"],

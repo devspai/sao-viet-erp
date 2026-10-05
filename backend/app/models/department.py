@@ -92,6 +92,11 @@ class Department(Base):
     la_to_in: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
+    # TỔ CẮT (mg 0355, spec giấy theo khổ §4.6). Lệnh có giấy sau phát hành tới tổ này để chốt chèn
+    # bước cắt đầu tuyến hay không cắt. Đích danh — KHÔNG kế thừa cây con, như `la_to_in`.
+    la_to_cat: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
+    )
     # --- Khoán km giao hàng (mg 0231) — chỉ có nghĩa khi `la_giao_hang` bật -------------------
     # Ba ô để CHUNG một chỗ với cờ Giao hàng: tách đơn giá sang màn Cấu hình lương, tỷ lệ sang màn
     # này là bắt người dùng nhớ hai nơi cho cùng một nhóm thiết lập.

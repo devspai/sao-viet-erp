@@ -19,6 +19,7 @@ import {
 import { useAuth } from "../auth/useAuth";
 import { Icon } from "../components/Icons";
 import { useDebounced } from "../utils/useDebounced";
+import { EmptyState as EmptyStateChung } from "../components/EmptyState";
 import { BangLoi, EmptyState, gioNgan, ngay, num } from "./keHoachSxShared";
 import { nhanDonVi } from "./lsxBuoc";
 
@@ -475,7 +476,7 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
         ) : err ? (
           <BangLoi text={err} onRetry={() => setLanNap((n) => n + 1)} />
         ) : data == null ? (
-          <div className="thsx-sl__trong">Đang nạp…</div>
+          <EmptyStateChung trangThai="dang-tai" inline nhanTai="Đang nạp…" />
         ) : data.lenh.length === 0 ? (
           <EmptyState icon={timD ? "search" : "clipboard"}
             title={timD ? "Không có lệnh khớp tìm kiếm" : "Chưa có sản lượng"}

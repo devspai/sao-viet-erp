@@ -35,6 +35,10 @@ class KhoKyTon(Base):
     )
     hang_loai: Mapped[str] = mapped_column(String(10), nullable=False)   # "giay" | "vat_tu"
     hang_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Khổ giấy TỜ (mm) — dòng tờ của một mã tách theo khổ, đếm tờ nguyên (khác thang với kg nên không
+    # gộp, không bình quân chung). Giấy cuộn / kg cũ và hàng khác: 0 · 0. mg 0350.
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     # Khoảng kỳ đã chốt. `den_ngay` = mốc "as-of" của snapshot (đầu kỳ sau đọc dòng có den < tu sau).
     tu_ngay: Mapped[date] = mapped_column(Date, nullable=False)
     den_ngay: Mapped[date] = mapped_column(Date, index=True, nullable=False)
@@ -53,5 +57,6 @@ class KhoKyTon(Base):
 
     __table_args__ = (
         # 1 mặt hàng / 1 kho chỉ có MỘT tồn cuối cho MỘT mốc kỳ (den_ngay). Khóa lại kỳ cũ → upsert đè.
-        UniqueConstraint("kho_id", "hang_loai", "hang_id", "den_ngay", name="uq_kho_ky_ton"),
+        UniqueConstraint("kho_id", "hang_loai", "hang_id", "kho_rong", "kho_dai", "den_ngay",
+                         name="uq_kho_ky_ton"),
     )

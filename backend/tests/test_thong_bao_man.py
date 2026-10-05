@@ -95,3 +95,26 @@ def test_mark_read_kenh_la_404(client, seed_credentials):
     r = client.post("/api/module-notifications/khong_ton_tai/mark-read",
                     headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 404
+
+
+def test_tom_tat_hoi_quyen_mot_cau_cho_moi_kenh(client):
+    """Tóm tắt nằm trong chùm badge mỗi lần mở app/giữa ca. Đo tải 30/09/2026: mỗi kênh một câu
+    SELECT role_permissions (15 câu) làm endpoint này nặng nhất giữa ca — nạp cả ma trận một lần."""
+    from sqlalchemy import event
+
+    from app.db import engine
+
+    tao_nguoi("nhieu_kenh", {k: dict(can_read=True, can_approve=True, scope=SCOPE_ALL)
+                             for k in ("luong", "nghi_phep", "tang_ca", "san_xuat", "kho", "khach_hang")})
+    h = dang_nhap(client, "nhieu_kenh")
+    cau: list[str] = []
+    nghe = lambda c, cu, st, *a: cau.append(st)  # noqa: E731
+    event.listen(engine, "before_cursor_execute", nghe)
+    try:
+        tom_tat(client, h)
+    finally:
+        event.remove(engine, "before_cursor_execute", nghe)
+    quyen = [st for st in cau if "FROM role_permissions" in st]
+    # Một câu nạp cả ma trận của vai; câu còn lại (nếu có) là quyền theo tổ (`quyen_to`, LIKE).
+    assert not [st for st in quyen if "role_permissions.module_key = " in st]
+    assert sum("module_key LIKE" not in st for st in quyen) == 1

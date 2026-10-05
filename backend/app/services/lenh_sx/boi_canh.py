@@ -127,7 +127,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ...models.bai_ghep_cong_doan import BaiGhepCongDoanMap
@@ -450,21 +450,18 @@ def nap(db: Session, lsx_ids: list[int]) -> BoiCanh:
     # ⇒ Mọi chuyến CÓ dòng hàng đều nằm sẵn trong tập. Vì thế KHÔNG có bài test nào canh riêng bộ
     # lọc này: dựng được ca đỏ thì phải phá đường ghi, mà fixture phá đường ghi là fixture nói dối.
     # Giữ bộ lọc vì bên giao hàng có thể thêm trạng thái mang hàng-chưa-tới-tay bất cứ lúc nào.
-    trip_rows = db.execute(
-        select(
-            DeliveryTripLine.order_line_id,
-            func.coalesce(func.sum(DeliveryTripLine.qty_giao), 0),
-        )
-        .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
-        .where(
-            DeliveryTripLine.order_line_id.in_(order_line_ids),
-            DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY),
-        )
-        .group_by(DeliveryTripLine.order_line_id)
-    ).all()
+    # Lọc trạng thái ở PYTHON, không trong SQL (30/09/2026): có `trang_thai IN (…)` trong câu thì
+    # bộ lập kế hoạch đi từ chỉ mục trạng thái (= MỌI chuyến đã giao từ trước tới nay) rồi mỗi chuyến
+    # dò lại cả danh sách dòng đơn — chuyến × dòng, đo 0,65s với 2.000 lệnh đã giao, tăng theo bình
+    # phương lịch sử. Cùng khuôn với `lenh_sx_doc_repo.lenh_nhe`.
     da_giao: dict[int, int] = {i: 0 for i in order_line_ids}
-    for order_line_id, tong in trip_rows:
-        da_giao[int(order_line_id)] = int(tong or 0)
+    for order_line_id, qty, tt in db.execute(
+        select(DeliveryTripLine.order_line_id, DeliveryTripLine.qty_giao, DeliveryTrip.trang_thai)
+        .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
+        .where(DeliveryTripLine.order_line_id.in_(order_line_ids))
+    ):
+        if tt in LAN_GIAO_CO_HANG_DEN_TAY:
+            da_giao[int(order_line_id)] += int(qty or 0)
 
     # 12) nhap_kho_tp — công đoạn KCS cuối của nhóm (hoặc của chính lệnh), rồi dòng yêu cầu NHẬP kho
     # thật của chúng. Import muộn: `san_xuat/kho` → `kcs` → nạp `boi_canh` ở tầng module.

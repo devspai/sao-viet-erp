@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lịch hẹn chăm sóc</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Token lấy đúng từ frontend/src/styles/tokens.css để bản xem giống app thật. */
+:root {
+  --paper: #f8fafc; --canvas: #ffffff; --ink: #0f172a; --ash: #475569; --muted: #64748b;
+  --rust: #c5400a;
+  --rule: #cbd5e1; --rule-soft: #e2e8f0; --rule-hair: #f1f5f9;
+  --moss: #2f5d3a; --red: #b42318; --red-soft: #fde8e6;
+  --sky: #1d4f91; --sky-soft: #e3ecf8;
+  --charcoal: #0f172a; --on-charcoal: #f8fafc;
+  --ff-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --r-3: 6px; --r-5: 10px; --r-6: 12px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #e9edf2; font-family: var(--ff-sans); color: var(--ink); font-size: 14px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+.demo { padding: 10px 16px; background: #fff7d6; border-bottom: 1px solid #e6d48a; font-size: 13px; color: #6b5a14; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 16px; display: grid; gap: 18px; }
+.nhan { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+.khung { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); overflow: hidden; }
+.hs__dau { background: var(--charcoal); color: var(--on-charcoal); padding: 12px 20px; display: flex; gap: 10px; align-items: baseline; }
+.hs__dau h3 { margin: 0; font-size: 18px; font-weight: 600; }
+.hs__dau small { color: #94a3b8; }
+.tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--rule-soft); overflow-x: auto; }
+.tab { padding: 11px 10px; border: 0; background: none; color: var(--ash); border-bottom: 2px solid transparent; white-space: nowrap; }
+.tab.on { color: var(--ink); font-weight: 500; border-bottom-color: var(--rust); }
+
+/* ---- Thanh công cụ kiểu Google Calendar ---- */
+.cc-tb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 20px; }
+.nut { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--rule);
+  background: #fff; cursor: pointer; white-space: nowrap; font-size: 13px; }
+.nut:hover { background: var(--rule-hair); }
+.nut--chinh { background: var(--ink); color: #fff; border-color: var(--ink); }
+.nut--chinh:hover { background: #1e293b; }
+.tron { width: 32px; height: 32px; border-radius: 50%; border: 0; background: none; cursor: pointer; font-size: 18px; color: var(--ash); }
+.tron:hover { background: var(--rule-hair); }
+.cc-tb h4 { margin: 0 4px; font-size: 18px; font-weight: 400; }
+.cc-tb .r { margin-left: auto; display: flex; gap: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; overflow: hidden; }
+.seg button { border: 0; background: #fff; padding: 6px 14px; font-size: 13px; cursor: pointer; color: var(--ash); }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button.on { background: var(--sky-soft); color: var(--sky); }
+
+/* ---- Lịch biểu ---- */
+.lb { padding: 0 20px 18px; }
+.lb__cu { padding: 6px 0 10px; }
+.lb__cu button { border: 0; background: none; color: var(--sky); cursor: pointer; padding: 0; font-size: 13px; }
+.ngay { display: grid; grid-template-columns: 76px 1fr; gap: 12px; padding: 8px 0; border-top: 1px solid var(--rule-hair); }
+.ngay__so { display: flex; gap: 8px; align-items: baseline; }
+.ngay__so b { font-size: 22px; font-weight: 400; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; }
+.ngay__so span { font-size: 12px; color: var(--muted); text-transform: uppercase; }
+.ngay--nay .ngay__so b { background: var(--sky); color: #fff; }
+.ngay--nay .ngay__so span { color: var(--sky); }
+.muc { display: grid; grid-template-columns: 20px 92px 1fr; gap: 10px; align-items: center; padding: 6px 8px; border-radius: var(--r-5); cursor: pointer; }
+.muc:hover { background: var(--rule-hair); }
+.muc__gio { font-size: 13px; color: var(--ash); white-space: nowrap; }
+.muc__ten { min-width: 0; }
+.muc__ten small { color: var(--muted); margin-left: 8px; }
+.muc--tre .muc__gio { color: var(--red); }
+.muc--xong .muc__ten, .muc--xong .muc__gio { color: var(--muted); text-decoration: line-through; }
+.tick { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--rule); background: #fff; padding: 0; cursor: pointer; position: relative; }
+.tick:hover { border-color: var(--moss); }
+.muc--xong .tick { background: var(--moss); border-color: var(--moss); }
+.muc--xong .tick::after { content: ""; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.lap { font-size: 12px; color: var(--muted); }
+.vach { display: flex; align-items: center; gap: 6px; margin: 2px 0 2px 88px; }
+.vach i { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+.vach span { flex: 1; height: 2px; background: var(--red); }
+
+/* ---- Tháng ---- */
+.thang { padding: 0 20px 18px; }
+.thang__dau, .thang__luoi { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.thang__dau div { font-size: 11px; color: var(--muted); text-align: center; padding: 6px 0; }
+.thang__luoi { border-top: 1px solid var(--rule-soft); border-left: 1px solid var(--rule-soft); }
+.o { min-height: 92px; border-right: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft); padding: 4px; cursor: pointer; min-width: 0; }
+.o:hover { background: #fafbfd; }
+.o__so { font-size: 12px; text-align: center; width: 24px; height: 24px; line-height: 24px; border-radius: 50%; margin: 0 auto 4px; }
+.o--ngoai .o__so { color: #aab4c3; }
+.o--nay .o__so { background: var(--sky); color: #fff; }
+.chip { display: block; font-size: 12px; padding: 1px 6px; border-radius: 4px; background: var(--sky); color: #fff; margin-bottom: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip--tre { background: var(--red); }
+.chip--xong { background: none; color: var(--muted); text-decoration: line-through; padding-left: 4px; }
+
+/* ---- Hộp nổi kiểu Google Calendar ---- */
+.nen { position: fixed; inset: 0; background: rgba(15,23,42,.18); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 30; }
+.nen.mo { display: flex; }
+.hop { width: min(440px, 100%); background: #fff; border-radius: var(--r-6); box-shadow: 0 12px 40px rgba(15,23,42,.25); padding: 16px 18px; display: grid; gap: 12px; }
+.hop__dong { justify-self: end; margin: -8px -8px 0 0; }
+.hop h5 { margin: 0; font-size: 20px; font-weight: 400; }
+.hop .dong { display: grid; grid-template-columns: 22px 1fr; gap: 10px; color: var(--ash); align-items: start; line-height: 1.5; }
+.hop .dong i { font-style: normal; color: var(--muted); text-align: center; }
+.hop input[type=text], .hop select, .hop textarea { width: 100%; border: 0; border-bottom: 1px solid var(--rule); padding: 6px 2px; background: none; }
+.hop input.lon { font-size: 20px; border-bottom: 2px solid var(--sky); }
+.hop textarea { min-height: 56px; resize: vertical; border: 1px solid var(--rule); border-radius: var(--r-3); padding: 8px; }
+.hop__hang { display: flex; gap: 8px; flex-wrap: wrap; }
+.hop__hang select, .hop__hang input { width: auto; flex: 1 1 120px; }
+.hop__nut { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.do { color: var(--red); }
+
+/* ---- Danh sách khách ---- */
+.ds__dau { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 12px 16px; }
+.ds__so { display: flex; gap: 18px; color: var(--muted); font-size: 13px; }
+.ds__so b { color: var(--ink); font-size: 16px; font-weight: 600; margin-right: 4px; }
+.o-gia { padding: 7px 12px; border: 1px solid var(--rule); border-radius: var(--r-5); color: var(--muted); font-size: 13px; white-space: nowrap; }
+.o-gia:first-of-type { flex: 1 1 220px; }
+.ghi { font-size: 12.5px; color: var(--muted); }
+.dem { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; font-size: 11.5px; background: var(--red); color: #fff; }
+.pn { border-top: 1px solid var(--rule-soft); }
+.pn .muc { grid-template-columns: 20px 92px 1fr; }
+.pn .ngay { grid-template-columns: 76px 1fr; padding-left: 16px; padding-right: 16px; }
+
+/* ---- Logic ---- */
+.lg { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); padding: 14px 18px; line-height: 1.6; }
+.lg h2 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+.lg ol { margin: 0; padding-left: 20px; color: var(--ash); }
+.lg li + li { margin-top: 4px; }
+
+.an { display: none !important; }
+@media (max-width: 700px) {
+  .ngay { grid-template-columns: 52px 1fr; gap: 6px; }
+  .muc { grid-template-columns: 20px 1fr; }
+  .muc__gio { grid-column: 2; grid-row: 1; }
+  .muc__ten { grid-column: 2; }
+  .vach { margin-left: 58px; }
+  .o { min-height: 64px; }
+  .chip { font-size: 10.5px; padding: 0 3px; }
+  .cc-tb .r { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<div class="demo">Bản xem: dữ liệu giả, chưa đụng code. Bấm thử: tick tròn, một hẹn, nút "Tạo hẹn", ô ngày ở chế độ Tháng, nút "Lịch hẹn của tôi".</div>
+
+<div class="wrap">
+
+  <div class="nhan">Hồ sơ khách, tab Chăm sóc</div>
+  <div class="khung">
+    <div class="hs__dau"><h3>Công ty CP Bibica</h3><small>KH0007</small></div>
+    <div class="tabs"><button class="tab">Tổng quan</button><button class="tab">Mua hàng</button><button class="tab">Báo giá</button><button class="tab on">Chăm sóc</button><button class="tab">Liên hệ</button></div>
+
+    <div class="cc-tb">
+      <button class="nut nut--chinh" data-tao>+ Tạo hẹn</button>
+      <button class="nut">Hôm nay</button>
+      <button class="tron" aria-label="Trước">‹</button><button class="tron" aria-label="Sau">›</button>
+      <h4>Tháng 10 năm 2026</h4>
+      <div class="r"><span class="seg" id="che"><button class="on" data-che="lb">Lịch biểu</button><button data-che="th">Tháng</button></span></div>
+    </div>
+
+    <!-- LỊCH BIỂU: chỉ những ngày CÓ hẹn, ngày trống bỏ qua -->
+    <div class="lb" id="lb">
+      <div class="lb__cu"><button>Xem hẹn cũ hơn</button></div>
+      <div class="ngay"><div class="ngay__so"><b>23</b><span>Th 9</span></div><div>
+        <div class="muc muc--xong" data-xem="1"><button class="tick"></button><span class="muc__gio">10:00</span><span class="muc__ten">Gọi chị Hoa hỏi đợt hộp Tết<small>Luyến</small></span></div>
+      </div></div>
+      <div class="ngay"><div class="ngay__so"><b>3</b><span>Th 6</span></div><div>
+        <div class="muc muc--tre" data-xem="2"><button class="tick"></button><span class="muc__gio">09:00</span><span class="muc__ten">Gửi mẫu hộp Tết<small>Luyến</small></span></div>
+      </div></div>
+      <div class="ngay ngay--nay"><div class="ngay__so"><b>5</b><span>CN</span></div><div>
+        <div class="vach"><i></i><span></span></div>
+        <div class="muc" data-xem="3"><button class="tick"></button><span class="muc__gio">14:00</span><span class="muc__ten">Nhắn Zalo xác nhận ngày giao đợt 1<small>Luyến</small></span></div>
+      </div></div>
+      <div class="ngay"><div class="ngay__so"><b>9</b><span>Th 5</span></div><div>
+        <div class="muc" data-xem="4"><button class="tick"></button><span class="muc__gio">15:30</span><span class="muc__ten">Gặp duyệt bản in thử<small>Hùng</small></span></div>
+      </div></div>
+      <div class="ngay"><div class="ngay__so"><b>1</b><span>Th 11</span></div><div>
+        <div class="muc" data-xem="5"><button class="tick"></button><span class="muc__gio">09:00</span><span class="muc__ten">Hỏi thăm sau giao hàng <span class="lap">↻</span><small>Luyến</small></span></div>
+      </div></div>
+    </div>
+
+    <!-- THÁNG -->
+    <div class="thang an" id="th">
+      <div class="thang__dau"><div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div><div>CN</div></div>
+      <div class="thang__luoi" id="luoi"></div>
+    </div>
+  </div>
+
+  <div class="nhan">Danh sách khách hàng: gỡ nút "Không có việc chăm sóc" và tab "Tất cả | Cần theo dõi", thay bằng một nút "Lịch hẹn"</div>
+  <div class="khung">
+    <div class="ds__dau">
+      <div class="ds__so"><span><b>24</b>khách hàng</span><span><b>0</b>mới tháng này</span></div>
+    </div>
+    <div class="ds__dau" style="border-top:1px solid var(--rule-soft)">
+      <button class="nut" id="cuaToi">Lịch hẹn <span class="dem">2</span></button>
+      <span class="o-gia">Tìm theo tên, MST, điện thoại…</span>
+      <span class="o-gia">Tất cả NV phụ trách</span>
+      <span class="o-gia">Tất cả nhãn</span>
+    </div>
+    <div class="pn an" id="pn">
+      <div class="cc-tb" style="padding:10px 16px">
+        <span class="seg"><button class="on">Của tôi</button><button>Cả nhóm</button></span>
+        <span class="ghi">Của tôi: hẹn giao cho tôi. Cả nhóm: mọi hẹn trên những khách tôi được xem.</span>
+      </div>
+      <div class="ngay"><div class="ngay__so"><b>3</b><span>Th 6</span></div><div>
+        <div class="muc muc--tre"><button class="tick"></button><span class="muc__gio">09:00</span><span class="muc__ten">Gửi mẫu hộp Tết<small>Bibica</small></span></div>
+      </div></div>
+      <div class="ngay ngay--nay"><div class="ngay__so"><b>5</b><span>CN</span></div><div>
+        <div class="vach"><i></i><span></span></div>
+        <div class="muc"><button class="tick"></button><span class="muc__gio">14:00</span><span class="muc__ten">Nhắn Zalo xác nhận ngày giao đợt 1<small>Bibica</small></span></div>
+      </div></div>
+      <div class="ngay"><div class="ngay__so"><b>6</b><span>Th 2</span></div><div>
+        <div class="muc"><button class="tick"></button><span class="muc__gio">10:00</span><span class="muc__ten">Gửi lại báo giá có VAT<small>Masan Consumer</small></span></div>
+        <div class="muc"><button class="tick"></button><span class="muc__gio">16:00</span><span class="muc__ten">Gọi hỏi số lượng tem nhãn quý 4<small>Vinamilk</small></span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="lg">
+    <h2>Logic gom còn 5 điều</h2>
+    <ol>
+      <li>Chỉ có một thứ là <b>hẹn</b>: nội dung, ngày giờ, người phụ trách, có lặp hay không. Tick tròn là xong, bấm lại là mở lại. Hẹn lặp tick lần nào xong lần đó.</li>
+      <li>Hẹn chỉ có ba dạng nhìn: sắp tới, trễ (qua giờ mà chưa tick, chữ giờ đỏ) và đã xong (gạch ngang). Bỏ phân biệt "đến hạn" với "quá hạn", bỏ nhắc lần 1, 2, 3, bỏ khung chú thích màu.</li>
+      <li>Muốn ghi lại kết quả thì viết vào ô ghi chú của hẹn, giống phần mô tả sự kiện của Google Calendar. Bỏ khối "Nhật ký hoạt động" riêng. Lịch sử chính là những hẹn đã qua, xem bằng "Xem hẹn cũ hơn".</li>
+      <li>Mở tab mặc định ở Lịch biểu, chỉ liệt kê ngày có hẹn nên một khách ít hẹn vẫn gọn. Muốn nhìn cả tháng thì chuyển sang Tháng: bấm ô ngày để tạo hẹn, kéo hẹn sang ô khác để dời.</li>
+      <li>Ở danh sách khách, gỡ nút "Không có việc chăm sóc" và tab "Tất cả | Cần theo dõi", thay bằng một nút "Lịch hẹn" mở lịch biểu gộp nhiều khách, mỗi dòng ghi tên khách.</li>
+    </ol>
+    <h2 style="margin-top:12px">Phạm vi: ai thấy hẹn nào</h2>
+    <ol>
+      <li><b>Của tôi</b>: hẹn có người phụ trách là tôi, dù khách thuộc NV nào. Số đỏ trên nút chỉ đếm hẹn của tôi (trễ cộng hôm nay), nên giám đốc không bị đếm việc của cả công ty.</li>
+      <li><b>Cả nhóm</b>: mọi hẹn trên những khách tôi được xem, theo đúng phạm vi đang áp cho danh sách khách (của tôi và nhóm dùng chung, phòng ban, toàn công ty). Ai chỉ được xem khách của mình thì không hiện nút chuyển này.</li>
+      <li>Tab Chăm sóc trong hồ sơ: ai mở được khách thì thấy mọi hẹn của khách đó. Quyền tạo, tick, dời vẫn là quyền sửa khách hàng như hiện nay.</li>
+      <li>Giao hẹn: chỉ chọn được người thấy được khách đó, máy chủ chặn nếu chọn sai, để không ai nhận hẹn mà mở hồ sơ khách ra thì bị chặn.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- Hộp xem một hẹn -->
+<div class="nen" id="xem"><div class="hop">
+  <button class="tron hop__dong" data-dong>×</button>
+  <h5 id="xemTen">Gửi mẫu hộp Tết</h5>
+  <div class="dong"><i>◷</i><div id="xemGio">Thứ sáu, 3 tháng 10, 09:00<br><span class="do">Trễ 2 ngày</span></div></div>
+  <div class="dong"><i>☺</i><div>Luyến phụ trách</div></div>
+  <div class="dong"><i>≡</i><textarea placeholder="Ghi chú, kết quả">Chị Hoa cần 5.000 hộp, mẫu giấy couché 300.</textarea></div>
+  <div class="hop__nut"><button class="nut">Xoá</button><button class="nut">Sửa</button><button class="nut nut--chinh" data-dong>Đánh dấu xong</button></div>
+</div></div>
+
+<!-- Hộp tạo nhanh -->
+<div class="nen" id="tao"><div class="hop">
+  <button class="tron hop__dong" data-dong>×</button>
+  <input type="text" class="lon" placeholder="Thêm nội dung hẹn" id="taoTen">
+  <div class="dong"><i>◷</i><div class="hop__hang"><input type="text" value="Thứ hai, 6 tháng 10" id="taoNgay"><select><option>09:00</option><option>14:00</option></select></div></div>
+  <div class="dong"><i>↻</i><select><option>Không lặp lại</option><option>Hằng tuần vào thứ hai</option><option>Hằng tháng vào ngày 6</option><option>Tuỳ chỉnh…</option></select></div>
+  <div class="dong"><i>☺</i><select><option>Tôi (Luyến)</option><option>Hùng</option></select></div>
+  <div class="hop__nut"><button class="nut nut--chinh" data-dong>Lưu</button></div>
+</div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const mo = id => $(id).classList.add('mo');
+document.querySelectorAll('[data-dong]').forEach(b => b.onclick = e => { e.target.closest('.nen').classList.remove('mo'); });
+document.querySelectorAll('.nen').forEach(n => n.onclick = e => { if (e.target === n) n.classList.remove('mo'); });
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('.tick');
+  if (t) { t.closest('.muc').classList.toggle('muc--xong'); t.closest('.muc').classList.remove('muc--tre'); e.stopPropagation(); return; }
+  const m = e.target.closest('.muc[data-xem]');
+  if (m) {
+    $('#xemTen').textContent = m.querySelector('.muc__ten').firstChild.textContent.trim();
+    const tre = m.classList.contains('muc--tre');
+    $('#xemGio').innerHTML = m.closest('.ngay').querySelector('.ngay__so b').textContent + ' ' + m.closest('.ngay').querySelector('.ngay__so span').textContent + ', ' + m.querySelector('.muc__gio').textContent + (tre ? '<br><span class="do">Trễ 2 ngày</span>' : '');
+    mo('#xem');
+  }
+}, true);
+document.querySelector('[data-tao]').onclick = () => { $('#taoNgay').value = 'Chủ nhật, 5 tháng 10'; mo('#tao'); };
+
+document.querySelectorAll('#che button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#che button').forEach(x => x.classList.toggle('on', x === b));
+  $('#lb').classList.toggle('an', b.dataset.che !== 'lb');
+  $('#th').classList.toggle('an', b.dataset.che !== 'th');
+});
+$('#cuaToi').onclick = () => $('#pn').classList.toggle('an');
+
+// Lưới tháng 10/2026: 1/10 là thứ năm.
+const hen = { 3: ['<span class="chip chip--tre">09:00 Gửi mẫu hộp Tết</span>'], 5: ['<span class="chip">14:00 Nhắn Zalo xác nhận</span>'], 9: ['<span class="chip">15:30 Gặp duyệt bản in</span>'] };
+let h = '';
+for (let i = 0; i < 3; i++) h += `<div class="o o--ngoai"><div class="o__so">${28 + i}</div></div>`;
+for (let d = 1; d <= 31; d++) h += `<div class="o${d === 5 ? ' o--nay' : ''}" data-ngay="${d}"><div class="o__so">${d}</div>${(hen[d] || []).join('')}</div>`;
+for (let d = 1; d <= 8; d++) h += `<div class="o o--ngoai"><div class="o__so">${d}</div></div>`;
+$('#luoi').innerHTML = h;
+document.querySelectorAll('#luoi .o[data-ngay]').forEach(o => o.onclick = () => { $('#taoNgay').value = o.dataset.ngay + ' tháng 10'; mo('#tao'); });
+</script>
+</body>
+</html>

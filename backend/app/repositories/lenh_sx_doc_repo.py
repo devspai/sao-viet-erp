@@ -44,42 +44,42 @@ class LenhSxDocRepository:
         self.db = db
 
     def lenh_nhe(self, lsx_ids: list[int]) -> dict[int, LenhNhe]:
-        """`{lsx_id: LenhNhe}` — MỘT câu cho cả tập, dù tập có vài nghìn lệnh.
+        """`{lsx_id: LenhNhe}` — HAI câu phẳng cho cả tập, dù tập có vài nghìn lệnh.
 
         `da_giao` cộng `delivery_trip_lines.qty_giao` qua chuyến trong `LAN_GIAO_CO_HANG_DEN_TAY`,
         gom theo `order_line_id` — Y HỆT câu 11b của `boi_canh.nap()` (cùng bảng, cùng điều kiện,
-        cùng khoá gom), chỉ khác là JOIN thẳng vào `lsx` thay vì trả map theo dòng đơn. Lệch điều
-        kiện ở đây với câu 11b là một lệnh bị xếp "đã giao hết" ở tầng lọc trong khi `boi_canh` nói
-        khác — nên sửa một bên thì PHẢI sửa bên kia. Bài canh: `test_lenh_sx_con_song.py`.
+        cùng khoá gom). Lệch điều kiện ở đây với câu 11b là một lệnh bị xếp "đã giao hết" ở tầng lọc
+        trong khi `boi_canh` nói khác — nên sửa một bên thì PHẢI sửa bên kia. Bài canh:
+        `test_lenh_sx_con_song.py`.
+
+        HÌNH CÂU LÀ CỐ Ý (30/09/2026): câu gom chỉ lọc theo `order_line_id`, trạng thái chuyến lọc ở
+        Python. Bản cũ lọc `trang_thai` trong SQL — bộ lập kế hoạch đi từ chỉ mục `trang_thai`
+        (= MỌI chuyến đã giao từ trước tới nay) rồi mỗi chuyến dò lại cả danh sách dòng đơn: chuyến
+        × dòng, 1 giây cho 1.500 lệnh đã giao, tăng theo BÌNH PHƯƠNG lịch sử (`trip_id IN (…)` cũng
+        bị gỡ phẳng về đúng đường đó). Đừng đưa điều kiện trạng thái trở lại câu SQL.
         """
         if not lsx_ids:
             return {}
-        tong = (
-            select(
-                DeliveryTripLine.order_line_id.label("order_line_id"),
-                func.coalesce(func.sum(DeliveryTripLine.qty_giao), 0).label("tong"),
-            )
-            .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
-            .where(
-                DeliveryTripLine.order_line_id.in_(
-                    select(Lsx.order_line_id).where(Lsx.id.in_(lsx_ids))
-                ),
-                DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY),
-            )
-            .group_by(DeliveryTripLine.order_line_id)
-            .subquery()
-        )
         rows = self.db.execute(
             select(
-                Lsx.id, Lsx.ma, Lsx.is_rush, Lsx.han_hoan_thanh_sx, Lsx.so_luong_dat, tong.c.tong,
-            )
-            .outerjoin(tong, tong.c.order_line_id == Lsx.order_line_id)
-            .where(Lsx.id.in_(lsx_ids))
+                Lsx.id, Lsx.ma, Lsx.is_rush, Lsx.han_hoan_thanh_sx, Lsx.so_luong_dat,
+                Lsx.order_line_id,
+            ).where(Lsx.id.in_(lsx_ids))
         ).all()
+        dong_ids = {r[5] for r in rows if r[5] is not None}
+        tong: dict[int, int] = {}
+        if dong_ids:
+            for ol, qty, tt in self.db.execute(
+                select(DeliveryTripLine.order_line_id, DeliveryTripLine.qty_giao, DeliveryTrip.trang_thai)
+                .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
+                .where(DeliveryTripLine.order_line_id.in_(dong_ids))
+            ):
+                if tt in LAN_GIAO_CO_HANG_DEN_TAY:
+                    tong[ol] = tong.get(ol, 0) + int(qty or 0)
         return {
             r[0]: LenhNhe(
                 id=r[0], ma=r[1], is_rush=bool(r[2]), han_hoan_thanh_sx=r[3],
-                so_luong_dat=r[4] or 0, da_giao=int(r[5] or 0),
+                so_luong_dat=r[4] or 0, da_giao=tong.get(r[5], 0),
             )
             for r in rows
         }
@@ -93,16 +93,21 @@ class LenhSxDocRepository:
         """
         if not lsx_ids:
             return set()
+        # Trạng thái chuyến lọc ở Python — lý do ở `lenh_nhe` (đưa vào WHERE là chuyến × dòng).
+        # Gom theo (lệnh, trạng thái), so mốc ở DB như cũ; max của nhóm NULL ⇒ cờ NULL, bỏ qua —
+        # y hệt MAX() của SQL bỏ NULL.
         moc_chuyen = func.coalesce(DeliveryTrip.thoi_gian_ket_thuc, DeliveryTrip.gio_lay_hang)
-        stmt = (
-            select(Lsx.id)
+        co: dict[int, list[bool]] = {}
+        for lsx_id, tt, truoc in self.db.execute(
+            select(Lsx.id, DeliveryTrip.trang_thai, func.max(moc_chuyen) < moc)
             .join(DeliveryTripLine, DeliveryTripLine.order_line_id == Lsx.order_line_id)
             .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
-            .where(Lsx.id.in_(lsx_ids), DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
-            .group_by(Lsx.id)
-            .having(func.max(moc_chuyen) < moc)
-        )
-        return set(self.db.execute(stmt).scalars())
+            .where(Lsx.id.in_(lsx_ids))
+            .group_by(Lsx.id, DeliveryTrip.trang_thai)
+        ):
+            if tt in LAN_GIAO_CO_HANG_DEN_TAY and truoc is not None:
+                co.setdefault(lsx_id, []).append(bool(truoc))
+        return {i for i, cac in co.items() if all(cac)}
 
     def lenh_con_viec_o_trang_thai(self, lsx_ids: list[int], trang_thai: tuple[str, ...]) -> set[int]:
         """Lệnh (trong `lsx_ids`) còn công việc ở một trong `trang_thai` — neo thẳng hoặc việc CHUNG

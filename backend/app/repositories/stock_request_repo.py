@@ -21,6 +21,7 @@ from ..models.stock_request import (
     StockRequestLine,
 )
 from ..models.stock_voucher import VOUCHER_POSTED, StockVoucher, StockVoucherLine
+from ..services.kho_giay import chuan_kho
 
 # Mốc gốc so "chưa xem" khi người tạo chưa từng mở yêu cầu (quyet_dinh_xem_luc NULL).
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
@@ -36,7 +37,9 @@ _HEADER_FIELDS = ("bo_phan_id", "kho_id", "ngay_can", "uu_tien", "ghi_chu", "loa
                   # NGUỒN KCS (mg 0309): công đoạn KCS cuối gửi thành phẩm vào kho.
                   "san_xuat_cong_viec_id",
                   # NGUỒN GIA CÔNG NGOÀI (Task 8): lần chốt về kho đẻ ra đề nghị này.
-                  "gia_cong_ngoai_id")
+                  "gia_cong_ngoai_id",
+                  # NHẬP LẠI VẬT TƯ THỪA (mg 0361): công việc của tổ trả vật tư dư về kho.
+                  "vat_tu_tra_cong_viec_id")
 
 
 def _build_line(ln: dict, loai: str) -> StockRequestLine:
@@ -46,7 +49,13 @@ def _build_line(ln: dict, loai: str) -> StockRequestLine:
     Không còn `ten_tu_do`/`don_vi_phu`/`he_so_quy_doi` (mg 0171): mặt hàng bắt buộc chọn từ danh
     mục gốc, còn quy đổi lấy từ đồ thị đơn vị dùng chung.
     """
+    # GIẤY mang dạng + khổ (spec 2026-10-01 §3.1); hàng khác luôn NULL · 0 · 0 dù người gọi gửi gì.
+    giay = ln["hang_loai"] == "giay"
+    kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai")) if giay else (0, 0)
     return StockRequestLine(
+        dang_giay=(ln.get("dang_giay") or None) if giay else None,
+        kho_rong=kr,
+        kho_dai=kd,
         hang_loai=ln["hang_loai"],
         hang_id=ln["hang_id"],
         lsx_id=ln.get("lsx_id"),

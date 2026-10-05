@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import {
   ApiError,
   api,
-  assetUrl,
+  anhNho, assetUrl,
   type HangLoai,
   type SoGiaRow,
   type StockLevel,
@@ -29,6 +29,7 @@ import { StockLevelChip } from "../components/StockLevelChip";
 import type { NavigateFn } from "../components/AppShell";
 import { fmtDateISO, money } from "../utils/format";
 import { qrToSvg } from "../lib/qr";
+import { khoaNguong, khoaTon, nhanDongTon } from "../lib/khoGiay";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
   DateFilterHead,
@@ -74,12 +75,25 @@ import {
 
 
 
+/** Nhãn dạng/khổ cạnh mã của MỘT dòng tồn: giấy tờ "780 × 905 mm", cuộn kèm khổ các lô, giấy cũ
+ *  chưa có dạng "chưa rõ dạng/khổ"; hàng khác rỗng. */
+function nhanTonNhom(g: MaterialGroup): string {
+  return nhanDongTon(g.dang, g.khoRong, g.khoDai, {
+    laGiay: g.hang_loai === "giay",
+    khoCuon: g.dang === "cuon" ? g.lots.map((l) => l.kho_rong) : undefined,
+  });
+}
+
 interface MaterialGroup {
   /** Khoá GỘP của bảng tồn: cặp trỏ danh mục gốc. Chuỗi `"giay:12"` dùng làm key của Map/JSX
    *  vì tuple không so sánh được bằng `===` trong Map. */
   hang_loai: HangLoai;
   hang_id: number;
   key: string;
+  /** Giấy: dạng + khổ của DÒNG tồn (tờ tách theo khổ, cuộn gom theo mã). Hàng khác: null · 0 · 0. */
+  dang: "to" | "cuon" | null;
+  khoRong: number;
+  khoDai: number;
   code: string | null;
   name: string | null;
   // `dvt` = TÊN có dấu để HIỂN THỊ (tờ/cái); `dvtCode` = MÃ (to/cai) cho logic (vd seed mua hàng).
@@ -255,7 +269,7 @@ export function KhoTonKhoPage({
       .then(([r, ths]) => {
         setLots(r);
         const map: Record<string, StockThreshold> = {};
-        for (const t of ths) if (t.kho_id === khoId) map[`${t.hang_loai}:${t.hang_id}`] = t;
+        for (const t of ths) if (t.kho_id === khoId) map[khoaNguong(t)] = t;
         setThresholds(map);
         setError(null);
       })
@@ -318,13 +332,18 @@ export function KhoTonKhoPage({
   const groups = useMemo<MaterialGroup[]>(() => {
     const m = new Map<string, MaterialGroup>();
     for (const lot of lots) {
-      const key = `${lot.hang_loai}:${lot.hang_id}`;
+      // Giấy tờ: một dòng mỗi (mã, khổ), đếm tờ nguyên; cuộn gom theo mã (kg) — spec §3.2.
+      const key = khoaTon(lot);
       let g = m.get(key);
       if (!g) {
+        const dang = lot.hang_loai === "giay" ? lot.dang_giay : null;
         g = {
           hang_loai: lot.hang_loai,
           hang_id: lot.hang_id,
           key,
+          dang,
+          khoRong: dang === "to" ? lot.kho_rong : 0,
+          khoDai: dang === "to" ? lot.kho_dai : 0,
           code: lot.hang_ma,
           name: lot.hang_ten,
           dvt: lot.dvt_ten ?? lot.dvt,
@@ -378,7 +397,8 @@ export function KhoTonKhoPage({
       g.hsdOthers = Math.max(0, hsds.length - 1);
       g.level = levelOf(g.total, thresholds[g.key]);
     }
-    return arr.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "vi"));
+    return arr.sort((a, b) =>
+      (a.name ?? "").localeCompare(b.name ?? "", "vi") || a.khoRong - b.khoRong || a.khoDai - b.khoDai);
   }, [lots, thresholds]);
 
   // Deep-link tem QR: khi có khoá mặt hàng (`"giay:12"`) + tồn đã tải → bung drawer đúng mặt
@@ -386,7 +406,9 @@ export function KhoTonKhoPage({
   const deepLinkedId = useRef<string | null>(null);
   useEffect(() => {
     if (!openMatHangKey || deepLinkedId.current === openMatHangKey) return;
-    const g = groups.find((x) => x.key === openMatHangKey);
+    // Tem QR ký theo MÃ (`giay:12`) — giấy tách nhiều dòng theo khổ thì mở dòng đầu của mã.
+    const g = groups.find((x) => x.key === openMatHangKey)
+      ?? groups.find((x) => `${x.hang_loai}:${x.hang_id}` === openMatHangKey);
     if (!g) return;
     deepLinkedId.current = openMatHangKey;
     setOpenMaterial(g);
@@ -521,6 +543,9 @@ export function KhoTonKhoPage({
           unit: g.dvtCode ?? "",
           quantity: Math.max(0, target - g.total),
           note: "",
+          // Giấy tờ: nhóm tồn đã tách theo khổ ⇒ khổ cần = khổ của nhóm.
+          kho_rong: g.khoRong,
+          kho_dai: g.khoDai,
         };
       }),
       purchaseSeedPurpose: `Bổ sung tồn kho ${ten}`,
@@ -1122,13 +1147,7 @@ export function KhoTonKhoPage({
           khoDich={khoOptions.filter((w) => w.id !== khoId)}
           items={groups
             .filter((g) => selected.has(g.key))
-            .map((g) => ({
-              hang_loai: g.hang_loai,
-              hang_id: g.hang_id,
-              ten: g.name ?? g.code ?? "vật tư",
-              dvt: g.dvt ?? "",
-              tonKhaDung: g.total,
-            }))}
+            .map((g) => dcItemTu(g, g.total))}
           onDone={() => {
             setDcBulkOpen(false);
             setSelected(new Set());
@@ -1244,7 +1263,7 @@ function MaterialRow({
       <td>
         <div className="kho-lineimg" style={{ alignItems: "center" }}>
           {g.anh ? (
-            <img className="kho-ton__thumb" src={assetUrl(g.anh) ?? undefined} alt="" loading="lazy" />
+            <img className="kho-ton__thumb" src={anhNho(g.anh) ?? undefined} alt="" loading="lazy" />
           ) : (
             // Nền neutral (slate) đồng nhất — CHỦNG LOẠI đã phân biệt bằng icon, không cần pastel.
             <span className="kho-ton__thumb kho-ton__thumb--ph" aria-hidden="true">
@@ -1263,7 +1282,11 @@ function MaterialRow({
             <div className="rc__name kho-ton__name" title={g.name ?? undefined}>
               {g.name ?? "—"}
             </div>
-            {g.code && <div className="rc__muted kho-lines__code">{g.code}</div>}
+            {(g.code || g.dang || g.hang_loai === "giay") && (
+              <div className="rc__muted kho-lines__code">
+                {[g.code, nhanTonNhom(g)].filter(Boolean).join(" · ")}
+              </div>
+            )}
           </div>
         </div>
       </td>
@@ -1415,6 +1438,8 @@ function MaterialHistoryDrawer({
   // Điều chuyển kho: quyền lập phiếu kho + phải có kho đích. Trừ tồn nguồn NGAY (mở dialog xác nhận).
   const canCreate = can("kho", "create");
   const [dcOpen, setDcOpen] = useState(false);
+  // Lô giấy CŨ chưa có dạng/khổ: kho bổ sung ngay tại tab "Lô tồn".
+  const [bsLot, setBsLot] = useState<StockLot | null>(null);
   const [anh, setAnh] = useState<string | null>(material.anh);
   const [anhBusy, setAnhBusy] = useState(false);
   const [anhErr, setAnhErr] = useState<string | null>(null);
@@ -1502,7 +1527,8 @@ function MaterialHistoryDrawer({
     let alive = true;
     setLoading(true);
     api.kho.phieu
-      .lichSuVatTu(token, material.hang_loai, material.hang_id, khoId)
+      .lichSuVatTu(token, material.hang_loai, material.hang_id, khoId,
+        material.dang ? { dang: material.dang, kho_rong: material.khoRong, kho_dai: material.khoDai } : undefined)
       .then((d) => {
         if (!alive) return;
         setData(d);
@@ -1519,7 +1545,8 @@ function MaterialHistoryDrawer({
     };
     // `refreshTick`: cha bump sau khi phiếu đổi (điều chỉnh / ghi sổ) → tồn + lịch sử nạp lại NGAY,
     // không bắt đóng mở lại popup.
-  }, [token, khoId, material.hang_loai, material.hang_id, refreshTick]);
+  }, [token, khoId, material.hang_loai, material.hang_id, material.dang, material.khoRong, material.khoDai,
+    refreshTick]);
 
   // NCC bán mặt hàng này + giá đã quy về đơn vị gốc (Đợt 4). Gộp vào ĐÂY chứ không dựng màn
   // so-giá riêng: đây là lúc người ta vừa thấy hàng sắp hết, câu hỏi tiếp theo luôn là "mua của
@@ -1616,6 +1643,7 @@ function MaterialHistoryDrawer({
             <div>
               <h2 className="rc-drawer__title" style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>
                 {material.name ?? material.code ?? "—"}
+                {nhanTonNhom(material) && ` · ${nhanTonNhom(material)}`}
               </h2>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1636,7 +1664,7 @@ function MaterialHistoryDrawer({
                 onClick={() => setShowQr((v) => !v)}
                 aria-pressed={showQr}
                 title="Tem QR vật tư — quét ra tồn & vị trí"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", background: showQr ? "var(--rust-soft)" : "var(--paper)", color: showQr ? "var(--rust)" : "var(--ink)", border: "1px solid var(--rule)", borderRadius: 6, cursor: "pointer", fontSize: 12.5, fontWeight: 600 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", background: showQr ? "var(--rule-hair)" : "var(--paper)", color: showQr ? "var(--rust)" : "var(--ink)", border: "1px solid var(--rule)", borderRadius: 6, cursor: "pointer", fontSize: 12.5, fontWeight: 600 }}
               >
                 <QrCode style={{ width: 14, height: 14 }} /> {showQr ? "Ẩn QR" : "Tem QR"}
               </button>
@@ -1679,7 +1707,7 @@ function MaterialHistoryDrawer({
                         className="hero-avatar-btn"
                         onClick={() => setZoom(true)}
                       >
-                        <img src={assetUrl(anh) ?? undefined} alt={material.name ?? ""} />
+                        <img src={anhNho(anh, 320) ?? undefined} alt={material.name ?? ""} />
                       </button>
                     ) : (
                       <div className="hero-avatar-ph" aria-hidden="true">
@@ -1866,6 +1894,7 @@ function MaterialHistoryDrawer({
                       <th style={{ width: 96 }}>Ngày nhập</th>
                       {coNguon && <th style={{ minWidth: 140 }}>Đơn · Khách</th>}
                       <th className="kho-num">Còn lại</th>
+                      {material.hang_loai === "giay" && <th style={{ minWidth: 150 }}>Dạng / khổ</th>}
                       <th style={{ minWidth: 96 }}>Vị trí</th>
                       <th style={{ width: 96 }}>HSD</th>
                       {canViewCost && <th className="kho-num">Đơn giá</th>}
@@ -1889,6 +1918,18 @@ function MaterialHistoryDrawer({
                         <td className="kho-lines__code">{fmtDateISO(lot.ngay_nhap)}</td>
                         {coNguon && <NguonLoCell lot={lot} />}
                         <td className="kho-num">{`${fmtQty(lot.sl_con_lai)} ${dvtGoc}`.trim()}</td>
+                        {material.hang_loai === "giay" && (
+                          <td>
+                            {lot.dang_giay
+                              ? nhanDongTon(lot.dang_giay, lot.kho_rong, lot.kho_dai)
+                              : "chưa rõ dạng/khổ"}
+                            {!lot.dang_giay && canCreate && (
+                              <button type="button" className="kho-bsdk__nut" onClick={() => setBsLot(lot)}>
+                                Bổ sung dạng/khổ
+                              </button>
+                            )}
+                          </td>
+                        )}
                         <td className="kho-lines__vt">{lot.vi_tri ?? "—"}</td>
                         <HsdCell hsd={lot.hsd} />
                         {canViewCost && <GiaGocCell lot={lot} />}
@@ -2121,21 +2162,26 @@ function MaterialHistoryDrawer({
         />
       </div>
     )}
+    {bsLot && (
+      <BoSungDangKhoDialog
+        token={token}
+        lot={bsLot}
+        dvt={dvtGoc}
+        onDone={() => {
+          setBsLot(null);
+          onDieuChuyenDone();
+          onClose(); // dòng tồn đổi nhóm (chưa rõ → tờ/cuộn) → đóng drawer, cha nạp lại danh sách
+        }}
+        onCancel={() => setBsLot(null)}
+      />
+    )}
     {dcOpen && (
       <DieuChuyenDialog
         token={token}
         khoNguonId={khoId}
         khoNguonTen={khoTen}
         khoDich={khoDich}
-        items={[
-          {
-            hang_loai: material.hang_loai,
-            hang_id: material.hang_id,
-            ten: material.name ?? material.code ?? "vật tư",
-            dvt: material.dvt ?? "",
-            tonKhaDung: data?.on_hand ?? material.total,
-          },
-        ]}
+        items={[dcItemTu(material, data?.on_hand ?? material.total)]}
         onDone={() => {
           setDcOpen(false);
           onDieuChuyenDone();
@@ -2148,6 +2194,112 @@ function MaterialHistoryDrawer({
   );
 }
 
+// Kho bổ sung DẠNG + KHỔ cho một lô giấy cũ (nhập trước khi có dạng/khổ). Tờ: máy chủ đổi số
+// lượng (kg…) → tờ nguyên theo khổ + gsm; cuộn: giữ số, chỉ ghi khổ rộng.
+function BoSungDangKhoDialog({
+  token,
+  lot,
+  dvt,
+  onDone,
+  onCancel,
+}: {
+  token: string;
+  lot: StockLot;
+  dvt: string;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [dang, setDang] = useState<"to" | "cuon">("to");
+  const [rong, setRong] = useState("");
+  const [dai, setDai] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    const r = Math.round(Number(rong));
+    const d = Math.round(Number(dai));
+    if (!(r > 0) || (dang === "to" && !(d > 0))) {
+      setError(dang === "to" ? "Nhập đủ hai cạnh khổ (mm)." : "Nhập khổ rộng của cuộn (mm).");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.kho.phieu.boSungDangKhoLo(token, lot.id, {
+        dang_giay: dang,
+        kho_rong: r,
+        kho_dai: dang === "to" ? d : 0,
+      });
+      onDone();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Không bổ sung được dạng/khổ.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ConfirmDialog
+      open
+      title="Bổ sung dạng/khổ cho lô cũ"
+      confirmLabel="Lưu"
+      cancelLabel="Hủy"
+      busy={busy}
+      error={error}
+      onConfirm={() => void save()}
+      onCancel={onCancel}
+    >
+      <div className="rc-grid">
+        <p className="rc-field__hint">
+          {`Lô ${lot.ma_lo} đang ghi ${fmtQty(lot.sl_con_lai)} ${dvt}.`.trim()}{" "}
+          {dang === "to"
+            ? "Chọn Tờ: số lượng được đổi ra tờ nguyên theo khổ và định lượng của mã (làm tròn xuống)."
+            : "Chọn Cuộn: giữ nguyên số lượng, chỉ ghi khổ."}
+        </p>
+        <div className="rc-field">
+          <span className="rc-field__label">Dạng</span>
+          <div style={{ display: "flex", gap: 16 }}>
+            <label>
+              <input type="radio" name="bsdk-dang" checked={dang === "to"} onChange={() => setDang("to")} /> Tờ
+            </label>
+            <label>
+              <input type="radio" name="bsdk-dang" checked={dang === "cuon"} onChange={() => setDang("cuon")} /> Cuộn
+            </label>
+          </div>
+        </div>
+        <div className="rc-field">
+          <span className="rc-field__label">Khổ</span>
+          <div className="kho-bsdk__kho">
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              placeholder={dang === "to" ? "rộng" : "khổ"}
+              value={rong}
+              autoFocus
+              onChange={(e) => setRong(e.target.value)}
+            />
+            {dang === "to" && (
+              <>
+                <span>×</span>
+                <input
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  placeholder="dài"
+                  value={dai}
+                  onChange={(e) => setDai(e.target.value)}
+                />
+              </>
+            )}
+            <span>mm</span>
+          </div>
+        </div>
+      </div>
+    </ConfirmDialog>
+  );
+}
+
 // Dialog ĐIỀU CHUYỂN 1 mặt hàng sang kho khác. Trừ tồn nguồn NGAY khi xác nhận (tự lập + ghi sổ
 // phiếu xuất), rồi sinh YÊU CẦU ĐIỀU CHUYỂN ở đích cho kho đích lập phiếu nhận. Tái dùng ConfirmDialog.
 // 1 mặt hàng trong popup điều chuyển (dùng chung cho 1 mặt hàng ở drawer LẪN nhiều mặt hàng tick
@@ -2155,9 +2307,23 @@ function MaterialHistoryDrawer({
 interface DcItem {
   hang_loai: HangLoai;
   hang_id: number;
+  /** Giấy: dạng + khổ của dòng tồn — máy chủ chặn điều chuyển giấy thiếu dạng. */
+  dang: "to" | "cuon" | null;
+  khoRong: number;
+  khoDai: number;
   ten: string;
   dvt: string;
   tonKhaDung: number;
+}
+
+/** Một dòng tồn → một dòng điều chuyển (tên kèm khổ để hai khổ cùng mã không đọc như trùng). */
+function dcItemTu(g: MaterialGroup, tonKhaDung: number): DcItem {
+  const kho = nhanTonNhom(g);
+  const ten = g.name ?? g.code ?? "vật tư";
+  return {
+    hang_loai: g.hang_loai, hang_id: g.hang_id, dang: g.dang, khoRong: g.khoRong, khoDai: g.khoDai,
+    ten: kho ? `${ten} · ${kho}` : ten, dvt: g.dvt ?? "", tonKhaDung,
+  };
 }
 
 function DieuChuyenDialog({
@@ -2177,7 +2343,8 @@ function DieuChuyenDialog({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const keyOf = (it: DcItem) => `${it.hang_loai}:${it.hang_id}`;
+  const keyOf = (it: DcItem) =>
+    khoaTon({ hang_loai: it.hang_loai, hang_id: it.hang_id, dang_giay: it.dang, kho_rong: it.khoRong, kho_dai: it.khoDai });
   const [khoDenId, setKhoDenId] = useState<number | null>(null);
   // SL chuyển từng mặt hàng — mặc định = tồn khả dụng (chuyển hết), sửa được từng dòng.
   const [qty, setQty] = useState<Record<string, string>>(() =>
@@ -2220,6 +2387,7 @@ function DieuChuyenDialog({
         items: chosen.map((x) => ({
           hang_loai: x.it.hang_loai,
           hang_id: x.it.hang_id,
+          ...(x.it.dang ? { dang_giay: x.it.dang, kho_rong: x.it.khoRong, kho_dai: x.it.khoDai } : {}),
           so_luong: x.sl,
           vi_tri: (viTri[keyOf(x.it)] ?? "").trim() || null,
         })),
@@ -2687,6 +2855,9 @@ function SetThresholdDialog({
         hang_loai: material.hang_loai,
         hang_id: material.hang_id,
         kho_id: khoId,
+        // Giấy tờ: ngưỡng của đúng dòng khổ này (đếm tờ); cuộn / hàng khác gửi 0 · 0.
+        kho_rong: material.khoRong,
+        kho_dai: material.khoDai,
         nguong_ton: ton,
         nguong_can_ton: null,
         nguong_toi_da: max,
@@ -2704,7 +2875,8 @@ function SetThresholdDialog({
   return (
     <ConfirmDialog
       open
-      title={`Đặt ngưỡng — ${material.name ?? material.code ?? "vật tư"}`}
+      title={`Đặt ngưỡng — ${material.name ?? material.code ?? "vật tư"}${
+        nhanTonNhom(material) ? ` · ${nhanTonNhom(material)}` : ""}`}
       confirmLabel="Lưu ngưỡng"
       cancelLabel="Hủy"
       busy={busy}

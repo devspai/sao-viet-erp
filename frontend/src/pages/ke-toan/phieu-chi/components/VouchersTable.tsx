@@ -2,6 +2,7 @@
 import { Fragment, type Dispatch, type SetStateAction } from "react";
 import type { PaymentVoucherRow } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { Icon } from "../../../../components/Icons";
 import { fmtDateTime, money, originalMoney } from "../../../../utils/format";
 import {
   SOURCE_LABELS,
@@ -29,7 +30,7 @@ export function VouchersTable({
   totalPages: number;
 }) {
   return (
-    <section className="md-page__tablewrap acct-list acct-list--voucher">
+    <section className="md-page__tablewrap acct-list acct-list--voucher acct-dmh__frame">
       <table className="md-page__table">
         <thead>
           <tr>
@@ -57,7 +58,18 @@ export function VouchersTable({
             ))}
           {!loading && rows.length === 0 && (
             <tr>
-              <td colSpan={6}>Chưa có chứng từ phù hợp.</td>
+              <td colSpan={6}>
+                <div className="acct-pcx__empty">
+                  <span className="acct-pcx__empty-icon">
+                    <Icon name="fileText" size={20} />
+                  </span>
+                  <strong>Chưa có phiếu chi phù hợp.</strong>
+                  <span>
+                    Lập phiếu chi là tiền đã ra khỏi két — phiếu sinh ra đã là "Đã chi".
+                    Ghi nhận nhầm thì hủy phiếu (bắt lý do).
+                  </span>
+                </div>
+              </td>
             </tr>
           )}
           {!loading &&
@@ -70,7 +82,7 @@ export function VouchersTable({
                   onClick={() => setSelectedId(row.id)}
                 >
                   <td className="acct-code-cell">
-                    <strong>{row.code}</strong>
+                    <span className="acct-dmh__code-badge">{row.code}</span>
                     <small>
                       {VOUCHER_METHOD_LABELS[row.voucher_type] ?? row.voucher_type} ·{" "}
                       {SOURCE_LABELS[row.source_type] ?? row.source_type}
@@ -96,13 +108,13 @@ export function VouchersTable({
                         : undefined
                     }
                   >
-                    <strong>{money(row.amount_vnd)}</strong>
+                    <strong className="acct-dmh__total">{money(row.amount_vnd)}</strong>
                   </td>
                   <td className="acct-status-cell">
                     <span
-                      className={`acct-pc__state acct-pc__state--${STATUS_META[row.status].tone}`}
+                      className={`acct-dmh__state acct-dmh__state--${STATUS_META[row.status].tone}`}
                     >
-                      <i className="acct-pc__dot" />
+                      <i className="acct-dmh__dot" />
                       {STATUS_META[row.status].label}
                     </span>
                     {row.status === "paid" &&

@@ -16,6 +16,7 @@ import {
 import { useAuth } from "../../auth/useAuth";
 import { useCan, useKcs } from "../../auth/permissions";
 import type { NavigateFn } from "../../components/AppShell";
+import { EmptyState } from "../../components/EmptyState";
 import { Pager } from "../../components/Pager";
 import { Icon } from "../../components/Icons";
 import { useDebounced } from "../../utils/useDebounced";
@@ -159,7 +160,7 @@ export function KcsTheoLenhPage({
           <button type="button" className="btn btn--ghost" onClick={() => setLenhTick((k) => k + 1)}>Tải lại</button>
         </div>
       ) : lenh == null ? (
-        <p className="kcs-lenh__trong rc__empty-text">Đang tải…</p>
+        <EmptyState trangThai="dang-tai" inline />
       ) : lenh.items.length === 0 ? (
         <div className="kcs-lenh__trong">
           <p className="rc__empty-text">

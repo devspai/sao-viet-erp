@@ -12,6 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+
 # ============================ Hàng chờ ============================
 class HangChoItem(BaseModel):
     order_id: int
@@ -113,10 +114,20 @@ class LsxBuocVatTuIn(BaseModel):
     # trước khi bước chọn được NVL chính (08/09/2026).
     hang_loai: Literal["giay", "vat_tu"] = "vat_tu"
     vat_tu_id: int
-    so_luong: float = Field(gt=0)
+    # Vật tư khác: máy TỰ TÍNH bằng công thức định mức của vật tư + chip — số gửi lên bị bỏ
+    # (01/10/2026). Giấy cũng vậy: số + khổ + dạng + đơn vị do máy chủ ghi theo ĐẦU VÀO của bước
+    # (spec 2026-10-01 dong-giay-theo-dau-vao §4) — `so_luong` / `kho_*` giữ để client cũ không 422.
+    so_luong: float | None = Field(default=None, ge=0)
     # True = dòng MÁY bung khi chọn công việc khoán ⇒ lần bung sau thay được. False = người tự thêm
     # hoặc đã sửa số ⇒ máy chừa ra. Mặc định False: client cũ không gửi thì coi như người khai.
     tu_dong: bool = False
+    # Khổ dòng GIẤY: bị bỏ qua (máy chủ lấy từ quy cách lệnh). Giữ field cho client cũ.
+    kho_rong: int = 0
+    kho_dai: int = 0
+    # CHIP của vật tư: {mã chip: số} — chép từ phiếu tính giá, sửa được ở lệnh nháp.
+    gia_tri_chip: dict[str, float] | None = None
+    # True = người gõ định mức ⇒ máy giữ `so_luong` gửi lên thay vì tính bằng công thức (vật tư khác).
+    sua_tay: bool = False
 
 
 class LsxBuocVatTuOut(BaseModel):
@@ -127,7 +138,13 @@ class LsxBuocVatTuOut(BaseModel):
     vat_tu_ten: str
     don_vi: str
     so_luong: float
+    kho_rong: int = 0
+    kho_dai: int = 0
+    dang_giay: str | None = None   # giấy: `to` / `cuon` (máy chủ ghi theo đầu vào của bước)
     tu_dong: bool = False
+    sua_tay: bool = False
+    gia_tri_chip: dict[str, float] = Field(default_factory=dict)
+    chips: list[dict] = Field(default_factory=list)
 
 
 class KhuonMoiIn(BaseModel):

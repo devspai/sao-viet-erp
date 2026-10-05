@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { SpecialDayForm } from "../modals/SpecialDayForm";
 import { fmtDateVN } from "../shared/helpers";
+import { EmptyRow, EmptyState } from "../../../../components/EmptyState";
 
 // --- Tab: Lịch làm việc & Ngày lễ (nền dùng chung cho Công / Phép / Lương) --
 
@@ -276,13 +277,7 @@ export function CalendarTab({ token }: { token: string }) {
                     </td>
                   </tr>
                 ))}
-                {!special && (
-                  <tr>
-                    <td colSpan={5} className="ns__empty">
-                      Đang tải…
-                    </td>
-                  </tr>
-                )}
+                {!special && <EmptyRow colSpan={5} trangThai="dang-tai" />}
                 {special?.items.length === 0 && (
                   <tr>
                     <td colSpan={5} className="ns__empty">
@@ -318,7 +313,7 @@ export function CalendarTab({ token }: { token: string }) {
             </button>
           </div>
         </div>
-        {!preview && <p className="cal-standard">Đang tải lịch tháng…</p>}
+        {!preview && <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải lịch tháng…" />}
         {preview && (
           <>
             <p className="cal-standard">

@@ -93,6 +93,13 @@ def _component() -> dict:
     }
 
 
+def gan_vat_tu_buoc(tp: dict, vat_tus: list[dict]) -> None:
+    """Vật tư nay thuộc BƯỚC (01/10/2026): gắn vào bước đầu của thành phần (tạo bước trống nếu chưa có)."""
+    if not tp.get("thanh_phams"):
+        tp["thanh_phams"] = [{"ten": "Bước vật tư"}]
+    tp["thanh_phams"][0]["vat_tus"] = vat_tus
+
+
 def _grp(res, idx):
     return next(g for g in res["groups"] if g["idx"] == idx)
 
@@ -120,7 +127,9 @@ def test_compute_phieu_auto_binhbai_xa_giay():
     assert _grp(res, "cong_doan")["rows"] == []
     assert _grp(res, "cong_doan")["subtotal"] == 0
     w = " ".join(res["warnings"])
-    assert "chưa có công đoạn IN" in w and "CHẾ BẢN/KẼM" in w
+    assert "chưa có công đoạn IN" in w
+    # Kẽm nay là vật tư của bước In — không còn nhắc thiếu bước chế bản.
+    assert "CHẾ BẢN/KẼM" not in w
     # Tổng = Σ nhóm
     assert res["grand_total"] == round(sum(g["subtotal"] for g in res["groups"]), 2)
 
@@ -396,7 +405,8 @@ def test_cong_doan_chua_khai_cong_thuc_thi_KEU_chu_khong_bia_tien():
     """Bỏ hai công thức MẶC ĐỊNH theo nhóm (11/08/2026) — chúng dựa vào `don_gia` của công đoạn,
     một biến CHẾT (không có ô nhập ở phiếu lẫn danh mục) nên vẫn ra 0đ, chỉ là 0đ trông như đã tính.
 
-    Nay chưa khai công thức thì engine nói thẳng và tính 0đ — bắt người ta viết một công thức.
+    Nay chưa khai công thức thì engine nói thẳng NGAY TRÊN DÒNG ("thiếu công thức — 0đ") và tính
+    0đ. Không nhắc lại trên băng cảnh báo (04/10/2026) — trùng với cột diễn giải.
     """
     tp = _component()
     tp["thanh_phams"] = [
@@ -404,9 +414,10 @@ def test_cong_doan_chua_khai_cong_thuc_thi_KEU_chu_khong_bia_tien():
         {"ten": "Ghi kẽm", "don_gia": 90000, "cong_doan": {"nhom": "prepress"}},
     ]
     res = compute_phieu(so_luong=5000, thanh_phans=[tp])
-    assert _grp(res, "cong_doan")["subtotal"] == 0
-    w = " ".join(res["warnings"])
-    assert "In offset" in w and "Ghi kẽm" in w and "chưa khai công thức tính giá" in w
+    cd = _grp(res, "cong_doan")
+    assert cd["subtotal"] == 0
+    assert [r["cong_thuc"] for r in cd["rows"]] == ["thiếu công thức — 0đ"] * 2
+    assert "chưa khai công thức tính giá" not in " ".join(res["warnings"])
 
 
 def _fin_row(**kw) -> dict:
@@ -608,8 +619,8 @@ def test_moi_dong_mang_ca_cong_thuc_GOC_lan_ban_THE_SO():
     `5.200 × 2 × 350` — không biết 5.200 là tờ vào máy hay tờ nguyên, mà hai số đó đều có mặt
     trên màn và khác nhau."""
     tp = _chuoi_co_tien()
-    tp["vat_tus"] = [{"ten": "Keo gáy", "don_gia": 40000, "don_vi_gia": "kg",
-                      "cong_thuc_gia": "0.002 * so_luong * don_gia_vat_tu"}]
+    gan_vat_tu_buoc(tp, [{"ten": "Keo gáy", "don_gia": 40000, "don_vi_gia": "kg",
+                      "cong_thuc_gia": "0.002 * so_luong * don_gia_vat_tu"}])
     res = compute_phieu(so_luong=1000, thanh_phans=[tp])
 
     cd = {r["ten"].split(" · ")[-1]: r for r in _grp(res, "cong_doan")["rows"]}
@@ -649,8 +660,8 @@ def test_dong_giay_co_co_rieng_de_panel_tach_khoi_vat_tu():
     """Nhóm `nvl` trộn giấy với mực/màng/keo. Panel cần dòng GIẤY riêng, mà dò bằng "dòng đầu
     tiên" là đúng hôm nay và sai ngay hôm engine đổi thứ tự."""
     tp = _chuoi_co_tien()
-    tp["vat_tus"] = [{"ten": "Keo gáy", "don_gia": 40000, "don_vi_gia": "kg",
-                      "cong_thuc_gia": "0.002 * so_luong * don_gia_vat_tu"}]
+    gan_vat_tu_buoc(tp, [{"ten": "Keo gáy", "don_gia": 40000, "don_vi_gia": "kg",
+                      "cong_thuc_gia": "0.002 * so_luong * don_gia_vat_tu"}])
     nvl = _grp(compute_phieu(so_luong=1000, thanh_phans=[tp]), "nvl")["rows"]
     assert [r["loai"] for r in nvl] == ["giay", "vat_tu"]
     assert len([r for r in nvl if r["loai"] == "giay"]) == 1
@@ -716,13 +727,13 @@ def test_ba_buoc_can_dao_thi_ba_dong_phi_rieng():
     chỉ làm lại MỘT con dao sẽ không biết trừ ra bao nhiêu."""
     res = compute_phieu(so_luong=500, thanh_phans=[_phieu_co_dao(
         _buoc_dao("Bế thành phẩm", "khuon_be", 1_500_000),
-        _buoc_dao("Ép kim", "khuon_ep", 900_000),
-        _buoc_dao("Bế nổi", "khuon_ep", 0),          # dùng lại dao cũ
+        _buoc_dao("Bế hộp phụ", "khuon_be", 900_000),
+        _buoc_dao("Bế nổi", "khuon_be", 0),          # dùng lại dao cũ
     )])
     m = res["meta"]["components"][0]
     assert m["phi_khuon"] == 2_400_000
     assert [(d["ten"], d["thanh_tien"]) for d in m["phi_khuon_dong"]] == [
-        ("Bế thành phẩm", 1_500_000), ("Ép kim", 900_000)]
+        ("Bế thành phẩm", 1_500_000), ("Bế hộp phụ", 900_000)]
     # Bước để trống KHÔNG đẻ dòng 0đ, nhưng PHẢI được nhắc.
     # Lời nhắc đổi văn 04/09/2026: hỏi thẳng "có sẵn hay làm mới" thay vì "chưa khai phí".
     assert any("Bế nổi" in w and "có sẵn hay làm mới" in w for w in res["warnings"]), res["warnings"]
@@ -753,8 +764,8 @@ def test_moi_dong_tien_deu_khep_bang_don_gia_moi_san_pham():
     """
     tp = _phieu_co_dao(_buoc_dao("Bế thành phẩm", "khuon_be", 800_000))
     tp["cong_thuc_gia"] = "dinh_luong * dai_nguyen * rong_nguyen * don_gia_giay * to_nguyen"
-    tp["vat_tus"] = [{"ten": "Màng bóng", "don_gia": 60_000, "don_vi_gia": "kg",
-                      "cong_thuc_gia": "dai_in * rong_in * to_sau_in * don_gia_vat_tu"}]
+    gan_vat_tu_buoc(tp, [{"ten": "Màng bóng", "don_gia": 60_000, "don_vi_gia": "kg",
+                      "cong_thuc_gia": "dai_in * rong_in * to_sau_in * don_gia_vat_tu"}])
     tp["thanh_phams"] += [
         # Chia cho 1.000 ngay trong công thức: đây là ca từng làm mất đuôi đ/sp.
         {"ten": "Gấp tay", "cong_doan": {"ten": "Gấp tay", "nhom": "finishing", "kieu_bu_hao": "khong",
@@ -977,6 +988,37 @@ def test_ham_if_va_so_sanh_re_nhanh_theo_dieu_kien():
     assert safe_eval(ct, ctx) == 200
 
 
+def test_the_so_chi_the_nhanh_if_dang_dung():
+    """Dòng thế số chỉ in nhánh đã ra tiền, không in lại cả cây if với số."""
+    from app.services.thanh_phan_engine import format_substituted_formula
+
+    ct = ("if(sl_ra >= 20000, 2500000 * so_mat, "
+          "if(sl_ra >= 10000, 1500000 * so_mat, sl_ra * 400 * so_mat + 100000 * so_kem))")
+    the = format_substituted_formula(ct, {"sl_ra": 0, "so_mat": 2, "so_kem": 1})
+    assert "if" not in the
+    assert the == "sl_ra(0) × 400 × so_mat(2) + 100000 × so_kem(1)"
+    the = format_substituted_formula(ct, {"sl_ra": 12000, "so_mat": 2, "so_kem": 1})
+    assert the == "1500000 × so_mat(2)"
+    # Thiếu biến ở điều kiện ⇒ không đoán nhánh, trả nguyên cây.
+    assert "if" in format_substituted_formula(ct, {"so_mat": 2})
+
+
+def test_the_so_max_min_tinh_san_ve_phuc_hop():
+    """max/min: vế phức hợp tính sẵn ra số để thấy vế nào thắng; vế đơn giữ tên + số."""
+    from app.services.thanh_phan_engine import format_substituted_formula
+
+    ctx = {"sl_ra": 300, "so_mat": 2, "phi_toi_thieu": 150000}
+    assert (format_substituted_formula("max(sl_ra * 400 * so_mat, 100000)", ctx)
+            == "max(240.000, 100000)")
+    assert (format_substituted_formula("min(sl_ra * 400, phi_toi_thieu)", ctx)
+            == "min(120.000, phi_toi_thieu(150.000))")
+    # if bên trong max: chọn nhánh rồi mới tính vế.
+    assert (format_substituted_formula("max(if(sl_ra > 100, sl_ra * 10, 0), 500)", ctx)
+            == "max(3.000, 500)")
+    # Không có if/max/min ⇒ y như cũ.
+    assert format_substituted_formula("sl_ra * 400", ctx) == "sl_ra(300) × 400"
+
+
 def test_so_sanh_ma_khong_boc_trong_if_bao_loi_ro():
     """Quên bọc `if(...)` thì phải báo lỗi, không được âm thầm trả 1.0/0.0 làm tiền."""
     from app.services.thanh_phan_engine import safe_eval
@@ -996,10 +1038,10 @@ def test_so_sanh_chuoi_khong_duoc_ho_tro():
 def test_dong_vat_tu_phoi_luong_va_don_vi_ra_ngoai():
     """Engine trả `luong` + `luong_don_vi` + `vat_tu_id` để kế hoạch đọc mà không phải tính lại."""
     tp = _component()
-    tp["vat_tus"] = [{
+    gan_vat_tu_buoc(tp, [{
         "vat_tu_id": 77, "ten": "Màng bóng", "don_gia": 3_000, "don_vi_gia": "m2",
         "cong_thuc_gia": "dai_in * rong_in * don_gia_vat_tu * to_sau_in",
-    }]
+    }])
     res = compute_phieu(so_luong=1000, thanh_phans=[tp])
     dong = [r for r in _grp(res, "nvl")["rows"] if "Màng bóng" in r["ten"]]
     assert len(dong) == 1

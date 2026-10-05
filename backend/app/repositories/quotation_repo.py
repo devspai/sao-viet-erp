@@ -9,10 +9,7 @@ from sqlalchemy.orm import Session
 from ..models.customer import Customer
 from ..models.quotation import (
     STATUS_ACCEPTED,
-    STATUS_CANCELLED,
-    STATUS_EXPIRED,
     STATUS_PENDING_APPROVAL,
-    STATUS_REJECTED,
     Quote,
     QuoteApproval,
     QuoteAttachment,
@@ -23,6 +20,7 @@ from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
 from .org_scope import dept_subtree_ids
 from .org_scope import nhom_dung_chung_user_ids
+from .tim_khong_dau import like_khong_dau
 
 # Whitelist of sortable fields in Quote
 _SORTABLE = {
@@ -67,17 +65,10 @@ class QuotationRepository:
         self.db.refresh(row)
         return row
 
-    def active_for_phieu(self, phieu_tinh_gia_id: int) -> Quote | None:
-        """BG-1: báo giá ĐANG HIỆU LỰC của 1 Phiếu tính giá (draft/sent/accepted/converted). Báo giá
-        rejected/expired/cancelled = NHẢ chỗ (cho báo giá lại / repeat order). Guard '1 PTG → 1 BG'."""
+    def cua_phieu(self, phieu_tinh_gia_id: int) -> Quote | None:
+        """Báo giá DUY NHẤT của một phiếu tính giá, mọi trạng thái (1 phiếu ↔ 1 báo giá, mg 0365)."""
         return self.db.execute(
-            select(Quote)
-            .where(
-                Quote.phieu_tinh_gia_id == phieu_tinh_gia_id,
-                Quote.status.notin_([STATUS_REJECTED, STATUS_EXPIRED, STATUS_CANCELLED]),
-            )
-            .order_by(Quote.id.desc())
-            .limit(1)
+            select(Quote).where(Quote.phieu_tinh_gia_id == phieu_tinh_gia_id).limit(1)
         ).scalar_one_or_none()
 
     def list_approved_selectable(
@@ -193,6 +184,7 @@ class QuotationRepository:
         sort: str = "-created_at",
         page: int = 1,
         size: int = 20,
+        nguoi: int | None = None,
     ) -> tuple[list[Quote], int, dict[int, str]]:
         conditions = []
         scope_cond = self._scope_condition(scope=scope, actor=actor)
@@ -201,14 +193,19 @@ class QuotationRepository:
 
         base = select(Quote)
         count_stmt = select(func.count()).select_from(Quote)
-        if q:
-            like = f"%{q.strip().lower()}%"
-            cust_ids = select(Customer.id).where(
-                func.lower(Customer.name).like(like)
+        if q and q.strip():
+            # Tìm TƯƠNG ĐỐI (không dấu, không phân biệt hoa thường): mã báo giá, tên khách, tên sản
+            # phẩm trong báo giá (mọi phiên bản).
+            cust_ids = select(Customer.id).where(like_khong_dau(Customer.name, q))
+            sp_quote_ids = (
+                select(QuoteVersion.quote_id)
+                .join(QuoteItem, QuoteItem.quote_version_id == QuoteVersion.id)
+                .where(like_khong_dau(QuoteItem.product_name, q))
             )
             q_cond = or_(
-                func.lower(Quote.quote_number).like(like),
+                like_khong_dau(Quote.quote_number, q),
                 Quote.customer_id.in_(cust_ids),
+                Quote.id.in_(sp_quote_ids),
             )
             conditions.append(q_cond)
         if status == "need_action":
@@ -216,6 +213,8 @@ class QuotationRepository:
             conditions.append(Quote.status.in_(("draft", "sent")))
         elif status:
             conditions.append(Quote.status == status)
+        if nguoi is not None:   # hộp lọc NV phụ trách — AND với phạm vi, không vượt được tầm nhìn
+            conditions.append(Quote.salesperson_id == nguoi)
 
         for c in conditions:
             base = base.where(c)
@@ -253,11 +252,16 @@ class QuotationRepository:
                 names[qid] = name
         return rows, total, names
 
-    def stats(self) -> dict:
-        """Số đếm theo trạng thái cho thanh tab list."""
-        by_status = dict(
-            self.db.execute(select(Quote.status, func.count()).group_by(Quote.status)).all()
-        )
+    def stats(self, *, scope: str, actor, nguoi: int | None = None) -> dict:
+        """Số đếm theo trạng thái cho thanh tab list — CÙNG phạm vi với bảng (trước 04/10/2026 đếm
+        cả bảng, người phạm vi `own` thấy số phiếu của người khác) + hộp lọc NV phụ trách."""
+        stmt = select(Quote.status, func.count()).group_by(Quote.status)
+        cond = self._scope_condition(scope=scope, actor=actor)
+        if cond is not None:
+            stmt = stmt.where(cond)
+        if nguoi is not None:
+            stmt = stmt.where(Quote.salesperson_id == nguoi)
+        by_status = dict(self.db.execute(stmt).all())
         get = lambda s: int(by_status.get(s, 0))  # noqa: E731
         return {
             "total": sum(int(v) for v in by_status.values()),
@@ -272,6 +276,18 @@ class QuotationRepository:
             "cancelled": get("cancelled"),
             "need_action": get("draft") + get("sent"),
         }
+
+    def dem_theo_nguoi(self, *, scope: str, actor) -> dict[int, int]:
+        """{salesperson_id: số báo giá} CHỈ trong tầm nhìn — nguồn hộp lọc NV phụ trách."""
+        stmt = (
+            select(Quote.salesperson_id, func.count())
+            .where(Quote.salesperson_id.is_not(None))
+            .group_by(Quote.salesperson_id)
+        )
+        cond = self._scope_condition(scope=scope, actor=actor)
+        if cond is not None:
+            stmt = stmt.where(cond)
+        return {int(uid): int(c) for uid, c in self.db.execute(stmt)}
 
     def create(self, quote: Quote) -> Quote:
         self.db.add(quote)

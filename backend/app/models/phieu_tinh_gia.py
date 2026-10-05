@@ -48,7 +48,18 @@ class PhieuTinhGia(Base):
 
     ktv: Mapped[str | None] = mapped_column(String(255), nullable=True)     # tên người tạo (hiển thị)
     created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → users.id: chủ sở hữu (lọc scope)
+    # Ghi chú NỘI BỘ của phiếu — báo giá lập từ phiếu hiện nó ở ô "Ghi chú nội bộ" (chỉ đọc), không in.
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # --- Khách hàng (chọn Ở PHIẾU từ 04/10/2026, mg 0363) ---
+    # Báo giá lập từ phiếu CHÉP bốn thứ này và KHÔNG sửa được ở báo giá; báo giá nháp tự theo khi
+    # phiếu đổi (`quotation_service.dong_bo_nhap_theo_phieu`). Cùng khuôn với `quotes` để chép thẳng.
+    customer_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)  # soft → customers.id
+    delivery_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    contact_name_snapshot: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    contact_phone_snapshot: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    contact_title_snapshot: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    contact_email_snapshot: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -187,15 +198,6 @@ class PhieuThanhPhan(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    # Vật tư in ấn thêm tay (mực/màng/keo…) → dòng NGUYÊN VẬT LIỆU (song song giấy). Mỗi dòng trỏ
-    # 1 mã vật tư (soft) + engine thế biến vào `cong_thuc_gia` của vật tư — HỆT giấy.
-    vat_tus: Mapped[list["PhieuVatTu"]] = relationship(
-        "PhieuVatTu",
-        back_populates="thanh_phan",
-        order_by="PhieuVatTu.thu_tu",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
     # CHI PHÍ KHÁC: cặp (tên tự gõ, số tiền) — khoản MỘT LẦN không gắn bước nào, số dòng tuỳ ý.
     # Khác `vat_tus` ở chỗ KHÔNG trỏ danh mục và KHÔNG có công thức: đây là chỗ hứng những khoản
     # chưa ai lường trước để lập danh mục (làm kẽm ngoài, phí thiết kế, tiền mẫu).
@@ -256,20 +258,13 @@ class PhieuThanhPham(Base):
     # là DỰ TRÙ, không nơi nào đọc. Ngày dự kiến bên kho khuôn (`khuon_be.ngay_ve_du_kien`) sau đó
     # cũng gỡ nốt (mg `0293`) — không còn mốc "bao giờ có dao" ở đâu trong hệ, chỉ còn tình trạng.
     khuon_nguon: Mapped[str | None] = mapped_column(String(10), nullable=True)  # co_san|lam_moi
-    # Kích thước/số lượng KHUÔN dùng ở CHÍNH bước này — CHỈ có nghĩa khi bước dùng công đoạn
-    # `tooling_type = "khuon_ep"` (nhãn màn hình "Khuôn ép kim"). BA Ô NÀY TÁCH BIỆT với `phi_khuon` ở
-    # trên: không dùng để tự tính phí, chỉ bơm vào công thức của công đoạn (chip `dai_khuon`/
-    # `rong_khuon`/`so_khuon`, xem `bien_cong_thuc.py`) để NGƯỜI DÙNG tự quy ra tiền theo công thức
-    # họ khai (vd đơn giá/cm² × dài × rộng × số khuôn). 0 = chưa khai, công thức không dùng thì bỏ
-    # qua.
-    #
-    # ĐỔI CHỦ 06/09/2026: trước đây ba ô này mở cho bước `khung_lua` và mang tên `*_khung_lua`.
-    # Sai nghề: khung lụa xưởng trả một cục theo cái khung (ô `phi_khuon` ở trên là đủ), còn khuôn
-    # ép nhũ / dập nổi mới là thứ nhà làm khuôn báo giá theo DIỆN TÍCH khắc — đúng chỗ cần dài ×
-    # rộng × số con. Hai cơ chế đảo chỗ cho nhau, tên cột đổi theo (migration `0268`).
-    dai_khuon: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
-    rong_khuon: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
-    so_khuon: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # 🔴 NGƯNG 01/10/2026 (mg `0359`): ba ô Dài/Rộng/Số khuôn của khuôn ÉP KIM + ba chip công thức
+    # `dai_khuon`/`rong_khuon`/`so_khuon` đã gỡ — API không còn nhận/trả, engine không còn bơm. Cột
+    # GIỮ nguyên (không drop) để tra dữ liệu cũ; `server_default` để insert không ghi chúng vẫn qua
+    # được ràng buộc NOT NULL.
+    dai_khuon: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0, server_default="0")
+    rong_khuon: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0, server_default="0")
+    so_khuon: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -277,6 +272,13 @@ class PhieuThanhPham(Base):
     )
 
     thanh_phan: Mapped["PhieuThanhPhan"] = relationship("PhieuThanhPhan", back_populates="thanh_phams")
+    # VẬT TƯ CỦA BƯỚC (spec 2026-10-01): chép từ công đoạn lúc thêm bước, thêm/xoá bớt được.
+    vat_tus: Mapped[list["PhieuBuocVatTu"]] = relationship(
+        "PhieuBuocVatTu", back_populates="buoc", order_by="PhieuBuocVatTu.thu_tu",
+        cascade="all, delete-orphan", passive_deletes=True,
+        # selectin: nạp vật tư của MỌI bước trong MỘT câu thay vì mỗi bước một câu lazy-load.
+        lazy="selectin",
+    )
 
 
 class SanPhamTaiBan(Base):
@@ -303,7 +305,10 @@ class SanPhamTaiBan(Base):
 
 
 class PhieuVatTu(Base):
-    """1 dòng VẬT TƯ IN ẤN (mực/màng/keo…) của 1 thành phần → NGUYÊN VẬT LIỆU.
+    """NGƯNG ĐỌC/GHI từ 01/10/2026 — thay bằng `PhieuBuocVatTu` (vật tư theo BƯỚC). Giữ bảng + class
+    (không drop, quy ước dự án; script seed cũ còn tạo trực tiếp).
+
+    1 dòng VẬT TƯ IN ẤN (mực/màng/keo…) của 1 thành phần → NGUYÊN VẬT LIỆU.
 
     Trỏ 1 mã `vat_tu_id` (soft → vat_tu_in_an.id). Engine kéo `cong_thuc_gia` + `don_gia` +
     `don_vi_gia` từ danh mục rồi thế biến vào — giống hệt Giấy. `don_gia` ở đây = ghi đè
@@ -328,7 +333,32 @@ class PhieuVatTu(Base):
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
-    thanh_phan: Mapped["PhieuThanhPhan"] = relationship("PhieuThanhPhan", back_populates="vat_tus")
+
+
+class PhieuBuocVatTu(Base):
+    """Một VẬT TƯ của một BƯỚC trong phiếu tính giá (spec 2026-10-01 Đ3).
+
+    Chép từ danh sách vật tư của công đoạn lúc thêm bước (ở frontend); người lập phiếu thêm/xoá
+    bớt được. Vắng dòng = đã xoá — KHÔNG tự mọc lại khi mở phiếu. `gia_tri_chip` = {mã chip: số}
+    cho các chip riêng của vật tư (xem `vat_tu_chip`); lệnh sản xuất chép nó xuống bước lệnh.
+    Không có đơn giá riêng: giá chỉ tính theo công thức của vật tư. Replace-all như mọi bảng con của
+    phiếu, nên id đổi mỗi lần lưu — không nơi nào được ghim `phieu_buoc_vat_tu.id`."""
+
+    __tablename__ = "phieu_buoc_vat_tu"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    thanh_pham_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("phieu_thanh_pham.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    vat_tu_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)  # → vat_tu_in_an.id (soft)
+    gia_tri_chip: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
+
+    buoc: Mapped["PhieuThanhPham"] = relationship("PhieuThanhPham", back_populates="vat_tus")
 
 
 class PhieuChiPhiKhac(Base):

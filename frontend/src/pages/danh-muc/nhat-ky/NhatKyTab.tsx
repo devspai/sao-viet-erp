@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../../auth/useAuth";
 import { ApiError } from "../../../api/client";
 import { nhatKyDanhMuc, type NhatKyItem } from "../../../api/rebuildCatalog";
+import { EmptyState } from "../../../components/EmptyState";
 import { NK_NHAN, formatNkLine, nhanThoiGian } from "./nhatKyNhan";
 
 function NhatKyChangeItem({ item }: { item: string }) {
@@ -40,7 +41,7 @@ export function NhatKyTab({ loai, id }: { loai: string; id: number }) {
   }, [token, loai, id]);
 
   if (loi) return <div className="banner banner--error">{loi}</div>;
-  if (rows === null) return <div className="rc-nk__empty">Đang tải nhật ký…</div>;
+  if (rows === null) return <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải nhật ký…" />;
   if (rows.length === 0) {
     return (
       <div className="rc-nk__empty">

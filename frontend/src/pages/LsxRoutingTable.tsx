@@ -321,8 +321,8 @@ export function LsxRoutingTable({
           // in ngay sau, tức đúng cảnh báo giả vừa sửa nhưng sống lại lúc người dùng đang sửa.
           tren_dong_giay: m.tren_dong_giay !== false,
           // Cờ DỤNG CỤ đi cùng công đoạn mới. Giữ cờ cũ là thẻ "Khuôn của bước" vẫn xưng loại của
-          // công đoạn CŨ và ô chọn lọc kho theo loại đó — đổi Bế sang bước cần khung lụa thì vẫn
-          // chỉ thấy dao bế. `khuon_be_id` PHẢI reset theo: con dao đang gán là của công đoạn cũ,
+          // công đoạn CŨ và ô chọn lọc kho theo loại đó — đổi sang bước khác thì vẫn
+          // chỉ thấy dao của bước cũ. `khuon_be_id` PHẢI reset theo: con dao đang gán là của công đoạn cũ,
           // giữ lại là bước mang dao sai loại xuống xưởng.
           requires_tooling: !!m.requires_tooling,
           tooling_type: m.tooling_type ?? null,

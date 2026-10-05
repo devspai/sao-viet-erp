@@ -22,6 +22,7 @@ import { RejectModal } from "./modals/RejectModal";
 import { useNapTenDonVi } from "../../tenDonVi";
 import { PAGE_SIZE } from "./shared/constants";
 import type { DepositFilter } from "./shared/types";
+import "../../master-data.css";
 import "../../accounting.css";
 import "../../purchase.css";
 

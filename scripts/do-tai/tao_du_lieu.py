@@ -196,6 +196,14 @@ def main() -> None:
             elif e.default_shift_id != ca.id or e.department_id != dept_id:
                 emps.update(e, default_shift_id=ca.id, department_id=dept_id)
             so_ql += int(la_ql)
+        # --- Máy cho kịch bản `anh` (quản lý lập phiếu sửa chữa rồi đính ảnh vào đó) ---------------
+        from app.models.may_thiet_bi import MayThietBi
+        if db.query(MayThietBi).filter(MayThietBi.ma == "MAY-DO-TAI").first() is None:
+            db.add(MayThietBi(ma="MAY-DO-TAI", ten="Máy đo tải", loai_may="other"))
+            db.commit()
+        may_id = db.query(MayThietBi.id).filter(MayThietBi.ma == "MAY-DO-TAI").scalar()
+        print(f"Máy đo tải: id={may_id} (do_tai.py --kich-ban anh --may-id {may_id})")
+
         print(f"Xong: {args.so_nguoi} tài khoản tai_* ({tao_moi} mới, {so_ql} quản lý), 4 tổ, "
               f"điểm chấm ({args.lat}, {args.lon}) r=5000m — {time.time() - t0:.1f}s")
     finally:

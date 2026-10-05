@@ -1235,11 +1235,10 @@ def test_vat_tu_cong_doan_bung_san_cho_luot_chung(
     created = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
     cd_in_id = sorted(lsx_svc.get(created[0].id).cong_doans, key=lambda c: c.thu_tu)[0].cong_doan_id
     keo = VatTuInAn(ma="KEO-CH", ten="Keo bước chung", don_vi_gia="kg", don_gia=45_000,
-                    active=True)
+                    active=True, cong_thuc_dinh_muc="sl_vao * 0.001")
     db.add(keo)
     db.flush()
-    db.add(CongDoanVatTu(cong_doan_id=cd_in_id, vat_tu_id=keo.id, thu_tu=0,
-                         cong_thuc_luong="sl_vao * 0.001"))
+    db.add(CongDoanVatTu(cong_doan_id=cd_in_id, vat_tu_id=keo.id, thu_tu=0))
     db.commit()
 
     bg = bg_svc.tao(lsx_ids=[l.id for l in created], actor=admin)
@@ -1450,7 +1449,7 @@ def test_so_do_chung_mang_bang_boc_tach_gio_va_goi_y_vat_tu(
     from app.schemas.bai_ghep import SoDoOut
 
     muc = VatTuInAn(ma="VT-MUC-GY", ten="Mực đen", don_vi_gia="kg", don_gia=180_000,
-                    active=True)
+                    active=True, cong_thuc_dinh_muc="sl_vao / 1000")
     db.add(muc)
     db.commit()
 
@@ -1458,8 +1457,7 @@ def test_so_do_chung_mang_bang_boc_tach_gio_va_goi_y_vat_tu(
     # Định mức treo ở DÒNG VẬT TƯ của công đoạn (tab Vật tư, mg `0316`), không ở món hàng — không
     # khai qua đường này thì `so_luong` về `None` và drawer mất nút "Dùng số này".
     cd_in_id = sorted(lsx_svc.get(created[0].id).cong_doans, key=lambda c: c.thu_tu)[0].cong_doan_id
-    db.add(CongDoanVatTu(cong_doan_id=cd_in_id, vat_tu_id=muc.id, thu_tu=0,
-                         cong_thuc_luong="sl_vao / 1000"))
+    db.add(CongDoanVatTu(cong_doan_id=cd_in_id, vat_tu_id=muc.id, thu_tu=0))
     db.commit()
 
     bg = bg_svc.tao(lsx_ids=[l.id for l in created], actor=admin)

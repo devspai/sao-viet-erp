@@ -57,7 +57,9 @@ def _so_lieu(db: Session, nhom_id: int) -> dict:
         "chua_kiem": max(tot - dat - loi, 0.0),
         "chua_gui_kho": chua_gui,
         "viec_do": [cv for cv in cvs if cv.trang_thai != CV_HOAN_THANH],
-        "don_vi": next((cv.don_vi_ra for cv in cuoi if cv.don_vi_ra), "") or "",
+        # ĐVT của LỆNH ("hộp") — cùng chữ màn Kế hoạch SX; `don_vi_ra` là MÃ chặng ("cai").
+        "don_vi": next((l.don_vi_tinh for l, _tv in repo.lenh_cua_nhom(nhom_id) if l.don_vi_tinh), "")
+        or next((cv.don_vi_ra for cv in cuoi if cv.don_vi_ra), "") or "",
     }
 
 
@@ -106,7 +108,10 @@ def tinh_trang_dong(db: Session, nhom_id: int) -> dict:
 def _chuyen(db: Session, *, user, nhom_id: int, expected_version: int | None, dong: bool) -> dict:
     gate_kcs(db, user)
     repo = SanXuatRepository(db)
-    nhom = _nhom(repo, nhom_id)
+    # Khoá dòng nhóm: hai KCS bấm cùng lúc, hay đóng chen mở lại, thì bên sau chờ rồi đọc trạng thái mới.
+    nhom = repo.nhom_khoa(nhom_id)
+    if nhom is None:
+        raise ValueError("Không tìm thấy nhóm thành phẩm.")
     if dong and nhom.trang_thai == NHOM_DONG:
         raise ValueError("Lệnh đã đóng rồi.")
     if not dong and nhom.trang_thai != NHOM_DONG:
@@ -154,7 +159,8 @@ def nhom_da_dong(db: Session, cv) -> bool:
     nhóm của các lệnh thành viên đã đóng — cùng luật với `SanXuatRepository.viec_con_hien`."""
     repo = SanXuatRepository(db)
     if cv.nhom_id is not None:
-        n = repo.nhom(cv.nhom_id)
+        # FOR SHARE: cửa ghi xưởng không chặn nhau, nhưng không lọt qua khi lệnh đóng chưa commit.
+        n = repo.nhom_khoa(cv.nhom_id, chia_se=True)
         return n is not None and n.trang_thai == NHOM_DONG
     if cv.bai_ghep_id is None:
         return False

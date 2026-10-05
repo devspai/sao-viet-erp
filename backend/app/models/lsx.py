@@ -172,6 +172,11 @@ class Lsx(Base):
     trang_thai: Mapped[str] = mapped_column(String(20), nullable=False, default=TT_NHAP)
     nguoi_phu_trach_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)  # → users.id
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # TỔ CẮT CHỐT GIẤY sau phát hành (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt
+    # đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt (bước mang giấy chờ, §4.7).
+    giay_chot_cach: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    giay_chot_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    giay_chot_boi_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → users.id (mềm)
 
     created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -258,6 +263,10 @@ class LsxCongDoan(Base):
     )
     bat_buoc: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_true(), default=True
+    )
+    # Bước do TỔ CẮT chèn đầu tuyến sau phát hành (mg 0356) — gỡ chốt xoá đúng các bước này.
+    chen_boi_to_cat: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
     )
 
     # --- Số lượng & hao hụt ---
@@ -381,6 +390,10 @@ class LsxCongDoanVatTu(Base):
     vat_tu_ten_snapshot: Mapped[str] = mapped_column(String(150), nullable=False)
     don_vi_snapshot: Mapped[str] = mapped_column(String(16), nullable=False)
     so_luong: Mapped[float] = mapped_column(Numeric(14, 3), nullable=False)
+    # Khổ dòng GIẤY (mm, cạnh ngắn × cạnh dài) — giấy đếm tờ nguyên theo khổ, không công thức (spec
+    # 2026-10-01-giay-dem-to-theo-kho §4.2). Hàng khác: 0 · 0. mg 0351.
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # MÁY BUNG hay NGƯỜI KHAI (mg 0191). True = dòng máy tự thêm khi chọn công việc khoán ⇒ lần bung
     # sau được thay bộ mới. False = người tự thêm, hoặc đã sửa số lượng ⇒ máy CHỪA RA, không ghi đè.
@@ -388,6 +401,19 @@ class LsxCongDoanVatTu(Base):
     tu_dong: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
+    # CHIP của dòng này (spec 2026-10-01 Đ5): {mã chip: số}, CHÉP từ phiếu tính giá lúc tạo lệnh —
+    # không tra ngược phiếu lúc chạy, để phiếu sửa sau không làm đổi lệnh đã lập. Dùng để tính
+    # `so_luong` bằng `vat_tu_in_an.cong_thuc_dinh_muc` mỗi lần bung/bung lại. mg 0358.
+    gia_tri_chip: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # ĐỊNH MỨC GÕ TAY (03/10/2026, mg 0362): người lập lệnh sửa số của dòng vật tư khác ⇒ máy KHÔNG
+    # tính lại bằng công thức định mức nữa, giữ đúng số người gõ. `tu_dong` không thay được cờ này:
+    # nó chỉ nói dòng do ai THÊM, dòng người tự thêm vẫn để máy tính số.
+    sua_tay: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
+    )
+    # DẠNG của dòng GIẤY: `"to"` (đếm tờ theo khổ) / `"cuon"` (đếm theo khối lượng) — do máy chủ ghi
+    # theo ĐẦU VÀO của bước (spec 2026-10-01 dong-giay-theo-dau-vao §4), không ai gõ. Hàng khác NULL. mg 0360.
+    dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)
     buoc: Mapped["LsxCongDoan"] = relationship("LsxCongDoan", back_populates="vat_tus")
 
 

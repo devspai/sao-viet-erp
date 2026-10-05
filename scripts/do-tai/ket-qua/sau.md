@@ -239,3 +239,93 @@ thân `{"detail":"Máy chủ đang khởi động lại hoặc quá tải, vui l
 - Chưa thử nhánh hỏng (`.loi`: chuẩn bị schema lỗi thì worker tự dừng). Lượt này không gây lỗi migration.
 
 Tệp: `lan-chay/20260928-221505-reconnect-100-cm.md`. Log thô nằm trong scratch của phiên, không commit.
+
+
+## Tải ảnh lên/xuống — `anh`, 200 người (30/09/2026)
+
+Sửa: `/api/files` chỉ kiểm quyền rồi trả `X-Accel-Redirect` — nginx kéo byte thẳng từ MinIO bằng đường dẫn
+đã ký 60s (`KHO_TEP_QUA_NGINX`, mặc định bật trong compose); uvicorn nới hạn ping worker 5s → 30s
+(`WORKER_PING_GIAY`); nginx đổi 429 của MinIO thành 503 JSON + Retry-After.
+
+| `--users 200 --kich-ban anh --client-moi-nguoi --seed 1` | Trước (29/09) | Sau (30/09) |
+|---|---:|---:|
+| Request / lỗi | 4776 / 37,8% | 5910 / **24,6%** |
+| p50 / p95 chung | 32,6s / 102,9s | **20,9s / 68,2s** |
+| 503 | 716 | 435 |
+| `GET /api/files` lần đầu: n / p50 | 1566 / 54,1s | 2522 / **30,6s** |
+| Tải về | 513 MB (3,4 MB/s) | 812 MB (5,4 MB/s) |
+| RAM đỉnh backend / minio | 634 / 302 MiB | 522 / 306 MiB |
+
+404×143 của lượt sau đều là ảnh đại diện CŨ (người khác vừa thay) — đúng hành vi. Cả hai lượt máy phát
+tải đều ở 97% CPU host ⇒ con số tuyệt đối bị máy phát tải chặn trần; chỉ nên đọc chiều so sánh.
+
+Đo riêng (bộ phát tải trong mạng Docker, 400 lượt ảnh 2MB):
+- CPU backend cho mỗi lượt `/api/files`: ~14ms (≈ `/api/health` 11ms) — Python không còn bơm byte.
+- Đường cũ ở 100 lượt đồng thời: 503 lặp lại được (luồng bơm giữ chỗ ở cổng đồng thời). Đường mới từ host:
+  400/400 thành công ở cả 40 và 100 lượt đồng thời.
+- Worker bị uvicorn giết vì trả ping chậm hơn 5s lúc máy bão hoà ⇒ sập dây chuyền; sau khi nới 30s: 0 worker chết.
+
+**Giới hạn của máy đo (không phải lỗi code):** VM Docker Desktop chỉ 2GB RAM, chạy 11 container của 3 dự
+án, swap 931/1024MB. Ở 100 lượt tải đồng thời, MinIO lên ~450MB RSS và bị OOM killer của VM giết
+(`dmesg`: `Out of memory: Killed process (minio)`); trước đó swap làm MinIO ghi-đọc thử quá 30s và tự ngắt
+ổ /data, DNS nội bộ Docker quá giờ. MinIO tự giới hạn 67 request đồng thời trên máy 2GB (`x-ratelimit-limit`).
+⇒ Trên VPS: dành cho MinIO ≥ 512MB khi nhiều người cùng mở màn nhiều ảnh.
+
+Kiểm UI thật (stack đo tải, `tai_020`): Sửa chữa máy → SC-0075 → bấm vùng "Kéo & thả ảnh…" của Ảnh hiện trạng
+hỏng → chọn `anh_thu_ui.jpg` (15.428 byte) → POST 201, thẻ đổi "1 ảnh", ảnh hiện; `GET /api/files/...` 200
+đúng 15.428 byte, log nginx có hai upstream (backend 0,032s rồi MinIO 0,004s) ⇒ đi đường X-Accel; "Xem phóng to" hiện ảnh đúng.
+
+### Gửi ảnh lên — đo riêng (30/09/2026, chiều)
+
+Giao diện đã tự nén MỌI ảnh trước khi gửi (`lib/anhNen.ts`, gọi trong `api/client.ts` và màn Sửa chữa máy):
+cạnh dài 1600px, ~400KB. Ảnh gốc 4–8MB chỉ lọt qua khi nén hỏng (HEIC trình duyệt không giải mã được).
+
+| Tải gửi (tài khoản quản lý, `POST /api/ky-thuat-may/sua_chua/{id}/anh`) | Kết quả |
+|---|---|
+| 8MB, 1 lượt một lúc | 10/10 thành công, p50 0,40s · CPU backend 220ms/lượt, MinIO 104ms |
+| 8MB, 30 lượt đồng thời (từ host) | 60/60 thành công, p50 8–11s · CPU backend ~500ms/lượt |
+| 400KB (ảnh đã nén), 1 lượt | 20/20, p50 0,07s · CPU backend 34ms/lượt (`/api/health` 11ms) |
+| 400KB, 50 đồng thời (trong mạng Docker) | 274/300 thành công, 26×503 "máy chủ đang bận" sau 30s xếp hàng ở cổng |
+
+- Người dùng khác KHÔNG bị kéo theo: trong lúc 30 lượt gửi 8MB chạy, `/api/auth/permissions` p50 24ms,
+  p95 155ms (rảnh: 37ms / 131ms).
+- CPU một lượt gửi 8MB: tách multipart ~50–70ms (khúc 64KB), `put_object` sang MinIO ~80ms (băm SHA-256 thân
+  tệp: botocore luôn ký payload khi nối MinIO qua http). Tách multipart chạy trên event loop, nhưng đo
+  `/api/health` lúc tải chỉ tăng p95 36 → 58ms.
+- 50 đồng thời bị 503 vì stack đo chỉ có 2 worker (container 980MB RAM ⇒ trần theo RAM), mỗi worker ~1
+  lõi (GIL): ~14 lượt gửi/giây là trần. Đây là trần CHUNG của backend, không riêng đường ảnh.
+- 50/54 "ảnh gốc" `dang_cho` trong lượt 200 người: 20 quản lý × 3 ảnh ~6MB ≈ 360MB gửi lên + 812MB tải về
+  đi chung đường chuyển cổng Windows → Docker Desktop (~8–9 MB/s đo riêng) trong 150s — nghẽn ở máy đo.
+
+⇒ Không đổi code đường gửi: chuyển sang trình duyệt gửi thẳng MinIO (presigned) chỉ bớt ~20ms/ảnh đã nén
+mà phải sửa mọi màn tải tệp + dọn tệp mồ côi. Sức chứa thật phụ thuộc số worker = CPU/RAM của VPS.
+
+## Đo lại sau đợt 30/09 (chiều) — 200/400 người, `--client-moi-nguoi --seed 1`
+
+Stack dựng từ 0bea5b25 (4 việc sáng 30/09 + cân đối vật tư + danh sách Lệnh SX). Cùng máy, cùng VM Docker
+2 GB, 2 worker. Lượt đầu lộ ra hai lỗi MỚI (sinh sau lượt đo 28/09), vá ngay trong chiều rồi đo lại bằng
+cách chép tệp vào container + thay worker (Docker Desktop treo lệnh tạo container, không build lại được).
+
+| Lượt | 28/09 (sau.md) | 30/09 lần 1 | 30/09 sau vá |
+|---|---|---|---|
+| daudca 200 | 55 req/s · 0% · p95 0,54s | 54 req/s · 0% · p95 1,1s | — |
+| daudca 400 | 84 req/s · 0% · p95 9,9s | 63 req/s · 0% · p95 26s | — |
+| bando 200 | 85 req/s · 0,4% · p50 5,3s | **32 req/s · 9,1% · p50 22,6s** | **58 req/s · 1,1% · p50 8,9s** |
+| bando 400 | 86 req/s · 6,1% | 36 req/s · 24,4% | — |
+| anh 200 (byte ngẫu nhiên, ảnh gốc) | sáng 30/09: 5910 req · 24,6% · p50 20,9s | 3876 req · 13,7% (worker chết) | 6555 req · **8,4%** · p50 20,9s |
+| anh 200 JPEG thật, xem ảnh gốc | — | 3683 req · 25,4% | — |
+| anh 200 JPEG thật, xem `?w=320` | — | 5271 req · 24,8% · 2 worker OOM | 6837 req · 19,6% · 1 worker OOM |
+
+Lỗi 1 — chấm đỏ thanh bên (`/api/module-notifications/summary`, gộp 29/09): hỏi quyền 15 kênh, mỗi kênh một
+câu `SELECT role_permissions`. py-spy giữa ca: endpoint nặng nhất (12,8% mẫu), `rbac_repo.get_permission`
+13,7%. Vá ab431df5: `AuthorizationService.nap_ca_ma_tran()` nạp cả ma trận một câu.
+
+Lỗi 2 — ảnh thu nhỏ (b968c88f): lưới ảnh mới gửi ⇒ cả chục luồng mỗi worker cùng đọc trọn ảnh gốc 4–8 MB để
+sinh CÙNG một ảnh nhỏ ⇒ worker bị OOM giết (`memory.events oom_kill`), 60–80s mới dựng lại. Vá 0084de0c:
+mỗi ảnh chỉ sinh một lần, tối đa 2 lượt sinh/worker, chờ quá 10s thì trả ảnh gốc qua nginx.
+
+Còn lại là trần MÁY ĐO: VM 2 GB chạy 11 container (3 dự án), swap cạn (SwapFree 17 MB) ⇒ vẫn một lần OOM ở
+lượt `?w=320`; CPU host 86–98% nên độ trễ tuyệt đối bị máy phát tải thổi phồng. 4 lần worker chết ở lượt
+đầu không phải OOM (`oom_kill` = 0 lúc đó) — trùng lúc host 98%, nghi ping 30s quá hạn khi VM bị bỏ đói CPU.
+Lượt daudca 400 chậm hơn 28/09 (63 so với 84 req/s) CHƯA đo lại sau vá — chùm badge nay dài hơn (chấm đỏ).
+

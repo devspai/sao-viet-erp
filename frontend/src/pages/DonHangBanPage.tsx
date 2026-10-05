@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Icon, type IconName } from "../components/Icons";
 import { DetailModal } from "../components/DetailModal";
+import { EmptyRow, EmptyState } from "../components/EmptyState";
+import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { BangCum, BuocGiaoHang, CanhBaoTre, ThanhNho, tomTatTienDo, useTienDoDon } from "./giao-hang/tien-do-don";
@@ -34,13 +36,6 @@ function fmtDate(s: string | null): string {
   if (!s) return "—";
   const d = new Date(s);
   return d.toLocaleDateString("vi-VN");
-}
-// VND rút gọn cho KPI (tránh số dài): ≥1 tỷ → "₫x,xx tỷ", ≥1 triệu → "₫x,x tr", còn lại đầy đủ.
-function vndShort(v: number | null | undefined): string {
-  if (v == null) return "—";
-  if (v >= 1_000_000_000) return "₫" + (v / 1_000_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " tỷ";
-  if (v >= 1_000_000) return "₫" + (v / 1_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 1 }) + " tr";
-  return vnd(v);
 }
 
 // V5: hình thức thu của Phiếu thu Kế toán (PAYMENT_VOUCHER_TYPES).
@@ -103,11 +98,39 @@ function RowFlags({ o }: { o: OrderRow }) {
   return (
     <span className="dhb__flags">
       {o.is_rush && <Chip icon="bell" label="GẤP" tone="rush" />}
-      {/* "Chờ duyệt" + "Gia công" đã bỏ cùng luồng duyệt và trường Bản chất đơn.
-          "Không giá vốn" GIỮ: đơn nhập tay CŨ (cost_basis='none') vẫn còn trong DB. */}
-      {o.cost_basis === "none" && <Chip icon="help" label="Không giá vốn" tone="muted" />}
+      {/* "Chờ duyệt" + "Gia công" đã bỏ cùng luồng duyệt và trường Bản chất đơn; chip "Không giá
+          vốn" (đơn nhập tay cũ, cost_basis='none') ẩn 04/10/2026 — gần như dòng nào cũng có, nhiễu. */}
     </span>
   );
+}
+
+// Ngày giao còn bao xa — chỉ cho đơn ĐÃ CHỐT. Chỉ nói "còn N ngày"/"hôm nay"; KHÔNG kết luận
+// "trễ" vì danh sách chưa biết đơn đã giao hay chưa.
+function HanGiao({ o }: { o: OrderRow }) {
+  if (o.status !== "ordered" || !o.delivery_committed_date) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(o.delivery_committed_date);
+  d.setHours(0, 0, 0, 0);
+  const days = Math.round((d.getTime() - today.getTime()) / 86_400_000);
+  if (days < 0) return null;
+  return (
+    <div className={`dhb__row-sub${days <= 3 ? " dhb__row-sub--warn" : ""}`}>
+      {days === 0 ? "hôm nay" : `còn ${days} ngày`}
+    </div>
+  );
+}
+
+// Đơn đã chốt: Sale đã bấm "Chuyển xuống SX" chưa — chưa chuyển là đơn còn nằm ở Kinh doanh.
+function SanXuatCell({ o }: { o: OrderRow }) {
+  if (o.status !== "ordered") return <span className="dhb__sx">—</span>;
+  if (o.san_xuat_released_at)
+    return (
+      <span className="dhb__sx dhb__sx--on">
+        Đã chuyển <span className="dhb__mono">{fmtDate(o.san_xuat_released_at)}</span>
+      </span>
+    );
+  return <span className="dhb__sx">Chờ đủ cọc</span>;
 }
 
 interface Props {
@@ -133,6 +156,8 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
 
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
+  // Hộp lọc NV phụ trách — null = tất cả người trong tầm nhìn.
+  const [nguoi, setNguoi] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -152,7 +177,7 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
     if (t.clientFilter) {
       api.orders
         .list(token, {
-          q: q || undefined, status: t.status,
+          q: q || undefined, status: t.status, nguoi,
           sort: "-created_at", page: 1, size: CLIENT_FILTER_WINDOW,
         })
         .then((r) => {
@@ -165,7 +190,7 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
     } else {
       api.orders
         .list(token, {
-          q: q || undefined, status: t.status,
+          q: q || undefined, status: t.status, nguoi,
           sort: "-created_at", page, size: PAGE_SIZE,
         })
         .then((r) => {
@@ -175,8 +200,8 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
         .catch((e) => setErr(String(e?.message ?? e)))
         .finally(() => setLoading(false));
     }
-    api.orders.stats(token).then(setStats).catch(() => {});
-  }, [token, q, tab, page]);
+    api.orders.stats(token, undefined, nguoi).then(setStats).catch(() => {});
+  }, [token, q, tab, page, nguoi]);
 
   useEffect(() => {
     load();
@@ -184,7 +209,7 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
 
   useEffect(() => {
     setPage(1);
-  }, [tab, q]);
+  }, [tab, q, nguoi]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -210,7 +235,6 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
             api.orders.create). Giữ nút ở đây là cửa thứ hai làm cùng một việc. */}
       </header>
 
-      {stats && <KpiStrip stats={stats} />}
 
       {/* Tabs + tìm */}
       <div className="dhb__toolbar">
@@ -229,11 +253,12 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
           ))}
         </div>
         <div className="dhb__spacer" />
+        <LocNguoiPhuTrach nap={api.orders.nguoiPhuTrach} value={nguoi} onChange={setNguoi} donVi="đơn" />
         <div className="dhb__search-wrapper">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm mã / khách / PO…"
+            placeholder="Tìm mã / khách / PO / hàng…"
             className="dhb__search-input"
           />
           <span className="dhb__search-icon">
@@ -250,26 +275,22 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
           <thead>
             <tr>
               <th>Mã đơn</th>
-              <th>Khách hàng</th>
-              <th>Nguồn</th>
+              <th>Khách hàng · hàng</th>
+              <th>PO khách</th>
               <th className="dhb__text-right">Giá trị</th>
               <th>Cọc</th>
+              <th>Ngày chốt</th>
               <th>Ngày giao</th>
+              <th>Sản xuất</th>
               <th>NV</th>
               <th>Trạng thái</th>
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={8} className="text-center" style={{ padding: 24, color: "var(--ash)" }}>
-                  Đang tải…
-                </td>
-              </tr>
-            )}
+            {loading && <EmptyRow colSpan={10} trangThai="dang-tai" />}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-center" style={{ padding: 24, color: "var(--ash)" }}>
+                <td colSpan={10} className="text-center" style={{ padding: 24, color: "var(--ash)" }}>
                   Chưa có đơn hàng.
                 </td>
               </tr>
@@ -287,19 +308,28 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
                       <RowFlags o={o} />
                     </div>
                   </td>
-                  <td>{o.customer_name ?? "—"}</td>
                   <td>
-                    {o.source_type === "bao_gia" ? (
-                      <span className="dhb__order-source-bg">{o.quotation_code ?? "—"}</span>
-                    ) : (
-                      <span className="dhb__order-source-manual">Nhập tay</span>
+                    <div>{o.customer_name ?? "—"}</div>
+                    {o.first_line_desc && (
+                      <div className="dhb__row-sub" title={o.first_line_desc}>
+                        {o.first_line_desc}
+                        {o.line_count > 1 && <span className="dhb__row-more"> +{o.line_count - 1} món</span>}
+                      </div>
                     )}
                   </td>
+                  <td className="dhb__mono">{o.customer_po_no ?? "—"}</td>
                   <td className="dhb__val">{vnd(o.total_with_vat)}</td>
                   <td>
                     <DepositBar o={o} />
                   </td>
-                  <td className="dhb__mono">{fmtDate(o.delivery_committed_date)}</td>
+                  <td className="dhb__mono">{fmtDate(o.ordered_at)}</td>
+                  <td>
+                    <div className="dhb__mono">{fmtDate(o.delivery_committed_date)}</div>
+                    <HanGiao o={o} />
+                  </td>
+                  <td>
+                    <SanXuatCell o={o} />
+                  </td>
                   <td>{o.sale_name ?? "—"}</td>
                   <td>
                     <StatusBadge status={o.status} />
@@ -353,32 +383,6 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
         />
       )}
     </main>
-  );
-}
-
-// KPI đầu list — tóm tắt tiền/đếm rule-based từ `stats` (aggregate backend, chính xác toàn hệ).
-function KpiStrip({ stats }: { stats: OrderStatsOut }) {
-  return (
-    <div className="dhb__kpis">
-      <div className="dhb__kpi">
-        <div className="dhb__kpi-l"><Icon name="fileText" size={13} /> Tổng đơn</div>
-        <div className="dhb__kpi-n">{stats.all}</div>
-        <div className="dhb__kpi-s">{stats.ordered} đã chốt</div>
-      </div>
-      <div className="dhb__kpi">
-        <div className="dhb__kpi-l"><Icon name="clock" size={13} /> Chờ cọc</div>
-        <div className="dhb__kpi-n">{stats.awaiting_deposit}<span className="dhb__kpi-u"> đơn</span></div>
-        <div className="dhb__kpi-s" style={{ color: stats.deposit_shortfall > 0 ? "var(--amber-deep)" : undefined }}>
-          cần thu {vndShort(stats.deposit_shortfall)}
-        </div>
-      </div>
-      <div className="dhb__kpi">
-        <div className="dhb__kpi-l"><Icon name="check" size={13} /> Giá trị đã chốt</div>
-        <div className="dhb__kpi-n" style={{ fontFamily: "var(--ff-sans)", fontSize: 15, fontVariantNumeric: "tabular-nums" }}>{vndShort(stats.ordered_value)}</div>
-        <div className="dhb__kpi-s">{stats.ordered} đơn</div>
-      </div>
-      {/* Thẻ "Chờ duyệt · đơn đặc thù" đã bỏ cùng luồng duyệt — nó chỉ đếm đơn nhập tay. */}
-    </div>
   );
 }
 
@@ -876,13 +880,9 @@ function OrderDrawer({
                       ) : order.status !== "ordered" ? (
                         <p style={{ color: "var(--ash)", fontSize: 12, margin: 0 }}>Đơn phải chốt trước mới chuyển xuống sản xuất được.</p>
                       ) : !sxReleased ? (
-                        order.deposit_ok ? (
-                          <ReleaseSXButton order={order} canUpdate={canUpdate} onSaved={onSaved} />
-                        ) : (
-                          <p style={{ color: "var(--amber-deep)", fontSize: 12, margin: 0 }}>
-                            Chờ kế toán thu đủ cọc (bước “Cọc”) — đủ cọc rồi mới bật nút “Chuyển xuống sản xuất”.
-                          </p>
-                        )
+                        <p style={{ color: "var(--amber-deep)", fontSize: 12, margin: 0 }}>
+                          Chờ kế toán thu đủ cọc (bước “Cọc”) — đủ cọc là đơn tự xuống hàng chờ Kế hoạch sản xuất.
+                        </p>
                       ) : (
                         <div style={{ display: "grid", gap: 4 }}>
                           <KV k="Trạng thái" v={sxLenhText} />
@@ -1220,7 +1220,7 @@ function InvoicePanel({
 
       {error && <div className="banner banner--error" role="alert">{error}</div>}
       {formError && <div className="banner banner--error" role="alert">{formError}</div>}
-      {loading && !book && <p className="dhb__lifecycle-desc">Đang tải sổ hóa đơn...</p>}
+      {loading && !book && <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải sổ hóa đơn…" />}
 
       {book && (
         <>
@@ -1487,34 +1487,6 @@ function ProductionHintEditor({ order, onSaved }: { order: OrderDetail; onSaved:
         </p>
       ) : null}
     </Section>
-  );
-}
-
-// Handoff: Sale "Chuyển xuống sản xuất" — đơn đã chốt (đủ cọc) → vào hàng chờ Kế hoạch (người quyết).
-function ReleaseSXButton({ order, canUpdate, onSaved }: { order: OrderDetail; canUpdate: boolean; onSaved: (d: OrderDetail) => void }) {
-  const { token } = useAuth();
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  async function go() {
-    if (!token) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      onSaved(await api.orders.releaseProduction(token, order.id));
-    } catch (e: unknown) {
-      setErr(e instanceof ApiError ? e.message : String((e as Error)?.message ?? e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div style={{ display: "grid", gap: 6 }}>
-      <p style={{ color: "var(--ash)", fontSize: 12, margin: 0 }}>Đơn đã chốt &amp; đủ cọc — đẩy vào hàng chờ Kế hoạch sản xuất.</p>
-      {err && <div className="banner banner--error">{err}</div>}
-      <button className="btn btn--primary" onClick={go} disabled={busy || !canUpdate} style={{ justifySelf: "start" }}>
-        {busy ? "Đang chuyển…" : "Chuyển xuống sản xuất →"}
-      </button>
-    </div>
   );
 }
 

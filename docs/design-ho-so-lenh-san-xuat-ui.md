@@ -299,7 +299,7 @@ một chuyện.
 
 ### 6.7. Bấm vào hàng
 
-Cả hàng bấm được bằng **chuột** (`onClick` trên `<tr>`, hover đổi nền `--rust-soft`). Nhưng
+Cả hàng bấm được bằng **chuột** (`onClick` trên `<tr>`, hover đổi nền `--rule-hair`). Nhưng
 **KHÔNG** gán `role="button"` lên `<tr>` — gán vai nút cho hàng là xoá luôn vai `row` của nó, trình
 đọc màn hình mất cấu trúc bảng (không còn đọc được "cột Trạng thái: …"). Đường bàn phím đi qua nút
 mũi tên ở cột 8 (§6.8). Bài học này đã trả giá một lần ở `CatalogListPage.tsx:415-420`.
@@ -573,7 +573,7 @@ spacing lấy từ `ke-hoach-sx.css`.
 | Chữ chính / mờ / rất mờ | `--ink` / `--ash` / `--ash-2` |
 | Đường kẻ | `--rule` / `--rule-soft` / `--rule-hair` |
 | Tab đang chọn | `--charcoal` nền, `--on-charcoal` chữ |
-| Chip GẤP · focus ring · hover hàng | `--rust` / `--rust-deep` / `--rust-soft` |
+| Chip GẤP · focus ring | `--rust` / `--rust-deep` / `--rust-soft` (hover hàng: `--rule-hair`) |
 | Trạng thái | `--steel` · `--signal` · `--plum` · `--amber` · `--moss` (+ `-soft`) |
 | Chữ và số (tên SP, khách, công đoạn, mã, số lượng, %, giờ, ngày) | `--ff-sans` |
 | Cỡ chữ / giãn cách / bo góc | `--fs-*` · `--sp-*` (thang 4px) · `--r-2`/`--r-3`/`--r-5`, pill `--r-pill` |

@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Iterator, Protocol, runtime_checkable
@@ -34,7 +35,10 @@ LOCAL_ROOT = Path(__file__).resolve().parents[1] / "static"
 URL_PREFIX = "/api/files"
 
 _MAX_NAME_LEN = 180
-_CHUNK = 64 * 1024
+# Mỗi khúc là MỘT lượt nhảy sang threadpool (StreamingResponse với iterator đồng bộ): 64KB thì ảnh 8MB
+# là 128 lượt, đo 29/09/2026 ăn 3,5 lõi cho 3,4 MB/s. Đường chính giờ là nginx kéo thẳng MinIO
+# (`duong_ky_san`); khúc to chỉ để đường dự phòng (dev, không nginx) bớt phí.
+_CHUNK = 1024 * 1024
 
 
 log = logging.getLogger(__name__)
@@ -136,6 +140,14 @@ class Storage(Protocol):
         """Best-effort — không có thì thôi, KHÔNG raise (xoá row mới là việc chính)."""
         ...
 
+    def ton_tai(self, key: str) -> bool:
+        """Có object mang khoá này không. Lỗi hạ tầng (MinIO sập) thì RAISE — không nói "không có"."""
+        ...
+
+    def liet_ke(self) -> Iterator[tuple[str, datetime]]:
+        """Mọi object: `(khoá, lúc ghi — UTC aware)`. Dùng cho dọn tệp mồ côi."""
+        ...
+
 
 class LocalStorage:
     """Ghi thẳng xuống đĩa. Dùng cho pytest + máy dev không chạy Docker."""
@@ -164,6 +176,15 @@ class LocalStorage:
 
         # Đĩa không giữ content-type — router tự đoán theo đuôi file.
         return LuongTep(gen()), path.stat().st_size, None
+
+    def ton_tai(self, key: str) -> bool:
+        return self._path(key).is_file()
+
+    def liet_ke(self) -> Iterator[tuple[str, datetime]]:
+        for p in self.root.rglob("*"):
+            if p.is_file():
+                yield (p.relative_to(self.root).as_posix(),
+                       datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc))
 
     def delete(self, key: str) -> None:
         try:
@@ -240,6 +261,42 @@ class MinioStorage:
             obj.get("ContentLength"),
             obj.get("ContentType"),
         )
+
+    def duong_ky_san(self, key: str, *, kieu: str, trinh_bay: str, giay: int = 60) -> str:
+        """Đường dẫn GET đã ký (path + query, KHÔNG kèm host) để nginx tự kéo tệp từ MinIO.
+
+        Ký tại chỗ bằng khoá bí mật — không có lượt gọi mạng nào. `kieu`/`trinh_bay` đi vào chữ ký
+        (`response-content-type`/`-disposition`) nên MinIO trả ĐÚNG hai header router đã chốt, bất
+        kể lúc tải lên người gửi khai content-type gì. Host ký là host của `endpoint` — nginx phải
+        gửi đúng `Host` đó (xem `location /_kho_tep/`)."""
+        from urllib.parse import urlsplit
+
+        url = self._client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": self.bucket, "Key": key,
+                "ResponseContentType": kieu, "ResponseContentDisposition": trinh_bay,
+            },
+            ExpiresIn=giay,
+        )
+        p = urlsplit(url)
+        return f"{p.path}?{p.query}"
+
+    def ton_tai(self, key: str) -> bool:
+        from botocore.exceptions import ClientError
+
+        try:
+            self._client.head_object(Bucket=self.bucket, Key=key)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code", "") in ("NoSuchKey", "404", "NotFound"):
+                return False
+            raise
+        return True
+
+    def liet_ke(self) -> Iterator[tuple[str, datetime]]:
+        for trang in self._client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket):
+            for o in trang.get("Contents", []):
+                yield o["Key"], o["LastModified"]
 
     def delete(self, key: str) -> None:
         # Nuốt MỌI lỗi, không chỉ ClientError: MinIO sập/timeout ném EndpointConnectionError,

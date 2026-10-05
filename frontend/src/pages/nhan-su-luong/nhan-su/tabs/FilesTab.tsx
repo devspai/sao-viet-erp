@@ -1,41 +1,33 @@
 // Tab Đính kèm của hồ sơ nhân sự (tách từ pages/NhanSuPage.tsx).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { api, assetUrl, type EmployeeAttachment } from "../../../../api/client";
 import { EmptyState } from "../../../../components/EmptyState";
 import { fmtDate } from "../../../../utils/format";
 import { Eye, Trash2 } from "lucide-react";
 import { DOC_KIND_LABEL } from "../shared/constants";
-import { errMsg, getFileTypeInfo } from "../shared/helpers";
+import { getFileTypeInfo } from "../shared/helpers";
+import { useNapGiuQuaTab, type BoNhoTab } from "../shared/useNapGiuQuaTab";
 import { FilePicker } from "../components/form-fields";
 
 export function FilesTab({
   token,
   employeeId,
   canUpdate,
+  boNho,
 }: {
   token: string;
   employeeId: number;
   canUpdate: boolean;
+  /** Bộ nhớ của khay — quay lại tab thì hiện ngay, không tải lại (xem `useNapGiuQuaTab`). */
+  boNho: BoNhoTab;
 }) {
-  const [items, setItems] = useState<EmployeeAttachment[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const [loi, setLoi] = useState<string | null>(null);
   const [activeKind, setActiveKind] = useState<string>("all");
 
-  const load = useCallback(() => {
-    setLoi(null);
-    api.employees
-      .attachments(token, employeeId)
-      .then((r) => setItems(r.items))
-      .catch((e) => {
-        setItems([]);
-        setLoi(errMsg(e));
-      });
-  }, [token, employeeId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Thêm / xoá tệp gọi `load()` — tải lại VÀ ghi đè bộ nhớ của khay.
+  const { data: items, loi, napLai: load } = useNapGiuQuaTab<EmployeeAttachment[]>(
+    boNho, "files", () => api.employees.attachments(token, employeeId).then((r) => r.items),
+  );
 
   const counts = useMemo(() => {
     if (!items) return {};

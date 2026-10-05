@@ -1,0 +1,117 @@
+/* Chân bảng phân trang đầy đủ (`PhanTrangDayDu`) — khuôn dời nguyên từ màn Nhật ký (05/10/2026,
+   trước đó là `.act-footer*` trong `pages/activity.css`). Dùng chung: Nhật ký · 9 màn danh mục. */
+.ptdd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  font-size: 12px;
+  color: var(--ash-2);
+  flex-wrap: wrap;
+}
+
+.ptdd__nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ptdd__size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ptdd__size select {
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 12px;
+}
+
+.ptdd__btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ptdd__mui {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ptdd__mui:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: var(--ash-2);
+}
+
+.ptdd__mui:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Ô số trang. Cùng khung 28px với hai nút mũi tên để cả dãy nằm trên một đường cơ sở; chữ số
+   dùng `tabular-nums` nên bề ngang không nhảy khi đổi từ 9 sang 10. */
+.ptdd__so {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ptdd__so:hover:not(:disabled):not(.ptdd__so--active) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.ptdd__so--active {
+  background: #ea580c;
+  border-color: #ea580c;
+  color: #ffffff;
+  cursor: default;
+}
+
+.ptdd__so:disabled {
+  cursor: not-allowed;
+}
+
+/* Chỗ đứt quãng: chỉ là dấu, không bấm được — nên không đóng khung như ô số. */
+.ptdd__dots {
+  min-width: 18px;
+  text-align: center;
+  color: #94a3b8;
+  user-select: none;
+}
+
+@media (max-width: 720px) {
+  /* Màn hẹp: giữ mũi tên + trang đang xem, giấu bớt ô số để dãy không đẩy vỡ hàng. Trang đang
+     xem và hai đầu dãy vẫn còn, vẫn nhảy xa được. */
+  .ptdd__so:not(.ptdd__so--active):not(:first-of-type):not(:last-of-type) {
+    display: none;
+  }
+  .ptdd__dots {
+    display: none;
+  }
+}

@@ -170,7 +170,7 @@ def test_ghi_me_lay_don_vi_ban_dia_va_muc_tieu_bon(db, orders, lsx_svc, admin, c
         bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=1), tong=2, tot=2,
     )
     # Không truyền `don_vi` ⇒ lấy `don_vi_ra` của công việc. Trước 10/09/2026 chỗ này ném
-    # "Batch chưa có đơn vị." vì bước ngoài dòng xuống tổ với hai cột đơn vị rỗng.
+    # "Mẻ chưa có đơn vị" vì bước ngoài dòng xuống tổ với hai cột đơn vị rỗng.
     b = db.get(SanXuatBatch, r["batch_id"])
     assert b.don_vi == "kem"
 

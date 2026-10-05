@@ -62,17 +62,19 @@ def test_doi_cong_thuc_gia_cua_mot_may_de_lai_dung_mot_dong(db):
     assert "sl_vao * 400" in dong[0] and "sl_vao * 520" in dong[0]
 
 
-def test_dinh_muc_tung_vat_tu_deu_co_vet(db):
-    """Tab Vật tư: nhiều món, mỗi món một công thức — sửa món nào thì đúng một dòng món đó."""
+def test_them_mot_vat_tu_de_lai_dung_mot_dong(db):
+    """Tab Vật tư: dòng không còn định mức riêng (01/10/2026) — thêm món nào thì đúng một dòng món đó."""
     cd = _cong_doan(db)
+    db.add(VatTuInAn(id=15, ma="VT-DM", ten="Dung môi", don_vi_gia="kg", don_gia=1))
+    db.commit()
     truoc = nk.anh_chup(cd)
 
-    cd.vat_tus[0].cong_thuc_luong = "so_mau * 20"
+    cd.vat_tus.append(CongDoanVatTu(vat_tu_id=15, thu_tu=2))
     db.commit()
     dong = nk.mo_ta_thay_doi(truoc, nk.anh_chup(cd))
 
     assert len(dong) == 1, dong
-    assert "Mực đen (VT-MUC)" in dong[0] and "so_mau * 20" in dong[0]
+    assert "Dung môi (VT-DM)" in dong[0]
 
 
 def test_bo_mot_vat_tu_khong_bi_nuot_im_lang(db):
@@ -126,7 +128,7 @@ def test_moi_thay_doi_la_dung_mot_dong_tren_man(db):
     truoc = nk.anh_chup(cd)
 
     cd.may_lam_duoc[0].cong_thuc_gia = "sl_vao * 520"
-    cd.vat_tus[0].cong_thuc_luong = "so_mau * 20"
+    cd.vat_tus.pop()
     db.commit()
     audit = AuditLogRepository(db)
     nk.ghi_sua(audit, actor_id=None, loai="cong_doan", obj=cd, truoc=truoc)

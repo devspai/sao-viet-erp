@@ -12,7 +12,8 @@ Hạn 45 giây. Xoá sớm (`xoa_cache_can_doi`) ở đúng những chỗ phát 
 `lsx_changed`. Có `REDIS_URL` ⇒ cache chung mọi worker (khoá `svn:cache:can_doi:<hash>`, `SET EX`,
 JSON); không có ⇒ dict trong tiến trình. Redis lỗi ⇒ bỏ qua cache, request vẫn chạy bình thường.
 
-Chỉ dùng cho ROUTER `/can-doi`. Đường ghi (giữ chỗ, ghi sổ kho) gọi thẳng `can_doi` của service để
+Chỉ dùng cho đường ĐỌC: router `/can-doi` và đèn vật tư của danh sách Lệnh SX
+(`lenh_sx/danh_sach._den_vat_tu_co_cache`). Đường ghi (giữ chỗ, ghi sổ kho) gọi thẳng `can_doi` của service để
 có số TƯƠI trong transaction — đừng đưa cache vào đó.
 """
 from __future__ import annotations

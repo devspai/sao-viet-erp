@@ -16,6 +16,7 @@ import {
   type TaiSanChiTiet,
 } from "../../api/taiSan";
 import { Button } from "../../components/Button";
+import { EmptyRow } from "../../components/EmptyState";
 import { Icon } from "../../components/Icons";
 import { Badge, ngay, tien, tienDon } from "./chung";
 
@@ -131,7 +132,7 @@ export function ChiTietDialog({
                 </thead>
                 <tbody>
                   {lich === null ? (
-                    <tr><td colSpan={4}>Đang tải…</td></tr>
+                    <EmptyRow colSpan={4} trangThai="dang-tai" />
                   ) : lich.length === 0 ? (
                     <tr><td colSpan={4}>Không có tháng nào trích — chưa tới mốc hoặc đã hết giá trị.</td></tr>
                   ) : (

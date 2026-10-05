@@ -196,8 +196,7 @@ def _dung_nen(client, h) -> dict[str, dict]:
         "ma": MA["giay"], "ten": "Giấy thử", "gsm": 250,
         "caliper_micron": 300,
         "tho": "canh_dai", "don_vi_gia": "kg", "don_gia": 28000, "gia_thi_truong": 30000,
-        "kho_tinh_gia": True, "ghi_chu": "gc", "cong_thuc_gia": "dinh_luong * don_gia_giay",
-        "cong_thuc_luong": "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen"})
+        "kho_tinh_gia": True, "ghi_chu": "gc", "cong_thuc_gia": "dinh_luong * don_gia_giay"})
     ra["vat_tu"] = _tao(client, h, "vat_tu", {
         "ma": MA["vat_tu"], "ten": "Mực thử", "don_vi_gia": "kg", "don_gia": 450000,
         "ghi_chu": "gc", "cong_thuc_gia": "to_sau_in * don_gia_vat_tu"})
@@ -316,11 +315,8 @@ def test_xuat_du_moi_o_cong_thuc_dang_chay(client, seed_credentials):
     _dung_nen(client, h)
 
     mong = {
-        # Cột của Giấy đổi tên "Công thức lượng" → "Công thức tính định mức" (07/09/2026), cùng
-        # đợt mở lại ô đó trong drawer. Cột trỏ đúng `giay_nguyen.cong_thuc_luong` như cũ.
-        "giay": {"Công thức giá": "dinh_luong * don_gia_giay",
-                 "Công thức tính định mức": "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen"},
-        "vat_tu": {"Công thức giá": "to_sau_in * don_gia_vat_tu"},
+        # Giấy hết cột "Công thức tính định mức" (mg `0348`) — chỉ còn công thức giá.
+        "giay": {"Công thức giá": "dinh_luong * don_gia_giay"},
         "cong_doan": {"Công thức giá": "to_dau_vao * 100"},
     }
     # "Công thức sản lượng" + "Đơn vị sản lượng" của Công đoạn GỠ 18/09/2026 (mg `0324`).
@@ -358,8 +354,8 @@ def test_xuat_ca_dong_da_ngung_kem_trang_thai_false(client, seed_credentials):
     ma = [d[0] for d in dong]
     assert con["ma"] in ma and chet["ma"] in ma
     i = tieu_de.index("Trạng thái")
-    assert _dong_theo_ma(tieu_de, dong, con["ma"])[i] is True
-    assert _dong_theo_ma(tieu_de, dong, chet["ma"])[i] is False
+    assert _dong_theo_ma(tieu_de, dong, con["ma"])[i] == "Có"
+    assert _dong_theo_ma(tieu_de, dong, chet["ma"])[i] == "Không"
 
 
 def test_bat_lai_dong_da_ngung_bang_excel(client, seed_credentials):
@@ -398,9 +394,10 @@ def test_xuat_bang_con_ra_sheet_doc_duoc_khong_phai_json(client, seed_credential
     assert tieu_de == ["Mã", "Thứ tự", "Đến SL", "Giá trị", "Đơn vị"]
     assert [d[2:] for d in dong] == [[1000, 150.0, "to"], [None, 3.0, "pct"]]
 
-    assert [d[2:] for d in _bang(wb["Bậc theo khổ"])[1]] == [[50.0, 1000.0], [80.0, 1500.0]]
+    # Bậc đơn giá / Bậc theo khổ KHÔNG có ô nhập trên form (UI ép `size_tiers=[]`) ⇒ không ra file.
+    assert "Bậc theo khổ" not in wb.sheetnames and "Bậc đơn giá" not in wb.sheetnames
     assert [d[2] for d in _bang(wb["Nhóm máy cho phép"])[1]] == ["Bế"]
-    assert [d[2:] for d in _bang(wb["Vật tư công đoạn"])[1]] == [[nen["vat_tu"]["ma"], None]]
+    assert [d[2:] for d in _bang(wb["Vật tư công đoạn"])[1]] == [[nen["vat_tu"]["ma"]]]
     assert "Đầu việc định mức" not in wb.sheetnames, "sheet của tầng đã gỡ (mg `0320`)"
 
     wb = _xuat(client, h, PREFIX["may_thiet_bi"])
@@ -493,36 +490,53 @@ def test_sua_bac_bu_hao_va_xoa_mot_bac(client, seed_credentials):
 def test_thu_tu_o_sheet_con_quyet_dinh_thu_tu_luu(client, seed_credentials):
     """Cột `Thứ tự` quyết định, KHÔNG phải vị trí dòng — người ta chèn dòng mới ở cuối file.
 
-    Soi trên "Bậc theo khổ" chứ không phải "Bậc bù hao": bậc bù hao bắt mốc TĂNG DẦN nên đảo thứ
-    tự là bị cổng lưu chặn, không đọc ra được thứ tự đã lưu.
+    Soi trên "Khoản chuẩn bị" của Máy chứ không phải "Bậc bù hao": bậc bù hao bắt mốc TĂNG DẦN nên
+    đảo thứ tự là bị cổng lưu chặn, không đọc ra được thứ tự đã lưu.
     """
     h = _login(client, **seed_credentials)
     nen = _dung_nen(client, h)
-    prefix = PREFIX["cong_doan"]
+    prefix = PREFIX["may_thiet_bi"]
 
     wb = _xuat(client, h, prefix)
-    ws = wb["Bậc theo khổ"]
+    ws = wb["Khoản chuẩn bị"]
     ws.cell(row=2, column=2).value = 2
     ws.cell(row=3, column=2).value = 1
 
     kq = _nhap(client, h, prefix, _bytes(wb), mode="commit").json()
     assert kq["hop_le"], kq
-    cd = client.get(f"{prefix}/{nen['cong_doan']['id']}", headers=h).json()
-    assert [t["den_cm"] for t in cd["size_tiers"]] == [80, 50]
+    may = client.get(f"{prefix}/{nen['may_thiet_bi']['id']}", headers=h).json()
+    assert [k["ten"] for k in may["fields_theo_loai"]["chuan_bi_khoan"]] == ["Rửa lô", "Canh máy"]
 
 
 def test_them_dong_con_moi_cho_ma_da_co(client, seed_credentials):
     h = _login(client, **seed_credentials)
     nen = _dung_nen(client, h)
-    prefix = PREFIX["cong_doan"]
+    prefix = PREFIX["may_thiet_bi"]
 
     wb = _xuat(client, h, prefix)
-    wb["Bậc theo khổ"].append([MA["cong_doan"], 3, 120, 2200])
+    wb["Khoản chuẩn bị"].append([MA["may_thiet_bi"], 3, "Thay kẽm", 5])
     kq = _nhap(client, h, prefix, _bytes(wb), mode="commit").json()
     assert kq["hop_le"] and kq["cap_nhat"] == 1, kq
 
-    cd = client.get(f"{prefix}/{nen['cong_doan']['id']}", headers=h).json()
-    assert [t["den_cm"] for t in cd["size_tiers"]] == [50, 80, 120]
+    may = client.get(f"{prefix}/{nen['may_thiet_bi']['id']}", headers=h).json()
+    assert [k["ten"] for k in may["fields_theo_loai"]["chuan_bi_khoan"]] == [
+        "Canh máy", "Rửa lô", "Thay kẽm"]
+
+
+def test_sua_goi_bao_tri_khong_lam_mat_khoa_khong_co_cot(client, seed_credentials):
+    """`dung_phut` / `lan_cuoi` của gói bảo trì không có cột Excel: sửa gói qua file phải giữ chúng."""
+    h = _login(client, **seed_credentials)
+    nen = _dung_nen(client, h)
+    prefix = PREFIX["may_thiet_bi"]
+
+    wb = _xuat(client, h, prefix)
+    wb["Gói bảo trì"].cell(row=2, column=4).value = "Tra dầu đổi tên"      # cột "Việc"
+    kq = _nhap(client, h, prefix, _bytes(wb), mode="commit").json()
+    assert kq["hop_le"] and kq["cap_nhat"] == 1, kq
+
+    goi = client.get(f"{prefix}/{nen['may_thiet_bi']['id']}",
+                     headers=h).json()["fields_theo_loai"]["lich_bao_tri"][0]
+    assert goi["viec"] == "Tra dầu đổi tên" and goi["dung_phut"] == 60
 
 
 def test_o_trong_xoa_gia_tri_con_cot_vang_mat_thi_giu_nguyen(client, seed_credentials):
@@ -640,6 +654,44 @@ def test_dat_trang_thai_false_de_ngung_dung(client, seed_credentials):
     kq = _nhap(client, h, "/api/kho", noi_dung, mode="commit").json()
     assert kq["hop_le"] and kq["cap_nhat"] == 1, kq
     assert client.get(f"/api/kho/{o['id']}", headers=h).json()["active"] is False
+
+
+def test_xuat_ghi_nhan_viet_nhap_nhan_ca_ma(client, seed_credentials):
+    """Enum ra file bằng NHÃN Việt (Có/Không, Khuôn bế, Đang đặt làm); nhập nhận cả nhãn lẫn mã gốc."""
+    h = _login(client, **seed_credentials)
+    _tao(client, h, "khuon_be", {"ma": "KB-NV1", "ten": "Dao một", "loai": "khuon_be",
+                                 "tinh_trang": "dang_dat_lam"})
+    tieu_de, dong = _chinh(client, h, "khuon_be")
+    d = _dong_theo_ma(tieu_de, dong, "KB-NV1")
+    assert d[tieu_de.index("Loại dao")] == "Khuôn bế"
+    assert d[tieu_de.index("Tình trạng")] == "Đang đặt làm"
+    assert d[tieu_de.index("Trạng thái")] == "Có"
+
+    # nhập lại: nhãn Việt, mã gốc và "Không" đều hiểu
+    ws = SPECS["khuon_be"].tieu_de[:31]
+    noi_dung = _wb_tu(["Mã", "Tên", "Loại dao", "Tình trạng", "Trạng thái"],
+                      [["KB-NV1", "Dao một", "khuon_be", "Hỏng", "Không"]],
+                      ten_sheet=ws, loai="khuon_be")
+    kq = _nhap(client, h, PREFIX["khuon_be"], noi_dung, mode="commit").json()
+    assert kq["hop_le"] and kq["cap_nhat"] == 1, kq
+    tieu_de, dong = _chinh(client, h, "khuon_be")
+    # dòng đã ngừng vẫn xuất (Trạng thái = Không)
+    d = _dong_theo_ma(tieu_de, dong, "KB-NV1")
+    assert (d[tieu_de.index("Loại dao")], d[tieu_de.index("Tình trạng")],
+            d[tieu_de.index("Trạng thái")]) == ("Khuôn bế", "Hỏng", "Không")
+
+    xau = _wb_tu(["Mã", "Tên", "Loại dao"], [["KB-NV1", "Dao một", "dao lạ"]],
+                 ten_sheet=ws, loai="khuon_be")
+    kq = _nhap(client, h, PREFIX["khuon_be"], xau).json()
+    assert not kq["hop_le"] and "Khuôn bế" in kq["loi"][0]["ly_do"], kq
+
+
+def test_trang_thai_chu_la_bi_chan_khong_doan(client, seed_credentials):
+    h = _login(client, **seed_credentials)
+    noi_dung = _wb_tu(["Mã", "Tên", "Trạng thái"], [["KHO-LA", "Kho", "có thể"]],
+                      ten_sheet=SPECS["kho_hang"].tieu_de[:31], loai="kho_hang")
+    kq = _nhap(client, h, "/api/kho", noi_dung).json()
+    assert not kq["hop_le"] and "Có hoặc Không" in kq["loi"][0]["ly_do"], kq
 
 
 # ======================================================================================
@@ -934,5 +986,5 @@ def test_excel_cong_doan_co_cot_cach_do_gio_chay():
 
     con = {s.field: [c.field for c in s.cot] for s in SPECS["cong_doan"].sheets_con}
     assert "dau_viec_dinh_muc" not in con, "tầng đầu việc định mức đã gỡ (mg `0320`)"
-    assert con["vat_tus"] == ["vat_tu_id", "cong_thuc_luong"]
+    assert con["vat_tus"] == ["vat_tu_id"]
     assert {"cong_thuc_gio", "cong_thuc_gia"} <= set(con["may_lam_duoc"])

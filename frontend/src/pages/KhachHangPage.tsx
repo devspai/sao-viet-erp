@@ -11,10 +11,8 @@ import {
   type CustomerAddressInput,
   type CustomerAttachment,
   type CustomerAuditRow,
-  type CareTask,
   type CustomerContact,
   type CustomerContactInput,
-  type CustomerDashboard,
   type CustomerInput,
   type CustomerFinancialInput,
   type CustomerKind,
@@ -22,26 +20,21 @@ import {
   type CustomerNote,
   type CustomerRow,
   type DuplicateWarn,
-  type FollowupRow,
   type NhapExcelOut,
   type KhoNhanRow,
-  type OrderHistoryRow,
-  type QuoteHistoryRow,
-  type ReceivableCard,
   type SaleOption,
 } from "../api/client";
 import type { NavigateFn } from "../components/AppShell";
 import { useAuth } from "../auth/useAuth";
 import { useCan, useScopeOf } from "../auth/permissions";
-import { CareCalendar } from "./CareCalendar";
-import { gopTienTheoSanPham } from "./khachHangSo";
+import { BangLichHen, CareCalendar, useLichHen } from "./CareCalendar";
+import { TabBaoGia, TabMuaHang, TabTongQuan, ThanhKy, useSoLieuKhach, type TabSoLieu } from "./khachHangThongKe";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { EmptyState } from "../components/EmptyState";
 import { Select } from "../components/Select";
 import {
-  AlarmClock,
   AlertCircle,
-  BarChart3,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
@@ -54,7 +47,6 @@ import {
   History,
   Mail,
   MapPin,
-  MessageCircle,
   Package,
   Paperclip,
   PencilLine,
@@ -67,29 +59,30 @@ import {
   UserPlus,
   Users,
   X,
+  CalendarDays,
   CheckCircle2,
   Clock,
   Plus,
   Calendar,
   AlertTriangle,
   Trash2,
-  User,
   Check,
   ShieldCheck,
   Image,
   CreditCard,
   StickyNote,
   Pin,
-  Clock3,
   Loader2,          // spinner nút "Tra cứu MST" (.kh__spin quay nó)
   LayoutGrid,
   List,
   ArrowLeftRight,
   ArrowRight,
   ShieldAlert,
+  Copy,
+  FilePlus2,
+  CalendarPlus,
 } from "lucide-react";
 
-import { MixDonut, MonthBars } from "../components/charts";
 import "./khach-hang.css";
 
 
@@ -106,58 +99,10 @@ function fmtDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   return d.toLocaleDateString("vi-VN");
 }
-/** "HH:mm" từ ISO datetime thật (chip giờ cạnh ngày — theo prototype). */
-function fmtTime(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-/** Gộp giá trị theo tháng từ rows thật rồi trải trục LIÊN TỤC tối đa 12 tháng
- *  (tháng không phát sinh = 0 thật — trục không đứt quãng, như prototype). */
-function monthlySeries(
-  items: { created_at: string | null; total: number | null }[],
-): { month: string; label: string; total: number }[] {
-  const groups: Record<string, number> = {};
-  items.forEach((o) => {
-    if (!o.created_at) return;
-    const m = o.created_at.substring(0, 7); // "YYYY-MM"
-    groups[m] = (groups[m] || 0) + (o.total ?? 0);
-  });
-  const keys = Object.keys(groups).sort();
-  if (keys.length === 0) return [];
-  const first = keys[0];
-  const [ly, lm] = keys[keys.length - 1].split("-").map(Number);
-  const out: { month: string; label: string; total: number }[] = [];
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(ly, lm - 1 - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    if (key < first) continue; // không vẽ tháng trước khi có giao dịch đầu tiên
-    out.push({ month: key, label: `T${d.getMonth() + 1}`, total: groups[key] ?? 0 });
-  }
-  return out;
-}
-
 function moneyCompact(n: number | null | undefined): string {
   if (n == null) return "—";
   if (n >= 1_000_000_000) {
     return (n / 1_000_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " tỷ đ";
-  }
-  if (n >= 1_000_000) {
-    return (n / 1_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " Mđ";
-  }
-  if (n >= 1_000) {
-    return (n / 1_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " Kđ";
-  }
-  return n.toLocaleString("vi-VN") + " ₫";
-}
-
-function moneySuperCompact(n: number | null | undefined): string {
-  if (n == null) return "—";
-  if (n >= 1_000_000_000) {
-    return (n / 1_000_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " Bđ";
   }
   if (n >= 1_000_000) {
     return (n / 1_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " Mđ";
@@ -251,29 +196,6 @@ export function getKhDotClass(name: string): string {
   return `kh__avatar-dot--${khChuMau(name)}`;
 }
 
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  draft: "Nháp",
-  ordered: "Đã chốt",
-  on_hold: "Tạm giữ",
-  change_order: "Đã đổi",
-  cancelled: "Đã hủy",
-};
-const QUOTE_STATUS_LABELS: Record<string, string> = {
-  draft: "Nháp",
-  sent: "Đã gửi",
-  approved: "Đã duyệt",
-  accepted: "Đã chốt",
-  rejected: "Từ chối",
-  // Thiếu đúng dòng này nên badge in nguyên mã máy "CONVERTED_TO_ORDER" giữa các nhãn tiếng Việt
-  // — mà đây lại là trạng thái ĐÔNG NHẤT của khách quen (báo giá nào cũng thành đơn).
-  converted_to_order: "Đã lên đơn",
-  pending_approval: "Chờ duyệt",
-  expired: "Hết hạn",
-  cancelled: "Đã hủy",
-  on_hold: "Tạm giữ",
-  change_order: "Re-quote",
-};
-
 // Form Thêm/Sửa — THÔNG TIN ĐỊNH DANH (redesign spec-06 v2). Tài chính sửa riêng ở detail.
 interface FormState {
   name: string;
@@ -317,7 +239,12 @@ function moTaSale(s: SaleOption): string | undefined {
 // List-Report page
 // =============================================================================
 
-export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn; onBadgeStale?: () => void }) {
+export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
+  navigate: NavigateFn;
+  onBadgeStale?: () => void;
+  /** Nhịp sự kiện nhóm "bán hàng" (giao hẹn, tới giờ hẹn…) — nút "Lịch hẹn" nạp lại theo. */
+  eventTick?: number;
+}) {
   const { token } = useAuth();
 
   const [rows, setRows] = useState<CustomerRow[]>([]);
@@ -328,8 +255,8 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
   const [q, setQ] = useState("");
   // "" = tất cả; CHUA_GAN = khách chưa có người phụ trách; còn lại là id NV.
   const [saleFilter, setSaleFilter] = useState<string>("");
-  // Redesign spec-06 v2: bỏ lọc trạng thái/tier; chỉ còn lọc theo THẺ + tab "Cần theo dõi".
-  const [followupFilter, setFollowupFilter] = useState<boolean>(false);
+  // Redesign spec-06 v2: bỏ lọc trạng thái/tier; chỉ còn lọc theo THẺ. Tab "Cần theo dõi" gỡ
+  // 05/10/2026 — trùng việc với nút "Lịch hẹn".
   const [tagFilter, setTagFilter] = useState<string>("");
   const [tagLabels, setTagLabels] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState(25);
@@ -357,27 +284,17 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
   // Nhập Excel: dòng Mã KH trống là thêm (`create`), dòng có Mã là sửa (`update`) — server gác cửa
   // bằng MỘT trong hai rồi kiểm từng dòng, nên nút hiện khi có một trong hai.
   const canImport = canCreate || can("khach_hang", "update");
-  const colCount = canReassign ? 7 : 6; // [checkbox] · KH · doanh số · số đơn · TB/đơn · NV · ›
+  const colCount = canReassign ? 6 : 5; // [checkbox] · KH · mua hàng · liên hệ chính · NV · ›
 
   // Import / export danh bạ (#23).
   const [importOpen, setImportOpen] = useState(false);
   const [exportingBook, setExportingBook] = useState(false);
 
-  // Panel "Cần chăm sóc" (#28): việc đến hạn/quá hạn trong scope của tôi.
-  const [followups, setFollowups] = useState<FollowupRow[]>([]);
-  const [followupsOpen, setFollowupsOpen] = useState(false);
-
-  const loadFollowups = useCallback(() => {
-    if (!token) return;
-    api.customers
-      .careFollowups(token)
-      .then((r) => setFollowups(r.items))
-      .catch(() => setFollowups([]));
-  }, [token]);
-
-  useEffect(() => {
-    loadFollowups();
-  }, [loadFollowups]);
+  // Nút "Lịch hẹn" (lịch hẹn chăm sóc kiểu Google Calendar): số đỏ = hẹn của tôi trễ + hôm nay.
+  const [lichHenMo, setLichHenMo] = useState(false);
+  const lh = useLichHen(eventTick, lichHenMo);
+  // Bấm một hẹn trong bảng Lịch hẹn ⇒ mở hồ sơ khách ở tab Chăm sóc.
+  const [moChamSoc, setMoChamSoc] = useState(0);
 
   async function exportBook() {
     if (!token || exportingBook) return;
@@ -431,7 +348,6 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
         q: q.trim() || undefined,
         sale: saleFilter && saleFilter !== SALE_CHUA_GAN ? Number(saleFilter) : null,
         chua_gan: saleFilter === SALE_CHUA_GAN || undefined,
-        followup: followupFilter || undefined,
         tag: tagFilter || null,
         sort,
         page,
@@ -447,12 +363,12 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
         else setListError("Không tải được danh bạ khách hàng.");
       })
       .finally(() => setLoading(false));
-  }, [token, q, saleFilter, followupFilter, tagFilter, sort, page, pageSize]);
+  }, [token, q, saleFilter, tagFilter, sort, page, pageSize]);
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, sort, page, pageSize, saleFilter, followupFilter, tagFilter]);
+  }, [token, sort, page, pageSize, saleFilter, tagFilter]);
 
   useEffect(() => {
     if (!token) return;
@@ -523,6 +439,7 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
           (res.skipped ? ` (bỏ qua ${res.skipped} khách ngoài phạm vi).` : "."),
       );
       load(); // also clears selection
+      lh.nap(); // hẹn đang mở đi theo khách sang người mới
     } catch (err) {
       if (err instanceof ApiError) setBulkError(err.message);
       else setBulkError("Điều chuyển thất bại. Vui lòng thử lại.");
@@ -550,6 +467,7 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
       const toName = sales.find((s) => s.id === toSale)?.name ?? "";
       setReassignMsg(`Đã điều chuyển ${res.moved} khách hàng từ ${fromName} sang ${toName}.`);
       load();
+      lh.nap(); // hẹn đang mở đi theo khách sang người mới
     } catch (err) {
       if (err instanceof ApiError) setReassignError(err.message);
       else setReassignError("Điều chuyển thất bại. Vui lòng thử lại.");
@@ -587,11 +505,6 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
           <p className="eyebrow">Kinh doanh · CRM</p>
           <div className="kh__title-row">
             <h1 className="kh__title">Khách hàng</h1>
-            {kpis && (
-              <span className="kh__badge-summary">
-                <strong>{total}</strong> KH &middot; <strong>{kpis.new_this_month}</strong> mới tháng này
-              </span>
-            )}
           </div>
         </div>
         <div className="kh__head-actions">
@@ -631,78 +544,20 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
       )}
 
       {/* KPI header strip — low profile compact bar */}
-      <KpiStrip
-        kpis={kpis}
-        loading={loading && !kpis}
-        careCount={followups.length}
-        careOpen={followupsOpen}
-        onToggleCare={() => setFollowupsOpen((v) => !v)}
-      />
-
-      {/* Executive Care Panel Wrapper */}
-      {followups.length > 0 && followupsOpen && (
-        <div className="kh__care-panel-wrapper">
-          <div className="kh__care-panel-header">
-            <div className="kh__care-panel-title">
-              <AlarmClock size={16} style={{ color: "var(--ink)" }} />
-              <span>Nhiệm vụ chăm sóc khách hàng</span>
-              <span className="kh__care-panel-count-tag">{followups.length} mục</span>
-            </div>
-          </div>
-
-          <div className="kh__care-cards-grid">
-            {followups.map((f) => (
-              <div key={f.id} className="kh__care-card-item kh__care-card-item--followup">
-                <div className="kh__care-card-top">
-                  <RemindBadge level={f.remind_level} days={f.overdue_days} />
-                  <button type="button" className="kh__care-card-name" onClick={() => setOpenId(f.customer_id)}>
-                    {f.customer_name}
-                  </button>
-                  <span className="kh__care-card-code">{f.customer_code}</span>
-                </div>
-                <div className="kh__care-card-body">
-                  <span className="kh__care-card-note">{f.note}</span>
-                  <div className="kh__care-card-subinfo">
-                    <span className="kh__care-card-due">
-                      <Clock3 size={11} /> Hạn {fmtDate(f.due_date)}
-                    </span>
-                    {f.assignee_name && <span className="kh__care-card-assignee">· {f.assignee_name}</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-
-          </div>
-        </div>
-      )}
+      <KpiStrip kpis={kpis} loading={loading && !kpis} />
 
       {/* Single-row Integrated Toolbar */}
       <div className="kh__toolbar-strip">
-        <div className="kh__sub-tabs">
-          <button
-            type="button"
-            className={`kh__sub-tab${!followupFilter ? " is-active" : ""}`}
-            onClick={() => {
-              setFollowupFilter(false);
-              setPage(1);
-            }}
-          >
-            Tất cả <span className="chip-count">{total}</span>
-          </button>
-          <button
-            type="button"
-            className={`kh__sub-tab${followupFilter ? " is-active" : ""}`}
-            onClick={() => {
-              setFollowupFilter(true);
-              setPage(1);
-            }}
-          >
-            <AlarmClock size={13} /> Cần theo dõi{" "}
-            <span className={`chip-count${followups.length > 0 ? " chip-count--alert" : ""}`}>
-              {followups.length}
-            </span>
-          </button>
-        </div>
+        <button
+          type="button"
+          className={`kh__lich-hen${lichHenMo ? " is-on" : ""}`}
+          aria-expanded={lichHenMo}
+          onClick={() => setLichHenMo((v) => !v)}
+          title={lh.so > 0 ? `${lh.so} hẹn trễ hoặc hôm nay của tôi` : undefined}
+        >
+          <CalendarDays size={14} /> Lịch hẹn
+          {lh.so > 0 && <span className="kh__lich-hen-so">{lh.so}</span>}
+        </button>
 
         <div className="kh__toolbar-controls">
           <form className="kh__search" onSubmit={onSearch} role="search">
@@ -786,6 +641,16 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
         </div>
       </div>
 
+      {lichHenMo && (
+        <BangLichHen
+          lh={lh}
+          onMoKhach={(id) => {
+            setOpenId(id);
+            setMoChamSoc((n) => n + 1);
+          }}
+        />
+      )}
+
       {/* Khoảng CỐ ĐỊNH ngay trên bảng (chỉ cho người có quyền điều chuyển): luôn giữ chiều
           cao nên khi tick chọn, thanh thao tác lấp vào đúng chỗ — danh sách KHÔNG bị đẩy. */}
       {canReassign && (
@@ -819,7 +684,6 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
         <div className="kh__cards-grid">
           {rows.map((c) => {
             const initials = getInitials(c.name);
-            const careDue = followups.filter((f) => f.customer_id === c.id).length;
             const customerTags = c.tags ?? [];
 
             return (
@@ -841,11 +705,6 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
                       <div className="kh__card-submeta">
                         <span className="kh__code-badge">{c.code || `KH${String(c.id).padStart(3, "0")}`}</span>
                         {c.tax_code && <span className="kh__mst-chip">MST {c.tax_code}</span>}
-                        {careDue > 0 && (
-                          <span className="kh__row-badge kh__row-badge--care">
-                            <AlarmClock size={10} /> {careDue} việc
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -924,13 +783,12 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
                   <th>
                     <SortBtn label="Khách hàng" col="name" sort={sort} onSort={setSort} />
                   </th>
-                  <th className="kh__num">
-                    <SortBtn label="Doanh số 12T" col="revenue" sort={sort} onSort={setSort} />
+                  {/* Ba cột số cũ (doanh số / số đơn / TB đơn) gộp một: khách chưa có đơn thì ba ô
+                      "—, 0, —" chẳng nói gì; TB đơn cũ còn chia doanh số 12 tháng cho số đơn MỌI thời kỳ. */}
+                  <th>
+                    <SortBtn label="Mua hàng 12 tháng" col="revenue" sort={sort} onSort={setSort} />
                   </th>
-                  <th className="kh__num">
-                    <SortBtn label="Số đơn" col="orders" sort={sort} onSort={setSort} />
-                  </th>
-                  <th className="kh__num">TB / Đơn</th>
+                  <th>Liên hệ chính</th>
                   <th>NV phụ trách</th>
                   <th></th>
                 </tr>
@@ -960,7 +818,7 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
                 ) : rows.length === 0 ? (
                   <tr>
                     <td colSpan={colCount} className="kh__empty-cell">
-                      {q || tagFilter || saleFilter || followupFilter ? (
+                      {q || tagFilter || saleFilter ? (
                         <div className="kh__empty-state">
                           <div className="kh__empty-icon">
                             <SearchX size={28} />
@@ -975,7 +833,6 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
                               setQ("");
                               setTagFilter("");
                               setSaleFilter("");
-                              setFollowupFilter(false);
                               setPage(1);
                             }}
                           >
@@ -1006,22 +863,14 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
                   </tr>
                 ) : (
                   (() => {
-                    const maxRevenueOnPage = Math.max(...rows.map((r) => r.revenue_12m || 0), 1);
                     return rows.map((c) => {
-                      const initials = getInitials(c.name);
-                      const avgOrderValue = c.orders_total > 0 ? Math.round(c.revenue_12m / c.orders_total) : 0;
-                      const careDue = followups.filter((f) => f.customer_id === c.id).length;
-                      const revPercent = c.revenue_12m > 0 ? Math.min(100, Math.round((c.revenue_12m / maxRevenueOnPage) * 100)) : 0;
+                      const ngayDat = c.last_order_at
+                        ? Math.floor((Date.now() - new Date(c.last_order_at).getTime()) / 86_400_000)
+                        : null;
                       const customerTags = c.tags ?? [];
                       const displayTags = customerTags.slice(0, 2);
                       const remainingTagsCount = customerTags.length - 2;
                       const salesRole = saleMeta.get(c.sale_user_id ?? -1);
-                      const revGradient =
-                        c.revenue_12m >= 100_000_000
-                          ? "linear-gradient(90deg, #818cf8, #7c3aed)"
-                          : c.revenue_12m >= 10_000_000
-                          ? "linear-gradient(90deg, #34d399, #059669)"
-                          : "linear-gradient(90deg, #94a3b8, #64748b)";
 
                       return (
                         <tr
@@ -1045,10 +894,6 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
                           )}
                           <td>
                             <div className="kh__identity-cell">
-                              <div className="kh__avatar-wrapper">
-                                <div className={`kh__avatar ${getKhAvatarClass(c.name)}`}>{initials}</div>
-                                <span className={`kh__avatar-dot ${getKhDotClass(c.name)}`} />
-                              </div>
                               <div className="kh__identity">
                                 <div className="kh__name-row">
                                   <span className="kh__name" title={c.name}>{c.name}</span>
@@ -1056,14 +901,6 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
                                 </div>
                                 <div className="kh__submeta">
                                   {c.tax_code && <span className="kh__mst-chip">MST {c.tax_code}</span>}
-                                  {careDue > 0 && (
-                                    <span
-                                      className="kh__row-badge kh__row-badge--care"
-                                      title={`${careDue} việc chăm sóc đến hạn`}
-                                    >
-                                      <AlarmClock size={10} /> {careDue} việc
-                                    </span>
-                                  )}
                                   {displayTags.map((t) => (
                                     <span key={t} className={`kh__row-badge kh__row-badge--tag-${tagTone(t)}`}>
                                       {t}
@@ -1081,33 +918,55 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
                               </div>
                             </div>
                           </td>
-                          <td className="kh__num kh__money-cell">
-                            {c.revenue_12m > 0 ? (
-                              <div className="kh__rev-box">
-                                <span className="kh__revenue-val">{moneyStat(c.revenue_12m)}</span>
-                                <div className="kh__rev-bar-track" title={`${revPercent}% so với top trang`}>
-                                  <div
-                                    className="kh__rev-bar-fill"
-                                    style={{
-                                      width: `${Math.max(6, revPercent)}%`,
-                                      background: revGradient,
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="kh__muted">—</span>
-                            )}
-                          </td>
-                          <td className="kh__num">
+                          <td className="kh__mua-cell">
                             {c.orders_total > 0 ? (
-                              <span className="kh__orders-pill-v2">{c.orders_total}</span>
+                              <>
+                                {c.revenue_12m > 0 ? (
+                                  <span className="kh__mua-tien" title="Doanh số đơn đã chốt trong 12 tháng qua">
+                                    {moneyStat(c.revenue_12m)}
+                                  </span>
+                                ) : (
+                                  <span className="kh__muted" title="Có đơn trước đây nhưng 12 tháng gần nhất không đặt">
+                                    Ngừng đặt
+                                  </span>
+                                )}
+                                <span className="kh__mua-phu">
+                                  {/* Cùng khoảng 12 tháng với số tiền phía trên — không trộn số đơn mọi thời kỳ. */}
+                                  {c.orders_12m > 0 && <span>{c.orders_12m} đơn</span>}
+                                  {ngayDat != null && (
+                                    <span>
+                                      {/* Quá 60 ngày đếm theo tháng: "Đặt 420 ngày trước" dài mà khó hình dung. */}
+                                      {ngayDat <= 0
+                                        ? "Đặt hôm nay"
+                                        : ngayDat < 60
+                                          ? `Đặt ${ngayDat} ngày trước`
+                                          : `Đặt ${Math.floor(ngayDat / 30)} tháng trước`}
+                                    </span>
+                                  )}
+                                </span>
+                              </>
                             ) : (
-                              <span className="kh__muted">0</span>
+                              <span className="kh__muted">Chưa có đơn</span>
                             )}
                           </td>
-                          <td className="kh__num kh__aov-cell">
-                            {avgOrderValue > 0 ? moneySuperCompact(avgOrderValue) : <span className="kh__muted">—</span>}
+                          <td className="kh__lh-cell">
+                            {c.contact_name || c.phone ? (
+                              <>
+                                {c.contact_name && <span className="kh__lh-ten">{c.contact_name}</span>}
+                                {c.phone && (
+                                  <a
+                                    className="kh__lh-sdt"
+                                    href={`tel:${c.phone.replace(/\s+/g, "")}`}
+                                    title="Gọi"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {sdtDeDoc(c.phone)}
+                                  </a>
+                                )}
+                              </>
+                            ) : (
+                              <span className="kh__muted">Chưa có</span>
+                            )}
                           </td>
                           <td>
                             {c.sale_name ? (
@@ -1233,6 +1092,7 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
           onSaved={() => {
             setMode(null);
             load();
+            lh.nap(); // đổi NV phụ trách ⇒ hẹn đang mở đi theo
           }}
         />
       )}
@@ -1265,8 +1125,11 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
       {openId != null && mode == null && (
         <CustomerObjectPage
           customerId={openId}
-          careDueCount={followups.filter((f) => f.customer_id === openId).length}
-          onCareChanged={() => { loadFollowups(); onBadgeStale?.(); }}
+          moChamSoc={moChamSoc}
+          eventTick={eventTick}
+          onCareChanged={() => { lh.nap(); onBadgeStale?.(); }}
+          onTagsDoi={(id, labels) =>
+            setRows((prev) => prev.map((r) => (r.id === id ? { ...r, tags: labels } : r)))}
           canPrev={openIndex > 0}
           canNext={openIndex >= 0 && openIndex < rows.length - 1}
           onPrev={() => pageSibling(-1)}
@@ -1310,20 +1173,7 @@ export function KhachHangPage({ navigate, onBadgeStale }: { navigate: NavigateFn
 
 // --- KPI header strip --------------------------------------------------------
 
-function KpiStrip({
-  kpis,
-  loading,
-  careCount,
-  careOpen,
-  onToggleCare,
-}: {
-  kpis: CustomerKpis | null;
-  loading: boolean;
-  careCount: number;
-  careOpen: boolean;
-  onToggleCare: () => void;
-}) {
-  const careTotal = careCount;
+function KpiStrip({ kpis, loading }: { kpis: CustomerKpis | null; loading: boolean }) {
 
   // UI_DESIGN §4: chỉ số gộp thành MỘT dải pill (~38px), không phải 4 thẻ 84px xếp 4 cột —
   // thẻ cao đẩy bảng dữ liệu (nội dung thật của màn) xuống dưới màn hình.
@@ -1357,42 +1207,8 @@ function KpiStrip({
             <span className="kh__ckpi-lbl">mới tháng này</span>
           </span>
         </div>
-
-        <span className="kh__ckpi-div" aria-hidden="true" />
-
-        <div className="kh__ckpi-item">
-          <span className="kh__ckpi-icon">
-            <BarChart3 size={14} />
-          </span>
-          <span className="kh__ckpi-body">
-            <span className="kh__ckpi-val">
-              {loading ? <span className="kh__skel kh__skel--kpi" /> : (kpis ? moneyStat(kpis.avg_order_value) : "—")}
-            </span>
-            <span className="kh__ckpi-lbl">TB / đơn (12T)</span>
-          </span>
-        </div>
       </div>
 
-      <button
-        type="button"
-        className={`kh__care-pill${careTotal > 0 ? " is-alert" : ""}`}
-        onClick={onToggleCare}
-        aria-expanded={careOpen}
-        disabled={careTotal === 0}
-        title={careTotal === 0 ? "Không có việc chăm sóc nào hôm nay" : undefined}
-      >
-        <AlarmClock size={14} />
-        {careTotal === 0 ? (
-          <span>Không có việc chăm sóc</span>
-        ) : (
-          <>
-            <span>
-              Cần chăm sóc hôm nay <strong className="kh__care-n">{careCount}</strong>
-            </span>
-            <span className="kh__care-caret" aria-hidden="true">{careOpen ? "▲" : "▼"}</span>
-          </>
-        )}
-      </button>
     </div>
   );
 }
@@ -1430,8 +1246,10 @@ type Tab = "dashboard" | "orders" | "quotes" | "care" | "notes" | "contacts" | "
 
 function CustomerObjectPage({
   customerId,
-  careDueCount,
+  moChamSoc = 0,
+  eventTick = 0,
   onCareChanged,
+  onTagsDoi,
   canPrev,
   canNext,
   onPrev,
@@ -1441,8 +1259,13 @@ function CustomerObjectPage({
   navigate,
 }: {
   customerId: number;
-  careDueCount: number;
+  /** Mỗi lần tăng ⇒ nhảy sang tab Chăm sóc (bấm một hẹn trong bảng Lịch hẹn của danh bạ). */
+  moChamSoc?: number;
+  /** Nhịp sự kiện nhóm "bán hàng" — tab Chăm sóc nạp lại theo (hẹn người khác giao, tới giờ hẹn). */
+  eventTick?: number;
   onCareChanged?: () => void;
+  /** Gắn thẻ trong hồ sơ xong thì dòng khách ngoài danh sách đổi theo ngay, khỏi tải lại. */
+  onTagsDoi?: (customerId: number, labels: string[]) => void;
   canPrev: boolean;
   canNext: boolean;
   onPrev: () => void;
@@ -1454,28 +1277,52 @@ function CustomerObjectPage({
   const { token } = useAuth();
   const canCredit = useCan()("khach_hang", "set_credit_terms");
   const [customer, setCustomer] = useState<CustomerRow | null>(null);
-  const [dash, setDash] = useState<CustomerDashboard | null>(null);
+  // Số trên nhãn hai tab lịch sử (mọi trạng thái, mọi thời gian) — đi kèm câu tải hồ sơ.
+  const [dem, setDem] = useState<{ don: number; bg: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("dashboard");
+  // Kỳ xem + thống kê dùng chung ba tab Tổng quan / Mua hàng / Báo giá (tải MỘT lần mỗi kỳ).
+  const sl = useSoLieuKhach(customerId, setTab as (t: TabSoLieu) => void);
   const panelRef = useRef<HTMLDivElement>(null);
+  // Thẻ "Liên hệ chính" ở đầu hồ sơ đọc danh sách liên hệ THẬT (người is_primary, rồi người đầu).
+  const [contacts, setContacts] = useState<CustomerContact[] | null>(null);
+  // Nút ở đầu hồ sơ nhảy sang tab rồi mở sẵn form — mỗi lần bấm tăng một nhịp.
+  const [moHenTick, setMoHenTick] = useState(0);
+  const [moThemLhTick, setMoThemLhTick] = useState(0);
+  useEffect(() => {
+    if (moChamSoc) setTab("care");
+  }, [moChamSoc, customerId]);
 
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
     setCustomer(null);
-    setDash(null);
+    setDem(null);
     setError(null);
-    Promise.all([api.customers.get(token, customerId), api.customers.dashboard(token, customerId)])
-      .then(([detail, d]) => {
+    api.customers
+      .get(token, customerId)
+      .then((detail) => {
         if (cancelled) return;
         setCustomer(detail.customer);
-        setDash(d);
+        setDem({ don: detail.so_don, bg: detail.so_bao_gia });
       })
       .catch(() => !cancelled && setError("Không tải được hồ sơ khách hàng."));
     return () => {
       cancelled = true;
     };
   }, [token, customerId]);
+
+  const napLienHe = useCallback(() => {
+    if (!token) return;
+    api.customers
+      .contacts(token, customerId)
+      .then((r) => setContacts(r.items))
+      .catch(() => setContacts([]));
+  }, [token, customerId]);
+  useEffect(() => {
+    setContacts(null);
+    napLienHe();
+  }, [napLienHe]);
 
   // Esc closes; focus panel on open.
   useEffect(() => {
@@ -1487,7 +1334,6 @@ function CustomerObjectPage({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const receivable: ReceivableCard | undefined = dash?.receivable;
 
   return (
     <div className="kh__scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -1508,6 +1354,8 @@ function CustomerObjectPage({
               <ChevronDown size={14} strokeWidth={2} />
             </button>
           </div>
+          {/* Loại khách + trạng thái đứng chung hàng với nút điều hướng — đỡ một dòng chiều cao. */}
+          {customer && dem && <KhachKick customer={customer} soDon={dem.don} />}
           <button type="button" className="kh__close" aria-label="Đóng" onClick={onClose}>
             <X size={14} strokeWidth={2} />
           </button>
@@ -1519,7 +1367,7 @@ function CustomerObjectPage({
               {error}
             </div>
           </div>
-        ) : !customer || !dash ? (
+        ) : !customer || !dem ? (
           <div className="kh__so-body">
             <div className="kh__so-headskel">
               <span className="kh__skel kh__skel--title" />
@@ -1536,17 +1384,35 @@ function CustomerObjectPage({
         ) : (
           <>
             <ObjectHeader
+              onTagsDoi={onTagsDoi}
               customer={customer}
-              dash={dash}
+              contacts={contacts}
               onEdit={() => onEdit(customer)}
+              onTaoPhieu={() => {
+                onClose();
+                navigate("tinh-gia", { taoPhieuTinhGia: true });
+              }}
+              onHen={() => {
+                setTab("care");
+                setMoHenTick((n) => n + 1);
+              }}
+              onXemLienHe={() => {
+                setMoThemLhTick(0);
+                setTab("contacts");
+              }}
+              onThemLienHe={() => {
+                setTab("contacts");
+                setMoThemLhTick((n) => n + 1);
+              }}
+              onLienHeDoi={napLienHe}
             />
             <nav className="kh__so-tabs" aria-label="Nội dung">
               {(
                 [
-                  ["dashboard", "Dashboard", <Gauge size={14} key="i" />, null],
-                  ["orders", "Lịch sử mua hàng", <ReceiptText size={14} key="i" />, dash.orders_total],
-                  ["quotes", "Lịch sử báo giá", <FileText size={14} key="i" />, dash.quotes_total],
-                  ["care", "Chăm sóc", <HeartHandshake size={14} key="i" />, careDueCount],
+                  ["dashboard", "Tổng quan", <Gauge size={14} key="i" />, null],
+                  ["orders", "Lịch sử mua hàng", <ReceiptText size={14} key="i" />, dem.don],
+                  ["quotes", "Lịch sử báo giá", <FileText size={14} key="i" />, dem.bg],
+                  ["care", "Chăm sóc", <HeartHandshake size={14} key="i" />, null],
                   ["notes", "Ghi chú", <StickyNote size={14} key="i" />, null],
                   ["contacts", "Liên hệ", <Users size={14} key="i" />, null],
                   ["addresses", "Giao hàng", <MapPin size={14} key="i" />, null],
@@ -1559,7 +1425,14 @@ function CustomerObjectPage({
                   type="button"
                   className={`kh__so-tab${tab === key ? " is-active" : ""}`}
                   aria-current={tab === key ? "true" : undefined}
-                  onClick={() => setTab(key)}
+                  onClick={() => {
+                    // Tab mount lại sẽ đọc nhịp cũ và mở form lần nữa — bấm tab thường thì xoá nhịp.
+                    setMoHenTick(0);
+                    setMoThemLhTick(0);
+                    // Bấm thẳng nhãn tab = về kỳ chung, bỏ khoảng "đang xem riêng" mở từ biểu đồ.
+                    sl.boKhoan();
+                    setTab(key);
+                  }}
                 >
                   {icon} {label}
                   {count != null && count > 0 && (
@@ -1568,32 +1441,33 @@ function CustomerObjectPage({
                 </button>
               ))}
             </nav>
+            {(tab === "dashboard" || tab === "orders" || tab === "quotes") && <ThanhKy sl={sl} />}
 
             <div className="kh__so-body">
               {tab === "dashboard" && (
-                <DashboardTab
-                  dash={dash}
-                  receivable={receivable}
-                  customer={customer}
-                  canCredit={canCredit}
-                  onCustomerUpdated={setCustomer}
+                <TabTongQuan
+                  sl={sl}
+                  coDon={dem.don > 0}
+                  chinhSach={
+                    <FinancialPolicyCard customer={customer} canEdit={canCredit} onSaved={setCustomer} />
+                  }
                 />
               )}
-              {tab === "orders" && (
-                <OrdersTab customerId={customerId} code={customer.code} />
-              )}
+              {tab === "orders" && <TabMuaHang sl={sl} code={customer.code} />}
               {tab === "quotes" && (
-                <QuotesTab
-                  customerId={customerId}
+                <TabBaoGia
+                  sl={sl}
                   onOpenQuote={(id) => {
                     onClose();
                     navigate("bao-gia", { openQuoteId: id });
                   }}
                 />
               )}
-              {tab === "care" && <CareTab customerId={customerId} onCareChanged={onCareChanged} />}
+              {tab === "care" && <CareTab customerId={customerId} onCareChanged={onCareChanged} moHenTick={moHenTick} eventTick={eventTick} />}
               {tab === "notes" && <NotesTab customerId={customerId} />}
-              {tab === "contacts" && <ContactsTab customerId={customerId} />}
+              {tab === "contacts" && (
+                <ContactsTab customerId={customerId} onChanged={napLienHe} moThemTick={moThemLhTick} />
+              )}
               {tab === "addresses" && <AddressesTab customerId={customerId} />}
               {tab === "files" && <AttachmentsTab customerId={customerId} />}
               {tab === "audit" && (
@@ -1613,45 +1487,330 @@ function CustomerObjectPage({
   );
 }
 
+/** Nhãn trạng thái cạnh chữ CÔNG TY — thay dải vàng "Khách mới…" từng nằm ở Dashboard. */
+function trangThaiKhach(c: CustomerRow, soDon: number): { tone: "moi" | "deu"; text: string } | null {
+  // `orders_total` / `last_order_at` chỉ đếm đơn ĐÃ CHỐT; `soDon` đếm mọi trạng thái.
+  if (soDon === 0) return { tone: "moi", text: "Khách mới — chưa có đơn" };
+  if (c.orders_total === 0 || !c.last_order_at) return { tone: "moi", text: "Chưa có đơn chốt" };
+  const ngay = Math.floor((Date.now() - new Date(c.last_order_at).getTime()) / 86_400_000);
+  return { tone: "deu", text: ngay <= 0 ? "Đặt đơn hôm nay" : `Đặt gần nhất ${ngay} ngày trước` };
+}
+
+function KhachKick({ customer, soDon }: { customer: CustomerRow; soDon: number }) {
+  const tt = trangThaiKhach(customer, soDon);
+  return (
+    <div className="kh__hd-kick">
+      <span className="kh__so-badge-tier">
+        {customer.customer_kind === "ca_nhan" ? "CÁ NHÂN" : "CÔNG TY"}
+      </span>
+      {tt && (
+        <span className={`kh__hd-tt kh__hd-tt--${tt.tone}`}>
+          <i aria-hidden="true" />
+          {tt.text}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Chữ viết tắt cho ô tròn: 2 chữ đầu của HAI TỪ CUỐI (họ tên Việt — tên nằm cuối). */
+function vietTat(ten: string): string {
+  return ten.trim().split(/\s+/).slice(-2).map((p) => p[0] ?? "").join("").toUpperCase();
+}
+
+/** Số điện thoại hiển thị theo cụm 4-3-3 cho dễ đọc khi gọi; giữ nguyên nếu không đủ 10 số. */
+function sdtDeDoc(s: string): string {
+  const so = s.replace(/\D/g, "");
+  return so.length === 10 ? `${so.slice(0, 4)} ${so.slice(4, 7)} ${so.slice(7)}` : s;
+}
+
+/** Chép vào clipboard. `navigator.clipboard` chỉ có trên https/localhost và có thể bị từ chối
+ *  quyền — khi đó lùi về `execCommand("copy")` qua một ô tạm. Trả về chép được hay không. */
+async function chepVanBan(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // rơi xuống cách cũ
+  }
+  const o = document.createElement("textarea");
+  o.value = text;
+  o.setAttribute("readonly", "");
+  o.style.position = "fixed";
+  o.style.opacity = "0";
+  document.body.appendChild(o);
+  o.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(o);
+  return ok;
+}
+
+/** Nút chép: bấm xong đổi tạm sang "Đã chép" (hoặc "Không chép được") 1,5 giây — khỏi cần toast. */
+function NutChep({ text, nhan, label }: { text: string; nhan?: string; label: string }) {
+  const [kq, setKq] = useState<"ok" | "loi" | null>(null);
+  useEffect(() => {
+    if (!kq) return;
+    const t = window.setTimeout(() => setKq(null), 1500);
+    return () => window.clearTimeout(t);
+  }, [kq]);
+  const goiY = kq === "ok" ? "Đã chép" : kq === "loi" ? "Không chép được" : label;
+  return (
+    <button
+      type="button"
+      className={nhan ? "kh__hd-btn" : "kh__hd-chep"}
+      aria-label={goiY}
+      title={goiY}
+      onClick={() => {
+        void chepVanBan(text).then((ok) => setKq(ok ? "ok" : "loi"));
+      }}
+    >
+      {kq === "ok" ? <Check size={14} /> : kq === "loi" ? <X size={14} /> : <Copy size={14} />}
+      {nhan && (kq === "ok" ? "Đã chép" : kq === "loi" ? "Không chép được" : nhan)}
+    </button>
+  );
+}
+
+// Đầu hồ sơ — phương án C (duyệt 04/10/2026, docs/mockups/ho-so-khach-hang-dau-trang-C.html):
+// trái là định danh + việc hay làm, phải là thẻ LIÊN HỆ CHÍNH để gọi/nhắn ngay. Không nối các
+// thông tin bằng dấu chấm giữa — mỗi ô một nhãn nhỏ phía trên.
 function ObjectHeader({
   customer,
-  dash,
+  contacts,
   onEdit,
+  onTaoPhieu,
+  onHen,
+  onXemLienHe,
+  onThemLienHe,
+  onLienHeDoi,
+  onTagsDoi,
 }: {
   customer: CustomerRow;
-  dash: CustomerDashboard;
+  /** null = đang nạp. */
+  contacts: CustomerContact[] | null;
   onEdit: () => void;
+  onTaoPhieu: () => void;
+  onHen: () => void;
+  onXemLienHe: () => void;
+  onThemLienHe: () => void;
+  onLienHeDoi: () => void;
+  onTagsDoi?: (customerId: number, labels: string[]) => void;
 }) {
-  // const canDebt = useCan()("khach_hang", "view_debt");
-  // const rec = dash.receivable;
-  // // Gauge uy tín thanh toán: chỉ khi Công nợ sẵn sàng; nếu không → seam trung thực.
-  // const usage = rec.available && rec.usage_pct != null ? rec.usage_pct : null;
+  const { token } = useAuth();
+  const can = useCan();
+  const canUpdate = can("khach_hang", "update");
+  const canTinhGia = can("tinh_gia_thanh", "create");
 
+  // Bản gọn (04/10/2026, sau phản hồi "phần đen to đùng"): loại khách + trạng thái lên hàng nút
+  // điều hướng; bỏ ô "Khách từ"; thẻ gắn và hai ô mã số thuế / phụ trách chung MỘT hàng.
   return (
     <header className="kh__so-head">
       <div className="kh__so-headmain">
-        <div className="kh__so-title-row">
-          {/* Redesign spec-06 v2: bỏ tier/★; nhãn = Loại KH. Phân loại chăm sóc = THẺ (dưới). */}
-          <span className="kh__so-badge-tier">
-            {customer.customer_kind === "ca_nhan" ? "CÁ NHÂN" : "CÔNG TY"}
-          </span>
-          <h2>{customer.name}</h2>
+        <h2 className="kh__hd-ten">{customer.name}</h2>
+
+        <div className="kh__hd-hang">
           <div className="kh__so-badges">
             {/* Nhãn thủ công (#7) — sales gán/gỡ trong modal Gắn thẻ. */}
-            <TagChips customerId={customer.id} customerName={customer.name} />
-            <button type="button" className="kh__btn-tag" onClick={onEdit}>Sửa</button>
+            <TagChips
+              customerId={customer.id}
+              customerName={customer.name}
+              onDoi={(labels) => onTagsDoi?.(customer.id, labels)}
+            />
           </div>
+          <dl className="kh__hd-facts">
+            <div>
+              <dt>Mã số thuế</dt>
+              <dd>
+                {customer.tax_code ?? "—"}
+                {customer.tax_code && <NutChep text={customer.tax_code} label="Chép mã số thuế" />}
+              </dd>
+            </div>
+            <div>
+              <dt>Phụ trách</dt>
+              <dd>{customer.sale_name ?? "Chưa gán"}</dd>
+            </div>
+          </dl>
         </div>
-        <div className="kh__so-meta-lines">
-          <p className="kh__so-meta-line">
-            <strong>MST:</strong> {customer.tax_code ?? "—"} &middot; <strong>KH từ:</strong> {fmtDate(customer.created_at)} &middot; <strong>LTV Trailing:</strong> {moneyCompact(dash.revenue_12m)}
-          </p>
-          <p className="kh__so-meta-line">
-            <strong>Liên hệ:</strong> {customer.contact_name ?? "—"} {customer.phone ? `· ${customer.phone}` : ""} &middot; <strong>NV phụ trách:</strong> {customer.sale_name ?? "Chưa gán"}
-          </p>
+
+        <div className="kh__hd-act">
+          {canTinhGia && (
+            <button type="button" className="kh__hd-btn kh__hd-btn--chinh" onClick={onTaoPhieu}>
+              <FilePlus2 size={15} /> Lập phiếu tính giá
+            </button>
+          )}
+          <button type="button" className="kh__hd-btn" onClick={onEdit}>
+            <PencilLine size={15} /> Sửa thông tin
+          </button>
+          {canUpdate && (
+            <button type="button" className="kh__hd-btn" onClick={onHen}>
+              <CalendarPlus size={15} /> Hẹn chăm sóc
+            </button>
+          )}
         </div>
       </div>
+
+      <TheLienHeChinh
+        token={token}
+        customer={customer}
+        contacts={contacts}
+        canUpdate={canUpdate}
+        onXemLienHe={onXemLienHe}
+        onThemLienHe={onThemLienHe}
+        onLienHeDoi={onLienHeDoi}
+      />
     </header>
+  );
+}
+
+function TheLienHeChinh({
+  token,
+  customer,
+  contacts,
+  canUpdate,
+  onXemLienHe,
+  onThemLienHe,
+  onLienHeDoi,
+}: {
+  token: string | null;
+  customer: CustomerRow;
+  contacts: CustomerContact[] | null;
+  canUpdate: boolean;
+  onXemLienHe: () => void;
+  onThemLienHe: () => void;
+  onLienHeDoi: () => void;
+}) {
+  const [doiMo, setDoiMo] = useState(false);
+  const [loi, setLoi] = useState<string | null>(null);
+  const doiRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!doiMo) return;
+    const onDown = (e: MouseEvent) => {
+      if (doiRef.current && !doiRef.current.contains(e.target as Node)) setDoiMo(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [doiMo]);
+
+  if (contacts == null) {
+    return <div className="kh__hd-lh kh__hd-lh--nap" aria-busy="true" />;
+  }
+
+  // Người liên hệ chính: dòng is_primary (máy chủ đã xếp lên đầu), không có thì người đầu tiên.
+  // Khách cũ chưa khai bảng liên hệ nhưng còn ô "liên hệ nhanh" trên hồ sơ thì dùng tạm ô đó.
+  const chinh = contacts.find((c) => c.is_primary) ?? contacts[0] ?? null;
+  const ten = chinh?.name ?? customer.contact_name ?? null;
+  const sdt = chinh ? chinh.phone : customer.phone;
+  const email = chinh ? chinh.email : customer.email;
+  const khac = chinh ? contacts.filter((c) => c.id !== chinh.id) : [];
+
+  if (!ten) {
+    return (
+      <div className="kh__hd-lh kh__hd-lh--rong">
+        <span className="kh__hd-lh-lb">Liên hệ chính</span>
+        <p>Chưa có ai để gọi. Thêm người mua hàng trước, kế toán và thủ kho thêm sau.</p>
+        {canUpdate && (
+          <button type="button" className="kh__hd-btn" onClick={onThemLienHe}>
+            <UserPlus size={15} /> Thêm người liên hệ
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  async function chonChinh(c: CustomerContact) {
+    if (!token) return;
+    setDoiMo(false);
+    setLoi(null);
+    try {
+      await api.customers.updateContact(token, customer.id, c.id, {
+        name: c.name, title: c.title, duty: c.duty, phone: c.phone, email: c.email, is_primary: true,
+      });
+      onLienHeDoi();
+    } catch (e) {
+      setLoi(e instanceof ApiError ? e.message : "Đổi liên hệ chính không thành công.");
+    }
+  }
+
+  // "Kế toán, thủ kho và 2 người khác" — nêu chức vụ của 2 người kế để biết bên trong có ai.
+  const tomTatKhac = (() => {
+    if (khac.length === 0) return null;
+    const cv = khac.slice(0, 2).map((c) => c.title?.trim() || c.name);
+    const conLai = khac.length - cv.length;
+    const dau = cv.join(", ");
+    return conLai > 0 ? `${dau} và ${conLai} người khác` : dau;
+  })();
+
+  return (
+    <div className="kh__hd-lh" role="group" aria-label="Liên hệ chính">
+      <div className="kh__hd-lh-dau">
+        <div className="kh__hd-lh-nguoi">
+          <div className="kh__hd-av" aria-hidden="true">{vietTat(ten)}</div>
+          <div className="kh__hd-lh-ten-khoi">
+            <div className="kh__hd-lh-ten" title={ten}>{ten}</div>
+            <div className="kh__hd-lh-cv" title={chinh?.title ?? undefined}>
+              {chinh?.title ?? "Liên hệ chính"}
+            </div>
+          </div>
+        </div>
+        {canUpdate && khac.length > 0 && (
+          <div className="kh__hd-doi" ref={doiRef}>
+            <button
+              type="button"
+              className="kh__hd-doi-btn"
+              aria-expanded={doiMo}
+              onClick={() => setDoiMo((v) => !v)}
+            >
+              Đổi
+            </button>
+            {doiMo && (
+              <ul className="kh__hd-doi-ds" role="menu" aria-label="Chọn liên hệ chính">
+                {khac.map((c) => (
+                  <li key={c.id}>
+                    <button type="button" role="menuitem" onClick={() => chonChinh(c)}>
+                      <span className="kh__hd-doi-ten">{c.name}</span>
+                      {c.title && <span className="kh__hd-doi-cv">{c.title}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Số điện thoại NẰM LUÔN trên nút gọi — khỏi một dòng số riêng lặp lại; email chỉ còn nút
+          biểu tượng, địa chỉ hiện ở chú thích khi rê chuột. */}
+      {(sdt || email) && (
+        <div className="kh__hd-lh-nut">
+          {sdt && (
+            <a className="kh__hd-btn kh__hd-btn--goi" href={`tel:${sdt.replace(/\s/g, "")}`} title="Gọi">
+              <Phone size={14} /> {sdtDeDoc(sdt)}
+            </a>
+          )}
+          {sdt && <NutChep text={sdt.replace(/\s/g, "")} label="Chép số điện thoại" />}
+          {email && (
+            <a className="kh__hd-btn kh__hd-btn--icon" href={`mailto:${email}`} title={email} aria-label={`Gửi email ${email}`}>
+              <Mail size={14} />
+            </a>
+          )}
+        </div>
+      )}
+
+      {loi && <p className="kh__hd-lh-loi" role="alert">{loi}</p>}
+
+      {tomTatKhac && (
+        <button type="button" className="kh__hd-lh-khac" onClick={onXemLienHe}>
+          {tomTatKhac} <ArrowRight size={13} aria-hidden="true" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -1697,127 +1856,6 @@ function PaymentGauge({
   );
 }
 */
-
-// --- Dashboard tab -----------------------------------------------------------
-
-function DashboardTab({
-  dash,
-  receivable,
-  customer,
-  canCredit,
-  onCustomerUpdated,
-}: {
-  dash: CustomerDashboard;
-  receivable: ReceivableCard | undefined;
-  customer: CustomerRow;
-  canCredit: boolean;
-  onCustomerUpdated: (c: CustomerRow) => void;
-}) {
-  // Khách MỚI (chưa có đơn/báo giá): KHÔNG chặn cả tab. Chính sách tài chính là dữ liệu CẤU HÌNH
-  // (không dẫn xuất từ giao dịch) nên phải luôn hiện để cấu hình được ngay. KPI/biểu đồ vẫn vẽ đủ
-  // khung nhưng để rỗng (số THẬT = 0, không bịa) — chỉ kèm một dòng note trung thực ở đầu.
-  // Công nợ MẶC ĐỊNH BẬT cho mọi vai xem khách (gỡ công tắc `view_debt` 24/08/2026) — luôn hiện thẻ.
-  const canDebt = true;
-  const avgVal = dash.avg_order_value ?? 0;
-  const cards: { label: string; value: ReactNode; hint?: string; muted?: boolean }[] = [
-    // Không có dữ liệu 24 tháng để so YoY thật → hint trung thực về phạm vi số liệu.
-    { label: "Doanh số 12T", value: moneyStat(dash.revenue_12m), hint: "12 tháng gần nhất" },
-    {
-      label: "Số đơn 12T",
-      value: `${dash.orders_12m} đơn`,
-      hint: `${(dash.orders_12m / 12).toFixed(1)}/tháng`,
-    },
-    { label: "TB / đơn", value: moneyStat(avgVal), hint: avgVal > 20000000 ? "Above-avg" : "Average" },
-    // Thẻ Công nợ chỉ hiện khi có quyền chi tiết `view_debt`.
-    ...(canDebt
-      ? [
-          {
-            label: "Công nợ",
-            value: receivable?.available ? moneyStat(receivable.balance) : "— đã thu đủ",
-            hint: receivable?.available ? "Trong hạn" : "Đã đối soát",
-            muted: !receivable?.available,
-          },
-        ]
-      : []),
-  ];
-
-  return (
-    <div className="kh__dash">
-      {!dash.has_data && (
-        <div className="kh__dash-newnote">
-          <UserPlus size={15} strokeWidth={2} />
-          <span>
-            Khách mới — chưa phát sinh giao dịch. Doanh số, tần suất &amp; cơ cấu sản phẩm sẽ tự
-            cập nhật từ đơn hàng thật; bạn vẫn cấu hình được <strong>Chính sách tài chính</strong>{" "}
-            bên dưới ngay bây giờ.
-          </span>
-        </div>
-      )}
-      <div className="kh__kpis">
-        {cards.map((c) => (
-          <div className="kh__kpi card" key={c.label}>
-            <span className="kh__kpi-label">{c.label}</span>
-            <span className={`kh__kpi-value${c.muted ? " kh__kpi-value--muted" : ""}`}>{c.value}</span>
-            {c.hint && <span className="kh__kpi-hint">{c.hint}</span>}
-          </div>
-        ))}
-      </div>
-
-      <div className="kh__dash-grid-2">
-        {/* Doanh số 12 tháng — bar */}
-        <section className="card kh__chart">
-          <div className="kh__chart-head">
-            <h3>Doanh số 12 tháng</h3>
-            <span className="kh__chart-unit">ĐƠN VỊ: TRIỆU đ</span>
-          </div>
-          <MonthBars
-            data={dash.months.map((m) => ({
-              label: m.label,
-              value: m.revenue,
-              sub: `${m.orders} đơn`,
-            }))}
-            formatValue={moneyCompact}
-            formatAxis={(v) => String(Math.round(v / 1_000_000))}
-          />
-        </section>
-
-        {/* Tần suất đặt — heatmap */}
-        <section className="card kh__chart">
-          <div className="kh__chart-head">
-            <h3>Tần suất đặt hàng</h3>
-            <div className="kh__heatmap-legend">
-              <span>ÍT</span>
-              <span className="kh__heatmap-legend-color kh__heatmap-legend-color--1"></span>
-              <span className="kh__heatmap-legend-color kh__heatmap-legend-color--2"></span>
-              <span className="kh__heatmap-legend-color kh__heatmap-legend-color--3"></span>
-              <span className="kh__heatmap-legend-color kh__heatmap-legend-color--4"></span>
-              <span>NHIỀU</span>
-            </div>
-          </div>
-          <Heatmap dash={dash} />
-        </section>
-      </div>
-
-      {/* Lưới 2 cột: Cơ cấu sản phẩm + Chính sách tài chính. */}
-      <div className="kh__dash-grid-3 kh__dash-grid-3--2">
-        {/* Cơ cấu sản phẩm — donut */}
-        <section className="card kh__chart">
-          <div className="kh__chart-head">
-            <h3><Package size={14} /> Cơ cấu sản phẩm</h3>
-          </div>
-          <ProductDonut mix={dash.product_mix} />
-        </section>
-
-        {/* Chính sách tài chính (redesign spec-06 v2) — thay widget "Thanh toán" fake. */}
-        <FinancialPolicyCard
-          customer={customer}
-          canEdit={canCredit}
-          onSaved={onCustomerUpdated}
-        />
-      </div>
-    </div>
-  );
-}
 
 // --- Chính sách tài chính (inline view/edit, redesign spec-06 v2) -------------
 // Điều khoản thanh toán đã BỎ theo yêu cầu — chỉ còn Hạn mức + rào Chiết khấu/Markup.
@@ -1975,511 +2013,6 @@ function FinancialPolicyCard({
         </div>
       )}
     </section>
-  );
-}
-
-function ProductDonut({ mix }: { mix: CustomerDashboard["product_mix"] }) {
-  if (mix.length === 0) {
-    return <p className="kh__muted kh__chart-empty">Chưa đủ dữ liệu sản phẩm 12 tháng.</p>;
-  }
-  return (
-    <MixDonut
-      slices={mix.map((m) => ({ label: m.label, value: m.revenue }))}
-      centerTop={String(mix.length)}
-      centerBottom="SP"
-      formatValue={moneyCompact}
-      height={170}
-      stacked
-    />
-  );
-}
-
-const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-
-function Heatmap({ dash }: { dash: CustomerDashboard }) {
-  const maxCount = Math.max(1, ...dash.heatmap.map((h) => h.count));
-  const grid = new Map<string, number>();
-  for (const h of dash.heatmap) grid.set(`${h.month_index}:${h.weekday}`, h.count);
-  return (
-    <div className="kh__heat">
-      <div className="kh__heat-row kh__heat-labels">
-        <span className="kh__heat-corner" />
-        {dash.months.map((m) => (
-          <span key={m.month} className="kh__heat-mlabel kh__mono">
-            {m.label.replace("T", "")}
-          </span>
-        ))}
-      </div>
-      {WEEKDAYS.map((wd, wi) => (
-        <div className="kh__heat-row" key={wd}>
-          <span className="kh__heat-wlabel kh__mono">{wd}</span>
-          {dash.months.map((m, mi) => {
-            const c = grid.get(`${mi}:${wi}`) ?? 0;
-            const lvl = c === 0 ? 0 : Math.ceil((c / maxCount) * 4);
-            return (
-              <span
-                key={m.month}
-                className={`kh__heat-cell kh__heat-l${lvl}`}
-                title={`${wd} ${m.label}: ${c} đơn`}
-              />
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// --- Lọc + tìm kiếm nâng cao dùng chung cho 2 tab lịch sử ---------------------
-// Lịch sử của MỘT khách đã tải trọn về (biểu đồ cũng cần đủ), nên lọc tại chỗ trên tập đó.
-
-type HistFilter = { q: string; status: string; from: string; to: string; min: string; max: string };
-const HIST_FILTER_EMPTY: HistFilter = { q: "", status: "", from: "", to: "", min: "", max: "" };
-
-function locLichSu<T extends { created_at: string; status: string; total: number | null }>(
-  rows: T[],
-  f: HistFilter,
-  haystack: (r: T) => string,
-): T[] {
-  const q = f.q.trim().toLowerCase();
-  const min = f.min.trim() === "" ? null : Number(f.min) * 1_000_000;
-  const max = f.max.trim() === "" ? null : Number(f.max) * 1_000_000;
-  return rows.filter((r) => {
-    if (q && !haystack(r).toLowerCase().includes(q)) return false;
-    if (f.status && r.status !== f.status) return false;
-    const day = r.created_at?.slice(0, 10) ?? "";
-    if (f.from && day < f.from) return false;
-    if (f.to && day > f.to) return false;
-    if (min != null && (r.total ?? 0) < min) return false;
-    if (max != null && (r.total ?? 0) > max) return false;
-    return true;
-  });
-}
-
-function HistFilterBar({
-  value,
-  onChange,
-  placeholder,
-  statusLabels,
-  statuses,
-  right,
-}: {
-  value: HistFilter;
-  onChange: (f: HistFilter) => void;
-  placeholder: string;
-  statusLabels: Record<string, string>;
-  statuses: string[];
-  right?: ReactNode;
-}) {
-  const [advanced, setAdvanced] = useState(false);
-  const set = (k: keyof HistFilter) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    onChange({ ...value, [k]: e.target.value });
-  const dangLoc = Object.values(value).some((v) => v !== "");
-  return (
-    <div className="kh__hist-filter">
-      <div className="kh__hist-filter-row">
-        <input
-          type="search"
-          className="input kh__hist-filter-q"
-          placeholder={placeholder}
-          value={value.q}
-          onChange={set("q")}
-        />
-        <select className="input" value={value.status} onChange={set("status")} aria-label="Trạng thái">
-          <option value="">Mọi trạng thái</option>
-          {statuses.map((s) => (
-            <option key={s} value={s}>{statusLabels[s] ?? s}</option>
-          ))}
-        </select>
-        <Button variant="secondary" onClick={() => setAdvanced((a) => !a)}>
-          {advanced ? "Ẩn nâng cao" : "Tìm nâng cao"}
-        </Button>
-        {dangLoc && (
-          <Button variant="secondary" onClick={() => onChange(HIST_FILTER_EMPTY)}>Xoá lọc</Button>
-        )}
-        {right && <span className="kh__hist-filter-right">{right}</span>}
-      </div>
-      {advanced && (
-        <div className="kh__hist-filter-row">
-          <label className="kh__hist-filter-field">
-            Từ ngày
-            <input type="date" className="input" value={value.from} onChange={set("from")} min="2000-01-01" max="2100-12-31" />
-          </label>
-          <label className="kh__hist-filter-field">
-            Đến ngày
-            <input type="date" className="input" value={value.to} onChange={set("to")} min="2000-01-01" max="2100-12-31" />
-          </label>
-          <label className="kh__hist-filter-field">
-            Giá trị từ (triệu đ)
-            <input type="number" min={0} className="input" value={value.min} onChange={set("min")} />
-          </label>
-          <label className="kh__hist-filter-field">
-            Đến (triệu đ)
-            <input type="number" min={0} className="input" value={value.max} onChange={set("max")} />
-          </label>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- Orders tab (Lịch sử mua hàng) -------------------------------------------
-
-function OrdersTab({
-  customerId,
-  code,
-}: {
-  customerId: number;
-  code: string;
-}) {
-  const { token } = useAuth();
-  const canExport = true; // Xuất Excel lịch sử mua MẶC ĐỊNH BẬT (gỡ công tắc `export` 24/08/2026).
-  const [rows, setRows] = useState<OrderHistoryRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
-  const [filter, setFilter] = useState<HistFilter>(HIST_FILTER_EMPTY);
-
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    setRows(null);
-    setError(null);
-    api.customers
-      .orderHistory(token, customerId)
-      .then((r) => !cancelled && setRows(r.items))
-      .catch(() => !cancelled && setError("Không tải được lịch sử mua hàng."));
-    return () => {
-      cancelled = true;
-    };
-  }, [token, customerId]);
-
-  async function exportCsv() {
-    if (!token) return;
-    setExporting(true);
-    try {
-      const url = await api.customers.orderCsvBlobUrl(token, customerId);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `lich-su-mua-hang-${code}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-    } catch {
-      setError("Xuất Excel không thành công.");
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  const statuses = useMemo(() => [...new Set((rows ?? []).map((o) => o.status))], [rows]);
-  const filteredRows = useMemo(
-    () => locLichSu(rows ?? [], filter, (o) => `${o.order_no} ${o.summary ?? ""}`),
-    [rows, filter],
-  );
-
-  // Đơn đã huỷ KHÔNG phải tiền thật đã chi — loại khỏi mọi tổng/biểu đồ tiền, chỉ giữ lại trong
-  // bảng "Toàn bộ đơn hàng" bên dưới để còn thấy dấu vết. Khớp quy ước `_EXCLUDED_ORDER_STATUSES`
-  // bên backend (customer_analytics.py) — trước đây SỐ ĐƠN HOÀN THÀNH loại đơn huỷ nhưng
-  // TỔNG CHI TIÊU/TB-ĐƠN/Đơn lớn nhất/biểu đồ tháng/TOP sản phẩm thì không, nên hễ khách có 1 đơn
-  // huỷ mang tiền là tiền đó vẫn cộng vào "đã chi" dù đơn chưa từng thật.
-  const activeRows = useMemo(
-    () => filteredRows.filter((o) => o.status !== "cancelled"),
-    [filteredRows],
-  );
-
-  // Group by month for chart — trục liên tục tối đa 12 tháng như prototype.
-  const monthlySpend = useMemo(() => monthlySeries(activeRows), [activeRows]);
-
-  // Top products mix — TOP 4, cộng theo TIỀN THẬT của từng dòng đơn (xem `gopTienTheoSanPham`).
-  const productMix = useMemo(() => gopTienTheoSanPham(activeRows), [activeRows]);
-
-  if (error) return <div className="banner banner--error" role="alert">{error}</div>;
-  if (rows == null) return <TableSkeleton cols={5} />;
-  if (rows.length === 0)
-    return (
-      <div className="kh__empty-panel">
-        <p className="kh__empty-title">Chưa có đơn hàng</p>
-        <p className="kh__muted">Khách này chưa phát sinh đơn hàng nào (wire từ Đơn hàng bán).</p>
-      </div>
-    );
-
-  return (
-    <div className="kh__histwrap">
-      <HistFilterBar
-        value={filter}
-        onChange={setFilter}
-        placeholder="Tìm mã đơn, sản phẩm…"
-        statusLabels={ORDER_STATUS_LABELS}
-        statuses={statuses}
-        right={
-          canExport && (
-            <Button variant="secondary" onClick={exportCsv} loading={exporting}>
-              <Download size={15} /> Xuất Excel
-            </Button>
-          )
-        }
-      />
-
-      {/* 2-Column charts row */}
-      <div className="kh__orders-analysis-row">
-        {/* Left Column: Chi tiêu theo tháng */}
-        <section className="card kh__chart kh__chart--orders-monthly">
-          <div className="kh__chart-head">
-            <h3>Chi tiêu theo tháng</h3>
-            <span className="kh__chart-unit">TRIỆU đ</span>
-          </div>
-          {monthlySpend.length === 0 ? (
-            <span className="kh__muted kh__empty-chart-text">Chưa có dữ liệu tháng</span>
-          ) : (
-            <MonthBars
-              data={monthlySpend.map((m) => ({ label: m.label, value: m.total }))}
-              formatValue={moneyCompact}
-              formatAxis={(v) => String(Math.round(v / 1_000_000))}
-            />
-          )}
-        </section>
-
-        {/* Right Column: TOP Sản phẩm mua nhiều nhất — chỉ số thật (số đơn + giá trị). */}
-        <section className="card kh__chart kh__chart--orders-top">
-          <div className="kh__chart-head">
-            <h3>Sản phẩm mua nhiều nhất</h3>
-            <span className="kh__muted-tag">TOP {Math.max(productMix.length, 1)}</span>
-          </div>
-          <ul className="kh__top-products-list">
-            {productMix.map((p, idx) => (
-              <li key={p.name} className="kh__top-product-item">
-                <span className="kh__top-rank">{String(idx + 1).padStart(2, "0")}</span>
-                <div className="kh__top-prod-info">
-                  <span className="kh__top-prod-name">{p.name}</span>
-                  <span className="kh__top-prod-qty">{p.qty} đơn</span>
-                </div>
-                <span className="kh__top-prod-total">{moneyCompact(p.total)}</span>
-              </li>
-            ))}
-            {productMix.length === 0 && (
-              <li className="kh__top-product-item kh__muted">Chưa có sản phẩm nào</li>
-            )}
-          </ul>
-        </section>
-      </div>
-
-      {/* Order List Table — chỉ cột có dữ liệu THẬT (bỏ SL / NV tạo / hạn giao / %TT của mẫu). */}
-      <div className="kh__tablewrap kh__tablewrap--orders">
-        <div className="kh__sec-head">
-          <h3>Toàn bộ đơn hàng</h3>
-          <span className="kh__sec-count">{filteredRows.length} ĐƠN</span>
-          <span className="kh__sec-right">Mới nhất trước</span>
-        </div>
-        <table className="kh__table kh__table--tight kh__table--drill">
-          <thead>
-            <tr>
-              <th>Mã đơn · Ngày đặt</th>
-              <th>Sản phẩm</th>
-              <th className="kh__num">Giá trị</th>
-              <th>Trạng thái</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.map((o) => (
-              <tr key={o.id}>
-                <td>
-                  <div className="kh__order-code-cell">
-                    <span className="kh__mono">{o.order_no}</span>
-                    <span className="kh__order-code-sub">
-                      <span className="kh__mono kh__muted">{fmtDate(o.created_at)}</span>
-                      {fmtTime(o.created_at) && (
-                        <span className="kh__time-chip">{fmtTime(o.created_at)}</span>
-                      )}
-                    </span>
-                  </div>
-                </td>
-                <td>
-                  <div className="kh__order-prod-cell">
-                    <span className="kh__order-summary-text">{o.summary}</span>
-                    {o.order_kind === "bo_sung" && (
-                      <span className="kh__order-prod-sub">Đơn bổ sung (giữ kẽm cũ)</span>
-                    )}
-                  </div>
-                </td>
-                <td className="kh__num kh__money">{moneyStat(o.total)}</td>
-                <td>
-                  <span className={`kh__ostat kh__ostat--${o.status}`}>
-                    {ORDER_STATUS_LABELS[o.status] ?? o.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// --- Quotes tab (Lịch sử báo giá) --------------------------------------------
-
-function QuotesTab({
-  customerId,
-  onOpenQuote,
-}: {
-  customerId: number;
-  onOpenQuote: (id: number) => void;
-}) {
-  const { token } = useAuth();
-  const [rows, setRows] = useState<QuoteHistoryRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<HistFilter>(HIST_FILTER_EMPTY);
-
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    setRows(null);
-    setError(null);
-    api.customers
-      .quoteHistory(token, customerId)
-      .then((r) => !cancelled && setRows(r.items))
-      .catch(() => !cancelled && setError("Không tải được lịch sử báo giá."));
-    return () => {
-      cancelled = true;
-    };
-  }, [token, customerId]);
-
-  const statuses = useMemo(() => [...new Set((rows ?? []).map((q) => q.status))], [rows]);
-  const filteredRows = useMemo(
-    () => locLichSu(rows ?? [], filter, (q) => `${q.code} v${q.version}`),
-    [rows, filter],
-  );
-
-  // Giá trị báo giá theo tháng — TÍNH THẬT từ created_at/total, trục liên tục ≤12 tháng.
-  const monthlyQuoted = useMemo(() => monthlySeries(filteredRows), [filteredRows]);
-
-  // Cơ cấu trạng thái — đếm + cộng giá trị thật theo status (thay cột TOP sản phẩm
-  // của mẫu: BE lịch sử BG không trả summary sản phẩm nên không bịa được).
-  const statusMix = useMemo(() => {
-    const groups: Record<string, { count: number; total: number }> = {};
-    filteredRows.forEach((q) => {
-      if (!groups[q.status]) groups[q.status] = { count: 0, total: 0 };
-      groups[q.status].count += 1;
-      groups[q.status].total += q.total ?? 0;
-    });
-    return Object.entries(groups)
-      .map(([status, stat]) => ({ status, ...stat }))
-      .sort((a, b) => b.count - a.count);
-  }, [filteredRows]);
-
-  if (error) return <div className="banner banner--error" role="alert">{error}</div>;
-  if (rows == null) return <TableSkeleton cols={5} />;
-  if (rows.length === 0)
-    return (
-      <div className="kh__empty-panel">
-        <p className="kh__empty-title">Chưa có báo giá</p>
-        <p className="kh__muted">Khách này chưa có báo giá nào (wire từ Báo giá in ấn).</p>
-      </div>
-    );
-
-  return (
-    <div className="kh__histwrap">
-      <HistFilterBar
-        value={filter}
-        onChange={setFilter}
-        placeholder="Tìm mã báo giá…"
-        statusLabels={QUOTE_STATUS_LABELS}
-        statuses={statuses}
-      />
-
-      {/* 2 cột: chart giá trị BG theo tháng + cơ cấu trạng thái (số thật). */}
-      <div className="kh__orders-analysis-row">
-        <section className="card kh__chart kh__chart--orders-monthly">
-          <div className="kh__chart-head">
-            <h3>Giá trị báo giá theo tháng</h3>
-            <span className="kh__chart-unit">TRIỆU đ</span>
-          </div>
-          {monthlyQuoted.length === 0 ? (
-            <span className="kh__muted kh__empty-chart-text">Chưa có dữ liệu tháng</span>
-          ) : (
-            <MonthBars
-              data={monthlyQuoted.map((m) => ({ label: m.label, value: m.total }))}
-              formatValue={moneyCompact}
-              formatAxis={(v) => String(Math.round(v / 1_000_000))}
-            />
-          )}
-        </section>
-
-        <section className="card kh__chart kh__chart--orders-top">
-          <div className="kh__chart-head">
-            <h3>Cơ cấu trạng thái</h3>
-            <span className="kh__muted-tag">{filteredRows.length} BG</span>
-          </div>
-          <ul className="kh__top-products-list">
-            {statusMix.map((s) => (
-              <li key={s.status} className="kh__top-product-item">
-                <span className={`kh__ostat kh__ostat--${s.status}`}>
-                  {QUOTE_STATUS_LABELS[s.status] ?? s.status}
-                </span>
-                <div className="kh__top-prod-info">
-                  <span className="kh__top-prod-qty">{s.count} báo giá</span>
-                </div>
-                <span className="kh__top-prod-total">{moneyCompact(s.total)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
-
-      {/* Bảng toàn bộ báo giá — bỏ cột SL / NV tạo / Đơn của mẫu (BE không trả các field đó). */}
-      <div className="kh__tablewrap kh__tablewrap--orders">
-        <div className="kh__sec-head">
-          <h3>Toàn bộ báo giá</h3>
-          <span className="kh__sec-count">{filteredRows.length} BG</span>
-          <span className="kh__sec-right">Mới nhất trước</span>
-        </div>
-        <table className="kh__table kh__table--tight kh__table--drill">
-          <thead>
-            <tr>
-              <th>Mã BG · Ngày tạo</th>
-              <th className="kh__num">Giá trị</th>
-              <th>Hiệu lực đến</th>
-              <th>Trạng thái</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.map((q) => (
-              <tr
-                key={q.id}
-                className="kh__drillrow"
-                onClick={() => onOpenQuote(q.id)}
-                tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && onOpenQuote(q.id)}
-                title={`Mở chi tiết báo giá ${q.code}`}
-              >
-                <td>
-                  <div className="kh__order-code-cell">
-                    <span className="kh__link kh__mono">
-                      {q.code}
-                      <span className="kh__muted"> v{q.version}</span>
-                    </span>
-                    <span className="kh__order-code-sub">
-                      <span className="kh__mono kh__muted">{fmtDate(q.created_at)}</span>
-                      {fmtTime(q.created_at) && (
-                        <span className="kh__time-chip">{fmtTime(q.created_at)}</span>
-                      )}
-                    </span>
-                  </div>
-                </td>
-                <td className="kh__num kh__money">{moneyStat(q.total)}</td>
-                <td className="kh__mono">{fmtDate(q.valid_until)}</td>
-                <td>
-                  <span className={`kh__ostat kh__ostat--${q.status}`}>
-                    {QUOTE_STATUS_LABELS[q.status] ?? q.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
   );
 }
 
@@ -3045,7 +2578,11 @@ function AuditTab({
 
 
 /** Chips nhãn trên header hồ sơ + nút mở modal Gắn thẻ (mockup: toggle preset, Lưu một lần). */
-function TagChips({ customerId, customerName }: { customerId: number; customerName?: string }) {
+function TagChips({ customerId, customerName, onDoi }: {
+  customerId: number;
+  customerName?: string;
+  onDoi?: (labels: string[]) => void;
+}) {
   const { token } = useAuth();
   const canUpdate = useCan()("khach_hang", "update");
   const [tags, setTags] = useState<{ id: number; label: string }[]>([]);
@@ -3084,6 +2621,7 @@ function TagChips({ customerId, customerName }: { customerId: number; customerNa
           onSaved={(next) => {
             setTags(next);
             setOpen(false);
+            onDoi?.(next.map((t) => t.label));
           }}
         />
       )}
@@ -3205,10 +2743,13 @@ function TagModal({
     setBusy(true);
     setError(null);
     try {
-      const currentByLower = new Map(current.map((t) => [t.label.toLowerCase(), t]));
+      // So với nhãn THẬT trên máy chủ, không tin `current`: mở từ danh sách thì `current` chỉ có
+      // chữ, id là số giả — xoá theo id giả là gỡ nhầm nhãn hoặc trượt.
+      const thuc = (await api.customers.tags(token, customerId)).items;
+      const currentByLower = new Map(thuc.map((t) => [t.label.toLowerCase(), t]));
       const selectedLower = new Set([...selected].map((l) => l.toLowerCase()));
-      
-      for (const t of current) {
+
+      for (const t of thuc) {
         if (!selectedLower.has(t.label.toLowerCase())) {
           await api.customers.deleteTag(token, customerId, t.id);
         }
@@ -3243,7 +2784,7 @@ function TagModal({
           <div className="kh__tagmodal-head-left">
             <div className={`kh__tagmodal-avatar ${avatarClass}`}>{initials}</div>
             <div>
-              <div className="kh__tagmodal-subhead">Nhận diện &amp; Phân loại CRM</div>
+              <div className="kh__tagmodal-subhead">Gắn thẻ</div>
               <h2 className="kh__tagmodal-title">{customerName || "Khách hàng"}</h2>
             </div>
           </div>
@@ -3336,38 +2877,14 @@ function TagModal({
 
           {error && <div className="banner banner--error" role="alert">{error}</div>}
 
-          {/* Dải Tóm Tắt (Summary Bar) các thẻ đã chọn */}
-          {selectedCount > 0 && (
-            <div className="kh__tag-summary-bar">
-              <div className="kh__tag-summary-left">
-                <span className="kh__tag-summary-label">Đã chọn ({selectedCount}):</span>
-                <div className="kh__tag-summary-chips">
-                  {[...selected].map((label) => (
-                    <span key={label} className={`kh__tag-summary-chip kh__tagchip--${tagTone(label)}`}>
-                      {label}
-                      <button
-                        type="button"
-                        className="kh__tag-summary-del"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggle(label);
-                        }}
-                        title="Bỏ chọn"
-                      >
-                        <X size={10} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
+          {/* Footer Action buttons */}
+          <div className="kh__dialog-actions kh__tagmodal-actions">
+            {/* Chip đang bật đã tự nói là đã chọn — không nhắc lại thành một dải chip thứ hai. */}
+            {selectedCount > 0 && (
               <button type="button" className="kh__tag-clear-btn" onClick={clearAll}>
                 Bỏ chọn tất cả
               </button>
-            </div>
-          )}
-
-          {/* Footer Action buttons */}
-          <div className="kh__dialog-actions kh__tagmodal-actions">
+            )}
             <Button variant="ghost" onClick={onClose}>
               Huỷ
             </Button>
@@ -3940,7 +3457,7 @@ function NotesTab({ customerId }: { customerId: number }) {
     }
   }
 
-  if (notes === null) return <p className="kh__muted">Đang tải…</p>;
+  if (notes === null) return <EmptyState trangThai="dang-tai" inline />;
 
   return (
     <div className="kh__notes">
@@ -4112,222 +3629,55 @@ function NotesTab({ customerId }: { customerId: number }) {
   );
 }
 
-// --- Chăm sóc tab (#20/#27/#28: nhật ký + lịch hẹn follow-up, nhắc 1-2-3) ------
+// --- Chăm sóc tab: lịch hẹn kiểu Google Calendar (05/10/2026) ---------------------
+//
+// Khối "Nhật ký hoạt động" riêng ĐÃ GỠ: lịch sử chính là các hẹn đã qua trong Lịch biểu ("Xem hẹn
+// cũ hơn"), kết quả ghi ở ô ghi chú của từng hẹn. Còn lại dòng Đánh giá (#28) dưới lịch.
 
-function RemindBadge({ level, days }: { level: number; days: number }) {
-  if (level <= 0) {
-    return (
-      <span className="badge-sem badge-sem--moss">
-        <CheckCircle2 size={11} /> Chưa đến hạn
-      </span>
-    );
-  }
-  return (
-    <span className="kh__remind-badge-pill" title={days > 0 ? `Quá hạn ${days} ngày` : "Đến hạn hôm nay"}>
-      <Clock size={11} /> Nhắc lần {level}{days > 0 ? ` (${days} ngày)` : ""}
-    </span>
-  );
-}
-
-
-
-function CareTab({ customerId, onCareChanged }: { customerId: number; onCareChanged?: () => void }) {
+function CareTab({ customerId, onCareChanged, moHenTick, eventTick = 0 }: {
+  customerId: number;
+  onCareChanged?: () => void;
+  moHenTick?: number;
+  eventTick?: number;
+}) {
   const { token } = useAuth();
-  const canUpdate = useCan()("khach_hang", "update");
-  const [tasks, setTasks] = useState<CareTask[] | null>(null);
-  // Đánh giá chăm sóc (#28): xong đúng hạn / xong trễ / đang quá hạn — BE trả sẵn.
-  const [taskStats, setTaskStats] = useState<{ done_on_time: number; done_late: number; overdue_open: number } | null>(null);
+  // Đánh giá chăm sóc (#28): xong đúng hạn / xong trễ / đang trễ — BE trả sẵn.
+  const [danhGia, setDanhGia] = useState<{ done_on_time: number; done_late: number; overdue_open: number } | null>(null);
 
-  const [error, setError] = useState<string | null>(null);
-
-  // Timeline: mặc định ẨN việc đã huỷ (giảm nhiễu — xem lại được bằng toggle).
-  const [showCancelled, setShowCancelled] = useState(false);
-  // Chống "cuộn vô hạn": mặc định 6 mục mới nhất, bấm mới xem thêm.
-  const [showAllHistory, setShowAllHistory] = useState(false);
-
-  const reload = useCallback(() => {
+  const napDanhGia = useCallback(() => {
     if (!token) return;
-    api.customers.careTasks(token, customerId)
-      .then((t) => {
-        setTasks(t.items);
-        setTaskStats({ done_on_time: t.done_on_time, done_late: t.done_late, overdue_open: t.overdue_open });
-      })
-      .catch(() => setError("Không tải được dữ liệu chăm sóc."));
+    api.customers
+      .careTasks(token, customerId)
+      .then((t) => setDanhGia({ done_on_time: t.done_on_time, done_late: t.done_late, overdue_open: t.overdue_open }))
+      .catch(() => setDanhGia(null));
   }, [token, customerId]);
 
   useEffect(() => {
-    setTasks(null);
-    setError(null);
-    reload();
-  }, [reload]);
-
-  async function setTaskStatus(t: CareTask, status: string) {
-    if (!token) return;
-    try {
-      await api.customers.setCareTaskStatus(token, customerId, t.id, { status });
-      reload();
-    } catch {
-      setError("Cập nhật việc không thành công.");
-    }
-  }
-
-  const historyItems = useMemo(() => {
-    const list: Array<{
-      id: string;
-      date: Date;
-      kind: string;
-      title: string;
-      detail: string;
-      actor: string | null;
-      badgeText: string;
-      type: "event" | "task";
-      rawTask?: CareTask;
-    }> = [];
-
-    if (tasks) {
-      const closed = tasks.filter((t) => t.status !== "open");
-      closed.forEach((t) => {
-        list.push({
-          id: `task-${t.id}`,
-          // Việc huỷ không có mốc huỷ từ BE (cancelled_at) — chặn trên bằng "bây giờ"
-          // để việc huỷ có hạn TƯƠNG LAI không ghim đầu timeline (bug sort cũ).
-          date: t.done_at
-            ? new Date(t.done_at)
-            : new Date(Math.min(new Date(t.due_date).getTime(), Date.now())),
-          kind: t.status === "done" ? "done_task" : "cancelled_task",
-          title: t.status === "done" ? `Hoàn thành lịch hẹn: ${t.note}` : `Huỷ lịch hẹn: ${t.note}`,
-          detail: t.note,
-          actor: t.assignee_name,
-          badgeText: t.status === "done" ? "Đã xong" : "Đã huỷ",
-          type: "task",
-          rawTask: t,
-        });
-      });
-    }
-
-    return list.sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [tasks]);
-
-  const cancelledCount = historyItems.filter((i) => i.kind === "cancelled_task").length;
-  const visibleHistory = showCancelled
-    ? historyItems
-    : historyItems.filter((i) => i.kind !== "cancelled_task");
-  const shownHistory = showAllHistory ? visibleHistory : visibleHistory.slice(0, 6);
-
-  if (error && tasks == null) return <div className="banner banner--error" role="alert">{error}</div>;
-  if (tasks == null) return <TableSkeleton cols={3} />;
+    setDanhGia(null);
+    napDanhGia();
+  }, [napDanhGia]);
+  useEffect(() => {
+    if (eventTick) napDanhGia();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventTick]);
 
   return (
     <div className="kh__care">
-      {error && <div className="banner banner--error" role="alert">{error}</div>}
-
-      {/* Lịch hẹn chăm sóc kiểu calendar (redesign-lich-hen-cham-soc) — lặp + bung tương lai. */}
-      <CareCalendar customerId={customerId} onChange={() => { reload(); onCareChanged?.(); }} />
-
-      {/* Đánh giá chăm sóc (#28) — một dòng gọn, ẩn khi chưa có gì đáng nói. */}
-      {taskStats && taskStats.done_on_time + taskStats.done_late + taskStats.overdue_open > 0 && (
+      <CareCalendar customerId={customerId} moHenTick={moHenTick} eventTick={eventTick} onChange={() => { napDanhGia(); onCareChanged?.(); }} />
+      {danhGia && danhGia.done_on_time + danhGia.done_late + danhGia.overdue_open > 0 && (
         <div className="care-eval-line">
           <span className="stat__label">Đánh giá</span>
           <span className="care-eval-item care-eval-item--good">
-            <CheckCircle2 size={12} /> {taskStats.done_on_time} đúng hạn
+            <CheckCircle2 size={12} /> {danhGia.done_on_time} xong đúng hạn
           </span>
           <span className="care-eval-item care-eval-item--mid">
-            <Clock size={12} /> {taskStats.done_late} trễ
+            <Clock size={12} /> {danhGia.done_late} xong trễ
           </span>
           <span className="care-eval-item care-eval-item--bad">
-            <AlertTriangle size={12} /> {taskStats.overdue_open} đang quá hạn
+            <AlertTriangle size={12} /> {danhGia.overdue_open} đang trễ
           </span>
         </div>
       )}
-
-      {/* Nhật ký hoạt động — các hẹn ĐÃ XONG / đã huỷ (máy tự ghi nhận khi tick trên lịch). */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div className="timeline-section-title">
-            <History size={12} /> Nhật ký hoạt động ({visibleHistory.length})
-            {cancelledCount > 0 && (
-              <button
-                type="button"
-                className="kh__linkbtn"
-                style={{ marginLeft: "auto", fontSize: 12 }}
-                onClick={() => setShowCancelled((v) => !v)}
-              >
-                {showCancelled ? "Ẩn đã huỷ" : `Hiện đã huỷ (${cancelledCount})`}
-              </button>
-            )}
-          </div>
-
-          {visibleHistory.length === 0 ? (
-            <p className="kh__muted kh__chart-empty" style={{ background: "var(--canvas)", border: "1px solid var(--rule-soft)", borderRadius: "var(--r-5)", padding: "var(--sp-6)", textAlign: "center" }}>
-              Chưa có hoạt động nào — đặt hẹn ở lịch trên<span className="cc__hint-tick">, tick tròn khi làm xong</span> để lưu lịch sử.
-            </p>
-          ) : (
-            <div className="care-timeline">
-              {shownHistory.map((item) => {
-                const iconsMap: Record<string, ReactNode> = {
-                  goi_dien: <Phone size={10} />,
-                  nhan_tin: <MessageCircle size={10} />,
-                  email: <Mail size={10} />,
-                  gap_truc_tiep: <HeartHandshake size={10} />,
-                  khac: <FileText size={10} />,
-                  done_task: <Check size={10} />,
-                  cancelled_task: <X size={10} />,
-                };
-                
-                const iconClass = item.kind === "done_task"
-                  ? "timeline-icon--done"
-                  : item.kind === "cancelled_task"
-                    ? "timeline-icon--cancelled"
-                    : `timeline-icon--${item.kind}`;
-
-                return (
-                  <div key={item.id} className="timeline-item">
-                    <div className={`timeline-icon ${iconClass}`} title={item.badgeText}>
-                      {iconsMap[item.kind] || <FileText size={10} />}
-                    </div>
-                    <div className="timeline-card">
-                      <p style={{ textDecoration: item.kind === "cancelled_task" ? "line-through" : "none", opacity: item.kind === "cancelled_task" ? 0.6 : 1, margin: 0 }}>
-                        {item.type === "task" ? item.title : item.detail}
-                      </p>
-                      <div className="timeline-meta">
-                        <span>
-                          <Clock size={11} /> {fmtDateTime(item.date.toISOString())}
-                        </span>
-                        {item.actor && (
-                          <span>
-                            <User size={11} /> {item.actor}
-                          </span>
-                        )}
-                        <span className={`badge-sem ${item.kind === "done_task" ? "badge-sem--moss" : "badge-sem--muted"}`}>
-                          {item.badgeText}
-                        </span>
-                        {item.type === "task" && canUpdate && item.rawTask && (
-                          <button
-                            type="button"
-                            className="closed-task-action-btn"
-                            onClick={() => setTaskStatus(item.rawTask!, "open")}
-                            style={{ marginLeft: "auto" }}
-                          >
-                            Mở lại
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {visibleHistory.length > 6 && (
-            <button
-              type="button"
-              className="kh__linkbtn"
-              style={{ alignSelf: "center", fontSize: 12 }}
-              onClick={() => setShowAllHistory((v) => !v)}
-            >
-              {showAllHistory ? "Thu gọn" : `Xem thêm ${visibleHistory.length - 6} hoạt động cũ hơn`}
-            </button>
-          )}
-        </div>
     </div>
   );
 }
@@ -4351,7 +3701,13 @@ const EMPTY_CONTACT: ContactFormState = {
   is_primary: false,
 };
 
-function ContactsTab({ customerId }: { customerId: number }) {
+function ContactsTab({ customerId, onChanged, moThemTick = 0 }: {
+  customerId: number;
+  /** Danh sách vừa đổi (thêm/sửa/xoá) — để thẻ "Liên hệ chính" ở đầu hồ sơ nạp lại. */
+  onChanged?: () => void;
+  /** Nút "Thêm người liên hệ" ở đầu hồ sơ: mỗi lần tăng ⇒ mở sẵn form thêm mới. */
+  moThemTick?: number;
+}) {
   const { token } = useAuth();
   const canUpdate = useCan()("khach_hang", "update");
   const [items, setItems] = useState<CustomerContact[] | null>(null);
@@ -4381,6 +3737,16 @@ function ContactsTab({ customerId }: { customerId: number }) {
     setFormError(null);
     setEditingId(-1);
   }
+  // Mở form thêm khi được gọi từ đầu hồ sơ — chờ danh sách nạp xong (lượt nạp đầu đóng form).
+  const daMoThem = useRef(0);
+  useEffect(() => {
+    if (!moThemTick || moThemTick === daMoThem.current || items == null || !canUpdate) return;
+    daMoThem.current = moThemTick;
+    // Khách chưa có ai thì người đầu tiên mặc định là liên hệ chính.
+    setForm({ ...EMPTY_CONTACT, is_primary: items.length === 0 });
+    setFormError(null);
+    setEditingId(-1);
+  }, [moThemTick, items, canUpdate]);
   function startEdit(c: CustomerContact) {
     setForm({
       name: c.name,
@@ -4416,6 +3782,7 @@ function ContactsTab({ customerId }: { customerId: number }) {
         await api.customers.updateContact(token, customerId, editingId, input);
       setEditingId(null);
       reload();
+      onChanged?.();
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : "Lưu không thành công.");
     } finally {
@@ -4428,6 +3795,7 @@ function ContactsTab({ customerId }: { customerId: number }) {
     try {
       await api.customers.deleteContact(token, customerId, id);
       reload();
+      onChanged?.();
     } catch {
       setError("Xóa không thành công.");
     }
@@ -4438,16 +3806,14 @@ function ContactsTab({ customerId }: { customerId: number }) {
 
   return (
     <div className="kh__histwrap">
-      <div className="kh__hist-toolbar">
-        <span className="kh__muted">
-          {items.length} người liên hệ · ghi rõ chức vụ + nhiệm vụ để các bộ phận tự liên hệ
-        </span>
-        {canUpdate && editingId == null && (
+      {/* Dòng đếm + lời dặn đầu tab đã gỡ (04/10/2026): số thẻ nhìn là thấy. Chỉ còn nút thêm. */}
+      {canUpdate && editingId == null && (
+        <div className="kh__hist-toolbar" style={{ justifyContent: "flex-end" }}>
           <Button variant="secondary" onClick={startAdd} style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
             <Plus size={14} /> Thêm liên hệ
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {editingId != null && (
         <div className="card kh__subform">
@@ -4541,14 +3907,20 @@ function ContactsTab({ customerId }: { customerId: number }) {
                     <div className="contact-avatar">{initials}</div>
                     <div className="kh__contact-info">
                       <h4 className="kh__contact-name">
-                        {c.name}
-                        {c.is_primary && (
-                          <span className="kh__badge kh__badge--moss" style={{ fontSize: "12px", padding: "1px 6px", display: "inline-flex", alignItems: "center", gap: "2px", marginLeft: "6px" }}>
-                            <CheckCircle2 size={10} /> Chính
-                          </span>
-                        )}
+                        <span className="kh__contact-name-text" title={c.name}>{c.name}</span>
                       </h4>
-                      {c.title && <p className="kh__contact-title">{c.title}</p>}
+                      {/* Nhãn "Chính" nằm ở dòng chức vụ, không cạnh tên: dòng tên phải chừa chỗ cho
+                          cụm nút sửa/xoá ở góc, thêm nhãn vào đó là tên bị cắt cụt. */}
+                      {(c.title || c.is_primary) && (
+                        <p className="kh__contact-title">
+                          {c.is_primary && (
+                            <span className="kh__badge kh__badge--moss" style={{ flex: "none", fontSize: "12px", padding: "1px 6px", display: "inline-flex", alignItems: "center", gap: "2px" }}>
+                              <CheckCircle2 size={10} /> Chính
+                            </span>
+                          )}
+                          {c.title && <span className="kh__contact-name-text" title={c.title}>{c.title}</span>}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -4714,16 +4086,14 @@ function AddressesTab({ customerId }: { customerId: number }) {
 
   return (
     <div className="kh__histwrap">
-      <div className="kh__hist-toolbar">
-        <span className="kh__muted">
-          {items.length} điểm giao · phí giao hàng theo điểm sẽ nối vào Tính giá sau
-        </span>
-        {canUpdate && editingId == null && (
+      {/* Dòng đếm + lời dặn đầu tab đã gỡ (04/10/2026): số thẻ nhìn là thấy. Chỉ còn nút thêm. */}
+      {canUpdate && editingId == null && (
+        <div className="kh__hist-toolbar" style={{ justifyContent: "flex-end" }}>
           <Button variant="secondary" onClick={startAdd} style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
             <Plus size={14} /> Thêm điểm giao
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {editingId != null && (
         <div className="card kh__subform">

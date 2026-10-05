@@ -30,9 +30,10 @@ function vt(id: number, ten: string, so_luong: number, don_vi = "kg"): VatTuDong
 }
 
 /** Dòng lấy từ DANH MỤC GIẤY — cùng bảng, cùng ô "Thêm vật tư", chỉ khác danh mục nguồn. */
-function giay(id: number, ten: string, so_luong: number, don_vi = "kg"): VatTuDong {
+function giay(id: number, ten: string, so_luong: number, don_vi = "to_nguyen",
+              kho_rong = 650, kho_dai = 860): VatTuDong {
   return { id: id * 100 + 1, hang_loai: "giay", vat_tu_id: id, vat_tu_ma: `GY-${id}`,
-           vat_tu_ten: ten, don_vi, so_luong, tu_dong: false } as VatTuDong;
+           vat_tu_ten: ten, don_vi, so_luong, tu_dong: false, kho_rong, kho_dai } as VatTuDong;
 }
 
 /** Chuỗi 6 bước thật của LSX26-0004. Bước ghi kẽm đứng ĐẦU nhưng ngoài dòng giấy, và người lập
@@ -70,7 +71,7 @@ describe("bangKeVatTu", () => {
     expect(nvl).toHaveLength(1);
     expect(nvl[0].ten).toBe("Ford 70 65×86");
     expect(nvl[0].so_luong).toBe(436.02);
-    expect(nvl[0].chu_thich).toBe("NVL chính");
+    expect(nvl[0].chu_thich).toBe("NVL chính · 650 × 860 mm");
   });
 
   it("không bước nào khai giấy ⇒ bảng kê KHÔNG tự đẻ dòng NVL", () => {
@@ -85,8 +86,18 @@ describe("bangKeVatTu", () => {
     seq = 0;
     const r = ke([buoc({ vat_tus: [giay(7, "Ivory 350", 40), vt(7, "Keo dán", 3)] })]);
     expect(r.tong).toHaveLength(2);
-    expect(r.tong.map((t) => t.khoa).sort()).toEqual(["giay:7", "vat_tu:7"]);
+    expect(r.tong.map((t) => t.khoa).sort()).toEqual(["giay:7:650:860", "vat_tu:7"]);
     expect(r.tong.find((t) => t.nhom === "nvl")?.so_luong).toBe(40);
+  });
+
+  it("cùng mã giấy hai khổ là HAI dòng ở khối tổng — tờ khác khổ không cộng chung", () => {
+    seq = 0;
+    const r = ke([buoc({ vat_tus: [giay(7, "Ivory 350", 500, "to_nguyen", 780, 905)] }),
+                  buoc({ vat_tus: [giay(7, "Ivory 350", 300, "to_nguyen", 800, 1090)] }),
+                  buoc({ vat_tus: [giay(7, "Ivory 350", 200, "to_nguyen", 780, 905)] })]);
+    const nvl = r.tong.filter((t) => t.nhom === "nvl");
+    expect(nvl.map((t) => [t.khoa, t.so_luong]).sort()).toEqual([
+      ["giay:7:780:905", 700], ["giay:7:800:1090", 300]]);
   });
 
   it("vật tư khai ở HAI bước thì khối tổng phải CỘNG lại", () => {

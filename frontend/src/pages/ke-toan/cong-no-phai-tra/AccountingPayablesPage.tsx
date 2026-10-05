@@ -14,14 +14,17 @@ import { money } from "../../../utils/format";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị.
 import { useNapTenDonVi } from "../../tenDonVi";
 import { AgingStrip } from "../components/AgingStrip";
+import { ToolbarChuan } from "../components/ToolbarChuan";
 import { PayablesDrawer } from "./components/PayablesDrawer";
 import { PayCell } from "./components/payablesCells";
 import { LIST_FILTERS, PAGE_SIZE } from "./shared/constants";
 import { kpi } from "./shared/helpers";
 import type { Bucket, ListFilter } from "./shared/types";
+import "../../master-data.css";
 import "../../accounting.css";
 import "../../payables.css";
 import "../../purchase.css";
+import "./cong-no-phai-tra-chuan.css";
 
 /**
  * CÔNG NỢ PHẢI TRẢ — không có bảng công nợ nào dưới DB.
@@ -125,15 +128,16 @@ export function AccountingPayablesPage({
   const soThang = summary?.period_months ?? 3;
 
   return (
-    <main className="md-page acct-cnt">
-      <header className="md-page__head">
-        <p className="eyebrow">Kế toán thu mua</p>
-        <h1 className="md-page__title">Công nợ phải trả</h1>
-        <p className="md-page__sub">
-          Nợ tính theo hàng ĐÃ GIAO trừ đi tiền đã chi ròng, gom về từng nhà
-          cung cấp. Số liệu suy ra từ đợt giao và phiếu chi — không nhập tay,
-          nên không lệch với chứng từ.
-        </p>
+    <main className="md-page acct-cnt acct-std">
+      <header className="md-page__head" style={{ marginBottom: "var(--sp-3)" }}>
+        {/* Ý cũ của đoạn mô tả dài giữ lại ở `title` (rê chuột): nợ = hàng ĐÃ GIAO trừ tiền đã chi
+            ròng, suy ra từ đợt giao + phiếu chi, không nhập tay nên không lệch chứng từ. */}
+        <h1
+          className="md-page__title"
+          title="Nợ tính theo hàng ĐÃ GIAO trừ tiền đã chi ròng, gom theo từng nhà cung cấp. Số liệu suy ra từ đợt giao và phiếu chi — không nhập tay, nên không lệch với chứng từ."
+        >
+          Công nợ phải trả
+        </h1>
       </header>
 
       {error && (
@@ -194,40 +198,30 @@ export function AccountingPayablesPage({
         }}
       />
 
+      <ToolbarChuan
+        tabs={LIST_FILTERS.map((item) => ({ value: item.id, label: item.label }))}
+        tab={filter}
+        onTab={(v) => {
+          setFilter(v as ListFilter);
+          setPage(1);
+        }}
+        ariaTabs="Lọc nhà cung cấp theo tình trạng nợ"
+        q={q}
+        onQ={(v) => {
+          setQ(v);
+          setPage(1);
+        }}
+        placeholder="Tìm nhà cung cấp (kể cả đã trả hết)..."
+        hasFilter={filter !== "all" || q.trim() !== "" || roTuoi != null}
+        onReset={() => {
+          setFilter("all");
+          setQ("");
+          setRoTuoi(null);
+          setPage(1);
+        }}
+      />
 
-      <section className="acct-toolbar">
-        <form
-          className="md-page__search"
-          onSubmit={(event) => event.preventDefault()}
-        >
-          <input
-            className="input"
-            value={q}
-            onChange={(event) => {
-              setQ(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Tìm nhà cung cấp (kể cả đã trả hết)..."
-          />
-        </form>
-        <div className="pay-pills">
-          {LIST_FILTERS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`pay-pill${filter === item.id ? " pay-pill--on" : ""}`}
-              onClick={() => {
-                setFilter(item.id);
-                setPage(1);
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="card md-page__tablewrap acct-list">
+      <section className="md-page__tablewrap acct-list acct-dmh__frame">
         <table className="md-page__table">
           <thead>
             <tr>
@@ -258,20 +252,33 @@ export function AccountingPayablesPage({
             {error && !loading && (
               <tr>
                 <td colSpan={7}>
-                  Chưa đọc được số liệu — xem thông báo lỗi ở trên.
+                  <div className="cnt-chuan__rong">
+                    <span className="cnt-chuan__rong-icon">
+                      <Icon name="alert" size={20} />
+                    </span>
+                    Chưa đọc được số liệu — xem thông báo lỗi ở trên.
+                  </div>
                 </td>
               </tr>
             )}
             {biet && rows.length === 0 && (
               <tr>
                 <td colSpan={7}>
-                  {q.trim() ? (
-                    <>Không tìm thấy nhà cung cấp nào tên "{q.trim()}".</>
-                  ) : filter !== "all" ? (
-                    "Không có nhà cung cấp nào khớp bộ lọc."
-                  ) : (
-                    <strong>Không còn nợ nhà cung cấp nào</strong>
-                  )}
+                  <div className="cnt-chuan__rong">
+                    <span className="cnt-chuan__rong-icon">
+                      <Icon
+                        name={q.trim() || filter !== "all" || roTuoi != null ? "search" : "fileCheck"}
+                        size={20}
+                      />
+                    </span>
+                    {q.trim() ? (
+                      <>Không tìm thấy nhà cung cấp nào tên "{q.trim()}".</>
+                    ) : filter !== "all" || roTuoi != null ? (
+                      "Không có nhà cung cấp nào khớp bộ lọc."
+                    ) : (
+                      <strong>Không còn nợ nhà cung cấp nào</strong>
+                    )}
+                  </div>
                 </td>
               </tr>
             )}
@@ -282,10 +289,15 @@ export function AccountingPayablesPage({
                   onClick={() => setOpen({ row, bucket: "all" })}
                 >
                   <td className="pay-supplier-cell" title={row.supplier_name}>
-                    <strong>{row.supplier_name}</strong>
-                    {row.total_due === 0 && row.paid_in_period > 0 && (
-                      <small className="pay-ok">Đã trả hết</small>
-                    )}
+                    <div className="acct-dmh__supplier-wrap cnt-chuan__tenncc">
+                      <span className="acct-dmh__supplier-name">{row.supplier_name}</span>
+                      {row.total_due === 0 && row.paid_in_period > 0 && (
+                        <span className="acct-dmh__state acct-dmh__state--paid">
+                          <i className="acct-dmh__dot" />
+                          Đã trả hết
+                        </span>
+                      )}
+                    </div>
                   </td>
                   {/* Mọi con số bấm được, mở drawer LỌC SẴN đúng rổ đó. */}
                   <td className="acct-count-cell">

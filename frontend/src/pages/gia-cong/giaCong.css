@@ -114,7 +114,7 @@
 .gcn__o textarea:focus {
   outline: none;
   border-color: var(--rust, #c5400a);
-  box-shadow: 0 0 0 3px var(--rust-soft, #f4e2d6);
+  box-shadow: 0 0 0 3px var(--rule-hair);
 }
 
 /* Number Input + Suffix & Quick Selection */
@@ -161,7 +161,7 @@
 .gcn__quick-btn:hover {
   border-color: var(--rust, #c5400a);
   color: var(--rust, #c5400a);
-  background: var(--rust-soft, #f4e2d6);
+  background: var(--rule-hair);
 }
 
 /* Alert Warning Box */
@@ -201,7 +201,7 @@
 }
 .gcn__toggle-card--checked {
   border-color: var(--rust, #c5400a);
-  background: var(--rust-soft, #f4e2d6);
+  background: var(--rule-hair);
 }
 .gcn__toggle-card input[type="checkbox"] {
   width: 1.125rem;

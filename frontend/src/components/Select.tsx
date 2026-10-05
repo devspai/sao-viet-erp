@@ -124,6 +124,18 @@ export function Select<T extends SelectValue>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, portal]);
 
+  // Bản INLINE cũng phải lật: ô "Hiển thị 8" ở chân danh sách mở xuống là rơi khỏi đáy màn,
+  // không chọn được (04/10/2026). Đo chiều cao THẬT của danh sách sau khi gắn vào DOM.
+  const [inlineUp, setInlineUp] = useState(false);
+  useLayoutEffect(() => {
+    if (!open || portal) return;
+    const t = triggerRef.current?.getBoundingClientRect();
+    const h = listRef.current?.offsetHeight ?? 0;
+    if (!t) return;
+    const choDuoi = window.innerHeight - t.bottom - 8;
+    setInlineUp(dropUp || (choDuoi < h && t.top > choDuoi));
+  }, [open, portal, dropUp]);
+
   useEffect(() => {
     if (!open) return;
     function onDocDown(e: MouseEvent) {
@@ -201,7 +213,9 @@ export function Select<T extends SelectValue>({
   const list = (
     <ul
       ref={listRef}
-      className={`sel__list${portal ? " sel__list--portal" : ""}${align === "right" ? " sel__list--right" : ""}${
+      className={`sel__list${portal ? " sel__list--portal" : ""}${
+        !portal && inlineUp ? " sel__list--up" : ""
+      }${align === "right" ? " sel__list--right" : ""}${
         listClassName ? ` ${listClassName}` : ""
       }`}
       role="listbox"

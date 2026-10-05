@@ -246,9 +246,6 @@
   .cc__wd,
   .cc__dn,
   .cc__pill,
-  .cc__pop-tip,
-  .cc__chip,
-  .cc__label,
   .cc-radar-map-sub,
   .cc-radar-metric-label,
   .cc-radar-map-legend,
@@ -546,12 +543,10 @@
   .khsx .khvt-bcard__item-po,
   .khsx .khvt-po-list__loai,
   .kh__title-group .eyebrow,
-  .kh__ckpi-lbl,
-  .kh__care-n {
+  .kh__ckpi-lbl {
     font-size: 12px !important;
   }
 
-  .kh__care-caret,
   .kh__kpi-label,
   .kh__kpi-hint,
   .kh__kpi .kh__kpi-label,
@@ -568,13 +563,7 @@
   .kh__so-facts dt,
   .kh__seam-note,
   .kh__chart-head .kh__muted,
-  .kh__chart-unit,
   .kh__bar-label,
-  .kh__legend-val,
-  .kh__heat,
-  .kh__heat-mlabel,
-  .kh__heat-wlabel,
-  .kh__ostat,
   .kh__dialog .field__label,
   .kh__finpolicy-edit .field__label,
   .kh__seam-hint,
@@ -592,13 +581,7 @@
   .kh__tl-size-select,
   .kh__tl-select,
   .kh__tl-page-num,
-  .timeline-section-title,
-  .kh__care-kpi-label,
-  .kh__care-task-card-meta,
-  .timeline-meta,
   .closed-task-item-meta,
-  .closed-task-action-btn,
-  .kh__sub-tab-count,
   .kh__row-badge,
   .kh__stars-cell,
   .kh__ar-sub,
@@ -606,28 +589,16 @@
   .kh__so-badge-tier,
   .kh__btn-tag,
   .kh__gauge-label-bottom,
-  .kh__heatmap-legend,
   .kh__payment-label,
   .kh__year-filters-label,
-  .kh__year-filter-btn,
-  .kh__top-rank,
-  .kh__top-prod-qty,
-  .kh__sec-count,
-  .kh__sec-right {
+  .kh__year-filter-btn {
     font-size: 12px !important;
   }
 
-  .kh__order-code-sub .kh__muted,
-  .kh__time-chip,
-  .kh__order-prod-sub,
   .kh__progress-pct,
-  .kh__muted-tag,
   .kh__tagchip,
   .kh__tagmodal-subhead,
   .kh__tag-summary-chip,
-  .kh__num small,
-  .kh__money small,
-  .kh__kpi-value small,
   .kh__file-meta,
   .kh__subform .field__label,
   .kh__note-hint,
@@ -641,16 +612,10 @@
   .kh__tl-tag,
   .kh__tl-badge,
   .kh__tl-actor-chip,
-  .kh__tl-drill-link,
-  .kh__care-panel-count-tag,
-  .kh__care-suggest-badge,
-  .kh__care-card-code,
-  .kh__care-card-subinfo,
-  .kh__care-days-tag {
+  .kh__tl-drill-link {
     font-size: 12px !important;
   }
 
-  .kh__remind-badge-pill,
   .kh__sale-chip__vt,
   .kh__dialog-kind-chip,
   .kh__section-title,
@@ -1138,7 +1103,6 @@
   .tg-pill,
   .tg-microlabel__opt,
   .tg-readout__how,
-  .tg-chip__canh,
   .tg-cost__grphead {
     font-size: 12px !important;
   }
@@ -1182,7 +1146,6 @@
   .rc-modal__kicker,
   .tg-step-badge,
   .rc-modal__left-col .tg-microlabel,
-  .tg-timeline-select-arrow,
   .rc-modal__right-col .tg-sheetrow--total .tg-val__dv,
   .rc-modal__right-col .tg-hao-pill,
   .rc-modal__right-col .tg-step-card__flow,
@@ -1211,7 +1174,6 @@
 
   .rdx-cost .subrow .lbl,
   .rdx-cost .dk__eyebrow,
-  .rdx-cost .sel__trigger.tg-timeline-select-arrow,
   .users__table thead th,
   .users__badge,
   .users__saved {

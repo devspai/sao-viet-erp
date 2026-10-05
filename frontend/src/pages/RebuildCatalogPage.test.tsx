@@ -111,35 +111,54 @@ function reqCuoi(goi: URL[]): URL {
   return ds[ds.length - 1];
 }
 
-describe("RebuildCatalogPage — phân trang 20 dòng/trang Ở MÁY CHỦ", () => {
-  it("chỉ xin 20 dòng mỗi trang, không kéo cả danh mục về", async () => {
+describe("RebuildCatalogPage — phân trang 25 dòng/trang Ở MÁY CHỦ", () => {
+  it("chỉ xin 25 dòng mỗi trang, không kéo cả danh mục về", async () => {
     const goi = stubApi(45);
     moMan();
 
     await screen.findByText("CD-001");
     const req = reqDanhSach(goi);
     expect(req).toHaveLength(1);                                   // đúng MỘT lượt gọi
-    expect(req[0].searchParams.get("size")).toBe("20");
+    expect(req[0].searchParams.get("size")).toBe("25");
     expect(req[0].searchParams.get("page")).toBe("1");
-    expect(maDangHien()).toHaveLength(20);
+    expect(maDangHien()).toHaveLength(25);
   });
 
-  it("bấm Sau là XIN TRANG 2 từ máy chủ, không cắt lại trong JS", async () => {
-    const goi = stubApi(45);
+  it("bấm Trang sau là XIN TRANG 2 từ máy chủ, không cắt lại trong JS", async () => {
+    const goi = stubApi(60);
     const user = userEvent.setup();
     moMan();
 
     await screen.findByText("CD-001");
-    expect(screen.getByText(/Tổng 45 bản ghi/).textContent).toContain("Trang 1/3");
+    const chan = screen.getByText(/tổng/).closest("footer")!;
+    expect(chan.textContent).toContain("Trang 1/3");
+    expect(chan.textContent).toContain("tổng 60 bản ghi");
 
-    await user.click(screen.getByRole("button", { name: "Sau" }));
-    await waitFor(() => expect(maDangHien()[0]).toBe("CD-021"));
+    await user.click(screen.getByRole("button", { name: "Trang sau" }));
+    await waitFor(() => expect(maDangHien()[0]).toBe("CD-026"));
     expect(reqCuoi(goi).searchParams.get("page")).toBe("2");
-    expect(maDangHien()[19]).toBe("CD-040");
+    expect(maDangHien()[24]).toBe("CD-050");
 
-    await user.click(screen.getByRole("button", { name: "Sau" }));
-    await waitFor(() => expect(maDangHien()).toHaveLength(5));     // trang cuối còn 5 dòng
-    expect(screen.getByRole("button", { name: "Sau" })).toBeDisabled();
+    // Bấm thẳng số trang cuối — khuôn chân bảng của Nhật ký.
+    await user.click(screen.getByRole("button", { name: "3" }));
+    await waitFor(() => expect(maDangHien()).toHaveLength(10));    // trang cuối còn 10 dòng
+    expect(screen.getByRole("button", { name: "Trang sau" })).toBeDisabled();
+  });
+
+  it("đổi Dòng/trang thì xin lại TRANG 1 với size mới", async () => {
+    const goi = stubApi(60);
+    const user = userEvent.setup();
+    moMan();
+
+    await screen.findByText("CD-001");
+    await user.click(screen.getByRole("button", { name: "Trang sau" }));
+    await waitFor(() => expect(maDangHien()[0]).toBe("CD-026"));
+
+    await user.selectOptions(screen.getByRole("combobox", { name: /Dòng\/trang/ }), "50");
+    await waitFor(() => expect(maDangHien()).toHaveLength(50));
+    expect(reqCuoi(goi).searchParams.get("size")).toBe("50");
+    expect(reqCuoi(goi).searchParams.get("page")).toBe("1");
+    expect(maDangHien()[0]).toBe("CD-001");
   });
 
   it("gõ tìm thì GỬI `q` lên máy chủ và kéo về trang 1", async () => {
@@ -148,8 +167,8 @@ describe("RebuildCatalogPage — phân trang 20 dòng/trang Ở MÁY CHỦ", () 
     moMan();
 
     await screen.findByText("CD-001");
-    await user.click(screen.getByRole("button", { name: "Sau" }));   // đang đứng trang 2
-    await waitFor(() => expect(maDangHien()[0]).toBe("CD-021"));
+    await user.click(screen.getByRole("button", { name: "Trang sau" }));   // đang đứng trang 2
+    await waitFor(() => expect(maDangHien()[0]).toBe("CD-026"));
 
     // "Công đoạn 44" nằm ở trang 3 — gõ tìm phải ra, không được "không tìm thấy" vì ngoài trang.
     await user.type(screen.getByPlaceholderText("Tìm mã / tên…"), "đoạn 44");
@@ -158,7 +177,7 @@ describe("RebuildCatalogPage — phân trang 20 dòng/trang Ở MÁY CHỦ", () 
     const cuoi = reqCuoi(goi);
     expect(cuoi.searchParams.get("q")).toBe("đoạn 44");
     expect(cuoi.searchParams.get("page")).toBe("1");
-    expect(screen.getByText(/Tổng 1 bản ghi/)).toBeTruthy();
+    expect(screen.getByText(/tổng/).closest("footer")!.textContent).toContain("tổng 1 bản ghi");
   });
 
   it("gõ liên tục chỉ tốn MỘT request (chờ gõ xong mới hỏi)", async () => {
@@ -180,13 +199,13 @@ describe("RebuildCatalogPage — phân trang 20 dòng/trang Ở MÁY CHỦ", () 
 
     await screen.findByText("CD-001");
     const tabs = screen.getByRole("button", { name: /^Tất cả/ });
-    expect(tabs.textContent).toContain("45");                        // tổng, không phải 20 dòng đang xem
+    expect(tabs.textContent).toContain("45");                        // tổng, không phải 25 dòng đang xem
     expect(screen.getByRole("button", { name: /^In/ }).textContent).toContain("23");
     expect(screen.getByRole("button", { name: /^Sau in/ }).textContent).toContain("22");
 
     await user.click(screen.getByRole("button", { name: /^Sau in/ }));
     await waitFor(() => expect(reqCuoi(goi).searchParams.get("nhom")).toBe("sau_in"));
-    await waitFor(() => expect(screen.getByText(/Tổng 22 bản ghi/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/tổng/).closest("footer")!.textContent).toContain("tổng 22 bản ghi"));
     // Đang đứng ở tab con nhưng số cạnh tiêu đề vẫn là tổng cả danh mục.
     expect(within(screen.getByRole("main")).getByText("45 mục")).toBeTruthy();
   });

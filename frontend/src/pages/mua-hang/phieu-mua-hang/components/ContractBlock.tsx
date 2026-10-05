@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import {
   ApiError,
   api,
-  assetUrl,
+  anhNho, assetUrl,
   type PurchaseAttachmentRow,
   type PurchaseRequestRow,
 } from "../../../../api/client";
@@ -128,100 +128,96 @@ export function ContractBlock({
   }
 
   return (
-    <section className="pdot">
-      <header className="pdot__head">
-        <h3>Hợp đồng &amp; chứng từ</h3>
-        {canUpdate && (
-          // ⚠️ GIỮ `ghost`, ĐỪNG nâng lên `accent`. Nút này nằm CÙNG hộp thoại Chi tiết phiếu với
-          // "Ghi đợt giao" (DeliveriesBlock) — luật là TỐI ĐA MỘT nút cam mỗi hộp thoại, và suất
-          // cam đó thuộc về "Ghi đợt giao": đó là việc làm gần như mỗi lần hàng về và là đường
-          // DUY NHẤT sinh công nợ, còn hợp đồng khai một lần rồi thôi. Hai nút cam cạnh nhau là
-          // mắt không biết nhìn đâu.
-          // `disabled={banDau}` giữ nguyên: chưa sửa gì thì không có gì để lưu. Thêm `cocVuot`:
-          // để bấm được rồi ăn 422 thì người dùng phải đọc toast mới hiểu, trong khi câu giải
-          // thích đã nằm ngay dưới ô nhập.
-          <Button
-            type="button"
-            variant="ghost"
-            loading={busy}
-            disabled={banDau || cocVuot}
-            onClick={luu}
-          >
-            Lưu hợp đồng
-          </Button>
-        )}
-      </header>
-
-      <div className="pdot__contract">
-        <label className="purchase__field">
-          <span>Số hợp đồng</span>
-          <input
-            className="input"
-            maxLength={64}
-            readOnly={!canUpdate}
-            value={soHopDong}
-            onChange={(e) => setSoHopDong(e.target.value)}
-            placeholder="Chưa có hợp đồng"
-          />
-        </label>
-        {/* NGÀY CHỐT CÔNG NỢ — đứng CẠNH số hợp đồng, không đứng cạnh cọc, vì nó cùng loại:
-            thứ NCC báo lại SAU khi đơn đã lập. Và như số hợp đồng, nó KHÔNG khoá theo duyệt —
-            nó không đổi đồng tiền nào, chỉ đổi HẠN trả, mà hạn thì NCC có quyền báo muộn hoặc
-            dời. Khoá lại là ép kế toán canh một cái hạn họ biết là sai.
-            KHÔNG đặt ở form TẠO đơn: form đó tách thành N đơn theo NCC mà mỗi NCC báo một mốc
-            chốt khác nhau — đúng cái bẫy đã gỡ với "ngày dự kiến nhận hàng". */}
-        <label className="purchase__field">
-          <span>Ngày chốt công nợ</span>
-          <input
-            className="input"
-            type="date"
-            readOnly={!canUpdate}
-            value={ngayChot}
-            onChange={(e) => setNgayChot(e.target.value)}
-          />
-          <small className="pdot__hint">
-            {ngayChot && (row.supplier_credit_days ?? null) !== null ? (
-              <>
-                NCC cho nợ <strong>{row.supplier_credit_days} ngày</strong> kể từ mốc này ⇒ hạn
-                trả <strong>{hanTraTuMoc(ngayChot, row.supplier_credit_days)}</strong>. Qua ngày đó
-                chưa trả mới tính quá hạn.
-              </>
-            ) : ngayChot ? (
-              <>
-                NCC <strong>chưa khai số ngày cho nợ</strong> nên chưa suy ra hạn trả được — khai
-                ở danh mục Nhà cung cấp.
-              </>
-            ) : (
-              <>
-                Mốc NCC chốt sổ cho đơn này. Bỏ trống thì hạn trả tính từ{" "}
-                <strong>ngày hoá đơn</strong> của từng đợt như cũ.
-              </>
-            )}
-          </small>
-        </label>
-        <label className="purchase__field">
-          <span>Cọc dự kiến{cocKhoa && " (đã duyệt — khoá)"}</span>
-          {/* KHOÁ rồi thì đây không còn là ô nhập — in ra như một con số có dấu chấm ngăn nghìn.
-              `type=number` bày "3500000" trần, không ai đọc ra ba triệu rưỡi, mà lại còn giả vờ
-              mời gõ trong khi gõ không được. Còn sửa được thì giữ nguyên ô số. */}
-          {cocKhoa || !canUpdate ? (
-            <span className="input purchase__number-input pdot__readonly-money">
-              {money(Number(coc) || 0)}
-            </span>
-          ) : (
-            <input
-              className="input purchase__number-input"
-              type="number"
-              min={0}
-              step={1000}
-              max={tranCoc || undefined}
-              value={coc}
-              onChange={(e) => setCoc(e.target.value)}
-              placeholder="0"
-              aria-invalid={cocVuot || undefined}
-            />
+    <div className="acct-tab2-container">
+      {/* Thẻ 1: Thông tin Hợp đồng & Công nợ */}
+      <section className="acct-card-section">
+        <header className="acct-card-section__head">
+          <span className="acct-card-section__title">
+            <Icon name="fileText" size={15} />
+            Hợp đồng &amp; Điều khoản chốt nợ
+          </span>
+          {canUpdate && (
+            <Button
+              type="button"
+              variant="ghost"
+              loading={busy}
+              disabled={banDau || cocVuot}
+              onClick={luu}
+            >
+              Lưu hợp đồng
+            </Button>
           )}
-          <small className={`pdot__hint${cocVuot ? " pdot__hint--loi" : ""}`}>
+        </header>
+
+        <div className="acct-contract-grid">
+          <label className="purchase__field">
+            <span>Số hợp đồng</span>
+            <input
+              className="input"
+              maxLength={64}
+              readOnly={!canUpdate}
+              value={soHopDong}
+              onChange={(e) => setSoHopDong(e.target.value)}
+              placeholder="Chưa có hợp đồng"
+            />
+          </label>
+
+          <label className="purchase__field">
+            <span>Ngày chốt công nợ</span>
+            <input
+              className="input"
+              type="date"
+              readOnly={!canUpdate}
+              value={ngayChot}
+              onChange={(e) => setNgayChot(e.target.value)}
+            />
+          </label>
+        </div>
+
+        {/* Hướng dẫn ngày chốt công nợ */}
+        <div className="acct-field-hint" style={{ marginTop: 10 }}>
+          {ngayChot && (row.supplier_credit_days ?? null) !== null ? (
+            <>
+              NCC cho nợ <strong>{row.supplier_credit_days} ngày</strong> kể từ mốc này ⇒ hạn
+              trả <strong>{hanTraTuMoc(ngayChot, row.supplier_credit_days)}</strong>. Qua ngày đó
+              chưa trả mới tính quá hạn.
+            </>
+          ) : ngayChot ? (
+            <>
+              NCC <strong>chưa khai số ngày cho nợ</strong> nên chưa suy ra hạn trả được — khai
+              ở danh mục Nhà cung cấp.
+            </>
+          ) : (
+            <>
+              Mốc NCC chốt sổ cho đơn này. Bỏ trống thì hạn trả tính từ{" "}
+              <strong>ngày hoá đơn</strong> của từng đợt như cũ.
+            </>
+          )}
+        </div>
+
+        {/* Khối Cọc dự kiến */}
+        <div style={{ marginTop: 14 }}>
+          <label className="purchase__field">
+            <span>Cọc dự kiến{cocKhoa && " (đã duyệt — khoá)"}</span>
+            {cocKhoa || !canUpdate ? (
+              <span className="input purchase__number-input pdot__readonly-money">
+                {money(Number(coc) || 0)}
+              </span>
+            ) : (
+              <input
+                className="input purchase__number-input"
+                type="number"
+                min={0}
+                step={1000}
+                max={tranCoc || undefined}
+                value={coc}
+                onChange={(e) => setCoc(e.target.value)}
+                placeholder="0"
+                aria-invalid={cocVuot || undefined}
+              />
+            )}
+          </label>
+          <div className={`acct-field-hint${cocVuot ? " acct-field-hint--error" : ""}`}>
             {cocKhoa ? (
               <>
                 Đơn đã duyệt nên cọc khoá — đây là con số người duyệt đã đồng ý.
@@ -234,97 +230,104 @@ export function ContractBlock({
               </>
             ) : (
               <>
-                Tối đa {money(tranCoc)} (tổng dự kiến của đơn). Tiền cọc thật là một{" "}
-                <strong>phiếu chi Đặt cọc</strong> bên Kế toán — số này{" "}
-                <strong>không</strong> vào công nợ, nhưng sẽ được{" "}
-                <strong>điền sẵn</strong> khi kế toán lập phiếu cọc.
+                Tối đa {money(tranCoc)} (tổng dự kiến của đơn). Số này dùng để điền sẵn khi kế toán lập phiếu chi cọc.
               </>
             )}
-          </small>
-        </label>
-      </div>
-
-      <div className="pdot__files">
-        {hopDong.length === 0 ? (
-          <p className="pdot__empty">Chưa đính kèm ảnh/PDF hợp đồng nào.</p>
-        ) : (
-          <div className="pdot__filegrid">
-            {hopDong.map((a) => {
-              const href = assetUrl(a.file_url) ?? "#";
-              const isImage = ATTACHMENT_IMAGE_TYPES.includes(a.file_type ?? "");
-              return (
-                <div className="pdot__file" key={a.id}>
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={
-                      a.uploaded_by_name
-                        ? `${a.file_name}\n${a.uploaded_by_name} tải lên ${fmtDate(a.uploaded_at)}`
-                        : a.file_name
-                    }
-                  >
-                    {isImage ? (
-                      <img
-                        className="pdot__thumb"
-                        src={href}
-                        alt={a.file_name}
-                      />
-                    ) : (
-                      // Ô GIẤY + icon, y như hộp Ghi đợt giao. Trước đây nhồi cả TÊN FILE vào ô
-                      // 76px nên nó ra một mẩu chữ cụt ("CÁC LỖI THƯỜNG GẶP K…") đứng lệch cạnh
-                      // nút ×; tên đầy đủ vốn đã nằm ở `title` của thẻ <a> bao ngoài.
-                      <span className="pdot__thumb pdot__thumb--pdf">
-                        <Icon name="fileText" size={22} />
-                      </span>
-                    )}
-                  </a>
-                  {canUpdate && (
-                    <button
-                      type="button"
-                      className="pdot__filex"
-                      aria-label={`Xóa ${a.file_name}`}
-                      disabled={uploading}
-                      onClick={() => xoa(a)}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              );
-            })}
           </div>
-        )}
-        {canUpdate && (
-          <>
-            <input
-              type="file"
-              hidden
-              multiple
-              accept="image/*,application/pdf"
-              ref={fileRef}
-              onChange={(e) => {
-                tai(e.target.files);
-                e.target.value = "";
-              }}
-            />
-            <button
-              type="button"
-              className="pdot__pick"
-              disabled={uploading}
-              onClick={() => fileRef.current?.click()}
-            >
-              <Icon name="fileText" size={16} />
-              {uploading
-                ? "Đang tải lên…"
-                : hopDong.length > 0
-                  ? "Thêm ảnh / PDF hợp đồng"
-                  : "Chọn ảnh / PDF hợp đồng"}
-            </button>
-            <small className="pdot__hint">Ảnh hoặc PDF, tối đa 10 MB mỗi file.</small>
-          </>
-        )}
-      </div>
-    </section>
+        </div>
+      </section>
+
+      {/* Thẻ 2: Chứng từ & File hợp đồng */}
+      <section className="acct-card-section">
+        <header className="acct-card-section__head">
+          <span className="acct-card-section__title">
+            <Icon name="paperclip" size={15} />
+            Chứng từ &amp; File đính kèm ({hopDong.length} file)
+          </span>
+        </header>
+
+        <div className="pdot__files">
+          {hopDong.length === 0 ? (
+            <p className="pdot__empty">Chưa đính kèm ảnh/PDF hợp đồng nào.</p>
+          ) : (
+            <div className="pdot__filegrid">
+              {hopDong.map((a) => {
+                const href = assetUrl(a.file_url) ?? "#";
+                const isImage = ATTACHMENT_IMAGE_TYPES.includes(a.file_type ?? "");
+                return (
+                  <div className="pdot__file" key={a.id}>
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={
+                        a.uploaded_by_name
+                          ? `${a.file_name}\n${a.uploaded_by_name} tải lên ${fmtDate(a.uploaded_at)}`
+                          : a.file_name
+                      }
+                    >
+                      {isImage ? (
+                        <img
+                          className="pdot__thumb"
+                          src={anhNho(a.file_url) ?? href}
+                          alt={a.file_name}
+                        />
+                      ) : (
+                        <span className="pdot__thumb pdot__thumb--pdf">
+                          <Icon name="fileText" size={22} />
+                        </span>
+                      )}
+                    </a>
+                    {canUpdate && (
+                      <button
+                        type="button"
+                        className="pdot__filex"
+                        aria-label={`Xóa ${a.file_name}`}
+                        disabled={uploading}
+                        onClick={() => xoa(a)}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {canUpdate && (
+            <div style={{ marginTop: 10 }}>
+              <input
+                type="file"
+                hidden
+                multiple
+                accept="image/*,application/pdf"
+                ref={fileRef}
+                onChange={(e) => {
+                  tai(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <div
+                className="acct-upload-zone"
+                onClick={() => !uploading && fileRef.current?.click()}
+              >
+                <div className="acct-upload-zone__icon">
+                  <Icon name="fileText" size={20} />
+                </div>
+                <div className="acct-upload-zone__title">
+                  {uploading
+                    ? "Đang tải file lên…"
+                    : hopDong.length > 0
+                      ? "Bấm để thêm ảnh / PDF hợp đồng khác"
+                      : "Bấm để chọn ảnh / PDF hợp đồng đính kèm"}
+                </div>
+                <div className="acct-upload-zone__sub">Hỗ trợ ảnh (PNG, JPG) hoặc PDF, tối đa 10 MB mỗi file</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }

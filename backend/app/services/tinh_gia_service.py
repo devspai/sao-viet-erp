@@ -6,10 +6,11 @@
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..models.cong_doan import CongDoan, CongDoanMay
 from ..models.may_thiet_bi import MayThietBi
@@ -25,6 +26,72 @@ def _f(v, d: float = 0.0) -> float:
         return float(v)
     except (TypeError, ValueError):
         return d
+
+
+@dataclass
+class DanhMucNapSan:
+    """Danh mục mà CẢ PHIẾU trỏ tới, nạp một lượt (04/10/2026). Trước đây mỗi sản phẩm tự hỏi lại
+    giấy, máy, công thức theo máy, công đoạn, vật tư, chip — 6 câu SQL mỗi sản phẩm, phiếu 10 sản
+    phẩm là 60 câu cho một lần xem trước. Nay mỗi loại MỘT câu `IN (...)` cho cả phiếu, số câu không
+    tăng theo số sản phẩm / bước / vật tư. Giữ map cũng là giữ đối tượng sống: identity map của
+    Session chỉ giữ tham chiếu yếu."""
+    giay: dict[int, GiayNguyen] = field(default_factory=dict)
+    may: dict[int, MayThietBi] = field(default_factory=dict)
+    # may_id → {cong_doan_id: công thức giá của cặp (công đoạn, máy)}
+    ct_gia_may: dict[int, dict[int, str]] = field(default_factory=dict)
+    cong_doan: dict[int, CongDoan] = field(default_factory=dict)
+    vat_tu: dict[int, VatTuInAn] = field(default_factory=dict)
+
+
+def nap_danh_muc_phieu(db: Session, tps) -> DanhMucNapSan:
+    giay_ids = {int(tp.giay_id) for tp in tps if tp.giay_id is not None}
+    may_ids = {int(tp.may_id) for tp in tps if tp.may_id is not None}
+    cd_ids = {int(r.cong_doan_id) for tp in tps for r in tp.thanh_phams if r.cong_doan_id is not None}
+    vt_ids = {int(v.vat_tu_id) for tp in tps for r in tp.thanh_phams for v in r.vat_tus
+              if v.vat_tu_id is not None}
+    nap = DanhMucNapSan()
+    if giay_ids:
+        nap.giay = {g.id: g for g in db.execute(
+            select(GiayNguyen).where(GiayNguyen.id.in_(giay_ids))).scalars()}
+    if may_ids:
+        nap.may = {m.id: m for m in db.execute(
+            select(MayThietBi).where(MayThietBi.id.in_(may_ids))).scalars()}
+        for may_id, cd_id, ct in db.execute(
+            select(CongDoanMay.may_id, CongDoanMay.cong_doan_id, CongDoanMay.cong_thuc_gia)
+            .where(CongDoanMay.may_id.in_(may_ids))
+        ).all():
+            nap.ct_gia_may.setdefault(int(may_id), {})[int(cd_id)] = ct or ""
+    if cd_ids:
+        nap.cong_doan = {c.id: c for c in db.execute(
+            select(CongDoan).where(CongDoan.id.in_(cd_ids))).scalars()}
+    if vt_ids:
+        nap.vat_tu = {v.id: v for v in db.execute(
+            select(VatTuInAn).where(VatTuInAn.id.in_(vt_ids))
+            .options(selectinload(VatTuInAn.chips))).scalars()}
+    return nap
+
+
+def _vat_tus_cua_buoc(db: Session, buoc: PhieuThanhPham,
+                      vat_tu_map: dict[int, VatTuInAn] | None = None) -> list[dict]:
+    """Vật tư của MỘT bước kèm công thức giá + chip của vật tư (engine không tự tra DB).
+
+    Vật tư đã xoá khỏi danh mục thì bỏ im lặng — danh mục là nguồn sống."""
+    out: list[dict] = []
+    for vt in sorted(buoc.vat_tus or [], key=lambda r: (r.thu_tu or 0, r.id or 0)):
+        m = vat_tu_map.get(vt.vat_tu_id) if vat_tu_map is not None else db.get(VatTuInAn, vt.vat_tu_id)
+        if m is None:
+            continue
+        out.append({
+            "vat_tu_id": m.id,
+            "ten": m.ten,
+            "don_gia": _f(m.don_gia),
+            "don_vi_gia": m.don_vi_gia,
+            "cong_thuc_gia": m.cong_thuc_gia,
+            "cong_thuc_dinh_muc": m.cong_thuc_dinh_muc,
+            "chips": [{"ma": c.ma, "ten": c.ten, "don_vi": c.don_vi} for c in m.chips],
+            "gia_tri_chip": dict(vt.gia_tri_chip or {}),
+        })
+    return out
 
 
 def _cong_doan_to_dict(cd: CongDoan, tram: dict[str, str] | None = None,
@@ -98,14 +165,16 @@ _ROW_SCALAR_FIELDS = (
     # (`_canh_bao_khuon`), còn lệnh SX đọc lại để so ý định của sale với con dao kế hoạch thật sự
     # chọn.
     "khuon_nguon",
-    # Kích thước/số lượng KHUÔN — TÁCH BIỆT với `phi_khuon`, chỉ để công thức của công đoạn
-    # (bước dùng `tooling_type = "khuon_ep"`) tự quy ra tiền. Xem `bien_cong_thuc._TANG_BUOC`.
-    "dai_khuon", "rong_khuon", "so_khuon",
 )
 
 
-def _resolve_thanh_phan(db: Session, tp) -> dict:
-    """ORM PhieuThanhPhan → dict phẳng ĐÃ resolve danh mục (giấy khổ/gsm + công đoạn) cho engine."""
+def _resolve_thanh_phan(db: Session, tp, nap: DanhMucNapSan | None = None) -> dict:
+    """ORM PhieuThanhPhan → dict phẳng ĐÃ resolve danh mục (giấy khổ/gsm + công đoạn) cho engine.
+
+    `nap` = danh mục đã nạp sẵn cho cả phiếu (`nap_danh_muc_phieu`). Vắng thì tự nạp cho riêng
+    thành phần này — nơi gọi lặp qua nhiều thành phần nên truyền vào để khỏi hỏi lại từng cái."""
+    if nap is None:
+        nap = nap_danh_muc_phieu(db, [tp])
     d: dict = {}
     for k in _TP_SCALAR_FIELDS:
         v = getattr(tp, k, None)
@@ -119,7 +188,7 @@ def _resolve_thanh_phan(db: Session, tp) -> dict:
     # Giấy: bơm định lượng + tên + CÔNG THỨC + đơn giá. Đơn giá/kg CHỐT CỨNG ở danh mục Giấy —
     # luôn lấy theo record (phiếu không sửa). Khổ KHÔNG còn ở danh mục → nhập tay ở phiếu (kho_nguyen).
     if tp.giay_id is not None:
-        giay = db.get(GiayNguyen, tp.giay_id)
+        giay = nap.giay.get(int(tp.giay_id))
         if giay is not None:
             d["gsm"] = giay.gsm
             d["giay_ten"] = giay.ten
@@ -141,7 +210,7 @@ def _resolve_thanh_phan(db: Session, tp) -> dict:
     #  · chừa + vùng in = thông số kỹ thuật để engine trừ đúng chiều / cảnh báo. Phiếu để trống thì
     #                 lấy theo máy (xem `_compute_one`). Chừa lấy nhíp GIẤY, không lấy mép nhíp bản kẽm.
     if tp.may_id is not None:
-        may = db.get(MayThietBi, tp.may_id)
+        may = nap.may.get(int(tp.may_id))
         if may is not None:
             if may.kho_max_dai:
                 d["kho_may_dai"] = may.kho_max_dai
@@ -162,16 +231,8 @@ def _resolve_thanh_phan(db: Session, tp) -> dict:
     tram = ban_do_tram(db)   # đọc MỘT lần cho cả phiếu, không hỏi lại từng dòng
     # Máy in được chọn ở khối In của THÀNH PHẦN (`PhieuThanhPhan.may_id`) — đây là chỗ DUY NHẤT
     # phiếu tính giá chọn máy, nên chỉ dòng công đoạn nhóm In mới có cơ hội ăn công thức riêng.
-    # Đọc MỘT lần cho cả thành phần, không hỏi lại từng dòng.
-    ct_gia_theo_cd: dict[int, str] = {}
-    if tp.may_id is not None:
-        ct_gia_theo_cd = {
-            int(cd_id): (ct or "")
-            for cd_id, ct in db.execute(
-                select(CongDoanMay.cong_doan_id, CongDoanMay.cong_thuc_gia)
-                .where(CongDoanMay.may_id == int(tp.may_id))
-            ).all()
-        }
+    ct_gia_theo_cd = nap.ct_gia_may.get(int(tp.may_id), {}) if tp.may_id is not None else {}
+    cd_map, vt_map = nap.cong_doan, nap.vat_tu
     rows: list[dict] = []
     for row in sorted(tp.thanh_phams, key=lambda r: (r.thu_tu or 0, r.id or 0)):
         rd: dict = {}
@@ -179,38 +240,16 @@ def _resolve_thanh_phan(db: Session, tp) -> dict:
             v = getattr(row, k, None)
             rd[k] = v if (isinstance(v, (int, str, bool)) or v is None) else _f(v)
         if row.cong_doan_id is not None:
-            cd = db.get(CongDoan, row.cong_doan_id)
+            cd = cd_map.get(row.cong_doan_id)
             if cd is not None:
                 # Chốt lại nhóm ở ĐÂY nữa dù `CongDoanService._validate` đã dọn lúc lưu: dòng
                 # cũ khai trước luật vẫn nằm trong DB, mà giá sai kiểu này không màn nào bày ra.
                 rd["cong_doan"] = _cong_doan_to_dict(
                     cd, tram,
                     ct_gia_may=ct_gia_theo_cd.get(cd.id) if cd.nhom == "print" else None)
+        rd["vat_tus"] = _vat_tus_cua_buoc(db, row, vt_map)
         rows.append(rd)
     d["thanh_phams"] = rows
-
-    # Vật tư in ấn thêm tay → dòng NVL: kéo CÔNG THỨC + đơn giá + đơn vị + tên từ danh mục
-    # (giống Giấy). don_gia dòng = ghi đè; 0 → lấy danh mục.
-    vts: list[dict] = []
-    for vt in sorted(getattr(tp, "vat_tus", []) or [], key=lambda r: (r.thu_tu or 0, r.id or 0)):
-        vd: dict = {
-            "vat_tu_id": vt.vat_tu_id,
-            "ten": vt.ten or "",
-            "don_gia": _f(vt.don_gia),
-            "so_luong": vt.so_luong,
-            "ghi_chu": vt.ghi_chu,
-        }
-        if vt.vat_tu_id is not None:
-            m = db.get(VatTuInAn, vt.vat_tu_id)
-            if m is not None:
-                vd["cong_thuc_gia"] = m.cong_thuc_gia
-                vd["don_vi_gia"] = m.don_vi_gia
-                if not vd["ten"]:
-                    vd["ten"] = m.ten
-                if not vd["don_gia"]:
-                    vd["don_gia"] = _f(m.don_gia)
-        vts.append(vd)
-    d["vat_tus"] = vts
 
     # Chi phí khác: KHÔNG tra danh mục, KHÔNG công thức — chép nguyên cặp (tên, tiền) người lập
     # phiếu gõ. Đây chính là chỗ hứng khoản chưa có danh mục nào nhận, nên resolve cái gì cũng
@@ -229,7 +268,8 @@ def compute_phieu_snapshot(db: Session, phieu) -> dict:
     """
     so_luong = int(phieu.so_luong or 0)
     tps = sorted(phieu.thanh_phans, key=lambda t: (t.thu_tu or 0, t.id or 0))
-    resolved = [_resolve_thanh_phan(db, tp) for tp in tps]
+    nap = nap_danh_muc_phieu(db, tps)
+    resolved = [_resolve_thanh_phan(db, tp, nap) for tp in tps]
     result = compute_phieu(so_luong=so_luong, thanh_phans=resolved)
 
     # gán giá vốn từng thành phần + ghi ngược SỐ BÀI IN dẫn xuất (so_trang / trang_moi_tay) để
@@ -314,9 +354,9 @@ def danh_muc_doi_sau_khi_tinh(db: Session, phieu) -> dict | None:
                 cd_ids.add(cid)
                 if f.ten and cid not in ten_luu_cd:
                     ten_luu_cd[cid] = str(f.ten)
-        for vt in tp.vat_tus:
-            if vt.vat_tu_id:
-                vt_ids.add(int(vt.vat_tu_id))
+            for vt in f.vat_tus:
+                if vt.vat_tu_id:
+                    vt_ids.add(int(vt.vat_tu_id))
 
     # Bậc bù hao NAY nằm trên chính công đoạn (22/09/2026) nên đã được soi cùng dòng Công đoạn
     # ngay dưới — sửa bậc là `cong_doan.updated_at` nhảy. Trước đây bù hao là danh mục riêng, công

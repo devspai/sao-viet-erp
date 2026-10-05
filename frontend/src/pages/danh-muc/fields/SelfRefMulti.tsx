@@ -7,6 +7,7 @@
 // một pill trong bảng.
 import { TrashIcon } from "../icons";
 import type { Row } from "../types";
+import { RefSearchField } from "./RefFields";
 
 export function SelfRefMultiField({ value, options, onChange }: {
   value: number[]; options: Row[]; onChange: (v: number[]) => void;
@@ -21,7 +22,6 @@ export function SelfRefMultiField({ value, options, onChange }: {
         const o = byId(id);
         return (
           <div className="rc-dm-vt__item" key={id}>
-            <span className="rc-dm-vt__ma">{o ? String(o.ma) : `#${id}`}</span>
             <span className="rc-dm-vt__ten">{o ? String(o.ten) : "(đã gỡ khỏi danh mục)"}</span>
             <button type="button" className="rc-bands__del" title="Bỏ khỏi danh sách thay thế"
               onClick={() => onChange(value.filter((x) => x !== id))}>
@@ -30,11 +30,11 @@ export function SelfRefMultiField({ value, options, onChange }: {
           </div>
         );
       })}
-      <select className="rc-dinh-muc-add__select" value=""
-        onChange={(e) => { const id = Number(e.target.value); if (id) onChange([...value, id]); }}>
-        <option value="">＋ chọn từ danh mục</option>
-        {remaining.map((o) => <option key={o.id} value={o.id}>{String(o.ma)} · {String(o.ten)}</option>)}
-      </select>
+      {/* Tìm GẦN ĐÚNG theo tên (bỏ dấu, từ nào trước cũng được), chỉ in TÊN — mã vẫn gõ được.
+          Cùng ô với tab Vật tư của Công đoạn. */}
+      <RefSearchField value={null} options={remaining} anMa
+        placeholder="＋ Gõ tên để thêm…"
+        onChange={(id) => { if (id != null) onChange([...value, Number(id)]); }} />
     </div>
   );
 }

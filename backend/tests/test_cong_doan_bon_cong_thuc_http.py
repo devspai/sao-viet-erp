@@ -75,11 +75,12 @@ def test_bon_o_cong_thuc_song_sot_ca_luc_luu_lan_luc_doc_lai(client, nen):
     may = cd["may_lam_duoc"][0]
     assert (may["cong_thuc_gio"], may["cong_thuc_gia"]) == (
         "sl_vao * so_mat", "sl_vao * so_mat * 420")
-    assert cd["vat_tus"][0]["cong_thuc_luong"] == "sl_vao / 8000"
+    assert "cong_thuc_luong" not in cd["vat_tus"][0], "định mức nay ở vật tư, không ở dòng công đoạn"
     assert "dau_viec_dinh_muc" not in cd, "tầng đầu việc định mức đã gỡ (mg `0320`)"
     # Trả lời ngay ở POST cũng phải đủ các ô: form dựng lại state từ response này.
     assert tao["may_lam_duoc"][0]["cong_thuc_gia"] == "sl_vao * so_mat * 420"
-    assert tao["vat_tus"][0]["cong_thuc_luong"] == "sl_vao / 8000"
+    assert "cong_thuc_luong" not in tao["vat_tus"][0]
+    assert cd["vat_tus"][0]["vat_tu_id"] == nen["vat_tu_id"]
 
 
 def test_cong_doan_ngoai_nhom_in_khong_giu_duoc_cong_thuc_gia(client, nen):
@@ -97,3 +98,19 @@ def test_cau_toan_khoang_trang_ve_trong_chu_khong_thanh_cong_thuc_rong(client, n
 
     may = cd["may_lam_duoc"][0]
     assert (may["cong_thuc_gio"], may["cong_thuc_gia"]) == (None, None)
+
+
+def test_khoa_cong_thuc_luong_o_dong_vat_tu_bi_bo_va_cot_db_khong_ghi(client, nen):
+    """01/10/2026: định mức ở công thức của vật tư. Client cũ còn gửi `cong_thuc_luong` ở dòng vật tư
+    thì nhận 200, response không có khoá đó, và cột DB cũ vẫn trống."""
+    from app.db import engine
+    from app.models.cong_doan import CongDoanVatTu
+
+    p = _payload(nen)
+    p["vat_tus"] = [{"vat_tu_id": nen["vat_tu_id"], "cong_thuc_luong": "sl_vao"}]
+    r = client.post("/api/cong-doan", json=p, headers=nen["headers"])
+    assert r.status_code == 201, r.text
+    assert "cong_thuc_luong" not in r.json()["vat_tus"][0]
+    with Session(engine) as s:
+        dong = s.query(CongDoanVatTu).filter_by(cong_doan_id=r.json()["id"]).all()
+        assert [d.cong_thuc_luong for d in dong] == [None]

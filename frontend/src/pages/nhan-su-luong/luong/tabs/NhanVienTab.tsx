@@ -10,12 +10,12 @@ import {
 } from "lucide-react";
 import {
   api,
-  assetUrl,
+  anhNho,
   type EmployeeKpis,
   type EmployeeRow,
   type SalaryPreview,
 } from "../../../../api/client";
-import { EmptyRow } from "../../../../components/EmptyState";
+import { EmptyRow, EmptyState } from "../../../../components/EmptyState";
 import { Pager, trangHopLe } from "../../../../components/Pager";
 import { errText, money } from "../shared/helpers";
 import { SalaryModal } from "../modals/SalaryModal";
@@ -400,7 +400,7 @@ export function NhanVienTab({
               };
 
               const p = previews[e.id];
-              const photoSrc = assetUrl(e.photo_url);
+              const photoSrc = anhNho(e.photo_url);
 
               return (
                 <tr key={e.id}>
@@ -457,7 +457,7 @@ export function NhanVienTab({
                   {/* Column 6: Mức lương tháng */}
                   <td>
                     {p === undefined ? (
-                      <span className="cc-card__hint">Đang tải…</span>
+                      <EmptyState trangThai="dang-tai" gon />
                     ) : p && p.monthly > 0 ? (
                       <span className="lg-salary-main font-semibold">
                         {money(p.monthly)} đ
@@ -473,7 +473,7 @@ export function NhanVienTab({
                   {/* Column 7: Đóng BHXH */}
                   <td>
                     {p === undefined ? (
-                      <span className="cc-card__hint">Đang tải…</span>
+                      <EmptyState trangThai="dang-tai" gon />
                     ) : (p as any)?.insurance_elsewhere ? (
                       <span className="ns-badge ns-badge--info">
                         Đóng nơi khác

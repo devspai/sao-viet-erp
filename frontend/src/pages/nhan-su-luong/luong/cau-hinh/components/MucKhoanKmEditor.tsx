@@ -17,6 +17,7 @@ import {
 
 import { ApiError, api, type KmBracket, type MucKm } from "../../../../../api/client";
 import { Button } from "../../../../../components/Button";
+import { EmptyState } from "../../../../../components/EmptyState";
 
 const MOI: KmBracket[] = [{ up_to_km: null, don_gia: 0 }];
 const tien = (n: number) => Number(n || 0).toLocaleString("vi-VN");
@@ -265,7 +266,7 @@ export function MucKhoanKmEditor({
 
         {/* Danh sách bảng mức */}
         {loading ? (
-          <p className="cl-hint-inline">Đang tải danh sách mức khoán…</p>
+          <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải danh sách mức khoán…" />
         ) : ds.length === 0 ? (
           <p className="cl-hint-inline">
             Chưa có mức khoán km nào. Vui lòng nhập tên ở trên (ví dụ “Xe 2 tấn”) để tạo mức.

@@ -21,8 +21,10 @@ import { ReceiptConfirmModals } from "./modals/ReceiptConfirmModals";
 import { PaymentReceiptDialog } from "./PaymentReceiptDialog";
 import { printReceipt } from "./print";
 import { PAGE_SIZE } from "./shared/constants";
+import "../../master-data.css";
 import "../../accounting.css";
 import "../../purchase.css";
+import "./phieu-thu-chuan.css";
 
 export function PaymentReceiptsPage({
   navigate,
@@ -315,14 +317,9 @@ export function PaymentReceiptsPage({
   }
 
   return (
-    <main className="md-page acct-pt">
-      <header className="md-page__head">
-        <p className="eyebrow">Kế toán</p>
+    <main className="md-page acct-std acct-ptx">
+      <header className="md-page__head" style={{ marginBottom: "var(--sp-3)" }}>
         <h1 className="md-page__title">Phiếu thu</h1>
-        <p className="md-page__sub">
-          Ghi nhận các khoản tiền vào công ty: thu cọc đơn bán, thu hóa đơn,
-          thu hoàn từ phiếu chi và các khoản thu khác phát sinh độc lập.
-        </p>
       </header>
       {error && (
         <div className="banner banner--error" role="alert">

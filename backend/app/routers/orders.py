@@ -23,6 +23,8 @@ from ..deps import (
 from ..db import get_db
 from ..models.user import User
 from ..services.thong_bao_man import bao
+from ..schemas.customer import SaleOption
+from ..services.nguoi_phu_trach_service import lua_chon_nguoi
 from ..schemas.order import (
     OrderActivityOut,
     OrderCancelIn,
@@ -112,11 +114,12 @@ def list_orders(
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
+    nguoi: int | None = Query(default=None),
 ) -> OrderListOut:
     scope = _effective_scope(_scope_for(authz, user), view_scope)
     return svc.list(
         actor=user, scope=scope, q=q, status=status_filter, order_kind=order_kind,
-        sort=sort, page=page, size=size,
+        sort=sort, page=page, size=size, nguoi=nguoi,
     )
 
 
@@ -126,8 +129,23 @@ def get_stats(
     svc: Service,
     authz: Authz,
     view_scope: str | None = Query(default=None),
+    nguoi: int | None = Query(default=None),
 ) -> OrderStatsOut:
-    return svc.stats(actor=user, scope=_effective_scope(_scope_for(authz, user), view_scope))
+    return svc.stats(actor=user, scope=_effective_scope(_scope_for(authz, user), view_scope),
+                     nguoi=nguoi)
+
+
+@router.get("/nguoi-phu-trach", response_model=list[SaleOption])
+def list_nguoi_phu_trach(
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    svc: Service,
+    authz: Authz,
+    db: Annotated[Session, Depends(get_db)],
+    view_scope: str | None = Query(default=None),
+) -> list[SaleOption]:
+    """Hộp lọc NV phụ trách: người đang giữ đơn TRONG tầm nhìn (phạm vi + nhóm dùng chung)."""
+    scope = _effective_scope(_scope_for(authz, user), view_scope)
+    return lua_chon_nguoi(db, svc.repo.dem_theo_nguoi(scope=scope, actor=user), user)
 
 
 @router.get("/notify-summary")
@@ -262,13 +280,17 @@ def release_production(
         d = svc.release_production(order_id=order_id, actor=user, scope=_scope_for(authz, user))
     except Exception as exc:
         raise _map(exc)
-    # Đơn 'bắn xuống' hàng chờ Kế hoạch (badge nhảy, không refresh).
-    # Hàng chờ Kế hoạch SX (badge + toast người có `san_xuat`) + nhóm `ban_hang`/`san_xuat`. Đơn
-    # mới vào hàng chờ, chưa có công việc nào ở bàn tổ.
-    hub.gui({"type": "order_ordered", "code": d.order_no, "order_id": order_id}, quyen=NGHE_LENH)
-    # Chấm đỏ Kế hoạch SX — bấm chuyển lại (idempotent) không đẻ thêm dòng.
-    bao(db, kenh="san_xuat", loai="don_chuyen_sx", actor_id=user.id, ma=d.order_no, chi_mot_lan=True)
+    _bao_xuong_sx(db, d, user)
     return d
+
+
+def _bao_xuong_sx(db: Session, d: OrderDetailOut, user: User) -> None:
+    """Đơn 'bắn xuống' hàng chờ Kế hoạch (badge nhảy, không refresh) — dù Sale bấm hay TỰ chuyển
+    lúc chốt / lúc đủ cọc. Hàng chờ Kế hoạch SX (badge + toast người có `san_xuat`) + nhóm
+    `ban_hang`/`san_xuat`. Đơn mới vào hàng chờ, chưa có công việc nào ở bàn tổ."""
+    hub.gui({"type": "order_ordered", "code": d.order_no, "order_id": d.id}, quyen=NGHE_LENH)
+    # Chấm đỏ Kế hoạch SX — chuyển lại (idempotent) không đẻ thêm dòng.
+    bao(db, kenh="san_xuat", loai="don_chuyen_sx", actor_id=user.id, ma=d.order_no, chi_mot_lan=True)
 
 
 # --- Hủy đơn (P5) — nháp hay đã chốt đều cần `update` (hủy đã chốt mặc định bật) ----
@@ -300,6 +322,7 @@ def confirm_order(
     user: Annotated[User, Depends(require_permission(MODULE, "manage_status"))],
     svc: Service,
     authz: Authz,
+    db: Annotated[Session, Depends(get_db)],
 ) -> OrderDetailOut:
     try:
         d = svc.confirm(order_id=order_id, actor=user, scope=_scope_for(authz, user))
@@ -313,6 +336,8 @@ def confirm_order(
     # đã có tin trên — và `mua_ke_toan`, nơi không màn nào bày đơn chờ cọc. Gói tin còn mang SỐ TIỀN
     # cọc đi tới MỌI kết nối, kể cả người không có quyền xem tiền.
     _order_changed(d.order_no)
+    if svc.vua_chuyen_sx:   # đơn không cần cọc → xuống SX ngay lúc chốt
+        _bao_xuong_sx(db, d, user)
     return d
 
 
@@ -354,6 +379,8 @@ def add_deposit_receipt(
         bao(db, kenh="don_hang_ban", loai="don_du_coc", actor_id=user.id,
             nguoi_nhan=d.sale_user_id, ma=d.order_no)
     _order_changed(d.order_no)
+    if svc.vua_chuyen_sx:   # đủ cọc → đơn TỰ xuống hàng chờ Kế hoạch
+        _bao_xuong_sx(db, d, user)
     return d
 
 

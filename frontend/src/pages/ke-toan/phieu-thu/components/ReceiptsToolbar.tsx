@@ -1,7 +1,16 @@
-// Thanh LỌC của màn Phiếu thu (tách từ pages/PaymentReceiptsPage.tsx).
+// Thanh LỌC của màn Phiếu thu — dùng khuôn chuẩn ToolbarChuan (cùng Đơn mua hàng).
 import type { Dispatch, SetStateAction } from "react";
 import { Button } from "../../../../components/Button";
+import { ToolbarChuan } from "../../components/ToolbarChuan";
 import { STATUS_META } from "../shared/constants";
+
+const TABS = [
+  { value: "all", label: "Tất cả" },
+  ...Object.entries(STATUS_META).map(([value, meta]) => ({
+    value,
+    label: meta.label,
+  })),
+];
 
 export function ReceiptsToolbar({
   q,
@@ -23,47 +32,34 @@ export function ReceiptsToolbar({
   setCreatingOther: Dispatch<SetStateAction<boolean>>;
 }) {
   return (
-    <section className="acct-toolbar">
-      <form
-        className="md-page__search"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setPage(1);
-          load();
-        }}
-      >
-        <input
-          className="input"
-          value={q}
-          onChange={(event) => setQ(event.target.value)}
-          placeholder="Tìm PT, hóa đơn, đơn bán, PC, người nộp..."
-        />
-        {/* <Button type="submit" variant="ghost">
-          Tìm
-        </Button> */}
-      </form>
-      <div className="acct-toolbar__filters">
-        <select
-          className="input"
-          value={statusFilter}
-          onChange={(event) => {
-            setStatusFilter(event.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="all">Tất cả trạng thái</option>
-          {Object.entries(STATUS_META).map(([value, meta]) => (
-            <option key={value} value={value}>
-              {meta.label}
-            </option>
-          ))}
-        </select>
-        {canApprove && (
+    <ToolbarChuan
+      tabs={TABS}
+      tab={statusFilter}
+      onTab={(value) => {
+        setStatusFilter(value);
+        setPage(1);
+      }}
+      ariaTabs="Lọc theo trạng thái phiếu thu"
+      q={q}
+      onQ={setQ}
+      placeholder="Tìm PT, hóa đơn, đơn bán, PC, người nộp..."
+      onSearchSubmit={() => {
+        setPage(1);
+        load();
+      }}
+      hasFilter={q.trim() !== "" || statusFilter !== "all"}
+      onReset={() => {
+        setQ("");
+        setStatusFilter("all");
+        setPage(1);
+      }}
+      actions={
+        canApprove ? (
           <Button variant="accent" onClick={() => setCreatingOther(true)}>
             + Tạo phiếu thu
           </Button>
-        )}
-      </div>
-    </section>
+        ) : undefined
+      }
+    />
   );
 }

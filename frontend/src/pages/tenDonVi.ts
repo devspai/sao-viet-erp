@@ -23,10 +23,14 @@ import { useEffect, useState } from "react";
 import { authed } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 
-type DonViRow = { ma?: unknown; ten?: unknown };
+type DonViRow = { ma?: unknown; ten?: unknown; ho?: unknown; active?: unknown };
 type TramRow = { ma?: unknown; nhan?: unknown; nhan_ngan?: unknown };
 
 let _cache: Map<string, string> | null = null;
+// Cả dòng danh mục theo đúng thứ tự server trả — cho ô chọn ĐVT cần `ho` / `active`. Chung chuyến
+// với `_cache`: trước 04/10/2026 phiếu tính giá gọi `/api/don-vi` thêm một lần riêng (kèm
+// `active=true`) chỉ để lấy lại đúng 20 dòng này.
+let _hang: { ma: string; ten: string; ho: string; active: boolean }[] = [];
 let _choDoi: Promise<Map<string, string>> | null = null;
 
 // ── CHẶNG dòng giấy — bảng RIÊNG, nạp cùng chuyến với danh mục Đơn vị ──────────────────────────
@@ -105,6 +109,11 @@ export function donViOptions(): { value: string; label: string }[] {
   return [..._cache ?? []].map(([value, label]) => ({ value, label }));
 }
 
+/** Các dòng danh mục Đơn vị còn dùng (`active`), đủ `ho` để nơi gọi tự xếp. Rỗng = chưa nạp. */
+export function donViDangDung(): { ma: string; ten: string; ho: string }[] {
+  return _hang.filter((d) => d.active).map(({ ma, ten, ho }) => ({ ma, ten, ho }));
+}
+
 /** Gọi MỘT lần ở màn nào cần nhãn đơn vị HOẶC nhãn chặng (Lệnh SX · Kế hoạch · danh mục Công đoạn).
  *  Trả version để component vẽ lại khi bảng vừa về — không có nó thì lần vẽ đầu hiện mã trần rồi
  *  đứng im ở đó.
@@ -139,6 +148,14 @@ export function useNapTenDonVi(): number {
           );
         }
         if (dv) {
+          _hang = (dv.items ?? [])
+            .map((d) => ({
+              ma: String(d.ma ?? "").trim().toLowerCase(),
+              ten: String(d.ten ?? ""),
+              ho: String(d.ho ?? ""),
+              active: d.active !== false,
+            }))
+            .filter((d) => d.ma && d.ten);
           _cache = new Map(
             (dv.items ?? [])
               .map((d) => [String(d.ma ?? "").trim().toLowerCase(), String(d.ten ?? "")] as const)

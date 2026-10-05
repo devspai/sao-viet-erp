@@ -18,7 +18,7 @@ export function KhoHangView({ ten, ma }: { ten: string; ma?: string }) {
             width: 44,
             height: 44,
             borderRadius: "var(--r-3)",
-            background: "var(--rust-soft)",
+            background: "var(--rule-hair)",
             color: "var(--rust-deep)",
             display: "grid",
             placeItems: "center"

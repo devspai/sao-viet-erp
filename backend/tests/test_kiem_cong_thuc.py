@@ -79,25 +79,26 @@ def _giay(client, h, **them) -> dict:
 
 def test_api_giay_khong_nhan_cau_hong_o_ca_tao_lan_sua(client):
     h = _admin(client)
-    hong = client.post("/api/vat-lieu-kho/giay", json=_giay(client, h, cong_thuc_luong=CT_HONG),
+    gia_tot = "dinh_luong * don_gia_giay"
+    hong = client.post("/api/vat-lieu-kho/giay", json=_giay(client, h, cong_thuc_gia=CT_HONG),
                        headers=h)
     assert hong.status_code == 422, hong.text
-    assert "Công thức tính định mức" in hong.json()["detail"]
+    assert "Công thức tính giá" in hong.json()["detail"]
 
-    tao = client.post("/api/vat-lieu-kho/giay", json=_giay(client, h, cong_thuc_luong=CT_TOT),
+    tao = client.post("/api/vat-lieu-kho/giay", json=_giay(client, h, cong_thuc_gia=gia_tot),
                       headers=h)
     assert tao.status_code == 201, tao.text
     gid = tao.json()["id"]
 
     sua = client.put(f"/api/vat-lieu-kho/giay/{gid}",
-                     json=_giay(client, h, cong_thuc_luong=CT_HONG), headers=h)
+                     json=_giay(client, h, cong_thuc_gia=CT_HONG), headers=h)
     assert sua.status_code == 422, sua.text
     # Bị chặn thì DB phải giữ nguyên câu cũ, không lưu một nửa.
     assert client.get(f"/api/vat-lieu-kho/giay/{gid}",
-                      headers=h).json()["cong_thuc_luong"] == CT_TOT
+                      headers=h).json()["cong_thuc_gia"] == gia_tot
 
     lai = client.put(f"/api/vat-lieu-kho/giay/{gid}",
-                     json=_giay(client, h, cong_thuc_luong=CT_TOT, ten="ZZ Giấy đã sửa"),
+                     json=_giay(client, h, cong_thuc_gia=gia_tot, ten="ZZ Giấy đã sửa"),
                      headers=h)
     assert lai.status_code == 200, lai.text
 

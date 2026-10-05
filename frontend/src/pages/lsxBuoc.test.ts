@@ -8,7 +8,7 @@
 // cột "Cần xem lại". Không có test thì lần sau ai đó "dọn" cái cờ `tren_dong_giay` là nó lặng lẽ
 // quay lại.
 import { describe, expect, it } from "vitest";
-import { boBuoc, chenBuoc, emptyRow, loiDong, mayChonDuoc, toBody, type EditRow } from "./lsxBuoc";
+import { boBuoc, chenBuoc, emptyRow, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
 
 /** Dòng routing tối thiểu. `may_id` đặt sẵn để khỏi dính cảnh báo "chưa gán tổ / máy" — thứ đang
  *  không phải chủ đề của phần lớn test dưới đây. */
@@ -248,5 +248,64 @@ describe("toBody — số lượt qua máy", () => {
   it("bước MÁY vẫn gửi đúng số đã khai", () => {
     const [body] = toBody([dong({ ten: "In offset", loai_buoc: "may", so_luot_chay: "2" })]);
     expect(body.so_luot_chay).toBe(2);
+  });
+});
+
+describe("toBody — dòng giấy dẫn xuất từ đầu vào của bước", () => {
+  const mon = (hang_loai: "giay" | "vat_tu", kho_rong: string, kho_dai: string) => ({
+    hang_loai, vat_tu_id: 7, vat_tu_ma: "M", vat_tu_ten: "Món", don_vi: "to_nguyen",
+    so_luong: "5000", tu_dong: false, kho_rong, kho_dai,
+  });
+
+  it("dòng giấy chỉ gửi MÃ (số + khổ máy chủ tự ghi); dòng vật tư không gửi khổ", () => {
+    const [body] = toBody([dong({ ten: "In offset", vat_tus: [
+      mon("giay", "905", "780"), mon("vat_tu", "", "")] })]);
+    expect(body.vat_tus).toEqual([
+      { hang_loai: "giay", vat_tu_id: 7, so_luong: null, tu_dong: false, kho_rong: 0, kho_dai: 0 },
+      { hang_loai: "vat_tu", vat_tu_id: 7, tu_dong: false, gia_tri_chip: {} },
+    ]);
+  });
+});
+
+describe("toBody — vật tư khác giấy", () => {
+  it("vật tư khác gửi chip, KHÔNG gửi so_luong; giấy gửi so_luong null", () => {
+    const r = { ...emptyRow(), vat_tus: [
+      { hang_loai: "vat_tu", vat_tu_id: 1, so_luong: "0.2", tu_dong: true, gia_tri_chip: { dai_support: 500 }, chips: [] },
+      { hang_loai: "giay", vat_tu_id: 9, so_luong: "10", tu_dong: false, kho_rong: "0", kho_dai: "0" },
+    ] } as never;
+    const body = toBody([r])[0];
+    expect(body.vat_tus![0]).toEqual({ hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: true, gia_tri_chip: { dai_support: 500 } });
+    expect(body.vat_tus![1].so_luong).toBeNull();
+  });
+  it("dòng người đã gõ định mức gửi kèm so_luong + sua_tay", () => {
+    const r = { ...emptyRow(), vat_tus: [
+      { hang_loai: "vat_tu", vat_tu_id: 1, so_luong: "12.5", tu_dong: true, sua_tay: true, gia_tri_chip: {}, chips: [] },
+    ] } as never;
+    expect(toBody([r])[0].vat_tus![0]).toEqual(
+      { hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: false, sua_tay: true, so_luong: 12.5, gia_tri_chip: {} });
+  });
+});
+
+describe("nhanGiayTheoDauVao", () => {
+  it("nhãn bộ chọn theo đầu vào của bước", () => {
+    expect(nhanGiayTheoDauVao("to", "kg")).toBe("tờ in");
+    expect(nhanGiayTheoDauVao("to_nguyen", "kg")).toBe("tờ nguyên");
+    expect(nhanGiayTheoDauVao("cuon", "kg")).toBe("cuộn · kg");
+    expect(nhanGiayTheoDauVao(null, "tấn")).toBe("");
+    expect(nhanGiayTheoDauVao("", "kg")).toBe("");
+    expect(nhanGiayTheoDauVao("cai", "kg")).toBe("");
+  });
+});
+
+describe("dòng giấy là số MÁY tính", () => {
+  it("giấy luôn là Tự tính, kể cả dòng người lập lệnh tự chọn (tu_dong=false)", () => {
+    expect(laMayTinh({ hang_loai: "giay", sua_tay: true })).toBe(true);
+    expect(laMayTinh({ hang_loai: "vat_tu", sua_tay: false })).toBe(true);
+    expect(laMayTinh({ hang_loai: "vat_tu", sua_tay: true })).toBe(false);
+  });
+  it("giấy chưa có dạng = chờ lưu; đã dẫn xuất hoặc vật tư khác thì không", () => {
+    expect(giayChoLuu({ hang_loai: "giay", dang_giay: null })).toBe(true);
+    expect(giayChoLuu({ hang_loai: "giay", dang_giay: "to" })).toBe(false);
+    expect(giayChoLuu({ hang_loai: "vat_tu" })).toBe(false);
   });
 });

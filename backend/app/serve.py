@@ -37,6 +37,26 @@ def _chuan_bi_nen(duong: str, hong: threading.Event) -> None:
     log.info("schema da san")
 
 
+def noi_han_ping_worker(giay: float) -> None:
+    """Nới hạn uvicorn chờ worker trả ping trước khi GIẾT nó (uvicorn 0.34 viết cứng 5 giây, không có
+    tuỳ chọn nào).
+
+    Đo 30/09/2026 (100 người cùng mở ảnh, máy đang bão hoà CPU): worker bận thật, trả ping chậm
+    hơn 5 giây ⇒ bị giết ĐÚNG lúc đông nhất, request đang chạy chết thành 503, worker thay thế mất
+    gần một phút mới nhận việc và lại bị giết tiếp — sập dây chuyền. Worker treo thật (deadlock) vẫn
+    bị thay, chỉ chậm hơn. Đổi hạn MẶC ĐỊNH của `Process.is_alive` vì vòng giám sát gọi nó không
+    truyền tham số; chạy lại hàm này nhiều lần không bọc chồng."""
+    from uvicorn.supervisors import multiprocess
+
+    goc = getattr(multiprocess.Process.is_alive, "__svn_goc__", multiprocess.Process.is_alive)
+
+    def is_alive(self, timeout: float = giay) -> bool:
+        return goc(self, timeout)
+
+    is_alive.__svn_goc__ = goc
+    multiprocess.Process.is_alive = is_alive
+
+
 def so_worker() -> int:
     from .config import settings
     from .tai_nguyen import so_worker_mac_dinh
@@ -86,6 +106,8 @@ def main() -> None:
 
     threading.Thread(target=_chuan_bi_nen, args=(duong, hong), daemon=True,
                      name="chuan-bi-schema").start()
+    if w > 1:
+        noi_han_ping_worker(settings.worker_ping_giay)
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

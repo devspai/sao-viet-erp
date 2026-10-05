@@ -4,8 +4,8 @@
 /* --- Khu chờ ghép: cột chọn + hàng đã chọn --- */
 .bghep .bghep-check { width: 40px; text-align: center; }
 .bghep .bghep-check input { width: 16px; height: 16px; accent-color: var(--rust); cursor: pointer; }
-.bghep .bghep-row--on,
-.bghep .bghep-row--on:hover { background: var(--rust-soft); }
+.bghep .bghep-row--on{ background: var(--rule-hair); }
+.bghep .bghep-row--on:hover { background: var(--rule-hair); }
 .bghep .bghep-picked { font-size: var(--fs-sm); color: var(--rust-deep); font-weight: var(--fw-medium); }
 
 /* --- Bảng thành viên: input số con/tờ + số dư --- */
@@ -255,7 +255,7 @@
   cursor: pointer;
 }
 .bghep .bgsd-in.is-chon { box-shadow: 0 0 0 3px color-mix(in srgb, var(--rust) 35%, transparent); }
-.bghep .bgsd-in__ma { font-family: var(--ff-sans); font-size: var(--fs-sm); color: var(--rust-soft, #f0c9b6); }
+.bghep .bgsd-in__ma { font-family: var(--ff-sans); font-size: var(--fs-sm); color: var(--rule-hair); }
 .bghep .bgsd-in__ten { font-size: var(--fs-sm); font-weight: var(--fw-bold, 700); letter-spacing: .04em; }
 .bghep .bgsd-in__may, .bgsd-in__to {
   display: inline-flex; align-items: center; gap: 4px;

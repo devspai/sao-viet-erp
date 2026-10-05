@@ -17,7 +17,8 @@ export type NhomSuKien =
   | "kho"
   | "giao_hang"
   | "ky_thuat"
-  | "khvt";
+  | "khvt"
+  | "danh_muc";
 
 export const MOI_NHOM: readonly NhomSuKien[] = [
   "ban_hang",
@@ -28,6 +29,7 @@ export const MOI_NHOM: readonly NhomSuKien[] = [
   "giao_hang",
   "ky_thuat",
   "khvt",
+  "danh_muc",
 ];
 
 /** Loại sự kiện → nhóm. Mảng RỖNG = sự kiện có đường riêng (quyền, nhật ký, đếm theo id), không
@@ -53,6 +55,7 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   order_deposit_needed: ["ban_hang", "mua_ke_toan"],
   care_due: ["ban_hang"],
   care_assigned: ["ban_hang"],
+  care_moved: ["ban_hang"],
   // Đơn chốt xuống sản xuất: hàng chờ Kế hoạch SX + bước "Sản xuất" ở Đơn hàng.
   order_ordered: ["ban_hang", "san_xuat"],
   order_sx_hint_changed: ["ban_hang", "san_xuat"],
@@ -94,8 +97,6 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   // KCS gửi thành phẩm nhập kho: màn KCS / hồ sơ lệnh + màn Kho.
   san_xuat_kho_changed: ["san_xuat", "kho"],
   san_xuat_kho: ["san_xuat", "kho"],
-  // Nhóm thành phẩm đóng ⇒ đơn có thể giao: Kế hoạch SX, Đơn hàng, Giao hàng.
-  san_xuat_nhom_dong: ["san_xuat", "ban_hang", "giao_hang"],
   san_xuat_lenh_dong: ["san_xuat", "ban_hang", "giao_hang"],
   gia_cong_ngoai_changed: ["san_xuat"],
 
@@ -132,6 +133,9 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
 
   // Kế hoạch vật tư (giữ chỗ đổi ⇒ đèn vật tư ở Kế hoạch SX cũng đổi).
   ke_hoach_vat_tu_thay_doi: ["khvt", "san_xuat"],
+
+  // Danh mục nguồn của phiếu tính giá đổi ⇒ màn phiếu đang mở nạp lại danh mục.
+  danh_muc_doi: ["danh_muc"],
 };
 
 /** Nhóm của một loại sự kiện. Loại LẠ (máy chủ thêm mà bảng chưa khai) ⇒ mọi nhóm. */
@@ -142,7 +146,10 @@ export function nhomCua(type: string): readonly NhomSuKien[] {
 export type TickNhom = Record<NhomSuKien, number>;
 
 export function tickRong(): TickNhom {
-  return { ban_hang: 0, mua_ke_toan: 0, nhan_su: 0, san_xuat: 0, kho: 0, giao_hang: 0, ky_thuat: 0, khvt: 0 };
+  return {
+    ban_hang: 0, mua_ke_toan: 0, nhan_su: 0, san_xuat: 0, kho: 0, giao_hang: 0, ky_thuat: 0, khvt: 0,
+    danh_muc: 0,
+  };
 }
 
 /** Tick của một màn = tổng tick các nhóm nó nghe. Mỗi tick chỉ tăng nên tổng đổi ⇔ có nhóm nhích. */

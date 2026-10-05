@@ -6,6 +6,7 @@ LẶNG — thêm field ở service phải thêm ở đây, xem [[pydantic-nuot-f
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -17,6 +18,7 @@ class TeamOut(BaseModel):
     ten: str
     ma: str
     la_kcs: bool
+    la_to_cat: bool = False
     # Vai của NGƯỜI ĐANG XEM ở tổ này, không phải thuộc tính của tổ: cùng một tổ, tổ trưởng thấy
     # `false` còn thợ trong tổ thấy `true`. FE dựa vào đây để bật băng "Sản lượng của tôi" (§6).
     la_tho: bool = False
@@ -809,6 +811,9 @@ class VatTuCapDoiChieuOut(BaseModel):
     hang_loai: str
     hang_id: int
     ten: str
+    dang_giay: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     dvt: str
     dvt_goc: str
     sl_ke_hoach: float
@@ -816,9 +821,16 @@ class VatTuCapDoiChieuOut(BaseModel):
     sl_yeu_cau: float
     sl_yeu_cau_goc: float
     sl_thuc_xuat: float
+    # Phần tổ đã nhập lại kho (phiếu NHẬP ghi sổ) và THỰC DÙNG = thực xuất − nhập lại (thang gốc).
+    sl_nhap_lai: float = 0.0
+    # None ⇒ dòng THÔNG TIN của phần trả khác khổ đã xuất: phần trừ nằm ở dòng đích (`nhap_lai_vao`).
+    sl_thuc_dung: float | None = 0.0
+    nhap_lai_vao: str | None = None
     lech_ke_hoach: float
     lech_thuc_te: float
     cac_ly_do: list[dict] = []
+    # Giấy bước này nhận từ bước trước (spec 2026-10-01 §5): tên bước trước; None = tự lấy từ kho.
+    nhan_tu: str | None = None
 
 
 class VatTuCapDongOut(BaseModel):
@@ -829,6 +841,9 @@ class VatTuCapDongOut(BaseModel):
     hang_loai: str
     hang_id: int
     ten: str
+    dang_giay: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     dvt: str
     dvt_goc: str
     sl_ke_hoach: float
@@ -919,6 +934,8 @@ class WorkItemChiTietOut(BaseModel):
     cong_doan_truoc: list[CongDoanTruocOut] = []
     tran_ghi: TranGhiOut | None = None
     thieu_dau_vao: list[str] = []
+    #: Câu "Chờ tổ Cắt chốt giấy…" khi bước mang giấy chưa được tổ Cắt chốt; None = không chặn.
+    cho_chot_giay: str | None = None
     ban_giao_chang_sau: list[BanGiaoChangSauOut]
     vat_tu: list[VatTuNhanOut]
     vat_tu_cap: VatTuCapOut = VatTuCapOut()
@@ -1385,6 +1402,10 @@ class NhapKhoYcKetQuaOut(BaseModel):
 class VatTuDeNghiDongIn(BaseModel):
     hang_loai: str
     hang_id: int
+    #: Giấy: dạng + khổ mm (spec giấy đếm tờ × khổ §4.5) — server chuẩn hoá lại khổ. Vật tư khác bỏ qua.
+    dang_giay: Literal["to", "cuon"] | None = None
+    kho_rong: int = Field(default=0, ge=0)
+    kho_dai: int = Field(default=0, ge=0)
     dvt: str
     sl_yeu_cau: float = 0.0
     ly_do_chenh_lech: str | None = None
@@ -1394,6 +1415,22 @@ class VatTuDeNghiIn(BaseModel):
     # GIỜ cần, không phải ngày: kho soạn theo ca. `stock_requests.ngay_can` chỉ lưu phần DATE.
     can_luc: datetime
     lines: list[VatTuDeNghiDongIn] = []
+
+
+class VatTuNhapLaiDongIn(BaseModel):
+    """Một dòng vật tư thừa tổ trả về kho. Giấy: dạng + khổ mm (server chuẩn hoá và kiểm đủ cạnh)."""
+    hang_loai: Literal["giay", "vat_tu"]
+    hang_id: int
+    dvt: str
+    so_luong: float
+    dang_giay: Literal["to", "cuon"] | None = None
+    kho_rong: int = Field(default=0, ge=0)
+    kho_dai: int = Field(default=0, ge=0)
+
+
+class VatTuNhapLaiIn(BaseModel):
+    ghi_chu: str | None = Field(default=None, max_length=500)
+    lines: list[VatTuNhapLaiDongIn] = []
 
 
 # --- ĐÓNG LỆNH THỦ CÔNG (spec 2026-09-29) ---
@@ -1436,3 +1473,95 @@ class DongLenhKetQuaOut(BaseModel):
     da_dat: float = 0.0
     muc_tieu: float | None = None
     don_vi: str = ""
+
+
+# --- Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6) ---------------------------------
+class ChotGiayGiayOut(BaseModel):
+    giay_id: int
+    ma: str
+    ten: str
+    kho_rong: int
+    kho_dai: int
+    nhan_kho: str
+    so_to: float
+    don_vi: str | None = None
+    #: Tồn lô TỜ đúng khổ; None khi dòng chưa có khổ (không so được).
+    ton_to_dung_kho: float | None = None
+
+
+class ChotGiayCuonOut(BaseModel):
+    ma_lo: str
+    giay_ma: str
+    kho_rong: int
+    sl_con_lai: float
+    don_vi: str | None = None
+    kho_ten: str
+
+
+class ChotGiayDaChotOut(BaseModel):
+    cach: Literal["cat", "khong_cat"]
+    luc: datetime | None = None
+    boi_ten: str | None = None
+    cong_doan: list[str] = []
+
+
+class ChotGiayCongDoanOut(BaseModel):
+    id: int
+    ma: str
+    ten: str
+
+
+class ChotGiayBuocOut(BaseModel):
+    buoc_id: int
+    cong_doan_id: int | None = None
+    ma: str
+    ten: str
+    xoa_duoc: bool
+
+
+class ChotGiayDongOut(BaseModel):
+    chu_the: Literal["lsx", "bai"]
+    id: int
+    ma: str
+    ten: str
+    han: str | None = None
+    giay: list[ChotGiayGiayOut]
+    cuon_cung_ma: list[ChotGiayCuonOut]
+    chot: ChotGiayDaChotOut | None = None
+    sua_duoc: bool
+    #: Bước trong phạm vi (công đoạn Trước In của tổ Cắt) theo thứ tự tuyến — kể cả bước đặt sẵn.
+    buoc_truoc_in: list[ChotGiayBuocOut] = []
+    #: Người lập lệnh đã đặt sẵn bước cắt trước In ⇒ coi là đã xác nhận, không khoá gì.
+    cau_hinh_san: bool = False
+    #: Công đoạn tổ THÊM được: Giai đoạn Trước In, có tổ này trong tổ phụ trách.
+    cong_doan_chen_duoc: list[ChotGiayCongDoanOut]
+
+
+class ChotGiayIn(BaseModel):
+    team_id: int = Field(ge=1)
+    lsx_id: int | None = Field(default=None, ge=1)
+    bai_ghep_id: int | None = Field(default=None, ge=1)
+    #: Chỉ còn "không cắt" — thêm bước cắt đi qua `POST /chot-giay/them`.
+    cach: Literal["cat", "khong_cat"]
+    cong_doan_ids: list[int] = []
+
+
+class GoChotGiayIn(BaseModel):
+    team_id: int = Field(ge=1)
+    lsx_id: int | None = Field(default=None, ge=1)
+    bai_ghep_id: int | None = Field(default=None, ge=1)
+
+
+class ThemBuocCatIn(BaseModel):
+    team_id: int = Field(ge=1)
+    lsx_id: int | None = Field(default=None, ge=1)
+    bai_ghep_id: int | None = Field(default=None, ge=1)
+    #: Công đoạn thêm, ĐÚNG thứ tự tổ Cắt sắp — chèn ngay trước bước In.
+    cong_doan_ids: list[int] = Field(min_length=1)
+
+
+class XoaBuocCatIn(BaseModel):
+    team_id: int = Field(ge=1)
+    lsx_id: int | None = Field(default=None, ge=1)
+    bai_ghep_id: int | None = Field(default=None, ge=1)
+    buoc_id: int = Field(ge=1)

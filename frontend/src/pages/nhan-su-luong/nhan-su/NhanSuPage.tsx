@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
-  assetUrl,
+  anhNho,
   type EmployeeKpis,
   type EmployeeMeta,
   type EmployeeRow,
@@ -434,7 +434,7 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
                   !listError &&
                   rows.map((e) => {
                     const avatarClass = getAvatarClass(e.full_name);
-                    const photoSrc = assetUrl(e.photo_url);
+                    const photoSrc = anhNho(e.photo_url);
                     return (
                       <tr
                         key={e.id}
@@ -541,7 +541,7 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
               !listError &&
               rows.map((e) => {
                 const avatarClass = getAvatarClass(e.full_name);
-                const photoSrc = assetUrl(e.photo_url);
+                const photoSrc = anhNho(e.photo_url);
                 return (
                   <div
                     key={e.id}

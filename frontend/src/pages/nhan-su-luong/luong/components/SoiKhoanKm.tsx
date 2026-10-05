@@ -7,6 +7,7 @@ import {
   type PayrollPeriod,
 } from "../../../../api/client";
 import { money } from "../shared/helpers";
+import { EmptyState } from "../../../../components/EmptyState";
 
 /** Bảng đối chiếu KHOÁN KM của một dòng lương — HCNS bấm số ở cột "Khoán km" để mở.
  *
@@ -71,7 +72,9 @@ export function SoiKhoanKm({
               {money(line.khoan_km ?? 0)}) — bấm <b>Tính lại</b> để đồng bộ.
             </div>
           )}
-          {data == null && !loi && <p className="cc-note">Đang tải chi tiết…</p>}
+          {data == null && !loi && (
+            <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải chi tiết…" />
+          )}
           {data != null && data.items.length === 0 && (
             <p className="cc-note">Kỳ này không có chuyến giao nào sinh ra tiền km.</p>
           )}

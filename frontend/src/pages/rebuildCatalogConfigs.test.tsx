@@ -55,7 +55,10 @@ describe("cột ĐVT của mặt hàng gốc", () => {
 
 describe("màn Đơn vị & quy đổi", () => {
   it("KHÔNG còn cột Lưu ý (`canh_bao`) — chủ gỡ 18/09/2026", () => {
-    expect(CFG_DON_VI.columns.map((c) => c.key)).toEqual(["quy_doi_text", "ghi_chu"]);
+    const keys = CFG_DON_VI.columns.map((c) => c.key);
+    expect(keys).not.toContain("canh_bao");
+    // "Đang dùng ở" (`mat_hang_dung`, server đếm) thêm 04/10/2026: sửa/xoá đơn vị là đụng các mặt hàng đó.
+    expect(keys).toEqual(["quy_doi_text", "mat_hang_dung", "ghi_chu"]);
   });
 });
 
@@ -120,18 +123,10 @@ describe("ô Cách đo lượng ĐÃ GỠ khỏi Máy · Vật tư khác (06/09/
     expect(CFG_VAT_TU.nhanTabCongThuc).toBeUndefined();
   });
 
-  it("Giấy GIỮ đường riêng: hai ô công thức, tab thứ hai tên \"tính định mức\"", () => {
-    // Giấy trả lời câu khác hẳn ba màn trên — "một lệnh cần bao nhiêu kg giấy", của MẶT HÀNG chứ
-    // không của bước — nên ô của nó không đi theo mg `0274`. Ẩn 06/09/2026 rồi MỞ LẠI 07/09/2026
-    // kèm đổi tên: "lượng" không nói được nó trả lời câu gì khi đứng cạnh ô "tính giá".
+  it("Giấy chỉ còn MỘT ô công thức — công thức giá (mg `0348` gỡ ô tính định mức)", () => {
     expect(truong(CFG_GIAY, "cong_thuc_gia").nhanTab).toBe("Công thức tính giá");
-    const dm = truong(CFG_GIAY, "cong_thuc_luong");
-    expect(dm.label).toBe("Công thức tính định mức");
-    expect(dm.nhanTab).toBe("Công thức tính định mức");
-    // Ô ra LƯỢNG ⇒ bộ chip `quy_doi`: có `sl_vao`/`sl_ra`, KHÔNG mời chip đơn giá.
-    expect(dm.loaiO).toBe("quy_doi");
-    // Hai ô đều tự khai `nhanTab` nên KHÔNG dùng nhãn config-level.
-    expect(CFG_GIAY.nhanTabCongThuc).toBeUndefined();
+    expect(CFG_GIAY.fields.some((f) => f.key === "cong_thuc_luong")).toBe(false);
+    expect(CFG_GIAY.fields.filter((f) => f.type === "formula")).toHaveLength(1);
   });
 
   it("Công đoạn: KHÔNG còn cặp ô sản lượng ra của bước NGOÀI dòng giấy", () => {
@@ -162,10 +157,13 @@ describe("ô Cách đo lượng ĐÃ GỠ khỏi Máy · Vật tư khác (06/09/
       .toEqual([3, 7]);
   });
 
-  it("Vật tư khác: drawer KHÔNG còn ô công thức nào", () => {
-    // Ô giá ẩn từ trước (xưởng không thêm dòng mực/màng/keo rời vào phiếu tính giá), ô lượng gỡ
-    // 06/09/2026 — cả hai câu hỏi nay trả lời ở chỗ khác.
-    expect(CFG_VAT_TU.fields.some((f) => f.key === "cong_thuc_gia")).toBe(false);
+  it("Vật tư khác: có chip riêng + hai ô công thức, mỗi ô một tab", () => {
+    // 01/10/2026 — mở lại hai ô công thức, kèm chip riêng của chính vật tư.
+    const ct = CFG_VAT_TU.fields.filter((f) => f.type === "formula");
+    expect(ct.map((f) => f.key)).toEqual(["cong_thuc_gia", "cong_thuc_dinh_muc"]);
+    expect(ct.map((f) => f.nhanTab)).toEqual(["Công thức tính giá", "Công thức định mức"]);
+    expect(ct.every((f) => f.chipsTu === "chips")).toBe(true);
+    expect(CFG_VAT_TU.fields.some((f) => f.type === "vat-tu-chip" && f.key === "chips")).toBe(true);
     expect(CFG_VAT_TU.fields.some((f) => f.key === "cong_thuc_luong")).toBe(false);
   });
 
@@ -181,6 +179,12 @@ describe("ô Cách đo lượng ĐÃ GỠ khỏi Máy · Vật tư khác (06/09/
     expect(CFG_GIAY.fields.some((f) => f.key === "don_gia")).toBe(true);
     expect(CFG_GIAY.fields.some((f) => f.key === "thay_the_ids")).toBe(true);
     expect(CFG_GIAY.columns.some((c) => c.key === "don_gia")).toBe(true);
+  });
+
+  it("GIẤY: bảng bỏ cột Cách tính tiền + Giấy thay thế, thẻ vẫn khai được (05/10/2026)", () => {
+    expect(CFG_GIAY.columns.some((c) => c.key === "cong_thuc_gia")).toBe(false);
+    expect(CFG_GIAY.columns.some((c) => c.key === "thay_the_ids")).toBe(false);
+    expect(CFG_GIAY.fields.some((f) => f.key === "cong_thuc_gia")).toBe(true);
   });
 });
 
@@ -278,25 +282,5 @@ describe("Giấy — ô Công thức tính giá ĐIỀN SẴN khi thêm mới", 
     expect(f.macDinhTheo?.({ don_vi_gia: "to" })).toBe(CT_TO);
     expect(f.macDinhTheo?.({ don_vi_gia: "ram" })).toBe(CT_TO);
     expect(f.macDinhTheo?.({ don_vi_gia: "cai" })).toBe(CT_TO);
-  });
-
-  it("ô Công thức tính định mức cũng điền sẵn — nhưng ra LƯỢNG, không có đơn giá", () => {
-    // Cùng chuỗi mg `0197` đã backfill cho giấy bán theo cân (`_CT_LUONG_GIAY_CAN` ở seed): nó là
-    // thứ DUY NHẤT còn đổi được tờ → kg cho bảng cân đối vật tư. Ô này KHÔNG được nhắc tới tiền,
-    // nên chuỗi dừng ở `to_nguyen`, không nhân `don_gia_giay`.
-    const f = truong(CFG_GIAY, "cong_thuc_luong");
-    const CT_KG = "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen";
-    expect(f.macDinhTheo?.({})).toBe(CT_KG);
-    expect(f.macDinhTheo?.({ don_vi_gia: "kg" })).toBe(CT_KG);
-    expect(f.macDinhTheo?.({ don_vi_gia: "tan" })).toBe(CT_KG);
-  });
-
-  it("giấy đếm theo TỜ thì định mức cũng ra TỜ, không ra kg", () => {
-    // Định mức đem so với TỒN KHO, mà kho cộng dồn theo ĐVT gốc của mặt hàng. Giấy khai ĐVT `tờ`
-    // mà định mức trả về kg thì bảng cân đối trừ kg vào một kho đang đếm tờ.
-    const f = truong(CFG_GIAY, "cong_thuc_luong");
-    for (const dv of ["to", "ram", "cai"]) {
-      expect(f.macDinhTheo?.({ don_vi_gia: dv })).toBe("to_nguyen");
-    }
   });
 });

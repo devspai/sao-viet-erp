@@ -219,7 +219,7 @@ export function MyCheckIn({
   if (!status && loiTrangThai) {
     return <EmptyState trangThai="loi" loi={loiTrangThai} onThuLai={load} />;
   }
-  if (!status) return <p className="ns__empty">Đang tải…</p>;
+  if (!status) return <EmptyState trangThai="dang-tai" />;
 
   if (!status.has_employee) {
     return (

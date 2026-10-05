@@ -260,7 +260,7 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
       </main>
     );
   }
-  if (hasEmp === null) return <main className="ns"><p className="ns__empty">Đang tải…</p></main>;
+  if (hasEmp === null) return <main className="ns"><EmptyState trangThai="dang-tai" /></main>;
 
   // Nút ✎ overlay trên avatar → mở AvatarModal (dùng chung 2 nhánh).
   const avatarEditBtn = (

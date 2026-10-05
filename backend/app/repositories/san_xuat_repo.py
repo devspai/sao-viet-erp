@@ -8,6 +8,7 @@ Giữ đúng tầng: mọi truy vấn/ghi DB của module gom ở đây; service
 """
 from __future__ import annotations
 
+import functools
 from datetime import datetime
 
 from sqlalchemy import and_, exists, not_, or_, select
@@ -342,27 +343,12 @@ class SanXuatRepository:
     def viec_con_hien():
         """Điều kiện SQL: bỏ khỏi bàn tổ việc CHƯA LÀM / TẠM DỪNG của lệnh đã đóng (spec
         2026-09-29). Việc đang chạy vẫn hiện tới khi tổ bấm Kết thúc; việc đã xong vẫn là lịch sử.
-        Việc chung bài ghép (`nhom_id` NULL) chỉ ẩn khi có nhóm đã đóng và KHÔNG còn nhóm nào mở."""
-        # Bí danh riêng để truy vấn ngoài có JOIN cùng bảng cũng không làm subquery tự tương quan nhầm.
-        n1 = aliased(SanXuatNhom)
-        nhom_dong = exists().where(n1.id == SanXuatCongViec.nhom_id, n1.trang_thai == NHOM_DONG)
+        Việc chung bài ghép (`nhom_id` NULL) chỉ ẩn khi có nhóm đã đóng và KHÔNG còn nhóm nào mở.
 
-        def _tv(mo: bool):
-            n, nl, tv = aliased(SanXuatNhom), aliased(SanXuatNhomLsx), aliased(BaiGhepThanhVien)
-            dk = n.trang_thai != NHOM_DONG if mo else n.trang_thai == NHOM_DONG
-            return (exists()
-                    .where(tv.bai_ghep_id == SanXuatCongViec.bai_ghep_id,
-                           nl.lsx_id == tv.lsx_id, n.id == nl.nhom_id, dk))
-
-        bg_dong = and_(
-            SanXuatCongViec.nhom_id.is_(None),
-            SanXuatCongViec.bai_ghep_id.is_not(None),
-            _tv(False),
-            not_(_tv(True)),
-        )
-        an = and_(SanXuatCongViec.trang_thai.in_((CV_PHAT_HANH, CV_TAM_DUNG)),
-                  or_(nhom_dong, bg_dong))
-        return not_(an)
+        Dựng MỘT lần rồi dùng lại (`_dung_viec_con_hien`): biểu thức không phụ thuộc tham số, còn dựng
+        7 bí danh + 3 EXISTS tốn ~22 ms CPU mỗi lần — đo tải 30/09/2026, `/api/san-xuat/teams` (mọi thợ
+        gọi giữa ca) tốn gấp đôi CPU so với trước khi có điều kiện này."""
+        return _dung_viec_con_hien()
 
     def trang_thai_nhom_cua_bai_ghep(self, bai_ghep_id: int) -> list[str]:
         """Trạng thái nhóm của mọi lệnh thành viên một bài ghép (lặp theo lệnh)."""
@@ -489,6 +475,15 @@ class SanXuatRepository:
 
     def nhom(self, nhom_id: int) -> SanXuatNhom | None:
         return self.db.get(SanXuatNhom, nhom_id)
+
+    def nhom_khoa(self, nhom_id: int, *, chia_se: bool = False) -> SanXuatNhom | None:
+        """Nhóm kèm KHOÁ DÒNG. `chia_se` = FOR SHARE cho cửa ghi xưởng (không chặn nhau, nhưng chặn
+        đóng/mở lại đang chạy song song); mặc định FOR UPDATE cho chính việc đóng/mở lại."""
+        return self.db.execute(
+            select(SanXuatNhom).where(SanXuatNhom.id == nhom_id)
+            .with_for_update(read=chia_se)
+            .execution_options(populate_existing=True)
+        ).scalar_one_or_none()
 
     def lsx(self, lsx_id: int) -> Lsx | None:
         return self.db.get(Lsx, lsx_id)
@@ -974,3 +969,29 @@ class SanXuatRepository:
             select(Department.id, Department.name).where(Department.id.in_(dept_ids))
         ).all()
         return {did: name for did, name in rows}
+
+
+@functools.cache
+def _dung_viec_con_hien():
+    """Thân của `SanXuatRepository.viec_con_hien` — biểu thức SQLAlchemy bất biến, dùng chung an toàn
+    giữa các truy vấn/luồng."""
+    # Bí danh riêng để truy vấn ngoài có JOIN cùng bảng cũng không làm subquery tự tương quan nhầm.
+    n1 = aliased(SanXuatNhom)
+    nhom_dong = exists().where(n1.id == SanXuatCongViec.nhom_id, n1.trang_thai == NHOM_DONG)
+
+    def _tv(mo: bool):
+        n, nl, tv = aliased(SanXuatNhom), aliased(SanXuatNhomLsx), aliased(BaiGhepThanhVien)
+        dk = n.trang_thai != NHOM_DONG if mo else n.trang_thai == NHOM_DONG
+        return (exists()
+                .where(tv.bai_ghep_id == SanXuatCongViec.bai_ghep_id,
+                       nl.lsx_id == tv.lsx_id, n.id == nl.nhom_id, dk))
+
+    bg_dong = and_(
+        SanXuatCongViec.nhom_id.is_(None),
+        SanXuatCongViec.bai_ghep_id.is_not(None),
+        _tv(False),
+        not_(_tv(True)),
+    )
+    an = and_(SanXuatCongViec.trang_thai.in_((CV_PHAT_HANH, CV_TAM_DUNG)),
+              or_(nhom_dong, bg_dong))
+    return not_(an)

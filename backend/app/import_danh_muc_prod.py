@@ -16,9 +16,7 @@ vụ mẫu). Danh mục đơn vị/máy/công đoạn base gọi thẳng seed fu
 Công thức bám TỪ ĐIỂN BIẾN `services/bien_cong_thuc.py`:
   - Công đoạn `cong_thuc_gia`: KHÔNG có biến đơn giá → nhét số thẳng vào công thức.
   - Vật tư `cong_thuc_gia`: dùng `don_gia_vat_tu` (suy ngược ra lượng khi đặt đơn giá = 1).
-  - Giấy `cong_thuc_luong`: dùng chung `_CT_LUONG_GIAY_CAN` (định lượng × khổ nguyên × tờ nguyên).
-    Đây là ô `cong_thuc_luong` DUY NHẤT còn lại — ba ô cùng tên ở Máy · Công việc khoán · Vật tư
-    khác đã gỡ ở mg `0274`, cách đo của bước nay khai ở drawer Công đoạn.
+  - Giấy KHÔNG còn ô công thức tính định mức (mg `0348`): giấy đếm theo tờ × khổ.
 """
 from __future__ import annotations
 
@@ -36,7 +34,6 @@ from .repositories.rbac_repo import DepartmentRepository
 from .seed import seed_departments, seed_san_xuat_org, to_sx_theo_ten_bat_ky
 from .seed_kho_ncc import seed_kho_ncc
 from .seed_rebuild import (
-    _CT_LUONG_GIAY_CAN,
     seed_don_vi_do,
     seed_nhom_may,
     seed_rebuild_catalog,
@@ -97,12 +94,11 @@ def _import_don_vi_bo_sung(db: Session) -> int:
 
 
 # ---------------------------------------------------------------------------------------------
-# 1) Giấy nguyên (thêm 20 loại). don_vi_gia="kg", cong_thuc_luong = định lượng × khổ nguyên × tờ.
+# 1) Giấy nguyên (thêm 20 loại). don_vi_gia="kg".
 # ---------------------------------------------------------------------------------------------
 def _giay(ma, ten, dai, rong, gsm, cal, tho, don_gia):
     return dict(ma=ma, ten=ten, kho_dai=dai, kho_rong=rong, gsm=gsm,
-                caliper_micron=cal, tho=tho, don_vi_gia="kg", don_gia=don_gia,
-                cong_thuc_luong=_CT_LUONG_GIAY_CAN)
+                caliper_micron=cal, tho=tho, don_vi_gia="kg", don_gia=don_gia)
 
 
 _GIAY = [
@@ -328,7 +324,7 @@ _CONG_DOAN = [
         kieu_bu_hao="co_dinh", so_to_bu_hao=30, requires_tooling=True, tooling_type="khuon_be",
         nhom_may_cho_phep=[_BE], don_vi_vao="to", don_vi_ra="con", run_rate=300),
     _cd("CD-1016", "Ép nhũ (khuôn ép)", "finishing", "so_luong * 350",
-        kieu_bu_hao="co_dinh", so_to_bu_hao=50, requires_tooling=True, tooling_type="khuon_ep",
+        kieu_bu_hao="co_dinh", so_to_bu_hao=50,
         nhom_may_cho_phep=[_BE], don_vi_vao="to", don_vi_ra="to", run_rate=350),
     # --- Khoán tay (nhom_may = None → không ràng buộc máy; ghi khoán theo NGƯỜI) ---
     _cd("CD-1017", "Gấp tay", "finishing", "so_luong * 30",

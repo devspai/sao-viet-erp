@@ -604,7 +604,9 @@ def list_salaries(employee_id: int, svc: Service, employees: Employees,
     except PayrollError as exc:
         _raise(exc)
     today = date.today()
-    actor_cache: dict[int, str | None] = {}
+    # Người điều chỉnh (nhật ký "ai sửa"): MỘT truy vấn cho cả lịch sử, không tra từng người.
+    actor_names = {uid: (u.name or u.username)
+                   for uid, u in users.map_by_ids({r.created_by for r in rows}).items()}
     items = []
     for index, row in enumerate(rows):
         newer = rows[index - 1] if index > 0 else None
@@ -614,12 +616,8 @@ def list_salaries(employee_id: int, svc: Service, employees: Employees,
         out.is_current = row.effective_from <= today and (
             effective_to is None or effective_to >= today
         )
-        # Người điều chỉnh (cho nhật ký "ai sửa"): tra tên từ created_by, cache trong 1 lần list.
         if row.created_by is not None:
-            if row.created_by not in actor_cache:
-                u = users.get_by_id(row.created_by)
-                actor_cache[row.created_by] = (u.name or u.username) if u is not None else None
-            out.actor_name = actor_cache[row.created_by]
+            out.actor_name = actor_names.get(row.created_by)
         items.append(out)
     return SalariesOut(employee_id=employee_id,
                        employee_name=emp.full_name if emp else None, items=items)

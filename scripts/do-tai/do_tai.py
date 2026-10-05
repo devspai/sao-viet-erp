@@ -27,6 +27,7 @@ import argparse
 import asyncio
 import http.cookiejar
 import json
+import io
 import os
 import random
 import re
@@ -70,9 +71,17 @@ class ThuSo:
         self.cham_cong_ok = 0
         self.cham_cong_hong: Counter = Counter()
         self.pha = "mo_app"
+        self.byte_gui = 0
+        self.byte_tai = 0
+        self.so_304 = 0
 
     def ghi(self, nhom: str, ma: str, tre: float) -> None:
         self.mau.append(Mau(nhom, ma, tre, time.monotonic(), self.pha))
+
+
+def _loi(ma: str) -> bool:
+    """304 = bản trong máy người xem vẫn đúng — là KẾT QUẢ TỐT, không phải lỗi."""
+    return not (ma.startswith("2") or ma == "304")
 
 
 def _nhom(path: str) -> str:
@@ -115,6 +124,7 @@ class NguoiDung:
     sse_lan_dut: list = field(default_factory=list)
     to_id: int | None = None
     client: object = None   # --client-moi-nguoi: pool riêng của người này
+    etag: dict = field(default_factory=dict)   # kịch bản anh: url → ETag (bộ nhớ đệm trình duyệt)
 
 
 class May:
@@ -122,6 +132,7 @@ class May:
         self.args = args
         self.thu = thu
         self.dung = False
+        self.kho_url: list[str] = []   # kịch bản anh: mọi tệp đã gửi thành công (dùng chung)
         self.client = httpx.AsyncClient(
             base_url=args.base,
             http1=True, http2=False,
@@ -305,6 +316,138 @@ class May:
                     ds.append(f"/api/san-xuat/work-items?team_id={nd.to_id}&nhom=lenh&trang=1&co_trang=20")
             await asyncio.gather(*(self.goi(nd, "GET", p) for p in ds))
 
+    # --- kịch bản `anh`: gửi + xem tệp --------------------------------------------------------
+
+    async def goi_tep(self, nd: NguoiDung, path: str, tep: list[tuple[str, bytes]], *, nhom: str):
+        """POST multipart (trường `file`). Trả Response hoặc None; luôn ghi mẫu + đếm byte gửi."""
+        headers = {"Authorization": f"Bearer {nd.token}"}
+        files = [("file", (ten, data, "image/jpeg")) for ten, data in tep]
+        t = time.perf_counter()
+        try:
+            # Như FE: gửi tệp chờ tối đa 180s (`client.ts`), không phải 60s.
+            r = await self.cl(nd).post(path, files=files, headers=headers, timeout=httpx.Timeout(180.0))
+            self.thu.ghi(nhom, str(r.status_code), time.perf_counter() - t)
+            if r.status_code < 300:
+                self.thu.byte_gui += sum(len(d) for _, d in tep)
+            return r
+        except asyncio.CancelledError:
+            self.thu.ghi(nhom, "dang_cho", time.perf_counter() - t)
+            raise
+        except httpx.TimeoutException:
+            self.thu.ghi(nhom, "timeout", time.perf_counter() - t)
+        except httpx.HTTPError as e:
+            self.thu.ghi(nhom, "ket_noi", time.perf_counter() - t)
+            if self.args.verbose:
+                print(f"[{nd.ten}] POST {path}: {type(e).__name__} {e}", file=sys.stderr)
+        return None
+
+    async def xem_tep(self, nd: NguoiDung, url: str) -> None:
+        """Mở một tệp như `<img src>`: lần đầu tải trọn; đã có bản trong máy thì gửi `If-None-Match`
+        (trường hợp XẤU — trình duyệt thật với `immutable` thường không hỏi lại máy chủ)."""
+        # `/api/files` xác thực bằng cookie `file_access` (đặt lúc đăng nhập), KHÔNG bằng Bearer —
+        # `<img src>` không gắn được header. Client dùng chung chặn cookie ⇒ gắn tay.
+        headers = {"Cookie": f"file_access={nd.cookie.get('file_access', '')}"}
+        etag = nd.etag.get(url)
+        if etag:
+            headers["If-None-Match"] = etag
+        nhom = "GET /api/files (có sẵn → hỏi lại)" if etag else "GET /api/files (tải lần đầu)"
+        t = time.perf_counter()
+        try:
+            r = await self.cl(nd).get(url, headers=headers)
+            self.thu.ghi(nhom, str(r.status_code), time.perf_counter() - t)
+            if r.status_code == 200:
+                self.thu.byte_tai += len(r.content)
+                if r.headers.get("etag"):
+                    nd.etag[url] = r.headers["etag"]
+            elif r.status_code == 304:
+                self.thu.so_304 += 1
+        except asyncio.CancelledError:
+            self.thu.ghi(nhom, "dang_cho", time.perf_counter() - t)
+            raise
+        except httpx.TimeoutException:
+            self.thu.ghi(nhom, "timeout", time.perf_counter() - t)
+        except httpx.HTTPError:
+            self.thu.ghi(nhom, "ket_noi", time.perf_counter() - t)
+
+    _KHO_BYTE = os.urandom(9 * 1024 * 1024)
+
+    _KHO_JPEG: dict[str, list[bytes]] = {}
+
+    @classmethod
+    def sinh_jpeg_that(cls) -> None:
+        """`--anh-that`: ảnh JPEG GIẢI MÃ ĐƯỢC (nhiễu ngẫu nhiên, Pillow). Byte ngẫu nhiên không làm ảnh
+        thu nhỏ được — máy chủ lùi về ảnh gốc, nên đo `?w=` bằng byte ngẫu nhiên là đo sai. Sinh sẵn
+        một kho nhỏ: nén 4–8MB mỗi lượt gửi là chính máy phát tải ăn CPU."""
+        from PIL import Image  # chỉ cần khi bật cờ
+
+        def jpeg(w: int, h: int, q: int) -> bytes:
+            b = io.BytesIO()
+            Image.frombytes("RGB", (w, h), os.urandom(w * h * 3)).save(b, "JPEG", quality=q)
+            return b.getvalue()
+        cls._KHO_JPEG["nho"] = [jpeg(w, w * 3 // 4, 40) for w in (1000, 1100, 1200, 1300, 1400, 1500)]
+        cls._KHO_JPEG["lon"] = [jpeg(w, w * 3 // 4, 60) for w in (3200, 3600, 4000)]
+
+    @classmethod
+    def _anh(cls, kb_min: float, kb_max: float) -> bytes:
+        if cls._KHO_JPEG:
+            return random.choice(cls._KHO_JPEG["lon" if kb_min >= 2048 else "nho"])
+        # Byte ngẫu nhiên = không nén thêm được, đúng như JPEG. Máy chủ không soi nội dung ảnh. Cắt từ
+        # MỘT khối sinh sẵn: sinh mới 4–8MB mỗi lượt gửi là chính máy phát tải ăn CPU.
+        n = int(random.uniform(kb_min, kb_max) * 1024)
+        dau = random.randrange(0, max(1, len(cls._KHO_BYTE) - n))
+        return b"\xff\xd8\xff\xe0" + cls._KHO_BYTE[dau:dau + n]
+
+    async def gui_anh_dai_dien(self, nd: NguoiDung) -> None:
+        a = self.args
+        r = await self.goi_tep(nd, "/api/users/me/avatar",
+                               [(f"{nd.ten}.jpg", self._anh(a.anh_nho_kb[0], a.anh_nho_kb[1]))],
+                               nhom="POST /api/users/me/avatar (ảnh đã nén)")
+        if r is not None and r.status_code == 200:
+            # Máy chủ XOÁ ảnh đại diện cũ khi thay (đúng thiết kế) ⇒ rút url cũ khỏi danh sách xem,
+            # không thì các lượt xem sau đếm 404 oan.
+            cu = getattr(nd, "avatar_url", None)
+            if cu in self.kho_url:
+                self.kho_url.remove(cu)
+            nd.avatar_url = r.json()["avatar_url"]
+            self.kho_url.append(nd.avatar_url)
+
+    async def gui_anh_lon(self, nd: NguoiDung) -> None:
+        """Quản lý lập phiếu sửa chữa rồi gửi `--so-anh-lon` ảnh GỐC (không nén) CÙNG LÚC."""
+        a = self.args
+        r = await self.goi(nd, "POST", "/api/ky-thuat-may/sua-chua",
+                           json_body={"may_id": a.may_id, "bo_phan_hong": "Đo tải"})
+        if r is None or r.status_code != 201:
+            return
+        pid = r.json()["id"]
+        path = f"/api/ky-thuat-may/sua_chua/{pid}/anh?giai_doan=truoc"
+        mb = a.anh_lon_mb
+        kq = await asyncio.gather(*(
+            self.goi_tep(nd, path, [(f"goc{i}.jpg", self._anh(mb[0] * 1024, mb[1] * 1024))],
+                         nhom="POST ảnh phiếu máy (ảnh gốc, không nén)")
+            for i in range(a.so_anh_lon)))
+        for x in kq:
+            if x is not None and x.status_code == 201:
+                self.kho_url.append(x.json()["file_url"])
+
+    async def vong_anh(self, nd: NguoiDung, het: float) -> None:
+        la_ql = nd.so % 10 == 0 and self.args.may_id
+        await self.gui_anh_dai_dien(nd)
+        if la_ql:
+            await self.gui_anh_lon(nd)
+        con_gui = self.args.luot_gui - 1
+        while not self.dung and time.monotonic() < het:
+            await asyncio.sleep(random.uniform(3, 8))
+            if self.dung or time.monotonic() >= het:
+                break
+            # Mở một màn danh sách có ảnh: kéo vài ảnh cùng lúc như trình duyệt vẽ lưới.
+            if self.kho_url:
+                ds = random.sample(self.kho_url, min(self.args.anh_moi_man, len(self.kho_url)))
+                w = self.args.anh_w
+                await asyncio.gather(*(self.xem_tep(nd, f"{u}?w={w}" if w else u) for u in ds))
+            if con_gui > 0 and random.random() < 0.3:
+                con_gui -= 1
+                await (self.gui_anh_lon(nd) if la_ql else self.gui_anh_dai_dien(nd))
+
     async def vong_nhe(self, nd: NguoiDung, het: float) -> None:
         while not self.dung and time.monotonic() < het:
             await asyncio.sleep(random.uniform(3, 8))
@@ -317,6 +460,16 @@ class May:
 # Đo tài nguyên
 # ------------------------------------------------------------------------------------------------
 
+def _mib(s: str) -> float:
+    """"512.3MiB" / "1.2GiB" / "800kB" (docker stats) → MiB."""
+    m = re.match(r"\s*([\d.]+)\s*([KMGT]?i?B)", s.strip(), re.I)
+    if not m:
+        return float("nan")
+    he = {"b": 1 / 2**20, "kb": 1e3 / 2**20, "kib": 1 / 1024, "mb": 1e6 / 2**20, "mib": 1,
+          "gb": 1e9 / 2**20, "gib": 1024}
+    return float(m.group(1)) * he.get(m.group(2).lower(), float("nan"))
+
+
 class DoTaiNguyen(threading.Thread):
     def __init__(self, project: str, co_docker: bool) -> None:
         super().__init__(daemon=True)
@@ -326,6 +479,9 @@ class DoTaiNguyen(threading.Thread):
         self.be_cpu: list[float] = []
         self.be_mem: list[str] = []
         self.db_cpu: list[float] = []
+        self.be_mib: list[float] = []
+        self.minio_cpu: list[float] = []
+        self.minio_mib: list[float] = []
         self.dung = threading.Event()
 
     def run(self) -> None:
@@ -350,8 +506,12 @@ class DoTaiNguyen(threading.Thread):
                         if "-backend-" in ten:
                             self.be_cpu.append(c)
                             self.be_mem.append(mem.split("/")[0].strip())
+                            self.be_mib.append(_mib(mem.split("/")[0]))
                         elif "-db-" in ten:
                             self.db_cpu.append(c)
+                        elif "-minio-" in ten:
+                            self.minio_cpu.append(c)
+                            self.minio_mib.append(_mib(mem.split("/")[0]))
                 except Exception:
                     pass
 
@@ -400,6 +560,15 @@ async def chay(args) -> dict:
         await asyncio.sleep(dan + 5)
         thu.pha = "giua_ca"
         await asyncio.wait(tasks, timeout=max(1.0, het - time.monotonic() + 5))
+    elif args.kich_ban == "anh":
+        dan = args.dan if args.dan is not None else 30.0
+        ket["dan_s"] = dan
+
+        async def sau(nd):
+            await may.vong_anh(nd, het)
+
+        tasks = [asyncio.create_task(mot(nd, random.uniform(0, dan), sau)) for nd in nds]
+        await asyncio.wait(tasks, timeout=max(1.0, het - time.monotonic() + 30))
     else:  # reconnect
         dan = args.dan if args.dan is not None else 30.0
         ket["dan_s"] = dan
@@ -501,7 +670,7 @@ def bang(mau: list[Mau]) -> str:
     for g in sorted(theo, key=lambda k: -len(theo[k])):
         ms = theo[g]
         tre = [m.tre for m in ms]
-        loi = Counter(m.ma for m in ms if not m.ma.startswith("2"))
+        loi = Counter(m.ma for m in ms if _loi(m.ma))
         dong.append(
             f"| `{g}` | {len(ms)} | {sum(loi.values())} | "
             f"{', '.join(f'{k}×{v}' for k, v in loi.most_common()) or '—'} | "
@@ -515,7 +684,7 @@ def bao_cao(args, ket: dict, tn: DoTaiNguyen, bat_dau: datetime) -> str:
     # SSE mở là kết nối dài — tách khỏi thống kê request thường.
     req = [m for m in thu.mau if not m.nhom.startswith("SSE")]
     sse = [m for m in thu.mau if m.nhom.startswith("SSE")]
-    loi = Counter(m.ma for m in req if not m.ma.startswith("2"))
+    loi = Counter(m.ma for m in req if _loi(m.ma))
     tre = [m.tre for m in req]
     L = []
     L.append(f"### {args.kich_ban} · {args.users} người · {bat_dau:%Y-%m-%d %H:%M:%S}")
@@ -535,22 +704,32 @@ def bao_cao(args, ket: dict, tn: DoTaiNguyen, bat_dau: datetime) -> str:
         dur = max(1e-6, max(m.luc for m in req) - min(m.luc for m in req))
         L.append(f"- Thông lượng trung bình: {len(req) / dur:.1f} req/s")
     L.append(f"- SSE: {ket['sse_mo_toi_da']}/{args.users} người từng mở được; "
-             f"lượt mở {len(sse)} (lỗi {sum(1 for m in sse if not m.ma.startswith('2'))})")
+             f"lượt mở {len(sse)} (lỗi {sum(1 for m in sse if _loi(m.ma))})")
     if ket.get("task_treo_luc_dung"):
         L.append(f"- Task không chịu huỷ lúc dừng (bỏ lại): {ket['task_treo_luc_dung']}")
+    if args.kich_ban == "anh":
+        dur = max(1.0, args.thoi_gian)
+        L.append(f"- Đã gửi thành công {thu.byte_gui / 2**20:.0f} MB, tải về {thu.byte_tai / 2**20:.0f} MB "
+                 f"(TB {thu.byte_gui / 2**20 / dur:.1f} MB/s lên · {thu.byte_tai / 2**20 / dur:.1f} MB/s xuống); "
+                 f"{thu.so_304} lượt 304 (bản trong máy vẫn đúng, không kéo byte nào)")
+        L.append(f"- Ảnh nhỏ (đã nén) {args.anh_nho_kb[0]:g}–{args.anh_nho_kb[1]:g} KB; quản lý gửi "
+                 f"{args.so_anh_lon} ảnh GỐC {args.anh_lon_mb[0]:g}–{args.anh_lon_mb[1]:g} MB cùng lúc; "
+                 f"mỗi màn mở {args.anh_moi_man} ảnh; tối đa {args.luot_gui} lượt gửi/người"
+                 + ("; JPEG thật" if args.anh_that else "; byte ngẫu nhiên")
+                 + (f"; xem qua `?w={args.anh_w}`" if args.anh_w else "; xem ảnh gốc"))
     if args.kich_ban == "daudca":
         L.append(f"- Chấm công thành công: **{thu.cham_cong_ok}/{args.users}**"
                  + (f"; hỏng: {dict(thu.cham_cong_hong)}" if thu.cham_cong_hong else ""))
     for pha in ("mo_app", "giua_ca", "sau_restart"):
         ms = [m for m in req if m.pha == pha]
         if ms and args.kich_ban != "daudca":
-            lp = sum(1 for m in ms if not m.ma.startswith("2"))
+            lp = sum(1 for m in ms if _loi(m.ma))
             L.append(f"- Pha `{pha}`: {len(ms)} req, lỗi {lp} ({100 * lp / len(ms):.1f}%), "
                      f"p50 {_phan_vi([m.tre for m in ms], .5):.2f}s, p95 {_phan_vi([m.tre for m in ms], .95):.2f}s")
     if args.kich_ban == "reconnect":
         t_rs = ket["t_rs"]
         cua_so = [m for m in req if t_rs <= m.luc <= t_rs + 60]
-        lcs = Counter(m.ma for m in cua_so if not m.ma.startswith("2"))
+        lcs = Counter(m.ma for m in cua_so if _loi(m.ma))
         L.append(f"- SSE mở trước restart: {ket['sse_mo_truoc_restart']}/{args.users}; restart lúc "
                  f"t={ket['restart_luc_s']}s; lệnh `restart backend` mất {ket['lenh_restart_s']}s; "
                  f"`/api/health` trả 200 lại sau {ket['api_song_lai_s']}s")
@@ -569,7 +748,10 @@ def bao_cao(args, ket: dict, tn: DoTaiNguyen, bat_dau: datetime) -> str:
                  f"max {max(tn.cpu_host):.0f}%")
     if tn.be_cpu:
         L.append(f"- Container backend: CPU TB {statistics.mean(tn.be_cpu):.0f}% · max {max(tn.be_cpu):.0f}% "
-                 f"(100% = 1 lõi) · RAM cuối {tn.be_mem[-1]}")
+                 f"(100% = 1 lõi) · RAM cuối {tn.be_mem[-1]} · RAM đỉnh {max(tn.be_mib):.0f} MiB")
+    if tn.minio_cpu:
+        L.append(f"- Container minio: CPU TB {statistics.mean(tn.minio_cpu):.0f}% · max {max(tn.minio_cpu):.0f}% "
+                 f"· RAM đỉnh {max(tn.minio_mib):.0f} MiB")
     if tn.db_cpu:
         L.append(f"- Container db: CPU TB {statistics.mean(tn.db_cpu):.0f}% · max {max(tn.db_cpu):.0f}%")
     L.append("")
@@ -587,7 +769,20 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--base", default="http://127.0.0.1:8460")
     ap.add_argument("--users", type=int, required=True)
-    ap.add_argument("--kich-ban", choices=["daudca", "bando", "reconnect"], required=True)
+    ap.add_argument("--kich-ban", choices=["daudca", "bando", "reconnect", "anh"], required=True)
+    ap.add_argument("--may-id", type=int, default=None,
+                    help="kịch bản anh: id máy `MAY-DO-TAI` (tao_du_lieu.py in ra); trống = quản lý không gửi ảnh lớn")
+    ap.add_argument("--anh-nho-kb", type=float, nargs=2, default=(250, 600),
+                    help="kịch bản anh: cỡ ảnh đại diện (đã nén ở trình duyệt), KB")
+    ap.add_argument("--anh-lon-mb", type=float, nargs=2, default=(4, 8),
+                    help="kịch bản anh: cỡ ảnh GỐC quản lý gửi (điện thoại, không nén), MB")
+    ap.add_argument("--so-anh-lon", type=int, default=3, help="kịch bản anh: số ảnh gốc gửi cùng lúc mỗi lượt")
+    ap.add_argument("--anh-moi-man", type=int, default=10, help="kịch bản anh: số ảnh kéo mỗi lần mở màn")
+    ap.add_argument("--luot-gui", type=int, default=3, help="kịch bản anh: số lượt gửi tối đa mỗi người")
+    ap.add_argument("--anh-that", action="store_true",
+                    help="kịch bản anh: gửi JPEG thật (cần Pillow) thay byte ngẫu nhiên — bắt buộc khi đo --anh-w")
+    ap.add_argument("--anh-w", type=int, choices=[160, 320], default=None,
+                    help="kịch bản anh: xem ảnh qua `?w=` (ảnh thu nhỏ, như lưới/avatar của giao diện)")
     ap.add_argument("--thoi-gian", type=int, default=150, help="giây (kịch bản reconnect: tối thiểu tới 60s sau restart)")
     ap.add_argument("--mat-khau", default=os.environ.get("TAI_PASSWORD"), help="hoặc biến môi trường TAI_PASSWORD")
     ap.add_argument("--tien-to", default="tai_")
@@ -607,8 +802,12 @@ def main() -> None:
     args = ap.parse_args()
     if not args.mat_khau:
         ap.error("thiếu --mat-khau (hoặc TAI_PASSWORD)")
+    if args.anh_w and not args.anh_that:
+        ap.error("--anh-w cần --anh-that (byte ngẫu nhiên không thu nhỏ được)")
     if args.seed is not None:
         random.seed(args.seed)
+    if args.anh_that:
+        May.sinh_jpeg_that()
 
     cpu_truoc = None
     if psutil and args.cho_may_ranh > 0:
@@ -635,7 +834,7 @@ def main() -> None:
     print(md)
     ra = Path(args.ra) if args.ra else (
         Path(__file__).parent / "ket-qua" / "lan-chay"
-        / f"{bat_dau:%Y%m%d-%H%M%S}-{args.kich_ban}-{args.users}{'-cm' if args.client_moi_nguoi else ''}.md")
+        / f"{bat_dau:%Y%m%d-%H%M%S}-{args.kich_ban}-{args.users}{'-cm' if args.client_moi_nguoi else ''}{f'-w{args.anh_w}' if args.anh_w else ''}.md")
     ra.parent.mkdir(parents=True, exist_ok=True)
     ra.write_text(md, encoding="utf-8")
     print(f"\n(đã ghi {ra})")

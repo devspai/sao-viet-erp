@@ -179,13 +179,8 @@ def test_gate_kcs_chi_thanh_vien_phong_is_kcs(db, orders, lsx_svc, admin, custom
     assert db.query(SanXuatKcsBatch).count() == 0
 
     _d, thanh_vien = _to_kiem(db)
-    assert kcs.la_nguoi_kcs(db, thanh_vien) and not kcs.la_truong_kcs(db, thanh_vien)
+    assert kcs.la_nguoi_kcs(db, thanh_vien)
     kcs.kiem_cong_doan(db, user=thanh_vien, cong_viec_id=cv.id, so_dat=10)
-    _d2, truong = _to_kiem(db, ten="Tổ KCS 2", ma="TO-KCS-2", truong=True)
-    assert kcs.la_truong_kcs(db, truong)
-    with pytest.raises(PermissionError):
-        kcs.gate_truong_kcs(db, thanh_vien)
-    kcs.gate_truong_kcs(db, truong)
 
 
 # --- Kiểm công đoạn -------------------------------------------------------------------------
@@ -707,7 +702,7 @@ def test_api_kiem_admin_khong_thuoc_to_kcs_403(client):
     assert client.get("/api/san-xuat/kcs/lenh", headers=h).status_code == 403
     me = client.get("/api/auth/permissions", headers=h)
     if me.status_code == 200:
-        assert me.json()["kcs"] is False and me.json()["truong_kcs"] is False
+        assert me.json()["kcs"] is False
 
 
 def test_api_kiem_dong_loi_so_anh_khong_khop_400(client):

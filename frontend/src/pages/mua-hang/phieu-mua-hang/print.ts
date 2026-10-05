@@ -9,6 +9,7 @@ import { escapeHtml as html, fmtDate, money } from "../../../utils/format";
 // hàm này (PurchaseRequestsPage gọi `useNapTenDonVi`), nên tra là có; mã lạ thì in mã trần.
 import { tenDonVi } from "../../tenDonVi";
 import { STATUS_META } from "./shared/constants";
+import { nhanKhoMua } from "./shared/helpers";
 
 export function printPurchaseRequest(row: PurchaseRequestRow): boolean {
   const win = window.open("", "_blank", "width=980,height=720");
@@ -44,6 +45,7 @@ export function printPurchaseRequest(row: PurchaseRequestRow): boolean {
           <td class="center">${index + 1}</td>
           <td>
             <strong>${html(line.item_name)}</strong>
+            ${nhanKhoMua(line) ? `<div>${html(nhanKhoMua(line))}</div>` : ""}
             ${line.note ? `<div class="muted">${html(line.note)}</div>` : ""}
           </td>
           <td class="center">${html(tenDonVi(line.unit) ?? line.unit)}</td>

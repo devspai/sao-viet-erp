@@ -195,10 +195,14 @@ export function DonViChonTheoHang({
   disabled = false,
   chiDoc = false,
   heSoDaLuu = null,
+  dang = null,
 }: {
   token: string;
   hangLoai: HangLoai | null;
   hangId: number | null;
+  /** Giấy ở KHO: dạng dòng — `to` ⇒ đơn vị gốc là tờ nguyên, `cuon` ⇒ kg. Đổi dạng thì nơi gọi
+   *  nên xoá `value` để ô tự điền lại đơn vị gốc của dạng mới. */
+  dang?: "to" | "cuon" | null;
   value: string;
   onChange: (ma: string, heSoVeGoc: number | null) => void;
   /** Hệ số quy đổi của ĐƠN VỊ ĐANG CHỌN về đơn vị gốc — bắn cả khi dòng nạp sẵn từ DB, không chỉ
@@ -238,7 +242,7 @@ export function DonViChonTheoHang({
     }
     let alive = true;
     api.matHang
-      .donVi(token, hangLoai, hangId)
+      .donVi(token, hangLoai, hangId, dang)
       .then((r) => {
         if (!alive) return;
         setDs(r.ds);
@@ -261,7 +265,7 @@ export function DonViChonTheoHang({
     // `value`/`onChange` cố tình KHÔNG nằm trong deps: chỉ nạp lại khi ĐỔI MẶT HÀNG, không phải
     // mỗi lần người dùng đổi đơn vị.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, hangLoai, hangId]);
+  }, [token, hangLoai, hangId, dang]);
 
   // Dòng cũ có thể lưu TÊN đơn vị ("cái") thay vì mã ("cai") — máy chủ nhận cả hai (mg 0341 đã
   // dọn dữ liệu, cửa ghi nay lưu mã). So theo mã TRƯỚC, không khớp thì so theo tên; không có bước

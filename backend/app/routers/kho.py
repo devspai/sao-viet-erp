@@ -106,9 +106,17 @@ def delete_vi_tri(vi_tri_id: int, svc: ViTriService,
         raise HTTPException(status_code=404, detail=str(e)) from None
 
 
+def _dung_rows(svc: KhoHangService, objs: list) -> list[KhoHangRow]:
+    """Dòng kho kèm số vị trí cất — một câu đếm cho cả trang."""
+    dem = svc.so_vi_tri([o.id for o in objs])
+    return [KhoHangRow.model_validate(o).model_copy(update={"so_vi_tri": dem.get(o.id, 0)})
+            for o in objs]
+
+
 make_catalog_router(
     router, ten="kho_hang", ServiceDep=Service, module=MODULE, doc=_doc_kho,
     InModel=KhoHangIn, RowModel=KhoHangRow, ListModel=KhoHangListOut,
+    dung_rows=_dung_rows,
     excel_spec=KHO_HANG,
     ma_goi_y=True,      # repo khai `ma_prefix = "KHO-"`
 )

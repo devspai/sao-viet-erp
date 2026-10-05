@@ -24,12 +24,12 @@
 .dkt-hero-drop:hover {
   border-color: var(--rust, #c2410c);
   background: linear-gradient(180deg, #ffffff 0%, #fff7ed 100%);
-  box-shadow: 0 4px 20px rgba(194, 65, 12, 0.06);
+  box-shadow: 0 4px 20px rgba(100, 116, 139, 0.06);
 }
 .dkt-hero-drop.is-keo {
   border-color: var(--rust, #c2410c);
-  background: var(--rust-soft, #fff7ed);
-  box-shadow: 0 0 0 6px rgba(194, 65, 12, 0.12);
+  background: var(--rule-hair);
+  box-shadow: 0 0 0 6px rgba(100, 116, 139, 0.12);
   transform: scale(1.01);
 }
 
@@ -40,7 +40,7 @@
   width: 64px;
   height: 64px;
   border-radius: 20px;
-  background: rgba(194, 65, 12, 0.08);
+  background: rgba(100, 116, 139, 0.08);
   color: var(--rust, #c2410c);
   margin-bottom: 16px;
   transition: all 0.25s ease;
@@ -49,7 +49,7 @@
   transform: translateY(-2px) scale(1.05);
   background: var(--rust, #c2410c);
   color: #ffffff;
-  box-shadow: 0 6px 16px rgba(194, 65, 12, 0.25);
+  box-shadow: 0 6px 16px rgba(100, 116, 139, 0.25);
 }
 
 .dkt-hero__title {
@@ -112,7 +112,7 @@
 .dkt-compact-drop.is-keo {
   border-color: var(--rust, #c2410c);
   background: #fff7ed;
-  box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.1);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.1);
 }
 
 .dkt-compact__left {
@@ -128,7 +128,7 @@
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: rgba(194, 65, 12, 0.08);
+  background: rgba(100, 116, 139, 0.08);
   color: var(--rust, #c2410c);
   flex: none;
 }
@@ -240,7 +240,7 @@
 .dkt-hang__spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(194, 65, 12, 0.2);
+  border: 2px solid rgba(100, 116, 139, 0.2);
   border-top-color: var(--rust, #c2410c);
   border-radius: 50%;
   animation: dktSpin 0.7s linear infinite;
@@ -299,16 +299,6 @@
 .dkt-viec__nut { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ---- Trạng thái Tải / Lỗi -------------------------------------------------------------------- */
-.dkt-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 24px 0;
-  font-size: 13px;
-  color: var(--ash, #64748b);
-}
-
 .dkt-loi-nap {
   display: flex;
   flex-wrap: wrap;

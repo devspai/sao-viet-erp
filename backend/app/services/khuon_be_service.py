@@ -46,7 +46,8 @@ class KhuonBeService(CatalogService):
         if tt is not None and tt not in TINH_TRANG:
             raise KhuonBeValidationError("Tình trạng khuôn không hợp lệ.")
         loai = data.get("loai")
-        if loai and loai not in LOAI_KHUON:
+        # Chỉ chặn GÁN MỚI: dòng cũ mang `khuon_ep`/`khung_lua` (đã gỡ 01/10/2026) vẫn sửa được.
+        if loai and loai not in LOAI_KHUON and loai != getattr(obj, "loai", None):
             raise KhuonBeValidationError("Loại khuôn không hợp lệ.")
         # 🔴 KHÔNG còn ràng buộc "đặt làm phải khai ngày" — mg `0293` gỡ hẳn `ngay_ve_du_kien`
         # (10/09/2026). `dang_dat_lam` một mình đã đủ chặn bước ở lệnh; ngày dự kiến chỉ là con số

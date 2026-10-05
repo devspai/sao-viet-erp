@@ -123,63 +123,6 @@ export function SuppliersToolbar({
         )}
       </div>
 
-      {/* DẢI CHỈ SỐ KPI TƯƠNG TÁC 1-CLICK — Bấm vào thẻ KPI để lọc nhanh danh sách */}
-      <div className="supplier__kpi" aria-label="Tóm tắt nhà cung cấp">
-        <div
-          className={`supplier__kpi-item ${status === "all" ? "is-active" : ""}`}
-          onClick={() => {
-            setStatus("all");
-            setPage(1);
-          }}
-          title="Xem tất cả nhà cung cấp"
-        >
-          <span className="supplier__kpi-icon supplier__kpi-icon--steel">
-            <Icon name="truck" size={15} />
-          </span>
-          <span className="supplier__kpi-body">
-            <b className="supplier__kpi-val">{stats.totalCount}</b>
-            <span className="supplier__kpi-lbl">Nhà cung cấp</span>
-          </span>
-        </div>
-
-        <span className="supplier__kpi-sep" aria-hidden="true" />
-
-        <div
-          className={`supplier__kpi-item ${status === "active" ? "is-active" : ""}`}
-          onClick={() => {
-            setStatus("active");
-            setPage(1);
-          }}
-          title="Click để lọc nhanh NCC đang hợp tác"
-        >
-          <span className="supplier__kpi-icon supplier__kpi-icon--ok">
-            <Icon name="check" size={15} />
-          </span>
-          <span className="supplier__kpi-body">
-            <b className="supplier__kpi-val">{stats.activeCount}</b>
-            <span className="supplier__kpi-lbl">Đang hợp tác</span>
-          </span>
-        </div>
-
-        <span className="supplier__kpi-sep" aria-hidden="true" />
-
-        <div
-          className={`supplier__kpi-item ${status === "inactive" ? "is-active" : ""}`}
-          onClick={() => {
-            setStatus("inactive");
-            setPage(1);
-          }}
-          title="Click để lọc nhanh NCC tạm ngừng"
-        >
-          <span className="supplier__kpi-icon supplier__kpi-icon--warn">
-            <Icon name="ban" size={15} />
-          </span>
-          <span className="supplier__kpi-body">
-            <b className="supplier__kpi-val">{stats.inactiveCount}</b>
-            <span className="supplier__kpi-lbl">Tạm ngừng</span>
-          </span>
-        </div>
-      </div>
     </>
   );
 }

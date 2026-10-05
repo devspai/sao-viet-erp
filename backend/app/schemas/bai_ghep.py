@@ -255,6 +255,8 @@ class VatTuHieuLucNhom(BaseModel):
     hang_id: int
     hang_ma: str | None = None
     hang_ten: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     don_vi_goc: str | None = None
     tong_can: float = 0
     dong: list[VatTuHieuLucDong] = Field(default_factory=list)

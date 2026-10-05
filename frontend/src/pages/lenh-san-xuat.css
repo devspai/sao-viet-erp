@@ -16,11 +16,11 @@
          `line-clamp: 2` + `title`, ≤768px BỎ clamp (thà xuống dòng). */
 
 .hslsx {
-  /* Rộng hơn `.khsx` (1280) — và rộng hơn hẳn `min-width` của bảng 6 cột (920px), nên ở màn
-     desktop bảng KHÔNG phải cuộn ngang lần nào. */
-  max-width: 1360px;
+  /* Khổ chung (1480) rộng hơn hẳn `min-width` của bảng 6 cột (920px), nên ở màn desktop bảng
+     KHÔNG phải cuộn ngang lần nào. */
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: var(--sp-5) var(--sp-6);
+  padding: var(--sp-5) var(--page-pad-x);
   color: var(--ink);
   font-family: var(--ff-sans);
   /* KHÔNG đặt `overflow-x: hidden` ở đây: nó phá `position: sticky` của `thead`. Thay vào đó mọi
@@ -542,7 +542,7 @@
 }
 
 .hslsx__linkbtn:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 
@@ -671,9 +671,9 @@
   transition: background-color var(--duration-fast) var(--easing-standard);
 }
 
-/* Hover hàng KHÔNG dùng xám (luật `tokens.css` §2: rust-soft là "bề mặt được tô"). */
+/* Hover hàng = nền xám nhạt --rule-hair (UI_DESIGN §2, 04/10/2026). */
 .hslsx__row.is-mo-duoc:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 .hslsx__table tbody.is-mo {
@@ -1339,13 +1339,6 @@
   gap: var(--sp-3);
 }
 
-.hslsx-hs__dangtai {
-  margin: var(--sp-8) 0;
-  text-align: center;
-  color: var(--ash-2);
-  font-size: var(--fs-sm);
-}
-
 /* ---------- Dải tổng quan ---------- */
 /* CÙNG khuôn với dải số của màn danh sách (`.hslsx-kpi`): không hộp, không chip icon màu — năm
    con số đọc theo hàng, ngăn nhau bằng một sợi kẻ. Hộp có viền + đổ bóng + nhấc lên khi rê chuột
@@ -1797,7 +1790,7 @@
 }
 
 .hslsx-hs__bang tr.is-buoc-hien-tai td {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 /* Trần chưa tính được: tô NHẸ để dòng vẫn đọc như dòng bình thường (hàng vẫn còn trong kho thật),
    nhưng mắt biết ngay chỗ phải đối chiếu tay. */
@@ -1832,7 +1825,7 @@
 }
 .hslsx-hs__chip.is-now {
   border-color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 

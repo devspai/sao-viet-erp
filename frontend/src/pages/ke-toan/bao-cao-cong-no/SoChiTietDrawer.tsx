@@ -16,6 +16,7 @@ import { ApiError, api, type SoChiTietCongNo } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import type { NavigateFn } from "../../../components/AppShell";
 import { Icon } from "../../../components/Icons";
+import { EmptyState } from "../../../components/EmptyState";
 import { fmtDate } from "../../../utils/format";
 
 /** Nhãn tiếng Việt cho từng loại chứng từ. Server trả khoá máy, giao diện đặt tên. */
@@ -225,7 +226,7 @@ export function SoChiTietDrawer({
               {error}
             </div>
           )}
-          {loading && <p className="md-page__muted">Đang tải…</p>}
+          {loading && <EmptyState trangThai="dang-tai" inline />}
 
           {!loading && data && (
             <>

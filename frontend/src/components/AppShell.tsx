@@ -1,6 +1,7 @@
 // Authenticated app shell: persistent left Sidebar + the active screen.
 // On entry it loads the current user's readable modules (feat-010) to gate both
 // the sidebar (handled in Sidebar) and the content (a forbidden module → 403).
+import { EmptyState } from "./EmptyState";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
@@ -142,6 +143,9 @@ export interface NavParams {
   focusReceiptQuery?: string;
   /** P3 (redesign-bao-gia §6): mở thẳng 1 Phiếu tính giá (link "↳ PTG" từ Báo giá). */
   focusPhieuId?: number;
+  /** Liên thông Hồ sơ khách → Tính giá: mở thẳng form phiếu tính giá MỚI (phiếu nháp, chưa ghi DB).
+   *  Phiếu tính giá không mang khách hàng — khách chỉ được chọn ở bước Báo giá. */
+  taoPhieuTinhGia?: boolean;
   /** Liên thông Kho → YCMH: mở form Yêu cầu mua hàng điền sẵn dòng vật tư (Tên + ĐVT). */
   purchaseSeedLines?: {
     hang_loai?: HangLoai | null;
@@ -150,6 +154,9 @@ export interface NavParams {
     unit: string;
     quantity: number;
     note?: string | null;
+    /** Khổ CẦN (mm) của giấy tờ. */
+    kho_rong?: number;
+    kho_dai?: number;
   }[];
   purchaseSeedPurpose?: string;
   /** Liên thông Kế hoạch vật tư → YCMH: điền sẵn cả ĐẦU PHIẾU (nguồn + vết lệnh sản xuất), không
@@ -214,7 +221,7 @@ export function AppShell() {
   const [caps, setCaps] = useState<Capabilities>(new Map());
   // KCS theo lệnh (mg 0306): tư cách thành viên / trưởng phòng ban "Tổ KCS" — KHÔNG phải ô quyền
   // của vai. Máy chủ trả kèm bộ quyền; mở mục menu "KCS" và nút "Đóng thiếu nhóm".
-  const [kcsTuCach, setKcsTuCach] = useState<{ kcs: boolean; truongKcs: boolean }>({ kcs: false, truongKcs: false });
+  const [kcsTuCach, setKcsTuCach] = useState<{ kcs: boolean }>({ kcs: false });
   // Chấm đỏ theo nav id (1 = có bản ghi mới chưa xem). Nguồn DUY NHẤT: tóm tắt thông báo
   // (`napThongBao`) — Sidebar chỉ vẽ chấm, không in số.
   const [badges, setBadges] = useState<Record<string, number>>({});
@@ -390,7 +397,7 @@ export function AppShell() {
         // thì API trả 403 — hai nơi nói hai kiểu.
         setReadable(new Set(acc.modules));
         setCaps(buildCapabilities(acc.permissions));
-        setKcsTuCach({ kcs: !!acc.kcs, truongKcs: !!acc.truong_kcs });
+        setKcsTuCach({ kcs: !!acc.kcs });
         if (baoNeuDoi && !lanDau) pushToast("Quyền của bạn vừa được cập nhật.", "info");
       })
       .catch((err: unknown) => {
@@ -417,8 +424,19 @@ export function AppShell() {
   // mới ⇒ chấm; đang đứng trong màn đó ⇒ coi như đã xem (đánh dấu luôn, không chấm). Toast khi id
   // MỚI NHẤT của kênh tăng so với lượt trước (lượt đầu sau đăng nhập thì im).
   const lastThongBao = useRef<Record<string, number> | null>(null);
+  // Mở app bắn 8–9 lượt tóm tắt liền nhau (effect sau khi có quyền, SSE mở, các màn báo
+  // `onBadgeStale` lúc gắn) — đo tải 30/09/2026 đây là endpoint nặng nhất giữa ca. Đang có lượt
+  // bay thì chỉ ĐÁNH DẤU, xong lượt đó hỏi lại đúng MỘT lần: số lần gọi không theo số nguồn kích.
+  const thongBaoDangHoi = useRef(false);
+  const thongBaoHoiLai = useRef(false);
+  const napThongBaoRef = useRef<() => void>(() => {});
   const napThongBao = useCallback(() => {
     if (!token || readable === null) return;
+    if (thongBaoDangHoi.current) {
+      thongBaoHoiLai.current = true;
+      return;
+    }
+    thongBaoDangHoi.current = true;
     api.moduleNotifications
       .summary(token)
       .then((s) => {
@@ -443,8 +461,16 @@ export function AppShell() {
         );
         setBadges(cham);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        thongBaoDangHoi.current = false;
+        if (thongBaoHoiLai.current) {
+          thongBaoHoiLai.current = false;
+          napThongBaoRef.current();
+        }
+      });
   }, [token, readable, pushToast]);
+  napThongBaoRef.current = napThongBao;
 
   // Mở màn = đã xem: tắt chấm NGAY rồi dời mốc ở máy chủ; lỗi thì hỏi lại tóm tắt.
   const markModuleNotificationsRead = useCallback(
@@ -767,6 +793,10 @@ export function AppShell() {
     } else if (readable.has("khach_hang") && e.type === "care_assigned") {
       pushToast(`📋 Bạn có hẹn chăm sóc mới: ${e.customer}${e.note ? " — " + e.note : ""}`, "info");
       napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("khach_hang") && e.type === "care_moved") {
+      // Người mất hẹn chỉ cần màn nạp lại (nhóm ban_hang đã nhích) — không toast.
+      if (e.nhan) pushToast(`📋 Bạn nhận ${e.so} hẹn chăm sóc do điều chuyển khách`, "info");
+      napBadge("tat_ca", reloadBadges);
     } else if (e.type === "advance_decision") {
       // Nhân viên đề nghị nhận quyết định của kế toán — đẩy riêng tới đúng người.
       pushToast(
@@ -1023,8 +1053,8 @@ export function AppShell() {
       );
     }
     return (
-      <div className="shell__center" role="status" aria-live="polite">
-        Đang tải…
+      <div className="shell__center">
+        <EmptyState trangThai="dang-tai" />
       </div>
     );
   }
@@ -1168,6 +1198,7 @@ export function AppShell() {
           teamId={teamId}
           tenTo={t?.ten}
           laTho={t?.la_tho ?? false}
+          laToCat={t?.la_to_cat ?? false}
           eventTick={tickCua("san_xuat", "kho")}
           vatTuDeNghiDem={vatTuDeNghiDem}
           dinhKemDem={lsxDinhKemDem}
@@ -1197,7 +1228,7 @@ export function AppShell() {
       case "quy-trinh-kinh-doanh":
         return <QuyTrinhKinhDoanhPage navigate={navigate} />;
       case "phong-ban":
-        return <DepartmentsPage />;
+        return <DepartmentsPage navigate={navigate} />;
       case "nhan-su":
         return <NhanSuPage navigate={navigate} />;
       case "ho-so-cua-toi":
@@ -1232,9 +1263,16 @@ export function AppShell() {
           />
         );
       case "khach-hang":
-        return <KhachHangPage navigate={navigate} onBadgeStale={reloadBadges} />;
+        return <KhachHangPage navigate={navigate} onBadgeStale={reloadBadges} eventTick={tickCua("ban_hang")} />;
       case "tinh-gia":
-        return <TinhGiaPage navigate={navigate} openPhieuId={navParams?.focusPhieuId} />;
+        return (
+          <TinhGiaPage
+            navigate={navigate}
+            openPhieuId={navParams?.focusPhieuId}
+            taoMoi={navParams?.taoPhieuTinhGia}
+            eventTick={tickCua("danh_muc")}
+          />
+        );
       case "bao-gia":
         return (
           <BaoGiaPage
@@ -1390,7 +1428,7 @@ export function AppShell() {
   }
 
   return (
-    <PermissionsProvider caps={caps} onReload={taiLaiQuyenTuMan} kcs={kcsTuCach.kcs} truongKcs={kcsTuCach.truongKcs}>
+    <PermissionsProvider caps={caps} onReload={taiLaiQuyenTuMan} kcs={kcsTuCach.kcs}>
       <div className={`shell${navOpen ? " is-nav-open" : ""}`}>
         {/* Màn che sau ngăn kéo — chỉ tồn tại khi ngăn kéo mở (màn hẹp). */}
         {navOpen && (
@@ -1421,8 +1459,8 @@ export function AppShell() {
             {/* Mỗi màn là một chunk nạp khi mở lần đầu — chờ tải thì báo nhẹ, không trắng màn. */}
             <Suspense
               fallback={
-                <div className="shell__center" role="status" aria-live="polite">
-                  Đang tải màn…
+                <div className="shell__center">
+                  <EmptyState trangThai="dang-tai" />
                 </div>
               }
             >

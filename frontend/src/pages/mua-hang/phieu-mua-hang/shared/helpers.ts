@@ -5,11 +5,34 @@
 import type {
   DepartmentPurchaseRequestRow,
   PurchaseRequestLineInput,
+  PurchaseRequestLineOut,
   PurchaseRequestRow,
   SupplierRow,
 } from "../../../../api/client";
+import type { DangGiay } from "../../../../lib/khoGiay";
 import { SO_NCC_GOI_Y } from "./constants";
 import type { ChaoGia, FormLine, FormState } from "./types";
+
+/** Dạng + khổ giấy cho dòng yêu cầu nhập kho dựng từ một dòng đơn mua (Nhập kho từ đợt giao).
+ *  Giấy có khổ mua ⇒ tờ đúng khổ đó; giấy không khổ ⇒ cuộn; hàng khác giấy ⇒ không có dạng. */
+export function khoNhapTuDongMua(
+  pl: Pick<PurchaseRequestLineOut, "hang_loai" | "kho_rong" | "kho_dai"> | undefined,
+): { dang_giay: DangGiay | null; kho_rong: number; kho_dai: number } {
+  if (pl?.hang_loai !== "giay") return { dang_giay: null, kho_rong: 0, kho_dai: 0 };
+  if (pl.kho_rong > 0 && pl.kho_dai > 0) {
+    return { dang_giay: "to", kho_rong: pl.kho_rong, kho_dai: pl.kho_dai };
+  }
+  return { dang_giay: "cuon", kho_rong: 0, kho_dai: 0 };
+}
+
+/** "Khổ 800 × 1090 mm" dưới tên dòng giấy của đơn mua (chi tiết + phiếu in gửi NCC) — NCC giao
+ *  sai khổ là lô nhập sai khoá tồn. Giấy không khổ (cuộn) hoặc hàng khác ⇒ chuỗi rỗng. */
+export function nhanKhoMua(
+  pl: Pick<PurchaseRequestLineOut, "hang_loai" | "kho_rong" | "kho_dai">,
+): string {
+  if (pl.hang_loai !== "giay" || !(pl.kho_rong > 0 && pl.kho_dai > 0)) return "";
+  return `Khổ ${pl.kho_rong} × ${pl.kho_dai} mm`;
+}
 
 export function emptyLine(): FormLine {
   return {
@@ -74,6 +97,8 @@ export function fromRequest(row: PurchaseRequestRow): FormState {
       department_request_line_id: line.department_request_line_id,
       hang_loai: line.hang_loai,
       hang_id: line.hang_id,
+      kho_rong: line.kho_rong,
+      kho_dai: line.kho_dai,
     })),
   };
 }

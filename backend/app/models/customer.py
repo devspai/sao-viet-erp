@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -280,9 +280,8 @@ REPEAT_FREQS = ("none", "day", "week", "month")
 
 
 class CustomerCareTask(Base):
-    """Một việc chăm sóc CẦN LÀM (khảo sát #27–#28: "hẹn ngày 15 gọi lại"; hệ thống nhắc
-    lần 1/2/3 khi quá hạn). Mức nhắc KHÔNG lưu — tính từ số ngày quá hạn khi đọc (lần 1 =
-    đến hạn, lần 2 = quá ≥2 ngày, lần 3 = quá ≥5 ngày) để con số luôn thật, không cần cron."""
+    """Một hẹn chăm sóc (khảo sát #27–#28: "hẹn ngày 15 gọi lại"), hiển thị kiểu Google Calendar.
+    "Trễ" KHÔNG lưu — tính khi đọc: đang mở mà giờ hẹn đã qua."""
 
     __tablename__ = "customer_care_tasks"
 
@@ -295,7 +294,8 @@ class CustomerCareTask(Base):
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=TASK_OPEN, server_default=TASK_OPEN, index=True
     )
-    # Người phụ trách việc — mặc định Sale phụ trách khách (panel "Cần chăm sóc" lọc theo đây).
+    # Người phụ trách hẹn — mặc định Sale phụ trách khách; điều chuyển khách thì hẹn đang mở đi
+    # theo. Nút "Lịch hẹn → Của tôi" trên danh bạ lọc theo cột này.
     assignee_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
     )
@@ -309,6 +309,8 @@ class CustomerCareTask(Base):
     repeat_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     series_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     occurrence_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Ghi chú kết quả của lần hẹn (mg 0366) — thay khối "Nhật ký hoạt động" riêng.
+    ket_qua: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )

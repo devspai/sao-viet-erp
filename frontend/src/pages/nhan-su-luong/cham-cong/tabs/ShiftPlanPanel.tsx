@@ -1966,7 +1966,7 @@ export function ShiftPlanPanel({
                 <span>{histErr}</span>
               </div>
             )}
-            {hist == null && <p className="ns__empty">Đang tải…</p>}
+            {hist == null && <EmptyState trangThai="dang-tai" inline />}
             {hist?.length === 0 && (
               <p className="ns__empty">Chưa có mốc ca nền nào.</p>
             )}
@@ -2146,7 +2146,7 @@ function ShiftChangeLogPanel({
       {err && <div className="banner banner--error">{err}</div>}
 
       {rows === null ? (
-        <p className="cc-hint">Đang tải lịch sử…</p>
+        <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải lịch sử…" />
       ) : rows.length === 0 ? (
         <p className="cc-hint">
           Chưa có thay đổi nào được ghi lại. Từ nay mọi lần sửa ô trên lưới hoặc đổi ca nền đều

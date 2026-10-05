@@ -1,39 +1,29 @@
 // Tab Quá trình công tác của hồ sơ nhân sự (tách từ pages/NhanSuPage.tsx).
-import { useCallback, useEffect, useState } from "react";
 import { api, type EmployeeEvent, type EmployeeMeta } from "../../../../api/client";
 import { EmptyState } from "../../../../components/EmptyState";
 import { Timeline, type TimelineEntry } from "../../../../components/Timeline";
 import { fmtDate } from "../../../../utils/format";
 import { STATUS_LABEL, nhanMocQuaTrinh } from "../shared/constants";
-import { errMsg } from "../shared/helpers";
+import { useNapGiuQuaTab, type BoNhoTab } from "../shared/useNapGiuQuaTab";
 
 export function EventsTab({
   token,
   employeeId,
   meta,
   lanNap,
+  boNho,
 }: {
   token: string;
   employeeId: number;
   meta: EmployeeMeta | null;
+  /** Bộ nhớ của khay — quay lại tab thì hiện ngay, không tải lại (xem `useNapGiuQuaTab`). */
+  boNho: BoNhoTab;
   /** Đổi mỗi lần khay hồ sơ nạp lại sau thao tác — tải lại timeline để mốc mới hiện ngay. */
   lanNap: number;
 }) {
-  const [events, setEvents] = useState<EmployeeEvent[] | null>(null);
-  const [loi, setLoi] = useState<string | null>(null);
-  const load = useCallback(() => {
-    setLoi(null);
-    api.employees
-      .events(token, employeeId)
-      .then((r) => setEvents(r.items))
-      .catch((e) => {
-        setEvents([]);
-        setLoi(errMsg(e));
-      });
-  }, [token, employeeId]);
-  useEffect(() => {
-    load();
-  }, [load, lanNap]);
+  const { data: events, loi, napLai: load } = useNapGiuQuaTab<EmployeeEvent[]>(
+    boNho, "events", () => api.employees.events(token, employeeId).then((r) => r.items), lanNap,
+  );
   if (loi)
     return <EmptyState trangThai="loi" loi={loi} onThuLai={load} />;
   if (!events) return <EmptyState trangThai="dang-tai" />;

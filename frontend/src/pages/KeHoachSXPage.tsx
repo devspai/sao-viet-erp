@@ -401,7 +401,7 @@ function QueueTable({
         title={scopeAll ? "Không có đơn nào chờ lên lệnh." : "Bạn chỉ xem được lệnh của mình."}
         sub={
           scopeAll
-            ? "Khi Sale bấm “Chuyển xuống sản xuất”, đơn hiện ở đây ngay — không cần tải lại trang."
+            ? "Đơn đã chốt và đủ cọc tự hiện ở đây ngay — không cần tải lại trang."
             : "Hàng chờ tiếp nhận dành cho người có phạm vi toàn bộ (bộ phận Kế hoạch sản xuất)."
         }
       />

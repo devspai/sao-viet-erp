@@ -25,22 +25,22 @@
 
 @keyframes pulseGlow {
   0% {
-    box-shadow: 0 0 0 0 rgba(197, 64, 10, 0.15);
+    box-shadow: 0 0 0 0 rgba(100, 116, 139, 0.15);
   }
   70% {
-    box-shadow: 0 0 0 8px rgba(197, 64, 10, 0);
+    box-shadow: 0 0 0 8px rgba(100, 116, 139, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(197, 64, 10, 0);
+    box-shadow: 0 0 0 0 rgba(100, 116, 139, 0);
   }
 }
 
 /* Base Styles */
 .ns {
-  padding: 20px 24px;
+  padding: 20px var(--page-pad-x);
   color: var(--ink, #14130f);
   font-family: var(--ff-sans);
-  max-width: 1600px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
   min-height: calc(100vh - 60px);
 }
@@ -258,7 +258,7 @@ button.ns__kpi {
 .ns__search:focus {
   border-color: var(--rust, #c5400a);
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.15);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.15);
   outline: none;
 }
 
@@ -411,12 +411,12 @@ button.ns__kpi {
 
 .ns-select-wrapper select:hover {
   border-color: var(--rule, #d8d2c0);
-  background: #fff5f0;
+  background: var(--rule-hair);
 }
 
 .ns-select-wrapper select:focus {
   border-color: var(--rust, #c5400a);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.15);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.15);
   outline: none;
   background: #ffffff;
 }
@@ -534,7 +534,7 @@ button.ns__kpi {
 /* Hover = ĐỔI NỀN, hết (UI_DESIGN §6). Vạch trái `inset 3px rust` là dấu của hàng ĐANG
    CHỌN, không phải hover — dùng cho hover thì khi nào thêm trạng thái chọn sẽ đụng nhau. */
 .ns-table-row:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 .ns-table-row:hover .ns-cell-name {
@@ -676,7 +676,7 @@ button.ns__kpi {
 .ns2-row__av--d, .ns-table-avatar--d { background: linear-gradient(135deg, #f5f0eb 0%, #e5dcd3 100%); color: #7c2d12; }
 .ns2-row__av--e, .ns-table-avatar--e { background: linear-gradient(135deg, #fae8ff 0%, #f5d0fe 100%); color: #a21caf; }
 .ns2-row__av--g, .ns-table-avatar--g { background: linear-gradient(135deg, #ffe4e6 0%, #fecdd3 100%); color: #be123c; }
-.ns2-row__av--h, .ns-table-avatar--h { background: linear-gradient(135deg, #fff5f0 0%, #ffedd5 100%); color: #c5400a; }
+.ns2-row__av--h, .ns-table-avatar--h { background: linear-gradient(135deg, var(--paper) 0%, #ffedd5 100%); color: #c5400a; }
 .ns2-row__av--k, .ns-table-avatar--k { background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%); color: #0f766e; }
 .ns2-row__av--l, .ns-table-avatar--l { background: linear-gradient(135deg, #ffedd5 0%, #fdba74 100%); color: #c5400a; }
 .ns2-row__av--m, .ns-table-avatar--m { background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%); color: #6d28d9; }
@@ -688,7 +688,7 @@ button.ns__kpi {
 .ns2-row__av--u, .ns-table-avatar--u { background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%); color: #b45309; }
 .ns2-row__av--v, .ns-table-avatar--v { background: linear-gradient(135deg, #fff1f2 0%, #fecdd3 100%); color: #e11d48; }
 .ns2-row__av--x, .ns-table-avatar--x { background: linear-gradient(135deg, #fefce8 0%, #fef08a 100%); color: #a16207; }
-.ns2-row__av--default, .ns-table-avatar--default { background: linear-gradient(135deg, #fff5f0 0%, #f5f0eb 100%); color: #c5400a; }
+.ns2-row__av--default, .ns-table-avatar--default { background: linear-gradient(135deg, var(--paper) 0%, #f5f0eb 100%); color: #c5400a; }
 
 /* Status Badge Styles with Soft Pill Aesthetic */
 .ns-badge {
@@ -863,7 +863,7 @@ button.ns__kpi {
 }
 
 .ns-modal__x:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust);
 }
 
@@ -918,7 +918,7 @@ button.ns__kpi {
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  background: linear-gradient(135deg, var(--rust-soft) 0%, var(--rule-soft) 100%);
+  background: linear-gradient(135deg, var(--rule-hair) 0%, var(--rule-soft) 100%);
   color: var(--rust-deep);
   flex-shrink: 0;
   z-index: 2;
@@ -1170,6 +1170,83 @@ button.ns__kpi {
   color: var(--rust);
 }
 
+/* Thẻ "Nhận lương" ở tab Lương & BHXH: ô viết tắt ngân hàng + số tài khoản + nút Sao chép. */
+.ns-pay {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 4px 0;
+  border: 1px solid var(--rule-soft);
+  border-radius: 8px;
+  background: var(--canvas);
+}
+.ns-pay__mono {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.02em;
+}
+.ns-pay__mono--trong {
+  background: var(--rule-hair);
+  color: var(--ash-2);
+  border: 1px dashed var(--rule);
+}
+.ns-pay__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ns-pay__acc {
+  font-size: 16px;
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.ns-pay__bank {
+  font-size: 12.5px;
+  color: var(--ash);
+  overflow-wrap: anywhere;
+}
+.ns-pay__trong {
+  font-size: 13.5px;
+  color: var(--ash-2);
+}
+.ns-pay__copy {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  color: var(--ash);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ns-pay__copy:hover {
+  background: var(--rule-hair);
+  color: var(--ink);
+}
+.ns-pay__copy.is-copied {
+  color: #15803d;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
 .ns-info-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1228,7 +1305,7 @@ button.ns__kpi {
 
 .ns-info-select-wrapper select:focus {
   border-color: var(--rust);
-  box-shadow: 0 0 0 2px rgba(197, 64, 10, 0.12);
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.12);
   outline: none;
   background: var(--paper);
 }
@@ -1362,7 +1439,7 @@ button.ns__kpi {
   border-color: var(--rust);
   background: var(--rust);
   color: #fff;
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.2);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.2);
 }
 
 .ns-steps li.is-done {
@@ -1415,7 +1492,7 @@ button.ns__kpi {
   border-color: var(--rust);
   outline: none;
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.08);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.08);
 }
 
 .ns-field__hint {
@@ -1568,7 +1645,7 @@ button.ns__kpi {
   margin-top: 3px !important;
 }
 
-.tline__item--tone-rust .tline__dot { border-color: var(--rust) !important; background: var(--rust-soft) !important; }
+.tline__item--tone-rust .tline__dot { border-color: var(--rust) !important; background: var(--rule-hair) !important; }
 .tline__item--tone-moss .tline__dot { border-color: var(--moss) !important; background: var(--moss-soft) !important; }
 .tline__item--tone-steel .tline__dot { border-color: var(--steel) !important; background: var(--steel-soft) !important; }
 .tline__item--tone-signal .tline__dot { border-color: var(--signal) !important; background: var(--signal-soft) !important; }
@@ -1759,7 +1836,7 @@ button.ns__kpi {
 }
 
 .ns-fileitem:hover {
-  border-color: var(--rust-soft, #fecdca);
+  border-color: var(--rule);
   box-shadow: 0 2px 8px rgba(16, 24, 40, 0.05);
   transform: translateY(-1px);
 }
@@ -1978,7 +2055,7 @@ button.ns__kpi {
 }
 
 .nsq__chip--new {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   font-weight: var(--fw-medium);
 }
@@ -2261,7 +2338,7 @@ button.ns__kpi {
   border-color: var(--rust);
   outline: none;
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.08);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.08);
 }
 
 .ns-comp-input-suffix {
@@ -2290,7 +2367,7 @@ button.ns__kpi {
   border-color: var(--rust);
   outline: none;
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.08);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.08);
 }
 
 /* Nút xóa / gỡ */
@@ -2461,7 +2538,7 @@ button.ns__kpi {
 .ns-mobile-card:hover,
 .ns-mobile-card:focus-visible {
   border-color: var(--rust, #c5400a);
-  box-shadow: 0 3px 10px rgba(197, 64, 10, 0.08);
+  box-shadow: 0 3px 10px rgba(100, 116, 139, 0.08);
   outline: none;
 }
 
@@ -2563,7 +2640,7 @@ button.ns__kpi {
   height: 50px;
   font-size: 18px;
   border-radius: 50%;
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   border: 2px solid var(--rule-soft);
   display: flex;
@@ -2809,4 +2886,184 @@ button.ns__kpi {
     max-height: 100dvh;
     border-radius: 0;
   }
+}
+
+/* ===== Dùng chung Nghỉ phép + Chấm công (chuyển từ nghi-phep.css 29/09/2026 —
+   trước đó tab Điểm chấm công vỡ layout nếu chưa mở trang Nghỉ phép) ===== */
+.cc-btn-cta-compact {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 8px 16px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  background: #0f172a !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  border: none !important;
+  transition: all 0.15s ease !important;
+  white-space: nowrap;
+}
+
+.cc-btn-cta-compact:hover {
+  background: #1e293b !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.cc-calendar-dashboard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.cc-calendar-stats-strip {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.cc-calendar-stat-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  padding: 8px var(--sp-4);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.cc-calendar-stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-2);
+}
+
+.cc-calendar-stat-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cc-calendar-stat-icon--users {
+  background: var(--moss-soft);
+  color: var(--moss-deep);
+}
+
+.cc-calendar-stat-icon--clock {
+  background: var(--amber-soft);
+  color: var(--amber-deep);
+}
+
+.cc-calendar-stat-icon--check {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+.cc-calendar-stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.cc-calendar-stat-val {
+  font-size: 16px;
+  font-weight: var(--fw-bold);
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.cc-calendar-stat-label {
+  font-size: 10.5px;
+  color: var(--ash-2);
+  font-weight: var(--fw-medium);
+}
+
+.cc-leave-type-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: var(--fw-medium);
+  color: var(--ash);
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-2);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.cc-leave-type-action-btn:hover {
+  background: var(--rule-soft);
+  color: var(--ink);
+}
+
+.cc-leave-type-action-btn--danger:hover {
+  background: var(--signal-soft);
+  color: var(--signal-deep);
+  border-color: rgba(180, 40, 40, 0.2);
+}
+
+/* Switch Toggle Component */
+.cc-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.cc-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.cc-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: .25s;
+  border-radius: 20px;
+}
+
+.cc-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .25s;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+input:checked + .cc-slider {
+  background-color: #22c55e;
+}
+
+input:checked + .cc-slider:before {
+  transform: translateX(16px);
+}
+
+
+.cc-leave-type-active-switch {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
 }

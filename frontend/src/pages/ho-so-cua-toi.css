@@ -1,6 +1,6 @@
 /* "Hồ sơ của tôi" — self-service. Dùng chung tokens + nhan-su.css. */
 
-.mine { max-width: 960px; margin: 0 auto; padding-bottom: var(--sp-8); }
+.mine { max-width: var(--page-max-w); margin: 0 auto; padding-bottom: var(--sp-8); }
 
 /* Hero tối (trang trọng, Slate Dark tone chuẩn SVN design tokens) */
 .mine__hero {
@@ -14,7 +14,7 @@
 .mine__avatar-wrap { position: relative; flex: none; }
 .ns-avatar--xl {
   width: 80px; height: 80px; flex: none; border-radius: var(--r-6);
-  background: var(--rust-soft); color: var(--rust-deep);
+  background: var(--rule-hair); color: var(--rust-deep);
   display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: var(--fw-bold);
   overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
   border: 2px solid rgba(255, 255, 255, 0.2);
@@ -105,7 +105,7 @@
 .mine__cardtitle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .mine__card-icon {
   width: 26px; height: 26px; border-radius: var(--r-3);
-  background: var(--rust-soft); color: var(--rust-deep);
+  background: var(--rule-hair); color: var(--rust-deep);
   display: inline-grid; place-items: center; flex: none;
 }
 
@@ -180,7 +180,7 @@ div.mine__stat { cursor: default; }
 .mine__nudge-left { display: flex; align-items: center; gap: var(--sp-4); flex: 1; min-width: 280px; }
 .mine__nudge-icon {
   width: 36px; height: 36px; border-radius: var(--r-5);
-  background: var(--rust-soft); color: var(--rust-deep);
+  background: var(--rule-hair); color: var(--rust-deep);
   display: grid; place-items: center; flex: none; font-size: 16px;
 }
 .mine__nudge-text { display: flex; flex-direction: column; gap: 4px; flex: 1; }
@@ -189,7 +189,7 @@ div.mine__stat { cursor: default; }
 .mine__nudge-badge {
   font-family: var(--ff-sans); font-variant-numeric: tabular-nums;
   font-size: 11px; font-weight: var(--fw-bold); padding: 1px 8px; border-radius: var(--r-pill);
-  background: var(--rust-soft); color: var(--rust-deep);
+  background: var(--rule-hair); color: var(--rust-deep);
 }
 .mine__nudge-sub { font-size: 12.5px; color: var(--ash); }
 
@@ -396,9 +396,9 @@ div.mine__stat { cursor: default; }
   border: 1px solid var(--rule-soft); text-decoration: line-through; opacity: 0.85;
 }
 .mine__diff-chip--new {
-  background: rgba(197, 64, 10, 0.08); color: var(--rust-deep);
-  border: 1px solid rgba(197, 64, 10, 0.22); font-weight: var(--fw-bold);
-  box-shadow: 0 1px 3px rgba(197, 64, 10, 0.06);
+  background: rgba(100, 116, 139, 0.08); color: var(--rust-deep);
+  border: 1px solid rgba(100, 116, 139, 0.22); font-weight: var(--fw-bold);
+  box-shadow: 0 1px 3px rgba(100, 116, 139, 0.06);
 }
 .mine__diff-chip--val {
   background: rgba(15, 23, 42, 0.04); color: var(--ink);
@@ -457,9 +457,9 @@ div.mine__stat { cursor: default; }
 
 .mine__modal-title-icon {
   width: 34px; height: 34px; border-radius: var(--r-5);
-  background: var(--rust-soft); color: var(--rust-deep);
+  background: var(--rule-hair); color: var(--rust-deep);
   display: inline-grid; place-items: center; flex: none; margin-right: 10px;
-  box-shadow: inset 0 0 0 1px rgba(197, 64, 10, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(100, 116, 139, 0.15);
 }
 
 .mine__modal-notice {
@@ -536,7 +536,7 @@ div.mine__stat { cursor: default; }
   border-color: var(--rust) !important;
   background: #ffffff !important;
   outline: none;
-  box-shadow: 0 0 0 3.5px rgba(197, 64, 10, 0.14), 0 2px 4px rgba(0, 0, 0, 0.02) !important;
+  box-shadow: 0 0 0 3.5px rgba(100, 116, 139, 0.14), 0 2px 4px rgba(0, 0, 0, 0.02) !important;
 }
 
 .mine__input-wrap:focus-within .mine__input-icon {
@@ -582,7 +582,7 @@ input.mine__input-num::placeholder {
   transition: all var(--duration-fast) var(--easing-standard);
 }
 .mine .ns-modal__x:hover {
-  background: var(--rust-soft); color: var(--rust); transform: scale(1.08) rotate(90deg);
+  background: var(--rule-hair); color: var(--rust); transform: scale(1.08) rotate(90deg);
 }
 
 /* Nút bấm trong Modal */
@@ -590,12 +590,12 @@ input.mine__input-num::placeholder {
   background: linear-gradient(135deg, var(--rust) 0%, var(--rust-deep) 100%);
   color: #ffffff; border: 0; border-radius: var(--r-pill);
   padding: 9.5px 24px; font-size: 13px; font-weight: var(--fw-bold);
-  cursor: pointer; box-shadow: 0 4px 12px rgba(197, 64, 10, 0.25);
+  cursor: pointer; box-shadow: 0 4px 12px rgba(100, 116, 139, 0.25);
   transition: transform var(--duration-fast) var(--easing-standard), box-shadow var(--duration-fast) var(--easing-standard);
 }
 .mine__btn-primary:hover:not(:disabled) {
   transform: translateY(-1.5px);
-  box-shadow: 0 6px 16px rgba(197, 64, 10, 0.35);
+  box-shadow: 0 6px 16px rgba(100, 116, 139, 0.35);
 }
 .mine__btn-primary:active:not(:disabled) {
   transform: translateY(0) scale(0.98);

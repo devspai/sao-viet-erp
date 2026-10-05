@@ -30,7 +30,7 @@
 
 .xh-badge--cho::before {
   background: var(--rust);
-  box-shadow: 0 0 0 2px rgba(197, 64, 10, 0.2);
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.2);
 }
 
 .xh-badge--giu-nguyen::before {
@@ -81,7 +81,7 @@
 .xh-field__input:focus {
   outline: none;
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.12);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.12);
 }
 
 .xh-field__hint-row {
@@ -106,11 +106,11 @@
 .xh-hang-doi {
   margin: var(--sp-4) 0 var(--sp-5);
   background: linear-gradient(180deg, #fffdfa 0%, var(--paper) 100%);
-  border: 1px solid rgba(197, 64, 10, 0.18);
+  border: 1px solid rgba(100, 116, 139, 0.18);
   border-left: 4px solid var(--rust);
   border-radius: var(--r-5);
   padding: 16px 20px;
-  box-shadow: 0 2px 8px rgba(197, 64, 10, 0.05);
+  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.05);
 }
 
 .xh-hang-doi__head {
@@ -127,7 +127,7 @@
   width: 32px;
   height: 32px;
   border-radius: var(--r-3);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   display: flex;
   align-items: center;
@@ -197,7 +197,7 @@
 }
 
 .xh-dong:hover {
-  border-color: rgba(197, 64, 10, 0.25);
+  border-color: rgba(100, 116, 139, 0.25);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 

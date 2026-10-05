@@ -58,8 +58,10 @@ def _dung_rows(svc: DonViDoService, objs: list) -> list[DonViDoRow]:
     quét bảng cặp hai lượt cho mỗi dòng (20 đơn vị → 40 lượt) mà ra đúng cùng một thứ.
     """
     ra = []
+    dung = svc.mat_hang_dung([o.ma for o in objs])
     for obj in objs:
         row = DonViDoRow.model_validate(obj)
+        row.mat_hang_dung = dung.get((obj.ma or "").lower(), {})
         row.canh_bao = svc.canh_bao(obj)
         row.quy_doi_chips = svc.quy_doi_chips(obj)
         row.quy_doi_text = (" · ".join(c["text"] for c in row.quy_doi_chips)

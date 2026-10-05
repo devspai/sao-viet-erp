@@ -179,6 +179,12 @@ class AuthorizationService:
             self._memo_ds[role_id] = ds
         return ds
 
+    def nap_ca_ma_tran(self, user: User) -> None:
+        """Nạp cả ma trận quyền của vai bằng MỘT câu — gọi trước khi hỏi `can`/`scope_for` trên nhiều
+        module trong cùng request (chấm đỏ thanh bên hỏi 15 kênh ⇒ 15 câu SELECT nếu không nạp)."""
+        if user.role_id is not None:
+            self._permissions_for(user.role_id)
+
     def _permission(self, role_id: int, module_key: str):
         self._kiem_the_he()
         khoa = (role_id, module_key)

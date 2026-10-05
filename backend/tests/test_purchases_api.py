@@ -1957,7 +1957,6 @@ def test_sua_pmh_khong_duoc_xoa_lien_ket_mat_hang_goc(client, auth_headers):
         giay = GiayNguyen(
             ma="GY-RT", ten="Giay round-trip", gsm=150, kho_dai=860, kho_rong=650,
             don_vi_gia="kg",
-            cong_thuc_luong="dinh_luong * dai_nguyen * rong_nguyen * to_nguyen",
         )
         db.add(giay)
         db.commit()
@@ -2074,6 +2073,8 @@ def test_lich_su_don_mua_co_cac_moc_dot_giao_va_so_luong(client, auth_headers):
     created = next(item for item in body["activity_history"] if item["event_type"] == "delivery_created")
     assert "Đợt 1" in created["detail"]
     assert "400" in created["detail"]
+    # Lịch sử in TÊN đơn vị (dòng đặt mã `to`), không in mã máy.
+    assert "400 tờ" in created["detail"] and "400 to" not in created["detail"]
     assert created["actor_name"] == "Admin"
 
     delivery_id = body["deliveries"][0]["id"]
@@ -2537,3 +2538,81 @@ def test_sua_don_mua_khong_lam_dut_lien_ket_mat_hang(client, auth_headers):
     after = updated.json()["lines"][0]
     assert (after["hang_loai"], after["hang_id"]) == ("giay", giay_id)
     assert after["department_request_line_id"] == src_line_id
+
+
+# --- Khổ cần / khổ mua (spec giấy đếm tờ × khổ §4.4) ---------------------------
+
+
+def _ycmh_giay(client, headers, *khos, quantity=100):
+    """YCMH một dòng giấy cho mỗi khổ trong `khos` (mm, gửi lộn cạnh để soi chuẩn hoá)."""
+    giay_id, supplier_id, ten = _giay_co_ncc()
+    payload = _department_request_payload()
+    payload["lines"] = [
+        {"item_name": ten, "unit": "kg", "quantity": quantity, "hang_loai": "giay",
+         "hang_id": giay_id, "kho_rong": kd, "kho_dai": kr}
+        for kr, kd in khos
+    ]
+    res = client.post("/api/department-purchase-requests", json=payload, headers=headers)
+    assert res.status_code == 201, res.text
+    return res.json(), giay_id, supplier_id, ten
+
+
+def test_ycmh_luu_kho_can_chuan_hoa(client, auth_headers):
+    ycmh, *_ = _ycmh_giay(client, auth_headers, (790, 1090))
+    ln = ycmh["lines"][0]
+    assert (ln["kho_rong"], ln["kho_dai"]) == (790, 1090), "cạnh ngắn trước, cạnh dài sau"
+
+
+def test_vat_tu_khac_ep_kho_0(client, auth_headers):
+    payload = _department_request_payload()
+    payload["lines"][0].update({"kho_rong": 500, "kho_dai": 700})
+    res = client.post("/api/department-purchase-requests", json=payload, headers=auth_headers)
+    assert res.status_code == 201, res.text
+    ln = res.json()["lines"][0]
+    assert (ln["kho_rong"], ln["kho_dai"]) == (0, 0)
+
+
+def _dong_mua(ten, src_line_id, **them):
+    return {"item_name": ten, "unit": "kg", "quantity": 100, "expected_unit_price": 25000,
+            "department_request_line_id": src_line_id, **them}
+
+
+def test_pmh_mac_dinh_chep_kho_can(client, auth_headers):
+    ycmh, _giay, supplier_id, ten = _ycmh_giay(client, auth_headers, (790, 1090))
+    payload = _request_payload(supplier_id)
+    payload["source_request_ids"] = [ycmh["id"]]
+    payload["lines"] = [_dong_mua(ten, ycmh["lines"][0]["id"])]
+    res = client.post("/api/purchase-requests", json=payload, headers=auth_headers)
+    assert res.status_code == 201, res.text
+    ln = res.json()["lines"][0]
+    assert (ln["kho_rong"], ln["kho_dai"]) == (790, 1090)
+
+
+def test_pmh_sua_kho_mua_va_so_luong(client, auth_headers):
+    ycmh, _giay, supplier_id, ten = _ycmh_giay(client, auth_headers, (790, 1090))
+    payload = _request_payload(supplier_id)
+    payload["source_request_ids"] = [ycmh["id"]]
+    payload["lines"] = [_dong_mua(ten, ycmh["lines"][0]["id"], quantity=120,
+                                  kho_rong=1090, kho_dai=800)]
+    res = client.post("/api/purchase-requests", json=payload, headers=auth_headers)
+    assert res.status_code == 201, res.text
+    ln = res.json()["lines"][0]
+    assert ln["quantity"] == 120
+    assert (ln["kho_rong"], ln["kho_dai"]) == (800, 1090), "khổ mua do thu mua sửa, không chép khổ cần"
+
+
+def test_pmh_chi_lay_dong_duoc_chon_dong_con_lai_van_mo(client, auth_headers):
+    ycmh, _giay, supplier_id, ten = _ycmh_giay(client, auth_headers, (790, 1090), (800, 1090))
+    chon, bo = ycmh["lines"]
+    res = client.post("/api/purchase-requests/batch", headers=auth_headers, json=_batch_body(
+        ycmh["id"], [{**_dong_mua(ten, chon["id"]), "supplier_id": supplier_id}],
+    ))
+    assert res.status_code == 201, res.text
+
+    sau = client.get(f"/api/department-purchase-requests/{ycmh['id']}", headers=auth_headers)
+    assert sau.status_code == 200, sau.text
+    dong = {d["id"]: d for d in sau.json()["lines"]}
+    assert dong[chon["id"]]["fulfilment"] is not None
+    assert dong[bo["id"]]["fulfilment"] is None, "dòng bỏ tick không vào đơn mua"
+    assert dong[bo["id"]]["cancelled_at"] is None, "dòng bỏ tick vẫn mở, không bị huỷ"
+

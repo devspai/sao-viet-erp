@@ -6,7 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../auth/useAuth";
 import { useCan } from "../../auth/permissions";
 import { Button } from "../../components/Button";
-import { Pager, trangHopLe } from "../../components/Pager";
+import { trangHopLe } from "../../components/Pager";
+import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
 import { useTre } from "../../lib/useTre";
 import { ApiError } from "../../api/client";
 import { crud, type Row } from "../../api/rebuildCatalog";
@@ -16,28 +17,33 @@ import { ImportExcelDialog } from "../../components/ImportExcelDialog";
 import { OTim } from "./OTim";
 import { LocNangCao, type GiaTriLoc } from "./LocNangCao";
 import { XoaDanhMucDialog } from "./XoaDanhMucDialog";
-import { CircleXIcon, CopyIcon, DownloadIcon, FilterIcon, PlusIcon, TrashIcon, UndoIcon, UploadIcon } from "./icons";
+import { CopyIcon, DownloadIcon, FilterIcon, PlusIcon, TrashIcon, UndoIcon, UploadIcon } from "./icons";
 import type { CatalogConfig } from "./types";
 import { DieuHuongDanhMuc } from "./dieuHuong";
 import type { NavigateFn } from "../../components/AppShell";
 import "../rebuild-catalog.css";
+import { EmptyState } from "../../components/EmptyState";
 
-/** Số dòng mỗi trang của MỌI màn danh mục. Trang cắt Ở MÁY CHỦ (`page`+`size`): mỗi lần mở màn
- *  chỉ kéo về 20 dòng, không phải cả danh mục. Tìm kiếm và tab lọc vì thế cũng phải chạy ở máy
+/** Số dòng mỗi trang MẶC ĐỊNH của mọi màn danh mục — người dùng đổi được ở ô "Dòng/trang" dưới
+ *  chân bảng (05/10/2026, khuôn của màn Nhật ký). Trang cắt Ở MÁY CHỦ (`page`+`size`): mỗi lần mở
+ *  màn chỉ kéo về một trang, không phải cả danh mục. Tìm kiếm và tab lọc vì thế cũng phải chạy ở máy
  *  chủ — lọc trong JS trên 20 dòng đang xem sẽ biến ô tìm thành "tìm trong trang này".
  *
  *  ⚠️ KHÔNG export: đây là con số của MÀN NÀY. Chỗ khác cần "20" thì tự khai — chia sẻ hằng này
  *  ra ngoài là sớm muộn có người đổi nó cho màn của họ rồi kéo cả 10 màn danh mục đi theo. */
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 25;
 
 /** Bề rộng (px) cột Hành động = đúng cụm nút có thể hiện. Trước 18/09/2026 cột đóng cứng 8%: ở
  *  bảng rộng 1150px chỉ được 92px, mà "Nhân bản" + "Xóa" cần 160px ⇒ "Xóa" tràn ra ngoài bảng,
  *  khung sinh thanh cuộn ngang, mở màn lên không thấy nút Xóa đâu (5 màn có Nhân bản đều dính).
  *  Số đo từ `.rc__link-btn` (viền 2 + đệm 16 + icon 13 + khe 4 + chữ 600 12.5px Be Vietnam Pro,
  *  font đóng gói sẵn nên máy nào cũng rộng như nhau) cộng dư 1-2px. Đổi chữ/icon/đệm nút là đo lại. */
-const NUT_RONG = { nhanBan: 96, xoa: 62, batLai: 78 } as const;
+//
+// 05/10/2026 (chủ: "icon to ra cho dễ bấm và xóa chữ đi"): ba nút thành NÚT VUÔNG CHỈ ICON 34px
+// (`.rc__icon-btn`) — tên nút nằm ở `title` (rê chuột) + `aria-label` (trình đọc màn hình).
+const NUT_RONG = { nhanBan: 34, xoa: 34, batLai: 34 } as const;
 /** Khe giữa hai nút (`.rc__acts` gap) + đệm trái 8 / phải 12 của ô. */
-const NUT_KHE = 4;
+const NUT_KHE = 6;
 const COT_NUT_DEM = 20;
 
 export function CatalogListPage({ config, onMutate, navigate }: {
@@ -96,11 +102,12 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   const [xemDaNgung, setXemDaNgung] = useState(false);
   const [soDaNgung, setSoDaNgung] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   const [total, setTotal] = useState(0);                                  // tổng SAU bộ lọc
   const [facets, setFacets] = useState<Record<string, number>>({});       // số cho từng tab lọc
   const [tongServer, setTongServer] = useState<number | null>(null);      // `tong_theo_tim` nếu có
   // Đổi bộ lọc thì về trang đầu — đứng ở trang 7 rồi gõ tìm còn 3 kết quả là bảng trống trơn.
-  useEffect(() => { setPage(1); }, [qTre, facet, xemDaNgung, locNC]);
+  useEffect(() => { setPage(1); }, [qTre, facet, xemDaNgung, locNC, size]);
 
   // Dữ liệu phụ theo dòng (vd trạng thái máy). Nạp SONG SONG, không nối tiếp: cột phụ chậm không
   // được phép giữ cả bảng ở trạng thái skeleton.
@@ -119,7 +126,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
     // liệu (trần `size` của backend là 200).
     api.list(token, {
       page,
-      size: PAGE_SIZE,
+      size,
       // Xoá mềm: mặc định chỉ hiện dòng còn dùng; bật công tắc thì xem ĐÚNG các dòng đã ngừng.
       ...(config.softDelete ? { active: !xemDaNgung } : {}),
       ...(qTre.trim() ? { q: qTre.trim() } : {}),
@@ -133,14 +140,14 @@ export function CatalogListPage({ config, onMutate, navigate }: {
         setTongServer(typeof r.tong_theo_tim === "number" ? r.tong_theo_tim : null);
         // Xoá nốt dòng cuối của trang cuối ⇒ `total` co lại mà `page` đứng yên ⇒ bảng rỗng trơn,
         // người dùng tưởng mất sạch dữ liệu. Lùi về trang cuối còn thật.
-        const ve = trangHopLe(page, r.total, PAGE_SIZE);
+        const ve = trangHopLe(page, r.total, size);
         if (ve !== null) setPage(ve);
       })
       // Giữ LÝ DO thôi, không gói sẵn câu "Không tải được danh sách" vào đây: khối rỗng của bảng
       // đã nói câu đó rồi, nhét cả hai vào một chỗ là đọc ra hai lần cùng một ý.
       .catch((e) => setError(e instanceof ApiError ? e.message : "Máy chủ không phản hồi."))
       .finally(() => setLoading(false));
-  }, [token, api, config.softDelete, xemDaNgung, page, qTre, facet, facetKey, locNC]);
+  }, [token, api, config.softDelete, xemDaNgung, page, size, qTre, facet, facetKey, locNC]);
   useEffect(() => { load(); }, [load]);
 
   // Dữ liệu phụ nạp RIÊNG, không đi kèm mỗi lần lật trang: nó là map cho CẢ danh mục (vd trạng
@@ -440,25 +447,23 @@ export function CatalogListPage({ config, onMutate, navigate }: {
               // bảng NÓI SAI SỰ THẬT, và câu sai đó còn mời người ta đi tạo lại dữ liệu đang có.
               <tr>
                 <td colSpan={config.columns.length + (coCotNut ? 3 : 2)} className="rc__empty-state-td">
-                  <div className="rc__empty-state">
-                    <CircleXIcon size={48} sw={1.5}
-                      className={`rc__empty-icon${error ? " rc__empty-icon--loi" : ""}`} />
-                    <p className="rc__empty-text">
-                      {error
-                        ? "Không tải được danh sách."
-                        : dangLoc
-                          ? "Không tìm thấy kết quả phù hợp với bộ lọc."
-                          : `Chưa có ${config.title.toLowerCase()} nào trong hệ thống.`}
-                    </p>
-                    {error && <p className="rc__empty-sub">{error}</p>}
-                    {error ? (
-                      <Button variant="ghost" onClick={() => { setError(null); load(); }}>Tải lại</Button>
-                    ) : dangLoc ? (
+                  <EmptyState
+                    inline
+                    trangThai={error ? "loi" : "rong"}
+                    loi={error}
+                    onThuLai={() => { setError(null); load(); }}
+                    nhanThuLai="Tải lại"
+                    tieuDeLoi="Không tải được danh sách."
+                    icon={dangLoc ? "search" : "box"}
+                    title={dangLoc
+                      ? "Không tìm thấy kết quả phù hợp với bộ lọc."
+                      : `Chưa có ${config.title.toLowerCase()} nào trong hệ thống.`}
+                    action={dangLoc ? (
                       <Button variant="ghost" onClick={() => { setQ(""); setFacet("all"); setXemDaNgung(false); }}>Xóa bộ lọc</Button>
                     ) : duocTao ? (
                       <Button variant="ghost" onClick={() => setEditing("new")}><PlusIcon /> Tạo {config.title.toLowerCase()}</Button>
-                    ) : null}
-                  </div>
+                    ) : undefined}
+                  />
                 </td>
               </tr>
             ) : rows.map((r) => {
@@ -537,8 +542,8 @@ export function CatalogListPage({ config, onMutate, navigate }: {
                     );
                   })}
                   {/* Không có quyền thì ô rỗng, KHÔNG phải nút xám: nút xám vẫn là một lời mời,
-                      người ta hover đi hover lại tìm cách bật nó lên. Chữ "Xóa" giữ nguyên bên
-                      cạnh icon — thùng rác trần bắt người dùng đoán, mà đoán sai ở đây là mất dòng. */}
+                      người ta hover đi hover lại tìm cách bật nó lên. Nút CHỈ ICON từ 05/10/2026
+                      (chủ yêu cầu); Xóa vẫn qua hộp xác nhận nên bấm nhầm không mất dòng ngay. */}
                   {/* Nút nằm trong MỘT hàng flex (`.rc__acts`) chứ không thả inline trong ô: hai
                       `inline-flex` đứng cạnh nhau canh theo đường chân chữ, mà nút có icon lấy đáy
                       SVG làm chân chữ ⇒ "Xóa" bị đội cao hơn "Nhân bản" 2px. Nhãn đọc màn hình kèm
@@ -549,28 +554,25 @@ export function CatalogListPage({ config, onMutate, navigate }: {
                     <div className="rc__acts">
                     {r.active === false ? (
                       duocBatLai && (
-                        <button type="button" className="rc__link-btn" onClick={() => batLai(r)}
+                        <button type="button" className="rc__icon-btn" onClick={() => batLai(r)}
                           aria-label={`Bật lại ${String(r.ten)}`}
-                          title="Cho dùng lại — mục này sẽ hiện lại ở các ô chọn">
-                          <UndoIcon />
-                          <span>Bật lại</span>
+                          title="Bật lại — mục này sẽ hiện lại ở các ô chọn">
+                          <UndoIcon size={17} />
                         </button>
                       )
                     ) : (
                       <>
                         {duocClone && (
-                          <button type="button" className="rc__link-btn" onClick={() => clone(r)}
+                          <button type="button" className="rc__icon-btn" onClick={() => clone(r)}
                             aria-label={`Nhân bản ${String(r.ten)}`}
                             title="Nhân bản — tạo một dòng mới sao y dòng này, đổi tên rồi lưu">
-                            <CopyIcon />
-                            <span>Nhân bản</span>
+                            <CopyIcon size={17} />
                           </button>
                         )}
                         {duocXoa && (
-                          <button type="button" className="rc__link-btn rc__link-btn--danger" onClick={() => remove(r)}
+                          <button type="button" className="rc__icon-btn rc__icon-btn--danger" onClick={() => remove(r)}
                             aria-label={`Xóa ${String(r.ten)}`} title="Xóa">
-                            <TrashIcon size={13} />
-                            <span>Xóa</span>
+                            <TrashIcon size={17} />
                           </button>
                         )}
                       </>
@@ -590,7 +592,8 @@ export function CatalogListPage({ config, onMutate, navigate }: {
           tìm thấy" đã nói giúp, thêm dòng "Tổng 0 bản ghi" là thừa. Khóa nút khi đang tải để
           bấm dồn không đẻ ra hai lượt gọi chồng nhau. */}
       {total > 0 && (
-        <Pager total={total} page={page} size={PAGE_SIZE} onPage={setPage} loading={loading} unit="bản ghi" />
+        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+          onTrang={setPage} onSize={setSize} loading={loading} ariaLabel={`Phân trang ${config.title.toLowerCase()}`} />
       )}
 
       {editing && (

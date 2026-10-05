@@ -95,6 +95,9 @@ class CanDoiNhom(BaseModel):
     hang_id: int
     hang_ma: str | None = None
     hang_ten: str | None = None
+    #: Khổ giấy của nhóm (mm) — giấy so tồn theo (mã, khổ), hai khổ là hai nhóm. Hàng khác 0 · 0.
+    kho_rong: int = 0
+    kho_dai: int = 0
     don_vi_goc: str | None = None
     ton: float | None = None
     tong_can: float | None = None
@@ -129,6 +132,9 @@ class DeNghiMuaDong(BaseModel):
 
     hang_loai: str = Field(pattern="^(giay|vat_tu)$")
     hang_id: int = Field(gt=0)
+    #: Khổ của nhóm (giấy) — một phần của khoá; hàng khác gửi 0 · 0.
+    kho_rong: int = Field(default=0, ge=0)
+    kho_dai: int = Field(default=0, ge=0)
     lsx_id: int | None = None
     bai_ghep_id: int | None = None
     #: Bước tiêu thụ — phần thứ năm của khoá. Client gửi lại đúng giá trị nhận được ở `CanDoiDong`.
@@ -142,6 +148,9 @@ class TheoLenhHang(BaseModel):
 
     hang_loai: str
     hang_id: int
+    #: Khổ giấy tờ (mm) — giữ chỗ khoá (mã, khổ); vật tư và giấy cuộn 0 · 0.
+    kho_rong: int = 0
+    kho_dai: int = 0
     hang_ma: str | None = None
     hang_ten: str | None = None
     don_vi_goc: str | None = None
@@ -227,6 +236,22 @@ class GiuChoIn(BaseModel):
     bai_ghep_id: int | None = None
 
 
+class GiuChoNhieuIn(BaseModel):
+    """Bật giữ chỗ hàng loạt — mỗi phần tử vẫn phải đúng MỘT chủ thể như `GiuChoIn`."""
+
+    chu_the: list[GiuChoIn] = Field(min_length=1, max_length=200)
+
+
+class GiuChoNhieuDong(BaseModel):
+    lsx_id: int | None = None
+    bai_ghep_id: int | None = None
+    du: bool
+
+
+class GiuChoNhieuOut(BaseModel):
+    items: list[GiuChoNhieuDong]
+
+
 class DeNghiMuaIn(BaseModel):
     dong: list[DeNghiMuaDong] = Field(min_length=1)
     ghi_chu: str | None = Field(default=None, max_length=2000)
@@ -239,6 +264,9 @@ class DeNghiMuaDongOut(BaseModel):
 
     hang_loai: str
     hang_id: int
+    #: Khổ CẦN (giấy) — đổ vào dòng yêu cầu mua.
+    kho_rong: int = 0
+    kho_dai: int = 0
     item_name: str
     unit: str
     quantity: float

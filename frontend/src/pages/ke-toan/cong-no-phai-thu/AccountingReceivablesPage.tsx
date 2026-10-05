@@ -13,13 +13,16 @@ import { Button } from "../../../components/Button";
 import { Icon } from "../../../components/Icons";
 import { money } from "../../../utils/format";
 import { AgingStrip } from "../components/AgingStrip";
+import { ToolbarChuan } from "../components/ToolbarChuan";
 import { ReceivablesDrawer } from "./components/ReceivablesDrawer";
 import { LIST_FILTERS, PAGE_SIZE } from "./shared/constants";
 import { kpi } from "./shared/helpers";
 import type { ListFilter } from "./shared/types";
+import "../../master-data.css";
 import "../../accounting.css";
 import "../../payables.css";
 import "../../purchase.css";
+import "./cong-no-phai-thu-chuan.css";
 
 export function AccountingReceivablesPage({
   navigate,
@@ -77,13 +80,14 @@ export function AccountingReceivablesPage({
   const months = summary?.period_months ?? 3;
 
   return (
-    <main className="md-page">
-      <header className="md-page__head">
-        <p className="eyebrow">Kế toán</p>
-        <h1 className="md-page__title">Công nợ phải thu</h1>
-        <p className="md-page__sub">
-          Theo dõi công nợ phát sinh từ hóa đơn bán đã ghi nhận và phiếu thu.
-        </p>
+    <main className="md-page acct-std">
+      <header className="md-page__head" style={{ marginBottom: "var(--sp-3)" }}>
+        <h1
+          className="md-page__title"
+          title="Công nợ phát sinh từ hóa đơn bán đã ghi nhận và phiếu thu"
+        >
+          Công nợ phải thu
+        </h1>
       </header>
 
       {error && (
@@ -130,38 +134,32 @@ export function AccountingReceivablesPage({
         }}
       />
 
+      <ToolbarChuan
+        tabs={LIST_FILTERS.map((item) => ({ value: item.id, label: item.label }))}
+        tab={filter}
+        onTab={(value) => {
+          setFilter(value as ListFilter);
+          setPage(1);
+        }}
+        ariaTabs="Lọc công nợ phải thu"
+        q={q}
+        onQ={(value) => {
+          setQ(value);
+          setPage(1);
+        }}
+        placeholder="Tìm khách hàng..."
+        hasFilter={q !== "" || filter !== "all" || roTuoi != null}
+        onReset={() => {
+          setQ("");
+          setSentQ("");
+          setFilter("all");
+          setRoTuoi(null);
+          setPage(1);
+        }}
+      />
 
-      <section className="acct-toolbar">
-        <form className="md-page__search" onSubmit={(event) => event.preventDefault()}>
-          <input
-            className="input"
-            value={q}
-            onChange={(event) => {
-              setQ(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Tìm khách hàng..."
-          />
-        </form>
-        <div className="pay-pills">
-          {LIST_FILTERS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`pay-pill${filter === item.id ? " pay-pill--on" : ""}`}
-              onClick={() => {
-                setFilter(item.id);
-                setPage(1);
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="card md-page__tablewrap pay-card ar-summary-table">
-        <table className="md-page__table pay-table">
+      <section className="md-page__tablewrap acct-list acct-dmh__frame">
+        <table className="md-page__table">
           <thead>
             <tr>
               {/* KHÔNG còn cột "Xem": bấm vào DÒNG mở drawer công nợ, mọi thao tác (Thu tiền từng
@@ -188,7 +186,18 @@ export function AccountingReceivablesPage({
                   <td><div className="purchase__skeleton-bar" style={{ width: "100px" }} /></td>
                 </tr>
               ))}
-            {!loading && rows.length === 0 && <tr><td colSpan={7}>Chưa có khách hàng còn công nợ phải thu phù hợp.</td></tr>}
+            {!loading && rows.length === 0 && (
+              <tr className="cnpt-empty-row">
+                <td colSpan={7}>
+                  <div className="cnpt-empty">
+                    <span className="cnpt-empty__icon"><Icon name="users" size={20} /></span>
+                    <span className="cnpt-empty__text">
+                      Chưa có khách hàng còn công nợ phải thu phù hợp.
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            )}
             {!loading && rows.map((row) => (
               <tr
                 key={row.customer_id ?? `none-${row.customer_name}`}
@@ -199,20 +208,20 @@ export function AccountingReceivablesPage({
                     ngay cạnh: mỗi hoá đơn có `remaining = amount − received`, cộng theo khách là
                     ra đẳng thức đó, không ngoại lệ. Bày thêm một số suy được là bắt người ta đọc
                     ba số để hiểu hai. */}
-                <td><strong>{row.customer_name}</strong></td>
+                <td><span className="cnpt-name">{row.customer_name}</span></td>
                 <td className="acct-count-cell">{row.invoice_count}</td>
-                <td className="acct-amount-cell"><strong>{money(row.total_due)}</strong></td>
-                <td className={`acct-amount-cell${row.overdue_amount > 0 ? " pay-cell--danger" : ""}`}>{money(row.overdue_amount)}</td>
+                <td className="acct-amount-cell"><strong className="acct-dmh__total">{money(row.total_due)}</strong></td>
+                <td className={`acct-amount-cell${row.overdue_amount > 0 ? " cnpt-danger" : ""}`}>{money(row.overdue_amount)}</td>
                 <td className="acct-amount-cell">{money(row.received_amount)}</td>
                 <td className="acct-amount-cell">{row.credit_limit > 0 ? money(row.credit_limit) : "—"}</td>
                 <td>
                   {row.vuot_han_muc ? (
-                    <span className="pay-badge pay-badge--danger">
-                      <i className="pay-badge__dot" />
+                    <span className="acct-dmh__state acct-dmh__state--rejected">
+                      <i className="acct-dmh__dot" />
                       {money(row.vuot_bao_nhieu)}
                     </span>
                   ) : (
-                    <span className="pay-cell--zero">—</span>
+                    <span className="cnpt-zero">—</span>
                   )}
                 </td>
               </tr>
@@ -220,25 +229,23 @@ export function AccountingReceivablesPage({
           </tbody>
         </table>
         {!loading && (
-          <div className="md-page__pager">
-            <span className="md-page__muted">
-              Tổng {summary?.total ?? 0} khách hàng
-              {(summary?.pages ?? 1) > 1 ? ` · Trang ${summary?.page}/${summary?.pages}` : ""}
-            </span>
-            {(summary?.pages ?? 1) > 1 && (
-              <div className="md-page__pager-btns">
-                <Button variant="ghost" disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)}>
-                  Trước
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={page >= (summary?.pages ?? 1) || loading}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Sau
-                </Button>
-              </div>
-            )}
+          <div className="md-page__pager cnpt-pager">
+            <span>{summary?.total ?? 0} khách hàng</span>
+            <div className="cnpt-pager__nav">
+              <Button variant="ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                Trước
+              </Button>
+              <span>
+                {summary?.page ?? page}/{summary?.pages ?? 1}
+              </span>
+              <Button
+                variant="ghost"
+                disabled={page >= (summary?.pages ?? 1)}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Sau
+              </Button>
+            </div>
           </div>
         )}
       </section>

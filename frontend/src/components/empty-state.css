@@ -10,7 +10,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-10) var(--sp-6);
+  padding: var(--sp-8) var(--sp-6);
   background: var(--canvas);
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-5);
@@ -25,18 +25,118 @@
   padding: var(--sp-6);
 }
 
+/* Ô vuông nền nhạt bọc icon — mẫu Blankslate (GitHub Primer) / empty state của Linear, Stripe.
+   Icon nhỏ lại (22px) và có khung thì đọc ra "chỗ này trống", không bị nhầm thành hình báo lỗi. */
+.empty-state__tile {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: var(--sp-1);
+  border-radius: var(--r-5);
+  background: var(--rule-hair);
+  border: 1px solid var(--rule-soft);
+  color: var(--ash-2);
+}
+
 .empty-state__title {
   margin: 0;
   font-size: var(--fs-md);
   color: var(--ink);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
 }
 
 .empty-state__sub {
   margin: 0;
-  font-size: var(--fs-md);
+  font-size: var(--fs-sm);
   line-height: 1.5;
   max-width: 46ch;
+}
+
+.empty-state__action {
+  margin-top: var(--sp-2);
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* --- Ca ĐANG TẢI (khối) — vòng xoay nhỏ + chữ mờ, hiện trễ để mạng nhanh không chớp. --- */
+.empty-state--tai {
+  flex-direction: row;
+  justify-content: center;
+  gap: 10px;
+  padding: var(--sp-6);
+  border: 0;
+  background: transparent;
+  animation: empty-state-hien 0.2s ease 0.3s both;
+}
+.empty-state__spin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--rule-soft);
+  border-top-color: var(--ash-2);
+  animation: empty-state-xoay 0.7s linear infinite;
+  flex: none;
+}
+.empty-state__tai {
+  font-size: var(--fs-sm);
+  color: var(--ash);
+}
+/* Bản gọn: canh trái, không đệm, vòng nhỏ hơn — nằm lọt trong form/thẻ như một dòng chữ. */
+.empty-state--gon {
+  justify-content: flex-start;
+  padding: var(--sp-1) 0;
+  gap: var(--sp-2);
+}
+.empty-state--gon .empty-state__spin {
+  width: 14px;
+  height: 14px;
+}
+@keyframes empty-state-xoay {
+  to { transform: rotate(360deg); }
+}
+@keyframes empty-state-hien {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* --- Ca ĐANG TẢI trong bảng — hàng xương (skeleton) đúng số cột. --- */
+.empty-state__skel-row td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--rule-hair);
+  animation: empty-state-hien 0.2s ease 0.15s both;
+}
+.empty-state__skel {
+  display: block;
+  height: 12px;
+  max-width: 220px;
+  border-radius: 4px;
+  /* Nền là --rule-soft (không phải --rule-hair): trên nền trắng --rule-hair gần như vô hình. */
+  background: linear-gradient(90deg, var(--rule-soft) 0%, var(--rule-hair) 50%, var(--rule-soft) 100%);
+  background-size: 200% 100%;
+  animation: empty-state-anh 1.4s ease-in-out infinite;
+}
+@keyframes empty-state-anh {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.empty-state__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-state__spin,
+  .empty-state__skel,
+  .empty-state--tai,
+  .empty-state__skel-row td {
+    animation: none;
+  }
 }
 
 /* Ca LỖI: chỉ tô icon và tiêu đề, KHÔNG tô đỏ cả khối.
@@ -49,8 +149,10 @@
   color: var(--signal);
 }
 
-.empty-state--loi svg {
+.empty-state--loi .empty-state__tile {
   color: var(--signal);
+  background: var(--signal-soft);
+  border-color: transparent;
 }
 
 /* Ô bảng: bỏ padding mặc định của td để khối tự canh giữa theo chiều ngang bảng. */

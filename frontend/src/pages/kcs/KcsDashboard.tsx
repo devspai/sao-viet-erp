@@ -13,6 +13,7 @@
 import type { ReactNode } from "react";
 import { type SxKcsBaoCao, type SxKcsCongDoanLoc } from "../../api/client";
 import { MonthBars, MixDonut } from "../../components/charts";
+import { EmptyState } from "../../components/EmptyState";
 import { Icon, type IconName } from "../../components/Icons";
 import { Select, type SelectOption } from "../../components/Select";
 import { num } from "../keHoachSxShared";
@@ -140,7 +141,9 @@ export function KcsDashboard({
   const tongLoi = data?.tong_loi ?? 0;
   const dangTaiLanDau = loading && data == null;
   /** Câu thay biểu đồ khi không có gì để vẽ — phân biệt đang tải / lỗi tải / thật sự rỗng. */
-  const trong = (rong: string) => (dangTaiLanDau ? "Đang tải…" : error ? "Không tải được báo cáo." : rong);
+  const trong = (rong: string) => (dangTaiLanDau
+    ? <EmptyState trangThai="dang-tai" inline />
+    : <p className="kcs-the__trong">{error ? "Không tải được báo cáo." : rong}</p>);
 
   const kpi: KpiO[] = [
     {
@@ -187,7 +190,7 @@ export function KcsDashboard({
               {theoNgay.length > 0 && <span className="kcs-the__phu">{theoNgay.length} ngày có kiểm</span>}
             </header>
             {theoNgay.length === 0 ? (
-              <p className="kcs-the__trong">{trong("Chưa có lần kiểm nào trong khoảng này.")}</p>
+              trong("Chưa có lần kiểm nào trong khoảng này.")
             ) : (
               <MonthBars
                 data={theoNgay.map((r) => ({
@@ -209,7 +212,7 @@ export function KcsDashboard({
               <h3>Lỗi theo công đoạn</h3>
             </header>
             {congDoan.length === 0 ? (
-              <p className="kcs-the__trong">{trong("Chưa ghi lỗi nào.")}</p>
+              trong("Chưa ghi lỗi nào.")
             ) : (
               <ThanhLoi rows={congDoan.map((r) => ({ ten: r.ten_cong_doan, so: r.tong_so_luong }))} />
             )}
@@ -223,7 +226,7 @@ export function KcsDashboard({
               <h3>Lỗi theo tổ</h3>
             </header>
             {to.length === 0 ? (
-              <p className="kcs-the__trong">{trong("Chưa ghi lỗi nào.")}</p>
+              trong("Chưa ghi lỗi nào.")
             ) : (
               <MixDonut
                 stacked

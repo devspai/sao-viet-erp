@@ -1,5 +1,6 @@
 // Tab "Nhân viên giao hàng" — bảng tài xế theo tháng (tách từ pages/GiaoHangPage.tsx).
 import type { DeliveryDriver } from "../../../../api/client";
+import { EmptyRow } from "../../../../components/EmptyState";
 import { NHAN_TRANG_THAI_NV } from "../shared/constants";
 import { KhoangTrong, Pill } from "../components/giaoHangCells";
 
@@ -58,11 +59,7 @@ export function BangNhanVien({ rows, loading, thang, onDoiThang }: {
           </tr>
         </thead>
         <tbody>
-          {loading && (
-            <tr>
-              <td colSpan={8} style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>Đang tải…</td>
-            </tr>
-          )}
+          {loading && rows.length === 0 && <EmptyRow colSpan={8} trangThai="dang-tai" />}
           {rows.map((d) => (
             <tr key={d.employee_id}>
               <td style={{ fontWeight: 600, color: "#0f172a" }}>{d.ho_ten}</td>

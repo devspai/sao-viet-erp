@@ -900,33 +900,33 @@
 /* Khối sao trong HỒ SƠ NCC — Rating Performance Card */
 .supplier__rating-card {
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 16px 20px;
+  border-radius: 8px;
+  padding: 12px 16px;
   background: #ffffff;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .supplier__rating-card--high {
-  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
-  border-color: rgba(16, 185, 129, 0.3);
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 
 .supplier__rating-card--mid {
-  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
-  border-color: rgba(245, 158, 11, 0.3);
+  background: #fffbeb;
+  border-color: #fef3c7;
 }
 
 .supplier__rating-card--low {
-  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
-  border-color: rgba(239, 68, 68, 0.3);
+  background: #fef2f2;
+  border-color: #fecaca;
 }
 
 .supplier__rating-card--new {
-  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
-  border-color: rgba(56, 189, 248, 0.3);
+  background: #f0f9ff;
+  border-color: #bae6fd;
 }
 
 .supplier__rating-card-top {
@@ -938,11 +938,11 @@
 .supplier__rating-score-box {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .supplier__rating-big-val {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 800;
   line-height: 1;
   font-family: var(--ff-sans, sans-serif);
@@ -953,10 +953,10 @@
 .supplier__rating-big-val.is-low { color: #b91c1c; }
 
 .supplier__rating-big-score--new {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  padding: 6px 12px;
-  border-radius: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
   background: #e0f2fe;
   color: #0369a1;
 }
@@ -964,23 +964,26 @@
 .supplier__rating-stars-wrap {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .supplier__rating-tag {
-  font-size: 11.5px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .supplier__rating-card-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .supplier__rating-title {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #0f172a;
 }
@@ -988,14 +991,14 @@
 .supplier__rating-sub {
   font-size: 12px;
   color: #64748b;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .supplier__rating-new-tip {
-  font-size: 12px;
+  font-size: 11.5px;
   color: #0369a1;
   background: rgba(224, 242, 254, 0.5);
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 6px;
   border: 1px solid rgba(186, 230, 253, 0.8);
 }
@@ -1004,31 +1007,32 @@
 .supplier__rating-kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(226, 232, 240, 0.8);
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
 }
 
 .supplier__rating-kpi-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.7);
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(226, 232, 240, 0.6);
+  justify-content: space-between;
+  min-height: 56px;
+  background: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
 }
 
 .supplier__rating-kpi-label {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
   color: #64748b;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
 }
 
 .supplier__rating-kpi-value {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #0f172a;
 }
@@ -1047,7 +1051,7 @@
 
 .supplier__rating-bar {
   width: 100%;
-  height: 4px;
+  height: 3px;
   background: #e2e8f0;
   border-radius: 99px;
   overflow: hidden;
@@ -1136,25 +1140,25 @@
   background: var(--canvas, #ffffff);
   cursor: pointer;
   user-select: none;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 .supplier__switch-field:hover {
-  border-color: var(--rust, #c5400a);
+  border-color: var(--rule-hover, #94a3b8);
 }
 .supplier__switch-field--checked {
   border-color: var(--rust, #c5400a);
-  background: var(--rust-soft, #f4e2d6);
+  background: #ffffff;
 }
 .supplier__switch-label {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--ink, #0f172a);
 }
 /* iOS/SaaS Style Toggle Switch */
 .supplier__switch-toggle {
   position: relative;
-  width: 36px;
-  height: 20px;
+  width: 34px;
+  height: 18px;
   border-radius: 99px;
   background: var(--rule, #cbd5e1);
   transition: background 0.2s ease;
@@ -1165,8 +1169,8 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -1177,6 +1181,27 @@
 }
 .supplier__switch-field--checked .supplier__switch-toggle::after {
   transform: translateX(16px);
+}
+
+/* Supplier 3-Column Grid Layout */
+.supplier__form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 14px;
+}
+.supplier__span-2 {
+  grid-column: span 2;
+}
+.supplier__span-3 {
+  grid-column: span 3;
+}
+@media (max-width: 768px) {
+  .supplier__form-grid-3 {
+    grid-template-columns: 1fr;
+  }
+  .supplier__span-2, .supplier__span-3 {
+    grid-column: span 1;
+  }
 }
 
 .supplier__primary {
@@ -1576,6 +1601,48 @@
 .purchase__textarea-flat:focus {
   border-color: #6366f1 !important;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+}
+
+/* Khổ giấy (mm) dưới ô vật tư: "Khổ cần (mm) [rộng] × [dài]" — giấy tờ mua theo khổ. */
+.purchase__kho-mm {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+.purchase__kho-mm .purchase__input-flat {
+  width: 72px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+.purchase__kho-mm-nhan {
+  white-space: nowrap;
+}
+/* Ô Vật tư của form đơn mua: [tick] tên, dưới là khổ mua (giấy) hoặc lời nhắc dòng bỏ tick. */
+.purchase__line-ten {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.purchase__line-ten-hang {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.purchase__line-ten-hang .input {
+  flex: 1;
+  min-width: 0;
+}
+.purchase__line-edit--bo > :not(.purchase__line-ten) {
+  opacity: 0.45;
+}
+.purchase__line-bo-ghi {
+  font-size: 12px;
 }
 
 .purchase__modal-items-head {
@@ -3722,7 +3789,7 @@ span.pdot__readonly-money {
 }
 
 .pdot__pick:hover {
-  background: color-mix(in srgb, var(--rust-soft) 35%, var(--canvas));
+  background: color-mix(in srgb, var(--rule-hair) 35%, var(--canvas));
   border-color: var(--rust);
   color: var(--ink);
 }
@@ -3730,7 +3797,7 @@ span.pdot__readonly-money {
 /* Bàn phím: cùng bộ màu như hover, cộng vành focus. Khai riêng chứ KHÔNG gộp chung selector rồi
    thêm rule thứ hai — khai một selector hai lần trong cùng file là bẫy đã ghi ở UI_DESIGN §11. */
 .pdot__pick:focus-visible {
-  background: color-mix(in srgb, var(--rust-soft) 35%, var(--canvas));
+  background: color-mix(in srgb, var(--rule-hair) 35%, var(--canvas));
   border-color: var(--rust);
   color: var(--ink);
   outline: 2px solid var(--rust);
@@ -3738,7 +3805,7 @@ span.pdot__readonly-money {
 }
 
 .pdot__pick.is-drop {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-style: solid;
   border-color: var(--rust);
   color: var(--rust-deep);
@@ -4002,9 +4069,9 @@ span.pdot__readonly-money {
   background: var(--paper);
   border-bottom: 1.5px solid var(--rule);
 }
-.acct-mh__frame .md-page__row:hover { background: var(--rust-soft); }
+.acct-mh__frame .md-page__row:hover { background: var(--rule-hair); }
 .acct-mh__frame .purchase__row--selected {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   box-shadow: inset 3px 0 0 var(--rust);
 }
 .acct-mh__frame th.acct-amount-cell,

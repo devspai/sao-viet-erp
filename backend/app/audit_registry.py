@@ -163,6 +163,7 @@ _HD += _dong("san_xuat", None, {
     "san_xuat_tao_batch": "Tạo mẻ sản xuất",
     "san_xuat_me_cap_nhat_danh_muc": "Cập nhật mẻ theo danh mục",
     "san_xuat_de_nghi_vat_tu": "Đề nghị cấp vật tư",
+    "san_xuat_nhap_lai_vat_tu": "Yêu cầu nhập lại vật tư thừa vào kho",
     "san_xuat_sua_de_nghi_vat_tu": "Sửa đề nghị cấp vật tư",
     "san_xuat_xac_nhan_vat_tu": "Xác nhận nhận vật tư",
     "san_xuat_kho_yeu_cau_nhap": "Yêu cầu kho nhập hàng",
@@ -180,6 +181,9 @@ _HD += _dong("san_xuat", None, {
     "san_xuat.phat_hanh_cap_nhat": "Phát hành cập nhật xuống xưởng",
     "san_xuat.thu_hoi_goi": "Thu hồi gói phát hành",
     "san_xuat.ho_tro.huy_phat_hanh_lai": "Huỷ phát hành lại",
+    # Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6).
+    "san_xuat.chot_giay": "Tổ Cắt chốt giấy",
+    "san_xuat.go_chot_giay": "Tổ Cắt gỡ chốt giấy",
     # Bàn tổ — điều hành công việc tại chỗ.
     "san_xuat_phan_cong": "Phân công thợ",
     "san_xuat_go_phan_cong": "Gỡ phân công thợ",
@@ -210,6 +214,7 @@ _HD += _dong("kho", "bao_cao_kho", {
 })
 _HD += _dong("kho", "kho", {
     "kho_xuat_dieu_chinh": "Điều chỉnh phiếu xuất kho",
+    "kho_bo_sung_dang_kho_lo": "Bổ sung dạng/khổ giấy cho lô cũ",
 })
 _HD += _dong("kho", "dm_kho_hang", {
     "kho_vi_tri_create": "Tạo vị trí trong kho",

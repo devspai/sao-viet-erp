@@ -129,53 +129,6 @@ def test_revenue_sort(client):
     assert body["items"][0]["revenue_12m"] >= body["items"][-1]["revenue_12m"]
 
 
-# --- Dashboard computed from real data --------------------------------------
-
-
-def test_dashboard_computes_from_real_orders(client):
-    _seed_staff_customers()
-    token = _admin_token(client)
-    cid = _customer_id_by_name("An Phát")
-    _add_orders(cid, "sale1")
-
-    d = client.get(f"/api/customers/{cid}/dashboard", headers=_h(token)).json()
-    assert d["has_data"] is True
-    assert d["orders_total"] == 2
-    assert len(d["months"]) == 12
-    # Revenue appears in the correct month buckets.
-    total_series = sum(m["revenue"] for m in d["months"])
-    assert total_series == 2 * 12_000_000 + 5000 * 900
-    # Product mix (donut) has both descriptions.
-    labels = {s["label"] for s in d["product_mix"]}
-    assert "Catalogue A4" in labels and "Name card" in labels
-    # Heatmap has at least one cell.
-    assert len(d["heatmap"]) >= 1
-    # SEAM-16 (Công nợ phải thu) ĐÃ ĐƯỢC NỐI ngày 10/08/2026 — `deps.py` tiêm
-    # `AccountingReceivablePort` thật thay cho stub ném NotImplementedError. Trước đó dòng này
-    # khẳng định `available is False` ("chưa xây"), và nó đỏ suốt từ hôm nối cho tới 11/08 vì
-    # không ai cập nhật test theo.
-    #
-    # Ý ĐỒ GỐC vẫn giữ: KHÔNG bịa số. Khác ở chỗ nay số 0 là **số thật đọc được** (khách này chưa
-    # có hoá đơn nào), chứ không phải số 0 bịa ra để lấp chỗ trống — nên `available` phải True.
-    assert d["receivable"]["available"] is True
-    # Đơn đã chốt vẫn chưa phải công nợ. Chỉ hóa đơn bán đã ghi nhận mới làm phát sinh dư nợ.
-    assert d["receivable"]["balance"] == 0
-
-
-def test_dashboard_empty_state_no_fake_numbers(client):
-    """A customer with NO orders → has_data=False, zeros — never fabricated."""
-    token = _admin_token(client)
-    created = client.post(
-        "/api/customers", json={"name": "Khách Chưa Mua"}, headers=_h(token)
-    ).json()["customer"]
-    d = client.get(f"/api/customers/{created['id']}/dashboard", headers=_h(token)).json()
-    assert d["has_data"] is False
-    assert d["orders_total"] == 0
-    assert d["revenue_12m"] == 0
-    assert d["avg_order_value"] is None
-    assert d["product_mix"] == []
-
-
 # --- History tables wired from real orders/quotations -----------------------
 
 
@@ -185,22 +138,23 @@ def test_order_and_quote_history_are_real(client):
     cid = _customer_id_by_name("An Phát")
     _add_orders(cid, "sale1")
 
-    orders = client.get(f"/api/customers/{cid}/orders", headers=_h(token)).json()
+    # Kỳ đủ rộng để chứa cả hai đơn (một đơn ~62 ngày trước).
+    tu = (datetime.now(timezone.utc) - timedelta(days=120)).date().isoformat()
+    orders = client.get(f"/api/customers/{cid}/orders?tu={tu}", headers=_h(token)).json()
     assert len(orders["items"]) == 2
-    assert all(o["total"] is not None for o in orders["items"])
+    assert orders["tong_so"] == 2
+    assert all(o["tong"] is not None for o in orders["items"])
 
-    quotes = client.get(f"/api/customers/{cid}/quotations", headers=_h(token)).json()
+    quotes = client.get(f"/api/customers/{cid}/quotations?tu={tu}", headers=_h(token)).json()
     assert len(quotes["items"]) == 1
     assert quotes["items"][0]["code"] == "BGX1"
 
 
-def test_lich_su_don_tra_TIEN_TUNG_DONG(client):
-    """Mỗi dòng đơn phải kèm tiền THẬT của chính nó.
+def test_san_pham_cong_TIEN_TUNG_DONG(client):
+    """Khối sản phẩm cộng theo tiền THẬT của từng dòng đơn, không chia đều tổng đơn.
 
-    Trước 16/08/2026 endpoint chỉ trả `summary` là chuỗi nối tên ("SP A, SP B"), nên khối "Sản
-    phẩm mua nhiều nhất" bên frontend phải tách theo dấu phẩy rồi CHIA ĐỀU tổng đơn — đơn gồm
-    ruột sách + thẻ nhân viên bị gán hai thứ bằng tiền nhau. Tiền thật vốn nằm sẵn ở
-    `order_lines.line_total`, chỉ là không được trả xuống."""
+    Trước 16/08/2026 frontend tách `summary` theo dấu phẩy rồi CHIA ĐỀU — đơn gồm ruột sách +
+    thẻ nhân viên bị gán hai thứ bằng tiền nhau. Từ 04/10/2026 việc cộng nằm ở máy chủ."""
     _seed_staff_customers()
     token = _admin_token(client)
     cid = _customer_id_by_name("An Phát")
@@ -208,7 +162,7 @@ def test_lich_su_don_tra_TIEN_TUNG_DONG(client):
     db = SessionLocal()
     try:
         o = Order(order_no="DH-2DONG", customer_id=cid, order_kind="moi", status="ordered",
-                  created_at=datetime.now(timezone.utc))
+                  created_at=datetime.now(timezone.utc) - timedelta(hours=1))
         # Hai dòng LỆCH HẲN nhau về tiền — chia đều sẽ ra 15tr/15tr, số thật là 28tr/2tr.
         o.lines.append(OrderLine(description="Ruột sách 160 trang", qty=1,
                                  unit_price_snapshot=28_000_000, line_total=28_000_000))
@@ -219,17 +173,17 @@ def test_lich_su_don_tra_TIEN_TUNG_DONG(client):
     finally:
         db.close()
 
+    tk = client.get(f"/api/customers/{cid}/thong-ke", headers=_h(token)).json()
+    sp = {x["ten"]: x["doanh_so"] for x in tk["san_pham"]}
+    assert sp["Ruột sách 160 trang"] == 28_000_000
+    assert sp["Thẻ nhân viên"] == 2_000_000
+
     dong = next(
         r for r in client.get(f"/api/customers/{cid}/orders", headers=_h(token)).json()["items"]
         if r["order_no"] == "DH-2DONG"
     )
-    assert dong["total"] == 30_000_000
-    assert [(l["description"], l["line_total"]) for l in dong["lines"]] == [
-        ("Ruột sách 160 trang", 28_000_000),
-        ("Thẻ nhân viên", 2_000_000),
-    ]
-    # `summary` vẫn còn (bảng đơn hiển thị bằng nó) và vẫn dựng từ chính các dòng đó.
-    assert dong["summary"] == "Ruột sách 160 trang, Thẻ nhân viên"
+    assert dong["tong"] == 30_000_000
+    assert dong["san_pham"] == ["Ruột sách 160 trang", "Thẻ nhân viên"]
 
 
 def test_ti_le_chot_dem_bao_gia_DA_LEN_DON_la_thang(client):
@@ -254,10 +208,10 @@ def test_ti_le_chot_dem_bao_gia_DA_LEN_DON_la_thang(client):
     finally:
         db.close()
 
-    d = client.get(f"/api/customers/{cid}/dashboard", headers=_h(token)).json()
+    d = client.get(f"/api/customers/{cid}/thong-ke", headers=_h(token)).json()
     # Thắng = 2 converted + 1 accepted = 3. Đã chào = 3 + 1 rejected = 4 (loại draft + approved
     # vì khách chưa thấy). 3/4 = 75%.
-    assert d["win_rate_pct"] == 75
+    assert d["bao_gia"]["ti_le"] == 75
 
 
 def test_order_history_csv_export(client):
@@ -329,7 +283,7 @@ def test_customer_audit_out_of_scope_404(client):
 # --- Scope guard on analytics -----------------------------------------------
 
 
-def test_dashboard_out_of_scope_404(client):
+def test_so_lieu_ho_so_out_of_scope_404(client):
     _seed_staff_customers()
 
     def _role_token(username: str, role_name: str) -> str:
@@ -348,5 +302,6 @@ def test_dashboard_out_of_scope_404(client):
     admin = _admin_token(client)
     sale2 = _role_token("sale2b", "NV Sales")
     cid = _customer_id_by_name("An Phát")  # owned by sale1
-    resp = client.get(f"/api/customers/{cid}/dashboard", headers=_h(sale2))
-    assert resp.status_code == 404
+    for duong in ("thong-ke", "orders", "quotations"):
+        resp = client.get(f"/api/customers/{cid}/{duong}", headers=_h(sale2))
+        assert resp.status_code == 404, duong

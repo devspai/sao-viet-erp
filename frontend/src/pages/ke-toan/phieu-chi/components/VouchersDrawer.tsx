@@ -1,11 +1,12 @@
 // Drawer CHI TIẾT một phiếu chi (tách từ pages/PaymentVouchersPage.tsx).
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
-  assetUrl,
+  anhNho, assetUrl,
   type PaymentVoucherAttachment,
   type PaymentVoucherRow,
 } from "../../../../api/client";
 import { CodeLink } from "../../../../components/CodeLink";
+import { Icon } from "../../../../components/Icons";
 import {
   amountInWords,
   fmtDate,
@@ -18,6 +19,8 @@ import {
   STAGE_LABELS,
   STATUS_META,
 } from "../shared/list-constants";
+
+type DrawerTab = "overview" | "attachments" | "history";
 
 export function VouchersDrawer({
   selected,
@@ -43,7 +46,10 @@ export function VouchersDrawer({
   removeAttachment: (attachment: PaymentVoucherAttachment) => Promise<void>;
   actions: (row: PaymentVoucherRow) => ReactNode;
 }) {
+  const [activeTab, setActiveTab] = useState<DrawerTab>("overview");
   const actionNode = actions(selected);
+  const coTienThu =
+    selected.receipt_received_amount > 0 || selected.receipt_pending_amount > 0;
   return (
     <div className="rc-drawer__scrim" onClick={() => setSelectedId(null)}>
       <aside
@@ -63,9 +69,9 @@ export function VouchersDrawer({
                 <h2 className="purchase__hero-code">{selected.code}</h2>
                 <div className="acct-status-stack">
                   <span
-                    className={`acct-pc__state acct-pc__state--${STATUS_META[selected.status].tone}`}
+                    className={`acct-dmh__state acct-dmh__state--${STATUS_META[selected.status].tone}`}
                   >
-                    <i className="acct-pc__dot" />
+                    <i className="acct-dmh__dot" />
                     {STATUS_META[selected.status].label}
                   </span>
                   {selected.status === "paid" &&
@@ -87,8 +93,129 @@ export function VouchersDrawer({
               ✕
             </button>
           </div>
+          {selected.content?.trim() && (
+            <div className="acct-hero-purpose">
+              <Icon name="book" size={14} />
+              <span>{selected.content}</span>
+            </div>
+          )}
+          <dl className="acct-hero-facts">
+            <div>
+              <dt>
+                <Icon name="building" size={13} />
+                {selected.source_type === "purchase_request" ? "Nhà cung cấp" : "Đối tượng nhận"}
+              </dt>
+              <dd title={selected.supplier_name}>{selected.supplier_name || "—"}</dd>
+            </div>
+            <div>
+              <dt>
+                <Icon name="calendar" size={13} />
+                Ngày chứng từ
+              </dt>
+              <dd>{fmtDate(selected.voucher_date)}</dd>
+            </div>
+            <div>
+              <dt>
+                <Icon name="users" size={13} />
+                Người lập
+              </dt>
+              <dd>{selected.created_by_name || "—"}</dd>
+            </div>
+          </dl>
         </div>
+
+        <div className="acct-drawer__tabs" role="tablist" aria-label="Chi tiết phiếu chi">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "overview"}
+            className={`acct-drawer__tab-btn${activeTab === "overview" ? " is-active" : ""}`}
+            onClick={() => setActiveTab("overview")}
+          >
+            <Icon name="fileText" size={15} />
+            <span>Tổng quan</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "attachments"}
+            className={`acct-drawer__tab-btn${activeTab === "attachments" ? " is-active" : ""}`}
+            onClick={() => setActiveTab("attachments")}
+          >
+            <Icon name="paperclip" size={15} />
+            <span>Chứng từ đính kèm</span>
+            {attachments.length > 0 && (
+              <span className="acct-drawer__tab-badge">{attachments.length}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "history"}
+            className={`acct-drawer__tab-btn${activeTab === "history" ? " is-active" : ""}`}
+            onClick={() => setActiveTab("history")}
+          >
+            <Icon name="history" size={15} />
+            <span>Lịch sử</span>
+          </button>
+        </div>
+
         <div className="rc-drawer__body acct-pc__body">
+      {selected.cancel_reason && (
+        <div className="banner banner--error">
+          Lý do hủy: {selected.cancel_reason}
+        </div>
+      )}
+      {activeTab === "overview" && (
+        <>
+      <div className="acct-kpi-grid acct-pcx__kpis">
+        <div className="acct-kpi-card acct-kpi-card--total">
+          <div className="acct-kpi-card__head">
+            <span className="acct-kpi-card__label">Số tiền quy đổi</span>
+            <span className="acct-kpi-card__tag">{selected.currency || "VND"}</span>
+          </div>
+          <div className="acct-kpi-card__val">{money(selected.amount_vnd)}</div>
+          <small className="acct-pcx__kpi-sub">
+            {selected.currency !== "VND"
+              ? `${originalMoney(selected.amount, selected.currency)} · tỷ giá ${selected.exchange_rate}`
+              : amountInWords(selected.amount_vnd)}
+          </small>
+        </div>
+        {coTienThu && (
+          <>
+            <div className="acct-kpi-card acct-kpi-card--paid">
+              <div className="acct-kpi-card__head">
+                <span className="acct-kpi-card__label">Đã thu lại</span>
+                <span className="acct-kpi-card__tag">Phiếu thu</span>
+              </div>
+              <div className="acct-kpi-card__val">
+                <button
+                  type="button"
+                  className="code-link"
+                  onClick={() => openReceipts(selected.code)}
+                >
+                  {money(selected.receipt_received_amount)}
+                </button>
+              </div>
+            </div>
+            <div className="acct-kpi-card acct-kpi-card--due">
+              <div className="acct-kpi-card__head">
+                <span className="acct-kpi-card__label">Chờ thu</span>
+                <span className="acct-kpi-card__tag">Phiếu thu</span>
+              </div>
+              <div className="acct-kpi-card__val">
+                <button
+                  type="button"
+                  className="code-link"
+                  onClick={() => openReceipts(selected.code)}
+                >
+                  {money(selected.receipt_pending_amount)}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
       <dl className="purchase__facts">
         {selected.doc_no && (
           <div>
@@ -115,10 +242,6 @@ export function VouchersDrawer({
                   : "—"}
               </dd>
             </div>
-            <div>
-              <dt>Nhà cung cấp</dt>
-              <dd>{selected.supplier_name}</dd>
-            </div>
           </>
         ) : (
           <>
@@ -126,16 +249,8 @@ export function VouchersDrawer({
               <dt>Nguồn chi</dt>
               <dd>{SOURCE_LABELS[selected.source_type] ?? selected.source_type}</dd>
             </div>
-            <div>
-              <dt>Đối tượng nhận</dt>
-              <dd>{selected.supplier_name}</dd>
-            </div>
           </>
         )}
-        <div>
-          <dt>Ngày chứng từ</dt>
-          <dd>{fmtDate(selected.voucher_date)}</dd>
-        </div>
         <div>
           <dt>Đợt thanh toán</dt>
           <dd>
@@ -156,43 +271,7 @@ export function VouchersDrawer({
             </dd>
           </div>
         )}
-        <div>
-          <dt>Người lập</dt>
-          <dd>{selected.created_by_name || "—"}</dd>
-        </div>
-        <div>
-          <dt>Lập lúc</dt>
-          <dd>{fmtDateTime(selected.created_at)}</dd>
-        </div>
       </dl>
-      <div className="acct-purpose">
-        <span>Nội dung chi</span>
-        <strong>{selected.content}</strong>
-      </div>
-      <div className="acct-voucher-amount">
-        <span>Số tiền quy đổi</span>
-        <strong>{money(selected.amount_vnd)}</strong>
-        <small>
-          {selected.currency !== "VND"
-            ? `${originalMoney(selected.amount, selected.currency)} · tỷ giá ${selected.exchange_rate}`
-            : amountInWords(selected.amount_vnd)}
-        </small>
-        {(selected.receipt_received_amount > 0 ||
-          selected.receipt_pending_amount > 0) && (
-          <small>
-            <button
-              type="button"
-              className="code-link"
-              onClick={() => openReceipts(selected.code)}
-            >
-              Đã thu {money(selected.receipt_received_amount)}
-              {selected.receipt_pending_amount > 0
-                ? ` · chờ thu ${money(selected.receipt_pending_amount)}`
-                : ""}
-            </button>
-          </small>
-        )}
-      </div>
       {selected.voucher_type === "bank_transfer" ? (
         <div className="acct-account-pair">
           <div>
@@ -226,16 +305,24 @@ export function VouchersDrawer({
           Mã giao dịch: <strong>{selected.bank_reference}</strong>
         </div>
       )}
+        </>
+      )}
+      {activeTab === "attachments" && (
       <div className="acct-attachments">
         <span className="acct-attachments__label">
           Chứng từ đính kèm
         </span>
         {attachments.length === 0 && (
-          <small className="acct-attachments__empty">
-            Chưa có file đính kèm.
-            {selected.status === "paid" &&
-              " Phiếu đã chi — cần bổ sung hóa đơn/biên nhận."}
-          </small>
+          <div className="acct-empty-state">
+            <div className="acct-empty-state__icon">
+              <Icon name="paperclip" size={20} />
+            </div>
+            <div className="acct-empty-state__text">
+              Chưa có file đính kèm.
+              {selected.status === "paid" &&
+                " Phiếu đã chi — cần bổ sung hóa đơn/biên nhận."}
+            </div>
+          </div>
         )}
         {attachments.length > 0 && (
           <div className="acct-att-grid">
@@ -258,7 +345,7 @@ export function VouchersDrawer({
                     >
                       <img
                         className="acct-att-thumb"
-                        src={href}
+                        src={anhNho(attachment.file_url) ?? href}
                         alt={attachment.file_name}
                       />
                     </a>
@@ -306,10 +393,33 @@ export function VouchersDrawer({
           </label>
         )}
       </div>
-      {selected.cancel_reason && (
-        <div className="banner banner--error">
-          Lý do hủy: {selected.cancel_reason}
-        </div>
+      )}
+      {activeTab === "history" && (
+        <ol className="acct-pcx__timeline">
+          <li>
+            <strong>Lập phiếu</strong>
+            <span>
+              {selected.created_by_name || "—"} · {fmtDateTime(selected.created_at)}
+            </span>
+          </li>
+          {selected.paid_at && (
+            <li>
+              <strong>Ghi nhận đã chi</strong>
+              <span>
+                {selected.paid_by_name || "—"} · {fmtDateTime(selected.paid_at)}
+              </span>
+            </li>
+          )}
+          {selected.cancelled_at && (
+            <li className="is-cancelled">
+              <strong>Hủy phiếu</strong>
+              <span>
+                {selected.cancelled_by_name || "—"} · {fmtDateTime(selected.cancelled_at)}
+              </span>
+              {selected.cancel_reason && <em>Lý do: {selected.cancel_reason}</em>}
+            </li>
+          )}
+        </ol>
       )}
         </div>
         {actionNode && (

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from tests.khach_phieu_fixtures import gan_khach_phieu, khach_mac_dinh
 from app.db import SessionLocal
 from app.models.phieu_tinh_gia import PhieuThanhPhan, PhieuTinhGia
 
@@ -35,7 +36,7 @@ def _mk_ptg(*, products=(("Catalogue A4", 1000, 1_000_000),)) -> int:
     db = SessionLocal()
     try:
         n = db.query(PhieuTinhGia).count() + 1
-        ptg = PhieuTinhGia(
+        ptg = PhieuTinhGia(customer_id=khach_mac_dinh(db), 
             ma=f"PTG-TEST-{n:04d}",
             ten_san_pham=products[0][0],
             so_luong=products[0][1],

@@ -20,6 +20,7 @@ import { BulkAssignDialog } from "../modals/BulkAssignDialog";
 import { NEW_COMPONENT } from "../shared/constants";
 import { errText } from "../shared/helpers";
 import type { CompDraft } from "../shared/types";
+import { EmptyState } from "../../../../../components/EmptyState";
 
 export function DanhMucTab({ token, readOnly }: { token: string; readOnly: boolean }) {
   // null = ĐANG TẢI. Khởi tạo [] sẽ hiện "chưa có khoản nào" ngay lúc còn đang fetch — báo SAI.
@@ -241,7 +242,7 @@ export function DanhMucTab({ token, readOnly }: { token: string; readOnly: boole
                 </div>
               </div>
             ) : (
-              <p className="cl-hint-inline">Đang tải danh mục…</p>
+              <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải danh mục…" />
             )
           ) : items.length === 0 ? (
             <div className="cl-empty">
@@ -581,7 +582,7 @@ export function DanhMucTab({ token, readOnly }: { token: string; readOnly: boole
         onCancel={() => setHolders(null)}
       >
         {holdersBusy ? (
-          <p className="cdlg__msg">Đang tải danh sách…</p>
+          <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải danh sách…" />
         ) : holders && holders.items.length === 0 ? (
           <p className="cdlg__msg">
             Không còn ai được gán khoản này.

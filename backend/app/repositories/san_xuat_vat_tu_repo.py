@@ -27,6 +27,19 @@ class SanXuatVatTuRepository:
             .order_by(SanXuatVatTuDeNghi.lan_so)
         ))
 
+    def stock_request_ids_cung_lenh(self, *, lsx_id: int | None,
+                                    bai_ghep_id: int | None) -> list[int]:
+        """Yêu cầu kho của MỌI đề nghị cấp thuộc các công việc cùng lệnh (hoặc cùng bài ghép) — để
+        lấy giá vốn phần giấy bước lấy giấy đã xuất khi bước "nhận từ" trả thừa về kho."""
+        if not (lsx_id or bai_ghep_id):
+            return []
+        dk = (SanXuatCongViec.lsx_id == lsx_id) if lsx_id else             (SanXuatCongViec.bai_ghep_id == bai_ghep_id)
+        return [i for i in self.db.scalars(
+            select(SanXuatVatTuDeNghi.stock_request_id)
+            .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatVatTuDeNghi.cong_viec_id)
+            .where(dk, SanXuatVatTuDeNghi.stock_request_id.is_not(None))
+        ) if i]
+
     def lan_ke_tiep(self, cong_viec_id: int) -> int:
         cao = self.db.scalar(
             select(func.max(SanXuatVatTuDeNghi.lan_so))

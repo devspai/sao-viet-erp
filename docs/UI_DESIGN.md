@@ -52,15 +52,16 @@ trên nền slate). **Không** đổi accent theo neutral.
 | Token | Giá trị | Dùng ở |
 |---|---|---|
 | `--rust` | `#c5400a` | nút primary · toggle chế độ đang chọn · viền phần tử đang chọn · vành focus |
-| `--rust-deep` | `#8a2d07` | hover của nút rust · chữ trên nền rust-soft |
-| `--rust-soft` | `#f4e2d6` | **bề mặt được tô**: hover hàng · hover nút phụ · nền phần tử đang chọn · vòng icon |
+| `--rust-deep` | `#8a2d07` | hover của nút rust |
 
-**Hover hàng bảng dùng tint rust, KHÔNG dùng xám.** Xám trên nền trắng gần như không thấy,
-và nó biến bảng thành thứ chết. (Bản gốc: `.rdx-quote tbody tr.click:hover td`.)
+**KHÔNG còn nền hồng/đào nhạt.** Token `--rust-soft` (`#f4e2d6`) đã GỠ khỏi `tokens.css` —
+chủ dự án chốt 04/10/2026, mọi chỗ cũ đã đổi sang xám. Hover hàng, hover nút phụ, hover chip,
+hover dòng danh sách, nền phần tử đang chọn, vòng icon đều dùng xám rất nhạt `--rule-hair`;
+muốn rõ hơn thì đậm viền/chữ, không đổi sang màu nhấn. Rust pha alpha (quầng focus, nền tô)
+cũng đã đổi sang slate `rgba(100, 116, 139, a)`. Đỏ/cam/hồng NGỮ NGHĨA (lỗi, cảnh báo) giữ nguyên.
 
-**Nền dải tiêu đề bảng là `--paper`, KHÔNG phải `--rust-soft`** — xem §6. Tô đào cả dải
-tiêu đề là quá liều: nó biến thứ chỉ cần "đủ tách" thành mảng màu tranh chú ý với dữ liệu
-bên dưới.
+**Nền dải tiêu đề bảng là `--paper`** — xem §6. Tô màu cả dải tiêu đề là quá liều: nó biến
+thứ chỉ cần "đủ tách" thành mảng màu tranh chú ý với dữ liệu bên dưới.
 
 Vì sao dải tiêu đề vẫn phải có tint — nguyên văn lý do đã ghi trong `nhan-su.css`:
 
@@ -103,7 +104,7 @@ Bản mẫu: `.rdx-compact-kpi` trong `redesign-phong-ban.css`.
 | Trạng thái | Quy tắc |
 |---|---|
 | nghỉ | nền `--canvas` · viền `--rule` · 12px/600 · padding 4px 12px · r99 |
-| hover | viền + chữ rust, nền `--rust-soft` |
+| hover | viền `--ash-2`, nền `--rule-hair` (không tô hồng nhạt — §2) |
 | **đang chọn** | nền `--charcoal`, chữ `--on-charcoal` — **không phải rust** |
 | số đếm trong chip | 10.5px/700 · `color: inherit` |
 
@@ -125,8 +126,8 @@ th      10.5px / 700 / HOA / letter-spacing .07em / --ash / căn trái
         nền --paper  +  kẻ dưới 1.5px --rule        ← cặp BẮT BUỘC đi cùng nhau
 td      padding 12px 14px · kẻ dưới 1px --rule-hair · vertical-align middle
         hàng CUỐI bỏ kẻ (đã có viền ngoài)
-hover   nền --rust-soft
-chọn    nền --rust-soft + box-shadow inset 3px 0 0 --rust (viền trái)
+hover   nền --rule-hair (không tô hồng nhạt — §2)
+chọn    nền --rule-hair + chữ --ink 600 — KHÔNG vạch một cạnh (inset trái/border-left)
 số      --ff-sans · cột căn PHẢI
 ```
 
@@ -151,6 +152,14 @@ Nhãn HOA giãn cách là hiệu ứng của `text-transform: uppercase` + `lett
 Thang cỡ: `--fs-2xs 11` → `--fs-2xl 26`. **Không** dùng cỡ nửa pixel (11.5 / 12.5 / 13.5)
 và **không** xuống dưới 11px.
 
+**Không nối các mẩu thông tin bằng dấu chấm giữa `·`** — chủ dự án chốt 04/10/2026 (kiểu
+"Gia công sau in · tờ in → tay sách" là cấm). Tách bằng HÌNH: mẩu loại/nhóm thành thẻ nhỏ nền
+`--rule-hair`, mẩu còn lại để chữ thường, giữa hai mẩu là khoảng trống 8–10px; hai con số cùng
+câu thì nối bằng dấu phẩy ("5 công đoạn, 6 vật tư"). Code cũ còn nhiều chỗ `·`, sửa dần khi đụng.
+
+**Không nhắc lại thông tin đã thấy ngay cạnh** — ví dụ master–detail: tên mục đang chọn đã đậm ở
+danh sách thì thẻ chi tiết KHÔNG in lại tên đó làm tiêu đề.
+
 ## 8. Hình khối, nhịp, chuyển động
 
 - **Bán kính**: chỉ `--r-2 4` · `--r-3 6` · `--r-5 10` · `--r-6 12` · `--r-pill`. Ngoại lệ
@@ -173,9 +182,9 @@ Số dưới đây đo trên bảng **slate** hiện hành (2026-07-30), không 
 
 | Cặp | Tỷ lệ | | Cặp | Tỷ lệ |
 |---|---|---|---|---|
-| `--ink` / `--canvas` | 17.85:1 | | `--ink` / `--rust-soft` | 14.19:1 |
-| `--ash` / `--canvas` | 7.58:1 | | `--ash` / `--rust-soft` | 6.02:1 |
-| `--rust` / `--canvas` | 5.11:1 | | `--rust-deep` / `--rust-soft` | 6.79:1 |
+| `--ink` / `--canvas` | 17.85:1 | | `--ink` / `--rule-hair` | 16.3:1 |
+| `--ash` / `--canvas` | 7.58:1 | | `--ash` / `--rule-hair` | 6.9:1 |
+| `--rust` / `--canvas` | 5.11:1 | | `--rust-deep` / `--rule-hair` | 7.8:1 |
 | `--rust-deep` / `--canvas` | 8.54:1 | | `--on-charcoal` / `--charcoal` | 17.06:1 |
 | `--ink` / `--heat-1` | 13.19:1 | | `--ink` / `--heat-2` | 9.45:1 |
 | `--ink` / `--heat-3` | 5.85:1 | | `--paper-contrast` / `--heat-4` | 4.88:1 |
@@ -197,9 +206,8 @@ Thang nhiệt **đổi chiều tương phản ở bậc 3**: bậc 1–3 chữ `
 `--paper-contrast`.
 
 **Độ thấy được của nền** (không phải chữ, nên WCAG không áp — nhưng phải phân biệt được):
-`--rust-soft` lệch **1.258:1** so với `--canvas` — rõ nhất trong các sắc nền, nên nó là
-lựa chọn đúng cho header bảng và hover hàng. (`--rule-soft` 1.233 · `--rule-hair` 1.096 ·
-`--paper` 1.046 — `--paper` gần như không thấy trên thẻ trắng.)
+`--rule-soft` 1.233 · `--rule-hair` 1.096 · `--paper` 1.046 so với `--canvas` — `--paper`
+gần như không thấy trên thẻ trắng, nên hover/chọn dùng `--rule-hair`.
 
 ## 10. BẪY CASCADE — đọc trước khi sửa CSS
 

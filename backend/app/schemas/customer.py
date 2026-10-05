@@ -97,6 +97,9 @@ class CustomerRow(BaseModel):
     no_ar_module: bool = True
     # --- derived from real orders (số THẬT; bỏ tier) ---
     revenue_12m: int = 0
+    # Số đơn đã chốt trong cùng 12 tháng với `revenue_12m` — cột "Mua hàng" ghép hai số này,
+    # đừng ghép doanh số 12 tháng với số đơn mọi thời kỳ.
+    orders_12m: int = 0
     orders_total: int = 0
     last_order_at: date | None = None
     # --- Rào chiết khấu / MARKUP (spec-06 v2) — hiển thị cho mọi người.
@@ -329,10 +332,9 @@ class CareTaskOut(BaseModel):
     repeat_interval: int = 1
     repeat_until: datetime | None = None
     series_id: int | None = None
-    # Mức nhắc TÍNH TỪ số ngày quá hạn (#28): 0 = chưa đến hạn, 1 = đến hạn/quá <2 ngày,
-    # 2 = quá ≥2 ngày, 3 = quá ≥5 ngày. Chỉ có nghĩa với việc đang mở.
-    remind_level: int = 0
-    overdue_days: int = 0
+    ket_qua: str | None = None
+    # Đang mở mà giờ hẹn đã qua — tính khi đọc (thay mức nhắc lần 1/2/3, gỡ 05/10/2026).
+    tre: bool = False
 
 
 class CareTasksOut(BaseModel):
@@ -364,12 +366,13 @@ class CareOccurrenceOut(BaseModel):
     status: str
     is_virtual: bool = False
     repeat_freq: str = "none"
-    remind_level: int = 0
-    overdue_days: int = 0
+    tre: bool = False             # đang mở mà giờ hẹn đã qua
+    # Lần nào của chuỗi (khoá ngoại lệ) — gửi lại nguyên văn khi thao tác. Với lần đã dời, khác
+    # `due_date`; lấy `due_date` thay vào là thao tác nhầm sang một lần khác.
+    occurrence_date: datetime | None = None
+    ket_qua: str | None = None    # ghi chú kết quả của lần hẹn
     assignee_user_id: int | None = None
     assignee_name: str | None = None
-    is_event: bool = False        # True = tương tác ĐÃ GHI (CareEvent) hiện trên lịch
-    kind: str | None = None       # hình thức khi is_event (goi_dien/nhan_tin/…)
 
 
 class CareCalendarOut(BaseModel):
@@ -377,31 +380,29 @@ class CareCalendarOut(BaseModel):
 
 
 class OccurrenceActionIn(BaseModel):
-    """Thao tác 1 lần hẹn của chuỗi: complete | cancel | reschedule."""
+    """Thao tác 1 lần hẹn: complete | cancel | reschedule | ghi (ghi chú kết quả)."""
 
     action: str
     occurrence_date: datetime | None = None   # lần nào của chuỗi (bắt buộc với hẹn lặp)
     new_due: datetime | None = None           # với reschedule
     log_kind: str | None = Field(default=None, max_length=24)
     log_note: str | None = Field(default=None, max_length=1000)
+    # Ghi chú kết quả; None = không đụng, chuỗi rỗng = xoá. Đi kèm complete hoặc action "ghi".
+    ket_qua: str | None = Field(default=None, max_length=2000)
 
 
-class FollowupRow(BaseModel):
-    """Một việc đến hạn/quá hạn trong panel "Cần chăm sóc" trên danh bạ."""
+class LichHenDong(CareOccurrenceOut):
+    """Một lần hẹn trên nút "Lịch hẹn" của danh bạ — như trên lịch của một khách, kèm khách."""
 
-    id: int
     customer_id: int
     customer_code: str
     customer_name: str
-    note: str
-    due_date: datetime
-    remind_level: int
-    overdue_days: int
-    assignee_name: str | None = None
 
 
-class FollowupsOut(BaseModel):
-    items: list[FollowupRow]
+class LichHenOut(BaseModel):
+    items: list[LichHenDong]
+    so: int = 0              # trễ + hôm nay còn mở trong `items` — số đỏ trên nút
+    co_nhom: bool = False    # người xem có thấy hẹn của người khác không (hiện nút Của tôi/Cả nhóm)
 
 
 # --- Nhập Excel (#23; thay đường CSV cũ 11/09/2026) ---------------------------
@@ -471,6 +472,9 @@ class ReceivableCard(BaseModel):
 class CustomerDetailOut(BaseModel):
     customer: CustomerRow
     receivable: ReceivableCard
+    #: Số trên nhãn tab Lịch sử mua hàng / báo giá (mọi trạng thái, mọi thời gian).
+    so_don: int = 0
+    so_bao_gia: int = 0
 
 
 class SaleOption(BaseModel):
@@ -507,82 +511,131 @@ class CustomerReassignOut(BaseModel):
     skipped: int = 0
 
 
-# --- CRM-360 Object-page Dashboard (spec-06, computed from real orders/quotations) ---
+# --- Số liệu hồ sơ THEO KỲ (04/10/2026) — thay Dashboard 12 tháng cứng ---------------------
+# Mọi khối nhận khoảng ngày [tu, den] và trả kèm CÙNG KỲ NĂM TRƯỚC (`*_cu`). Tiền chỉ cộng đơn
+# ĐÃ CHỐT (xem services/khach_hang_so_lieu.py).
 
 
-class MonthPointOut(BaseModel):
-    month: str
-    label: str
-    revenue: int
-    orders: int
+class TongDonOut(BaseModel):
+    doanh_so: int
+    so_don: int
+    tb_don: int | None
+    so_huy: int
+    tien_huy: int
 
 
-class ProductSliceOut(BaseModel):
-    label: str
-    revenue: int
-    orders: int
+class TongBaoGiaOut(BaseModel):
+    so_bg: int
+    tong_gia_tri: int
+    #: Tỉ lệ chốt = thắng / đã chào (luật ở customer_analytics.CHOT_*).
+    thang: int
+    da_chao: int
+    ti_le: int | None
+    #: Số ngày trung bình từ lúc lập báo giá tới đơn đầu tiên sinh ra từ nó.
+    tb_ngay_chot: int | None
 
 
-class HeatCellOut(BaseModel):
-    month_index: int
-    weekday: int
-    count: int
+class CotOut(BaseModel):
+    tu: date
+    den: date
+    doanh_so: int
+    so_don: int
+    doanh_so_cu: int
+    so_don_cu: int
 
 
-class CustomerDashboardOut(BaseModel):
-    """The Dashboard tab: every figure computed from real orders/quotations. When the
-    customer has no history `has_data=False` and the UI shows an honest empty state."""
-
-    revenue_12m: int
-    orders_12m: int
-    avg_order_value: int | None
-    orders_total: int
-    quotes_total: int
-    win_rate_pct: int | None
-    first_order_at: date | None
-    last_order_at: date | None
-    months: list[MonthPointOut]
-    product_mix: list[ProductSliceOut]
-    heatmap: list[HeatCellOut]
-    has_data: bool
-    # Công nợ chỉ-đọc card reused from detail (SEAM-16 aware).
-    receivable: ReceivableCard
+class SanPhamKyOut(BaseModel):
+    ten: str
+    doanh_so: int
+    so_lan: int
+    lan_cuoi: date | None
+    doanh_so_cu: int
 
 
-class OrderLineBriefOut(BaseModel):
-    description: str
-    line_total: int
+class DiemDonOut(BaseModel):
+    ngay: date
+    tong: int
+    huy: bool
 
 
-class OrderHistoryRowOut(BaseModel):
+class NhipOut(BaseModel):
+    tb_ngay: int
+    lan_cuoi: date
+    so_ngay_tu_lan_cuoi: int
+    nhanh_nhat: int
+    lau_nhat: int
+    so_don: int
+    du_kien: date
+
+
+class DangChoOut(BaseModel):
+    so: int
+    tong: int
+    sap_het_han: int
+
+
+class ThongKeKhachOut(BaseModel):
+    tu: date
+    den: date
+    tu_cu: date
+    den_cu: date
+    #: Bước thật của biểu đồ (có thể thô hơn bước xin nếu kỳ quá dài).
+    buoc: str
+    don: TongDonOut
+    don_cu: TongDonOut
+    bao_gia: TongBaoGiaOut
+    bao_gia_cu: TongBaoGiaOut
+    cot: list[CotOut]
+    san_pham: list[SanPhamKyOut]
+    nhip: NhipOut | None
+    diem_don: list[DiemDonOut]
+    dang_cho: DangChoOut
+
+
+class DongDonOut(BaseModel):
     id: int
     order_no: str
     status: str
     order_kind: str
-    summary: str
-    #: Từng dòng kèm TIỀN THẬT — khối "Sản phẩm mua nhiều nhất" cộng theo đây thay vì chia đều
-    #: tổng đơn cho số dấu phẩy trong `summary`.
-    lines: list[OrderLineBriefOut] = []
-    total: int | None
+    tong: int | None
     created_at: datetime
+    bao_gia_id: int | None
+    bao_gia_ma: str | None
+    san_pham: list[str]
 
 
-class OrderHistoryOut(BaseModel):
-    items: list[OrderHistoryRowOut]
+class TrangDonOut(BaseModel):
+    items: list[DongDonOut]
+    tong_so: int
+    #: Số đơn theo nhóm (chot/nhap/huy) trong kỳ + ô tìm — số trên các nút lọc.
+    dem: dict[str, int]
+    tien_chot: int
+    tien_huy: int = 0
+    trang: int
+    co: int
 
 
-class QuoteHistoryRowOut(BaseModel):
+class DongBaoGiaOut(BaseModel):
     id: int
     code: str
     version: int
     status: str
+    #: cho / thanh_don / tu_choi / het_han / chua_gui / huy
+    nhom: str
     total: int | None
     valid_until: date | None
     created_at: datetime
+    don_id: int | None
+    don_ma: str | None
+    don_ngay: datetime | None
 
 
-class QuoteHistoryOut(BaseModel):
-    items: list[QuoteHistoryRowOut]
+class TrangBaoGiaOut(BaseModel):
+    items: list[DongBaoGiaOut]
+    tong_so: int
+    dem: dict[str, int]
+    trang: int
+    co: int
 
 
 # --- Nhật ký khách hàng (unified activity timeline, real events) ---------------
@@ -636,14 +689,11 @@ __all__ = [
     "ReceivableCard",
     "DuplicateRef",
     "SaleOption",
-    "MonthPointOut",
-    "ProductSliceOut",
-    "HeatCellOut",
-    "CustomerDashboardOut",
-    "OrderHistoryRowOut",
-    "OrderHistoryOut",
-    "QuoteHistoryRowOut",
-    "QuoteHistoryOut",
+    "ThongKeKhachOut",
+    "TrangDonOut",
+    "DongDonOut",
+    "TrangBaoGiaOut",
+    "DongBaoGiaOut",
     "CustomerAuditRowOut",
     "CustomerAuditOut",
 ]

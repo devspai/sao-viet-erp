@@ -21,6 +21,7 @@ import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
 import { BangLoi, ChipGap, EmptyState, Skeleton, classHan, ngay, num } from "./keHoachSxShared";
+import { nhanKho } from "../lib/khoGiay";
 import { nhanDonVi } from "./lsxBuoc";
 import { moTaPhieuMua, tomTatPhieuMua, vetDangKep } from "./phieuMuaNhan";
 import { useNapTenDonVi } from "./tenDonVi";
@@ -72,9 +73,20 @@ function nhanLoaiHang(nhom: CanDoiNhom): { label: string; cls: string } {
   }
 }
 
-/** Khoá duy nhất của một dòng trong cả bảng — dùng cho tick chọn, cho React key, và cho payload đề nghị mua. */
+/** Nhóm của bảng = (mặt hàng, khổ): cùng mã giấy khác khổ là hai nhóm. */
+function idNhom(nhom: CanDoiNhom): string {
+  return `${nhom.hang_loai}-${nhom.hang_id}-${nhom.kho_rong}-${nhom.kho_dai}`;
+}
+
+/** Khoá duy nhất của một dòng trong cả bảng — dùng cho tick chọn, cho React key, và cho payload đề nghị mua.
+ *  Cùng thứ tự `_khoa_dong()` của server: loại · mã · khổ rộng · khổ dài · lệnh · bài · bước. */
 function khoa(nhom: CanDoiNhom, d: CanDoiDong): string {
-  return `${nhom.hang_loai}:${nhom.hang_id}:${d.lsx_id ?? ""}:${d.bai_ghep_id ?? ""}:${d.buoc_id ?? ""}`;
+  return `${nhom.hang_loai}:${nhom.hang_id}:${nhom.kho_rong}:${nhom.kho_dai}:${d.lsx_id ?? ""}:${d.bai_ghep_id ?? ""}:${d.buoc_id ?? ""}`;
+}
+
+/** Khổ hiện cạnh tên — chỉ nhóm giấy (giấy tờ đếm theo khổ; nhóm giấy chưa khổ cũng phải nói ra). */
+function khoNhom(nhom: CanDoiNhom): string | null {
+  return nhom.hang_loai === "giay" ? nhanKho(nhom.kho_rong, nhom.kho_dai) : null;
 }
 
 /** Số theo đơn vị gốc — 2 chữ số thập phân, bỏ phần thập phân vô nghĩa. */
@@ -250,19 +262,21 @@ export function VatTuKeHoachView({
   // Nhóm đang mở trong Drawer
   const selectedNhom = useMemo(() => {
     if (!selectedNhomId) return null;
-    return nhoms.find((n) => `${n.hang_loai}-${n.hang_id}` === selectedNhomId) ?? null;
+    return nhoms.find((n) => idNhom(n) === selectedNhomId) ?? null;
   }, [nhoms, selectedNhomId]);
 
-  // Tổng lượng thiếu tính theo các dòng đã chọn
-  const tongKgChon = useMemo(() => {
-    let sum = 0;
+  // Tổng lượng thiếu các dòng đã chọn — cộng RIÊNG theo đơn vị gốc của mặt hàng: giấy đếm tờ
+  // nguyên, mực/dung môi kg; cộng chung rồi gắn một chữ đơn vị là ra "5.000 kg" cho 5.000 tờ.
+  const tongThieuChon = useMemo(() => {
+    const theoDv = new Map<string, number>();
     for (const k of chon) {
       const item = dongDo.get(k);
       if (item?.dong.thieu) {
-        sum += item.dong.thieu;
+        const dv = item.nhom.don_vi_goc ?? "";
+        theoDv.set(dv, (theoDv.get(dv) ?? 0) + item.dong.thieu);
       }
     }
-    return sum;
+    return [...theoDv].filter(([, sl]) => sl > 0);
   }, [chon, dongDo]);
 
   // Tất cả các dòng đỏ trong danh sách hiển thị đã được tick hết chưa
@@ -310,6 +324,8 @@ export function VatTuKeHoachView({
       .map(({ nhom, dong: d }) => ({
         hang_loai: nhom.hang_loai as HangLoai,
         hang_id: nhom.hang_id,
+        kho_rong: nhom.kho_rong,
+        kho_dai: nhom.kho_dai,
         lsx_id: d.lsx_id,
         bai_ghep_id: d.bai_ghep_id,
         buoc_id: d.buoc_id,
@@ -514,7 +530,7 @@ export function VatTuKeHoachView({
             </thead>
             <tbody>
               {nhomsHienThi.map((nhom) => {
-                const nhomId = `${nhom.hang_loai}-${nhom.hang_id}`;
+                const nhomId = idNhom(nhom);
                 const tag = nhanLoaiHang(nhom);
                 const ton = nhom.ton ?? 0;
                 const tongCan = nhom.tong_can ?? 0;
@@ -586,6 +602,7 @@ export function VatTuKeHoachView({
                           </span>
                           <span className={`khvt-item-tag ${tag.cls}`}>{tag.label}</span>
                         </div>
+                        {khoNhom(nhom) && <span className="khvt-item-kho">{nhom.kho_dai ? `Khổ ${khoNhom(nhom)}` : "Chưa có khổ"}</span>}
                       </div>
                     </td>
 
@@ -713,9 +730,10 @@ export function VatTuKeHoachView({
               <span className="khvt-floating-dock__count">
                 Đã chọn <b>{chon.size}</b> dòng thiếu
               </span>
-              {tongKgChon > 0 && (
+              {tongThieuChon.length > 0 && (
                 <span className="khvt-floating-dock__total">
-                  Tổng nhu cầu: <b>{soGoc(tongKgChon)} kg</b>
+                  Tổng nhu cầu:{" "}
+                  <b>{tongThieuChon.map(([dv, sl]) => `${soGoc(sl)} ${nhanDonVi(dv)}`.trim()).join(" · ")}</b>
                 </span>
               )}
               <span className="khvt-floating-dock__hint">
@@ -822,6 +840,12 @@ function VatTuDetailDrawer({
             <div className="khvt-drawer__subline">
               <span>Mã vật tư:</span>
               <span className="khvt-drawer__code">{nhom.hang_ma ?? "—"}</span>
+              {khoNhom(nhom) && (
+                <>
+                  <span>· Khổ:</span>
+                  <span className="khvt-drawer__code">{khoNhom(nhom)}</span>
+                </>
+              )}
             </div>
           </div>
           <button type="button" className="khvt-drawer__x" onClick={onClose} aria-label="Đóng">

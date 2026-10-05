@@ -425,6 +425,57 @@ def _cong_viec_theo_phan_doan(
     return ra
 
 
+def cong_viec_buoc_bai(
+    repo: SanXuatRepository,
+    *,
+    so: _SoPhatHanh,
+    tram: dict,
+    goi_id: int,
+    phien_ban_so: int,
+    bg_id: int,
+    cd,
+    nhom_id: int | None,
+    tieu_chi_theo_cd: dict,
+) -> list[SanXuatCongViec]:
+    """Công việc (theo phân đoạn) của MỘT bước chạy chung của bài ghép. Phát hành gọi cho mọi bước
+    chung; tổ Cắt gọi cho bước cắt vừa chèn sau phát hành (`chot_giay`)."""
+    return _cong_viec_theo_phan_doan(
+        repo, lich=repo.lich_bg_step(cd.id), cd=cd,
+        tieu_chi_theo_cd=tieu_chi_theo_cd,
+        hanh_ly=_hanh_ly(so, cd, lsx_id=None, bai_ghep_id=bg_id, tram=tram),
+        chung=dict(
+            goi_id=goi_id, phien_ban_so=phien_ban_so,
+            nhom_id=nhom_id, lsx_id=None, bai_ghep_id=bg_id,
+            bai_ghep_cong_doan_id=cd.id,
+        ),
+    )
+
+
+def cong_viec_buoc_lsx(
+    repo: SanXuatRepository,
+    *,
+    so: _SoPhatHanh,
+    tram: dict,
+    goi_id: int,
+    phien_ban_so: int,
+    lsx_id: int,
+    cd,
+    nhom_id: int | None,
+    tieu_chi_theo_cd: dict,
+) -> list[SanXuatCongViec]:
+    """Công việc (theo phân đoạn) của MỘT bước riêng của lệnh — cùng vai như `cong_viec_buoc_bai`."""
+    return _cong_viec_theo_phan_doan(
+        repo, lich=repo.lich_lsx_step(cd.id), cd=cd,
+        tieu_chi_theo_cd=tieu_chi_theo_cd,
+        hanh_ly=_hanh_ly(so, cd, lsx_id=lsx_id, bai_ghep_id=None, tram=tram),
+        chung=dict(
+            goi_id=goi_id, phien_ban_so=phien_ban_so,
+            nhom_id=nhom_id, lsx_id=lsx_id, bai_ghep_id=None,
+            lsx_cong_doan_id=cd.id,
+        ),
+    )
+
+
 def dung_cong_viec(
     repo: SanXuatRepository,
     *,
@@ -467,15 +518,9 @@ def dung_cong_viec(
                 if lid in nhom_by_lsx
             }
             nhom_id = next(iter(nhom_ids)) if len(nhom_ids) == 1 else None
-            cvs = _cong_viec_theo_phan_doan(
-                repo, lich=repo.lich_bg_step(cd.id), cd=cd,
-                tieu_chi_theo_cd=tieu_chi_theo_cd,
-                hanh_ly=_hanh_ly(so, cd, lsx_id=None, bai_ghep_id=bg_id, tram=tram),
-                chung=dict(
-                    goi_id=goi.id, phien_ban_so=phien_ban_so,
-                    nhom_id=nhom_id, lsx_id=None, bai_ghep_id=bg_id,
-                    bai_ghep_cong_doan_id=cd.id,
-                ),
+            cvs = cong_viec_buoc_bai(
+                repo, so=so, tram=tram, goi_id=goi.id, phien_ban_so=phien_ban_so,
+                bg_id=bg_id, cd=cd, nhom_id=nhom_id, tieu_chi_theo_cd=tieu_chi_theo_cd,
             )
             cv_by_step[cd.step_key] = cvs
             for sk in covered:
@@ -487,15 +532,10 @@ def dung_cong_viec(
         for cd in steps_by_lsx.get(lsx_id) or []:
             if cd.step_key in covered_step_keys:
                 continue
-            cv_by_step[cd.step_key] = _cong_viec_theo_phan_doan(
-                repo, lich=repo.lich_lsx_step(cd.id), cd=cd,
+            cv_by_step[cd.step_key] = cong_viec_buoc_lsx(
+                repo, so=so, tram=tram, goi_id=goi.id, phien_ban_so=phien_ban_so,
+                lsx_id=lsx_id, cd=cd, nhom_id=grp.id if grp else None,
                 tieu_chi_theo_cd=tieu_chi_theo_cd,
-                hanh_ly=_hanh_ly(so, cd, lsx_id=lsx_id, bai_ghep_id=None, tram=tram),
-                chung=dict(
-                    goi_id=goi.id, phien_ban_so=phien_ban_so,
-                    nhom_id=grp.id if grp else None, lsx_id=lsx_id, bai_ghep_id=None,
-                    lsx_cong_doan_id=cd.id,
-                ),
             )
 
     return cv_by_step

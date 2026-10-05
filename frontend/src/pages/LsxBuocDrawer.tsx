@@ -16,16 +16,20 @@ import { Button } from "../components/Button";
 import { Select, type SelectOption } from "../components/Select";
 import type { ViTriDai } from "./gia-cong/giaCong";
 import { dvNhan as dvNhanChung, type RefRow } from "./LsxRoutingTable";
+import { nhanDangKho } from "../lib/khoGiay";
 import { num } from "./keHoachSxShared";
-import { donViOptions, useNapTenDonVi } from "./tenDonVi";
+import { donViOptions, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
   type EditRow,
   type HangLoai,
   capMon,
+  giayChoLuu,
   heSoChu,
+  laMayTinh,
   mayChonDuoc,
   nhanChang,
   nhanDonVi,
+  nhanGiayTheoDauVao,
   phut,
   tenBuoc,
   thoiLuong,
@@ -231,7 +235,8 @@ export function LsxBuocDrawer({
       if (daCo("giay", x.id)) continue;
       ds.push({
         value: capMon("giay", x.id),
-        label: `${x.ten} (${nhanDonVi(x.donVi)})`,
+        label: nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi))
+          ? `${x.ten} (${nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi))})` : x.ten,
         search: x.ma ?? "",
         group: "NVL chính — danh mục Giấy",
       });
@@ -246,7 +251,7 @@ export function LsxBuocDrawer({
       });
     }
     return ds;
-  }, [giayRefs, vatTuRefs, row.vat_tus]);
+  }, [giayRefs, vatTuRefs, row.vat_tus, row.don_vi_vao]);
 
   const mayForm = mayRefs?.find((m) => m.id === row.may_id) ?? null;
   const t = useMemo(() => thoiLuong(row, mayForm), [row, mayForm]);
@@ -860,7 +865,21 @@ export function LsxBuocDrawer({
                       tenKhach={tenKhach}
                       khuonRefs={khuonRefs}
                       canUpdate={canUpdate}
-                      onChon={(id) => set("khuon_be_id", id)}
+                      onChon={(id) => {
+                        // Gán ĐỦ bộ trường của dao, không chỉ id: thẻ DAG / bảng công đoạn đọc
+                        // `khuon_be_ma` + tình trạng, mà mấy trường đó trước chỉ có sau khi Lưu ⇒
+                        // chọn xong thẻ vẫn kêu "chưa chốt khuôn". Bỏ chọn thì xoá sạch, kẻo thẻ
+                        // còn giữ mã cũ. Dao vừa tạo chưa kịp vào danh sách ⇒ chỉ có id, Lưu xong
+                        // máy chủ trả đủ.
+                        const dao = id == null ? null : (khuonRefs ?? []).find((k) => k.id === id);
+                        onPatch({
+                          khuon_be_id: id,
+                          khuon_be_ma: dao?.ma ?? null,
+                          khuon_be_ten: dao?.ten ?? null,
+                          khuon_be_so_ke: dao?.so_ke ?? null,
+                          khuon_be_tinh_trang: dao?.tinh_trang ?? null,
+                        });
+                      }}
                       onTaoMoi={onTaoKhuon}
                     />
                   )}
@@ -894,49 +913,20 @@ export function LsxBuocDrawer({
                       </span>
                       <span className="khsx-vattu-metric-dot" />
                       <span className="khsx-vattu-metric-chip">
-                        Tự tính: <strong>{row.vat_tus.filter((v) => v.tu_dong).length}</strong>
+                        Tự tính: <strong>{row.vat_tus.filter(laMayTinh).length}</strong>
                       </span>
                       <span className="khsx-vattu-metric-dot" />
                       <span className="khsx-vattu-metric-chip">
-                        Đã sửa: <strong>{row.vat_tus.filter((v) => !v.tu_dong).length}</strong>
+                        Đã sửa: <strong>{row.vat_tus.filter((v) => !laMayTinh(v)).length}</strong>
                       </span>
                     </div>
 
-                    {canUpdate &&
-                      row.vat_tus.some((v) => {
-                        const g = row.vat_tu_goi_y.find(
-                          (x) => capMon(x.hang_loai, x.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
-                        return (
-                          g?.so_luong != null &&
-                          (!v.tu_dong || Math.abs(g.so_luong - Number(v.so_luong)) > 0.0005)
-                        );
-                      }) && (
-                        <button
-                          type="button"
-                          className="khsx-vattu-sync-all-btn"
-                          title="Cập nhật toàn bộ số lượng theo công thức định mức"
-                          onClick={() => {
-                            set(
-                              "vat_tus",
-                              row.vat_tus.map((v) => {
-                                const g = row.vat_tu_goi_y.find(
-                          (x) => capMon(x.hang_loai, x.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
-                                return g?.so_luong != null
-                                  ? { ...v, so_luong: String(g.so_luong), tu_dong: true }
-                                  : v;
-                              }),
-                            );
-                          }}
-                        >
-                          Đồng bộ tất cả theo công thức
-                        </button>
-                      )}
                   </div>
                 )}
 
                 {/* Bảng Kỹ Thuật Data Table */}
                 <div className="khsx-vattu-table-wrap">
-                  <table className="khsx-vattu-table">
+                  <table className="khsx-vattu-table khsx-vattu-table--lsx">
                     <thead className="khsx-vattu-thead">
                       <tr>
                         <th className="khsx-vattu-th" style={{ width: "28%" }}>VẬT TƯ & QUY CÁCH</th>
@@ -957,13 +947,8 @@ export function LsxBuocDrawer({
                         row.vat_tus.map((v, i) => {
                           const goiY = row.vat_tu_goi_y.find(
                             (g) => capMon(g.hang_loai, g.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
-                          const soMay = goiY?.so_luong ?? null;
-                          const soLuu = v.so_luong.trim() === "" ? null : Number(v.so_luong);
-                          const lech =
-                            soMay !== null &&
-                            soLuu !== null &&
-                            Number.isFinite(soLuu) &&
-                            Math.abs(soMay - soLuu) > 0.0005;
+                          // Giấy vừa chọn chưa lưu: máy chủ chưa dẫn xuất — có lý do lỗi thì vẫn nói lý do.
+                          const choLuu = giayChoLuu(v) && !goiY?.ly_do;
                           return (
                             <tr className="khsx-vattu-tr" key={capMon(v.hang_loai, v.vat_tu_id)}>
                               <td className="khsx-vattu-td khsx-vattu-td--info">
@@ -974,35 +959,36 @@ export function LsxBuocDrawer({
                                     <span className="khsx-vattu-nvl-badge">NVL chính</span>
                                   )}
                                 </div>
+                                {/* Vật tư khác: chip đã chép từ phiếu — chỉ đọc. */}
+                                {v.hang_loai !== "giay" && (v.chips ?? []).length > 0 && (
+                                  <div className="lsx-vt-chip">
+                                    {(v.chips ?? []).map((c) => (
+                                      <span key={c.ma}>{c.ten}: <b>{v.gia_tri_chip?.[c.ma] ?? 0}</b>{c.don_vi && tenDonVi(c.don_vi) ? ` ${tenDonVi(c.don_vi)}` : ""}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {/* Giấy: dạng + khổ do MÁY CHỦ suy từ đầu vào của bước — chỉ đọc. */}
+                                {v.hang_loai === "giay" && (
+                                  <div className="khsx-vattu-kho">
+                                    <span className="khsx-vattu-kho__label">
+                                      {nhanDangKho(
+                                        v.dang_giay ?? goiY?.dang_giay,
+                                        Number(v.kho_rong) || goiY?.kho_rong,
+                                        Number(v.kho_dai) || goiY?.kho_dai,
+                                      ) || "Dạng và khổ do máy tính khi lưu"}
+                                    </span>
+                                  </div>
+                                )}
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--why">
                                 {goiY?.dien_giai ? (
                                   <div className="khsx-formula-wrap">
                                     <code className="khsx-formula-code">{goiY.dien_giai}</code>
-                                    {lech && (
-                                      <div className="khsx-diff-badge">
-                                        <span>Lệch: {num(soMay as number)} {nhanDonVi(v.don_vi)}</span>
-                                        {canUpdate && (
-                                          <button
-                                            type="button"
-                                            className="khsx-vattu-fix-btn"
-                                            onClick={() =>
-                                              set(
-                                                "vat_tus",
-                                                row.vat_tus.map((x, j) =>
-                                                  j === i
-                                                    ? { ...x, so_luong: String(soMay), tu_dong: true }
-                                                    : x,
-                                                ),
-                                              )
-                                            }
-                                          >
-                                            Dùng số này
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
                                   </div>
+                                ) : choLuu ? (
+                                  <span className="khsx-vattu-no-formula">
+                                    Số tờ theo đầu vào của bước — máy tính khi lưu.
+                                  </span>
                                 ) : (
                                   <span className="khsx-vattu-no-formula">
                                     Chưa tự tính được — {goiY?.ly_do ?? "chưa có công thức lượng."}
@@ -1010,31 +996,64 @@ export function LsxBuocDrawer({
                                 )}
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--status">
-                                <span className={`khsx-vattu-src-badge ${v.tu_dong ? "is-auto" : "is-manual"}`}>
-                                  {v.tu_dong ? "Tự tính" : "Đã sửa"}
+                                <span className={`khsx-vattu-src-badge ${laMayTinh(v) ? "is-auto" : "is-manual"}`}>
+                                  {laMayTinh(v) ? "Tự tính" : "Đã sửa"}
                                 </span>
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--input">
-                                <div className="khsx-vattu-input-group">
-                                  <input
-                                    type="number"
-                                    min="0.001"
-                                    step="any"
-                                    className="khsx-vattu-num-input"
-                                    value={v.so_luong}
-                                    placeholder="0"
-                                    disabled={!canUpdate}
-                                    onChange={(e) =>
-                                      set(
-                                        "vat_tus",
-                                        row.vat_tus.map((x, j) =>
-                                          j === i ? { ...x, so_luong: e.target.value, tu_dong: false } : x,
-                                        ),
-                                      )
-                                    }
-                                  />
-                                  <span className="khsx-vattu-unit-tag">{nhanDonVi(v.don_vi)}</span>
+                                {/* Vật tư khác giấy: máy tính sẵn từ công thức nhưng người lập lệnh SỬA được —
+                                    gõ là thành "Đã sửa", máy thôi tính đè. Giấy suy từ đầu vào của bước — chỉ đọc. */}
+                                {v.hang_loai !== "giay" && canUpdate ? (
+                                  <div className="khsx-vattu-dinh-muc">
+                                    <div className="khsx-vattu-input-group">
+                                      <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        min={0}
+                                        step="any"
+                                        className="khsx-vattu-num-input"
+                                        aria-label={`Định mức ${v.vat_tu_ten}`}
+                                        value={v.so_luong}
+                                        onChange={(e) =>
+                                          set("vat_tus", row.vat_tus.map((x, j) => (j === i
+                                            ? { ...x, so_luong: e.target.value, sua_tay: true, tu_dong: false }
+                                            : x)))
+                                        }
+                                      />
+                                      <span className="khsx-vattu-unit-tag">{nhanDonVi(v.don_vi)}</span>
+                                    </div>
+                                    {v.sua_tay && (
+                                      <button
+                                        type="button"
+                                        className="khsx-vattu-tinh-lai"
+                                        title="Bỏ số đã gõ, để máy tính lại theo công thức khi lưu"
+                                        onClick={() =>
+                                          set("vat_tus", row.vat_tus.map((x, j) => (j === i
+                                            ? { ...x, sua_tay: false,
+                                                so_luong: goiY?.so_luong != null ? String(goiY.so_luong) : x.so_luong }
+                                            : x)))
+                                        }
+                                      >
+                                        Tính lại theo công thức
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                <div className="khsx-vattu-input-group is-readonly">
+                                  {choLuu ? (
+                                    <span className="khsx-vattu-unit-tag">Tính khi lưu</span>
+                                  ) : (
+                                    <>
+                                      <strong>
+                                        {Number.isFinite(Number(v.so_luong))
+                                          ? Number(v.so_luong).toLocaleString("vi-VN", { maximumFractionDigits: 3 })
+                                          : v.so_luong}
+                                      </strong>
+                                      <span className="khsx-vattu-unit-tag">{nhanDonVi(v.don_vi)}</span>
+                                    </>
+                                  )}
                                 </div>
+                                )}
                               </td>
                               <td className="khsx-vattu-td khsx-vattu-td--action" style={{ textAlign: "center" }}>
                                 {canUpdate && (
@@ -1096,9 +1115,15 @@ export function LsxBuocDrawer({
                                       vat_tu_id: item.id,
                                       vat_tu_ma: item.ma ?? "",
                                       vat_tu_ten: item.ten,
-                                      don_vi: item.donVi ?? "",
+                                      // Giấy: đơn vị + khổ + dạng do máy chủ gợi ý theo đầu vào của
+                                      // bước (chỉ để hiện — lưu xong máy chủ ghi lại).
+                                      don_vi: (hangLoai === "giay" ? goiY?.don_vi : undefined)
+                                        ?? item.donVi ?? "",
                                       so_luong: goiY?.so_luong != null ? String(goiY.so_luong) : "",
                                       tu_dong: false,
+                                      kho_rong: hangLoai === "giay" && goiY?.kho_rong ? String(goiY.kho_rong) : "",
+                                      kho_dai: hangLoai === "giay" && goiY?.kho_dai ? String(goiY.kho_dai) : "",
+                                      dang_giay: hangLoai === "giay" ? goiY?.dang_giay ?? null : null,
                                     },
                                   ]);
                                 }}
@@ -1597,15 +1622,11 @@ export function LsxBuocDrawer({
   );
 }
 
-/** Nhãn loại dụng cụ — khớp `khuon_be.LOAI_KHUON` (mg 0205; `khung_lua` thêm 04/09/2026 vì khung
- *  lụa cũng nằm kho dùng lại, không phải vật tư tiêu hao). Trước đây chỗ này là phép hỏi
- *  `=== "khuon_ep" ? … : "khuôn bế"`, nên bước IN LỤA mở thẻ ra thấy chữ "khuôn bế" — kho đã nhận
- *  khung lụa mà màn vẫn gọi sai tên. Dòng chưa phân loại (`loai = null`, 6 dòng khai trước mg
- *  0205) rơi về chữ chung. */
+/** Nhãn loại dụng cụ — khớp `khuon_be.LOAI_KHUON`. 01/10/2026: chỉ còn khuôn bế (ép kim / khung
+ *  lụa đã gỡ; máy chủ không bật cờ "phải chốt khuôn" cho hai loại đó nên thẻ này không mở ra với
+ *  chúng). Dòng chưa phân loại (`loai = null`) rơi về chữ chung. */
 const NHAN_TOOLING: Record<string, string> = {
   khuon_be: "khuôn bế",
-  khuon_ep: "khuôn ép kim",
-  khung_lua: "khung lụa",
 };
 
 /** Tình trạng khuôn rút thành CHỮ NGẮN đứng cạnh tên trong ô chọn — chỉ hiện khi KHÔNG bình

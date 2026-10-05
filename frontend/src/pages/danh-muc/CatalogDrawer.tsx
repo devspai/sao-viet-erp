@@ -15,7 +15,8 @@ import {
   BandsField, ChuanBiKhoanField, DonViTocDoField, FormulaField,
   KhoanCongDoanField, LichBaoTriField, MayCuaCongDoanField, NhomMayField, NhomMayMultiField, RefMultiField,
   RefSearchField,
-  SelfRefMultiField, ToMultiField, VatTuCongDoanField, ViecPhatSinhField,
+  SelfRefMultiField, ToMultiField, VatTuChipsField, VatTuCongDoanField, ViecPhatSinhField, chipsThanhBien,
+  type VatTuChipRow,
 } from "./fields";
 import { goiYMaTiepTheo } from "./maGoiY";
 import { useNapTenDonVi } from "../tenDonVi";
@@ -30,7 +31,7 @@ import type {
 /** Ô mà GIÁ TRỊ là một MẢNG (bảng con / chọn nhiều) — khởi tạo `[]` và gửi lên nguyên mảng. */
 const KIEU_MANG = new Set<string>([
   "ref-multi", "self-ref-multi", "nhom_may-multi", "bands", "vat-tu-cong-doan", "may-cua-cong-doan",
-  "viec-phat-sinh", "to-multi",
+  "viec-phat-sinh", "to-multi", "vat-tu-chip",
 ]);
 
 /** Bỏ mục đã NGỪNG DÙNG khỏi một ô chọn — TRỪ mục bản ghi đang trỏ tới; mục đó ở lại, và mang
@@ -68,7 +69,7 @@ function locConDung(rows: Row[], dangChon: unknown, nhan = true): Row[] {
 
 const KIEU_CO_THAM_CHIEU = new Set<string>([
   "ref", "ref-multi", "self-ref-multi", "ref-search", "ref-search-ma",
-  "may-cua-cong-doan", "don_vi_toc_do", "nhom_may", "nhom_may-multi", "viec-phat-sinh", "khoan-cong-doan", "to-multi",
+  "may-cua-cong-doan", "don_vi_toc_do", "nhom_may", "nhom_may-multi", "viec-phat-sinh", "khoan-cong-doan", "to-multi", "vat-tu-chip",
 ]);
 
 /** Danh mục nguồn cần nạp cho các ô chọn của drawer: `{prefix: query}`. Gộp `refParams` theo
@@ -279,7 +280,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
     const { cleanLabel, suffix } = parseLabelAndSuffix(f.label);
     const hint = typeof f.hint === "function" ? f.hint(form) : f.hint;
     const laDonVi = config.prefix.includes("don-vi");
-    const isFullWidth = f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "ref-multi" || f.type === "self-ref-multi" || f.type === "nhom_may-multi" || f.type === "vat-tu-cong-doan" || f.type === "may-cua-cong-doan" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "to-multi" || f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta";
+    const isFullWidth = f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "ref-multi" || f.type === "self-ref-multi" || f.type === "nhom_may-multi" || f.type === "vat-tu-cong-doan" || f.type === "vat-tu-chip" || f.type === "may-cua-cong-doan" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "to-multi" || f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta";
     // "div" chứ không "label": khối này chứa NHIỀU input, bọc trong <label> là bấm đâu cũng nhảy
     // focus vào ô đầu tiên.
     const Tag = f.type === "formula" || f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" ? "div" : "label";
@@ -322,6 +323,12 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
         ) : f.type === "vat-tu-cong-doan" ? (
           <VatTuCongDoanField value={Array.isArray(form[f.key]) ? form[f.key] as VatTuCongDoanRow[] : []}
             onChange={(v) => set(f.key, v)} />
+        ) : f.type === "vat-tu-chip" ? (
+          <VatTuChipsField value={Array.isArray(form[f.key]) ? form[f.key] as VatTuChipRow[] : []}
+            // Đơn vị chọn từ danh mục Đơn vị & quy đổi (giữ lại đơn vị đang được chip chọn dù đã ngừng dùng).
+            donViOptions={locConDung(refData[f.refPrefix ?? ""] ?? [],
+              Array.isArray(form[f.key]) ? (form[f.key] as VatTuChipRow[]).map((r) => r.don_vi ?? "") : [])}
+            onChange={(v) => set(f.key, v)} />
         ) : f.type === "select" ? (
           <div className="rc-input-wrapper">
             <select className="rc-input" value={String(form[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value)}>
@@ -332,7 +339,15 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
               {(() => {
                 const ds = typeof f.options === "function" ? f.options() : f.options;
                 if (f.options && !ds?.length) return <option disabled>Đang nạp danh sách…</option>;
-                return ds?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>);
+                const cur = String(form[f.key] ?? "");
+                const cu = f.nhanCu?.[cur];
+                return (
+                  <>
+                    {ds?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    {cur && cu && !ds?.some((o) => o.value === cur)
+                      && <option value={cur}>{cu} (đã gỡ)</option>}
+                  </>
+                );
               })()}
             </select>
           </div>
@@ -412,10 +427,9 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             // Ô tự khai loại (vd "Công thức tính lượng" ở Vật tư/Giấy) thì ÉP bộ chip theo nó —
             // một màn có thể có hai ô công thức hỏi hai câu khác nhau.
             loaiO={f.loaiO}
-            // `an` nhận cả HÀM theo form đang gõ (xem `types.ts`) — ba chip khuôn ép kim chỉ hiện
-            // khi bước khai "Loại khuôn = Khuôn ép kim", vì chỉ bước đó phiếu tính giá
-            // mới hỏi ba ô Dài/Rộng/Số. Bước khung lụa hay khuôn bế mà bày chip là mời gõ vào chỗ
-            // luôn bằng 0. Ẩn CHỈ ở khâu hiển thị: công thức cũ lỡ dùng vẫn hợp lệ, vẫn tính như cũ.
+            bienThem={f.chipsTu ? chipsThanhBien(Array.isArray(form[f.chipsTu]) ? form[f.chipsTu] as VatTuChipRow[] : []) : undefined}
+            // `an` nhận cả HÀM theo form đang gõ (xem `types.ts`). Ẩn CHỈ ở khâu hiển thị: công
+            // thức cũ lỡ dùng vẫn hợp lệ, vẫn tính như cũ.
             an={typeof f.an === "function" ? f.an(form) : f.an}
             id={`formula-${f.key}`}
             // Nhãn TRONG khung đi theo nhãn của CHÍNH field. Trước 17/08/2026 nó đóng đinh
@@ -429,11 +443,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             nhanO={laDonVi ? "Cách đo của đơn vị này" : cleanLabel}
             goY={laDonVi
               ? "vd: dai_in * rong_in * sl_ra  (một m² tờ in đo thế nào)"
-              : (hint || undefined)}
-            // "Lần trước" (mục 3+7): chỉ có khi ĐANG SỬA — dòng mới tạo chưa có lịch sử.
-            recordId={isEdit && existing ? Number(existing.id) : null}
-            truocGiaTri={existing ? (existing[`${f.key}_truoc`] as string | null | undefined) ?? null : null}
-            truocSuaLuc={existing ? (existing[`${f.key}_sua_luc`] as string | null | undefined) ?? null : null} />
+              : (hint || undefined)} />
         ) : f.type === "checkbox" ? (
           <label className="rc-switch">
             <input type="checkbox" checked={!!form[f.key]} onChange={(e) => set(f.key, e.target.checked)} />

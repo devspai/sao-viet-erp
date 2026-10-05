@@ -112,30 +112,6 @@ class DepartmentService:
         # chạy; `deps.get_department_service` luôn truyền.
         self.deliveries = deliveries
 
-    def _head_name(self, dept: Department) -> str | None:
-        if dept.head_user_id is None:
-            return None
-        head = self.users.get_by_id(dept.head_user_id)
-        return head.name if head is not None else None
-
-    def _head_avatar(self, dept: Department) -> str | None:
-        """Ảnh đại diện của trưởng phòng.
-
-        Phải trả từ SERVER chứ không để FE tự suy: FE chỉ có ảnh của người đang đăng nhập (trong
-        context xác thực), nên nếu không trả field này thì ai mở màn cũng chỉ thấy đúng ảnh của
-        chính mình, còn mọi người khác ra chữ viết tắt."""
-        if dept.head_user_id is None:
-            return None
-        head = self.users.get_by_id(dept.head_user_id)
-        return head.avatar_url if head is not None else None
-
-    def _head_title(self, dept: Department) -> str | None:
-        """The head's title from the department's level (spec-06 / PBI-4004 label), or None."""
-        if dept.level_id is None:
-            return None
-        level = self.levels.get_by_id(dept.level_id)
-        return (level.head_title or None) if level is not None else None
-
     def _level_rank(self, level_id: int | None) -> int | None:
         if level_id is None:
             return None
@@ -173,18 +149,72 @@ class DepartmentService:
                         "Cấp của đơn vị phải cao hơn cấp của các đơn vị con"
                     )
 
+    def _dem_theo_phong(self) -> tuple[dict[int, int], dict[int, int], dict[int, int]]:
+        """Số vai / tài khoản / hồ sơ của MỌI phòng — ba truy vấn `GROUP BY`, không phụ thuộc số
+        phòng. Bản cũ đếm 3 câu cho TỪNG phòng (39 phòng ⇒ ~120 truy vấn, ~0,7s mỗi lần mở màn)."""
+        return (
+            self.roles.counts_by_department(),
+            self.users.counts_by_department(),
+            # Đ2: "số nhân sự" đếm theo HỒ SƠ (employees), tách khỏi "số tài khoản" (users).
+            self.employees.counts_by_department(),
+        )
+
+    def _dong_tom_tat(
+        self, dept: Department, *, dem: tuple[int, int, int], tong: tuple[int, int, int],
+        heads: dict, levels: dict,
+    ) -> dict:
+        """Một dòng danh sách phòng. `heads`/`levels` là map đã nạp SẴN một lượt cho cả danh
+        sách — dựng dòng không được tự đi hỏi DB (đó là chỗ N+1 cũ)."""
+        head = heads.get(dept.head_user_id) if dept.head_user_id is not None else None
+        level = levels.get(dept.level_id) if dept.level_id is not None else None
+        return {
+            "id": dept.id,
+            "name": dept.name,
+            "code": dept.code,
+            "description": dept.description,
+            "parent_id": dept.parent_id,
+            "head_user_id": dept.head_user_id,
+            "head_name": head.name if head is not None else None,
+            # Ảnh đại diện của trưởng phòng phải trả từ SERVER: FE chỉ có ảnh của người đang đăng
+            # nhập, thiếu field này thì ai mở màn cũng chỉ thấy đúng ảnh của chính mình.
+            "head_avatar_url": head.avatar_url if head is not None else None,
+            "level_id": dept.level_id,
+            # Chức danh trưởng lấy theo cấp của đơn vị (spec-06 / PBI-4004).
+            "head_title": (level.head_title or None) if level is not None else None,
+            "la_san_xuat": dept.la_san_xuat,
+            "la_kinh_doanh": dept.la_kinh_doanh,
+            "is_kcs": dept.is_kcs,
+            "la_giao_hang": dept.la_giao_hang,
+            "la_to_in": dept.la_to_in,
+            "la_to_cat": dept.la_to_cat,
+            "don_gia_km": float(dept.don_gia_km or 0),
+            "pct_tai_xe": float(dept.pct_tai_xe if dept.pct_tai_xe is not None else 60),
+            "pct_phu_xe": float(dept.pct_phu_xe if dept.pct_phu_xe is not None else 40),
+            "role_count": dem[0],
+            "user_count": dem[1],
+            "employee_count": dem[2],
+            "total_role_count": tong[0],
+            "total_user_count": tong[1],
+            "total_employee_count": tong[2],
+            "has_piece_work": dept.has_piece_work,
+        }
+
+    def _nap_head_level(self, depts: list[Department]) -> tuple[dict, dict]:
+        heads = self.users.get_many(d.head_user_id for d in depts)
+        levels = {lv.id: lv for lv in self.levels.list_all()}
+        return heads, levels
+
     def list_summaries(self) -> list[dict]:
         """All departments with own + branch-rolled-up role/user counts (PBI-4001).
 
         Counts each department's own roles/users once, then sums every descendant's counts
         into each ancestor via a memoized walk over the parent→children map — so a parent
-        unit's `total_*` aggregates its whole sub-tree.
+        unit's `total_*` aggregates its whole sub-tree. Số truy vấn CỐ ĐỊNH (guard
+        `test_phong_ban_khong_n_cong_1`), không tăng theo số phòng.
         """
         depts = self.departments.list_all()
-        own_roles = {d.id: self.roles.count_by_department(d.id) for d in depts}
-        own_users = {d.id: self.users.count_by_department(d.id) for d in depts}
-        # Đ2: "số nhân sự" đếm theo HỒ SƠ (employees), tách khỏi "số tài khoản" (users).
-        own_emps = {d.id: self.employees.count_by_department(d.id) for d in depts}
+        own_roles, own_users, own_emps = self._dem_theo_phong()
+        heads, levels = self._nap_head_level(depts)
 
         children: dict[int, list[int]] = {}
         for d in depts:
@@ -209,74 +239,32 @@ class DepartmentService:
             role_total[dept_id], user_total[dept_id], emp_total[dept_id] = r, u, e
             return r, u, e
 
-        rows: list[dict] = []
-        for dept in depts:
-            tr, tu, te = totals(dept.id, frozenset())
-            rows.append(
-                {
-                    "id": dept.id,
-                    "name": dept.name,
-                    "code": dept.code,
-                    "description": dept.description,
-                    "parent_id": dept.parent_id,
-                    "head_user_id": dept.head_user_id,
-                    "head_name": self._head_name(dept),
-                    "head_avatar_url": self._head_avatar(dept),
-                    "level_id": dept.level_id,
-                    "head_title": self._head_title(dept),
-                    "la_san_xuat": dept.la_san_xuat,
-                    "la_kinh_doanh": dept.la_kinh_doanh,
-                    "is_kcs": dept.is_kcs,
-                    "la_giao_hang": dept.la_giao_hang,
-                    "la_to_in": dept.la_to_in,
-                    "don_gia_km": float(dept.don_gia_km or 0),
-                    "pct_tai_xe": float(dept.pct_tai_xe if dept.pct_tai_xe is not None else 60),
-                    "pct_phu_xe": float(dept.pct_phu_xe if dept.pct_phu_xe is not None else 40),
-                    "role_count": own_roles[dept.id],
-                    "user_count": own_users[dept.id],
-                    "employee_count": own_emps[dept.id],
-                    "total_role_count": tr,
-                    "total_user_count": tu,
-                    "total_employee_count": te,
-                    "has_piece_work": dept.has_piece_work,
-                }
+        return [
+            self._dong_tom_tat(
+                dept,
+                dem=(own_roles.get(dept.id, 0), own_users.get(dept.id, 0), own_emps.get(dept.id, 0)),
+                tong=totals(dept.id, frozenset()),
+                heads=heads, levels=levels,
             )
-        return rows
+            for dept in depts
+        ]
 
     def summary_of(self, dept: Department) -> dict:
         """Build the list-row shape for a single department (after create/update), including
         the branch-rolled-up counts (PBI-4001)."""
         branch = self.departments.subtree(dept.id)
-        total_roles = sum(self.roles.count_by_department(d.id) for d in branch)
-        total_users = sum(self.users.count_by_department(d.id) for d in branch)
-        total_emps = sum(self.employees.count_by_department(d.id) for d in branch)
-        return {
-            "id": dept.id,
-            "name": dept.name,
-            "code": dept.code,
-            "description": dept.description,
-            "parent_id": dept.parent_id,
-            "head_user_id": dept.head_user_id,
-            "head_name": self._head_name(dept),
-            "head_avatar_url": self._head_avatar(dept),
-            "level_id": dept.level_id,
-            "head_title": self._head_title(dept),
-            "la_san_xuat": dept.la_san_xuat,
-            "la_kinh_doanh": dept.la_kinh_doanh,
-            "is_kcs": dept.is_kcs,
-            "la_giao_hang": dept.la_giao_hang,
-            "la_to_in": dept.la_to_in,
-            "don_gia_km": float(dept.don_gia_km or 0),
-            "pct_tai_xe": float(dept.pct_tai_xe if dept.pct_tai_xe is not None else 60),
-            "pct_phu_xe": float(dept.pct_phu_xe if dept.pct_phu_xe is not None else 40),
-            "role_count": self.roles.count_by_department(dept.id),
-            "user_count": self.users.count_by_department(dept.id),
-            "employee_count": self.employees.count_by_department(dept.id),
-            "total_role_count": total_roles,
-            "total_user_count": total_users,
-            "total_employee_count": total_emps,
-            "has_piece_work": dept.has_piece_work,
-        }
+        own_roles, own_users, own_emps = self._dem_theo_phong()
+        heads, levels = self._nap_head_level([dept])
+        return self._dong_tom_tat(
+            dept,
+            dem=(own_roles.get(dept.id, 0), own_users.get(dept.id, 0), own_emps.get(dept.id, 0)),
+            tong=(
+                sum(own_roles.get(d.id, 0) for d in branch),
+                sum(own_users.get(d.id, 0) for d in branch),
+                sum(own_emps.get(d.id, 0) for d in branch),
+            ),
+            heads=heads, levels=levels,
+        )
 
     def members_of_department(self, department_id: int) -> list[dict]:
         """NHÂN SỰ của một phòng — liệt kê theo HỒ SƠ, không phải theo tài khoản (Đ2:
@@ -285,13 +273,14 @@ class DepartmentService:
         cần đăng nhập) — những người đó trước đây bị màn Phòng ban bỏ sót."""
         dept = self.departments.get_by_id(department_id)
         head_id = dept.head_user_id if dept is not None else None
+        emps = self.employees.list_by_department(department_id)
+        # Tài khoản + tên vai nạp MỘT lượt cho cả phòng (bản cũ hỏi 2 câu cho từng người).
+        users = self.users.get_many(e.user_id for e in emps)
+        ten_vai = self.roles.names_by_ids(u.role_id for u in users.values())
         members: list[dict] = []
-        for emp in self.employees.list_by_department(department_id):
-            user = self.users.get_by_id(emp.user_id) if emp.user_id is not None else None
-            role_name = None
-            if user is not None and user.role_id is not None:
-                role = self.roles.get_by_id(user.role_id)
-                role_name = role.name if role is not None else None
+        for emp in emps:
+            user = users.get(emp.user_id) if emp.user_id is not None else None
+            role_name = ten_vai.get(user.role_id) if user is not None and user.role_id is not None else None
             members.append(
                 {
                     "employee_id": emp.id,
@@ -316,14 +305,10 @@ class DepartmentService:
     def head_candidates(self, dept_id: int) -> list:
         """People eligible to head a unit (spec-06 / PBI-4004): everyone in the unit and its
         sub-units (subtree). Returns User rows; empty if the department does not exist."""
-        candidates: list = []
-        seen: set[int] = set()
-        for d in self.departments.subtree(dept_id):
-            for user in self.users.list_by_department(d.id):
-                if user.id not in seen:
-                    seen.add(user.id)
-                    candidates.append(user)
-        return candidates
+        # Một truy vấn cho cả nhánh; giữ thứ tự cũ: theo thứ tự cây (gốc trước), trong phòng theo id.
+        thu_tu = {d.id: i for i, d in enumerate(self.departments.subtree(dept_id))}
+        users = self.users.list_by_departments(thu_tu)
+        return sorted(users, key=lambda u: (thu_tu[u.department_id], u.id))
 
     def create(
         self,
@@ -338,6 +323,7 @@ class DepartmentService:
         is_kcs: bool = False,
         la_giao_hang: bool = False,
         la_to_in: bool = False,
+        la_to_cat: bool = False,
         don_gia_km: float = 0.0,
         pct_tai_xe: float = 60.0,
         pct_phu_xe: float = 40.0,
@@ -377,6 +363,8 @@ class DepartmentService:
             self.departments.set_la_giao_hang(dept, True)
         if la_to_in:
             self.departments.set_la_to_in(dept, True)
+        if la_to_cat:
+            self.departments.set_la_to_cat(dept, True)
         self._dat_khoan_km(dept, don_gia_km, pct_tai_xe, pct_phu_xe)
         _dong_bo_quyen_to(self.departments.db)
         self.audit.create(
@@ -405,6 +393,7 @@ class DepartmentService:
         is_kcs: object = _KEEP,
         la_giao_hang: object = _KEEP,
         la_to_in: object = _KEEP,
+        la_to_cat: object = _KEEP,
         don_gia_km: object = _KEEP,
         pct_tai_xe: object = _KEEP,
         pct_phu_xe: object = _KEEP,
@@ -481,6 +470,8 @@ class DepartmentService:
         # ngày CN / lễ của thợ in đổi tiền mà không ai báo.
         if la_to_in is not _KEEP:
             self.departments.set_la_to_in(dept, bool(la_to_in))
+        if la_to_cat is not _KEEP:
+            self.departments.set_la_to_cat(dept, bool(la_to_cat))
         if don_gia_km is not _KEEP or pct_tai_xe is not _KEEP or pct_phu_xe is not _KEEP:
             self._dat_khoan_km(
                 dept,
@@ -543,9 +534,10 @@ class DepartmentService:
         # Đ2: chặn nếu nhánh còn HỒ SƠ nhân sự (không để employees.department_id mồ côi) HOẶC
         # còn TÀI KHOẢN (users.department_id là FK cứng — xóa sẽ vỡ). Chặn theo hồ-sơ ∪ tài-khoản.
         offenders: list[tuple[Department, int]] = []
+        _, dem_tk, dem_hs = self._dem_theo_phong()
         for d in branch:
-            u = self.users.count_by_department(d.id)
-            e = self.employees.count_by_department(d.id)
+            u = dem_tk.get(d.id, 0)
+            e = dem_hs.get(d.id, 0)
             if u > 0 or e > 0:
                 offenders.append((d, max(u, e)))
         if offenders:

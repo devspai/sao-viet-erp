@@ -8,6 +8,7 @@ import { useCan } from "../auth/permissions";
 import { Button } from "./Button";
 import "./confirm-dialog.css";
 import "./unit-levels-dialog.css";
+import { EmptyState } from "./EmptyState";
 
 interface Props {
   open: boolean;
@@ -165,7 +166,7 @@ export function UnitLevelsDialog({ open, token, onClose, onChanged }: Props) {
           </p>
 
           {loading ? (
-            <p className="depts__status">Đang tải…</p>
+            <EmptyState trangThai="dang-tai" inline />
           ) : loadError ? (
             <div className="banner banner--error" role="alert">
               {loadError}

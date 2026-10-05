@@ -68,16 +68,23 @@ class ModuleNotificationRepository:
         """Mỗi kênh: dòng MỚI NHẤT người gọi chưa xem và được thấy. MỘT câu gom + (nếu có) MỘT câu
         lấy chi tiết. Dòng đích danh (`recipient_user_id` = mình) không xét quyền."""
         N, R = ModuleNotification, ModuleNotificationRead
-        ve = []
+        # Gom kênh cùng (quyền, phạm vi phòng) vào MỘT `channel IN (…)`: mỗi kênh một nhánh AND là
+        # ~56 phép so sánh dựng lại mỗi request (~20 ms CPU, đo 30/09/2026) — endpoint này nằm trong
+        # chùm badge mọi người gọi giữa ca. Nghĩa y hệt: OR các nhánh cùng điều kiện phụ = IN.
+        nhom: dict[tuple, list[str]] = {}
         for d in dieu_kien:
+            phong = None if d.phong_ids is None else tuple(sorted(d.phong_ids))
+            nhom.setdefault((d.quyen, phong), []).append(d.kenh)
+        ve = []
+        for (quyen, phong), kenhs in nhom.items():
             c = [
-                N.channel == d.kenh,
-                N.required_action.is_(None) if d.quyen is None else N.required_action == d.quyen,
+                N.channel.in_(kenhs),
+                N.required_action.is_(None) if quyen is None else N.required_action == quyen,
             ]
-            if d.phong_ids is not None:
+            if phong is not None:
                 c.append(
-                    or_(N.department_id.is_(None), N.department_id.in_(d.phong_ids))
-                    if d.phong_ids else N.department_id.is_(None)
+                    or_(N.department_id.is_(None), N.department_id.in_(phong))
+                    if phong else N.department_id.is_(None)
                 )
             ve.append(and_(*c))
         phat_rong = and_(N.recipient_user_id.is_(None), or_(*ve)) if ve else false()

@@ -9,6 +9,7 @@ import {
   type DepartmentMember,
   type DepartmentSubtreeRow,
   type EmployeeMeta,
+  type NhomDungChung,
   type ModuleDef,
   type PermissionRow,
   type Role,
@@ -19,7 +20,12 @@ import {
 import { useAuth } from "../../../auth/useAuth";
 import { useCan, useReloadPermissions } from "../../../auth/permissions";
 import { NhanBanVaiTroModal } from "./NhanBanVaiTroModal";
-import { NhomDungChungModal, type NguoiChon } from "./NhomDungChungModal";
+import {
+  PanelChonMot,
+  PanelThemVaoNhom,
+  PopNhom,
+  type NguoiChon,
+} from "./NhomDungChungPopover";
 import { Button } from "../../../components/Button";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { DiscardChangesDialog } from "../../../components/DiscardChangesDialog";
@@ -30,7 +36,7 @@ import {
   defaultMatrix,
   type ActionKey,
 } from "../../../components/PermissionMatrix";
-import { EmployeeWizard } from "../nhan-su";
+import { EmployeeDetailPanel, EmployeeWizard } from "../nhan-su";
 import { Icon } from "../../../components/Icons";
 import {
   Building2,
@@ -56,10 +62,9 @@ import {
   Move,
   ShieldCheck,
   Printer,
-  ArrowRightLeft,
-  X,
-  CheckCircle2,
+  Scissors,
   AlertCircle,
+  ArrowRightLeft,
 } from "lucide-react";
 import type { NavigateFn } from "../../../components/AppShell";
 import { PAN_HINT_KEY } from "./shared/constants";
@@ -71,9 +76,11 @@ import {
 import "../../departments.css";
 import "../../nhan-su.css";
 import "../../redesign-phong-ban.css";
+import { EmptyState } from "../../../components/EmptyState";
 
 export function DepartmentsPage({
   onDeptChanged,
+  navigate,
 }: { onDeptChanged?: () => void; navigate?: NavigateFn } = {}) {
   const { token, user } = useAuth();
   const can = useCan();
@@ -103,12 +110,24 @@ export function DepartmentsPage({
   // Gộp nhóm dùng chung = cho người này thấy dữ liệu của người kia ⇒ cùng loại với cấp quyền,
   // nên đi theo ô "Sửa ma trận phân quyền" chứ không đẻ ô mới.
   const canGopNhom = can("phong_ban", "manage_permissions");
-  const [moNhomDungChung, setMoNhomDungChung] = useState(false);
+  // Nhóm đã gộp phải NHÌN THẤY được ngay trên danh sách — trước đây chỉ lần ra được bằng cách
+  // tick người rồi mở hộp thoại chọn từng nhóm. API liệt kê cũng gác `manage_permissions`.
+  const [nhomDungChungs, setNhomDungChungs] = useState<NhomDungChung[]>([]);
+  // Ô nổi đang mở (chỉ một cái một lúc), neo vào đúng nút vừa bấm — xem NhomDungChungPopover.
+  const [oNoi, setONoi] = useState<
+    | null
+    | { loai: "vaiTro" | "chuyenPhong" | "themVaoNhom"; anchor: HTMLElement }
+    | { loai: "nhom"; anchor: HTMLElement; nhomId: number }
+  >(null);
   const canBulk = canTransfer || canAssignRole;
   const canSetHead = can("phong_ban", "set_head");
   const canReparent = can("phong_ban", "reparent");
   // Thêm nhân viên NGAY trong màn Phòng ban (tái dùng form Hồ sơ nhân sự — không dựng form mới).
   const canAddEmployee = can("nhan_su", "create");
+  // Bấm tên nhân viên mở đúng khay Hồ sơ nhân sự (tái dùng, không dựng khay riêng) — đi theo ô
+  // XEM của Hồ sơ nhân sự như chính API `GET /employees/{id}`.
+  const canXemHoSo = can("nhan_su", "read");
+  const [hoSoMoId, setHoSoMoId] = useState<number | null>(null);
 
   function renderMemberAvatar(
     name: string,
@@ -320,6 +339,8 @@ export function DepartmentsPage({
   const [editIsKcs, setEditIsKcs] = useState(false);
   // Cờ TỔ IN (mg 0304, khách chốt 15/09/2026) — đích danh từng tổ, không kế thừa cây con.
   const [editLaToIn, setEditLaToIn] = useState(false);
+  // Cờ TỔ CẮT (mg 0355) — đích danh, không kế thừa cây con: tổ chốt giấy sau phát hành.
+  const [editLaToCat, setEditLaToCat] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -697,6 +718,7 @@ export function DepartmentsPage({
     setEditLaGiaoHang(dept?.la_giao_hang ?? false);
     setEditIsKcs(dept?.is_kcs ?? false);
     setEditLaToIn(dept?.la_to_in ?? false);
+    setEditLaToCat(dept?.la_to_cat ?? false);
     if (!token || selectedId == null) {
       setMembers([]);
       setRoles([]);
@@ -731,16 +753,49 @@ export function DepartmentsPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, selectedId, lanChiTiet]);
 
-  // Meta cho form Thêm nhân viên (danh sách phòng/vai trò/ca…) — nạp 1 lần, chỉ khi có quyền thêm NV.
+  // Meta (danh sách phòng/vai trò/ca…) cho form Thêm nhân viên và khay Hồ sơ nhân sự — nạp 1 lần.
   useEffect(() => {
-    if (!token || !canAddEmployee) return;
+    if (!token || !(canAddEmployee || canXemHoSo)) return;
     api.employees.meta(token).then(setEmpMeta).catch(() => setEmpMeta(null));
-  }, [token, canAddEmployee]);
+  }, [token, canAddEmployee, canXemHoSo]);
+
+  function napNhomDungChung() {
+    if (!token || !canGopNhom) return;
+    api.nhomDungChung
+      .list(token)
+      .then(setNhomDungChungs)
+      .catch(() => setNhomDungChungs([]));
+  }
+
+  useEffect(() => {
+    napNhomDungChung();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, canGopNhom]);
+
+  // user_id → các nhóm người đó thuộc (một người ở được nhiều nhóm).
+  const nhomTheoUser = useMemo(() => {
+    const ra = new Map<number, NhomDungChung[]>();
+    for (const n of nhomDungChungs) {
+      for (const tv of n.thanh_viens) {
+        ra.set(tv.user_id, [...(ra.get(tv.user_id) ?? []), n]);
+      }
+    }
+    return ra;
+  }, [nhomDungChungs]);
+
+  // Người có tài khoản của phòng đang xem — nguồn cho "Thêm người" trong ô nổi của một nhóm.
+  const ungVienNhom = useMemo<NguoiChon[]>(
+    () =>
+      members
+        .filter((m) => m.user_id != null)
+        .map((m) => ({ userId: m.user_id as number, hoTen: m.name })),
+    [members],
+  );
 
   async function refresh(keepId: number | null) {
     const listPromise = loadDepartments();
     const metaPromise =
-      token && canAddEmployee
+      token && (canAddEmployee || canXemHoSo)
         ? api.employees.meta(token).then(setEmpMeta).catch(() => undefined)
         : Promise.resolve();
 
@@ -768,6 +823,7 @@ export function DepartmentsPage({
     setEditLaGiaoHang(currentDept?.la_giao_hang ?? false);
     setEditIsKcs(currentDept?.is_kcs ?? false);
     setEditLaToIn(currentDept?.la_to_in ?? false);
+    setEditLaToCat(currentDept?.la_to_cat ?? false);
     setSaveError(null);
     setDirty(false);
     setInfoOpen(true);
@@ -802,13 +858,15 @@ export function DepartmentsPage({
     setAssignRoleError(null);
   }
 
-  async function doTransfer() {
-    if (!token || transferTarget == null || selectedMemberIds.size === 0 || transferBusy) return;
+  // Đích truyền THẲNG vào: menu chọn đích và hộp xác nhận mở trong cùng một cú bấm, nên bản hàm
+  // mà `pendingBulk.run` giữ vẫn thấy state cũ (null) nếu chỉ đọc `transferTarget`.
+  async function doTransfer(target: number | null = transferTarget) {
+    if (!token || target == null || selectedMemberIds.size === 0 || transferBusy) return;
     setTransferBusy(true);
     setTransferError(null);
     try {
       // Chuyển theo HỒ SƠ → người chưa có tài khoản cũng đi được.
-      await api.rbac.transferStaff(token, [...selectedMemberIds], transferTarget);
+      await api.rbac.transferStaff(token, [...selectedMemberIds], target);
       setSelectedMemberIds(new Set());
       setTransferTarget(null);
       // Reload this department's members + the tree counts.
@@ -830,9 +888,8 @@ export function DepartmentsPage({
     }
   }
 
-  async function doAssignRole() {
-    if (!token || assignRoleTarget == null || selectedMemberIds.size === 0 || assignRoleBusy)
-      return;
+  async function doAssignRole(roleId: number | null = assignRoleTarget) {
+    if (!token || roleId == null || selectedMemberIds.size === 0 || assignRoleBusy) return;
     setAssignRoleBusy(true);
     setAssignRoleError(null);
     try {
@@ -844,7 +901,7 @@ export function DepartmentsPage({
         setAssignRoleError("Những người đã chọn đều chưa có tài khoản — không gán vai trò được.");
         return;
       }
-      await api.rbac.bulkAssignRole(token, userIds, assignRoleTarget);
+      await api.rbac.bulkAssignRole(token, userIds, roleId);
       setSelectedMemberIds(new Set());
       setAssignRoleTarget(null);
       // Reload members so the new role shows on each row.
@@ -934,6 +991,7 @@ export function DepartmentsPage({
         undefined,
         editIsKcs,
         editLaToIn,
+        editLaToCat,
       );
       await refresh(selectedId);
       setDirty(false);
@@ -1485,9 +1543,7 @@ export function DepartmentsPage({
   if (booting) {
     return (
       <main className="depts">
-        <p className="depts__status" role="status">
-          Đang tải…
-        </p>
+        <EmptyState trangThai="dang-tai" />
       </main>
     );
   }
@@ -1839,6 +1895,9 @@ export function DepartmentsPage({
                       {currentDept.is_kcs && (
                         <span className="rdx-drawer__pill rdx-drawer__pill--gh">KCS</span>
                       )}
+                      {currentDept.la_to_cat && (
+                        <span className="rdx-drawer__pill rdx-drawer__pill--gh">Tổ Cắt</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2014,7 +2073,7 @@ export function DepartmentsPage({
                 {activeTab === "staff" && (
                   <div className="rdx-tab">
                     {detailLoading ? (
-                      <p className="depts__status">Đang tải…</p>
+                      <EmptyState trangThai="dang-tai" inline />
                     ) : detailError ? (
                       <span className="depts__inline-error" role="alert">
                         {detailError}{" "}
@@ -2046,142 +2105,75 @@ export function DepartmentsPage({
                       >
                         {canBulk && selectedMemberIds.size > 0 ? (
                           /* ── MORPHED STATE: Contextual Bulk Action Bar ─────────── */
-                          <div className="depts__morph-bar" role="region" aria-label="Thao tác hàng loạt">
-                            <div className="depts__morph-left">
-                              <div className="depts__dock-counter">
-                                <CheckCircle2 size={15} className="depts__dock-counter-icon" />
-                                <span>
-                                  Đã chọn <strong key={selectedMemberIds.size} className="depts__dock-pop-num">{selectedMemberIds.size}</strong> người
-                                </span>
-                              </div>
+                          <div className="depts__batch" role="region" aria-label="Thao tác hàng loạt">
+                            {/* Một dòng, mỗi việc một nút mở ô nổi (khuôn Carbon/Helios): số đã chọn +
+                                Bỏ chọn ở đầu, việc ở cuối, "Chuyển phòng" (gỡ vai trò) tách ra bằng vạch. */}
+                            <span className="depts__batch-count" role="status">
+                              <span className="depts__batch-num">{selectedMemberIds.size}</span> đã chọn
+                            </span>
+                            <button
+                              type="button"
+                              className="depts__batch-clear"
+                              title="Bỏ chọn (Esc)"
+                              onClick={() => setSelectedMemberIds(new Set())}
+                            >
+                              Bỏ chọn
+                            </button>
+                            {selectedWithoutAccount > 0 && (canAssignRole || canGopNhom) && (
+                              <span
+                                className="depts__batch-note"
+                                title="Vai trò và nhóm dùng chung gắn theo tài khoản — người chưa có tài khoản sẽ bị bỏ qua"
+                              >
+                                <AlertCircle size={12} /> {selectedWithoutAccount} chưa có tài khoản
+                              </span>
+                            )}
+                            <span className="depts__batch-spacer" />
+                            {canAssignRole && roles.length > 0 && (
                               <button
                                 type="button"
-                                className="depts__dock-clear-btn"
-                                title="Nhấn Esc để bỏ chọn nhanh"
-                                onClick={() => setSelectedMemberIds(new Set())}
+                                className="depts__batch-btn"
+                                aria-haspopup="dialog"
+                                disabled={assignRoleBusy}
+                                aria-expanded={oNoi?.loai === "vaiTro"}
+                                onClick={(e) => setONoi({ loai: "vaiTro", anchor: e.currentTarget })}
                               >
-                                <X size={14} />
-                                <span>Bỏ chọn</span>
-                                <kbd className="depts__dock-kbd">Esc</kbd>
+                                <ShieldCheck size={14} /> Gán vai trò <ChevronDown size={14} className="depts__batch-caret" />
                               </button>
-                            </div>
-
-                            <div className="depts__morph-actions">
-                              {canAssignRole && roles.length > 0 && (
-                                <div className="depts__dock-group">
-                                  <div className="depts__dock-label-tag">
-                                    <ShieldCheck size={14} className="depts__dock-icon--shield" />
-                                    <span>Vai trò</span>
-                                  </div>
-                                  <div className="depts__dock-select-wrap">
-                                    <Select
-                                      ariaLabel="Vai trò"
-                                      value={assignRoleTarget}
-                                      placeholder="— Chọn vai trò —"
-                                      onChange={(v) => setAssignRoleTarget(v)}
-                                      options={[
-                                        { value: null, label: "— Chọn vai trò —" },
-                                        ...roles.map((r) => ({ value: r.id, label: r.name })),
-                                      ]}
-                                    />
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="accent"
-                                    loading={assignRoleBusy}
-                                    disabled={assignRoleTarget == null || !canAssignRole}
-                                    className="depts__dock-btn-accent"
-                                    onClick={() =>
-                                      setPendingBulk({
-                                        title: "Xác nhận gán vai trò",
-                                        message:
-                                          `Bạn sắp gán vai trò "${roles.find((r) => r.id === assignRoleTarget)?.name ?? ""}" ` +
-                                          `cho ${selectedWithAccount} người đã chọn. Vai trò cũ của họ sẽ bị thay thế.` +
-                                          (selectedWithoutAccount > 0
-                                            ? ` ${selectedWithoutAccount} người chưa có tài khoản sẽ được BỎ QUA (phải cấp tài khoản trước).`
-                                            : "") +
-                                          " Kiểm tra kỹ trước khi xác nhận.",
-                                        confirmLabel: "Gán vai trò",
-                                        run: doAssignRole,
-                                      })
-                                    }
-                                  >
-                                    Gán
-                                  </Button>
-                                  {selectedWithoutAccount > 0 && (
-                                    <span className="depts__dock-warning-chip" title={`${selectedWithoutAccount} người chưa có tài khoản hệ thống`}>
-                                      <AlertCircle size={12} /> {selectedWithoutAccount} chưa có TK
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-
-                              {canGopNhom && (
-                                <div className="depts__dock-group">
-                                  <Button
-                                    type="button"
-                                    variant="secondary"
-                                    disabled={nguoiChonCoTaiKhoan.length === 0}
-                                    title={
-                                      nguoiChonCoTaiKhoan.length === 0
-                                        ? "Chọn người CÓ tài khoản — nhóm dùng chung gắn theo tài khoản"
-                                        : "Người cùng nhóm xem và sửa được dữ liệu của nhau ở Tính giá · Báo giá · Đơn hàng · Khách hàng"
-                                    }
-                                    onClick={() => setMoNhomDungChung(true)}
-                                  >
-                                    Gộp nhóm dùng chung — Kinh doanh
-                                  </Button>
-                                </div>
-                              )}
-
-                              {canTransfer && (
-                                <div className="depts__dock-group">
-                                  <div className="depts__dock-label-tag">
-                                    <ArrowRightLeft size={14} className="depts__dock-icon--transfer" />
-                                    <span>Chuyển sang</span>
-                                  </div>
-                                  <div className="depts__dock-select-wrap">
-                                    <Select
-                                      ariaLabel="Phòng đích"
-                                      value={transferTarget}
-                                      placeholder="— Chọn phòng đích —"
-                                      onChange={(v) => setTransferTarget(v)}
-                                      options={[
-                                        { value: null, label: "— Chọn phòng đích —" },
-                                        ...departments
-                                          .filter((d) => d.id !== selectedId)
-                                          .map((d) => ({
-                                            value: d.id,
-                                            label: d.name,
-                                            hint: d.code || undefined,
-                                          })),
-                                      ]}
-                                    />
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="accent"
-                                    loading={transferBusy}
-                                    disabled={transferTarget == null || !canTransfer}
-                                    className="depts__dock-btn-accent"
-                                    onClick={() =>
-                                      setPendingBulk({
-                                        title: "Xác nhận chuyển phòng ban",
-                                        message:
-                                          `Bạn sắp chuyển ${selectedMemberIds.size} người sang phòng ` +
-                                          `"${departments.find((d) => d.id === transferTarget)?.name ?? ""}". ` +
-                                          "Vai trò hiện tại của họ sẽ bị gỡ. Kiểm tra kỹ trước khi xác nhận.",
-                                        confirmLabel: "Chuyển phòng ban",
-                                        danger: true,
-                                        run: doTransfer,
-                                      })
-                                    }
-                                  >
-                                    Chuyển
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
+                            )}
+                            {canGopNhom && (
+                              <button
+                                type="button"
+                                className="depts__batch-btn"
+                                aria-haspopup="dialog"
+                                disabled={nguoiChonCoTaiKhoan.length === 0}
+                                // Chỉ giải thích khi BỊ KHOÁ — `title` luôn có thì trình đọc màn hình
+                                // đọc câu dài này thay cho nhãn nút.
+                                title={
+                                  nguoiChonCoTaiKhoan.length === 0
+                                    ? "Chọn người CÓ tài khoản — nhóm dùng chung gắn theo tài khoản"
+                                    : undefined
+                                }
+                                aria-expanded={oNoi?.loai === "themVaoNhom"}
+                                onClick={(e) => setONoi({ loai: "themVaoNhom", anchor: e.currentTarget })}
+                              >
+                                <Users size={14} /> Thêm vào nhóm <ChevronDown size={14} className="depts__batch-caret" />
+                              </button>
+                            )}
+                            {canTransfer && (
+                              <>
+                                <span className="depts__batch-sep" aria-hidden="true" />
+                                <button
+                                  type="button"
+                                  className="depts__batch-btn"
+                                  aria-haspopup="dialog"
+                                  disabled={transferBusy}
+                                  aria-expanded={oNoi?.loai === "chuyenPhong"}
+                                onClick={(e) => setONoi({ loai: "chuyenPhong", anchor: e.currentTarget })}
+                                >
+                                  <ArrowRightLeft size={14} /> Chuyển phòng <ChevronDown size={14} className="depts__batch-caret" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         ) : (
                           /* ── NORMAL STATE: Search & Filter Toolbar ─────────────── */
@@ -2288,7 +2280,18 @@ export function DepartmentsPage({
                                   })}
                                   <div className="depts__member-main">
                                     <div className="depts__member-line">
-                                      <span className="depts__member-name">{m.name}</span>
+                                      {canXemHoSo ? (
+                                        <button
+                                          type="button"
+                                          className="depts__member-name depts__member-name--link"
+                                          onClick={() => setHoSoMoId(m.employee_id)}
+                                          title="Xem hồ sơ nhân sự"
+                                        >
+                                          {m.name}
+                                        </button>
+                                      ) : (
+                                        <span className="depts__member-name">{m.name}</span>
+                                      )}
                                       {m.code && (
                                         <span className="depts__member-code">{m.code}</span>
                                       )}
@@ -2304,6 +2307,31 @@ export function DepartmentsPage({
                                         <span className="depts__member-user">@{m.username}</span>
                                       )}
                                     </div>
+                                    {/* Nhóm dùng chung: dòng RIÊNG dưới tên — để ở cột phải thì bóp
+                                        cột tên, chức danh gãy thành 3 dòng (04/10/2026). */}
+                                    {m.user_id != null && (nhomTheoUser.get(m.user_id) ?? []).length > 0 && (
+                                      <div className="depts__member-groups">
+                                        {(nhomTheoUser.get(m.user_id) ?? []).map((n) => (
+                                          <button
+                                            key={n.id}
+                                            type="button"
+                                            className="depts__ndc-tag"
+                                            aria-haspopup="dialog"
+                                            aria-label={`Nhóm dùng chung ${n.ten}`}
+                                            title={`Dùng chung với: ${n.thanh_viens
+                                              .filter((tv) => tv.user_id !== m.user_id)
+                                              .map((tv) => tv.ho_ten)
+                                              .join(", ") || "(chưa có ai khác)"}`}
+                                            onClick={(e) =>
+                                              setONoi({ loai: "nhom", anchor: e.currentTarget, nhomId: n.id })
+                                            }
+                                          >
+                                            <Users size={12} />
+                                            <span>{n.ten}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
 
                                   <div className="depts__member-right">
@@ -2404,7 +2432,7 @@ export function DepartmentsPage({
                     </div>
 
                     {detailLoading ? (
-                      <p className="depts__status">Đang tải…</p>
+                      <EmptyState trangThai="dang-tai" inline />
                     ) : roles.length === 0 && !canCreateRole ? (
                       <p className="depts__hint">Phòng này chưa có vai trò.</p>
                     ) : (
@@ -2485,7 +2513,7 @@ export function DepartmentsPage({
 
                         <p className="eyebrow depts__matrix-label">Phân quyền</p>
                         {editRoleLoading ? (
-                          <p className="depts__status">Đang tải ma trận…</p>
+                          <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải ma trận…" />
                         ) : (
                           <PermissionMatrix
                             modules={modules}
@@ -2858,6 +2886,34 @@ export function DepartmentsPage({
               </div>
             </div>
 
+            {/* Switch Card "Tổ Cắt" — đích danh, KHÔNG kế thừa cây con (như "Tổ in"). Spec giấy
+                theo khổ §4.6: lệnh có giấy sau phát hành tới tổ này chốt chèn bước cắt hay không. */}
+            <div className="field depts__field--full">
+              <div
+                className={`rdx-switch-card${editLaToCat ? " is-checked" : ""}`}
+                onClick={() => {
+                  setEditLaToCat(!editLaToCat);
+                  setDirty(true);
+                }}
+              >
+                <div className="rdx-switch-card__left">
+                  <div className="rdx-switch-card__icon">
+                    <Scissors size={20} />
+                  </div>
+                  <div className="rdx-switch-card__main">
+                    <span className="rdx-switch-card__title">
+                      Tổ Cắt
+                      <InfoHint label="Đánh dấu ĐÍCH DANH tổ cắt giấy — KHÔNG kế thừa cho cây con. Khi có ít nhất một tổ bật, bước đầu tiên dùng giấy của lệnh chỉ bắt đầu được sau khi tổ Cắt chốt: chèn bước cắt hoặc bấm Không cần cắt." />
+                    </span>
+                    <span className="rdx-switch-card__desc">
+                      Lệnh có giấy sau phát hành tới tổ này để chốt cắt hay không cắt.
+                    </span>
+                  </div>
+                </div>
+                <div className="rdx-toggle-switch" aria-hidden="true" />
+              </div>
+            </div>
+
             {/* Nút gạt "Tổ hưởng lương khoán" ĐÃ ẨN 04/09/2026 — cờ
                 `departments.has_piece_work` nay chỉ còn MỘT cửa sửa: Lương → Cấu hình lương →
                 công tắc "Lương khoán / sản lượng" (chiều đó ghi ngược về cờ này). Bật/tắt ở đây
@@ -3154,7 +3210,7 @@ export function DepartmentsPage({
         }}
       >
         {subtreeLoading ? (
-          <p className="depts__status">Đang tải danh sách đơn vị…</p>
+          <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải danh sách đơn vị…" />
         ) : subtree && subtree.length > 0 ? (
           <>
             <p className="depts__confirm-count">{subtree.length} đơn vị sẽ bị xóa:</p>
@@ -3185,6 +3241,28 @@ export function DepartmentsPage({
         }}
         onCancel={() => setPendingBulk(null)}
       />
+
+      {/* Bấm tên trong tab Nhân sự → khay Hồ sơ nhân sự y như màn Hồ sơ nhân sự. Sửa/điều chuyển
+          trong khay thì nạp lại danh sách của phòng (người có thể vừa rời tổ). */}
+      {hoSoMoId != null && token && (
+        <EmployeeDetailPanel
+          token={token}
+          employeeId={hoSoMoId}
+          meta={empMeta}
+          navigate={navigate}
+          onClose={() => setHoSoMoId(null)}
+          onChanged={() => {
+            // Chỉ nạp lại danh sách người — đừng tăng `lanChiTiet`, effect đó đá về tab Tổng quan.
+            if (selectedId != null) {
+              api.rbac
+                .departmentUsers(token, selectedId)
+                .then(setMembers)
+                .catch(() => {});
+            }
+            refresh(selectedId).catch(() => {});
+          }}
+        />
+      )}
 
       {/* Thêm nhân viên vào phòng đang xem — TÁI DÙNG form Hồ sơ nhân sự, chọn sẵn tổ này. */}
       {wizardOpen && empMeta && currentDept && token && (
@@ -3236,14 +3314,104 @@ export function DepartmentsPage({
         />
       )}
 
-      {moNhomDungChung && token && (
-        <NhomDungChungModal
-          token={token}
-          nguoiChon={nguoiChonCoTaiKhoan}
-          onClose={() => setMoNhomDungChung(false)}
-          onSaved={() => setSelectedMemberIds(new Set())}
+      {/* Ô nổi của thanh chọn hàng loạt + thẻ nhóm — neo vào nút vừa bấm, một cái một lúc. */}
+      {oNoi?.loai === "vaiTro" && selectedMemberIds.size > 0 && (
+        <PanelChonMot
+          anchor={oNoi.anchor}
+          tieuDe={`Gán vai trò cho ${selectedWithAccount} người`}
+          ghiChu="Thay vai trò hiện có; còn bước xác nhận."
+          icon={<ShieldCheck size={14} />}
+          timGi="Tìm vai trò"
+          options={roles.map((r) => {
+            // Bao nhiêu người đang chọn đã mang sẵn vai trò này — đỡ gán trùng.
+            const co = members.filter(
+              (m) => selectedMemberIds.has(m.employee_id) && m.user_id != null && m.role_name === r.name,
+            ).length;
+            return {
+              value: r.id,
+              label: r.name,
+              daCo: co > 0 && co === selectedWithAccount,
+              hint: co > 0 ? `${co}/${selectedWithAccount} đang có` : undefined,
+            };
+          })}
+          onClose={() => setONoi(null)}
+          onPick={(roleId) => {
+            setONoi(null);
+            setAssignRoleTarget(roleId);
+            setPendingBulk({
+              title: "Xác nhận gán vai trò",
+              message:
+                `Bạn sắp gán vai trò "${roles.find((r) => r.id === roleId)?.name ?? ""}" ` +
+                `cho ${selectedWithAccount} người đã chọn. Vai trò cũ của họ sẽ bị thay thế.` +
+                (selectedWithoutAccount > 0
+                  ? ` ${selectedWithoutAccount} người chưa có tài khoản sẽ được BỎ QUA (phải cấp tài khoản trước).`
+                  : "") +
+                " Kiểm tra kỹ trước khi xác nhận.",
+              confirmLabel: "Gán vai trò",
+              run: () => doAssignRole(roleId),
+            });
+          }}
         />
       )}
+      {oNoi?.loai === "chuyenPhong" && selectedMemberIds.size > 0 && (
+        <PanelChonMot
+          anchor={oNoi.anchor}
+          tieuDe={`Chuyển ${selectedMemberIds.size} người sang`}
+          ghiChu="Vai trò hiện tại sẽ bị gỡ; còn bước xác nhận."
+          icon={<Building2 size={14} />}
+          timGi="Tìm phòng"
+          options={departments
+            .filter((d) => d.id !== selectedId)
+            .map((d) => ({ value: d.id, label: d.name, hint: d.code || undefined }))}
+          onClose={() => setONoi(null)}
+          onPick={(deptId) => {
+            setONoi(null);
+            setTransferTarget(deptId);
+            setPendingBulk({
+              title: "Xác nhận chuyển phòng ban",
+              message:
+                `Bạn sắp chuyển ${selectedMemberIds.size} người sang phòng ` +
+                `"${departments.find((d) => d.id === deptId)?.name ?? ""}". ` +
+                "Vai trò hiện tại của họ sẽ bị gỡ. Kiểm tra kỹ trước khi xác nhận.",
+              confirmLabel: "Chuyển phòng ban",
+              danger: true,
+              run: () => doTransfer(deptId),
+            });
+          }}
+        />
+      )}
+      {oNoi?.loai === "themVaoNhom" && selectedMemberIds.size > 0 && token && (
+        <PanelThemVaoNhom
+          token={token}
+          anchor={oNoi.anchor}
+          nguoiChon={nguoiChonCoTaiKhoan}
+          nhoms={nhomDungChungs}
+          onChanged={napNhomDungChung}
+          onCreated={() => {
+            setONoi(null);
+            setSelectedMemberIds(new Set());
+          }}
+          onClose={() => setONoi(null)}
+        />
+      )}
+      {oNoi?.loai === "nhom" &&
+        token &&
+        (() => {
+          // Lấy bản MỚI NHẤT theo id — sau mỗi lần sửa, danh sách nhóm được nạp lại.
+          const nhom = nhomDungChungs.find((n) => n.id === oNoi.nhomId);
+          if (!nhom) return null;
+          return (
+            <PopNhom
+              key={nhom.id}
+              token={token}
+              anchor={oNoi.anchor}
+              nhom={nhom}
+              ungVien={ungVienNhom}
+              onChanged={napNhomDungChung}
+              onClose={() => setONoi(null)}
+            />
+          );
+        })()}
     </main>
   );
 }

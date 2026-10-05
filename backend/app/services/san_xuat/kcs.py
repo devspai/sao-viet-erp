@@ -68,18 +68,9 @@ def la_nguoi_kcs(db: Session, user) -> bool:
     return SanXuatKcsRepository(db).la_thanh_vien_to_kcs(getattr(user, "id", None))
 
 
-def la_truong_kcs(db: Session, user) -> bool:
-    return SanXuatKcsRepository(db).la_truong_to_kcs(getattr(user, "id", None))
-
-
 def gate_kcs(db: Session, user) -> None:
     if not la_nguoi_kcs(db, user):
         raise PermissionError("Chỉ người thuộc tổ KCS mới kiểm được công đoạn.")
-
-
-def gate_truong_kcs(db: Session, user) -> None:
-    if not la_truong_kcs(db, user):
-        raise PermissionError("Chỉ trưởng tổ KCS mới đóng thiếu được nhóm thành phẩm.")
 
 
 # --- Luật dùng chung ------------------------------------------------------------------------

@@ -478,3 +478,24 @@ def test_nhan_ban_doi_quyen_quan_ly_phan_quyen(client):
         f"/api/roles/{goc_id}/duplicate", json={}, headers=_h(_sales_token())
     )
     assert resp.status_code == 403
+
+
+def test_danh_sach_quyen_keo_theo_xem_o_giao_dien_khop_may_chu():
+    """Tắt Xem ở giao diện phải tắt ĐÚNG những cột mà máy chủ coi là "kéo theo Xem".
+
+    Máy chủ (`save_matrix`) tự bật lại Xem nếu dòng còn cột nào trong `READ_IMPLYING_KEYS`. Giao
+    diện (`phong-ban/shared/constants.ts`) tắt Xem bằng danh sách riêng — thiếu khoá nào thì tắt
+    Xem, Lưu, mở lại vẫn bật (báo QA 01/10/2026: Giao hàng · Báo cáo kho · Tài sản · Xe giao hàng).
+    """
+    import re
+    from pathlib import Path
+
+    from app.services.role_service import READ_IMPLYING_KEYS
+
+    ts = (
+        Path(__file__).resolve().parents[2]
+        / "frontend/src/pages/nhan-su-luong/phong-ban/shared/constants.ts"
+    ).read_text(encoding="utf-8")
+    khoi = ts.split("READ_IMPLYING_ACTIONS", 1)[1].split("];", 1)[0]
+    giao_dien = set(re.findall(r'"(can_[a-z_]+)"', khoi))
+    assert set(READ_IMPLYING_KEYS) - giao_dien == set()

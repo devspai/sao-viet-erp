@@ -3,8 +3,9 @@
 // "chưa có ảnh chứng thực thì chưa đóng được phiếu".
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/useAuth";
+import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
-import { assetUrl } from "../api/client";
+import { anhNho, assetUrl } from "../api/client";
 import { nhatKyDanhMuc, type NhatKyItem } from "../api/rebuildCatalog";
 import { kyThuatMay, type Anh, type LoaiPhieu } from "../api/kyThuatMay";
 import { coChu, nenAnh } from "../lib/anhNen";
@@ -117,7 +118,7 @@ export function NhatKyPhieu({ loai, phieuId }: { loai: LoaiNhatKy; phieuId: numb
       .finally(() => setDangTai(false));
   }, [token, loai, phieuId, lan]);
 
-  if (dangTai) return <p className="ktm-hint">Đang tải lịch sử…</p>;
+  if (dangTai) return <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải lịch sử…" />;
   if (loi) {
     return (
       <p className="ktm-hint ktm-hint--loi">
@@ -287,7 +288,7 @@ export function AnhBox({
         <div className="ktm-anh__grid">
           {anh.map((a) => (
             <figure className="ktm-anh__o" key={a.id}>
-              <img src={assetUrl(a.file_url) ?? ""} alt={a.file_name} loading="lazy" onClick={() => setXemAnh(a)} />
+              <img src={anhNho(a.file_url) ?? ""} alt={a.file_name} loading="lazy" onClick={() => setXemAnh(a)} />
               <div className="ktm-anh__overlay">
                 <button type="button" className="ktm-anh__btn-view" title="Xem phóng to" onClick={() => setXemAnh(a)}>
                   <Icon name="eye" size={14} />

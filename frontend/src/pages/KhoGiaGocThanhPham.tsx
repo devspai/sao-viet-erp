@@ -12,6 +12,7 @@ import { Search } from "lucide-react";
 import { api, ApiError, type ThanhPhamChuaGiaGocPage, type ThanhPhamChuaGiaGocRow } from "../api/client";
 import type { Row } from "../api/rebuildCatalog";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { EmptyRow } from "../components/EmptyState";
 import { Pager } from "../components/Pager";
 import { useDebounced } from "../utils/useDebounced";
 import { RefSearchField } from "./danh-muc/fields/RefFields";
@@ -318,7 +319,7 @@ export function KhoGiaGocThanhPham({ token, onCount }: { token: string; onCount?
           </thead>
           <tbody>
             {dangTai && data == null ? (
-              <tr><td colSpan={9} className="rc__empty-state">Đang tải…</td></tr>
+              <EmptyRow colSpan={9} trangThai="dang-tai" />
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={9} className="rc__empty-state">

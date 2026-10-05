@@ -91,7 +91,7 @@ class Cot:
 
     * `nhan` — TIÊU ĐỀ hiện trên file. Đây là hợp đồng với người dùng: đổi nhãn là file cũ mất cột.
     * `field` — tên khoá trong dict dữ liệu (field của `InModel`, hoặc khoá của dòng con).
-    * `kieu` — `chu · so · nguyen · bool · ngay · json`. Quyết định cách ép kiểu HAI CHIỀU.
+    * `kieu` — `chu · so · nguyen · bool (xuất Có/Không) · ngay · json`. Quyết định cách ép kiểu HAI CHIỀU.
     * `doc(gt, ctx)` — Excel → giá trị lưu (dịch mã → id…). Ném `ValueError(câu tiếng Việt)` thì
       ô đó thành một dòng lỗi, các dòng khác vẫn chạy tiếp.
     * `ghi(gt, ctx)` — chiều NGƯỢC: giá trị lưu → ô Excel (id → mã đọc được). Không được ném.
@@ -212,11 +212,20 @@ def _chuoi(gt: Any) -> str | None:
     return s or None
 
 
-def _bool_tu_excel(gt: Any) -> bool:
+_DUNG = ("true", "1", "x", "có", "co", "yes", "y", "đang dùng", "dang dung")
+_SAI = ("false", "0", "không", "khong", "no", "n", "ngừng", "ngung", "ngừng dùng", "ngung dung")
+
+
+def _bool_tu_excel(gt: Any, nhan: str = "") -> bool:
+    """Nhận Có/Không (nhãn xuất ra) lẫn TRUE/FALSE của file đời cũ. Chữ lạ ⇒ lỗi, không đoán."""
     if isinstance(gt, bool):
         return gt
     s = str(gt).strip().lower()
-    return s in ("true", "1", "x", "có", "co", "yes", "y", "đang dùng", "dang dung")
+    if s in _DUNG:
+        return True
+    if s in _SAI:
+        return False
+    raise ValueError(f'Cột "{nhan}" chỉ nhận Có hoặc Không (đang là "{gt}").')
 
 
 def _so_tu_excel(gt: Any, nhan: str) -> float:
@@ -253,7 +262,7 @@ def _ngay_tu_excel(gt: Any, nhan: str) -> date:
 def _ep_kieu_vao(cot: Cot, gt: Any) -> Any:
     """Ô Excel → giá trị Python theo `cot.kieu`. Ô trống đã được chặn TRƯỚC khi gọi."""
     if cot.kieu == "bool":
-        return _bool_tu_excel(gt)
+        return _bool_tu_excel(gt, cot.nhan)
     if cot.kieu == "so":
         return _so_tu_excel(gt, cot.nhan)
     if cot.kieu == "nguyen":
@@ -278,7 +287,7 @@ def _ep_kieu_ra(cot: Cot, gt: Any) -> Any:
     if gt is None:
         return None
     if cot.kieu == "bool":
-        return bool(gt)
+        return "Có" if gt else "Không"
     if cot.kieu in ("so", "nguyen"):
         so = float(gt)
         return int(round(so)) if cot.kieu == "nguyen" else so
@@ -1026,24 +1035,37 @@ def _mac_dinh_tu_ban_ghi(InModel, obj) -> dict:
 
 def _cau_loi_pydantic(e, spec: CatalogExcelSpec | None = None) -> LoiO:
     """Lỗi schema → câu gọi theo TÊN CỘT trên file (không phải tên trường trong code)."""
-    nhan_cua = {}
+    cot_cua = {}
     for c in (spec.cot if spec is not None else ()):
         if not c.chi_doc:
-            nhan_cua.setdefault(c.field, c.nhan)
+            cot_cua.setdefault(c.field, c)
     thieu: list[str] = []
     sai: list[str] = []
+    cau_rieng: list[str] = []
     for x in e.errors():
         if not x.get("loc"):
             continue
         truong = str(x["loc"][0])
-        ten = nhan_cua.get(truong, truong)
-        ds = thieu if x.get("type") == "missing" else sai
-        if ten not in ds:
-            ds.append(ten)
+        c = cot_cua.get(truong)
+        ten = c.nhan if c else truong
+        if x.get("type") == "missing":
+            if ten not in thieu:
+                thieu.append(ten)
+            continue
+        ctx = x.get("ctx") or {}
+        gioi_han = {"greater_than_equal": ("ge", "≥"), "less_than_equal": ("le", "≤"),
+                    "greater_than": ("gt", ">"), "less_than": ("lt", "<")}.get(x.get("type"))
+        if gioi_han and gioi_han[0] in ctx:
+            cau = f'Cột "{ten}" phải {gioi_han[1]} {ctx[gioi_han[0]]}.'
+            if cau not in cau_rieng:
+                cau_rieng.append(cau)
+        elif ten not in sai:
+            sai.append(ten)
     ngoac = lambda ds: ", ".join(f'"{t}"' for t in ds)  # noqa: E731
     cau = []
     if thieu:
         cau.append(f"Thiếu ô bắt buộc {ngoac(thieu)} — dòng mới phải điền đủ cột này.")
+    cau.extend(cau_rieng)
     if sai:
         cau.append(f"Giá trị không hợp lệ ở cột {ngoac(sai)}.")
     return LoiO(" ".join(cau) or "Dữ liệu không hợp lệ.", ", ".join(thieu + sai) or "—")

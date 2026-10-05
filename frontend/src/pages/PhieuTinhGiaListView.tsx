@@ -11,7 +11,9 @@ import {
 import { useCan } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
+import { EmptyRow } from "../components/EmptyState";
 import { StatusTabs } from "../components/StatusTabs";
+import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
 import "./tinh-gia.css";
 
 const PAGE_SIZE = 20;
@@ -67,6 +69,8 @@ export function PhieuTinhGiaListView({
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [sort, setSort] = useState("-ngay");
+  // Hộp lọc người lập — null = tất cả người trong tầm nhìn.
+  const [nguoi, setNguoi] = useState<number | null>(null);
 
   // Debounce ô tìm kiếm.
   useEffect(() => {
@@ -76,7 +80,7 @@ export function PhieuTinhGiaListView({
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQ, statusFilter, sort]);
+  }, [debouncedQ, statusFilter, sort, nguoi]);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -86,6 +90,7 @@ export function PhieuTinhGiaListView({
       .list(token, {
         q: debouncedQ || undefined,
         status: statusFilter === "all" ? undefined : statusFilter,
+        nguoi,
         sort,
         page,
         size: PAGE_SIZE,
@@ -96,8 +101,8 @@ export function PhieuTinhGiaListView({
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Không tải được danh sách phiếu."))
       .finally(() => setLoading(false));
-    api.phieuTinhGia.stats(token).then(setStats).catch(() => setStats(null));
-  }, [token, debouncedQ, statusFilter, sort, page]);
+    api.phieuTinhGia.stats(token, nguoi).then(setStats).catch(() => setStats(null));
+  }, [token, debouncedQ, statusFilter, sort, page, nguoi]);
   useEffect(() => {
     load();
   }, [load]);
@@ -111,7 +116,7 @@ export function PhieuTinhGiaListView({
     <main className="rdx-cost tg-page">
       <header className="tg-head">
         <div className="tg-head__lead">
-          <div className="eyebrow"><span className="sq" /> Kinh doanh · Giá vốn nội bộ</div>
+          <div className="eyebrow"><span className="sq" /> Giá vốn nội bộ</div>
           <h1 className="tg-head__title">Tính giá thành</h1>
           <p className="tg-head__sub">
             Bóc tách giá vốn theo nguyên vật liệu &amp; công đoạn — cơ sở lập báo giá.
@@ -138,6 +143,13 @@ export function PhieuTinhGiaListView({
             aria-label="Tìm phiếu tính giá"
           />
         </div>
+        <LocNguoiPhuTrach
+          nap={api.phieuTinhGia.nguoiLap}
+          value={nguoi}
+          onChange={setNguoi}
+          tatCa="Tất cả người lập"
+          donVi="phiếu"
+        />
       </div>
 
       <div style={{ margin: "4px 0 8px" }}>
@@ -174,6 +186,7 @@ export function PhieuTinhGiaListView({
                 <SortBtn label="Mã PTG" col="ma" sort={sort} onSort={setSort} />
               </th>
               <th>Sản phẩm</th>
+              <th>Khách hàng</th>
               {/* SL ở đây là Σ SL CÁC SẢN PHẨM bên trong phiếu (không phải ô SL mặc định đầu
                   phiếu) — có vậy SL × giá vốn/đơn mới ra tổng giá vốn ngay hàng bên cạnh. */}
               <th className="tg-num" title="Tổng số lượng của các sản phẩm trong phiếu">
@@ -186,23 +199,20 @@ export function PhieuTinhGiaListView({
                 <SortBtn label="Tổng giá vốn" col="tong_gia_von" sort={sort} onSort={setSort} />
               </th>
               <th>Trạng thái</th>
+              <th>Ghi chú</th>
               <th>
                 {/* "Ngày" trần đọc lên không biết là ngày nào — lập, tính giá, hay sửa lần cuối.
                     Cột này sắp xếp theo `created_at` nên gọi đúng tên: ngày LẬP. */}
-                <SortBtn label="Ngày lập · Người lập" col="ngay" sort={sort} onSort={setSort} />
+                <SortBtn label="Ngày lập" col="ngay" sort={sort} onSort={setSort} />
               </th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={7} className="ptg-msg">
-                  Đang tải dữ liệu…
-                </td>
-              </tr>
+              <EmptyRow colSpan={9} trangThai="dang-tai" />
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="ptg-empty-td">
+                <td colSpan={9} className="ptg-empty-td">
                   <div className="ptg-empty">
                     <EmptyIcon />
                     <p className="ptg-empty__title">
@@ -241,22 +251,22 @@ export function PhieuTinhGiaListView({
                   <td className="ptg-prod">
                     {/* Tên ở ĐẦU PHIẾU (`ten_san_pham`) là chữ ĐÓNG BĂNG: màn phiếu không còn ô
                         nào sửa được nó, nên nó không chạy theo tên hàng bên trong. Vì vậy:
-                        · Phiếu 1 MÓN → lấy thẳng tên món đó. Món ấy CHÍNH LÀ phiếu, sửa tên trong
+                        - Phiếu 1 MÓN → lấy thẳng tên món đó. Món ấy CHÍNH LÀ phiếu, sửa tên trong
                           phiếu là ngoài này đổi theo ngay; giữ chữ đầu phiếu chỉ tổ trơ tên cũ.
-                        · Phiếu NHIỀU MÓN → giữ tên cụm ở đầu phiếu (vd "Bộ ấn phẩm khai trương…")
+                        - Phiếu NHIỀU MÓN → giữ tên cụm ở đầu phiếu (vd "Bộ ấn phẩm khai trương…")
                           vì không tên món nào gọi được cả cụm; từng món kể ở dòng phụ, và dòng phụ
-                          thì chạy theo tên thật. Một phiếu ba món (ruột · bìa · thẻ) mà nhìn ngoài
+                          thì chạy theo tên thật. Một phiếu ba món (ruột, bìa, thẻ) mà nhìn ngoài
                           chỉ thấy một dòng là chỗ hay nhầm nhất.
-                        · Phiếu CHƯA có món nào → còn gì hiện nấy. */}
+                        - Phiếu CHƯA có món nào → còn gì hiện nấy. */}
                     {(() => {
                       const trong = it.ten_thanh_phans ?? [];
                       const motMon = trong.length === 1;
                       const chinh = motMon ? trong[0] : it.ten_san_pham || trong[0] || "";
                       const con = motMon ? [] : it.ten_san_pham ? trong : trong.slice(1);
-                      const ke = con.slice(0, 3).join(" · ") + (con.length > 3 ? " · …" : "");
+                      const ke = con.slice(0, 3).join(", ") + (con.length > 3 ? ", …" : "");
                       return (
                         <>
-                          <span className="ptg-prod__name" title={trong.join(" · ") || undefined}>
+                          <span className="ptg-prod__name" title={trong.join(", ") || undefined}>
                             {chinh || "—"}
                           </span>
                           {con.length > 0 ? (
@@ -265,6 +275,13 @@ export function PhieuTinhGiaListView({
                         </>
                       );
                     })()}
+                  </td>
+                  <td className="ptg-cust">
+                    {it.customer_name ? (
+                      <span className="ptg-cust__name">{it.customer_name}</span>
+                    ) : (
+                      <span className="ptg-cust__none">Chưa chọn</span>
+                    )}
                   </td>
                   <td className="tg-num">{fmt(it.so_luong)}</td>
                   <td className="tg-num">{fmt(it.gia_von_don)} đ</td>
@@ -279,6 +296,11 @@ export function PhieuTinhGiaListView({
                     ) : (
                       <span className="badge pending"><span className="d" />Đang tính</span>
                     )}
+                  </td>
+                  <td className="ptg-note">
+                    {it.ghi_chu?.trim() ? (
+                      <span className="ptg-note__text" title={it.ghi_chu}>{it.ghi_chu}</span>
+                    ) : null}
                   </td>
                   <td className="ptg-when">
                     <span className="ptg-when__date">
@@ -296,7 +318,8 @@ export function PhieuTinhGiaListView({
       {!loading && items.length > 0 ? (
         <div className="ptg-pager">
           <span className="ptg-pager__info">
-            Tìm thấy {fmt(total)} phiếu · Trang {page}/{totalPages}
+            <span>Tìm thấy {fmt(total)} phiếu</span>
+            <span className="ptg-pager__page">Trang {page}/{totalPages}</span>
           </span>
           <div className="ptg-pager__btns">
             <button

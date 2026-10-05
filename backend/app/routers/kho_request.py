@@ -40,6 +40,7 @@ from ..schemas.stock import (
     StockRequestReject,
     StockRequestUpdate,
 )
+from ..services.kho_giay import khoa_ton_cua
 from ..services.rbac_service import AuthorizationService
 from ..services.san_xuat.kho import phat_su_kien_kho
 from ..services.san_xuat.vat_tu_de_nghi import can_luc_hien_thi
@@ -199,8 +200,14 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         try:
             dv = don_vi_map.get(key)
             # Món vắng trong map (không tồn tại / loại sai) đi đường lẻ cũ để giữ ĐÚNG câu lỗi.
-            qd = (hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi)) if dv is not None
-                  else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt, float(ln.sl_de_nghi)))
+            # Giấy có DẠNG: gốc theo dạng (tờ ⇒ tờ nguyên, cuộn ⇒ kg), không phải gốc của mã giấy.
+            if ln.hang_loai == "giay" and ln.dang_giay:
+                qd = hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt, float(ln.sl_de_nghi),
+                                         dang=ln.dang_giay)
+            else:
+                qd = (hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi)) if dv is not None
+                      else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt,
+                                               float(ln.sl_de_nghi)))
         except VatLieuKhoError as e:
             canh_bao = str(e)
         lines.append(StockRequestLineOut(
@@ -216,6 +223,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             lsx_ma=lenh_map.get(("lsx", ln.lsx_id)),
             bai_ghep_ma=lenh_map.get(("bai_ghep", ln.bai_ghep_id)),
             dvt=ln.dvt,
+            dang_giay=ln.dang_giay, kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
             don_vi_goc=(qd or {}).get("don_vi_goc_ten"),
             sl_quy_doi=(qd or {}).get("sl_goc"),
             quy_doi_dien_giai=(qd or {}).get("dien_giai"),
@@ -235,8 +243,8 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             don_ban_ma=don_map.get(ln.lsx_id) if ln.lsx_id else None,
             ly_do_thieu=ln.ly_do_thieu,
             ghi_chu=ln.ghi_chu,
-            muc_ton=(levels or {}).get(key),
-            ton_kha_dung=(on_hand or {}).get(key) if can_view_stock else None,
+            muc_ton=(levels or {}).get(khoa_ton_cua(ln)),
+            ton_kha_dung=(on_hand or {}).get(khoa_ton_cua(ln)) if can_view_stock else None,
         ))
     if ten_map is None:
         ten_map = _ten_map(db, [req])
@@ -274,8 +282,8 @@ def _levels(svc: StockRequestService, req):
     `levels_and_on_hand` tính CẢ đèn lẫn tồn trong 1 lượt: đèn theo ngưỡng của kho (kho_id None thì
     chưa có ngưỡng → chỉ phân biệt hết/còn). UI đã bỏ cột đèn nên không nhiễu, nhưng GIỮ `muc_ton`
     cho API/test (bỏ hẳn làm vỡ test đèn + mất tín hiệu cho ai còn dùng)."""
-    cap = [(ln.hang_loai, ln.hang_id) for ln in req.lines]
-    return svc.levels_and_on_hand(cap, req.kho_id)
+    # Giấy tờ đọc tồn ĐÚNG khổ, giấy cuộn theo mã (spec §3.2) — khoá của chính dòng.
+    return svc.levels_and_on_hand([khoa_ton_cua(ln) for ln in req.lines], req.kho_id)
 
 
 def _scoped_filters(db: Session, user: User, authz: AuthorizationService) -> dict:

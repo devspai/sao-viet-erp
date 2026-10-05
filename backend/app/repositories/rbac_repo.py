@@ -111,12 +111,18 @@ class DepartmentRepository:
         root = self.get_by_id(root_id)
         if root is None:
             return []
+        # Nạp CẢ cây một truy vấn rồi đi trong bộ nhớ — bản cũ hỏi `children_of` cho từng nút
+        # (N truy vấn mỗi lần mở chi tiết phòng / ứng viên trưởng phòng / xem trước khi xoá).
+        con: dict[int, list[Department]] = {}
+        for d in self.list_all():  # đã sắp theo id ⇒ con của mỗi nút giữ đúng thứ tự cũ
+            if d.parent_id is not None:
+                con.setdefault(d.parent_id, []).append(d)
         result: list[Department] = [root]
         seen = {root.id}
         queue = [root.id]
         while queue:
             current = queue.pop(0)
-            for child in self.children_of(current):
+            for child in con.get(current, []):
                 if child.id not in seen:
                     seen.add(child.id)
                     result.append(child)
@@ -184,10 +190,11 @@ class DepartmentRepository:
         co_con = {d.parent_id for d in self.list_all() if d.parent_id is not None}
         return [d for d in khoi if d.id not in co_con]
 
-    def set_head(self, dept: Department, head_user_id: int | None) -> Department:
+    def set_head(self, dept: Department, head_user_id: int | None, *, commit: bool = True) -> Department:
         dept.head_user_id = head_user_id
-        self.db.commit()
-        self.db.refresh(dept)
+        if commit:
+            self.db.commit()
+            self.db.refresh(dept)
         return dept
 
     def set_parent(self, dept: Department, parent_id: int | None) -> Department:
@@ -239,6 +246,19 @@ class DepartmentRepository:
         self.db.commit()
         self.db.refresh(dept)
         return dept
+
+    def set_la_to_cat(self, dept: Department, value: bool) -> Department:
+        """Đánh dấu / bỏ dấu TỔ CẮT (mg 0355). Đích danh — KHÔNG cascade cây con, như `la_to_in`."""
+        dept.la_to_cat = bool(value)
+        self.db.commit()
+        self.db.refresh(dept)
+        return dept
+
+    def dept_ids_to_cat(self) -> set[int]:
+        """Id tổ bật cờ TỔ CẮT — chỉ tổ TỰ bật, không kế thừa cây. Chốt giấy sau phát hành hỏi câu này."""
+        return set(self.db.execute(
+            select(Department.id).where(Department.la_to_cat.is_(True))
+        ).scalars().all())
 
     def dept_ids_to_in(self) -> set[int]:
         """Id tổ bật cờ TỔ IN — CHỈ tổ TỰ bật, KHÔNG kế thừa cây (cùng luật `dept_ids_giao_hang`).
@@ -421,6 +441,12 @@ class RoleRepository:
             select(func.count()).select_from(Role).where(Role.department_id == department_id)
         ).scalar_one()
 
+    def counts_by_department(self) -> dict[int, int]:
+        """`{department_id: số vai}` của MỌI phòng trong MỘT truy vấn (danh sách phòng ban)."""
+        return dict(self.db.execute(
+            select(Role.department_id, func.count()).group_by(Role.department_id)
+        ).all())
+
     def get_permission(self, role_id: int, module_key: str) -> RolePermission | None:
         return self.db.execute(
             select(RolePermission).where(
@@ -539,15 +565,23 @@ class RoleRepository:
         can_confirm_output: bool = False,
         can_warehouse: bool = False,
         commit: bool = True,
+        co_san: dict[str, RolePermission] | None = None,
     ) -> RolePermission:
         """Upsert the (role, module) permission row.
 
         `commit=False` cho người gọi HÀNG LOẠT tự chốt MỘT lần ở cuối (xem `seed.seed_roles`).
+        `co_san` = `{module_key: dòng}` người gọi đã nạp sẵn bằng `permissions_for` — có nó thì
+        khỏi một SELECT mỗi dòng (lưu cả ma trận ~80 dòng). Dòng mới tạo được ghi ngược vào đó.
         """
-        perm = self.get_permission(role_id, module_key)
+        if co_san is not None:
+            perm = co_san.get(module_key)
+        else:
+            perm = self.get_permission(role_id, module_key)
         if perm is None:
             perm = RolePermission(role_id=role_id, module_key=module_key)
             self.db.add(perm)
+            if co_san is not None:
+                co_san[module_key] = perm
         perm.can_read = can_read
         perm.can_create = can_create
         perm.can_update = can_update
@@ -605,10 +639,12 @@ class RoleRepository:
         if commit:
             self.db.commit()
             self.db.refresh(perm)
-        else:
+        elif co_san is None:
             # Chỉ đẩy xuống DB, KHÔNG chốt giao dịch. `seed_roles` gọi hàm này 277 lượt mỗi lần
             # dựng DB; commit + refresh từng lượt là pha tốn nhất của bộ test (≈2,5s mỗi test).
             self.db.flush()
+        # Có `co_san`: người gọi đã giữ đủ dòng trong tay, không ai cần đọc lại giữa chừng ⇒ khỏi
+        # flush từng dòng; cả lô đẩy xuống một lần lúc người gọi commit.
         return perm
 
     def count(self) -> int:

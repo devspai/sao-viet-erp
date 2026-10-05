@@ -244,7 +244,7 @@
 }
 .rdx-perm__gcount.is-on {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: transparent;
 }
 
@@ -383,7 +383,7 @@
 }
 .rdx-perm__finechip.is-on {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-color: transparent;
 }
 .rdx-perm__finechip:focus-visible {

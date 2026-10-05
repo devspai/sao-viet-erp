@@ -26,6 +26,64 @@ import { InfoCard, InfoField } from "../components/info-display";
 
 const ACTIVITY_LIMIT = 8;
 
+/** Dữ liệu tab "Tài khoản & Quyền" — tải ở KHAY (EmployeeDetailPanel), không ở tab.
+ *
+ *  Trước đây tab tự tải khi mount: mỗi lần bấm sang tab là 3 request mới, và lúc chờ tab vẽ sẵn
+ *  trạng thái RỖNG (Phiên (0), vai trò "— chưa gán —", trạng thái "Hoạt động") rồi phình ra khi
+ *  dữ liệu về ⇒ các thẻ nhảy. Nay khay tải MỘT lần ngay khi biết hồ sơ có tài khoản, giữ qua các
+ *  lần chuyển tab; `null` = CHƯA tải xong (khác mảng rỗng = đã tải, không có gì).
+ *  Ba nguồn vẫn tải lại RIÊNG: mỗi thao tác chỉ tải lại phần nó đổi (đổi vai trò không đụng phiên). */
+export type TaiKhoanData = {
+  row: UserRow | null | undefined; // undefined = đang tải, null = lỗi / không có
+  sessions: Session[] | null;
+  activity: AuditRow[] | null;
+  loadRow: () => void;
+  loadSessions: () => void;
+  loadActivity: () => void;
+};
+
+export function useTaiKhoan(token: string, uid: number | null, enabled: boolean): TaiKhoanData {
+  const [row, setRow] = useState<UserRow | null | undefined>(undefined);
+  const [sessions, setSessions] = useState<Session[] | null>(null);
+  const [activity, setActivity] = useState<AuditRow[] | null>(null);
+  const bat = enabled && uid != null;
+  const loadRow = useCallback(() => {
+    if (!bat) return;
+    api.rbac
+      .user(token, uid!)
+      .then(setRow)
+      .catch(() => setRow(null));
+  }, [token, uid, bat]);
+  const loadSessions = useCallback(() => {
+    if (!bat) return;
+    api.rbac
+      .userSessions(token, uid!)
+      .then(setSessions)
+      .catch(() => setSessions([]));
+  }, [token, uid, bat]);
+  const loadActivity = useCallback(() => {
+    if (!bat) return;
+    api.rbac
+      .userActivity(token, uid!, ACTIVITY_LIMIT)
+      .then(setActivity)
+      .catch(() => setActivity([]));
+  }, [token, uid, bat]);
+  // Chỉ đổi NGƯỜI (uid) mới tải lại — token tự làm mới 15 phút/lần không đáng 3 request.
+  useEffect(() => {
+    setRow(undefined);
+    setSessions(null);
+    setActivity(null);
+    if (!bat) return;
+    loadRow();
+    loadSessions();
+    loadActivity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, bat]);
+  return { row, sessions, activity, loadRow, loadSessions, loadActivity };
+}
+
+const DANG_TAI = "Đang tải…";
+
 /** Tab "Tài khoản & Quyền" — gộp từ màn Người dùng cũ (đã bỏ). Mọi tài khoản đều thuộc một
  * hồ sơ, nên đây là nơi DUY NHẤT cấp/quản tài khoản đăng nhập của nhân viên. */
 export function AccountTab({
@@ -33,11 +91,13 @@ export function AccountTab({
   emp,
   meta,
   onChanged,
+  taiKhoan,
 }: {
   token: string;
   emp: EmployeeDetail;
   meta: EmployeeMeta | null;
   onChanged: () => void;
+  taiKhoan: TaiKhoanData;
 }) {
   const can = useCan();
   const canCreate = can("nhan_su", "update");
@@ -48,9 +108,6 @@ export function AccountTab({
   const canLock = can("nhan_su", "lock");
   const canRevoke = can("nhan_su", "revoke_sessions");
 
-  const [row, setRow] = useState<UserRow | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [activity, setActivity] = useState<AuditRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tempPw, setTempPw] = useState<string | null>(null);
@@ -60,40 +117,8 @@ export function AccountTab({
   const [roleId, setRoleId] = useState<number | "">("");
 
   const uid = emp.user_id;
-  // Ba nguồn tải RIÊNG: mỗi thao tác chỉ tải lại phần nó đổi (đổi vai trò không đụng phiên).
-  // Trước đây mỗi lần bấm là kéo lại cả danh sách tài khoản toàn hệ thống + phiên + nhật ký.
-  const loadRow = useCallback(() => {
-    if (uid == null) return;
-    api.rbac
-      .user(token, uid)
-      .then(setRow)
-      .catch(() => setRow(null));
-  }, [token, uid]);
-  const loadSessions = useCallback(() => {
-    if (uid == null) return;
-    api.rbac
-      .userSessions(token, uid)
-      .then(setSessions)
-      .catch(() => setSessions([]));
-  }, [token, uid]);
-  const loadActivity = useCallback(() => {
-    if (uid == null) return;
-    api.rbac
-      .userActivity(token, uid, ACTIVITY_LIMIT)
-      .then(setActivity)
-      .catch(() => setActivity([]));
-  }, [token, uid]);
-  useEffect(() => {
-    if (uid == null) {
-      setRow(null);
-      setSessions([]);
-      setActivity([]);
-      return;
-    }
-    loadRow();
-    loadSessions();
-    loadActivity();
-  }, [uid, loadRow, loadSessions, loadActivity]);
+  const { row, sessions, activity, loadRow, loadSessions, loadActivity } = taiKhoan;
+  const dangTaiRow = row === undefined;
 
   const roleOpts = (meta?.roles ?? []).filter(
     (r) => r.department_id === emp.department_id,
@@ -209,12 +234,12 @@ export function AccountTab({
   }
 
   // --- Đã có tài khoản ---
-  const locked = row !== null && !row.is_active;
+  const locked = row != null && !row.is_active;
   // Mỗi lần đăng nhập mà không bấm Đăng xuất để lại một phiên sống 7 ngày, nên một người có thể
   // có hàng trăm phiên chỉ từ vài trình duyệt. Gom theo thiết bị: phiên đã về mới-nhất-trước nên
   // nhóm đầu tiên là thiết bị vừa đăng nhập, mốc giữ lại là lần đăng nhập mới nhất của nhóm.
   const sessionGroups: { label: string; count: number; latest: string }[] = [];
-  for (const s of sessions) {
+  for (const s of sessions ?? []) {
     const label = deviceLabel(s.user_agent);
     const g = sessionGroups.find((x) => x.label === label);
     if (g) g.count += 1;
@@ -238,12 +263,12 @@ export function AccountTab({
           />
           <InfoField
             label="Mã tài khoản"
-            value={row?.code ?? null}
+            value={dangTaiRow ? DANG_TAI : (row?.code ?? null)}
             icon={Hash}
           />
           <InfoField
             label="Trạng thái"
-            value={locked ? "Đã khóa" : "Hoạt động"}
+            value={dangTaiRow ? DANG_TAI : locked ? "Đã khóa" : "Hoạt động"}
             icon={Lock}
           />
         </InfoCard>
@@ -257,7 +282,9 @@ export function AccountTab({
                 <div className="ns-info-select-wrapper">
                   <select
                     value={row?.role_id ?? ""}
-                    disabled={busy}
+                    // Chưa tải xong thì KHOÁ ô — đừng để người ta chọn trên giá trị "— chưa gán —"
+                    // giả lúc đang chờ.
+                    disabled={busy || dangTaiRow}
                     onChange={(e) => {
                       const v = e.target.value ? Number(e.target.value) : null;
                       run(() => api.rbac.assignUserRole(token, uid, v), {
@@ -266,7 +293,7 @@ export function AccountTab({
                       });
                     }}
                   >
-                    <option value="">— chưa gán —</option>
+                    <option value="">{dangTaiRow ? DANG_TAI : "— chưa gán —"}</option>
                     {roleOpts.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name}
@@ -278,7 +305,7 @@ export function AccountTab({
               </div>
             </div>
           ) : (
-            <InfoField label="Vai trò" value={row?.role_name} icon={Shield} />
+            <InfoField label="Vai trò" value={dangTaiRow ? DANG_TAI : row?.role_name} icon={Shield} />
           )}
         </InfoCard>
       </div>
@@ -341,10 +368,12 @@ export function AccountTab({
       </InfoCard>
 
       <InfoCard
-        title={`Phiên đang hoạt động (${sessions.length})`}
+        title={sessions ? `Phiên đang hoạt động (${sessions.length})` : "Phiên đang hoạt động"}
         icon={Activity}
       >
-        {sessionGroups.length === 0 ? (
+        {sessions === null ? (
+          <InfoField label="Phiên" value={DANG_TAI} icon={Activity} />
+        ) : sessionGroups.length === 0 ? (
           <InfoField label="Phiên" value={null} icon={Activity} />
         ) : (
           sessionGroups.map((g) => (
@@ -363,7 +392,9 @@ export function AccountTab({
       </InfoCard>
 
       <InfoCard title="Hoạt động tài khoản gần đây" icon={Activity}>
-        {activity.length === 0 ? (
+        {activity === null ? (
+          <InfoField label="Hoạt động" value={DANG_TAI} icon={Activity} />
+        ) : activity.length === 0 ? (
           <InfoField label="Hoạt động" value={null} icon={Activity} />
         ) : (
           activity.map((a) => (

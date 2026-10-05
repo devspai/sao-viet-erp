@@ -30,8 +30,6 @@ from pydantic import BaseModel
 
 from ..deps import require_all_permissions, require_any_permission, require_permission
 from ..models.user import User
-from ..repositories.cong_thuc_lich_su_repo import CongThucLichSuRepository
-from ..schemas.cong_thuc_lich_su import CongThucLichSuOut
 from ..services.catalog_base import (
     CatalogDuplicate, CatalogError, CatalogInUse, CatalogNotFound,
 )
@@ -152,7 +150,6 @@ def make_catalog_router(
     ma_goi_y: bool = False,
     loi_khac: tuple[type[Exception], ...] = (),
     enable_clone: bool = False,
-    cong_thuc_truong: str | None = None,
     excel_spec: Any = None,
 ) -> APIRouter:
     """GẮN trọn bộ CRUD của một danh mục vào `router` của màn. Trả lại chính `router` đó.
@@ -184,10 +181,6 @@ def make_catalog_router(
     * `loi_khac` — lớp exception NGOÀI họ `Catalog*` mà handler cũng phải bắt.
     * `enable_clone` — mở `POST /{item_id}/clone`, gác bằng quyền `clone` riêng (không dùng chung
       `create` — nhân bản là thao tác khác, vai được tạo mới chưa chắc được nhân bản hàng cũ).
-    * `cong_thuc_truong` — tên cột công thức của danh mục này (`"cong_thuc_luong"`). Bật thì mỗi dòng trả về có thêm `<truong>_truoc` +
-      `<truong>_sua_luc` (giá trị NGAY TRƯỚC lần sửa gần nhất, đọc từ `cong_thuc_lich_su`), và mở
-      thêm `GET /{item_id}/lich-su-cong-thuc` cho lịch sử đầy đủ. Xem
-      `services/nhat_ky_danh_muc._ghi_lich_su_cong_thuc` — nơi ghi vào bảng đó.
     * `excel_spec` — một `CatalogExcelSpec` (`services/catalog_excel_specs`). Bật thì mở
       `GET /mau-excel` (XUẤT workbook: chỉ dòng ĐANG DÙNG, nhưng đủ mọi ô cấu hình và công thức,
       kèm sheet con cho dữ liệu con) + `POST /import-excel?mode=preview|commit`. Router chỉ điều
@@ -221,14 +214,6 @@ def make_catalog_router(
 
     def _rows(svc, objs) -> list:
         rows = dung_rows(svc, objs) if dung_rows else [RowModel.model_validate(o) for o in objs]
-        # "Lần trước công thức" (mục 3+7) — 1 truy vấn cho cả trang, giống hệt mẫu `gan_ten_don_vi`.
-        if cong_thuc_truong and rows and getattr(svc, "audit", None) is not None:
-            moi_nhat = CongThucLichSuRepository(svc.audit.db).moi_nhat_nhieu(
-                ten, [r.id for r in rows], cong_thuc_truong)
-            for r in rows:
-                m = moi_nhat.get(r.id)
-                setattr(r, f"{cong_thuc_truong}_truoc", m.gia_tri_cu if m else None)
-                setattr(r, f"{cong_thuc_truong}_sua_luc", m.sua_luc if m else None)
         return rows
 
     def _mot(svc, obj):
@@ -397,23 +382,6 @@ def make_catalog_router(
         _clone.__name__ = f"clone_{ten}"
         router.post(goc + "/{item_id}/clone", response_model=RowModel,
                     status_code=status.HTTP_201_CREATED, name=f"clone_{ten}")(_clone)
-
-    # -- GET "/{item_id}/lich-su-cong-thuc" : lịch sử ĐẦY ĐỦ, không chỉ "lần trước" ------
-    if cong_thuc_truong:
-        def _lich_su_cong_thuc(item_id: int, svc, _=Depends(doc)) -> list[CongThucLichSuOut]:
-            try:
-                svc.get(item_id)  # 404 nếu không có — cùng khuôn `_get`, tránh lộ lịch sử id ma.
-            except BAT as e:
-                raise loi_http(e) from None
-            if getattr(svc, "audit", None) is None:
-                return []
-            rows = CongThucLichSuRepository(svc.audit.db).liet_ke(ten, item_id, cong_thuc_truong)
-            return [CongThucLichSuOut.model_validate(r) for r in rows]
-        _lich_su_cong_thuc.__annotations__["svc"] = ServiceDep
-        _lich_su_cong_thuc.__annotations__["_"] = User
-        _lich_su_cong_thuc.__name__ = f"lich_su_cong_thuc_{ten}"
-        router.get(goc + "/{item_id}/lich-su-cong-thuc", response_model=list[CongThucLichSuOut],
-                   name=f"lich_su_cong_thuc_{ten}")(_lich_su_cong_thuc)
 
     # -- DELETE "/{item_id}" ------------------------------------------------------------
     def _delete(item_id: int, svc, user=Depends(req_delete)):

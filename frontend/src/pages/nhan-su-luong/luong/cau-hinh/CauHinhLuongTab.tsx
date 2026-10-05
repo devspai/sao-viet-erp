@@ -53,6 +53,7 @@ import type {
 } from "./shared/types";
 import "../../../luong.css";
 import "../../../rebuild-catalog.css";
+import { EmptyState } from "../../../../components/EmptyState";
 
 export function CauHinhLuongTab({
   token,
@@ -384,7 +385,7 @@ export function CauHinhLuongTab({
   if (loading)
     return (
       <div className="cl">
-        <p className="depts__status">Đang tải cấu hình…</p>
+        <EmptyState trangThai="dang-tai" nhanTai="Đang tải cấu hình…" />
       </div>
     );
   if (err && !params)

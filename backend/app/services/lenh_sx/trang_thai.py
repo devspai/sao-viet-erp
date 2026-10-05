@@ -132,9 +132,8 @@ _TU_TINH = _TuTinh()
 def den_vat_tu_theo_lo(db: Session, lsx_ids: list[int]) -> dict[int, str]:
     """`{lsx_id: mức đèn vật tư}` (`do` / `vang` / `ok`) cho CẢ LÔ — gọi MỘT lần cho cả trang.
 
-    Đọc LẠI đèn của `lsx_tong_quan.tong_quan`, KHÔNG tính lại: đèn đó cố ý soi đúng cửa chặn
-    `XepLichService._chan_chua_giu_du`, nên "đỏ" ở đây nghĩa là cùng một câu mà cửa chặn nói —
-    tính lại bằng công thức riêng là đẻ nguồn sự thật thứ hai lệch với cửa.
+    Đọc LẠI đèn của `lsx_tong_quan.tong_quan`, KHÔNG tính lại — tính lại bằng công thức riêng là
+    đẻ nguồn sự thật thứ hai lệch với màn Kế hoạch SX.
 
     Đắt: bên trong là một lượt `KeHoachVatTuService.can_doi()` cho cả lô. Chi phí gần như không
     đổi theo số lệnh nhưng KHÁC 0 — gọi hàm này trong vòng lặp từng lệnh là đẻ lại đúng N+1 mà

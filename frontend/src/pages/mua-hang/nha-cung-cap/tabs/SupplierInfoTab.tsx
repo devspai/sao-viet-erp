@@ -120,7 +120,7 @@ export function SupplierInfoTab({
   selected: SupplierRow | null;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
       {selected && (
         <div className="supplier__form-card">
           <KhoiSao ncc={selected} />
@@ -133,16 +133,18 @@ export function SupplierInfoTab({
           <Icon name="building" size={15} />
           <span>Thông tin định danh &amp; Pháp lý</span>
         </div>
-        <div className="md-page__form-grid">
-          <LocalField label="Tên nhà cung cấp" required>
-            <input
-              className="input"
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="VD: Công ty TNHH Giấy Việt Triều"
-            />
-          </LocalField>
+        <div className="supplier__form-grid-3">
+          <div className="supplier__span-2">
+            <LocalField label="Tên nhà cung cấp" required>
+              <input
+                className="input"
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="VD: Công ty TNHH Giấy Việt Triều"
+              />
+            </LocalField>
+          </div>
 
           <LocalField label="Nhóm" required>
             <input
@@ -150,7 +152,7 @@ export function SupplierInfoTab({
               required
               value={form.supplier_group ?? ""}
               onChange={(e) => setForm({ ...form, supplier_group: e.target.value })}
-              placeholder="Giấy in, Mực & Hóa chất, Gia công ngoài..."
+              placeholder="Giấy in, Mực & Hóa chất..."
             />
           </LocalField>
 
@@ -179,9 +181,25 @@ export function SupplierInfoTab({
               />
               <div className="supplier__switch-toggle" />
             </label>
-            <small className="supplier__hint">
-              Hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất
-            </small>
+          </LocalField>
+
+          <LocalField label="Trạng thái">
+            <div className="supplier__select-wrap">
+              <select
+                className="input"
+                value={form.status ?? "active"}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    status: e.target.value as "active" | "inactive",
+                  })
+                }
+              >
+                <option value="active">Hoạt động (Active)</option>
+                <option value="inactive">Tạm ngừng (Inactive)</option>
+              </select>
+              <ChevronDown className="supplier__select-arrow" size={16} />
+            </div>
           </LocalField>
         </div>
       </div>
@@ -192,7 +210,7 @@ export function SupplierInfoTab({
           <Icon name="phone" size={15} />
           <span>Người liên hệ &amp; Hạn mức công nợ</span>
         </div>
-        <div className="md-page__form-grid">
+        <div className="supplier__form-grid-3">
           <LocalField label="Người liên hệ" required>
             <input
               className="input"
@@ -229,7 +247,7 @@ export function SupplierInfoTab({
               className="input"
               value={form.payment_terms ?? ""}
               onChange={(e) => setForm({ ...form, payment_terms: e.target.value })}
-              placeholder="Công nợ 30 ngày, Thanh toán ngay..."
+              placeholder="Công nợ 30 ngày..."
             />
           </LocalField>
 
@@ -247,7 +265,7 @@ export function SupplierInfoTab({
                     credit_limit: Math.max(0, Math.round(Number(e.target.value) || 0)),
                   })
                 }
-                placeholder="Để trống = không đặt hạn mức"
+                placeholder="Để trống = không hạn mức"
               />
               <span className="supplier__input-suffix">VNĐ</span>
             </div>
@@ -257,9 +275,6 @@ export function SupplierInfoTab({
                 {docSoTienVnd(form.credit_limit)}
               </span>
             )}
-            <small className="supplier__hint">
-              Để trống hoặc 0 = không đặt hạn mức, sẽ không bao giờ báo vượt.
-            </small>
           </LocalField>
 
           <LocalField label="Số ngày cho nợ">
@@ -278,31 +293,8 @@ export function SupplierInfoTab({
                       : Math.max(0, Math.round(Number(e.target.value) || 0)),
                 })
               }
-              placeholder="Để trống = chưa đặt hạn"
+              placeholder="Để trống = chưa đặt"
             />
-            <small className="supplier__hint">
-              Để trống = <strong>chưa đặt hạn</strong>, đợt giao không vào cột Quá hạn. Nhập{" "}
-              <strong>0</strong> = trả ngay.
-            </small>
-          </LocalField>
-
-          <LocalField label="Trạng thái">
-            <div className="supplier__select-wrap">
-              <select
-                className="input"
-                value={form.status ?? "active"}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    status: e.target.value as "active" | "inactive",
-                  })
-                }
-              >
-                <option value="active">Hoạt động (Active)</option>
-                <option value="inactive">Tạm ngừng (Inactive)</option>
-              </select>
-              <ChevronDown className="supplier__select-arrow" size={16} />
-            </div>
           </LocalField>
         </div>
       </div>
@@ -313,25 +305,30 @@ export function SupplierInfoTab({
           <Icon name="mapPin" size={15} />
           <span>Địa chỉ &amp; Ghi chú</span>
         </div>
-        <div className="md-page__form-grid">
-          <LocalField label="Địa chỉ" wide required>
-            <input
-              className="input"
-              required
-              value={form.address ?? ""}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-              placeholder="Số 15, Đường Cầu Diễn, Bắc Từ Liêm, Hà Nội"
-            />
-          </LocalField>
+        <div className="supplier__form-grid-3">
+          <div className="supplier__span-3">
+            <LocalField label="Địa chỉ" wide required>
+              <input
+                className="input"
+                required
+                value={form.address ?? ""}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                placeholder="Số 15, Đường Cầu Diễn, Bắc Từ Liêm, Hà Nội"
+              />
+            </LocalField>
+          </div>
 
-          <LocalField label="Ghi chú" wide>
-            <textarea
-              className="input purchase__textarea"
-              value={form.note ?? ""}
-              onChange={(e) => setForm({ ...form, note: e.target.value })}
-              placeholder="Ghi chú thêm về năng lực, ưu đãi chiết khấu..."
-            />
-          </LocalField>
+          <div className="supplier__span-3">
+            <LocalField label="Ghi chú" wide>
+              <textarea
+                className="input purchase__textarea"
+                rows={2}
+                value={form.note ?? ""}
+                onChange={(e) => setForm({ ...form, note: e.target.value })}
+                placeholder="Ghi chú thêm về năng lực, ưu đãi chiết khấu..."
+              />
+            </LocalField>
+          </div>
         </div>
       </div>
     </div>

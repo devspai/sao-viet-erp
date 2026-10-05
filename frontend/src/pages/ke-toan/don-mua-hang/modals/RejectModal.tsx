@@ -60,7 +60,7 @@ export function RejectModal({
             <span>{rejecting.supplier_name || "Chưa chọn"}</span>
           </div>
         </div>
-        <div className="rc-drawer__body">
+        <div className="rc-drawer__body acct-dmh__body">
           <label className="acct-field">
             <span>
               Lý do từ chối <b>*</b>

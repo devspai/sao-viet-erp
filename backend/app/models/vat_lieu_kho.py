@@ -15,11 +15,11 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, Integer, JSON, Numeric, String, Text,
+    Boolean, Date, DateTime, ForeignKey, Integer, JSON, Numeric, String, Text, UniqueConstraint,
     false as sa_false,
     true as sa_true,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
 
@@ -64,17 +64,8 @@ class GiayNguyen(Base):
     gia_thi_truong: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)   # giá tham khảo thị trường
     kho_tinh_gia: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)  # khổ này dùng để tính giá?
     cong_thuc_gia: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # CÔNG THỨC LƯỢNG (mg 0195) — "một lệnh cần bao nhiêu <đơn vị này>". Ra LƯỢNG cho kế hoạch vật
-    # tư, khác `cong_thuc_gia` ngay trên (ra TIỀN cho phiếu tính giá).
-    #
-    # GIỮ LẠI khi ba ô cùng tên ở Máy · Công việc khoán · Vật tư khác bị gỡ (mg `0274`, 06/09/2026):
-    # ô này trả lời câu của MẶT HÀNG — một lệnh cần bao nhiêu kg giấy — chứ không của bước, nên
-    # không có công đoạn nào để neo vào.
-    #
-    # Có ô này thì giấy khai ĐVT `kg` THẬT rồi tự tính ra kg — không phải đi vòng qua cạnh quy đổi
-    # động `tờ → kg` nữa. Cạnh đó là thứ duy nhất còn giữ "công thức mà lại có đích", thứ chủ chốt
-    # 13/08/2026 là vô lý; khai ở đây xong thì xoá nó bằng tay trên UI được.
-    cong_thuc_luong: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Ô "Công thức tính định mức" (`cong_thuc_luong`, mg 0195) ĐÃ GỠ, mg `0348`: giấy đếm theo TỜ × KHỔ,
+    # không còn ra kg bằng công thức.
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # NVL THAY THẾ (mg 0239) — mảng id GIẤY khác dùng thay được món này. MỘT CHIỀU: khai A→B
     # không tự suy B→A, cần cả hai chiều thì người khai tự thêm cả hai. NULL = chưa khai.
@@ -145,6 +136,19 @@ class VatTuInAn(Base):
     # khai theo TỪNG DÒNG vật tư của CÔNG ĐOẠN (`cong_doan_vat_tu.cong_thuc_luong`, mg `0316`;
     # trước 18/09/2026 dòng ấy treo dưới đầu việc của tổ) — mực ăn theo SỐ TỜ còn dung môi rửa
     # máy ăn theo SỐ MÀU, cùng ĐVT kg mà hai cách hoàn toàn khác.
+    # CÔNG THỨC ĐỊNH MỨC (mg 0357, 01/10/2026) — "bước này tiêu hao bao nhiêu <ĐVT> vật tư này". Khác
+    # `cong_thuc_gia` (ra TIỀN). Biến: bộ `LOAI_QUY_DOI` + chip riêng (`chips`). Cùng nghĩa với ô
+    # `cong_thuc_luong` đã gỡ ở mg 0274, rồi từng nằm ở dòng công đoạn × vật tư
+    # (`cong_doan_vat_tu.cong_thuc_luong`, nay ngưng đọc) — về lại vật tư theo yêu cầu 01/10/2026.
+    cong_thuc_dinh_muc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # CHIP RIÊNG do người dùng đặt tên cho vật tư này, dùng làm biến trong hai công thức trên.
+    chips: Mapped[list["VatTuChip"]] = relationship(
+        "VatTuChip", back_populates="vat_tu", order_by="VatTuChip.thu_tu",
+        cascade="all, delete-orphan",
+        # selectin: mọi nơi quét danh mục vật tư (tính giá, bung lệnh) đọc chip của MỌI món —
+        # lazy-load là mỗi món một câu SQL.
+        lazy="selectin",
+    )
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # NVL THAY THẾ (mg 0239) — mảng id VẬT TƯ KHÁC khác dùng thay được món này. MỘT CHIỀU, xem
     # ghi chú đầy đủ ở `GiayNguyen.thay_the_ids`. NULL = chưa khai.
@@ -187,3 +191,24 @@ class VatTuInAn(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
+
+
+class VatTuChip(Base):
+    """Một CHIP riêng của một vật tư (vd Support: "Dài support", "Rộng support").
+
+    `ma` là tên biến trong công thức — sinh từ tên LÚC TẠO và KHÔNG đổi khi đổi tên chip (công thức
+    đang trỏ vào mã). Số cụ thể của chip nhập ở phiếu tính giá, theo từng bước (`phieu_buoc_vat_tu`)."""
+
+    __tablename__ = "vat_tu_chip"
+    __table_args__ = (UniqueConstraint("vat_tu_id", "ma", name="uq_vat_tu_chip_ma"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    vat_tu_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("vat_tu_in_an.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    ma: Mapped[str] = mapped_column(String(40), nullable=False)
+    ten: Mapped[str] = mapped_column(String(80), nullable=False)
+    don_vi: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+
+    vat_tu: Mapped["VatTuInAn"] = relationship("VatTuInAn", back_populates="chips")

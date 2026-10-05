@@ -259,7 +259,7 @@ Bọc `.thsx`, đặt biến cục bộ giống `.xl2` (label-w, bar-h, lane-h).
 | Nền trang / nền thẻ | `--paper` / `--canvas` |
 | Chữ chính / mờ / rất mờ | `--ink` / `--ash` / `--ash-2` |
 | Đường kẻ | `--rule` / `--rule-soft` / `--rule-hair` |
-| Accent / bề mặt tô (đang chọn, hover hàng, header) | `--rust` / `--rust-deep` / `--rust-soft` |
+| Accent / bề mặt tô (đang chọn, header) | `--rust` / `--rust-deep` / `--rust-soft` (hover hàng: `--rule-hair`) |
 | Font (cả chữ lẫn giờ, SL, mã) | `--ff-sans` |
 | Cỡ chữ | `--fs-2xs`…`--fs-xl` · Đậm `--fw-medium`/`--fw-bold` |
 | Giãn cách (4px scale) | `--sp-1`…`--sp-8` |

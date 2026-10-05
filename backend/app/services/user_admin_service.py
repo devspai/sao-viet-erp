@@ -159,22 +159,23 @@ class UserAdminService:
         if role is None:
             raise InvalidRoleForDepartment("Vai trò không tồn tại")
         # Resolve everyone first; each must be in the role's department (nothing changes on error).
+        # Một truy vấn nạp cả lô, một lần commit cho cả lô (bản cũ: 1 SELECT + 2 COMMIT mỗi người).
+        theo_id = self.users.get_many(user_ids)
         users: list[User] = []
         for uid in user_ids:
-            u = self.users.get_by_id(uid)
+            u = theo_id.get(uid)
             if u is None:
                 raise UserNotFound(f"Không tìm thấy người dùng (id={uid})")
             if u.department_id != role.department_id:
                 raise InvalidRoleForDepartment("Vai trò không thuộc phòng của người dùng")
             users.append(u)
-        for u in users:
-            self.users.set_role(u, role_id)
-            self.audit.create(
-                actor_user_id=actor_id,
-                action="assign_role",
-                target=f"user:{u.id}",
-                detail=f"role:{role_id}",
-            )
+        self.audit.create_many([
+            {"actor_user_id": actor_id, "action": "assign_role",
+             "target": f"user:{u.id}", "detail": f"role:{role_id}"}
+            for u in users
+        ])
+        self.users.set_role_many(users, role_id)
+        self.audit.bao_co_dong_moi()
         bao_quyen_doi(u.id for u in users)
         return len(users)
 

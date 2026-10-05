@@ -8,10 +8,11 @@ set of Sale ids in the actor's department rather than on a column of `customers`
 """
 from __future__ import annotations
 
-from sqlalchemy import asc, desc, func, or_, select
+from sqlalchemy import and_, asc, desc, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from ..models.customer import (
+    TASK_DONE,
     TASK_OPEN,
     Customer,
     CustomerAddress,
@@ -279,9 +280,10 @@ class CustomerRepository:
 
     def reassign_sale(
         self, *, from_sale_user_id: int, to_sale_user_id: int, scope: str, actor
-    ) -> list[Customer]:
+    ) -> tuple[list[Customer], dict[int, int]]:
         """Move every customer owned by `from_sale_user_id` (AND visible under the actor's
-        scope) to `to_sale_user_id`. Returns the moved rows. The scope filter means a
+        scope) to `to_sale_user_id`. Returns (moved rows, hẹn mở đã đi theo — xem `chuyen_hen_mo`).
+        The scope filter means a
         `department`-scoped caller can only move customers whose current owner sits in their
         department — never someone else's book."""
         stmt = select(Customer).where(Customer.sale_user_id == from_sale_user_id)
@@ -291,18 +293,21 @@ class CustomerRepository:
         rows = list(self.db.execute(stmt).scalars())
         for c in rows:
             c.sale_user_id = to_sale_user_id
+        hen = self.chuyen_hen_mo(customer_ids=[c.id for c in rows],
+                                 tu_sale={c.id: from_sale_user_id for c in rows}, den_sale=to_sale_user_id)
         self.db.commit()
-        return rows
+        return rows, hen
 
     def reassign_by_ids(
         self, *, customer_ids: list[int], to_sale_user_id: int, scope: str, actor
-    ) -> tuple[list[Customer], int]:
+    ) -> tuple[list[Customer], int, dict[int, int]]:
         """Reassign a specific set of customers (checkbox selection) to `to_sale_user_id`.
         Only customers the actor may access under `scope` are moved; the rest are skipped.
-        Returns (moved_rows, skipped_count)."""
+        Returns (moved_rows, skipped_count, hẹn mở đã đi theo — xem `chuyen_hen_mo`)."""
         moved: list[Customer] = []
         skipped = 0
         seen: set[int] = set()
+        tu_sale: dict[int, int | None] = {}
         for cid in customer_ids:
             if cid in seen:
                 continue
@@ -312,10 +317,12 @@ class CustomerRepository:
                 skipped += 1
                 continue
             if c.sale_user_id != to_sale_user_id:
+                tu_sale[c.id] = c.sale_user_id
                 c.sale_user_id = to_sale_user_id
                 moved.append(c)
+        hen = self.chuyen_hen_mo(customer_ids=[c.id for c in moved], tu_sale=tu_sale, den_sale=to_sale_user_id)
         self.db.commit()
-        return moved, skipped
+        return moved, skipped, hen
 
     # --- người liên hệ (#10–#11) ---------------------------------------------
 
@@ -560,37 +567,68 @@ class CustomerRepository:
         self.db.refresh(task)
         return task
 
-    def list_due_followups(
-        self, *, scope: str, actor, due_before
+    def list_lich_hen(
+        self, *, scope: str, actor, chi_cua_toi: bool, tu, den
     ) -> list[tuple[CustomerCareTask, Customer]]:
-        """Việc chăm sóc ĐANG MỞ đã đến hạn (due_date ≤ due_before) trên các khách trong
-        scope của người gọi — nguồn của panel "Cần chăm sóc" (#28). Đến hạn sớm nhất trước."""
+        """Hẹn cho nút "Lịch hẹn" trên danh bạ: mọi hẹn ĐANG MỞ có giờ ≤ `den` (kể cả trễ từ lâu)
+        cộng hẹn đã xong trong [tu, den]. Kèm mọi dòng ngoại lệ của các chuỗi lặp lấy được, để bung
+        lần ảo mà không trùng lần đã đụng tới.
+
+        `chi_cua_toi`: hẹn có người phụ trách là người gọi (hẹn chưa gán ai thì tính cho NV phụ
+        trách khách) — KHÔNG lọc theo phạm vi khách, vì đó là việc của chính họ. Ngược lại: mọi hẹn
+        trên những khách người gọi được xem."""
         stmt = (
             select(CustomerCareTask, Customer)
             .join(Customer, CustomerCareTask.customer_id == Customer.id)
-            .where(CustomerCareTask.status == TASK_OPEN)
-            .where(CustomerCareTask.due_date <= due_before)
+            .where(CustomerCareTask.due_date <= den)
+            .where(or_(
+                CustomerCareTask.status == TASK_OPEN,
+                and_(CustomerCareTask.status == TASK_DONE, CustomerCareTask.due_date >= tu),
+            ))
         )
-        cond = self._scope_condition(scope=scope, actor=actor)
-        if cond is not None:
-            stmt = stmt.where(cond)
-        stmt = stmt.order_by(CustomerCareTask.due_date.asc(), CustomerCareTask.id.asc())
-        return [(t, c) for t, c in self.db.execute(stmt).all()]
+        if chi_cua_toi:
+            stmt = stmt.where(or_(
+                CustomerCareTask.assignee_user_id == actor.id,
+                and_(CustomerCareTask.assignee_user_id.is_(None), Customer.sale_user_id == actor.id),
+            ))
+        else:
+            cond = self._scope_condition(scope=scope, actor=actor)
+            if cond is not None:
+                stmt = stmt.where(cond)
+        rows = [(t, c) for t, c in self.db.execute(stmt).all()]
+        dau_chuoi = [t.id for t, _ in rows if (t.repeat_freq or "none") != "none" and t.series_id is None]
+        if dau_chuoi:
+            co = {t.id for t, _ in rows}
+            them = self.db.execute(
+                select(CustomerCareTask, Customer)
+                .join(Customer, CustomerCareTask.customer_id == Customer.id)
+                .where(CustomerCareTask.series_id.in_(dau_chuoi))
+            ).all()
+            rows += [(t, c) for t, c in them if t.id not in co]
+        return rows
 
-    def count_due_followups(self, *, scope: str, actor, due_before) -> int:
-        """Số dòng `list_due_followups` sẽ trả — CÙNG điều kiện + scope, đếm bằng COUNT ở SQL.
-        Badge menu chỉ cần con số; nạp cả danh sách + tên sale cho mỗi lần mở app là phí."""
-        stmt = (
-            select(func.count(CustomerCareTask.id))
-            .select_from(CustomerCareTask)
-            .join(Customer, CustomerCareTask.customer_id == Customer.id)
-            .where(CustomerCareTask.status == TASK_OPEN)
-            .where(CustomerCareTask.due_date <= due_before)
-        )
-        cond = self._scope_condition(scope=scope, actor=actor)
-        if cond is not None:
-            stmt = stmt.where(cond)
-        return int(self.db.execute(stmt).scalar_one() or 0)
+    def chuyen_hen_mo(self, *, customer_ids: list[int], tu_sale: dict[int, int | None],
+                      den_sale: int | None) -> dict[int, int]:
+        """Điều chuyển khách thì hẹn ĐANG MỞ của NV cũ trên khách đó đi theo sang NV mới. Hẹn đã
+        giao cho người khác (không phải NV cũ) giữ nguyên. Không commit — đi chung giao dịch của
+        lượt điều chuyển. Trả {NV cũ: số hẹn đã chuyển đi} (bỏ người 0 hẹn) để service báo real-time."""
+        hen: dict[int, int] = {}
+        if den_sale is None:
+            return hen
+        for cid in customer_ids:
+            cu = tu_sale.get(cid)
+            if cu is None or cu == den_sale:
+                continue
+            n = self.db.execute(
+                update(CustomerCareTask)
+                .where(CustomerCareTask.customer_id == cid)
+                .where(CustomerCareTask.status == TASK_OPEN)
+                .where(CustomerCareTask.assignee_user_id == cu)
+                .values(assignee_user_id=den_sale)
+            ).rowcount
+            if n:
+                hen[cu] = hen.get(cu, 0) + n
+        return hen
 
     def list_due_in_window(self, *, after, until) -> list[tuple[CustomerCareTask, Customer]]:
         """Hẹn ĐANG MỞ có giờ hẹn vừa rơi vào (after, until] và CÓ người phụ trách — nguồn ticker

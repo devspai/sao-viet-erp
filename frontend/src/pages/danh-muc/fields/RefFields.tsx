@@ -61,10 +61,12 @@ export function RefMultiField({ value, options, onChange }: {
 }
 
 // Ô tìm-chọn 1 danh mục theo MÃ (typeahead, bỏ dấu vẫn khớp) — vd chọn bù hao cho công đoạn.
-export function RefSearchField({ value, options, placeholder, byMa, onChange }: {
+export function RefSearchField({ value, options, placeholder, byMa, anMa, onChange }: {
   value: number | string | null; options: Row[]; placeholder?: string;
   /** Lưu MÃ (chuỗi) thay vì id — cho cột trỏ danh mục bằng mã, vd `don_vi_gia`. */
   byMa?: boolean;
+  /** Danh sách chỉ hiện TÊN, không in mã bên cạnh — gõ mã vẫn tìm ra. */
+  anMa?: boolean;
   onChange: (v: number | string | null) => void;
 }) {
   const [q, setQ] = useState("");
@@ -165,7 +167,7 @@ export function RefSearchField({ value, options, placeholder, byMa, onChange }: 
       {open && matches.length > 0 && (
         <div className={`rc-ref-search-panel${lenTren ? " rc-ref-search-panel--len" : ""}`}>
           {matches.map((o) => {
-            const showCode = o.ma && o.ma.toLowerCase() !== String(o.ten).toLowerCase();
+            const showCode = !anMa && o.ma && o.ma.toLowerCase() !== String(o.ten).toLowerCase();
             return (
               <button
                 type="button"

@@ -21,18 +21,24 @@ from sqlalchemy.orm import Session, selectinload
 from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.phieu_tinh_gia import (
-    PhieuChiPhiKhac, PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia, PhieuVatTu, SanPhamTaiBan,
+    PhieuChiPhiKhac, PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia, PhieuBuocVatTu, SanPhamTaiBan,
 )
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.document_sequence_repo import DocumentSequenceRepository
 from ..repositories.org_scope import dept_subtree_ids, nhom_dung_chung_user_ids
+from ..schemas.customer import SaleOption
+from ..services.nguoi_phu_trach_service import lua_chon_nguoi
+from ..repositories.tim_khong_dau import like_khong_dau
+from ..models.customer import Customer
 from ..services.actor_display import actor_labels
 from ..schemas.phieu_tinh_gia import (
     DanhMucDoi,
+    DanhMucDoiOut,
     NhomTongOut,
     PhieuTinhGiaCreate,
+    PhieuTinhGiaKhachHangPatch,
     PhieuTinhGiaListItem,
     PhieuTinhGiaListOut,
     PhieuTinhGiaOut,
@@ -44,7 +50,7 @@ from ..schemas.phieu_tinh_gia import (
     SanPhamTaiBanGoiY,
     ThanhPhanIn,
 )
-from ..services import san_pham_tai_ban_service
+from ..services import ptg_khach_hang_service, ptg_nhan_ban_service, san_pham_tai_ban_service
 from ..services.rbac_service import AuthorizationService
 from ..services.thanh_phan_engine import chuan_hoa_cot
 from ..services.tinh_gia_service import compute_phieu_snapshot, danh_muc_doi_sau_khi_tinh
@@ -76,15 +82,41 @@ def _owner_ids_for_scope(db: Session, user: User, authz: AuthorizationService) -
     return nhom_dung_chung_user_ids(db, user.id)
 
 
+# Cây con của phiếu nạp MỘT lượt mỗi tầng (04/10/2026). Để lười thì mỗi sản phẩm tự hỏi lại bước,
+# vật tư của bước, chi phí khác — mở phiếu 10 sản phẩm là 30 câu SQL thừa.
+_CAY_PHIEU = (
+    selectinload(PhieuTinhGia.thanh_phans)
+    .selectinload(PhieuThanhPhan.thanh_phams)
+    .selectinload(PhieuThanhPham.vat_tus),
+    selectinload(PhieuTinhGia.thanh_phans).selectinload(PhieuThanhPhan.chi_phi_khacs),
+)
+
+
 def _fetch_in_scope(db: Session, p_id: int, user: User, authz: AuthorizationService) -> PhieuTinhGia:
     """Lấy 1 phiếu + chặn nếu ngoài phạm vi của người xem (ẩn = 404, không lộ tồn tại)."""
-    p = db.get(PhieuTinhGia, p_id)
+    p = db.get(PhieuTinhGia, p_id, options=_CAY_PHIEU)
     if p is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phiếu tính giá")
     owner_ids = _owner_ids_for_scope(db, user, authz)
     if owner_ids is not None and p.created_by not in owner_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phiếu tính giá")
     return p
+
+
+def _nap_lai(db: Session, p_id: int) -> PhieuTinhGia:
+    """Đọc lại phiếu SAU commit (mọi thuộc tính đã hết hạn) — kèm cả cây trong vài câu SELECT;
+    để `model_validate` tự lazy-load thì mỗi sản phẩm, mỗi bước thêm một câu."""
+    return db.execute(
+        select(PhieuTinhGia).options(*_CAY_PHIEU).where(PhieuTinhGia.id == p_id)
+        .execution_options(populate_existing=True)
+    ).scalar_one()
+
+
+def _out_day_du(db: Session, p: PhieuTinhGia) -> PhieuTinhGiaOut:
+    """`PhieuTinhGiaOut` + tên khách (tên không lưu ở phiếu — tra từ `customers`)."""
+    out = PhieuTinhGiaOut.model_validate(p)
+    ptg_khach_hang_service.gan_khach_out(db, p, out)
+    return out
 
 
 def _next_ma(db: Session) -> str:
@@ -96,23 +128,24 @@ def _next_ma(db: Session) -> str:
     )
 
 
-def _con_cua_thanh_phan(tp: PhieuThanhPhan, rows_in: list[dict], vt_in: list[dict],
+def _con_cua_thanh_phan(tp: PhieuThanhPhan, rows_in: list[dict],
                         cpk_in: list[dict] | None = None) -> None:
-    """Dựng lại TOÀN BỘ dòng gia công + vật tư + chi phí khác của một thành phần.
+    """Dựng lại TOÀN BỘ dòng gia công (kèm vật tư của từng bước) + chi phí khác của một thành phần.
 
     Con sâu vẫn REPLACE-ALL (delete-orphan lo xoá): không nơi nào ghim `phieu_thanh_pham.id`,
-    `phieu_vat_tu.id` hay `phieu_chi_phi_khac.id`, nên id của chúng đổi cũng không gãy gì — khác
-    hẳn `phieu_thanh_phan.id`."""
+    `phieu_buoc_vat_tu.id` hay `phieu_chi_phi_khac.id`, nên id của chúng đổi cũng không gãy gì —
+    khác hẳn `phieu_thanh_phan.id`. `vat_tus` của bước bị `pop` khỏi dict TRƯỚC khi dựng
+    `PhieuThanhPham(**rd)` — để nguyên thì SQLAlchemy nổ vì list-dict không phải ORM."""
     tp.thanh_phams.clear()
     for j, row in enumerate(rows_in):
         rd = dict(row)
+        vt_in = rd.pop("vat_tus", None) or []
         rd.setdefault("thu_tu", j)
-        tp.thanh_phams.append(PhieuThanhPham(**rd))
-    tp.vat_tus.clear()
-    for k, vt in enumerate(vt_in):
-        vd = dict(vt)
-        vd.setdefault("thu_tu", k)
-        tp.vat_tus.append(PhieuVatTu(**vd))
+        # `vat_tus` gán NGAY lúc dựng (kể cả rỗng): collection đã khởi tạo thì engine đọc sau flush
+        # không lazy-load — để trống là mỗi bước thêm một câu SELECT vật tư.
+        tp.thanh_phams.append(PhieuThanhPham(**rd, vat_tus=[
+            PhieuBuocVatTu(**{"thu_tu": k, **dict(vt)}) for k, vt in enumerate(vt_in)
+        ]))
     tp.chi_phi_khacs.clear()
     for m, cp in enumerate(cpk_in or []):
         cd = dict(cp)
@@ -124,11 +157,10 @@ def _build_thanh_phan(tp_in: ThanhPhanIn, thu_tu: int) -> PhieuThanhPhan:
     """Dựng ORM thành phần MỚI + con finishing từ payload (chỉ set field được gửi → giữ default model)."""
     data = tp_in.model_dump(exclude_unset=True)
     rows_in = data.pop("thanh_phams", None) or []
-    vt_in = data.pop("vat_tus", None) or []
     cpk_in = data.pop("chi_phi_khacs", None) or []
     data.setdefault("thu_tu", thu_tu)
     tp = PhieuThanhPhan(**data)
-    _con_cua_thanh_phan(tp, rows_in, vt_in, cpk_in)
+    _con_cua_thanh_phan(tp, rows_in, cpk_in)
     return tp
 
 
@@ -153,13 +185,12 @@ def _ghi_de_thanh_phan(tp: PhieuThanhPhan, tp_in: ThanhPhanIn, thu_tu: int) -> N
     """Ghi payload lên thành phần CÓ SẴN, GIỮ NGUYÊN `id` (đây là chỗ cứu pin ấn phẩm)."""
     data = tp_in.model_dump(exclude_unset=True)
     rows_in = data.pop("thanh_phams", None) or []
-    vt_in = data.pop("vat_tus", None) or []
     cpk_in = data.pop("chi_phi_khacs", None) or []
     data.setdefault("thu_tu", thu_tu)
     for cot in _COT_THANH_PHAN:
         gia_tri = data.get(cot)
         setattr(tp, cot, _mac_dinh_cot(cot) if gia_tri is None else gia_tri)
-    _con_cua_thanh_phan(tp, rows_in, vt_in, cpk_in)
+    _con_cua_thanh_phan(tp, rows_in, cpk_in)
 
 
 def _khoa_ten(ten: str | None) -> str:
@@ -245,22 +276,28 @@ def list_items(
     sort: str = Query(default="-ngay"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
+    nguoi: int | None = Query(default=None),
 ) -> PhieuTinhGiaListOut:
     stmt = select(PhieuTinhGia)
     owner_ids = _owner_ids_for_scope(db, user, authz)
     if owner_ids is not None:
         stmt = stmt.where(PhieuTinhGia.created_by.in_(owner_ids))
-    if q:
-        like = f"%{q.strip()}%"
+    if nguoi is not None:   # hộp lọc người lập — AND với phạm vi, không vượt được tầm nhìn
+        stmt = stmt.where(PhieuTinhGia.created_by == nguoi)
+    if q and q.strip():
+        # Tìm TƯƠNG ĐỐI (không dấu, không phân biệt hoa thường) — gõ "hop qua" ra "Hộp quà".
         # Gõ tên hàng phải ra phiếu, kể cả khi tên đó chỉ nằm ở SẢN PHẨM BÊN TRONG. Cột "Sản phẩm"
         # ngoài bảng rơi về tên hàng bên trong khi ô đầu phiếu bỏ trống (xem `ten_thanh_phans`) —
         # nhìn thấy chữ mà gõ đúng chữ đó lại không tìm ra thì người dùng tưởng mất phiếu.
         stmt = stmt.where(or_(
-            PhieuTinhGia.ma.ilike(like),
-            PhieuTinhGia.ten_san_pham.ilike(like),
+            like_khong_dau(PhieuTinhGia.ma, q),
+            like_khong_dau(PhieuTinhGia.ten_san_pham, q),
+            like_khong_dau(PhieuTinhGia.ghi_chu, q),   # cột "Ghi chú" ngoài bảng
             PhieuTinhGia.id.in_(
-                select(PhieuThanhPhan.phieu_id).where(PhieuThanhPhan.ten.ilike(like))
+                select(PhieuThanhPhan.phieu_id).where(like_khong_dau(PhieuThanhPhan.ten, q))
             ),
+            # Cột "Khách hàng" ngoài bảng — gõ tên khách cũng phải ra phiếu.
+            PhieuTinhGia.customer_id.in_(select(Customer.id).where(like_khong_dau(Customer.name, q))),
         ))
     # "Nháp"/"Đã tính giá" không phải cột DB — phiếu KHÔNG có sản phẩm nào bên trong = nháp
     # (đồng nhất với so_thanh_phan == 0 mà FE dùng để tô badge, xem vòng lặp bên dưới).
@@ -280,9 +317,11 @@ def list_items(
         .offset((page - 1) * size)
         .limit(size)
     ).scalars().all()
+    ten_khach = ptg_khach_hang_service.ten_khach(db, {r.customer_id for r in rows})
     items = []
     for r in rows:
         it = PhieuTinhGiaListItem.model_validate(r)
+        it.customer_name = ten_khach.get(r.customer_id)
         it.so_thanh_phan = len(r.thanh_phans)
         # Cột "SL" ngoài bảng phải là ĐÚNG SỐ MÀ ĐƠN GIÁ ĐANG CHIA: Σ SL các sản phẩm bên trong
         # phiếu (engine: `compute_phieu.tong_sl`), sản phẩm bỏ trống SL thì rơi về SL mặc định ở
@@ -303,6 +342,7 @@ def stats(
     db: Annotated[Session, Depends(get_db)],
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    nguoi: int | None = Query(default=None),
 ) -> PhieuTinhGiaStatsOut:
     """Đếm cho thanh tab — phải đặt TRƯỚC route `/{p_id}` (int) trong file, không thì FastAPI
     thử ép "stats" thành int và 422 trước khi kịp rơi xuống route này."""
@@ -310,10 +350,32 @@ def stats(
     owner_ids = _owner_ids_for_scope(db, user, authz)
     if owner_ids is not None:
         stmt = stmt.where(PhieuTinhGia.created_by.in_(owner_ids))
+    if nguoi is not None:
+        stmt = stmt.where(PhieuTinhGia.created_by == nguoi)
     has_thanh_phan = select(PhieuThanhPhan.id).where(PhieuThanhPhan.phieu_id == PhieuTinhGia.id).exists()
     total_all = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     total_draft = db.scalar(select(func.count()).select_from(stmt.where(~has_thanh_phan).subquery())) or 0
     return PhieuTinhGiaStatsOut(all=total_all, draft=total_draft, calculated=total_all - total_draft)
+
+
+@router.get("/nguoi-lap", response_model=list[SaleOption])
+def list_nguoi_lap(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[SaleOption]:
+    """Hộp lọc người lập: ai đang có phiếu TRONG tầm nhìn (phạm vi + nhóm dùng chung). Đặt TRƯỚC
+    `/{p_id}` cùng lý do với `/stats`."""
+    stmt = (
+        select(PhieuTinhGia.created_by, func.count())
+        .where(PhieuTinhGia.created_by.is_not(None))
+        .group_by(PhieuTinhGia.created_by)
+    )
+    owner_ids = _owner_ids_for_scope(db, user, authz)
+    if owner_ids is not None:
+        stmt = stmt.where(PhieuTinhGia.created_by.in_(owner_ids))
+    dem = {int(uid): int(c) for uid, c in db.execute(stmt)}
+    return lua_chon_nguoi(db, dem, user)
 
 
 @router.post("", response_model=PhieuTinhGiaOut, status_code=status.HTTP_201_CREATED)
@@ -322,7 +384,8 @@ def create_item(
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "create"))],
     _ruot: RuotGia,
-) -> PhieuTinhGia:
+    authz: Authz,
+) -> PhieuTinhGiaOut:
     p = PhieuTinhGia(
         ma=_next_ma(db),
         ten_san_pham=payload.ten_san_pham or "",
@@ -332,20 +395,53 @@ def create_item(
         ktv=(user.name or user.username),
         created_by=user.id,
     )
+    # Khách chọn ngay lúc lập phiếu (phiếu chưa lưu mà đã chọn khách ở dải đầu phiếu).
+    ptg_khach_hang_service.ap_khach(
+        db, p, payload.model_dump(exclude_unset=True, include=set(ptg_khach_hang_service.O_KHACH)),
+        actor=user, scope_khach=authz.scope_for(user, "khach_hang"),
+    )
     _ghi_thanh_phans(p, payload.thanh_phans)
     db.add(p)
     db.flush()
     compute_phieu_snapshot(db, p)
-    # Nhật ký hoạt động: ai LẬP phiếu, khi nào (audit.create tự commit → snapshot cùng lưu).
+    # Nhật ký hoạt động: ai LẬP phiếu, khi nào — cùng một commit với phiếu.
     AuditLogRepository(db).create(
         actor_user_id=user.id,
         action="create_ptg",
         target=f"phieu_tinh_gia:{p.id}",
         detail=f"Lập phiếu tính giá {p.ma}",
+        commit=False,
     )
     db.commit()
-    db.refresh(p)
-    return p
+    return _out_day_du(db, _nap_lai(db, p.id))
+
+
+@router.post("/{p_id}/nhan-ban", response_model=PhieuTinhGiaOut, status_code=status.HTTP_201_CREATED)
+def nhan_ban_phieu(
+    p_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "create"))],
+    _ruot: RuotGia,
+) -> PhieuTinhGiaOut:
+    """Nhân bản phiếu — bản sao mang mã mới, người lập là người bấm, giá vốn tính lại theo danh
+    mục hôm nay. Một phiếu chỉ một báo giá, nên đây là đường lập báo giá thứ hai từ cùng cấu hình.
+    Cần quyền Tạo + "Xem chi tiết giá vốn" (bản sao chép nguyên ruột giá), phiếu gốc phải trong
+    phạm vi xem (ngoài phạm vi = 404)."""
+    nguon = _fetch_in_scope(db, p_id, user, authz)
+    p = ptg_nhan_ban_service.nhan_ban(nguon, ma=_next_ma(db), actor=user)
+    db.add(p)
+    db.flush()
+    compute_phieu_snapshot(db, p)
+    AuditLogRepository(db).create(
+        actor_user_id=user.id,
+        action="create_ptg",
+        target=f"phieu_tinh_gia:{p.id}",
+        detail=f"Nhân bản phiếu tính giá {p.ma} từ {nguon.ma}",
+        commit=False,
+    )
+    db.commit()
+    return _out_day_du(db, _nap_lai(db, p.id))
 
 
 @router.get("/san-pham-tai-ban", response_model=list[SanPhamTaiBanGoiY])
@@ -381,11 +477,18 @@ def get_item(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> PhieuTinhGiaOut | PhieuTinhGiaOutRutGon:
-    p = _fetch_in_scope(db, p_id, user, authz)
+    return _out_theo_quyen(db, _fetch_in_scope(db, p_id, user, authz), user, authz)
+
+
+def _out_theo_quyen(
+    db: Session, p: PhieuTinhGia, user: User, authz: AuthorizationService,
+) -> PhieuTinhGiaOut | PhieuTinhGiaOutRutGon:
+    """Phiếu như GET trả: đủ ruột giá nếu có "Xem chi tiết giá vốn", không thì bản rút gọn."""
     # Thiếu "Xem chi tiết giá vốn" → KHÔNG dựng `PhieuTinhGiaOut` rồi cắt: dựng rồi cắt là để
     # ngỏ đường quên cắt một chỗ. Trả thẳng model rút gọn — nó không có field ruột giá để mà lọt.
     if not authz.can(user, MODULE, "view_cost"):
         rut_gon = PhieuTinhGiaOutRutGon.model_validate(p)
+        ptg_khach_hang_service.gan_khach_out(db, p, rut_gon)
         # Ba rổ (Nguyên vật liệu · Công đoạn · Giao hàng) chỉ lấy TÊN + TỔNG. `rows`/`columns`
         # của mỗi rổ mới là diễn giải — không đi kèm.
         groups = (p.result_json or {}).get("groups") or []
@@ -395,7 +498,7 @@ def get_item(
             if isinstance(g, dict)
         ]
         return rut_gon
-    out = PhieuTinhGiaOut.model_validate(p)
+    out = _out_day_du(db, p)
     # Ảnh chụp giữ SỐ, không giữ CÁCH BÀY: đắp lại danh sách cột theo khai báo hiện tại của engine
     # để phiếu cũ không còn gánh cột đã bỏ (cột "Ghi chú" rỗng, 25/08/2026).
     out.result = chuan_hoa_cot(out.result)
@@ -408,6 +511,21 @@ def get_item(
     return out
 
 
+@router.get("/{p_id}/danh-muc-doi", response_model=DanhMucDoiOut)
+def danh_muc_doi(
+    p_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> DanhMucDoiOut:
+    """CHỈ lời nhắc "danh mục đã đổi sau lần tính" của một phiếu — màn phiếu đang mở hỏi lại khi
+    nhận tín hiệu danh mục đổi (SSE `danh_muc_doi`). Trước đây nó gọi lại cả `GET /{p_id}` (ảnh
+    chụp kết quả, 16 KB) chỉ để đọc đúng trường này."""
+    p = _fetch_in_scope(db, p_id, user, authz)
+    doi = danh_muc_doi_sau_khi_tinh(db, p)
+    return DanhMucDoiOut(danh_muc_doi=DanhMucDoi(**doi) if doi is not None else None)
+
+
 @router.put("/{p_id}", response_model=PhieuTinhGiaOut)
 def update_item(
     p_id: int,
@@ -416,7 +534,7 @@ def update_item(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
     _ruot: RuotGia,
-) -> PhieuTinhGia:
+) -> PhieuTinhGiaOut:
     p = _fetch_in_scope(db, p_id, user, authz)
     data = payload.model_dump(exclude_unset=True)
     for field in ("ten_san_pham", "kho_thanh_pham", "so_luong", "ghi_chu"):
@@ -426,16 +544,51 @@ def update_item(
         _ghi_thanh_phans(p, payload.thanh_phans)
     db.flush()
     compute_phieu_snapshot(db, p)
-    # Nhật ký hoạt động: ai CẬP NHẬT phiếu, khi nào (audit.create tự commit).
+    # Báo giá NHÁP của phiếu theo ngay số lượng / giá vốn mới (dòng gõ tay giữ giá gõ tay);
+    # báo giá đã gửi giữ nguyên, màn báo giá hiện băng "phiếu đã đổi".
+    ptg_khach_hang_service.dong_bo_bao_gia_nhap(db, p, actor=user)
     AuditLogRepository(db).create(
         actor_user_id=user.id,
         action="update_ptg",
         target=f"phieu_tinh_gia:{p.id}",
         detail=f"Cập nhật phiếu tính giá {p.ma}",
+        commit=False,
+    )
+    db.commit()  # MỘT lần: phiếu + báo giá nháp + nhật ký
+    return _out_day_du(db, _nap_lai(db, p.id))
+
+
+@router.patch("/{p_id}/khach-hang", response_model=None)
+def chon_khach_hang(
+    p_id: int,
+    payload: PhieuTinhGiaKhachHangPatch,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> PhieuTinhGiaOut | PhieuTinhGiaOutRutGon:
+    """Khách, điểm giao, người nhận, ghi chú của phiếu — dải đầu màn phiếu.
+
+    KHÔNG cần "Xem chi tiết giá vốn" (khách hàng không phải ruột giá) và KHÔNG tính lại giá.
+    Khách phải nằm trong phạm vi Khách hàng của người chọn (403). Xong thì mọi báo giá NHÁP của
+    phiếu theo ngay; báo giá đã gửi khách giữ nguyên."""
+    p = _fetch_in_scope(db, p_id, user, authz)
+    data = payload.model_dump(exclude_unset=True)
+    ptg_khach_hang_service.ap_khach(
+        db, p, data, actor=user, scope_khach=authz.scope_for(user, "khach_hang"),
+    )
+    if "ghi_chu" in data:
+        p.ghi_chu = data["ghi_chu"]
+    db.flush()
+    ptg_khach_hang_service.dong_bo_bao_gia_nhap(db, p, actor=user)
+    AuditLogRepository(db).create(
+        actor_user_id=user.id,
+        action="update_ptg",
+        target=f"phieu_tinh_gia:{p.id}",
+        detail=f"Cập nhật khách hàng / ghi chú phiếu tính giá {p.ma}",
+        commit=False,
     )
     db.commit()
-    db.refresh(p)
-    return p
+    return _out_theo_quyen(db, _nap_lai(db, p.id), user, authz)
 
 
 @router.delete("/{p_id}")

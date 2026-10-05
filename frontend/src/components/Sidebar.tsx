@@ -93,13 +93,7 @@ export const NAV: NavSection[] = [
       // Gác bằng MỘT ô `giao_hang` — không có cửa phụ nào khác (bài học ô ma `self_service`).
       { id: "giao-hang", label: "Giao hàng", icon: "truck", module: "giao_hang" },
       { id: "khach-hang", label: "Khách hàng", icon: "users", module: "khach_hang" },
-      // Báo cáo kinh doanh theo khách (24/09/2026) — ô quyền RIÊNG, Xem = xem + xuất Excel.
-      {
-        id: "bao-cao-kinh-doanh",
-        label: "Báo cáo kinh doanh",
-        icon: "table",
-        module: "bao_cao_kinh_doanh",
-      },
+      // "Báo cáo kinh doanh" ĐÃ DỜI sang phân hệ "Báo cáo" (01/10/2026) — id/module giữ nguyên.
     ],
   },
   {
@@ -230,19 +224,7 @@ export const NAV: NavSection[] = [
         icon: "calculator",
         module: "cong_no_phai_thu",
       },
-      // BÁO CÁO — MỘT mục, bên trong chia tab Phải trả / Phải thu (chủ chốt 03/09/2026). Bản đầu
-      // tách hai mục menu riêng; gộp lại vì hai sổ giống hệt nhau từng cột, tách ra chỉ làm menu
-      // kế toán dài thêm mà chẳng ai cần mở riêng lẻ.
-      //
-      // `module` RIÊNG `bao_cao_cong_no` (chủ chốt 04/09/2026: "báo cáo đó là một module riêng
-      // mà") — trước ăn ké quyền Xem của hai khoá công nợ (`modules: [cong_no_phai_tra,
-      // cong_no_phai_thu]`, hiện khi có quyền ở BẤT KỲ bên nào), nay là một ô quyền độc lập.
-      {
-        id: "ke-toan-bao-cao",
-        label: "Báo cáo",
-        icon: "fileText",
-        module: "bao_cao_cong_no",
-      },
+      // "Báo cáo công nợ" ĐÃ DỜI sang phân hệ "Báo cáo" (01/10/2026) — id/module giữ nguyên.
       {
         id: "ke-toan-tai-khoan-ngan-hang",
         label: "Tài khoản ngân hàng",
@@ -270,10 +252,33 @@ export const NAV: NavSection[] = [
       // MỘT mục — bên trong chia tab VIỆC (Yêu cầu · Hộp yêu cầu) × CHIỀU (Nhập · Xuất).
       // Tab "Hộp yêu cầu" tự ẩn nếu vai không có create/view_stock (gate trong KhoPage).
       { id: "kho-main", label: "Yêu cầu nhập xuất", icon: "warehouse", module: "kho" },
-      // Báo cáo kho (kế toán): sổ nhập-xuất + khóa kỳ + export MISA. MODULE RIÊNG từ 24/09/2026
-      // (mg `0329`) — trước đó gắn khoá `kho` rồi lọc thêm bằng ô chi tiết `kho:close_book`,
-      // nên một MÀN không có dòng nào của riêng nó trong ma trận phân quyền.
+      // "Báo cáo kho" ĐÃ DỜI sang phân hệ "Báo cáo" (01/10/2026) — id/module giữ nguyên.
+    ],
+  },
+  {
+    // PHÂN HỆ "Báo cáo" (chủ chốt 01/10/2026): gom ba báo cáo của ba khối vào MỘT chỗ. Chỉ dời
+    // vị trí menu — `id`, `module` và ô quyền của từng mục GIỮ NGUYÊN nên route, badge, dấu trang
+    // và phân quyền không đổi.
+    id: "bao-cao",
+    label: "Báo cáo",
+    items: [
+      // Theo khách — ô quyền RIÊNG từ 24/09/2026, Xem = xem + xuất Excel.
+      {
+        id: "bao-cao-kinh-doanh",
+        label: "Báo cáo kinh doanh",
+        icon: "table",
+        module: "bao_cao_kinh_doanh",
+      },
+      // Sổ nhập-xuất + khóa kỳ + export MISA (kế toán). Module RIÊNG từ 24/09/2026 (mg `0329`).
       { id: "kho-baocao", label: "Báo cáo kho", icon: "fileText", module: "bao_cao_kho" },
+      // MỘT mục, bên trong chia tab Phải trả / Phải thu (chủ chốt 03/09/2026). Module RIÊNG
+      // `bao_cao_cong_no` từ 04/09/2026.
+      {
+        id: "ke-toan-bao-cao",
+        label: "Báo cáo công nợ",
+        icon: "fileText",
+        module: "bao_cao_cong_no",
+      },
     ],
   },
   {
@@ -291,7 +296,7 @@ export const NAV: NavSection[] = [
       // Thành phẩm: hàng của đơn hàng bán, hệ tự khai khi chốt đơn. Đứng CẠNH Vật tư khác vì
       // chung một bảng và người dùng hay nhầm hai chỗ (docs/prd-thanh-pham.md).
       { id: "thanh-pham", label: "Thành phẩm", icon: "bag", module: "dm_thanh_pham" },
-      // Khuôn: kho dụng cụ của xưởng (bế + ép kim + khung lụa) — khách · loại · số kệ ·
+      // Khuôn: kho khuôn bế của xưởng — khách · loại · số kệ ·
       // tình trạng. Bước cần dụng cụ ở Lệnh sản xuất chọn từ đây. Nhan đề đổi 18/09/2026;
       // `module` GIỮ chuỗi `khuon_be` vì nó nằm trong bảng phân quyền của DB thật.
       { id: "khuon-be", label: "Khuôn", icon: "clipboard", module: "khuon_be" },

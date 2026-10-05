@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, api, type BaoCaoKinhDoanh, type BaoCaoKinhDoanhDon, type BaoCaoKinhDoanhKhach } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { Button } from "../../components/Button";
+import { EmptyRow } from "../../components/EmptyState";
 import { Icon } from "../../components/Icons";
 import { fmtDate, money } from "../../utils/format";
 import "./bao-cao-kinh-doanh.css";
@@ -279,7 +280,7 @@ export function BaoCaoKinhDoanhPage() {
             </tr>
           </thead>
           {loading ? (
-            <tbody><tr><td colSpan={10} className="bckd__trong">Đang tải…</td></tr></tbody>
+            <tbody><EmptyRow colSpan={10} trangThai="dang-tai" /></tbody>
           ) : khachHien.length === 0 ? (
             <tbody><tr><td colSpan={10} className="bckd__trong">Không có đơn đã chốt nào trong kỳ này.</td></tr></tbody>
           ) : (

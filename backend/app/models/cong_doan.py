@@ -43,7 +43,11 @@ PRICING_BASIS = (
 # Dụng cụ DÙNG CHUNG mà bước phải mượn từ kho khuôn. Bật `requires_tooling` nghĩa là: lệnh PHẢI
 # gán một dòng khuôn có thật, và hai lệnh mượn cùng một khuôn không được xếp trùng giờ.
 #
-TOOLING_TYPE = ("khuon_be", "khuon_ep", "khung_lua")
+# 01/10/2026: CHỈ còn khuôn bế. `khuon_ep` (ép kim) và `khung_lua` đã gỡ khỏi lựa chọn — dữ liệu cũ
+# mang hai mã đó vẫn mở/lưu được (service chỉ chặn GÁN MỚI), nhưng không còn là dụng cụ lưu kho.
+TOOLING_TYPE = ("khuon_be",)
+# Mã đã gỡ — chỉ để hiện nhãn khi gặp dữ liệu cũ, KHÔNG cho chọn.
+TOOLING_TYPE_DA_GO = ("khuon_ep", "khung_lua")
 # Cách công đoạn tính bù hao: không / theo bậc số lượng (bảng bậc khai ngay trên công đoạn →
 # tra bậc theo SL) / cộng cố định `so_to_bu_hao` tờ (ép kim, UV… — không theo bảng).
 # 22/09/2026: `tra_bang` (trỏ 1 mã ở module Bù hao) đổi thành `theo_bac`, module Bù hao đã gỡ.

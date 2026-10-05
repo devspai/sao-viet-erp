@@ -106,8 +106,8 @@ def test_sua_gia_goc_lan_xuong_lo_dieu_chuyen_va_bao_cao(db, orders, lsx_svc, ad
 
     hom_nay = date.today()
     nxt = _nxt_compute(db, tu=hom_nay, den=hom_nay, kho_ids=[a.id, b.id])
-    assert nxt[(a.id, "vat_tu", goc.hang_id)]["nhap_gt"] == 12_000 * 90
-    assert nxt[(b.id, "vat_tu", goc.hang_id)]["nhap_gt"] == 12_000 * 30
+    assert nxt[(a.id, "vat_tu", goc.hang_id, 0, 0)]["nhap_gt"] == 12_000 * 90
+    assert nxt[(b.id, "vat_tu", goc.hang_id, 0, 0)]["nhap_gt"] == 12_000 * 30
 
     assert _mon(gg.ds_chua_gia_goc(db, q=goc.ma_lo, chi_chua_gia=True, page=1, size=20), goc.ma_lo) == []
     [sau] = _mon(gg.ds_chua_gia_goc(db, q=goc.ma_lo, chi_chua_gia=False, page=1, size=20), goc.ma_lo)

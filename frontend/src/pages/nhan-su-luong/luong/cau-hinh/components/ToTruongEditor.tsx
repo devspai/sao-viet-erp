@@ -20,6 +20,7 @@ import { ConfirmDialog } from "../../../../../components/ConfirmDialog";
 import { RowActionButton } from "../../../../../components/RowActionButton";
 import { fmtYmd, money, todayYmd } from "../../shared/helpers";
 import { NumInput } from "./fields";
+import { EmptyState } from "../../../../../components/EmptyState";
 
 const NHAN_CHE_DO: Record<ToTruongCheDo, string> = {
   khong: "Không áp dụng",
@@ -213,7 +214,7 @@ export function ToTruongEditor({
         </p>
 
         {loading ? (
-          <p className="cl-hint-inline">Đang tải chế độ tổ trưởng…</p>
+          <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải chế độ tổ trưởng…" />
         ) : (
           <>
             {!readOnly && (

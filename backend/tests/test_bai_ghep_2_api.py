@@ -169,8 +169,8 @@ def test_endpoint_vat_tu_hieu_luc_tra_contract_typed(client):
         "bai_ghep_id": 123,
         "items": [{
             "loai_nhom": "vat_tu", "hang_loai": "vat_tu", "hang_id": 7,
-            "hang_ma": "VT-07", "hang_ten": "Mực đen", "don_vi_goc": "kg",
-            "tong_can": 12.0,
+            "hang_ma": "VT-07", "hang_ten": "Mực đen", "kho_rong": 0, "kho_dai": 0,
+            "don_vi_goc": "kg", "tong_can": 12.0,
             "dong": [{
                 "pham_vi": "bai_ghep", "lsx_id": None, "bai_ghep_id": 123,
                 "buoc_id": 4, "gang_step_key": "gang-4",

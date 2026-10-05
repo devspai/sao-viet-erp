@@ -11,7 +11,6 @@ import {
 import { useCan } from "../../../../auth/permissions";
 import { Button } from "../../../../components/Button";
 import { Icon } from "../../../../components/Icons";
-import { RowActionButton } from "../../../../components/RowActionButton";
 import { fmtDate, money } from "../../../../utils/format";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị — xem pages/tenDonVi.ts.
 import { tenDonVi } from "../../../tenDonVi";
@@ -58,9 +57,12 @@ export function DeliveriesBlock({
   }>(null);
 
   return (
-    <section className="pdot">
+    <section className="pdot pdot-container">
       <header className="pdot__head">
-        <h3>Các đợt giao</h3>
+        <div className="acct-card-section__title">
+          <Icon name="truck" size={15} />
+          <span>Các đợt giao hàng ({dots.length})</span>
+        </div>
         <div className="pdot__headbtns">
           {canUpdate && dots.length > 1 && (
             <Button type="button" variant="ghost" onClick={onGanHoaDon}>
@@ -82,61 +84,53 @@ export function DeliveriesBlock({
               variant="accent"
               onClick={() => onGhiDot(null)}
             >
+              <Icon name="plus" size={14} style={{ marginRight: 4 }} />
               Ghi đợt giao
             </Button>
           )}
         </div>
       </header>
 
+
       {dots.length === 0 ? (
-        <p className="pdot__empty">
-          <strong>Chưa ghi đợt giao nào.</strong>{" "}
-          {ghiDuoc
-            ? "Hàng về đợt nào thì ghi đợt đó — công nợ chỉ phát sinh theo số đã ghi ở đây."
-            : row.status === "received"
-              ? "Đơn này đã chốt nhận hàng theo đường cũ (không theo dõi theo đợt)."
-              : "Đơn phải ở trạng thái Đang mua thì mới ghi được đợt giao."}
-        </p>
+        <div className="acct-empty-box">
+          <div className="acct-empty-box__icon">
+            <Icon name="truck" size={26} />
+          </div>
+          <div className="acct-empty-box__title">Chưa ghi đợt giao hàng nào</div>
+          <div className="acct-empty-box__desc">
+            {ghiDuoc
+              ? "Hàng về đợt nào thì ghi đợt đó — công nợ chỉ phát sinh theo số đã ghi ở đây."
+              : row.status === "received"
+                ? "Đơn này đã chốt nhận hàng theo đường cũ (không theo dõi theo đợt)."
+                : "Đơn phải ở trạng thái Đang mua thì mới ghi được đợt giao."}
+          </div>
+          {ghiDuoc && (
+            <Button
+              type="button"
+              variant="accent"
+              style={{ marginTop: 14 }}
+              onClick={() => onGhiDot(null)}
+            >
+              <Icon name="plus" size={14} />
+              Ghi đợt giao đầu tiên
+            </Button>
+          )}
+        </div>
       ) : (
-        // Cuộn ngang trong KHUNG RIÊNG của bảng: 10 cột trên drawer 960px là chật, nhưng để cả
-        // trang cuộn ngang thì hỏng cả màn (laptop-first). Ba cột tiền cuối (Đã trả · Trừ cọc ·
-        // Còn nợ) phải đi liền nhau — tách chúng ra là mất phép trừ.
-        <div className="pdot__tablewrap">
-        <table className="pay-table pdot__table">
-          <thead>
-            <tr>
-              <th>Đợt</th>
-              <th>Ngày giao</th>
-              {/* TÁCH ĐÔI 28/08/2026 (chủ chốt: *"tách ra 2 cột, tên mặt hàng và số lượng nhận,
-                  chứ đừng nhét chung nhau"*). Trước là một ô "Mini app: 100 cái · Loa: 200 cái" —
-                  mắt phải tự dò dấu hai chấm để tách tên khỏi số. */}
-              <th>Mặt hàng</th>
-              <th className="pay-num">SL nhận</th>
-              <th className="pay-num">Thành tiền</th>
-              <th>Hóa đơn</th>
-              <th>Hạn trả</th>
-              <th className="pay-num">Đã trả</th>
-              {/* TRỪ CỌC + CÒN NỢ (chủ chốt 27/08/2026). Trước đây bảng chỉ có "Thành tiền" và
-                  "Đã trả": đợt được cọc bù thì hai số đó không trừ ra nổi số nợ thật, người đọc
-                  chịu chết. Đây đúng bệnh vừa vá ở khối "Đợt giao còn nợ" bên Công nợ phải trả —
-                  hai màn nói về CÙNG một đợt giao nên phải cùng một bộ cột. */}
-              <th className="pay-num">Trừ cọc</th>
-              <th className="pay-num">Còn nợ</th>
-              {/* Cột nút không có nhãn nhìn thấy được, nhưng `<th>` rỗng thì trình đọc màn hình
-                  đọc ra một ô câm — phải có `aria-label`. */}
-              {canUpdate && <th aria-label="Thao tác" />}
-            </tr>
-          </thead>
-          <tbody>
-            {dots.map((dot) => {
-              const khoa = dot.paid_amount > 0;
-              return (
-                <tr key={dot.id}>
-                  <td>
-                    {/* Ai khai đợt này nằm ở tooltip chứ không thành cột: đợt giao đẻ ra công nợ
-                        nên phải truy được người khai, nhưng nó là câu hỏi hiếm — chiếm một cột
-                        thường trực là đẩy cột TIỀN ra khỏi tầm mắt ở 1440px. */}
-                    <strong
+        <div className="acct-delivery-cards">
+          {dots.map((dot) => {
+            const khoa = dot.paid_amount > 0;
+            const hoaDonAttachments = row.attachments.filter(
+              (a) => a.delivery_id === dot.id && a.kind === "hoa_don",
+            );
+            return (
+              <div className="acct-delivery-card" key={dot.id}>
+                {/* Header Thẻ Đợt Giao */}
+                <div className="acct-delivery-card__head">
+                  <div className="acct-delivery-card__seq">
+                    <span
+                      className="acct-delivery-badge"
                       title={
                         dot.created_by_name
                           ? `${dot.created_by_name} ghi ngày ${fmtDate(dot.created_at)}`
@@ -144,216 +138,187 @@ export function DeliveriesBlock({
                       }
                     >
                       Đợt {dot.seq_no}
-                    </strong>
-                  </td>
-                  <td>{fmtDate(dot.delivery_date)}</td>
-                  {/* HAI Ô RIÊNG, mỗi ô xếp chồng CÙNG số dòng theo cùng thứ tự — nên dòng thứ n
-                      bên trái luôn là món của dòng thứ n bên phải. Tên hàng bị cấm xuống dòng
-                      (`.pdot__dl-name`): để nó tràn 2 dòng là lệch hàng ngay, đọc thành món này
-                      với số lượng của món kia. Tên đầy đủ nằm ở `title`. */}
-                  <td>
-                    <div className="pdot__delivery-lines">
-                      {dot.lines.map((line) => (
-                        <span
-                          key={line.id}
-                          className="pdot__dl-name"
-                          title={line.item_name}
-                        >
-                          <strong>{line.item_name}</strong>
-                        </span>
-                      ))}
+                    </span>
+                    <span className="acct-delivery-date">
+                      Ngày nhận: {fmtDate(dot.delivery_date)}
+                    </span>
+                  </div>
+
+                  <div className="acct-delivery-due-meta" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {hoaDonAttachments.length > 0 ? (
+                      <button
+                        type="button"
+                        className="pdot__clip pdot__clip--btn"
+                        onClick={() =>
+                          setXemAnh({
+                            ds: hoaDonAttachments,
+                            i: 0,
+                            dot: dot.seq_no,
+                          })
+                        }
+                        title={`Xem ${hoaDonAttachments.length} ảnh hoá đơn của đợt ${dot.seq_no}`}
+                      >
+                        <Icon name="fileText" size={13} />
+                        {hoaDonAttachments.length}
+                      </button>
+                    ) : dot.invoice_number ? (
+                      <small style={{ color: "#475569", fontWeight: 600 }}>
+                        HD: {dot.invoice_number}
+                      </small>
+                    ) : (
+                      <small style={{ color: "#94a3b8" }}>HĐ: chưa gán</small>
+                    )}
+
+                    <div className="acct-delivery-due">
+                      Hạn trả: {dot.chua_dat_han ? (
+                        <span className="pay-badge pay-badge--warn">Chưa đặt hạn</span>
+                      ) : (
+                        fmtDate(dot.due_date)
+                      )}
                     </div>
-                  </td>
-                  <td className="pay-num">
-                    <div className="pdot__delivery-lines">
-                      {dot.lines.map((line) => (
-                        <span key={line.id} className="pdot__dl-qty">
-                          {line.quantity.toLocaleString("vi-VN")}{" "}
-                          {tenDonVi(line.unit) ?? line.unit}
-                          {/* PHẦN DƯ — hàng về nhiều hơn số đặt, tính 0đ. Hiện ngay cạnh số nhận
-                              chứ không giấu vào tooltip: nếu NCC thực ra CÓ tính tiền phần này
-                              thì đây là chỗ duy nhất bắt được trước lúc đối chiếu hoá đơn. */}
-                          {line.quantity_du > 0 && (
-                            <em
-                              className="pdot__du"
-                              title={`${line.quantity_tinh_tien.toLocaleString("vi-VN")} tính tiền · ${line.quantity_du.toLocaleString("vi-VN")} vượt số đặt, giá 0đ`}
-                            >
-                              {" · "}
-                              {line.quantity_du.toLocaleString("vi-VN")} dư
-                            </em>
-                          )}
-                        </span>
+                  </div>
+                </div>
+
+                {/* Body: Danh sách hàng nhận dạng Bảng mini */}
+                <div className="acct-delivery-card__body">
+                  <table className="acct-delivery-mini-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 32 }} className="text-center">#</th>
+                        <th>Mặt hàng đã nhận</th>
+                        <th style={{ textAlign: "right" }}>Số lượng nhận</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dot.lines.map((line, idx) => (
+                        <tr key={line.id}>
+                          <td style={{ textAlign: "center", color: "#94a3b8" }}>{idx + 1}</td>
+                          <td style={{ fontWeight: 600 }}>{line.item_name}</td>
+                          <td style={{ textAlign: "right", fontWeight: 700, color: "#0f172a" }}>
+                            {line.quantity.toLocaleString("vi-VN")}{" "}
+                            <small style={{ color: "#64748b", fontWeight: 400 }}>
+                              {tenDonVi(line.unit) ?? line.unit}
+                            </small>
+                            {line.quantity_du > 0 && (
+                              <span
+                                className="acct-tag-pill acct-tag-pill--note"
+                                style={{ marginLeft: 6, display: "inline-flex" }}
+                                title={`${line.quantity_tinh_tien.toLocaleString("vi-VN")} tính tiền · ${line.quantity_du.toLocaleString("vi-VN")} vượt số đặt, giá 0đ`}
+                              >
+                                Đã nhận {line.quantity.toLocaleString("vi-VN")} · {line.quantity_du.toLocaleString("vi-VN")} dư
+                              </span>
+                            )}
+                          </td>
+                        </tr>
                       ))}
-                    </div>
-                  </td>
-                  <td className="pay-num">
-                    <strong>{money(dot.amount)}</strong>
-                  </td>
-                  <td>
-                    {dot.invoice_number ? (
-                      <>
-                        <strong>{dot.invoice_number}</strong>
-                        {dot.invoice_date && (
-                          <small>{fmtDate(dot.invoice_date)}</small>
-                        )}
-                      </>
-                    ) : (
-                      <small className="pdot__muted">chưa gán</small>
-                    )}
-                    {/* Có ảnh hoá đơn hay chưa — nhìn được ngay từ bảng, khỏi mở từng đợt ra dò.
-                        Chỉ NHẮC, không chặn: hoá đơn về muộn là chuyện thường. */}
-                    {(() => {
-                      const n = row.attachments.filter(
-                        (a) => a.delivery_id === dot.id && a.kind === "hoa_don",
-                      ).length;
-                      // BẤM VÀO LÀ XEM ẢNH, ngay tại chỗ (chủ chốt 15/08/2026).
-                      //
-                      // Bản 12/08 cho bấm nhưng mở ô SỬA ĐỢT — vì ảnh đã render sẵn trong đó, tôi
-                      // tưởng khỏi dựng thêm màn. Sai: người ta bấm vào cái kẹp giấy là muốn NHÌN
-                      // cái ảnh, mà cái mở ra lại là một form nhập liệu có nút "Lưu đợt giao" —
-                      // vừa lạc, vừa mời người ta sửa nhầm một con số đang đẻ ra công nợ.
-                      return n > 0 ? (
-                        <button
-                          type="button"
-                          className="pdot__clip pdot__clip--btn"
-                          onClick={() =>
-                            setXemAnh({
-                              ds: row.attachments.filter(
-                                (a) => a.delivery_id === dot.id && a.kind === "hoa_don",
-                              ),
-                              i: 0,
-                              dot: dot.seq_no,
-                            })
-                          }
-                          title={`Xem ${n} ảnh hoá đơn của đợt ${dot.seq_no}`}
-                        >
-                          {/* Icon SVG chứ KHÔNG dùng emoji 📎: máy không có font emoji thì nó ra
-                              ô vuông tofu, đúng cảnh chủ bắt 27/08/2026. Dùng `fileText` cho khớp
-                              ô xem ảnh/PDF của chính đợt này. */}
-                          <Icon name="fileText" size={13} />
-                          {n}
-                        </button>
-                      ) : null;
-                    })()}
-                  </td>
-                  <td>
-                    {dot.chua_dat_han ? (
-                      // Đợt không có hạn thì KHÔNG BAO GIỜ vào cột Quá hạn ở màn Công nợ — nói ra
-                      // ngay đây để người thu mua đi khai "Số ngày cho nợ" cho NCC.
-                      <span className="pay-badge pay-badge--warn">
-                        Chưa đặt hạn
-                      </span>
-                    ) : (
-                      fmtDate(dot.due_date)
-                    )}
-                  </td>
-                  <td className="pay-num">
-                    {dot.paid_amount > 0 ? (
-                      money(dot.paid_amount)
-                    ) : (
-                      <small className="pdot__muted">—</small>
-                    )}
-                  </td>
-                  <td className="pay-num">
-                    {dot.coc_bu > 0 ? (
-                      money(dot.coc_bu)
-                    ) : (
-                      <small className="pdot__muted">—</small>
-                    )}
-                  </td>
-                  <td className="pay-num">
-                    {dot.con_no > 0 ? (
-                      <strong>{money(dot.con_no)}</strong>
-                    ) : (
-                      // Đợt trả xong rồi thì nói "xong", đừng bày một số 0 trơ ra giữa cột tiền.
-                      <small className="pdot__muted">xong</small>
-                    )}
-                  </td>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Footer: Giá trị đợt, đã chi, trừ cọc, còn nợ & Cụm nút thao tác */}
+                <div className="acct-delivery-card__foot">
+                  <div className="acct-delivery-foot-item">
+                    <span className="acct-delivery-foot-item__label">Giá trị đợt</span>
+                    <span className="acct-delivery-foot-item__val">{money(dot.amount)}</span>
+                  </div>
+
+                  <div className="acct-delivery-foot-item">
+                    <span className="acct-delivery-foot-item__label">Đã chi</span>
+                    <span className="acct-delivery-foot-item__val">
+                      {dot.paid_amount > 0 ? money(dot.paid_amount) : "0 đ"}
+                    </span>
+                  </div>
+
+                  <div className="acct-delivery-foot-item">
+                    <span className="acct-delivery-foot-item__label">Trừ cọc</span>
+                    <span className="acct-delivery-foot-item__val">
+                      {dot.coc_bu > 0 ? money(dot.coc_bu) : "0 đ"}
+                    </span>
+                  </div>
+
+                  <div className="acct-delivery-foot-item acct-delivery-foot-item--due">
+                    <span className="acct-delivery-foot-item__label">Còn nợ</span>
+                    <span className="acct-delivery-foot-item__val">
+                      {dot.con_no > 0 ? money(dot.con_no) : "Đã xong"}
+                    </span>
+                  </div>
+
                   {canUpdate && (
-                    <td className="pay-num">
-                      {/* Đợt ĐÃ CÓ PHIẾU CHI thì server cấm sửa/xoá — tiền đã ra thì không được
-                          đổi số hàng dưới chân nó. Hiện KHOÁ ngay ở đây chứ không bày nút rồi để
-                          người dùng gõ xong cả form mới ăn lỗi. */}
-                      <div className="pdot__rowbtns">
-                        {/* 🔌 NỐI SANG PHÂN HỆ KHO (chủ 07/08/2026: *"cho tôi cái nút Nhập kho…
-                            để dev bên kho nó tự nối"*). HIỆN Ở MỌI ĐỢT, không riêng đợt đã chi
-                            (*"cứ có đợt về là cho nhập kho"*): nhận hàng vào kho là sự kiện VẬT LÝ,
-                            không phụ thuộc đã trả tiền. Bấm → nhảy sang màn Yêu cầu kho, mở sẵn form
-                            NHẬP điền theo hàng đã nhận của đợt này. (Nối cứng qua `stock_voucher_id`
-                            khi lập phiếu là bước sau — xem docs/prd-mua-hang-cong-no.md §11.) */}
-                        {coQuyenNhapKho &&
-                          (dot.da_nhap_kho ? (
-                            // Đợt đã sinh yêu cầu nhập → không cho seed lại; bấm để XEM yêu cầu đó.
-                            <RowActionButton
-                              dense
-                              label={dot.stock_request_ma ? `Đã nhập · ${dot.stock_request_ma}` : "Đã nhập kho"}
-                              icon="check"
-                              onClick={() => onXemYeuCau(dot)}
-                            />
-                          ) : (
-                            <RowActionButton
-                              dense
-                              label="Nhập kho"
-                              icon="warehouse"
-                              onClick={() => onNhapKho(dot)}
-                            />
-                          ))}
-                        {/* Đợt ĐÃ CÓ PHIẾU CHI thì server cấm sửa/xoá — tiền đã ra thì không được
-                            đổi số hàng dưới chân nó. Hiện KHOÁ ngay ở đây chứ không bày nút rồi để
-                            người dùng gõ xong cả form mới ăn lỗi. Nhưng NHẬP KHO thì vẫn cho. */}
-                        {/* CHỈ hiện với người có quyền GHI (đợt 5). Trước đây mọi người xem đơn
-                            đều thấy "Sửa/Xoá đợt giao", bấm mới ăn 403 — máy chủ chặn đúng, giao
-                            diện thì bày ra. `ghiDuoc` = canUpdate + đơn đang ở trạng thái ghi được. */}
-                        {!ghiDuoc ? null : khoa ? (
-                          <span
-                            className="pdot__locked"
-                            title="Đợt này đã có phiếu chi — huỷ phiếu chi trước rồi mới sửa/xoá được."
+                    <div className="pdot__rowbtns" style={{ gridColumn: "1 / -1", marginTop: 8, paddingTop: 8, borderTop: "1px dashed #e2e8f0", justifyContent: "flex-end" }}>
+                      {coQuyenNhapKho &&
+                        (dot.da_nhap_kho ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => onXemYeuCau(dot)}
                           >
-                            Đã chi — khoá
-                          </span>
+                            <Icon name="check" size={14} style={{ marginRight: 4 }} />
+                            {dot.stock_request_ma ? `Đã nhập · ${dot.stock_request_ma}` : "Đã nhập kho"}
+                          </Button>
                         ) : (
-                          <>
-                            <RowActionButton
-                              dense
-                              label="Sửa đợt giao"
-                              icon="pencil"
-                              onClick={() => onGhiDot(dot)}
-                            />
-                            <RowActionButton
-                              dense
-                              danger
-                              label="Xóa đợt giao"
-                              icon="trash"
-                              onClick={() => onXoaDot(dot)}
-                            />
-                          </>
-                        )}
-                      </div>
-                    </td>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => onNhapKho(dot)}
+                          >
+                            <Icon name="warehouse" size={14} style={{ marginRight: 4 }} />
+                            Nhập kho
+                          </Button>
+                        ))}
+                      {!ghiDuoc ? null : khoa ? (
+                        <span
+                          className="pdot__locked"
+                          title="Đợt này đã có phiếu chi — huỷ phiếu chi trước rồi mới sửa/xoá được."
+                        >
+                          Đã chi — khoá
+                        </span>
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => onGhiDot(dot)}
+                          >
+                            <Icon name="pencil" size={13} style={{ marginRight: 4 }} />
+                            Sửa đợt
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            style={{ color: "#dc2626" }}
+                            onClick={() => onXoaDot(dot)}
+                          >
+                            <Icon name="trash" size={13} style={{ marginRight: 4 }} />
+                            Xóa đợt
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Dòng tổng: ba số của công thức công nợ, đặt cạnh nhau để không ai phải tự trừ trong đầu. */}
-      <div className="pdot__totals">
-        <span>
-          Đã giao <b>{money(row.gia_tri_da_giao)}</b>
-        </span>
-        <span>
-          Đã chi <b>{money(row.net_paid)}</b>
-          {row.receipt_received_amount > 0 && (
-            <small> (đã trừ {money(row.receipt_received_amount)} thu về)</small>
-          )}
-        </span>
-        <span className="pdot__totals-due">
-          Còn nợ <b>{money(row.outstanding_amount)}</b>
-        </span>
-      </div>
+      {/* Dải tổng toàn đơn — CHỈ HIỆN KHI ĐƠN CÓ > 1 ĐỢT GIAO (tránh lặp 2 dải số trùng nhau khi chỉ có 1 đợt) */}
+      {dots.length > 1 && (
+        <div className="acct-totals-bar">
+          <span className="acct-totals-bar__item">
+            Đã giao <strong>{money(row.gia_tri_da_giao)}</strong>
+          </span>
+          <span className="acct-totals-bar__item">
+            Đã chi <strong>{money(row.net_paid)}</strong>
+            {row.receipt_received_amount > 0 && (
+              <small style={{ color: "#64748b" }}> (đã trừ {money(row.receipt_received_amount)} thu về)</small>
+            )}
+          </span>
+          <span className="acct-totals-bar__item acct-totals-bar__item--due">
+            Còn nợ <strong>{money(row.outstanding_amount)}</strong>
+          </span>
+        </div>
+      )}
 
       {/* KHUNG XEM ẢNH hoá đơn — chỉ để NHÌN: không ô nhập, không nút lưu, đóng là xong.
           Có nút mở tab mới cho ai cần phóng to / tải về, và mũi tên khi đợt có nhiều tấm. */}

@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  max-width: 1320px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
 }
 
@@ -66,13 +66,13 @@
   font-weight: 700;
   white-space: nowrap;
   border-radius: 10px;
-  box-shadow: 0 4px 14px rgba(197, 64, 10, 0.25);
+  box-shadow: 0 4px 14px rgba(100, 116, 139, 0.25);
   transition: transform var(--duration-fast), box-shadow var(--duration-fast);
 }
 
 .kkb-topbar__add-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(197, 64, 10, 0.35);
+  box-shadow: 0 6px 18px rgba(100, 116, 139, 0.35);
 }
 
 /* Tầng 2: Toolbar Bộ Lọc & Tìm Kiếm */
@@ -116,7 +116,7 @@
   width: 290px;
   background: var(--canvas);
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px rgba(197, 64, 10, 0.15);
+  box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.15);
 }
 
 .kkb-searchbox__clear {

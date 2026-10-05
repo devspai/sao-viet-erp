@@ -44,7 +44,8 @@ from ..quyen_to import (
     quyen_tren_viec,
 )
 from ..gio_xuong import lich_hien_thi, thuc_te_hien_thi, ve_utc_that
-from . import dau_vao, routing_dai, viec_khoan
+from ..kho_giay import khoa_dong, nhan_kho
+from . import chot_giay, dau_vao, routing_dai, viec_khoan
 from .nguoi_trong_me import nguoi_theo_me
 from .thuc_thi import _aware
 from .tinh_trang_nguoi import hom_nay, tinh_trang_nhieu
@@ -110,6 +111,8 @@ def teams(db: Session, user: User, authz: AuthorizationService) -> list[dict]:
             "ma": (d.code if d else None) or "",
             "cap": cap,
             "la_kcs": bool(getattr(d, "is_kcs", False)),
+            # Tổ Cắt: FE bày khối "Chờ chốt giấy" trên bàn tổ này (spec giấy theo khổ §4.6).
+            "la_to_cat": bool(getattr(d, "la_to_cat", False)),
             # FE cần biết "tôi vào bàn này chỉ với phần CỦA TÔI" để bật băng *Sản lượng của tôi*
             # (§6). Trả con số đã tính sẵn, đừng để FE tự suy từ phạm vi.
             "la_tho": muc == MUC_CUA_TOI,
@@ -851,6 +854,17 @@ def _bg_dict(b, doi_tac_id, doi_tac_map, me_map, dc_map, ten, ben_map=None) -> d
     }
 
 
+def _dong_giay_nhan_tu(kh_svc, cv) -> list[tuple]:
+    """`[(dòng giấy LsxCongDoanVatTu của bước, tên bước trước)]` — giấy bước của `cv` nhận từ bước
+    trước vì không phải bước đầu mang mã đó (`buoc_nhan_tu`)."""
+    if not cv.lsx_id or not cv.lsx_cong_doan_id:
+        return []
+    nhan = kh_svc.buoc_nhan_tu(cv.lsx_id).get(cv.lsx_cong_doan_id)
+    if not nhan:
+        return []
+    return [(v, nhan["tu_buoc"]) for v in nhan["dong"]]
+
+
 def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     """Khối vật tư cấp của drawer công đoạn (spec-de-nghi-cap-vat-tu-cong-doan §6).
 
@@ -866,17 +880,29 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     ke_hoach = kh_svc.nhu_cau_cua_cong_viec(cv)
     req_ids = [d.stock_request_id for d in cac_dn if d.stock_request_id]
     thuc_xuat = sl.thuc_xuat_theo_hang(req_ids)
+    nhap_lai = sl.nhap_lai_theo_hang(cv.id)      # phần tổ đã trả kho (phiếu NHẬP ghi sổ)
     tom_tat = sl.yeu_cau_tom_tat(req_ids)
+
+    # Giấy bước này NHẬN từ bước trước (spec 2026-10-01 §5): không phải nhu cầu, không xin cấp —
+    # chỉ hiện một dòng trung tính "Nhận từ …" để người ở tổ biết giấy đi đâu. Chỉ bước của LỆNH
+    # mang dòng giấy (bước chung của bài không có) nên công việc của bài bỏ qua.
+    dong_nhan_tu = _dong_giay_nhan_tu(kh_svc, cv)
 
     tat_ca_khoa = {(k["hang_loai"], k["hang_id"]) for k in ke_hoach} | {
         (d.hang_loai, d.hang_id) for dn in cac_dn for d in dn.dongs
-    }
+    } | {("giay", int(v.vat_tu_id)) for v, _ in dong_nhan_tu} | {(k[0], k[1]) for k in nhap_lai}
     ten_map = sl.ten_hang_nhieu(tat_ca_khoa)
+
+    # Gom theo `khoa_dong`: giấy cùng mã khác dạng/khổ là hai hàng đối chiếu (spec giấy tờ × khổ).
+    def _giay(dang, kr, kd) -> dict:
+        return {"dang_giay": dang, "kho_rong": int(kr or 0), "kho_dai": int(kd or 0)}
 
     gom: dict[tuple, dict] = {}
     for k in ke_hoach:
-        gom[(k["hang_loai"], k["hang_id"])] = {
+        gom[khoa_dong(k["hang_loai"], k["hang_id"], k.get("dang_giay"),
+                      k.get("kho_rong"), k.get("kho_dai"))] = {
             "hang_loai": k["hang_loai"], "hang_id": k["hang_id"], "ten": k["ten"],
+            **_giay(k.get("dang_giay"), k.get("kho_rong"), k.get("kho_dai")),
             "dvt": k["dvt"], "dvt_goc": k["dvt_goc"],
             "sl_ke_hoach": k["sl"], "sl_ke_hoach_goc": k["sl_goc"],
             "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
@@ -890,10 +916,12 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     for dn in cac_dn:
         dongs_theo_lan[dn.id] = []
         for d in dn.dongs:
-            key = (d.hang_loai, d.hang_id)
+            key = khoa_dong(d.hang_loai, d.hang_id, d.dang_giay, d.kho_rong, d.kho_dai)
+            ten = ten_map.get((d.hang_loai, d.hang_id)) or f"#{d.hang_id}"
             row = gom.setdefault(key, {
                 "hang_loai": d.hang_loai, "hang_id": d.hang_id,
-                "ten": ten_map.get(key) or f"#{d.hang_id}", "dvt": d.dvt, "dvt_goc": d.dvt_goc,
+                "ten": ten, **_giay(d.dang_giay, d.kho_rong, d.kho_dai),
+                "dvt": d.dvt, "dvt_goc": d.dvt_goc,
                 "sl_ke_hoach": float(d.sl_ke_hoach), "sl_ke_hoach_goc": float(d.sl_ke_hoach_goc),
                 "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
                 "sl_thuc_xuat": 0.0, "cac_ly_do": [], "_cac_dvt": set(),
@@ -905,7 +933,8 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
                 row["cac_ly_do"].append({"lan_so": dn.lan_so, "ly_do": d.ly_do_chenh_lech})
             dongs_theo_lan[dn.id].append({
                 "hang_loai": d.hang_loai, "hang_id": d.hang_id,
-                "ten": ten_map.get(key) or f"#{d.hang_id}", "dvt": d.dvt, "dvt_goc": d.dvt_goc,
+                "ten": ten, **_giay(d.dang_giay, d.kho_rong, d.kho_dai),
+                "dvt": d.dvt, "dvt_goc": d.dvt_goc,
                 "sl_ke_hoach": float(d.sl_ke_hoach), "sl_ke_hoach_goc": float(d.sl_ke_hoach_goc),
                 "sl_yeu_cau": float(d.sl_yeu_cau), "sl_yeu_cau_goc": float(d.sl_yeu_cau_goc),
                 "ly_do_chenh_lech": d.ly_do_chenh_lech,
@@ -913,15 +942,98 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     for key, sl_ra in thuc_xuat.items():
         if key in gom:
             gom[key]["sl_thuc_xuat"] = sl_ra
+    # Dòng "nhận từ" dựng TRƯỚC vòng nhập lại: bước nhận giấy qua bàn giao vẫn trả thừa được (§3.5)
+    # và phần trả phải trừ vào chính dòng nhận-từ, không đẻ dòng riêng đè mất nhãn "Nhận từ".
+    for v, tu_buoc in dong_nhan_tu:
+        key = khoa_dong("giay", int(v.vat_tu_id), v.dang_giay, v.kho_rong, v.kho_dai)
+        if key in gom:  # đã có dòng thật (kế hoạch/đề nghị) cùng mã+khổ ⇒ không đè nhãn lên nó
+            continue
+        dvt = v.don_vi_snapshot or ""
+        sl_kh = float(v.so_luong)
+        try:
+            sl_goc, dvt_goc = kh_svc.ve_don_vi_goc("giay", int(v.vat_tu_id), dvt, sl_kh,
+                                                   dang=v.dang_giay)
+            if v.dang_giay != "cuon":  # cùng nhãn gốc với dòng kế hoạch thật (`nhu_cau_cua_cong_viec`)
+                dvt_goc = kh_svc._dv_to()
+        except Exception:  # noqa: BLE001 - dòng thông tin: không quy đổi được thì hiện thang khai
+            sl_goc, dvt_goc = sl_kh, dvt
+        gom[key] = {
+            "hang_loai": "giay", "hang_id": int(v.vat_tu_id),
+            "ten": ten_map.get(("giay", int(v.vat_tu_id))) or v.vat_tu_ten_snapshot
+                   or f"#{v.vat_tu_id}",
+            **_giay(v.dang_giay, v.kho_rong, v.kho_dai),
+            "dvt": dvt, "dvt_goc": dvt_goc,
+            "sl_ke_hoach": sl_kh, "sl_ke_hoach_goc": sl_goc,
+            "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
+            "sl_thuc_xuat": 0.0, "cac_ly_do": [], "_cac_dvt": {dvt},
+            "nhan_tu": tu_buoc,
+        }
+
+    # NHẬP LẠI trừ vào ĐÚNG dòng đã xuất cùng `khoa_dong`. Trả khác khổ với mọi dòng đã xuất (xin
+    # 2.700 tờ 800×1090, trả 70 tờ 790×1090) thì trừ vào dòng đã xuất cùng (mã, dạng) có thực xuất
+    # lớn nhất — thang gốc cùng một đơn vị nên trừ được — còn dòng trả hiện như dòng THÔNG TIN
+    # ("nhập lại 70 · 790×1090", `nhap_lai_vao` = nhãn dòng đích), KHÔNG có thực dùng riêng. Không có
+    # dòng đã xuất nào cùng (mã, dạng) thì dòng trả đứng riêng, thực dùng âm là bất thường thật.
+    def _dv_goc(loai, hid, dang) -> str:
+        try:
+            return kh_svc.hang.don_vi_cua_mat_hang(
+                loai, int(hid), dang=dang if loai == "giay" else None).get("don_vi_goc") or ""
+        except Exception:  # noqa: BLE001 - chỉ để dán nhãn đơn vị: không có thì để trống
+            return ""
+
+    for key, sl_vao in nhap_lai.items():
+        if key not in gom:
+            dv = _dv_goc(key[0], key[1], key[2])
+            gom[key] = {
+                "hang_loai": key[0], "hang_id": key[1],
+                "ten": ten_map.get((key[0], key[1])) or f"#{key[1]}",
+                **_giay(key[2], key[3], key[4]),
+                "dvt": dv, "dvt_goc": dv,
+                "sl_ke_hoach": 0.0, "sl_ke_hoach_goc": 0.0,
+                "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
+                "sl_thuc_xuat": 0.0, "cac_ly_do": [], "_cac_dvt": {dv},
+            }
+        if key in thuc_xuat or gom[key].get("nhan_tu"):
+            gom[key]["sl_nhap_lai"] = gom[key].get("sl_nhap_lai", 0.0) + sl_vao
+            continue
+        dich = [k for k in thuc_xuat if k in gom and k[:3] == key[:3]]
+        if not dich:
+            # Bước "nhận từ": trả khác khổ trừ vào dòng nhận-từ cùng (mã, dạng).
+            dich = [k for k, r in gom.items() if r.get("nhan_tu") and k[:3] == key[:3]]
+        if not dich:
+            gom[key]["sl_nhap_lai"] = gom[key].get("sl_nhap_lai", 0.0) + sl_vao
+            continue
+        k_dich = max(dich, key=lambda k: thuc_xuat.get(k, gom[k]["sl_ke_hoach_goc"]))
+        gom[k_dich]["sl_nhap_lai"] = gom[k_dich].get("sl_nhap_lai", 0.0) + sl_vao
+        gom[key]["sl_nhap_lai"] = gom[key].get("sl_nhap_lai", 0.0) + sl_vao
+        gom[key]["nhap_lai_vao"] = (
+            nhan_kho(k_dich[3], k_dich[4]) if key[0] == "giay" and k_dich[2] == "to"
+            else gom[k_dich]["ten"])
+
 
     doi_chieu = []
     for row in gom.values():
         # MÁY so bằng thang GỐC (models/san_xuat_vat_tu.py:85-87); `sl_thuc_xuat` (từ
         # `StockVoucherLine.sl_goc`) vốn đã là thang gốc — so nó với `sl_yeu_cau` (thang tổ khai)
         # là so 100 tờ với 12 kg (vòng sửa 1, Important 2+3).
+        row.setdefault("nhan_tu", None)
+        row.setdefault("sl_nhap_lai", 0.0)
+        # THỰC DÙNG = kho thực xuất − tổ nhập lại (thang gốc). Không kẹp ≥ 0: nhập lại nhiều hơn đã
+        # xuất là dữ liệu bất thường, để số âm lộ ra thay vì che.
+        row.setdefault("nhap_lai_vao", None)
+        # Dòng THÔNG TIN (trả khác khổ đã xuất): phần trừ nằm ở dòng đích, không có thực dùng riêng.
+        if row["nhap_lai_vao"]:
+            row["sl_thuc_dung"] = None
+        elif row["nhan_tu"]:
+            # Dòng "nhận từ": không có phiếu xuất ⇒ thực dùng = kế hoạch nhận − nhập lại.
+            row["sl_thuc_dung"] = row["sl_ke_hoach_goc"] - row["sl_nhap_lai"]
+        else:
+            row["sl_thuc_dung"] = row["sl_thuc_xuat"] - row["sl_nhap_lai"]
         row["lech_ke_hoach"] = row["sl_yeu_cau_goc"] - row["sl_ke_hoach_goc"]
         row["lech_thuc_te"] = row["sl_thuc_xuat"] - row["sl_yeu_cau_goc"]
-        # Khoá gom là (hang_loai, hang_id) — KHÔNG có đơn vị, nên một hàng có thể ôm dòng kế hoạch
+        if row["nhan_tu"]:  # dòng "nhận từ": không có gì để lệch
+            row["lech_ke_hoach"] = row["lech_thuc_te"] = 0.0
+        # Khoá gom là `khoa_dong` — KHÔNG có đơn vị, nên một hàng có thể ôm dòng kế hoạch
         # khai "ram" và dòng tổ khai "tờ". Cộng hai số đó lại rồi in ra là nói dối. Thang gốc là
         # thứ DUY NHẤT chắc chắn chung, nên hàng lẫn đơn vị thì hiện bằng nó (vòng sửa 1, 2c).
         if len(row.pop("_cac_dvt")) > 1:
@@ -1273,6 +1385,8 @@ def chi_tiet_cong_viec(
             if (t := dau_vao.tran_ghi(db, cv, repo=sl)) else None
         ),
         "thieu_dau_vao": dau_vao.thieu_dau_vao(sl, cv),
+        # Cổng "chờ tổ Cắt" (§4.7) — cùng hàm `kiem_bat_dau` dùng để chặn.
+        "cho_chot_giay": chot_giay.ly_do_cho_chot(db, cv),
         "ban_giao_chang_sau": [
             {
                 "cong_viec_id": c.id,

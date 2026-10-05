@@ -8,7 +8,29 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+
+
+# ============================ VẬT TƯ CỦA BƯỚC (spec 2026-10-01) ============================
+class BuocVatTuIn(BaseModel):
+    """1 vật tư của một bước (đầu vào). `gia_tri_chip` = {mã chip riêng của vật tư: số}."""
+    thu_tu: int | None = None
+    vat_tu_id: int
+    gia_tri_chip: dict[str, float] | None = None
+
+
+class BuocVatTuOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    thu_tu: int
+    vat_tu_id: int
+    gia_tri_chip: dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("gia_tri_chip", mode="before")
+    @classmethod
+    def _none_thanh_rong(cls, v):
+        return v or {}
 
 
 # ============================ THÀNH PHẨM (finishing op) ============================
@@ -29,10 +51,8 @@ class ThanhPhamIn(BaseModel):
     phi_khuon: float | None = Field(default=None, ge=0)
     # Khuôn có sẵn hay làm mới (`co_san`/`lam_moi`). None = chưa chọn.
     khuon_nguon: str | None = None
-    # Kích thước/số lượng KHUÔN (bước `khuon_ep`) — TÁCH BIỆT với `phi_khuon`, chỉ ăn vào công thức.
-    dai_khuon: float | None = Field(default=None, ge=0)
-    rong_khuon: float | None = Field(default=None, ge=0)
-    so_khuon: int | None = Field(default=None, ge=0)
+    # Vật tư của bước. None/vắng = bước không mang vật tư nào.
+    vat_tus: list[BuocVatTuIn] | None = None
 
 
 class ThanhPhamOut(BaseModel):
@@ -53,9 +73,7 @@ class ThanhPhamOut(BaseModel):
     ghi_chu: str | None = None
     phi_khuon: float = 0
     khuon_nguon: str | None = None
-    dai_khuon: float = 0
-    rong_khuon: float = 0
-    so_khuon: int = 0
+    vat_tus: list[BuocVatTuOut] = Field(default_factory=list)
 
 
 # ============================ SẢN PHẨM TÁI BẢN (docs/spec-san-pham-tai-ban.md) ============================
@@ -66,30 +84,6 @@ class SanPhamTaiBanGoiY(BaseModel):
     id: int
     ten: str
     updated_at: datetime
-
-
-# ============================ VẬT TƯ (nguyên vật liệu thêm) ============================
-class VatTuLineIn(BaseModel):
-    """1 dòng vật tư in ấn thêm tay (đầu vào — mọi trường optional)."""
-    thu_tu: int | None = None
-    vat_tu_id: int | None = None
-    ten: str | None = None
-    don_gia: float | None = None
-    so_luong: int | None = Field(default=None, ge=0)
-    ghi_chu: str | None = None
-
-
-class VatTuLineOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    thanh_phan_id: int
-    thu_tu: int
-    vat_tu_id: int | None = None
-    ten: str
-    don_gia: float
-    so_luong: int
-    ghi_chu: str | None = None
 
 
 # ============================ CHI PHÍ KHÁC (khoản lẻ một lần) ============================
@@ -164,7 +158,6 @@ class ThanhPhanIn(BaseModel):
     # thẳng vào giá vốn (⇒ chịu markup ở Báo giá). 0 = không thu.
     phi_giao_hang: float | None = Field(default=None, ge=0)
     thanh_phams: list[ThanhPhamIn] | None = None
-    vat_tus: list[VatTuLineIn] | None = None
     # ⑥ Chi phí khác: các khoản lẻ MỘT LẦN (làm kẽm ngoài, phí thiết kế…) — mỗi dòng một cặp
     # (tên tự gõ, số tiền), cộng thẳng vào giá vốn như `phi_giao_hang`.
     chi_phi_khacs: list[ChiPhiKhacIn] | None = None
@@ -219,7 +212,6 @@ class ThanhPhanOut(BaseModel):
     phi_giao_hang: float = 0
     gia_von_tp: float
     thanh_phams: list[ThanhPhamOut] = Field(default_factory=list)
-    vat_tus: list[VatTuLineOut] = Field(default_factory=list)
     chi_phi_khacs: list[ChiPhiKhacOut] = Field(default_factory=list)
 
 
@@ -230,7 +222,30 @@ class PhieuTinhGiaCreate(BaseModel):
     kho_thanh_pham: str | None = None
     so_luong: int | None = Field(default=None, ge=0)
     ghi_chu: str | None = None
+    # Khách hàng chọn Ở PHIẾU (mg 0363) — báo giá chép sang, không sửa được ở báo giá.
+    customer_id: int | None = None
+    delivery_address: str | None = Field(default=None, max_length=500)
+    contact_name_snapshot: str | None = Field(default=None, max_length=255)
+    contact_phone_snapshot: str | None = Field(default=None, max_length=30)
+    contact_title_snapshot: str | None = Field(default=None, max_length=120)
+    contact_email_snapshot: str | None = Field(default=None, max_length=255)
     thanh_phans: list[ThanhPhanIn] | None = None
+
+
+class PhieuTinhGiaKhachHangPatch(BaseModel):
+    """`PATCH /phieu-tinh-gia/{id}/khach-hang` — khách, điểm giao, người nhận, ghi chú của phiếu.
+
+    Chỉ ô GỬI LÊN mới đổi (`exclude_unset`). Đổi `customer_id` mà không gửi kèm điểm giao / người
+    nhận thì máy điền điểm giao mặc định + liên hệ chính của khách mới. Không tính lại giá.
+    """
+    ghi_chu: str | None = None
+    # Khách hàng chọn Ở PHIẾU (mg 0363) — báo giá chép sang, không sửa được ở báo giá.
+    customer_id: int | None = None
+    delivery_address: str | None = Field(default=None, max_length=500)
+    contact_name_snapshot: str | None = Field(default=None, max_length=255)
+    contact_phone_snapshot: str | None = Field(default=None, max_length=30)
+    contact_title_snapshot: str | None = Field(default=None, max_length=120)
+    contact_email_snapshot: str | None = Field(default=None, max_length=255)
 
 
 class PhieuTinhGiaUpdate(BaseModel):
@@ -258,6 +273,11 @@ class DanhMucDoi(BaseModel):
     xoa: list[str] = Field(default_factory=list)    # mục đã XOÁ HẲN khỏi danh mục
 
 
+class DanhMucDoiOut(BaseModel):
+    """`GET /phieu-tinh-gia/{id}/danh-muc-doi` — chỉ lời nhắc, `None` = phiếu còn khớp danh mục."""
+    danh_muc_doi: DanhMucDoi | None = None
+
+
 class PhieuTinhGiaOut(BaseModel):
     """Phiếu đầy đủ — kèm thành phần lồng + result (ảnh chụp engine) + warnings."""
     model_config = ConfigDict(from_attributes=True)
@@ -273,6 +293,17 @@ class PhieuTinhGiaOut(BaseModel):
     warnings: list[str] | None = Field(default=None, validation_alias="warnings_json")
     ktv: str | None = None
     ghi_chu: str | None = None
+    customer_id: int | None = None
+    customer_name: str | None = None     # router tra tên từ `customers` (không lưu ở phiếu)
+    # Dải khách ở màn phiếu: MST dưới tên khách + nhãn điểm giao khớp địa chỉ phiếu — trả kèm để
+    # màn khỏi gọi thêm 3 API khách lúc mở (xem `ptg_khach_hang_service.gan_khach_out`).
+    customer_tax_code: str | None = None
+    delivery_label: str | None = None
+    delivery_address: str | None = None
+    contact_name_snapshot: str | None = None
+    contact_phone_snapshot: str | None = None
+    contact_title_snapshot: str | None = None
+    contact_email_snapshot: str | None = None
     thanh_phans: list[ThanhPhanOut] = Field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -324,6 +355,17 @@ class PhieuTinhGiaOutRutGon(BaseModel):
     gia_von_don: float
     ktv: str | None = None
     ghi_chu: str | None = None
+    customer_id: int | None = None
+    customer_name: str | None = None     # router tra tên từ `customers` (không lưu ở phiếu)
+    # Dải khách ở màn phiếu: MST dưới tên khách + nhãn điểm giao khớp địa chỉ phiếu — trả kèm để
+    # màn khỏi gọi thêm 3 API khách lúc mở (xem `ptg_khach_hang_service.gan_khach_out`).
+    customer_tax_code: str | None = None
+    delivery_label: str | None = None
+    delivery_address: str | None = None
+    contact_name_snapshot: str | None = None
+    contact_phone_snapshot: str | None = None
+    contact_title_snapshot: str | None = None
+    contact_email_snapshot: str | None = None
     thanh_phans: list[ThanhPhanRutGonOut] = Field(default_factory=list)
     # Router gán tay từ `result_json` (không đọc được từ ORM) — xem `get_item`.
     nhom_tong: list[NhomTongOut] = Field(default_factory=list)
@@ -345,6 +387,9 @@ class PhieuTinhGiaListItem(BaseModel):
     gia_von_don: float
     tong_gia_von: float
     ktv: str | None = None
+    ghi_chu: str | None = None
+    customer_id: int | None = None
+    customer_name: str | None = None     # router tra tên (xem `list_items`)
     so_thanh_phan: int = 0
     # Tên các sản phẩm BÊN TRONG phiếu. Ô `ten_san_pham` ở đầu phiếu là chữ tự do người lập
     # gõ, bỏ trống được — bỏ trống thì bảng ngoài này chẳng biết phiếu báo cái gì. Gửi kèm

@@ -122,7 +122,7 @@
 .bg__badge--sent {
   color: var(--rust);
   border-color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .bg__badge--off {
   color: var(--signal);
@@ -362,7 +362,7 @@ select.input {
   vertical-align: middle;
 }
 .bg__spreadsheet tr.is-selected {
-  background: rgba(197, 64, 10, 0.03); /* Soft branding rust tint */
+  background: rgba(100, 116, 139, 0.03); /* Soft branding rust tint */
 }
 .bg__spreadsheet tr.is-excluded {
   background: rgba(20, 19, 15, 0.02);
@@ -395,7 +395,7 @@ select.input {
   border-color: var(--rust);
   background: #fff;
   outline: none;
-  box-shadow: 0 0 0 2px var(--rust-soft);
+  box-shadow: 0 0 0 2px var(--rule-hair);
 }
 .bg__spreadsheet td input.input--error {
   border-color: var(--signal) !important;
@@ -637,7 +637,7 @@ select.input {
 }
 .bg__timeline-node.is-current .bg__timeline-badge {
   border-color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 .bg__timeline-content {
@@ -845,7 +845,7 @@ select.input {
 /* Flash animation for live spreadsheet calculation */
 @keyframes bg-cell-flash-anim {
   0% {
-    background-color: var(--rust-soft);
+    background-color: var(--rule-hair);
     color: var(--rust-deep);
   }
   100% {
@@ -985,7 +985,7 @@ select.input {
 
 /* toggle bắt buộc duyệt */
 .bgv .appr-block { padding: 14px 0; border-top: 1px solid rgba(245,241,232,0.15); }
-.bgv .appr-notice { background: rgba(197,64,10,0.12); border: 1px solid rgba(224,112,63,0.4); border-radius: var(--r-3); padding: 11px 12px; }
+.bgv .appr-notice { background: rgba(100, 116, 139, 0.12); border: 1px solid rgba(224,112,63,0.4); border-radius: var(--r-3); padding: 11px 12px; }
 .bgv .appr-notice .an-head { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; color: var(--rust-2); }
 .bgv .appr-notice .an-sub { font-size: 11.5px; color: rgba(245,241,232,0.6); margin-top: 6px; }
 .bgv .appr-notice.wait { background: rgba(227,179,65,0.12); border-color: rgba(227,179,65,0.35); }
@@ -1040,7 +1040,7 @@ select.input {
 /* version list */
 .bgv .ver-item { display: grid; grid-template-columns: 40px minmax(0,1fr) auto; gap: 10px; padding: 11px 10px; border-radius: var(--r-3); cursor: pointer; align-items: center; border: 1px solid transparent; transition: background 140ms ease, border-color 140ms ease; }
 .bgv .ver-item:hover { background: var(--paper-2); }
-.bgv .ver-item.active { background: var(--rust-soft); border-color: rgba(197,64,10,0.25); }
+.bgv .ver-item.active { background: var(--rule-hair); border-color: rgba(100, 116, 139, 0.25); }
 .bgv .ver-item .v-tag { font-family: var(--ff-sans); font-size: 13px; font-weight: 700; color: var(--ink); width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--r-3); }
 .bgv .ver-item.active .v-tag { background: var(--rust); color: var(--paper); border-color: var(--rust); }
 .bgv .ver-item.current .v-tag::after { content: "●"; font-size: 7px; position: relative; top: -7px; left: 2px; color: var(--moss); }
@@ -1098,7 +1098,7 @@ select.input {
 .bgv .act-item .a-dot.steel { background: var(--steel-soft); color: var(--steel); }
 .bgv .act-item .a-dot.moss { background: var(--moss-soft); color: var(--moss); }
 .bgv .act-item .a-dot.signal { background: var(--signal-soft); color: var(--signal); }
-.bgv .act-item .a-dot.rust { background: var(--rust-soft); color: var(--rust); }
+.bgv .act-item .a-dot.rust { background: var(--rule-hair); color: var(--rust); }
 .bgv .act-item .a-dot.ash { background: var(--paper-2); color: var(--ash); }
 .bgv .act-item .a-text { font-size: 12.5px; color: var(--ink); line-height: 1.35; }
 .bgv .act-item .a-meta { font-size: 11px; color: var(--ash); margin-top: 2px; }
@@ -1124,7 +1124,7 @@ select.input {
 
 /* flash số khi đổi */
 .bgv .flash { animation: bgv-flash 700ms ease; }
-@keyframes bgv-flash { 0% { background: rgba(197,64,10,0.18); } 100% { background: transparent; } }
+@keyframes bgv-flash { 0% { background: rgba(100, 116, 139, 0.18); } 100% { background: transparent; } }
 
 /* ===== bản in BÁO GIÁ — tài liệu A4 hai mực: đen #000 + trắng #fff. Không xám, không màu nhấn,
    không bo góc, không đổ bóng. Chiều sâu = độ dày nét kẻ + hai khối đảo màu. ===== */
@@ -1322,9 +1322,9 @@ select.input {
   --on-dark: #e6e0d2;
   --on-dark-muted: #928c7e;
   --dark-hair: rgba(230, 224, 210, 0.1);
-  max-width: 1200px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: 20px 24px 40px;
+  padding: 20px var(--page-pad-x) 40px;
   color: var(--ink);
 }
 .rdx-quote .num { font-family: var(--ff-sans); font-variant-numeric: tabular-nums; text-align: right; }
@@ -1352,7 +1352,7 @@ select.input {
 .rdx-quote .badge.neutral .d { background: var(--ash-2); }
 .rdx-quote .badge.pending { background: var(--rule-soft); color: var(--rust-deep); }
 .rdx-quote .badge.pending .d { background: var(--rust); }
-.rdx-quote .badge.soft { background: var(--rust-soft); color: var(--rust-deep); }
+.rdx-quote .badge.soft { background: var(--rule-hair); color: var(--rust-deep); }
 .rdx-quote .badge.soft .d { background: var(--rust); }
 .rdx-quote .badge.solid { background: var(--rust); color: #fff; }
 .rdx-quote .badge.solid .d { background: #fff; }
@@ -1375,7 +1375,7 @@ select.input {
 .rdx-quote tbody td { padding: 12px 14px; border-bottom: 1px solid var(--rule-hair); vertical-align: middle; }
 .rdx-quote tbody tr:last-child td { border-bottom: 0; }
 .rdx-quote tbody tr.click { cursor: pointer; }
-.rdx-quote tbody tr.click:hover td { background: var(--rust-soft); }
+.rdx-quote tbody tr.click:hover td { background: var(--rule-hair); }
 .rdx-quote .code { font-family: var(--ff-sans); font-weight: 600; font-size: 12.5px; }
 .rdx-quote .code .v { color: var(--ash-2); font-weight: 500; margin-left: 5px; }
 .rdx-quote .vc { display: block; font-size: 11px; color: var(--ash-2); font-family: var(--ff-sans); margin-top: 3px; }
@@ -1504,7 +1504,7 @@ select.input {
 .rdx-quote .terms .tactions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .rdx-quote .verline { margin-top: 11px; font-size: 12px; color: var(--ash); }
 .rdx-quote .verline b { color: var(--ink); font-weight: 600; }
-.rdx-quote .ro-note2 { margin-top: 12px; font-size: 12px; color: var(--rust-deep); background: var(--rust-soft); border: 1px solid rgba(197, 64, 10, 0.18); border-radius: var(--r-3); padding: 9px 12px; display: flex; gap: 8px; align-items: center; }
+.rdx-quote .ro-note2 { margin-top: 12px; font-size: 12px; color: var(--rust-deep); background: var(--rule-hair); border: 1px solid rgba(100, 116, 139, 0.18); border-radius: var(--r-3); padding: 9px 12px; display: flex; gap: 8px; align-items: center; }
 
 /* ---- DETAIL: growth-safe scroll blocks ------------------------------------- */
 .rdx-quote .scrollbox { max-height: 220px; overflow-y: auto; }
@@ -1517,8 +1517,8 @@ select.input {
 .rdx-quote .vrow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--rule-soft); border-radius: var(--r-3); margin-top: 8px; background: var(--paper); cursor: pointer; }
 .rdx-quote .vrow:first-child { margin-top: 2px; }
 .rdx-quote .vrow { transition: border-color 0.14s ease, background 0.14s ease; }
-.rdx-quote .vrow.cur { border-color: var(--rust); background: var(--rust-soft); }
-.rdx-quote .vrow:not(.cur):hover { border-color: var(--rust); background: var(--rust-soft); }
+.rdx-quote .vrow.cur { border-color: var(--rust); background: var(--rule-hair); }
+.rdx-quote .vrow:not(.cur):hover { border-color: var(--rust); background: var(--rule-hair); }
 .rdx-quote .vnow { font-size: 10px; font-weight: 600; letter-spacing: 0.03em; color: var(--paper); background: var(--rust); padding: 2px 7px; border-radius: var(--r-pill); text-transform: uppercase; white-space: nowrap; }
 .rdx-quote .vtag { font-family: var(--ff-sans); font-weight: 700; font-size: 12px; color: #fff; background: var(--rust); min-width: 32px; height: 28px; display: grid; place-items: center; border-radius: var(--r-2); flex: none; }
 .rdx-quote .vrow.old .vtag { background: var(--ash-2); }
@@ -1531,7 +1531,7 @@ select.input {
 /* ---- DETAIL: activity timeline --------------------------------------------- */
 .rdx-quote .tl { padding: 6px 16px 12px; }
 .rdx-quote .tlrow { display: flex; gap: 11px; padding: 9px 0; }
-.rdx-quote .tlic { width: 28px; height: 28px; border-radius: var(--r-pill); background: var(--rust-soft); color: var(--rust-deep); display: grid; place-items: center; flex: none; }
+.rdx-quote .tlic { width: 28px; height: 28px; border-radius: var(--r-pill); background: var(--rule-hair); color: var(--rust-deep); display: grid; place-items: center; flex: none; }
 .rdx-quote .tlrow.mut .tlic { background: var(--rule-soft); color: var(--ash); }
 .rdx-quote .tlrow.sig .tlic { background: var(--signal-soft); color: var(--signal); }
 .rdx-quote .tlb { padding-top: 2px; min-width: 0; }
@@ -1552,7 +1552,7 @@ select.input {
   transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
 }
 .rdx-quote .att-drop:hover { border-color: var(--rust); color: var(--rust-deep); }
-.rdx-quote .att-drop.drag { border-color: var(--rust); background: var(--rust-soft); color: var(--rust-deep); }
+.rdx-quote .att-drop.drag { border-color: var(--rust); background: var(--rule-hair); color: var(--rust-deep); }
 .rdx-quote .att-drop.busy { opacity: 0.65; pointer-events: none; }
 .rdx-quote .att-drop svg { color: var(--rust); }
 .rdx-quote .att-drop__lead { font-size: 13px; color: var(--ink); }
@@ -1591,7 +1591,7 @@ select.input {
   border: 1px solid transparent; background: none; color: var(--ash); cursor: pointer;
   text-decoration: none; transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
-.rdx-quote .att-act:hover { background: var(--rust-soft); color: var(--rust-deep); border-color: var(--rule-soft); }
+.rdx-quote .att-act:hover { background: var(--rule-hair); color: var(--rust-deep); border-color: var(--rule-soft); }
 .rdx-quote .att-act.danger:hover { background: var(--signal-soft); color: var(--signal); }
 
 /* Lightbox xem trước ảnh / PDF */
@@ -1615,7 +1615,7 @@ select.input {
   border: 0; background: none; color: var(--ash); cursor: pointer; text-decoration: none;
 }
 .rdx-quote .att-lightbox__acts a:hover,
-.rdx-quote .att-lightbox__acts button:hover { background: var(--rust-soft); color: var(--rust-deep); }
+.rdx-quote .att-lightbox__acts button:hover { background: var(--rule-hair); color: var(--rust-deep); }
 .rdx-quote .att-lightbox__body { flex: 1; min-height: 0; background: var(--paper); display: grid; place-items: center; }
 .rdx-quote .att-lightbox__body img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
 .rdx-quote .att-lightbox__body iframe { width: 100%; height: 100%; border: 0; background: #fff; }
@@ -1725,7 +1725,7 @@ select.input {
   font-family: var(--ff-sans);
   font-size: 11px;
   font-weight: 700;
-  background: var(--rust-soft, #fff7ed);
+  background: var(--rule-hair);
   color: var(--rust, #c2410c);
   border: 1px solid rgba(224, 86, 56, 0.2);
   width: 22px;
@@ -1760,7 +1760,7 @@ select.input {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: var(--rust-soft, #fff7ed);
+  background: var(--rule-hair);
   color: var(--rust, #e05638);
   display: grid;
   place-items: center;
@@ -1894,7 +1894,7 @@ select.input {
 /* ---- Nhóm gộp khi IN cho khách (ruột + bìa → 1 dòng "quyển sách") ----------
    Dải nhóm mang đúng con số khách sẽ thấy; dòng con thụt vào dưới nó. */
 .rdx-quote tr.qgrouphd > td {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-top: 1px solid var(--rust);
   padding-top: 10px; padding-bottom: 10px;
 }
@@ -1907,13 +1907,13 @@ select.input {
 .rdx-quote tr.qrow--con > td:first-child {
   padding-left: 22px;
   /* Ray dọc suốt các dòng thuộc nhóm + kẻ đóng ở dòng cuối → thấy rõ nhóm hết ở đâu. */
-  box-shadow: inset 3px 0 0 var(--rust-soft);
+  box-shadow: inset 3px 0 0 var(--rule-hair);
 }
 .rdx-quote tr.qrow--conCuoi > td { border-bottom: 1px solid var(--rust); }
 .rdx-quote .hint--warn {
   color: var(--rust);
-  background: var(--rust-soft);
-  border-color: var(--rust-soft);
+  background: var(--rule-hair);
+  border-color: var(--rule-hair);
 }
 
 /* ---- Cảnh báo nhóm lệch SL: liệt kê rõ phần nào bao nhiêu + số in cho khách -- */
@@ -1929,7 +1929,7 @@ select.input {
 .rdx-quote .lechnhom__ket b { color: var(--ink); font-variant-numeric: tabular-nums; }
 
 /* ---- Dòng con có SL lệch phần đầu nhóm: nền nhạt + nhãn cảnh báo dưới cột SL -- */
-.rdx-quote tr.qrow--lech > td { background: var(--rust-soft); }
+.rdx-quote tr.qrow--lech > td { background: var(--rule-hair); }
 .rdx-quote .ql-lech {
   display: block; margin-top: 3px; font-size: 10px; font-weight: 600;
   letter-spacing: 0.01em; white-space: nowrap; color: var(--rust);
@@ -2044,3 +2044,51 @@ select.input {
     flex: 1 1 100%;
   }
 }
+
+/* ---- Bảng giá phương án B (04/10/2026, docs/mockups/bao-gia-ke-thua-tu-ptg.html) ----
+   Ô số có đơn vị NẰM TRONG ô, không mũi tên tăng giảm. Giá bán tự tính = nền giấy, chữ thường;
+   gõ tay = viền đậm + thẻ "Gõ tay" + nút "Về theo markup"; ô markup khi đó xám, ghi "suy ra". */
+.rdx-quote .nf {
+  display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 10px 0 8px;
+  border: 1px solid var(--rule); border-radius: var(--r-3); background: var(--canvas);
+  vertical-align: middle; cursor: text;
+}
+.rdx-quote .nf:hover { border-color: var(--ash-2); }
+.rdx-quote .nf:focus-within { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.18); }
+.rdx-quote .nf input {
+  width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: none;
+  font: inherit; font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; color: var(--ink);
+}
+.rdx-quote .nf input:disabled { color: var(--ash); cursor: default; }
+.rdx-quote .nf .u { font-size: 12px; font-weight: 600; color: var(--ash-2); }
+.rdx-quote .nf.pct { width: 76px; }
+.rdx-quote .nf.money { width: 132px; }
+.rdx-quote .nf.auto { background: var(--paper); }
+.rdx-quote .nf.auto input { font-weight: 500; color: var(--ash); }
+.rdx-quote .nf.manual { border-color: var(--ink); }
+.rdx-quote .markcell,
+.rdx-quote .pricecell { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.rdx-quote .markcell .meta { font-size: 11px; color: var(--ash-2); white-space: nowrap; }
+.rdx-quote .pricecell .meta { display: flex; align-items: center; gap: 8px; font-size: 11px; white-space: nowrap; }
+.rdx-quote .pricecell .tag { padding: 1px 7px; font-size: 10px; }
+.rdx-quote .reset {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none;
+  font-size: 11px; font-weight: 600; color: var(--ash); cursor: pointer;
+}
+.rdx-quote .reset:hover { color: var(--ink); text-decoration: underline; }
+.rdx-quote .qgrouphd__sub { display: inline-flex; gap: 6px; margin-left: 8px; color: inherit; }
+.rdx-quote .qgrouphd__sub .tag { padding: 1px 7px; font-size: 10px; }
+.rdx-quote .subline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rdx-quote .dk__ver {
+  padding: 0 6px; border-radius: var(--r-2); background: rgba(245, 241, 232, 0.12);
+  letter-spacing: 0; font-weight: 700;
+}
+/* Ô chiết khấu trên thẻ tối: rộng ngang nút VAT, % nằm trong ô. */
+.rdx-quote .dk .nf.dnf {
+  width: 76px; height: 30px; margin-left: 10px; padding: 0 8px;
+  border-color: rgba(230, 224, 210, 0.22); background: rgba(230, 224, 210, 0.06);
+}
+.rdx-quote .dk .nf.dnf:hover { border-color: rgba(230, 224, 210, 0.4); }
+.rdx-quote .dk .nf.dnf:focus-within { border-color: var(--on-dark); box-shadow: none; }
+.rdx-quote .dk .nf.dnf input { color: var(--on-dark); }
+.rdx-quote .dk .nf.dnf .u { color: var(--on-dark-muted); }

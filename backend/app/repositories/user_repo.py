@@ -46,7 +46,9 @@ class UserRepository:
                     continue
         return f"TK{max_n + 1:03d}"
 
-    def create(self, *, username: str, name: str, password_hash: str) -> User:
+    def create(self, *, username: str, name: str, password_hash: str,
+               commit: bool = True) -> User:
+        """`commit=False`: chỉ flush (có id ngay), người gọi chốt cả thao tác một lần."""
         user = User(
             username=username,
             name=name,
@@ -54,8 +56,11 @@ class UserRepository:
             code=self.next_code(),
         )
         self.db.add(user)
-        self.db.commit()
-        self.db.refresh(user)
+        if commit:
+            self.db.commit()
+            self.db.refresh(user)
+        else:
+            self.db.flush()
         return user
 
     def set_assignment(
@@ -65,13 +70,15 @@ class UserRepository:
         department_id: int | None,
         role_id: int | None,
         is_active: bool = True,
+        commit: bool = True,
     ) -> User:
         """Set a user's department + role (RBAC assignment)."""
         user.department_id = department_id
         user.role_id = role_id
         user.is_active = is_active
-        self.db.commit()
-        self.db.refresh(user)
+        if commit:
+            self.db.commit()
+            self.db.refresh(user)
         return user
 
     def set_name(self, user: User, name: str) -> User:
@@ -89,7 +96,7 @@ class UserRepository:
         return user
 
     def sync_from_employee(self, user: User, *, name: str, department_id: int | None,
-                           avatar_url: str | None = None) -> User:
+                           avatar_url: str | None = None, commit: bool = True) -> User:
         """Đồng bộ 1 chiều HỒ SƠ→TÀI KHOẢN (Đ1: hồ sơ là nguồn) — tên hiển thị + phòng
         (data-scope RBAC). Ảnh CHỈ ghi khi hồ sơ CÓ ảnh (tránh xoá avatar tài khoản khi hồ sơ
         chưa có ảnh). KHÔNG đụng role."""
@@ -97,8 +104,9 @@ class UserRepository:
         user.department_id = department_id
         if avatar_url:
             user.avatar_url = avatar_url
-        self.db.commit()
-        self.db.refresh(user)
+        if commit:
+            self.db.commit()
+            self.db.refresh(user)
         return user
 
     def set_password(self, user: User, password_hash: str) -> User:
@@ -114,17 +122,26 @@ class UserRepository:
         self.db.refresh(user)
         return user
 
-    def set_active(self, user: User, is_active: bool) -> User:
-        user.is_active = is_active
+    def set_role_many(self, users: list[User], role_id: int | None) -> None:
+        """Gán vai cho cả lô rồi chốt MỘT lần — kèm luôn mọi thứ người gọi đã thêm vào phiên
+        (vd dòng nhật ký `audit.create_many`), nên lô sống hoặc chết cùng nhau."""
+        for user in users:
+            user.role_id = role_id
         self.db.commit()
-        self.db.refresh(user)
+
+    def set_active(self, user: User, is_active: bool, *, commit: bool = True) -> User:
+        user.is_active = is_active
+        if commit:
+            self.db.commit()
+            self.db.refresh(user)
         return user
 
-    def bump_token_version(self, user: User) -> User:
+    def bump_token_version(self, user: User, *, commit: bool = True) -> User:
         """Invalidate every outstanding access token for the user (logout-all / lock)."""
         user.token_version = (user.token_version or 0) + 1
-        self.db.commit()
-        self.db.refresh(user)
+        if commit:
+            self.db.commit()
+            self.db.refresh(user)
         return user
 
     def list_all(self) -> list[User]:
@@ -162,6 +179,29 @@ class UserRepository:
             select(func.count()).select_from(User).where(User.department_id == department_id)
         ).scalar_one()
 
+    def counts_by_department(self) -> dict[int, int]:
+        """`{department_id: số tài khoản}` của MỌI phòng trong MỘT truy vấn."""
+        return dict(self.db.execute(
+            select(User.department_id, func.count())
+            .where(User.department_id.is_not(None))
+            .group_by(User.department_id)
+        ).all())
+
     def list_by_department(self, department_id: int) -> list[User]:
         stmt = select(User).where(User.department_id == department_id).order_by(User.id)
         return list(self.db.execute(stmt).scalars())
+
+    def list_by_departments(self, department_ids) -> list[User]:
+        """Tài khoản của NHIỀU phòng trong MỘT truy vấn, sắp theo id."""
+        ids = sorted({int(i) for i in (department_ids or [])})
+        if not ids:
+            return []
+        stmt = select(User).where(User.department_id.in_(ids)).order_by(User.id)
+        return list(self.db.execute(stmt).scalars())
+
+    def get_many(self, user_ids) -> dict[int, User]:
+        """`{id: User}` của nhiều tài khoản trong MỘT truy vấn; id không có thì vắng mặt."""
+        ids = sorted({int(i) for i in (user_ids or []) if i is not None})
+        if not ids:
+            return {}
+        return {u.id: u for u in self.db.execute(select(User).where(User.id.in_(ids))).scalars()}

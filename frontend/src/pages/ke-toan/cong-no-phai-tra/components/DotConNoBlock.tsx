@@ -7,6 +7,7 @@ import type {
 } from "../../../../api/client";
 import type { NavigateFn } from "../../../../components/AppShell";
 import { Button } from "../../../../components/Button";
+import { Icon } from "../../../../components/Icons";
 import { fmtDate, money } from "../../../../utils/format";
 import { gomTheoDon, tenKhoan } from "../shared/helpers";
 import type { Bucket } from "../shared/types";
@@ -90,11 +91,16 @@ export function DotConNoBlock({
         )}
       </p>
       {khoanNo.length === 0 ? (
-        <p className="pay-empty">
-          {tab === "overdue"
-            ? "Không có khoản nào quá hạn."
-            : "Không còn khoản nợ nào với nhà cung cấp này."}
-        </p>
+        <div className="acct-empty-state cnt-chuan__rong-khoi">
+          <div className="acct-empty-state__icon">
+            <Icon name={tab === "overdue" ? "clock" : "fileCheck"} size={20} />
+          </div>
+          <div className="acct-empty-state__text">
+            {tab === "overdue"
+              ? "Không có khoản nào quá hạn."
+              : "Không còn khoản nợ nào với nhà cung cấp này."}
+          </div>
+        </div>
       ) : (
         gomTheoDon(khoanNo, detail.coc_chung).map((don) => {
           // Đỏ chỉ khi CHÍNH đơn này có ít nhất một đợt đang trễ — không phải mọi đơn có

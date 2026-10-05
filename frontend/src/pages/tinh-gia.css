@@ -2,9 +2,9 @@
    Tokens-only (rust là accent duy nhất). Phiếu in có style riêng (phieu-tinh-gia.css). */
 
 .tg-page {
-  max-width: 1540px;
+  max-width: var(--page-max-w);
   margin: 0 auto;
-  padding: var(--sp-5) var(--sp-8);
+  padding: var(--sp-5) var(--page-pad-x);
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
@@ -74,6 +74,18 @@
   align-items: center;
   gap: var(--sp-3);
   flex-wrap: wrap;
+}
+/* Người lập + ngày lập dưới tiêu đề phiếu (thay thẻ "Phiếu này" ở cột phụ, 04/10/2026). */
+.tg-head__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+/* Tên người giữ nguyên hoa/thường như tài khoản — tag chung viết hoa toàn bộ. */
+.rdx-cost .tg-head__meta .tag {
+  text-transform: none;
+  letter-spacing: 0;
 }
 .tg-head__title-sub {
   font-family: var(--ff-sans);
@@ -168,7 +180,7 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-radius: var(--r-pill);
   padding: 2px 9px;
 }
@@ -347,25 +359,6 @@ select.tg-input {
   outline-offset: 2px;
 }
 
-/* Bước trỏ vào công đoạn đã NGỪNG DÙNG hoặc đã XOÁ khỏi danh mục. Không giấu bước đi (giấu là
-   người lập phiếu tưởng phần mềm nuốt mất), cũng không đổi số — chỉ bày cho thấy chỗ phải thay. */
-.tg-chip--canh {
-  border-color: var(--amber);
-  border-style: dashed;
-  background: var(--amber-soft);
-  color: var(--amber-deep);
-}
-.tg-chip--canh:hover {
-  border-color: var(--amber-deep);
-  background: var(--amber-soft);
-}
-.tg-chip__canh {
-  font-size: 11px;
-  font-weight: var(--fw-semibold);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  opacity: 0.85;
-}
 .tg-chipgrid__empty {
   font-size: 12.5px;
   color: var(--ash-2);
@@ -373,54 +366,6 @@ select.tg-input {
   margin: 0;
 }
 
-/* Chip công đoạn: tên (bấm mở chi tiết) + nút xóa ✕ */
-.tg-chip__name {
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-.tg-chip__x {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-left: 2px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--r-pill);
-  background: none;
-  color: inherit;
-  opacity: 0.55;
-  cursor: pointer;
-  transition: opacity var(--duration-fast) var(--easing-standard);
-}
-.tg-chip__x:hover {
-  opacity: 1;
-}
-.tg-chip__x svg {
-  width: 12px;
-  height: 12px;
-}
-/* Ô "+ Thêm công đoạn" dạng chip nét đứt */
-.tg-chip-add {
-  min-height: 36px;
-  padding: 6px 14px;
-  border: 1px dashed var(--rule);
-  border-radius: var(--r-pill);
-  background: transparent;
-  color: var(--ash-2);
-  font-family: var(--ff-sans);
-  font-size: 13px;
-  cursor: pointer;
-}
-.tg-chip-add:hover {
-  border-color: var(--ash-2);
-  background: var(--rule-hair);
-}
 /* Bảng chi tiết công đoạn khi bấm vào chip */
 .tg-chip-detail {
   margin-top: var(--sp-3);
@@ -705,7 +650,7 @@ select.tg-input {
 .ptg-search__input:focus {
   outline: none;
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
 }
 .ptg-tabrow {
   margin-top: var(--sp-4);
@@ -791,6 +736,36 @@ select.tg-input {
 .ptg-strong {
   font-weight: var(--fw-bold);
 }
+/* Khách + ghi chú chọn ở phiếu (04/10/2026). Ghi chú cắt 2 dòng, rê chuột xem đủ. */
+.ptg-cust {
+  min-width: 150px;
+  max-width: 220px;
+}
+.ptg-cust__name {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+.ptg-cust__none {
+  font-size: 12px;
+  color: var(--ash-2);
+}
+.ptg-note {
+  min-width: 160px;
+  max-width: 260px;
+}
+.ptg-note__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ash);
+  white-space: normal;
+}
+.ptg-pager__page {
+  margin-left: var(--sp-4);
+}
 .ptg-tech {
   display: inline-block;
   font-family: var(--ff-sans);
@@ -816,12 +791,6 @@ select.tg-input {
   margin-top: 2px;
   font-size: 11.5px;
   color: var(--ash-2);
-}
-.ptg-msg {
-  padding: var(--sp-8) var(--sp-6);
-  text-align: center;
-  color: var(--ash-2);
-  font-size: 13px;
 }
 .ptg-empty-td {
   padding: 0;
@@ -911,7 +880,7 @@ select.tg-input {
 }
 .ptg-badge--rust {
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .ptg-badge--moss {
   color: var(--moss-deep);
@@ -1142,7 +1111,7 @@ select.tg-input {
 .tg-icon-btn--danger:hover {
   border-color: var(--rust);
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .tg-icon-btn:focus-visible {
   outline: 2px solid var(--rust);
@@ -1173,7 +1142,7 @@ select.tg-input {
 }
 .tg-add:hover {
   border-color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .tg-add:focus-visible {
   outline: 2px solid var(--rust);
@@ -1216,7 +1185,7 @@ select.tg-input {
 /* ---------- Ô đã sửa-đè khác giá trị auto ---------- */
 .tg-input--edited {
   border-color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 
 /* ---------- Tag "tự bình bài" + nút "về auto" (cạnh microlabel) ---------- */
@@ -1620,7 +1589,7 @@ select.tg-input--sm {
   opacity: 0.7;
 }
 .tg-imp__piece {
-  fill: var(--rust-soft);
+  fill: var(--rule-hair);
   stroke: var(--rust);
   stroke-width: 1.2;
   transition: all var(--duration-base) var(--easing-standard);
@@ -1654,9 +1623,9 @@ select.tg-input--sm {
   gap: var(--sp-2);
   margin: 0 var(--sp-4) var(--sp-3);
   padding: var(--sp-3);
-  border: 1px solid var(--rust-soft);
+  border: 1px solid var(--rule-hair);
   border-radius: var(--r-5);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .tg-gopbar__count {
   font-family: var(--ff-sans);
@@ -1685,7 +1654,7 @@ select.tg-input--sm {
 /* Dải NHÓM: dòng tiêu đề của cụm (không phải bản ghi thật) — nền kem đậm hơn + viền trái rust
    để mắt biết ngay các dòng thụt bên dưới thuộc về nó. */
 .tg-complist__wrap tr.grouphd > td {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-top: 1px solid var(--rust);
   border-bottom: 1px solid var(--rule-soft);
   padding-top: 7px;
@@ -1765,7 +1734,7 @@ select.tg-input--sm {
 /* Ray dọc chạy suốt các dòng thuộc nhóm + kẻ đóng ở dòng cuối → thấy rõ nhóm BẮT ĐẦU và KẾT
    THÚC ở đâu. Chỉ thụt lề thì dòng ngay sau nhóm trông cũng như thành viên. */
 .tg-complist__wrap tr.prow--con > td:first-child {
-  box-shadow: inset 3px 0 0 var(--rust-soft);
+  box-shadow: inset 3px 0 0 var(--rule-hair);
 }
 .tg-complist__wrap tr.prow--conCuoi > td {
   border-bottom: 1px solid var(--rust);
@@ -1777,9 +1746,9 @@ select.tg-input--sm {
   align-items: center;
   margin-left: var(--sp-2);
   padding: 1px 8px;
-  border: 1px solid var(--rust-soft);
+  border: 1px solid var(--rule-hair);
   border-radius: var(--r-pill);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust);
   font-family: var(--ff-sans);
   font-size: var(--fs-2xs);
@@ -1921,7 +1890,7 @@ select.tg-input--sm {
 
 /* Vùng TRÀN LỀ quanh mỗi con (bleed > 0): con thật nằm gọn bên trong hình này. */
 .tg-imp__bleed {
-  fill: var(--rust-soft);
+  fill: var(--rule-hair);
   stroke: var(--rust);
   stroke-width: 0.8;
   stroke-dasharray: 3 2;
@@ -2199,7 +2168,7 @@ select.tg-input--sm {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   font-family: var(--ff-sans);
   font-size: 11px;
@@ -2249,7 +2218,7 @@ select.tg-input--sm {
 
 .rc-modal__left-col .tg-input:focus {
   border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rust-soft);
+  box-shadow: 0 0 0 3px var(--rule-hair);
   outline: none;
 }
 
@@ -2285,61 +2254,6 @@ select.tg-input--sm {
   color: var(--ink);
   font-weight: 600;
   box-shadow: 0 1px 2px rgba(20, 19, 15, 0.08);
-}
-
-/* Timeline Flow layout for Step 4 */
-.tg-timeline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-}
-.tg-timeline-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-.tg-timeline-arrow-wrap {
-  display: inline-flex;
-  align-items: center;
-  position: relative;
-}
-.tg-timeline-select-arrow {
-  appearance: none;
-  -webkit-appearance: none;
-  background: var(--paper-contrast);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-pill);
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  text-align-last: center;
-  font-family: var(--ff-sans);
-  font-size: 11px;
-  color: var(--ash);
-  cursor: pointer;
-  padding: 0;
-  outline: none;
-  transition: all var(--duration-fast) var(--easing-standard);
-  text-indent: 0;
-  line-height: 1;
-}
-.tg-timeline-select-arrow:hover {
-  background: var(--rust-soft);
-  border-color: var(--rust);
-  color: var(--rust-deep);
-  transform: scale(1.15);
-  box-shadow: 0 2px 4px rgba(20, 19, 15, 0.08);
-}
-.tg-timeline-select-arrow option {
-  background: var(--paper);
-  color: var(--ink);
-  text-align: left;
-  font-family: var(--ff-sans);
-  font-size: 13px;
 }
 
 /* Right column styling overrides */
@@ -2415,7 +2329,10 @@ select.tg-input--sm {
   justify-content: flex-end;
   column-gap: 5px;
   row-gap: 0;
-  min-width: 0;
+  /* Co được tới bề rộng CON SỐ, không hơn: `min-width: 0` cũ để khối co hẹp hơn chính số
+     (`nowrap`) nên số tràn sang trái, đè lên dòng công thức dài bên cạnh. */
+  min-width: min-content;
+  margin-left: var(--sp-3);
   max-width: 62%;
   text-align: right;
   line-height: 1.25;
@@ -2752,27 +2669,6 @@ select.tg-input--sm {
   font-size: 11px;
   color: var(--ash);
 }
-/* Ba ô kích thước/số lượng khung lụa — con của MỘT bước khung lụa, thụt vào dưới dòng phí chính
-   để không lẫn với phí khuôn của bước khác trong cùng khối. */
-.tg-khuon__kl {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 2px 0 6px 12px;
-  padding-left: 8px;
-  border-left: 2px solid var(--rule-soft);
-}
-.tg-khuon__kl .tg-khuon__row {
-  padding: 2px 0;
-}
-.tg-khuon__kl .tg-khuon__ten {
-  font-size: 12px;
-  color: var(--ash);
-}
-.tg-khuon__kl .tg-khuon__num {
-  width: 90px;
-}
-
 /* ---- ⑥ CHI PHÍ KHÁC: mỗi dòng một cặp (tên gõ tay · số tiền) + nút xoá ----
    KHÔNG dùng `justify-content: space-between` như `.tg-khuon__row` gốc: ở đây vế trái là một Ô
    NHẬP co giãn chứ không phải nhãn chữ, đẩy hai đầu ra xa thì ô tên bị bóp lại còn một mẩu trên
@@ -2897,6 +2793,11 @@ select.tg-input--sm {
   opacity: 0.75;
   font-variant-numeric: tabular-nums;
 }
+/* Công thức có `if`: mỗi khối một dòng, thụt theo độ sâu — cùng cỡ/màu với dòng diễn giải. */
+.rc-modal__right-col .tg-sheetrow__if-dong {
+  display: block;
+  padding-left: calc(var(--sau, 0) * 1.6em);
+}
 /* Dòng khép mạch cuối bảng phân rã: tờ cuối chuỗi quy ngược về đơn vị khách đặt. */
 .rc-modal__right-col .tg-sheetbreak__end {
   margin-top: 4px;
@@ -2941,7 +2842,7 @@ select.tg-input--sm {
 }
 .tg-revert {
   font-size: 10.5px;
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   border: 1px solid var(--rust);
   padding: 2px 6px;
@@ -3026,7 +2927,7 @@ select.tg-input--sm {
   padding: 3px 10px 3px 8px;
   border: 1px solid color-mix(in srgb, var(--rust) 30%, transparent);
   border-radius: var(--r-pill);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   font-size: 10px;
   letter-spacing: 0.13em;
@@ -3069,7 +2970,7 @@ select.tg-input--sm {
   color: var(--ink);
 }
 
-/* ---- badges (3 màu: neutral / rust-soft / rust-pending; signal chỉ cho từ chối) ---- */
+/* ---- badges (3 màu: neutral / xám nhạt / rust-pending; signal chỉ cho từ chối) ---- */
 .rdx-cost .badge {
   display: inline-flex;
   align-items: center;
@@ -3096,7 +2997,7 @@ select.tg-input--sm {
   background: var(--ash-2);
 }
 .rdx-cost .badge.soft {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
 }
 .rdx-cost .badge.soft .d {
@@ -3123,7 +3024,7 @@ select.tg-input--sm {
   border-bottom: 1.5px solid var(--rule);
 }
 .rdx-cost .ptg-row:hover {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .rdx-cost .ptg-prod__name {
   font-weight: var(--fw-bold);
@@ -3209,7 +3110,7 @@ select.tg-input--sm {
   transition: background-color var(--duration-fast) var(--easing-standard);
 }
 .rdx-cost .panel tbody tr.prow:hover td {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .rdx-cost .prow__act {
   white-space: nowrap;
@@ -3265,7 +3166,7 @@ select.tg-input--sm {
 .rdx-cost .addbtn button:hover {
   border-color: var(--rust);
   color: var(--rust);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .rdx-cost .addbtn button svg {
   color: var(--rust);
@@ -3305,7 +3206,7 @@ select.tg-input--sm {
   font-family: var(--ff-sans);
   font-size: 12px;
   color: var(--rust-deep);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   border-radius: var(--r-2);
   padding: 3px 8px;
   display: inline-block;
@@ -3474,7 +3375,7 @@ select.tg-input--sm {
   width: 28px;
   height: 28px;
   border-radius: var(--r-pill);
-  background: var(--rust-soft);
+  background: var(--rule-hair);
   color: var(--rust-deep);
   display: grid;
   place-items: center;
@@ -3519,8 +3420,8 @@ select.tg-input--sm {
 
 /* ---- warn (rust calm, KHÔNG signal đỏ) ---- */
 .rdx-cost .tg-warn {
-  border: 1px solid var(--rust-soft);
-  background: var(--rust-soft);
+  border: 1px solid var(--rule-hair);
+  background: var(--rule-hair);
 }
 .rdx-cost .tg-warn__title {
   color: var(--rust-deep);
@@ -3571,76 +3472,6 @@ select.tg-input--sm {
   background: var(--paper);
 }
 
-/* "+ Thêm công đoạn…" — chip nét đứt ôm chữ. `.sel` mặc định rộng 100% nên phải có thẻ bọc. */
-.tg-chip-add-wrap {
-  display: inline-flex;
-  vertical-align: middle;
-}
-.tg-chip-add-wrap .sel {
-  width: auto;
-}
-.rdx-cost .sel__trigger.tg-chip-add {
-  width: auto;
-  min-height: 36px;
-  padding: 6px 14px;
-  border: 1px dashed var(--rule);
-  border-radius: var(--r-pill);
-  background: transparent;
-  color: var(--ash-2);
-  font-family: var(--ff-sans);
-  font-size: 13px;
-}
-.rdx-cost .sel__trigger.tg-chip-add:hover:not(:disabled) {
-  border-color: var(--ash-2);
-  background: var(--rule-hair);
-}
-.rdx-cost .sel__trigger.tg-chip-add.is-open {
-  border-color: var(--rust);
-  color: var(--rust-deep);
-  box-shadow: none;
-}
-.rdx-cost .sel__trigger.tg-chip-add .sel__value--ph,
-.rdx-cost .sel__trigger.tg-chip-add .sel__caret {
-  color: inherit;
-}
-
-/* Mũi tên chèn công đoạn vào GIỮA chuỗi — nút tròn 22px, chỉ có mỗi ký tự ➔. */
-.rdx-cost .tg-timeline-arrow-wrap .sel {
-  width: auto;
-}
-.rdx-cost .sel__trigger.tg-timeline-select-arrow {
-  width: 22px;
-  height: 22px;
-  min-height: 0;
-  padding: 0;
-  gap: 0;
-  justify-content: center;
-  background: var(--paper-contrast);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-pill);
-  font-family: var(--ff-sans);
-  font-size: 11px;
-  color: var(--ash);
-  line-height: 1;
-}
-.rdx-cost .sel__trigger.tg-timeline-select-arrow .sel__caret {
-  display: none;
-}
-.rdx-cost .sel__trigger.tg-timeline-select-arrow .sel__value--ph {
-  color: inherit;
-  overflow: visible;
-}
-.rdx-cost .sel__trigger.tg-timeline-select-arrow:hover:not(:disabled) {
-  transform: scale(1.15);
-}
-.rdx-cost .sel__trigger.tg-timeline-select-arrow:hover:not(:disabled),
-.rdx-cost .sel__trigger.tg-timeline-select-arrow.is-open {
-  background: var(--rust-soft);
-  border-color: var(--rust);
-  color: var(--rust-deep);
-  box-shadow: 0 2px 4px rgba(20, 19, 15, 0.08);
-}
-
 /* Danh sách bung ra. Bản `portal` treo ở `document.body` ⇒ NẰM NGOÀI `.rdx-cost`, không selector
    nào của màn với tới được — nên nó mang class riêng `tg-pop` (prop `listClassName`). */
 .sel__list.tg-pop {
@@ -3678,7 +3509,7 @@ select.tg-input--sm {
 }
 .sel__list.tg-pop .sel__opt.is-selected,
 .sel__list.tg-pop .sel__opt.is-selected.is-active {
-  background: var(--rust-soft);
+  background: var(--rule-hair);
 }
 .sel__list.tg-pop .sel__opt.is-selected .sel__opt-label {
   color: var(--rust-deep);
@@ -3716,4 +3547,483 @@ select.tg-input--sm {
 .tg-khuon__row--phu .tg-khuon__ten {
   font-size: 12.5px;
   color: var(--ash);
+}
+
+/* Chuỗi công đoạn mục 4 — MASTER–DETAIL (thiết kế B, 04/10/2026). Trái: danh sách bước trần (không
+   khung) nối bằng một vạch mảnh qua các vòng số; phải: MỘT thẻ viền đủ 4 cạnh của bước đang chọn.
+   Luật: hover nền --rule-hair (không tô hồng), bước đang chọn = viền đủ cạnh + nền trắng + chữ đậm,
+   không viền một cạnh. Gọn: hàng 34px ở danh sách, 32px ở vật tư. */
+.tg-cdv__dem {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ash-2);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.tg-cdv {
+  display: grid;
+  grid-template-columns: 212px minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: start;
+  min-width: 0;
+}
+
+/* --- Danh sách bước --- */
+.tg-cdv__ds {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+/* Vạch nối các vòng số: từ tâm vòng đầu tới tâm vòng "+" cuối. */
+.tg-cdv__ds::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  top: 17px;
+  bottom: 17px;
+  width: 2px;
+  background: var(--rule-soft);
+}
+.tg-cdv__muc {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  height: 34px;
+  padding: 0 var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-3);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--ff-sans);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.tg-cdv__muc:hover { background: var(--rule-hair); }
+.tg-cdv__muc--chon,
+.tg-cdv__muc--chon:hover {
+  background: var(--canvas);
+  border-color: var(--rule);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  font-weight: 600;
+}
+.tg-cdv__muc:focus-visible { outline: 2px solid var(--rust); outline-offset: 1px; }
+/* Kéo-thả: bước đang kéo mờ đi; chỗ sẽ thả hiện một vạch màu nhấn ở mép trên/dưới bước đích. */
+.tg-cdv__ds > li[draggable="true"] { cursor: grab; }
+.tg-cdv__muc--keo { opacity: 0.45; }
+.tg-cdv__muc--tha-truoc::after,
+.tg-cdv__muc--tha-sau::after {
+  content: "";
+  position: absolute;
+  left: var(--sp-2);
+  right: var(--sp-2);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--rust);
+  pointer-events: none;
+}
+.tg-cdv__muc--tha-truoc::after { top: -2px; }
+.tg-cdv__muc--tha-sau::after { bottom: -2px; }
+.tg-cdv__so {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--rule);
+  border-radius: 50%;
+  background: var(--canvas);
+  color: var(--ash);
+  font-size: 11px;
+  font-weight: 600;
+}
+.tg-cdv__muc--chon .tg-cdv__so { background: var(--ink); border-color: var(--ink); color: var(--canvas); }
+/* Bước IN — mốc chính của chuỗi — tô đặc màu nhấn, chọn hay không cũng vậy. */
+.tg-cdv__so--in,
+.tg-cdv__muc--chon .tg-cdv__so--in { background: var(--rust); border-color: var(--rust); color: var(--canvas); }
+.tg-cdv__ten {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tg-cdv__cham {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+.tg-cdv__cham--loi { background: var(--signal); }
+.tg-cdv__vt {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ash-2);
+}
+.tg-cdv__vt svg { width: 12px; height: 12px; stroke-width: 1.75; }
+
+/* "+ Thêm công đoạn": cả hàng là một nút, vòng nét đứt màu nhấn nối tiếp vạch. */
+.tg-cdv__ds .sel { width: 100%; }
+.rdx-cost .sel__trigger.tg-cdv__them {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  margin-top: var(--sp-1);
+  padding: 0 var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-3);
+  background: transparent;
+  box-shadow: none;
+  color: var(--rust);
+  font-family: var(--ff-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rdx-cost .sel__trigger.tg-cdv__them::before {
+  content: "+";
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border: 1.5px dashed var(--rust);
+  border-radius: 50%;
+  background: var(--canvas);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+}
+.rdx-cost .sel__trigger.tg-cdv__them .sel__value--ph { color: inherit; }
+.rdx-cost .sel__trigger.tg-cdv__them .sel__caret { display: none; }
+.rdx-cost .sel__trigger.tg-cdv__them:hover:not(:disabled),
+.rdx-cost .sel__trigger.tg-cdv__them.is-open {
+  background: var(--rule-hair);
+  color: var(--rust-deep);
+  box-shadow: none;
+}
+
+/* --- Thẻ của bước đang chọn --- */
+.tg-cdv__the {
+  min-width: 0;
+  padding: 10px var(--sp-3) var(--sp-3);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  background: var(--canvas);
+}
+.tg-cdv__dau {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-width: 0;
+}
+/* Giai đoạn của bước: thẻ nhỏ nền xám — tách khỏi "đơn vị vào → ra" bằng hình, không bằng dấu chấm. */
+.tg-cdv__nhom {
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-2);
+  background: var(--rule-hair);
+  color: var(--ash);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tg-cdv__canh {
+  padding: 1px 6px;
+  border: 1px solid var(--signal);
+  border-radius: var(--r-2);
+  color: var(--signal);
+  font-size: 11px;
+  font-weight: 600;
+}
+.tg-cdv__luong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ash);
+  white-space: nowrap;
+}
+.tg-cdv__luong svg { width: 12px; height: 12px; stroke-width: 1.75; }
+.tg-cdv__thieu { font-size: 11px; font-weight: 600; color: var(--amber-deep); }
+.tg-cdv__cong-cu { margin-left: auto; display: inline-flex; gap: 2px; }
+.tg-cdv__nut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-3);
+  background: transparent;
+  color: var(--ash-2);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.tg-cdv__nut svg { width: 15px; height: 15px; stroke-width: 1.75; }
+.tg-cdv__nut:hover:not(:disabled) { background: var(--rule-hair); color: var(--ink); }
+.tg-cdv__nut--xoa:hover:not(:disabled) { color: var(--signal); }
+.tg-cdv__nut:disabled { opacity: 0.35; cursor: default; }
+.tg-cdv__nut:focus-visible { outline: 2px solid var(--rust); outline-offset: 1px; }
+
+/* --- Chưa có bước nào: một hộp gọn [ô tìm · gợi ý nhanh], câu nhắc dưới --- */
+.tg-cdv-rong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: var(--sp-3);
+  border: 1px dashed var(--rule);
+  border-radius: var(--r-5);
+}
+.tg-cdv-rong > .sel { flex: 1 1 240px; width: auto; }
+.rdx-cost .sel__trigger.tg-cdv-rong__tim {
+  height: 34px;
+  min-height: 34px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  color: var(--ash-2);
+  font-family: var(--ff-sans);
+  font-size: 13px;
+}
+.rdx-cost .sel__trigger.tg-cdv-rong__tim:hover:not(:disabled) { border-color: var(--ash-2); }
+.rdx-cost .sel__trigger.tg-cdv-rong__tim.is-open { border-color: var(--rust); }
+.tg-cdv-rong__goi-y { display: flex; flex-wrap: wrap; gap: 6px; }
+.tg-cdv-rong__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 99px;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.tg-cdv-rong__chip svg { width: 12px; height: 12px; color: var(--ash-2); }
+.tg-cdv-rong__chip:hover { border-color: var(--ash-2); background: var(--rule-hair); }
+.tg-cdv-rong__nhac { flex-basis: 100%; font-size: 12px; color: var(--ash-2); }
+
+/* --- Vật tư của bước (BuocVatTu): mỗi vật tư một hàng lưới [tên | lượng + đơn vị | ×] — cột lượng
+   thẳng hàng giữa các vật tư. Vật tư có chip thêm dòng ô chip bên dưới, dồn về mép phải. --- */
+.tg-bvt { margin-top: var(--sp-2); min-width: 0; }
+.tg-bvt__ds { list-style: none; margin: 0; padding: 0; }
+.tg-bvt__dong {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 28px;
+  grid-template-areas: "ten luong x";
+  align-items: center;
+  column-gap: var(--sp-2);
+  min-height: 32px;
+  padding: 0 2px 0 var(--sp-1);
+  border-radius: var(--r-3);
+  min-width: 0;
+  transition: background-color 140ms ease;
+}
+.tg-bvt__dong:hover { background: var(--rule-hair); }
+.tg-bvt__dong + .tg-bvt__dong { border-top: 1px solid var(--rule-hair); }
+.tg-bvt__dong--chip {
+  grid-template-areas: "ten luong x" "luoi luoi .";
+  row-gap: var(--sp-1);
+  padding-top: 2px;
+  padding-bottom: 6px;
+}
+.tg-bvt__ten {
+  grid-area: ten;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tg-bvt__luong {
+  grid-area: luong;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 88px;
+  white-space: nowrap;
+}
+.tg-bvt__luong { position: relative; cursor: help; border-radius: var(--r-2); }
+.tg-bvt__luong:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
+.tg-bvt__luong-so { font-size: 13px; font-weight: 600; color: var(--ink); }
+/* Tooltip công thức định mức — bong bóng tối như InfoHint, mở XUỐNG, neo mép PHẢI (ô lượng sát mép
+   phải thẻ). Hai dòng: công thức bằng chữ rồi "= thế số = kết quả". */
+.tg-bvt__tip {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 8px);
+  right: -6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 320px;
+  padding: var(--sp-2) 10px;
+  border-radius: var(--r-3);
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+.tg-bvt__tip::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  right: 14px;
+  border: 5px solid transparent;
+  border-bottom-color: var(--ink);
+}
+.tg-bvt__luong:hover .tg-bvt__tip,
+.tg-bvt__luong:focus-visible .tg-bvt__tip,
+.tg-bvt__luong:focus .tg-bvt__tip { opacity: 1; transform: none; }
+.tg-bvt__tip-goc { color: var(--rule-soft); }
+.tg-bvt__tip-so { font-weight: 600; }
+.tg-bvt__luong--chua .tg-bvt__luong-so { font-weight: 500; color: var(--ash-2); }
+.tg-bvt__dv { font-size: 12px; color: var(--ash-2); }
+.tg-bvt__luoi {
+  grid-area: luoi;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px var(--sp-2);
+  min-width: 0;
+}
+/* Một ô chip: nhãn nhỏ đứng TRƯỚC, khung 84px liền sau (số căn phải · đơn vị cuối ô). */
+.tg-bvt__o { display: inline-flex; align-items: center; gap: 6px; cursor: text; }
+.tg-bvt__o-nhan { font-size: 12px; color: var(--ash); white-space: nowrap; }
+.tg-bvt__o-khung {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 84px;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+}
+.tg-bvt__o:hover .tg-bvt__o-khung { border-color: var(--ash-2); }
+/* CHƯA nhập: ô trống, CHỈ viền đổi màu cảnh báo — không tô nền. Đã nhập 0 thì viền thường. */
+.tg-bvt__o--trong .tg-bvt__o-khung { border-color: var(--amber); }
+.tg-bvt__o:focus-within .tg-bvt__o-khung { border-color: var(--rust); box-shadow: 0 0 0 3px var(--rule-hair); }
+.tg-bvt__o-so {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--ff-sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  color: var(--ink);
+}
+.tg-bvt__o-so:focus { outline: none; }
+.tg-bvt__o-dv { flex: none; font-size: 11px; color: var(--ash-2); white-space: nowrap; }
+.tg-bvt__xoa {
+  grid-area: x;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-3);
+  background: transparent;
+  color: var(--ash-2);
+  cursor: pointer;
+}
+.tg-bvt__xoa svg { width: 15px; height: 15px; stroke-width: 1.75; }
+.tg-bvt__xoa:hover { background: var(--rule-soft); color: var(--signal); }
+.tg-bvt__rong { margin: 0; padding: 2px var(--sp-1) 0; font-size: 12px; color: var(--ash-2); }
+.tg-bvt > .sel { width: 100%; }
+.rdx-cost .sel__trigger.tg-bvt__them {
+  width: 100%;
+  height: 32px;
+  min-height: 32px;
+  margin-top: 6px;
+  padding: 0 var(--sp-2);
+  border: 1px dashed var(--rule);
+  border-radius: var(--r-3);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ash-2);
+  font-family: var(--ff-sans);
+  font-size: 13px;
+  cursor: pointer;
+}
+.rdx-cost .sel__trigger.tg-bvt__them .sel__value--ph { color: inherit; }
+.rdx-cost .sel__trigger.tg-bvt__them .sel__caret { display: none; }
+.rdx-cost .sel__trigger.tg-bvt__them:hover:not(:disabled),
+.rdx-cost .sel__trigger.tg-bvt__them.is-open {
+  border-color: var(--ash-2);
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tg-cdv__muc, .tg-cdv__nut, .tg-bvt__dong, .tg-cdv-rong__chip, .tg-bvt__tip { transition: none; }
+}
+
+/* Hẹp (thẻ sản phẩm trên điện thoại / cột trái hẹp): danh sách trên, thẻ dưới. Nút chạm cao 44px
+   theo luật chung (responsive.css §9) — không ép xuống. */
+@media (max-width: 720px) {
+  .tg-cdv { grid-template-columns: minmax(0, 1fr); }
+  .tg-cdv__muc, .rdx-cost .sel__trigger.tg-cdv__them { height: auto; min-height: 44px; }
+  .tg-cdv__ds::before { top: 22px; bottom: 22px; }
+  .tg-cdv__nut, .tg-bvt__xoa { width: 44px; height: 44px; }
+  .tg-bvt__dong { grid-template-columns: minmax(0, 1fr) auto 44px; }
+  .tg-bvt__o-khung { height: 36px; }
 }

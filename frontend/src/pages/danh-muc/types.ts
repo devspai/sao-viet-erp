@@ -15,27 +15,32 @@ export interface FieldDef {
   // mã như `don_vi_gia` (quy đổi làm việc trên mã `kg`/`to`, không trên id).
   // `self-ref-multi` = như `ref-multi` nhưng nguồn chọn là CHÍNH danh mục đang mở (NVL thay thế) —
   // CatalogDrawer tự loại dòng đang sửa khỏi danh sách, người khai không tự chọn được chính mình.
-  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "self-ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi";
+  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "self-ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "vat-tu-chip" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi";
   /** Ô `select`: danh sách chọn. Nhận cả HÀM (như `hint`/`an`) cho menu mà nhãn đến MUỘN hơn
    *  lúc khai config — 5 chặng dòng giấy nạp từ `/api/don-vi/tram`, mảng dựng sẵn ở tầm module sẽ
    *  đóng băng lúc bảng còn rỗng. Hàm được gọi MỖI lần vẽ, nên vẽ lại là menu tự đầy. */
   options?: OptionsField;
+  /** Ô `select`: nhãn của các mã ĐÃ GỠ khỏi `options` nhưng dữ liệu cũ còn mang. Dòng đang giữ mã
+   *  đó vẫn thấy đúng chữ (kèm "đã gỡ") thay vì ô trống, và lưu lại không làm mất giá trị. */
+  nhanCu?: Record<string, string>;
   /** Ô `formula`: ÉP bộ chip theo loại này thay vì suy từ màn. Cần khi MỘT màn có hai ô công thức
    *  hỏi hai câu khác nhau — "Công thức tính giá" (ra tiền) vs "Công thức tính lượng" (ra lượng,
    *  cần chip `sl_vao`/`sl_ra`, không cần chip đơn giá). */
   loaiO?: string;
   /** Ô `formula`: NHÃN của tab công thức chứa ô này. Cho phép MỘT màn tách nhiều tab công thức
-   *  riêng — vd Giấy: ô `cong_thuc_gia` vào tab "Công thức tính giá", ô `cong_thuc_luong` vào tab
-   *  "Công thức tính lượng". Ô công thức KHÔNG khai `nhanTab` rơi vào tab mặc định (nhãn
+   *  riêng — vd một màn có hai ô công thức (giá · lượng) thì mỗi ô vào một tab riêng. Ô công thức KHÔNG khai `nhanTab` rơi vào tab mặc định (nhãn
    *  `config.nhanTabCongThuc`, mặc định "Công thức tính giá") — nên màn 1 tab như cũ giữ nguyên. */
   nhanTab?: string;
+  /** Ô `formula`: tên field MẢNG chip của CHÍNH form này (kiểu `vat-tu-chip`); chip đó thành biến
+   *  bổ sung của ô (chip riêng của vật tư — không nằm trong từ điển hệ thống). */
+  chipsTu?: string;
   /** Ô `formula`: mã biến CẦN ẨN khỏi bảng chip của riêng Ô NÀY, dù `loaiO` cho phép — biến vẫn
    *  hợp lệ nếu gõ tay/đã lưu, chỉ không hiện chip bấm-để-chèn. Dùng khi có chip khác đúng hơn cho
    *  ngữ cảnh của ô (vd `to_dau_vao`/`to_sau_in` là số CẢ CHUỖI, còn `sl_vao`/`sl_ra` là số của
    *  CHÍNH BƯỚC — xem `bien_cong_thuc.py`).
    *
    *  Nhận cả HÀM theo form đang gõ (như `hint`): có chip chỉ đúng với MỘT SỐ dòng trong cùng màn —
-   *  ba chip khuôn ép kim chỉ có nguồn số khi bước khai `Loại khuôn = Khuôn ép kim`. */
+   *  (hiện chưa ô nào dùng dạng hàm — chip khuôn ép kim đã gỡ 01/10/2026). */
   an?: string[] | ((form: Record<string, unknown>) => string[]);
   /** Ô `to-multi`: nhãn gắn sau chip tổ ĐẦU danh sách đang chọn (vd "mặc định") — công đoạn nhiều
    *  tổ lấy tổ chọn đầu làm tổ mặc định của bước lệnh, không đánh dấu thì không ai biết. */
@@ -277,4 +282,4 @@ export interface MayCongDoanRow {
 /** Một dòng tab VẬT TƯ của công đoạn (mg `0316`): món nào + CÔNG THỨC ĐỊNH MỨC của riêng món đó.
  *  Mực ăn theo SỐ TỜ còn dung môi rửa máy ăn theo SỐ MÀU — cùng ĐVT kg mà hai cách khác hẳn, nên
  *  công thức treo ở dòng chứ không ở món hàng. Thay `DinhMucRow` (đầu việc định mức, gỡ mg `0320`). */
-export interface VatTuCongDoanRow { vat_tu_id: number; cong_thuc_luong?: string | null }
+export interface VatTuCongDoanRow { vat_tu_id: number }

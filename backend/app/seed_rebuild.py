@@ -68,13 +68,6 @@ _GHI_CHU_LOI_THOI: dict[str, str] = {
     "hop": "Một hộp thành phẩm (= 1 cái).",
 }
 
-# CÔNG THỨC LƯỢNG của giấy bán theo CÂN — thay chỗ cặp quy đổi động `tờ → kg` đã gỡ (14/08/2026).
-# Không phải phỏng đoán, đây là định nghĩa cân của giấy:
-#     kg = định lượng (kg/m²) × dài tờ nguyên (m) × rộng tờ nguyên (m) × số tờ nguyên
-# Khổ/định lượng lấy LỆNH trước, danh mục sau (`ke_hoach_vat_tu._quy_cach_cua`). Migration `0197`
-# điền cho giấy đã có trong DB; hằng này để seed giấy MỚI dùng chung một chuỗi, khỏi lệch.
-_CT_LUONG_GIAY_CAN = "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen"
-
 # CẶP quy đổi: (tu, den, he_so) đọc là "1 <tu> = <he_so> <den>". Máy tự đi chiều ngược, nên KHÔNG
 # khai dòng đối xứng. Cặp nào chưa khai thì máy dò đường qua trung gian (tấn → g đi qua kg).
 _QUY_DOI_SEED: list[tuple[str, str, float]] = [
@@ -268,19 +261,19 @@ def seed_rebuild_catalog(db: Session) -> None:
         db.add_all([
             GiayNguyen(ma="COUCHE-300-65x86", ten="Couché 300 65×86",
                        kho_dai=860, kho_rong=650, gsm=300, caliper_micron=310, tho="canh_dai",
-                       don_vi_gia="kg", don_gia=30000, cong_thuc_luong=_CT_LUONG_GIAY_CAN),
+                       don_vi_gia="kg", don_gia=30000),
             GiayNguyen(ma="COUCHE-150-79x109", ten="Couché 150 79×109",
                        kho_dai=1090, kho_rong=790, gsm=150, caliper_micron=150, tho="canh_dai",
-                       don_vi_gia="kg", don_gia=28000, cong_thuc_luong=_CT_LUONG_GIAY_CAN),
+                       don_vi_gia="kg", don_gia=28000),
             GiayNguyen(ma="FORD-70-65x86", ten="Ford 70 65×86",
                        kho_dai=860, kho_rong=650, gsm=70, caliper_micron=95, tho="canh_ngan",
-                       don_vi_gia="kg", don_gia=26000, cong_thuc_luong=_CT_LUONG_GIAY_CAN),
+                       don_vi_gia="kg", don_gia=26000),
             GiayNguyen(ma="IVORY-350-79x109", ten="Ivory 350 79×109",
                        kho_dai=1090, kho_rong=790, gsm=350, caliper_micron=430, tho="canh_dai",
-                       don_vi_gia="kg", don_gia=32000, cong_thuc_luong=_CT_LUONG_GIAY_CAN),
+                       don_vi_gia="kg", don_gia=32000),
             GiayNguyen(ma="DUPLEX-300", ten="Duplex 300",
                        kho_dai=1090, kho_rong=790, gsm=300, caliper_micron=380,
-                       don_vi_gia="kg", don_gia=18000, cong_thuc_luong=_CT_LUONG_GIAY_CAN),
+                       don_vi_gia="kg", don_gia=18000),
         ])
         db.commit()
     if _empty(db, VatTuInAn):
@@ -355,8 +348,8 @@ def seed_rebuild_catalog(db: Session) -> None:
                      don_vi_vao="to", don_vi_ra="to",
                      cong_thuc_gia="to_dau_vao * 200"),
             CongDoan(ma="CD-0005", ten="Ép kim", nhom="finishing", che_do_tinh="theo_san_luong",
-                     pricing_basis="per_other", run_rate=400, requires_tooling=True,
-                     tooling_type="khuon_ep", kieu_bu_hao="co_dinh", so_to_bu_hao=50,
+                     pricing_basis="per_other", run_rate=400,
+                     kieu_bu_hao="co_dinh", so_to_bu_hao=50,
                      nhom_may_cho_phep=["Bế"],
                      don_vi_vao="to", don_vi_ra="to",
                      cong_thuc_gia="so_luong * 400"),

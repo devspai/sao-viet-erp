@@ -37,9 +37,11 @@ import {
   emptyLine,
   emptyRequest,
   fromRequest,
+  khoNhapTuDongMua,
   lineTotal,
   todayInputValue,
 } from "./shared/helpers";
+import { dongDuocChon } from "./shared/types";
 import type {
   DepositFilter,
   FormLine,
@@ -49,10 +51,12 @@ import type {
   StatusFilter,
 } from "./shared/types";
 import "../../master-data.css";
+import "../../accounting.css";
 // Hộp khai số thực nhận mượn bảng gọn `.pay-table` của màn Công nợ — cùng một loại bảng phụ trong
 // hộp thoại, không dựng bộ lớp thứ hai cho y hệt một việc.
 import "../../payables.css";
 import "../../purchase.css";
+import "./phieu-mua-hang-chuan.css";
 
 export function PurchaseRequestsPage({
   navigate,
@@ -100,6 +104,8 @@ export function PurchaseRequestsPage({
         sl_de_nghi: dl.quantity,
         don_gia: pl?.expected_unit_price ?? null,
         ghi_chu: [dl.item_name, dl.note].filter(Boolean).join(" — ") || null,
+        // Giấy: nhập đúng dạng + khổ MUA của dòng đơn (form khoá ⇒ thủ kho không phải khai lại).
+        ...khoNhapTuDongMua(pl),
       };
     });
     navigate("kho-main", {
@@ -192,7 +198,7 @@ export function PurchaseRequestsPage({
   const phieuSeTao = useMemo(() => {
     const theoNcc = new Map<number, { ten: string; soDong: number; tien: number }>();
     for (const line of form.lines) {
-      if (!line.supplier_id) continue;
+      if (!line.supplier_id || !dongDuocChon(line)) continue;
       const cu = theoNcc.get(line.supplier_id) ?? {
         ten:
           suppliers.find((s) => s.id === line.supplier_id)?.name ??
@@ -432,6 +438,14 @@ export function PurchaseRequestsPage({
     }
     const source = pickedSource;
     const lines = source.lines.map((line) => ({
+      // Mọi dòng còn sống được tick sẵn; thu mua bỏ tick dòng không mua ở đơn này. Dòng đã huỷ
+      // không tick được (server chặn lập đơn cho nó).
+      chon: !line.cancelled_at,
+      hang_loai: line.hang_loai,
+      hang_id: line.hang_id,
+      // Khổ MUA mặc định = khổ CẦN; thu mua sửa được (vd mua 80×109 thay 79×109 rồi tề).
+      kho_rong: line.kho_rong,
+      kho_dai: line.kho_dai,
       item_name: line.item_name,
       unit: line.unit,
       quantity: line.quantity,
@@ -505,6 +519,9 @@ export function PurchaseRequestsPage({
         department_request_line_id: line.department_request_line_id ?? null,
         hang_loai: line.hang_loai ?? null,
         hang_id: line.hang_id ?? null,
+        kho_rong: line.kho_rong ?? null,
+        kho_dai: line.kho_dai ?? null,
+        chon: dongDuocChon(line),
       })),
     };
   }
@@ -513,6 +530,12 @@ export function PurchaseRequestsPage({
     e.preventDefault();
     if (!token || saving) return;
     const payload = cleanRequest(form);
+    // Chỉ dòng được tick mới vào đơn (lúc sửa, mọi dòng đều tick).
+    payload.lines = payload.lines.filter(dongDuocChon);
+    if (payload.lines.length === 0) {
+      setFormError("Chọn ít nhất một dòng.");
+      return;
+    }
     // Chế độ TẠO: NCC gán ở từng DÒNG (kiểm ở dưới), không có ô NCC ở đầu phiếu.
     // Chế độ SỬA: phiếu đã thuộc về một NCC, giữ nguyên ô đầu phiếu.
     const missingHeader = [
@@ -588,7 +611,7 @@ export function PurchaseRequestsPage({
       if (mode === "edit" && editing) {
         const saved = await api.purchaseRequests.update(token, editing.id, {
           ...payload,
-          lines: payload.lines.map(({ supplier_id: _bo, ...line }) => line),
+          lines: payload.lines.map(({ supplier_id: _bo, chon: _chon, ...line }) => line),
         });
         updateRow(saved);
       } else {
@@ -611,6 +634,10 @@ export function PurchaseRequestsPage({
             note: line.note,
             supplier_id: line.supplier_id as number,
             department_request_line_id: line.department_request_line_id,
+            // Khổ MUA chỉ gửi cho giấy; hàng khác để server ép 0.
+            ...(line.hang_loai === "giay"
+              ? { kho_rong: line.kho_rong ?? 0, kho_dai: line.kho_dai ?? 0 }
+              : {}),
           })),
         });
         setRows((current) => [...items, ...current]);
@@ -775,30 +802,26 @@ export function PurchaseRequestsPage({
   ) : null;
 
   return (
-    <main className="md-page acct-mh">
-      {/* Đầu màn gọn 1 HÀNG như màn "Yêu cầu mua hàng": tiêu đề trái, 2 tab con phải.
-          Bỏ eyebrow + đoạn mô tả để không chiếm chiều cao. Số trên tab yêu cầu là số ĐANG
-          CHỜ MUA (`open`), KHÁC số dòng bảng bên trong (bảng lọc "Tất cả") — xem `choMua`. */}
-      <div className="purchase__topbar-unified">
-        <div className="purchase__topbar-left">
-          <h1 className="purchase__topbar-title">Mua hàng</h1>
-        </div>
-        <div className="purchase__topbar-actions">
-          <StatusTabs
-            active={tab}
-            onChange={(key) => setTab(key as PurchaseTab)}
-            tabs={[
-              {
-                key: "yeu-cau",
-                label: "Yêu cầu chờ xử lý",
-                count: choMua.soLuong,
-                tone: coYcQuaHan ? "alert" : "default",
-              },
-              { key: "phieu", label: "Đơn mua hàng", count: total },
-            ]}
-          />
-        </div>
-      </div>
+    <main className="md-page acct-std pmh">
+      {/* Đầu màn theo CHUẨN Đơn mua hàng (Kế toán): chỉ tiêu đề, không eyebrow/mô tả; hai tab lớn
+          cùng hàng bên phải. Số trên tab yêu cầu là số ĐANG CHỜ MUA (`open`), KHÁC số dòng bảng
+          bên trong (bảng lọc "Tất cả") — xem `choMua`. */}
+      <header className="md-page__head pmh__head">
+        <h1 className="md-page__title">Mua hàng</h1>
+        <StatusTabs
+          active={tab}
+          onChange={(key) => setTab(key as PurchaseTab)}
+          tabs={[
+            {
+              key: "yeu-cau",
+              label: "Yêu cầu chờ xử lý",
+              count: choMua.soLuong,
+              tone: coYcQuaHan ? "alert" : "default",
+            },
+            { key: "phieu", label: "Đơn mua hàng", count: total },
+          ]}
+        />
+      </header>
 
       {/* Chỉ dựng nội dung của tab ĐANG MỞ (bảng kia không nằm dưới mép màn nữa, nó không tồn tại).
           Nhưng DỮ LIỆU vẫn tải cả hai ngay từ đầu — số đếm trên tab kia phải đúng ngay. */}

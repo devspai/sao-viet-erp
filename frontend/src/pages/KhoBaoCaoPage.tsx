@@ -29,11 +29,13 @@ import { crud } from "../api/rebuildCatalog";
 import { useCan } from "../auth/permissions";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icons";
+import { EmptyRow, EmptyState } from "../components/EmptyState";
 import { Select } from "../components/Select";
 import { KhoGiaGocThanhPham } from "./KhoGiaGocThanhPham";
 import { VoucherDrawer } from "./KhoYeuCauPage";
 import { AN_DIEU_CHUYEN, DateFilterHead, NumFilterHead, PageSizeSelect, DEFAULT_PAGE_SIZE, fmtQty, inDateRange, inNumRange, todayISO, useHeaderTitles } from "./khoShared";
 import { Search } from "lucide-react";
+import { nhanDangKho, nhanKho } from "../lib/khoGiay";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
 
@@ -424,12 +426,18 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
   const [matErr, setMatErr] = useState<string | null>(null);
   function openMatHang(r: BaoCaoNXTRow) {
     if (r.kho_id == null) return;
-    setMatInfo({ kho_id: r.kho_id, kho_ten: r.kho_ten, hang_loai: r.hang_loai as HangLoai, hang_id: r.hang_id, ten: r.ten_hang, dvt: r.dvt });
+    const kho = r.kho_rong && r.kho_dai ? nhanKho(r.kho_rong, r.kho_dai) : "";
+    setMatInfo({ kho_id: r.kho_id, kho_ten: r.kho_ten, hang_loai: r.hang_loai as HangLoai, hang_id: r.hang_id,
+      ten: kho ? `${r.ten_hang ?? ""} · ${kho}` : r.ten_hang, dvt: r.dvt });
     setMatHist(null);
     setMatErr(null);
     setMatLoading(true);
+    // Giấy: dòng N-X-T là một khổ tờ, hoặc (0 · 0) = cuộn — lịch sử lọc đúng dòng đó.
+    const giay = r.hang_loai !== "giay" ? undefined
+      : kho ? { dang: "to" as const, kho_rong: r.kho_rong, kho_dai: r.kho_dai }
+      : { dang: "cuon" as const, kho_rong: 0, kho_dai: 0 };
     api.kho.phieu
-      .lichSuVatTu(token, r.hang_loai as HangLoai, r.hang_id, r.kho_id)
+      .lichSuVatTu(token, r.hang_loai as HangLoai, r.hang_id, r.kho_id, giay)
       .then(setMatHist)
       .catch((e) => setMatErr(e instanceof ApiError ? e.message : "Không tải được lịch sử mặt hàng."))
       .finally(() => setMatLoading(false));
@@ -504,10 +512,12 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
         { ma: string | null; ten: string | null; dvt: string | null; sl: number; tien: number }
       >();
       for (const r of rs) {
-        const key = r.ma_hang ?? r.ten_hang ?? "?";
+        // Giấy tờ tách theo khổ (đếm tờ) — gộp chung với cuộn (kg) là cộng hai thang khác nhau.
+        const kho = r.dang_giay === "to" ? nhanKho(r.kho_rong, r.kho_dai) : "";
+        const key = `${r.ma_hang ?? r.ten_hang ?? "?"}|${kho}`;
         let cur = m.get(key);
         if (!cur) {
-          cur = { ma: r.ma_hang, ten: r.ten_hang, dvt: r.dvt, sl: 0, tien: 0 };
+          cur = { ma: r.ma_hang, ten: kho ? `${r.ten_hang ?? ""} · ${kho}` : r.ten_hang, dvt: r.dvt, sl: 0, tien: 0 };
           m.set(key, cur);
         }
         cur.sl += r.so_luong ?? 0;
@@ -1054,7 +1064,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
           </div>
 
           {loading ? (
-            <div className="rc__empty-state">Đang tải…</div>
+            <EmptyState trangThai="dang-tai" inline />
           ) : dashRows.length === 0 ? (
             <div className="rc__empty-state">Chưa có phiếu ghi sổ nào trong phạm vi lọc.</div>
           ) : (
@@ -1411,7 +1421,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={11} className="rc__empty-state">Đang tải…</td></tr>
+                  <EmptyRow colSpan={11} trangThai="dang-tai" />
                 ) : filteredChuyen.length === 0 ? (
                   <tr><td colSpan={11} className="rc__empty-state">Không có dòng điều chuyển nào (đã ghi sổ) trong kỳ / bộ lọc.</td></tr>
                 ) : (
@@ -1507,6 +1517,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                   <th title="Kho của phiếu — kế toán dựa vào chiều + kho để điền mã 0/1/2/3 trên Excel">Kho</th>
                   <th title="Mã vật tư">Mã hàng</th>
                   <th title="Tên vật tư — di chuột xem đầy đủ nếu dài">Tên hàng</th>
+                  <th title="Khổ giấy tờ (mm) — giấy cuộn ghi khổ rộng">Khổ</th>
                   <th title="Đơn vị tính">ĐVT</th>
                   <NumFilterHead className="kho-bc__num" label="Số lượng" from={slFrom} to={slTo} onChange={(f, t) => { setSlFrom(f); setSlTo(t); }} />
                   <NumFilterHead className="kho-bc__num" label="Đơn giá" from={dgFrom} to={dgTo} onChange={(f, t) => { setDgFrom(f); setDgTo(t); }} />
@@ -1516,9 +1527,9 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={11} className="rc__empty-state">Đang tải…</td></tr>
+                  <EmptyRow colSpan={12} trangThai="dang-tai" />
                 ) : filteredRows.length === 0 ? (
-                  <tr><td colSpan={11} className="rc__empty-state">Không có dòng nào (phiếu đã ghi sổ) trong kỳ / bộ lọc.</td></tr>
+                  <tr><td colSpan={12} className="rc__empty-state">Không có dòng nào (phiếu đã ghi sổ) trong kỳ / bộ lọc.</td></tr>
                 ) : (
                   pagedRows.map((r, i) => {
                     const rec = lockRecordFor(r.kho_id, r.ngay_ghi_so);
@@ -1542,6 +1553,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                       <td>
                         <span className="kho-bc__name" title={r.ten_hang ?? ""}>{r.ten_hang ?? "—"}</span>
                       </td>
+                      <td>{nhanDangKho(r.dang_giay, r.kho_rong, r.kho_dai) || "—"}</td>
                       <td>{r.dvt ?? ""}</td>
                       <td className="kho-bc__num">{fmtQty(r.so_luong)}</td>
                       <td className="kho-bc__num">{fmtMoney(r.don_gia)}</td>
@@ -1554,13 +1566,13 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                 {Array.from({
                   length: Math.max(0, pageSize - (loading || filteredRows.length === 0 ? 1 : pagedRows.length)),
                 }).map((_, i) => (
-                  <tr key={`filler-${i}`} className="rc__filler" aria-hidden="true"><td colSpan={11}>&nbsp;</td></tr>
+                  <tr key={`filler-${i}`} className="rc__filler" aria-hidden="true"><td colSpan={12}>&nbsp;</td></tr>
                 ))}
               </tbody>
               {filteredRows.length > 0 && (
                 <tfoot>
                   <tr>
-                    <td colSpan={9} className="kho-bc__num" style={{ fontWeight: 600 }}>
+                    <td colSpan={10} className="kho-bc__num" style={{ fontWeight: 600 }}>
                       Tổng thành tiền ({filteredRows.length} dòng)
                     </td>
                     <td className="kho-bc__num" style={{ fontWeight: 600 }}>{fmtMoney(total)}</td>
@@ -1757,6 +1769,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                 <tr>
                   <th rowSpan={2}>Mã hàng</th>
                   <th rowSpan={2}>Tên hàng</th>
+                  <th rowSpan={2} title="Khổ giấy tờ (mm) — mỗi khổ một dòng, đếm tờ">Khổ</th>
                   <th rowSpan={2}>ĐVT</th>
                   <th className="kho-bc__num" colSpan={2}>Đầu kỳ</th>
                   <th className="kho-bc__num" colSpan={2}>Nhập trong kỳ</th>
@@ -1777,9 +1790,9 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={12} className="rc__empty-state">Đang tải…</td></tr>
+                  <EmptyRow colSpan={13} trangThai="dang-tai" />
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={12} className="rc__empty-state">Không có mặt hàng nào phát sinh / còn tồn trong kỳ.</td></tr>
+                  <tr><td colSpan={13} className="rc__empty-state">Không có mặt hàng nào phát sinh / còn tồn trong kỳ.</td></tr>
                 ) : (
                   groups.map((g) => {
                     const t = g.rows.reduce(
@@ -1793,19 +1806,20 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                     return (
                       <Fragment key={g.kho}>
                         <tr className="kho-bc__grouphead">
-                          <td colSpan={12} style={{ fontWeight: "var(--fw-bold)", background: "var(--paper)" }}>
+                          <td colSpan={13} style={{ fontWeight: "var(--fw-bold)", background: "var(--paper)" }}>
                             {g.kho} · {g.rows.length} mặt hàng
                           </td>
                         </tr>
                         {g.rows.map((r) => (
                           <tr
-                            key={`${r.kho_id}-${r.hang_loai}-${r.hang_id}`}
+                            key={`${r.kho_id}-${r.hang_loai}-${r.hang_id}-${r.kho_rong}-${r.kho_dai}`}
                             className="kho-bc__rowlink"
                             title="Xem lô nhập / xuất của mặt hàng"
                             onClick={() => openMatHang(r)}
                           >
                             <td>{r.ma_hang ?? "—"}</td>
                             <td><span className="kho-bc__name" title={r.ten_hang ?? ""}>{r.ten_hang ?? "—"}</span></td>
+                            <td>{r.kho_rong && r.kho_dai ? nhanKho(r.kho_rong, r.kho_dai) : "—"}</td>
                             <td>{r.dvt ?? ""}</td>
                             <td className="kho-bc__num">{fmtQty(r.dau_sl)}</td>
                             <td className="kho-bc__num">{fmtMoney(r.dau_gt)}</td>
@@ -1819,7 +1833,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                           </tr>
                         ))}
                         <tr className="kho-bc__grouptotal" style={{ fontWeight: "var(--fw-bold)" }}>
-                          <td colSpan={4} style={{ textAlign: "right" }}>Cộng kho {g.kho}:</td>
+                          <td colSpan={5} style={{ textAlign: "right" }}>Cộng kho {g.kho}:</td>
                           <td className="kho-bc__num">{fmtMoney(t.dau)}</td>
                           <td className="kho-bc__num" />
                           <td className="kho-bc__num">{fmtMoney(t.nhap)}</td>
@@ -2361,7 +2375,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
       >
         {matErr && <div className="banner banner--error" style={{ marginBottom: 8 }}>{matErr}</div>}
         {matLoading || !matHist ? (
-          <p className="kho-hint">Đang tải lịch sử mặt hàng…</p>
+          <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải lịch sử mặt hàng…" />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>

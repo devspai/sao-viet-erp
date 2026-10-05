@@ -18,27 +18,24 @@ Nên đường đi là:
 Điều bị cấm ở dự án này là CLIENT kéo cả bảng về rồi slice trong JS. Tính dẫn xuất ở MÁY CHỦ trên
 một tập đã hẹp là chuyện khác — trình duyệt vẫn chỉ nhận đúng một trang.
 
-CHI PHÍ PHẢI BIẾT, vì đây là chỗ sẽ phải vá trước tiên khi xưởng lớn lên: tầng 1 trả về MỌI lệnh
-đã phát hành trong phạm vi (trừ phần `q`/ngày/máy/nhóm cắt bớt), và tập đó CHỈ TĂNG theo thời gian
-— vòng đời `lsx` hôm nay dừng ở `da_phat_hanh`, không có trạng thái "đã đóng" nào để lọc ra. Một
-xưởng chạy 50 lệnh/tháng sau hai năm có ~1.200 dòng tầng 1 cho MỖI request.
-ĐÃ VÁ MỘT NỬA (A7, 28/09/2026): tầng 1 vẫn trả đủ ID (rẻ — một cột), nhưng chỉ lệnh CÒN SỐNG đi
-qua `_soi`; lệnh ĐÃ GIAO HẾT được xếp tab từ hai con số (`_tach_da_giao_het`) và chỉ nạp khi rơi
-vào trang đang xem. Còn đi đường cũ (nạp cả lịch sử): bộ lọc `tre` — xem chú thích tại chỗ.
+CHI PHÍ PHẢI BIẾT (đo lại 30/09/2026 — bản trước của đoạn này đã cũ, đừng dẫn lại):
+  * Tầng 1 trả MỌI lệnh đã phát hành trong phạm vi (trừ phần `q`/ngày/máy/nhóm cắt bớt) — tập này
+    tăng theo thời gian, nhưng chỉ tốn MỘT cột ID + ba cột nhẹ (`_tach_da_giao_het`). Lệnh ĐÃ GIAO
+    HẾT xếp tab từ hai con số và chỉ nạp khi rơi vào trang đang xem (A7, 28/09/2026). Đi đường cũ
+    (nạp cả lịch sử) chỉ còn bộ lọc `tre` — xem chú thích tại chỗ.
+    "Rẻ" chỉ đúng khi câu cộng số đã giao KHÔNG lọc trạng thái chuyến trong SQL (xem
+    `lenh_sx_doc_repo.lenh_nhe`): bản lọc trong SQL tăng theo bình phương lịch sử — 2.000 lệnh đã
+    giao làm danh sách 2,96s / KPI 2,66s; lọc ở Python còn 0,51s / 0,31s (30/09/2026).
+  * Phần nặng (`_soi` → `boi_canh.nap` + đèn vật tư → `can_doi()`) tuyến tính theo lệnh CÒN SỐNG,
+    không theo lịch sử: bảng cân đối chỉ tính `TRANG_THAI_TINH` (lệnh `da_dong` đã rời phạm vi).
+    Đo engine cân đối: ~0,5 ms mỗi lệnh còn sống; số câu SQL KHÔNG đổi theo số lệnh lẫn số bài
+    ghép (5 hay 40 bài đều 25 câu — N+1 theo bài đã vá 18/09/2026, khoá ở
+    `test_ke_hoach_vat_tu_so_truy_van`). Đèn đi qua cache 45 giây (`_den_vat_tu_co_cache`).
+  * Số câu SQL của cả lượt: hằng số theo số lệnh (`test_so_cau_sql_hang_tren_truc_lenh`).
 
-SỐ CÂU SQL — nói cho đúng, vì câu nói gọn ở đây từng là một khẳng định SAI: hằng số theo số LỆNH
-(bài `test_so_cau_sql_hang_tren_truc_lenh` khoá), nhưng TUYẾN TÍNH theo số BÀI GHÉP tồn tại trong
-kế hoạch — đo được **+28 câu mỗi bài ghép**: 90 → 98 (thêm 2 lệnh thường rồi PHẲNG) → 126 → 154.
-Nguồn KHÔNG nằm ở tầng này mà ở `ke_hoach_vat_tu_service._gom_nhu_cau` (hai vòng `for bg in bais`
-quanh dòng 881-895 và 914-925), tới đây qua `_soi` → `trang_thai.den_vat_tu_theo_lo` → `can_doi()`.
-Chi phí ấy bám vào SỐ BÀI GHÉP CÓ TRONG DB, không bám trang đang xem: lọc `q=` xuống đúng một dòng
-vẫn tốn y hệt. Phán quyết C68: KHÔNG vá trong Task 9 (mã cũ của module Kế hoạch vật tư, mổ
-`_gom_nhu_cau` là một task riêng) — nhưng ai đọc đoạn này phải biết trần thật của nó ở đâu.
-
-Khi những con số đó thành vấn đề, ba đường vá theo thứ tự: (a) gộp hai vòng `for bg in bais` của
-`_gom_nhu_cau` lại thành truy vấn theo LÔ; (b) vật chất hoá `trang_thai_chinh` thành cột được ghi
-lại mỗi lần công việc/KCS/kho đổi, rồi `WHERE` thẳng lên nó; (c) cho lệnh một trạng thái kết thúc
-để tập tầng 1 thôi phình. ĐỪNG vá bằng cách đếm tab trên trang đang xem.
+Khi xưởng có hàng nghìn lệnh CÒN SỐNG cùng lúc mới đáng làm tiếp: vật chất hoá `trang_thai_chinh`
+thành cột được ghi lại mỗi lần công việc/KCS/kho/giao hàng đổi, rồi `WHERE` + cắt trang thẳng trong
+SQL. ĐỪNG vá bằng cách đếm tab trên trang đang xem.
 
 --- "HÔM NAY" CỦA KPI LÀ NGÀY GIỜ XƯỞNG (phán quyết C61) ----------------------------------------
 Dùng `tien_do.BUSINESS_TZ` (+7), đúng như `tien_do.tre_han` đã làm — KHÔNG phải ngày UTC. Xưởng
@@ -92,6 +89,7 @@ from ...models.may_thiet_bi import MayThietBi
 from ...models.order import Order
 from ...models.san_xuat import CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG, SanXuatCongViec
 from ...repositories.lenh_sx_doc_repo import LenhNhe, LenhSxDocRepository
+from ..can_doi_cache import lay_hoac_tinh
 from . import boi_canh, pham_vi, tien_do, trang_thai
 from .boi_canh import BoiCanh
 
@@ -240,7 +238,7 @@ def _soi(db: Session, lsx_ids: list[int], bay_gio: datetime) -> tuple[BoiCanh, d
     biết. `xong` cũng truyền vào để đường găng chỉ duyệt MỘT lần cho mỗi lệnh thay vì bốn.
     """
     bc = boi_canh.nap(db, lsx_ids)
-    den = trang_thai.den_vat_tu_theo_lo(db, lsx_ids)
+    den = _den_vat_tu_co_cache(db, lsx_ids)
     ket: dict[int, dict] = {}
     for i in lsx_ids:
         xong = tien_do.du_kien_xong(bc, i, bay_gio)
@@ -253,6 +251,21 @@ def _soi(db: Session, lsx_ids: list[int], bay_gio: datetime) -> tuple[BoiCanh, d
             "tre": trang_thai.CO_TRE_HAN in co,
         }
     return bc, ket
+
+
+def _den_vat_tu_co_cache(db: Session, lsx_ids: list[int]) -> dict[int, str]:
+    """Đèn vật tư qua cache 45 giây của bảng cân đối (`services/can_doi_cache.py`), khoá theo TẬP
+    lệnh. Màn tải lại CẢ `danh_sach` lẫn `summary` sau MỖI sự kiện SSE, mỗi lượt là một lần
+    `can_doi()` — cache cho hai lượt ấy (và mọi tab đang mở cùng tập) dùng chung một kết quả.
+
+    Đèn không phụ thuộc người gọi: phạm vi người bán đã cắt ở tầng 1, nên cùng tập id ⇒ cùng đèn.
+    Xoá sớm ở chính những chỗ đang xoá cache cân đối (giữ chỗ, ghi sổ kho, lệnh, xếp lịch); chỗ
+    khác thì đèn trễ tối đa 45 giây — đèn chỉ để NHÌN, vật tư không chặn xếp lịch hay phát hành. JSON làm khoá dict thành chuỗi nên đổi lại về int."""
+    tho = lay_hoac_tinh(
+        lambda: {str(k): v for k, v in trang_thai.den_vat_tu_theo_lo(db, lsx_ids).items()},
+        loai="den_lenh_sx", lsx_ids=sorted(lsx_ids),
+    )
+    return {int(k): v for k, v in tho.items()}
 
 
 def _bat_dau(cv: SanXuatCongViec) -> datetime:
@@ -453,9 +466,9 @@ def _tach_da_giao_het(db: Session, ids: list[int]) -> tuple[dict[int, LenhNhe], 
     `trang_thai.giao_du` (lõi của `_da_giao_het`), và `da_giao` cộng y câu 11b của `boi_canh`: tập
     này là tập CON chính xác của những lệnh `_soi` sẽ xếp vào Hoàn thành, không rộng hơn một lệnh.
 
-    Vì sao đây là thứ cần cắt: vòng đời `lsx` dừng ở `da_phat_hanh`, không có trạng thái "đã đóng"
-    — lệnh giao xong từ năm ngoái vẫn nằm trong tầng 1 mãi mãi (xem "CHI PHÍ PHẢI BIẾT" ở docstring
-    module). Phần CÒN SỐNG thì không phình theo tuổi dữ liệu.
+    Vì sao cắt theo GIAO HẾT chứ không theo `da_dong`: KCS đóng lệnh xong hàng vẫn có thể chưa giao
+    — lệnh đó còn ở tab trước Hoàn thành. Lệnh giao xong từ năm ngoái thì vẫn nằm trong tầng 1 mãi
+    mãi (xem "CHI PHÍ PHẢI BIẾT" ở docstring module), nên cửa này giữ cho phần nặng chỉ còn lệnh sống.
     """
     nhe = LenhSxDocRepository(db).lenh_nhe(ids)
     xong = {i for i, l in nhe.items() if trang_thai.giao_du(l.so_luong_dat, l.da_giao)}

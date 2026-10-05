@@ -36,6 +36,8 @@ from ..schemas.ke_hoach_vat_tu import (
     DeNghiMuaOut,
     DeNghiMuaXemTruocOut,
     GiuChoIn,
+    GiuChoNhieuIn,
+    GiuChoNhieuOut,
     TheoLenhOut,
     TheoLenhRow,
 )
@@ -148,6 +150,23 @@ def giu_cho_bat(
     except GiuChoError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
     return _tra_dong(giu, lsx_id, bg_id)
+
+
+@router.post("/giu-cho/bat-nhieu", response_model=GiuChoNhieuOut)
+def giu_cho_bat_nhieu(
+    payload: GiuChoNhieuIn,
+    giu: GiuCho,
+    _user: Annotated[object, Depends(require_permission(MODULE, "update"))],
+) -> GiuChoNhieuOut:
+    """Bật giữ chỗ cho các lệnh/bài đã tick — MỘT lượt nhặt, thứ tự ăn tồn theo hạn sản xuất.
+
+    Không có bản "tắt nhiều": nhả là không hoàn tác được, mỗi lệnh phải hỏi riêng.
+    """
+    chon = [_mot_chu_the(c) for c in payload.chu_the]
+    try:
+        return GiuChoNhieuOut(items=giu.bat_nhieu(chon))
+    except GiuChoError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
 
 
 @router.post("/giu-cho/tat", response_model=TheoLenhRow)

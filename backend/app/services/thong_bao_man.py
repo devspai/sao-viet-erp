@@ -118,6 +118,7 @@ def trang_thai(db: Session, authz, user) -> dict[str, dict]:
             cay = tuple(dept_subtree_ids(db, user.department_id)) if user.department_id else ()
         return cay
 
+    authz.nap_ca_ma_tran(user)  # 15 kênh × can/scope_for: một câu thay vì mỗi kênh một câu
     dk: list[DieuKienKenh] = []
     for kenh, cac_quyen in KENH.items():
         if not authz.can(user, kenh, "read"):

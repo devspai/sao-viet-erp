@@ -840,7 +840,7 @@ export function BangLuongTab({
                   </div>
                 </div>
               ) : (
-                <p className="lg-param-loading">Đang tải tham số...</p>
+                <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải tham số…" />
               )}
             </div>
           </div>

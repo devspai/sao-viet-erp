@@ -20,6 +20,7 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
+import { EmptyState } from "../../../../components/EmptyState";
 
 // `viec` = VIỆC NGƯỜI PHẢI LÀM khi máy không tự bù được (chủ 10/09/2026: *"vẫn thấy tên nhân viên
 // đó nhưng không cho bấm, mà như vậy cũng khó hiểu lắm"*). Trước đó cột "Máy sẽ làm" để "—" nên
@@ -413,7 +414,7 @@ export function OtConfirmModal({
 
           {/* Candidates Table */}
           {items === null ? (
-            <p className="cc-otc-empty">Đang tải danh sách phiếu tăng ca…</p>
+            <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải danh sách phiếu tăng ca…" />
           ) : items.length === 0 ? (
             <p className="cc-otc-empty">
               Ngày này không có phiếu tăng ca đã duyệt nào trong phạm vi của bạn.

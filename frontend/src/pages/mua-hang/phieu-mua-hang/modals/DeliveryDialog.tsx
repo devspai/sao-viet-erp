@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   api,
-  assetUrl,
+  anhNho, assetUrl,
   type PurchaseDeliveryInput,
   type PurchaseDeliveryRow,
   type PurchaseRequestRow,
@@ -562,7 +562,7 @@ export function DeliveryDialog({
                   {ATTACHMENT_IMAGE_TYPES.includes(a.file_type ?? "") ? (
                     <img
                       className="pdot__thumb"
-                      src={assetUrl(a.file_url) ?? ""}
+                      src={anhNho(a.file_url) ?? ""}
                       alt={a.file_name}
                     />
                   ) : (

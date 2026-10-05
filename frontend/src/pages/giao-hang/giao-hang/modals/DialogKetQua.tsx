@@ -6,6 +6,7 @@ import { crud, type Row } from "../../../../api/rebuildCatalog";
 import type { DeliveryTrip, KetQuaInput } from "../../../../api/client";
 import { api } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { EmptyState } from "../../../../components/EmptyState";
 import { Icon } from "../../../../components/Icons";
 import { gomCum, nhanCum } from "../../gomCum";
 import type { DongConLai } from "../shared/types";
@@ -194,7 +195,7 @@ export function DialogKetQua({
               <legend>
                 {ketQua === "thanh_cong" ? "Khách nhận đủ" : "Số khách thực nhận"}
               </legend>
-              {conLai === null && <p className="rc__sub">Đang tải hàng của yêu cầu…</p>}
+              {conLai === null && <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải hàng của yêu cầu…" />}
               {conLai?.length === 0 && <p className="rc__sub">Không còn hàng nào để giao.</p>}
               {cum.map((c) => {
                 const l = c.dau;

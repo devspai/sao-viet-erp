@@ -8,6 +8,7 @@ import {
 } from "../../../../api/client";
 import { OPEN_COMPONENT_CODES } from "../shared/constants";
 import { errText, legacyBonusRows, money } from "../shared/helpers";
+import { EmptyState } from "../../../../components/EmptyState";
 
 export function LineEditModal({
   token,
@@ -340,19 +341,17 @@ export function LineEditModal({
               <span>Ghi chú</span>
               <span />
             </div>
-            {lcRows === null ? (
+            {lcRows === null && !lcErr ? (
+              <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải khoản của dòng lương…" />
+            ) : lcRows === null ? (
               <div className="lg-lc__empty">
-                {lcErr ? (
-                  <button
-                    type="button"
-                    className="lg-linkbtn"
-                    onClick={() => void loadLineComps()}
-                  >
-                    Thử tải lại
-                  </button>
-                ) : (
-                  "Đang tải khoản của dòng lương…"
-                )}
+                <button
+                  type="button"
+                  className="lg-linkbtn"
+                  onClick={() => void loadLineComps()}
+                >
+                  Thử tải lại
+                </button>
               </div>
             ) : lcRows.length === 0 ? (
               <div className="lg-lc__empty">
@@ -624,13 +623,14 @@ export function LineEditModal({
               >
                 + Thêm khoản phát sinh
               </button>
-              {lcCatalog === null && (
-                <span className="cc-card__hint">
-                  {lcCatalogErr
-                    ? `Không đọc được danh mục khoản thu nhập (${lcCatalogErr}) — chưa thêm khoản phát sinh được.`
-                    : "Đang tải danh mục khoản thu nhập…"}
-                </span>
-              )}
+              {lcCatalog === null &&
+                (lcCatalogErr ? (
+                  <span className="cc-card__hint">
+                    {`Không đọc được danh mục khoản thu nhập (${lcCatalogErr}) — chưa thêm khoản phát sinh được.`}
+                  </span>
+                ) : (
+                  <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải danh mục khoản thu nhập…" />
+                ))}
             </div>
           )}
           {lcTouched && (

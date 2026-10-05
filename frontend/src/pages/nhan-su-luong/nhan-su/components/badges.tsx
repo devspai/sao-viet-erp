@@ -133,24 +133,26 @@ export function KpiStrip({
   );
 }
 
-/** % hoa hồng của NV kinh doanh — CHỈ ĐỌC ở đây, sửa ở Lương → Lương nhân viên → Sửa lương.
- *  Không cho sửa tại drawer vì `POST /api/luong/salaries/{id}` luôn đẻ một mốc lương MỚI với
- *  TOÀN BỘ các số; drawer không giữ `luong_vi_tri`/phụ cấp nên post từ đây là lương về 0. */
-export function CommissionCard({
-  token,
-  employeeId,
-}: {
-  token: string;
-  employeeId: number;
-}) {
-  const [state, setState] = useState<
-    | { kind: "loading" }
-    | { kind: "forbidden" }
-    | { kind: "ok"; pct: number | null }
-    | { kind: "error" }
-  >({ kind: "loading" });
+export type HoaHongState =
+  | { kind: "loading" }
+  | { kind: "forbidden" }
+  | { kind: "ok"; pct: number | null }
+  | { kind: "error" };
 
+/** Tải % hoa hồng MỘT lần cho mỗi hồ sơ — gọi ở KHAY (EmployeeDetailPanel), không ở thẻ.
+ *  Trước đây thẻ tự tải khi mount: bấm Sửa rồi Huỷ/Lưu là gỡ rồi gắn lại thẻ ⇒ kéo lại cả lịch sử
+ *  lương; và tải chỉ bắt đầu khi bấm sang tab nên thẻ hiện SAU, đẩy khối Nhận lương tụt xuống.
+ *  Nay tải song song với hồ sơ ngay lúc mở khay. `enabled=false` (không có quyền xem hồ sơ lương
+ *  bên Lương) ⇒ không gọi, coi như `forbidden` — khỏi đẻ một request chắc chắn 403. */
+export function useHoaHong(token: string, employeeId: number, enabled: boolean): HoaHongState {
+  const [state, setState] = useState<HoaHongState>(
+    enabled ? { kind: "loading" } : { kind: "forbidden" },
+  );
   useEffect(() => {
+    if (!enabled) {
+      setState({ kind: "forbidden" });
+      return;
+    }
     let alive = true;
     setState({ kind: "loading" });
     api.luong
@@ -176,15 +178,23 @@ export function CommissionCard({
     return () => {
       alive = false;
     };
-  }, [token, employeeId]);
+  }, [token, employeeId, enabled]);
+  return state;
+}
 
-  if (state.kind === "loading" || state.kind === "forbidden") return null;
+/** % hoa hồng của NV kinh doanh — CHỈ ĐỌC ở đây, sửa ở Lương → Lương nhân viên → Sửa lương.
+ *  Không cho sửa tại drawer vì `POST /api/luong/salaries/{id}` luôn đẻ một mốc lương MỚI với
+ *  TOÀN BỘ các số; drawer không giữ `luong_vi_tri`/phụ cấp nên post từ đây là lương về 0.
+ *  Chỉ HIỂN THỊ — số do `useHoaHong` ở khay tải. Đang tải vẫn vẽ thẻ để giữ chỗ (trả `null` là
+ *  khối bên dưới hiện trước rồi bị đẩy tụt xuống). */
+export function CommissionCard({ state }: { state: HoaHongState }) {
+  if (state.kind === "forbidden") return null;
   const pct = state.kind === "ok" ? state.pct : null;
   return (
     <InfoCard title="Hoa hồng kinh doanh" icon={TrendingUp}>
       <InfoField
         label="% hoa hồng"
-        value={pct != null ? `${pct}%` : null}
+        value={state.kind === "loading" ? "Đang tải…" : pct != null ? `${pct}%` : null}
         icon={TrendingUp}
         hint={
           "Máy tự tính hoa hồng theo hoá đơn bán trong kỳ với % này (chụp vào đơn lúc chốt) — ĐỪNG thêm tay khoản hoa hồng ở bảng lương, là trả hai lần. Đổi % ở Lương → Lương nhân viên." +

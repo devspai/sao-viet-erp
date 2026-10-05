@@ -81,9 +81,9 @@ class Quote(Base):
     customer_name_snapshot: Mapped[str | None] = mapped_column(String(255), nullable=True)
     
     # BG-1: nguồn báo giá = 1 Phiếu tính giá (PTG). Soft link (plain int — PTG dùng FK mềm theo
-    # convention repo). 1 PTG → 1 BG đang hiệu lực: GUARD ở service (KHÔNG unique cứng — báo giá
-    # cancelled/rejected/expired nhả chỗ, cho báo giá lại / repeat order).
-    phieu_tinh_gia_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    # convention repo). MỘT phiếu ↔ MỘT báo giá, mọi trạng thái (chốt 04/10/2026, mg 0365): UNIQUE
+    # cứng. Điều chỉnh = "Tạo phiên bản mới" trong báo giá đó; báo giá khác = nhân bản phiếu.
+    phieu_tinh_gia_id: Mapped[int | None] = mapped_column(Integer, index=True, unique=True, nullable=True)
 
     salesperson_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
@@ -221,6 +221,9 @@ class QuoteItem(Base):
     total_cost_snapshot: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
     margin_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
     selling_price: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
+    # Giá bán do sale GÕ TAY (không theo markup) — màn báo giá giữ trạng thái "Gõ tay" + nút "Về
+    # theo markup" sau khi tải lại (mg 0364). Sửa markup dòng đó là về False.
+    gia_go_tay: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     unit_price: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
     discount_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
     vat_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)

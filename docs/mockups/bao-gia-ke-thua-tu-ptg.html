@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Khách hàng ở phiếu tính giá</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Token thật của app: frontend/src/styles/tokens.css + bao-gia.css (.rdx-quote) */
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --rust:#c5400a; --rust-deep:#8a2d07; --charcoal:#0f172a; --on-charcoal:#f8fafc;
+  --dark:#14130f; --on-dark:#e6e0d2; --on-dark-muted:#928c7e; --dark-hair:rgba(230,224,210,.1);
+  --r-2:4px; --r-3:6px; --r-5:10px; --r-6:12px;
+  --shadow-1:0 1px 0 var(--rule-soft); --shadow-4:0 4px 12px rgba(20,19,15,.06); --shadow-lg:0 14px 34px rgba(20,19,15,.17);
+  --ff:"Be Vietnam Pro",ui-sans-serif,system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 var(--ff)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i.s{width:13px;height:13px}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 16px 80px}
+
+/* ---------- chọn màn ---------- */
+.picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:8px}
+.pa{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:var(--r-6);padding:12px 14px;text-align:left}
+.pa:hover{background:var(--rule-hair)}
+.pa.on{border:2px solid var(--rust);padding:11px 13px;background:var(--canvas)}
+.pa b{display:block;font-weight:600;font-size:15px}
+.pa small{display:block;color:var(--ash);font-size:12px;margin-top:2px}
+.why{font-size:13px;color:var(--ash);margin:0 0 14px;padding:10px 14px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:var(--r-5)}
+.why b{color:var(--ink);font-weight:600}
+.why ul{margin:6px 0 0;padding-left:18px}
+.screen{display:none}
+.screen.on{display:block}
+.seg{display:flex;width:max-content;max-width:100%;flex-wrap:wrap;border:1px solid var(--rule);border-radius:var(--r-3);overflow:hidden;margin-bottom:14px;background:var(--canvas)}
+.seg button{border:0;background:none;padding:6px 12px;font-size:12px;font-weight:600;color:var(--ash)}
+.seg button:hover{background:var(--rule-hair)}
+.seg button.on{background:var(--charcoal);color:var(--on-charcoal)}
+.seg .lb{padding:6px 10px;font-size:12px;color:var(--ash-2);border-right:1px solid var(--rule-soft)}
+
+/* ---------- đầu màn ---------- */
+.back{display:inline-flex;align-items:center;gap:4px;color:var(--ash);font-size:13px;margin-bottom:10px}
+.hd{display:flex;align-items:flex-start;gap:16px;padding-bottom:14px;margin-bottom:14px}
+.hd__l{flex:1;min-width:0}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ttl h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.01em}
+.sub{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;color:var(--ash);font-size:14px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{height:36px;border:1px solid var(--rule);background:var(--canvas);border-radius:var(--r-3);padding:0 14px;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-weight:600;font-size:13px}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.pri:hover{background:var(--rust-deep)}
+.btn.dark{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn.link{border:0;background:none;padding:0;height:auto;color:var(--rust-deep);font-weight:600;font-size:12px}
+.btn.link:hover{background:none;text-decoration:underline}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;border-radius:var(--r-2);padding:1px 7px;background:var(--rule-hair);color:var(--ash);white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:99px;padding:2px 10px;border:1px solid var(--rule);color:var(--ash);background:var(--canvas)}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:var(--ash-2)}
+.pill.ver{border-color:var(--rule-soft);background:var(--rule-hair)}
+.pill.rust{color:var(--rust-deep);border-color:var(--rust)}
+.pill.rust .dot{background:var(--rust)}
+
+/* ---------- DẢI KHÁCH HÀNG (dùng chung cho phiếu và báo giá) ---------- */
+.strip{display:grid;grid-template-columns:1.05fr 1.2fr 1fr 1.4fr;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:var(--r-5);box-shadow:var(--shadow-1);margin-bottom:20px;position:relative}
+.cell{padding:12px 16px;min-width:0;border-right:1px solid var(--rule-hair);text-align:left;background:none;border-top:0;border-bottom:0;border-left:0;position:relative}
+.cell:nth-child(4){border-right:0}
+.cell__k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ash);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.cell__k .chev{margin-left:auto;color:var(--ash-2)}
+.cell__v{font-weight:600;font-size:14px}
+.cell__s{color:var(--ash);font-size:12px;margin-top:2px}
+.cell__empty{display:inline-flex;align-items:center;gap:6px;color:var(--rust-deep);font-weight:600;font-size:13px}
+.cell__off{color:var(--ash-2);font-size:13px}
+/* phiếu tính giá: cả ô là nút mở danh sách */
+.strip.edit .cell{cursor:pointer;border-radius:0}
+.strip.edit .cell:first-child{border-top-left-radius:var(--r-5)}
+.strip.edit .cell:hover{background:var(--rule-hair)}
+.strip.edit .cell.open{background:var(--canvas);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.strip.edit .cell[disabled]{cursor:not-allowed}
+.strip.edit .cell[disabled]:hover{background:none}
+.notebox{display:block;width:calc(100% + 12px);border:1px solid transparent;border-radius:var(--r-3);padding:4px 6px;margin:-4px -6px;resize:none;font-size:13px;line-height:1.5;background:none;min-height:46px;field-sizing:content;max-height:140px}
+.notebox:hover{border-color:var(--rule)}
+.notebox:focus{outline:none;border-color:var(--ink);background:var(--canvas)}
+.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;white-space:pre-line}
+.clamp.full{display:block;-webkit-line-clamp:unset}
+.strip__ft{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 16px;border-top:1px solid var(--rule-hair);font-size:12px;color:var(--ash)}
+.strip__ft .chip{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--ink);border:1px solid var(--rule);border-radius:var(--r-3);padding:2px 8px;background:var(--canvas);text-decoration:none}
+.strip__ft .chip:hover{background:var(--rule-hair)}
+.sp{flex:1}
+/* danh sách thả xuống */
+.pop{position:absolute;top:calc(100% + 6px);left:0;width:340px;max-width:calc(100vw - 32px);background:var(--canvas);border:1px solid var(--rule-soft);border-radius:var(--r-5);box-shadow:var(--shadow-lg);z-index:5;padding:6px;cursor:default}
+.pop input{width:100%;height:34px;border:1px solid var(--rule);border-radius:var(--r-3);padding:0 10px;margin-bottom:4px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:var(--r-3);cursor:pointer;border:1px solid transparent}
+.opt:hover{background:var(--rule-hair)}
+.opt.sel{border-color:var(--ink)}
+.opt .t{font-weight:600;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.opt .d{color:var(--ash);font-size:12px}
+.opt .ck{margin-left:auto;color:var(--ink);visibility:hidden}
+.opt.sel .ck{visibility:visible}
+
+/* ---------- lưới ---------- */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:var(--r-5);box-shadow:var(--shadow-1)}
+.panel__hd{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--rule-soft)}
+.panel__hd h3{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.panel__bd{padding:14px 16px}
+.muted{color:var(--ash-2)}
+
+/* bảng: spec §6 UI_DESIGN */
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ash);text-align:left;padding:10px 14px;background:var(--paper);border-bottom:1.5px solid var(--rule);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--rule-hair)}
+.r{text-align:right;white-space:nowrap}
+.grp td{background:var(--paper)}
+.pname{font-weight:600}
+.spec{margin:4px 0 0;padding:0;list-style:none;color:var(--ash);font-size:12px}
+.lnk{display:inline-flex;align-items:center;gap:5px;color:var(--rust-deep);font-weight:600;font-size:12px;margin-top:4px;background:none;border:0;padding:0}
+.strong{font-weight:600}
+.derived{color:var(--ash-2)}
+#lines th,#lines td{padding-left:10px;padding-right:10px}
+#lines td:first-child{min-width:176px}
+
+/* ---------- Ô NHẬP SỐ có đơn vị NẰM TRONG ô ---------- */
+.nf{display:inline-flex;align-items:center;height:34px;border:1px solid var(--rule);border-radius:var(--r-3);background:var(--canvas);padding:0 10px 0 8px;gap:4px;vertical-align:middle;cursor:text}
+.nf:hover{border-color:var(--ash-2)}
+.nf:focus-within{border-color:var(--ink);box-shadow:0 0 0 3px rgba(100,116,139,.18)}
+.nf input{border:0;outline:0;background:none;text-align:right;width:100%;min-width:0;font-weight:600;padding:0}
+.nf .u{color:var(--ash-2);font-size:12px;font-weight:600}
+.nf.pct{width:70px}
+.nf.money{width:128px}
+.nf.auto{background:var(--paper)}
+.nf.auto input{font-weight:500;color:var(--ash)}
+.nf.manual{border-color:var(--ink)}
+.pricecell,.markcell{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.pricecell .meta{display:flex;align-items:center;gap:8px;font-size:11px}
+.markcell .meta{font-size:11px;color:var(--ash-2)}
+.reset{display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:0;color:var(--ash);font-size:11px;font-weight:600}
+.reset:hover{color:var(--ink);text-decoration:underline}
+
+/* ---------- thẻ tối ---------- */
+.dk{background:var(--dark);color:var(--on-dark);border-radius:var(--r-5);overflow:hidden;box-shadow:var(--shadow-4)}
+.dk__eb{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--on-dark-muted);display:flex;align-items:center;gap:8px;padding:16px 18px 0}
+.dk__eb .v{letter-spacing:0;background:var(--dark-hair);border-radius:var(--r-2);padding:0 6px;font-weight:700}
+.dk__big{font-weight:800;font-size:34px;line-height:1.06;letter-spacing:-.015em;padding:6px 18px 0}
+.dk__big small{font-size:18px;color:var(--rust);font-weight:700;margin-left:2px}
+.dk__meter{display:flex;justify-content:space-between;font-size:11px;color:var(--on-dark-muted);padding:12px 18px 4px;text-transform:uppercase;letter-spacing:.1em}
+.dk__meter b{color:var(--rust);letter-spacing:0;font-size:13px}
+.dk__bar{margin:0 18px 6px;height:5px;border-radius:99px;background:var(--dark-hair)}
+.dk__bar i{display:block;height:100%;border-radius:99px;background:var(--rust)}
+.dk__rows{padding:4px 18px 12px}
+.dk__row{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px;border-top:1px solid var(--dark-hair);font-size:13px;color:var(--on-dark-muted)}
+.dk__row .k{display:flex;align-items:center;gap:10px}
+.dk__row b{color:var(--on-dark);font-weight:600;white-space:nowrap}
+.dk__row .acc{color:var(--rust)}
+.dnf{display:inline-flex;align-items:center;height:30px;width:72px;border:1px solid rgba(230,224,210,.22);border-radius:var(--r-3);background:rgba(230,224,210,.06);padding:0 8px;gap:3px;cursor:text}
+.dnf:hover{border-color:rgba(230,224,210,.4)}
+.dnf:focus-within{border-color:var(--on-dark)}
+.dnf input{border:0;outline:0;background:none;color:var(--on-dark);text-align:right;width:100%;font-weight:600;padding:0}
+.dnf .u{color:var(--on-dark-muted);font-size:12px;font-weight:600}
+.vat{display:flex;gap:4px}
+.vat button{font-size:11px;font-weight:700;height:26px;padding:0 8px;border-radius:var(--r-3);border:1px solid rgba(230,224,210,.22);background:none;color:var(--on-dark-muted)}
+.vat button:hover{border-color:rgba(230,224,210,.4)}
+.vat button.on{background:var(--rust);border-color:var(--rust);color:#fff}
+
+/* hoạt động, điều khoản */
+.tl{padding:6px 16px 12px;max-height:180px;overflow:auto}
+.tlrow{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule-hair);font-size:13px}
+.tlrow:last-child{border-bottom:0}
+.tlrow .ic{width:24px;height:24px;border-radius:50%;background:var(--rule-hair);display:inline-flex;align-items:center;justify-content:center;color:var(--ash);flex:none}
+.tlrow .m{color:var(--ash-2);font-size:12px;display:flex;gap:10px}
+.terms{border:1px solid var(--rule);border-radius:var(--r-3);padding:10px 12px;width:100%;min-height:118px;resize:vertical;font-size:13px;line-height:1.6}
+.fl{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:0 0 8px}
+.fl .h{margin-left:auto;font-weight:400;color:var(--ash-2);font-size:12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.date{height:36px;border:1px solid var(--rule);border-radius:var(--r-3);padding:0 10px;display:flex;align-items:center;justify-content:space-between;background:var(--canvas)}
+
+@media (max-width:980px){
+  .grid{grid-template-columns:1fr}
+  .strip{grid-template-columns:1fr 1fr}
+  .cell:nth-child(2){border-right:0}
+  .cell:nth-child(1),.cell:nth-child(2){border-bottom:1px solid var(--rule-hair)}
+  .hd{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="picker">
+    <button class="pa on" data-s="ptg"><b>Phiếu tính giá</b><small>Chọn khách, địa chỉ giao, người nhận, ghi chú ngay trên dải đầu trang</small></button>
+    <button class="pa" data-s="bg"><b>Báo giá</b><small>Cùng dải đó nhưng chỉ đọc, kèm các ô giá đã sửa</small></button>
+  </div>
+  <div class="why" id="why"></div>
+
+  <!-- ===================================================== PHIẾU TÍNH GIÁ -->
+  <section class="screen on" id="s-ptg">
+    <div class="seg" id="ptgState"><span class="lb">Thử trạng thái</span><button data-k="chua">Phiếu mới, chưa chọn khách</button><button class="on" data-k="co">Đã chọn khách</button></div>
+    <div class="back"><i data-i="chevron-left"></i>Danh sách</div>
+    <div class="hd">
+      <div class="hd__l">
+        <span class="tag"><i data-i="lock" class="s"></i>Giá vốn nội bộ</span>
+        <div class="ttl" style="margin-top:8px"><h1>PTG-2026-0005</h1><span class="pill rust"><span class="dot"></span>Đã tính giá</span></div>
+        <div class="sub"><span>Sách A5 64 trang</span><span class="tag">Người lập Nguyễn Thị Kim Luyến</span><span class="tag">4/10/2026</span></div>
+      </div>
+      <div class="acts">
+        <button class="btn pri">Tính giá</button>
+        <button class="btn dark" id="ptgQuote">Báo giá<i data-i="arrow-right" class="s"></i></button>
+      </div>
+    </div>
+
+    <div class="strip edit" id="ptgStrip">
+      <button class="cell" data-f="kh"></button>
+      <button class="cell" data-f="dc"></button>
+      <button class="cell" data-f="ng"></button>
+      <div class="cell" data-f="gc" style="cursor:default">
+        <div class="cell__k"><i data-i="note" class="s"></i>Ghi chú nội bộ</div>
+        <textarea class="notebox" placeholder="Bấm để ghi chú cho người làm báo giá và sản xuất">Khách cần hàng trước 20/10 cho đợt Tết.
+Bìa Ivory lấy theo lô giấy cũ, khách đã duyệt màu bản in thử.</textarea>
+      </div>
+      <div class="strip__ft" id="ptgFt"><i data-i="info" class="s"></i><span></span></div>
+      <div class="pop" id="pop" hidden></div>
+    </div>
+
+    <div class="grid">
+      <div class="col">
+        <div class="panel">
+          <div class="panel__hd"><h3><i data-i="table"></i>Sản phẩm trong phiếu</h3><span class="sp"></span><span class="tag">2 sản phẩm</span></div>
+          <div class="tbl"><table>
+            <thead><tr><th>Tên</th><th class="r">SL</th><th class="r">Giá vốn</th><th class="r">Đơn giá</th></tr></thead>
+            <tbody>
+              <tr class="grp"><td><span class="pname">Sách A5 64 trang</span> <span class="tag">gộp 1 dòng khi báo giá</span></td><td class="r">1.000</td><td class="r strong">20.411.966 đ</td><td class="r strong">20.412 đ/cuốn</td></tr>
+              <tr><td style="padding-left:28px">Ruột sách A5 64 trang</td><td class="r">1.000</td><td class="r">17.948.166 đ</td><td class="r">17.948 đ</td></tr>
+              <tr><td style="padding-left:28px">Bìa sách A5</td><td class="r">1.000</td><td class="r">2.463.800 đ</td><td class="r">2.464 đ</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="panel"><div class="panel__hd"><h3><i data-i="list"></i>Chi tiết dòng giá vốn</h3></div><div class="panel__bd muted">Giữ nguyên như hiện tại.</div></div>
+      </div>
+      <div class="col">
+        <div class="dk">
+          <div class="dk__eb"><i data-i="lock" class="s"></i>Tổng giá vốn nội bộ</div>
+          <div class="dk__big">20.411.966<small>đ</small></div>
+          <div class="dk__rows" style="margin-top:8px">
+            <div class="dk__row"><span>Nguyên vật liệu</span><b>12.451.966 đ</b></div>
+            <div class="dk__row"><span>Công đoạn</span><b>7.960.000 đ</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== BÁO GIÁ -->
+  <section class="screen" id="s-bg">
+    <div class="seg" id="bgState"><span class="lb">Thử trạng thái</span><button class="on" data-k="base">Tính theo markup</button><button data-k="tay">Ruột gõ tay giá bán</button><button data-k="ck">Chiết khấu 5%</button></div>
+    <div class="back"><i data-i="chevron-left"></i>Danh sách</div>
+    <div class="hd">
+      <div class="hd__l">
+        <div class="ttl"><h1>BG26-0001</h1><span class="pill ver">v1</span><span class="pill"><span class="dot"></span>Nháp</span></div>
+        <div class="sub"><span>Sách A5 64 trang</span><span class="tag">NV soạn Admin</span></div>
+      </div>
+      <div class="acts"><button class="btn"><i data-i="printer"></i>Xem bản in</button><button class="btn pri"><i data-i="send"></i>Gửi khách</button></div>
+    </div>
+
+    <div class="strip">
+      <div class="cell"><div class="cell__k"><i data-i="building" class="s"></i>Khách hàng</div><div class="cell__v">CÔNG TY CỔ PHẦN BIBICA</div><div class="cell__s">MST 3600363970</div></div>
+      <div class="cell"><div class="cell__k"><i data-i="pin" class="s"></i>Giao tới</div><div class="cell__v">Chi nhánh Hà Nội</div><div class="cell__s">Lô CN4, KCN Quang Minh, Xã Quang Minh, Hà Nội</div></div>
+      <div class="cell"><div class="cell__k"><i data-i="user" class="s"></i>Người nhận</div><div class="cell__v">Hồ Đức Sơn</div><div class="cell__s">Trưởng phòng Mua hàng</div><div class="cell__s">0986 080 684</div></div>
+      <div class="cell"><div class="cell__k"><i data-i="note" class="s"></i>Ghi chú nội bộ</div><div class="clamp" id="bgNote">Khách cần hàng trước 20/10 cho đợt Tết.
+Bìa Ivory lấy theo lô giấy cũ, khách đã duyệt màu bản in thử.
+Giao làm 2 đợt nếu kho Hà Nội chưa nhận đủ chỗ.</div><button class="btn link" id="bgMore" style="margin-top:4px">Xem thêm</button></div>
+      <div class="strip__ft"><i data-i="lock" class="s"></i><span>Lấy từ phiếu tính giá</span><a class="chip" href="#"><i data-i="corner" class="s"></i>PTG-2026-0005</a><span class="sp"></span><span class="tag">Tín dụng chưa đặt hạn mức</span><button class="btn link" style="margin-left:8px">Sửa ở phiếu tính giá</button></div>
+    </div>
+
+    <div class="grid">
+      <div class="col">
+        <div class="panel">
+          <div class="panel__hd"><h3><i data-i="table"></i>Báo giá nhiều dòng</h3><span class="sp"></span><span class="tag">2 dòng</span></div>
+          <div class="tbl"><table id="lines"></table></div>
+        </div>
+        <div class="panel">
+          <div class="panel__hd"><h3><i data-i="file"></i>Điều khoản và hiệu lực</h3></div>
+          <div class="panel__bd">
+            <div class="fl">Điều khoản gửi khách<span class="h">In trên bản báo giá</span></div>
+            <textarea class="terms">Bản báo giá có hiệu lực trong vòng 30 ngày kể từ ngày báo giá.
+Thời gian giao mẫu 5 ngày kể từ khi duyệt file.
+Thời gian giao hàng từ 7 đến 10 ngày kể từ ngày duyệt mẫu in.
+Đơn giá trên đã bao gồm phí vận chuyển tận nơi đến khách hàng.</textarea>
+            <div class="row2">
+              <div><div class="fl">Ngày lập</div><div class="date">4/10/2026</div></div>
+              <div><div class="fl">Hiệu lực đến</div><div class="date">3/11/2026<i data-i="calendar" class="s"></i></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="dk" id="dark"></div>
+        <div class="panel">
+          <div class="panel__hd"><h3><i data-i="activity"></i>Hoạt động</h3><span class="sp"></span><span class="tag">2 sự kiện</span></div>
+          <div class="tl">
+            <div class="tlrow"><span class="ic"><i data-i="file" class="s"></i></span><div><div>Tạo báo giá từ PTG-2026-0005</div><div class="m"><span>Admin</span><span>4/10/2026 14:02</span></div></div></div>
+            <div class="tlrow"><span class="ic"><i data-i="corner" class="s"></i></span><div><div>Khách hàng cập nhật theo phiếu tính giá</div><div class="m"><span>Nguyễn Thị Kim Luyến</span><span>4/10/2026 15:20</span></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const P={
+  lock:'<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  building:'<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4M10 18h4"/>',
+  pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  user:'<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  file:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/>',
+  note:'<path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/>',
+  printer:'<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>',
+  send:'<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  table:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M12 3v18"/>',
+  list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  'chevron-down':'<path d="m6 9 6 6 6-6"/>',
+  'chevron-left':'<path d="m15 18-6-6 6-6"/>',
+  'arrow-right':'<path d="M5 12h14M12 5l7 7-7 7"/>',
+  corner:'<path d="m9 10-5 5 5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/>',
+  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  calendar:'<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  dollar:'<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  plus:'<path d="M5 12h14M12 5v14"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  undo:'<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>',
+  image:'<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>'
+};
+function icons(root){
+  root.querySelectorAll('i[data-i]').forEach(el=>{
+    const s=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    s.setAttribute('viewBox','0 0 24 24');
+    s.setAttribute('class','i'+(el.classList.contains('s')?' s':'')+(el.classList.contains('chev')?' chev':'')+(el.classList.contains('ck')?' ck':''));
+    s.innerHTML=P[el.dataset.i]||'';el.replaceWith(s);
+  });
+}
+const vn=n=>Math.round(n).toLocaleString('vi-VN');
+const pc=n=>(Math.round(n*10)/10).toLocaleString('vi-VN');
+
+/* ================= PHIẾU TÍNH GIÁ: dải sửa được ================= */
+const KH=[{ten:'CÔNG TY CỔ PHẦN BIBICA',ma:'KH002',mst:'3600363970'},{ten:'CÔNG TY CỔ PHẦN CAFÉ KATINAT',ma:'KH003',mst:'0313541432'},{ten:'CÔNG TY TNHH PHÁT TRIỂN GREEN LIFE',ma:'KH011',mst:'0316248810'}];
+const DC=[{t:'Văn phòng chính',d:'443 Lý Thường Kiệt, Phường Tân Hòa, TP Hồ Chí Minh'},{t:'Chi nhánh Hà Nội',d:'Lô CN4, KCN Quang Minh, Xã Quang Minh, Hà Nội',mac:1},{t:'Kho thành phẩm KCN Tân Tạo',d:'Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh'}];
+const NG=[{t:'Hồ Đức Sơn',d:'Trưởng phòng Mua hàng',p:'0986 080 684',chinh:1},{t:'Đặng Thị Trang',d:'Chuyên viên Marketing',p:'0939 959 884'},{t:'Ngô Kim Trâm',d:'Nhân viên Kế hoạch sản xuất',p:'0943 476 792'},{t:'Phạm Hữu Khoa',d:'Nhân viên QA/QC',p:'0351 208 340'}];
+const st={kh:0,dc:1,ng:0};
+const strip=document.getElementById('ptgStrip'), pop=document.getElementById('pop');
+let openF=null;
+const head=(ic,t)=>`<div class="cell__k"><i data-i="${ic}" class="s"></i>${t}<i data-i="chevron-down" class="s chev"></i></div>`;
+function drawStrip(){
+  const c=f=>strip.querySelector(`[data-f=${f}]`);
+  const k=st.kh!=null?KH[st.kh]:null;
+  c('kh').innerHTML=head('building','Khách hàng')+(k?`<div class="cell__v">${k.ten}</div><div class="cell__s">MST ${k.mst}</div>`:`<span class="cell__empty"><i data-i="plus" class="s"></i>Chọn khách hàng</span>`);
+  c('dc').innerHTML=head('pin','Giao tới')+(!k?`<span class="cell__off">Chọn khách trước</span>`:st.dc!=null?`<div class="cell__v">${DC[st.dc].t}</div><div class="cell__s">${DC[st.dc].d}</div>`:`<span class="cell__empty"><i data-i="plus" class="s"></i>Chọn điểm giao</span>`);
+  c('ng').innerHTML=head('user','Người nhận')+(!k?`<span class="cell__off">Chọn khách trước</span>`:st.ng!=null?`<div class="cell__v">${NG[st.ng].t}</div><div class="cell__s">${NG[st.ng].d}</div><div class="cell__s">${NG[st.ng].p}</div>`:`<span class="cell__empty"><i data-i="plus" class="s"></i>Chọn người nhận</span>`);
+  c('dc').disabled=!k; c('ng').disabled=!k;
+  icons(strip);
+  const q=document.getElementById('ptgQuote');
+  q.disabled=!k; q.title=k?'Lập báo giá từ phiếu này':'Chọn khách hàng ở dải phía trên trước khi lập báo giá';
+  document.querySelector('#ptgFt span').textContent=k
+    ?'Báo giá lập từ phiếu này lấy nguyên bốn ô trên và không sửa được ở báo giá. Ghi chú không in cho khách.'
+    :'Chưa chọn khách nên nút Báo giá đang khoá. Phiếu vẫn lưu và tính giá bình thường.';
+}
+function openPop(f,cell){
+  if(openF===f){closePop();return}
+  openF=f; strip.querySelectorAll('.cell').forEach(x=>x.classList.toggle('open',x===cell));
+  const list=f==='kh'?KH.map((k,i)=>({i,t:k.ten,d:k.ma})):f==='dc'?DC.map((a,i)=>({i,t:a.t,tag:a.mac?'mặc định':'',d:a.d})):NG.map((n,i)=>({i,t:n.t,tag:n.chinh?'liên hệ chính':'',d:n.d+', '+n.p}));
+  pop.innerHTML=(f==='kh'?'<input placeholder="Gõ tên hoặc mã khách">':'')+list.map(o=>`<div class="opt${st[f]===o.i?' sel':''}" data-i="${o.i}"><div><div class="t">${o.t}${o.tag?` <span class="tag">${o.tag}</span>`:''}</div><div class="d">${o.d}</div></div><i data-i="check" class="s ck"></i></div>`).join('');
+  icons(pop);
+  pop.style.left=cell.offsetLeft+'px'; pop.hidden=false;
+  pop.querySelectorAll('.opt').forEach(o=>o.onclick=()=>{
+    st[f]=+o.dataset.i;
+    if(f==='kh'){st.dc=1;st.ng=0;} // đổi khách: tự điền điểm giao mặc định + liên hệ chính
+    closePop(); drawStrip();
+  });
+}
+function closePop(){openF=null;pop.hidden=true;strip.querySelectorAll('.cell').forEach(x=>x.classList.remove('open'))}
+strip.querySelectorAll('button.cell').forEach(c=>c.onclick=()=>{if(!c.disabled)openPop(c.dataset.f,c)});
+document.addEventListener('click',e=>{if(openF&&!strip.contains(e.target))closePop()});
+document.querySelectorAll('#ptgState button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#ptgState button').forEach(x=>x.classList.toggle('on',x===b));
+  const nb=strip.querySelector('.notebox');
+  if(b.dataset.k==='chua'){st.kh=null;st.dc=null;st.ng=null;nb.value='';}
+  else{st.kh=0;st.dc=1;st.ng=0;nb.value='Khách cần hàng trước 20/10 cho đợt Tết.\nBìa Ivory lấy theo lô giấy cũ, khách đã duyệt màu bản in thử.';}
+  closePop(); drawStrip();
+});
+
+/* ================= BÁO GIÁ: bảng + thẻ tối theo 3 trạng thái ================= */
+const S={
+  base:{ck:0, lines:[{cost:17948166,mk:20,gia:21537799,tay:false},{cost:2463800,mk:20,gia:2956560,tay:false}]},
+  tay:{ck:0, lines:[{cost:17948166,mk:22.6,gia:22000000,tay:true},{cost:2463800,mk:20,gia:2956560,tay:false}]},
+  ck:{ck:5, lines:[{cost:17948166,mk:20,gia:21537799,tay:false},{cost:2463800,mk:20,gia:2956560,tay:false}]}
+};
+const NAMES=[['Ruột sách A5 64 trang',['KT 148×210 mm','Couche 80g','In 4 màu 2 mặt']],['Bìa sách A5',['KT 300×210 mm','Giấy Ivory 210g','In 4 màu 1 mặt']]];
+function drawBg(k){
+  const s=S[k], ck=s.ck;
+  const cost=s.lines.reduce((a,l)=>a+l.cost,0), sell=s.lines.reduce((a,l)=>a+l.gia,0);
+  const disc=Math.round(sell*ck/100), net=sell-disc, vat=Math.round(net*.1), grand=net+vat, profit=net-cost;
+  const mkAvg=(sell/cost-1)*100, hasCk=ck>0;
+  let h=`<thead><tr><th>Sản phẩm</th><th class="r">SL</th><th class="r">Giá vốn</th><th class="r">Markup</th><th class="r">Giá bán</th>${hasCk?'<th class="r">Sau chiết khấu</th>':''}</tr></thead><tbody>`;
+  h+=`<tr class="grp"><td><span class="pname">Sách A5 64 trang</span> <span class="tag">2 phần</span> <span class="tag">in ra khách 1 dòng</span><div><button class="lnk"><i data-i="image" class="s"></i>Thêm ảnh minh hoạ</button></div></td><td class="r">1.000</td><td class="r derived">${vn(cost)}</td><td class="r derived">${pc(mkAvg)} %</td><td class="r strong">${vn(sell)} đ</td>${hasCk?`<td class="r strong">${vn(net)} đ</td>`:''}</tr>`;
+  s.lines.forEach((l,i)=>{
+    const [n,sp]=NAMES[i];
+    h+=`<tr><td style="padding-left:28px"><span class="pname">${n}</span><ul class="spec">${sp.map(x=>`<li>${x}</li>`).join('')}</ul><button class="lnk">Sửa diễn giải</button></td>
+      <td class="r">1.000</td><td class="r derived">${vn(l.cost)}</td>
+      <td class="r"><div class="markcell"><label class="nf pct${l.tay?' auto':''}"><input value="${pc(l.mk)}" inputmode="decimal" aria-label="Markup"><span class="u">%</span></label>${l.tay?'<span class="meta">suy ra từ giá gõ tay</span>':''}</div></td>
+      <td class="r"><div class="pricecell"><label class="nf money ${l.tay?'manual':'auto'}"><input value="${vn(l.gia)}" inputmode="numeric" aria-label="Giá bán"><span class="u">đ</span></label>${l.tay?'<span class="meta"><span class="tag">Gõ tay</span><button class="reset"><i data-i="undo" class="s"></i>Về theo markup</button></span>':''}</div></td>
+      ${hasCk?`<td class="r">${vn(l.gia*(1-ck/100))} đ</td>`:''}</tr>`;
+  });
+  document.getElementById('lines').innerHTML=h+'</tbody>';
+  document.getElementById('dark').innerHTML=`
+    <div class="dk__eb"><i data-i="dollar" class="s"></i>Giá bán đề xuất<span class="v">v1</span></div>
+    <div class="dk__big">${vn(grand)}<small>đ</small></div>
+    <div class="dk__meter"><span>Markup bình quân</span><b>${pc(mkAvg)}%</b></div>
+    <div class="dk__bar"><i style="width:${Math.min(100,mkAvg*2.5)}%"></i></div>
+    <div class="dk__rows">
+      <div class="dk__row"><span class="k">Giá vốn (khoá)</span><b>${vn(cost)} đ</b></div>
+      <div class="dk__row"><span class="k">Lợi nhuận</span><b class="acc">+${vn(profit)} đ</b></div>
+      <div class="dk__row"><span class="k">Chiết khấu<label class="dnf"><input value="${ck}" inputmode="decimal" aria-label="Chiết khấu"><span class="u">%</span></label></span><b${disc?' class="acc"':''}>${disc?'−'+vn(disc):'0'} đ</b></div>
+      <div class="dk__row"><span class="k">Giá bán chưa VAT</span><b>${vn(net)} đ</b></div>
+      <div class="dk__row"><span class="k">VAT<span class="vat"><button>0%</button><button>5%</button><button>8%</button><button class="on">10%</button></span></span><b>${vn(vat)} đ</b></div>
+    </div>`;
+  icons(document.getElementById('s-bg'));
+}
+document.querySelectorAll('#bgState button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#bgState button').forEach(x=>x.classList.toggle('on',x===b)); drawBg(b.dataset.k);
+});
+const note=document.getElementById('bgNote'), more=document.getElementById('bgMore');
+more.onclick=()=>{const f=note.classList.toggle('full');more.textContent=f?'Thu gọn':'Xem thêm'};
+
+/* ================= chú thích từng màn ================= */
+const WHY={
+  ptg:`<b>Phiếu tính giá.</b> Dải bốn ô ngay dưới tiêu đề, cùng khuôn với báo giá nên nhìn là biết báo giá lấy gì từ đâu.
+    <ul><li>Cả ô là chỗ bấm: rê chuột ô xám đi, bấm ra danh sách. Đổi khách thì máy tự điền điểm giao mặc định và liên hệ chính, sale chỉ sửa khi khác.</li>
+    <li>Ghi chú gõ thẳng trong ô, không mở hộp thoại.</li>
+    <li>Chưa chọn khách thì nút Báo giá khoá, dòng chân dải nói lý do. Thử nút "Phiếu mới, chưa chọn khách" ở trên.</li>
+    <li>Thẻ "Phiếu này" ở cột phụ bỏ hẳn: mã phiếu đã là tiêu đề, giá vốn đã ở thẻ tối, người lập và ngày lập lên dòng dưới tiêu đề.</li></ul>`,
+  bg:`<b>Báo giá.</b> Cùng dải bốn ô nhưng là chữ thường, không có ô chọn. Nguồn và đường về phiếu ghi một lần ở chân dải.
+    <ul><li><b>Markup</b>: một ô có sẵn % bên trong, bỏ mũi tên tăng giảm (phím lên xuống nhích 0,5).</li>
+    <li><b>Giá bán</b>: số có dấu chấm và chữ đ trong ô. Máy tự tính theo markup thì ô nền xám, chữ thường. Gõ tay thì ô viền đậm, kèm thẻ "Gõ tay" và nút "Về theo markup"; ô markup chuyển xám, ghi "suy ra từ giá gõ tay".</li>
+    <li>Bỏ cột <b>Thành tiền</b> vì khi không chiết khấu nó trùng y số giá bán. Có chiết khấu thì mới hiện cột "Sau chiết khấu".</li>
+    <li>Bỏ hàng <b>Tổng 2 dòng</b>: dòng nhóm và thẻ tối đã có đủ tổng giá vốn và giá bán.</li>
+    <li><b>Chiết khấu</b> trên thẻ tối: ô rộng hơn, có % bên trong, cùng cỡ với nút VAT.</li></ul>
+    Thử ba nút trạng thái ở trên để xem bảng đổi theo.`
+};
+const why=document.getElementById('why');
+function show(k){
+  document.querySelectorAll('.pa').forEach(b=>b.classList.toggle('on',b.dataset.s===k));
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+k));
+  why.innerHTML=WHY[k];
+}
+document.querySelectorAll('.pa').forEach(b=>b.onclick=()=>show(b.dataset.s));
+icons(document);
+drawStrip();
+drawBg('base');
+show(location.hash==='#bg'?'bg':'ptg');
+</script>
+</body>
+</html>
