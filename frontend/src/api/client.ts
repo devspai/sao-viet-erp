@@ -9156,7 +9156,7 @@ export interface LenhSxChang {
   ten: string;
   nhom: string | null;
   /** `xong` · `chay` · `dung` · `cho` — hợp đồng với hằng `CHANG_*` của backend và với lớp
-   *  `.hslsx__chang--*` bên CSS. Khai `string` chứ không union: giá trị lạ phải hiện ra thành
+   *  `.lsc-chang__dot--*` bên CSS. Khai `string` chứ không union: giá trị lạ phải hiện ra thành
    *  đốt trung tính chứ không làm gãy cả bảng. */
   trang_thai: string;
   hien_tai: boolean;
@@ -9572,23 +9572,26 @@ export interface LenhSxHoSoOut {
   phien_ban: number | null;
 }
 
-// --- Theo dõi sản xuất (module `theo_doi_san_xuat`, Task 15-17) --------------
-// Bàn CHỈ ĐỌC cho điều độ viên: 4 góc nhìn (Kanban · Theo máy · Theo ca · Gantt) trên cùng MỘT
-// thanh lọc dùng chung (8 tham số, khai một chỗ ở `_thanh_loc` phía máy chủ). Mirror ĐÚNG
+// --- Theo dõi sản xuất (module `theo_doi_san_xuat`) — làm gọn 05/10/2026 ----------------------
+// Bàn CHỈ ĐỌC cho điều độ viên: HAI góc nhìn (Theo máy · Theo lệnh) + dải bất thường. Mirror ĐÚNG
 // `backend/app/schemas/theo_doi_san_xuat.py` — đừng thêm trường phía này (đọc, không tính lại).
 //
 // KHÔNG MỘT SỐ TIỀN NÀO, cùng luật với cả gói `lenh_sx`.
 
-/** MỘT ô chọn trong thanh lọc. `ten` là mặt ĐỌC (tiếng Việt có dấu) — `id` chỉ để SO KHỚP, gán
- *  thẳng vào tham số lọc cùng tên. `id` LUÔN là chuỗi (kể cả facet có cột số ở DB, xem docstring
- *  `BoLocMucOut` phía máy chủ) — nơi gọi tự ép `Number(...)` khi tham số đích là số. */
+/** Sáu mục của dải bất thường — hợp đồng với `theo_doi.BAT_THUONG` (giá trị lạ ăn 422). */
+export type TdsxBatThuong =
+  | "tre_han" | "su_co" | "tam_dung" | "kcs_khong_dat" | "may_hong" | "chua_may";
+
+/** Số trên dải — đếm trên TOÀN tập còn sống trong phạm vi, KHÔNG theo ô tìm/khách/máy. */
+export type TdsxDemBatThuong = Record<TdsxBatThuong, number>;
+
+/** MỘT ô chọn. `id` LUÔN là chuỗi — nơi gọi tự ép `Number(...)` khi tham số đích là số. */
 export interface TdsxBoLocMuc {
   id: string;
-  ten: string;
+  ten: string | null;
 }
 
-/** Ô chọn MÁY — vừa là nguồn ô lọc vừa là KHUNG LANE của `/theo-may` (một mục có thể lọc ra lane
- *  rỗng, và rỗng là câu trả lời đúng). `co_viec` là GỢI Ý hiển thị, KHÔNG phải bộ lọc. */
+/** Ô chọn MÁY: `ngung_dung` = máy đã ngừng dùng; `co_viec` = còn việc chưa xong — GỢI Ý hiển thị. */
 export interface TdsxBoLocMayMuc extends TdsxBoLocMuc {
   ngung_dung: boolean;
   co_viec: boolean;
@@ -9596,193 +9599,120 @@ export interface TdsxBoLocMayMuc extends TdsxBoLocMuc {
 
 export interface TdsxBoLocOut {
   may: TdsxBoLocMayMuc[];
-  cong_nhan: TdsxBoLocMuc[];
-  cong_doan: TdsxBoLocMuc[];
-  nhom_cong_doan: TdsxBoLocMuc[];
-  /** Nguồn ô chọn Ca của tab "Theo ca" (Task 18b) — `/kanban` và `/theo-may` KHÔNG nhận `ca_id`,
-   *  màn này (17b) không dựng ô Ca từ danh sách này. */
-  ca: TdsxBoLocMuc[];
-  trang_thai_viec: TdsxBoLocMuc[];
-  uu_tien: TdsxBoLocMuc[];
   khach_hang: TdsxBoLocMuc[];
 }
 
-/** Tám tham số lọc DÙNG CHUNG cho cả bốn góc nhìn (`router._thanh_loc`). `cong_doan_id` có ở máy
- *  chủ nhưng bản thiết kế đã duyệt (task-17-thiet-ke.md §3) không dựng ô riêng cho nó — "Nhóm CĐ"
- *  đã đủ cho màn này — nên field đó CỐ Ý không xuất hiện ở đây (18b có cần thì thêm). */
-export interface TdsxThanhLocParams {
-  q?: string;
-  khach_hang_id?: number;
-  may_id?: number;
-  nhom_cong_doan?: string;
-  cong_nhan_id?: number;
-  trang_thai_viec?: string;
-  uu_tien?: "gap" | "binh_thuong";
-}
-
-/** MỘT cột của board Kanban. `key` là chuỗi để khớp thẳng `TdsxKanbanCard.cot` — so sánh KHÔNG
- *  được ép kiểu số ở một bên. */
-export interface TdsxKanbanCot {
-  key: string;
-  ten: string;
-}
-
-export interface TdsxKanbanMeta {
-  cot: TdsxKanbanCot[];
-}
-
-/** NHÃN đi theo một bước: loại bước (+ nơi gia công) và khuôn/khung của nó.
- *  MỘT kiểu dùng chung cho Kanban · Theo máy · Theo ca — mỗi màn tự suy lấy là nhãn đứt giữa
- *  đường, đúng lỗi mà đợt 04/09/2026 vá. Vẽ bằng `<ChipLoaiBuoc>` + `<ChipKhuon>`. */
-export interface TdsxNhanBuoc {
-  loai_buoc: string | null;
-  nha_cung_cap: string | null;
-  khuon_ma: string | null;
-  khuon_so_ke: string | null;
-  khuon_tinh_trang: string | null;
-  khuon_da_nhan: boolean;
-}
-
-/** MỘT công việc đang `running`/`paused` của lệnh — hiện thành chip TRONG card (routing rẽ nhánh
- *  không tách thẻ). `may` KHÔNG BAO GIỜ `null` (máy chưa gán/đã xoá đều có nhãn riêng). */
-export interface TdsxKanbanChip {
-  cong_viec_id: number;
-  ten: string | null;
-  trang_thai: string;
-  may: string;
-  nguoi: string[];
-  nhan: TdsxNhanBuoc | null;
-}
-
-/** MỘT lệnh = MỘT card, bất kể routing rẽ bao nhiêu nhánh. `cot` là bước sớm nhất còn dang dở. */
-export interface TdsxKanbanCard {
-  lsx_id: number;
-  ma: string;
-  ten: string | null;
-  khach_hang: string | null;
-  so_luong_dat: number;
-  is_rush: boolean;
-  /** `date` ⇒ format bằng `ngay()`, KHÔNG `ngayGio()`. */
-  han_hoan_thanh_sx: string | null;
-  cot: string;
-  buoc_hien_tai: string | null;
-  chip_dang_chay: TdsxKanbanChip[];
-}
-
-export interface TdsxKanbanOut {
-  cards: TdsxKanbanCard[];
-}
-
-/** MỘT lệnh mà một block Theo máy đang gánh — cặp `(lsx_id, ma)`: `ma` là mặt ĐỌC, `lsx_id` là
- *  KHOÁ mở hồ sơ. Một block có ≥2 phần tử (ca ghép) ⇒ bày danh sách cho chọn, CẤM lấy phần tử đầu. */
+/** MỘT lệnh mà một công việc đang gánh — `ma` để đọc, `lsx_id` để mở hồ sơ. */
 export interface TdsxLsxThamChieu {
   lsx_id: number;
   ma: string;
-}
-
-/** MỘT công việc trong lane của MỘT máy — có thể ghép phục vụ nhiều lệnh (`lsx.length >= 2`).
- *  Mốc `du_kien_*` là KẾ HOẠCH của CẢ công việc, không phải khoảng máy này thật sự bận. */
-export interface TdsxMayLaneBlock {
-  cong_viec_id: number;
   ten: string | null;
-  trang_thai: string;
-  lsx: TdsxLsxThamChieu[];
-  du_kien_bat_dau: string | null;
-  du_kien_ket_thuc: string | null;
-  nguoi: string[];
-  nhan: TdsxNhanBuoc | null;
+  is_rush: boolean;
 }
 
-/** MỘT lane. `may_id: null` là lane "Chưa xếp máy" — LUÔN có mặt kể cả rỗng. `blocks: []` là một
- *  CÂU TRẢ LỜI ("máy này đang trống"), không phải thiếu dữ liệu — vẽ lane rỗng tử tế, đừng ẩn. */
-export interface TdsxMayLane {
-  may_id: number | null;
-  ten: string;
-  ngung_dung: boolean;
-  blocks: TdsxMayLaneBlock[];
+/** Tham số chung của hai góc. `may_id` chỉ góc Theo lệnh nhận. */
+export interface TdsxLocParams {
+  q?: string;
+  khach_hang_id?: number;
+  may_id?: number;
+  bat_thuong?: TdsxBatThuong;
 }
 
-export interface TdsxTheoMayOut {
-  lanes: TdsxMayLane[];
-}
+// --- Góc Theo lệnh (đặc tả 3.4) --------------------------------------------------------------------
+/** Bốn cờ lệnh có thể mang (`thieu_vat_tu` KHÔNG vào màn này — đòi cân đối vật tư mỗi lượt tải). */
+export type TdsxCoLenh = "tre_han" | "su_co" | "tam_dung" | "kcs_khong_dat";
 
-// --- Theo ca (Task 18b) -----------------------------------------------------------------------
-/** MỘT công việc trong một ca. `lsx` cùng kiểu và cùng ý nghĩa với `TdsxMayLaneBlock.lsx`: một
- *  công việc GHÉP phục vụ nhiều lệnh nên đây là DANH SÁCH — 1 phần tử thì bấm mở thẳng hồ sơ, từ 2
- *  trở lên thì bày popover cho người dùng chọn (C123), CẤM đoán lấy phần tử đầu. */
-export interface TdsxCaViec {
-  cong_viec_id: number;
-  ten: string | null;
-  trang_thai: string;
-  may_id: number | null;
-  may: string;
-  lsx: TdsxLsxThamChieu[];
-  du_kien_bat_dau: string | null;
-  /** Mốc bắt đầu phiên chạy ĐẦU TIÊN (giờ xưởng); `null` = chưa chạy. Việc đã chạy được máy chủ
-   *  xếp vào ca theo giờ chạy thật, chưa chạy thì theo kế hoạch (16/09/2026). */
-  bat_dau_thuc_te: string | null;
-  /** `"som"`/`"tre"`: ngày đang xem nằm trước/sau ngày kế hoạch, hoặc (`"tre"`) quá giờ bắt đầu dự
-   *  kiến mà chưa chạy. */
-  lech_lich: "som" | "tre" | null;
-  nguoi: string[];
-  nhan: TdsxNhanBuoc | null;
-}
-
-/** MỘT ca của ngày đang xem. `id: null` là rổ "Ngoài ca" (LUÔN đứng CUỐI khi không lọc `ca_id`).
- *  `bat_dau_phut`/`ket_thuc_phut`: phút trong ngày (0-1439), `null` cho rổ "Ngoài ca". `qua_nua_dem`
- *  là CỜ nhận diện ca đêm — CẤM dò theo `ten` (Ruling C116: xưởng khác gọi ca đêm là "Ca tối"/
- *  "Ca C"). */
-export interface TdsxCa {
-  id: number | null;
-  ten: string;
-  bat_dau_phut: number | null;
-  ket_thuc_phut: number | null;
-  qua_nua_dem: boolean;
-  viec: TdsxCaViec[];
-}
-
-/** Bốn hành vi của `ca_id` (Ruling C134, task-18b-brief.md) ra BỐN hình dạng KHÁC NHAU của `ca`:
- *  vắng mặt ⇒ mọi ca thật + rổ "Ngoài ca"; id một ca thật ⇒ mảng 1 phần tử đúng ca đó (có thể
- *  `viec: []`); `"ngoai_ca"` ⇒ mảng 1 phần tử đúng rổ "Ngoài ca" (có thể `viec: []`); id lạ/ca đã
- *  xoá ⇒ mảng RỖNG `ca: []` — ba ca đầu KHÁC ca cuối, FE phải nói hai câu khác nhau. */
-export interface TdsxTheoCaOut {
-  ca: TdsxCa[];
-}
-
-/** Tám tham số lọc chung + hai tham số riêng của `/theo-ca`. `ca_id` là CHUỖI ở tầng FE (số dạng
- *  chuỗi để chọn một ca thật, hoặc sentinel `"ngoai_ca"`) — server tự ép kiểu Union tương ứng. */
-export interface TdsxTheoCaParams extends TdsxThanhLocParams {
-  ngay?: string;
-  ca_id?: string;
-}
-
-// --- Gantt tổng thể (Task 18b) -----------------------------------------------------------------
-/** MỘT dòng = MỘT LỆNH (Ruling C118), KHÔNG phải một công việc. `du_kien_bat_dau`/`du_kien_ket_thuc`
- *  CÙNG `null` ⇒ "chưa đủ dữ liệu" — TUYỆT ĐỐI không tự vẽ một thanh bịa (docstring `GanttRowOut`
- *  phía máy chủ). */
-export interface TdsxGanttRow {
+export interface TdsxTheoLenhDong {
   lsx_id: number;
   ma: string;
   ten: string | null;
+  is_rush: boolean;
+  so_luong_dat: number;
+  don_vi_tinh: string | null;
   khach_hang: string | null;
-  /** `date` ⇒ format bằng `ngay()`, KHÔNG `ngayGio()`. */
+  chang: LenhSxChang[];
+  buoc_hien_tai: string | null;
+  khau: LenhSxKhau;
+  khau_chi_tiet: LenhSxKhauChiTiet | null;
+  /** `date` ⇒ `ngay()`. */
   han_hoan_thanh_sx: string | null;
-  du_kien_bat_dau: string | null;
-  du_kien_ket_thuc: string | null;
+  /** Giờ xưởng KHÔNG nhãn múi. */
+  du_kien_xong: string | null;
+  canh_bao: TdsxCoLenh[];
+  /** Chỉ có khi `canh_bao` chứa `tre_han`. */
+  tre_ngay: number | null;
 }
 
-export interface TdsxGanttOut {
-  rows: TdsxGanttRow[];
+export interface TdsxTheoLenhOut {
+  items: TdsxTheoLenhDong[];
+  /** Tổng TRƯỚC khi cắt 200 dòng — lớn hơn `items.length` thì màn phải nói ra. */
   total: number;
-  page: number;
-  page_size: number;
+  bat_thuong: TdsxDemBatThuong;
 }
 
-/** Tám tham số lọc chung + phân trang. KHÔNG có `ca_id` — một dòng Gantt gộp nhiều ca, lọc ở thang
- *  đó vô nghĩa (Ruling C134). */
-export interface TdsxGanttParams extends TdsxThanhLocParams {
-  page?: number;
-  page_size?: number;
+// --- Góc Theo máy (đặc tả 3.3) ---------------------------------------------------------------------
+/** MỘT công việc trên dòng máy. `bai_ma` có khi là việc GHÉP; `lsx` từ hai lệnh trở lên thì giao
+ *  diện bắt chọn, không đoán lấy cái đầu. */
+export interface TdsxViec {
+  cong_viec_id: number;
+  ten_buoc: string | null;
+  trang_thai: string;
+  bai_ma: string | null;
+  lsx: TdsxLsxThamChieu[];
+}
+
+export interface TdsxSanLuongDonVi {
+  don_vi: string | null;
+  tot: number;
+}
+
+/** `tot = null` khi mẻ ghi lẫn đơn vị — khi đó chỉ có `theo_don_vi`, không vẽ thanh, không cộng. */
+export interface TdsxSanLuong {
+  tot: number | null;
+  ke_hoach: number | null;
+  /** MÃ đơn vị ra của bước ⇒ hiện qua `nhanChang`. */
+  don_vi: string | null;
+  theo_don_vi: TdsxSanLuongDonVi[];
+  /** Việc ghép: số là của cả bài in ghép. */
+  ca_bai: boolean;
+}
+
+/** `tinh_trang`: bốn trạng thái máy (`may_dung`, `bao_tri`, `khoa`, `co_phieu_sua`) hoặc
+ *  `dang_chay`, `tam_dung`, `trong`, `cho_xep_may`, `o_nha_gia_cong`, `cho_mang_di`. Nhãn đọc ở
+ *  `nhan_tinh_trang` (dựng ở máy chủ) — FE chỉ chọn màu. */
+export interface TdsxMayDong {
+  /** Duy nhất trong cả bảng: `may:<id>`, `ncc:<tên>`, `cv:<id>`. */
+  khoa: string;
+  may_id: number | null;
+  ten: string | null;
+  ngung_dung: boolean;
+  tinh_trang: string;
+  nhan_tinh_trang: string;
+  dang_chay: TdsxViec | null;
+  /** Số việc chạy cùng lúc NGOÀI việc đầu (dữ liệu bất thường) ⇒ thẻ "+N". */
+  dang_chay_them: number;
+  san_luong: TdsxSanLuong | null;
+  /** Giờ xưởng KHÔNG nhãn múi. */
+  ke_hoach_xong: string | null;
+  /** Chỉ dòng "Chưa có máy": giờ bắt đầu kế hoạch. */
+  ke_hoach_bat_dau: string | null;
+  ke_tiep: TdsxViec[];
+  ke_tiep_them: number;
+}
+
+/** `loai` ∈ `chua_may` / `may` / `may_da_xoa` / `gia_cong`; nhóm `may` mang `ten = loai_may`
+ *  (có thể rỗng ⇒ FE ghi "Chưa phân nhóm"). */
+export interface TdsxNhomMay {
+  loai: string;
+  ten: string;
+  dong: TdsxMayDong[];
+}
+
+export interface TdsxTheoMayOut {
+  nhom: TdsxNhomMay[];
+  /** Máy không việc, tình trạng bình thường — gập vào một dòng cuối bảng. */
+  may_trong: TdsxMayDong[];
+  bat_thuong: TdsxDemBatThuong;
 }
 
 /** 1 dòng trong picker mặt hàng (gộp Giấy + Vật tư khác). KHÔNG có giá. */
@@ -12884,91 +12814,36 @@ export const api = {
   },
 
   // --- Theo dõi sản xuất (module `theo_doi_san_xuat`) — bàn TRA CỨU, không ghi ----------------
-  // Bốn góc nhìn (Kanban · Theo máy · Theo ca · Gantt) trên MỘT thanh lọc chung. Phạm vi dữ liệu
+  // Hai góc nhìn (Theo máy, Theo lệnh) trên MỘT hàng lọc chung. Phạm vi dữ liệu
   // do MÁY CHỦ gắn từ token — không tham số nào cho client tự nới.
   //
   // CẤM gọi `/api/lenh-san-xuat/bo-loc` thay `boLoc` dưới đây: hai endpoint gác HAI ô quyền khác
   // nhau, và repo đã có sẵn vết thương đúng kiểu đó (`LenhSxBoLocOut.boLoc` ở trên).
   theoDoiSanXuat: {
-    /** Khung cột Kanban — DANH MỤC công đoạn + cột "Khác" cố định đứng CUỐI (máy chủ đã sắp).
-     *  Nạp CÙNG NHỊP với `kanban()` (đừng cache riêng): danh mục công đoạn đổi giữa hai lượt gọi
-     *  thì card trỏ vào cột không còn tồn tại và rơi câm vào "Khác". */
-    meta(token: string): Promise<TdsxKanbanMeta> {
-      return authed<TdsxKanbanMeta>("/api/theo-doi-san-xuat/meta", token);
-    },
-    /** Nguồn thanh lọc CHUNG của cả bốn tab — endpoint RIÊNG, gác đúng `theo_doi_san_xuat:read`. */
+    /** Nguồn ô Khách + ô Máy — endpoint RIÊNG, gác đúng `theo_doi_san_xuat:read`. */
     boLoc(token: string): Promise<TdsxBoLocOut> {
       return authed<TdsxBoLocOut>("/api/theo-doi-san-xuat/bo-loc", token);
     },
-    /** MỘT card mỗi lệnh đã phát hành, ĐÃ áp thanh lọc ở máy chủ. Dựng lại literal (thay vì
-     *  `qs(params)` thẳng) — khuôn `danhSach()` ở trên: `params` là một INTERFACE có tên, TS không
-     *  tự suy chữ ký chỉ mục cho nó khi truyền thẳng biến, chỉ literal tươi mới được. */
-    kanban(token: string, params: TdsxThanhLocParams = {}): Promise<TdsxKanbanOut> {
-      return authed<TdsxKanbanOut>(
-        `/api/theo-doi-san-xuat/kanban${qs({
-          q: params.q,
-          khach_hang_id: params.khach_hang_id,
-          may_id: params.may_id,
-          nhom_cong_doan: params.nhom_cong_doan,
-          cong_nhan_id: params.cong_nhan_id,
-          trang_thai_viec: params.trang_thai_viec,
-          uu_tien: params.uu_tien,
-        })}`,
-        token,
-      );
-    },
-    /** MỘT lane mỗi máy CÒN DÙNG (kể cả rỗng) + lane "Chưa xếp máy" — máy chủ sắp "Chưa xếp máy"
-     *  đứng CUỐI; FE (component Theo máy) tự đảo lên ĐẦU (Ruling C129, không sửa ở đây).
-     *
-     *  KHÔNG gửi `tu`/`den`: 17b vẽ "backlog trọn đời" (mọi việc chưa hoàn thành), đúng hành vi
-     *  mặc định của máy chủ khi vắng cửa sổ — cửa sổ ngày là việc của một bản sau nếu cần. */
-    theoMay(token: string, params: TdsxThanhLocParams = {}): Promise<TdsxTheoMayOut> {
+    /** Mỗi máy một dòng, chia nhóm (máy chủ sắp sẵn). Không nhận `may_id`. Dựng lại literal thay vì
+     *  `qs(params)` thẳng: `params` là INTERFACE có tên, TS không tự suy chữ ký chỉ mục cho nó. */
+    theoMay(token: string, params: TdsxLocParams = {}): Promise<TdsxTheoMayOut> {
       return authed<TdsxTheoMayOut>(
         `/api/theo-doi-san-xuat/theo-may${qs({
           q: params.q,
           khach_hang_id: params.khach_hang_id,
-          may_id: params.may_id,
-          nhom_cong_doan: params.nhom_cong_doan,
-          cong_nhan_id: params.cong_nhan_id,
-          trang_thai_viec: params.trang_thai_viec,
-          uu_tien: params.uu_tien,
+          bat_thuong: params.bat_thuong,
         })}`,
         token,
       );
     },
-    /** Công việc theo TỪNG CA của một ngày xưởng (Task 18b). `ngay` vắng mặt ⇒ máy chủ tự lấy "hôm
-     *  nay" theo GIỜ XƯỞNG (không phải giờ UTC của trình duyệt) — FE vẫn nên gửi tường minh để nút
-     *  "Hôm nay"/đổi ngày qua lại có một giá trị chắc chắn để hiện, xem `TdsxTheoCa.tsx`. */
-    theoCa(token: string, params: TdsxTheoCaParams = {}): Promise<TdsxTheoCaOut> {
-      return authed<TdsxTheoCaOut>(
-        `/api/theo-doi-san-xuat/theo-ca${qs({
+    /** Mỗi lệnh còn sống một dòng, tối đa 200 (máy chủ cắt, `total` là số trước khi cắt). */
+    theoLenh(token: string, params: TdsxLocParams = {}): Promise<TdsxTheoLenhOut> {
+      return authed<TdsxTheoLenhOut>(
+        `/api/theo-doi-san-xuat/theo-lenh${qs({
           q: params.q,
           khach_hang_id: params.khach_hang_id,
           may_id: params.may_id,
-          nhom_cong_doan: params.nhom_cong_doan,
-          cong_nhan_id: params.cong_nhan_id,
-          trang_thai_viec: params.trang_thai_viec,
-          uu_tien: params.uu_tien,
-          ngay: params.ngay,
-          ca_id: params.ca_id,
-        })}`,
-        token,
-      );
-    },
-    /** MỘT trang, MỘT dòng mỗi lệnh (Task 18b, Ruling C118). Lọc + đếm `total` + cắt trang đều Ở
-     *  MÁY CHỦ — không `rows.slice`, không `rows.filter`; đổi trang phải gọi lại hàm này. */
-    gantt(token: string, params: TdsxGanttParams = {}): Promise<TdsxGanttOut> {
-      return authed<TdsxGanttOut>(
-        `/api/theo-doi-san-xuat/gantt${qs({
-          q: params.q,
-          khach_hang_id: params.khach_hang_id,
-          may_id: params.may_id,
-          nhom_cong_doan: params.nhom_cong_doan,
-          cong_nhan_id: params.cong_nhan_id,
-          trang_thai_viec: params.trang_thai_viec,
-          uu_tien: params.uu_tien,
-          page: params.page,
-          page_size: params.page_size,
+          bat_thuong: params.bat_thuong,
         })}`,
         token,
       );

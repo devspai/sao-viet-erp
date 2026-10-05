@@ -1,70 +1,169 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+// Góc Theo máy (làm gọn 05/10/2026, đặc tả 3.3): bảng mỗi máy một dòng, nhóm theo thứ máy chủ trả,
+// máy rảnh gập ở cuối, việc ghép bắt chọn lệnh, sản lượng không cộng lẫn đơn vị.
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
-import type { TdsxMayLaneBlock, TdsxTheoMayOut } from "../api/client";
-import { api } from "../api/client";
-import { TdsxTheoMay } from "./TdsxTheoMay";
+import type { TdsxMayDong, TdsxTheoMayOut, TdsxViec } from "../api/client";
+import { TdsxTheoMay, gioXuong } from "./TdsxTheoMay";
 
-/** jsdom không dàn trang: mọi hộp đều 0×0. Dựng lại đúng hình học tab này dùng — thanh lấy
- *  `left`/`width` inline, nhãn đứng ngoài bắt đầu sau mép phải thanh 4px, mỗi ký tự ~7px. */
-function gaiHinhHoc() {
-  return vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
-    const hop = (left: number, width: number) =>
-      ({ left, right: left + width, width, top: 0, bottom: 38, height: 38, x: left, y: 0, toJSON: () => ({}) }) as DOMRect;
-    if (this.classList.contains("tdsx-tm__block")) {
-      return hop(parseFloat(this.style.left), parseFloat(this.style.width));
-    }
-    if (this.classList.contains("tdsx-tm__nhan--ngoai")) {
-      const thanh = this.closest<HTMLElement>(".tdsx-tm__block")!;
-      return hop(parseFloat(thanh.style.left) + parseFloat(thanh.style.width) + 4, (this.textContent ?? "").length * 7);
-    }
-    return hop(0, 0);
-  });
+const DEM = { tre_han: 0, su_co: 0, tam_dung: 0, kcs_khong_dat: 0, may_hong: 0, chua_may: 1 };
+
+/** Giờ xưởng KHÔNG nhãn múi, đúng dạng máy chủ gửi — dựng theo NGÀY HÔM NAY của máy chạy test. */
+function homNay(gio: string): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${gio}:00`;
 }
 
-function khoi(id: number, ma: string, bd: string, kt: string): TdsxMayLaneBlock {
+function viec(id: number, ma: string, extra: Partial<TdsxViec> = {}): TdsxViec {
   return {
-    cong_viec_id: id, ten: "In", trang_thai: "released", lsx: [{ lsx_id: id, ma } as TdsxMayLaneBlock["lsx"][number]],
-    du_kien_bat_dau: bd, du_kien_ket_thuc: kt, nguoi: [], nhan: null,
+    cong_viec_id: id, ten_buoc: "In", trang_thai: "running", bai_ma: null,
+    lsx: [{ lsx_id: id, ma, ten: `Hộp ${id}`, is_rush: false }],
+    ...extra,
   };
 }
 
-describe("TdsxTheoMay — nhãn đứng ngoài thanh hẹp", () => {
-  let gai: ReturnType<typeof gaiHinhHoc>;
-  beforeEach(() => {
-    gai = gaiHinhHoc();
-  });
-  afterEach(() => {
-    gai.mockRestore();
-    vi.restoreAllMocks();
-  });
+function dong(khoa: string, extra: Partial<TdsxMayDong> = {}): TdsxMayDong {
+  return {
+    khoa, may_id: null, ten: null, ngung_dung: false, tinh_trang: "trong", nhan_tinh_trang: "Đang trống",
+    dang_chay: null, dang_chay_them: 0, san_luong: null, ke_hoach_xong: null, ke_hoach_bat_dau: null,
+    ke_tiep: [], ke_tiep_them: 0,
+    ...extra,
+  };
+}
 
-  it("ẩn nhãn sẽ lấn lên thanh kế bên, giữ nhãn còn chỗ", async () => {
-    // Dải > 30 giờ ⇒ 14px/giờ: việc 2 giờ = 28px, hẹp ⇒ nhãn ra ngoài. Ba việc nối đuôi nhau (máy
-    // chạy liền tay), một việc đứng riêng hai ngày sau.
-    const du: TdsxTheoMayOut = {
-      lanes: [
-        {
-          may_id: 1, ten: "Máy in 4 màu", ngung_dung: false,
-          blocks: [
-            khoi(11, "LSX26-0011", "2026-09-17T06:00:00Z", "2026-09-17T08:00:00Z"),
-            khoi(12, "LSX26-0012", "2026-09-17T08:00:00Z", "2026-09-17T10:00:00Z"),
-            khoi(13, "LSX26-0013", "2026-09-17T10:00:00Z", "2026-09-17T12:00:00Z"),
-            khoi(14, "LSX26-0014", "2026-09-19T06:00:00Z", "2026-09-19T08:00:00Z"),
-          ],
-        },
+const DATA: TdsxTheoMayOut = {
+  nhom: [
+    {
+      loai: "chua_may", ten: "Chưa có máy",
+      dong: [dong("cv:90", {
+        tinh_trang: "cho_xep_may", nhan_tinh_trang: "Chờ xếp máy",
+        dang_chay: viec(90, "LSX26-0090", { trang_thai: "released", ten_buoc: "Bế" }),
+        ke_hoach_bat_dau: homNay("14:30"),
+      })],
+    },
+    {
+      loai: "may", ten: "Máy in",
+      dong: [
+        dong("may:1", {
+          may_id: 1, ten: "Máy in A", tinh_trang: "dang_chay", nhan_tinh_trang: "Đang chạy",
+          dang_chay: viec(31, "LSX26-0031", { lsx: [{ lsx_id: 31, ma: "LSX26-0031", ten: "Hộp thuốc", is_rush: true }] }),
+          san_luong: { tot: 480, ke_hoach: 1000, don_vi: "to", theo_don_vi: [], ca_bai: false },
+          ke_hoach_xong: homNay("16:05"),
+          ke_tiep: [viec(12, "LSX26-0012", { trang_thai: "released" }), viec(13, "LSX26-0013", { trang_thai: "released" })],
+          ke_tiep_them: 2,
+        }),
+        dong("may:2", {
+          may_id: 2, ten: "Máy in B", ngung_dung: true, tinh_trang: "may_dung", nhan_tinh_trang: "Hỏng — chờ sửa",
+          dang_chay: viec(0, "", {
+            trang_thai: "paused", bai_ma: "GB26-0002",
+            lsx: [
+              { lsx_id: 41, ma: "LSX26-0041", ten: "Tem A", is_rush: false },
+              { lsx_id: 42, ma: "LSX26-0042", ten: "Tem B", is_rush: false },
+              { lsx_id: 43, ma: "LSX26-0043", ten: "Tem C", is_rush: false },
+            ],
+          }),
+          san_luong: {
+            tot: null, ke_hoach: 500, don_vi: "to",
+            theo_don_vi: [{ don_vi: "to", tot: 200 }, { don_vi: "kem", tot: 4 }], ca_bai: true,
+          },
+        }),
       ],
-    };
-    vi.spyOn(api.theoDoiSanXuat, "theoMay").mockResolvedValue(du);
+    },
+    { loai: "may", ten: "", dong: [dong("may:5", { may_id: 5, ten: "Máy lẻ", tinh_trang: "bao_tri", nhan_tinh_trang: "Đang bảo trì" })] },
+  ],
+  may_trong: [dong("may:7", { may_id: 7, ten: "Máy cắt 1" }), dong("may:8", { may_id: 8, ten: "Máy cắt 2" })],
+  bat_thuong: DEM,
+};
 
-    render(
-      <TdsxTheoMay active token="t" params={{}} refreshTick={0} onOpenHoSo={() => {}} onXoaLoc={() => {}} khay={null} />,
-    );
+function ve(data: TdsxTheoMayOut | null = DATA, onMo = vi.fn()) {
+  render(<TdsxTheoMay data={data} dangTai={false} rong={<p>RỖNG</p>} onMo={onMo} />);
+  return onMo;
+}
 
-    const nhan = async (ma: string) => (await screen.findByText(ma, { selector: ".tdsx-tm__nhan--ngoai" })).classList;
-    expect(await nhan("LSX26-0011")).toContain("is-che");
-    expect(await nhan("LSX26-0012")).toContain("is-che");
-    expect(await nhan("LSX26-0013")).not.toContain("is-che");
-    expect(await nhan("LSX26-0014")).not.toContain("is-che");
+describe("TdsxTheoMay · bảng theo máy", () => {
+  it("⭐ nhóm theo đúng thứ máy chủ trả, nhóm tên rỗng ghi 'Chưa phân nhóm', có số đếm", () => {
+    ve();
+    const nhom = [...document.querySelectorAll(".lsc-bang__nhom td")].map((t) => t.textContent);
+    expect(nhom).toEqual(["Chưa có máy1 bước", "Máy in2 máy", "Chưa phân nhóm1 máy"]);
+  });
+
+  it("⭐ dòng Chưa có máy: cột Máy '–', Chờ xếp máy, giờ bắt đầu kế hoạch", () => {
+    ve();
+    const tr = screen.getByText("Chờ xếp máy").closest("tr")!;
+    expect(tr.querySelector("td")!.textContent).toBe("–");
+    expect(within(tr).getByText("bắt đầu 14:30 hôm nay")).toBeInTheDocument();
+    expect(within(tr).getByText("Bế")).toBeInTheDocument();
+  });
+
+  it("⭐ việc thường: mã lệnh + GẤP + bước + sản phẩm; sản lượng 'x trên y' có thanh; giờ hôm nay", async () => {
+    const onMo = ve();
+    const tr = screen.getByText("Máy in A").closest("tr")!;
+    expect(within(tr).getByText("GẤP")).toBeInTheDocument();
+    expect(within(tr).getByText("Hộp thuốc")).toBeInTheDocument();
+    expect(within(tr).getByText(/^480 trên 1\.000/)).toBeInTheDocument();
+    expect(within(tr).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "48");
+    expect(within(tr).getByText("16:05 hôm nay")).toBeInTheDocument();
+    await userEvent.click(within(tr).getByRole("button", { name: /Mở hồ sơ lệnh LSX26-0031/ }));
+    expect(onMo).toHaveBeenCalledWith(31);
+  });
+
+  it("⭐ kế tiếp: thẻ 4 số cuối, '+N', bấm mở đúng lệnh", async () => {
+    const onMo = ve();
+    const tr = screen.getByText("Máy in A").closest("tr")!;
+    expect(within(tr).getByText("+2")).toBeInTheDocument();
+    await userEvent.click(within(tr).getByRole("button", { name: /LSX26-0013/ }));
+    expect(onMo).toHaveBeenCalledWith(13);
+    expect(within(tr).getByText("0012")).toHaveAttribute("title", "In, Hộp 12");
+  });
+
+  it("⭐ việc ghép: 'Bài <mã>' + 'N lệnh', bấm thì bắt CHỌN lệnh, không đoán", async () => {
+    const onMo = ve();
+    const tr = screen.getByText("Máy in B").closest("tr")!;
+    expect(within(tr).getByText("Ngừng dùng")).toBeInTheDocument();
+    expect(within(tr).getByText("3 lệnh")).toBeInTheDocument();
+    await userEvent.click(within(tr).getByRole("button", { name: /Bài ghép GB26-0002/ }));
+    expect(onMo).not.toHaveBeenCalled();
+    const hop = screen.getByRole("dialog", { name: "Chọn lệnh để mở hồ sơ" });
+    expect(hop.textContent).toContain("Bài ghép này phục vụ 3 lệnh");
+    await userEvent.click(within(hop).getByText("LSX26-0042"));
+    expect(onMo).toHaveBeenCalledWith(42);
+  });
+
+  it("⭐ mẻ lẫn đơn vị: mỗi đơn vị một dòng, KHÔNG thanh, KHÔNG cộng; ghép ghi '(cả bài)'", () => {
+    ve();
+    const tr = screen.getByText("Máy in B").closest("tr")!;
+    expect(within(tr).getByText(/^200 /)).toBeInTheDocument();
+    expect(within(tr).getByText(/^4 /)).toBeInTheDocument();
+    expect(within(tr).queryByRole("progressbar")).toBeNull();
+    expect(tr.textContent).not.toContain("204");
+    expect(within(tr).getByText("(cả bài)")).toBeInTheDocument();
+    expect(within(tr).getByText("Hỏng — chờ sửa").className).toContain("lsc-pill--signal");
+  });
+
+  it("⭐ máy rảnh gập ở cuối: '2 máy đang trống', bấm mới hiện", async () => {
+    ve();
+    const nut = screen.getByRole("button", { name: "2 máy đang trống" });
+    expect(nut).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Máy cắt 1")).toBeNull();
+    await userEvent.click(nut);
+    expect(nut).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Máy cắt 1")).toBeInTheDocument();
+  });
+
+  it("chưa có lượt nào ⇒ khung xám; rỗng ⇒ ô báo của trang", () => {
+    const { unmount } = render(<TdsxTheoMay data={null} dangTai rong={<p>RỖNG</p>} onMo={() => {}} />);
+    expect(document.querySelector(".khsx-skel")).not.toBeNull();
+    unmount();
+    ve({ nhom: [], may_trong: [], bat_thuong: DEM });
+    expect(screen.getByText("RỖNG")).toBeInTheDocument();
+  });
+
+  it("gioXuong: trong ngày 'HH:MM hôm nay', khác ngày kèm dd/mm, rỗng '–'", () => {
+    const bayGio = new Date(2026, 9, 5, 9, 0);
+    expect(gioXuong("2026-10-05T14:30:00", bayGio)).toBe("14:30 hôm nay");
+    expect(gioXuong("2026-10-06T07:05:00", bayGio)).toBe("07:05 06/10");
+    expect(gioXuong(null, bayGio)).toBe("–");
   });
 });

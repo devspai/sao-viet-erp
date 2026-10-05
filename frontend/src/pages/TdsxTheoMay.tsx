@@ -1,496 +1,316 @@
-// Tab THEO MÁY của màn "Theo dõi sản xuất" (Task 17b, Bước 4) — mini-Gantt theo lane máy.
+// Góc "Theo máy" của màn Theo dõi sản xuất (làm gọn 05/10/2026, đặc tả 3.3): MỘT bảng, mỗi máy một
+// dòng, chia nhóm đúng như máy chủ trả (Chưa có máy → từng nhóm máy theo danh mục → máy không còn
+// trong danh mục → Gia công ngoài). Máy rảnh gập vào một dòng cuối bảng.
 //
-// Khối trong lane = MỘT CÔNG VIỆC, có thể phục vụ NHIỀU lệnh (`block.lsx`, khác hẳn card Kanban
-// vốn neo cứng một lệnh). Ràng buộc C123 (chủ dự án đã đọc và duyệt): bấm khối có ĐÚNG 1 lệnh thì
-// mở thẳng hồ sơ; TỪ 2 lệnh trở lên thì BẮT BUỘC bày danh sách cho người dùng chọn, CẤM đoán lấy
-// lệnh đầu tiên.
-//
-// C129: lane "Chưa xếp máy" (`may_id === null`) đặt ĐẦU danh sách — ngược với thứ tự máy chủ trả
-// (`_khoa_lane_may` xếp nó CUỐI, xem `bang_theo_doi.py`), vì đây là hộp việc-cần-làm của điều độ,
-// không phải rổ hứng dữ liệu lọt lưới như cột "Khác" của Kanban. Sắp lại HOÀN TOÀN ở phía client,
-// không đổi gì ở phần còn lại của thứ tự máy chủ trả.
-//
-// C124 — CHỈ vẽ mốc KẾ HOẠCH (`du_kien_bat_dau`/`du_kien_ket_thuc`); vế THỰC TẾ chưa có ở API này.
-// "Chừa khung": viền ngoài khối = 100% khung KẾ HOẠCH, bên trong trừ ra một dải `--tdsx-tm-inner`
-// (4px hai mép, đúng biến `inner` mà `Xl2Gantt.tsx:779-800` dùng) làm vùng lõi. Task 17b để vùng
-// lõi TRỐNG (chỉ tô phẳng theo trạng thái) — khi có vế thực tế, chỉ cần thêm MỘT `<span>` con tô
-// dải `--moss` từ mép trái vùng lõi rộng theo `%` tiến độ (đúng khuôn "lớp thực tế đè lên, không vẽ
-// lại" đã chạy ở `Xl2Gantt`/`ThucHienSxPage`) — không phải sửa cấu trúc DOM/CSS của khối.
-// (`Xl2Gantt.tsx` đã xoá 18/09/2026 cùng bàn Xếp lịch theo công đoạn; con số 4px và khuôn "lớp
-// thực tế đè lên" vẫn là quy ước đang dùng, chỉ là không còn file để mở đối chiếu.)
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
+// ĐỌC, KHÔNG TÍNH LẠI: tình trạng, nhãn, nhóm, thứ tự đều do máy chủ dựng. Chỗ duy nhất FE quyết là
+// màu pill và cách viết giờ ("14:30 hôm nay").
+import { useState, type MouseEvent, type ReactNode } from "react";
 
-import { ApiError, api } from "../api/client";
-import type { TdsxLsxThamChieu, TdsxMayLane, TdsxMayLaneBlock, TdsxThanhLocParams } from "../api/client";
-import { Button } from "../components/Button";
-import { nhanTomTat } from "../components/ChipBuoc";
+import type { TdsxLsxThamChieu, TdsxMayDong, TdsxSanLuong, TdsxTheoMayOut, TdsxViec } from "../api/client";
 import { Icon } from "../components/Icons";
-import { EmptyState } from "./keHoachSxShared";
-import { TDSX_TT_META, tdsxTtMeta } from "./TdsxKanban";
+import { Skeleton } from "./keHoachSxShared";
+import { nhanChang } from "./lsxBuoc";
+import { so } from "./lsxHoSoChung";
+import { TheGap } from "./lsxKhau";
 import { ChonLenhPopover, useChonLenh } from "./tdsxChonLenh";
-import { useCotNhanW, useTdsxTimeline, NGUONG_DAI_GIO, type TdsxTimelineMoc } from "./tdsxTimeline";
 
-/** Block hẹp hơn mức này (px) thì rút nhãn chỉ còn mã lệnh — đúng cách `Xl2Gantt` rút gọn theo
- *  `isWide`/`isMedium`, không đẻ quy ước mới. */
-const BLOCK_HEP_PX = 90;
-/** Dưới mức này thì trong lòng thanh không còn chỗ cho cả dấu gọn (🚚 / 🔧) — nhãn đã ra ngoài
- *  từ mốc `BLOCK_HEP_PX` rồi, mốc này chỉ còn quyết định hai cái dấu đó. */
-const BLOCK_RAT_HEP_PX = 44;
-const BLOCK_TOI_THIEU_PX = 20;
+const SO_COT = 6;
+
+/** Màu theo `tinh_trang`. Đỏ: máy hỏng, việc tạm dừng. Vàng: máy cần điều độ để ý hoặc việc chờ
+ *  xếp. Xám thép: đang chạy, đang ở nhà gia công. Khoá lạ ⇒ xám nhạt. */
+const MAU_TINH_TRANG: Record<string, string> = {
+  may_dung: "lsc-pill--signal",
+  tam_dung: "lsc-pill--signal",
+  bao_tri: "lsc-pill--amber",
+  khoa: "lsc-pill--amber",
+  co_phieu_sua: "lsc-pill--amber",
+  cho_xep_may: "lsc-pill--amber",
+  dang_chay: "lsc-pill--steel",
+  o_nha_gia_cong: "lsc-pill--steel",
+  trong: "lsc-pill--off",
+  cho_mang_di: "lsc-pill--off",
+};
+
+/** Đếm dòng của một nhóm theo đúng thứ nhóm chứa. */
+function demNhom(loai: string, n: number): string {
+  if (loai === "chua_may") return `${n} bước`;
+  if (loai === "gia_cong") return `${n} nhà gia công`;
+  return `${n} máy`;
+}
+
+/** Giờ xưởng (máy chủ gửi không nhãn múi ⇒ trình duyệt đọc theo giờ máy, cũng là giờ xưởng).
+ *  Trong ngày: "14:30 hôm nay"; khác ngày: "14:30 06/10". Hỏng/rỗng ⇒ "–". */
+export function gioXuong(v: string | null | undefined, bayGio: Date = new Date()): string {
+  if (!v) return "–";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "–";
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const cungNgay =
+    d.getFullYear() === bayGio.getFullYear() &&
+    d.getMonth() === bayGio.getMonth() &&
+    d.getDate() === bayGio.getDate();
+  if (cungNgay) return `${hm} hôm nay`;
+  return `${hm} ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 export function TdsxTheoMay({
-  active,
-  token,
-  params,
-  refreshTick,
-  onOpenHoSo,
-  onXoaLoc,
-  khay,
+  data,
+  dangTai,
+  rong,
+  onMo,
 }: {
-  active: boolean;
-  token: string | null;
-  params: TdsxThanhLocParams;
-  refreshTick: number;
-  onOpenHoSo: (lsxId: number) => void;
-  onXoaLoc: () => void;
-  /** Khay điều khiển trên dải tab — xem ghi chú cùng tên ở `TdsxKanban`. */
-  khay: HTMLElement | null;
+  /** `null` = chưa có lượt nào về ⇒ khung xám. */
+  data: TdsxTheoMayOut | null;
+  /** Đang tải lại (realtime/đổi lọc) ⇒ giữ nội dung cũ, làm mờ. */
+  dangTai: boolean;
+  /** Ô báo khi bảng không có dòng nào — trang quyết câu chữ (lỗi, lọc rỗng, chưa có gì). */
+  rong: ReactNode;
+  onMo: (lsxId: number) => void;
 }) {
-  const [lanes, setLanes] = useState<TdsxMayLane[]>([]);
-  /** Máy KHÔNG có việc nào mặc định gập lại. Đo thật: 37/43 lane trống, mỗi lane cao 56px ⇒ 2072px
-   *  cuộn dọc toàn dòng rỗng, việc thật nằm lẫn đâu đó giữa. Bảng kế hoạch là để thấy chỗ tắc và
-   *  chỗ còn chỗ nhét việc, không phải để liệt kê tài sản. */
-  const [hienTrong, setHienTrong] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [daTai, setDaTai] = useState(false);
-  const [loi, setLoi] = useState<{ text: string; cam: boolean } | null>(null);
+  const [moTrong, setMoTrong] = useState(false);
+  const [chon, moChon, dongChon] = useChonLenh();
 
-  const load = useCallback(() => {
-    if (!token) return;
-    setLoading(true);
-    api.theoDoiSanXuat
-      .theoMay(token, params)
-      .then((r) => {
-        setLanes(r.lanes);
-        setLoi(null);
-        setDaTai(true);
-      })
-      .catch((e) => {
-        const cam = e instanceof ApiError && e.isForbidden;
-        setLoi({
-          text: cam
-            ? "Bạn không có quyền xem Theo dõi sản xuất."
-            : "Không tải được bảng Theo dõi sản xuất. Kiểm tra mạng rồi thử lại.",
-          cam,
-        });
-      })
-      .finally(() => setLoading(false));
-  }, [token, params]);
-
-  useEffect(() => {
-    if (!active) return;
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, load, refreshTick]);
-
-  // Ba nhóm, theo mức cần nhìn tới: (1) rổ "Chưa xếp máy" — việc điều độ phải xử (C129 giữ nguyên
-  // ở đầu); (2) máy CÓ việc, trong đó máy đang CHẠY lên trước máy chỉ có việc chờ/tạm dừng; (3) máy
-  // trống, gập lại. Trong mỗi nhóm giữ NGUYÊN thứ tự máy chủ trả (thứ tự danh mục máy) — lane chỉ
-  // đổi chỗ khi máy đó thật sự bắt đầu/kết thúc việc, không nhảy lung tung mỗi lượt vẽ.
-  const { lanesHien, soTrong } = useMemo(() => {
-    const chuaXep = lanes.filter((l) => l.may_id === null);
-    const may = lanes.filter((l) => l.may_id !== null);
-    const coViec = may.filter((l) => l.blocks.length > 0);
-    const dangChay = coViec.filter((l) => l.blocks.some((b) => b.trang_thai === "running"));
-    const coViecKhac = coViec.filter((l) => !l.blocks.some((b) => b.trang_thai === "running"));
-    const trong = may.filter((l) => l.blocks.length === 0);
-    return {
-      lanesHien: [...chuaXep, ...dangChay, ...coViecKhac, ...(hienTrong ? trong : [])],
-      soTrong: trong.length,
-    };
-  }, [lanes, hienTrong]);
-  // Trục thời gian phải tính trên MỌI lane, kể cả lane đang gập — không thì bấm "hiện" một cái là
-  // cả miền thời gian nhảy.
-  const lanesXep = lanes;
-
-  const mocs = useMemo<TdsxTimelineMoc[]>(
-    () =>
-      lanesXep.flatMap((l) => l.blocks.map((b) => ({ batDau: b.du_kien_bat_dau, ketThuc: b.du_kien_ket_thuc }))),
-    [lanesXep],
-  );
-  const { domain, spanGio, pxPerGio, trackWidth, ticks, monthGroups, luoiDoc, xOf, nowX, hasNowLine, dateRangeLabel } =
-    useTdsxTimeline(mocs);
-
-  const [picker, moPicker, dongPicker] = useChonLenh();
-  /** Cột tên máy (sticky trái): 240px, co về 120px ở màn ≤480px — cùng một hook với tab Gantt. */
-  const labelW = useCotNhanW();
-
-  const boCoViec = lanesXep.some((l) => l.blocks.length > 0);
-  const dangLoc = Object.values(params).some((v) => v !== undefined);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  return (
-    <div className="tdsx-tm" aria-label="Mini-Gantt theo máy" role="group">
-      {/* Thanh điều khiển lên dải tab. Hai chip đã bỏ: "Lưu ý kế hoạch" (câu giải thích dài, nay là
-          `title` của chính ô góc bảng — chỗ nó nói về) và "Thu phóng: Giờ/Ngày" (suy được từ nhãn
-          trục ngay bên dưới, nay là `title` của dải ngày). */}
-      {active &&
-        khay &&
-        createPortal(
-          <>
-            {daTai && (
-              <span className="tdsx-lg" aria-hidden="true">
-                {(Object.keys(TDSX_TT_META) as (keyof typeof TDSX_TT_META)[]).map((k) => (
-                  <span key={k} className={`tdsx-lg__item tdsx-lg__item--${k}`}>
-                    <i /> {TDSX_TT_META[k].label}
-                  </span>
-                ))}
-              </span>
-            )}
-            <span
-              className="tdsx__ctlnote"
-              title={spanGio <= NGUONG_DAI_GIO ? "Lưới trục chia theo giờ" : "Lưới trục chia theo ngày"}
-            >
-              {dateRangeLabel}
-            </span>
-            {hasNowLine && (
-              <button
-                type="button"
-                className="hslsx__linkbtn"
-                onClick={() => scrollRef.current?.scrollTo({ left: Math.max(0, nowX - 250), behavior: "smooth" })}
-                title="Cuộn tới vạch thời gian hiện tại"
-              >
-                Đến hôm nay
-              </button>
-            )}
-          </>,
-          khay,
-        )}
-
-      {loi && (
-        <EmptyState
-          icon="alert"
-          title={loi.text}
-          action={
-            loi.cam ? undefined : (
-              <Button variant="ghost" onClick={load}>
-                Tải lại
-              </Button>
-            )
-          }
-        />
-      )}
-
-      {!loi && daTai && !loading && !boCoViec && (
-        <div className="tdsx-tm__rong">
-          {dangLoc ? (
-            <EmptyState
-              icon="search"
-              title="Không có việc nào khớp bộ lọc."
-              sub="Thử bỏ bớt điều kiện lọc ở thanh phía trên."
-              action={
-                <Button variant="ghost" onClick={onXoaLoc}>
-                  Xóa bộ lọc
-                </Button>
-              }
-            />
-          ) : (
-            <EmptyState icon="clipboard" title="Chưa có lệnh sản xuất nào đang chạy trong phạm vi của bạn." />
-          )}
-        </div>
-      )}
-
-      {!loi && (!daTai || boCoViec || lanesXep.length === 0) && (
-        <div className="tdsx-tm__scroll" ref={scrollRef}>
-          <div
-            className={`tdsx-tm__grid${loading && daTai ? " is-mo" : ""}`}
-            style={{ gridTemplateColumns: `${labelW}px ${trackWidth}px`, "--tdsx-cot-nhan-w": `${labelW}px`, ...luoiDoc } as CSSProperties}
-          >
-            <div
-              className="tdsx-tm__corner"
-              title="Thanh vẽ KẾ HOẠCH của công việc đang gán trên máy — không phải khoảng máy này thật sự bận. Sau khi đổi máy, việc nằm trọn ở lane máy hiện tại."
-            >
-              <span className="tdsx-tm__corner-head">Máy</span>
-            </div>
-            <div className="tdsx-tm__axis" style={{ width: trackWidth }}>
-              <div className="tdsx-tm__axis-top">
-                {monthGroups.map((g, i) => (
-                  <span key={i} className="tdsx-tm__month-bar" style={{ left: g.left, width: g.width }}>
-                    <span className="tdsx-tm__month-chu">{g.label}</span>
-                  </span>
-                ))}
-              </div>
-              <div className="tdsx-tm__axis-bot">
-                {ticks.map((t) => (
-                  <span
-                    key={t.t}
-                    className={`tdsx-tm__tick${t.dam ? " is-dam" : ""}${t.isToday ? " is-today" : ""}`}
-                    style={{ left: ((t.t - domain.start) / 3_600_000) * pxPerGio }}
-                  >
-                    {t.nhan}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {hasNowLine && (
-              <div className="tdsx-tm__now-line" style={{ left: labelW + nowX }} title="Thời gian hiện tại">
-                <span className="tdsx-tm__now-badge">bây giờ</span>
-              </div>
-            )}
-
-            {!daTai
-              ? Array.from({ length: 3 }).map((_, i) => (
-                  <FragmentSkeleton key={i} trackWidth={trackWidth} />
-                ))
-              : lanesHien.map((lane, i) => (
-                  <Lane
-                    key={lane.may_id ?? "chua-xep"}
-                    lane={lane}
-                    soc={i % 2 === 1}
-                    trackWidth={trackWidth}
-                    xOf={xOf}
-                    onOpenHoSo={onOpenHoSo}
-                    onChon={moPicker}
-                  />
-                ))}
-
-            {daTai && soTrong > 0 && (
-              <div className="tdsx-tm__foldrow">
-                <button type="button" className="tdsx-tm__fold" onClick={() => setHienTrong((v) => !v)}>
-                  <Icon name="chevron" size={12} />
-                  {hienTrong ? `Ẩn ${soTrong} máy đang trống` : `${soTrong} máy đang trống`}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {picker && (
-        <ChonLenhPopover state={picker} onDong={dongPicker} onChon={onOpenHoSo} nhan="Khối" />
-      )}
-    </div>
-  );
-}
-
-function FragmentSkeleton({ trackWidth }: { trackWidth: number }) {
-  return (
-    <>
-      <div className="tdsx-tm__label">
-        <span className="khsx-skel__bar" style={{ width: 90 }} />
-      </div>
-      <div className="tdsx-tm__track" style={{ width: trackWidth }}>
-        <span className="khsx-skel__bar" style={{ width: 160, margin: "18px 0 0 24px" }} />
-      </div>
-    </>
-  );
-}
-
-function Lane({
-  lane,
-  soc,
-  trackWidth,
-  xOf,
-  onOpenHoSo,
-  onChon,
-}: {
-  lane: TdsxMayLane;
-  /** Lane ở vị trí LẺ — tô vằn để mắt lần được từ tên máy ở mép trái sang thanh việc cách đó cả
-   *  nghìn pixel. 43 lane trắng bong xếp chồng nhau chính là thứ làm tab này trông như tờ giấy. */
-  soc: boolean;
-  trackWidth: number;
-  xOf: (iso: string) => number;
-  onOpenHoSo: (lsxId: number) => void;
-  onChon: (ds: TdsxLsxThamChieu[], x: number, y: number) => void;
-}) {
-  const rong = lane.blocks.length === 0;
-  const isChuaXep = lane.may_id === null;
-
-  // Nhãn đứng ngoài của thanh hẹp chiếm khoảng trống TỚI thanh kế bên. Lane dày (việc nối đuôi
-  // nhau, mỗi việc vài giờ trên thang 14px/giờ) thì thanh kế bên vẽ SAU nên che mất nửa mã, còn trơ
-  // "LSX26-00" — đúng khuôn lỗi ⓓ. Đo thật sau khi vẽ: nhãn nào lấn sang một thanh khác thì ẩn hẳn
-  // (mã vẫn ở `title`, bấm vẫn mở đúng lệnh). Ẩn bằng `visibility` để lượt đo sau vẫn lấy được bề
-  // rộng chữ; đo lại khi phông tải xong vì chữ phông dự phòng hẹp hơn.
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const [nhanBiChe, setNhanBiChe] = useState<ReadonlySet<number>>(() => new Set());
-  useLayoutEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
-    const doLai = () => {
-      const khoi = Array.from(track.children)
-        .filter((el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("tdsx-tm__block"))
-        .map((el) => ({
-          id: Number(el.dataset.cv),
-          r: el.getBoundingClientRect(),
-          nhan: el.querySelector(".tdsx-tm__nhan--ngoai")?.getBoundingClientRect() ?? null,
-        }));
-      const che = new Set<number>();
-      for (const k of khoi) {
-        const nhan = k.nhan;
-        if (nhan && khoi.some((o) => o !== k && o.r.left < nhan.right && o.r.right > nhan.left)) che.add(k.id);
-      }
-      setNhanBiChe((cu) => (cu.size === che.size && [...che].every((id) => cu.has(id)) ? cu : che));
-    };
-    doLai();
-    let conSong = true;
-    document.fonts?.ready.then(() => {
-      if (conSong) doLai();
-    });
-    return () => {
-      conSong = false;
-    };
-  }, [lane.blocks, xOf]);
-
-  return (
-    <>
-      <div
-        className={`tdsx-tm__label${soc ? " is-soc" : ""}${lane.ngung_dung ? " is-ngung" : ""}${isChuaXep ? " is-chua-xep" : ""}`}
-      >
-        {isChuaXep ? (
-          <span className="tdsx-tm__unassigned-tag">Chưa xếp máy</span>
-        ) : (
-          <>
-            <span className="tdsx-tm__labelten" title={lane.ten}>
-              {lane.ten}
-            </span>
-            {lane.ngung_dung && <span className="tdsx-tm__labeltag">Ngừng dùng</span>}
-          </>
-        )}
-      </div>
-      <div
-        className={`tdsx-tm__track${soc ? " is-soc" : ""}${lane.ngung_dung ? " is-ngung" : ""}${isChuaXep ? " is-chua-xep" : ""}`}
-        style={{ width: trackWidth }}
-        ref={trackRef}
-      >
-        {rong &&
-          (lane.ngung_dung ? (
-            <span className="tdsx-tm__trongchu">Máy đã ngừng dùng</span>
-          ) : isChuaXep ? (
-            <span className="tdsx-tm__trongchu">Không có việc nào đang chờ xếp máy</span>
-          ) : (
-            // Chữ xám nhạt, không huy hiệu. Trước đây mỗi lane trống đeo một viên xanh lá "Máy đang
-            // trống — sẵn sàng nhận việc": đo thật 37 viên trên một màn có đúng 2 việc thật.
-            <span className="tdsx-tm__trongchu">Trống</span>
-          ))}
-        {lane.blocks.map((b) => (
-          <Khoi
-            key={b.cong_viec_id}
-            block={b}
-            ngungDung={lane.ngung_dung}
-            nhanBiChe={nhanBiChe.has(b.cong_viec_id)}
-            xOf={xOf}
-            onOpenHoSo={onOpenHoSo}
-            onChon={onChon}
-          />
-        ))}
-      </div>
-    </>
-  );
-}
-
-function Khoi({
-  block,
-  ngungDung,
-  nhanBiChe,
-  xOf,
-  onOpenHoSo,
-  onChon,
-}: {
-  block: TdsxMayLaneBlock;
-  ngungDung: boolean;
-  /** Nhãn đứng ngoài sẽ lấn lên một thanh khác — `Lane` đo rồi báo xuống. */
-  nhanBiChe: boolean;
-  xOf: (iso: string) => number;
-  onOpenHoSo: (lsxId: number) => void;
-  onChon: (ds: TdsxLsxThamChieu[], x: number, y: number) => void;
-}) {
-  // Cả hai mốc đều CÓ THỂ vắng (schema khai `datetime | None`) — xưởng thật gần như luôn khai đủ
-  // vì Xếp lịch 2 mới gán được máy, nhưng phòng ca hiếm khai thiếu: kẹp về mép trái của khối liền
-  // trước / +1 giờ, thà vẽ lệch còn hơn một khối biến mất khỏi lane không lời giải thích.
-  const batDau = block.du_kien_bat_dau ?? block.du_kien_ket_thuc ?? null;
-  const ketThuc = block.du_kien_ket_thuc ?? (batDau ? new Date(new Date(batDau).getTime() + 3_600_000).toISOString() : null);
-  if (!batDau || !ketThuc) return null;
-
-  const left = xOf(batDau);
-  const width = Math.max(BLOCK_TOI_THIEU_PX, xOf(ketThuc) - left);
-  const hep = width < BLOCK_HEP_PX;
-  const ratHep = width < BLOCK_RAT_HEP_PX;
-  const meta = tdsxTtMeta(block.trang_thai);
-  // Nhãn của bước trên thanh HẸP: thanh Gantt không đủ bề ngang cho chip thật, nên dùng hai dấu
-  // gọn (xe = thuê ngoài, cờ-lê = có khuôn) và nói đủ chữ ở `title`. Nhãn vẫn KHÔNG được biến mất
-  // ở màn này — đó đúng là chỗ nó từng đứt.
-  const tomTat = nhanTomTat(block.nhan);
-  const nhieuLenh = block.lsx.length >= 2;
-  const maChinh = block.lsx[0]?.ma ?? "—";
-
-  function bam(e: React.MouseEvent<HTMLButtonElement>) {
-    if (ngungDung || block.lsx.length === 0) return;
-    if (block.lsx.length === 1) {
-      onOpenHoSo(block.lsx[0].lsx_id);
+  /** Một việc phục vụ một lệnh ⇒ mở thẳng; từ hai lệnh ⇒ bật bảng chọn, không đoán. */
+  function bam(ds: TdsxLsxThamChieu[], e: MouseEvent<HTMLButtonElement>) {
+    if (ds.length === 1) {
+      onMo(ds[0].lsx_id);
       return;
     }
     const r = e.currentTarget.getBoundingClientRect();
-    onChon(block.lsx, r.left, r.bottom + 4);
+    moChon(ds, r.left, r.bottom + 4);
   }
 
+  const coDong = !!data && (data.nhom.length > 0 || data.may_trong.length > 0);
+
   return (
-    <button
-      type="button"
-      className={
-        `tdsx-tm__block${ngungDung ? " tdsx-tm__block--khoa" : ` ${meta.cls}`}` +
-        (hep ? " tdsx-tm__block--nhanngoai" : "")
-      }
-      style={{ left, width }}
-      data-cv={block.cong_viec_id}
-      onClick={bam}
-      disabled={ngungDung}
-      title={
-        ngungDung
-          ? `${lsxNhan(block)} — máy đã ngừng dùng, không mở được từ đây`
-          : `${lsxNhan(block)} · ${meta.label}${tomTat ? ` · ${tomTat}` : ""}`
-      }
-    >
-      {/* Vùng lõi CHỪA KHUNG cho vế thực tế (C124) — Task 17b để trống, chỉ tô phẳng qua class cha. */}
-      <span className="tdsx-tm__inner">
-        {!hep && (
-          <span className="tdsx-tm__nhan">
-            {nhieuLenh ? (
-              <>
-                <Icon name="layers" size={11} /> {block.lsx.length} lệnh ghép
-              </>
-            ) : (
-              `${maChinh}${block.ten ? " · " + block.ten : ""}`
-            )}
-          </span>
-        )}
-        {!ratHep && tomTat && (
-          <span className="tdsx-tm__dau" aria-hidden="true">
-            {block.nhan?.loai_buoc === "thue_ngoai" ? "🚚" : ""}
-            {block.nhan?.khuon_ma ? "🔧" : ""}
-          </span>
-        )}
-      </span>
-      {/* Việc 20 phút trên thang 4 ngày chỉ được 20px — không chữ nào lọt vào trong. Trước đây
-          nhánh hẹp bỏ nhãn luôn (thành hộp rỗng), rồi đến lượt bản vá đầu ghi mã cụt "0004". Nhãn
-          nay đứng NGOÀI mép phải thanh nên hết giới hạn bề ngang: ghi thẳng MÃ ĐẦY ĐỦ.
-          `pointer-events: none` để chữ không cướp cú bấm của thanh kế bên. */}
-      {hep && (
-        <span className={`tdsx-tm__nhan tdsx-tm__nhan--ngoai${nhanBiChe ? " is-che" : ""}`}>
-          {nhieuLenh ? `${block.lsx.length} lệnh ghép` : maChinh}
-        </span>
-      )}
-    </button>
+    <>
+      <div className="lsc-khung" tabIndex={0} role="group" aria-label="Bảng theo máy, cuộn ngang được bằng phím mũi tên">
+        <table className="lsc-bang tdsx-may">
+          <caption className="sr-only">Máy, việc đang chạy và việc kế tiếp</caption>
+          <thead>
+            <tr>
+              <th scope="col">Máy</th>
+              <th scope="col">Tình trạng</th>
+              <th scope="col">Đang chạy</th>
+              <th scope="col">Sản lượng tốt</th>
+              <th scope="col">Kế hoạch xong</th>
+              <th scope="col">Kế tiếp</th>
+            </tr>
+          </thead>
+          {data === null ? (
+            <Skeleton rows={8} cols={SO_COT} />
+          ) : !coDong ? (
+            <tbody>
+              <tr className="lsc-bang__rong">
+                <td colSpan={SO_COT}>{rong}</td>
+              </tr>
+            </tbody>
+          ) : (
+            <>
+              {data.nhom.map((g) => (
+                <tbody key={`${g.loai}:${g.ten}`} className={dangTai ? "is-mo" : undefined}>
+                  <tr className="lsc-bang__nhom">
+                    <td colSpan={SO_COT}>
+                      {g.ten || "Chưa phân nhóm"}
+                      <span className="tdsx-nhom__dem">{demNhom(g.loai, g.dong.length)}</span>
+                    </td>
+                  </tr>
+                  {g.dong.map((d) => (
+                    <DongMay key={d.khoa} d={d} chuaMay={g.loai === "chua_may"} onBam={bam} />
+                  ))}
+                </tbody>
+              ))}
+              {data.nhom.length === 0 && (
+                <tbody>
+                  <tr className="lsc-bang__rong">
+                    <td colSpan={SO_COT}>{rong}</td>
+                  </tr>
+                </tbody>
+              )}
+              {data.may_trong.length > 0 && (
+                <tbody className={dangTai ? "is-mo" : undefined}>
+                  <tr className="tdsx-trong">
+                    <td colSpan={SO_COT}>
+                      <button
+                        type="button"
+                        className="tdsx-trong__nut"
+                        aria-expanded={moTrong}
+                        onClick={() => setMoTrong((v) => !v)}
+                      >
+                        <Icon name="chevron" size={14} className={moTrong ? undefined : "tdsx-trong__gap"} />
+                        {data.may_trong.length} máy đang trống
+                      </button>
+                    </td>
+                  </tr>
+                  {moTrong && data.may_trong.map((d) => <DongMay key={d.khoa} d={d} chuaMay={false} onBam={bam} />)}
+                </tbody>
+              )}
+            </>
+          )}
+        </table>
+      </div>
+      {chon && <ChonLenhPopover state={chon} onDong={dongChon} onChon={onMo} nhan="Bài ghép" />}
+    </>
   );
 }
 
-function lsxNhan(block: TdsxMayLaneBlock): string {
-  if (block.lsx.length === 0) return block.ten ?? "—";
-  if (block.lsx.length === 1) return block.lsx[0].ma;
-  return `${block.lsx.length} lệnh ghép: ${block.lsx.map((l) => l.ma).join(", ")}`;
+type Bam = (ds: TdsxLsxThamChieu[], e: MouseEvent<HTMLButtonElement>) => void;
+
+function DongMay({ d, chuaMay, onBam }: { d: TdsxMayDong; chuaMay: boolean; onBam: Bam }) {
+  const tamDung = d.dang_chay?.trang_thai === "paused";
+  return (
+    <tr>
+      <td>
+        {chuaMay ? (
+          "–"
+        ) : (
+          <span className="lsc-cum">
+            <b>{d.ten ?? "–"}</b>
+            {d.ngung_dung && <span className="lsc-tag">Ngừng dùng</span>}
+          </span>
+        )}
+      </td>
+      <td>
+        <span className={`lsc-pill ${MAU_TINH_TRANG[d.tinh_trang] ?? "lsc-pill--off"}`}>{d.nhan_tinh_trang}</span>
+      </td>
+      <td>
+        {d.dang_chay ? <Viec v={d.dang_chay} them={d.dang_chay_them} onBam={onBam} /> : "–"}
+      </td>
+      <td>
+        <SanLuong s={d.san_luong} tamDung={tamDung} />
+      </td>
+      <td className="tdsx-gio">
+        {chuaMay
+          ? d.ke_hoach_bat_dau
+            ? `bắt đầu ${gioXuong(d.ke_hoach_bat_dau)}`
+            : "–"
+          : gioXuong(d.ke_hoach_xong)}
+      </td>
+      <td>
+        {d.ke_tiep.length === 0 ? (
+          "–"
+        ) : (
+          <span className="lsc-cum">
+            {d.ke_tiep.map((v) => (
+              <TheKeTiep key={v.cong_viec_id} v={v} onBam={onBam} />
+            ))}
+            {d.ke_tiep_them > 0 && <span className="lsc-phu">+{d.ke_tiep_them}</span>}
+          </span>
+        )}
+      </td>
+    </tr>
+  );
 }
 
-// Trục thời gian (domain/lưới giờ/`xOf`) không còn định nghĩa Ở ĐÂY nữa — đã rút sang
-// `./tdsxTimeline` (Ruling C138, task-18b-brief.md) để tab Gantt tổng thể dùng lại NGUYÊN công
-// thức thay vì đẻ một thang thời gian thứ hai. Xem `useTdsxTimeline` import ở đầu file.
+/** Ô "Đang chạy": việc thường = mã lệnh + GẤP + tên bước + sản phẩm; việc ghép = "Bài <mã>" + số lệnh. */
+function Viec({ v, them, onBam }: { v: TdsxViec; them: number; onBam: Bam }) {
+  const mot = v.lsx.length === 1 ? v.lsx[0] : null;
+  const rush = v.lsx.some((l) => l.is_rush);
+  return (
+    <>
+      <span className="lsc-cum">
+        {v.bai_ma && v.lsx.length > 1 ? (
+          <>
+            <button
+              type="button"
+              className="lsc-ma"
+              onClick={(e) => onBam(v.lsx, e)}
+              aria-label={`Bài ghép ${v.bai_ma}, ${v.lsx.length} lệnh, chọn lệnh để mở hồ sơ`}
+            >
+              Bài {v.bai_ma}
+            </button>
+            <span className="lsc-tag">{v.lsx.length} lệnh</span>
+          </>
+        ) : mot ? (
+          <button
+            type="button"
+            className="lsc-ma"
+            data-lsx={mot.lsx_id}
+            onClick={(e) => onBam(v.lsx, e)}
+            aria-label={`Mở hồ sơ lệnh ${mot.ma}${mot.ten ? ` — ${mot.ten}` : ""}`}
+          >
+            {mot.ma}
+          </button>
+        ) : v.lsx.length > 1 ? (
+          <button type="button" className="lsc-ma" onClick={(e) => onBam(v.lsx, e)}>
+            {v.lsx.length} lệnh
+          </button>
+        ) : null}
+        {rush && <TheGap />}
+        {them > 0 && (
+          <span className="lsc-tag" title="Máy đang ghi nhận nhiều việc chạy cùng lúc">
+            +{them}
+          </span>
+        )}
+      </span>
+      {v.ten_buoc && <span className="tdsx-buoc">{v.ten_buoc}</span>}
+      {mot?.ten && <span className="lsc-phu">{mot.ten}</span>}
+    </>
+  );
+}
+
+/** "x trên y <đơn vị>" + thanh mảnh. Mẻ lẫn đơn vị ⇒ từng dòng theo đơn vị, không thanh, không cộng. */
+function SanLuong({ s, tamDung }: { s: TdsxSanLuong | null; tamDung: boolean }) {
+  if (!s) return <>–</>;
+  const caBai = s.ca_bai ? <span className="lsc-phu">(cả bài)</span> : null;
+  if (s.tot == null) {
+    return (
+      <>
+        {s.theo_don_vi.map((x) => (
+          <span key={x.don_vi ?? ""} className="tdsx-sl__dv">
+            {so(x.tot)} {nhanChang(x.don_vi)}
+          </span>
+        ))}
+        {caBai}
+      </>
+    );
+  }
+  const dv = nhanChang(s.don_vi);
+  const pct = s.ke_hoach && s.ke_hoach > 0 ? Math.min(100, Math.round((s.tot / s.ke_hoach) * 100)) : null;
+  return (
+    <>
+      <span className={tamDung ? "lsc-do" : undefined}>
+        {s.ke_hoach != null ? `${so(s.tot)} trên ${so(s.ke_hoach)}` : so(s.tot)}
+        {dv && ` ${dv}`}
+      </span>
+      {pct != null && (
+        <span
+          className={`lsc-thanh${tamDung ? " lsc-thanh--do" : ""}`}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={pct}
+          aria-label={`Đạt ${pct}% sản lượng kế hoạch`}
+        >
+          <i style={{ width: `${pct}%` }} />
+        </span>
+      )}
+      {caBai}
+    </>
+  );
+}
+
+/** Thẻ việc kế tiếp: 4 số cuối mã lệnh (việc ghép nhiều lệnh: 4 số cuối mã bài). Rê chuột ra tên
+ *  bước + sản phẩm. */
+function TheKeTiep({ v, onBam }: { v: TdsxViec; onBam: Bam }) {
+  const mot = v.lsx.length === 1 ? v.lsx[0] : null;
+  if (!mot && v.lsx.length === 0) return null;
+  const nhan = mot ? mot.ma.slice(-4) : `Bài ${(v.bai_ma ?? "").slice(-4)}`;
+  const tieuDe = [v.ten_buoc, mot?.ten].filter(Boolean).join(", ");
+  return (
+    <button
+      type="button"
+      className={`tdsx-ke${v.lsx.some((l) => l.is_rush) ? " tdsx-ke--gap" : ""}`}
+      data-lsx={mot?.lsx_id}
+      title={tieuDe || undefined}
+      aria-label={
+        mot
+          ? `Mở hồ sơ lệnh ${mot.ma}${tieuDe ? `, ${tieuDe}` : ""}`
+          : `Bài ghép ${v.bai_ma ?? ""}, ${v.lsx.length} lệnh, chọn lệnh để mở hồ sơ`
+      }
+      onClick={(e) => onBam(v.lsx, e)}
+    >
+      {nhan}
+    </button>
+  );
+}
