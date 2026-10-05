@@ -371,3 +371,41 @@ def trang_thai_chinh(
     if _dang_o_kcs(bc, lsx_id):
         return TAB_KCS
     return TAB_DANG_SX
+
+
+# --- KHÂU của lệnh — tab của màn Hồ sơ lệnh (làm gọn 05/10/2026) ---------------------------------
+# Giá trị đi thẳng ra API (`?tab=`, `khau`) nên coi như hợp đồng.
+KHAU_DANG_SX = "dang_sx"
+KHAU_SAU_SX = "sau_sx"
+KHAU_DA_GIAO = "da_giao"
+KHAU = (KHAU_DANG_SX, KHAU_SAU_SX, KHAU_DA_GIAO)
+
+# Chi tiết của khâu Sau sản xuất — FE dịch ra chữ.
+CT_DANG_KCS = "dang_kcs"
+CT_CHO_NHAP_KHO = "cho_nhap_kho"
+CT_SAN_SANG_GIAO = "san_sang_giao"
+
+
+def khau(bc: BoiCanh, lsx_id: int) -> tuple[str, str | None]:
+    """`(khâu, chi tiết)` của một lệnh — tab của màn Hồ sơ lệnh, KHÔNG xét cờ cảnh báo.
+
+    Cùng các vị ngữ và cùng thứ tự với `trang_thai_chinh`, chỉ bỏ nhánh cảnh báo: màn tra cứu chia
+    lệnh theo chỗ nó đang đứng; lệnh có sự cố vẫn ở đúng khâu của nó, còn "đang có vấn đề gì" là
+    việc của màn Theo dõi. Nhờ vậy danh sách không phải chạy `can_doi()` lẫn đường găng.
+
+    Nhánh cuối "đã xong mọi công việc ⇒ Sau sản xuất / Đang KCS" bắt cả hai ca ba nhánh trên bỏ
+    sót: KCS kết luận không đạt toàn bộ, và lệnh không có công việc `la_kcs_cuoi`. Hàng đã ra khỏi
+    chuyền thì không còn là Đang sản xuất. Lệnh chưa có công việc nào (`all([])` là True) phải ở
+    lại Đang sản xuất — đó là lý do có vế `bc.cong_viec_du(lsx_id)`.
+
+    Không đổi `trang_thai_chinh`: đơn hàng bán vẫn đọc nó qua `danh_sach._soi`.
+    """
+    if _da_giao_het(bc, lsx_id):
+        return KHAU_DA_GIAO, None
+    if _co_ton_thanh_pham(bc, lsx_id):
+        return KHAU_SAU_SX, CT_SAN_SANG_GIAO
+    if _kcs_dat_cho_nhap(bc, lsx_id):
+        return KHAU_SAU_SX, CT_CHO_NHAP_KHO
+    if bc.cong_viec_du(lsx_id) and _sx_da_xong(bc, lsx_id):
+        return KHAU_SAU_SX, CT_DANG_KCS
+    return KHAU_DANG_SX, None
