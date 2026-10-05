@@ -9146,6 +9146,13 @@ export type LsxTheoDoiTab = "tat_ca" | LsxTheoDoiTrangThai;
 export type LsxTheoDoiCanhBao =
   | "su_co" | "tam_dung" | "tre_han" | "kcs_khong_dat" | "thieu_vat_tu";
 
+/** KHÂU của một lệnh (`trang_thai.KHAU` phía máy chủ, làm gọn 05/10/2026) — chia tab Hồ sơ lệnh
+ *  và pill trạng thái. Khác `LsxTheoDoiTrangThai`: khâu KHÔNG đọc cờ cảnh báo. */
+export type LenhSxKhau = "dang_sx" | "sau_sx" | "da_giao";
+
+/** Chi tiết khi `khau = "sau_sx"`; còn lại `null`. */
+export type LenhSxKhauChiTiet = "dang_kcs" | "cho_nhap_kho" | "san_sang_giao";
+
 /** MỘT đốt trên dải công đoạn của một dòng bảng lệnh (`danh_sach.chang()` phía máy chủ).
  *  Một bước bị tách nhiều lần chạy vẫn gộp về MỘT đốt, và đúng một đốt mang `hien_tai`. */
 export interface LenhSxChang {
