@@ -738,3 +738,23 @@ def test_chi_tiet_tra_anh_dai_dien_cua_tung_nguoi(db, orders, lsx_svc, admin, cu
     anh_kh = {k["employee_id"]: k["avatar_url"] for k in out["khoang_tham_gia"]}
     assert anh_pc == {eid_anh: "/api/files/avatars/9/tho-anh.jpg", khong_tk.id: None}
     assert anh_kh == anh_pc
+
+
+# --- Luật ca qua nửa đêm (Ruling C120) — `_ca_cua_moc` chuyển về bàn tổ 05/10/2026 ------------------
+# Trước đây chỉ được canh gián tiếp qua tab Theo ca (đã xoá). Hàm thuần: không cần DB.
+def test_ca_cua_moc_ca_qua_dem_tinh_theo_ngay_bat_dau_ca():
+    from datetime import date
+
+    from app.services.san_xuat.board import _ca_cua_moc
+
+    ca1 = SimpleNamespace(name="Ca 1", start_minute=6 * 60, end_minute=14 * 60, is_overnight=False)
+    ca3 = SimpleNamespace(name="Ca 3", start_minute=22 * 60, end_minute=6 * 60, is_overnight=True)
+    cas = [ca1, ca3]
+
+    assert _ca_cua_moc(cas, datetime(2026, 10, 5, 8, 0)) == (ca1, date(2026, 10, 5))
+    # 23:00 là phần ĐẦU ca đêm — ngày của ca là chính hôm đó.
+    assert _ca_cua_moc(cas, datetime(2026, 10, 5, 23, 0)) == (ca3, date(2026, 10, 5))
+    # 01:00 là phần ĐUÔI ca đêm bắt đầu tối HÔM QUA — ngày của ca lùi một ngày.
+    assert _ca_cua_moc(cas, datetime(2026, 10, 6, 1, 0)) == (ca3, date(2026, 10, 5))
+    # 15:00 rơi ngoài mọi ca đã khai — trả None, không đoán ca gần nhất.
+    assert _ca_cua_moc(cas, datetime(2026, 10, 5, 15, 0)) is None
