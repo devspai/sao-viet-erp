@@ -31,68 +31,24 @@ Sáu việc vá thêm, đánh dấu bằng comment "VÒNG SỬA 1 — mục X" t
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import event
 
-from app.db import engine
 from app.models.cong_doan import CongDoan
 from app.models.customer import Customer
-from app.models.department import Department
 from app.models.employee import Employee
 from app.models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc
 from app.models.may_thiet_bi import MayThietBi
 from app.models.order import Order
 from app.models.san_xuat import CV_HOAN_THANH
 from app.models.san_xuat_thuc_thi import PC_HOAT_DONG, SanXuatPhanCong
-from app.repositories.rbac_repo import DepartmentRepository, RoleRepository
 from app.repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
-from app.repositories.user_repo import UserRepository
-from app.security import hash_password
 from app.services.lenh_sx import bang_theo_doi
 from app.services.san_xuat import thuc_thi
 
 from tests.lenh_sx_fixtures import (  # noqa: F401
     BAY_GIO, _cvs, _da_nhan_tu, _dat_xong_luc, _dot_dong_don, _giao_nguoi, _phat_hanh_that, _chay_that,
+    _bat_dau_that, _dem_sql, _token_khong_quyen_theo_doi,
     admin, customer, ghep_doi, lenh_nhap, lsx_svc, orders, sale_own, sess,
 )
-
-
-def _token_khong_quyen_theo_doi(sess) -> str:
-    """Mint một user mà vai chỉ có `dashboard:own` — KHÔNG có `theo_doi_san_xuat` — dùng cho bài
-    403 (mục D, vòng sửa 1). Khuôn lấy từ `test_catalog_costing_read._token_for_role`."""
-    from app.security import create_access_token
-
-    users = UserRepository(sess)
-    existing = users.get_by_username("td-khong-quyen")
-    if existing is not None:
-        return create_access_token(str(existing.id))
-    kd = DepartmentRepository(sess).get_by_name("Kinh doanh")
-    roles = RoleRepository(sess)
-    role = roles.create(name="R-td-khong-quyen", department_id=kd.id)
-    roles.set_permission(role_id=role.id, module_key="dashboard", can_read=True, scope="own")
-    u = users.create(
-        username="td-khong-quyen", name="U không quyền theo dõi SX",
-        password_hash=hash_password("x"),
-    )
-    users.set_assignment(u, department_id=kd.id, role_id=role.id, is_active=True)
-    sess.commit()
-    return create_access_token(str(u.id))
-
-
-def _dem_sql(fn):
-    """Đếm câu SQL thật sự gửi xuống driver trong lúc chạy `fn` — khuôn `test_lenh_sx_api._dem_sql`
-    (mục E, vòng sửa 1)."""
-    n = 0
-
-    def _ghi(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001, ARG001
-        nonlocal n
-        n += 1
-
-    event.listen(engine, "before_cursor_execute", _ghi)
-    try:
-        fn()
-    finally:
-        event.remove(engine, "before_cursor_execute", _ghi)
-    return n
 
 
 def _tok(client, cred):
@@ -101,21 +57,6 @@ def _tok(client, cred):
 
 def _h(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
-
-
-def _bat_dau_that(sess, admin, cv, *, ma: str, ten: str) -> None:
-    """Bắt đầu một bước qua ĐÚNG đường ghi production, KHÔNG kết thúc — dựng ca "đang chạy" đứng
-    yên để test dàn cảnh song song. Rút gọn của `lenh_sx_fixtures._chay_that` (bỏ đoạn `ket_thuc`);
-    xem docstring ở đó cho lý do từng bước (`has_piece_work`).
-    """
-    to = sess.get(Department, cv.department_id)
-    to.has_piece_work = True
-    sess.commit()
-    _giao_nguoi(sess, admin, cv, ma=ma, ten=ten)
-    thuc_thi.bat_dau(
-        sess, user=admin, cong_viec_id=cv.id,
-    )
-    sess.expire_all()
 
 
 # --- Fixture MỚI của task này ---------------------------------------------------------------------

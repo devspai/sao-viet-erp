@@ -1,6 +1,6 @@
-"""Kanban Theo dõi SX: lệnh đã GIAO HẾT rụng sau 3 ngày kể từ lần giao cuối (chốt 28/09/2026).
+"""Theo dõi SX: lệnh đã GIAO HẾT rụng sau 3 ngày kể từ lần giao cuối (chốt 28/09/2026).
 
-Trước đây mỗi lệnh từng phát hành có một card mãi mãi — màn phình theo tuổi dữ liệu và dải số đầu
+Trước đây mỗi lệnh từng phát hành có một dòng mãi mãi — màn phình theo tuổi dữ liệu và dải số đầu
 màn đếm cả lệnh xong từ năm ngoái. Luật: giao hết + lần giao cuối quá `KANBAN_GIU_SAU_GIAO` + không
 còn công việc đang chạy/tạm dừng ⇒ rụng. Thiếu một vế là card PHẢI còn.
 """
@@ -14,7 +14,7 @@ from sqlalchemy import select
 from app.models.delivery import DeliveryTrip, DeliveryTripLine
 from app.models.lsx import Lsx
 from app.models.san_xuat import CV_TAM_DUNG
-from app.services.lenh_sx import bang_theo_doi, boi_canh
+from app.services.lenh_sx import boi_canh, theo_doi
 from tests.lenh_sx_fixtures import (  # noqa: F401
     _cvs,
     _dot_dong_don,
@@ -73,10 +73,11 @@ def the_gioi(sess, orders, lsx_svc, admin, customer):
 
 
 def _ids_card(sess) -> set[int]:
-    return {c["lsx_id"] for c in bang_theo_doi.kanban(sess, sale_ids=None)["cards"]}
+    """Lệnh còn hiện ở Theo dõi — đọc góc Theo lệnh (một dòng mỗi lệnh còn sống)."""
+    return {r["lsx_id"] for r in theo_doi.theo_lenh(sess, sale_ids=None)["items"]}
 
 
-def test_lenh_giao_het_qua_3_ngay_rung_khoi_kanban(sess, the_gioi):
+def test_lenh_giao_het_qua_3_ngay_rung_khoi_theo_doi(sess, the_gioi):
     ids = _ids_card(sess)
     assert the_gioi["rung"] not in ids
     for con in ("moi_giao", "giao_thieu", "chua_giao", "con_lam"):
@@ -88,7 +89,7 @@ def test_lenh_rung_khong_bi_nap_nang(sess, the_gioi, monkeypatch):
     ghi: list[set[int]] = []
     goc = boi_canh.nap
     monkeypatch.setattr(boi_canh, "nap", lambda db, ids: (ghi.append(set(ids)), goc(db, ids))[1])
-    bang_theo_doi.kanban(sess, sale_ids=None)
+    theo_doi.theo_lenh(sess, sale_ids=None)
     assert ghi and the_gioi["rung"] not in set().union(*ghi)
 
 

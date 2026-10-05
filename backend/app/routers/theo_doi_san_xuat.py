@@ -29,9 +29,9 @@ from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.user import User
 from ..schemas.theo_doi_san_xuat import (
-    BoLocOut, GanttOut, KanbanMetaOut, KanbanOut, TheoCaOut, TheoMayOut,
+    BoLocOut, GanttOut, KanbanMetaOut, KanbanOut, TheoCaOut, TheoLenhOut, TheoMayOut,
 )
-from ..services.lenh_sx import bang_theo_doi, danh_sach, pham_vi
+from ..services.lenh_sx import bang_theo_doi, danh_sach, pham_vi, theo_doi
 from ..services.rbac_service import AuthorizationService
 
 router = APIRouter(prefix="/api/theo-doi-san-xuat", tags=["theo-doi-san-xuat"])
@@ -49,6 +49,8 @@ TrangThaiViec = Literal[bang_theo_doi.TRANG_THAI_VIEC_CHO_PHEP]
 # `CA_ID_NGOAI_CA` ("ngoai_ca") để chọn rổ "Ngoài ca" (`CaOut.id=None`, không có số nào đại diện
 # cho nó). `/gantt` KHÔNG khai tham số này — xem docstring `bang_theo_doi.gantt` mục W1.
 CaId = int | Literal[bang_theo_doi.CA_ID_NGOAI_CA] | None
+# `?bat_thuong=` — một trong sáu mục của dải bất thường; giá trị lạ (kể cả `thieu_vat_tu`) ăn 422.
+BatThuong = Literal[theo_doi.BAT_THUONG]
 
 
 def _thanh_loc(
@@ -115,6 +117,24 @@ def bo_loc(
     """
     sale_ids = pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
     return bang_theo_doi.bo_loc(db, sale_ids=sale_ids)
+
+
+@router.get("/theo-lenh", response_model=TheoLenhOut)
+def theo_lenh(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    q: Annotated[str | None, Query(max_length=120)] = None,
+    khach_hang_id: int | None = None,
+    may_id: int | None = None,
+    bat_thuong: BatThuong | None = None,
+):
+    """Góc Theo lệnh: mỗi lệnh còn sống một dòng + số của dải bất thường (một yêu cầu mỗi lượt)."""
+    sale_ids = pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
+    return theo_doi.theo_lenh(
+        db, sale_ids=sale_ids, q=q, khach_hang_id=khach_hang_id, may_id=may_id,
+        bat_thuong=bat_thuong,
+    )
 
 
 @router.get("/kanban", response_model=KanbanOut)

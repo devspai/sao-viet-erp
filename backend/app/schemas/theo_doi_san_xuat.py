@@ -16,6 +16,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from .lenh_san_xuat import LenhSxChang
+
 
 class KanbanCotOut(BaseModel):
     """MỘT cột của board. `key` là chuỗi vì nó phải khớp thẳng `KanbanCardOut.cot` (cũng là chuỗi)
@@ -282,3 +284,42 @@ class BoLocOut(BaseModel):
     trang_thai_viec: list[BoLocMucOut] = []
     uu_tien: list[BoLocMucOut] = []
     khach_hang: list[BoLocMucOut] = []
+
+
+# --- Làm gọn 05/10/2026: dải bất thường + góc Theo lệnh -------------------------------------------
+class DemBatThuongOut(BaseModel):
+    """Số trên dải bất thường — đếm trên TOÀN tập còn sống trong phạm vi, trước ô tìm/khách/máy."""
+
+    tre_han: int = 0
+    su_co: int = 0
+    tam_dung: int = 0
+    kcs_khong_dat: int = 0
+    may_hong: int = 0
+    chua_may: int = 0
+
+
+class TheoLenhDongOut(BaseModel):
+    """MỘT lệnh còn sống. `canh_bao` ⊆ `tre_han` / `su_co` / `tam_dung` / `kcs_khong_dat`.
+    `du_kien_xong` là giờ xưởng không nhãn múi; `tre_ngay` chỉ có khi `tre_han`."""
+
+    lsx_id: int
+    ma: str
+    ten: str | None = None
+    is_rush: bool = False
+    so_luong_dat: int
+    don_vi_tinh: str | None = None
+    khach_hang: str | None = None
+    chang: list[LenhSxChang] = []
+    buoc_hien_tai: str | None = None
+    khau: str
+    khau_chi_tiet: str | None = None
+    han_hoan_thanh_sx: date | None = None
+    du_kien_xong: datetime | None = None
+    canh_bao: list[str] = []
+    tre_ngay: int | None = None
+
+
+class TheoLenhOut(BaseModel):
+    items: list[TheoLenhDongOut] = []
+    total: int = 0
+    bat_thuong: DemBatThuongOut
