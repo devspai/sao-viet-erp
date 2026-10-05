@@ -105,55 +105,8 @@ class LsxThamChieuOut(BaseModel):
 
     lsx_id: int
     ma: str
-
-
-class MayLaneBlockOut(BaseModel):
-    """MỘT công việc trong lane của MỘT máy. Công việc GHÉP phục vụ nhiều lệnh vẫn ra ĐÚNG MỘT
-    block (khoá theo `cong_viec_id`) — `lsx` liệt kê MỌI lệnh nó phục vụ, để người điều độ biết
-    block đó gánh những đơn nào (xem docstring `bang_theo_doi.theo_may`).
-
-    `lsx` sắp theo MÃ (thứ tự ổn định giữa hai lần tải) — Task 17 đổi kiểu phần tử từ `str` sang
-    `LsxThamChieuOut` nhưng GIỮ NGUYÊN tiêu chí sắp đó."""
-
-    cong_viec_id: int
     ten: str | None = None
-    trang_thai: str
-    lsx: list[LsxThamChieuOut] = []
-    du_kien_bat_dau: datetime | None = None
-    du_kien_ket_thuc: datetime | None = None
-    nguoi: list[str] = []
-    nhan: NhanBuocOut | None = None
-
-
-class MayLaneOut(BaseModel):
-    """MỘT lane. `may_id=None` là lane "Chưa xếp máy" — LUÔN có mặt kể cả rỗng (khuôn `COT_KHAC`
-    của Kanban): việc chưa gán máy là đúng thứ điều độ phải xử lý, không phải thứ để giấu đi.
-
-    `ngung_dung` (Vòng sửa 1 mục H, task-16-fix1-brief.md) — máy đã `active=False` (mg 0202,
-    "còn dùng hay đã thanh lý") mà CÒN ôm việc vẫn giữ NGUYÊN lane/tên, chỉ đánh dấu cho FE: giấu
-    lane đi mới là mất dấu, đúng nguyên tắc của `may_id=None` ở trên.
-
-    `blocks` RỖNG là một câu trả lời, không phải thiếu dữ liệu (Task 17, C126 mục 2): máy CÒN DÙNG
-    mà không có việc nào vẫn ra lane — đó chính là câu "máy nào đang trống để nhét việc vào" mà bàn
-    điều độ hỏi. Ngoại lệ (Ruling C132, vòng sửa 1 mục 4): trong bộ lane MẶC ĐỊNH, máy đã NGỪNG
-    DÙNG *và* KHÔNG CÒN NỢ VIỆC thì không ra lane — nguyên tắc "đừng ẩn" bảo vệ VIỆC, không bảo vệ
-    chỗ trống của máy đã thanh lý. "Còn nợ việc" ở đây xét ĐỘC LẬP với cửa sổ `tu`/`den` đang hỏi
-    (Ruling C136, vòng sửa 2), cùng một vị ngữ với cờ `co_viec` của `/bo-loc` — nên một máy ngừng
-    dùng có thể ra lane `blocks: []`, nghĩa là "còn nợ, nhưng không nợ trong khoảng anh đang xem".
-
-    Ngoại lệ của ngoại lệ (Ruling C137, vòng sửa 2): `?may_id=` tường minh KHÔNG chịu C132 — luôn
-    đúng MỘT lane, kể cả máy rảnh đã thanh lý, kể cả `may_id` không còn trong danh mục (nhãn "Máy
-    đã xoá"). Xem `bang_theo_doi.theo_may` cho ranh giới giữa lane sinh-từ-dữ-liệu và lane
-    sinh-từ-danh-mục."""
-
-    may_id: int | None = None
-    ten: str
-    ngung_dung: bool = False
-    blocks: list[MayLaneBlockOut] = []
-
-
-class TheoMayOut(BaseModel):
-    lanes: list[MayLaneOut] = []
+    is_rush: bool = False
 
 
 # --- Theo ca (Task 16) ---------------------------------------------------------------------------
@@ -322,4 +275,64 @@ class TheoLenhDongOut(BaseModel):
 class TheoLenhOut(BaseModel):
     items: list[TheoLenhDongOut] = []
     total: int = 0
+    bat_thuong: DemBatThuongOut
+
+
+# --- Góc Theo máy (làm gọn 05/10/2026, đặc tả 3.3) ------------------------------------------------
+class TdsxViecOut(BaseModel):
+    """MỘT công việc trên dòng máy. `bai_ma` có khi là việc GHÉP; `lsx` là mọi lệnh nó phục vụ —
+    từ hai lệnh trở lên giao diện bắt chọn, không đoán lấy cái đầu."""
+
+    cong_viec_id: int
+    ten_buoc: str | None = None
+    trang_thai: str
+    bai_ma: str | None = None
+    lsx: list[LsxThamChieuOut] = []
+
+
+class TdsxSanLuongDonViOut(BaseModel):
+    don_vi: str | None = None
+    tot: float
+
+
+class TdsxSanLuongOut(BaseModel):
+    """`tot = None` khi mẻ ghi lẫn đơn vị — khi đó chỉ có `theo_don_vi`, không vẽ thanh."""
+
+    tot: float | None = None
+    ke_hoach: float | None = None
+    don_vi: str | None = None
+    theo_don_vi: list[TdsxSanLuongDonViOut] = []
+    ca_bai: bool = False
+
+
+class TdsxMayDongOut(BaseModel):
+    """MỘT dòng của bảng Theo máy: một máy, một nhà gia công, hoặc một bước chưa có máy.
+    `khoa` duy nhất trong cả bảng (`may:<id>`, `ncc:<tên>`, `cv:<id>`)."""
+
+    khoa: str
+    may_id: int | None = None
+    ten: str | None = None
+    ngung_dung: bool = False
+    tinh_trang: str
+    nhan_tinh_trang: str
+    dang_chay: TdsxViecOut | None = None
+    dang_chay_them: int = 0
+    san_luong: TdsxSanLuongOut | None = None
+    ke_hoach_xong: datetime | None = None
+    ke_hoach_bat_dau: datetime | None = None
+    ke_tiep: list[TdsxViecOut] = []
+    ke_tiep_them: int = 0
+
+
+class TdsxNhomMayOut(BaseModel):
+    """`loai` ∈ `chua_may` / `may` / `may_da_xoa` / `gia_cong`; nhóm `may` mang `ten = loai_may`."""
+
+    loai: str
+    ten: str
+    dong: list[TdsxMayDongOut] = []
+
+
+class TheoMayOut(BaseModel):
+    nhom: list[TdsxNhomMayOut] = []
+    may_trong: list[TdsxMayDongOut] = []
     bat_thuong: DemBatThuongOut

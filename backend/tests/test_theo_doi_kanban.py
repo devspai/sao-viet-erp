@@ -573,23 +573,6 @@ def test_bo_loc_thieu_quyen_403(client, sess):
     assert r.status_code == 403
 
 
-def test_bo_loc_may_co_ca_may_ranh_va_may_ngung_dung(
-    client, seed_credentials, hai_lenh_doi_nhau,
-):
-    """Đỏ nếu facet Máy dựng theo kiểu "chỉ máy nào ĐANG có việc" (khuôn `danh_sach.bo_loc`) thay
-    vì đọc DANH MỤC: `may_ranh` và `may_ngung` không gánh việc nào nên sẽ rụng — mà chính hai máy
-    đó là nguồn LANE RỖNG của `/theo-may` (C126 mục 2). Cũng đỏ nếu cờ `ngung_dung` bị bỏ hoặc
-    gán ngược (`may_ranh` còn dùng phải là False, `may_ngung` phải là True)."""
-    h = _h(_tok(client, seed_credentials))
-    may = client.get("/api/theo-doi-san-xuat/bo-loc", headers=h).json()["may"]
-    theo_id = {m["id"]: m for m in may}
-    for khoa in ("may_a", "may_ranh", "may_ngung"):
-        assert str(hai_lenh_doi_nhau[khoa]) in theo_id, f"facet Máy thiếu {khoa}"
-    assert theo_id[str(hai_lenh_doi_nhau["may_a"])]["ngung_dung"] is False
-    assert theo_id[str(hai_lenh_doi_nhau["may_ranh"])]["ngung_dung"] is False
-    assert theo_id[str(hai_lenh_doi_nhau["may_ngung"])]["ngung_dung"] is True
-
-
 def test_bo_loc_moi_muc_co_ten_tieng_viet_khong_phai_id(
     client, seed_credentials, hai_lenh_doi_nhau,
 ):
@@ -983,28 +966,6 @@ def test_bo_loc_may_co_viec_van_bay_may_ranh_de_chon(
     assert g["ranh"] in may, "facet Máy đã bị lọc theo `co_viec` — máy rảnh hết chọn được"
     assert g["xong"] in may
     assert g["ban"] in may
-
-
-def test_bo_loc_may_co_viec_khop_dung_lane_cua_theo_may(
-    client, seed_credentials, ba_may_theo_co_viec, hai_lenh_doi_nhau,
-):
-    """Bất biến buộc CỜ và BÀN nói cùng một câu: `co_viec=true` ⇔ lane của máy đó trên `/theo-may`
-    (KHÔNG lọc, KHÔNG cửa sổ) có ít nhất một block. Đỏ nếu cờ trôi khỏi định nghĩa đã ghi trong
-    hợp đồng — ví dụ đổi sang "máy có việc trong hôm nay", hay quên vế phạm vi/trạng thái: khi đó
-    FE làm mờ nhầm một máy đang gánh việc, hoặc mời người dùng chọn một máy cho ra bàn trắng.
-
-    `hai_lenh_doi_nhau` kéo thêm bốn máy nữa (hai máy CÓ việc, một máy rảnh, một máy đã thanh lý)
-    để bài chạy trên tập có cả hai phía, không chỉ ba máy của fixture chính."""
-    h = _h(_tok(client, seed_credentials))
-    may = _facet_may(client, h)
-    lanes = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()["lanes"]
-    co_block = {l["may_id"] for l in lanes if l["blocks"] and l["may_id"] is not None}
-
-    assert co_block, "tiền đề: bàn phải có ít nhất một lane CÓ block"
-    assert any(not m["co_viec"] for m in may.values()), "tiền đề: phải có máy KHÔNG việc"
-    lech = {mid: (m["co_viec"], mid in co_block) for mid, m in may.items()
-            if m["co_viec"] != (mid in co_block)}
-    assert not lech, f"cờ `co_viec` lệch với lane của /theo-may ở các máy: {lech}"
 
 
 def test_bo_loc_may_co_viec_bam_pham_vi_nguoi_goi(sess, ba_may_theo_co_viec, sale_own):

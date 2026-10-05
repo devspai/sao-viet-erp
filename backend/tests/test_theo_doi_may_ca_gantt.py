@@ -37,9 +37,7 @@ from sqlalchemy import event
 
 from app.db import engine
 from app.models.attendance import WorkShift
-from app.models.department import Department
 from app.models.lsx import Lsx
-from app.models.may_thiet_bi import MayThietBi
 from app.models.order import Order
 from app.models.san_xuat import CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG, SanXuatCongViec
 from app.models.san_xuat_thuc_thi import SanXuatPhienChay
@@ -51,7 +49,6 @@ from app.repositories.audit_repo import AuditLogRepository
 from app.security import hash_password
 from app.services.gio_xuong import lich_hien_thi, ve_utc_that
 from app.services.lenh_sx import bang_theo_doi
-from app.services.san_xuat import thuc_thi
 from app.services.xep_lich_service import XepLichService
 
 from tests.lenh_sx_fixtures import (  # noqa: F401
@@ -291,56 +288,7 @@ def lenh_buoc_cuoi_thieu_moc_ket_thuc(sess, orders, lsx_svc, admin, customer) ->
     return lsx_id, moc_bat_dau_buoc_cuoi
 
 
-@pytest.fixture
-def viec_tren_may_ngung_dung(sess, orders, lsx_svc, admin, customer) -> tuple[int, int]:
-    """MỘT máy `active=False` (đã ngừng dùng/thanh lý, mg 0202) đang còn gánh MỘT việc chưa xong —
-    canh Vòng sửa 1 mục H: lane của máy này KHÔNG được biến mất khỏi `/theo-may`, chỉ đánh dấu
-    `ngung_dung=True` — máy đã tắt vẫn còn nợ điều độ, giấu lane đi mới là mất dấu việc đó."""
-    may = MayThietBi(
-        ma="MAY-H-NGUNG-DUNG", ten="Máy đã thanh lý (test mục H)", loai_may="in", active=False,
-    )
-    sess.add(may)
-    sess.flush()
-
-    _dot_dong_don(sess, 61)
-    lsx_id = _phat_hanh_that(
-        sess, orders, lsx_svc, admin, customer, buoc=[("CTP", 15, 500)],
-    )
-    cv = _cvs(sess, lsx_id)[0]
-    cv.may_id = may.id
-    sess.commit()
-    return may.id, cv.id
-
-
 # --- Bốn bài của plan, viết theo bản chốt ---------------------------------------------------------
-def test_viec_chua_gan_may_co_lane_rieng(client, seed_credentials, viec_chua_xep_may):
-    h = _h(_tok(client, seed_credentials))
-    lanes = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()["lanes"]
-    chua = next(l for l in lanes if l["may_id"] is None)
-    assert viec_chua_xep_may in {b["cong_viec_id"] for b in chua["blocks"]}
-
-
-def test_theo_may_va_theo_ca_mang_nhan_buoc(client, seed_credentials, sess, viec_chua_xep_may):
-    """Cùng khối `nhan` với Kanban, dựng bằng CÙNG một helper.
-
-    Ba chỗ tự dựng lấy là ba cơ hội để một chỗ quên field, rồi nhãn lại đứt ở đúng một tab mà
-    không ai để ý — nên bài này canh CẢ HAI bàn trong một lượt.
-    """
-    cv = sess.get(SanXuatCongViec, viec_chua_xep_may)
-    cv.loai_buoc = "thue_ngoai"
-    cv.nha_cung_cap = "Cơ sở Minh Phát"
-    cv.khuon_json = {"ma": "KB-0001", "so_ke": "Kệ A3", "tinh_trang": "dang_dat_lam"}
-    sess.commit()
-
-    h = _h(_tok(client, seed_credentials))
-    lanes = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()["lanes"]
-    chua = next(l for l in lanes if l["may_id"] is None)
-    block = next(b for b in chua["blocks"] if b["cong_viec_id"] == viec_chua_xep_may)
-    assert block["nhan"]["khuon_ma"] == "KB-0001"
-    assert block["nhan"]["khuon_tinh_trang"] == "dang_dat_lam"
-    assert block["nhan"]["loai_buoc"] == "thue_ngoai"
-
-
 def test_theo_ca_mang_nhan_buoc(client, seed_credentials, sess, viec_23h_khong_ca_nao_phu):
     """Bàn Theo ca dựng dòng việc bằng hàm riêng (`_viec_theo_ca_dict`) nên phải canh riêng — đây
     đúng là kiểu "một chỗ quên field" mà helper `_nhan` sinh ra để chặn.
@@ -378,39 +326,6 @@ def test_ca_qua_nua_dem_tinh_theo_moc_bat_dau(client, seed_credentials, viec_ca_
     assert cv_id in {v["cong_viec_id"] for v in dem["viec"]}, (
         "việc chạy 01:00 (01/09) phải thuộc ca BẮT ĐẦU tối 31/08, không phải rơi ra ngoài / "
         "nhảy sang ca của ngày 01/09"
-    )
-
-
-def test_theo_ca_viec_khong_ca_nao_phu_roi_vao_rong_ngoai_ca(
-    client, seed_credentials, viec_23h_khong_ca_nao_phu,
-):
-    """CHẶN-1 kịch bản A (Vòng sửa 1 mục A) — hai ca ngày (06-14, 14-22) không phủ 23:00, việc chạy
-    trên máy vẫn được Xếp lịch xếp giờ đó (không bị ràng buộc bởi tập ca). Bản vá phải hứng việc này
-    vào rổ "Ngoài ca" (`id=None`) thay vì để nó biến mất khỏi mọi cột."""
-    ca1_id, cv_id = viec_23h_khong_ca_nao_phu
-    h = _h(_tok(client, seed_credentials))
-    d = client.get("/api/theo-doi-san-xuat/theo-ca?ngay=2026-08-31", headers=h).json()
-
-    ngoai = next(c for c in d["ca"] if c["id"] is None)
-    assert ngoai["ten"] == "Ngoài ca"
-    assert cv_id in {v["cong_viec_id"] for v in ngoai["viec"]}
-    ca1 = next(c for c in d["ca"] if c["id"] == ca1_id)
-    assert cv_id not in {v["cong_viec_id"] for v in ca1["viec"]}, (
-        "việc 23:00 không thuộc Ca 1 (06-14) — không được lẫn vào ca thật nào"
-    )
-
-    # Bất biến brief đòi thêm cho bài 1 — tập cong_viec_id /theo-ca thấy PHẢI ⊇ tập /theo-may thấy.
-    # Vòng sửa 2 mục 7 (GN-2): sau mục I, đây KHÔNG còn là bất biến TOÀN CỤC — /theo-ca chỉ thấy
-    # việc của MỘT ngày (`?ngay=`), còn /theo-may thấy MỌI việc chưa xong bất kể ngày (một lệnh xếp
-    # 05/09 nằm trong /theo-may nhưng không thể nằm trong /theo-ca?ngay=31/08). Khẳng định dưới đây
-    # chỉ ĐÚNG vì tiền đề của bài này: fixture `viec_23h_khong_ca_nao_phu` chỉ dựng ĐÚNG MỘT việc,
-    # và việc đó rơi vào ĐÚNG ngày đang hỏi (31/08) — nên toàn bộ những gì /theo-may thấy ở đây cũng
-    # thuộc ngày 31/08, và phải thấy lại được ở /theo-ca. Đừng đọc đây thành "⊇ với MỌI bối cảnh".
-    lanes = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()["lanes"]
-    tu_theo_may = {b["cong_viec_id"] for l in lanes for b in l["blocks"]}
-    tu_theo_ca = {v["cong_viec_id"] for c in d["ca"] for v in c["viec"]}
-    assert tu_theo_may <= tu_theo_ca, (
-        f"/theo-may thấy {tu_theo_may - tu_theo_ca} mà /theo-ca không thấy — CHẶN-1 vẫn còn"
     )
 
 
@@ -452,40 +367,6 @@ def test_theo_ca_thay_viec_ghep_qua_cau_bai_ghep(client, seed_credentials, sess,
         "việc ghép (lsx_id IS NULL, phủ qua BaiGhepCongDoanMap) biến mất khỏi /theo-ca — "
         "nhánh UNION qua_ghep mất tác dụng"
     )
-
-
-def test_theo_ca_va_theo_may_dung_chung_mot_nhan_chua_xep_may(
-    client, seed_credentials, viec_ca_dem_qua_ngay,
-):
-    """Vòng sửa 1 mục G — trước bản vá, `/theo-ca` luôn trả `may=None` cho CẢ "chưa xếp máy" lẫn
-    "máy đã xoá", trong khi `/theo-may` phân biệt hai thứ bằng hai nhãn tiếng Việt riêng. Việc
-    chưa gán máy phải hiện CÙNG một nhãn ở cả hai tab, không được để hai tab nói hai chuyện."""
-    ca_id, cv_id = viec_ca_dem_qua_ngay
-    h = _h(_tok(client, seed_credentials))
-    lanes = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()["lanes"]
-    nhan_chua_xep_may = next(l for l in lanes if l["may_id"] is None)["ten"]
-
-    cas = client.get("/api/theo-doi-san-xuat/theo-ca?ngay=2026-08-31", headers=h).json()["ca"]
-    dem = next(c for c in cas if c["id"] == ca_id)
-    viec = next(v for v in dem["viec"] if v["cong_viec_id"] == cv_id)
-    assert viec["may_id"] is None
-    assert viec["may"] == nhan_chua_xep_may, (
-        f"/theo-ca nói {viec['may']!r}, /theo-may nói {nhan_chua_xep_may!r} — hai tab trôi nhau"
-    )
-
-
-def test_theo_may_ngung_dung_van_co_lane_nhung_danh_dau(
-    client, seed_credentials, viec_tren_may_ngung_dung,
-):
-    """Vòng sửa 1 mục H — máy `active=False` không được biến mất khỏi `/theo-may`; lane vẫn hiện,
-    chỉ thêm cờ `ngung_dung=True` để FE biết mà cảnh báo điều độ viên."""
-    may_id, cv_id = viec_tren_may_ngung_dung
-    h = _h(_tok(client, seed_credentials))
-    lanes = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()["lanes"]
-    lane = next((l for l in lanes if l["may_id"] == may_id), None)
-    assert lane is not None, "máy ngừng dùng không được biến mất khỏi /theo-may"
-    assert lane["ngung_dung"] is True
-    assert cv_id in {b["cong_viec_id"] for b in lane["blocks"]}
 
 
 def test_gantt_ket_thuc_khong_som_hon_buoc_cuoi_moi_bat_dau(
@@ -645,21 +526,12 @@ def test_ca_lich_may_mot_nguon_duy_nhat():
 
 
 # --- 401/403 cho CẢ BA route mới -------------------------------------------------------------------
-def test_theo_may_khong_dang_nhap_401(client):
-    assert client.get("/api/theo-doi-san-xuat/theo-may").status_code == 401
-
-
 def test_theo_ca_khong_dang_nhap_401(client):
     assert client.get("/api/theo-doi-san-xuat/theo-ca").status_code == 401
 
 
 def test_gantt_khong_dang_nhap_401(client):
     assert client.get("/api/theo-doi-san-xuat/gantt").status_code == 401
-
-
-def test_theo_may_thieu_quyen_403(client, sess):
-    h = _h(_token_khong_quyen_theo_doi(sess))
-    assert client.get("/api/theo-doi-san-xuat/theo-may", headers=h).status_code == 403
 
 
 def test_theo_ca_thieu_quyen_403(client, sess):
@@ -673,24 +545,6 @@ def test_gantt_thieu_quyen_403(client, sess):
 
 
 # --- Chống N+1: nạp theo LÔ, không lặp theo lệnh ----------------------------------------------------
-def test_theo_may_khong_n_plus_1(client, seed_credentials, sess, orders, lsx_svc, admin, customer):
-    _dot_dong_don(sess, 35)
-    h = _h(_tok(client, seed_credentials))
-    for _ in range(3):
-        _phat_hanh_that(
-            sess, orders, lsx_svc, admin, customer,
-            buoc=[("CTP", 15, 500), ("In", 360, 5000)],
-        )
-    n3 = _dem_sql(lambda: client.get("/api/theo-doi-san-xuat/theo-may", headers=h))
-    for _ in range(3):
-        _phat_hanh_that(
-            sess, orders, lsx_svc, admin, customer,
-            buoc=[("CTP", 15, 500), ("In", 360, 5000)],
-        )
-    n6 = _dem_sql(lambda: client.get("/api/theo-doi-san-xuat/theo-may", headers=h))
-    assert n6 == n3, f"số câu SQL của /theo-may nở theo số lệnh: {n3} → {n6}"
-
-
 def test_theo_ca_khong_n_plus_1(client, seed_credentials, sess, orders, lsx_svc, admin, customer):
     _dot_dong_don(sess, 37)
     h = _h(_tok(client, seed_credentials))
@@ -1236,19 +1090,6 @@ def test_theo_ca_ca_id_chon_ngoai_ca(client, seed_credentials, hai_ca_va_ngoai_c
     assert g["cv_x"] not in {v["cong_viec_id"] for v in d["ca"][0]["viec"]}
 
 
-def test_theo_ca_ca_id_khong_khop_tra_rong(client, seed_credentials, hai_ca_va_ngoai_ca):
-    """`ca_id` là số nhưng KHÔNG khớp ca đang có (id lạ/đã xoá khỏi danh mục) phải trả `{"ca": []}`
-    — KHÔNG bịa một ca rỗng mang nhãn giả (khác `/theo-may?may_id=` Ruling C137: `work_shifts` không
-    có khái niệm "ca đã thanh lý còn nợ việc", một id lạ ở đây chỉ có thể là gõ sai)."""
-    g = hai_ca_va_ngoai_ca
-    h = _h(_tok(client, seed_credentials))
-    id_la = max(g["ca_x"], g["ca_y"]) + 9999
-    d = client.get(
-        f"/api/theo-doi-san-xuat/theo-ca?ngay=2026-08-31&ca_id={id_la}", headers=h
-    ).json()
-    assert d["ca"] == []
-
-
 def test_theo_ca_khong_ca_id_thi_van_ca_hai_loai(client, seed_credentials, hai_ca_va_ngoai_ca):
     """TIỀN ĐỀ W2 — vắng `?ca_id=` phải KHÔNG đổi hành vi cũ: cả hai ca thật LẪN rổ Ngoài ca đều có
     mặt. Đỏ nếu ai đó lỡ áp một `ca_id` mặc định (vd luôn lọc theo ca đầu tiên)."""
@@ -1368,224 +1209,9 @@ def viec_quanh_cua_so(sess, orders, lsx_svc, admin, customer) -> dict:
     return ket
 
 
-@pytest.fixture
-def hai_may_khong_viec(sess) -> tuple[int, int]:
-    """MỘT máy CÒN DÙNG và MỘT máy ĐÃ NGỪNG DÙNG, cả hai KHÔNG gánh việc nào.
-
-    Máy CÒN DÙNG là nguồn của lane RỖNG (C126 mục 2). Máy NGỪNG DÙNG ở đây là phần tử "không
-    thoả" của chính luật đó sau Vòng sửa 1 mục 4 (Ruling C132): ngừng dùng + không việc ⇒ THÔI đẻ
-    lane. Cặp máy ngừng dùng CÓ việc / KHÔNG việc nằm ở `hai_may_ngung_dung` bên dưới.
-
-    Phần tử "không thoả" còn lại là các máy CÓ việc do fixture khác dựng: bài chỉ xanh khi lane
-    mọc ra từ DANH MỤC chứ không mọc ra từ dữ liệu công việc."""
-    ranh = MayThietBi(
-        ma="MAY-C126-RANH", ten="Máy bế đang rảnh (C126)", loai_may="be", active=True,
-    )
-    ngung = MayThietBi(
-        ma="MAY-C126-NGUNG", ten="Máy xén đã thanh lý (C126)", loai_may="be", active=False,
-    )
-    sess.add_all([ranh, ngung])
-    sess.commit()
-    return ranh.id, ngung.id
-
-
-def _blocks_theo_may(client, h, truy_van: str = "") -> set[int]:
-    d = client.get("/api/theo-doi-san-xuat/theo-may" + truy_van, headers=h).json()
-    return {b["cong_viec_id"] for l in d["lanes"] for b in l["blocks"]}
-
-
 # --- V3: cửa sổ thời gian -------------------------------------------------------------------------
-def test_theo_may_cua_so_khong_cat_viec_bien_cuoi_ngay(
-    client, seed_credentials, viec_quanh_cua_so,
-):
-    """BÀI BIÊN mà brief C126 bắt buộc phải có. Đỏ nếu biên phải của cửa sổ lấy thẳng `den 00:00`
-    thay vì `den + 1 ngày` (`_cua_so_ban_may`): việc 23:00 của CHÍNH NGÀY người dùng chọn bị cắt —
-    đúng lỗi Task 16 đã dính ở `/theo-ca` và tốn một vòng sửa vì không fixture nào đặt dữ liệu ở
-    biên. Cũng đỏ nếu biên trái bị lệch (`Biên đầu` 00:00 rơi ra ngoài).
-
-    Hai phần tử "không thoả" (`Hôm trước` 09/09, `Hôm sau` 11/09) khẳng định bài vẫn phân biệt
-    được: một bản BỎ HẲN cửa sổ (trả mọi việc) cũng phải đỏ, không chỉ bản cắt quá tay."""
-    h = _h(_tok(client, seed_credentials))
-    thay = _blocks_theo_may(client, h, "?tu=2026-09-10&den=2026-09-10")
-    assert viec_quanh_cua_so["Biên cuối"] in thay, (
-        "việc 23:00 ngày 10/09 bị cắt khỏi cửa sổ 10/09 — biên phải thu hẹp thay vì nới"
-    )
-    assert viec_quanh_cua_so["Biên đầu"] in thay
-    assert viec_quanh_cua_so["Hôm trước"] not in thay
-    assert viec_quanh_cua_so["Hôm sau"] not in thay
-
-
-def test_theo_may_viec_vat_qua_cua_so_van_hien(client, seed_credentials, viec_quanh_cua_so):
-    """Đỏ nếu cửa sổ hỏi kiểu "bắt đầu TRONG khoảng" (`du_kien_bat_dau BETWEEN tu AND den`) thay
-    vì CHỒNG LẤN: ca in dài 05/09 → 15/09 đang chiếm máy suốt ngày 10/09 sẽ biến mất khỏi bàn điều
-    độ đúng lúc nó bận nhất. `Hôm trước`/`Hôm sau` là phần tử "không thoả" của bài."""
-    h = _h(_tok(client, seed_credentials))
-    thay = _blocks_theo_may(client, h, "?tu=2026-09-10&den=2026-09-10")
-    assert viec_quanh_cua_so["Vắt qua"] in thay, "việc vắt qua cửa sổ bị bỏ — cửa sổ không chồng lấn"
-    assert viec_quanh_cua_so["Hôm sau"] not in thay
-
-
-def test_theo_may_viec_chua_xep_gio_luon_hien_trong_moi_cua_so(
-    client, seed_credentials, viec_quanh_cua_so,
-):
-    """Đỏ nếu nhánh `du_kien_bat_dau IS NULL` bị bỏ khỏi `_cham_cua_so`/`_cham_cua_so_sql`: việc
-    CHƯA xếp giờ chính là thứ người điều độ mở bàn này ra để nhét vào, lọc nó đi vì "không thuộc
-    cửa sổ" là giấu mất đúng phần việc cần làm. Cửa sổ chọn hẹp (một ngày) và `Hôm sau` vẫn phải
-    vắng — nếu không, một bản "cửa sổ vô hiệu" cũng xanh."""
-    h = _h(_tok(client, seed_credentials))
-    thay = _blocks_theo_may(client, h, "?tu=2026-09-10&den=2026-09-10")
-    assert viec_quanh_cua_so["Chưa xếp"] in thay, "việc chưa xếp giờ biến mất khi có cửa sổ"
-    assert viec_quanh_cua_so["Hôm sau"] not in thay
-
-
-def test_theo_may_khong_cua_so_thi_thay_het(client, seed_credentials, viec_quanh_cua_so):
-    """TIỀN ĐỀ của ba bài trên, và là luật "tham số vắng mặt = không lọc": không `tu`/`den` thì
-    `/theo-may` giữ nguyên hành vi Task 16 (backlog trọn đời). Đỏ nếu ai đó gán mặc định "hôm nay"
-    cho cửa sổ — khi đó bàn im lặng giấu mọi việc xếp cho tuần sau."""
-    h = _h(_tok(client, seed_credentials))
-    thay = _blocks_theo_may(client, h)
-    assert {viec_quanh_cua_so[k] for k in ("Hôm trước", "Hôm sau", "Vắt qua", "Chưa xếp")} <= thay
-    assert viec_quanh_cua_so["cv_ngoai"] in thay
-
-
-def test_theo_may_mot_dau_cua_so_chi_chan_dau_do(client, seed_credentials, viec_quanh_cua_so):
-    """Đỏ nếu `_cua_so_ban_may` đòi CẢ HAI đầu mới lọc (hoặc tự bịa đầu còn thiếu): `?tu=` một
-    mình phải chặn quá khứ mà để ngỏ tương lai, `?den=` một mình thì ngược lại. Mỗi vế đều có
-    phần tử "không thoả" riêng nên một bản bỏ qua cửa sổ nửa hở cũng đỏ."""
-    h = _h(_tok(client, seed_credentials))
-    tu_thoi = _blocks_theo_may(client, h, "?tu=2026-09-10")
-    assert viec_quanh_cua_so["Hôm sau"] in tu_thoi
-    assert viec_quanh_cua_so["Hôm trước"] not in tu_thoi
-
-    den_thoi = _blocks_theo_may(client, h, "?den=2026-09-10")
-    assert viec_quanh_cua_so["Hôm trước"] in den_thoi
-    assert viec_quanh_cua_so["Hôm sau"] not in den_thoi
-
-
-def test_theo_may_cua_so_loc_ids_truoc_khi_nap(sess, viec_quanh_cua_so, monkeypatch):
-    """Ruling C121 áp cho cả cửa sổ: lọc Ở SQL, TRƯỚC `boi_canh.nap()`. Đỏ nếu cửa sổ chỉ được áp
-    ở tầng Python (lọc block sau khi nạp) — khi đó `nap()` vẫn kéo về lệnh `lsx_ngoai` dù mọi việc
-    của nó nằm ngoài cửa sổ mười ngày, và một xưởng chạy lâu năm trả cả kho lịch sử mỗi lần tải.
-    Bài rình thẳng đối số của `nap()`, không đo gián tiếp qua số câu SQL."""
-    ghi: dict = {}
-    nap_that = bang_theo_doi.boi_canh.nap
-
-    def rinh(db, lsx_ids):
-        ghi["ids"] = list(lsx_ids)
-        return nap_that(db, lsx_ids)
-
-    monkeypatch.setattr(bang_theo_doi.boi_canh, "nap", rinh)
-    bang_theo_doi.theo_may(sess, sale_ids=None, tu=NGAY_CUA_SO, den=NGAY_CUA_SO)
-    assert viec_quanh_cua_so["lsx"] in ghi["ids"], "lệnh CÓ việc trong cửa sổ phải lọt vào nap()"
-    assert viec_quanh_cua_so["lsx_ngoai"] not in ghi["ids"], (
-        "lệnh không có việc nào trong cửa sổ vẫn được nạp — cửa sổ chỉ chạy ở Python"
-    )
-
-
-def test_theo_may_cua_so_nguoc_422(client, seed_credentials):
-    """Đỏ nếu router nhận `tu > den` không kêu: cửa sổ ngược cho ra tập rỗng, mà người dùng đọc
-    một bàn trắng thành "hôm nay xưởng không có việc" chứ không thành "mình gõ ngược ngày"."""
-    h = _h(_tok(client, seed_credentials))
-    r = client.get(
-        "/api/theo-doi-san-xuat/theo-may?tu=2026-09-20&den=2026-09-10", headers=h
-    )
-    assert r.status_code == 422
-
-
 # --- V3: lane cho máy KHÔNG có việc ---------------------------------------------------------------
-def test_theo_may_lane_rong_cho_may_khong_co_viec(
-    client, seed_credentials, hai_may_khong_viec, viec_chua_xep_may,
-):
-    """C126 mục 2. Đỏ nếu khung lane vẫn dựng TỪ DỮ LIỆU công việc (`theo_lane` chỉ gom theo
-    `cv.may_id` như Task 16) thay vì từ DANH MỤC máy: hai máy dưới đây không gánh việc nào nên sẽ
-    không có lane, và câu hỏi "máy nào đang trống để nhét việc vào" không trả lời được.
-
-    Máy CÒN DÙNG là vế khẳng định; máy ĐÃ NGỪNG DÙNG và không việc nào là vế phủ định — sau Vòng
-    sửa 1 mục 4 (Ruling C132) nó KHÔNG được đẻ lane nữa, nên bài này cũng đỏ với bản "cứ máy nào
-    trong danh mục cũng đẻ lane rỗng". Máy ngừng dùng CÒN ôm việc thì vẫn phải có lane — vế đó ở
-    `test_theo_may_may_ngung_dung_giu_lane_khi_con_viec_bo_lane_khi_rong`.
-
-    `viec_chua_xep_may` giữ trong fixture để bàn vẫn có ít nhất một lane CÓ block, tức bài không
-    xanh nhờ một bàn trống trơn."""
-    ranh_id, ngung_id = hai_may_khong_viec
-    h = _h(_tok(client, seed_credentials))
-    lanes = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()["lanes"]
-    theo_id = {l["may_id"]: l for l in lanes}
-
-    assert ranh_id in theo_id, "máy còn dùng, không có việc — thiếu lane rỗng"
-    assert theo_id[ranh_id]["blocks"] == []
-    assert theo_id[ranh_id]["ngung_dung"] is False
-    assert theo_id[ranh_id]["ten"] == "Máy bế đang rảnh (C126)", (
-        "lane của máy rảnh mang nhãn sai — máy rảnh không nằm trong bc.may nên rất dễ bị gán "
-        "nhầm nhãn 'Máy đã xoá'"
-    )
-
-    assert ngung_id not in theo_id, (
-        "máy đã ngừng dùng và KHÔNG có việc vẫn đẻ lane rỗng (C132, vòng sửa 1 mục 4)"
-    )
-
-    co_block = [l for l in lanes if l["blocks"]]
-    assert co_block, "tiền đề: bàn phải có ít nhất một lane CÓ việc"
-
-
-def test_theo_may_loc_may_chi_bay_lane_may_do(
-    client, seed_credentials, hai_may_khong_viec, viec_chua_xep_may,
-):
-    """Đỏ nếu `?may_id=` chỉ thu hẹp TẬP LỆNH mà vẫn bày nguyên khung lane của cả danh mục: chọn
-    một máy rồi nhận về hai chục lane (kèm lane "Chưa xếp máy") là câu trả lời sai cho câu hỏi đã
-    đặt. Phần tử "không thoả": máy ngừng dùng và lane "Chưa xếp máy" — cả hai đều tồn tại trong
-    cùng lượt gọi KHÔNG lọc (đã canh ở bài trên) nên bài này phân biệt được hai hành vi."""
-    ranh_id, ngung_id = hai_may_khong_viec
-    h = _h(_tok(client, seed_credentials))
-    lanes = client.get(
-        "/api/theo-doi-san-xuat/theo-may?may_id=%d" % ranh_id, headers=h
-    ).json()["lanes"]
-    assert [l["may_id"] for l in lanes] == [ranh_id], (
-        "lọc theo một máy vẫn trả về lane của máy khác / lane Chưa xếp máy"
-    )
-
-
 # --- V4: block mang cặp `(lsx_id, ma)` (Ruling C123) ----------------------------------------------
-def test_theo_may_block_mang_ca_lsx_id_lan_ma(client, seed_credentials, sess, ghep_doi):
-    """Đỏ nếu `MayLaneBlockOut.lsx` quay lại `list[str]` (chỉ mã): FE không có gì để bấm mở hồ sơ,
-    phải dò ngược mã → id hoặc đoán. Dùng ca in GHÉP vì đó là hình dạng duy nhất mà một block gánh
-    NHIỀU lệnh — C123 chốt là từ hai lệnh trở lên thì FE bày danh sách cho người chọn, nên cả hai
-    cặp phải có mặt và `lsx_id` phải là id THẬT của đúng lệnh mang mã đó (một bản trả `lsx_id` của
-    lệnh đầu cho cả hai phần tử cũng đỏ). Thứ tự vẫn sắp theo MÃ như Task 16."""
-    a_id, b_id, cv_chung = ghep_doi
-    ma_theo_id = {l: sess.get(Lsx, l).ma for l in (a_id, b_id)}
-    assert len(set(ma_theo_id.values())) == 2, "tiền đề: hai lệnh phải khác mã"
-
-    h = _h(_tok(client, seed_credentials))
-    d = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()
-    block = next(
-        b for l in d["lanes"] for b in l["blocks"] if b["cong_viec_id"] == cv_chung.id
-    )
-    assert block["lsx"] == sorted(
-        [{"lsx_id": a_id, "ma": ma_theo_id[a_id]}, {"lsx_id": b_id, "ma": ma_theo_id[b_id]}],
-        key=lambda x: x["ma"],
-    )
-
-
-def test_theo_may_block_lsx_giu_thu_tu_theo_ma(client, seed_credentials, sess, ghep_doi):
-    """Đỏ nếu thứ tự `lsx` trong block đổi tiêu chí (sắp theo `lsx_id`, hay bỏ hẳn `sorted`, để
-    thứ tự chạy theo dict/set): Task 17 đổi KIỂU phần tử nhưng brief bắt GIỮ tiêu chí sắp theo MÃ,
-    vì đó là thứ người dùng đọc trên block. Bài đổi mã của một lệnh cho THỨ TỰ MÃ NGƯỢC với thứ tự
-    id — không đổi thì hai tiêu chí trùng nhau và bài không phân biệt được gì."""
-    a_id, b_id, cv_chung = ghep_doi
-    sess.get(Lsx, a_id).ma = "LSX-ZZZ-SAU"
-    sess.get(Lsx, b_id).ma = "LSX-AAA-TRUOC"
-    sess.commit()
-
-    h = _h(_tok(client, seed_credentials))
-    d = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()
-    block = next(
-        b for l in d["lanes"] for b in l["blocks"] if b["cong_viec_id"] == cv_chung.id
-    )
-    assert [x["ma"] for x in block["lsx"]] == ["LSX-AAA-TRUOC", "LSX-ZZZ-SAU"]
-    assert [x["lsx_id"] for x in block["lsx"]] == [b_id, a_id]
-
-
 # ==================================================================================================
 # VÒNG SỬA 1 — MỤC 1 (Ruling C135): `du_kien_ket_thuc IS NULL` nghĩa là MỞ ĐẦU KIA (+∞), KHÔNG
 # phải "kết thúc ngay lúc bắt đầu".
@@ -1598,121 +1224,6 @@ def test_theo_may_block_lsx_giu_thu_tu_theo_ma(client, seed_credentials, sess, g
 # Chỉ đầu `tu` mở. Vế `den` vẫn chặn: việc xếp bắt đầu SAU `den` thì không thuộc cửa sổ dù chưa
 # biết giờ xong — nếu không, mọi việc chưa khai giờ kết thúc sẽ tràn vào mọi cửa sổ.
 # ==================================================================================================
-def _bat_dau_that(sess, admin, cv, *, ma: str, ten: str) -> None:
-    """Bắt đầu một bước qua ĐÚNG đường ghi production, KHÔNG kết thúc — dựng một ca "đang chạy"
-    đứng yên. Bản sao của `test_theo_doi_kanban._bat_dau_that` (hai file test độc lập nhau, mỗi
-    file tự dựng nền trên DB SQLite riêng); xem `lenh_sx_fixtures._chay_that` cho lý do từng cửa
-    (`has_piece_work`)."""
-    to = sess.get(Department, cv.department_id)
-    to.has_piece_work = True
-    sess.commit()
-    _giao_nguoi(sess, admin, cv, ma=ma, ten=ten)
-    thuc_thi.bat_dau(
-        sess, user=admin, cong_viec_id=cv.id,
-    )
-    sess.expire_all()
-
-
-@pytest.fixture
-def viec_dang_chay_chua_biet_gio_xong(sess, orders, lsx_svc, admin, customer) -> dict:
-    """MỘT lệnh, BA công việc — hình dạng mà C135 chốt lại. Cửa sổ đem canh là 10/09/2026.
-
-        khoá         trạng thái  mốc kế hoạch                trong cửa sổ 10/09?
-        dang_chay    running     01/09 08:00 → NULL          CÓ    (NULL = mở tới +∞)
-        xong_som     released    01/09 08:00 → 01/09 09:00   KHÔNG (kết thúc hẳn trước `tu`)
-        xep_sau      released    20/09 08:00 → NULL          KHÔNG (bắt đầu sau `den`)
-
-    Hai phần tử "không thoả" là cố ý và mỗi cái chặn một bản vá sai khác nhau:
-      · `xong_som` chặn bản "bỏ hẳn vế `tu`" (cửa sổ mất nửa trái thì việc này cũng lọt);
-      · `xep_sau` chặn bản "NULL thì LUÔN lọt như việc chưa xếp giờ" — nới quá tay sang cả đầu
-        `den`, khi đó mọi việc chưa khai giờ kết thúc tràn vào mọi cửa sổ.
-
-    Ba việc nằm trong CÙNG một lệnh: tầng SQL chọn LỆNH nên lệnh này lọt/rớt trọn gói, còn phép
-    chọn BLOCK mới phân biệt ba việc — bài vì thế đỏ ở CẢ hai tầng khi chỉ vá một tầng.
-    """
-    _dot_dong_don(sess, 77)
-    lsx_id = _phat_hanh_that(
-        sess, orders, lsx_svc, admin, customer,
-        buoc=[("Đang chạy", 30, 500), ("Xong sớm", 30, 500), ("Xếp sau", 30, 500)],
-    )
-    cvs = {cv.ten_cong_doan: cv for cv in _cvs(sess, lsx_id)}
-    _bat_dau_that(sess, admin, cvs["Đang chạy"], ma="THO-C135", ten="Thợ ca dài (C135)")
-    cvs = {cv.ten_cong_doan: cv for cv in _cvs(sess, lsx_id)}
-
-    moc = {
-        "Đang chạy": (datetime(2026, 9, 1, 8, 0), None),
-        "Xong sớm": (datetime(2026, 9, 1, 8, 0), datetime(2026, 9, 1, 9, 0)),
-        "Xếp sau": (datetime(2026, 9, 20, 8, 0), None),
-    }
-    for ten, (bd, kt) in moc.items():
-        cvs[ten].du_kien_bat_dau = bd.replace(tzinfo=timezone.utc)
-        cvs[ten].du_kien_ket_thuc = kt.replace(tzinfo=timezone.utc) if kt else None
-    sess.commit()
-    sess.expire_all()
-
-    assert cvs["Đang chạy"].trang_thai == CV_DANG_CHAY, (
-        "tiền đề: bước phải ĐANG CHẠY — bug này chỉ có nghĩa với việc chưa hoàn thành"
-    )
-    ket = {ten: cvs[ten].id for ten in moc}
-    ket["lsx"] = lsx_id
-    return ket
-
-
-def test_theo_may_viec_dang_chay_chua_biet_gio_xong_van_trong_cua_so(
-    client, seed_credentials, viec_dang_chay_chua_biet_gio_xong,
-):
-    """Đỏ nếu `du_kien_ket_thuc IS NULL` bị suy thành "kết thúc NGAY LÚC BẮT ĐẦU"
-    (`COALESCE(ket_thuc, bat_dau)` ở `_cham_cua_so_sql`, `... or bd` ở `_cham_cua_so`): ca đang
-    chạy từ 01/09 mà chưa ai khai giờ xong biến mất khỏi cửa sổ 10/09 — đúng lúc nó vẫn chiếm máy.
-    Ruling C135: NULL = MỞ tới +∞, chỉ ở đầu `tu`.
-
-    Hai vế còn lại giữ bài khỏi xanh nhờ một bản nới quá tay: `xong_som` (đã xong hẳn trước cửa sổ)
-    và `xep_sau` (bắt đầu sau `den`, cũng NULL giờ kết thúc) đều phải VẮNG."""
-    v = viec_dang_chay_chua_biet_gio_xong
-    h = _h(_tok(client, seed_credentials))
-    thay = _blocks_theo_may(client, h, "?tu=2026-09-10&den=2026-09-10")
-    assert v["Đang chạy"] in thay, (
-        "việc ĐANG CHẠY chưa biết giờ xong bị cửa sổ nuốt mất — NULL bị coi là kết thúc tức thời"
-    )
-    assert v["Xong sớm"] not in thay
-    assert v["Xếp sau"] not in thay, (
-        "việc bắt đầu SAU `den` vẫn lọt — NULL bị nới sang cả đầu `den`, không chỉ đầu `tu`"
-    )
-
-
-def test_theo_may_viec_chua_biet_gio_xong_loc_ids_truoc_khi_nap(
-    sess, viec_dang_chay_chua_biet_gio_xong, monkeypatch,
-):
-    """Cùng luật C135 nhưng canh TẦNG SQL: đỏ nếu chỉ tầng Python được vá còn `_cham_cua_so_sql`
-    vẫn `COALESCE` — khi đó câu SQL loại LUÔN CẢ LỆNH và tầng Python không bao giờ được nhìn thấy
-    việc đang chạy. Đây đúng chiều trôi lệch NGUY HIỂM mà docstring `_cham_cua_so` từng nói quá là
-    "không mất dữ liệu" (mục 6).
-
-    Phần tử "không thoả": chính lệnh này khi hỏi một cửa sổ nằm hẳn TRƯỚC mọi mốc của nó (20/08) —
-    lúc đó nó PHẢI rớt, nếu không thì một bản "bỏ hẳn cửa sổ ở SQL" cũng xanh. (Cửa sổ nằm SAU thì
-    KHÔNG dùng được làm phần tử phủ định: việc `Xếp sau` mở tới +∞ nên nó chạm mọi cửa sổ về sau —
-    đúng theo C135, không phải lỗi.)"""
-    ghi: dict = {}
-    nap_that = bang_theo_doi.boi_canh.nap
-
-    def rinh(db, lsx_ids):
-        ghi.setdefault("ids", []).append(list(lsx_ids))
-        return nap_that(db, lsx_ids)
-
-    monkeypatch.setattr(bang_theo_doi.boi_canh, "nap", rinh)
-    bang_theo_doi.theo_may(sess, sale_ids=None, tu=NGAY_CUA_SO, den=NGAY_CUA_SO)
-    bang_theo_doi.theo_may(
-        sess, sale_ids=None, tu=date(2026, 8, 20), den=date(2026, 8, 20),
-    )
-    trong_cua_so, truoc_moi_moc = ghi["ids"]
-    assert viec_dang_chay_chua_biet_gio_xong["lsx"] in trong_cua_so, (
-        "câu SQL loại cả lệnh vì việc đang chạy chưa khai giờ xong — tầng Python không được nhìn"
-    )
-    assert viec_dang_chay_chua_biet_gio_xong["lsx"] not in truoc_moi_moc, (
-        "cửa sổ 20/08 (trước MỌI mốc của lệnh) vẫn nạp lệnh — vế `den` của câu SQL mất tác dụng"
-    )
-
-
 # ==================================================================================================
 # VÒNG SỬA 1 — MỤC 2: HÀNG RÀO RIÊNG cho TẦNG SQL của cửa sổ.
 #
@@ -1724,81 +1235,6 @@ def test_theo_may_viec_chua_biet_gio_xong_loc_ids_truoc_khi_nap(
 # của nó KHÔNG "bắt đầu trong khoảng" nhưng CÓ chồng lấn — SQL sai là lệnh biến mất, không còn tầng
 # nào cứu.
 # ==================================================================================================
-@pytest.fixture
-def hai_lenh_co_lap_quanh_cua_so(sess, orders, lsx_svc, admin, customer) -> dict:
-    """HAI lệnh MỘT-BƯỚC, mỗi lệnh giữ riêng công việc của nó (không bài ghép, không dùng chung).
-
-        khoá      mốc kế hoạch                  cửa sổ 10/09?
-        vat_qua   05/09 08:00 → 15/09 17:00     CÓ    — chồng lấn, nhưng KHÔNG "bắt đầu trong"
-        ngoai     20/09 08:00 → 20/09 09:00     KHÔNG — phần tử "không thoả"
-
-    Khác `viec_quanh_cua_so` ở đúng một điểm, và điểm đó là toàn bộ lý do fixture này tồn tại:
-    ở kia sáu việc nằm trong CÙNG một lệnh nên câu SQL cho cả lệnh qua bất kể nó hỏi gì, còn ở đây
-    lệnh `vat_qua` chỉ có MỘT việc — SQL hỏi sai là mất trắng cả lệnh.
-    """
-    _dot_dong_don(sess, 78)
-    lsx_vat = _phat_hanh_that(
-        sess, orders, lsx_svc, admin, customer, buoc=[("Ca in dài", 60, 500)],
-    )
-    cv_vat = _cvs(sess, lsx_vat)[0]
-    cv_vat.du_kien_bat_dau = datetime(2026, 9, 5, 8, 0, tzinfo=timezone.utc)
-    cv_vat.du_kien_ket_thuc = datetime(2026, 9, 15, 17, 0, tzinfo=timezone.utc)
-
-    lsx_ngoai = _phat_hanh_that(
-        sess, orders, lsx_svc, admin, customer, buoc=[("Ca in sau", 60, 500)],
-    )
-    cv_ngoai = _cvs(sess, lsx_ngoai)[0]
-    cv_ngoai.du_kien_bat_dau = datetime(2026, 9, 20, 8, 0, tzinfo=timezone.utc)
-    cv_ngoai.du_kien_ket_thuc = datetime(2026, 9, 20, 9, 0, tzinfo=timezone.utc)
-    sess.commit()
-
-    assert len(_cvs(sess, lsx_vat)) == 1, "tiền đề: lệnh `vat_qua` phải CHỈ có một việc"
-    return {
-        "lsx_vat": lsx_vat, "cv_vat": cv_vat.id,
-        "lsx_ngoai": lsx_ngoai, "cv_ngoai": cv_ngoai.id,
-    }
-
-
-def test_theo_may_cua_so_sql_chan_o_tang_lenh_khong_phai_tang_block(
-    sess, hai_lenh_co_lap_quanh_cua_so, monkeypatch,
-):
-    """HÀNG RÀO của TẦNG SQL (`_cham_cua_so_sql`), tách hẳn khỏi tầng Python (`_cham_cua_so`).
-    Đỏ nếu câu SQL hỏi "bắt đầu TRONG khoảng" thay vì CHỒNG LẤN: lệnh `vat_qua` (một việc duy
-    nhất, bắt đầu 05/09) rớt ngay ở `WHERE` và `boi_canh.nap()` không bao giờ nhận được nó — tầng
-    Python không có gì để cứu, khác hẳn `viec_quanh_cua_so` nơi lệnh luôn lọt nhờ năm việc còn lại.
-
-    Bài rình thẳng đối số của `nap()` chứ không đọc kết quả API: nếu chỉ đọc block thì một bản
-    "SQL hẹp + Python rộng" vẫn có thể xanh nhờ lệnh khác kéo theo.
-
-    Phần tử "không thoả": `lsx_ngoai` (20/09) phải VẮNG — không có nó thì một bản bỏ hẳn cửa sổ ở
-    SQL cũng xanh."""
-    ghi: dict = {}
-    nap_that = bang_theo_doi.boi_canh.nap
-
-    def rinh(db, lsx_ids):
-        ghi["ids"] = list(lsx_ids)
-        return nap_that(db, lsx_ids)
-
-    monkeypatch.setattr(bang_theo_doi.boi_canh, "nap", rinh)
-    bang_theo_doi.theo_may(sess, sale_ids=None, tu=NGAY_CUA_SO, den=NGAY_CUA_SO)
-    assert hai_lenh_co_lap_quanh_cua_so["lsx_vat"] in ghi["ids"], (
-        "lệnh CÔ LẬP chỉ chạm cửa sổ theo phép CHỒNG LẤN đã bị câu SQL loại — cửa sổ SQL THU HẸP"
-    )
-    assert hai_lenh_co_lap_quanh_cua_so["lsx_ngoai"] not in ghi["ids"]
-
-
-def test_theo_may_cua_so_sql_giu_lai_block_cua_lenh_co_lap(
-    client, seed_credentials, hai_lenh_co_lap_quanh_cua_so,
-):
-    """Vế NGƯỜI DÙNG THẤY của bài trên: block của lệnh cô lập phải thật sự lên bàn, không chỉ lọt
-    vào `nap()`. Đỏ với cùng một đột biến `_cham_cua_so_sql`, và cũng đỏ nếu ai đó "vá" bằng cách
-    nới SQL rồi lại siết ở tầng Python. `cv_ngoai` là phần tử "không thoả"."""
-    h = _h(_tok(client, seed_credentials))
-    thay = _blocks_theo_may(client, h, "?tu=2026-09-10&den=2026-09-10")
-    assert hai_lenh_co_lap_quanh_cua_so["cv_vat"] in thay
-    assert hai_lenh_co_lap_quanh_cua_so["cv_ngoai"] not in thay
-
-
 # ==================================================================================================
 # VÒNG SỬA 1 — MỤC 4 (Ruling C132): máy NGỪNG DÙNG mà KHÔNG có block thì THÔI đẻ lane.
 #
@@ -1806,59 +1242,6 @@ def test_theo_may_cua_so_sql_giu_lai_block_cua_lenh_co_lap(
 # lý — xưởng chạy lâu năm sẽ có hàng chục lane chết. Máy ngừng dùng mà CÒN ôm việc thì lane vẫn
 # phải hiện (kèm cờ `ngung_dung`): đó đúng là thứ điều độ phải xử lý.
 # ==================================================================================================
-@pytest.fixture
-def hai_may_ngung_dung(sess, orders, lsx_svc, admin, customer) -> dict:
-    """HAI máy đã NGỪNG DÙNG (`active=False`), khác nhau ĐÚNG MỘT điểm — có việc hay không.
-
-        khoá         active  việc chưa xong        lane trên `/theo-may`?
-        co_viec      False   MỘT (bước CTP)        CÒN, kèm `ngung_dung=True`
-        khong_viec   False   không                 KHÔNG (C132)
-
-    Hai phần tử ngược nhau trong CÙNG một bài là điều kiện C127: một bản "ẩn mọi máy ngừng dùng"
-    và một bản "giữ mọi máy ngừng dùng" đều phải bị bắt, không bản nào lọt.
-    """
-    co_viec = MayThietBi(
-        ma="MAY-C132-CO-VIEC", ten="Máy bế cũ còn việc (C132)", loai_may="be", active=False,
-    )
-    khong_viec = MayThietBi(
-        ma="MAY-C132-RONG", ten="Máy xén đã thanh lý (C132)", loai_may="be", active=False,
-    )
-    sess.add_all([co_viec, khong_viec])
-    sess.commit()
-
-    _dot_dong_don(sess, 80)
-    lsx_id = _phat_hanh_that(
-        sess, orders, lsx_svc, admin, customer, buoc=[("CTP", 15, 500)],
-    )
-    cv = _cvs(sess, lsx_id)[0]
-    cv.may_id = co_viec.id
-    sess.commit()
-    return {"co_viec": co_viec.id, "khong_viec": khong_viec.id, "cv": cv.id}
-
-
-def test_theo_may_may_ngung_dung_giu_lane_khi_con_viec_bo_lane_khi_rong(
-    client, seed_credentials, hai_may_ngung_dung,
-):
-    """Ruling C132. Đỏ theo HAI chiều ngược nhau:
-      · bỏ luật ⇒ máy đã thanh lý KHÔNG việc vẫn đẻ lane rỗng, bàn điều độ mọc hàng chục lane chết;
-      · làm quá tay (ẩn MỌI máy `active=False`) ⇒ việc còn nằm trên máy đã thanh lý biến mất khỏi
-        bàn, đúng thứ C126 cấm.
-
-    Hai máy trong fixture khác nhau ĐÚNG cột `blocks`, nên không bản nào đi qua được cả hai vế."""
-    g = hai_may_ngung_dung
-    h = _h(_tok(client, seed_credentials))
-    lanes = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()["lanes"]
-    theo_id = {l["may_id"]: l for l in lanes}
-
-    assert g["co_viec"] in theo_id, "máy ngừng dùng CÒN ôm việc bị ẩn lane — việc biến mất"
-    assert theo_id[g["co_viec"]]["ngung_dung"] is True
-    assert g["cv"] in {b["cong_viec_id"] for b in theo_id[g["co_viec"]]["blocks"]}
-
-    assert g["khong_viec"] not in theo_id, (
-        "máy đã thanh lý và KHÔNG có việc nào vẫn đẻ lane rỗng (C132)"
-    )
-
-
 # ==================================================================================================
 # VÒNG SỬA 2 — MỤC 1 (Ruling C136) và MỤC 2 (Ruling C137).
 #
@@ -1870,150 +1253,6 @@ def test_theo_may_may_ngung_dung_giu_lane_khi_con_viec_bo_lane_khi_rong(
 #        cờ `co_viec` của `/bo-loc` lẫn quyết định có-lane của `/theo-may`.
 # C137 — C132 chỉ chi phối bộ lane MẶC ĐỊNH. `?may_id=` tường minh luôn trả ĐÚNG MỘT lane.
 # ==================================================================================================
-@pytest.fixture
-def may_ngung_dung_no_viec_ngoai_cua_so(sess, orders, lsx_svc, admin, customer) -> dict:
-    """HAI máy đã NGỪNG DÙNG, khác nhau đúng ở chỗ CÒN NỢ VIỆC hay không — và việc đang nợ nằm
-    NGOÀI cửa sổ đem hỏi.
-
-        khoá        active  việc                              lane khi hỏi cửa sổ 10/09?
-        no_viec     False   MỘT bước `released` 20/09 08:00    CÒN (C132 hứa vô điều kiện)
-        sach_no     False   không việc nào                    KHÔNG (C132 khử lane chết)
-
-    Cửa sổ đem hỏi (10/09) cố ý KHÔNG chứa việc kia: đó chính là ca biên. Máy `sach_no` là phần tử
-    "không thoả" — thiếu nó thì một bản "cứ máy ngừng dùng là đẻ lane" cũng xanh.
-    """
-    no_viec = MayThietBi(
-        ma="MAY-C136-NO", ten="Máy bế cũ còn nợ việc (C136)", loai_may="be", active=False,
-    )
-    sach_no = MayThietBi(
-        ma="MAY-C136-SACH", ten="Máy xén cũ hết việc (C136)", loai_may="be", active=False,
-    )
-    sess.add_all([no_viec, sach_no])
-    sess.commit()
-
-    _dot_dong_don(sess, 82)
-    lsx_id = _phat_hanh_that(
-        sess, orders, lsx_svc, admin, customer, buoc=[("CTP", 15, 500)],
-    )
-    cv = _cvs(sess, lsx_id)[0]
-    cv.may_id = no_viec.id
-    cv.du_kien_bat_dau = datetime(2026, 9, 20, 8, 0, tzinfo=timezone.utc)
-    cv.du_kien_ket_thuc = datetime(2026, 9, 20, 9, 0, tzinfo=timezone.utc)
-    sess.commit()
-
-    assert cv.trang_thai != CV_HOAN_THANH, "tiền đề: việc đang nợ phải CHƯA hoàn thành"
-    return {"no_viec": no_viec.id, "sach_no": sach_no.id, "cv": cv.id}
-
-
-def test_theo_may_may_ngung_dung_con_no_viec_ngoai_cua_so_van_co_lane(
-    client, seed_credentials, may_ngung_dung_no_viec_ngoai_cua_so,
-):
-    """Ruling C136. Đỏ nếu quyết định có-lane đọc tập công việc ĐÃ LỌC THEO CỬA SỔ (`cvs`) thay vì
-    vị ngữ "còn nợ việc" độc lập cửa sổ: máy đã thanh lý còn nợ một bước `released` xếp cho ngày
-    20/09 sẽ BIẾN MẤT khỏi bàn ngay khi người điều độ thu cửa sổ về ngày 10/09 — trái thẳng lời hứa
-    vô điều kiện của C132, và là lần thứ ba của họ lỗi "cửa sổ thu hẹp làm dữ liệu biến mất im
-    lặng" trên nhánh này.
-
-    Máy `sach_no` (ngừng dùng, KHÔNG nợ gì) phải VẮNG trong cùng lượt gọi — nếu không thì một bản
-    bỏ hẳn C132 cũng xanh. Lane của `no_viec` mang `blocks: []` là ĐÚNG: việc kia thật sự nằm ngoài
-    cửa sổ, cái phải giữ là LANE (chỗ để thấy máy còn nợ), không phải block."""
-    g = may_ngung_dung_no_viec_ngoai_cua_so
-    h = _h(_tok(client, seed_credentials))
-    lanes = client.get(
-        "/api/theo-doi-san-xuat/theo-may?tu=2026-09-10&den=2026-09-10", headers=h
-    ).json()["lanes"]
-    theo_id = {l["may_id"]: l for l in lanes}
-
-    assert g["no_viec"] in theo_id, (
-        "máy ngừng dùng CÒN NỢ việc mất lane chỉ vì việc đó nằm ngoài cửa sổ đang xem"
-    )
-    assert theo_id[g["no_viec"]]["ngung_dung"] is True
-    assert theo_id[g["no_viec"]]["blocks"] == []
-    assert g["sach_no"] not in theo_id, "máy ngừng dùng KHÔNG nợ gì vẫn đẻ lane (C132)"
-
-
-def test_theo_may_lane_may_ngung_dung_khong_doi_theo_cua_so(
-    client, seed_credentials, may_ngung_dung_no_viec_ngoai_cua_so,
-):
-    """Bất biến gọn của C136, phát biểu thành một phép so trực tiếp: bộ máy NGỪNG DÙNG có lane
-    phải GIỐNG NHAU dù hỏi cửa sổ nào — kể cả cửa sổ không chứa việc nào. Đỏ nếu quyết định có-lane
-    còn dính vào cửa sổ ở bất kỳ đường nào (kể cả một bản chỉ vá riêng ca biên của bài trên).
-
-    Phần tử "không thoả" nằm ngay trong phép so: `sach_no` vắng ở CẢ HAI vế, nên hai vế bằng nhau
-    không phải vì cả hai cùng rỗng."""
-    g = may_ngung_dung_no_viec_ngoai_cua_so
-    h = _h(_tok(client, seed_credentials))
-
-    def ngung_dung_co_lane(truy_van: str) -> set[int]:
-        d = client.get("/api/theo-doi-san-xuat/theo-may" + truy_van, headers=h).json()
-        return {l["may_id"] for l in d["lanes"] if l["ngung_dung"]}
-
-    rong = ngung_dung_co_lane("")
-    hep = ngung_dung_co_lane("?tu=2026-09-10&den=2026-09-10")
-    assert hep == rong, f"bộ lane máy ngừng dùng đổi theo cửa sổ: {rong} → {hep}"
-    assert g["no_viec"] in rong
-    assert g["sach_no"] not in rong
-
-
-def test_theo_may_hoi_dich_danh_may_ngung_dung_dang_ranh_van_ra_mot_lane(
-    client, seed_credentials, hai_may_ngung_dung,
-):
-    """Ruling C137. Đỏ nếu C132 bị áp cho cả nhánh `?may_id=` tường minh: người dùng hỏi đích danh
-    "cho tôi xem máy X" mà nhận `{"lanes": []}` sẽ đọc thành "máy này không tồn tại" — cùng họ
-    nói-dối-im-lặng. C132 sinh ra để khử NHIỄU trong bộ lane MẶC ĐỊNH, mà một câu hỏi trực tiếp
-    thì không phải nhiễu.
-
-    Bài canh CẢ HAI nhánh trên cùng một máy: không tham số ⇒ KHÔNG lane (C132 vẫn nguyên), hỏi
-    đích danh ⇒ ĐÚNG MỘT lane. Một bản bỏ hẳn C132 sẽ đỏ ở vế đầu, một bản áp C132 khắp nơi đỏ ở
-    vế sau."""
-    ngung_ranh = hai_may_ngung_dung["khong_viec"]
-    h = _h(_tok(client, seed_credentials))
-
-    mac_dinh = client.get("/api/theo-doi-san-xuat/theo-may", headers=h).json()["lanes"]
-    assert ngung_ranh not in {l["may_id"] for l in mac_dinh}, (
-        "tiền đề C132: bộ lane MẶC ĐỊNH vẫn không đẻ lane cho máy đã thanh lý đang rảnh"
-    )
-
-    lanes = client.get(
-        "/api/theo-doi-san-xuat/theo-may?may_id=%d" % ngung_ranh, headers=h
-    ).json()["lanes"]
-    assert [l["may_id"] for l in lanes] == [ngung_ranh], (
-        "hỏi đích danh một máy có THẬT mà trả về danh sách rỗng"
-    )
-    assert lanes[0]["ngung_dung"] is True
-    assert lanes[0]["blocks"] == []
-    assert lanes[0]["ten"] == "Máy xén đã thanh lý (C132)"
-
-
-def test_theo_may_hoi_may_id_khong_ton_tai_van_ra_mot_lane_may_da_xoa(
-    client, seed_credentials, sess, hai_may_ngung_dung,
-):
-    """Hợp đồng cho `?may_id=` trỏ vào một id KHÔNG có trong `may_thiet_bi`: trả `200` với ĐÚNG MỘT
-    lane rỗng mang nhãn "Máy đã xoá", KHÔNG phải 404 và cũng không phải `{"lanes": []}`.
-
-    Chọn thế vì `may_id` là tham số lọc DÙNG CHUNG với `/kanban`, mà `/kanban?may_id=<id lạ>` trả
-    `200` với bảng rỗng — hai tab của cùng một thanh lọc mà một tab `200` một tab `404` thì một
-    chip lọc cũ (máy vừa bị xoá khỏi danh mục) làm gãy nguyên màn thay vì hiện một lane giải thích
-    được. Nhãn "Máy đã xoá" là đúng từ vựng repo đã dùng cho soft-ref trỏ hụt (`NHAN_MAY_DA_XOA`).
-
-    Đỏ nếu ai đó đổi sang 404/422, hoặc trả danh sách rỗng. Phần tử "không thoả": chính lượt hỏi
-    máy CÓ THẬT ở bài trên, nhãn khác hẳn — nên bài không xanh nhờ mọi lane đều mang một nhãn."""
-    lon_nhat = max(m.id for m in sess.query(MayThietBi).all())
-    la = lon_nhat + 1000
-    h = _h(_tok(client, seed_credentials))
-
-    r = client.get("/api/theo-doi-san-xuat/theo-may?may_id=%d" % la, headers=h)
-    assert r.status_code == 200
-    lanes = r.json()["lanes"]
-    assert [l["may_id"] for l in lanes] == [la], (
-        "hỏi một `may_id` không có trong danh mục mà trả danh sách rỗng — im lặng"
-    )
-    assert lanes[0]["ten"] == "Máy đã xoá"
-    assert lanes[0]["ngung_dung"] is False
-    assert lanes[0]["blocks"] == []
-
-
-
 # ==================================================================================================
 # 16/09/2026 — VIỆC ĐÃ CHẠY XẾP VÀO CA THEO PHIÊN CHẠY THẬT (chủ dự án duyệt, chọn "gán nhãn").
 # Chưa chạy → giữ ô kế hoạch; đã chạy → theo khoảng chạy thật; `lech_lich` "som"/"tre".

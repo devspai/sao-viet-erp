@@ -21,12 +21,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ...models.bai_ghep import BaiGhep
+from ...models.gia_cong_ngoai import GiaCongNgoai
 from ...models.may_thiet_bi import MayThietBi
-from ...models.san_xuat import BUOC_MAY, BUOC_THUE_NGOAI, CV_HOAN_THANH, SanXuatCongViec
+from ...models.san_xuat import (
+    BUOC_MAY,
+    BUOC_THUE_NGOAI,
+    CV_DANG_CHAY,
+    CV_HOAN_THANH,
+    CV_PHAT_HANH,
+    CV_TAM_DUNG,
+    SanXuatCongViec,
+)
 from .. import may_trang_thai
-from ..gio_xuong import thuc_te_hien_thi
+from ..gio_xuong import lich_hien_thi, thuc_te_hien_thi
 from . import boi_canh, danh_sach, tien_do, trang_thai
 from .bang_theo_doi import BoLoc, _bo_lenh_da_rung, _ids_trong_pham_vi, _may_danh_muc
 from .boi_canh import BoiCanh
@@ -205,3 +216,260 @@ def theo_lenh(
         "total": len(ids),
         "bat_thuong": dem_bat_thuong(n),
     }
+
+
+# --- Góc Theo máy (đặc tả 3.3) --------------------------------------------------------------------
+NHOM_CHUA_MAY = "chua_may"
+NHOM_MAY = "may"
+NHOM_MAY_DA_XOA = "may_da_xoa"
+NHOM_GIA_CONG = "gia_cong"
+
+TT_CHO_XEP_MAY = "cho_xep_may"
+TT_VIEC_DANG_CHAY = "dang_chay"
+TT_VIEC_TAM_DUNG = "tam_dung"
+TT_TRONG = "trong"
+TT_O_NHA_GIA_CONG = "o_nha_gia_cong"
+TT_CHO_MANG_DI = "cho_mang_di"
+
+# Nhãn dựng ở MÁY CHỦ, cùng lý do `may_trang_thai.NHAN`: hai màn tự đặt tên là sớm muộn cùng một máy
+# hiện hai chữ. Bốn trạng thái dẫn xuất mượn nguyên chữ của `may_trang_thai`.
+NHAN_TINH_TRANG = {
+    **{
+        k: may_trang_thai.NHAN[k]
+        for k in (
+            may_trang_thai.TT_MAY_DUNG, may_trang_thai.TT_BAO_TRI, may_trang_thai.TT_KHOA,
+            may_trang_thai.TT_CO_PHIEU_SUA,
+        )
+    },
+    TT_VIEC_DANG_CHAY: "Đang chạy",
+    TT_VIEC_TAM_DUNG: "Tạm dừng",
+    TT_TRONG: "Đang trống",
+    TT_CHO_XEP_MAY: "Chờ xếp máy",
+    TT_O_NHA_GIA_CONG: "Đang ở nhà gia công",
+    TT_CHO_MANG_DI: "Chờ mang đi",
+}
+NHAN_NHOM = {
+    NHOM_CHUA_MAY: "Chưa có máy",
+    NHOM_MAY_DA_XOA: "Máy không còn trong danh mục",
+    NHOM_GIA_CONG: "Gia công ngoài",
+}
+NHAN_MAY_DA_XOA = "Máy đã xoá"
+NHAN_CHUA_CHON_NCC = "Chưa chọn nhà gia công"
+KE_TIEP_TOI_DA = 3
+_MOC_XA = datetime(9999, 12, 31)
+
+
+def _khoa_lich(cv: SanXuatCongViec) -> tuple:
+    """Theo giờ bắt đầu kế hoạch; việc chưa có giờ xuống cuối."""
+    moc = lich_hien_thi(cv.du_kien_bat_dau)
+    return (moc is None, moc or _MOC_XA, cv.id)
+
+
+def _viec(n: _Nap, cv: SanXuatCongViec, bai_ma: dict[int, str]) -> dict:
+    lenh = n.bc.lenh
+    return {
+        "cong_viec_id": cv.id,
+        "ten_buoc": cv.ten_cong_doan,
+        "trang_thai": cv.trang_thai,
+        "bai_ma": (
+            bai_ma.get(cv.bai_ghep_id)
+            if cv.bai_ghep_cong_doan_id is not None and cv.bai_ghep_id is not None else None
+        ),
+        "lsx": [
+            {"lsx_id": i, "ma": lenh[i].ma, "ten": lenh[i].ten, "is_rush": bool(lenh[i].is_rush)}
+            for i in n.lenh_cua_cv.get(cv.id, [])
+        ],
+    }
+
+
+def _san_luong(bc: BoiCanh, cv: SanXuatCongViec) -> dict:
+    """Σ `tot` các mẻ của MỘT công việc. Mẻ khác đơn vị với `don_vi_ra` thì KHÔNG cộng: trả từng
+    đơn vị (`theo_don_vi`), `tot = None` để giao diện không vẽ thanh."""
+    dv = (cv.don_vi_ra or "").strip()
+    theo: dict[str, float] = {}
+    for b in bc.batch.get(cv.id, []):
+        k = (b.don_vi or "").strip()
+        theo[k] = theo.get(k, 0.0) + float(b.tot or 0)
+    cung = all(k == dv for k in theo)
+    return {
+        "tot": sum(theo.values()) if cung else None,
+        "ke_hoach": float(cv.so_luong_ra) if cv.so_luong_ra is not None else None,
+        "don_vi": dv or None,
+        "theo_don_vi": (
+            [] if cung else [{"don_vi": k or None, "tot": v} for k, v in sorted(theo.items())]
+        ),
+        "ca_bai": cv.bai_ghep_cong_doan_id is not None,
+    }
+
+
+def _dong(
+    *, khoa: str, tinh_trang: str, may_id: int | None = None, ten: str | None = None,
+    ngung_dung: bool = False, dang_chay: dict | None = None, dang_chay_them: int = 0,
+    san_luong: dict | None = None, ke_hoach_xong: datetime | None = None,
+    ke_hoach_bat_dau: datetime | None = None, ke_tiep: list[dict] | None = None,
+    ke_tiep_them: int = 0,
+) -> dict:
+    return {
+        "khoa": khoa, "may_id": may_id, "ten": ten, "ngung_dung": ngung_dung,
+        "tinh_trang": tinh_trang, "nhan_tinh_trang": NHAN_TINH_TRANG[tinh_trang],
+        "dang_chay": dang_chay, "dang_chay_them": dang_chay_them, "san_luong": san_luong,
+        "ke_hoach_xong": ke_hoach_xong, "ke_hoach_bat_dau": ke_hoach_bat_dau,
+        "ke_tiep": ke_tiep or [], "ke_tiep_them": ke_tiep_them,
+    }
+
+
+def _dong_may(
+    n: _Nap, may_id: int, ten: str, ngung_dung: bool, cvs: list[SanXuatCongViec],
+    bai_ma: dict[int, str],
+) -> dict:
+    chay = sorted(
+        (cv for cv in cvs if cv.trang_thai in (CV_DANG_CHAY, CV_TAM_DUNG)),
+        key=lambda cv: (cv.trang_thai != CV_DANG_CHAY, *_khoa_lich(cv)),
+    )
+    cho = sorted((cv for cv in cvs if cv.trang_thai == CV_PHAT_HANH), key=_khoa_lich)
+    tt = n.tt_may.get(may_id)
+    if tt is None:
+        if chay and chay[0].trang_thai == CV_DANG_CHAY:
+            tt = TT_VIEC_DANG_CHAY
+        elif chay:
+            tt = TT_VIEC_TAM_DUNG
+        else:
+            tt = TT_TRONG
+    dau = chay[0] if chay else None
+    return _dong(
+        khoa=f"may:{may_id}", may_id=may_id, ten=ten, ngung_dung=ngung_dung, tinh_trang=tt,
+        dang_chay=_viec(n, dau, bai_ma) if dau is not None else None,
+        dang_chay_them=max(len(chay) - 1, 0),
+        san_luong=_san_luong(n.bc, dau) if dau is not None else None,
+        ke_hoach_xong=lich_hien_thi(dau.du_kien_ket_thuc) if dau is not None else None,
+        ke_tiep=[_viec(n, cv, bai_ma) for cv in cho[:KE_TIEP_TOI_DA]],
+        ke_tiep_them=max(len(cho) - KE_TIEP_TOI_DA, 0),
+    )
+
+
+def _ten_nha_gia_cong(cv: SanXuatCongViec, gcn: dict[int, GiaCongNgoai]) -> str:
+    g = gcn.get(cv.gia_cong_ngoai_id) if cv.gia_cong_ngoai_id is not None else None
+    if g is not None and g.huy_luc is None and (g.nha_cung_cap_ten or "").strip():
+        return g.nha_cung_cap_ten.strip()
+    return (cv.nha_cung_cap or "").strip() or NHAN_CHUA_CHON_NCC
+
+
+def _dong_gia_cong(
+    n: _Nap, ten: str, cvs: list[SanXuatCongViec], gcn: dict[int, GiaCongNgoai],
+    bai_ma: dict[int, str],
+) -> dict:
+    cvs = sorted(cvs, key=_khoa_lich)
+    da_mang = any(
+        (g := gcn.get(cv.gia_cong_ngoai_id)) is not None
+        and g.huy_luc is None and g.mang_di_luc is not None
+        for cv in cvs
+    )
+    dau = cvs[0]
+    return _dong(
+        khoa=f"ncc:{ten}", ten=ten,
+        tinh_trang=TT_O_NHA_GIA_CONG if da_mang else TT_CHO_MANG_DI,
+        dang_chay=_viec(n, dau, bai_ma), dang_chay_them=len(cvs) - 1,
+        ke_hoach_xong=lich_hien_thi(dau.du_kien_ket_thuc),
+    )
+
+
+def theo_may(
+    db: Session, *, sale_ids: set[int] | None,
+    q: str | None = None, khach_hang_id: int | None = None, bat_thuong: str | None = None,
+    bay_gio: datetime | None = None,
+) -> dict:
+    """`{nhom, may_trong, bat_thuong}` — mỗi máy một dòng, chia nhóm (đặc tả 3.3).
+
+    Có ô tìm/khách hoặc một trong bốn cờ lệnh: chỉ còn dòng có công việc (đang chạy hoặc kế tiếp)
+    thuộc lệnh khớp lọc, và không còn dòng "máy đang trống". `may_hong`: chỉ còn máy hỏng.
+    `chua_may`: chỉ còn nhóm Chưa có máy."""
+    bay_gio = bay_gio or datetime.now(timezone.utc)
+    n = _nap(db, sale_ids, bay_gio)
+    lenh_chon = _lenh_khop_loc(db, sale_ids, n, q=q, khach_hang_id=khach_hang_id, may_id=None)
+    if bat_thuong in CO_LENH:
+        co = _lenh_bat_thuong(n, bat_thuong)
+        lenh_chon = co if lenh_chon is None else lenh_chon & co
+
+    def khop(cvs: list[SanXuatCongViec]) -> bool:
+        if lenh_chon is None:
+            return True
+        return any(i in lenh_chon for cv in cvs for i in n.lenh_cua_cv.get(cv.id, ()))
+
+    # Hai câu cho CẢ lô, luôn chạy (kể cả tập rỗng) để số câu SQL không đổi theo dữ liệu.
+    bai_ma = dict(db.execute(
+        select(BaiGhep.id, BaiGhep.ma).where(BaiGhep.id.in_(
+            {cv.bai_ghep_id for cv in n.cv_song.values() if cv.bai_ghep_id is not None}
+        ))
+    ).all())
+    gcn = {
+        g.id: g for g in db.execute(select(GiaCongNgoai).where(GiaCongNgoai.id.in_(
+            {cv.gia_cong_ngoai_id for cv in n.cv_song.values() if cv.gia_cong_ngoai_id}
+        ))).scalars()
+    }
+
+    chua_may: list[SanXuatCongViec] = []
+    gia_cong: dict[str, list[SanXuatCongViec]] = {}
+    tren_may: dict[int, list[SanXuatCongViec]] = {}
+    for cv in sorted(n.cv_song.values(), key=_khoa_lich):
+        if _la_gia_cong(cv):
+            gia_cong.setdefault(_ten_nha_gia_cong(cv, gcn), []).append(cv)
+        elif _chua_may(cv):
+            chua_may.append(cv)
+        elif cv.may_id is not None:
+            tren_may.setdefault(cv.may_id, []).append(cv)
+        # Bước tổ (`loai_buoc = to`) không gắn máy — không thuộc bảng máy.
+
+    nhom: list[dict] = []
+    may_trong: list[dict] = []
+
+    if bat_thuong != BT_MAY_HONG:
+        dong = [
+            _dong(
+                khoa=f"cv:{cv.id}", tinh_trang=TT_CHO_XEP_MAY,
+                dang_chay=_viec(n, cv, bai_ma),
+                ke_hoach_bat_dau=lich_hien_thi(cv.du_kien_bat_dau),
+            )
+            for cv in chua_may if khop([cv])
+        ]
+        if dong:
+            nhom.append({"loai": NHOM_CHUA_MAY, "ten": NHAN_NHOM[NHOM_CHUA_MAY], "dong": dong})
+
+    if bat_thuong != BT_CHUA_MAY:
+        theo_loai: dict[str, list[dict]] = {}
+        da_xoa: list[dict] = []
+        may_xet = [m for m, mm in n.may.items() if mm.active or m in tren_may]
+        may_xet += sorted(m for m in tren_may if m not in n.may)
+        for may_id in may_xet:
+            m = n.may.get(may_id)
+            cvs = tren_may.get(may_id, [])
+            dong = _dong_may(
+                n, may_id, m.ten if m is not None else NHAN_MAY_DA_XOA,
+                bool(m is not None and not m.active), cvs, bai_ma,
+            )
+            if bat_thuong == BT_MAY_HONG:
+                if dong["tinh_trang"] != may_trang_thai.TT_MAY_DUNG or not khop(cvs):
+                    continue
+            elif lenh_chon is not None:
+                if not cvs or not khop(cvs):
+                    continue
+            elif dong["dang_chay"] is None and not dong["ke_tiep"] and dong["tinh_trang"] == TT_TRONG:
+                may_trong.append(dong)
+                continue
+            if m is None:
+                da_xoa.append(dong)
+            else:
+                theo_loai.setdefault(m.loai_may or "", []).append(dong)
+        for loai in sorted(theo_loai):
+            nhom.append({"loai": NHOM_MAY, "ten": loai, "dong": theo_loai[loai]})
+        if da_xoa:
+            nhom.append({"loai": NHOM_MAY_DA_XOA, "ten": NHAN_NHOM[NHOM_MAY_DA_XOA], "dong": da_xoa})
+
+    if bat_thuong not in (BT_MAY_HONG, BT_CHUA_MAY):
+        dong = [
+            _dong_gia_cong(n, ten, cvs, gcn, bai_ma)
+            for ten, cvs in sorted(gia_cong.items()) if khop(cvs)
+        ]
+        if dong:
+            nhom.append({"loai": NHOM_GIA_CONG, "ten": NHAN_NHOM[NHOM_GIA_CONG], "dong": dong})
+
+    return {"nhom": nhom, "may_trong": may_trong, "bat_thuong": dem_bat_thuong(n)}

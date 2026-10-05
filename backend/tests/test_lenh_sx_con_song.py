@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from app.models.lsx import Lsx
-from app.services.lenh_sx import bang_theo_doi, boi_canh, danh_sach, trang_thai
+from app.services.lenh_sx import boi_canh, danh_sach, trang_thai
 from tests.lenh_sx_fixtures import (  # noqa: F401
     BAY_GIO,
     _cvs,
@@ -144,41 +144,3 @@ def test_danh_sach_khong_nap_lenh_da_giao_het_ngoai_trang(sess, the_gioi, nap_gh
     tren_trang = {r["id"] for r in kq["items"]}
     assert tren_trang == {the_gioi["hom_nay"], the_gioi["cu_that"]}
     assert cu & set().union(*nap_ghi) == tren_trang
-
-
-# --- Theo dõi SX — theo máy -----------------------------------------------------------------------
-def _theo_may_cu(sess, monkeypatch, **kw) -> dict:
-    """Bản cũ: tập lệnh = MỌI lệnh trong phạm vi (không vế "còn việc dở" nào). Rộng hơn cả câu cũ
-    (câu cũ có cửa sổ) — vẫn là tham chiếu đúng vì vòng Python bên dưới tự lọc block theo cửa sổ."""
-    goc = bang_theo_doi._ids_trong_pham_vi
-    with monkeypatch.context() as m:
-        m.setattr(
-            bang_theo_doi, "_ids_trong_pham_vi",
-            lambda db, sale_ids, *, loc=None, them=None: goc(db, sale_ids, loc=loc),
-        )
-        return bang_theo_doi.theo_may(sess, sale_ids=None, **kw)
-
-
-@pytest.mark.parametrize("cua_so", [
-    {},
-    {"tu": date(2026, 9, 1), "den": date(2026, 9, 30)},
-    {"tu": date(2024, 12, 1), "den": date(2025, 2, 1)},
-])
-def test_theo_may_khong_doi_ket_qua(sess, the_gioi, monkeypatch, cua_so):
-    assert bang_theo_doi.theo_may(sess, sale_ids=None, **cua_so) == _theo_may_cu(
-        sess, monkeypatch, **cua_so,
-    )
-
-
-def test_theo_may_khong_nap_lenh_da_dong_het_buoc(sess, the_gioi, nap_ghi):
-    kq = bang_theo_doi.theo_may(sess, sale_ids=None)
-    da_nap = set().union(*nap_ghi)
-    assert the_gioi["cu_that"] not in da_nap, "lệnh đóng hết bước từ năm ngoái vẫn bị nạp"
-    assert the_gioi["cu_tho"] not in da_nap
-    # Bước riêng của `ghep_a` đã đóng hết, nhưng ca in GHÉP còn dở ⇒ vẫn nạp, và block của ca ghép
-    # vẫn kể tên cả hai lệnh.
-    assert {the_gioi["ghep_a"], the_gioi["ghep_b"], the_gioi["dang"]} <= da_nap
-    lenh_tren_block = {
-        l["lsx_id"] for lane in kq["lanes"] for bl in lane["blocks"] for l in bl["lsx"]
-    }
-    assert {the_gioi["ghep_a"], the_gioi["ghep_b"]} <= lenh_tren_block

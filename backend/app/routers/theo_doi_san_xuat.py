@@ -155,37 +155,15 @@ def theo_may(
     db: Annotated[Session, Depends(get_db)],
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-    loc: ThanhLoc,
-    tu: date | None = None,
-    den: date | None = None,
+    q: Annotated[str | None, Query(max_length=120)] = None,
+    khach_hang_id: int | None = None,
+    bat_thuong: BatThuong | None = None,
 ):
-    """Một lane mỗi máy + lane "Chưa xếp máy" (Task 16, Ruling C115: đường dẫn tiếng Việt kebab,
-    KHÔNG phải `/machines` như bản plan gốc).
-
-    `tu`/`den` là NGÀY (khuôn `?ngay` của `/theo-ca`), cả hai BAO GỒM chính ngày đó, và vắng mặt =
-    không chặn đầu ấy. Cửa sổ tính theo CHỒNG LẤN nên ca in dài vắt qua cửa sổ vẫn hiện; việc chưa
-    xếp giờ luôn hiện; việc chưa khai giờ KẾT THÚC coi như mở tới +∞ ở đầu `tu` (Ruling C135, vòng
-    sửa 1 mục 1). Xem `bang_theo_doi._cua_so_ban_may` / `._cham_cua_so_sql`.
-
-    Bộ lane MẶC ĐỊNH (không `?may_id=`): mọi máy CÒN DÙNG đều có lane, kể cả rỗng; máy đã NGỪNG
-    DÙNG chỉ có lane khi CÒN NỢ VIỆC (Ruling C132). "Còn nợ việc" xét ĐỘC LẬP với `tu`/`den`
-    (Ruling C136, vòng sửa 2) — cùng một vị ngữ với cờ `co_viec` của `/bo-loc`: máy đã thanh lý
-    còn nợ một bước xếp cho tuần sau vẫn giữ lane khi người dùng thu cửa sổ về hôm nay, chỉ là
-    lane đó `blocks: []`. Cửa sổ quyết định BLOCK nào vẽ, không quyết định LANE nào tồn tại.
-
-    `?may_id=` thu hẹp khung lane xuống đúng máy đó (Ruling C131) và LUÔN trả ĐÚNG MỘT lane, kể cả
-    máy rảnh, máy đã ngừng dùng, hay `may_id` không có trong danh mục (lane mang nhãn "Máy đã xoá",
-    `ngung_dung=false`, `blocks: []`) — `200`, KHÔNG bao giờ `404` và KHÔNG bao giờ `{"lanes": []}`
-    (Ruling C137). C132 chỉ chi phối bộ lane MẶC ĐỊNH: nó sinh ra để khử nhiễu lane chết, còn một
-    câu hỏi đích danh thì phải có câu trả lời đích danh — trả danh sách rỗng cho một máy có thật là
-    nói với người dùng rằng máy đó không tồn tại. Chọn `200`+lane thay vì `404` vì `may_id` là tham
-    số lọc DÙNG CHUNG với `/kanban` (`/kanban?may_id=<id lạ>` trả `200` bảng rỗng): hai tab của cùng
-    một thanh lọc mà một tab `404` thì một chip lọc cũ làm gãy nguyên màn.
-    """
-    if tu is not None and den is not None and tu > den:
-        raise HTTPException(422, "Khoảng thời gian không hợp lệ: ngày bắt đầu sau ngày kết thúc.")
+    """Góc Theo máy: mỗi máy một dòng chia nhóm + số của dải bất thường (một yêu cầu mỗi lượt)."""
     sale_ids = pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
-    return bang_theo_doi.theo_may(db, sale_ids=sale_ids, loc=loc, tu=tu, den=den)
+    return theo_doi.theo_may(
+        db, sale_ids=sale_ids, q=q, khach_hang_id=khach_hang_id, bat_thuong=bat_thuong,
+    )
 
 
 @router.get("/theo-ca", response_model=TheoCaOut)
