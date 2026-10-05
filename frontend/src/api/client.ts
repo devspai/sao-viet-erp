@@ -9244,6 +9244,10 @@ export interface LenhSxThongTin {
   ban_giao_at: string | null;
   ghi_chu: string | null;
   tao_luc: string | null;
+  /** KCS đã đóng lệnh — thẻ "Đã đóng lệnh" cạnh pill khâu. */
+  da_dong: boolean;
+  /** Tên nhóm thành phẩm (`nhom_lenh_giao.ten`) nếu lệnh đã vào nhóm. */
+  nhom_ten: string | null;
 }
 
 export interface LenhSxTienDo {
@@ -9261,6 +9265,9 @@ export interface LenhSxTienDo {
   nguoi: string[];
   /** Số đã giao của RIÊNG dòng đơn lệnh này — khác `giao_hang.da_giao` (cấp NHÓM). */
   da_giao: number;
+  /** Khâu của lệnh — cùng hàm với cột Trạng thái ở danh sách. */
+  khau: LenhSxKhau;
+  khau_chi_tiet: LenhSxKhauChiTiet | null;
 }
 
 /** Ảnh chụp thông số kỹ thuật từ phiếu tính giá. Khoá thiếu (lệnh cũ) ⇒ `null` ⇒ UI hiện "—",
@@ -9416,10 +9423,9 @@ export interface LenhSxSanLuongBatch {
   mo_ta_loi: string | null;
 }
 
+/** Chỉ còn danh sách mẻ: ba tổng cũ cộng tờ in với thành phẩm nên đã gỡ ở máy chủ. Muốn tổng thì
+ *  cộng mẻ của CÙNG một bước theo TỪNG đơn vị (`tongMeTheoDonVi`). */
 export interface LenhSxSanLuong {
-  tong: number;
-  tot: number;
-  hong: number;
   batch: LenhSxSanLuongBatch[];
 }
 

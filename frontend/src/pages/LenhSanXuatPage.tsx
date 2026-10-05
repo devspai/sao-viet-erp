@@ -22,8 +22,6 @@ import { PillKhau, TheDaDong, TheGap } from "./lsxKhau";
 // `ke-hoach-sx.css` cho `EmptyState`/`Skeleton` (lớp `.khsx-*`), rồi CSS chung của hai màn.
 import "./ke-hoach-sx.css";
 import "./lenh-sx-chung.css";
-// TẠM tới Task 9: khung hồ sơ cũ còn dựa vào lớp `.hslsx*` của tệp này và tổ tiên `.hslsx`.
-import "./lenh-san-xuat.css";
 
 /** Gộp sự kiện SSE rồi mới tải lại — chuyền chạy thì sự kiện tới liên tục. */
 const SSE_GOP_MS = 2000;
@@ -434,17 +432,14 @@ export function LenhSanXuatPage({
         )}
       </div>
 
-      {/* TẠM tới Task 9: bọc `.hslsx` cho khung hồ sơ cũ. */}
       {hoSoId !== null && (
-        <div className="hslsx">
-          <LenhSxHoSoView
-            lsxId={hoSoId}
-            pv={hoSoPv}
-            onClose={dongHoSo}
-            eventTick={tickTre}
-            onMoDon={navigate ? (orderId) => navigate("don-hang-ban", { openOrderId: orderId }) : undefined}
-          />
-        </div>
+        <LenhSxHoSoView
+          lsxId={hoSoId}
+          pv={hoSoPv}
+          onClose={dongHoSo}
+          eventTick={tickTre}
+          onMoDon={navigate ? (orderId) => navigate("don-hang-ban", { openOrderId: orderId }) : undefined}
+        />
       )}
     </main>
   );

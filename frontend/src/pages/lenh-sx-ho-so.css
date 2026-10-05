@@ -1,0 +1,513 @@
+/* Khung hồ sơ MỘT lệnh (làm gọn 05/10/2026). Tiền tố `lhs-`. Pill, thẻ, bảng mượn
+   `lenh-sx-chung.css` (`lsc-*`). Chỉ token của `styles/tokens.css`. */
+
+.lhs {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+  /* Tấm che: độ mờ của lớp phủ, không phải màu của bảng màu. */
+  background: rgba(13, 12, 10, 0.48);
+  font-family: var(--ff-sans);
+  color: var(--ink);
+}
+
+.lhs__panel {
+  width: min(1180px, 100%);
+  height: 100%;
+  min-width: 0;
+  background: var(--paper);
+  border-left: 1px solid var(--rule);
+  box-shadow: var(--shadow-lg);
+  animation: lhs-vao var(--duration-enter) var(--easing-standard);
+}
+@keyframes lhs-vao {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lhs__panel { animation: none; }
+}
+
+.lhs :focus-visible {
+  outline: 2px solid var(--rust);
+  outline-offset: 2px;
+}
+
+/* Cả panel cuộn một khối; phần đầu dính trên cùng ở màn rộng. */
+.lhs__cuon {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.lhs__dau {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5) var(--sp-3);
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+
+.lhs__hang {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  min-width: 0;
+}
+
+.lhs__lui {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+.lhs__lui:hover {
+  background: var(--rule-hair);
+}
+.lhs__lui svg {
+  transform: rotate(90deg);
+}
+
+.lhs__ma {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+.lhs__ten {
+  min-width: 0;
+  color: var(--ash);
+  font-size: var(--fs-md);
+  overflow-wrap: anywhere;
+}
+
+.lhs__inloi {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0;
+  color: var(--signal);
+  font-size: var(--fs-xs);
+}
+
+/* Thẻ nhỏ: nhãn + giá trị, cách nhau bằng khoảng trống — không nối bằng dấu chấm giữa. */
+.lhs__the {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.lhs-the {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+}
+.lhs-the__k {
+  color: var(--ash-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+}
+.lhs-the__phu {
+  display: inline;
+  font-weight: var(--fw-regular);
+}
+
+.lhs__pv {
+  margin: 0;
+}
+
+/* Dòng cảnh báo: mỗi cờ một dòng có việc cụ thể. Đỏ = cần xử; vàng = đang có người xử. */
+.lhs-canhbao {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lhs-canhbao li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  padding: 7px var(--sp-3);
+  border: 1px solid var(--signal);
+  border-radius: var(--r-5);
+  background: var(--canvas);
+  font-size: var(--fs-sm);
+}
+.lhs-canhbao li b {
+  color: var(--signal);
+}
+.lhs-canhbao .lhs-canhbao__vang {
+  border-color: var(--amber);
+}
+.lhs-canhbao .lhs-canhbao__vang b {
+  color: var(--amber-deep);
+}
+
+/* Ba ô tổng quan. */
+.lhs-tong {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--rule);
+  border-radius: var(--r-5);
+  background: var(--canvas);
+}
+.lhs-tong__o {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: var(--sp-3) var(--sp-4);
+}
+.lhs-tong__o + .lhs-tong__o {
+  border-left: 1px solid var(--rule-hair);
+}
+.lhs-tong__k {
+  color: var(--ash-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+}
+.lhs-tong__v {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+.lhs-tong__phu {
+  display: inline;
+  margin-left: var(--sp-2);
+  font-weight: var(--fw-regular);
+}
+
+/* Hàng neo + nút lọc dạng chip (dùng chung trong thân). */
+.lhs-neo,
+.lhs-loc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lhs-chip,
+.lhs-bat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pill);
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lhs-chip:hover,
+.lhs-bat:hover {
+  background: var(--rule-hair);
+  border-color: var(--ash-2);
+}
+.lhs-chip[aria-pressed="true"] {
+  background: var(--charcoal);
+  border-color: var(--charcoal);
+  color: var(--on-charcoal);
+}
+.lhs-chip__n {
+  font-size: var(--fs-2xs);
+}
+.lhs-bat {
+  margin-left: auto;
+}
+.lhs-bat[aria-pressed="true"] {
+  background: var(--rust);
+  border-color: var(--rust);
+  color: var(--canvas);
+}
+
+/* ---------- thân ---------- */
+.lhs__than {
+  display: grid;
+  gap: var(--sp-5);
+  padding: var(--sp-4) var(--sp-5) var(--sp-8);
+  min-width: 0;
+}
+.lhs-muc {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+  scroll-margin-top: var(--sp-3);
+}
+.lhs-muc > h3 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+}
+
+.lhs-bangwrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-5);
+  background: var(--canvas);
+}
+.lhs-bangwrap .lsc-bang {
+  min-width: 860px;
+}
+
+.lhs-trong {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px dashed var(--rule);
+  border-radius: var(--r-5);
+  color: var(--ash);
+  font-size: var(--fs-sm);
+}
+.lhs-ghichu {
+  margin: 0;
+  color: var(--ash);
+  font-size: var(--fs-sm);
+}
+
+/* Lưới nhãn — giá trị (Quy cách, Nhật ký). */
+.lhs-kvs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--rule);
+  border-radius: var(--r-5);
+  background: var(--canvas);
+}
+.lhs-kvs--hai {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.lhs-kv {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule-hair);
+}
+.lhs-kv__k {
+  color: var(--ash-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+}
+.lhs-kv__v {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+.lhs-xemdu {
+  justify-self: start;
+}
+
+/* Bảng công đoạn. */
+.lhs-cd tr.is-now td {
+  background: var(--rule-hair);
+}
+.lhs-cd__buoc {
+  display: block;
+}
+.lhs-cd__mo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: var(--fw-bold);
+  text-align: left;
+  cursor: pointer;
+}
+.lhs-cd__mo svg {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform var(--duration-fast) var(--easing-standard);
+}
+.lhs-cd__mo svg.is-mo {
+  transform: none;
+}
+.lhs-cd__ten {
+  font-weight: var(--fw-bold);
+}
+.lhs-cd__the {
+  margin-top: 4px;
+}
+.lhs-cd__may {
+  display: grid;
+  gap: 2px;
+}
+.lhs-cd__gio {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.lhs-cd__sl {
+  display: block;
+}
+.lhs-cd__ct td {
+  background: var(--paper);
+}
+.lhs-cd__ct:hover td {
+  background: var(--paper) !important;
+}
+
+/* Danh sách hai cột "lúc — nội dung" (dòng mở ra, Sau sản xuất). */
+.lhs-ds {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+}
+.lhs-ds + .lhs-ds {
+  margin-top: var(--sp-2);
+}
+.lhs-ds li {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+.lhs-ds__luc {
+  color: var(--ash-2);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.lhs-ds__noi {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Ba khung Sau sản xuất. */
+.lhs-ba {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+.lhs-o {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-5);
+  background: var(--canvas);
+}
+.lhs-o__h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rule-hair);
+  font-size: var(--fs-sm);
+}
+.lhs-o > .lhs-ds,
+.lhs-o > .lhs-trong,
+.lhs-o__b {
+  margin: var(--sp-3);
+}
+.lhs-o > .lhs-trong {
+  border: 0;
+  padding: 0;
+}
+.lhs-o__b {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+}
+.lhs-o__b .lhs-trong {
+  border: 0;
+  padding: 0;
+}
+.lhs-o__so {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+.lhs-canh {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--amber-deep);
+  font-size: var(--fs-xs);
+}
+
+/* Nhật ký. */
+.lhs-nk {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-5);
+  background: var(--canvas);
+}
+.lhs-nk li {
+  display: grid;
+  grid-template-columns: 128px 140px minmax(0, 1fr);
+  gap: var(--sp-3);
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--rule-hair);
+  font-size: var(--fs-sm);
+}
+.lhs-nk li:last-child {
+  border-bottom: 0;
+}
+.lhs-nk__nguoi {
+  color: var(--ash);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- màn hẹp ---------- */
+@media (max-width: 860px) {
+  .lhs-tong,
+  .lhs-ba {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lhs-tong__o + .lhs-tong__o {
+    border-left: 0;
+    border-top: 1px solid var(--rule-hair);
+  }
+  .lhs-kvs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .lhs__dau {
+    position: static;
+    padding: var(--sp-3) var(--sp-4);
+  }
+  .lhs__than {
+    padding: var(--sp-3) var(--sp-4) var(--sp-6);
+  }
+  .lhs-ds li,
+  .lhs-nk li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .lhs-bat {
+    margin-left: 0;
+  }
+}
