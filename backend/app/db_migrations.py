@@ -16872,3 +16872,110 @@ def _migrate_cham_soc_ket_qua(db: Session) -> None:
 
 
 MIGRATIONS.append(("0366_cham_soc_ket_qua", _migrate_cham_soc_ket_qua))
+
+
+def _migrate_tai_san_thoi_dung(db: Session) -> None:
+    """0367 — `tai_san_bien_dong.kieu_thoi_dung`: lý do thôi dùng (bán / thanh lý / hỏng / mất) của
+    nút "Thôi dùng" (làm lại module Tài sản 05/10/2026). Dòng cũ = NULL."""
+    insp = inspect(db.get_bind())
+    if "tai_san_bien_dong" not in set(insp.get_table_names()):
+        return
+    if "kieu_thoi_dung" not in _existing_columns(insp, "tai_san_bien_dong"):
+        db.execute(text("ALTER TABLE tai_san_bien_dong ADD COLUMN kieu_thoi_dung VARCHAR(16)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0367_tai_san_thoi_dung", _migrate_tai_san_thoi_dung))
+
+
+def _migrate_nghi_phep_bat_o_huy_don(db: Session) -> None:
+    """0368 — bật ô "Huỷ đơn nghỉ của mình" (`nghi_phep.can_cancel`) cho mọi vai đang được GỬI đơn
+    nghỉ (`can_create`). Ô này mới bày lên ma trận 05/10/2026 và nút "Hủy đơn" giờ ẩn theo nó — không
+    bật sẵn thì ai đang gửi được đơn bỗng mất nút huỷ đơn của chính mình. Chỉ bật, không tắt ai."""
+    insp = inspect(db.get_bind())
+    if "role_permissions" not in set(insp.get_table_names()):
+        return
+    db.execute(text(
+        "UPDATE role_permissions SET can_cancel = true "
+        "WHERE module_key = 'nghi_phep' AND can_create = true AND can_cancel = false"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0368_nghi_phep_bat_o_huy_don", _migrate_nghi_phep_bat_o_huy_don))
+
+
+def _migrate_ton_kho_moi_kho_mot_dong(db: Session) -> None:
+    """0369 — tách khoá `ton_kho` thành MỘT DÒNG QUYỀN CHO MỖI KHO `ton_kho_<id kho>` (05/10/2026,
+    chủ chốt: *"làm kho giống tổ đi, mỗi kho một dòng"*).
+
+    Vai đang có dòng `ton_kho` được chép y nguyên Xem + Khai ngưỡng sang dòng của TỪNG kho đã khai
+    (kể cả kho ngừng dùng — bật lại không mất quyền) ⇒ không ai mất kho nào đang thấy. Xong gỡ hẳn
+    khoá `ton_kho` (quyền + dòng `modules`); `seed.MODULES` cũng đã bỏ nên khởi động không đẻ lại.
+    Dòng của kho khai SAU này do `services/quyen_kho.dong_bo_dong_quyen_kho` sinh.
+    Raw SQL đích danh cột (luật migration). Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if not {"role_permissions", "modules", "kho_hang"} <= bang:
+        return
+    cols = set(_existing_columns(insp, "role_permissions"))
+
+    # `role_permissions.module_key` trỏ FK `modules.key` ⇒ dòng module TRƯỚC.
+    db.execute(text(
+        "INSERT INTO modules (key, label, created_at) "
+        "SELECT 'ton_kho_' || CAST(k.id AS VARCHAR), k.ten, CURRENT_TIMESTAMP FROM kho_hang k "
+        "WHERE NOT EXISTS (SELECT 1 FROM modules m WHERE m.key = 'ton_kho_' || CAST(k.id AS VARCHAR))"
+    ))
+
+    co_nguong = "can_set_threshold" in cols
+    cot_ng = ", can_set_threshold" if co_nguong else ""
+    gia_tri_ng = ", rp.can_set_threshold" if co_nguong else ""
+    cot_scope = ", scope" if "scope" in cols else ""
+    gia_tri_scope = ", 'all'" if "scope" in cols else ""
+    # `can_create` / `can_delete` NOT NULL không server_default — phải ghi đích danh (xem mg 0334).
+    db.execute(text(
+        "INSERT INTO role_permissions (module_key, role_id, can_read, "
+        f"can_create, can_update, can_delete{cot_ng}{cot_scope}) "
+        "SELECT 'ton_kho_' || CAST(k.id AS VARCHAR), rp.role_id, rp.can_read, "
+        f"false, false, false{gia_tri_ng}{gia_tri_scope} "
+        "FROM role_permissions rp CROSS JOIN kho_hang k "
+        "WHERE rp.module_key = 'ton_kho' AND NOT EXISTS ("
+        "  SELECT 1 FROM role_permissions x "
+        "  WHERE x.role_id = rp.role_id AND x.module_key = 'ton_kho_' || CAST(k.id AS VARCHAR))"
+    ))
+
+    db.execute(text("DELETE FROM role_permissions WHERE module_key = 'ton_kho'"))
+    db.execute(text("DELETE FROM modules WHERE key = 'ton_kho'"))
+    db.commit()
+
+
+MIGRATIONS.append(("0369_ton_kho_moi_kho_mot_dong", _migrate_ton_kho_moi_kho_mot_dong))
+
+
+
+def _migrate_xem_gia_kho_theo_tung_man(db: Session) -> None:
+    """0370 — ô "Xem giá thành" tách RIÊNG cho từng màn kho (05/10/2026, chủ chốt: *"kho giấy tôi
+    bật giá thành thì xem được giá thành trong kho giấy, mấy kho kia không bật thì không; yêu cầu
+    nhập xuất không bật là không xem được"*).
+
+    Trước đó mọi số tiền kho gác bằng MỘT cột `kho.can_view_cost`. Nay mỗi màn hỏi ô của chính nó:
+    `kho` (Yêu cầu nhập xuất) · `ton_kho_<id>` (từng kho) · `bao_cao_kho` (Báo cáo kho). Vai đang
+    có `kho.can_view_cost` được bật ô xem giá ở MỌI màn kho mà vai đó ĐANG VÀO ĐƯỢC (`can_read`) ⇒
+    không ai mất số tiền đang thấy, cũng không ai được mở thêm màn nào. Raw SQL đích danh cột.
+    Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    if "role_permissions" not in set(insp.get_table_names()):
+        return
+    if "can_view_cost" not in set(_existing_columns(insp, "role_permissions")):
+        return
+    db.execute(text(
+        "UPDATE role_permissions SET can_view_cost = true "
+        "WHERE can_read = true AND can_view_cost = false "
+        "AND (module_key = 'bao_cao_kho' OR SUBSTR(module_key, 1, 8) = 'ton_kho_') "
+        "AND role_id IN (SELECT x.role_id FROM role_permissions x "
+        "                WHERE x.module_key = 'kho' AND x.can_view_cost = true)"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0370_xem_gia_kho_theo_tung_man", _migrate_xem_gia_kho_theo_tung_man))

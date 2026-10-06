@@ -8,6 +8,9 @@
 .nqr__tools > span { justify-self: end; font-family: var(--ff-sans); font-size: 11px; }
 
 .nqr__table-wrap { overflow-x: auto; background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--r-3); box-shadow: var(--shadow-1); }
+/* Chân phân trang (`.ptdd`, khuôn Nhật ký) nối vào đáy thẻ bảng thành một khối — thẻ bảng tự có viền nên chân mượn viền ba cạnh. */
+.nqr__table-wrap:has(+ .ptdd) { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.nqr__table-wrap + .ptdd { border: 1px solid var(--rule); border-top: 0; border-radius: 0 0 var(--r-3) var(--r-3); }
 .nqr__table { width: 100%; min-width: 1040px; border-collapse: collapse; table-layout: fixed; }
 .nqr__table th { padding: 11px 12px; color: var(--ash); background: var(--paper); border-bottom: 1px solid var(--rule); font-family: var(--ff-sans); font-size: 10px; font-weight: var(--fw-bold); letter-spacing: .08em; text-align: left; text-transform: uppercase; }
 .nqr__table td { padding: 13px 12px; border-bottom: 1px solid var(--rule-soft); color: var(--ink); font-size: 12.5px; line-height: 1.45; vertical-align: middle; overflow-wrap: anywhere; }

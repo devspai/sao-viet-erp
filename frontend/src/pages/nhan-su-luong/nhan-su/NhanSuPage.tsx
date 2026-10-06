@@ -12,6 +12,7 @@ import {
 } from "../../../api/client";
 import { Button } from "../../../components/Button";
 import { EmptyRow, EmptyState } from "../../../components/EmptyState";
+import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 // `fmtDate` DÙNG CHUNG (utils/format) — trước đây file này tự chép một bản y hệt.
@@ -81,7 +82,7 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
   const [exporting, setExporting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const size = 20;
+  const [size, setSize] = useState(25);
 
   const [meta, setMeta] = useState<EmployeeMeta | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -130,7 +131,7 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
       .finally(() => {
         if (luot === luotTai.current) setLoading(false);
       });
-  }, [token, qDebounced, statusFilter, deptFilter, accountFilter, endingSoon, sort, page]);
+  }, [token, qDebounced, statusFilter, deptFilter, accountFilter, endingSoon, sort, page, size]);
 
   /** Tải file .xlsx do MÁY CHỦ dựng.
    *
@@ -197,7 +198,6 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
         .catch(() => setMeta(null));
   }, [token]);
 
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / size)) : 1;
   const rows = data?.items ?? [];
 
   return (
@@ -609,35 +609,19 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
               })}
           </div>
 
-          {/* Chân bảng chuẩn: TỔNG bên trái, nút chuyển trang bên phải và CHỈ hiện khi có
-              hơn 1 trang — một cặp ‹ › mờ tịt dưới bảng 3 dòng chỉ làm người dùng đi tìm
-              trang thứ hai không tồn tại. */}
-          <div className="ns__pager">
-            <span>{data ? `${data.total} nhân viên` : ""}</span>
-            {totalPages > 1 && (
-              <div className="ns__pagerbtns">
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  ‹
-                </button>
-                <span>
-                  {page} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  ›
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Chân bảng (khuôn Nhật ký) dùng chung cho cả bảng lẫn dạng thẻ điện thoại — nối vào
+              đáy thẻ bảng bằng luật CSS ở nhan-su.css. Lỗi tải thì giấu: `data` còn tổng của lượt
+              trước, in ra là nói sai. */}
+          {!listError && data && data.total > 0 && (
+            <PhanTrangDayDu
+              trang={page} size={size} tong={data.total} soDong={rows.length}
+              loading={loading}
+              donVi="nhân viên"
+              onTrang={setPage}
+              onSize={(n) => { setSize(n); setPage(1); }}
+              ariaLabel="Phân trang hồ sơ nhân sự"
+            />
+          )}
         </section>
       </div>
 

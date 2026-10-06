@@ -1,13 +1,15 @@
-// Màn TÀI SẢN CỐ ĐỊNH & CÔNG CỤ DỤNG CỤ (kế toán).
+// Màn TÀI SẢN & CÔNG CỤ DỤNG CỤ (kế toán).
 //
-// Phạm vi CỐ Ý HẸP (chủ 08/09/2026: "nó chỉ theo dõi khấu hao thôi"): ghi tăng · bảng khấu hao
-// từng tháng · hai chứng từ biến động (điều chuyển · sửa chữa lớn) · xoá món không dùng nữa.
-// Không định khoản, không sổ cái, không nhóm tài sản khai sẵn, không kỳ chốt, không ghi giảm,
-// không kiểm kê. Cầu nối sang phần mềm kế toán là file Excel bảng khấu hao — người ta đọc rồi
-// tự gõ; muốn nhớ định khoản thì ghi vào ô ghi chú.
+// Phạm vi CỐ Ý HẸP (chủ 08/09/2026: "nó chỉ theo dõi khấu hao thôi"): thêm tài sản · khấu hao
+// từng tháng · chuyển bộ phận · sửa chữa lớn · thôi dùng. Không định khoản, không sổ cái, không
+// nhóm tài sản khai sẵn, không kỳ chốt, không kiểm kê. Cầu nối sang phần mềm kế toán là file Excel
+// khấu hao tháng — người ta đọc rồi tự gõ; muốn nhớ định khoản thì ghi vào ô ghi chú.
+//
+// Làm lại 05/10/2026 cho đơn giản, dễ hiểu, dễ dùng: `docs/superpowers/specs/
+// 2026-10-05-tai-san-lam-lai-design.md`. Chữ trên màn theo bảng "Cách dùng từ" của spec.
 //
 // MỘT màn hai tab chứ không hai mục menu: cả hai đọc cùng một sổ, và người làm việc này đi qua
-// lại giữa chúng trong cùng một buổi (ghi tăng xong là xem bảng tháng).
+// lại giữa chúng trong cùng một buổi (thêm tài sản xong là xem khấu hao tháng).
 import { useState } from "react";
 import { DanhSachView } from "./DanhSachView";
 import { KhauHaoThangView } from "./KhauHaoThangView";
@@ -26,23 +28,23 @@ export function TaiSanPage() {
           <h1 className="rc__title">Tài sản & Công cụ dụng cụ</h1>
         </div>
         <p className="rc__sub">
-          Sổ những thứ xưởng mua về dùng nhiều năm: máy in, máy dao, tấm cao su, khuôn bế. Ghi
-          tăng một lần rồi mỗi tháng trích một phần vào chi phí.
+          Máy móc và dụng cụ xưởng mua về dùng nhiều năm. Nhập một lần, phần mềm tự chia giá mua
+          ra từng tháng.
         </p>
       </div>
 
       <div className="rc__tabs">
         <button className={`rc__tab${tab === "so" ? " is-active" : ""}`}
           onClick={() => setTab("so")}>
-          Danh sách
+          Tài sản
         </button>
         <button className={`rc__tab${tab === "thang" ? " is-active" : ""}`}
           onClick={() => setTab("thang")}>
-          Bảng khấu hao tháng
+          Khấu hao từng tháng
         </button>
       </div>
 
-      {tab === "so" && <DanhSachView />}
+      {tab === "so" && <DanhSachView onXemThang={() => setTab("thang")} />}
       {tab === "thang" && <KhauHaoThangView />}
     </div>
   );

@@ -616,9 +616,9 @@
 }
 
 /* ---------- ⑤ BẢNG ---------- */
+/* Không trần chiều cao (05/10/2026): bảng cao theo số dòng của trang, cả trang cuộn — khuôn Nhật ký. */
 .hslsx__tablewrap {
-  overflow: auto;
-  max-height: calc(100vh - 300px);
+  overflow-x: auto;
   overscroll-behavior-x: contain;
   background: var(--canvas);
   border: 1px solid var(--rule-soft);
@@ -1022,24 +1022,22 @@
 
 .hslsx__vuot {
   display: none;
-  margin: var(--sp-2) 0 0;
+  margin: 0 0 var(--sp-2);
   color: var(--ash-2);
   font-size: var(--fs-2xs);
 }
 
 /* ---------- ⑥ CHÂN ---------- */
-.hslsx__foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-top: var(--sp-3);
-  min-width: 0;
+/* Chân phân trang (`PhanTrangDayDu`) đứng ngay sau khung bảng, ngoài vùng cuộn ngang — nối hai
+   khối thành MỘT thẻ: khung bỏ bo đáy, chân mang viền + bo đáy. */
+.hslsx__tablewrap:has(+ .ptdd) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
-
-.hslsx__foot > :first-child {
-  flex: 1 1 auto;
-  min-width: 0;
+.hslsx__tablewrap + .ptdd {
+  border: 1px solid var(--rule-soft);
+  border-top: 0;
+  border-radius: 0 0 var(--r-5) var(--r-5);
 }
 
 /* Realtime KHÔNG toast (bảng tra cứu không phải chỗ báo tin) — chỉ một dòng nhỏ ở chân. */
@@ -1072,9 +1070,6 @@
   }
   .hslsx__search {
     flex: 1 1 100%;
-  }
-  .hslsx__tablewrap {
-    max-height: calc(100vh - 260px);
   }
 }
 
@@ -1156,10 +1151,6 @@
   .hslsx-kpi {
     flex: 1 1 42%;
     padding: 0 var(--sp-3);
-  }
-  /* Nút Pager to lên cho ngón tay. */
-  .hslsx__foot .btn {
-    min-height: 40px;
   }
 }
 

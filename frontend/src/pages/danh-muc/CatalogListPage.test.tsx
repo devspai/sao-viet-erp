@@ -139,11 +139,22 @@ describe("danh mục do HỆ SINH — `khongTaoTay` / `khongXoa`", () => {
     expect(await screen.findByText(/Chỉnh sửa/)).toBeInTheDocument();
   });
 
-  it("⭐ vẫn NHẬP EXCEL được chỉ với quyền sửa — file chỉ còn sửa dòng đã có", async () => {
-    // Thành phẩm 18/09/2026: bỏ nút Thêm nhưng giữ Nhập Excel để sửa hàng loạt. Gác theo `create`
-    // như màn thường thì cờ này giấu luôn Nhập Excel, mà `create` ở đây đâu còn nghĩa gì.
+  it("⭐ NHẬP EXCEL cần đủ quyền thêm + sửa, kể cả khi màn không cho tạo tay", async () => {
+    // Thành phẩm 18/09/2026: bỏ nút Thêm nhưng giữ Nhập Excel để sửa hàng loạt. Cổng
+    // `POST /import-excel` của máy chủ vẫn đòi đủ `create` + `update` (`catalog_base.req_import`),
+    // nên chỉ có `update` mà hiện nút là mời bấm để ăn 403 (rà soát 05/10/2026).
     stub({ items: DONG });
     moMan({ ...CFG_SINH, enableImport: true }, [quyen("dm_giay", { can_update: true })]);
+
+    await screen.findByText("TP-DH-2026-041-11");
+    expect(screen.queryByRole("button", { name: /Thêm giấy/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Nhập Excel/ })).toBeNull();
+  });
+
+  it("đủ quyền thêm + sửa thì màn không cho tạo tay vẫn có Nhập Excel, vẫn không có nút Thêm", async () => {
+    stub({ items: DONG });
+    moMan({ ...CFG_SINH, enableImport: true },
+          [quyen("dm_giay", { can_create: true, can_update: true })]);
 
     await screen.findByText("TP-DH-2026-041-11");
     expect(screen.queryByRole("button", { name: /Thêm giấy/ })).toBeNull();

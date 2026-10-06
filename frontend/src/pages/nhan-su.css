@@ -732,25 +732,21 @@ button.ns__kpi {
 .ns-badge--due .ns-badge-dot { background: #f97316; }
 .ns-badge--danger .ns-badge-dot { background: #f43f5e; }
 
-/* Pager UI - Minimalist Footer Bar */
-.ns__pager {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 12px;
-  background: var(--paper);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-3);
-  margin-top: 6px;
-  color: var(--ash);
-  font-size: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+/* Chân phân trang (`.ptdd`, khuôn Nhật ký — 05/10/2026 thay `.ns__pager`) nối vào đáy thẻ bảng
+   thành MỘT khối: khung bảng tự là thẻ có viền nên chân đứng ngay sau, mượn viền cho ba cạnh.
+   (1) Hồ sơ nhân sự: giữa bảng và chân còn khối thẻ điện thoại (`.ns-cards-wrapper`, giấu ở màn
+   rộng) — nối qua nó. Màn hẹp thì bảng bị giấu, chân đứng riêng (xem @media 768px).
+   (2) Tăng ca + mọi bảng `.ns__tablewrap` khác có chân ngay sau. */
+.ns-table-wrapper:has(+ .ns-cards-wrapper + .ptdd),
+.ns__tablewrap:has(+ .ptdd) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
-
-.ns__pagerbtns {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.ns-cards-wrapper + .ptdd,
+.ns__tablewrap + .ptdd {
+  border: 1px solid var(--rule);
+  border-top: 0;
+  border-radius: 0 0 var(--r-5) var(--r-5);
 }
 
 /* Modals Overlay with Blur */
@@ -2848,6 +2844,12 @@ button.ns__kpi {
   }
   .ns-cards-wrapper {
     display: flex;
+  }
+  /* Bảng đã giấu, không còn đáy thẻ để nối — chân thành một dải riêng dưới chồng thẻ. */
+  .ns-cards-wrapper + .ptdd {
+    margin-top: 10px;
+    border-top: 1px solid var(--rule);
+    border-radius: var(--r-5);
   }
   .ns-detail-drawer {
     width: 100vw;

@@ -503,19 +503,26 @@ def create_employee(
 _MY_HIDDEN = ("note",)
 
 
-def _my_out(employee, depts: DepartmentRepository, users: UserRepository) -> EmployeeOut:
+def _my_out(employee, svc: EmployeeService, depts: DepartmentRepository,
+            users: UserRepository) -> EmployeeOut:
     out = _full(employee, depts, users)
     for f in _MY_HIDDEN:
         setattr(out, f, None)
-    # "Quản lý trực tiếp của tôi" — chỉ tra ở đây (1 hồ sơ/lượt), KHÔNG đưa vào `_full` vì màn
-    # danh sách HCNS sẽ thành N+1 truy vấn.
-    if employee.department_id is not None:
-        d = depts.get_by_id(employee.department_id)
-        head_id = getattr(d, "head_user_id", None) if d is not None else None
-        if head_id is not None:
-            u = users.get_by_id(head_id)
-            if u is not None:
-                out.department_head_name = u.name or u.username
+    # "Quản lý trực tiếp của tôi" + ca hiện tại — chỉ tra ở đây (1 hồ sơ/lượt), KHÔNG đưa vào
+    # `_full` vì màn danh sách HCNS sẽ thành N+1 truy vấn.
+    ql = svc.direct_manager(employee)
+    if ql is not None:
+        out.department_head_name = ql["name"]
+        out.department_head_dept_name = ql["dept_name"]
+        out.department_head_avatar_url = ql["avatar_url"]
+        out.department_head_inherited = ql["inherited"]
+    out.current_shift_id, out.current_shift_name = svc.current_shift(employee)
+    out.current_shift_hours = svc.current_shift_hours(out.current_shift_id)
+    hn = svc.today_shift_override(employee)
+    if hn is not None:
+        out.today_shift_off = hn["off"]
+        out.today_shift_name = hn["name"]
+        out.today_shift_hours = hn["hours"]
     return out
 
 
@@ -524,7 +531,7 @@ def my_profile(svc: Service, depts: Depts, users: Users, user: SelfUser) -> MyPr
     emp = svc.my_employee(user=user)
     if emp is None:
         return MyProfileOut(has_employee=False, employee=None)
-    return MyProfileOut(has_employee=True, employee=_my_out(emp, depts, users))
+    return MyProfileOut(has_employee=True, employee=_my_out(emp, svc, depts, users))
 
 
 @router.put("/me", response_model=MyProfileOut)
@@ -533,7 +540,7 @@ def update_my_profile(body: MyContactIn, svc: Service, depts: Depts, users: User
         emp = svc.update_my_contact(user=user, fields=body.model_dump(exclude_unset=True))
     except EmployeeError as exc:
         _raise(exc)
-    return MyProfileOut(has_employee=True, employee=_my_out(emp, depts, users))
+    return MyProfileOut(has_employee=True, employee=_my_out(emp, svc, depts, users))
 
 
 def _events_out(events, users: UserRepository) -> EmployeeEventsOut:

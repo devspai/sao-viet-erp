@@ -20,15 +20,14 @@ import {
   kyThuatMay, NHAN_DON_VI_CHU_KY, NHAN_TT_BAO_TRI, TT_BAO_TRI,
   type BaoTri, type DuKien,
 } from "../api/kyThuatMay";
-import { Pager, trangHopLe } from "../components/Pager";
+import { trangHopLe } from "../components/Pager";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useTre } from "../lib/useTre";
 import { AnhBox, BadgeBaoTri, NhatKyPhieu, fmtNgay, homNay, useManHep } from "./KyThuatMayChung";
 import type { Anh } from "../api/kyThuatMay";
 import { LichBaoTri } from "./LichBaoTri";
 import "./rebuild-catalog.css";
 import "./ky-thuat-may.css";
-
-const SIZE = 20;
 
 /** Ngày cuối của tháng `yyyy-mm` — cận phải khi lọc theo tháng. */
 function cuoiThang(thang: string): string {
@@ -53,6 +52,7 @@ export function PhieuBaoTriPage() {
   const [tomTat, setTomTat] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(25);
   const [thangLoc, setThangLoc] = useState("");   // "" = mọi tháng
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,16 +84,16 @@ export function PhieuBaoTriPage() {
       tu: thangLoc ? `${thangLoc}-01` : undefined,
       den: thangLoc ? cuoiThang(thangLoc) : undefined,
       page,
-      size: SIZE,
+      size,
     })
       .then((r) => {
         setRows(r.items); setDem(r.dem ?? {}); setTotal(r.total); setError(null);
-        const ve = trangHopLe(page, r.total, SIZE);
+        const ve = trangHopLe(page, r.total, size);
         if (ve !== null) setPage(ve);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Không tải được danh sách."))
       .finally(() => setLoading(false));
-  }, [token, qTre, tab, thangLoc, page, xem]);
+  }, [token, qTre, tab, thangLoc, page, size, xem]);
 
   useEffect(load, [load]);
 
@@ -437,7 +437,11 @@ export function PhieuBaoTriPage() {
         </table>
       </div>
       )}
-      <Pager total={total} page={page} size={SIZE} onPage={setPage} loading={loading} unit="phiếu" />
+      {total > 0 && (
+        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+          onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+          donVi="phiếu" ariaLabel="Phân trang phiếu bảo trì" />
+      )}
         </>
       )}
 

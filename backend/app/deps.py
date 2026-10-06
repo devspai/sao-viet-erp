@@ -551,7 +551,6 @@ O_QUYEN_DUOC_GAC: set[tuple[str, str]] = set()
 #: registry ở trên không thấy. Khai tay — và có test đối chiếu với mã nguồn để không sót.
 O_QUYEN_GAC_O_SERVICE: set[tuple[str, str]] = {
     ("yeu_cau_mua_hang", "create"),   # purchase_service.can_create_department_request
-    ("yeu_cau_mua_hang", "cancel"),   # purchase_service.cancel_department_request (huỷ hộ)
     ("ke_toan", "approve"),           # huỷ PMH đã gửi duyệt (purchase_service.cancel)
     ("ke_toan", "read"),              # đếm đợt giao quá hạn cho badge Thu mua
 }
@@ -584,13 +583,9 @@ O_CHET_DA_XAC_MINH: set[tuple[str, str]] = {
     ("bao_cao_kho", "create"),
     ("bao_cao_kho", "update"),
     ("bao_cao_kho", "delete"),
-    # Tồn kho (mg `0334`): Xem = số tồn + lô; việc GHI duy nhất là KHAI NGƯỠNG
-    # (`PUT /api/kho/nguong-ton` → ô chi tiết `ton_kho:set_threshold`). Không có "tạo/sửa/xoá tồn
-    # kho" — khai báo kho là màn danh mục riêng (`dm_kho_hang`), còn lô sinh ra từ phiếu nhập chứ
-    # không gõ tay. Cùng khuôn `bao_cao_kho`: cột Thao tác xám, việc ghi nằm ở ô chi tiết.
-    ("ton_kho", "create"),
-    ("ton_kho", "update"),
-    ("ton_kho", "delete"),
+    # Khoá `ton_kho` ĐÃ TÁCH thành một dòng cho MỖI KHO (`ton_kho_<id>`, 05/10/2026): ba việc chết
+    # của chúng (create/update/delete — tồn kho không gõ tay, lô sinh từ phiếu nhập) khai ở
+    # `role_service.list_modules` theo tiền tố, vì dòng động không liệt kê sẵn được ở đây.
     ("yeu_cau_mua_hang", "delete"),
     # `thu_mua:cancel` và `thu_mua:manage_status`: KHÔNG khai ở đây. Hai ô đó đã GỠ HẲN khỏi ma
     # trận ngày 12/08/2026 (xem `PermissionMatrix.tsx`), mà danh sách này chỉ dùng để TẮT những ô
@@ -612,6 +607,12 @@ O_CHET_DA_XAC_MINH: set[tuple[str, str]] = {
     # `bao_cao_kinh_doanh` (24/09/2026): chỉ Xem (= xem + xuất Excel). Không có gì để thêm/sửa/xoá.
     ("bao_cao_kinh_doanh", "create"), ("bao_cao_kinh_doanh", "update"),
     ("bao_cao_kinh_doanh", "delete"),
+    # Lệnh sản xuất · Theo dõi sản xuất (05/10/2026): hai màn CHỈ XEM — `routers/lenh_san_xuat.py`
+    # và `routers/theo_doi_san_xuat.py` chỉ gác `read`, giao diện không hỏi việc ghi nào. Việc ghi
+    # trên lệnh đi bằng ô `san_xuat`.
+    ("lenh_san_xuat", "create"), ("lenh_san_xuat", "update"), ("lenh_san_xuat", "delete"),
+    ("theo_doi_san_xuat", "create"), ("theo_doi_san_xuat", "update"),
+    ("theo_doi_san_xuat", "delete"),
     ("tk_ngan_hang", "create"), ("tk_ngan_hang", "delete"),
     # `self_service` nay gác MỤC MENU "Hồ sơ của tôi" (24/09/2026) — chỉ ô XEM còn sống. Ô Thao
     # tác chết từ 15/08/2026: `useSelfServiceWrite()` (auth/permissions.tsx) trả `true` cứng và
@@ -662,7 +663,8 @@ def require_permission(module_key: str, action: str):
     return dependency
 
 
-def require_quyen_to(viec: str = "read", *hoac: tuple[str, str], cho_kcs: bool = False):
+def require_quyen_to(viec: str = "read", *hoac: tuple[str, str], cho_kcs: bool = False,
+                     cho_dong_kho: bool = False):
     """Cổng Bàn tổ (mg 0302): cho qua nếu vai của user bật `viec` ("read" | "run_order" |
     "confirm_output" | "warehouse") trên ÍT NHẤT MỘT dòng quyền theo tổ — hoặc có một trong
     các ô tĩnh `hoac` (màn khác dùng chung endpoint). ĐÚNG TỔ NÀO do service hỏi
@@ -670,6 +672,10 @@ def require_quyen_to(viec: str = "read", *hoac: tuple[str, str], cho_kcs: bool =
 
     `cho_kcs=True`: người thuộc phòng ban "Tổ KCS" cũng qua (KCS theo lệnh, mg 0306) — họ kiểm mọi
     tổ mà không giữ dòng quyền tổ nào, nên màn KCS đọc chung endpoint phải mở cho họ.
+
+    `cho_dong_kho=True`: người có Xem ở một dòng quyền theo kho (`ton_kho_<id>`, 05/10/2026) cũng
+    qua — danh sách kho phải mở cho người chỉ được cấp màn Tồn kho của vài kho, không thì thanh
+    bên không có mục kho nào để bấm.
 
     Dòng theo tổ là dòng ĐỘNG (`to_sx_<id>`), không đăng ký vào `O_QUYEN_DUOC_GAC` — ô của nó sống
     theo cây phòng ban, không theo registry."""
@@ -687,6 +693,11 @@ def require_quyen_to(viec: str = "read", *hoac: tuple[str, str], cho_kcs: bool =
             return user
         if cho_kcs and la_nguoi_kcs(db, user):
             return user
+        if cho_dong_kho:
+            from .services.quyen_kho import xem_kho_nao
+
+            if xem_kho_nao(authz, user):
+                return user
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Bạn không có quyền thực hiện thao tác này",
@@ -711,6 +722,29 @@ def require_any_permission(*grants: tuple[str, str]):
                 detail="Bạn không có quyền thực hiện thao tác này",
             )
         return user
+
+    return dependency
+
+
+def require_xem_kho_nao(*hoac: tuple[str, str], viec: str = "read"):
+    """Cổng THÔ của các endpoint đọc tồn / lô (05/10/2026): cho qua nếu có một trong các ô tĩnh
+    `hoac`, hoặc bật `viec` ("read" mặc định; "view_cost" cho cửa chỉ trả tiền) ở ÍT NHẤT một dòng
+    quyền theo kho (`ton_kho_<id>`). ĐÚNG KHO NÀO do endpoint hỏi tiếp (`services/quyen_kho`). Dòng
+    theo kho là dòng ĐỘNG, không đăng ký vào `O_QUYEN_DUOC_GAC` — cùng lý do `require_quyen_to`."""
+    O_QUYEN_DUOC_GAC.update(hoac)
+
+    def dependency(
+        user: CurrentUser,
+        authz: Annotated[AuthorizationService, Depends(get_authorization_service)],
+    ) -> User:
+        from .services.quyen_kho import kho_duoc
+
+        if any(authz.can(user, k, a) for k, a in hoac) or kho_duoc(authz, user, viec):
+            return user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn không có quyền thực hiện thao tác này",
+        )
 
     return dependency
 

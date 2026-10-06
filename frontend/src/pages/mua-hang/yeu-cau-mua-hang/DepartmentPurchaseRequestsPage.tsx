@@ -53,8 +53,9 @@ export function DepartmentPurchaseRequestsPage({
   const can = useCan();
   // Nạp danh mục Đơn vị MỘT lần — bảng dòng hàng trong drawer chi tiết hiện TÊN, không hiện mã.
   useNapTenDonVi();
-  // Huỷ HỘ người khác = quyền quản trị trên chính màn này; người tạo vẫn tự huỷ đơn của mình.
-  const canAdminCancel = can("yeu_cau_mua_hang", "cancel");
+  // Huỷ HỘ người khác = ô THAO TÁC của chính màn này (05/10/2026) — máy chủ còn chặn yêu cầu nằm
+  // ngoài phạm vi người huỷ (`purchase_service._can_view_department_request`).
+  const canAdminCancel = can("yeu_cau_mua_hang", "update");
   // Sửa / huỷ yêu cầu CỦA CHÍNH MÌNH — máy chủ gác `yeu_cau_mua_hang:update`.
   const canUpdate = can("yeu_cau_mua_hang", "update");
   const [canCreate, setCanCreate] = useState(false);
@@ -65,6 +66,7 @@ export function DepartmentPurchaseRequestsPage({
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   // Ô nhập vẫn bám `q` (gõ tới đâu hiện tới đó); chỉ lời gọi máy chủ đọc bản đã chậm 300ms.
   const qDebounced = useDebounced(q);
   const [loading, setLoading] = useState(true);
@@ -113,7 +115,11 @@ export function DepartmentPurchaseRequestsPage({
     );
   }, [selected, canAdminCancel, canUpdate, user?.id]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Đổi cỡ trang thì trang đang đứng có thể không còn tồn tại — về trang 1.
+  const doiCoTrang = (n: number) => {
+    setSize(n);
+    setPage(1);
+  };
 
   const load = useCallback(() => {
     if (!token) return;
@@ -126,7 +132,7 @@ export function DepartmentPurchaseRequestsPage({
         status: status === "all" ? null : status,
         sort: "-created_at",
         page,
-        size: PAGE_SIZE,
+        size,
       })
       .then((res) => {
         setRows(res.items);
@@ -137,7 +143,7 @@ export function DepartmentPurchaseRequestsPage({
         else setListError("Không tải được danh sách yêu cầu mua hàng.");
       })
       .finally(() => setLoading(false));
-  }, [token, qDebounced, status, page]);
+  }, [token, qDebounced, status, page, size]);
 
   useEffect(() => {
     load();
@@ -415,7 +421,8 @@ export function DepartmentPurchaseRequestsPage({
         page={page}
         setPage={setPage}
         total={total}
-        totalPages={totalPages}
+        size={size}
+        onSize={doiCoTrang}
         focusRequestCode={focusRequestCode}
         selectedId={selectedId}
         setSelectedId={setSelectedId}

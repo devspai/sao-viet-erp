@@ -17,7 +17,7 @@ import { useAuth } from "../../auth/useAuth";
 import { useCan, useKcs } from "../../auth/permissions";
 import type { NavigateFn } from "../../components/AppShell";
 import { EmptyState } from "../../components/EmptyState";
-import { Pager } from "../../components/Pager";
+import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
 import { Icon } from "../../components/Icons";
 import { useDebounced } from "../../utils/useDebounced";
 import { num } from "../keHoachSxShared";
@@ -52,6 +52,7 @@ export function KcsTheoLenhPage({
   const timCham = useDebounced(tim.trim());
   const [daDong, setDaDong] = useState(false);
   const [trang, setTrang] = useState(1);
+  const [coTrang, setCoTrang] = useState(25);
   const [lenh, setLenh] = useState<SxKcsLenhList | null>(null);
   const [lenhLoading, setLenhLoading] = useState(true);
   const [lenhLoi, setLenhLoi] = useState<string | null>(null);
@@ -62,12 +63,12 @@ export function KcsTheoLenhPage({
     if (!token) return;
     let alive = true;
     setLenhLoading(true);
-    api.sanXuat.kcsLenh(token, { tim: timCham || undefined, trang, daDong })
+    api.sanXuat.kcsLenh(token, { tim: timCham || undefined, trang, daDong, coTrang })
       .then((r) => { if (alive) { setLenh(r); setLenhLoi(null); } })
       .catch((e) => { if (alive) setLenhLoi(e instanceof ApiError ? e.message : "Không tải được danh sách lệnh."); })
       .finally(() => { if (alive) setLenhLoading(false); });
     return () => { alive = false; };
-  }, [token, timCham, trang, daDong, lenhTick, eventTick]);
+  }, [token, timCham, trang, daDong, coTrang, lenhTick, eventTick]);
 
   // ---- Báo cáo -----------------------------------------------------------------------------
   const [filters, setFilters] = useState<KcsDashFilters>(KCS_DASH_FILTERS_RONG);
@@ -231,8 +232,10 @@ export function KcsTheoLenhPage({
               </tbody>
             </table>
           </div>
-          <Pager total={lenh.tong} page={lenh.trang} size={lenh.co_trang} onPage={setTrang}
-            loading={lenhLoading} unit="lệnh" />
+          {/* Cỡ trang lấy từ máy chủ trả về (`co_trang`) — đúng con số đã cắt, kể cả khi máy chủ kẹp lại. */}
+          <PhanTrangDayDu trang={lenh.trang} size={lenh.co_trang} tong={lenh.tong} soDong={lenh.items.length}
+            onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }}
+            loading={lenhLoading} donVi="lệnh" ariaLabel="Phân trang lệnh KCS" />
         </>
       )}
     </section>

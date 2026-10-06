@@ -350,9 +350,9 @@
   border-radius: 0;
   box-shadow: none;
 }
-.kcs-lenh .pager {
-  margin: 0;
-  padding: var(--sp-2) var(--sp-4);
+/* Thẻ `.kcs-lenh` đã có viền + bo góc: chân nằm trong thẻ nên bỏ khung nối mà
+   `.rc__tablewrap + .ptdd` (rebuild-catalog.css) gắn cho bảng đứng riêng. */
+.kcs-lenh .rc__tablewrap + .ptdd {
   border: none;
   border-top: 1px solid var(--rule-soft);
   border-radius: 0;

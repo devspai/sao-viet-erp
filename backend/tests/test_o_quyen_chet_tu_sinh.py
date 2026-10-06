@@ -239,6 +239,15 @@ def test_o_chi_tiet_khong_dung_chung_cot_voi_nut_thao_tac():
     assert m, "không đọc được `WRITE_ACTIONS` — đổi tên hằng thì sửa guard này luôn"
     ghi = {x.strip().strip('"') for x in m.group(1).split(",") if x.strip()}
     assert ghi, "WRITE_ACTIONS rỗng — guard sẽ xanh giả"
+    # Vài dòng có cột Thao tác RIÊNG (`cotThaoTac`, 05/10/2026: Yêu cầu nhập xuất = `can_request`,
+    # việc của kho dời xuống ô chi tiết create/update/delete). So với đúng cột Thao tác của dòng đó.
+    ham = s[s.index("const cotThaoTac"):]
+    ham = ham[: ham.index(";\n")]
+    rieng = {
+        mod: {x.strip().strip('"') for x in cot.split(",") if x.strip()}
+        for mod, cot in re.findall(r'moduleKey === "([a-z_0-9]+)"\s*\?\s*\[(.*?)\]', ham, re.S)
+    }
+    assert "kho" in rieng, "không đọc được `cotThaoTac` — đổi cấu trúc hàm thì sửa guard này luôn"
 
     than = s[s.index("const FINE_ACTIONS"):]
     than = than[: than.index("\n};")]
@@ -249,7 +258,7 @@ def test_o_chi_tiet_khong_dung_chung_cot_voi_nut_thao_tac():
         if khop:
             mod = khop.group(1)
         for k in re.findall(r'key: "(can_\w+)"', dong):
-            if k in ghi:
+            if k in rieng.get(mod, ghi):
                 dung_chung.append(f"{mod}.{k}")
 
     assert not dung_chung, (

@@ -13,14 +13,12 @@ import { api, ApiError, type ThanhPhamChuaGiaGocPage, type ThanhPhamChuaGiaGocRo
 import type { Row } from "../api/rebuildCatalog";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { EmptyRow } from "../components/EmptyState";
-import { Pager } from "../components/Pager";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useDebounced } from "../utils/useDebounced";
 import { RefSearchField } from "./danh-muc/fields/RefFields";
 import { FilterIcon, XIcon } from "./danh-muc/icons";
 import { fmtQty } from "./khoShared";
 import "./kho-gia-goc.css";
-
-const CO_TRANG = 50;
 
 const tien = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("vi-VN"));
 const ngay = (iso: string) => {
@@ -123,6 +121,7 @@ export function KhoGiaGocThanhPham({ token, onCount }: { token: string; onCount?
   const [moLoc, setMoLoc] = useState(false);
   const [loc, setLoc] = useState<Loc>(LOC_TRONG);
   const [trang, setTrang] = useState(1);
+  const [coTrang, setCoTrang] = useState(25);
   const [data, setData] = useState<ThanhPhamChuaGiaGocPage | null>(null);
   const [dangTai, setDangTai] = useState(true);
   const [loi, setLoi] = useState<string | null>(null);
@@ -145,7 +144,7 @@ export function KhoGiaGocThanhPham({ token, onCount }: { token: string; onCount?
     let alive = true;
     setDangTai(true);
     api.kho.baoCao.thanhPhamChuaGiaGoc(token, {
-      q: timCham || undefined, chiChuaGia, page: trang, size: CO_TRANG,
+      q: timCham || undefined, chiChuaGia, page: trang, size: coTrang,
       tu: tu || undefined, den: den || undefined,
       khoId: loc.khoId ?? undefined, khachHangId: loc.khachId ?? undefined,
     })
@@ -153,7 +152,7 @@ export function KhoGiaGocThanhPham({ token, onCount }: { token: string; onCount?
       .catch((e) => { if (alive) setLoi(e instanceof ApiError ? e.message : "Không tải được danh sách thành phẩm."); })
       .finally(() => { if (alive) setDangTai(false); });
     return () => { alive = false; };
-  }, [token, timCham, chiChuaGia, trang, tick, onCount, tu, den, nguocNgay, loc.khoId, loc.khachId]);
+  }, [token, timCham, chiChuaGia, trang, coTrang, tick, onCount, tu, den, nguocNgay, loc.khoId, loc.khachId]);
 
   async function luu() {
     if (!xacNhan || luuBusy) return;
@@ -371,8 +370,10 @@ export function KhoGiaGocThanhPham({ token, onCount }: { token: string; onCount?
           </tbody>
         </table>
       </div>
-      {data && (
-        <Pager total={data.total} page={data.page} size={data.size} onPage={setTrang} loading={dangTai} unit="lô gốc" />
+      {data && data.total > 0 && (
+        <PhanTrangDayDu trang={trang} size={coTrang} tong={data.total} soDong={rows.length}
+          onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }} loading={dangTai}
+          donVi="lô gốc" ariaLabel="Phân trang giá gốc thành phẩm" />
       )}
 
       <ConfirmDialog

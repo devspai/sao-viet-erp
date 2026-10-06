@@ -35,6 +35,10 @@ export function NghiPhepPage({ onChanged, focusEmployeeId, eventTick }: {
   // (chủ chốt 15/08/2026: *"tôi chưa bật thao tác vẫn bấm gửi đơn được nè"*). Chỉ phần ĐỌC dữ
   // liệu của mình mới là quyền đương nhiên.
   const tuPhucVuGhi = can("nghi_phep", "create");
+  // HUỶ / XIN HUỶ / RÚT LẠI đơn của mình: máy chủ đòi ô `cancel` (hoặc ô Duyệt — người duyệt huỷ
+  // hộ) — `routers/leaves.py` `SelfOrApprover`. Trước 05/10/2026 nút "Hủy đơn" hiện vô điều kiện
+  // còn ma trận không có ô `cancel` ⇒ nhân viên thường bấm là ăn 403.
+  const coQuyenHuy = can("nghi_phep", "cancel") || canManage;
   // Danh mục LOẠI NGHỈ là chính sách TOÀN CÔNG TY, chỉ HCNS/Admin. Phải gác bằng `update` cho
   // KHỚP backend (`routers/leaves.py` gác 3 endpoint /types bằng `update`) — gác bằng `approve`
   // là tổ trưởng (approve=true, update=false) nhìn thấy tab, mở ra, bấm lưu rồi ăn 403: màn
@@ -93,7 +97,7 @@ export function NghiPhepPage({ onChanged, focusEmployeeId, eventTick }: {
         </div>
       </nav>
       {tab === "me" && tuPhucVu && (
-        <MyLeaveTab token={token!} onChanged={onChanged} coQuyenGhi={tuPhucVuGhi} eventTick={eventTick} />
+        <MyLeaveTab token={token!} onChanged={onChanged} coQuyenGhi={tuPhucVuGhi} coQuyenHuy={coQuyenHuy} eventTick={eventTick} />
       )}
       {tab === "approve" && canManage && <ApproveTab token={token!} onChanged={onChanged} focusEmployeeId={focusEmployeeId} eventTick={eventTick} />}
       {tab === "calendar" && canManage && <CalendarTab token={token!} />}

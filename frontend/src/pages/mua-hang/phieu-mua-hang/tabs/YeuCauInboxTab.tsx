@@ -2,8 +2,8 @@
 // Giao diện theo CHUẨN Đơn mua hàng (Kế toán): một thẻ lọc `ToolbarChuan` + bảng `acct-dmh__frame`.
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { DepartmentPurchaseRequestRow } from "../../../../api/client";
-import { Button } from "../../../../components/Button";
 import { EmptyRow } from "../../../../components/EmptyState";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { fmtDate } from "../../../../utils/format";
 import { ToolbarChuan } from "../../../ke-toan/components/ToolbarChuan";
 import { SOURCE_STATUS_META } from "../shared/constants";
@@ -32,7 +32,8 @@ export function YeuCauInboxTab({
   sourceError,
   sourceRows,
   sourceTotal,
-  sourceTotalPages,
+  sourceSize,
+  onSourceSize,
   loadSources,
   canCreate,
   openCreatePurchaseRequest,
@@ -48,7 +49,8 @@ export function YeuCauInboxTab({
   sourceError: string | null;
   sourceRows: DepartmentPurchaseRequestRow[];
   sourceTotal: number;
-  sourceTotalPages: number;
+  sourceSize: number;
+  onSourceSize: (size: number) => void;
   loadSources: () => void;
   canCreate: boolean;
   openCreatePurchaseRequest: (pickedSource: DepartmentPurchaseRequestRow) => void;
@@ -196,29 +198,18 @@ export function YeuCauInboxTab({
             )}
           </tbody>
         </table>
-        {!sourceLoading && (
-          <div className="md-page__pager">
-            <span>{sourceTotal} yêu cầu</span>
-            <div>
-              <Button
-                variant="ghost"
-                disabled={sourcePage <= 1}
-                onClick={() => setSourcePage((value) => value - 1)}
-              >
-                Trước
-              </Button>
-              <span>
-                {sourcePage}/{sourceTotalPages}
-              </span>
-              <Button
-                variant="ghost"
-                disabled={sourcePage >= sourceTotalPages}
-                onClick={() => setSourcePage((value) => value + 1)}
-              >
-                Sau
-              </Button>
-            </div>
-          </div>
+        {sourceTotal > 0 && (
+          <PhanTrangDayDu
+            trang={sourcePage}
+            size={sourceSize}
+            tong={sourceTotal}
+            soDong={sourceRows.length}
+            onTrang={setSourcePage}
+            onSize={onSourceSize}
+            loading={sourceLoading}
+            donVi="yêu cầu"
+            ariaLabel="Phân trang yêu cầu chờ xử lý"
+          />
         )}
       </section>
     </>

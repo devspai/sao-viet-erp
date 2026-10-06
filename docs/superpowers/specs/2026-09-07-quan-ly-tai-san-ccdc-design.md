@@ -1,6 +1,6 @@
 # Thiết kế — Module Quản lý Tài sản cố định & Công cụ dụng cụ
 
-Ngày: 07/09/2026 · Trạng thái: đã chốt phạm vi, CHƯA làm code
+Ngày: 07/09/2026 · Trạng thái: LỖI THỜI — đã thay bằng `2026-10-05-tai-san-lam-lai-design.md`
 
 ## 1. Mục tiêu
 

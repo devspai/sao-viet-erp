@@ -60,6 +60,7 @@ export function SuppliersPage({
   const [rows, setRows] = useState<SupplierRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
@@ -191,7 +192,7 @@ export function SuppliersPage({
         rating_min: locSao,
         sort,
         page,
-        size: PAGE_SIZE,
+        size,
       })
       .then((res) => {
         setRows(res.items);
@@ -202,7 +203,7 @@ export function SuppliersPage({
         else setListError("Không tải được danh sách nhà cung cấp.");
       })
       .finally(() => setLoading(false));
-  }, [token, qDebounced, status, selectedGroup, locSao, sort, page]);
+  }, [token, qDebounced, status, selectedGroup, locSao, sort, page, size]);
 
   useEffect(() => {
     loadAll();
@@ -447,7 +448,11 @@ export function SuppliersPage({
     );
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Đổi cỡ trang thì trang đang đứng có thể không còn tồn tại — về trang 1.
+  const doiCoTrang = (n: number) => {
+    setSize(n);
+    setPage(1);
+  };
 
   // Items displayed in Tab 2 with internal search filter
   const itemsInForm = form.items ?? [emptySupplierItem()];
@@ -531,7 +536,8 @@ export function SuppliersPage({
         total={total}
         page={page}
         setPage={setPage}
-        totalPages={totalPages}
+        size={size}
+        onSize={doiCoTrang}
       />
 
       {/* Full Height Side Drawer (Replaces centered modal dialog) */}

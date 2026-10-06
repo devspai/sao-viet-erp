@@ -18,7 +18,8 @@ import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icons";
-import { Pager, trangHopLe } from "../components/Pager";
+import { trangHopLe } from "../components/Pager";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useTre } from "../lib/useTre";
 import {
   kyThuatMay, NHAN_MUC_DO, NHAN_TT_SUA_CHUA, NHAN_TT_YEU_CAU, TT_YEU_CAU,
@@ -26,7 +27,6 @@ import {
 } from "../api/kyThuatMay";
 import { AnhBox, Badge, NhatKyPhieu, fmtNgayGio } from "./KyThuatMayChung";
 
-const SIZE = 20;
 import "./rebuild-catalog.css";
 import "./ky-thuat-may.css";
 
@@ -189,6 +189,7 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
   const [dem, setDem] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(25);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -205,18 +206,18 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
       q: qTre.trim() || undefined,
       trang_thai: tab === "all" ? undefined : tab,
       page,
-      size: SIZE,
+      size,
     })
       .then((r) => {
         setRows(r.items); setDem(r.dem ?? {}); setTotal(r.total); setError(null);
         // Đang đứng trang 3 mà bộ lọc co danh sách còn 2 trang ⇒ nhảy về trang cuối, không để
         // người dùng nhìn một bảng rỗng rồi tưởng mất sạch dữ liệu.
-        const ve = trangHopLe(page, r.total, SIZE);
+        const ve = trangHopLe(page, r.total, size);
         if (ve !== null) setPage(ve);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Không tải được danh sách."))
       .finally(() => setLoading(false));
-  }, [token, qTre, tab, page]);
+  }, [token, qTre, tab, page, size]);
 
   useEffect(load, [load]);
 
@@ -385,7 +386,11 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
           </tbody>
         </table>
       </div>
-      <Pager total={total} page={page} size={SIZE} onPage={setPage} loading={loading} unit="phiếu" />
+      {total > 0 && (
+        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+          onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+          donVi="phiếu" ariaLabel="Phân trang phiếu sửa chữa" />
+      )}
 
       {mo && (
         <SuaChuaDrawer
@@ -730,6 +735,7 @@ function KhungYeuCau({
   const [dem, setDem] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(25);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -748,17 +754,17 @@ function KhungYeuCau({
       trang_thai: tab === "all" ? undefined : tab,
       cua_toi: cuaToi ? 1 : undefined,
       page,
-      size: SIZE,
+      size,
     })
       .then((r) => {
         setRows(r.items); setDem(r.dem ?? {}); setTotal(r.total); setError(null);
-        const ve = trangHopLe(page, r.total, SIZE);
+        const ve = trangHopLe(page, r.total, size);
         if (ve !== null) setPage(ve);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Không tải được danh sách."))
       .finally(() => setLoading(false));
     // `eventTick`: có yêu cầu mới đẩy về là danh sách tự nhích, không bắt tổ sửa chữa bấm tải lại.
-  }, [token, qTre, tab, cuaToi, page, eventTick]);
+  }, [token, qTre, tab, cuaToi, page, size, eventTick]);
 
   useEffect(load, [load]);
   // Cùng lý do như bên khung Phiếu: mở một yêu cầu đã gửi cũng phải tra được tên máy.
@@ -924,7 +930,11 @@ function KhungYeuCau({
           </tbody>
         </table>
       </div>
-      <Pager total={total} page={page} size={SIZE} onPage={setPage} loading={loading} unit="yêu cầu" />
+      {total > 0 && (
+        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+          onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+          donVi="yêu cầu" ariaLabel="Phân trang yêu cầu sửa chữa" />
+      )}
 
       {mo && (
         <YeuCauDrawer

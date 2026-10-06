@@ -17,7 +17,6 @@ import {
   type LeaveQuota,
   type Profile,
   type UpdateRequest,
-  type WorkShift,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useSelfServiceWrite } from "../../../auth/permissions";
@@ -26,7 +25,8 @@ import { Button } from "../../../components/Button";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { EmptyRow, EmptyState } from "../../../components/EmptyState";
 import { Icon } from "../../../components/Icons";
-import { Pager, trangHopLe } from "../../../components/Pager";
+import { trangHopLe } from "../../../components/Pager";
+import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { Timeline, type TimelineEntry } from "../../../components/Timeline";
 import { ReqRow } from "./components/ReqRow";
 import { StatChip } from "./components/StatChip";
@@ -51,6 +51,7 @@ import {
 import {
   fmtDate,
   fmtDateTime,
+  fmtSdt,
   fmtSo,
   kieuFile,
   messageFor,
@@ -77,7 +78,6 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [events, setEvents] = useState<EmployeeEvent[]>([]);
   const [files, setFiles] = useState<Tai<EmployeeAttachment[]>>(DANG_TAI);
-  const [shift, setShift] = useState<WorkShift | null>(null);
   const [editing, setEditing] = useState(false);
   const [reqs, setReqs] = useState<Tai<UpdateRequest[]>>(DANG_TAI);
   const [requesting, setRequesting] = useState(false);
@@ -90,6 +90,7 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
   const [reqDem, setReqDem] = useState<Record<string, number>>({});
   const [reqLoc, setReqLoc] = useState<string>("all");
   const [reqPage, setReqPage] = useState(1);
+  const [reqSize, setReqSize] = useState(REQ_PAGE_SIZE);
   const [xemReq, setXemReq] = useState<UpdateRequest | null>(null);
   // Số liệu "của tôi" — mỗi nguồn tải/thử lại ĐỘC LẬP, hỏng một chip không kéo sập cả màn.
   const [phep, setPhep] = useState<Tai<SoPhep>>(DANG_TAI);
@@ -106,18 +107,18 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
     if (!token) return;
     api.employees.myRequests(token, {
       ...(reqLoc !== "all" ? { status: reqLoc } : {}),
-      page: reqPage, size: REQ_PAGE_SIZE,
+      page: reqPage, size: reqSize,
     })
       .then((r) => {
         setReqs({ tt: "ok", du: r.items });
         setReqTotal(r.total);
         setReqDem(r.dem ?? {});
         // Rút lại đề nghị cuối của trang cuối ⇒ tổng co lại, trang này rỗng trơn: lùi về trang có thật.
-        const ve = trangHopLe(reqPage, r.total, REQ_PAGE_SIZE);
+        const ve = trangHopLe(reqPage, r.total, reqSize);
         if (ve !== null) setReqPage(ve);
       })
       .catch(() => setReqs({ tt: "loi" }));
-  }, [token, reqLoc, reqPage]);
+  }, [token, reqLoc, reqPage, reqSize]);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -136,11 +137,6 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
   // hồ sơ · giấy tờ · quá trình công tác chạy lại cả loạt.
   useEffect(() => { loadReqs(); }, [loadReqs]);
   useEffect(() => { setReqPage(1); }, [reqLoc]);
-  useEffect(() => {
-    if (emp?.default_shift_id && token) {
-      api.attendance.shifts(token).then((r) => setShift(r.items.find((s) => s.id === emp.default_shift_id) ?? null)).catch(() => setShift(null));
-    }
-  }, [token, emp?.default_shift_id]);
 
   // --- 3 nguồn số liệu "của tôi" (chỉ nhánh nhân viên) ---------------------
   const napPhep = useCallback(() => {
@@ -329,9 +325,8 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
 
   // === NHÁNH NHÂN VIÊN: hồ sơ của tôi ===
   const tn = thamNien(emp.prior_seniority_months, emp.hire_date);
-  const badgeTrangThai = emp.status === "probation" && emp.probation_end_date
-    ? `${STATUS_LABEL.probation} · đến ${fmtDate(emp.probation_end_date)}`
-    : STATUS_LABEL[emp.status] ?? emp.status;
+  // Ngày hết thử việc nằm ở ô "Vào làm" ngay dưới — badge chỉ nói trạng thái.
+  const badgeTrangThai = STATUS_LABEL[emp.status] ?? emp.status;
 
   const statusBadgeClass = STATUS_CLASS[emp.status]
     ? `mine__hero-badge--${emp.status === "active" ? "ok" : emp.status === "probation" ? "warn" : "muted"}`
@@ -352,26 +347,101 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
         <div className="mine__heroid">
           <h1>
             {emp.full_name}
+            {/* Họ tên do HCNS quản: ✎ mở thẳng form đề nghị, chú thích nói rõ vì sao không sửa tại chỗ. */}
+            {tuPhucVuGhi && (
+              <button
+                type="button" className="mine__name-edit mine__name-req"
+                aria-label="Họ tên do HCNS quản lý — bấm để gửi đề nghị sửa"
+                onClick={() => setRequesting(true)}
+              >
+                <Icon name="pencil" size={14} />
+                <span className="mine__tip" aria-hidden="true">Họ tên do HCNS quản lý — bấm để gửi đề nghị sửa</span>
+              </button>
+            )}
             <span className={`mine__hero-badge ${statusBadgeClass}`}>
               {badgeTrangThai}
             </span>
           </h1>
-          <p>
-            {emp.department_name ?? "—"}
-            {emp.position && emp.position !== emp.department_name ? ` · ${emp.position}` : ""}
-          </p>
-          <p className="mine__herosub">
-            Mã NV: {emp.code} · Vào làm {fmtDate(emp.hire_date)}{tn ? ` · Thâm niên ${tn}` : ""}
-          </p>
-          {emp.department_head_name && (
-            <p className="mine__herosub">Trưởng bộ phận: {emp.department_head_name}</p>
+          {emp.position && emp.position !== emp.department_name && (
+            <p className="mine__herotitle">{emp.position}</p>
           )}
-          {tuPhucVuGhi && (
-            <button type="button" className="mine__namehint" onClick={() => setRequesting(true)}>
-              Cần đổi tên? Gửi đề nghị
-            </button>
-          )}
+          <div className="mine__herotags">
+            {emp.department_name && (
+              <span className="mine__herotag"><Icon name="building" size={13} />{emp.department_name}</span>
+            )}
+            <span className="mine__herotag" title="Mã nhân viên"><Icon name="clipboard" size={13} />{emp.code}</span>
+          </div>
+          <div className="mine__facts">
+            <div className="mine__fact">
+              <Icon name="calendar" size={16} />
+              <div>
+                <p className="mine__lab">Vào làm</p>
+                <p className="mine__val">{emp.hire_date ? fmtDate(emp.hire_date) : "Chưa khai"}</p>
+                {emp.status === "probation" && emp.probation_end_date ? (
+                  <p className="mine__sub mine__sub--warn">Hết thử việc {fmtDate(emp.probation_end_date)}</p>
+                ) : tn ? (
+                  <p className="mine__sub">Thâm niên {tn}</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="mine__fact">
+              <Icon name="clock" size={16} />
+              <div>
+                <p className="mine__lab">Ca làm việc</p>
+                <p className="mine__val">{emp.current_shift_name ?? "Chưa gán"}</p>
+                {emp.current_shift_hours && <p className="mine__sub">{emp.current_shift_hours}</p>}
+                {/* Lưới phân ca đổi riêng hôm nay — không nói thì người ta đi làm theo ca nền. */}
+                {emp.today_shift_off ? (
+                  <p className="mine__sub mine__sub--warn">Hôm nay: nghỉ theo lịch</p>
+                ) : emp.today_shift_name ? (
+                  <p className="mine__sub mine__sub--warn">
+                    Hôm nay: {emp.today_shift_name}{emp.today_shift_hours ? ` ${emp.today_shift_hours}` : ""}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="mine__fact">
+              <Icon name="shield" size={16} />
+              <div>
+                <p className="mine__lab">Tài khoản</p>
+                <p className="mine__val">{emp.account_username ?? profile?.username ?? "—"}</p>
+                {profile?.role_name && <p className="mine__sub">Vai trò {profile.role_name}</p>}
+              </div>
+            </div>
+          </div>
         </div>
+        <aside className="mine__heroside">
+          <div>
+            <p className="mine__lab">Quản lý trực tiếp</p>
+            {emp.department_head_name ? (
+              <div className="mine__mgr">
+                <span className="mine__mgr-av">
+                  {assetUrl(emp.department_head_avatar_url)
+                    ? <img src={assetUrl(emp.department_head_avatar_url)!} alt="" />
+                    : vietTat(emp.department_head_name)}
+                </span>
+                <div>
+                  <p className="mine__val">{emp.department_head_name}</p>
+                  <p className="mine__sub">Đứng đầu {emp.department_head_dept_name}</p>
+                  {emp.department_head_inherited && emp.department_name && (
+                    <p className="mine__sub mine__sub--muted">{emp.department_name} chưa chỉ định người đứng đầu</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="mine__sub">Chưa có người đứng đầu ở phòng bạn và các phòng cấp trên</p>
+            )}
+          </div>
+          <div>
+            <p className="mine__lab">Liên hệ</p>
+            <p className="mine__ct"><Icon name="phone" size={15} />
+              {emp.phone ? fmtSdt(emp.phone) : <ThemLienHe onClick={tuPhucVuGhi ? () => setEditing(true) : undefined}>Chưa có SĐT</ThemLienHe>}
+            </p>
+            <p className="mine__ct"><Icon name="mail" size={15} />
+              {emp.email ?? <ThemLienHe onClick={tuPhucVuGhi ? () => setEditing(true) : undefined}>Chưa có email</ThemLienHe>}
+            </p>
+          </div>
+        </aside>
       </div>
 
       {/* Số liệu "của tôi" — kéo từ 3 màn nguồn về đây, bấm là sang đúng màn đó. */}
@@ -464,11 +534,11 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
               <button className="btn btn--ghost" onClick={() => setEditing(true)}>Sửa</button>
             )}
           </div>
-          <Row k="SĐT" v={emp.phone} />
+          <Row k="SĐT" v={emp.phone ? fmtSdt(emp.phone) : null} />
           <Row k="Email" v={emp.email} />
           <Row k="Chỗ ở hiện tại" v={emp.current_address} />
           <Row k="Liên hệ khẩn (tên)" v={emp.emergency_contact_name} />
-          <Row k="Liên hệ khẩn (SĐT)" v={emp.emergency_contact_phone} />
+          <Row k="Liên hệ khẩn (SĐT)" v={emp.emergency_contact_phone ? fmtSdt(emp.emergency_contact_phone) : null} />
           {tuPhucVuGhi && (
             <button className="btn btn--ghost mine__editbtn" onClick={() => setEditing(true)}>Sửa</button>
           )}
@@ -511,11 +581,13 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
             Công việc
           </h4>
           <Row
-            k="Ca mặc định"
-            v={shift ? `${shift.name} (${shift.start_time}–${shift.end_time})` : null}
+            k="Ca hiện tại"
+            v={emp.current_shift_name
+              ? `${emp.current_shift_name}${emp.current_shift_hours ? ` (${emp.current_shift_hours})` : ""}`
+              : null}
             hint="Ca do HCNS gán ở màn Chấm công"
           />
-          {emp.department_head_name && <Row k="Trưởng bộ phận" v={emp.department_head_name} />}
+          {emp.department_head_name && <Row k="Quản lý trực tiếp" v={emp.department_head_name} />}
           {emp.status === "probation" && (
             <Row k="Hết thử việc" v={emp.probation_end_date ? fmtDate(emp.probation_end_date) : null} />
           )}
@@ -616,9 +688,11 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
           </table>
         </div>
         {reqs.tt === "ok" && reqTotal > 0 && (
-          <Pager
-            total={reqTotal} page={reqPage} size={REQ_PAGE_SIZE}
-            onPage={setReqPage} unit="đề nghị"
+          <PhanTrangDayDu
+            trang={reqPage} size={reqSize} tong={reqTotal} soDong={dsReq.length}
+            onTrang={setReqPage}
+            onSize={(n) => { setReqSize(n); setReqPage(1); }}
+            donVi="đề nghị" ariaLabel="Phân trang đề nghị của tôi"
           />
         )}
       </div>
@@ -679,5 +753,21 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
       />
       {accountModals}
     </main>
+  );
+}
+
+/** "Bùi Thị Hoa" → "BH" (chữ đầu của từ đầu + từ cuối) cho ô ảnh người quản lý chưa có ảnh. */
+function vietTat(ten: string): string {
+  const w = ten.trim().split(/\s+/);
+  return ((w[0]?.[0] ?? "") + (w.length > 1 ? w[w.length - 1][0] : "")).toUpperCase();
+}
+
+/** Ô liên hệ còn trống ở hero: có quyền tự sửa thì bấm mở thẳng form liên hệ, không thì chỉ nói thiếu. */
+function ThemLienHe({ children, onClick }: { children: string; onClick?: () => void }) {
+  if (!onClick) return <span className="mine__ct-thieu">{children}</span>;
+  return (
+    <button type="button" className="mine__ct-them" onClick={onClick}>
+      {children} — thêm
+    </button>
   );
 }

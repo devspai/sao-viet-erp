@@ -141,6 +141,7 @@ export function PurchaseRequestsPage({
   const [rows, setRows] = useState<PurchaseRequestRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [supplierFilter, setSupplierFilter] = useState<number | "all">("all");
@@ -174,6 +175,7 @@ export function PurchaseRequestsPage({
   const sourceQDebounced = useDebounced(sourceQ);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [sourcePage, setSourcePage] = useState(1);
+  const [sourceSize, setSourceSize] = useState(SOURCE_PAGE_SIZE);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -290,7 +292,7 @@ export function PurchaseRequestsPage({
         status: sourceStatus === "all" ? null : sourceStatus,
         sort: "-created_at",
         page: sourcePage,
-        size: SOURCE_PAGE_SIZE,
+        size: sourceSize,
       })
       .then((res) => {
         setSourceRows(res.items);
@@ -302,7 +304,7 @@ export function PurchaseRequestsPage({
         setSourceError("Không tải được danh sách yêu cầu mua hàng.");
       })
       .finally(() => setSourceLoading(false));
-  }, [token, loadChoMua, sourceQDebounced, sourceStatus, sourcePage]);
+  }, [token, loadChoMua, sourceQDebounced, sourceStatus, sourcePage, sourceSize]);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -321,7 +323,7 @@ export function PurchaseRequestsPage({
         needed_to: neededTo || null,
         sort: "-created_at",
         page,
-        size: PAGE_SIZE,
+        size,
       })
       .then((res) => {
         setRows(res.items);
@@ -349,6 +351,7 @@ export function PurchaseRequestsPage({
     neededFrom,
     neededTo,
     page,
+    size,
     onDataRefreshed,
   ]);
 
@@ -411,11 +414,15 @@ export function PurchaseRequestsPage({
     return () => document.removeEventListener("keydown", onKey);
   }, [selectedId]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const sourceTotalPages = Math.max(
-    1,
-    Math.ceil(sourceTotal / SOURCE_PAGE_SIZE),
-  );
+  // Đổi cỡ trang thì trang đang đứng có thể không còn tồn tại — về trang 1.
+  const doiCoTrang = (n: number) => {
+    setSize(n);
+    setPage(1);
+  };
+  const doiCoTrangYeuCau = (n: number) => {
+    setSourceSize(n);
+    setSourcePage(1);
+  };
   // CÓ YÊU CẦU QUÁ HẠN chưa? — điều kiện DUY NHẤT bật tone đỏ ở tab và bật dải nhắc ở tab phiếu.
   // Ngày thường (còn hạn) thì không tô đỏ, không render dải nhắc: không tốn một pixel nào.
   // `minPurchaseDate` chính là HÔM NAY dạng yyyy-mm-dd (memo 1 lần) — dùng lại để khỏi có hai
@@ -838,7 +845,8 @@ export function PurchaseRequestsPage({
           sourceError={sourceError}
           sourceRows={sourceRows}
           sourceTotal={sourceTotal}
-          sourceTotalPages={sourceTotalPages}
+          sourceSize={sourceSize}
+          onSourceSize={doiCoTrangYeuCau}
           loadSources={loadSources}
           canCreate={canCreate}
           openCreatePurchaseRequest={openCreatePurchaseRequest}
@@ -877,7 +885,8 @@ export function PurchaseRequestsPage({
           setSelectedId={setSelectedId}
           openYcmh={openYcmh}
           total={total}
-          totalPages={totalPages}
+          size={size}
+          onSize={doiCoTrang}
         />
       )}
 

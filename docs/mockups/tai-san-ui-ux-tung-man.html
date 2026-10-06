@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tài sản — thiết kế lại từng màn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Token lấy đúng từ frontend/src/styles/tokens.css. Spec: docs/superpowers/specs/2026-10-05-tai-san-ui-ux-tung-man.md */
+:root {
+  --paper: #f8fafc; --canvas: #fff; --ink: #0f172a; --ash: #475569; --ash-2: #64748b;
+  --rust: #c5400a; --rust-deep: #8a2d07;
+  --rule: #cbd5e1; --rule-soft: #e2e8f0; --rule-hair: #f1f5f9;
+  --moss: #2f5d3a; --moss-soft: #dbe7dd; --moss-deep: #244a2e;
+  --amber: #9c7714; --amber-soft: #efe4c4; --amber-deep: #7a5c0f;
+  --signal: #8a1f1f; --signal-soft: #efd5d5;
+  --steel: #4a5560; --steel-soft: #dde1e5;
+  --charcoal: #0f172a; --charcoal-2: #1e293b; --on-charcoal: #f8fafc; --on-charcoal-muted: #94a3b8;
+  --ff-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --fs-2xs: 11px; --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 26px;
+  --r-2: 4px; --r-3: 6px; --r-5: 10px; --r-6: 12px; --r-pill: 9999px;
+  --shadow-lg: 0 14px 34px rgba(20,19,15,.17); --shadow-4: 0 4px 12px rgba(20,19,15,.06);
+  --duration-base: 140ms;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); font-family: var(--ff-sans); color: var(--ink); font-size: var(--fs-md); }
+button, input, select { font: inherit; color: inherit; }
+svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ---- Thanh điều khiển của bản xem (KHÔNG thuộc thiết kế) ---- */
+.demo { position: sticky; top: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
+  padding: 8px 16px; background: #fff7d6; border-bottom: 1px solid #e6d48a; font-size: 12px; }
+.demo b { margin-right: 4px; }
+.demo button { font-size: 12px; padding: 4px 9px; border: 1px solid #d8c56f; background: #fff; border-radius: 6px; cursor: pointer; }
+.demo button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.demo__note { flex-basis: 100%; color: #6b5a12; }
+
+/* ---- Khung app rút gọn ---- */
+.app { display: flex; min-height: calc(100vh - 70px); }
+.side { width: 220px; background: var(--charcoal); color: var(--on-charcoal-muted); padding: 16px 12px; flex: none; font-size: var(--fs-sm); }
+.side div { padding: 7px 10px; border-radius: var(--r-3); }
+.side .grp { font-size: var(--fs-2xs); letter-spacing: .08em; text-transform: uppercase; margin-top: 12px; }
+.side .on { background: var(--rust); color: #fff; font-weight: 600; }
+.main { flex: 1; min-width: 0; padding: 24px 24px 40px; }
+.page-h { margin: 0; font-size: 26px; font-weight: 700; }
+.page-sub { margin: 6px 0 16px; color: var(--ash); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule-soft); margin-bottom: 16px; }
+.tab { padding: 10px 12px; border: 0; background: none; color: var(--ash); border-bottom: 2px solid transparent; cursor: pointer; }
+.tab.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--rust); }
+
+/* ---- Nút ---- */
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: var(--r-3);
+  border: 1px solid var(--rule); background: var(--canvas); cursor: pointer; white-space: nowrap; font-weight: 500; }
+.btn:hover { background: var(--rule-hair); }
+.btn--accent { background: var(--rust); border-color: var(--rust); color: #fff; }
+.btn--accent:hover { background: var(--rust-deep); }
+.btn--danger { background: var(--signal); border-color: var(--signal); color: #fff; }
+.btn--text { border-color: transparent; background: none; color: var(--ash); }
+.btn--icon { width: 36px; padding: 0; justify-content: center; }
+.btn--sm { height: 30px; padding: 0 10px; font-size: var(--fs-sm); }
+.split { display: inline-flex; position: relative; }
+.split .btn--accent:first-child { border-radius: var(--r-3) 0 0 var(--r-3); }
+.split .btn--accent + .btn--accent { border-radius: 0 var(--r-3) var(--r-3) 0; border-left: 1px solid rgba(255,255,255,.35); padding: 0 9px; }
+.menu { position: absolute; top: 40px; right: 0; z-index: 30; min-width: 250px; background: var(--canvas); border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5); box-shadow: var(--shadow-lg); padding: 6px; display: none; }
+.menu.on { display: block; }
+.menu button { display: grid; gap: 2px; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: var(--r-3); cursor: pointer; }
+.menu button:hover { background: var(--rule-hair); }
+.menu small { color: var(--ash-2); font-size: var(--fs-xs); }
+.menu hr { border: 0; border-top: 1px solid var(--rule-hair); margin: 4px 0; }
+.menu .nguy { color: var(--signal); }
+
+/* ---- Dải số (CompactKpiStrip) ---- */
+.kpi { display: flex; background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-5); margin-bottom: 12px; overflow-x: auto; }
+.kpi__o { display: flex; align-items: baseline; gap: 8px; padding: 9px 16px; white-space: nowrap; }
+.kpi__o + .kpi__o { border-left: 1px solid var(--rule-hair); }
+.kpi__o span { color: var(--ash-2); font-size: var(--fs-sm); }
+.kpi__o b { font-size: var(--fs-lg); font-weight: 600; }
+.kpi__o--lk { cursor: pointer; }
+.kpi__o--lk:hover { background: var(--rule-hair); }
+.kpi__o--lk svg { align-self: center; color: var(--ash-2); }
+
+/* ---- Thanh lọc ---- */
+.tool { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.search { position: relative; flex: 1 1 260px; max-width: 360px; }
+.search svg { position: absolute; left: 10px; top: 10px; color: var(--ash-2); }
+.search input { width: 100%; height: 36px; padding: 0 10px 0 34px; border: 1px solid var(--rule); border-radius: var(--r-3); background: var(--canvas); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--r-3); overflow: hidden; background: var(--canvas); }
+.seg button { border: 0; background: none; height: 34px; padding: 0 12px; color: var(--ash); cursor: pointer; white-space: nowrap; }
+.seg button + button { border-left: 1px solid var(--rule-soft); }
+.seg button.on { background: var(--charcoal); color: #fff; font-weight: 500; }
+.seg .n { font-size: var(--fs-xs); opacity: .75; margin-left: 4px; }
+.dd { height: 36px; padding: 0 30px 0 10px; border: 1px solid var(--rule); border-radius: var(--r-3); background: var(--canvas) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center; appearance: none; }
+.tool__phai { margin-left: auto; }
+.boloc { color: var(--ash); font-size: var(--fs-sm); text-decoration: underline; cursor: pointer; background: none; border: 0; }
+
+/* ---- Bảng theo chuẩn .rdx-quote ---- */
+.tbl { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); overflow: hidden; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th { background: var(--paper); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--ash-2);
+  text-align: left; padding: 10px 14px; border-bottom: 1.5px solid var(--rule); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+td { padding: 12px 14px; border-bottom: 1px solid var(--rule-hair); vertical-align: middle; }
+tbody tr { cursor: pointer; transition: background var(--duration-base); }
+tbody tr:hover, tbody tr.chon { background: var(--rule-hair); }
+tbody tr.chon td:first-child { box-shadow: none; }
+.so { text-align: right; white-space: nowrap; }
+.ma { color: var(--ash-2); font-weight: 500; font-size: var(--fs-sm); white-space: nowrap; }
+.ten { font-weight: 500; }
+.phu { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.the { font-size: var(--fs-2xs); color: var(--ash); background: var(--rule-hair); border: 1px solid var(--rule-soft); border-radius: var(--r-pill); padding: 1px 8px; white-space: nowrap; }
+.tt { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 500; border-radius: var(--r-pill); padding: 2px 9px; white-space: nowrap; }
+.tt::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.tt--dung { color: var(--moss-deep); background: var(--moss-soft); }
+.tt--thoi { color: var(--steel); background: var(--steel-soft); }
+.tt--het { color: var(--amber-deep); background: var(--amber-soft); }
+.bp { color: var(--ash); line-height: 1.35; }
+.cong { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--rule-hair); border: 1px solid var(--rule-soft);
+  font-size: var(--fs-2xs); color: var(--ash); margin-right: 6px; vertical-align: 1px; cursor: help; }
+.tien { height: 3px; border-radius: 3px; background: var(--rule-soft); margin-top: 6px; overflow: hidden; }
+.tien i { display: block; height: 100%; background: var(--ash-2); }
+.het { color: var(--ash-2); }
+.mui { color: var(--rule); text-align: right; }
+.chan { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; color: var(--ash-2); font-size: var(--fs-sm); background: var(--canvas); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { white-space: nowrap; font-size: var(--fs-2xs); color: var(--ash); border: 1px solid var(--rule-soft); background: var(--paper); border-radius: var(--r-pill); padding: 1px 8px; }
+tr.tong td { font-weight: 600; background: var(--paper); border-top: 1.5px solid var(--rule); cursor: default; }
+.phim { font-size: var(--fs-xs); color: var(--ash-2); margin-top: 8px; }
+kbd { font: inherit; font-size: var(--fs-2xs); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: var(--r-2); padding: 0 5px; background: var(--canvas); }
+
+/* ---- Màn trống ---- */
+.trong { padding: 56px 24px; text-align: center; display: grid; justify-items: center; gap: 10px; }
+.trong__ic { width: 44px; height: 44px; border-radius: 50%; background: var(--rule-hair); display: grid; place-items: center; color: var(--ash-2); }
+.trong h3 { margin: 4px 0 0; font-size: var(--fs-lg); }
+.trong p { margin: 0; color: var(--ash); max-width: 440px; }
+.trong .hang { display: flex; gap: 12px; align-items: center; margin-top: 6px; }
+.lk { color: var(--ink); text-decoration: underline; cursor: pointer; background: none; border: 0; padding: 0; }
+
+/* ---- Tab tháng ---- */
+.thangbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.thang { display: inline-flex; align-items: center; border: 1px solid var(--rule); border-radius: var(--r-3); background: var(--canvas); }
+.thang button { border: 0; background: none; height: 34px; width: 34px; display: grid; place-items: center; cursor: pointer; color: var(--ash); }
+.thang button:hover { background: var(--rule-hair); }
+.thang b { padding: 0 10px; font-weight: 600; cursor: pointer; border-left: 1px solid var(--rule-soft); border-right: 1px solid var(--rule-soft); line-height: 34px; }
+.tongthang { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); padding: 14px 18px; margin-bottom: 12px; }
+.tongthang__nhan { color: var(--ash-2); font-size: var(--fs-sm); }
+.tongthang__so { font-size: var(--fs-2xl); font-weight: 700; line-height: 1.2; display: flex; align-items: center; gap: 10px; }
+.tongthang__phu { display: flex; gap: 8px; flex-wrap: wrap; }
+.tongthang__chu { flex-basis: 100%; color: var(--ash-2); font-size: var(--fs-sm); }
+
+/* ---- Ngăn chi tiết (ContextView) ---- */
+.scrim { position: fixed; inset: var(--demo-h, 0) 0 0 0; background: rgba(15,23,42,.2); z-index: 50; display: none; }
+.scrim.on { display: block; }
+.ngan { position: fixed; top: var(--demo-h, 0); right: 0; bottom: 0; width: min(680px, 100%); background: var(--canvas); z-index: 60; box-shadow: var(--shadow-lg);
+  display: none; flex-direction: column; }
+.ngan.on { display: flex; }
+.ngan__dau { padding: 16px 20px 12px; border-bottom: 1px solid var(--rule-soft); display: flex; gap: 12px; align-items: flex-start; }
+.ngan__dau .nho { display: flex; gap: 8px; align-items: center; color: var(--ash-2); font-size: var(--fs-sm); font-weight: 500; }
+.ngan__dau h2 { margin: 4px 0 0; font-size: var(--fs-xl); }
+.ngan__dieuhuong { margin-left: auto; display: flex; gap: 4px; }
+.ngan__than { flex: 1; overflow-y: auto; padding: 16px 20px 32px; display: grid; gap: 20px; align-content: start; }
+.ngan__chan { border-top: 1px solid var(--rule-soft); padding: 12px 20px; display: flex; align-items: center; gap: 8px; }
+.ngan__chan .xt { margin-right: auto; color: var(--ash); font-size: var(--fs-sm); }
+.ngan__chan .xt b { color: var(--ink); }
+.thaotac { display: flex; gap: 8px; flex-wrap: wrap; position: relative; }
+.thaotac .menu { left: auto; right: auto; top: 40px; }
+.ba { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--rule-soft); border-radius: var(--r-5); }
+.ba > div { padding: 12px 14px; display: grid; gap: 2px; }
+.ba > div + div { border-left: 1px solid var(--rule-hair); }
+.ba span { color: var(--ash-2); font-size: var(--fs-xs); }
+.ba b { font-size: var(--fs-lg); font-weight: 600; }
+.ba small { color: var(--ash-2); font-size: var(--fs-2xs); }
+.tiendo { display: grid; gap: 6px; }
+.tiendo .tien { height: 6px; margin: 0; }
+.tiendo .tien i { background: var(--rust); }
+.tiendo div:last-child { color: var(--ash); font-size: var(--fs-sm); }
+.kv { display: grid; grid-template-columns: 150px 1fr; gap: 8px 16px; margin: 0; }
+.kv dt { color: var(--ash-2); }
+.kv dd { margin: 0; }
+.muc { font-size: var(--fs-2xs); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ash-2); margin: 0 0 8px; }
+.ls { display: grid; }
+.ls > div { display: grid; grid-template-columns: 92px 130px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--rule-hair); }
+.ls > div:last-child { border-bottom: 0; }
+.ls time { color: var(--ash-2); }
+.ls small { display: block; color: var(--ash-2); font-size: var(--fs-xs); }
+.nam { border: 1px solid var(--rule-soft); border-radius: var(--r-5); overflow: hidden; }
+.nam table td, .nam table th { padding: 8px 12px; }
+.nam tr.namhd td { font-weight: 600; background: var(--paper); }
+.nam tr.namhd td:first-child svg { vertical-align: -3px; margin-right: 4px; transition: transform var(--duration-base); }
+.nam tr.namhd.mo td:first-child svg { transform: rotate(90deg); }
+.nam tr.thang-nay td { box-shadow: inset 3px 0 0 var(--rust); }
+.nam tr.thang-nay td ~ td { box-shadow: none; }
+.nam tr.da td { color: var(--ink); }
+.nam tr.sau td { color: var(--ash); }
+
+/* Khung thao tác ngay trong ngăn */
+.khung { border: 1px solid var(--rule); border-radius: var(--r-5); padding: 16px; display: grid; gap: 14px; background: var(--canvas); }
+.khung h3 { margin: 0; font-size: var(--fs-lg); display: flex; align-items: center; justify-content: space-between; }
+.khung p.ghi { margin: -6px 0 0; color: var(--ash); font-size: var(--fs-sm); }
+.truocsau { background: var(--paper); border: 1px solid var(--rule-soft); border-radius: var(--r-3); padding: 10px 12px; font-size: var(--fs-sm); color: var(--ash); display: grid; gap: 4px; }
+.truocsau b { color: var(--ink); }
+.truocsau .mt { color: var(--ash-2); margin: 0 6px; }
+.khung__nut { display: flex; justify-content: flex-end; gap: 8px; }
+.mo-di { opacity: .45; pointer-events: none; }
+
+/* ---- Form ---- */
+.f { display: grid; gap: 16px; }
+.f__hang { display: flex; flex-wrap: wrap; gap: 16px; }
+.o { display: grid; gap: 6px; align-content: start; }
+.o label { font-weight: 500; font-size: var(--fs-sm); }
+.o label em { color: var(--signal); font-style: normal; margin-left: 2px; }
+.o input, .o select { height: 38px; padding: 0 10px; border: 1px solid var(--rule); border-radius: var(--r-3); background: var(--canvas); }
+.o input:focus, .o select:focus { outline: 2px solid var(--ink); outline-offset: -1px; }
+.o .goi { color: var(--ash-2); font-size: var(--fs-xs); }
+.o .loi { color: var(--signal); font-size: var(--fs-xs); display: flex; gap: 4px; align-items: center; }
+.o .loi svg { width: 14px; height: 14px; }
+.o--loi input { border-color: var(--signal); }
+.w-ten { width: 100%; }
+.w-tien input { width: 220px; text-align: right; }
+.w-ngay input { width: 170px; }
+.w-thang { display: flex; align-items: center; gap: 8px; }
+.w-thang input { width: 96px; text-align: right; }
+.nhanh { display: flex; gap: 6px; flex-wrap: wrap; }
+.nhanh button { height: 28px; padding: 0 10px; border: 1px solid var(--rule-soft); border-radius: var(--r-pill); background: var(--canvas); color: var(--ash); cursor: pointer; font-size: var(--fs-xs); }
+.nhanh button.on { border-color: var(--charcoal); color: var(--ink); font-weight: 600; }
+.radio { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.radio button { height: 36px; padding: 0 14px; border: 1px solid var(--rule); border-radius: var(--r-3); background: var(--canvas); color: var(--ash); cursor: pointer; }
+.radio button.on { border: 1.5px solid var(--charcoal); color: var(--ink); font-weight: 600; }
+.gap { display: flex; gap: 6px; align-items: center; color: var(--ink); cursor: pointer; border-top: 1px dashed var(--rule-soft); padding-top: 12px; }
+.gap small { color: var(--ash-2); }
+.daky { border-top: 1px solid var(--rule-soft); padding-top: 14px; display: grid; gap: 14px; }
+.chiDoc { height: 38px; display: inline-flex; align-items: center; padding: 0 12px; background: var(--paper); border: 1px solid var(--rule-soft); border-radius: var(--r-3); }
+
+/* ---- Hộp giữa màn (FocusView) ---- */
+.hop { position: fixed; z-index: 80; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(620px, calc(100% - 32px)); max-height: calc(100vh - 48px);
+  background: var(--canvas); border-radius: var(--r-6); box-shadow: var(--shadow-lg); display: none; flex-direction: column; }
+.hop.on { display: flex; }
+.hop--nho { width: min(440px, calc(100% - 32px)); }
+.hop__dau { padding: 18px 20px 6px; display: flex; justify-content: space-between; align-items: flex-start; }
+.hop__dau h2 { margin: 0; font-size: var(--fs-lg); }
+.hop__than { padding: 8px 20px 18px; overflow-y: auto; display: grid; gap: 14px; }
+.hop__than p { margin: 0; color: var(--ash); }
+.hop__chan { padding: 12px 20px; border-top: 1px solid var(--rule-soft); display: flex; justify-content: flex-end; gap: 8px; }
+.buoc { display: grid; grid-template-columns: 28px 1fr; gap: 4px 12px; }
+.buoc__so { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--rule-hair); border: 1px solid var(--rule-soft); font-weight: 600; font-size: var(--fs-sm); }
+.buoc h4 { margin: 3px 0 0; font-size: var(--fs-md); }
+.buoc .nd { grid-column: 2; color: var(--ash); font-size: var(--fs-sm); display: grid; gap: 8px; justify-items: start; }
+.tha { width: 100%; border: 1.5px dashed var(--rule); border-radius: var(--r-5); padding: 18px; text-align: center; color: var(--ash); display: grid; gap: 4px; justify-items: center; }
+.tha b { color: var(--ink); }
+.ketqua { display: grid; gap: 8px; width: 100%; }
+.ketqua .dong { display: flex; gap: 8px; align-items: center; }
+.ketqua table td, .ketqua table th { padding: 6px 10px; font-size: var(--fs-sm); }
+.ketqua .loi { color: var(--signal); }
+
+/* ---- Thông báo (hoàn tác) ---- */
+.toast { position: fixed; z-index: 90; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--charcoal); color: var(--on-charcoal);
+  border-radius: var(--r-5); padding: 10px 12px 10px 16px; display: none; gap: 16px; align-items: center; box-shadow: var(--shadow-lg); }
+.toast.on { display: flex; }
+.toast button { background: none; border: 0; color: #fff; font-weight: 600; text-decoration: underline; cursor: pointer; }
+
+/* ---- Điện thoại ---- */
+.dt .side { display: none; }
+.dt .app { justify-content: center; background: #e2e8f0; }
+.dt .main { max-width: 390px; background: var(--paper); padding: 16px; border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); }
+.dt .page-h { font-size: var(--fs-xl); }
+.dt .tool__phai { margin-left: 0; }
+.dt .search { max-width: none; flex-basis: 100%; }
+.dt .tbl table { display: none; }
+.thes { display: none; }
+.dt .thes { display: grid; }
+.thes > div { padding: 12px 14px; border-bottom: 1px solid var(--rule-hair); display: grid; gap: 4px; }
+.thes .r { display: flex; justify-content: space-between; gap: 8px; }
+.chiDt { display: none; }
+.dt .chiDt { display: block; }
+.dt .seg[aria-label="Loại"] { display: none; }
+.thes .r > :last-child { white-space: nowrap; }
+.an { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="demo" id="demo">
+  <b>Màn:</b>
+  <button data-m="1" class="on">1 Danh sách</button>
+  <button data-m="1t">1b Màn trống</button>
+  <button data-m="2">2 Ngăn chi tiết</button>
+  <button data-m="3">3 Thêm — mua mới</button>
+  <button data-m="4">4 Thêm — đang dùng</button>
+  <button data-m="5">5 Nhập Excel</button>
+  <button data-m="6">6 Chuyển bộ phận</button>
+  <button data-m="7">7 Sửa chữa lớn</button>
+  <button data-m="8">8 Thôi dùng</button>
+  <button data-m="9">9 Xoá / Dùng lại</button>
+  <button data-m="10">10 Khấu hao tháng</button>
+  <button id="btnDt">Điện thoại</button>
+  <span class="demo__note" id="note"></span>
+</div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+</svg>
+
+<div id="khung">
+<div class="app">
+  <nav class="side">
+    <div class="grp">Kế toán</div>
+    <div>Công nợ phải thu</div>
+    <div>Tài khoản ngân hàng</div>
+    <div class="on">Tài sản &amp; CCDC</div>
+    <div class="grp">Kho hàng</div>
+    <div>Kho giấy</div>
+  </nav>
+
+  <main class="main">
+    <h1 class="page-h">Tài sản &amp; Công cụ dụng cụ</h1>
+    <p class="page-sub">Máy móc và dụng cụ xưởng mua về dùng nhiều năm. Nhập một lần, phần mềm tự chia giá mua ra từng tháng.</p>
+    <div class="tabs">
+      <button class="tab on" data-tab="ds">Tài sản</button>
+      <button class="tab" data-tab="th">Khấu hao từng tháng</button>
+    </div>
+
+    <!-- ===== MÀN 1: DANH SÁCH ===== -->
+    <section id="tab-ds">
+      <div class="kpi">
+        <div class="kpi__o"><span>Đang dùng</span><b>6</b></div>
+        <div class="kpi__o"><span>Tổng giá mua</span><b>1.320.500.000 đ</b></div>
+        <div class="kpi__o"><span>Giá trị còn lại</span><b>875.125.001 đ</b></div>
+        <div class="kpi__o kpi__o--lk" data-go="10" title="Mở tab Khấu hao từng tháng"><span>Khấu hao tháng này</span><b>10.433.466 đ</b><svg class="i"><use href="#i-right"/></svg></div>
+      </div>
+
+      <div class="tool">
+        <label class="search"><svg class="i"><use href="#i-search"/></svg><input placeholder="Tìm theo mã hoặc tên"></label>
+        <div class="seg" role="radiogroup" aria-label="Loại">
+          <button class="on">Tất cả<span class="n">6</span></button>
+          <button>Tài sản cố định<span class="n">4</span></button>
+          <button>Công cụ dụng cụ<span class="n">2</span></button>
+        </div>
+        <select class="dd chiDt" aria-label="Loại"><option>Mọi loại (6)</option><option>Tài sản cố định (4)</option><option>Công cụ dụng cụ (2)</option></select>
+        <select class="dd" aria-label="Bộ phận"><option>Mọi bộ phận</option></select>
+        <select class="dd" aria-label="Trạng thái"><option>Đang dùng</option><option>Đã thôi dùng</option><option>Tất cả</option></select>
+        <div class="tool__phai split">
+          <button class="btn btn--accent" data-go="3"><svg class="i"><use href="#i-plus"/></svg>Thêm tài sản</button>
+          <button class="btn btn--accent" id="btnMenuThem" aria-label="Cách thêm khác"><svg class="i"><use href="#i-down"/></svg></button>
+          <div class="menu" id="menuThem">
+            <button data-go="3"><span>Mua mới</span><small>Máy, dụng cụ vừa mua về</small></button>
+            <button data-go="4"><span>Đang dùng từ trước</span><small>Đã chạy trước khi dùng phần mềm</small></button>
+            <hr>
+            <button data-go="5"><span>Nhập nhiều từ Excel</span><small>Cho danh sách máy đang dùng</small></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tbl" id="bangDs">
+        <table>
+          <colgroup><col style="width:9%"><col style="width:31%"><col style="width:15%"><col style="width:13%"><col style="width:13%"><col style="width:15%"><col style="width:4%"></colgroup>
+          <thead><tr><th>Mã</th><th>Tên</th><th>Bộ phận</th><th class="so">Giá mua</th><th class="so">Đã khấu hao</th><th class="so">Giá trị còn lại</th><th></th></tr></thead>
+          <tbody id="dongDs"></tbody>
+        </table>
+        <div class="thes" id="theDs"></div>
+        <div class="chan"><span>6 tài sản</span><span>Dòng/trang 25</span></div>
+      </div>
+      <p class="phim"><kbd>↑</kbd> <kbd>↓</kbd> chọn dòng — <kbd>Enter</kbd> mở chi tiết — ngăn đang mở thì <kbd>↑</kbd> <kbd>↓</kbd> đổi tài sản, <kbd>Esc</kbd> đóng.</p>
+
+      <div class="tbl an" id="trongDs">
+        <div class="trong">
+          <div class="trong__ic"><svg class="i"><use href="#i-box"/></svg></div>
+          <h3>Chưa có tài sản nào</h3>
+          <p>Thêm máy vừa mua, hoặc nhập danh sách máy đang dùng từ Excel. Phần mềm tự chia giá mua ra từng tháng.</p>
+          <div class="hang"><button class="btn btn--accent" data-go="3"><svg class="i"><use href="#i-plus"/></svg>Thêm tài sản</button><button class="lk" data-go="5">Nhập từ Excel</button></div>
+        </div>
+        <div class="trong" style="border-top:1px solid var(--rule-hair)">
+          <h3>Không có tài sản khớp bộ lọc</h3>
+          <p>Đang lọc: Công cụ dụng cụ, Tổ bế, Đã thôi dùng.</p>
+          <div class="hang"><button class="btn">Bỏ lọc</button></div>
+        </div>
+        <div class="trong" style="border-top:1px solid var(--rule-hair)">
+          <h3>Không tìm thấy “máy xén”</h3>
+          <p>Thử tìm bằng mã (TS-0001) hoặc một chữ trong tên.</p>
+          <div class="hang"><button class="btn">Xoá ô tìm</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== MÀN 10: KHẤU HAO TỪNG THÁNG ===== -->
+    <section id="tab-th" class="an">
+      <div class="thangbar">
+        <div class="thang"><button aria-label="Tháng trước"><svg class="i"><use href="#i-left"/></svg></button><b>Tháng 10/2026</b><button aria-label="Tháng sau"><svg class="i"><use href="#i-right"/></svg></button></div>
+        <button class="btn btn--text btn--sm">Tháng này</button>
+        <div class="tool__phai"><button class="btn"><svg class="i"><use href="#i-file"/></svg>Xuất Excel</button></div>
+      </div>
+      <div class="tongthang">
+        <div>
+          <div class="tongthang__nhan">Tổng khấu hao tháng 10/2026</div>
+          <div class="tongthang__so">10.433.466 đ <button class="btn btn--sm" title="Chép số 10433466"><svg class="i"><use href="#i-copy"/></svg>Chép số</button></div>
+        </div>
+        <div class="tongthang__phu"><span class="the">5 tài sản</span><span class="the">3 có ghi chú tháng</span></div>
+        <div class="tongthang__chu">Phần mềm tự tính, không cần bấm gì. Bấm vào dòng để xem chi tiết.</div>
+      </div>
+      <div class="tbl">
+        <table>
+          <colgroup><col style="width:8%"><col style="width:17%"><col style="width:12%"><col style="width:11%"><col style="width:14%"><col style="width:11%"><col style="width:11%"><col style="width:16%"></colgroup>
+          <thead><tr><th>Mã</th><th>Tên</th><th>Bộ phận</th><th class="so">Giá mua</th><th class="so">Khấu hao tháng</th><th class="so">Đã khấu hao</th><th class="so" title="Giá trị còn lại">Còn lại</th><th>Ghi chú tháng</th></tr></thead>
+          <tbody id="dongTh"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+</div>
+
+<!-- ===== NGĂN CHI TIẾT (MÀN 2, 6, 7, 8) ===== -->
+<div class="scrim" id="scrim"></div>
+<aside class="ngan" id="ngan" role="dialog" aria-label="Chi tiết tài sản">
+  <div class="ngan__dau">
+    <div>
+      <div class="nho">TS-0001 <span class="tt tt--dung">Đang dùng</span></div>
+      <h2>Máy in Komori 4 màu</h2>
+    </div>
+    <div class="ngan__dieuhuong">
+      <button class="btn btn--icon btn--text" title="Tài sản trước (↑)"><svg class="i"><use href="#i-up"/></svg></button>
+      <button class="btn btn--icon btn--text" title="Tài sản sau (↓)"><svg class="i"><use href="#i-down"/></svg></button>
+      <button class="btn btn--icon btn--text" title="Đóng (Esc)" data-go="1"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+  <div class="ngan__than">
+    <div class="thaotac" id="hangThaoTac">
+      <button class="btn" data-go="6">Chuyển bộ phận</button>
+      <button class="btn" data-go="7">Sửa chữa lớn</button>
+      <button class="btn">Sửa</button>
+      <button class="btn btn--icon" id="btnMenuNgan" aria-label="Thao tác khác"><svg class="i"><use href="#i-more"/></svg></button>
+      <div class="menu" id="menuNgan" style="left:auto;right:auto;top:40px;margin-left:330px">
+        <button><span>Thêm cái giống thế này</span><small>Chép sẵn loại, số tháng, bộ phận</small></button>
+        <hr>
+        <button data-go="8" class="nguy"><span>Thôi dùng</span><small>Bán, thanh lý, hỏng hoặc mất</small></button>
+      </div>
+    </div>
+
+    <!-- Khung 6: Chuyển bộ phận -->
+    <div class="khung an" id="k6">
+      <h3>Chuyển bộ phận <button class="btn btn--icon btn--text btn--sm" data-go="2"><svg class="i"><use href="#i-x"/></svg></button></h3>
+      <p class="ghi">Không đổi số tiền nào.</p>
+      <div class="truocsau"><div>Nhóm thợ in máy 4 màu <svg class="i mt" style="vertical-align:-3px"><use href="#i-arrow"/></svg> <b>Nhóm thợ in máy 5 màu</b></div></div>
+      <div class="f__hang">
+        <div class="o" style="flex:1 1 240px"><label>Sang bộ phận<em>*</em></label><select><option>Nhóm thợ in máy 5 màu</option></select><span class="goi">Gõ để tìm — bộ phận gộp theo tổ</span></div>
+        <div class="o w-ngay"><label>Ngày chuyển<em>*</em></label><input value="05/10/2026"></div>
+      </div>
+      <div class="f__hang">
+        <div class="o" style="flex:1 1 240px"><label>Người giữ mới</label><select><option>Chưa chọn</option></select></div>
+        <div class="o" style="flex:1 1 240px"><label>Lý do</label><input placeholder="Giao cho nhóm máy 5 màu"></div>
+      </div>
+      <div class="khung__nut"><button class="btn btn--text" data-go="2">Hủy</button><button class="btn btn--accent">Chuyển bộ phận</button></div>
+    </div>
+
+    <!-- Khung 7: Sửa chữa lớn -->
+    <div class="khung an" id="k7">
+      <h3>Sửa chữa lớn <button class="btn btn--icon btn--text btn--sm" data-go="2"><svg class="i"><use href="#i-x"/></svg></button></h3>
+      <p class="ghi">Chỉ nhập khi sửa làm máy tốt hơn hoặc dùng được lâu hơn. Sửa vặt hằng ngày không nhập ở đây.</p>
+      <div class="f__hang">
+        <div class="o w-tien o--loi"><label>Tiền sửa<em>*</em></label><input placeholder="0"><span class="loi"><svg class="i"><use href="#i-alert"/></svg>Nhập tiền sửa</span></div>
+        <div class="o w-ngay"><label>Ngày sửa xong<em>*</em></label><input value="05/10/2026"></div>
+      </div>
+      <div class="o"><label>Dùng thêm được<em>*</em></label><div class="w-thang"><input value="132"> tháng</div><span class="goi">Đang còn 132 tháng. Sửa xong dùng lâu hơn thì gõ số mới.</span></div>
+      <div class="o"><label>Sửa gì</label><input placeholder="Thay đầu máy, đại tu…"></div>
+      <div class="truocsau">
+        <div>Mỗi tháng 3.750.000 đ <svg class="i mt" style="vertical-align:-3px"><use href="#i-arrow"/></svg><b>3.817.234 đ</b></div>
+        <div>Khấu hao hết vào 09/2036 <svg class="i mt" style="vertical-align:-3px"><use href="#i-arrow"/></svg><b>10/2037</b></div>
+      </div>
+      <div class="khung__nut"><button class="btn btn--text" data-go="2">Hủy</button><button class="btn btn--accent">Lưu sửa chữa lớn</button></div>
+    </div>
+
+    <!-- Khung 8: Thôi dùng -->
+    <div class="khung an" id="k8">
+      <h3>Thôi dùng <button class="btn btn--icon btn--text btn--sm" data-go="2"><svg class="i"><use href="#i-x"/></svg></button></h3>
+      <div class="o"><label>Lý do<em>*</em></label><div class="radio" role="radiogroup"><button>Bán</button><button class="on">Thanh lý</button><button>Hỏng</button><button>Mất</button></div></div>
+      <div class="f__hang">
+        <div class="o w-ngay"><label>Ngày thôi dùng<em>*</em></label><input value="05/10/2026"></div>
+        <div class="o" style="flex:1 1 240px"><label>Ghi chú</label><input placeholder="Bán cho ai, hỏng vì sao…"></div>
+      </div>
+      <div class="truocsau">
+        <div>Ngừng khấu hao từ tháng <b>10/2026</b>. Tài sản vẫn còn để xem lại.</div>
+        <div>Còn lại lúc thôi dùng <b>503.875.000 đ</b> — kế toán ghi giảm số này.</div>
+      </div>
+      <div class="khung__nut"><button class="btn btn--text" data-go="2">Hủy</button><button class="btn btn--danger" id="btnThoi">Thôi dùng tài sản</button></div>
+    </div>
+
+    <div id="phanXem">
+      <div class="ba">
+        <div><span>Giá mua</span><b>510.000.000 đ</b><small>gồm sửa chữa lớn 60.000.000 đ</small></div>
+        <div><span>Đã khấu hao</span><b>2.375.000 đ</b><small>tới hết tháng 09/2026</small></div>
+        <div><span>Giá trị còn lại</span><b>507.625.000 đ</b><small>&nbsp;</small></div>
+      </div>
+      <div class="tiendo" style="margin-top:12px">
+        <div class="tien"><i style="width:0.5%"></i></div>
+        <div>Đã khấu hao 0,5% — còn 132 tháng, hết vào tháng 10/2037</div>
+      </div>
+    </div>
+
+    <dl class="kv">
+      <dt>Mỗi tháng</dt><dd>3.817.234 đ</dd>
+      <dt>Bắt đầu dùng</dt><dd>12/09/2026</dd>
+      <dt>Khấu hao trong</dt><dd>120 tháng</dd>
+      <dt>Bộ phận dùng</dt><dd>Nhóm thợ in máy 4 màu</dd>
+      <dt>Người giữ</dt><dd class="het">Chưa chọn</dd>
+    </dl>
+
+    <section>
+      <h4 class="muc">Lịch sử</h4>
+      <div class="ls">
+        <div><time>12/09/2026</time><span>Bắt đầu dùng</span><span></span></div>
+        <div><time>05/10/2026</time><span>Chuyển bộ phận</span><span>Sang Nhóm thợ in máy 4 màu<small>Giao cho nhóm máy 4 màu phụ trách</small></span></div>
+        <div><time>05/10/2026</time><span>Sửa chữa lớn</span><span>Tiền sửa 60.000.000 đ, dùng thêm 132 tháng<small>Thay đầu máy</small></span></div>
+      </div>
+    </section>
+
+    <section>
+      <h4 class="muc">Lịch khấu hao</h4>
+      <div class="nam">
+        <table>
+          <colgroup><col style="width:17%"><col style="width:17%"><col style="width:19%"><col style="width:19%"><col style="width:28%"></colgroup>
+          <thead><tr><th>Tháng</th><th class="so">Khấu hao</th><th class="so">Đã khấu hao</th><th class="so">Còn lại</th><th>Ghi chú</th></tr></thead>
+          <tbody>
+            <tr class="namhd mo"><td><svg class="i"><use href="#i-right"/></svg>2026</td><td class="so">13.759.468</td><td class="so">13.759.468</td><td class="so">496.240.532</td><td class="het">4 tháng</td></tr>
+            <tr class="da"><td>09/2026</td><td class="so">2.375.000</td><td class="so">2.375.000</td><td class="so">447.625.000</td><td><span class="chip">Tháng đầu, từ ngày 12</span></td></tr>
+            <tr class="da thang-nay"><td>10/2026</td><td class="so">3.750.000</td><td class="so">6.125.000</td><td class="so">443.875.000</td><td><span class="chip">Chuyển bộ phận</span></td></tr>
+            <tr class="sau"><td>11/2026</td><td class="so">3.817.234</td><td class="so">9.942.234</td><td class="so">500.057.766</td><td><span class="chip">Sửa chữa lớn</span></td></tr>
+            <tr class="sau"><td>12/2026</td><td class="so">3.817.234</td><td class="so">13.759.468</td><td class="so">496.240.532</td><td></td></tr>
+            <tr class="namhd"><td><svg class="i"><use href="#i-right"/></svg>2027</td><td class="so">45.806.808</td><td class="so">59.566.276</td><td class="so">450.433.724</td><td class="het">12 tháng</td></tr>
+            <tr class="namhd"><td><svg class="i"><use href="#i-right"/></svg>2028</td><td class="so">45.806.808</td><td class="so">105.373.084</td><td class="so">404.626.916</td><td class="het">12 tháng</td></tr>
+            <tr class="namhd"><td colspan="5" class="het" style="font-weight:400">… 2029 – 2036</td></tr>
+            <tr class="namhd"><td><svg class="i"><use href="#i-right"/></svg>2037</td><td class="so">38.172.452</td><td class="so">510.000.000</td><td class="so">0</td><td class="het">10 tháng, hết</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</aside>
+
+<!-- ===== FORM THÊM (MÀN 3, 4) — ngăn phải ===== -->
+<aside class="ngan" id="nganThem" role="dialog" aria-label="Thêm tài sản">
+  <div class="ngan__dau">
+    <div><h2 style="margin:0">Thêm tài sản</h2></div>
+    <div class="ngan__dieuhuong"><button class="btn btn--icon btn--text" data-go="1"><svg class="i"><use href="#i-x"/></svg></button></div>
+  </div>
+  <div class="ngan__than">
+    <div class="f">
+      <div class="o">
+        <div class="seg" role="radiogroup" style="justify-self:start">
+          <button id="segMoi" class="on" data-go="3">Mua mới</button>
+          <button id="segCu" data-go="4">Đang dùng từ trước</button>
+        </div>
+        <span class="goi an" id="goiCu">Máy đã chạy trước khi dùng phần mềm — phần mềm tính tiếp phần còn lại. Nhiều tài sản? <button class="lk" data-go="5">Nhập từ Excel</button></span>
+      </div>
+      <div class="o"><label>Loại</label><div class="radio" role="radiogroup"><button class="on" id="rTs">Tài sản cố định</button><button id="rCc">Công cụ dụng cụ</button></div></div>
+      <div class="o w-ten"><label>Tên<em>*</em></label><input value="Máy cán màng nhiệt"></div>
+      <div class="f__hang">
+        <div class="o w-tien"><label>Giá mua<em>*</em></label><input value="120.000.000"><span class="goi">Cộng cả vận chuyển, lắp đặt, chạy thử.</span></div>
+        <div class="o w-ngay"><label>Bắt đầu dùng từ ngày<em>*</em></label><input value="05/10/2026"></div>
+      </div>
+      <div class="o">
+        <label>Khấu hao trong<em>*</em></label>
+        <div class="w-thang"><input value="84"> tháng <span class="goi" style="margin-left:4px">= 7 năm</span></div>
+        <div class="nhanh" id="nhanhTs"><button>5 năm</button><button class="on">7 năm</button><button>10 năm</button><button>15 năm</button></div>
+        <span class="goi">Máy ngành in thường 7–15 năm.</span>
+      </div>
+      <div class="f__hang">
+        <div class="o" style="flex:1 1 220px"><label>Bộ phận dùng</label><select><option>Tổ Cán màng</option></select></div>
+        <div class="o" style="flex:1 1 220px"><label>Người giữ</label><select><option>Chưa chọn</option></select></div>
+      </div>
+
+      <div class="daky an" id="khoiCu">
+        <h4 class="muc" style="margin:0">Đã khấu hao tới lúc này</h4>
+        <div class="o"><label>Tính tiếp trên phần mềm từ tháng</label><span class="chiDoc" style="justify-self:start">Tháng 10/2026</span><span class="goi">Tháng đầu tiên phần mềm tự tính. Trước tháng này là sổ cũ.</span></div>
+        <div class="f__hang">
+          <div class="o"><label>Đã khấu hao mấy tháng</label><div class="w-thang"><input value="31"> tháng</div><span class="goi">Tự đếm từ ngày bắt đầu dùng.</span></div>
+          <div class="o w-tien"><label>Đã khấu hao trước đó</label><input placeholder="Tự tính"><span class="goi">Có sổ cũ thì gõ đúng số trên sổ.</span></div>
+        </div>
+      </div>
+
+      <div class="gap"><svg class="i"><use href="#i-right"/></svg>Thêm chi tiết <small>chi phí cấu thành giá mua, số hoá đơn, ghi chú</small></div>
+    </div>
+  </div>
+  <div class="ngan__chan">
+    <span class="xt">Mỗi tháng khoảng <b>1.428.571 đ</b> — khấu hao hết vào <b>10/2033</b></span>
+    <button class="btn btn--text" data-go="1">Hủy</button>
+    <button class="btn btn--accent">Lưu tài sản</button>
+  </div>
+</aside>
+
+<!-- ===== MÀN 5: NHẬP EXCEL ===== -->
+<div class="hop" id="hopExcel" role="dialog" aria-label="Nhập tài sản đang dùng từ Excel">
+  <div class="hop__dau"><h2>Nhập tài sản đang dùng từ Excel</h2><button class="btn btn--icon btn--text" data-go="1"><svg class="i"><use href="#i-x"/></svg></button></div>
+  <div class="hop__than">
+    <div class="buoc"><span class="buoc__so">1</span><h4>Tải file mẫu</h4>
+      <div class="nd"><span>Mỗi dòng một tài sản đang dùng.</span><button class="btn btn--sm"><svg class="i"><use href="#i-dl"/></svg>Tải file mẫu (.xlsx)</button></div></div>
+    <div class="buoc"><span class="buoc__so">2</span><h4>Điền vào file</h4>
+      <div class="nd"><span>Ô để trống phần mềm tự điền như form: loại theo giá, số tháng, số tiền đã khấu hao tới tháng tính tiếp.</span></div></div>
+    <div class="buoc"><span class="buoc__so">3</span><h4>Chọn file đã điền</h4>
+      <div class="nd">
+        <div class="tha" id="tha"><svg class="i" style="width:22px;height:22px"><use href="#i-upload"/></svg><b>Kéo thả file vào đây</b><span>hoặc bấm để chọn file .xlsx</span><button class="lk" id="giaChon" style="margin-top:4px">(bản xem: giả như đã chọn file)</button></div>
+        <div class="ketqua an" id="ketqua">
+          <div class="dong"><svg class="i"><use href="#i-file"/></svg><b>tai-san-dang-dung.xlsx</b><span class="het">12 dòng</span><button class="lk" style="margin-left:auto">Chọn file khác</button></div>
+          <div class="dong"><span class="tt tt--dung">10 dòng đúng</span><span class="tt" style="color:var(--signal);background:var(--signal-soft)">2 dòng lỗi</span></div>
+          <div class="tbl"><table><colgroup><col style="width:14%"><col style="width:34%"><col></colgroup>
+            <thead><tr><th>Dòng</th><th>Tên</th><th>Lỗi</th></tr></thead>
+            <tbody><tr><td>5</td><td>Máy xén giấy</td><td class="loi">Thiếu giá mua</td></tr><tr><td>9</td><td>Kệ sắt</td><td class="loi">Công cụ dụng cụ quá 36 tháng (48)</td></tr></tbody></table></div>
+          <p style="color:var(--signal);font-size:var(--fs-sm)">Sửa 2 dòng lỗi trong file rồi chọn lại — chưa dòng nào được ghi.</p>
+        </div>
+      </div></div>
+  </div>
+  <div class="hop__chan"><button class="btn btn--text" data-go="1">Hủy</button><button class="btn btn--accent" id="btnNhap">Nhập tài sản</button></div>
+</div>
+
+<!-- ===== MÀN 9: XOÁ / DÙNG LẠI ===== -->
+<div class="hop hop--nho" id="hopXoa" role="alertdialog" style="top:32%">
+  <div class="hop__dau"><h2>Xoá Máy cán màng nhiệt?</h2></div>
+  <div class="hop__than"><p>Chỉ xoá khi nhập nhầm. Tài sản chưa có lịch sử nên xoá được — xoá rồi không khôi phục được.</p></div>
+  <div class="hop__chan"><button class="btn btn--text" data-go="1">Hủy</button><button class="btn btn--danger">Xoá tài sản</button></div>
+</div>
+<div class="hop hop--nho" id="hopDungLai" role="alertdialog" style="top:68%">
+  <div class="hop__dau"><h2>Dùng lại Máy in Komori 4 màu?</h2></div>
+  <div class="hop__than"><p>Khấu hao chạy tiếp từ tháng đã dừng, như chưa từng thôi dùng.</p></div>
+  <div class="hop__chan"><button class="btn btn--text" data-go="1">Hủy</button><button class="btn btn--accent">Dùng lại</button></div>
+</div>
+
+<div class="toast" id="toast"><span>Đã thôi dùng Máy in Komori 4 màu.</span><button data-go="2">Hoàn tác</button></div>
+
+<script>
+const DS = [
+  { ma: "CC-0001", ten: "Pallet nhựa", loai: "Công cụ dụng cụ", bd: "05/10/2026", sl: 10, bp: "Gỡ hàng", gia: 8500000, da: 0, con: 8500000 },
+  { ma: "CC-0002", ten: "Xe nâng tay", loai: "Công cụ dụng cụ", bd: "15/01/2025", sl: 2, bp: "Gỡ hàng", gia: 12000000, da: 10500000, con: 1500000 },
+  { ma: "TS-0001", ten: "Máy in Komori 4 màu", loai: "Tài sản cố định", bd: "12/09/2026", bp: "Nhóm thợ in máy 4 màu", gia: 510000000, da: 2375000, con: 507625000, sc: "gồm sửa chữa lớn 60.000.000 đ" },
+  { ma: "TS-0003", ten: "Máy bế Đài Loan", loai: "Tài sản cố định", bd: "01/03/2022", bp: "Tổ bế", gia: 380000000, da: 174166666, con: 205833334 },
+  { ma: "TS-0004", ten: "Máy cắt giấy cũ", loai: "Tài sản cố định", bd: "01/01/2018", bp: "", gia: 150000000, da: 150000000, con: 0 },
+  { ma: "TS-0005", ten: "Máy dán hộp tự động", loai: "Tài sản cố định", bd: "01/06/2023", bp: "Dán", gia: 260000000, da: 108333333, con: 151666667 },
+];
+const TH = [
+  { ma: "CC-0001", ten: "Pallet nhựa", sl: 10, bp: "Gỡ hàng", gia: 8500000, kh: 308467, da: 308467, con: 8191533, chip: ["Tháng đầu, từ ngày 5"] },
+  { ma: "CC-0002", ten: "Xe nâng tay", sl: 2, bp: "Gỡ hàng", gia: 12000000, kh: 500000, da: 11000000, con: 1000000, chip: [] },
+  { ma: "TS-0001", ten: "Máy in Komori 4 màu", bp: "Nhóm thợ in máy 4 màu", gia: 510000000, kh: 3750000, da: 6125000, con: 503875000, chip: ["Chuyển bộ phận 05/10"] },
+  { ma: "TS-0003", ten: "Máy bế Đài Loan", bp: "Tổ bế", gia: 380000000, kh: 3166666, da: 177333332, con: 202666668, chip: ["Mang sang từ sổ cũ"] },
+  { ma: "TS-0005", ten: "Máy dán hộp tự động", bp: "Dán", gia: 260000000, kh: 2708333, da: 111041666, con: 148958334, chip: ["Mang sang từ sổ cũ"] },
+];
+const t = (n) => n.toLocaleString("vi-VN");
+const pct = (r) => Math.min(100, Math.round((r.da / r.gia) * 1000) / 10);
+
+document.getElementById("dongDs").innerHTML = DS.map((r, i) => `
+  <tr class="${i === 2 ? "chon" : ""}" data-go="2">
+    <td class="ma">${r.ma}</td>
+    <td><div class="ten">${r.ten}${r.con === 0 ? ' <span class="tt tt--het">Đã khấu hao hết</span>' : ""}</div>
+      <div class="phu"><span class="the">${r.loai}</span><span class="the">bắt đầu ${r.bd}</span>${r.sl ? `<span class="the">${r.sl} cái</span>` : ""}</div></td>
+    <td class="bp">${r.bp || '<span class="het">Chưa chọn</span>'}</td>
+    <td class="so">${r.sc ? `<span class="cong" title="${r.sc}">+</span>` : ""}${t(r.gia)}</td>
+    <td class="so">${t(r.da)}</td>
+    <td class="so">${r.con === 0 ? '<span class="het">0</span>' : t(r.con)}<div class="tien" title="Đã khấu hao ${pct(r)}%"><i style="width:${pct(r)}%"></i></div></td>
+    <td class="mui"><svg class="i"><use href="#i-right"/></svg></td>
+  </tr>`).join("");
+
+document.getElementById("theDs").innerHTML = DS.map((r) => `
+  <div data-go="2"><div class="r"><b>${r.ten}</b><span class="ma">${r.ma}</span></div>
+    <div class="r"><span class="het">${r.bp || "Chưa chọn bộ phận"}</span><span>Còn lại <b>${r.con === 0 ? "0" : t(r.con)} đ</b></span></div>
+    <div class="tien"><i style="width:${pct(r)}%"></i></div></div>`).join("");
+
+document.getElementById("dongTh").innerHTML = TH.map((r) => `
+  <tr data-go="2">
+    <td class="ma">${r.ma}</td>
+    <td><div class="ten">${r.ten}</div>${r.sl ? `<div class="phu"><span class="the">${r.sl} cái</span></div>` : ""}</td>
+    <td class="bp">${r.bp}</td>
+    <td class="so">${t(r.gia)}</td>
+    <td class="so" style="font-weight:600">${t(r.kh)}</td>
+    <td class="so">${t(r.da)}</td>
+    <td class="so">${t(r.con)}</td>
+    <td><div class="chips">${r.chip.map((c) => `<span class="chip">${c}</span>`).join("")}</div></td>
+  </tr>`).join("") + `<tr class="tong"><td colspan="4">Tổng tháng 10/2026 (5 tài sản)</td><td class="so">10.433.466</td><td colspan="3"></td></tr>`;
+
+const NOTE = {
+  "1": "Một nút chính (bấm mũi tên cạnh nút để xem 3 cách thêm). Loại thành nhóm nút có số đếm. Mã chữ thường, không đóng khung. Trạng thái chỉ hiện khi khác 'Đang dùng'. Dấu + ở Giá mua = có sửa chữa lớn (rê chuột).",
+  "1t": "Ba kiểu màn trống: chưa có gì / lọc không ra / tìm không ra — mỗi kiểu một câu và một nút.",
+  "2": "Ngăn cạnh danh sách, không làm mờ. 3 nút thường + '⋯' (Thôi dùng nằm trong). Lịch sử lên trước, lịch khấu hao gộp theo năm, một thanh cuộn. Không còn chân 'Đóng'.",
+  "3": "Một form cho cả hai cách thêm. Loại đứng đầu. Ô dài vừa dữ liệu. Nút chọn nhanh số năm. Xem trước nằm sát nút Lưu.",
+  "4": "Cùng form, chọn 'Đang dùng từ trước' thì hiện thêm khối 'Đã khấu hao tới lúc này' + lối sang Excel.",
+  "5": "Ba bước theo đúng thứ tự làm. Bấm '(giả như đã chọn file)' để xem bảng kiểm tra. File có lỗi thì nút chính thành 'Chọn lại file'; file sạch thì là 'Nhập 12 tài sản'.",
+  "6": "Mở ngay trong ngăn, thông tin bên dưới vẫn thấy. Dòng Trước → Sau.",
+  "7": "Có ví dụ dòng lỗi: chữ + biểu tượng, không chỉ đổi màu viền. Trước → Sau cho mỗi tháng và tháng hết.",
+  "8": "Nút đỏ duy nhất của module. Bấm 'Thôi dùng tài sản' → thông báo có Hoàn tác thay cho hộp hỏi lại.",
+  "9": "Xoá (chỉ khi chưa có lịch sử) và 'Dùng lại' (thay chữ 'Bỏ thôi dùng').",
+  "10": "Tổng tháng lên đầu, to, có nút Chép số. Mũi tên ‹ › đổi tháng. Tiêu đề cột một dòng, mã không bị cắt.",
+};
+
+function hien(m) {
+  document.querySelectorAll(".demo [data-m]").forEach((b) => b.classList.toggle("on", b.dataset.m === m));
+  document.getElementById("note").textContent = NOTE[m] || "";
+  const thang = m === "10";
+  document.getElementById("tab-ds").classList.toggle("an", thang);
+  document.getElementById("tab-th").classList.toggle("an", !thang);
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", (b.dataset.tab === "th") === thang));
+  document.getElementById("bangDs").classList.toggle("an", m === "1t");
+  document.getElementById("trongDs").classList.toggle("an", m !== "1t");
+  document.querySelector(".kpi").classList.toggle("an", m === "1t");
+  const ngan = ["2", "6", "7", "8"].includes(m);
+  const them = m === "3" || m === "4";
+  document.getElementById("ngan").classList.toggle("on", ngan);
+  document.getElementById("nganThem").classList.toggle("on", them);
+  document.getElementById("hopExcel").classList.toggle("on", m === "5");
+  document.getElementById("hopXoa").classList.toggle("on", m === "9");
+  document.getElementById("hopDungLai").classList.toggle("on", m === "9");
+  document.getElementById("scrim").classList.toggle("on", ngan || them || m === "5" || m === "9");
+  document.getElementById("scrim").style.background = m === "5" || m === "9" ? "rgba(15,23,42,.45)" : "rgba(15,23,42,.2)";
+  ["6", "7", "8"].forEach((k) => document.getElementById("k" + k).classList.toggle("an", m !== k));
+  document.getElementById("hangThaoTac").classList.toggle("an", ["6", "7", "8"].includes(m));
+  document.getElementById("segMoi").classList.toggle("on", m === "3");
+  document.getElementById("segCu").classList.toggle("on", m === "4");
+  document.getElementById("khoiCu").classList.toggle("an", m !== "4");
+  document.getElementById("goiCu").classList.toggle("an", m !== "4");
+  document.getElementById("menuThem").classList.remove("on");
+  document.getElementById("menuNgan").classList.remove("on");
+  document.getElementById("toast").classList.remove("on");
+  if (m !== "5") { document.getElementById("tha").classList.remove("an"); document.getElementById("ketqua").classList.add("an"); document.getElementById("btnNhap").textContent = "Nhập tài sản"; }
+}
+
+document.addEventListener("click", (e) => {
+  const d = e.target.closest("[data-m]");
+  if (d) return hien(d.dataset.m);
+  const g = e.target.closest("[data-go]");
+  if (g) return hien(g.dataset.go);
+  const tab = e.target.closest("[data-tab]");
+  if (tab) return hien(tab.dataset.tab === "th" ? "10" : "1");
+});
+document.getElementById("btnMenuThem").addEventListener("click", (e) => { e.stopPropagation(); document.getElementById("menuThem").classList.toggle("on"); });
+document.getElementById("btnMenuNgan").addEventListener("click", (e) => { e.stopPropagation(); document.getElementById("menuNgan").classList.toggle("on"); });
+document.getElementById("btnThoi").addEventListener("click", () => { hien("1"); document.getElementById("toast").classList.add("on"); });
+document.getElementById("giaChon").addEventListener("click", (e) => { e.stopPropagation(); document.getElementById("tha").classList.add("an"); document.getElementById("ketqua").classList.remove("an"); document.getElementById("btnNhap").textContent = "Chọn lại file"; });
+document.getElementById("btnDt").addEventListener("click", (e) => { document.body.classList.toggle("dt"); e.target.classList.toggle("on"); });
+document.getElementById("scrim").addEventListener("click", () => hien("1"));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") hien("1"); });
+document.querySelectorAll(".nhanh button, .radio button").forEach((b) => b.addEventListener("click", () => {
+  b.parentElement.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+}));
+const doDemo = () => document.documentElement.style.setProperty('--demo-h', document.getElementById('demo').offsetHeight + 'px');
+window.addEventListener('resize', doDemo); doDemo();
+hien("1");
+</script>
+</body>
+</html>

@@ -2,10 +2,10 @@
 // Giao diện theo CHUẨN Đơn mua hàng (Kế toán): một thẻ lọc `ToolbarChuan` + bảng `acct-dmh__frame`.
 import type { Dispatch, SetStateAction } from "react";
 import type { PurchaseRequestRow, SupplierRow } from "../../../../api/client";
-import { Button } from "../../../../components/Button";
 import { CodeLink } from "../../../../components/CodeLink";
 import { EmptyRow } from "../../../../components/EmptyState";
 import { Icon } from "../../../../components/Icons";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { Select, type SelectOption } from "../../../../components/Select";
 import { fmtDate, money } from "../../../../utils/format";
 import { ToolbarChuan } from "../../../ke-toan/components/ToolbarChuan";
@@ -55,7 +55,8 @@ export function PhieuListTab({
   setSelectedId,
   openYcmh,
   total,
-  totalPages,
+  size,
+  onSize,
 }: {
   coYcQuaHan: boolean;
   choMua: { soLuong: number; somNhat: string | null };
@@ -88,7 +89,8 @@ export function PhieuListTab({
   /** Thiếu = không có ô Xem màn Yêu cầu mua hàng ⇒ mã chỉ hiện dạng chữ. */
   openYcmh?: (code: string) => void;
   total: number;
-  totalPages: number;
+  size: number;
+  onSize: (size: number) => void;
 }) {
   // Ô lọc NCC là <Select searchable> chứ không phải <select>: danh sách nhà cung cấp dài, thẻ
   // gốc không gõ tìm được. Giữ NGUYÊN kiểu giá trị `"all" | number` và thứ tự option cũ.
@@ -347,29 +349,18 @@ export function PhieuListTab({
           )}
         </tbody>
       </table>
-      {!loading && (
-        <div className="md-page__pager">
-          <span>{total} đơn</span>
-          <div>
-            <Button
-              variant="ghost"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Trước
-            </Button>
-            <span>
-              {page}/{totalPages}
-            </span>
-            <Button
-              variant="ghost"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Sau
-            </Button>
-          </div>
-        </div>
+      {total > 0 && (
+        <PhanTrangDayDu
+          trang={page}
+          size={size}
+          tong={total}
+          soDong={rows.length}
+          onTrang={setPage}
+          onSize={onSize}
+          loading={loading}
+          donVi="đơn"
+          ariaLabel="Phân trang đơn mua hàng"
+        />
       )}
     </section>
     </>

@@ -1,6 +1,6 @@
 // Màn Phòng ban — cơ cấu tổ chức, nhân sự theo phòng, vai trò & quyền
 // (tách từ pages/DepartmentsPage.tsx).
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import {
   ApiError,
   api,
@@ -13,7 +13,6 @@ import {
   type ModuleDef,
   type PermissionRow,
   type Role,
-  type RoleTemplate,
   type Scope,
   type UserBrief,
 } from "../../../api/client";
@@ -30,6 +29,7 @@ import { Button } from "../../../components/Button";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { DiscardChangesDialog } from "../../../components/DiscardChangesDialog";
 import { InfoHint } from "../../../components/InfoHint";
+import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { Select } from "../../../components/Select";
 import {
   PermissionMatrix,
@@ -236,9 +236,6 @@ export function DepartmentsPage({
   const [empMeta, setEmpMeta] = useState<EmployeeMeta | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [modules, setModules] = useState<ModuleDef[]>([]);
-  // Bảng VAI MẪU (đợt 6). Lỗi khi nạp ⇒ để rỗng: thanh chọn mẫu tự ẩn, ma trận vẫn cấp tay
-  // được như cũ — mẫu là tiện ích, không phải điều kiện để cấp quyền.
-  const [roleTemplates, setRoleTemplates] = useState<RoleTemplate[]>([]);
   // Who may head the selected unit (its subtree, PBI-4004).
   const [headCandidates, setHeadCandidates] = useState<UserBrief[]>([]);
   // Modal chỉ định Trưởng phòng nhanh trực tiếp từ Head Hero Card
@@ -355,7 +352,7 @@ export function DepartmentsPage({
 
   // Cây tổ chức (cột trái) — tìm theo tên/mã + chip lọc phân loại phòng.
   const [search, setSearch] = useState("");
-  const [treeFilter, setTreeFilter] = useState<"all" | "san_xuat" | "kinh_doanh" | "giao_hang" | "van_phong" | "no_head" | "no_staff">(
+  const [treeFilter, setTreeFilter] = useState<"all" | "san_xuat" | "ngoai_sx" | "kinh_doanh" | "giao_hang" | "no_head" | "no_staff">(
     "all",
   );
   // Chế độ xem: danh sách cây thẻ (tree) vs Sơ đồ khối trực quan (chart)
@@ -423,20 +420,31 @@ export function DepartmentsPage({
   // Gập/mở nhánh làm sơ đồ hẹp/rộng lại → lời cảnh báo "không lọt khung" cũ hết đúng.
   useEffect(() => setFitCapped(false), [collapsed]);
 
-  /** "Xem toàn bộ" = thu vừa CẢ ngang lẫn dọc, không chỉ ngang. */
-  const handleFitFull = () => {
+  /** Thu cho vừa khung (chỉ ngang, hoặc cả ngang lẫn dọc), không nhỏ hơn `floor`.
+   *  Trả về tỉ lệ vừa khít thật (có thể < floor). */
+  function fitZoom(floor: number, chieu: "ngang" | "ca-hai"): number | null {
     const el = canvasRef.current;
     const size = measureChart();
-    if (!el || !size || size.w <= 0 || size.h <= 0) {
+    if (!el || !size || size.w <= 0 || size.h <= 0) return null;
+    const ngang = el.clientWidth / size.w;
+    // Trừ dải trống chừa cho thanh thu phóng (padding-top của khung cuộn).
+    const caoDung = el.clientHeight - (parseFloat(getComputedStyle(el).paddingTop) || 0);
+    const raw = chieu === "ngang" ? ngang : Math.min(ngang, caoDung / size.h);
+    // Làm tròn XUỐNG để không bao giờ thiếu 1px làm tràn lại.
+    applyZoom(Math.min(1, Math.max(floor, Math.floor(raw * 100) / 100)));
+    return raw;
+  }
+
+  /** "Xem toàn bộ" = thu vừa CẢ ngang lẫn dọc, không chỉ ngang. */
+  const handleFitFull = () => {
+    const raw = fitZoom(0.35, "ca-hai");
+    if (raw == null) {
       applyZoom(0.45);
       return;
     }
-    const raw = Math.min(el.clientWidth / size.w, el.clientHeight / size.h);
     // Dưới 35% thì chữ hết đọc được — thà chạm sàn và NÓI THẬT là chưa vừa,
     // còn hơn thu nhỏ tới mức vô dụng hoặc im lặng để người dùng tưởng nút hỏng.
     setFitCapped(raw < 0.35);
-    // Làm tròn XUỐNG để không bao giờ thiếu 1px làm tràn lại.
-    applyZoom(Math.min(1, Math.max(0.35, Math.floor(raw * 100) / 100)));
   };
 
   function dismissPanHint() {
@@ -485,13 +493,58 @@ export function DepartmentsPage({
     setIsDragging(false);
   };
 
-  // Mở chế độ Sơ đồ cây → canh vào giữa (gốc), chờ 1 nhịp cho cây dựng xong.
+  // Mở chế độ Sơ đồ cây → LẦN ĐẦU thì tự thu cho vừa BỀ NGANG (sàn 60% — dưới nữa là chữ khó
+  // đọc, thà để kéo; chiều dọc thì cuộn chuột là xem tiếp, không cần thu); các lần nạp lại danh
+  // sách sau đó chỉ canh giữa, không giật mất mức thu phóng người dùng đã chọn. Chờ 1 nhịp cho
+  // cây và chiều cao khung dựng xong.
+  const fittedRef = useRef(false);
   useEffect(() => {
-    if (viewMode !== "chart") return;
-    const timer = setTimeout(() => centerCanvas(), 60);
+    if (viewMode !== "chart") {
+      fittedRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (!fittedRef.current && departments.length > 0) {
+        fittedRef.current = true;
+        if (fitZoom(0.6, "ngang") != null) return;
+      }
+      centerCanvas();
+    }, 60);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, departments]);
+
+  // Chiều cao vùng sơ đồ = ĐÚNG phần màn hình còn lại dưới thanh công cụ. Dùng `100dvh − hằng số`
+  // thì sai ngay khi tiêu đề/dải lọc xuống dòng: đáy khung (kèm thanh cuộn ngang) rơi xuống dưới
+  // mép màn hình, trang mọc thêm thanh cuộn dọc thứ hai, và thẻ bị cắt mà không có dấu hiệu gì
+  // cho biết còn kéo sang được.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [orgH, setOrgH] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (viewMode !== "chart") return;
+    function measure() {
+      const body = bodyRef.current;
+      if (!body) return;
+      let sc: HTMLElement | null = body.parentElement;
+      while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+      const scTop = sc ? sc.getBoundingClientRect().top : 0;
+      const scH = sc ? sc.clientHeight : window.innerHeight;
+      const scrolled = sc ? sc.scrollTop : window.scrollY;
+      const offset = body.getBoundingClientRect().top - scTop + scrolled;
+      // Phần đệm/viền/lề ĐÁY của các khung bọc từ thân trang lên tới khung cuộn — không trừ thì
+      // trang vẫn dư vài px và mọc thanh cuộn dọc.
+      let duoi = 0;
+      for (let e: HTMLElement | null = body; e && e !== sc; e = e.parentElement) {
+        const cs = getComputedStyle(e);
+        duoi += parseFloat(cs.marginBottom) || 0;
+        if (e !== body) duoi += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+      }
+      setOrgH(Math.max(420, Math.floor(scH - offset - duoi - 12)));
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [viewMode, departments.length]);
 
   // Drawer chi tiết (cột phải): 3 tab progressive-disclosure (mặc định mở tab Tổng quan).
   const [activeTab, setActiveTab] = useState<"overview" | "staff" | "roles">(
@@ -534,41 +587,62 @@ export function DepartmentsPage({
   // gốc. Giờ trưởng quyết trước: phòng có trưởng mà chưa tuyển ai vẫn là `complete` (trưởng phòng
   // mới nhận việc), không tụt xuống `no_staff`.
   //
-  // Cũng hết phụ thuộc vào `employee_count` cho việc xét trưởng — con số đó chỉ đếm hồ sơ RIÊNG của
-  // phòng, không tính tổ con (department_service.py), nên phòng cha có người nằm hết ở tổ con vẫn
-  // ra 0 và trước đây cũng bị gán nhầm là "có trưởng".
+  // "Có người" đếm CẢ NHÁNH (`total_employee_count`), không chỉ hồ sơ riêng của phòng:
+  // `employee_count` không tính tổ con (department_service.py) nên khối "Sản xuất" — người nằm hết
+  // ở tổ — từng hiện "Chưa có nhân sự" dù dưới nó cả trăm người.
   function deptStatus(d: Department): "no_staff" | "no_head" | "complete" {
     if (d.head_user_id != null) return "complete";
-    return (d.employee_count ?? 0) === 0 ? "no_staff" : "no_head";
+    return (d.total_employee_count ?? d.employee_count ?? 0) === 0 ? "no_staff" : "no_head";
   }
 
-  // Đếm cho chip lọc cây: tổng · khối SX · văn phòng · thiếu trưởng · chưa có nhân sự.
-  // Đếm RIÊNG hai loại chứ không gộp: gộp lại là mất đúng cái phân biệt vừa dựng ra — "có người mà
+  // Khối Sản xuất / Kinh doanh KẾ THỪA theo cây (rbac_repo._khoi_theo_co): tick khối cha là mọi
+  // tổ, nhóm bên dưới cùng thuộc khối. Đọc cờ riêng từng phòng thì chỉ đếm được đúng phòng gốc —
+  // chip từng ra "Sản xuất 1", còn mấy chục tổ in, bế, dán bị tính sang văn phòng. Giao hàng thì
+  // KHÔNG kế thừa (rbac_repo.delivery_departments đọc cờ riêng) nên giữ nguyên `la_giao_hang`.
+  const { khoiSanXuat, khoiKinhDoanh } = useMemo(() => {
+    const sx = new Set<number>();
+    const kd = new Set<number>();
+    const walk = (d: Department, chaSx: boolean, chaKd: boolean) => {
+      const laSx = chaSx || !!d.la_san_xuat;
+      const laKd = chaKd || !!d.la_kinh_doanh;
+      if (laSx) sx.add(d.id);
+      if (laKd) kd.add(d.id);
+      for (const c of childrenOf.get(d.id) ?? []) walk(c, laSx, laKd);
+    };
+    for (const r of roots) walk(r, false, false);
+    return { khoiSanXuat: sx, khoiKinhDoanh: kd };
+  }, [roots, childrenOf]);
+
+  // Đếm cho chip lọc cây và các ô số trên đầu trang. Sản xuất + Ngoài sản xuất = Tất cả;
+  // Có trưởng + Thiếu trưởng + Chưa có nhân sự = Tất cả. Đếm RIÊNG hai loại chứ không gộp: gộp lại là mất đúng cái phân biệt vừa dựng ra — "có người mà
   // không ai phụ trách" là việc phải xử lý ngay, còn "phòng chưa tuyển ai" thì không.
   const treeStats = useMemo(() => {
     let sanXuat = 0;
     let kinhDoanh = 0;
     let giaoHang = 0;
+    let coTruong = 0;
     let noHead = 0;
     let noStaff = 0;
     for (const d of departments) {
-      if (d.la_san_xuat) sanXuat += 1;
-      if (d.la_kinh_doanh) kinhDoanh += 1;
+      if (khoiSanXuat.has(d.id)) sanXuat += 1;
+      if (khoiKinhDoanh.has(d.id)) kinhDoanh += 1;
       if (d.la_giao_hang) giaoHang += 1;
       const st = deptStatus(d);
-      if (st === "no_head") noHead += 1;
-      else if (st === "no_staff") noStaff += 1;
+      if (st === "complete") coTruong += 1;
+      else if (st === "no_head") noHead += 1;
+      else noStaff += 1;
     }
     return {
       all: departments.length,
       san_xuat: sanXuat,
       kinh_doanh: kinhDoanh,
       giao_hang: giaoHang,
-      van_phong: departments.length - sanXuat,
+      ngoai_sx: departments.length - sanXuat,
+      co_truong: coTruong,
       no_head: noHead,
       no_staff: noStaff,
     };
-  }, [departments]);
+  }, [departments, khoiSanXuat, khoiKinhDoanh]);
 
   // Tỷ lệ thử việc chung toàn công ty — chỉ để HIỂN THỊ (read-only) ở form phòng.
   useEffect(() => {
@@ -587,10 +661,10 @@ export function DepartmentsPage({
       const hay = `${d.code ?? ""} ${d.name} ${d.head_name ?? ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
-    if (treeFilter === "san_xuat" && !d.la_san_xuat) return false;
-    if (treeFilter === "kinh_doanh" && !d.la_kinh_doanh) return false;
+    if (treeFilter === "san_xuat" && !khoiSanXuat.has(d.id)) return false;
+    if (treeFilter === "kinh_doanh" && !khoiKinhDoanh.has(d.id)) return false;
     if (treeFilter === "giao_hang" && !d.la_giao_hang) return false;
-    if (treeFilter === "van_phong" && d.la_san_xuat) return false;
+    if (treeFilter === "ngoai_sx" && khoiSanXuat.has(d.id)) return false;
     if (treeFilter === "no_head" && deptStatus(d) !== "no_head") return false;
     if (treeFilter === "no_staff" && deptStatus(d) !== "no_staff") return false;
     return true;
@@ -616,7 +690,7 @@ export function DepartmentsPage({
 
   // Nhân sự của phòng (theo HỒ SƠ), lọc + phân trang. Lọc "Đã khóa" chỉ áp cho người CÓ
   // tài khoản — người chưa có tài khoản không có trạng thái khóa/mở nào để lọc.
-  const [memberPageSize, setMemberPageSize] = useState(8);
+  const [memberPageSize, setMemberPageSize] = useState(25);
   const filteredMembers = useMemo(() => {
     const q = memberSearch.trim().toLowerCase();
     return members.filter((m) => {
@@ -661,13 +735,11 @@ export function DepartmentsPage({
     Promise.all([
       loadDepartments(),
       api.rbac.modules(token).catch(() => [] as ModuleDef[]),
-      api.rbac.roleTemplates(token).catch(() => [] as RoleTemplate[]),
     ])
-      .then(([list, mods, mau]) => {
+      .then(([list, mods]) => {
         if (cancelled) return;
         setDepartments(list);
         setModules(mods);
-        setRoleTemplates(mau);
         // Tự động chọn phòng gốc hàng đầu (Root department) khi nạp màn hình để hiển thị ngay chi tiết
         const { roots: rts } = buildTree(list);
         const defaultId = rts[0]?.id ?? list[0]?.id ?? null;
@@ -831,6 +903,27 @@ export function DepartmentsPage({
 
   const parentName = (id: number | null | undefined) =>
     id == null ? null : byId.get(id)?.name ?? null;
+
+  // Khối kế thừa từ đâu: chính phòng bật cờ, hay một phòng cha gần nhất đã bật. Thẻ tổng quan
+  // phải nói "Có, theo phòng cha Sản xuất" cho tổ con — trước đây nó đọc cờ riêng nên tổ in, tổ bế
+  // hiện "Khối sản xuất: Không" trong khi máy chủ vẫn xếp họ vào khối.
+  function nguonKhoi(d: Department, co: "la_san_xuat" | "la_kinh_doanh"): Department | null {
+    const seen = new Set<number>();
+    let cur: Department | undefined = d;
+    while (cur && !seen.has(cur.id)) {
+      if (cur[co]) return cur;
+      seen.add(cur.id);
+      cur = cur.parent_id != null ? byId.get(cur.parent_id) : undefined;
+    }
+    return null;
+  }
+  const moTaKhoi = (d: Department, co: "la_san_xuat" | "la_kinh_doanh") => {
+    const nguon = nguonKhoi(d, co);
+    if (!nguon) return { v: "Không", note: null };
+    return nguon.id === d.id
+      ? { v: "Có", note: "Đánh dấu tại phòng này, các phòng con cùng thuộc khối" }
+      : { v: "Có", note: `Theo phòng cha ${nguon.name}` };
+  };
 
   // Chuỗi breadcrumb tổ chức từ gốc → cha (không gồm chính phòng đang xem).
   function ancestorTrail(d: Department): string[] {
@@ -1156,30 +1249,6 @@ export function DepartmentsPage({
     setEditRoleError(null);
   }
 
-  /** Áp mẫu vào ma trận SỬA vai — THAY SẠCH, không trộn với quyền cũ.
-   *  Trộn thì áp mẫu "Công nhân" lên một vai đang đầy quyền vẫn còn nguyên quyền cũ — đúng thứ
-   *  vai mẫu sinh ra để tránh. Chỉ đổi state; chưa bấm Lưu thì chưa có gì xuống DB. */
-  function apMauSuaVai(t: RoleTemplate) {
-    setEditRoleMatrix(maTranTheoMau(t));
-    setEditRoleError(null);
-  }
-
-  /** Áp mẫu vào ma trận THÊM vai mới. */
-  function apMauThemVai(t: RoleTemplate) {
-    setAddRoleMatrix(maTranTheoMau(t));
-  }
-
-  /** Ma trận của mẫu + phần mẫu dành cho dòng quyền theo tổ CỦA PHÒNG đang mở (vai thêm/sửa ở
-   *  màn này luôn thuộc phòng đó). Phòng ngoài khối sản xuất thì không có dòng — bỏ qua phần đó. */
-  function maTranTheoMau(t: RoleTemplate): PermissionRow[] {
-    const khoaTo = selectedId != null ? `to_sx_${selectedId}` : null;
-    return t.permissions.map((r) =>
-      khoaTo && t.quyen_to_cua_vai && r.module_key === khoaTo
-        ? { ...r, ...t.quyen_to_cua_vai, module_key: r.module_key }
-        : { ...r },
-    );
-  }
-
   function toggleEditRole(moduleKey: string, action: ActionKey, value: boolean) {
     setEditRoleMatrix((rows) =>
       rows.map((r) =>
@@ -1264,9 +1333,9 @@ export function DepartmentsPage({
     // Lucide SVG Icon khối phòng ban
     const DeptIcon = d.parent_id == null
       ? Building2
-      : d.la_san_xuat
+      : khoiSanXuat.has(d.id)
       ? Factory
-      : d.la_kinh_doanh
+      : khoiKinhDoanh.has(d.id)
       ? Handshake
       : Briefcase;
 
@@ -1330,9 +1399,16 @@ export function DepartmentsPage({
           </div>
 
           <div className="rdx-tree__line2">
-            <span className="rdx-tree__staff" title="Số lượng nhân sự">
+            <span
+              className="rdx-tree__staff"
+              title={
+                kidsCount > 0
+                  ? `${d.total_employee_count ?? 0} người, gồm cả phòng con (trực tiếp ở phòng này ${d.employee_count ?? 0})`
+                  : "Số nhân sự"
+              }
+            >
               <Users size={12} />
-              <span>{d.employee_count ?? 0}</span>
+              <span>{d.total_employee_count ?? d.employee_count ?? 0}</span>
             </span>
 
             {/* Ba tình trạng, ba cách hiện. Chỉ `no_head` được tô CAM: phòng có người mà không ai
@@ -1386,36 +1462,43 @@ export function DepartmentsPage({
   /** Đếm toàn bộ phòng nằm dưới một nhánh (theo đúng bộ lọc đang bật) — để nút gập
    *  nói được "còn 5 phòng bên dưới" thay vì chỉ đếm con trực tiếp. */
   function countBranch(dept: Department): number {
-    const kids = (childrenOf.get(dept.id) ?? []).filter(
+    return visibleKids(dept).reduce((n, k) => n + 1 + countBranch(k), 0);
+  }
+
+  /** Con trực tiếp còn hiện theo bộ lọc đang bật. */
+  function visibleKids(dept: Department): Department[] {
+    return (childrenOf.get(dept.id) ?? []).filter(
       (child) => !treeFiltersActive || matchesTree(child),
     );
-    return kids.reduce((n, k) => n + 1 + countBranch(k), 0);
   }
 
   function renderOrgChartNode(dept: Department) {
-    const kids = (childrenOf.get(dept.id) ?? []).filter((child) => {
-      if (!treeFiltersActive) return true;
-      return matchesTree(child);
-    });
+    const kids = visibleKids(dept);
     const isCollapsed = collapsed.has(dept.id);
     const hasKids = kids.length > 0;
     const isOpen = hasKids && !isCollapsed;
+    // Con toàn là LÁ ⇒ xếp thành cột dọc treo dưới cha, không dàn hàng ngang. Dàn ngang thì bề
+    // rộng sơ đồ bằng TỔNG số lá (vài chục thẻ ⇒ vài nghìn px, cắt mất hai mép) và một vạch
+    // ngang dài không cho biết nhóm nào thuộc tổ nào. Xếp dọc thì bề rộng chỉ còn bằng số cha.
+    const stackKids = isOpen && kids.every((k) => visibleKids(k).length === 0);
     const isSelected = dept.id === selectedId;
     const tinhTrang = deptStatus(dept);
     const hiddenCount = hasKids && isCollapsed ? countBranch(dept) : 0;
 
     const DeptIcon = dept.parent_id == null
       ? Building2
-      : dept.la_san_xuat
+      : khoiSanXuat.has(dept.id)
       ? Factory
-      : dept.la_kinh_doanh
+      : khoiKinhDoanh.has(dept.id)
       ? Handshake
       : Briefcase;
 
     return (
       <div
         key={dept.id}
-        className={`rdx-org-branch${isOpen ? " rdx-org-branch--open" : ""}`}
+        className={`rdx-org-branch${isOpen ? " rdx-org-branch--open" : ""}${
+          stackKids ? " rdx-org-branch--stack" : ""
+        }`}
       >
         <div className="rdx-org-branch__parent">
           <div
@@ -1437,8 +1520,15 @@ export function DepartmentsPage({
             </div>
 
             <div className="rdx-org-node__meta">
-              <span className="rdx-org-node__badge" title="Số lượng nhân sự">
-                <Users size={11} /> {dept.employee_count ?? 0}
+              <span
+                className="rdx-org-node__badge"
+                title={
+                  hasKids
+                    ? `${dept.total_employee_count ?? 0} người, gồm cả phòng con (trực tiếp ở phòng này ${dept.employee_count ?? 0})`
+                    : "Số nhân sự"
+                }
+              >
+                <Users size={11} /> {dept.total_employee_count ?? dept.employee_count ?? 0}
               </span>
 
               {/* Chỉ CÁI CẦN XỬ LÝ mới được tô màu. Trước đây thẻ nào cũng có chip màu nên
@@ -1522,12 +1612,35 @@ export function DepartmentsPage({
         </div>
 
         {isOpen && (
-          <div className="rdx-org-branch__children">
-            {kids.map(renderOrgChartNode)}
+          <div
+            className={`rdx-org-branch__children${
+              stackKids ? " rdx-org-branch__children--stack" : ""
+            }`}
+          >
+            {stackKids ? kids.map(renderOrgChartNode) : renderOrgRow(kids, false)}
           </div>
         )}
       </div>
     );
+  }
+
+  /** Một hàng anh em dàn ngang. Các phòng LÁ đứng lẫn giữa những nhánh có con (vd. Tổ bồi cạnh
+   *  Tổ in có 5 nhóm) được gom chung MỘT cột dọc ở đầu hàng — mỗi lá chiếm riêng một cột thì
+   *  sơ đồ phình ngang vô ích. Phòng đang GẬP không tính là lá: nó còn nhánh để mở ra. */
+  function renderOrgRow(nodes: Department[], laGoc: boolean) {
+    const la = nodes.filter((k) => visibleKids(k).length === 0);
+    if (la.length < 2) return nodes.map(renderOrgChartNode);
+    return [
+      <div
+        key="__la"
+        className={`rdx-org-branch rdx-org-leafgroup${laGoc ? " rdx-org-leafgroup--goc" : ""}`}
+      >
+        <div className="rdx-org-branch__children rdx-org-branch__children--stack">
+          {la.map(renderOrgChartNode)}
+        </div>
+      </div>,
+      ...nodes.filter((k) => visibleKids(k).length > 0).map(renderOrgChartNode),
+    ];
   }
 
   if (forbidden) {
@@ -1562,20 +1675,52 @@ export function DepartmentsPage({
   }
 
   const treeChips = [
-    { key: "all", label: "Tất cả", n: treeStats.all },
-    { key: "san_xuat", label: "Sản xuất", n: treeStats.san_xuat },
+    { key: "all", label: "Tất cả", n: treeStats.all, title: undefined },
+    // Sản xuất + Ngoài sản xuất = Tất cả. Kinh doanh, Giao hàng là nhóm con của "ngoài sản xuất",
+    // không phải khối thứ ba — tooltip nói rõ để không ai cộng dồn các chip.
+    {
+      key: "san_xuat",
+      label: "Sản xuất",
+      n: treeStats.san_xuat,
+      title: "Khối Sản xuất cùng mọi tổ, nhóm bên dưới",
+    },
+    {
+      key: "ngoai_sx",
+      label: "Ngoài sản xuất",
+      n: treeStats.ngoai_sx,
+      title: "Mọi phòng không thuộc khối Sản xuất (ban giám đốc, văn phòng, giao hàng…)",
+    },
     // Khối Kinh doanh: quyết định ai vào được danh sách "NV phụ trách" ở màn Khách hàng — chip
     // này là chỗ duy nhất soi nhanh xem đã tick đúng phòng chưa.
-    { key: "kinh_doanh", label: "Kinh doanh", n: treeStats.kinh_doanh },
+    {
+      key: "kinh_doanh",
+      label: "Kinh doanh",
+      n: treeStats.kinh_doanh,
+      title: "Phòng đánh dấu khối Kinh doanh cùng các phòng con",
+    },
     // Khối Giao hàng: quyết định ai hiện ở tab Nhân viên giao hàng và ai chọn được khi phân
     // chuyến — chip này là chỗ soi nhanh xem đã tick đúng phòng chưa.
-    { key: "giao_hang", label: "Giao hàng", n: treeStats.giao_hang },
-    { key: "van_phong", label: "Văn phòng", n: treeStats.van_phong },
+    {
+      key: "giao_hang",
+      label: "Giao hàng",
+      n: treeStats.giao_hang,
+      title: "Phòng đánh dấu Giao hàng (phòng con phải tự đánh dấu)",
+    },
     // Hai chip RIÊNG, cố ý không gộp: "Thiếu trưởng" là việc phải xử lý ngay (phòng có người mà
     // không ai phụ trách); "Chưa có nhân sự" chỉ là phòng mới khai, chưa tuyển ai. Gộp một số là
     // mất đúng cái phân biệt này — và trước đây gộp kiểu ngược lại nên chip luôn đếm 0.
-    { key: "no_head", label: "Thiếu trưởng", n: treeStats.no_head },
-    { key: "no_staff", label: "Chưa có nhân sự", n: treeStats.no_staff },
+    {
+      key: "no_head",
+      label: "Thiếu trưởng",
+      n: treeStats.no_head,
+      title: "Phòng đã có người (kể cả ở tổ con) mà chưa gán trưởng",
+    },
+    {
+      key: "no_staff",
+      label: "Chưa có nhân sự",
+      n: treeStats.no_staff,
+      title: "Phòng chưa gán trưởng và cả nhánh chưa có ai",
+    },
   ] as const;
   const tabs = [
     { key: "overview", label: "Tổng quan", count: undefined },
@@ -1622,29 +1767,37 @@ export function DepartmentsPage({
 
           <div className="rdx-ckpi-divider" aria-hidden="true" />
 
-          <div className="rdx-ckpi-item" title="Số lượng phòng ban đã chỉ định Trưởng phòng">
+          <div
+            className="rdx-ckpi-item"
+            title={`${treeStats.co_truong} phòng đã gán trưởng; ${treeStats.no_head} phòng có người mà chưa gán trưởng; ${treeStats.no_staff} phòng chưa có ai. Bấm chip bên dưới để lọc.`}
+          >
             <div className="rdx-ckpi-icon rdx-ckpi-icon--amber">
               <UserCheck size={15} />
             </div>
             <div className="rdx-ckpi-body">
               <span className="rdx-ckpi-val">
-                {treeStats.all - treeStats.no_head}/{treeStats.all}
+                {treeStats.co_truong}/{treeStats.all}
               </span>
               <span className="rdx-ckpi-lbl" style={{ color: treeStats.no_head > 0 ? "#b45309" : "#166534" }}>
-                {treeStats.no_head > 0 ? `${treeStats.no_head} chưa TP` : "Có TP"}
+                Có trưởng phòng
               </span>
             </div>
           </div>
 
           <div className="rdx-ckpi-divider" aria-hidden="true" />
 
-          <div className="rdx-ckpi-item" title="Phân bổ giữa Khối Sản xuất & Văn phòng">
+          <div
+            className="rdx-ckpi-item"
+            title={`${treeStats.san_xuat} phòng, tổ, nhóm thuộc khối Sản xuất; ${treeStats.ngoai_sx} phòng ngoài sản xuất.`}
+          >
             <div className="rdx-ckpi-icon rdx-ckpi-icon--plum">
               <Factory size={15} />
             </div>
             <div className="rdx-ckpi-body">
-              <span className="rdx-ckpi-val">{treeStats.san_xuat} SX / {treeStats.van_phong} VP</span>
-              <span className="rdx-ckpi-lbl">Phân bổ</span>
+              <span className="rdx-ckpi-val">
+                {treeStats.san_xuat}/{treeStats.all}
+              </span>
+              <span className="rdx-ckpi-lbl">Thuộc khối sản xuất</span>
             </div>
           </div>
         </div>
@@ -1657,7 +1810,7 @@ export function DepartmentsPage({
               <Search size={15} className="rdx-tree__search-icon" />
               <input
                 className="rdx-tree__search-input"
-                placeholder="Tìm theo tên hoặc mã…"
+                placeholder="Tìm theo tên, mã, trưởng phòng…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 aria-label="Tìm phòng ban"
@@ -1670,7 +1823,7 @@ export function DepartmentsPage({
                 type="button"
                 className={`rdx-view-mode-btn${viewMode === "tree" ? " is-active" : ""}`}
                 onClick={() => setViewMode("tree")}
-                title="Xem dạng Cây Thẻ danh sách"
+                title="Xem dạng danh sách cây"
               >
                 <LayoutGrid size={14} />
                 <span>Danh sách</span>
@@ -1679,7 +1832,7 @@ export function DepartmentsPage({
                 type="button"
                 className={`rdx-view-mode-btn${viewMode === "chart" ? " is-active" : ""}`}
                 onClick={() => setViewMode("chart")}
-                title="Xem dạng Sơ đồ Tổ chức Trực quan"
+                title="Xem dạng sơ đồ tổ chức"
               >
                 <Network size={14} />
                 <span>Sơ đồ cây</span>
@@ -1693,6 +1846,7 @@ export function DepartmentsPage({
                   type="button"
                   className={`rdx-chip${treeFilter === c.key ? " is-active" : ""}`}
                   aria-pressed={treeFilter === c.key}
+                  title={c.title}
                   onClick={() => setTreeFilter(c.key)}
                 >
                   {c.label}
@@ -1734,6 +1888,7 @@ export function DepartmentsPage({
             hiệu — ở điện thoại cột trái vẫn giữ 380px trong khung 296px và đẩy cả trang trượt
             ngang. Ba biến thể tương ứng ba nhánh cũ của biểu thức inline. */}
         <div
+          ref={bodyRef}
           className={`rdx-dept__body ${
             viewMode === "tree"
               ? "rdx-dept__body--tree"
@@ -1741,6 +1896,13 @@ export function DepartmentsPage({
                 ? "rdx-dept__body--org-sel"
                 : "rdx-dept__body--org"
           }`}
+          // Biến CSS chứ không gán thẳng `height`: style inline thắng cả khối @media điện thoại
+          // (ở đó thân trang phải cao theo nội dung).
+          style={
+            viewMode === "chart" && orgH != null
+              ? ({ "--rdx-org-h": `${orgH}px` } as React.CSSProperties)
+              : undefined
+          }
         >
           {viewMode === "tree" ? (
             /* ── CỘT TRÁI: cây tổ chức dạng Danh sách Thẻ Card ──────────── */
@@ -1764,15 +1926,10 @@ export function DepartmentsPage({
             </aside>
           ) : (
             /* ── INTERACTIVE ORG CHART CANVAS ──────────────────────────── */
-            <div
-              ref={canvasRef}
-              className={`rdx-org-canvas-container${isDragging ? " is-dragging" : ""}`}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-            >
-              {/* Floating Canvas Controls Bar */}
+            /* Thanh thu phóng + lời nhắc nằm ở khung NGOÀI vùng cuộn. Trước đây chúng là con của
+               chính khung cuộn (position:absolute) nên trôi theo nội dung: mở sơ đồ là khung tự
+               cuộn ra giữa và cả thanh "Xem toàn bộ" trôi khỏi tầm mắt. */
+            <div className="rdx-org-canvas-wrap">
               <div className="rdx-canvas-controls">
                 <button
                   type="button"
@@ -1827,6 +1984,14 @@ export function DepartmentsPage({
                 )
               )}
 
+              <div
+                ref={canvasRef}
+                className={`rdx-org-canvas-container${isDragging ? " is-dragging" : ""}`}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+              >
               {departments.length === 0 ? (
                 <div className="rdx-tree__empty">
                   <p className="rdx-tree__empty-title">Chưa có phòng ban nào</p>
@@ -1847,15 +2012,14 @@ export function DepartmentsPage({
                   style={{ zoom }}
                 >
                   <div className="rdx-org-tree-root">
-                    {roots
-                      .filter((r) => {
-                        if (!treeFiltersActive) return true;
-                        return matchesTree(r);
-                      })
-                      .map(renderOrgChartNode)}
+                    {renderOrgRow(
+                      roots.filter((r) => !treeFiltersActive || matchesTree(r)),
+                      true,
+                    )}
                   </div>
                 </div>
               )}
+              </div>
             </div>
           )}
 
@@ -1884,10 +2048,10 @@ export function DepartmentsPage({
                         <span className="rdx-drawer__code">{currentDept.code}</span>
                       )}
                       {currentDept.la_san_xuat && (
-                        <span className="rdx-drawer__pill">Khối SX</span>
+                        <span className="rdx-drawer__pill">Khối sản xuất</span>
                       )}
                       {currentDept.la_kinh_doanh && (
-                        <span className="rdx-drawer__pill rdx-drawer__pill--kd">Khối KD</span>
+                        <span className="rdx-drawer__pill rdx-drawer__pill--kd">Khối kinh doanh</span>
                       )}
                       {currentDept.la_giao_hang && (
                         <span className="rdx-drawer__pill rdx-drawer__pill--gh">Giao hàng</span>
@@ -1901,7 +2065,23 @@ export function DepartmentsPage({
                     </div>
                   </div>
                 </div>
+                {/* Sửa / xoá nằm ngay đầu thẻ, cạnh tên phòng — trước đây ở đáy tab Tổng quan, phải
+                    cuộn qua cả lưới thông tin và danh sách phòng con mới tới, đổi tab là mất. */}
                 <div className="rdx-drawer__headact">
+                  {canUpdateDept && (
+                    <button type="button" className="rdx-drawer__ghost" onClick={openInfoEdit}>
+                      <Icon name="pencil" size={14} /> Chỉnh sửa
+                    </button>
+                  )}
+                  {canDeleteDept && (
+                    <button
+                      type="button"
+                      className="rdx-drawer__ghost rdx-drawer__ghost--danger"
+                      onClick={openDeleteConfirm}
+                    >
+                      <Icon name="trash" size={14} /> Xóa phòng
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="rdx-drawer__close"
@@ -1986,28 +2166,36 @@ export function DepartmentsPage({
                           {parentName(currentDept.parent_id) ?? "Phòng gốc"}
                         </span>
                       </div>
+                      {/* Nhân sự đếm CẢ NHÁNH: khối "Sản xuất" không có hồ sơ riêng, người nằm hết ở
+                          tổ — đếm riêng phòng thì ra 0. Phòng có con thì ghi thêm số trực tiếp. */}
                       <div className="rdx-ov__item">
                         <span className="rdx-ov__k">Nhân sự</span>
                         <span className="rdx-ov__v rdx-ov__v--num">
-                          {currentDept.employee_count ?? 0}
+                          {currentDept.total_employee_count ?? currentDept.employee_count ?? 0}
                         </span>
+                        {(childrenOf.get(currentDept.id)?.length ?? 0) > 0 && (
+                          <span className="rdx-ov__note">
+                            Gồm cả phòng con; trực tiếp ở phòng này {currentDept.employee_count ?? 0}
+                          </span>
+                        )}
                       </div>
                       <div className="rdx-ov__item">
                         <span className="rdx-ov__k">Vai trò</span>
                         <span className="rdx-ov__v rdx-ov__v--num">{roles.length}</span>
+                        <span className="rdx-ov__note">Khai riêng cho phòng này</span>
                       </div>
-                      <div className="rdx-ov__item">
-                        <span className="rdx-ov__k">Khối sản xuất</span>
-                        <span className="rdx-ov__v">
-                          {currentDept.la_san_xuat ? "Có" : "Không"}
-                        </span>
-                      </div>
-                      <div className="rdx-ov__item">
-                        <span className="rdx-ov__k">Khối kinh doanh</span>
-                        <span className="rdx-ov__v">
-                          {currentDept.la_kinh_doanh ? "Có" : "Không"}
-                        </span>
-                      </div>
+                      {(["la_san_xuat", "la_kinh_doanh"] as const).map((co) => {
+                        const k = moTaKhoi(currentDept, co);
+                        return (
+                          <div className="rdx-ov__item" key={co}>
+                            <span className="rdx-ov__k">
+                              {co === "la_san_xuat" ? "Khối sản xuất" : "Khối kinh doanh"}
+                            </span>
+                            <span className="rdx-ov__v">{k.v}</span>
+                            {k.note && <span className="rdx-ov__note">{k.note}</span>}
+                          </div>
+                        );
+                      })}
                       <div className="rdx-ov__item">
                         <span className="rdx-ov__k">Lương khoán</span>
                         <span className="rdx-ov__v">
@@ -2020,10 +2208,9 @@ export function DepartmentsPage({
                           {companyProbationRatio != null
                             ? `${Math.round(companyProbationRatio * 100)}%`
                             : "—"}
-                          <span className="rdx-ov__note">
-                            {" "}
-                            · áp chung toàn công ty
-                          </span>
+                        </span>
+                        <span className="rdx-ov__note">
+                          Áp chung toàn công ty, đổi ở Cấu hình lương
                         </span>
                       </div>
                     </div>
@@ -2042,7 +2229,7 @@ export function DepartmentsPage({
                                 {child.name}
                               </span>
                               <span className="rdx-subdept-card__count">
-                                {child.employee_count ?? 0} người
+                                {child.total_employee_count ?? child.employee_count ?? 0} người
                               </span>
                             </div>
                           ))}
@@ -2050,22 +2237,6 @@ export function DepartmentsPage({
                       </div>
                     )}
 
-                    <div className="rdx-ov__actions">
-                      {canUpdateDept && (
-                        <Button type="button" variant="primary" onClick={openInfoEdit}>
-                          <Icon name="pencil" size={15} /> Chỉnh sửa thông tin
-                        </Button>
-                      )}
-                      {canDeleteDept && (
-                        <button
-                          type="button"
-                          className="btn btn--ghost depts__danger-text"
-                          onClick={openDeleteConfirm}
-                        >
-                          Xóa phòng
-                        </button>
-                      )}
-                    </div>
                   </div>
                 )}
 
@@ -2249,12 +2420,7 @@ export function DepartmentsPage({
                         {filteredMembers.length === 0 ? (
                           <p className="depts__hint">Không có nhân sự khớp tìm kiếm.</p>
                         ) : (
-                          <ul
-                            className="depts__members"
-                            style={
-                              memberPageCount > 1 ? { minHeight: memberPageSize * 54 } : undefined
-                            }
-                          >
+                          <ul className="depts__members">
                             {pageMembers.map((m) => {
                               const isChecked = selectedMemberIds.has(m.employee_id);
                               return (
@@ -2358,55 +2524,17 @@ export function DepartmentsPage({
                           </ul>
                         )}
 
-                        {/* Phân trang — luôn hiện khi có nhân sự. */}
+                        {/* Phân trang (khuôn Nhật ký) — luôn hiện khi có nhân sự. Cắt ở client
+                            trên danh sách đã lọc. */}
                         {filteredMembers.length > 0 && (
-                          <div className="depts__pager">
-                            <div className="depts__pager-left">
-                              <span className="depts__pager-info">
-                                {(memberPage - 1) * memberPageSize + 1}–
-                                {Math.min(memberPage * memberPageSize, filteredMembers.length)} trên{" "}
-                                {filteredMembers.length} người
-                              </span>
-                              <div className="depts__pager-size">
-                                <span className="depts__pager-info">Hiển thị</span>
-                                <Select
-                                  ariaLabel="Số dòng mỗi trang"
-                                  value={memberPageSize}
-                                  onChange={(v) => {
-                                    setMemberPageSize(v ?? 8);
-                                    setMemberPage(1);
-                                  }}
-                                  options={[
-                                    { value: 8, label: "8" },
-                                    { value: 16, label: "16" },
-                                    { value: 32, label: "32" },
-                                    { value: 50, label: "50" },
-                                  ]}
-                                />
-                              </div>
-                            </div>
-                            <div className="depts__pager-controls">
-                              <button
-                                type="button"
-                                className="btn btn--ghost"
-                                disabled={memberPage <= 1}
-                                onClick={() => setMemberPage((p) => Math.max(1, p - 1))}
-                              >
-                                ‹ Trước
-                              </button>
-                              <span className="depts__pager-info">
-                                Trang {memberPage}/{memberPageCount}
-                              </span>
-                              <button
-                                type="button"
-                                className="btn btn--ghost"
-                                disabled={memberPage >= memberPageCount}
-                                onClick={() => setMemberPage((p) => Math.min(memberPageCount, p + 1))}
-                              >
-                                Sau ›
-                              </button>
-                            </div>
-                          </div>
+                          <PhanTrangDayDu
+                            trang={Math.min(memberPage, memberPageCount)} size={memberPageSize}
+                            tong={filteredMembers.length} soDong={pageMembers.length}
+                            donVi="người"
+                            onTrang={setMemberPage}
+                            onSize={(n) => { setMemberPageSize(n); setMemberPage(1); }}
+                            ariaLabel="Phân trang nhân sự phòng ban"
+                          />
                         )}
                       </>
                     )}
@@ -2521,8 +2649,6 @@ export function DepartmentsPage({
                             onToggle={toggleEditRole}
                             onScope={scopeEditRole}
                             readOnly={!canManagePerms}
-                            templates={roleTemplates}
-                            onApplyTemplate={apMauSuaVai}
                           />
                         )}
 
@@ -3177,8 +3303,6 @@ export function DepartmentsPage({
             matrix={addRoleMatrix}
             onToggle={toggleAddRole}
             onScope={scopeAddRole}
-            templates={roleTemplates}
-            onApplyTemplate={apMauThemVai}
           />
         ) : (
           <p className="depts__status">

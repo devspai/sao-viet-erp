@@ -34,6 +34,7 @@ import { Icon } from "../components/Icons";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DiscardChangesDialog } from "../components/DiscardChangesDialog";
 import { MaterialCombobox } from "../components/MaterialCombobox";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { Select } from "../components/Select";
 import { fmtDate, fmtDateISO, fmtDateTime, money } from "../utils/format";
 import {
@@ -50,7 +51,6 @@ import {
   VoucherStatusBadge,
   TransferStatusBadge,
   type TransferStatus,
-  PageSizeSelect,
   DEFAULT_PAGE_SIZE,
   fmtGioCan,
   fmtQty,
@@ -64,6 +64,7 @@ import {
 } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import { chuanKho, nhanDangKho } from "../lib/khoGiay";
+import { khoaTonKho } from "../auth/quyenKho";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
 
@@ -151,12 +152,13 @@ export function KhoYeuCauPage({
   // Ghi sổ đã GỘP vào quyền "create" (bỏ tách "post"/SoD) — khớp backend: post_voucher chỉ đòi
   // create. Ai lập được phiếu là ghi sổ được luôn, không còn bước "Chờ ghi sổ" chờ người khác.
   const canPost = canCreate;
-  // Cột "tồn khả dụng" trên dòng yêu cầu — đọc quyền của màn TỒN KHO (mg `0334`). Đây là đọc
-  // DỮ LIỆU của màn khác để hiện một cột, không phải mượn cửa để mở màn này.
-  const canViewStock = can("ton_kho", "read");
   const canViewCost = can("kho", "view_cost");
 
   const [khoList, setKhoList] = useState<KhoOption[]>([]);
+  // Cột "tồn khả dụng" trên dòng yêu cầu — đọc quyền của màn TỒN KHO, mỗi kho một dòng
+  // `ton_kho_<id>` (05/10/2026). Ngăn chi tiết tự hỏi đúng kho của yêu cầu; cờ này chỉ dùng cho yêu
+  // cầu CHƯA chọn kho — số khi đó là gộp mọi kho nên phải xem được MỌI kho (khớp máy chủ).
+  const canViewStock = khoList.length > 0 && khoList.every((k) => can(khoaTonKho(k.id), "read"));
   const [khoId, setKhoId] = useState<number | null>(() => readStoredKho(KHO_KEY));
   const [requests, setRequests] = useState<StockRequest[]>([]);
   const [totalCount, setTotalCount] = useState(0);         // tổng bản ghi khớp lọc (từ BE)
@@ -274,7 +276,6 @@ export function KhoYeuCauPage({
   // BE đã lọc (tab + ngày + q) + phân trang + sắp theo id giảm (≈ created_at desc như sortInbox)
   // → dùng thẳng danh sách trả về làm trang hiện tại, không cắt/lọc lại ở client.
   const total = totalCount;
-  const maxPage = Math.max(1, Math.ceil(total / pageSize));
   const pageRequests = requests;
   // "Mới" = yêu cầu MỚI NHẤT — nằm đầu TRANG 1 (BE sắp id desc); trang khác không đánh dấu.
   const newestReqId = page === 1 ? (requests[0]?.id ?? null) : null;
@@ -378,7 +379,6 @@ export function KhoYeuCauPage({
             canViewCost={canViewCost}
             newestReqId={newestReqId}
             tableRef={tableRef}
-            pageSize={pageSize}
             onOpen={setOpenTransfer}
           />
         ) : (
@@ -503,48 +503,17 @@ export function KhoYeuCauPage({
                   })}
                 </>
               )}
-              {/* Hàng ĐỆM giữ chiều cao bảng cố định — ít yêu cầu vẫn trải đủ pageSize dòng (đồng bộ
-                  với các bảng kho khác), không teo lại khi lọc còn vài dòng. */}
-              {Array.from({
-                length: Math.max(
-                  0,
-                  pageSize - (loading ? 5 : requests.length === 0 ? 1 : pageRequests.length),
-                ),
-              }).map((_, i) => (
-                <tr key={`reqfiller-${i}`} className="rc__filler" aria-hidden="true">
-                  <td colSpan={reqCols}>&nbsp;</td>
-                </tr>
-              ))}
             </tbody>
           </table>
         )}
       </div>
 
+      {/* Về trang 1 ngay trong cùng lượt đổi cỡ — khỏi một lượt nạp thừa trước khi effect reset chạy. */}
       {total > 0 && (
-        <div className="kho-pager">
-          <PageSizeSelect value={pageSize} onChange={setPageSize} />
-          <span className="kho-pager__page">{total} yêu cầu</span>
-          <div className="rc__spacer" />
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Trước
-          </button>
-          <span className="kho-pager__page">
-            Trang {page} / {maxPage}
-          </span>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={page >= maxPage}
-            onClick={() => setPage((p) => Math.min(maxPage, p + 1))}
-          >
-            Sau
-          </button>
-        </div>
+        <PhanTrangDayDu trang={page} size={pageSize} tong={total} soDong={pageRequests.length}
+          onTrang={setPage} onSize={(n) => { setPageSize(n); setPage(1); }} loading={loading}
+          donVi={dieuChuyen ? "phiếu" : "yêu cầu"}
+          ariaLabel={dieuChuyen ? "Phân trang phiếu điều chuyển" : "Phân trang phiếu từ yêu cầu"} />
       )}
 
       {openRequest != null && token && (
@@ -623,7 +592,6 @@ function TransferTable({
   canViewCost,
   newestReqId,
   tableRef,
-  pageSize,
   onOpen,
 }: {
   rows: StockRequest[];
@@ -632,7 +600,6 @@ function TransferTable({
   canViewCost: boolean;
   newestReqId: number | null;
   tableRef: RefObject<HTMLTableElement>;
-  pageSize: number;
   onOpen: (id: number) => void;
 }) {
   // Mã · Tuyến · Ngày · Trạng thái · [Tổng giá vốn] · Số dòng · [thao tác]
@@ -699,14 +666,6 @@ function TransferTable({
             );
           })
         )}
-        {/* Hàng ĐỆM giữ chiều cao bảng cố định (giống bảng khác) — ít phiếu vẫn trải đủ pageSize dòng. */}
-        {Array.from({
-          length: Math.max(0, pageSize - (loading ? 5 : rows.length === 0 ? 1 : rows.length)),
-        }).map((_, i) => (
-          <tr key={`tfiller-${i}`} className="rc__filler" aria-hidden="true">
-            <td colSpan={cols}>&nbsp;</td>
-          </tr>
-        ))}
       </tbody>
     </table>
   );
@@ -1165,6 +1124,10 @@ export function InboxRequestDrawer({
   const [req, setReq] = useState<StockRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const can = useCan();
+  // Cột tồn đi theo DÒNG KHO của chính yêu cầu (`ton_kho_<id>`, 05/10/2026) — khớp máy chủ
+  // (`kho_request.py` chỉ điền `ton_kha_dung` cho người xem được kho đó). Chưa chọn kho thì theo cha.
+  const xemTon = req?.kho_id != null ? can(khoaTonKho(req.kho_id), "read") : canViewStock;
   // Phiếu đã lập từ yêu cầu này (chờ ghi sổ / đã ghi sổ) — xem lại kể cả khi yêu cầu đã Hoàn tất.
   const [vouchers, setVouchers] = useState<StockVoucher[]>([]);
   // Kho HỦY yêu cầu (quyết không cấp) — kèm lý do bắt buộc.
@@ -1395,7 +1358,7 @@ export function InboxRequestDrawer({
                         <th style={{ width: 60, textAlign: "center" }}>ĐVT</th>
                         <th className="kho-num" style={{ width: 100 }}>Yêu cầu</th>
                         {/* Cột Tồn khả dụng có chiều rộng 140px chuẩn, không bao giờ bị xén */}
-                        {canViewStock && <th className="kho-num" style={{ width: 140 }}>Tồn khả dụng</th>}
+                        {xemTon && <th className="kho-num" style={{ width: 140 }}>Tồn khả dụng</th>}
                         {canViewCost && <th className="kho-num" style={{ width: 100 }}>Đơn giá</th>}
                         {canViewCost && <th className="kho-num" style={{ width: 120 }}>Thành tiền</th>}
                         {hienGiaBan && <th className="kho-num" style={{ width: 120 }}>Giá bán</th>}
@@ -1466,7 +1429,7 @@ export function InboxRequestDrawer({
                                 </div>
                               )}
                             </td>
-                            {canViewStock && (
+                            {xemTon && (
                               <td className="kho-num">
                                 <div style={{ fontFamily: "var(--ff-sans)", fontWeight: "var(--fw-bold)" }}>
                                   {fmtQty(l.ton_kha_dung ?? 0)} <span className="kho-alloc__unit">{dvtGoc}</span>
@@ -1829,6 +1792,7 @@ function VoucherCreateDrawer({
               hang_loai: l.hang_loai, hang_id: l.hang_id, kho_id: khoId, con_hang: true,
               // Giấy: chỉ lô đúng dạng/khổ dòng xin.
               dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai,
+              man: "yeu_cau",
             })
             .catch(() => [] as StockLot[]),
           api.kho.phieu
@@ -2431,6 +2395,7 @@ function AllocRow({
       .danhSachLo(token, {
         hang_loai: l.hang_loai, hang_id: l.hang_id, kho_id: khoId, con_hang: true,
         dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai,
+        man: "yeu_cau",
       })
       .then((lots) => {
         if (cancelled) return;

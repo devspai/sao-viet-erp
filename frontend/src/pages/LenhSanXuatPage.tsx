@@ -29,7 +29,8 @@ import { useAuth } from "../auth/useAuth";
 import type { NavigateFn } from "../components/AppShell";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
-import { Pager, trangHopLe } from "../components/Pager";
+import { trangHopLe } from "../components/Pager";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useTre } from "../lib/useTre";
 import { LenhSxHoSoView } from "./LenhSxHoSoView";
 import {
@@ -50,17 +51,6 @@ import {
 // mất hình. Nạp TRƯỚC để mọi rule `.hslsx` bên dưới thắng khi trùng độ ưu tiên.
 import "./ke-hoach-sx.css";
 import "./lenh-san-xuat.css";
-
-/** Số dòng mỗi trang. Bằng `danh_sach.PAGE_SIZE_MAC_DINH` ở máy chủ nên không đẻ ra con số thứ hai
- *  phải nhớ.
- *
- *  Vì sao 50 chứ không phải 20 như màn danh mục: chi phí MỘT request ở đây KHÔNG phụ thuộc
- *  `page_size` — tầng 1 quét trọn tập lệnh trong phạm vi rồi tầng 2 mới cắt trang (docstring
- *  `services/lenh_sx/danh_sach.py`). Trang nhỏ = nhiều request = nhiều lượt quét. Bảng có
- *  `max-height` + cuộn dọc nên 50 dòng vẫn gọn.
- *
- *  ⚠️ KHÔNG export: con số của MÀN NÀY. */
-const PAGE_SIZE = 50;
 
 /** Gộp sự kiện SSE rồi mới tải lại. Chuyền chạy thì sự kiện tới liên tục — refetch mỗi cái là
  *  bảng nhấp nháy dưới tay người đang đọc. */
@@ -167,6 +157,10 @@ export function LenhSanXuatPage({
   const [chiTre, setChiTre] = useState(false);
   const [tab, setTab] = useState<LsxTheoDoiTab>("tat_ca");
   const [page, setPage] = useState(1);
+  // Dòng/trang do ô ở chân bảng chọn (05/10/2026, khuôn Nhật ký). Lưu ý chi phí: MỘT request ở đây
+  // không phụ thuộc `page_size` — tầng 1 quét trọn tập lệnh trong phạm vi rồi tầng 2 mới cắt trang
+  // (docstring `services/lenh_sx/danh_sach.py`), nên trang nhỏ = nhiều lượt quét hơn khi lật.
+  const [pageSize, setPageSize] = useState(25);
 
   // Phím tắt Ctrl+K để focus ô tìm kiếm
   useEffect(() => {
@@ -261,7 +255,7 @@ export function LenhSanXuatPage({
         tab,
         q: qTre.trim() || undefined,
         page,
-        page_size: PAGE_SIZE,
+        page_size: pageSize,
         nhom_cong_doan: nhomCd || undefined,
         may_id: mayId ? Number(mayId) : undefined,
         uu_tien: uuTien ? (uuTien as "gap" | "binh_thuong") : undefined,
@@ -280,7 +274,7 @@ export function LenhSanXuatPage({
         setCapNhatLuc(new Date());
         // Màn này không xoá dòng, nhưng `total` vẫn co lại khi người khác đổi trạng thái lệnh
         // (SSE) — đang đứng trang 6 mà tập tụt còn 4 trang thì bảng rỗng trơn.
-        const ve = trangHopLe(page, r.total, PAGE_SIZE);
+        const ve = trangHopLe(page, r.total, pageSize);
         if (ve !== null) setPage(ve);
       })
       .catch((e) => {
@@ -295,7 +289,7 @@ export function LenhSanXuatPage({
         });
       })
       .finally(() => setLoading(false));
-  }, [token, tab, qTre, page, nhomCd, mayId, uuTien, chiTre, tuGui, denGui]);
+  }, [token, tab, qTre, page, pageSize, nhomCd, mayId, uuTien, chiTre, tuGui, denGui]);
   useEffect(() => {
     load();
   }, [load]);
@@ -364,7 +358,7 @@ export function LenhSanXuatPage({
 
   // --- dẫn xuất --------------------------------------------------------------
   // Số cạnh tiêu đề = tổng theo BỘ LỌC (`dem_theo_tab.tat_ca`), KHÔNG theo tab. `total` của
-  // response là tổng SAU cả tab và chỉ dùng cho Pager — hoán chỗ hai số này thì đứng ở tab "Chờ
+  // response là tổng SAU cả tab và chỉ dùng cho chân phân trang — hoán chỗ hai số này thì đứng ở tab "Chờ
   // nhập kho" mà tiêu đề tụt xuống 7, người ta tưởng cả hệ có 7 lệnh.
   const tongTheoLoc = dem?.tat_ca ?? null;
   const dangLoc =
@@ -674,6 +668,9 @@ export function LenhSanXuatPage({
           <BangLoi text="Không làm mới được danh sách." onRetry={load} />
         )}
 
+        {/* Gợi ý đứng TRÊN bảng: chân phân trang phải nằm sát đáy khung để nối thành một thẻ. */}
+        {tranNgang && <p className="hslsx__vuot">Vuốt ngang để xem thêm cột →</p>}
+
         <div
           className="hslsx__tablewrap"
           ref={khungRef}
@@ -780,21 +777,29 @@ export function LenhSanXuatPage({
           </table>
         </div>
 
-        {tranNgang && <p className="hslsx__vuot">Vuốt ngang để xem thêm cột →</p>}
-
-        {/* Bảng rỗng ⇒ ẩn Pager: khối rỗng đã nói giúp rồi. */}
+        {/* Bảng rỗng ⇒ ẩn chân: khối rỗng đã nói giúp rồi. */}
         {total > 0 && (
-          <div className="hslsx__foot" aria-live="polite">
-            <Pager
-              total={total}
-              page={page}
-              size={PAGE_SIZE}
-              onPage={setPage}
-              loading={loading}
-              unit="lệnh"
-            />
-            {capNhatLuc && <span className="hslsx__moi">Vừa cập nhật {gioPhut(capNhatLuc)}</span>}
-          </div>
+          <PhanTrangDayDu
+            trang={page}
+            size={pageSize}
+            tong={total}
+            soDong={rows.length}
+            onTrang={setPage}
+            onSize={(n) => {
+              setPageSize(n);
+              setPage(1);
+            }}
+            loading={loading}
+            donVi="lệnh"
+            ariaLabel="Phân trang lệnh sản xuất"
+            ghiChu={
+              capNhatLuc && (
+                <span className="hslsx__moi" aria-live="polite">
+                  Vừa cập nhật {gioPhut(capNhatLuc)}
+                </span>
+              )
+            }
+          />
         )}
       </div>
 

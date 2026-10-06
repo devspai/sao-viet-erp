@@ -51,17 +51,7 @@ class TaiSanRepository:
         offset: int = 0,
         limit: int = 50,
     ) -> tuple[list[TaiSan], int]:
-        conds = []
-        if q:
-            kw = f"%{q.strip()}%"
-            conds.append(or_(TaiSan.ma.ilike(kw), TaiSan.ten.ilike(kw)))
-        if loai:
-            conds.append(TaiSan.loai == loai)
-        if bo_phan_id:
-            conds.append(TaiSan.bo_phan_id == bo_phan_id)
-        if trang_thai:
-            conds.append(TaiSan.trang_thai == trang_thai)
-
+        conds = self._dieu_kien(q=q, loai=loai, bo_phan_id=bo_phan_id, trang_thai=trang_thai)
         tong = self.db.execute(
             select(func.count()).select_from(TaiSan).where(*conds)
         ).scalar_one()
@@ -76,6 +66,47 @@ class TaiSanRepository:
             ).scalars()
         )
         return rows, int(tong)
+
+    @staticmethod
+    def _dieu_kien(
+        *, q: str | None, loai: str | None, bo_phan_id: int | None, trang_thai: str | None,
+    ) -> list:
+        conds = []
+        if q:
+            kw = f"%{q.strip()}%"
+            conds.append(or_(TaiSan.ma.ilike(kw), TaiSan.ten.ilike(kw)))
+        if loai:
+            conds.append(TaiSan.loai == loai)
+        if bo_phan_id:
+            conds.append(TaiSan.bo_phan_id == bo_phan_id)
+        if trang_thai:
+            conds.append(TaiSan.trang_thai == trang_thai)
+        return conds
+
+    def dem_theo_loai(
+        self, *, q: str | None, bo_phan_id: int | None, trang_thai: str | None,
+    ) -> dict[str, int]:
+        """Số tài sản mỗi loại theo các bộ lọc KHÁC loại — nhóm nút Loại hiện số đếm của cả ba
+        lựa chọn cùng lúc, nên không lọc theo loại đang chọn."""
+        conds = self._dieu_kien(q=q, loai=None, bo_phan_id=bo_phan_id, trang_thai=trang_thai)
+        return {
+            loai: int(n)
+            for loai, n in self.db.execute(
+                select(TaiSan.loai, func.count()).where(*conds).group_by(TaiSan.loai)
+            )
+        }
+
+    def tat_ca_theo_loc(
+        self, *, q: str | None, loai: str | None, bo_phan_id: int | None, trang_thai: str | None,
+    ) -> list[TaiSan]:
+        """Mọi tài sản khớp bộ lọc, KHÔNG cắt trang — để cộng dải số đầu màn (tổng giá mua, còn
+        lại) cho đúng cả sổ chứ không chỉ trang đang xem. Nạp sẵn `moc` như `danh_sach`."""
+        conds = self._dieu_kien(q=q, loai=loai, bo_phan_id=bo_phan_id, trang_thai=trang_thai)
+        return list(
+            self.db.execute(
+                select(TaiSan).options(selectinload(TaiSan.moc)).where(*conds)
+            ).scalars()
+        )
 
     def ma_lon_nhat(self, tien_to: str) -> str | None:
         """Mã lớn nhất đang có theo tiền tố — nền sinh số kế tiếp."""
@@ -112,6 +143,12 @@ class TaiSanRepository:
 
     def commit(self) -> None:
         self.db.commit()
+
+    def flush(self) -> None:
+        self.db.flush()
+
+    def rollback(self) -> None:
+        self.db.rollback()
 
     def xoa(self, obj) -> None:
         self.db.delete(obj)

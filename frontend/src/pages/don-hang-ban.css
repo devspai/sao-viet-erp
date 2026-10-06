@@ -200,46 +200,16 @@
   box-shadow: 0 6px 16px rgba(20, 19, 15, 0.08);
 }
 
-.dhb__pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-  margin-top: var(--sp-3);
+/* Chân phân trang là anh em của khung cuộn ngang (để không trôi theo khi cuộn) nhưng phải NHÌN
+   như đáy của thẻ bảng (khuôn Nhật ký): bỏ bo góc dưới của khung, chân nối viền. */
+.dhb__tablewrap:has(+ .ptdd) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
-
-.dhb__pager-info {
-  font-family: var(--ff-sans);
-  font-size: 12px;
-  color: var(--ash);
-}
-
-.dhb__pager-btns {
-  display: flex;
-  gap: var(--sp-2);
-}
-
-.dhb__pager-btn {
-  padding: 6px 14px;
-  border-radius: var(--r-3);
+.dhb__tablewrap + .ptdd {
   border: 1px solid var(--rule-soft);
-  background: var(--canvas);
-  color: var(--ink);
-  font-family: var(--ff-sans);
-  font-size: 12.5px;
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--easing-standard);
-}
-
-.dhb__pager-btn:hover:not(:disabled) {
-  border-color: var(--ash-2);
-  background: var(--paper-contrast);
-}
-
-.dhb__pager-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+  border-top: 0;
+  border-radius: 0 0 var(--r-6) var(--r-6);
 }
 
 .dhb__table {
@@ -511,7 +481,7 @@
   overflow-y: auto;
   /* CỐ Ý KHÔNG đặt `overflow-x: hidden` (đã thử và gỡ ngày 21/08/2026). Nó không làm nội dung vừa
      ô — chỉ CẮT CỤT phần thừa, mà cắt số tiền thì tệ hơn hẳn một thanh cuộn xấu. Cách chữa đúng
-     là để nội dung co được: xem `min-width: 0` ở `.dhb__timeline-step` và khung cuộn riêng của
+     là để nội dung co được: xem `min-width: 0` ở `.dhb__path-buoc` và khung cuộn riêng của
      `.dhb__invoice-tablewrap`. Còn thừa chỗ nào thì phải THẤY nó mà sửa, không phải giấu đi. */
   box-shadow: var(--shadow-lg);
   border-left: 1px solid var(--rule-soft);
@@ -787,114 +757,87 @@
   color: var(--ash);
 }
 
-.dhb__lifecycle-subtitle {
-  font-size: 11px;
-  color: var(--ash-2);
-  font-style: italic;
-}
-
-.dhb__timeline {
-  /* Mép trái/phải của đường nối = tâm chấm đầu/cuối: 6 bước chia đều ⇒ 1/12 bề ngang. */
-  --dhb-tl-le: 8.33%;
+/* Thanh chặng (phương án A, 05/10/2026) — Chốt → Cọc → Sản xuất (gồm nhập kho) → Giao → Hóa đơn.
+   Ô hình mũi tên bằng clip-path; chọn = viền ĐỦ quanh mũi tên (drop-shadow 4 phía bám theo hình
+   đã cắt — outline/border thì bị clip-path cắt mất). */
+.dhb__path {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-  padding: 0 var(--sp-4);
-  margin-bottom: var(--sp-3);
-}
-
-.dhb__timeline-track,
-.dhb__timeline-fill {
-  position: absolute;
-  top: 13px;
-  height: 2px;
-  border-radius: 2px;
-  z-index: 1;
-}
-
-.dhb__timeline-track {
-  left: var(--dhb-tl-le);
-  right: var(--dhb-tl-le);
-  background: var(--rule-soft);
-}
-
-.dhb__timeline-fill {
-  left: var(--dhb-tl-le);
-  background: var(--moss);
-  transition: width var(--duration-base) var(--easing-standard);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dhb__timeline-fill { transition: none; }
-}
-
-.dhb__timeline-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  z-index: 2;
-  flex: 1;
-  /* ⚠️ `flex: 1` KHÔNG đủ để co: mặc định `min-width: auto` giữ mỗi bước rộng bằng chữ dài nhất
-     trong nó ("không cần cọc", "đã ghi một phần"). 5 bước như vậy cộng lại rộng hơn ô chi tiết
-     ⇒ đẩy tràn cả viền, và vì `.dhb__drawer-content` cuộn được nên nền không đi theo, nhìn như
-     chữ lòi hẳn ra ngoài (chủ báo 21/08/2026: "ở laptop nó tràn viền luôn"). */
+  gap: 3px;
   min-width: 0;
 }
-
-/* Nhãn bước: xuống dòng còn đọc được; kéo ngang thì cả dải vỡ. */
-.dhb__timeline-label,
-.dhb__timeline-sub {
-  overflow-wrap: anywhere;
-  text-align: center;
+.dhb__path-buoc {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
+.dhb__path-o {
+  display: grid;
+  gap: 1px;
+  padding: 7px 6px 7px 16px;
+  background: var(--rule-hair);
+  color: var(--ash-2);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%, 9px 50%);
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+.dhb__path-buoc:first-child .dhb__path-o {
+  padding-left: 10px;
+  border-radius: var(--r-2) 0 0 var(--r-2);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%);
+}
+.dhb__path-buoc:last-child .dhb__path-o {
+  border-radius: 0 var(--r-2) var(--r-2) 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 9px 50%);
+}
+.dhb__path-o b,
+.dhb__path-o small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dhb__path-o b { font-size: 12.5px; font-weight: 600; }
+.dhb__path-o small { font-size: 11.5px; }
+.dhb__path-o small.is-warn { color: var(--signal); font-weight: 600; }
+.dhb__path-buoc:hover .dhb__path-o { background: var(--rule-soft); }
+.dhb__path-buoc.is-done .dhb__path-o { background: var(--moss-soft); color: var(--moss-deep); }
+.dhb__path-buoc.is-do .dhb__path-o { background: var(--steel-soft); color: var(--ink); }
+.dhb__path-buoc.is-dang .dhb__path-o { background: var(--ink); color: var(--canvas); }
+.dhb__path-buoc.is-dang .dhb__path-o small.is-warn { color: var(--signal-soft); }
+.dhb__path-buoc.is-selected {
+  filter: drop-shadow(1.5px 0 0 var(--rust)) drop-shadow(-1.5px 0 0 var(--rust))
+    drop-shadow(0 1.5px 0 var(--rust)) drop-shadow(0 -1.5px 0 var(--rust));
+  position: relative;
+  z-index: 1;
+}
+.dhb__path-buoc:focus-visible { outline: none; }
+.dhb__path-buoc:focus-visible .dhb__path-o { background: var(--rule-soft); }
 
-.dhb__timeline-dot {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-pill);
-  background: var(--paper-contrast);
-  border: 2px solid var(--rule-soft);
+/* Việc tiếp theo — một câu + thẻ nhỏ + một nút, luôn ngay dưới thanh chặng. */
+.dhb__viec {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  margin-bottom: var(--sp-1);
-  color: var(--ash-2);
-  transition: all var(--duration-base) var(--easing-standard);
-  font-size: 11.5px;
-  font-weight: 700;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3);
+  padding: 10px 12px;
 }
+.dhb__viec-chu { display: grid; gap: 6px; min-width: 0; flex: 1 1 260px; }
+.dhb__viec-cau { font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.dhb__viec-the { display: flex; flex-wrap: wrap; gap: 6px; }
+.dhb__viec-nut { flex: 0 0 auto; }
 
-.dhb__timeline-step.is-done .dhb__timeline-dot {
-  background: var(--moss);
-  border-color: var(--moss);
-  color: #fff;
-}
-
-.dhb__timeline-step.is-active .dhb__timeline-dot {
-  background: var(--paper-contrast);
-  border-color: var(--amber);
-  color: var(--amber-deep);
-}
-
-.dhb__timeline-label {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ash);
-  text-align: center;
-}
-
-.dhb__timeline-step.is-done .dhb__timeline-label {
-  color: var(--ink);
-}
-
-.dhb__timeline-sub {
-  font-size: 10.5px;
-  color: var(--ash-2);
-  margin-top: 2px;
-  font-family: var(--ff-sans);
-}
+/* Năm khung chặng chồng trong MỘT ô lưới (05/10/2026): ô cao bằng khung dài nhất, khung không chọn
+   chỉ `visibility: hidden` (vẫn chiếm chỗ, không bấm/tab/đọc được) ⇒ đổi chặng không giật dài/ngắn. */
+.dhb__chang-khung { display: grid; min-width: 0; }
+.dhb__chang-o { grid-area: 1 / 1; min-width: 0; display: flex; flex-direction: column; }
+.dhb__chang-o > .dhb__lifecycle-box { flex: 1 1 auto; }
+.dhb__chang-o:not(.is-mo) { visibility: hidden; }
 
 /* Sections inside Vòng đời đơn */
 .dhb__lifecycle-box {
@@ -1375,21 +1318,6 @@
   gap: var(--sp-2) var(--sp-5);
 }
 
-/* --- Timeline Interactive Steps --- */
-.dhb__timeline-step {
-  cursor: pointer;
-  transition: transform var(--duration-fast) var(--easing-standard);
-}
-
-.dhb__timeline-step:hover {
-  transform: translateY(-1px);
-}
-
-.dhb__timeline-step.is-selected .dhb__timeline-dot {
-  box-shadow: 0 0 0 3px var(--rule-hair);
-  border-color: var(--rust);
-}
-
 @media (max-width: 760px) {
   .dhb__drawer-content {
     width: 100%;
@@ -1468,25 +1396,7 @@
 
 
 /* --- Tiến độ đơn: SX → Nhập kho → Giao (19/09/2026) --- */
-.dhb__td-mini {
-  display: block;
-  width: 70%;
-  height: 4px;
-  margin-top: 4px;
-  border-radius: 2px;
-  background: var(--rule-soft);
-  overflow: hidden;
-}
-.dhb__td-mini-fill {
-  display: block;
-  height: 100%;
-  background: var(--amber);
-}
-.dhb__td-mini-fill.is-xong { background: var(--moss); }
-.dhb__timeline-sub.is-warn { color: var(--signal); font-weight: 600; }
-
 .dhb__td-tre { margin: 0 0 var(--sp-2); font-size: 12px; }
-.dhb__td-dung { margin: 0 0 var(--sp-2); font-size: 12px; color: var(--moss-deep); }
 .dhb__td-note { margin: 0; font-size: 12px; color: var(--ash); }
 .dhb__td-warn { color: var(--signal); font-style: normal; }
 
@@ -1536,6 +1446,58 @@
   color: var(--ash);
   overflow-wrap: anywhere;
 }
+
+/* Chặng Sản xuất theo từng món (05/10/2026): ba thanh công đoạn → KCS đạt → kho nhận. */
+.dhb__sx-goi-y { font-size: 12px; color: var(--ash-2); }
+.dhb__sx-mons { display: grid; gap: var(--sp-4); min-width: 0; }
+.dhb__sx-mon { display: grid; gap: 6px; min-width: 0; }
+.dhb__sx-mon-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--sp-2);
+}
+.dhb__sx-mon-head > b { font-size: 13px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.dhb__sx-tags { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.dhb__sx-dat { margin-left: auto; font-size: 12px; color: var(--ash); white-space: nowrap; }
+.dhb__sx-tag {
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ash);
+  background: none;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-2);
+  padding: 0 7px;
+  white-space: nowrap;
+}
+.dhb__sx-tag--lenh { color: var(--rust); font-weight: 600; cursor: pointer; }
+.dhb__sx-tag--lenh:hover { background: var(--rule-hair); }
+.dhb__sx-tag--ok { background: var(--moss-soft); border-color: transparent; color: var(--moss-deep); }
+.dhb__sx-tag--warn { background: var(--amber-soft); border-color: transparent; color: var(--amber-deep); }
+.dhb__sx-tag--bad { background: var(--signal-soft); border-color: transparent; color: var(--signal); }
+.dhb__sx-ba {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px 10px;
+  font-size: 12px;
+}
+.dhb__sx-k { color: var(--ash-2); white-space: nowrap; }
+.dhb__sx-v { color: var(--ash); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dhb__sx-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--rule-soft);
+  overflow: hidden;
+}
+.dhb__sx-bar > i { display: block; height: 100%; }
+.dhb__sx-fill--cd { background: var(--steel); }
+.dhb__sx-fill--kcs { background: var(--amber); }
+.dhb__sx-fill--kho { background: var(--moss); }
+/* Phần KCS đã gửi mà kho chưa nhận: sọc, nối tiếp phần kho đã nhận. */
+.dhb__sx-fill--cho { background: repeating-linear-gradient(135deg, var(--moss) 0 3px, var(--moss-soft) 3px 6px); }
 
 .dhb__td-giao { display: grid; gap: var(--sp-3); min-width: 0; }
 .dhb__td-yc-list { display: grid; gap: var(--sp-2); }

@@ -18,7 +18,8 @@ import { useAuth } from "../auth/useAuth";
 import { useCan, useScopeOf } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
-import { Pager, trangHopLe } from "../components/Pager";
+import { trangHopLe } from "../components/Pager";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { StatusTabs } from "../components/StatusTabs";
 import { LsxDetailView } from "./LsxDetailView";
 import { LsxPreviewDrawer } from "./LsxPreviewDrawer";
@@ -41,9 +42,6 @@ import {
   num,
 } from "./keHoachSxShared";
 
-/** Dòng/trang cho CẢ hai bảng của màn. Khớp mặc định `size` của `/api/lsx`; đổi ở đây là
- *  đổi cả chân trang lẫn tham số gửi lên, không được để hai nơi lệch nhau. */
-const SIZE_TRANG = 50;
 import "./ke-hoach-sx.css";
 
 type View = { mode: "list" } | { mode: "detail"; id: number };
@@ -97,6 +95,14 @@ export function KeHoachSXPage({
   const [facets, setFacets] = useState<Record<string, number>>({});
   const [queuePage, setQueuePage] = useState(1);
   const [queueTotal, setQueueTotal] = useState(0);
+  // Dòng/trang dùng CHUNG cho cả hai bảng của màn: cùng một chỗ giữ cho chân trang và tham số
+  // gửi lên không lệch nhau. Đổi cỡ ⇒ cả hai bảng về trang 1.
+  const [sizeTrang, setSizeTrang] = useState(25);
+  const doiSizeTrang = (n: number) => {
+    setSizeTrang(n);
+    setPage(1);
+    setQueuePage(1);
+  };
   // Hàng đèn tiến độ (Đợt 1 redesign 18/08/2026) — GỌI RỜI sau bảng lệnh, không nhét vào
   // `/api/lsx`: endpoint tổng quan chạy engine cân đối vật tư + bộ dò vấn đề, còn bảng lệnh phải
   // hiện ngay. `denTick` để các hành động khác (tạo lệnh, đổi routing, giữ chỗ) bắt đèn tính lại —
@@ -107,15 +113,15 @@ export function KeHoachSXPage({
   const loadQueue = useCallback(() => {
     if (!token) return;
     api.lsx
-      .hangCho(token, { page: queuePage, size: SIZE_TRANG })
+      .hangCho(token, { page: queuePage, size: sizeTrang })
       .then((r) => {
         setQueue(r.items);
         setQueueTotal(r.total);
-        const ve = trangHopLe(queuePage, r.total, SIZE_TRANG);
+        const ve = trangHopLe(queuePage, r.total, sizeTrang);
         if (ve) setQueuePage(ve);
       })
       .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : String(e)));
-  }, [token, queuePage]);
+  }, [token, queuePage, sizeTrang]);
 
   // Số thứ tự lượt tải bảng lệnh. Không có nó thì một lượt gọi CŨ về muộn sẽ ghi đè kết quả
   // mới: bấm "Tạo lệnh" xong màn đặt lọc theo đơn vừa tạo, nhưng lượt tải không-lọc bắn trước đó
@@ -132,7 +138,7 @@ export function KeHoachSXPage({
         q: q.trim() || undefined,
         gia_cong: gcFilter || undefined,
         page,
-        size: SIZE_TRANG,
+        size: sizeTrang,
       })
       .then((r) => {
         if (luot !== luotLenh.current) return;   // đã có lượt mới hơn — bỏ kết quả này
@@ -140,14 +146,14 @@ export function KeHoachSXPage({
         setTotal(r.total);
         setFacets(r.facets);
         // Xoá nốt dòng cuối của trang 3 ⇒ còn 2 trang: không kéo về thì màn trắng trơn.
-        const ve = trangHopLe(page, r.total, SIZE_TRANG);
+        const ve = trangHopLe(page, r.total, sizeTrang);
         if (ve) setPage(ve);
       })
       .catch((e: unknown) => {
         if (luot !== luotLenh.current) return;
         setErr(e instanceof ApiError ? e.message : String(e));
       });
-  }, [token, orderFilter, khachFilter, ttFilter, q, gcFilter, page]);
+  }, [token, orderFilter, khachFilter, ttFilter, q, gcFilter, page, sizeTrang]);
 
   // Nguồn hai ô lọc — theo tab trạng thái + ô tìm đang áp, KHÔNG theo chính hai ô lọc đó.
   const loadNguonLoc = useCallback(() => {
@@ -324,7 +330,9 @@ export function KeHoachSXPage({
           onOpen={(id) => setPreviewOrderId(id)}
           total={queueTotal}
           page={queuePage}
+          size={sizeTrang}
           onPage={setQueuePage}
+          onSize={doiSizeTrang}
         />
       ) : (
         <LenhTable
@@ -357,7 +365,9 @@ export function KeHoachSXPage({
           dem={demTheoTt}
           total={total}
           page={page}
+          size={sizeTrang}
           onPage={setPage}
+          onSize={doiSizeTrang}
         />
       )}
 
@@ -384,7 +394,9 @@ function QueueTable({
   onOpen,
   total,
   page,
+  size,
   onPage,
+  onSize,
 }: {
   rows: HangChoItem[] | null;
   scopeAll: boolean;
@@ -392,7 +404,9 @@ function QueueTable({
   /** TỔNG đơn chờ trên máy chủ (≠ `rows.length`, vốn chỉ là trang đang xem). */
   total: number;
   page: number;
+  size: number;
   onPage: (p: number) => void;
+  onSize: (n: number) => void;
 }) {
   if (rows !== null && rows.length === 0) {
     return (
@@ -408,6 +422,7 @@ function QueueTable({
     );
   }
   return (
+    <>
     <div className="khsx__tablewrap">
       <table className="khsx__table khsx__table--queue">
         <caption className="sr-only">Đơn hàng đã chuyển xuống sản xuất, chờ lên lệnh</caption>
@@ -498,8 +513,15 @@ function QueueTable({
           </tbody>
         )}
       </table>
-      <Pager total={total} page={page} size={SIZE_TRANG} onPage={onPage} unit="đơn chờ" />
     </div>
+    {/* Chân đặt NGOÀI khung cuộn ngang (bảng rộng 880px) để không trôi theo bảng; CSS nối nó
+        thành đáy thẻ. */}
+    {total > 0 && (
+      <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows?.length ?? 0}
+        onTrang={onPage} onSize={onSize} loading={rows === null}
+        donVi="đơn chờ" ariaLabel="Phân trang đơn chờ lên lệnh" />
+    )}
+    </>
   );
 }
 
@@ -525,7 +547,9 @@ function LenhTable({
   dem,
   total,
   page,
+  size,
   onPage,
+  onSize,
 }: {
   rows: LsxListItem[] | null;
   ttFilter: string;
@@ -543,7 +567,9 @@ function LenhTable({
   /** TỔNG lệnh khớp bộ lọc trên máy chủ. */
   total: number;
   page: number;
+  size: number;
   onPage: (p: number) => void;
+  onSize: (n: number) => void;
   onOpen: (id: number) => void;
   onGoQueue: () => void;
   /** Đèn theo lsx_id — tải RỜI sau bảng, nên thiếu khoá = chưa có tin, không phải "không sao". */
@@ -803,8 +829,9 @@ function LenhTable({
         </div>
       )}
 
-      {rows !== null && rows.length > 0 && (
-        <Pager total={total} page={page} size={SIZE_TRANG} onPage={onPage} unit="lệnh" />
+      {rows !== null && rows.length > 0 && total > 0 && (
+        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+          onTrang={onPage} onSize={onSize} donVi="lệnh" ariaLabel="Phân trang lệnh sản xuất" />
       )}
     </>
   );

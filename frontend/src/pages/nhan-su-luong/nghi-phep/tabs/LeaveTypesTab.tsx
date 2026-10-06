@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type LeaveType } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
 import { EmptyState } from "../../../../components/EmptyState";
-import { Pager } from "../../../../components/Pager";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { RowActionButton } from "../../../../components/RowActionButton";
 import {
   CheckCircle2,
@@ -27,6 +27,7 @@ export function LeaveTypesTab({ token }: { token: string }) {
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   /** Trang của danh mục — cắt ở CLIENT (endpoint `/types` còn nuôi 2 dropdown, xem `PAGE_SIZE`). */
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
 
   const [loading, setLoading] = useState(true);
   /** Lỗi TẢI danh mục. `toggleActive`/`handleDelete` báo lỗi bằng alert nên không đụng ô này —
@@ -76,9 +77,9 @@ export function LeaveTypesTab({ token }: { token: string }) {
 
   // Cắt trang cho CẢ hai chế độ xem (thẻ và bảng) — hai chế độ chỉ khác cách vẽ, cùng một
   // danh sách, nên chuyển qua lại không được nhảy sang tập dữ liệu khác.
-  const totalPages = Math.max(1, Math.ceil(totalTypes / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(totalTypes / size));
   const pageSafe = Math.min(page, totalPages);
-  const pagedTypes = (items ?? []).slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
+  const pagedTypes = (items ?? []).slice((pageSafe - 1) * size, pageSafe * size);
 
   return (
     <div className="cc-leave-types-wrapper">
@@ -270,15 +271,14 @@ export function LeaveTypesTab({ token }: { token: string }) {
         </div>
       )}
 
-      {/* Chân bảng chung cho CẢ hai chế độ xem (thẻ / bảng). Danh mục thường 5-15 dòng nên nút
-          chuyển trang gần như không bao giờ hiện — đúng ý: `Pager` tự ẩn khi chỉ có 1 trang. */}
+      {/* Chân bảng chung cho CẢ hai chế độ xem (thẻ / bảng) — cùng một danh sách đã cắt. */}
       {!loading && !listError && totalTypes > 0 && (
-        <Pager
-          total={totalTypes}
-          page={pageSafe}
-          size={PAGE_SIZE}
-          unit="loại nghỉ"
-          onPage={setPage}
+        <PhanTrangDayDu
+          trang={pageSafe} size={size} tong={totalTypes} soDong={pagedTypes.length}
+          donVi="loại nghỉ"
+          onTrang={setPage}
+          onSize={(n) => { setSize(n); setPage(1); }}
+          ariaLabel="Phân trang loại nghỉ"
         />
       )}
 

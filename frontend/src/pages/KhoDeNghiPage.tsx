@@ -25,9 +25,10 @@ import { Icon } from "../components/Icons";
 import { DiscardChangesDialog } from "../components/DiscardChangesDialog";
 import { DonViChonTheoHang, MaterialCombobox } from "../components/MaterialCombobox";
 import { PrintSheet } from "../components/PrintSheet";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { DANG_GIAY_NHAN, chuanKho, nhanDangKho, type DangGiay } from "../lib/khoGiay";
 import { fmtDate, fmtDateISO } from "../utils/format";
-import { AN_IN_YEU_CAU, DateFilterHead, DecimalInput, GiaBanDong, GiaGocKcs, LoaiYeuCauChip, RequestStatusBadge, VoucherStatusBadge, PageSizeSelect, DEFAULT_PAGE_SIZE, fmtQty, isOverdue, todayISO, useHeaderTitles } from "./khoShared";
+import { AN_IN_YEU_CAU, DateFilterHead, DecimalInput, GiaBanDong, GiaGocKcs, LoaiYeuCauChip, RequestStatusBadge, VoucherStatusBadge, DEFAULT_PAGE_SIZE, fmtQty, isOverdue, todayISO, useHeaderTitles } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
@@ -201,7 +202,6 @@ export function KhoDeNghiPage({
   // → dùng thẳng danh sách trả về làm trang hiện tại.
   const total = totalCount;
   const shown = rows;
-  const maxPage = Math.max(1, Math.ceil(total / pageSize));
 
   useEffect(() => {
     setPage(1);
@@ -406,44 +406,16 @@ export function KhoDeNghiPage({
                 );
               })
             )}
-            {/* Hàng ĐỆM giữ ĐỘ DÀI (chiều cao) bảng cố định — ít yêu cầu (vd 1-5 dòng) bảng vẫn trải
-                đủ pageSize dòng, đồng bộ với bảng Tồn/Phiếu/Báo cáo, không teo lại. */}
-            {Array.from({
-              length: Math.max(0, pageSize - (loading ? 5 : shown.length === 0 ? 1 : shown.length)),
-            }).map((_, i) => (
-              <tr key={`rfiller-${i}`} className="rc__filler" aria-hidden="true">
-                <td colSpan={colCount}>&nbsp;</td>
-              </tr>
-            ))}
           </tbody>
         </table>
       </div>
 
+      {/* Về trang 1 ngay trong cùng lượt đổi cỡ — khỏi một lượt nạp thừa (trang cũ × cỡ mới) trước
+          khi effect reset kịp chạy. */}
       {total > 0 && (
-        <div className="kho-pager">
-          <PageSizeSelect value={pageSize} onChange={setPageSize} />
-          <span className="kho-pager__page">{total} yêu cầu</span>
-          <div className="rc__spacer" />
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Trước
-          </button>
-          <span className="kho-pager__page">
-            Trang {page} / {maxPage}
-          </span>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={page >= maxPage}
-            onClick={() => setPage((p) => Math.min(maxPage, p + 1))}
-          >
-            Sau
-          </button>
-        </div>
+        <PhanTrangDayDu trang={page} size={pageSize} tong={total} soDong={shown.length}
+          onTrang={setPage} onSize={(n) => { setPageSize(n); setPage(1); }} loading={loading} donVi="yêu cầu"
+          ariaLabel="Phân trang yêu cầu nhập xuất" />
       )}
 
       {drawer && token && (

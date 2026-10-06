@@ -2222,6 +2222,14 @@
   color: var(--rust);
   background: var(--paper);
 }
+/* Nut xoa o dau the chi tiet: chu + vien do, khong to nen. */
+.rdx-drawer__ghost--danger {
+  color: var(--danger, #b42318);
+}
+.rdx-drawer__ghost--danger:hover {
+  border-color: var(--danger, #b42318);
+  color: var(--danger, #b42318);
+}
 .rdx-drawer__ghost:focus-visible {
   outline: 2px solid var(--rust);
   outline-offset: 2px;
@@ -3535,6 +3543,13 @@
   list-style: none;
 }
 
+/* Chân phân trang (`.ptdd`, khuôn Nhật ký — 05/10/2026 thay `.depts__pager`). Danh sách là chồng
+   thẻ rời, không có đáy thẻ bảng để nối — chân đứng thành một dải có viền riêng. */
+.depts__members + .ptdd {
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+}
+
 .depts__member {
   display: flex;
   align-items: center;
@@ -4040,4 +4055,165 @@
   .rdx-drawer {
     min-width: 0;
   }
+}
+
+/* ── SƠ ĐỒ CÂY: khung cố định + cột lá xếp dọc (05/10/2026) ───────────────────────────────────
+   Khung ngoài `.rdx-org-canvas-wrap` đứng yên, chỉ khung trong cuộn ⇒ thanh thu phóng và lời
+   nhắc luôn nằm đúng góc nhìn, không trôi theo nội dung. Chiều cao lấy từ biến `--rdx-org-h` mà
+   DepartmentsPage đo bằng phần màn hình còn lại thật, nên đáy khung (kèm thanh cuộn ngang) luôn
+   nằm trong tầm mắt và trang không mọc thanh cuộn thứ hai. */
+.rdx-org-canvas-wrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+@media (min-width: 1025px) {
+  .rdx-dept__body--org,
+  .rdx-dept__body--org-sel {
+    height: var(--rdx-org-h, calc(100dvh - 190px));
+    min-height: 420px;
+  }
+  /* KHÔNG giãn theo hàng lưới: drawer bên phải cố ý cao theo nội dung (cuộn chung ở
+     `.shell__content`, xem `.rdx-drawer__panel`) — giãn theo nó thì đáy khung sơ đồ lại rơi
+     xuống dưới mép màn hình. Khung sơ đồ giữ đúng chiều cao đo được. */
+  .rdx-org-canvas-wrap {
+    align-self: start;
+    height: var(--rdx-org-h, calc(100dvh - 190px));
+  }
+  .rdx-org-canvas-wrap > .rdx-org-canvas-container {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
+/* Phòng có con toàn là lá: con xếp thành cột dọc treo dưới cha, nối bằng một trục dọc bên trái
+   và gạch ngang ngắn vào giữa từng thẻ. Bề rộng cột = bề rộng thẻ cha (220px), nên cả sơ đồ chỉ
+   còn rộng bằng số phòng cấp giữa thay vì bằng tổng số lá. */
+.rdx-org-branch--stack > .rdx-org-branch__parent::after {
+  display: none; /* cuống giữa thẻ không dùng — trục dọc bên trái thay cho nó */
+}
+
+.rdx-org-branch__children--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: 220px;
+  box-sizing: border-box;
+  padding-left: 24px;
+  /* chừa chỗ cho nút gập/mở ngồi đè đáy thẻ cha (thò xuống 11px) */
+  margin-top: 18px;
+}
+
+.rdx-org-branch__children--stack::before {
+  display: none; /* vạch ngang nối hàng con dàn ngang — không áp cho cột dọc */
+}
+
+.rdx-org-branch__children--stack > .rdx-org-branch {
+  align-items: stretch;
+}
+
+/* Trục dọc: mỗi thẻ con vẽ đoạn của mình, từ khe phía trên xuống đáy; thẻ cuối chỉ vẽ tới
+   giữa thẻ để trục dừng đúng ở gạch ngang cuối. */
+.rdx-org-branch__children--stack > .rdx-org-branch::before {
+  left: -13px;
+  top: -10px;
+  bottom: 0;
+  height: auto;
+  width: 1px;
+}
+
+.rdx-org-branch__children--stack > .rdx-org-branch:first-child::before {
+  top: -18px;
+}
+
+.rdx-org-branch__children--stack > .rdx-org-branch:last-child::before {
+  bottom: auto;
+  height: calc(50% + 10px);
+}
+
+.rdx-org-branch__children--stack > .rdx-org-branch:first-child:last-child::before {
+  height: calc(50% + 18px);
+}
+
+.rdx-org-branch__children--stack > .rdx-org-branch::after {
+  content: "";
+  position: absolute;
+  left: -13px;
+  top: 50%;
+  width: 13px;
+  height: 1px;
+  background: var(--rule);
+}
+
+.rdx-org-branch__children--stack .rdx-org-node {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Vạch ngang nối anh em chỉ chạy từ GIỮA con đầu tới GIỮA con cuối. Vạch cũ vẽ bằng
+   `::before` của cả hàng nên kéo hết bề ngang, thò quá hai đầu, và các hàng cháu nằm cạnh nhau
+   trông như nối liền một dải — không đọc được nhóm nào thuộc tổ nào. Giờ mỗi con tự vẽ đoạn
+   của mình (tràn sang nửa khe 24px hai bên); con đầu/cuối chỉ vẽ nửa phía trong. */
+.rdx-org-branch__children:not(.rdx-org-branch__children--stack)::before {
+  display: none;
+}
+
+.rdx-org-branch__children:not(.rdx-org-branch__children--stack) > .rdx-org-branch::after {
+  content: "";
+  position: absolute;
+  top: -16px;
+  left: -12px;
+  right: -12px;
+  height: 1px;
+  background: var(--rule);
+}
+
+.rdx-org-branch__children:not(.rdx-org-branch__children--stack) > .rdx-org-branch:first-child::after {
+  left: 50%;
+}
+
+.rdx-org-branch__children:not(.rdx-org-branch__children--stack) > .rdx-org-branch:last-child::after {
+  right: 50%;
+}
+
+.rdx-org-branch__children:not(.rdx-org-branch__children--stack) > .rdx-org-branch:only-child::after {
+  display: none;
+}
+
+/* Cột gom các lá đứng lẫn trong một hàng: cuống từ vạch ngang rơi thẳng vào trục dọc bên trái
+   (x = 11px), thẻ đầu ngang hàng với thẻ của các nhánh bên cạnh. */
+.rdx-org-branch__children > .rdx-org-leafgroup::before {
+  left: 11px;
+}
+
+.rdx-org-branch__children:not(.rdx-org-branch__children--stack) > .rdx-org-leafgroup:first-child::after {
+  left: 11px;
+}
+
+.rdx-org-leafgroup > .rdx-org-branch__children--stack {
+  margin-top: 0;
+}
+
+.rdx-org-leafgroup > .rdx-org-branch__children--stack > .rdx-org-branch:first-child::before {
+  top: 0;
+}
+
+/* Ở hàng phòng GỐC không có cha để nối — cột lá chỉ là một chồng thẻ, không trục, không thụt. */
+.rdx-org-leafgroup--goc > .rdx-org-branch__children--stack {
+  padding-left: 0;
+}
+
+.rdx-org-leafgroup--goc > .rdx-org-branch__children--stack > .rdx-org-branch::before,
+.rdx-org-leafgroup--goc > .rdx-org-branch__children--stack > .rdx-org-branch::after {
+  display: none;
+}
+
+/* Dải trống trên cùng cho thanh thu phóng nổi: đặt ở khung CUỘN (không bị `zoom` co lại) nên ở
+   mức thu nào thẻ hàng đầu cũng không chui dưới thanh. */
+.rdx-org-canvas-wrap > .rdx-org-canvas-container {
+  padding-top: 52px;
+}
+.rdx-org-canvas-wrap .rdx-org-canvas-inner {
+  padding-top: 16px;
 }

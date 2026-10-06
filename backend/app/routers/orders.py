@@ -159,7 +159,7 @@ def notify_summary(
     return svc.notify_summary(
         actor=user, scope=_scope_for(authz, user),
         can_record_deposit=authz.can(user, MODULE, "record_deposit"),
-        can_manage_status=authz.can(user, MODULE, "manage_status"),
+        can_chot=authz.can(user, MODULE, "update"),
     )
 
 
@@ -315,11 +315,14 @@ def cancel_order(
     return d
 
 
-# --- Chốt đơn (P4) — quyền `manage_status` ------------------------------------
+# --- Chốt đơn (P4) — đi theo quyền SỬA đơn (05/10/2026) ---------------------------
+# Trước đó đòi `manage_status` — ô KHÔNG có trên ma trận phân quyền (gỡ 15/07/2026, df15765d) nên
+# vai lập qua giao diện không bao giờ chốt được, chỉ Giám đốc. Chủ chốt: chốt đơn không cần quyền
+# riêng — ai lập/sửa được đơn thì chốt được, cùng luật với vòng đời Báo giá.
 @router.post("/{order_id}/confirm", response_model=OrderDetailOut)
 def confirm_order(
     order_id: int,
-    user: Annotated[User, Depends(require_permission(MODULE, "manage_status"))],
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
     svc: Service,
     authz: Authz,
     db: Annotated[Session, Depends(get_db)],

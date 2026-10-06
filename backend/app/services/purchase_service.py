@@ -1305,6 +1305,14 @@ class PurchaseService:
             return True
         return row.requesting_department_id == actor.department_id
 
+    def _duoc_huy_ho(self, row: DepartmentPurchaseRequest, actor) -> bool:
+        """Huỷ HỘ yêu cầu của người khác: theo đúng phạm vi người huỷ NHÌN THẤY ở danh sách.
+        `own` chỉ thấy yêu cầu của chính mình ⇒ không huỷ hộ ai; `department` = yêu cầu của phòng
+        mình; `all` = mọi phòng. Ô Thao tác đã được router đòi trước khi vào đây."""
+        if self.authz.scope_for(actor, "yeu_cau_mua_hang") == SCOPE_OWN:
+            return False
+        return self._can_view_department_request(row, actor)
+
     def _department_request(self, request_id: int) -> DepartmentPurchaseRequest:
         row = self.department_requests.get_by_id(request_id)
         if row is None:
@@ -1559,9 +1567,11 @@ class PurchaseService:
         row = self._department_request(request_id)
         if row.status != DPR_OPEN:
             raise PurchaseConflict("Chi yeu cau dang cho mua moi duoc huy.")
-        can_cancel_any = self.authz.can(actor, "yeu_cau_mua_hang", "cancel")
-        if row.requested_by_user_id != actor.id and not can_cancel_any:
-            raise PurchaseForbidden("Chi nguoi tao yeu cau hoac admin moi duoc huy.")
+        # Huỷ HỘ người khác (05/10/2026): router đã đòi ô Thao tác (`yeu_cau_mua_hang:update`), ở
+        # đây chỉ chặn yêu cầu NGOÀI phạm vi người huỷ xem được. Trước đó đòi ô `cancel` riêng mà
+        # ma trận không bày ⇒ ngoài admin không ai huỷ hộ được.
+        if row.requested_by_user_id != actor.id and not self._duoc_huy_ho(row, actor):
+            raise PurchaseForbidden("Yêu cầu này nằm ngoài phạm vi của bạn nên không huỷ được.")
         # Lý do vào cột RIÊNG. Trước đây `row.note = reason` GHI ĐÈ mất ghi chú người lập.
         row.reject_reason = (reason or "").strip() or None
         self._dat_trang_thai(row, DPR_CANCELLED, doc_type=DOC_YCMH, actor=actor, ly_do=reason)
@@ -1622,9 +1632,11 @@ class PurchaseService:
         row = self._department_request(request_id)
         if row.status == DPR_CANCELLED:
             raise PurchaseConflict("Yêu cầu này đã huỷ.")
-        can_cancel_any = self.authz.can(actor, "yeu_cau_mua_hang", "cancel")
-        if row.requested_by_user_id != actor.id and not can_cancel_any:
-            raise PurchaseForbidden("Chi nguoi tao yeu cau hoac admin moi duoc huy.")
+        # Huỷ HỘ người khác (05/10/2026): router đã đòi ô Thao tác (`yeu_cau_mua_hang:update`), ở
+        # đây chỉ chặn yêu cầu NGOÀI phạm vi người huỷ xem được. Trước đó đòi ô `cancel` riêng mà
+        # ma trận không bày ⇒ ngoài admin không ai huỷ hộ được.
+        if row.requested_by_user_id != actor.id and not self._duoc_huy_ho(row, actor):
+            raise PurchaseForbidden("Yêu cầu này nằm ngoài phạm vi của bạn nên không huỷ được.")
         ly_do = (reason or "").strip()
         if not ly_do:
             # Bỏ một món giữa chừng là việc người khác sẽ hỏi lại ("sao không mua nữa?") ⇒ bắt ghi

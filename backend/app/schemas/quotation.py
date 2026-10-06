@@ -192,7 +192,6 @@ class QuotationDetailOut(BaseModel):
     versions: list[VersionRow] = Field(default_factory=list)
     items: list[QuoteItemOut] = Field(default_factory=list)
     allowed_transitions: list[str] = Field(default_factory=list)
-    can_approve: bool = False
     # BG-2 — báo giá đặc thù (GĐ duyệt trước khi gửi khách). `exceptions` = nhãn định tính (an toàn);
     # `markup_pct` = lợi nhuận / GIÁ VỐN (đúng ô "Markup %" Sale gõ), KHÔNG phải biên trên giá bán.
     exception_required: bool = False

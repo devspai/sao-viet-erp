@@ -21,6 +21,7 @@ from ..deps import (
     get_purchase_service,
     require_any_permission,
     require_permission,
+    require_xem_kho_nao,
 )
 from ..models.user import User
 from ..doi_tuong_nhan import MAN_KHVT, MAN_MUA_KE_TOAN, hop
@@ -367,9 +368,11 @@ def supplier_item_catalog(
 def so_gia_ncc(
     svc: Annotated[PurchaseService, Depends(get_purchase_service)],
     # Báo giá NCC là GIÁ → chỉ vai được XEM GIÁ (mua hàng · NCC · kế toán · KHO có `view_cost`) mới
-    # xem. Ẩn ở SERVER, không chỉ ẩn UI: thủ kho không có `view_cost` gọi thẳng cũng bị chặn.
-    _: Annotated[User, Depends(require_any_permission(
-        (MODULE, "read"), (MODULE_NCC, "read"), ("ke_toan", "read"), ("kho", "view_cost")))],
+    # xem. Ẩn ở SERVER, không chỉ ẩn UI: thủ kho không có `view_cost` gọi thẳng cũng bị chặn. Bảng
+    # này nằm trong màn tồn của TỪNG KHO ⇒ ô "Xem giá thành" của dòng kho nào cũng mở (05/10/2026).
+    _: Annotated[User, Depends(require_xem_kho_nao(
+        (MODULE, "read"), (MODULE_NCC, "read"), ("ke_toan", "read"), ("kho", "view_cost"),
+        viec="view_cost"))],
     hang_loai: str = Query(..., pattern="^(giay|vat_tu)$"),
     hang_id: int = Query(..., gt=0),
 ) -> SoGiaOut:

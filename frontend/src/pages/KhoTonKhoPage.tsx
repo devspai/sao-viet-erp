@@ -24,6 +24,7 @@ import {
 import { useCan } from "../auth/permissions";
 import { CodeLink } from "../components/CodeLink";
 import { Icon } from "../components/Icons";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { Select } from "../components/Select";
 import { StockLevelChip } from "../components/StockLevelChip";
 import type { NavigateFn } from "../components/AppShell";
@@ -35,7 +36,6 @@ import {
   DateFilterHead,
   DecimalInput,
   NumFilterHead,
-  PageSizeSelect,
   AN_DIEU_CHUYEN,
   DEFAULT_PAGE_SIZE,
   VoucherStatusBadge,
@@ -45,6 +45,7 @@ import {
   useHeaderTitles,
 } from "./khoShared";
 import { InboxRequestDrawer, VoucherDrawer, TransferDrawer } from "./KhoYeuCauPage";
+import { khoaTonKho } from "../auth/quyenKho";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
@@ -192,13 +193,15 @@ export function KhoTonKhoPage({
   khoOptions?: { id: number; ma: string; ten: string }[];
 }) {
   const can = useCan();
-  const canViewCost = can("kho", "view_cost");
-  // Màn này nay là module RIÊNG `ton_kho` (mg `0334`) — Xem = số tồn + lô, Thao tác = ngưỡng.
-  const canViewStock = can("ton_kho", "read");
+  // Ô "Xem giá thành" của DÒNG KHO NÀY (05/10/2026): bật ở Kho giấy thì chỉ thấy tiền ở Kho giấy.
+  const canViewCost = can(khoaTonKho(khoId), "view_cost");
+  // Mỗi kho một dòng quyền `ton_kho_<id>` (05/10/2026) — Xem = số tồn + lô của KHO NÀY, ô chi tiết
+  // "Khai ngưỡng tồn" = ngưỡng của kho này. Kho khác bật/tắt không ảnh hưởng.
+  const canViewStock = can(khoaTonKho(khoId), "read");
   const canCreate = can("kho", "create");
   // ĐÃ GỘP quyền: ghi sổ + hủy dùng CHUNG quyền lập phiếu (create) — không còn 'post' riêng.
   const canPost = canCreate;
-  const canSetThreshold = can("ton_kho", "set_threshold");
+  const canSetThreshold = can(khoaTonKho(khoId), "set_threshold");
 
   const [tab, setTab] = useState<TonTab>("ton");
   const [lots, setLots] = useState<StockLot[]>([]);
@@ -559,7 +562,6 @@ export function KhoTonKhoPage({
 
   // Phân trang (dùng chung cho cả 2 tab; số tổng theo tab đang xem).
   const pageTotal = tab === "ton" ? filtered.length : shownVouchers.length;
-  const maxPage = Math.max(1, Math.ceil(pageTotal / pageSize));
   const pagedGroups = filtered.slice((page - 1) * pageSize, page * pageSize);
   const pagedVouchers = shownVouchers.slice((page - 1) * pageSize, page * pageSize);
 
@@ -810,18 +812,6 @@ export function KhoTonKhoPage({
                   />
                 ))
               )}
-              {/* Hàng ĐỆM giữ độ dài (chiều cao) bảng cố định — trang cuối / ít vật tư vẫn trải đủ
-                  pageSize dòng, đồng bộ với bảng phiếu & Báo cáo. */}
-              {Array.from({
-                length: Math.max(
-                  0,
-                  pageSize - (loading ? 5 : filtered.length === 0 ? 1 : pagedGroups.length),
-                ),
-              }).map((_, i) => (
-                <tr key={`tonfiller-${i}`} className="rc__filler" aria-hidden="true">
-                  <td colSpan={tonCols}>&nbsp;</td>
-                </tr>
-              ))}
             </tbody>
           </table>
         ) : (
@@ -936,48 +926,18 @@ export function KhoTonKhoPage({
                   );
                 })
               )}
-              {/* Hàng ĐỆM giữ ĐỘ DÀI (chiều cao) bảng cố định giữa các tab — ít dữ liệu (vd 1-2 phiếu)
-                  bảng vẫn trải đủ pageSize dòng như bảng Báo cáo/Khóa sổ, không co ngắn tủn. */}
-              {Array.from({
-                length: Math.max(
-                  0,
-                  pageSize - (loadingV ? 5 : shownVouchers.length === 0 ? 1 : pagedVouchers.length),
-                ),
-              }).map((_, i) => (
-                <tr key={`vfiller-${i}`} className="rc__filler" aria-hidden="true">
-                  <td colSpan={voucherCols + 1}>&nbsp;</td>
-                </tr>
-              ))}
             </tbody>
           </table>
         )}
       </div>
 
+      {/* Cắt trang ở client: `pageTotal` = độ dài danh sách ĐÃ LỌC của tab đang xem. */}
       {!loading && pageTotal > 0 && (
-        <div className="kho-pager">
-          <PageSizeSelect value={pageSize} onChange={setPageSize} />
-          <div className="rc__spacer" />
-
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Trước
-          </button>
-          <span className="kho-pager__page">
-            Trang {page} / {maxPage}
-          </span>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={page >= maxPage}
-            onClick={() => setPage((p) => Math.min(maxPage, p + 1))}
-          >
-            Sau
-          </button>
-        </div>
+        <PhanTrangDayDu trang={page} size={pageSize} tong={pageTotal}
+          soDong={tab === "ton" ? pagedGroups.length : pagedVouchers.length}
+          onTrang={setPage} onSize={(n) => { setPageSize(n); setPage(1); }}
+          donVi={tab === "ton" ? "vật tư" : "phiếu"}
+          ariaLabel={tab === "ton" ? "Phân trang tồn kho" : "Phân trang phiếu kho"} />
       )}
 
       {openMaterial && (

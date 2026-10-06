@@ -1,5 +1,5 @@
 // Tab Tạm ứng (tách từ pages/LuongPage.tsx). Từ 25/09/2026 chạy cho nhà máy ~1000 người: tab trạng
-// thái + lọc loại / tổ / tìm + 50 dòng một trang, chọn nhiều qua mọi trang — luật ở `tamUngLoc.ts`.
+// thái + lọc loại / tổ / tìm + mặc định 50 dòng một trang, chọn nhiều qua mọi trang — luật ở `tamUngLoc.ts`.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Calendar, Wallet } from "lucide-react";
 import {
@@ -9,7 +9,8 @@ import {
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
 import type { NavigateFn } from "../../../../components/AppShell";
 import { MonthPicker } from "../../../../components/MonthPicker";
-import { Pager, trangHopLe } from "../../../../components/Pager";
+import { trangHopLe } from "../../../../components/Pager";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { useCan } from "../../../../auth/permissions";
 import { curYm, errText, money, vuongIds } from "../shared/helpers";
 import { LapHangLoatModal } from "../modals/LapHangLoatModal";
@@ -55,6 +56,8 @@ export function TamUngTab({
   const [tab, setTab] = useState<TabTrangThai>("tat_ca");
   const [loc, setLoc] = useState<BoLocTamUng>(BO_LOC_TRONG);
   const [trang, setTrang] = useState(1);
+  /** Cỡ trang đổi được ở chân bảng; mặc định giữ `CO_TRANG` (50) của màn nhà máy ~1000 người. */
+  const [coTrang, setCoTrang] = useState(CO_TRANG);
   const [chon, setChon] = useState<Set<number>>(() => new Set());
   const [chiXemChon, setChiXemChon] = useState(false);
   const [hangLoat, setHangLoat] = useState(false);
@@ -97,7 +100,7 @@ export function TamUngTab({
   const tabRows = useMemo(() => items.filter((a) => thuocTab(a, tab)), [items, tab]);
   const dangLoc = useMemo(() => tabRows.filter((a) => khopBoLoc(a, loc)), [tabRows, loc]);
   const hien = chiXemChon ? tabRows.filter((a) => chon.has(a.id)) : dangLoc;
-  const trangNay = hien.slice((trang - 1) * CO_TRANG, trang * CO_TRANG);
+  const trangNay = hien.slice((trang - 1) * coTrang, trang * coTrang);
   const dem = useMemo(() => demTheoTab(items, loc), [items, loc]);
   const to = useMemo(() => dsTo(items), [items]);
   const coCotChon =
@@ -105,9 +108,9 @@ export function TamUngTab({
     (tab === "cho_chi" && (canLapPhieuChi || canXuat));
   useTiaLuaChon(items, setChon, (a) => thuocTab(a, tab), tab);
   useEffect(() => {
-    const ve = trangHopLe(trang, hien.length, CO_TRANG);
+    const ve = trangHopLe(trang, hien.length, coTrang);
     if (ve !== null) setTrang(ve);
-  }, [trang, hien.length]);
+  }, [trang, hien.length, coTrang]);
 
   // File chuyển khoản theo mẫu lô lương BIZ MBBank — xuất ĐÚNG những phiếu đã duyệt / đã chi đang
   // hiện theo tab + bộ lọc (hoặc phiếu đang tick).
@@ -301,13 +304,13 @@ export function TamUngTab({
                 token={token}
                 onLapPhieuChi={setLapPcCho}
               />
-              <Pager
-                total={hien.length}
-                page={trang}
-                size={CO_TRANG}
-                onPage={setTrang}
-                unit="phiếu"
-                note={coCotChon ? "ô tick đầu bảng chọn cả trang đang xem" : undefined}
+              <PhanTrangDayDu
+                trang={trang} size={coTrang} tong={hien.length} soDong={trangNay.length}
+                donVi="phiếu"
+                onTrang={setTrang}
+                onSize={(n) => { setCoTrang(n); setTrang(1); }}
+                ghiChu={coCotChon ? "ô tick đầu bảng chọn cả trang đang xem" : undefined}
+                ariaLabel="Phân trang phiếu tạm ứng"
               />
             </>
           )}

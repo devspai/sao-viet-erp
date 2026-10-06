@@ -602,6 +602,13 @@ def test_danh_sach_lenh_kcs(db, orders, lsx_svc, admin, customer):
                                   gom_da_dong=True)["items"] == []
 
 
+def test_danh_sach_lenh_kcs_co_trang(db, orders, lsx_svc, admin, customer):
+    """Chân bảng KCS có ô Dòng/trang — máy chủ phải cắt theo cỡ người dùng chọn, không cố định 30."""
+    _to, _cv, res = _batch(db, orders, lsx_svc, admin, customer)
+    out = kcs.danh_sach_lenh_kcs(db, res["nguoi_kcs"], gom_da_dong=True, co_trang=1)
+    assert out["co_trang"] == 1 and len(out["items"]) <= 1
+
+
 # --- Nhập kho từ công đoạn cuối -------------------------------------------------------------
 def test_nhap_kho_chi_cong_doan_cuoi_va_chi_nguoi_kcs(db, orders, lsx_svc, admin, customer):
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer)

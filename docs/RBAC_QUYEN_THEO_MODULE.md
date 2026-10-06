@@ -51,8 +51,12 @@ Nhưng **"Sửa" của mỗi màn gói việc khác nhau** — đó là chỗ ha
 - **Thu mua · Sửa** = lập/sửa/gửi duyệt PMH **và** đánh dấu đã mua / đã nhận.
 - **Giao hàng · Sửa** = gửi yêu cầu giao **và** bấm *Đã lấy hàng*, nhập kết quả + số km —
   ba việc của ba người khác nhau, chung một ô.
-- **Chấm công · Sửa** = ba tab cấu hình (Điểm chấm công · Khai ca · Lịch & Ngày lễ), **không** phải
-  sửa công của ai.
+- **Chấm công · Sửa** = việc GHI của chính mình (bấm giờ · xin đi muộn · gửi yêu cầu chỉnh công)
+  **và** ghi ba tab cấu hình (Điểm chấm công · Khai ca · Lịch & Ngày lễ — cần thêm phạm vi Tất cả),
+  **không** phải sửa công của ai.
+- **Lương · Sửa** = xin tạm ứng **và** sửa mức lương, tính lại / sửa dòng bảng lương, khoản thu
+  nhập, cấu hình lương **trong phạm vi**. ⚠️ Bật cho nhân viên thường chỉ để xin tạm ứng là mở luôn
+  quyền sửa lương của chính họ (phạm vi *Của tôi* vẫn gồm bản thân) — lỗ hổng, chờ vá ở máy chủ.
 
 Việc nào **nặng hoặc cần tách vai** thì được nhấc ra thành **ô chi tiết** riêng — xem §3.
 
@@ -67,8 +71,8 @@ Việc nào **nặng hoặc cần tách vai** thì được nhấc ra thành **�
 
 | Module | Xem thấy gì | Sửa làm được gì |
 |---|---|---|
-| **Mua hàng** (`thu_mua`) | danh sách **YCMH và PMH** trong phạm vi | lập/sửa/gửi duyệt PMH · đánh dấu đã mua / đã nhận |
-| **Yêu cầu mua hàng** (`yeu_cau_mua_hang`) | màn **Yêu cầu mua hàng** (YCMH của các bộ phận) trong phạm vi | lập YCMH cho bộ phận mình · sửa khi còn nháp · huỷ |
+| **Mua hàng** (`thu_mua`) | danh sách **YCMH và PMH** trong phạm vi (*Của tôi* = mình lập; *Cả phòng* = đúng phòng mình, **không** gồm phòng con) | lập/sửa/gửi duyệt PMH · đánh dấu đã mua / đã nhận |
+| **Yêu cầu mua hàng** (`yeu_cau_mua_hang`) | màn **Yêu cầu mua hàng** (YCMH của các bộ phận) trong phạm vi (*Cả phòng* = đúng phòng mình, **không** gồm phòng con) | lập YCMH cho bộ phận mình · sửa khi còn nháp · huỷ YCMH / bỏ món — của mình, và **huỷ hộ** YCMH người khác nằm trong phạm vi (*Của tôi* thì không huỷ hộ ai; trước 05/10/2026 huỷ hộ đòi ô `cancel` mà ma trận không bày) |
 | **Nhà cung cấp** (`nha_cung_cap`) | danh mục NCC + **bảng mặt hàng NCC đang bán** (tải mẫu, xuất Excel) | thêm/sửa NCC · ngừng dùng · **nhập bảng mặt hàng từ Excel** |
 
 ⚠️ **Màn YCMH mở cho BẢY ô, không riêng `yeu_cau_mua_hang`.** Báo giá · Kho · Sản xuất · Giấy ·
@@ -92,9 +96,9 @@ chỉ có ở màn Đơn mua hàng bên kế toán.
 
 | Module | Xem thấy gì | Thêm / Sửa |
 |---|---|---|
-| **Đơn mua hàng** (`ke_toan`) | **CHỈ** màn Đơn mua hàng của kế toán (PMH đã duyệt, chờ chi) | — |
+| **Đơn mua hàng** (`ke_toan`) | **CHỈ** màn Đơn mua hàng của kế toán (mọi PMH đã gửi duyệt: chờ duyệt, đã duyệt, đang chi…) | — |
 | **Phiếu chi** (`phieu_chi`) | màn Phiếu chi / UNC | **Thêm** = LẬP phiếu cọc, phiếu thanh toán, gán chứng từ |
-| **Phiếu thu** (`phieu_thu`) | màn Phiếu thu | **Thêm** = LẬP / sửa phiếu thu, gán chứng từ |
+| **Phiếu thu** (`phieu_thu`) | màn Phiếu thu | **Thêm** = LẬP / sửa phiếu thu, ghi hoá đơn bán (nút ở màn Đơn hàng bán), gán chứng từ |
 | **Công nợ phải trả** (`cong_no_phai_tra`) | số còn nợ từng NCC — tính ra từ PMH + phiếu chi, **không có gì để sửa** | — |
 | **Công nợ phải thu** (`cong_no_phai_thu`) | số khách còn nợ — chỉ phát sinh từ hoá đơn bán đã ghi nhận, trừ cọc cấn + phiếu thu. **Đơn mới chốt chưa tạo công nợ** | — |
 | **Báo cáo công nợ** (`bao_cao_cong_no`) | sổ tổng hợp mẫu Excel MISA + phân tuổi nợ, cả hai phân hệ Phải trả/Phải thu — tách RIÊNG khỏi hai module trên từ 04/09/2026 (chủ chốt: *"báo cáo đó là một module riêng mà"*), ai chỉ cần đối chiếu sổ không nhất thiết có quyền vào màn công nợ vận hành | **Thêm** = khoá/mở kỳ kế toán công nợ (`POST /khoa-so`) — một động từ cho cả hai phân hệ |
@@ -104,9 +108,9 @@ chỉ có ở màn Đơn mua hàng bên kế toán.
 
 | Module | Ô | Việc |
 |---|---|---|
-| `ke_toan` | **Duyệt / từ chối PMH** ⚠️ | quyết phiếu có đi tiếp thành khoản chi hay không |
-| `phieu_chi` | Huỷ phiếu chi chờ chi · In / xuất | |
-| `phieu_thu` | Huỷ phiếu · In / xuất | Ô *Xác nhận đã thu tiền* đã gỡ 27/08/2026 — phiếu thu lập ra là ĐÃ THU, sai thì huỷ rồi lập lại |
+| `ke_toan` | **Duyệt / từ chối PMH** ⚠️ | quyết phiếu có đi tiếp thành khoản chi hay không · huỷ phiếu đã gửi duyệt |
+| `phieu_chi` | Huỷ phiếu chi · In phiếu chi | huỷ ở mọi trạng thái trừ đã huỷ; chặn khi đã có phiếu thu hoàn tiền hoặc tạm ứng đã trừ vào kỳ lương đã chốt; huỷ phiếu chi tạm ứng thì cả lô về chờ chi |
+| `phieu_thu` | Huỷ phiếu thu / hoá đơn bán · In phiếu thu | Hoá đơn còn phiếu thu thì phải huỷ phiếu thu trước. Ô *Xác nhận đã thu tiền* đã gỡ 27/08/2026 — phiếu thu lập ra là ĐÃ THU, sai thì huỷ rồi lập lại |
 
 ⚠️ **Tách vai vẫn giữ:** có ô *Duyệt PMH* mà **không** có ô **Thêm** của Phiếu chi thì duyệt xong
 vẫn **không tự viết được phiếu chi**. Đó là cố ý.
@@ -115,25 +119,31 @@ vẫn **không tự viết được phiếu chi**. Đó là cố ý.
 
 | Module | Xem thấy gì | Sửa làm được gì |
 |---|---|---|
-| **Phòng ban** (`phong_ban`) | cây tổ chức phòng / tổ | thêm/sửa/xoá phòng ban |
-| **Hồ sơ nhân sự** (`nhan_su`) | danh sách NV + chi tiết hồ sơ | thêm/sửa/xoá hồ sơ |
-| **Chấm công** (`cham_cong`) | Bảng công tháng + Nhật ký chấm công trong phạm vi | **ba tab cấu hình**: Điểm chấm công · Khai ca · Lịch & Ngày lễ |
-| **Nghỉ phép** (`nghi_phep`) | đơn nghỉ trong phạm vi | quản danh mục loại nghỉ |
-| **Tăng ca** (`tang_ca`) | mục Tăng ca trên thanh bên + danh sách phiếu | |
+| **Phòng ban** (`phong_ban`) | cây tổ chức phòng / tổ | thêm/sửa/xoá phòng ban. Ô *Đặt trưởng phòng* / *Đổi cấp trên* chỉ có tác dụng khi bật kèm Sửa |
+| **Hồ sơ nhân sự** (`nhan_su`) | danh sách NV + chi tiết hồ sơ | thêm/sửa hồ sơ · gán ca · đính kèm · tạo tài khoản · nhập Excel. **Không có xoá** |
+| **Chấm công** (`cham_cong`) | mở màn + công của mình (Bảng công tháng, Nhật ký là ô riêng) | tự bấm giờ · xin đi muộn · gửi yêu cầu chỉnh công · ghi **ba tab cấu hình** (cần phạm vi Tất cả) |
+| **Nghỉ phép** (`nghi_phep`) | đơn nghỉ của mình | gửi đơn nghỉ (danh mục loại nghỉ là ô riêng) |
+| **Tăng ca** (`tang_ca`) | mục Tăng ca trên thanh bên + phiếu của mình | gửi phiếu tăng ca |
 | **Nội quy** (`noi_quy`) | đọc danh sách nội quy + mở file. **Vai mới sinh ra đã bật sẵn** | |
 
 ⚠️ **Lương & BHXH tách khỏi `nhan_su`** thành hai ô riêng (*Xem* và *Sửa*) vì là dữ liệu nhạy cảm.
 
-⚠️ **Nhân viên tự làm việc của mình thì KHÔNG cần cấp gì:** tự gửi/huỷ đơn nghỉ, tự gửi/huỷ phiếu
-tăng ca, tự xin phiếu đi muộn — tab luôn hiện. Chỉ khi muốn **duyệt của người khác** mới cần ô.
+⚠️ **Nhân viên tự GỬI việc của mình vẫn cần ô Sửa của màn đó** (chủ chốt 15/08/2026 — "ghi là
+ghi"): bấm giờ, xin đi muộn, gửi yêu cầu chỉnh công, gửi đơn nghỉ, gửi phiếu tăng ca. Chỉ XEM phần
+của mình thì chỉ cần Xem. Duyệt của người khác mới cần ô Duyệt.
 
-**Ô chi tiết `nhan_su`:** Xem lương & BHXH · Sửa lương & BHXH · Thao tác vòng đời (chính thức /
+**Ô chi tiết `nhan_su`:** Xem lương & BHXH · Sửa lương & BHXH · Đổi trạng thái nhân viên (chính thức /
 nghỉ / đình chỉ) · Điều chuyển & đổi chức danh · Duyệt yêu cầu cập nhật · Xuất Excel.
 
 **Ô chi tiết `cham_cong`:** Bảng công tháng · Duyệt phiếu đi muộn/về sớm/nghỉ nửa buổi · Điểm chấm
-công · Khai ca · Lịch & Ngày lễ · Xem nhật ký · **Chấm bù / sửa công** · **Chốt kỳ công / Mở lại** ⚠️.
+công · Khai ca · Lịch & Ngày lễ (ba ô này chỉ MỞ TAB; ghi đi theo Sửa + phạm vi Tất cả) · Xem nhật
+ký · **Chấm bù / sửa công** (chấm bù · xoá lượt chấm tay · xác nhận tăng ca theo phiếu) · **Chốt kỳ
+công / Mở lại** ⚠️ · **Duyệt yêu cầu chỉnh công** (`can_approve`, thêm 05/10/2026 — mở tab Yêu
+cầu chỉnh công, duyệt / từ chối trong phạm vi; trước đó máy chủ gác mà ma trận không bày ô).
 
-**Ô chi tiết `nghi_phep`:** Duyệt đơn ⚠️ · Quản danh mục loại nghỉ.
+**Ô chi tiết `nghi_phep`:** Duyệt đơn ⚠️ (kiêm huỷ hộ đơn người khác) · **Huỷ đơn nghỉ của mình**
+(`can_cancel`, thêm 05/10/2026 — huỷ đơn chưa duyệt · xin huỷ đơn đã duyệt · rút lại lời xin huỷ;
+nên bật cùng Sửa cho mọi nhân viên) · Quản danh mục loại nghỉ.
 **Ô chi tiết `tang_ca`:** Duyệt phiếu tăng ca.
 
 ### 3.4 Lương
@@ -142,20 +152,21 @@ công · Khai ca · Lịch & Ngày lễ · Xem nhật ký · **Chấm bù / sử
 của tôi*. **Không có ô này là không vào được màn, kể cả để xem phiếu lương của mình** ⇒ vai nào
 cũng nên bật.
 
-**Sửa** = gửi đề nghị tạm ứng / xin lương đợt 1 **cho chính mình**, và ghi ở những tab đã mở.
+**Sửa** = gửi đề nghị tạm ứng / xin lương đợt 1, lập tạm ứng hộ, và ghi ở những tab đã mở (sửa
+mức lương, tính lại / sửa dòng bảng lương, khoản thu nhập, cấu hình lương) trong phạm vi. Xem cảnh
+báo ở §2.
 
 Mọi thứ còn lại là **ô chi tiết riêng**:
 
 | Ô | Việc |
 |---|---|
 | Bảng lương tháng | mở bảng lương của người khác |
-| Lương nhân viên | mức lương / lịch sử lương từng người |
-| Lương khoán | đơn giá khoán theo tổ |
+| Lương nhân viên | mở tab, xem mức lương / lịch sử lương từng người — sửa cần thêm Sửa |
 | Xem cấu hình lương | cơ chế lương theo bộ phận, khoản thu nhập, bảo hiểm & thuế, lịch sử lương |
-| Duyệt tạm ứng | |
-| Xuất bảng lương / file chuyển khoản | |
-| **Chốt bảng lương / Mở lại kỳ** ⚠️ | chốt kỳ **TOÀN CÔNG TY** — máy chủ còn đòi phạm vi **Tất cả** |
-| **Đánh dấu đã chi lương** ⚠️ | tuyên bố **tiền đã ra tới tay người lao động**, khoá kỳ luôn. Máy chủ đòi phạm vi **Tất cả** |
+| Duyệt tạm ứng | mở tab Tạm ứng · duyệt / từ chối / huỷ đề nghị tạm ứng và lương đợt 1 |
+| Xuất bảng lương / file chuyển khoản | bảng lương · file chuyển khoản · danh sách tạm ứng / lương đợt 1 |
+| **Chốt bảng lương / Mở lại kỳ** ⚠️ | chốt kỳ **TOÀN CÔNG TY** · công bố / thu hồi phiếu lương — máy chủ còn đòi phạm vi **Tất cả** |
+| **Đánh dấu đã chi lương** ⚠️ | tuyên bố **tiền đã ra tới tay người lao động**, khoá kỳ luôn (bỏ đánh dấu cũng bằng ô này). Máy chủ đòi phạm vi **Tất cả** |
 
 ⚠️ **Chốt** và **Đã chi** là **hai ô khác nhau** (tách 10/08/2026): người tính lương chốt số,
 **kế toán** mới xác nhận đã trả. Muốn mở lại kỳ đã đánh dấu đã chi thì phải huỷ *đã chi* trước.
@@ -164,7 +175,7 @@ Mọi thứ còn lại là **ô chi tiết riêng**:
 
 | Module | Xem thấy gì | Sửa làm được gì |
 |---|---|---|
-| **Giao hàng** (`giao_hang`) | màn Giao hàng — tab *Đơn giao hàng*, lọc theo phạm vi | gửi yêu cầu giao từ đơn hàng bán · bấm *Đã lấy hàng* · nhập kết quả + số km |
+| **Giao hàng** (`giao_hang`) | màn Giao hàng — tab *Đơn giao hàng*, lọc theo phạm vi (*Của tôi* = yêu cầu mình lập / chuyến mình chở; *Cả phòng* = đúng phòng mình, **không** gồm phòng con) | gửi yêu cầu giao từ đơn hàng bán · bấm *Đã lấy hàng* · nhập kết quả + số km |
 
 **Ô chi tiết:** *Lên đơn giao hàng* (`can_plan`) — tab **Yêu cầu giao** + nút phân công tài xế ·
 *Huỷ yêu cầu / huỷ chuyến* (`can_cancel`) — huỷ yêu cầu chưa lên kế hoạch hoặc huỷ chuyến đã xếp,

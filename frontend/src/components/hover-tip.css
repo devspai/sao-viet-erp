@@ -1,0 +1,141 @@
+/* HoverTip — dấu hỏi + bong bóng giải thích hiện ngay (thay `title=` của trình duyệt). */
+.hover-tip__icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  vertical-align: middle;
+  color: var(--ash);
+  opacity: 0.7;
+  cursor: help;
+  border-radius: var(--r-pill);
+  outline: none;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+.hover-tip__icon:hover,
+.hover-tip__icon:focus-visible {
+  opacity: 1;
+  color: var(--ink);
+}
+.hover-tip__icon:focus-visible {
+  box-shadow: 0 0 0 2px var(--rule);
+}
+
+/* Thẻ nổi nền trắng — cùng họ với thẻ/bảng của app, không phải khối đen. */
+.hover-tip {
+  position: fixed;
+  z-index: 1000;
+  width: max-content;
+  padding: 12px 14px;
+  background: var(--canvas);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.06);
+  font-family: var(--ff-sans);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  /* Đo kích thước trước rồi mới hiện — tránh nháy ở toạ độ 0,0. */
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+.hover-tip--hien {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+.hover-tip--tren {
+  transform: translateY(3px);
+}
+.hover-tip--tren.hover-tip--hien {
+  transform: translateY(0);
+}
+/* Mũi nhọn chỉ về dấu hỏi — ô vuông xoay, viền hai cạnh khớp viền thẻ. */
+.hover-tip::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: calc(var(--mui, 14px) - 5px);
+  width: 10px;
+  height: 10px;
+  background: var(--canvas);
+  border-left: 1px solid var(--rule);
+  border-top: 1px solid var(--rule);
+  transform: rotate(45deg);
+}
+.hover-tip--tren::before {
+  top: auto;
+  bottom: -6px;
+  transform: rotate(225deg);
+}
+
+.hover-tip__tieu-de {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.hover-tip__dan {
+  margin: 0;
+  color: var(--ash);
+}
+.hover-tip__tieu-de + .hover-tip__dong,
+.hover-tip__dan + .hover-tip__dong {
+  margin-top: 10px;
+}
+/* Mỗi lựa chọn một hàng: thẻ tên ở cột trái, tác dụng ở cột phải. */
+.hover-tip__dong {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 10px;
+  margin: 0;
+}
+.hover-tip__hang {
+  display: contents;
+}
+.hover-tip__hang dt {
+  align-self: start;
+  padding: 1px 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pill);
+  background: var(--paper-contrast);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.hover-tip__hang dd {
+  margin: 0;
+  color: var(--ink);
+}
+.hover-tip__luu-y {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule-soft, var(--rule));
+  font-size: 12px;
+  color: var(--ash);
+}
+
+/* "Cho phép: a; b; c." → mỗi việc một dòng. */
+.hover-tip__ds {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--ink);
+}
+.hover-tip__ds li + li {
+  margin-top: 3px;
+}
+.hover-tip__ds li::marker {
+  color: var(--ash);
+}
+.hover-tip__hang dd p {
+  margin: 0;
+}

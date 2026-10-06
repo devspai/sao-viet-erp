@@ -30,10 +30,11 @@ import { useCan } from "../auth/permissions";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icons";
 import { EmptyRow, EmptyState } from "../components/EmptyState";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { Select } from "../components/Select";
 import { KhoGiaGocThanhPham } from "./KhoGiaGocThanhPham";
 import { VoucherDrawer } from "./KhoYeuCauPage";
-import { AN_DIEU_CHUYEN, DateFilterHead, NumFilterHead, PageSizeSelect, DEFAULT_PAGE_SIZE, fmtQty, inDateRange, inNumRange, todayISO, useHeaderTitles } from "./khoShared";
+import { AN_DIEU_CHUYEN, DateFilterHead, NumFilterHead, DEFAULT_PAGE_SIZE, fmtQty, inDateRange, inNumRange, todayISO, useHeaderTitles } from "./khoShared";
 import { Search } from "lucide-react";
 import { nhanDangKho, nhanKho } from "../lib/khoGiay";
 import "./rebuild-catalog.css";
@@ -437,7 +438,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
       : kho ? { dang: "to" as const, kho_rong: r.kho_rong, kho_dai: r.kho_dai }
       : { dang: "cuon" as const, kho_rong: 0, kho_dai: 0 };
     api.kho.phieu
-      .lichSuVatTu(token, r.hang_loai as HangLoai, r.hang_id, r.kho_id, giay)
+      .lichSuVatTu(token, r.hang_loai as HangLoai, r.hang_id, r.kho_id, giay, "bao_cao")
       .then(setMatHist)
       .catch((e) => setMatErr(e instanceof ApiError ? e.message : "Không tải được lịch sử mặt hàng."))
       .finally(() => setMatLoading(false));
@@ -445,7 +446,8 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
 
   // Bấm mã phiếu trong popup lô → đóng popup lô, mở PHIẾU đó (chỉ xem — không sửa/ghi sổ ở đây).
   const can = useCan();
-  const canViewCost = can("kho", "view_cost");
+  // Ô "Xem giá thành" của CHÍNH màn Báo cáo kho (05/10/2026 — mỗi màn kho một ô xem giá riêng).
+  const canViewCost = can("bao_cao_kho", "view_cost");
   const [giaGocTong, setGiaGocTong] = useState<number | null>(null);
   const [openVoucherId, setOpenVoucherId] = useState<number | null>(null);
   function openVoucher(vid: number | null) {
@@ -659,7 +661,6 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
     () => filteredRows.reduce((s, r) => s + (r.thanh_tien ?? 0), 0),
     [filteredRows],
   );
-  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const pagedRows = useMemo(
     () => filteredRows.slice((page - 1) * pageSize, page * pageSize),
     [filteredRows, page, pageSize],
@@ -686,7 +687,6 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
     () => filteredChuyen.reduce((s, r) => s + (r.tien_von ?? 0), 0),
     [filteredChuyen],
   );
-  const chuyenPageCount = Math.max(1, Math.ceil(filteredChuyen.length / pageSize));
   const pagedChuyen = useMemo(
     () => filteredChuyen.slice((page - 1) * pageSize, page * pageSize),
     [filteredChuyen, page, pageSize],
@@ -760,7 +760,6 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [histRows, histQuery, histAction, lockTu, lockDen, tdFrom, tdTo]);
-  const histPageCount = Math.max(1, Math.ceil(filteredHist.length / pageSize));
   const pagedHist = useMemo(
     () => filteredHist.slice((page - 1) * pageSize, page * pageSize),
     [filteredHist, page, pageSize],
@@ -782,11 +781,16 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kyList, kyQuery, lockTu, lockDen, klFrom, klTo]);
-  const kyPageCount = Math.max(1, Math.ceil(filteredKy.length / pageSize));
   const pagedKy = useMemo(
     () => filteredKy.slice((page - 1) * pageSize, page * pageSize),
     [filteredKy, page, pageSize],
   );
+  // Cỡ trang dùng chung cho cả 4 bảng; đổi cỡ thì về trang 1 ngay trong cùng lượt (không đợi
+  // effect reset) để không có một khung hình cắt sai trang.
+  const doiCoTrang = (n: number) => {
+    setPageSize(n);
+    setPage(1);
+  };
 
   // Mỗi kỳ khóa (bản ghi 'khoa' phủ dòng) một MÀU riêng — index theo thứ tự thời gian (tu_ngay).
   const periodIndex = useMemo(() => {
@@ -1454,11 +1458,6 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                     );
                   })
                 )}
-                {Array.from({
-                  length: Math.max(0, pageSize - (loading || filteredChuyen.length === 0 ? 1 : pagedChuyen.length)),
-                }).map((_, i) => (
-                  <tr key={`filler-${i}`} className="rc__filler" aria-hidden="true"><td colSpan={11}>&nbsp;</td></tr>
-                ))}
               </tbody>
               {filteredChuyen.length > 0 && (
                 <tfoot>
@@ -1475,28 +1474,8 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
           </div>
 
           {filteredChuyen.length > 0 && (
-            <div className="kho-bc-pager">
-              <PageSizeSelect value={pageSize} onChange={setPageSize} />
-              <button
-                type="button"
-                className="rc__link-btn"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                ‹ Trước
-              </button>
-              <span>
-                Trang {page}/{chuyenPageCount} · {filteredChuyen.length} dòng
-              </span>
-              <button
-                type="button"
-                className="rc__link-btn"
-                disabled={page >= chuyenPageCount}
-                onClick={() => setPage((p) => Math.min(chuyenPageCount, p + 1))}
-              >
-                Sau ›
-              </button>
-            </div>
+            <PhanTrangDayDu trang={page} size={pageSize} tong={filteredChuyen.length} soDong={pagedChuyen.length}
+              onTrang={setPage} onSize={doiCoTrang} donVi="dòng" ariaLabel="Phân trang sổ chuyển kho" />
           )}
           </>
           ) : (
@@ -1563,11 +1542,6 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                     );
                   })
                 )}
-                {Array.from({
-                  length: Math.max(0, pageSize - (loading || filteredRows.length === 0 ? 1 : pagedRows.length)),
-                }).map((_, i) => (
-                  <tr key={`filler-${i}`} className="rc__filler" aria-hidden="true"><td colSpan={12}>&nbsp;</td></tr>
-                ))}
               </tbody>
               {filteredRows.length > 0 && (
                 <tfoot>
@@ -1584,28 +1558,9 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
           </div>
 
           {filteredRows.length > 0 && (
-            <div className="kho-bc-pager">
-              <PageSizeSelect value={pageSize} onChange={setPageSize} />
-              <button
-                type="button"
-                className="rc__link-btn"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                ‹ Trước
-              </button>
-              <span>
-                Trang {page}/{pageCount} · {filteredRows.length} dòng
-              </span>
-              <button
-                type="button"
-                className="rc__link-btn"
-                disabled={page >= pageCount}
-                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-              >
-                Sau ›
-              </button>
-            </div>
+            <PhanTrangDayDu trang={page} size={pageSize} tong={filteredRows.length} soDong={pagedRows.length}
+              onTrang={setPage} onSize={doiCoTrang} donVi="dòng"
+              ariaLabel={soChieu === "NHAP" ? "Phân trang sổ nhập kho" : "Phân trang sổ xuất kho"} />
           )}
         </>
           )}
@@ -2029,37 +1984,12 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                   </tr>
                 ))
               )}
-              {Array.from({
-                length: Math.max(0, pageSize - (filteredHist.length === 0 ? 1 : pagedHist.length)),
-              }).map((_, i) => (
-                <tr key={`filler-${i}`} className="rc__filler" aria-hidden="true"><td colSpan={6}>&nbsp;</td></tr>
-              ))}
             </tbody>
           </table>
         </div>
         {filteredHist.length > 0 && (
-          <div className="kho-bc-pager">
-            <PageSizeSelect value={pageSize} onChange={setPageSize} />
-            <button
-              type="button"
-              className="rc__link-btn"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              ‹ Trước
-            </button>
-            <span>
-              Trang {page}/{histPageCount} · {filteredHist.length} thao tác
-            </span>
-            <button
-              type="button"
-              className="rc__link-btn"
-              disabled={page >= histPageCount}
-              onClick={() => setPage((p) => Math.min(histPageCount, p + 1))}
-            >
-              Sau ›
-            </button>
-          </div>
+          <PhanTrangDayDu trang={page} size={pageSize} tong={filteredHist.length} soDong={pagedHist.length}
+            onTrang={setPage} onSize={doiCoTrang} donVi="thao tác" ariaLabel="Phân trang lịch sử khoá sổ" />
         )}
         </>
       )}
@@ -2129,37 +2059,12 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                   </tr>
                 ))
               )}
-              {Array.from({
-                length: Math.max(0, pageSize - (filteredKy.length === 0 ? 1 : pagedKy.length)),
-              }).map((_, i) => (
-                <tr key={`filler-${i}`} className="rc__filler" aria-hidden="true"><td colSpan={6}>&nbsp;</td></tr>
-              ))}
             </tbody>
           </table>
         </div>
         {filteredKy.length > 0 && (
-          <div className="kho-bc-pager">
-            <PageSizeSelect value={pageSize} onChange={setPageSize} />
-            <button
-              type="button"
-              className="rc__link-btn"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              ‹ Trước
-            </button>
-            <span>
-              Trang {page}/{kyPageCount} · {filteredKy.length} kỳ
-            </span>
-            <button
-              type="button"
-              className="rc__link-btn"
-              disabled={page >= kyPageCount}
-              onClick={() => setPage((p) => Math.min(kyPageCount, p + 1))}
-            >
-              Sau ›
-            </button>
-          </div>
+          <PhanTrangDayDu trang={page} size={pageSize} tong={filteredKy.length} soDong={pagedKy.length}
+            onTrang={setPage} onSize={doiCoTrang} donVi="kỳ" ariaLabel="Phân trang kỳ đã khoá" />
         )}
         </>
       )}

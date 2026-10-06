@@ -374,8 +374,9 @@
 /* --- Phân trang + lọc tháng ------------------------------------------------------ */
 .ktm-thangloc { width: 150px; padding: 7px 10px; font-size: 13px; }
 
-/* Thanh phân trang riêng `.ktm-trang` ĐÃ GỠ 14/08/2026 cùng component `PhanTrang` — hai màn dùng
-   `components/Pager.tsx` (kèm `pager.css`) như mọi màn khác trong hệ. */
+/* Thanh phân trang riêng `.ktm-trang` ĐÃ GỠ 14/08/2026 cùng component `PhanTrang`. Từ 05/10/2026 hai
+   màn dùng chân chung `components/PhanTrangDayDu.tsx`; khung `.rc__tablewrap` + chân đã có luật nối
+   sẵn ở rebuild-catalog.css. */
 
 /* --- Chuyển chế độ xem Lịch | Bảng --------------------------------------------- */
 .ktm-xem {

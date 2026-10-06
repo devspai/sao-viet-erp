@@ -1,13 +1,18 @@
-"""Nghiệp vụ sổ tài sản — ghi tăng, nạp số dư đầu kỳ, sửa, xoá, hai chứng từ biến động.
+"""Nghiệp vụ sổ tài sản — thêm tài sản (mua mới / đang dùng), sửa, xoá, chuyển bộ phận, sửa chữa
+lớn, thôi dùng.
 
 Từ 08/09/2026 sổ KHÔNG còn kỳ chốt (chủ: "nó chỉ theo dõi khấu hao thôi"). Hao mòn lũy kế là số
 TÍNH RA từ lịch (`khau_hao.py`) tới hết tháng trước, không lưu, không cộng dồn, không có gì để
 chốt hay mở lại. Mỗi lần cơ sở trích đổi (ghi tăng, nạp đầu kỳ, nâng cấp) là một dòng
 `tai_san_moc`; mốc cũ giữ nguyên nên tháng trước mốc mới vẫn tính theo cơ sở cũ.
 
-KHÔNG còn nghiệp vụ ghi giảm (chủ 08/09/2026: "cái ghi giảm bỏ đi"): món bán / hỏng / không dùng
-nữa thì XOÁ khỏi sổ — xoá được cả khi đã có điều chuyển / nâng cấp. Dòng cũ còn mang `da_giam` +
-`ngay_giam` thì engine vẫn ngừng trích từ ngày đó (đọc được, không tạo mới).
+Làm lại 05/10/2026 (`docs/superpowers/specs/2026-10-05-tai-san-lam-lai-design.md`): món bán /
+thanh lý / hỏng / mất đi bằng THÔI DÙNG — ngừng trích từ ngày đó (`da_giam` + `ngay_giam`, engine
+đã đọc sẵn), thẻ vẫn còn để tra cứu; bấm nhầm thì Bỏ thôi dùng. XOÁ chỉ còn cho tài sản nhập nhầm,
+chưa có chứng từ nào. Không định khoản, không tiền bán — kế toán làm ở phần mềm kế toán.
+
+Câu báo lỗi nói bằng chữ trên màn (Giá mua, Khấu hao trong, Đã khấu hao trước đó…), không bằng
+thuật ngữ kế toán — xem mục "Cách dùng từ" của spec.
 
 Luật khoá còn lại: tài sản ĐÃ CÓ CHỨNG TỪ biến động thì không sửa ô ảnh hưởng số — lịch sử chứng
 từ và mốc phải khớp nhau. Ô mô tả sửa thoải mái.
@@ -21,6 +26,8 @@ from datetime import date
 from ...models.tai_san import (
     BD_DIEU_CHUYEN,
     BD_NANG_CAP,
+    BD_THOI_DUNG,
+    KIEU_THOI_DUNG,
     LOAI_CCDC,
     LOAI_TSCD,
     MOC_DAU_KY,
@@ -73,6 +80,35 @@ O_MO_TA = {
 
 TIEN_TO_MA = {LOAI_TSCD: "TS-", LOAI_CCDC: "CC-"}
 
+#: Công cụ dụng cụ khấu hao tối đa 36 tháng — trần thuế TNDN (NĐ 320/2025, trước là TT 96/2015).
+CCDC_TOI_DA_THANG = 36
+
+#: Thông báo khi đụng ô tiền / số tháng của tài sản đã có lịch sử.
+LOI_DA_CO_LICH_SU = (
+    "Tài sản đã có lịch sử (chuyển bộ phận, sửa chữa lớn hoặc thôi dùng) nên không sửa được giá "
+    "mua, loại, số tháng hay ngày bắt đầu nữa"
+)
+
+
+def _chan_ccdc_qua_36(loai: str, so_thang: int) -> None:
+    if loai == LOAI_CCDC and int(so_thang) > CCDC_TOI_DA_THANG:
+        raise TaiSanValidationError(
+            f"Công cụ dụng cụ khấu hao tối đa {CCDC_TOI_DA_THANG} tháng"
+        )
+
+
+def _kiem_da_khau_hao(nguyen_gia: int, so_thang: int, hao_mon: int, thang_da_trich: int) -> None:
+    """Số mang sang của tài sản đang dùng. Cho phép BẰNG (máy đã khấu hao hết mà vẫn chạy — ngày
+    đầu lên phần mềm sẽ có nhiều): khi đó mốc có cơ sở 0, engine không trích tháng nào."""
+    if hao_mon < 0 or hao_mon > nguyen_gia:
+        raise TaiSanValidationError("Đã khấu hao trước đó phải từ 0 tới Giá mua")
+    if thang_da_trich < 0 or thang_da_trich > so_thang:
+        raise TaiSanValidationError("Đã khấu hao mấy tháng phải từ 0 tới số tháng khấu hao")
+    if thang_da_trich == so_thang and hao_mon < nguyen_gia:
+        raise TaiSanValidationError(
+            "Đã khấu hao đủ số tháng thì Đã khấu hao trước đó phải bằng Giá mua"
+        )
+
 
 def mocs_cua(t: TaiSan) -> list[Moc]:
     """Danh sách mốc của tài sản cho engine (theo thứ tự ngày).
@@ -122,7 +158,7 @@ class SuKien:
     """Một chuyện xảy ra với tài sản trong một tháng — nhãn ngắn để đeo chip trên bảng, câu đầy
     đủ để rê chuột / ngăn chi tiết / Excel."""
 
-    #: `dau` | `dau_ky` | `nang_cap` | `chuyen` | `cuoi` — FE tô màu theo đây.
+    #: `dau` | `dau_ky` | `nang_cap` | `chuyen` | `thoi_dung` | `cuoi` — FE tô màu theo đây.
     loai: str
     nhan: str
     chi_tiet: str
@@ -196,13 +232,13 @@ class TaiSanService:
         if mocs:
             dau = mocs[0]
             if t.nguon_vao == NGUON_DAU_KY:
-                them(dau.tu_ngay, "dau_ky", "Số dư mang sang",
-                     f"Bắt đầu tính trên phần mềm, hao mòn mang sang {_tien(dau.luy_ke_dau)}")
+                them(dau.tu_ngay, "dau_ky", "Mang sang từ sổ cũ",
+                     f"Bắt đầu tính trên phần mềm, đã khấu hao trước đó {_tien(dau.luy_ke_dau)}")
             elif dau.tu_ngay.day != 1:
                 so_ngay = calendar.monthrange(dau.tu_ngay.year, dau.tu_ngay.month)[1]
                 dung = so_ngay - dau.tu_ngay.day + 1
-                them(dau.tu_ngay, "dau", f"Tháng đầu {dung}/{so_ngay} ngày",
-                     f"Dùng từ {dau.tu_ngay:%d/%m}: tháng đầu trích {dung}/{so_ngay} ngày")
+                them(dau.tu_ngay, "dau", f"Tháng đầu, tính từ ngày {dau.tu_ngay.day}",
+                     f"Bắt đầu dùng {dau.tu_ngay:%d/%m}: tháng đầu tính {dung}/{so_ngay} ngày")
 
         def muc(m) -> int:
             return int(m.co_so_trich) // int(m.so_thang_con) if m.so_thang_con else 0
@@ -210,10 +246,9 @@ class TaiSanService:
         def truoc_sau(m) -> str:
             i = mocs.index(m)
             if i == 0:
-                return f"nguyên giá {_tien(m.nguyen_gia)}, mức tháng {_tien(muc(m))}"
+                return f"từ {m.tu_ngay:%m/%Y} mỗi tháng {_tien(muc(m))}"
             tr = mocs[i - 1]
-            return (f"nguyên giá {_tien(tr.nguyen_gia)} → {_tien(m.nguyen_gia)}, "
-                    f"mức tháng {_tien(muc(tr))} → {_tien(muc(m))}")
+            return f"từ {m.tu_ngay:%m/%Y} mỗi tháng {_tien(muc(tr))} → {_tien(muc(m))}"
 
         # Chứng từ ↔ mốc nó đẻ ra, cùng thứ tự: nâng cấp ↔ mốc `nang_cap`, bớt cái ↔ mốc `giam_lo`.
         bd_nc = [b for b in t.bien_dong if b.loai == BD_NANG_CAP]
@@ -225,7 +260,12 @@ class TaiSanService:
             if b.loai == BD_DIEU_CHUYEN:
                 ten = self.repo.ten_bo_phan(b.bo_phan_moi_id) if b.bo_phan_moi_id else None
                 them(b.ngay, "chuyen", f"Chuyển sang {ten or 'bộ phận khác'} {b.ngay:%d/%m}",
-                     f"Điều chuyển sang {ten or 'bộ phận khác'} ngày {b.ngay:%d/%m}")
+                     f"Chuyển sang {ten or 'bộ phận khác'} ngày {b.ngay:%d/%m}")
+            elif b.loai == BD_THOI_DUNG:
+                kieu = KIEU_THOI_DUNG.get(b.kieu_thoi_dung or "", "Thôi dùng")
+                cau = f"{kieu} ngày {b.ngay:%d/%m/%Y}: ngừng khấu hao từ ngày này"
+                them(b.ngay, "thoi_dung", f"Thôi dùng từ {b.ngay:%d/%m} ({kieu})",
+                     f"{cau}. {b.ly_do}" if b.ly_do else cau)
 
         return ghi
 
@@ -236,7 +276,7 @@ class TaiSanService:
         if ds:
             return list(ds)
         if d.con_lai == 0:
-            return [SuKien("cuoi", "Tháng cuối", "Hết khấu hao: tháng cuối trích nốt phần còn lại")]
+            return [SuKien("cuoi", "Tháng cuối", "Khấu hao hết: tháng cuối tính nốt phần còn lại")]
         return []
 
     @staticmethod
@@ -247,8 +287,8 @@ class TaiSanService:
 
     @staticmethod
     def dong_hien_thi(t: TaiSan, d: DongThang) -> DongThang:
-        """Dòng CŨ đã ghi giảm (nghiệp vụ đã bỏ): tháng giảm "còn lại" hiện 0 — món đã ra khỏi
-        sổ, không để cột số bảo còn 23.906.667 trong khi món đã bán."""
+        """Tài sản đã thôi dùng: tháng thôi dùng "còn lại" hiện 0 — món đã ra khỏi xưởng, không để
+        cột số bảo còn 23.906.667 trong khi món đã bán."""
         if t.trang_thai == TT_DA_GIAM and t.ngay_giam is not None \
                 and (d.nam, d.thang) == (t.ngay_giam.year, t.ngay_giam.month):
             return replace(d, con_lai=0)
@@ -290,11 +330,11 @@ class TaiSanService:
         if nv is None:
             raise TaiSanValidationError(f"Không tìm thấy nhân viên #{nhan_vien_id}")
         if not t.bo_phan_id:
-            raise TaiSanValidationError("Chọn bộ phận sử dụng trước rồi mới chọn người quản lý")
+            raise TaiSanValidationError("Chọn bộ phận dùng trước rồi mới chọn người giữ")
         if nv.department_id != t.bo_phan_id:
             raise TaiSanValidationError(
-                f"{nv.full_name} không thuộc bộ phận đang giữ tài sản — người quản lý phải là "
-                "nhân viên của bộ phận đó"
+                f"{nv.full_name} không thuộc bộ phận dùng tài sản — người giữ phải là nhân viên "
+                "của bộ phận đó"
             )
         t.nguoi_quan_ly_id = nv.id
         t.nguoi_quan_ly = nv.full_name
@@ -318,13 +358,14 @@ class TaiSanService:
         loai = payload.get("loai") or LOAI_TSCD
         so_thang = int(payload.get("so_thang") or 0)
         if so_thang <= 0:
-            raise TaiSanValidationError("Số tháng khấu hao phải lớn hơn 0")
+            raise TaiSanValidationError("Khấu hao trong (tháng) phải lớn hơn 0")
+        _chan_ccdc_qua_36(loai, so_thang)
         ngay_su_dung = payload.get("ngay_su_dung")
         if not ngay_su_dung:
-            raise TaiSanValidationError("Phải nhập ngày đưa vào sử dụng")
+            raise TaiSanValidationError("Phải nhập ngày bắt đầu dùng")
         nguyen_gia = self._nguyen_gia(payload)
         if nguyen_gia <= 0:
-            raise TaiSanValidationError("Nguyên giá phải lớn hơn 0")
+            raise TaiSanValidationError("Giá mua phải lớn hơn 0")
 
         ma = (payload.get("ma") or "").strip() or self.sinh_ma(loai)
         if self.repo.tim_theo_ma(ma) is not None:
@@ -372,23 +413,25 @@ class TaiSanService:
         self.repo.commit()
         return t
 
-    def nap_dau_ky(self, payload: dict, *, user_id: int | None = None) -> TaiSan:
+    def nap_dau_ky(
+        self, payload: dict, *, user_id: int | None = None, commit: bool = True
+    ) -> TaiSan:
         """Tài sản đã dùng TRƯỚC khi lên phần mềm: mang sang phần còn phải trích.
 
         `moc_tu_ngay` là tháng đầu tiên phần mềm chịu trách nhiệm tính (thường là tháng bắt đầu
         dùng hệ), KHÁC `ngay_su_dung` (ngày mua về từ mấy năm trước). Luôn ép về NGÀY 1 của tháng
         đó: số mang sang là số tròn tháng, không có chuyện "từ 15/01 chia lẻ ngày".
+
+        `commit=False`: nhập Excel cả file là MỘT giao dịch — chỉ flush để mã kế tiếp thấy dòng
+        vừa thêm, nơi gọi tự commit / rollback.
         """
         t = self._dung(payload, nguon_vao=NGUON_DAU_KY, user_id=user_id)
         hao_mon = int(payload.get("hao_mon_dau_ky") or 0)
         thang_da_trich = int(payload.get("thang_da_trich_dau_ky") or 0)
         moc = payload.get("moc_tu_ngay")
         if not moc:
-            raise TaiSanValidationError("Phải nhập tháng bắt đầu tính trên phần mềm")
-        if hao_mon < 0 or hao_mon >= t.nguyen_gia:
-            raise TaiSanValidationError("Hao mòn lũy kế phải từ 0 đến nhỏ hơn nguyên giá")
-        if thang_da_trich < 0 or thang_da_trich >= t.so_thang:
-            raise TaiSanValidationError("Số tháng đã trích phải nhỏ hơn số tháng khấu hao")
+            raise TaiSanValidationError("Phải chọn tháng tính tiếp trên phần mềm")
+        _kiem_da_khau_hao(t.nguyen_gia, t.so_thang, hao_mon, thang_da_trich)
 
         t.hao_mon_dau_ky = hao_mon
         t.thang_da_trich_dau_ky = thang_da_trich
@@ -396,7 +439,10 @@ class TaiSanService:
                       co_so_trich=t.nguyen_gia - hao_mon, so_thang_con=t.so_thang - thang_da_trich,
                       luy_ke_dau=hao_mon, nguon=MOC_DAU_KY)
         self.repo.them(t)
-        self.repo.commit()
+        if commit:
+            self.repo.commit()
+        else:
+            self.repo.flush()
         return t
 
     # --- Sửa / xoá ------------------------------------------------------------------------
@@ -405,10 +451,7 @@ class TaiSanService:
         t = self._bat_buoc(tai_san_id)
         dung_o_so = {k for k in payload if k in O_ANH_HUONG_SO}
         if dung_o_so and t.bien_dong:
-            raise TaiSanDaCoChungTu(
-                "Tài sản đã có chứng từ biến động — chỉ sửa được các ô mô tả "
-                f"(đang sửa: {', '.join(sorted(dung_o_so))})"
-            )
+            raise TaiSanDaCoChungTu(LOI_DA_CO_LICH_SU)
         for k in payload:
             if k in O_MO_TA and k != "nguoi_quan_ly_id":
                 setattr(t, k, payload[k])
@@ -441,15 +484,18 @@ class TaiSanService:
         if not nguyen_gia:
             nguyen_gia = int(t.so_luong or 1) * int(t.don_gia or 0)
         if nguyen_gia <= 0:
-            raise TaiSanValidationError("Nguyên giá phải lớn hơn 0")
+            raise TaiSanValidationError("Giá mua phải lớn hơn 0")
         if int(t.so_thang or 0) <= 0:
-            raise TaiSanValidationError("Số tháng khấu hao phải lớn hơn 0")
-        so_thang_con = int(t.so_thang) - int(t.thang_da_trich_dau_ky or 0)
-        if so_thang_con <= 0:
-            raise TaiSanValidationError("Số tháng đã trích phải nhỏ hơn số tháng khấu hao")
-        hao_mon_dau = int(t.hao_mon_dau_ky or 0) if t.nguon_vao == NGUON_DAU_KY else 0
-        if hao_mon_dau >= nguyen_gia:
-            raise TaiSanValidationError("Hao mòn lũy kế phải từ 0 đến nhỏ hơn nguyên giá")
+            raise TaiSanValidationError("Khấu hao trong (tháng) phải lớn hơn 0")
+        _chan_ccdc_qua_36(t.loai, int(t.so_thang))
+        if t.nguon_vao == NGUON_DAU_KY:
+            _kiem_da_khau_hao(nguyen_gia, int(t.so_thang), int(t.hao_mon_dau_ky or 0),
+                              int(t.thang_da_trich_dau_ky or 0))
+            so_thang_con = int(t.so_thang) - int(t.thang_da_trich_dau_ky or 0)
+            hao_mon_dau = int(t.hao_mon_dau_ky or 0)
+        else:
+            so_thang_con = int(t.so_thang)
+            hao_mon_dau = 0
 
         if payload.get("moc_tu_ngay"):
             moc = payload["moc_tu_ngay"]
@@ -466,22 +512,22 @@ class TaiSanService:
                       so_thang_con=so_thang_con, luy_ke_dau=hao_mon_dau, nguon=MOC_SUA)
 
     def xoa(self, tai_san_id: int) -> None:
-        """Gỡ hẳn khỏi sổ — cả chứng từ điều chuyển / nâng cấp lẫn mọi tháng đã trích.
+        """Gỡ hẳn khỏi sổ — CHỈ cho tài sản nhập nhầm, chưa có chứng từ nào (05/10/2026).
 
-        Không có nghiệp vụ ghi giảm (chủ bỏ 08/09/2026) nên đây là lối ra DUY NHẤT cho món đã
-        bán / hỏng / không dùng nữa; FE hỏi xác nhận trước. `tai_san_bien_dong` là FK RESTRICT
-        nên phải xoá chứng từ trước khi xoá tài sản; mốc và dòng chi phí cascade theo.
+        Món đã bán / hỏng / mất đi bằng Thôi dùng để giữ lịch sử. Mốc và dòng chi phí cascade theo.
         """
         t = self._bat_buoc(tai_san_id)
-        for bd in list(t.bien_dong):
-            self.repo.xoa(bd)
+        if t.bien_dong:
+            raise TaiSanDaCoChungTu(
+                "Tài sản đã có lịch sử, không xoá được. Máy đã bán hay hỏng thì bấm Thôi dùng."
+            )
         self.repo.xoa(t)
         self.repo.commit()
 
-    # --- Hai chứng từ biến động -------------------------------------------------------------
+    # --- Ba chứng từ: chuyển bộ phận · sửa chữa lớn · thôi dùng ------------------------------
     #
-    # Mỗi chứng từ để lại đúng một hàng `tai_san_bien_dong` — tab lịch sử của tài sản đọc thẳng
-    # bảng đó. Nâng cấp thêm một mốc cơ sở; điều chuyển không đụng mốc. (Ghi giảm đã bỏ 08/09/2026.)
+    # Mỗi chứng từ để lại đúng một hàng `tai_san_bien_dong` — lịch sử của tài sản đọc thẳng bảng
+    # đó. Sửa chữa lớn thêm một mốc cơ sở; chuyển bộ phận và thôi dùng không đụng mốc.
 
     def _ky_ap_dung(self, ngay: date) -> date:
         """Nâng cấp áp từ ĐẦU THÁNG SAU, trừ khi chứng từ đúng ngày 1 thì áp ngay tháng đó.
@@ -495,9 +541,13 @@ class TaiSanService:
     def _chan_truoc_khi_dung(self, t: TaiSan, ngay: date) -> None:
         if ngay < t.ngay_su_dung:
             raise TaiSanValidationError(
-                f"Ngày chứng từ ({ngay:%d/%m/%Y}) trước ngày đưa vào sử dụng "
-                f"({t.ngay_su_dung:%d/%m/%Y})"
+                f"Ngày {ngay:%d/%m/%Y} trước ngày bắt đầu dùng ({t.ngay_su_dung:%d/%m/%Y})"
             )
+
+    @staticmethod
+    def _chan_da_thoi_dung(t: TaiSan) -> None:
+        if t.trang_thai == TT_DA_GIAM:
+            raise TaiSanValidationError(f"{t.ten} đã thôi dùng")
 
     def _ghi_bien_dong(self, t: TaiSan, **truong) -> TaiSanBienDong:
         bd = TaiSanBienDong(tai_san_id=t.id, **truong)
@@ -520,8 +570,9 @@ class TaiSanService:
         bộ phận cũ, để lại là sai.
         """
         t = self._bat_buoc(tai_san_id)
+        self._chan_da_thoi_dung(t)
         if not bo_phan_moi_id:
-            raise TaiSanValidationError("Phải chọn bộ phận nhận")
+            raise TaiSanValidationError("Phải chọn bộ phận chuyển sang")
         bd = self._ghi_bien_dong(
             t, loai=BD_DIEU_CHUYEN, ngay=ngay, bo_phan_moi_id=bo_phan_moi_id,
             ly_do=ly_do, nguoi_tao_id=user_id,
@@ -551,16 +602,19 @@ class TaiSanService:
         dụng; các tháng trước đó vẫn theo mốc cũ.
         """
         t = self._bat_buoc(tai_san_id)
-        if t.trang_thai == TT_DA_GIAM:
-            raise TaiSanValidationError("Tài sản đã ghi giảm — không sửa chữa lớn được nữa")
+        self._chan_da_thoi_dung(t)
         self._chan_truoc_khi_dung(t, ngay)
         if int(so_tien or 0) <= 0:
-            raise TaiSanValidationError("Chi phí sửa chữa phải lớn hơn 0")
+            raise TaiSanValidationError("Tiền sửa phải lớn hơn 0")
         if int(so_thang_con_lai or 0) <= 0:
-            raise TaiSanValidationError("Số tháng còn dùng phải lớn hơn 0")
+            raise TaiSanValidationError("Số tháng dùng thêm phải lớn hơn 0")
+        _chan_ccdc_qua_36(t.loai, int(so_thang_con_lai))
         ky = self._ky_ap_dung(ngay)
         if ky < self._moc_hien_tai(t).tu_ngay:
-            raise TaiSanValidationError("Tháng áp dụng sửa chữa lớn phải sau mốc cơ sở hiện tại")
+            raise TaiSanValidationError(
+                f"Sửa chữa lớn áp từ tháng {ky:%m/%Y}, trước lần thay đổi gần nhất "
+                f"({self._moc_hien_tai(t).tu_ngay:%m/%Y})"
+            )
 
         bd = self._ghi_bien_dong(
             t, loai=BD_NANG_CAP, ngay=ngay, so_tien=int(so_tien),
@@ -578,3 +632,53 @@ class TaiSanService:
                       nguon=MOC_NANG_CAP)
         self.repo.commit()
         return bd
+
+    def thoi_dung(
+        self,
+        tai_san_id: int,
+        *,
+        ngay: date,
+        kieu: str,
+        ly_do: str | None = None,
+        user_id: int | None = None,
+    ) -> TaiSanBienDong:
+        """Bán / thanh lý / hỏng / mất: ngừng trích TỪ ngày này (tháng đó chia theo ngày — engine
+        đọc `ngay_giam`), thẻ vẫn còn. Không đụng mốc, không ghi tiền bán (kế toán làm ở phần mềm
+        kế toán)."""
+        t = self._bat_buoc(tai_san_id)
+        self._chan_da_thoi_dung(t)
+        if kieu not in KIEU_THOI_DUNG:
+            raise TaiSanValidationError("Chọn lý do thôi dùng: Bán, Thanh lý, Hỏng hoặc Mất")
+        self._chan_truoc_khi_dung(t, ngay)
+        dau = mocs_cua(t)[0].tu_ngay
+        if t.nguon_vao == NGUON_DAU_KY and ngay < dau:
+            raise TaiSanValidationError(
+                f"Ngày thôi dùng phải từ tháng tính trên phần mềm ({dau:%m/%Y}) trở đi"
+            )
+        moi_nhat = max((b.ngay for b in t.bien_dong), default=None)
+        if moi_nhat is not None and ngay < moi_nhat:
+            raise TaiSanValidationError(
+                f"Ngày thôi dùng phải từ {moi_nhat:%d/%m/%Y} trở đi (sau lần thay đổi gần nhất)"
+            )
+        bd = self._ghi_bien_dong(
+            t, loai=BD_THOI_DUNG, ngay=ngay, kieu_thoi_dung=kieu,
+            ly_do=(ly_do or "").strip() or None, nguoi_tao_id=user_id,
+        )
+        t.trang_thai = TT_DA_GIAM
+        t.ngay_giam = ngay
+        self.repo.commit()
+        return bd
+
+    def bo_thoi_dung(self, tai_san_id: int) -> TaiSan:
+        """Bấm nhầm Thôi dùng ⇒ xoá chứng từ đó, tài sản về Đang dùng, lịch khấu hao như cũ."""
+        t = self._bat_buoc(tai_san_id)
+        ds = [b for b in t.bien_dong if b.loai == BD_THOI_DUNG]
+        if t.trang_thai != TT_DA_GIAM or not ds:
+            raise TaiSanValidationError(f"{t.ten} đang dùng, không có gì để bỏ")
+        for b in ds:
+            t.bien_dong.remove(b)
+            self.repo.xoa(b)
+        t.trang_thai = TT_DANG_DUNG
+        t.ngay_giam = None
+        self.repo.commit()
+        return t

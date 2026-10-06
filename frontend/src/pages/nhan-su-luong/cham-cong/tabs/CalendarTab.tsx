@@ -214,7 +214,7 @@ export function CalendarTab({ token }: { token: string }) {
 
           <div
             className="ns__tablewrap"
-            style={{ flexGrow: 1, overflowY: "auto", maxHeight: "250px" }}
+            style={{ flexGrow: 1 }}
           >
             <table className="ns__table">
               <thead>

@@ -57,8 +57,7 @@
 
 /* Báo cáo kho — bảng DẠNG LƯỚI dày kiểu sổ kế toán (viền ô, header dính, zebra, chữ nhỏ gọn). */
 .kho-bc-wrap {
-  max-height: calc(100vh - 260px);
-  overflow: auto;
+  overflow-x: auto;
   border: 1px solid var(--rule-soft, #e2e8f0);
   border-radius: var(--r-3, 8px);
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.03);
@@ -180,20 +179,6 @@
 }
 .rc__table.kho-bc tbody tr.kho-bc__lock-2 td:first-child {
   box-shadow: inset 3px 0 0 var(--moss, #2f5d3a);
-}
-/* Phân trang Báo cáo kho. */
-.kho-bc-pager {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--sp-3);
-  margin-top: var(--sp-3);
-  font-size: 0.86rem;
-  color: var(--ash-2, var(--ash-2));
-}
-.kho-bc-pager .rc__link-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 /* Dialog Khóa/Mở kỳ — bố cục gọn + segmented control tô màu theo hành động + note box. */
@@ -829,15 +814,6 @@ input.kho-num,
   width: 150px;
 }
 
-/* Bộ chọn số dòng/trang — dropdown gọn (mở lên trên). */
-.kho-pgsize {
-  width: 118px;
-  flex: 0 0 auto;
-}
-/* Pager báo cáo (không có spacer sẵn): đẩy selector về mép trái, nút trang giữ bên phải. */
-.kho-bc-pager .kho-pgsize {
-  margin-right: auto;
-}
 
 /* --- Toolbar: ô chọn kho gọn trong hàng toolbar --------------------------- */
 .kho-picker {
@@ -1416,8 +1392,8 @@ input.kho-num,
    tự sinh thanh cuộn. Chỉ áp cho các bảng kho này (.rc__table--fixed = Yêu cầu/Hộp yêu cầu; .kho-table
    = Tồn/Phiếu), không đụng bảng dùng chung khác. */
 .rc__table--fixed { min-width: 860px; }
-/* Mọi bảng kho rộng hết khung, min-width 860px thì cuộn ngang khi màn hẹp. (ĐỘ DÀI/chiều cao cố
-   định giữa các tab do HÀNG ĐỆM `rc__filler` trong TSX lo — xem KhoTonKhoPage, giống bảng Báo cáo.) */
+/* Mọi bảng kho rộng hết khung, min-width 860px thì cuộn ngang khi màn hẹp. Chiều cao ôm số dòng
+   của trang (ô Dòng/trang ở chân bảng quyết), không đệm hàng trống. */
 .kho-list .kho-table { min-width: 860px; width: 100%; }
 .kho-list .kho-ton-table { min-width: 860px; width: 100%; }
 
@@ -1499,12 +1475,11 @@ input.kho-num,
 .kho-list .rc__row.kho-ton__grow:hover td {
   background: color-mix(in srgb, var(--rust, #c5400a) 5%, #ffffff);
 }
-/* Bảng Tồn/Phiếu kho & Báo cáo kho: ôm vừa khít dữ liệu, tối đa theo màn hình (max-height);
-   triệt tiêu hoàn toàn khoảng hở thừa ở đáy bảng; header dính lại khi cuộn. */
+/* Bảng Tồn/Phiếu kho & Báo cáo kho: ôm vừa khít dữ liệu, KHÔNG trần chiều cao (05/10/2026, khuôn
+   Nhật ký — cả trang cuộn, số dòng do ô Dòng/trang ở chân bảng quyết). */
 .kho-list .kho-tablewrap,
 .kho-bc-wrap {
-  max-height: calc(100vh - 260px);
-  overflow: auto;
+  overflow-x: auto;
   border: 1px solid var(--rule-soft, #e2e8f0);
   border-radius: var(--r-3, 8px);
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.03);
@@ -1974,17 +1949,26 @@ input.kho-num,
   color: var(--ink, #333);
 }
 
-/* ── Bảng Yêu cầu / Hộp yêu cầu: chiều cao cố định ─────────────────────────────
-   Đệm hàng trống cho đủ 1 trang (PAGE_SIZE) → 2 tab luôn cao BẰNG NHAU, bảng không
-   co giật khi lọc còn ít dòng. Hàng đệm giữ đúng nhịp 2 dòng như hàng thật (ẩn nội
-   dung), không con trỏ / không hover. */
-.rc__filler,
-.rc__filler:hover {
-  cursor: default;
-  background: transparent !important;
+/* ── Chân phân trang (`PhanTrangDayDu`) nối vào đáy khung bảng kho ─────────────────
+   Khuôn Nhật ký: khung + chân là MỘT thẻ. `.rc__tablewrap + .ptdd` (rebuild-catalog.css) đã nối
+   cho Yêu cầu/Hộp yêu cầu, nhưng hai khung kho tự vẽ viền với bán kính riêng (`--r-3`) và
+   `.kho-list .kho-tablewrap` đè bán kính đáy của luật chung — phải nối lại ở đây cho khớp góc.
+   (05/10/2026 bỏ hàng đệm `rc__filler`: bảng ôm đúng số dòng, cả trang cuộn.) */
+.kho-list .kho-tablewrap:has(+ .ptdd),
+.kho-bc-wrap:has(+ .ptdd) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
-.rc__filler td {
-  color: transparent;
+.kho-list .kho-tablewrap + .ptdd,
+.kho-bc-wrap + .ptdd {
+  border: 1px solid var(--rule-soft, #e2e8f0);
+  border-top: 0;
+  border-radius: 0 0 var(--r-3, 8px) var(--r-3, 8px);
+}
+/* Thẻ Yêu cầu nhập xuất viền `--rule` (đậm hơn `--rule-soft` của luật chung) — chân theo đúng màu
+   viền thẻ, không thì đáy thẻ lệch tông. */
+.rc__tablewrap.kho-table-card + .ptdd {
+  border-color: var(--rule);
 }
 /* Ô trạng-thái-rỗng: giữ cao ~1 trang để hộp không co khi không có dòng nào. */
 .rc__table--fixed .rc__empty-state-td {

@@ -6441,8 +6441,8 @@ su = 1 dòng, `so_luong` = 12). Phân biệt bằng `loai`, KHÔNG tách bảng 
 | `so_hoa_don`            | `String(64)` → `VARCHAR(64)`                           | —                            | yes  | —              | Số hoá đơn mua.                                                                               |
 | `nha_cung_cap`          | `String(255)` → `VARCHAR(255)`                         | —                            | yes  | —              | Nhà cung cấp — chữ tự do, không FK. Form không hỏi nữa từ 08/09/2026, cột giữ nguyên.  |
 | `ghi_chu`               | `Text` → `TEXT`                                        | —                            | yes  | —              | Ghi chú tự do — kể cả định khoản. Hệ KHÔNG đọc nội dung.                                      |
-| `trang_thai`            | `String(12)` → `VARCHAR(12)`                           | **IX**                       | no   | `dang_dung`    | `dang_dung`; `da_giam` chỉ còn ở dòng CŨ (nghiệp vụ ghi giảm bỏ 08/09/2026).                                                                     |
-| `ngay_giam`             | `Date` → `DATE`                                        | —                            | yes  | —              | Chỉ dòng CŨ đã ghi giảm trước 08/09/2026 — engine vẫn ngừng trích từ đây; không mã nào ghi vào cột này nữa. |
+| `trang_thai`            | `String(12)` → `VARCHAR(12)`                           | **IX**                       | no   | `dang_dung`    | `dang_dung` \| `da_giam` (= Đã thôi dùng, nút Thôi dùng từ 05/10/2026; dòng ghi giảm cũ cũng mang giá trị này).                                  |
+| `ngay_giam`             | `Date` → `DATE`                                        | —                            | yes  | —              | Ngày thôi dùng (`da_giam`) — engine ngừng trích từ đây (chia theo ngày ở tháng đó). |
 | `created_by_user_id`    | `Integer` → `INTEGER`                                  | FK→`users.id`                | yes  | —              | Người lập phiếu ghi tăng. `ON DELETE CASCADE`.                                               |
 | `created_at`            | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                            | no   | now (UTC)      | Lúc tạo.                                                                                      |
 | `updated_at`            | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                            | no   | now (UTC)      | Lúc sửa gần nhất.                                                                             |
@@ -6493,20 +6493,21 @@ giải thích 3,3 tỷ đến từ đâu — cộng lại đúng bằng `tai_san
 
 ### `tai_san_bien_dong`
 
-**Purpose:** một chứng từ biến động — điều chuyển · nâng cấp (màn hình gọi là "Sửa chữa lớn": chỉ sửa chữa làm tăng năng lực / kéo dài tuổi thọ mới ghi tăng nguyên giá; ghi giảm đã bỏ 08/09/2026, dòng cũ vẫn còn). MỘT bảng chứ không ba:
+**Purpose:** một chứng từ biến động — điều chuyển · nâng cấp (màn hình gọi là "Sửa chữa lớn": chỉ sửa chữa làm tăng năng lực / kéo dài tuổi thọ mới ghi tăng nguyên giá) · thôi dùng (bán / thanh lý / hỏng / mất — từ 05/10/2026; ghi giảm kiểu cũ đã bỏ 08/09/2026, dòng cũ vẫn còn). MỘT bảng chứ không ba:
 ba nghiệp vụ dùng chung phần lớn cột và luôn được đọc chung ở tab lịch sử; cột riêng để NULL.
 
 | Column              | Type (SQLAlchemy → SQLite / Postgres)                 | Key                      | Null | Default        | Meaning                                                                 |
 | ------------------- | ----------------------------------------------------- | ------------------------ | ---- | -------------- | ------------------------------------------------------------------------ |
 | `id`                | `Integer` → `INTEGER` / `SERIAL`                       | **PK**                   | no   | auto-increment | Surrogate primary key.                                                    |
 | `tai_san_id`        | `Integer` → `INTEGER`                                  | FK→`tai_san.id`, **IX**  | no   | —              | Tài sản bị tác động. `ON DELETE RESTRICT`.                               |
-| `loai`              | `String(16)` → `VARCHAR(16)`                           | **IX**                   | no   | —              | `dieu_chuyen` \| `nang_cap`; `ghi_giam` chỉ ở dòng cũ.                               |
+| `loai`              | `String(16)` → `VARCHAR(16)`                           | **IX**                   | no   | —              | `dieu_chuyen` \| `nang_cap` \| `thoi_dung`; `ghi_giam` chỉ ở dòng cũ.                |
 | `ngay`              | `Date` → `DATE`                                        | **IX**                   | no   | —              | Ngày chứng từ — rơi vào kỳ đã chốt thì bị chặn.                          |
 | `so_tien`           | `BigInteger` → `BIGINT`                                | —                        | yes  | —              | nâng cấp ⇒ chi phí nâng cấp; điều chuyển ⇒ NULL (dòng ghi giảm cũ: giá bán). |
 | `bo_phan_moi_id`    | `Integer` → `INTEGER`                                  | FK→`departments.id`      | yes  | —              | Chỉ điều chuyển: bộ phận nhận. `ON DELETE SET NULL`.                     |
 | `so_thang_con_lai`  | `Integer` → `INTEGER`                                  | —                        | yes  | —              | Chỉ nâng cấp: số tháng còn dùng kể từ kỳ áp dụng.                        |
 | `so_luong_giam`     | `Integer` → `INTEGER`                                  | —                        | yes  | —              | Chỉ dòng ghi giảm CŨ theo lô (nghiệp vụ đã bỏ). |
-| `ly_do`             | `String(255)` → `VARCHAR(255)`                         | —                        | yes  | —              | Lý do (thanh lý, nhượng bán, mất, hỏng, góp vốn…).                       |
+| `kieu_thoi_dung`    | `String(16)` → `VARCHAR(16)`                           | —                        | yes  | —              | Chỉ thôi dùng: `ban` \| `thanh_ly` \| `hong` \| `mat`. mg 0367.            |
+| `ly_do`             | `String(255)` → `VARCHAR(255)`                         | —                        | yes  | —              | Ghi chú / lý do tự do của chứng từ.                                      |
 | `nguoi_tao_id`      | `Integer` → `INTEGER`                                  | FK→`users.id`            | yes  | —              | Người lập. `ON DELETE CASCADE`.                                         |
 | `created_at`        | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                        | no   | now (UTC)      | Lúc lập.                                                                  |
 
@@ -6521,7 +6522,7 @@ ba nghiệp vụ dùng chung phần lớn cột và luôn được đọc chung 
 - Nhiều `tai_san_bien_dong` thuộc một `tai_san`; đọc theo `ngay` để dựng lịch sử.
 
 **Tất cả cột:** `id`, `tai_san_id`, `loai`, `ngay`, `so_tien`, `bo_phan_moi_id`, `so_thang_con_lai`,
-`so_luong_giam`, `ly_do`, `nguoi_tao_id`, `created_at`.
+`so_luong_giam`, `kieu_thoi_dung`, `ly_do`, `nguoi_tao_id`, `created_at`.
 
 ---
 

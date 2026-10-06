@@ -3,13 +3,15 @@
 // Màn này KHÔNG tạo đơn: đơn sinh từ màn Báo giá khi khách chốt. Luồng duyệt đơn đặc thù đã gỡ.
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { Button } from "../components/Button";
 import { Icon, type IconName } from "../components/Icons";
 import { DetailModal } from "../components/DetailModal";
 import { EmptyRow, EmptyState } from "../components/EmptyState";
 import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
-import { BangCum, BuocGiaoHang, CanhBaoTre, ThanhNho, tomTatTienDo, useTienDoDon } from "./giao-hang/tien-do-don";
+import { BuocGiaoHang, CanhBaoTre, SanXuatTheoMon, tomTatTienDo, useTienDoDon, viecTiepTheo } from "./giao-hang/tien-do-don";
 import {
   api,
   ApiError,
@@ -71,7 +73,7 @@ const TABS: TabDef[] = [
   { id: "cancelled", label: "Hủy", status: "cancelled", countKey: "cancelled" },
 ];
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 25;
 // "Chờ cọc"/"Sẵn sàng chốt" lọc theo deposit_ok — số TÍNH (gộp cọc thu + VAT + dòng đơn ở
 // order_service._money(), không phải cột DB) nên không lọc/phân trang được ở SQL mà không chép
 // lại công thức tiền (rủi ro lệch số). Tải một cửa sổ "draft" đủ rộng rồi lọc + phân trang ở đây.
@@ -152,13 +154,13 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
   // Hủy đơn đã chốt MẶC ĐỊNH BẬT cho vai có Sửa đơn (gỡ công tắc `approve_exception` 24/08/2026;
   // luồng "duyệt đơn đặc thù" vốn đã bỏ nên cờ này giờ chỉ còn gác việc hủy đơn đã chốt).
   const canApproveException = true;
-  const canManageStatus = can("don_hang_ban", "manage_status");
 
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
   // Hộp lọc NV phụ trách — null = tất cả người trong tầm nhìn.
   const [nguoi, setNguoi] = useState<number | null>(null);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -183,7 +185,7 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
         .then((r) => {
           const filtered = r.items.filter(t.clientFilter!);
           setTotal(filtered.length);
-          setRows(filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE));
+          setRows(filtered.slice((page - 1) * size, page * size));
         })
         .catch((e) => setErr(String(e?.message ?? e)))
         .finally(() => setLoading(false));
@@ -191,7 +193,7 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
       api.orders
         .list(token, {
           q: q || undefined, status: t.status, nguoi,
-          sort: "-created_at", page, size: PAGE_SIZE,
+          sort: "-created_at", page, size,
         })
         .then((r) => {
           setRows(r.items);
@@ -201,7 +203,7 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
         .finally(() => setLoading(false));
     }
     api.orders.stats(token, undefined, nguoi).then(setStats).catch(() => {});
-  }, [token, q, tab, page, nguoi]);
+  }, [token, q, tab, page, size, nguoi]);
 
   useEffect(() => {
     load();
@@ -210,8 +212,6 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
   useEffect(() => {
     setPage(1);
   }, [tab, q, nguoi]);
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   function openDetail(id: number) {
     if (!token) return;
@@ -339,30 +339,21 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
           </tbody>
         </table>
       </div>
-      {!loading && rows.length > 0 && (
-        <div className="dhb__pager">
-          <span className="dhb__pager-info">
-            Tổng {total} đơn · Trang {page}/{totalPages}
-          </span>
-          <div className="dhb__pager-btns">
-            <button
-              type="button"
-              className="dhb__pager-btn"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              ‹ Trước
-            </button>
-            <button
-              type="button"
-              className="dhb__pager-btn"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Sau ›
-            </button>
-          </div>
-        </div>
+      {!err && total > 0 && (
+        <PhanTrangDayDu
+          trang={page}
+          size={size}
+          tong={total}
+          soDong={rows.length}
+          onTrang={setPage}
+          onSize={(n) => {
+            setSize(n);
+            setPage(1);
+          }}
+          loading={loading}
+          donVi="đơn"
+          ariaLabel="Phân trang đơn hàng bán"
+        />
       )}
 
       {selected && (
@@ -371,7 +362,6 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
           canUpdate={canUpdate}
           canRecordDeposit={canRecordDeposit}
           canApproveException={canApproveException}
-          canManageStatus={canManageStatus}
           onClose={() => setSelected(null)}
           onSaved={(d) => {
             setSelected(d);
@@ -417,14 +407,13 @@ function DepositBar({ o }: { o: OrderRow }) {
 
 // --- Drawer chi tiết ----------------------------------------------------------
 function OrderDrawer({
-  order, canUpdate, canRecordDeposit, canApproveException, canManageStatus, onClose, onSaved, navigate,
+  order, canUpdate, canRecordDeposit, canApproveException, onClose, onSaved, navigate,
   eventTick, keToanTick,
 }: {
   order: OrderDetail;
   canUpdate: boolean;
   canRecordDeposit: boolean;
   canApproveException: boolean;
-  canManageStatus: boolean;
   onClose: () => void;
   onSaved: (d: OrderDetail) => void;
   navigate?: (id: string, params?: Record<string, unknown>) => void;
@@ -497,36 +486,45 @@ function OrderDrawer({
     api.lsx.list(token, { order_id: order.id }).then((r) => setLenhs(r.items)).catch(() => setLenhs([]));
   }, [token, order.id, order.status, order.san_xuat_released_at]);
   const sxReleased = !!order.san_xuat_released_at;
-  // Tiến độ SX → Nhập kho → Giao do máy chủ gộp theo sản phẩm (`/orders/{id}/tien-do`), tự tươi qua SSE.
+  // Tiến độ SX (gồm cả nhập kho) → Giao do máy chủ gộp theo sản phẩm (`/orders/{id}/tien-do`), tự tươi qua SSE.
   const { td, taiLai: taiTienDo } = useTienDoDon(order.id, order.status !== "draft", eventTick);
   const tt = tomTatTienDo(td);
-  // SX xong = MỌI lệnh của đơn xong VÀ không còn món nào thiếu nguồn (không lệnh mà tồn kho không
-  // đủ) — thiếu một món là bước này chưa thể xong, dù các lệnh đã chạy hết.
+  // Lệnh xong hết = MỌI lệnh của đơn xong VÀ không còn món nào thiếu nguồn (không lệnh mà tồn kho
+  // không đủ) — thiếu một món là chưa thể xong, dù các lệnh đã chạy hết.
   const thieuNguon = tt.thieuNguon.length;
-  const sxDone = td != null && td.cum.length > 0 && thieuNguon === 0 && (tt.coLenh ? tt.sxXong : sxReleased);
-  // Nhập kho xong = MỌI sản phẩm đã đủ hàng trong kho (từ lệnh hoặc từ tồn).
+  const lenhXongHet = td != null && td.cum.length > 0 && thieuNguon === 0 && (tt.coLenh ? tt.sxXong : sxReleased);
+  // Bước "Nhập kho" riêng ĐÃ GỘP vào Sản xuất (05/10/2026): Sản xuất chỉ XONG khi mọi sản phẩm đã
+  // đủ hàng trong kho (kho nhận đủ thành phẩm KCS gửi sang, hoặc tồn kho gánh đủ).
   const khoDone = td != null && tt.khoXong;
+  const sxDone = lenhXongHet && khoDone;
   const giaoDone = td != null && tt.giaoXong;
   const sxState: "chua" | "cho_kh" | "chay" =
     !sxReleased ? "chua" : lenhs.length === 0 ? "cho_kh" : "chay";
   // Chỉ BÁO thiếu nguồn khi Kế hoạch đã bắt đầu lên lệnh: trước đó mọi món đều chưa có lệnh, báo
   // "4 món chưa có nguồn" lúc vừa chuyển xuống chỉ là báo động giả.
   const baoThieuNguon = sxState === "chay" && thieuNguon > 0;
-  const sxLenhText = order.status === "cancelled"
-    ? "đơn đã hủy"
+  // Chữ phụ dưới tên chặng Sản xuất: thiếu nguồn được ưu tiên báo; còn lại nói kho đã đủ mấy món —
+  // nhập kho là khâu cuối của sản xuất nên "kho đủ" chính là thước đo sản xuất xong.
+  const sxText = order.status === "cancelled" ? "đơn đã hủy"
+    : !isChotDone ? "—"
+    : !sxReleased ? "chưa chuyển"
     : sxDone ? "xong"
-    : sxState === "chay" && tt.soLenh > 0 ? `${tt.lenhXong}/${tt.soLenh} lệnh · ${Math.round(tt.sxPct)}%`
-    : { chua: "chưa chuyển", cho_kh: "chờ kế hoạch", chay: "đang chạy" }[sxState];
-  // Chấm vòng đời + nhãn: thiếu nguồn được ưu tiên báo; dòng "Trạng thái" trong thẻ vẫn là tiến độ lệnh.
-  const sxText = baoThieuNguon && order.status !== "cancelled" ? `${thieuNguon} món chưa có nguồn` : sxLenhText;
-  const khoText = !td || tt.soMon === 0 ? "—" : khoDone ? "đủ hàng" : `đủ ${tt.soMonDuHang}/${tt.soMon} món`;
+    : baoThieuNguon ? `${thieuNguon} món chưa có nguồn`
+    : sxState === "cho_kh" ? "chờ lệnh"
+    : td ? `kho đủ ${tt.soMonDuHang}/${tt.soMon} món` : "…";
   const giaoText = giaoDone ? "đã giao đủ" : td && tt.giaoPct > 0 ? `giao ${Math.round(tt.giaoPct)}%`
     : tt.soYeuCauMo > 0 ? `${tt.soYeuCauMo} yêu cầu mở` : "—";
+  const soMonGiaoDu = (td?.cum ?? []).filter((c) => c.con_phai_giao <= 0).length;
+  const ngayNgan = (v: string | null | undefined) => fmtDate(v ?? null).replace(/\/\d{4}$/, "");
+  const giaoSub = !isChotDone ? "—"
+    : giaoDone ? "đã giao đủ"
+    : td && tt.giaoPct > 0 ? `đủ ${soMonGiaoDu}/${tt.soMon} món`
+    : tt.soYeuCauMo > 0 ? `${tt.soYeuCauMo} yêu cầu mở`
+    : order.delivery_committed_date ? `hạn ${ngayNgan(order.delivery_committed_date)}` : "—";
 
-  const doneSeg = (isChotDone ? 1 : 0) + (isCocDone ? 1 : 0) + (sxDone ? 1 : 0) + (khoDone ? 1 : 0) + (giaoDone ? 1 : 0);
-
-  const chotDate = order.ordered_at ? fmtDate(order.ordered_at) : (order.created_at ? fmtDate(order.created_at) : "—");
-  const cocText = !isChotDone ? "chưa tới" : noDeposit ? "không cần cọc" : order.deposit_ok ? "đủ" : "chờ cọc";
+  const chotSub = order.status === "cancelled" ? "đã hủy"
+    : isChotDone ? ngayNgan(order.ordered_at ?? order.created_at) : "chưa chốt";
+  const cocText = !isChotDone ? "chưa tới" : noDeposit ? "không cần" : order.deposit_ok ? "đủ" : "chờ cọc";
   const invoiceStage = !invoiceBook || invoiceBook.invoiced_amount <= 0
     ? "none"
     : invoiceBook.uninvoiced_amount > 0
@@ -538,7 +536,29 @@ function OrderDrawer({
       ? "Đã ghi một phần"
       : "Chưa ghi";
 
-  const [activeStep, setActiveStep] = useState<"coc" | "chot" | "sanxuat" | "nhapkho" | "giao" | "hoadon">("coc");
+  const [activeStep, setActiveStep] = useState<"coc" | "chot" | "sanxuat" | "giao" | "hoadon">("coc");
+  const buocDang: typeof activeStep | null = order.status === "cancelled" ? null
+    : !isChotDone ? "chot" : !isCocDone ? "coc" : !sxDone ? "sanxuat"
+    : !giaoDone ? "giao" : invoiceStage !== "full" ? "hoadon" : null;
+  const viec = viecTiepTheo({
+    trangThai: order.status,
+    canCoc: !noDeposit,
+    duCoc: order.deposit_ok,
+    thieuCoc: remaining,
+    chuyenSxLuc: order.san_xuat_released_at,
+    gap: order.is_rush,
+    hanGiao: order.delivery_committed_date,
+    td,
+    hoaDon: invoiceStage,
+  });
+  const khungO = (k: typeof activeStep) => `dhb__chang-o${activeStep === k ? " is-mo" : ""}`;
+  const CHANG: { k: typeof activeStep; nhan: string; sub: string; xong: boolean; canhBao?: boolean }[] = [
+    { k: "chot", nhan: "Chốt", sub: chotSub, xong: isChotDone },
+    { k: "coc", nhan: "Cọc", sub: cocText, xong: isCocDone },
+    { k: "sanxuat", nhan: "Sản xuất", sub: sxText, xong: sxDone, canhBao: baoThieuNguon && order.status !== "cancelled" },
+    { k: "giao", nhan: "Giao", sub: giaoSub, xong: giaoDone },
+    { k: "hoadon", nhan: "Hóa đơn", sub: invoiceStageLabel.toLowerCase(), xong: invoiceStage === "full" },
+  ];
 
   useEffect(() => {
     if (token) api.orders.activity(token, order.id).then((r) => setActs(r.items)).catch(() => {});
@@ -549,7 +569,7 @@ function OrderDrawer({
     // xuống bước sau như thể lệnh còn đang chờ xử lý.
     const defaultStep = order.status === "cancelled"
       ? "chot"
-      : !isChotDone ? "chot" : !isCocDone ? "coc" : !sxDone ? "sanxuat" : !khoDone ? "nhapkho"
+      : !isChotDone ? "chot" : !isCocDone ? "coc" : !sxDone ? "sanxuat"
       : !giaoDone ? "giao" : "hoadon";
     setActiveStep(defaultStep);
     // Chỉ chọn bước mặc định khi MỞ đơn / đổi trạng thái / tiến độ vừa tải xong — SSE tự tươi
@@ -712,71 +732,59 @@ function OrderDrawer({
 
               {/* Vòng đời đơn */}
               <Section title="Vòng đời đơn">
-                <div className="dhb__lifecycle-header">
-                  <span className="dhb__lifecycle-subtitle">read-only · bấm chọn từng bước để xem chi tiết</span>
-                </div>
-                
                 <CanhBaoTre td={order.status === "ordered" && !giaoDone ? td : null} />
 
-                {/* 1. Timeline — Chốt → Cọc → Sản xuất → Nhập kho → Giao hàng → Hóa đơn */}
-                <div className="dhb__timeline">
-                  <div className="dhb__timeline-track" />
-                  <div className="dhb__timeline-fill" style={{ width: `calc((100% - 2 * var(--dhb-tl-le)) * ${Math.min(doneSeg, 5) / 5})` }} />
-                  <div
-                    className={`dhb__timeline-step ${isChotDone ? "is-done" : ""} ${activeStep === "chot" ? "is-selected" : ""}`}
-                    onClick={() => setActiveStep("chot")}
-                  >
-                    <div className="dhb__timeline-dot">{isChotDone ? <Icon name="check" size={12} /> : "1"}</div>
-                    <span className="dhb__timeline-label">Chốt</span>
-                    <span className="dhb__timeline-sub">{isChotDone ? chotDate : "chưa chốt"}</span>
-                  </div>
-                  <div
-                    className={`dhb__timeline-step ${isCocDone ? "is-done" : ""} ${activeStep === "coc" ? "is-selected" : ""}`}
-                    onClick={() => setActiveStep("coc")}
-                  >
-                    <div className="dhb__timeline-dot">{isCocDone ? <Icon name="check" size={12} /> : "2"}</div>
-                    <span className="dhb__timeline-label">Cọc</span>
-                    <span className="dhb__timeline-sub">{cocText}</span>
-                  </div>
-                  <div
-                    className={`dhb__timeline-step ${sxDone ? "is-done" : ""} ${activeStep === "sanxuat" ? "is-selected" : ""}`}
-                    onClick={() => setActiveStep("sanxuat")}
-                  >
-                    <div className="dhb__timeline-dot">{sxDone ? <Icon name="check" size={12} /> : "3"}</div>
-                    <span className="dhb__timeline-label">Sản xuất</span>
-                    <span className={`dhb__timeline-sub ${baoThieuNguon && order.status !== "cancelled" ? "is-warn" : ""}`}>{isChotDone ? sxText : "—"}</span>
-                    {tt.coLenh && <ThanhNho pct={tt.sxPct} xong={sxDone} />}
-                  </div>
-                  <div
-                    className={`dhb__timeline-step ${khoDone ? "is-done" : ""} ${activeStep === "nhapkho" ? "is-selected" : ""}`}
-                    onClick={() => setActiveStep("nhapkho")}
-                  >
-                    <div className="dhb__timeline-dot">{khoDone ? <Icon name="check" size={12} /> : "4"}</div>
-                    <span className="dhb__timeline-label">Nhập kho</span>
-                    <span className="dhb__timeline-sub">{isChotDone ? khoText : "—"}</span>
-                    {td && tt.soMon > 0 && <ThanhNho pct={tt.khoPct} xong={khoDone} />}
-                  </div>
-                  <div
-                    className={`dhb__timeline-step ${giaoDone ? "is-done" : ""} ${activeStep === "giao" ? "is-selected" : ""}`}
-                    onClick={() => setActiveStep("giao")}
-                  >
-                    <div className="dhb__timeline-dot">{giaoDone ? <Icon name="check" size={12} /> : "5"}</div>
-                    <span className="dhb__timeline-label">Giao hàng</span>
-                    <span className="dhb__timeline-sub">{isChotDone ? giaoText : "—"}</span>
-                    {td && td.cum.length > 0 && <ThanhNho pct={tt.giaoPct} xong={giaoDone} />}
-                  </div>
-                  <div
-                    className={`dhb__timeline-step ${invoiceStage === "full" ? "is-done" : ""} ${activeStep === "hoadon" ? "is-selected" : ""}`}
-                    onClick={() => setActiveStep("hoadon")}
-                  >
-                    <div className="dhb__timeline-dot">{invoiceStage === "full" ? <Icon name="check" size={12} /> : "6"}</div>
-                    <span className="dhb__timeline-label">Hóa đơn</span>
-                    <span className="dhb__timeline-sub">{invoiceStageLabel.toLowerCase()}</span>
-                  </div>
+                {/* Thanh chặng (phương án A, 05/10/2026): Chốt → Cọc → Sản xuất (gồm nhập kho) → Giao →
+                    Hóa đơn. Bấm một chặng để xem khung chi tiết bên dưới. */}
+                <div className="dhb__path" role="tablist" aria-label="Các chặng của đơn">
+                  {CHANG.map((c) => {
+                    const dang = c.k === buocDang;
+                    // Giao đã có phần trong lúc Sản xuất chưa xong ⇒ "dở dang song song".
+                    const doDang = !c.xong && !dang && c.k === "giao" && td != null && tt.giaoPct > 0;
+                    return (
+                      <button key={c.k} type="button" role="tab" aria-selected={activeStep === c.k}
+                        aria-label={`${c.nhan}: ${c.sub}`}
+                        className={`dhb__path-buoc${c.xong ? " is-done" : dang ? " is-dang" : doDang ? " is-do" : ""}${activeStep === c.k ? " is-selected" : ""}`}
+                        onClick={() => setActiveStep(c.k)}>
+                        <span className="dhb__path-o">
+                          <b>{c.nhan}</b>
+                          <small className={c.canhBao ? "is-warn" : undefined}>{c.sub}</small>
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
- 
-                {/* 2. Active Lifecycle Step Card */}
-                {activeStep === "chot" && (
+
+                {/* Việc tiếp theo: đơn đang chờ AI làm gì, từ bao giờ — luôn ở đầu, chặng nào cũng thấy. */}
+                {viec && (
+                  <div className="dhb__viec">
+                    <div className="dhb__viec-chu">
+                      <span className="dhb__viec-cau">{viec.cau}</span>
+                      {viec.the.length > 0 && (
+                        <span className="dhb__viec-the">
+                          {viec.the.map((t) => (
+                            <span key={t.nhan} className={`dhb__sx-tag${t.tone ? ` dhb__sx-tag--${t.tone}` : ""}`}>{t.nhan}</span>
+                          ))}
+                        </span>
+                      )}
+                    </div>
+                    {viec.nut && (viec.nut.toi !== activeStep) && (
+                      <Button variant="secondary" className="dhb__viec-nut"
+                        onClick={() => {
+                          const toi = viec.nut!.toi;
+                          if (toi === "ke-hoach-sx") navigate?.("ke-hoach-sx", { openSxOrderId: order.id });
+                          else setActiveStep(toi);
+                        }}>
+                        {viec.nut.nhan}
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Khung chi tiết từng chặng: cả 5 khung chồng lên CÙNG một ô lưới, khung không chọn chỉ
+                    ẩn (visibility) ⇒ khung luôn cao bằng chặng dài nhất, bấm qua lại không giật dài/ngắn. */}
+                <div className="dhb__chang-khung">
+                <div className={khungO("chot")}>
                   <div className="dhb__lifecycle-box">
                     <div className="dhb__lifecycle-box-header">
                       <h4 className="dhb__lifecycle-box-title">Chốt đơn hàng</h4>
@@ -785,12 +793,13 @@ function OrderDrawer({
                       </span>
                     </div>
                     <div style={{ marginTop: 4 }}>
+                      {/* Chốt đơn đi theo quyền SỬA đơn (05/10/2026) — không có ô quyền riêng, khớp máy chủ. */}
                       {isDraft ? (
-                        <ConfirmPanel order={order} canManage={canManageStatus} canExtend={canUpdate} onSaved={onSaved} />
+                        <ConfirmPanel order={order} canManage={canUpdate} canExtend={canUpdate} onSaved={onSaved} />
                       ) : order.status === "ordered" ? (
                         <>
                           <KV k="Đã chốt lúc" v={<span className="dhb__mono">{fmtDate(order.ordered_at)}</span>} />
-                          <p style={{ color: "var(--ash)", fontSize: 12, margin: "6px 0 0" }}>Bước tiếp: bấm “Sản xuất” để chuyển đơn xuống kế hoạch.</p>
+                          <p style={{ color: "var(--ash)", fontSize: 12, margin: "6px 0 0" }}>Đủ cọc là đơn tự xuống hàng chờ Kế hoạch sản xuất.</p>
                         </>
                       ) : order.status === "cancelled" ? (
                         <div style={{ display: "grid", gap: 4 }}>
@@ -803,9 +812,9 @@ function OrderDrawer({
                       ) : null}
                     </div>
                   </div>
-                )}
+                </div>
  
-                {activeStep === "coc" && (
+                <div className={khungO("coc")}>
                   <div className="dhb__lifecycle-box">
                     <div className="dhb__lifecycle-box-header">
                       <h4 className="dhb__lifecycle-box-title">Cọc &amp; thu tiền</h4>
@@ -851,7 +860,7 @@ function OrderDrawer({
                       </p>
                     ) : isCocDone ? (
                       <p style={{ color: "var(--moss-deep)", fontSize: 12, margin: "4px 0 0" }}>
-                        Đã đủ cọc — Sale chuyển đơn xuống sản xuất ở bước “Sản xuất”.
+                        Đã đủ cọc — đơn đã tự xuống hàng chờ Kế hoạch sản xuất.
                       </p>
                     ) : canRecordDeposit ? (
                       <DepositForm order={order} onSaved={onSaved} />
@@ -859,77 +868,45 @@ function OrderDrawer({
                       <p style={{ color: "var(--ash)", fontSize: 12, margin: "4px 0 0" }}>Chờ kế toán thu cọc.</p>
                     )}
                   </div>
-                )}
+                </div>
  
  
-                {activeStep === "sanxuat" && (
+                <div className={khungO("sanxuat")}>
                   <div className="dhb__lifecycle-box">
                     <div className="dhb__lifecycle-box-header">
                       <h4 className="dhb__lifecycle-box-title">Sản xuất</h4>
-                      <span className={`dhb__lifecycle-badge ${order.status === "cancelled" ? "dhb__lifecycle-badge--cancelled" : sxDone ? "dhb__lifecycle-badge--done" : sxReleased ? "dhb__lifecycle-badge--active" : "dhb__lifecycle-badge--upcoming"}`}>
-                        {sxText.toUpperCase()}
-                      </span>
+                      <span className="dhb__sx-goi-y">xong khi kho đã nhận đủ mọi món</span>
                     </div>
-                    <div style={{ marginTop: 4 }}>
-                      {order.status === "cancelled" ? (
-                        <p style={{ color: "var(--ash)", fontSize: 12, margin: 0 }}>
-                          {sxReleased
-                            ? "Đơn đã hủy — trước đó đã chuyển xuống sản xuất nhưng chưa lên lệnh nào."
-                            : "Đơn đã hủy, chưa từng chuyển xuống sản xuất."}
-                        </p>
-                      ) : order.status !== "ordered" ? (
-                        <p style={{ color: "var(--ash)", fontSize: 12, margin: 0 }}>Đơn phải chốt trước mới chuyển xuống sản xuất được.</p>
-                      ) : !sxReleased ? (
-                        <p style={{ color: "var(--amber-deep)", fontSize: 12, margin: 0 }}>
-                          Chờ kế toán thu đủ cọc (bước “Cọc”) — đủ cọc là đơn tự xuống hàng chờ Kế hoạch sản xuất.
-                        </p>
-                      ) : (
-                        <div style={{ display: "grid", gap: 4 }}>
-                          <KV k="Trạng thái" v={sxLenhText} />
-                          <KV k="Chuyển lúc" v={<span className="dhb__mono">{fmtDate(order.san_xuat_released_at)}</span>} />
-                          {lenhs.length > 0 && (
-                            <KV
-                              k="Lệnh SX"
-                              v={`${lenhs.length} lệnh · ${lenhs.filter((l) => l.trang_thai === "san_sang").length} sẵn sàng`}
-                            />
-                          )}
-                          <p style={{ color: "var(--ash)", fontSize: 12, margin: "2px 0 0" }}>
-                            {sxState === "cho_kh"
-                              ? "Đang chờ Kế hoạch lên lệnh sản xuất."
-                              : "Bước này XONG khi mọi lệnh của đơn xong và món không qua sản xuất có đủ hàng trong kho."}
-                          </p>
-                          <BangCum td={td} buoc="sanxuat" />
-                          <button
-                            type="button"
-                            className="link dhb__mono"
-                            style={{ color: "var(--rust)", background: "none", border: 0, padding: 0, cursor: "pointer", fontWeight: 600, justifySelf: "start" }}
-                            onClick={() => navigate?.("ke-hoach-sx", { openSxOrderId: order.id })}
-                          >
-                            Mở bàn Kế hoạch sản xuất ↗
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    {order.status === "cancelled" ? (
+                      <p className="dhb__td-note">
+                        {sxReleased
+                          ? "Đơn đã hủy — trước đó đã chuyển xuống sản xuất nhưng chưa lên lệnh nào."
+                          : "Đơn đã hủy, chưa từng chuyển xuống sản xuất."}
+                      </p>
+                    ) : order.status !== "ordered" ? (
+                      <p className="dhb__td-note">Đơn phải chốt trước mới chuyển xuống sản xuất được.</p>
+                    ) : !sxReleased ? (
+                      <p className="dhb__td-note">
+                        Chờ kế toán thu đủ cọc (chặng “Cọc”) — đủ cọc là đơn tự xuống hàng chờ Kế hoạch sản xuất.
+                      </p>
+                    ) : (
+                      <>
+                        <SanXuatTheoMon td={td} baoThieu={baoThieuNguon}
+                          onMoLenh={navigate ? (id) => navigate("ke-hoach-sx", { openLsxId: id }) : undefined} />
+                        <button
+                          type="button"
+                          className="link dhb__mono"
+                          style={{ color: "var(--rust)", background: "none", border: 0, padding: 0, cursor: "pointer", fontWeight: 600, justifySelf: "start", alignSelf: "flex-start" }}
+                          onClick={() => navigate?.("ke-hoach-sx", { openSxOrderId: order.id })}
+                        >
+                          Mở bàn Kế hoạch sản xuất ↗
+                        </button>
+                      </>
+                    )}
                   </div>
-                )}
+                </div>
 
-                {activeStep === "nhapkho" && (
-                  <div className="dhb__lifecycle-box">
-                    <div className="dhb__lifecycle-box-header">
-                      <h4 className="dhb__lifecycle-box-title">Nhập kho thành phẩm</h4>
-                      <span className={`dhb__lifecycle-badge ${khoDone ? "dhb__lifecycle-badge--done" : sxReleased ? "dhb__lifecycle-badge--active" : "dhb__lifecycle-badge--upcoming"}`}>
-                        {khoText === "—" ? "CHƯA TỚI" : khoText.toUpperCase()}
-                      </span>
-                    </div>
-                    <p style={{ color: "var(--ash)", fontSize: 12, margin: 0 }}>
-                      Món có lệnh: đủ khi kho nhận đủ thành phẩm KCS gửi sang. Món không qua sản xuất: đủ khi
-                      tồn kho gánh đủ số đặt. Chỉ phần đã có trong kho mới lập yêu cầu giao được.
-                    </p>
-                    <BangCum td={td} buoc="nhapkho" />
-                  </div>
-                )}
-
-                {activeStep === "giao" && (
+                <div className={khungO("giao")}>
                   <div className="dhb__lifecycle-box">
                     <div className="dhb__lifecycle-box-header">
                       <h4 className="dhb__lifecycle-box-title">Giao hàng</h4>
@@ -940,9 +917,9 @@ function OrderDrawer({
                     <KV k="Hạn giao cam kết" v={<span className="dhb__mono">{fmtDate(order.delivery_committed_date)}</span>} />
                     <BuocGiaoHang order={order} td={td} taiLai={taiTienDo} onIn={setInYc} navigate={navigate} />
                   </div>
-                )}
+                </div>
 
-                {activeStep === "hoadon" && (
+                <div className={khungO("hoadon")}>
                   <InvoicePanel
                     order={order}
                     book={invoiceBook}
@@ -952,7 +929,8 @@ function OrderDrawer({
                     canCancel={canCancelInvoice}
                     onChanged={loadInvoices}
                   />
-                )}
+                </div>
+                </div>
               </Section>
               {/* Khối ⑤ "Duyệt đơn đặc thù" đã gỡ cùng luồng duyệt. */}
             </>

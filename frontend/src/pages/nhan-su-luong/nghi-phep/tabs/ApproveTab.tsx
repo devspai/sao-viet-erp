@@ -1,7 +1,8 @@
 // Tab "Duyệt đơn" (HR) (tách từ pages/NghiPhepPage.tsx).
 import { useCallback, useEffect, useState } from "react";
 import { api, type LeaveRequest, type XinHuyChoDuyet } from "../../../../api/client";
-import { Pager, trangHopLe } from "../../../../components/Pager";
+import { trangHopLe } from "../../../../components/Pager";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { LocThangTao } from "../../../../components/LocThangTao";
 import { fmtDate } from "../../../../utils/format";
 import { LeaveTable } from "../components/LeaveTable";
@@ -29,6 +30,7 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
   const [items, setItems] = useState<LeaveRequest[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   /** Lọc theo THÁNG TẠO đơn (`YYYY-MM`, rỗng = tất cả) — 23/09/2026. */
   const [thang, setThang] = useState("");
   const [sel, setSel] = useState<Set<number>>(new Set());
@@ -62,18 +64,18 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
       employeeId: focus,
       thang: thang || undefined,
       page,
-      size: PAGE_SIZE,
+      size,
     })
       .then((r) => {
         setItems(r.items);
         setTotal(r.total);
         setSel(new Set());
-        const trangCanVe = trangHopLe(page, r.total, PAGE_SIZE);
+        const trangCanVe = trangHopLe(page, r.total, size);
         if (trangCanVe !== null) setPage(trangCanVe);
       })
       .catch((e) => { setItems([]); setTotal(0); setListError(errMsg(e)); })
       .finally(() => setLoadingList(false));
-  }, [token, status, focus, page, thang]);
+  }, [token, status, focus, page, size, thang]);
   useEffect(() => { load(); }, [load, eventTick]);
 
   const shown = items;   // máy chủ đã lọc sẵn theo `focus`
@@ -183,17 +185,19 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
         loading={loadingList} listError={listError} onRetry={load}
         emptyTitle={focus ? "Chưa có đơn nghỉ của người này" : "Chưa có đơn xin nghỉ nào"}
         emptySub={thang ? "Không có đơn nào tạo trong tháng này khớp bộ lọc — bỏ lọc tháng (nút ✕) hoặc đổi trạng thái." : status === "pending" ? "Không còn đơn nào chờ duyệt. Đổi bộ lọc trạng thái để xem đơn đã xử lý." : "Thử đổi bộ lọc trạng thái ở trên."} />
-      {!loadingList && !listError && shown.length > 0 && (
-        <Pager
-          total={total}
-          page={page}
-          size={PAGE_SIZE}
+      {/* Giữ chân trong lúc tải trang kế (nút đã khoá qua `loading`) — ẩn đi rồi hiện lại thì
+          dãy số trang nhảy khỏi chỗ con trỏ. */}
+      {!listError && total > 0 && (
+        <PhanTrangDayDu
+          trang={page} size={size} tong={total} soDong={shown.length}
           loading={loadingList}
-          unit="đơn"
-          onPage={setPage}
+          donVi="đơn"
+          onTrang={setPage}
+          onSize={(n) => { setSize(n); setPage(1); }}
           // Nói THẲNG giới hạn của nút hàng loạt: ô tick "chọn tất cả" chỉ quét trang đang xem.
-          // Không nói thì người duyệt bấm "Duyệt 20" rồi tưởng đã dọn sạch hàng đợi.
-          note={total > PAGE_SIZE ? "chọn hàng loạt chỉ áp cho trang đang xem" : undefined}
+          // Không nói thì người duyệt bấm "Duyệt 25" rồi tưởng đã dọn sạch hàng đợi.
+          ghiChu={total > size ? "chọn hàng loạt chỉ áp cho trang đang xem" : undefined}
+          ariaLabel="Phân trang đơn cần duyệt"
         />
       )}
       <LyDoDialog

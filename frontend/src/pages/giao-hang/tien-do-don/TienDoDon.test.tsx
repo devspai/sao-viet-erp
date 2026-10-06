@@ -5,7 +5,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BuocGiaoHang, tomTatTienDo } from "./TienDoDon";
+import { BuocGiaoHang, SanXuatTheoMon, tomTatTienDo, viecTiepTheo } from "./TienDoDon";
 import { AuthContext, type AuthState } from "../../../auth/AuthContext";
 import { PermissionsProvider, buildCapabilities } from "../../../auth/permissions";
 import type { DonTienDo, DonTienDoCum, ModuleCapability, OrderDetail } from "../../../api/client";
@@ -189,5 +189,79 @@ describe("Tóm tắt vòng đời · Nhập kho tính mọi sản phẩm, báo m
     });
     expect(t.khoXong).toBe(true);
     expect(t.thieuNguon).toHaveLength(0);
+  });
+});
+
+const LENH = {
+  id: 5, ma: "LSX26-0005", da_xuong_xuong: true, pct: 60, uoc_tinh: false, xong: false,
+  buoc_hien_tai: "Bế", du_kien_xong: null, trang_thai: null, canh_bao: [],
+};
+
+describe("Chặng Sản xuất theo món: công đoạn → KCS → kho nhận (05/10/2026)", () => {
+  it("món có lệnh vẽ đủ ba khâu, nhập kho là khâu cuối, nói số chờ kho nhận", () => {
+    render(<SanXuatTheoMon baoThieu={false}
+      td={{ ...TD, cum: [cum({ ten: "Hộp thuốc", sx_pct: 60, lenh: [LENH] })] }} />);
+    expect(screen.getByText("LSX26-0005")).toBeTruthy();
+    expect(screen.getByText("đang Bế")).toBeTruthy();
+    expect(screen.getByText("Công đoạn")).toBeTruthy();
+    expect(screen.getByText("60%")).toBeTruthy();
+    expect(screen.getByText("KCS đạt")).toBeTruthy();
+    expect(screen.getByText("Kho nhận")).toBeTruthy();
+    expect(screen.getByText("40 / 100")).toBeTruthy();
+    expect(screen.getByText("20 chờ kho nhận")).toBeTruthy();
+  });
+
+  it("món không qua xưởng mà tồn đủ ⇒ không vẽ ba thanh, chỉ báo đủ trong kho", () => {
+    render(<SanXuatTheoMon baoThieu={false}
+      td={{ ...TD, cum: [cum({ ten: "Túi", co_lenh: false, kho_de_nghi: 0, kho_da_nhan: 0, cho_kho: 0, ton_that: 100, giao_duoc: 100 })] }} />);
+    expect(screen.getByText("không qua xưởng, lấy từ tồn kho")).toBeTruthy();
+    expect(screen.getByText("đủ trong kho")).toBeTruthy();
+    expect(screen.queryByText("Công đoạn")).toBeNull();
+  });
+
+  it("chưa có lệnh: chỉ báo thiếu khi Kế hoạch đã bắt đầu lên lệnh", () => {
+    const td = { ...TD, cum: [cum({ ten: "Hộp", co_lenh: false, kho_de_nghi: 0, kho_da_nhan: 0, cho_kho: 0, ton_that: 0, giao_duoc: 0 })] };
+    const { unmount } = render(<SanXuatTheoMon baoThieu={false} td={td} />);
+    expect(screen.getByText("chưa có lệnh")).toBeTruthy();
+    expect(screen.queryByText(/thiếu/)).toBeNull();
+    unmount();
+    render(<SanXuatTheoMon baoThieu td={td} />);
+    expect(screen.getByText("thiếu 100 hộp")).toBeTruthy();
+  });
+});
+
+describe("Việc tiếp theo của đơn", () => {
+  const goc = {
+    trangThai: "ordered", canCoc: false, duCoc: true, thieuCoc: 0,
+    chuyenSxLuc: "2026-10-05T06:54:32Z", gap: true, hanGiao: "2026-10-30",
+    hoaDon: "none" as const, homNay: new Date(2026, 9, 5),
+  };
+
+  it("vừa chốt, chưa lệnh nào ⇒ chờ Kế hoạch, kèm giờ chuyển, đơn gấp, số ngày tới hạn", () => {
+    const td = { ...TD, cum: [cum({ co_lenh: false, kho_de_nghi: 0, kho_da_nhan: 0, cho_kho: 0, ton_that: 0, giao_duoc: 0 })] };
+    const v = viecTiepTheo({ ...goc, td })!;
+    expect(v.cau).toBe("Chờ Kế hoạch lên lệnh sản xuất");
+    expect(v.the.map((t) => t.nhan)).toEqual(["chuyển xuống 13:54 05/10", "đơn gấp", "còn 25 ngày tới hạn giao"]);
+    expect(v.nut?.toi).toBe("ke-hoach-sx");
+  });
+
+  it("KCS đã gửi mà kho chưa nhận ⇒ việc của Kho, đứng trước lệnh đang chạy", () => {
+    const td = { ...TD, cum: [cum({ ten: "Hộp kem", don_vi: "cái", lenh: [LENH] })] };
+    expect(viecTiepTheo({ ...goc, td })!.cau).toBe("Kho chưa nhận 20 cái Hộp kem KCS đã gửi");
+  });
+
+  it("lệnh đang chạy, kho không vướng ⇒ nói lệnh và công đoạn đang làm", () => {
+    const td = { ...TD, cum: [cum({ lenh: [LENH], cho_kho: 0 })] };
+    expect(viecTiepTheo({ ...goc, td })!.cau).toBe("Xưởng đang chạy LSX26-0005, đang Bế");
+  });
+
+  it("chờ cọc ⇒ việc của kế toán, chưa nói tới sản xuất", () => {
+    const v = viecTiepTheo({ ...goc, canCoc: true, duCoc: false, thieuCoc: 2000000, chuyenSxLuc: null, td: null })!;
+    expect(v.cau).toBe("Chờ kế toán thu cọc, còn thiếu 2.000.000 đ");
+    expect(v.nut?.toi).toBe("coc");
+  });
+
+  it("đơn hủy ⇒ không có việc tiếp theo", () => {
+    expect(viecTiepTheo({ ...goc, trangThai: "cancelled", td: TD })).toBeNull();
   });
 });

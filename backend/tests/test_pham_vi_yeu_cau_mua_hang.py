@@ -122,3 +122,33 @@ def test_man_mua_hang_van_loc_dung_nhu_cu(client, auth_headers):
     assert dem(_vai("pv-pmh-own", "Sản xuất", "thu_mua", "own")) == 0
     assert dem(_vai("pv-pmh-dept", "Sản xuất", "thu_mua", "department")) == 1
     assert dem(_vai("pv-pmh-all", "Sản xuất", "thu_mua", "all")) == 2
+
+
+def test_huy_ho_ycmh_theo_o_thao_tac_va_pham_vi(client, auth_headers):
+    """Huỷ HỘ yêu cầu của người khác (05/10/2026): ô Thao tác + yêu cầu nằm trong phạm vi.
+
+    Trước đó đòi ô `yeu_cau_mua_hang:cancel` mà ma trận không bày ⇒ ngoài admin không ai huỷ hộ
+    được. `own` vẫn KHÔNG huỷ hộ ai — Của tôi là của mình."""
+    nguoi_sx = _vai("hh-gui-sx", "Sản xuất", "yeu_cau_mua_hang", "all",
+                    can_create=True, can_update=True)
+    nguoi_kd = _vai("hh-gui-kd", "Kinh doanh", "yeu_cau_mua_hang", "all",
+                    can_create=True, can_update=True)
+    yc_sx = _create_department_request(client, nguoi_sx)["id"]
+    yc_kd = _create_department_request(client, nguoi_kd)["id"]
+
+    def huy(headers, yc_id: int) -> int:
+        return client.post(f"/api/department-purchase-requests/{yc_id}/cancel",
+                           json={"reason": "thử huỷ hộ"}, headers=headers).status_code
+
+    chi_xem = _vai("hh-chi-xem", "Sản xuất", "yeu_cau_mua_hang", "all")
+    assert huy(chi_xem, yc_sx) == 403, "chỉ có ô Xem mà vẫn huỷ hộ được"
+
+    own = _vai("hh-own", "Sản xuất", "yeu_cau_mua_hang", "own", can_update=True)
+    assert huy(own, yc_sx) == 403, "phạm vi Của tôi mà huỷ hộ được yêu cầu của đồng nghiệp"
+
+    phong = _vai("hh-dept", "Sản xuất", "yeu_cau_mua_hang", "department", can_update=True)
+    assert huy(phong, yc_kd) == 403, "Cả phòng mà huỷ hộ được yêu cầu của phòng khác"
+    assert huy(phong, yc_sx) == 200, "Cả phòng + Thao tác phải huỷ hộ được yêu cầu cùng phòng"
+
+    tat_ca = _vai("hh-all", "Sản xuất", "yeu_cau_mua_hang", "all", can_update=True)
+    assert huy(tat_ca, yc_kd) == 200, "Tất cả + Thao tác phải huỷ hộ được yêu cầu phòng khác"

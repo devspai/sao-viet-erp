@@ -27,6 +27,7 @@ import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import { Button } from "../../../components/Button";
 import { Icon } from "../../../components/Icons";
+import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { DrawerChiTiet } from "./components/DrawerChiTiet";
 import { DialogDoiChuyen } from "./modals/DialogDoiChuyen";
 import { DialogKetQua } from "./modals/DialogKetQua";
@@ -41,8 +42,8 @@ import "../../giao-hang.css";
 import "../../kho-request.css";
 
 // Phân trang máy chủ (CLAUDE.md/best-practice, khớp Đơn hàng bán + Tính giá). Tab Đơn giao hàng
-// đếm theo KHỐI (một lượt = một khối), không theo đơn.
-const PAGE_SIZE = 20;
+// đếm theo KHỐI (một lượt = một khối), không theo đơn. Đây là cỡ MẶC ĐỊNH — ô Dòng/trang đổi được.
+const PAGE_SIZE = 25;
 // Tab "Yêu cầu giao" lọc theo TRẠNG THÁI TÍNH (nhiều bảng, không phải cột thô) nên không trang
 // hoá được ở SQL — lấy một CỬA SỔ 200 yêu cầu mới nhất rồi lọc/trang ở FE, giống Đơn hàng bán.
 // Nếu quá 200 yêu cầu đang "chờ lên kế hoạch" cùng lúc thì badge/đếm có thể thiếu — chấp nhận vì
@@ -60,10 +61,12 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
   const [tab, setTab] = useState<TabId>("ke-hoach");
   const [khoi, setKhoi] = useState<BangGiaoItem[]>([]);
   const [khoiPage, setKhoiPage] = useState(1);
+  const [khoiSize, setKhoiSize] = useState(PAGE_SIZE);
   const [khoiTotal, setKhoiTotal] = useState(0);
   const [soDon, setSoDon] = useState(0);
   const [choLenKeHoachRows, setChoLenKeHoachRows] = useState<DeliveryRequest[]>([]);
   const [reqPage, setReqPage] = useState(1);
+  const [reqSize, setReqSize] = useState(PAGE_SIZE);
   const [reqTotal, setReqTotal] = useState(0);
   const [drivers, setDrivers] = useState<DeliveryDriver[]>([]);
   const [detail, setDetail] = useState<DeliveryRequestDetail | null>(null);
@@ -91,7 +94,7 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
     setError(null);
     const viec: Promise<unknown>[] = [
       api.giaoHang
-        .bangGiao(token, { page: khoiPage, size: PAGE_SIZE })
+        .bangGiao(token, { page: khoiPage, size: khoiSize })
         .then((r) => {
           setKhoi(r.items);
           setKhoiTotal(r.total);
@@ -102,7 +105,7 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
         .then((r) => {
           const loc = r.items.filter((x) => x.trang_thai === "cho_len_ke_hoach");
           setReqTotal(loc.length);
-          setChoLenKeHoachRows(loc.slice((reqPage - 1) * PAGE_SIZE, reqPage * PAGE_SIZE));
+          setChoLenKeHoachRows(loc.slice((reqPage - 1) * reqSize, reqPage * reqSize));
         }),
     ];
     // Tab nào không có ô thì KHÔNG gọi — gọi rồi nuốt 403 là che mất lỗi cấu hình thật.
@@ -112,7 +115,7 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Không tải được dữ liệu"))
       .finally(() => setLoading(false));
     // `thang` PHẢI có ở đây — thiếu thì đổi tháng mà bảng đứng im.
-  }, [token, canViewDrivers, thang, khoiPage, reqPage]);
+  }, [token, canViewDrivers, thang, khoiPage, khoiSize, reqPage, reqSize]);
 
   // `eventTick` tăng mỗi sự kiện SSE ⇒ bảng tự tải lại. Tài xế không phải F5 để biết kho đã
   // soạn xong hàng chưa (CLAUDE.md: gửi/thông báo nội bộ phải tức thì).
@@ -126,9 +129,6 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
     const h = window.setTimeout(() => setLuotMoi(null), 6000);
     return () => window.clearTimeout(h);
   }, [luotMoi]);
-
-  const khoiTotalPages = Math.max(1, Math.ceil(khoiTotal / PAGE_SIZE));
-  const reqTotalPages = Math.max(1, Math.ceil(reqTotal / PAGE_SIZE));
 
   /** Gọi một hành động rồi tải lại; lỗi hiện lên banner thay vì nuốt im. Trả Promise để nút tự
    *  khoá tới khi lệnh xong (bấm hai lần liền là hai lệnh). */
@@ -225,22 +225,25 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
           onDoiChuyen={canPlan ? setDoiFor : undefined}
         />
       )}
-      {tabDang === "ke-hoach" && !loading && khoi.length > 0 && (
-        <div className="gh-pager">
-          <span className="gh-pager__info">
-            Tổng {soDon} đơn giao · Trang {khoiPage}/{khoiTotalPages}
-          </span>
-          <div className="gh-pager__btns">
-            <button type="button" className="gh-pager__btn" disabled={khoiPage <= 1}
-              onClick={() => setKhoiPage((p) => Math.max(1, p - 1))}>
-              Trước
-            </button>
-            <button type="button" className="gh-pager__btn" disabled={khoiPage >= khoiTotalPages}
-              onClick={() => setKhoiPage((p) => Math.min(khoiTotalPages, p + 1))}>
-              Sau
-            </button>
-          </div>
-        </div>
+      {/* Máy chủ cắt trang theo KHỐI (một lượt xe = một khối, chuyến ngoài lượt cũng một khối) nên
+          tổng & số trang phải đếm khối — đếm theo `soDon` thì "tổng" và "số trang" nói hai đại lượng
+          khác nhau. Số đơn giao vẫn nói kèm ở ghi chú. */}
+      {tabDang === "ke-hoach" && !error && khoiTotal > 0 && (
+        <PhanTrangDayDu
+          trang={khoiPage}
+          size={khoiSize}
+          tong={khoiTotal}
+          soDong={khoi.length}
+          onTrang={setKhoiPage}
+          onSize={(n) => {
+            setKhoiSize(n);
+            setKhoiPage(1);
+          }}
+          loading={loading}
+          donVi="lượt xe"
+          ghiChu={`gồm ${soDon} đơn giao`}
+          ariaLabel="Phân trang đơn giao hàng"
+        />
       )}
 
       {tabDang === "cho-len-ke-hoach" && (
@@ -248,22 +251,21 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
           onLenKeHoach={(r) => setPlanFor({ requests: [r], theoLuot: false })}
           onLenLuot={(rs) => setPlanFor({ requests: rs, theoLuot: true })} />
       )}
-      {tabDang === "cho-len-ke-hoach" && !loading && choLenKeHoachRows.length > 0 && (
-        <div className="gh-pager">
-          <span className="gh-pager__info">
-            Tổng {reqTotal} yêu cầu · Trang {reqPage}/{reqTotalPages}
-          </span>
-          <div className="gh-pager__btns">
-            <button type="button" className="gh-pager__btn" disabled={reqPage <= 1}
-              onClick={() => setReqPage((p) => Math.max(1, p - 1))}>
-              Trước
-            </button>
-            <button type="button" className="gh-pager__btn" disabled={reqPage >= reqTotalPages}
-              onClick={() => setReqPage((p) => Math.min(reqTotalPages, p + 1))}>
-              Sau
-            </button>
-          </div>
-        </div>
+      {tabDang === "cho-len-ke-hoach" && !error && reqTotal > 0 && (
+        <PhanTrangDayDu
+          trang={reqPage}
+          size={reqSize}
+          tong={reqTotal}
+          soDong={choLenKeHoachRows.length}
+          onTrang={setReqPage}
+          onSize={(n) => {
+            setReqSize(n);
+            setReqPage(1);
+          }}
+          loading={loading}
+          donVi="yêu cầu"
+          ariaLabel="Phân trang yêu cầu giao"
+        />
       )}
 
       {tabDang === "nhan-vien" && (

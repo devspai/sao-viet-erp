@@ -61,13 +61,12 @@ export const NAV: NavSection[] = [
     id: "tong-quan",
     label: "Tổng quan",
     items: [
-      { id: "dashboard", label: "Trang chủ", icon: "grid", module: "dashboard" },
       // Hồ sơ CỦA CHÍNH MÌNH ⇒ khoá `self_service` — ô mà `rbac_repo.O_MAC_DINH` cấp sẵn cho
       // MỌI vai mới, và cũng chính là ô máy chủ gác dữ liệu tự phục vụ (`employees.py` ·
       // `attendance.py`). Trước 24/09/2026 mục này ăn ké `dashboard`: tắt Trang chủ của một vai
       // là họ mất luôn đường vào hồ sơ của chính mình. Ô này có DÒNG RIÊNG trong ma trận (nhóm
       // "Tổng quan", ngay dưới Trang chủ) — nó quyết định mục menu này hiện hay không.
-      { id: "ho-so-cua-toi", label: "Hồ sơ của tôi", icon: "users", module: "self_service" },
+      { id: "ho-so-cua-toi", label: "Hồ sơ của tôi", icon: "userCircle", module: "self_service" },
       // "Nội quy công ty" ĐÃ DỜI xuống section "Nhân sự & Lương" (chốt của chủ 09/08/2026):
       // nội quy lao động là tài liệu của HCNS, để ở "Tổng quan" thì không ai đoán ra chỗ tìm.
     ],
@@ -88,11 +87,11 @@ export const NAV: NavSection[] = [
       },
       { id: "tinh-gia", label: "Tính giá", icon: "calculator", module: "tinh_gia_thanh" },
       { id: "bao-gia", label: "Báo giá in ấn", icon: "fileText", module: "bao_gia" },
-      { id: "don-hang-ban", label: "Đơn hàng bán", icon: "cart", module: "don_hang_ban" },
+      { id: "don-hang-ban", label: "Đơn hàng bán", icon: "receipt", module: "don_hang_ban" },
       // Giao hàng là khúc SAU của đơn hàng bán nên nằm ngay dưới nó, không dựng nhóm mới.
       // Gác bằng MỘT ô `giao_hang` — không có cửa phụ nào khác (bài học ô ma `self_service`).
-      { id: "giao-hang", label: "Giao hàng", icon: "truck", module: "giao_hang" },
-      { id: "khach-hang", label: "Khách hàng", icon: "users", module: "khach_hang" },
+      { id: "giao-hang", label: "Giao hàng", icon: "route", module: "giao_hang" },
+      { id: "khach-hang", label: "Khách hàng", icon: "contact", module: "khach_hang" },
       // "Báo cáo kinh doanh" ĐÃ DỜI sang phân hệ "Báo cáo" (01/10/2026) — id/module giữ nguyên.
     ],
   },
@@ -104,20 +103,20 @@ export const NAV: NavSection[] = [
       // MỘT MÀN = MỘT Ô QUYỀN (17/08/2026). Trước đó 6 mục dưới đây treo trên đúng hai khoá
       // (`san_xuat` mở 4 màn, `ky_thuat_may` mở 2), nên không có cách nào cho ai đó xem lệnh mà
       // không dời được lịch cả xưởng. Migration 0209 đã sao chép quyền cũ sang 4 khoá mới.
-      { id: "ke-hoach-sx", label: "Kế hoạch sản xuất", icon: "workflow", module: "san_xuat" },
+      { id: "ke-hoach-sx", label: "Kế hoạch sản xuất", icon: "clipboardList", module: "san_xuat" },
       // Bàn TRA (điều độ · QC · sale), khác hẳn Kế hoạch SX là bàn LẬP: chỉ lệnh ĐÃ PHÁT HÀNH, và
       // không một nút ghi nào. Nhãn "Hồ sơ lệnh sản xuất" chứ không "Lệnh sản xuất" — màn Kế hoạch
       // SX đã có sẵn một TAB mang đúng chữ đó. ĐỊNH DANH giữ nguyên: nav id `lenh-san-xuat`,
       // khoá quyền `lenh_san_xuat`, prefix API `/api/lenh-san-xuat`.
-      { id: "lenh-san-xuat", label: "Hồ sơ lệnh sản xuất", icon: "clipboard", module: "lenh_san_xuat" },
+      { id: "lenh-san-xuat", label: "Hồ sơ lệnh sản xuất", icon: "folderOpen", module: "lenh_san_xuat" },
       // Bàn TRA thứ hai, đứng NGAY SAU "Hồ sơ lệnh sản xuất" vì cùng nhóm người dùng (điều độ · QC ·
       // sale) và cùng module `lenh_sx` — khác câu hỏi: màn kia tra MỘT lệnh theo mã, màn này quét
       // TOÀN XƯỞNG để thấy việc nào tắc / máy nào trống (Task 17, module riêng `theo_doi_san_xuat`,
-      // ô quyền đã seed từ Task 1). Icon "eye" — chưa xưởng nào dùng, khớp nghĩa "theo dõi/quan sát".
-      { id: "theo-doi-san-xuat", label: "Theo dõi sản xuất", icon: "eye", module: "theo_doi_san_xuat" },
+      // ô quyền đã seed từ Task 1).
+      { id: "theo-doi-san-xuat", label: "Theo dõi sản xuất", icon: "gauge", module: "theo_doi_san_xuat" },
       // Đứng ngay sau Kế hoạch SX vì nó là bước kế tiếp của cùng một người: lệnh chốt xong thì hỏi
       // "còn thiếu vật tư gì, hôm nào phải đặt".
-      { id: "ke-hoach-vat-tu", label: "Kế hoạch vật tư", icon: "box", module: "ke_hoach_vat_tu" },
+      { id: "ke-hoach-vat-tu", label: "Kế hoạch vật tư", icon: "scale", module: "ke_hoach_vat_tu" },
       // Màn bài ghép cũ gỡ 18/08/2026. Id đường dẫn giữ `bai-ghep-2` (đổi id là hỏng dấu trang
       // người dùng đã lưu + bản đồ badge), NHÃN là "Bài ghép" — người dùng chỉ còn một màn.
       // TẠM ẨN 10/09/2026 theo cờ `BAI_GHEP_ENABLED` — spread rỗng chứ KHÔNG xoá dòng, để bật lại
@@ -131,7 +130,7 @@ export const NAV: NavSection[] = [
       // (`xep-lich-cong-doan-2` / `xep_lich_2`, ẩn từ 10/09/2026) xoá hẳn 18/09/2026; khoá quyền
       // bỏ đánh số về `xep_lich`, mg `0314` chép quyền của `xep_lich_3` sang nên không ai mất
       // đường vào. Dấu trang cũ `/xep-lich-3` và `/xep-lich-cong-doan-2` không còn dùng được.
-      { id: "xep-lich", label: "Xếp lịch", icon: "calendar", module: "xep_lich" },
+      { id: "xep-lich", label: "Xếp lịch", icon: "gantt", module: "xep_lich" },
     ],
   },
   // KHỐI RIÊNG 24/09/2026 (chủ chốt: *"tách ra làm phân hệ sản xuất riêng đi"*). Mục ở đây KHÔNG
@@ -153,8 +152,8 @@ export const NAV: NavSection[] = [
     items: [
       // MỘT ô quyền cho MỘT mục (24/09/2026, mg `0332`): khung "Yêu cầu báo hỏng" là tab của
       // chính màn này nên `yeu_cau_sua_chua` gỡ hẳn, còn lại ô chi tiết `ky_thuat_may:request`.
-      { id: "sua-chua-may", label: "Sửa chữa máy", icon: "settings", module: "ky_thuat_may" },
-      { id: "phieu-bao-tri", label: "Phiếu bảo trì", icon: "clock", module: "phieu_bao_tri" },
+      { id: "sua-chua-may", label: "Sửa chữa máy", icon: "wrench", module: "ky_thuat_may" },
+      { id: "phieu-bao-tri", label: "Phiếu bảo trì", icon: "clipboardCheck", module: "phieu_bao_tri" },
     ],
   },
   {
@@ -164,7 +163,7 @@ export const NAV: NavSection[] = [
       {
         id: "yeu-cau-mua-hang",
         label: "Yêu cầu mua hàng",
-        icon: "clipboard",
+        icon: "filePlus",
         // CHỈ ô Xem của chính màn này mở menu (chủ chốt 28/09/2026: "tôi có bật xem đâu mà hiển
         // thị"). Trước đó thêm danh sách `modules` gồm bao_gia · kho · san_xuat · dm_giay · ke_toan
         // — cấp Xem Báo giá là mục này tự hiện dù ô của nó TẮT. Máy chủ đã thu cổng đọc theo.
@@ -174,7 +173,7 @@ export const NAV: NavSection[] = [
         module: "yeu_cau_mua_hang",
       },
       { id: "mua-hang", label: "Mua hàng", icon: "bag", module: "thu_mua" },
-      { id: "nha-cung-cap", label: "Nhà cung cấp", icon: "truck", module: "nha_cung_cap" },
+      { id: "nha-cung-cap", label: "Nhà cung cấp", icon: "store", module: "nha_cung_cap" },
     ],
   },
   {
@@ -186,7 +185,7 @@ export const NAV: NavSection[] = [
       // đến từ PMH + phiếu chi) đúng về dữ liệu nhưng sai về thao tác: bên THU đã phẳng, để bên CHI
       // thụt thêm một cấp thì hai vế đối xứng của cùng một việc lại nằm hai độ sâu khác nhau.
       //
-      // Icon đi theo CẶP cho dễ đọc: hai phiếu dùng `fileText`, hai công nợ dùng `calculator`.
+      // Icon đi theo CẶP: hai phiếu cùng hình tờ tiền (mũi tên ra = chi, vào = thu).
       //
       // "Đơn mua hàng" TRƯỚC ĐÂY mang nhãn "Yêu cầu mua hàng" — nhãn SAI: màn này hiển thị PHIẾU
       // MUA HÀNG (`/api/accounting/inbox` trả `PurchaseRequestListOut`), không phải YCMH. Nhìn
@@ -197,38 +196,38 @@ export const NAV: NavSection[] = [
       {
         id: "ke-toan-don-mua-hang",
         label: "Đơn mua hàng",
-        icon: "clipboard",
+        icon: "stamp",
         module: "ke_toan",
       },
       {
         id: "ke-toan-phieu-chi",
         label: VOUCHER_PAGE_LABEL,
-        icon: "fileText",
+        icon: "banknoteOut",
         module: "phieu_chi",
       },
       {
         id: "ke-toan-cong-no",
         label: "Công nợ phải trả",
-        icon: "calculator",
+        icon: "wallet",
         module: "cong_no_phai_tra",
       },
       {
         id: "ke-toan-phieu-thu",
         label: "Phiếu thu",
-        icon: "fileText",
+        icon: "banknoteIn",
         module: "phieu_thu",
       },
       {
         id: "ke-toan-cong-no-phai-thu",
         label: "Công nợ phải thu",
-        icon: "calculator",
+        icon: "handCoins",
         module: "cong_no_phai_thu",
       },
       // "Báo cáo công nợ" ĐÃ DỜI sang phân hệ "Báo cáo" (01/10/2026) — id/module giữ nguyên.
       {
         id: "ke-toan-tai-khoan-ngan-hang",
         label: "Tài khoản ngân hàng",
-        icon: "database",
+        icon: "landmark",
         module: "tk_ngan_hang",
       },
       // Tài sản & CCDC — module RIÊNG (`tai_san`), không ăn ké quyền `ke_toan`: người quản tài
@@ -236,7 +235,7 @@ export const NAV: NavSection[] = [
       {
         id: "tai-san",
         label: "Tài sản & CCDC",
-        icon: "database",
+        icon: "toolbox",
         module: "tai_san",
       },
     ],
@@ -251,7 +250,7 @@ export const NAV: NavSection[] = [
     items: [
       // MỘT mục — bên trong chia tab VIỆC (Yêu cầu · Hộp yêu cầu) × CHIỀU (Nhập · Xuất).
       // Tab "Hộp yêu cầu" tự ẩn nếu vai không có create/view_stock (gate trong KhoPage).
-      { id: "kho-main", label: "Yêu cầu nhập xuất", icon: "warehouse", module: "kho" },
+      { id: "kho-main", label: "Yêu cầu nhập xuất", icon: "transfer", module: "kho" },
       // "Báo cáo kho" ĐÃ DỜI sang phân hệ "Báo cáo" (01/10/2026) — id/module giữ nguyên.
     ],
   },
@@ -266,17 +265,17 @@ export const NAV: NavSection[] = [
       {
         id: "bao-cao-kinh-doanh",
         label: "Báo cáo kinh doanh",
-        icon: "table",
+        icon: "chartLine",
         module: "bao_cao_kinh_doanh",
       },
       // Sổ nhập-xuất + khóa kỳ + export MISA (kế toán). Module RIÊNG từ 24/09/2026 (mg `0329`).
-      { id: "kho-baocao", label: "Báo cáo kho", icon: "fileText", module: "bao_cao_kho" },
+      { id: "kho-baocao", label: "Báo cáo kho", icon: "chartColumn", module: "bao_cao_kho" },
       // MỘT mục, bên trong chia tab Phải trả / Phải thu (chủ chốt 03/09/2026). Module RIÊNG
       // `bao_cao_cong_no` từ 04/09/2026.
       {
         id: "ke-toan-bao-cao",
         label: "Báo cáo công nợ",
-        icon: "fileText",
+        icon: "bookOpen",
         module: "bao_cao_cong_no",
       },
     ],
@@ -285,29 +284,29 @@ export const NAV: NavSection[] = [
     id: "cau-hinh-dm",
     label: "Cấu hình danh mục",
     items: [
-      { id: "may-thiet-bi", label: "Thiết bị & Máy móc", icon: "warehouse", module: "dm_thiet_bi" },
-      { id: "cong-doan", label: "Công đoạn", icon: "activity", module: "dm_cong_doan" },
+      { id: "may-thiet-bi", label: "Thiết bị & Máy móc", icon: "machine", module: "dm_thiet_bi" },
+      { id: "cong-doan", label: "Công đoạn", icon: "listOrdered", module: "dm_cong_doan" },
       // Đơn vị & quy đổi: dùng chung cho khoán · kho · mua hàng, nên nằm ở danh mục chứ không
       // chôn trong màn Lương. MỘT mục cho hai bảng (đơn vị · cặp "1 tấn = 1.000 kg") — tách hai
       // mục thì hai cái tên gần trùng nhau, không ai đoán được vào đâu làm gì.
-      { id: "don-vi", label: "Đơn vị & quy đổi", icon: "activity", module: "dm_don_vi" },
-      { id: "giay", label: "Giấy", icon: "bag", module: "dm_giay" },
-      { id: "vat-tu-in-an", label: "Vật tư khác", icon: "bag", module: "dm_vat_tu" },
+      { id: "don-vi", label: "Đơn vị & quy đổi", icon: "ruler", module: "dm_don_vi" },
+      { id: "giay", label: "Giấy", icon: "paper", module: "dm_giay" },
+      { id: "vat-tu-in-an", label: "Vật tư khác", icon: "canister", module: "dm_vat_tu" },
       // Thành phẩm: hàng của đơn hàng bán, hệ tự khai khi chốt đơn. Đứng CẠNH Vật tư khác vì
       // chung một bảng và người dùng hay nhầm hai chỗ (docs/prd-thanh-pham.md).
-      { id: "thanh-pham", label: "Thành phẩm", icon: "bag", module: "dm_thanh_pham" },
+      { id: "thanh-pham", label: "Thành phẩm", icon: "packageCheck", module: "dm_thanh_pham" },
       // Khuôn: kho khuôn bế của xưởng — khách · loại · số kệ ·
       // tình trạng. Bước cần dụng cụ ở Lệnh sản xuất chọn từ đây. Nhan đề đổi 18/09/2026;
       // `module` GIỮ chuỗi `khuon_be` vì nó nằm trong bảng phân quyền của DB thật.
-      { id: "khuon-be", label: "Khuôn", icon: "clipboard", module: "khuon_be" },
+      { id: "khuon-be", label: "Khuôn", icon: "dieCut", module: "khuon_be" },
       // Khai báo kho: màn CRUD tạo/sửa kho. Kho tạo ở đây tự hiện thành mục dưới SECTION "Kho hàng".
-      { id: "khai-bao-kho", label: "Khai báo kho", icon: "warehouse", module: "dm_kho_hang" },
+      { id: "khai-bao-kho", label: "Khai báo kho", icon: "shelves", module: "dm_kho_hang" },
       // Tiêu chí KCS (module KCS kiêm nhiệm, mg 0250): checklist chuẩn hoá + công đoạn nào áp
       // dụng — dùng để chụp (snapshot) checklist khi phát hành lệnh (Task 3).
-      { id: "kcs-tieu-chi", label: "Tiêu chí KCS", icon: "fileCheck", module: "dm_kcs_tieu_chi" },
+      { id: "kcs-tieu-chi", label: "Tiêu chí KCS", icon: "listChecks", module: "dm_kcs_tieu_chi" },
       // Xe giao hàng (12/09/2026): biển số · tải trọng · xe này ăn MỨC khoán km nào. Bảng giá
       // của từng mức khai ở Cấu hình lương — sửa giá là việc kế toán, không phải việc của
-      // người khai biển số. Icon `truck` trùng màn Giao hàng là CỐ Ý: hai mục cùng một nghề.
+      // người khai biển số.
       { id: "xe", label: "Xe giao hàng", icon: "truck", module: "dm_xe" },
     ],
   },
@@ -318,21 +317,21 @@ export const NAV: NavSection[] = [
       // Phòng ban = cây tổ chức: liệt kê theo HỒ SƠ, đếm theo hồ sơ, điều chuyển ghi Quá
       // trình công tác → việc của HCNS, không phải quản trị hệ thống. Đứng trước Hồ sơ nhân
       // sự vì nó là cái khung chứa.
-      { id: "phong-ban", label: "Phòng ban", icon: "building", module: "phong_ban" },
-      { id: "nhan-su", label: "Hồ sơ nhân sự", icon: "users", module: "nhan_su" },
+      { id: "phong-ban", label: "Phòng ban", icon: "network", module: "phong_ban" },
+      { id: "nhan-su", label: "Hồ sơ nhân sự", icon: "idCard", module: "nhan_su" },
       // Khoá RIÊNG `cham_cong` (10/08/2026) — trước đây dùng chung `nhan_su` nên cấp quyền xem
       // hồ sơ là mở luôn bảng công cả công ty. Vẫn nhận SELF_SERVICE: thợ chỉ có ô Tự phục vụ
       // cũng phải vào được màn này để bấm chấm công và xem công của mình.
       // Menu theo ĐÚNG ô của chính nó. Vai Công nhân được cấp `cham_cong` ở phạm vi "Của tôi"
       // ⇒ vẫn vào bấm giờ được; ai không được cấp thì không thấy menu (chủ chốt 15/08/2026).
-      { id: "cham-cong", label: "Chấm công", icon: "activity", module: "cham_cong" },
-      { id: "nghi-phep", label: "Nghỉ phép", icon: "calendar", module: "nghi_phep" },
-      { id: "tang-ca", label: "Tăng ca", icon: "clock", module: "tang_ca" },
+      { id: "cham-cong", label: "Chấm công", icon: "mapPinCheck", module: "cham_cong" },
+      { id: "nghi-phep", label: "Nghỉ phép", icon: "calendarX", module: "nghi_phep" },
+      { id: "tang-ca", label: "Tăng ca", icon: "clockPlus", module: "tang_ca" },
       // Lương vào bằng Ô THẬT của chính nó. Trước 15/08/2026 còn mở qua `self_service` —
       // ô cấp sẵn cho mọi vai và ĐÃ GỠ khỏi bảng phân quyền, tức một cái cổng không tay nắm:
       // HCNS tắt ô Lương mà người ta vẫn vào được màn. Migration 0198 + `_luong_self()` bên
       // seed đã rót ô `luong` (Của tôi: Xem + Thao tác) cho mọi vai nên gỡ cổng ma không ai mất màn.
-      { id: "luong", label: "Lương", icon: "calculator", module: "luong" },
+      { id: "luong", label: "Lương", icon: "coins", module: "luong" },
       // Nội quy lao động: ai cũng phải đọc, nhưng từ 10/08/2026 đi qua Ô QUYỀN `noi_quy` thật
       // (seed + migration cấp cho MỌI vai) chứ không còn nằm trong AUTHENTICATED_NAV_IDS.
       // ⚠ ĐỪNG dời lại lên "Tổng quan" và ĐỪNG đổi `id`/`module`: id là khoá route + khoá
@@ -340,7 +339,7 @@ export const NAV: NavSection[] = [
       {
         id: "noi-quy",
         label: "Nội quy công ty",
-        icon: "book",
+        icon: "scrollText",
         module: "noi_quy",
         modules: ["noi_quy"],
       },
@@ -354,7 +353,7 @@ export const NAV: NavSection[] = [
       // ngay trong Hồ sơ nhân sự (tab "Tài khoản & Quyền"). Khoá `nguoi_dung` cũng GỠ HẲN
       // 24/09/2026 (mg `0331`) — bốn thao tác tài khoản thành ô chi tiết của `nhan_su`.
       // "Phòng ban" dời sang Nhân sự & Lương.
-      { id: "nhat-ky", label: "Nhật ký", icon: "activity", module: "activity_log" },
+      { id: "nhat-ky", label: "Nhật ký", icon: "history", module: "activity_log" },
     ],
   },
 ];

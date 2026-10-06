@@ -13,6 +13,7 @@ from app.db import SessionLocal
 from app.models.don_vi_do import DonViDo, DonViQuyDoi
 from app.models.role import SCOPE_ALL, SCOPE_OWN
 from app.models.vat_lieu_kho import VatTuInAn
+from app.repositories.quyen_kho_repo import QuyenKhoRepository
 from app.repositories.rbac_repo import DepartmentRepository, RoleRepository
 from app.repositories.user_repo import UserRepository
 from app.security import hash_password
@@ -38,7 +39,10 @@ def _mk_user(username: str, dept_name: str, perms: dict) -> int:
     Hai cờ `can_view_stock` / `can_set_threshold` vẫn viết ở chỗ gọi cho dễ đọc, nhưng từ
     24/09/2026 (mg `0334`) chúng KHÔNG còn là ô chi tiết của `kho` nữa: màn Tồn kho là module
     riêng `ton_kho` (Xem = số tồn + lô, ô chi tiết = khai ngưỡng). Helper dịch hộ sang dòng quyền
-    mới để các test cũ vẫn mô tả đúng nhân vật.
+    mới để các test cũ vẫn mô tả đúng nhân vật. Từ 05/10/2026 mỗi kho một dòng `ton_kho_<id>` ⇒
+    cấp trên MỌI kho đang có lúc tạo người (kho khai SAU đó thì chưa có quyền — đúng như thật).
+    Cũng từ 05/10/2026 mỗi màn kho có ô "Xem giá thành" riêng: `can_view_cost` ở chỗ gọi được bật
+    cả trên dòng của từng kho mà người đó xem được — đúng như mg 0370 chép quyền cũ.
     """
     db = SessionLocal()
     try:
@@ -49,16 +53,19 @@ def _mk_user(username: str, dept_name: str, perms: dict) -> int:
         )
         xem_ton = bool(perms.get("can_view_stock"))
         khai_nguong = bool(perms.get("can_set_threshold"))
+        xem_gia = bool(perms.get("can_view_cost")) and xem_ton
         roles.set_permission(
             role_id=role.id, module_key="kho",
             **{k: v for k, v in perms.items()
                if k not in ("can_view_stock", "can_set_threshold")},
         )
         if xem_ton or khai_nguong:
-            roles.set_permission(
-                role_id=role.id, module_key="ton_kho",
-                can_read=xem_ton, can_set_threshold=khai_nguong, scope=SCOPE_ALL,
-            )
+            for khoa in QuyenKhoRepository(db).module_kho():
+                roles.set_permission(
+                    role_id=role.id, module_key=khoa,
+                    can_read=xem_ton, can_set_threshold=khai_nguong, can_view_cost=xem_gia,
+                    scope=SCOPE_ALL,
+                )
         u = users.create(username=username, name=username, password_hash=hash_password(PW))
         users.set_assignment(u, department_id=dept.id, role_id=role.id, is_active=True)
         return u.id

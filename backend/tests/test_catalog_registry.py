@@ -63,14 +63,16 @@ SCOPELESS_CU = frozenset({
     #   • `noi_quy` (mg `0330`) — nội quy lao động là tài liệu CHUNG toàn công ty; chủ chốt:
     #     *"nội quy công ty mặc định tất cả và không cho chỉnh sửa"*.
     "quy_trinh_kinh_doanh", "bao_cao_kho", "noi_quy",
-    # `ton_kho` (mg `0334`, cùng đợt): màn Tồn kho của từng kho. Thấy kho nào là do KHAI BÁO KHO
-    # quyết định — `kho_voucher.py` lọc theo `kho_id` người dùng chọn, không đọc scope của vai.
-    "ton_kho",
+    # `ton_kho` (mg `0334`) ĐÃ RA KHỎI danh sách 05/10/2026: tách thành một dòng cho MỖI KHO
+    # (`ton_kho_<id>`, mg `0369`) — scopeless theo tiền tố ở `role_service._la_scopeless`.
     # `activity_log` (25/09/2026) — nhật ký KHÔNG có "của tôi": nó ghi việc của cả hệ thống, và
     # cái quyết định ai thấy dòng nào là NGƯỜI XEM CÓ MỞ ĐƯỢC MÀN SINH RA DÒNG ĐÓ KHÔNG, không
     # phải scope của vai (`ActivityService._chan`). Để scope `own` ở đây là dựng một hàng rào giả
     # rồi tự tin vào nó.
     "activity_log",
+    # Bốn màn sổ sách kế toán / tài sản (05/10/2026): `accounting.py` · `tai_san.py` không đọc
+    # scope của các khoá này lần nào — ô Phạm vi trước đó bày ba lựa chọn mà chọn gì cũng như nhau.
+    "phieu_chi", "phieu_thu", "tk_ngan_hang", "tai_san",
 })
 
 #: `nhat_ky_danh_muc.LOAI_MODULE` — tên chính của từng màn, 2 tên đời cũ (`machine`/`operation`),

@@ -12,8 +12,8 @@ Soi tầng service `services/san_xuat/kcs_bao_cao.py` theo KCS theo LỆNH (mg 0
     Xem mức "Của tôi" không mở số liệu KCS của cả tổ;
   · RBAC: `GET /kcs/bao-cao` gác Xem ở ít nhất một tổ HOẶC là người thuộc tổ KCS
     (`require_quyen_to("read", cho_kcs=True)`),
-    `GET /kcs/bao-cao/export.xlsx` gác RIÊNG: người thuộc tổ KCS hoặc ô tĩnh `san_xuat:export` (đi
-    qua HTTP thật vì đây là chỗ cổng router thật sự áp).
+    `GET /kcs/bao-cao/export.xlsx` gác RIÊNG: CHỈ người thuộc tổ KCS — ô `san_xuat:export` gỡ
+    05/10/2026 (đi qua HTTP thật vì đây là chỗ cổng router thật sự áp).
 
 Tái dùng dàn cảnh + helper của test KCS (`_batch`, `_cv_kcs`, `_to_kiem`, `_anh`) và `_authz` của
 test board (tham số `authz` còn trong chữ ký service nhưng không quyết định phạm vi).
@@ -290,11 +290,11 @@ def test_export_yeu_cau_quyen_export_rieng_voi_read(client):
     assert r_json_cu.status_code == 403, r_json_cu.text   # ô tĩnh `san_xuat:read` không còn mở Bàn tổ
 
     r_xlsx_doc = client.get("/api/san-xuat/kcs/bao-cao/export.xlsx", headers=headers_doc)
-    assert r_xlsx_doc.status_code == 403, r_xlsx_doc.text   # KHÔNG có can_export → chặn
+    assert r_xlsx_doc.status_code == 403, r_xlsx_doc.text   # không thuộc tổ KCS → chặn
 
+    # Ô `san_xuat:export` cũ (admin còn giữ trong DB) KHÔNG còn mở cửa — chỉ tổ KCS mới xuất được.
     r_xlsx_admin = client.get("/api/san-xuat/kcs/bao-cao/export.xlsx", headers=headers_admin)
-    assert r_xlsx_admin.status_code == 200, r_xlsx_admin.text
-    assert r_xlsx_admin.headers["content-type"] == _XLSX_MEDIA
+    assert r_xlsx_admin.status_code == 403, r_xlsx_admin.text
 
 
 def test_o_loc_cong_doan_doc_duoi_quyen_to_khong_can_quyen_danh_muc(client):

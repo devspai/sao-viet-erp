@@ -254,6 +254,21 @@ def test_lo_khong_phai_thanh_pham_tu_kcs_bi_chan(db, orders, lsx_svc, admin, cus
         gg.sua_gia_goc(db, user=admin, lot_id=99_999_999, don_gia=1)
 
 
+def _cap_xem_gia_bao_cao(username: str) -> None:
+    from app.db import SessionLocal
+    from app.repositories.rbac_repo import RoleRepository
+    from app.repositories.user_repo import UserRepository
+
+    db = SessionLocal()
+    try:
+        role_id = UserRepository(db).get_by_username(username).role_id
+        RoleRepository(db).set_permission(role_id=role_id, module_key="bao_cao_kho", can_read=True,
+                                          can_view_cost=True, scope=SCOPE_ALL)
+        db.commit()
+    finally:
+        db.close()
+
+
 def test_thieu_quyen_xem_gia_von_bi_403(client):
     _mk_user("t_thukho_gg", "Kho", dict(can_read=True, can_create=True, can_post=True, scope=SCOPE_ALL,
                                         can_view_stock=True))
@@ -263,6 +278,12 @@ def test_thieu_quyen_xem_gia_von_bi_403(client):
 
     assert client.patch("/api/kho/phieu/lo/999999/gia-goc", headers=tk, json={"don_gia": 1}).status_code == 403
     assert client.get("/api/kho/bao-cao/thanh-pham-chua-gia-goc", headers=tk).status_code == 403
+
+    # Tab "Giá gốc thành phẩm" nằm ở Báo cáo kho ⇒ hỏi ô "Xem giá thành" của CHÍNH Báo cáo kho
+    # (05/10/2026 — mỗi màn kho một ô xem giá). Có giá ở Yêu cầu nhập xuất thôi thì chưa đủ.
+    assert client.patch("/api/kho/phieu/lo/999999/gia-goc", headers=kt, json={"don_gia": 1}).status_code == 403
+    assert client.get("/api/kho/bao-cao/thanh-pham-chua-gia-goc", headers=kt).status_code == 403
+    _cap_xem_gia_bao_cao("t_ketoan_gg")
 
     assert client.patch("/api/kho/phieu/lo/999999/gia-goc", headers=kt, json={"don_gia": 1}).status_code == 404
     assert client.patch("/api/kho/phieu/lo/999999/gia-goc", headers=kt, json={"don_gia": -5}).status_code == 422

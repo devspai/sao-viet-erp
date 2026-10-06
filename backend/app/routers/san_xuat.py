@@ -1041,10 +1041,13 @@ def danh_sach_lenh_kcs(
     tim: str | None = Query(None, max_length=200),
     trang: int = Query(1, ge=1),
     da_dong: bool = Query(False),
+    co_trang: int = Query(30, ge=1, le=100),
 ) -> dict:
     """Danh sách lệnh cho màn KCS — lệnh đã vào nhóm thành phẩm, mặc định chỉ nhóm còn mở.
     Tìm + cắt trang ở máy chủ."""
-    return _chay(lambda: kcs.danh_sach_lenh_kcs(db, user, tim=tim, trang=trang, gom_da_dong=da_dong))
+    return _chay(lambda: kcs.danh_sach_lenh_kcs(
+        db, user, tim=tim, trang=trang, gom_da_dong=da_dong, co_trang=co_trang
+    ))
 
 
 @router.get("/kcs/lenh/{lsx_id}", response_model=KcsChuoiCongDoanOut)
@@ -1229,10 +1232,11 @@ def export_bao_cao_kcs(
     tu_khoa: str | None = Query(default=None),
     cong_doan_id: int | None = Query(default=None),
 ) -> Response:
-    """Xuất Excel — người thuộc tổ KCS, hoặc vai có ô `san_xuat:export` (§4.4); KHÁC `read` của
+    """Xuất Excel — CHỈ người thuộc phòng ban tổ KCS (05/10/2026 gỡ ô `san_xuat:export`: nút xuất
+    nằm ở màn KCS mà màn đó chỉ mở cho tổ KCS, nên ô vai cấp xong cũng không ai thấy). KHÁC `read` của
     endpoint JSON ở trên. Dùng CHUNG hàm lấy dòng với `/kcs/bao-cao` (§9 mục 10: cùng filter phải
     trả cùng tổng)."""
-    if not (authz.can(user, MODULE, "export") or kcs.la_nguoi_kcs(db, user)):
+    if not kcs.la_nguoi_kcs(db, user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Bạn không có quyền thực hiện thao tác này")
     content, filename = kcs_bao_cao.xuat_excel_kcs(
         db, user, authz, tu=tu, den=den,

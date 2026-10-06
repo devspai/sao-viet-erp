@@ -1,7 +1,8 @@
 // Hằng số dùng chung của màn Nhà cung cấp (tách từ pages/SuppliersPage.tsx).
 import type { SupplierInput } from "../../../../api/client";
 
-export const PAGE_SIZE = 20;
+/** Cỡ trang MẶC ĐỊNH — người dùng đổi ở ô Dòng/trang dưới chân bảng. */
+export const PAGE_SIZE = 25;
 
 export const REQUIRED_SUPPLIER_FIELDS: Array<[keyof SupplierInput, string]> = [
   ["name", "Tên nhà cung cấp"],

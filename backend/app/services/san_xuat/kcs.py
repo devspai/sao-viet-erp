@@ -723,14 +723,17 @@ def _tom_cuoi(bc, cvs) -> dict | None:
 
 
 def danh_sach_lenh_kcs(
-    db: Session, user, *, tim: str | None = None, trang: int = 1, gom_da_dong: bool = False
+    db: Session, user, *, tim: str | None = None, trang: int = 1, gom_da_dong: bool = False,
+    co_trang: int = _CO_TRANG,
 ) -> dict:
-    """Danh sách lệnh cho màn KCS — phân trang + tìm ở máy chủ."""
+    """Danh sách lệnh cho màn KCS — phân trang + tìm ở máy chủ. `co_trang` do ô Dòng/trang ở chân
+    bảng gửi lên; router đã chặn 1..100, ở đây chỉ chặn dưới cho lời gọi nội bộ."""
     gate_kcs(db, user)
     repo = SanXuatKcsRepository(db)
     trang = max(1, int(trang or 1))
+    co_trang = max(1, int(co_trang or _CO_TRANG))
     ids, tong = repo.trang_lenh(
-        tim=tim, gom_da_dong=gom_da_dong, offset=(trang - 1) * _CO_TRANG, limit=_CO_TRANG
+        tim=tim, gom_da_dong=gom_da_dong, offset=(trang - 1) * co_trang, limit=co_trang
     )
     bc = boi_canh.nap(db, ids)
     items = []
@@ -754,7 +757,7 @@ def danh_sach_lenh_kcs(
             "so_loi": sum(float(k.so_luong_khong_dat or 0) for cv in cvs for k in bc.kcs[cv.id]),
             "cuoi": _tom_cuoi(bc, cvs),
         })
-    return {"items": items, "tong": tong, "trang": trang, "co_trang": _CO_TRANG}
+    return {"items": items, "tong": tong, "trang": trang, "co_trang": co_trang}
 
 
 def chuoi_cong_doan_kcs(db: Session, user, lsx_id: int) -> dict:

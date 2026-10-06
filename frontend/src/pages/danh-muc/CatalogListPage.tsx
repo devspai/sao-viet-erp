@@ -78,10 +78,12 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   //   · "Nhập Excel" đòi CẢ `create` LẪN `update`: một dòng có thể là tạo mới hay cập nhật, mà
   //     lúc gác thì chưa ai biết — biết được thì đã đọc xong file rồi. Thiếu một trong hai mà vẫn
   //     hiện nút là mời bấm để ăn 403 giữa luồng.
-  //   · Màn `khongTaoTay` (Thành phẩm) thì quyền `create` không còn nghĩa gì — máy chủ chặn mọi dòng
-  //     mã mới, file chỉ còn SỬA được dòng đã có ⇒ đủ quyền `update` là được nhập.
+  //   · Kể cả màn `khongTaoTay` (Thành phẩm): file chỉ SỬA được dòng đã có, nhưng cổng
+  //     `POST /import-excel` của máy chủ vẫn đòi đủ `create` + `update` (`catalog_base.req_import`).
+  //     Trước 05/10/2026 màn này miễn `create` ⇒ người chỉ có `update` thấy nút rồi bấm ăn 403.
   const duocXuatExcel = Boolean(config.enableImport);
-  const duocImport = duocXuatExcel && duocBatLai && (Boolean(config.khongTaoTay) || duocTao);
+  const coQuyenTao = !mQuyen || can(mQuyen, "create");
+  const duocImport = duocXuatExcel && duocBatLai && coQuyenTao;
   const [showImport, setShowImport] = useState(false);
   const api = useMemo(() => crud(config.prefix), [config.prefix]);
   const [rows, setRows] = useState<Row[]>([]);

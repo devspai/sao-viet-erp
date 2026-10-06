@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,7 @@ from ..db import get_db
 from ..deps import require_permission
 from ..models.department import Department
 from ..models.tai_san import NGUON_DAU_KY, TT_DA_GIAM, TaiSan
+from .catalog_base import ImportExcelLoi, ImportExcelOut
 from ..models.user import User
 from ..repositories.tai_san_repo import TaiSanRepository
 from ..schemas.tai_san import (
@@ -36,15 +37,19 @@ from ..schemas.tai_san import (
     TaiSanListOut,
     TaiSanRow,
     TaiSanSuaIn,
+    ThoiDungIn,
 )
 from ..services.tai_san.bang_thang import bang_thang
 from ..services.tai_san.excel import MEDIA_XLSX, xuat_bang_ky
+from ..services.tai_san.nhap_excel import ExcelSaiMan, nhap_dang_dung, tao_mau
+from ..tai_len import TRAN_EXCEL, doc_gioi_han
 from ..services.tai_san.service import (
     TaiSanDaCoChungTu,
     TaiSanNotFound,
     TaiSanService,
     TaiSanTrung,
     TaiSanValidationError,
+    mocs_cua,
     thang_da_tinh,
 )
 
@@ -55,7 +60,9 @@ _DOC = require_permission(MODULE, "read")
 _TAO = require_permission(MODULE, "create")
 _GHI = require_permission(MODULE, "update")
 _XOA = require_permission(MODULE, "delete")
-_XUAT = require_permission(MODULE, "export")
+# Xuất Excel khấu hao đi theo ô THAO TÁC (05/10/2026). Trước đó gác `export` — ma trận không có ô
+# đó cho Tài sản ⇒ ngoài admin không ai xuất được.
+_XUAT = require_permission(MODULE, "update")
 
 
 def get_service(db: Annotated[Session, Depends(get_db)]) -> TaiSanService:
@@ -80,14 +87,15 @@ def _ten_bo_phan(db: Session, ids: set[int]) -> dict[int, str]:
 
 
 def _dung_rows(db: Session, svc: TaiSanService, objs: list[TaiSan]) -> list[TaiSanRow]:
-    """Hao mòn lũy kế tới hết tháng trước. Dòng CŨ còn mang `da_giam` (nghiệp vụ ghi giảm đã bỏ
-    08/09/2026) thì lũy kế chốt ở tháng giảm và "còn lại" = 0 — nó đã ra khỏi sổ."""
+    """Hao mòn lũy kế tới hết tháng trước. Tài sản đã thôi dùng (`da_giam`) thì lũy kế chốt ở
+    tháng thôi dùng và "còn lại" = 0 — nó đã ra khỏi xưởng."""
     ten = _ten_bo_phan(db, {o.bo_phan_id for o in objs})
     nam, thang = thang_da_tinh()
     ra = []
     for o in objs:
         row = TaiSanRow.model_validate(o)
         row.bo_phan_ten = ten.get(o.bo_phan_id)
+        row.tien_sua_chua_lon = max(int(o.nguyen_gia or 0) - mocs_cua(o)[0].nguyen_gia, 0)
         if o.trang_thai == TT_DA_GIAM and o.ngay_giam is not None:
             row.hao_mon_luy_ke = svc.hao_mon_den(o, o.ngay_giam.year, o.ngay_giam.month)
             row.luy_ke_den = f"{o.ngay_giam.year:04d}-{o.ngay_giam.month:02d}"
@@ -161,6 +169,39 @@ def nhan_vien_bo_phan(
     return [NhanVienChonOut.model_validate(e) for e in svc.nhan_vien_bo_phan(bo_phan_id)]
 
 
+@router.get("/mau-excel")
+def mau_excel(_: Annotated[User, Depends(_TAO)]) -> Response:
+    """File mẫu RỖNG (chỉ dòng tiêu đề + một dòng hướng dẫn) cho "Thêm tài sản đang dùng"."""
+    return Response(
+        content=tao_mau(),
+        media_type=MEDIA_XLSX,
+        headers={"Content-Disposition": 'attachment; filename="mau-tai-san-dang-dung.xlsx"'},
+    )
+
+
+@router.post("/import-excel", response_model=ImportExcelOut)
+def import_excel(
+    db: Db,
+    svc: Service,
+    user: Annotated[User, Depends(_TAO)],
+    file: UploadFile = File(...),
+    mode: str = Query(default="preview", pattern="^(preview|commit)$"),
+) -> ImportExcelOut:
+    """Nhập tài sản ĐANG DÙNG (máy đã chạy trước khi lên phần mềm) từ .xlsx. Cả file là MỘT giao
+    dịch: `preview` chạy y hệt `commit` rồi rollback, nên số xem trước là số thật."""
+    try:
+        kq = nhap_dang_dung(
+            db, svc, doc_gioi_han(file, TRAN_EXCEL, cho_rong=True),
+            user_id=user.id, ghi=(mode == "commit"),
+        )
+    except ExcelSaiMan as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from None
+    return ImportExcelOut(
+        hop_le=not kq.loi, tong_dong=kq.tong_dong, tao_moi=kq.tao_moi, da_ghi=kq.da_ghi,
+        loi=[ImportExcelLoi(dong=d, cot=c, ly_do=l) for d, c, l in kq.loi],
+    )
+
+
 # =====================================================================================
 # Sổ tài sản
 # =====================================================================================
@@ -182,7 +223,21 @@ def danh_sach(
         q=q, loai=loai, bo_phan_id=bo_phan_id, trang_thai=trang_thai,
         offset=offset, limit=limit,
     )
-    return TaiSanListOut(items=_dung_rows(db, svc, rows), total=tong)
+    # Dải số đầu màn cộng trên CẢ bộ lọc — cộng trong JS chỉ ra tổng của trang đang xem.
+    nam, thang = thang_da_tinh()
+    tong_gia = tong_con_lai = 0
+    for o in svc.repo.tat_ca_theo_loc(
+        q=q, loai=loai, bo_phan_id=bo_phan_id, trang_thai=trang_thai,
+    ):
+        gia = int(o.nguyen_gia or 0)
+        tong_gia += gia
+        if o.trang_thai != TT_DA_GIAM:
+            tong_con_lai += gia - svc.hao_mon_den(o, nam, thang)
+    return TaiSanListOut(
+        items=_dung_rows(db, svc, rows), total=tong,
+        dem_loai=svc.repo.dem_theo_loai(q=q, bo_phan_id=bo_phan_id, trang_thai=trang_thai),
+        tong_gia=tong_gia, tong_con_lai=tong_con_lai,
+    )
 
 
 @router.post("", response_model=TaiSanRow, status_code=status.HTTP_201_CREATED)
@@ -266,8 +321,8 @@ def du_kien(
 def bien_dong(
     tai_san_id: int, payload: BienDongIn, svc: Service, user: Annotated[User, Depends(_GHI)]
 ) -> BienDongOut:
-    """Một cửa cho hai chứng từ điều chuyển · nâng cấp — `loai` quyết định ô nào bắt buộc.
-    (Ghi giảm đã bỏ 08/09/2026: món không dùng nữa thì xoá khỏi sổ.)"""
+    """Một cửa cho hai chứng từ chuyển bộ phận · sửa chữa lớn — `loai` quyết định ô nào bắt
+    buộc. Thôi dùng có cửa riêng `/thoi-dung`."""
     try:
         if payload.loai == "dieu_chuyen":
             bd = svc.dieu_chuyen(
@@ -285,3 +340,32 @@ def bien_dong(
     except LOI_NGHIEP_VU as e:
         raise _bao_loi(e) from None
     return BienDongOut.model_validate(bd)
+
+
+@router.post(
+    "/{tai_san_id}/thoi-dung", response_model=BienDongOut, status_code=status.HTTP_201_CREATED
+)
+def thoi_dung(
+    tai_san_id: int, payload: ThoiDungIn, svc: Service, user: Annotated[User, Depends(_GHI)]
+) -> BienDongOut:
+    """Bán / thanh lý / hỏng / mất — ngừng khấu hao từ ngày đó, thẻ vẫn còn để xem lại."""
+    try:
+        bd = svc.thoi_dung(
+            tai_san_id, ngay=payload.ngay, kieu=payload.kieu, ly_do=payload.ly_do,
+            user_id=user.id,
+        )
+    except LOI_NGHIEP_VU as e:
+        raise _bao_loi(e) from None
+    return BienDongOut.model_validate(bd)
+
+
+@router.delete("/{tai_san_id}/thoi-dung", response_model=TaiSanRow)
+def bo_thoi_dung(
+    tai_san_id: int, db: Db, svc: Service, _: Annotated[User, Depends(_GHI)]
+) -> TaiSanRow:
+    """Bấm nhầm Thôi dùng ⇒ tài sản về Đang dùng, lịch khấu hao như cũ."""
+    try:
+        t = svc.bo_thoi_dung(tai_san_id)
+    except LOI_NGHIEP_VU as e:
+        raise _bao_loi(e) from None
+    return _dung_rows(db, svc, [t])[0]

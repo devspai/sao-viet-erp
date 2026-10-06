@@ -4,7 +4,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes } from "react";
 import type { StockRequestKind, StockRequestStatus, StockVoucherStatus } from "../api/client";
 import { useCan } from "../auth/permissions";
-import { Select } from "../components/Select";
 import { tenDonVi } from "./tenDonVi";
 import "./kho-request.css";
 
@@ -32,9 +31,9 @@ export function laNguoiKho(can: ReturnType<typeof useCan>): boolean {
   return can("kho", "create") || (can("kho", "read") && !can("kho", "request"));
 }
 
-/** Các mức số dòng/trang cho mọi danh sách kho. Mặc định = 10. */
-export const PAGE_SIZES = [10, 15, 20] as const;
-export const DEFAULT_PAGE_SIZE = 10;
+/** Cỡ trang mặc định của mọi danh sách kho — khớp mặc định 25 của chân bảng `PhanTrangDayDu`
+ *  (các mức chọn lấy từ chính component đó, không khai riêng ở đây). */
+export const DEFAULT_PAGE_SIZE = 25;
 
 // Parse chuỗi người dùng gõ (chấp nhận cả dấu "," VN lẫn ".") thành số; "" / "." / "," → null.
 function parseDecimal(s: string): number | null {
@@ -95,29 +94,6 @@ export function DecimalInput({
         onChange(allowNull ? n : n ?? 0);
       }}
     />
-  );
-}
-
-/** Bộ chọn số dòng/trang — DROPDOWN mở LÊN TRÊN (drop-up) vì luôn nằm cuối trang/pager, mở xuống
- *  sẽ bị che. Dùng chung ở mọi pager danh sách kho. */
-export function PageSizeSelect({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (n: number) => void;
-}) {
-  return (
-    <span className="kho-pgsize">
-      <Select
-        ariaLabel="Số dòng mỗi trang"
-        value={value}
-        onChange={(v) => onChange(Number(v))}
-        options={PAGE_SIZES.map((n) => ({ value: n, label: `${n} / trang` }))}
-        portal
-        dropUp
-      />
-    </span>
   );
 }
 

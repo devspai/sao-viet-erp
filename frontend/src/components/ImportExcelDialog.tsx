@@ -20,6 +20,8 @@ export function ImportExcelDialog({
   onImported,
   taiMau,
   luat,
+  kieu = "mac-dinh",
+  moTaMau,
 }: {
   /** Tên thứ đang nhập, số ít viết thường — vd "công đoạn", "giấy", "hồ sơ nhân sự". */
   ten: string;
@@ -32,6 +34,12 @@ export function ImportExcelDialog({
   taiMau?: () => void | Promise<void>;
   /** Câu mô tả luật nhập của màn — thay dòng mặc định (vốn viết cho danh mục). */
   luat?: string;
+  /** "ba-buoc": ba bước đánh số theo đúng thứ tự làm (1 Tải file mẫu → 2 Điền → 3 Chọn file), file
+   *  lỗi thì nút chính thành "Chọn lại file". Mặc định giữ dáng cũ — 13 màn danh mục + Nhân sự
+   *  chưa duyệt đổi (Tài sản dùng trước, thiết kế 05/10/2026 màn 5). */
+  kieu?: "mac-dinh" | "ba-buoc";
+  /** Chỉ dáng "ba-buoc": một câu dưới bước 1 (vd "Mỗi dòng một tài sản đang dùng."). */
+  moTaMau?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +99,127 @@ export function ImportExcelDialog({
   const kq = xong ?? xem;
   const dungDuoc = Boolean(xem && xem.hop_le && file && !xong);
   const seDoi = kq ? kq.tao_moi + kq.cap_nhat : 0;
+
+  if (kieu === "ba-buoc") {
+    const coLoi = Boolean(kq && !kq.hop_le && !xong);
+    return (
+      <DetailModal
+        title={`Nhập ${ten} từ Excel`}
+        onClose={onClose}
+        footer={
+          xong ? (
+            <Button variant="accent" onClick={onImported}>Xong</Button>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={onClose} disabled={busy}>Hủy</Button>
+              {coLoi ? (
+                <Button variant="accent" disabled={busy} onClick={() => chonFile(null)}>Chọn lại file</Button>
+              ) : dungDuoc ? (
+                <Button variant="accent" loading={busy} onClick={() => { if (file) void chay(file, "commit"); }}>
+                  {seDoi > 0 ? `Nhập ${seDoi} ${ten}` : `Nhập ${ten}`}
+                </Button>
+              ) : null}
+            </>
+          )
+        }
+      >
+        {xong ? (
+          <div className="banner banner--success" role="status">
+            Đã nhập xong {kq?.tao_moi ?? 0} {ten}
+            {kq && kq.cap_nhat > 0 ? `, cập nhật ${kq.cap_nhat}` : ""}.
+          </div>
+        ) : (
+          <ol className="imx__buoc">
+            {taiMau && (
+              <li>
+                <span className="imx__buoc-so">1</span>
+                <div>
+                  <h4>Tải file mẫu</h4>
+                  {moTaMau && <p>{moTaMau}</p>}
+                  <Button variant="secondary" onClick={() => void taiMau()} disabled={busy}>
+                    <Icon name="download" size={14} /> Tải file mẫu (.xlsx)
+                  </Button>
+                </div>
+              </li>
+            )}
+            <li>
+              <span className="imx__buoc-so">{taiMau ? 2 : 1}</span>
+              <div>
+                <h4>Điền vào file</h4>
+                {luat && <p>{luat}</p>}
+              </div>
+            </li>
+            <li>
+              <span className="imx__buoc-so">{taiMau ? 3 : 2}</span>
+              <div>
+                <h4>Chọn file đã điền</h4>
+                {!file ? (
+                  <div
+                    className={`imx__dropzone imx__dropzone--gon${isDragOver ? " imx__dropzone--active" : ""}`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                  >
+                    <input type="file" accept=".xlsx" disabled={busy} className="imx__input-hidden"
+                      aria-label="Chọn file Excel"
+                      onChange={(e) => { chonFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+                    <Icon name="upload" size={20} />
+                    <span className="imx__dropzone-title">Kéo thả file vào đây</span>
+                    <span className="imx__dropzone-sub">hoặc bấm để chọn file .xlsx</span>
+                  </div>
+                ) : (
+                  <div className="imx__file-card">
+                    <div className="imx__file-info">
+                      <Icon name="table" size={18} />
+                      <div>
+                        <div className="imx__file-name">{file.name}</div>
+                        <div className="imx__file-size">
+                          {busy ? "Đang đọc file…" : kq ? `${kq.tong_dong} dòng` : formatFileSize(file.size)}
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button" className="imx__doi" disabled={busy} onClick={() => chonFile(null)}>
+                      Chọn file khác
+                    </button>
+                  </div>
+                )}
+                {error && <div className="banner banner--error" role="alert">{error}</div>}
+                {kq && (
+                  <p className={kq.hop_le ? "imx__kq" : "imx__kq imx__kq--loi"} role="status">
+                    {kq.hop_le
+                      ? `Đọc được ${kq.tong_dong} dòng, không có lỗi. Bấm Nhập để ghi.`
+                      : `${kq.loi.length} chỗ chưa đúng — sửa trong file rồi chọn lại. Chưa dòng nào được ghi.`}
+                  </p>
+                )}
+                {kq && kq.loi.length > 0 && (
+                  <div className="imx__wrap">
+                    <table className="imx__table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: "14%" }}>Dòng</th>
+                          <th style={{ width: "30%" }}>Cột</th>
+                          <th>Lỗi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {kq.loi.map((l, i) => (
+                          <tr key={i}>
+                            <td className="imx__num">{l.dong}</td>
+                            <td>{l.cot}</td>
+                            <td>{l.ly_do}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </li>
+          </ol>
+        )}
+      </DetailModal>
+    );
+  }
 
   return (
     <DetailModal

@@ -411,6 +411,16 @@
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
+/* Chân phân trang đứng ngay sau khung (ngoài vùng cuộn ngang) — nối thành đáy của cùng một thẻ. */
+.khsx__tablewrap:has(+ .ptdd) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.khsx__tablewrap + .ptdd {
+  border: 1px solid var(--rule-soft, #e2e8f0);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+}
 .khsx__table {
   width: 100%;
   border-collapse: collapse;
@@ -897,7 +907,9 @@ td.khsx-num > .khsx-unit {
   border-color: var(--rule);
 }
 
-.khsx-prev { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1000px; }
+/* Bảng lệnh dự kiến — chỉnh 05/10/2026: bỏ cuộn ngang (chuỗi công đoạn xuống dòng trong ô), tiêu đề
+   canh theo dữ liệu, mọi ô số cùng khuôn "số trên, đơn vị dưới". Sàn 860px chỉ để màn hẹp cuộn. */
+.khsx-prev { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 860px; }
 .khsx-prev thead th {
   position: sticky;
   top: 0;
@@ -912,11 +924,12 @@ td.khsx-num > .khsx-unit {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
+  text-align: left;
 }
 .khsx-prev td {
   font-size: 13px;
   line-height: 1.35;
-  padding: 5px 10px;
+  padding: 8px 10px;
   border-bottom: 1px solid #e2e8f0;
   vertical-align: middle;
 }
@@ -946,12 +959,6 @@ td.khsx-num > .khsx-unit {
   color: #1e40af;
   text-decoration: underline;
 }
-.khsx-prev__name-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
 .khsx-prev__name {
   font-weight: 600;
   color: var(--ink);
@@ -959,12 +966,12 @@ td.khsx-num > .khsx-unit {
 .khsx-prev thead th.khsx-th--num {
   text-align: right;
 }
-.khsx-prev thead th:nth-child(3) { min-width: 95px; }
-.khsx-prev thead th:nth-child(4) { min-width: 80px; }
-.khsx-prev thead th:nth-child(5) { min-width: 95px; }
-.khsx-prev thead th:nth-child(6) { min-width: 95px; }
-.khsx-prev thead th:nth-child(7) { min-width: 80px; }
-.khsx-prev thead th:nth-child(8) { min-width: 140px; }
+.khsx-prev thead th.khsx-th--num { width: 1%; }
+.khsx-prev thead th.khsx-prev__namecol { min-width: 170px; }
+.khsx-prev__namecell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.khsx-prev__sub { font-size: 12px; color: var(--ash-2); }
+.khsx-prev__dv { display: block; font-size: 11px; color: var(--ash-2); font-weight: 400; }
+.khsx-prev td.khsx-prev__trong { font-size: 12px; color: var(--ash-2); }
 
 .khsx-prev td.khsx-num,
 .khsx-prev td.khsx-num--val {
@@ -997,14 +1004,11 @@ td.khsx-num > .khsx-unit {
   margin: 0 4px;
   font-weight: normal;
 }
-.khsx-prev__flow-col {
-  white-space: nowrap;
-}
+.khsx-prev__flow-col { min-width: 220px; }
 .khsx-prev__flow-col .khsx-flow {
   display: inline-flex;
-  flex-wrap: nowrap;
-  white-space: nowrap;
-  gap: 2px;
+  flex-wrap: wrap;
+  gap: 3px;
 }
 .khsx-prev__flow-col .khsx-flow__step {
   font-size: 11px;
@@ -1043,10 +1047,6 @@ td.khsx-num > .khsx-unit {
 .khsx-prev__row--conCuoi > td { border-bottom: 1px solid var(--rust); }
 .khsx-prev__tickcol { width: 40px; }
 
-/* Sàn cho cột "Công đoạn" (cột 9) để 5-6 chip routing xếp được ~2 chip/dòng thay vì 1 chip/dòng.
-   Đặt ở THEAD chứ không phải tbody: dải nhóm ở tbody có `colSpan={9}` nên `nth-child` trên td
-   sẽ trỏ nhầm cột, còn thead luôn đủ 10 `th` một-đối-một với cột. */
-.khsx-prev thead th:nth-child(9) { min-width: 200px; }
 .khsx-prev__tick { display: block; padding: var(--sp-2); cursor: pointer; }
 .khsx-prev__name { font-weight: var(--fw-bold); }
 .khsx-prev__nameSub { margin-top: 2px; }
@@ -1433,9 +1433,6 @@ td.khsx-num > .khsx-unit {
 }
 .khsx-spec__card-head--flex {
   justify-content: space-between;
-}
-.khsx-spec__card--rush {
-  border-top: 3px solid #f43f5e;
 }
 .khsx-spec__card-icon {
   display: inline-flex;

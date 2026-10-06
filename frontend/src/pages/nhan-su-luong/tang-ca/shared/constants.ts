@@ -1,6 +1,7 @@
 // Hằng dùng chung của màn Tăng ca (tách từ pages/TangCaPage.tsx).
-/** Cỡ trang chuẩn toàn hệ (prd-dong-bo-ui-thu-mua-nhan-su §2). */
-export const PAGE_SIZE = 20;
+/** Cỡ trang MẶC ĐỊNH của hai bảng — người dùng đổi được ở ô Dòng/trang dưới bảng (05/10/2026,
+ *  khuôn chân bảng Nhật ký, mặc định 25). */
+export const PAGE_SIZE = 25;
 
 /** Cỡ mẻ nạp danh sách thợ cho dropdown "Tạo hộ thợ".
  *

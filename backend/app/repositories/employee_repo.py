@@ -374,6 +374,9 @@ class EmployeeRepository:
     def shift_name(self, shift_id: int) -> str | None:
         return self.db.execute(select(WorkShift.name).where(WorkShift.id == shift_id)).scalar()
 
+    def get_shift(self, shift_id: int) -> WorkShift | None:
+        return self.db.get(WorkShift, shift_id)
+
     def base_shift_id_on(self, employee: Employee, on: date, *,
                          assignments: list | None = None) -> int | None:
         """CHỈ lớp CA NỀN tại ngày `on` — cố ý BỎ QUA ô lưới của ngày đó.

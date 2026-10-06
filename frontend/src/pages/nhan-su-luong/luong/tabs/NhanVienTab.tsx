@@ -16,7 +16,8 @@ import {
   type SalaryPreview,
 } from "../../../../api/client";
 import { EmptyRow, EmptyState } from "../../../../components/EmptyState";
-import { Pager, trangHopLe } from "../../../../components/Pager";
+import { trangHopLe } from "../../../../components/Pager";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { errText, money } from "../shared/helpers";
 import { SalaryModal } from "../modals/SalaryModal";
 import "../../../nhan-su.css";
@@ -33,7 +34,7 @@ export function NhanVienTab({
   const [total, setTotal] = useState(0);
   const [kpis, setKpis] = useState<EmployeeKpis | null>(null);
   const [page, setPage] = useState(1);
-  const size = 20;
+  const [size, setSize] = useState(25);
 
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
@@ -94,7 +95,7 @@ export function NhanVienTab({
       })
       .catch((e) => setListErr(errText(e)))
       .finally(() => setListLoading(false));
-  }, [token, page, deptId, statusFilter, debouncedQ]);
+  }, [token, page, size, deptId, statusFilter, debouncedQ]);
 
   useEffect(() => {
     load();
@@ -543,15 +544,19 @@ export function NhanVienTab({
         </table>
       </div>
 
-      {/* 4. Pagination */}
-      <Pager
-        total={total}
-        page={page}
-        size={size}
-        onPage={setPage}
-        loading={listLoading}
-        unit="nhân viên"
-      />
+      {/* 4. Chân bảng (khuôn Nhật ký). `tong` là tổng máy chủ; lọc khai lương chạy ở client trên
+          trang đang xem nên số dòng có thể ít hơn cỡ trang — nói rõ để khỏi tưởng thiếu người. */}
+      {!listErr && total > 0 && (
+        <PhanTrangDayDu
+          trang={page} size={size} tong={total} soDong={shown.length}
+          loading={listLoading}
+          donVi="nhân viên"
+          onTrang={setPage}
+          onSize={(n) => { setSize(n); setPage(1); }}
+          ghiChu={salaryFilter !== "all" ? "lọc khai lương chỉ áp cho trang đang xem" : undefined}
+          ariaLabel="Phân trang nhân viên tính lương"
+        />
+      )}
 
       {/* Salary Modal */}
       {picked && (

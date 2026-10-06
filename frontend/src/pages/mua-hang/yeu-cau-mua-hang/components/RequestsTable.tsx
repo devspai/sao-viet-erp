@@ -2,6 +2,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { DepartmentPurchaseRequestRow } from "../../../../api/client";
 import { EmptyRow } from "../../../../components/EmptyState";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { fmtDate } from "../../../../utils/format";
 import { SOURCE_STATUS_META, SOURCE_TYPE_LABELS } from "../shared/constants";
 import { dongSong } from "../shared/helpers";
@@ -20,7 +21,8 @@ export function RequestsTable({
   page,
   setPage,
   total,
-  totalPages,
+  size,
+  onSize,
   focusRequestCode,
   selectedId,
   setSelectedId,
@@ -36,12 +38,14 @@ export function RequestsTable({
   page: number;
   setPage: Dispatch<SetStateAction<number>>;
   total: number;
-  totalPages: number;
+  size: number;
+  onSize: (size: number) => void;
   focusRequestCode: string | null;
   selectedId: number | null;
   setSelectedId: Dispatch<SetStateAction<number | null>>;
 }) {
   return (
+    <>
       <section className="card md-page__tablewrap">
         <table className="md-page__table purchase__table-modern">
           <thead>
@@ -146,31 +150,22 @@ export function RequestsTable({
             )}
           </tbody>
         </table>
-        {!loading && totalPages > 1 && (
-          <div className="purchase__source-foot">
-            <span className="md-page__muted">
-              Tổng {total} yêu cầu · Trang {page}/{totalPages}
-            </span>
-            <div className="md-page__pager-btns">
-              <button
-                type="button"
-                className="btn btn--ghost"
-                disabled={page <= 1 || loading}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Trước
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                disabled={page >= totalPages || loading}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        )}
       </section>
+      {/* Chân đặt NGAY SAU thẻ chứ không trong thẻ: thẻ vừa có padding vừa là khung cuộn ngang,
+          đặt trong thì chân lọt vào padding và trôi theo bảng khi cuộn. purchase.css nối hai mảnh. */}
+      {total > 0 && (
+        <PhanTrangDayDu
+          trang={page}
+          size={size}
+          tong={total}
+          soDong={rows.length}
+          onTrang={setPage}
+          onSize={onSize}
+          loading={loading}
+          donVi="yêu cầu"
+          ariaLabel="Phân trang yêu cầu mua hàng"
+        />
+      )}
+    </>
   );
 }

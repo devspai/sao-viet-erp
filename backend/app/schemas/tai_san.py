@@ -109,8 +109,11 @@ class TaiSanRow(BaseModel):
     hao_mon_luy_ke: int = 0
     #: "YYYY-MM" — tháng cuối đã gộp vào `hao_mon_luy_ke`.
     luy_ke_den: str = ""
-    #: Nguyên giá − hao mòn lũy kế; món đã ghi giảm = 0 (đã ra khỏi sổ).
+    #: Nguyên giá − hao mòn lũy kế; món đã thôi dùng = 0 (đã ra khỏi xưởng).
     con_lai: int = 0
+    #: Phần nguyên giá đến từ SỬA CHỮA LỚN (= nguyên giá − nguyên giá của mốc đầu). Màn hiện dòng
+    #: phụ "gồm sửa chữa lớn …" dưới ô Giá mua để con số không làm người đọc tưởng giá mua đổi.
+    tien_sua_chua_lon: int = 0
 
 
 class BienDongOut(BaseModel):
@@ -123,6 +126,8 @@ class BienDongOut(BaseModel):
     so_thang_con_lai: int | None = None
     #: Chỉ dòng CŨ (ghi giảm theo lô, nghiệp vụ đã bỏ 08/09/2026).
     so_luong_giam: int | None = None
+    #: Chỉ thôi dùng: `ban` | `thanh_ly` | `hong` | `mat`.
+    kieu_thoi_dung: str | None = None
     ly_do: str | None = None
     created_at: datetime | None = None
 
@@ -147,12 +152,18 @@ class TaiSanDetailOut(TaiSanRow):
 class TaiSanListOut(BaseModel):
     items: list[TaiSanRow]
     total: int
+    #: Dải số đầu màn — tính trên CẢ bộ lọc, không chỉ trang đang xem.
+    #: Số tài sản mỗi loại theo các bộ lọc khác loại (nhóm nút Loại hiện số đếm).
+    dem_loai: dict[str, int] = {}
+    tong_gia: int = 0
+    #: Tài sản đã thôi dùng tính 0 — đã ra khỏi xưởng (khớp `con_lai` từng dòng).
+    tong_con_lai: int = 0
 
 
 class SuKienOut(BaseModel):
     """Một chuyện của tháng: nhãn ngắn (chip trên bảng) + câu đầy đủ (tooltip, ngăn chi tiết)."""
 
-    #: `dau` | `dau_ky` | `nang_cap` | `bot` | `giam` | `chuyen` | `cuoi`.
+    #: `dau` | `dau_ky` | `nang_cap` | `chuyen` | `thoi_dung` | `cuoi` (`bot` | `giam`: dòng cũ).
     loai: str
     nhan: str
     chi_tiet: str
@@ -181,6 +192,14 @@ class BienDongIn(BaseModel):
     so_tien: int | None = None              # nang_cap: chi phí
     so_thang_con_lai: int | None = None     # nang_cap
     ly_do: str | None = None
+
+
+class ThoiDungIn(BaseModel):
+    """Thôi dùng: bán / thanh lý / hỏng / mất — ngừng khấu hao từ `ngay`."""
+
+    ngay: date
+    kieu: str  # ban | thanh_ly | hong | mat — máy chủ kiểm
+    ly_do: str | None = Field(default=None, max_length=255)
 
 
 class NhanVienChonOut(BaseModel):

@@ -10,7 +10,8 @@ import { api, type OvertimeRequest, type XinHuyChoDuyet } from "../../../api/cli
 import { useCan, useSelfService } from "../../../auth/permissions";
 import { useAuth } from "../../../auth/useAuth";
 import { Button } from "../../../components/Button";
-import { Pager, trangHopLe } from "../../../components/Pager";
+import { trangHopLe } from "../../../components/Pager";
+import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { LocThangTao } from "../../../components/LocThangTao";
 import { ChevronDown } from "lucide-react";
 import { RowActionButton } from "../../../components/RowActionButton";
@@ -56,10 +57,12 @@ export function TangCaPage({
   const [mine, setMine] = useState<OvertimeRequest[]>([]);
   const [mineTotal, setMineTotal] = useState(0);
   const [minePage, setMinePage] = useState(1);
+  const [mineSize, setMineSize] = useState(PAGE_SIZE);
   const [hasEmployee, setHasEmployee] = useState(true);
   const [queue, setQueue] = useState<OvertimeRequest[]>([]);
   const [queueTotal, setQueueTotal] = useState(0);
   const [queuePage, setQueuePage] = useState(1);
+  const [queueSize, setQueueSize] = useState(PAGE_SIZE);
   // Bộ lọc (23/09/2026): tháng TẠO phiếu cho cả hai tab + trạng thái cho tab Duyệt phiếu. Trạng thái
   // mặc định "Chờ duyệt" — việc chính của người duyệt; đổi sang "Tất cả" mới thấy phiếu đã xử lý.
   const [mineThang, setMineThang] = useState("");
@@ -95,13 +98,13 @@ export function TangCaPage({
     setLoadingMine(true);
     setErrMine(null);
     api.overtime
-      .mine(token, { page: minePage, size: PAGE_SIZE, thang: mineThang || undefined })
+      .mine(token, { page: minePage, size: mineSize, thang: mineThang || undefined })
       .then((r) => {
         setHasEmployee(r.has_employee);
         setMine(r.items ?? []);
         setMineTotal(r.total);
         // Hủy nốt phiếu cuối của trang 3 ⇒ chỉ còn 2 trang: nhảy về trang cuối còn thật.
-        const trangCanVe = trangHopLe(minePage, r.total, PAGE_SIZE);
+        const trangCanVe = trangHopLe(minePage, r.total, mineSize);
         if (trangCanVe !== null) setMinePage(trangCanVe);
       })
       .catch((e) => setErrMine(errText(e)))
@@ -122,12 +125,12 @@ export function TangCaPage({
           statusFilter: queueStatus || undefined,
           thang: queueThang || undefined,
           page: queuePage,
-          size: PAGE_SIZE,
+          size: queueSize,
         })
         .then((r) => {
           setQueue(r.items);
           setQueueTotal(r.total);
-          const trangCanVe = trangHopLe(queuePage, r.total, PAGE_SIZE);
+          const trangCanVe = trangHopLe(queuePage, r.total, queueSize);
           if (trangCanVe !== null) setQueuePage(trangCanVe);
         })
         .catch((e) => setErrQueue(errText(e)))
@@ -144,7 +147,7 @@ export function TangCaPage({
     }
     api.overtime.markSeen(token).catch(() => undefined);
     onChanged?.(); // badge sidebar + chuông cập nhật ngay sau mỗi thao tác
-  }, [token, canApprove, onChanged, minePage, queuePage, mineThang, queueThang, queueStatus]);
+  }, [token, canApprove, onChanged, minePage, mineSize, queuePage, queueSize, mineThang, queueThang, queueStatus]);
 
   // `eventTick` đổi = có sự kiện real-time → tải lại bảng, khỏi bắt người dùng F5.
   useEffect(() => {
@@ -324,16 +327,16 @@ export function TangCaPage({
               }
             />
           )}
-          {/* Chân bảng CHỈ hiện khi có dòng (chuẩn §2.7) — lúc tải/lỗi/rỗng thì khối trong
-              bảng đã nói hết rồi. */}
-          {hasEmployee && !loadingMine && !errMine && mine.length > 0 && (
-            <Pager
-              total={mineTotal}
-              page={minePage}
-              size={PAGE_SIZE}
+          {/* Chân bảng CHỈ hiện khi có dòng (chuẩn §2.7) — lỗi/rỗng thì khối trong bảng đã nói
+              hết. Lúc tải trang kế vẫn giữ chân (nút khoá qua `loading`) để dãy số không nhảy chỗ. */}
+          {hasEmployee && !errMine && mineTotal > 0 && (
+            <PhanTrangDayDu
+              trang={minePage} size={mineSize} tong={mineTotal} soDong={mine.length}
               loading={loadingMine}
-              unit="phiếu"
-              onPage={setMinePage}
+              donVi="phiếu"
+              onTrang={setMinePage}
+              onSize={(n) => { setMineSize(n); setMinePage(1); }}
+              ariaLabel="Phân trang phiếu tăng ca của tôi"
             />
           )}
         </>
@@ -462,18 +465,18 @@ export function TangCaPage({
               ) : null
             }
           />
-          {!loadingQueue && !errQueue && queue.length > 0 && (
-            <Pager
-              total={queueTotal}
-              page={queuePage}
-              size={PAGE_SIZE}
+          {!errQueue && queueTotal > 0 && (
+            <PhanTrangDayDu
+              trang={queuePage} size={queueSize} tong={queueTotal} soDong={queue.length}
               loading={loadingQueue}
-              unit="phiếu"
-              onPage={setQueuePage}
+              donVi="phiếu"
+              onTrang={setQueuePage}
+              onSize={(n) => { setQueueSize(n); setQueuePage(1); }}
               // "Duyệt tất cả / Từ chối tất cả" chạy trên `selected`, mà ô tick chỉ có ở dòng
               // của trang đang xem ⇒ nói thẳng giới hạn đó, đừng để tổ trưởng tưởng đã dọn
               // sạch cả hàng đợi.
-              note={queueTotal > PAGE_SIZE ? "duyệt hàng loạt chỉ áp cho trang đang xem" : undefined}
+              ghiChu={queueTotal > queueSize ? "duyệt hàng loạt chỉ áp cho trang đang xem" : undefined}
+              ariaLabel="Phân trang phiếu tăng ca cần duyệt"
             />
           )}
         </>

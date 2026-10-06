@@ -41,8 +41,8 @@ export function LeaveRequestDetailModal({
   request: LeaveRequest;
   busy: boolean;
   onClose: () => void;
-  /** Hủy thẳng — chỉ đơn đang chờ. */
-  onCancel: (id: number) => void;
+  /** Hủy thẳng — chỉ đơn đang chờ. Vắng = không có ô huỷ ⇒ ẩn nút. */
+  onCancel?: (id: number) => void;
   onXinHuy?: (r: LeaveRequest) => void;
   onRutLaiXinHuy?: (r: LeaveRequest) => void;
 }) {
@@ -243,7 +243,7 @@ export function LeaveRequestDetailModal({
           <button type="button" className="btn btn--ghost" onClick={onClose}>
             Đóng
           </button>
-          {request.status === "pending" && (
+          {onCancel && request.status === "pending" && (
             <button
               type="button"
               className="btn btn--ghost ns-danger"

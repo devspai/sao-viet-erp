@@ -63,9 +63,6 @@ router = APIRouter(prefix="/api/kho", tags=["kho-bao-cao"])
 # `kho:close_book`, nghĩa là một mục menu không có dòng nào mang tên nó trong ma trận phân quyền.
 # Cùng lý do đã tách `bao_cao_cong_no` khỏi hai khoá công nợ (mg 0260).
 MODULE = "bao_cao_kho"
-#: Khoá của màn KHO nghiệp vụ — còn dùng cho đúng MỘT cửa ở đây: bảng "thành phẩm chưa có giá
-#: gốc" đọc GIÁ VỐN, mà quyền thấy giá vốn thuộc về màn Kho (`kho:view_cost`), không phải báo cáo.
-MODULE_KHO = "kho"
 
 Db = Annotated[Session, Depends(get_db)]
 Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
@@ -83,14 +80,13 @@ _O_TIEN: dict[str, tuple[str, ...]] = {
 
 
 def _thay_gia(authz: AuthorizationService, user: User) -> bool:
-    """Ai thấy ĐƠN GIÁ / THÀNH TIỀN trong báo cáo kho: CHỈ người có `kho:view_cost`.
+    """Ai thấy ĐƠN GIÁ / THÀNH TIỀN trong báo cáo kho: CHỈ người có ô "Xem giá thành" của CHÍNH màn
+    này (`bao_cao_kho:view_cost`).
 
-    Ô "Báo cáo kho" (module riêng từ 24/09/2026) mở CỬA VÀO MÀN — nó không phải giấy phép xem
-    giá vốn. Chủ dự án chốt 10/08/2026: *mọi số tiền của kho gác bằng `kho:view_cost` ở MÁY CHỦ,
-    không ngoại lệ*. Trước đây màn này chỉ kế toán kho vào (ô `kho:close_book`, mà vai nào có ô
-    đó cũng có sẵn `view_cost`) nên chưa lộ ra; tách module xong thì quản trị cấp được cho người
-    ngoài kế toán, và họ phải thấy SỐ LƯỢNG mà không thấy TIỀN."""
-    return authz.can(user, MODULE_KHO, "view_cost")
+    Xem (`read`) mở CỬA VÀO MÀN — nó không phải giấy phép xem giá vốn: người được vào phải thấy SỐ
+    LƯỢNG mà không thấy TIỀN. Trước 05/10/2026 ô xem giá là MỘT cột `kho:view_cost` chung cho mọi
+    màn kho; chủ chốt mỗi màn một ô riêng (mg 0370 chép quyền cũ sang)."""
+    return authz.can(user, MODULE, "view_cost")
 
 
 def _an_tien(rows: list, loai: str, cho_xem: bool) -> list:
@@ -227,7 +223,7 @@ def bao_cao_dong(
 @router.get("/bao-cao/thanh-pham-chua-gia-goc", response_model=ThanhPhamChuaGiaGocPage)
 def thanh_pham_chua_gia_goc(
     db: Db,
-    _: Annotated[User, Depends(require_permission(MODULE_KHO, "view_cost"))],
+    _: Annotated[User, Depends(require_permission(MODULE, "view_cost"))],
     q: str | None = Query(default=None, max_length=100),
     chi_chua_gia: bool = Query(default=True),
     tu: date | None = Query(default=None),

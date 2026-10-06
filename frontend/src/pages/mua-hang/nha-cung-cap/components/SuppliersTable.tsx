@@ -3,6 +3,7 @@ import { useRef, useState, type Dispatch, type SetStateAction, type MouseEvent }
 import type { SupplierRow } from "../../../../api/client";
 import { EmptyRow } from "../../../../components/EmptyState";
 import { Icon } from "../../../../components/Icons";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { SaoNcc } from "./SaoNcc";
 import { soNgayVi } from "../shared/helpers";
 import type { SortNcc } from "../shared/types";
@@ -152,7 +153,8 @@ export function SuppliersTable({
   total,
   page,
   setPage,
-  totalPages,
+  size,
+  onSize,
 }: {
   loading: boolean;
   listError: string | null;
@@ -165,7 +167,8 @@ export function SuppliersTable({
   total: number;
   page: number;
   setPage: Dispatch<SetStateAction<number>>;
-  totalPages: number;
+  size: number;
+  onSize: (size: number) => void;
 }) {
   const sortSao = sort === "rating" || sort === "-rating";
   function doiSortSao() {
@@ -482,34 +485,20 @@ export function SuppliersTable({
         </table>
       </div>
 
-      {/* Chân bảng chuẩn */}
-      {!loading && rows.length > 0 && (
-        <div className="md-page__pager">
-          <span className="md-page__muted">
-            Tổng {total} NCC
-            {totalPages > 1 ? ` · Trang ${page}/${totalPages}` : ""}
-          </span>
-          {totalPages > 1 && (
-            <div className="md-page__pager-btns">
-              <button
-                type="button"
-                className="btn btn--ghost"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Trước
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Sau
-              </button>
-            </div>
-          )}
-        </div>
+      {/* Chân đặt NGAY SAU thẻ: thẻ vừa có padding vừa là khung cuộn ngang (bảng ≥1080px), đặt
+          trong thì chân trôi theo bảng khi cuộn. purchase.css nối hai mảnh thành một khối. */}
+      {total > 0 && (
+        <PhanTrangDayDu
+          trang={page}
+          size={size}
+          tong={total}
+          soDong={rows.length}
+          onTrang={setPage}
+          onSize={onSize}
+          loading={loading}
+          donVi="nhà cung cấp"
+          ariaLabel="Phân trang nhà cung cấp"
+        />
       )}
     </>
   );

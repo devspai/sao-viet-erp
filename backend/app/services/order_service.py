@@ -34,6 +34,7 @@ from ..models.user import User
 from ..repositories.accounting_repo import AccountingRepository
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.order_repo import OrderRepository
+from ..repositories.org_scope import chu_cua
 from ..repositories.quotation_repo import QuotationRepository
 from . import san_pham_tai_ban_service
 from .thanh_pham_khai_bao import khai_cho_don
@@ -484,7 +485,10 @@ class OrderService:
             quotation_effective_from=(version.created_at.date() if version.created_at else None),
             order_kind=payload.order_kind,
             parent_order_id=payload.parent_order_id,
-            sale_user_id=(quote.salesperson_id or actor.id),
+            # NV phụ trách đơn = người phụ trách KHÁCH (05/10/2026), thiếu mới tới người soạn báo
+            # giá / người bấm. Trước đó chép thẳng người soạn báo giá: trợ lý soạn hộ thì đơn đứng
+            # tên trợ lý và hoa hồng lúc chốt chụp nhầm % của trợ lý.
+            sale_user_id=(chu_cua(self.db, quote.customer_id, quote.salesperson_id) or actor.id),
             status=STATUS_DRAFT,
             vat_pct_estimate=_i(version.vat_percent),
             # % cọc nhập trên đơn ưu tiên; chưa nhập thì ghim từ báo giá.
@@ -616,7 +620,7 @@ class OrderService:
         return self._detail(self.repo.get_with_lines(order_id))
 
     def notify_summary(self, *, actor, scope: str,
-                       can_record_deposit: bool, can_manage_status: bool) -> dict:
+                       can_record_deposit: bool, can_chot: bool) -> dict:
         """Số nuôi badge/toast real-time — 'việc chờ TÔI xử lý' theo vai (đơn còn NHÁP trong phạm vi):
         Kế toán = đơn chờ ghi cọc; Sale = đơn đủ điều kiện chờ chốt. Tự giảm khi người dùng thao tác
         (không cần cờ 'seen'). Đếm trên tập nháp nhỏ nên rẻ.
@@ -634,7 +638,7 @@ class OrderService:
             m = self._money(o, agg=sums.get(o.id, {}), received=received.get(o.id, 0))
             if can_record_deposit and (o.deposit_pct or 0) > 0 and not m["deposit_ok"]:
                 deposit_pending += 1
-            if can_manage_status and m["deposit_ok"]:
+            if can_chot and m["deposit_ok"]:
                 ready_to_confirm += 1
         return {
             "action_count": deposit_pending + ready_to_confirm,

@@ -18,12 +18,11 @@ import {
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Icon } from "../components/Icons";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useDebounced } from "../utils/useDebounced";
 import { EmptyState as EmptyStateChung } from "../components/EmptyState";
 import { BangLoi, EmptyState, gioNgan, ngay, num } from "./keHoachSxShared";
 import { nhanDonVi } from "./lsxBuoc";
-
-const CO_TRANG = 20;
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -341,6 +340,7 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
   const [tim, setTim] = useState("");
   const timD = useDebounced(tim, 250);
   const [trang, setTrang] = useState(1);
+  const [coTrang, setCoTrang] = useState(25); // lệnh / trang; máy chủ nhận tối đa 100
   const [data, setData] = useState<SxSanLuongTo | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [dangNap, setDangNap] = useState(false);
@@ -361,7 +361,7 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
     let huy = false;
     setDangNap(true);
     api.sanXuat.sanLuongTo(token, {
-      team_id: teamId, tu, den, to_id: toId, tim: timD, trang, co_trang: CO_TRANG,
+      team_id: teamId, tu, den, to_id: toId, tim: timD, trang, co_trang: coTrang,
     })
       .then((r) => { if (!huy) { setData(r); setErr(null); } })
       .catch((e: unknown) => {
@@ -372,14 +372,13 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
       })
       .finally(() => { if (!huy) setDangNap(false); });
     return () => { huy = true; };
-  }, [token, teamId, tu, den, toId, timD, trang, ngaySai, eventTick, lanNap]);
+  }, [token, teamId, tu, den, toId, timD, trang, coTrang, ngaySai, eventTick, lanNap]);
 
   const capGoc = useMemo(() => {
     const cap = (data?.cac_to ?? []).map((t) => t.cap);
     return cap.length ? Math.min(...cap) : 0;
   }, [data?.cac_to]);
   const tron = !!data?.co_pham_vi_tron;
-  const soTrang = Math.max(1, Math.ceil((data?.tong_lenh ?? 0) / CO_TRANG));
   const dsChu = useMemo(() => theoMuc(data?.lenh ?? [], "chu"), [data?.lenh]);
   const dsKhach = useMemo(() => theoMuc(data?.lenh ?? [], "khach"), [data?.lenh]);
   const tenTo = toId == null ? "Cả bàn này" : (data?.cac_to ?? []).find((t) => t.id === toId)?.ten ?? "Một tổ";
@@ -495,25 +494,15 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
                 <Bang muc="khach" ds={dsKhach} />
               </>
             )}
-            {soTrang > 1 && (
-              <div className="thsx-trang">
-                <button type="button" className="thsx-trang__nut" disabled={trang <= 1}
-                  onClick={() => setTrang((t) => Math.max(1, t - 1))}>
-                  <Icon name="chevron" size={14} className="thsx-rot90" /> Trước
-                </button>
-                <span className="thsx-trang__vt">
-                  Trang <b className="thsx-num">{trang}</b>/<b className="thsx-num">{soTrang}</b>
-                  <span className="thsx-trang__tong"> · <b className="thsx-num">{data.tong_lenh}</b> lệnh</span>
-                </span>
-                <button type="button" className="thsx-trang__nut" disabled={trang >= soTrang}
-                  onClick={() => setTrang((t) => Math.min(soTrang, t + 1))}>
-                  Sau <Icon name="chevron" size={14} className="thsx-rot-90" />
-                </button>
-              </div>
-            )}
           </>
         )}
       </div>
+      {/* Chân là đáy của tab, ngoài vùng cuộn — giống bàn Danh sách. Trang đếm theo LỆNH. */}
+      {data && !ngaySai && !err && data.tong_lenh > 0 && (
+        <PhanTrangDayDu trang={trang} size={coTrang} tong={data.tong_lenh} soDong={data.lenh.length}
+          onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }} loading={dangNap}
+          donVi="lệnh" ariaLabel="Phân trang sản lượng theo lệnh" />
+      )}
     </section>
   );
 }

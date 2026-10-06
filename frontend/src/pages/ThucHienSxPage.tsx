@@ -21,6 +21,7 @@ import { useDebounced } from "../utils/useDebounced";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Icon } from "../components/Icons";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import "../components/empty-state.css";
 import { BangLoi, EmptyState, ngay, ngayGio, thoiLuong } from "./keHoachSxShared";
 import { useNapTenDonVi } from "./tenDonVi";
@@ -69,8 +70,6 @@ function nhanKhoang(tu: string, den: string): string {
   const namTu = tu.slice(0, 4) !== den.slice(0, 4) ? `/${tu.slice(0, 4)}` : "";
   return `${dm(tu)}${namTu} – ${dm(den)}/${den.slice(0, 4)}`;
 }
-
-const CO_TRANG = 20; // lệnh / trang — đơn vị trang của bàn tổ là LỆNH, không phải bước
 
 // View Lịch là lưới CỘT NGÀY như bàn Xếp lịch (15/09/2026) — bỏ zoom Giờ/Ca/Ngày/Tuần. Ba nấc số ngày
 // một màn; ◀▶ dời đúng số ngày đang xem.
@@ -138,6 +137,8 @@ export function ThucHienSxPage({
   const [items, setItems] = useState<SxWorkItem[] | null>(null);
   const [lenh, setLenh] = useState<SxLenhNhom[] | null>(null);
   const [trang, setTrang] = useState(1);
+  // Lệnh / trang — đơn vị trang của bàn tổ là LỆNH, không phải bước. Máy chủ nhận tối đa 100.
+  const [coTrang, setCoTrang] = useState(25);
   const [tongLenh, setTongLenh] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<SxNhanVienChon[]>([]);
@@ -209,7 +210,7 @@ export function ThucHienSxPage({
       // Tìm kiếm lọc Ở MÁY CHỦ, trước khi cắt trang — lọc bằng JS sau khi trang về thì ô tìm
       // kiếm chỉ soi được đúng 20 lệnh đang hiện. Chế độ phẳng kéo trọn bàn nên màn tự lọc.
       ...(phang ? { tuNgay: winTu, denNgay: winDen }
-        : { tim: timMayChu || undefined, trang, coTrang: CO_TRANG, ...locMayChu }),
+        : { tim: timMayChu || undefined, trang, coTrang, ...locMayChu }),
       choXacNhan: chiCho || undefined,
     })
       .then((r) => {
@@ -229,7 +230,7 @@ export function ThucHienSxPage({
           : String(e));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `khoaLoc` đại diện `locMayChu`
-  }, [token, teamId, view, timMayChu, trang, winTu, winDen, chiCho, khoaLoc]);
+  }, [token, teamId, view, timMayChu, trang, coTrang, winTu, winDen, chiCho, khoaLoc]);
 
   // SSE bump (`eventTick`) nạp lại nhưng GIỮ NGUYÊN `trang` — nhảy về trang 1 giữa lúc tổ đang
   // thao tác ở trang 3 là cướp chỗ đứng của người ta.
@@ -238,7 +239,6 @@ export function ThucHienSxPage({
   useEffect(() => { setTrang(1); }, [teamId, qd, chiCho, khoaLoc]);
   // Đổi tổ thì tắt ô "chờ xác nhận" — ô đó là của bàn trước.
   useEffect(() => { setChiCho(false); }, [teamId]);
-  const soTrang = Math.max(1, Math.ceil(tongLenh / CO_TRANG));
 
   // Luỹ kế sản lượng tháng của CHÍNH mình — CHỈ nạp khi vào tổ với tư cách THỢ (§6). Tổ trưởng
   // không có băng này: bảng ai-được-bao-nhiêu của cả tổ đã nằm trong drawer từng mẻ.
@@ -860,7 +860,12 @@ export function ThucHienSxPage({
                   onPick={pickViec}
                   cho={choMap}
                 />
-                <ThanhTrang trang={trang} soTrang={soTrang} tong={tongLenh} onDoi={setTrang} />
+                {/* Chân là đáy cột giữa, ngoài vùng cuộn của các thẻ lệnh — luôn trong tầm mắt. */}
+                {tongLenh > 0 && (
+                  <PhanTrangDayDu trang={trang} size={coTrang} tong={tongLenh} soDong={(lenh ?? []).length}
+                    onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }}
+                    donVi="lệnh" ariaLabel="Phân trang lệnh của tổ" />
+                )}
               </>
             )
           ) : (
@@ -1085,36 +1090,6 @@ function ListSkeleton() {
   return (
     <div className="thsx-skel-q" role="status" aria-label="Đang tải danh sách việc">
       {[0, 1, 2, 3].map((i) => <div className="thsx-skel__q" key={i} />)}
-    </div>
-  );
-}
-
-// ===================== thanh phân trang (đếm theo LỆNH) =====================
-/** Máy chủ cắt trang, màn chỉ đi tới/lui. Đơn vị đếm là LỆNH nên con số ở đây là "12 lệnh", không
- *  phải số bước — một lệnh không bao giờ bị xé qua hai trang. */
-function ThanhTrang({
-  trang, soTrang, tong, onDoi,
-}: {
-  trang: number;
-  soTrang: number;
-  tong: number;
-  onDoi: (t: number) => void;
-}) {
-  if (soTrang <= 1) return null;
-  return (
-    <div className="thsx-trang">
-      <button type="button" className="thsx-trang__nut" disabled={trang <= 1}
-        onClick={() => onDoi(Math.max(1, trang - 1))}>
-        <Icon name="chevron" size={14} className="thsx-rot90" /> Trước
-      </button>
-      <span className="thsx-trang__vt">
-        Trang <b className="thsx-num">{trang}</b>/<b className="thsx-num">{soTrang}</b>
-        <span className="thsx-trang__tong"> · <b className="thsx-num">{tong}</b> lệnh</span>
-      </span>
-      <button type="button" className="thsx-trang__nut" disabled={trang >= soTrang}
-        onClick={() => onDoi(Math.min(soTrang, trang + 1))}>
-        Sau <Icon name="chevron" size={14} className="thsx-rot-90" />
-      </button>
     </div>
   );
 }

@@ -18,7 +18,7 @@ from ..models.order import Order, OrderLine
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
 from .org_scope import dept_subtree_ids
-from .org_scope import nhom_dung_chung_user_ids
+from .org_scope import chu_cua, chu_theo_khach, nhom_dung_chung_user_ids
 from .tim_khong_dau import like_khong_dau
 
 # Columns a caller may sort by (whitelist — never interpolate a raw sort key).
@@ -60,30 +60,33 @@ class OrderRepository:
         """WHERE expression narrowing orders to a data scope, or None for `all`."""
         if scope == SCOPE_ALL:
             return None
+        # Chủ đơn = sale phụ trách KHÁCH, thiếu thì sale của đơn — xem `org_scope.chu_theo_khach`.
+        chu = chu_theo_khach(Order.customer_id, Order.sale_user_id)
         if scope == SCOPE_OWN:
             # "Của tôi" = tôi + người CÙNG NHÓM DÙNG CHUNG với tôi (khối KD).
-            return Order.sale_user_id.in_(nhom_dung_chung_user_ids(self.db, actor.id))
+            return chu.in_(nhom_dung_chung_user_ids(self.db, actor.id))
         if scope == SCOPE_DEPARTMENT:
             # Subtree semantics (#26): phòng mình + mọi đơn vị con (GĐKD thấy các team).
             dept_ids = dept_subtree_ids(self.db, actor.department_id)
             if not dept_ids:
-                return Order.sale_user_id == actor.id
+                return chu == actor.id
             dept_sales = select(User.id).where(User.department_id.in_(dept_ids))
-            return Order.sale_user_id.in_(dept_sales)
+            return chu.in_(dept_sales)
         raise ValueError(f"Unknown scope: {scope!r}")
 
     def can_access(self, *, order: Order, scope: str, actor) -> bool:
         """Whether `actor` may see this one order under `scope` (detail/edit guard)."""
         if scope == SCOPE_ALL:
             return True
+        chu = chu_cua(self.db, order.customer_id, order.sale_user_id)
         if scope == SCOPE_OWN:
-            return order.sale_user_id in nhom_dung_chung_user_ids(self.db, actor.id)
+            return chu in nhom_dung_chung_user_ids(self.db, actor.id)
         if scope == SCOPE_DEPARTMENT:
-            if order.sale_user_id is None:
+            if chu is None:
                 return False
-            if order.sale_user_id == actor.id:
+            if chu == actor.id:
                 return True
-            owner = self.db.get(User, order.sale_user_id)
+            owner = self.db.get(User, chu)
             if owner is None or owner.department_id is None:
                 return False
             return owner.department_id in dept_subtree_ids(self.db, actor.department_id)

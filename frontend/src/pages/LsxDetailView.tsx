@@ -1047,7 +1047,7 @@ export function LsxDetailView({
 
           {tab === "chung" && (
             <section className="khsx-panel" role="tabpanel" id="khsx-panel-chung" aria-labelledby="khsx-tab-chung" tabIndex={0}>
-              <div className={`khsx-spec__card ${form.is_rush ? "khsx-spec__card--rush" : ""}`}>
+              <div className="khsx-spec__card">
                 <div className="khsx-spec__card-head khsx-spec__card-head--flex">
                   <h4 className="khsx-spec__title">Thông tin kế hoạch</h4>
                   <button

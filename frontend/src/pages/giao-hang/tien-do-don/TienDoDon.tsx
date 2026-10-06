@@ -94,42 +94,220 @@ export function tomTatTienDo(td: DonTienDo | null) {
   };
 }
 
-export function ThanhNho({ pct, xong }: { pct: number; xong?: boolean }) {
-  const w = Math.max(0, Math.min(100, pct));
+/** Băng cảnh báo trễ: CHỈ khi dự kiến xong SX trễ so với hạn giao cam kết. "Kịp hạn" và "chưa ước
+ *  được ngày xong" là thẻ nhỏ ở câu "việc tiếp theo" (05/10/2026) — băng đỏ chỉ dành cho việc trễ thật. */
+export function CanhBaoTre({ td }: { td: DonTienDo | null }) {
+  if (!td || td.tre_ngay == null || td.tre_ngay <= 0) return null;
+  const lyDo = td.ly_do.map((k) => NHAN_LY_DO_TRE[k] ?? k).join(", ");
   return (
-    <span className="dhb__td-mini" aria-hidden>
-      <span className={`dhb__td-mini-fill${xong ? " is-xong" : ""}`} style={{ width: `${w}%` }} />
+    <div className="banner banner--error dhb__td-tre" role="alert">
+      Dự kiến xong sản xuất {fmtDate(td.du_kien_xong)} — <b>trễ {td.tre_ngay} ngày</b> so với hạn
+      giao {fmtDate(td.han_cam_ket)}.{lyDo ? ` Lý do: ${lyDo}.` : ""}
+    </div>
+  );
+}
+
+/** "HH:mm dd/mm" giờ xưởng — đủ để biết đơn chờ từ lúc nào, khỏi năm. */
+function gioNgay(iso: string): string {
+  const d = new Date(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso) || !iso.includes("T") ? iso : `${iso}Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = d.toLocaleString("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", hour12: false,
+  });
+  // en-GB ⇒ "05/10, 13:54"
+  const [ngay, gio] = p.split(", ");
+  return gio ? `${gio} ${ngay}` : p;
+}
+
+function soNgayToi(han: string, homNay: Date): number {
+  const [y, m, d] = han.slice(0, 10).split("-").map(Number);
+  const moc = Date.UTC(y, m - 1, d);
+  const nay = Date.UTC(homNay.getFullYear(), homNay.getMonth(), homNay.getDate());
+  return Math.round((moc - nay) / 86_400_000);
+}
+
+export type TheViec = { nhan: string; tone?: "ok" | "warn" | "bad" };
+export type ViecTiepTheo = {
+  cau: string;
+  the: TheViec[];
+  /** Nút đi kèm: mở bàn Kế hoạch SX, hoặc chọn một chặng trong vòng đời. */
+  nut?: { nhan: string; toi: "ke-hoach-sx" | "coc" | "giao" | "hoadon" };
+};
+
+/** Câu "việc tiếp theo" đầu khối Vòng đời đơn (05/10/2026, phương án A): đơn đang chờ AI làm gì, từ
+ *  bao giờ. Suy hoàn toàn từ dữ liệu đã có — không lưu gì thêm. Thứ tự là thứ tự chặn: món chưa có
+ *  nguồn chặn mọi thứ sau nó, rồi tới hàng KCS gửi mà kho chưa nhận, lệnh chưa xuống xưởng, lệnh đang chạy. */
+export function viecTiepTheo(o: {
+  trangThai: string;
+  canCoc: boolean;
+  duCoc: boolean;
+  thieuCoc: number;
+  chuyenSxLuc: string | null;
+  gap: boolean;
+  hanGiao: string | null;
+  td: DonTienDo | null;
+  hoaDon: "none" | "partial" | "full";
+  homNay?: Date;
+}): ViecTiepTheo | null {
+  if (o.trangThai === "cancelled") return null;
+  if (o.trangThai === "draft") {
+    return { cau: "Chốt đơn để chuyển sang thu cọc và sản xuất", the: [] };
+  }
+  const the: TheViec[] = [];
+  const td = o.td;
+  const tt = tomTatTienDo(td);
+  const giaoXong = td != null && tt.giaoXong;
+  if (o.hanGiao && !giaoXong) {
+    const n = soNgayToi(o.hanGiao, o.homNay ?? new Date());
+    the.push(n > 0 ? { nhan: `còn ${n} ngày tới hạn giao` }
+      : n === 0 ? { nhan: "hôm nay là hạn giao", tone: "warn" }
+      : { nhan: `quá hạn giao ${-n} ngày`, tone: "bad" });
+  }
+  if (o.gap) the.unshift({ nhan: "đơn gấp", tone: "warn" });
+
+  if (o.canCoc && !o.duCoc) {
+    return { cau: `Chờ kế toán thu cọc, còn thiếu ${so(o.thieuCoc)} đ`, the, nut: { nhan: "Xem cọc", toi: "coc" } };
+  }
+  if (!o.chuyenSxLuc) return { cau: "Đang chuyển xuống Kế hoạch sản xuất", the };
+  if (!td) return { cau: "Đang tải tiến độ…", the: [] };
+
+  const cum = td.cum;
+  const lenh = cum.flatMap((c) => c.lenh);
+  const chuaNguon = cum.filter((c) => !c.co_lenh && coHangCum(c) < c.dat);
+  if (chuaNguon.length > 0) {
+    const cau = lenh.length === 0
+      ? "Chờ Kế hoạch lên lệnh sản xuất"
+      : `Chờ Kế hoạch lên lệnh cho ${chuaNguon.length === 1 ? chuaNguon[0].ten : `${chuaNguon.length} món`}`;
+    return {
+      cau,
+      the: [{ nhan: `chuyển xuống ${gioNgay(o.chuyenSxLuc)}` }, ...the],
+      nut: { nhan: "Mở Kế hoạch SX", toi: "ke-hoach-sx" },
+    };
+  }
+  // Mốc dự kiến xong SX so với hạn giao: trễ là băng đỏ riêng (`CanhBaoTre`), ở đây chỉ thẻ nhỏ.
+  const theSx: TheViec[] = td.du_kien_xong
+    ? [{ nhan: `dự kiến xong ${fmtDate(td.du_kien_xong).replace(/\/\d{4}$/, "")}` },
+      td.tre_ngay ? { nhan: `trễ ${td.tre_ngay} ngày`, tone: "bad" } : { nhan: "kịp hạn giao", tone: "ok" }]
+    : td.chua_du_du_lieu ? [{ nhan: "chưa ước được ngày xong" }] : [];
+
+  const choKho = cum.filter((c) => c.cho_kho > 0);
+  if (choKho.length > 0) {
+    const c = choKho[0];
+    const cau = choKho.length === 1
+      ? `Kho chưa nhận ${so(c.cho_kho)} ${c.don_vi ?? ""} ${c.ten} KCS đã gửi`.replace(/\s+/g, " ")
+      : `Kho chưa nhận hàng KCS đã gửi ở ${choKho.length} món`;
+    return { cau, the: [...theSx, ...the] };
+  }
+  const chuaXuong = lenh.filter((l) => !l.xong && !l.da_xuong_xuong);
+  if (chuaXuong.length > 0) {
+    return {
+      cau: chuaXuong.length === 1 ? `${chuaXuong[0].ma} chưa xuống xưởng` : `${chuaXuong.length} lệnh chưa xuống xưởng`,
+      the,
+      nut: { nhan: "Mở Kế hoạch SX", toi: "ke-hoach-sx" },
+    };
+  }
+  const dangChay = lenh.filter((l) => !l.xong);
+  if (dangChay.length > 0) {
+    const l = dangChay[0];
+    const cau = dangChay.length === 1
+      ? `Xưởng đang chạy ${l.ma}${l.buoc_hien_tai ? `, đang ${l.buoc_hien_tai}` : ""}`
+      : `Xưởng đang chạy ${dangChay.length} lệnh`;
+    return { cau, the: [...theSx, ...the] };
+  }
+  if (!tt.khoXong) return { cau: "Chờ KCS gửi thành phẩm sang kho", the };
+  if (!giaoXong) {
+    const giaoDuoc = cum.reduce((a, c) => a + c.giao_duoc, 0);
+    const cau = tt.soYeuCauMo > 0 ? `Giao hàng đang xử lý ${tt.soYeuCauMo} yêu cầu`
+      : giaoDuoc > 0 ? "Lập yêu cầu giao hàng" : "Chờ giao hàng";
+    return { cau, the, nut: { nhan: "Xem giao hàng", toi: "giao" } };
+  }
+  if (o.hoaDon !== "full") {
+    return { cau: "Kế toán ghi hóa đơn", the: [], nut: { nhan: "Xem hóa đơn", toi: "hoadon" } };
+  }
+  return { cau: "Đơn đã hoàn tất", the: [] };
+}
+
+/** Một thanh của chặng Sản xuất: phần đã có (+ phần sọc "đang chờ" nếu có) trên số đặt. */
+function ThanhSx({ dat, co, cho = 0, loai }: { dat: number; co: number; cho?: number; loai: "cd" | "kcs" | "kho" }) {
+  const w = (n: number) => `${Math.max(0, Math.min(100, (n / (dat || 1)) * 100))}%`;
+  return (
+    <span className="dhb__sx-bar" aria-hidden>
+      {co > 0 && <i className={`dhb__sx-fill--${loai}`} style={{ width: w(co) }} />}
+      {cho > 0 && <i className="dhb__sx-fill--cho" style={{ width: w(cho) }} />}
     </span>
   );
 }
 
-/** Dòng cảnh báo trễ: dự kiến xong SX so với ngày giao cam kết. */
-export function CanhBaoTre({ td }: { td: DonTienDo | null }) {
-  if (!td) return null;
-  const lyDo = td.ly_do.map((k) => NHAN_LY_DO_TRE[k] ?? k).join(", ");
-  if (td.tre_ngay != null && td.tre_ngay > 0) {
-    return (
-      <div className="banner banner--error dhb__td-tre" role="alert">
-        Dự kiến xong sản xuất {fmtDate(td.du_kien_xong)} — <b>trễ {td.tre_ngay} ngày</b> so với hạn
-        giao {fmtDate(td.han_cam_ket)}.{lyDo ? ` Lý do: ${lyDo}.` : ""}
-      </div>
-    );
-  }
-  if (td.chua_du_du_lieu) {
-    return (
-      <div className="banner dhb__td-tre">
-        Chưa ước được ngày xong sản xuất{lyDo ? ` (${lyDo})` : ""}.
-      </div>
-    );
-  }
-  if (td.du_kien_xong && td.han_cam_ket) {
-    return (
-      <div className="dhb__td-dung">
-        Dự kiến xong sản xuất {fmtDate(td.du_kien_xong)} · kịp hạn giao {fmtDate(td.han_cam_ket)}.
-      </div>
-    );
-  }
-  return null;
+/** Chặng Sản xuất theo từng sản phẩm (05/10/2026, phương án A): ba thanh theo đúng đường hàng đi —
+ *  chạy công đoạn → KCS đạt (đã gửi kho) → kho nhận. Nhập kho là khâu CUỐI của sản xuất, không phải
+ *  chặng riêng; thanh dưới ngắn hơn thanh trên là thấy hàng đang ùn ở khâu nào.
+ *  `baoThieu`: chỉ báo "thiếu" cho món không lệnh khi Kế hoạch đã bắt đầu lên lệnh (trước đó mọi món
+ *  đều chưa có lệnh, báo thiếu là báo động giả). */
+export function SanXuatTheoMon({
+  td, baoThieu, onMoLenh,
+}: {
+  td: DonTienDo | null;
+  baoThieu: boolean;
+  onMoLenh?: (lsxId: number) => void;
+}) {
+  if (!td) return <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải tiến độ…" />;
+  if (td.cum.length === 0) return <p className="dhb__td-note">Đơn chưa có sản phẩm.</p>;
+  return (
+    <div className="dhb__sx-mons">
+      {td.cum.map((c) => {
+        const dv = c.don_vi ?? "";
+        const coHang = coHangCum(c);
+        const tuTon = !c.co_lenh && coHang >= c.dat;
+        const thieu = !c.co_lenh && baoThieu ? thieuNguonCum(c) : 0;
+        const chay = c.lenh.filter((l) => l.da_xuong_xuong && !l.xong);
+        const chuaXuong = c.lenh.length > 0 && c.lenh.every((l) => !l.da_xuong_xuong);
+        const cdNhan = !c.co_lenh ? "chưa có lệnh"
+          : c.sx_xong ? "xong"
+          : chuaXuong ? "chưa xuống xưởng"
+          : `${so(c.sx_pct ?? 0)}%${c.lenh.some((l) => l.uoc_tinh) ? " (ước)" : ""}`;
+        return (
+          <div key={c.khoa} className="dhb__sx-mon">
+            <div className="dhb__sx-mon-head">
+              <b>{c.ten}</b>
+              <span className="dhb__sx-tags">
+                {c.lenh.map((l) => onMoLenh ? (
+                  <button key={l.id} type="button" className="dhb__sx-tag dhb__sx-tag--lenh"
+                    title="Mở lệnh sản xuất" onClick={() => onMoLenh(l.id)}>{l.ma}</button>
+                ) : <span key={l.id} className="dhb__sx-tag">{l.ma}</span>)}
+                {chay.map((l) => l.buoc_hien_tai && (
+                  <span key={`b${l.id}`} className="dhb__sx-tag">đang {l.buoc_hien_tai}</span>
+                ))}
+                {c.lenh.flatMap((l) => l.xong ? [] : l.canh_bao).filter((w, i, a) => a.indexOf(w) === i).map((w) => (
+                  <span key={w} className="dhb__sx-tag dhb__sx-tag--bad">{NHAN_LY_DO_TRE[w] ?? w}</span>
+                ))}
+                {tuTon && <span className="dhb__sx-tag">không qua xưởng, lấy từ tồn kho</span>}
+                {tuTon && <span className="dhb__sx-tag dhb__sx-tag--ok">đủ trong kho</span>}
+                {c.co_lenh && coHang >= c.dat && <span className="dhb__sx-tag dhb__sx-tag--ok">đủ trong kho</span>}
+                {c.cho_kho > 0 && <span className="dhb__sx-tag dhb__sx-tag--warn">{so(c.cho_kho)} chờ kho nhận</span>}
+                {thieu > 0 && <span className="dhb__sx-tag dhb__sx-tag--bad">thiếu {so(thieu)} {dv}</span>}
+              </span>
+              <span className="dhb__sx-dat">{so(c.dat)} {dv}</span>
+            </div>
+            {!tuTon && (
+              <div className="dhb__sx-ba">
+                <span className="dhb__sx-k">Công đoạn</span>
+                <ThanhSx dat={100} co={c.co_lenh ? (c.sx_xong ? 100 : c.sx_pct ?? 0) : 0} loai="cd" />
+                <span className="dhb__sx-v">{cdNhan}</span>
+
+                <span className="dhb__sx-k" title="KCS kiểm đạt, đã gửi sang kho">KCS đạt</span>
+                <ThanhSx dat={c.dat} co={c.kho_de_nghi} loai="kcs" />
+                <span className="dhb__sx-v">{so(c.kho_de_nghi)}</span>
+
+                <span className="dhb__sx-k">Kho nhận</span>
+                <ThanhSx dat={c.dat} co={c.co_lenh ? c.kho_da_nhan : coHang} cho={c.co_lenh ? c.cho_kho : 0} loai="kho" />
+                <span className="dhb__sx-v">{so(c.co_lenh ? c.kho_da_nhan : coHang)} / {so(c.dat)}</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 /** Tách số đặt của một sản phẩm thành 5 khúc: đã giao / trong kho / chờ kho nhận / đang SX / chưa làm. */
@@ -153,8 +331,9 @@ const KHUC = [
   { k: "chua", nhan: "Chưa làm", cls: "chua" },
 ] as const;
 
-/** Thanh chồng theo từng sản phẩm — dùng chung cho ba bước SX / Nhập kho / Giao. */
-export function BangCum({ td, buoc }: { td: DonTienDo | null; buoc: "sanxuat" | "nhapkho" | "giao" }) {
+/** Thanh chồng theo từng sản phẩm của chặng GIAO. Chặng Sản xuất (gồm nhập kho) vẽ riêng bằng
+ *  `SanXuatTheoMon` — ba thanh công đoạn → KCS → kho nhận (05/10/2026). */
+export function BangCum({ td }: { td: DonTienDo | null }) {
   if (!td) return <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải tiến độ…" />;
   if (td.cum.length === 0) return <p className="dhb__td-note">Đơn chưa có sản phẩm.</p>;
   return (
@@ -182,46 +361,11 @@ export function BangCum({ td, buoc }: { td: DonTienDo | null; buoc: "sanxuat" | 
               ))}
             </div>
             <div className="dhb__td-cum-nums">
-              {buoc === "sanxuat" && (
-                c.co_lenh ? (
-                  c.lenh.map((l) => (
-                    <span key={l.id}>
-                      <b className="dhb__mono">{l.ma}</b>{" "}
-                      {!l.da_xuong_xuong ? "chưa xuống xưởng"
-                        : l.xong ? "xong"
-                        : `${so(l.pct)}%${l.uoc_tinh ? " (ước)" : ""}${l.buoc_hien_tai ? ` · đang ${l.buoc_hien_tai}` : ""}${l.du_kien_xong ? ` · dự kiến ${fmtDate(l.du_kien_xong)}` : ""}`}
-                      {l.canh_bao.length > 0 && (
-                        <em className="dhb__td-warn"> · {l.canh_bao.map((w) => NHAN_LY_DO_TRE[w] ?? w).join(", ")}</em>
-                      )}
-                    </span>
-                  ))
-                ) : thieuNguonCum(c) > 0 ? (
-                  <span className="dhb__td-warn">
-                    Không có lệnh sản xuất, tồn kho chỉ có {so(c.ton_that)} {dv} — <b>thiếu {so(thieuNguonCum(c))} {dv}</b>.
-                    Báo Kế hoạch lên lệnh hoặc nhập thêm hàng.
-                  </span>
-                ) : <span>Không qua sản xuất — giao từ tồn kho ({so(c.ton_that)} {dv}).</span>
-              )}
-              {buoc === "nhapkho" && (
-                c.co_lenh ? (
-                  <span>
-                    KCS đã gửi {so(c.kho_de_nghi)} · kho đã nhận <b>{so(c.kho_da_nhan)}</b>
-                    {c.cho_kho > 0 && <> · chờ kho nhận {so(c.cho_kho)}</>} · tồn thực {so(c.ton_that)} {dv}
-                  </span>
-                ) : (
-                  <span>
-                    Lấy từ tồn kho — tồn thực {so(c.ton_that)} {dv}
-                    {thieuNguonCum(c) > 0 && <em className="dhb__td-warn"> · thiếu {so(thieuNguonCum(c))} {dv}, chưa có lệnh sản xuất</em>}.
-                  </span>
-                )
-              )}
-              {buoc === "giao" && (
-                <span>
-                  Đã giao <b>{so(c.da_giao)}</b>
-                  {c.dang_giu > 0 && <> · đang giữ cho yêu cầu {so(c.dang_giu)}</>}
-                  {" "}· còn phải giao {so(c.con_phai_giao)} · <b>giao được ngay {so(c.giao_duoc)}</b> {dv}
-                </span>
-              )}
+              <span>
+                Đã giao <b>{so(c.da_giao)}</b>
+                {c.dang_giu > 0 && <> · đang giữ cho yêu cầu {so(c.dang_giu)}</>}
+                {" "}· còn phải giao {so(c.con_phai_giao)} · <b>giao được ngay {so(c.giao_duoc)}</b> {dv}
+              </span>
             </div>
           </div>
         );
@@ -284,7 +428,7 @@ export function BuocGiaoHang({
 
   return (
     <div className="dhb__td-giao">
-      <BangCum td={td} buoc="giao" />
+      <BangCum td={td} />
 
       {loi && <div className="banner banner--error" role="alert">{loi}</div>}
 

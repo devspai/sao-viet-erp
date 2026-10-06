@@ -1,7 +1,8 @@
 """Báo cáo kinh doanh theo khách hàng (24/09/2026) — xem trên màn + xuất Excel.
 
 Gác bằng ô quyền RIÊNG `bao_cao_kinh_doanh` (mục menu riêng trong nhóm Kinh doanh): Xem = xem báo
-cáo + xuất Excel. Phạm vi dữ liệu lấy từ CHÍNH ô này (own / department / all theo người bán).
+cáo + xuất Excel. Phạm vi dữ liệu lấy từ CHÍNH ô này, tính như khối Kinh doanh: theo NGƯỜI PHỤ
+TRÁCH KHÁCH, "own" nới ra cả nhóm dùng chung (`order_repo` — `org_scope.nhom_dung_chung_user_ids`).
 """
 from __future__ import annotations
 

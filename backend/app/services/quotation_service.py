@@ -221,8 +221,15 @@ class QuotationService:
     )
 
     def chep_khach_tu_phieu(self, quote: Quote, ptg) -> None:
-        """Chép khách + điểm giao + người nhận + ghi chú (→ `internal_note`) từ phiếu sang báo giá."""
+        """Chép khách + điểm giao + người nhận + ghi chú (→ `internal_note`) từ phiếu sang báo giá.
+
+        NV phụ trách báo giá = người phụ trách KHÁCH (05/10/2026), không phải người bấm tạo: trợ lý
+        soạn hộ cho khách của Huyên thì báo giá đứng tên Huyên — đơn lên từ báo giá chép tên này,
+        hoa hồng chụp theo nó. Khách chưa gán ai thì giữ người soạn."""
+        from ..repositories.org_scope import chu_cua
+
         quote.customer_id = ptg.customer_id
+        quote.salesperson_id = chu_cua(self.quotations.db, ptg.customer_id, quote.salesperson_id)
         quote.customer_name_snapshot = self._customer_display_name(ptg.customer_id)
         quote.delivery_address = ptg.delivery_address
         quote.contact_name_snapshot = ptg.contact_name_snapshot

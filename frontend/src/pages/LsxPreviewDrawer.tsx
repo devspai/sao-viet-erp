@@ -180,21 +180,22 @@ export function LsxPreviewDrawer({
                         <span className="sr-only">Chọn tất cả dòng chưa có lệnh</span>
                       </label>
                     </th>
-                    <th scope="col">Sản phẩm</th>
+                    <th scope="col" className="khsx-prev__namecol">Sản phẩm</th>
                     <th scope="col" className="khsx-th--num">SL đơn</th>
-                    <th scope="col" className="khsx-th--num">Bù hao</th>
                     <th scope="col" className="khsx-th--num">Vào máy</th>
+                    <th scope="col" className="khsx-th--num">Bù hao</th>
                     <th scope="col" className="khsx-th--num">Giấy nguyên</th>
-                    <th scope="col" className="khsx-th--num">Con / tờ in</th>
-                    <th scope="col" className="khsx-th--num">Kẽm · lượt</th>
-                    <th scope="col">Công đoạn</th>
+                    <th scope="col" className="khsx-th--num">Con / tờ</th>
+                    <th scope="col" className="khsx-th--num">Kẽm</th>
+                    <th scope="col" className="khsx-th--num">Lượt in</th>
+                    <th scope="col" className="khsx-prev__flow-col">Công đoạn</th>
                   </tr>
                 </thead>
                 {loading ? (
                   <tbody className="khsx-skel">
                     {Array.from({ length: 3 }).map((_, r) => (
                       <tr key={r}>
-                        {Array.from({ length: 9 }).map((__, c) => (
+                        {Array.from({ length: SO_COT }).map((__, c) => (
                           <td key={c}>
                             <span className="khsx-skel__bar" />
                           </td>
@@ -220,7 +221,7 @@ export function LsxPreviewDrawer({
                       return [
                         <tr key={`nh-${node.key}`} className="khsx-prev__nhom">
                           <td />
-                          <td colSpan={8}>
+                          <td colSpan={SO_COT - 1}>
                             <span className="khsx-prev__nhomTen">{node.ten}</span>
                             <span className="khsx-prev__nhomSub">
                               {node.members.length} phần · {node.members.length} lệnh riêng
@@ -260,6 +261,20 @@ export function LsxPreviewDrawer({
         )}
       </aside>
     </div>
+  );
+}
+
+/** Số cột của bảng (tick + sản phẩm + SL + 6 cột số + công đoạn) — dải nhóm và skeleton bám theo. */
+const SO_COT = 10;
+
+/** Một ô số: số đậm ở trên, đơn vị nhỏ ở dưới — mọi cột cùng một khuôn. */
+function O({ v, dv }: { v: number | null; dv: string }) {
+  if (v == null) return <span className="khsx-muted">—</span>;
+  return (
+    <>
+      <span className="khsx-num__main">{num(v)}</span>
+      <span className="khsx-prev__dv">{dv}</span>
+    </>
   );
 }
 
@@ -305,7 +320,10 @@ function PreviewRow({
 }) {
   const daCo = line.lsx_id != null;
   const dvDong = donViChuoi(line, line.don_vi_tinh);
-  const { to: dvTo } = dvDong;
+  const dvTo = dvDong.to || "tờ in";
+  // Dòng chưa qua bài tính giá: máy chưa bung được số nào ⇒ một câu thay cho 6 ô "—".
+  const coSo = [line.so_to_ke_hoach, line.bu_hao_to, line.so_to_nguyen, line.so_con, line.so_kem, line.so_luot]
+    .some((v) => v != null);
   return (
     <tr
       className={
@@ -320,7 +338,7 @@ function PreviewRow({
         </label>
       </td>
       <td>
-        <div className="khsx-prev__name-inline">
+        <div className="khsx-prev__namecell">
           <span className="khsx-prev__name">{line.ten}</span>
           {daCo ? (
             <button
@@ -333,11 +351,13 @@ function PreviewRow({
             </button>
           ) : line.ptg_ma ? (
             <span className="khsx-chip khsx-chip--ptg">{line.ptg_ma}</span>
-          ) : null}
+          ) : (
+            <span className="khsx-prev__sub">Chưa có bài tính giá</span>
+          )}
         </div>
       </td>
       <td className="khsx-num khsx-num--val">
-        <span className="khsx-num__main">{num(line.so_luong_dat)}</span> <span className="khsx-unit">{line.don_vi_tinh}</span>
+        <O v={line.so_luong_dat} dv={line.don_vi_tinh} />
         {line.sl_ptg != null && (
           <span className="khsx-num__ptg-warn">
             <CanhBaoMem
@@ -348,35 +368,30 @@ function PreviewRow({
           </span>
         )}
       </td>
-      <td className="khsx-num khsx-num--val" title={dvTo ? `${num(line.bu_hao_to)} ${dvTo}` : undefined}>
-        <span className="khsx-num__main">{num(line.bu_hao_to)}</span>
-      </td>
-      <td className="khsx-num khsx-num--val">
-        <span className="khsx-num__main">{num(line.so_to_ke_hoach)}</span> <span className="khsx-unit">{dvTo}</span>
-      </td>
-      <td className="khsx-num khsx-num--val">
-        <span className="khsx-num__main">{num(line.so_to_nguyen)}</span>{" "}
-        <span className="khsx-unit">{nhanChang(line.don_vi_to_nguyen) || dvTo}</span>
-      </td>
-      <td
-        className="khsx-num khsx-num--val"
-        title={dvTo ? `${num(line.so_con)} con trên 1 ${dvTo}` : undefined}
-      >
-        <span className="khsx-num__main">{num(line.so_con)}</span>
-      </td>
-      <td className="khsx-num khsx-num--val">
-        {line.so_kem == null && line.so_luot == null ? (
-          <span className="khsx-muted">—</span>
-        ) : (
-          <span className="khsx-num__pair">
-            <span className="khsx-num__main">{num(line.so_kem)}</span><span className="khsx-unit">kẽm</span>
-            <span className="khsx-num__sep">·</span>
-            <span className="khsx-num__main">{num(line.so_luot)}</span><span className="khsx-unit">lượt</span>
-          </span>
-        )}
-      </td>
+      {coSo ? (
+        <>
+          <td className="khsx-num khsx-num--val"><O v={line.so_to_ke_hoach} dv={dvTo} /></td>
+          <td className="khsx-num khsx-num--val"><O v={line.bu_hao_to} dv={dvTo} /></td>
+          <td className="khsx-num khsx-num--val">
+            <O v={line.so_to_nguyen} dv={nhanChang(line.don_vi_to_nguyen) || dvTo} />
+          </td>
+          <td className="khsx-num khsx-num--val" title={`${num(line.so_con)} con trên 1 ${dvTo}`}>
+            <O v={line.so_con} dv="con" />
+          </td>
+          <td className="khsx-num khsx-num--val"><O v={line.so_kem} dv="tấm" /></td>
+          <td className="khsx-num khsx-num--val"><O v={line.so_luot} dv="lượt" /></td>
+        </>
+      ) : (
+        <td colSpan={6} className="khsx-prev__trong">
+          Máy chưa bung được số tờ, giấy, kẽm — lệnh vẫn tạo được, khai số trên màn lệnh.
+        </td>
+      )}
       <td className="khsx-prev__flow-col">
-        <ChuoiCongDoan steps={line.routing} />
+        {line.routing.length ? (
+          <ChuoiCongDoan steps={line.routing} />
+        ) : (
+          <span className="khsx-prev__sub">Chưa có công đoạn</span>
+        )}
       </td>
     </tr>
   );

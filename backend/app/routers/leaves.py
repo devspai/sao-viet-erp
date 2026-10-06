@@ -79,8 +79,9 @@ SelfUser = Annotated[User, Depends(get_current_user)]
 # cả hai ô. Ai không có ô nào trong hai ô này thì không đụng được — trước đây chỉ cần
 # đăng nhập là gọi được, đúng chỗ tester bắt.
 SelfOrApprover = Annotated[
-    # HUỶ đơn là ĐƯỜNG GHI ⇒ ô Thao tác của chính màn Nghỉ phép (15/08/2026). Người DUYỆT huỷ hộ
-    # thì đi bằng ô Duyệt. Trước 15/08 nó đi theo ô Thao tác của Tự phục vụ — ô đó đã bỏ.
+    # HUỶ đơn đòi ô `nghi_phep:cancel` (người tạo) hoặc ô Duyệt (người duyệt huỷ hộ) — KHÔNG phải ô
+    # Thao tác như ghi chú cũ. Ma trận có ô "Huỷ đơn nghỉ của mình" (`can_cancel`) từ 05/10/2026 —
+    # trước đó thiếu ô nên nhân viên thường bấm "Hủy đơn" ăn 403. Màn ẩn nút theo đúng hai ô này.
     User, Depends(require_any_permission((MODULE, "cancel"), (MODULE, "approve")))
 ]
 

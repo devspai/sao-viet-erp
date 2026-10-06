@@ -14,9 +14,10 @@ import { Button } from "../components/Button";
 import { EmptyRow } from "../components/EmptyState";
 import { StatusTabs } from "../components/StatusTabs";
 import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import "./tinh-gia.css";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 25;
 
 const fmt = (v: number | null | undefined): string =>
   typeof v === "number" ? Math.round(v).toLocaleString("vi-VN") : "—";
@@ -63,6 +64,7 @@ export function PhieuTinhGiaListView({
   const [items, setItems] = useState<PhieuTinhGiaListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<PhieuTinhGiaStatsOut | null>(null);
@@ -93,7 +95,7 @@ export function PhieuTinhGiaListView({
         nguoi,
         sort,
         page,
-        size: PAGE_SIZE,
+        size,
       })
       .then((r) => {
         setItems(r.items);
@@ -102,12 +104,11 @@ export function PhieuTinhGiaListView({
       .catch((e) => setError(e instanceof ApiError ? e.message : "Không tải được danh sách phiếu."))
       .finally(() => setLoading(false));
     api.phieuTinhGia.stats(token, nguoi).then(setStats).catch(() => setStats(null));
-  }, [token, debouncedQ, statusFilter, sort, page, nguoi]);
+  }, [token, debouncedQ, statusFilter, sort, page, size, nguoi]);
   useEffect(() => {
     load();
   }, [load]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const allCount = stats?.all ?? 0;
   const calculatedCount = stats?.calculated ?? 0;
   const draftCount = stats?.draft ?? 0;
@@ -315,31 +316,21 @@ export function PhieuTinhGiaListView({
         </table>
       </div>
 
-      {!loading && items.length > 0 ? (
-        <div className="ptg-pager">
-          <span className="ptg-pager__info">
-            <span>Tìm thấy {fmt(total)} phiếu</span>
-            <span className="ptg-pager__page">Trang {page}/{totalPages}</span>
-          </span>
-          <div className="ptg-pager__btns">
-            <button
-              type="button"
-              className="ptg-pager__btn"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              ‹ Trước
-            </button>
-            <button
-              type="button"
-              className="ptg-pager__btn"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Sau ›
-            </button>
-          </div>
-        </div>
+      {!error && total > 0 ? (
+        <PhanTrangDayDu
+          trang={page}
+          size={size}
+          tong={total}
+          soDong={items.length}
+          onTrang={setPage}
+          onSize={(n) => {
+            setSize(n);
+            setPage(1);
+          }}
+          loading={loading}
+          donVi="phiếu"
+          ariaLabel="Phân trang phiếu tính giá"
+        />
       ) : null}
     </main>
   );

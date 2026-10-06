@@ -743,49 +743,13 @@
   white-space: nowrap;
 }
 
-/* Phân trang */
-.gh-pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 16px;
-  padding-top: 12px;
-}
-
-.gh-pager__info {
-  font-family: var(--ff-sans, inherit);
-  font-size: 12.5px;
-  color: #64748b;
-}
-
-.gh-pager__btns {
-  display: flex;
-  gap: 8px;
-}
-
-.gh-pager__btn {
-  padding: 6px 14px;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #0f172a;
-  font-family: var(--ff-sans, inherit);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 120ms ease;
-}
-
-.gh-pager__btn:hover:not(:disabled) {
-  border-color: #94a3b8;
-  background: #f8fafc;
-}
-
-.gh-pager__btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+/* Phân trang tab Đơn giao hàng: danh sách là CHỒNG THẺ khối (không có thẻ bảng bao ngoài để làm
+   đáy), nên chân đứng thành một dải có viền riêng, cách khối cuối bằng đúng nhịp giữa các khối.
+   Tab Yêu cầu giao dùng `.rc__tablewrap + .ptdd` sẵn có ở rebuild-catalog.css. */
+.gh-ds + .ptdd {
+  margin-top: 14px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
 }
 
 /* =============================================================================

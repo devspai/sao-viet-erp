@@ -9,7 +9,8 @@ import {
 } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
-import { Pager, trangHopLe } from "../../../../components/Pager";
+import { trangHopLe } from "../../../../components/Pager";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { LocThangTao } from "../../../../components/LocThangTao";
 import { Info, Plus } from "lucide-react";
 import { fmtDate } from "../../../../utils/format";
@@ -22,18 +23,21 @@ import { homNayYmd, LyDoDialog } from "../../xin-huy/XinHuy";
 
 // --- Tab: Đơn của tôi -------------------------------------------------------
 
-export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
+export function MyLeaveTab({ token, onChanged, coQuyenGhi, coQuyenHuy, eventTick }: {
   token: string;
   onChanged?: () => void;
   /** Nhích theo mỗi sự kiện real-time — người duyệt quyết xin hủy thì bảng tự tươi (23/09/2026). */
   eventTick?: number;
-  /** Ô THAO TÁC của Tự phục vụ — gửi / huỷ đơn của chính mình (tách 11/08/2026). */
+  /** Ô THAO TÁC của màn Nghỉ phép — gửi đơn của chính mình. */
   coQuyenGhi: boolean;
+  /** Ô HUỶ (`nghi_phep:cancel`) hoặc ô Duyệt — huỷ / xin huỷ / rút lại xin huỷ đơn của mình. */
+  coQuyenHuy: boolean;
 }) {
   const [hasEmp, setHasEmp] = useState<boolean | null>(null);
   const [items, setItems] = useState<LeaveRequest[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   /** Lọc theo THÁNG TẠO đơn (`YYYY-MM`, rỗng = tất cả) — 23/09/2026. */
   const [thang, setThang] = useState("");
   const [quotas, setQuotas] = useState<LeaveQuota[]>([]);
@@ -71,13 +75,13 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
   const load = useCallback(() => {
     setLoadingList(true);
     setListError(null);
-    api.leaves.me(token, { page, size: PAGE_SIZE, thang: thang || undefined }).then((r) => {
+    api.leaves.me(token, { page, size, thang: thang || undefined }).then((r) => {
       setHasEmp(r.has_employee);
       setItems(r.items);
       setTotal(r.total);
       // `quotas` KHÔNG bị phân trang (backend tính theo cả năm) — vẫn đúng ở mọi trang.
       setQuotas(r.quotas ?? []);
-      const trangCanVe = trangHopLe(page, r.total, PAGE_SIZE);
+      const trangCanVe = trangHopLe(page, r.total, size);
       if (trangCanVe !== null) setPage(trangCanVe);
 
       // Nếu modal đang mở thì đồng bộ lại trạng thái đơn (chỉ khi id còn khớp).
@@ -96,7 +100,7 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
       // thực sự trả lời.
       .catch((e) => setListError(errMsg(e)))
       .finally(() => setLoadingList(false));
-  }, [token, page, thang]);
+  }, [token, page, size, thang]);
 
   useEffect(() => { load(); }, [load, eventTick]);
   // Đổi tháng ⇒ về trang 1 NGAY trong handler (không qua effect) — không thì lượt tải cũ bắn đi với
@@ -253,9 +257,9 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
       <LeaveTable
         items={items}
         showEmployee={false}
-        onCancel={cancel}
-        onXinHuy={coQuyenGhi ? (r) => { setXinHuyErr(null); setXinHuyDon(r); } : undefined}
-        onRutLaiXinHuy={coQuyenGhi ? rutLai : undefined}
+        onCancel={coQuyenHuy ? cancel : undefined}
+        onXinHuy={coQuyenHuy ? (r) => { setXinHuyErr(null); setXinHuyDon(r); } : undefined}
+        onRutLaiXinHuy={coQuyenHuy ? rutLai : undefined}
         onRowClick={(r) => setSelectedRequest(r)}
         loading={loadingList}
         listError={listError}
@@ -264,16 +268,16 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
         emptySub={thang ? "Bỏ lọc tháng (nút ✕) để xem mọi đơn." : undefined}
       />
 
-      {/* Chân bảng CHỈ hiện khi có dòng (chuẩn §2.7) — lúc tải/lỗi/rỗng thì khối trong bảng
-          đã nói hết rồi. */}
-      {!loadingList && !listError && items.length > 0 && (
-        <Pager
-          total={total}
-          page={page}
-          size={PAGE_SIZE}
+      {/* Chân bảng CHỈ hiện khi có dòng (chuẩn §2.7) — lỗi/rỗng thì khối trong bảng đã nói hết.
+          Lúc tải trang kế vẫn giữ chân (nút khoá qua `loading`) để dãy số không nhảy chỗ. */}
+      {!listError && total > 0 && (
+        <PhanTrangDayDu
+          trang={page} size={size} tong={total} soDong={items.length}
           loading={loadingList}
-          unit="đơn"
-          onPage={setPage}
+          donVi="đơn"
+          onTrang={setPage}
+          onSize={(n) => { setSize(n); setPage(1); }}
+          ariaLabel="Phân trang đơn nghỉ của tôi"
         />
       )}
 
@@ -294,9 +298,9 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
           request={selectedRequest}
           busy={busy}
           onClose={() => setSelectedRequest(null)}
-          onCancel={cancel}
-          onXinHuy={coQuyenGhi ? (r) => { setXinHuyErr(null); setXinHuyDon(r); } : undefined}
-          onRutLaiXinHuy={coQuyenGhi ? rutLai : undefined}
+          onCancel={coQuyenHuy ? cancel : undefined}
+          onXinHuy={coQuyenHuy ? (r) => { setXinHuyErr(null); setXinHuyDon(r); } : undefined}
+          onRutLaiXinHuy={coQuyenHuy ? rutLai : undefined}
         />
       )}
 

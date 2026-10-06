@@ -16,7 +16,8 @@ import { useCan } from "../../../auth/permissions";
 import { Button } from "../../../components/Button";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { EmptyRow } from "../../../components/EmptyState";
-import { Pager, trangHopLe } from "../../../components/Pager";
+import { trangHopLe } from "../../../components/Pager";
+import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { RowActionButton } from "../../../components/RowActionButton";
 import { useDebounced } from "../../../utils/useDebounced";
 import "../../nhan-su.css";
@@ -24,8 +25,8 @@ import "../../noi-quy.css";
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const FILE_ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp";
-/** Cỡ trang chuẩn toàn hệ (prd-dong-bo-ui-thu-mua-nhan-su §2). */
-const PAGE_SIZE = 20;
+/** Cỡ trang MẶC ĐỊNH — người dùng đổi được ở ô Dòng/trang dưới bảng (khuôn Nhật ký, 05/10/2026). */
+const PAGE_SIZE = 25;
 
 function messageFor(error: unknown): string {
   if (error instanceof ApiError) {
@@ -77,6 +78,7 @@ export function NoiQuyPage() {
   /** Ô nhập bám `query` (gõ tới đâu hiện tới đó); chỉ lời gọi máy chủ đọc bản đã chậm 300ms. */
   const queryDebounced = useDebounced(query);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   const [total, setTotal] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [preview, setPreview] = useState<NoiQuyRecord | null>(null);
@@ -94,20 +96,20 @@ export function NoiQuyPage() {
       const res = await api.noiQuy.list(token, {
         q: queryDebounced.trim() || undefined,
         page,
-        size: PAGE_SIZE,
+        size,
       });
       setRows(res.items);
       setTotal(res.total);
       // Đang đứng trang 3 mà xoá nốt dòng cuối ⇒ chỉ còn 2 trang: nhảy về trang cuối còn thật,
       // không để bảng rỗng trơn làm người dùng tưởng mất sạch tài liệu.
-      const trangCanVe = trangHopLe(page, res.total, PAGE_SIZE);
+      const trangCanVe = trangHopLe(page, res.total, size);
       if (trangCanVe !== null) setPage(trangCanVe);
     } catch (err) {
       setListError(messageFor(err));
     } finally {
       setLoading(false);
     }
-  }, [token, queryDebounced, page]);
+  }, [token, queryDebounced, page, size]);
 
   useEffect(() => {
     void load();
@@ -297,17 +299,16 @@ export function NoiQuyPage() {
         </table>
       </section>
 
-      {/* Chân bảng CHỈ hiện khi bảng thật sự có dòng (chuẩn §2.7, mẫu `SuppliersPage`): lúc
-          đang tải / lỗi / rỗng thì khối `EmptyRow` trong bảng đã nói hết, in thêm "Tổng 0 tài
-          liệu" bên dưới chỉ là một câu thừa mâu thuẫn với câu ngay trên nó. */}
-      {!loading && !listError && rows.length > 0 && (
-        <Pager
-          total={total}
-          page={page}
-          size={PAGE_SIZE}
+      {/* Chân bảng CHỈ hiện khi có dòng (chuẩn §2.7): lỗi / rỗng thì khối `EmptyRow` trong bảng
+          đã nói hết. Lúc tải trang kế vẫn giữ chân (nút khoá qua `loading`) để dãy số không nhảy. */}
+      {!listError && total > 0 && (
+        <PhanTrangDayDu
+          trang={page} size={size} tong={total} soDong={rows.length}
           loading={loading}
-          unit="tài liệu"
-          onPage={setPage}
+          donVi="tài liệu"
+          onTrang={setPage}
+          onSize={(n) => { setSize(n); setPage(1); }}
+          ariaLabel="Phân trang tài liệu nội quy"
         />
       )}
 

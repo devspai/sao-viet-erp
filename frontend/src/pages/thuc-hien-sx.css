@@ -2601,14 +2601,9 @@
 .thsx-lenh__dg--done { background: var(--tt-xong-bg); color: var(--tt-xong-fg); border: 1px solid var(--tt-xong-bd); }
 .thsx-lenh__body { padding: 14px 16px; border-top: 1px solid #e2e8f0; background: #ffffff; }
 
-/* ───────── Thanh phân trang (đếm theo LỆNH — máy chủ cắt trang) ───────── */
-.thsx-trang {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-3);
-  padding: var(--sp-3) 0 var(--sp-2);
-}
+/* ───────── Nút phụ dáng nhỏ ─────────
+   Tên `thsx-trang__nut` là di sản của thanh phân trang cũ (05/10/2026 thay bằng `PhanTrangDayDu`);
+   còn nút "Tháng này" ở tab Sản lượng dùng nên giữ. */
 .thsx-trang__nut {
   display: inline-flex;
   align-items: center;
@@ -2623,8 +2618,6 @@
 }
 .thsx-trang__nut:hover:not(:disabled) { background: #f1f5f9; }
 .thsx-trang__nut:disabled { opacity: 0.45; cursor: default; }
-.thsx-trang__vt { font-size: var(--fs-sm); color: #475569; }
-.thsx-trang__tong { color: #94a3b8; }
 
 /* ---------------- Băng "Sản lượng của tôi" (thợ, spec 2026-09-11 §6) --------
  * Một dải mảnh ngay dưới top bar: thợ liếc một cái là biết tháng này mình làm được bao nhiêu,

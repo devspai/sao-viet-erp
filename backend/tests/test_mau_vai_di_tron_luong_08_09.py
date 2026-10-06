@@ -1,4 +1,4 @@
-"""Mẫu vai phải đi trọn luồng thật — bản rà liên thông 5 phân hệ (08/09/2026), E8 + C12.
+"""Vai HCNS phải đi trọn luồng thật — bản rà liên thông 5 phân hệ (08/09/2026), E8 + C12.
 
 HCNS cấp vai từ mẫu rồi: tạo nhân viên kèm tài khoản có vai (đi qua kiểm `nhan_su:assign_role`
 từ 07/09), tạo loại nghỉ, mở Bảng lương tháng / Lương nhân viên. Tổ trưởng (không có module nhân
@@ -22,14 +22,48 @@ def _dept_id(name: str) -> int:
         db.close()
 
 
-def _vai_tu_mau(client, admin, key: str, dept: str, ten: str) -> int:
-    """Y hệt người quản trị bấm trên màn Vai trò: tạo vai → chọn mẫu → Lưu ma trận."""
-    mau = {m["key"]: m for m in client.get("/api/roles/templates", headers=_h(admin)).json()}
-    r = client.post("/api/roles", json={"name": ten, "department_id": _dept_id(dept)}, headers=_h(admin))
+#: Bộ quyền HCNS — trước 05/10/2026 lấy từ bảng vai mẫu (`/api/roles/templates`, đã gỡ). Giữ
+#: nguyên bộ ô để test vẫn canh đúng luồng: thiếu ô nào là HCNS kẹt đúng bước đó.
+_QUYEN_HCNS = {
+    "dashboard": {"can_read": True, "scope": "all"},
+    "phong_ban": {"can_read": True, "can_set_head": True, "scope": "all"},
+    "nhan_su": {
+        "can_read": True, "can_create": True, "can_update": True,
+        "can_view_salary": True, "can_edit_salary": True, "can_manage_status": True,
+        "can_transfer": True, "can_approve": True, "can_export": True,
+        "can_assign_role": True, "scope": "all",
+    },
+    "cham_cong": {
+        "can_read": True, "can_create": True, "can_update": True, "can_delete": True,
+        "can_view_timesheet": True, "can_view_log": True, "can_adjust": True, "can_lock": True,
+        "can_approve": True, "can_approve_late_early": True, "can_manage_locations": True,
+        "can_manage_shifts": True, "can_manage_calendar": True, "scope": "all",
+    },
+    "nghi_phep": {
+        "can_read": True, "can_create": True, "can_update": True, "can_delete": True,
+        "can_approve": True, "can_cancel": True, "can_manage_leave_types": True, "scope": "all",
+    },
+    "tang_ca": {"can_read": True, "can_create": True, "can_approve": True, "can_cancel": True,
+                "scope": "all"},
+    "luong": {
+        "can_read": True, "can_create": True, "can_update": True, "can_approve": True,
+        "can_lock": True, "can_export": True, "can_view_salary": True, "can_edit_salary": True,
+        "can_view_payroll_table": True, "can_manage_salary_profiles": True,
+        "can_manage_piece_rates": True, "scope": "all",
+    },
+    "noi_quy": {"can_read": True, "can_create": True, "can_delete": True, "scope": "all"},
+    "self_service": {"can_read": True, "scope": "own"},
+}
+
+
+def _vai_hcns(client, admin, ten: str) -> int:
+    """Y hệt người quản trị làm trên màn Vai trò: tạo vai → tick ma trận → Lưu."""
+    r = client.post("/api/roles", json={"name": ten, "department_id": _dept_id("Hành chính nhân sự")},
+                    headers=_h(admin))
     assert r.status_code == 201, r.text
     rid = r.json()["id"]
-    r = client.put(f"/api/roles/{rid}/permissions", json={"permissions": mau[key]["permissions"]},
-                   headers=_h(admin))
+    rows = [{"module_key": k, **v} for k, v in _QUYEN_HCNS.items()]
+    r = client.put(f"/api/roles/{rid}/permissions", json={"permissions": rows}, headers=_h(admin))
     assert r.status_code == 200, r.text
     return rid
 
@@ -46,9 +80,9 @@ def _user_voi_vai(username: str, dept: str, role_id: int) -> str:
         db.close()
 
 
-def test_hcns_tu_mau_di_tron_luong(client):
+def test_hcns_di_tron_luong(client):
     admin = _admin_token(client)
-    rid = _vai_tu_mau(client, admin, "hcns", "Hành chính nhân sự", "HCNS từ mẫu")
+    rid = _vai_hcns(client, admin, "HCNS tự khai")
     hcns = _user_voi_vai("hcns-mau", "Hành chính nhân sự", rid)
     db = SessionLocal()
     try:
