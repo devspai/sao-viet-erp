@@ -9,6 +9,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .loc_danh_muc import DemDieuKien
+
 
 class XeIn(BaseModel):
     ma: str = Field(min_length=1, max_length=30)          # BIỂN SỐ
@@ -30,6 +32,7 @@ class XeRow(BaseModel):
     muc_khoan_km_id: int | None = None
     ghi_chu: str | None = None
     active: bool
+    created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
@@ -38,3 +41,5 @@ class XeListOut(BaseModel):
     total: int
     page: int
     size: int
+    # Giá trị + số đếm của từng điều kiện lọc (thanh lọc chung) — xem `schemas/loc_danh_muc`.
+    dem: DemDieuKien = {}

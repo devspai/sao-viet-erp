@@ -451,7 +451,6 @@
 
   .khsx-vattu-th,
   .khsx-vattu-code,
-  .khsx-formula-code,
   .khsx-diff-badge,
   .khsx-vattu-fix-btn,
   .khsx-vattu-src-badge,
@@ -519,16 +518,12 @@
   .khsx-vtke__strip-lbl,
   .khsx-vtke__strip-val small,
   .khsx-vtke__strip-badge,
-  .khsx-vtke__node,
-  .khsx-vtke__org-tag,
-  .khsx-vtke__mach-tag,
-  .khsx-vtke__job-tag,
-  .khsx-vtke__ngoai,
-  .khsx-vtke__alert-box,
+  .khsx-vtke__strip-buoc,
+  .khsx-vtke__chip,
+  .khsx-vtke__chip-dem,
   .khsx-vtbang__ma,
   .khsx-vtbang__sub,
-  .khsx-vtcard__tag,
-  .khsx-vtcard__buoc,
+  .khsx-vtbang__lan-co-so,
   .khsx .khvt-gom__chip,
   .khsx .khvt-pill-note,
   .khsx .khvt-bcard__stream-title,
@@ -655,7 +650,6 @@
   .kho-ton__lots th,
   .kho-combo__code,
   .kho-filter-chip__count,
-  .kho-filter-chip__unread,
   .kho-new-pill,
   .rc-drawer__kicker,
   .kho-stepper__dot,
@@ -670,8 +664,7 @@
   .kho-ton__vtmore,
   .kho-ov__cell dt,
   .kho-ov__chart-title,
-  .kho-ov__chart-legend,
-  .kho-shell__count {
+  .kho-ov__chart-legend {
     font-size: 12px !important;
   }
 

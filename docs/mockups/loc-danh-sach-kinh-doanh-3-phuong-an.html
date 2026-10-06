@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lọc danh sách Kinh doanh — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07; --rust-tint:#fbeee6;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --signal:#8a1f1f; --charcoal:#0f172a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1240px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 12px;max-width:900px}
+.lead b{color:var(--ink)}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 40px}
+.toc a{font-size:13px;color:var(--ink);text-decoration:none;border:1px solid var(--rule);background:var(--canvas);border-radius:999px;padding:4px 12px}
+.opt{margin-bottom:72px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.why{color:var(--ash);margin:0 0 16px;max-width:920px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+.why li{margin:2px 0}
+svg.i{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- khung màn ---------- */
+.screen{background:var(--paper);border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.14);padding:22px 24px 26px;position:relative;overflow:hidden}
+.eyebrow{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--ash);text-transform:uppercase}
+.eyebrow::before{content:"";width:8px;height:8px;background:var(--rust)}
+.sh{display:flex;align-items:flex-end;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--rule-soft);margin-bottom:16px}
+.sh h3{margin:4px 0 2px;font-size:26px;font-weight:700}
+.sh p{margin:0;color:var(--ash);font-size:13.5px}
+.sh .btn--pri{margin-left:auto}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash);font-weight:500}
+.btn--sm{height:30px;padding:0 10px;font-size:12.5px}
+.dem{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--ink);color:#fff;font-size:11px;font-weight:700}
+.search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;height:38px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);padding:0 12px;color:var(--ash-2);font-size:13.5px}
+.sel{display:inline-flex;align-items:center;gap:8px;height:38px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);padding:0 12px;font-size:13.5px;white-space:nowrap}
+.sel svg{margin-left:6px;color:var(--ash-2)}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+.tabs{display:inline-flex;flex-wrap:wrap;gap:2px;background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:10px;padding:4px;margin-bottom:14px}
+.tabs span{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:7px;font-size:13px;color:var(--ash)}
+.tabs span.on{background:var(--canvas);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.tabs i{font-style:normal;font-size:11px;font-weight:600;background:var(--rule-soft);border-radius:999px;padding:0 7px;color:var(--ash)}
+.tabs span.on i{background:var(--ink);color:#fff}
+
+/* bảng */
+.tw{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:900px}
+th{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ash);text-align:left;padding:12px 14px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--rule-hair);vertical-align:top;font-size:13.5px}
+tr:hover td{background:var(--rule-hair)}
+.r{text-align:right}
+.num{font-variant-numeric:tabular-nums}
+.ma{font-weight:700;white-space:nowrap}
+.ma small{font-weight:500;color:var(--ash-2);margin-left:4px}
+.sub{display:block;font-size:12px;color:var(--ash-2);margin-top:2px;font-weight:400}
+.tien{font-weight:700;color:var(--rust-deep)}
+.badge{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-xam{background:var(--rule-hair);color:var(--ash);border:1px solid var(--rule-soft)}
+.b-cam-nhat{background:var(--rust-tint);color:var(--rust-deep)}
+.b-cam{background:var(--rust);color:#fff}
+.b-den{background:var(--ink);color:#fff}
+.b-do{background:#f3e3e3;color:var(--signal)}
+.the{display:inline-block;font-size:11.5px;border-radius:5px;padding:0 7px;background:var(--rule-hair);color:var(--ash);border:1px solid var(--rule-soft);margin-top:4px;font-weight:500}
+.nguoi{font-weight:600}
+.muted{color:var(--ash-2)}
+.do{color:var(--signal)}
+.foot{display:flex;align-items:center;gap:12px;padding:12px 16px;font-size:13px;color:var(--ash)}
+.foot .pg{margin-left:auto;display:flex;align-items:center;gap:6px}
+.foot .pg b{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:7px;background:var(--rust);color:#fff}
+
+/* ---------- A: khuôn kế toán / Polaris ---------- */
+.ky{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:14px}
+.seg{display:inline-flex;background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:9px;padding:3px}
+.seg span{height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:6px;color:var(--ash);font-size:13px}
+.seg span.on{background:var(--canvas);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.ky__theo{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ash)}
+.ky__theo .sel{height:34px}
+.ky__nhan{margin-left:auto;font-size:13px;font-weight:600}
+.ky__nhan span{color:var(--ash-2);font-weight:400;margin-left:8px}
+.chip{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 4px 0 12px;border:1px solid var(--rule);background:var(--canvas);border-radius:999px;font-size:13px;white-space:nowrap}
+.chip b{font-weight:600}
+.chip .x{width:24px;height:24px;display:inline-grid;place-items:center;border-radius:999px;color:var(--ash-2)}
+.lk{color:var(--ash);font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.pop{position:absolute;z-index:5;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 18px 48px rgba(15,23,42,.18)}
+.a-pop{top:234px;right:24px;width:660px}
+.pop__dau{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--rule-hair)}
+.pop__dau b{font-size:15px}
+.pop__dau .lk{margin-left:auto}
+.pop__than{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;padding:16px 18px}
+.o{display:flex;flex-direction:column;gap:6px}
+.o.rong{grid-column:1/-1}
+.o label{font-size:12.5px;font-weight:600;color:var(--ash)}
+.in{height:36px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);padding:0 10px;display:flex;align-items:center;font-size:13px;color:var(--ink)}
+.in.goi{color:var(--ash-2)}
+.in2{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ash-2)}
+.in2 .in{flex:1}
+.nn{display:inline-flex;background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:8px;padding:3px;align-self:flex-start}
+.nn span{height:28px;display:inline-flex;align-items:center;padding:0 11px;border-radius:6px;font-size:12.5px;color:var(--ash)}
+.nn span.on{background:var(--canvas);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pills span{height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 11px;border-radius:999px;border:1px solid var(--rule);font-size:12.5px;color:var(--ash)}
+.pills span.on{border-color:var(--ink);color:var(--ink);font-weight:600}
+.pop__chan{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--rule-soft)}
+.pop__chan .khop{margin-right:auto;color:var(--ash-2);font-size:13px}
+
+/* ---------- B: Stripe ---------- */
+.pill{height:30px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border-radius:999px;border:1px dashed var(--rule);background:transparent;color:var(--ash);font-size:13px;white-space:nowrap}
+.pill svg{width:13px;height:13px}
+.pill--dat{border-style:solid;background:var(--canvas);color:var(--ink);padding:0 4px 0 10px}
+.pill--dat b{font-weight:600;color:var(--rust-deep)}
+.pill--dat .x{width:22px;height:22px;display:inline-grid;place-items:center;border-radius:999px;color:var(--ash-2)}
+.pill--mo{border-color:var(--ink);box-shadow:0 0 0 3px var(--rule-soft)}
+.b-pop{top:224px;left:24px;width:540px;display:grid;grid-template-columns:180px 1fr}
+.b-pre{border-right:1px solid var(--rule-hair);padding:8px}
+.b-pre span{display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 10px;border-radius:7px;font-size:13px;color:var(--ash)}
+.b-pre span.on{background:var(--rule-hair);color:var(--ink);font-weight:600}
+.b-pre span.on::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--rust)}
+.b-ct{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.b-ct .o label{font-size:12px}
+.b-ct .act{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+.trangthai .duyet{display:block;font-size:12px;color:var(--ash);margin-top:6px;line-height:1.4}
+.trangthai .duyet b{color:var(--ink);font-weight:600}
+
+/* ---------- C: Odoo ---------- */
+.c-search{flex:1;min-width:300px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-height:40px;border:1px solid var(--ink);box-shadow:0 0 0 3px var(--rule-soft);border-radius:8px;background:var(--canvas);padding:4px 6px 4px 12px}
+.c-search>svg{color:var(--ash-2)}
+.facet{display:inline-flex;align-items:stretch;height:28px;border-radius:6px;overflow:hidden;border:1px solid var(--rule-soft);font-size:12.5px}
+.facet .k{display:inline-flex;align-items:center;gap:5px;padding:0 8px;background:var(--ink);color:#fff}
+.facet .k svg{width:13px;height:13px}
+.facet .v{display:inline-flex;align-items:center;padding:0 6px 0 8px;background:var(--rule-hair);font-weight:600}
+.facet .x{display:inline-grid;place-items:center;width:22px;background:var(--rule-hair);color:var(--ash-2)}
+.facet .v .hoac{font-weight:400;color:var(--ash-2);margin:0 5px}
+.c-go{flex:1;min-width:80px;font-size:13.5px;color:var(--ink)}
+.c-go::after{content:"";display:inline-block;width:1px;height:16px;background:var(--ink);vertical-align:middle;margin-left:1px}
+.c-tg{width:30px;height:30px;display:grid;place-items:center;border-radius:6px;background:var(--rule-hair);color:var(--ink)}
+.c-pop{top:184px;left:24px;right:24px;display:grid;grid-template-columns:1.1fr 1fr 1fr}
+.c-col{padding:14px 18px;border-right:1px solid var(--rule-hair)}
+.c-col:last-child{border-right:0}
+.c-col h5{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:13px;font-weight:700}
+.c-col h5 svg{color:var(--rust)}
+.ck{display:flex;align-items:center;gap:10px;height:32px;font-size:13px;color:var(--ash)}
+.ck i{width:16px;height:16px;border:1.5px solid var(--rule);border-radius:4px;flex:none;display:grid;place-items:center}
+.ck.on{color:var(--ink);font-weight:600}
+.ck.on i{background:var(--ink);border-color:var(--ink)}
+.ck.on i::after{content:"";width:8px;height:4px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.ck small{margin-left:auto;font-weight:500;color:var(--ash-2);font-size:12px}
+.hr{height:1px;background:var(--rule-hair);margin:8px 0}
+.c-sub{font-size:12px;color:var(--ash-2);margin:2px 0 6px}
+.luu{display:flex;align-items:center;gap:8px;height:32px;font-size:13px}
+.luu svg{color:var(--rust)}
+.luu small{margin-left:auto;color:var(--ash-2);font-size:12px}
+.c-them{margin-top:8px;display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--rule-soft);border-radius:8px;background:var(--paper)}
+
+/* ---------- phần chung ---------- */
+.card{background:var(--canvas);border-radius:14px;box-shadow:0 6px 24px rgba(15,23,42,.08);padding:22px 24px;margin-bottom:28px}
+.card h2{margin:0 0 6px;font-size:18px}
+.card>p{color:var(--ash);margin:0 0 14px;max-width:900px}
+.map{min-width:0}
+.map th{text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);background:var(--paper)}
+.map td{font-size:13px}
+.map td:first-child{font-weight:600;white-space:nowrap}
+.map .moi{display:inline-block;font-size:11px;font-weight:600;color:var(--rust-deep);background:var(--rust-tint);border-radius:5px;padding:0 6px;margin-left:6px}
+.duyet-mau{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.duyet-mau>div{border:1px solid var(--rule-soft);border-radius:10px;padding:12px 14px}
+.duyet-mau h4{margin:0 0 8px;font-size:12px;color:var(--ash-2);font-weight:600}
+.duyet-mau p{margin:8px 0 0;font-size:12.5px;color:var(--ash)}
+ol.kem{margin:0;padding-left:20px;color:var(--ash)}
+ol.kem li{margin:6px 0}
+ol.kem b{color:var(--ink)}
+@media (max-width:720px){
+  .pop{position:static;width:auto;margin:12px 0}
+  .b-pop,.c-pop{grid-template-columns:1fr}
+  .pop__than{grid-template-columns:1fr}
+  .duyet-mau{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="s" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="loc" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+  <symbol id="lich" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="v" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="cong" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="sao" viewBox="0 0 24 24"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></symbol>
+  <symbol id="pheu" viewBox="0 0 24 24"><path d="M22 3H2l8 9.5V19l4 2v-8.5z"/></symbol>
+  <symbol id="nguoi" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+</svg>
+
+<div class="page">
+  <h1>Lọc danh sách Kinh doanh — 3 phương án</h1>
+  <p class="lead">Áp cho cả ba màn <b>Tính giá thành</b>, <b>Báo giá thương mại</b>, <b>Đơn hàng bán</b>. Hiện ba màn chỉ có ô tìm, thẻ trạng thái và ô người lập/phụ trách; máy chủ <b>chưa nhận bất kỳ tham số ngày nào</b>. Mỗi phương án dưới đây vẽ trên màn Báo giá (màn nhiều điều kiện nhất); hai màn kia dùng y khuôn, chỉ khác danh sách ô ở bảng cuối trang.</p>
+  <p class="lead">Chung cho cả ba phương án: lọc và đếm đều chạy ở <b>máy chủ</b>, số trên thẻ trạng thái đếm theo bộ lọc đang áp, bộ lọc ghi lên địa chỉ trang để gửi link cho người khác là họ thấy đúng danh sách đó. Báo giá có thêm phần <b>Người duyệt</b>.</p>
+  <div class="toc">
+    <a href="#a">A — Kỳ + Bộ lọc (khuôn Kế toán)</a>
+    <a href="#b">B — Từng ô lọc một viên (Stripe)</a>
+    <a href="#c">C — Ô tìm gom điều kiện (Odoo)</a>
+    <a href="#chung">Ô lọc từng màn</a>
+    <a href="#duyet">Hiển thị người duyệt</a>
+  </div>
+
+  <!-- ===================================================== A -->
+  <section class="opt" id="a">
+    <div class="opt-head">
+      <h2>A — Dải kỳ phía trên, nút "Bộ lọc" mở bảng hai cột</h2>
+      <span class="src">Shopify Polaris IndexFilters</span>
+      <span class="src">Phiếu chi, Phiếu thu, Công nợ của mình</span>
+    </div>
+    <div class="why">
+      <b>Vì sao hợp:</b> đây đúng khuôn đã dựng cho 5 màn Kế toán hôm 05/10 — người dùng đã quen, code tái dùng nguyên bộ (bảng lọc có bản nháp, đếm "Khớp n" ở máy chủ, chip điều kiện bấm vào sửa lại được).
+      <ul>
+        <li>Khoảng thời gian luôn hiện, không giấu trong bảng lọc — vì đây là câu hỏi đầu tiên ai cũng hỏi ("tháng này báo bao nhiêu"). Ô <b>Tính theo</b> đổi mốc ngày: Ngày tạo, Ngày gửi khách, Hạn hiệu lực.</li>
+        <li>Sửa trong bảng lọc chưa đổi danh sách; bấm "Xem 3 báo giá" mới áp. Hợp khi phải chỉnh nhiều ô một lượt.</li>
+        <li>Người duyệt là một <b>cột riêng</b>.</li>
+      </ul>
+      Đổi lại: chỉnh một ô cũng phải mở bảng rồi bấm áp, hơn B một cú bấm.
+    </div>
+
+    <div class="screen">
+      <div class="eyebrow">Kinh doanh</div>
+      <div class="sh">
+        <div><h3>Báo giá thương mại</h3><p>Giá bán gửi khách, dựng từ phiếu tính giá.</p></div>
+        <span class="btn btn--pri"><svg class="i"><use href="#cong"/></svg>Báo giá mới</span>
+      </div>
+
+      <div class="ky">
+        <div class="seg"><span>Tháng này</span><span class="on">Quý này</span><span>Năm nay</span><span>12 tháng</span><span>Tất cả</span><span>Tuỳ chọn</span></div>
+        <span class="ky__theo">Tính theo <span class="sel">Ngày tạo<svg class="i"><use href="#v"/></svg></span></span>
+        <span class="ky__nhan">Quý 4/2026<span>01/10 đến 31/12/2026</span></span>
+      </div>
+
+      <div class="bar">
+        <div class="search"><svg class="i"><use href="#s"/></svg>Tìm mã báo giá, khách hàng, sản phẩm…</div>
+        <span class="sel">Tất cả NV phụ trách<svg class="i"><use href="#v"/></svg></span>
+        <span class="btn" style="border-color:var(--ink)"><svg class="i"><use href="#loc"/></svg>Bộ lọc<span class="dem">2</span></span>
+      </div>
+      <div class="bar">
+        <span class="chip">Diện duyệt: <b>Đặc thù</b><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+        <span class="chip">Người duyệt: <b>Phạm Quốc Hùng</b><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+        <span class="lk">Xoá hết</span>
+      </div>
+
+      <div class="tabs"><span class="on">Tất cả <i>3</i></span><span>Cần xử lý <i>0</i></span><span>Soạn <i>0</i></span><span>Chờ duyệt <i>1</i></span><span>Đã duyệt <i>0</i></span><span>Đã gửi khách <i>1</i></span><span>Khách chốt <i>0</i></span><span>Đã lên đơn <i>0</i></span><span>Từ chối <i>1</i></span><span>Hết hiệu lực <i>0</i></span></div>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>Mã báo giá</th><th>Khách hàng</th><th>Sản phẩm</th><th class="r">Giá bán gồm VAT</th><th>Trạng thái</th><th>Người duyệt</th><th>Ngày tạo</th></tr></thead>
+          <tbody>
+            <tr><td class="ma">BG26-0006<small>v1</small></td><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td><b>Tờ rơi A4 4/4</b></td><td class="r num"><span class="tien">18.200.000 đ</span><span class="sub">markup 8%</span></td><td><span class="badge b-cam-nhat">Chờ duyệt</span></td><td><span class="nguoi">Phạm Quốc Hùng</span><span class="sub">đang chờ từ 06/10 09:12</span></td><td>06/10/2026<span class="sub">Nguyễn Thị Kim Luyến</span></td></tr>
+            <tr><td class="ma">BG26-0005<small>v2</small></td><td>CÔNG TY CỔ PHẦN BIBICA</td><td><b>TEST Sách A5 64 trang</b><span class="sub">và 2 sản phẩm khác</span></td><td class="r num"><span class="tien">25.514.958 đ</span><span class="sub">markup 25%</span></td><td><span class="badge b-cam">Đã gửi khách</span></td><td><span class="nguoi">Phạm Quốc Hùng</span><span class="sub">duyệt 04/10/2026</span></td><td>04/10/2026<span class="sub">Nguyễn Thị Kim Luyến</span></td></tr>
+            <tr><td class="ma">BG26-0003<small>v1</small></td><td>CÔNG TY TNHH VI LỮ</td><td><b>test 999</b></td><td class="r num"><span class="tien">3.100.000 đ</span><span class="sub">markup 3%</span></td><td><span class="badge b-do">Từ chối</span></td><td><span class="nguoi">Phạm Quốc Hùng</span><span class="sub do">từ chối 03/10/2026</span></td><td>02/10/2026<span class="sub">Bùi Thị Hoa</span></td></tr>
+          </tbody>
+        </table>
+        <div class="foot">Trang <b>1</b>/1 có 3 dòng trên tổng 3 báo giá<span class="pg">Dòng/trang <span class="sel" style="height:30px">25<svg class="i"><use href="#v"/></svg></span><b>1</b></span></div>
+      </div>
+
+      <!-- bảng lọc đang mở -->
+      <div class="pop a-pop">
+        <div class="pop__dau"><b>Bộ lọc nâng cao</b><span class="lk">Xoá hết</span></div>
+        <div class="pop__than">
+          <div class="o"><label>Khách hàng</label><div class="in goi">Gõ tên hoặc mã khách…</div></div>
+          <div class="o"><label>Sản phẩm có chữ</label><div class="in goi">vd hộp, tờ rơi…</div></div>
+          <div class="o"><label>Diện duyệt</label><div class="nn"><span>Tất cả</span><span>Thường</span><span class="on">Đặc thù</span></div></div>
+          <div class="o"><label>Người duyệt</label><div class="in">Phạm Quốc Hùng</div></div>
+          <div class="o rong"><label>Kết quả duyệt</label><div class="pills"><span>Đang chờ</span><span>Đã duyệt</span><span>Từ chối</span></div></div>
+          <div class="o"><label>Giá bán gồm VAT (đ)</label><div class="in2"><div class="in goi">Từ</div>đến<div class="in goi">Đến</div></div></div>
+          <div class="o"><label>Hạn hiệu lực</label><div class="nn"><span class="on">Tất cả</span><span>Còn hạn</span><span>Hết trong 7 ngày</span><span>Đã hết</span></div></div>
+        </div>
+        <div class="pop__chan"><span class="khop">Khớp 3 báo giá trong kỳ</span><span class="btn btn--txt">Đóng</span><span class="btn btn--pri">Xem 3 báo giá</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== B -->
+  <section class="opt" id="b">
+    <div class="opt-head">
+      <h2>B — Mỗi điều kiện là một viên, bấm viên nào sửa viên đó</h2>
+      <span class="src">Stripe Dashboard</span>
+      <span class="src">Linear</span>
+    </div>
+    <div class="why">
+      <b>Vì sao hợp:</b> Stripe xếp sẵn các viên viền đứt "+ Ngày tạo", "+ Khách hàng"… ngay dưới ô tìm. Thấy ngay mình lọc được theo gì, bấm một viên mở ô nhỏ chỉ cho điều kiện đó, áp xong viên đổi thành viền liền mang giá trị.
+      <ul>
+        <li>Đổi một điều kiện chỉ chạm đúng một viên, không phải mở bảng to.</li>
+        <li>Ô ngày có danh sách mốc nhanh bên trái (Hôm nay, 7 ngày qua, Tháng này, Quý này…) và ô Từ/Đến bên phải, đổi mốc ngày ngay trong viên.</li>
+        <li>Người duyệt nằm <b>ngay dưới huy hiệu trạng thái</b>, không thêm cột. Bảng giữ hẹp, hợp màn laptop 13".</li>
+      </ul>
+      Đổi lại: khác khuôn Kế toán, người dùng gặp hai kiểu lọc trong cùng hệ; nhiều viên quá (Đơn hàng có 8 điều kiện) thì dải viên xuống hai dòng.
+    </div>
+
+    <div class="screen">
+      <div class="eyebrow">Kinh doanh</div>
+      <div class="sh">
+        <div><h3>Báo giá thương mại</h3><p>Giá bán gửi khách, dựng từ phiếu tính giá.</p></div>
+        <span class="btn btn--pri"><svg class="i"><use href="#cong"/></svg>Báo giá mới</span>
+      </div>
+
+      <div class="bar">
+        <div class="search"><svg class="i"><use href="#s"/></svg>Tìm mã báo giá, khách hàng, sản phẩm…</div>
+        <span class="sel">Tất cả NV phụ trách<svg class="i"><use href="#v"/></svg></span>
+      </div>
+      <div class="bar">
+        <span class="pill pill--dat pill--mo"><svg class="i"><use href="#lich"/></svg>Ngày tạo: <b>Tháng này</b><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+        <span class="pill"><svg class="i"><use href="#cong"/></svg>Khách hàng</span>
+        <span class="pill pill--dat">Diện duyệt: <b>Đặc thù</b><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+        <span class="pill"><svg class="i"><use href="#cong"/></svg>Người duyệt</span>
+        <span class="pill"><svg class="i"><use href="#cong"/></svg>Giá bán</span>
+        <span class="pill"><svg class="i"><use href="#cong"/></svg>Hạn hiệu lực</span>
+        <span class="lk">Xoá lọc</span>
+      </div>
+
+      <div class="tabs"><span class="on">Tất cả <i>3</i></span><span>Cần xử lý <i>0</i></span><span>Soạn <i>0</i></span><span>Chờ duyệt <i>1</i></span><span>Đã duyệt <i>0</i></span><span>Đã gửi khách <i>1</i></span><span>Khách chốt <i>0</i></span><span>Đã lên đơn <i>0</i></span><span>Từ chối <i>1</i></span><span>Hết hiệu lực <i>0</i></span></div>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>Mã báo giá</th><th>Khách hàng</th><th>Sản phẩm</th><th class="r">Giá bán gồm VAT</th><th>Trạng thái</th><th>Ngày tạo</th></tr></thead>
+          <tbody>
+            <tr><td class="ma">BG26-0006<small>v1</small></td><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td><b>Tờ rơi A4 4/4</b></td><td class="r num"><span class="tien">18.200.000 đ</span><span class="sub">markup 8%</span></td><td class="trangthai"><span class="badge b-cam-nhat">Chờ duyệt</span><span class="duyet">chờ <b>Phạm Quốc Hùng</b> từ 06/10</span></td><td>06/10/2026<span class="sub">Nguyễn Thị Kim Luyến</span></td></tr>
+            <tr><td class="ma">BG26-0005<small>v2</small></td><td>CÔNG TY CỔ PHẦN BIBICA</td><td><b>TEST Sách A5 64 trang</b><span class="sub">và 2 sản phẩm khác</span></td><td class="r num"><span class="tien">25.514.958 đ</span><span class="sub">markup 25%</span></td><td class="trangthai"><span class="badge b-cam">Đã gửi khách</span><span class="duyet"><b>Phạm Quốc Hùng</b> duyệt 04/10</span></td><td>04/10/2026<span class="sub">Nguyễn Thị Kim Luyến</span></td></tr>
+            <tr><td class="ma">BG26-0003<small>v1</small></td><td>CÔNG TY TNHH VI LỮ</td><td><b>test 999</b></td><td class="r num"><span class="tien">3.100.000 đ</span><span class="sub">markup 3%</span></td><td class="trangthai"><span class="badge b-do">Từ chối</span><span class="duyet"><b>Phạm Quốc Hùng</b> từ chối 03/10</span></td><td>02/10/2026<span class="sub">Bùi Thị Hoa</span></td></tr>
+          </tbody>
+        </table>
+        <div class="foot">Trang <b>1</b>/1 có 3 dòng trên tổng 3 báo giá<span class="pg">Dòng/trang <span class="sel" style="height:30px">25<svg class="i"><use href="#v"/></svg></span><b>1</b></span></div>
+      </div>
+
+      <!-- ô ngày đang mở -->
+      <div class="pop b-pop">
+        <div class="b-pre"><span>Hôm nay</span><span>7 ngày qua</span><span>30 ngày qua</span><span class="on">Tháng này</span><span>Tháng trước</span><span>Quý này</span><span>Năm nay</span><span>Tuỳ chọn</span></div>
+        <div class="b-ct">
+          <div class="o"><label>Tính theo</label><div class="nn"><span class="on">Ngày tạo</span><span>Ngày gửi khách</span><span>Hạn hiệu lực</span></div></div>
+          <div class="o"><label>Khoảng ngày</label><div class="in2"><div class="in">01/10/2026</div>đến<div class="in">31/10/2026</div></div></div>
+          <div class="act"><span class="btn btn--txt btn--sm">Bỏ</span><span class="btn btn--pri btn--sm">Áp dụng</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== C -->
+  <section class="opt" id="c">
+    <div class="opt-head">
+      <h2>C — Ô tìm gom mọi điều kiện, có bộ lọc lưu sẵn</h2>
+      <span class="src">Odoo (Sales, Quotations)</span>
+      <span class="src">SAP Fiori List Report</span>
+    </div>
+    <div class="why">
+      <b>Vì sao hợp:</b> Odoo là ERP gần nghề mình nhất. Mọi điều kiện thành thẻ nằm ngay trong ô tìm. Gõ "bibi" thì ô gợi ý "Tìm Khách hàng: bibi", "Tìm Sản phẩm: bibi", chọn dòng nào ra thẻ đó, nên ô tìm vừa là tìm vừa là lọc. Mũi tên bên phải mở bảng ba cột.
+      <ul>
+        <li><b>Lọc nhanh</b>: các câu hỏi hay gặp gói sẵn thành một dấu tích, có số ngay bên cạnh, ví dụ "Chờ tôi duyệt", "Sắp hết hiệu lực trong 7 ngày".</li>
+        <li><b>Thời gian</b>: chọn mốc ngày rồi tích tháng hoặc quý; tích hai tháng là lấy cả hai.</li>
+        <li><b>Bộ lọc đã lưu</b>: mỗi người lưu tổ hợp hay dùng ("Đặc thù chờ duyệt", "Khách BIBICA năm nay"). Giám đốc mở màn là bấm một cái ra đúng việc của mình.</li>
+        <li>Người duyệt là <b>cột riêng</b> như A.</li>
+      </ul>
+      Đổi lại: nặng nhất trong ba phương án. Bộ lọc đã lưu cần thêm một bảng ở máy chủ. Người mới chưa quen gõ để chọn thẻ.
+    </div>
+
+    <div class="screen">
+      <div class="eyebrow">Kinh doanh</div>
+      <div class="sh">
+        <div><h3>Báo giá thương mại</h3><p>Giá bán gửi khách, dựng từ phiếu tính giá.</p></div>
+        <span class="btn btn--pri"><svg class="i"><use href="#cong"/></svg>Báo giá mới</span>
+      </div>
+
+      <div class="bar">
+        <div class="c-search">
+          <svg class="i"><use href="#s"/></svg>
+          <span class="facet"><span class="k"><svg class="i"><use href="#lich"/></svg>Ngày tạo</span><span class="v">Tháng 9<span class="hoac">hoặc</span>Tháng 10</span><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+          <span class="facet"><span class="k"><svg class="i"><use href="#pheu"/></svg>Lọc</span><span class="v">Đặc thù</span><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+          <span class="c-go">bibi</span>
+          <span class="c-tg"><svg class="i"><use href="#v"/></svg></span>
+        </div>
+        <span class="sel">Tất cả NV phụ trách<svg class="i"><use href="#v"/></svg></span>
+      </div>
+
+      <div class="tabs" style="margin-top:4px"><span class="on">Tất cả <i>3</i></span><span>Cần xử lý <i>0</i></span><span>Soạn <i>0</i></span><span>Chờ duyệt <i>1</i></span><span>Đã duyệt <i>0</i></span><span>Đã gửi khách <i>1</i></span><span>Khách chốt <i>0</i></span><span>Đã lên đơn <i>0</i></span><span>Từ chối <i>1</i></span><span>Hết hiệu lực <i>0</i></span></div>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>Mã báo giá</th><th>Khách hàng</th><th>Sản phẩm</th><th class="r">Giá bán gồm VAT</th><th>Trạng thái</th><th>Người duyệt</th><th>Ngày tạo</th></tr></thead>
+          <tbody>
+            <tr><td class="ma">BG26-0006<small>v1</small></td><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td><b>Tờ rơi A4 4/4</b></td><td class="r num"><span class="tien">18.200.000 đ</span><span class="sub">markup 8%</span></td><td><span class="badge b-cam-nhat">Chờ duyệt</span></td><td><span class="nguoi">Phạm Quốc Hùng</span><span class="sub">đang chờ từ 06/10 09:12</span></td><td>06/10/2026<span class="sub">Nguyễn Thị Kim Luyến</span></td></tr>
+            <tr><td class="ma">BG26-0005<small>v2</small></td><td>CÔNG TY CỔ PHẦN BIBICA</td><td><b>TEST Sách A5 64 trang</b><span class="sub">và 2 sản phẩm khác</span></td><td class="r num"><span class="tien">25.514.958 đ</span><span class="sub">markup 25%</span></td><td><span class="badge b-cam">Đã gửi khách</span></td><td><span class="nguoi">Phạm Quốc Hùng</span><span class="sub">duyệt 04/10/2026</span></td><td>04/10/2026<span class="sub">Nguyễn Thị Kim Luyến</span></td></tr>
+            <tr><td class="ma">BG26-0003<small>v1</small></td><td>CÔNG TY TNHH VI LỮ</td><td><b>test 999</b></td><td class="r num"><span class="tien">3.100.000 đ</span><span class="sub">markup 3%</span></td><td><span class="badge b-do">Từ chối</span></td><td><span class="nguoi">Phạm Quốc Hùng</span><span class="sub do">từ chối 03/10/2026</span></td><td>02/10/2026<span class="sub">Bùi Thị Hoa</span></td></tr>
+          </tbody>
+        </table>
+        <div class="foot">Trang <b>1</b>/1 có 3 dòng trên tổng 3 báo giá<span class="pg">Dòng/trang <span class="sel" style="height:30px">25<svg class="i"><use href="#v"/></svg></span><b>1</b></span></div>
+      </div>
+
+      <!-- bảng ba cột đang mở -->
+      <div class="pop c-pop">
+        <div class="c-col">
+          <h5><svg class="i"><use href="#pheu"/></svg>Lọc nhanh</h5>
+          <div class="ck"><i></i>Chờ tôi duyệt<small>1</small></div>
+          <div class="ck on"><i></i>Đặc thù (phải qua duyệt)<small>3</small></div>
+          <div class="ck"><i></i>Thường (không cần duyệt)<small>9</small></div>
+          <div class="hr"></div>
+          <div class="ck"><i></i>Sắp hết hiệu lực trong 7 ngày<small>2</small></div>
+          <div class="ck"><i></i>Đã hết hiệu lực<small>0</small></div>
+          <div class="ck"><i></i>Gửi khách quá 7 ngày chưa phản hồi<small>1</small></div>
+          <div class="hr"></div>
+          <div class="ck"><i></i>Giá bán từ 50 triệu<small>0</small></div>
+        </div>
+        <div class="c-col">
+          <h5><svg class="i"><use href="#lich"/></svg>Thời gian</h5>
+          <div class="nn" style="margin-bottom:8px"><span class="on">Ngày tạo</span><span>Ngày gửi khách</span><span>Hạn hiệu lực</span></div>
+          <div class="ck"><i></i>Tháng 8</div>
+          <div class="ck on"><i></i>Tháng 9</div>
+          <div class="ck on"><i></i>Tháng 10</div>
+          <div class="hr"></div>
+          <div class="ck"><i></i>Quý 3</div>
+          <div class="ck"><i></i>Quý 4</div>
+          <div class="ck"><i></i>Năm 2026</div>
+          <div class="ck"><i></i>Tuỳ chọn khoảng ngày</div>
+        </div>
+        <div class="c-col">
+          <h5><svg class="i"><use href="#sao"/></svg>Bộ lọc đã lưu</h5>
+          <div class="luu"><svg class="i"><use href="#sao"/></svg>Đặc thù chờ tôi duyệt<small>mặc định</small></div>
+          <div class="luu"><svg class="i"><use href="#sao"/></svg>Khách BIBICA năm nay</div>
+          <div class="luu"><svg class="i"><use href="#sao"/></svg>Sắp hết hiệu lực</div>
+          <div class="c-them">
+            <span class="c-sub">Lưu bộ lọc đang xem</span>
+            <div class="in">Báo giá đặc thù quý 3</div>
+            <div class="ck"><i></i>Mở màn là áp luôn</div>
+            <span class="btn btn--sm" style="align-self:flex-start">Lưu</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== CHUNG -->
+  <section class="card" id="chung">
+    <h2>Ô lọc của từng màn (dùng chung cho cả ba phương án)</h2>
+    <p>Đánh dấu <span class="map"><span class="moi">mới</span></span> là ô máy chủ chưa có, phải thêm. Ô người lập hoặc NV phụ trách đã có, giữ nguyên chỗ cũ.</p>
+    <div class="tw">
+      <table class="map">
+        <thead><tr><th>Điều kiện</th><th>Tính giá thành</th><th>Báo giá thương mại</th><th>Đơn hàng bán</th></tr></thead>
+        <tbody>
+          <tr><td>Khoảng thời gian<span class="moi">mới</span></td><td>Ngày lập</td><td>Ngày tạo, Ngày gửi khách, Hạn hiệu lực</td><td>Ngày tạo, Ngày chốt, Ngày giao hẹn</td></tr>
+          <tr><td>Khách hàng<span class="moi">mới</span></td><td>có</td><td>có</td><td>có</td></tr>
+          <tr><td>Người</td><td>Người lập (đã có)</td><td>NV phụ trách (đã có)</td><td>NV phụ trách (đã có)</td></tr>
+          <tr><td>Khoảng tiền<span class="moi">mới</span></td><td>Tổng giá vốn</td><td>Giá bán gồm VAT</td><td>Giá trị đơn gồm VAT</td></tr>
+          <tr><td>Riêng của màn<span class="moi">mới</span></td><td>Đã lên báo giá hay chưa</td><td>Diện duyệt (Thường hoặc Đặc thù), Người duyệt, Kết quả duyệt, Hạn hiệu lực</td><td>Loại đơn (Mới hoặc Bổ sung), Gấp, Cọc (Đủ hoặc Thiếu), Sản xuất (Đã chuyển hoặc Chưa), Giao hàng (Quá hẹn hoặc Trong 7 ngày)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" id="duyet">
+    <h2>Người duyệt báo giá hiện thế nào</h2>
+    <p>Hệ thống hiện chỉ bắt duyệt báo giá <b>đặc thù</b> (lãi dưới ngưỡng, giá trị lớn, hoặc bán dưới giá vốn). Báo giá thường thì Sale gửi khách thẳng. Người duyệt là ai có quyền "Duyệt báo giá đặc thù" trong phòng của NV phụ trách. Dữ liệu duyệt đã lưu đủ, chỉ chưa đưa ra danh sách.</p>
+    <div class="duyet-mau">
+      <div><h4>Báo giá thường</h4><span class="muted">Không cần duyệt</span><p>Chữ nhạt, không gây chú ý.</p></div>
+      <div><h4>Đặc thù, đang chờ</h4><span class="nguoi">Phạm Quốc Hùng</span><span class="sub">đang chờ từ 06/10 09:12</span><p>Phòng có hai người duyệt thì ghi tên người đầu kèm thẻ <span class="the">và 1 người</span>.</p></div>
+      <div><h4>Đặc thù, đã duyệt</h4><span class="nguoi">Phạm Quốc Hùng</span><span class="sub">duyệt 04/10/2026</span><p>Rê chuột hiện ý kiến người duyệt.</p></div>
+      <div><h4>Đặc thù, bị từ chối</h4><span class="nguoi">Phạm Quốc Hùng</span><span class="sub do">từ chối 03/10/2026</span><p>Lần quyết định mới nhất thắng nếu báo giá trình nhiều lần.</p></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Sửa kèm, phương án nào cũng làm</h2>
+    <ol class="kem">
+      <li><b>Đơn hàng bán:</b> hai thẻ "Chờ cọc" và "Sẵn sàng chốt" đang lọc trong trình duyệt (kéo 200 đơn nháp về rồi lọc), không có số đếm và quá 200 đơn sẽ thiếu im lặng. Chuyển về máy chủ, có số như các thẻ khác.</li>
+      <li><b>Báo giá:</b> bấm sắp xếp theo Giá bán thì máy chủ bỏ qua, vẫn xếp theo ngày tạo. Thêm vào danh sách được phép sắp xếp.</li>
+      <li><b>Báo giá:</b> thêm thẻ "Hết hiệu lực" (đang có trạng thái nhưng không có thẻ). Báo giá đã huỷ chỉ hiện ở "Tất cả".</li>
+      <li><b>Báo giá:</b> cột "Cập nhật" đổi thành mốc ngày đang lọc (đang lọc theo Ngày gửi khách thì cột hiện ngày gửi), để cột ngày khớp với dải kỳ phía trên.</li>
+      <li>Bỏ dấu chấm giữa ở tiêu đề cột hiện tại ("Sản phẩm · Nguồn PTG", "Giá bán · VAT", "Khách hàng · Hàng").</li>
+    </ol>
+  </section>
+</div>
+</body>
+</html>

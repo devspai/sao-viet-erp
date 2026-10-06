@@ -17,7 +17,10 @@ from ..models.overtime import (
     STATUS_CANCELLED,
 )
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
+from .loc_don_nhan_su import LocDon, dem_theo_trang_thai, dk_ky, dk_nguoi, lua_chon_nhan_vien, lua_chon_phong
 from .org_scope import dept_subtree_ids
+
+COT_MOC = {"tao": (OvertimeRequest.created_at, False), "ngay_cong": (OvertimeRequest.work_date, True)}
 
 # `cancelled` cũng là quyết định NV cần biết (huỷ hộ phiếu đã duyệt — D8, 08/09/2026).
 _DECIDED = (STATUS_APPROVED, STATUS_REJECTED, STATUS_CANCELLED)
@@ -47,31 +50,6 @@ class OvertimeRepository:
         self.db.refresh(r)
         return r
 
-    # SẮP XẾP: mới TẠO nhất lên đầu (chủ 23/09/2026). Trước đó xếp theo ngày nghỉ / ngày công, rồi
-    # (ở hàng đợi duyệt) theo `status` dạng chữ — đơn vừa gửi có thể nằm tít trang sau.
-    # LỌC THÁNG = tháng của NGÀY TẠO (`tao_tu`/`tao_den`, UTC, nửa mở) — xem services/khoang_thang.py.
-    def list_by_employee(self, employee_id: int, *, limit: int = 100, offset: int = 0,
-                         tao_tu=None, tao_den=None) -> list[OvertimeRequest]:
-        stmt = select(OvertimeRequest).where(OvertimeRequest.employee_id == employee_id)
-        if tao_tu is not None:
-            stmt = stmt.where(OvertimeRequest.created_at >= tao_tu, OvertimeRequest.created_at < tao_den)
-        return list(
-            self.db.execute(
-                stmt
-                .order_by(OvertimeRequest.created_at.desc(), OvertimeRequest.id.desc())
-                .limit(limit)
-                .offset(offset)
-            ).scalars()
-        )
-
-    def count_by_employee(self, employee_id: int, *, tao_tu=None, tao_den=None) -> int:
-        """Tổng phiếu của 1 NV — nuôi chân phân trang tab "Phiếu của tôi". COUNT ở DB, đừng
-        `len(list_by_employee())`: hàm kia đang bị `limit` cắt nên đếm ra số của TRANG."""
-        stmt = select(func.count(OvertimeRequest.id)).where(OvertimeRequest.employee_id == employee_id)
-        if tao_tu is not None:
-            stmt = stmt.where(OvertimeRequest.created_at >= tao_tu, OvertimeRequest.created_at < tao_den)
-        return int(self.db.execute(stmt).scalar_one())
-
     # --- scope-aware reads (own = phiếu của mình theo Employee.user_id; department =
     #     phiếu của phòng/tổ mình + cây con; all = tất cả). `overtime_requests` KHÔNG có cột
     #     user/phòng nên phải JOIN employees — giống hệt leave_repo. ---------------------
@@ -88,43 +66,48 @@ class OvertimeRepository:
             return Employee.department_id.in_(dept_ids)
         raise ValueError(f"Unknown scope: {scope!r}")
 
-    def _scoped_filters(self, stmt, *, scope: str, actor, status: str | None,
-                        employee_id: int | None, tao_tu=None, tao_den=None):
-        """Bộ lọc DÙNG CHUNG cho `list_scoped` và `count_scoped` — hai hàm lọc lệch nhau thì
-        `total` ở chân bảng không mở ra xem được (báo 30, lật hết trang chỉ thấy 12)."""
-        cond = self._scope_condition(scope=scope, actor=actor)
-        if cond is not None:
-            stmt = stmt.where(cond)
+    # --- danh sách có kỳ + bộ lọc + phân trang (06/10/2026) --------------------
+    # SẮP XẾP: mới TẠO nhất lên đầu (chủ 23/09/2026). Lọc, đếm tab, cắt trang ĐỀU ở máy chủ và
+    # dùng CHUNG một bộ điều kiện — số tab, tổng ở chân bảng và bảng không bao giờ lệch nhau.
+
+    def _dk_loc(self, cond, loc: LocDon) -> list:
+        """Phạm vi (`cond`) + kỳ + người — mọi điều kiện TRỪ trạng thái."""
+        M = OvertimeRequest
+        dk: list = [] if cond is None else [cond]
+        dk += dk_ky(COT_MOC, loc)
+        dk += dk_nguoi(M, loc)
+        return dk
+
+    def _loc(self, cond, loc: LocDon, status: str | None, limit: int,
+             offset: int) -> tuple[list[OvertimeRequest], int, dict]:
+        M = OvertimeRequest
+        dk = self._dk_loc(cond, loc)
+        dem = dem_theo_trang_thai(self.db, M, dk)
         if status is not None:
-            stmt = stmt.where(OvertimeRequest.status == status)
-        if employee_id is not None:
-            stmt = stmt.where(OvertimeRequest.employee_id == employee_id)
-        if tao_tu is not None:
-            stmt = stmt.where(OvertimeRequest.created_at >= tao_tu, OvertimeRequest.created_at < tao_den)
-        return stmt
+            dk.append(M.status == status)
+        base = select(M).join(Employee, M.employee_id == Employee.id).where(*dk)
+        total = int(self.db.execute(select(func.count()).select_from(base.subquery())).scalar_one())
+        rows = list(self.db.execute(
+            base.order_by(M.created_at.desc(), M.id.desc()).limit(limit).offset(offset)).scalars())
+        return rows, total, dem
 
-    def list_scoped(self, *, scope: str, actor, status: str | None = None,
-                    employee_id: int | None = None, limit: int = 200,
-                    offset: int = 0, tao_tu=None, tao_den=None) -> list[OvertimeRequest]:
-        stmt = select(OvertimeRequest).join(Employee, OvertimeRequest.employee_id == Employee.id)
-        stmt = self._scoped_filters(stmt, scope=scope, actor=actor, status=status,
-                                    employee_id=employee_id, tao_tu=tao_tu, tao_den=tao_den)
-        stmt = stmt.order_by(
-            OvertimeRequest.created_at.desc(), OvertimeRequest.id.desc()
-        ).limit(limit).offset(offset)
-        return list(self.db.execute(stmt).scalars())
+    def loc_cua_nv(self, employee_id: int, *, loc: LocDon, status: str | None, limit: int,
+                   offset: int) -> tuple[list[OvertimeRequest], int, dict]:
+        """Tab "của tôi": `(trang, tổng, đếm theo trạng thái)`."""
+        return self._loc(OvertimeRequest.employee_id == employee_id, loc, status, limit, offset)
 
-    def count_scoped(self, *, scope: str, actor, status: str | None = None,
-                     employee_id: int | None = None, tao_tu=None, tao_den=None) -> int:
-        """Tổng phiếu trong phạm vi + bộ lọc — chân phân trang tab "Duyệt phiếu"."""
-        stmt = (
-            select(func.count(OvertimeRequest.id))
-            .select_from(OvertimeRequest)
-            .join(Employee, OvertimeRequest.employee_id == Employee.id)
-        )
-        stmt = self._scoped_filters(stmt, scope=scope, actor=actor, status=status,
-                                    employee_id=employee_id, tao_tu=tao_tu, tao_den=tao_den)
-        return int(self.db.execute(stmt).scalar_one())
+    def loc_scoped(self, *, scope: str, actor, loc: LocDon, status: str | None, limit: int,
+                   offset: int) -> tuple[list[OvertimeRequest], int, dict]:
+        """Tab duyệt theo DATA-SCOPE. `loc.employee_id` chỉ THU HẸP bên trong phạm vi — gõ id
+        người ngoài phạm vi thì `_scope_condition` vẫn cắt, kết quả rỗng chứ không lộ."""
+        return self._loc(self._scope_condition(scope=scope, actor=actor), loc, status, limit, offset)
+
+    def lua_chon(self, truong: str, *, scope: str, actor) -> list[dict]:
+        cond = self._scope_condition(scope=scope, actor=actor)
+        dk = [] if cond is None else [cond]
+        if truong == "phong":
+            return lua_chon_phong(self.db, OvertimeRequest, dk)
+        return lua_chon_nhan_vien(self.db, OvertimeRequest, dk)
 
     def count_pending_scoped(self, *, scope: str, actor) -> int:
         """Số phiếu ĐANG CHỜ DUYỆT trong scope người gọi — nuôi badge sidebar (COUNT ở DB)."""

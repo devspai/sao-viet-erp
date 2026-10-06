@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ReceivablesSummary } from "../../../api/client";
 import { homNayVN, kyCungKy, tinhKy } from "../../../utils/ky";
+import { khoangSo } from "../shared/kyKeToan";
 
 const goi = vi.hoisted(() => ({ receivables: vi.fn() }));
 const kh = vi.hoisted(() => ({ sales: vi.fn(), tagLabels: vi.fn() }));
@@ -47,6 +48,8 @@ const AN_PHAT = {
   credit_limit: 250_000_000, payment_term_days: 30, vuot_han_muc: false, vuot_bao_nhieu: 0,
   aging: { chua_toi_han: { amount: 150_000_000, count: 3 }, d31_60: { amount: 36_000_000, count: 1 } },
   received_in_period: 310_000_000, ban_trong_ky: 412_000_000, han_gan_nhat: "2026-08-20", sale_user_id: 5,
+  customer_code: "KH004", lien_he_ten: "Ngô Hoàng Thắng", lien_he_sdt: "0355325423", sale_user_name: "Nguyễn Thị Huyền",
+  thu_gan_nhat_ngay: "2026-10-03", thu_gan_nhat_tien: 15_000_000,
 };
 
 function tomTat(p: Partial<ReceivablesSummary> = {}): ReceivablesSummary {
@@ -77,18 +80,19 @@ describe("AccountingReceivablesPage — nối dây", () => {
   it("mở từ link: kỳ, nhóm nút, mốc tuổi, ô tìm, bộ lọc (cả người phụ trách và nhãn) → đúng tham số", async () => {
     window.history.replaceState(
       null, "",
-      "/?man=ke-toan-cong-no-phai-thu&ky=nam&so=1&the=overdue&tuoi=d31_60&q=An&no_tu=5000000&han_tra=7_ngay&han_muc=vuot&het=1&pt=5&nhan=VIP",
+      "/?man=ke-toan-cong-no-phai-thu&ky=nam&the=overdue&tuoi=d31_60&q=An&no_tu=5000000&han_tra=7_ngay&han_muc=vuot&het=1&pt=5&nhan=VIP",
     );
     render(<AccountingReceivablesPage navigate={() => {}} />);
     await waitFor(() => expect(goiChinh().length).toBeGreaterThan(0));
-    const nam = tinhKy("nam", homNayVN());
+    // "Năm nay" của thanh lọc chung = trọn năm; máy chủ tự chặn cuối kỳ ở hôm nay.
+    const nam = khoangSo({ loai: "nam", moc: "ps" });
     expect(goiChinh()[0][1]).toEqual({
       q: "An", filter: "overdue", aging: "d31_60", tu_ngay: nam.tu, den_ngay: nam.den,
       no_tu: 5_000_000, no_den: undefined, han_tra: "7_ngay", han_muc: "vuot", ca_da_tra_het: true,
       thieu_hoa_don: undefined, phu_trach_id: 5, nhan: "VIP", page: 1, size: 25,
     });
     expect(goiChinh()).toHaveLength(1);
-    const cung = kyCungKy(nam);
+    const cung = kyCungKy(tinhKy("nam", homNayVN()));
     await waitFor(() => expect(goi.receivables.mock.calls.some((c) => c[1].size === 1)).toBe(true));
     expect(goi.receivables.mock.calls.find((c) => c[1].size === 1)![1]).toMatchObject({
       tu_ngay: cung.tu, den_ngay: cung.den, phu_trach_id: 5, nhan: "VIP", chi_tong: true,
@@ -101,52 +105,82 @@ describe("AccountingReceivablesPage — nối dây", () => {
     expect(goi.receivables.mock.calls.filter((c) => c[1].dem_only)).toEqual([]);
 
     expect(screen.getByRole("textbox", { name: "Tìm khách hàng" })).toHaveValue("An");
-    expect(screen.getByRole("button", { name: /^Tuổi nợ:/ })).toHaveTextContent("Tuổi nợ: Trễ 31–60 ngày");
+    expect(screen.getByRole("button", { name: /^Tuổi nợ:/ })).toHaveAccessibleName("Tuổi nợ: Trễ 31–60 ngày. Bấm để sửa");
     expect(screen.getByRole("button", { name: /^Hạn thu:/ })).toBeInTheDocument();
     // Tên người phụ trách dịch từ danh sách màn Khách hàng dùng.
-    await waitFor(() => expect(screen.getByRole("button", { name: /^Phụ trách:/ })).toHaveTextContent("Phụ trách: Trần Văn Nam"));
-    expect(screen.getByRole("button", { name: /^Nhãn:/ })).toHaveTextContent("Nhãn: VIP");
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Người phụ trách:/ })).toHaveAccessibleName("Người phụ trách: Trần Văn Nam. Bấm để sửa"));
+    expect(screen.getByRole("button", { name: /^Nhãn khách hàng:/ })).toHaveAccessibleName("Nhãn khách hàng: VIP. Bấm để sửa");
     expect(kh.sales).toHaveBeenCalledWith("token-test");
     expect(kh.tagLabels).toHaveBeenCalledWith("token-test");
   });
 
   it("đặt kỳ qua URL (Tuỳ chọn) và khối tổng quan bốn số phía thu", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-cong-no-phai-thu&ky=tuy&tu=2026-08-01&den=2026-09-30&so=1");
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no-phai-thu&ky=tuy&tu=2026-08-01&den=2026-09-30");
     render(<AccountingReceivablesPage navigate={() => {}} />);
     await waitFor(() => expect(goiChinh().length).toBeGreaterThan(0));
     expect(goiChinh()[0][1]).toMatchObject({ tu_ngay: "2026-08-01", den_ngay: "2026-09-30" });
     await screen.findByText("Còn nợ tới 05/10/2026");
-    expect(screen.getByText("Trong đó quá hạn")).toBeInTheDocument();
-    expect(screen.getByText("Bán thêm trong kỳ")).toBeInTheDocument();
-    expect(screen.getByText("Đã thu trong kỳ", { selector: ".kt-tq *" })).toBeInTheDocument();
+    expect(screen.getByText("Quá hạn", { selector: ".kt-tq *" })).toBeInTheDocument();
+    expect(screen.getByText("Bán thêm", { selector: ".kt-tq *" })).toBeInTheDocument();
+    expect(screen.getByText("Đã thu", { selector: ".kt-tq *" })).toBeInTheDocument();
     // Quá hạn tăng so với cùng kỳ (184 triệu so với 150 triệu) ⇒ dòng cùng kỳ đỏ.
-    await waitFor(() => expect(screen.getByText("Cùng kỳ 150.000.000")).toHaveClass("kt-cung-ky--do"));
+    await waitFor(() => expect(screen.getByText("+23% so cùng kỳ")).toHaveClass("kt-do"));
+    expect(screen.getByText("+19% so cùng kỳ")).not.toHaveClass("kt-do");
   });
 
-  it("bảng: dòng phụ số hoá đơn, quá hạn đỏ, hạn thu gần nhất, đã thu trong kỳ, hạn mức; không nối bằng dấu", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-cong-no-phai-thu&ky=thang&so=0");
+  it("bảng đủ cột: mã, số hoá đơn, vạch tuổi nợ, quá hạn đỏ, hạn + cho nợ, trong kỳ, thu gần nhất, liên hệ, hạn mức; không nối bằng dấu", async () => {
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no-phai-thu&ky=thang");
     goi.receivables.mockImplementation(async () =>
       tomTat({ items: [AN_PHAT, { ...AN_PHAT, customer_id: 13, customer_name: "Nhà sách Minh Tâm", total_due: 0,
-        overdue_amount: 0, aging: {}, han_gan_nhat: null, credit_limit: 0 }], total: 2 }),
+        overdue_amount: 0, aging: {}, han_gan_nhat: null, credit_limit: 0, customer_code: "KH009",
+        lien_he_ten: null, lien_he_sdt: null, sale_user_name: null, thu_gan_nhat_ngay: null, thu_gan_nhat_tien: 0 }], total: 2 }),
     );
     render(<AccountingReceivablesPage navigate={() => {}} />);
     const dong = (await screen.findAllByText("Thực phẩm An Phát"))[0].closest("tr")!;
     const o = within(dong);
+    expect(o.getByText("KH004")).toHaveClass("kt-the");
     expect(o.getByText("4 hoá đơn")).toBeInTheDocument();
-    expect(o.getByRole("button", { name: "36.000.000" })).toHaveClass("kt-do");
+    expect(o.getByRole("img", { name: /Chưa tới hạn 150\.000\.000; Trễ 31–60 ngày 36\.000\.000/ })).toBeInTheDocument();
+    expect(o.getByRole("button", { name: "quá hạn 36.000.000" })).toHaveClass("kt-do");
     expect(o.getByText("20/08/2026")).toBeInTheDocument();
+    expect(o.getByText("cho nợ 30 ngày")).toBeInTheDocument();
+    expect(o.getByText("412.000.000")).toBeInTheDocument();
     expect(o.getByRole("button", { name: "310.000.000" })).toBeInTheDocument();
-    expect(o.getByText("186 trên 250 triệu")).toBeInTheDocument();
+    expect(o.getByText("03/10/2026")).toBeInTheDocument();
+    expect(o.getByText("15.000.000")).toBeInTheDocument();
+    expect(o.getByText("Ngô Hoàng Thắng")).toBeInTheDocument();
+    expect(o.getByText("0355 325 423")).toBeInTheDocument();
+    expect(o.getByText("Nguyễn Thị Huyền")).toBeInTheDocument();
+    expect(o.getByText("Đã dùng 74%")).toBeInTheDocument();
+    expect(o.getByText("hạn mức 250 triệu")).toBeInTheDocument();
     expect(dong.textContent).not.toMatch(/[·•]|, /);
     const het = screen.getAllByText("Nhà sách Minh Tâm")[0].closest("tr")!;
     expect(within(het).getByText("Đã thu hết")).toHaveClass("kt-the");
-    expect(within(het).getByText("Chưa đặt")).toHaveClass("kt-mo");
+    expect(within(het).getByText("Chưa đặt hạn mức")).toHaveClass("kt-mo");
+    expect(within(het).getByText("Chưa thu lần nào")).toHaveClass("kt-mo");
+    expect(within(het).getByText("Chưa có liên hệ")).toHaveClass("kt-mo");
     expect(screen.getByText("2 khách hàng")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Hạn thu gần nhất" })).toBeInTheDocument();
   });
 
+  it("sắp xếp ở máy chủ: bấm tiêu đề cột gửi sap_xep + chieu, bấm lại đảo chiều, ghi lên URL", async () => {
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no-phai-thu&ky=thang");
+    render(<AccountingReceivablesPage navigate={() => {}} />);
+    await screen.findAllByText("Thực phẩm An Phát");
+    const conNo = screen.getByRole("columnheader", { name: "Còn nợ" });
+    expect(conNo).toHaveAttribute("aria-sort", "descending");
+    await userEvent.click(within(conNo).getByRole("button"));
+    await waitFor(() => expect(goi.receivables).toHaveBeenCalledWith("token-test",
+      expect.objectContaining({ sap_xep: "con_no", chieu: "asc" })));
+    await userEvent.click(within(screen.getByRole("columnheader", { name: "Thu gần nhất" })).getByRole("button"));
+    await waitFor(() => expect(goi.receivables).toHaveBeenCalledWith("token-test",
+      expect.objectContaining({ sap_xep: "gan_nhat", chieu: "asc", page: 1 })));
+    expect(screen.getByRole("columnheader", { name: "Thu gần nhất" })).toHaveAttribute("aria-sort", "ascending");
+    expect(window.location.search).toContain("sx=gan_nhat.asc");
+  });
+
   it("tải lỗi: dòng lỗi riêng, không nói 'chưa có khách hàng'", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-cong-no-phai-thu&ky=thang&so=0");
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no-phai-thu&ky=thang");
     goi.receivables.mockRejectedValue(new Error("mạng"));
     render(<AccountingReceivablesPage navigate={() => {}} />);
     expect((await screen.findAllByText("Không tải được công nợ phải thu."))[0].closest("[role=alert]")).toBeInTheDocument();
@@ -155,7 +189,7 @@ describe("AccountingReceivablesPage — nối dây", () => {
   });
 
   it("đang lọc một mốc tuổi nợ: bấm dòng mở ngăn kèm mốc đó; bấm số Quá hạn / Đã thu mở đúng chỗ", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-cong-no-phai-thu&ky=thang&so=0&tuoi=d31_60");
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no-phai-thu&ky=thang&tuoi=d31_60");
     render(<AccountingReceivablesPage navigate={() => {}} />);
     const dong = (await screen.findAllByText("Thực phẩm An Phát"))[0].closest("tr")!;
     await userEvent.click(dong);

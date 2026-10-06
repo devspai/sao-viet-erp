@@ -80,6 +80,9 @@ class DepartmentSummaryOut(BaseModel):
     total_user_count: int = 0
     total_employee_count: int = 0
     has_piece_work: bool = False
+    created_at: datetime | None = None
+    # Thanh lọc màn Phòng ban: False = dòng chỉ là TỔ TIÊN của phòng khớp (để vẽ đường cây).
+    khop: bool = True
 
 
 class DepartmentMemberOut(BaseModel):

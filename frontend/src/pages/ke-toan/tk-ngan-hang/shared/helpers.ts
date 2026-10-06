@@ -59,7 +59,7 @@ export function maNganHang(ten: string): string | null {
 
 /** Tiêu đề ngăn, `aria-label` thẻ, câu hỏi TK-4: mã trong ngoặc nếu có, không thì NGUYÊN tên ngân hàng
  *  (khớp cách Phiếu chi / Phiếu thu ghi tài khoản) — "MB 9331 3466 8", "Vietcombank 0281 0004 5678 9".
- *  Chữ viết tắt suy ra (`vietTat`) chỉ dùng cho vòng 40px. Khác `tenTaiKhoan` của `shared/BoLocPhieu`. */
+ *  Chữ viết tắt suy ra (`vietTat`) chỉ dùng cho vòng 40px. Khác `tenTaiKhoan` của `shared/locPhieu`. */
 export function tieuDeTaiKhoan(r: TaiKhoan): string {
   return `${maNganHang(r.bank_name) ?? r.bank_name.trim()} ${nhomBon(r.account_number)}`;
 }

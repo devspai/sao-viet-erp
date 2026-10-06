@@ -65,6 +65,14 @@ def tien_do_don(db: Session, order) -> dict:
             "canh_bao": list(tinh[i]["canh_bao"]),
         }
 
+    from .don_hang_san_xuat import tom_tat_nhieu_don
+
+    # Mặt hàng đang ở đâu (xưởng / nhà gia công / chờ kho…) — cùng hàm với cột Sản xuất ngoài danh
+    # sách và bộ lọc "Đang chờ", nên ba chỗ không nói khác nhau.
+    tom = tom_tat_nhieu_don(db, [order], nguon_san={order.id: nguon}, lenh_san=lenh,
+                            bc_san=bc).get(order.id) or {}
+    mon_theo_khoa = {m["khoa"]: m for m in tom.get("mon", [])}
+
     cum_out: list[dict] = []
     moc_xong: list[datetime] = []
     thieu_moc = False
@@ -99,9 +107,12 @@ def tien_do_don(db: Session, order) -> dict:
             "cho_kho": round(max(0.0, de_nghi - da_nhan), 3),
             "ton_that": round(n["ton_that"], 3),
             "da_giao": n["da_giao"],
+            "giao_thang": n["giao_thang"],
             "dang_giu": n["dang_giu"],
             "con_phai_giao": n["con_phai_giao"],
             "giao_duoc": n["giao_duoc"],
+            "o": (mon_theo_khoa.get(c.khoa) or {}).get("o"),
+            "lenh_o": (mon_theo_khoa.get(c.khoa) or {}).get("lenh", []),
         })
 
     han = order.delivery_committed_date
@@ -119,6 +130,7 @@ def tien_do_don(db: Session, order) -> dict:
         "cum": cum_out,
         "yeu_cau": _yeu_cau(svc, order),
         "noi_nhan": _noi_nhan(db, order),
+        "dang_cho": tom.get("dang_cho", []),
     }
 
 
@@ -149,10 +161,16 @@ def _noi_nhan(db: Session, order) -> dict:
 
 
 def _yeu_cau(svc: DeliveryService, order) -> list[dict]:
-    """Yêu cầu giao của đơn + chuyến (một yêu cầu một chuyến, mg 0229) cho Kinh doanh theo dõi."""
+    """Yêu cầu giao của đơn + chuyến (một yêu cầu một chuyến, mg 0229) cho Kinh doanh theo dõi.
+
+    Nạp GOM cả đơn một lượt (chuyến, đã giao, tài xế, xe, yêu cầu kho, phiếu kho, số ảnh): trước
+    06/10/2026 hỏi từng yêu cầu / từng chuyến, ~10 câu SQL mỗi yêu cầu, và trạng thái yêu cầu nạp lại
+    chuyến + đã giao lần hai."""
     from ..models.employee import Employee
+    from ..models.xe import Xe
 
     db = svc.deliveries.db
+    rp = svc.deliveries
     cum_theo_dong = {}
     from .thanh_pham_khai_bao import cum_ban
 
@@ -160,12 +178,24 @@ def _yeu_cau(svc: DeliveryService, order) -> list[dict]:
         for od in c.dong:
             cum_theo_dong[od.id] = c
     ra: list[dict] = []
-    reqs = sorted(svc.deliveries.requests_cua_don_ca_huy(order.id), key=lambda r: r.id,
-                  reverse=True)
+    reqs = sorted(rp.requests_cua_don_ca_huy(order.id), key=lambda r: r.id, reverse=True)
+    rids = [r.id for r in reqs]
+    trips_theo_yc = rp.trips_cua_nhieu_yeu_cau(rids)
+    da_theo_yc = rp.da_giao_cua_nhieu_yeu_cau(rids)
+    cuoi = {r.id: trips_theo_yc[r.id][-1] for r in reqs if trips_theo_yc[r.id]}
+    tids = [t.id for t in cuoi.values()]
+    nv_ids = {t.employee_id for t in cuoi.values() if t.employee_id}
+    nv = {e.id: e for e in db.query(Employee).filter(Employee.id.in_(nv_ids))} if nv_ids else {}
+    xe_ids = {t.vehicle_id for t in cuoi.values() if t.vehicle_id}
+    xes = {x.id: x for x in db.query(Xe).filter(Xe.id.in_(xe_ids))} if xe_ids else {}
+    tra_theo = rp.yeu_cau_kho_cua_nhieu_chuyen(tids, "NHAP")
+    xuat_theo = rp.yeu_cau_kho_cua_nhieu_chuyen(tids, "XUAT")
+    co_phieu = rp.yeu_cau_kho_da_co_phieu([y.id for y in xuat_theo.values()])
+    so_anh = rp.so_dinh_kem_theo_trip(tids)
     for r in reqs:
-        trips = svc.deliveries.trips_cua_yeu_cau(r.id)
-        t = trips[-1] if trips else None
-        da = svc.deliveries.da_giao_cua_yeu_cau(r.id)
+        trips = trips_theo_yc[r.id]
+        t = cuoi.get(r.id)
+        da = da_theo_yc[r.id]
         dong: list[dict] = []
         da_co: set[str] = set()
         for ln in r.lines:
@@ -179,33 +209,31 @@ def _yeu_cau(svc: DeliveryService, order) -> list[dict]:
                          "qty": int(ln.qty), "da_giao": int(da.get(ln.order_line_id, 0))})
         chuyen = None
         if t is not None:
-            nv = db.get(Employee, t.employee_id) if t.employee_id else None
-            tra = svc.deliveries.yeu_cau_kho_cua_chuyen(t.id, "NHAP")
-            xe = None
-            if t.vehicle_id:
-                from ..models.xe import Xe
-                x = db.get(Xe, t.vehicle_id)
-                xe = f"{x.ma} · {x.ten}" if x is not None else None
+            tx = nv.get(t.employee_id) if t.employee_id else None
+            tra = tra_theo.get(t.id)
+            x = xes.get(t.vehicle_id) if t.vehicle_id else None
+            xe = f"{x.ma} · {x.ten}" if x is not None else None
+            xuat = xuat_theo.get(t.id)
             chuyen = {
                 "id": t.id,
                 "trang_thai": t.trang_thai,
                 "gio_lay_hang": t.gio_lay_hang,
                 "gio_du_kien_giao": t.gio_du_kien_giao,
-                "tai_xe": getattr(nv, "full_name", None),
+                "tai_xe": getattr(tx, "full_name", None),
                 "xe": xe,
                 "thoi_gian_ket_thuc": t.thoi_gian_ket_thuc,
                 "nguoi_nhan_thuc_te": t.nguoi_nhan_thuc_te,
                 "ly_do_that_bai": t.ly_do_that_bai,
                 "tra_hang_ma": getattr(tra, "ma", None),
                 "tra_hang_xong": tra is not None and tra.trang_thai == "done",
-                "kho_da_lap_phieu": svc.kho_da_lap_phieu(t.id),
-                "so_anh": len(svc.deliveries.dinh_kem_cua_trip(t.id)),
+                "kho_da_lap_phieu": xuat is not None and xuat.id in co_phieu,
+                "so_anh": so_anh.get(t.id, 0),
             }
         ra.append({
             "id": r.id,
             "code": r.code,
             "ngay_can_giao": r.ngay_can_giao,
-            "trang_thai": svc.trang_thai_yeu_cau(r),
+            "trang_thai": svc.trang_thai_yeu_cau(r, trips=trips, da_giao=da),
             "ly_do_huy": r.ly_do_huy,
             "dia_chi": r.dia_chi,
             "nguoi_nhan": r.nguoi_nhan,

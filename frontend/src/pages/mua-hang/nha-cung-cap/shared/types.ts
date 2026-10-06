@@ -11,9 +11,6 @@ import type {
  *  giá" luôn nằm CUỐI ở cả hai chiều, backend lo phần đó. `name` là mặc định khi tắt sắp xếp sao. */
 export type SortNcc = "name" | "rating" | "-rating";
 
-/** Lọc theo sao: `null` = không lọc, số = chỉ lấy NCC có sao trung bình ≥ số đó. */
-export type LocSaoNcc = number | null;
-
 /** Hệ số quy đổi về đơn vị gốc của MỘT dòng bảng giá — chỉ để hiển thị, không lưu.
  *  Trở lại 29/08/2026 cùng lúc mở khoá ĐVT: NCC báo theo ram/kg thì phải thấy nó ra bao nhiêu
  *  trên đơn vị gốc, không thì không so giá được với NCC khác. */

@@ -14,6 +14,7 @@ import {
   type DanhMucDoiVatTu,
   type LsxActivity,
   type LsxCongDoanBody,
+  type GiaCongNgoaiLan,
   type LsxDetail,
   type LsxDinhKem,
   type LsxQuyCachBody,
@@ -36,7 +37,7 @@ import { TronGoiDialog } from "./gia-cong/TronGoiDialog";
 import { ImpositionDiagram } from "./ImpositionDiagram";
 import { LsxRoutingTable, type RefRow } from "./LsxRoutingTable";
 import { LsxVatTuPanel } from "./LsxVatTuPanel";
-import { donViChuoi } from "./lsxBuoc";
+import { donViChuoi, nhanDonVi } from "./lsxBuoc";
 import { bangKeVatTu } from "./lsxVatTu";
 import { useNapTenDonVi } from "./tenDonVi";
 import {
@@ -55,6 +56,12 @@ import {
 // nguyên, bù hao) và đã hiện ở thanh bên. Ô duy nhất còn gõ được là SL ra của bước CUỐI, nằm
 // trong drawer bước; con/tờ chuyển sang tab Quy cách.
 type TabKey = "chung" | "quycach" | "routing" | "vattu" | "dinhkem" | "nhatky";
+
+/** Lần trọn gói CÒN SỐNG của lệnh trong danh sách lần gia công ngoài. */
+function timTronGoi(lans: GiaCongNgoaiLan[], lsxId: number): GiaCongNgoaiLan | null {
+  return lans.find((x) => x.kieu === "tron_goi" && x.trang_thai !== "da_huy" && x.lsx_id === lsxId)
+    ?? null;
+}
 
 // "Vật tư" đứng ngay SAU Công đoạn: bốn tab cũ đi theo mạch lệnh-gì → làm-ra-sao → qua-những-bước
 // -nào → ai-đã-đụng-vào. Câu "ăn những gì" thuộc về chỗ sau chuỗi bước, trước sổ nhật ký.
@@ -225,6 +232,9 @@ export function LsxDetailView({
   const [readyErr, setReadyErr] = useState<string | null>(null);
   const [askDelete, setAskDelete] = useState(false);
   const [moTronGoi, setMoTronGoi] = useState(false);
+  // Lần trọn gói CÒN SỐNG của lệnh (khối Gia công ngoài báo lên). Có nó thì lệnh không xuống
+  // xưởng: băng số liệu bỏ các ô của dây chuyền (vào máy, số công đoạn) — để lại là nói sai.
+  const [tronGoi, setTronGoi] = useState<GiaCongNgoaiLan | null>(null);
   /** Bảng cũ → mới của nút "Cập nhật theo danh mục". KHÔNG ghi thẳng khi bấm: số khoán và định
    *  mức là thời lượng của bước, đổi lén một phát cả lệnh thì người lập kế hoạch không có cách nào
    *  biết cái gì vừa đổi. Mở bảng ra, đọc, rồi mới đồng ý. */
@@ -258,15 +268,35 @@ export function LsxDetailView({
   const [giayRefs, setGiayRefs] = useState<RefRow[] | null>(null);
   const [phuThuocRefs, setPhuThuocRefs] = useState<import("../api/client").LsxPhuThuocOption[]>([]);
 
+  // Ba lượt gọi của một lần nạp chạy SONG SONG, đừng nối đuôi: lệnh + lần gia công ngoài + đèn.
+  // Trước đây khối Gia công chỉ gắn vào sau skeleton còn đèn chờ `d` ⇒ màn vẽ xong rồi ~1s sau mới
+  // nhảy (băng số bỏ ô dây chuyền, khối trọn gói chen vào, băng đèn đẩy cả màn xuống).
+  //  - Lệnh + gia công: CHỜ cả hai rồi mới vẽ — lần trọn gói quyết định bố cục băng số.
+  //  - Đèn: không chờ (endpoint chạy engine cân đối), chỉ phát cùng lúc để về sớm nhất có thể.
+  const [lansDau, setLansDau] = useState<{ lans: GiaCongNgoaiLan[]; tick: number } | null>(null);
+  const tickHienTai = useRef(eventTick ?? 0);
+  useEffect(() => { tickHienTai.current = eventTick ?? 0; }, [eventTick]);
+  /** `d` mà đèn đã được hỏi cho nó — effect đèn bên dưới bỏ qua, khỏi gọi lần hai. */
+  const denChoD = useRef<LsxDetail | null>(null);
+
   const load = useCallback(() => {
     if (!token) return;
     setLoading(true);
     setErr(null);
-    api.lsx
-      .get(token, lsxId)
-      .then((r) => {
+    const tick = tickHienTai.current;
+    const den = api.lsx.tongQuan(token, [lsxId]).then((r) => r.items[0] ?? null, () => null);
+    Promise.all([
+      api.lsx.get(token, lsxId),
+      // Khối gia công hỏng thì lệnh vẫn mở được — khối tự nạp lại theo tick SSE sau.
+      api.giaCongNgoai.cuaLenh(token, lsxId).catch(() => null),
+    ])
+      .then(([r, lans]) => {
+        denChoD.current = r;
         setD(r);
         setForm(toForm(r));
+        setLansDau(lans ? { lans, tick } : null);
+        setTronGoi(lans ? timTronGoi(lans, lsxId) : null);
+        den.then((x) => { if (denChoD.current === r) setDen(x); });
       })
       .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -282,9 +312,10 @@ export function LsxDetailView({
 
   // Ba đèn "vướng gì" — GỌI RỜI khỏi `GET /api/lsx/{id}` vì endpoint tổng quan chạy engine cân đối
   // vật tư + bộ dò xếp lịch; màn chi tiết phải mở ngay, đèn về sau. Nạp lại theo `d` để sau mỗi
-  // lần lưu/làm mới đèn nói chuyện mới.
+  // lần lưu đèn nói chuyện mới — `d` do `load()` đặt thì đèn đã được hỏi song song ở đó rồi.
   useEffect(() => {
-    if (!token || !d) return;
+    if (!token || !d || denChoD.current === d) return;
+    denChoD.current = d;
     let huy = false;
     api.lsx
       .tongQuan(token, [lsxId])
@@ -723,11 +754,19 @@ export function LsxDetailView({
               {coDuLieuMoi ? "Có thay đổi mới — làm mới" : "Làm mới"}
             </button>
             {/* Gia công trọn gói thay cho phát hành (spec gia công ngoài §4) — chỉ lệnh CHƯA phát
-                hành. Máy chủ chặn tiếp lệnh ghép cụm / đang có dòng xếp lịch và nói lý do. */}
+                hành. Lệnh đi chung lệnh khác / bài ghép thì máy chủ báo sẵn `tron_goi_chan`: thay nút
+                bằng chip nêu đích danh lệnh đang dính (cùng lý do với chip Xoá lệnh bên dưới), khỏi
+                để người kế hoạch điền xong hộp thoại mới bị trả về. */}
             {canUpdate && ["nhap", "cho_bo_sung", "san_sang", "da_lap_ke_hoach"].includes(d.trang_thai) && (
-              <Button variant="ghost" onClick={() => setMoTronGoi(true)}>
-                <Icon name="truck" size={14} /> Gia công trọn gói
-              </Button>
+              d.tron_goi_chan ? (
+                <span className="khsx-khoa-chip" title={d.tron_goi_chan}>
+                  <Icon name="lock" size={13} /> {d.tron_goi_chan_ngan ?? "Chưa giao trọn gói được"}
+                </span>
+              ) : (
+                <Button variant="ghost" onClick={() => setMoTronGoi(true)}>
+                  <Icon name="truck" size={14} /> Gia công trọn gói
+                </Button>
+              )
             )}
             {/* Đang giữ chỗ thì server xoá không nổi (`_chan_dang_giu_cho`). Thay nút bằng CHIP nói
                 thẳng lý do chứ không để nút mờ đi im lặng: nút disabled chỉ có tooltip, người dùng
@@ -912,9 +951,10 @@ export function LsxDetailView({
           <div className="khsx-kpi-tile">
             <span className="khsx-kpi-tile__label">SL Đặt</span>
             <span className="khsx-kpi-tile__val">
-              {num(d.so_luong_dat)} <small>{d.don_vi_tinh}</small>
+              {num(d.so_luong_dat)} <small>{nhanDonVi(d.don_vi_tinh)}</small>
             </span>
           </div>
+
 
           {/* NHÃN nói CHẶNG, ĐƠN VỊ đi với con số (12/08/2026) — cùng luật với bảng danh sách lệnh
               và bảng lệnh dự kiến. Bản trước lấy tên đơn vị làm nhãn thẻ, nên chặng nào routing
@@ -925,21 +965,25 @@ export function LsxDetailView({
               "Hao hụt thêm" (nay đã bỏ) nên luôn hiện 0 trên mọi lệnh. Hao thật của từng bước xem
               ở chip "Hao hụt định mức" trong drawer bước — đo đúng đơn vị của bước đó. */}
 
+          {!tronGoi && (
           <div className="khsx-kpi-tile khsx-kpi-tile--hero">
             <span className="khsx-kpi-tile__label">Vào máy</span>
             <span className="khsx-kpi-tile__val">
               {num(d.so_to_ke_hoach)} <small>{dvTo}</small>
             </span>
           </div>
+          )}
 
+          {(!tronGoi || tronGoi.xuong_cap_giay) && (
           <div className="khsx-kpi-tile">
             <span className="khsx-kpi-tile__label">Giấy nguyên</span>
             <span className="khsx-kpi-tile__val">
               {num(d.so_to_nguyen)} <small>{dvToNguyen}</small>
             </span>
           </div>
+          )}
 
-          {laSach ? (
+          {tronGoi ? null : laSach ? (
             <div className="khsx-kpi-tile" title={giaiThichSach}>
               <span className="khsx-kpi-tile__label">Gấp tay</span>
               <span className="khsx-kpi-tile__val">
@@ -960,10 +1004,12 @@ export function LsxDetailView({
             </div>
           )}
 
-          <div className="khsx-kpi-tile">
-            <span className="khsx-kpi-tile__label">Công đoạn</span>
-            <span className="khsx-kpi-tile__val">{num(d.cong_doans.length)}</span>
-          </div>
+          {!tronGoi && (
+            <div className="khsx-kpi-tile">
+              <span className="khsx-kpi-tile__label">Công đoạn</span>
+              <span className="khsx-kpi-tile__val">{num(d.cong_doans.length)}</span>
+            </div>
+          )}
 
           {/* Ô này hiện ở MỌI tab — đó là lý do nó tồn tại. Đứng ở tab Công đoạn vẫn liếc thấy
               lệnh đã khai vật tư chưa, khỏi phải nhớ bấm sang tab khác để kiểm trước khi phát hành.
@@ -1010,6 +1056,9 @@ export function LsxDetailView({
         eventTick={eventTick}
         canUpdate={canUpdate}
         onChanged={() => { load(); onChanged(); }}
+        lansDau={lansDau?.lans}
+        lansDauTick={lansDau?.tick}
+        onLans={(ds) => setTronGoi(timTronGoi(ds, lsxId))}
         // Màn Bài ghép đang ẩn (`BAI_GHEP_ENABLED`) thì route bị chặn — không mời bấm sang.
         onMoBaiGhep={navigate && BAI_GHEP_ENABLED
           ? (id) => navigate("bai-ghep-2", { openBaiGhepId: id }) : undefined}
@@ -1590,6 +1639,7 @@ export function LsxDetailView({
           open={moTronGoi}
           onClose={() => setMoTronGoi(false)}
           onDone={() => { setMoTronGoi(false); load(); onChanged(); }}
+          onMoNhaCungCap={navigate ? () => { setMoTronGoi(false); navigate("nha-cung-cap"); } : undefined}
         />
       )}
 

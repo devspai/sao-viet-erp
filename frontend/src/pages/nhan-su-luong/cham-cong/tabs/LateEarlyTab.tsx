@@ -27,6 +27,22 @@ import {
 import { statusText, statusBadge } from "../components/badges";
 import { fmtDateTime, isoToday, getInitials, elErr } from "../shared/helpers";
 import { EmptyState } from "../../../../components/EmptyState";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
+import { StatusTabs } from "../../../../components/StatusTabs";
+import { fmtDate } from "../../../../utils/format";
+import { ThanhLoc } from "../../../thanh-loc/ThanhLoc";
+import { thamSoKy } from "../../../thanh-loc/ky-danh-sach";
+import { dkTabDon, tabTrangThai, useLocTab } from "../../dieu-kien-don";
+import {
+  LOC_DM_TRONG,
+  MAN_CHAM_CONG,
+  MOC_DM,
+  locDiMuonLenUrl,
+  locDiMuonTuUrl,
+  thamSoLocDiMuon,
+  useDieuKienDiMuon,
+  type LocDiMuon,
+} from "../dieu-kien-cham-cong";
 
 // --- Tab: Đi muộn / về sớm / nghỉ nửa buổi (module `di_muon`) ----------------
 // Phiếu CHẤM CÔNG ngoại lệ — KHÔNG phải đơn nghỉ phép. 1 phiếu/ngày, khai khoảng VẮNG MẶT,
@@ -308,6 +324,7 @@ function ElTable({
           <tr>
             {selectable && <th style={{ width: "40px" }} aria-label="Chọn" />}
             {showEmployee && <th style={{ textAlign: "left" }}>Nhân viên</th>}
+            <th style={{ textAlign: "left" }}>Ngày tạo</th>
             <th style={{ textAlign: "left" }}>Ngày công</th>
             <th style={{ textAlign: "left" }}>Kiểu</th>
             <th style={{ textAlign: "left" }}>Vắng mặt</th>
@@ -350,6 +367,7 @@ function ElTable({
                   </div>
                 </td>
               )}
+              <td title={fmtDateTime(r.created_at)}>{fmtDate(r.created_at)}</td>
               <td>
                 <span className="el-cell-main">{elDayMonth(r.work_date)}</span>
                 <span className="el-cell-sub">{elWeekday(r.work_date)}</span>
@@ -924,8 +942,31 @@ export function LateEarlyTab({
   const [mine, setMine] = useState<LateEarlyRequest[] | null>(null);
   const [queue, setQueue] = useState<LateEarlyRequest[] | null>(null);
   const [hasEmployee, setHasEmployee] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("pending");
-  const [kindFilter, setKindFilter] = useState<Set<ElKind>>(new Set());
+  // Hàng duyệt: kỳ (Ngày tạo / Ngày công) + trạng thái (thanh tab có số) + Kiểu vắng, Nhân viên,
+  // Phòng ban — lọc, đếm, phân trang ở MÁY CHỦ (06/10/2026). Kiểu vắng trước đây lọc trên trình
+  // duyệt trong 200 phiếu đã tải và chỉ khi suy được ca; nay máy chủ suy theo ca mặc định.
+  const [locTab, setLocTabGoc] = useLocTab<LocDiMuon>({
+    man: MAN_CHAM_CONG, tienToUrl: "dm", moc: MOC_DM, mocMacDinh: "tao", ttMacDinh: "pending",
+    locTrong: LOC_DM_TRONG, locTuUrl: locDiMuonTuUrl, locLenUrl: locDiMuonLenUrl,
+  });
+  const [qPage, setQPage] = useState(1);
+  const [qSize, setQSize] = useState(50);
+  const [qTotal, setQTotal] = useState(0);
+  const [qDem, setQDem] = useState<Record<string, number> | null>(null);
+  const [qDangTai, setQDangTai] = useState(true);
+  const setLocTab = (t: typeof locTab) => {
+    setLocTabGoc(t);
+    setQPage(1);
+    setSelected(new Set());
+  };
+  const dieuKien = useDieuKienDiMuon(canApprove);
+  const statusFilter = locTab.tt;
+  const khoaLoc = JSON.stringify({
+    ...thamSoKy(locTab.ky),
+    ...thamSoLocDiMuon(locTab.loc),
+    status_filter: statusFilter || undefined,
+  });
+  const luotTai = useRef(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [creating, setCreating] = useState<null | "mine" | "for">(null);
@@ -983,15 +1024,25 @@ export function LateEarlyTab({
         setErrMine(elErr(e));
       });
     if (canApprove) {
+      const luot = ++luotTai.current;
+      setQDangTai(true);
       api.lateEarly
-        .list(token, statusFilter === "all" ? undefined : statusFilter)
+        .list(token, { ...JSON.parse(khoaLoc), page: qPage, size: qSize })
         .then((r) => {
+          if (luot !== luotTai.current) return;
           setQueue(r.items);
+          setQTotal(r.total);
+          setQDem(r.dem_theo_tab ?? null);
           setErrQueue(null);
         })
         .catch((e) => {
+          if (luot !== luotTai.current) return;
           setQueue([]);
+          setQTotal(0);
           setErrQueue(elErr(e));
+        })
+        .finally(() => {
+          if (luot === luotTai.current) setQDangTai(false);
         });
       api.lateEarly
         .summary(token)
@@ -1001,7 +1052,7 @@ export function LateEarlyTab({
     // Hạ badge sidebar + chuông NGAY sau mỗi lần load (không bắt người dùng đổi màn).
     api.lateEarly.markSeen(token).catch(() => undefined);
     onChanged?.();
-  }, [token, canApprove, statusFilter, onChanged]);
+  }, [token, canApprove, khoaLoc, qPage, qSize, onChanged]);
 
   // `eventTick` đổi = có sự kiện real-time (SSE) → tải lại bảng, khỏi bắt người dùng F5.
   useEffect(() => {
@@ -1022,16 +1073,8 @@ export function LateEarlyTab({
     [myShift, shiftFor],
   );
 
-  // Chỉ hiện hàng chip lọc kiểu khi THỰC SỰ suy được kiểu — không thì nó lọc trắng bảng.
-  const canInferKind = shiftById.size > 0 && roster.length > 0;
-  const queueRows = useMemo(() => {
-    if (!queue) return null;
-    if (!canInferKind || kindFilter.size === 0) return queue;
-    return queue.filter((r) => {
-      const k = elKindOf(r.from_minute, r.to_minute, shiftFor(r));
-      return k !== null && kindFilter.has(k);
-    });
-  }, [queue, kindFilter, canInferKind, shiftFor]);
+  // Máy chủ đã lọc sẵn (kể cả Kiểu vắng) — bảng hiện đúng trang máy chủ trả.
+  const queueRows = queue;
 
   const selectable = useMemo(
     () =>
@@ -1052,15 +1095,6 @@ export function LateEarlyTab({
       const next = new Set(s);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      return next;
-    });
-  }
-
-  function toggleKind(k: ElKind) {
-    setKindFilter((s) => {
-      const next = new Set(s);
-      if (next.has(k)) next.delete(k);
-      else next.add(k);
       return next;
     });
   }
@@ -1200,46 +1234,29 @@ export function LateEarlyTab({
 
       {sub === "queue" && canApprove && (
         <>
-          <div className="cc-ts-toolbar">
-            <div className="cc-select-wrapper" style={{ width: "160px" }}>
-              <select
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setSelected(new Set());
-                }}
-                aria-label="Lọc theo trạng thái"
-              >
-                <option value="pending">Chờ duyệt</option>
-                <option value="approved">Đã duyệt</option>
-                <option value="rejected">Từ chối</option>
-                <option value="all">Tất cả</option>
-              </select>
-            </div>
-            {canInferKind && (
-              <div className="el-filters el-toolbar-grow">
-                {(Object.keys(EL_KIND_META) as ElKind[]).map((k) => {
-                  const meta = EL_KIND_META[k];
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      className={`el-filter ${kindFilter.has(k) ? "is-on" : ""}`}
-                      aria-pressed={kindFilter.has(k)}
-                      onClick={() => toggleKind(k)}
-                    >
-                      <meta.Icon size={12} /> {meta.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+          <div className="cc-ts-toolbar tl-thanh">
+            <ThanhLoc
+              ky={locTab.ky}
+              moc={MOC_DM}
+              onKy={(ky) => setLocTab({ ...locTab, ky })}
+              dieuKien={dkTabDon(dieuKien, tabTrangThai(qDem))}
+              loc={locTab}
+              onLoc={setLocTab}
+            />
+            <span className="el-toolbar-grow" />
             <button
               className="btn btn--primary"
               onClick={() => setCreating("for")}
             >
               <Plus size={14} /> Khai hộ thợ
             </button>
+          </div>
+          <div className="el-stack">
+            <StatusTabs
+              tabs={tabTrangThai(qDem)}
+              active={locTab.tt}
+              onChange={(tt) => setLocTab({ ...locTab, tt })}
+            />
           </div>
 
           {errQueue && (
@@ -1287,11 +1304,7 @@ export function LateEarlyTab({
               </p>
               {statusFilter === "pending" ? (
                 <p className="el-empty__hint">
-                  Đổi bộ lọc sang <b>Tất cả</b> để xem phiếu đã xử lý.
-                </p>
-              ) : kindFilter.size > 0 ? (
-                <p className="el-empty__hint">
-                  Bỏ bớt chip lọc kiểu để thấy thêm phiếu.
+                  Chọn tab <b>Tất cả</b> để xem phiếu đã xử lý.
                 </p>
               ) : null}
             </div>
@@ -1324,6 +1337,23 @@ export function LateEarlyTab({
                   </div>
                 ) : null
               }
+            />
+          )}
+          {!errQueue && qTotal > 0 && (
+            <PhanTrangDayDu
+              trang={qPage}
+              size={qSize}
+              tong={qTotal}
+              soDong={queueRows?.length ?? 0}
+              loading={qDangTai}
+              donVi="phiếu"
+              onTrang={setQPage}
+              onSize={(n) => {
+                setQSize(n);
+                setQPage(1);
+              }}
+              ghiChu={qTotal > qSize ? "duyệt hàng loạt chỉ áp cho trang đang xem" : undefined}
+              ariaLabel="Phân trang phiếu đi muộn về sớm cần duyệt"
             />
           )}
         </>

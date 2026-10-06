@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .loc_danh_muc import DemDieuKien
+
 
 class CongDoanVatTuIn(BaseModel):
     """MỘT món vật tư công đoạn tiêu thụ, kèm định mức của riêng nó (spec 18/09/2026 §3.1).
@@ -163,6 +165,7 @@ class CongDoanRow(BaseModel):
     vat_tus: list[CongDoanVatTuRow] = Field(default_factory=list)
     may_lam_duoc: list[CongDoanMayRow] = Field(default_factory=list)
     khoan: CongDoanKhoanRow | None = None
+    created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
@@ -173,6 +176,8 @@ class CongDoanListOut(BaseModel):
     size: int
     # Số công đoạn theo giai đoạn — nuôi số trên tab lọc (màn chỉ cầm 20 dòng, không tự đếm được).
     facets: dict[str, int] = {}
+    # Giá trị + số đếm của từng điều kiện lọc (thanh lọc chung) — xem `schemas/loc_danh_muc`.
+    dem: DemDieuKien = {}
 
 
 class RefOption(BaseModel):

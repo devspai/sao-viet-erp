@@ -235,10 +235,12 @@ def test_lenh_gap_dung_dau_tab_dang_sx(client, seed_credentials, sess, admin, ha
 
 
 def test_loc_khoang_ngay_theo_han_sx(client, seed_credentials, hai_muoi_lenh):
-    """`tu_ngay`/`den_ngay` soi `han_hoan_thanh_sx` — cùng cột mà `tre_han` dùng làm mốc."""
+    """`tu_ngay`/`den_ngay` + `moc=han_sx` soi `han_hoan_thanh_sx` — cùng cột mà `tre_han` dùng làm
+    mốc. Thiếu `moc` thì kỳ tính theo ngày tạo lệnh (thanh lọc 06/10/2026)."""
     h = _h(_tok(client, seed_credentials))
     d = client.get(
-        "/api/lenh-san-xuat?tu_ngay=2026-09-03&den_ngay=2026-09-05&page_size=200", headers=h
+        "/api/lenh-san-xuat?moc=han_sx&tu_ngay=2026-09-03&den_ngay=2026-09-05&page_size=200",
+        headers=h,
     ).json()
     assert d["total"] == 3
     assert {i["han_hoan_thanh_sx"] for i in d["items"]} == {

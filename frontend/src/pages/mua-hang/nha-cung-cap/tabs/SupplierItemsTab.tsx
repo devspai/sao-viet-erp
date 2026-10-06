@@ -2,7 +2,17 @@
 // (tách từ pages/SuppliersPage.tsx).
 // `token` lấy bằng `useAuth()` tại chỗ như bản gốc, KHÔNG luồn thêm prop: các chỗ dưới vẫn viết
 // `token!` / `token ?? ""` y nguyên.
+//
+// Dựng lại 06/10/2026:
+//   - Bỏ tiêu đề "Danh mục & Báo giá Vật tư" — tên tab đã nói đúng điều đó.
+//   - Khuôn danh sách sửa tại dòng của Odoo (phương án A, docs/mockups/ncc-3-phuong-an.html): ô trông
+//     như chữ thường, rê chuột hiện nền, nút xoá chỉ hiện ở dòng đang rê; "Thêm một dòng" ở cuối bảng,
+//     đúng chỗ dòng mới sẽ hiện ra. Ô tìm bên trái, ba việc Excel bên phải.
+//   - Đơn giá có dấu chấm nghìn + "đ" ngay trong ô.
+//   - Cột "Giá theo đơn vị gốc" chỉ hiện khi CÓ dòng báo theo đơn vị khác đơn vị gốc. Dòng báo đúng
+//     đơn vị gốc thì con số ấy y hệt ô đơn giá ngay bên cạnh — cả cột chép lại cột bên trái.
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { OGoDinhDang } from "../../../../components/OGoDinhDang";
 import type { SupplierInput, SupplierRow } from "../../../../api/client";
 import { api } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
@@ -13,19 +23,21 @@ import {
 import { emptySupplierItem } from "../shared/helpers";
 import { money } from "../../../../utils/format";
 // Đơn vị lưu bằng MÃ (`mm`), tên hiển thị ("mm"/"mét") nằm ở danh mục — xem pages/tenDonVi.ts.
-import { tenDonVi } from "../../../tenDonVi";
+import { tenDonVi, useNapTenDonVi } from "../../../tenDonVi";
 import type { FormItemRow, NhapKetQua, QuyDoiDongInfo } from "../shared/types";
+import "./ncc-form.css";
 
-/** Lưới cột của bảng giá. Cột "Quy về gốc" trở lại 29/08/2026 khi ĐVT được mở khoá — trước đó nó
- *  luôn bằng đơn giá nên đã bị cắt 28/08. `minmax(0,…)` để số tiền dài không đẩy tràn khung. */
-const LUOI_COT =
-  "minmax(180px, 1.8fr) minmax(96px, 0.6fr) minmax(120px, 0.8fr) minmax(110px, 0.7fr) 36px";
+/** Lưới cột. `minmax(0,…)` để số tiền dài không đẩy tràn khung. */
+const LUOI = "minmax(200px, 2fr) minmax(110px, 0.8fr) minmax(130px, 0.9fr) 32px";
+const LUOI_CO_GOC =
+  "minmax(200px, 2fr) minmax(110px, 0.8fr) minmax(130px, 0.9fr) minmax(120px, 0.8fr) 32px";
 
 export function SupplierItemsTab({
   mode,
   selected,
   setForm,
   itemsInForm,
+  soMonDaKhai,
   filteredFormItems,
   itemSearchQ,
   setItemSearchQ,
@@ -43,6 +55,8 @@ export function SupplierItemsTab({
   selected: SupplierRow | null;
   setForm: Dispatch<SetStateAction<SupplierInput>>;
   itemsInForm: SupplierInput["items"] & object;
+  /** Số món đã khai (bỏ dòng trống mồi sẵn) — xem `SuppliersPage`. */
+  soMonDaKhai: number;
   filteredFormItems: FormItemRow[];
   itemSearchQ: string;
   setItemSearchQ: Dispatch<SetStateAction<string>>;
@@ -60,299 +74,254 @@ export function SupplierItemsTab({
   taiFile: (lay: () => Promise<string>, ten: string) => Promise<void>;
 }) {
   const { token } = useAuth();
+  // Nạp tên đơn vị: ô ĐVT của dòng chưa gắn mặt hàng (dịch vụ, gia công) in từ đây, không có thì
+  // lần vẽ đầu ra mã trần `m2`, `to` rồi đứng im.
+  useNapTenDonVi();
+
+  // Hệ số về gốc của từng dòng. Ưu tiên hệ số LIVE của ô ĐVT đang chọn (có ngay cả với dòng chưa
+  // lưu); ô còn đang nạp thì dùng hệ số máy chủ đã tính cho dòng đã lưu — cột có số ngay lúc mở.
+  // Đã nạp mà null = không quy đổi được, KHÔNG lùi về số đã lưu.
+  const dong = filteredFormItems.map(({ item, originalIndex }) => {
+    const quyDoi = quyDoiDong[originalIndex];
+    const heSo =
+      quyDoi !== undefined ? (quyDoi?.heSoVeGoc ?? null) : (item.he_so_ve_goc ?? null);
+    // Chia lại từ đơn giá ĐANG GÕ chứ không lấy `gia_quy_doi` đóng băng.
+    const giaVeGoc =
+      heSo && heSo > 0 && item.unit_price > 0 ? Math.round(item.unit_price / heSo) : null;
+    const daChonDonVi = Boolean(item.hang_loai && item.hang_id && item.unit);
+    return { item, originalIndex, quyDoi, heSo, giaVeGoc, khacGoc: daChonDonVi && heSo !== 1 };
+  });
+  const coCotGoc = dong.some((d) => d.khacGoc);
+  const luoi = coCotGoc ? LUOI_CO_GOC : LUOI;
+  const dangTim = itemSearchQ.trim() !== "";
+
   return (
-                  <section className="supplier__items-section">
-                    <div className="supplier__items-head">
-                      <div>
-                        <h3 style={{ fontSize: "16px", fontWeight: "bold" }}>
-                          Danh mục &amp; Báo giá Vật tư
-                        </h3>
-                      </div>
-                      <div className="supplier__items-actions">
-                        {/* Tải mẫu đứng TRƯỚC Nhập: thứ tự nút là thứ tự việc phải làm. */}
-                        <button
-                          type="button"
-                          className="btn btn--ghost"
-                          onClick={() =>
-                            taiFile(
-                              () => api.suppliers.itemsTemplateBlobUrl(token!),
-                              "mau-vat-tu-nha-cung-cap.xlsx",
-                            )
-                          }
-                        >
-                          Tải mẫu
-                        </button>
-                        {/* Xuất chỉ có nghĩa với NCC ĐÃ LƯU — NCC đang tạo mới chưa có id. */}
-                        {mode === "edit" && selected && (
-                          <button
-                            type="button"
-                            className="btn btn--ghost"
-                            onClick={() =>
-                              taiFile(
-                                () =>
-                                  api.suppliers.itemsExportBlobUrl(
-                                    token!,
-                                    selected.id,
-                                  ),
-                                `vat-tu-${selected.id}.xlsx`,
-                              )
-                            }
-                          >
-                            Xuất Excel
-                          </button>
-                        )}
-                        <input
-                          ref={fileVatTuRef}
-                          type="file"
-                          accept=".xlsx"
-                          style={{ display: "none" }}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            // Xoá value ngay: chọn LẠI đúng file vừa chọn vẫn phải bắn onChange.
-                            e.target.value = "";
-                            if (file) void nhapExcel(file);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="btn btn--ghost"
-                          disabled={nhapDang}
-                          onClick={() => fileVatTuRef.current?.click()}
-                        >
-                          {nhapDang ? "Đang đọc..." : "Nhập Excel"}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--ghost"
-                          onClick={() =>
-                            setForm((current) => ({
-                              ...current,
-                              items: [
-                                ...(current.items ?? []),
-                                emptySupplierItem(),
-                              ],
-                            }))
-                          }
-                        >
-                          + Thêm mặt hàng
-                        </button>
-                      </div>
-                    </div>
+    <section className="ncc-bg">
+      <div className="ncc-bg__thanh">
+        <input
+          className="input ncc-bg__tim"
+          placeholder="Tìm vật tư trong bảng giá"
+          value={itemSearchQ}
+          onChange={(e) => setItemSearchQ(e.target.value)}
+        />
+        {/* Đếm chỉ khi đang tìm — số món đã có trên nhãn tab. Không đếm dòng trống mồi sẵn. */}
+        {dangTim && (
+          <span className="ncc-bg__dem">
+            Khớp {filteredFormItems.length} trên {soMonDaKhai} vật tư
+          </span>
+        )}
+        <div className="ncc-bg__excel">
+          {/* Tải mẫu đứng TRƯỚC Nhập: thứ tự nút là thứ tự việc phải làm. */}
+          <button
+            type="button"
+            className="btn btn--ghost ncc-bg__nut"
+            onClick={() =>
+              taiFile(
+                () => api.suppliers.itemsTemplateBlobUrl(token!),
+                "mau-vat-tu-nha-cung-cap.xlsx",
+              )
+            }
+          >
+            Tải mẫu Excel
+          </button>
+          <input
+            ref={fileVatTuRef}
+            type="file"
+            accept=".xlsx"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              // Xoá value ngay: chọn LẠI đúng file vừa chọn vẫn phải bắn onChange.
+              e.target.value = "";
+              if (file) void nhapExcel(file);
+            }}
+          />
+          <button
+            type="button"
+            className="btn btn--ghost ncc-bg__nut"
+            disabled={nhapDang}
+            onClick={() => fileVatTuRef.current?.click()}
+          >
+            {nhapDang ? "Đang đọc…" : "Nhập từ Excel"}
+          </button>
+          {/* Xuất chỉ có nghĩa với NCC ĐÃ LƯU — NCC đang tạo mới chưa có id. */}
+          {mode === "edit" && selected && (
+            <button
+              type="button"
+              className="btn btn--ghost ncc-bg__nut"
+              onClick={() =>
+                taiFile(
+                  () => api.suppliers.itemsExportBlobUrl(token!, selected.id),
+                  `vat-tu-${selected.id}.xlsx`,
+                )
+              }
+            >
+              Xuất Excel
+            </button>
+          )}
+        </div>
+      </div>
 
-                    {nhapKetQua && (
-                      <div className="supplier__import-result">
-                        <div className="supplier__import-head">
-                          <strong>
-                            Đã nạp {nhapKetQua.them} mặt hàng mới
-                            {nhapKetQua.capNhat > 0
-                              ? `, cập nhật ${nhapKetQua.capNhat} mặt hàng`
-                              : ""}
-                            .
-                          </strong>
-                          <button
-                            type="button"
-                            className="btn btn--ghost"
-                            onClick={() => setNhapKetQua(null)}
-                          >
-                            Đóng
-                          </button>
-                        </div>
-                        {/* Nói rõ CHƯA vào sổ: người dùng đóng drawer là mất sạch phần vừa nhập. */}
-                        <p className="md-page__muted">
-                          Chưa lưu — kiểm lại bảng dưới rồi bấm{" "}
-                          <strong>Lưu nhà cung cấp</strong>. Tối đa 500 dòng /
-                          file, mỗi file cho một nhà cung cấp.
-                        </p>
-                        {nhapKetQua.errors.length > 0 && (
-                          <ul className="supplier__import-errors">
-                            {nhapKetQua.errors.map((e) => (
-                              <li key={`${e.row}-${e.message}`}>
-                                <strong>Dòng {e.row}:</strong> {e.message}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )}
+      {nhapKetQua && (
+        <div className="supplier__import-result">
+          <div className="supplier__import-head">
+            <strong>
+              Đã nạp {nhapKetQua.them} mặt hàng mới
+              {nhapKetQua.capNhat > 0 ? ` và cập nhật ${nhapKetQua.capNhat} mặt hàng` : ""}.
+            </strong>
+            <button type="button" className="btn btn--ghost" onClick={() => setNhapKetQua(null)}>
+              Đóng
+            </button>
+          </div>
+          {/* Nói rõ CHƯA vào sổ: người dùng đóng drawer là mất sạch phần vừa nhập. */}
+          <p className="md-page__muted">
+            Chưa lưu — kiểm lại bảng dưới rồi bấm <strong>Lưu nhà cung cấp</strong>. Mỗi file tối
+            đa 500 dòng và chỉ cho một nhà cung cấp.
+          </p>
+          {nhapKetQua.errors.length > 0 && (
+            <ul className="supplier__import-errors">
+              {nhapKetQua.errors.map((e) => (
+                <li key={`${e.row}-${e.message}`}>
+                  <strong>Dòng {e.row}:</strong> {e.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
-                    {/* Toolbar tìm kiếm vật tư trong drawer */}
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "10px",
-                        alignItems: "center",
-                      }}
-                    >
-                      <input
-                        className="input"
-                        placeholder="Tìm vật tư trong bảng giá..."
-                        value={itemSearchQ}
-                        onChange={(e) => setItemSearchQ(e.target.value)}
-                        style={{ maxWidth: "280px" }}
-                      />
-                      <span
-                        className="md-page__muted"
-                        style={{ fontSize: "13px" }}
-                      >
-                        Hiển thị {filteredFormItems.length} /{" "}
-                        {itemsInForm.length} vật tư
-                      </span>
-                    </div>
+      <div className="ncc-bg__bang">
+        {/* Không gắn dấu * lên tiêu đề: cả ba cột đều bắt buộc, sao ở mọi cột là không nói gì. */}
+        <div className="ncc-bg__dong ncc-bg__dong--dau" aria-hidden="true" style={{ gridTemplateColumns: luoi }}>
+          <span>Vật tư</span>
+          <span>Đơn vị</span>
+          <span className="ncc-bg__phai">Đơn giá</span>
+          {coCotGoc && (
+            <span
+              className="ncc-bg__phai"
+              title="Giá quy về đơn vị gốc của mặt hàng — con số so ngang được giữa các nhà cung cấp báo theo đơn vị khác nhau (1.020.000 đ/ram với 24.500 đ/kg)."
+            >
+              Theo đơn vị gốc
+            </span>
+          )}
+          <span />
+        </div>
 
-                    {/* Table Editor */}
-                    <div className="supplier__item-editor">
-                      <div
-                        className="supplier__item-labels"
-                        aria-hidden="true"
-                        style={{ gridTemplateColumns: LUOI_COT }}
-                      >
-                        {/* BA CỘT, HẾT (chủ chốt 28/08/2026: "chỉ giữ lại Tên vật tư, đơn vị tính,
-                            đơn giá thôi"). Đã cắt:
-                            • "Giá quy về gốc" — từ 15/08/2026 ĐVT bị khoá về đúng đơn vị gốc của
-                              mặt hàng, nên cột này LUÔN bằng chính đơn giá: một cột chép lại cột
-                              bên cạnh.
-                            • "VAT %" + "Giá sau VAT" — chủ chốt: "kệ nó, so sánh giá là được, kệ
-                              VAT cho đơn giản, cái đó họ tự biết". Bảng này để SO GIÁ.
-                            • "Ghi chú" — không ai đọc tới.
-                            Lưới cũ khai 9 cột nhưng chỉ có 8 ô, nên nút × rơi vào cột 110px còn
-                            cột 36px cuối bỏ không. Nay 4 khai = 4 ô, khớp.
-                            Các trường đã cắt VẪN còn trong API và trong dữ liệu cũ — đây là thôi
-                            bày ra để khai, KHÔNG phải xoá dữ liệu. */}
-                        <span>Tên vật tư *</span>
-                        <span>ĐVT *</span>
-                        <span>Đơn giá *</span>
-                        <span title="Giá quy về đơn vị gốc của mặt hàng — con số DUY NHẤT so ngang được giữa các NCC báo theo đơn vị khác nhau (1.020.000đ/ram vs 24.500đ/kg).">
-                          Quy về gốc
-                        </span>
-                        <span></span>
-                      </div>
+        {dong.map(({ item, originalIndex, quyDoi, giaVeGoc, khacGoc }) => (
+          <div className="ncc-bg__dong" key={originalIndex} style={{ gridTemplateColumns: luoi }}>
+            {/* CHỌN từ danh mục gốc, không gõ tự do: ghép NCC với kho bằng chuỗi tên là trượt
+                thầm lặng ("Couche 150" ≠ "Couché 150 79×109"), mà trượt thì mãi không so được
+                giá. Đổi mặt hàng → xoá đơn vị cũ, vì đơn vị dùng được phụ thuộc chính mặt hàng. */}
+            <MaterialCombobox
+              token={token ?? ""}
+              hangTen={item.item_name || null}
+              onPick={(m) =>
+                setSupplierItem(originalIndex, {
+                  hang_loai: m.hang_loai,
+                  hang_id: m.hang_id,
+                  item_name: m.ten,
+                  unit: "",
+                  he_so_ve_goc: null,
+                })
+              }
+              placeholder="Gõ tên vật tư…"
+            />
+            <div>
+              <span className="ncc-bg__nhan-o">Đơn vị</span>
+              {item.hang_loai && item.hang_id ? (
+                <DonViChonTheoHang
+                  token={token ?? ""}
+                  hangLoai={item.hang_loai}
+                  hangId={item.hang_id}
+                  value={item.unit}
+                  onChange={(ma) => setSupplierItem(originalIndex, { unit: ma })}
+                  onQuyDoi={(info) => ghiQuyDoiDong(originalIndex, info)}
+                  heSoDaLuu={item.he_so_ve_goc ?? null}
+                />
+              ) : (
+                // Chưa chọn mặt hàng → chưa biết đơn vị; không cho gõ tự do để đơn vị lạ ("thùg")
+                // khỏi lọt vào làm quy đổi tắt lặng lẽ.
+                <span className="kho-dv__ro kho-dv__ro--trong" title="Chọn vật tư trước">
+                  {item.unit ? (tenDonVi(item.unit) ?? item.unit) : "—"}
+                </span>
+              )}
+            </div>
+            <div>
+              <span className="ncc-bg__nhan-o">Đơn giá</span>
+              <div className="ncc-bg__gia">
+                {/* Ô chữ có dấu chấm nghìn, không `type="number"`: "70600" phải đếm chữ số mới
+                    biết là bảy mươi nghìn hay bảy trăm nghìn. */}
+                <OGoDinhDang
+                  className="input"
+                  inputMode="numeric"
+                  placeholder="0"
+                  aria-label="Đơn giá"
+                  value={item.unit_price > 0 ? item.unit_price.toLocaleString("vi-VN") : ""}
+                  onChange={(e) => {
+                    const so = e.target.value.replace(/\D/g, "");
+                    setSupplierItem(originalIndex, { unit_price: so ? Number(so) : 0 });
+                  }}
+                />
+                <span>đ</span>
+              </div>
+            </div>
+            {coCotGoc &&
+              (khacGoc ? (
+                // Không quy đổi được thì để gạch — CỐ Ý không lấy đại đơn giá thô, vì như thế là
+                // nói dối rằng hai NCC báo cùng đơn vị.
+                <div
+                  className={`ncc-bg__goc${giaVeGoc == null ? " ncc-bg__goc--khong" : ""}`}
+                  title={
+                    giaVeGoc != null
+                      ? `${money(item.unit_price)} / ${tenDonVi(item.unit) ?? item.unit} ÷ ${quyDoi?.heSoVeGoc ?? "?"} = ${money(giaVeGoc)} / ${quyDoi?.donViGocTen ?? "đơn vị gốc"}`
+                      : "Chưa quy đổi được — thiếu cặp quy đổi giữa đơn vị này và đơn vị gốc."
+                  }
+                >
+                  {giaVeGoc != null ? (
+                    <>
+                      {money(giaVeGoc)}
+                      {quyDoi?.donViGocTen && <small>mỗi {quyDoi.donViGocTen}</small>}
+                    </>
+                  ) : (
+                    "Chưa quy đổi được"
+                  )}
+                </div>
+              ) : (
+                <span className="ncc-bg__goc" />
+              ))}
+            <button
+              type="button"
+              className="ncc-bg__xoa"
+              disabled={itemsInForm.length <= 1}
+              title="Xoá dòng"
+              aria-label="Xoá mặt hàng"
+              onClick={() =>
+                setForm((current) => ({
+                  ...current,
+                  items: (current.items ?? []).filter((_, i) => i !== originalIndex),
+                }))
+              }
+            >
+              ×
+            </button>
+          </div>
+        ))}
 
-                      {filteredFormItems.map(({ item, originalIndex }) => {
-                        // Hệ số LIVE của ô ĐVT đang chọn — có ngay cả với dòng chưa lưu.
-                        const quyDoi = quyDoiDong[originalIndex];
-                        // Chưa có hệ số LIVE (ô ĐVT còn đang nạp) thì dùng hệ số máy chủ đã tính
-                        // cho dòng đã lưu — cột có số ngay lúc mở, không nháy từ gạch sang tiền.
-                        // Chia lại từ đơn giá ĐANG GÕ chứ không lấy `gia_quy_doi` đóng băng.
-                        const heSo =
-                          quyDoi !== undefined
-                            ? (quyDoi?.heSoVeGoc ?? null) // đã nạp: null = không đổi được, KHÔNG lùi
-                            : (item.he_so_ve_goc ?? null);
-                        const giaVeGoc =
-                          heSo && heSo > 0 && item.unit_price > 0
-                            ? Math.round(item.unit_price / heSo)
-                            : null;
-                        return (
-                          <div
-                            className="supplier__item-row"
-                            key={originalIndex}
-                            style={{ gridTemplateColumns: LUOI_COT }}
-                          >
-                            {/* CHỌN từ danh mục gốc, không gõ tự do nữa: ghép NCC với kho bằng
-                                chuỗi tên là trượt thầm lặng ("Couche 150" ≠ "Couché 150 79×109"),
-                                mà trượt thì mãi không so được giá. Đổi mặt hàng → xoá đơn vị cũ,
-                                vì đơn vị dùng được phụ thuộc chính mặt hàng. */}
-                            <MaterialCombobox
-                              token={token ?? ""}
-                              hangTen={item.item_name || null}
-                              onPick={(m) =>
-                                setSupplierItem(originalIndex, {
-                                  hang_loai: m.hang_loai,
-                                  hang_id: m.hang_id,
-                                  item_name: m.ten,
-                                  unit: "",
-                                  he_so_ve_goc: null,
-                                })
-                              }
-                              placeholder="Gõ tên vật tư…"
-                            />
-                            {item.hang_loai && item.hang_id ? (
-                              /* ĐVT = ĐÚNG đơn vị gốc của mặt hàng, KHÔNG cho chọn (chủ chốt
-                                 15/08/2026, sau khi nghe rõ đánh đổi bên dưới).
-                                 Lý do: hai NCC cùng bán một món, một bên ghi "cái" một bên ghi
-                                 "con" — cùng một lượng, khác mỗi cách gọi — thì mọi thứ đối chiếu
-                                 sang YCMH/kho đều lệch mà không ai thấy.
-                                 ĐÁNH ĐỔI ĐÃ BIẾT: NCC báo giá theo ram/tấn nay phải tự quy về
-                                 tờ/kg trước khi nhập. Chính vì đơn vị đã bị khoá về gốc mà cột
-                                 "Giá quy về gốc" luôn bằng đơn giá — nên nó đã bị cắt 28/08/2026.
-                                 Máy chủ VẪN nhận đơn vị quy đổi (dòng cũ khai theo ram còn nguyên,
-                                 không bị viết lại) — hàng rào này chỉ ở màn nhập. */
-                              <DonViChonTheoHang
-                                token={token ?? ""}
-                                hangLoai={item.hang_loai}
-                                hangId={item.hang_id}
-                                value={item.unit}
-                                onChange={(ma) =>
-                                  setSupplierItem(originalIndex, { unit: ma })
-                                }
-                                onQuyDoi={(info) => ghiQuyDoiDong(originalIndex, info)}
-                                heSoDaLuu={item.he_so_ve_goc ?? null}
-                              />
-                            ) : (
-                              // Chưa chọn mặt hàng → chưa biết đơn vị. Trước đây cho gõ tự do; gõ
-                              // tự do là mở đường cho đơn vị lạ ("thùg") lọt vào, quy đổi tắt lặng
-                              // lẽ và giá không quy về gốc được để so giữa các NCC.
-                              // Dùng CHUNG dáng chỉ-đọc với nhánh trên: hai trạng thái của cùng
-                              // một ô mà một bên là ô nhập khoá, một bên là chữ, thì nhìn như lỗi.
-                              <span
-                                className="kho-dv__ro kho-dv__ro--trong"
-                                title="Chọn vật tư trước"
-                              >
-                                {item.unit || "—"}
-                              </span>
-                            )}
-                            <input
-                              className="input purchase__number-input"
-                              type="number"
-                              min="0"
-                              step="1"
-                              placeholder="2200"
-                              value={item.unit_price > 0 ? item.unit_price : ""}
-                              onChange={(e) =>
-                                setSupplierItem(originalIndex, {
-                                  unit_price: Number(e.target.value || 0),
-                                })
-                              }
-                            />
-                            {/* GIÁ QUY VỀ GỐC. Ưu tiên hệ số LIVE từ ô ĐVT đang chọn (người
-                                dùng đổi đơn vị là số nhảy ngay); chưa có thì lùi về `gia_quy_doi`
-                                server đã tính cho dòng ĐÃ LƯU. Không quy đổi được thì để gạch —
-                                CỐ Ý không lấy đại đơn giá thô, vì như thế là nói dối rằng hai
-                                NCC báo cùng đơn vị. */}
-                            <div
-                              className="supplier-item-vat-calculated"
-                              title={
-                                giaVeGoc != null
-                                  // Vế TRÁI là đơn vị NCC bán, vế PHẢI là đơn vị gốc — hai vế
-                                  // khác nhau mới ra nghĩa "quy đổi". Lấy cùng một tên cho cả
-                                  // hai là câu giải thích tự mâu thuẫn ("200đ/mét ÷ 0.001 =
-                                  // 200.000đ/mét"), đúng lỗi bản đầu.
-                                  ? `${money(item.unit_price)} / ${tenDonVi(item.unit) ?? item.unit} ÷ ${quyDoi?.heSoVeGoc ?? "?"} = ${money(giaVeGoc)} / ${quyDoi?.donViGocTen ?? "đơn vị gốc"}`
-                                  : "Chưa quy đổi được — mặt hàng ngoài danh mục, hoặc thiếu cặp quy đổi giữa đơn vị này và đơn vị gốc."
-                              }
-                            >
-                              {giaVeGoc != null ? money(giaVeGoc) : "—"}
-                            </div>
-                            <button
-                              type="button"
-                              className="supplier__item-remove"
-                              disabled={itemsInForm.length <= 1}
-                              title="Xóa dòng"
-                              aria-label="Xóa mặt hàng"
-                              onClick={() =>
-                                setForm((current) => ({
-                                  ...current,
-                                  items: (current.items ?? []).filter(
-                                    (_, i) => i !== originalIndex,
-                                  ),
-                                }))
-                              }
-                            >
-                              ×
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
+        {!dangTim && (
+          <button
+            type="button"
+            className="ncc-bg__them"
+            onClick={() =>
+              setForm((current) => ({
+                ...current,
+                items: [...(current.items ?? []), emptySupplierItem()],
+              }))
+            }
+          >
+            Thêm một dòng
+          </button>
+        )}
+      </div>
+    </section>
   );
 }

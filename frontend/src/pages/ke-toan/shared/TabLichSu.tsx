@@ -10,7 +10,7 @@ import { Ban, Check, Paperclip } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Cum, TheNho } from "./Cum";
-import { ngayGio, tien } from "./dinhDang";
+import { ngay, ngayGio, tien } from "./dinhDang";
 import type { TepChungTu } from "./tepChungTu";
 
 export type ViecLs = {
@@ -105,7 +105,8 @@ export function TabLichSu({ viec }: { viec: ViecLs[] }) {
             {v.chiTiet}
             {v.them}
           </div>
-          <span className="kt-ls__gio">{ngayGio(v.moc)}</span>
+          {/* Mốc chỉ có NGÀY (chứng từ công nợ) thì không bịa giờ "07:00" từ nửa đêm UTC. */}
+          <span className="kt-ls__gio">{v.moc.length <= 10 ? ngay(v.moc) : ngayGio(v.moc)}</span>
         </div>
       ))}
     </div>

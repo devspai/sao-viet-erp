@@ -8,7 +8,7 @@ import { useRef, useState } from "react";
 
 import { ApiError, api } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
-import { NhomNut } from "../../shared/BoLocNangCao";
+import { NhomNut } from "../../shared/NhomNut";
 import { KhungFormPhieu, OF, idO, nhayToiLoi, type LoiForm } from "../../shared/KhungFormPhieu";
 import {
   THU_TU_O,

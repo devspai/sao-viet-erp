@@ -1,28 +1,26 @@
 // Tab "Đơn mua hàng" — bảng phiếu mua + bộ lọc (tách từ pages/PurchaseRequestsPage.tsx).
-// Giao diện theo CHUẨN Đơn mua hàng (Kế toán): một thẻ lọc `ToolbarChuan` + bảng `acct-dmh__frame`.
+// Giao diện theo CHUẨN Đơn mua hàng (Kế toán): thẻ lọc (tab có số + ô tìm + thanh lọc chung `ThanhLoc`)
+// + bảng `acct-dmh__frame`. 06/10/2026: bỏ `ToolbarChuan`, ô "Trạng thái khác" / NCC / Tiền cọc rời và
+// hai cặp ô ngày rời — kỳ theo Ngày tạo / Ngày cần / Ngày dự kiến nhận; điều kiện Nhà cung cấp, Tiền
+// cọc, Tổng dự kiến; lọc + đếm tab ở máy chủ.
 import type { Dispatch, SetStateAction } from "react";
-import type { PurchaseRequestRow, SupplierRow } from "../../../../api/client";
+import type { PurchaseRequestRow } from "../../../../api/client";
 import { CodeLink } from "../../../../components/CodeLink";
 import { EmptyRow } from "../../../../components/EmptyState";
 import { Icon } from "../../../../components/Icons";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
-import { Select, type SelectOption } from "../../../../components/Select";
-import { fmtDate, money } from "../../../../utils/format";
-import { ToolbarChuan } from "../../../ke-toan/components/ToolbarChuan";
+import { fmtDate, fmtDateTime, money } from "../../../../utils/format";
+import type { KyDS } from "../../../thanh-loc/ky-danh-sach";
+import type { DieuKien } from "../../../thanh-loc/thanh-loc";
+import { ThanhCongCuMuaHang, tabCoSo } from "../../loc-mua-hang/ThanhCongCuMuaHang";
+import { MOC_DON_MUA_HANG, type LocDonMuaHang } from "../../loc-mua-hang/dieu-kien-don-mua";
 import { STATUS_META } from "../shared/constants";
 import { noiDung } from "../shared/helpers";
-import type { DepositFilter, PurchaseTab, StatusFilter } from "../shared/types";
+import type { PurchaseTab, StatusFilter } from "../shared/types";
 import { DepositCell, StatusBadge, VendorCell, ApproverCell } from "../components/purchaseCells";
 
-/** Tab trạng thái hay dùng (≤6); phần còn lại nằm ở ô chọn "Trạng thái khác" để không mất đường lọc. */
-const STATUS_TABS: { value: string; label: string }[] = [
-  { value: "all", label: "Tất cả" },
-  { value: "draft", label: "Nháp" },
-  { value: "pending_approval", label: "Chờ duyệt" },
-  { value: "approved", label: "Đã duyệt" },
-  { value: "purchased", label: "Đang mua" },
-  { value: "received", label: "Đã nhận" },
-];
+/** Tab trạng thái luôn hiện; Từ chối / Giao một phần / Đã hủy chỉ hiện khi có đơn (hoặc đang chọn). */
+const TAB_CHINH = ["draft", "pending_approval", "approved", "purchased", "received"];
 
 export function PhieuListTab({
   coYcQuaHan,
@@ -34,19 +32,14 @@ export function PhieuListTab({
   setPage,
   status,
   setStatus,
-  supplierFilter,
-  setSupplierFilter,
-  depositFilter,
-  setDepositFilter,
-  createdFrom,
-  setCreatedFrom,
-  createdTo,
-  setCreatedTo,
-  neededFrom,
-  setNeededFrom,
-  neededTo,
-  setNeededTo,
-  suppliers,
+  demTheoTab,
+  ky,
+  onKy,
+  dieuKien,
+  loc,
+  onLoc,
+  xoaLocThem,
+  coLocThem,
   loading,
   listError,
   load,
@@ -67,19 +60,16 @@ export function PhieuListTab({
   setPage: Dispatch<SetStateAction<number>>;
   status: StatusFilter;
   setStatus: Dispatch<SetStateAction<StatusFilter>>;
-  supplierFilter: number | "all";
-  setSupplierFilter: Dispatch<SetStateAction<number | "all">>;
-  depositFilter: DepositFilter;
-  setDepositFilter: Dispatch<SetStateAction<DepositFilter>>;
-  createdFrom: string;
-  setCreatedFrom: Dispatch<SetStateAction<string>>;
-  createdTo: string;
-  setCreatedTo: Dispatch<SetStateAction<string>>;
-  neededFrom: string;
-  setNeededFrom: Dispatch<SetStateAction<string>>;
-  neededTo: string;
-  setNeededTo: Dispatch<SetStateAction<string>>;
-  suppliers: SupplierRow[];
+  /** Số đơn theo trạng thái — máy chủ đếm sau lọc, trước tab (`tat_ca` = tab Tất cả). */
+  demTheoTab: Record<string, number> | null;
+  ky: KyDS;
+  onKy: (k: KyDS) => void;
+  dieuKien: DieuKien<LocDonMuaHang>[];
+  loc: LocDonMuaHang;
+  onLoc: (l: LocDonMuaHang) => void;
+  /** Bỏ kỳ + điều kiện của thanh lọc (ô tìm và tab do tab này tự bỏ). */
+  xoaLocThem: () => void;
+  coLocThem: boolean;
   loading: boolean;
   listError: string | null;
   load: () => void;
@@ -92,37 +82,13 @@ export function PhieuListTab({
   size: number;
   onSize: (size: number) => void;
 }) {
-  // Ô lọc NCC là <Select searchable> chứ không phải <select>: danh sách nhà cung cấp dài, thẻ
-  // gốc không gõ tìm được. Giữ NGUYÊN kiểu giá trị `"all" | number` và thứ tự option cũ.
-  const supplierOptions: SelectOption<number | "all">[] = [
-    { value: "all", label: "Tất cả nhà cung cấp" },
-    ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name })),
-  ];
-  const coLoc =
-    q.trim() !== "" ||
-    status !== "all" ||
-    supplierFilter !== "all" ||
-    depositFilter !== "all" ||
-    createdFrom !== "" ||
-    createdTo !== "" ||
-    neededFrom !== "" ||
-    neededTo !== "";
+  const coLoc = q.trim() !== "" || status !== "all" || coLocThem;
   const xoaLoc = () => {
     setQ("");
     setStatus("all");
-    setSupplierFilter("all");
-    setDepositFilter("all");
-    setCreatedFrom("");
-    setCreatedTo("");
-    setNeededFrom("");
-    setNeededTo("");
+    xoaLocThem();
     setPage(1);
   };
-  // Đang lọc một trạng thái ÍT GẶP (không có tab) ⇒ không tab nào sáng, ô "Trạng thái khác" giữ giá trị.
-  const tabStatus = STATUS_TABS.some((t) => t.value === status) ? status : "";
-  const trangThaiKhac = Object.entries(STATUS_META).filter(
-    ([value]) => !STATUS_TABS.some((t) => t.value === value),
-  );
   return (
     <>
     {/* Dải nhắc CHỈ hiện khi có yêu cầu đã quá ngày cần hàng — nó là lời cảnh báo, không phải
@@ -144,9 +110,9 @@ export function PhieuListTab({
       </div>
     )}
 
-    <ToolbarChuan
-      tabs={STATUS_TABS}
-      tab={tabStatus}
+    <ThanhCongCuMuaHang
+      tabs={tabCoSo(TAB_CHINH, STATUS_META, demTheoTab, status)}
+      tab={status}
       ariaTabs="Lọc trạng thái đơn mua"
       onTab={(v) => {
         setStatus(v as StatusFilter);
@@ -157,87 +123,13 @@ export function PhieuListTab({
         setQ(v);
         setPage(1);
       }}
-      onSearchSubmit={() => setPage(1)}
       placeholder="Tìm mã phiếu, mục đích, ghi chú..."
-      hasFilter={coLoc}
-      onReset={xoaLoc}
-      selects={
-        <>
-          <select
-            className="input acct-toolbar__select"
-            aria-label="Trạng thái khác"
-            value={tabStatus === "" ? status : "all"}
-            onChange={(e) => {
-              setStatus(e.target.value as StatusFilter);
-              setPage(1);
-            }}
-          >
-            <option value="all">Trạng thái khác</option>
-            {trangThaiKhac.map(([value, meta]) => (
-              <option key={value} value={value}>
-                {meta.label}
-              </option>
-            ))}
-          </select>
-          <div className="acct-toolbar__filter-select">
-            <Select
-              options={supplierOptions}
-              value={supplierFilter}
-              onChange={(v) => {
-                setSupplierFilter(v === "all" ? "all" : Number(v));
-                setPage(1);
-              }}
-              ariaLabel="Lọc nhà cung cấp"
-              searchable
-              searchPlaceholder="Tìm nhà cung cấp…"
-              portal
-              className="acct-toolbar__select"
-            />
-          </div>
-          <select
-            className="input acct-toolbar__select"
-            value={depositFilter}
-            onChange={(e) => {
-              setDepositFilter(e.target.value as DepositFilter);
-              setPage(1);
-            }}
-          >
-            <option value="all">Tất cả tiền cọc</option>
-            <option value="none">Không yêu cầu cọc</option>
-            <option value="unpaid">Chưa cọc</option>
-            <option value="partial">Cọc thiếu</option>
-            <option value="enough">Cọc đủ</option>
-          </select>
-        </>
-      }
-      dateGroups={[
-        {
-          label: "Ngày tạo",
-          from: createdFrom,
-          to: createdTo,
-          onFrom: (v) => {
-            setCreatedFrom(v);
-            setPage(1);
-          },
-          onTo: (v) => {
-            setCreatedTo(v);
-            setPage(1);
-          },
-        },
-        {
-          label: "Ngày cần hàng",
-          from: neededFrom,
-          to: neededTo,
-          onFrom: (v) => {
-            setNeededFrom(v);
-            setPage(1);
-          },
-          onTo: (v) => {
-            setNeededTo(v);
-            setPage(1);
-          },
-        },
-      ]}
+      ky={ky}
+      moc={MOC_DON_MUA_HANG}
+      onKy={onKy}
+      dieuKien={dieuKien}
+      loc={loc}
+      onLoc={onLoc}
     />
 
     <section className="md-page__tablewrap acct-list acct-dmh__frame">
@@ -318,7 +210,9 @@ export function PhieuListTab({
                 >
                   <VendorCell name={row.supplier_name} />
                 </td>
-                <td className="acct-dmh__date">{fmtDate(row.created_at)}</td>
+                <td className="acct-dmh__date" title={fmtDateTime(row.created_at)}>
+                  {fmtDate(row.created_at)}
+                </td>
                 <td className="acct-dmh__date">
                   <div>{fmtDate(row.needed_date)}</div>
                   {row.expected_receipt_date && row.expected_receipt_date !== row.needed_date && (

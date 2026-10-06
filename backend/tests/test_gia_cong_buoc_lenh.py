@@ -30,13 +30,12 @@ def test_buoc_thue_ngoai_lay_ten_tu_danh_muc_va_bo_to_may(sess, orders, lsx_svc,
     s = ncc(sess)
     lsx = lenh_chua_phat(sess, orders, lsx_svc, admin, customer)
     lsx = lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=_rows(
-        lsx, loai_buoc=LB_THUE_NGOAI, nha_cung_cap_id=s.id, don_gia_gia_cong=150,
+        lsx, loai_buoc=LB_THUE_NGOAI, nha_cung_cap_id=s.id,
     ), actor=admin)
     cd = max(lsx.cong_doans, key=lambda c: c.thu_tu)
     assert (cd.nha_cung_cap_id, cd.nha_cung_cap) == (s.id, "Cán màng Minh Long")
     assert cd.department_id is None and cd.may_id is None
     assert list(cd.vat_tus) == []
-    assert float(cd.don_gia_gia_cong) == 150
 
 
 def test_ncc_khong_tich_nhan_gia_cong_bi_tu_choi(sess, orders, lsx_svc, admin, customer):

@@ -167,6 +167,10 @@ class CatalogService:
     def list(self, **kw):
         return self.repo.list(**kw)
 
+    def dem_theo_cot(self, cot, **kw) -> list[dict]:
+        """Giá trị + số dòng theo một cột, dưới bộ lọc `kw` — nuôi số trên thanh lọc (xem repo)."""
+        return self.repo.dem_theo_cot(cot, **kw)
+
     def ma_goi_y(self) -> str:
         """Mã kế tiếp cho form khai mới. Danh mục khai mã tay (`ma_prefix` None) thì repo ném
         `NotImplementedError` — router dịch thành 404 chứ không 500."""

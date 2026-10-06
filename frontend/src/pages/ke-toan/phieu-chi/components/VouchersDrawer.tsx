@@ -1,12 +1,13 @@
 /** Ngăn CHI TIẾT một phiếu chi (đặc tả A.5, PC-2, PC-6) — vỏ chung `NganPhai`.
  *
- *  Đầu ngăn: đường dẫn "Phiếu chi > mã" + chép mã — người nhận + pill — "In phiếu", "⋯" — số tiền
- *  và bằng chữ — dải tóm tắt (Ngày chi, Hình thức, Nguồn, Người lập) — tab Chi tiết / Chứng từ /
- *  Lịch sử. Ngăn tự nạp lại phiếu và tệp đính kèm khi có sự kiện đẩy (`eventTick`).
+ *  Đầu ngăn (phương án B, 06/10/2026 — docs/mockups/phieu-chi-ngan-chi-tiet-3-phuong-an.html):
+ *  đường dẫn "Phiếu chi > mã" + chép mã — NỘI DUNG CHI làm tiêu đề + pill — "In phiếu", "⋯" — thẻ
+ *  biên lai (hình thức + ngày, số tiền, tuyến Từ → Tới) — tab Chi tiết / Chứng từ / Lịch sử. Bản cũ
+ *  nói tên người nhận ba lần và số tiền hai lần, dải tóm tắt + hai hộp lệch cao. Ngăn tự nạp lại phiếu và tệp đính kèm khi có sự kiện đẩy (`eventTick`).
  *  Hủy phiếu là KHUNG viền đỏ ở đầu tab Chi tiết, lỗi nằm ngay trong khung (không banner sau lớp phủ).
  *  Phiếu chi không sửa được: sai thì hủy (có lý do) rồi lập lại.
  */
-import { ArrowDown, Check, CircleAlert, ExternalLink, Printer } from "lucide-react";
+import { Check, CircleAlert, ExternalLink, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -20,16 +21,15 @@ import { useAuth } from "../../../../auth/useAuth";
 import { taiVaInBangKe } from "../../../../utils/printBangKeTamUng";
 import { NganPhai } from "../../shared/NganPhai";
 import { Cum, TheNho } from "../../shared/Cum";
-import { ngay, tien } from "../../shared/dinhDang";
+import { ngay, ngayGio, tien } from "../../shared/dinhDang";
 import {
   BangDaHuy,
-  Dong,
+  BienLaiPhieu,
   DuongDanPhieu,
   KhungHuyPhieu,
+  LuoiThongTin,
   MenuThaoTac,
-  SoLonPhieu,
   TienDot,
-  soTaiKhoan,
   useHuyPhieu,
   useTabNho,
 } from "../../shared/NganPhieu";
@@ -159,12 +159,13 @@ export function VouchersDrawer({
       [nguon.loai, nguon.ma].filter(Boolean).join(" ")
     );
 
+  const chuyenKhoan = phieu.voucher_type === "bank_transfer";
   const dot = don && phieu.delivery_id != null ? don.deliveries.find((d) => d.id === phieu.delivery_id) ?? null : null;
 
   return (
     <NganPhai
       duongDan={<DuongDanPhieu loai="Phiếu chi" ma={phieu.code} />}
-      tieuDe={phieu.supplier_name || phieu.code}
+      tieuDe={phieu.content || phieu.supplier_name || phieu.code}
       the={<span className={`kt-tt kt-tt--${phieu.status === "paid" ? "xanh" : "xam"}`}>{STATUS_META[phieu.status].label}</span>}
       hanhDong={
         <>
@@ -197,13 +198,41 @@ export function VouchersDrawer({
           )}
         </>
       }
-      soLon={<SoLonPhieu soVnd={phieu.amount_vnd} so={phieu.amount} tienTe={phieu.currency} tyGia={phieu.exchange_rate} />}
-      tomTat={[
-        { nhan: "Ngày chi", giaTri: ngay(phieu.voucher_date) },
-        { nhan: "Hình thức", giaTri: VOUCHER_METHOD_LABELS[phieu.voucher_type] },
-        { nhan: "Nguồn", giaTri: nguonO },
-        { nhan: "Người lập", giaTri: phieu.created_by_name || "—" },
-      ]}
+      bienLai={
+        <BienLaiPhieu
+          dongDau={`${VOUCHER_METHOD_LABELS[phieu.voucher_type]} ngày ${ngay(phieu.voucher_date)}`}
+          soVnd={phieu.amount_vnd} so={phieu.amount} tienTe={phieu.currency} tyGia={phieu.exchange_rate}
+          tu={chuyenKhoan
+            ? {
+                vai: "Từ",
+                ten: phieu.company_account_holder || "Tài khoản công ty",
+                phu: [
+                  phieu.company_bank_name,
+                  phieu.company_account_number && <span className="kt-so-tk">{phieu.company_account_number}</span>,
+                  phieu.company_bank_branch && <TheNho>{phieu.company_bank_branch}</TheNho>,
+                ],
+              }
+            : { vai: "Từ", ten: "Quỹ tiền mặt" }}
+          toi={chuyenKhoan
+            ? {
+                vai: "Tới",
+                ten: phieu.beneficiary_account_holder || phieu.supplier_name || "—",
+                phu: [
+                  phieu.beneficiary_bank_name,
+                  phieu.beneficiary_account_number && <span className="kt-so-tk">{phieu.beneficiary_account_number}</span>,
+                  phieu.beneficiary_bank_branch && <TheNho>{phieu.beneficiary_bank_branch}</TheNho>,
+                ],
+              }
+            : {
+                vai: "Tới",
+                ten: phieu.cash_recipient_name || phieu.supplier_name || "—",
+                phu: [
+                  phieu.cash_recipient_address,
+                  phieu.cash_recipient_identity && <TheNho>{`CCCD ${phieu.cash_recipient_identity}`}</TheNho>,
+                ],
+              }}
+        />
+      }
       tabs={[
         { id: "tt", nhan: "Chi tiết" },
         { id: "ct", nhan: "Chứng từ", dem: tep.length },
@@ -226,95 +255,37 @@ export function VouchersDrawer({
               ghi="Phiếu vẫn còn trong sổ với dấu Đã hủy, in ra có chữ ĐÃ HỦY. Cần chi lại thì lập phiếu mới." />
           )}
 
-          <div className="kt-luoi2">
-            <div className="kt-hop">
-              <div className="kt-hop__tieu">Thông tin phiếu</div>
-              <div className="kt-hop__than">
-                <dl className="kt-kv">
-                  <Dong nhan="Nội dung chi">{phieu.content}</Dong>
-                  <Dong nhan="Người nhận">
-                    {phieu.voucher_type === "cash" ? phieu.cash_recipient_name : phieu.beneficiary_account_holder}
-                  </Dong>
-                  {phieu.voucher_type === "cash" && (
-                    <>
-                      <Dong nhan="Địa chỉ người nhận">{phieu.cash_recipient_address}</Dong>
-                      <Dong nhan="Giấy tờ (CCCD)">{phieu.cash_recipient_identity}</Dong>
-                    </>
-                  )}
-                  <Dong nhan="Mã giao dịch ngân hàng">{phieu.bank_reference}</Dong>
-                  <Dong nhan="Số chứng từ">{phieu.doc_no}</Dong>
-                  {phieu.invoice_number && (
-                    <Dong nhan="Hoá đơn">
-                      <Cum>
-                        <span>{phieu.invoice_number}</span>
-                        {phieu.invoice_date && <TheNho>{`Ngày ${ngay(phieu.invoice_date)}`}</TheNho>}
-                      </Cum>
-                    </Dong>
-                  )}
-                  <Dong nhan="Số hợp đồng">{phieu.contract_number}</Dong>
-                  {phieu.source_request_codes.length > 0 && (
-                    <Dong nhan="Yêu cầu mua">
-                      <Cum>
-                        {phieu.source_request_codes.map((ma) =>
-                          onMoYeuCau ? (
-                            <button key={ma} type="button" className="kt-lk" onClick={() => onMoYeuCau(ma)}>{ma}</button>
-                          ) : (
-                            <span key={ma}>{ma}</span>
-                          ),
-                        )}
-                      </Cum>
-                    </Dong>
-                  )}
-                  <Dong nhan="Ghi chú">{phieu.note}</Dong>
-                </dl>
-              </div>
-            </div>
-            <div className="kt-hop">
-              <div className="kt-hop__tieu">Dòng tiền</div>
-              <div className="kt-dt-tien">
-                {phieu.voucher_type === "bank_transfer" ? (
-                  <>
-                    <div className="kt-dt-tien__muc">
-                      <span>Trả từ tài khoản</span>
-                      <b>{soTaiKhoan(phieu.company_bank_name, phieu.company_account_number)}</b>
-                      <em className="kt-cum">
-                        {phieu.company_account_holder && <span>{phieu.company_account_holder}</span>}
-                        {phieu.company_bank_branch && <TheNho>{phieu.company_bank_branch}</TheNho>}
-                      </em>
-                    </div>
-                    <div className="kt-dt-tien__mui">
-                      <i><ArrowDown size={14} aria-hidden="true" /></i>
-                      {tien(phieu.amount_vnd)}
-                    </div>
-                    <div className="kt-dt-tien__muc">
-                      <span>Tài khoản người nhận</span>
-                      <b>{soTaiKhoan(phieu.beneficiary_bank_name, phieu.beneficiary_account_number)}</b>
-                      <em className="kt-cum">
-                        {phieu.beneficiary_account_holder && <span>{phieu.beneficiary_account_holder}</span>}
-                        {phieu.beneficiary_bank_branch && <TheNho>{phieu.beneficiary_bank_branch}</TheNho>}
-                      </em>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="kt-dt-tien__muc">
-                      <span>Trả từ</span>
-                      <b>Quỹ tiền mặt</b>
-                    </div>
-                    <div className="kt-dt-tien__mui">
-                      <i><ArrowDown size={14} aria-hidden="true" /></i>
-                      {tien(phieu.amount_vnd)}
-                    </div>
-                    <div className="kt-dt-tien__muc">
-                      <span>Người nhận</span>
-                      <b>{phieu.cash_recipient_name || phieu.supplier_name || "—"}</b>
-                      {phieu.cash_recipient_address && <em>{phieu.cash_recipient_address}</em>}
-                    </div>
-                  </>
+          {/* Lưới thông tin hai cột (Xero): nội dung chi đã là tiêu đề, người nhận + tài khoản + số tiền
+              ở biên lai — ở đây là phần CHỨNG TỪ của phiếu: nguồn, số sổ, ai lập lúc nào, giấy tờ kèm. */}
+          <LuoiThongTin o={[
+            { nhan: "Nguồn", giaTri: nguon.loai === "Khác" ? "Chi khác" : nguonO },
+            { nhan: "Số chứng từ kế toán", giaTri: phieu.doc_no },
+            { nhan: "Người lập", giaTri: <Cum><span>{phieu.created_by_name || "—"}</span><TheNho>{ngayGio(phieu.created_at)}</TheNho></Cum> },
+            { nhan: "Chứng từ kèm", giaTri: tep.length > 0
+                  ? <button type="button" className="kt-lk" onClick={() => setTab("ct")}>{`${tep.length} tệp`}</button>
+                  : <span className="kt-thieu">Chưa có hoá đơn hoặc ủy nhiệm chi</span> },
+            { nhan: "Mã giao dịch ngân hàng", giaTri: phieu.bank_reference },
+            { nhan: "Hoá đơn", giaTri: phieu.invoice_number && (
+              <Cum>
+                <span>{phieu.invoice_number}</span>
+                {phieu.invoice_date && <TheNho>{`Ngày ${ngay(phieu.invoice_date)}`}</TheNho>}
+              </Cum>
+            ) },
+            { nhan: "Số hợp đồng", giaTri: phieu.contract_number },
+            { nhan: "Yêu cầu mua", giaTri: phieu.source_request_codes.length > 0 && (
+              <Cum>
+                {phieu.source_request_codes.map((ma) =>
+                  onMoYeuCau ? (
+                    <button key={ma} type="button" className="kt-lk" onClick={() => onMoYeuCau(ma)}>{ma}</button>
+                  ) : (
+                    <span key={ma}>{ma}</span>
+                  ),
                 )}
-              </div>
-            </div>
-          </div>
+              </Cum>
+            ) },
+            { nhan: "Ghi chú", giaTri: phieu.note, rong: true },
+          ]} />
+
 
           {coThuLai && (
             <div className="kt-bang-xam">

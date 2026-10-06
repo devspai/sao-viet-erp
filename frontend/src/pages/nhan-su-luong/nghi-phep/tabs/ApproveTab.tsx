@@ -1,9 +1,23 @@
 // Tab "Duyệt đơn" (HR) (tách từ pages/NghiPhepPage.tsx).
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type LeaveRequest, type XinHuyChoDuyet } from "../../../../api/client";
 import { trangHopLe } from "../../../../components/Pager";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
-import { LocThangTao } from "../../../../components/LocThangTao";
+import { StatusTabs } from "../../../../components/StatusTabs";
+import { ThanhLoc } from "../../../thanh-loc/ThanhLoc";
+import { thamSoKy } from "../../../thanh-loc/ky-danh-sach";
+import { soDaAp } from "../../../thanh-loc/thanh-loc";
+import { dkTabDon, tabTrangThai, useLocTab } from "../../dieu-kien-don";
+import {
+  LOC_NP_TRONG,
+  MAN_NGHI_PHEP,
+  MOC_NP,
+  locNghiPhepLenUrl,
+  locNghiPhepTuUrl,
+  thamSoLocNghiPhep,
+  useDieuKienDuyetNghi,
+  type LocNghiPhep,
+} from "../dieu-kien-nghi-phep";
 import { fmtDate } from "../../../../utils/format";
 import { LeaveTable } from "../components/LeaveTable";
 import { PAGE_SIZE } from "../shared/constants";
@@ -21,18 +35,33 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
   /** Nhích theo mỗi sự kiện real-time — thợ gửi đơn / xin hủy là hàng đợi tự tươi (23/09/2026). */
   eventTick?: number;
 }) {
-  // Liên thông từ Hồ sơ NV: lọc theo 1 NV + mặc định xem TẤT CẢ trạng thái (không chỉ chờ duyệt).
-  const [status, setStatus] = useState(focusEmployeeId ? "" : "pending");
-  const [focus, setFocus] = useState<number | undefined>(focusEmployeeId);
-  // Nhảy từ Hồ sơ NV sang: đổi bộ lọc thì phải VỀ TRANG 1 luôn, không thì rơi vào trang cũ
-  // của bộ lọc cũ và màn báo "chưa có đơn nghỉ của người này" trong khi người ta có đơn.
-  useEffect(() => { if (focusEmployeeId) { setFocus(focusEmployeeId); setStatus(""); setPage(1); } }, [focusEmployeeId]);
   const [items, setItems] = useState<LeaveRequest[]>([]);
   const [total, setTotal] = useState(0);
+  const [dem, setDem] = useState<Record<string, number> | null>(null);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(PAGE_SIZE);
-  /** Lọc theo THÁNG TẠO đơn (`YYYY-MM`, rỗng = tất cả) — 23/09/2026. */
-  const [thang, setThang] = useState("");
+  // Kỳ (Ngày tạo / Ngày nghỉ) + trạng thái (thanh tab có số) + Loại nghỉ, Nhân viên, Phòng ban —
+  // lọc, đếm, phân trang ở MÁY CHỦ (06/10/2026). ĐỔI LỌC ⇒ VỀ TRANG 1 ngay trong `setLocTab`
+  // (không qua effect): làm ở effect thì lượt tải cũ bắn đi với số trang cũ rồi mới tới lượt mới.
+  const [locTab, setLocTabGoc] = useLocTab<LocNghiPhep>({
+    man: MAN_NGHI_PHEP, tienToUrl: "dy", moc: MOC_NP, mocMacDinh: "tao", ttMacDinh: "pending",
+    locTrong: LOC_NP_TRONG, locTuUrl: locNghiPhepTuUrl, locLenUrl: locNghiPhepLenUrl,
+  });
+  const setLocTab = (t: typeof locTab) => { setLocTabGoc(t); setPage(1); };
+  const dieuKien = useDieuKienDuyetNghi();
+  // Liên thông từ Hồ sơ NV: áp điều kiện Nhân viên + xem TẤT CẢ trạng thái (không chỉ chờ duyệt).
+  useEffect(() => {
+    if (focusEmployeeId) setLocTab({ ...locTab, tt: "", loc: { ...locTab.loc, nv: focusEmployeeId } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusEmployeeId]);
+  const status = locTab.tt;
+  const coLoc = locTab.ky.loai !== "tat_ca" || soDaAp(dieuKien, locTab.loc) > 0;
+  const khoaLoc = JSON.stringify({
+    ...thamSoKy(locTab.ky),
+    ...thamSoLocNghiPhep(locTab.loc),
+    status: status || undefined,
+  });
+  const luotTai = useRef(0);
   const [sel, setSel] = useState<Set<number>>(new Set());
   // Từ chối: đơn lẻ (LeaveRequest) HOẶC hàng loạt ("bulk") — cùng 1 modal, 1 lý do.
   const [rejectTarget, setRejectTarget] = useState<LeaveRequest | "bulk" | null>(null);
@@ -54,32 +83,27 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
   }, [token]);
   useEffect(() => { loadXinHuy(); }, [loadXinHuy, eventTick]);
   const load = useCallback(() => {
+    const luot = ++luotTai.current;
     setLoadingList(true);
     setListError(null);
-    // LỌC THEO 1 NHÂN VIÊN CHẠY Ở MÁY CHỦ (`employeeId`), không còn `items.filter(...)` ở client.
-    // Lọc ở client + phân trang = đơn của người đó nằm ở trang khác thì màn báo "chưa có đơn
-    // nghỉ của người này" — sai sự thật, mà đường vào đây chính là bấm từ Hồ sơ NV.
-    api.leaves.list(token, {
-      status: status || undefined,
-      employeeId: focus,
-      thang: thang || undefined,
-      page,
-      size,
-    })
+    // MỌI điều kiện (kể cả 1 nhân viên liên thông từ Hồ sơ NV) lọc Ở MÁY CHỦ — lọc trên mảng đã
+    // tải + phân trang thì đơn nằm ở trang khác là màn báo "chưa có đơn" sai sự thật.
+    api.leaves.list(token, { ...JSON.parse(khoaLoc), page, size })
       .then((r) => {
+        if (luot !== luotTai.current) return;
         setItems(r.items);
         setTotal(r.total);
+        setDem(r.dem_theo_tab ?? null);
         setSel(new Set());
         const trangCanVe = trangHopLe(page, r.total, size);
         if (trangCanVe !== null) setPage(trangCanVe);
       })
-      .catch((e) => { setItems([]); setTotal(0); setListError(errMsg(e)); })
-      .finally(() => setLoadingList(false));
-  }, [token, status, focus, page, size, thang]);
+      .catch((e) => { if (luot === luotTai.current) { setItems([]); setTotal(0); setListError(errMsg(e)); } })
+      .finally(() => { if (luot === luotTai.current) setLoadingList(false); });
+  }, [token, khoaLoc, page, size]);
   useEffect(() => { load(); }, [load, eventTick]);
 
-  const shown = items;   // máy chủ đã lọc sẵn theo `focus`
-  const focusName = focus ? items.find((i) => i.employee_id === focus)?.employee_name : undefined;
+  const shown = items;
   // ⚠ CHỈ id chờ duyệt CỦA TRANG ĐANG XEM. "Chọn tất cả" và các nút hàng loạt vì thế cũng chỉ
   // tác động trong phạm vi trang này — chân bảng nói rõ điều đó cho người duyệt biết.
   const pendingIds = shown.filter((i) => i.status === "pending").map((i) => i.id);
@@ -128,28 +152,18 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
 
   return (
     <div>
-      {focus != null && (
-        <div className="cc-focus">
-          <span>Đang xem đơn nghỉ của <b>{focusName ?? `NV #${focus}`}</b></span>
-          <button type="button" className="btn btn--ghost" onClick={() => { setFocus(undefined); setPage(1); }}>✕ Bỏ lọc — xem cả xưởng</button>
-        </div>
-      )}
-      <div className="cc-ts-toolbar">
-        <div className="cc-select-wrapper" style={{ width: "160px" }}>
-          {/* ĐỔI BỘ LỌC ⇒ VỀ TRANG 1, đặt NGAY TRONG handler (không qua `useEffect` theo dõi
-              `status`): làm ở effect thì lượt tải cũ đã bắn đi với số trang cũ rồi mới tới lượt
-              mới — hai lượt chồng nhau. Thiếu hẳn bước reset thì đang ở trang 3, đổi sang "Chờ
-              duyệt" chỉ còn 1 trang ⇒ bảng rỗng trơn mà người duyệt tưởng hết việc. */}
-          <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
-            <option value="pending">Chờ duyệt</option>
-            <option value="approved">Đã duyệt</option>
-            <option value="rejected">Từ chối</option>
-            <option value="cancelled">Đã hủy</option>
-            <option value="">Tất cả</option>
-          </select>
-        </div>
-        {/* Đổi tháng ⇒ về trang 1 NGAY trong handler, cùng lý do với ô trạng thái ở trên. */}
-        <LocThangTao value={thang} onChange={(v) => { setThang(v); setPage(1); }} />
+      <div className="cc-ts-toolbar tl-thanh">
+        <ThanhLoc
+          ky={locTab.ky}
+          moc={MOC_NP}
+          onKy={(ky) => setLocTab({ ...locTab, ky })}
+          dieuKien={dkTabDon(dieuKien, tabTrangThai(dem))}
+          loc={locTab}
+          onLoc={setLocTab}
+        />
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <StatusTabs tabs={tabTrangThai(dem)} active={status} onChange={(tt) => setLocTab({ ...locTab, tt })} />
       </div>
       {sel.size > 0 && (
         <div className="cc-bulk-actions-floating">
@@ -183,8 +197,8 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
         onReject={(r) => { setRejectTarget(r); setRejectNote(""); setError(null); }}
         selectable selected={sel} onToggle={toggle} onToggleAll={toggleAll} allPendingCount={pendingIds.length}
         loading={loadingList} listError={listError} onRetry={load}
-        emptyTitle={focus ? "Chưa có đơn nghỉ của người này" : "Chưa có đơn xin nghỉ nào"}
-        emptySub={thang ? "Không có đơn nào tạo trong tháng này khớp bộ lọc — bỏ lọc tháng (nút ✕) hoặc đổi trạng thái." : status === "pending" ? "Không còn đơn nào chờ duyệt. Đổi bộ lọc trạng thái để xem đơn đã xử lý." : "Thử đổi bộ lọc trạng thái ở trên."} />
+        emptyTitle={coLoc ? "Không có đơn nào khớp bộ lọc" : "Chưa có đơn xin nghỉ nào"}
+        emptySub={coLoc ? "Đổi kỳ hoặc bỏ bớt điều kiện lọc ở trên." : status === "pending" ? "Không còn đơn nào chờ duyệt. Chọn tab Tất cả để xem đơn đã xử lý." : "Thử chọn tab trạng thái khác."} />
       {/* Giữ chân trong lúc tải trang kế (nút đã khoá qua `loading`) — ẩn đi rồi hiện lại thì
           dãy số trang nhảy khỏi chỗ con trỏ. */}
       {!listError && total > 0 && (

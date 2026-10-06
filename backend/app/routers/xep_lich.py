@@ -32,6 +32,7 @@ from ..realtime import hub
 from ..services.can_doi_cache import xoa_cache_can_doi
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.xep_lich_lenh_repo import XepLichLenhRepository
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.xep_lich import (
     ChiTietOut,
     DatMocIn,
@@ -102,8 +103,26 @@ def hang_cho(
     tim: str | None = Query(None, description="Tìm theo mã / tên lệnh — lọc Ở MÁY CHỦ"),
     trang: int = Query(1, ge=1),
     moi_trang: int = Query(20, ge=1, le=200),
+    tu_ngay: date | None = Query(None),
+    den_ngay: date | None = Query(None),
+    moc: str = Query("tao", pattern="^(tao|han_sx)$", description="Kỳ theo Ngày tạo / Hạn SX"),
+    khach_id: int | None = Query(None),
 ) -> dict:
-    return _svc(db).hang_cho(tim=tim, trang=trang, cd_trang=moi_trang)
+    return _svc(db).hang_cho(tim=tim, trang=trang, cd_trang=moi_trang, tu_ngay=tu_ngay,
+                             den_ngay=den_ngay, moc=moc, khach_id=khach_id)
+
+
+@router.get("/hang-cho/khach-loc", response_model=list[LuaChonLoc])
+def hang_cho_khach_loc(
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    tim: str | None = Query(None),
+    tu_ngay: date | None = Query(None),
+    den_ngay: date | None = Query(None),
+    moc: str = Query("tao", pattern="^(tao|han_sx)$"),
+) -> list[dict]:
+    """Ô "Khách hàng" của thanh lọc hàng chờ: khách đang có lệnh chờ xếp, kèm số lệnh."""
+    return _svc(db).khach_hang_cho(tim=tim, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
 
 
 @router.get("/lich", response_model=LichOut)

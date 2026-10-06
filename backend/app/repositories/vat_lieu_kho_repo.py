@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.customer import Customer
+from ..models.don_vi_do import DonViDo
 from ..models.order import Order
 from ..models.vat_lieu_kho import GiayGiaVersion, GiayNguyen, VatTuChip, VatTuInAn
 from .catalog_base import CatalogRepo
@@ -22,6 +23,11 @@ class _GiayRepo(CatalogRepo):
               "tho", "don_vi_gia", "don_gia", "gia_thi_truong", "kho_tinh_gia", "ghi_chu",
               "active", "cong_thuc_gia", "thay_the_ids")
     commit_on_write = False
+    bang_nhan_cot = {"don_vi_gia": (DonViDo.ma, DonViDo.ten)}
+
+    def extra_conds(self, *, don_vi_gia: str | None = None, **_) -> list:
+        """Lọc theo ĐƠN VỊ GIÁ (thanh lọc của màn Giấy)."""
+        return [GiayNguyen.don_vi_gia == don_vi_gia] if don_vi_gia else []
 
 
 class _VatTuRepo(CatalogRepo):
@@ -50,8 +56,13 @@ class _VatTuRepo(CatalogRepo):
     # thành phẩm của một khách — nó thuộc màn "Thành phẩm", không phải màn này.
     #
     # Không lọc ở đây thì nó hiện ở CẢ HAI màn, và mực/kẽm/hoá chất chìm nghỉm giữa thành phẩm.
-    def extra_conds(self, **kw) -> list:
-        return [*super().extra_conds(**kw), VatTuInAn.la_thanh_pham.is_(False)]
+    bang_nhan_cot = {"don_vi_gia": (DonViDo.ma, DonViDo.ten)}
+
+    def extra_conds(self, *, don_vi_gia: str | None = None, **kw) -> list:
+        conds = [*super().extra_conds(**kw), VatTuInAn.la_thanh_pham.is_(False)]
+        if don_vi_gia:
+            conds.append(VatTuInAn.don_vi_gia == don_vi_gia)
+        return conds
 
 
     # ⚠️ KHÔNG ghi đè `get()` ở đây. Đã thử và VỠ 19/08/2026: kho tra mặt hàng `hang_loai="vat_tu"`
@@ -80,8 +91,14 @@ class _ThanhPhamRepo(CatalogRepo):
     fields = ("ten", "don_vi_gia", "ghi_chu", "active")
     commit_on_write = False
 
-    def extra_conds(self, **kw) -> list:
-        return [*super().extra_conds(**kw), VatTuInAn.la_thanh_pham.is_(True)]
+    bang_nhan_cot = {"customer_id": (Customer.id, Customer.name)}
+
+    def extra_conds(self, *, khach_hang_id: int | None = None, **kw) -> list:
+        """Thành phẩm + lọc theo KHÁCH đặt lần đầu (vết nguồn gốc `customer_id`, mg 0228)."""
+        conds = [*super().extra_conds(**kw), VatTuInAn.la_thanh_pham.is_(True)]
+        if khach_hang_id:
+            conds.append(VatTuInAn.customer_id == khach_hang_id)
+        return conds
 
     def _sau_gan(self, obj, data: dict) -> None:
         """Dòng đi qua repo NÀY thì LÀ thành phẩm — đóng dấu luôn, đừng chờ ai truyền vào.
@@ -161,9 +178,12 @@ class VatLieuKhoRepository:
         ) if don_ids else {}
         return khach, don
 
-    def list(self, kind: str, *, q: str | None = None, active: bool | None = None,
-             page: int = 1, size: int = 50):
-        return self._r(kind).list(q=q, active=active, page=page, size=size)
+    def list(self, kind: str, **kw):
+        """Danh sách một trang — `kw` là mọi bộ lọc của màn (ô tìm, đang dùng, kỳ, đơn vị giá…)."""
+        return self._r(kind).list(**kw)
+
+    def dem_theo_cot(self, kind: str, cot, **kw) -> list[dict]:
+        return self._r(kind).dem_theo_cot(cot, **kw)
 
     def create(self, kind: str, data: dict):
         return self._r(kind).create(data)

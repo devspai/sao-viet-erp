@@ -33,7 +33,8 @@ export interface DongKe {
   /** `null` ở dụng cụ — khuôn không đếm bằng số lượng, chỉ có hoặc không. */
   so_luong: number | null;
   don_vi: string | null;
-  /** Câu phụ bên phải: "NVL chính", tình trạng khuôn… */
+  /** Câu phụ dưới tên: khổ giấy, tình trạng khuôn… Nhóm đã có dòng tiêu đề riêng ở bảng nên
+   *  đừng nhắc lại "NVL chính" ở đây. */
   chu_thich: string | null;
 }
 
@@ -114,7 +115,7 @@ export function bangKeVatTu(args: {
         ten: v.vat_tu_ten ?? "",
         so_luong: soHoac0(v.so_luong),
         don_vi: nhanDv(v.don_vi),
-        chu_thich: giay ? `NVL chính · ${nhanKho(kr, kd)}` : null,
+        chu_thich: giay ? nhanKho(kr, kd) : null,
       });
     }
 

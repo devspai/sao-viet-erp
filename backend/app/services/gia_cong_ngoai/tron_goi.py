@@ -16,23 +16,56 @@ from ...models.san_xuat import (
     SanXuatPhienBan,
 )
 from ...models.stock_request import REQ_CANCELLED, REQ_XUAT
+from ...models.vat_lieu_kho import GiayNguyen
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.document_sequence_repo import DocumentSequenceRepository
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
+from ...repositories.stock_lot_repo import StockLotRepository
 from ...repositories.stock_request_repo import StockRequestRepository
 from ...repositories.xep_lich_lenh_repo import XepLichLenhRepository
 from ...repositories.xep_lich_repo import XepLichRepository
+from ..bien_cong_thuc import quy_cach_bien
+from ..kho_giay import DANG_TO, chuan_kho, don_vi_goc_to, goi_y_dong_giay, nhan_kho
 from ..san_xuat.component import thanh_phan_lien_thong
 from ..san_xuat.nhom import dam_bao_nhom
 from ..san_xuat.release_update import thu_hoi_goi
-from ..san_xuat.vat_tu_de_nghi import _don_vi_gui_kho, _hang_service, _req_service
+from ..san_xuat.vat_tu_de_nghi import _hang_service, _req_service
 from ..sequence_service import SequenceService
 from ..stock_request_service import StockRequestError
-from . import GiaCongXungDot, kiem_version
+from . import GiaCongXungDot, kiem_version, so_vi
 
 _DAT_DUOC = (TT_NHAP, TT_CHO_BO_SUNG, TT_SAN_SANG, TT_DA_LAP_KE_HOACH)
+
+
+def chan_tron_goi(db: Session, lsx_id: int) -> tuple[str, str] | None:
+    """Lệnh đi chung với lệnh khác (cùng làm ra một thành phẩm, nối công đoạn chéo, hoặc in ghép
+    tờ trong bài ghép) thì không giao trọn gói riêng được — nhà gia công làm trọn một lệnh trong khi
+    lệnh kia còn chạy trong xưởng là đứt chỗ ghép. Trả `(câu ngắn, câu đầy đủ)`, cả hai nêu ĐÍCH
+    DANH lệnh / bài ghép đang dính để người kế hoạch biết vì sao, khỏi đoán "nhóm thành phẩm" là
+    gì. Câu ngắn để chip trên thanh đầu màn lệnh. None = lệnh đứng riêng."""
+    repo = SanXuatRepository(db)
+    tp = thanh_phan_lien_thong(repo, {lsx_id})
+    khac = sorted(tp.lsx_ids - {lsx_id})
+    if not khac and not tp.bai_ghep_ids:
+        return None
+    if tp.bai_ghep_ids:
+        from ...models.bai_ghep import BaiGhep
+        ma_bg = ", ".join(sorted(bg.ma for i in tp.bai_ghep_ids if (bg := db.get(BaiGhep, i))))
+        return (f"Trong bài ghép {ma_bg} — chưa giao trọn gói được",
+                f"Lệnh này in ghép tờ trong bài ghép {ma_bg} — không giao trọn gói riêng một lệnh "
+                "được. Gỡ lệnh khỏi bài ghép trước nếu muốn giao trọn gói.")
+    lenh = [x for i in khac if (x := repo.lsx(i)) is not None]
+    ten = ", ".join(f"{x.ma} ({x.ten})" if x.ten else x.ma for x in lenh)
+    return (f"Đi chung {', '.join(x.ma for x in lenh)} — chưa giao trọn gói được",
+            f"Lệnh này đi chung với {ten} — các lệnh cùng làm ra một thành phẩm nên không giao "
+            "trọn gói riêng một lệnh được.")
+
+
+def ly_do_khong_tron_goi(db: Session, lsx_id: int) -> str | None:
+    chan = chan_tron_goi(db, lsx_id)
+    return chan[1] if chan else None
 
 
 def _giu_cho(db: Session):
@@ -41,8 +74,18 @@ def _giu_cho(db: Session):
     return _giu_cho_service(db)
 
 
+def _bao_nhu_cau_doi() -> None:
+    """Nhu cầu vật tư của lệnh vừa đổi mà lệnh không bật giữ chỗ (nhánh `tat`/`bat` đã tự làm hai
+    việc này): bỏ cache bảng cân đối + báo Kế hoạch vật tư / đèn vật tư nạp lại ngay."""
+    from ..can_doi_cache import xoa_cache_can_doi
+    from ..giu_cho_service import _bao_ke_hoach_vat_tu_doi
+
+    xoa_cache_can_doi()
+    _bao_ke_hoach_vat_tu_doi()
+
+
 def dat_tron_goi(db: Session, *, user, lsx_id: int, nha_cung_cap_id: int, sl_dat: float,
-                 don_gia: float | None, xuong_cap_giay: bool) -> dict:
+                 xuong_cap_giay: bool) -> dict:
     repo = SanXuatRepository(db)
     gc_repo = GiaCongNgoaiRepository(db)
     # Khoá dòng lệnh TRƯỚC mọi kiểm tra — hai lượt đặt trọn gói bấm gần như đồng thời phải xếp
@@ -60,10 +103,9 @@ def dat_tron_goi(db: Session, *, user, lsx_id: int, nha_cung_cap_id: int, sl_dat
         raise ValueError("Nhà cung cấp này chưa bật “Nhận gia công” hoặc đã ngừng giao dịch.")
     if float(sl_dat or 0) <= 0:
         raise ValueError("Số lượng đặt gia công phải lớn hơn 0.")
-    tp = thanh_phan_lien_thong(repo, {lsx_id})
-    if len(tp.lsx_ids) > 1 or tp.bai_ghep_ids:
-        raise ValueError("Lệnh đi chung nhóm thành phẩm hoặc bài ghép với lệnh khác — gia công "
-                         "trọn gói chỉ áp cho lệnh đứng riêng.")
+    chan = ly_do_khong_tron_goi(db, lsx_id)
+    if chan:
+        raise ValueError(chan)
     if repo.goi_hien_tai_cua({lsx_id}, set()) is not None:
         raise ValueError("Lệnh đang có gói phát hành — thu hồi trước.")
     # Kiểm xong hết mới xoá. Lệnh đã xếp lịch theo công đoạn (spec §4 bước 1): xếp lịch không còn
@@ -84,7 +126,7 @@ def dat_tron_goi(db: Session, *, user, lsx_id: int, nha_cung_cap_id: int, sl_dat
     dv = (lsx.don_vi_tinh or "").strip()
     gcn = GiaCongNgoai(
         lsx_id=lsx_id, kieu=KIEU_TRON_GOI, nha_cung_cap_id=nha.id, nha_cung_cap_ten=nha.name,
-        ten_viec="Trọn gói cả lệnh", don_gia=don_gia, don_vi=dv, sl_dat=float(sl_dat),
+        ten_viec="Trọn gói cả lệnh", don_vi=dv, sl_dat=float(sl_dat),
         xuong_cap_giay=bool(xuong_cap_giay), created_by=uid,
     )
     db.add(gcn)
@@ -114,19 +156,22 @@ def dat_tron_goi(db: Session, *, user, lsx_id: int, nha_cung_cap_id: int, sl_dat
     dv_ten = nhan_don_vi(DonViDoRepository(db).ten_theo_ma(), dv)
     AuditLogRepository(db).create(
         actor_user_id=uid, action="gia_cong_ngoai_dat", target=f"gia_cong_ngoai:{gcn.id}",
-        detail=(f"Trọn gói lệnh {lsx.ma}: {nha.name} — {float(sl_dat):g} {dv_ten}; "
-                f"{'xưởng cấp giấy' if xuong_cap_giay else 'nhà gia công lo giấy'}"),
+        detail=(f"Giao trọn gói lệnh {lsx.ma} cho {nha.name}, đặt {so_vi(sl_dat)} {dv_ten}, "
+                f"{'xưởng cấp giấy' if xuong_cap_giay else 'nhà gia công tự lo giấy'}"),
         commit=False,
     )
     db.commit()
 
     # Giữ chỗ vật tư đi theo NHU CẦU mới (KHVT bỏ nhu cầu lệnh trọn gói): nhả hết rồi giữ lại
     # đúng phần còn cần — giấy khi xưởng cấp, không gì khi nhà gia công lo. `tat`/`bat` tự commit.
+    # Xưởng cấp giấy: nhu cầu giấy theo quy cách lệnh nếu bước chưa khai giấy (KHVT `_giay_tron_goi`).
     if lsx.giu_cho_bat:
         giu = _giu_cho(db)
         giu.tat(lsx_id=lsx_id)
         if xuong_cap_giay:
             giu.bat(lsx_id=lsx_id)
+    else:
+        _bao_nhu_cau_doi()
     return {"gia_cong_ngoai_id": gcn.id, "lsx_id": lsx_id}
 
 
@@ -190,37 +235,102 @@ def huy_tron_goi(db: Session, *, user, gcn_id: int, expected_version: int | None
     # đặt, cho lệnh về Nháp cân đối vật tư bình thường như mọi lệnh khác. `bat` tự commit.
     if lsx.giu_cho_bat:
         _giu_cho(db).bat(lsx_id=gcn.lsx_id)
+    else:
+        _bao_nhu_cau_doi()
     return {"gia_cong_ngoai_id": gcn.id, "lsx_id": gcn.lsx_id}
 
 
-def de_nghi_xuat_giay(db: Session, *, user, gcn_id: int, expected_version: int | None):
-    """Xưởng cấp giấy cho nhà gia công: MỘT đề nghị XUẤT (kho soạn + lập phiếu xuất như mọi đề
-    nghị khác). Dòng lấy từ giấy khai ở các bước của lệnh; mang `lsx_id` nên KHVT tự trừ "đã cấp"."""
+def _de_xuat_giay(db: Session, lsx) -> dict:
+    """Giấy nên cấp cho nhà gia công: mã giấy + khổ + số tờ. Dòng giấy TỜ khai ở bước đầu tiên của
+    lệnh thắng (người kế hoạch đã sửa tay); không có thì đọc quy cách lệnh — ảnh chụp từ phiếu tính
+    giá (`goi_y_dong_giay`, cùng luật điền sẵn dòng giấy của bước). Mã giấy luôn lấy ở máy chủ."""
+    to = don_vi_goc_to()
+    for vt in GiaCongNgoaiRepository(db).giay_cua_lenh(lsx.id):
+        kr, kd = chuan_kho(vt.kho_rong, vt.kho_dai)
+        if vt.dang_giay in (None, DANG_TO) and kr and kd:
+            so = float(vt.so_luong) if vt.don_vi_snapshot == to else None
+            return {"giay_id": int(vt.vat_tu_id), "kho_rong": kr, "kho_dai": kd, "so_to": so,
+                    "nguon": "lệnh"}
+    return de_xuat_tu_quy_cach(lsx)
+
+
+def de_xuat_tu_quy_cach(lsx) -> dict:
+    """Giấy theo quy cách lệnh (ảnh chụp phiếu tính giá): mã + khổ nguyên + số tờ nguyên. Thuần —
+    không query; bảng cân đối vật tư gọi cho lệnh trọn gói chưa khai giấy ở bước."""
+    qc = quy_cach_bien(lsx)
+    try:
+        giay_id = int(qc.get("giay_id") or 0) or None
+    except (TypeError, ValueError):
+        giay_id = None
+    gy = goi_y_dong_giay(qc)
+    return {"giay_id": giay_id, "kho_rong": gy["kho_rong"], "kho_dai": gy["kho_dai"],
+            "so_to": gy["so_luong"], "nguon": "phiếu tính giá"}
+
+
+def cho_cap_giay(gcn, *, co_xuat: bool) -> bool:
+    """Lần trọn gói xưởng cấp giấy, còn chạy, chưa có đề nghị xuất giấy còn sống."""
+    return (gcn.kieu == KIEU_TRON_GOI and bool(gcn.xuong_cap_giay) and gcn.huy_luc is None
+            and gcn.chot_luc is None and not co_xuat)
+
+
+def goi_y_cap_giay(db: Session, gcn, *, co_xuat: bool) -> dict | None:
+    """Phần "Chọn giấy" của khối Gia công ngoài (C1, mockup tron-goi-cap-giay-C): mã giấy, đề xuất
+    khổ + số tờ, và tồn TỜ của mã đó chia theo khổ. Nằm sẵn trong dict lần — bấm "Chọn giấy" mở
+    ngay, khỏi gọi thêm API. None khi lần không chờ cấp giấy."""
+    if not cho_cap_giay(gcn, co_xuat=co_xuat):
+        return None
+    lsx = SanXuatRepository(db).lsx(gcn.lsx_id)
+    dx = _de_xuat_giay(db, lsx)
+    out = {"giay_id": dx["giay_id"], "giay_ma": None, "giay_ten": None, "don_vi": don_vi_goc_to(),
+           "nguon": dx["nguon"], "de_xuat": None, "kho": [], "ly_do": None}
+    if dx["giay_id"] is None:
+        out["ly_do"] = "Lệnh chưa chọn loại giấy — chọn giấy ở Quy cách của lệnh rồi quay lại."
+        return out
+    g = db.get(GiayNguyen, dx["giay_id"])
+    out["giay_ma"], out["giay_ten"] = getattr(g, "ma", None), getattr(g, "ten", None)
+    co_kho = bool(dx["kho_rong"] and dx["kho_dai"])
+    if co_kho:
+        out["de_xuat"] = {"kho_rong": dx["kho_rong"], "kho_dai": dx["kho_dai"],
+                          "so_to": dx["so_to"]}
+    ton = {(r, d): t for r, d, t in StockLotRepository(db).ton_to_theo_kho(dx["giay_id"])}
+    if co_kho:
+        # Khổ đề xuất luôn có mặt, kể cả kho hết — người kế hoạch thấy "hết" thay vì mất dòng.
+        ton.setdefault((dx["kho_rong"], dx["kho_dai"]), 0.0)
+    out["kho"] = [
+        {"kho_rong": r, "kho_dai": d, "ton": t,
+         "dung_de_xuat": co_kho and (r, d) == (dx["kho_rong"], dx["kho_dai"])}
+        for (r, d), t in sorted(ton.items(), key=lambda x: (
+            not (co_kho and x[0] == (dx["kho_rong"], dx["kho_dai"])), -x[1], x[0]))
+    ]
+    return out
+
+
+def de_nghi_xuat_giay(db: Session, *, user, gcn_id: int, expected_version: int | None,
+                      kho_rong: int, kho_dai: int, so_to: float):
+    """Xưởng cấp giấy cho nhà gia công: MỘT đề nghị XUẤT, MỘT dòng giấy TỜ đúng khổ người kế hoạch
+    chọn (kho soạn + lập phiếu xuất như mọi đề nghị khác). Mã giấy lấy ở máy chủ theo lệnh; dòng
+    mang `lsx_id` nên KHVT tự trừ "đã cấp". Kho thiếu tờ vẫn cho gửi — kho tự báo thiếu / mua thêm."""
+    kr, kd = chuan_kho(kho_rong, kho_dai)
+    if not (kr and kd):
+        raise ValueError("Chọn khổ giấy cần xuất.")
+    so_to = round(float(so_to or 0), 2)
+    if so_to <= 0:
+        raise ValueError("Số tờ xin xuất phải lớn hơn 0.")
     gc_repo = GiaCongNgoaiRepository(db)
     gcn = _lay_tron_goi(gc_repo, gcn_id, expected_version)
     if not gcn.xuong_cap_giay:
         raise ValueError("Lần này nhà gia công tự lo giấy — không có giấy để xuất.")
     if gc_repo.yeu_cau_xuat_cua(gcn.id):
         raise ValueError("Lần này đã có đề nghị xuất giấy — xem ở Yêu cầu nhập xuất.")
-    dong = gc_repo.giay_cua_lenh(gcn.lsx_id)
-    if not dong:
-        raise ValueError("Lệnh chưa khai giấy ở bước nào — khai ở Kế hoạch SX rồi đề nghị lại.")
-
-    hang = _hang_service(db)
-    goc: dict[int, float] = {}
-    for vt in dong:
-        q = hang.quy_ve_goc("giay", int(vt.vat_tu_id), vt.don_vi_snapshot, float(vt.so_luong))
-        goc[int(vt.vat_tu_id)] = goc.get(int(vt.vat_tu_id), 0.0) + float(q["sl_goc"])
-    lines = []
-    for hang_id, sl_goc in goc.items():
-        dvt, sl = _don_vi_gui_kho(hang, "giay", hang_id, sl_goc)
-        if round(sl, 2) <= 0:
-            raise ValueError("Lượng giấy quá nhỏ để kho ghi được — kiểm lại số khai ở bước.")
-        lines.append({"hang_loai": "giay", "hang_id": hang_id, "dvt": dvt,
-                      "sl_de_nghi": round(sl, 2), "lsx_id": gcn.lsx_id})
-
     lsx = SanXuatRepository(db).lsx(gcn.lsx_id)
-    req_svc = _req_service(db, hang)
+    giay_id = _de_xuat_giay(db, lsx)["giay_id"]
+    if giay_id is None:
+        raise ValueError("Lệnh chưa chọn loại giấy — chọn giấy ở Quy cách của lệnh rồi quay lại.")
+
+    lines = [{"hang_loai": "giay", "hang_id": giay_id, "dvt": don_vi_goc_to(),
+              "dang_giay": DANG_TO, "kho_rong": kr, "kho_dai": kd,
+              "sl_de_nghi": so_to, "lsx_id": gcn.lsx_id}]
+    req_svc = _req_service(db, _hang_service(db))
     try:
         req = req_svc.create(
             user=user, loai=REQ_XUAT, lines=lines, commit=False,
@@ -233,8 +343,19 @@ def de_nghi_xuat_giay(db: Session, *, user, gcn_id: int, expected_version: int |
     gcn.version += 1
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="gia_cong_ngoai_xuat_giay",
-        target=f"gia_cong_ngoai:{gcn.id}", detail=f"Đề nghị xuất giấy {req.ma}", commit=False,
+        target=f"gia_cong_ngoai:{gcn.id}",
+        detail=(f"Đề nghị xuất giấy {req.ma}: {so_vi(so_to)} "
+                f"{nhan_don_vi(DonViDoRepository(db).ten_theo_ma(), don_vi_goc_to())} "
+                f"khổ {nhan_kho(kr, kd)}"), commit=False,
     )
     db.commit()
     req_svc.thong_bao_yeu_cau_moi(req)
+    # Nhu cầu giấy của lệnh nay theo ĐÚNG dòng đề nghị (khổ / số tờ có thể khác quy cách) — giữ chỗ
+    # đang bật thì nhả rồi giữ lại theo khổ mới, không thì chỗ cũ treo trên khổ không ai xin.
+    if lsx.giu_cho_bat:
+        giu = _giu_cho(db)
+        giu.tat(lsx_id=lsx.id)
+        giu.bat(lsx_id=lsx.id)
+    else:
+        _bao_nhu_cau_doi()
     return req

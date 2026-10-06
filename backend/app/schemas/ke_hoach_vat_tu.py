@@ -113,6 +113,17 @@ class CanDoiNhom(BaseModel):
     dong: list[CanDoiDong] = Field(default_factory=list)
 
 
+class CanDoiDem(BaseModel):
+    """Số trên thanh tab của cách nhìn theo mặt hàng — đếm sau `q` + `hang_loai`, TRƯỚC
+    `tinh_trang` (xem `KeHoachVatTuService.loc_hien_thi`). `theo_loai` đếm trước `hang_loai`."""
+
+    so_nhom: int = 0
+    so_dong_do: int = 0
+    so_dong_khong_ro: int = 0
+    so_nhom_du: int = 0
+    theo_loai: dict[str, int] = Field(default_factory=dict)
+
+
 class CanDoiOut(BaseModel):
     """`bo_qua` (danh sách lệnh/bài không cân đối được) GỠ 23/09/2026 — bảng chỉ cân đối thứ ĐÃ
     khai; chưa khai thì vắng mặt. Cửa chặn nằm ở xếp lịch, xem `_gom_nhu_cau`."""
@@ -121,6 +132,8 @@ class CanDoiOut(BaseModel):
     #: Cùng nghĩa `TheoLenhOut.so_giu_lau`, đếm trên TOÀN XƯỞNG (không theo `q`). Đi kèm ở đây để
     #: badge trên nút "Theo lệnh" khỏi phải gọi `/theo-lenh` — lời gọi đó dựng lại cả bảng cân đối.
     so_giu_lau: int = 0
+    #: Số của thanh tab (06/10/2026). `None` ở đường nội bộ không qua router.
+    dem: CanDoiDem | None = None
 
 
 class DeNghiMuaDong(BaseModel):
@@ -227,6 +240,9 @@ class TheoLenhOut(BaseModel):
     #: Đếm trên TOÀN BỘ danh sách, không phải phần đang lọc — nếu không thì bật bộ lọc là con số
     #: tự khớp với chính nó và chẳng còn nói lên điều gì.
     so_giu_lau: int = 0
+    #: Số trên thanh tab (06/10/2026): đếm sau `q` + `chi_can_lo`, TRƯỚC `giu` — khoá `tat_ca`,
+    #: `du`, `dang`, `tat`, `giu_lau`.
+    dem_theo_tab: dict[str, int] = Field(default_factory=dict)
 
 
 class GiuChoIn(BaseModel):

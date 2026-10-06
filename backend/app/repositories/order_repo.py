@@ -8,17 +8,22 @@ the Customer/Quotation repositories (feat-006 apply_scope pattern).
 """
 from __future__ import annotations
 
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, timedelta
 
-from sqlalchemy import BigInteger, asc, cast, desc, func, or_, select
+from sqlalchemy import BigInteger, and_, asc, cast, desc, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.customer import Customer
-from ..models.order import Order, OrderLine
+from ..models.order import (
+    SOURCE_BAO_GIA, STATUS_CANCELLED, STATUS_DRAFT, STATUS_ORDERED, Order, OrderLine,
+)
+from ..models.quotation import Quote
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
 from .org_scope import dept_subtree_ids
 from .org_scope import chu_cua, chu_theo_khach, nhom_dung_chung_user_ids
+from .loc_danh_sach import dk_khoang_ngay, hom_nay_vn
 from .tim_khong_dau import like_khong_dau
 
 # Columns a caller may sort by (whitelist — never interpolate a raw sort key).
@@ -40,6 +45,146 @@ _SORTABLE = {
     "order_kind": Order.order_kind,
     "created_at": Order.created_at,
 }
+
+
+def _tong_vat_x100():
+    """Σ `line_total · (100 + vat)` của đơn — bằng 100 × "Giá trị gồm VAT" ngoài bảng (bản Python
+    lấy `// 100`, xem `money_sums`). So sánh trên số ×100 để khỏi chia trong SQL."""
+    return (
+        select(func.coalesce(func.sum(_line_total_with_vat()), 0))
+        .where(OrderLine.order_id == Order.id)
+        .correlate(Order)
+        .scalar_subquery()
+    )
+
+
+def _san_sang_chot(hom_nay: date):
+    """Đơn NHÁP đã qua cổng chốt — bản SQL của `OrderService._confirm_gate` (sửa một nơi thì sửa
+    cả nơi kia): báo giá nguồn khách đã đồng ý và còn hạn, có số PO, có ngày giao cam kết, không
+    còn dòng chưa định giá. Cọc KHÔNG phải cổng chốt."""
+    bao_gia_hop_le = Order.quotation_id.in_(
+        select(Quote.id).where(
+            Quote.status.in_(("accepted", "converted_to_order")),
+            or_(Quote.valid_until.is_(None), Quote.valid_until >= hom_nay),
+        )
+    )
+    con_dong_chua_gia = (
+        select(OrderLine.id)
+        .where(OrderLine.order_id == Order.id, OrderLine.line_total.is_(None))
+        .exists()
+    )
+    return and_(
+        Order.status == STATUS_DRAFT,
+        or_(Order.source_type != SOURCE_BAO_GIA, bao_gia_hop_le),
+        Order.customer_po_no.is_not(None),
+        Order.customer_po_no != "",
+        Order.delivery_committed_date.is_not(None),
+        ~con_dong_chua_gia,
+    )
+
+
+def _da_giao_dong():
+    """Σ khách đã thực nhận của MỘT dòng đơn (correlate OrderLine) — cùng luật `da_giao_theo_dong`."""
+    from ..models.delivery import LAN_GIAO_CO_HANG_DEN_TAY, DeliveryTrip, DeliveryTripLine
+
+    return (
+        select(func.coalesce(func.sum(DeliveryTripLine.qty_giao), 0))
+        .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
+        .where(DeliveryTripLine.order_line_id == OrderLine.id,
+               DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
+        .correlate(OrderLine)
+        .scalar_subquery()
+    )
+
+
+def _giao_du():
+    """Đơn có dòng, và không dòng nào khách nhận chưa đủ số đặt."""
+    co_dong = exists(select(OrderLine.id).where(OrderLine.order_id == Order.id))
+    thieu = exists(select(OrderLine.id).where(
+        OrderLine.order_id == Order.id, _da_giao_dong() < OrderLine.qty))
+    return and_(co_dong, ~thieu)
+
+
+def _da_giao_gi():
+    return exists(select(OrderLine.id).where(OrderLine.order_id == Order.id, _da_giao_dong() > 0))
+
+
+def _hoa_don_x100():
+    from ..models.accounting import SALES_INVOICE_ISSUED, SalesInvoice
+
+    return (
+        select(func.coalesce(func.sum(cast(SalesInvoice.amount_vnd, BigInteger)), 0) * 100)
+        .where(SalesInvoice.order_id == Order.id, SalesInvoice.status == SALES_INVOICE_ISSUED)
+        .correlate(Order)
+        .scalar_subquery()
+    )
+
+
+def _gia_cong_cua_don(*dk):
+    """EXISTS lần gia công ngoài CHƯA HUỶ của lệnh thuộc đơn — trực tiếp hoặc qua bước chung bài
+    ghép (lần của bài ghép tính cho mọi lệnh thành viên, cùng luật `lsx_ids_loc_gia_cong`)."""
+    from ..models.bai_ghep import BaiGhepThanhVien
+    from ..models.gia_cong_ngoai import GiaCongNgoai
+    from ..models.lsx import Lsx
+
+    song = (GiaCongNgoai.huy_luc.is_(None), *dk)
+    truc_tiep = exists(select(GiaCongNgoai.id).join(Lsx, Lsx.id == GiaCongNgoai.lsx_id)
+                       .where(Lsx.order_id == Order.id, *song))
+    qua_bai = exists(select(GiaCongNgoai.id)
+                     .join(BaiGhepThanhVien, BaiGhepThanhVien.bai_ghep_id == GiaCongNgoai.bai_ghep_id)
+                     .join(Lsx, Lsx.id == BaiGhepThanhVien.lsx_id)
+                     .where(Lsx.order_id == Order.id, *song))
+    return or_(truc_tiep, qua_bai)
+
+
+#: Đã chốt mà chưa xuống sản xuất = còn chờ kế toán thu đủ cọc (chốt xong đủ cọc là tự chuyển —
+#: `OrderService._tu_chuyen_sx`). Cùng cách đọc với ô "Chờ đủ cọc" ở cột Sản xuất ngoài bảng.
+_CHO_COC = and_(Order.status == STATUS_ORDERED, Order.san_xuat_released_at.is_(None))
+
+
+def _hoan_tat():
+    """Đơn đã chốt đi HẾT vòng đời: khách nhận đủ mọi dòng và hoá đơn đã phát hành đủ "Giá trị gồm
+    VAT" (lệch dưới 1đ do làm tròn coi là đủ — cùng luật ô lọc Hoá đơn = đủ). Bản SQL của "Đang
+    chờ = xong" trong `services/don_hang_san_xuat.py`; sửa một nơi thì sửa cả hai."""
+    return and_(
+        Order.status == STATUS_ORDERED, Order.san_xuat_released_at.isnot(None),
+        _giao_du(), _hoa_don_x100() + 100 > _tong_vat_x100(),
+    )
+
+
+@dataclass
+class LocDonHang:
+    """Dải kỳ + bảng "Bộ lọc nâng cao" của danh sách Đơn hàng bán (06/10/2026).
+
+    `moc`: kỳ tính theo `tao` (ngày tạo), `chot` (ngày chốt), `giao` (ngày giao cam kết)."""
+
+    tu_ngay: date | None = None
+    den_ngay: date | None = None
+    moc: str = "tao"
+    khach: int | None = None
+    gap: bool | None = None
+    gia_tu: int | None = None
+    gia_den: int | None = None
+    #: `qua` = ngày giao hẹn đã qua mà khách CHƯA nhận đủ, `sap` = hẹn giao trong 7 ngày tới —
+    #: chỉ đơn chưa huỷ.
+    hen_giao: str | None = None
+    #: Đơn đang chờ ai (`services/don_hang_san_xuat.CHO_*`). Suy từ nhiều nguồn nên SERVICE tính
+    #: ra tập id rồi đặt vào `chi_id`; repo chỉ đọc `chi_id`.
+    dang_cho: str | None = None
+    chi_id: list[int] | None = None
+    #: `co` | `tron_goi` | `mot_phan` | `giao_thang` | `khong` — lần gia công ngoài chưa huỷ.
+    gia_cong: str | None = None
+    nha_gia_cong: int | None = None
+    #: `chua` | `mot_phan` | `du` — theo số khách đã thực nhận, gồm phần nhà gia công giao thẳng.
+    giao: str | None = None
+    #: `chua` | `mot_phan` | `du` — hoá đơn đã ghi so với giá trị gồm VAT.
+    hoa_don: str | None = None
+    #: Cho test ghim ngày; bỏ trống = hôm nay giờ Việt Nam.
+    hom_nay: date | None = None
+
+
+#: "Hẹn giao trong N ngày tới" của bảng lọc.
+HEN_GIAO_SAP_NGAY = 7
 
 
 class OrderRepository:
@@ -138,23 +283,50 @@ class OrderRepository:
         return int(val) // 100 if val is not None else 0
 
     def chot_trong_khoang(
-        self, *, tu, den, scope: str, actor, customer_id: int | None = None
+        self, *, tu, den, scope: str, actor, customer_id: int | None = None,
+        sale_user_id: int | None = None,
     ) -> list[Order]:
-        """Đơn ĐÃ CHỐT có `ordered_at` trong `[tu, den)` (hai mốc UTC) — nguồn của Báo cáo kinh
-        doanh (24/09/2026). Nạp sẵn dòng sản phẩm: báo cáo in hết dòng của mọi đơn, để lười là
-        N+1 trên cả trăm đơn."""
+        """Đơn ĐÃ CHỐT có `ordered_at` trong `[tu, den)` (hai mốc UTC; đầu nào None = không chặn
+        đầu đó — kỳ "Tất cả") — nguồn của Báo cáo kinh doanh (24/09/2026). Nạp sẵn dòng sản phẩm:
+        báo cáo in hết dòng của mọi đơn, để lười là N+1 trên cả trăm đơn. Lọc khách / sale ở ĐÂY
+        (06/10/2026) — trước đó màn tải cả kỳ rồi lọc trong trình duyệt."""
         stmt = (
             select(Order)
             .options(selectinload(Order.lines))
-            .where(Order.status == "ordered", Order.ordered_at >= tu, Order.ordered_at < den)
+            .where(Order.status == "ordered", Order.ordered_at.is_not(None))
             .order_by(Order.ordered_at, Order.id)
         )
+        if tu is not None:
+            stmt = stmt.where(Order.ordered_at >= tu)
+        if den is not None:
+            stmt = stmt.where(Order.ordered_at < den)
         cond = self._scope_condition(scope=scope, actor=actor)
         if cond is not None:
             stmt = stmt.where(cond)
         if customer_id is not None:
             stmt = stmt.where(Order.customer_id == customer_id)
+        if sale_user_id is not None:
+            stmt = stmt.where(Order.sale_user_id == sale_user_id)
         return list(self.db.execute(stmt).scalars().unique().all())
+
+    def dem_chot_theo(self, *, theo: str, scope: str, actor) -> list[dict]:
+        """Giá trị chọn được của thanh lọc Báo cáo kinh doanh: khách (`theo="khach"`) hoặc sale
+        (`theo="sale"`) có đơn ĐÃ CHỐT trong tầm nhìn, kèm số đơn — `[{id, ten, so}]`."""
+        if theo == "khach":
+            cot, bang, ten = Order.customer_id, Customer, Customer.name
+        else:
+            cot, bang, ten = Order.sale_user_id, User, User.name
+        stmt = (
+            select(cot, ten, func.count(Order.id))
+            .join(bang, bang.id == cot)
+            .where(Order.status == "ordered", Order.ordered_at.is_not(None))
+            .group_by(cot, ten)
+            .order_by(ten)
+        )
+        cond = self._scope_condition(scope=scope, actor=actor)
+        if cond is not None:
+            stmt = stmt.where(cond)
+        return [{"id": i, "ten": t or "", "so": int(n)} for i, t, n in self.db.execute(stmt)]
 
     def khach_theo_ids(self, ids: set[int]) -> dict[int, Customer]:
         if not ids:
@@ -235,30 +407,11 @@ class OrderRepository:
             out[oid] = (first, n + 1)
         return out
 
-    def list(
-        self,
-        *,
-        scope: str,
-        actor,
-        q: str | None = None,
-        status: str | None = None,
-        order_kind: str | None = None,
-        sort: str = "-created_at",
-        page: int = 1,
-        size: int = 20,
-        nguoi: int | None = None,
-    ) -> tuple[list[Order], int, dict[int, str], dict[int, int | None]]:
-        """Return (rows, total, customer_names, totals). `q` matches order_no + customer
-        name (case-insensitive substring). `status`/`order_kind` are exact filters. `total`
-        is the count BEFORE pagination. `customer_names` maps order_id → customer name and
-        `totals` maps order_id → tổng dự kiến, both for the page only (no N+1)."""
+    def _dk_loc(
+        self, *, q: str | None, order_kind: str | None, nguoi: int | None, loc: LocDonHang | None,
+    ) -> list:
+        """Mọi điều kiện của bảng TRỪ phạm vi và tab trạng thái — thanh tab đếm bằng đúng bộ này."""
         conditions = []
-        scope_cond = self._scope_condition(scope=scope, actor=actor)
-        if scope_cond is not None:
-            conditions.append(scope_cond)
-
-        base = select(Order)
-        count_stmt = select(func.count()).select_from(Order)
         if q and q.strip():
             # Tìm TƯƠNG ĐỐI (không dấu, không phân biệt hoa thường): mã đơn, tên khách, PO khách,
             # tên hàng trong đơn — đúng những gì cột bảng bày ra.
@@ -272,13 +425,117 @@ class OrderRepository:
                     Order.id.in_(line_ids),
                 )
             )
-        if status:
-            conditions.append(Order.status == status)
         if order_kind:
             conditions.append(Order.order_kind == order_kind)
         if nguoi is not None:   # hộp lọc NV phụ trách — AND với phạm vi, không vượt được tầm nhìn
             conditions.append(Order.sale_user_id == nguoi)
+        if loc is None:
+            return conditions
+        if loc.moc == "chot":
+            conditions.extend(dk_khoang_ngay(Order.ordered_at, loc.tu_ngay, loc.den_ngay))
+        elif loc.moc == "giao":
+            conditions.extend(
+                dk_khoang_ngay(Order.delivery_committed_date, loc.tu_ngay, loc.den_ngay, cot_ngay=True)
+            )
+        else:
+            conditions.extend(dk_khoang_ngay(Order.created_at, loc.tu_ngay, loc.den_ngay))
+        if loc.khach is not None:
+            conditions.append(Order.customer_id == loc.khach)
+        if loc.gap is not None:
+            conditions.append(Order.is_rush.is_(loc.gap))
+        if loc.gia_tu is not None:
+            conditions.append(_tong_vat_x100() >= loc.gia_tu * 100)
+        if loc.gia_den is not None:
+            conditions.append(_tong_vat_x100() < (loc.gia_den + 1) * 100)
+        if loc.chi_id is not None:
+            conditions.append(Order.id.in_(loc.chi_id) if loc.chi_id else Order.id.is_(None))
+        if loc.gia_cong or loc.nha_gia_cong is not None:
+            from ..models.gia_cong_ngoai import KIEU_MOT_PHAN, KIEU_TRON_GOI, NOI_VE_KHACH, GiaCongNgoai
 
+            dk = []
+            if loc.nha_gia_cong is not None:
+                dk.append(GiaCongNgoai.nha_cung_cap_id == loc.nha_gia_cong)
+            if loc.gia_cong == "tron_goi":
+                dk.append(GiaCongNgoai.kieu == KIEU_TRON_GOI)
+            elif loc.gia_cong == "mot_phan":
+                dk.append(GiaCongNgoai.kieu == KIEU_MOT_PHAN)
+            elif loc.gia_cong == "giao_thang":
+                dk += [GiaCongNgoai.chot_luc.is_not(None), GiaCongNgoai.noi_ve == NOI_VE_KHACH]
+            if loc.gia_cong == "khong":
+                conditions.append(Order.status == STATUS_ORDERED)
+                conditions.append(~_gia_cong_cua_don(*dk))
+            else:
+                conditions.append(_gia_cong_cua_don(*dk))
+        if loc.giao:
+            conditions.append(Order.status == STATUS_ORDERED)
+            if loc.giao == "du":
+                conditions.append(_giao_du())
+            elif loc.giao == "chua":
+                conditions.append(~_da_giao_gi())
+            else:
+                conditions.append(and_(_da_giao_gi(), ~_giao_du()))
+        if loc.hoa_don:
+            conditions.append(Order.status == STATUS_ORDERED)
+            # Đủ = đã ghi ≥ "Giá trị gồm VAT" (x100 // 100) ⇔ ghi×100 + 100 > x100.
+            if loc.hoa_don == "du":
+                conditions.append(_hoa_don_x100() + 100 > _tong_vat_x100())
+            elif loc.hoa_don == "chua":
+                conditions.append(_hoa_don_x100() == 0)
+            else:
+                conditions.append(and_(_hoa_don_x100() > 0, _hoa_don_x100() + 100 <= _tong_vat_x100()))
+        if loc.hen_giao:
+            hom_nay = loc.hom_nay or hom_nay_vn()
+            conditions.append(Order.status != STATUS_CANCELLED)
+            if loc.hen_giao == "qua":
+                conditions.append(Order.delivery_committed_date < hom_nay)
+                conditions.append(~_giao_du())
+            else:
+                conditions.append(Order.delivery_committed_date >= hom_nay)
+                conditions.append(Order.delivery_committed_date <= hom_nay + timedelta(days=HEN_GIAO_SAP_NGAY))
+        return conditions
+
+    @staticmethod
+    def _dk_tab(status: str | None, hom_nay: date):
+        """Tab trạng thái: trạng thái thật, hoặc tab suy ra `san_sang` / `cho_coc` / `hoan_tat`."""
+        if not status:
+            return None
+        if status == "san_sang":
+            return _san_sang_chot(hom_nay)
+        if status == "cho_coc":
+            return _CHO_COC
+        if status == "hoan_tat":
+            return _hoan_tat()
+        return Order.status == status
+
+    def list(
+        self,
+        *,
+        scope: str,
+        actor,
+        q: str | None = None,
+        status: str | None = None,
+        order_kind: str | None = None,
+        sort: str = "-created_at",
+        page: int = 1,
+        size: int = 20,
+        nguoi: int | None = None,
+        loc: LocDonHang | None = None,
+    ) -> tuple[list[Order], int, dict[int, str], dict[int, int | None]]:
+        """Return (rows, total, customer_names, totals). `q` matches order_no + customer
+        name (case-insensitive substring). `status` là trạng thái thật hoặc tab suy ra
+        (`san_sang`, `cho_coc`). `total` is the count BEFORE pagination. `customer_names` maps
+        order_id → customer name and `totals` maps order_id → tổng dự kiến, both for the page only."""
+        conditions = []
+        scope_cond = self._scope_condition(scope=scope, actor=actor)
+        if scope_cond is not None:
+            conditions.append(scope_cond)
+        conditions.extend(self._dk_loc(q=q, order_kind=order_kind, nguoi=nguoi, loc=loc))
+        tab = self._dk_tab(status, date.today())
+        if tab is not None:
+            conditions.append(tab)
+
+        base = select(Order)
+        count_stmt = select(func.count()).select_from(Order)
         for c in conditions:
             base = base.where(c)
             count_stmt = count_stmt.where(c)
@@ -360,19 +617,18 @@ class OrderRepository:
         self.db.refresh(order)
         return order
 
-    def stats(self, *, scope: str, actor, nguoi: int | None = None) -> dict[str, int]:
-        """Đếm đơn theo trạng thái (cho thanh tab), tôn trọng data-scope + hộp lọc NV phụ trách."""
-        from ..models.order import STATUS_CANCELLED, STATUS_DRAFT, STATUS_ORDERED
-
-        base = self._scope_condition(scope=scope, actor=actor)
+    def stats(
+        self, *, scope: str, actor, nguoi: int | None = None, q: str | None = None,
+        order_kind: str | None = None, loc: LocDonHang | None = None,
+    ) -> dict[str, int]:
+        """Đếm đơn cho thanh tab, theo ĐÚNG phạm vi + ô tìm + dải kỳ + bộ lọc đang áp trên bảng."""
+        base = [c for c in [self._scope_condition(scope=scope, actor=actor)] if c is not None]
+        base.extend(self._dk_loc(q=q, order_kind=order_kind, nguoi=nguoi, loc=loc))
+        hom_nay = date.today()
 
         def cnt(*extra) -> int:
             stmt = select(func.count()).select_from(Order)
-            if base is not None:
-                stmt = stmt.where(base)
-            if nguoi is not None:
-                stmt = stmt.where(Order.sale_user_id == nguoi)
-            for c in extra:
+            for c in (*base, *extra):
                 stmt = stmt.where(c)
             return int(self.db.execute(stmt).scalar_one())
 
@@ -381,7 +637,58 @@ class OrderRepository:
             "draft": cnt(Order.status == STATUS_DRAFT),
             "ordered": cnt(Order.status == STATUS_ORDERED),
             "cancelled": cnt(Order.status == STATUS_CANCELLED),
+            "san_sang": cnt(_san_sang_chot(hom_nay)),
+            "cho_coc": cnt(_CHO_COC),
+            "hoan_tat": cnt(_hoan_tat()),
         }
+
+    def don_da_chot_khop(
+        self, *, scope: str, actor, q: str | None = None, order_kind: str | None = None,
+        nguoi: int | None = None, loc: LocDonHang | None = None,
+    ) -> list[Order]:
+        """Đơn ĐÃ CHỐT khớp phạm vi + ô tìm + bộ lọc (trừ "Đang chờ") — tập ứng viên để service suy
+        ra đơn đang chờ ai. Nạp sẵn dòng đơn (cụm bán đọc `order.lines`)."""
+        conds = [c for c in [self._scope_condition(scope=scope, actor=actor)] if c is not None]
+        conds.extend(self._dk_loc(q=q, order_kind=order_kind, nguoi=nguoi, loc=loc))
+        stmt = select(Order).where(Order.status == STATUS_ORDERED, *conds).options(
+            selectinload(Order.lines))
+        return list(self.db.execute(stmt).scalars())
+
+    def dem_theo_nha_gia_cong(self, *, scope: str, actor) -> list[tuple[int, str, int]]:
+        """(id, tên, số đơn) của nhà gia công có lần CHƯA HUỶ trên đơn trong tầm nhìn."""
+        from ..models.bai_ghep import BaiGhepThanhVien
+        from ..models.gia_cong_ngoai import GiaCongNgoai
+        from ..models.lsx import Lsx
+
+        truc_tiep = (select(GiaCongNgoai.nha_cung_cap_id.label("ncc"), Lsx.order_id.label("oid"))
+                     .join(Lsx, Lsx.id == GiaCongNgoai.lsx_id).where(GiaCongNgoai.huy_luc.is_(None)))
+        qua_bai = (select(GiaCongNgoai.nha_cung_cap_id.label("ncc"), Lsx.order_id.label("oid"))
+                   .join(BaiGhepThanhVien, BaiGhepThanhVien.bai_ghep_id == GiaCongNgoai.bai_ghep_id)
+                   .join(Lsx, Lsx.id == BaiGhepThanhVien.lsx_id).where(GiaCongNgoai.huy_luc.is_(None)))
+        cap = truc_tiep.union(qua_bai).subquery()
+        ten = (select(GiaCongNgoai.nha_cung_cap_id, func.max(GiaCongNgoai.nha_cung_cap_ten).label("ten"))
+               .group_by(GiaCongNgoai.nha_cung_cap_id).subquery())
+        stmt = (select(cap.c.ncc, ten.c.ten, func.count(func.distinct(cap.c.oid)))
+                .join(Order, Order.id == cap.c.oid)
+                .join(ten, ten.c.nha_cung_cap_id == cap.c.ncc)
+                .group_by(cap.c.ncc, ten.c.ten).order_by(ten.c.ten))
+        cond = self._scope_condition(scope=scope, actor=actor)
+        if cond is not None:
+            stmt = stmt.where(cond)
+        return [(int(i), t or "", int(n)) for i, t, n in self.db.execute(stmt)]
+
+    def dem_theo_khach(self, *, scope: str, actor) -> list[tuple[int, str, int]]:
+        """(id, tên, số đơn) của khách đang có đơn TRONG tầm nhìn — ô "Khách hàng" của bảng lọc."""
+        stmt = (
+            select(Customer.id, Customer.name, func.count(Order.id))
+            .join(Customer, Customer.id == Order.customer_id)
+            .group_by(Customer.id, Customer.name)
+            .order_by(Customer.name)
+        )
+        cond = self._scope_condition(scope=scope, actor=actor)
+        if cond is not None:
+            stmt = stmt.where(cond)
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt)]
 
     def dem_theo_nguoi(self, *, scope: str, actor) -> dict[int, int]:
         """{sale_user_id: số đơn} CHỈ trong tầm nhìn của người xem — nguồn hộp lọc NV phụ trách."""

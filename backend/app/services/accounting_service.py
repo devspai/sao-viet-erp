@@ -277,6 +277,32 @@ def _the_loc_cong_no(items: list[dict]) -> dict:
     }
 
 
+#: Cột sắp xếp được của hai bảng công nợ → chiều MẶC ĐỊNH khi bấm lần đầu: còn nợ lớn trước, hạn
+#: sớm trước, thu / trả gần nhất CŨ trước (khách im lâu nhất là người cần gọi trước).
+SAP_XEP_CONG_NO = {"con_no": "desc", "han": "asc", "gan_nhat": "asc"}
+
+
+def _sap_xep_cong_no(
+    items: list[dict], sap_xep: str | None, chieu: str | None, *, khoa_gan_nhat: str, khoa_ky: str
+) -> list[dict]:
+    """Sắp DÒNG của hai bảng công nợ ở MÁY CHỦ, trước khi cắt trang (06/10/2026, bảng đủ cột).
+
+    `items` đến đây đã theo thứ tự mặc định (còn nợ, rồi tiền trong kỳ, giảm dần). Khoá lạ thì giữ
+    nguyên thứ tự đó — cửa lọc không ném 422. Dòng THIẾU giá trị (không có hạn) luôn nằm cuối dù đảo
+    chiều; riêng "gần nhất" tăng dần thì dòng CHƯA THU / TRẢ LẦN NÀO đứng ĐẦU — đó là im lâu nhất."""
+    if sap_xep not in SAP_XEP_CONG_NO:
+        return items
+    giam = (chieu if chieu in ("asc", "desc") else SAP_XEP_CONG_NO[sap_xep]) == "desc"
+    if sap_xep == "con_no":
+        return sorted(items, key=lambda m: (m["total_due"], m[khoa_ky]), reverse=giam)
+    khoa = "han_gan_nhat" if sap_xep == "han" else khoa_gan_nhat
+    co = sorted((m for m in items if m.get(khoa) is not None), key=lambda m: m[khoa], reverse=giam)
+    khong = [m for m in items if m.get(khoa) is None]
+    if sap_xep == "gan_nhat" and not giam:
+        return khong + co
+    return co + khong
+
+
 def _delete_stored_file(file_url: str | None) -> None:
     """Gỡ bytes best-effort — xoá row mới là việc chính, file rác không được làm hỏng request."""
     key = key_from_url(file_url)
@@ -405,10 +431,23 @@ class AccountingService:
 
     # --- bank accounts ----------------------------------------------------
 
-    def list_company_accounts(self, *, active_only: bool = False, usage: str | None = None):
+    def list_company_accounts(
+        self,
+        *,
+        active_only: bool = False,
+        usage: str | None = None,
+        ngan_hang: str | None = None,
+        trang_thai: str | None = None,
+    ):
         if usage not in (None, "receive", "pay"):
             raise AccountingValidationError("Mục đích tài khoản không hợp lệ.")
-        return self.repo.list_company_accounts(active_only=active_only, usage=usage)
+        return self.repo.list_company_accounts(
+            active_only=active_only, usage=usage, ngan_hang=(ngan_hang or "").strip() or None,
+            trang_thai=trang_thai,
+        )
+
+    def dem_tai_khoan_theo_ngan_hang(self) -> list[tuple[str, int]]:
+        return self.repo.dem_tai_khoan_theo_ngan_hang()
 
     def thong_ke_tai_khoan(self, *, tu_ngay: date, den_ngay: date) -> list[dict]:
         return self.repo.thong_ke_tai_khoan(tu_ngay=tu_ngay, den_ngay=den_ngay)
@@ -808,6 +847,8 @@ class AccountingService:
         thieu_hoa_don: bool = False,
         dem_only: bool = False,
         chi_tong: bool = False,
+        sap_xep: str | None = None,
+        chieu: str | None = None,
     ) -> dict:
         """Công nợ phải trả gom theo nhà cung cấp.
 
@@ -842,7 +883,11 @@ class AccountingService:
 
         `the_loc` = số NCC của ba nút "Tất cả | Quá hạn | Vượt hạn mức", đếm SAU tìm / kỳ / bộ lọc
         nâng cao / rổ tuổi nhưng TRƯỚC `filter_` — số của mỗi nút không đổi theo nút đang chọn, và
-        bấm nút nào bảng ra đúng số đó. Tính trong cùng lượt, màn khỏi gọi thêm ba lời đếm."""
+        bấm nút nào bảng ra đúng số đó. Tính trong cùng lượt, màn khỏi gọi thêm ba lời đếm.
+
+        BẢNG ĐỦ CỘT (06/10/2026): mỗi dòng mang thêm mã + liên hệ của NCC và lần TRẢ GẦN NHẤT (phiếu
+        chi đã chi mới nhất, cả lịch sử — không theo kỳ). `sap_xep` + `chieu` sắp dòng trước khi cắt
+        trang (`_sap_xep_cong_no`)."""
         hom_nay = _business_today()
         co_ky = tu_ngay is not None and den_ngay is not None
         moc_ky = tu_ngay if co_ky else hom_nay - timedelta(days=31 * PAYABLES_PERIOD_MONTHS)
@@ -873,6 +918,11 @@ class AccountingService:
                 "total_due": 0,
                 "credit_limit": int(getattr(supplier, "credit_limit", 0) or 0) if supplier else 0,
                 "credit_days": getattr(supplier, "credit_days", None) if supplier else None,
+                "supplier_code": getattr(supplier, "code", None) if supplier else None,
+                "lien_he_ten": getattr(supplier, "contact_name", None) if supplier else None,
+                "lien_he_sdt": getattr(supplier, "phone", None) if supplier else None,
+                "tra_gan_nhat_ngay": None,
+                "tra_gan_nhat_tien": 0,
             }
 
         def _muc(row) -> dict:
@@ -887,6 +937,18 @@ class AccountingService:
         # Nạp MỘT lần cả lịch sử phiếu mua đã duyệt: vòng ảnh chụp dưới đây và sổ 331 (khối
         # `if co_ky`) dùng chung, không nạp lại.
         don_ds = self.purchases.list_for_payables()
+        # Lần TRẢ gần nhất của từng NCC — cả lịch sử, đọc từ phiếu chi đã nạp sẵn (không thêm truy
+        # vấn). Tính trước vòng dưới vì vòng đó bỏ qua đơn đã trả hết từ lâu.
+        tra_cuoi: dict[int | None, tuple] = {}
+        if not chi_tong:
+            for row in don_ds:
+                for v in row.payment_vouchers:
+                    if v.status != PAYMENT_VOUCHER_PAID:
+                        continue
+                    moc = (self._ngay_chi(v), v.id, int(v.amount_vnd))
+                    cu = tra_cuoi.get(row.supplier_id)
+                    if cu is None or moc[:2] > cu[:2]:
+                        tra_cuoi[row.supplier_id] = moc
         for row in don_ds:
             no = self._no_cua_phieu(row)
             da_tra_ky = sum(
@@ -944,6 +1006,9 @@ class AccountingService:
                 if not so_chup:
                     _ap_du_cuoi_ky_qua_khu(muc, it, phai_tra=True)
 
+        for sid, muc in theo_ncc.items():
+            if sid in tra_cuoi:
+                muc["tra_gan_nhat_ngay"], _, muc["tra_gan_nhat_tien"] = tra_cuoi[sid]
         items = sorted(
             theo_ncc.values(),
             key=lambda m: (m["total_due"], m["paid_in_period"]),
@@ -1005,6 +1070,9 @@ class AccountingService:
         # Số trên nhóm nút đếm TRƯỚC `filter_` (lọc giao nhau nên đổi thứ tự không đổi kết quả).
         the_loc = _the_loc_cong_no(items)
         items = _loc_the_cong_no(items, filter_)
+        items = _sap_xep_cong_no(
+            items, sap_xep, chieu, khoa_gan_nhat="tra_gan_nhat_ngay", khoa_ky="paid_in_period"
+        )
 
         page = max(1, page)
         size = max(1, min(size, 200))
@@ -1511,6 +1579,7 @@ class AccountingService:
             for row in self._receivable_rows(customer_id=order.customer_id)
             if row["order_id"] == order_id
         }
+        customer = self.repo.get_customer(order.customer_id) if order.customer_id else None
         order_total = _order_total_with_vat(order)
         invoiced = sum(
             int(row.amount_vnd)
@@ -1524,6 +1593,9 @@ class AccountingService:
             "invoiced_amount": invoiced,
             "uninvoiced_amount": max(0, order_total - invoiced),
             "deposit_received": self.repo.received_deposit_sum(order.id),
+            # Hai trường dưới cho popup ghi nhận hoá đơn: hiện trước hạn trả và điền sẵn ký hiệu.
+            "payment_term_days": customer.payment_term_days if customer else None,
+            "last_invoice_symbol": self.repo.latest_sales_invoice_symbol(),
             "items": [self._sales_invoice_out(row, money.get(row.id)) for row in invoices],
         }
 
@@ -1681,6 +1753,8 @@ class AccountingService:
         nhan: str | None = None,
         dem_only: bool = False,
         chi_tong: bool = False,
+        sap_xep: str | None = None,
+        chieu: str | None = None,
     ) -> dict:
         """Công nợ phải thu gom theo khách hàng.
 
@@ -1705,6 +1779,10 @@ class AccountingService:
         `chi_tong` (06/10/2026) = chỉ các số TỔNG (lời "cùng kỳ" của màn): bỏ `han_gan_nhat`, bộ
         lọc, đếm nhóm nút, cắt trang; trả `items=[]`, `total=0`, `the_loc` mặc định. Các số tổng
         tính CÙNG đoạn mã với lời thường nên bằng đúng.
+
+        BẢNG ĐỦ CỘT (06/10/2026): mỗi dòng mang thêm lần THU GẦN NHẤT (cả lịch sử, một truy vấn cột
+        thô cho mọi khách — cần cho sắp xếp) và mã + liên hệ chính + tên sale phụ trách (chỉ nạp cho
+        các dòng CỦA TRANG, sau khi cắt). `sap_xep` + `chieu`: `_sap_xep_cong_no`.
         """
         hom_nay = _business_today()
         co_ky = tu_ngay is not None and den_ngay is not None
@@ -1753,6 +1831,12 @@ class AccountingService:
                 "received_in_period": 0,
                 "ban_trong_ky": 0,
                 "han_gan_nhat": None,
+                "customer_code": None,
+                "lien_he_ten": None,
+                "lien_he_sdt": None,
+                "sale_user_name": None,
+                "thu_gan_nhat_ngay": None,
+                "thu_gan_nhat_tien": 0,
             }
 
         theo_khach: dict[int | None, dict] = {}
@@ -1799,6 +1883,17 @@ class AccountingService:
         for cid, amount in thu_theo_khach.items():
             if cid in theo_khach:
                 theo_khach[cid]["received_in_period"] += amount
+
+        if not chi_tong:
+            # Lần thu gần nhất (cả lịch sử): hàng đầu tiên gặp của mỗi khách là mới nhất.
+            for hd_id, don_id, ngay_thu, _, tien_thu in self.repo.lan_thu_cuoi_cong_no(
+                invoice_ids=sorted(invoice_to_customer), order_ids=sorted(order_to_customer)
+            ):
+                cid = invoice_to_customer.get(hd_id) if hd_id is not None else order_to_customer.get(don_id)
+                muc = theo_khach.get(cid)
+                if muc is not None and muc["thu_gan_nhat_ngay"] is None:
+                    muc["thu_gan_nhat_ngay"] = ngay_thu
+                    muc["thu_gan_nhat_tien"] = int(tien_thu)
 
         if co_ky:
             # Kỳ kết thúc hôm nay thì rổ tuổi của sổ không được đọc (xem `payables_summary`).
@@ -1867,6 +1962,9 @@ class AccountingService:
         # Số trên nhóm nút: đếm TRƯỚC `filter_` — cùng luật với phải trả.
         the_loc = _the_loc_cong_no(items)
         items = _loc_the_cong_no(items, filter_)
+        items = _sap_xep_cong_no(
+            items, sap_xep, chieu, khoa_gan_nhat="thu_gan_nhat_ngay", khoa_ky="received_in_period"
+        )
 
         page = max(1, page)
         size = max(1, min(size, 200))
@@ -1874,8 +1972,10 @@ class AccountingService:
         pages = max(1, (total + size - 1) // size)
         page = min(page, pages)
         bat_dau = (page - 1) * size
+        trang = [] if dem_only else items[bat_dau:bat_dau + size]
+        self._dien_lien_he_khach(trang)
         return {
-            "items": [] if dem_only else items[bat_dau:bat_dau + size],
+            "items": trang,
             "total": total,
             "page": page,
             "size": size,
@@ -1883,6 +1983,27 @@ class AccountingService:
             "the_loc": the_loc,
             **tong_so,
         }
+
+    def _dien_lien_he_khach(self, trang: list[dict]) -> None:
+        """Mã khách, liên hệ chính, tên sale phụ trách — chỉ cho các dòng CỦA TRANG (tối đa ba truy
+        vấn). Không có liên hệ chính thì lùi về ô liên hệ nhanh của khách (`contact_name` / `phone`)."""
+        ids = {m["customer_id"] for m in trang if m["customer_id"] is not None}
+        if not ids:
+            return
+        khach = self.repo.customers_by_ids(ids)
+        chinh = self.repo.lien_he_chinh_theo_khach(ids)
+        ten_sale: dict[int, str | None] = {}
+        for m in trang:
+            kh = khach.get(m["customer_id"])
+            if kh is None:
+                continue
+            m["customer_code"] = kh.code
+            m["lien_he_ten"], m["lien_he_sdt"] = chinh.get(kh.id, (kh.contact_name, kh.phone))
+            sid = m["sale_user_id"]
+            if sid is not None:
+                if sid not in ten_sale:
+                    ten_sale[sid] = self._user_name(sid)
+                m["sale_user_name"] = ten_sale[sid]
 
     def receivables_detail(
         self,
@@ -2001,6 +2122,7 @@ class AccountingService:
         nguoi_lap_id: int | None = None,
         chung_tu: str | None = None,
         nhan: str | None = None,
+        moc: str = "thu",
         dem_only: bool = False,
         sort: str = "-created_at",
         page: int = 1,
@@ -2024,6 +2146,7 @@ class AccountingService:
             nguoi_lap_id=nguoi_lap_id,
             chung_tu=chung_tu,
             nhan=nhan,
+            moc=moc,
             dem_only=dem_only,
             sort=sort,
             page=page,
@@ -2109,6 +2232,8 @@ class AccountingService:
         bank_reference: str | None = None,
         company_bank_account_id: int | None = None,
         note: str | None = None,
+        payer_name: str | None = None,
+        payer_address: str | None = None,
         mark_received: bool = True,
     ) -> dict:
         """Sinh phiếu thu 01-TT cho CỌC đơn bán — dùng CHUNG bảng payment_receipts + CHUNG dãy
@@ -2139,7 +2264,9 @@ class AccountingService:
             order_id=order_id,
             order_no_snapshot=order_no,
             customer_name_snapshot=customer_name,
-            payer_name=(customer_name or "Khách hàng"),
+            # Người nộp mặc định = khách; form thu cọc sửa được (vd người khách cử mang tiền tới).
+            payer_name=(_text(payer_name, label="Người nộp tiền", max_length=255) or customer_name or "Khách hàng"),
+            payer_address=_text(payer_address, label="Địa chỉ người nộp", max_length=500),
             receipt_method=receipt_method,
             receipt_date=receipt_date,
             amount=amount,
@@ -2313,6 +2440,10 @@ class AccountingService:
         # đã thu ⇒ nếu vẫn giữ luật "chỉ huỷ khi đang chờ thu" thì một phiếu gõ nhầm số là kẹt
         # vĩnh viễn, không sửa được mà cũng không huỷ được, trong khi nó đang trừ vào công nợ.
         # Huỷ luôn bắt LÝ DO và ghi nhật ký nên vết vẫn còn.
+        # Cọc đơn bán (06/10/2026): huỷ ngay ở ngăn phiếu thu — màn Đơn hàng không có nút huỷ cọc
+        # nên trước đây một phiếu cọc gõ nhầm là kẹt mãi, vẫn được cộng vào "đã cọc đủ".
+        if receipt.source_type == RECEIPT_SOURCE_ORDER:
+            return self.cancel_order_receipt(receipt_id, actor=actor, reason=reason)
         if receipt.source_type in (
             RECEIPT_SOURCE_OTHER,
             RECEIPT_SOURCE_SALES_INVOICE,

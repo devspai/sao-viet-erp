@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ngăn công nợ — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --charcoal:#0f172a;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --amber:#9c7714; --amber-soft:#efe4c4; --amber-deep:#7a5c0f;
+  --signal:#8a1f1f; --signal-soft:#efd5d5; --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1240px;margin:0 auto;padding:32px 16px 80px}
+.page>h1{font-size:22px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 18px;max-width:960px}
+.lead b{color:var(--ink)}
+.lead ul{margin:6px 0 0;padding-left:18px}
+.lead li{margin:3px 0}
+.bar-ctl{display:flex;flex-wrap:wrap;gap:10px;position:sticky;top:12px;z-index:30;margin-bottom:24px}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--ash);padding:6px 14px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt>h2{font-size:19px;margin:0 0 4px}
+.src{display:inline-block;font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas);margin-bottom:10px}
+.why{color:var(--ash);margin:0 0 18px;max-width:960px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+.why li{margin:2px 0}
+.can{display:inline-block;font-size:11.5px;font-weight:600;color:var(--amber-deep);background:var(--amber-soft);border-radius:5px;padding:0 6px;margin-left:4px}
+
+/* nền trang mờ + ngăn 920px */
+.san{background:rgba(15,23,42,.28);border-radius:12px;padding:24px 0 24px 24px;display:flex;justify-content:flex-end;overflow:hidden}
+.ngan{width:920px;max-width:100%;background:var(--canvas);border-radius:12px 0 0 12px;box-shadow:-12px 0 40px rgba(15,23,42,.18);min-height:640px;display:flex;flex-direction:column}
+.dau{padding:14px 24px 0}
+.duong{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--ash-2)}
+.duong span b{font-weight:500;color:var(--ash)}
+.icon-nut{display:inline-flex;gap:4px}
+.icon-nut i{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:6px;font-style:normal;color:var(--ash);font-size:15px}
+.icon-nut i:hover{background:var(--rule-hair)}
+.ten-hang{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-top:8px}
+.ten-hang h3{margin:0;font-size:20px;line-height:1.3;letter-spacing:-.01em}
+.the-hang{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.nut-hang{display:flex;gap:8px;flex:none}
+
+.num{font-variant-numeric:tabular-nums}
+.do{color:var(--signal)}
+.mo{color:var(--ash-2)}
+.mo3{color:var(--ash-3)}
+.tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:12px;color:var(--ash);font-weight:500;white-space:nowrap}
+.tag--do{background:var(--signal-soft);border-color:transparent;color:var(--signal)}
+.tag--vang{background:var(--amber-soft);border-color:transparent;color:var(--amber-deep)}
+.tag--xanh{background:var(--moss-soft);border-color:transparent;color:var(--moss-deep)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:#a93608}
+.btn--sm{height:28px;padding:0 10px;font-size:12.5px}
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px;cursor:pointer}
+.canh{margin:12px 0 0;padding:8px 12px;border-radius:8px;background:var(--amber-soft);color:var(--amber-deep);font-size:13px}
+.canh b{color:var(--amber-deep)}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--rule-soft);margin-top:16px}
+.tabs button{all:unset;cursor:pointer;padding:9px 12px 10px;font-size:13.5px;font-weight:600;color:var(--ash);border-radius:8px 8px 0 0;display:inline-flex;gap:6px;align-items:center;position:relative;top:1px;border:1px solid transparent;border-bottom:0}
+.tabs button:hover{background:var(--rule-hair)}
+.tabs button.on{color:var(--ink);background:var(--canvas);border-color:var(--rule-soft)}
+.tabs em{font-style:normal;font-size:11.5px;font-weight:600;background:var(--rule-hair);border:1px solid var(--rule-soft);color:var(--ash);border-radius:999px;padding:0 7px}
+.than{padding:16px 24px 28px;flex:1}
+
+table{width:100%;border-collapse:collapse}
+th{font-size:11.5px;font-weight:600;color:var(--ash-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid var(--rule-hair);vertical-align:top;font-size:13.5px}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+tbody tr:hover>td{background:var(--rule-hair)}
+.dong-phu{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px;font-size:12px;color:var(--ash-2)}
+td.r .dong-phu{justify-content:flex-end;flex-direction:column;align-items:flex-end;gap:0;white-space:nowrap}
+.dam{font-weight:600}
+.trong{padding:28px;text-align:center;color:var(--ash-2);border:1px dashed var(--rule-soft);border-radius:10px;font-size:13px}
+.chip{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--rule-soft);border-radius:999px;background:var(--canvas);font-size:12.5px;color:var(--ash);white-space:nowrap}
+.chip b{color:var(--ink);font-weight:600}
+.chip:hover{background:var(--rule-hair)}
+.chip.on{border-color:var(--charcoal);box-shadow:inset 0 0 0 1px var(--charcoal);color:var(--ink)}
+.hang-chip{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center}
+.tien-thu{display:block;height:4px;border-radius:2px;background:var(--rule-hair);overflow:hidden;margin-top:6px;width:96px;margin-left:auto}
+.tien-thu i{display:block;height:100%;background:var(--moss)}
+.m0{background:var(--rule)}
+.m1{background:var(--amber-soft)}
+.m2{background:color-mix(in srgb,var(--amber) 60%,var(--amber-soft))}
+.m3{background:var(--amber)}
+.m4{background:color-mix(in srgb,var(--signal) 70%,var(--amber))}
+.m5{background:var(--signal)}
+.cham{display:inline-block;width:8px;height:8px;border-radius:2px;flex:none}
+.av{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:10px;font-weight:700;color:var(--ash);flex:none}
+
+/* dòng thời gian (tab Lịch sử, dùng chung) */
+.tl{list-style:none;margin:0;padding:0}
+.tl li{display:grid;grid-template-columns:96px 22px 1fr;gap:8px;padding:0 0 16px;position:relative}
+.tl li::before{content:"";position:absolute;left:114px;top:22px;bottom:0;width:1px;background:var(--rule-soft)}
+.tl li:last-child::before{display:none}
+.tl .ng{font-size:12.5px;color:var(--ash-2);padding-top:1px;white-space:nowrap}
+.tl .dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--rule-hair);border:1px solid var(--rule-soft);color:var(--ash)}
+.tl .dot.thu{background:var(--moss-soft);border-color:transparent;color:var(--moss-deep)}
+.tl .dot.tre{background:var(--signal-soft);border-color:transparent;color:var(--signal)}
+.tl .nd{font-size:13.5px}
+.tl .nd small{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px;font-size:12px;color:var(--ash-2)}
+
+/* ===== PHƯƠNG ÁN 1 — Stripe: dải số + hai cột (động | tĩnh) ===== */
+.p1-so{display:flex;flex-wrap:wrap;gap:10px 36px;margin-top:16px;padding:14px 0;border-top:1px solid var(--rule-hair);border-bottom:1px solid var(--rule-hair)}
+.p1-so>div{display:grid;gap:1px;min-width:0}
+.p1-so span{font-size:12.5px;color:var(--ash)}
+.p1-so b{font-size:16px;font-weight:600;white-space:nowrap}
+.p1-so .lon b{font-size:22px;letter-spacing:-.01em;line-height:1.25}
+.p1-so small{font-size:12px;color:var(--ash-2)}
+.hm{display:block;height:6px;border-radius:3px;background:var(--rule-hair);overflow:hidden;margin:5px 0 2px;width:180px}
+.hm i{display:block;height:100%;background:var(--ash-2)}
+.hm--vuot i{background:var(--signal)}
+.p1-luoi{display:grid;grid-template-columns:minmax(0,1fr) 248px;gap:24px}
+.p1-ray{display:grid;gap:18px;align-content:start;padding-top:4px}
+.p1-ray h4{margin:0 0 6px;font-size:12px;font-weight:600;color:var(--ash-2)}
+.p1-ray .kv{display:grid;gap:2px;font-size:13.5px}
+.p1-ray .ng{display:flex;align-items:center;gap:8px}
+.p1-ray .cap{display:flex;justify-content:space-between;gap:8px;font-size:13.5px}
+.p1-ray .cap span{color:var(--ash)}
+
+/* ===== PHƯƠNG ÁN 2 — Xero: sổ chi tiết có số dư chạy ===== */
+.p2-so{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr) minmax(0,200px);gap:24px;margin-top:16px;padding:14px 16px;border:1px solid var(--rule-soft);border-radius:10px}
+.p2-so .nh{font-size:12.5px;color:var(--ash)}
+.p2-so .lon{font-size:22px;font-weight:600;letter-spacing:-.01em;line-height:1.25;white-space:nowrap}
+.p2-vach{display:flex;gap:2px;height:10px;border-radius:3px;overflow:hidden;margin:8px 0 6px;background:var(--rule-hair)}
+.p2-vach i{display:block;height:100%}
+.p2-chu{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--ash)}
+.p2-chu span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.p2-chu b{color:var(--ink);font-weight:600}
+.so-cai td{font-size:13px}
+.so-cai .dau-ky td,.so-cai .cuoi-ky td{background:var(--paper);font-weight:600}
+.so-cai .cuoi-ky td{border-top:1px solid var(--rule)}
+.thanh-ky{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.o-ky{height:32px;border:1px solid var(--rule);border-radius:8px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;font-size:13px;font-weight:600}
+.o-ky small{font-weight:400;color:var(--ash-2)}
+
+/* ===== PHƯƠNG ÁN 3 — Upflow: thu theo mức gấp ===== */
+.p3-lh{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:10px;font-size:13px;color:var(--ash);align-items:center}
+.p3-lh>span{display:inline-flex;gap:8px;align-items:center}
+.p3-lh b{color:var(--ink);font-weight:600}
+.p3-so{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.p3-so>div{border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px;display:grid;gap:1px;min-width:0}
+.p3-so span{font-size:12.5px;color:var(--ash)}
+.p3-so b{font-size:17px;font-weight:600;white-space:nowrap}
+.p3-so small{font-size:12px;color:var(--ash-2)}
+.nhom{border:1px solid var(--rule-soft);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.nhom-dau{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 14px;background:var(--paper);border-bottom:1px solid var(--rule-soft)}
+.nhom-dau h5{margin:0;font-size:13.5px;display:flex;gap:8px;align-items:center}
+.nhom-dau b{font-size:13.5px}
+.the-hd{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--rule-hair)}
+.the-hd:last-child{border-bottom:0}
+.the-hd:hover{background:var(--rule-hair)}
+.tien-thanh{display:grid;gap:4px}
+.tien-thanh .vach{display:block;height:6px;border-radius:3px;background:var(--rule-hair);overflow:hidden}
+.tien-thanh .vach i{display:block;height:100%;background:var(--moss)}
+.tien-thanh small{font-size:12px;color:var(--ash-2)}
+.chon-gop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;font-size:13px;color:var(--ash)}
+
+@media (max-width:760px){
+  .san{padding:12px 0 12px 12px}
+  .dau{padding:12px 14px 0}.than{padding:14px 14px 22px}
+  .ten-hang{flex-direction:column}
+  .p1-luoi{grid-template-columns:1fr}
+  .p2-so{grid-template-columns:1fr}
+  .p3-so{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .the-hd{grid-template-columns:1fr auto}
+  .bang-cuon{overflow-x:auto}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ngăn công nợ của một khách hàng / nhà cung cấp — 3 phương án</h1>
+  <div class="lead">
+    Ngăn hiện tại dở ở sáu chỗ:
+    <ul>
+      <li><b>Số Còn nợ in xám nhạt</b> như đang bị khoá, còn Quá hạn hiện “—” thay vì 0 đ.</li>
+      <li><b>Hai tầng điều hướng cho một hoá đơn</b>: tab “Hoá đơn còn nợ / Đã thu” rồi lại nhóm nút “Tất cả / Quá hạn”.</li>
+      <li><b>Hoá đơn “123 123”</b>: ký hiệu và số dính nhau không nhãn, ngày “06/10” thiếu năm, hạn thu không nói còn hay trễ bao nhiêu ngày.</li>
+      <li><b>Cột Trừ cọc và Đã thu toàn “—”</b>, chiếm hai cột chỉ để báo không có gì.</li>
+      <li><b>Thiếu thứ cần khi đi thu</b>: liên hệ và số điện thoại, người phụ trách, mã khách, lần thu gần nhất (bảng danh sách có mà ngăn lại không có), và không có lịch sử.</li>
+      <li><b>Khối tóm tắt đóng hộp nền xám</b>, vạch hạn mức mảnh khó đọc, nửa dưới ngăn để trống.</li>
+    </ul>
+    Cả ba giữ đúng luật ngăn đã chốt: rộng 920px, đầu ngăn cố định, nội dung chia tab, có tab <b>Lịch sử</b>. Bấm thử các tab. <b>Khi nhiều nợ</b> = 5 hoá đơn có trễ, có cọc, có lần thu, vượt hạn mức. <b>Phải trả</b> = cùng khuôn cho nhà cung cấp (đợt giao, trả tiền, cọc chung); phía này DB dev chưa có nợ nên “dữ liệu hiện tại” là số mẫu.
+  </div>
+
+  <div class="bar-ctl">
+    <div class="switch" id="sw-opt"><button class="on" data-v="1">Phương án 1</button><button data-v="2">Phương án 2</button><button data-v="3">Phương án 3</button></div>
+    <div class="switch" id="sw-du"><button class="on" data-v="hien">Dữ liệu hiện tại</button><button data-v="nhieu">Khi nhiều nợ</button></div>
+    <div class="switch" id="sw-man"><button class="on" data-v="thu">Phải thu</button><button data-v="tra">Phải trả</button></div>
+  </div>
+
+  <section class="opt on" data-opt="1">
+    <h2>1. Hồ sơ đối tác: dải số trên, bên trái việc, bên phải thông tin đứng yên</h2>
+    <span class="src">Khuôn Stripe Dashboard: trang chi tiết khách hàng (cột chính động, cột phụ tĩnh bên phải, nút việc trên đầu)</span>
+    <div class="why">
+      Stripe chia trang khách thành cột chính (hoá đơn, thanh toán) và cột phụ bên phải (liên hệ, điều khoản), còn nút việc hay dùng đưa lên đầu. Ở đây:
+      <ul>
+        <li>Dải số không đóng hộp: <b>Còn nợ</b> (đen, to) | <b>Quá hạn</b> | <b>Hạn mức đã dùng</b> (vạch dày, còn được nợ bao nhiêu) | <b>Thu gần nhất</b>.</li>
+        <li>Cột phải: liên hệ chính kèm số gọi, người phụ trách, điều khoản cho nợ, hạn mức, số trong kỳ.</li>
+        <li>Tab <b>Hoá đơn | Lần thu | Lịch sử</b>. Lọc trong tab là chip có số (Còn nợ / Quá hạn / Đã thu đủ), hết hai tầng nút. Hạn thu kèm thẻ “Còn 30 ngày” hoặc “Trễ 12 ngày”. Đã thu và trừ cọc chỉ hiện dưới số còn nợ khi khác 0.</li>
+        <li>Nút <b>Thu tiền</b> trên đầu mở form thu với hoá đơn cũ nhất chọn sẵn; nút trên từng dòng vẫn còn.</li>
+      </ul>
+    </div>
+    <div class="san"><div class="ngan" id="n1"></div></div>
+  </section>
+
+  <section class="opt" data-opt="2">
+    <h2>2. Sổ chi tiết công nợ: tab Sao kê có số dư chạy</h2>
+    <span class="src">Khuôn Xero / QuickBooks: trang liên hệ có “Activity / Statement”, sổ chi tiết công nợ 131 / 331 kế toán Việt quen</span>
+    <div class="why">
+      Xero và QuickBooks cho xem từng khách như một sao kê: mỗi dòng là một chứng từ, cột cuối là số dư sau chứng từ đó. Kế toán Việt gọi là sổ chi tiết công nợ theo đối tượng. Ở đây:
+      <ul>
+        <li>Đầu ngăn: số Còn nợ bên trái, giữa là <b>vạch tuổi nợ của riêng đối tác này</b> (chỉ ghi các mốc có tiền), phải là hạn mức.</li>
+        <li>Tab <b>Còn nợ | Sao kê | Lịch sử</b>. Sao kê: số dư đầu kỳ, từng hoá đơn (phát sinh nợ), từng lần thu và lần trừ cọc (phát sinh có), số dư chạy, số dư cuối kỳ khớp số Còn nợ. Dùng để đối chiếu khi khách gọi hỏi “sao tôi còn nợ chừng này”.</li>
+        <li>Nút <b>In sao kê</b> để gửi khách đối chiếu. <span class="can">cần thêm ở máy chủ: số dư đầu kỳ và mẫu in</span></li>
+      </ul>
+    </div>
+    <div class="san"><div class="ngan" id="n2"></div></div>
+  </section>
+
+  <section class="opt" data-opt="3">
+    <h2>3. Thu theo mức gấp: hoá đơn gom theo việc cần làm</h2>
+    <span class="src">Khuôn Upflow / Chaser: trang khách của phần mềm thu nợ (số dư, hoá đơn theo độ gấp, liên hệ, dòng thời gian thu nợ)</span>
+    <div class="why">
+      Upflow dựng trang khách quanh câu hỏi “hôm nay phải đòi cái gì”: hoá đơn gom theo độ gấp, liên hệ để gọi nằm ngay đầu, mọi lần thu và lần nhắc trên một dòng thời gian. Ở đây:
+      <ul>
+        <li>Ngay dưới tên: <b>liên hệ + số gọi + người phụ trách</b> trên một hàng.</li>
+        <li>Bốn ô số: Còn nợ | Quá hạn | Hạn mức đã dùng | <b>Thói quen trả</b> (trả trễ trung bình bao nhiêu ngày) <span class="can">cần thêm ở máy chủ</span>.</li>
+        <li>Tab <b>Cần thu | Đã thu | Lịch sử</b>. Cần thu chia ba nhóm: <b>Quá hạn</b>, <b>Tới hạn trong 7 ngày</b>, <b>Chưa tới hạn</b>, mỗi nhóm có tổng. Mỗi hoá đơn có vạch đã thu bao nhiêu phần.</li>
+        <li>Phía phải trả: tick nhiều đợt rồi <b>Trả gộp</b> (máy chủ đã có trả gộp).</li>
+      </ul>
+    </div>
+    <div class="san"><div class="ngan" id="n3"></div></div>
+  </section>
+</div>
+
+<script>
+/* ---------- dữ liệu ---------- */
+const HOM_NAY = "06/10/2026";
+const DU = {
+  thu: {
+    hien: { ten: "CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM", ma: "KH006", lh: ["Nguyễn Thanh Vy", "0797 235 637"], pt: "Nguyễn Thị Huyên",
+      hanMuc: 100000000, choNo: 30, them: 8460973, daKy: 0, dauKy: 0, treTB: null,
+      items: [{ so: "123", kh: "123", ngay: "06/10/2026", don: "DH001", han: "05/11/2026", tre: -30, gt: 8460973, da: 0, coc: 0 }],
+      paid: [], coc: [] },
+    nhieu: { ten: "CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM", ma: "KH006", lh: ["Nguyễn Thanh Vy", "0797 235 637"], pt: "Nguyễn Thị Huyên",
+      hanMuc: 100000000, choNo: 30, them: 8460973, daKy: 0, dauKy: 0, treTB: 14,
+      items: [
+        { so: "0000412", kh: "1C26TSV", ngay: "02/08/2026", don: "DH014", han: "01/09/2026", tre: 35, gt: 48600000, da: 20000000, coc: 0 },
+        { so: "0000437", kh: "1C26TSV", ngay: "20/08/2026", don: "DH017", han: "19/09/2026", tre: 17, gt: 36200000, da: 0, coc: 10000000 },
+        { so: "0000455", kh: "1C26TSV", ngay: "28/08/2026", don: "DH019", han: "27/09/2026", tre: 9, gt: 18900000, da: 0, coc: 0 },
+        { so: "0000470", kh: "1C26TSV", ngay: "12/09/2026", don: "DH021", han: "12/10/2026", tre: -6, gt: 52300000, da: 12300000, coc: 0 },
+        { so: "123", kh: "123", ngay: "06/10/2026", don: "DH001", han: "05/11/2026", tre: -30, gt: 8460973, da: 0, coc: 0 },
+        { so: "0000391", kh: "1C26TSV", ngay: "15/07/2026", don: "DH011", han: "14/08/2026", tre: 0, gt: 27500000, da: 27500000, coc: 0, xong: true },
+      ],
+      paid: [
+        { ngay: "25/09/2026", ma: "PT-0254", tien: 12300000, cach: "Chuyển khoản", cho: "0000470", nguoi: "Nguyễn Thanh Vy" },
+        { ngay: "15/08/2026", ma: "PT-0231", tien: 20000000, cach: "Chuyển khoản", cho: "0000412", nguoi: "Nguyễn Thanh Vy" },
+        { ngay: "10/08/2026", ma: "PT-0219", tien: 27500000, cach: "Tiền mặt", cho: "0000391", nguoi: "Lê Hoàng Phúc" },
+      ],
+      coc: [{ ngay: "05/08/2026", ma: "PT-0198", tien: 10000000, don: "DH017", cho: "0000437" }] },
+  },
+  tra: {
+    hien: { ten: "CÔNG TY TNHH GIẤY BÌNH MINH", ma: "NCC007", lh: ["Trần Quốc Bảo", "0903 112 458"], pt: "Lê Văn Tâm",
+      hanMuc: 150000000, choNo: 45, them: 12650000, daKy: 0, dauKy: 0, treTB: null,
+      items: [{ don: "MH-0052", dot: 1, ngay: "01/10/2026", hd: "0001355", anh: true, han: "15/11/2026", tre: -40, gt: 12650000, da: 0, coc: 0 }],
+      paid: [], coc: [] },
+    nhieu: { ten: "CÔNG TY TNHH GIẤY BÌNH MINH", ma: "NCC007", lh: ["Trần Quốc Bảo", "0903 112 458"], pt: "Lê Văn Tâm",
+      hanMuc: 150000000, choNo: 45, them: 0, daKy: 0, dauKy: 0, treTB: 9,
+      items: [
+        { don: "MH-0031", dot: 1, ngay: "10/07/2026", hd: "0001187", anh: true, han: "24/08/2026", tre: 43, gt: 62400000, da: 30000000, coc: 15000000 },
+        { don: "MH-0031", dot: 2, ngay: "28/07/2026", hd: null, anh: false, han: "11/09/2026", tre: 25, gt: 41800000, da: 0, coc: 0 },
+        { don: "MH-0044", dot: 1, ngay: "03/09/2026", hd: "0001302", anh: true, han: "18/10/2026", tre: -12, gt: 55000000, da: 0, coc: 0 },
+      ],
+      paid: [
+        { ngay: "20/08/2026", ma: "PC-0412", tien: 30000000, cach: "Chuyển khoản", cho: "MH-0031 đợt 1", nguoi: "Lê Văn Tâm" },
+      ],
+      coc: [{ ngay: "05/07/2026", ma: "PC-0377", tien: 15000000, don: "MH-0031", cho: "MH-0031 đợt 1" }] },
+  },
+};
+const CHU = {
+  thu: { man: "Công nợ phải thu", dt: "Khách hàng", hoSo: "Hồ sơ khách hàng", hd: "Hoá đơn", hdNho: "hoá đơn", han: "Hạn thu", ngay: "Ngày HĐ",
+         da: "Đã thu", lam: "Thu tiền", lamNgan: "Thu", lan: "Lần thu", ganNhat: "Thu gần nhất", chua: "Chưa thu lần nào", them: "Bán thêm",
+         sau: "sau hoá đơn", hanMuc: "Hạn mức", tt: "Thu", phatNo: "Bán ra", phatCo: "Đã thu", ptNhan: "Phụ trách", cocChu: "Trừ cọc" },
+  tra: { man: "Công nợ phải trả", dt: "Nhà cung cấp", hoSo: "Hồ sơ nhà cung cấp", hd: "Đợt giao", hdNho: "đợt giao", han: "Hạn trả", ngay: "Ngày giao",
+         da: "Đã trả", lam: "Trả tiền", lamNgan: "Trả", lan: "Lần trả", ganNhat: "Trả gần nhất", chua: "Chưa trả lần nào", them: "Mua thêm",
+         sau: "sau mỗi đợt giao", hanMuc: "Hạn mức NCC cho nợ", tt: "Trả", phatNo: "Nhận hàng", phatCo: "Đã trả", ptNhan: "Người mua", cocChu: "Cọc bù" },
+};
+let st = { du: "hien", man: "thu", tab: { 1: "hd", 2: "no", 3: "can" }, loc: { 1: "con", 2: "all", 3: null }, gop: [] };
+
+/* ---------- tiện ích ---------- */
+const vs = n => n.toLocaleString("vi-VN");
+const ti = n => vs(n) + " đ";
+const con = it => it.gt - it.da - it.coc;
+const viet = s => s.split(" ").map(w => w[0]).slice(-2).join("");
+function tinh(d){
+  const song = d.items.filter(i => con(i) > 0);
+  const conNo = song.reduce((s, i) => s + con(i), 0);
+  const quaHan = song.filter(i => i.tre > 0).reduce((s, i) => s + con(i), 0);
+  const tatCa = [...d.paid].sort((a, b) => ngayS(b.ngay) - ngayS(a.ngay));
+  return { song, conNo, quaHan, gan: tatCa[0] || null, dung: Math.round(conNo / d.hanMuc * 100), vuot: conNo - d.hanMuc };
+}
+function ngayS(s){ const [d, m, y] = s.split("/").map(Number); return y * 10000 + m * 100 + d; }
+function trangThai(it){
+  if (con(it) <= 0) return `<span class="tag tag--xanh">${CHU[st.man].da} đủ</span>`;
+  if (it.tre > 0) return `<span class="tag tag--do">Trễ ${it.tre} ngày</span>`;
+  if (it.tre >= -7) return `<span class="tag tag--vang">Còn ${-it.tre} ngày</span>`;
+  return `<span class="tag">Còn ${-it.tre} ngày</span>`;
+}
+function tenHd(it){
+  if (st.man === "thu") return { chinh: `Số ${it.so}`, phu: `<span class="tag">Ký hiệu ${it.kh}</span><span class="lk">Đơn ${it.don}</span>` };
+  return { chinh: `${it.don} đợt ${it.dot}`, phu: it.hd ? `<span class="tag">HĐ ${it.hd}</span>${it.anh ? `<span class="lk">Xem ảnh</span>` : ""}` : `<span class="tag tag--vang">Chưa có hoá đơn</span>` };
+}
+function phuTien(it){
+  const c = CHU[st.man]; const p = [];
+  if (it.da) p.push(`<span>${c.da} ${vs(it.da)}</span>`);
+  if (it.coc) p.push(`<span>${c.cocChu} ${vs(it.coc)}</span>`);
+  return p.length ? `<div class="dong-phu">${p.join("")}</div>` : "";
+}
+function dauNgan(d, t, nut){
+  const c = CHU[st.man];
+  return `<div class="duong"><span>${c.man} <span class="mo3">›</span> <b>${c.dt}</b></span><span class="icon-nut"><i title="Lên">↑</i><i title="Xuống">↓</i><i title="Mở rộng">⤢</i><i title="Đóng">✕</i></span></div>
+    <div class="ten-hang"><div><h3>${d.ten}</h3><div class="the-hang"><span class="tag">${d.ma}</span></div></div>
+      <div class="nut-hang">${nut}</div></div>`;
+}
+function canhVuot(t){
+  return "";
+}
+function tabs(o, ds){
+  return `<div class="tabs">${ds.map(([k, n, dem]) => `<button data-tab="${o}:${k}" class="${st.tab[o] === k ? "on" : ""}">${n}${dem != null ? `<em>${dem}</em>` : ""}</button>`).join("")}</div>`;
+}
+function bangLan(d){
+  const c = CHU[st.man];
+  const ds = [...d.paid.map(p => ({ ...p, loai: "lan" })), ...d.coc.map(p => ({ ...p, loai: "coc" }))].sort((a, b) => ngayS(b.ngay) - ngayS(a.ngay));
+  if (!ds.length) return `<div class="trong">${c.chua}. Khi ${st.man === "thu" ? "khách trả" : "mình trả"}, phiếu sẽ hiện ở đây.</div>`;
+  return `<div class="bang-cuon"><table><thead><tr><th>Ngày</th><th>Phiếu</th><th>Cho</th><th>Cách</th><th class="r">Số tiền</th></tr></thead><tbody>
+    ${ds.map(p => `<tr><td>${p.ngay}</td><td><span class="lk">${p.ma}</span>${p.loai === "coc" ? `<div class="dong-phu"><span class="tag">Cọc đơn ${p.don}</span></div>` : ""}</td>
+      <td>${st.man === "thu" ? "Hoá đơn " : ""}${p.cho}${p.loai === "coc" ? `<div class="dong-phu">trừ vào khi ${st.man === "thu" ? "xuất hoá đơn" : "giao hàng"}</div>` : ""}</td>
+      <td>${p.cach || "Chuyển khoản"}${p.nguoi ? `<div class="dong-phu">${st.man === "thu" ? "Người nộp" : "Người chi"} ${p.nguoi}</div>` : ""}</td>
+      <td class="r dam num">${vs(p.tien)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+function lichSu(d){
+  const c = CHU[st.man]; const ev = [];
+  d.items.forEach(it => {
+    const h = tenHd(it);
+    ev.push({ ng: it.ngay, dot: st.man === "thu" ? "HĐ" : "GH", nd: `${st.man === "thu" ? "Xuất hoá đơn" : "Nhận hàng"} ${h.chinh.replace("Số ", "")} <b class="num">${ti(it.gt)}</b>`, phu: `<span>Hạn ${it.han}</span>` });
+    if (it.tre > 0 && con(it) > 0) ev.push({ ng: it.han, dot: "!", cls: "tre", nd: `${st.man === "thu" ? "Hoá đơn" : "Đợt"} ${h.chinh.replace("Số ", "")} tới hạn mà chưa ${c.tt.toLowerCase()} đủ`, phu: `<span>Còn ${vs(con(it))}</span>` });
+  });
+  d.paid.forEach(p => ev.push({ ng: p.ngay, dot: "₫", cls: "thu", nd: `${c.tt} <b class="num">${ti(p.tien)}</b> cho ${p.cho}`, phu: `<span class="lk">${p.ma}</span><span>${p.cach}</span>` }));
+  d.coc.forEach(p => ev.push({ ng: p.ngay, dot: "₫", cls: "thu", nd: `Nhận cọc <b class="num">${ti(p.tien)}</b> cho đơn ${p.don}`, phu: `<span class="lk">${p.ma}</span>` }));
+  ev.sort((a, b) => ngayS(b.ng) - ngayS(a.ng));
+  return `<ul class="tl">${ev.map(e => `<li><span class="ng">${e.ng}</span><span class="dot ${e.cls || ""}">${e.dot}</span><div class="nd">${e.nd}<small>${e.phu}</small></div></li>`).join("")}</ul>`;
+}
+
+/* ---------- Phương án 1 ---------- */
+function v1(){
+  const d = DU[st.man][st.du], c = CHU[st.man], t = tinh(d);
+  const loc = st.loc[1];
+  const ds = d.items.filter(i => loc === "con" ? con(i) > 0 : loc === "qua" ? con(i) > 0 && i.tre > 0 : con(i) <= 0);
+  const dem = { con: t.song.length, qua: t.song.filter(i => i.tre > 0).length, xong: d.items.filter(i => con(i) <= 0).length };
+  let than = "";
+  if (st.tab[1] === "hd") {
+    than = `<div class="hang-chip">
+      <button class="chip ${loc === "con" ? "on" : ""}" data-loc="1:con">Còn nợ <b>${dem.con}</b></button>
+      <button class="chip ${loc === "qua" ? "on" : ""}" data-loc="1:qua">Quá hạn <b>${dem.qua}</b></button>
+      <button class="chip ${loc === "xong" ? "on" : ""}" data-loc="1:xong">${c.da} đủ <b>${dem.xong}</b></button></div>
+      ${ds.length ? `<div class="bang-cuon"><table><thead><tr><th>${c.hd}</th><th>${c.han}</th><th class="r">Giá trị</th><th class="r">Còn nợ</th><th></th></tr></thead><tbody>
+      ${ds.map(it => { const h = tenHd(it); const pct = Math.round((it.da + it.coc) / it.gt * 100);
+        return `<tr><td><div class="dam">${h.chinh}</div><div class="dong-phu">${h.phu}<span>ngày ${it.ngay}</span></div></td>
+        <td>${it.han}<div class="dong-phu">${trangThai(it)}</div></td><td class="r num">${vs(it.gt)}</td>
+        <td class="r"><b class="num ${it.tre > 0 && con(it) > 0 ? "do" : ""}">${vs(con(it))}</b>${pct ? `<span class="tien-thu"><i style="width:${pct}%"></i></span>` : ""}${phuTien(it)}</td>
+        <td class="r">${con(it) > 0 ? `<button class="btn btn--sm">${c.lamNgan}</button>` : ""}</td></tr>`; }).join("")}</tbody></table></div>`
+      : `<div class="trong">Không có ${c.hdNho} nào ở mục này.</div>`}`;
+  } else if (st.tab[1] === "lan") than = bangLan(d);
+  else than = lichSu(d);
+  return `<div class="dau">${dauNgan(d, t, `<button class="btn">${c.hoSo}</button><button class="btn btn--pri">${c.lam}</button>`)}
+      <div class="p1-so">
+        <div class="lon"><span>Còn nợ</span><b class="num">${ti(t.conNo)}</b></div>
+        <div><span>Quá hạn</span><b class="num ${t.quaHan ? "do" : ""}">${ti(t.quaHan)}</b></div>
+        <div><span>${c.hanMuc} đã dùng ${t.dung}%</span><span class="hm ${t.vuot > 0 ? "hm--vuot" : ""}"><i style="width:${Math.min(100, t.dung)}%"></i></span>
+          <small>${t.vuot > 0 ? `<span class="do">vượt ${vs(t.vuot)}</span>` : `còn được nợ ${vs(d.hanMuc - t.conNo)}`}</small></div>
+        <div><span>${c.ganNhat}</span>${t.gan ? `<b class="num">${ti(t.gan.tien)}</b><small>ngày ${t.gan.ngay}</small>` : `<b class="mo" style="font-size:14px;font-weight:500">${c.chua}</b>`}</div>
+      </div>${canhVuot(t)}
+      ${tabs(1, [["hd", c.hd, t.song.length], ["lan", c.lan, d.paid.length + d.coc.length], ["ls", "Lịch sử", null]])}</div>
+    <div class="than"><div class="p1-luoi"><div>${than}</div>
+      <aside class="p1-ray">
+        <div><h4>Liên hệ chính</h4><div class="kv"><b>${d.lh[0]}</b><span class="lk">${d.lh[1]}</span></div></div>
+        <div><h4>${c.ptNhan}</h4><div class="ng"><span class="av">${viet(d.pt)}</span>${d.pt}</div></div>
+        <div><h4>Điều khoản</h4><div class="kv"><span>Cho nợ ${d.choNo} ngày ${c.sau}</span><span class="mo">${c.hanMuc} ${ti(d.hanMuc)}</span></div></div>
+        <div><h4>Trong kỳ tháng này</h4><div class="kv"><div class="cap"><span>${c.them}</span><b class="num">${vs(d.them)}</b></div><div class="cap"><span>${c.da}</span><b class="num">${vs(d.daKy)}</b></div></div></div>
+      </aside></div></div>`;
+}
+
+/* ---------- Phương án 2 ---------- */
+const MOC = ["Chưa tới hạn","Trễ 1–7 ngày","Trễ 8–15 ngày","Trễ 16–30 ngày","Trễ 31–60 ngày","Trễ trên 60 ngày"];
+const moc = tre => tre <= 0 ? 0 : tre <= 7 ? 1 : tre <= 15 ? 2 : tre <= 30 ? 3 : tre <= 60 ? 4 : 5;
+function v2(){
+  const d = DU[st.man][st.du], c = CHU[st.man], t = tinh(d);
+  const ag = [0,0,0,0,0,0]; t.song.forEach(i => ag[moc(i.tre)] += con(i));
+  let than = "";
+  if (st.tab[2] === "no") {
+    const loc = st.loc[2];
+    const ds = t.song.filter(i => loc === "all" || moc(i.tre) === +loc);
+    than = `${loc !== "all" ? `<div class="hang-chip"><span class="chip on">${MOC[+loc]} <b>${ds.length}</b></span><button class="chip" data-loc="2:all">Bỏ lọc ✕</button></div>` : ""}
+      ${ds.length ? `<div class="bang-cuon"><table><thead><tr><th>${c.hd}</th><th>${c.han}</th><th class="r">Giá trị</th><th class="r">${c.da} và trừ cọc</th><th class="r">Còn nợ</th><th></th></tr></thead><tbody>
+      ${ds.map(it => { const h = tenHd(it); return `<tr><td><div class="dam">${h.chinh}</div><div class="dong-phu">${h.phu}<span>${it.ngay}</span></div></td>
+        <td>${it.han}<div class="dong-phu">${trangThai(it)}</div></td><td class="r num">${vs(it.gt)}</td>
+        <td class="r num">${it.da + it.coc ? vs(it.da + it.coc) : `<span class="mo3">0</span>`}${it.coc ? `<div class="dong-phu"><span>gồm ${c.cocChu.toLowerCase()} ${vs(it.coc)}</span></div>` : ""}</td>
+        <td class="r"><b class="num ${it.tre > 0 ? "do" : ""}">${vs(con(it))}</b></td><td class="r"><button class="btn btn--sm">${c.lamNgan}</button></td></tr>`; }).join("")}</tbody></table></div>` : `<div class="trong">Không có ${c.hdNho} nào còn nợ.</div>`}`;
+  } else if (st.tab[2] === "sk") {
+    const ds = [];
+    d.items.forEach(it => ds.push({ ng: it.ngay, ct: st.man === "thu" ? `HĐ ${it.so}` : `${it.don} đợt ${it.dot}`, dg: st.man === "thu" ? `Bán hàng đơn ${it.don}` : `Nhận hàng${it.hd ? ` HĐ ${it.hd}` : ""}`, no: it.gt, co: 0 }));
+    d.paid.forEach(p => ds.push({ ng: p.ngay, ct: p.ma, dg: `${c.tt} ${st.man === "thu" ? "hoá đơn " : ""}${p.cho}`, no: 0, co: p.tien }));
+    d.coc.forEach(p => ds.push({ ng: p.ngay, ct: p.ma, dg: `${st.man === "thu" ? "Nhận cọc" : "Đặt cọc"} đơn ${p.don}`, no: 0, co: p.tien }));
+    ds.sort((a, b) => ngayS(a.ng) - ngayS(b.ng));
+    let du = d.dauKy, tongNo = 0, tongCo = 0;
+    const tu = st.du === "hien" ? "01/10/2026" : "01/07/2026";
+    than = `<div class="thanh-ky"><span class="o-ky">${st.du === "hien" ? "Tháng này" : "Quý này"} <small>${tu} đến ${HOM_NAY}</small> ▾</span><span class="mo" style="font-size:12.5px">Số dư = ${st.man === "thu" ? "khách còn nợ mình" : "mình còn nợ NCC"}</span></div>
+      <div class="bang-cuon"><table class="so-cai"><thead><tr><th>Ngày</th><th>Chứng từ</th><th>Diễn giải</th><th class="r">${c.phatNo}</th><th class="r">${c.phatCo}</th><th class="r">Số dư</th></tr></thead><tbody>
+      <tr class="dau-ky"><td>${tu}</td><td></td><td>Số dư đầu kỳ</td><td></td><td></td><td class="r num">${vs(du)}</td></tr>
+      ${ds.filter(r => ngayS(r.ng) >= ngayS(tu)).map(r => { du += r.no - r.co; tongNo += r.no; tongCo += r.co;
+        return `<tr><td>${r.ng}</td><td><span class="lk">${r.ct}</span></td><td>${r.dg}</td><td class="r num">${r.no ? vs(r.no) : ""}</td><td class="r num">${r.co ? vs(r.co) : ""}</td><td class="r num dam">${vs(du)}</td></tr>`; }).join("")}
+      <tr class="cuoi-ky"><td>${HOM_NAY}</td><td></td><td>Số dư cuối kỳ</td><td class="r num">${vs(tongNo)}</td><td class="r num">${vs(tongCo)}</td><td class="r num">${vs(du)}</td></tr>
+      </tbody></table></div>`;
+  } else than = lichSu(d);
+  const vach = ag.map((a, i) => a ? `<i class="m${i}" style="flex:${a}" title="${MOC[i]} ${ti(a)}"></i>` : "").join("");
+  const chu = ag.map((a, i) => a ? `<span data-loc="2:${i}" style="cursor:pointer"><i class="cham m${i}"></i>${MOC[i]} <b class="num ${i >= 4 ? "do" : ""}">${vs(a)}</b></span>` : "").join("");
+  return `<div class="dau">${dauNgan(d, t, `<button class="btn">In sao kê</button><button class="btn">${c.hoSo}</button>`)}
+      <div class="p2-so">
+        <div><div class="nh">Còn nợ tới ${HOM_NAY}</div><div class="lon num">${ti(t.conNo)}</div>
+          <div class="nh">Quá hạn <b class="num ${t.quaHan ? "do" : ""}">${ti(t.quaHan)}</b></div></div>
+        <div><div class="nh">Tuổi nợ</div>${t.conNo ? `<div class="p2-vach">${vach}</div><div class="p2-chu">${chu}</div>` : `<div class="mo">Không còn nợ</div>`}</div>
+        <div><div class="nh">${c.hanMuc}</div><div class="num dam">${ti(d.hanMuc)}</div>
+          <span class="hm ${t.vuot > 0 ? "hm--vuot" : ""}" style="width:100%"><i style="width:${Math.min(100, t.dung)}%"></i></span>
+          <div class="nh">${t.vuot > 0 ? `<span class="do">Vượt ${vs(t.vuot)}</span>` : `Còn được nợ ${vs(d.hanMuc - t.conNo)}`}</div>
+          <div class="nh" style="margin-top:4px">Cho nợ ${d.choNo} ngày ${c.sau}</div></div>
+      </div>${canhVuot(t)}
+      ${tabs(2, [["no", "Còn nợ", t.song.length], ["sk", "Sao kê", null], ["ls", "Lịch sử", null]])}</div>
+    <div class="than">${than}</div>`;
+}
+
+/* ---------- Phương án 3 ---------- */
+function v3(){
+  const d = DU[st.man][st.du], c = CHU[st.man], t = tinh(d);
+  let than = "";
+  if (st.tab[3] === "can") {
+    const nhom = [
+      ["Quá hạn", t.song.filter(i => i.tre > 0), "do"],
+      ["Tới hạn trong 7 ngày", t.song.filter(i => i.tre <= 0 && i.tre >= -7), "vang"],
+      ["Chưa tới hạn", t.song.filter(i => i.tre < -7), ""],
+    ].filter(n => n[1].length);
+    const gop = st.man === "tra" && t.song.length > 1;
+    than = `${gop ? `<div class="chon-gop"><span>Tick nhiều đợt để trả một lần</span><button class="btn btn--sm" ${st.gop.length ? "" : "disabled style='opacity:.5'"}>Trả gộp ${st.gop.length ? st.gop.length + " đợt" : ""}</button></div>` : ""}
+      ${nhom.length ? nhom.map(([ten, ds, mau]) => `<div class="nhom"><div class="nhom-dau"><h5>${mau ? `<span class="tag tag--${mau}">${ten}</span>` : `<span class="tag">${ten}</span>`}<span class="mo" style="font-weight:400;font-size:12.5px">${ds.length} ${c.hdNho}</span></h5><b class="num ${mau === "do" ? "do" : ""}">${ti(ds.reduce((s, i) => s + con(i), 0))}</b></div>
+        ${ds.map((it, k) => { const h = tenHd(it); const pct = Math.round((it.da + it.coc) / it.gt * 100); const key = it.don + (it.dot || it.so);
+          return `<div class="the-hd"><div style="display:flex;gap:10px;align-items:flex-start">${gop ? `<input type="checkbox" data-gop="${key}" ${st.gop.includes(key) ? "checked" : ""} style="margin-top:4px">` : ""}<div><div class="dam">${h.chinh}</div><div class="dong-phu">${h.phu}</div></div></div>
+            <div><div>${c.han} ${it.han}</div><div class="dong-phu">${trangThai(it)}</div></div>
+            <div class="tien-thanh"><b class="num ${it.tre > 0 ? "do" : ""}">${ti(con(it))}</b><span class="vach"><i style="width:${pct}%"></i></span><small>${pct ? `${c.da} ${pct}% của ${vs(it.gt)}` : `Chưa ${c.tt.toLowerCase()} đồng nào của ${vs(it.gt)}`}</small></div>
+            <button class="btn btn--sm">${c.lam}</button></div>`; }).join("")}</div>`).join("") : `<div class="trong">Không còn ${c.hdNho} nào phải ${c.tt.toLowerCase()}.</div>`}`;
+  } else if (st.tab[3] === "da") than = bangLan(d);
+  else than = lichSu(d);
+  return `<div class="dau">${dauNgan(d, t, `<button class="btn">${c.hoSo}</button>`)}
+      <div class="p3-lh"><span>Liên hệ <b>${d.lh[0]}</b></span><span class="btn btn--sm">☎ ${d.lh[1]}</span><span><span class="av">${viet(d.pt)}</span>${c.ptNhan} <b>${d.pt}</b></span><span class="tag">Cho nợ ${d.choNo} ngày ${c.sau}</span></div>
+      <div class="p3-so">
+        <div><span>Còn nợ</span><b class="num">${ti(t.conNo)}</b><small>${t.song.length} ${c.hdNho}</small></div>
+        <div><span>Quá hạn</span><b class="num ${t.quaHan ? "do" : ""}">${ti(t.quaHan)}</b><small>${t.song.filter(i => i.tre > 0).length} ${c.hdNho}</small></div>
+        <div><span>Hạn mức đã dùng</span><b class="num ${t.vuot > 0 ? "do" : ""}">${t.dung}%</b><span class="hm ${t.vuot > 0 ? "hm--vuot" : ""}" style="width:100%;margin:2px 0"><i style="width:${Math.min(100, t.dung)}%"></i></span><small>${t.vuot > 0 ? `<span class="do">vượt ${vs(t.vuot)}</span> trên ${vs(d.hanMuc)}` : `trên ${ti(d.hanMuc)}`}</small></div>
+        <div><span>Thói quen ${c.tt.toLowerCase()}</span>${d.treTB != null ? `<b class="num">Trễ ${d.treTB} ngày</b><small>trung bình 6 tháng</small>` : `<b class="mo" style="font-size:14px;font-weight:500">Chưa đủ lần ${c.tt.toLowerCase()}</b><small>cần ít nhất 3 lần</small>`}</div>
+      </div>${canhVuot(t)}
+      ${tabs(3, [["can", st.man === "thu" ? "Cần thu" : "Cần trả", t.song.length], ["da", c.da, d.paid.length + d.coc.length], ["ls", "Lịch sử", null]])}</div>
+    <div class="than">${than}</div>`;
+}
+
+function ve(){ n1.innerHTML = v1(); n2.innerHTML = v2(); n3.innerHTML = v3(); }
+function sw(id, fn){ document.getElementById(id).addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  [...e.currentTarget.children].forEach(x => x.classList.toggle("on", x === b)); fn(b.dataset.v); }); }
+sw("sw-opt", v => document.querySelectorAll(".opt").forEach(o => o.classList.toggle("on", o.dataset.opt === v)));
+sw("sw-du", v => { st.du = v; st.loc = { 1: "con", 2: "all", 3: null }; st.gop = []; ve(); });
+sw("sw-man", v => { st.man = v; st.gop = []; ve(); });
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-tab]"); if (t) { const [o, k] = t.dataset.tab.split(":"); st.tab[o] = k; ve(); return; }
+  const l = e.target.closest("[data-loc]"); if (l) { const [o, k] = l.dataset.loc.split(":"); st.loc[o] = k; if (o === "2") st.tab[2] = "no"; ve(); return; }
+  const g = e.target.closest("[data-gop]"); if (g) { const k = g.dataset.gop; st.gop = st.gop.includes(k) ? st.gop.filter(x => x !== k) : [...st.gop, k]; ve(); }
+});
+ve();
+</script>
+</body>
+</html>

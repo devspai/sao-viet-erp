@@ -86,6 +86,7 @@ make_catalog_router(
     InModel=MayThietBiIn, RowModel=MayThietBiRow, ListModel=MayThietBiListOut,
     loc="loai_may",
     facets=lambda svc, kw: svc.dem_theo_loai(**kw),
+    co_ky=True,         # thanh lọc chung: kỳ Ngày tạo + Nhóm máy + Đang dùng / Đã ngừng
     dung_rows=_dung_rows,
     # ⚠️ `may_thiet_bi` KHÔNG có cột `active` (gỡ 11/08/2026 — máy dừng khai theo khoảng thời gian
     # ở `machine_unavailable_periods`). Bật cờ này là nền đi lọc một cột không tồn tại.

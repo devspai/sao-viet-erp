@@ -363,10 +363,13 @@ class XepLichLenhService:
 
     # ================= đọc =================
 
-    def hang_cho(self, *, tim: str | None = None, trang: int = 1, cd_trang: int = 20) -> dict:
+    def hang_cho(self, *, tim: str | None = None, trang: int = 1, cd_trang: int = 20,
+                 tu_ngay: date | None = None, den_ngay: date | None = None, moc: str = "tao",
+                 khach_id: int | None = None) -> dict:
         """Thẻ chờ xếp: lệnh đủ điều kiện mà chưa có mốc. Lọc + phân trang ở MÁY CHỦ."""
         rows, tong = self.repo.hang_cho(
             trang_thai=TT_XEP_DUOC, tim=tim, trang=trang, cd_trang=cd_trang,
+            tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, khach_id=khach_id,
         )
         routing = self.repo.routing_theo_lo([r.id for r in rows])
         self._nap_may([r.id for r in rows])
@@ -387,8 +390,18 @@ class XepLichLenhService:
                 "don_vi_tinh": l.don_vi_tinh,
                 "chay_phut": round(phut, 2),
                 "so_buoc": len(cds),
+                "created_at": l.created_at,
             })
         return {"dong": dong, "tong": tong}
+
+    def khach_hang_cho(self, *, tim: str | None = None, tu_ngay: date | None = None,
+                       den_ngay: date | None = None, moc: str = "tao") -> list[dict]:
+        """Nguồn ô "Khách hàng" của thanh lọc hàng chờ — đếm trên cùng điều kiện tìm + kỳ."""
+        return [
+            {"id": i, "ten": t, "so": n}
+            for i, t, n in self.repo.khach_hang_cho(
+                trang_thai=TT_XEP_DUOC, tim=tim, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
+        ]
 
     def lich(self, *, tu: date, den: date) -> dict:
         """Các lệnh CHẠM cửa sổ `[tu, den]`, mỗi lệnh một dòng đã trải sẵn.

@@ -97,7 +97,7 @@ describe("kiemTraPhieuTheoDon", () => {
 describe("PaymentVoucherDialog — nối trần vào form", () => {
   beforeEach(() => createVoucher.mockReset());
 
-  it("đợt chọn sẵn còn nợ 3.000.000: gõ 3.500.000 thì chặn tại ô, không gọi máy chủ", async () => {
+  it("đợt chọn sẵn còn nợ 3.000.000: gõ 3.500.000 thì báo tại ô ngay khi gõ, khoá nút, không gọi máy chủ", async () => {
     const u = userEvent.setup();
     render(<PaymentVoucherDialog purchase={don({ deliveries: [dot(11, 1, 3_000_000), dot(12, 2, 2_000_000)] as never })}
       onClose={() => {}} onSaved={() => {}} />);
@@ -105,8 +105,9 @@ describe("PaymentVoucherDialog — nối trần vào form", () => {
     expect(o).toHaveValue("3.000.000");
     await u.clear(o);
     await u.type(o, "3500000");
-    await u.click(screen.getByRole("button", { name: "Lập phiếu chi" }));
+    // Câu của luật chặn hiện ngay khi gõ, nút lập khoá.
     expect(screen.getByText("Số tiền quy đổi không được vượt quá 3.000.000 đ (công nợ hiện tại).")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lập phiếu chi" })).toBeDisabled();
     expect(createVoucher).not.toHaveBeenCalled();
   });
 });

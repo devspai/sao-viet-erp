@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ...models.bai_ghep_cong_doan import BaiGhepCongDoanMap
@@ -30,6 +30,7 @@ from ...models.lsx import TT_DA_DONG, Lsx, LsxCongDoan
 from ...models.order import Order
 from ...models.san_xuat import CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG, SanXuatCongViec
 from ...repositories.lenh_sx_doc_repo import LenhNhe, LenhSxDocRepository
+from ...repositories.loc_danh_sach import dk_khoang_ngay
 from ..can_doi_cache import lay_hoac_tinh
 from . import boi_canh, pham_vi, tien_do, trang_thai
 from .boi_canh import BoiCanh
@@ -104,13 +105,23 @@ def _co_buoc(cot_cong_viec, cot_routing, gia_tri):
     )
 
 
+# Mốc ngày của dải kỳ (06/10/2026): (cột, là cột Date). Mặc định `tao` = ngày tạo lệnh; khoảng
+# hạn SX cũ nay là `moc=han_sx`.
+MOC = {
+    "tao": (Lsx.created_at, False),
+    "han_sx": (Lsx.han_hoan_thanh_sx, True),
+    "han_giao": (Lsx.han_giao_khach, True),
+}
+
+
 def _loc_sql(
     sale_ids: set[int] | None, *,
     q: str | None, khach_hang_id: int | None, tu_ngay: date | None, den_ngay: date | None,
+    moc: str = "tao", order_id: int | None = None, gia_cong: str | None = None,
 ):
     """`select(Lsx.id)` đã gắn hết phần lọc SQL diễn đạt được.
 
-    Khoảng ngày soi `han_hoan_thanh_sx` (hạn SX nội bộ); lệnh chưa có hạn rơi ra ngoài mọi khoảng.
+    Khoảng ngày soi cột theo `moc` (`MOC`); với mốc hạn, lệnh chưa có hạn rơi ra ngoài mọi khoảng.
     Khách đi qua SUBQUERY trên `orders`, không `join`: phạm vi hẹp có thể đã join `orders` rồi.
     """
     stmt = pham_vi.loc_lsx_da_phat_hanh(select(Lsx.id), sale_ids)
@@ -129,10 +140,15 @@ def _loc_sql(
         stmt = stmt.where(
             Lsx.order_id.in_(select(Order.id).where(Order.customer_id == khach_hang_id))
         )
-    if tu_ngay is not None:
-        stmt = stmt.where(Lsx.han_hoan_thanh_sx >= tu_ngay)
-    if den_ngay is not None:
-        stmt = stmt.where(Lsx.han_hoan_thanh_sx <= den_ngay)
+    if order_id is not None:
+        stmt = stmt.where(Lsx.order_id == order_id)
+    if gia_cong:
+        from ...repositories.gia_cong_ngoai_repo import lsx_ids_loc_gia_cong
+
+        stmt = stmt.where(Lsx.id.in_(lsx_ids_loc_gia_cong(gia_cong)))
+    cot, la_ngay = MOC.get(moc, MOC["tao"])
+    for dk in dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay):
+        stmt = stmt.where(dk)
     return stmt
 
 
@@ -326,6 +342,7 @@ def _dong(bc: BoiCanh, lsx_id: int, khau_ct: tuple[str, str | None]) -> dict:
         "khau": khau_ct[0],
         "khau_chi_tiet": khau_ct[1],
         "da_dong": lsx.trang_thai == TT_DA_DONG,
+        "created_at": lsx.created_at,
     }
 
 
@@ -373,7 +390,8 @@ def _tach_da_giao_het(db: Session, ids: list[int]) -> tuple[dict[int, LenhNhe], 
 def danh_sach(
     db: Session, *, sale_ids: set[int] | None,
     tab: str | None = None, q: str | None = None, khach_hang_id: int | None = None,
-    tu_ngay: date | None = None, den_ngay: date | None = None,
+    tu_ngay: date | None = None, den_ngay: date | None = None, moc: str = "tao",
+    order_id: int | None = None, gia_cong: str | None = None,
     page: int = 1, page_size: int = PAGE_SIZE_MAC_DINH,
 ) -> dict:
     """`{items, total, page, page_size, dem_theo_tab}` — bảng đã lọc, đếm và CẮT TRANG ở máy chủ.
@@ -385,6 +403,7 @@ def danh_sach(
 
     ids = list(db.execute(_loc_sql(
         sale_ids, q=q, khach_hang_id=khach_hang_id, tu_ngay=tu_ngay, den_ngay=den_ngay,
+        moc=moc, order_id=order_id, gia_cong=gia_cong,
     )).scalars())
     nhe, da_giao_het = _tach_da_giao_het(db, ids)
     song = [i for i in ids if i not in da_giao_het]
@@ -436,6 +455,35 @@ def khach_trong_pham_vi(db: Session, sale_ids: set[int] | None) -> list[dict]:
         ({"id": cid, "ten": ten} for cid, ten in rows),
         key=lambda k: (k["ten"] or "", k["id"]),
     )
+
+
+def khach_loc(db: Session, *, sale_ids: set[int] | None) -> list[dict]:
+    """Ô "Khách hàng" của thanh lọc: `{id, ten, so}` — khách có lệnh đã phát hành trong phạm vi,
+    `so` = số lệnh. MỘT câu SQL."""
+    trong = pham_vi.loc_lsx_da_phat_hanh(select(Lsx.id), sale_ids)
+    rows = db.execute(
+        select(Customer.id, Customer.name, func.count(Lsx.id))
+        .join(Order, Order.customer_id == Customer.id)
+        .join(Lsx, Lsx.order_id == Order.id)
+        .where(Lsx.id.in_(trong))
+        .group_by(Customer.id, Customer.name)
+        .order_by(Customer.name)
+    ).all()
+    return [{"id": i, "ten": t or f"Khách #{i}", "so": n} for i, t, n in rows]
+
+
+def don_loc(db: Session, *, sale_ids: set[int] | None) -> list[dict]:
+    """Ô "Đơn hàng" của thanh lọc: `{id, ten, so}` — đơn có lệnh đã phát hành trong phạm vi,
+    `ten` = số đơn, `so` = số lệnh. Đơn mới nhất trước."""
+    trong = pham_vi.loc_lsx_da_phat_hanh(select(Lsx.id), sale_ids)
+    rows = db.execute(
+        select(Order.id, Order.order_no, func.count(Lsx.id))
+        .join(Lsx, Lsx.order_id == Order.id)
+        .where(Lsx.id.in_(trong))
+        .group_by(Order.id, Order.order_no)
+        .order_by(Order.order_no.desc())
+    ).all()
+    return [{"id": i, "ten": t, "so": n} for i, t, n in rows]
 
 
 def bo_loc(db: Session, *, sale_ids: set[int] | None) -> dict:

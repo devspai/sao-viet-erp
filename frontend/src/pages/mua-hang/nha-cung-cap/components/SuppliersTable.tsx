@@ -6,6 +6,7 @@ import { Icon } from "../../../../components/Icons";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { SaoNcc } from "./SaoNcc";
 import { soNgayVi } from "../shared/helpers";
+import { tenDonVi, useNapTenDonVi } from "../../../tenDonVi";
 import type { SortNcc } from "../shared/types";
 
 /**
@@ -61,7 +62,7 @@ function ChipMatHang({
               {it.item_name}
             </span>
             <span className="supplier__items-popover-price">
-              {it.unit_price.toLocaleString("vi-VN")}đ/{it.unit}
+              {it.unit_price.toLocaleString("vi-VN")}đ/{tenDonVi(it.unit) ?? it.unit}
             </span>
           </div>
         ))}
@@ -83,42 +84,26 @@ function ChipMatHang({
   );
 }
 
-/** Số cột của bảng — dùng cho `colSpan` của các dòng rỗng/lỗi. */
-const SO_COT = 6;
-
-function getInitialsAvatar(name: string): { initials: string; bgGradient: string } {
-  const clean = name
-    .replace(/^(Công ty|CTY|Doanh nghiệp|Cty)\s+(TNHH|CP|Cổ phần|MTV|TNHH MTV)?/i, "")
-    .replace(/^(TNHH|CP|Cổ phần|MTV)\s+/i, "")
-    .trim();
-
-  const words = clean.split(/\s+/).filter(Boolean);
-  let initials = "";
-  if (words.length >= 2) {
-    initials = (words[0][0] + words[words.length - 1][0]).toUpperCase();
-  } else if (words.length === 1) {
-    initials = words[0].slice(0, 2).toUpperCase();
-  } else {
-    initials = name.slice(0, 2).toUpperCase();
-  }
-
-  const gradients = [
-    "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-    "linear-gradient(135deg, #0284c7 0%, #2563eb 100%)",
-    "linear-gradient(135deg, #059669 0%, #10b981 100%)",
-    "linear-gradient(135deg, #d97706 0%, #f59e0b 100%)",
-    "linear-gradient(135deg, #e11d48 0%, #f43f5e 100%)",
-    "linear-gradient(135deg, #0891b2 0%, #0d9488 100%)",
-  ];
-
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const bgGradient = gradients[Math.abs(hash) % gradients.length];
-
-  return { initials, bgGradient };
+/** Mốc giờ máy chủ → Date; chuỗi không múi (SQLite) coi là UTC. */
+function docMoc(iso: string): Date {
+  return new Date(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso) || !iso.includes("T") ? iso : `${iso}Z`);
 }
+/** Cột Ngày tạo: "06/10/2026" theo giờ VN; title của ô mang đủ giờ. */
+function ngayTao(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = docMoc(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+function gioTao(iso: string | null | undefined): string | undefined {
+  if (!iso) return undefined;
+  const d = docMoc(iso);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** Số cột của bảng — dùng cho `colSpan` của các dòng rỗng/lỗi. */
+const SO_COT = 7;
 
 function QuickCopy({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -170,6 +155,8 @@ export function SuppliersTable({
   size: number;
   onSize: (size: number) => void;
 }) {
+  // Tên đơn vị cho thẻ xem nhanh báo giá ("đ/tờ" chứ không "đ/to").
+  useNapTenDonVi();
   const sortSao = sort === "rating" || sort === "-rating";
   function doiSortSao() {
     setSort(sort === "-rating" ? "rating" : sort === "rating" ? "name" : "-rating");
@@ -187,6 +174,7 @@ export function SuppliersTable({
             <col className="supplier__col-contact" />
             <col className="supplier__col-items" />
             <col className="supplier__col-status" />
+            <col className="supplier__col-ngay" />
             <col className="supplier__col-actions" />
           </colgroup>
           <thead>
@@ -222,6 +210,7 @@ export function SuppliersTable({
               <th>Người liên hệ</th>
               <th>Mặt hàng</th>
               <th>Trạng thái</th>
+              <th>Ngày tạo</th>
               <th style={{ textAlign: "right", paddingRight: "16px" }}>Thao tác</th>
             </tr>
           </thead>
@@ -234,6 +223,7 @@ export function SuppliersTable({
                   <td><div className="purchase__skeleton-bar" style={{ width: "140px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "120px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "90px" }} /></td>
+                  <td><div className="purchase__skeleton-bar" style={{ width: "72px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "60px" }} /></td>
                 </tr>
               ))
@@ -253,7 +243,6 @@ export function SuppliersTable({
               />
             ) : (
               rows.map((row) => {
-                const { initials, bgGradient } = getInitialsAvatar(row.name);
                 const onTimePercent = row.rating_count > 0 
                   ? Math.round((row.on_time_count / row.rating_count) * 100) 
                   : 100;
@@ -273,18 +262,23 @@ export function SuppliersTable({
                     className="md-page__row"
                     onClick={canUpdate ? () => openEdit(row, "info") : undefined}
                   >
-                    {/* Column 1: Avatar + Supplier Name + MST Copy */}
+                    {/* Column 1: Supplier Name + MST Copy */}
                     <td className="supplier__name-cell">
                       <div className="supplier__name-box">
-                        <div className="supplier__avatar-wrap" style={{ background: bgGradient }}>
-                          {initials}
-                        </div>
                         <div className="supplier__name-meta">
                           <strong className="supplier__primary" title={row.name}>{row.name}</strong>
                           <div className="supplier__mst-row">
                             {row.supplier_group && (
                               <span className="supplier-group-badge" title={row.supplier_group}>
                                 {row.supplier_group}
+                              </span>
+                            )}
+                            {/* Cờ "Nhận gia công" trước đây chỉ thấy khi mở từng NCC — danh sách không
+                                có cách nào biết ai đang nhận, trong khi hộp Gia công trọn gói của
+                                lệnh chỉ cho chọn đúng những NCC này. */}
+                            {row.nhan_gia_cong && (
+                              <span className="supplier-gia-cong-badge" title="Hiện trong danh sách chọn nhà gia công của lệnh sản xuất">
+                                Nhận gia công
                               </span>
                             )}
                             {row.tax_code ? (
@@ -431,10 +425,16 @@ export function SuppliersTable({
                       </span>
                     </td>
 
+                    <td className="supplier__ngay-tao" title={gioTao(row.created_at)}>
+                      {ngayTao(row.created_at)}
+                    </td>
+
                     {/* Column 6: Quick Action Buttons */}
-                    {/* Ba ô LUÔN bày đủ, cái nào không dùng được thì mờ và không bấm — trước đây nút
+                    {/* Hai ô LUÔN bày đủ, cái nào không dùng được thì mờ và không bấm — trước đây nút
                         mọc/rụng theo từng dòng nên biểu tượng không thẳng cột, mắt phải dò lại mỗi
-                        dòng. `aria-label` chứ không chỉ `title`: tooltip không hiện khi chạm. */}
+                        dòng. `aria-label` chứ không chỉ `title`: tooltip không hiện khi chạm.
+                        Nút GỌI đã bỏ (06/10/2026): số điện thoại ở cột Người liên hệ đã là liên kết
+                        gọi, nút thứ ba chỉ lặp lại mà làm cột chật tới mức nút bị cắt mép. */}
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="supplier__action-btns supplier__action-btns--end">
                         <button
@@ -457,24 +457,6 @@ export function SuppliersTable({
                         >
                           <Icon name="fileText" size={13} />
                         </button>
-                        {row.phone ? (
-                          <a
-                            href={`tel:${row.phone}`}
-                            className="supplier__action-btn supplier__action-btn--link"
-                            title={`Gọi ${row.phone}`}
-                            aria-label={`Gọi ${row.name} — ${row.phone}`}
-                          >
-                            <Icon name="phone" size={13} />
-                          </a>
-                        ) : (
-                          <span
-                            className="supplier__action-btn"
-                            title="Chưa có số điện thoại"
-                            aria-disabled="true"
-                          >
-                            <Icon name="phone" size={13} />
-                          </span>
-                        )}
                       </div>
                     </td>
                   </tr>

@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Danh sách công nợ phải thu — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --charcoal:#0f172a;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --amber:#9c7714; --amber-soft:#efe4c4; --amber-deep:#7a5c0f;
+  --signal:#8a1f1f; --signal-soft:#efd5d5; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1260px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 18px;max-width:900px}
+.lead ol{margin:6px 0 0;padding-left:20px}
+.lead li{margin:3px 0}
+.lead b{color:var(--ink)}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:24px;position:sticky;top:12px;z-index:30;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--ash);padding:6px 14px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt h2{font-size:19px;margin:0 0 4px}
+.src{display:inline-block;font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas);margin-bottom:10px}
+.why{color:var(--ash);margin:0 0 18px;max-width:900px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+
+.num{font-variant-numeric:tabular-nums}
+.r{text-align:right}
+.do{color:var(--signal)}
+.mo{color:var(--ash-2)}
+.tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:12px;color:var(--ash);font-weight:500;white-space:nowrap}
+.tag--do{background:var(--signal-soft);border-color:transparent;color:var(--signal)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--sm{height:28px;padding:0 10px;font-size:12.5px}
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px;cursor:pointer}
+
+/* thanh công cụ (giữ như màn hiện tại) */
+.tool{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--canvas)}
+.seg span{padding:7px 12px;font-size:13px;font-weight:500;color:var(--ash);border-right:1px solid var(--rule-soft)}
+.seg span:last-child{border-right:0}
+.seg span.on{background:var(--charcoal);color:#fff}
+.seg b{font-weight:600;margin-left:6px;opacity:.75}
+.tim{flex:1 1 220px;height:36px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);display:flex;align-items:center;padding:0 12px;color:var(--ash-3);font-size:13px}
+.ky{height:36px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);display:flex;align-items:center;gap:8px;padding:0 12px;font-size:13px;font-weight:600;white-space:nowrap}
+.ky small{font-weight:400;color:var(--ash-2);font-size:12px}
+
+.card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.04);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;font-weight:600;color:var(--ash);text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);white-space:nowrap;background:var(--canvas)}
+th.sx{cursor:pointer}
+th.sx::after{content:"";display:inline-block;margin-left:6px;border:4px solid transparent;border-top-color:var(--ash-3);transform:translateY(2px)}
+th.sx.on{color:var(--ink)}
+th.sx.on::after{border-top-color:var(--ink)}
+td{padding:12px 14px;border-bottom:1px solid var(--rule-hair);vertical-align:top;font-size:13.5px}
+tbody tr.dong{cursor:pointer}
+tbody tr.dong:hover>td{background:var(--rule-hair)}
+.ten{font-weight:600;line-height:1.35}
+.sub{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px;font-size:12px;color:var(--ash-2)}
+td.r .sub{justify-content:flex-end;white-space:nowrap}
+.tien{font-weight:600}
+.chan{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--rule-soft);font-size:12.5px;color:var(--ash)}
+.cap{font-size:12px;color:var(--ash-2);margin-top:8px}
+
+/* vạch tuổi nợ — cùng 6 màu với băng tuổi nợ đầu trang */
+.tuoi{display:flex;gap:2px;height:6px;border-radius:3px;overflow:hidden;background:var(--rule-hair)}
+.tuoi i{display:block;height:100%}
+.m0{background:var(--rule)}
+.m1{background:var(--amber-soft)}
+.m2{background:color-mix(in srgb,var(--amber) 60%,var(--amber-soft))}
+.m3{background:var(--amber)}
+.m4{background:color-mix(in srgb,var(--signal) 70%,var(--amber))}
+.m5{background:var(--signal)}
+.hm{display:block;height:6px;border-radius:6px;background:var(--rule-hair);overflow:hidden;margin-top:6px}
+.hm i{display:block;height:100%;background:var(--ash-2)}
+.hm--vuot i{background:var(--signal)}
+.av{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:10px;font-weight:700;color:var(--ash)}
+.nv{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ash);white-space:nowrap}
+.cap2{display:grid;gap:2px;font-size:12.5px}
+.cap2 span{display:flex;justify-content:space-between;gap:10px}
+.cap2 span i{font-style:normal;color:var(--ash-2);white-space:nowrap}
+.cap2 span{white-space:nowrap}
+
+/* ===== 2: hai tầng ===== */
+.hang{display:grid;grid-template-columns:minmax(0,1.5fr) 150px minmax(0,1.3fr) 140px 160px;gap:20px;padding:14px 18px 0;align-items:start;cursor:pointer}
+.khoi2{border-bottom:1px solid var(--rule-hair)}
+.khoi2:hover{background:var(--rule-hair)}
+.khoi2:last-of-type{border-bottom:0}
+.dau2{display:grid;grid-template-columns:minmax(0,1.5fr) 150px minmax(0,1.3fr) 140px 160px;gap:20px;padding:10px 18px;border-bottom:1px solid var(--rule-soft);font-size:12px;font-weight:600;color:var(--ash)}
+.tuoi2 .tuoi{height:10px;border-radius:4px}
+.tuoi2 .nhan{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:12px;color:var(--ash)}
+.tuoi2 .nhan span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.tuoi2 .nhan i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.meta2{display:flex;flex-wrap:wrap;gap:6px 22px;padding:10px 18px 14px;font-size:12.5px;color:var(--ash-2);align-items:center}
+.meta2>span{display:inline-flex;align-items:center;gap:6px}
+.meta2 b{color:var(--ink);font-weight:500}
+
+/* ===== 3: dòng mở rộng ===== */
+.mui{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--ash-2);transition:transform .15s}
+tr.mo-ra .mui{transform:rotate(90deg)}
+tr.mo-ra>td{background:var(--rule-hair)}
+tr.chi-tiet>td{background:var(--paper);padding:0;border-bottom:1px solid var(--rule-soft)}
+.ct{display:grid;grid-template-columns:260px minmax(0,1fr) 280px;gap:28px;padding:16px 18px 18px 18px}
+.ct h4{margin:0 0 10px;font-size:13px;font-weight:600}
+.tuoi3{display:grid;gap:6px;font-size:12.5px}
+.tuoi3 div{display:grid;grid-template-columns:92px 1fr 90px;gap:10px;align-items:center}
+.tuoi3 .v{height:6px;background:var(--rule-hair);border-radius:3px;overflow:hidden}
+.tuoi3 .v i{display:block;height:100%}
+.tuoi3 .so{text-align:right}
+.tuoi3 .khong{color:var(--ash-3)}
+.hd3{border:1px solid var(--rule-soft);border-radius:8px;background:var(--canvas);overflow:hidden}
+.hd3 table td,.hd3 table th{padding:8px 10px;font-size:12.5px}
+.hd3 th{background:var(--paper)}
+.lh3{display:grid;gap:10px;font-size:13px}
+.lh3 .dg{display:flex;justify-content:space-between;gap:10px}
+.lh3 .dg>span:first-child{color:var(--ash-2)}
+.lh3 .dg b{font-weight:500;text-align:right}
+.lh3 .nut{display:flex;gap:8px;margin-top:4px}
+@media (max-width:900px){
+  .an-nho{display:none}
+  .hang,.dau2{grid-template-columns:1fr 1fr}
+  .ct{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Danh sách công nợ phải thu — 3 phương án</h1>
+  <div class="lead">
+    Bảng cách A còn thiếu những thứ kế toán cần để <b>quyết định gọi ai, đòi bao nhiêu, gọi cho ai</b> mà không phải mở từng khách.
+    Cả ba phương án cùng thêm:
+    <ol>
+      <li><b>Tuổi nợ của từng khách</b>: vạch 6 màu đúng như băng tuổi nợ đầu trang, thấy ngay phần nào trễ và trễ tới mốc nào.</li>
+      <li><b>Liên hệ chính kèm số điện thoại</b> và <b>nhân viên phụ trách</b>: biết gọi ai, nhờ ai đòi.</li>
+      <li><b>Lần thu gần nhất</b>: ngày và số tiền, biết khách còn trả đều hay đã im lâu.</li>
+      <li><b>Trong kỳ</b>: bán thêm bao nhiêu, đã thu bao nhiêu, thay cho cột "Đã thu trong kỳ" đứng một mình.</li>
+      <li><b>Cho nợ mấy ngày</b> đặt cạnh hạn thu, và sắp xếp được theo cột (mặc định quá hạn nhiều nhất lên đầu).</li>
+    </ol>
+    Dòng Cao Lợi Hưng là số thật, liên hệ và phụ trách của cả 4 khách lấy đúng từ màn Khách hàng. Số nợ của 3 khách còn lại là minh hoạ.
+    Máy chủ đã trả sẵn tuổi nợ từng khách, bán thêm trong kỳ, số ngày cho nợ, người phụ trách. <b>Cần thêm ở máy chủ</b>: liên hệ chính và lần thu gần nhất.
+  </div>
+
+  <div class="switch">
+    <button class="on" data-o="1">1. Bảng đủ cột</button>
+    <button data-o="2">2. Hai tầng mỗi khách</button>
+    <button data-o="3">3. Bấm mở rộng dòng</button>
+  </div>
+
+  <div class="tool">
+    <div class="seg"><span class="on">Tất cả<b>4</b></span><span>Quá hạn<b>2</b></span><span>Vượt hạn mức<b>1</b></span></div>
+    <div class="tim">Tìm khách hàng, liên hệ, số điện thoại</div>
+    <div class="ky">Tháng này <small>theo ngày chứng từ</small></div>
+    <button class="btn">Lọc</button>
+  </div>
+
+  <!-- 1 -->
+  <section class="opt on" id="o-1">
+    <h2>1. Bảng đủ cột</h2>
+    <span class="src">Khuôn Stripe Billing và Chargebee: bảng khách nợ</span>
+    <div class="why">
+      <b>Ý chính:</b> mỗi thông tin một cột, đọc ngang một dòng là đủ. Vạch tuổi nợ nằm ngay dưới số còn nợ. Bảng 7 cột cần màn rộng,
+      màn hẹp thì ẩn bớt cột Trong kỳ và Thu gần nhất.
+      <ul><li>Hợp khi: kế toán quét nhanh cả danh sách, sắp xếp theo từng cột.</li><li>Đổi lại: chữ nhỏ, dày thông tin.</li></ul>
+    </div>
+    <div class="card"><table id="t1"></table><div class="chan"><span>Trang 1/1</span><span>4 khách hàng</span></div></div>
+  </section>
+
+  <!-- 2 -->
+  <section class="opt" id="o-2">
+    <h2>2. Hai tầng mỗi khách</h2>
+    <span class="src">Khuôn Attio và Linear: dòng chính và dòng phụ</span>
+    <div class="why">
+      <b>Ý chính:</b> tầng trên là tiền (còn nợ, tuổi nợ có ghi số từng mốc, hạn gần nhất, hạn mức). Tầng dưới chữ nhỏ là người và nhịp trả
+      (phụ trách, liên hệ, cho nợ, lần thu gần nhất, trong kỳ). Vạch tuổi nợ to và ghi tiền từng mốc nên không cần mở khách mới biết chi tiết.
+      <ul><li>Hợp khi: muốn mỗi khách đọc như một thẻ, không phải dò cột.</li><li>Đổi lại: mỗi khách cao gấp đôi, một màn thấy ít khách hơn.</li></ul>
+    </div>
+    <div class="card" id="t2"></div>
+  </section>
+
+  <!-- 3 -->
+  <section class="opt" id="o-3">
+    <h2>3. Bảng gọn, bấm mở rộng dòng</h2>
+    <span class="src">Khuôn Xero và QuickBooks: xem nhanh khách ngay trong bảng</span>
+    <div class="why">
+      <b>Ý chính:</b> bảng giữ 6 cột gọn như cách A. Bấm mũi tên đầu dòng thì dòng mở ra ngay tại chỗ: tuổi nợ từng mốc, các hoá đơn còn nợ,
+      liên hệ, phụ trách, lần thu gần nhất, kèm nút Thu tiền. Bấm vào tên vẫn mở ngăn khách như cũ.
+      <ul><li>Hợp khi: bảng cần gọn nhưng thỉnh thoảng phải soi một khách mà không muốn mở ngăn.</li><li>Đổi lại: thông tin người và nhịp trả bị giấu tới khi mở dòng.</li></ul>
+    </div>
+    <div class="card"><table id="t3"></table><div class="chan"><span>Trang 1/1</span><span>4 khách hàng</span></div></div>
+  </section>
+</div>
+
+<script>
+var NHAN=["Chưa tới hạn","Trễ 1–7","Trễ 8–15","Trễ 16–30","Trễ 31–60","Trễ trên 60"];
+var K=[
+ {ten:"CÔNG TY CỔ PHẦN PHÚC LONG HERITAGE",ma:"KH004",hd:4,vuot:true,con:61200000,qh:12000000,tuoi:[49200000,0,0,0,12000000,0],
+  han:"02/09/2026",hanCau:"trễ 34 ngày",tre:true,choNo:45,ban:20000000,thu:15000000,thuGan:["03/10/2026",15000000],hm:60000000,pct:102,
+  lh:["Ngô Hoàng Thắng","0355 325 423"],pt:["Nguyễn Thị Huyền","TH"],
+  hoaDon:[["101","02/09/2026","trễ 34 ngày",12000000,true],["109","20/10/2026","còn 14 ngày",15200000],["112","28/10/2026","còn 22 ngày",14000000],["115","15/11/2026","còn 40 ngày",20000000]]},
+ {ten:"CÔNG TY CỔ PHẦN BIBICA",ma:"KH002",hd:3,con:24490000,qh:6200000,tuoi:[18290000,0,6200000,0,0,0],
+  han:"28/09/2026",hanCau:"trễ 8 ngày",tre:true,choNo:30,ban:18290000,thu:10000000,thuGan:["02/10/2026",10000000],hm:50000000,pct:49,
+  lh:["Hồ Đức Sơn","0986 080 684"],pt:["Nguyễn Thị Huyền","TH"],
+  hoaDon:[["097","28/09/2026","trễ 8 ngày",6200000,true],["110","24/10/2026","còn 18 ngày",9790000],["114","02/11/2026","còn 27 ngày",8500000]]},
+ {ten:"CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM",ma:"KH006",hd:1,con:8460973,qh:0,tuoi:[8460973,0,0,0,0,0],
+  han:"05/11/2026",hanCau:"còn 30 ngày",choNo:30,ban:8460973,thu:0,thuGan:null,hm:100000000,pct:8,
+  lh:["Nguyễn Thanh Vy","0797 235 637"],pt:["Nguyễn Thị Huyền","TH"],
+  hoaDon:[["123","05/11/2026","còn 30 ngày",8460973]]},
+ {ten:"CÔNG TY CỔ PHẦN CAFÉ KATINAT",ma:"KH005",hd:1,con:4730000,qh:0,tuoi:[4730000,0,0,0,0,0],
+  han:"20/10/2026",hanCau:"còn 14 ngày",choNo:30,ban:0,thu:0,thuGan:["01/09/2026",4500000],hm:0,pct:0,
+  lh:["Nguyễn Ngọc Vy","0934 426 699"],pt:["Nguyễn Thị Huyền","TH"],
+  hoaDon:[["104","20/10/2026","còn 14 ngày",4730000]]}
+];
+function dd(n){return n.toLocaleString("vi-VN");}
+function trieu(n){return (n/1e6).toLocaleString("vi-VN",{maximumFractionDigits:1})+" triệu";}
+function vach(t,con){return '<div class="tuoi">'+t.map(function(v,i){return v?'<i class="m'+i+'" style="width:'+(v/con*100)+'%" title="'+NHAN[i]+' '+dd(v)+'"></i>':"";}).join("")+"</div>";}
+function tenO(k){return '<div class="ten">'+k.ten+'</div><div class="sub"><span class="tag">'+k.ma+'</span><span>'+k.hd+' hoá đơn</span>'+(k.vuot?'<span class="tag tag--do">Vượt hạn mức</span>':'')+'</div>';}
+function hanO(k){return '<span class="num">'+k.han+'</span><div class="sub'+(k.tre?' do':'')+'">'+k.hanCau+'</div>';}
+function hmO(k){return k.hm?'<div class="num'+(k.vuot?' do':'')+'" style="font-size:13px">Đã dùng '+k.pct+'%</div><span class="hm'+(k.vuot?' hm--vuot':'')+'"><i style="width:'+Math.min(100,k.pct)+'%"></i></span><div class="sub">hạn mức '+trieu(k.hm)+'</div>':'<span class="mo" style="font-size:13px">Chưa đặt hạn mức</span>';}
+function thuO(k){return k.thuGan?'<span class="num">'+k.thuGan[0]+'</span><div class="sub num">'+dd(k.thuGan[1])+'</div>':'<span class="mo" style="white-space:nowrap">Chưa thu lần nào</span>';}
+function nvO(k){return '<span class="nv"><span class="av">'+k.pt[1]+'</span>'+k.pt[0]+'</span>';}
+
+// 1
+(function(){
+  var h='<thead><tr><th>Khách hàng</th><th class="r sx on">Còn nợ</th><th class="sx">Hạn gần nhất</th><th class="an-nho">Trong kỳ</th><th class="sx an-nho">Thu gần nhất</th><th>Liên hệ</th><th style="width:170px">Hạn mức</th></tr></thead><tbody>';
+  K.forEach(function(k){
+    h+='<tr class="dong"><td>'+tenO(k)+'</td>'+
+      '<td class="r" style="width:170px"><span class="tien num">'+dd(k.con)+'</span><div style="margin:6px 0 0 auto;width:130px">'+vach(k.tuoi,k.con)+'</div>'+(k.qh?'<div class="sub do num">quá hạn '+dd(k.qh)+'</div>':'')+'</td>'+
+      '<td>'+hanO(k)+'<div class="sub">cho nợ '+k.choNo+' ngày</div></td>'+
+      '<td class="an-nho" style="width:170px"><div class="cap2 num"><span><i>Bán thêm</i>'+(k.ban?dd(k.ban):"—")+'</span><span><i>Đã thu</i>'+(k.thu?dd(k.thu):"—")+'</span></div></td>'+
+      '<td class="an-nho">'+thuO(k)+'</td>'+
+      '<td><div>'+k.lh[0]+'</div><div class="sub num">'+k.lh[1]+'</div><div class="sub">'+nvO(k)+'</div></td>'+
+      '<td>'+hmO(k)+'</td></tr>';
+  });
+  document.getElementById("t1").innerHTML=h+"</tbody>";
+})();
+
+// 2
+(function(){
+  var h='<div class="dau2"><span>Khách hàng</span><span style="text-align:right">Còn nợ</span><span>Tuổi nợ</span><span>Hạn gần nhất</span><span>Hạn mức</span></div>';
+  K.forEach(function(k){
+    var nhan=k.tuoi.map(function(v,i){return v?'<span><i class="m'+i+'"></i>'+NHAN[i]+' <b class="num" style="color:var(--ink);font-weight:500">'+dd(v)+'</b></span>':"";}).join("");
+    h+='<div class="khoi2"><div class="hang"><div>'+tenO(k)+'</div>'+
+      '<div class="r"><span class="tien num" style="font-size:15px">'+dd(k.con)+'</span>'+(k.qh?'<div class="sub do num" style="justify-content:flex-end">quá hạn '+dd(k.qh)+'</div>':'')+'</div>'+
+      '<div class="tuoi2" style="padding-top:5px">'+vach(k.tuoi,k.con)+'<div class="nhan">'+nhan+'</div></div>'+
+      '<div>'+hanO(k)+'</div><div>'+hmO(k)+'</div></div>'+
+      '<div class="meta2"><span>Phụ trách '+nvO(k)+'</span><span>Liên hệ <b>'+k.lh[0]+'</b><b class="num">'+k.lh[1]+'</b></span><span>Cho nợ <b>'+k.choNo+' ngày</b></span>'+
+      '<span>Thu gần nhất '+(k.thuGan?'<b class="num">'+k.thuGan[0]+'</b><b class="num">'+dd(k.thuGan[1])+'</b>':'<b>chưa có</b>')+'</span>'+
+      '<span>Trong kỳ bán thêm <b class="num">'+(k.ban?dd(k.ban):"0")+'</b> và đã thu <b class="num">'+(k.thu?dd(k.thu):"0")+'</b></span></div></div>';
+  });
+  document.getElementById("t2").innerHTML=h+'<div class="chan"><span>Trang 1/1</span><span>4 khách hàng</span></div>';
+})();
+
+// 3
+(function(){
+  var h='<thead><tr><th style="width:44px"></th><th>Khách hàng</th><th class="r sx on">Còn nợ</th><th class="sx">Hạn gần nhất</th><th class="an-nho">Liên hệ</th><th style="width:180px">Hạn mức</th></tr></thead><tbody>';
+  K.forEach(function(k,ix){
+    var mo=ix===0;
+    h+='<tr class="dong'+(mo?' mo-ra':'')+'" data-i="'+ix+'"><td><span class="mui">›</span></td><td>'+tenO(k)+'</td>'+
+      '<td class="r"><span class="tien num">'+dd(k.con)+'</span>'+(k.qh?'<div class="sub do num">quá hạn '+dd(k.qh)+'</div>':'')+'</td>'+
+      '<td>'+hanO(k)+'</td><td class="an-nho"><div>'+k.lh[0]+'</div><div class="sub num">'+k.lh[1]+'</div></td><td>'+hmO(k)+'</td></tr>';
+    var tuoi=k.tuoi.map(function(v,i){return '<div><span'+(v?'':' class="khong"')+'>'+NHAN[i]+'</span><span class="v">'+(v?'<i class="m'+i+'" style="width:'+(v/k.con*100)+'%"></i>':'')+'</span><span class="so num'+(v?(i?' do':''):' khong')+'">'+(v?dd(v):"—")+'</span></div>';}).join("");
+    var hd='<table><thead><tr><th>Số hoá đơn</th><th>Hạn thu</th><th class="r">Còn nợ</th><th></th></tr></thead><tbody>'+k.hoaDon.map(function(x){return '<tr><td class="num">'+x[0]+'</td><td class="num">'+x[1]+'<div class="sub'+(x[4]?' do':'')+'">'+x[2]+'</div></td><td class="r num">'+dd(x[3])+'</td><td class="r"><button class="btn btn--sm">Thu tiền</button></td></tr>';}).join("")+'</tbody></table>';
+    h+='<tr class="chi-tiet" data-ct="'+ix+'"'+(mo?'':' hidden')+'><td colspan="6"><div class="ct">'+
+      '<div><h4>Tuổi nợ</h4><div class="tuoi3">'+tuoi+'</div></div>'+
+      '<div><h4>Hoá đơn còn nợ</h4><div class="hd3">'+hd+'</div></div>'+
+      '<div class="lh3"><h4 style="margin:0">Người và nhịp trả</h4>'+
+        '<div class="dg"><span>Liên hệ chính</span><b>'+k.lh[0]+'<br><span class="num">'+k.lh[1]+'</span></b></div>'+
+        '<div class="dg"><span>Phụ trách</span><b>'+k.pt[0]+'</b></div>'+
+        '<div class="dg"><span>Cho nợ</span><b>'+k.choNo+' ngày sau hoá đơn</b></div>'+
+        '<div class="dg"><span>Thu gần nhất</span><b class="num">'+(k.thuGan?k.thuGan[0]+'<br>'+dd(k.thuGan[1]):'Chưa có')+'</b></div>'+
+        '<div class="dg"><span>Trong kỳ bán thêm</span><b class="num">'+(k.ban?dd(k.ban):"0")+'</b></div>'+
+        '<div class="dg"><span>Trong kỳ đã thu</span><b class="num">'+(k.thu?dd(k.thu):"0")+'</b></div>'+
+        '<div class="nut"><button class="btn btn--sm">Mở ngăn khách</button></div>'+
+      '</div></div></td></tr>';
+  });
+  var t=document.getElementById("t3");t.innerHTML=h+"</tbody>";
+  t.querySelectorAll("tr.dong").forEach(function(r){r.addEventListener("click",function(){
+    var ct=t.querySelector('[data-ct="'+r.dataset.i+'"]');ct.hidden=!ct.hidden;r.classList.toggle("mo-ra",!ct.hidden);});});
+})();
+
+document.querySelectorAll(".switch button").forEach(function(b){b.addEventListener("click",function(){
+  document.querySelectorAll(".switch button").forEach(function(x){x.classList.toggle("on",x===b);});
+  document.querySelectorAll(".opt").forEach(function(o){o.classList.toggle("on",o.id==="o-"+b.dataset.o);});});});
+</script>
+</body>
+</html>

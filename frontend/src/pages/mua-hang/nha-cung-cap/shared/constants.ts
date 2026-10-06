@@ -6,7 +6,7 @@ export const PAGE_SIZE = 25;
 
 export const REQUIRED_SUPPLIER_FIELDS: Array<[keyof SupplierInput, string]> = [
   ["name", "Tên nhà cung cấp"],
-  ["supplier_group", "Nhóm"],
+  ["supplier_group", "Nhóm hàng"],
   ["tax_code", "Mã số thuế"],
   ["contact_name", "Người liên hệ"],
   ["phone", "Số điện thoại"],

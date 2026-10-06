@@ -16,6 +16,7 @@ class KhuonBeRepository(CatalogRepo):
     # nó là FK sang `customers`, không phải chuỗi nằm trên bảng này để `LIKE` thẳng.
     search_fields = ("ma", "ten", "so_ke")
     ma_prefix = "KB-"
+    bang_nhan_cot = {"khach_hang_id": (Customer.id, Customer.name)}
     commit_on_write = False   # `KhuonBeService` chốt sau khi đã ghi nhật ký — xem `catalog_base`
 
     def _loc_q(self, q: str | None):

@@ -1,36 +1,44 @@
 /** Hàm thuần bộ lọc công nợ: ba khoá thêm (`thieu_hoa_don` phía trả, `phu_trach_id` + `nhan` phía
- *  thu) đi đủ đếm điều kiện, chip, bỏ chip, tham số máy chủ và URL. */
+ *  thu) đi đủ đếm điều kiện, điều kiện trên thanh lọc, tham số máy chủ và URL. */
 import { describe, expect, it } from "vitest";
 
 import {
-  boDieuKienCongNo,
-  chipsLocCongNo,
   congNoLenUrl,
   congNoTuUrl,
+  dieuKienCongNo,
   soDieuKienCongNo,
   thamSoCongNo,
   type LocNangCaoCongNo,
+  type LocThanhCongNo,
   type TrangThaiCongNo,
 } from "./locCongNo";
 
-const CH = { nhanHan: "Hạn thu", nhanHet: "khách đã thu hết" };
 const KY = { tu: "2026-07-01", den: "2026-09-30" } as Parameters<typeof thamSoCongNo>[1];
 
 describe("locCongNo: khoá thêm", () => {
   const loc: LocNangCaoCongNo = { thieu_hoa_don: true, phu_trach_id: 7, nhan: " VIP " };
 
-  it("đếm, chip và bỏ từng chip", () => {
+  it("đếm điều kiện", () => {
     expect(soDieuKienCongNo(loc)).toBe(3);
-    const chips = chipsLocCongNo(loc, { ...CH, tenPhuTrach: (id) => (id === 7 ? "Chị Luyến" : undefined) });
-    expect(chips.map((c) => [c.khoa, c.nhan, c.giaTri])).toEqual([
-      ["thieu_hd", "Hoá đơn", "có đợt giao chưa ghi"],
-      ["phu_trach", "Phụ trách", "Chị Luyến"],
-      ["nhan", "Nhãn", "VIP"],
-    ]);
-    expect(chipsLocCongNo({ phu_trach_id: 9 }, CH)[0].giaTri).toBe("đã chọn");
-    expect(boDieuKienCongNo(loc, "thieu_hd").thieu_hoa_don).toBeUndefined();
-    expect(boDieuKienCongNo(loc, "phu_trach").phu_trach_id).toBeUndefined();
-    expect(boDieuKienCongNo(loc, "nhan").nhan).toBeUndefined();
+  });
+
+  it("điều kiện trên thanh lọc: tuổi nợ lấy từ máy chủ, ô riêng mỗi phía", () => {
+    const aging = [{ key: "qua_60", label: "Trễ > 60 ngày", amount: 5, count: 2 }];
+    const tra = dieuKienCongNo({ nhanHan: "Hạn trả", nhanHet: "Nhà cung cấp đã trả hết", coThieuHd: true }, aging);
+    expect(tra.map((d) => d.khoa)).toEqual(["tuoi", "no", "han_tra", "han_muc", "het", "thieu_hd"]);
+    const tuoi = tra[0];
+    expect(tuoi.kieu === "mot" && tuoi.giaTri).toEqual([{ value: "qua_60", nhan: "Trễ trên 60 ngày", so: 2 }]);
+
+    const thu = dieuKienCongNo({ nhanHan: "Hạn thu", nhanHet: "Khách đã thu hết" }, [], [{ id: 7, name: "Chị Luyến" }], ["VIP"]);
+    expect(thu.map((d) => d.khoa)).toEqual(["tuoi", "no", "phu_trach", "han_tra", "han_muc", "nhan", "het"]);
+
+    const l: LocThanhCongNo = { tuoi: null, loc: {} };
+    const pt = thu.find((d) => d.khoa === "phu_trach");
+    const het = thu.find((d) => d.khoa === "het");
+    if (pt?.kieu !== "mot" || het?.kieu !== "mot") throw new Error("sai kiểu");
+    expect(pt.ghi(l, "7").loc.phu_trach_id).toBe(7);
+    expect(het.ghi(l, "hien").loc.ca_da_tra_het).toBe(true);
+    expect(het.ghi({ tuoi: null, loc: { ca_da_tra_het: true } }, undefined).loc.ca_da_tra_het).toBeUndefined();
   });
 
   it("ra tham số máy chủ", () => {

@@ -24,6 +24,7 @@ import { nhanDonViTocDo } from "./danh-muc/fields/DonViTocDo";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { CongThucTip, ketQuaDienGiai } from "../components/CongThucTip";
 import { num } from "./keHoachSxShared";
 import { heSoChu, nhanChang, nhanDonVi, phut, thoiLuongLive, type MayTinhGio } from "./lsxBuoc";
 import "./ke-hoach-sx.css";
@@ -636,17 +637,16 @@ export function BuocChungForm({
                 <table className="khsx-vattu-table">
                   <thead className="khsx-vattu-thead">
                     <tr>
-                      <th className="khsx-vattu-th" style={{ width: "28%" }}>VẬT TƯ & QUY CÁCH</th>
-                      <th className="khsx-vattu-th" style={{ width: "36%" }}>DIỄN GIẢI CÔNG THỨC</th>
-                      <th className="khsx-vattu-th" style={{ width: "12%" }}>NGUỒN SỐ</th>
-                      <th className="khsx-vattu-th" style={{ width: "18%", textAlign: "right" }}>ĐỊNH MỨC TIÊU HAO</th>
-                      <th className="khsx-vattu-th" style={{ width: "6%", textAlign: "center" }}></th>
+                      <th className="khsx-vattu-th" style={{ width: "52%" }}>VẬT TƯ & QUY CÁCH</th>
+                      <th className="khsx-vattu-th" style={{ width: "14%" }}>NGUỒN SỐ</th>
+                      <th className="khsx-vattu-th" style={{ width: "26%", textAlign: "right" }}>ĐỊNH MỨC TIÊU HAO</th>
+                      <th className="khsx-vattu-th" style={{ width: "8%", textAlign: "center" }}></th>
                     </tr>
                   </thead>
                   <tbody className="khsx-vattu-tbody">
                     {vtHienTai.length === 0 ? (
                       <tr className="khsx-vattu-tr">
-                        <td colSpan={5} className="khsx-vattu-td" style={{ textAlign: "center", color: "#94a3b8", padding: "20px" }}>
+                        <td colSpan={4} className="khsx-vattu-td" style={{ textAlign: "center", color: "#94a3b8", padding: "20px" }}>
                           Chưa khai vật tư nào cho lượt này.
                         </td>
                       </tr>
@@ -666,13 +666,13 @@ export function BuocChungForm({
                             <td className="khsx-vattu-td khsx-vattu-td--info">
                               <div className="khsx-vattu-cell-name">
                                 <span className="khsx-vattu-code">{dm?.ma ?? snap?.ma ?? "—"}</span>
-                                <span className="khsx-vattu-name">{dm?.ten ?? snap?.ten ?? `Vật tư #${row.vat_tu_id}`}</span>
+                                {/* Công thức định mức hiện khi rê chuột vào TÊN (cùng lối ngăn bước của lệnh). */}
+                                <CongThucTip congThuc={goiY?.dien_giai}>
+                                  <span className="khsx-vattu-name">{dm?.ten ?? snap?.ten ?? `Vật tư #${row.vat_tu_id}`}</span>
+                                </CongThucTip>
                               </div>
-                            </td>
-                            <td className="khsx-vattu-td khsx-vattu-td--why">
                               {goiY?.dien_giai ? (
-                                <div className="khsx-formula-wrap">
-                                  <code className="khsx-formula-code">{goiY.dien_giai}</code>
+                                <>
                                   {lech && (
                                     <div className="khsx-diff-badge">
                                       <span>Lệch: {num(soMay as number)} {nhanDonVi(donVi)}</span>
@@ -692,7 +692,7 @@ export function BuocChungForm({
                                       )}
                                     </div>
                                   )}
-                                </div>
+                                </>
                               ) : (
                                 <span className="khsx-vattu-no-formula">
                                   Chưa tự tính được — {goiY?.ly_do ?? "vật tư không còn dùng ở danh mục."}
@@ -1012,7 +1012,30 @@ export function BuocChungForm({
                     <div className="khsx-time-stage-card__title-group">
                       <div className="khsx-time-stage-card__title-row">
                         <span className="khsx-time-tag khsx-time-tag--moss">Chạy máy</span>
-                        <span className="khsx-time-stage-card__title">Thời gian chạy cả tờ ghép</span>
+                        {/* Công thức quy đổi hiện khi rê chuột vào tiêu đề — thẻ chỉ giữ phép chia ngắn. */}
+                        <CongThucTip
+                          congThuc={
+                            Number(tg.nang_suat_hieu_dung ?? 0) > 0 && tg.quy_doi_dien_giai
+                              ? String(tg.quy_doi_dien_giai)
+                              : null
+                          }
+                          them={
+                            Number(tg.nang_suat_hieu_dung ?? 0) > 0 && tg.quy_doi_dien_giai
+                              ? `÷ ${num(Number(tg.nang_suat_hieu_dung ?? 0))}/giờ${
+                                  loai === "may" && Number(tg.so_luot_chay ?? 1) !== 1
+                                    ? ` × ${Number(tg.so_luot_chay ?? 1)} lượt`
+                                    : ""
+                                } = ${phut(chayTB)}`
+                              : null
+                          }
+                          ghiChu={
+                            Number(tg.nang_suat_hieu_dung ?? 0) > 0
+                              ? `Nguồn: ${mayDaChon?.ten ?? g.may_ten ?? "Chưa gán máy"}`
+                              : null
+                          }
+                        >
+                          <span className="khsx-time-stage-card__title">Thời gian chạy cả tờ ghép</span>
+                        </CongThucTip>
                       </div>
                     </div>
 
@@ -1037,7 +1060,7 @@ export function BuocChungForm({
                         <div className="khsx-formula-compact">
                           <span className="khsx-formula-text">
                             {tg.quy_doi_dien_giai
-                              ? String(tg.quy_doi_dien_giai)
+                              ? ketQuaDienGiai(String(tg.quy_doi_dien_giai))
                               : `${num(Number(tg.so_luong_vao ?? 0))} ${nhanChang(String(tg.don_vi_vao ?? ""))}`}
                             {" ÷ "}
                             {num(Number(tg.nang_suat_hieu_dung ?? 0))}/giờ
@@ -1048,9 +1071,6 @@ export function BuocChungForm({
                             <strong>{phut(chayTB)}</strong>
                           </span>
                         </div>
-                        <span className="khsx-time-row__src">
-                          Nguồn: {mayDaChon?.ten ?? g.may_ten ?? "Chưa gán máy"}
-                        </span>
                       </div>
                     </div>
                   )}

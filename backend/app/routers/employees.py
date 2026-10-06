@@ -247,7 +247,9 @@ def _can_apply_transition(authz: AuthorizationService, user: User, kind: str) ->
 
 
 def _rows_theo_bo_loc(svc: EmployeeService, *, scope: str, user: User, q, department_id,
-                      status_filter, has_account, sort, ending_soon: bool = False) -> list:
+                      status_filter, has_account, sort, ending_soon: bool = False,
+                      tu_ngay: date | None = None, den_ngay: date | None = None,
+                      moc: str = "tao") -> list:
     """Lấy TRỌN danh sách theo đúng bộ lọc + phạm vi quyền của người bấm.
 
     KHÔNG dùng trần `size` của endpoint danh sách (`le=200`): lặp theo mẻ tới khi đủ `total`, nên
@@ -260,7 +262,7 @@ def _rows_theo_bo_loc(svc: EmployeeService, *, scope: str, user: User, q, depart
         batch, total = svc.list_employees(
             scope=scope, actor=user, q=q, department_id=department_id, status=status_filter,
             has_account=has_account, ending_soon=ending_soon, sort=sort, page=page,
-            size=excel_nhan_su.ME_XUAT,
+            size=excel_nhan_su.ME_XUAT, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
         )
         rows.extend(batch)
         if len(rows) >= total or not batch:
@@ -283,6 +285,10 @@ def export_employees_xlsx(
     status_filter: str | None = Query(default=None, alias="status"),
     has_account: bool | None = Query(default=None),
     ending_soon: bool = Query(default=False),
+    # Kỳ của thanh lọc (06/10/2026): `tao` = Ngày tạo hồ sơ, `vao_lam` = Ngày vào làm.
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|vao_lam)$"),
     sort: str = Query(default="code"),
 ) -> Response:
     """Xuất hồ sơ nhân sự ra .xlsx — ĐỦ MỌI Ô của hồ sơ, không phải 8 cột danh sách.
@@ -302,7 +308,7 @@ def export_employees_xlsx(
     scope = _scope_for(authz, user)
     rows = _rows_theo_bo_loc(svc, scope=scope, user=user, q=q, department_id=department_id,
                              status_filter=status_filter, has_account=has_account, sort=sort,
-                             ending_soon=ending_soon)
+                             ending_soon=ending_soon, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
     return Response(
         content=excel_nhan_su.xuat_excel(
             rows, excel_nhan_su.dung_ngu_canh(svc),
@@ -383,6 +389,10 @@ def list_employees(
     # Ô KPI "Sắp hết thử việc". Trước 14/09/2026 giao diện tự lọc trên đúng trang 20 dòng đang
     # xem ⇒ ai sắp hết hạn mà nằm trang 2 trở đi thì biến mất, trang 1 báo "chưa có ai".
     ending_soon: bool = Query(default=False),
+    # Kỳ của thanh lọc (06/10/2026): `tao` = Ngày tạo hồ sơ, `vao_lam` = Ngày vào làm.
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|vao_lam)$"),
     sort: str = Query(default="code"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
@@ -395,6 +405,7 @@ def list_employees(
     rows, total = svc.list_employees(
         scope=scope, actor=user, q=q, department_id=department_id, status=status_filter,
         has_account=has_account, ending_soon=ending_soon, sort=sort, page=page, size=size,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
     )
     names = depts.names_by_ids({e.department_id for e in rows})
     unames, rnames = _account_names(users, roles, {e.user_id for e in rows if e.user_id})
@@ -605,16 +616,24 @@ def create_my_request(body: UpdateRequestIn, svc: Service, user: SelfWriter) -> 
 
 @router.get("/me/update-requests", response_model=MyUpdateRequestsOut)
 def my_requests(svc: Service, users: Users, user: SelfUser,
-                status_filter: str | None = Query(default=None, alias="status"),
+                status_filter: list[str] = Query(default=[], alias="status"),
+                tu_ngay: date | None = Query(default=None),
+                den_ngay: date | None = Query(default=None),
+                moc: str = Query(default="tao", pattern="^tao$"),
                 page: int = Query(default=1, ge=1),
                 size: int = Query(default=10, ge=1, le=100)) -> MyUpdateRequestsOut:
-    """Đề nghị của chính NV — CẮT TRANG Ở MÁY CHỦ, kèm số đếm theo trạng thái cho pill lọc."""
-    if status_filter is not None and status_filter not in REQUEST_STATUSES:
+    """Đề nghị của chính NV — CẮT TRANG Ở MÁY CHỦ. `status` lặp được (thẻ lọc chọn nhiều), kỳ
+    `tu_ngay`/`den_ngay` theo ngày tạo (giờ VN). `dem` = toàn bộ hồ sơ (badge "N chờ duyệt"),
+    `dem_theo_tab` = theo kỳ đang xem, bỏ điều kiện trạng thái (số trên thẻ lọc Trạng thái)."""
+    if any(s not in REQUEST_STATUSES for s in status_filter):
         raise HTTPException(status_code=400, detail="Trạng thái lọc không hợp lệ.")
-    rows, total, dem = svc.my_update_requests(user=user, status=status_filter, page=page, size=size)
+    rows, total, dem, dem_tab = svc.my_update_requests(
+        user=user, statuses=status_filter, tu_ngay=tu_ngay, den_ngay=den_ngay, page=page, size=size,
+    )
     names = _actor_names(users, {r.decided_by for r in rows})
     return MyUpdateRequestsOut(
         items=[_req_out(r, {}, names) for r in rows], total=total, page=page, size=size, dem=dem,
+        dem_theo_tab=dem_tab,
     )
 
 

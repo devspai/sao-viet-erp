@@ -140,12 +140,13 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
                     số mà hệ không dùng. */}
                 <td className="rc-col--num rc-may-nl">{so(may?.makeready_time_default)}</td>
                 {/* Ô công thức là NÚT: bấm thẳng vào con số muốn sửa là mở đúng ô đó của đúng dòng đó. */}
-                <td className="rc-col--left rc-dinh-muc-unit">
+                {/* Ô có trần, chữ thừa thành "…" (`.rc-ct-td`) — bấm vào là popup bày đủ. */}
+                <td className="rc-col--left rc-dinh-muc-unit rc-ct-td">
                   <button type="button" title="Sửa cách đo giờ chạy của máy này"
                     className={`rc-ct-cell ${moGio ? "is-open" : ""} ${r.cong_thuc_gio ? "" : "is-empty"}`}
                     onClick={(e) => bat(r.may_id, "gio", e.currentTarget, r.cong_thuc_gio ?? null)}>{r.cong_thuc_gio || "—"}</button>
                 </td>
-                {coOGia && <td className="rc-col--left rc-dinh-muc-unit">
+                {coOGia && <td className="rc-col--left rc-dinh-muc-unit rc-ct-td">
                   <button type="button" title="Sửa cách tính giá của máy này"
                     className={`rc-ct-cell ${moGia ? "is-open" : ""} ${r.cong_thuc_gia ? "" : "is-empty"}`}
                     onClick={(e) => bat(r.may_id, "gia", e.currentTarget, r.cong_thuc_gia ?? null)}>{r.cong_thuc_gia || "—"}</button>

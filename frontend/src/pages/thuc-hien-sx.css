@@ -5977,3 +5977,14 @@
   background: var(--paper); cursor: pointer;
 }
 .thsx-chot__mui:disabled { opacity: .4; cursor: default; }
+
+/* Cách sắp của bàn (view Bảng) — không phải điều kiện lọc nên đứng riêng bên phải thanh công cụ
+   (06/10/2026, thay hàng "Sắp xếp" của "Lọc nâng cao" cũ). Cao 40px như thanh lọc màn xưởng. */
+.thsx-sapxep { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-md); color: var(--ash); }
+.thsx-sapxep__o { height: 40px; padding: 0 var(--sp-3); border: 1px solid var(--rule); border-radius: var(--r-3);
+  background: var(--canvas); color: var(--ink); font: inherit; font-size: var(--fs-lg); cursor: pointer; }
+.thsx-sapxep__o:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
+@media (max-width: 640px) {
+  .thsx-sapxep { flex: 1 1 100%; }
+  .thsx-sapxep__o { flex: 1; min-width: 0; }
+}

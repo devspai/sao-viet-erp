@@ -20,6 +20,29 @@ import { fmtDate, fmtDateTime } from "../../../utils/format";
 import { NHAN_TRANG_THAI_YC } from "../giao-hang/shared/constants";
 import { nhanChuyen } from "../giao-hang/shared/helpers";
 
+// Lời gọi tiến độ bắn SẴN lúc bấm mở đơn, chạy SONG SONG với lời gọi chi tiết đơn. Trước 06/10/2026
+// ngăn đơn chỉ hỏi tiến độ sau khi chi tiết đơn về (ngăn mới mount) ⇒ ô Sản xuất / Giao hiện trễ
+// thêm nguyên một vòng chi tiết đơn. Hook lấy lại đúng lời gọi đó ở lần nạp đầu. Lấy KHÔNG xoá: dev
+// chạy StrictMode, hiệu ứng mount hai lần — xoá ở lần đầu thì lần hai bắn thêm một lời gọi thừa. Quá
+// 15 giây thì bỏ để không vẽ số cũ; mỗi lần bấm mở đơn ghi đè (hoặc xoá, với đơn nháp / không rõ
+// trạng thái) nên mở lại sau đó không ăn nhầm bản cũ.
+const napTruoc = new Map<number, { luc: number; hua: Promise<DonTienDo> }>();
+
+export function napTruocTienDo(token: string, orderId: number, bat: boolean) {
+  if (!bat) {
+    napTruoc.delete(orderId);
+    return;
+  }
+  const hua = api.orders.tienDo(token, orderId);
+  hua.catch(() => undefined);
+  napTruoc.set(orderId, { luc: Date.now(), hua });
+}
+
+function layNapTruoc(orderId: number): Promise<DonTienDo> | null {
+  const x = napTruoc.get(orderId);
+  return x && Date.now() - x.luc < 15_000 ? x.hua : null;
+}
+
 /** Tải tiến độ + tự tươi khi giao hàng / kho / bàn tổ đổi (SSE, không bắt F5).
  *
  *  `eventTick` = tick nhóm sự kiện (sản xuất · kho · giao hàng) từ kênh SSE CHUNG của AppShell, nơi
@@ -27,13 +50,14 @@ import { nhanChuyen } from "../giao-hang/shared/helpers";
 export function useTienDoDon(orderId: number, bat: boolean, eventTick?: number) {
   const { token } = useAuth();
   const [td, setTd] = useState<DonTienDo | null>(null);
-  const tai = useCallback(() => {
+  const tai = useCallback((dungNapTruoc = false) => {
     if (!token || !bat) return;
-    api.orders.tienDo(token, orderId).then(setTd).catch(() => setTd(null));
+    const hua = (dungNapTruoc && layNapTruoc(orderId)) || api.orders.tienDo(token, orderId);
+    hua.then(setTd).catch(() => setTd(null));
   }, [token, orderId, bat]);
   useEffect(() => {
     setTd(null);
-    tai();
+    tai(true);
   }, [tai]);
   const tickDaNap = useRef(eventTick);
   useEffect(() => {
@@ -41,7 +65,8 @@ export function useTienDoDon(orderId: number, bat: boolean, eventTick?: number) 
     tickDaNap.current = eventTick;
     tai();
   }, [eventTick, tai]);
-  return { td, taiLai: tai };
+  const taiLai = useCallback(() => tai(), [tai]);
+  return { td, taiLai };
 }
 
 const so = (n: number) => n.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
@@ -55,10 +80,11 @@ export const NHAN_LY_DO_TRE: Record<string, string> = {
   chua_xuong_xuong: "có lệnh chưa xuống xưởng",
 };
 
-/** Phần hàng của sản phẩm ĐÃ CÓ cho đơn. Có lệnh: kho đã nhận từ KCS. Không lệnh (giao từ tồn):
- *  đã giao + đang giữ cho yêu cầu + còn giao được từ tồn — tức phần tồn kho gánh được. */
+/** Phần hàng của sản phẩm ĐÃ CÓ cho đơn. Có lệnh: kho đã nhận từ KCS + phần nhà gia công giao
+ *  thẳng cho khách (không qua kho). Không lệnh (giao từ tồn): đã giao + đang giữ cho yêu cầu + còn
+ *  giao được từ tồn — tức phần tồn kho gánh được. */
 export function coHangCum(c: DonTienDoCum): number {
-  const co = c.co_lenh ? c.kho_da_nhan : c.da_giao + c.dang_giu + c.giao_duoc;
+  const co = c.co_lenh ? c.kho_da_nhan + c.giao_thang : c.da_giao + c.dang_giu + c.giao_duoc;
   return Math.max(0, Math.min(c.dat, co));
 }
 
@@ -227,95 +253,12 @@ export function viecTiepTheo(o: {
   return { cau: "Đơn đã hoàn tất", the: [] };
 }
 
-/** Một thanh của chặng Sản xuất: phần đã có (+ phần sọc "đang chờ" nếu có) trên số đặt. */
-function ThanhSx({ dat, co, cho = 0, loai }: { dat: number; co: number; cho?: number; loai: "cd" | "kcs" | "kho" }) {
-  const w = (n: number) => `${Math.max(0, Math.min(100, (n / (dat || 1)) * 100))}%`;
-  return (
-    <span className="dhb__sx-bar" aria-hidden>
-      {co > 0 && <i className={`dhb__sx-fill--${loai}`} style={{ width: w(co) }} />}
-      {cho > 0 && <i className="dhb__sx-fill--cho" style={{ width: w(cho) }} />}
-    </span>
-  );
-}
-
-/** Chặng Sản xuất theo từng sản phẩm (05/10/2026, phương án A): ba thanh theo đúng đường hàng đi —
- *  chạy công đoạn → KCS đạt (đã gửi kho) → kho nhận. Nhập kho là khâu CUỐI của sản xuất, không phải
- *  chặng riêng; thanh dưới ngắn hơn thanh trên là thấy hàng đang ùn ở khâu nào.
- *  `baoThieu`: chỉ báo "thiếu" cho món không lệnh khi Kế hoạch đã bắt đầu lên lệnh (trước đó mọi món
- *  đều chưa có lệnh, báo thiếu là báo động giả). */
-export function SanXuatTheoMon({
-  td, baoThieu, onMoLenh,
-}: {
-  td: DonTienDo | null;
-  baoThieu: boolean;
-  onMoLenh?: (lsxId: number) => void;
-}) {
-  if (!td) return <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải tiến độ…" />;
-  if (td.cum.length === 0) return <p className="dhb__td-note">Đơn chưa có sản phẩm.</p>;
-  return (
-    <div className="dhb__sx-mons">
-      {td.cum.map((c) => {
-        const dv = c.don_vi ?? "";
-        const coHang = coHangCum(c);
-        const tuTon = !c.co_lenh && coHang >= c.dat;
-        const thieu = !c.co_lenh && baoThieu ? thieuNguonCum(c) : 0;
-        const chay = c.lenh.filter((l) => l.da_xuong_xuong && !l.xong);
-        const chuaXuong = c.lenh.length > 0 && c.lenh.every((l) => !l.da_xuong_xuong);
-        const cdNhan = !c.co_lenh ? "chưa có lệnh"
-          : c.sx_xong ? "xong"
-          : chuaXuong ? "chưa xuống xưởng"
-          : `${so(c.sx_pct ?? 0)}%${c.lenh.some((l) => l.uoc_tinh) ? " (ước)" : ""}`;
-        return (
-          <div key={c.khoa} className="dhb__sx-mon">
-            <div className="dhb__sx-mon-head">
-              <b>{c.ten}</b>
-              <span className="dhb__sx-tags">
-                {c.lenh.map((l) => onMoLenh ? (
-                  <button key={l.id} type="button" className="dhb__sx-tag dhb__sx-tag--lenh"
-                    title="Mở lệnh sản xuất" onClick={() => onMoLenh(l.id)}>{l.ma}</button>
-                ) : <span key={l.id} className="dhb__sx-tag">{l.ma}</span>)}
-                {chay.map((l) => l.buoc_hien_tai && (
-                  <span key={`b${l.id}`} className="dhb__sx-tag">đang {l.buoc_hien_tai}</span>
-                ))}
-                {c.lenh.flatMap((l) => l.xong ? [] : l.canh_bao).filter((w, i, a) => a.indexOf(w) === i).map((w) => (
-                  <span key={w} className="dhb__sx-tag dhb__sx-tag--bad">{NHAN_LY_DO_TRE[w] ?? w}</span>
-                ))}
-                {tuTon && <span className="dhb__sx-tag">không qua xưởng, lấy từ tồn kho</span>}
-                {tuTon && <span className="dhb__sx-tag dhb__sx-tag--ok">đủ trong kho</span>}
-                {c.co_lenh && coHang >= c.dat && <span className="dhb__sx-tag dhb__sx-tag--ok">đủ trong kho</span>}
-                {c.cho_kho > 0 && <span className="dhb__sx-tag dhb__sx-tag--warn">{so(c.cho_kho)} chờ kho nhận</span>}
-                {thieu > 0 && <span className="dhb__sx-tag dhb__sx-tag--bad">thiếu {so(thieu)} {dv}</span>}
-              </span>
-              <span className="dhb__sx-dat">{so(c.dat)} {dv}</span>
-            </div>
-            {!tuTon && (
-              <div className="dhb__sx-ba">
-                <span className="dhb__sx-k">Công đoạn</span>
-                <ThanhSx dat={100} co={c.co_lenh ? (c.sx_xong ? 100 : c.sx_pct ?? 0) : 0} loai="cd" />
-                <span className="dhb__sx-v">{cdNhan}</span>
-
-                <span className="dhb__sx-k" title="KCS kiểm đạt, đã gửi sang kho">KCS đạt</span>
-                <ThanhSx dat={c.dat} co={c.kho_de_nghi} loai="kcs" />
-                <span className="dhb__sx-v">{so(c.kho_de_nghi)}</span>
-
-                <span className="dhb__sx-k">Kho nhận</span>
-                <ThanhSx dat={c.dat} co={c.co_lenh ? c.kho_da_nhan : coHang} cho={c.co_lenh ? c.cho_kho : 0} loai="kho" />
-                <span className="dhb__sx-v">{so(c.co_lenh ? c.kho_da_nhan : coHang)} / {so(c.dat)}</span>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 /** Tách số đặt của một sản phẩm thành 5 khúc: đã giao / trong kho / chờ kho nhận / đang SX / chưa làm. */
 function khucCum(c: DonTienDoCum) {
   const dat = Math.max(c.dat, 0);
   const giao = Math.min(dat, c.da_giao);
   const kho = c.co_lenh
-    ? Math.max(0, Math.min(dat - giao, c.kho_da_nhan - c.da_giao))
+    ? Math.max(0, Math.min(dat - giao, c.kho_da_nhan - (c.da_giao - c.giao_thang)))
     : Math.max(0, Math.min(dat - giao, c.ton_that));
   const choKho = Math.max(0, Math.min(dat - giao - kho, c.cho_kho));
   const conLai = Math.max(0, dat - giao - kho - choKho);
@@ -681,8 +624,9 @@ function FormYeuCau({
             Khách <b>{order.customer_name ?? ""}</b> chưa có địa chỉ giao — thêm ở hồ sơ khách hàng rồi quay
             lại chọn.{" "}
             {navigate && (
-              <button type="button" className="dhb__td-link" onClick={() => navigate("khach-hang")}>
-                Mở màn Khách hàng ↗
+              <button type="button" className="dhb__td-link"
+                onClick={() => navigate("khach-hang", order.customer_id != null ? { openCustomerId: order.customer_id } : undefined)}>
+                Mở hồ sơ khách hàng ↗
               </button>
             )}
           </div>

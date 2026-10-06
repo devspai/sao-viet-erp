@@ -1,5 +1,6 @@
 // Form LẬP PHIẾU CHI RỜI — khoản chi không gắn đơn mua hàng (đặc tả PC-3).
-// Thứ tự theo cách người ta nghĩ: chi cho ai → bao nhiêu → vì sao → trả bằng gì → khi nào.
+// Bố cục chia đôi (phương án B, 06/10/2026 — khuôn Stripe Invoicing / Xero Spend money): form
+// trái, tờ phiếu 02-TT xem trước bên phải hiện dần theo từng phím gõ.
 // Vỏ `NganPhai` (cùng độ rộng mọi ngăn); lỗi tại ô, con trỏ nhảy tới ô sai đầu tiên; gõ dở thì
 // Esc / Đóng hỏi trước. `payload` gửi lên giữ nguyên bản cũ (source_type "other", không đợt, không
 // đơn); thêm chứng từ đính kèm tải lên ngay sau khi lập.
@@ -13,13 +14,11 @@ import {
   type PaymentVoucherType,
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
-import { amountInWords } from "../../../../utils/format";
-import { tien } from "../../shared/dinhDang";
-import { KhungFormPhieu, OF, OTienPhieu, THU_TU_O, ThemChiTiet, idO, loiNgayChi, nhayToiLoi, ONgayChi, type DatO, type LoiForm } from "../components/KhungFormPhieu";
-import { taiChungTuSauKhiLap, VoucherAttachSection } from "../components/VoucherAttachSection";
-import { loiChuyenKhoan, VoucherRecipientSection } from "../components/VoucherRecipientSection";
-import { cacOChiTiet, VoucherRefSection } from "../components/VoucherRefSection";
-import { ChonCachTra } from "../components/VoucherSegments";
+import { THU_TU_O_MOI } from "../components/KhoiPhieuChi";
+import { KhungFormPhieu, loiNgayChi, nhayToiLoi, type DatO, type LoiForm } from "../components/KhungFormPhieu";
+import { BanXemPhieuChi, ThanPhieuChiRoi } from "../components/ThanPhieuChiRoi";
+import { taiChungTuSauKhiLap } from "../components/VoucherAttachSection";
+import { loiChuyenKhoan } from "../components/VoucherRecipientSection";
 import { isoToday, optional } from "../shared/helpers";
 import "../../ke-toan.css";
 
@@ -62,7 +61,6 @@ export function StandaloneVoucherDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loi, setLoi] = useState<LoiForm>({});
-  const [moChiTiet, setMoChiTiet] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [loiTep, setLoiTep] = useState<string | null>(null);
   const [daLap, setDaLap] = useState<PaymentVoucherRow | null>(null);
@@ -101,7 +99,7 @@ export function StandaloneVoucherDialog({
     const l: LoiForm = {};
     if (!form.cash_recipient_name?.trim()) l.cash_recipient_name = "Ghi người hoặc đơn vị nhận tiền.";
     if (!Number.isFinite(form.amount) || form.amount <= 0) l.amount = "Số tiền chi phải lớn hơn 0.";
-    if (!form.content.trim()) l.content = "Ghi nội dung chi.";
+    if (!form.content.trim()) l.content = "Ghi lý do chi.";
     const loiNgay = loiNgayChi(form.voucher_date);
     if (loiNgay) l.voucher_date = loiNgay;
     return { ...l, ...loiChuyenKhoan(form) };
@@ -116,7 +114,7 @@ export function StandaloneVoucherDialog({
     const l = kiemTra();
     setLoi(l);
     if (Object.values(l).some(Boolean)) {
-      nhayToiLoi(l, THU_TU_O);
+      nhayToiLoi(l, THU_TU_O_MOI);
       return;
     }
 
@@ -169,73 +167,22 @@ export function StandaloneVoucherDialog({
     }
   }
 
-  const ten = form.cash_recipient_name?.trim();
   return (
     <KhungFormPhieu
       duongDan="Phiếu chi > Lập mới"
       tieuDe="Lập phiếu chi"
-      xemTruoc={
-        daLap ? (
-          <>Phiếu <b>{daLap.code}</b> đã lập.</>
-        ) : form.amount > 0 ? (
-          <>
-            Chi <b>{tien(form.amount)}</b> {isBank ? "chuyển khoản" : "tiền mặt"}
-            {ten ? <> cho <b>{ten}</b></> : null}. Lập xong không sửa được, chỉ hủy được.
-          </>
-        ) : (
-          "Lập xong không sửa được, chỉ hủy được."
-        )
-      }
+      xemTruoc={daLap ? <>Phiếu <b>{daLap.code}</b> đã lập.</> : "Lập xong không sửa được, chỉ hủy được."}
       dangLuu={saving}
       loiChung={error}
       onDong={onClose}
       chanDong={() => !daLap && (JSON.stringify(form) !== goc.current || files.length > 0)}
       onSubmit={() => void submit()}
       nhanNut={daLap ? "Mở phiếu đã lập" : undefined}
+      banXem={<BanXemPhieuChi form={form} taiKhoan={companyAccounts} soChungTu={files.length} nguon="other" />}
     >
-      <div className="kt-f__muc">
-        <div className="kt-f__tieu">Chi cho ai và bao nhiêu</div>
-        <OF khoa="cash_recipient_name" nhan="Chi cho" batBuoc rong loi={loi.cash_recipient_name}
-          goi="Người hoặc đơn vị nhận tiền.">
-          <input id={idO("cash_recipient_name")} value={form.cash_recipient_name ?? ""}
-            aria-invalid={loi.cash_recipient_name ? true : undefined}
-            onChange={(e) => set("cash_recipient_name", e.target.value)} />
-        </OF>
-        <OF khoa="amount" nhan="Số tiền" batBuoc loi={loi.amount}
-          goi={form.amount > 0 ? `${amountInWords(form.amount)}.` : undefined}>
-          <OTienPhieu khoa="amount" value={form.amount} onChange={(v) => set("amount", v)} loi={!!loi.amount} />
-        </OF>
-        <OF khoa="content" nhan="Nội dung chi" batBuoc rong loi={loi.content}>
-          <input id={idO("content")} value={form.content} placeholder="VD: Tiền điện tháng 9 xưởng in"
-            aria-invalid={loi.content ? true : undefined}
-            onChange={(e) => set("content", e.target.value)} />
-        </OF>
-      </div>
-
-      <div className="kt-f__muc">
-        <div className="kt-f__tieu">Trả bằng</div>
-        <ChonCachTra giaTri={form.voucher_type} onDoi={chonCach} />
-        <VoucherRecipientSection
-          form={form}
-          set={set}
-          loi={loi}
-          taiKhoan={companyAccounts}
-          dangTai={loadingAccounts}
-          loiTai={loiTaiKhoan}
-          chonTaiKhoan={(v) => set("company_bank_account_id", v ? Number(v) : null)}
-          onMoTaiKhoan={onMoTaiKhoan}
-        />
-      </div>
-
-      <div className="kt-f__muc">
-        <div className="kt-f__tieu">Khi nào</div>
-        <ONgayChi value={form.voucher_date} onChange={(v) => set("voucher_date", v)} loi={loi.voucher_date} />
-      </div>
-
-      <ThemChiTiet cacO={cacOChiTiet(false)} mo={moChiTiet || files.length > 0} onMo={() => setMoChiTiet(true)}>
-        <VoucherRefSection form={form} set={set} coHopDong={false} />
-        <VoucherAttachSection files={files} setFiles={setFiles} loi={loiTep ?? undefined} onLoi={setLoiTep} />
-      </ThemChiTiet>
+      <ThanPhieuChiRoi form={form} set={set} loi={loi} onDoiCach={chonCach} taiKhoan={companyAccounts}
+        dangTai={loadingAccounts} loiTai={loiTaiKhoan} onMoTaiKhoan={onMoTaiKhoan}
+        files={files} setFiles={setFiles} loiTep={loiTep} setLoiTep={setLoiTep} />
     </KhungFormPhieu>
   );
 }

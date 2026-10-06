@@ -2809,6 +2809,12 @@ td.acct-count-cell {
   font-weight: var(--fw-bold);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
 }
+/* Số đơn của tab — máy chủ đếm theo ô tìm, kỳ và điều kiện đang áp. */
+.acct-toolbar__tab-count {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
 
 /* Dải Tab con trong Drawer Chi tiết đơn mua hàng */
 .acct-drawer__tabs {

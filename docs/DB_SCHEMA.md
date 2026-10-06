@@ -888,13 +888,13 @@ ordered`) the lines are read-only (sửa → chặn; đổi phải change_order)
 
 ### `order_attachments`
 
-**Purpose:** Đính kèm CẤP ĐƠN — chứng cứ khách đồng ý (`kind=consent`, ảnh PO/Zalo…) làm điều kiện cổng chốt §8(d) cho đơn nhập tay. Bytes dưới `<backend>/static/don-hang/<order_id>/`, phục vụ qua `/static`. Bảng MỚI do `create_all` dựng. Portable.
+**Purpose:** Tệp đính kèm CẤP ĐƠN (ảnh/PDF, `kind=consent` — mã cũ giữ nguyên), chỉ thêm/xoá khi đơn còn nháp. Không còn là cổng chốt: đơn luôn từ báo giá đã duyệt. Bytes trong kho tệp `don-hang/<order_id>/`, phục vụ qua `/api/files`. Portable.
 
 | Column | Type (SQLAlchemy → SQLite / Postgres) | Key | Null | Default | Meaning |
 |---|---|---|---|---|---|
 | `id` | `Integer` → `INTEGER` / `SERIAL` | **PK** | no | auto-increment | Surrogate primary key. |
 | `order_id` | `Integer` → `INTEGER` | **FK→orders.id**, **IX** | no | — | Đơn gắn đính kèm (ON DELETE CASCADE). |
-| `kind` | `String(16)` → `VARCHAR(16)` | — | no | `consent` | Loại đính kèm (hiện: consent = chứng cứ khách đồng ý). |
+| `kind` | `String(16)` → `VARCHAR(16)` | — | no | `consent` | Loại đính kèm (hiện chỉ một loại `consent` = tệp đính kèm của đơn). |
 | `file_url` | `String(500)` → `VARCHAR(500)` | — | no | — | URL phục vụ qua /static. |
 | `file_name` | `String(255)` → `VARCHAR(255)` | — | yes | — | Tên file gốc. |
 | `content_type` | `String(100)` → `VARCHAR(100)` | — | yes | — | MIME type. |
@@ -4192,7 +4192,6 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 | ~~`khoan_json`~~ | `JSON` | — | yes | — | 🔴 GỠ 18/09/2026 (mg `0321`). ĐẦU VIỆC KHOÁN của bước — kế hoạch chọn "bước cán này làm *cán mờ* hay *ghép metalize*" (cùng công đoạn, hai đơn giá). SNAPSHOT `{rate_id, ten, don_vi, don_gia}` từ `piece_rates`, KHÔNG đọc-sống: xưởng lên giá khoán về sau không được xê dịch lệnh đã phát. Tiền khoán là số DẪN XUẤT (tính lúc đọc trong `lsx_service._khoan_derived`), không lưu cột. |
 | `nha_cung_cap_id` | `Integer` | soft → `suppliers`, IX | yes | — | Nhà gia công của bước thuê ngoài; `nha_cung_cap` (chữ) do máy chủ ghi theo nó (mg 0339). |
 | `nha_cung_cap` | `String(150)` | — | yes | — | Tên nhà gia công — máy chủ ghi theo `nha_cung_cap_id`, client không gửi. |
-| `don_gia_gia_cong` | `Numeric(18,2)` | — | yes | — | Đơn giá gia công của bước — chỉ ô ở BƯỚC CUỐI một dải thuê ngoài được đọc lúc phát hành (đơn giá cả lần, theo đơn vị ra của bước đó). Tiền = con số chốt × đơn giá, không lưu cột. |
 | `ghi_chu` | `String(500)` | — | yes | — | |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
@@ -4202,13 +4201,15 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 > **Đã BỎ ở migration `0093`:** `thue_ngoai` (tập con của `loai_buoc`) · `don_vi` (tách thành `don_vi_vao`/`don_vi_ra`).
 > 🔴 **GỠ 18/09/2026 (mg `0321`):** `so_nhan_cong_tieu_chuan` (kíp chuẩn) · `khoan_json` (đầu việc khoán của bước) · `nang_suat` + `don_vi_nang_suat` (hai cột SAO CHÉP từ định mức, không ai đồng bộ lại bản sao). Chủ xưởng: *"bỏ luôn logic kíp người, mà mấy cái chặn hoặc cảnh báo hoặc phép tính liên quan đến kíp người"*. Luật "phải có ít nhất 1 thợ mới bắt đầu được việc" GIỮ — đó là luật về người có mặt. Thợ chọn công việc khoán LÚC GHI MẺ (`san_xuat_batch.piece_rate_id`), không ở bước lệnh.
 
-**Tất cả cột:** `id`, `step_key`, `lsx_id`, `thu_tu`, `cong_doan_id`, `ten`, `nhom`, `department_id`, `may_id`, `loai_buoc`, `bat_buoc`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `hao_hut`, `hao_hut_pct`, `so_luot_chay`, `setup_phut`, `so_gio_ke_hoach`, `chay_phut`, `ve_sinh_phut`, `phat_sinh_phut`, `cho_phut`, `di_chuyen_phut`, `nha_cung_cap_id`, `nha_cung_cap`, `don_gia_gia_cong`, `ghi_chu`, `created_at`, `updated_at`, `chen_boi_to_cat`.
+**Tất cả cột:** `id`, `step_key`, `lsx_id`, `thu_tu`, `cong_doan_id`, `ten`, `nhom`, `department_id`, `may_id`, `loai_buoc`, `bat_buoc`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `hao_hut`, `hao_hut_pct`, `so_luot_chay`, `setup_phut`, `so_gio_ke_hoach`, `chay_phut`, `ve_sinh_phut`, `phat_sinh_phut`, `cho_phut`, `di_chuyen_phut`, `nha_cung_cap_id`, `nha_cung_cap`, `ghi_chu`, `created_at`, `updated_at`, `chen_boi_to_cat`.
 
 13 cột thuê ngoài cũ (ngày gửi/nhận, hao hụt cho phép, sổ giao–nhận) gỡ ở mg `0340` — thay bằng bảng `gia_cong_ngoai`.
 
+> 🔴 **GỠ 07/10/2026 (mg `0374`):** `don_gia_gia_cong` — gia công ngoài không có đơn giá; tiền trả nhà gia công kế toán gõ ở phiếu chi theo hoá đơn của họ.
+
 ### `gia_cong_ngoai`
 
-**Purpose:** Một LẦN gia công ngoài (spec `docs/superpowers/specs/2026-09-26-gia-cong-ngoai-design.md`). `mot_phan` = một dải bước "Thuê ngoài" liền nhau cùng nhà gia công (các `san_xuat_cong_viec` của dải trỏ về qua `gia_cong_ngoai_id`); `tron_goi` = cả lệnh, phát hành với MỘT công việc không tổ. Trạng thái và tiền DẪN XUẤT (không cột). Người ghi là tham chiếu MỀM tới `users`. Bảng mới → `create_all` tự tạo; cột nối ở các bảng khác thêm bằng mg `0339`.
+**Purpose:** Một LẦN gia công ngoài (spec `docs/superpowers/specs/2026-09-26-gia-cong-ngoai-design.md`). `mot_phan` = một dải bước "Thuê ngoài" liền nhau cùng nhà gia công (các `san_xuat_cong_viec` của dải trỏ về qua `gia_cong_ngoai_id`); `tron_goi` = cả lệnh, phát hành với MỘT công việc không tổ. Trạng thái DẪN XUẤT (không cột); KHÔNG có đơn giá / tiền — `don_gia` gỡ ở mg `0374` (07/10/2026), kế toán gõ tiền ở phiếu chi. Người ghi là tham chiếu MỀM tới `users`. Bảng mới → `create_all` tự tạo; cột nối ở các bảng khác thêm bằng mg `0339`.
 
 | Column | Type | Key | Null | Default | Meaning |
 | --- | --- | --- | --- | --- | --- |
@@ -4219,7 +4220,6 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 | `nha_cung_cap_id` | `Integer` | FK `suppliers`, idx | no | — | Nhà gia công (NCC có `nhan_gia_cong`). |
 | `nha_cung_cap_ten` | `String(255)` | — | no | `""` | Ảnh chụp tên NCC lúc đặt. |
 | `ten_viec` | `String(255)` | — | no | `""` | "Cán màng", "Bế + Dán", "Gia công trọn gói". |
-| `don_gia` | `Numeric(18,2)` | — | yes | — | Đơn giá theo `don_vi` của con số cuối. Tiền = `sl_cuoi × don_gia` (dẫn xuất). |
 | `don_vi` | `String(40)` | — | yes | — | Đơn vị con số cuối (đơn vị ra của bước cuối dải / đơn vị thành phẩm). |
 | `sl_dat` | `Numeric(18,3)` | — | yes | — | Trọn gói: số đặt. |
 | `xuong_cap_giay` | `Boolean` | — | no | `false` | Trọn gói: xưởng cấp giấy (đề nghị xuất) hay NCC tự lo (nhả giữ chỗ). |

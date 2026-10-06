@@ -8,8 +8,9 @@
 //   • Dải 4 con số đầu màn; ô "Khấu hao tháng" bấm được, nhảy sang tab tháng.
 //   • MỘT nút chính "Thêm tài sản" (mua mới) + mũi tên mở 3 cách thêm — trước có hai nút ngang
 //     hàng "Thêm tài sản" / "Thêm tài sản đang dùng" (Carbon: tối đa một nút chính trên thanh).
-//   • Loại là nhóm nút có số đếm (3 lựa chọn — nút nhanh hơn hộp thả); Bộ phận là hộp thả có ô tìm,
-//     gộp theo bộ phận gốc.
+//   • 06/10/2026: Loại / Bộ phận / Trạng thái / Giá mua thành điều kiện của thanh lọc chung
+//     (`ThanhLoc`, kèm số đếm máy chủ), thêm dải kỳ theo Ngày tạo / bắt đầu dùng / thôi dùng; lọc
+//     ghi lên URL. Trạng thái mặc định vẫn "Đang dùng".
 //   • Bỏ cột Loại và Trạng thái: lọc "Đang dùng" thì cả cột chỉ lặp một chữ. Trạng thái chỉ hiện
 //     thành thẻ cạnh tên khi KHÁC đang dùng; loại thành thẻ nhỏ dưới tên.
 //   • ↑ ↓ chọn dòng, Enter mở ngăn; ngăn đang mở thì ↑ ↓ đổi tài sản (Linear).
@@ -24,14 +25,28 @@ import { Icon } from "../../components/Icons";
 import { ImportExcelDialog } from "../../components/ImportExcelDialog";
 import { trangHopLe } from "../../components/Pager";
 import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
-import { Select } from "../../components/Select";
 import { useDebounced } from "../../utils/useDebounced";
-import { Badge, THANG_NAY, luaChonBoPhan, ngay, taiXuong, thangNhan, tien, tienDon } from "./chung";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "../thanh-loc/ky-danh-sach";
+import { ThanhLoc } from "../thanh-loc/ThanhLoc";
+import { useLocMan } from "../thanh-loc/useLocMan";
+import { Badge, THANG_NAY, gioCuaMoc, ngay, ngayCuaMoc, taiXuong, thangNhan, tien, tienDon } from "./chung";
 import { ChiTietDialog } from "./ChiTietDialog";
 import { ThemTaiSanDialog, type KieuThem } from "./ThemTaiSanDialog";
+import {
+  LOC_TS_TRONG, MOC_TS, locTSLenUrl, locTSTuUrl, thamSoLocTS, useDieuKienTaiSan, type LocTaiSan,
+} from "./dieu-kien-tai-san";
+
+type LocMan = { ky: KyDS; loc: LocTaiSan };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_TS_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_TS.map(([m]) => m), "tao"),
+  loc: locTSTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locTSLenUrl(t.loc) });
 
 interface TongQuan {
   dem_loai: Record<string, number>;
+  dem_trang_thai: Record<string, number>;
   tong_gia: number;
   tong_con_lai: number;
 }
@@ -97,9 +112,10 @@ export function DanhSachView({ onXemThang }: { onXemThang?: () => void }) {
 
   const [q, setQ] = useState("");
   const qCham = useDebounced(q, 300);
-  const [loai, setLoai] = useState("");
-  const [boPhanLoc, setBoPhanLoc] = useState("");
-  const [trangThai, setTrangThai] = useState("dang_dung");
+  const [locMan, setLocManGoc] = useLocMan("tai-san", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const setLocMan = (t: LocMan) => { setLocManGoc(t); setPage(1); };
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocTS(locMan.loc) });
+  const trangThai = locMan.loc.trang_thai;
 
   const [boPhan, setBoPhan] = useState<Department[]>([]);
   const [them, setThem] = useState<KieuThem | null>(null);
@@ -117,13 +133,16 @@ export function DanhSachView({ onXemThang }: { onXemThang?: () => void }) {
     setLoi(null);
     taiSanApi
       .danhSach(token, {
-        q: qCham, loai, bo_phan_id: boPhanLoc, trang_thai: trangThai,
+        q: qCham, ...JSON.parse(khoaLoc),
         offset: (page - 1) * size, limit: size,
       })
       .then(async (kq) => {
         setRows(kq.items);
         setTong(kq.total);
-        setTongQuan({ dem_loai: kq.dem_loai ?? {}, tong_gia: kq.tong_gia ?? 0, tong_con_lai: kq.tong_con_lai ?? 0 });
+        setTongQuan({
+          dem_loai: kq.dem_loai ?? {}, dem_trang_thai: kq.dem_trang_thai ?? {},
+          tong_gia: kq.tong_gia ?? 0, tong_con_lai: kq.tong_con_lai ?? 0,
+        });
         // Xoá nốt dòng cuối trang 3 ⇒ trang đó rỗng trơn, người dùng tưởng mất sạch dữ liệu.
         const ve = trangHopLe(page, kq.total, size);
         if (ve) setPage(ve);
@@ -140,7 +159,7 @@ export function DanhSachView({ onXemThang }: { onXemThang?: () => void }) {
     taiSanApi.bangThang(token, nam, thang)
       .then((b) => setKhauHaoThang(b.tong_muc_trich))
       .catch(() => setKhauHaoThang(null));
-  }, [token, qCham, loai, boPhanLoc, trangThai, page, size]);
+  }, [token, qCham, khoaLoc, page, size]);
 
   useEffect(() => { nap(); }, [nap]);
 
@@ -150,11 +169,10 @@ export function DanhSachView({ onXemThang }: { onXemThang?: () => void }) {
   }, [token]);
 
   const doiLoc = (fn: () => void) => { fn(); setPage(1); };
-  const dangLoc = q !== "" || loai !== "" || boPhanLoc !== "" || trangThai !== "dang_dung";
-  const boLoc = () => doiLoc(() => { setQ(""); setLoai(""); setBoPhanLoc(""); setTrangThai("dang_dung"); });
+  // "Bỏ lọc" ở màn trống: bỏ ô tìm, kỳ và mọi điều kiện — kể cả thẻ "Đang dùng" mặc định.
+  const boLoc = () => doiLoc(() => { setQ(""); setLocManGoc({ ky: { loai: "tat_ca", moc: locMan.ky.moc }, loc: {} }); });
+  const dieuKien = useDieuKienTaiSan(tongQuan?.dem_loai ?? {}, tongQuan?.dem_trang_thai ?? {});
 
-  const dem = tongQuan?.dem_loai ?? {};
-  const demTatCa = (dem.tscd ?? 0) + (dem.ccdc ?? 0);
   const nhanDem = trangThai === "dang_dung" ? "Đang dùng" : trangThai === "da_giam" ? "Đã thôi dùng" : "Tài sản";
 
   // ↑ ↓ trên bảng: chuyển con trỏ giữa các dòng; Enter mở ngăn.
@@ -204,40 +222,14 @@ export function DanhSachView({ onXemThang }: { onXemThang?: () => void }) {
         )}
       </div>
 
-      <div className="ts-loc">
+      <div className="ts-loc tl-thanh">
         <label className="ts-tim">
           <Icon name="search" size={15} />
           <input placeholder="Tìm theo mã hoặc tên" value={q} aria-label="Tìm theo mã hoặc tên"
             onChange={(e) => doiLoc(() => setQ(e.target.value))} />
         </label>
-        <div className="ts-nhom" role="radiogroup" aria-label="Loại">
-          {([["", "Tất cả", demTatCa], ["tscd", NHAN_LOAI.tscd, dem.tscd ?? 0],
-            ["ccdc", NHAN_LOAI.ccdc, dem.ccdc ?? 0]] as const).map(([ma, nhan, so]) => (
-            <button key={ma} type="button" role="radio" aria-checked={loai === ma}
-              className={`ts-nhom__nut${loai === ma ? " is-active" : ""}`}
-              onClick={() => doiLoc(() => setLoai(ma))}>
-              {nhan}<span className="ts-nhom__so">{so}</span>
-            </button>
-          ))}
-        </div>
-        <select className="rc-input ts-loc__hep ts-loc__loai" value={loai} aria-label="Lọc theo loại"
-          onChange={(e) => doiLoc(() => setLoai(e.target.value))}>
-          <option value="">Mọi loại ({demTatCa})</option>
-          <option value="tscd">{NHAN_LOAI.tscd} ({dem.tscd ?? 0})</option>
-          <option value="ccdc">{NHAN_LOAI.ccdc} ({dem.ccdc ?? 0})</option>
-        </select>
-        <div className="ts-loc__bp">
-          <Select<string> options={[{ value: "", label: "Mọi bộ phận" }, ...luaChonBoPhan(boPhan)]}
-            value={boPhanLoc} searchable portal searchPlaceholder="Gõ để tìm bộ phận"
-            ariaLabel="Lọc theo bộ phận" onChange={(v) => doiLoc(() => setBoPhanLoc(v))} />
-        </div>
-        <select className="rc-input ts-loc__hep" value={trangThai} aria-label="Lọc theo trạng thái"
-          onChange={(e) => doiLoc(() => setTrangThai(e.target.value))}>
-          <option value="dang_dung">{NHAN_TRANG_THAI.dang_dung}</option>
-          <option value="da_giam">{NHAN_TRANG_THAI.da_giam}</option>
-          <option value="">Tất cả</option>
-        </select>
-        {dangLoc && <button type="button" className="ts-lienket" onClick={boLoc}>Bỏ lọc</button>}
+        <ThanhLoc ky={locMan.ky} moc={MOC_TS} onKy={(ky) => setLocMan({ ...locMan, ky })}
+          dieuKien={dieuKien} loc={locMan.loc} onLoc={(loc) => setLocMan({ ...locMan, loc })} />
         {taoDuoc && <div className="ts-loc__phai"><NutThem onChon={chonThem} /></div>}
       </div>
 
@@ -252,19 +244,23 @@ export function DanhSachView({ onXemThang }: { onXemThang?: () => void }) {
         {/* `table-layout: fixed` — cột không khai chỉ được phần thừa. Tổng đúng 100%. */}
         <table>
           <colgroup>
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "24%" }} />
+            <col style={{ width: "12%" }} />
             <col style={{ width: "9%" }} />
-            <col style={{ width: "31%" }} />
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "13%" }} />
-            <col style={{ width: "13%" }} />
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "4%" }} />
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "3%" }} />
           </colgroup>
           <thead>
             <tr>
               <th>Mã</th>
               <th>Tên</th>
               <th>Bộ phận</th>
+              <th>Bắt đầu dùng</th>
+              <th>Ngày tạo</th>
               <th className="ts-num">Giá mua</th>
               <th className="ts-num" title={denThang ? `Tính tới hết tháng ${denThang}` : undefined}>
                 Đã khấu hao
@@ -277,14 +273,14 @@ export function DanhSachView({ onXemThang }: { onXemThang?: () => void }) {
             {dangTai && rows.length === 0 ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={`sk-${i}`} className="rc-skel__row">
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 9 }).map((__, j) => (
                     <td key={j}><span className="rc-skel" style={{ width: "70%" }} /></td>
                   ))}
                 </tr>
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="ts-trong-td">
+                <td colSpan={9} className="ts-trong-td">
                   <div className="ts-trong">
                     {soTrong ? (
                       <>
@@ -346,13 +342,13 @@ export function DanhSachView({ onXemThang }: { onXemThang?: () => void }) {
                       </div>
                       <div className="ts-phu">
                         <span className="ts-phu-tag">{NHAN_LOAI[r.loai] ?? r.loai}</span>
-                        <span className="ts-phu-tag">
-                          {daThoi && r.ngay_giam ? `thôi dùng ${ngay(r.ngay_giam)}` : `bắt đầu ${ngay(r.ngay_su_dung)}`}
-                        </span>
+                        {daThoi && r.ngay_giam && <span className="ts-phu-tag">thôi dùng {ngay(r.ngay_giam)}</span>}
                         {r.so_luong > 1 && <span className="ts-phu-tag">{r.so_luong} cái</span>}
                       </div>
                     </td>
                     <td className={r.bo_phan_ten ? "ts-bp" : "ts-bp ts-mo"}>{r.bo_phan_ten ?? "Chưa chọn"}</td>
+                    <td>{ngay(r.ngay_su_dung)}</td>
+                    <td title={gioCuaMoc(r.created_at)}>{ngayCuaMoc(r.created_at)}</td>
                     <td className="ts-num">
                       {r.tien_sua_chua_lon > 0 && (
                         <span className="ts-cong" title={`Gồm sửa chữa lớn ${tienDon(r.tien_sua_chua_lon)}`}

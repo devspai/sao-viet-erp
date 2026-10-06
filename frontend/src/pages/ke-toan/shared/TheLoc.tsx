@@ -1,5 +1,5 @@
 /** Hàng thẻ lọc của danh sách phiếu (đặc tả A.16): mỗi thẻ là MỘT bộ lọc kèm số của nó — nhãn
- *  12px có chấm màu, con số 20px, dòng phụ 12px, và dòng cùng kỳ khi bật so sánh. Thẻ đang chọn
+ *  12px có chấm màu, con số + dòng phụ chung một hàng, và dòng cùng kỳ khi bật so sánh. Thẻ đang chọn
  *  viền charcoal đủ 4 cạnh. */
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { ReactNode } from "react";
@@ -40,8 +40,11 @@ export function TheLoc({
             ) : null}
             {m.nhan}
           </span>
-          <span className="kt-the-loc__so">{m.so}</span>
-          {m.phu != null && <span className="kt-the-loc__phu">{m.phu}</span>}
+          {/* Số và dòng phụ chung MỘT hàng ("750.000 đ  1 phiếu") — xếp ba tầng làm thẻ cao gấp đôi. */}
+          <span className="kt-the-loc__hang">
+            <span className="kt-the-loc__so">{m.so}</span>
+            {m.phu != null && <span className="kt-the-loc__phu">{m.phu}</span>}
+          </span>
           {m.cungKy && (
             <span className={`kt-cung-ky${m.cungKy.xau ? " kt-cung-ky--do" : ""}`}>
               {m.cungKy.huong === "len" && <ArrowUp size={14} aria-hidden="true" />}

@@ -12,9 +12,10 @@ Hai truy vấn ở đây là XƯƠNG SỐNG của bản thiết kế, đọc k�
 """
 from __future__ import annotations
 
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import date, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from ..models.delivery import (
@@ -29,6 +30,83 @@ from ..models.delivery import (
     DeliveryTripAttachment,
     DeliveryTripLine,
 )
+from .loc_danh_sach import dk_khoang_ngay
+
+
+def _dk_tim_yeu_cau(chu: str) -> list:
+    """Ô tìm: mã yêu cầu, mã đơn, tên khách (không phân biệt hoa thường)."""
+    from ..models.customer import Customer
+    from ..models.order import Order
+
+    p = f"%{chu.strip()}%"
+    return [or_(
+        DeliveryRequest.code.ilike(p),
+        DeliveryRequest.order_id.in_(select(Order.id).where(Order.order_no.ilike(p))),
+        DeliveryRequest.customer_id.in_(select(Customer.id).where(Customer.name.ilike(p))),
+    )]
+
+
+@dataclass
+class LocYeuCau:
+    """Kỳ + điều kiện của tab "Yêu cầu giao". Mốc: `tao` Ngày tạo, `can` Ngày cần giao (Date)."""
+    q: str | None = None
+    tu_ngay: date | None = None
+    den_ngay: date | None = None
+    moc: str = "tao"
+    khach: int | None = None
+
+    def dieu_kien(self) -> list:
+        dk: list = []
+        if self.q and self.q.strip():
+            dk += _dk_tim_yeu_cau(self.q)
+        cot, la_ngay = {
+            "tao": (DeliveryRequest.created_at, False),
+            "can": (DeliveryRequest.ngay_can_giao, True),
+        }.get(self.moc, (DeliveryRequest.created_at, False))
+        dk += dk_khoang_ngay(cot, self.tu_ngay, self.den_ngay, cot_ngay=la_ngay)
+        if self.khach is not None:
+            dk.append(DeliveryRequest.customer_id == self.khach)
+        return dk
+
+
+@dataclass
+class LocChuyen:
+    """Kỳ + điều kiện của tab "Đơn giao hàng" — lọc trên CHUYẾN; một lượt xe hiện khi có ít nhất
+    một chuyến của nó khớp. Mốc: `tao` Ngày tạo, `lay` giờ lấy hàng, `giao` giờ dự kiến giao."""
+    q: str | None = None
+    tu_ngay: date | None = None
+    den_ngay: date | None = None
+    moc: str = "tao"
+    xe: int | None = None
+    tai_xe: int | None = None
+    trang_thai: list[str] = field(default_factory=list)
+
+    def dieu_kien(self) -> list:
+        from ..models.delivery import LuotXe, LuotXeDiem
+
+        dk: list = []
+        if self.q and self.q.strip():
+            p = f"%{self.q.strip()}%"
+            dk.append(or_(
+                *_dk_tim_yeu_cau(self.q),
+                DeliveryTrip.id.in_(
+                    select(LuotXeDiem.delivery_trip_id)
+                    .join(LuotXe, LuotXe.id == LuotXeDiem.luot_xe_id)
+                    .where(LuotXe.code.ilike(p))),
+            ))
+        cot = {
+            "tao": DeliveryTrip.created_at,
+            "lay": DeliveryTrip.gio_lay_hang,
+            "giao": DeliveryTrip.gio_du_kien_giao,
+        }.get(self.moc, DeliveryTrip.created_at)
+        dk += dk_khoang_ngay(cot, self.tu_ngay, self.den_ngay)
+        if self.xe is not None:
+            dk.append(DeliveryTrip.vehicle_id == self.xe)
+        if self.tai_xe is not None:
+            dk.append(DeliveryTrip.employee_id == self.tai_xe)
+        if self.trang_thai:
+            dk.append(DeliveryTrip.trang_thai.in_(self.trang_thai))
+        return dk
 
 
 class DeliveryRepository:
@@ -63,6 +141,35 @@ class DeliveryRepository:
         self.db.flush()
         return row
 
+    @staticmethod
+    def _dk_yeu_cau(
+        *,
+        order_id: int | None = None,
+        department_ids: list[int] | None = None,
+        created_by: int | None = None,
+        chi_cho_len_ke_hoach: bool = False,
+        loc: LocYeuCau | None = None,
+    ) -> list:
+        """Điều kiện SQL của danh sách yêu cầu giao — MỘT chỗ cho cả trang lẫn đếm.
+
+        `chi_cho_len_ke_hoach` khớp ĐÚNG trạng thái tính `trang_thai_yeu_cau()` = "chờ lên kế
+        hoạch": chưa huỷ VÀ chưa có chuyến nào (kể cả chuyến đã đóng — khi đó yêu cầu mang trạng
+        thái kết cục của chuyến, không quay về hàng chờ). Viết bằng NOT EXISTS để trang hoá thật ở
+        SQL; trước 06/10/2026 lọc bằng Python sau truy vấn nên phải tải cửa sổ 200 dòng."""
+        dk: list = []
+        if order_id is not None:
+            dk.append(DeliveryRequest.order_id == order_id)
+        if department_ids is not None:
+            dk.append(DeliveryRequest.department_id.in_(department_ids))
+        if created_by is not None:
+            dk.append(DeliveryRequest.created_by == created_by)
+        if chi_cho_len_ke_hoach:
+            dk.append(DeliveryRequest.trang_thai == YC_CHO_LEN_KE_HOACH)
+            dk.append(~exists().where(DeliveryTrip.request_id == DeliveryRequest.id))
+        if loc is not None:
+            dk += loc.dieu_kien()
+        return dk
+
     def list_requests(
         self,
         *,
@@ -70,6 +177,7 @@ class DeliveryRepository:
         department_ids: list[int] | None = None,
         created_by: int | None = None,
         chi_cho_len_ke_hoach: bool = False,
+        loc: LocYeuCau | None = None,
         limit: int | None = None,
         offset: int = 0,
     ) -> list[DeliveryRequest]:
@@ -77,16 +185,11 @@ class DeliveryRepository:
             select(DeliveryRequest)
             .options(selectinload(DeliveryRequest.lines),
                      selectinload(DeliveryRequest.trips))
+            .where(*self._dk_yeu_cau(order_id=order_id, department_ids=department_ids,
+                                     created_by=created_by,
+                                     chi_cho_len_ke_hoach=chi_cho_len_ke_hoach, loc=loc))
             .order_by(DeliveryRequest.id.desc())
         )
-        if order_id is not None:
-            q = q.where(DeliveryRequest.order_id == order_id)
-        if department_ids is not None:
-            q = q.where(DeliveryRequest.department_id.in_(department_ids))
-        if created_by is not None:
-            q = q.where(DeliveryRequest.created_by == created_by)
-        if chi_cho_len_ke_hoach:
-            q = q.where(DeliveryRequest.trang_thai == YC_CHO_LEN_KE_HOACH)
         if limit is not None:
             q = q.limit(limit).offset(offset)
         return list(self.db.execute(q).scalars().all())
@@ -98,17 +201,38 @@ class DeliveryRepository:
         department_ids: list[int] | None = None,
         created_by: int | None = None,
         chi_cho_len_ke_hoach: bool = False,
+        loc: LocYeuCau | None = None,
     ) -> int:
-        q = select(func.count()).select_from(DeliveryRequest)
-        if order_id is not None:
-            q = q.where(DeliveryRequest.order_id == order_id)
-        if department_ids is not None:
-            q = q.where(DeliveryRequest.department_id.in_(department_ids))
-        if created_by is not None:
-            q = q.where(DeliveryRequest.created_by == created_by)
-        if chi_cho_len_ke_hoach:
-            q = q.where(DeliveryRequest.trang_thai == YC_CHO_LEN_KE_HOACH)
+        q = select(func.count()).select_from(DeliveryRequest).where(
+            *self._dk_yeu_cau(order_id=order_id, department_ids=department_ids,
+                              created_by=created_by, chi_cho_len_ke_hoach=chi_cho_len_ke_hoach,
+                              loc=loc))
         return int(self.db.execute(q).scalar() or 0)
+
+    def dem_yeu_cau_theo(
+        self,
+        truong: str,
+        *,
+        department_ids: list[int] | None = None,
+        created_by: int | None = None,
+        chi_cho_len_ke_hoach: bool = False,
+    ) -> list[tuple[int, str, int]]:
+        """(id, tên, số yêu cầu) cho ô lọc "Khách hàng" (`truong="khach"`) / "Đơn hàng"
+        (`truong="don"`) — chỉ những giá trị đang có yêu cầu TRONG tầm nhìn của tab."""
+        from ..models.customer import Customer
+        from ..models.order import Order
+
+        if truong == "khach":
+            q = (select(Customer.id, Customer.name, func.count(DeliveryRequest.id))
+                 .join(Customer, Customer.id == DeliveryRequest.customer_id)
+                 .group_by(Customer.id, Customer.name).order_by(Customer.name))
+        else:
+            q = (select(Order.id, Order.order_no, func.count(DeliveryRequest.id))
+                 .join(Order, Order.id == DeliveryRequest.order_id)
+                 .group_by(Order.id, Order.order_no).order_by(Order.order_no.desc()))
+        q = q.where(*self._dk_yeu_cau(department_ids=department_ids, created_by=created_by,
+                                      chi_cho_len_ke_hoach=chi_cho_len_ke_hoach))
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(q)]
 
     def requests_mo_cua_don(self, order_id: int) -> list[DeliveryRequest]:
         """Yêu cầu CHƯA huỷ của một đơn — dùng để chặn đặt vượt số còn phải giao."""
@@ -139,6 +263,20 @@ class DeliveryRepository:
             .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
             .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
             .where(DeliveryRequest.order_id == order_id,
+                   DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
+            .group_by(DeliveryTripLine.order_line_id)
+        ).all()
+        return {int(r[0]): int(r[1] or 0) for r in rows}
+
+    def giao_thang_theo_dong(self, order_id: int) -> dict[int, int]:
+        """{order_line_id: phần đã giao do NHÀ GIA CÔNG GIAO THẲNG} — chuyến đứng tên lần gia công
+        ngoài, hàng không qua KCS trên phần mềm, không qua kho. Là một phần của `da_giao_theo_dong`."""
+        rows = self.db.execute(
+            select(DeliveryTripLine.order_line_id, func.coalesce(func.sum(DeliveryTripLine.qty_giao), 0))
+            .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
+            .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
+            .where(DeliveryRequest.order_id == order_id,
+                   DeliveryTrip.gia_cong_ngoai_id.is_not(None),
                    DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
             .group_by(DeliveryTripLine.order_line_id)
         ).all()
@@ -218,6 +356,90 @@ class DeliveryRepository:
             ).order_by(StockRequest.id.desc())
         ).scalars().first()
 
+    def phieu_kho_cua_yeu_cau(self, stock_request_id: int):
+        """Phiếu kho chưa huỷ mới nhất lập theo một yêu cầu kho — None khi kho chưa lập phiếu."""
+        from ..models.stock_voucher import VOUCHER_CANCELLED, StockVoucher
+
+        return self.db.execute(
+            select(StockVoucher).where(
+                StockVoucher.request_id == stock_request_id,
+                StockVoucher.trang_thai != VOUCHER_CANCELLED,
+            ).order_by(StockVoucher.id.desc())
+        ).scalars().first()
+
+    # --- Gom cho NHIỀU yêu cầu / chuyến một lượt (tiến độ đơn, 06/10/2026) -----------------------
+    # Danh sách yêu cầu giao của ngăn đơn từng hỏi từng yêu cầu / từng chuyến (~10 câu SQL mỗi yêu
+    # cầu) ⇒ đơn nhiều chuyến mở ngăn chậm dần. Mỗi hàm dưới = MỘT câu cho cả tập, cùng luật với bản
+    # một-cái tương ứng.
+    def trips_cua_nhieu_yeu_cau(self, request_ids: list[int]) -> dict[int, list[DeliveryTrip]]:
+        """{request_id: [chuyến theo lan_thu]} — như `trips_cua_yeu_cau`."""
+        ra: dict[int, list[DeliveryTrip]] = {i: [] for i in request_ids}
+        if not request_ids:
+            return ra
+        for t in self.db.execute(
+            select(DeliveryTrip)
+            .options(selectinload(DeliveryTrip.lines))
+            .where(DeliveryTrip.request_id.in_(request_ids))
+            .order_by(DeliveryTrip.request_id, DeliveryTrip.lan_thu)
+        ).scalars().all():
+            ra[t.request_id].append(t)
+        return ra
+
+    def da_giao_cua_nhieu_yeu_cau(self, request_ids: list[int]) -> dict[int, dict[int, int]]:
+        """{request_id: {order_line_id: đã thực nhận}} — như `da_giao_cua_yeu_cau`."""
+        ra: dict[int, dict[int, int]] = {i: {} for i in request_ids}
+        if not request_ids:
+            return ra
+        for rid, olid, sl in self.db.execute(
+            select(DeliveryTrip.request_id, DeliveryTripLine.order_line_id,
+                   func.coalesce(func.sum(DeliveryTripLine.qty_giao), 0))
+            .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
+            .where(DeliveryTrip.request_id.in_(request_ids),
+                   DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
+            .group_by(DeliveryTrip.request_id, DeliveryTripLine.order_line_id)
+        ).all():
+            ra[int(rid)][int(olid)] = int(sl or 0)
+        return ra
+
+    def yeu_cau_kho_cua_nhieu_chuyen(self, trip_ids: list[int], loai: str) -> dict[int, object]:
+        """{trip_id: yêu cầu kho còn sống mới nhất} — như `yeu_cau_kho_cua_chuyen`; chuyến không có
+        thì vắng mặt."""
+        from ..models.stock_request import REQ_CANCELLED, REQ_REJECTED, StockRequest
+
+        ra: dict[int, object] = {}
+        if not trip_ids:
+            return ra
+        for r in self.db.execute(
+            select(StockRequest).where(
+                StockRequest.delivery_trip_id.in_(trip_ids), StockRequest.loai == loai,
+                StockRequest.trang_thai.notin_([REQ_CANCELLED, REQ_REJECTED]),
+            ).order_by(StockRequest.id.desc())
+        ).scalars().all():
+            ra.setdefault(r.delivery_trip_id, r)
+        return ra
+
+    def yeu_cau_kho_da_co_phieu(self, stock_request_ids: list[int]) -> set[int]:
+        """Các yêu cầu kho đã có phiếu kho CHƯA huỷ — mốc "kho đã lập phiếu" của `kho_da_lap_phieu`."""
+        from ..models.stock_voucher import VOUCHER_CANCELLED, StockVoucher
+
+        if not stock_request_ids:
+            return set()
+        return {int(i) for (i,) in self.db.execute(
+            select(StockVoucher.request_id).distinct().where(
+                StockVoucher.request_id.in_(stock_request_ids),
+                StockVoucher.trang_thai != VOUCHER_CANCELLED,
+            )
+        ).all()}
+
+    def so_dinh_kem_theo_trip(self, trip_ids: list[int]) -> dict[int, int]:
+        if not trip_ids:
+            return {}
+        return {int(t): int(n) for t, n in self.db.execute(
+            select(DeliveryTripAttachment.trip_id, func.count(DeliveryTripAttachment.id))
+            .where(DeliveryTripAttachment.trip_id.in_(trip_ids))
+            .group_by(DeliveryTripAttachment.trip_id)
+        ).all()}
+
     def trips_cua_yeu_cau(self, request_id: int) -> list[DeliveryTrip]:
         return list(self.db.execute(
             select(DeliveryTrip)
@@ -241,7 +463,10 @@ class DeliveryRepository:
         ).scalar()
         return int(cao_nhat or 0) + 1
 
-    def _loc_chuyen(self, q, *, employee_ids, department_ids, trang_thai, latest_per_request):
+    def _loc_chuyen(self, q, *, employee_ids, department_ids, trang_thai, latest_per_request,
+                    loc: LocChuyen | None = None):
+        if loc is not None:
+            q = q.where(*loc.dieu_kien())
         if employee_ids is not None:
             q = q.where(DeliveryTrip.employee_id.in_(employee_ids))
         if department_ids is not None:
@@ -291,6 +516,7 @@ class DeliveryRepository:
         department_ids: list[int] | None = None,
         trang_thai: list[str] | None = None,
         latest_per_request: bool = False,
+        loc: LocChuyen | None = None,
     ) -> int:
         q = (
             select(func.count())
@@ -298,8 +524,36 @@ class DeliveryRepository:
             .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
         )
         q = self._loc_chuyen(q, employee_ids=employee_ids, department_ids=department_ids,
-                             trang_thai=trang_thai, latest_per_request=latest_per_request)
+                             trang_thai=trang_thai, latest_per_request=latest_per_request, loc=loc)
         return int(self.db.execute(q).scalar() or 0)
+
+    def dem_chuyen_theo(
+        self,
+        truong: str,
+        *,
+        employee_ids: list[int] | None = None,
+        department_ids: list[int] | None = None,
+    ) -> list[tuple[int, str, int]]:
+        """(id, tên, số đơn giao) cho ô lọc "Xe" (`truong="xe"`, tên = biển số) / "Tài xế"
+        (`truong="tai_xe"`) của tab Đơn giao hàng — đếm như `so_don` (chuyến mới nhất mỗi yêu cầu)
+        trong tầm nhìn."""
+        from ..models.employee import Employee
+        from ..models.xe import Xe
+
+        if truong == "xe":
+            q = (select(Xe.id, Xe.ma, func.count(DeliveryTrip.id))
+                 .select_from(DeliveryTrip)
+                 .join(Xe, Xe.id == DeliveryTrip.vehicle_id)
+                 .group_by(Xe.id, Xe.ma).order_by(Xe.ma))
+        else:
+            q = (select(Employee.id, Employee.full_name, func.count(DeliveryTrip.id))
+                 .select_from(DeliveryTrip)
+                 .join(Employee, Employee.id == DeliveryTrip.employee_id)
+                 .group_by(Employee.id, Employee.full_name).order_by(Employee.full_name))
+        q = q.join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
+        q = self._loc_chuyen(q, employee_ids=employee_ids, department_ids=department_ids,
+                             trang_thai=None, latest_per_request=True)
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(q)]
 
     def khoi_bang_giao(
         self,
@@ -307,6 +561,7 @@ class DeliveryRepository:
         employee_ids: list[int] | None = None,
         department_ids: list[int] | None = None,
         trang_thai: list[str] | None = None,
+        loc: LocChuyen | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[tuple[str, int]], int]:
@@ -328,7 +583,7 @@ class DeliveryRepository:
             .outerjoin(LuotXeDiem, LuotXeDiem.delivery_trip_id == DeliveryTrip.id)
         )
         q = self._loc_chuyen(q, employee_ids=employee_ids, department_ids=department_ids,
-                             trang_thai=trang_thai, latest_per_request=True)
+                             trang_thai=trang_thai, latest_per_request=True, loc=loc)
         nhom = q.group_by(khoa).subquery()
         tong = int(self.db.execute(select(func.count()).select_from(nhom)).scalar() or 0)
         khoa_trang = self.db.execute(

@@ -1,8 +1,9 @@
-// Bảng phiếu của tab Tạm ứng — MỘT TRANG (50 dòng) đã lọc (25/09/2026). Ô tick đầu bảng chọn / bỏ
+// Bảng phiếu của tab Tạm ứng — MỘT TRANG đã lọc ở máy chủ (25/09/2026; lọc máy chủ từ 06/10/2026). Ô tick đầu bảng chọn / bỏ
 // cả trang đang xem; muốn chọn qua mọi trang thì dùng "Chọn tất cả N phiếu đang lọc" ở thanh chọn.
 import type { Dispatch, SetStateAction } from "react";
 import type { SalaryAdvance } from "../../../../api/client";
 import type { NavigateFn } from "../../../../components/AppShell";
+import { fmtDate, fmtDateTime } from "../../../../utils/format";
 import { money } from "../shared/helpers";
 import { KIND, STATUS, TamUngHanhDong } from "./TamUngHanhDong";
 
@@ -20,8 +21,9 @@ export function TamUngBang({
 }: {
   rows: SalaryAdvance[];
   coCotChon: boolean;
-  chon: Set<number>;
-  setChon: Dispatch<SetStateAction<Set<number>>>;
+  /** Phiếu đã chọn (id → phiếu) — giữ cả phiếu ở trang khác / đang bị bộ lọc che. */
+  chon: Map<number, SalaryAdvance>;
+  setChon: Dispatch<SetStateAction<Map<number, SalaryAdvance>>>;
   /** Chỉ truyền khi người xem có ô xem Phiếu chi — chip mã PC mới bấm sang Kế toán được. */
   navigate?: NavigateFn;
   canApproveAdvance: boolean;
@@ -32,20 +34,20 @@ export function TamUngBang({
 }) {
   const heTrang = rows.length > 0 && rows.every((a) => chon.has(a.id));
 
-  function doiChon(id: number) {
+  function doiChon(a: SalaryAdvance) {
     setChon((cu) => {
-      const moi = new Set(cu);
-      if (moi.has(id)) moi.delete(id);
-      else moi.add(id);
+      const moi = new Map(cu);
+      if (moi.has(a.id)) moi.delete(a.id);
+      else moi.set(a.id, a);
       return moi;
     });
   }
 
   function doiCaTrang(bat: boolean) {
     setChon((cu) => {
-      const moi = new Set(cu);
+      const moi = new Map(cu);
       for (const a of rows) {
-        if (bat) moi.add(a.id);
+        if (bat) moi.set(a.id, a);
         else moi.delete(a.id);
       }
       return moi;
@@ -73,6 +75,7 @@ export function TamUngBang({
             <th>Nhân viên</th>
             <th>Loại</th>
             <th>Ngày ứng</th>
+            <th>Ngày tạo</th>
             <th className="lg-num">Số tiền</th>
             <th>Lý do</th>
             <th>Trạng thái</th>
@@ -96,7 +99,7 @@ export function TamUngBang({
                       type="checkbox"
                       aria-label={`Chọn phiếu của ${a.employee_name ?? a.id}`}
                       checked={chon.has(a.id)}
-                      onChange={() => doiChon(a.id)}
+                      onChange={() => doiChon(a)}
                     />
                   </td>
                 )}
@@ -109,6 +112,7 @@ export function TamUngBang({
                   <span className={`ns-badge ${kCls}`}>{kLabel}</span>
                 </td>
                 <td>{a.advance_date}</td>
+                <td title={fmtDateTime(a.created_at)}>{fmtDate(a.created_at)}</td>
                 <td className="lg-num">{money(a.amount)}đ</td>
                 <td>{a.reason ?? "—"}</td>
                 <td>

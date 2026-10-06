@@ -46,6 +46,7 @@ from ..models.ky_thuat_may import (
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.ky_thuat_may_repo import KyThuatMayRepository
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.ky_thuat_may import (
     AnhListOut,
     AnhRow,
@@ -193,14 +194,19 @@ def list_sua_chua(
     q: str | None = Query(default=None),
     may_id: int | None = Query(default=None),
     trang_thai: str | None = Query(default=None),
+    # Một mã hoặc nhiều mã nối phẩy (`nhe,nghiem_trong`) — thanh lọc chọn nhiều.
     muc_do: str | None = Query(default=None),
+    # Kỳ của thanh lọc: `moc` = tao (Ngày tạo) | thoi_diem (Thời điểm hỏng) | xong (Hoàn thành).
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|thoi_diem|xong)$"),
     # moi_nhat (mặc định) | cu_nhat | muc_do — xem `repo.list_sua_chua`.
     sort: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
 ) -> SuaChuaListOut:
-    rows, total = svc.list_sua_chua(q=q, may_id=may_id, trang_thai=trang_thai, muc_do=muc_do,
-                                    sort=sort, page=page, size=size)
+    loc = dict(q=q, may_id=may_id, muc_do=muc_do, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
+    rows, total = svc.list_sua_chua(trang_thai=trang_thai, sort=sort, page=page, size=size, **loc)
     may_map = svc.may_map([r.may_id for r in rows])
     anh_tk = svc.repo.anh_thong_ke(LOAI_PHIEU_SUA_CHUA, [r.id for r in rows])
     yc_map = svc.yeu_cau_map([r.id for r in rows])
@@ -209,8 +215,15 @@ def list_sua_chua(
         total=total, page=page, size=size,
         # Đếm theo ĐÚNG bộ lọc đang xem (trừ trạng thái) — gõ tìm kiếm mà số trên tab đứng im ở số
         # cả bảng thì người dùng chỉ còn cách tự đếm tay.
-        dem=svc.dem_sua_chua(q=q, may_id=may_id, muc_do=muc_do),
+        dem=svc.dem_sua_chua(**loc),
     )
+
+
+@router.get("/sua-chua/loc-may", response_model=list[LuaChonLoc])
+def sua_chua_loc_may(svc: Service, _: Reader) -> list[LuaChonLoc]:
+    """Điều kiện "Máy" của thanh lọc: máy đã có phiếu sửa chữa, kèm số phiếu. Khai TRƯỚC
+    `/sua-chua/{phieu_id}` (FastAPI khớp theo thứ tự)."""
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in svc.loc_may("sua_chua")]
 
 
 @router.get("/sua-chua/{phieu_id}", response_model=SuaChuaRow)
@@ -321,20 +334,31 @@ def list_yeu_cau(
     # `cho_xu_ly` = còn chờ tiếp nhận (bộ lọc dẫn xuất, xem `repo.list_yeu_cau`).
     trang_thai: str | None = Query(default=None),
     cua_toi: bool = Query(default=False),
+    muc_do: str | None = Query(default=None),
+    # Kỳ: `moc` = tao (Ngày tạo) | thoi_diem (Thời điểm hỏng) | xong (Xử lý lúc).
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|thoi_diem|xong)$"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
 ) -> YeuCauListOut:
-    nguoi_bao_id = user.id if cua_toi else None
-    rows, total = svc.list_yeu_cau(q=q, may_id=may_id, trang_thai=trang_thai,
-                                   nguoi_bao_id=nguoi_bao_id, page=page, size=size)
+    loc = dict(q=q, may_id=may_id, nguoi_bao_id=user.id if cua_toi else None, muc_do=muc_do,
+               tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
+    rows, total = svc.list_yeu_cau(trang_thai=trang_thai, page=page, size=size, **loc)
     may_map = svc.may_map([r.may_id for r in rows])
     anh_tk = svc.repo.anh_thong_ke(LOAI_PHIEU_YEU_CAU, [r.id for r in rows])
     phieu_map = svc.repo.ma_sua_chua_map([r.phieu_id for r in rows])
     return YeuCauListOut(
         items=[_row_yeu_cau(r, may_map, anh_tk, phieu_map) for r in rows],
         total=total, page=page, size=size,
-        dem=svc.dem_yeu_cau(q=q, may_id=may_id, nguoi_bao_id=nguoi_bao_id),
+        dem=svc.dem_yeu_cau(**loc),
     )
+
+
+@router.get("/yeu-cau/loc-may", response_model=list[LuaChonLoc])
+def yeu_cau_loc_may(svc: Service, _: YcReader) -> list[LuaChonLoc]:
+    """Điều kiện "Máy" của thanh lọc khung Yêu cầu báo hỏng. Khai TRƯỚC `/yeu-cau/{yc_id}`."""
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in svc.loc_may("yeu_cau")]
 
 
 @router.get("/yeu-cau/cho-xu-ly", response_model=ChoTiepNhanOut)
@@ -454,15 +478,20 @@ def list_bao_tri(
     may_id: int | None = Query(default=None),
     # Nhận cả `can_lam` / `qua_han` — hai bộ lọc dẫn xuất, xem `repo.list_bao_tri`.
     trang_thai: str | None = Query(default=None),
-    tu: date | None = Query(default=None),
-    den: date | None = Query(default=None),
+    # dinh_ky | dot_xuat
+    loai: str | None = Query(default=None, pattern="^(dinh_ky|dot_xuat)$"),
+    # Kỳ của thanh lọc (thay cặp `tu`/`den` theo tháng kế hoạch, 06/10/2026). Mốc MẶC ĐỊNH là
+    # `ke_hoach` (Ngày kế hoạch) — màn này đọc theo lịch; còn `tao` (Ngày tạo), `hoan_thanh`.
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="ke_hoach", pattern="^(ke_hoach|tao|hoan_thanh)$"),
     # han_som (mặc định) | han_muon
     sort: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
 ) -> BaoTriListOut:
-    rows, total = svc.list_bao_tri(q=q, may_id=may_id, trang_thai=trang_thai,
-                                   tu=tu, den=den, sort=sort, page=page, size=size)
+    loc = dict(q=q, may_id=may_id, loai=loai, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
+    rows, total = svc.list_bao_tri(trang_thai=trang_thai, sort=sort, page=page, size=size, **loc)
     may_map = svc.may_map([r.may_id for r in rows])
     anh_tk = svc.repo.anh_thong_ke(LOAI_PHIEU_BAO_TRI, [r.id for r in rows])
     hom_nay = hom_nay_vn()
@@ -471,8 +500,14 @@ def list_bao_tri(
         total=total, page=page, size=size,
         # `dem` đi theo ĐÚNG bộ lọc đang xem (trừ trạng thái) — lọc tháng 8 mà tab đếm cả năm thì
         # con số trên tab chỉ còn là trang trí.
-        dem=svc.dem_bao_tri(q=q, may_id=may_id, tu=tu, den=den),
+        dem=svc.dem_bao_tri(**loc),
     )
+
+
+@router.get("/bao-tri/loc-may", response_model=list[LuaChonLoc])
+def bao_tri_loc_may(svc: Service, _: BtReader) -> list[LuaChonLoc]:
+    """Điều kiện "Máy" của thanh lọc chế độ Bảng. Khai TRƯỚC `/bao-tri/{phieu_id}`."""
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in svc.loc_may("bao_tri")]
 
 
 

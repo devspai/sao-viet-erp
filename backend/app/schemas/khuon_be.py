@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .loc_danh_muc import DemDieuKien
+
 
 class KhuonBeIn(BaseModel):
     ma: str | None = Field(default=None, max_length=30)  # tạo mới: bỏ trống → backend tự sinh KB-####
@@ -31,6 +33,7 @@ class KhuonBeRow(BaseModel):
     tinh_trang: str
     ghi_chu: str | None = None
     active: bool
+    created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
@@ -41,3 +44,5 @@ class KhuonBeListOut(BaseModel):
     size: int
     # Số khuôn theo LOẠI — nuôi số trên chip lọc (màn chỉ cầm 20 dòng, không tự đếm được).
     facets: dict[str, int] = {}
+    # Giá trị + số đếm của từng điều kiện lọc (thanh lọc chung) — xem `schemas/loc_danh_muc`.
+    dem: DemDieuKien = {}

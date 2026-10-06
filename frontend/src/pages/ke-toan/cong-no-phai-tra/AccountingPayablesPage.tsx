@@ -1,8 +1,8 @@
 /** Màn CÔNG NỢ PHẢI TRẢ (đặc tả NPT-1 … NPT-3, A.11, A.17, A.18) — dựng trên bộ khung chung kế toán.
  *
- *  Khuôn trang: đầu trang → chọn kỳ → khối TỔNG QUAN (Còn nợ tới cuối kỳ, quá hạn, mua thêm, đã trả +
- *  thanh tuổi nợ bấm được) → thanh lọc (nhóm nút có số, ô tìm, Bộ lọc nâng cao, chip, "n nhà cung
- *  cấp") → bảng + chân phân trang. Bấm dòng mở ngăn nhà cung cấp; bấm số Quá hạn / Đã trả mở ngăn
+ *  Khuôn trang: đầu trang → khối TỔNG QUAN (Còn nợ tới cuối kỳ, quá hạn, mua thêm, đã trả + thanh
+ *  tuổi nợ bấm được) → thanh lọc (nhóm nút có số, ô tìm, thanh lọc chung: kỳ + điều kiện, "n nhà
+ *  cung cấp") → bảng + chân phân trang. Bấm dòng mở ngăn nhà cung cấp; bấm số Quá hạn / Đã trả mở ngăn
  *  đúng tab đó. Mọi lọc chạy ở MÁY CHỦ.
  *
  *  Thân trang (tổng quan, thanh lọc, bảng, thẻ điện thoại, phân trang) là khuôn chung `ThanTrangCongNo`
@@ -23,9 +23,9 @@ import type { NavigateFn } from "../../../components/AppShell";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị. Nạp ở TRANG (không ở khối
 // "Hàng của đợt"): nạp lúc khối mở thì lần vẽ đầu vẫn kịp hiện mã trần.
 import { useNapTenDonVi } from "../../tenDonVi";
-import { ThanTrangCongNo, type CauHinhThanCongNo } from "../shared/ThanTrangCongNo";
+import { dieuKienCongNo } from "../shared/locCongNo";
+import { ThanTrangCongNo, nhanTuoiDangLoc, type CauHinhThanCongNo } from "../shared/ThanTrangCongNo";
 import { useTrangCongNo } from "../shared/trangCongNo";
-import { BoLocCongNoTra } from "./components/BoLocCongNoTra";
 import { PayablesDrawer } from "./components/PayablesDrawer";
 import { PAGE_SIZE } from "./shared/constants";
 import type { Bucket } from "./shared/types";
@@ -40,7 +40,10 @@ const CAU_HINH: CauHinhThanCongNo<PayableSupplierRow> = {
   donVi: "nhà cung cấp",
   nhanDoiTac: "Nhà cung cấp",
   nhanHan: "Hạn trả gần nhất",
-  nhanDaTra: "Đã trả trong kỳ",
+  nhanThem: "Mua thêm",
+  nhanDa: "Đã trả",
+  nhanGanNhat: "Trả gần nhất",
+  chuChuaGanNhat: "Chưa trả lần nào",
   chuHet: "Đã trả hết",
   donViKhoan: "khoản",
   nhanTim: "Tìm nhà cung cấp",
@@ -51,7 +54,12 @@ const CAU_HINH: CauHinhThanCongNo<PayableSupplierRow> = {
   ariaPhanTrang: "Phân trang công nợ phải trả",
   id: (r) => r.supplier_id,
   ten: (r) => r.supplier_name,
+  ma: (r) => r.supplier_code,
+  choNo: (r) => r.credit_days,
+  themTrongKy: (r) => r.mua_trong_ky,
   daTraTrongKy: (r) => r.paid_in_period,
+  ganNhat: (r) => (r.tra_gan_nhat_ngay ? { ngay: r.tra_gan_nhat_ngay, tien: r.tra_gan_nhat_tien ?? 0 } : null),
+  lienHe: (r) => ({ ten: r.lien_he_ten, sdt: r.lien_he_sdt }),
 };
 
 export function AccountingPayablesPage({
@@ -78,22 +86,24 @@ export function AccountingPayablesPage({
     eventTick,
   );
   const rows = sp.data?.items ?? [];
+  const aging = sp.data?.aging;
+  const dieuKien = useMemo(
+    () => dieuKienCongNo({ nhanHan: "Hạn trả", nhanHet: "Nhà cung cấp đã trả hết", coThieuHd: true }, aging ?? []),
+    [aging],
+  );
 
   const [open, setOpen] = useState<{ row: PayableSupplierRow; bucket: Bucket } | null>(null);
   const moDuoc = useMemo(() => rows.filter((r) => r.supplier_id != null), [rows]);
   const viTri = open ? moDuoc.findIndex((r) => r.supplier_id === open.row.supplier_id) : -1;
 
+  const nhanTuoi = nhanTuoiDangLoc(sp);
+
   return (
     <ThanTrangCongNo
       ch={CAU_HINH}
       sp={sp}
-      con={(data, cung) => [
-        { nhan: "Còn nợ tới", so: data.total_due, cungKy: cung?.total_due },
-        { nhan: "Trong đó quá hạn", so: data.overdue_amount, cungKy: cung?.overdue_amount, xau: true },
-        { nhan: "Mua thêm trong kỳ", so: data.mua_trong_ky, cungKy: cung?.mua_trong_ky },
-        { nhan: "Đã trả trong kỳ", so: data.paid_in_period, cungKy: cung?.paid_in_period },
-      ]}
-      boLoc={(dau) => <BoLocCongNoTra loc={sp.loc} onDoiLoc={sp.setLoc} demKhop={sp.demKhop} {...dau} />}
+      so={(d) => ({ conNo: d.total_due, quaHan: d.overdue_amount, them: d.mua_trong_ky, da: d.paid_in_period })}
+      dieuKien={dieuKien}
       dangXem={open?.row.supplier_id ?? null}
       onMo={(row, bucket = "all") => setOpen({ row, bucket })}
       ngan={
@@ -103,8 +113,10 @@ export function AccountingPayablesPage({
             key={`${open.row.supplier_id}:${open.bucket}`}
             supplierId={open.row.supplier_id}
             supplierName={open.row.supplier_name}
+            ma={open.row.supplier_code}
             bucket={open.bucket}
-            ky={sp.kyMan.ky}
+            tuoi={sp.tuoi && nhanTuoi ? { khoa: sp.tuoi, nhan: nhanTuoi } : null}
+            ky={sp.ky}
             eventTick={eventTick}
             quyen={quyen}
             navigate={navigate}

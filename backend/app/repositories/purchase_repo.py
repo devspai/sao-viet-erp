@@ -8,8 +8,12 @@ from sqlalchemy import Date, Integer, and_, asc, case, desc, exists, func, liter
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.accounting import PAYMENT_VOUCHER_PAID, PaymentVoucher
+from ..models.department import Department
+from ..models.user import User
+from .loc_danh_sach import dk_khoang_ngay
 from ..models.purchase import (
     DPR_CANCELLED,
+    DPR_DONE,
     DPR_IN_PURCHASE,
     DPR_OPEN,
     DPR_PENDING_APPROVAL,
@@ -259,6 +263,10 @@ class SupplierRepository:
         # Lọc theo SAO: chỉ lấy NCC có trung bình ≥ mức này. NCC "Chưa đánh giá" (`sao_tb` NULL)
         # tự rơi ra khỏi kết quả — đúng ý, vì lọc "≥4 sao" là đang hỏi ai ĐÃ chứng minh được.
         rating_min: float | None = None,
+        # Thanh lọc chung (06/10/2026): cờ "Nhận gia công" + kỳ theo Ngày tạo.
+        nhan_gia_cong: bool | None = None,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
         # MỚI NHẤT TRƯỚC (chủ chốt 12/08/2026). Trước đây xếp theo TÊN — NCC vừa khai xong nằm
         # tận trang 3, người khai phải đi tìm chính thứ mình vừa tạo.
         sort: str = "-created_at",
@@ -266,7 +274,9 @@ class SupplierRepository:
         size: int = 20,
     ) -> tuple[list[tuple[Supplier, dict | None]], int]:
         danh_gia = self._bang_danh_gia()
-        conditions = []
+        conditions = list(dk_khoang_ngay(Supplier.created_at, tu_ngay, den_ngay))
+        if nhan_gia_cong is not None:
+            conditions.append(Supplier.nhan_gia_cong.is_(nhan_gia_cong))
         if q:
             like = f"%{q.strip().lower()}%"
             conditions.append(
@@ -686,11 +696,58 @@ class DepartmentPurchaseRequestRepository:
             ).scalars()
         )
 
-    def list(
+    # --- thanh lọc chung (06/10/2026) ------------------------------------------------------------
+
+    @staticmethod
+    def trang_thai_hien_thi():
+        """Biểu thức SQL của `workflow_status` — ĐÚNG luật `_to_department_request_out` bên service.
+
+        Tab trạng thái lọc và đếm theo biểu thức này, nên số trên tab, dòng trong bảng và huy hiệu
+        trên dòng nói cùng một chuyện. Trước 06/10/2026 bộ lọc có luật riêng ("Cần chỉnh sửa" không
+        xét trạng thái gốc) — yêu cầu đã Hoàn tất mà còn một phiếu con bị từ chối thì lọt vào cả hai.
+
+        Thứ tự: HUỶ MỘT PHẦN đè mọi nhãn; `open/in_purchase/done/cancelled` giữ nguyên; còn lại
+        (`pending_approval`) suy từ phiếu con: có phiếu bị từ chối ⇒ cần chỉnh, có phiếu nháp ⇒ đang
+        lập đơn."""
+
+        def co_phieu_con(*statuses: str):
+            return exists(
+                select(PurchaseRequestSource.id)
+                .join(PurchaseRequest, PurchaseRequest.id == PurchaseRequestSource.purchase_request_id)
+                .where(
+                    PurchaseRequestSource.department_request_id == DepartmentPurchaseRequest.id,
+                    PurchaseRequest.status.in_(statuses),
+                )
+            )
+
+        def co_dong(da_huy: bool):
+            dk = (
+                DepartmentPurchaseRequestLine.cancelled_at.is_not(None)
+                if da_huy
+                else DepartmentPurchaseRequestLine.cancelled_at.is_(None)
+            )
+            return exists(
+                select(DepartmentPurchaseRequestLine.id).where(
+                    DepartmentPurchaseRequestLine.department_request_id == DepartmentPurchaseRequest.id,
+                    dk,
+                )
+            )
+
+        return case(
+            (and_(co_dong(True), co_dong(False)), literal("partially_cancelled")),
+            (
+                DepartmentPurchaseRequest.status.in_([DPR_OPEN, DPR_IN_PURCHASE, DPR_DONE, DPR_CANCELLED]),
+                DepartmentPurchaseRequest.status,
+            ),
+            (co_phieu_con(PR_REJECTED), literal("needs_correction")),
+            (co_phieu_con(PR_DRAFT), literal("drafting")),
+            else_=DepartmentPurchaseRequest.status,
+        )
+
+    def _dieu_kien_loc(
         self,
         *,
         q: str | None = None,
-        status: str | None = None,
         source_type: str | None = None,
         requesting_department_id: int | None = None,
         filter_by_department: bool = False,
@@ -698,10 +755,15 @@ class DepartmentPurchaseRequestRepository:
         # này: `own` rơi xuống dùng chung nhánh lọc theo phòng, tức thấy luôn yêu cầu của đồng
         # nghiệp cùng phòng. Đo được: vai phạm vi `own` thấy 1 dòng do NGƯỜI KHÁC tạo.
         requested_by_user_id: int | None = None,
-        sort: str = "-created_at",
-        page: int = 1,
-        size: int = 20,
-    ) -> tuple[list[DepartmentPurchaseRequest], int]:
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        moc: str = "tao",
+        phong_ban_id: int | None = None,
+        nguoi_yeu_cau_id: int | None = None,
+        mat_hang: tuple[str, int] | None = None,
+    ) -> list:
+        """Mọi điều kiện lọc yêu cầu mua TRỪ trạng thái (tab). Phạm vi nhìn nằm trong đây luôn, để
+        danh sách, số trên tab và các ô chọn của thanh lọc đếm trên cùng một tập."""
         conditions = []
         if q:
             like = f"%{q.strip().lower()}%"
@@ -713,71 +775,49 @@ class DepartmentPurchaseRequestRepository:
                     func.lower(DepartmentPurchaseRequest.content).like(like),
                 )
             )
-        if status:
-            # `drafting` và `needs_correction` là trạng thái HIỂN THỊ suy từ đơn mua con. Lọc ngay
-            # trong SQL để `total` và phân trang vẫn chính xác, thay vì lọc 20 dòng sau khi tải.
-            def co_phieu_con(*statuses: str):
-                return exists(
-                    select(PurchaseRequestSource.id)
-                    .join(
-                        PurchaseRequest,
-                        PurchaseRequest.id == PurchaseRequestSource.purchase_request_id,
-                    )
-                    .where(
-                        PurchaseRequestSource.department_request_id
-                        == DepartmentPurchaseRequest.id,
-                        PurchaseRequest.status.in_(statuses),
-                    )
-                )
-
-            # "Huỷ một phần" (mg 0233) = có ít nhất một món đã bỏ VÀ vẫn còn món sống. Huy hiệu
-            # trên bảng lấy trạng thái này ĐÈ lên nhãn tiến độ, nên bộ lọc phải đi cùng: lọc "Đang
-            # mua" mà vẫn trả về dòng đang đeo huy hiệu "Huỷ một phần" là người dùng thôi tin bộ lọc.
-            def co_dong(da_huy: bool):
-                dk = (
-                    DepartmentPurchaseRequestLine.cancelled_at.is_not(None)
-                    if da_huy
-                    else DepartmentPurchaseRequestLine.cancelled_at.is_(None)
-                )
-                return exists(
-                    select(DepartmentPurchaseRequestLine.id).where(
-                        DepartmentPurchaseRequestLine.department_request_id
-                        == DepartmentPurchaseRequest.id,
-                        dk,
-                    )
-                )
-
-            huy_mot_phan = and_(co_dong(True), co_dong(False))
-            co_tu_choi = co_phieu_con(PR_REJECTED)
-            co_nhap = co_phieu_con(PR_DRAFT)
-            if status == "partially_cancelled":
-                conditions.append(huy_mot_phan)
-            elif status == "needs_correction":
-                conditions.extend((co_tu_choi, ~huy_mot_phan))
-            elif status == "drafting":
-                conditions.extend((~co_tu_choi, co_nhap, ~huy_mot_phan))
-            elif status == DPR_PENDING_APPROVAL:
-                conditions.extend(
-                    (
-                        DepartmentPurchaseRequest.status == DPR_PENDING_APPROVAL,
-                        ~co_tu_choi,
-                        ~co_nhap,
-                        ~huy_mot_phan,
-                    )
-                )
-            elif status == DPR_CANCELLED:
-                # Phiếu huỷ HẲN: không còn món sống nào ⇒ `huy_mot_phan` tự sai, không cần loại.
-                conditions.append(DepartmentPurchaseRequest.status == status)
-            else:
-                conditions.extend(
-                    (DepartmentPurchaseRequest.status == status, ~huy_mot_phan)
-                )
         if source_type:
             conditions.append(DepartmentPurchaseRequest.source_type == source_type)
         if requested_by_user_id is not None:
             conditions.append(DepartmentPurchaseRequest.requested_by_user_id == requested_by_user_id)
         elif filter_by_department:
             conditions.append(DepartmentPurchaseRequest.requesting_department_id == requesting_department_id)
+        # Kỳ: `tao` = ngày tạo (mốc giờ, ranh ngày giờ VN), `can` = ngày cần hàng (cột Date).
+        if moc == "can":
+            conditions.extend(
+                dk_khoang_ngay(DepartmentPurchaseRequest.needed_date, tu_ngay, den_ngay, cot_ngay=True)
+            )
+        else:
+            conditions.extend(dk_khoang_ngay(DepartmentPurchaseRequest.created_at, tu_ngay, den_ngay))
+        if phong_ban_id is not None:
+            conditions.append(DepartmentPurchaseRequest.requesting_department_id == phong_ban_id)
+        if nguoi_yeu_cau_id is not None:
+            conditions.append(DepartmentPurchaseRequest.requested_by_user_id == nguoi_yeu_cau_id)
+        if mat_hang is not None:
+            hang_loai, hang_id = mat_hang
+            conditions.append(
+                DepartmentPurchaseRequest.lines.any(
+                    and_(
+                        DepartmentPurchaseRequestLine.hang_loai == hang_loai,
+                        DepartmentPurchaseRequestLine.hang_id == hang_id,
+                    )
+                )
+            )
+        return conditions
+
+    def list(
+        self,
+        *,
+        status: str | None = None,
+        sort: str = "-created_at",
+        page: int = 1,
+        size: int = 20,
+        **loc,
+    ) -> tuple[list[DepartmentPurchaseRequest], int]:
+        conditions = self._dieu_kien_loc(**loc)
+        if status:
+            # `drafting`, `needs_correction`, `partially_cancelled` là trạng thái HIỂN THỊ suy từ
+            # phiếu con / dòng đã bỏ. Lọc ngay trong SQL để `total` và phân trang vẫn chính xác.
+            conditions.append(self.trang_thai_hien_thi() == status)
 
         stmt = select(DepartmentPurchaseRequest).options(
             selectinload(DepartmentPurchaseRequest.lines),
@@ -804,6 +844,66 @@ class DepartmentPurchaseRequestRepository:
         size = max(1, min(size, 200))
         rows = list(self.db.execute(stmt.offset((page - 1) * size).limit(size)).scalars())
         return rows, total
+
+    def dem_theo_trang_thai(self, **loc) -> dict[str, int]:
+        """Số yêu cầu theo trạng thái HIỂN THỊ trên cùng bộ lọc của bảng, CHƯA lọc trạng thái."""
+        tt = self.trang_thai_hien_thi().label("tt")
+        stmt = select(tt, func.count()).select_from(DepartmentPurchaseRequest)
+        for c in self._dieu_kien_loc(**loc):
+            stmt = stmt.where(c)
+        return {st: int(n) for st, n in self.db.execute(stmt.group_by(tt)).all()}
+
+    def dem_theo_phong_ban(self, **loc) -> list[tuple[int, str, int]]:
+        """Ô lọc "Phòng ban": phòng đang có yêu cầu trong tầm nhìn, kèm số yêu cầu."""
+        stmt = (
+            select(Department.id, Department.name, func.count(DepartmentPurchaseRequest.id))
+            .select_from(DepartmentPurchaseRequest)
+            .join(Department, Department.id == DepartmentPurchaseRequest.requesting_department_id)
+        )
+        for c in self._dieu_kien_loc(**loc):
+            stmt = stmt.where(c)
+        stmt = stmt.group_by(Department.id, Department.name).order_by(Department.name)
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
+
+    def dem_theo_nguoi_yeu_cau(self, **loc) -> list[tuple[int, str, int]]:
+        """Ô lọc "Người yêu cầu": người đã gửi yêu cầu trong tầm nhìn, kèm số yêu cầu."""
+        stmt = (
+            select(User.id, User.name, func.count(DepartmentPurchaseRequest.id))
+            .select_from(DepartmentPurchaseRequest)
+            .join(User, User.id == DepartmentPurchaseRequest.requested_by_user_id)
+        )
+        for c in self._dieu_kien_loc(**loc):
+            stmt = stmt.where(c)
+        stmt = stmt.group_by(User.id, User.name).order_by(User.name)
+        return [(int(i), t or f"#{i}", int(n)) for i, t, n in self.db.execute(stmt).all()]
+
+    def dem_theo_mat_hang(self, **loc) -> list[tuple[str, int, str, int]]:
+        """Ô lọc "Mặt hàng": mặt hàng danh mục (cặp `hang_loai`, `hang_id`) có trong yêu cầu thuộc
+        tầm nhìn, kèm số YÊU CẦU (không phải số dòng). Dòng cũ chưa nối danh mục thì không có mặt."""
+        ten = func.min(DepartmentPurchaseRequestLine.item_name)
+        stmt = (
+            select(
+                DepartmentPurchaseRequestLine.hang_loai,
+                DepartmentPurchaseRequestLine.hang_id,
+                ten,
+                func.count(func.distinct(DepartmentPurchaseRequest.id)),
+            )
+            .select_from(DepartmentPurchaseRequestLine)
+            .join(
+                DepartmentPurchaseRequest,
+                DepartmentPurchaseRequest.id == DepartmentPurchaseRequestLine.department_request_id,
+            )
+            .where(
+                DepartmentPurchaseRequestLine.hang_loai.is_not(None),
+                DepartmentPurchaseRequestLine.hang_id.is_not(None),
+            )
+        )
+        for c in self._dieu_kien_loc(**loc):
+            stmt = stmt.where(c)
+        stmt = stmt.group_by(
+            DepartmentPurchaseRequestLine.hang_loai, DepartmentPurchaseRequestLine.hang_id
+        ).order_by(ten)
+        return [(str(l), int(i), t, int(n)) for l, i, t, n in self.db.execute(stmt).all()]
 
     def count_open(
         self, *, requesting_department_id: int | None = None, filter_by_department: bool = False
@@ -1039,20 +1139,54 @@ class PurchaseRequestRepository:
         *,
         q: str | None = None,
         status: str | None = None,
-        supplier_id: int | None = None,
-        created_from: date | None = None,
-        created_to: date | None = None,
-        needed_from: date | None = None,
-        needed_to: date | None = None,
-        expected_receipt_from: date | None = None,
-        expected_receipt_to: date | None = None,
-        deposit_status: str | None = None,
         sort: str = "-created_at",
         page: int = 1,
         size: int = 20,
+        **loc,
+    ) -> tuple[list[PurchaseRequest], int]:
+        conditions = self._dieu_kien_loc(q=q, **loc)
+        if status:
+            conditions.append(PurchaseRequest.status == status)
+        return self._trang(conditions, sort=sort, page=page, size=size)
+
+    def dem_theo_trang_thai(self, **loc) -> dict[str, int]:
+        """Số phiếu theo trạng thái trên CÙNG bộ lọc của bảng (kỳ, tìm, NCC, cọc, phạm vi) nhưng CHƯA
+        lọc trạng thái — số trên từng tab không đổi theo tab đang chọn."""
+        stmt = select(PurchaseRequest.status, func.count()).select_from(PurchaseRequest)
+        for c in self._dieu_kien_loc(**loc):
+            stmt = stmt.where(c)
+        return {st: int(n) for st, n in self.db.execute(stmt.group_by(PurchaseRequest.status)).all()}
+
+    def dem_theo_ncc(self, **loc) -> list[tuple[int, str, int]]:
+        """Ô lọc "Nhà cung cấp": NCC đang có phiếu trong tầm nhìn, kèm số phiếu."""
+        stmt = (
+            select(Supplier.id, Supplier.name, func.count(PurchaseRequest.id))
+            .select_from(PurchaseRequest)
+            .join(Supplier, Supplier.id == PurchaseRequest.supplier_id)
+        )
+        for c in self._dieu_kien_loc(**loc):
+            stmt = stmt.where(c)
+        stmt = stmt.group_by(Supplier.id, Supplier.name).order_by(Supplier.name)
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
+
+    def _dieu_kien_loc(
+        self,
+        *,
+        q: str | None = None,
+        supplier_id: int | None = None,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        moc: str = "tao",
+        deposit_status: str | None = None,
+        tong_tu: int | None = None,
+        tong_den: int | None = None,
         creator_ids: list[int] | None = None,
         exclude_statuses: list[str] | None = None,
-    ) -> tuple[list[PurchaseRequest], int]:
+    ) -> list:
+        """Mọi điều kiện lọc phiếu mua TRỪ trạng thái. `tu_ngay/den_ngay/moc` = kỳ của thanh lọc chung
+        (06/10/2026): `tao` = ngày tạo (ranh ngày giờ VN), `can` = ngày cần hàng, `nhan` = ngày dự
+        kiến nhận (hai cột Date). Thay bộ `created_from/to`, `needed_from/to`, `expected_receipt_*`
+        cũ. `tong_tu/tong_den` = khoảng Tổng dự kiến (đồng)."""
         conditions = []
         # PHẠM VI NHÌN: None = thấy hết (giám đốc / kế toán). Danh sách RỖNG nghĩa là không thấy
         # gì — phải phân biệt với None, `if creator_ids:` sẽ nuốt mất trường hợp rỗng và cho thấy
@@ -1072,26 +1206,45 @@ class PurchaseRequestRepository:
                     ),
                 )
             )
-        if status:
-            conditions.append(PurchaseRequest.status == status)
         # Loại hẳn vài trạng thái khỏi một hộp thư nào đó (vd hộp Kế toán không nhận phiếu NHÁP).
         # Chặn ở ĐÂY chứ không chỉ ở giao diện — lọc trên màn thì gọi thẳng API vẫn ra.
         if exclude_statuses:
             conditions.append(PurchaseRequest.status.notin_(exclude_statuses))
         if supplier_id is not None:
             conditions.append(PurchaseRequest.supplier_id == supplier_id)
-        if created_from is not None:
-            conditions.append(func.date(PurchaseRequest.created_at) >= created_from)
-        if created_to is not None:
-            conditions.append(func.date(PurchaseRequest.created_at) <= created_to)
-        if needed_from is not None:
-            conditions.append(PurchaseRequest.needed_date >= needed_from)
-        if needed_to is not None:
-            conditions.append(PurchaseRequest.needed_date <= needed_to)
-        if expected_receipt_from is not None:
-            conditions.append(PurchaseRequest.expected_receipt_date >= expected_receipt_from)
-        if expected_receipt_to is not None:
-            conditions.append(PurchaseRequest.expected_receipt_date <= expected_receipt_to)
+        if moc == "can":
+            conditions.extend(dk_khoang_ngay(PurchaseRequest.needed_date, tu_ngay, den_ngay, cot_ngay=True))
+        elif moc == "nhan":
+            conditions.extend(
+                dk_khoang_ngay(PurchaseRequest.expected_receipt_date, tu_ngay, den_ngay, cot_ngay=True)
+            )
+        else:
+            conditions.extend(dk_khoang_ngay(PurchaseRequest.created_at, tu_ngay, den_ngay))
+        if tong_tu is not None or tong_den is not None:
+            # Tổng dự kiến (gồm VAT, sau chiết khấu) tính NGAY TRONG SQL theo cùng công thức với
+            # `_purchase_line_amounts`. Khác duy nhất: bên Python làm tròn từng bước tới đồng, ở đây
+            # không — lệch vài đồng ở mép khoảng, không đáng để kéo cả danh sách về Python lọc.
+            tong = (
+                select(
+                    func.coalesce(
+                        func.sum(
+                            PurchaseRequestLine.quantity
+                            * PurchaseRequestLine.expected_unit_price
+                            * (100 - func.coalesce(PurchaseRequestLine.discount_percent, 0))
+                            * (100 + func.coalesce(PurchaseRequestLine.vat_percent, 0))
+                            / 10000
+                        ),
+                        0,
+                    )
+                )
+                .where(PurchaseRequestLine.purchase_request_id == PurchaseRequest.id)
+                .correlate(PurchaseRequest)
+                .scalar_subquery()
+            )
+            if tong_tu is not None:
+                conditions.append(tong >= tong_tu)
+            if tong_den is not None:
+                conditions.append(tong <= tong_den)
         if deposit_status:
             advance_paid = (
                 select(func.coalesce(func.sum(PaymentVoucher.amount_vnd), 0))
@@ -1115,7 +1268,9 @@ class PurchaseRequestRepository:
             elif deposit_status == "enough":
                 conditions.append(func.coalesce(PurchaseRequest.deposit_expected, 0) > 0)
                 conditions.append(advance_paid >= func.coalesce(PurchaseRequest.deposit_expected, 0))
+        return conditions
 
+    def _trang(self, conditions: list, *, sort: str, page: int, size: int):
         _nguon = selectinload(PurchaseRequest.sources).selectinload(
             PurchaseRequestSource.department_request
         )

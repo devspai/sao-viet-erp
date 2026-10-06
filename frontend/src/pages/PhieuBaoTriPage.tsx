@@ -26,14 +26,27 @@ import { useTre } from "../lib/useTre";
 import { AnhBox, BadgeBaoTri, NhatKyPhieu, fmtNgay, homNay, useManHep } from "./KyThuatMayChung";
 import type { Anh } from "../api/kyThuatMay";
 import { LichBaoTri } from "./LichBaoTri";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import { useLocMan } from "./thanh-loc/useLocMan";
+import { ngayDayDu, ngayGioDayDu } from "./loc-san-xuat/ngay";
+import {
+  LOC_BAO_TRI_TRONG, MOC_BAO_TRI, locBaoTriLenUrl, locBaoTriTuUrl, thamSoLocBaoTri,
+  useDieuKienBaoTri, type LocBaoTri,
+} from "./loc-ky-thuat-may/dieu-kien-ky-thuat-may";
 import "./rebuild-catalog.css";
 import "./ky-thuat-may.css";
 
-/** Ngày cuối của tháng `yyyy-mm` — cận phải khi lọc theo tháng. */
-function cuoiThang(thang: string): string {
-  const [n, t] = thang.split("-").map(Number);
-  return `${thang}-${String(new Date(n, t, 0).getDate()).padStart(2, "0")}`;
-}
+// Kỳ + bộ lọc của chế độ Bảng, ghi lên URL `?man=`. Mốc MẶC ĐỊNH là Ngày kế hoạch (thay ô lọc
+// tháng kế hoạch cũ, 06/10/2026) — chế độ Lịch không đọc bộ lọc này.
+type LocMan = { ky: KyDS; loc: LocBaoTri };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "ke_hoach" }, loc: LOC_BAO_TRI_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_BAO_TRI.map(([m]) => m), "ke_hoach"),
+  loc: locBaoTriTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "ke_hoach"), ...locBaoTriLenUrl(t.loc) });
 
 function chuKyChu(p: BaoTri): string {
   if (!p.chu_ky_so) return p.loai === "dot_xuat" ? "Đột xuất" : "—";
@@ -53,7 +66,9 @@ export function PhieuBaoTriPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(25);
-  const [thangLoc, setThangLoc] = useState("");   // "" = mọi tháng
+  const [locMan, setLocMan] = useLocMan("phieu-bao-tri", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const dieuKien = useDieuKienBaoTri();
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocBaoTri(locMan.loc) });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -81,8 +96,7 @@ export function PhieuBaoTriPage() {
     kyThuatMay.listBaoTri(token, {
       q: qTre.trim() || undefined,
       trang_thai: tab === "all" ? undefined : tab,
-      tu: thangLoc ? `${thangLoc}-01` : undefined,
-      den: thangLoc ? cuoiThang(thangLoc) : undefined,
+      ...JSON.parse(khoaLoc),
       page,
       size,
     })
@@ -93,7 +107,7 @@ export function PhieuBaoTriPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Không tải được danh sách."))
       .finally(() => setLoading(false));
-  }, [token, qTre, tab, thangLoc, page, size, xem]);
+  }, [token, qTre, tab, khoaLoc, page, size, xem]);
 
   useEffect(load, [load]);
 
@@ -136,6 +150,22 @@ export function PhieuBaoTriPage() {
 
   // Đổi bộ lọc thì về trang 1: đứng ở trang 5 rồi lọc còn 2 trang là bảng trống trơn không rõ vì sao.
   const doiLoc = (fn: () => void) => { fn(); setPage(1); };
+  const datLoc = (t: LocMan) => doiLoc(() => setLocMan(t));
+  // Trạng thái trong nút Lọc = chính hàng tab (đọc/ghi `tab`, về trang 1 như bấm tab).
+  const dkDu: DieuKien<LocBaoTri>[] = [
+    dkTheoTab<LocBaoTri>({
+      tabs: [
+        { id: "can_lam", nhan: "Cần làm", so: soCanLam },
+        { id: "all", nhan: "Tất cả", so: tongTheoLoc },
+        ...TT_BAO_TRI.map((tt) => ({ id: tt, nhan: NHAN_TT_BAO_TRI[tt], so: dem[tt] ?? 0 })),
+        { id: "qua_han", nhan: "Quá hạn", so: soQuaHan },
+      ],
+      tatCa: "all", dang: tab, dat: (id) => doiLoc(() => setTab(id)),
+    }),
+    ...dieuKien,
+  ];
+  // Ô tóm tắt đếm TOÀN XƯỞNG ⇒ bấm vào thì bỏ kỳ + điều kiện để bảng khớp đúng con số vừa bấm.
+  const boLoc = () => setLocMan({ ...LOC_MAN_TRONG, ky: { loai: "tat_ca", moc: locMan.ky.moc } });
 
   return (
     <div className="rc ktm">
@@ -150,13 +180,13 @@ export function PhieuBaoTriPage() {
         <div className="ktm-tomtat" role="group" aria-label="Việc cần làm">
           <button type="button"
             className={`ktm-tomtat__o${(tomTat.den_hom_nay ?? 0) > 0 ? " is-co-viec" : ""}`}
-            onClick={() => { setXem("bang"); doiLoc(() => { setTab("can_lam"); setThangLoc(""); }); }}>
+            onClick={() => { setXem("bang"); doiLoc(() => { setTab("can_lam"); boLoc(); }); }}>
             <span className="ktm-tomtat__so">{tomTat.den_hom_nay ?? 0}</span>
             <span className="ktm-tomtat__nhan"><Icon name="clock" size={13} /> Cần làm hôm nay</span>
           </button>
           <button type="button"
             className={`ktm-tomtat__o${(tomTat.qua_han ?? 0) > 0 ? " is-tre" : ""}`}
-            onClick={() => { setXem("bang"); doiLoc(() => { setTab("qua_han"); setThangLoc(""); }); }}>
+            onClick={() => { setXem("bang"); doiLoc(() => { setTab("qua_han"); boLoc(); }); }}>
             <span className="ktm-tomtat__so">{tomTat.qua_han ?? 0}</span>
             <span className="ktm-tomtat__nhan"><Icon name="alert" size={13} /> Quá hạn</span>
           </button>
@@ -168,7 +198,7 @@ export function PhieuBaoTriPage() {
         </div>
       </div>
 
-      <div className="rc__unified-bar">
+      <div className="rc__unified-bar tl-thanh">
         {/* Chuyển chế độ xem đứng ĐẦU thanh: nó đổi cả màn hình bên dưới, nấp ở góc phải thì
             người ta không tìm ra. */}
         <div className="ktm-xem" role="group" aria-label="Chế độ xem">
@@ -181,28 +211,24 @@ export function PhieuBaoTriPage() {
             <Icon name="table" size={14} /> Bảng
           </button>
         </div>
+        {xem === "bang" && (
+          <>
+            <div className="rc__search-wrapper">
+              <Icon name="search" size={15} />
+              <input className="rc__search" placeholder="Tìm mã phiếu, máy, gói bảo trì…"
+                value={q} onChange={(e) => doiLoc(() => setQ(e.target.value))} />
+            </div>
+            <ThanhLoc
+              ky={locMan.ky}
+              moc={MOC_BAO_TRI}
+              onKy={(ky) => datLoc({ ...locMan, ky })}
+              dieuKien={dkDu}
+              loc={locMan.loc}
+              onLoc={(loc) => datLoc({ ...locMan, loc })}
+            />
+          </>
+        )}
         <div className="rc__unified-right" style={{ marginLeft: "auto" }}>
-          {xem === "bang" && (
-            <>
-              <div className="rc__search-wrapper">
-                <Icon name="search" size={15} />
-                <input className="rc__search" placeholder="Tìm mã phiếu, máy, gói bảo trì…"
-                  value={q} onChange={(e) => doiLoc(() => setQ(e.target.value))} />
-              </div>
-              {/* Lọc theo tháng — với ~400 phiếu/năm thì "xem tất" không còn là câu hỏi có ích. */}
-              <div className="ktm-thangloc-wrap">
-                <input className="rc-input ktm-thangloc" type="month" value={thangLoc}
-                  title="Lọc theo tháng kế hoạch"
-                  onChange={(e) => doiLoc(() => setThangLoc(e.target.value))} />
-                {thangLoc && (
-                  <button type="button" className="ktm-thangloc-x" title="Xoá lọc tháng"
-                    onClick={() => doiLoc(() => setThangLoc(""))}>
-                    <Icon name="x" size={13} />
-                  </button>
-                )}
-              </div>
-            </>
-          )}
           {/* Chỉ còn MỘT cách tạo phiếu định kỳ: bấm ô kỳ dự kiến trên màn Lịch. Nút "Sinh phiếu
               từ lịch" (quét mọi máy, đẻ hàng loạt) đã gỡ 12/08/2026 — một cú bấm ra 41 phiếu không
               ai đặt hàng. Nút dưới đây chỉ để lập phiếu ĐỘT XUẤT. */}
@@ -275,7 +301,7 @@ export function PhieuBaoTriPage() {
               </p>
               <Button variant="ghost" onClick={() => (tongTatCa === 0
                 ? setXem("lich")
-                : doiLoc(() => { setQ(""); setTab("all"); setThangLoc(""); }))}>
+                : doiLoc(() => { setQ(""); setTab("all"); setLocMan(LOC_MAN_TRONG); }))}>
                 {tongTatCa === 0 ? <><Icon name="calendar" size={15} /> Mở lịch bảo trì</> : "Xoá bộ lọc"}
               </Button>
             </div>
@@ -303,6 +329,7 @@ export function PhieuBaoTriPage() {
                     <Icon name="camera" size={11} /> {r.so_anh} ảnh
                   </span>
                   {r.nguoi_thuc_hien && <span>{r.nguoi_thuc_hien}</span>}
+                  <span title={ngayGioDayDu(r.created_at)}>Tạo {ngayDayDu(r.created_at)}</span>
                 </span>
                 {r.da_doi && (
                   <span className="ktm-doi-chip">
@@ -318,27 +345,28 @@ export function PhieuBaoTriPage() {
         <table className="rc__table">
           <thead>
             <tr>
-              <th style={{ width: "13%" }}>Mã phiếu</th>
-              <th style={{ width: "18%" }}>Máy</th>
+              <th style={{ width: "12%" }}>Mã phiếu</th>
+              <th style={{ width: "15%" }}>Máy</th>
               <th>Gói bảo trì</th>
-              <th style={{ width: "14%" }}>Ngày kế hoạch</th>
-              <th style={{ width: "15%" }}>Người thực hiện</th>
-              <th style={{ width: "14%" }}>Trạng thái</th>
-              <th style={{ width: "10%" }} className="text-center">Ảnh</th>
+              <th style={{ width: "12%" }}>Ngày kế hoạch</th>
+              <th style={{ width: "14%" }}>Người thực hiện</th>
+              <th style={{ width: "12%" }}>Trạng thái</th>
+              <th style={{ width: "9%" }}>Ngày tạo</th>
+              <th style={{ width: "9%" }} className="text-center">Ảnh</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={`sk-${i}`} className="rc-skel__row">
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <td key={j}><span className="rc-skel" style={{ width: "70%" }} /></td>
                   ))}
                 </tr>
               ))
             ) : hien.length === 0 ? (
               <tr>
-                <td colSpan={7} className="rc__empty-state-td">
+                <td colSpan={8} className="rc__empty-state-td">
                   <div className="rc__empty-state">
                     {/* Cùng cỡ/nét với màn danh mục — bảng rỗng không hình nhìn như lỗi render. */}
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -356,7 +384,7 @@ export function PhieuBaoTriPage() {
                         <Icon name="calendar" size={15} /> Mở lịch bảo trì
                       </Button>
                     ) : (
-                      <Button variant="ghost" onClick={() => doiLoc(() => { setQ(""); setTab("all"); })}>
+                      <Button variant="ghost" onClick={() => doiLoc(() => { setQ(""); setTab("all"); setLocMan(LOC_MAN_TRONG); })}>
                         Xoá bộ lọc
                       </Button>
                     )}
@@ -419,6 +447,7 @@ export function PhieuBaoTriPage() {
                   <td>
                     <BadgeBaoTri trangThai={r.trang_thai} quaHan={r.qua_han} />
                   </td>
+                  <td className="rc__nowrap" title={ngayGioDayDu(r.created_at)}>{ngayDayDu(r.created_at)}</td>
                   <td className="text-center rc__nowrap">
                     {r.so_anh > 0 ? (
                       <span className="ktm-anhchip is-du" title={`${r.so_anh} ảnh minh chứng đã tải`}>

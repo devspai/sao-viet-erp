@@ -23,7 +23,7 @@ from app.models.tai_san import (
     TaiSanBienDong,
     TaiSanMoc,
 )
-from app.repositories.tai_san_repo import TaiSanRepository
+from app.repositories.tai_san_repo import LocTaiSan, TaiSanRepository
 from app.services.tai_san.service import (
     TaiSanDaCoChungTu,
     TaiSanService,
@@ -229,8 +229,8 @@ def test_danh_sach_loc_va_cat_trang_o_sql():
             so_thang=24, ngay_su_dung=date(2026, 7, 1),
         ))
     svc.ghi_tang(_komori())
-    rows, tong = svc.repo.danh_sach(loai=LOAI_CCDC, offset=0, limit=2)
+    rows, tong = svc.repo.danh_sach(LocTaiSan(loai=LOAI_CCDC), offset=0, limit=2)
     assert tong == 3
     assert len(rows) == 2
-    rows, tong = svc.repo.danh_sach(q="Komori")
+    rows, tong = svc.repo.danh_sach(LocTaiSan(q="Komori"))
     assert tong == 1

@@ -6,9 +6,7 @@ import {
   Clock,
   Search,
   Filter,
-  Layers,
   RefreshCw,
-  SlidersHorizontal,
   List,
   Building,
   User,
@@ -48,7 +46,14 @@ import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import type { NavigateFn } from "../components/AppShell";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
-import { Select } from "../components/Select";
+import { ngayDeDoc } from "../utils/ky";
+import {
+  LOC_NK_TRONG, MOC_NK, dieuKienNhatKy, kyNhatKyMacDinh, locNKLenUrl, locNKTuUrl, maHanhDong,
+  thamSoKyNK, type LocManNhatKy,
+} from "./dieu-kien-nhat-ky";
+import { khoangKy } from "./thanh-loc/ky-danh-sach";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { useLocMan } from "./thanh-loc/useLocMan";
 import "./activity.css";
 
 /* Nhãn hành động, nhóm và khoá quyền của từng mã ĐỀU do máy chủ trả về (`app/audit_registry.py`).
@@ -257,31 +262,7 @@ function FormattedDetail({ detail }: { detail: string | null }) {
 
 /* --- Bộ lọc --------------------------------------------------------------------------------- */
 
-interface BoLoc {
-  q: string;
-  tuNgay: string;
-  denNgay: string;
-  nhom: string; // "" = tất cả
-  action: string;
-  actorId: string;
-  loai: string;
-}
-
-const CUA_SO_MAC_DINH_NGAY = 30;
-
-/** Khoảng N ngày gần đây, tính CẢ hôm nay. Đếm bao gồm là điều người dùng đọc được từ nhãn:
- *  "Hôm nay" phải ra đúng một ngày chứ không kéo theo hôm qua, và "7 ngày" là 7 ngày chứ không
- *  phải 8. */
-function khoangNgay(soNgay: number): { tuNgay: string; denNgay: string } {
-  const den = new Date();
-  const tu = new Date();
-  tu.setDate(den.getDate() - (soNgay - 1));
-  return { tuNgay: ngayISO(tu), denNgay: ngayISO(den) };
-}
-
-function locMacDinh(): BoLoc {
-  return { q: "", ...khoangNgay(CUA_SO_MAC_DINH_NGAY), nhom: "", action: "", actorId: "", loai: "" };
-}
+const locMacDinh = (): LocManNhatKy => ({ ky: kyNhatKyMacDinh(), loc: LOC_NK_TRONG });
 
 export function ActivityLogPage({
   navigate,
@@ -293,12 +274,12 @@ export function ActivityLogPage({
 }) {
   const { token } = useAuth();
 
-  // Bộ lọc KHÔNG ghi ra URL. App này không có router — AppShell điều hướng bằng state và để
-  // URL đứng yên ở `/`, thậm chí xoá hash deep-link ngay sau khi dùng để thanh địa chỉ không
-  // nói dối về màn đang mở. Màn này từng ghi `?nk_*` cho F5/chia sẻ link, nhưng thế là ngược
-  // lệ: tham số nằm lại khi sang màn khác rồi tự bật lại bộ lọc lúc quay về.
-  const [loc, setLoc] = useState<BoLoc>(locMacDinh);
-  const [qGo, setQGo] = useState(loc.q); // ô tìm kiếm gõ tới đâu (chưa gửi đi)
+  // Kỳ + điều kiện lọc ghi lên URL theo dấu `?man=nhat-ky` (06/10/2026, khuôn chung mọi danh
+  // sách): khoá chỉ đọc khi đúng màn này và tự dọn khi rời màn — khác kiểu `?nk_*` cũ từng nằm lại
+  // URL rồi tự bật lọc lúc quay về.
+  const [locMan, setLocMan] = useLocMan("nhat-ky", locMacDinh(), locNKTuUrl, locNKLenUrl);
+  const [q, setQ] = useState("");
+  const [qGo, setQGo] = useState(q); // ô tìm kiếm gõ tới đâu (chưa gửi đi)
   const [trang, setTrang] = useState<AuditPage | null>(null);
   const [facets, setFacets] = useState<AuditFacets | null>(null);
   const [loading, setLoading] = useState(true);
@@ -334,36 +315,26 @@ export function ActivityLogPage({
     setTimeout(() => setToastMsg(null), 2200);
   };
 
-  /* Nhóm → danh sách mã hành động. Máy chủ lọc theo `action`, còn chip là chuyện trình bày, nên
-     màn dịch nhóm thành danh sách mã bằng chính facets máy chủ vừa trả. */
-  const maTheoNhom = useMemo(() => {
-    const m: Record<string, string[]> = {};
-    (facets?.hanh_dong ?? []).forEach((h) => {
-      (m[h.nhom] ??= []).push(h.ma);
-    });
-    return m;
-  }, [facets]);
+  /* Kỳ + điều kiện → tham số máy chủ, gói thành MỘT chuỗi khoá: đổi gì trong đó là về trang 1.
+     "Nhóm" dịch thành danh sách mã hành động bằng chính facets máy chủ vừa trả (`maHanhDong`) —
+     nên facets về muộn thì khoá đổi và trang được nạp lại đúng. */
+  const kyThamSo = JSON.stringify(thamSoKyNK(locMan.ky));
+  const khoaLoc = JSON.stringify({
+    q: q || undefined,
+    ...thamSoKyNK(locMan.ky),
+    action: maHanhDong(locMan.loc, facets),
+    actor_id: locMan.loc.nguoi.length ? locMan.loc.nguoi.map(Number) : undefined,
+    loai: locMan.loc.loai.length ? locMan.loc.loai : undefined,
+  });
 
   const truyVan = useCallback(
-    (so: number, neo: string | null): AuditQuery => {
-      const action = loc.action
-        ? [loc.action]
-        : loc.nhom
-          ? (maTheoNhom[loc.nhom] ?? ["__khong_co__"])
-          : undefined;
-      return {
-        q: loc.q || undefined,
-        tu_ngay: loc.tuNgay || undefined,
-        den_ngay: loc.denNgay ? `${loc.denNgay}T23:59:59` : undefined,
-        action,
-        actor_id: loc.actorId ? [Number(loc.actorId)] : undefined,
-        loai: loc.loai ? [loc.loai] : undefined,
-        limit,
-        trang: so,
-        neo,
-      };
-    },
-    [loc, limit, maTheoNhom],
+    (so: number, neo: string | null): AuditQuery => ({
+      ...(JSON.parse(khoaLoc) as AuditQuery),
+      limit,
+      trang: so,
+      neo,
+    }),
+    [khoaLoc, limit],
   );
 
   const napTrang = useCallback(
@@ -395,20 +366,16 @@ export function ActivityLogPage({
   const napFacets = useCallback(() => {
     if (!token) return;
     api.rbac
-      .activityFacets(token, {
-        q: loc.q || undefined,
-        tu_ngay: loc.tuNgay || undefined,
-        den_ngay: loc.denNgay ? `${loc.denNgay}T23:59:59` : undefined,
-      })
+      .activityFacets(token, { q: q || undefined, ...(JSON.parse(kyThamSo) as AuditQuery) })
       .then(setFacets)
       .catch(() => {});
-  }, [token, loc.q, loc.tuNgay, loc.denNgay]);
+  }, [token, q, kyThamSo]);
 
   // Đổi bộ lọc → về trang đầu. Gộp một effect để không bắn hai lượt gọi chồng nhau.
   useEffect(() => {
     napTrang(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loc, limit]);
+  }, [khoaLoc, limit]);
 
   useEffect(() => {
     napFacets();
@@ -422,8 +389,8 @@ export function ActivityLogPage({
 
   // Gõ tìm kiếm: chờ người ta ngừng gõ rồi mới hỏi máy chủ.
   useEffect(() => {
-    if (qGo === loc.q) return;
-    const t = setTimeout(() => setLoc((v) => ({ ...v, q: qGo })), 400);
+    if (qGo === q) return;
+    const t = setTimeout(() => setQ(qGo), 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qGo]);
@@ -477,14 +444,12 @@ export function ActivityLogPage({
     if (d && navigate) navigate(d.path);
   };
 
-  const datLoc = (v: Partial<BoLoc>) => setLoc((cu) => ({ ...cu, ...v }));
-
-  const nhanhNgay = (soNgay: number) => datLoc(khoangNgay(soNgay));
+  const dieuKien = useMemo(() => dieuKienNhatKy(facets), [facets]);
 
   const datLai = () => {
-    const m = locMacDinh();
     setQGo("");
-    setLoc(m);
+    setQ("");
+    setLocMan(locMacDinh());
   };
 
   const xuatCSV = () => {
@@ -512,11 +477,9 @@ export function ActivityLogPage({
       .finally(() => setDangXuat(false));
   };
 
-  // Kể cả khoảng ngày: người bấm "Hôm nay" rồi muốn quay lại toàn cảnh cũng cần một đường lùi.
-  const macDinh = locMacDinh();
-  const coLoc =
-    !!loc.q || !!loc.nhom || !!loc.action || !!loc.actorId || !!loc.loai ||
-    loc.tuNgay !== macDinh.tuNgay || loc.denNgay !== macDinh.denNgay;
+  // Kể cả kỳ: người chọn "Tháng này" rồi muốn quay lại 30 ngày gần nhất cũng cần một đường lùi.
+  const coLoc = khoaLoc !== JSON.stringify({ ...thamSoKyNK(kyNhatKyMacDinh()) });
+  const khoangDangXem = khoangKy(locMan.ky);
 
   if (forbidden) {
     return (
@@ -582,7 +545,7 @@ export function ActivityLogPage({
       )}
 
       <section className="act-filters">
-        <div className="act-filter-main">
+        <div className="act-filter-main tl-thanh">
           <div className="act-search">
             <Search size={14} className="act-search-icon" />
             <input
@@ -597,7 +560,7 @@ export function ActivityLogPage({
                 className="act-search-clear"
                 onClick={() => {
                   setQGo("");
-                  datLoc({ q: "" });
+                  setQ("");
                 }}
                 title="Xóa từ khóa"
               >
@@ -606,53 +569,21 @@ export function ActivityLogPage({
             )}
           </div>
 
-          <div className="act-date-group">
-            <div className="act-date-inputs">
-              <Calendar size={13} className="act-select-icon" />
-              <input
-                type="date"
-                className="act-date-input"
-                value={loc.tuNgay}
-                max={loc.denNgay || undefined}
-                onChange={(e) => datLoc({ tuNgay: e.target.value })}
-                title="Từ ngày"
-              />
-              <span className="act-date-sep">→</span>
-              <input
-                type="date"
-                className="act-date-input"
-                value={loc.denNgay}
-                min={loc.tuNgay || undefined}
-                onChange={(e) => datLoc({ denNgay: e.target.value })}
-                title="Đến ngày"
-              />
-            </div>
-
-            <div className="act-segmented-dates">
-              {[
-                { n: 1, nhan: "Hôm nay" },
-                { n: 7, nhan: "7 ngày" },
-                { n: 30, nhan: "30 ngày" },
-                { n: 365, nhan: "1 năm" },
-              ].map((x) => (
-                <button
-                  key={x.n}
-                  type="button"
-                  className="act-date-btn"
-                  onClick={() => nhanhNgay(x.n)}
-                >
-                  {x.nhan}
-                </button>
-              ))}
-            </div>
-          </div>
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_NK}
+            onKy={(ky) => setLocMan({ ...locMan, ky })}
+            dieuKien={dieuKien}
+            loc={locMan.loc}
+            onLoc={(loc) => setLocMan({ ...locMan, loc })}
+          />
 
           {coLoc && (
             <button
               type="button"
               className="act-btn-reset"
               onClick={datLai}
-              title="Bỏ mọi bộ lọc, về 30 ngày gần nhất"
+              title="Bỏ ô tìm và mọi điều kiện, về 30 ngày gần nhất"
             >
               <RotateCcw size={12} />
               <span>Đặt lại</span>
@@ -677,110 +608,6 @@ export function ActivityLogPage({
           </div>
         </div>
 
-        <div className="act-filter-sub">
-          <div className="act-select-group">
-            <SlidersHorizontal size={13} className="act-select-icon" />
-            <Select
-              portal
-              searchable
-              searchPlaceholder="Gõ tên hành động…"
-              ariaLabel="Lọc theo hành động"
-              className="act-sel-trigger act-sel-trigger--wide"
-              listClassName="act-sel-list"
-              value={loc.action}
-              onChange={(v) => datLoc({ action: v ?? "" })}
-              options={[
-                { value: "", label: "Tất cả hành động" },
-                ...(facets?.hanh_dong ?? []).map((h) => ({
-                  value: h.ma,
-                  label: h.nhan,
-                  hint: String(h.so_dong),
-                  // Mã máy chủ không hiện ra, nhưng người quen đọc log vẫn gõ "quote_create".
-                  search: h.ma,
-                })),
-              ]}
-            />
-          </div>
-
-          <div className="act-select-group">
-            <User size={13} className="act-select-icon" />
-            <Select
-              portal
-              searchable
-              searchPlaceholder="Gõ tên người…"
-              ariaLabel="Lọc theo người thao tác"
-              className="act-sel-trigger"
-              listClassName="act-sel-list"
-              value={loc.actorId}
-              onChange={(v) => datLoc({ actorId: v ?? "" })}
-              options={[
-                { value: "", label: "Tất cả người thao tác" },
-                ...(facets?.nguoi ?? [])
-                  .filter((n) => n.id !== null)
-                  .map((n) => ({
-                    value: String(n.id),
-                    label: n.ten ?? `#${n.id}`,
-                    hint: String(n.so_dong),
-                  })),
-              ]}
-            />
-          </div>
-
-          <div className="act-select-group">
-            <Tag size={13} className="act-select-icon" />
-            {/* Lọc theo LOẠI đối tượng — cần vì 12 màn danh mục dùng chung ba mã hành động. */}
-            <Select
-              portal
-              searchable
-              searchPlaceholder="Gõ tên đối tượng…"
-              ariaLabel="Lọc theo loại đối tượng"
-              className="act-sel-trigger"
-              listClassName="act-sel-list"
-              value={loc.loai}
-              onChange={(v) => datLoc({ loai: v ?? "" })}
-              options={[
-                { value: "", label: "Tất cả đối tượng" },
-                ...(facets?.loai ?? []).map((l) => ({
-                  value: l.loai,
-                  label: l.nhan,
-                  search: l.loai,
-                })),
-              ]}
-            />
-          </div>
-        </div>
-
-        <div className="act-pills-strip">
-          <button
-            type="button"
-            className={`act-pill${loc.nhom === "" ? " is-active" : ""}`}
-            onClick={() => datLoc({ nhom: "", action: "" })}
-          >
-            <Layers size={13} />
-            <span>Tất cả</span>
-            <span className="act-pill-count">{trang?.tong ?? "…"}</span>
-          </button>
-          {(facets?.nhom ?? [])
-            .filter((n) => n.so_dong > 0)
-            .map((n) => {
-              const tb = trinhBay(n.khoa);
-              const Icon = tb.icon;
-              return (
-                <button
-                  key={n.khoa}
-                  type="button"
-                  className={`act-pill${loc.nhom === n.khoa ? " is-active" : ""}`}
-                  onClick={() =>
-                    datLoc({ nhom: loc.nhom === n.khoa ? "" : n.khoa, action: "" })
-                  }
-                >
-                  <Icon size={13} />
-                  <span>{n.nhan}</span>
-                  <span className="act-pill-count">{n.so_dong}</span>
-                </button>
-              );
-            })}
-        </div>
       </section>
 
       {!!trang?.so_dong_bi_an && (
@@ -822,7 +649,9 @@ export function ActivityLogPage({
             <Filter size={32} className="act-empty-icon" />
             <p className="act-empty-title">Không tìm thấy nhật ký phù hợp</p>
             <p className="act-empty-desc">
-              Khoảng ngày đang xem: {loc.tuNgay} → {loc.denNgay}. Nới khoảng ngày hoặc bỏ bớt bộ lọc.
+              {khoangDangXem
+                ? `Kỳ đang xem: ${ngayDeDoc(khoangDangXem.tu)} đến ${ngayDeDoc(khoangDangXem.den)}. Nới kỳ hoặc bỏ bớt điều kiện lọc.`
+                : "Đang xem mọi ngày. Bỏ bớt điều kiện lọc hoặc ô tìm."}
             </p>
             {coLoc && (
               <button type="button" className="act-btn-ghost-sm" onClick={datLai}>

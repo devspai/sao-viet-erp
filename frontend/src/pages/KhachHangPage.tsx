@@ -4,6 +4,7 @@
 // (KPI, doanh số 12T, cơ cấu SP, tần suất đặt, lịch sử) tính từ ĐƠN HÀNG / BÁO GIÁ THẬT;
 // thiếu dữ liệu → empty state trung thực (không bịa số). Công nợ chỉ-đọc qua SEAM-16.
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { OGoDinhDang } from "../components/OGoDinhDang";
 import {
   ApiError,
   api,
@@ -86,12 +87,44 @@ import {
 } from "lucide-react";
 
 import "./khach-hang.css";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import { useLocMan } from "./thanh-loc/useLocMan";
+import {
+  LOC_KH_TRONG,
+  dieuKienKhachHang,
+  locKHLenUrl,
+  locKHTuUrl,
+  thamSoLocKH,
+  type LocKhachHang,
+} from "./dieu-kien-khach-hang";
 
 
 const MST_RE = /^(\d{10}|\d{13})$/;
-// Giá trị SENTINEL cho hộp lọc NV phụ trách: "" = tất cả, id NV = người cụ thể, còn giá trị này
-// = khách CHƯA có người phụ trách (map sang query `chua_gan=true`, KHÔNG phải một id NV).
-const SALE_CHUA_GAN = "__chua_gan__";
+// Thanh lọc chung (06/10/2026): kỳ theo Ngày tạo + điều kiện (NV phụ trách, Nhãn, Trạng thái mua
+// hàng, Loại khách) — lọc ở máy chủ, ghi lên URL `?man=khach-hang`.
+const MOC_KH: [string, string][] = [["tao", "Ngày tạo"]];
+type LocManKH = { ky: KyDS; loc: LocKhachHang };
+const LOC_MAN_KH_TRONG: LocManKH = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_KH_TRONG };
+const docLocManKH = (p: URLSearchParams): LocManKH => ({
+  ky: kyTuUrl(p, MOC_KH.map(([m]) => m), "tao"),
+  loc: locKHTuUrl(p),
+});
+const ghiLocManKH = (t: LocManKH) => ({ ...kyLenUrl(t.ky, "tao"), ...locKHLenUrl(t.loc) });
+
+/** "06/10/2026" theo giờ VN — cột Ngày tạo (title của ô mang đủ giờ). Chuỗi không múi coi là UTC. */
+function ngayTaoKH(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso) || !iso.includes("T") ? iso : `${iso}Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+function gioTaoKH(iso: string | null | undefined): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso) || !iso.includes("T") ? iso : `${iso}Z`);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 /* money() đầy-đủ-đồng đã bỏ: mọi chỗ hiển thị tiền dùng moneyStat/moneyCompact theo prototype.
    (Hàm cũ chỉ còn được nhắc trong khối PaymentGauge đã comment.) */
@@ -240,11 +273,13 @@ function moTaSale(s: SaleOption): string | undefined {
 // List-Report page
 // =============================================================================
 
-export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
+export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCustomerId = null }: {
   navigate: NavigateFn;
   onBadgeStale?: () => void;
   /** Nhịp sự kiện nhóm "bán hàng" (giao hẹn, tới giờ hẹn…) — nút "Lịch hẹn" nạp lại theo. */
   eventTick?: number;
+  /** Liên thông (vd "Hồ sơ khách hàng" ở Công nợ phải thu): vào màn là mở sẵn hồ sơ khách này. */
+  openCustomerId?: number | null;
 }) {
   const { token } = useAuth();
 
@@ -254,11 +289,14 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState("code");
   const [q, setQ] = useState("");
-  // "" = tất cả; CHUA_GAN = khách chưa có người phụ trách; còn lại là id NV.
-  const [saleFilter, setSaleFilter] = useState<string>("");
-  // Redesign spec-06 v2: bỏ lọc trạng thái/tier; chỉ còn lọc theo THẺ. Tab "Cần theo dõi" gỡ
-  // 05/10/2026 — trùng việc với nút "Lịch hẹn".
-  const [tagFilter, setTagFilter] = useState<string>("");
+  // Kỳ + điều kiện lọc (NV phụ trách, Nhãn, Trạng thái mua hàng, Loại khách) — ghi lên URL, nhớ
+  // theo màn. Tab "Cần theo dõi" gỡ 05/10/2026 — trùng việc với nút "Lịch hẹn".
+  const [locMan, setLocManGoc] = useLocMan("khach-hang", LOC_MAN_KH_TRONG, docLocManKH, ghiLocManKH);
+  const setLocMan = (t: LocManKH) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocKH(locMan.loc) });
   const [tagLabels, setTagLabels] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState(25);
   const [sales, setSales] = useState<SaleOption[]>([]);
@@ -285,7 +323,11 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
   // Nhập Excel: dòng Mã KH trống là thêm (`create`), dòng có Mã là sửa (`update`) — server gác cửa
   // bằng MỘT trong hai rồi kiểm từng dòng, nên nút hiện khi có một trong hai.
   const canImport = canCreate || can("khach_hang", "update");
-  const colCount = canReassign ? 6 : 5; // [checkbox] · KH · mua hàng · liên hệ chính · NV · ›
+  const colCount = canReassign ? 7 : 6; // [checkbox] · KH · mua hàng · liên hệ chính · NV · ngày tạo · ›
+  const dieuKien = useMemo(
+    () => dieuKienKhachHang(sales, tagLabels, canSeeUnassigned),
+    [sales, tagLabels, canSeeUnassigned],
+  );
 
   // Import / export danh bạ (#23).
   const [importOpen, setImportOpen] = useState(false);
@@ -335,7 +377,10 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
 
   const [mode, setMode] = useState<null | "create" | "edit">(null);
   const [editing, setEditing] = useState<CustomerRow | null>(null);
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [openId, setOpenId] = useState<number | null>(openCustomerId);
+  useEffect(() => {
+    if (openCustomerId != null) setOpenId(openCustomerId);
+  }, [openCustomerId]);
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [quickTagModalCust, setQuickTagModalCust] = useState<{ id: number; name: string } | null>(null);
 
@@ -347,9 +392,7 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
     api.customers
       .list(token, {
         q: q.trim() || undefined,
-        sale: saleFilter && saleFilter !== SALE_CHUA_GAN ? Number(saleFilter) : null,
-        chua_gan: saleFilter === SALE_CHUA_GAN || undefined,
-        tag: tagFilter || null,
+        loc: JSON.parse(khoaLoc),
         sort,
         page,
         size: pageSize,
@@ -364,12 +407,12 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
         else setListError("Không tải được danh bạ khách hàng.");
       })
       .finally(() => setLoading(false));
-  }, [token, q, saleFilter, tagFilter, sort, page, pageSize]);
+  }, [token, q, khoaLoc, sort, page, pageSize]);
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, sort, page, pageSize, saleFilter, tagFilter]);
+  }, [token, sort, page, pageSize, khoaLoc]);
 
   useEffect(() => {
     if (!token) return;
@@ -559,7 +602,7 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
           {lh.so > 0 && <span className="kh__lich-hen-so">{lh.so}</span>}
         </button>
 
-        <div className="kh__toolbar-controls">
+        <div className="kh__toolbar-controls tl-thanh">
           <form className="kh__search" onSubmit={onSearch} role="search">
             <div className="kh__search-input-wrap">
               <span className="kh__search-icon" aria-hidden="true"><Search size={14} /></span>
@@ -573,49 +616,14 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
             </div>
           </form>
 
-          <div className="kh__filter">
-            <Select
-              ariaLabel="Lọc theo NV phụ trách"
-              value={saleFilter}
-              placeholder="Tất cả NV phụ trách"
-              align="right"
-              onChange={(v) => {
-                setSaleFilter(v ?? "");
-                setPage(1);
-              }}
-              options={[
-                { value: "", label: "Tất cả NV phụ trách" },
-                // Khách chưa có người phụ trách — chỉ hiện cho người phạm vi `all` (xem canSeeUnassigned).
-                ...(canSeeUnassigned ? [{ value: SALE_CHUA_GAN, label: "Chưa gán ai" }] : []),
-                // Hộp LỌC lấy CẢ người không còn đủ tư cách nhận khách mới (`co_the_gan=false`):
-                // khách của họ vẫn hiện trong bảng, thiếu tên ở đây là có dòng không lọc ra được.
-                ...sales.map((s) => ({
-                  value: String(s.id),
-                  label: s.name,
-                  sub: moTaSale(s),
-                  hint: s.so_kh ? `${s.so_kh} KH` : undefined,
-                })),
-              ]}
-            />
-          </div>
-          {tagLabels.length > 0 && (
-            <div className="kh__filter">
-              <Select
-                ariaLabel="Lọc theo nhãn"
-                value={tagFilter}
-                placeholder="Tất cả nhãn"
-                align="right"
-                onChange={(v) => {
-                  setTagFilter(v ?? "");
-                  setPage(1);
-                }}
-                options={[
-                  { value: "", label: "Tất cả nhãn" },
-                  ...tagLabels.map((t) => ({ value: t, label: t })),
-                ]}
-              />
-            </div>
-          )}
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_KH}
+            onKy={(ky) => setLocMan({ ...locMan, ky })}
+            dieuKien={dieuKien}
+            loc={locMan.loc}
+            onLoc={(loc) => setLocMan({ ...locMan, loc })}
+          />
 
           {/* View Mode Switcher: Bảng ⟷ Thẻ CRM */}
           <div className="kh__view-switcher" role="group" aria-label="Chế độ hiển thị">
@@ -732,6 +740,12 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
                     <span className="kh__card-stat-label">Số đơn hàng</span>
                     <span className="kh__card-stat-val">{c.orders_total} đơn</span>
                   </div>
+                  <div className="kh__card-stat-item">
+                    <span className="kh__card-stat-label">Ngày tạo</span>
+                    <span className="kh__card-stat-val" title={gioTaoKH(c.created_at)}>
+                      {ngayTaoKH(c.created_at)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="kh__card-footer">
@@ -790,6 +804,7 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
                   </th>
                   <th>Liên hệ chính</th>
                   <th>NV phụ trách</th>
+                  <th>Ngày tạo</th>
                   <th></th>
                 </tr>
               </thead>
@@ -818,7 +833,7 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
                 ) : rows.length === 0 ? (
                   <tr>
                     <td colSpan={colCount} className="kh__empty-cell">
-                      {q || tagFilter || saleFilter ? (
+                      {q || khoaLoc !== "{}" ? (
                         <div className="kh__empty-state">
                           <div className="kh__empty-icon">
                             <SearchX size={28} />
@@ -831,9 +846,7 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
                             variant="ghost"
                             onClick={() => {
                               setQ("");
-                              setTagFilter("");
-                              setSaleFilter("");
-                              setPage(1);
+                              setLocMan(LOC_MAN_KH_TRONG);
                             }}
                           >
                             Xoá bộ lọc
@@ -980,6 +993,9 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0 }: {
                             ) : (
                               <span className="kh__muted">Chưa gán</span>
                             )}
+                          </td>
+                          <td className="kh__ngay-tao" title={gioTaoKH(c.created_at)}>
+                            {ngayTaoKH(c.created_at)}
                           </td>
                           <td className="kh__action-col" onClick={(e) => e.stopPropagation()}>
                             <div className="kh__row-quick-actions">
@@ -1875,7 +1891,7 @@ function OSoChinhSach({
 }) {
   return (
     <span className={`kh__fin-so${rong ? " kh__fin-so--rong" : ""}${loi ? " is-loi" : ""}`}>
-      <input
+      <OGoDinhDang
         value={value}
         inputMode={thapPhan ? "decimal" : "numeric"}
         aria-label={ariaLabel}

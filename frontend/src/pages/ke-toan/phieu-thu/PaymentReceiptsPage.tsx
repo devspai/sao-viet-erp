@@ -1,7 +1,7 @@
 /** Màn PHIẾU THU (đặc tả PT-1 … PT-4, A.16 – A.18) — đối xứng màn Phiếu chi, cùng bộ khung chung kế toán.
  *
- *  Khuôn trang: đầu trang (tiêu đề + một câu + nút rust) → chọn kỳ → hàng thẻ lọc → thanh lọc (ô tìm,
- *  Bộ lọc nâng cao, chip, "n phiếu") → bảng + chân phân trang. Bấm dòng mở ngăn chi tiết bên phải.
+ *  Khuôn trang: đầu trang (tiêu đề + một câu + nút rust) → hàng thẻ lọc → thanh lọc (ô tìm, thanh lọc
+ *  chung `ThanhLoc`: kỳ theo Ngày tạo / Ngày thu + điều kiện, "n phiếu") → bảng + chân phân trang. Bấm dòng mở ngăn chi tiết bên phải.
  *  Mọi lọc chạy ở MÁY CHỦ; kỳ lọc theo NGÀY THU. Số trên thẻ lọc (`the_loc`) tính theo kỳ + bộ lọc,
  *  KHÔNG theo thẻ đang chọn. Thẻ "Chờ thu" chỉ hiện khi còn phiếu CŨ chờ thu (phiếu mới lập là đã thu).
  *
@@ -15,17 +15,28 @@ import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import { GoiYPhim } from "../shared/BangPhieu";
-import { ChonKy } from "../shared/ChonKy";
 import { vietSo } from "../shared/dinhDang";
 import { TheLoc, type TheLocMuc } from "../shared/TheLoc";
 import { theLocSo, useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
-import { BoLocPhieuThu } from "./components/BoLocPhieuThu";
 import { ReceiptsDrawer } from "./components/ReceiptsDrawer";
 import { ReceiptsTable } from "./components/ReceiptsTable";
 import { OtherReceiptDialog } from "./modals/OtherReceiptDialog";
 import { PaymentReceiptDialog } from "./PaymentReceiptDialog";
 import { PAGE_SIZE } from "./shared/constants";
-import { LOC_TRONG, dangLoc, locLenUrl, locTuUrl, thamSoLoc, thamSoTai, type LocPT, type TheLocPT } from "./shared/loc";
+import {
+  CAU_HINH_LOC_PT,
+  LOC_TRONG,
+  MOC_PT,
+  dangLoc,
+  locLenUrl,
+  locTuUrl,
+  thamSoLoc,
+  thamSoTai,
+  type LocPT,
+  type TheLocPT,
+} from "./shared/loc";
+import { dieuKienPhieu, dkTrangThaiPhieu } from "../shared/locPhieu";
+import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
 import "../ke-toan.css";
 
 /** Mã màn — khoá nhớ kỳ và dấu `man` trên URL (đặc tả A.18). */
@@ -62,6 +73,7 @@ export function PaymentReceiptsPage({
   // endpoint đọc MỘT phiếu thu ⇒ ngăn đang mở nhận bản mới của dòng sau mỗi lần tải.
   const cauHinh: CauHinhTrangPhieu<PaymentReceiptRow, TheLocPT, LocPT> = {
     man: MAN,
+    moc: MOC_PT,
     locTuUrl,
     locLenUrl,
     locTrong: LOC_TRONG,
@@ -138,6 +150,14 @@ export function PaymentReceiptsPage({
     ds.push(chung.daHuy);
     return ds;
   }, [soThe, soTheCung]);
+  // Trạng thái trong nút Lọc = hàng thẻ lọc (đọc/ghi thẳng thẻ đang chọn).
+  const dieuKien = useMemo(
+    () => [
+      dkTrangThaiPhieu({ muc, n: soThe, dang: the, dat: (id) => setThe(id as TheLocPT) }),
+      ...dieuKienPhieu(CAU_HINH_LOC_PT, sp.taiKhoan),
+    ],
+    [muc, soThe, the, setThe, sp.taiKhoan],
+  );
 
   return (
     <main className="kt-trang">
@@ -156,16 +176,15 @@ export function PaymentReceiptsPage({
         )}
       </header>
 
-      <ChonKy kyMan={sp.kyMan} />
       <TheLoc muc={muc} dangChon={the} onChon={(id) => setThe(id as TheLocPT)} />
 
-      <div className="kt-tb">
+      <div className="kt-tb tl-thanh">
         <label className="kt-tim">
           <Search size={16} aria-hidden="true" />
           <input aria-label="Tìm phiếu thu" placeholder="Tìm mã phiếu, người nộp, số hoá đơn, mã đơn bán" value={sp.tim}
             onChange={(e) => sp.setTim(e.target.value)} />
         </label>
-        <BoLocPhieuThu loc={loc} onDoiLoc={sp.setLoc} demKhop={sp.demKhop} taiKhoan={sp.taiKhoan} />
+        <ThanhLoc ky={sp.ky} moc={MOC_PT} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
         <span className="kt-tb__dem">{`${vietSo(sp.tong)} phiếu`}</span>
       </div>
       {loiMo && <p className="kt-o__loi" role="alert">{loiMo}</p>}

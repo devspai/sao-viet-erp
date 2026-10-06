@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giao hàng — phương án B chi tiết</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+  --amber:#a07a12; --amber-soft:#efe4c4; --amber-deep:#7a5c0f; --signal:#8a1f1f;
+  --steel:#4a5560; --steel-soft:#dde1e5; --charcoal:#0f172a;
+  --violet:#4b3f8a; --violet-soft:#e6e3f3;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1240px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--ash);margin:0 0 28px;max-width:900px}
+.buoc-h{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ash-2);margin:44px 0 6px}
+.buoc-g{color:var(--ash);margin:0 0 12px;max-width:900px}
+.buoc-g b{color:var(--ink)}
+.ghi{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:14px 18px;margin:44px 0 0;max-width:920px;color:var(--ash)}
+.ghi b{color:var(--ink)}
+.ghi ol{margin:6px 0 0;padding-left:20px}
+.ghi li{margin-bottom:4px}
+
+/* chung */
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--sm{height:28px;padding:0 10px;font-size:12.5px}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash)}
+.lk{color:var(--rust);font-weight:600;text-decoration:none}
+.lk:hover{text-decoration:underline}
+.muted{color:var(--ash-2)}
+.nho{font-size:12px;color:var(--ash-2)}
+.num{font-variant-numeric:tabular-nums}
+.the{display:inline-flex;align-items:center;font-size:12px;color:var(--ash);background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:6px;padding:0 7px;white-space:nowrap}
+.the--xe{font-weight:600;color:var(--ink);background:#fff;border-color:var(--rule)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-xong{background:var(--moss-soft);color:var(--moss-deep)}
+.p-dang{background:var(--amber-soft);color:var(--amber-deep)}
+.p-cho{background:var(--steel-soft);color:var(--steel)}
+.p-ncc{background:var(--violet-soft);color:var(--violet)}
+.p-tre{background:#f6dcdc;color:var(--signal)}
+.bar{display:flex;gap:3px;width:96px}
+.bar i{flex:1;height:5px;border-radius:3px;background:var(--rule-soft)}
+.bar i.x{background:var(--moss)}
+.bar i.d{background:var(--amber)}
+.tel{color:var(--rust);text-decoration:none;font-weight:600}
+.tel:hover{text-decoration:underline}
+
+/* ===== màn danh sách ===== */
+.man{background:var(--paper);border:1px solid var(--rule-soft);border-radius:14px;padding:22px}
+.man-dau{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+.man-dau h3{margin:0;font-size:22px}
+.thanh{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+.seg{display:inline-flex;gap:4px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:4px}
+.seg span{padding:5px 12px;border-radius:7px;font-size:13px;color:var(--ash);display:inline-flex;gap:6px;align-items:center}
+.seg span.on{background:var(--charcoal);color:#fff;font-weight:600}
+.seg i{font-style:normal;font-size:11.5px;background:var(--rule-hair);color:var(--ash);border-radius:999px;padding:0 7px}
+.seg span.on i{background:rgba(255,255,255,.18);color:#fff}
+.ky{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);font-size:13px}
+.tim{height:34px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);padding:0 12px;font:inherit;font-size:13px;min-width:240px}
+.sp{flex:1}
+.loc-nhanh{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.loc-nhanh span{font-size:12.5px;border:1px solid var(--rule);border-radius:999px;padding:3px 12px;background:var(--canvas);color:var(--ash)}
+.loc-nhanh span.on{border-color:var(--rust);box-shadow:inset 0 0 0 1px var(--rust);color:var(--rust);font-weight:600}
+.loc-nhanh b{font-weight:600;margin-left:4px}
+
+.tbl{width:100%;border-collapse:separate;border-spacing:0;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.tbl th{font-size:12px;font-weight:600;color:var(--ash-2);text-align:left;padding:9px 14px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+.tbl td{padding:12px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tbody tr{cursor:pointer}
+.tbl tbody tr:hover td{background:var(--rule-hair)}
+.tbl .r{text-align:right}
+.l-ma{font-weight:700}
+.l-kip{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+.l-diem{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.l-diem li{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:start}
+.l-so{display:inline-flex;width:20px;height:20px;border-radius:50%;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:11px;align-items:center;justify-content:center;color:var(--ash)}
+.l-so.x{background:var(--moss);border-color:var(--moss);color:#fff}
+.l-khach{font-weight:600;font-size:13.5px}
+.l-dong2{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:12px;color:var(--ash-2)}
+.l-td{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.chan{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--ash-2)}
+.chan-p{display:flex;gap:12px}
+
+/* ===== ngăn chi tiết 920px ===== */
+.khung{display:flex;justify-content:flex-end;background:rgba(15,23,42,.28);border-radius:14px;padding:0;overflow:hidden;min-height:400px}
+.ngan{width:920px;max-width:100%;background:var(--canvas);border-left:1px solid var(--rule);display:flex;flex-direction:column;position:relative}
+.ngan::before{content:"";position:absolute;left:-3px;top:50%;width:5px;height:44px;margin-top:-22px;border-radius:3px;background:var(--rule)}
+.n-dau{padding:18px 24px 0}
+.n-nhan{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ash-2)}
+.n-hang1{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 14px}
+.n-hang1 h4{margin:0;font-size:20px}
+.n-hang1 .sp{flex:1}
+.n-x{width:32px;height:32px;border-radius:8px;border:1px solid var(--rule);background:#fff;font-size:16px;color:var(--ash)}
+.n-tom{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--rule-soft);border-radius:10px;margin-bottom:14px}
+.n-tom > div{padding:10px 14px;border-right:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:2px}
+.n-tom > div:last-child{border-right:0}
+.n-tom dt{font-size:11.5px;color:var(--ash-2)}
+.n-tom dd{margin:0;font-weight:600}
+.n-tom dd.to{font-size:18px}
+.n-tab{display:flex;gap:2px;border-bottom:1px solid var(--rule-soft);padding:0 24px}
+.n-tab span{padding:9px 14px;font-size:13.5px;color:var(--ash);border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;gap:6px;align-items:center}
+.n-tab span.on{color:var(--ink);font-weight:600;border-bottom-color:var(--rust)}
+.n-tab i{font-style:normal;font-size:11px;background:var(--rule-hair);border-radius:999px;padding:0 7px;color:var(--ash)}
+.n-than{padding:18px 24px 24px;background:var(--paper);flex:1}
+
+/* lộ trình */
+.lt{list-style:none;margin:0;padding:0;position:relative}
+.lt::before{content:"";position:absolute;left:13px;top:14px;bottom:14px;width:2px;background:var(--rule-soft)}
+.lt > li{position:relative;padding-left:40px;margin-bottom:12px}
+.lt-moc{position:absolute;left:3px;top:14px;width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid var(--rule);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ash)}
+.lt-moc.x{background:var(--moss);border-color:var(--moss);color:#fff}
+.lt-moc.d{border-color:var(--amber);color:var(--amber-deep)}
+.lt-kho{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;font-size:13px}
+.lt-kho b{font-weight:600}
+.diem{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.diem.dang{border-color:var(--amber)}
+.d-dau{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--rule-hair)}
+.d-ten{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.d-ten b{font-size:14.5px}
+.d-ten .the-hang{display:flex;gap:6px;flex-wrap:wrap}
+.d-nut{display:flex;gap:6px;align-items:center}
+.d-luoi{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:0}
+.d-o{padding:10px 16px;border-right:1px solid var(--rule-hair);display:flex;flex-direction:column;gap:3px;min-width:0}
+.d-o:last-child{border-right:0}
+.d-o dt{font-size:11.5px;color:var(--ash-2)}
+.d-o dd{margin:0;display:flex;flex-direction:column;gap:2px}
+.d-luu{display:flex;gap:8px;align-items:flex-start;margin:0 16px 10px;padding:8px 10px;border-radius:8px;background:var(--amber-soft);color:var(--amber-deep);font-size:12.5px}
+.d-hang{border-top:1px solid var(--rule-hair);padding:8px 16px 12px}
+.d-hang table{width:100%;border-collapse:collapse;font-size:13px}
+.d-hang th{font-size:11.5px;font-weight:500;color:var(--ash-2);text-align:left;padding:4px 0}
+.d-hang td{padding:4px 0}
+.d-hang .r{text-align:right}
+.d-kq{border-top:1px solid var(--rule-hair);padding:10px 16px;display:flex;gap:18px;flex-wrap:wrap;align-items:center;background:#fbfdfb;font-size:13px}
+.d-kq b{font-weight:600}
+.anh{display:flex;gap:6px}
+.anh span{width:40px;height:40px;border-radius:6px;background:linear-gradient(135deg,#dfe5ec,#c3ccd6);border:1px solid var(--rule-soft)}
+
+/* chứng từ */
+.ct{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden;margin-bottom:14px}
+.ct h5{margin:0;padding:10px 16px;font-size:13px;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;gap:8px}
+.ct table{width:100%;border-collapse:collapse;font-size:13px}
+.ct th{font-size:11.5px;font-weight:500;color:var(--ash-2);text-align:left;padding:8px 16px;border-bottom:1px solid var(--rule-hair)}
+.ct td{padding:9px 16px;border-bottom:1px solid var(--rule-hair)}
+.ct tr:last-child td{border-bottom:0}
+.ct .r{text-align:right}
+.tep{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:12px 16px}
+.tep div{border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden;font-size:12px}
+.tep div .tep-anh{display:block;height:72px;background:linear-gradient(135deg,#e6ebf1,#cdd5de)}
+.tep div p{margin:0;padding:6px 8px;display:flex;flex-direction:column}
+
+
+/* chứng từ theo đơn */
+.ctd{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;align-items:start}
+.ctd-ray{display:flex;flex-direction:column;gap:6px}
+.ctd-don{display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;align-items:start;padding:10px 12px;border:1px solid var(--rule-soft);border-radius:10px;background:var(--canvas);color:var(--ink);text-decoration:none}
+.ctd-don:hover{background:var(--rule-hair)}
+.ctd-don.on{border-color:var(--rust);box-shadow:inset 0 0 0 1px var(--rust)}
+.ctd-don-ten{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ctd-don-phu{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ctd-mat{min-width:0}
+.ctd-dau{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+.gt{list-style:none;margin:0;padding:0}
+.gt li{display:grid;grid-template-columns:120px minmax(0,1fr) auto auto;grid-template-areas:"loai so tt nut" "loai ai tt nut";gap:2px 14px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--rule-hair);font-size:13px}
+.gt-loai{grid-area:loai}.gt-so{grid-area:so}.gt-tt{grid-area:tt}.gt-ai{grid-area:ai}.gt-nut{grid-area:nut}
+.gt li:last-child{border-bottom:0}
+.gt-loai{color:var(--ash-2)}
+.gtg{border-top:1px solid var(--rule-hair)}
+.gtg-mo{border:0;background:none;font:inherit;font-size:13px;font-weight:600;color:var(--ink);padding:10px 16px;cursor:pointer;display:flex;gap:6px;align-items:center}
+.gtg-mo i{font-style:normal;font-size:11px;background:var(--rule-hair);border-radius:999px;padding:0 7px;color:var(--ash)}
+.tep-tha{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:110px;border:1px dashed var(--rule);border-radius:8px;font-size:12.5px;color:var(--ash);background:var(--canvas);cursor:pointer}
+.tep--nho{padding-top:0}
+.tep--nho .tep-tha{min-height:60px}
+.tep--nho div .tep-anh{height:44px}
+@media (max-width:760px){
+  .ctd{grid-template-columns:1fr}
+  .ctd-ray{flex-direction:row;overflow-x:auto}
+  .ctd-don{min-width:200px}
+  .gt li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"loai tt" "so nut" "ai nut"}
+}
+
+/* lịch sử */
+.ls{list-style:none;margin:0;padding:0;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px}
+.ls li{display:grid;grid-template-columns:110px minmax(0,1fr);gap:14px;padding:10px 16px;border-bottom:1px solid var(--rule-hair);font-size:13px}
+.ls li:last-child{border-bottom:0}
+.ls .luc{color:var(--ash-2)}
+.ls .viec{display:flex;flex-direction:column;gap:2px}
+
+/* điện thoại */
+.dt-khung{display:flex;gap:24px;flex-wrap:wrap}
+.dt{width:375px;max-width:100%;background:var(--canvas);border:8px solid #1e293b;border-radius:28px;overflow:hidden}
+.dt-dau{padding:14px 16px 10px;border-bottom:1px solid var(--rule-soft)}
+.dt-dau h4{margin:2px 0 6px;font-size:17px;display:flex;gap:8px;align-items:center}
+.dt-than{padding:12px;background:var(--paper)}
+.dt .d-luoi{grid-template-columns:1fr}
+.dt .d-o{border-right:0;border-bottom:1px solid var(--rule-hair)}
+.dt-nut{position:sticky;bottom:0;padding:10px 12px;background:var(--canvas);border-top:1px solid var(--rule-soft);display:flex;gap:8px}
+.dt-nut .btn{flex:1;justify-content:center;height:44px;font-size:14px}
+
+@media (max-width:760px){
+  .tbl thead{display:none}
+  .tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:100%}
+  .tbl td{border-bottom:0;padding:4px 14px}
+  .tbl tr{border-bottom:1px solid var(--rule-soft);padding:8px 0}
+  .tbl .r{text-align:left}
+  .n-tom{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .d-luoi{grid-template-columns:1fr}
+  .d-o{border-right:0;border-bottom:1px solid var(--rule-hair)}
+  .tim{min-width:0;flex:1}
+}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Giao hàng — phương án B chi tiết</h1>
+<p class="lead">Danh sách mỗi dòng một lượt xe, đủ khách, đơn hàng và nơi giao của từng điểm. Bấm vào dòng thì mở ngăn chi tiết rộng 920px, giống mọi ngăn khác trong hệ thống, chia ba tab. Đơn DH001 và địa chỉ của nó là dữ liệu thật. Hai lượt xe là ví dụ, dùng khách và địa chỉ thật trong sổ khách hàng; xe chưa khai trong danh mục nên biển số là ví dụ.</p>
+
+<!-- ================= 1. DANH SÁCH ================= -->
+<div class="buoc-h">1. Màn danh sách</div>
+<p class="buoc-g">Mỗi điểm giao là một dòng trong ô “Điểm giao”: <b>khách, mã đơn, nơi giao, ngày hẹn</b>. Điểm đã giao có số tròn xanh. Bấm vào đâu trên dòng cũng mở ngăn chi tiết. Nút bước kế tiếp của cả lượt nằm ngay trên dòng, khỏi mở ngăn.</p>
+<div class="man">
+  <div class="man-dau"><h3>Giao hàng</h3></div>
+  <div class="thanh">
+    <div class="seg"><span class="on">Đơn giao hàng <i>6</i></span><span>Yêu cầu giao <i>0</i></span><span>Nhân viên giao hàng</span></div>
+    <span class="sp"></span>
+    <span class="ky">Tháng này <span class="muted">theo</span> <b>ngày tạo</b></span>
+    <button class="btn">Lọc</button>
+    <input class="tim" placeholder="Tìm khách, mã đơn, địa chỉ, biển số">
+  </div>
+  <div class="loc-nhanh">
+    <span class="on">Tất cả<b>3</b></span><span>Chờ gửi kho<b>1</b></span><span>Đang giao<b>1</b></span><span>Đã xong<b>1</b></span>
+  </div>
+  <table class="tbl">
+    <thead><tr><th style="width:150px">Lượt</th><th style="width:190px">Xe và kíp</th><th>Điểm giao</th><th style="width:150px">Tiến độ</th><th class="r" style="width:70px">Km</th><th style="width:200px"></th></tr></thead>
+    <tbody>
+      <tr>
+        <td><div class="l-ma">LX-261006-01</div><div class="nho">Lấy hàng 07:30 06/10</div></td>
+        <td><div class="l-kip"><span class="the the--xe">51C-482.17</span><span>Trần Hoàng Giang</span><span class="nho">phụ xe Trần Phong Vũ</span></div></td>
+        <td><ol class="l-diem">
+          <li><span class="l-so x">1</span><div><div class="l-khach">Công ty TNHH Thực phẩm Minh Long</div><div class="l-dong2"><span class="the">DH014</span><span>KCN Hiệp Phước, Xã Hiệp Phước</span></div></div><span class="nho">06/10</span></li>
+          <li><span class="l-so">2</span><div><div class="l-khach">CÔNG TY CỔ PHẦN BIBICA</div><div class="l-dong2"><span class="the">DH015</span><span>KCN Tân Tạo, Phường Tân Tạo</span></div></div><span class="nho">06/10</span></li>
+          <li><span class="l-so">3</span><div><div class="l-khach">CÔNG TY CỔ PHẦN PHÚC LONG HERITAGE</div><div class="l-dong2"><span class="the">DH016</span><span>Xa lộ Hà Nội, Phường Thủ Đức</span></div></div><span class="nho">07/10</span></li>
+        </ol></td>
+        <td><div class="l-td"><span class="pill p-dang">Đang giao</span><span class="bar"><i class="x"></i><i class="d"></i><i class="d"></i></span><span class="nho">1 trên 3 điểm</span></div></td>
+        <td class="r num">12</td>
+        <td class="r"><span class="nho">Nhập kết quả trong chi tiết</span></td>
+      </tr>
+      <tr>
+        <td><div class="l-ma">LX-261006-02</div><div class="nho">Lấy hàng 13:00 06/10</div></td>
+        <td><div class="l-kip"><span class="the the--xe">51D-119.40</span><span>Trần Hùng Tín</span></div></td>
+        <td><ol class="l-diem">
+          <li><span class="l-so">1</span><div><div class="l-khach">CÔNG TY CỔ PHẦN CAFÉ KATINAT</div><div class="l-dong2"><span class="the">DH017</span><span>KCN Mỹ Phước 2, Phường Bến Cát</span></div></div><span class="nho">08/10</span></li>
+          <li><span class="l-so">2</span><div><div class="l-khach">CÔNG TY CỔ PHẦN TÂN PHÚ VIỆT NAM</div><div class="l-dong2"><span class="the">DH018</span><span>Lũy Bán Bích, Phường Tân Phú</span></div></div><span class="nho">08/10</span></li>
+        </ol></td>
+        <td><div class="l-td"><span class="pill p-cho">Chờ gửi kho</span></div></td>
+        <td class="r muted">—</td>
+        <td class="r"><button class="btn btn--sm btn--pri">Gửi yêu cầu xuất kho</button></td>
+      </tr>
+      <tr>
+        <td><div class="l-ma">Giao thẳng</div><div class="nho">Ghi nhận 12:46 06/10</div></td>
+        <td><div class="l-kip"><span class="pill p-ncc">Nhà gia công</span><span>Cơ sở Gia công Cán màng Thành Công</span></div></td>
+        <td><ol class="l-diem">
+          <li><span class="l-so x">1</span><div><div class="l-khach">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</div><div class="l-dong2"><span class="the">DH001</span><span>KCN VSIP 1, Phường Thuận An</span></div></div><span class="nho">30/10</span></li>
+        </ol></td>
+        <td><div class="l-td"><span class="pill p-xong">Đã giao</span></div></td>
+        <td class="r muted">—</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="chan"><span>2 lượt xe và 1 lần nhà gia công giao</span><span class="chan-p"><span>Dòng/trang 25</span><span>‹ 1 ›</span></span></div>
+</div>
+
+<!-- ================= 2. NGĂN — LỘ TRÌNH ================= -->
+<div class="buoc-h">2. Ngăn chi tiết lượt, tab Lộ trình (mở mặc định)</div>
+<p class="buoc-g">Đầu ngăn cố định: mã lượt, trạng thái, nút bước kế tiếp và bốn ô tóm tắt. Tab Lộ trình là đường đi từ kho qua từng khách rồi về kho. Mỗi khách là một thẻ đủ những gì tài xế cần: <b>nơi giao kèm lưu ý của khách, người nhận bấm gọi được, đơn hàng và PO, ngày hẹn, hàng phải giao, phiếu kho</b>. Đã giao thì thẻ có thêm dòng kết quả: giờ tới, số đồng hồ, người ký nhận, ảnh.</p>
+<div class="khung">
+<aside class="ngan">
+  <div class="n-dau">
+    <span class="n-nhan">Lượt xe</span>
+    <div class="n-hang1"><h4>LX-261006-01</h4><span class="pill p-dang">Đang giao</span><span class="sp"></span><button class="btn btn--txt">Đổi kíp hoặc xe</button><button class="n-x">✕</button></div>
+    <dl class="n-tom">
+      <div><dt>Xe</dt><dd>51C-482.17</dd><span class="nho">Isuzu QKR 1,9 tấn</span></div>
+      <div><dt>Kíp</dt><dd>Trần Hoàng Giang</dd><span class="nho">phụ xe Trần Phong Vũ</span></div>
+      <div><dt>Xuất phát</dt><dd class="num">07:42 06/10</dd><span class="nho num">đồng hồ 48.210</span></div>
+      <div><dt>Đã chạy</dt><dd class="to num">12 km</dd><span class="nho">1 trên 3 điểm</span></div>
+    </dl>
+  </div>
+  <div class="n-tab"><span class="on">Lộ trình <i>3</i></span><span>Chứng từ</span><span>Lịch sử <i>9</i></span></div>
+  <div class="n-than">
+    <ol class="lt">
+      <li><span class="lt-moc x">✓</span><div class="lt-kho"><b>Rời kho</b><span class="num">07:42</span><span class="nho num">đồng hồ 48.210</span></div></li>
+
+      <li><span class="lt-moc x">1</span>
+        <article class="diem">
+          <div class="d-dau">
+            <div class="d-ten"><b>Công ty TNHH Thực phẩm Minh Long</b><div class="the-hang"><span class="the">DH014</span><span class="the">PO PO-ML-0912</span><span class="the">YCGH-261005-K3QA</span></div></div>
+            <div class="d-nut"><span class="pill p-xong">Giao thành công</span></div>
+          </div>
+          <dl class="d-luoi">
+            <div class="d-o"><dt>Nơi giao</dt><dd><b>Kho Hiệp Phước</b><span>Đường số 1, KCN Hiệp Phước, Xã Hiệp Phước, TP Hồ Chí Minh</span><a class="lk nho" href="#">Mở bản đồ</a></dd></div>
+            <div class="d-o"><dt>Người nhận</dt><dd><span>Thủ kho Hiệp Phước</span><a class="tel" href="#">0779 958 485</a></dd></div>
+            <div class="d-o"><dt>Hẹn giao</dt><dd><b class="num">06/10/2026</b><span class="nho">phiếu kho PXK-261006-0003</span></dd></div>
+          </dl>
+          <div class="d-hang"><table><thead><tr><th>Hàng giao</th><th class="r">Số lượng</th></tr></thead><tbody>
+            <tr><td>Hộp bánh trung thu 4 bánh</td><td class="r num">3.000 hộp</td></tr>
+            <tr><td>Túi giấy quai xoắn</td><td class="r num">3.000 cái</td></tr>
+          </tbody></table></div>
+          <div class="d-kq"><span>Tới <b class="num">08:15</b></span><span>Đồng hồ <b class="num">48.222</b></span><span>Chặng <b class="num">12 km</b></span><span>Ký nhận <b>Lê Thị Hoa</b></span><span class="anh"><span></span><span></span></span></div>
+        </article>
+      </li>
+
+      <li><span class="lt-moc d">2</span>
+        <article class="diem dang">
+          <div class="d-dau">
+            <div class="d-ten"><b>CÔNG TY CỔ PHẦN BIBICA</b><div class="the-hang"><span class="the">DH015</span><span class="the">YCGH-261005-P8TM</span></div></div>
+            <div class="d-nut"><span class="pill p-dang">Đang giao</span><button class="btn btn--pri">Nhập kết quả</button><button class="btn btn--txt">⋯</button></div>
+          </div>
+          <dl class="d-luoi">
+            <div class="d-o"><dt>Nơi giao</dt><dd><b>Kho thành phẩm KCN Tân Tạo</b><span>Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh</span><a class="lk nho" href="#">Mở bản đồ</a></dd></div>
+            <div class="d-o"><dt>Người nhận</dt><dd><span>Chị Ngọc, kho thành phẩm</span><a class="tel" href="#">0838 392 161</a></dd></div>
+            <div class="d-o"><dt>Hẹn giao</dt><dd><b class="num">06/10/2026</b><span class="nho">phiếu kho PXK-261006-0004</span></dd></div>
+          </dl>
+          <div class="d-luu">⚠ Giao giờ hành chính 8h–16h30, nghỉ trưa 11h30–13h</div>
+          <div class="d-hang"><table><thead><tr><th>Hàng giao</th><th class="r">Số lượng</th></tr></thead><tbody>
+            <tr><td>Hộp bánh Hura 300g</td><td class="r num">10.000 cái</td></tr>
+          </tbody></table></div>
+        </article>
+      </li>
+
+      <li><span class="lt-moc">3</span>
+        <article class="diem">
+          <div class="d-dau">
+            <div class="d-ten"><b>CÔNG TY CỔ PHẦN PHÚC LONG HERITAGE</b><div class="the-hang"><span class="the">DH016</span><span class="the">PO PL-2610-77</span><span class="the">YCGH-261005-ZX2D</span></div></div>
+            <div class="d-nut"><span class="pill p-dang">Đang giao</span><button class="btn btn--pri">Nhập kết quả</button><button class="btn btn--txt">⋯</button></div>
+          </div>
+          <dl class="d-luoi">
+            <div class="d-o"><dt>Nơi giao</dt><dd><b>Trung tâm phân phối Thủ Đức</b><span>Số 12 Đường Xa lộ Hà Nội, Phường Thủ Đức, TP Hồ Chí Minh</span><a class="lk nho" href="#">Mở bản đồ</a></dd></div>
+            <div class="d-o"><dt>Người nhận</dt><dd><span>Anh Khoa, điều phối kho</span><a class="tel" href="#">0985 049 236</a></dd></div>
+            <div class="d-o"><dt>Hẹn giao</dt><dd><b class="num">07/10/2026</b><span class="nho">phiếu kho PXK-261006-0005</span></dd></div>
+          </dl>
+          <div class="d-luu">⚠ Hàng phải đóng pallet, bọc màng co, dán nhãn mã PO</div>
+          <div class="d-hang"><table><thead><tr><th>Hàng giao</th><th class="r">Số lượng</th></tr></thead><tbody>
+            <tr><td>Ly giấy 16oz in logo</td><td class="r num">20.000 cái</td></tr>
+            <tr><td>Nắp ly PET 16oz</td><td class="r num">20.000 cái</td></tr>
+          </tbody></table></div>
+        </article>
+      </li>
+
+      <li><span class="lt-moc">⌂</span><div class="lt-kho muted"><b>Về kho</b><span>Mọi điểm có kết quả thì nút “Về kho” hiện ở đầu ngăn</span></div></li>
+    </ol>
+  </div>
+</aside>
+</div>
+
+<!-- ================= 3. NGĂN — CHỨNG TỪ THEO ĐƠN ================= -->
+<div class="buoc-h">3. Tab Chứng từ, tách riêng từng đơn (cách 1, đề xuất)</div>
+<p class="buoc-g">Mỗi đơn trong lượt có bộ giấy tờ riêng, đúng như dữ liệu đang lưu: <b>một phiếu giao hàng, một phiếu xuất kho, tệp đính kèm riêng, phiếu nhập trả nếu giao thiếu</b>. Cột trái là các đơn của lượt theo thứ tự điểm. Bấm đơn nào thì bên phải chỉ hiện giấy tờ của đơn đó. Thêm tệp ở đây là gắn vào đúng đơn đang chọn, không lẫn sang đơn khác.</p>
+<div class="khung">
+<aside class="ngan">
+  <div class="n-dau">
+    <span class="n-nhan">Lượt xe</span>
+    <div class="n-hang1"><h4>LX-261006-01</h4><span class="pill p-dang">Đang giao</span><span class="sp"></span><button class="n-x">✕</button></div>
+  </div>
+  <div class="n-tab"><span>Lộ trình <i>3</i></span><span class="on">Chứng từ</span><span>Lịch sử <i>9</i></span></div>
+  <div class="n-than ctd">
+    <nav class="ctd-ray" aria-label="Đơn trong lượt">
+      <a class="ctd-don on" href="#"><span class="l-so x">1</span><span class="ctd-don-ten"><b>Minh Long</b><span class="ctd-don-phu"><span class="the">DH014</span><span class="nho">3 tệp</span></span></span></a>
+      <a class="ctd-don" href="#"><span class="l-so">2</span><span class="ctd-don-ten"><b>Bibica</b><span class="ctd-don-phu"><span class="the">DH015</span><span class="nho">1 tệp</span></span></span></a>
+      <a class="ctd-don" href="#"><span class="l-so">3</span><span class="ctd-don-ten"><b>Phúc Long Heritage</b><span class="ctd-don-phu"><span class="the">DH016</span><span class="nho">chưa có tệp</span></span></span></a>
+    </nav>
+    <div class="ctd-mat">
+      <div class="ctd-dau">
+        <div class="d-ten"><b>Công ty TNHH Thực phẩm Minh Long</b><div class="the-hang"><span class="the">DH014</span><span class="the">PO PO-ML-0912</span></div></div>
+        <span class="pill p-xong">Giao thành công</span>
+      </div>
+
+      <section class="ct">
+        <h5>Giấy tờ của đơn</h5>
+        <ul class="gt">
+          <li><span class="gt-loai">Phiếu giao hàng</span><span class="gt-so"><a class="lk" href="#">YCGH-261005-K3QA</a></span><span class="gt-tt"><span class="pill p-xong">Khách đã ký</span></span><span class="gt-ai nho">Lê Thị Hoa 08:15 06/10</span><span class="gt-nut"><button class="btn btn--sm">In lại</button></span></li>
+          <li><span class="gt-loai">Phiếu xuất kho</span><span class="gt-so"><a class="lk" href="#">PXK-261006-0003</a></span><span class="gt-tt"><span class="pill p-xong">Đã xuất</span></span><span class="gt-ai nho">Phạm Văn Lộc 07:20 06/10</span><span class="gt-nut"></span></li>
+        </ul>
+      </section>
+
+      <section class="ct">
+        <h5>Hàng của đơn</h5>
+        <table><thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Còn</th></tr></thead><tbody>
+          <tr><td>Hộp bánh trung thu 4 bánh</td><td class="r num">3.000 hộp</td><td class="r num">3.000 hộp</td><td class="r num muted">0</td></tr>
+          <tr><td>Túi giấy quai xoắn</td><td class="r num">3.000 cái</td><td class="r num">3.000 cái</td><td class="r num muted">0</td></tr>
+        </tbody></table>
+      </section>
+
+      <section class="ct">
+        <h5>Tệp đính kèm của đơn <span style="flex:1"></span><button class="btn btn--sm">Thêm tệp</button></h5>
+        <div class="tep">
+          <div><span class="tep-anh"></span><p><b>Hoá đơn GTGT 0001284</b><span class="nho">Trần Hoàng Giang 07:35</span></p></div>
+          <div><span class="tep-anh"></span><p><b>Phiếu giao hàng đã ký</b><span class="nho">Trần Hoàng Giang 08:21</span></p></div>
+          <div><span class="tep-anh"></span><p><b>Ảnh hàng tại kho khách</b><span class="nho">Trần Phong Vũ 08:22</span></p></div>
+          <label class="tep-tha">Kéo tệp vào đây<span class="nho">hoặc chụp ảnh trên điện thoại</span></label>
+        </div>
+      </section>
+    </div>
+  </div>
+</aside>
+</div>
+
+<div class="buoc-h">3b. Cùng tab đó, khi đơn giao thiếu</div>
+<p class="buoc-g">Đơn nào giao thiếu thì giấy tờ của chính đơn đó có thêm <b>phiếu nhập trả</b> (máy tự lập để kho nhận lại hàng). Đơn khác trong lượt không bị ảnh hưởng.</p>
+<div class="khung" style="min-height:0">
+<aside class="ngan">
+  <div class="n-than ctd">
+    <nav class="ctd-ray" aria-label="Đơn trong lượt">
+      <a class="ctd-don" href="#"><span class="l-so x">1</span><span class="ctd-don-ten"><b>Minh Long</b><span class="ctd-don-phu"><span class="the">DH014</span><span class="nho">3 tệp</span></span></span></a>
+      <a class="ctd-don on" href="#"><span class="l-so x">2</span><span class="ctd-don-ten"><b>Bibica</b><span class="ctd-don-phu"><span class="the">DH015</span><span class="nho">2 tệp</span></span></span></a>
+      <a class="ctd-don" href="#"><span class="l-so">3</span><span class="ctd-don-ten"><b>Phúc Long Heritage</b><span class="ctd-don-phu"><span class="the">DH016</span><span class="nho">chưa có tệp</span></span></span></a>
+    </nav>
+    <div class="ctd-mat">
+      <div class="ctd-dau">
+        <div class="d-ten"><b>CÔNG TY CỔ PHẦN BIBICA</b><div class="the-hang"><span class="the">DH015</span></div></div>
+        <span class="pill p-dang">Giao thiếu</span>
+      </div>
+      <section class="ct">
+        <h5>Giấy tờ của đơn</h5>
+        <ul class="gt">
+          <li><span class="gt-loai">Phiếu giao hàng</span><span class="gt-so"><a class="lk" href="#">YCGH-261005-P8TM</a></span><span class="gt-tt"><span class="pill p-xong">Khách đã ký</span></span><span class="gt-ai nho">Nguyễn Thị Ngọc 10:05 06/10</span><span class="gt-nut"><button class="btn btn--sm">In lại</button></span></li>
+          <li><span class="gt-loai">Phiếu xuất kho</span><span class="gt-so"><a class="lk" href="#">PXK-261006-0004</a></span><span class="gt-tt"><span class="pill p-xong">Đã xuất</span></span><span class="gt-ai nho">Phạm Văn Lộc 07:22 06/10</span><span class="gt-nut"></span></li>
+          <li><span class="gt-loai">Phiếu nhập trả</span><span class="gt-so"><a class="lk" href="#">PNK-261006-0002</a></span><span class="gt-tt"><span class="pill p-dang">Chờ kho nhận lại</span></span><span class="gt-ai nho">máy lập 10:06 06/10</span><span class="gt-nut"></span></li>
+        </ul>
+      </section>
+      <section class="ct">
+        <h5>Hàng của đơn</h5>
+        <table><thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Trả về kho</th></tr></thead><tbody>
+          <tr><td>Hộp bánh Hura 300g</td><td class="r num">10.000 cái</td><td class="r num">9.600 cái</td><td class="r num"><b>400 cái</b></td></tr>
+        </tbody></table>
+        <p class="nho" style="margin:0;padding:8px 16px 12px">Lý do: 400 hộp móp góc khi bốc dỡ, khách không nhận.</p>
+      </section>
+    </div>
+  </div>
+</aside>
+</div>
+
+<div class="buoc-h">3c. Cách 2: không có tab Chứng từ, giấy tờ nằm luôn trong thẻ từng điểm ở tab Lộ trình</div>
+<p class="buoc-g">Ngăn chỉ còn hai tab, Lộ trình và Lịch sử. Thẻ mỗi điểm có thêm một hàng giấy tờ thu gọn; bấm “Giấy tờ” thì mở ra ngay trong thẻ. Gọn hơn, nhưng thẻ điểm dài thêm, và lượt nhiều điểm phải cuộn nhiều.</p>
+<div class="khung" style="min-height:0">
+<aside class="ngan">
+  <div class="n-tab" style="padding-top:12px"><span class="on">Lộ trình <i>3</i></span><span>Lịch sử <i>9</i></span></div>
+  <div class="n-than">
+    <article class="diem">
+      <div class="d-dau">
+        <div class="d-ten"><b>Công ty TNHH Thực phẩm Minh Long</b><div class="the-hang"><span class="the">DH014</span><span class="the">PO PO-ML-0912</span></div></div>
+        <div class="d-nut"><span class="pill p-xong">Giao thành công</span></div>
+      </div>
+      <dl class="d-luoi">
+        <div class="d-o"><dt>Nơi giao</dt><dd><b>Kho Hiệp Phước</b><span>Đường số 1, KCN Hiệp Phước, Xã Hiệp Phước, TP Hồ Chí Minh</span></dd></div>
+        <div class="d-o"><dt>Người nhận</dt><dd><span>Thủ kho Hiệp Phước</span><a class="tel" href="#">0779 958 485</a></dd></div>
+        <div class="d-o"><dt>Hẹn giao</dt><dd><b class="num">06/10/2026</b></dd></div>
+      </dl>
+      <div class="gtg">
+        <button class="gtg-mo">▾ Giấy tờ <i>5</i></button>
+        <ul class="gt">
+          <li><span class="gt-loai">Phiếu giao hàng</span><span class="gt-so"><a class="lk" href="#">YCGH-261005-K3QA</a></span><span class="gt-tt"><span class="pill p-xong">Khách đã ký</span></span><span class="gt-ai nho">Lê Thị Hoa 08:15</span><span class="gt-nut"><button class="btn btn--sm">In lại</button></span></li>
+          <li><span class="gt-loai">Phiếu xuất kho</span><span class="gt-so"><a class="lk" href="#">PXK-261006-0003</a></span><span class="gt-tt"><span class="pill p-xong">Đã xuất</span></span><span class="gt-ai nho">Phạm Văn Lộc 07:20</span><span class="gt-nut"></span></li>
+        </ul>
+        <div class="tep tep--nho">
+          <div><span class="tep-anh"></span><p><b>Hoá đơn GTGT 0001284</b></p></div>
+          <div><span class="tep-anh"></span><p><b>Phiếu giao hàng đã ký</b></p></div>
+          <div><span class="tep-anh"></span><p><b>Ảnh hàng tại kho khách</b></p></div>
+          <label class="tep-tha">Thêm tệp</label>
+        </div>
+      </div>
+    </article>
+  </div>
+</aside>
+</div>
+
+<!-- ================= 4. NGĂN — LỊCH SỬ ================= -->
+<div class="buoc-h">4. Tab Lịch sử</div>
+<div class="khung" style="min-height:0">
+<aside class="ngan">
+  <div class="n-tab" style="padding-top:12px"><span>Lộ trình <i>3</i></span><span>Chứng từ</span><span class="on">Lịch sử <i>9</i></span></div>
+  <div class="n-than">
+    <ul class="ls">
+      <li><span class="luc num">08:15 06/10</span><span class="viec"><span><b>Trần Hoàng Giang</b> nhập kết quả Minh Long: giao thành công</span><span class="nho">đồng hồ 48.222, Lê Thị Hoa ký nhận</span></span></li>
+      <li><span class="luc num">07:42 06/10</span><span class="viec"><span><b>Trần Hoàng Giang</b> bắt đầu giao 3 điểm</span><span class="nho">đồng hồ xuất phát 48.210</span></span></li>
+      <li><span class="luc num">07:30 06/10</span><span class="viec"><span><b>Trần Hoàng Giang</b> đã lấy hàng cả lượt</span></span></li>
+      <li><span class="luc num">07:25 06/10</span><span class="viec"><span><b>Phạm Văn Lộc</b> xuất kho PXK-261006-0005</span></span></li>
+      <li><span class="luc num">16:40 05/10</span><span class="viec"><span><b>Admin</b> gửi 3 yêu cầu xuất kho</span></span></li>
+      <li><span class="luc num">16:32 05/10</span><span class="viec"><span><b>Admin</b> lên lượt xe với 3 điểm</span><span class="nho">xe 51C-482.17, lấy hàng 07:30 06/10</span></span></li>
+    </ul>
+  </div>
+</aside>
+</div>
+
+<!-- ================= 5. NGĂN — GIAO THẲNG ================= -->
+<div class="buoc-h">5. Ngăn của đơn nhà gia công giao thẳng (bản ghi thật DH001)</div>
+<p class="buoc-g">Không có xe, không có kíp, nên đầu ngăn đổi bốn ô thành <b>nhà gia công, lệnh nguồn, số đã giao, người ghi nhận</b>. Nơi giao và người nhận lấy từ đơn hàng. Hiện máy đang ghi sai ô địa chỉ thành câu “Nhà gia công … giao thẳng” (xem mục 2 bên dưới).</p>
+<div class="khung">
+<aside class="ngan">
+  <div class="n-dau">
+    <span class="n-nhan">Nhà gia công giao thẳng</span>
+    <div class="n-hang1"><h4>YCGH-261006-SICU</h4><span class="pill p-xong">Đã giao</span><span class="sp"></span><button class="n-x">✕</button></div>
+    <dl class="n-tom">
+      <div><dt>Nhà gia công</dt><dd>Cơ sở Gia công Cán màng Thành Công</dd><a class="tel nho" href="#">0910 726 420</a></div>
+      <div><dt>Từ lệnh</dt><dd><a class="lk" href="#">LSX26-0002</a></dd><span class="nho">gia công trọn gói</span></div>
+      <div><dt>Đã giao</dt><dd class="to num">5.000 cái</dd></div>
+      <div><dt>Ghi nhận</dt><dd>Nguyễn Thị Minh Phương</dd><span class="nho num">12:46 06/10</span></div>
+    </dl>
+  </div>
+  <div class="n-tab"><span class="on">Chi tiết</span><span>Chứng từ</span><span>Lịch sử <i>1</i></span></div>
+  <div class="n-than">
+    <article class="diem">
+      <div class="d-dau">
+        <div class="d-ten"><b>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</b><div class="the-hang"><span class="the">DH001</span><span class="the">PO PO999</span></div></div>
+      </div>
+      <dl class="d-luoi">
+        <div class="d-o"><dt>Nơi giao</dt><dd><b>Kho VSIP 1</b><span>Số 18 Đại lộ Độc Lập, KCN VSIP 1, Phường Thuận An, TP Hồ Chí Minh</span></dd></div>
+        <div class="d-o"><dt>Người nhận</dt><dd><span>Nguyễn Thanh Vy</span><a class="tel" href="#">0797 235 637</a></dd></div>
+        <div class="d-o"><dt>Hẹn giao</dt><dd><b class="num">30/10/2026</b><span class="nho">giao sớm 24 ngày</span></dd></div>
+      </dl>
+      <div class="d-hang"><table><thead><tr><th>Hàng giao</th><th class="r">Đơn đặt</th><th class="r">Lần này</th></tr></thead><tbody>
+        <tr><td>Hộp kem 50ml (5×5×12 cm)</td><td class="r num">5.000 cái</td><td class="r num"><b>5.000 cái</b></td></tr>
+      </tbody></table></div>
+    </article>
+  </div>
+</aside>
+</div>
+
+<!-- ================= 6. ĐIỆN THOẠI ================= -->
+<div class="buoc-h">6. Trên điện thoại tài xế</div>
+<p class="buoc-g">Ngăn thành trang đầy màn hình. Thẻ điểm xếp dọc, nút <b>Nhập kết quả</b> cao 44px ghim đáy màn hình cho điểm đang tới, cạnh nút gọi người nhận.</p>
+<div class="dt-khung">
+  <div class="dt">
+    <div class="dt-dau"><span class="n-nhan">Lượt xe</span><h4>LX-261006-01 <span class="pill p-dang">Đang giao</span></h4><span class="nho">51C-482.17</span> <span class="nho">12 km</span> <span class="nho">1 trên 3 điểm</span></div>
+    <div class="dt-than">
+      <article class="diem dang">
+        <div class="d-dau"><div class="d-ten"><span class="nho">Điểm 2</span><b>CÔNG TY CỔ PHẦN BIBICA</b><div class="the-hang"><span class="the">DH015</span></div></div></div>
+        <dl class="d-luoi">
+          <div class="d-o"><dt>Nơi giao</dt><dd><b>Kho thành phẩm KCN Tân Tạo</b><span>Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo</span><a class="lk nho" href="#">Mở bản đồ</a></dd></div>
+          <div class="d-o"><dt>Người nhận</dt><dd><span>Chị Ngọc, kho thành phẩm</span></dd></div>
+        </dl>
+        <div class="d-luu" style="margin-top:10px">⚠ Giao giờ hành chính 8h–16h30, nghỉ trưa 11h30–13h</div>
+        <div class="d-hang"><table><tbody><tr><td>Hộp bánh Hura 300g</td><td class="r num">10.000 cái</td></tr></tbody></table></div>
+      </article>
+    </div>
+    <div class="dt-nut"><button class="btn">Gọi người nhận</button><button class="btn btn--pri">Nhập kết quả</button></div>
+  </div>
+</div>
+
+<div class="ghi">
+<b>Cần làm thêm ở máy chủ để có đủ thông tin trên</b>
+<ol>
+<li><b>Danh sách:</b> mỗi điểm cần thêm địa chỉ rút gọn và ngày hẹn giao. Hiện danh sách chỉ có tên khách và mã đơn; địa chỉ, người nhận và hàng chỉ nằm trong ngăn chi tiết theo từng yêu cầu.</li>
+<li><b>Giao thẳng đang ghi sai dữ liệu:</b> ô địa chỉ của yêu cầu bị ghi đè bằng câu “Nhà gia công Cơ sở Gia công Cán màng Thành Công giao thẳng”; người nhận và SĐT để trống. Phải lấy nơi nhận và người nhận của đơn như mọi yêu cầu khác. Câu “giao thẳng” chuyển sang ô ghi chú.</li>
+<li><b>Lưu ý giao của địa chỉ</b> (“Giao giờ hành chính…”, “đóng pallet…”) đang có trong sổ địa chỉ khách nhưng không theo vào yêu cầu giao. Cần đọc kèm theo địa chỉ đã chọn.</li>
+<li><b>Mỗi chuyến cần thêm:</b> cờ “nhà gia công giao thẳng”, tên và SĐT nhà gia công, mã lệnh, số lượng từng mặt hàng. Mã PO của đơn đã có sẵn trong đơn hàng.</li>
+<li><b>Giấy tờ theo đơn không cần bảng mới:</b> tệp đính kèm, phiếu xuất kho và phiếu nhập trả đều đã gắn theo từng chuyến (một chuyến = một đơn trong lượt); phiếu giao hàng in theo từng yêu cầu. Nhãn “Khách đã ký” suy từ kết quả giao (thành công và có tên người nhận), không phải ô lưu riêng.</li>
+<li><b>“Mở bản đồ”</b> chỉ mở Google Maps bằng chuỗi địa chỉ, không lưu toạ độ.</li>
+</ol>
+</div>
+</div>
+</body>
+</html>

@@ -1,335 +1,233 @@
-// Tab 1 của drawer Nhà cung cấp — "Thông tin chung & Pháp lý" (tách từ pages/SuppliersPage.tsx).
-import type { Dispatch, SetStateAction } from "react";
-import { ChevronDown } from "lucide-react";
-import { Icon } from "../../../../components/Icons";
-import type { SupplierInput, SupplierRow } from "../../../../api/client";
-import { LocalField } from "../components/LocalField";
-import { SaoNcc } from "../components/SaoNcc";
-import { soNgayVi } from "../shared/helpers";
+// Tab 1 của drawer Nhà cung cấp — "Thông tin chung" (tách từ pages/SuppliersPage.tsx).
+//
+// Dựng lại 06/10/2026 theo phương án A (docs/mockups/ncc-3-phuong-an.html), khuôn hồ sơ của Odoo
+// và SAP Fiori Object Page: mỗi dòng một cặp nhãn bên trái và giá trị bên phải, ô nhập trông như
+// chữ thường, rê chuột mới hiện nền và bấm vào mới hiện khung. Màn đặc, không phải cuộn.
+//   - Định danh: tên, nhóm hàng, mã số thuế, cờ nhận gia công.
+//   - Liên hệ và Thanh toán đứng cạnh nhau thành hai cột.
+// Khối đánh giá sao to đã lên đầu ngăn thành nhãn nhỏ + dải số liệu (SuppliersPage). Ô "Trạng
+// thái" bỏ: đầu ngăn có nhãn trạng thái và chân ngăn có nút Ngừng / Mở lại hợp tác, một trạng thái
+// mà ba chỗ đổi thì không biết chỗ nào thắng. NCC tạo mới mặc định đang hợp tác.
+import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { OGoDinhDang } from "../../../../components/OGoDinhDang";
+import type { SupplierInput } from "../../../../api/client";
+import "./ncc-form.css";
 
-function docSoTienVnd(num: number | null | undefined): string {
-  if (!num || num <= 0) return "";
-  if (num >= 1_000_000_000) {
-    const ty = (num / 1_000_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
-    return `${num.toLocaleString("vi-VN")} VNĐ (${ty} tỷ VNĐ)`;
-  }
-  if (num >= 1_000_000) {
-    const trieu = (num / 1_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
-    return `${num.toLocaleString("vi-VN")} VNĐ (${trieu} triệu VNĐ)`;
-  }
-  return `${num.toLocaleString("vi-VN")} VNĐ`;
+/** Một dòng nhãn và giá trị. `rong` = trải hết bề ngang khối (không chia đôi). */
+function Dong({
+  nhan,
+  batBuoc,
+  rong,
+  children,
+}: {
+  nhan: string;
+  batBuoc?: boolean;
+  rong?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <label className={`ncc-a__dong${rong ? " ncc-a__dong--rong" : ""}`}>
+      <span className="ncc-a__nhan">
+        {nhan}
+        {batBuoc && <span className="ncc-a__sao" aria-hidden="true">*</span>}
+      </span>
+      {children}
+    </label>
+  );
 }
 
-/** Khối SAO — chỉ ĐỌC, nằm trên đầu hồ sơ. */
-function KhoiSao({ ncc }: { ncc: SupplierRow }) {
-  const chuaCham = ncc.rating === null;
-
-  if (chuaCham) {
-    return (
-      <div className="supplier__rating-card supplier__rating-card--new">
-        <div className="supplier__rating-card-head">
-          <div className="supplier__rating-big-score--new">
-            Mới
-          </div>
-          <div>
-            <div className="supplier__rating-title">Đối tác mới hợp tác</div>
-            <div className="supplier__rating-sub">
-              Chưa phát sinh đơn hàng nào đủ dữ liệu để chấm sao.
-            </div>
-          </div>
-        </div>
-        <div className="supplier__rating-new-tip">
-          <Icon name="bulb" size={14} className="supplier__tip-ico" />
-          Hệ thống sẽ tự động tính điểm đánh giá &amp; tỉ lệ đúng hẹn ngay sau khi đơn hàng đầu tiên hoàn tất.
-        </div>
-      </div>
-    );
-  }
-
-  const ratingVal = ncc.rating ?? 5.0;
-  const onTimePercent = ncc.rating_count > 0
-    ? Math.round((ncc.on_time_count / ncc.rating_count) * 100)
-    : 100;
-
-  const isHigh = ratingVal >= 4.5;
-  const isMid = ratingVal >= 3.5;
-
+/** Ô số có đơn vị đứng ngay sau con số ("30 ngày", "50.000.000 đ"). Gõ được dấu chấm nghìn. */
+function OSo({
+  value,
+  onChange,
+  donVi,
+  trong,
+  nghin,
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  donVi: string;
+  /** Chữ mờ khi ô trống — nói ô trống nghĩa là gì. */
+  trong: string;
+  /** Hiện dấu chấm nghìn (tiền). */
+  nghin?: boolean;
+}) {
+  const co = value != null && value > 0;
+  const chu = co ? (nghin ? value.toLocaleString("vi-VN") : String(value)) : "";
   return (
-    <div className={`supplier__rating-card ${isHigh ? "supplier__rating-card--high" : isMid ? "supplier__rating-card--mid" : "supplier__rating-card--low"}`}>
-      <div className="supplier__rating-card-top">
-        <div className="supplier__rating-score-box">
-          <span className={`supplier__rating-big-val ${isHigh ? "is-high" : isMid ? "is-mid" : "is-low"}`}>
-            {ratingVal.toFixed(1)}
-          </span>
-          <div className="supplier__rating-stars-wrap">
-            <SaoNcc rating={ratingVal} cao={20} />
-            <span className="supplier__rating-tag">
-              <Icon name={isHigh ? "trophy" : isMid ? "check" : "alert"} size={14} />
-              {isHigh ? "Đối tác Uy tín Top 1" : isMid ? "Giao hàng Khá" : "Cần theo dõi sát"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="supplier__rating-kpi-grid">
-        <div className="supplier__rating-kpi-item">
-          <span className="supplier__rating-kpi-label">Tổng đơn đã chấm</span>
-          <span className="supplier__rating-kpi-value">{ncc.rating_count} đơn</span>
-        </div>
-
-        <div className="supplier__rating-kpi-item">
-          <span className="supplier__rating-kpi-label">Tỷ lệ đúng hẹn</span>
-          <div className="supplier__rating-kpi-value-row">
-            <span className="supplier__rating-kpi-value" style={{ color: onTimePercent >= 80 ? "#047857" : "#b45309" }}>
-              {onTimePercent}%
-            </span>
-            <span className="supplier__rating-kpi-sub">({ncc.on_time_count}/{ncc.rating_count} đơn)</span>
-          </div>
-          <div className="supplier__rating-bar">
-            <div
-              className={`supplier__rating-bar-fill ${onTimePercent >= 80 ? "is-green" : "is-amber"}`}
-              style={{ width: `${onTimePercent}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="supplier__rating-kpi-item">
-          <span className="supplier__rating-kpi-label">Tình trạng trễ hạn</span>
-          {ncc.late_count > 0 ? (
-            <span className="supplier__rating-kpi-value" style={{ color: "#b91c1c" }}>
-              {ncc.late_count} đơn (Trễ TB {soNgayVi(ncc.avg_late_days)} ngày)
-            </span>
-          ) : (
-            <span className="supplier__rating-kpi-value" style={{ color: "#047857" }}>
-              0 đơn trễ
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
+    <span className="ncc-a__so-wrap">
+      {/* Ô co theo đúng độ dài chữ để đơn vị đứng sát con số ("30 ngày"), không trôi ra mép phải. */}
+      <OGoDinhDang
+        className="ncc-a__o ncc-a__so"
+        inputMode="numeric"
+        placeholder={trong}
+        style={{ width: `calc(${Math.max((chu || trong).length, 2) + 1}ch + 18px)` }}
+        value={chu}
+        onChange={(e) => {
+          const so = e.target.value.replace(/\D/g, "");
+          onChange(so === "" ? null : Number(so));
+        }}
+      />
+      {co && <span className="ncc-a__don-vi">{donVi}</span>}
+    </span>
   );
 }
 
 export function SupplierInfoTab({
   form,
   setForm,
-  selected,
+  nhomGoiY,
 }: {
   form: SupplierInput;
   setForm: Dispatch<SetStateAction<SupplierInput>>;
-  selected: SupplierRow | null;
+  /** Nhóm hàng đang có trong danh mục — gợi ý cho ô Nhóm hàng để khỏi gõ lệch ("Giấy" / "giấy in"). */
+  nhomGoiY: string[];
 }) {
+  const doi = (patch: Partial<SupplierInput>) => setForm((f) => ({ ...f, ...patch }));
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      {selected && (
-        <div className="supplier__form-card">
-          <KhoiSao ncc={selected} />
-        </div>
-      )}
-
-      {/* Card 1: Thông tin định danh & Pháp lý */}
-      <div className="supplier__form-card">
-        <div className="supplier__form-card-title">
-          <Icon name="building" size={15} />
-          <span>Thông tin định danh &amp; Pháp lý</span>
-        </div>
-        <div className="supplier__form-grid-3">
-          <div className="supplier__span-2">
-            <LocalField label="Tên nhà cung cấp" required>
-              <input
-                className="input"
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="VD: Công ty TNHH Giấy Việt Triều"
-              />
-            </LocalField>
-          </div>
-
-          <LocalField label="Nhóm" required>
+    <div className="ncc-a">
+      <section className="ncc-a__khoi">
+        <h3 className="ncc-a__khoi-ten">Định danh</h3>
+        <div className="ncc-a__luoi">
+          <Dong nhan="Tên nhà cung cấp" batBuoc rong>
             <input
-              className="input"
+              className="ncc-a__o ncc-a__o--dam"
               required
-              value={form.supplier_group ?? ""}
-              onChange={(e) => setForm({ ...form, supplier_group: e.target.value })}
-              placeholder="Giấy in, Mực & Hóa chất..."
+              value={form.name}
+              onChange={(e) => doi({ name: e.target.value })}
+              placeholder="VD: Công ty TNHH Giấy Việt Triều"
             />
-          </LocalField>
-
-          <LocalField label="Mã số thuế" required>
+          </Dong>
+          <Dong nhan="Nhóm hàng" batBuoc>
             <input
-              className="input md-page__mono"
+              className="ncc-a__o"
               required
+              list="ncc-nhom-goi-y"
+              value={form.supplier_group ?? ""}
+              onChange={(e) => doi({ supplier_group: e.target.value })}
+              placeholder="VD: Giấy"
+            />
+            <datalist id="ncc-nhom-goi-y">
+              {nhomGoiY.map((n) => <option key={n} value={n} />)}
+            </datalist>
+          </Dong>
+          <Dong nhan="Mã số thuế" batBuoc>
+            <input
+              className="ncc-a__o ncc-a__so"
+              required
+              inputMode="numeric"
               value={form.tax_code ?? ""}
-              onChange={(e) => setForm({ ...form, tax_code: e.target.value })}
+              onChange={(e) => doi({ tax_code: e.target.value })}
               placeholder="0101234567"
             />
-          </LocalField>
-
-          <LocalField label="Nhận gia công">
-            <label
-              className={`supplier__switch-field${
-                form.nhan_gia_cong ? " supplier__switch-field--checked" : ""
-              }`}
+          </Dong>
+          <Dong nhan="Nhận gia công ngoài" rong>
+            <span
+              className="ncc-a__cong-tac"
+              title="Bật thì nhà cung cấp này có trong ô chọn nơi làm của công đoạn thuê ngoài."
             >
-              <span className="supplier__switch-label">Nhận gia công ngoài</span>
               <input
                 type="checkbox"
-                style={{ display: "none" }}
+                role="switch"
+                className="ncc-a__cong-tac-o"
                 checked={Boolean(form.nhan_gia_cong)}
-                onChange={(e) => setForm({ ...form, nhan_gia_cong: e.target.checked })}
+                onChange={(e) => doi({ nhan_gia_cong: e.target.checked })}
               />
-              <div className="supplier__switch-toggle" />
-            </label>
-          </LocalField>
-
-          <LocalField label="Trạng thái">
-            <div className="supplier__select-wrap">
-              <select
-                className="input"
-                value={form.status ?? "active"}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    status: e.target.value as "active" | "inactive",
-                  })
-                }
-              >
-                <option value="active">Hoạt động (Active)</option>
-                <option value="inactive">Tạm ngừng (Inactive)</option>
-              </select>
-              <ChevronDown className="supplier__select-arrow" size={16} />
-            </div>
-          </LocalField>
+              <span className="ncc-a__cong-tac-nut" aria-hidden="true" />
+              <span className="ncc-a__cong-tac-chu">
+                {form.nhan_gia_cong
+                  ? "Có, hiện trong ô chọn nơi làm của công đoạn thuê ngoài"
+                  : "Không"}
+              </span>
+            </span>
+          </Dong>
         </div>
-      </div>
+      </section>
 
-      {/* Card 2: Liên hệ & Hạn mức công nợ */}
-      <div className="supplier__form-card">
-        <div className="supplier__form-card-title">
-          <Icon name="phone" size={15} />
-          <span>Người liên hệ &amp; Hạn mức công nợ</span>
-        </div>
-        <div className="supplier__form-grid-3">
-          <LocalField label="Người liên hệ" required>
+      <div className="ncc-a__hai-cot">
+        <section className="ncc-a__khoi">
+          <h3 className="ncc-a__khoi-ten">Liên hệ</h3>
+          <Dong nhan="Người liên hệ" batBuoc>
             <input
-              className="input"
+              className="ncc-a__o"
               required
               value={form.contact_name ?? ""}
-              onChange={(e) => setForm({ ...form, contact_name: e.target.value })}
+              onChange={(e) => doi({ contact_name: e.target.value })}
               placeholder="VD: Anh Nam (Kinh doanh)"
             />
-          </LocalField>
-
-          <LocalField label="Số điện thoại" required>
+          </Dong>
+          <Dong nhan="Điện thoại" batBuoc>
             <input
-              className="input"
+              className="ncc-a__o ncc-a__so"
               required
+              type="tel"
+              inputMode="tel"
               value={form.phone ?? ""}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              onChange={(e) => doi({ phone: e.target.value })}
               placeholder="0988123456"
             />
-          </LocalField>
-
-          <LocalField label="Email" required>
+          </Dong>
+          <Dong nhan="Email" batBuoc>
             <input
-              className="input"
+              className="ncc-a__o"
               required
               type="email"
               value={form.email ?? ""}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              onChange={(e) => doi({ email: e.target.value })}
               placeholder="kinhdoanh@viettrieu.vn"
             />
-          </LocalField>
-
-          <LocalField label="Điều khoản thanh toán">
+          </Dong>
+          <Dong nhan="Địa chỉ" batBuoc>
             <input
-              className="input"
+              className="ncc-a__o"
+              required
+              value={form.address ?? ""}
+              onChange={(e) => doi({ address: e.target.value })}
+              placeholder="Số 15, Đường Cầu Diễn, Hà Nội"
+            />
+          </Dong>
+        </section>
+
+        <section className="ncc-a__khoi">
+          <h3 className="ncc-a__khoi-ten">Thanh toán</h3>
+          <Dong nhan="Số ngày cho nợ">
+            <OSo
+              value={form.credit_days ?? null}
+              onChange={(v) => doi({ credit_days: v })}
+              donVi="ngày"
+              trong="Chưa thỏa thuận"
+            />
+          </Dong>
+          {/* Dấu chấm nghìn, không `type="number"`: chín chữ số 0 liền nhau thì không ai đếm
+              nổi, mà đếm sai một chữ số là sai hạn mức gấp mười. */}
+          <Dong nhan="Hạn mức công nợ">
+            <OSo
+              value={form.credit_limit || null}
+              onChange={(v) => doi({ credit_limit: v ?? 0 })}
+              donVi="đ"
+              trong="Không giới hạn"
+              nghin
+            />
+          </Dong>
+          <Dong nhan="Điều khoản">
+            <input
+              className="ncc-a__o"
               value={form.payment_terms ?? ""}
-              onChange={(e) => setForm({ ...form, payment_terms: e.target.value })}
-              placeholder="Công nợ 30 ngày..."
+              onChange={(e) => doi({ payment_terms: e.target.value })}
+              placeholder="VD: Chuyển khoản sau giao hàng"
             />
-          </LocalField>
-
-          <LocalField label="Hạn mức công nợ (VNĐ)">
-            <div className="supplier__input-suffix-wrap">
-              <input
-                className="input"
-                type="number"
-                min={0}
-                step={1000}
-                value={form.credit_limit ? form.credit_limit : ""}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    credit_limit: Math.max(0, Math.round(Number(e.target.value) || 0)),
-                  })
-                }
-                placeholder="Để trống = không hạn mức"
-              />
-              <span className="supplier__input-suffix">VNĐ</span>
-            </div>
-            {Boolean(form.credit_limit) && (
-              <span className="supplier__money-formatted">
-                <Icon name="arrowRight" size={13} />
-                {docSoTienVnd(form.credit_limit)}
-              </span>
-            )}
-          </LocalField>
-
-          <LocalField label="Số ngày cho nợ">
-            <input
-              className="input"
-              type="number"
-              min={0}
-              step={1}
-              value={form.credit_days ?? ""}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  credit_days:
-                    e.target.value === ""
-                      ? null
-                      : Math.max(0, Math.round(Number(e.target.value) || 0)),
-                })
-              }
-              placeholder="Để trống = chưa đặt"
+          </Dong>
+          <Dong nhan="Ghi chú">
+            <textarea
+              className="ncc-a__o ncc-a__ghi-chu"
+              rows={1}
+              value={form.note ?? ""}
+              onChange={(e) => doi({ note: e.target.value })}
+              placeholder="Năng lực, chiết khấu…"
             />
-          </LocalField>
-        </div>
-      </div>
-
-      {/* Card 3: Địa chỉ & Ghi chú */}
-      <div className="supplier__form-card">
-        <div className="supplier__form-card-title">
-          <Icon name="mapPin" size={15} />
-          <span>Địa chỉ &amp; Ghi chú</span>
-        </div>
-        <div className="supplier__form-grid-3">
-          <div className="supplier__span-3">
-            <LocalField label="Địa chỉ" wide required>
-              <input
-                className="input"
-                required
-                value={form.address ?? ""}
-                onChange={(e) => setForm({ ...form, address: e.target.value })}
-                placeholder="Số 15, Đường Cầu Diễn, Bắc Từ Liêm, Hà Nội"
-              />
-            </LocalField>
-          </div>
-
-          <div className="supplier__span-3">
-            <LocalField label="Ghi chú" wide>
-              <textarea
-                className="input purchase__textarea"
-                rows={2}
-                value={form.note ?? ""}
-                onChange={(e) => setForm({ ...form, note: e.target.value })}
-                placeholder="Ghi chú thêm về năng lực, ưu đãi chiết khấu..."
-              />
-            </LocalField>
-          </div>
-        </div>
+          </Dong>
+        </section>
       </div>
     </div>
   );

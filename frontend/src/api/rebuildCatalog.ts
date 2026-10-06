@@ -14,7 +14,13 @@ export interface ListOut<T> {
   /** Tổng theo Ô TÌM (bỏ qua tab), do server đếm — chỉ màn mà một dòng rơi vào NHIỀU tab mới trả
    *  (Công việc khoán: một việc nhiều tổ). Cộng `facets` ở màn đó là đếm trùng. */
   tong_theo_tim?: number;
+  /** Thanh lọc chung (06/10/2026): `{tham số lọc: giá trị có thật + số dòng}` — mỗi điều kiện đếm
+   *  dưới mọi bộ lọc KHÁC nó. `active` = Đang dùng (`true`) / Đã ngừng (`false`). `nhan` có khi máy
+   *  chủ biết tên (khách, tổ, mức khoán, đơn vị, họ đơn vị). */
+  dem?: Record<string, DemGiaTri[]>;
 }
+
+export interface DemGiaTri { value: string; nhan?: string | null; so: number }
 
 export type Row = Record<string, unknown> & { id: number; ma: string; ten: string };
 

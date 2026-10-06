@@ -7,6 +7,8 @@ Mở lại gỡ sạch đúng những gì lần chốt đã đẻ ra — chỉ k
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import date
+from functools import partial
 
 from sqlalchemy.orm import Session
 
@@ -25,7 +27,7 @@ from ..san_xuat import ban_giao
 from ..san_xuat import kho as sx_kho
 from ..san_xuat.kcs import ghi_kcs_ngoai_phan_mem
 from ..san_xuat.san_luong import _toa_san_luong
-from . import GiaCongXungDot, kiem_version
+from . import GiaCongXungDot, kiem_version, so_vi
 from .giao_thang import ghi_giao_thang, huy_giao_thang
 from .lan import NHANH_KHO, NHANH_TOA, nguon_lan, nhanh_bai_ghep, noi_ve_hop_le
 
@@ -73,9 +75,9 @@ def _ve_kho(db: Session, *, user, gcn, cuoi, me, so: float, chang_sau: list,
 
 
 def _ve_khach(db: Session, *, user, gcn, cuoi, me, so: float, chang_sau: list,
-              dich_cong_viec_id: int | None) -> dict:
+              dich_cong_viec_id: int | None, ngay_khach_nhan: date | None = None) -> dict:
     ghi_kcs_ngoai_phan_mem(db, cv=cuoi, so_dat=so, uid=getattr(user, "id", None), ghi_chu=_GHI_KCS)
-    ghi_giao_thang(db, user=user, gcn=gcn, cv=cuoi, so=so)
+    ghi_giao_thang(db, user=user, gcn=gcn, cv=cuoi, so=so, ngay_khach_nhan=ngay_khach_nhan)
     return {}
 
 
@@ -222,7 +224,8 @@ def _lay(repo: GiaCongNgoaiRepository, gcn_id: int, expected_version: int | None
 
 
 def chot(db: Session, *, user, gcn_id: int, expected_version: int | None, sl_cuoi: float,
-         noi_ve: str, dich_cong_viec_id: int | None = None) -> dict:
+         noi_ve: str, dich_cong_viec_id: int | None = None,
+         ngay_khach_nhan: date | None = None) -> dict:
     repo = GiaCongNgoaiRepository(db)
     gcn = _lay(repo, gcn_id, expected_version)
     if gcn.chot_luc is not None:
@@ -243,6 +246,8 @@ def chot(db: Session, *, user, gcn_id: int, expected_version: int | None, sl_cuo
             "Nơi về không hợp lệ — dải chứa bước cuối của lệnh chỉ về kho, hoặc giao thẳng khi "
             "dòng đơn đứng riêng một cụm.")
     nhanh, _go = _cap_ham(db, gcn, cuoi, chang_sau, noi_ve)
+    if noi_ve == NOI_VE_KHACH:
+        nhanh = partial(nhanh, ngay_khach_nhan=ngay_khach_nhan)
 
     uid = getattr(user, "id", None)
     luc = _utcnow()
@@ -265,7 +270,7 @@ def chot(db: Session, *, user, gcn_id: int, expected_version: int | None, sl_cuo
     dv_ten = nhan_don_vi(DonViDoRepository(db).ten_theo_ma(), don_vi)
     AuditLogRepository(db).create(
         actor_user_id=uid, action="gia_cong_ngoai_chot", target=f"gia_cong_ngoai:{gcn.id}",
-        detail=f"Chốt {so:g} {dv_ten} — {NHAN_NOI_VE[noi_ve]}", commit=False,
+        detail=f"Chốt {so_vi(so)} {dv_ten} — {NHAN_NOI_VE[noi_ve]}", commit=False,
     )
     db.commit()
 
@@ -363,7 +368,7 @@ def mo_lai(db: Session, *, user, gcn_id: int, expected_version: int | None) -> d
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="gia_cong_ngoai_mo_lai",
         target=f"gia_cong_ngoai:{gcn.id}",
-        detail=f"Mở lại số chốt {so_cu:g} ({NHAN_NOI_VE[noi_cu]})", commit=False,
+        detail=f"Mở lại số chốt {so_vi(so_cu)} ({NHAN_NOI_VE[noi_cu]})", commit=False,
     )
     db.commit()
     for req in yc_huy:

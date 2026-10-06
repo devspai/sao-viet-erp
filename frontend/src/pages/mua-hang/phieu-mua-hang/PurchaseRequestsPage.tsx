@@ -31,6 +31,24 @@ import { PurchaseModals } from "./components/PurchaseModals";
 import { PhieuListTab } from "./tabs/PhieuListTab";
 import { YeuCauInboxTab } from "./tabs/YeuCauInboxTab";
 import { useNapTenDonVi } from "../../tenDonVi";
+import { thamSoKy } from "../../thanh-loc/ky-danh-sach";
+import { useLocMan } from "../../thanh-loc/useLocMan";
+import {
+  LOC_MAN_YC_TRONG,
+  locManYeuCauLenUrl,
+  locManYeuCauTuUrl,
+  thamSoLocYeuCau,
+  useDieuKienYeuCau,
+  type LocManYeuCau,
+} from "../loc-mua-hang/dieu-kien-yeu-cau";
+import {
+  LOC_MAN_DMH_TRONG,
+  locManDonMuaHangLenUrl,
+  locManDonMuaHangTuUrl,
+  thamSoLocDonMuaHang,
+  useDieuKienDonMuaHang,
+  type LocManDonMuaHang,
+} from "../loc-mua-hang/dieu-kien-don-mua";
 import { PAGE_SIZE, SOURCE_PAGE_SIZE } from "./shared/constants";
 import {
   chaoGiaChoMatHang,
@@ -43,7 +61,6 @@ import {
 } from "./shared/helpers";
 import { dongDuocChon } from "./shared/types";
 import type {
-  DepositFilter,
   FormLine,
   FormState,
   PurchaseTab,
@@ -57,6 +74,18 @@ import "../../accounting.css";
 import "../../payables.css";
 import "../../purchase.css";
 import "./phieu-mua-hang-chuan.css";
+
+type LocManMuaHang = { dmh: LocManDonMuaHang; yc: LocManYeuCau };
+const LOC_MAN_MUA_HANG_TRONG: LocManMuaHang = { dmh: LOC_MAN_DMH_TRONG, yc: LOC_MAN_YC_TRONG };
+const TIEN_TO_YC = "yc_";
+const docLocMuaHang = (p: URLSearchParams): LocManMuaHang => ({
+  dmh: locManDonMuaHangTuUrl(p),
+  yc: locManYeuCauTuUrl(p, TIEN_TO_YC),
+});
+const ghiLocMuaHang = (t: LocManMuaHang) => ({
+  ...locManDonMuaHangLenUrl(t.dmh),
+  ...locManYeuCauLenUrl(t.yc, TIEN_TO_YC),
+});
 
 export function PurchaseRequestsPage({
   navigate,
@@ -144,12 +173,25 @@ export function PurchaseRequestsPage({
   const [size, setSize] = useState(PAGE_SIZE);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
-  const [supplierFilter, setSupplierFilter] = useState<number | "all">("all");
-  const [depositFilter, setDepositFilter] = useState<DepositFilter>("all");
-  const [createdFrom, setCreatedFrom] = useState("");
-  const [createdTo, setCreatedTo] = useState("");
-  const [neededFrom, setNeededFrom] = useState("");
-  const [neededTo, setNeededTo] = useState("");
+  // Thanh lọc chung của HAI danh sách (06/10/2026), ghi lên URL dưới cùng dấu `?man=mua-hang`: khoá
+  // của danh sách đơn không tiền tố (`ky`, `ncc`, `coc`…), của danh sách yêu cầu mang `yc_`. Chỉ lọc
+  // lên URL — tab đang mở thì KHÔNG (xem ghi chú `tab` ở trên).
+  const [locMan, setLocManGoc] = useLocMan("mua-hang", LOC_MAN_MUA_HANG_TRONG, docLocMuaHang, ghiLocMuaHang);
+  const setLocDon = (dmh: LocManDonMuaHang) => {
+    setLocManGoc({ ...locMan, dmh });
+    setPage(1);
+  };
+  const setLocYeuCau = (yc: LocManYeuCau) => {
+    setLocManGoc({ ...locMan, yc });
+    setSourcePage(1);
+  };
+  const dieuKienDon = useDieuKienDonMuaHang();
+  const dieuKienYeuCau = useDieuKienYeuCau();
+  const khoaLocDon = JSON.stringify({ ...thamSoKy(locMan.dmh.ky), ...thamSoLocDonMuaHang(locMan.dmh.loc) });
+  const khoaLocYeuCau = JSON.stringify({ ...thamSoKy(locMan.yc.ky), ...thamSoLocYeuCau(locMan.yc.loc) });
+  /** Số theo trạng thái của từng danh sách — máy chủ đếm sau lọc, trước tab (`tat_ca` = Tất cả). */
+  const [demDon, setDemDon] = useState<Record<string, number> | null>(null);
+  const [demYeuCau, setDemYeuCau] = useState<Record<string, number> | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const [sourceRows, setSourceRows] = useState<DepartmentPurchaseRequestRow[]>(
@@ -287,24 +329,30 @@ export function PurchaseRequestsPage({
     setSourceLoading(true);
     setSourceError(null);
     api.departmentPurchaseRequests
-      .list(token, {
-        q: sourceQDebounced.trim() || undefined,
-        status: sourceStatus === "all" ? null : sourceStatus,
-        sort: "-created_at",
-        page: sourcePage,
-        size: sourceSize,
-      })
+      .list(
+        token,
+        {
+          q: sourceQDebounced.trim() || undefined,
+          status: sourceStatus === "all" ? null : sourceStatus,
+          sort: "-created_at",
+          page: sourcePage,
+          size: sourceSize,
+        },
+        JSON.parse(khoaLocYeuCau),
+      )
       .then((res) => {
         setSourceRows(res.items);
         setSourceTotal(res.total);
+        setDemYeuCau(res.dem_theo_tab ?? null);
       })
       .catch(() => {
         setSourceRows([]);
         setSourceTotal(0);
+        setDemYeuCau(null);
         setSourceError("Không tải được danh sách yêu cầu mua hàng.");
       })
       .finally(() => setSourceLoading(false));
-  }, [token, loadChoMua, sourceQDebounced, sourceStatus, sourcePage, sourceSize]);
+  }, [token, loadChoMua, sourceQDebounced, sourceStatus, sourcePage, sourceSize, khoaLocYeuCau]);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -312,22 +360,21 @@ export function PurchaseRequestsPage({
     setError(null);
     setListError(null);
     api.purchaseRequests
-      .list(token, {
-        q: qDebounced.trim() || undefined,
-        status: status === "all" ? null : status,
-        supplier_id: supplierFilter === "all" ? null : supplierFilter,
-        deposit_status: depositFilter === "all" ? null : depositFilter,
-        created_from: createdFrom || null,
-        created_to: createdTo || null,
-        needed_from: neededFrom || null,
-        needed_to: neededTo || null,
-        sort: "-created_at",
-        page,
-        size,
-      })
+      .list(
+        token,
+        {
+          q: qDebounced.trim() || undefined,
+          status: status === "all" ? null : status,
+          sort: "-created_at",
+          page,
+          size,
+        },
+        JSON.parse(khoaLocDon),
+      )
       .then((res) => {
         setRows(res.items);
         setTotal(res.total);
+        setDemDon(res.dem_theo_tab ?? null);
         setSelectedId((current) =>
           current != null && res.items.some((row) => row.id === current)
             ? current
@@ -344,12 +391,7 @@ export function PurchaseRequestsPage({
     token,
     qDebounced,
     status,
-    supplierFilter,
-    depositFilter,
-    createdFrom,
-    createdTo,
-    neededFrom,
-    neededTo,
+    khoaLocDon,
     page,
     size,
     onDataRefreshed,
@@ -386,17 +428,21 @@ export function PurchaseRequestsPage({
   useEffect(() => {
     const code = (focusRequestCode ?? "").trim();
     if (!code) return;
+    // Bỏ kỳ + điều kiện đang nhớ của danh sách đó: phiếu cần soi có thể nằm ngoài kỳ đang lọc.
     if (code.toUpperCase().startsWith("YCMH")) {
       setSourceQ(code);
       setSourceStatus("all");
+      setLocManGoc({ ...locMan, yc: LOC_MAN_YC_TRONG });
       setSourcePage(1);
       setTab("yeu-cau");
     } else {
       setQ(code);
       setStatus("all");
+      setLocManGoc({ ...locMan, dmh: LOC_MAN_DMH_TRONG });
       setPage(1);
       setTab("phieu");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusRequestCode]);
 
   const selected = useMemo(
@@ -825,7 +871,7 @@ export function PurchaseRequestsPage({
               count: choMua.soLuong,
               tone: coYcQuaHan ? "alert" : "default",
             },
-            { key: "phieu", label: "Đơn mua hàng", count: total },
+            { key: "phieu", label: "Đơn mua hàng", count: demDon?.tat_ca ?? total },
           ]}
         />
       </header>
@@ -839,6 +885,14 @@ export function PurchaseRequestsPage({
           setSourceQ={setSourceQ}
           sourceStatus={sourceStatus}
           setSourceStatus={setSourceStatus}
+          demTheoTab={demYeuCau}
+          ky={locMan.yc.ky}
+          onKy={(ky) => setLocYeuCau({ ...locMan.yc, ky })}
+          dieuKien={dieuKienYeuCau}
+          loc={locMan.yc.loc}
+          onLoc={(loc) => setLocYeuCau({ ...locMan.yc, loc })}
+          xoaLocThem={() => setLocYeuCau(LOC_MAN_YC_TRONG)}
+          coLocThem={khoaLocYeuCau !== "{}"}
           sourcePage={sourcePage}
           setSourcePage={setSourcePage}
           sourceLoading={sourceLoading}
@@ -864,19 +918,14 @@ export function PurchaseRequestsPage({
           setPage={setPage}
           status={status}
           setStatus={setStatus}
-          supplierFilter={supplierFilter}
-          setSupplierFilter={setSupplierFilter}
-          depositFilter={depositFilter}
-          setDepositFilter={setDepositFilter}
-          createdFrom={createdFrom}
-          setCreatedFrom={setCreatedFrom}
-          createdTo={createdTo}
-          setCreatedTo={setCreatedTo}
-          neededFrom={neededFrom}
-          setNeededFrom={setNeededFrom}
-          neededTo={neededTo}
-          setNeededTo={setNeededTo}
-          suppliers={suppliers}
+          demTheoTab={demDon}
+          ky={locMan.dmh.ky}
+          onKy={(ky) => setLocDon({ ...locMan.dmh, ky })}
+          dieuKien={dieuKienDon}
+          loc={locMan.dmh.loc}
+          onLoc={(loc) => setLocDon({ ...locMan.dmh, loc })}
+          xoaLocThem={() => setLocDon(LOC_MAN_DMH_TRONG)}
+          coLocThem={khoaLocDon !== "{}"}
           loading={loading}
           listError={listError}
           load={load}

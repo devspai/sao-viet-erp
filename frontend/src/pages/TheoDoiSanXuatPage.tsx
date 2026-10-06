@@ -11,7 +11,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, api } from "../api/client";
 import type {
-  TdsxBatThuong,
   TdsxBoLocOut,
   TdsxDemBatThuong,
   TdsxLocParams,
@@ -27,7 +26,17 @@ import { LenhSxHoSoView } from "./LenhSxHoSoView";
 import { TdsxTheoLenh } from "./TdsxTheoLenh";
 import { TdsxTheoMay } from "./TdsxTheoMay";
 import { BangLoi, EmptyState } from "./keHoachSxShared";
+import {
+  BAT_THUONG,
+  LOC_TDSX_TRONG,
+  dieuKienTdsx,
+  locTdsxLenUrl,
+  locTdsxTuUrl,
+  thamSoLocTdsx,
+} from "./loc-san-xuat/dieu-kien-theo-doi-sx";
 import { useNapTenDonVi } from "./tenDonVi";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { useLocMan } from "./thanh-loc/useLocMan";
 // `ke-hoach-sx.css` cho `EmptyState`/`Skeleton` (lớp `.khsx-*`), rồi CSS chung của hai màn, rồi CSS
 // riêng màn này (nạp CUỐI để `.tdsx-*` thắng khi trùng độ ưu tiên).
 import "./ke-hoach-sx.css";
@@ -48,16 +57,6 @@ function docGoc(): Goc {
     return "theo_may";
   }
 }
-
-/** Sáu mục của dải bất thường, thứ tự CỐ ĐỊNH (đặc tả 3.1). Khoá là hợp đồng với `?bat_thuong=`. */
-const BAT_THUONG: { key: TdsxBatThuong; nhan: string }[] = [
-  { key: "tre_han", nhan: "lệnh trễ hạn" },
-  { key: "su_co", nhan: "sự cố đang mở" },
-  { key: "tam_dung", nhan: "việc tạm dừng" },
-  { key: "kcs_khong_dat", nhan: "KCS không đạt" },
-  { key: "may_hong", nhan: "máy hỏng" },
-  { key: "chua_may", nhan: "bước chưa có máy" },
-];
 
 export function TheoDoiSanXuatPage({
   eventTick,
@@ -85,9 +84,9 @@ export function TheoDoiSanXuatPage({
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [q, setQ] = useState("");
   const qTre = useTre(q);
-  const [khachId, setKhachId] = useState("");
-  const [mayId, setMayId] = useState("");
-  const [batThuong, setBatThuong] = useState<TdsxBatThuong | null>(null);
+  // Khách / Máy / Bất thường — thanh lọc chung, ghi lên URL, nhớ theo màn.
+  const [loc, setLoc] = useLocMan("theo-doi-san-xuat", LOC_TDSX_TRONG, locTdsxTuUrl, locTdsxLenUrl);
+  const batThuong = loc.bat_thuong ?? null;
 
   useEffect(() => {
     function phim(e: KeyboardEvent) {
@@ -110,7 +109,7 @@ export function TheoDoiSanXuatPage({
         if (song) setBoLoc(r);
       })
       .catch(() => {
-        // Hỏng ⇒ ô Khách/Máy ẩn, ô tìm và dải bất thường vẫn chạy.
+        // Hỏng ⇒ điều kiện Khách/Máy không có giá trị để chọn, ô tìm và dải bất thường vẫn chạy.
         if (song) setBoLoc(null);
       });
     return () => {
@@ -131,8 +130,7 @@ export function TheoDoiSanXuatPage({
     const so = ++luot.current;
     const params: TdsxLocParams = {
       q: qTre.trim() || undefined,
-      khach_hang_id: khachId ? Number(khachId) : undefined,
-      bat_thuong: batThuong ?? undefined,
+      ...thamSoLocTdsx(loc, goc === "theo_lenh"),
     };
     setLoading(true);
     const p: Promise<unknown> =
@@ -140,11 +138,9 @@ export function TheoDoiSanXuatPage({
         ? api.theoDoiSanXuat.theoMay(token, params).then((r) => {
             if (so === luot.current) setMayData(r);
           })
-        : api.theoDoiSanXuat
-            .theoLenh(token, { ...params, may_id: mayId ? Number(mayId) : undefined })
-            .then((r) => {
-              if (so === luot.current) setLenhData(r);
-            });
+        : api.theoDoiSanXuat.theoLenh(token, params).then((r) => {
+            if (so === luot.current) setLenhData(r);
+          });
     p.then(() => {
       if (so === luot.current) setLoi(null);
     })
@@ -163,7 +159,8 @@ export function TheoDoiSanXuatPage({
       .finally(() => {
         if (so === luot.current) setLoading(false);
       });
-  }, [token, goc, qTre, khachId, mayId, batThuong]);
+    // `loc` đổi danh tính mỗi lần chọn — đúng nhịp cần tải lại.
+  }, [token, goc, qTre, loc]);
   useEffect(() => {
     load();
   }, [load]);
@@ -190,16 +187,17 @@ export function TheoDoiSanXuatPage({
     });
   }, [hoSoId]);
 
-  const dangLoc = qTre.trim() !== "" || khachId !== "" || (goc === "theo_lenh" && mayId !== "") || batThuong !== null;
+  const dangLoc =
+    qTre.trim() !== "" || loc.khach != null || batThuong !== null
+    || (goc === "theo_lenh" && (loc.may != null || loc.khau != null));
   const xoaLoc = useCallback(() => {
     setQ("");
-    setKhachId("");
-    setMayId("");
-    setBatThuong(null);
-  }, []);
+    setLoc(LOC_TDSX_TRONG);
+  }, [setLoc]);
 
   const data = goc === "theo_may" ? mayData : lenhData;
   const dem: TdsxDemBatThuong | null = data?.bat_thuong ?? null;
+  const dieuKien = dieuKienTdsx(boLoc, dem, goc === "theo_lenh");
 
   // Ô báo khi bảng rỗng — gom MỘT chỗ cho cả hai góc.
   const rong = loi ? (
@@ -266,7 +264,7 @@ export function TheoDoiSanXuatPage({
               aria-pressed={dangChon}
               // Đang chọn thì vẫn bấm được để BỎ, kể cả khi số đã về 0.
               disabled={!dem || (n === 0 && !dangChon)}
-              onClick={() => setBatThuong(dangChon ? null : b.key)}
+              onClick={() => setLoc({ ...loc, bat_thuong: dangChon ? undefined : b.key })}
             >
               <b>{dem ? n : "0"}</b> {b.nhan}
             </button>
@@ -274,7 +272,7 @@ export function TheoDoiSanXuatPage({
         })}
       </div>
 
-      <section className="lsc-loc" aria-label="Lọc bảng theo dõi">
+      <section className="lsc-loc tl-thanh" aria-label="Lọc bảng theo dõi">
         <div className="lsc-search">
           <Icon name="search" size={15} />
           <input
@@ -295,39 +293,7 @@ export function TheoDoiSanXuatPage({
           )}
         </div>
 
-        {boLoc && boLoc.khach_hang.length > 0 && (
-          <label className={`lsc-field${khachId !== "" ? " is-active" : ""}`}>
-            <span>Khách</span>
-            <select value={khachId} onChange={(e) => setKhachId(e.target.value)}>
-              <option value="">Tất cả</option>
-              {boLoc.khach_hang.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.ten ?? `Khách #${k.id}`}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {goc === "theo_lenh" && boLoc && boLoc.may.length > 0 && (
-          <label className={`lsc-field${mayId !== "" ? " is-active" : ""}`}>
-            <span>Máy</span>
-            <select value={mayId} onChange={(e) => setMayId(e.target.value)}>
-              <option value="">Tất cả</option>
-              {boLoc.may.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {(m.ten ?? `Máy #${m.id}`) + (m.ngung_dung ? " (ngừng dùng)" : "")}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {dangLoc && (
-          <button type="button" className="lsc-link" onClick={xoaLoc}>
-            Bỏ lọc
-          </button>
-        )}
+        <ThanhLoc dieuKien={dieuKien} loc={loc} onLoc={setLoc} />
       </section>
 
       {/* Lỗi khi ĐÃ có bảng: giữ bảng cũ, báo một dòng phía trên. */}

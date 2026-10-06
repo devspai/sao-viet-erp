@@ -15,9 +15,21 @@ import { EmptyRow } from "../components/EmptyState";
 import { StatusTabs } from "../components/StatusTabs";
 import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
+import { LOC_TG_TRONG, locTGLenUrl, locTGTuUrl, thamSoLocTG, useDieuKienTinhGia, type LocTinhGia } from "./loc-kinh-doanh/dieu-kien-tinh-gia";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { dkTheoTab } from "./thanh-loc/thanh-loc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import { useLocMan } from "./thanh-loc/useLocMan";
 import "./tinh-gia.css";
 
 const PAGE_SIZE = 25;
+
+// Phiếu tính giá chỉ có một mốc ngày: ngày lập.
+const MOC_TG: [string, string][] = [["tao", "Ngày tạo"]];
+type LocMan = { ky: KyDS; loc: LocTinhGia };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_TG_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({ ky: kyTuUrl(p, ["tao"], "tao"), loc: locTGTuUrl(p) });
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locTGLenUrl(t.loc) });
 
 const fmt = (v: number | null | undefined): string =>
   typeof v === "number" ? Math.round(v).toLocaleString("vi-VN") : "—";
@@ -73,6 +85,11 @@ export function PhieuTinhGiaListView({
   const [sort, setSort] = useState("-ngay");
   // Hộp lọc người lập — null = tất cả người trong tầm nhìn.
   const [nguoi, setNguoi] = useState<number | null>(null);
+  // Dải kỳ + bộ lọc nâng cao — ghi lên URL, nhớ theo màn khi mở phiếu rồi quay lại.
+  const [locMan, setLocMan] = useLocMan("tinh-gia", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const dkRieng = useDieuKienTinhGia();
+  const thamSo = { ...thamSoKy(locMan.ky), ...thamSoLocTG(locMan.loc) };
+  const khoaLoc = JSON.stringify(thamSo);
 
   // Debounce ô tìm kiếm.
   useEffect(() => {
@@ -82,7 +99,7 @@ export function PhieuTinhGiaListView({
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQ, statusFilter, sort, nguoi]);
+  }, [debouncedQ, statusFilter, sort, nguoi, khoaLoc]);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -96,6 +113,7 @@ export function PhieuTinhGiaListView({
         sort,
         page,
         size,
+        loc: JSON.parse(khoaLoc),
       })
       .then((r) => {
         setItems(r.items);
@@ -103,8 +121,13 @@ export function PhieuTinhGiaListView({
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Không tải được danh sách phiếu."))
       .finally(() => setLoading(false));
-    api.phieuTinhGia.stats(token, nguoi).then(setStats).catch(() => setStats(null));
-  }, [token, debouncedQ, statusFilter, sort, page, size, nguoi]);
+    // Số trên tab theo ĐÚNG bộ lọc đang áp (ô tìm, kỳ, bộ lọc) — không thì tab nói 120 mà bảng 3 dòng.
+    api.phieuTinhGia
+      .stats(token, nguoi, { q: debouncedQ || undefined, ...JSON.parse(khoaLoc) })
+      .then(setStats)
+      .catch(() => setStats(null));
+  }, [token, debouncedQ, statusFilter, sort, page, size, nguoi, khoaLoc]);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -112,6 +135,21 @@ export function PhieuTinhGiaListView({
   const allCount = stats?.all ?? 0;
   const calculatedCount = stats?.calculated ?? 0;
   const draftCount = stats?.draft ?? 0;
+  const tabTrangThai = [
+    { key: "all", label: "Tất cả", count: allCount },
+    { key: "calculated", label: "Đã tính giá", count: calculatedCount },
+    { key: "draft", label: "Phiếu nháp", count: draftCount },
+  ];
+  // "Trạng thái" trong nút Lọc đọc/ghi thẳng tab — không đẻ state lọc thứ hai.
+  const dieuKien = [
+    dkTheoTab<LocTinhGia>({
+      tabs: tabTrangThai.map((t) => ({ id: t.key, nhan: t.label, so: t.count })),
+      tatCa: "all",
+      dang: statusFilter,
+      dat: setStatusFilter,
+    }),
+    ...dkRieng,
+  ];
 
   return (
     <main className="rdx-cost tg-page">
@@ -133,7 +171,7 @@ export function PhieuTinhGiaListView({
         </div>
       </header>
 
-      <div className="ptg-toolbar">
+      <div className="ptg-toolbar tl-thanh">
         <div className="ptg-search">
           <SearchIcon />
           <input
@@ -144,6 +182,14 @@ export function PhieuTinhGiaListView({
             aria-label="Tìm phiếu tính giá"
           />
         </div>
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_TG}
+          onKy={(ky) => setLocMan({ ...locMan, ky })}
+          dieuKien={dieuKien}
+          loc={locMan.loc}
+          onLoc={(loc) => setLocMan({ ...locMan, loc })}
+        />
         <LocNguoiPhuTrach
           nap={api.phieuTinhGia.nguoiLap}
           value={nguoi}
@@ -155,11 +201,7 @@ export function PhieuTinhGiaListView({
 
       <div style={{ margin: "4px 0 8px" }}>
         <StatusTabs
-          tabs={[
-            { key: "all", label: "Tất cả", count: allCount },
-            { key: "calculated", label: "Đã tính giá", count: calculatedCount },
-            { key: "draft", label: "Phiếu nháp", count: draftCount },
-          ]}
+          tabs={tabTrangThai}
           active={statusFilter}
           onChange={setStatusFilter}
         />

@@ -47,12 +47,18 @@ class NoiQuyService:
         self.noi_quy = noi_quy
         self.audit = audit
 
-    def list_records(self, *, q: str | None = None, page: int = 1, size: int = 20):
+    def list_records(self, *, q: str | None = None, page: int = 1, size: int = 20, **loc):
         """Trả `(rows, total)` — `total` là số bản ghi KHỚP BỘ LỌC trên toàn bảng, không phải
-        số dòng của trang. Chân bảng đọc `total` để biết có sang trang được không."""
-        total = self.noi_quy.count(q=q)
-        rows = self.noi_quy.list_all(q=q, limit=size, offset=max(0, (page - 1) * size))
+        số dòng của trang. Chân bảng đọc `total` để biết có sang trang được không.
+        `loc`: điều kiện thanh lọc (`nguoi`, `loai`, `tu_ngay`, `den_ngay`)."""
+        total = self.noi_quy.count(q=q, **loc)
+        rows = self.noi_quy.list_all(q=q, limit=size, offset=max(0, (page - 1) * size), **loc)
         return rows, total
+
+    def nguoi_tai_loc(self) -> list[dict]:
+        """Giá trị điều kiện "Người tải lên" `[{id, ten, so}]`."""
+        return [{"id": uid, "ten": ten, "so": so}
+                for uid, ten, so in self.noi_quy.dem_theo_nguoi_tai()]
 
     def create_record(
         self,

@@ -292,7 +292,7 @@ class GiuChoService:
     # ================== CÁCH NHÌN THỨ HAI: THEO LỆNH ==================
 
     def theo_chu_the(self, *, q: str | None = None, chi_can_lo: bool = False,
-                     chi_giu_lau: bool = False) -> dict:
+                     chi_giu_lau: bool = False, giu: str | None = None) -> dict:
         """Cùng một bảng cân đối, XOAY 90°: mỗi thẻ = MỘT lệnh/bài, bên trong là các mặt hàng nó cần.
 
         Vì sao phải có cách nhìn thứ hai chứ không thêm cột vào bảng cũ: hai câu hỏi khác nhau và
@@ -357,9 +357,30 @@ class GiuChoService:
                                                      h["hang_ma"] or "")),
             })
 
-        return {"items": self._loc_chu_the(rows, q=q, chi_can_lo=chi_can_lo,
-                                           chi_giu_lau=chi_giu_lau),
-                "so_giu_lau": sum(1 for r in rows if r["giu_lau_chua_chay"])}
+        loc = self._loc_chu_the(rows, q=q, chi_can_lo=chi_can_lo, chi_giu_lau=chi_giu_lau)
+        items, dem = self.loc_theo_tab(loc, giu)
+        return {"items": items,
+                "so_giu_lau": sum(1 for r in rows if r["giu_lau_chua_chay"]),
+                "dem_theo_tab": dem}
+
+    #: Tab của cách nhìn theo lệnh → điều kiện trên một thẻ. Khoá là hợp đồng với `?giu=`.
+    TAB_GIU = {
+        "du": lambda r: r["du"],
+        "dang": lambda r: r["bat"] and not r["du"],
+        "tat": lambda r: not r["bat"],
+        "giu_lau": lambda r: r["giu_lau_chua_chay"],
+    }
+
+    @classmethod
+    def loc_theo_tab(cls, rows: list[dict], giu: str | None) -> tuple[list[dict], dict[str, int]]:
+        """Lọc theo tab Ở MÁY CHỦ (06/10/2026) — trước đây lọc trong trình duyệt. Số đếm tính
+        TRƯỚC tab đang chọn, trên đúng tập đã qua ô tìm + điều kiện khác."""
+        dem = {"tat_ca": len(rows)}
+        for k, f in cls.TAB_GIU.items():
+            dem[k] = sum(1 for r in rows if f(r))
+        if giu in cls.TAB_GIU:
+            rows = [r for r in rows if cls.TAB_GIU[giu](r)]
+        return rows, dem
 
     @staticmethod
     def _la_giu_lau(bat: bool, da_xep: bool, so_ngay_giu: int | None) -> bool:

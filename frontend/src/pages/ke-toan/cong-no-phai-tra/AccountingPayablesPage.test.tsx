@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PayablesSummary } from "../../../api/client";
 import { homNayVN, kyCungKy, tinhKy } from "../../../utils/ky";
+import { khoangSo } from "../shared/kyKeToan";
 
 const payables = vi.fn();
 
@@ -44,7 +45,8 @@ function tomTat(p: Partial<PayablesSummary> = {}): PayablesSummary {
         supplier_id: 7, supplier_name: "Giấy Bình Minh", order_count: 2, overdue_amount: 26_500_000,
         no_han_amount: 70_000_000, credit_limit: 80_000_000, credit_days: 30, vuot_han_muc: true,
         vuot_bao_nhieu: 16_500_000, paid_in_period: 42_000_000, mua_trong_ky: 51_200_000,
-        han_gan_nhat: "2026-08-18", total_due: 96_500_000,
+        han_gan_nhat: "2026-08-18", total_due: 96_500_000, supplier_code: "NCC007",
+        lien_he_ten: "Nguyễn Lan", lien_he_sdt: "0912345678", tra_gan_nhat_ngay: "2026-09-30", tra_gan_nhat_tien: 42_000_000,
         aging: { chua_toi_han: { amount: 70_000_000, count: 4 }, d31_60: { amount: 26_500_000, count: 1 } },
       },
     ],
@@ -73,18 +75,19 @@ describe("AccountingPayablesPage — nối dây", () => {
     // Bộ nhớ kỳ là Map cấp module (sống qua các test) — đặt kỳ bằng URL cho test này độc lập.
     window.history.replaceState(
       null, "",
-      "/?man=ke-toan-cong-no&ky=nam&so=1&the=overdue&tuoi=d31_60&q=B%C3%ACnh&no_tu=5000000&han_tra=7_ngay&han_muc=vuot&het=1",
+      "/?man=ke-toan-cong-no&ky=nam&the=overdue&tuoi=d31_60&q=B%C3%ACnh&no_tu=5000000&han_tra=7_ngay&han_muc=vuot&het=1",
     );
     render(<AccountingPayablesPage navigate={() => {}} />);
     await waitFor(() => expect(goiChinh().length).toBeGreaterThan(0));
-    const nam = tinhKy("nam", homNayVN());
+    // "Năm nay" của thanh lọc chung = trọn năm; máy chủ tự chặn cuối kỳ ở hôm nay.
+    const nam = khoangSo({ loai: "nam", moc: "ps" });
     const p = goiChinh()[0][1];
     expect(p).toEqual({
       q: "Bình", filter: "overdue", aging: "d31_60", tu_ngay: nam.tu, den_ngay: nam.den,
       no_tu: 5_000_000, no_den: undefined, han_tra: "7_ngay", han_muc: "vuot", ca_da_tra_het: true,
       page: 1, size: 25,
     });
-    const cung = kyCungKy(nam);
+    const cung = kyCungKy(tinhKy("nam", homNayVN()));
     await waitFor(() => expect(payables.mock.calls.some((c) => c[1].size === 1)).toBe(true));
     const pc = payables.mock.calls.find((c) => c[1].size === 1)![1];
     expect(pc).toMatchObject({ tu_ngay: cung.tu, den_ngay: cung.den, filter: "overdue", aging: "d31_60", page: 1 });
@@ -99,21 +102,21 @@ describe("AccountingPayablesPage — nối dây", () => {
     expect(payables.mock.calls.filter((c) => c[1].dem_only)).toEqual([]);
 
     expect(screen.getByRole("textbox", { name: "Tìm nhà cung cấp" })).toHaveValue("Bình");
-    expect(screen.getByRole("button", { name: /^Tuổi nợ:/ })).toHaveTextContent("Tuổi nợ: Trễ 31–60 ngày");
+    expect(screen.getByRole("button", { name: /^Tuổi nợ:/ })).toHaveAccessibleName("Tuổi nợ: Trễ 31–60 ngày. Bấm để sửa");
     expect(screen.getByRole("button", { name: /^Hạn trả:/ })).toBeInTheDocument();
   });
 
   it("khối tổng quan thay dải KPI: Còn nợ tới ngày cuối kỳ, cùng kỳ; bấm mốc = lọc aging + chip; × bỏ", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang&so=1");
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang");
     const { container } = render(<AccountingPayablesPage navigate={() => {}} />);
     await screen.findByText("Còn nợ tới 05/10/2026");
     expect(container.querySelector(".pay-kpibar")).toBeNull();
     expect(container.querySelector(".aging-strip")).toBeNull();
-    await waitFor(() => expect(screen.getByText("Cùng kỳ 80.000.000")).toBeInTheDocument());
-    expect(screen.getByText("Cùng kỳ 10.000.000")).toHaveClass("kt-cung-ky--do");
+    await waitFor(() => expect(screen.getByText("+21% so cùng kỳ")).toBeInTheDocument());
+    expect(screen.getByText("+165% so cùng kỳ")).toHaveClass("kt-do");
 
     payables.mockClear();
-    const moc = within(screen.getByRole("group", { name: /^Tuổi nợ tới/ }));
+    const moc = within(screen.getByRole("group", { name: /^Quá hạn theo số ngày trễ tới/ }));
     await userEvent.click(moc.getByRole("button", { name: /Trễ 31–60 ngày/ }));
     await waitFor(() => expect(goiChinh().some((c) => c[1].aging === "d31_60")).toBe(true));
     expect(new URLSearchParams(window.location.search).get("tuoi")).toBe("d31_60");
@@ -121,22 +124,31 @@ describe("AccountingPayablesPage — nối dây", () => {
     await waitFor(() => expect(goiChinh().at(-1)![1].aging).toBeNull());
   });
 
-  it("bảng: tên + dòng phụ số khoản, quá hạn đỏ, hạn trả gần nhất so với hôm nay, hạn mức vượt", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang&so=0");
+  it("bảng đủ cột: mã, số khoản, quá hạn đỏ, hạn trả so với hôm nay, mua thêm / đã trả, trả gần nhất, liên hệ, hạn mức vượt", async () => {
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang");
     render(<AccountingPayablesPage navigate={() => {}} />);
     const dong = (await screen.findAllByText("Giấy Bình Minh"))[0].closest("tr")!;
     const o = within(dong);
+    expect(o.getByText("NCC007")).toHaveClass("kt-the");
     expect(o.getByText("5 khoản")).toBeInTheDocument();
-    expect(o.getByRole("button", { name: "26.500.000" })).toHaveClass("kt-do");
+    expect(o.getByText("Vượt hạn mức")).toBeInTheDocument();
+    expect(o.getByRole("button", { name: "quá hạn 26.500.000" })).toHaveClass("kt-do");
     expect(o.getByText("18/08/2026")).toBeInTheDocument();
     expect(o.getByText("trễ 48 ngày")).toBeInTheDocument();
-    expect(o.getByText("Vượt 16.500.000 đ")).toHaveClass("kt-do");
+    expect(o.getByText("cho nợ 30 ngày")).toBeInTheDocument();
+    expect(o.getByText("Mua thêm")).toBeInTheDocument();
+    expect(o.getByText("51.200.000")).toBeInTheDocument();
+    expect(o.getByRole("button", { name: "42.000.000" })).toBeInTheDocument();
+    expect(o.getByText("30/09/2026")).toBeInTheDocument();
+    expect(o.getByText("Nguyễn Lan")).toBeInTheDocument();
+    expect(o.getByText("0912 345 678")).toBeInTheDocument();
+    expect(o.getByText("Đã dùng 121%")).toHaveClass("kt-do");
     expect(dong.textContent).not.toMatch(/[·•]/);
     expect(screen.getByText("1 nhà cung cấp")).toBeInTheDocument();
   });
 
   it("xem kỳ đã qua: 'còn n ngày' đếm từ HÔM NAY (as_of), không từ cuối kỳ", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang&so=0");
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang");
     const goc = tomTat().items[0];
     // Kỳ năm trước kết thúc 31/12/2025, hôm nay 05/10/2026, hạn gần nhất 10/10/2026 (còn 5 ngày).
     payables.mockImplementation(async () =>
@@ -153,7 +165,7 @@ describe("AccountingPayablesPage — nối dây", () => {
   });
 
   it("máy chủ kẹp trang (trả trang khác trang hỏi) thì màn nhảy theo trang máy chủ", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang&so=0");
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang");
     payables.mockImplementation(async (_t: string, p: { size?: number; page?: number }) => {
       if (p.size === 1) return tomTat();
       // Trang 2 vừa rỗng (danh sách co lại): máy chủ trả trang 1.
@@ -168,7 +180,7 @@ describe("AccountingPayablesPage — nối dây", () => {
   });
 
   it("hạn mức chưa đặt ghi Chưa đặt; dòng không mã nhà cung cấp: thẻ điện thoại không là nút", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang&so=0");
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang");
     const goc = tomTat().items[0];
     payables.mockImplementation(async () =>
       tomTat({
@@ -181,7 +193,7 @@ describe("AccountingPayablesPage — nối dây", () => {
     );
     const { container } = render(<AccountingPayablesPage navigate={() => {}} />);
     const dong = (await screen.findAllByText("Giấy Bình Minh"))[0].closest("tr")!;
-    expect(within(dong).getByText("Chưa đặt")).toHaveClass("kt-mo");
+    expect(within(dong).getByText("Chưa đặt hạn mức")).toHaveClass("kt-mo");
     const the = container.querySelectorAll(".kt-the-dt > div");
     expect(the[0]).toHaveAttribute("role", "button");
     expect(the[1]).not.toHaveAttribute("role");

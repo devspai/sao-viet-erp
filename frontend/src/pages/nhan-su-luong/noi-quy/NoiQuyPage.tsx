@@ -20,8 +20,29 @@ import { trangHopLe } from "../../../components/Pager";
 import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { RowActionButton } from "../../../components/RowActionButton";
 import { useDebounced } from "../../../utils/useDebounced";
+import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "../../thanh-loc/ky-danh-sach";
+import { useLocMan } from "../../thanh-loc/useLocMan";
+import {
+  LOC_NQ_TRONG,
+  MOC_NQ,
+  locNoiQuyLenUrl,
+  locNoiQuyTuUrl,
+  thamSoLocNoiQuy,
+  useDieuKienNoiQuy,
+  type LocNoiQuy,
+} from "./dieu-kien-noi-quy";
 import "../../nhan-su.css";
 import "../../noi-quy.css";
+
+// Kỳ (theo ngày tải lên) + điều kiện lọc — ghi lên URL, nhớ theo màn.
+type LocMan = { ky: KyDS; loc: LocNoiQuy };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_NQ_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_NQ.map(([m]) => m), "tao"),
+  loc: locNoiQuyTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locNoiQuyLenUrl(t.loc) });
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const FILE_ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp";
@@ -37,7 +58,7 @@ function messageFor(error: unknown): string {
   return error instanceof Error ? error.message : "Đã có lỗi xảy ra.";
 }
 
-function dateTime(value: string): string {
+function dateTime(value: string, coGio = true): string {
   const hasZone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(value);
   const date = new Date(!hasZone && value.includes("T") ? `${value}Z` : value);
   if (Number.isNaN(date.getTime())) return "—";
@@ -46,8 +67,7 @@ function dateTime(value: string): string {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    ...(coGio ? { hour: "2-digit", minute: "2-digit" } : {}),
   });
 }
 
@@ -79,6 +99,13 @@ export function NoiQuyPage() {
   const queryDebounced = useDebounced(query);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(PAGE_SIZE);
+  const [locMan, setLocManGoc] = useLocMan("noi-quy", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const setLocMan = (t: LocMan) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const dieuKien = useDieuKienNoiQuy();
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocNoiQuy(locMan.loc) });
   const [total, setTotal] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [preview, setPreview] = useState<NoiQuyRecord | null>(null);
@@ -97,7 +124,7 @@ export function NoiQuyPage() {
         q: queryDebounced.trim() || undefined,
         page,
         size,
-      });
+      }, JSON.parse(khoaLoc));
       setRows(res.items);
       setTotal(res.total);
       // Đang đứng trang 3 mà xoá nốt dòng cuối ⇒ chỉ còn 2 trang: nhảy về trang cuối còn thật,
@@ -109,7 +136,7 @@ export function NoiQuyPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, queryDebounced, page, size]);
+  }, [token, queryDebounced, khoaLoc, page, size]);
 
   useEffect(() => {
     void load();
@@ -214,7 +241,8 @@ export function NoiQuyPage() {
 
       {error && <div className="banner banner--error" role="alert">{error}</div>}
 
-      <section className="nqr__tools" aria-label="Tìm tài liệu">
+      <section className="nqr__tools tl-thanh" aria-label="Tìm và lọc tài liệu">
+        <label className="nq-search">
         <Search size={17} aria-hidden="true" />
         <input
           value={query}
@@ -224,8 +252,17 @@ export function NoiQuyPage() {
           // Thiếu hẳn bước reset thì đang ở trang 3, gõ từ khoá chỉ còn 1 trang kết quả ⇒ bảng
           // rỗng trơn mà người dùng tưởng "không có gì khớp". Lỗi này đã gặp thật.
           onChange={(event) => { setQuery(event.target.value); setPage(1); }}
-          placeholder="Tìm theo mã, tên, file, người upload..."
+          placeholder="Tìm theo mã, tên, tệp, người tải lên…"
           aria-label="Tìm tài liệu nội quy"
+        />
+        </label>
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_NQ}
+          onKy={(ky) => setLocMan({ ...locMan, ky })}
+          dieuKien={dieuKien}
+          loc={locMan.loc}
+          onLoc={(loc) => setLocMan({ ...locMan, loc })}
         />
         {/* Số này lấy từ `total` của MÁY CHỦ, không phải `rows.length` — bảng đã phân trang nên
             `rows.length` chỉ là số dòng của trang đang xem (tối đa 20). */}
@@ -240,8 +277,8 @@ export function NoiQuyPage() {
               <th>Tên</th>
               <th>File</th>
               <th>Ghi chú</th>
-              <th>Người upload</th>
-              <th>Ngày upload</th>
+              <th>Người tải lên</th>
+              <th>Ngày tải lên</th>
               {canDelete && <th className="nqr__action-head">Thao tác</th>}
             </tr>
           </thead>
@@ -263,8 +300,10 @@ export function NoiQuyPage() {
               <EmptyRow
                 colSpan={canDelete ? 7 : 6}
                 icon="book"
-                title={query ? "Chưa có tài liệu nào khớp" : "Chưa có tài liệu nội quy"}
-                sub={query ? "Thử rút gọn từ khoá tìm." : "Bấm “Thêm tài liệu” để tải nội quy đầu tiên lên."}
+                title={query || khoaLoc !== "{}" ? "Chưa có tài liệu nào khớp" : "Chưa có tài liệu nội quy"}
+                sub={query || khoaLoc !== "{}"
+                  ? "Thử rút gọn từ khoá tìm hoặc bỏ bớt bộ lọc."
+                  : "Bấm “Thêm tài liệu” để tải nội quy đầu tiên lên."}
               />
             )}
             {!loading && !listError && rows.map((row) => (
@@ -279,7 +318,9 @@ export function NoiQuyPage() {
                 </td>
                 <td className="nqr__note">{row.note || "—"}</td>
                 <td>{row.uploaded_by_name}</td>
-                <td className="nqr__date">{dateTime(row.uploaded_at)}</td>
+                <td className="nqr__date" title={dateTime(row.uploaded_at)}>
+                  {dateTime(row.uploaded_at, false)}
+                </td>
                 {canDelete && (
                   <td className="nqr__action">
                     {/* Nút xoá trên dòng → RowActionButton dense, GIỮ `danger`: xoá kéo theo

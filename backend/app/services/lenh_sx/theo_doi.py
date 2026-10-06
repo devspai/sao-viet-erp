@@ -189,6 +189,7 @@ def _dong_lenh(n: _Nap, lsx_id: int) -> dict:
         "khau": khau,
         "khau_chi_tiet": khau_ct,
         "han_hoan_thanh_sx": lsx.han_hoan_thanh_sx,
+        "created_at": lsx.created_at,
         "du_kien_xong": thuc_te_hien_thi(xong),
         "canh_bao": list(n.co[lsx_id]),
         "tre_ngay": tre_ngay,
@@ -198,9 +199,12 @@ def _dong_lenh(n: _Nap, lsx_id: int) -> dict:
 def theo_lenh(
     db: Session, *, sale_ids: set[int] | None,
     q: str | None = None, khach_hang_id: int | None = None, may_id: int | None = None,
-    bat_thuong: str | None = None, bay_gio: datetime | None = None,
+    bat_thuong: str | None = None, khau: str | None = None, bay_gio: datetime | None = None,
 ) -> dict:
-    """`{items, total, bat_thuong}` — mỗi lệnh còn sống một dòng, cắt ở `GIOI_HAN_THEO_LENH`."""
+    """`{items, total, bat_thuong}` — mỗi lệnh còn sống một dòng, cắt ở `GIOI_HAN_THEO_LENH`.
+
+    `khau` = điều kiện "Trạng thái" của nút Lọc (07/10/2026): đúng chữ cột "Đang ở" (khâu của
+    `trang_thai.khau`). Như các ô lọc khác, KHÔNG đụng số của dải bất thường."""
     bay_gio = bay_gio or datetime.now(timezone.utc)
     n = _nap(db, sale_ids, bay_gio)
     ids = list(n.ids)
@@ -210,6 +214,8 @@ def theo_lenh(
     if bat_thuong:
         chon = _lenh_bat_thuong(n, bat_thuong)
         ids = [i for i in ids if i in chon]
+    if khau:
+        ids = [i for i in ids if trang_thai.khau(n.bc, i)[0] == khau]
     ids.sort(key=lambda i: _khoa_sap_theo_lenh(n, i))
     return {
         "items": [_dong_lenh(n, i) for i in ids[:GIOI_HAN_THEO_LENH]],

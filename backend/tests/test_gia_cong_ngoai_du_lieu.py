@@ -18,7 +18,7 @@ def test_model_dung_bang_va_cot_noi():
     assert "gia_cong_ngoai" in bang
     cot = set(bang["gia_cong_ngoai"].columns.keys())
     assert {
-        "lsx_id", "kieu", "nha_cung_cap_id", "nha_cung_cap_ten", "ten_viec", "don_gia", "don_vi",
+        "lsx_id", "kieu", "nha_cung_cap_id", "nha_cung_cap_ten", "ten_viec", "don_vi",
         "sl_dat", "xuong_cap_giay", "mang_di_boi_id", "mang_di_luc", "sl_gui", "chot_boi_id",
         "chot_luc", "sl_cuoi", "noi_ve", "huy_boi_id", "huy_luc", "ly_do_huy", "created_by",
         "version",

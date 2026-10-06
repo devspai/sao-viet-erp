@@ -26,19 +26,22 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import get_authorization_service, require_any_permission, require_permission
-from ..models.delivery import LAN_GIAO_DANG_CHAY
+from ..models.delivery import LAN_GIAO_DANG_CHAY, LAN_GIAO_STATUSES
 from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_GIAO_HANG, hop
 from ..realtime import hub
 from ..models.role import SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
 from ..repositories.customer_repo import CustomerRepository
-from ..repositories.delivery_repo import DeliveryRepository
+from ..repositories.delivery_repo import DeliveryRepository, LocChuyen, LocYeuCau
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.order_repo import OrderRepository
 from ..repositories.xe_repo import MucKhoanKmRepository, XeRepository
 from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.user_repo import UserRepository
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.delivery import (
+    GiaoThangOut,
+    PhieuKhoOut,
     DinhKemListOut,
     DinhKemOut,
     KmBracketOut,
@@ -323,6 +326,9 @@ def _trip_out(db: Session, svc: DeliveryService, trip, *, tong_km: int | None = 
         khach = getattr(kh, "name", None) if kh is not None else None
     yc_kho = svc.yeu_cau_kho_cua_trip(trip.id)
     yc_tra = svc.deliveries.yeu_cau_kho_cua_chuyen(trip.id, "NHAP")
+    # Cùng luật `kho_da_lap_phieu` (yêu cầu còn sống ⇒ phiếu chưa huỷ), đọc một lần cho cả hai.
+    yc_xuat = svc.deliveries.yeu_cau_kho_cua_chuyen(trip.id, "XUAT")
+    phieu_xuat = _phieu_kho_out(db, svc, yc_xuat)
     return TripOut(
         id=trip.id,
         request_id=trip.request_id,
@@ -355,11 +361,52 @@ def _trip_out(db: Session, svc: DeliveryService, trip, *, tong_km: int | None = 
         lines=[TripLineOut(order_line_id=l.order_line_id, qty_giao=l.qty_giao) for l in trip.lines],
         yeu_cau_kho_ma=getattr(yc_kho, "ma", None),
         yeu_cau_kho_trang_thai=getattr(yc_kho, "trang_thai", None),
-        kho_da_lap_phieu=svc.kho_da_lap_phieu(trip.id),
+        kho_da_lap_phieu=phieu_xuat is not None,
         tra_hang_ma=getattr(yc_tra, "ma", None),
         tra_hang_trang_thai=getattr(yc_tra, "trang_thai", None),
         luot=_luot_out(svc.luot_cua_trip(trip)),
         canh_bao=list(canh_bao or []),
+        created_at=trip.created_at,
+        dia_chi=getattr(req, "dia_chi", None),
+        nguoi_nhan=getattr(req, "nguoi_nhan", None),
+        sdt_nguoi_nhan=getattr(req, "sdt_nguoi_nhan", None),
+        ngay_can_giao=getattr(req, "ngay_can_giao", None),
+        luu_y_giao=getattr(req, "ghi_chu", None),
+        customer_po_no=getattr(order, "customer_po_no", None),
+        phieu_xuat=phieu_xuat,
+        phieu_tra=_phieu_kho_out(db, svc, yc_tra),
+        giao_thang=_giao_thang_out(db, trip),
+    )
+
+
+def _phieu_kho_out(db: Session, svc: DeliveryService, yc) -> PhieuKhoOut | None:
+    """Phiếu kho thật lập theo yêu cầu kho `yc` (None khi chưa có yêu cầu / kho chưa lập)."""
+    if yc is None:
+        return None
+    p = svc.deliveries.phieu_kho_cua_yeu_cau(yc.id)
+    if p is None:
+        return None
+    ai = db.get(User, p.nguoi_ghi_so_id or p.nguoi_lap_id) if (p.nguoi_ghi_so_id or p.nguoi_lap_id) else None
+    return PhieuKhoOut(ma=p.ma, trang_thai=p.trang_thai, luc=p.ghi_so_luc or p.created_at,
+                       boi_ten=getattr(ai, "name", None))
+
+
+def _giao_thang_out(db: Session, trip) -> GiaoThangOut | None:
+    """Chuyến do lần gia công ngoài ghi (nhà gia công giao thẳng) — SĐT đọc sống từ danh mục NCC."""
+    if not trip.gia_cong_ngoai_id:
+        return None
+    from ..models.gia_cong_ngoai import GiaCongNgoai
+    from ..models.lsx import Lsx
+    from ..models.purchase import Supplier
+
+    gcn = db.get(GiaCongNgoai, trip.gia_cong_ngoai_id)
+    if gcn is None:
+        return None
+    ncc = db.get(Supplier, gcn.nha_cung_cap_id) if gcn.nha_cung_cap_id else None
+    lsx = db.get(Lsx, gcn.lsx_id) if gcn.lsx_id else None
+    return GiaoThangOut(
+        gia_cong_ngoai_id=gcn.id, nha_cung_cap_ten=gcn.nha_cung_cap_ten or getattr(ncc, "name", None),
+        nha_cung_cap_sdt=getattr(ncc, "phone", None), lsx_id=gcn.lsx_id, lsx_ma=getattr(lsx, "ma", None),
     )
 
 
@@ -394,6 +441,11 @@ def danh_sach_yeu_cau(
     svc: Service, db: Db, authz: Authz, user: Reader,
     order_id: int | None = Query(None),
     cho_len_ke_hoach: bool = Query(False),
+    q: str | None = Query(None, max_length=100),
+    tu_ngay: date | None = Query(None),
+    den_ngay: date | None = Query(None),
+    moc: str = Query("tao", pattern="^(tao|can)$"),
+    khach: int | None = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=200),
 ):
@@ -401,28 +453,44 @@ def danh_sach_yeu_cau(
     phong = svc._phong_duoc_xem(scope=scope, actor=user)
     nguoi_tao = user.id if scope == SCOPE_OWN else None
     dept_ids = None if scope != SCOPE_DEPARTMENT else phong
-    # `trang_thai` trả về là TRẠNG THÁI TÍNH (svc.trang_thai_yeu_cau — nhiều bảng), không phải cột
-    # thô, nên `cho_len_ke_hoach=True` phải lọc SAU khi dựng đủ item — không trang hoá được ở SQL.
-    # `order_id` (màn Tạo yêu cầu, phạm vi 1 đơn) cũng giữ lấy TRỌN như cũ. Chỉ đường mặc định
-    # (danh sách chung, không lọc) mới trang hoá thật ở SQL.
-    phan_trang = order_id is None and not cho_len_ke_hoach
+    # `cho_len_ke_hoach=True` (tab Yêu cầu giao) lọc ĐÚNG trạng thái tính "chờ lên kế hoạch" bằng
+    # SQL (NOT EXISTS chuyến — xem `_dk_yeu_cau`) nên trang hoá thật, `total` khớp số dòng.
+    # `order_id` đứng một mình (drawer đơn / màn Tạo yêu cầu, phạm vi 1 đơn) vẫn lấy TRỌN như cũ.
+    loc = LocYeuCau(q=q, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, khach=khach)
+    phan_trang = order_id is None or cho_len_ke_hoach
+    dk = dict(order_id=order_id, department_ids=dept_ids, created_by=nguoi_tao,
+              chi_cho_len_ke_hoach=cho_len_ke_hoach, loc=loc)
     reqs = svc.deliveries.list_requests(
-        order_id=order_id,
-        department_ids=dept_ids,
-        created_by=nguoi_tao,
-        chi_cho_len_ke_hoach=False,
+        **dk,
         limit=size if phan_trang else None,
         offset=(page - 1) * size if phan_trang else 0,
     )
     items = [_request_out(db, svc, r) for r in reqs]
-    if cho_len_ke_hoach:
-        items = [i for i in items if i.trang_thai == "cho_len_ke_hoach"]
-    total = (
-        svc.deliveries.count_requests(order_id=order_id, department_ids=dept_ids,
-                                      created_by=nguoi_tao)
-        if phan_trang else len(items)
-    )
+    total = svc.deliveries.count_requests(**dk) if phan_trang else len(items)
     return DeliveryRequestPage(items=items, total=total)
+
+
+def _pham_vi_yeu_cau(svc: DeliveryService, authz: AuthorizationService, user: User) -> dict:
+    scope = _scope(authz, user)
+    return dict(
+        department_ids=svc._phong_duoc_xem(scope=scope, actor=user) if scope == SCOPE_DEPARTMENT
+        else None,
+        created_by=user.id if scope == SCOPE_OWN else None,
+    )
+
+
+@router.get("/requests/loc-khach", response_model=list[LuaChonLoc])
+def loc_khach_yeu_cau(svc: Service, authz: Authz, user: Reader) -> list[LuaChonLoc]:
+    """Ô "Khách hàng" của tab Yêu cầu giao: khách đang có yêu cầu CHỜ LÊN KẾ HOẠCH trong tầm nhìn."""
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in svc.deliveries.dem_yeu_cau_theo(
+        "khach", chi_cho_len_ke_hoach=True, **_pham_vi_yeu_cau(svc, authz, user))]
+
+
+@router.get("/requests/loc-don", response_model=list[LuaChonLoc])
+def loc_don_yeu_cau(svc: Service, authz: Authz, user: Reader) -> list[LuaChonLoc]:
+    """Ô "Đơn hàng" của tab Yêu cầu giao: đơn đang có yêu cầu CHỜ LÊN KẾ HOẠCH trong tầm nhìn."""
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in svc.deliveries.dem_yeu_cau_theo(
+        "don", chi_cho_len_ke_hoach=True, **_pham_vi_yeu_cau(svc, authz, user))]
 
 
 @router.get("/requests/{request_id}", response_model=RequestDetailOut)
@@ -744,6 +812,7 @@ def _luot_chi_tiet_out(db: Session, svc: DeliveryService, kq: dict) -> LuotXeChi
         tong_km=kq["tong_km"], diem=[_trip_out(db, svc, t) for t in kq["trips"]],
         so_cho_gui_kho=kq["so_cho_gui_kho"], so_cho_lay_hang=kq["so_cho_lay_hang"],
         so_cho_bat_dau=kq["so_cho_bat_dau"], so_dang_giao=kq["so_dang_giao"],
+        created_at=luot.created_at,
     )
 
 
@@ -756,12 +825,7 @@ def chi_tiet_luot(luot_id: int, svc: Service, db: Db, authz: Authz, user: Reader
     return _luot_chi_tiet_out(db, svc, kq)
 
 
-@router.get("/bang-giao", response_model=BangGiaoPage)
-def bang_giao(svc: Service, db: Db, authz: Authz, user: Reader,
-              page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=200)):
-    """Tab "Đơn giao hàng" gom theo LƯỢT XE (chủ chốt 18/09/2026: ghép nhiều yêu cầu mà hiện rời
-    từng dòng thì tài xế lẫn người lên đơn khó hiểu). Mỗi khối là MỘT lượt (đủ các điểm, theo thứ
-    tự chặng) hoặc MỘT chuyến lẻ; trang hoá theo khối nên một lượt không bị cắt đôi."""
+def _pham_vi_chuyen(svc: DeliveryService, authz: AuthorizationService, user: User) -> dict:
     scope = _scope(authz, user)
     emp_ids = None
     dept_ids = None
@@ -770,11 +834,47 @@ def bang_giao(svc: Service, db: Db, authz: Authz, user: Reader,
         emp_ids = [eid] if eid is not None else [-1]
     elif scope == SCOPE_DEPARTMENT:
         dept_ids = svc._phong_duoc_xem(scope=scope, actor=user)
+    return dict(employee_ids=emp_ids, department_ids=dept_ids)
+
+
+@router.get("/bang-giao/loc-xe", response_model=list[LuaChonLoc])
+def loc_xe_bang_giao(svc: Service, authz: Authz, user: Reader) -> list[LuaChonLoc]:
+    """Ô "Xe" của tab Đơn giao hàng: xe đang có đơn giao trong tầm nhìn (tên = biển số)."""
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in svc.deliveries.dem_chuyen_theo(
+        "xe", **_pham_vi_chuyen(svc, authz, user))]
+
+
+@router.get("/bang-giao/loc-tai-xe", response_model=list[LuaChonLoc])
+def loc_tai_xe_bang_giao(svc: Service, authz: Authz, user: Reader) -> list[LuaChonLoc]:
+    """Ô "Tài xế" của tab Đơn giao hàng: tài xế đang có đơn giao trong tầm nhìn."""
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in svc.deliveries.dem_chuyen_theo(
+        "tai_xe", **_pham_vi_chuyen(svc, authz, user))]
+
+
+@router.get("/bang-giao", response_model=BangGiaoPage)
+def bang_giao(svc: Service, db: Db, authz: Authz, user: Reader,
+              q: str | None = Query(None, max_length=100),
+              tu_ngay: date | None = Query(None),
+              den_ngay: date | None = Query(None),
+              moc: str = Query("tao", pattern="^(tao|lay|giao)$"),
+              xe: int | None = Query(None),
+              tai_xe: int | None = Query(None),
+              trang_thai: list[str] | None = Query(None),
+              page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=200)):
+    """Tab "Đơn giao hàng" gom theo LƯỢT XE (chủ chốt 18/09/2026: ghép nhiều yêu cầu mà hiện rời
+    từng dòng thì tài xế lẫn người lên đơn khó hiểu). Mỗi khối là MỘT lượt (đủ các điểm, theo thứ
+    tự chặng) hoặc MỘT chuyến lẻ; trang hoá theo khối nên một lượt không bị cắt đôi.
+
+    Kỳ + điều kiện (06/10/2026) lọc trên CHUYẾN: lượt nào có ít nhất một chuyến khớp thì cả khối
+    lượt hiện ra (đủ các điểm); `so_don` đếm chuyến khớp."""
+    scope = _scope(authz, user)
+    pv = _pham_vi_chuyen(svc, authz, user)
+    loc = LocChuyen(q=q, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, xe=xe, tai_xe=tai_xe,
+                    trang_thai=[t for t in (trang_thai or []) if t in LAN_GIAO_STATUSES])
     khoi, total = svc.deliveries.khoi_bang_giao(
-        employee_ids=emp_ids, department_ids=dept_ids, limit=size, offset=(page - 1) * size,
+        **pv, loc=loc, limit=size, offset=(page - 1) * size,
     )
-    so_don = svc.deliveries.count_trips(employee_ids=emp_ids, department_ids=dept_ids,
-                                        latest_per_request=True)
+    so_don = svc.deliveries.count_trips(**pv, loc=loc, latest_per_request=True)
     le = [svc.deliveries.get_trip(i) for loai, i in khoi if loai == "chuyen"]
     tong_km_map = svc.deliveries.tong_km_theo_yeu_cau([t.request_id for t in le if t is not None])
     items: list[BangGiaoItem] = []

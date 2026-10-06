@@ -127,6 +127,10 @@ export interface NavParams {
   openQuoteId?: number;
   /** Open this order's detail on the Đơn hàng bán screen. */
   openOrderId?: number;
+  /** Mở thẳng hồ sơ của đúng khách này ở màn Khách hàng (nút "Hồ sơ khách hàng" ở Công nợ phải thu). */
+  openCustomerId?: number;
+  /** Mở thẳng hồ sơ của đúng NCC này ở màn Nhà cung cấp (nút "Hồ sơ nhà cung cấp" ở Công nợ phải trả). */
+  openSupplierId?: number;
   /** Liên thông: mở Chấm công / Nghỉ phép / Lương lọc theo đúng nhân viên này. */
   focusEmployeeId?: number;
   /** Liên thông từ Hồ sơ NV, nút "Đặt ca nền" (bản rà E6, 07/09/2026): mở Chấm công ở tab
@@ -499,14 +503,6 @@ export function AppShell() {
     [markModuleNotificationsRead],
   );
 
-  // Giữ TÊN `reloadBadges`: hàng chục màn nhận nó qua `onBadgeStale`. Nay chỉ là một lượt tóm tắt.
-  const reloadBadges = useCallback(() => {
-    napThongBao();
-  }, [napThongBao]);
-  useEffect(() => {
-    reloadBadges();
-  }, [reloadBadges]);
-
   // Số tab TRONG màn Kho (Nhập/Xuất/Điều chuyển + phản hồi chưa xem) — chỉ nạp khi màn Kho đang
   // mở; chấm đỏ của mục Kho thì đi theo kênh `kho` như mọi mục khác.
   const napSoKho = useCallback(() => {
@@ -514,6 +510,16 @@ export function AppShell() {
     if (activeIdRef.current.split(":")[0] !== "kho-main") return;
     api.kho.deNghi.counts(token).then(setKhoCounts).catch(() => {});
   }, [token, readable]);
+
+  // Giữ TÊN `reloadBadges`: hàng chục màn nhận nó qua `onBadgeStale`. Một lượt tóm tắt + số trong màn
+  // Kho — thiếu vế sau thì đánh dấu đã xem xong chấm "phản hồi chưa xem" ở tab Yêu cầu vẫn kẹt.
+  const reloadBadges = useCallback(() => {
+    napThongBao();
+    napSoKho();
+  }, [napThongBao, napSoKho]);
+  useEffect(() => {
+    reloadBadges();
+  }, [reloadBadges]);
 
   // Danh sách kho cho menu con động (người có quyền `kho`, hoặc Xem ở một dòng kho `ton_kho_<id>`).
   // Gọi lại sau mỗi lần khai báo kho.
@@ -1278,7 +1284,10 @@ export function AppShell() {
           />
         );
       case "khach-hang":
-        return <KhachHangPage navigate={navigate} onBadgeStale={reloadBadges} eventTick={tickCua("ban_hang")} />;
+        return (
+          <KhachHangPage navigate={navigate} onBadgeStale={reloadBadges} eventTick={tickCua("ban_hang")}
+            openCustomerId={navParams?.openCustomerId ?? null} />
+        );
       case "tinh-gia":
         return (
           <TinhGiaPage
@@ -1397,7 +1406,7 @@ export function AppShell() {
           />
         );
       case "nha-cung-cap":
-        return <SuppliersPage eventTick={tickCua("mua_ke_toan")} />;
+        return <SuppliersPage eventTick={tickCua("mua_ke_toan")} openSupplierId={navParams?.openSupplierId ?? null} />;
       // Nhóm con "Kế toán thu mua" đã BỎ ngày 12/08/2026 — ba màn của nó nay đứng ngang hàng với
       // Phiếu thu / Công nợ phải thu. Không còn id cha nên cũng không cần nhánh rơi-vào-con-đầu.
       case "ke-toan-don-mua-hang":

@@ -83,36 +83,24 @@ export interface ColumnDef {
   render?: (r: Row, extra?: unknown) => ReactNode;
 }
 
-export interface FacetDef {
-  key: string;                  // field lọc (vd "nhom")
-  /** Tab khai CỨNG — chỉ dùng khi tập giá trị nằm trong code ở CẢ HAI đầu (vd `hang_loai` của
-   *  Kho: thêm một loại là phải sửa backend). Màn nào lọc theo một danh mục người dùng khai
-   *  được thì bỏ trống ô này và khai `source`. */
-  values?: { value: string; label: string }[];
-  /** DANH MỤC THẬT sinh ra tab (vd `/api/nhom-may` — chính nguồn đổ ô chọn trong drawer). Có
-   *  `source` thì hàng tab bày đúng danh sách người dùng đang khai, kể cả mục chưa có dòng nào
-   *  (số 0): nhóm vừa tạo mà không thấy tab đâu thì người khai tưởng nó không lưu được. */
-  source?: string;
-  /** Nối thêm tab cho giá trị CÓ THẬT trong dữ liệu mà `values`/`source` chưa liệt kê. Cần cho
-   *  cột lưu CHỮ tự do: dòng cũ mang tên nhóm đã gỡ khỏi danh mục vẫn phải có lối lọc tới. */
-  dynamic?: boolean;
-}
-
-/** Một tiêu chí của bảng "Lọc nâng cao" — ghép VÀ với chip lọc (`facet`) và ô tìm. `key` là tên
- *  QUERY PARAM gửi máy chủ, nên backend phải khai đúng tên đó ở `loc_them` của router danh mục —
- *  lệch một chữ là FastAPI bỏ qua tham số lạ IM LẶNG, bảng không lọc mà cũng không báo lỗi. */
-export interface LocNangCaoDef {
+/** Một điều kiện của THANH LỌC chung (`pages/thanh-loc/ThanhLoc`, 06/10/2026) — chọn MỘT giá trị.
+ *  `key` là tên QUERY PARAM gửi máy chủ VÀ khoá trên URL; backend phải khai đúng tên đó (`loc` /
+ *  `loc_them` của router danh mục) — lệch một chữ là FastAPI bỏ qua tham số lạ IM LẶNG.
+ *
+ *  Giá trị chọn được = nền khai sẵn (`giaTri` hoặc danh mục `nguon`) + mọi giá trị CÓ THẬT trong
+ *  dữ liệu mà máy chủ đếm được (`dem[key]` của phong bì danh sách, kèm nhãn nếu máy chủ biết —
+ *  tên khách, tên tổ…). Số bên cạnh mỗi giá trị cũng lấy từ `dem`, đếm dưới mọi bộ lọc KHÁC. */
+export interface DieuKienDanhMuc {
   key: string;
-  label: string;
-  /** `select` = danh sách khai cứng (`options`). `ref-search` = ô gõ-để-tìm trên một danh mục
-   *  nguồn (`refPrefix`), cho danh mục dài như Khách hàng mà một `<select>` trần không lội nổi.
-   *  `text` = ô gõ tự do, máy chủ khớp CHỨA (vd Số kệ: gõ "B3" ra "Kệ B3 — xưởng sau in"). */
-  type: "select" | "ref-search" | "text";
-  /** Chữ mờ của ô `text`. */
-  placeholder?: string;
-  options?: Option[];
-  refPrefix?: string;
-  refParams?: Record<string, unknown>;
+  nhan: string;
+  /** Tên icon (lucide) — chọn ở `CatalogListPage`, giữ file này không import component. */
+  icon?: "nhom" | "nguoi" | "trang-thai" | "vi-tri" | "don-vi" | "xe" | "dung-cu";
+  /** Nhãn khai sẵn cho giá trị (bảng nhãn thuần Việt) — giá trị trong nền vẫn hiện khi đếm 0. */
+  giaTri?: Option[];
+  /** Nhãn cho giá trị NGOÀI nền mà máy chủ vẫn đếm được (vd loại khuôn đã gỡ khỏi lựa chọn). */
+  nhanGiaTri?: Record<string, string>;
+  /** Danh mục THẬT sinh giá trị (vd `/api/nhom-may`): `ten` vừa là giá trị vừa là nhãn. */
+  nguon?: string;
 }
 
 /** Bản ghi danh mục. Khai lại ở đây (thay vì import từ `api/rebuildCatalog`) để `types.ts` giữ
@@ -140,10 +128,11 @@ export interface CatalogConfig {
   widthMa?: string;
   widthTen?: string;
   fields: FieldDef[];
-  facet?: FacetDef;             // tab lọc phía trên (tùy chọn)
-  /** Bảng "Lọc nâng cao": thêm tiêu chí lọc ngoài hàng chip, bật/tắt bằng nút cạnh ô tìm. Vắng =
-   *  màn không có nút đó. Mọi tiêu chí lọc Ở MÁY CHỦ như chip — bảng chỉ cầm 20 dòng. */
-  locNangCao?: LocNangCaoDef[];
+  /** Điều kiện của thanh lọc (ngoài kỳ Ngày tạo + Đang dùng / Đã ngừng, hai thứ trang tự có). */
+  dieuKien?: DieuKienDanhMuc[];
+  /** Mã màn trên URL (`?man=`) — trùng id mục thanh bên (`REBUILD_CONFIGS`) để mở link là vào
+   *  thẳng màn với đúng bộ lọc. Vắng thì suy từ `prefix`. */
+  man?: string;
   /** Chữ mờ trong ô tìm khi màn tìm được NHIỀU hơn mã/tên (vd Khuôn tìm cả tên khách, số kệ).
    *  Vắng ⇒ "Tìm mã / tên…". Nói đúng ô tìm quét những gì, không thì chẳng ai thử gõ tên khách. */
   timGoiY?: string;

@@ -18,7 +18,7 @@ export interface DagRoutingCanvasProps {
   canUpdate: boolean;
   onUpdateRows: (rows: EditRow[]) => void;
   /** `tab` chỉ dùng cho deep-link từ badge trên node (vd sổ giao–nhận). */
-  onOpenDrawer: (index: number) => void;
+  onOpenDrawer: (index: number, tab?: "vat_tu") => void;
   /** `neoKey` = node ĐANG CHỌN, `viTri` = chèn TRƯỚC hay SAU nó, để `thu_tu` đúng liền — số lượng
    *  + số hiệu bám `thu_tu` nên đây là chỗ quyết định vị trí, không phải cạnh phụ thuộc. Không
    *  chọn node nào thì thêm ở cuối. Có "trước" vì bước ĐẦU tiên (chế bản, bình bài) không thể

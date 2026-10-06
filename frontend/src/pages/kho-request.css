@@ -1683,6 +1683,11 @@ input.kho-num,
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15);
 }
 
+/* Chọn Nhập / Xuất trong form tạo yêu cầu — cùng dáng cụm nút chiều cũ, co theo nội dung. */
+.kho-chieu {
+  display: inline-flex;
+}
+
 /* --- Dải Filter Chips cho trạng thái --- */
 .kho-filter-chips {
   display: inline-flex;
@@ -1725,17 +1730,6 @@ input.kho-num,
 }
 .kho-filter-chip.is-active .kho-filter-chip__count {
   opacity: 1;
-}
-.kho-filter-chip__unread {
-  font-family: var(--ff-sans);
-  font-size: 10px;
-  font-weight: var(--fw-bold);
-  font-variant-numeric: tabular-nums;
-  background: var(--signal);
-  color: #fff;
-  padding: 1px 5px;
-  border-radius: var(--r-pill);
-  line-height: 1.2;
 }
 
 /* --- Card bọc bảng dữ liệu & typography --- */
@@ -2788,14 +2782,11 @@ input.kho-num,
 .kho-xuat__lydo-lbl em { font-style: normal; color: var(--signal, #8a1f1f); }
 .kho-xuat__lydo-input { flex: 1; min-width: 0; }
 
-/* Badge số yêu cầu chờ cấp cạnh nút Nhập/Xuất (KhoPage). Real-time: SSE đẩy → số nhảy ngay. */
-.kho-shell__count {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; height: 18px; padding: 0 5px; margin-left: 7px;
-  border-radius: 9px; font-size: 11px; font-weight: var(--fw-bold, 700); line-height: 1;
-  background: var(--signal, #8a1f1f); color: #fff;
+/* Chấm "có phản hồi kho chưa xem" ở tab Yêu cầu (KhoPage) — dáng lấy nguyên `.sidebar__badge`
+   (components/sidebar.css), ở đây chỉ đặt khoảng cách với chữ. */
+.kho-shell__cham {
+  margin-left: 7px;
 }
-.seg.is-active .kho-shell__count { background: rgba(255, 255, 255, 0.92); color: var(--signal, #8a1f1f); }
 
 /* Link phiếu đã cấp trong drawer YÊU CẦU (người tạo bấm mở màn phiếu read-only). */
 .kho-vlinks { display: flex; flex-direction: column; gap: 6px; }

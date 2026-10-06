@@ -2,7 +2,7 @@
 // Trang hồ sơ (tab Thông tin / Quá trình công tác / Đính kèm / Nhật ký) + dialog Đổi
 // trạng thái / Điều chuyển / Đổi chức danh (sinh Quá trình công tác) + nối/tạo tài khoản.
 // Backend là cổng quyền thật (403); useCan chỉ ẩn/hiện nút cho gọn UX.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   anhNho,
@@ -17,7 +17,7 @@ import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 // `fmtDate` DÙNG CHUNG (utils/format) — trước đây file này tự chép một bản y hệt.
 // Đừng viết lại bản cục bộ: sửa cách hiện ngày ở một chỗ mà nửa hệ thống không đổi theo.
-import { fmtDate } from "../../../utils/format";
+import { fmtDate, fmtDateTime } from "../../../utils/format";
 import type { NavigateFn } from "../../../components/AppShell";
 import {
   Activity,
@@ -36,7 +36,28 @@ import { RequestQueueModal } from "./modals/RequestQueueModal";
 import { EmployeeDetailPanel } from "./EmployeeDetailPanel";
 import { EmployeeWizard } from "./EmployeeWizard";
 import { ImportExcelDialog } from "../../../components/ImportExcelDialog";
+import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "../../thanh-loc/ky-danh-sach";
+import { useLocMan } from "../../thanh-loc/useLocMan";
+import {
+  LOC_NS_TRONG,
+  MOC_NS,
+  dieuKienNhanSu,
+  locNhanSuLenUrl,
+  locNhanSuTuUrl,
+  thamSoLocNhanSu,
+  type LocNhanSu,
+} from "./dieu-kien-nhan-su";
 import "../../nhan-su.css";
+
+// Kỳ + điều kiện lọc của danh sách — ghi lên URL, nhớ theo màn khi mở hồ sơ rồi quay lại.
+type LocMan = { ky: KyDS; loc: LocNhanSu };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_NS_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_NS.map(([m]) => m), "tao"),
+  loc: locNhanSuTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locNhanSuLenUrl(t.loc) });
 
 export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
   const { token } = useAuth();
@@ -71,17 +92,22 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
     const t = setTimeout(() => setQDebounced(q.trim()), 300);
     return () => clearTimeout(t);
   }, [q]);
-  const [statusFilter, setStatusFilter] = useState("");
-  const [deptFilter, setDeptFilter] = useState<number | "">("");
-  const [accountFilter, setAccountFilter] = useState(""); // "" | "yes" | "no"
   const [sort, setSort] = useState("code");
-  // KPI "sắp hết thử việc" — lọc ở MÁY CHỦ. Trước đây lọc trên trình duyệt trong đúng trang 20
-  // người đang tải: ai sắp hết thử việc mà nằm ở trang 2 thì không bao giờ hiện, và "Tổng" vẫn
-  // đếm cả người không khớp.
-  const [endingSoon, setEndingSoon] = useState(false);
+  const [page, setPage] = useState(1);
+  // Kỳ (Ngày tạo / Ngày vào làm) + Phòng ban, Trạng thái, Tài khoản, Sắp hết thử việc — lọc ở
+  // MÁY CHỦ. "Sắp hết thử việc" trước đây lọc trên trình duyệt trong đúng trang đang tải: ai nằm
+  // ở trang 2 thì không bao giờ hiện, và "Tổng" vẫn đếm cả người không khớp.
+  const [locMan, setLocManGoc] = useLocMan("nhan-su", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const setLocMan = (t: LocMan) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const datLoc = (loc: LocNhanSu) => setLocMan({ ...locMan, loc });
+  const statusFilter = locMan.loc.trang_thai ?? "";
+  const endingSoon = !!locMan.loc.sap_het;
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocNhanSu(locMan.loc) });
   const [exporting, setExporting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [page, setPage] = useState(1);
   const [size, setSize] = useState(25);
 
   const [meta, setMeta] = useState<EmployeeMeta | null>(null);
@@ -110,16 +136,7 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
     const luot = ++luotTai.current;
     setLoading(true);
     api.employees
-      .list(token, {
-        q: qDebounced || undefined,
-        status: statusFilter || undefined,
-        department_id: deptFilter === "" ? undefined : deptFilter,
-        has_account: accountFilter === "" ? undefined : accountFilter === "yes",
-        ending_soon: endingSoon || undefined,
-        sort,
-        page,
-        size,
-      })
+      .list(token, { q: qDebounced || undefined, sort, page, size }, JSON.parse(khoaLoc))
       .then((res) => {
         if (luot !== luotTai.current) return;
         setData({ items: res.items, total: res.total, kpis: res.kpis });
@@ -131,7 +148,7 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
       .finally(() => {
         if (luot === luotTai.current) setLoading(false);
       });
-  }, [token, qDebounced, statusFilter, deptFilter, accountFilter, endingSoon, sort, page, size]);
+  }, [token, qDebounced, khoaLoc, sort, page, size]);
 
   /** Tải file .xlsx do MÁY CHỦ dựng.
    *
@@ -147,14 +164,9 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
     try {
       // ĐỦ mọi bộ lọc của bảng — trước đây thiếu "Tài khoản" và "Sắp hết thử việc" nên file ra
       // nhiều người hơn con số "Tổng" trên màn.
-      const url = await api.employees.exportXlsxBlobUrl(token, {
-        q: q.trim() || undefined,
-        status: statusFilter || undefined,
-        department_id: deptFilter === "" ? undefined : deptFilter,
-        has_account: accountFilter === "" ? undefined : accountFilter === "yes",
-        ending_soon: endingSoon || undefined,
-        sort,
-      });
+      const url = await api.employees.exportXlsxBlobUrl(
+        token, { q: q.trim() || undefined, sort }, JSON.parse(khoaLoc),
+      );
       const a = document.createElement("a");
       a.href = url;
       a.download = "ho-so-nhan-su.xlsx";
@@ -199,6 +211,10 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
   }, [token]);
 
   const rows = data?.items ?? [];
+  const dieuKien = useMemo(
+    () => dieuKienNhanSu(meta?.departments ?? [], data?.kpis ?? null),
+    [meta, data?.kpis],
+  );
 
   return (
     <main className="ns ns2">
@@ -253,35 +269,18 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
               kpis={data.kpis}
               statusFilter={statusFilter}
               endingSoon={endingSoon}
-              onPickAll={() => {
-                setPage(1);
-                setEndingSoon(false);
-                setStatusFilter("");
-              }}
-              onPickProbation={() => {
-                setPage(1);
-                setEndingSoon(false);
-                setStatusFilter("probation");
-              }}
-              onPickProbationEnded={() => {
-                setPage(1);
-                setEndingSoon(false);
-                setStatusFilter("probation_ended");
-              }}
-              onPickActive={() => {
-                setPage(1);
-                setEndingSoon(false);
-                setStatusFilter("active");
-              }}
-              onPickEndingSoon={() => {
-                setPage(1);
-                setStatusFilter("probation");
-                setEndingSoon(true);
-              }}
+              // Ô KPI là lối tắt: ghi vào CHÍNH điều kiện Trạng thái / Sắp hết thử việc của thanh lọc.
+              onPickAll={() => datLoc({ ...locMan.loc, trang_thai: undefined, sap_het: undefined })}
+              onPickProbation={() => datLoc({ ...locMan.loc, trang_thai: "probation", sap_het: undefined })}
+              onPickProbationEnded={() =>
+                datLoc({ ...locMan.loc, trang_thai: "probation_ended", sap_het: undefined })
+              }
+              onPickActive={() => datLoc({ ...locMan.loc, trang_thai: "active", sap_het: undefined })}
+              onPickEndingSoon={() => datLoc({ ...locMan.loc, trang_thai: "probation", sap_het: true })}
             />
           )}
 
-          <div className="ns2__toolbar">
+          <div className="ns2__toolbar tl-thanh">
             <div className="ns-search-wrapper">
               <Search className="ns-search-icon" size={16} />
               <input
@@ -290,7 +289,6 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
                 value={q}
                 onChange={(e) => {
                   setPage(1);
-                  setEndingSoon(false);
                   setQ(e.target.value);
                 }}
               />
@@ -325,60 +323,17 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
                 Nhập Excel
               </button>
             )}
+            <div className="ns2__loc">
+              <ThanhLoc
+                ky={locMan.ky}
+                moc={MOC_NS}
+                onKy={(ky) => setLocMan({ ...locMan, ky })}
+                dieuKien={dieuKien}
+                loc={locMan.loc}
+                onLoc={datLoc}
+              />
+            </div>
             <div className="ns2__filters">
-              <div className="ns-select-wrapper">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => {
-                    setPage(1);
-                    setEndingSoon(false);
-                    setStatusFilter(e.target.value);
-                  }}
-                >
-                  <option value="">Mọi trạng thái</option>
-                  {Object.entries(STATUS_LABEL).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="ns-select-chevron" size={14} />
-              </div>
-              <div className="ns-select-wrapper">
-                <select
-                  value={deptFilter}
-                  onChange={(e) => {
-                    setPage(1);
-                    setDeptFilter(
-                      e.target.value === "" ? "" : Number(e.target.value),
-                    );
-                  }}
-                >
-                  <option value="">Mọi phòng/tổ</option>
-                  {meta?.departments.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="ns-select-chevron" size={14} />
-              </div>
-              <div className="ns-select-wrapper">
-                <select
-                  value={accountFilter}
-                  onChange={(e) => {
-                    setPage(1);
-                    setEndingSoon(false);
-                    setAccountFilter(e.target.value);
-                  }}
-                  title="Lọc theo tài khoản đăng nhập"
-                >
-                  <option value="">Tài khoản: tất cả</option>
-                  <option value="yes">Có tài khoản</option>
-                  <option value="no">Chưa có tài khoản</option>
-                </select>
-                <ChevronDown className="ns-select-chevron" size={14} />
-              </div>
               <div className="ns-select-wrapper">
                 <select
                   value={sort}
@@ -393,11 +348,10 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
                   <option value="-hire_date">Mới vào trước</option>
                   <option value="hire_date">Vào lâu trước</option>
                   <option value="status">Trạng thái</option>
+                  <option value="-created_at">Mới tạo trước</option>
                 </select>
                 <ChevronDown className="ns-select-chevron" size={14} />
               </div>
-              {/* Bỏ chip "Sắp hết thử việc ×": dải lọc phía trên đã sáng đúng ô đó rồi,
-                  hai chỗ báo cùng một trạng thái chỉ làm người dùng phải đọc hai lần. */}
             </div>
           </div>
           </div>
@@ -417,14 +371,15 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
                   <th>Phòng/Tổ</th>
                   <th>Chức danh</th>
                   <th>Ngày vào làm</th>
+                  <th>Ngày tạo</th>
                   <th>Trạng thái</th>
                 </tr>
               </thead>
               <tbody>
-                {loading && <EmptyRow colSpan={6} trangThai="dang-tai" />}
+                {loading && <EmptyRow colSpan={7} trangThai="dang-tai" />}
                 {!loading && listError && (
                   <EmptyRow
-                    colSpan={6}
+                    colSpan={7}
                     trangThai="loi"
                     loi={listError}
                     onThuLai={load}
@@ -486,6 +441,9 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
                         <td className="ns-cell-dept">{e.department_name ?? "—"}</td>
                         <td className="ns-cell-title">{e.role_name ?? e.position ?? "—"}</td>
                         <td className="ns-cell-date">{fmtDate(e.hire_date)}</td>
+                        <td className="ns-cell-date" title={fmtDateTime(e.created_at)}>
+                          {fmtDate(e.created_at)}
+                        </td>
                         <td>
                           <StatusBadge status={e.status} />
                         </td>
@@ -494,7 +452,7 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
                   })}
                 {!loading && !listError && rows.length === 0 && (
                   <EmptyRow
-                    colSpan={6}
+                    colSpan={7}
                     icon="users"
                     title={
                       endingSoon
@@ -602,6 +560,12 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
                       <div className="ns-mobile-card__meta-item">
                         <span className="ns-mobile-card__meta-label">Ngày vào</span>
                         <span className="ns-mobile-card__meta-val ns-num">{fmtDate(e.hire_date)}</span>
+                      </div>
+                      <div className="ns-mobile-card__meta-item">
+                        <span className="ns-mobile-card__meta-label">Ngày tạo</span>
+                        <span className="ns-mobile-card__meta-val ns-num" title={fmtDateTime(e.created_at)}>
+                          {fmtDate(e.created_at)}
+                        </span>
                       </div>
                     </div>
                   </div>

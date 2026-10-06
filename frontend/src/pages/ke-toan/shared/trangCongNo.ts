@@ -1,26 +1,30 @@
 /** Nối dây dùng chung của trang CÔNG NỢ (phải trả, phải thu — đặc tả NPT-1, NPTh-1, A.11, A.17,
  *  A.18). Màn chỉ khai lời gọi API; hook lo:
  *
- *  - kỳ (`useKyMan`), nhóm nút, mốc tuổi nợ, ô tìm (trễ 350ms) và bộ lọc nâng cao — lấy từ URL lúc
- *    mở và ghi lên URL khi đổi;
+ *  - kỳ (thanh lọc chung `ThanhLoc`, mặc định "Tháng này"; "Tất cả" = từ đầu sổ tới hôm nay), nhóm
+ *    nút, mốc tuổi nợ, ô tìm (trễ 350ms) và các điều kiện — lấy từ URL lúc mở và ghi lên URL khi đổi;
  *  - trang hiệu lực: đổi kỳ / lọc / tìm / cỡ trang thì tự về trang 1;
  *  - tải bảng + số cùng kỳ năm trước (cùng endpoint, kỳ lùi một năm, `size: 1`) song song, câu trả lời
  *    cũ về muộn bị bỏ; tải hỏng thì XOÁ số cũ (im lặng không được giả làm số 0);
  *  - số trên nhóm nút "Tất cả n | Quá hạn n | Vượt hạn mức n": máy chủ đếm sẵn trong CHÍNH câu trả
  *    lời của bảng (`the_loc`, sau kỳ + mốc tuổi + tìm + bộ lọc đang áp, trước nút đang chọn) — bấm
  *    nút nào thì bảng ra đúng số đó, không tốn lời gọi riêng;
- *  - "Khớp n …" của bảng lọc; nạp lại khi có sự kiện đẩy.
+ *  - nạp lại khi có sự kiện đẩy.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError, type LocCongNo, type TheLocCongNo } from "../../../api/client";
-import { useKyMan } from "./ChonKy";
+import { ApiError, type CotSapXepCongNo, type LocCongNo, type TheLocCongNo } from "../../../api/client";
+import { cungKyCua, khoangSo, useKyKeToan } from "./kyKeToan";
 import {
   LOC_CONG_NO_TRONG,
   congNoLenUrl,
   congNoTuUrl,
+  doiSapXep,
+  sapXepLenUrl,
+  sapXepTuUrl,
   thamSoCongNo,
   type LocNangCaoCongNo,
+  type SapXepCongNo,
   type TheCongNo,
   type TrangThaiCongNo,
 } from "./locCongNo";
@@ -29,6 +33,9 @@ import { docThamSoMan, useDongBoUrl } from "./urlMan";
 
 /** Phần trả về của `payables` / `receivables` mà hook dùng tới. */
 type TomTatCongNo = { items: unknown[]; total: number; page: number; the_loc?: TheLocCongNo };
+
+/** Mốc kỳ của sổ công nợ: một mốc — ngày trên chứng từ (giao hàng, hoá đơn, phiếu chi / thu). */
+export const MOC_CONG_NO: [string, string][] = [["ps", "Ngày chứng từ"]];
 
 export type CauHinhTrangCongNo<S extends TomTatCongNo> = {
   /** Mã màn — khoá nhớ kỳ và dấu `man` trên URL. */
@@ -51,17 +58,22 @@ export function useTrangCongNo<S extends TomTatCongNo>(
   const chRef = useRef(ch);
   chRef.current = ch;
 
-  const kyMan = useKyMan(ch.man);
-  const { ky, cungKy } = kyMan;
+  const [kyDS, setKy] = useKyKeToan(ch.man, MOC_CONG_NO, "ps", "thang");
+  // Sổ công nợ luôn cần một khoảng ngày thật — "Tất cả" = từ đầu sổ tới hôm nay.
+  const khoaKy = JSON.stringify(kyDS);
+  const ky = useMemo(() => khoangSo(kyDS), [khoaKy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cungKy = useMemo(() => cungKyCua(kyDS), [khoaKy]); // eslint-disable-line react-hooks/exhaustive-deps
   const [dauUrl] = useState(() => ch.dau ?? congNoTuUrl(docThamSoMan(ch.man)));
   const [the, setThe] = useState<TheCongNo>(dauUrl.the);
   // Mốc tuổi đang lọc. Tách khỏi `the`: hai bộ lọc CHỒNG nhau được ("vượt hạn mức" + "trễ trên 60 ngày").
   const [tuoi, setTuoi] = useState<string | null>(dauUrl.tuoi);
   const [loc, setLoc] = useState<LocNangCaoCongNo>(dauUrl.loc);
   const { tim, setTim, timTre, datCaHai: datTim } = useTimTre(dauUrl.tim);
-  useDongBoUrl(ch.man, congNoLenUrl({ the, tuoi, tim: timTre, loc }));
+  // Sắp xếp ở MÁY CHỦ (bảng đủ cột). Liên thông mở màn theo một khách thì về thứ tự mặc định.
+  const [sx, setSx] = useState<SapXepCongNo | null>(() => (ch.dau ? null : sapXepTuUrl(docThamSoMan(ch.man))));
+  useDongBoUrl(ch.man, { ...congNoLenUrl({ the, tuoi, tim: timTre, loc }), sx: sapXepLenUrl(sx) });
   const [size, setSize] = useState(ch.coTrang);
-  const { trang: page, datTrang } = useTrangTheoKhoa(JSON.stringify([the, tuoi, timTre, loc, ky.tu, ky.den, size]));
+  const { trang: page, datTrang } = useTrangTheoKhoa(JSON.stringify([the, tuoi, timTre, loc, ky.tu, ky.den, size, sx]));
 
   const [data, setData] = useState<S | null>(null);
   const [dataCung, setDataCung] = useState<S | null>(null);
@@ -77,7 +89,7 @@ export function useTrangCongNo<S extends TomTatCongNo>(
     const lan = ++lanTai.current;
     const tt = { the, tuoi, tim: timTre, loc };
     setLoading(true);
-    const chinh = c.goi(token, { ...thamSoCongNo(tt, ky), page, size });
+    const chinh = c.goi(token, { ...thamSoCongNo(tt, ky), page, size, sap_xep: sx?.cot, chieu: sx?.chieu });
     const cung = cungKy
       ? // Lời cùng kỳ chỉ đọc các số tổng: `chi_tong` để máy chủ khỏi dựng dòng.
         c.goi(token, { ...thamSoCongNo(tt, cungKy), page: 1, size: 1, chi_tong: true }).catch(() => null)
@@ -103,7 +115,7 @@ export function useTrangCongNo<S extends TomTatCongNo>(
         if (lan === lanTai.current) setLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, the, tuoi, timTre, loc, ky, cungKy, page, size]);
+  }, [token, the, tuoi, timTre, loc, ky, cungKy, page, size, sx]);
 
   useEffect(() => {
     load();
@@ -121,19 +133,6 @@ export function useTrangCongNo<S extends TomTatCongNo>(
     moiNhat.current();
   }, [eventTick]);
 
-  // "Khớp n …" của bảng lọc: chỉ đọc `total` của lời đếm.
-  const demKhop = useCallback(
-    async (nhap: LocNangCaoCongNo) => {
-      if (!token) return 0;
-      const r = await chRef.current.goi(token, {
-        ...thamSoCongNo({ the, tuoi, tim: timTre, loc: nhap }, ky),
-        dem_only: true,
-      });
-      return r.total;
-    },
-    [token, the, tuoi, timTre, ky],
-  );
-
   const tl = data?.the_loc;
   const demThe: Record<TheCongNo, number> | null = tl
     ? { all: tl.tat_ca, overdue: tl.qua_han, vuot_han_muc: tl.vuot_han_muc }
@@ -147,7 +146,11 @@ export function useTrangCongNo<S extends TomTatCongNo>(
   };
 
   return {
-    kyMan,
+    /** Kỳ trên thanh lọc. */
+    kyDS,
+    setKy,
+    /** Khoảng ngày thật của kỳ (đã thay "Tất cả" bằng từ đầu sổ tới hôm nay). */
+    ky,
     the,
     setThe,
     tuoi,
@@ -163,6 +166,10 @@ export function useTrangCongNo<S extends TomTatCongNo>(
     datTrang,
     size,
     setSize,
+    /** Cột đang sắp (null = mặc định: còn nợ giảm dần). */
+    sx,
+    /** Bấm tiêu đề cột: cùng cột thì đảo chiều. */
+    datSapXep: (cot: CotSapXepCongNo) => setSx((cu) => doiSapXep(cu, cot)),
     data,
     /** Bộ lọc (nhóm nút, mốc tuổi, ô tìm, bộ lọc nâng cao) của lượt tải đã sinh ra `data`. */
     ttData,
@@ -173,7 +180,6 @@ export function useTrangCongNo<S extends TomTatCongNo>(
     loi,
     /** Nạp lại bảng và số trên nhóm nút — sự kiện đẩy, hoặc người dùng vừa đổi dữ liệu (lập phiếu). */
     load,
-    demKhop,
     boLoc,
   };
 }

@@ -62,6 +62,11 @@ class LateEarlyRequestOut(BaseModel):
 
 class LateEarlyRequestsOut(BaseModel):
     items: list[LateEarlyRequestOut]
+    # Phân trang + số theo trạng thái cho thanh tab (06/10/2026).
+    total: int | None = None
+    page: int | None = None
+    size: int | None = None
+    dem_theo_tab: dict[str, int] | None = None
 
 
 class MyLateEarlyOut(BaseModel):

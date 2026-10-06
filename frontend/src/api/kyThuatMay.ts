@@ -4,7 +4,7 @@
 // .lich_bao_tri` (tab "Lịch bảo trì" màn Thiết bị). Phiếu định kỳ ra đời bằng HAI đường: ticker nền
 // tự sinh khi tới hạn, hoặc người dùng bấm một ô KỲ DỰ KIẾN trên màn Lịch (`lich()` +
 // `createBaoTri` kèm `goi_id`). Không có đường đẻ hàng loạt.
-import { authed } from "./client";
+import { authed, type LuaChonLoc } from "./client";
 
 export type LoaiPhieu = "sua_chua" | "bao_tri" | "yeu_cau";
 
@@ -56,6 +56,7 @@ export interface SuaChua {
   trang_thai: string;
   hoan_thanh_at: string | null;
   ghi_chu: string | null;
+  created_at: string | null;
   // dẫn xuất (backend bơm) — KHÔNG gửi lên khi lưu
   may_ma: string | null;
   may_ten: string | null;
@@ -100,6 +101,7 @@ export interface BaoTri {
   trang_thai: string;
   ngay_hoan_thanh: string | null;
   ghi_chu: string | null;
+  created_at: string | null;
   // dẫn xuất
   may_ma: string | null;
   may_ten: string | null;
@@ -219,6 +221,10 @@ export const kyThuatMay = {
   listSuaChua(token: string, params: Record<string, unknown> = {}): Promise<PhieuListOut<SuaChua>> {
     return authed<PhieuListOut<SuaChua>>(`${P}/sua-chua${qs({ size: 20, ...params })}`, token);
   },
+  /** Điều kiện "Máy" của thanh lọc: máy đã có phiếu sửa chữa, kèm số phiếu. */
+  locMaySuaChua(token: string): Promise<LuaChonLoc[]> {
+    return authed<LuaChonLoc[]>(`${P}/sua-chua/loc-may`, token);
+  },
   /** MỘT phiếu. Dùng để nạp lại phiếu đang mở trong drawer — kéo cả danh sách rồi `find` thì phiếu
    *  nằm ngoài trang 1 sẽ không tìm thấy, và cờ `co_anh_sau` đứng im dù ảnh đã tải lên. */
   getSuaChua(token: string, id: number): Promise<SuaChua> {
@@ -242,6 +248,9 @@ export const kyThuatMay = {
   /** `trang_thai` nhận cả 2 giá trị dẫn xuất: `can_lam` (chưa xong) · `qua_han` (trễ ngày). */
   listBaoTri(token: string, params: Record<string, unknown> = {}): Promise<PhieuListOut<BaoTri>> {
     return authed<PhieuListOut<BaoTri>>(`${P}/bao-tri${qs({ size: 20, ...params })}`, token);
+  },
+  locMayBaoTri(token: string): Promise<LuaChonLoc[]> {
+    return authed<LuaChonLoc[]>(`${P}/bao-tri/loc-may`, token);
   },
   /** MỘT phiếu — xem ghi chú ở `getSuaChua`. */
   getBaoTri(token: string, id: number): Promise<BaoTri> {
@@ -299,6 +308,9 @@ export const kyThuatMay = {
    *  mức độ → mới nhất) nên KHÔNG có tham số sắp xếp. */
   listYeuCau(token: string, params: Record<string, unknown> = {}): Promise<PhieuListOut<YeuCau>> {
     return authed<PhieuListOut<YeuCau>>(`${P}/yeu-cau${qs({ size: 20, ...params })}`, token);
+  },
+  locMayYeuCau(token: string): Promise<LuaChonLoc[]> {
+    return authed<LuaChonLoc[]>(`${P}/yeu-cau/loc-may`, token);
   },
   getYeuCau(token: string, id: number): Promise<YeuCau> {
     return authed<YeuCau>(`${P}/yeu-cau/${id}`, token);

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, type CompanyBankAccountRow } from "../../../api/client";
 import { homNayVN, kyCungKy, tinhKy } from "../../../utils/ky";
+import { khoangSo } from "../shared/kyKeToan";
 import { taiKhoan } from "./shared/mauTaiKhoan";
 
 const goi = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const goi = vi.hoisted(() => ({
   supplierAccounts: vi.fn(),
   vouchers: vi.fn(),
   receipts: vi.fn(),
+  nganHangLoc: vi.fn(),
 }));
 const ncc = vi.hoisted(() => ({ list: vi.fn() }));
 const quyen = vi.hoisted(() => ({ coSua: true }));
@@ -70,6 +72,7 @@ beforeEach(() => {
   nganMo.props = null;
   formMo.props = null;
   goi.companyAccounts.mockResolvedValue([ACB, MB, VCB]);
+  goi.nganHangLoc.mockResolvedValue([{ ten: "MB", so: 1 }, { ten: "Vietcombank", so: 1 }, { ten: "ACB", so: 1 }]);
   // VCB và ACB không có phiếu nào trong kỳ ⇒ máy chủ bỏ hẳn khỏi danh sách.
   goi.thongKeTaiKhoan.mockImplementation(async (_t: string, ky: { tu_ngay: string }) =>
     ky.tu_ngay === tinhKy("nam", homNayVN()).tu
@@ -85,12 +88,15 @@ afterEach(() => window.history.replaceState(null, "", "/"));
 
 describe("AccountingBankAccountsPage — tải (lỗi 1)", () => {
   it("chỉ gọi danh sách tài khoản + thu/chi trong kỳ đọc từ URL; không gọi nhà cung cấp hay sổ phiếu", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam&so=0");
+    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam");
     render(<AccountingBankAccountsPage />);
     await screen.findByRole("article", { name: "Tài khoản MB 9331 3466 8" });
-    const nam = tinhKy("nam", homNayVN());
-    expect(goi.companyAccounts.mock.calls).toEqual([["token-test", false]]);
-    expect(goi.thongKeTaiKhoan.mock.calls).toEqual([["token-test", { tu_ngay: nam.tu, den_ngay: nam.den }]]);
+    // Kỳ "Năm nay" của thanh lọc chung = trọn năm (khoangKy), không cắt ở hôm nay.
+    const nam = khoangSo({ loai: "nam", moc: "gd" });
+    expect(goi.companyAccounts.mock.calls).toEqual([["token-test", false, null, { ngan_hang: undefined, trang_thai: undefined }]]);
+    // Kỳ có khoảng ngày ⇒ thêm đúng MỘT lời cho cùng kỳ năm trước (so sánh tự bật, không còn ô tích).
+    expect(goi.thongKeTaiKhoan).toHaveBeenCalledTimes(2);
+    expect(goi.thongKeTaiKhoan.mock.calls[0]).toEqual(["token-test", { tu_ngay: nam.tu, den_ngay: nam.den }]);
     expect(goi.supplierAccounts).not.toHaveBeenCalled();
     expect(ncc.list).not.toHaveBeenCalled();
     expect(goi.vouchers).not.toHaveBeenCalled();
@@ -102,8 +108,8 @@ describe("AccountingBankAccountsPage — tải (lỗi 1)", () => {
     expect(screen.getByText("Tài khoản công ty dùng khi lập phiếu chuyển khoản.")).toBeInTheDocument();
   });
 
-  it("bật so sánh ⇒ thêm MỘT lời thu/chi cho cùng kỳ năm trước, dòng 'Cùng kỳ' dưới số", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam&so=1");
+  it("kỳ có khoảng ⇒ thêm MỘT lời thu/chi cho cùng kỳ năm trước, dòng 'Cùng kỳ' dưới số", async () => {
+    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam");
     render(<AccountingBankAccountsPage />);
     const cung = kyCungKy(tinhKy("nam", homNayVN()));
     await waitFor(() => expect(goi.thongKeTaiKhoan).toHaveBeenCalledTimes(2));
@@ -114,12 +120,12 @@ describe("AccountingBankAccountsPage — tải (lỗi 1)", () => {
   });
 
   it("sự kiện đẩy (eventTick đổi) ⇒ nạp lại danh sách và thu/chi", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam&so=0");
+    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam");
     const { rerender } = render(<AccountingBankAccountsPage eventTick={0} />);
     await screen.findByRole("article", { name: "Tài khoản MB 9331 3466 8" });
     rerender(<AccountingBankAccountsPage eventTick={1} />);
     await waitFor(() => expect(goi.companyAccounts).toHaveBeenCalledTimes(2));
-    expect(goi.thongKeTaiKhoan).toHaveBeenCalledTimes(2);
+    expect(goi.thongKeTaiKhoan).toHaveBeenCalledTimes(4);
   });
 
   it("tải hỏng: nói không tải được + Tải lại, KHÔNG nói 'chưa có'", async () => {
@@ -144,7 +150,7 @@ describe("AccountingBankAccountsPage — tải (lỗi 1)", () => {
 
 describe("AccountingBankAccountsPage — thẻ (TK-1)", () => {
   it("thẻ đang dùng: vòng chữ viết tắt, tên + chi nhánh, pill, số nhóm 4 + Chép, chủ tài khoản, thu/chi, thẻ nhỏ", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam&so=0");
+    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam");
     render(<AccountingBankAccountsPage />);
     const the = await screen.findByRole("article", { name: "Tài khoản MB 9331 3466 8" });
     expect(the.querySelector(".kt-tk__vong")).toHaveTextContent("MB");
@@ -213,7 +219,7 @@ describe("AccountingBankAccountsPage — thẻ (TK-1)", () => {
   });
 
   it("không nối mẩu thông tin bằng · • hay dấu phẩy", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam&so=1");
+    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam");
     render(<AccountingBankAccountsPage />);
     await screen.findByRole("article", { name: "Tài khoản MB 9331 3466 8" });
     for (const the of document.querySelectorAll(".kt-tk")) {
@@ -229,7 +235,7 @@ describe("AccountingBankAccountsPage — thẻ (TK-1)", () => {
   });
 
   it("bấm thẻ hoặc Enter mở ngăn đúng tài khoản kèm số trong kỳ (điền 0 khi vắng); nút Thêm mở form trống", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam&so=0");
+    window.history.replaceState(null, "", "/?man=ke-toan-tai-khoan-ngan-hang&ky=nam");
     render(<AccountingBankAccountsPage />);
     await userEvent.click(await screen.findByRole("article", { name: "Tài khoản MB 9331 3466 8" }));
     expect(screen.getByRole("dialog", { name: "Ngăn 1" })).toBeInTheDocument();

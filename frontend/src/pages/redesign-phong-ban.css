@@ -3849,6 +3849,10 @@
 /* Nhãn KHỐI KINH DOANH — cặp với nhãn "Khối SX" (nền rust đặc). Cùng MỘT accent, phân biệt bằng
    ĐỘ ĐẬM chứ không đẻ màu thứ hai (UI_DESIGN §2: một accent ấm duy nhất): SX = nền đặc, KD = nền
    nhạt + chữ đậm. Đặt CUỐI FILE có chủ ý — file này từng bị lặp cả khối, bản nằm sau mới thắng. */
+/* Thẻ khối không được vỡ hai dòng ("KHỐI / KD" trong viên bo tròn trông như lỗi) — tên phòng
+   đã có ellipsis để nhường chỗ. */
+.rdx-tree__pill { white-space: nowrap; flex: 0 0 auto; }
+
 .rdx-tree__pill--kd,
 .rdx-drawer__pill--kd {
   color: var(--rust-deep);
@@ -4216,4 +4220,11 @@
 }
 .rdx-org-canvas-wrap .rdx-org-canvas-inner {
   padding-top: 16px;
+}
+
+/* Thanh lọc chung (06/10/2026) thay hàng chip lọc cây: khối [Kỳ][điều kiện][Lọc] chiếm phần còn
+   lại của hàng, nút gập/mở và Thêm phòng gốc vẫn dạt phải. */
+.rdx-org-toolbar__loc { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+@media (max-width: 640px) {
+  .rdx-org-toolbar__loc { flex-basis: 100%; }
 }

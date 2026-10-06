@@ -227,3 +227,65 @@ def test_so_chi_tiet_doi_quyen_bao_cao(client):
         headers={"Authorization": f"Bearer {du}"},
     )
     assert r2.status_code == 200, r2.text
+
+
+# ══ Sao kê trong ngăn công nợ — cùng ruột, gác bằng quyền của CHÍNH màn công nợ ════════════════
+
+
+def test_sao_ke_ngan_phai_tra_khop_so_chi_tiet_va_doi_quyen_man_cong_no(client):
+    headers = _headers(client)
+    ncc = _supplier(client, headers, name="NCC Sao Ke Ngan")
+    don = _don(client, headers, ncc["id"])
+    _da_mua(client, headers, don["id"])
+    dot = _ghi_dot(
+        client, headers, don["id"],
+        lines=[{"purchase_request_line_id": _dong_dau_tien(don), "quantity": 400}],
+        ngay=_ngay(10),
+    )
+    _phieu_chi(client, headers, don["id"], 300_000, stage="final", delivery_id=dot["deliveries"][0]["id"])
+    ky = {"tu_ngay": _ngay(30), "den_ngay": _ngay(0)}
+
+    goc = _so_ct(client, headers, "payables", doi_tuong_id=ncc["id"], tu=ky["tu_ngay"], den=ky["den_ngay"])
+    r = client.get(f"/api/accounting/payables/{ncc['id']}/so-chi-tiet", params=ky, headers=headers)
+    assert r.status_code == 200, r.text
+    assert r.json() == goc, "sao kê trong ngăn phải là ĐÚNG sổ chi tiết bên báo cáo"
+
+    # Chỉ có quyền màn Công nợ phải trả (không có Báo cáo công nợ) vẫn xem được sao kê trong ngăn.
+    cn = _token_vai("saoke-cn-tra", module="cong_no_phai_tra", can_read=True)
+    r2 = client.get(f"/api/accounting/payables/{ncc['id']}/so-chi-tiet", params=ky,
+                    headers={"Authorization": f"Bearer {cn}"})
+    assert r2.status_code == 200, r2.text
+    # Quyền của màn KHÁC thì không.
+    thu = _token_vai("saoke-cn-thu", module="cong_no_phai_thu", can_read=True)
+    r3 = client.get(f"/api/accounting/payables/{ncc['id']}/so-chi-tiet", params=ky,
+                    headers={"Authorization": f"Bearer {thu}"})
+    assert r3.status_code == 403, r3.text
+
+
+def test_sao_ke_ngan_phai_thu_khop_so_chi_tiet_va_chan_ky_nguoc(client):
+    from tests.test_sales_invoices_api import _invoice_payload, _sales_order
+
+    headers = _headers(client)
+    order_id, khach_id = _sales_order(suffix="SAOKE1")
+    r = client.post(
+        "/api/accounting/sales-invoices",
+        json=_invoice_payload(order_id, number="79000002", amount=500_000),
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    ky = {"tu_ngay": _ngay(30), "den_ngay": _ngay(0)}
+
+    goc = _so_ct(client, headers, "receivables", doi_tuong_id=khach_id, tu=ky["tu_ngay"], den=ky["den_ngay"])
+    r1 = client.get(f"/api/accounting/receivables/{khach_id}/so-chi-tiet", params=ky, headers=headers)
+    assert r1.status_code == 200, r1.text
+    assert r1.json() == goc
+    assert r1.json()["cuoi_no"] == 500_000
+
+    cn = _token_vai("saoke-cn-thu2", module="cong_no_phai_thu", can_read=True)
+    r2 = client.get(f"/api/accounting/receivables/{khach_id}/so-chi-tiet", params=ky,
+                    headers={"Authorization": f"Bearer {cn}"})
+    assert r2.status_code == 200, r2.text
+
+    nguoc = client.get(f"/api/accounting/receivables/{khach_id}/so-chi-tiet",
+                       params={"tu_ngay": _ngay(0), "den_ngay": _ngay(30)}, headers=headers)
+    assert nguoc.status_code == 422, nguoc.text

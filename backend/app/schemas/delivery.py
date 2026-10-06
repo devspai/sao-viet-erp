@@ -153,6 +153,28 @@ class TripLineOut(BaseModel):
     qty_giao: int
 
 
+class PhieuKhoOut(BaseModel):
+    """Phiếu kho THẬT (không phải yêu cầu) của một chuyến — tab Chứng từ của ngăn lượt xe."""
+
+    ma: str
+    #: `draft` = kho đã lập, chưa ghi sổ · `posted` = đã ghi sổ.
+    trang_thai: str
+    #: Lúc ghi sổ, chưa ghi thì lúc lập.
+    luc: datetime | None = None
+    boi_ten: str | None = None
+
+
+class GiaoThangOut(BaseModel):
+    """Chuyến "nhà gia công giao thẳng cho khách" — không xe, không kíp, không km. Người đứng tên
+    chuyến là người CHỐT số trên lần gia công, không phải tài xế."""
+
+    gia_cong_ngoai_id: int
+    nha_cung_cap_ten: str | None = None
+    nha_cung_cap_sdt: str | None = None
+    lsx_id: int | None = None
+    lsx_ma: str | None = None
+
+
 class TripOut(BaseModel):
     id: int
     request_id: int
@@ -200,6 +222,19 @@ class TripOut(BaseModel):
     luot: "LuotXeTrongChuyenOut | None" = None
     #: Cảnh báo KHÔNG chặn của thao tác vừa làm (vd "xe chạy ngoài sổ N km").
     canh_bao: list[str] = []
+    #: Ngày tạo chuyến — cột "Ngày tạo" + mốc `tao` của bộ lọc.
+    created_at: datetime | None = None
+    # Nơi nhận của YÊU CẦU (đông cứng lúc lập) — bảng + thẻ điểm hiện ngay, khỏi mở chi tiết.
+    dia_chi: str | None = None
+    nguoi_nhan: str | None = None
+    sdt_nguoi_nhan: str | None = None
+    ngay_can_giao: date | None = None
+    #: Lưu ý giao của đơn (yêu cầu chụp lại lúc lập).
+    luu_y_giao: str | None = None
+    customer_po_no: str | None = None
+    phieu_xuat: PhieuKhoOut | None = None
+    phieu_tra: PhieuKhoOut | None = None
+    giao_thang: GiaoThangOut | None = None
 
 
 class LuotXeTrongChuyenOut(BaseModel):
@@ -310,6 +345,7 @@ class LuotXeChiTietOut(BaseModel):
     so_cho_lay_hang: int = 0
     so_cho_bat_dau: int = 0
     so_dang_giao: int = 0
+    created_at: datetime | None = None
 
 
 class BangGiaoItem(BaseModel):

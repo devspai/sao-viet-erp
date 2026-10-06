@@ -5,7 +5,7 @@ import { FileText } from "lucide-react";
 import { assetUrl, type PayableItemRow } from "../../../../api/client";
 import { Cum, TheNho } from "../../shared/Cum";
 import { ngay } from "../../shared/dinhDang";
-import { TheTre } from "../../shared/TheTre";
+import { TheHan } from "../../shared/TheTre";
 
 /** Số hoá đơn + ngày + file đính kèm (nhiều đợt cùng số = cùng MỘT hoá đơn).
  *
@@ -39,13 +39,15 @@ export function HoaDon({
 
 /** Hạn trả của MỘT đợt giao. Đợt chưa có hạn không bao giờ vào cột Quá hạn nên phải đeo thẻ — máy
  *  chủ đã đẩy nó lên đầu, đây là nửa còn lại của việc chống giấu nợ. */
-export function HanTra({ row }: { row: PayableItemRow }) {
+export function HanTra({ row, homNay }: { row: PayableItemRow; homNay: string }) {
   if (row.da_tat_toan) return <span className="kt-mo">Đã trả xong</span>;
-  if (row.chua_dat_han) return <TheNho>{row.delivery_id == null ? "Không theo đợt" : "Chưa đặt hạn"}</TheNho>;
+  if (row.chua_dat_han || !row.due_date) return <TheNho>{row.delivery_id == null ? "Không theo đợt" : "Chưa đặt hạn"}</TheNho>;
   return (
-    <Cum>
+    <>
       <span>{ngay(row.due_date)}</span>
-      <TheTre soNgay={row.overdue_days} moc={row.aging_bucket} />
-    </Cum>
+      <Cum className="kt-phu">
+        <TheHan han={row.due_date} homNay={homNay} soNgayTre={row.overdue_days} moc={row.aging_bucket} />
+      </Cum>
+    </>
   );
 }

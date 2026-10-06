@@ -104,6 +104,7 @@ class TaiSanRow(BaseModel):
     ghi_chu: str | None = None
     trang_thai: str
     ngay_giam: date | None = None
+    created_at: datetime | None = None
     #: Hao mòn lũy kế TÍNH RA từ lịch, tới hết tháng `luy_ke_den` (tháng trước tháng hiện tại;
     #: món đã ghi giảm thì tới ngày giảm).
     hao_mon_luy_ke: int = 0
@@ -155,6 +156,8 @@ class TaiSanListOut(BaseModel):
     #: Dải số đầu màn — tính trên CẢ bộ lọc, không chỉ trang đang xem.
     #: Số tài sản mỗi loại theo các bộ lọc khác loại (nhóm nút Loại hiện số đếm).
     dem_loai: dict[str, int] = {}
+    #: Số tài sản mỗi trạng thái theo các bộ lọc khác trạng thái (thẻ lọc Trạng thái hiện số).
+    dem_trang_thai: dict[str, int] = {}
     tong_gia: int = 0
     #: Tài sản đã thôi dùng tính 0 — đã ra khỏi xưởng (khớp `con_lai` từng dòng).
     tong_con_lai: int = 0

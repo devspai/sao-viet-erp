@@ -1,17 +1,21 @@
-/** Ngăn nhà cung cấp (NPT-2) + ngăn chồng "Trả nhiều đợt" (NPT-3).
+/** Ngăn nhà cung cấp — phương án 2 (sổ chi tiết kiểu Xero, 06/10/2026) + ngăn chồng "Trả nhiều đợt"
+ *  (NPT-3).
  *
- *  Khoá chặt: số trên tab Còn nợ = số đợt CÒN nợ (lỗi 7); tích đợt ⇒ chân tối có tổng; Esc ở ngăn
- *  chồng chỉ đóng ngăn chồng (lỗi 6); sự kiện đẩy nạp lại ngăn (lỗi 8); payload lập phiếu GIỮ Y
- *  NGUYÊN như bản cũ (tiền thật); không nối mẩu thông tin bằng "·" / "•".
+ *  Khoá chặt: ba tab Còn nợ | Sao kê | Lịch sử; số trên tab Còn nợ = số đợt CÒN nợ (lỗi 7); vượt hạn
+ *  mức chỉ nói ở khối hạn mức; chú thích tuổi nợ bấm = lọc đợt; sao kê TK 331 đọc ngược chiều (nhận
+ *  hàng tăng, trả tiền giảm); tích đợt ⇒ chân tối có tổng; Esc ở ngăn chồng chỉ đóng ngăn chồng (lỗi
+ *  6); sự kiện đẩy nạp lại ngăn (lỗi 8); payload lập phiếu GIỮ Y NGUYÊN như bản cũ (tiền thật); không
+ *  nối mẩu thông tin bằng "·" / "•".
  */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PayablesDetail, PurchaseRequestStatus } from "../../../../api/client";
+import type { AgingBucket, PayablesDetail, PurchaseRequestStatus, SoChiTietCongNo } from "../../../../api/client";
 import { homNayVN } from "../../../../utils/ky";
 
 const payablesDetail = vi.fn();
+const saoKeDoiTac = vi.fn();
 const companyAccounts = vi.fn();
 const createVouchersBatch = vi.fn();
 const uploadVoucherAttachment = vi.fn();
@@ -23,6 +27,7 @@ vi.mock("../../../../api/client", async (goc) => ({
   api: {
     accounting: {
       payablesDetail: (...a: unknown[]) => payablesDetail(...a),
+      saoKeDoiTac: (...a: unknown[]) => saoKeDoiTac(...a),
       companyAccounts: (...a: unknown[]) => companyAccounts(...a),
       createVouchersBatch: (...a: unknown[]) => createVouchersBatch(...a),
       uploadVoucherAttachment: (...a: unknown[]) => uploadVoucherAttachment(...a),
@@ -38,6 +43,31 @@ const dot = {
   status: ST, lines: [], invoice_number: null, invoice_date: null, hoa_don_files: [], paid: 0, coc_bu: 0,
   chua_dat_han: false, overdue_days: 0, aging_bucket: null, da_tat_toan: false,
 };
+
+const AGING: AgingBucket[] = [
+  { key: "chua_toi_han", label: "Chưa tới hạn", amount: 70_000_000, count: 2 },
+  { key: "d1_7", label: "Trễ 1–7 ngày", amount: 0, count: 0 },
+  { key: "d8_15", label: "Trễ 8–15 ngày", amount: 0, count: 0 },
+  { key: "d16_30", label: "Trễ 16–30 ngày", amount: 0, count: 0 },
+  { key: "d31_60", label: "Trễ 31–60 ngày", amount: 26_500_000, count: 1 },
+  { key: "d60_plus", label: "Trễ > 60 ngày", amount: 0, count: 0 },
+];
+
+/** Sổ TK 331: đợt giao ghi CÓ (mình nợ thêm), phiếu chi ghi NỢ. Đầu kỳ mình nợ 50 tr. */
+function soCai(p: Partial<SoChiTietCongNo> = {}): SoChiTietCongNo {
+  return {
+    tk: "331", tieu_de: "Sổ chi tiết", doi_tuong_id: 7, ma: "NCC007", ten: "Giấy Bình Minh",
+    tu_ngay: "2026-10-01", den_ngay: "2026-10-31", dau_no: 0, dau_co: 50_000_000,
+    dong: [
+      { ngay: "2026-10-02", luc: null, loai: "phieu_chi", so_ct: "PC-0090", dien_giai: "Chi trả nhà cung cấp",
+        no: 30_000_000, co: 0, luy_ke_no: 0, luy_ke_co: 20_000_000 },
+      { ngay: "2026-10-04", luc: null, loai: "dot_giao", so_ct: "PMH-0015 đợt 1", dien_giai: "Hàng đã nhận",
+        no: 0, co: 68_400_000, luy_ke_no: 0, luy_ke_co: 88_400_000 },
+    ],
+    ps_no: 30_000_000, ps_co: 68_400_000, cuoi_no: 0, cuoi_co: 88_400_000,
+    ...p,
+  };
+}
 
 function chiTiet(p: Partial<PayablesDetail> = {}): PayablesDetail {
   return {
@@ -63,7 +93,7 @@ function chiTiet(p: Partial<PayablesDetail> = {}): PayablesDetail {
         invoice_number: null, invoice_date: null, has_attachment: false, paid_date: "2026-06-20",
         created_by_user_id: 3, created_by_name: "Nguyễn Thu Hà" },
     ],
-    period_months: 3, all_history: false, total_due: 96_500_000, overdue_amount: 26_500_000, aging: [],
+    period_months: 3, all_history: false, total_due: 96_500_000, overdue_amount: 26_500_000, aging: AGING,
     paid_in_period: 30_000_000, as_of: "2026-10-05",
     ...p,
   };
@@ -76,7 +106,7 @@ const onClose = vi.fn();
 
 function ve(eventTick = 0, bucket: "all" | "overdue" | "paid" = "all") {
   return (
-    <PayablesDrawer supplierId={7} supplierName="Giấy Bình Minh" bucket={bucket} ky={KY} eventTick={eventTick}
+    <PayablesDrawer supplierId={7} supplierName="Giấy Bình Minh" ma="NCC007" bucket={bucket} ky={KY} eventTick={eventTick}
       quyen={{ lap: true, xemDonMua: true, xemNcc: true, xemPhieuChi: true }}
       navigate={navigate} onClose={onClose} onChanged={onChanged} />
   );
@@ -85,6 +115,8 @@ function ve(eventTick = 0, bucket: "all" | "overdue" | "paid" = "all") {
 beforeEach(() => {
   vi.clearAllMocks();
   payablesDetail.mockImplementation(async () => chiTiet());
+  saoKeDoiTac.mockImplementation(async (_t, _ben, _id, ky: { tuNgay: string; denNgay: string }) =>
+    soCai({ tu_ngay: ky.tuNgay, den_ngay: ky.denNgay }));
   companyAccounts.mockResolvedValue([
     { id: 4, bank_name: "Vietcombank", account_number: "0281000456789", currency: "VND", is_active: true },
   ]);
@@ -104,17 +136,19 @@ async function moTabNo() {
 }
 
 describe("PayablesDrawer — NPT-2", () => {
-  it("đầu ngăn: tóm tắt, pill vượt hạn mức, dải amber; tab Còn nợ đếm đợt CÒN nợ (lỗi 7)", async () => {
+  it("đầu ngăn: thẻ mã, vượt hạn mức CHỈ ở khối hạn mức; ba tab, Còn nợ đếm đợt CÒN nợ (lỗi 7)", async () => {
     await moTabNo();
     expect(screen.getByRole("heading", { name: "Giấy Bình Minh" })).toBeInTheDocument();
-    expect(screen.getByText("Vượt hạn mức", { selector: ".kt-tt" })).toBeInTheDocument();
-    expect(screen.getByText("30 ngày sau mỗi đợt giao")).toBeInTheDocument();
-    expect(screen.getByText(/Đang vượt hạn mức 16\.500\.000 đ/)).toHaveClass("kt-canh");
+    expect(screen.getByText("NCC007")).toHaveClass("kt-the");
+    expect(screen.getByText("Còn nợ tới 05/10/2026")).toBeInTheDocument();
+    expect(screen.getByText("Vượt 16.500.000")).toHaveAttribute("title", "Chỉ là cảnh báo, vẫn đặt mua được.");
+    expect(screen.queryByText("Vượt hạn mức")).toBeNull();
+    expect(document.querySelector(".kt-canh")).toBeNull();
+    expect(screen.getByText("Cho nợ 30 ngày sau mỗi đợt giao")).toBeInTheDocument();
     // 4 dòng nhưng 1 đợt đã trả xong (mờ, để dò cọc) ⇒ còn nợ 3.
-    expect(screen.getByRole("tab", { name: /Còn nợ/ })).toHaveTextContent("Còn nợ3");
-    expect(screen.getByRole("tab", { name: /Đã trả/ })).toHaveTextContent("Đã trả1");
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Còn nợ3", "Sao kê", "Lịch sử"]);
     await userEvent.click(screen.getByRole("button", { name: "Hồ sơ nhà cung cấp" }));
-    expect(navigate).toHaveBeenCalledWith("nha-cung-cap");
+    expect(navigate).toHaveBeenCalledWith("nha-cung-cap", { openSupplierId: 7 });
   });
 
   it("nhóm theo đơn: đầu nhóm cọc bằng thẻ nhỏ, không nối bằng dấu chấm giữa / dấu phẩy", async () => {
@@ -183,71 +217,55 @@ describe("PayablesDrawer — NPT-2", () => {
     await waitFor(() => expect(payablesDetail).toHaveBeenCalledTimes(2));
   });
 
-  it("tab Đã trả: Trong kỳ theo kỳ trang, Tất cả bỏ mốc kỳ; mã phiếu sang Phiếu chi", async () => {
+  it("bấm mốc tuổi nợ: chỉ còn đợt CÒN nợ của mốc đó, xoá lựa chọn; Bỏ lọc hiện lại đủ", async () => {
+    await moTabNo();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0015" }));
+    const chu = within(screen.getByRole("group", { name: "Lọc theo tuổi nợ" })).getAllByRole("button");
+    expect(chu.map((b) => b.textContent)).toEqual(["Chưa tới hạn70.000.000", "Trễ 31–60 ngày26.500.000"]);
+    await userEvent.click(chu[1]);
+    expect(document.querySelector(".kt-ngan__chan--toi")).toBeNull();
+    expect(screen.getByText("Trễ 31–60 ngày", { selector: ".kt-chip--loc" })).toHaveTextContent("Trễ 31–60 ngày1");
+    expect(screen.queryByRole("group", { name: "Đơn PMH-0015" })).toBeNull();
+    expect(screen.queryByText("Đợt 1")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Bỏ lọc" }));
+    expect(screen.getByRole("group", { name: "Đơn PMH-0015" })).toBeInTheDocument();
+  });
+
+  it("hạn trả chưa tới: thẻ Còn N ngày so với ngày máy chủ tính nợ", async () => {
+    await moTabNo();
+    const dong = within(screen.getByRole("group", { name: "Đơn PMH-0015" })).getByText("20/10/2026").closest("tr")!;
+    expect(within(dong).getByText("Còn 15 ngày")).toHaveClass("kt-pill");
+  });
+
+  it("bấm số Đã trả ngoài bảng mở Sao kê: nhận hàng là cột tăng, trả tiền là cột giảm, số dư = mình còn nợ", async () => {
     render(ve(0, "paid"));
-    const ma = await screen.findByRole("button", { name: "PC-0090" });
-    expect(screen.getByText("1 lần trả")).toHaveClass("kt-the");
-    expect(screen.getByText("Đặt cọc")).toHaveClass("kt-the");
-    expect(screen.getByText("Thiếu chứng từ")).toBeInTheDocument();
-    await userEvent.click(ma);
+    const bang = await screen.findByRole("table");
+    expect(saoKeDoiTac).toHaveBeenCalledWith("token-test", "payables", 7, { tuNgay: KY.tu, denNgay: KY.den });
+    expect(within(bang).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(
+      ["Ngày", "Chứng từ", "Diễn giải", "Nhận hàng", "Đã trả", "Số dư"]);
+    const dong = within(bang).getAllByRole("row").slice(1).map((r) => [...r.querySelectorAll("td")].map((c) => c.textContent));
+    expect(dong).toEqual([
+      ["01/10/2026", "", "Số dư đầu kỳ", "", "", "50.000.000"],
+      ["02/10/2026", "PC-0090", "Chi trả nhà cung cấp", "", "30.000.000", "20.000.000"],
+      ["04/10/2026", "PMH-0015 đợt 1", "Hàng đã nhận", "68.400.000", "", "88.400.000"],
+      ["31/10/2026", "", "Số dư cuối kỳ", "68.400.000", "30.000.000", "88.400.000"],
+    ]);
+    expect(screen.getByText("Số dư = mình còn nợ nhà cung cấp")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "PC-0090" }));
     expect(navigate).toHaveBeenCalledWith("ke-toan-phieu-chi", { focusVoucherQuery: "PC-0090" });
-    await userEvent.click(screen.getByRole("button", { name: "Tất cả" }));
-    await waitFor(() => expect(payablesDetail).toHaveBeenLastCalledWith("token-test", 7, true, undefined,
-      { paid_page: 1, paid_size: 10 }));
   });
 
-  it("tab Đã trả: máy chủ cắt trang; Xem thêm lấy trang kế và NỐI vào, số lần trả theo paid_total", async () => {
-    const lan = (i: number) => ({
-      ...chiTiet().paid[0], voucher_id: 200 + i, code: `PC-${200 + i}`, payment_stage: "final" as const,
-      delivery_id: 102, delivery_seq_no: 2, has_attachment: true, paid_date: "2026-10-02",
-    });
-    payablesDetail.mockImplementation(async (_t, _id, _all, _ky, trang?: { paid_page: number; paid_size: number }) => {
-      const tu = ((trang?.paid_page ?? 1) - 1) * (trang?.paid_size ?? 12);
-      const tat = Array.from({ length: 12 }, (_, i) => lan(i));
-      return chiTiet({ paid: tat.slice(tu, tu + (trang?.paid_size ?? 12)), paid_total: 12 });
-    });
-    const { rerender } = render(ve(0, "paid"));
-    await screen.findByRole("button", { name: "PC-200" });
-    expect(screen.getByRole("tab", { name: /Đã trả/ })).toHaveTextContent("Đã trả12");
-    expect(screen.getByText("12 lần trả")).toBeInTheDocument();
-    expect(screen.getByText("Hiện 10 trên 12 lần trả")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "PC-210" })).toBeNull();
-
-    await userEvent.click(screen.getByRole("button", { name: "Xem thêm" }));
-    expect(payablesDetail).toHaveBeenLastCalledWith("token-test", 7, false, { tu_ngay: KY.tu, den_ngay: KY.den },
-      { paid_page: 2, paid_size: 10 });
-    expect(await screen.findByRole("button", { name: "PC-211" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "PC-200" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Xem thêm" })).toBeNull();
-
-    // Nạp lại (sự kiện đẩy) giữ đủ số dòng đã mở: trang 1 cỡ 20.
-    rerender(ve(1, "paid"));
-    await waitFor(() => expect(payablesDetail).toHaveBeenLastCalledWith("token-test", 7, false,
-      { tu_ngay: KY.tu, den_ngay: KY.den }, { paid_page: 1, paid_size: 20 }));
-    expect(await screen.findByRole("button", { name: "PC-211" })).toBeInTheDocument();
-    // Đổi phạm vi thì về một trang.
-    await userEvent.click(screen.getByRole("button", { name: "Tất cả" }));
-    await waitFor(() => expect(payablesDetail).toHaveBeenLastCalledWith("token-test", 7, true, undefined,
-      { paid_page: 1, paid_size: 10 }));
-  });
-
-  it("Xem thêm: phiếu mới chen giữa làm trang kế trượt một dòng — dòng đã có không hiện hai lần", async () => {
-    const lan = (i: number) => ({
-      ...chiTiet().paid[0], voucher_id: 200 + i, code: `PC-${200 + i}`, payment_stage: "final" as const,
-      delivery_id: 102, delivery_seq_no: 2, has_attachment: true, paid_date: "2026-10-02",
-    });
-    payablesDetail.mockImplementation(async (_t, _id, _all, _ky, trang?: { paid_page: number }) =>
-      trang?.paid_page === 2
-        // Trang 2 sau khi có một phiếu mới: dòng cuối trang 1 (PC-209) trượt xuống đầu trang 2.
-        ? chiTiet({ paid: [lan(9), lan(10), lan(11)], paid_total: 13 })
-        : chiTiet({ paid: Array.from({ length: 10 }, (_, i) => lan(i)), paid_total: 12 }),
-    );
-    render(ve(0, "paid"));
-    await screen.findByRole("button", { name: "PC-200" });
-    await userEvent.click(screen.getByRole("button", { name: "Xem thêm" }));
-    expect(await screen.findByRole("button", { name: "PC-211" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "PC-209" })).toHaveLength(1);
-    expect(screen.getByText("Hiện 12 trên 13 lần trả")).toBeInTheDocument();
+  it("Lịch sử: mới nhất trên cùng, có việc đợt trễ hạn", async () => {
+    await moTabNo();
+    await userEvent.click(screen.getByRole("tab", { name: "Lịch sử" }));
+    await waitFor(() => expect(document.querySelectorAll(".kt-ls__muc").length).toBe(3));
+    const viec = [...document.querySelectorAll(".kt-ls__muc")].map((m) => [
+      m.querySelector("b")!.textContent, m.querySelector(".kt-ls__gio")!.textContent]);
+    expect(viec).toEqual([
+      ["Nhận hàng PMH-0015 đợt 1", "04/10/2026"],
+      ["Trả 30.000.000 đ", "02/10/2026"],
+      ["PMH-0012 đợt 2 quá hạn chưa trả đủ", "19/08/2026"],
+    ]);
   });
 });
 
@@ -311,8 +329,9 @@ describe("BatchPaymentDialog — NPT-3", () => {
 
   it("tiền mặt: payload Y NGUYÊN bản cũ; lập xong báo 'Đã lập 2 phiếu chi' và nạp lại", async () => {
     const ngan = await moTra();
-    expect(within(ngan).getByText("Mỗi đợt ra một phiếu chi riêng, số tiền đúng bằng còn nợ của đợt.")).toBeInTheDocument();
-    expect(within(ngan).getByText("Chứng từ gắn vào cả 2 phiếu")).toBeInTheDocument();
+    expect(within(ngan).getByText("Mỗi đợt ra một phiếu chi riêng")).toBeInTheDocument();
+    expect(within(ngan).getByText("Tổng phải trả").nextElementSibling).toHaveTextContent("94.900.000 đ");
+    expect(within(ngan).getByText("Ảnh chứng từ gắn vào cả 2 phiếu")).toBeInTheDocument();
     const chan = ngan.querySelector(".kt-ngan__xt") as HTMLElement;
     expect(chan.textContent).toBe("Lập 2 phiếu chi tổng 94.900.000 đ");
     expect(within(ngan).getByRole("textbox", { name: /Người nhận tiền/ })).toHaveValue("Giấy Bình Minh");
@@ -343,14 +362,14 @@ describe("BatchPaymentDialog — NPT-3", () => {
     expect(screen.queryByRole("dialog", { name: "Trả 2 đợt cùng lúc" })).toBeNull();
     await waitFor(() => expect(payablesDetail.mock.calls.length).toBeGreaterThan(goiTruoc));
     expect(onChanged).toHaveBeenCalled();
-    // "Xem phiếu" đưa sang tab Đã trả.
+    // "Xem phiếu" đưa sang tab Lịch sử (phiếu vừa lập đứng đầu).
     await userEvent.click(screen.getByRole("button", { name: "Xem phiếu" }));
-    expect(screen.getByRole("tab", { name: /Đã trả/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Lịch sử" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("chuyển khoản: thiếu ô thì lỗi tại ô, không gọi; đủ thì payload đúng trường ngân hàng", async () => {
     const ngan = await moTra();
-    await userEvent.click(within(ngan).getByRole("button", { name: /Chuyển khoản/ }));
+    await userEvent.click(within(ngan).getByRole("radio", { name: "Chuyển khoản" }));
     await userEvent.click(within(ngan).getByRole("button", { name: "Lập 2 phiếu chi" }));
     expect(createVouchersBatch).not.toHaveBeenCalled();
     expect(within(ngan).getByText("Chọn tài khoản công ty dùng để chi.")).toBeInTheDocument();

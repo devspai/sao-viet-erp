@@ -3069,3 +3069,15 @@ input:checked + .cc-slider:before {
   flex-shrink: 0;
   margin-left: auto;
 }
+
+/* Thanh lọc chung (06/10/2026) thay 3 select lọc cũ: ô tìm, [Kỳ][Lọc], sắp xếp, nút Excel xếp
+   trên MỘT dòng xuống dòng được — bỏ lưới 4 select của khổ máy tính bảng/điện thoại. */
+.ns2__toolbar.tl-thanh { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; }
+.ns2__toolbar.tl-thanh > .ns-search-wrapper { order: 1; }
+.ns2__toolbar.tl-thanh > .ns2__loc { order: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.ns2__toolbar.tl-thanh > .ns2__filters { order: 3; display: flex; grid-row: auto; grid-column: auto; width: auto; }
+.ns2__toolbar.tl-thanh > .ns-btn-excel { order: 4; grid-row: auto; }
+@media (max-width: 640px) {
+  .ns2__toolbar.tl-thanh > .ns2__loc { flex: 1 1 100%; }
+  .ns2__toolbar.tl-thanh > .ns2__filters { margin-left: 0; }
+}

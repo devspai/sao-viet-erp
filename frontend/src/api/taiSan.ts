@@ -12,7 +12,7 @@
 // Làm lại 05/10/2026 cho đơn giản, dễ hiểu (spec `2026-10-05-tai-san-lam-lai-design.md`). Chữ trên
 // màn theo bảng "Cách dùng từ" của spec: một khái niệm một từ ("khấu hao", không "hao mòn"),
 // không viết tắt TSCĐ/CCDC, nút là động từ đời thường. Tên trường API giữ nguyên.
-import { authed, ApiError, layTokenMoiNhat } from "./client";
+import { authed, ApiError, layTokenMoiNhat, type LuaChonLoc } from "./client";
 import type { ImportExcelOut } from "./rebuildCatalog";
 
 const P = "/api/tai-san";
@@ -93,6 +93,7 @@ export interface TaiSanRow {
   trang_thai: string;
   /** Ngày thôi dùng. */
   ngay_giam: string | null;
+  created_at: string | null;
   /** Đã khấu hao — máy chủ TÍNH từ lịch, tới hết tháng `luy_ke_den`. Không ai chốt, không ai cộng. */
   hao_mon_luy_ke: number;
   /** "YYYY-MM" — tháng cuối đã gộp vào `hao_mon_luy_ke` (= tháng trước tháng hiện tại). */
@@ -195,6 +196,8 @@ export interface DanhSach<T> {
 export interface DanhSachTaiSan extends DanhSach<TaiSanRow> {
   /** Số tài sản mỗi loại theo các bộ lọc KHÁC loại (nhóm nút Loại hiện số đếm). */
   dem_loai: Record<string, number>;
+  /** Số tài sản mỗi trạng thái theo các bộ lọc khác trạng thái (thẻ lọc Trạng thái). */
+  dem_trang_thai: Record<string, number>;
   tong_gia: number;
   /** Tài sản đã thôi dùng tính 0. */
   tong_con_lai: number;
@@ -230,6 +233,10 @@ export const taiSanApi = {
    *  vài trăm dòng, lọc trong JS là qua trang thứ hai số liệu bắt đầu sai mà không ai báo. */
   danhSach(token: string, params: Record<string, unknown> = {}): Promise<DanhSachTaiSan> {
     return authed<DanhSachTaiSan>(`${P}${qs(params)}`, token);
+  },
+  /** Thẻ lọc Bộ phận: bộ phận đang có tài sản, kèm số tài sản. */
+  locBoPhan(token: string): Promise<LuaChonLoc[]> {
+    return authed<LuaChonLoc[]>(`${P}/loc-bo-phan`, token);
   },
   chiTiet(token: string, id: number): Promise<TaiSanChiTiet> {
     return authed<TaiSanChiTiet>(`${P}/${id}`, token);

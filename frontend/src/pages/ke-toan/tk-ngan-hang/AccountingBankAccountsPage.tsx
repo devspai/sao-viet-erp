@@ -1,7 +1,8 @@
 /** Màn TÀI KHOẢN NGÂN HÀNG (đặc tả TK-1 … TK-4, A.5, A.16–A.18) — dựng trên bộ khung chung kế toán.
  *
- *  Khuôn trang: đầu trang (nút chính rust "Thêm tài khoản") → chọn kỳ (KHÔNG có bộ lọc nâng cao, ít
- *  dòng) → lưới thẻ tài khoản, thẻ cuối viền đứt "Thêm tài khoản". Tài khoản ngừng dùng gom cuối.
+ *  Khuôn trang: đầu trang (nút chính rust "Thêm tài khoản") → thanh lọc chung `ThanhLoc` (kỳ theo ngày
+ *  giao dịch — thu/chi trên thẻ tính trong kỳ; điều kiện Ngân hàng, Trạng thái lọc ở máy chủ) → lưới
+ *  thẻ tài khoản, thẻ cuối viền đứt "Thêm tài khoản". Tài khoản ngừng dùng gom cuối.
  *  Bấm thẻ mở ngăn xem (TK-2); Sửa mở form (TK-3) chồng lên ngăn; Ngừng dùng / Dùng lại hỏi một lần
  *  (TK-4) rồi gọi `toggle-active`.
  *
@@ -9,19 +10,23 @@
  *  sách nhà cung cấp (thủ quỹ chỉ có quyền xem tài khoản từng bị 403). Lỗi 14: tab tài khoản nhà cung
  *  cấp chết đã gỡ hẳn.
  *
- *  Thu/chi trong kỳ: máy chủ BỎ tài khoản không có phiếu ⇒ thẻ điền 0. Bật so sánh thì gọi thêm một lần
- *  cho cùng kỳ năm trước. Sự kiện đẩy (`eventTick`) nạp lại cả trang lẫn ngăn đang mở.
+ *  Thu/chi trong kỳ: máy chủ BỎ tài khoản không có phiếu ⇒ thẻ điền 0. Kỳ có khoảng ngày thì gọi thêm
+ *  một lần cho cùng kỳ năm trước; "Tất cả" = từ đầu sổ tới hôm nay, không so. Sự kiện đẩy (`eventTick`) nạp lại cả trang lẫn ngăn đang mở.
  */
-import { Ban, Plus, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Ban, CircleDot, Landmark, Plus, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import { BangRong } from "../shared/BangPhieu";
-import { ChonKy, useKyMan } from "../shared/ChonKy";
 import { HopHoi } from "../shared/HopHoi";
+import { cungKyCua, kyKeToanLenUrl, kyKeToanTuUrl, khoangSo } from "../shared/kyKeToan";
+import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
+import type { KyDS } from "../../thanh-loc/ky-danh-sach";
+import type { DieuKien, GiaTriDK } from "../../thanh-loc/thanh-loc";
+import { useLocMan } from "../../thanh-loc/useLocMan";
 import { NganTaiKhoan } from "./components/NganTaiKhoan";
 import { TheTaiKhoan } from "./components/TheTaiKhoan";
 import { BankAccountModal } from "./modals/BankAccountModal";
@@ -30,6 +35,41 @@ import type { SoLieuTk, TaiKhoan } from "./shared/types";
 import "../ke-toan.css";
 
 const khongDi: NavigateFn = () => undefined;
+
+/** Kỳ ở màn này là kỳ GIAO DỊCH (thu/chi qua tài khoản) — một mốc, mặc định "Tháng này" như cũ. */
+const MOC_TK: [string, string][] = [["gd", "Ngày giao dịch"]];
+type LocTk = { ngan_hang?: string; trang_thai?: "dang_dung" | "ngung" };
+type LocManTk = { ky: KyDS; loc: LocTk };
+const LOC_MAN_TRONG: LocManTk = { ky: { loai: "thang", moc: "gd" }, loc: {} };
+const docLocMan = (p: URLSearchParams): LocManTk => {
+  const tt = p.get("tt");
+  return {
+    ky: kyKeToanTuUrl(p, MOC_TK, "gd", "thang"),
+    loc: {
+      ngan_hang: p.get("nh")?.trim().slice(0, 200) || undefined,
+      trang_thai: tt === "dang_dung" || tt === "ngung" ? tt : undefined,
+    },
+  };
+};
+const ghiLocMan = (t: LocManTk) => ({ ...kyKeToanLenUrl(t.ky, "gd", "thang"), nh: t.loc.ngan_hang, tt: t.loc.trang_thai });
+
+const TRANG_THAI: GiaTriDK[] = [
+  { value: "dang_dung", nhan: "Đang dùng" },
+  { value: "ngung", nhan: "Ngừng dùng" },
+];
+
+/** Ô "Ngân hàng": các ngân hàng đang có tài khoản công ty, kèm số tài khoản (máy chủ đếm). */
+function useNganHangLoc(token: string | null | undefined, tick: number): GiaTriDK[] {
+  const [ds, setDs] = useState<GiaTriDK[]>([]);
+  useEffect(() => {
+    if (!token) return;
+    api.accounting
+      .nganHangLoc(token)
+      .then((r) => setDs(r.map((o) => ({ value: o.ten, nhan: o.ten, so: o.so }))))
+      .catch(() => setDs([]));
+  }, [token, tick]);
+  return ds;
+}
 
 export function AccountingBankAccountsPage({
   navigate = khongDi,
@@ -45,8 +85,30 @@ export function AccountingBankAccountsPage({
   const xemChi = can("phieu_chi", "read");
   const xemThu = can("phieu_thu", "read");
 
-  const kyMan = useKyMan(MAN);
-  const { ky, cungKy } = kyMan;
+  const [locMan, setLocMan] = useLocMan(MAN, LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const khoaKy = JSON.stringify(locMan.ky);
+  const ky = useMemo(() => khoangSo(locMan.ky), [khoaKy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cungKy = useMemo(() => cungKyCua(locMan.ky), [khoaKy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { ngan_hang: nganHang, trang_thai: trangThai } = locMan.loc;
+  const coLoc = !!nganHang || !!trangThai;
+  // Số lần đổi danh sách tài khoản (thêm / sửa / ngừng) — để ô "Ngân hàng" nạp lại số đếm.
+  const [doiTk, setDoiTk] = useState(0);
+  const nganHangLoc = useNganHangLoc(token, doiTk + eventTick);
+  const dieuKien = useMemo<DieuKien<LocTk>[]>(
+    () => [
+      {
+        khoa: "ngan_hang", nhan: "Ngân hàng", icon: Landmark, kieu: "mot", tim: true, giaTri: nganHangLoc,
+        doc: (l) => l.ngan_hang,
+        ghi: (l, v) => ({ ...l, ngan_hang: v }),
+      },
+      {
+        khoa: "trang_thai", nhan: "Trạng thái", icon: CircleDot, kieu: "mot", giaTri: TRANG_THAI,
+        doc: (l) => l.trang_thai,
+        ghi: (l, v) => ({ ...l, trang_thai: v as LocTk["trang_thai"] }),
+      },
+    ],
+    [nganHangLoc],
+  );
 
   const [rows, setRows] = useState<TaiKhoan[] | null>(null);
   const [soLieu, setSoLieu] = useState<Map<number, SoLieuTk> | null>(null);
@@ -60,7 +122,7 @@ export function AccountingBankAccountsPage({
     const lan = ++lanTai.current;
     setLoading(true);
     Promise.all([
-      api.accounting.companyAccounts(token, false),
+      api.accounting.companyAccounts(token, false, null, { ngan_hang: nganHang, trang_thai: trangThai }),
       api.accounting.thongKeTaiKhoan(token, { tu_ngay: ky.tu, den_ngay: ky.den }),
       cungKy ? api.accounting.thongKeTaiKhoan(token, { tu_ngay: cungKy.tu, den_ngay: cungKy.den }) : null,
     ])
@@ -79,7 +141,7 @@ export function AccountingBankAccountsPage({
       .finally(() => {
         if (lan === lanTai.current) setLoading(false);
       });
-  }, [token, ky, cungKy]);
+  }, [token, ky, cungKy, nganHang, trangThai]);
 
   useEffect(() => {
     load();
@@ -108,6 +170,7 @@ export function AccountingBankAccountsPage({
       await api.accounting.toggleCompanyAccount(token, hoi.id);
       setHoi(null);
       load();
+      setDoiTk((n) => n + 1);
     } catch (err) {
       setLoiHoi(err instanceof ApiError ? err.message : "Không đổi được trạng thái tài khoản.");
     } finally {
@@ -132,15 +195,19 @@ export function AccountingBankAccountsPage({
         )}
       </header>
 
-      <ChonKy kyMan={kyMan} />
+      <div className="kt-tb tl-thanh">
+        <ThanhLoc ky={locMan.ky} moc={MOC_TK} onKy={(k) => setLocMan({ ...locMan, ky: k })} dieuKien={dieuKien}
+          loc={locMan.loc} onLoc={(l) => setLocMan({ ...locMan, loc: l })} />
+      </div>
 
       {loi || rows == null || rows.length === 0 ? (
         <BangRong
           loading={loading && rows == null && !loi}
           loi={loi}
-          coLoc={false}
+          coLoc={coLoc}
           onTaiLai={load}
-          onBoLoc={() => undefined}
+          onBoLoc={() => setLocMan({ ...locMan, loc: {} })}
+          chuKhongKhop="Không có tài khoản nào khớp bộ lọc"
           onLap={coSua ? moThem : undefined}
           chuTai="Đang tải tài khoản ngân hàng…"
           chuLoi="Không tải được tài khoản ngân hàng."
@@ -189,6 +256,7 @@ export function AccountingBankAccountsPage({
           onDaLuu={() => {
             setForm(null);
             load();
+            setDoiTk((n) => n + 1);
           }}
         />
       )}

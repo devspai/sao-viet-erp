@@ -4,18 +4,26 @@
  *  - Lỗi nằm TẠI Ô (chữ đỏ + biểu tượng, viền ô đỏ), con trỏ nhảy tới ô sai đầu tiên; nút lập
  *    luôn bấm được. Lỗi máy chủ hiện ngay đầu form, trong ngăn — không rơi ra sau lớp phủ.
  *  - Chân: câu xem trước bên trái — "Đóng" — nút rust ("Lập phiếu chi" / "Lập phiếu thu").
+ *  - `banXem` (form lập phiếu chi rời / thu khác): chia đôi, form trái + tờ phiếu xem trước bên phải.
  *
  *  Kèm các ô dùng chung: `OF` (một ô có nhãn + gợi ý/lỗi), `OTienPhieu` (ô tiền to có dấu chấm
- *  nghìn), `ONgayPhieu` (ngày chứng từ, không sau hôm nay), `ThemChiTiet` (nhóm ô gấp), `ChonCach`
+ *  nghìn), `ONgayPhieu` (ngày chứng từ, không sau hôm nay), `ChonCach`
  *  (hai thẻ chọn Tiền mặt / Chuyển khoản).
+ *
+ *  KIỂU MỚI (06/10/2026, docs/mockups/thu-tien-ngan-chong-phuong-an-3-ban-2.html — khuôn Stripe):
+ *  form trái chia KHỐI có tiêu đề (`KhoiForm`), tờ phiếu A5 bên phải. Khối đầu đối chiếu chứng từ nguồn
+ *  bằng một hàng số không đóng hộp (`HangDoiChieu`); ô tiền to kèm số bằng chữ và nút "đủ"
+ *  (`OTienLon`); dải "sau phiếu này" đổi theo từng phím gõ (`SauPhieu`); gợi ý người nộp / nhận bằng
+ *  chip (`GoiYTen`). Đầu ngăn có hàng thẻ thông tin (`phuDe`).
  */
-import { Banknote, CircleAlert, Landmark, Plus } from "lucide-react";
+import { Banknote, CircleAlert, Landmark } from "lucide-react";
+import { OGoDinhDang } from "../../../components/OGoDinhDang";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 
+import { amountInWords } from "../../../utils/format";
 import { homNayVN } from "../../../utils/ky";
-import { NganPhai } from "./NganPhai";
-import { TheNho } from "./Cum";
+import { NganPhai, useDongNgan } from "./NganPhai";
 
 /** Lỗi theo ô: khoá ô → câu lỗi. */
 export type LoiForm = Partial<Record<string, string>>;
@@ -111,7 +119,7 @@ function OSoLe({ khoa, value, onChange, hauTo, loi }: {
   }, [value]);
   return (
     <div className="kt-o-tien">
-      <input id={idO(khoa)} type="text" inputMode="decimal" placeholder="0" aria-invalid={loi || undefined}
+      <OGoDinhDang id={idO(khoa)} type="text" inputMode="decimal" placeholder="0" aria-invalid={loi || undefined}
         value={chu}
         onChange={(e) => {
           const d = docSoLe(e.target.value);
@@ -134,6 +142,7 @@ export function OTienPhieu({
   hauTo = "đ",
   loi,
   soLe,
+  nho,
 }: {
   khoa: string;
   value: number;
@@ -141,11 +150,13 @@ export function OTienPhieu({
   hauTo?: string;
   loi?: boolean;
   soLe?: boolean;
+  /** Cao bằng ô thường (40px) — để đứng cùng hàng với ô khác. */
+  nho?: boolean;
 }) {
   if (soLe) return <OSoLe khoa={khoa} value={value} onChange={onChange} hauTo={hauTo} loi={loi} />;
   return (
-    <div className="kt-o-tien">
-      <input id={idO(khoa)} type="text" inputMode="numeric" placeholder="0" aria-invalid={loi || undefined}
+    <div className={nho ? "kt-o-tien kt-o-tien--nho" : "kt-o-tien"}>
+      <OGoDinhDang id={idO(khoa)} type="text" inputMode="numeric" placeholder="0" aria-invalid={loi || undefined}
         value={value ? value.toLocaleString("vi-VN") : ""}
         onChange={(e) => {
           const so = e.target.value.replace(/\D/g, "");
@@ -168,7 +179,7 @@ export function ONgayPhieu({
 }: {
   khoa: string;
   nhan: string;
-  goi: string;
+  goi?: string;
   value: string;
   onChange: (v: string) => void;
   loi?: string;
@@ -180,44 +191,6 @@ export function ONgayPhieu({
       <input id={idO(khoa)} type="date" min={min} max={homNayVN()} value={value}
         aria-invalid={loi ? true : undefined} onChange={(e) => onChange(e.target.value)} />
     </OF>
-  );
-}
-
-/** Nút gấp liệt kê các ô đang ẩn bằng thẻ nhỏ; mở rồi thì hiện nhóm ô (không gấp lại được —
- *  ô đã gõ mà biến mất là mất dấu). */
-export function ThemChiTiet({
-  nhan = "Thêm chi tiết",
-  tieu = "Chi tiết thêm",
-  cacO,
-  mo,
-  onMo,
-  children,
-}: {
-  nhan?: string;
-  tieu?: string;
-  cacO: string[];
-  mo: boolean;
-  onMo: () => void;
-  children: ReactNode;
-}) {
-  if (mo) {
-    return (
-      <div className="kt-f__muc">
-        <div className="kt-f__tieu">{tieu}</div>
-        {children}
-      </div>
-    );
-  }
-  return (
-    <button type="button" className="kt-them" onClick={onMo}>
-      <Plus size={16} aria-hidden="true" />
-      {nhan}
-      <small className="kt-cum">
-        {cacO.map((o) => (
-          <TheNho key={o}>{o}</TheNho>
-        ))}
-      </small>
-    </button>
   );
 }
 
@@ -244,6 +217,7 @@ export function ChonCach({
   nhan,
   giaiTienMat,
   giaiChuyenKhoan,
+  gon,
 }: {
   giaTri: "cash" | "bank_transfer";
   onDoi: (v: "cash" | "bank_transfer") => void;
@@ -251,13 +225,162 @@ export function ChonCach({
   nhan: string;
   giaiTienMat: string;
   giaiChuyenKhoan: string;
+  /** Hai nút chọn gọn một hàng (form chia đôi có bản xem trước) thay cho hai thẻ to. */
+  gon?: boolean;
 }) {
+  if (gon) {
+    return (
+      <div className="kt-cach-gon" role="radiogroup" aria-label={nhan}>
+        {(["cash", "bank_transfer"] as const).map((v, i) => (
+          <label key={v} title={v === "cash" ? giaiTienMat : giaiChuyenKhoan}>
+            <input type="radio" id={i === 0 ? idO(khoa) : undefined} name={khoa} checked={giaTri === v}
+              onChange={() => onDoi(v)} />
+            {v === "cash" ? "Tiền mặt" : "Chuyển khoản"}
+          </label>
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="kt-cach" role="group" aria-label={nhan}>
       <TheChon id={idO(khoa)} on={giaTri === "cash"} icon={<Banknote size={18} aria-hidden="true" />} ten="Tiền mặt"
         giai={giaiTienMat} onClick={() => onDoi("cash")} />
       <TheChon on={giaTri === "bank_transfer"} icon={<Landmark size={18} aria-hidden="true" />} ten="Chuyển khoản"
         giai={giaiChuyenKhoan} onClick={() => onDoi("bank_transfer")} />
+    </div>
+  );
+}
+
+/** Một khối của form kiểu mới: tiêu đề 13px đậm vừa + các ô. */
+export function KhoiForm({ tieu, children, nhan }: { tieu: string; children: ReactNode; nhan?: string }) {
+  return (
+    <section className="kt-f__muc" aria-label={nhan ?? tieu}>
+      <h4 className="kt-f__tieu">{tieu}</h4>
+      {children}
+    </section>
+  );
+}
+
+/** Hàng số đối chiếu chứng từ nguồn ("Giá trị hoá đơn | Trừ cọc | Đã thu | Còn phải thu"): một hàng,
+ *  kẻ trên và dưới, KHÔNG đóng hộp từng ô. Ô `chot` là con số chốt — chữ to và đậm hơn. */
+export function HangDoiChieu({ o }: { o: { nhan: string; giaTri: ReactNode; chot?: boolean }[] }) {
+  return (
+    <div className="kt-dc" style={{ gridTemplateColumns: `repeat(${o.length}, minmax(0, 1fr))` }}>
+      {o.map((x) => (
+        <div key={x.nhan} className={x.chot ? "kt-dc__chot" : undefined}>
+          <span>{x.nhan}</span>
+          <b>{x.giaTri}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Ô tiền LỚN của form kiểu mới: cao 56px chữ 26px, hậu tố "đ". Dưới ô: số bằng chữ (nghiêng) và nút
+ *  "Thu đủ / Trả đủ". `vuot` có chữ thì viền đỏ + câu đỏ (người gọi tự khoá nút lập). `con` = phần
+ *  dưới cùng (dải "sau phiếu này"). */
+export function OTienLon({
+  khoa,
+  nhan,
+  value,
+  onChange,
+  loi,
+  nutDu,
+  vuot,
+  goiTrong = "Nhập số tiền",
+  con,
+}: {
+  khoa: string;
+  nhan: string;
+  value: number;
+  onChange: (v: number) => void;
+  loi?: string;
+  nutDu?: { nhan: string; so: number };
+  vuot?: string | null;
+  /** Chữ thay cho số bằng chữ khi ô còn trống. */
+  goiTrong?: string;
+  con?: ReactNode;
+}) {
+  const sai = !!loi || !!vuot;
+  return (
+    <div className={`kt-o kt-o--rong${sai ? " kt-o--loi" : ""}`}>
+      <label htmlFor={idO(khoa)}>
+        {nhan}
+        <em className="kt-bb">*</em>
+      </label>
+      <div className="kt-o-tien kt-o-tien--lon">
+        <OGoDinhDang id={idO(khoa)} type="text" inputMode="numeric" placeholder="0" aria-invalid={sai || undefined}
+          value={value ? value.toLocaleString("vi-VN") : ""}
+          onChange={(e) => {
+            const so = e.target.value.replace(/\D/g, "");
+            onChange(so ? Number(so) : 0);
+          }} />
+        <span>đ</span>
+      </div>
+      <div className="kt-o-tien__duoi">
+        <i>{value > 0 ? `${amountInWords(value)}.` : goiTrong}</i>
+        {nutDu && nutDu.so > 0 && (
+          <button type="button" className="kt-lk" onClick={() => onChange(nutDu.so)}>{nutDu.nhan}</button>
+        )}
+      </div>
+      {loi ? (
+        <span className="kt-o__loi" role="alert">
+          <CircleAlert size={14} aria-hidden="true" />
+          {loi}
+        </span>
+      ) : vuot ? (
+        <span className="kt-o__loi" role="alert">
+          <CircleAlert size={14} aria-hidden="true" />
+          {vuot}
+        </span>
+      ) : null}
+      {con}
+    </div>
+  );
+}
+
+/** Dải "sau phiếu này": mỗi ô một con số sẽ thành ra sau khi lập; `tu` (số trước) gạch ngang. */
+export function SauPhieu({ o }: { o: { nhan: string; tu?: number; den: number }[] }) {
+  return (
+    <div className="kt-sau" aria-label="Sau phiếu này" style={{ gridTemplateColumns: `repeat(${o.length}, minmax(0, 1fr))` }}>
+      {o.map((x) => (
+        <div key={x.nhan}>
+          <span>{x.nhan}</span>
+          <b>
+            {x.tu != null && x.tu !== x.den && <s>{x.tu.toLocaleString("vi-VN")}</s>}
+            {`${Math.max(0, x.den).toLocaleString("vi-VN")} đ`}
+          </b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Chip gợi ý tên người nộp / nhận: bấm là điền. Chip trùng tên đang gõ viền đậm. */
+export function GoiYTen({
+  goiY,
+  dangChon,
+  onChon,
+  nhan,
+}: {
+  goiY: { ten: string; nhan?: string; phu?: string }[];
+  dangChon: string;
+  onChon: (ten: string) => void;
+  nhan: string;
+}) {
+  if (goiY.length === 0) return null;
+  return (
+    <div className="kt-goiy" role="group" aria-label={nhan}>
+      {goiY.map((g) => {
+        const on = g.ten.trim() === dangChon.trim();
+        return (
+          <button key={`${g.nhan ?? ""}${g.ten}`} type="button" className={on ? "on" : undefined} aria-pressed={on}
+            onClick={() => onChon(g.ten)}>
+            {g.nhan ?? g.ten}
+            {g.phu && <small>{g.phu}</small>}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -277,10 +400,15 @@ export function KhungFormPhieu({
   tang,
   khoaNut = false,
   hep = false,
+  banXem,
+  kieuMoi,
+  phuDe,
   children,
 }: {
   duongDan: ReactNode;
   tieuDe: ReactNode;
+  /** Hàng thẻ thông tin dưới tiêu đề (Ngày hoá đơn, Ký hiệu, Đơn, Hạn thu…). */
+  phuDe?: ReactNode;
   /** Dải chỉ đọc 4 ô nền --paper (số đơn mua, số chốt gia công, phiếu chi gốc). */
   tomTat?: { nhan: string; giaTri: ReactNode }[];
   /** Câu xem trước ở chân: "Chi 5.200.000 đ tiền mặt cho …". */
@@ -302,14 +430,37 @@ export function KhungFormPhieu({
   khoaNut?: boolean;
   /** Form ít ô (form tài khoản): cột ô tối đa 560px canh trái, ngăn vẫn giữ độ rộng chung (A.5). */
   hep?: boolean;
+  /** Tờ phiếu xem trước đặt cột phải (`BanXemPhieu`). */
+  banXem?: ReactNode;
+  /** Bố cục mới (nhóm tách bằng đường kẻ, tiêu đề chữ thường) — tự bật khi có `banXem`. */
+  kieuMoi?: boolean;
   children: ReactNode;
 }) {
   const idForm = useId();
+  const moi = !!banXem || !!kieuMoi;
+  const form = (
+    <form id={idForm} className={["kt-f", hep ? "kt-f--hep" : "", moi ? "kt-f--moi" : ""].filter(Boolean).join(" ")} noValidate
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        onSubmit();
+      }}>
+      {loiChung && (
+        <p className="kt-o__loi" role="alert">
+          <CircleAlert size={14} aria-hidden="true" />
+          {loiChung}
+        </p>
+      )}
+      {/* Kiểu mới: dải tóm tắt chứng từ nguồn thành hàng số đối chiếu ở đầu thân form. */}
+      {moi && tomTat && tomTat.length > 0 && <HangDoiChieu o={tomTat.map((t) => ({ nhan: t.nhan, giaTri: t.giaTri }))} />}
+      {children}
+    </form>
+  );
   return (
     <NganPhai
       duongDan={duongDan}
       tieuDe={tieuDe}
-      tomTat={tomTat}
+      phuDe={phuDe}
+      tomTat={moi ? undefined : tomTat}
       tang={tang}
       // Đang lưu thì KHÔNG đóng được (Esc, nút X): lời gọi lập còn chạy, đóng giữa chừng là mất câu
       // báo tệp tải hỏng và trang không được báo phiếu mới. Không hỏi — chặn hẳn.
@@ -320,32 +471,31 @@ export function KhungFormPhieu({
       chan={
         <>
           <span className="kt-ngan__xt">{xemTruoc}</span>
-          <button type="button" className="kt-btn kt-btn--tron" disabled={dangLuu}
-            onClick={() => {
-              if (chanDong() && !window.confirm("Bỏ nội dung đang nhập?")) return;
-              onDong();
-            }}>
-            Đóng
-          </button>
+          <NutDong disabled={dangLuu} />
           <button type="submit" form={idForm} className="kt-btn kt-btn--chinh" disabled={dangLuu || khoaNut}>
             {dangLuu ? nhanDangLuu : nhanNut}
           </button>
         </>
       }
     >
-      <form id={idForm} className={hep ? "kt-f kt-f--hep" : "kt-f"} noValidate
-        onSubmit={(e: FormEvent) => {
-          e.preventDefault();
-          onSubmit();
-        }}>
-        {loiChung && (
-          <p className="kt-o__loi" role="alert">
-            <CircleAlert size={14} aria-hidden="true" />
-            {loiChung}
-          </p>
-        )}
-        {children}
-      </form>
+      {banXem ? (
+        <div className="kt-f-chia">
+          {form}
+          <div className="kt-f-chia__xem">{banXem}</div>
+        </div>
+      ) : (
+        form
+      )}
     </NganPhai>
+  );
+}
+
+/** Nút "Đóng" ở chân — đi qua đúng đường đóng của ngăn (gõ dở thì hỏi bằng hộp của app). */
+function NutDong({ disabled }: { disabled: boolean }) {
+  const dong = useDongNgan();
+  return (
+    <button type="button" className="kt-btn kt-btn--tron" disabled={disabled} onClick={dong}>
+      Đóng
+    </button>
   );
 }

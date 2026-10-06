@@ -1,5 +1,5 @@
 // Màn ĐƠN MUA HÀNG (Kế toán) — shell (tách từ pages/AccountingPurchaseInboxPage.tsx).
-// Giữ ở đây: state + `load()`/`loadSuppliers()` + effects + `approve()`/`reject()` +
+// Giữ ở đây: state + `load()` + effects + `approve()`/`reject()` +
 // `closeDetailThen()` + `actions()` (closure trên quyền & busy, drawer nhận làm prop).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -8,7 +8,6 @@ import {
   type PaymentVoucherRow,
   type PurchaseRequestRow,
   type SupplierCredit,
-  type SupplierRow,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
@@ -21,7 +20,17 @@ import { InboxToolbar } from "./components/InboxToolbar";
 import { RejectModal } from "./modals/RejectModal";
 import { useNapTenDonVi } from "../../tenDonVi";
 import { PAGE_SIZE } from "./shared/constants";
-import type { DepositFilter } from "./shared/types";
+import {
+  LOC_MAN_DON_MUA_TRONG,
+  MAN_DON_MUA,
+  locManDonMuaLenUrl,
+  locManDonMuaTuUrl,
+  thamSoLocDonMua,
+  useDieuKienDonMua,
+  type LocManDonMua,
+} from "./shared/dieuKienDonMua";
+import { thamSoKy } from "../../thanh-loc/ky-danh-sach";
+import { useLocMan } from "../../thanh-loc/useLocMan";
 import "../../master-data.css";
 import "../../accounting.css";
 import "../../purchase.css";
@@ -70,14 +79,16 @@ export function AccountingPurchaseInboxPage({
   // Mới vào hiện TẤT CẢ (chủ 04/08/2026). Trước đây mặc định lọc "chờ duyệt" nên mở màn ra là
   // giấu mất đơn đã duyệt, đã mua, đã nhận — kế toán tưởng chưa có gì để lập phiếu chi.
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [supplierFilter, setSupplierFilter] = useState<number | "all">("all");
-  const [depositFilter, setDepositFilter] = useState<DepositFilter>("all");
-  const [createdFrom, setCreatedFrom] = useState("");
-  const [createdTo, setCreatedTo] = useState("");
-  const [neededFrom, setNeededFrom] = useState("");
-  const [neededTo, setNeededTo] = useState("");
+  // Kỳ + điều kiện (Nhà cung cấp, Tiền cọc) — ghi lên URL, nhớ theo màn; đổi là về trang 1.
+  const [locMan, setLocManGoc] = useLocMan(MAN_DON_MUA, LOC_MAN_DON_MUA_TRONG, locManDonMuaTuUrl, locManDonMuaLenUrl);
+  const setLocMan = (t: LocManDonMua) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const dieuKien = useDieuKienDonMua();
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocDonMua(locMan.loc) });
+  const [demTheoTab, setDemTheoTab] = useState<Record<string, number> | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,12 +106,7 @@ export function AccountingPurchaseInboxPage({
       .inbox(token, {
         q: q.trim() || undefined,
         status: statusFilter === "all" ? null : statusFilter,
-        supplier_id: supplierFilter === "all" ? null : supplierFilter,
-        deposit_status: depositFilter === "all" ? null : depositFilter,
-        created_from: createdFrom || null,
-        created_to: createdTo || null,
-        needed_from: neededFrom || null,
-        needed_to: neededTo || null,
+        ...(JSON.parse(khoaLoc) as { tu_ngay?: string; den_ngay?: string; moc?: string; supplier_id?: number; deposit_status?: string }),
         sort: "-created_at",
         page,
         size,
@@ -108,6 +114,7 @@ export function AccountingPurchaseInboxPage({
       .then((response) => {
         setRows(response.items);
         setTotal(response.total);
+        setDemTheoTab(response.dem_theo_tab ?? null);
         setSelectedId((current) =>
           current != null && response.items.some((row) => row.id === current)
             ? current
@@ -127,28 +134,11 @@ export function AccountingPurchaseInboxPage({
     token,
     q,
     statusFilter,
-    supplierFilter,
-    depositFilter,
-    createdFrom,
-    createdTo,
-    neededFrom,
-    neededTo,
+    khoaLoc,
     page,
     size,
     onDataRefreshed,
   ]);
-
-  const loadSuppliers = useCallback(() => {
-    if (!token) return;
-    api.suppliers
-      .list(token, { status: "active", sort: "name", page: 1, size: 200 })
-      .then((res) => setSuppliers(res.items))
-      .catch(() => setSuppliers([]));
-  }, [token]);
-
-  useEffect(() => {
-    loadSuppliers();
-  }, [loadSuppliers]);
 
   useEffect(() => {
     load();
@@ -159,11 +149,15 @@ export function AccountingPurchaseInboxPage({
     load();
   }, [eventTick, load]);
 
-  // Sang màn này từ nơi khác kèm mã PMH ⇒ nhét luôn vào ô tìm và về trang 1.
+  // Sang màn này từ nơi khác kèm mã PMH ⇒ nhét luôn vào ô tìm, bỏ kỳ + điều kiện đang nhớ (đơn có thể
+  // đã tạo từ lâu) và về trang 1.
   useEffect(() => {
     if (!focusRequestCode) return;
     setQ(focusRequestCode);
+    setStatusFilter("all");
+    setLocManGoc(LOC_MAN_DON_MUA_TRONG);
     setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusRequestCode]);
 
   const selected = useMemo(
@@ -337,19 +331,12 @@ export function AccountingPurchaseInboxPage({
         load={load}
         statusFilter={statusFilter}
         setStatusFilter={setStatusFilter}
-        supplierFilter={supplierFilter}
-        setSupplierFilter={setSupplierFilter}
-        suppliers={suppliers}
-        depositFilter={depositFilter}
-        setDepositFilter={setDepositFilter}
-        createdFrom={createdFrom}
-        setCreatedFrom={setCreatedFrom}
-        createdTo={createdTo}
-        setCreatedTo={setCreatedTo}
-        neededFrom={neededFrom}
-        setNeededFrom={setNeededFrom}
-        neededTo={neededTo}
-        setNeededTo={setNeededTo}
+        demTheoTab={demTheoTab}
+        ky={locMan.ky}
+        onKy={(ky) => setLocMan({ ...locMan, ky })}
+        dieuKien={dieuKien}
+        loc={locMan.loc}
+        onLoc={(loc) => setLocMan({ ...locMan, loc })}
       />
 
       <InboxTable

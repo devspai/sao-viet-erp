@@ -10,7 +10,7 @@ import type { PaymentReceiptRow } from "../../../../api/client";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { BangRong, TheDienThoai, ThieuChungTu, diChuyen, lopDong } from "../../shared/BangPhieu";
 import { Cum, TheNho } from "../../shared/Cum";
-import { ngay, tien, vietSo } from "../../shared/dinhDang";
+import { ngay, ngayGio, tien, vietSo } from "../../shared/dinhDang";
 import { STATUS_META } from "../shared/constants";
 import { methodText, sourceCode, sourceLabel } from "../shared/helpers";
 
@@ -81,11 +81,12 @@ export function ReceiptsTable({
       <table className="kt-chinh">
         <colgroup>
           <col />
-          <col style={{ width: "16%" }} />
           <col style={{ width: "15%" }} />
-          <col style={{ width: "19%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "17%" }} />
           <col style={{ width: "10%" }} />
-          <col style={{ width: "16%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "14%" }} />
           <col style={{ width: 36 }} />
         </colgroup>
         <thead>
@@ -95,6 +96,7 @@ export function ReceiptsTable({
             <th>Trạng thái</th>
             <th>Nguồn</th>
             <th>Ngày thu</th>
+            <th>Ngày tạo</th>
             <th>Mã phiếu</th>
             <th aria-label="Mở" />
           </tr>
@@ -143,6 +145,7 @@ export function ReceiptsTable({
                   ))}
                 </td>
                 <td>{ngay(row.receipt_date)}</td>
+                <td title={ngayGio(row.created_at)}>{ngay(row.created_at)}</td>
                 <td className="kt-ma">{row.code}</td>
                 <td className="kt-mui">
                   <ChevronRight size={16} aria-hidden="true" />

@@ -239,6 +239,9 @@ class BaoCaoKhoRow(BaseModel):
 class BaoCaoKhoPage(BaseModel):
     items: list[BaoCaoKhoRow]
     total: int
+    #: Tổng tiền của MỌI dòng khớp lọc (không chỉ trang đang xem); None khi người xem không có
+    #: ô xem giá của màn — cùng luật ẩn tiền với từng dòng.
+    tong_tien: int | None = None
 
 
 class BaoCaoChuyenKhoRow(BaseModel):
@@ -266,6 +269,9 @@ class BaoCaoChuyenKhoRow(BaseModel):
 class BaoCaoChuyenKhoPage(BaseModel):
     items: list[BaoCaoChuyenKhoRow]
     total: int
+    #: Tổng tiền của MỌI dòng khớp lọc (không chỉ trang đang xem); None khi người xem không có
+    #: ô xem giá của màn — cùng luật ẩn tiền với từng dòng.
+    tong_tien: int | None = None
 
 
 class BaoCaoNXTRow(BaseModel):
@@ -603,6 +609,8 @@ class StockVoucherOut(BaseModel):
 class StockVoucherPage(BaseModel):
     items: list[StockVoucherOut]
     total: int
+    #: Số phiếu theo tab màn tồn từng kho (`nhap` / `xuat` / `dc`) — cùng bộ lọc, trừ tab.
+    dem_theo_tab: dict[str, int] | None = None
 
 
 # --- Điều chuyển kho (spec-dieu-chuyen-kho) ---------------------------------

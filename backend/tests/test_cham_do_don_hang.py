@@ -104,3 +104,58 @@ def test_don_khong_coc_thi_khong_cham(client):
                                          "deposit_pct": 0}, headers=ha)
     assert r.status_code == 201, r.text
     assert "don_hang_ban" not in tom_tat(client, dang_nhap(client, "ke_toan_coc2"))
+
+
+def test_phieu_thu_coc_nhan_du_o_nhu_form_lap_phieu_thu(client):
+    """Form thu cọc dùng chung khung Lập phiếu thu: người nộp, địa chỉ, lý do, mã giao dịch vào
+    đúng phiếu; response trả id phiếu vừa lập để tải chứng từ gốc."""
+    from app.models.accounting import PaymentReceipt
+
+    ha = admin(client)
+    r = client.post("/api/orders", json={"source_type": "bao_gia", "quotation_id": _bao_gia_da_chot(),
+                                         "deposit_pct": 50}, headers=ha)
+    d = r.json()
+    c = client.post(f"/api/orders/{d['id']}/deposit-receipts", headers=ha, json={
+        "receipt_method": "cash", "amount": 200_000, "payer_name": " Anh Tú (khách cử) ",
+        "payer_address": "12 Lê Lợi", "content": "Thu cọc lần 1", "bank_reference": "FT123"})
+    assert c.status_code == 200, c.text
+    pid = c.json()["phieu_vua_lap_id"]
+    db = SessionLocal()
+    try:
+        p = db.get(PaymentReceipt, pid)
+        assert (p.payer_name, p.payer_address, p.content, p.order_id) == (
+            "Anh Tú (khách cử)", "12 Lê Lợi", "Thu cọc lần 1", d["id"])
+    finally:
+        db.close()
+    # Để trống thì giữ mặc định cũ: người nộp = khách, lý do = "Thu cọc đơn …".
+    c2 = client.post(f"/api/orders/{d['id']}/deposit-receipts", headers=ha,
+                     json={"receipt_method": "cash", "amount": 100_000})
+    db = SessionLocal()
+    try:
+        p2 = db.get(PaymentReceipt, c2.json()["phieu_vua_lap_id"])
+        assert p2.payer_name == "KH chấm" and p2.content == f"Thu cọc đơn {d['order_no']}"
+    finally:
+        db.close()
+    assert client.get(f"/api/orders/{d['id']}", headers=ha).json()["phieu_vua_lap_id"] is None
+
+
+def test_huy_phieu_coc_da_thu_tai_ngan_phieu_thu(client):
+    """06/10/2026: phiếu cọc đã thu hủy được ở ngăn Phiếu thu (màn Đơn hàng không có nút hủy cọc) —
+    bắt lý do, đơn bớt số đã cọc; hủy lần hai bị chặn."""
+    ha = admin(client)
+    r = client.post("/api/orders", json={"source_type": "bao_gia", "quotation_id": _bao_gia_da_chot(),
+                                         "deposit_pct": 50}, headers=ha)
+    d = r.json()
+    c = client.post(f"/api/orders/{d['id']}/deposit-receipts",
+                    json={"receipt_method": "cash", "amount": 500_000}, headers=ha)
+    assert c.status_code == 200 and c.json()["deposit_ok"], c.text
+    pid = c.json()["phieu_vua_lap_id"]
+    url = f"/api/accounting/payment-receipts/{pid}/cancel"
+
+    assert client.post(url, json={"reason": "  "}, headers=ha).status_code in (400, 422)
+    h = client.post(url, json={"reason": "Ghi nhầm số tiền"}, headers=ha)
+    assert h.status_code == 200, h.text
+    assert h.json()["status"] == "cancelled" and h.json()["cancel_reason"] == "Ghi nhầm số tiền"
+    don = client.get(f"/api/orders/{d['id']}", headers=ha).json()
+    assert don["deposit_received"] == 0 and don["deposit_ok"] is False
+    assert client.post(url, json={"reason": "lần nữa"}, headers=ha).status_code == 409

@@ -1,12 +1,15 @@
-// Ngăn CHI TIẾT công nợ một khách hàng (đặc tả NPTh-2) — vỏ `NganCongNo` chung hai màn công nợ.
+// Ngăn CHI TIẾT công nợ một khách hàng — phương án 2 (sổ chi tiết kiểu Xero, 06/10/2026), vỏ
+// `NganCongNo` chung hai màn công nợ.
 //
-// Đầu ngăn: "Công nợ phải thu > Khách hàng" — tên + pill "Vượt hạn mức" — nút "Hồ sơ khách hàng" —
-// tóm tắt Còn nợ | Quá hạn | Hạn mức (còn được nợ + vạch) | Cho nợ — dải amber khi vượt hạn mức. Hai
-// tab có số: "Hoá đơn còn nợ" (lọc Tất cả / Quá hạn / mốc tuổi đang lọc ở danh sách; "Thu tiền" mở
-// khung thu ngay dưới dòng — NPTh-3) và "Đã thu" (trong kỳ của trang / tất cả; máy chủ cắt trang).
+// Đầu ngăn: "Công nợ phải thu > Khách hàng" — tên + thẻ mã — "In sao kê" và "Hồ sơ khách hàng" — khối
+// số: còn nợ tới hôm nay + quá hạn, vạch tuổi nợ (bấm mốc = lọc tab Còn nợ), hạn mức. Ba tab:
+// - "Còn nợ": hoá đơn còn nợ; lọc theo mốc tuổi (từ khối số, từ mốc đang lọc ở danh sách, hoặc "Quá
+//   hạn" khi bấm số Quá hạn ngoài bảng) hiện thành thẻ kèm "Bỏ lọc". "Thu" mở NGĂN CHỒNG thu tiền.
+// - "Sao kê": số dư đầu kỳ, từng chứng từ với số dư chạy, số dư cuối kỳ; in được.
+// - "Lịch sử": dòng thời gian mọi chứng từ với khách + các hoá đơn đã trễ.
 //
-// Khung Thu tiền đang gõ dở thì không để mất nháp lặng lẽ: đổi tab / đổi lọc làm dòng biến mất phải
-// hỏi trước, ↑ ↓ sang khách khác tạm tắt, đóng ngăn hỏi trước.
+// Ngăn chồng tự giữ nháp: Esc / Đóng của nó hỏi trước khi bỏ; phím chỉ thuộc lớp trên cùng nên ↑ ↓ và
+// đổi tab của ngăn khách không chạm được nháp đang gõ.
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -19,42 +22,41 @@ import {
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import type { NavigateFn } from "../../../../components/AppShell";
-import { homNayVN } from "../../../../utils/ky";
-import { NhomNut } from "../../shared/BoLocNangCao";
 import { useChiTietCongNo } from "../../shared/chiTietCongNo";
-import type { PhamViDaTra } from "../../shared/KhungLanTra";
+import { LichSuCongNo, type KhoanTre } from "../../shared/LichSuCongNo";
+import { nhanLocNo, TheLocNo } from "../../shared/locNoNgan";
 import { NganCongNo } from "../../shared/NganCongNo";
 import { useTabNho } from "../../shared/NganPhieu";
+import { TabSaoKe } from "../../shared/TabSaoKe";
 import { PAID_PAGE } from "../shared/constants";
 import type { Bucket, TuoiDangLoc } from "../shared/types";
-import { DaThuBlock } from "./DaThuBlock";
 import { HoaDonConNoBlock } from "./HoaDonConNoBlock";
+import { ThuTienHoaDon } from "./ThuTienHoaDon";
 
 export type QuyenCongNoThu = {
-  /** Lập phiếu thu (`phieu_thu.create`) — nút "Thu tiền". */
+  /** Lập phiếu thu (`phieu_thu.create`) — nút "Thu". */
   thu: boolean;
   xemPhieuThu: boolean;
   xemKhach: boolean;
   xemDonBan: boolean;
 };
 
-/** Lọc hoá đơn trong ngăn: "all" | "overdue" | khoá mốc tuổi đang lọc ở danh sách. */
-type LocHoaDon = string;
+const TAB = ["no", "sk", "ls"];
 
-/** Hoá đơn có thuộc nút lọc không. Máy chủ để `aging_bucket` TRỐNG khi chưa trễ, nên mốc "Chưa tới
- *  hạn" là "không trễ ngày nào" chứ không so khoá. */
-function khopLoc(row: ReceivableItemRow, loc: LocHoaDon): boolean {
-  if (loc === "all") return true;
+/** Hoá đơn có thuộc bộ lọc không: null = mọi hoá đơn, "overdue" = đang trễ, còn lại là khoá mốc
+ *  tuổi. Máy chủ để `aging_bucket` TRỐNG khi chưa trễ, nên mốc "Chưa tới hạn" là "không trễ ngày
+ *  nào" chứ không so khoá. */
+function khopLoc(row: ReceivableItemRow, loc: string | null): boolean {
+  if (loc == null) return true;
   if (loc === "overdue") return row.overdue_days > 0;
   if (loc === "chua_toi_han") return row.overdue_days <= 0;
   return row.aging_bucket === loc;
 }
 
-const HOI_BO = "Bỏ nội dung đang nhập?";
-
 export function ReceivablesDrawer({
   customerId,
   customerName,
+  ma,
   bucket,
   tuoi = null,
   ky,
@@ -68,10 +70,12 @@ export function ReceivablesDrawer({
 }: {
   customerId: number;
   customerName: string;
+  /** Mã khách (từ dòng danh sách) — thẻ dưới tên. */
+  ma?: string | null;
   bucket: Bucket;
-  /** Mốc tuổi nợ đang lọc ở danh sách ⇒ tab hoá đơn lọc sẵn mốc đó. */
+  /** Mốc tuổi nợ đang lọc ở danh sách ⇒ tab Còn nợ lọc sẵn mốc đó. */
   tuoi?: TuoiDangLoc | null;
-  /** Kỳ đang xem ở trang — tab Đã thu "Trong kỳ" lấy đúng kỳ này. */
+  /** Kỳ đang xem ở trang — kỳ mặc định của tab Sao kê. */
   ky: KyXem;
   /** Sự kiện đẩy (SSE): đổi số ⇒ ngăn nạp lại. */
   eventTick?: number;
@@ -84,25 +88,23 @@ export function ReceivablesDrawer({
 }) {
   const { token } = useAuth();
   const [tabNho, setTabNho] = useTabNho("cong-no-phai-thu", "no");
-  const [tab, setTabTho] = useState(bucket === "paid" ? "thu" : bucket === "overdue" || tuoi ? "no" : tabNho);
-  const [loc, setLocTho] = useState<LocHoaDon>(bucket === "overdue" ? "overdue" : tuoi ? tuoi.khoa : "all");
-  const [phamVi, setPhamVi] = useState<PhamViDaTra>("ky");
-  const [moThu, setMoThu] = useState<number | null>(null);
-  const [formBan, setFormBan] = useState(false);
+  const [tab, setTabTho] = useState(
+    bucket === "paid" ? "sk" : bucket === "overdue" || tuoi ? "no" : TAB.includes(tabNho) ? tabNho : "no",
+  );
+  const [loc, setLoc] = useState<string | null>(bucket === "overdue" ? "overdue" : tuoi ? tuoi.khoa : null);
+  const [dangThu, setDangThu] = useState<ReceivableItemRow | null>(null);
   const [daLap, setDaLap] = useState<PaymentReceiptRow | null>(null);
-  /** Khung Thu tiền đang mở VÀ có nội dung gõ dở. */
-  const banNhap = moThu != null && formBan;
+  const [dangIn, setDangIn] = useState(false);
+  const [soLanLap, setSoLanLap] = useState(0);
 
-  const tatCa = phamVi === "tat_ca";
-  const { detail, setDetail, loading, loi, reload, xemThem, dangTaiThem } = useChiTietCongNo<
-    ReceivableReceiptRow,
-    ReceivablesDetail
-  >({
+  // Ngăn chỉ còn cần phần NỢ của chi tiết (lần thu nằm ở Sao kê / Lịch sử); vẫn đi qua khuôn chung
+  // để có nạp lại theo sự kiện đẩy và bỏ câu trả lời cũ về muộn.
+  const { detail, setDetail, loading, loi, reload } = useChiTietCongNo<ReceivableReceiptRow, ReceivablesDetail>({
     token,
-    khoa: `${customerId}|${phamVi}|${ky.tu}|${ky.den}`,
+    khoa: String(customerId),
     coTrang: PAID_PAGE,
     goi: (t, trang) =>
-      api.accounting.receivablesDetail(t, customerId, tatCa, tatCa ? undefined : { tu_ngay: ky.tu, den_ngay: ky.den }, trang),
+      api.accounting.receivablesDetail(t, customerId, false, { tu_ngay: ky.tu, den_ngay: ky.den }, trang),
     khoaDong: (p) => p.receipt_id,
     eventTick,
     chuLoi: "Không tải được chi tiết công nợ.",
@@ -116,27 +118,32 @@ export function ReceivablesDrawer({
     return () => window.clearTimeout(t);
   }, [daLap]);
 
-  // Backend cũ hơn giao diện có thể thiếu `items`/`paid` — báo rõ, không sập, không coi là rỗng.
-  const hopLe = detail != null && Array.isArray(detail.items) && Array.isArray(detail.paid);
-  const items = useMemo(() => (hopLe ? detail!.items : []), [hopLe, detail]);
-  const soConNo = items.filter((x) => x.remaining_amount > 0).length;
-  const dangHien = useMemo(() => items.filter((x) => khopLoc(x, loc)), [items, loc]);
+  // Backend cũ hơn giao diện có thể thiếu `items`/`aging` — báo rõ, không sập, không coi là rỗng.
+  const hopLe = detail != null && Array.isArray(detail.items) && Array.isArray(detail.aging);
+  const conNo = useMemo(() => (hopLe ? detail!.items.filter((x) => x.remaining_amount > 0) : []), [hopLe, detail]);
+  const dangHien = useMemo(() => conNo.filter((x) => khopLoc(x, loc)), [conNo, loc]);
+  const tre = useMemo<KhoanTre[]>(
+    () =>
+      conNo
+        .filter((x) => x.overdue_days > 0 && x.due_date)
+        .map((x) => ({
+          khoa: String(x.invoice_id),
+          ten: `Hoá đơn số ${x.invoice_number}`,
+          han: x.due_date as string,
+          conNo: x.remaining_amount,
+          soNgayTre: x.overdue_days,
+        })),
+    [conNo],
+  );
 
-  // Đổi tab: khung Thu tiền (chỉ ở tab hoá đơn) sẽ bị gỡ ⇒ gõ dở thì hỏi trước.
   const setTab = (t: string) => {
     if (t === tab) return;
-    if (banNhap && !window.confirm(HOI_BO)) return;
-    setMoThu(null);
     setTabNho(t);
     setTabTho(t);
   };
-  // Đổi nút lọc: chỉ hỏi khi dòng đang thu biến mất khỏi danh sách mới.
-  const setLoc = (v: LocHoaDon) => {
-    const dong = items.find((x) => x.invoice_id === moThu);
-    const mat = dong != null && !khopLoc(dong, v);
-    if (mat && banNhap && !window.confirm(HOI_BO)) return;
-    if (mat) setMoThu(null);
-    setLocTho(v);
+  const chonLoc = (k: string | null) => {
+    setLoc(k);
+    if (k) setTab("no");
   };
 
   /** Lập xong: dòng hoá đơn đổi NGAY (không đợi nạp lại), rồi mới nạp lại cho khớp máy chủ. */
@@ -161,8 +168,9 @@ export function ReceivablesDrawer({
           }
         : cu,
     );
-    setMoThu(null);
+    setDangThu(null);
     setDaLap(receipt);
+    setSoLanLap((n) => n + 1);
     reload();
     onChanged();
   }
@@ -180,89 +188,107 @@ export function ReceivablesDrawer({
       }
     : undefined;
 
-  const luaChonLoc: [string, string][] = [["all", "Tất cả"], ["overdue", "Quá hạn"]];
-  if (tuoi) luaChonLoc.push([tuoi.khoa, tuoi.nhan]);
-  // Hoá đơn còn nợ luôn tính tới HÔM NAY (máy chủ), kể cả khi trang đang xem một kỳ đã qua.
-  const kyDaQua = ky.den < homNayVN();
+  const ten = detail?.customer_name || customerName;
+  const lan = eventTick + soLanLap;
+  const nhan = hopLe ? nhanLocNo(loc, detail!.aging, tuoi?.nhan) : null;
 
   return (
-    <NganCongNo
-      nhanMan="Công nợ phải thu"
-      nhanDoiTac="Khách hàng"
-      tieuDe={detail?.customer_name ?? customerName}
-      tong={hopLe ? detail : null}
-      choNo={hopLe ? detail!.payment_term_days : null}
-      sauNgay="sau hoá đơn"
-      conDuocNo
-      nutHoSo={
-        quyen.xemKhach
-          ? {
-              nhan: "Hồ sơ khách hàng",
-              onMo: () => {
-                onClose();
-                navigate("khach-hang");
-              },
-            }
-          : undefined
-      }
-      chuCanh="Chỉ là cảnh báo, vẫn bán và thu bình thường."
-      loi={loi}
-      loading={loading}
-      thieu={detail != null && !hopLe}
-      chuThieu="Dữ liệu trả về thiếu phần hoá đơn hoặc lần thu: máy chủ đang chạy bản cũ hơn giao diện. Khởi động lại máy chủ rồi tải lại trang."
-      onTaiLai={reload}
-      tabs={
-        hopLe
-          ? [
-              { id: "no", nhan: "Hoá đơn còn nợ", dem: soConNo },
-              { id: "thu", nhan: "Đã thu", dem: detail!.paid_total ?? detail!.paid.length },
-            ]
-          : undefined
-      }
-      tab={tab}
-      onTab={setTab}
-      // Đang gõ dở thì tạm tắt ↑ ↓ sang khách khác (ngăn dựng lại là mất nháp).
-      len={banNhap ? undefined : len}
-      xuong={banNhap ? undefined : xuong}
-      onDong={onClose}
-      chanDong={() => banNhap}
-    >
-      {hopLe && tab === "no" && (
-        <>
-          <div className="kt-hang-loc">
-            <NhomNut<string> giaTri={loc} luaChon={luaChonLoc} onDoi={setLoc} />
-            {kyDaQua && <span className="kt-mo">Hoá đơn tính tới hôm nay</span>}
+    <>
+      <NganCongNo
+        nhanMan="Công nợ phải thu"
+        nhanDoiTac="Khách hàng"
+        tieuDe={ten}
+        ma={ma}
+        tong={hopLe ? detail : null}
+        choNo={hopLe ? detail!.payment_term_days : null}
+        sauNgay="sau hoá đơn"
+        nutHoSo={
+          quyen.xemKhach
+            ? {
+                nhan: "Hồ sơ khách hàng",
+                onMo: () => {
+                  onClose();
+                  navigate("khach-hang", { openCustomerId: customerId });
+                },
+              }
+            : undefined
+        }
+        onInSaoKe={() => {
+          setTab("sk");
+          setDangIn(true);
+        }}
+        chuCanh="Chỉ là cảnh báo, vẫn bán và thu bình thường."
+        dangLoc={loc}
+        onLoc={chonLoc}
+        loi={loi}
+        loading={loading}
+        thieu={detail != null && !hopLe}
+        chuThieu="Dữ liệu trả về thiếu phần hoá đơn hoặc tuổi nợ: máy chủ đang chạy bản cũ hơn giao diện. Khởi động lại máy chủ rồi tải lại trang."
+        onTaiLai={reload}
+        tabs={
+          hopLe
+            ? [
+                { id: "no", nhan: "Còn nợ", dem: conNo.length },
+                { id: "sk", nhan: "Sao kê" },
+                { id: "ls", nhan: "Lịch sử" },
+              ]
+            : undefined
+        }
+        tab={tab}
+        onTab={setTab}
+        len={len}
+        xuong={xuong}
+        onDong={onClose}
+      >
+        {hopLe && tab === "no" && (
+          <>
+            {nhan && (
+              <div className="kt-hang-loc">
+                <TheLocNo nhan={nhan} so={dangHien.length} onBo={() => setLoc(null)} />
+              </div>
+            )}
+            <HoaDonConNoBlock items={dangHien} homNay={detail!.as_of} coThu={quyen.thu} onThu={setDangThu} onMoDon={moDon} />
+          </>
+        )}
+
+        {hopLe && tab === "sk" && (
+          <TabSaoKe ben="receivables" id={customerId} ten={ten} ma={ma} kyTrang={ky} lan={lan}
+            dangIn={dangIn} onDongIn={() => setDangIn(false)} onMoPhieu={moPhieu} />
+        )}
+
+        {hopLe && tab === "ls" && (
+          <LichSuCongNo ben="receivables" id={customerId} homNay={detail!.as_of} tre={tre} chuTre="chưa thu đủ" lan={lan}
+            onMoPhieu={moPhieu} />
+        )}
+
+        {daLap && (
+          <div className="kt-bao" role="status">
+            <span>{`Đã lập ${daLap.code}`}</span>
+            {moPhieu && (
+              <button type="button" onClick={() => moPhieu(daLap.code)}>
+                Xem phiếu
+              </button>
+            )}
           </div>
-          <HoaDonConNoBlock items={dangHien} customerName={detail!.customer_name || customerName} coThu={quyen.thu}
-            moThu={moThu}
-            onMoThu={(id) => {
-              // Mở khung ở dòng khác thì khung đang gõ dở bị gỡ ⇒ hỏi. Đóng (null) thì khung đã tự hỏi.
-              if (id != null && id !== moThu && banNhap && !window.confirm(HOI_BO)) return;
-              setMoThu(id);
-            }}
-            onDaLap={daLapPhieu} onBan={setFormBan} onMoDon={moDon}
-            onMoTaiKhoan={() => {
-              onClose();
-              navigate("ke-toan-tai-khoan-ngan-hang");
-            }} />
-        </>
-      )}
+        )}
+      </NganCongNo>
 
-      {hopLe && tab === "thu" && (
-        <DaThuBlock detail={detail!} phamVi={phamVi} onPhamVi={setPhamVi} onMoPhieu={moPhieu} onXemThem={xemThem}
-          dangTaiThem={dangTaiThem} />
+      {dangThu && (
+        <ThuTienHoaDon
+          key={dangThu.invoice_id}
+          item={dangThu}
+          customerId={customerId}
+          customerName={ten}
+          onDong={() => setDangThu(null)}
+          onDaLap={(r) => daLapPhieu(dangThu, r)}
+          onMoDon={moDon}
+          onMoPhieu={moPhieu}
+          onMoTaiKhoan={() => {
+            onClose();
+            navigate("ke-toan-tai-khoan-ngan-hang");
+          }}
+        />
       )}
-
-      {daLap && (
-        <div className="kt-bao" role="status">
-          <span>{`Đã lập ${daLap.code}`}</span>
-          {moPhieu && (
-            <button type="button" onClick={() => moPhieu(daLap.code)}>
-              Xem phiếu
-            </button>
-          )}
-        </div>
-      )}
-    </NganCongNo>
+    </>
   );
 }

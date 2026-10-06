@@ -19,7 +19,7 @@ from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.user import User
 from ..schemas.theo_doi_san_xuat import BoLocOut, TheoLenhOut, TheoMayOut
-from ..services.lenh_sx import bang_theo_doi, pham_vi, theo_doi
+from ..services.lenh_sx import bang_theo_doi, pham_vi, theo_doi, trang_thai
 from ..services.rbac_service import AuthorizationService
 
 router = APIRouter(prefix="/api/theo-doi-san-xuat", tags=["theo-doi-san-xuat"])
@@ -30,6 +30,8 @@ Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
 # lặng lẽ trả tập rỗng.
 BatThuong = Literal[theo_doi.BAT_THUONG]
 TimKiem = Annotated[str | None, Query(max_length=120)]
+# Khâu của lệnh (cột "Đang ở") — điều kiện "Trạng thái" của góc Theo lệnh.
+Khau = Literal[trang_thai.KHAU]
 
 
 @router.get("/bo-loc", response_model=BoLocOut)
@@ -68,10 +70,11 @@ def theo_lenh(
     khach_hang_id: int | None = None,
     may_id: int | None = None,
     bat_thuong: BatThuong | None = None,
+    khau: Khau | None = None,
 ):
     """Góc Theo lệnh: mỗi lệnh còn sống một dòng + số của dải bất thường."""
     sale_ids = pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
     return theo_doi.theo_lenh(
         db, sale_ids=sale_ids, q=q, khach_hang_id=khach_hang_id, may_id=may_id,
-        bat_thuong=bat_thuong,
+        bat_thuong=bat_thuong, khau=khau,
     )

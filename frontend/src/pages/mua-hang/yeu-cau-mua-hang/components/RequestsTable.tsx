@@ -3,10 +3,9 @@ import type { Dispatch, SetStateAction } from "react";
 import type { DepartmentPurchaseRequestRow } from "../../../../api/client";
 import { EmptyRow } from "../../../../components/EmptyState";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
-import { fmtDate } from "../../../../utils/format";
+import { fmtDate, fmtDateTime } from "../../../../utils/format";
 import { SOURCE_STATUS_META, SOURCE_TYPE_LABELS } from "../shared/constants";
 import { dongSong } from "../shared/helpers";
-import type { StatusFilter } from "../shared/types";
 import { SourceStatusBadge } from "./requestCells";
 
 export function RequestsTable({
@@ -14,10 +13,8 @@ export function RequestsTable({
   listError,
   load,
   rows,
-  q,
-  setQ,
-  status,
-  setStatus,
+  coLoc,
+  xoaLoc,
   page,
   setPage,
   total,
@@ -31,10 +28,9 @@ export function RequestsTable({
   listError: string | null;
   load: () => void;
   rows: DepartmentPurchaseRequestRow[];
-  q: string;
-  setQ: Dispatch<SetStateAction<string>>;
-  status: StatusFilter;
-  setStatus: Dispatch<SetStateAction<StatusFilter>>;
+  /** Đang có ô tìm / tab / kỳ / điều kiện nào khác mặc định không — ô rỗng mời xoá lọc. */
+  coLoc: boolean;
+  xoaLoc: () => void;
   page: number;
   setPage: Dispatch<SetStateAction<number>>;
   total: number;
@@ -53,6 +49,7 @@ export function RequestsTable({
               <th style={{ width: "160px" }}>Mã yêu cầu</th>
               <th style={{ width: "210px" }}>Bộ phận / Người tạo</th>
               <th style={{ width: "110px" }}>Vật tư</th>
+              <th style={{ width: "110px" }}>Ngày tạo</th>
               <th style={{ width: "130px" }}>Ngày cần hàng</th>
               <th style={{ width: "180px" }}>Trạng thái</th>
             </tr>
@@ -64,35 +61,35 @@ export function RequestsTable({
                   <td><div className="purchase__skeleton-bar" style={{ width: "120px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "140px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "70px" }} /></td>
+                  <td><div className="purchase__skeleton-bar" style={{ width: "90px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "100px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "130px" }} /></td>
                 </tr>
               ))
             ) : listError ? (
               <EmptyRow
-                colSpan={5}
+                colSpan={6}
                 trangThai="loi"
                 loi={listError}
                 onThuLai={load}
               />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={5}
+                colSpan={6}
                 icon="clipboard"
-                title="Chưa có yêu cầu mua hàng nào khớp"
+                title={coLoc ? "Không có yêu cầu mua hàng nào khớp" : "Chưa có yêu cầu mua hàng nào"}
                 sub={
-                  q.trim() || status !== "all"
+                  coLoc
                     ? "Thử bỏ bớt bộ lọc hoặc xoá từ khoá tìm kiếm."
                     : "Bộ phận gửi yêu cầu vật tư sang Thu mua tại đây."
                 }
                 action={
-                  q.trim() || status !== "all" ? (
+                  coLoc ? (
                     <button
                       type="button"
                       className="btn btn--ghost"
                       onClick={() => {
-                        setQ("");
-                        setStatus("all");
+                        xoaLoc();
                         setPage(1);
                       }}
                     >
@@ -134,6 +131,7 @@ export function RequestsTable({
                   <td title={row.lines.map((line) => line.item_name).join(", ")}>
                     <span className="purchase__item-chip">{dongSong(row).length} món</span>
                   </td>
+                  <td title={fmtDateTime(row.created_at)}>{fmtDate(row.created_at)}</td>
                   <td>{fmtDate(row.needed_date)}</td>
                   <td>
                     <div className="purchase__status-col">

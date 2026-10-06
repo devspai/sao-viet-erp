@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 
 from ...audit_registry import tra
 from ...models.gia_cong_ngoai import (
-    KIEU_MOT_PHAN, NOI_VE_KHACH, NOI_VE_KHO, NOI_VE_XUONG, GiaCongNgoai, _utcnow,
+    KIEU_MOT_PHAN, KIEU_TRON_GOI, NOI_VE_KHACH, NOI_VE_KHO, NOI_VE_XUONG, GiaCongNgoai, _utcnow,
 )
 from ...models.lsx import LB_THUE_NGOAI, LsxCongDoan, LsxCongDoanPhuThuoc
+from ...models.purchase import Supplier
 from ...models.san_xuat import SanXuatCongViec
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
@@ -18,6 +19,7 @@ from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..gio_xuong import thuc_te_hien_thi
 from ..san_xuat.san_luong import he_so_nhanh_toa
 from . import trang_thai
+from .tron_goi import goi_y_cap_giay
 
 
 def _f(v) -> float | None:
@@ -118,9 +120,9 @@ def _tao_lan(db: Session, audit: AuditLogRepository, *, dai: list, cv_by_step: d
         lsx_id=lsx_id, bai_ghep_id=bai_ghep_id, kieu=KIEU_MOT_PHAN,
         nha_cung_cap_id=cuoi.nha_cung_cap_id, nha_cung_cap_ten=cuoi.nha_cung_cap or "",
         ten_viec=" + ".join(c.ten for c in dai),
-        # Đơn giá CẢ LẦN khai ở bước CUỐI dải, theo đơn vị ra của bước đó (spec §7). Bước chung của
-        # bài ghép KHÔNG có ô đơn giá (chốt 27/09) — tiền kế toán gõ ở phiếu chi.
-        don_gia=getattr(cuoi, "don_gia_gia_cong", None), don_vi=cuoi.don_vi_ra, created_by=uid,
+        # Không có đơn giá (chủ chốt 27/09 + 07/10/2026): tiền kế toán gõ ở phiếu chi theo hoá
+        # đơn nhà gia công. Đơn vị = đơn vị ra của bước cuối dải — đơn vị của con số chốt.
+        don_vi=cuoi.don_vi_ra, created_by=uid,
     )
     db.add(gcn)
     db.flush()
@@ -282,21 +284,19 @@ def _dong_bo_mot(db: Session, audit: AuditLogRepository, gcn_repo: GiaCongNgoaiR
             cv_hien_tai = {cv.id for c in dai for cv in cv_by_step.get(c.step_key) or []}
             cv_cua_lan = {cv.id for cv in gcn_repo.cong_viec_cua(gcn.id)}
             if cv_hien_tai == cv_cua_lan:
-                # Dải KHÔNG đổi — chỉ đồng bộ NCC/tên/đơn giá theo routing hiện tại.
+                # Dải KHÔNG đổi — chỉ đồng bộ NCC/tên/đơn vị theo routing hiện tại.
                 doi = (gcn.nha_cung_cap_id != cuoi.nha_cung_cap_id
-                       or _f(gcn.don_gia) != _f(getattr(cuoi, "don_gia_gia_cong", None))
                        or gcn.don_vi != cuoi.don_vi_ra)
                 if doi:
                     gcn.nha_cung_cap_id = cuoi.nha_cung_cap_id
                     gcn.nha_cung_cap_ten = cuoi.nha_cung_cap or ""
                     gcn.ten_viec = " + ".join(c.ten for c in dai)
-                    gcn.don_gia = getattr(cuoi, "don_gia_gia_cong", None)
                     gcn.don_vi = cuoi.don_vi_ra
                     gcn.version += 1
                     audit.create(
                         actor_user_id=uid, action="gia_cong_ngoai_dat",
                         target=f"gia_cong_ngoai:{gcn.id}",
-                        detail=f"Cập nhật lịch: đồng bộ nhà gia công/đơn giá — "
+                        detail=f"Cập nhật lịch: đồng bộ nhà gia công — "
                                f"{gcn.nha_cung_cap_ten}",
                         commit=False,
                     )
@@ -453,11 +453,15 @@ def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
     cuoi = cvs[-1] if cvs else None
     chang_sau = sl_repo.cong_viec_chang_sau(cuoi) if cuoi is not None else []
     cho = repo.ban_giao_cho_mang_di(dau.id) if dau is not None and gcn.kieu == KIEU_MOT_PHAN else []
-    ten = repo.user_names({gcn.mang_di_boi_id, gcn.chot_boi_id, gcn.huy_boi_id})
+    ten = repo.user_names({gcn.created_by, gcn.mang_di_boi_id, gcn.chot_boi_id, gcn.huy_boi_id})
+    # Số điện thoại đọc SỐNG từ danh mục (lần chỉ chép tên lúc đặt) — người kế hoạch gọi nhà gia
+    # công hỏi hàng ngay trên khối, khỏi mở màn Nhà cung cấp.
+    ncc = db.get(Supplier, gcn.nha_cung_cap_id)
     pc = repo.phieu_chi_song([gcn.id]).get(gcn.id)
     nguon = nguon_lan(db, gcn)
-    tien = (round(float(gcn.sl_cuoi) * float(gcn.don_gia), 0)
-            if gcn.sl_cuoi is not None and gcn.don_gia is not None else None)
+    # Chỉ trọn gói xưởng cấp giấy mới có đề nghị xuất giấy — lần khác khỏi tốn câu hỏi kho.
+    xuat = (repo.yeu_cau_xuat_cua(gcn.id)
+            if gcn.kieu == KIEU_TRON_GOI and gcn.xuong_cap_giay else [])
     return {
         "id": gcn.id, "lsx_id": gcn.lsx_id, "lsx_ma": nguon["lsx_ma"],
         "bai_ghep_id": gcn.bai_ghep_id, "bai_ghep_ma": nguon["bai_ghep_ma"],
@@ -468,9 +472,10 @@ def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
         "chi_xem": False,
         "kieu": gcn.kieu, "trang_thai": trang_thai(gcn),
         "nha_cung_cap_id": gcn.nha_cung_cap_id, "nha_cung_cap_ten": gcn.nha_cung_cap_ten,
+        "nha_cung_cap_sdt": (ncc.phone or None) if ncc is not None else None,
+        # Mốc "giao việc": trọn gói = lúc đặt; một phần = lúc phát hành gom ra lần này.
+        "tao_boi_ten": ten.get(gcn.created_by), "tao_luc": thuc_te_hien_thi(gcn.created_at),
         "ten_viec": gcn.ten_viec, "don_vi": gcn.don_vi,
-        "don_gia": _f(gcn.don_gia),
-        "thanh_tien": tien,
         "sl_dat": _f(gcn.sl_dat), "xuong_cap_giay": bool(gcn.xuong_cap_giay),
         "don_vi_gui": dau.don_vi_vao if dau is not None else None,
         "sl_cho_mang_di": round(sum(float(b.so_luong) for b in cho), 3),
@@ -493,17 +498,54 @@ def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
              "viec": tra(a.action).nhan, "chi_tiet": a.detail or ""}
             for a in AuditLogRepository(db).list_by_target(f"gia_cong_ngoai:{gcn.id}", limit=50)
         ],
-        "xuat_giay": next(({"id": r.id, "ma": r.ma, "trang_thai": r.trang_thai}
-                           for r in repo.yeu_cau_xuat_cua(gcn.id)), None),
+        "xuat_giay": _xuat_giay(xuat),
+        "cap_giay": goi_y_cap_giay(db, gcn, co_xuat=bool(xuat)),
         "version": gcn.version,
+    }
+
+
+def _xuat_giay(xuat: list) -> dict | None:
+    """Đề nghị xuất giấy còn sống + khổ / số tờ của dòng giấy — ô Giấy hiện thẻ khổ, số tờ, trạng
+    thái kho và mã đề nghị."""
+    if not xuat:
+        return None
+    r = xuat[0]
+    ln = next((x for x in r.lines if x.hang_loai == "giay"), None)
+    return {"id": r.id, "ma": r.ma, "trang_thai": r.trang_thai,
+            "kho_rong": int(ln.kho_rong or 0) if ln is not None else 0,
+            "kho_dai": int(ln.kho_dai or 0) if ln is not None else 0,
+            "so_to": _f(ln.sl_de_nghi) if ln is not None else None,
+            "don_vi": ln.dvt if ln is not None else None}
+
+
+def _lan_huy_gon(gcn, *, lsx_ma: str, ten: dict) -> dict:
+    """Lần ĐÃ HUỶ trên màn lệnh chỉ là một dòng trong "Đã huỷ N lần" (ai huỷ, lúc nào, vì sao) —
+    khỏi dựng phần cấp giấy / phiếu chi / bước sau / nhật ký: mỗi thứ là câu hỏi DB, nhân theo số
+    lần huỷ, mà màn không đọc."""
+    return {
+        "id": gcn.id, "lsx_id": gcn.lsx_id, "lsx_ma": lsx_ma, "nhan_nguon": lsx_ma,
+        "bai_ghep_id": gcn.bai_ghep_id, "kieu": gcn.kieu, "trang_thai": trang_thai(gcn),
+        "nha_cung_cap_id": gcn.nha_cung_cap_id, "nha_cung_cap_ten": gcn.nha_cung_cap_ten,
+        "tao_boi_ten": ten.get(gcn.created_by), "tao_luc": thuc_te_hien_thi(gcn.created_at),
+        "ten_viec": gcn.ten_viec, "don_vi": gcn.don_vi, "sl_dat": _f(gcn.sl_dat),
+        "xuong_cap_giay": bool(gcn.xuong_cap_giay),
+        "huy_boi_ten": ten.get(gcn.huy_boi_id), "huy_luc": thuc_te_hien_thi(gcn.huy_luc),
+        "ly_do_huy": gcn.ly_do_huy, "version": gcn.version,
     }
 
 
 def lan_cua_lenh(db: Session, lsx_id: int) -> list[dict]:
     """Lần của lệnh + lần của BÀI GHÉP chứa lệnh (màn lệnh hiện dòng chỉ đọc cho lần bài ghép —
-    thao tác ở màn bài ghép, spec 2026-09-27 §4)."""
+    thao tác ở màn bài ghép, spec 2026-09-27 §4). Lần đã huỷ đi bản gọn (`_lan_huy_gon`)."""
     repo = GiaCongNgoaiRepository(db)
-    ra = [lan_dict(db, g) for g in repo.cua_lenh(lsx_id)]
+    cua_lenh = repo.cua_lenh(lsx_id)
+    huy = [g for g in cua_lenh if g.huy_luc is not None]
+    gon: dict[int, dict] = {}
+    if huy:
+        ma = repo.ma_cua_lenh({lsx_id}).get(lsx_id, "")
+        ten = repo.user_names({u for g in huy for u in (g.created_by, g.huy_boi_id)})
+        gon = {g.id: _lan_huy_gon(g, lsx_ma=ma, ten=ten) for g in huy}
+    ra = [gon.get(g.id) or lan_dict(db, g) for g in cua_lenh]
     bg_id = repo.bai_ghep_cua_lenh(lsx_id)
     if bg_id is not None:
         ra += [{**lan_dict(db, g), "chi_xem": True} for g in repo.cua_bai_ghep(bg_id)

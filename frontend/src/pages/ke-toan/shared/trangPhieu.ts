@@ -1,27 +1,26 @@
 /** Nối dây dùng chung của trang SỔ PHIẾU (Phiếu chi, Phiếu thu — đặc tả A.11, A.16, A.17, A.18).
  *
- *  - `useTrangPhieu`: toàn bộ nối dây của một trang sổ — kỳ; thẻ, lọc, ô tìm lấy từ URL và ghi lên
- *    URL; trang hiệu lực; tải bảng + số cùng kỳ (bỏ câu trả lời cũ về muộn); nạp lại khi có sự kiện
- *    đẩy; liên thông `focusQuery`; đếm "Khớp n phiếu"; tài khoản công ty cho bộ lọc; ngăn đang mở
- *    và ↑ ↓. Màn chỉ khai cấu hình (lời gọi API, hàm tham số, chữ lỗi).
+ *  - `useTrangPhieu`: toàn bộ nối dây của một trang sổ — kỳ (thanh lọc chung `ThanhLoc`, mốc của
+ *    màn); thẻ, lọc, ô tìm lấy từ URL và ghi lên URL; trang hiệu lực; tải bảng + số cùng kỳ (bỏ câu
+ *    trả lời cũ về muộn); nạp lại khi có sự kiện đẩy; liên thông `focusQuery`; tài khoản công ty cho
+ *    điều kiện lọc; ngăn đang mở và ↑ ↓. Màn chỉ khai cấu hình (lời gọi API, hàm tham số, chữ lỗi).
  *  - `useTimTre`: ô tìm gửi máy chủ sau 350ms kể từ phím cuối (lỗi thật số 10).
  *  - `useTrangTheoKhoa`: trang gắn với bộ lọc đang xem — đổi kỳ / thẻ / lọc / tìm / cỡ trang thì tự
  *    về trang 1, KHÔNG qua một effect "setPage(1)" chạy sau (gây một lần tải thừa với trang cũ).
  *  - `cungKyTien`: dòng cùng kỳ của thẻ tiền ("12% so với 114.600.000").
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
   api,
   type CompanyBankAccountRow,
-  type KyXem,
   type LocPhieu,
   type TheLoc as SoTheLoc,
 } from "../../../api/client";
-import { TRAN_KHOANG_NGAY, congNgay, homNayVN } from "../../../utils/ky";
-import { useKyMan } from "./ChonKy";
+import type { KyDS } from "../../thanh-loc/ky-danh-sach";
 import { doiSo, tien, vietSo } from "./dinhDang";
+import { cungKyCua, kyTheoKhoang, useKyKeToan } from "./kyKeToan";
 import type { TheLocMuc } from "./TheLoc";
 import { docThamSoMan, useDongBoUrl, type GiaTriUrl } from "./urlMan";
 
@@ -67,18 +66,20 @@ type DanhSachSo<R> = { items: R[]; total: number; the_loc: SoTheLoc };
 export type CauHinhTrangPhieu<R extends { id: number }, T extends string, L> = {
   /** Mã màn — khoá nhớ kỳ và dấu `man` trên URL. */
   man: string;
+  /** [mã, nhãn] các mốc ngày kỳ tính theo; mốc đầu là mặc định. */
+  moc: [string, string][];
   locTuUrl: (p: URLSearchParams | null) => { the: T; tim: string; loc: L };
   locLenUrl: (tt: { the: T; tim: string; loc: L }) => GiaTriUrl;
   locTrong: L;
-  thamSoLoc: (the: T, loc: L, tim: string, ky: KyXem) => ThamSoSo;
-  thamSoTai: (the: T, loc: L, tim: string, ky: KyXem, page: number, size: number) => ThamSoSo;
+  thamSoLoc: (the: T, loc: L, tim: string, ky: KyDS) => ThamSoSo;
+  thamSoTai: (the: T, loc: L, tim: string, ky: KyDS, page: number, size: number) => ThamSoSo;
   goiDanhSach: (token: string, p: ThamSoSo) => Promise<DanhSachSo<R>>;
   /** Thẻ không xem bảng (Phiếu chi "Gia công chờ chi"): vẫn tải số thẻ lọc, bảng để trống. */
   theKhongBang?: (the: T) => boolean;
   /** Câu lỗi khi tải hỏng mà máy chủ không nói gì. */
   chuLoi: string;
   coTrang: number;
-  /** Có ô Xem của màn Tài khoản ngân hàng ⇒ nạp tài khoản công ty cho bộ lọc. */
+  /** Có ô Xem của màn Tài khoản ngân hàng ⇒ nạp tài khoản công ty cho điều kiện lọc. */
   coXemTaiKhoan: boolean;
   mucDichTaiKhoan: "pay" | "receive";
   /** Ngăn đang mở nhận bản mới của dòng sau mỗi lần tải (màn không có endpoint đọc một phiếu). */
@@ -99,9 +100,15 @@ export function useTrangPhieu<R extends { id: number }, T extends string, L>(
   const chRef = useRef(ch);
   chRef.current = ch;
 
-  const kyMan = useKyMan(ch.man);
-  const { ky, cungKy } = kyMan;
-  // Mở từ link / tải lại trang: thẻ, ô tìm và bộ lọc lấy từ URL (kỳ do `useKyMan` tự đọc).
+  const [ky, setKy] = useKyKeToan(ch.man, ch.moc, ch.moc[0][0]);
+  // So cùng kỳ năm trước: tự bật khi kỳ có khoảng ngày ("Tất cả" thì không so).
+  const khoaKy = JSON.stringify(ky);
+  const cungKy = useMemo(() => {
+    const k = cungKyCua(ky);
+    return k ? kyTheoKhoang(k, ky.moc) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [khoaKy]);
+  // Mở từ link / tải lại trang: thẻ, ô tìm và bộ lọc lấy từ URL (kỳ do `useKyKeToan` tự đọc).
   const [dauUrl] = useState(() => ch.locTuUrl(docThamSoMan(ch.man)));
   const [the, setThe] = useState<T>(dauUrl.the);
   const [loc, setLoc] = useState<L>(dauUrl.loc);
@@ -110,7 +117,7 @@ export function useTrangPhieu<R extends { id: number }, T extends string, L>(
   useDongBoUrl(ch.man, ch.locLenUrl({ the, tim: timTre, loc }));
   const [size, setSize] = useState(ch.coTrang);
   // Trang gắn với bộ lọc đang xem: đổi kỳ / thẻ / lọc / tìm / cỡ trang thì tự về trang 1.
-  const { trang: page, datTrang } = useTrangTheoKhoa(JSON.stringify([the, timTre, loc, ky.tu, ky.den, size]));
+  const { trang: page, datTrang } = useTrangTheoKhoa(JSON.stringify([the, timTre, loc, ky, size]));
 
   const [rows, setRows] = useState<R[]>([]);
   const [tong, setTong] = useState(0);
@@ -127,15 +134,13 @@ export function useTrangPhieu<R extends { id: number }, T extends string, L>(
     datTim("");
   };
 
-  // Liên thông: điền mã vào ô tìm, bỏ mọi lọc và mở kỳ rộng nhất (phiếu có thể đã lập từ lâu).
-  // Kỳ rộng là kỳ TẠM: không ghi vào bộ nhớ kỳ của màn, lần sau mở màn vẫn về kỳ đã chọn.
+  // Liên thông: điền mã vào ô tìm, bỏ mọi lọc và mở kỳ "Tất cả" (phiếu có thể đã lập từ lâu).
   useEffect(() => {
     if (!focusQuery) return;
     datTim(focusQuery);
     setThe(TAT_CA as T);
     setLoc(chRef.current.locTrong);
-    const homNay = homNayVN();
-    kyMan.chon("tuy", { tu: congNgay(homNay, -TRAN_KHOANG_NGAY), den: homNay }, { tam: true });
+    setKy({ loai: "tat_ca", moc: ky.moc });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusQuery]);
 
@@ -191,7 +196,7 @@ export function useTrangPhieu<R extends { id: number }, T extends string, L>(
     chRef.current.onSuKien?.();
   }, [eventTick]);
 
-  // Tài khoản công ty cho ô tài khoản của bộ lọc — chỉ khi có ô Xem của màn Tài khoản ngân hàng.
+  // Tài khoản công ty cho điều kiện tài khoản của thanh lọc — chỉ khi có ô Xem của màn Tài khoản ngân hàng.
   const { coXemTaiKhoan, mucDichTaiKhoan } = ch;
   useEffect(() => {
     if (!token || !coXemTaiKhoan) {
@@ -204,24 +209,14 @@ export function useTrangPhieu<R extends { id: number }, T extends string, L>(
       .catch(() => setTaiKhoan(null));
   }, [token, coXemTaiKhoan, mucDichTaiKhoan]);
 
-  // "Khớp n phiếu": chỉ đọc `total` của lời gọi đếm (`dem_only` không mang số thẻ lọc).
-  const demKhop = useCallback(
-    async (nhap: L) => {
-      if (!token) return 0;
-      const c = chRef.current;
-      const r = await c.goiDanhSach(token, { ...c.thamSoLoc(the, nhap, timTre, ky), dem_only: true });
-      return r.total;
-    },
-    [token, the, timTre, ky],
-  );
-
   // Ngăn đang mở: ↑ ↓ đổi sang phiếu trước/sau trong trang đang xem.
   const viTri = mo ? rows.findIndex((r) => r.id === mo.id) : -1;
   const len = viTri > 0 ? () => setMo(rows[viTri - 1]) : undefined;
   const xuong = viTri >= 0 && viTri < rows.length - 1 ? () => setMo(rows[viTri + 1]) : undefined;
 
   return {
-    kyMan,
+    ky,
+    setKy,
     the,
     setThe,
     loc,
@@ -243,7 +238,6 @@ export function useTrangPhieu<R extends { id: number }, T extends string, L>(
     load,
     boLoc,
     taiKhoan,
-    demKhop,
     mo,
     setMo,
     len,

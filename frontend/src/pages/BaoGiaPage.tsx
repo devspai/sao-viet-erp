@@ -30,6 +30,12 @@ import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { DaiKhachHang } from "../components/DaiKhachHang";
 import { ONhapSo } from "../components/ONhapSo";
+import { LOC_BG_TRONG, locBGLenUrl, locBGTuUrl, thamSoLocBG, useDieuKienBaoGia, type LocBaoGia } from "./loc-kinh-doanh/dieu-kien-bao-gia";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { dkTheoTab } from "./thanh-loc/thanh-loc";
+import "./loc-kinh-doanh/loc-kinh-doanh.css";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import { useLocMan } from "./thanh-loc/useLocMan";
 // Đầu trang bản in = ĐÚNG tấm letterhead giấy của công ty (tên + logo + thông tin liên hệ + 4
 // huy hiệu chứng nhận + viền kép, đã nằm sẵn trong ảnh) — chủ xưởng đưa file, chốt 10/09/2026.
 // Trước đây khối này dựng bằng HTML từ 5 ảnh rời + SVN_COMPANY: mỗi lần letterhead giấy đổi là
@@ -99,6 +105,17 @@ const SVN_COMPANY = {
 
 const PAGE_SIZE = 25;
 
+// Dải kỳ của danh sách tính theo một trong ba mốc; cột ngày cuối bảng hiện đúng mốc đang chọn.
+const MOC_BG: [string, string][] = [["tao", "Ngày tạo"], ["gui", "Ngày gửi khách"], ["hieu_luc", "Hạn hiệu lực"]];
+const COT_SAP_THEO_MOC: Record<string, string> = { tao: "created_at", gui: "sent_at", hieu_luc: "valid_until" };
+type LocMan = { ky: KyDS; loc: LocBaoGia };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_BG_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_BG.map(([m]) => m), "tao"),
+  loc: locBGTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locBGLenUrl(t.loc) });
+
 function labelOf(options: EnumOption[], value: string | null): string {
   if (!value) return "—";
   return options.find((o) => o.value === value)?.label ?? value;
@@ -137,10 +154,19 @@ export function BaoGiaPage({
   const [size, setSize] = useState(PAGE_SIZE);
   // Hộp lọc NV phụ trách — null = tất cả người trong tầm nhìn.
   const [nguoi, setNguoi] = useState<number | null>(null);
-  const [sort, setSort] = useState("-created_at");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [enums, setEnums] = useState<QuotationEnumsOut | null>(null);
+  // Dải kỳ + bộ lọc nâng cao — ghi lên URL, nhớ theo màn khi mở chi tiết rồi quay lại.
+  const [locMan, setLocManGoc] = useLocMan("bao-gia", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const setLocMan = (t: LocMan) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const dkRieng = useDieuKienBaoGia();
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocBG(locMan.loc) });
+  // Mặc định xếp mới nhất theo đúng mốc của cột ngày (mở từ link "theo hạn hiệu lực" thì xếp theo hạn).
+  const [sort, setSort] = useState(() => `-${COT_SAP_THEO_MOC[locMan.ky.moc]}`);
 
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
@@ -170,6 +196,7 @@ export function BaoGiaPage({
         sort,
         page,
         size,
+        loc: JSON.parse(khoaLoc),
       })
       .then((res) => {
         setRows(res.items);
@@ -181,11 +208,14 @@ export function BaoGiaPage({
       })
       .finally(() => setLoading(false));
 
-    // Số đếm cho thanh tab
-    api.quotations.stats(token, nguoi).then(setStats).catch(() => setStats(null));
+    // Số đếm cho thanh tab — theo ĐÚNG ô tìm, kỳ, bộ lọc đang áp: bấm tab nào bảng ra đúng số đó.
+    api.quotations
+      .stats(token, nguoi, { q: q.trim() || undefined, ...JSON.parse(khoaLoc) })
+      .then(setStats)
+      .catch(() => setStats(null));
     // eventTick: SSE báo có trình duyệt / có quyết định → chạy lại cả list lẫn stats.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, q, statusFilter, sort, page, size, eventTick, nguoi, openId]);
+  }, [token, q, statusFilter, sort, page, size, eventTick, nguoi, openId, khoaLoc]);
 
   useEffect(() => {
     load();
@@ -210,6 +240,38 @@ export function BaoGiaPage({
   }
 
   const statuses = enums?.statuses ?? [];
+  // Tab trạng thái đếm số — "Cần xử lý" = nháp + đã gửi chờ khách. Dùng chung cho thanh tab và
+  // điều kiện "Trạng thái" trong nút Lọc (đọc/ghi thẳng tab, không đẻ state lọc thứ hai).
+  const tabTrangThai: { key: string; label: string; count?: number; tone?: "alert" }[] = [
+    { key: "", label: "Tất cả", count: stats?.total },
+    { key: "need_action", label: "Cần xử lý", count: stats?.need_action, tone: "alert" },
+    { key: "draft", label: "Soạn", count: stats?.draft },
+    // "Chờ duyệt" = báo giá đặc thù đã Trình duyệt (list đã lọc theo phạm vi → người duyệt
+    // thấy đúng "chờ TÔI duyệt"). Tone alert để nổi bật việc cần quyết định.
+    { key: "pending_approval", label: "Chờ duyệt", count: stats?.pending_approval, tone: "alert" },
+    // "Đã duyệt" cũng tô đỏ: GĐ duyệt xong thì bóng sang chân sale — còn nằm đây là còn
+    // việc (phải gửi khách), không phải trạng thái nghỉ.
+    { key: "approved", label: "Đã duyệt", count: stats?.approved, tone: "alert" },
+    { key: "sent", label: "Đã gửi khách", count: stats?.sent },
+    { key: "accepted", label: "Khách chốt", count: stats?.accepted },
+    { key: "converted_to_order", label: "Đã lên đơn", count: stats?.converted_to_order },
+    { key: "rejected", label: "Từ chối", count: stats?.rejected },
+    { key: "expired", label: "Hết hiệu lực", count: stats?.expired },
+  ];
+  const datTrangThai = (k: string) => {
+    setStatusFilter(k);
+    setPage(1);
+  };
+  const dieuKien = [
+    dkTheoTab<LocBaoGia>({
+      tabs: tabTrangThai.map((t) => ({ id: t.key, nhan: t.label, so: t.count })),
+      tatCa: "",
+      dang: statusFilter,
+      dat: datTrangThai,
+    }),
+    ...dkRieng,
+  ];
+  const nhanMoc = MOC_BG.find(([m]) => m === locMan.ky.moc)?.[1] ?? "Ngày tạo";
 
   if (forbidden) {
     return (
@@ -238,7 +300,7 @@ export function BaoGiaPage({
     <main className="rdx-quote">
       <div className="q-pagehead">
         <div>
-          <p className="q-eyebrow"><span className="sq" />Kinh doanh · Chứng từ khách hàng</p>
+          <p className="q-eyebrow"><span className="sq" />Kinh doanh</p>
           <h1>Báo giá thương mại</h1>
           <p className="sub">Giá bán gửi khách — dựng từ phiếu tính giá, cộng markup từng dòng.</p>
         </div>
@@ -249,7 +311,7 @@ export function BaoGiaPage({
         </Button>
       </div>
 
-      <form className="q-toolbar" onSubmit={onSearch} role="search">
+      <form className="q-toolbar tl-thanh" onSubmit={onSearch} role="search">
         <div className="q-search">
           <Search size={15} />
           <input
@@ -262,6 +324,20 @@ export function BaoGiaPage({
         <Button type="submit" variant="ghost">
           Tìm
         </Button>
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_BG}
+          onKy={(ky) => {
+            // Đổi mốc thì cột ngày cũng đổi — đang xếp theo cột ngày thì xếp theo mốc mới luôn.
+            if (ky.moc !== locMan.ky.moc && Object.values(COT_SAP_THEO_MOC).includes(sort.replace("-", ""))) {
+              setSort(`${sort.startsWith("-") ? "-" : ""}${COT_SAP_THEO_MOC[ky.moc]}`);
+            }
+            setLocMan({ ...locMan, ky });
+          }}
+          dieuKien={dieuKien}
+          loc={locMan.loc}
+          onLoc={(loc) => setLocMan({ ...locMan, loc })}
+        />
         <LocNguoiPhuTrach
           nap={api.quotations.nguoiPhuTrach}
           value={nguoi}
@@ -273,29 +349,11 @@ export function BaoGiaPage({
         />
       </form>
 
-      {/* Tab trạng thái đếm số — "Cần xử lý" = nháp + đã gửi chờ khách */}
       <div style={{ marginBottom: 14 }}>
         <StatusTabs
-          tabs={[
-            { key: "", label: "Tất cả", count: stats?.total },
-            { key: "need_action", label: "Cần xử lý", count: stats?.need_action, tone: "alert" },
-            { key: "draft", label: "Soạn", count: stats?.draft },
-            // "Chờ duyệt" = báo giá đặc thù đã Trình duyệt (list đã lọc theo phạm vi → người duyệt
-            // thấy đúng "chờ TÔI duyệt"). Tone alert để nổi bật việc cần quyết định.
-            { key: "pending_approval", label: "Chờ duyệt", count: stats?.pending_approval, tone: "alert" },
-            // "Đã duyệt" cũng tô đỏ: GĐ duyệt xong thì bóng sang chân sale — còn nằm đây là còn
-            // việc (phải gửi khách), không phải trạng thái nghỉ.
-            { key: "approved", label: "Đã duyệt", count: stats?.approved, tone: "alert" },
-            { key: "sent", label: "Đã gửi khách", count: stats?.sent },
-            { key: "accepted", label: "Khách chốt", count: stats?.accepted },
-            { key: "converted_to_order", label: "Đã lên đơn", count: stats?.converted_to_order },
-            { key: "rejected", label: "Từ chối", count: stats?.rejected },
-          ]}
+          tabs={tabTrangThai}
           active={statusFilter}
-          onChange={(k) => {
-            setStatusFilter(k);
-            setPage(1);
-          }}
+          onChange={datTrangThai}
         />
       </div>
 
@@ -307,22 +365,25 @@ export function BaoGiaPage({
                 <SortBtn label="Mã báo giá" col="code" sort={sort} onSort={setSort} />
               </th>
               <th>Khách hàng</th>
-              <th>Sản phẩm · nguồn PTG</th>
+              <th>Sản phẩm</th>
               <th className="num">
-                <SortBtn label="Giá bán · VAT" col="total" sort={sort} onSort={setSort} />
+                <SortBtn label="Giá bán gồm VAT" col="total" sort={sort} onSort={setSort} />
               </th>
               <th>
                 <SortBtn label="Trạng thái" col="status" sort={sort} onSort={setSort} />
               </th>
-              <th>Cập nhật</th>
+              <th>Người duyệt</th>
+              <th>
+                <SortBtn label={nhanMoc} col={COT_SAP_THEO_MOC[locMan.ky.moc]} sort={sort} onSort={setSort} />
+              </th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <EmptyRow colSpan={6} trangThai="dang-tai" />
+              <EmptyRow colSpan={7} trangThai="dang-tai" />
             ) : listError ? (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   <div className="banner banner--error" role="alert" style={{ margin: 14 }}>
                     <span>{listError}</span>
                     <button type="button" className="btn btn--ghost" onClick={() => load()}>
@@ -333,13 +394,15 @@ export function BaoGiaPage({
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="tl-empty">
-                  Chưa có báo giá thương mại nào được tạo.
+                <td colSpan={7} className="tl-empty">
+                  {!q.trim() && khoaLoc === "{}" && !statusFilter && nguoi == null
+                    ? "Chưa có báo giá thương mại nào được tạo."
+                    : "Không có báo giá nào khớp điều kiện đang lọc."}
                 </td>
               </tr>
             ) : (
               rows.map((r) => {
-                // Tuổi phiếu: đã gửi N ngày chưa có phản hồi → nhắc follow-up
+                // Tuổi phiếu: đã gửi N ngày chưa có phản hồi → nhắc gọi lại khách
                 const sentDays =
                   r.status === "sent" && r.sent_at
                     ? Math.floor((Date.now() - new Date(r.sent_at).getTime()) / 86_400_000)
@@ -384,14 +447,23 @@ export function BaoGiaPage({
                           className="vc"
                           style={sentDays >= 7 ? { color: "var(--rust-deep)", fontWeight: 600 } : undefined}
                         >
-                          Đã gửi {sentDays} ngày{sentDays >= 7 ? " · cần follow-up" : ""}
+                          Đã gửi {sentDays} ngày{sentDays >= 7 ? " chưa phản hồi" : ""}
                         </span>
                       )}
                     </td>
                     <td>
+                      <ODuyet duyet={r.duyet} />
+                    </td>
+                    <td>
                       <div className="prod">
                         <span className="nm" style={{ fontWeight: 500, whiteSpace: "nowrap" }}>
-                          {fmtDate(r.updated_at ?? null)}
+                          {fmtDate(
+                            locMan.ky.moc === "gui"
+                              ? r.sent_at ?? null
+                              : locMan.ky.moc === "hieu_luc"
+                                ? r.valid_until
+                                : r.created_at ?? null,
+                          )}
                         </span>
                         {r.salesperson_name && <span className="spec">{r.salesperson_name}</span>}
                       </div>
@@ -421,6 +493,36 @@ export function BaoGiaPage({
         />
       )}
     </main>
+  );
+}
+
+// --- Ô "Người duyệt" ------------------------------------------------------------
+// Chỉ báo giá ĐẶC THÙ phải qua duyệt. Chờ duyệt: ai có quyền duyệt (đang chờ từ lúc trình);
+// đã duyệt / từ chối: người quyết + lúc quyết, ý kiến xem ở chú thích khi rê chuột.
+function ODuyet({ duyet }: { duyet: QuotationRow["duyet"] }) {
+  if (!duyet) return <span className="lkd-duyet--trong">—</span>;
+  if (duyet.trang_thai === "khong_can") return <span className="lkd-duyet--trong">Không cần duyệt</span>;
+  const [dau, ...con] = duyet.nguoi;
+  const phu =
+    duyet.trang_thai === "cho"
+      ? `Đang chờ từ ${fmtDate(duyet.luc)}`
+      : duyet.trang_thai === "da_duyet"
+        ? `Đã duyệt ${fmtDate(duyet.luc)}`
+        : `Từ chối ${fmtDate(duyet.luc)}`;
+  const chuThich =
+    duyet.trang_thai === "cho"
+      ? duyet.nguoi.length > 1
+        ? `Ai trong số này duyệt cũng được:\n${duyet.nguoi.join("\n")}`
+        : undefined
+      : duyet.y_kien || undefined;
+  return (
+    <div className="lkd-duyet" title={chuThich}>
+      <div className="lkd-duyet__ten">
+        <span>{dau ?? "Chưa có người duyệt"}</span>
+        {con.length > 0 && <span className="lkd-duyet__them">và {con.length} người</span>}
+      </div>
+      <span className={`lkd-duyet__phu${duyet.trang_thai === "tu_choi" ? " lkd-duyet__phu--do" : ""}`}>{phu}</span>
+    </div>
   );
 }
 

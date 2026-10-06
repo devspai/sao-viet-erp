@@ -297,6 +297,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Cột Ngày tạo của danh bạ (thanh lọc chung 06/10/2026). */
+.kh__table td.kh__ngay-tao {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--ash-2);
+}
+
 .kh__toolbar-controls {
   display: flex;
   align-items: center;
@@ -783,7 +790,7 @@
 }
 .kh__card-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   background: #f8fafc;
   padding: 10px 12px;

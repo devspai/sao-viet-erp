@@ -22,6 +22,7 @@ from ..models.stock_request import (
 )
 from ..models.stock_voucher import VOUCHER_POSTED, StockVoucher, StockVoucherLine
 from ..services.kho_giay import chuan_kho
+from .loc_danh_sach import dk_khoang_ngay
 
 # Mốc gốc so "chưa xem" khi người tạo chưa từng mở yêu cầu (quyet_dinh_xem_luc NULL).
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
@@ -83,6 +84,14 @@ def _dieu_kien_pham_vi(nguoi_tao_id: int | None, bo_phan_ids: list[int] | None):
         ve.append(StockRequest.bo_phan_id.in_(bo_phan_ids))
     return or_(*ve) if ve else false()
 
+
+
+#: Mốc ngày của kỳ trên danh sách yêu cầu kho → (cột, là cột Date).
+_COT_MOC = {
+    "tao": (StockRequest.created_at, False),
+    "can": (StockRequest.ngay_can, True),
+    "duyet": (StockRequest.duyet_luc, False),
+}
 
 class StockRequestRepository:
     def __init__(self, db: Session) -> None:
@@ -275,6 +284,23 @@ class StockRequestRepository:
         )
         self.db.commit()
 
+    def mark_seen_all(self, nguoi_tao_id: int) -> None:
+        """Người tạo MỞ màn "Yêu cầu nhập xuất" → mọi phản hồi kho của họ coi như đã xem (07/10/2026:
+        thấy bản ghi trên danh sách là đủ, khỏi bấm mở từng cái). Giữ `updated_at` như `mark_seen_one`."""
+        self.db.execute(
+            update(StockRequest)
+            .where(
+                StockRequest.nguoi_tao_id == nguoi_tao_id,
+                StockRequest.trang_thai.in_(self._TERM_DONE + self._TERM_FAIL),
+                StockRequest.updated_at > func.coalesce(StockRequest.quyet_dinh_xem_luc, _EPOCH),
+            )
+            .values(
+                quyet_dinh_xem_luc=datetime.now(timezone.utc),
+                updated_at=StockRequest.updated_at,
+            )
+        )
+        self.db.commit()
+
     def by_ids_with_lines(self, ids) -> dict[int, StockRequest]:
         """Nạp NHIỀU yêu cầu kèm dòng trong 1 (+lines) query — tránh N+1 khi serialize danh sách phiếu."""
         ids = [i for i in set(ids) if i is not None]
@@ -289,10 +315,15 @@ class StockRequestRepository:
 
     def _base_conds(self, *, loai=None, trang_thai=None, q=None, nguoi_tao_id=None,
                     bo_phan_id=None, kho_id=None, dieu_chuyen=None,
-                    ngay_can_tu=None, ngay_can_den=None, tao_tu=None, tao_den=None,
+                    tu_ngay=None, den_ngay=None, moc="tao", nguoi_tao_ids=None, kho_loc=None,
                     pham_vi_nguoi_tao_id=None, pham_vi_bo_phan_ids=None):
         """Điều kiện lọc CHUNG cho `list` và `count_by_status` — để badge tab khớp đúng list.
-        `ngay_can_tu/den` lọc theo NGÀY CẦN (cột Date); `tao_tu/den` lọc theo NGÀY TẠO (created_at)."""
+
+        Kỳ (06/10/2026): `tu_ngay/den_ngay` theo mốc `moc` — `tao` Ngày yêu cầu (created_at, ranh
+        ngày giờ VN), `can` Ngày cần (Date), `duyet` Ngày duyệt. `nguoi_tao_ids` = điều kiện
+        "Người yêu cầu"; `kho_loc` = điều kiện "Kho": yêu cầu gắn kho đó (kho đích hoặc kho nguồn
+        điều chuyển) HOẶC đã có phiếu lập ở kho đó — yêu cầu thường không gắn kho, kho quyết ở
+        bước lập phiếu."""
         # ẨN vế XUẤT nguồn của điều chuyển (bút toán nội bộ): nó tự ghi sổ khi kho đích nhập, người
         # dùng không thao tác trực tiếp → không hiện. Yêu cầu NHẬP đích (kho_nguon_id ≠ null) VẪN hiện.
         conds = [or_(StockRequest.dieu_chuyen.is_(False), StockRequest.loai != REQ_XUAT)]
@@ -311,14 +342,17 @@ class StockRequestRepository:
             conds.append(pv)
         if kho_id is not None:
             conds.append(StockRequest.kho_id == kho_id)
-        if ngay_can_tu is not None:
-            conds.append(StockRequest.ngay_can >= ngay_can_tu)
-        if ngay_can_den is not None:
-            conds.append(StockRequest.ngay_can <= ngay_can_den)
-        if tao_tu is not None:
-            conds.append(func.date(StockRequest.created_at) >= tao_tu)
-        if tao_den is not None:
-            conds.append(func.date(StockRequest.created_at) <= tao_den)
+        if nguoi_tao_ids:
+            conds.append(StockRequest.nguoi_tao_id.in_(nguoi_tao_ids))
+        if kho_loc is not None:
+            conds.append(or_(
+                StockRequest.kho_id == kho_loc,
+                StockRequest.kho_nguon_id == kho_loc,
+                StockRequest.id.in_(
+                    select(StockVoucher.request_id).where(StockVoucher.kho_id == kho_loc)),
+            ))
+        cot, la_ngay = _COT_MOC.get(moc, _COT_MOC["tao"])
+        conds += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
         if q:
             like = f"%{q.strip().lower()}%"
             conds.append(or_(
@@ -331,7 +365,7 @@ class StockRequestRepository:
              q: str | None = None, nguoi_tao_id: int | None = None,
              bo_phan_id: int | None = None, kho_id: int | None = None,
              dieu_chuyen: bool | None = None,
-             ngay_can_tu=None, ngay_can_den=None, tao_tu=None, tao_den=None,
+             tu_ngay=None, den_ngay=None, moc: str = "tao", nguoi_tao_ids=None, kho_loc=None,
              pham_vi_nguoi_tao_id: int | None = None, pham_vi_bo_phan_ids: list[int] | None = None,
              order: str = "id", page: int = 1, size: int = 50):
         """Danh sách yêu cầu (BE-paging). `nguoi_tao_id` / `bo_phan_id` áp SCOPE: người yêu cầu
@@ -341,8 +375,8 @@ class StockRequestRepository:
         conds = self._base_conds(
             loai=loai, trang_thai=trang_thai, q=q, nguoi_tao_id=nguoi_tao_id,
             bo_phan_id=bo_phan_id, kho_id=kho_id, dieu_chuyen=dieu_chuyen,
-            ngay_can_tu=ngay_can_tu, ngay_can_den=ngay_can_den, tao_tu=tao_tu, tao_den=tao_den,
-            pham_vi_nguoi_tao_id=pham_vi_nguoi_tao_id, pham_vi_bo_phan_ids=pham_vi_bo_phan_ids,
+            tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, nguoi_tao_ids=nguoi_tao_ids,
+            kho_loc=kho_loc, pham_vi_nguoi_tao_id=pham_vi_nguoi_tao_id, pham_vi_bo_phan_ids=pham_vi_bo_phan_ids,
         )
         base = select(StockRequest).options(selectinload(StockRequest.lines))
         count_stmt = select(func.count()).select_from(StockRequest)
@@ -360,22 +394,36 @@ class StockRequestRepository:
 
     def count_by_status(self, *, loai=None, q=None, nguoi_tao_id=None, bo_phan_id=None,
                         kho_id=None, dieu_chuyen=None, base_trang_thai=None,
-                        ngay_can_tu=None, ngay_can_den=None, tao_tu=None,
-                        tao_den=None, pham_vi_nguoi_tao_id=None,
+                        tu_ngay=None, den_ngay=None, moc="tao", nguoi_tao_ids=None,
+                        kho_loc=None, pham_vi_nguoi_tao_id=None,
                         pham_vi_bo_phan_ids=None) -> dict[str, int]:
         """Đếm yêu cầu theo TỪNG TRẠNG THÁI (cùng bộ lọc như `list`, TRỪ tab) → FE cộng theo tab
         cho badge. `base_trang_thai`: giới hạn tập nền (vd Hộp yêu cầu chỉ tính trạng thái INBOX)."""
         conds = self._base_conds(
             loai=loai, trang_thai=base_trang_thai, q=q, nguoi_tao_id=nguoi_tao_id,
             bo_phan_id=bo_phan_id, kho_id=kho_id, dieu_chuyen=dieu_chuyen,
-            ngay_can_tu=ngay_can_tu, ngay_can_den=ngay_can_den, tao_tu=tao_tu, tao_den=tao_den,
-            pham_vi_nguoi_tao_id=pham_vi_nguoi_tao_id, pham_vi_bo_phan_ids=pham_vi_bo_phan_ids,
+            tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, nguoi_tao_ids=nguoi_tao_ids,
+            kho_loc=kho_loc, pham_vi_nguoi_tao_id=pham_vi_nguoi_tao_id, pham_vi_bo_phan_ids=pham_vi_bo_phan_ids,
         )
         rows = self.db.execute(
             select(StockRequest.trang_thai, func.count()).where(*conds)
             .group_by(StockRequest.trang_thai)
         ).all()
         return {str(s): int(n) for s, n in rows}
+
+    def dem_theo_cot(self, truong: str, **loc) -> list[tuple[int, int]]:
+        """[(giá trị, số yêu cầu)] của cột `truong` (`bo_phan_id` / `nguoi_tao_id`) trong tầm
+        nhìn `loc` — giá trị cho điều kiện lọc "Phòng ban yêu cầu" / "Người yêu cầu"."""
+        cot = {"bo_phan_id": StockRequest.bo_phan_id, "nguoi_tao_id": StockRequest.nguoi_tao_id}[truong]
+        return [(int(v), int(n)) for v, n in self.db.execute(
+            select(cot, func.count()).where(*self._base_conds(**loc), cot.is_not(None)).group_by(cot)
+        ).all()]
+
+    def dem(self, **loc) -> int:
+        """Số yêu cầu khớp `loc` (cùng điều kiện với `list`)."""
+        return int(self.db.execute(
+            select(func.count()).select_from(StockRequest).where(*self._base_conds(**loc))
+        ).scalar_one())
 
     def dong_xuat_theo_lenh(self) -> list[tuple[StockRequestLine, str]]:
         """Dòng đề nghị XUẤT đã gắn lệnh/bài — nguồn "đã cấp" + "đang lĩnh" của bảng cân đối vật tư.

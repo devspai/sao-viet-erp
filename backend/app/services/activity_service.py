@@ -12,9 +12,10 @@ frontend đang tự làm trên 100 dòng đã tải về (nên làm sai):
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from .. import audit_registry as reg
+from ..repositories.loc_danh_sach import VN_TZ
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository, BoLoc
 from ..repositories.user_repo import UserRepository
@@ -71,8 +72,9 @@ class ActivityService:
         limit: int = 50,
         trang: int = 1,
         neo: str | None = None,
+        tat_ca: bool = False,
     ) -> dict:
-        loc = _bo_loc(q, tu, den, actions, actor_ids, loais)
+        loc = _bo_loc(q, tu, den, actions, actor_ids, loais, tat_ca=tat_ca)
         chan_action, chan_dm = self._chan(user)
         limit = max(1, min(int(limit or 50), TRAN_LIMIT))
         trang = max(1, int(trang or 1))
@@ -129,12 +131,12 @@ class ActivityService:
 
     def danh_muc_hanh_dong(self, *, user: User | None = None,
                            q: str | None = None, tu: datetime | None = None,
-                           den: datetime | None = None) -> dict:
+                           den: datetime | None = None, tat_ca: bool = False) -> dict:
         """Danh mục cho hai dropdown + chip nhóm, ĐẾM theo khoảng ngày đang xem.
 
         Trước đây frontend sinh danh sách này từ 100 dòng đã tải ⇒ người/hành động không có mặt
         trong 100 dòng cuối thì không tồn tại để chọn."""
-        loc = _bo_loc(q, tu, den, None, None, None)
+        loc = _bo_loc(q, tu, den, None, None, None, tat_ca=tat_ca)
         chan_action, chan_dm = self._chan(user)
         theo_action = self.audit.facet_action(loc, chan_action=chan_action, chan_dm=chan_dm)
         theo_actor = self.audit.facet_actor(loc, chan_action=chan_action, chan_dm=chan_dm)
@@ -191,9 +193,30 @@ class ActivityService:
         return self._dong(self.audit.list_recent(limit))
 
 
-def _bo_loc(q, tu, den, actions, actor_ids, loais) -> BoLoc:
+def doc_moc_ky(s: str | None, *, cuoi: bool) -> datetime | None:
+    """Một đầu của kỳ trên thanh lọc (06/10/2026: `tu_ngay` / `den_ngay` như mọi danh sách khác).
+
+    Chuỗi NGÀY `YYYY-MM-DD` là một ngày theo giờ Việt Nam: đầu kỳ = 00:00 VN, cuối kỳ = hết
+    23:59:59.999999 VN — cùng ranh với `dk_khoang_ngay`. Chuỗi có giờ (đường cũ, link cũ) vẫn
+    nhận nguyên như trước. Sai định dạng ⇒ `ValueError` (router đổi thành 422)."""
+    if s is None or not s.strip():
+        return None
+    s = s.strip()
+    if len(s) == 10:
+        d = date.fromisoformat(s)
+        if cuoi:
+            d += timedelta(days=1)
+        dau = datetime(d.year, d.month, d.day, tzinfo=VN_TZ).astimezone(timezone.utc)
+        return dau - timedelta(microseconds=1) if cuoi else dau
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def _bo_loc(q, tu, den, actions, actor_ids, loais, *, tat_ca: bool = False) -> BoLoc:
+    """`tat_ca` = người dùng chọn kỳ "Tất cả" trên thanh lọc ⇒ bỏ cửa sổ 30 ngày mặc định (chỉ
+    áp khi không ai nói gì về đầu kỳ)."""
     den = den or datetime.now(timezone.utc)
-    tu = tu if tu is not None else den - timedelta(days=CUA_SO_MAC_DINH_NGAY)
+    if tu is None and not tat_ca:
+        tu = den - timedelta(days=CUA_SO_MAC_DINH_NGAY)
     return BoLoc(
         q=(q or "").strip() or None,
         tu=tu,

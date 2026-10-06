@@ -1,7 +1,9 @@
 // XẾP LỊCH 3 — CỘT HÀNG CHỜ (REDESIGN STUDIO DOCK)
 import { CheckCircle2, ChevronLeft, Clock, Layers, Search, X } from "lucide-react";
+import type { ReactNode } from "react";
 import type { XlThe } from "../api/client";
 import { EmptyState } from "../components/EmptyState";
+import { ngayDayDu, ngayGioDayDu } from "./loc-san-xuat/ngay";
 import { gioChu, ngayNgan } from "./xlShared";
 
 export interface XlHangChoProps {
@@ -19,11 +21,15 @@ export interface XlHangChoProps {
   onTrang(v: number): void;
   onChon(lsxId: number): void;
   onKeo(lsxId: number | null): void;
+  /** Thanh lọc chung (kỳ + điều kiện) — trang dựng, cột chỉ đặt chỗ. */
+  thanhLoc?: ReactNode;
+  /** Đang áp kỳ/điều kiện — để câu báo rỗng nói đúng lý do. */
+  dangLoc?: boolean;
 }
 
 export function XlHangCho({
   the, tong, tim, trang, moiTrang, dangTai, chonId, keoDuoc,
-  isCollapsed, onToggleCollapse, onTim, onTrang, onChon, onKeo,
+  isCollapsed, onToggleCollapse, onTim, onTrang, onChon, onKeo, thanhLoc, dangLoc,
 }: XlHangChoProps) {
   const soTrang = Math.max(1, Math.ceil(tong / moiTrang));
 
@@ -80,6 +86,7 @@ export function XlHangCho({
             </button>
           )}
         </div>
+        {thanhLoc && <div className="xl-cho__loc tl-thanh">{thanhLoc}</div>}
       </header>
 
       <div className="xl-cho__list">
@@ -90,7 +97,9 @@ export function XlHangCho({
           <div className="xl-cho__trong-box">
             <CheckCircle2 size={24} className="xl-cho__trong-icon" />
             <p>
-              {tim ? "Không có lệnh nào khớp từ khóa." : "Tuyệt vời! Tất cả lệnh sẵn sàng đều đã được xếp lịch."}
+              {tim || dangLoc
+                ? "Không có lệnh nào khớp bộ lọc."
+                : "Tuyệt vời! Tất cả lệnh sẵn sàng đều đã được xếp lịch."}
             </p>
           </div>
         )}
@@ -119,6 +128,9 @@ export function XlHangCho({
               </span>
               <span className="xl-the__chip">{t.chay_phut > 0 ? gioChu(t.chay_phut) : "—"}</span>
               <span className="xl-the__chip">{t.so_buoc} bước</span>
+              <span className="xl-the__chip" title={`Ngày tạo ${ngayGioDayDu(t.created_at) ?? ""}`}>
+                Tạo {ngayDayDu(t.created_at)}
+              </span>
             </div>
           </article>
         ))}

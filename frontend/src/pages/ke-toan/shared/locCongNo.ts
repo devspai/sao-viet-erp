@@ -1,11 +1,13 @@
 /** Bộ lọc màn CÔNG NỢ (phải trả, phải thu — đặc tả NPT-1, NPTh-1, A.17, A.18): nhóm nút, mốc tuổi
- *  nợ, ô tìm và bộ lọc nâng cao → tham số máy chủ và khoá URL.
+ *  nợ, ô tìm và các điều kiện trên thanh lọc chung `ThanhLoc` → tham số máy chủ và khoá URL.
  *
  *  Hàm thuần, không React. Mọi lọc chạy ở MÁY CHỦ (`LocCongNo` của `api.accounting.payables` /
  *  `receivables`); số tổng đầu màn không đổi theo lọc — máy chủ tính trên toàn bộ.
  */
-import type { KyXem, LocCongNo } from "../../../api/client";
-import { chuKhoang, type ChipLoc } from "./BoLocNangCao";
+import { Banknote, CalendarClock, CheckCheck, FileExclamationPoint, Gauge, Hourglass, Tag, UserRound } from "lucide-react";
+
+import type { AgingBucket, CotSapXepCongNo, KyXem, LocCongNo, SaleOption } from "../../../api/client";
+import type { DieuKien, GiaTriDK } from "../../thanh-loc/thanh-loc";
 import { soDuong } from "./locPhieu";
 import type { GiaTriUrl } from "./urlMan";
 
@@ -38,25 +40,16 @@ export const THE_CONG_NO: [TheCongNo, string][] = [
   ["vuot_han_muc", "Vượt hạn mức"],
 ];
 
-export const HAN_TRA_LUA_CHON: [HanTra | "", string][] = [
-  ["", "Tất cả"],
-  ["qua_han", "Đã quá hạn"],
-  ["7_ngay", "Tới hạn trong 7 ngày"],
-  ["30_ngay", "Trong 30 ngày"],
+const HAN_TRA: GiaTriDK[] = [
+  { value: "qua_han", nhan: "Đã quá hạn" },
+  { value: "7_ngay", nhan: "Tới hạn trong 7 ngày" },
+  { value: "30_ngay", nhan: "Tới hạn trong 30 ngày" },
 ];
-const CHU_HAN_TRA: Record<HanTra, string> = {
-  qua_han: "đã quá hạn",
-  "7_ngay": "tới hạn trong 7 ngày",
-  "30_ngay": "tới hạn trong 30 ngày",
-};
-
-export const HAN_MUC_LUA_CHON: [HanMuc | "", string][] = [
-  ["", "Tất cả"],
-  ["tren_80", "Dùng trên 80%"],
-  ["vuot", "Đã vượt"],
-  ["chua_dat", "Chưa đặt"],
+const HAN_MUC: GiaTriDK[] = [
+  { value: "tren_80", nhan: "Dùng trên 80%" },
+  { value: "vuot", nhan: "Đã vượt" },
+  { value: "chua_dat", nhan: "Chưa đặt" },
 ];
-const CHU_HAN_MUC: Record<HanMuc, string> = { tren_80: "dùng trên 80%", vuot: "đã vượt", chua_dat: "chưa đặt" };
 
 /** Nhãn mốc tuổi nợ của máy chủ ("Trễ > 60 ngày") viết thành chữ ("Trễ trên 60 ngày"). Số ngày vẫn
  *  lấy từ máy chủ — giao diện không gõ lại mốc. */
@@ -76,47 +69,91 @@ export function soDieuKienCongNo(loc: LocNangCaoCongNo): number {
   return n;
 }
 
-/** Bỏ MỘT điều kiện theo khoá chip ("no", "han_tra", "han_muc", "het", "thieu_hd", "phu_trach", "nhan"). */
-export function boDieuKienCongNo(loc: LocNangCaoCongNo, khoa: string): LocNangCaoCongNo {
-  switch (khoa) {
-    case "no":
-      return { ...loc, no_tu: undefined, no_den: undefined };
-    case "het":
-      return { ...loc, ca_da_tra_het: undefined };
-    case "thieu_hd":
-      return { ...loc, thieu_hoa_don: undefined };
-    case "phu_trach":
-      return { ...loc, phu_trach_id: undefined };
-    case "nhan":
-      return { ...loc, nhan: undefined };
-    default:
-      return { ...loc, [khoa]: undefined };
-  }
-}
+/* ---------- Điều kiện trên thanh lọc chung ---------- */
 
-/** Chip của từng điều kiện đã áp — thứ tự theo bảng lọc. `nhanHan` = "Hạn trả" / "Hạn thu";
- *  `nhanHet` = "nhà cung cấp đã trả hết" / "khách đã thu hết"; `tenPhuTrach` dịch mã người phụ
- *  trách ra tên (thiếu thì chip ghi "đã chọn"). */
-export function chipsLocCongNo(
-  loc: LocNangCaoCongNo,
-  ch: { nhanHan: string; nhanHet: string; tenPhuTrach?: (id: number) => string | undefined },
-): ChipLoc[] {
-  const chips: ChipLoc[] = [];
-  const khoang = chuKhoang(loc.no_tu, loc.no_den);
-  if (khoang) chips.push({ khoa: "no", nhan: "Còn nợ", giaTri: khoang });
-  if (loc.han_tra) chips.push({ khoa: "han_tra", nhan: ch.nhanHan, giaTri: CHU_HAN_TRA[loc.han_tra] });
-  if (loc.han_muc) chips.push({ khoa: "han_muc", nhan: "Hạn mức", giaTri: CHU_HAN_MUC[loc.han_muc] });
-  if (loc.ca_da_tra_het) chips.push({ khoa: "het", nhan: "Hiện cả", giaTri: ch.nhanHet });
-  if (loc.thieu_hoa_don) chips.push({ khoa: "thieu_hd", nhan: "Hoá đơn", giaTri: "có đợt giao chưa ghi" });
-  if (loc.phu_trach_id != null)
-    chips.push({ khoa: "phu_trach", nhan: "Phụ trách", giaTri: ch.tenPhuTrach?.(loc.phu_trach_id) ?? "đã chọn" });
-  if (loc.nhan?.trim()) chips.push({ khoa: "nhan", nhan: "Nhãn", giaTri: loc.nhan.trim() });
-  return chips;
+/** Thứ thanh lọc đọc / ghi: mốc tuổi nợ (bấm được cả trên thanh tuổi nợ của khối tổng quan) và các
+ *  điều kiện còn lại. */
+export type LocThanhCongNo = { tuoi: string | null; loc: LocNangCaoCongNo };
+
+export type CauHinhDieuKienCongNo = {
+  /** "Hạn trả" / "Hạn thu". */
+  nhanHan: string;
+  /** Nhãn điều kiện "đã về 0": "Nhà cung cấp đã trả hết" / "Khách đã thu hết". */
+  nhanHet: string;
+  /** Có thì thêm điều kiện "Hoá đơn" (chỉ màn phải trả). */
+  coThieuHd?: boolean;
+};
+
+/** Điều kiện lọc của màn công nợ. `aging` = các mốc tuổi nợ máy chủ trả (kèm số khoản); `nguoi` /
+ *  `nhanKhach` chỉ màn phải thu (null = chưa tải / không có quyền ⇒ không có điều kiện đó). */
+export function dieuKienCongNo(
+  ch: CauHinhDieuKienCongNo,
+  aging: AgingBucket[],
+  nguoi: SaleOption[] | null = null,
+  nhanKhach: string[] | null = null,
+): DieuKien<LocThanhCongNo>[] {
+  const doi = (l: LocThanhCongNo, moi: Partial<LocNangCaoCongNo>): LocThanhCongNo => ({ ...l, loc: { ...l.loc, ...moi } });
+  const ds: DieuKien<LocThanhCongNo>[] = [
+    {
+      khoa: "tuoi", nhan: "Tuổi nợ", icon: Hourglass, kieu: "mot",
+      giaTri: aging.map((b) => ({ value: b.key, nhan: nhanMoc(b.label), so: b.count })),
+      doc: (l) => l.tuoi ?? undefined,
+      ghi: (l, v) => ({ ...l, tuoi: v ?? null }),
+    },
+    {
+      khoa: "no", nhan: "Còn nợ", icon: Banknote, kieu: "khoang", donVi: "đ",
+      doc: (l) => [l.loc.no_tu, l.loc.no_den],
+      ghi: (l, tu, den) => doi(l, { no_tu: tu, no_den: den }),
+    },
+  ];
+  if (nguoi) {
+    ds.push({
+      khoa: "phu_trach", nhan: "Người phụ trách", icon: UserRound, kieu: "mot",
+      tim: true, giaTri: nguoi.map((n) => ({ value: String(n.id), nhan: n.name })),
+      doc: (l) => (l.loc.phu_trach_id == null ? undefined : String(l.loc.phu_trach_id)),
+      ghi: (l, v) => doi(l, { phu_trach_id: v == null ? undefined : Number(v) }),
+    });
+  }
+  ds.push(
+    {
+      khoa: "han_tra", nhan: ch.nhanHan, icon: CalendarClock, kieu: "mot", giaTri: HAN_TRA,
+      doc: (l) => l.loc.han_tra,
+      ghi: (l, v) => doi(l, { han_tra: v as HanTra | undefined }),
+    },
+    {
+      khoa: "han_muc", nhan: "Hạn mức", icon: Gauge, kieu: "mot", giaTri: HAN_MUC,
+      doc: (l) => l.loc.han_muc,
+      ghi: (l, v) => doi(l, { han_muc: v as HanMuc | undefined }),
+    },
+  );
+  if (nhanKhach) {
+    ds.push({
+      khoa: "nhan", nhan: "Nhãn khách hàng", icon: Tag, kieu: "mot",
+      tim: true, giaTri: nhanKhach.map((n) => ({ value: n, nhan: n })),
+      doc: (l) => l.loc.nhan?.trim() || undefined,
+      ghi: (l, v) => doi(l, { nhan: v }),
+    });
+  }
+  ds.push({
+    khoa: "het", nhan: ch.nhanHet, icon: CheckCheck, kieu: "mot",
+    giaTri: [{ value: "hien", nhan: "Hiện cả" }],
+    doc: (l) => (l.loc.ca_da_tra_het ? "hien" : undefined),
+    ghi: (l, v) => doi(l, { ca_da_tra_het: v ? true : undefined }),
+  });
+  if (ch.coThieuHd) {
+    ds.push({
+      khoa: "thieu_hd", nhan: "Hoá đơn", icon: FileExclamationPoint, kieu: "mot",
+      giaTri: [{ value: "thieu", nhan: "Có đợt giao chưa ghi" }],
+      doc: (l) => (l.loc.thieu_hoa_don ? "thieu" : undefined),
+      ghi: (l, v) => doi(l, { thieu_hoa_don: v ? true : undefined }),
+    });
+  }
+  return ds;
 }
 
 /* ---------- Trạng thái lọc của cả màn ---------- */
 
-/** Thứ ghi lên URL cùng với kỳ (kỳ do `useKyMan` tự ghi). `tuoi` = khoá mốc tuổi nợ đang lọc. */
+/** Thứ ghi lên URL cùng với kỳ (kỳ do `useKyKeToan` tự ghi). `tuoi` = khoá mốc tuổi nợ đang lọc. */
 export type TrangThaiCongNo = { the: TheCongNo; tuoi: string | null; tim: string; loc: LocNangCaoCongNo };
 
 /** Tham số máy chủ của bảng, số cùng kỳ và các lời đếm — một nguồn, không ba chỗ. */
@@ -164,6 +201,36 @@ export function congNoLenUrl({ the, tuoi, tim, loc }: TrangThaiCongNo): GiaTriUr
   };
 }
 
+/* ---------- Sắp xếp (bảng đủ cột, 06/10/2026) ---------- */
+
+/** Cột + chiều đang sắp. `null` = thứ tự mặc định của máy chủ (còn nợ giảm dần). */
+export type SapXepCongNo = { cot: CotSapXepCongNo; chieu: "asc" | "desc" };
+
+/** Chiều khi bấm một cột LẦN ĐẦU: còn nợ lớn trước, hạn sớm trước, thu / trả gần nhất cũ trước
+ *  (khách im lâu nhất lên đầu) — cùng bảng `SAP_XEP_CONG_NO` của máy chủ. */
+export const CHIEU_DAU: Record<CotSapXepCongNo, "asc" | "desc"> = { con_no: "desc", han: "asc", gan_nhat: "asc" };
+
+/** Đang sắp theo gì — `null` đọc thành "còn nợ giảm dần". */
+export const sapXepHienTai = (sx: SapXepCongNo | null): SapXepCongNo => sx ?? { cot: "con_no", chieu: "desc" };
+
+/** Bấm tiêu đề cột: cùng cột thì đảo chiều, cột khác thì về chiều đầu của cột đó. */
+export function doiSapXep(cu: SapXepCongNo | null, cot: CotSapXepCongNo): SapXepCongNo {
+  const hien = sapXepHienTai(cu);
+  return hien.cot === cot ? { cot, chieu: hien.chieu === "asc" ? "desc" : "asc" } : { cot, chieu: CHIEU_DAU[cot] };
+}
+
+/** Khoá URL `sx` ("han.asc"). Mặc định ⇒ undefined (khoá bị bỏ khỏi URL). */
+export function sapXepLenUrl(sx: SapXepCongNo | null): string | undefined {
+  if (!sx || (sx.cot === "con_no" && sx.chieu === "desc")) return undefined;
+  return `${sx.cot}.${sx.chieu}`;
+}
+
+export function sapXepTuUrl(p: URLSearchParams | null): SapXepCongNo | null {
+  const [cot, chieu] = (p?.get("sx") ?? "").split(".");
+  if (!(cot in CHIEU_DAU) || (chieu !== "asc" && chieu !== "desc")) return null;
+  return { cot: cot as CotSapXepCongNo, chieu };
+}
+
 /** Khoá URL → trạng thái lọc. Giá trị rác thì bỏ qua từng khoá (không làm hỏng cả bộ lọc). */
 export function congNoTuUrl(p: URLSearchParams | null): TrangThaiCongNo {
   if (!p) return { the: "all", tuoi: null, tim: "", loc: LOC_CONG_NO_TRONG };
@@ -174,10 +241,10 @@ export function congNoTuUrl(p: URLSearchParams | null): TrangThaiCongNo {
   const noDen = soDuong(p.get("no_den"));
   if (noTu != null) loc.no_tu = noTu;
   if (noDen != null) loc.no_den = noDen;
-  const han = HAN_TRA_LUA_CHON.find(([v]) => v && v === p.get("han_tra"))?.[0];
-  if (han) loc.han_tra = han;
-  const muc = HAN_MUC_LUA_CHON.find(([v]) => v && v === p.get("han_muc"))?.[0];
-  if (muc) loc.han_muc = muc;
+  const han = HAN_TRA.find((g) => g.value === p.get("han_tra"))?.value;
+  if (han) loc.han_tra = han as HanTra;
+  const muc = HAN_MUC.find((g) => g.value === p.get("han_muc"))?.value;
+  if (muc) loc.han_muc = muc as HanMuc;
   if (p.get("het") === "1") loc.ca_da_tra_het = true;
   if (p.get("thd") === "1") loc.thieu_hoa_don = true;
   const pt = soDuong(p.get("pt"));

@@ -25,6 +25,7 @@ from ..models.employee import (
 from ..models.attendance import WorkShift
 from ..models.profile_request import ProfileUpdateRequest
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
+from .loc_danh_sach import dk_khoang_ngay
 from .org_scope import dept_subtree_ids
 
 # Columns a caller may sort by (whitelist — never interpolate a raw sort key).
@@ -34,6 +35,12 @@ _SORTABLE = {
     "status": Employee.status,
     "hire_date": Employee.hire_date,
     "created_at": Employee.created_at,
+}
+
+# Mốc kỳ của danh sách hồ sơ (06/10/2026): (cột, là cột Date).
+_COT_MOC = {
+    "tao": (Employee.created_at, False),
+    "vao_lam": (Employee.hire_date, True),
 }
 
 
@@ -150,6 +157,9 @@ class EmployeeRepository:
         status: str | None = None,
         has_account: bool | None = None,
         probation_end_range: tuple[date, date] | None = None,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        moc: str = "tao",
         sort: str = "code",
         page: int = 1,
         size: int = 20,
@@ -186,6 +196,8 @@ class EmployeeRepository:
             )
         if probation_end_range is not None:
             conditions.append(self._probation_end_between(*probation_end_range))
+        cot, la_ngay = _COT_MOC.get(moc, _COT_MOC["tao"])
+        conditions += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
 
         base = select(Employee)
         count_stmt = select(func.count()).select_from(Employee)
@@ -805,15 +817,17 @@ class EmployeeRepository:
         return req
 
     def list_update_requests_by_employee(
-        self, employee_id: int, *, status: str | None = None, page: int = 1, size: int = 10,
+        self, employee_id: int, *, statuses: list[str] | None = None,
+        tu_ngay: date | None = None, den_ngay: date | None = None, page: int = 1, size: int = 10,
     ) -> tuple[list[ProfileUpdateRequest], int]:
-        """MỘT TRANG đề nghị của chính NV + tổng số dòng khớp bộ lọc.
+        """MỘT TRANG đề nghị của chính NV + tổng số dòng khớp bộ lọc (trạng thái + kỳ ngày tạo).
 
         Cắt trang ở DB chứ không ở FE: đề nghị KHÔNG bị xoá khi rút/từ chối nên danh sách chỉ dài
         thêm theo thời gian — kéo cả bảng về rồi `slice` trong JS là kiểu cũ đã bỏ."""
         dieu_kien = [ProfileUpdateRequest.employee_id == employee_id]
-        if status is not None:
-            dieu_kien.append(ProfileUpdateRequest.status == status)
+        if statuses:
+            dieu_kien.append(ProfileUpdateRequest.status.in_(statuses))
+        dieu_kien += dk_khoang_ngay(ProfileUpdateRequest.created_at, tu_ngay, den_ngay)
         total = int(self.db.execute(
             select(func.count()).select_from(ProfileUpdateRequest).where(*dieu_kien)
         ).scalar_one())
@@ -824,14 +838,17 @@ class EmployeeRepository:
         ).scalars())
         return rows, total
 
-    def dem_update_requests_by_employee(self, employee_id: int) -> dict[str, int]:
-        """Số đề nghị theo TỪNG trạng thái, tính trên TOÀN BỘ hồ sơ của NV — không theo trang.
+    def dem_update_requests_by_employee(
+        self, employee_id: int, *, tu_ngay: date | None = None, den_ngay: date | None = None,
+    ) -> dict[str, int]:
+        """Số đề nghị theo TỪNG trạng thái — không theo trang. Không truyền kỳ = TOÀN BỘ hồ sơ.
 
-        Badge "N chờ duyệt" và số trên các pill lọc phải đọc ở đây: đếm trên mảng của trang đang
+        Badge "N chờ duyệt" và số trên thẻ lọc phải đọc ở đây: đếm trên mảng của trang đang
         xem sẽ sai ngay khi NV có nhiều đề nghị hơn một trang."""
         rows = self.db.execute(
             select(ProfileUpdateRequest.status, func.count())
-            .where(ProfileUpdateRequest.employee_id == employee_id)
+            .where(ProfileUpdateRequest.employee_id == employee_id,
+                   *dk_khoang_ngay(ProfileUpdateRequest.created_at, tu_ngay, den_ngay))
             .group_by(ProfileUpdateRequest.status)
         ).all()
         return {str(trang_thai): int(so) for trang_thai, so in rows}

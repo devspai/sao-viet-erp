@@ -16,6 +16,12 @@ class XeRepository(CatalogRepo):
     model = Xe
     fields = ("ten", "tai_trong", "muc_khoan_km_id", "ghi_chu", "active")
     commit_on_write = False   # `XeService` chốt sau khi đã ghi nhật ký — xem `catalog_base`
+    bang_nhan_cot = {"muc_khoan_km_id": (MucKhoanKm.id, MucKhoanKm.ten)}
+
+    def extra_conds(self, *, muc_khoan_km_id: int | None = None, **_) -> list:
+        """Lọc theo MỨC khoán km xe đang ăn (thanh lọc của màn Xe)."""
+        return [Xe.muc_khoan_km_id == muc_khoan_km_id] if muc_khoan_km_id else []
+
     # Không có `ma_prefix`: mã xe LÀ BIỂN SỐ, người khai gõ tay. Mã tự sinh ở đây là vô nghĩa.
 
     def co_xe_dang_dung(self) -> bool:

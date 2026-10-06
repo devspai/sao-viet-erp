@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { homNayVN, tinhKy } from "../../../utils/ky";
+import { khoangSo } from "../shared/kyKeToan";
 import { phieuThu } from "./components/phieuMau";
 
 const goi = vi.hoisted(() => ({
@@ -46,26 +46,26 @@ beforeEach(() => {
 afterEach(() => window.history.replaceState(null, "", "/"));
 
 describe("PaymentReceiptsPage — nối dây", () => {
-  it("mở từ link có lọc + kỳ: lời gọi đầu mang đúng tham số, sắp theo ngày thu; so=0 thì không gọi cùng kỳ", async () => {
+  it("mở từ link có lọc + kỳ: lời gọi chính mang đúng tham số, sắp theo ngày thu; mốc Ngày thu đọc từ URL", async () => {
     window.history.replaceState(
       null, "",
-      "/?man=ke-toan-phieu-thu&ky=nam&so=0&the=thieu&q=PT-26&nhan=An%20Ph%C3%A1t&nguon=hd,coc&hinh_thuc=bank_transfer",
+      "/?man=ke-toan-phieu-thu&ky=nam&moc=thu&the=thieu&q=PT-26&nguon=hd,coc&hinh_thuc=bank_transfer",
     );
     render(<PaymentReceiptsPage navigate={() => {}} />);
     await waitFor(() => expect(goi.receipts).toHaveBeenCalled());
-    expect(goi.receipts).toHaveBeenCalledTimes(1);
-    const nam = tinhKy("nam", homNayVN());
-    expect(goi.receipts.mock.calls[0][1]).toMatchObject({
-      status: "received", chung_tu: "thieu", q: "PT-26", nhan: "An Phát", nguon: ["sales_invoice", "order_deposit"],
-      hinh_thuc: "bank_transfer", tu_ngay: nam.tu, den_ngay: nam.den, page: 1, sort: "-receipt_date",
+    const nam = khoangSo({ loai: "nam", moc: "thu" });
+    const p = goi.receipts.mock.calls.find((c) => c[1].size !== 1)![1];
+    expect(p).toMatchObject({
+      status: "received", chung_tu: "thieu", q: "PT-26", nguon: ["sales_invoice", "order_deposit"],
+      hinh_thuc: "bank_transfer", tu_ngay: nam.tu, den_ngay: nam.den, moc: "thu", page: 1, sort: "-receipt_date",
     });
+    expect(p.nhan).toBeUndefined();
     expect(screen.getByRole("textbox", { name: "Tìm phiếu thu" })).toHaveValue("PT-26");
-    expect(screen.getByRole("button", { name: /^Người nộp:/ })).toBeInTheDocument();
     expect(screen.getByText("Sổ tiền vào. Thu cọc lập ở Đơn hàng bán, thu hoá đơn lập ở Công nợ phải thu.")).toBeInTheDocument();
   });
 
-  it("so=1: thêm lời gọi cùng kỳ size 1; thẻ Đã thu lấy tiền + số phiếu + dòng cùng kỳ; không có thẻ Chờ thu khi cho = 0", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang&so=1");
+  it("kỳ có khoảng: thêm lời gọi cùng kỳ size 1; thẻ Đã thu lấy tiền + số phiếu + dòng cùng kỳ; không có thẻ Chờ thu khi cho = 0", async () => {
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang");
     render(<PaymentReceiptsPage navigate={() => {}} />);
     await waitFor(() => expect(goi.receipts).toHaveBeenCalledTimes(2));
     expect(goi.receipts.mock.calls.map((c) => c[1].size)).toContain(1);
@@ -81,7 +81,7 @@ describe("PaymentReceiptsPage — nối dây", () => {
   });
 
   it("còn phiếu cũ chờ thu (cho > 0) thì hiện thẻ Chờ thu; bấm thẻ gửi status waiting_receipt", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang&so=0");
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang");
     goi.receipts.mockImplementation(async () => traVe({ ...THE, cho: 2 }));
     render(<PaymentReceiptsPage navigate={() => {}} />);
     const cho = await screen.findByRole("button", { name: /Chờ thu/ });
@@ -93,7 +93,7 @@ describe("PaymentReceiptsPage — nối dây", () => {
   });
 
   it("URL the=cho mà không còn phiếu chờ thu (cho = 0) thì về Tất cả", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang&so=0&the=cho");
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang&the=cho");
     render(<PaymentReceiptsPage navigate={() => {}} />);
     await waitFor(() =>
       expect(goi.receipts.mock.calls.some((c) => c[1].status == null && !c[1].dem_only)).toBe(true),
@@ -103,7 +103,7 @@ describe("PaymentReceiptsPage — nối dây", () => {
   });
 
   it("link Thu hoá đơn mở Công nợ phải thu, ngăn của đúng khách — không mở đơn bán (lỗi 11)", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang&so=0");
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang");
     const navigate = vi.fn();
     render(<PaymentReceiptsPage navigate={navigate} />);
     const dong = (await screen.findAllByRole("row"))[1];

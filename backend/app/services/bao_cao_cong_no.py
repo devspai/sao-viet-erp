@@ -307,7 +307,7 @@ def _chung_tu_phai_tra(don, chi, hoan, ma_ncc, *, den_ngay: date) -> list[dict]:
                 "loai": "dot_giao",
                 # Số ĐỢT TRONG ĐƠN, không phải id bản ghi — cùng bài học đã vá ở
                 # `cong_no_chi_tiet_phai_tra` (đợt đầu tiên hiện thành "Đợt #20" vì id là 20).
-                "so_ct": f"{pr.code} · Đợt {d.seq_no}",
+                "so_ct": f"{pr.code} đợt {d.seq_no}",
                 "dien_giai": "Hàng đã nhận",
                 "luc": getattr(d, "created_at", None),
                 "net": -tien,

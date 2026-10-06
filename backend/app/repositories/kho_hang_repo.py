@@ -16,6 +16,11 @@ class KhoHangRepository(CatalogRepo):
     ma_prefix = "KHO-"
     commit_on_write = False   # `KhoHangService` chốt sau khi đã ghi nhật ký — xem `catalog_base`
 
+    def dang_dung(self) -> list[tuple[int, str]]:
+        """[(id, tên)] các kho đang dùng, theo tên — giá trị của điều kiện lọc "Kho"."""
+        return [(int(i), t) for i, t in self.db.execute(
+            select(KhoHang.id, KhoHang.ten).where(KhoHang.active.is_(True)).order_by(KhoHang.ten)).all()]
+
     def ten_theo_ids(self, kho_ids) -> dict[int, str]:
         """`{kho_id: tên kho}` cho MỘT lượt đọc, một câu cho cả danh sách. Kho đã xoá mềm vẫn trả tên
         (lô cũ vẫn phải đọc được)."""

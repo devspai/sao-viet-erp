@@ -418,3 +418,26 @@ def test_api_tao_ncc_moi_tra_ve_chua_danh_gia(client):
     assert r.status_code == 201, r.text
     assert r.json()["rating"] is None
     assert r.json()["rating_count"] == 0
+
+
+def test_api_mot_ncc_theo_ma_co_sao_va_404_khi_khong_co(client):
+    """Nút "Hồ sơ nhà cung cấp" ở Công nợ phải trả mở thẳng hồ sơ — cần đọc ĐÚNG một NCC theo mã."""
+    db = SessionLocal()
+    try:
+        tot = _ncc(db, "NCC mo tu cong no")
+        _don(db, tot, can_hang=HOM_NAY - timedelta(days=30), giao=HOM_NAY - timedelta(days=31))
+        db.commit()
+        id_tot = tot.id
+    finally:
+        db.close()
+
+    h = _h(client)
+    r = client.get(f"/api/suppliers/{id_tot}", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["id"] == id_tot
+    assert r.json()["name"] == "NCC mo tu cong no"
+    assert r.json()["rating"] == 5.0
+
+    assert client.get("/api/suppliers/999999", headers=h).status_code == 404
+    # Đường cố định cùng tiền tố vẫn tới đúng route của nó, không bị route theo mã nuốt.
+    assert client.get("/api/suppliers/tong-quan", headers=h).status_code == 200

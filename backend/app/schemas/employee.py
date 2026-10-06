@@ -351,6 +351,8 @@ class MyUpdateRequestsOut(UpdateRequestsOut):
     page: int = 1
     size: int = 0
     dem: dict[str, int] = Field(default_factory=dict)
+    #: Số đề nghị theo trạng thái trong KỲ đang xem (bỏ điều kiện trạng thái) — số trên thẻ lọc.
+    dem_theo_tab: dict[str, int] = Field(default_factory=dict)
 
 
 class EmployeeEventOut(BaseModel):

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..models.document_sequence import SEQ_YEAR_GLOBAL
 from .document_sequence_repo import DocumentSequenceRepository
+from .loc_danh_sach import dk_khoang_ngay
 
 from ..models.ky_thuat_may import (
     GIAI_DOAN_SAU,
@@ -73,6 +74,39 @@ SUA_DUOC_BAO_TRI = tuple(
     if f not in ("may_id", "goi_id", "loai", "ngay_ke_hoach")
 )
 
+# Kỳ của thanh lọc (06/10/2026): `moc` → (cột, là cột Date). Mã mốc là hợp đồng với FE
+# (`MOC_*` ở `SuaChuaMayPage.tsx` / `PhieuBaoTriPage.tsx`); router chặn mã lạ bằng `pattern`.
+MOC_SUA_CHUA = {
+    "tao": (SuaChuaMay.created_at, False),
+    "thoi_diem": (SuaChuaMay.thoi_diem, False),
+    "xong": (SuaChuaMay.hoan_thanh_at, False),
+}
+MOC_YEU_CAU = {
+    "tao": (YeuCauSuaChua.created_at, False),
+    "thoi_diem": (YeuCauSuaChua.thoi_diem, False),
+    "xong": (YeuCauSuaChua.xu_ly_at, False),
+}
+MOC_BAO_TRI = {
+    "ke_hoach": (BaoTriMay.ngay_ke_hoach, True),
+    "tao": (BaoTriMay.created_at, False),
+    "hoan_thanh": (BaoTriMay.ngay_hoan_thanh, True),
+}
+
+
+def _dk_ky(bang: dict, moc: str | None, tu: date | None, den: date | None) -> list:
+    if tu is None and den is None:
+        return []
+    cot, la_ngay = bang[moc] if moc in bang else next(iter(bang.values()))
+    return dk_khoang_ngay(cot, tu, den, cot_ngay=la_ngay)
+
+
+def _ds_muc_do(muc_do: str | list[str] | None) -> list[str]:
+    """Mức độ nhận một mã hoặc nhiều mã nối phẩy (`nhe,nghiem_trong`) — thanh lọc chọn nhiều."""
+    if not muc_do:
+        return []
+    ds = muc_do if isinstance(muc_do, list) else muc_do.split(",")
+    return [m.strip() for m in ds if m and m.strip()]
+
 
 class KyThuatMayRepository:
     def __init__(self, db: Session) -> None:
@@ -87,7 +121,8 @@ class KyThuatMayRepository:
         return self._next_ma(SuaChuaMay.ma, MA_PREFIX_SUA_CHUA)
 
     def _conds_sua_chua(self, *, q: str | None, may_id: int | None,
-                        muc_do: str | None = None) -> list:
+                        muc_do: str | list[str] | None = None, tu_ngay: date | None = None,
+                        den_ngay: date | None = None, moc: str | None = None) -> list:
         """Điều kiện lọc DÙNG CHUNG cho `list_sua_chua` và `dem_sua_chua` — viết một chỗ để hai nơi
         không lệch (bảng lọc còn 3 dòng mà tab đếm cả bảng là con số trên tab hết nghĩa)."""
         conds = []
@@ -100,8 +135,9 @@ class KyThuatMayRepository:
             ))
         if may_id:
             conds.append(SuaChuaMay.may_id == may_id)
-        if muc_do:
-            conds.append(SuaChuaMay.muc_do == muc_do)
+        if ds := _ds_muc_do(muc_do):
+            conds.append(SuaChuaMay.muc_do.in_(ds))
+        conds += _dk_ky(MOC_SUA_CHUA, moc, tu_ngay, den_ngay)
         return conds
 
     def _uu_tien_muc_do(self):
@@ -112,7 +148,9 @@ class KyThuatMayRepository:
         ).desc()
 
     def list_sua_chua(self, *, q: str | None = None, may_id: int | None = None,
-                      trang_thai: str | None = None, muc_do: str | None = None,
+                      trang_thai: str | None = None, muc_do: str | list[str] | None = None,
+                      tu_ngay: date | None = None, den_ngay: date | None = None,
+                      moc: str | None = None,
                       sort: str | None = None, page: int = 1, size: int = 50):
         """`sort`: `moi_nhat` (mặc định) · `cu_nhat` · `muc_do`.
 
@@ -120,7 +158,8 @@ class KyThuatMayRepository:
         việc phải làm là thứ khiến người ta phải cuộn tìm, đổi kiểu sắp không phải để bỏ luật đó.
         `cu_nhat` là để lôi phiếu treo lâu nhất lên đầu — câu hỏi "cái nào nằm đó lâu rồi".
         """
-        conds = self._conds_sua_chua(q=q, may_id=may_id, muc_do=muc_do)
+        conds = self._conds_sua_chua(q=q, may_id=may_id, muc_do=muc_do,
+                                     tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
         if trang_thai == "can_lam":
             conds.append(SuaChuaMay.trang_thai.in_(TT_SC_DANG_MO))
         elif trang_thai:
@@ -138,10 +177,12 @@ class KyThuatMayRepository:
         return list(self.db.execute(base).scalars()), total
 
     def dem_sua_chua(self, *, q: str | None = None, may_id: int | None = None,
-                     muc_do: str | None = None) -> dict[str, int]:
+                     muc_do: str | list[str] | None = None, tu_ngay: date | None = None,
+                     den_ngay: date | None = None, moc: str | None = None) -> dict[str, int]:
         """{trang_thai: số phiếu} theo ĐÚNG bộ lọc đang xem — đếm ở DB, không tải cả bảng về đếm."""
         stmt = select(SuaChuaMay.trang_thai, func.count()).group_by(SuaChuaMay.trang_thai)
-        for c in self._conds_sua_chua(q=q, may_id=may_id, muc_do=muc_do):
+        for c in self._conds_sua_chua(q=q, may_id=may_id, muc_do=muc_do,
+                                      tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc):
             stmt = stmt.where(c)
         return {str(k): int(v) for k, v in self.db.execute(stmt).all()}
 
@@ -173,7 +214,9 @@ class KyThuatMayRepository:
         return self._next_ma(YeuCauSuaChua.ma, MA_PREFIX_YEU_CAU)
 
     def _conds_yeu_cau(self, *, q: str | None, may_id: int | None,
-                       nguoi_bao_id: int | None = None) -> list:
+                       nguoi_bao_id: int | None = None, muc_do: str | list[str] | None = None,
+                       tu_ngay: date | None = None, den_ngay: date | None = None,
+                       moc: str | None = None) -> list:
         """Điều kiện DÙNG CHUNG cho `list_yeu_cau` và `dem_yeu_cau` — cùng lý do như bên phiếu:
         hai nơi lệch nhau thì con số trên tab hết nghĩa."""
         conds = []
@@ -189,10 +232,15 @@ class KyThuatMayRepository:
             conds.append(YeuCauSuaChua.may_id == may_id)
         if nguoi_bao_id:
             conds.append(YeuCauSuaChua.nguoi_bao_id == nguoi_bao_id)
+        if ds := _ds_muc_do(muc_do):
+            conds.append(YeuCauSuaChua.muc_do.in_(ds))
+        conds += _dk_ky(MOC_YEU_CAU, moc, tu_ngay, den_ngay)
         return conds
 
     def list_yeu_cau(self, *, q: str | None = None, may_id: int | None = None,
                      trang_thai: str | None = None, nguoi_bao_id: int | None = None,
+                     muc_do: str | list[str] | None = None, tu_ngay: date | None = None,
+                     den_ngay: date | None = None, moc: str | None = None,
                      page: int = 1, size: int = 50):
         """Hàng chờ của tổ sửa chữa. Thứ tự KHÔNG đổi được bằng tham số, và đó là chủ ý.
 
@@ -200,7 +248,8 @@ class KyThuatMayRepository:
         **chưa tiếp nhận → máy đang dừng → mức nặng → mới nhất**. Máy đang dừng đứng trước mức độ
         vì "máy dừng" là điều người báo BIẾT CHẮC, còn mức độ chỉ là cảm nhận của họ.
         """
-        conds = self._conds_yeu_cau(q=q, may_id=may_id, nguoi_bao_id=nguoi_bao_id)
+        conds = self._conds_yeu_cau(q=q, may_id=may_id, nguoi_bao_id=nguoi_bao_id, muc_do=muc_do,
+                                    tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
         if trang_thai == "cho_xu_ly":
             conds.append(YeuCauSuaChua.trang_thai.in_(TT_YC_DANG_MO))
         elif trang_thai:
@@ -217,9 +266,12 @@ class KyThuatMayRepository:
         return list(self.db.execute(base).scalars()), total
 
     def dem_yeu_cau(self, *, q: str | None = None, may_id: int | None = None,
-                    nguoi_bao_id: int | None = None) -> dict[str, int]:
+                    nguoi_bao_id: int | None = None, muc_do: str | list[str] | None = None,
+                    tu_ngay: date | None = None, den_ngay: date | None = None,
+                    moc: str | None = None) -> dict[str, int]:
         stmt = select(YeuCauSuaChua.trang_thai, func.count()).group_by(YeuCauSuaChua.trang_thai)
-        for c in self._conds_yeu_cau(q=q, may_id=may_id, nguoi_bao_id=nguoi_bao_id):
+        for c in self._conds_yeu_cau(q=q, may_id=may_id, nguoi_bao_id=nguoi_bao_id, muc_do=muc_do,
+                                     tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc):
             stmt = stmt.where(c)
         return {str(k): int(v) for k, v in self.db.execute(stmt).all()}
 
@@ -332,17 +384,16 @@ class KyThuatMayRepository:
         return self._next_ma(BaoTriMay.ma, MA_PREFIX_BAO_TRI)
 
     def _conds_bao_tri(self, *, q: str | None, may_id: int | None,
-                       tu: date | None, den: date | None) -> list:
+                       loai: str | None = None, tu_ngay: date | None = None,
+                       den_ngay: date | None = None, moc: str | None = None) -> list:
         """Bộ điều kiện lọc DÙNG CHUNG cho `list_bao_tri` và `dem_bao_tri`.
 
         Viết một chỗ vì hai nơi lệch nhau là số trên tab lại nói dối lần nữa: bảng lọc theo tháng 8
         mà con số trên tab đếm cả năm thì người ta chỉ còn cách tự đếm tay.
         """
-        conds = []
-        if tu:
-            conds.append(BaoTriMay.ngay_ke_hoach >= tu)
-        if den:
-            conds.append(BaoTriMay.ngay_ke_hoach <= den)
+        # Mốc mặc định của màn này là NGÀY KẾ HOẠCH (lịch bảo trì đọc theo kế hoạch), không phải
+        # ngày tạo như các danh sách chứng từ khác.
+        conds = _dk_ky(MOC_BAO_TRI, moc or "ke_hoach", tu_ngay, den_ngay)
         if q:
             like = f"%{q.strip().lower()}%"
             conds.append(or_(
@@ -352,11 +403,14 @@ class KyThuatMayRepository:
             ))
         if may_id:
             conds.append(BaoTriMay.may_id == may_id)
+        if loai:
+            conds.append(BaoTriMay.loai == loai)
         return conds
 
     def list_bao_tri(self, *, hom_nay: date, q: str | None = None, may_id: int | None = None,
-                     trang_thai: str | None = None, tu: date | None = None,
-                     den: date | None = None, sort: str | None = None,
+                     trang_thai: str | None = None, loai: str | None = None,
+                     tu_ngay: date | None = None, den_ngay: date | None = None,
+                     moc: str | None = None, sort: str | None = None,
                      page: int = 1, size: int = 50):
         """`trang_thai` nhận cả 2 giá trị DẪN XUẤT: `can_lam` (chưa xong) và `qua_han` (trễ ngày).
 
@@ -368,7 +422,8 @@ class KyThuatMayRepository:
 
         `sort`: `han_som` (mặc định — trễ nhất lên đầu) · `han_muon`. Việc còn dở vẫn luôn lên trước.
         """
-        conds = self._conds_bao_tri(q=q, may_id=may_id, tu=tu, den=den)
+        conds = self._conds_bao_tri(q=q, may_id=may_id, loai=loai,
+                                    tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
         if trang_thai == "can_lam":
             # Bộ lọc DẪN XUẤT (không phải giá trị lưu): mọi phiếu chưa xong. Đây là câu hỏi thợ hỏi
             # mỗi sáng, gộp hai trạng thái lại cho khỏi bấm hai tab.
@@ -392,7 +447,8 @@ class KyThuatMayRepository:
         return list(self.db.execute(base).scalars()), total
 
     def dem_bao_tri(self, *, hom_nay: date, q: str | None = None, may_id: int | None = None,
-                    tu: date | None = None, den: date | None = None) -> dict[str, int]:
+                    loai: str | None = None, tu_ngay: date | None = None,
+                    den_ngay: date | None = None, moc: str | None = None) -> dict[str, int]:
         """{trang_thai: số phiếu} + 3 số DẪN XUẤT theo ngày, trong MỘT query, THEO ĐÚNG bộ lọc.
 
         Trả thêm:
@@ -416,7 +472,8 @@ class KyThuatMayRepository:
             _sum(BaoTriMay.ngay_ke_hoach <= hom_nay),
             _sum(BaoTriMay.ngay_ke_hoach <= cuoi_tuan),
         ).group_by(BaoTriMay.trang_thai)
-        for c in self._conds_bao_tri(q=q, may_id=may_id, tu=tu, den=den):
+        for c in self._conds_bao_tri(q=q, may_id=may_id, loai=loai,
+                                     tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc):
             stmt = stmt.where(c)
 
         out: dict[str, int] = {"qua_han": 0, "den_hom_nay": 0, "tuan_nay": 0}
@@ -426,6 +483,15 @@ class KyThuatMayRepository:
             out["den_hom_nay"] += int(den_nay or 0)
             out["tuan_nay"] += int(tuan or 0)
         return out
+
+    def dem_theo_may(self, loai: str) -> list[tuple[int, int]]:
+        """[(may_id, số chứng từ)] cho điều kiện "Máy" của thanh lọc: chỉ máy ĐÃ có chứng từ ở
+        danh sách đó, kèm số. `loai` thuộc sua_chua, yeu_cau, bao_tri."""
+        bang = {"sua_chua": SuaChuaMay, "yeu_cau": YeuCauSuaChua, "bao_tri": BaoTriMay}[loai]
+        rows = self.db.execute(
+            select(bang.may_id, func.count()).group_by(bang.may_id)
+        ).all()
+        return [(int(m), int(n)) for m, n in rows if m]
 
     def phieu_dang_mo_cua_goi(self, may_id: int, goi_id: str) -> BaoTriMay | None:
         """Phiếu CHƯA xong của gói.

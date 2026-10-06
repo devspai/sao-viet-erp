@@ -155,6 +155,9 @@ make_catalog_router(
     InModel=DonViDoIn, RowModel=DonViDoRow, ListModel=DonViDoListOut,
     excel_spec=DON_VI_DO,
     loc="ho",
+    # Thanh lọc chung (06/10/2026): kỳ Ngày tạo + Họ đơn vị (nhãn họ do repo gắn).
+    co_ky=True,
+    dem_them={"ho": "ho"},
     dung_rows=_dung_rows,
     # Không mở `/ma-goi-y`: mã đơn vị là chữ (`kg`, `to`, `m2`), không phải dãy số — repo không
     # khai `ma_prefix`.

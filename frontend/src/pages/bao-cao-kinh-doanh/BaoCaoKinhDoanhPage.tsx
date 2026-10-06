@@ -4,8 +4,9 @@
 // thu / đã nhận bao nhiêu. Chủ chốt: chỉ ĐƠN ĐÃ CHỐT, vào kỳ theo NGÀY CHỐT, phạm vi theo ô quyền
 // riêng `bao_cao_kinh_doanh` (sale chỉ thấy đơn mình bán — server lọc, màn này không lọc thêm).
 //
-// Tải CẢ KỲ một lần rồi lọc khách ở trình duyệt: ô chọn khách cần danh sách khách có đơn trong kỳ,
-// mà danh sách đó chính là kết quả. Nút Xuất Excel thì gửi `customer_id` lên để file chỉ có khách đó.
+// Thanh lọc chung (06/10/2026): kỳ theo NGÀY CHỐT (mặc định Tháng này), Khách hàng và Sale là điều
+// kiện lọc ở MÁY CHỦ — trước đó màn tải cả kỳ rồi lọc trong trình duyệt. Xuất Excel gửi đúng bộ lọc
+// đang áp nên file = bảng đang xem.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, api, type BaoCaoKinhDoanh, type BaoCaoKinhDoanhDon, type BaoCaoKinhDoanhKhach } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
@@ -13,15 +14,18 @@ import { Button } from "../../components/Button";
 import { EmptyRow } from "../../components/EmptyState";
 import { Icon } from "../../components/Icons";
 import { fmtDate, money } from "../../utils/format";
+import { ThanhLoc } from "../thanh-loc/ThanhLoc";
+import { thamSoKy } from "../thanh-loc/ky-danh-sach";
+import { useLocMan } from "../thanh-loc/useLocMan";
+import {
+  LOC_MAN_BCKD_TRONG,
+  MOC_BCKD,
+  locManBCKDLenUrl,
+  locManBCKDTuUrl,
+  thamSoLocBCKD,
+  useDieuKienBCKD,
+} from "./dieu-kien-bao-cao-kinh-doanh";
 import "./bao-cao-kinh-doanh.css";
-
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function dauThang(d = new Date()): string {
-  return ymd(new Date(d.getFullYear(), d.getMonth(), 1));
-}
 
 function Tien({ v, nhat = false }: { v: number | null | undefined; nhat?: boolean }) {
   if (!v) return <span className="bckd__khong">—</span>;
@@ -99,14 +103,15 @@ function KhoiKhach({ k }: { k: BaoCaoKinhDoanhKhach }) {
   );
 }
 
-const COT_TIEN = ["tong", "tong_vat", "coc_phai_thu", "coc_da_nhan", "coc_con_thieu"] as const;
+const TONG_TRONG = { so_don: 0, tong_vat: 0, coc_phai_thu: 0, coc_da_nhan: 0, coc_con_thieu: 0 };
 
 export function BaoCaoKinhDoanhPage() {
   const { token } = useAuth();
-  const [tuNgay, setTuNgay] = useState(dauThang());
-  const [denNgay, setDenNgay] = useState(ymd(new Date()));
-  const [khachId, setKhachId] = useState<number | "">("");
-  const [sale, setSale] = useState("");
+  const [locMan, setLocMan] = useLocMan("bao-cao-kinh-doanh", LOC_MAN_BCKD_TRONG, locManBCKDTuUrl, locManBCKDLenUrl);
+  const { ky, loc } = locMan;
+  const dieuKien = useDieuKienBCKD();
+  const thamSo = useMemo(() => ({ ...thamSoKy(ky), ...thamSoLocBCKD(loc) }), [ky, loc]);
+  const khoaThamSo = JSON.stringify(thamSo);
   const [data, setData] = useState<BaoCaoKinhDoanh | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,80 +119,29 @@ export function BaoCaoKinhDoanhPage() {
 
   const tai = useCallback(async () => {
     if (!token) return;
-    // Ô ngày đang gõ dở (năm "0008", ô trống) thì CHỜ, đừng gọi server — gọi là ăn câu lỗi kiểm
-    // dữ liệu tiếng Anh của máy chủ hiện thẳng lên màn (bắt được khi bấm thử 24/09/2026).
-    const hopLe = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && Number(s.slice(0, 4)) >= 2000;
-    if (!hopLe(tuNgay) || !hopLe(denNgay)) return;
-    if (tuNgay > denNgay) {
-      setError("Từ ngày phải trước hoặc bằng đến ngày.");
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
-      setData(await api.baoCaoKinhDoanh.xem(token, { tuNgay, denNgay }));
+      setData(await api.baoCaoKinhDoanh.xem(token, JSON.parse(khoaThamSo)));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Không tải được báo cáo.");
     } finally {
       setLoading(false);
     }
-  }, [token, tuNgay, denNgay]);
+  }, [token, khoaThamSo]);
 
   useEffect(() => {
     void tai();
   }, [tai]);
 
-  // Khách vừa chọn không còn trong kỳ mới ⇒ về "Tất cả", đừng giữ một bộ lọc ra bảng trống.
-  useEffect(() => {
-    if (khachId !== "" && data && !data.khach.some((k) => k.customer_id === khachId)) setKhachId("");
-  }, [data, khachId]);
-
-  const dsSale = useMemo(
-    () =>
-      [...new Set((data?.khach ?? []).flatMap((k) => k.don.map((d) => d.sale).filter((x): x is string => !!x)))].sort(
-        (a, b) => a.localeCompare(b, "vi"),
-      ),
-    [data],
-  );
-  useEffect(() => {
-    if (sale && !dsSale.includes(sale)) setSale("");
-  }, [dsSale, sale]);
-
-  // Lọc Sale theo TỪNG ĐƠN (một khách có thể do nhiều sale chốt) rồi cộng lại tiền của khách.
-  const khachHien = useMemo(
-    () =>
-      (data?.khach ?? [])
-        .filter((k) => khachId === "" || k.customer_id === khachId)
-        .map((k) => {
-          if (!sale) return k;
-          const don = k.don.filter((d) => d.sale === sale);
-          const tien = Object.fromEntries(COT_TIEN.map((c) => [c, don.reduce((s, d) => s + d[c], 0)]));
-          return { ...k, ...tien, don, so_don: don.length } as BaoCaoKinhDoanhKhach;
-        })
-        .filter((k) => k.don.length > 0),
-    [data, khachId, sale],
-  );
-  const tong = useMemo(() => {
-    const t = { so_don: 0, tong_vat: 0, coc_phai_thu: 0, coc_da_nhan: 0, coc_con_thieu: 0 };
-    for (const k of khachHien) {
-      t.so_don += k.so_don;
-      t.tong_vat += k.tong_vat;
-      t.coc_phai_thu += k.coc_phai_thu;
-      t.coc_da_nhan += k.coc_da_nhan;
-      t.coc_con_thieu += k.coc_con_thieu;
-    }
-    return t;
-  }, [khachHien]);
+  const khachHien = data?.khach ?? [];
+  const tong = data?.tong ?? TONG_TRONG;
 
   async function xuatExcel() {
     if (!token) return;
     setDangXuat(true);
     try {
-      const { url, ten } = await api.baoCaoKinhDoanh.xuatExcel(token, {
-        tuNgay,
-        denNgay,
-        customerId: khachId === "" ? null : khachId,
-      });
+      const { url, ten } = await api.baoCaoKinhDoanh.xuatExcel(token, thamSo);
       const a = document.createElement("a");
       a.href = url;
       a.download = ten;
@@ -211,44 +165,19 @@ export function BaoCaoKinhDoanhPage() {
         </div>
         <Button variant="ghost" onClick={() => void xuatExcel()} disabled={dangXuat || !data || khachHien.length === 0}>
           <Icon name="table" size={14} />{" "}
-          {dangXuat ? "Đang xuất…" : khachId === "" ? "Xuất Excel" : "Xuất Excel khách này"}
+          {dangXuat ? "Đang xuất…" : loc.khach == null ? "Xuất Excel" : "Xuất Excel khách này"}
         </Button>
       </header>
 
-      <section className="bckd__loc" aria-label="Bộ lọc">
-        <label className="bckd__o">
-          <span>Từ ngày chốt</span>
-          <input type="date" value={tuNgay} onChange={(e) => setTuNgay(e.target.value)} />
-        </label>
-        <label className="bckd__o">
-          <span>Đến ngày</span>
-          <input type="date" value={denNgay} onChange={(e) => setDenNgay(e.target.value)} />
-        </label>
-        <label className="bckd__o bckd__o--rong">
-          <span>Khách hàng</span>
-          <select
-            value={khachId === "" ? "" : String(khachId)}
-            onChange={(e) => setKhachId(e.target.value === "" ? "" : Number(e.target.value))}
-          >
-            <option value="">Tất cả khách hàng ({data?.khach.length ?? 0})</option>
-            {(data?.khach ?? [])
-              .filter((k) => k.customer_id != null)
-              .map((k) => (
-                <option key={k.customer_id} value={k.customer_id!}>
-                  {k.ten} ({k.so_don} đơn)
-                </option>
-              ))}
-          </select>
-        </label>
-        <label className="bckd__o">
-          <span>Sale</span>
-          <select value={sale} onChange={(e) => setSale(e.target.value)}>
-            <option value="">Tất cả sale</option>
-            {dsSale.map((x) => (
-              <option key={x} value={x}>{x}</option>
-            ))}
-          </select>
-        </label>
+      <section className="bckd__loc tl-thanh" aria-label="Kỳ báo cáo và bộ lọc">
+        <ThanhLoc
+          ky={ky}
+          moc={MOC_BCKD}
+          onKy={(k) => setLocMan({ ky: k, loc })}
+          dieuKien={dieuKien}
+          loc={loc}
+          onLoc={(l) => setLocMan({ ky, loc: l })}
+        />
       </section>
 
       {error && <div className="banner banner--error" role="alert">{error}</div>}

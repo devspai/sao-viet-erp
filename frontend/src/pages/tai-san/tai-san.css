@@ -120,36 +120,6 @@ kbd {
 }
 .ts-tim input:focus { outline: 2px solid var(--ink); outline-offset: -1px; border-color: transparent; }
 
-/* Nhóm nút chọn một (Loại / Cách thêm) — đang chọn tô charcoal. */
-.ts-nhom {
-  display: inline-flex;
-  flex: none;
-  border: 1px solid var(--rule);
-  border-radius: var(--r-3);
-  overflow: hidden;
-  background: var(--canvas);
-}
-.ts-nhom__nut {
-  border: 0;
-  background: none;
-  height: 34px;
-  padding: 0 12px;
-  font: inherit;
-  font-size: var(--fs-sm);
-  color: var(--ash);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.ts-nhom__nut + .ts-nhom__nut { border-left: 1px solid var(--rule-soft); }
-.ts-nhom__nut:hover:not(.is-active) { background: var(--rule-hair); }
-.ts-nhom__nut.is-active { background: var(--charcoal); color: var(--on-charcoal); font-weight: var(--fw-medium); }
-.ts-nhom__nut:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
-.rc-field > .ts-nhom { align-self: flex-start; }
-.ts-nhom__so { font-size: var(--fs-xs); opacity: 0.75; margin-left: 5px; }
-
-.ts-loc .rc-input.ts-loc__hep { width: auto; min-width: 0; height: 36px; flex: none; }
-.ts-loc__loai { display: none; }
-.ts-loc__bp { flex: 0 1 190px; min-width: 150px; }
 .ts-loc__phai { margin-left: auto; display: flex; gap: var(--sp-2); }
 
 /* Nút tách "Thêm tài sản | ▾" (Carbon: một hành động chính, phương án phụ trong menu). */
@@ -1028,10 +998,6 @@ kbd {
   .ts-thaotac .btn { padding-left: 10px; padding-right: 10px; }
   .ts-ngan__xemtruoc { flex-basis: 100%; }
   .ts-tim { flex-basis: 100%; max-width: none; }
-  .ts-nhom[aria-label="Loại"] { display: none; }
-  .ts-loc__loai { display: block; }
-  .ts-loc .rc-input.ts-loc__hep { flex: 1 1 calc(50% - 4px); }
-  .ts-loc__bp { flex: 1 1 100%; }
   .ts-loc__phai { margin-left: 0; flex-basis: 100%; }
   .ts-tach { flex: 1; }
   .ts-tach > .btn:first-child { flex: 1; justify-content: center; }

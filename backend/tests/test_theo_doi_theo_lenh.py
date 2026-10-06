@@ -130,8 +130,8 @@ def test_dong_mang_dang_o_va_khau(sess, lenh_that):
     assert row["khau_chi_tiet"] is None
     assert set(row) == {
         "lsx_id", "ma", "ten", "is_rush", "so_luong_dat", "don_vi_tinh", "khach_hang", "chang",
-        "buoc_hien_tai", "khau", "khau_chi_tiet", "han_hoan_thanh_sx", "du_kien_xong",
-        "canh_bao", "tre_ngay",
+        "buoc_hien_tai", "khau", "khau_chi_tiet", "han_hoan_thanh_sx", "created_at",
+        "du_kien_xong", "canh_bao", "tre_ngay",
     }
 
 

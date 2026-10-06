@@ -6,7 +6,7 @@
  *  Hủy phiếu và Xác nhận đã thu là KHUNG tại chỗ ở đầu tab Chi tiết, lỗi nằm ngay trong khung.
  *  Phiếu cọc ĐÃ THU máy chủ không cho hủy (hủy từ đơn bán) ⇒ mục menu mờ kèm lý do (lỗi thật số 3).
  */
-import { ArrowDown, CircleAlert, ExternalLink, Pencil, Printer } from "lucide-react";
+import { CircleAlert, ExternalLink, Pencil, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -18,17 +18,16 @@ import {
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import { Cum, TheNho } from "../../shared/Cum";
-import { ngay, tien } from "../../shared/dinhDang";
+import { ngay, ngayGio, tien } from "../../shared/dinhDang";
 import { NganPhai } from "../../shared/NganPhai";
 import {
   BangDaHuy,
-  Dong,
+  BienLaiPhieu,
   DuongDanPhieu,
   KhungHuyPhieu,
+  LuoiThongTin,
   MenuThaoTac,
-  SoLonPhieu,
   TienDot,
-  soTaiKhoan,
   useHuyPhieu,
   useTabNho,
 } from "../../shared/NganPhieu";
@@ -185,14 +184,14 @@ export function ReceiptsDrawer({
   const hoaDon = hd && hd !== "loi" ? hd : null;
   // Phiếu thu hoá đơn mà thiếu mã đơn / mã hoá đơn: không có gì để tải — nói không đọc được ngay.
   const khongDocDuocHd = hd === "loi" || donId == null || hdId == null;
-  // Máy chủ chỉ cho hủy phiếu cọc khi còn chờ thu (`cancel_receipt`): đã thu thì hủy từ đơn bán.
-  const lyDoKhongHuy =
-    phieu.source_type === "order_deposit" && phieu.status !== "waiting_receipt" ? "Phiếu cọc đã thu — hủy từ đơn bán" : null;
+  // Phiếu cọc đơn bán hủy được ngay tại đây, kể cả đã thu (06/10/2026) — màn Đơn hàng không có nút hủy cọc.
   const heQuaHuy =
     // Chỉ hoá đơn còn hiệu lực mới "quay lại còn nợ": hoá đơn đã hủy máy chủ ép còn nợ về 0.
     phieu.source_type === "sales_invoice" && phieu.status === "received" && hoaDon?.status === "issued"
       ? `Hoá đơn ${hoaDon.invoice_number} sẽ quay lại còn nợ ${tien(hoaDon.remaining_amount + phieu.amount_vnd)}`
-      : "Phiếu còn trong sổ với dấu Đã hủy";
+      : phieu.source_type === "order_deposit" && phieu.status === "received"
+        ? `${phieu.order_code ? `Đơn ${phieu.order_code}` : "Đơn bán"} sẽ bớt ${tien(phieu.amount_vnd)} đã cọc`
+        : "Phiếu còn trong sổ với dấu Đã hủy";
   const huyDuoc = quyen.huy && phieu.status !== "cancelled";
   const choThu = phieu.status === "waiting_receipt";
   const suaDuoc = quyen.sua && choThu && phieu.source_type === "purchase_refund" && phieu.payment_voucher_id != null;
@@ -216,7 +215,7 @@ export function ReceiptsDrawer({
   return (
     <NganPhai
       duongDan={<DuongDanPhieu loai="Phiếu thu" ma={phieu.code} />}
-      tieuDe={phieu.payer_name || phieu.code}
+      tieuDe={phieu.content || phieu.payer_name || phieu.code}
       the={<span className={`kt-tt kt-tt--${tt.mau}`}>{tt.label}</span>}
       hanhDong={
         <>
@@ -244,9 +243,8 @@ export function ReceiptsDrawer({
           {huyDuoc && (
             <MenuThaoTac muc={[{
               nhan: "Hủy phiếu",
-              phu: lyDoKhongHuy ?? heQuaHuy,
+              phu: heQuaHuy,
               nguy: true,
-              khoa: !!lyDoKhongHuy,
               onChon: () => {
                 setTab("tt");
                 setXacNhan(false);
@@ -256,13 +254,25 @@ export function ReceiptsDrawer({
           )}
         </>
       }
-      soLon={<SoLonPhieu soVnd={phieu.amount_vnd} so={phieu.amount} tienTe={phieu.currency} tyGia={phieu.exchange_rate} />}
-      tomTat={[
-        { nhan: "Ngày thu", giaTri: ngay(phieu.receipt_date) },
-        { nhan: "Hình thức", giaTri: methodText(phieu) },
-        { nhan: "Nguồn", giaTri: nguonO },
-        { nhan: "Người lập", giaTri: phieu.created_by_name || "—" },
-      ]}
+      // Biên lai (phương án B, cùng khuôn ngăn Phiếu chi): tiền đi TỪ người nộp TỚI tài khoản / quỹ.
+      bienLai={
+        <BienLaiPhieu
+          dongDau={`${methodText(phieu)} ngày ${ngay(phieu.receipt_date)}`}
+          soVnd={phieu.amount_vnd} so={phieu.amount} tienTe={phieu.currency} tyGia={phieu.exchange_rate}
+          tu={{ vai: "Từ", ten: phieu.payer_name || "—", phu: [phieu.payer_address] }}
+          toi={phieu.receipt_method === "bank_transfer"
+            ? {
+                vai: "Tới",
+                ten: phieu.company_account_holder || "Tài khoản công ty",
+                phu: [
+                  phieu.company_bank_name,
+                  phieu.company_account_number && <span className="kt-so-tk">{phieu.company_account_number}</span>,
+                  phieu.company_bank_branch && <TheNho>{phieu.company_bank_branch}</TheNho>,
+                ],
+              }
+            : { vai: "Tới", ten: "Quỹ tiền mặt" }}
+        />
+      }
       tabs={[
         { id: "tt", nhan: "Chi tiết" },
         { id: "ct", nhan: "Chứng từ", dem: tep.length },
@@ -297,72 +307,34 @@ export function ReceiptsDrawer({
               ghi="Phiếu vẫn còn trong sổ với dấu Đã hủy, in ra có chữ ĐÃ HỦY. Cần thu lại thì lập phiếu mới." />
           )}
 
-          <div className="kt-luoi2">
-            <div className="kt-hop">
-              <div className="kt-hop__tieu">Thông tin phiếu</div>
-              <div className="kt-hop__than">
-                <dl className="kt-kv">
-                  <Dong nhan="Nội dung thu">{phieu.content}</Dong>
-                  <Dong nhan="Người nộp">{phieu.payer_name}</Dong>
-                  <Dong nhan="Địa chỉ người nộp">{phieu.payer_address}</Dong>
-                  {phieu.order_code && phieu.source_type !== "purchase_refund" && (
-                    <Dong nhan="Đơn bán">
-                      {onMoDonBan && phieu.order_id != null ? (
-                        <button type="button" className="kt-lk" onClick={() => onMoDonBan(phieu.order_id!)}>
-                          {phieu.order_code}
-                        </button>
-                      ) : (
-                        phieu.order_code
-                      )}
-                    </Dong>
-                  )}
-                  {phieu.payment_voucher_code && (
-                    <Dong nhan="Phiếu chi gốc">
-                      {onMoPhieuChi ? (
-                        <button type="button" className="kt-lk" onClick={() => onMoPhieuChi(phieu.payment_voucher_code!)}>
-                          {phieu.payment_voucher_code}
-                        </button>
-                      ) : (
-                        phieu.payment_voucher_code
-                      )}
-                    </Dong>
-                  )}
-                  <Dong nhan="Mã giao dịch ngân hàng">{phieu.bank_reference}</Dong>
-                  <Dong nhan="Số chứng từ">{phieu.doc_no}</Dong>
-                  <Dong nhan="Ghi chú">{phieu.note}</Dong>
-                </dl>
-              </div>
-            </div>
-            <div className="kt-hop">
-              <div className="kt-hop__tieu">Dòng tiền</div>
-              <div className="kt-dt-tien">
-                <div className="kt-dt-tien__muc">
-                  <span>Người nộp</span>
-                  <b>{phieu.payer_name || "—"}</b>
-                  <em>{methodText(phieu)}</em>
-                </div>
-                <div className="kt-dt-tien__mui">
-                  <i><ArrowDown size={14} aria-hidden="true" /></i>
-                  {tien(phieu.amount_vnd)}
-                </div>
-                {phieu.receipt_method === "bank_transfer" ? (
-                  <div className="kt-dt-tien__muc">
-                    <span>Vào tài khoản</span>
-                    <b>{soTaiKhoan(phieu.company_bank_name, phieu.company_account_number)}</b>
-                    <em className="kt-cum">
-                      {phieu.company_account_holder && <span>{phieu.company_account_holder}</span>}
-                      {phieu.company_bank_branch && <TheNho>{phieu.company_bank_branch}</TheNho>}
-                    </em>
-                  </div>
-                ) : (
-                  <div className="kt-dt-tien__muc">
-                    <span>Vào</span>
-                    <b>Quỹ tiền mặt</b>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          {/* Lưới thông tin hai cột (Xero): nội dung thu đã là tiêu đề, người nộp + tài khoản + số tiền
+              ở biên lai — ở đây là phần CHỨNG TỪ của phiếu: nguồn, số sổ, ai lập / xác nhận, giấy tờ kèm. */}
+          <LuoiThongTin o={[
+            { nhan: phieu.source_type === "sales_invoice" ? "Hoá đơn" : "Nguồn", giaTri: nguonO },
+            { nhan: "Số chứng từ kế toán", giaTri: phieu.doc_no },
+            { nhan: "Người lập", giaTri: <Cum><span>{phieu.created_by_name || "—"}</span><TheNho>{ngayGio(phieu.created_at)}</TheNho></Cum> },
+            { nhan: "Xác nhận đã thu", giaTri: phieu.received_by_name && (
+              <Cum><span>{phieu.received_by_name}</span>{phieu.received_at && <TheNho>{ngayGio(phieu.received_at)}</TheNho>}</Cum>
+            ) },
+            { nhan: "Chứng từ kèm", giaTri: tep.length > 0
+                  ? <button type="button" className="kt-lk" onClick={() => setTab("ct")}>{`${tep.length} tệp`}</button>
+                  : <span className="kt-thieu">Chưa có báo có hoặc biên nhận</span> },
+            { nhan: "Đơn bán", giaTri: phieu.order_code && phieu.source_type !== "purchase_refund" && (
+              onMoDonBan && phieu.order_id != null ? (
+                <button type="button" className="kt-lk" onClick={() => onMoDonBan(phieu.order_id!)}>{phieu.order_code}</button>
+              ) : phieu.order_code
+            ) },
+            { nhan: "Phiếu chi gốc", giaTri: phieu.payment_voucher_code && (
+              onMoPhieuChi ? (
+                <button type="button" className="kt-lk" onClick={() => onMoPhieuChi(phieu.payment_voucher_code!)}>
+                  {phieu.payment_voucher_code}
+                </button>
+              ) : phieu.payment_voucher_code
+            ) },
+            { nhan: "Mã giao dịch ngân hàng", giaTri: phieu.bank_reference },
+            { nhan: "Ghi chú", giaTri: phieu.note, rong: true },
+          ]} />
+
 
           {phieu.source_type === "sales_invoice" && (
             <div className="kt-hop">

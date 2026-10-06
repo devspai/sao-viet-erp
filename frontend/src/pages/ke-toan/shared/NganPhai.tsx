@@ -6,17 +6,24 @@
  *    "Mở rộng" để bật/tắt rộng hết.
  *  - Esc đóng đúng lớp TRÊN CÙNG; lớp đang có nội dung gõ dở (`chanDong` trả true) thì hỏi trước.
  *  - ↑ ↓ (khi không gõ trong ô nhập) đổi sang bản ghi trước/sau.
+ *  - Hỏi "Bỏ phiếu đang nhập?" bằng hộp xác nhận của app (không dùng `window.confirm` — hộp
+ *    "localhost cho biết" của trình duyệt). Nút đóng trong chân ngăn gọi qua `useDongNgan()`.
  */
 import { ChevronDown, ChevronUp, Maximize2, X } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 
+import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { batTatRongHet, docDoRong, ghiDoRong } from "./doRongNgan";
 
 export type TabNgan = { id: string; nhan: string; dem?: number };
 
 /** Các ngăn đang mở, theo thứ tự mở — phím chỉ thuộc về ngăn cuối mảng. */
 const chong: symbol[] = [];
+
+/** Đóng ngăn đang bao quanh — có nội dung gõ dở thì hỏi trước (nút "Đóng" ở chân form). */
+const DongNgan = createContext<() => void>(() => {});
+export const useDongNgan = () => useContext(DongNgan);
 
 /** Tiêu điểm đang ở chỗ gõ chữ / chọn — phím mũi tên là của nó, không phải đổi bản ghi. */
 function dangGo(el: Element | null): boolean {
@@ -29,9 +36,11 @@ function dangGo(el: Element | null): boolean {
 export function NganPhai({
   duongDan,
   tieuDe,
+  phuDe,
   the,
   hanhDong,
   soLon,
+  bienLai,
   tomTat,
   canhBao,
   tabs,
@@ -49,12 +58,16 @@ export function NganPhai({
   /** Đường dẫn nhỏ trên cùng, vd "Phiếu chi > UNC-…" — ở ngăn chồng nó cho biết đang ở lớp trên. */
   duongDan?: ReactNode;
   tieuDe: ReactNode;
+  /** Hàng thẻ thông tin dưới tiêu đề (form kiểu mới: Ngày hoá đơn, Ký hiệu, Đơn…). */
+  phuDe?: ReactNode;
   /** Thẻ trạng thái cạnh tiêu đề. */
   the?: ReactNode;
   /** Nút phụ bên phải tiêu đề ("In phiếu", "⋯"). */
   hanhDong?: ReactNode;
   /** Số tiền lớn + bằng chữ (dùng `.kt-ngan__tien` / `.kt-ngan__chu`). */
   soLon?: ReactNode;
+  /** Thẻ biên lai (số tiền + Từ → Tới) của ngăn phiếu — đứng thay `soLon` + `tomTat`. */
+  bienLai?: ReactNode;
   /** Dải tóm tắt 4 ô nền --paper. */
   tomTat?: { nhan: string; giaTri: ReactNode }[];
   /** Dải cảnh báo dưới dải tóm tắt, trên hàng tab (vd "Đang vượt hạn mức …" — `.kt-canh`). */
@@ -75,6 +88,7 @@ export function NganPhai({
   children: ReactNode;
 }) {
   const [keo, setKeo] = useState(false);
+  const [hoiBo, setHoiBo] = useState(false);
   const dangKeo = useRef(false);
   const bamTuNen = useRef(false);
   const khungRef = useRef<HTMLElement>(null);
@@ -86,7 +100,10 @@ export function NganPhai({
 
   const dongNeuDuoc = () => {
     const { onDong: dong, chanDong: chan } = moiNhat.current;
-    if (chan?.() && !window.confirm("Bỏ nội dung đang nhập?")) return;
+    if (chan?.()) {
+      setHoiBo(true);
+      return;
+    }
     dong();
   };
   const dongRef = useRef(dongNeuDuoc);
@@ -105,8 +122,8 @@ export function NganPhai({
 
     function onKey(e: KeyboardEvent) {
       if (e.defaultPrevented || chong[chong.length - 1] !== toi) return;
-      // Hộp xác nhận / hộp thoại khác đang mở thì phím là của chúng.
-      if (document.querySelector(".cdlg-overlay, .dmodal-overlay")) return;
+      // Hộp xác nhận / hộp thoại / bản in xem trước đang mở thì phím là của chúng.
+      if (document.querySelector(".cdlg-overlay, .dmodal-overlay, .kt-xt, .ps-ov")) return;
       if (e.key === "Escape") {
         const o = document.activeElement;
         if (o instanceof HTMLElement && o.closest('[aria-expanded="true"], [role="listbox"]')) return;
@@ -212,7 +229,9 @@ export function NganPhai({
             {the}
             {hanhDong != null && <span className="kt-ngan__hd">{hanhDong}</span>}
           </div>
+          {phuDe != null && <div className="kt-ngan__phu">{phuDe}</div>}
           {soLon != null && <div className="kt-ngan__so">{soLon}</div>}
+          {bienLai}
           {tomTat && tomTat.length > 0 && (
             <div className="kt-ngan__su">
               {tomTat.map((o) => (
@@ -236,8 +255,17 @@ export function NganPhai({
             </div>
           )}
         </header>
-        <div className="kt-ngan__than">{children}</div>
-        {chan != null && <footer className={`kt-ngan__chan${chanToi ? " kt-ngan__chan--toi" : ""}`}>{chan}</footer>}
+        <DongNgan.Provider value={dongNeuDuoc}>
+          <div className="kt-ngan__than">{children}</div>
+          {chan != null && <footer className={`kt-ngan__chan${chanToi ? " kt-ngan__chan--toi" : ""}`}>{chan}</footer>}
+        </DongNgan.Provider>
+        <ConfirmDialog open={hoiBo} title="Bỏ phiếu đang nhập?" message="Những gì đã gõ sẽ mất."
+          cancelLabel="Nhập tiếp" confirmLabel="Bỏ" danger
+          onCancel={() => setHoiBo(false)}
+          onConfirm={() => {
+            setHoiBo(false);
+            moiNhat.current.onDong();
+          }} />
       </aside>
     </div>
   );

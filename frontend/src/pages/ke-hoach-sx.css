@@ -362,47 +362,6 @@
   min-width: 220px;
 }
 
-/* Hai ô lọc "Khách" / "Đơn" — cùng chiều cao 34px với ô tìm bên phải, nhãn nằm TRONG khung để
-   thanh công cụ không mọc thêm một hàng chữ. */
-.khsx__filtersel {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 0 var(--sp-2) 0 var(--sp-3);
-  height: 34px;
-  background: var(--canvas);
-  border: 1px solid var(--rule-soft);
-  border-radius: 6px;
-}
-.khsx__filtersel-label {
-  font-size: var(--fs-xs);
-  color: var(--ash);
-  white-space: nowrap;
-}
-.khsx__filtersel select {
-  border: 0;
-  outline: none;
-  background: transparent;
-  font-size: var(--fs-md);
-  color: var(--ink);
-  cursor: pointer;
-  /* Tên khách dài ("Công ty TNHH Thực phẩm Minh Long") không được đẩy ô tìm xuống hàng dưới. */
-  max-width: 190px;
-}
-.khsx__filterclear {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 34px;
-  padding: 0 var(--sp-3);
-  font-size: var(--fs-xs);
-  background: var(--rule-hair);
-  color: var(--rust-deep);
-  border: 0;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
 /* --- bảng ----------------------------------------------------------------- */
 .khsx__tablewrap {
   overflow-x: auto;
@@ -2706,7 +2665,8 @@ td.khsx-num > .khsx-unit {
 .khsx-drawer__head-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  /* Mảnh tách bằng khoảng trống, không chen dấu `·` (06/10/2026). */
+  gap: 10px;
 }
 
 .khsx-step-kicker {
@@ -3683,26 +3643,6 @@ td.khsx-num > .khsx-unit {
   font-size: 12px;
   color: var(--muted, #64748b);
 }
-.khsx-vattu-td--why {
-  min-width: 220px;
-}
-.khsx-formula-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.khsx-formula-code {
-  font-family: var(--ff-sans);
-  font-size: 11.5px;
-  color: #334155;
-  background: #f1f5f9;
-  padding: 2px 7px;
-  border-radius: 5px;
-  border: 1px solid #e2e8f0;
-  display: inline-block;
-  line-height: 1.4;
-  word-break: break-word;
-}
 .khsx-vattu-no-formula {
   font-size: 12px;
   color: var(--ash-2);
@@ -4531,6 +4471,230 @@ td.khsx-num > .khsx-unit {
   font-size: 11px;
   font-weight: 500;
   color: var(--ash-2, var(--ash-2));
+}
+
+/* ==========================================================================
+   Ngăn bước › tab TIẾN ĐỘ & THỜI GIAN (khsx-tgb) — dựng lại 06/10/2026.
+   Kết quả (chiếm máy bao lâu) lên đầu, dưới là các dòng cộng dồn như phiếu tính, mỗi dòng một
+   chấm màu khớp đoạn trên thanh tỷ trọng. Giờ đọc được là số chính, không hiện phút lẻ.
+   ========================================================================== */
+.khsx-tgb {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.khsx-tgb__ket-qua {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.khsx-tgb__nhan {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ash);
+}
+.khsx-tgb__so-lon {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.khsx-tgb__phu {
+  font-size: 12.5px;
+  color: var(--ash-2);
+}
+.khsx-tgb__thanh {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--rule-hair);
+}
+.khsx-tgb__doan {
+  height: 100%;
+}
+.khsx-tgb__doan.is-chuan-bi,
+.khsx-tgb__cham.is-chuan-bi {
+  background: var(--amber);
+}
+.khsx-tgb__doan.is-chay,
+.khsx-tgb__cham.is-chay {
+  background: var(--moss);
+}
+.khsx-tgb__doan.is-phat-sinh,
+.khsx-tgb__cham.is-phat-sinh {
+  background: var(--plum);
+}
+.khsx-tgb__ds {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--rule-soft);
+  border-radius: 10px;
+}
+.khsx-tgb__dong {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 12px 14px;
+}
+.khsx-tgb__dong + .khsx-tgb__dong {
+  border-top: 1px solid var(--rule-hair);
+}
+.khsx-tgb__cham {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  align-self: start;
+  margin-top: 6px;
+}
+.khsx-tgb__giua {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.khsx-tgb__ten {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.khsx-tgb__gio {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.khsx-tgb__phep {
+  font-size: 12px;
+  color: var(--ash-2);
+  font-variant-numeric: tabular-nums;
+}
+.khsx-tgb__khoan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.khsx-tgb__khoan-o {
+  font-size: 12px;
+  color: var(--ash);
+  border: 1px solid var(--rule-soft);
+  border-radius: 6px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.khsx-tgb__khoan-o b {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.khsx-tgb__dai {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.khsx-tgb__dai-nhan {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ash);
+}
+.khsx-tgb__dai-hang {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.khsx-tgb__dai-dau {
+  font-size: 12.5px;
+  color: var(--ash-2);
+  white-space: nowrap;
+}
+.khsx-tgb__dai-dau b {
+  margin-left: 4px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.khsx-tgb__dai-ray {
+  position: relative;
+  flex: 1 1 120px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--rule-soft);
+}
+.khsx-tgb__dai-moc {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--canvas);
+  border: 2px solid var(--ink);
+  transform: translate(-50%, -50%);
+}
+.khsx-tgb__dai-trong {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ash-2);
+}
+/* Ô số lượt có nút trừ/cộng — thay cặp nút "1 lượt / 2 lượt" đứng cạnh ô số. */
+.khsx-tgb__buoc-so {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.khsx-tgb__buoc-nut {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.khsx-tgb__buoc-nut:hover:not(:disabled) {
+  background: var(--rule-hair);
+}
+.khsx-tgb__buoc-nut:disabled {
+  color: var(--ash-2);
+  cursor: not-allowed;
+}
+.khsx-tgb__buoc-o {
+  width: 56px;
+  height: 32px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  text-align: center;
+  font: inherit;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.khsx-tgb__buoc-dv {
+  font-size: 13px;
+  color: var(--ash);
+}
+
+/* Ngăn bước › tab VẬT TƯ: dòng đã gõ tay mới có nhãn — dòng máy tính thì im. */
+.khsx-vattu-sua-tay {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.khsx-vattu-sua-tay__nhan {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--amber-deep);
+  background: var(--amber-soft);
+  border-radius: 4px;
+  padding: 1px 6px;
 }
 
 /* Dung sai tốc độ máy (Speed Spectrum Bar) */
@@ -6922,25 +7086,22 @@ td.khsx-num > .khsx-unit {
 }
 
 /* ============================================================================
-   Tab "VẬT TƯ" của lệnh — bảng kê theo từng công đoạn + khối tổng gom.
-   Ba nhóm phải phân biệt được KHÔNG CHỈ bằng màu (icon + viền + vị trí cùng nói),
-   vì đây là chỗ đọc số đi mua: nhìn nhầm nhóm là mua nhầm thứ.
-   ========================================================================== */
-/* ==========================================================================
-   Tab VẬT TƯ CỦA LỆNH (Bóc tách dòng chảy vật tư theo từng bước & BOM tổng)
+   Tab "VẬT TƯ" của lệnh (LsxVatTuPanel) — MỘT bảng vật tư, bước dùng là một cột (06/10/2026).
+   Nhóm (NVL chính · Phụ liệu · Dụng cụ / Khuôn) nói bằng DÒNG TIÊU ĐỀ NHÓM — chữ + vị trí, không
+   bằng màu, vì đây là chỗ đọc số đi mua: nhìn nhầm nhóm là mua nhầm thứ. Không dải màu mép trái.
    ========================================================================== */
 .khsx-vtke {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
-/* 1. Dải Compact Strip Tóm Tắt KPI */
+/* 1. Dải tóm tắt */
 .khsx-vtke__strip {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px 18px;
+  gap: 8px 14px;
   padding: 10px 16px;
   background: var(--paper);
   border: 1px solid var(--rule-soft);
@@ -6980,11 +7141,6 @@ td.khsx-num > .khsx-unit {
   height: 18px;
   background: var(--rule-soft);
 }
-.khsx-vtke__strip-alerts {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 .khsx-vtke__strip-badge {
   display: inline-flex;
   align-items: center;
@@ -6994,185 +7150,73 @@ td.khsx-num > .khsx-unit {
   padding: 2px 8px;
   border-radius: var(--r-pill, 999px);
 }
-.khsx-vtke__strip-badge--warn {
-  color: var(--amber-deep);
-  background: var(--amber-soft);
-  border: 1px solid var(--amber-soft);
-}
 .khsx-vtke__strip-badge--danger {
   color: var(--signal-deep);
   background: var(--signal-soft);
   border: 1px solid var(--signal-soft);
 }
+.khsx-vtke__strip-buoc {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--signal-deep);
+  border: 1px solid var(--signal-soft);
+  border-radius: 6px;
+  padding: 1px 8px;
+  background: var(--canvas);
+}
 
-/* 2. Trục Tiến Trình Công Đoạn (Vertical Process Pipeline) */
-.khsx-vtke__pipeline {
+/* 2. Chuỗi công đoạn thu gọn — chip đậm là bước có ăn vật tư, số trong chip là số món. */
+.khsx-vtke__chuoi {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
-}
-.khsx-vtke__step {
-  display: flex;
-  gap: 16px;
-  position: relative;
-  padding-bottom: 24px;
-}
-.khsx-vtke__step:last-child {
-  padding-bottom: 0;
-}
-.khsx-vtke__node-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 0 0 auto;
-}
-.khsx-vtke__node {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-family: var(--ff-sans) !important;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--ash);
-  background: var(--paper);
-  border: 2px solid var(--rule-soft);
-  z-index: 1;
-}
-.khsx-vtke__step.has-vattu .khsx-vtke__node {
-  color: var(--rust-deep);
-  background: var(--rule-hair);
-  border-color: var(--rust);
-}
-.khsx-vtke__line {
-  flex: 1 1 auto;
-  width: 2px;
-  background: var(--rule-soft);
-  margin-top: 4px;
-}
-.khsx-vtke__step:last-child .khsx-vtke__line {
-  display: none;
-}
-
-.khsx-vtke__step-body {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.khsx-vtke__step-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
-}
-.khsx-vtke__step-title-wrap {
-  display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px 0;
 }
-.khsx-vtke__step-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
+.khsx-vtke__chuoi-o {
+  display: inline-flex;
+  align-items: center;
 }
-.khsx-vtke__org-tag {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--ash);
-  background: var(--paper);
-  border: 1px solid var(--rule-soft);
-  padding: 1px 7px;
-  border-radius: 4px;
+.khsx-vtke__chuoi-mui {
+  color: var(--rule);
+  padding: 0 6px;
 }
-.khsx-vtke__mach-tag {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--rust-deep);
-  background: var(--rule-hair);
-  padding: 1px 7px;
-  border-radius: 4px;
-}
-.khsx-vtke__job-tag {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ash);
-  background: var(--rule-hair);
-  border: 1px solid var(--rule-soft);
-  padding: 2px 8px;
-  border-radius: var(--r-pill, 999px);
-}
-.khsx-vtke__job-tag.is-empty {
-  color: var(--amber-deep);
-  background: var(--amber-soft);
-  border-color: var(--amber-soft);
-  font-style: italic;
-  font-weight: 400;
-}
-
-.khsx-vtke__flow-bar {
+.khsx-vtke__chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--ash);
+  color: var(--ash-2);
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-pill, 999px);
+  padding: 2px 10px;
+  white-space: nowrap;
 }
-.khsx-vtke__flow-num b {
-  font-family: var(--ff-sans) !important;
-  font-weight: 600;
+.khsx-vtke__chip.is-co {
   color: var(--ink);
+  font-weight: 600;
+  border-color: var(--ink);
+}
+.khsx-vtke__chip.is-thieu {
+  color: var(--signal-deep);
+  border-color: var(--signal);
+}
+.khsx-vtke__chip-dem {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill, 999px);
+  background: var(--charcoal);
+  color: var(--on-charcoal);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.khsx-vtke__flow-arrow {
-  color: var(--ash);
-  font-weight: 700;
-}
-.khsx-vtke__ngoai {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ash);
-  background: var(--paper);
-  border: 1px solid var(--rule-soft);
-  padding: 1px 6px;
-  border-radius: 4px;
-  margin-left: 6px;
-}
 
-.khsx-vtke__empty-step {
-  font-size: 12px;
-  font-style: italic;
-  color: var(--ash-2);
-  padding: 2px 0;
-}
-.khsx-vtke__alert-box {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--signal-deep);
-  background: var(--signal-soft);
-  border: 1px solid var(--signal-soft);
-  padding: 5px 10px;
-  border-radius: 6px;
-  width: fit-content;
-}
-
-/* 3. BẢNG VẬT TƯ (khsx-vtbang) — thay cho lối xếp card dọc trước đây.
-   Card đẹp từng cái nhưng 8 món xếp dọc thì mã, tên, số lượng, đơn vị của chúng không thẳng cột
-   nào với nhau: muốn so hai con số phải quét mắt zig-zag qua cả khối chữ. Bảng cho số lượng
-   thẳng một cột, nhóm và bước thành cột — mắt lọc được mà không phải đọc.
-   Chip Nhóm/Bước vẫn dùng lại `.khsx-vtcard__tag*` và `.khsx-vtcard__buoc` bên dưới, đừng đẻ bộ
-   thứ hai cùng màu. */
+/* 3. Bảng vật tư (khsx-vtbang) — cột số thẳng hàng, nhóm là dòng tiêu đề. */
 .khsx-vtbang__wrap {
   overflow-x: auto;
   border: 1px solid var(--rule-soft);
@@ -7185,7 +7229,7 @@ td.khsx-num > .khsx-unit {
   font-size: 12.5px;
 }
 .khsx-vtbang thead th {
-  padding: 6px 10px;
+  padding: 7px 12px;
   text-align: left;
   font-family: var(--ff-sans);
   font-size: 10.5px;
@@ -7198,32 +7242,28 @@ td.khsx-num > .khsx-unit {
   white-space: nowrap;
 }
 .khsx-vtbang tbody td {
-  padding: 7px 10px;
+  padding: 9px 12px;
   border-top: 1px solid var(--rule-hair);
-  vertical-align: middle;
+  vertical-align: top;
+}
+.khsx-vtbang tbody tr:not(.khsx-vtbang__nhom-r):hover td {
+  background: var(--rule-hair);
+}
+.khsx-vtbang__nhom-r td {
+  padding-top: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ash);
+  border-bottom: 1px solid var(--rule-soft);
 }
 .khsx-vtbang tbody tr:first-child td {
   border-top: 0;
 }
-.khsx-vtbang tbody tr:hover td {
-  background: var(--paper);
-}
-/* Dải màu nhóm ở mép trái hàng — thay cho viền trái của card cũ, giữ nguyên bộ màu. */
-.khsx-vtbang__r--nvl > td:first-child {
-  box-shadow: inset 3px 0 0 var(--rust);
-}
-.khsx-vtbang__r--dung_cu > td:first-child {
-  box-shadow: inset 3px 0 0 var(--plum);
-}
-.khsx-vtbang__r--vat_tu > td:first-child {
-  box-shadow: inset 3px 0 0 var(--steel);
-}
-/* NVL chính là dòng giấy — món xương sống của lệnh, nền nhạt để nó nổi trong danh sách phụ liệu. */
-.khsx-vtbang__r--nvl > td {
-  background: var(--rule-hair);
-}
-.khsx-vtbang__r--nvl:hover > td {
-  background: var(--rule-hair);
+.khsx-vtbang__nhom-dem {
+  margin-left: 6px;
+  font-weight: 500;
+  color: var(--ash-2);
+  font-variant-numeric: tabular-nums;
 }
 td.khsx-vtbang__ma,
 th.khsx-vtbang__ma {
@@ -7235,6 +7275,11 @@ td.khsx-vtbang__ma {
   font-size: 11px;
   font-weight: 700;
   color: var(--ash);
+}
+/* Cột tên có bề rộng định sẵn để cột "Dùng ở bước" ăn phần thừa — không thì bảng trải hết màn
+   rộng và số lượng trôi xa tên cả nghìn pixel. */
+th.khsx-vtbang__ten {
+  width: 32%;
 }
 .khsx-vtbang__ten-txt {
   font-weight: 600;
@@ -7264,101 +7309,92 @@ th.khsx-vtbang__dv {
   white-space: nowrap;
   color: var(--ash);
 }
-td.khsx-vtbang__nhom,
-th.khsx-vtbang__nhom,
-td.khsx-vtbang__buoc,
 th.khsx-vtbang__buoc {
-  width: 1%;
-  white-space: nowrap;
+  padding-left: 20px;
 }
-.khsx-vtbang__nhom .khsx-vtcard__tag,
-.khsx-vtbang__buoc .khsx-vtcard__buoc {
-  display: inline-block;
+td.khsx-vtbang__buoc {
+  padding-left: 20px;
 }
-
-/* 3b. Chip nhóm & chip bước — phần DUY NHẤT còn sống của bộ card cũ. Bảng ở trên dùng lại
-   nguyên bộ màu này; giữ tiền tố `vtcard` để khỏi phải sửa ba chỗ chỉ vì đổi tên lớp. */
-.khsx-vtcard__tag {
-  font-size: 10.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 7px;
-  border-radius: 4px;
-}
-.khsx-vtcard__tag--nvl {
-  color: var(--rust-deep);
-  background: var(--rule-hair);
-  border: 1px solid var(--rule-hair);
-}
-.khsx-vtcard__tag--dung_cu {
-  color: var(--plum-deep);
-  background: var(--plum-soft);
-  border: 1px solid var(--plum-soft);
-}
-.khsx-vtcard__tag--vat_tu {
-  color: var(--steel);
-  background: var(--steel-soft);
-  border: 1px solid var(--rule-soft);
-}
-.khsx-vtcard__buoc {
-  font-family: var(--ff-sans) !important;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ash);
-  background: var(--paper);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-.khsx-vtcard__buoc.is-nhieu {
-  color: var(--rust-deep);
-  background: var(--rule-hair);
-  font-weight: 700;
-}
-
-/* 4. Khối BOM Tổng Gom Cuối Bảng */
-.khsx-vtke__bom {
+.khsx-vtbang__buocs {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--paper);
-  border: 1px solid var(--rule-soft);
-  border-radius: 12px;
-  margin-top: 8px;
+  gap: 6px;
 }
-.khsx-vtke__bom-head {
+.khsx-vtbang__lan {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
 }
-.khsx-vtke__bom-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.khsx-vtbang__lan-ten {
+  font-weight: 500;
   color: var(--ink);
 }
-.khsx-vtke__bom-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ink);
+.khsx-vtbang__lan-ten.is-rieng {
+  font-weight: 400;
+  color: var(--ash);
 }
-.khsx-vtke__bom-count {
-  font-size: 12px;
+.khsx-vtbang__lan-sl {
   font-weight: 600;
-  color: var(--ash);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
-.khsx-vtke__bom-foot {
+.khsx-vtbang__lan-co-so {
+  flex-basis: 100%;
+  font-size: 11.5px;
+  color: var(--ash-2);
+}
+
+/* 3c. Điện thoại: bảng cuộn ngang thì cột Số lượng khuất ngoài mép — đúng con số cần đọc. Hẹp
+   thì mỗi món thành một khối: tên + số + đơn vị một hàng, mã trên, "Dùng ở bước" dưới. */
+@media screen and (max-width: 480px) {
+  .khsx-vtbang__wrap {
+    overflow-x: visible;
+  }
+  .khsx-vtbang,
+  .khsx-vtbang tbody {
+    display: block;
+  }
+  .khsx-vtbang thead {
+    display: none;
+  }
+  .khsx-vtbang__nhom-r,
+  .khsx-vtbang__nhom-r td {
+    display: block;
+  }
+  .khsx-vtbang tbody tr:not(.khsx-vtbang__nhom-r) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 6px;
+    align-items: baseline;
+    padding: 10px 12px;
+    border-top: 1px solid var(--rule-hair);
+  }
+  .khsx-vtbang tbody tr:not(.khsx-vtbang__nhom-r) td {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .khsx-vtbang tbody td.khsx-vtbang__ma {
+    grid-column: 1 / -1;
+  }
+  .khsx-vtbang tbody td.khsx-vtbang__buoc {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+  }
+}
+
+/* 4. Chân: chỉ đường sang Kế hoạch vật tư */
+.khsx-vtke__foot {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 12px;
   color: var(--ash);
-  padding-top: 6px;
-  border-top: 1px dashed var(--rule-soft);
+  padding-top: 10px;
+  border-top: 1px solid var(--rule-hair);
 }
 
 /* ============================================================================
@@ -8388,4 +8424,11 @@ th.khsx-vtbang__buoc {
     width: auto;
     padding: 0;
   }
+}
+
+/* Thanh công cụ của Kế hoạch vật tư: ô tìm + thanh lọc chung nằm cùng một cụm (06/10/2026). */
+.khsx .khvt-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
 }

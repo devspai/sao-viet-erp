@@ -1,5 +1,5 @@
-/** Ngăn phiếu thu (đặc tả PT-2): menu Hủy nói hệ quả lên hoá đơn; phiếu cọc đã thu thì mục Hủy mờ
- *  kèm lý do (lỗi 3 — máy chủ không cho hủy); phiếu cũ chờ thu có khung "Xác nhận đã thu" tại chỗ. */
+/** Ngăn phiếu thu (đặc tả PT-2): menu Hủy nói hệ quả lên hoá đơn / đơn bán; phiếu cọc đã thu hủy được
+ *  ngay tại ngăn (06/10/2026); phiếu cũ chờ thu có khung "Xác nhận đã thu" tại chỗ. */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -44,12 +44,19 @@ beforeEach(() => {
 });
 
 describe("ReceiptsDrawer", () => {
-  it("phiếu cọc đã thu: mục Hủy phiếu mờ kèm lý do, không mở khung hủy", async () => {
-    ve(phieuThu({ id: 2, code: "PT-261004-R7VN", source_type: "order_deposit", order_id: 41, order_code: "DH-0415" }));
+  it("phiếu cọc đã thu: Hủy phiếu nói đơn bớt số đã cọc, mở khung và gửi lý do", async () => {
+    const p = phieuThu({ id: 2, code: "PT-261004-R7VN", source_type: "order_deposit", order_id: 41, order_code: "DH-0415" });
+    goi.cancelReceipt.mockResolvedValue({ ...p, status: "cancelled", cancel_reason: "Ghi nhầm số tiền" });
+    ve(p);
     await userEvent.click(screen.getByRole("button", { name: "Thao tác khác" }));
     const muc = screen.getByRole("menuitem", { name: /Hủy phiếu/ });
-    expect(muc).toBeDisabled();
-    expect(muc).toHaveTextContent("Phiếu cọc đã thu — hủy từ đơn bán");
+    expect(muc).toBeEnabled();
+    expect(muc).toHaveTextContent("Đơn DH-0415 sẽ bớt 2.350.000 đ đã cọc");
+    await userEvent.click(muc);
+    const khung = screen.getByRole("region", { name: "Hủy phiếu PT-261004-R7VN" });
+    await userEvent.type(within(khung).getByLabelText(/Lý do hủy/), "Ghi nhầm số tiền");
+    await userEvent.click(within(khung).getByRole("button", { name: "Hủy phiếu" }));
+    await waitFor(() => expect(goi.cancelReceipt).toHaveBeenCalledWith("token-test", 2, "Ghi nhầm số tiền"));
   });
 
   it("phiếu thu hoá đơn: Hủy nói hoá đơn quay lại còn nợ bao nhiêu; khối Áp vào hoá đơn đủ bốn số", async () => {

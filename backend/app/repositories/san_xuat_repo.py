@@ -630,8 +630,9 @@ class SanXuatRepository:
         co_trang: int = 20,
         chi_cong_viec_ids: set[int] | None = None,
         trang_thai: set[str] | None = None,
-        nhan_tu: datetime | None = None,
-        nhan_den: datetime | None = None,
+        moc: str = "nhan",
+        ky_tu: datetime | None = None,
+        ky_den: datetime | None = None,
         sap_xep: str = "moi_nhan",
     ) -> tuple[list[tuple[tuple[str, int | None], datetime | None, datetime | None]], int]:
         """Một TRANG các LỆNH/BÀI GHÉP mà tổ phải làm + tổng số lệnh.
@@ -657,8 +658,11 @@ class SanXuatRepository:
 
         Lọc nâng cao của bàn (19/09/2026) — cũng HAVING, cũng trước khi cắt trang:
         · `trang_thai`: giữ lệnh có ÍT NHẤT MỘT bước của tổ ở một trong các trạng thái ấy.
-        · `nhan_tu`/`nhan_den` (UTC THẬT, nửa mở `[tu, den)`): lúc tổ NHẬN lệnh — `created_at`
-          sớm nhất của các bước của tổ, cùng mốc bàn hiện "Nhận …" ở đầu lệnh.
+        · Kỳ `ky_tu`/`ky_den` (nửa mở `[tu, den)`, 06/10/2026) theo mốc `moc`:
+          `nhan` — lúc tổ NHẬN lệnh = `created_at` sớm nhất của các bước của tổ (UTC THẬT), cùng mốc
+          bàn hiện "Nhận …" ở đầu lệnh; `tao` — ngày tạo LỆNH (hoặc BÀI GHÉP) (UTC THẬT);
+          `du_kien` — giờ dự kiến bắt đầu bước sớm nhất của tổ (thang LỊCH: giờ tường dán nhãn
+          UTC — người gọi tự quy mép cho đúng thang). Lệnh chưa xếp giờ thì không lọt kỳ `du_kien`.
         `sap_xep`: `moi_nhan` (mặc định — lệnh phát hành xuống tổ SAU nằm TRÊN), `cu_nhan`, hoặc
         `du_kien` (giờ dự kiến bước sớm nhất của tổ, lệnh chưa xếp giờ dồn cuối).
         """
@@ -683,18 +687,21 @@ class SanXuatRepository:
             .join(SanXuatGoiPhatHanh, SanXuatCongViec.goi_id == SanXuatGoiPhatHanh.id)
         )
         kw = (tim or "").strip()
+        co_ky = ky_tu is not None or ky_den is not None
+        # Lệnh / bài ghép chỉ JOIN khi cần (tìm chữ, hoặc kỳ theo ngày tạo lệnh) — bàn không lọc
+        # thì câu gom vẫn gọn như cũ.
+        if kw or (co_ky and moc == "tao"):
+            nhom = nhom.outerjoin(Lsx, SanXuatCongViec.lsx_id == Lsx.id)
+            if kw:
+                nhom = (nhom.outerjoin(Order, Lsx.order_id == Order.id)
+                        .outerjoin(Customer, Order.customer_id == Customer.id))
+            nhom = nhom.outerjoin(BaiGhep, SanXuatCongViec.bai_ghep_id == BaiGhep.id)
         if kw:
             from sqlalchemy import or_
 
             from sqlalchemy.orm import aliased
 
             mau = f"%{kw}%"
-            nhom = (
-                nhom.outerjoin(Lsx, SanXuatCongViec.lsx_id == Lsx.id)
-                .outerjoin(Order, Lsx.order_id == Order.id)
-                .outerjoin(Customer, Order.customer_id == Customer.id)
-                .outerjoin(BaiGhep, SanXuatCongViec.bai_ghep_id == BaiGhep.id)
-            )
             # Khách của BÀI GHÉP là khách các lệnh thành viên — EXISTS chứ không JOIN, join thì mỗi
             # bước nhân lên theo số thành viên.
             lsx_tv, don_tv, khach_tv = aliased(Lsx), aliased(Order), aliased(Customer)
@@ -719,10 +726,19 @@ class SanXuatRepository:
         if trang_thai:
             nhom = nhom.having(func.sum(sa_case(
                 (SanXuatCongViec.trang_thai.in_(trang_thai), 1), else_=0)) > 0)
-        if nhan_tu is not None:
-            nhom = nhom.having(nhan >= nhan_tu)
-        if nhan_den is not None:
-            nhom = nhom.having(nhan < nhan_den)
+        if co_ky:
+            if moc == "tao":
+                cot_ky = func.min(sa_case(
+                    (SanXuatCongViec.bai_ghep_id.is_not(None), BaiGhep.created_at),
+                    else_=Lsx.created_at))
+            elif moc == "du_kien":
+                cot_ky = som
+            else:
+                cot_ky = nhan
+            if ky_tu is not None:
+                nhom = nhom.having(cot_ky >= ky_tu)
+            if ky_den is not None:
+                nhom = nhom.having(cot_ky < ky_den)
         tong = self.db.scalar(sa_select(func.count()).select_from(nhom.subquery())) or 0
 
         co_trang = max(1, min(int(co_trang or 20), 100))
@@ -882,6 +898,18 @@ class SanXuatRepository:
             select(BaiGhep.id, BaiGhep.ma, BaiGhep.ten).where(BaiGhep.id.in_(bg_ids))
         ).all()
         return {bid: (ma, ten) for bid, ma, ten in rows}
+
+    def ngay_tao_nguon(self, lsx_ids: set[int], bg_ids: set[int]) -> dict[tuple[str, int], datetime]:
+        """{("lsx", id) | ("bai_ghep", id): created_at} — cột "Ngày tạo" của bàn tổ (UTC thật)."""
+        ra: dict[tuple[str, int], datetime] = {}
+        if lsx_ids:
+            for i, t in self.db.execute(select(Lsx.id, Lsx.created_at).where(Lsx.id.in_(lsx_ids))):
+                ra[("lsx", i)] = t
+        if bg_ids:
+            for i, t in self.db.execute(
+                    select(BaiGhep.id, BaiGhep.created_at).where(BaiGhep.id.in_(bg_ids))):
+                ra[("bai_ghep", i)] = t
+        return ra
 
     def khach_nhan(self, lsx_ids: set[int], bg_ids: set[int]) -> dict[tuple[str, int], str]:
         """{("lsx", id) | ("bai_ghep", id): tên khách} — lệnh → đơn hàng → khách. Bài ghép chạy

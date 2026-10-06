@@ -68,6 +68,10 @@ make_catalog_router(
     InModel=CongDoanIn, RowModel=CongDoanRow, ListModel=CongDoanListOut,
     loc="nhom",
     facets=lambda svc, kw: svc.dem_theo_nhom(**kw),
+    # Thanh lọc chung (06/10/2026): kỳ Ngày tạo + Giai đoạn · Tổ phụ trách · Cần khuôn.
+    co_ky=True,
+    loc_them={"to_id": int, "can_khuon": bool},
+    dem_them={"to_id": lambda svc, kw: svc.dem_theo_to(**kw), "can_khuon": "requires_tooling"},
     ma_goi_y=True,      # repo khai `ma_prefix = "CD-"`
     enable_clone=True,
     # `cong_thuc_truong="cong_thuc_san_luong"` GỠ 18/09/2026 (mg `0324`) cùng cột ấy — công đoạn

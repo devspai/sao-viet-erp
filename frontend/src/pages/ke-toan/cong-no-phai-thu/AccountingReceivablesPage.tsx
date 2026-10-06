@@ -1,8 +1,8 @@
 /** Màn CÔNG NỢ PHẢI THU (đặc tả NPTh-1 … NPTh-3, A.11, A.17, A.18) — dựng trên bộ khung chung kế toán,
  *  cùng khuôn màn Công nợ phải trả.
  *
- *  Khuôn trang: đầu trang → chọn kỳ → khối TỔNG QUAN (Còn nợ tới cuối kỳ, quá hạn, bán thêm, đã thu +
- *  thanh tuổi nợ bấm được) → thanh lọc (nhóm nút có số, ô tìm, Bộ lọc nâng cao, chip, "n khách
+ *  Khuôn trang: đầu trang → khối TỔNG QUAN (Còn nợ tới cuối kỳ, quá hạn, bán thêm, đã thu + thanh
+ *  tuổi nợ bấm được) → thanh lọc (nhóm nút có số, ô tìm, thanh lọc chung: kỳ + điều kiện, "n khách
  *  hàng") → bảng + chân phân trang. Bấm dòng mở ngăn khách hàng; bấm số Quá hạn / Đã thu mở ngăn đúng
  *  chỗ đó. Mọi lọc chạy ở MÁY CHỦ. Nợ tính theo từng HOÁ ĐƠN bán.
  *
@@ -22,10 +22,9 @@ import { api, type ReceivableCustomerRow, type ReceivablesSummary, type SaleOpti
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
-import { LOC_CONG_NO_TRONG, dangLocCongNo, type TrangThaiCongNo } from "../shared/locCongNo";
+import { LOC_CONG_NO_TRONG, dangLocCongNo, dieuKienCongNo, type TrangThaiCongNo } from "../shared/locCongNo";
 import { ThanTrangCongNo, nhanTuoiDangLoc, type CauHinhThanCongNo } from "../shared/ThanTrangCongNo";
 import { useTrangCongNo } from "../shared/trangCongNo";
-import { BoLocCongNoThu } from "./components/BoLocCongNoThu";
 import { ReceivablesDrawer } from "./components/ReceivablesDrawer";
 import { PAGE_SIZE } from "./shared/constants";
 import type { Bucket } from "./shared/types";
@@ -40,7 +39,10 @@ const CAU_HINH: CauHinhThanCongNo<ReceivableCustomerRow> = {
   donVi: "khách hàng",
   nhanDoiTac: "Khách hàng",
   nhanHan: "Hạn thu gần nhất",
-  nhanDaTra: "Đã thu trong kỳ",
+  nhanThem: "Bán thêm",
+  nhanDa: "Đã thu",
+  nhanGanNhat: "Thu gần nhất",
+  chuChuaGanNhat: "Chưa thu lần nào",
   chuHet: "Đã thu hết",
   donViKhoan: "hoá đơn",
   nhanTim: "Tìm khách hàng",
@@ -51,7 +53,12 @@ const CAU_HINH: CauHinhThanCongNo<ReceivableCustomerRow> = {
   ariaPhanTrang: "Phân trang công nợ phải thu",
   id: (r) => r.customer_id,
   ten: (r) => r.customer_name,
+  ma: (r) => r.customer_code,
+  choNo: (r) => r.payment_term_days,
+  themTrongKy: (r) => r.ban_trong_ky,
   daTraTrongKy: (r) => r.received_in_period,
+  ganNhat: (r) => (r.thu_gan_nhat_ngay ? { ngay: r.thu_gan_nhat_ngay, tien: r.thu_gan_nhat_tien ?? 0 } : null),
+  lienHe: (r) => ({ ten: r.lien_he_ten, sdt: r.lien_he_sdt, phuTrach: r.sale_user_name }),
 };
 
 type KhachMo = { id: number | null; name: string };
@@ -94,8 +101,8 @@ export function AccountingReceivablesPage({
   );
   const rows = sp.data?.items ?? [];
 
-  // Người phụ trách + nhãn khách cho bộ lọc: cùng nguồn màn Khách hàng dùng; hai lời cần quyền xem
-  // Khách hàng — không có quyền thì bảng lọc nói một dòng vì sao; tải hỏng thì ô ẩn lặng.
+  // Người phụ trách + nhãn khách cho thanh lọc: cùng nguồn màn Khách hàng dùng; hai lời cần quyền
+  // xem Khách hàng — không có quyền hay tải hỏng thì không có hai điều kiện đó.
   const xemKhach = quyen.xemKhach;
   const [nguoi, setNguoi] = useState<SaleOption[] | null>(null);
   const [nhanKhach, setNhanKhach] = useState<string[] | null>(null);
@@ -108,6 +115,12 @@ export function AccountingReceivablesPage({
       song = false;
     };
   }, [token, xemKhach]);
+
+  const aging = sp.data?.aging;
+  const dieuKien = useMemo(
+    () => dieuKienCongNo({ nhanHan: "Hạn thu", nhanHet: "Khách đã thu hết" }, aging ?? [], nguoi, nhanKhach),
+    [aging, nguoi, nhanKhach],
+  );
 
   const [open, setOpen] = useState<{ id: number; name: string; bucket: Bucket } | null>(null);
   const moDuoc = useMemo(() => rows.filter((r) => r.customer_id != null), [rows]);
@@ -149,16 +162,8 @@ export function AccountingReceivablesPage({
     <ThanTrangCongNo
       ch={CAU_HINH}
       sp={sp}
-      con={(data, cung) => [
-        { nhan: "Còn nợ tới", so: data.total_due, cungKy: cung?.total_due },
-        { nhan: "Trong đó quá hạn", so: data.overdue_amount, cungKy: cung?.overdue_amount, xau: true },
-        { nhan: "Bán thêm trong kỳ", so: data.ban_trong_ky, cungKy: cung?.ban_trong_ky },
-        { nhan: "Đã thu trong kỳ", so: data.received_in_period, cungKy: cung?.received_in_period },
-      ]}
-      boLoc={(dau) => (
-        <BoLocCongNoThu nguoi={nguoi} nhanKhach={nhanKhach} coQuyenKhach={xemKhach} loc={sp.loc} onDoiLoc={sp.setLoc}
-          demKhop={sp.demKhop} {...dau} />
-      )}
+      so={(d) => ({ conNo: d.total_due, quaHan: d.overdue_amount, them: d.ban_trong_ky, da: d.received_in_period })}
+      dieuKien={dieuKien}
       dangXem={open?.id ?? null}
       onMo={mo}
       ngan={
@@ -167,9 +172,10 @@ export function AccountingReceivablesPage({
             key={`${open.id}:${open.bucket}`}
             customerId={open.id}
             customerName={open.name}
+            ma={sp.data?.items.find((r) => r.customer_id === open.id)?.customer_code ?? null}
             bucket={open.bucket}
             tuoi={sp.tuoi && nhanTuoi ? { khoa: sp.tuoi, nhan: nhanTuoi } : null}
-            ky={sp.kyMan.ky}
+            ky={sp.ky}
             eventTick={eventTick}
             quyen={quyen}
             navigate={navigate}

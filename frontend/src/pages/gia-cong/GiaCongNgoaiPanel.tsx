@@ -1,7 +1,14 @@
 // Khối "Gia công ngoài" trên hồ sơ lệnh (spec 2026-09-26 §7). MỘT cửa ghi duy nhất của lần gia
-// công: Đã mang đi · Chốt số · Mở lại · Đề nghị xuất giấy · Huỷ trọn gói. Bàn tổ / Xếp lịch / KCS
-// chỉ nhìn. Tự nạp lại theo tick SSE — khối không có ô nhập dở dang nào ngoài mini-form đang mở,
-// mà state của mini-form nằm riêng, nạp lại không xoá nó.
+// công: Đã mang đi · Chốt số · Mở lại · Chọn giấy (đề nghị xuất giấy) · Huỷ trọn gói. Bàn tổ /
+// Xếp lịch / KCS chỉ nhìn. Tự nạp lại theo tick SSE — khối không có ô nhập dở dang nào ngoài
+// mini-form đang mở, mà state của mini-form nằm riêng, nạp lại không xoá nó.
+//
+// Bố cục (06/10/2026, làm lại HAI lượt theo lối trang chi tiết đơn của Shopify/Stripe): đầu thẻ
+// (việc + chip trạng thái bên trái, nút bên phải) → thanh tiến độ chia đoạn (lúc nào, ai) → MỘT hàng
+// cặp nhãn–giá trị không đóng hộp (nhà gia công + số gọi, số lượng, giấy, chi tiền; đơn giá
+// không hiện ở đây — 06/10 bỏ theo yêu cầu). Luật:
+// mỗi thông tin nói ĐÚNG MỘT lần — lượt đầu lặp "trọn gói" 3 lần, "5.000 cái" 3 lần, mốc vẽ bằng
+// chấm + đường kẻ tuyệt đối nên đè chữ, ô thông tin đóng hộp cao thấp lệch nhau.
 //
 // Nguồn lệnh HOẶC bài ghép (spec 2026-09-27 §4): lần của bước CHUNG bài ghép thao tác ở màn bài
 // ghép; màn từng lệnh thành viên chỉ hiện một dòng chỉ đọc bấm sang bài ghép.
@@ -9,18 +16,47 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ApiError,
   api,
+  type GiaCongCapGiay,
   type GiaCongNgoaiLan,
   type GiaCongNoiVe,
 } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { Button } from "../../components/Button";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { Icon } from "../../components/Icons";
 import { nhanDonVi } from "../lsxBuoc";
 import { useNapTenDonVi } from "../tenDonVi";
-import { NHAN_NOI_VE, NHAN_TRANG_THAI, goiYChot, nutCuaLan, soNhanChia, tomTat } from "./giaCong";
+import { OGoDinhDang } from "../../components/OGoDinhDang";
+import { nhanKho } from "../../lib/khoGiay";
+import {
+  NHAN_NOI_VE, NHAN_TRANG_THAI, NHAN_XUAT_GIAY, chonGiayBanDau, goiYChot, mocCuaLan, nutCuaLan,
+  soNhanChia, thieuTo,
+} from "./giaCong";
 import "./giaCong.css";
 
-type FormChot = { sl: string; noiVe: GiaCongNoiVe | null; dich: number | null };
+/** `nhan` = ngày khách nhận (yyyy-mm-dd) khi nhà gia công giao thẳng — theo biên bản gửi về. */
+type FormChot = { sl: string; noiVe: GiaCongNoiVe | null; dich: number | null; nhan: string };
+/** Phần "Chọn giấy" đang mở: khổ chọn (`"rộngxdài"`) + số tờ gõ. */
+type FormGiay = { kho: string | null; so: string };
+
+/** "2026-10-06" theo giờ VN — giá trị của ô ngày. */
+function ngayIsoVn(d: Date = new Date()): string {
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
+}
+
+const so = (n: number) => n.toLocaleString("vi-VN");
+/** "11:11 06/10" — năm chỉ hiện khi khác năm nay. */
+function gio(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const cungNam = d.getFullYear() === new Date().getFullYear();
+  const hm = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  const nt = d.toLocaleDateString("vi-VN", cungNam
+    ? { day: "2-digit", month: "2-digit" }
+    : { day: "2-digit", month: "2-digit", year: "numeric" });
+  return `${hm} ${nt}`;
+}
 
 export function GiaCongNgoaiPanel({
   lsxId,
@@ -29,6 +65,9 @@ export function GiaCongNgoaiPanel({
   canUpdate,
   onChanged,
   onMoBaiGhep,
+  onLans,
+  lansDau,
+  lansDauTick,
 }: {
   /** Đúng MỘT trong hai: khối trên hồ sơ lệnh, hoặc khối trên màn bài ghép. */
   lsxId?: number;
@@ -39,14 +78,21 @@ export function GiaCongNgoaiPanel({
   onChanged: () => void;
   /** Dòng chỉ đọc (lần của bài ghép trên màn lệnh) bấm sang màn bài ghép. */
   onMoBaiGhep?: (baiGhepId: number) => void;
+  /** Báo màn cha danh sách lần mỗi lần nạp — hồ sơ lệnh dùng để biết lệnh đang trọn gói. */
+  onLans?: (lans: GiaCongNgoaiLan[]) => void;
+  /** Danh sách lần màn cha đã nạp SONG SONG với chính nó (hồ sơ lệnh) cùng tick SSE lúc nạp —
+   *  khối vẽ ngay từ đó, không gọi lại tới khi có tick mới. */
+  lansDau?: GiaCongNgoaiLan[];
+  lansDauTick?: number;
 }) {
   const { token } = useAuth();
-  const [lans, setLans] = useState<GiaCongNgoaiLan[] | null>(null);
+  const [lans, setLans] = useState<GiaCongNgoaiLan[] | null>(lansDau ?? null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const [chot, setChot] = useState<Record<number, FormChot>>({});
   const [slGui, setSlGui] = useState<Record<number, string>>({});
   const [huy, setHuy] = useState<{ lan: GiaCongNgoaiLan; lyDo: string } | null>(null);
+  const [giay, setGiay] = useState<Record<number, FormGiay>>({});
   // Mở thẳng màn Bài ghép (chưa màn nào nạp bảng đơn vị) thì `nhanDonVi` in mã trần "2.660 to".
   useNapTenDonVi();
 
@@ -56,10 +102,16 @@ export function GiaCongNgoaiPanel({
       ? api.giaCongNgoai.cuaBaiGhep(token, baiGhepId)
       : lsxId != null ? api.giaCongNgoai.cuaLenh(token, lsxId) : null;
     req
-      ?.then(setLans)
+      ?.then((ds) => { setLans(ds); onLans?.(ds); })
       .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : String(e)));
+    // `onLans` là callback của màn cha — không đưa vào deps để mỗi lần cha vẽ lại không nạp lại.
   }, [token, lsxId, baiGhepId]);
-  useEffect(() => load(), [load, eventTick]);
+  useEffect(() => {
+    if (lansDau && eventTick === lansDauTick) return;   // màn cha vừa nạp đúng tick này rồi
+    load();
+    // `lansDau` chỉ là dữ liệu mở màn — không nạp lại khi nó đổi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load, eventTick]);
 
   async function chay(id: number, fn: () => Promise<unknown>) {
     setBusy(id);
@@ -80,27 +132,67 @@ export function GiaCongNgoaiPanel({
     }
   }
 
+  /** Gửi đề nghị xuất giấy: lần MỚI lấy thẳng từ phản hồi POST thay vào danh sách — không nạp lại
+   *  khối, không bắt màn cha nạp lại (lệnh không đổi trạng thái). Tab khác / bảng lệnh tự cập nhật
+   *  theo tin SSE `gia_cong_ngoai_changed` máy chủ phát. */
+  async function guiGiay(l: GiaCongNgoaiLan, f: FormGiay) {
+    if (!token || !f.kho) return;
+    const [r, d] = f.kho.split("x").map(Number);
+    setBusy(l.id);
+    setErr(null);
+    try {
+      const moi = await api.giaCongNgoai.xuatGiay(token, l.id, {
+        version: l.version, kho_rong: r, kho_dai: d, so_to: Number(f.so),
+      });
+      const ds = (lans ?? []).map((x) => (x.id === moi.id ? { ...moi, chi_xem: x.chi_xem } : x));
+      setLans(ds);
+      onLans?.(ds);
+      setGiay((m) => { const n = { ...m }; delete n[l.id]; return n; });
+    } catch (e: unknown) {
+      setErr(e instanceof ApiError ? e.message : String(e));
+      load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (!lans || lans.length === 0) return err ? <div className="banner banner--error">{err}</div> : null;
   const dvTen = (ma: string | null) => (ma ? nhanDonVi(ma) : "");
+  const boChot = (id: number) => setChot((m) => { const n = { ...m }; delete n[id]; return n; });
+  // Lần đã huỷ là chuyện đã qua: không bày ngang hàng (và đứng TRÊN) lần đang chạy với đủ thanh
+  // tiến độ + lịch sử — gom xuống cuối, mỗi lần một dòng, gập sẵn khi còn lần đang chạy.
+  const song = lans.filter((l) => l.trang_thai !== "da_huy");
+  const daHuy = lans.filter((l) => l.trang_thai === "da_huy");
+
   return (
     <section className="gcn" aria-label="Gia công ngoài">
-      <h3 className="gcn__title">Gia công ngoài</h3>
+      {/* Nhãn khối nói MỘT lần ở đầu khối, không lặp trên từng lần. */}
+      <h3 className="gcn__ten-khoi">Gia công ngoài</h3>
       {err && <div className="banner banner--error" role="alert">{err}</div>}
-      {lans.map((l) => {
+      {song.map((l) => {
         if (l.chi_xem && l.bai_ghep_id != null && baiGhepId == null) {
           // Lần của bước chung bài ghép trên màn LỆNH: một dòng chỉ đọc, thao tác ở màn bài ghép.
           return (
-            <article key={l.id} className={`gcn__lan gcn__lan--${l.trang_thai} gcn__lan--chi-xem`}>
-              <div className="gcn__head">
-                <strong className="gcn__viec">{l.ten_viec}</strong>
-                <span className="gcn__ncc">đi chung bài ghép {l.bai_ghep_ma} — {l.nha_cung_cap_ten}</span>
-                <span className={`gcn__tt gcn__tt--${l.trang_thai}`}>{NHAN_TRANG_THAI[l.trang_thai]}</span>
+            <article key={l.id} className="gcn__lan">
+              <header className="gcn__dau">
+                <div className="gcn__tieu-de">
+                    <div className="gcn__tieu-de-dong">
+                    <strong className="gcn__viec">{l.ten_viec}</strong>
+                    <span className={`gcn__tt gcn__tt--${l.trang_thai}`}>{NHAN_TRANG_THAI[l.trang_thai]}</span>
+                  </div>
+                  <span className="gcn__phu-dong">
+                    <span className="gcn__the">Bài ghép {l.bai_ghep_ma}</span>
+                    <span className="gcn__phu">{l.nha_cung_cap_ten}</span>
+                  </span>
+                </div>
                 {onMoBaiGhep && (
-                  <Button variant="ghost" onClick={() => onMoBaiGhep(l.bai_ghep_id!)}>
-                    Mở bài ghép
-                  </Button>
+                  <div className="gcn__dau-nut">
+                    <Button variant="secondary" onClick={() => onMoBaiGhep(l.bai_ghep_id!)}>
+                      Mở bài ghép
+                    </Button>
+                  </div>
                 )}
-              </div>
+              </header>
             </article>
           );
         }
@@ -109,142 +201,309 @@ export function GiaCongNgoaiPanel({
         const dangBan = busy === l.id;
         const thaoTac = canUpdate && !l.chi_xem;
         const chia = l.chia_theo_lenh ?? [];
+        const tronGoi = l.kieu === "tron_goi";
+        const moc = mocCuaLan(l, dvTen);
+        const canGoSoMangDi = nut.mangDi && !l.co_buoc_truoc && l.trang_thai === "cho_mang_di";
+        const cg = l.cap_giay ?? null;
+        const g = giay[l.id];
+        const xg = l.xuat_giay;
         return (
           <article key={l.id} className={`gcn__lan gcn__lan--${l.trang_thai}`}>
-            <div className="gcn__head">
-              <strong className="gcn__viec">{l.ten_viec}</strong>
-              <span className="gcn__ncc">{l.nha_cung_cap_ten}</span>
-              <span className={`gcn__tt gcn__tt--${l.trang_thai}`}>{NHAN_TRANG_THAI[l.trang_thai]}</span>
-              {l.don_gia != null && (
-                <span className="gcn__gia">
-                  {l.don_gia.toLocaleString("vi-VN")}đ / {dvTen(l.don_vi)}
-                </span>
-              )}
-            </div>
+            {/* Đầu thẻ: việc + trạng thái bên trái, nút bên phải — như trang chi tiết đơn của
+                Shopify/Stripe. Không icon trang trí, không lặp chữ "trọn gói" ở chip. */}
+            <header className="gcn__dau">
+              <div className="gcn__tieu-de">
+                <div className="gcn__tieu-de-dong">
+                  <strong className="gcn__viec">{tronGoi ? "Trọn gói cả lệnh" : l.ten_viec}</strong>
+                  <span className={`gcn__tt gcn__tt--${l.trang_thai}`}>{NHAN_TRANG_THAI[l.trang_thai]}</span>
+                </div>
+                {l.bai_ghep_id != null && (
+                  <span className="gcn__phu-dong">
+                    <span className="gcn__the">Bài ghép {l.bai_ghep_ma}</span>
+                    {(l.lenh ?? []).map((x) => <span key={x.id} className="gcn__the">{x.ma}</span>)}
+                  </span>
+                )}
+              </div>
 
-            {l.trang_thai === "cho_mang_di" && l.sl_cho_mang_di > 0 && (
-              <p className="gcn__note">
-                Bước trước đã bàn giao {l.sl_cho_mang_di.toLocaleString("vi-VN")} {dvTen(l.don_vi_gui)} — chờ mang đi.
-              </p>
-            )}
-            {l.trang_thai === "cho_mang_di" && l.sl_cho_mang_di === 0 && l.co_buoc_truoc && (
-              <p className="gcn__note">Chờ bước trước bàn giao hàng sang.</p>
-            )}
-            {l.trang_thai === "dang_o_ngoai" && l.sl_cho_mang_di > 0 && (
-              <p className="gcn__note">
-                Còn {l.sl_cho_mang_di.toLocaleString("vi-VN")} {dvTen(l.don_vi_gui)} mới bàn giao — mang thêm nếu đã đem đi.
-              </p>
-            )}
-            {l.kieu === "tron_goi" && (
-              <p className="gcn__note">
-                {l.xuong_cap_giay ? "Xưởng cấp giấy" : "Nhà gia công tự lo giấy"}
-                {l.xuat_giay ? ` · Đề nghị xuất giấy ${l.xuat_giay.ma}` : ""}
-                {l.sl_dat != null ? ` · Đặt ${l.sl_dat.toLocaleString("vi-VN")} ${dvTen(l.don_vi)}` : ""}
-              </p>
-            )}
-            {(l.trang_thai === "da_xong" || l.mang_di_boi_ten) && (
-              <p className="gcn__tomtat">{tomTat(l, dvTen)}</p>
-            )}
-            {l.trang_thai === "da_huy" && (
-              <p className="gcn__note">
-                {l.huy_boi_ten ?? "—"} huỷ{l.ly_do_huy ? `: ${l.ly_do_huy}` : ""}
-              </p>
-            )}
-            {l.bai_ghep_id != null && (
-              <p className="gcn__note">Các lệnh trên tờ: {(l.lenh ?? []).map((x) => x.ma).join(", ")}</p>
-            )}
-            {canUpdate && l.chi_xem && (
-              <p className="gcn__note">
-                Chỉ xem — bài ghép có lệnh ngoài phạm vi của bạn. Nhờ người phụ trách các lệnh còn lại thao tác.
-              </p>
-            )}
-
-            {thaoTac && (
-              <div className="gcn__nut">
-                {nut.mangDi && (
-                  <>
-                    {!l.co_buoc_truoc && l.trang_thai === "cho_mang_di" && (
-                      <label className="gcn__o">
-                        <span>Số mang đi ({dvTen(l.don_vi_gui)})</span>
+              {thaoTac && !f && (
+                <div className="gcn__dau-nut">
+                  {nut.huyTronGoi && (
+                    <Button variant="ghost" className="gcn__nut-huy" onClick={() => setHuy({ lan: l, lyDo: "" })}>
+                      Huỷ gia công
+                    </Button>
+                  )}
+                  {nut.moLai && (
+                    <Button
+                      variant="secondary"
+                      loading={dangBan}
+                      disabled={!!l.ly_do_khong_mo_lai}
+                      title={l.ly_do_khong_mo_lai ?? "Mở lại để sửa số đã chốt"}
+                      onClick={() => chay(l.id, () => api.giaCongNgoai.moLai(token!, l.id, l.version))}
+                    >
+                      Mở lại
+                    </Button>
+                  )}
+                  {nut.mangDi && (
+                    <>
+                      {canGoSoMangDi && (
                         <input
+                          className="gcn__o-so"
                           inputMode="decimal"
+                          placeholder={`Số mang đi (${dvTen(l.don_vi_gui)})`}
+                          aria-label={`Số mang đi (${dvTen(l.don_vi_gui)})`}
                           value={slGui[l.id] ?? ""}
                           onChange={(e) => setSlGui((m) => ({ ...m, [l.id]: e.target.value }))}
                         />
-                      </label>
-                    )}
-                    <Button
-                      variant="accent"
-                      loading={dangBan}
-                      onClick={() => chay(l.id, () => api.giaCongNgoai.mangDi(token!, l.id, {
-                        version: l.version,
-                        sl_gui: l.co_buoc_truoc ? null : Number(slGui[l.id] || 0) || null,
-                      }))}
-                    >
-                      {l.trang_thai === "dang_o_ngoai" ? "Mang thêm" : "Đã mang đi"}
+                      )}
+                      <Button
+                        variant={nut.chot ? "secondary" : "accent"}
+                        loading={dangBan}
+                        onClick={() => chay(l.id, () => api.giaCongNgoai.mangDi(token!, l.id, {
+                          version: l.version,
+                          sl_gui: l.co_buoc_truoc ? null : Number(slGui[l.id] || 0) || null,
+                        }))}
+                      >
+                        {l.trang_thai === "dang_o_ngoai" ? "Mang thêm" : "Đã mang đi"}
+                      </Button>
+                    </>
+                  )}
+                  {nut.chot && (
+                    <Button variant="accent" onClick={() => setChot((m) => ({ ...m, [l.id]: { ...goiYChot(l), nhan: ngayIsoVn() } }))}>
+                      Nhận hàng về
                     </Button>
-                  </>
-                )}
-                {nut.chot && !f && (
-                  <Button variant="accent" onClick={() => setChot((m) => ({ ...m, [l.id]: goiYChot(l) }))}>
-                    Chốt số nhận về
+                  )}
+                </div>
+              )}
+            </header>
+
+            {/* Thanh tiến độ chia đoạn: mỗi đoạn là một thanh mảnh + tên mốc + lúc nào, ai. Số
+                lượng KHÔNG nhắc ở đây — nó nằm ở hàng thông tin bên dưới, mỗi thứ nói một lần. */}
+            <ol className="gcn__tiendo" aria-label="Tiến độ">
+              {moc.map((m) => (
+                <li key={m.nhan} className={`gcn__doan gcn__doan--${m.muc}`}>
+                  <span className="gcn__doan-thanh" aria-hidden="true" />
+                  <span className="gcn__doan-nhan">{m.nhan}</span>
+                  {(m.luc || m.ai) && (
+                    <span className="gcn__doan-phu">
+                      {m.luc && <span>{gio(m.luc)}</span>}
+                      {m.ai && <span>{m.ai}</span>}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+
+            {/* Trọn gói xưởng cấp giấy chưa gửi đề nghị xuất: dải hổ phách nói việc còn treo + nút mở
+                phần chọn giấy NGAY TẠI CHỖ (mockup tron-goi-cap-giay-C, phương án C1). Dữ liệu chọn
+                (khổ trong kho, tồn, đề xuất) máy chủ gửi sẵn trong `cap_giay` — bấm là mở, không chờ. */}
+            {nut.chonGiay && !g && (
+              <div className="gcn__cap-dai" role="status">
+                <span className="gcn__cap-dau" aria-hidden="true">!</span>
+                <span className="gcn__cap-chu">
+                  <b>Chưa cấp giấy cho nhà gia công</b>
+                  <span>Nhà gia công đang chờ giấy để làm</span>
+                </span>
+                {thaoTac && cg && (
+                  <Button variant="accent" onClick={() => setGiay((m) => ({ ...m, [l.id]: chonGiayBanDau(cg) }))}>
+                    Chọn giấy
                   </Button>
-                )}
-                {nut.xuatGiay && (
-                  <Button
-                    loading={dangBan}
-                    onClick={() => chay(l.id, () => api.giaCongNgoai.xuatGiay(token!, l.id, l.version))}
-                  >
-                    Đề nghị xuất giấy
-                  </Button>
-                )}
-                {nut.huyTronGoi && (
-                  <Button variant="ghost" onClick={() => setHuy({ lan: l, lyDo: "" })}>
-                    Huỷ gia công trọn gói
-                  </Button>
-                )}
-                {nut.moLai && (
-                  <Button
-                    variant="ghost"
-                    loading={dangBan}
-                    disabled={!!l.ly_do_khong_mo_lai}
-                    title={l.ly_do_khong_mo_lai ?? undefined}
-                    onClick={() => chay(l.id, () => api.giaCongNgoai.moLai(token!, l.id, l.version))}
-                  >
-                    Mở lại
-                  </Button>
-                )}
-                {nut.moLai && l.ly_do_khong_mo_lai && (
-                  <span className="gcn__note">{l.ly_do_khong_mo_lai}</span>
                 )}
               </div>
             )}
+            {nut.chonGiay && g && thaoTac && cg && (
+              <PhanChonGiay
+                lanId={l.id}
+                cg={cg}
+                f={g}
+                dangBan={dangBan}
+                onDoi={(f2) => setGiay((m) => ({ ...m, [l.id]: f2 }))}
+                onDeSau={() => setGiay((m) => { const n = { ...m }; delete n[l.id]; return n; })}
+                onGui={() => guiGiay(l, g)}
+              />
+            )}
+
+            {/* Hàng cặp nhãn–giá trị, không đóng hộp (description list kiểu Stripe). */}
+            <dl className="gcn__dl">
+              <div className="gcn__dl-o">
+                <dt>Nhà gia công</dt>
+                <dd>
+                  <span className="gcn__gt">{l.nha_cung_cap_ten}</span>
+                  {l.nha_cung_cap_sdt && (
+                    <a className="gcn__goi" href={`tel:${l.nha_cung_cap_sdt.replace(/\s+/g, "")}`}>
+                      <Icon name="phone" size={12} />
+                      {l.nha_cung_cap_sdt}
+                    </a>
+                  )}
+                </dd>
+              </div>
+
+              {tronGoi ? (
+                <div className="gcn__dl-o">
+                  <dt>Số đặt</dt>
+                  <dd>
+                    <span className="gcn__gt">
+                      {l.sl_dat != null ? <>{so(l.sl_dat)} <small>{dvTen(l.don_vi)}</small></> : "—"}
+                    </span>
+                  </dd>
+                </div>
+              ) : (
+                <div className="gcn__dl-o">
+                  <dt>{l.sl_gui != null ? "Đã mang đi" : "Chờ mang đi"}</dt>
+                  <dd>
+                    <span className="gcn__gt">
+                      {l.sl_gui != null
+                        ? <>{so(l.sl_gui)} <small>{dvTen(l.don_vi_gui)}</small></>
+                        : l.sl_cho_mang_di > 0
+                          ? <>{so(l.sl_cho_mang_di)} <small>{dvTen(l.don_vi_gui)}</small></>
+                          : "—"}
+                    </span>
+                    {l.trang_thai === "dang_o_ngoai" && l.sl_cho_mang_di > 0 && (
+                      <span className="gcn__phu gcn__phu--chu-y">
+                        Còn {so(l.sl_cho_mang_di)} {dvTen(l.don_vi_gui)} mới bàn giao, chưa mang
+                      </span>
+                    )}
+                    {l.trang_thai === "cho_mang_di" && l.sl_cho_mang_di === 0 && l.co_buoc_truoc && (
+                      <span className="gcn__phu">Chờ bước trước bàn giao sang</span>
+                    )}
+                  </dd>
+                </div>
+              )}
+
+              {l.sl_cuoi != null && (
+                <div className="gcn__dl-o">
+                  <dt>Nhận về</dt>
+                  <dd>
+                    <span className="gcn__gt">{so(l.sl_cuoi)} <small>{dvTen(l.don_vi)}</small></span>
+                    {l.noi_ve && <span className="gcn__phu">{NHAN_NOI_VE[l.noi_ve]}</span>}
+                  </dd>
+                </div>
+              )}
+
+              {tronGoi && (
+                <div className="gcn__dl-o">
+                  <dt>Giấy</dt>
+                  <dd>
+                    <span className="gcn__gt">{l.xuong_cap_giay ? "Xưởng cấp" : "Nhà gia công tự lo"}</span>
+                    {l.xuong_cap_giay && xg && (
+                      <>
+                        {(xg.kho_rong || xg.so_to != null) && (
+                          <span className="gcn__phu-dong">
+                            {xg.kho_rong ? <span className="gcn__the">{nhanKho(xg.kho_rong, xg.kho_dai)}</span> : null}
+                            {xg.so_to != null && (
+                              <span className="gcn__the">{so(xg.so_to)} {dvTen(xg.don_vi ?? null)}</span>
+                            )}
+                          </span>
+                        )}
+                        <span className="gcn__phu-dong">
+                          <span className="gcn__tt gcn__tt--kho">{NHAN_XUAT_GIAY[xg.trang_thai] ?? xg.trang_thai}</span>
+                          <span className="gcn__phu">{xg.ma}</span>
+                        </span>
+                      </>
+                    )}
+                    {l.xuong_cap_giay && !xg && l.trang_thai === "dang_gia_cong" && (
+                      <span className="gcn__phu">Chưa chọn khổ</span>
+                    )}
+                  </dd>
+                </div>
+              )}
+
+              {l.trang_thai === "da_xong" && (
+                <div className="gcn__dl-o">
+                  <dt>Chi tiền</dt>
+                  <dd>
+                    <span className="gcn__gt">
+                      {l.phieu_chi ? `Phiếu chi ${l.phieu_chi.code}` : "Chờ kế toán chi"}
+                    </span>
+                  </dd>
+                </div>
+              )}
+
+            </dl>
+
+            {canUpdate && l.chi_xem && (
+              <p className="gcn__phu">
+                Chỉ xem — bài ghép có lệnh ngoài phạm vi của bạn. Nhờ người phụ trách các lệnh còn lại thao tác.
+              </p>
+            )}
+            {nut.moLai && l.ly_do_khong_mo_lai && thaoTac && (
+              <p className="gcn__phu">Không mở lại được: {l.ly_do_khong_mo_lai}</p>
+            )}
 
             {thaoTac && f && (
-              <div className="gcn__form">
-                <label className="gcn__o">
-                  <span>Số nhận về ({dvTen(l.don_vi)})</span>
-                  <input
-                    inputMode="decimal"
-                    value={f.sl}
-                    autoFocus
-                    onChange={(e) => setChot((m) => ({ ...m, [l.id]: { ...f, sl: e.target.value } }))}
-                  />
+              <div className="gcn__chot">
+                <label className="gcn__chot-o">
+                  <span className="gcn__chot-nhan">Số nhận về</span>
+                  <span className="gcn__chot-so">
+                    <input
+                      inputMode="decimal"
+                      value={f.sl}
+                      autoFocus
+                      onChange={(e) => setChot((m) => ({ ...m, [l.id]: { ...f, sl: e.target.value } }))}
+                    />
+                    <small>{dvTen(l.don_vi)}</small>
+                  </span>
                 </label>
-                <fieldset className="gcn__noive">
-                  <legend>Hàng về đâu</legend>
-                  {l.noi_ve_hop_le.map((nv) => (
-                    <label key={nv}>
-                      <input
-                        type="radio"
-                        name={`gcn-noive-${l.id}`}
-                        checked={f.noiVe === nv}
-                        onChange={() => setChot((m) => ({ ...m, [l.id]: { ...f, noiVe: nv } }))}
-                      />
-                      {NHAN_NOI_VE[nv]}
-                    </label>
-                  ))}
-                </fieldset>
+                <div className="gcn__chot-o" role="radiogroup" aria-label="Hàng về đâu">
+                  <span className="gcn__chot-nhan">Hàng về đâu</span>
+                  <span className="gcn__chon">
+                    {l.noi_ve_hop_le.map((nv) => (
+                      <label key={nv} className={`gcn__chon-muc ${f.noiVe === nv ? "is-chon" : ""}`}>
+                        <input
+                          type="radio"
+                          name={`gcn-noive-${l.id}`}
+                          checked={f.noiVe === nv}
+                          onChange={() => setChot((m) => ({ ...m, [l.id]: { ...f, noiVe: nv } }))}
+                        />
+                        {NHAN_NOI_VE[nv]}
+                      </label>
+                    ))}
+                  </span>
+                </div>
+                {f.noiVe === "khach" && (
+                  <label className="gcn__chot-o">
+                    <span className="gcn__chot-nhan">Khách nhận ngày</span>
+                    <input
+                      type="date"
+                      value={f.nhan}
+                      min={l.tao_luc ? ngayIsoVn(new Date(l.tao_luc)) : undefined}
+                      max={ngayIsoVn()}
+                      onChange={(e) => setChot((m) => ({ ...m, [l.id]: { ...f, nhan: e.target.value } }))}
+                    />
+                    <small className="gcn__phu">Theo biên bản khách ký mà nhà gia công gửi về.</small>
+                  </label>
+                )}
+                {f.noiVe === "xuong" && l.chang_sau.length > 1 && chia.length === 0 && (
+                  <label className="gcn__chot-o">
+                    <span className="gcn__chot-nhan">Bước nhận hàng</span>
+                    <select
+                      value={f.dich ?? ""}
+                      onChange={(e) => setChot((m) => ({
+                        ...m, [l.id]: { ...f, dich: e.target.value ? Number(e.target.value) : null },
+                      }))}
+                    >
+                      <option value="">Chọn bước</option>
+                      {l.chang_sau.map((c) => <option key={c.id} value={c.id}>{c.ten}</option>)}
+                    </select>
+                  </label>
+                )}
+                <div className="gcn__chot-nut">
+                  <Button variant="ghost" onClick={() => boChot(l.id)}>Thôi</Button>
+                  <Button
+                    variant="accent"
+                    loading={dangBan}
+                    disabled={!(Number(f.sl) > 0) || !f.noiVe || (f.noiVe === "khach" && !f.nhan)}
+                    onClick={async () => {
+                      const xong = await chay(l.id, () => api.giaCongNgoai.chot(token!, l.id, {
+                        version: l.version, sl_cuoi: Number(f.sl), noi_ve: f.noiVe!,
+                        dich_cong_viec_id: f.dich,
+                        ngay_khach_nhan: f.noiVe === "khach" ? f.nhan : null,
+                      }));
+                      if (xong) boChot(l.id);
+                    }}
+                  >
+                    Chốt số nhận về
+                  </Button>
+                </div>
                 {chia.length > 0 && (
                   // Số chốt là tờ ghép. Bước nhận ăn tờ (Cắt, Bế) thì nhận NGUYÊN số tờ rồi tự ra
                   // con; ăn con thì nhận số tờ × con/tờ — máy chủ trả hệ số đó (`he_so_nhan`).
@@ -267,63 +526,54 @@ export function GiaCongNgoaiPanel({
                     </tbody>
                   </table>
                 )}
-                {f.noiVe === "xuong" && l.chang_sau.length > 1 && chia.length === 0 && (
-                  <label className="gcn__o">
-                    <span>Bước nhận hàng</span>
-                    <select
-                      value={f.dich ?? ""}
-                      onChange={(e) => setChot((m) => ({
-                        ...m, [l.id]: { ...f, dich: e.target.value ? Number(e.target.value) : null },
-                      }))}
-                    >
-                      <option value="">— chọn bước —</option>
-                      {l.chang_sau.map((c) => <option key={c.id} value={c.id}>{c.ten}</option>)}
-                    </select>
-                  </label>
-                )}
-                <div className="gcn__nut">
-                  <Button
-                    variant="accent"
-                    loading={dangBan}
-                    disabled={!(Number(f.sl) > 0) || !f.noiVe}
-                    onClick={async () => {
-                      const xong = await chay(l.id, () => api.giaCongNgoai.chot(token!, l.id, {
-                        version: l.version, sl_cuoi: Number(f.sl), noi_ve: f.noiVe!,
-                        dich_cong_viec_id: f.dich,
-                      }));
-                      if (xong) setChot((m) => { const n = { ...m }; delete n[l.id]; return n; });
-                    }}
-                  >
-                    Chốt
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setChot((m) => { const n = { ...m }; delete n[l.id]; return n; })}
-                  >
-                    Thôi
-                  </Button>
-                </div>
               </div>
             )}
 
             {l.lich_su.length > 0 && (
               <details className="gcn__lichsu">
-                <summary>Nhật ký ({l.lich_su.length})</summary>
-                <ul>
+                <summary>Lịch sử ({l.lich_su.length})</summary>
+                <ol>
                   {l.lich_su.map((h, i) => (
                     <li key={i}>
-                      <span className="gcn__luc">
-                        {h.luc ? new Date(h.luc).toLocaleString("vi-VN") : ""}
-                      </span>{" "}
-                      <b>{h.ai}</b> · {h.viec}{h.chi_tiet ? ` — ${h.chi_tiet}` : ""}
+                      <span className="gcn__luc">{gio(h.luc)}</span>
+                      <span className="gcn__ls-viec">
+                        <span><b>{h.ai}</b> {h.viec.charAt(0).toLowerCase() + h.viec.slice(1)}</span>
+                        {h.chi_tiet && <span className="gcn__phu">{h.chi_tiet}</span>}
+                      </span>
                     </li>
                   ))}
-                </ul>
+                </ol>
               </details>
             )}
           </article>
         );
       })}
+
+      {daHuy.length > 0 && (
+        <details className={`gcn__da-huy${song.length === 0 ? " gcn__da-huy--mot-minh" : ""}`} open={song.length === 0}>
+          <summary>Đã huỷ {daHuy.length} lần</summary>
+          <ol>
+            {daHuy.map((l) => (
+              <li key={l.id}>
+                <span className="gcn__luc">{gio(l.huy_luc)}</span>
+                <span className="gcn__ls-viec">
+                  <span className="gcn__huy-dong">
+                    <b>{l.nha_cung_cap_ten}</b>
+                    <span className="gcn__the">{l.kieu === "tron_goi" ? "Trọn gói" : l.ten_viec}</span>
+                    {l.sl_dat != null && (
+                      <span className="gcn__phu">{so(l.sl_dat)} {dvTen(l.don_vi)}</span>
+                    )}
+                  </span>
+                  <span className="gcn__phu">
+                    {l.huy_boi_ten ? `${l.huy_boi_ten} huỷ` : "Đã huỷ"}
+                    {l.ly_do_huy ? ` vì “${l.ly_do_huy}”` : ""}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
 
       <ConfirmDialog
         open={huy != null}
@@ -352,5 +602,124 @@ export function GiaCongNgoaiPanel({
         </label>
       </ConfirmDialog>
     </section>
+  );
+}
+
+/** Phần "Chọn giấy" mở tại chỗ (C1): khổ trong kho kèm tồn (radio), số tờ xin xuất, cảnh báo khi
+ *  kho thiếu (vẫn cho gửi), hai nút "Để sau" / "Gửi đề nghị xuất giấy". Mỗi lần gia công một đề
+ *  nghị, một khổ. */
+function PhanChonGiay({
+  lanId, cg, f, dangBan, onDoi, onDeSau, onGui,
+}: {
+  lanId: number;
+  cg: GiaCongCapGiay;
+  f: FormGiay;
+  dangBan: boolean;
+  onDoi: (f: FormGiay) => void;
+  onDeSau: () => void;
+  onGui: () => void;
+}) {
+  const dx = cg.de_xuat;
+  const dv = nhanDonVi(cg.don_vi);
+  const keyDx = dx ? `${dx.kho_rong}x${dx.kho_dai}` : null;
+  const soTo = Number(f.so);
+  const thieu = thieuTo(cg, f.kho, soTo);
+  const dang = cg.kho.find((k) => `${k.kho_rong}x${k.kho_dai}` === f.kho);
+  // Khổ khác còn đủ tờ — gợi ý đổi khi khổ đang chọn thiếu.
+  const khoDu = thieu != null
+    ? cg.kho.find((k) => `${k.kho_rong}x${k.kho_dai}` !== f.kho && k.ton >= soTo) : undefined;
+  const theoDeXuat = dx != null && f.kho === keyDx && dx.so_to != null && soTo === dx.so_to;
+  const nguonHoa = cg.nguon.charAt(0).toUpperCase() + cg.nguon.slice(1);
+
+  return (
+    <div className="gcn__cap-mo">
+      <div className="gcn__cap-tieu">
+        <b>Cấp giấy {cg.giay_ten ?? cg.giay_ma ?? ""}</b>
+        {dx && dx.so_to != null && (
+          <span className="gcn__phu">
+            {nguonHoa} cần {so(dx.so_to)} {dv} khổ {nhanKho(dx.kho_rong, dx.kho_dai)}
+          </span>
+        )}
+      </div>
+      {cg.ly_do ? (
+        <p className="gcn__phu gcn__phu--chu-y">{cg.ly_do}</p>
+      ) : (
+        <div className="gcn__cap-hang">
+          <div className="gcn__cap-cot" role="radiogroup" aria-label="Khổ trong kho">
+            <span className="gcn__chot-nhan">Khổ trong kho</span>
+            {cg.kho.length === 0 ? (
+              <p className="gcn__phu">Kho chưa có tờ nào của giấy này.</p>
+            ) : (
+              <div className="gcn__kho-ds">
+                {cg.kho.map((k) => {
+                  const key = `${k.kho_rong}x${k.kho_dai}`;
+                  const on = f.kho === key;
+                  const het = k.ton <= 0;
+                  return (
+                    <label key={key} className={`gcn__kho-h${on ? " is-chon" : ""}${het ? " is-het" : ""}`}>
+                      <input
+                        type="radio"
+                        name={`gcn-kho-giay-${lanId}`}
+                        checked={on}
+                        onChange={() => onDoi({
+                          kho: key,
+                          // Khổ đề xuất ⇒ điền lại số đề xuất; khổ khác ⇒ để trống, bắt gõ.
+                          so: key === keyDx && dx?.so_to != null ? String(dx.so_to) : "",
+                        })}
+                      />
+                      <span className="gcn__kho-ra" aria-hidden="true" />
+                      <span className="gcn__kho-ten">
+                        <b>{nhanKho(k.kho_rong, k.kho_dai)}</b>
+                        {k.dung_de_xuat && <span className="gcn__the">đúng {cg.nguon}</span>}
+                        {het && <span className="gcn__the">hết</span>}
+                      </span>
+                      <span className="gcn__kho-ton">
+                        <b>{so(k.ton)} {dv}</b>
+                        <small>tồn</small>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <label className="gcn__cap-cot">
+            <span className="gcn__chot-nhan">Số tờ xin xuất</span>
+            <span className="gcn__cap-o">
+              <OGoDinhDang
+                inputMode="numeric"
+                value={f.so === "" ? "" : Number(f.so).toLocaleString("vi-VN")}
+                onChange={(e) => onDoi({ ...f, so: e.target.value.replace(/\D/g, "") })}
+                placeholder="Nhập số tờ"
+                aria-label="Số tờ xin xuất"
+              />
+              <small>{dv}</small>
+            </span>
+            {theoDeXuat && <small className="gcn__phu">Điền theo {cg.nguon}</small>}
+          </label>
+        </div>
+      )}
+      {thieu != null && dang && (
+        <div className="gcn__cap-bao" role="note">
+          <span className="gcn__cap-dau" aria-hidden="true">!</span>
+          <span>
+            Khổ {nhanKho(dang.kho_rong, dang.kho_dai)} còn <b>{so(dang.ton)} {dv}</b>, thiếu{" "}
+            <b>{so(thieu)} {dv}</b>. Vẫn gửi được — kho xuất trước phần đang có.
+            {khoDu && <> Hoặc chọn khổ {nhanKho(khoDu.kho_rong, khoDu.kho_dai)}.</>}
+          </span>
+        </div>
+      )}
+      <div className="gcn__chot-nut">
+        <Button variant="ghost" onClick={onDeSau}>Để sau</Button>
+        <Button
+          variant="accent"
+          loading={dangBan}
+          disabled={!!cg.ly_do || !f.kho || !(soTo > 0)}
+          onClick={onGui}
+        >
+          Gửi đề nghị xuất giấy
+        </Button>
+      </div>
+    </div>
   );
 }

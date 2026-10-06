@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { GiaCongNgoaiLan } from "../../api/client";
-import { goiYChot, nutCuaLan, soNhanChia, tomTat, viTriTrongDai, type BuocDai } from "./giaCong";
+import type { GiaCongCapGiay, GiaCongNgoaiLan } from "../../api/client";
+import {
+  chonGiayBanDau, goiYChot, mocCuaLan, nutCuaLan, soNhanChia, thieuTo, viTriTrongDai, type BuocDai,
+} from "./giaCong";
 
 const b = (
   ten: string,
@@ -64,7 +66,7 @@ describe("viTriTrongDai — liền nhau đi theo CẠNH DAG, không phải thứ
 const lan = (p: Partial<GiaCongNgoaiLan>): GiaCongNgoaiLan => ({
   id: 1, lsx_id: 9, lsx_ma: "LSX-001", kieu: "mot_phan", trang_thai: "cho_mang_di",
   nha_cung_cap_id: 7, nha_cung_cap_ten: "Cán màng Minh Long", ten_viec: "Cán màng",
-  don_vi: "to", don_gia: 150, thanh_tien: null, sl_dat: null, xuong_cap_giay: false,
+  don_vi: "to", sl_dat: null, xuong_cap_giay: false,
   don_vi_gui: "to", sl_cho_mang_di: 0, co_buoc_truoc: true, mang_di_boi_ten: null,
   mang_di_luc: null, sl_gui: null, chot_boi_ten: null, chot_luc: null, sl_cuoi: null,
   noi_ve: null, noi_ve_hop_le: ["xuong"], chang_sau: [{ id: 31, ten: "Bế" }],
@@ -90,9 +92,40 @@ describe("nutCuaLan", () => {
     expect(nutCuaLan(lan({ trang_thai: "da_xong", phieu_chi: { id: 3, code: "PC-1" } })).moLai).toBe(false);
     expect(nutCuaLan(lan({ trang_thai: "da_xong" })).moLai).toBe(true);
   });
-  it("trọn gói xưởng cấp giấy, chưa đề nghị ⇒ nút xuất giấy + huỷ", () => {
-    const n = nutCuaLan(lan({ kieu: "tron_goi", trang_thai: "dang_gia_cong", xuong_cap_giay: true }));
-    expect([n.xuatGiay, n.huyTronGoi, n.chot, n.mangDi]).toEqual([true, true, true, false]);
+  it("trọn gói xưởng cấp giấy, máy chủ gửi phần chọn giấy ⇒ dải Chọn giấy + huỷ", () => {
+    const n = nutCuaLan(lan({
+      kieu: "tron_goi", trang_thai: "dang_gia_cong", xuong_cap_giay: true, cap_giay: capGiay,
+    }));
+    expect([n.chonGiay, n.huyTronGoi, n.chot, n.mangDi]).toEqual([true, true, true, false]);
+  });
+  it("đã gửi đề nghị xuất (máy chủ thôi gửi cap_giay) ⇒ không còn dải", () => {
+    const n = nutCuaLan(lan({
+      kieu: "tron_goi", trang_thai: "dang_gia_cong", xuong_cap_giay: true,
+      xuat_giay: { id: 4, ma: "YCX-1", trang_thai: "approved" },
+    }));
+    expect(n.chonGiay).toBe(false);
+  });
+});
+
+const capGiay: GiaCongCapGiay = {
+  giay_id: 8, giay_ma: "C150", giay_ten: "COUCHE 150GSM", don_vi: "to_nguyen",
+  nguon: "phiếu tính giá", de_xuat: { kho_rong: 790, kho_dai: 1090, so_to: 425 },
+  kho: [
+    { kho_rong: 790, kho_dai: 1090, ton: 300, dung_de_xuat: true },
+    { kho_rong: 650, kho_dai: 860, ton: 1000, dung_de_xuat: false },
+  ],
+  ly_do: null,
+};
+
+describe("chọn giấy", () => {
+  it("điền sẵn khổ + số tờ theo đề xuất", () => {
+    expect(chonGiayBanDau(capGiay)).toEqual({ kho: "790x1090", so: "425" });
+    expect(chonGiayBanDau({ ...capGiay, de_xuat: null })).toEqual({ kho: null, so: "" });
+  });
+  it("thiếu tồn thì báo số thiếu, đủ thì im", () => {
+    expect(thieuTo(capGiay, "790x1090", 425)).toBe(125);
+    expect(thieuTo(capGiay, "650x860", 425)).toBeNull();
+    expect(thieuTo(capGiay, null, 425)).toBeNull();
   });
 });
 
@@ -111,18 +144,30 @@ describe("goiYChot", () => {
   });
 });
 
-describe("tomTat", () => {
-  it("một dòng đủ người, số, nơi về, tiền, phiếu chi", () => {
-    const s = tomTat(
-      lan({ trang_thai: "da_xong", mang_di_boi_ten: "Nguyễn A", sl_gui: 1660, chot_boi_ten: "Nguyễn A",
-            sl_cuoi: 1650, noi_ve: "xuong", thanh_tien: 247500, phieu_chi: { id: 3, code: "PC-1" } }),
-      () => "tờ",
-    );
-    expect(s).toBe("Nguyễn A mang đi 1.660 tờ · Nguyễn A chốt 1.650 tờ — về xưởng làm tiếp · 247.500đ · Phiếu chi PC-1");
+describe("mocCuaLan", () => {
+  const dv = (m: string | null) => (m === "to" ? "tờ" : m === "cai" ? "cái" : "");
+  it("trọn gói vừa giao: mốc giao việc xong, đang gia công, chờ nhận về", () => {
+    const m = mocCuaLan(lan({ kieu: "tron_goi", trang_thai: "dang_gia_cong", sl_dat: 5000, don_vi: "cai",
+                              tao_luc: "2026-10-06T04:11:00Z", tao_boi_ten: "Admin" }), dv);
+    expect(m.map((x) => [x.nhan, x.muc])).toEqual([
+      ["Giao việc", "xong"], ["Đang gia công", "dang"], ["Nhận về", "cho"],
+    ]);
+    expect(m[0]).toMatchObject({ ai: "Admin", so: "5.000 cái" });
   });
-  it("không có quyền xem tiền thì không có đoạn tiền", () => {
-    expect(tomTat(lan({ trang_thai: "da_xong", chot_boi_ten: "B", sl_cuoi: 5, noi_ve: "kho" }), () => "cái"))
-      .toBe("B chốt 5 cái — nhập kho thành phẩm");
+  it("một phần đã mang đi: mốc mang đi có người + số, đang chờ nhận về", () => {
+    const m = mocCuaLan(lan({ trang_thai: "dang_o_ngoai", mang_di_luc: "x", mang_di_boi_ten: "Nguyễn A",
+                              sl_gui: 1660 }), dv);
+    expect(m.map((x) => x.muc)).toEqual(["xong", "xong", "dang"]);
+    expect(m[1]).toMatchObject({ ai: "Nguyễn A", so: "1.660 tờ" });
+  });
+  it("đã chốt: cả ba mốc xong, mốc nhận về mang số chốt", () => {
+    const m = mocCuaLan(lan({ trang_thai: "da_xong", mang_di_luc: "x", chot_luc: "y", sl_cuoi: 1650 }), dv);
+    expect(m.map((x) => x.muc)).toEqual(["xong", "xong", "xong"]);
+    expect(m[2].so).toBe("1.650 tờ");
+  });
+  it("huỷ trước khi mang đi: không mốc nào đang chạy", () => {
+    const m = mocCuaLan(lan({ trang_thai: "da_huy" }), dv);
+    expect(m.map((x) => x.muc)).toEqual(["xong", "cho", "cho"]);
   });
 });
 

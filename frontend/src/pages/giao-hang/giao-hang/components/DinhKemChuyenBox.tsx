@@ -1,5 +1,5 @@
 // Hộp ĐÍNH KÈM của một chuyến — ảnh/PDF minh chứng (tách từ pages/GiaoHangPage.tsx).
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { DinhKemChuyen } from "../../../../api/client";
 import { api, assetUrl } from "../../../../api/client";
 import { fmtDateTime } from "../../../../utils/format";
@@ -12,15 +12,31 @@ import { fmtDateTime } from "../../../../utils/format";
  * Việc thật: hàng đi kèm hoá đơn. Trước lúc đi đính hoá đơn cho tài xế cầm theo, giao xong chụp
  * lại tờ khách đã ký. KHÔNG chia "hoá đơn đi" với "biên nhận về": chia ra là bắt người dùng chọn
  * loại trước khi tải, chọn sai thì phải xoá tải lại. */
-export function DinhKemChuyenBox({ tripId, token }: { tripId: number; token: string | null }) {
+export function DinhKemChuyenBox({
+  tripId,
+  token,
+  tieuDe = "Hoá đơn / minh chứng",
+  onDem,
+}: {
+  tripId: number;
+  token: string | null;
+  tieuDe?: string;
+  /** Báo số tệp sau mỗi lần nạp — rail đơn của ngăn lượt hiện "n tệp" theo đúng số này. */
+  onDem?: (n: number) => void;
+}) {
   const [ds, setDs] = useState<DinhKemChuyen[]>([]);
   const [dangTai, setDangTai] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
+  const onDemRef = useRef(onDem);
+  onDemRef.current = onDem;
 
   const nap = useCallback(() => {
     if (!token) return;
     api.giaoHang.dinhKemChuyen(token, tripId)
-      .then((r) => setDs(r.items))
+      .then((r) => {
+        setDs(r.items);
+        onDemRef.current?.(r.items.length);
+      })
       .catch(() => setDs([]));
   }, [token, tripId]);
   useEffect(nap, [nap]);
@@ -52,7 +68,7 @@ export function DinhKemChuyenBox({ tripId, token }: { tripId: number; token: str
   return (
     <div className="gh-dinhkem">
       <div className="gh-dinhkem__head">
-        <strong>Hoá đơn / minh chứng</strong>
+        <strong>{tieuDe}</strong>
         <label className="btn btn--secondary gh-dinhkem__add">
           {dangTai ? "Đang tải…" : "Thêm file"}
           <input type="file" accept="image/*,application/pdf" hidden disabled={dangTai}

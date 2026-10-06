@@ -1,6 +1,8 @@
 """Nhà gia công GIAO THẲNG cho khách (spec §4 bước 5)."""
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from ...models.delivery import LG_DA_HUY, LG_THANH_CONG, YC_CHO_LEN_KE_HOACH, YC_DA_HUY
@@ -9,6 +11,7 @@ from ...repositories.delivery_repo import DeliveryRepository
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ...repositories.employee_repo import EmployeeRepository
 from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+from ...repositories.loc_danh_sach import VN_TZ
 from ...repositories.order_repo import OrderRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ..delivery_service import sinh_ma_chung_tu
@@ -52,11 +55,36 @@ def _he_so_ve_dong(db: Session, tp, tu_dv: str, dv_dong: str, cv=None) -> float:
         ) from None
 
 
-def ghi_giao_thang(db: Session, *, user, gcn, cv, so: float):
+def _ngay_vn(dt: datetime) -> date:
+    if dt.tzinfo is None:  # SQLite (bộ test) trả mốc không múi — vốn là UTC
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(VN_TZ).date()
+
+
+def luc_khach_nhan(gcn, ngay: date | None, luc: datetime) -> datetime:
+    """Mốc "khách nhận" của chuyến giao thẳng. Kế toán ghi doanh thu + giá vốn (Nợ 632 / Có 154)
+    theo NGÀY KHÁCH NHẬN trên biên bản, không theo giờ bấm chốt — bấm trễ qua tháng là hoá đơn
+    nhảy sai kỳ. Trống / hôm nay ⇒ giờ chốt; ngày cũ hơn ⇒ 12:00 giờ VN của ngày đó (giữa ngày để
+    đổi múi giờ không lật sang ngày khác)."""
+    hom_nay = _ngay_vn(luc)
+    if ngay is None or ngay == hom_nay:
+        return luc
+    if ngay > hom_nay:
+        raise ValueError("Ngày khách nhận không được sau hôm nay.")
+    if gcn.created_at is not None and ngay < _ngay_vn(gcn.created_at):
+        raise ValueError(f"Ngày khách nhận trước ngày giao việc cho nhà gia công "
+                         f"({_ngay_vn(gcn.created_at):%d/%m/%Y}).")
+    return datetime(ngay.year, ngay.month, ngay.day, 12, tzinfo=VN_TZ).astimezone(timezone.utc)
+
+
+def ghi_giao_thang(db: Session, *, user, gcn, cv, so: float, ngay_khach_nhan: date | None = None):
     """Nhà gia công giao thẳng: MỘT yêu cầu giao + MỘT chuyến THÀNH CÔNG đứng tên người chốt ⇒ cộng
     vào "đã giao" của dòng đơn (`da_giao_theo_dong`). Không kho, không xe, không phiếu xuất, không
     km (km trống ⇒ khoán km không trả đồng nào). Đi thẳng qua repo — cửa lập yêu cầu của Giao hàng
-    chặn theo trần "giao được" tính từ kho, mà hàng này không qua kho. Không commit."""
+    chặn theo trần "giao được" tính từ kho, mà hàng này không qua kho. Không commit.
+
+    Mốc của chuyến = ngày khách nhận (`luc_khach_nhan`); ngày hẹn của yêu cầu = HẠN TRÊN ĐƠN để
+    màn Giao hàng so sớm / trễ — đơn không khai hạn thì lấy chính ngày khách nhận (cột NOT NULL)."""
     lsx = SanXuatRepository(db).lsx(gcn.lsx_id)
     order = OrderRepository(db).get_by_id(lsx.order_id) if lsx else None
     cum = cum_cua_dong(order, lsx.order_line_id) if order is not None else None
@@ -81,14 +109,19 @@ def ghi_giao_thang(db: Session, *, user, gcn, cv, so: float):
     if qty > con:
         raise ValueError(f"Dòng đơn chỉ còn phải giao {con} — nhập đúng số khách nhận.")
 
-    luc = _utcnow()
+    luc = luc_khach_nhan(gcn, ngay_khach_nhan, _utcnow())
+    han = getattr(order, "delivery_committed_date", None) or _ngay_vn(luc)
     uid = getattr(user, "id", None)
     ghi = f"Nhà gia công {gcn.nha_cung_cap_ten} giao thẳng"
+    # Nơi nhận + lưu ý giao là của ĐƠN, như mọi yêu cầu lập ở Giao hàng (`_noi_nhan`). Câu "nhà gia
+    # công giao thẳng" nằm ở chuyến (`ghi_chu_phan_cong`) — bản đầu ghi nó đè vào ô địa chỉ nên
+    # màn Giao hàng không còn biết hàng đã tới đâu.
     req = repo.create_request(
         code=sinh_ma_chung_tu("YCGH", repo.get_request_by_code), order_id=order.id,
         customer_id=getattr(order, "customer_id", None), department_id=user.department_id,
-        ngay_can_giao=luc.date(), dia_chi=ghi, ghi_chu=ghi, trang_thai=YC_CHO_LEN_KE_HOACH,
-        created_by=uid,
+        ngay_can_giao=han, dia_chi=order.delivery_address or "",
+        nguoi_nhan=order.delivery_contact_name, sdt_nguoi_nhan=order.delivery_contact_phone,
+        ghi_chu=order.delivery_note, trang_thai=YC_CHO_LEN_KE_HOACH, created_by=uid,
     )
     repo.add_request_line(req.id, ln.id, qty, hang_loai="vat_tu", hang_id=tp.id, dvt=tp.don_vi_gia)
     trip = repo.create_trip(

@@ -424,6 +424,16 @@ def _dau_ngay_xuong(d: date | None) -> datetime | None:
     return ve_utc_that(datetime.combine(d, time.min, tzinfo=timezone.utc))
 
 
+def _mep_ky(moc: str, d: date | None) -> datetime | None:
+    """0 giờ ngày XƯỞNG `d` theo đúng thang của cột mốc: `du_kien` là thang LỊCH (giờ tường dán
+    nhãn UTC) nên giữ nguyên; `nhan`/`tao` là `created_at` UTC THẬT nên quy về UTC thật."""
+    if d is None:
+        return None
+    if moc == "du_kien":
+        return datetime.combine(d, time.min, tzinfo=timezone.utc)
+    return _dau_ngay_xuong(d)
+
+
 def _digest(rows) -> dict[str, int]:
     """Đếm bước theo trạng thái cho nhãn của một lệnh — cùng bốn khoá mà FE `sxDigest` dùng."""
     d = {"released": 0, "running": 0, "paused": 0, "completed": 0}
@@ -442,8 +452,7 @@ def work_items(
     den_ngay: date | None = None,
     cho_xac_nhan: bool = False,
     trang_thai: set[str] | None = None,
-    nhan_tu: date | None = None,
-    nhan_den: date | None = None,
+    moc: str = "nhan",
     sap_xep: str = "moi_nhan",
 ) -> dict:
     """Việc đã phát hành của MỘT tổ. Hai hình, chọn bằng `nhom`:
@@ -469,8 +478,10 @@ def work_items(
     vẫn hiện đủ công đoạn của tổ.
 
     Lọc nâng cao (chỉ `nhom="lenh"`, lọc trước khi cắt trang): `trang_thai` giữ lệnh có bước ở
-    trạng thái ấy VÀ trong lệnh chỉ bày các bước khớp; `nhan_tu`/`nhan_den` là NGÀY XƯỞNG (gồm cả
-    hai đầu) của lúc tổ nhận lệnh; `sap_xep` mặc định lệnh nhận SAU nằm trên — xem repo."""
+    trạng thái ấy VÀ trong lệnh chỉ bày các bước khớp; kỳ `tu_ngay`/`den_ngay` (NGÀY XƯỞNG, gồm cả
+    hai đầu) theo mốc `moc` — `nhan` lúc tổ nhận lệnh (mặc định), `tao` ngày tạo lệnh, `du_kien`
+    dự kiến bắt đầu (06/10/2026: thay `nhan_tu`/`nhan_den`); `sap_xep` mặc định lệnh nhận SAU nằm
+    trên — xem repo. Ở `nhom="phang"`, `tu_ngay`/`den_ngay` vẫn là cửa sổ Gantt."""
     repo = SanXuatRepository(db)
     q, _muc = _pham_vi_doc(db, user, team_id)
     tron, rieng = q.pham_vi_ban(team_id)
@@ -499,8 +510,8 @@ def work_items(
     khoa_trang, tong = repo.lenh_cua_to_phan_trang(
         tron, employee_id=emp_id, rieng_ids=rieng, tim=tim, trang=trang,
         co_trang=co_trang, chi_cong_viec_ids=chi_ids, trang_thai=trang_thai,
-        nhan_tu=_dau_ngay_xuong(nhan_tu),
-        nhan_den=_dau_ngay_xuong(nhan_den + timedelta(days=1) if nhan_den else None),
+        moc=moc, ky_tu=_mep_ky(moc, tu_ngay),
+        ky_den=_mep_ky(moc, den_ngay + timedelta(days=1) if den_ngay else None),
         sap_xep=sap_xep)
     khoa = [k for k, _, _ in khoa_trang]
     rows = repo.cong_viec_cua_lenh(tron, khoa, employee_id=emp_id, rieng_ids=rieng)
@@ -524,6 +535,7 @@ def work_items(
 
     lsx_map = repo.lsx_nhan({i for loai, i in khoa if loai == "lsx" and i})
     bg_map = repo.bai_ghep_nhan({i for loai, i in khoa if loai == "bai_ghep" and i})
+    tao_map = repo.ngay_tao_nguon(set(lsx_map), set(bg_map))
     ra: list[dict] = []
     for (loai, nid), som, muon in khoa_trang:
         cvs = cv_theo_khoa.get((loai, nid), [])
@@ -541,6 +553,7 @@ def work_items(
             "som_nhat": lich_hien_thi(som),
             "muon_nhat": lich_hien_thi(muon),
             "nhan_luc": thuc_te_hien_thi(nhan_lenh.get((loai, nid))),
+            "tao_luc": thuc_te_hien_thi(tao_map.get((loai, nid or 0))),
             "so_viec": len(cvs),
             "digest": _digest(cvs),
             "routing": dai_theo_khoa.get((loai, nid), []),

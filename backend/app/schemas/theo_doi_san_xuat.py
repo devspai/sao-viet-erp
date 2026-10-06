@@ -70,6 +70,8 @@ class TheoLenhDongOut(BaseModel):
     khau: str
     khau_chi_tiet: str | None = None
     han_hoan_thanh_sx: date | None = None
+    #: Ngày tạo lệnh — cột "Ngày tạo" của bảng (06/10/2026).
+    created_at: datetime | None = None
     du_kien_xong: datetime | None = None
     canh_bao: list[str] = []
     tre_ngay: int | None = None

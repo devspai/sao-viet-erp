@@ -28,6 +28,16 @@ import { RequestModals } from "./components/RequestModals";
 import { RequestsTable } from "./components/RequestsTable";
 import { RequestsToolbar } from "./components/RequestsToolbar";
 import { useNapTenDonVi } from "../../tenDonVi";
+import { thamSoKy } from "../../thanh-loc/ky-danh-sach";
+import { useLocMan } from "../../thanh-loc/useLocMan";
+import {
+  LOC_MAN_YC_TRONG,
+  locManYeuCauLenUrl,
+  locManYeuCauTuUrl,
+  thamSoLocYeuCau,
+  useDieuKienYeuCau,
+  type LocManYeuCau,
+} from "../loc-mua-hang/dieu-kien-yeu-cau";
 import { PAGE_SIZE } from "./shared/constants";
 import { cleanRequest, emptyRequest, noiDungCu, todayInputValue } from "./shared/helpers";
 import type {
@@ -69,6 +79,21 @@ export function DepartmentPurchaseRequestsPage({
   const [size, setSize] = useState(PAGE_SIZE);
   // Ô nhập vẫn bám `q` (gõ tới đâu hiện tới đó); chỉ lời gọi máy chủ đọc bản đã chậm 300ms.
   const qDebounced = useDebounced(q);
+  // Kỳ + điều kiện (Phòng ban, Người yêu cầu, Mặt hàng) — ghi lên URL, nhớ theo màn; đổi là về trang 1.
+  const [locMan, setLocManGoc] = useLocMan(
+    "yeu-cau-mua-hang",
+    LOC_MAN_YC_TRONG,
+    locManYeuCauTuUrl,
+    locManYeuCauLenUrl,
+  );
+  const setLocMan = (t: LocManYeuCau) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const dieuKien = useDieuKienYeuCau();
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYeuCau(locMan.loc) });
+  /** Số yêu cầu theo trạng thái hiển thị — máy chủ đếm sau lọc, trước tab (`tat_ca` = tab Tất cả). */
+  const [demTheoTab, setDemTheoTab] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,23 +152,28 @@ export function DepartmentPurchaseRequestsPage({
     setError(null);
     setListError(null);
     api.departmentPurchaseRequests
-      .list(token, {
-        q: qDebounced.trim() || undefined,
-        status: status === "all" ? null : status,
-        sort: "-created_at",
-        page,
-        size,
-      })
+      .list(
+        token,
+        {
+          q: qDebounced.trim() || undefined,
+          status: status === "all" ? null : status,
+          sort: "-created_at",
+          page,
+          size,
+        },
+        JSON.parse(khoaLoc),
+      )
       .then((res) => {
         setRows(res.items);
         setTotal(res.total);
+        setDemTheoTab(res.dem_theo_tab ?? null);
       })
       .catch((err) => {
         if (err instanceof ApiError && err.isForbidden) setForbidden(true);
         else setListError("Không tải được danh sách yêu cầu mua hàng.");
       })
       .finally(() => setLoading(false));
-  }, [token, qDebounced, status, page, size]);
+  }, [token, qDebounced, status, page, size, khoaLoc]);
 
   useEffect(() => {
     load();
@@ -189,7 +219,10 @@ export function DepartmentPurchaseRequestsPage({
     if (!focusRequestCode) return;
     setQ(focusRequestCode);
     setStatus("all");
+    // Bỏ kỳ + điều kiện đang nhớ: yêu cầu cần soi có thể nằm ngoài kỳ / ngoài phòng đang lọc.
+    setLocManGoc(LOC_MAN_YC_TRONG);
     setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusRequestCode]);
 
   // Liên thông từ Kho / Kế hoạch vật tư: mở form tạo với dòng vật tư điền sẵn. `seedLines` là
@@ -397,10 +430,16 @@ export function DepartmentPurchaseRequestsPage({
         setQ={setQ}
         status={status}
         setStatus={setStatus}
+        demTheoTab={demTheoTab}
         setPage={setPage}
         load={load}
         canCreate={canCreate}
         openCreate={openCreate}
+        ky={locMan.ky}
+        onKy={(ky) => setLocMan({ ...locMan, ky })}
+        dieuKien={dieuKien}
+        loc={locMan.loc}
+        onLoc={(loc) => setLocMan({ ...locMan, loc })}
       />
 
       {error && (
@@ -414,10 +453,12 @@ export function DepartmentPurchaseRequestsPage({
         listError={listError}
         load={load}
         rows={rows}
-        q={q}
-        setQ={setQ}
-        status={status}
-        setStatus={setStatus}
+        coLoc={q.trim() !== "" || status !== "all" || khoaLoc !== "{}"}
+        xoaLoc={() => {
+          setQ("");
+          setStatus("all");
+          setLocMan(LOC_MAN_YC_TRONG);
+        }}
         page={page}
         setPage={setPage}
         total={total}

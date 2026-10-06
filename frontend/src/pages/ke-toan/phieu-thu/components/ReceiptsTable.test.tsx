@@ -45,7 +45,7 @@ describe("ReceiptsTable", () => {
     ve({ moNguon: undefined });
     const bang = screen.getByRole("table");
     expect(within(bang).getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
-      "Thu của", "Số tiền", "Trạng thái", "Nguồn", "Ngày thu", "Mã phiếu", "",
+      "Thu của", "Số tiền", "Trạng thái", "Nguồn", "Ngày thu", "Ngày tạo", "Mã phiếu", "",
     ]);
     for (const t of chuTran(bang)) expect(t).not.toMatch(/[·•]|,\s/);
     const dong = screen.getAllByRole("row").slice(1);

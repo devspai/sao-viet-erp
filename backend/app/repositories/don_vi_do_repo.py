@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import aliased
 
-from ..models.don_vi_do import DonViDo, DonViQuyDoi
+from ..models.don_vi_do import HO_NHAN, DonViDo, DonViQuyDoi
 from ..models.vat_lieu_kho import GiayNguyen, VatTuInAn
 from .catalog_base import CatalogRepo
 
@@ -52,6 +52,7 @@ class DonViDoRepository(CatalogRepo):
     ma_case = "lower"
     # Xếp theo HỌ trước rồi mới tới mã: bảng gom `kg · g · tấn` liền nhau chứ không trộn lẫn.
     order_cols = ("ho", "ma")
+    nhan_cot = {"ho": HO_NHAN}
     # `DonViDoService` chốt sau khi ghi nhật ký — xem `services/catalog_base`. Chỉ áp cho CRUD của
     # ĐƠN VỊ; ba hàm `*_cap` bên dưới là bảng khác và vẫn tự commit.
     commit_on_write = False

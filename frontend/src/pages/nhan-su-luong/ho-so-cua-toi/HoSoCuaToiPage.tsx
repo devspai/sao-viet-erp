@@ -28,6 +28,9 @@ import { Icon } from "../../../components/Icons";
 import { trangHopLe } from "../../../components/Pager";
 import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { Timeline, type TimelineEntry } from "../../../components/Timeline";
+import { thamSoKy } from "../../thanh-loc/ky-danh-sach";
+import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
+import { useLocMan } from "../../thanh-loc/useLocMan";
 import { ReqRow } from "./components/ReqRow";
 import { StatChip } from "./components/StatChip";
 import { LockChip, Row } from "./components/info-display";
@@ -43,7 +46,6 @@ import {
   EVENT_LABEL,
   GENDER_LABEL,
   PIT_MODE_LABEL,
-  REQ_LOC,
   REQ_PAGE_SIZE,
   STATUS_CLASS,
   STATUS_LABEL,
@@ -55,11 +57,13 @@ import {
   fmtSo,
   kieuFile,
   messageFor,
-  nhanLoc,
   oThieu,
   thamNien,
 } from "./shared/helpers";
 import type { SoCong, SoLuong, SoPhep, Tai } from "./shared/types";
+import {
+  LOC_DE_NGHI_TRONG, MOC_DE_NGHI, dieuKienDeNghi, locDeNghiLenUrl, locDeNghiTuUrl, type LocManDeNghi,
+} from "./shared/dieu-kien-de-nghi";
 import "../../nhan-su.css";
 import "../../ho-so-cua-toi.css";
 
@@ -84,11 +88,15 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
   const [huyReq, setHuyReq] = useState<UpdateRequest | null>(null);
   const [huyBusy, setHuyBusy] = useState(false);
   const [huyErr, setHuyErr] = useState<string | null>(null);
-  // Đề nghị cập nhật: CẮT TRANG Ở MÁY CHỦ. `reqDem` là số đếm theo trạng thái trên TOÀN BỘ hồ sơ
-  // (máy chủ trả) — pill lọc và chip đầu màn đọc ô này, KHÔNG đếm lại từ trang đang xem.
+  // Đề nghị cập nhật: CẮT TRANG + LỌC Ở MÁY CHỦ. `reqDem` là số đếm theo trạng thái trên TOÀN BỘ
+  // hồ sơ (chip "chờ duyệt" đầu màn đọc ô này); `reqDemKy` = trong kỳ đang xem, cho thẻ lọc
+  // Trạng thái. KHÔNG đếm lại từ trang đang xem.
   const [reqTotal, setReqTotal] = useState(0);
   const [reqDem, setReqDem] = useState<Record<string, number>>({});
-  const [reqLoc, setReqLoc] = useState<string>("all");
+  const [reqDemKy, setReqDemKy] = useState<Record<string, number>>({});
+  // Kỳ (Ngày tạo) + Trạng thái — ghi lên URL `?man=ho-so-cua-toi`, nhớ theo màn (06/10/2026).
+  const [locReq, setLocReqGoc] = useLocMan("ho-so-cua-toi", LOC_DE_NGHI_TRONG, locDeNghiTuUrl, locDeNghiLenUrl);
+  const khoaReq = JSON.stringify({ status: locReq.loc.trang_thai, loc: thamSoKy(locReq.ky) });
   const [reqPage, setReqPage] = useState(1);
   const [reqSize, setReqSize] = useState(REQ_PAGE_SIZE);
   const [xemReq, setXemReq] = useState<UpdateRequest | null>(null);
@@ -105,20 +113,18 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
 
   const loadReqs = useCallback(() => {
     if (!token) return;
-    api.employees.myRequests(token, {
-      ...(reqLoc !== "all" ? { status: reqLoc } : {}),
-      page: reqPage, size: reqSize,
-    })
+    api.employees.myRequests(token, { ...JSON.parse(khoaReq), page: reqPage, size: reqSize })
       .then((r) => {
         setReqs({ tt: "ok", du: r.items });
         setReqTotal(r.total);
         setReqDem(r.dem ?? {});
+        setReqDemKy(r.dem_theo_tab ?? {});
         // Rút lại đề nghị cuối của trang cuối ⇒ tổng co lại, trang này rỗng trơn: lùi về trang có thật.
         const ve = trangHopLe(reqPage, r.total, reqSize);
         if (ve !== null) setReqPage(ve);
       })
       .catch(() => setReqs({ tt: "loi" }));
-  }, [token, reqLoc, reqPage, reqSize]);
+  }, [token, khoaReq, reqPage, reqSize]);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -136,7 +142,8 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
   // Danh sách đề nghị tải RIÊNG: đổi pill lọc hay lật trang chỉ gọi lại đúng nó, không kéo theo
   // hồ sơ · giấy tờ · quá trình công tác chạy lại cả loạt.
   useEffect(() => { loadReqs(); }, [loadReqs]);
-  useEffect(() => { setReqPage(1); }, [reqLoc]);
+  const setLocReq = (t: LocManDeNghi) => { setLocReqGoc(t); setReqPage(1); };
+  const dangLocReq = khoaReq !== JSON.stringify({ status: [], loc: {} });
 
   // --- 3 nguồn số liệu "của tôi" (chỉ nhánh nhân viên) ---------------------
   const napPhep = useCallback(() => {
@@ -218,17 +225,13 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
 
   const dsReq = reqs.tt === "ok" ? reqs.du : [];
   const soCho = reqDem.pending ?? 0;
-  // Pill "Tất cả" cộng các ô đếm, KHÔNG lấy `reqTotal`: `total` là tổng SAU bộ lọc, đứng ở pill
-  // "Từ chối" mà "Tất cả" tụt xuống 1 thì người xem tưởng mất dữ liệu.
-  const tongDem = Object.values(reqDem).reduce((a, b) => a + b, 0);
-
-  /** Về "Tất cả" · trang 1 rồi tải lại — dùng sau khi GỬI đề nghị mới: đứng ở pill "Từ chối"
-   *  trang 3 thì cái vừa gửi nằm ngoài tầm mắt, người ta tưởng bấm hụt. */
+  /** Bỏ lọc · trang 1 rồi tải lại — dùng sau khi GỬI đề nghị mới: đang lọc "Từ chối" trang 3 thì
+   *  cái vừa gửi nằm ngoài tầm mắt, người ta tưởng bấm hụt. */
   const veDauDsReq = useCallback(() => {
-    if (reqLoc !== "all") setReqLoc("all");
+    if (dangLocReq) setLocReqGoc(LOC_DE_NGHI_TRONG);
     if (reqPage !== 1) setReqPage(1);
-    if (reqLoc === "all" && reqPage === 1) loadReqs();
-  }, [reqLoc, reqPage, loadReqs]);
+    if (!dangLocReq && reqPage === 1) loadReqs();
+  }, [dangLocReq, setLocReqGoc, reqPage, loadReqs]);
   // Ô còn trống — tách hai nhóm vì hai nhóm dẫn tới HAI việc khác nhau: tự điền vs gửi đề nghị.
   const thieu = useMemo(() => oThieu(emp), [emp]);
 
@@ -617,37 +620,23 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
           <span>Các mục do HCNS quản lý (tên, CCCD, hộ khẩu, số tài khoản…) bạn gửi đề nghị sửa để HCNS xét duyệt.</span>
         </div>
 
-        {/* Pill lọc — số đếm lấy từ `reqDem` của máy chủ nên KHÔNG đổi theo trang đang xem.
-            Giữ đủ 5 pill kể cả khi đếm 0: vị trí không nhảy giữa các lần tải, và "Từ chối 0"
-            tự nó là tin tốt. */}
-        <div className="mine__reqfilter" role="group" aria-label="Lọc đề nghị theo trạng thái">
-          <button
-            type="button" className={`seg${reqLoc === "all" ? " is-active" : ""}`}
-            aria-pressed={reqLoc === "all"} onClick={() => setReqLoc("all")}
-          >
-            Tất cả <span className="chip-count">{tongDem}</span>
-          </button>
-          {REQ_LOC.map((f) => {
-            const n = reqDem[f.key] ?? 0;
-            const on = reqLoc === f.key;
-            return (
-              <button
-                key={f.key} type="button" className={`seg${on ? " is-active" : ""}`}
-                aria-pressed={on} onClick={() => setReqLoc(f.key)}
-              >
-                {f.label}
-                {/* rust = việc CẦN LÀM; pill đang chọn đã tự rust nên không dán thêm class. */}
-                <span className={`chip-count${f.key === "pending" && n > 0 && !on ? " chip-count--alert" : ""}`}>{n}</span>
-              </button>
-            );
-          })}
+        {/* Thanh lọc chung: kỳ theo Ngày tạo + Trạng thái (số đếm máy chủ theo kỳ đang xem). */}
+        <div className="mine__reqfilter tl-thanh">
+          <ThanhLoc
+            ky={locReq.ky}
+            moc={MOC_DE_NGHI}
+            onKy={(ky) => setLocReq({ ...locReq, ky })}
+            dieuKien={dieuKienDeNghi(reqDemKy)}
+            loc={locReq.loc}
+            onLoc={(loc) => setLocReq({ ...locReq, loc })}
+          />
         </div>
 
         <div className="ns__tablewrap mine__reqtable">
           <table className="ns__table">
             <thead>
               <tr>
-                <th className="mine__reqcol-date">Ngày gửi</th>
+                <th className="mine__reqcol-date">Ngày tạo</th>
                 <th className="mine__reqcol-st">Trạng thái</th>
                 <th>Nội dung đề nghị</th>
                 <th className="mine__reqcol-who">Người xử lý</th>
@@ -663,11 +652,11 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
                 ))
               ) : reqs.tt === "loi" ? (
                 <EmptyRow colSpan={5} trangThai="loi" onThuLai={loadReqs} />
-              ) : dsReq.length === 0 && reqLoc !== "all" ? (
+              ) : dsReq.length === 0 && dangLocReq ? (
                 <EmptyRow
                   colSpan={5} icon="search"
-                  title={`Chưa có đề nghị nào ở trạng thái "${nhanLoc(reqLoc)}".`}
-                  action={<Button variant="ghost" onClick={() => setReqLoc("all")}>Xem tất cả</Button>}
+                  title="Không có đề nghị nào khớp bộ lọc."
+                  action={<Button variant="ghost" onClick={() => setLocReq(LOC_DE_NGHI_TRONG)}>Xem tất cả</Button>}
                 />
               ) : dsReq.length === 0 ? (
                 <EmptyRow

@@ -1,8 +1,7 @@
 // Lập PHIẾU CHI từ một lần gia công ngoài đã chốt (spec 2026-09-26 §5; đặc tả UI PC-5).
-// Dùng đúng khung PC-3 (ngăn `NganPhai`, nhóm "Chi cho ai và bao nhiêu" / "Trả bằng" / "Khi nào"),
-// đầu ngăn có dải chỉ đọc Việc — Số chốt — Đơn giá — Thành tiền. Số tiền SỬA ĐƯỢC (thành tiền trên
-// lần chỉ là gợi ý, phiếu chi là số thật đã trả), người nhận sửa được (nhà gia công, hoặc người kế
-// hoạch cầm tiền mặt đi trả). Không có ô nhà cung cấp công nợ — phiếu này không vào 331.
+// Dùng CHUNG thân form với nút "Lập phiếu chi" trên đầu màn (`ThanPhieuChiRoi`, bố cục chia đôi có
+// tờ phiếu xem trước), thêm khối đầu "Việc gia công" (Việc | Số chốt). Số tiền gõ theo hoá đơn của nhà
+// gia công; người nhận sửa được (nhà gia công, hoặc người kế hoạch cầm tiền mặt đi trả). Không có ô nhà cung cấp công nợ — phiếu này không vào 331.
 import { useEffect, useRef, useState } from "react";
 import {
   ApiError,
@@ -14,15 +13,14 @@ import {
   type PaymentVoucherType,
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
-import { amountInWords } from "../../../../utils/format";
 import { homNayVN } from "../../../../utils/ky";
 import { Cum, TheNho } from "../../shared/Cum";
-import { tien } from "../../shared/dinhDang";
-import { KhungFormPhieu, OF, OTienPhieu, THU_TU_O, ThemChiTiet, idO, loiNgayChi, nhayToiLoi, ONgayChi, type DatO, type LoiForm } from "../components/KhungFormPhieu";
-import { taiChungTuSauKhiLap, VoucherAttachSection } from "../components/VoucherAttachSection";
-import { loiChuyenKhoan, VoucherRecipientSection } from "../components/VoucherRecipientSection";
-import { cacOChiTiet, VoucherRefSection } from "../components/VoucherRefSection";
-import { ChonCachTra } from "../components/VoucherSegments";
+import { HangDoiChieu, KhoiForm } from "../../shared/KhungFormPhieu";
+import { THU_TU_O_MOI } from "../components/KhoiPhieuChi";
+import { KhungFormPhieu, loiNgayChi, nhayToiLoi, type DatO, type LoiForm } from "../components/KhungFormPhieu";
+import { BanXemPhieuChi, ThanPhieuChiRoi } from "../components/ThanPhieuChiRoi";
+import { taiChungTuSauKhiLap } from "../components/VoucherAttachSection";
+import { loiChuyenKhoan } from "../components/VoucherRecipientSection";
 import { cacViec, soChot } from "../shared/giaCong";
 import { optional } from "../shared/helpers";
 import "../../ke-toan.css";
@@ -43,7 +41,8 @@ export function LapPhieuChiGiaCongModal({
     voucher_type: "cash",
     payment_stage: "other",
     voucher_date: homNayVN(),
-    amount: row.thanh_tien != null ? Math.round(row.thanh_tien) : 0,
+    // Gia công không có đơn giá (chủ chốt 07/10/2026): kế toán gõ tiền theo hoá đơn nhà gia công.
+    amount: 0,
     currency: "VND",
     exchange_rate: 1,
     content: `Gia công ${row.ten_viec} — ${row.nhan_nguon || row.lsx_ma} — ${row.nha_cung_cap_ten}`,
@@ -65,7 +64,6 @@ export function LapPhieuChiGiaCongModal({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [loi, setLoi] = useState<LoiForm>({});
-  const [moChiTiet, setMoChiTiet] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [loiTep, setLoiTep] = useState<string | null>(null);
   const [daLap, setDaLap] = useState<PaymentVoucherRow | null>(null);
@@ -111,7 +109,7 @@ export function LapPhieuChiGiaCongModal({
     const l: LoiForm = {};
     if (!(Math.round(Number(form.amount)) > 0)) l.amount = "Số tiền chi phải lớn hơn 0.";
     if (!form.cash_recipient_name?.trim()) l.cash_recipient_name = "Nhập người nhận tiền.";
-    if (!form.content.trim()) l.content = "Nhập nội dung chi.";
+    if (!form.content.trim()) l.content = "Ghi lý do chi.";
     const loiNgay = loiNgayChi(form.voucher_date);
     if (loiNgay) l.voucher_date = loiNgay;
     return { ...l, ...loiChuyenKhoan(form) };
@@ -126,7 +124,7 @@ export function LapPhieuChiGiaCongModal({
     const l = kiemTra();
     setLoi(l);
     if (Object.values(l).some(Boolean)) {
-      nhayToiLoi(l, THU_TU_O);
+      nhayToiLoi(l, THU_TU_O_MOI);
       return;
     }
     setBusy(true);
@@ -173,92 +171,45 @@ export function LapPhieuChiGiaCongModal({
   }
 
   const viec = cacViec(row.ten_viec);
-  // Người xem không có quyền xem tiền: máy chủ trả null — ẩn hẳn ô tiền, không hiện "—".
-  const tomTat = [
-    { nhan: "Việc", giaTri: <Cum>{viec.map((v) => <TheNho key={v}>{v}</TheNho>)}</Cum> },
-    { nhan: "Số chốt", giaTri: soChot(row) },
-    ...(row.don_gia != null ? [{ nhan: "Đơn giá", giaTri: tien(row.don_gia) }] : []),
-    ...(row.thanh_tien != null ? [{ nhan: "Thành tiền", giaTri: <b>{tien(row.thanh_tien)}</b> }] : []),
-  ];
-  const ten = form.cash_recipient_name?.trim();
 
+  // Cùng giao diện với nút "Lập phiếu chi" trên đầu màn (`ThanPhieuChiRoi`), thêm dải tóm tắt việc.
   return (
     <KhungFormPhieu
-      duongDan={<>Lập phiếu chi &gt; {row.nhan_nguon || row.lsx_ma}</>}
-      tieuDe={row.nha_cung_cap_ten}
-      tomTat={tomTat}
-      xemTruoc={
-        daLap ? (
-          <>Phiếu <b>{daLap.code}</b> đã lập.</>
-        ) : form.amount > 0 ? (
-          <>
-            Chi <b>{tien(form.amount)}</b> {chuyenKhoan ? "chuyển khoản" : "tiền mặt"}
-            {ten ? <> cho <b>{ten}</b></> : null}. Lập xong không sửa được, chỉ hủy được.
-          </>
-        ) : (
-          "Lập xong không sửa được, chỉ hủy được."
-        )
+      duongDan={<>Phiếu chi &gt; Lập mới &gt; Gia công {row.nhan_nguon || row.lsx_ma}</>}
+      tieuDe="Lập phiếu chi"
+      phuDe={
+        <span className="kt-tag">
+          Nhà gia công <b>{row.nha_cung_cap_ten}</b>
+        </span>
       }
+      xemTruoc={daLap ? <>Phiếu <b>{daLap.code}</b> đã lập.</> : "Lập xong không sửa được, chỉ hủy được."}
       dangLuu={busy}
       loiChung={err}
       onDong={onClose}
       chanDong={() => !daLap && (JSON.stringify(form) !== goc.current || files.length > 0)}
       onSubmit={() => void save()}
       nhanNut={daLap ? "Mở phiếu đã lập" : undefined}
+      banXem={<BanXemPhieuChi form={form} taiKhoan={tkList} soChungTu={files.length} nguon="gia_cong_ngoai" />}
     >
-      <div className="kt-f__muc">
-        <div className="kt-f__tieu">Chi cho ai và bao nhiêu</div>
-        <OF khoa="cash_recipient_name" nhan="Chi cho" batBuoc rong loi={loi.cash_recipient_name}
-          goi="Nhà gia công, hoặc người cầm tiền mặt đi trả.">
-          <input id={idO("cash_recipient_name")} value={form.cash_recipient_name ?? ""}
-            aria-invalid={loi.cash_recipient_name ? true : undefined}
-            onChange={(e) => set("cash_recipient_name", e.target.value)} />
-        </OF>
-        <OF khoa="amount" nhan="Số tiền" batBuoc loi={loi.amount}
-          goi={
-            <>
-              {form.amount > 0 && `${amountInWords(form.amount)}. `}
-              {row.thanh_tien != null
-                ? "Điền sẵn bằng thành tiền. Sửa theo số thật đã trả."
-                : "Gõ số tiền thật đã trả cho nhà gia công."}
-            </>
-          }>
-          <OTienPhieu khoa="amount" value={form.amount} onChange={(v) => set("amount", v)} loi={!!loi.amount} />
-        </OF>
-        <OF khoa="content" nhan="Nội dung chi" batBuoc rong loi={loi.content}>
-          <input id={idO("content")} value={form.content} aria-invalid={loi.content ? true : undefined}
-            onChange={(e) => set("content", e.target.value)} />
-        </OF>
-      </div>
-
-      <div className="kt-f__muc">
-        <div className="kt-f__tieu">Trả bằng</div>
-        <ChonCachTra giaTri={form.voucher_type} onDoi={chonCach} />
-        <VoucherRecipientSection
-          form={form}
-          set={set}
-          loi={loi}
-          taiKhoan={tkList}
-          dangTai={tkDangTai}
-          loiTai={
-            tkLoi
-              ? "Không đọc được danh sách tài khoản công ty (thiếu quyền Tài khoản ngân hàng). Chọn Tiền mặt, hoặc nhờ kế toán có quyền lập giúp."
-              : null
-          }
-          chonTaiKhoan={(v) => set("company_bank_account_id", v ? Number(v) : null)}
-          onMoTaiKhoan={onMoTaiKhoan}
+      <KhoiForm tieu="Việc gia công">
+        <HangDoiChieu
+          o={[
+            { nhan: "Việc", giaTri: <Cum>{viec.map((v) => <TheNho key={v}>{v}</TheNho>)}</Cum> },
+            { nhan: "Số chốt", giaTri: soChot(row), chot: true },
+          ]}
         />
-      </div>
-
-      <div className="kt-f__muc">
-        <div className="kt-f__tieu">Khi nào</div>
-        <ONgayChi value={form.voucher_date} onChange={(v) => set("voucher_date", v)} loi={loi.voucher_date} />
-      </div>
-
-      <ThemChiTiet cacO={cacOChiTiet(false)} mo={moChiTiet || files.length > 0} onMo={() => setMoChiTiet(true)}>
-        <VoucherRefSection form={form} set={set} coHopDong={false} />
-        <VoucherAttachSection files={files} setFiles={setFiles} loi={loiTep ?? undefined} onLoi={setLoiTep} />
-      </ThemChiTiet>
+      </KhoiForm>
+      <ThanPhieuChiRoi form={form} set={set} loi={loi} onDoiCach={chonCach} taiKhoan={tkList}
+        dangTai={tkDangTai}
+        loiTai={
+          tkLoi
+            ? "Không đọc được danh sách tài khoản công ty (thiếu quyền Tài khoản ngân hàng). Chọn Tiền mặt, hoặc nhờ kế toán có quyền lập giúp."
+            : null
+        }
+        onMoTaiKhoan={onMoTaiKhoan}
+        files={files} setFiles={setFiles} loiTep={loiTep} setLoiTep={setLoiTep}
+        goiSoTien="Gõ theo hoá đơn của nhà gia công."
+        goiY={[{ ten: row.nha_cung_cap_ten, phu: "nhà gia công" }]} />
     </KhungFormPhieu>
   );
 }

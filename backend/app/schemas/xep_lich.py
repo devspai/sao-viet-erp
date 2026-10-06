@@ -100,6 +100,8 @@ class TheHangChoOut(BaseModel):
     don_vi_tinh: str | None = None
     chay_phut: float = 0.0
     so_buoc: int = 0
+    #: Ngày tạo lệnh — hiện trên thẻ hàng chờ (06/10/2026).
+    created_at: datetime | None = None
 
 
 class HangChoOut(BaseModel):

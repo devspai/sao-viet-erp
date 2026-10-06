@@ -24,13 +24,15 @@ class OrderLineOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Đính kèm (chung cho consent + minh chứng cọc) ---------------------------
+# --- Tệp đính kèm của đơn ------------------------------------------------------
 class AttachmentOut(BaseModel):
     id: int
     url: str
     file_name: str | None
     content_type: str | None
     uploaded_at: datetime
+    size_bytes: int = 0
+    uploaded_by_name: str | None = None
 
 
 # --- Cọc (V5) — Kế toán lập PHIẾU THU THẬT (PaymentReceipt) từ drawer đơn ------
@@ -42,7 +44,12 @@ class OrderDepositReceiptIn(BaseModel):
     receipt_date: date | None = None         # None → hôm nay
     note: str | None = None
     company_bank_account_id: int | None = None  # chỉ dùng khi bank_transfer (cho phép NULL)
-
+    # Cùng các ô của form Lập phiếu thu bên Kế toán (06/10/2026). Để trống thì giữ mặc định cũ:
+    # người nộp = tên khách, lý do = "Thu cọc đơn …".
+    payer_name: str | None = None
+    payer_address: str | None = None
+    content: str | None = None
+    bank_reference: str | None = None
 
 class OrderCancelIn(BaseModel):
     reason: str
@@ -107,6 +114,43 @@ class OrderProductionHintIn(BaseModel):
 
 
 # --- Đọc -----------------------------------------------------------------------
+class GiaCongMonOut(BaseModel):
+    """Lần gia công ngoài ĐANG MỞ của một lệnh (đang ở nhà gia công)."""
+    kieu: str                           # `tron_goi` | `mot_phan`
+    nha_cung_cap_id: int
+    nha_cung_cap_ten: str
+    ten_viec: str = ""
+    tu_luc: datetime | None = None      # một phần: lúc mang đi; trọn gói: lúc giao việc
+    ve_xuong: bool = False              # một phần còn bước của xưởng phía sau
+
+
+class LenhMonOut(BaseModel):
+    id: int
+    ma: str
+    o: str                              # xem `services/don_hang_san_xuat.py` O_*
+    kieu: str                           # `xuong` | `mot_phan` | `tron_goi`
+    buoc: str | None = None             # bước đang làm (lệnh đang chạy trong xưởng)
+    pct: float | None = None
+    gia_cong: GiaCongMonOut | None = None
+
+
+class MonSanXuatOut(BaseModel):
+    """Một mặt hàng (cụm bán) của đơn: đang ở đâu, lệnh nào, đã có bao nhiêu hàng (07/10/2026)."""
+    khoa: str
+    ten: str
+    don_vi: str | None = None
+    dat: float
+    co_hang: float
+    du_hang: bool
+    o: str
+    co_lenh: bool
+    tu_ton: bool = False
+    giao_thang: int = 0
+    da_giao: float = 0
+    con_phai_giao: float = 0
+    lenh: list[LenhMonOut] = []
+
+
 class OrderRow(BaseModel):
     id: int
     order_no: str
@@ -137,6 +181,9 @@ class OrderRow(BaseModel):
     san_xuat_released_at: datetime | None = None
     first_line_desc: str | None = None   # mô tả dòng đầu (theo id)
     line_count: int = 0
+    # Cột Sản xuất (07/10/2026): từng mặt hàng đang ở đâu + đơn đang chờ ai. Chỉ đơn đã chốt.
+    san_xuat_mon: list[MonSanXuatOut] = []
+    dang_cho: list[str] = []
 
 
 class OrderListOut(BaseModel):
@@ -151,6 +198,12 @@ class OrderStatsOut(BaseModel):
     draft: int
     ordered: int
     cancelled: int
+    # Hai tab suy ra (06/10/2026, đếm ở máy chủ thay cho lọc trong trình duyệt): nháp đã qua cổng
+    # chốt, và đã chốt mà chưa xuống sản xuất vì chờ đủ cọc.
+    san_sang: int = 0
+    cho_coc: int = 0
+    # Đã chốt, giao đủ và hoá đơn đủ (06/10/2026).
+    hoan_tat: int = 0
     # KPI tiền (aggregate read-only, không đổi schema DB): số đơn chờ cọc, Σ cần-thu-còn-thiếu,
     # Σ giá trị (gồm VAT) đơn đã chốt. Default 0 để an toàn khi thiếu.
     awaiting_deposit: int = 0
@@ -184,6 +237,9 @@ class OrderDetailOut(OrderRow):
     quote_expired: bool = False   # Việc 4: báo giá nguồn accepted đã hết hạn → FE bật nút "Gia hạn"
     # Handoff Đơn→Kế hoạch: mốc Sale "Chuyển xuống sản xuất" (NULL = chưa chuyển).
     san_xuat_released_at: datetime | None = None
+    # Chỉ có trong response của POST deposit-receipts: phiếu thu cọc vừa lập — FE tải chứng từ gốc
+    # lên phiếu này ngay sau khi lập.
+    phieu_vua_lap_id: int | None = None
 
 
 class OrderActivityItem(BaseModel):

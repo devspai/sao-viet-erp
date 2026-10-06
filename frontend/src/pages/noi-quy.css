@@ -2,10 +2,13 @@
 .nqr__head { align-items: flex-end; }
 .nqr__head .btn { display: inline-flex; align-items: center; gap: 7px; }
 .nqr .required { color: var(--signal); }
-.nqr__tools { display: grid; grid-template-columns: auto minmax(180px, 420px) 1fr; align-items: center; gap: 9px; margin: var(--sp-5) 0 var(--sp-3); color: var(--ash); }
-.nqr__tools input { width: 100%; min-height: 38px; padding: 8px 10px; color: var(--ink); background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--r-3); font: inherit; }
-.nqr__tools input:focus { outline: 2px solid var(--rule-hair); border-color: var(--rust); }
-.nqr__tools > span { justify-self: end; font-family: var(--ff-sans); font-size: 11px; }
+.nqr__tools { display: flex; align-items: center; gap: 9px; margin: var(--sp-5) 0 var(--sp-3); color: var(--ash); }
+/* Ô tìm của thanh lọc chung (06/10/2026): kính lúp nằm trong ô. */
+.nq-search { position: relative; display: flex; align-items: center; }
+.nq-search > svg { position: absolute; left: 10px; pointer-events: none; }
+.nqr__tools .nq-search input { width: 100%; min-height: 38px; padding: 8px 10px 8px 34px; color: var(--ink); background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--r-3); font: inherit; }
+.nqr__tools .nq-search input:focus { outline: 2px solid var(--rule-hair); border-color: var(--rust); }
+.nqr__tools > span { margin-left: auto; font-family: var(--ff-sans); font-size: 11px; }
 
 .nqr__table-wrap { overflow-x: auto; background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--r-3); box-shadow: var(--shadow-1); }
 /* Chân phân trang (`.ptdd`, khuôn Nhật ký) nối vào đáy thẻ bảng thành một khối — thẻ bảng tự có viền nên chân mượn viền ba cạnh. */
@@ -63,7 +66,6 @@
 @media (max-width: 720px) {
   .nqr { padding: 14px 12px 28px; }
   .nqr__head { align-items: flex-start; }
-  .nqr__tools { grid-template-columns: auto minmax(0, 1fr); }
   .nqr__tools > span { display: none; }
   .nqr-modal { padding: 10px; }
   .nqr-modal__box { max-height: calc(100vh - 20px); }

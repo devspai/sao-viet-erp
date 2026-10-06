@@ -311,6 +311,20 @@ export interface Paged<T> {
   size: number;
 }
 
+/** Danh sách phân trang kèm số theo trạng thái cho thanh tab (đếm sau kỳ + bộ lọc, trước khi lọc
+ *  trạng thái; khoá `tat_ca` = tổng). Dùng cho các danh sách Chấm công / Nghỉ phép / Tăng ca. */
+export interface PagedTab<T> extends Paged<T> {
+  dem_theo_tab?: Record<string, number> | null;
+}
+
+/** Chuỗi query từ tham số lọc: bỏ ô rỗng, mảng thành nhiều khoá cùng tên. */
+function qsLoc(loc?: ThamSoLoc): string {
+  const sp = new URLSearchParams();
+  ganThamSoLoc(sp, loc);
+  const t = sp.toString();
+  return t ? `?${t}` : "";
+}
+
 /** Dựng chuỗi query, BỎ QUA ô rỗng (`undefined` / `null` / chuỗi rỗng).
  *
  *  Vì sao phải bỏ: gửi `?q=` (rỗng) lên là backend nhận chuỗi rỗng chứ không phải "không lọc" —
@@ -1222,6 +1236,8 @@ export interface XlThe {
   don_vi_tinh: string | null;
   chay_phut: number;
   so_buoc: number;
+  /** Ngày tạo lệnh (ISO, có múi). */
+  created_at: string | null;
 }
 
 export interface XlHangCho {
@@ -1672,6 +1688,7 @@ export interface SxLenhNhom {
   som_nhat: string | null;     // giờ dự kiến sớm nhất trong các bước CỦA TỔ NÀY; null = chưa xếp
   muon_nhat: string | null;
   nhan_luc?: string | null;    // lúc tổ nhận việc sớm nhất của lệnh
+  tao_luc?: string | null;     // ngày tạo lệnh / bài ghép (giờ xưởng) — cột "Ngày tạo"
   so_viec: number;
   digest: { released: number; running: number; paused: number; completed: number };
   routing?: SxRoutingBuoc[];   // chuỗi công đoạn đầy đủ; rỗng khi lệnh chỉ có một bước
@@ -2406,6 +2423,9 @@ export interface SxKcsLenhItem {
   so_da_kiem: number;
   so_loi: number;
   cuoi: SxKcsCuoiTomTat | null;
+  /** Ngày tạo lệnh + lần KCS gần nhất — hai cột ngày, cũng là hai mốc kỳ `tao` / `kcs`. */
+  created_at?: string | null;
+  kcs_gan_nhat?: string | null;
 }
 export interface SxKcsLenhList {
   items: SxKcsLenhItem[];
@@ -2665,6 +2685,8 @@ export interface HangChoItem {
   is_rush: boolean;
   production_note: string | null;
   san_xuat_released_at: string | null;
+  /** Ngày tạo đơn — cột "Ngày tạo" + mốc kỳ `tao` của hàng chờ. */
+  created_at?: string | null;
   so_dong: number;
   so_dong_co_lsx: number;
   san_pham_tom_tat?: string | null;
@@ -2731,7 +2753,6 @@ export interface LsxPreviewOut {
 interface LsxThueNgoaiFields {
   nha_cung_cap_id: number | null;
   nha_cung_cap: string | null;
-  don_gia_gia_cong: number | null;
 }
 
 export interface LsxCongDoan extends LsxThueNgoaiFields {
@@ -2904,10 +2925,26 @@ export interface LsxListItem {
   so_luong_dat: number; don_vi_tinh: string; so_to_ke_hoach: number;
   han_giao_khach: string | null; han_hoan_thanh_sx: string | null;
   is_rush: boolean; to_dau_ten: string | null; so_cong_doan: number;
+  /** Ngày tạo lệnh — cột "Ngày tạo" + mốc kỳ `tao`. */
+  created_at?: string | null;
   /** MÃ đơn vị chặng TỜ IN của lệnh này (server đọc từ routing). Bảng liệt kê nhiều lệnh, mỗi lệnh
    *  có thể đếm bằng đơn vị xưởng tự đặt — nên đơn vị đi theo DÒNG, không nằm ở tiêu đề cột.
    *  Tên lấy bằng `tenDonVi(ma)`; null = lệnh chưa có bước nào trên dòng giấy. */
   don_vi_to: string | null;
+  /** Gia công ngoài của lệnh (lần chưa huỷ) — null = lệnh không đi gia công. Lần ĐẠI DIỆN: đang
+   *  mở trước đã xong; trọn gói / đang ở ngoài trước chờ mang đi. */
+  gia_cong?: LsxListGiaCong | null;
+}
+export interface LsxListGiaCong {
+  kieu: "mot_phan" | "tron_goi";
+  trang_thai: GiaCongTrangThai;
+  nha_cung_cap_ten: string;
+  ten_viec: string;
+  bai_ghep_ma: string | null;
+  so_lan: number;
+  so_lan_mo: number;
+  /** Trọn gói xưởng cấp giấy chưa gửi đề nghị xuất giấy — chip "Chờ cấp giấy". */
+  cho_cap_giay?: boolean;
 }
 export interface LsxListOut {
   items: LsxListItem[];
@@ -2989,6 +3026,10 @@ export interface LsxDetail {
    *  CẢ bản xem trước. Màn lệnh phải khoá bảng routing và nói đường lùi ngay từ đầu — không thì
    *  sửa xong mới ăn 409 lúc bấm Lưu, còn xem-trước 409 im lặng làm số trên bảng đứng im. */
   giu_cho_bat: boolean;
+  /** Lệnh chưa phát hành mà không giao trọn gói được (đi chung lệnh khác / bài ghép) — câu nêu đích
+   *  danh lệnh đang dính. null = giao được, hoặc lệnh đã qua bước đặt trọn gói. */
+  tron_goi_chan?: string | null;
+  tron_goi_chan_ngan?: string | null;
   /** Danh mục Công đoạn đã đổi sau lần lệnh này lấy số. `null` = còn khớp, KHÔNG hiện băng. */
   danh_muc_doi?: DanhMucDoiOut | null;
 }
@@ -3230,6 +3271,9 @@ export interface Department {
   head_title?: string | null;
   /** Phòng có lương khoán theo sản lượng. */
   has_piece_work?: boolean;
+  created_at?: string | null;
+  /** Thanh lọc màn Phòng ban: false = dòng chỉ là TỔ TIÊN của phòng khớp (để vẽ đường cây). */
+  khop?: boolean;
   /** Đánh dấu khối SẢN XUẤT (spec §13.1). Effective tính theo cây ở FE (self hoặc tổ tiên tick). */
   la_san_xuat?: boolean;
   /** Đánh dấu khối KINH DOANH (mg 0181) — cùng luật kế thừa cây con. Nền cho danh sách
@@ -3369,6 +3413,10 @@ export interface AuditQuery {
   q?: string;
   tu_ngay?: string;
   den_ngay?: string;
+  /** Mốc của kỳ — Nhật ký chỉ có `tao`. */
+  moc?: string;
+  /** Kỳ "Tất cả" của thanh lọc: bỏ cửa sổ 30 ngày mặc định của máy chủ. */
+  tat_ca?: boolean;
   action?: string[];
   actor_id?: number[];
   loai?: string[];
@@ -3382,6 +3430,8 @@ function auditParams(v: AuditQuery): string {
   if (v.q) p.set("q", v.q);
   if (v.tu_ngay) p.set("tu_ngay", v.tu_ngay);
   if (v.den_ngay) p.set("den_ngay", v.den_ngay);
+  if (v.moc) p.set("moc", v.moc);
+  if (v.tat_ca) p.set("tat_ca", "true");
   (v.action ?? []).forEach((a) => p.append("action", a));
   (v.actor_id ?? []).forEach((a) => p.append("actor_id", String(a)));
   (v.loai ?? []).forEach((a) => p.append("loai", a));
@@ -4003,6 +4053,8 @@ export interface CustomerListParams {
   sort?: string;
   page?: number;
   size?: number;
+  /** Thanh lọc chung: `tu_ngay`/`den_ngay`/`moc`, `loai`, `mua` (và `sale`/`chua_gan`/`tag`). */
+  loc?: ThamSoLoc;
 }
 
 export interface EnumOption {
@@ -4170,6 +4222,26 @@ export interface PhieuTinhGiaStatsOut {
   all: number;
   draft: number;
   calculated: number;
+}
+
+/** Tham số lọc thêm của ba danh sách Kinh doanh (dải kỳ + bảng "Bộ lọc nâng cao"): khoá rỗng bỏ,
+ *  mảng thành nhiều khoá cùng tên (`duyet=cho&duyet=duyet`). */
+export type ThamSoLoc = Record<string, string | number | boolean | string[] | null | undefined>;
+
+/** Một lựa chọn trong ô lọc (khách hàng, người duyệt…) — máy chủ chỉ trả cái đang có trong tầm nhìn. */
+export interface LuaChonLoc {
+  id: number;
+  ten: string;
+  so: number;
+}
+
+function ganThamSoLoc(qs: URLSearchParams, loc?: ThamSoLoc): void {
+  if (!loc) return;
+  for (const [k, v] of Object.entries(loc)) {
+    if (v == null || v === "") continue;
+    if (Array.isArray(v)) v.forEach((x) => qs.append(k, x));
+    else qs.set(k, String(v));
+  }
 }
 
 /** 1 dòng gia công sau in (finishing) thuộc 1 thành phần. */
@@ -4451,6 +4523,15 @@ export interface QuotationRow {
   product_summary?: string | null;
   updated_at?: string | null;
   salesperson_name?: string | null;
+  created_at?: string | null;
+  /** Cột "Người duyệt": `cho` (nguoi = ai có thể duyệt, luc = lúc trình), `da_duyet` / `tu_choi`
+   *  (nguoi = người quyết, luc = lúc quyết), `khong_can` (báo giá thường). null = để trống. */
+  duyet?: {
+    trang_thai: "cho" | "da_duyet" | "tu_choi" | "khong_can";
+    nguoi: string[];
+    luc: string | null;
+    y_kien: string | null;
+  } | null;
 }
 
 export interface QuotationListOut {
@@ -4654,6 +4735,8 @@ export interface QuotationListParams {
   size?: number;
   /** Hộp lọc NV phụ trách — id người; máy chủ AND với phạm vi. */
   nguoi?: number | null;
+  /** Dải kỳ + bộ lọc nâng cao. */
+  loc?: ThamSoLoc;
 }
 
 // --- Nhân sự · Hồ sơ nhân sự (nhan_su), lát #1 -----------------------------
@@ -4976,6 +5059,8 @@ export interface MyUpdateRequestsPage {
   page: number;
   size: number;
   dem: Record<string, number>;
+  /** Số đề nghị theo trạng thái trong kỳ đang xem (bỏ điều kiện trạng thái) — số trên thẻ lọc. */
+  dem_theo_tab?: Record<string, number>;
 }
 
 // --- Chấm công GPS (nhan_su) ------------------------------------------------
@@ -5350,6 +5435,8 @@ export interface MyOvertime {
   total: number;
   page: number;
   size: number;
+  /** Số theo trạng thái cho thanh tab — cùng kỳ + bộ lọc (06/10/2026). */
+  dem_theo_tab?: Record<string, number> | null;
 }
 export interface OvertimeSummary {
   pending_in_scope: number | null;
@@ -5504,6 +5591,8 @@ export interface MyLeave {
   total: number;
   page: number;
   size: number;
+  /** Số theo trạng thái cho thanh tab — cùng kỳ + bộ lọc (06/10/2026). */
+  dem_theo_tab?: Record<string, number> | null;
 }
 
 export interface LeaveSummary {
@@ -5737,6 +5826,8 @@ export interface PayrollLine {
   employee_id: number;
   employee_code: string | null;
   employee_name: string | null;
+  /** Máy chủ điền — thanh lọc "Phòng / tổ" lọc theo id ở máy chủ (06/10/2026). */
+  department_id?: number | null;
   department_name: string | null;
   bank_account: string | null;
   bank_name: string | null;
@@ -6132,6 +6223,22 @@ export interface PayrollTable {
   chan_chot_ly_do?: string | null;
   /** Cảnh báo (không chặn) trước khi chốt — người thực lĩnh 0 vì trừ nợ, người còn nợ chuyển kỳ. */
   canh_bao_chot?: string | null;
+  /** Menu "Phòng / tổ" của thanh lọc — số người từng tổ (sau tìm + hợp đồng). */
+  phong_loc?: LuaChonLoc[];
+}
+
+/** Danh sách màn Tạm ứng — lọc, đếm tab, chia trang ở máy chủ (06/10/2026). */
+export interface TamUngDanhSach {
+  items: SalaryAdvance[];
+  total: number;
+  dem_theo_tab: Record<string, number>;
+  to_loc: LuaChonLoc[];
+  /** Tổng phiếu đã duyệt / đã chi của CẢ kỳ (không theo bộ lọc). */
+  tong_da_duyet: number;
+  /** Id mọi phiếu của tab, bỏ qua điều kiện lọc. */
+  ids_tab: number[];
+  /** Id mọi phiếu khớp lọc của tab, mọi trang. */
+  ids_loc: number[];
 }
 /** Một kỳ NLĐ tra lại được. CHỈ nhãn tháng — không kèm tiền. */
 export interface KyXemDuoc {
@@ -6170,6 +6277,8 @@ export interface KcsHangMuc {
   bat_buoc: boolean;
   thu_tu: number;
   active: boolean;
+  /** Mốc kỳ `tao` của thanh lọc màn khai báo. */
+  created_at?: string | null;
 }
 /** Thân ghi — KHÔNG có `ma` (server cấp `KM####`). */
 export interface KcsHangMucBody {
@@ -6203,6 +6312,8 @@ export interface KcsCongDoanChon {
 export interface KcsKhaiBao {
   giai_doan: KcsKhaiBaoGiaiDoan[];
   cong_doan_chon: KcsCongDoanChon[];
+  /** {giai đoạn: số công đoạn} sau mọi lọc trừ giai đoạn — số trên điều kiện "Giai đoạn". */
+  dem_theo_nhom?: Record<string, number>;
 }
 
 export interface CongDoanLite {
@@ -6518,6 +6629,7 @@ export interface AdjustRequest {
   decided_at: string | null;
   decision_note: string | null;
   decided_by_name: string | null;
+  created_at?: string | null;
 }
 
 export interface RequestAdjustInput {
@@ -6759,8 +6871,8 @@ export interface SupplierInput {
 /** Ô chọn Nhà gia công — NCC đang hoạt động có tích "Nhận gia công" (spec gia công ngoài §7). */
 export interface NhaGiaCong { id: number; ten: string }
 
-/** Một dòng "Gia công chờ chi" — lần đã chốt, chưa có phiếu chi còn hiệu lực. Tiền `null` khi người
- *  xem không có quyền xem tiền. */
+/** Một dòng "Gia công chờ chi" — lần đã chốt, chưa có phiếu chi còn hiệu lực. KHÔNG có đơn giá /
+ *  tiền (chủ chốt 07/10/2026): kế toán gõ tiền ở phiếu chi theo hoá đơn nhà gia công. */
 export interface GiaCongChoChi {
   gia_cong_ngoai_id: number;
   /** `null` với lần của bước chung bài ghép — khi đó `bai_ghep_id` có giá trị. */
@@ -6774,8 +6886,6 @@ export interface GiaCongChoChi {
   nha_cung_cap_ten: string;
   sl_cuoi: number;
   don_vi: string | null;
-  don_gia: number | null;
-  thanh_tien: number | null;
   chot_luc: string | null;
   chot_boi_ten: string | null;
 }
@@ -6805,10 +6915,13 @@ export interface GiaCongNgoaiLan {
   trang_thai: GiaCongTrangThai;
   nha_cung_cap_id: number;
   nha_cung_cap_ten: string;
+  /** Đọc sống từ danh mục Nhà cung cấp — null = NCC chưa khai số. */
+  nha_cung_cap_sdt?: string | null;
+  /** Mốc giao việc: trọn gói = lúc đặt, một phần = lúc phát hành gom ra lần. */
+  tao_boi_ten?: string | null;
+  tao_luc?: string | null;
   ten_viec: string;
   don_vi: string | null;
-  don_gia: number | null;
-  thanh_tien: number | null;
   sl_dat: number | null;
   xuong_cap_giay: boolean;
   don_vi_gui: string | null;
@@ -6831,9 +6944,36 @@ export interface GiaCongNgoaiLan {
   phieu_chi: { id: number; code: string } | null;
   /** Máy chủ sẽ từ chối "Mở lại" vì lý do này — null = mở lại được. */
   ly_do_khong_mo_lai?: string | null;
-  xuat_giay: { id: number; ma: string; trang_thai: string } | null;
+  /** Đề nghị xuất giấy còn sống + khổ / số tờ của dòng giấy (ô Giấy). */
+  xuat_giay: {
+    id: number; ma: string; trang_thai: string;
+    kho_rong?: number; kho_dai?: number; so_to?: number | null; don_vi?: string | null;
+  } | null;
+  /** Phần "Chọn giấy" — chỉ có khi trọn gói xưởng cấp giấy chưa gửi đề nghị xuất. */
+  cap_giay?: GiaCongCapGiay | null;
   lich_su: { luc: string | null; ai: string; viec: string; chi_tiet: string }[];
   version: number;
+}
+
+export interface GiaCongCapGiayKho {
+  kho_rong: number;
+  kho_dai: number;
+  /** Tồn tờ khả dụng của khổ này (đơn vị = `GiaCongCapGiay.don_vi`). */
+  ton: number;
+  dung_de_xuat: boolean;
+}
+export interface GiaCongCapGiay {
+  giay_id: number | null;
+  giay_ma: string | null;
+  giay_ten: string | null;
+  /** Mã đơn vị tờ nguyên — in qua `nhanDonVi`. */
+  don_vi: string;
+  /** Khổ + số tờ đề xuất lấy từ đâu: "phiếu tính giá" | "lệnh". */
+  nguon: string;
+  de_xuat: { kho_rong: number; kho_dai: number; so_to: number | null } | null;
+  kho: GiaCongCapGiayKho[];
+  /** Không chọn được giấy (lệnh chưa chọn loại giấy…). */
+  ly_do: string | null;
 }
 
 export interface SupplierListOut {
@@ -6933,6 +7073,12 @@ export interface PayableSupplierRow {
   /** Còn nợ, luôn ≥ 0. Kỳ kết thúc hôm nay (hoặc không kỳ) = ảnh chụp hôm nay; kỳ đã qua = dư cuối
    *  kỳ của sổ 331 (dư âm vì ứng trước ⇒ 0). */
   total_due: number;
+  /** Bảng đủ cột (06/10/2026): mã + liên hệ của NCC, lần TRẢ gần nhất (cả lịch sử). Máy chủ cũ thiếu. */
+  supplier_code?: string | null;
+  lien_he_ten?: string | null;
+  lien_he_sdt?: string | null;
+  tra_gan_nhat_ngay?: string | null;
+  tra_gan_nhat_tien?: number;
 }
 
 /** Một RỔ TUỔI NỢ. Sáu rổ: chưa tới hạn · trễ 1–7 · 8–15 · 16–30 · 31–60 · >60 ngày.
@@ -7248,6 +7394,14 @@ export interface ReceivableCustomerRow {
   han_gan_nhat: string | null;
   /** Sale phụ trách khách. */
   sale_user_id: number | null;
+  /** Bảng đủ cột (06/10/2026): mã khách, liên hệ CHÍNH, tên sale phụ trách, lần THU gần nhất (cả lịch
+   *  sử). Máy chủ cũ thiếu. */
+  customer_code?: string | null;
+  lien_he_ten?: string | null;
+  lien_he_sdt?: string | null;
+  sale_user_name?: string | null;
+  thu_gan_nhat_ngay?: string | null;
+  thu_gan_nhat_tien?: number;
 }
 
 export interface ReceivablesSummary {
@@ -7353,6 +7507,10 @@ export interface SalesInvoiceListOut {
   invoiced_amount: number;
   uninvoiced_amount: number;
   deposit_received: number;
+  /** Số ngày công nợ HIỆN TẠI của khách — null = khách chưa đặt, hoá đơn sẽ không có hạn trả. */
+  payment_term_days?: number | null;
+  /** Ký hiệu hoá đơn bán ghi gần nhất, để điền sẵn. */
+  last_invoice_symbol?: string | null;
   items: SalesInvoiceRow[];
 }
 
@@ -7581,6 +7739,8 @@ export interface DepartmentPurchaseRequestListOut {
   total: number;
   page: number;
   size: number;
+  /** Số yêu cầu theo trạng thái hiển thị (`workflow_status`) sau lọc, trước tab + `tat_ca`. */
+  dem_theo_tab?: Record<string, number> | null;
 }
 
 export interface PurchaseRequestSourceOut {
@@ -7777,6 +7937,8 @@ export interface PurchaseRequestListOut {
   total: number;
   page: number;
   size: number;
+  /** Chỉ hộp Đơn mua hàng (Kế toán): số đơn theo trạng thái sau lọc, trước lọc trạng thái + `tat_ca`. */
+  dem_theo_tab?: Record<string, number> | null;
 }
 
 export type PaymentVoucherType = "cash" | "bank_transfer";
@@ -8075,6 +8237,8 @@ export type LocPhieu = {
   /** Ô tên người trong bộ lọc nâng cao, tách khỏi `q`. Phiếu chi: "Người nhận" (so tên người
    *  nhận/chủ tài khoản/nhà cung cấp). Phiếu thu: "Người nộp" (so `payer_name`). */
   nhan?: string;
+  /** Kỳ tính theo mốc: `tao` = ngày lập phiếu; `chi` / `thu` = ngày chứng từ (máy chủ mặc định). */
+  moc?: string;
   dem_only?: boolean;
 };
 
@@ -8082,6 +8246,7 @@ export type LocPhieu = {
 function themLocPhieuVaoQuery(qs: URLSearchParams, p: Omit<LocPhieu, "status">): void {
   if (p.tu_ngay) qs.set("tu_ngay", p.tu_ngay);
   if (p.den_ngay) qs.set("den_ngay", p.den_ngay);
+  if (p.moc) qs.set("moc", p.moc);
   if (p.tien_tu != null) qs.set("tien_tu", String(p.tien_tu));
   if (p.tien_den != null) qs.set("tien_den", String(p.tien_den));
   if (p.hinh_thuc) qs.set("hinh_thuc", p.hinh_thuc);
@@ -8117,7 +8282,13 @@ export type LocCongNo = {
   chi_tong?: boolean;
   phu_trach_id?: number;
   nhan?: string;
+  /** Sắp xếp ở MÁY CHỦ: cột + chiều. Không gửi = thứ tự mặc định (còn nợ giảm dần). */
+  sap_xep?: CotSapXepCongNo;
+  chieu?: "asc" | "desc";
 };
+
+/** Cột sắp xếp được của hai bảng công nợ. */
+export type CotSapXepCongNo = "con_no" | "han" | "gan_nhat";
 
 function locCongNoVaoQuery(p: LocCongNo): string {
   const qs = new URLSearchParams();
@@ -8138,6 +8309,8 @@ function locCongNoVaoQuery(p: LocCongNo): string {
   if (p.chi_tong) qs.set("chi_tong", "true");
   if (p.phu_trach_id != null) qs.set("phu_trach_id", String(p.phu_trach_id));
   if (p.nhan?.trim()) qs.set("nhan", p.nhan.trim());
+  if (p.sap_xep) qs.set("sap_xep", p.sap_xep);
+  if (p.chieu) qs.set("chieu", p.chieu);
   return qs.toString() ? `?${qs.toString()}` : "";
 }
 
@@ -8299,6 +8472,9 @@ export interface AttachmentOut {
   file_name: string | null;
   content_type: string | null;
   uploaded_at: string;
+  /** Chỉ tệp đính kèm của đơn trả hai ô này. */
+  size_bytes?: number;
+  uploaded_by_name?: string | null;
 }
 export interface OrderDepositReceipt {
   id: number;
@@ -8316,6 +8492,11 @@ export interface OrderDepositReceiptInput {
   receipt_date?: string | null;
   note?: string | null;
   company_bank_account_id?: number | null;
+  // Cùng các ô của form Lập phiếu thu; để trống thì máy chủ lấy tên khách / "Thu cọc đơn …".
+  payer_name?: string | null;
+  payer_address?: string | null;
+  content?: string | null;
+  bank_reference?: string | null;
 }
 export interface OrderApprovalOut {
   id: number;
@@ -8385,6 +8566,52 @@ export interface OrderRow {
   san_xuat_released_at: string | null;
   first_line_desc: string | null;
   line_count: number;
+  /** Từng mặt hàng đang ở đâu (đơn đã chốt) — cột Sản xuất + bảng nổi (07/10/2026). */
+  san_xuat_mon: MonSanXuat[];
+  /** Đơn đang chờ ai — cùng giá trị ô lọc "Đang chờ". */
+  dang_cho: DangCho[];
+}
+
+/** Mặt hàng đang ở đâu — `backend/app/services/don_hang_san_xuat.py` O_*. */
+export type MonO = "du_hang" | "ngoai" | "xuong" | "cho_kho" | "chua_xuong" | "chua_lenh";
+export type DangCho = "coc" | "ke_hoach" | "xuong" | "gia_cong" | "kho" | "giao" | "hoa_don" | "xong";
+
+/** Lần gia công ngoài ĐANG MỞ của một lệnh. */
+export interface GiaCongMon {
+  kieu: "tron_goi" | "mot_phan";
+  nha_cung_cap_id: number;
+  nha_cung_cap_ten: string;
+  ten_viec: string;
+  /** Một phần: lúc mang đi. Trọn gói: lúc giao việc. */
+  tu_luc: string | null;
+  /** Một phần còn bước của xưởng phía sau ⇒ về xưởng làm tiếp. */
+  ve_xuong: boolean;
+}
+
+export interface LenhMon {
+  id: number;
+  ma: string;
+  o: MonO;
+  kieu: "xuong" | "mot_phan" | "tron_goi";
+  buoc: string | null;
+  pct: number | null;
+  gia_cong: GiaCongMon | null;
+}
+
+export interface MonSanXuat {
+  khoa: string;
+  ten: string;
+  don_vi: string | null;
+  dat: number;
+  co_hang: number;
+  du_hang: boolean;
+  o: MonO;
+  co_lenh: boolean;
+  tu_ton: boolean;
+  giao_thang: number;
+  da_giao: number;
+  con_phai_giao: number;
+  lenh: LenhMon[];
 }
 export interface OrderListOut {
   items: OrderRow[];
@@ -8415,12 +8642,20 @@ export interface OrderDetail extends OrderRow {
   confirm_blockers: string[];
   quote_expired: boolean;   // Việc 4: báo giá nguồn hết hạn → bật nút "Gia hạn báo giá"
   san_xuat_released_at: string | null;  // Sale "Chuyển xuống SX" → vào hàng chờ Kế hoạch (NULL=chưa)
+  /** Chỉ có trong response lập phiếu thu cọc: id phiếu vừa lập (để tải chứng từ gốc lên). */
+  phieu_vua_lap_id?: number | null;
 }
 export interface OrderStatsOut {
   all: number;
   draft: number;
   ordered: number;
   cancelled: number;
+  /** Nháp đã qua cổng chốt. */
+  san_sang: number;
+  /** Đã chốt, chưa xuống sản xuất vì chờ đủ cọc. */
+  cho_coc: number;
+  /** Đã chốt, khách nhận đủ và hoá đơn đã ghi đủ. */
+  hoan_tat: number;
   awaiting_deposit: number;
   deposit_shortfall: number;
   ordered_value: number;
@@ -8482,6 +8717,8 @@ export interface OrderListParams {
   size?: number;
   /** Hộp lọc NV phụ trách — id người; máy chủ AND với phạm vi. */
   nguoi?: number | null;
+  /** Dải kỳ + bộ lọc nâng cao. */
+  loc?: ThamSoLoc;
 }
 
 /** 1 nhãn trong KHO nhãn khách + số khách đang mang nó.
@@ -8781,12 +9018,8 @@ export interface StockRequestListParams {
   kho_id?: number | null;
   /** true = CHỈ yêu cầu điều chuyển (tab Điều chuyển) · false = nhập/xuất thường · bỏ = không lọc. */
   dieu_chuyen?: boolean | null;
-  /** Lọc theo NGÀY CẦN (ngay_can) — ISO yyyy-mm-dd. */
-  ngay_can_tu?: string | null;
-  ngay_can_den?: string | null;
-  /** Lọc theo NGÀY TẠO (created_at) — ISO yyyy-mm-dd. */
-  tao_tu?: string | null;
-  tao_den?: string | null;
+  /** Kỳ (tu_ngay/den_ngay/moc ∈ tao, can, duyet) + điều kiện bo_phan, nguoi_yeu_cau, kho. */
+  loc?: ThamSoLoc;
   /** Thứ tự: "id" = mới tạo trước (mặc định) · "updated" = vừa đổi trước (Hộp yêu cầu). */
   order?: "id" | "updated";
   page?: number;
@@ -8802,10 +9035,7 @@ function stockRequestQS(params: StockRequestListParams): URLSearchParams {
   for (const s of params.trang_thai ?? []) qs.append("trang_thai", s);
   if (params.kho_id != null) qs.set("kho_id", String(params.kho_id));
   if (params.dieu_chuyen != null) qs.set("dieu_chuyen", String(params.dieu_chuyen));
-  if (params.ngay_can_tu) qs.set("ngay_can_tu", params.ngay_can_tu);
-  if (params.ngay_can_den) qs.set("ngay_can_den", params.ngay_can_den);
-  if (params.tao_tu) qs.set("tao_tu", params.tao_tu);
-  if (params.tao_den) qs.set("tao_den", params.tao_den);
+  ganThamSoLoc(qs, params.loc);
   return qs;
 }
 
@@ -8880,13 +9110,13 @@ export interface BaoCaoKhoRow {
 export interface BaoCaoKhoPage {
   items: BaoCaoKhoRow[];
   total: number;
+  /** Tổng thành tiền mọi dòng khớp lọc; null khi không có ô xem giá. */
+  tong_tien?: number | null;
 }
 
 /** Bộ lọc funnel theo CỘT (giống bảng đang xem) — để "xuất Excel" = đúng bảng, không kéo thừa dòng
  *  đã bị lọc cột. Khoảng BAO GỒM hai đầu; để trống = không chặn. */
 export interface BaoCaoFunnel {
-  ct_from?: string | null;   // Ngày CT từ (yyyy-mm-dd)
-  ct_to?: string | null;
   sl_from?: number | null;   // Số lượng
   sl_to?: number | null;
   dg_from?: number | null;   // Đơn giá / đơn giá vốn
@@ -8896,18 +9126,33 @@ export interface BaoCaoFunnel {
 }
 
 export interface BaoCaoKhoParams extends BaoCaoFunnel {
-  tu?: string | null;
-  den?: string | null;
+  /** Kỳ của thanh lọc chung (06/10/2026): `moc` = `ct` (ngày chứng từ) | `ghi_so` (ngày ghi sổ). */
+  tu_ngay?: string | null;
+  den_ngay?: string | null;
+  moc?: string | null;
   kho_id?: number | null;
   loai?: StockRequestKind | null;
   /** Tìm số CT / mã hàng / tên hàng — để "lọc gì = xuất nấy" (cả bảng lẫn file). */
   q?: string | null;
+  /** Trang (máy chủ cắt); bỏ trống = lấy hết (tab Tổng quan). Không dùng cho file Excel. */
+  page?: number | null;
+  size?: number | null;
 }
 
-/** Đắp 8 tham số funnel (nếu có) vào query — dùng chung cho 2 endpoint export báo cáo kho. */
+/** Kỳ + kho + tìm + trang + khoảng số của báo cáo kho vào query. */
+function setBaoCaoKhoQs(qs: URLSearchParams, p: Omit<BaoCaoKhoParams, "loai">): void {
+  if (p.tu_ngay) qs.set("tu_ngay", p.tu_ngay);
+  if (p.den_ngay) qs.set("den_ngay", p.den_ngay);
+  if (p.moc) qs.set("moc", p.moc);
+  if (p.kho_id != null) qs.set("kho_id", String(p.kho_id));
+  if (p.q?.trim()) qs.set("q", p.q.trim());
+  if (p.page != null) qs.set("page", String(p.page));
+  if (p.size != null) qs.set("size", String(p.size));
+  setFunnelQs(qs, p);
+}
+
+/** Đắp 6 tham số khoảng số (nếu có) vào query — dùng chung cho sổ kho lẫn file Excel. */
 function setFunnelQs(qs: URLSearchParams, f: BaoCaoFunnel): void {
-  if (f.ct_from) qs.set("ct_from", f.ct_from);
-  if (f.ct_to) qs.set("ct_to", f.ct_to);
   if (f.sl_from != null) qs.set("sl_from", String(f.sl_from));
   if (f.sl_to != null) qs.set("sl_to", String(f.sl_to));
   if (f.dg_from != null) qs.set("dg_from", String(f.dg_from));
@@ -8939,14 +9184,12 @@ export interface BaoCaoChuyenKhoRow {
 export interface BaoCaoChuyenKhoPage {
   items: BaoCaoChuyenKhoRow[];
   total: number;
+  /** Tổng tiền vốn mọi dòng khớp lọc; null khi không có ô xem giá. */
+  tong_tien?: number | null;
 }
 
-export interface BaoCaoChuyenKhoParams extends BaoCaoFunnel {
-  tu?: string | null;
-  den?: string | null;
-  kho_id?: number | null;
-  q?: string | null;
-}
+/** Sổ chuyển kho nhận đúng bộ tham số của sổ nhập/xuất, trừ chiều. */
+export type BaoCaoChuyenKhoParams = Omit<BaoCaoKhoParams, "loai">;
 
 /** 1 dòng Nhập-Xuất-Tồn theo kỳ (bình quân gia quyền cuối kỳ) của 1 mặt hàng tại 1 kho. */
 export interface BaoCaoNXTRow {
@@ -9177,6 +9420,14 @@ export interface CanDoiOut {
   items: CanDoiNhom[];
   /** Số lệnh giữ lâu chưa vào kế hoạch — toàn xưởng, không theo `q` (cùng nghĩa `TheoLenhOut`). */
   so_giu_lau: number;
+  /** Số trên thanh tab: sau `q` + `hang_loai`, TRƯỚC `tinh_trang`; `theo_loai` trước `hang_loai`. */
+  dem?: {
+    so_nhom: number;
+    so_dong_do: number;
+    so_dong_khong_ro: number;
+    so_nhom_du: number;
+    theo_loai: Record<string, number>;
+  } | null;
 }
 
 /** Khoá của một dòng trên bảng — đủ để server tìm lại và TỰ tính phần thiếu.
@@ -9295,6 +9546,8 @@ export interface TheoLenhOut {
   items: TheoLenhRow[];
   /** Đếm trên TOÀN BỘ danh sách, không phải phần đang lọc. */
   so_giu_lau: number;
+  /** Số trên thanh tab: sau `q` + `chi_can_lo`, TRƯỚC `giu`. */
+  dem_theo_tab?: Partial<Record<"tat_ca" | "du" | "dang" | "tat" | "giu_lau", number>>;
 }
 
 // --- Hồ sơ lệnh sản xuất (module `lenh_san_xuat`) — màn TRA CỨU, chỉ đọc -----
@@ -9354,6 +9607,8 @@ export interface LenhSxItem {
   khau_chi_tiet: LenhSxKhauChiTiet | null;
   /** KCS đã đóng lệnh (`lsx.trang_thai = da_dong`). Thẻ phụ, không phải khâu. */
   da_dong: boolean;
+  /** Ngày tạo lệnh — cột "Ngày tạo" + mốc kỳ `tao`. */
+  created_at?: string | null;
 }
 
 export interface LenhSxListOut {
@@ -9381,9 +9636,13 @@ export interface LenhSxDanhSachParams {
   tab?: LenhSxTab;
   q?: string;
   khach_hang_id?: number;
-  /** Khoảng HẠN SX, `YYYY-MM-DD`. Lệnh chưa khai hạn không nằm trong khoảng nào. */
+  order_id?: number;
+  gia_cong?: string;
+  /** Khoảng ngày `YYYY-MM-DD` tính theo `moc`: `tao` ngày tạo lệnh (mặc định), `han_sx`, `han_giao`.
+   *  Với mốc hạn, lệnh chưa khai hạn không nằm trong khoảng nào. */
   tu_ngay?: string;
   den_ngay?: string;
+  moc?: string;
   page?: number;
   page_size?: number;
 }
@@ -9789,6 +10048,8 @@ export interface TdsxLocParams {
   khach_hang_id?: number;
   may_id?: number;
   bat_thuong?: TdsxBatThuong;
+  /** Khâu (cột "Đang ở") — chỉ góc Theo lệnh nhận. */
+  khau?: LenhSxKhau;
 }
 
 // --- Góc Theo lệnh (đặc tả 3.4) --------------------------------------------------------------------
@@ -9809,6 +10070,8 @@ export interface TdsxTheoLenhDong {
   khau_chi_tiet: LenhSxKhauChiTiet | null;
   /** `date` ⇒ `ngay()`. */
   han_hoan_thanh_sx: string | null;
+  /** Ngày tạo lệnh (ISO, có múi). */
+  created_at: string | null;
   /** Giờ xưởng KHÔNG nhãn múi. */
   du_kien_xong: string | null;
   canh_bao: TdsxCoLenh[];
@@ -9992,6 +10255,8 @@ export interface StockVoucher {
 export interface StockVoucherPage {
   items: StockVoucher[];
   total: number;
+  /** Số phiếu theo tab màn tồn từng kho — cùng bộ lọc, trừ tab. */
+  dem_theo_tab?: { nhap: number; xuat: number; dc: number } | null;
 }
 
 export interface StockVoucherAttachment {
@@ -10011,6 +10276,8 @@ export interface StockVoucherListParams {
   trang_thai?: StockVoucherStatus | null;
   request_id?: number | null;
   kho_id?: number | null;
+  /** Kỳ + điều kiện lọc của màn tồn từng kho (tu_ngay/den_ngay/moc, nhom, nguoi_lap, gia_tu/gia_den, man). */
+  loc?: ThamSoLoc;
   page?: number;
   size?: number;
 }
@@ -10396,8 +10663,9 @@ export interface BaoCaoKinhDoanhKhach extends BaoCaoKinhDoanhTien {
   don: BaoCaoKinhDoanhDon[];
 }
 export interface BaoCaoKinhDoanh {
-  tu_ngay: string;
-  den_ngay: string;
+  /** null = kỳ "Tất cả" (không chặn đầu đó). */
+  tu_ngay: string | null;
+  den_ngay: string | null;
   khach: BaoCaoKinhDoanhKhach[];
   tong: BaoCaoKinhDoanhTien & { so_khach: number; so_don: number };
 }
@@ -10569,8 +10837,13 @@ export const api = {
     modules(token: string): Promise<ModuleDef[]> {
       return authed<ModuleDef[]>("/api/rbac/modules", token);
     },
-    departments(token: string): Promise<Department[]> {
-      return authed<Department[]>("/api/departments", token);
+    /** `loc`: thanh lọc màn Phòng ban (`q`, `khoi`, `tinh_trang`, kỳ) — có lọc thì máy chủ trả
+     *  phòng khớp kèm tổ tiên (`khop=false`); không gửi gì = trọn cây. */
+    departments(token: string, loc?: ThamSoLoc): Promise<Department[]> {
+      const qs = new URLSearchParams();
+      ganThamSoLoc(qs, loc);
+      const s = qs.toString();
+      return authed<Department[]>(`/api/departments${s ? `?${s}` : ""}`, token);
     },
     departmentUsers(token: string, departmentId: number): Promise<DepartmentMember[]> {
       return authed<DepartmentMember[]>(`/api/departments/${departmentId}/users`, token);
@@ -10760,7 +11033,7 @@ export const api = {
     },
     /** Danh mục hành động / người / nhóm, đếm theo khoảng ngày đang xem. */
     activityFacets(token: string, v: AuditQuery = {}): Promise<AuditFacets> {
-      const p = auditParams({ q: v.q, tu_ngay: v.tu_ngay, den_ngay: v.den_ngay });
+      const p = auditParams({ q: v.q, tu_ngay: v.tu_ngay, den_ngay: v.den_ngay, moc: v.moc, tat_ca: v.tat_ca });
       return authed<AuditFacets>(`/api/audit/facets${p}`, token);
     },
     /** Tải CSV theo ĐÚNG bộ lọc đang xem — máy chủ stream, không còn giới hạn 100 dòng đã tải. */
@@ -10873,6 +11146,7 @@ export const api = {
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      ganThamSoLoc(qs, params.loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<CustomerListOut>(`/api/customers${suffix}`, token);
     },
@@ -11291,6 +11565,8 @@ export const api = {
     exportXlsxBlobUrl(
       token: string,
       params: Omit<EmployeeListParams, "page" | "size"> = {},
+      /** Kỳ của thanh lọc (`tu_ngay`/`den_ngay`/`moc`). */
+      loc?: ThamSoLoc,
     ): Promise<string> {
       const qs = new URLSearchParams();
       if (params.q) qs.set("q", params.q);
@@ -11299,6 +11575,7 @@ export const api = {
       if (params.has_account != null) qs.set("has_account", String(params.has_account));
       if (params.ending_soon) qs.set("ending_soon", "true");
       if (params.sort) qs.set("sort", params.sort);
+      ganThamSoLoc(qs, loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return blobUrl(`/api/employees/export.xlsx${suffix}`, token);
     },
@@ -11317,7 +11594,7 @@ export const api = {
         body: form,
       });
     },
-    list(token: string, params: EmployeeListParams = {}): Promise<EmployeeListOut> {
+    list(token: string, params: EmployeeListParams = {}, loc?: ThamSoLoc): Promise<EmployeeListOut> {
       const qs = new URLSearchParams();
       if (params.q) qs.set("q", params.q);
       if (params.department_id != null) qs.set("department_id", String(params.department_id));
@@ -11327,6 +11604,7 @@ export const api = {
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      ganThamSoLoc(qs, loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<EmployeeListOut>(`/api/employees${suffix}`, token);
     },
@@ -11419,9 +11697,14 @@ export const api = {
       return authed<UpdateRequest>("/api/employees/me/update-requests", token, { method: "POST", body: JSON.stringify(input) });
     },
     /** Cắt trang Ở MÁY CHỦ (`page`/`size`) + lọc theo trạng thái. Trả kèm `dem` cho pill lọc. */
-    myRequests(token: string, opts?: { status?: string; page?: number; size?: number }): Promise<MyUpdateRequestsPage> {
+    myRequests(
+      token: string,
+      opts?: { status?: string | string[]; page?: number; size?: number; loc?: ThamSoLoc },
+    ): Promise<MyUpdateRequestsPage> {
       const qs = new URLSearchParams();
-      if (opts?.status) qs.set("status", opts.status);
+      // `status` lặp được (thẻ lọc Trạng thái chọn nhiều); `loc` = kỳ `tu_ngay/den_ngay/moc`.
+      ([] as string[]).concat(opts?.status ?? []).forEach((s) => qs.append("status", s));
+      ganThamSoLoc(qs, opts?.loc);
       qs.set("page", String(opts?.page ?? 1));
       qs.set("size", String(opts?.size ?? 10));
       return authed<MyUpdateRequestsPage>(`/api/employees/me/update-requests?${qs}`, token);
@@ -11551,8 +11834,13 @@ export const api = {
     cancelAdjustRequest(token: string, id: number): Promise<AdjustRequest> {
       return authed<AdjustRequest>(`/api/attendance/me/adjust-requests/${id}/cancel`, token, { method: "POST" });
     },
-    listAdjustRequests(token: string, status = "pending"): Promise<{ items: AdjustRequest[] }> {
-      return authed<{ items: AdjustRequest[] }>(`/api/attendance/adjust-requests?status=${status}`, token);
+    /** Yêu cầu chỉnh công của HCNS — `status` (pending|approved|rejected|cancelled|all), kỳ
+     *  `tu_ngay/den_ngay/moc` (tao|ngay_cong), `employee_id`, `phong`, `page`, `size`. */
+    listAdjustRequests(token: string, loc: ThamSoLoc): Promise<PagedTab<AdjustRequest>> {
+      return authed<PagedTab<AdjustRequest>>(`/api/attendance/adjust-requests${qsLoc(loc)}`, token);
+    },
+    locAdjustRequests(token: string, truong: "nhan_vien" | "phong"): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>(`/api/attendance/adjust-requests/loc/${truong}`, token);
     },
     approveAdjustRequest(token: string, id: number, input: { time?: string | null; next_day?: boolean | null; fault_party?: string | null; note?: string | null }): Promise<AdjustRequest> {
       return authed<AdjustRequest>(`/api/attendance/adjust-requests/${id}/approve`, token, {
@@ -11564,24 +11852,13 @@ export const api = {
         method: "POST", body: JSON.stringify({ note }),
       });
     },
-    /** Nhật ký chấm công — 100 lượt gần nhất. `q` tìm theo TÊN hoặc MÃ nhân viên và chạy ở
-     *  SERVER: lọc ở client chỉ tìm trong 100 lượt đã tải, mà 100 lượt của cả xưởng chưa hết nửa
-     *  ngày ⇒ gõ tên ai cũng dễ ra "không tìm thấy" dù họ vẫn đi làm. */
-    logs(
-      token: string,
-      employeeId?: number,
-      q?: string,
-      tuNgay?: string,
-      denNgay?: string,
-    ): Promise<{ items: AttendanceLog[] }> {
-      const qs = new URLSearchParams();
-      if (employeeId != null) qs.set("employee_id", String(employeeId));
-      if (q && q.trim()) qs.set("q", q.trim());
-      // Khoảng NGÀY VN, trọn hai đầu. Có lọc ngày thì server tự nới trần dòng.
-      if (tuNgay) qs.set("tu_ngay", tuNgay);
-      if (denNgay) qs.set("den_ngay", denNgay);
-      const suffix = qs.toString() ? `?${qs}` : "";
-      return authed<{ items: AttendanceLog[] }>(`/api/attendance/logs${suffix}`, token);
+    /** Nhật ký chấm công — lọc + phân trang ở MÁY CHỦ (06/10/2026, bỏ trần 100 lượt): `q` tìm
+     *  tên / mã NV, kỳ `tu_ngay/den_ngay/moc` (cham|tao), `employee_id`, `phong`, `diem`, `page`, `size`. */
+    logs(token: string, loc: ThamSoLoc): Promise<Paged<AttendanceLog>> {
+      return authed<Paged<AttendanceLog>>(`/api/attendance/logs${qsLoc(loc)}`, token);
+    },
+    locLogs(token: string, truong: "nhan_vien" | "phong" | "diem"): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>(`/api/attendance/logs/loc/${truong}`, token);
     },
     timesheet(token: string, year: number, month: number, departmentId?: number | null): Promise<Timesheet> {
       const qs = new URLSearchParams({ year: String(year), month: String(month) });
@@ -11688,9 +11965,10 @@ export const api = {
 
   // --- Tăng ca (tang_ca) ----------------------------------------------------
   overtime: {
-    /** `thang` = `YYYY-MM`, lọc theo tháng NGÀY TẠO phiếu (23/09/2026). Mới tạo nhất lên đầu. */
-    mine(token: string, params?: { page?: number; size?: number; thang?: string }): Promise<MyOvertime> {
-      return authed<MyOvertime>(`/api/overtime/me${qs(params)}`, token);
+    /** Phiếu của tôi — `status_filter`, kỳ `tu_ngay/den_ngay/moc` (tao|ngay_cong), `page`, `size`.
+     *  Mới tạo nhất lên đầu. */
+    mine(token: string, params?: ThamSoLoc): Promise<MyOvertime> {
+      return authed<MyOvertime>(`/api/overtime/me${qsLoc(params)}`, token);
     },
     createMine(token: string, input: OvertimeInput): Promise<OvertimeRequest> {
       return authed<OvertimeRequest>("/api/overtime/me", token,
@@ -11704,19 +11982,13 @@ export const api = {
       return authed<OvertimeRequest>("/api/overtime", token,
         { method: "POST", body: JSON.stringify(input) });
     },
-    /** `statusFilter` giữ ĐÚNG tên tham số backend (`status_filter`), đừng đổi thành `status`. */
-    list(token: string, params?: {
-      statusFilter?: string; employeeId?: number; page?: number; size?: number;
-      /** `YYYY-MM` — tháng NGÀY TẠO phiếu. */
-      thang?: string;
-    }): Promise<Paged<OvertimeRequest>> {
-      return authed<Paged<OvertimeRequest>>(`/api/overtime${qs({
-        status_filter: params?.statusFilter,
-        employee_id: params?.employeeId,
-        thang: params?.thang,
-        page: params?.page,
-        size: params?.size,
-      })}`, token);
+    /** Tham số giữ ĐÚNG tên backend: `status_filter` (đừng đổi thành `status`), `employee_id`,
+     *  `phong`, kỳ `tu_ngay/den_ngay/moc` (tao|ngay_cong), `page`, `size`. */
+    list(token: string, params?: ThamSoLoc): Promise<PagedTab<OvertimeRequest>> {
+      return authed<PagedTab<OvertimeRequest>>(`/api/overtime${qsLoc(params)}`, token);
+    },
+    loc(token: string, truong: "nhan_vien" | "phong"): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>(`/api/overtime/loc/${truong}`, token);
     },
     approve(token: string, id: number, note?: string): Promise<OvertimeRequest> {
       return authed<OvertimeRequest>(`/api/overtime/${id}/approve`, token,
@@ -11798,9 +12070,13 @@ export const api = {
       return authed<LateEarlyRequest>("/api/late-early", token,
         { method: "POST", body: JSON.stringify(input) });
     },
-    list(token: string, statusFilter?: string): Promise<{ items: LateEarlyRequest[] }> {
-      const q = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
-      return authed<{ items: LateEarlyRequest[] }>(`/api/late-early${q}`, token);
+    /** Hàng duyệt — `status_filter`, kỳ `tu_ngay/den_ngay/moc` (tao|ngay_cong), `kieu` (nhiều:
+     *  late/early/half/mid, máy chủ suy theo ca), `employee_id`, `phong`, `page`, `size`. */
+    list(token: string, params?: ThamSoLoc): Promise<PagedTab<LateEarlyRequest>> {
+      return authed<PagedTab<LateEarlyRequest>>(`/api/late-early${qsLoc(params)}`, token);
+    },
+    loc(token: string, truong: "nhan_vien" | "phong"): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>(`/api/late-early/loc/${truong}`, token);
     },
     approve(token: string, id: number, note?: string): Promise<LateEarlyRequest> {
       return authed<LateEarlyRequest>(`/api/late-early/${id}/approve`, token,
@@ -11848,9 +12124,10 @@ export const api = {
     },
     /** Không truyền `params` = trang 1, cỡ 20. Màn Chấm công gọi kiểu đó và chỉ đọc `quotas`
      *  (số dư phép năm) — `quotas` KHÔNG bị phân trang nên vẫn đúng. */
-    /** `thang` = `YYYY-MM`, lọc theo tháng NGÀY TẠO đơn (23/09/2026). Mới tạo nhất lên đầu. */
-    me(token: string, params?: { page?: number; size?: number; thang?: string }): Promise<MyLeave> {
-      return authed<MyLeave>(`/api/leaves/me${qs(params)}`, token);
+    /** `status`, kỳ `tu_ngay/den_ngay/moc` (tao|nghi — nghỉ GIAO kỳ), `loai`, `page`, `size`.
+     *  Mới tạo nhất lên đầu. */
+    me(token: string, params?: ThamSoLoc): Promise<MyLeave> {
+      return authed<MyLeave>(`/api/leaves/me${qsLoc(params)}`, token);
     },
     create(token: string, input: LeaveRequestInput): Promise<LeaveRequest> {
       return authed<LeaveRequest>("/api/leaves", token, { method: "POST", body: JSON.stringify(input) });
@@ -11876,20 +12153,13 @@ export const api = {
     xinHuyChoDuyet(token: string): Promise<{ items: XinHuyChoDuyet<LeaveRequest>[] }> {
       return authed<{ items: XinHuyChoDuyet<LeaveRequest>[] }>("/api/leaves/xin-huy", token);
     },
-    list(token: string, params?: {
-      status?: string; employeeId?: number; page?: number; size?: number;
-      /** `YYYY-MM` — tháng NGÀY TẠO đơn. */
-      thang?: string;
-    }): Promise<Paged<LeaveRequest>> {
-      return authed<Paged<LeaveRequest>>(`/api/leaves${qs({
-        status: params?.status,
-        thang: params?.thang,
-        // Lọc theo 1 nhân viên chạy Ở MÁY CHỦ (từ 09/08/2026). Trước đây lọc ở client trên mảng
-        // đã tải — sang phân trang thì đơn của người đó rơi ngoài trang là màn báo "chưa có đơn".
-        employee_id: params?.employeeId,
-        page: params?.page,
-        size: params?.size,
-      })}`, token);
+    /** Tab Duyệt — `status`, `employee_id` (lọc Ở MÁY CHỦ, không lọc trên mảng đã tải), `phong`,
+     *  `loai`, kỳ `tu_ngay/den_ngay/moc` (tao|nghi), `page`, `size`. */
+    list(token: string, params?: ThamSoLoc): Promise<PagedTab<LeaveRequest>> {
+      return authed<PagedTab<LeaveRequest>>(`/api/leaves${qsLoc(params)}`, token);
+    },
+    loc(token: string, truong: "nhan_vien" | "phong"): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>(`/api/leaves/loc/${truong}`, token);
     },
     approve(token: string, id: number, note?: string): Promise<LeaveRequest> {
       return authed<LeaveRequest>(`/api/leaves/${id}/approve`, token, { method: "POST", body: JSON.stringify({ note: note ?? null }) });
@@ -11965,6 +12235,12 @@ export const api = {
       const s = status ? `&status=${encodeURIComponent(status)}` : "";
       return authed<{ items: SalaryAdvance[] }>(`/api/luong/advances?year=${year}&month=${month}${s}`, token);
     },
+    /** Màn Tạm ứng: `loc` mang tab, q, loai, to, tien_tu/den, tu_ngay/den_ngay/moc, page, size. */
+    danhSachTamUng(token: string, year: number, month: number, loc?: ThamSoLoc): Promise<TamUngDanhSach> {
+      const qs = new URLSearchParams({ year: String(year), month: String(month) });
+      ganThamSoLoc(qs, loc);
+      return authed<TamUngDanhSach>(`/api/luong/advances?${qs.toString()}`, token);
+    },
     createAdvance(token: string, input: SalaryAdvanceInput): Promise<SalaryAdvance> {
       return authed<SalaryAdvance>("/api/luong/advances", token, { method: "POST", body: JSON.stringify(input) });
     },
@@ -12033,8 +12309,10 @@ export const api = {
     periods(token: string): Promise<{ items: PayrollPeriod[] }> {
       return authed<{ items: PayrollPeriod[] }>("/api/luong/periods", token);
     },
-    table(token: string, year: number, month: number): Promise<PayrollTable> {
-      return authed<PayrollTable>(`/api/luong/table?year=${year}&month=${month}`, token);
+    table(token: string, year: number, month: number, loc?: ThamSoLoc): Promise<PayrollTable> {
+      const qs = new URLSearchParams({ year: String(year), month: String(month) });
+      ganThamSoLoc(qs, loc);
+      return authed<PayrollTable>(`/api/luong/table?${qs.toString()}`, token);
     },
     generate(token: string, year: number, month: number): Promise<PayrollTable> {
       return authed<PayrollTable>("/api/luong/generate", token, { method: "POST", body: JSON.stringify({ year, month }) });
@@ -12250,12 +12528,14 @@ export const api = {
     conPhaiGiao(token: string, orderId: number): Promise<ConPhaiGiao> {
       return authed<ConPhaiGiao>(`/api/giao-hang/orders/${orderId}/con-phai-giao`, token);
     },
-    requests(token: string, opts?: { orderId?: number; choLenKeHoach?: boolean; page?: number; size?: number }): Promise<{ items: DeliveryRequest[]; total: number }> {
+    /** `loc`: ô tìm `q`, kỳ (`tu_ngay/den_ngay/moc` ∈ tao, can), `khach` — lọc ở máy chủ. */
+    requests(token: string, opts?: { orderId?: number; choLenKeHoach?: boolean; page?: number; size?: number; loc?: ThamSoLoc }): Promise<{ items: DeliveryRequest[]; total: number }> {
       const q = new URLSearchParams();
       if (opts?.orderId != null) q.set("order_id", String(opts.orderId));
       if (opts?.choLenKeHoach) q.set("cho_len_ke_hoach", "true");
       if (opts?.page != null) q.set("page", String(opts.page));
       if (opts?.size != null) q.set("size", String(opts.size));
+      ganThamSoLoc(q, opts?.loc);
       const s = q.toString();
       return authed<{ items: DeliveryRequest[]; total: number }>(`/api/giao-hang/requests${s ? `?${s}` : ""}`, token);
     },
@@ -12309,12 +12589,26 @@ export const api = {
     },
     /** Tab "Đơn giao hàng" gom theo LƯỢT XE — mỗi lượt MỘT khối (đủ các điểm), chuyến lẻ một khối.
      *  Trang hoá theo KHỐI ở máy chủ nên một lượt không bị cắt đôi qua hai trang. */
-    bangGiao(token: string, opts?: { page?: number; size?: number }): Promise<BangGiaoPage> {
+    bangGiao(token: string, opts?: { page?: number; size?: number; loc?: ThamSoLoc }): Promise<BangGiaoPage> {
       const q = new URLSearchParams();
       if (opts?.page != null) q.set("page", String(opts.page));
       if (opts?.size != null) q.set("size", String(opts.size));
+      ganThamSoLoc(q, opts?.loc);
       const s = q.toString();
       return authed<BangGiaoPage>(`/api/giao-hang/bang-giao${s ? `?${s}` : ""}`, token);
+    },
+    /** Giá trị ô lọc (kèm số bản ghi trong tầm nhìn) của hai tab Yêu cầu giao / Đơn giao hàng. */
+    khachLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/giao-hang/requests/loc-khach", token);
+    },
+    donLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/giao-hang/requests/loc-don", token);
+    },
+    xeLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/giao-hang/bang-giao/loc-xe", token);
+    },
+    taiXeLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/giao-hang/bang-giao/loc-tai-xe", token);
     },
     /** Lên đơn NHIỀU yêu cầu vào MỘT lượt xe bằng một lần bấm (chủ chốt 18/09/2026). Mỗi yêu cầu
      *  vẫn một chuyến, một phiếu xuất kho; một yêu cầu hỏng là cả lô không lưu. */
@@ -12447,7 +12741,7 @@ export const api = {
     list(
       token: string,
       params: { q?: string; status?: string; sort?: string; page?: number; size?: number;
-        nguoi?: number | null } = {},
+        nguoi?: number | null; loc?: ThamSoLoc } = {},
     ): Promise<PhieuTinhGiaListOut> {
       const qs = new URLSearchParams();
       if (params.q) qs.set("q", params.q);
@@ -12456,11 +12750,21 @@ export const api = {
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      ganThamSoLoc(qs, params.loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<PhieuTinhGiaListOut>(`/api/phieu-tinh-gia${suffix}`, token);
     },
-    stats(token: string, nguoi?: number | null): Promise<PhieuTinhGiaStatsOut> {
-      return authed<PhieuTinhGiaStatsOut>(`/api/phieu-tinh-gia/stats${nguoi != null ? `?nguoi=${nguoi}` : ""}`, token);
+    /** Số trên thanh tab — theo cùng ô tìm, người lập, dải kỳ và bộ lọc với bảng. */
+    stats(token: string, nguoi?: number | null, loc?: ThamSoLoc): Promise<PhieuTinhGiaStatsOut> {
+      const qs = new URLSearchParams();
+      if (nguoi != null) qs.set("nguoi", String(nguoi));
+      ganThamSoLoc(qs, loc);
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      return authed<PhieuTinhGiaStatsOut>(`/api/phieu-tinh-gia/stats${suffix}`, token);
+    },
+    /** Ô "Khách hàng" của bảng lọc — khách đang có phiếu trong tầm nhìn. */
+    khachLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/phieu-tinh-gia/khach-loc", token);
     },
     /** Hộp lọc người lập — chỉ người có phiếu TRONG tầm nhìn (phạm vi + nhóm dùng chung). */
     nguoiLap(token: string): Promise<SaleOption[]> {
@@ -12539,7 +12843,11 @@ export const api = {
     chot(
       token: string,
       id: number,
-      body: { version: number; sl_cuoi: number; noi_ve: GiaCongNoiVe; dich_cong_viec_id?: number | null },
+      body: {
+        version: number; sl_cuoi: number; noi_ve: GiaCongNoiVe; dich_cong_viec_id?: number | null;
+        /** Giao thẳng: ngày khách nhận (yyyy-mm-dd) — trống = hôm nay. */
+        ngay_khach_nhan?: string | null;
+      },
     ): Promise<GiaCongNgoaiLan> {
       return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/chot`, token, {
         method: "POST", body: JSON.stringify(body),
@@ -12553,7 +12861,7 @@ export const api = {
     datTronGoi(
       token: string,
       lsxId: number,
-      body: { nha_cung_cap_id: number; sl_dat: number; don_gia: number | null; xuong_cap_giay: boolean },
+      body: { nha_cung_cap_id: number; sl_dat: number; xuong_cap_giay: boolean },
     ): Promise<GiaCongNgoaiLan> {
       return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/lenh/${lsxId}/tron-goi`, token, {
         method: "POST", body: JSON.stringify(body),
@@ -12571,9 +12879,12 @@ export const api = {
     demChoChi(token: string): Promise<{ so: number }> {
       return authed<{ so: number }>("/api/accounting/gia-cong-cho-chi/dem", token);
     },
-    xuatGiay(token: string, id: number, version: number): Promise<GiaCongNgoaiLan> {
+    xuatGiay(
+      token: string, id: number,
+      body: { version: number; kho_rong: number; kho_dai: number; so_to: number },
+    ): Promise<GiaCongNgoaiLan> {
       return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/xuat-giay`, token, {
-        method: "POST", body: JSON.stringify({ version }),
+        method: "POST", body: JSON.stringify(body),
       });
     },
   },
@@ -12581,15 +12892,28 @@ export const api = {
     /** Đơn Sale đã "Chuyển xuống sản xuất" mà còn dòng chưa lên lệnh. */
     hangCho(
       token: string,
-      params: { page?: number; size?: number; chiDem?: boolean } = {},
+      params: { page?: number; size?: number; chiDem?: boolean; loc?: ThamSoLoc } = {},
     ): Promise<HangChoOut> {
       const qs = new URLSearchParams();
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
       // Badge chỉ cần `total` — máy chủ bỏ qua bước dựng trang, `items` về rỗng.
       if (params.chiDem) qs.set("chi_dem", "true");
+      // Thanh lọc hàng chờ (06/10/2026): `customer_id`, `tu_ngay`/`den_ngay`/`moc` (tao | chuyen).
+      ganThamSoLoc(qs, params.loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<HangChoOut>(`/api/lsx/hang-cho${suffix}`, token);
+    },
+    /** Ô "Khách hàng" của thanh lọc hàng chờ — khách đang có đơn chờ lên lệnh, kèm số đơn. */
+    hangChoKhachLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/lsx/hang-cho/khach-loc", token);
+    },
+    /** Ô "Khách hàng" / "Đơn hàng" của thanh lọc bảng lệnh — trong phạm vi, kèm số lệnh. */
+    khachLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/lsx/khach-loc", token);
+    },
+    donLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/lsx/don-loc", token);
     },
     /** Danh sách lệnh DỰ KIẾN của 1 đơn — dẫn xuất tại chỗ, chưa ghi DB. */
     preview(token: string, orderId: number): Promise<LsxPreviewOut> {
@@ -12607,6 +12931,8 @@ export const api = {
       params: {
         order_id?: number; customer_id?: number; trang_thai?: string; q?: string;
         gia_cong?: string; page?: number; size?: number;
+        /** Kỳ của thanh lọc: `tu_ngay`/`den_ngay`/`moc` (tao | han_sx | han_giao). */
+        loc?: ThamSoLoc;
       } = {},
     ): Promise<LsxListOut> {
       const qs = new URLSearchParams();
@@ -12617,6 +12943,7 @@ export const api = {
       if (params.gia_cong) qs.set("gia_cong", params.gia_cong);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      ganThamSoLoc(qs, params.loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<LsxListOut>(`/api/lsx${suffix}`, token);
     },
@@ -12851,11 +13178,19 @@ export const api = {
   keHoachVatTu: {
     canDoi(
       token: string,
-      params: { q?: string; chi_thieu?: boolean } = {},
+      params: {
+        q?: string;
+        chi_thieu?: boolean;
+        /** Tab của cách nhìn theo mặt hàng — lọc Ở MÁY CHỦ (06/10/2026). */
+        tinh_trang?: "thieu" | "khong_ro" | "du";
+        hang_loai?: "giay" | "vat_tu";
+      } = {},
     ): Promise<CanDoiOut> {
       const qs = new URLSearchParams();
       if (params.q) qs.set("q", params.q);
       if (params.chi_thieu) qs.set("chi_thieu", "true");
+      if (params.tinh_trang) qs.set("tinh_trang", params.tinh_trang);
+      if (params.hang_loai) qs.set("hang_loai", params.hang_loai);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<CanDoiOut>(`/api/ke-hoach-vat-tu/can-doi${suffix}`, token);
     },
@@ -12887,12 +13222,19 @@ export const api = {
     /** CÙNG bảng cân đối, xoay theo LỆNH — "lệnh này chạy được chưa" thay vì "còn thiếu gì". */
     theoLenh(
       token: string,
-      params: { q?: string; chi_can_lo?: boolean; chi_giu_lau?: boolean } = {},
+      params: {
+        q?: string;
+        chi_can_lo?: boolean;
+        chi_giu_lau?: boolean;
+        /** Tab giữ chỗ — lọc Ở MÁY CHỦ (06/10/2026). */
+        giu?: "du" | "dang" | "tat" | "giu_lau";
+      } = {},
     ): Promise<TheoLenhOut> {
       const qs = new URLSearchParams();
       if (params.q) qs.set("q", params.q);
       if (params.chi_can_lo) qs.set("chi_can_lo", "true");
       if (params.chi_giu_lau) qs.set("chi_giu_lau", "true");
+      if (params.giu) qs.set("giu", params.giu);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<TheoLenhOut>(`/api/ke-hoach-vat-tu/theo-lenh${suffix}`, token);
     },
@@ -12948,13 +13290,23 @@ export const api = {
           tab: params.tab,
           q: params.q,
           khach_hang_id: params.khach_hang_id,
+          order_id: params.order_id,
+          gia_cong: params.gia_cong,
           tu_ngay: params.tu_ngay,
           den_ngay: params.den_ngay,
+          moc: params.moc,
           page: params.page,
           page_size: params.page_size,
         })}`,
         token,
       );
+    },
+    /** Ô "Khách hàng" / "Đơn hàng" của thanh lọc — trong phạm vi người gọi, kèm số lệnh. */
+    khachLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/lenh-san-xuat/khach-loc", token);
+    },
+    donLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/lenh-san-xuat/don-loc", token);
     },
     /** HỒ SƠ một lệnh — 13 khối trong MỘT lượt gọi (`LenhSxHoSoOut`).
      *
@@ -13016,6 +13368,7 @@ export const api = {
           khach_hang_id: params.khach_hang_id,
           may_id: params.may_id,
           bat_thuong: params.bat_thuong,
+          khau: params.khau,
         })}`,
         token,
       );
@@ -13029,14 +13382,20 @@ export const api = {
     /** Thẻ chờ xếp, lọc + cắt trang Ở MÁY CHỦ. `tong` là SAU lọc, không phải số dòng trả về. */
     hangCho(
       token: string,
-      params: { tim?: string; trang?: number; moi_trang?: number } = {},
+      params: { tim?: string; trang?: number; moi_trang?: number } & ThamSoLoc = {},
     ): Promise<XlHangCho> {
+      const { tim, trang, moi_trang, ...loc } = params;
       const suffix = qs({
-        tim: params.tim?.trim() || undefined,
-        trang: params.trang ?? undefined,
-        moi_trang: params.moi_trang ?? undefined,
+        ...(loc as Record<string, string | number | undefined>),
+        tim: typeof tim === "string" ? tim.trim() || undefined : undefined,
+        trang: (trang as number | undefined) ?? undefined,
+        moi_trang: (moi_trang as number | undefined) ?? undefined,
       });
       return authed<XlHangCho>(`/api/xep-lich/hang-cho${suffix}`, token);
+    },
+    /** Ô "Khách hàng" của thanh lọc hàng chờ — khách đang có lệnh chờ xếp, kèm số lệnh. */
+    hangChoKhachLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/xep-lich/hang-cho/khach-loc", token);
     },
     /** Lệnh CHẠM cửa sổ [tu, den] (YYYY-MM-DD). Hai mốc BẮT BUỘC — không có đường trải cả lịch sử. */
     lich(token: string, params: { tu: string; den: string }): Promise<XlLien> {
@@ -13174,22 +13533,19 @@ export const api = {
       tuNgay?: string;
       denNgay?: string;
       choXacNhan?: boolean;
-      /** Lọc nâng cao (view Bảng) — máy chủ lọc TRƯỚC khi cắt trang. */
-      trangThai?: string[];
-      nhanTu?: string;
-      nhanDen?: string;
+      /** Thanh lọc view Bảng (06/10/2026) — `trang_thai` (mảng, lặp tham số), kỳ
+       *  `tu_ngay`/`den_ngay`/`moc` (nhan · tao · du_kien). Máy chủ lọc TRƯỚC khi cắt trang. */
+      loc?: ThamSoLoc;
       sapXep?: "moi_nhan" | "cu_nhan" | "du_kien";
     }): Promise<SxWorkItemsOut> {
-      const suffix = qs({
+      const s = new URLSearchParams(qs({
         team_id: p.teamId, nhom: p.nhom, tim: p.tim,
         trang: p.trang, co_trang: p.coTrang, tu_ngay: p.tuNgay, den_ngay: p.denNgay,
         cho_xac_nhan: p.choXacNhan || undefined,
-        nhan_tu: p.nhanTu, nhan_den: p.nhanDen, sap_xep: p.sapXep,
-      });
-      // `trang_thai` là list ở backend → lặp param, KHÔNG nối bằng dấu phẩy.
-      const tt = (p.trangThai ?? []).map((s) => `trang_thai=${encodeURIComponent(s)}`).join("&");
-      const url = tt ? `${suffix}${suffix ? "&" : "?"}${tt}` : suffix;
-      return authed<SxWorkItemsOut>(`/api/san-xuat/work-items${url}`, token);
+        sap_xep: p.sapXep,
+      }).replace(/^\?/, ""));
+      ganThamSoLoc(s, p.loc);
+      return authed<SxWorkItemsOut>(`/api/san-xuat/work-items${s.toString() ? `?${s}` : ""}`, token);
     },
     /** Luỹ kế sản lượng tháng của CHÍNH mình. KHÔNG truyền `employee_id` — BE luôn suy từ token,
      *  truyền được là ai cũng xem được sản lượng người khác bằng cách đổi một số trên URL. */
@@ -13378,11 +13734,21 @@ export const api = {
 
     // --- KCS theo LỆNH (mg 0306) -----------------------------------------------------------
     /** Danh sách lệnh cho màn KCS — tìm + cắt trang ở máy chủ. Mặc định chỉ nhóm còn mở. */
-    kcsLenh(token: string, p: { tim?: string; trang?: number; daDong?: boolean; coTrang?: number } = {}): Promise<SxKcsLenhList> {
-      return authed<SxKcsLenhList>(`/api/san-xuat/kcs/lenh${qs({
+    kcsLenh(
+      token: string,
+      p: { tim?: string; trang?: number; daDong?: boolean; coTrang?: number; loc?: ThamSoLoc } = {},
+    ): Promise<SxKcsLenhList> {
+      const s = new URLSearchParams(qs({
         tim: p.tim?.trim() || undefined, trang: p.trang, da_dong: p.daDong || undefined,
         co_trang: p.coTrang,
-      })}`, token);
+      }).replace(/^\?/, ""));
+      // Thanh lọc (06/10/2026): `nhom`, `khach_id`, `tu_ngay`/`den_ngay`/`moc`.
+      ganThamSoLoc(s, p.loc);
+      return authed<SxKcsLenhList>(`/api/san-xuat/kcs/lenh${s.toString() ? `?${s}` : ""}`, token);
+    },
+    /** Ô "Khách hàng" của thanh lọc màn KCS — khách có lệnh đã vào nhóm thành phẩm, kèm số lệnh. */
+    kcsKhachLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/san-xuat/kcs/lenh/khach-loc", token);
     },
     /** Chuỗi công đoạn của MỘT lệnh theo thứ tự routing + các lần kiểm. 403 nếu không phải người KCS. */
     kcsChuoiCongDoan(token: string, lsxId: number): Promise<SxKcsChuoiCongDoan> {
@@ -13480,15 +13846,28 @@ export const api = {
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      ganThamSoLoc(qs, params.loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<QuotationListOut>(`/api/quotations${suffix}`, token);
     },
     enums(token: string): Promise<QuotationEnumsOut> {
       return authed<QuotationEnumsOut>("/api/quotations/enums", token);
     },
-    /** Số đếm cho thanh tab list. */
-    stats(token: string, nguoi?: number | null): Promise<QuotationStats> {
-      return authed<QuotationStats>(`/api/quotations/stats${nguoi != null ? `?nguoi=${nguoi}` : ""}`, token);
+    /** Số đếm cho thanh tab list — theo cùng ô tìm, NV phụ trách, dải kỳ và bộ lọc với bảng. */
+    stats(token: string, nguoi?: number | null, loc?: ThamSoLoc): Promise<QuotationStats> {
+      const qs = new URLSearchParams();
+      if (nguoi != null) qs.set("nguoi", String(nguoi));
+      ganThamSoLoc(qs, loc);
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      return authed<QuotationStats>(`/api/quotations/stats${suffix}`, token);
+    },
+    /** Ô "Khách hàng" của bảng lọc — khách đang có báo giá trong tầm nhìn. */
+    khachLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/quotations/khach-loc", token);
+    },
+    /** Ô "Người duyệt" của bảng lọc — ai đã ra quyết định duyệt trên báo giá trong tầm nhìn. */
+    nguoiDuyet(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/quotations/nguoi-duyet", token);
     },
     /** Hộp lọc NV phụ trách — chỉ người có báo giá TRONG tầm nhìn (phạm vi + nhóm dùng chung). */
     nguoiPhuTrach(token: string): Promise<SaleOption[]> {
@@ -13629,12 +14008,25 @@ export const api = {
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      ganThamSoLoc(qs, params.loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<OrderListOut>(`/api/orders${suffix}`, token);
+    },
+    /** Ô "Khách hàng" của bảng lọc — khách đang có đơn trong tầm nhìn. */
+    khachLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/orders/khach-loc", token);
     },
     /** Hộp lọc NV phụ trách — chỉ người có đơn TRONG tầm nhìn (phạm vi + nhóm dùng chung). */
     nguoiPhuTrach(token: string): Promise<SaleOption[]> {
       return authed<SaleOption[]>("/api/orders/nguoi-phu-trach", token);
+    },
+    /** Số đơn theo từng giá trị ô lọc "Đang chờ", trong tầm nhìn. */
+    dangChoDem(token: string): Promise<Record<DangCho, number>> {
+      return authed<Record<DangCho, number>>("/api/orders/dang-cho-dem", token);
+    },
+    /** Ô "Nhà gia công" của bảng lọc — nhà gia công có lần trên đơn trong tầm nhìn. */
+    nhaGiaCongLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/orders/nha-gia-cong-loc", token);
     },
     enums(token: string): Promise<OrderEnumsOut> {
       return authed<OrderEnumsOut>("/api/orders/enums", token);
@@ -13699,10 +14091,11 @@ export const api = {
         body: JSON.stringify({ reason, fault }),
       });
     },
-    stats(token: string, viewScope?: string, nguoi?: number | null): Promise<OrderStatsOut> {
+    stats(token: string, viewScope?: string, nguoi?: number | null, loc?: ThamSoLoc): Promise<OrderStatsOut> {
       const qs = new URLSearchParams();
       if (viewScope) qs.set("view_scope", viewScope);
       if (nguoi != null) qs.set("nguoi", String(nguoi));
+      ganThamSoLoc(qs, loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<OrderStatsOut>(`/api/orders/stats${suffix}`, token);
     },
@@ -13717,21 +14110,23 @@ export const api = {
   },
   // --- Báo cáo kinh doanh theo khách (24/09/2026) — đơn đã chốt, lọc theo ngày chốt -------
   baoCaoKinhDoanh: {
-    xem(
-      token: string,
-      p: { tuNgay: string; denNgay: string; customerId?: number | null },
-    ): Promise<BaoCaoKinhDoanh> {
-      const qs = new URLSearchParams({ tu_ngay: p.tuNgay, den_ngay: p.denNgay });
-      if (p.customerId != null) qs.set("customer_id", String(p.customerId));
-      return authed<BaoCaoKinhDoanh>(`/api/bao-cao-kinh-doanh?${qs.toString()}`, token);
+    /** `loc` = kỳ (`tu_ngay`/`den_ngay`/`moc`) + `customer_id` + `sale_id` — lọc ở máy chủ. */
+    xem(token: string, loc: ThamSoLoc = {}): Promise<BaoCaoKinhDoanh> {
+      const qs = new URLSearchParams();
+      ganThamSoLoc(qs, loc);
+      const s = qs.toString();
+      return authed<BaoCaoKinhDoanh>(`/api/bao-cao-kinh-doanh${s ? `?${s}` : ""}`, token);
+    },
+    khachLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/bao-cao-kinh-doanh/loc-khach", token);
+    },
+    saleLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/bao-cao-kinh-doanh/loc-sale", token);
     },
     /** File .xlsx — fetch kèm bearer rồi dựng blob (thẻ `<a href>` trần không mang token). */
-    async xuatExcel(
-      token: string,
-      p: { tuNgay: string; denNgay: string; customerId?: number | null },
-    ): Promise<{ url: string; ten: string }> {
-      const qs = new URLSearchParams({ tu_ngay: p.tuNgay, den_ngay: p.denNgay });
-      if (p.customerId != null) qs.set("customer_id", String(p.customerId));
+    async xuatExcel(token: string, loc: ThamSoLoc = {}): Promise<{ url: string; ten: string }> {
+      const qs = new URLSearchParams();
+      ganThamSoLoc(qs, loc);
       const duong = `${BASE_URL}/api/bao-cao-kinh-doanh/export.xlsx?${qs.toString()}`;
       const doFetch = (bearer: string) =>
         fetch(duong, { credentials: "include", cache: "no-store", headers: authHeader(bearer) });
@@ -13776,6 +14171,8 @@ export const api = {
         sort?: string;
         page?: number;
         size?: number;
+        /** Thanh lọc chung: `tu_ngay`/`den_ngay`/`moc`, `nhan_gia_cong` (và các ô lọc ở trên). */
+        loc?: ThamSoLoc;
       } = {},
     ): Promise<SupplierListOut> {
       const qs = new URLSearchParams();
@@ -13786,8 +14183,13 @@ export const api = {
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      ganThamSoLoc(qs, params.loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<SupplierListOut>(`/api/suppliers${suffix}`, token);
+    },
+    /** Một NCC theo mã — nút "Hồ sơ nhà cung cấp" ở màn khác mở thẳng hồ sơ. */
+    get(token: string, id: number): Promise<SupplierRow> {
+      return authed<SupplierRow>(`/api/suppliers/${id}`, token);
     },
     create(token: string, input: SupplierInput): Promise<SupplierRow> {
       return authed<SupplierRow>("/api/suppliers", token, {
@@ -13844,6 +14246,8 @@ export const api = {
     list(
       token: string,
       params: { q?: string; status?: string | null; source_type?: string | null; sort?: string; page?: number; size?: number } = {},
+      /** Thanh lọc chung: `tu_ngay/den_ngay/moc` (tao | can), `phong_ban`, `nguoi_yeu_cau`, `mat_hang` (`giay:12`). */
+      loc?: ThamSoLoc,
     ): Promise<DepartmentPurchaseRequestListOut> {
       const qs = new URLSearchParams();
       if (params.q) qs.set("q", params.q);
@@ -13852,8 +14256,20 @@ export const api = {
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      ganThamSoLoc(qs, loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<DepartmentPurchaseRequestListOut>(`/api/department-purchase-requests${suffix}`, token);
+    },
+    /** Ba ô chọn của thanh lọc Yêu cầu mua hàng — giá trị đang có trong tầm nhìn + số yêu cầu. */
+    locPhongBan(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/department-purchase-requests/loc-phong-ban", token);
+    },
+    locNguoiYeuCau(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/department-purchase-requests/loc-nguoi-yeu-cau", token);
+    },
+    /** Mặt hàng khoá bằng chuỗi `hang_loai:hang_id` (vd `giay:12`), không phải id số. */
+    locMatHang(token: string): Promise<{ ma: string; ten: string; so: number }[]> {
+      return authed<{ ma: string; ten: string; so: number }[]>("/api/department-purchase-requests/loc-mat-hang", token);
     },
     get(token: string, id: number): Promise<DepartmentPurchaseRequestRow> {
       return authed<DepartmentPurchaseRequestRow>(`/api/department-purchase-requests/${id}`, token);
@@ -13902,37 +14318,30 @@ export const api = {
         q?: string;
         status?: string | null;
         supplier_id?: number | null;
-        created_from?: string | null;
-        created_to?: string | null;
-        needed_from?: string | null;
-        needed_to?: string | null;
-        expected_receipt_from?: string | null;
-        expected_receipt_to?: string | null;
         deposit_status?: string | null;
         sort?: string;
         page?: number;
         size?: number;
       } = {},
+      /** Thanh lọc chung: `tu_ngay/den_ngay/moc` (tao | can | nhan), `tong_tu/tong_den`. */
+      loc?: ThamSoLoc,
     ): Promise<PurchaseRequestListOut> {
       const qs = new URLSearchParams();
       if (params.q) qs.set("q", params.q);
       if (params.status) qs.set("status", params.status);
       if (params.supplier_id !== undefined && params.supplier_id !== null)
         qs.set("supplier_id", String(params.supplier_id));
-      if (params.created_from) qs.set("created_from", params.created_from);
-      if (params.created_to) qs.set("created_to", params.created_to);
-      if (params.needed_from) qs.set("needed_from", params.needed_from);
-      if (params.needed_to) qs.set("needed_to", params.needed_to);
-      if (params.expected_receipt_from)
-        qs.set("expected_receipt_from", params.expected_receipt_from);
-      if (params.expected_receipt_to)
-        qs.set("expected_receipt_to", params.expected_receipt_to);
       if (params.deposit_status) qs.set("deposit_status", params.deposit_status);
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      ganThamSoLoc(qs, loc);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<PurchaseRequestListOut>(`/api/purchase-requests${suffix}`, token);
+    },
+    /** Ô "Nhà cung cấp" của thanh lọc Đơn mua hàng: NCC đang có đơn trong tầm nhìn + số đơn. */
+    locNcc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/purchase-requests/loc-ncc", token);
     },
     get(token: string, id: number): Promise<PurchaseRequestRow> {
       return authed<PurchaseRequestRow>(`/api/purchase-requests/${id}`, token);
@@ -14134,12 +14543,10 @@ export const api = {
         q?: string;
         status?: string | null;
         supplier_id?: number | null;
-        created_from?: string | null;
-        created_to?: string | null;
-        needed_from?: string | null;
-        needed_to?: string | null;
-        expected_receipt_from?: string | null;
-        expected_receipt_to?: string | null;
+        /** Kỳ của thanh lọc chung — `moc`: `tao` (Ngày tạo) | `can` (Ngày cần). */
+        tu_ngay?: string | null;
+        den_ngay?: string | null;
+        moc?: string | null;
         deposit_status?: string | null;
         sort?: string;
         page?: number;
@@ -14150,20 +14557,19 @@ export const api = {
       if (params.q) qs.set("q", params.q);
       if (params.status) qs.set("status", params.status);
       if (params.supplier_id != null) qs.set("supplier_id", String(params.supplier_id));
-      if (params.created_from) qs.set("created_from", params.created_from);
-      if (params.created_to) qs.set("created_to", params.created_to);
-      if (params.needed_from) qs.set("needed_from", params.needed_from);
-      if (params.needed_to) qs.set("needed_to", params.needed_to);
-      if (params.expected_receipt_from)
-        qs.set("expected_receipt_from", params.expected_receipt_from);
-      if (params.expected_receipt_to)
-        qs.set("expected_receipt_to", params.expected_receipt_to);
+      if (params.tu_ngay) qs.set("tu_ngay", params.tu_ngay);
+      if (params.den_ngay) qs.set("den_ngay", params.den_ngay);
+      if (params.moc) qs.set("moc", params.moc);
       if (params.deposit_status) qs.set("deposit_status", params.deposit_status);
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<PurchaseRequestListOut>(`/api/accounting/inbox${suffix}`, token);
+    },
+    /** Ô "Nhà cung cấp" của thanh lọc hộp Đơn mua hàng: NCC đang có đơn trong hộp + số đơn. */
+    inboxLocNcc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/accounting/inbox/loc-ncc", token);
     },
     /** Công nợ phải trả gom theo NCC. Không phân trang — cắt trang là ra TỔNG sai.
         `q` lọc ở SERVER: NCC đã trả hết và im lặng lâu thì không có dòng nào để lọc phía màn. */
@@ -14203,13 +14609,14 @@ export const api = {
     baoCaoCongNo(
       token: string,
       ben: "receivables" | "payables",
-      params: { tuNgay: string; denNgay: string; roTuoi?: string | null },
+      params: { tuNgay: string; denNgay: string; roTuoi?: string | null; q?: string | null },
     ): Promise<BaoCaoCongNo> {
       const qs = new URLSearchParams({
         tu_ngay: params.tuNgay,
         den_ngay: params.denNgay,
       });
       if (params.roTuoi) qs.set("aging_bucket", params.roTuoi);
+      if (params.q?.trim()) qs.set("q", params.q.trim());
       return authed<BaoCaoCongNo>(
         `/api/accounting/reports/${ben}?${qs.toString()}`,
         token,
@@ -14233,6 +14640,17 @@ export const api = {
         `/api/accounting/reports/${ben}/so-chi-tiet?${qs.toString()}`,
         token,
       );
+    },
+    /** SAO KÊ của MỘT khách / NCC cho ngăn công nợ — cùng số với `soChiTietCongNo` nhưng gác bằng
+     *  quyền xem CHÍNH màn công nợ (không đòi quyền Báo cáo). */
+    saoKeDoiTac(
+      token: string,
+      ben: "receivables" | "payables",
+      id: number,
+      params: { tuNgay: string; denNgay: string },
+    ): Promise<SoChiTietCongNo> {
+      const qs = new URLSearchParams({ tu_ngay: params.tuNgay, den_ngay: params.denNgay });
+      return authed<SoChiTietCongNo>(`/api/accounting/${ben}/${id}/so-chi-tiet?${qs.toString()}`, token);
     },
     /** File .xlsx đúng khuôn MISA. Phải fetch kèm bearer rồi dựng blob — thẻ `<a href>` trần
      *  không mang token đi được, và cửa này có kiểm quyền. */
@@ -14356,14 +14774,22 @@ export const api = {
       token: string,
       activeOnly = false,
       usage?: "receive" | "pay" | null,
+      /** Thanh lọc màn Tài khoản ngân hàng: tên ngân hàng + trạng thái. */
+      loc: { ngan_hang?: string; trang_thai?: "dang_dung" | "ngung" } = {},
     ): Promise<CompanyBankAccountRow[]> {
       const qs = new URLSearchParams();
       qs.set("active_only", String(activeOnly));
       if (usage) qs.set("usage", usage);
+      if (loc.ngan_hang) qs.set("ngan_hang", loc.ngan_hang);
+      if (loc.trang_thai) qs.set("trang_thai", loc.trang_thai);
       return authed<CompanyBankAccountRow[]>(
         `/api/accounting/company-bank-accounts?${qs.toString()}`,
         token,
       );
+    },
+    /** Ô "Ngân hàng" của thanh lọc màn Tài khoản ngân hàng: tên ngân hàng + số tài khoản. */
+    nganHangLoc(token: string): Promise<{ ten: string; so: number }[]> {
+      return authed<{ ten: string; so: number }[]>("/api/accounting/company-bank-accounts/loc-ngan-hang", token);
     },
     thongKeTaiKhoan(
       token: string,
@@ -14671,9 +15097,12 @@ export const api = {
   // Nền CRUD chung `/api/san-xuat-kcs-tieu-chi` (POST "" · PUT /{id} · DELETE /{id}), thêm
   // `GET /khai-bao` trả sẵn ba tầng để màn không phải tự ghép. `ma` server cấp — không gửi.
   kcsHangMuc: {
-    khaiBao(token: string): Promise<KcsKhaiBao> {
+    /** `loc` = thanh lọc (06/10/2026): `q`, `nhom`, `bat_buoc`, `active`, `tu_ngay`/`den_ngay`/`moc`. */
+    khaiBao(token: string, loc?: ThamSoLoc): Promise<KcsKhaiBao> {
+      const s = new URLSearchParams();
+      ganThamSoLoc(s, loc);
       return authed<KcsKhaiBao>(
-        "/api/san-xuat-kcs-tieu-chi/khai-bao", token,
+        `/api/san-xuat-kcs-tieu-chi/khai-bao${s.toString() ? `?${s}` : ""}`, token,
       );
     },
     tao(token: string, body: KcsHangMucBody): Promise<KcsHangMuc> {
@@ -14769,6 +15198,10 @@ export const api = {
       markSeen(token: string, id: number): Promise<void> {
         return authed(`/api/kho/de-nghi/${id}/seen`, token, { method: "POST" });
       },
+      /** NGƯỜI TẠO đang xem danh sách yêu cầu → mọi phản hồi kho của họ thành đã xem. */
+      seenAll(token: string): Promise<void> {
+        return authed("/api/kho/de-nghi/seen-all", token, { method: "POST" });
+      },
       list(token: string, params: StockRequestListParams = {}): Promise<StockRequestPage> {
         const qs = stockRequestQS(params);
         if (params.order) qs.set("order", params.order);
@@ -14783,6 +15216,14 @@ export const api = {
         const qs = stockRequestQS(params);
         const suffix = qs.toString() ? `?${qs.toString()}` : "";
         return authed<Record<string, number>>(`/api/kho/de-nghi/counts-by-status${suffix}`, token);
+      },
+      /** Giá trị điều kiện lọc Phòng ban yêu cầu / Người yêu cầu / Kho — trong tầm nhìn, cả Nhập lẫn Xuất. */
+      locGiaTri(
+        token: string, truong: "bo-phan" | "nguoi-yeu-cau" | "kho",
+        dieuChuyen: boolean,
+      ): Promise<LuaChonLoc[]> {
+        const qs = new URLSearchParams({ dieu_chuyen: String(dieuChuyen) });
+        return authed<LuaChonLoc[]>(`/api/kho/de-nghi/loc-${truong}?${qs.toString()}`, token);
       },
       get(token: string, id: number, khoId?: number | null): Promise<StockRequest> {
         const suffix = khoId != null ? `?kho_id=${khoId}` : "";
@@ -14857,10 +15298,15 @@ export const api = {
         if (params.trang_thai) qs.set("trang_thai", params.trang_thai);
         if (params.request_id != null) qs.set("request_id", String(params.request_id));
         if (params.kho_id != null) qs.set("kho_id", String(params.kho_id));
+        ganThamSoLoc(qs, params.loc);
         if (params.page) qs.set("page", String(params.page));
         if (params.size) qs.set("size", String(params.size));
         const suffix = qs.toString() ? `?${qs.toString()}` : "";
         return authed<StockVoucherPage>(`/api/kho/phieu${suffix}`, token);
+      },
+      /** Giá trị điều kiện "Người lập" của danh sách phiếu một kho (kèm số phiếu). */
+      locNguoiLap(token: string, khoId: number): Promise<LuaChonLoc[]> {
+        return authed<LuaChonLoc[]>(`/api/kho/phieu/loc-nguoi-lap?kho_id=${khoId}`, token);
       },
       get(token: string, id: number): Promise<StockVoucher> {
         return authed<StockVoucher>(`/api/kho/phieu/${id}`, token);
@@ -15118,21 +15564,15 @@ export const api = {
     baoCao: {
       dong(token: string, params: BaoCaoKhoParams = {}): Promise<BaoCaoKhoPage> {
         const qs = new URLSearchParams();
-        if (params.tu) qs.set("tu", params.tu);
-        if (params.den) qs.set("den", params.den);
-        if (params.kho_id != null) qs.set("kho_id", String(params.kho_id));
+        setBaoCaoKhoQs(qs, params);
         if (params.loai) qs.set("loai", params.loai);
-        if (params.q) qs.set("q", params.q);
         const q = qs.toString();
         return authed<BaoCaoKhoPage>(`/api/kho/bao-cao/dong${q ? `?${q}` : ""}`, token);
       },
       /** Dòng ĐIỀU CHUYỂN đã ghi sổ (Xuất tại kho → Nhập tại kho) — cho tab Chuyển kho. */
       chuyenKho(token: string, params: BaoCaoChuyenKhoParams = {}): Promise<BaoCaoChuyenKhoPage> {
         const qs = new URLSearchParams();
-        if (params.tu) qs.set("tu", params.tu);
-        if (params.den) qs.set("den", params.den);
-        if (params.kho_id != null) qs.set("kho_id", String(params.kho_id));
-        if (params.q) qs.set("q", params.q);
+        setBaoCaoKhoQs(qs, params);
         const q = qs.toString();
         return authed<BaoCaoChuyenKhoPage>(`/api/kho/bao-cao/chuyen-kho${q ? `?${q}` : ""}`, token);
       },
@@ -15201,11 +15641,7 @@ export const api = {
       ): Promise<string> {
         const qs = new URLSearchParams();
         qs.set("loai", loai);
-        if (params.tu) qs.set("tu", params.tu);
-        if (params.den) qs.set("den", params.den);
-        if (params.kho_id != null) qs.set("kho_id", String(params.kho_id));
-        if (params.q) qs.set("q", params.q);
-        setFunnelQs(qs, params);
+        setBaoCaoKhoQs(qs, { ...params, page: null, size: null });
         const doFetch = (bearer: string) =>
           fetch(`${BASE_URL}/api/kho/bao-cao/export.xlsx?${qs.toString()}`, {
             credentials: "include", cache: "no-store", headers: authHeader(bearer),
@@ -15224,11 +15660,7 @@ export const api = {
         params: BaoCaoChuyenKhoParams = {},
       ): Promise<string> {
         const qs = new URLSearchParams();
-        if (params.tu) qs.set("tu", params.tu);
-        if (params.den) qs.set("den", params.den);
-        if (params.kho_id != null) qs.set("kho_id", String(params.kho_id));
-        if (params.q) qs.set("q", params.q);
-        setFunnelQs(qs, params);
+        setBaoCaoKhoQs(qs, { ...params, page: null, size: null });
         const doFetch = (bearer: string) =>
           fetch(`${BASE_URL}/api/kho/bao-cao/chuyen-kho/export.xlsx?${qs.toString()}`, {
             credentials: "include", cache: "no-store", headers: authHeader(bearer),
@@ -15278,9 +15710,16 @@ export const api = {
   noiQuy: {
     /** `q` tìm ở MÁY CHỦ (mã / tên / tên file / ghi chú / người upload) — trước 09/08/2026 lọc
      *  ở client trên trọn bảng, nay bảng đã phân trang nên lọc client chỉ soi được 1 trang. */
-    list(token: string, params?: { q?: string; page?: number; size?: number }):
+    list(token: string, params?: { q?: string; page?: number; size?: number }, loc?: ThamSoLoc):
       Promise<Paged<NoiQuyRecord>> {
-      return authed<Paged<NoiQuyRecord>>(`/api/noi-quy${qs(params)}`, token);
+      const p = new URLSearchParams(qs(params).replace(/^\?/, ""));
+      ganThamSoLoc(p, loc);
+      const s = p.toString();
+      return authed<Paged<NoiQuyRecord>>(`/api/noi-quy${s ? `?${s}` : ""}`, token);
+    },
+    /** Giá trị điều kiện "Người tải lên" `[{id, ten, so}]`. */
+    nguoiTaiLoc(token: string): Promise<LuaChonLoc[]> {
+      return authed<LuaChonLoc[]>("/api/noi-quy/nguoi-tai-loc", token);
     },
     create(token: string, input: { name: string; note?: string; file: File }): Promise<NoiQuyRecord> {
       const form = new FormData();
@@ -15671,6 +16110,34 @@ export interface DeliveryTrip {
   luot?: LuotXeTrongChuyen | null;
   /** Cảnh báo KHÔNG chặn của thao tác vừa làm (vd "xe chạy ngoài sổ 30 km"). */
   canh_bao?: string[];
+  /** Nơi nhận + hẹn + lưu ý của YÊU CẦU giao — ngăn lượt đọc thẳng, khỏi gọi từng yêu cầu. */
+  created_at?: string | null;
+  dia_chi?: string | null;
+  nguoi_nhan?: string | null;
+  sdt_nguoi_nhan?: string | null;
+  ngay_can_giao?: string | null;
+  luu_y_giao?: string | null;
+  customer_po_no?: string | null;
+  /** Phiếu kho thật của RIÊNG chuyến này (bỏ phiếu đã huỷ). */
+  phieu_xuat?: PhieuKhoCuaChuyen | null;
+  phieu_tra?: PhieuKhoCuaChuyen | null;
+  /** Nhà gia công giao thẳng cho khách — không xe, không tài xế, không km. */
+  giao_thang?: GiaoThangCuaChuyen | null;
+}
+
+export interface PhieuKhoCuaChuyen {
+  ma: string;
+  trang_thai: string;
+  luc: string | null;
+  boi_ten: string | null;
+}
+
+export interface GiaoThangCuaChuyen {
+  gia_cong_ngoai_id: number;
+  nha_cung_cap_ten: string | null;
+  nha_cung_cap_sdt: string | null;
+  lsx_id: number | null;
+  lsx_ma: string | null;
 }
 
 /** Lượt xe nhìn từ MỘT chuyến. Chuyến trong lượt không gõ km: tài xế ghi SỐ ĐỒNG HỒ lúc xuất
@@ -15757,6 +16224,7 @@ export interface LuotXeChiTiet {
   so_cho_lay_hang: number;
   so_cho_bat_dau: number;
   so_dang_giao: number;
+  created_at?: string | null;
 }
 
 /** Một KHỐI của tab Đơn giao hàng — đúng MỘT trong hai ô có giá trị. */
@@ -15991,6 +16459,11 @@ export interface DonTienDoCum {
   cho_kho: number;
   ton_that: number;
   da_giao: number;
+  /** Phần của `da_giao` do nhà gia công GIAO THẲNG cho khách — không qua KCS trên phần mềm, không qua kho. */
+  giao_thang: number;
+  /** Mặt hàng đang ở đâu + từng lệnh (kiểu làm, bước, nhà gia công) — bảng Sản xuất của ngăn đơn. */
+  o: MonO | null;
+  lenh_o: LenhMon[];
   dang_giu: number;
   con_phai_giao: number;
   /** Số Kinh doanh còn lập yêu cầu giao được — chỉ phần KHO ĐÃ NHẬN, trừ đã giao + đang giữ. */
@@ -16038,6 +16511,8 @@ export interface DonTienDo {
   cum: DonTienDoCum[];
   yeu_cau: DonTienDoYeuCau[];
   noi_nhan: DonNoiNhan;
+  /** Đơn đang chờ ai — cùng hàm với cột Sản xuất ngoài danh sách. */
+  dang_cho: DangCho[];
 }
 
 /** Nơi nhận để form yêu cầu giao CHỌN: mặc định của đơn + sổ địa chỉ / người liên hệ của khách. */

@@ -836,7 +836,8 @@ def test_dem_di_theo_bo_loc_khong_dem_ca_bang(client):
     assert ca_bang["dem"]["cho_thuc_hien"] == 3
 
     thang_3 = client.get(
-        "/api/ky-thuat-may/bao-tri?tu=2026-03-01&den=2026-03-31&size=50", headers=h
+        "/api/ky-thuat-may/bao-tri?tu_ngay=2026-03-01&den_ngay=2026-03-31&moc=ke_hoach&size=50",
+        headers=h,
     ).json()
     assert thang_3["total"] == 2
     assert thang_3["dem"]["cho_thuc_hien"] == 2     # KHÔNG phải 3

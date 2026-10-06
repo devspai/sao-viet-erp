@@ -17,7 +17,6 @@ import {
   type StockAllocationLine,
   type StockLot,
   type StockRequest,
-  type StockRequestKind,
   type StockRequestLine,
   type StockRequestStatus,
   type StockThreshold,
@@ -44,7 +43,6 @@ import {
   type TransferPrintData,
 } from "../utils/printStockVoucher";
 import {
-  DateFilterHead,
   DecimalInput,
   LoaiYeuCauChip,
   RequestStatusBadge,
@@ -65,6 +63,21 @@ import {
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import { chuanKho, nhanDangKho } from "../lib/khoGiay";
 import { khoaTonKho } from "../auth/quyenKho";
+import {
+  LOC_MAN_YCK_TRONG,
+  MAN_YEU_CAU_KHO,
+  MOC_YEU_CAU_KHO,
+  docLocManYCK,
+  ghiLocManYCK,
+  thamSoLocYCK,
+  useDieuKienYeuCauKho,
+  type LocManYCK,
+  type LocYeuCauKho,
+} from "./loc-kho/dieu-kien-yeu-cau-kho";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
+import { thamSoKy } from "./thanh-loc/ky-danh-sach";
+import { useLocMan } from "./thanh-loc/useLocMan";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
 
@@ -130,14 +143,11 @@ function ApproxMark({ raw, decimals }: { raw: number; decimals: number }) {
 
 export function KhoYeuCauPage({
   eventTick = 0,
-  loai,
   dieuChuyen = false,
   openRequestId = null,
   onOpenRequestConsumed,
 }: {
   eventTick?: number;
-  /** Khoá chiều theo tab (Nhập/Xuất): lọc yêu cầu + phiếu theo loai. */
-  loai: StockRequestKind;
   /** Tab ĐIỀU CHUYỂN: chỉ hiện yêu cầu điều chuyển (dieu_chuyen=true). */
   dieuChuyen?: boolean;
   /** Bấm thông báo → mở sẵn drawer "ứng theo yêu cầu" đúng id này. */
@@ -169,8 +179,15 @@ export function KhoYeuCauPage({
   const [tab, setTab] = useState<TabId>("can-cap");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
-  // Lọc khoảng ngày theo cột "Cần ngày" (ngay_can) — bấm tiêu đề cột để bung Từ/Đến.
-  const [dNeed, setDNeed] = useState({ from: "", to: "" });
+  // Kỳ (Ngày yêu cầu / Ngày cần / Ngày duyệt) + Phòng ban, Người yêu cầu, Kho — lọc ở máy chủ,
+  // chung khoá URL với màn "Yêu cầu nhập xuất" (cùng mục thanh bên).
+  const [locMan, setLocManGoc] = useLocMan(MAN_YEU_CAU_KHO, LOC_MAN_YCK_TRONG, docLocManYCK, ghiLocManYCK);
+  const setLocMan = (t: LocManYCK) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const dieuKien = useDieuKienYeuCauKho(dieuChuyen);
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYCK(locMan.loc) });
 
   const [openRequest, setOpenRequest] = useState<number | null>(null);
   const [creatingFor, setCreatingFor] = useState<StockRequest | null>(null);
@@ -215,10 +232,8 @@ export function KhoYeuCauPage({
     // BE-paging: chỉ tải ĐÚNG trang theo tab + lọc ngày; đếm số theo trạng thái riêng (badge tab).
     const filters = {
       q: q || null,
-      loai,
       dieu_chuyen: dieuChuyen,
-      ngay_can_tu: dNeed.from || null,
-      ngay_can_den: dNeed.to || null,
+      loc: JSON.parse(khoaLoc),
     };
     Promise.all([
       api.kho.deNghi.list(token, { ...filters, trang_thai: TAB_STATUSES[tab], page, size: pageSize }),
@@ -234,7 +249,7 @@ export function KhoYeuCauPage({
         setError(e instanceof ApiError ? e.message : "Không tải được hộp yêu cầu kho."),
       )
       .finally(() => setLoading(false));
-  }, [token, q, loai, dieuChuyen, dNeed, tab, page, pageSize]);
+  }, [token, q, dieuChuyen, khoaLoc, tab, page, pageSize]);
 
   // "Lập phiếu" / "Xem phiếu": yêu cầu đã có phiếu ĐANG CHỜ GHI SỔ (`open_voucher_id`) thì MỞ LẠI
   // đúng phiếu đó — thấy nguyên dữ liệu đã nhập + Ghi sổ/Hủy — thay vì đẻ ra phiếu trống (mất dữ
@@ -266,7 +281,7 @@ export function KhoYeuCauPage({
 
   useEffect(() => {
     setPage(1);
-  }, [tab, q, khoId, dNeed, pageSize]);
+  }, [tab, q, khoId, khoaLoc, pageSize]);
 
   // Số trên tab = CỘNG số theo trạng thái (BE trả `counts`) của các trạng thái thuộc tab đó.
   function countOf(id: TabId): number {
@@ -288,10 +303,17 @@ export function KhoYeuCauPage({
     { id: "done", label: "Hoàn tất" },
     { id: "da-huy", label: "Đã hủy" },
   ];
+  // Trạng thái trong nút Lọc = chính dải chip (đọc/ghi `tab`), không đẻ state thứ hai.
+  const dkDu: DieuKien<LocYeuCauKho>[] = [
+    dkTheoTab<LocYeuCauKho>({
+      tabs: tabs.map((t) => ({ id: t.id, nhan: t.label, so: countOf(t.id) })),
+      tatCa: "tat-ca", dang: tab, dat: (id) => setTab(id as TabId),
+    }),
+    ...dieuKien,
+  ];
 
-  // Cột yêu cầu: 8 khi có nút Lập phiếu, 7 khi không (đã bỏ cột Tồn — yêu cầu không gắn kho).
-  // Mã · Loại · Bộ phận · Vật tư · Cho lệnh · Tiến độ · Cần ngày · Trạng thái (+ cột thao tác).
-  const reqCols = canCreate ? 9 : 8;
+  // Mã · Loại · Bộ phận · Vật tư · Cho lệnh · Tiến độ · Ngày tạo · Cần lúc · Trạng thái (+ cột thao tác).
+  const reqCols = canCreate ? 10 : 9;
 
   return (
     <>
@@ -309,7 +331,7 @@ export function KhoYeuCauPage({
         </p>
       </header>
 
-      <div className="rc__toolbar">
+      <div className="rc__toolbar tl-thanh">
         <div className="rc__search-wrapper">
           <SearchIcon />
           <input
@@ -319,6 +341,14 @@ export function KhoYeuCauPage({
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_YEU_CAU_KHO}
+          onKy={(ky) => setLocMan({ ...locMan, ky })}
+          dieuKien={dkDu}
+          loc={locMan.loc}
+          onLoc={(loc) => setLocMan({ ...locMan, loc })}
+        />
         {/* LỌC TRẠNG THÁI — cùng dải Filter Chips với màn Yêu cầu nhập xuất cho nhất quán. */}
         <div className="kho-filter-chips">
           {tabs.map((t) => {
@@ -385,22 +415,17 @@ export function KhoYeuCauPage({
           <table ref={tableRef} className="rc__table rc__table--fixed">
             <thead>
               <tr>
-                <th style={{ width: "13%" }}>Mã</th>
-                <th style={{ width: "10%" }}>Loại</th>
-                <th style={{ width: "15%" }}>Bộ phận · Người</th>
+                <th style={{ width: "12%" }}>Mã</th>
+                <th style={{ width: "9%" }}>Loại</th>
+                <th style={{ width: "14%" }}>Bộ phận · Người</th>
                 <th>Vật tư</th>
                 {/* mg 0175 — soạn hàng theo LỆNH: thủ kho gom được các yêu cầu của cùng một lệnh
                     thay vì soạn rời từng phiếu. Cột thay cho việc dựng một màn "soạn hàng" riêng. */}
-                <th style={{ width: "11%" }}>Cho lệnh</th>
-                <th style={{ width: "12%" }}>Tiến độ</th>
-                <DateFilterHead
-                  label="Cần lúc"
-                  from={dNeed.from}
-                  to={dNeed.to}
-                  onChange={(from, to) => setDNeed({ from, to })}
-                  style={{ width: "11%" }}
-                />
-                <th style={{ width: "12%" }}>Trạng thái</th>
+                <th style={{ width: "10%" }}>Cho lệnh</th>
+                <th style={{ width: "11%" }}>Tiến độ</th>
+                <th style={{ width: "9%" }}>Ngày tạo</th>
+                <th style={{ width: "10%" }}>Cần lúc</th>
+                <th style={{ width: "11%" }}>Trạng thái</th>
                 {canCreate && <th className="rc__actcol" style={{ width: "10%" }} />}
               </tr>
             </thead>
@@ -476,6 +501,7 @@ export function KhoYeuCauPage({
                           </span>
                         </div>
                       </td>
+                      <td className="rc__nowrap" title={fmtDateTime(r.created_at)}>{fmtDate(r.created_at)}</td>
                       <td className={`rc__nowrap${overdue ? " kho-overdue" : ""}`}>
                         {/* GIỜ cần thật (từ đề nghị sản xuất) ưu tiên trước — `ngay_can` chỉ có DATE
                             nên không diễn đạt được ca chiều (task-8-ruling-man-kho). */}
@@ -610,7 +636,7 @@ function TransferTable({
         <tr>
           <th style={{ width: "15%" }}>Mã</th>
           <th style={{ width: "27%" }}>Tuyến</th>
-          <th style={{ width: "13%" }}>Ngày</th>
+          <th style={{ width: "13%" }}>Ngày tạo</th>
           <th style={{ width: "15%" }}>Trạng thái</th>
           {canViewCost && <th className="kho-num" style={{ width: "15%" }}>Tổng giá vốn</th>}
           <th className="kho-num" style={{ width: "9%" }}>Số dòng</th>
@@ -645,7 +671,7 @@ function TransferTable({
                     <span className="rc__name">{r.kho_ten ?? "—"}</span>
                   </div>
                 </td>
-                <td className="rc__nowrap">{fmtDate(r.created_at)}</td>
+                <td className="rc__nowrap" title={fmtDateTime(r.created_at)}>{fmtDate(r.created_at)}</td>
                 <td>
                   <TransferStatusBadge status={transferStatusOf(r)} />
                 </td>

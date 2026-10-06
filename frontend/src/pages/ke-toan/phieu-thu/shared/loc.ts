@@ -1,24 +1,30 @@
 /** Bộ lọc màn Phiếu thu (đặc tả PT-1, A.17, A.18): thẻ lọc + kỳ + bộ lọc nâng cao → tham số máy chủ.
  *
- *  Hàm thuần, không React. Mọi lọc chạy ở MÁY CHỦ; kỳ lọc theo NGÀY THU (`receipt_date`). Bộ lọc
- *  nâng cao là khuôn chung của hai sổ phiếu (`shared/locPhieu.ts`).
+ *  Hàm thuần, không React. Mọi lọc chạy ở MÁY CHỦ; kỳ gửi theo quy ước chung `tu_ngay/den_ngay/moc`
+ *  (mốc `tao` = ngày lập phiếu, `thu` = ngày thu trên chứng từ). Điều kiện là khuôn chung của hai sổ
+ *  phiếu (`shared/locPhieu.ts`).
  */
-import type { KyXem, LocPhieu } from "../../../../api/client";
+import { thamSoKy, type KyDS } from "../../../thanh-loc/ky-danh-sach";
 import {
   LOC_TRONG,
   locNangCaoLenUrl,
   locNangCaoTuUrl,
   soDieuKien,
   thamSoNangCao,
+  type CauHinhLocPhieu,
   type LocNangCao,
 } from "../../shared/locPhieu";
+import type { ThamSoSo } from "../../shared/trangPhieu";
 
 export { LOC_TRONG };
+
+/** Mốc kỳ của màn — mặc định Ngày tạo. */
+export const MOC_PT: [string, string][] = [["tao", "Ngày tạo"], ["thu", "Ngày thu"]];
 
 /** Thẻ lọc đầu bảng. "cho" (Chờ thu) chỉ hiện khi còn phiếu CŨ chờ thu (`the_loc.cho > 0`). */
 export type TheLocPT = "tat_ca" | "xong" | "thieu" | "cho" | "da_huy";
 
-/** Bộ lọc nâng cao ĐÃ ÁP. `ten_nhan` = ô "Người nộp" (tham số `nhan` riêng của máy chủ). */
+/** Bộ lọc ĐÃ ÁP. */
 export type LocPT = LocNangCao;
 
 /** Bốn lựa chọn Nguồn thu — mỗi lựa chọn đúng một `source_type`. */
@@ -29,6 +35,12 @@ export const NGUON_LUA_CHON: [string, string][] = [
   ["purchase_refund", "Thu lại tiền đã chi"],
 ];
 
+export const CAU_HINH_LOC_PT: CauHinhLocPhieu = {
+  nhanNguon: "Nguồn thu",
+  nguonLuaChon: NGUON_LUA_CHON,
+  nhanTaiKhoan: "Vào tài khoản",
+};
+
 const TRANG_THAI: Partial<Record<TheLocPT, string>> = {
   // "Thiếu chứng từ" chỉ tính phiếu ĐÃ THU (máy chủ đếm số trên thẻ như vậy) — gửi kèm status để
   // tổng ở chân bảng khớp đúng con số trên thẻ.
@@ -38,25 +50,19 @@ const TRANG_THAI: Partial<Record<TheLocPT, string>> = {
   da_huy: "cancelled",
 };
 
-/** Tham số lọc dùng chung cho bảng, số cùng kỳ và đếm "Khớp n phiếu" — một nguồn, không ba chỗ. */
-export function thamSoLoc(
-  the: TheLocPT,
-  loc: LocPT,
-  tim: string,
-  ky: KyXem,
-): Omit<LocPhieu, "status"> & { status?: string } {
+/** Tham số lọc dùng chung cho bảng và số cùng kỳ — một nguồn, không hai chỗ. */
+export function thamSoLoc(the: TheLocPT, loc: LocPT, tim: string, ky: KyDS): ThamSoSo {
   return {
     q: tim.trim() || undefined,
     status: TRANG_THAI[the],
     chung_tu: the === "thieu" ? "thieu" : loc.chung_tu,
-    tu_ngay: ky.tu,
-    den_ngay: ky.den,
+    ...(thamSoKy(ky) as Pick<ThamSoSo, "tu_ngay" | "den_ngay" | "moc">),
     ...thamSoNangCao(loc),
   };
 }
 
 /** Tham số tải MỘT TRANG bảng. Mới nhất theo NGÀY THU lên đầu (cột ngày là ngày chứng từ). */
-export function thamSoTai(the: TheLocPT, loc: LocPT, tim: string, ky: KyXem, page: number, size: number) {
+export function thamSoTai(the: TheLocPT, loc: LocPT, tim: string, ky: KyDS, page: number, size: number) {
   return { ...thamSoLoc(the, loc, tim, ky), page, size, sort: "-receipt_date" };
 }
 
@@ -79,7 +85,7 @@ const NGUON_URL: [string, string][] = [
   ["purchase_refund", "chi"],
 ];
 
-/** Trạng thái lọc → khoá URL (kỳ do `useKyMan` tự ghi). Giá trị mặc định ⇒ undefined. */
+/** Trạng thái lọc → khoá URL (kỳ do `useKyKeToan` tự ghi). Giá trị mặc định ⇒ undefined. */
 export function locLenUrl({ the, tim, loc }: TrangThaiLocPT): Record<string, string | undefined> {
   return {
     the: the === "tat_ca" ? undefined : the,

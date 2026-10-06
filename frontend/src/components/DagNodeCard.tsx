@@ -25,7 +25,7 @@ export interface DagNodeCardProps {
   onPortMouseDown: (e: React.MouseEvent, key: string, portType: "in" | "out") => void;
   onPortMouseUp: (e: React.MouseEvent, key: string, portType: "in" | "out") => void;
   /** `tab` chỉ dùng cho deep-link từ badge — mở drawer là nhảy thẳng tới khối đó. */
-  onOpenDrawer: (index: number) => void;
+  onOpenDrawer: (index: number, tab?: "vat_tu") => void;
   onDeleteNode: (index: number) => void;
 }
 
@@ -107,6 +107,24 @@ export function DagNodeCard({
           onPortMouseUp(e, row.key, "in");
         }}
       />
+
+      {/* Số món vật tư của bước — số ở GÓC thẻ, cùng kiểu số trong chip chuỗi bước ở tab Vật tư
+          của lệnh. Nhìn cả chuỗi một lượt là biết bước nào ăn vật tư; bấm vào mở thẳng tab Vật tư. */}
+      {row.vat_tus.length > 0 && (
+        <button
+          type="button"
+          className="dag-node__vat-tu"
+          title={[`${row.vat_tus.length} món vật tư`, ...row.vat_tus.map((v) => v.vat_tu_ten)].join("\n")}
+          aria-label={`${row.vat_tus.length} món vật tư — mở tab Vật tư`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenDrawer(index, "vat_tu");
+          }}
+        >
+          {row.vat_tus.length}
+        </button>
+      )}
 
       {/* Header của Card */}
       <div className="dag-node__head">

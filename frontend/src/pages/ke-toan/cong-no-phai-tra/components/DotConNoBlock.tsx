@@ -17,7 +17,7 @@ import { HanTra, HoaDon } from "./payablesCells";
 export function DotConNoBlock({
   detail,
   khoanNo,
-  chiQuaHan,
+  dangLoc,
   coChon,
   chonDuoc,
   chon,
@@ -27,9 +27,10 @@ export function DotConNoBlock({
   onMoDon,
 }: {
   detail: PayablesDetail;
-  /** Các đợt đang hiện (đã lọc Tất cả / Quá hạn), giữ thứ tự máy chủ đã sắp. */
+  /** Các đợt đang hiện (đã lọc theo mốc tuổi), giữ thứ tự máy chủ đã sắp. */
   khoanNo: PayableItemRow[];
-  chiQuaHan: boolean;
+  /** Đang lọc theo mốc ⇒ câu "rỗng" nói về bộ lọc, không nói "không còn nợ". */
+  dangLoc: boolean;
   /** Có quyền lập phiếu chi ⇒ có cột ô chọn. */
   coChon: boolean;
   chonDuoc: (row: PayableItemRow) => boolean;
@@ -56,7 +57,7 @@ export function DotConNoBlock({
   if (khoanNo.length === 0) {
     return (
       <p className="kt-mo">
-        {chiQuaHan ? "Không có đợt nào quá hạn." : "Không còn đợt nào nợ nhà cung cấp này."}
+        {dangLoc ? "Không có đợt nào còn nợ ở mục này." : "Không còn đợt nào nợ nhà cung cấp này."}
       </p>
     );
   }
@@ -164,7 +165,7 @@ export function DotConNoBlock({
                           <HoaDon so={row.invoice_number} ngayHd={row.invoice_date} files={row.hoa_don_files} />
                         </td>
                         <td>
-                          <HanTra row={row} />
+                          <HanTra row={row} homNay={detail.as_of} />
                         </td>
                         <td className="kt-so">{so(row.amount)}</td>
                         <td className="kt-so">{so(row.paid)}</td>

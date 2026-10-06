@@ -3,6 +3,7 @@
 // tiết · ba thao tác) đều đụng tới — chép mỗi nơi một bản thì con số 3.300.000.000 hiện ba kiểu
 // khác nhau trên cùng một màn.
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { OGoDinhDang } from "../../components/OGoDinhDang";
 import type { Department } from "../../api/client";
 import type { SelectOption } from "../../components/Select";
 import { Icon } from "../../components/Icons";
@@ -24,6 +25,28 @@ export function ngay(v?: string | null): string {
   if (!v) return "—";
   const [y, m, d] = v.slice(0, 10).split("-");
   return d && m && y ? `${d}/${m}/${y}` : v;
+}
+
+/** Mốc giờ máy chủ (UTC; SQLite trả chuỗi không hậu tố múi) → Date, coi chuỗi không múi là UTC. */
+function mocGio(v: string): Date {
+  const coMui = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(v);
+  return new Date(!coMui && v.includes("T") ? `${v}Z` : v);
+}
+
+/** Ngày của một mốc giờ theo giờ VN, "06/10/2026" — cột Ngày tạo. */
+export function ngayCuaMoc(v?: string | null): string {
+  if (!v) return "—";
+  const d = mocGio(v);
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric",
+  });
+}
+
+/** Đủ ngày giờ theo giờ VN — `title` của ô Ngày tạo. */
+export function gioCuaMoc(v?: string | null): string | undefined {
+  if (!v) return undefined;
+  const d = mocGio(v);
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
 }
 
 /** "2026-03" | "2026-03-10" → "03/2026". */
@@ -125,7 +148,7 @@ export function OTien({
   invalid?: boolean;
 }) {
   return (
-    <input
+    <OGoDinhDang
       id={id}
       aria-invalid={invalid || undefined}
       className={`rc-input ts-num ${className ?? ""}`}

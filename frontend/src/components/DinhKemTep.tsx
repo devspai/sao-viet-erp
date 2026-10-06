@@ -59,6 +59,9 @@ export function DinhKemTep({
   maxBytes,
   taiLen,
   xoa,
+  moTa = "Bạn có thể đính kèm các file maket, bản vẽ kỹ thuật, hợp đồng PDF, ảnh mẫu hoặc tài liệu liên quan.",
+  dinhDang = ["PDF", "PNG, JPG", "AI, CDR", "DOCX, XLSX", "ZIP"],
+  accept,
 }: {
   /** `null` = đang nạp lần đầu. */
   items: TepDinhKem[] | null;
@@ -71,6 +74,12 @@ export function DinhKemTep({
   /** Gửi MỘT tệp; resolve khi máy chủ đã nhận và màn cha đã đưa tệp vào `items`. */
   taiLen: (file: File) => Promise<void>;
   xoa: (tep: TepDinhKem) => Promise<void>;
+  /** Câu dưới tiêu đề thùng thả tệp — mỗi chứng từ nói loại tệp hay gặp của nó. */
+  moTa?: string;
+  /** Nhãn định dạng máy chủ nhận — phải khớp luật tệp của chứng từ đó. */
+  dinhDang?: string[];
+  /** Lọc ở hộp chọn tệp (vd "image/*,application/pdf"); bỏ trống = mọi loại. */
+  accept?: string;
 }) {
   const [hang, setHang] = useState<ViecTai[]>([]);
   const [keo, setKeo] = useState(false);
@@ -186,9 +195,7 @@ export function DinhKemTep({
           <p className="dkt-hero__title">
             {keo ? "Thả tệp vào đây để tải lên ngay!" : "Kéo & thả tệp vào đây để đính kèm"}
           </p>
-          <p className="dkt-hero__desc">
-            Bạn có thể đính kèm các file maket, bản vẽ kỹ thuật, hợp đồng PDF, ảnh mẫu hoặc tài liệu liên quan.
-          </p>
+          <p className="dkt-hero__desc">{moTa}</p>
           <Button
             type="button"
             variant="primary"
@@ -199,17 +206,16 @@ export function DinhKemTep({
             <span>Chọn tệp từ máy tính…</span>
           </Button>
           <div className="dkt-hero__formats">
-            <span className="dkt-fmt-tag">PDF</span>
-            <span className="dkt-fmt-tag">PNG, JPG</span>
-            <span className="dkt-fmt-tag">AI, CDR</span>
-            <span className="dkt-fmt-tag">DOCX, XLSX</span>
-            <span className="dkt-fmt-tag">ZIP</span>
+            {dinhDang.map((d) => (
+              <span key={d} className="dkt-fmt-tag">{d}</span>
+            ))}
             <span className="dkt-fmt-hint">· Tối đa {Math.round(maxBytes / (1024 * 1024))}MB mỗi tệp</span>
           </div>
           <input
             ref={inputRef}
             type="file"
             multiple
+            accept={accept}
             hidden
             onChange={(e) => {
               themTep(e.target.files);
@@ -265,6 +271,7 @@ export function DinhKemTep({
             ref={inputRef}
             type="file"
             multiple
+            accept={accept}
             hidden
             onChange={(e) => {
               themTep(e.target.files);

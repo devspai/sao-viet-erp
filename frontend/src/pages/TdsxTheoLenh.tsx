@@ -6,10 +6,11 @@ import type { ReactNode } from "react";
 
 import type { TdsxTheoLenhDong, TdsxTheoLenhOut } from "../api/client";
 import { Skeleton, ngay, num } from "./keHoachSxShared";
+import { ngayDayDu, ngayGioDayDu } from "./loc-san-xuat/ngay";
 import { ngayNgan } from "./lsxHoSoChung";
 import { CO_NHAN, DaiChang, TheGap, buocThu, nhanKhau } from "./lsxKhau";
 
-const SO_COT = 6;
+const SO_COT = 7;
 
 export function TdsxTheoLenh({
   data,
@@ -35,6 +36,7 @@ export function TdsxTheoLenh({
               <th scope="col">Khách</th>
               <th scope="col">Đang ở</th>
               <th scope="col">Hạn SX</th>
+              <th scope="col">Ngày tạo</th>
               <th scope="col">Vấn đề</th>
             </tr>
           </thead>
@@ -106,6 +108,7 @@ function Dong({ r, onMo }: { r: TdsxTheoLenhDong; onMo: (id: number) => void }) 
         {ngay(r.han_hoan_thanh_sx)}
         {tre && r.du_kien_xong && <span className="lsc-phu lsc-do">dự kiến {ngayNgan(r.du_kien_xong)}</span>}
       </td>
+      <td title={ngayGioDayDu(r.created_at)}>{ngayDayDu(r.created_at)}</td>
       <td>
         {r.canh_bao.length === 0 ? (
           <span className="lsc-phu">–</span>

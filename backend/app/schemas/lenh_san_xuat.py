@@ -51,6 +51,8 @@ class LenhSxItem(BaseModel):
     khau: str
     khau_chi_tiet: str | None = None
     da_dong: bool = False
+    # Ngày tạo lệnh — cột "Ngày tạo" + mốc kỳ `tao` (06/10/2026).
+    created_at: datetime | None = None
 
 
 class LenhSxListOut(BaseModel):

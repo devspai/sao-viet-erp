@@ -1,11 +1,13 @@
-// Ngăn CHI TIẾT công nợ một nhà cung cấp (đặc tả NPT-2) — vỏ `NganPhai` chung của kế toán.
+// Ngăn CHI TIẾT công nợ một nhà cung cấp — phương án 2 (sổ chi tiết kiểu Xero, 06/10/2026), vỏ
+// `NganCongNo` chung hai màn công nợ.
 //
-// Đầu ngăn: "Công nợ phải trả > Nhà cung cấp" — tên + pill "Vượt hạn mức" — nút "Hồ sơ nhà cung cấp"
-// — tóm tắt Còn nợ | Quá hạn | Hạn mức | Cho nợ — dải amber khi vượt hạn mức. Hai tab: "Còn nợ" (các
-// đợt CÒN nợ, gom theo đơn, tích để trả nhiều đợt) và "Đã trả" (trong kỳ của trang / tất cả).
-// Tích đợt ⇒ chân tối "Đã chọn n đợt … — Bỏ chọn — Trả n đợt" mở ngăn chồng `BatchPaymentDialog` với
-// ẢNH CHỤP các đợt lúc bấm (ngăn dưới nạp lại / tải hỏng cũng không đổi form đang gõ).
-// Tab "Đã trả" do máy chủ cắt trang (`PAID_PAGE` một trang); "Xem thêm" tải trang kế và nối vào.
+// Đầu ngăn: "Công nợ phải trả > Nhà cung cấp" — tên + thẻ mã — "In sao kê" và "Hồ sơ nhà cung cấp" —
+// khối số: còn nợ tới hôm nay + quá hạn, vạch tuổi nợ (bấm mốc = lọc tab Còn nợ), hạn mức. Ba tab:
+// - "Còn nợ": các đợt giao gom theo đơn, tích để trả nhiều đợt. Tích đợt ⇒ chân tối "Đã chọn n đợt …
+//   — Bỏ chọn — Trả n đợt" mở ngăn chồng `BatchPaymentDialog` với ẢNH CHỤP các đợt lúc bấm (ngăn dưới
+//   nạp lại / tải hỏng cũng không đổi form đang gõ).
+// - "Sao kê": số dư đầu kỳ, từng chứng từ với số dư chạy, số dư cuối kỳ; in được.
+// - "Lịch sử": dòng thời gian mọi chứng từ với nhà cung cấp + các đợt đã trễ.
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -18,15 +20,17 @@ import {
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import type { NavigateFn } from "../../../../components/AppShell";
-import { NhomNut } from "../../shared/BoLocNangCao";
 import { useChiTietCongNo } from "../../shared/chiTietCongNo";
 import { tien, vietSo } from "../../shared/dinhDang";
+import { LichSuCongNo, type KhoanTre } from "../../shared/LichSuCongNo";
+import { nhanLocNo, TheLocNo } from "../../shared/locNoNgan";
 import { NganCongNo } from "../../shared/NganCongNo";
 import { useTabNho } from "../../shared/NganPhieu";
+import { TabSaoKe } from "../../shared/TabSaoKe";
 import { PAID_PAGE } from "../shared/constants";
+import { tenKhoan } from "../shared/helpers";
 import type { Bucket } from "../shared/types";
 import { BatchPaymentDialog } from "./BatchPaymentDialog";
-import { DaTraBlock, type PhamViDaTra } from "./DaTraBlock";
 import { DotConNoBlock } from "./DotConNoBlock";
 
 export type QuyenCongNoTra = {
@@ -37,12 +41,24 @@ export type QuyenCongNoTra = {
   xemPhieuChi: boolean;
 };
 
-type LoaiNo = "all" | "overdue";
+const TAB = ["no", "sk", "ls"];
+
+/** Đợt có thuộc bộ lọc không: null = mọi đợt (kể cả đợt đã trả xong nằm đó để dò cọc), "overdue" =
+ *  đang trễ, còn lại là khoá mốc tuổi — chỉ đợt CÒN nợ. */
+function khopLoc(row: PayableItemRow, loc: string | null): boolean {
+  if (loc == null) return true;
+  if (row.con_no <= 0) return false;
+  if (loc === "overdue") return row.overdue_days > 0;
+  if (loc === "chua_toi_han") return row.overdue_days <= 0;
+  return row.aging_bucket === loc;
+}
 
 export function PayablesDrawer({
   supplierId,
   supplierName,
+  ma,
   bucket,
+  tuoi = null,
   ky,
   eventTick = 0,
   quyen,
@@ -54,8 +70,12 @@ export function PayablesDrawer({
 }: {
   supplierId: number;
   supplierName: string;
+  /** Mã nhà cung cấp (từ dòng danh sách) — thẻ dưới tên. */
+  ma?: string | null;
   bucket: Bucket;
-  /** Kỳ đang xem ở trang — tab Đã trả "Trong kỳ" lấy đúng kỳ này. */
+  /** Mốc tuổi nợ đang lọc ở danh sách ⇒ tab Còn nợ lọc sẵn mốc đó. */
+  tuoi?: { khoa: string; nhan: string } | null;
+  /** Kỳ đang xem ở trang — kỳ mặc định của tab Sao kê. */
   ky: KyXem;
   /** Sự kiện đẩy (SSE): đổi số ⇒ ngăn nạp lại (lỗi 8). */
   eventTick?: number;
@@ -69,33 +89,35 @@ export function PayablesDrawer({
   const { token } = useAuth();
   // Tab nhớ theo màn; bấm thẳng số Quá hạn / Đã trả ngoài bảng thì mở đúng tab đó.
   const [tabNho, setTabNho] = useTabNho("cong-no-phai-tra", "no");
-  const [tab, setTabTho] = useState(bucket === "paid" ? "tra" : bucket === "overdue" ? "no" : tabNho);
+  const [tab, setTabTho] = useState(
+    bucket === "paid" ? "sk" : bucket === "overdue" || tuoi ? "no" : TAB.includes(tabNho) ? tabNho : "no",
+  );
   const setTab = (t: string) => {
     setTabNho(t);
     setTabTho(t);
   };
-  const [loaiNo, setLoaiNo] = useState<LoaiNo>(bucket === "overdue" ? "overdue" : "all");
-  const [phamVi, setPhamVi] = useState<PhamViDaTra>("ky");
+  const [loc, setLocTho] = useState<string | null>(bucket === "overdue" ? "overdue" : tuoi ? tuoi.khoa : null);
   const [chon, setChon] = useState<Set<number>>(new Set());
   const [moHang, setMoHang] = useState<string | null>(null);
   const [moTra, setMoTra] = useState<PayableItemRow[] | null>(null);
   const [daLap, setDaLap] = useState<VoucherBatchResult | null>(null);
+  const [dangIn, setDangIn] = useState(false);
+  const [soLanLap, setSoLanLap] = useState(0);
 
   const chonDuoc = useCallback(
     (row: PayableItemRow) => quyen.lap && row.delivery_id != null && row.con_no > 0,
     [quyen.lap],
   );
 
-  // Tải chi tiết + tab Đã trả cắt trang ở máy chủ + "Xem thêm" nối trang + sự kiện đẩy (lỗi 8):
-  // khuôn chung `useChiTietCongNo`. `reload` cũng là đường gọi lại sau khi lập phiếu: `onChanged`
-  // (báo trang) KHÔNG tự kéo lại chi tiết của chính ngăn đang mở.
-  const tatCa = phamVi === "tat_ca";
-  const { detail, loading, loi, reload, xemThem, dangTaiThem } = useChiTietCongNo<PayablePaidRow, PayablesDetail>({
+  // Tải chi tiết + sự kiện đẩy (lỗi 8): khuôn chung `useChiTietCongNo`. `reload` cũng là đường gọi
+  // lại sau khi lập phiếu: `onChanged` (báo trang) KHÔNG tự kéo lại chi tiết của chính ngăn đang mở.
+  // Lần trả giờ nằm ở Sao kê / Lịch sử nên phần `paid` của câu trả lời không còn dùng ở đây.
+  const { detail, loading, loi, reload } = useChiTietCongNo<PayablePaidRow, PayablesDetail>({
     token,
-    khoa: `${supplierId}|${phamVi}|${ky.tu}|${ky.den}`,
+    khoa: String(supplierId),
     coTrang: PAID_PAGE,
     goi: (t, trang) =>
-      api.accounting.payablesDetail(t, supplierId, tatCa, tatCa ? undefined : { tu_ngay: ky.tu, den_ngay: ky.den }, trang),
+      api.accounting.payablesDetail(t, supplierId, false, { tu_ngay: ky.tu, den_ngay: ky.den }, trang),
     khoaDong: (p) => p.voucher_id,
     eventTick,
     chuLoi: "Không tải được chi tiết công nợ.",
@@ -110,9 +132,6 @@ export function PayablesDrawer({
     },
   });
 
-  // Đổi phạm vi ⇒ khoá đổi ⇒ tải lại từ một trang.
-  const doiPhamVi = setPhamVi;
-
   // Thông báo "Đã lập n phiếu chi" tự tắt sau vài giây.
   useEffect(() => {
     if (!daLap) return;
@@ -120,17 +139,38 @@ export function PayablesDrawer({
     return () => window.clearTimeout(t);
   }, [daLap]);
 
-  // Backend cũ hơn giao diện có thể thiếu `items`/`paid` — báo rõ, không sập, không coi là rỗng.
-  const hopLe = detail != null && Array.isArray(detail.items) && Array.isArray(detail.paid);
+  // Backend cũ hơn giao diện có thể thiếu `items`/`aging` — báo rõ, không sập, không coi là rỗng.
+  const hopLe = detail != null && Array.isArray(detail.items) && Array.isArray(detail.aging);
   const items = useMemo(() => (hopLe ? detail!.items : []), [hopLe, detail]);
   // Số trên tab = số đợt CÒN nợ (lỗi 7) — đợt đã trả xong chỉ nằm đó để dò cọc, không đếm.
   const soConNo = items.filter((x) => x.con_no > 0).length;
-  const khoanNo = useMemo(
-    () => (loaiNo === "overdue" ? items.filter((x) => x.overdue_days > 0) : items),
-    [items, loaiNo],
-  );
+  const khoanNo = useMemo(() => items.filter((x) => khopLoc(x, loc)), [items, loc]);
   const dotDaChon = khoanNo.filter((row) => row.delivery_id != null && chon.has(row.delivery_id));
   const tongDaChon = dotDaChon.reduce((s, row) => s + row.con_no, 0);
+  const tre = useMemo<KhoanTre[]>(
+    () =>
+      items
+        .filter((x) => x.con_no > 0 && x.overdue_days > 0 && x.due_date)
+        .map((x) => ({
+          khoa: `${x.purchase_request_id}:${x.delivery_id ?? "don"}`,
+          ten: x.seq_no != null ? `${x.code} đợt ${x.seq_no}` : `${x.code} ${tenKhoan(x).toLowerCase()}`,
+          han: x.due_date as string,
+          conNo: x.con_no,
+          soNgayTre: x.overdue_days,
+        })),
+    [items],
+  );
+
+  // Đổi danh sách đang hiện thì xoá lựa chọn: giữ tích cũ dễ khiến người dùng tưởng đợt đang ẩn vẫn
+  // được tính vào lượt trả.
+  const setLoc = (k: string | null) => {
+    setLocTho(k);
+    setChon(new Set());
+  };
+  const chonLoc = (k: string | null) => {
+    setLoc(k);
+    if (k) setTab("no");
+  };
 
   const moDon = quyen.xemDonMua
     ? (code: string) => {
@@ -145,6 +185,9 @@ export function PayablesDrawer({
       }
     : undefined;
 
+  const ten = detail?.supplier_name ?? supplierName;
+  const lan = eventTick + soLanLap;
+  const nhan = hopLe ? nhanLocNo(loc, detail!.aging, tuoi?.nhan) : null;
   const coChan = tab === "no" && dotDaChon.length > 0;
 
   return (
@@ -152,7 +195,8 @@ export function PayablesDrawer({
       <NganCongNo
         nhanMan="Công nợ phải trả"
         nhanDoiTac="Nhà cung cấp"
-        tieuDe={detail?.supplier_name ?? supplierName}
+        tieuDe={ten}
+        ma={ma}
         tong={hopLe ? detail : null}
         choNo={hopLe ? detail!.credit_days : null}
         sauNgay="sau mỗi đợt giao"
@@ -162,12 +206,18 @@ export function PayablesDrawer({
                 nhan: "Hồ sơ nhà cung cấp",
                 onMo: () => {
                   onClose();
-                  navigate("nha-cung-cap");
+                  navigate("nha-cung-cap", { openSupplierId: supplierId });
                 },
               }
             : undefined
         }
+        onInSaoKe={() => {
+          setTab("sk");
+          setDangIn(true);
+        }}
         chuCanh="Chỉ là cảnh báo, vẫn đặt mua được."
+        dangLoc={loc}
+        onLoc={chonLoc}
         loi={loi}
         loading={loading}
         thieu={detail != null && !hopLe}
@@ -177,7 +227,8 @@ export function PayablesDrawer({
           hopLe
             ? [
                 { id: "no", nhan: "Còn nợ", dem: soConNo },
-                { id: "tra", nhan: "Đã trả", dem: detail!.paid_total ?? detail!.paid.length },
+                { id: "sk", nhan: "Sao kê" },
+                { id: "ls", nhan: "Lịch sử" },
               ]
             : undefined
         }
@@ -206,24 +257,25 @@ export function PayablesDrawer({
       >
         {hopLe && tab === "no" && (
           <>
-            <div className="kt-hang-loc">
-              <NhomNut<LoaiNo> giaTri={loaiNo} luaChon={[["all", "Tất cả"], ["overdue", "Quá hạn"]]}
-                onDoi={(v) => {
-                  // Đổi danh sách đang hiện thì xoá lựa chọn: giữ tích cũ dễ khiến người dùng tưởng
-                  // đợt đang ẩn vẫn được tính vào lượt trả.
-                  setLoaiNo(v);
-                  setChon(new Set());
-                }} />
-              {quyen.lap && soConNo > 0 && <span className="kt-mo">Tích các đợt muốn trả rồi bấm Trả ở thanh dưới.</span>}
-            </div>
-            <DotConNoBlock detail={detail!} khoanNo={khoanNo} chiQuaHan={loaiNo === "overdue"} coChon={quyen.lap}
+            {(nhan || (quyen.lap && soConNo > 0)) && (
+              <div className="kt-hang-loc">
+                {nhan && <TheLocNo nhan={nhan} so={khoanNo.length} onBo={() => setLoc(null)} />}
+                {quyen.lap && soConNo > 0 && <span className="kt-mo">Tích các đợt muốn trả rồi bấm Trả ở thanh dưới.</span>}
+              </div>
+            )}
+            <DotConNoBlock detail={detail!} khoanNo={khoanNo} dangLoc={loc != null} coChon={quyen.lap}
               chonDuoc={chonDuoc} chon={chon} onChon={setChon} moHang={moHang} onMoHang={setMoHang} onMoDon={moDon} />
           </>
         )}
 
-        {hopLe && tab === "tra" && (
-          <DaTraBlock detail={detail!} phamVi={phamVi} onPhamVi={doiPhamVi} onMoPhieu={moPhieu} onMoDon={moDon}
-            onXemThem={xemThem} dangTaiThem={dangTaiThem} />
+        {hopLe && tab === "sk" && (
+          <TabSaoKe ben="payables" id={supplierId} ten={ten} ma={ma} kyTrang={ky} lan={lan}
+            dangIn={dangIn} onDongIn={() => setDangIn(false)} onMoPhieu={moPhieu} />
+        )}
+
+        {hopLe && tab === "ls" && (
+          <LichSuCongNo ben="payables" id={supplierId} homNay={detail!.as_of} tre={tre} chuTre="chưa trả đủ" lan={lan}
+            onMoPhieu={moPhieu} />
         )}
 
         {daLap && (
@@ -231,10 +283,8 @@ export function PayablesDrawer({
             <span>{`Đã lập ${vietSo(daLap.vouchers.length)} phiếu chi`}</span>
             <button type="button"
               onClick={() => {
-                // Phiếu vừa lập nằm trong kỳ trang thì xem "Trong kỳ", không thì "Tất cả".
-                const trongKy = daLap.vouchers.every((v) => v.voucher_date >= ky.tu && v.voucher_date <= ky.den);
-                doiPhamVi(trongKy ? "ky" : "tat_ca");
-                setTab("tra");
+                // Phiếu vừa lập đứng đầu dòng thời gian của tab Lịch sử.
+                setTab("ls");
                 setDaLap(null);
               }}>
               Xem phiếu
@@ -245,7 +295,10 @@ export function PayablesDrawer({
 
       {moTra && (
         <BatchPaymentDialog
-          supplierName={detail?.supplier_name ?? supplierName}
+          supplierId={detail?.supplier_id ?? null}
+          supplierName={ten}
+          conNoNcc={detail?.total_due ?? null}
+          hanMuc={detail?.credit_limit ?? 0}
           items={moTra}
           onClose={() => setMoTra(null)}
           onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
@@ -253,6 +306,7 @@ export function PayablesDrawer({
             setMoTra(null);
             setChon(new Set());
             setDaLap(kq);
+            setSoLanLap((n) => n + 1);
             reload();
             onChanged();
           }}

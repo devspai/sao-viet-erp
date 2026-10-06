@@ -683,7 +683,7 @@ export function LsxRoutingTable({
           baiGhep={baiGhep}
           canUpdate={suaDuoc}
           onUpdateRows={setRows}
-          onOpenDrawer={(idx: number) => moDrawer(idx, null)}
+          onOpenDrawer={(idx: number, tab?: "vat_tu") => moDrawer(idx, null, tab)}
           onAddStep={them}
         />
       ) : (

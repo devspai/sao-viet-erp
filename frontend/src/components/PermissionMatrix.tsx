@@ -471,7 +471,7 @@ const MODULE_HINTS: Record<string, string> = {
   self_service:
     "Xem: hiện mục “Hồ sơ của tôi” (hồ sơ, số công, quỹ phép, phiếu lương của chính mình). Lưu ý: tắt chỉ ẩn mục này trên menu.",
   giao_hang:
-    "Xem: đơn giao hàng. Thao tác: gửi yêu cầu giao, báo đã lấy hàng, nhập kết quả và số km. Lưu ý: phạm vi ở màn này tính khác — Của tôi là yêu cầu mình lập hoặc chuyến mình chở; Cả phòng chỉ đúng phòng mình, không gồm phòng con.",
+    "Xem: đơn giao hàng. Thao tác: gửi yêu cầu giao, báo đã lấy hàng, nhập kết quả và số km; đính chứng từ giao hàng (biên bản khách ký, kể cả đơn nhà gia công giao thẳng). Lưu ý: phạm vi ở màn này tính khác — Của tôi là yêu cầu mình lập hoặc chuyến mình chở; Cả phòng chỉ đúng phòng mình, không gồm phòng con. Kế toán cần đính biên bản cho mọi đơn thì chọn Tất cả.",
   nhan_su:
     "Xem: hồ sơ nhân viên. Thao tác: thêm, sửa hồ sơ; gán ca; đính kèm giấy tờ; tạo tài khoản đăng nhập; nhập Excel. Lưu ý: không có xoá hồ sơ.",
   cham_cong:

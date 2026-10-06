@@ -1,7 +1,7 @@
 /** Màn PHIẾU CHI (đặc tả PC-1 … PC-6, A.16 – A.18) — màn đầu tiên dựng trên bộ khung chung kế toán.
  *
- *  Khuôn trang: đầu trang (tiêu đề + một câu + nút rust) → chọn kỳ → hàng thẻ lọc → thanh lọc (ô tìm,
- *  Bộ lọc nâng cao, chip, "n phiếu") → bảng + chân phân trang. Bấm dòng mở ngăn chi tiết bên phải.
+ *  Khuôn trang: đầu trang (tiêu đề + một câu + nút rust) → hàng thẻ lọc → thanh lọc (ô tìm, thanh lọc
+ *  chung `ThanhLoc`: kỳ theo Ngày tạo / Ngày chi + điều kiện, "n phiếu") → bảng + chân phân trang. Bấm dòng mở ngăn chi tiết bên phải.
  *  Mọi lọc chạy ở MÁY CHỦ; số trên thẻ lọc (`the_loc`) tính theo kỳ + bộ lọc, KHÔNG theo thẻ đang chọn.
  *
  *  ⚠️ TIỀN THẬT: lập phiếu chi = tiền đã rời két, không sửa được — sai thì hủy (có lý do) rồi lập lại.
@@ -14,19 +14,30 @@ import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import { VOUCHER_PAGE_LABEL } from "../../../constants/features";
-import { ChonKy } from "../shared/ChonKy";
 import { GoiYPhim } from "../shared/BangPhieu";
-import { tien, vietSo } from "../shared/dinhDang";
+import { vietSo } from "../shared/dinhDang";
 import { TheLoc, type TheLocMuc } from "../shared/TheLoc";
 import { theLocSo, useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
-import { BoLocPhieuChi } from "./components/BoLocPhieuChi";
 import { HangChoGiaCong } from "./components/HangChoGiaCong";
 import { VouchersDrawer } from "./components/VouchersDrawer";
 import { VouchersTable } from "./components/VouchersTable";
 import { LapPhieuChiGiaCongModal } from "./modals/LapPhieuChiGiaCongModal";
 import { StandaloneVoucherDialog } from "./modals/StandaloneVoucherDialog";
 import { PAGE_SIZE } from "./shared/list-constants";
-import { LOC_TRONG, dangLoc, locLenUrl, locTuUrl, thamSoLoc, thamSoTai, type LocPC, type TheLocPC } from "./shared/loc";
+import {
+  CAU_HINH_LOC_PC,
+  LOC_TRONG,
+  MOC_PC,
+  dangLoc,
+  locLenUrl,
+  locTuUrl,
+  thamSoLoc,
+  thamSoTai,
+  type LocPC,
+  type TheLocPC,
+} from "./shared/loc";
+import { dieuKienPhieu, dkTrangThaiPhieu } from "../shared/locPhieu";
+import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
 import "../ke-toan.css";
 
 /** Mã màn — khoá nhớ kỳ và dấu `man` trên URL (đặc tả A.18). */
@@ -77,6 +88,7 @@ export function PaymentVouchersPage({
   // đẩy nạp lại thêm hàng gia công chờ chi.
   const cauHinh: CauHinhTrangPhieu<PaymentVoucherRow, TheLocPC, LocPC> = {
     man: MAN,
+    moc: MOC_PC,
     locTuUrl,
     locLenUrl,
     locTrong: LOC_TRONG,
@@ -92,12 +104,9 @@ export function PaymentVouchersPage({
   };
   const sp = useTrangPhieu(cauHinh, token, eventTick, focusQuery);
   const { the, setThe, loc, rows, mo, setMo, load } = sp;
-
   const { soThe, soTheCung } = sp;
   const muc = useMemo<TheLocMuc[]>(() => {
     const chung = theLocSo(soThe, soTheCung, { nhanXong: "Đã chi", phuThieu: "chưa có hoá đơn hoặc biên nhận" });
-    const coTien = gc?.some((r) => r.thanh_tien != null) ?? false;
-    const tienGc = gc?.reduce((s, r) => s + (r.thanh_tien ?? 0), 0) ?? 0;
     return [
       chung.tatCa,
       chung.xong,
@@ -106,12 +115,21 @@ export function PaymentVouchersPage({
         id: "gc",
         nhan: "Gia công chờ chi",
         cham: "amber",
-        so: gc == null ? "—" : coTien ? tien(tienGc) : `${gc.length} việc`,
-        phu: gc == null ? undefined : coTien ? `${gc.length} việc đã chốt` : "đã chốt chờ chi",
+        // Gia công không có đơn giá (chủ chốt 07/10/2026) ⇒ thẻ đếm việc, không cộng tiền.
+        so: gc == null ? "—" : `${gc.length} việc`,
+        phu: gc == null ? undefined : "đã chốt chờ chi",
       },
       chung.daHuy,
     ];
   }, [soThe, soTheCung, gc]);
+  // Trạng thái trong nút Lọc = các thẻ có bảng ("Gia công chờ chi" thay cả bảng nên không vào).
+  const dieuKien = useMemo(
+    () => [
+      dkTrangThaiPhieu({ muc: muc.filter((m) => m.id !== "gc"), n: soThe, dang: the, dat: (id) => setThe(id as TheLocPC) }),
+      ...dieuKienPhieu(CAU_HINH_LOC_PC, sp.taiKhoan),
+    ],
+    [muc, soThe, the, setThe, sp.taiKhoan],
+  );
 
   return (
     <main className="kt-trang">
@@ -130,20 +148,19 @@ export function PaymentVouchersPage({
         )}
       </header>
 
-      <ChonKy kyMan={sp.kyMan} />
       <TheLoc muc={muc} dangChon={the} onChon={(id) => setThe(id as TheLocPC)} />
 
       {the === "gc" ? (
         <HangChoGiaCong rows={gc} loi={gcLoi} onLap={coLap ? setLapGc : undefined} />
       ) : (
         <>
-          <div className="kt-tb">
+          <div className="kt-tb tl-thanh">
             <label className="kt-tim">
               <Search size={16} aria-hidden="true" />
               <input aria-label="Tìm phiếu chi" placeholder="Tìm mã phiếu, người nhận, nội dung, mã đơn mua" value={sp.tim}
                 onChange={(e) => sp.setTim(e.target.value)} />
             </label>
-            <BoLocPhieuChi loc={loc} onDoiLoc={sp.setLoc} demKhop={sp.demKhop} taiKhoan={sp.taiKhoan} />
+            <ThanhLoc ky={sp.ky} moc={MOC_PC} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
             <span className="kt-tb__dem">{`${vietSo(sp.tong)} phiếu`}</span>
           </div>
           <VouchersTable

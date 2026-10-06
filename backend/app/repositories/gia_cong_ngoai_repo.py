@@ -14,7 +14,9 @@ from ..models.purchase import SUPPLIER_ACTIVE, Supplier
 from ..models.role import RolePermission
 from ..models.san_xuat import GOI_DANG_PHAT_HANH, SanXuatCongViec, SanXuatGoiPhatHanh
 from ..models.san_xuat_san_luong import BG_DE_XUAT, SanXuatBanGiao
-from ..models.stock_request import REQ_CANCELLED, REQ_NHAP, REQ_XUAT, StockRequest
+from ..models.stock_request import (
+    REQ_CANCELLED, REQ_NHAP, REQ_REJECTED, REQ_XUAT, StockRequest, StockRequestLine,
+)
 from ..models.user import User
 from ..models.vat_lieu_kho import HANG_GIAY
 
@@ -77,6 +79,32 @@ class GiaCongNgoaiRepository:
         return list(self.db.scalars(
             select(GiaCongNgoai).where(GiaCongNgoai.lsx_id == lsx_id).order_by(GiaCongNgoai.id)
         ))
+
+    def cua_nhieu_lenh(self, lsx_ids: list[int]) -> list[tuple[int, GiaCongNgoai, str | None]]:
+        """Lần CÒN SỐNG (chưa huỷ) của cả trang danh sách lệnh — MỘT câu, không N+1.
+        Trả `(lsx_id, lần, mã bài ghép)`: lần của bước chung bài ghép tính cho MỌI lệnh thành
+        viên, cùng luật `lsx_ids_loc_gia_cong`."""
+        if not lsx_ids:
+            return []
+        truc_tiep = (
+            select(GiaCongNgoai.lsx_id.label("lsx_id"), GiaCongNgoai.id.label("gcn_id"))
+            .where(GiaCongNgoai.lsx_id.in_(lsx_ids), GiaCongNgoai.huy_luc.is_(None))
+        )
+        qua_bai_ghep = (
+            select(BaiGhepThanhVien.lsx_id.label("lsx_id"), GiaCongNgoai.id.label("gcn_id"))
+            .join(GiaCongNgoai, GiaCongNgoai.bai_ghep_id == BaiGhepThanhVien.bai_ghep_id)
+            .where(BaiGhepThanhVien.lsx_id.in_(lsx_ids), GiaCongNgoai.huy_luc.is_(None))
+        )
+        cap = truc_tiep.union_all(qua_bai_ghep).subquery()
+        return [
+            (int(lsx_id), gcn, bg_ma)
+            for lsx_id, gcn, bg_ma in self.db.execute(
+                select(cap.c.lsx_id, GiaCongNgoai, BaiGhep.ma)
+                .join(GiaCongNgoai, GiaCongNgoai.id == cap.c.gcn_id)
+                .outerjoin(BaiGhep, BaiGhep.id == GiaCongNgoai.bai_ghep_id)
+                .order_by(GiaCongNgoai.id)
+            )
+        ]
 
     def cua_bai_ghep(self, bai_ghep_id: int) -> list[GiaCongNgoai]:
         """Lần của bước CHUNG bài ghép (spec 2026-09-27)."""
@@ -245,10 +273,11 @@ class GiaCongNgoaiRepository:
             select(Lsx.id, Lsx.ma).where(Lsx.id.in_(ids)))}
 
     # --- Chứng từ sau chốt (Task 8: kho / giao thẳng) -----------------------------------------
-    def _yeu_cau_cua(self, gcn_id: int, loai: str) -> list[StockRequest]:
+    def _yeu_cau_cua(self, gcn_id: int, loai: str,
+                     bo: tuple[str, ...] = (REQ_CANCELLED,)) -> list[StockRequest]:
         return list(self.db.scalars(select(StockRequest).where(
             StockRequest.gia_cong_ngoai_id == gcn_id, StockRequest.loai == loai,
-            StockRequest.trang_thai != REQ_CANCELLED).order_by(StockRequest.id)))
+            StockRequest.trang_thai.not_in(bo)).order_by(StockRequest.id)))
 
     def yeu_cau_nhap_cua(self, gcn_id: int) -> list[StockRequest]:
         """Đề nghị NHẬP thành phẩm do lần chốt về kho đẻ ra (còn sống)."""
@@ -256,8 +285,20 @@ class GiaCongNgoaiRepository:
 
     def yeu_cau_xuat_cua(self, gcn_id: int) -> list[StockRequest]:
         """Đề nghị XUẤT giấy cấp cho nhà gia công trọn gói (Task 9) — còn sống. Tách loại để mở
-        lại số chốt không đụng nhầm phiếu giấy đã xuất."""
-        return self._yeu_cau_cua(gcn_id, REQ_XUAT)
+        lại số chốt không đụng nhầm phiếu giấy đã xuất. Kho TỪ CHỐI cũng tính là hết sống: người kế
+        hoạch phải chọn lại khổ / số tờ và gửi đề nghị khác."""
+        return self._yeu_cau_cua(gcn_id, REQ_XUAT, (REQ_CANCELLED, REQ_REJECTED))
+
+    def co_yeu_cau_xuat(self, gcn_ids) -> set[int]:
+        """Lần nào (trong tập) đã có đề nghị xuất giấy còn sống — MỘT câu cho cả trang bảng lệnh
+        (chip "Chờ cấp giấy"). Đi chỉ mục `ix_stock_requests_gia_cong_ngoai_id`."""
+        ids = sorted({int(i) for i in gcn_ids if i})
+        if not ids:
+            return set()
+        return {int(i) for (i,) in self.db.execute(
+            select(StockRequest.gia_cong_ngoai_id).where(
+                StockRequest.gia_cong_ngoai_id.in_(ids), StockRequest.loai == REQ_XUAT,
+                StockRequest.trang_thai.not_in((REQ_CANCELLED, REQ_REJECTED))).distinct())}
 
     def chuyen_giao_thang_cua(self, gcn_id: int) -> list[DeliveryTrip]:
         return list(self.db.scalars(select(DeliveryTrip).where(
@@ -273,6 +314,31 @@ class GiaCongNgoaiRepository:
             select(GiaCongNgoai.lsx_id, GiaCongNgoai.xuong_cap_giay).where(
                 GiaCongNgoai.lsx_id.in_(ids), GiaCongNgoai.kieu == KIEU_TRON_GOI,
                 GiaCongNgoai.huy_luc.is_(None)))}
+
+    def tron_goi_cua_lenh(self, lsx_ids) -> dict[int, GiaCongNgoai]:
+        """`{lsx_id: lần}` TRỌN GÓI chưa huỷ của các lệnh — MỘT câu (bảng cân đối vật tư)."""
+        ids = [int(i) for i in lsx_ids if i]
+        if not ids:
+            return {}
+        return {g.lsx_id: g for g in self.db.scalars(select(GiaCongNgoai).where(
+            GiaCongNgoai.lsx_id.in_(ids), GiaCongNgoai.kieu == KIEU_TRON_GOI,
+            GiaCongNgoai.huy_luc.is_(None)))}
+
+    def dong_xuat_giay_cua_lan(self, gcn_ids) -> dict[int, list[StockRequestLine]]:
+        """`{gcn_id: [dòng giấy]}` của đề nghị xuất giấy còn sống — MỘT câu cho mọi lần."""
+        ids = [int(i) for i in gcn_ids if i]
+        if not ids:
+            return {}
+        out: dict[int, list[StockRequestLine]] = {}
+        for gcn_id, ln in self.db.execute(
+            select(StockRequest.gia_cong_ngoai_id, StockRequestLine)
+            .join(StockRequestLine, StockRequestLine.request_id == StockRequest.id)
+            .where(StockRequest.gia_cong_ngoai_id.in_(ids), StockRequest.loai == REQ_XUAT,
+                   StockRequest.trang_thai.not_in((REQ_CANCELLED, REQ_REJECTED)),
+                   StockRequestLine.hang_loai == HANG_GIAY)
+            .order_by(StockRequestLine.id)):
+            out.setdefault(int(gcn_id), []).append(ln)
+        return out
 
     def giay_cua_lenh(self, lsx_id: int) -> list[LsxCongDoanVatTu]:
         """Dòng GIẤY khai ở các bước của lệnh — nguồn đề nghị xuất giấy cho nhà gia công."""

@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Công nợ phải thu — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07; --charcoal:#0f172a;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+  --amber:#9c7714; --amber-soft:#efe4c4; --amber-deep:#7a5c0f;
+  --signal:#8a1f1f; --signal-soft:#efd5d5;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1000px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--ash);margin:0 0 20px;max-width:860px}
+.lead ol{margin:6px 0 0;padding-left:20px}
+.lead li{margin:2px 0}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:32px;position:sticky;top:12px;z-index:20;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--ash);padding:6px 16px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}
+.opt.on{display:block}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.why{color:var(--ash);margin:0 0 18px;max-width:880px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+.cap{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ash-2);margin:28px 0 10px}
+
+.muted{color:var(--ash-2)}
+.num{font-variant-numeric:tabular-nums}
+.r{text-align:right}
+.do{color:var(--signal)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash)}
+.btn--sm{height:30px;padding:0 10px;font-size:12.5px}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:12px;color:var(--ash);font-weight:500;white-space:nowrap}
+.tag--do{background:var(--signal-soft);border-color:transparent;color:var(--signal)}
+.tag--amber{background:var(--amber-soft);border-color:transparent;color:var(--amber-deep)}
+.tag--moss{background:var(--moss-soft);border-color:transparent;color:var(--moss-deep)}
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+.in{width:100%;height:38px;border:1px solid var(--rule);border-radius:8px;padding:0 12px;background:var(--canvas)}
+.in:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px var(--rule-hair)}
+textarea.in{height:60px;padding:8px 12px;resize:vertical}
+.lb{display:block;font-size:13px;font-weight:500;color:var(--ash);margin-bottom:6px}
+.lb i{font-style:normal;color:var(--rust);margin-left:2px}
+.goi{font-size:12px;color:var(--ash-2);margin-top:5px}
+.vach{display:block;height:6px;border-radius:6px;background:var(--rule-hair);overflow:hidden}
+.vach i{display:block;height:100%;background:var(--ash-2);border-radius:6px}
+.vach--vuot i{background:var(--signal)}
+
+/* ---------- Khung trang danh sách ---------- */
+.card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.tool{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--canvas)}
+.seg span{padding:7px 12px;font-size:13px;font-weight:500;color:var(--ash);border-right:1px solid var(--rule-soft)}
+.seg span:last-child{border-right:0}
+.seg span.on{background:var(--charcoal);color:#fff}
+.seg b{font-weight:600;margin-left:6px;opacity:.75}
+.tim{flex:1 1 240px;height:36px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);display:flex;align-items:center;padding:0 12px;color:var(--ash-3);font-size:13px}
+.ky{height:36px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);display:flex;align-items:center;gap:8px;padding:0 12px;font-size:13px;font-weight:600}
+.ky small{font-weight:400;color:var(--ash-2);font-size:12px}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ash);text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--rule-hair);vertical-align:top;font-size:13.5px}
+tbody tr.dong{cursor:pointer}
+tbody tr.dong:hover{background:var(--rule-hair)}
+tbody tr:last-child td{border-bottom:0}
+.ten{font-weight:600;line-height:1.35}
+.sub{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px;font-size:12px;color:var(--ash-2)}
+.tien{font-weight:600}
+td.r .sub,.c-so .sub{white-space:nowrap}
+.chan{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--rule-soft);font-size:12.5px;color:var(--ash)}
+
+/* ---------- Ngăn ---------- */
+.stage{position:relative;background:rgba(15,23,42,.24);border-radius:14px;padding:0 0 0 40px;overflow:hidden}
+.ngan{background:var(--canvas);width:100%;max-width:920px;margin-left:auto;display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(15,23,42,.12);min-height:620px;position:relative}
+.nd{padding:14px 24px 0}
+.nd1{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ash-2);min-height:30px}
+.nd1 .ic{margin-left:auto;display:flex;gap:4px}
+.nd1 .ic span{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;color:var(--ash-2)}
+.nt{display:flex;align-items:center;gap:12px;margin-top:4px;flex-wrap:wrap}
+.nt h3{margin:0;font-size:20px;font-weight:700}
+.nt .btn{margin-left:auto}
+.su{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px;padding:12px 16px;background:var(--paper);border:1px solid var(--rule-soft);border-radius:10px}
+.su div{display:grid;gap:2px;align-content:start;min-width:0}
+.su span{font-size:12px;color:var(--ash-2)}
+.su b{font-weight:500;font-size:13.5px}
+.su b.lon{font-size:17px;font-weight:700}
+.su .vach{margin-top:4px;max-width:180px}
+.tabs{display:flex;gap:4px;margin-top:14px;padding-bottom:12px;border-bottom:1px solid var(--rule-soft)}
+.tabs span{height:32px;padding:0 12px;border-radius:7px;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--ash);cursor:pointer}
+.tabs span:hover{background:var(--rule-hair)}
+.tabs span.on{background:var(--charcoal);color:#fff}
+.tabs em{font-style:normal;font-size:11.5px;font-weight:600;background:var(--rule-hair);color:var(--ash);border-radius:999px;padding:0 7px;line-height:18px}
+.tabs span.on em{background:rgba(255,255,255,.18);color:#fff}
+.nb{flex:1;padding:16px 24px 24px;overflow:auto}
+.nf{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--rule-soft);background:var(--canvas)}
+.nf .xt{margin-right:auto;font-size:13px;color:var(--ash)}
+.nf .xt b{color:var(--ink)}
+.bang{border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.bang td,.bang th{padding:10px 12px}
+.bang td{font-size:13px}
+
+/* thẻ chọn hình thức */
+.the2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.thech{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:center;cursor:pointer;background:var(--canvas)}
+.thech:hover{background:var(--rule-hair)}
+.thech.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.thech .o{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--rule-hair);color:var(--ash);flex:none}
+.thech.on .o{background:var(--ink);color:#fff}
+.thech b{display:block;font-size:13.5px}
+.thech small{display:block;font-size:12px;color:var(--ash-2)}
+.segf{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;height:38px}
+.segf span{display:flex;align-items:center;padding:0 14px;font-size:13px;font-weight:500;color:var(--ash);cursor:pointer;border-right:1px solid var(--rule-soft)}
+.segf span:last-child{border-right:0}
+.segf span.on{background:var(--charcoal);color:#fff}
+.tienlon{position:relative}
+.tienlon input{height:52px;font-size:24px;font-weight:700;padding-right:36px}
+.tienlon::after{content:"đ";position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--ash-2);font-size:16px;font-weight:600}
+.luoi{display:grid;gap:16px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ghi{font-size:12.5px;color:var(--ash);background:var(--paper);border:1px solid var(--rule-soft);border-radius:8px;padding:10px 12px}
+
+/* ===== A — ngăn chồng ===== */
+.a-stage{min-height:700px}
+.a-duoi{position:absolute;right:0;top:0;bottom:0;width:calc(100% - 40px);max-width:920px;background:var(--canvas);filter:brightness(.92);border-left:1px solid var(--rule-soft)}
+.a-duoi .nd{opacity:.55}
+.a-tren{position:absolute;right:0;top:0;bottom:0;width:calc(100% - 64px);max-width:896px;background:var(--canvas);display:flex;flex-direction:column;box-shadow:-10px 0 34px rgba(15,23,42,.18)}
+.a-amt{padding:6px 0 18px;border-bottom:1px solid var(--rule-soft);margin-bottom:18px}
+.a-dong{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--rule-soft)}
+.a-dong:last-child{border-bottom:0}
+.a-dong b{font-weight:600}
+.a-cot{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:28px}
+.a-ben{border:1px solid var(--rule-soft);border-radius:10px;padding:14px 16px;align-self:start}
+.a-ben h4{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-2)}
+
+/* ===== B — dải thu ở chân ngăn ===== */
+.b-chon{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--rule);display:inline-grid;place-items:center;vertical-align:middle}
+.b-chon.on{border-color:var(--ink)}
+.b-chon.on::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--ink)}
+tr.b-dang td{background:var(--rule-hair)}
+.b-sheet{border-top:1px solid var(--rule-soft);box-shadow:0 -10px 24px rgba(15,23,42,.08);background:var(--canvas);padding:14px 24px 16px}
+.b-sh1{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.b-sh1 h4{margin:0;font-size:15px}
+.b-sh1 .x{margin-left:auto;color:var(--ash-2);cursor:pointer;font-size:18px;line-height:1}
+.b-hang{display:grid;grid-template-columns:minmax(0,1.3fr) 170px auto;gap:14px;align-items:start}
+.b-hang .in:not(.tienlon .in),.c-h1 .in:not(.tienlon .in){height:52px}
+.b-hang .segf,.c-h1 .segf{height:52px}
+.b-them{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:13px;color:var(--ash)}
+.b-them .tag{cursor:pointer}
+.b-cuoi{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--rule-hair)}
+.b-cuoi .xt{margin-right:auto;font-size:13px;color:var(--ash)}
+.b-cuoi .xt b{color:var(--ink)}
+.b-tuoi td.num{white-space:nowrap}
+
+/* ===== C — dòng mở phẳng ===== */
+tr.c-mo td{background:var(--paper);border-bottom:1px solid var(--rule-soft)}
+.c-form{padding:6px 2px 4px}
+.c-h1{display:grid;grid-template-columns:minmax(0,1.2fr) 160px auto;gap:14px;align-items:start}
+.c-h2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.c-nut{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;align-items:center}
+.c-nut .xt{margin-right:auto;font-size:13px;color:var(--ash)}
+.c-nut .xt b{color:var(--ink)}
+.c-the{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 24px;padding:14px 16px;border-bottom:1px solid var(--rule-hair);cursor:pointer}
+.c-the:hover{background:var(--rule-hair)}
+.c-the:last-child{border-bottom:0}
+.c-so{text-align:right}
+.c-so .tien{font-size:16px}
+.c-meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--ash);grid-column:1 / -1;align-items:center}
+.c-meta span b{color:var(--ink);font-weight:500}
+
+@media (max-width:700px){
+  .su{grid-template-columns:1fr 1fr}
+  .a-cot,.g2,.b-hang,.c-h1,.c-h2{grid-template-columns:1fr}
+  .stage{padding-left:0}
+  .a-tren,.a-duoi{width:100%}
+  .an-dt{display:none}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Công nợ phải thu — 3 phương án</h1>
+  <div class="lead">
+    Dòng <b>Cao Lợi Hưng</b> là số thật trên DB dev (hoá đơn ký hiệu 123 số 123, đơn DH001). Ba dòng khách còn lại là
+    <b>số minh hoạ</b>, chỉ để thấy bảng khi có nhiều khách. Cả ba phương án cùng chữa 6 chỗ dở ở bản hiện tại:
+    <ol>
+      <li>Tên khách bị cắt "…" dù bảng còn thừa chỗ ⇒ tên đầy đủ, xuống dòng khi dài.</li>
+      <li>"8,5 trên 100 triệu" khó đọc ⇒ nói thẳng phần trăm hạn mức đã dùng.</li>
+      <li>Hai tầng lọc chồng nhau trong ngăn (tab rồi lại "Tất cả / Quá hạn") ⇒ còn một hàng tab.</li>
+      <li>Khung thu lồng 4 lớp hộp, nút "Lập phiếu thu" khuất dưới đáy ⇒ nút luôn nhìn thấy.</li>
+      <li>"123 123" không nhãn ⇒ tách Số hoá đơn và Ký hiệu.</li>
+      <li>Nhãn "Người nộp", "Nội dung thu" lệch mẫu 01-TT ⇒ "Người nộp tiền", "Lý do nộp".</li>
+    </ol>
+  </div>
+
+  <div class="switch" role="tablist">
+    <button class="on" data-o="a">A — Stripe</button>
+    <button data-o="b">B — QuickBooks</button>
+    <button data-o="c">C — Xero</button>
+  </div>
+
+  <!-- ===================================================== A ===================================================== -->
+  <section class="opt on" id="o-a">
+    <div class="opt-head"><h2>A. Ngăn chồng để thu tiền</h2><span class="src">Khuôn Stripe Dashboard: Customer → Invoice → Record payment</span></div>
+    <div class="why">
+      <b>Ý chính:</b> bấm "Thu tiền" mở một <b>ngăn chồng</b> cùng độ rộng 920px đè lên ngăn khách (kiểu Stripe mở "Record payment"),
+      chân ngăn cố định nên nút "Lập phiếu thu" luôn ở đó. Form có chỗ rộng, bên phải có cột đối chiếu hoá đơn đang thu.
+      <ul>
+        <li>Hợp khi: thu tiền là việc chính, cần gõ đủ người nộp tiền, lý do nộp, tài khoản nhận.</li>
+        <li>Đổi lại: lúc thu thì bảng hoá đơn bị che, muốn xem hoá đơn khác phải đóng ngăn chồng.</li>
+        <li>Danh sách: bỏ cột "Quá hạn" riêng, số quá hạn hiện ngay dưới số còn nợ (chỉ khi có). Bảng còn 5 cột nên tên đủ chỗ.</li>
+      </ul>
+    </div>
+
+    <div class="cap">Danh sách</div>
+    <div class="tool">
+      <div class="seg"><span class="on">Tất cả<b>4</b></span><span>Quá hạn<b>2</b></span><span>Vượt hạn mức<b>1</b></span></div>
+      <div class="tim">Tìm khách hàng, kể cả khách đã thu hết</div>
+      <div class="ky">Tháng này <small>theo ngày chứng từ</small></div>
+      <button class="btn">Lọc</button>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Khách hàng</th><th class="r">Còn nợ</th><th>Hạn thu gần nhất</th><th class="r an-dt">Đã thu trong kỳ</th><th style="width:190px">Hạn mức</th></tr></thead>
+        <tbody>
+          <tr class="dong" onclick="moA()">
+            <td><div class="ten">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</div><div class="sub"><span class="tag">KH006</span><span>1 hoá đơn</span></div></td>
+            <td class="r num"><span class="tien">8.460.973</span></td>
+            <td class="num">05/11/2026<div class="sub">còn 30 ngày</div></td>
+            <td class="r num muted an-dt">—</td>
+            <td><div class="num" style="font-size:13px">Đã dùng 8%</div><span class="vach" style="margin-top:6px"><i style="width:8%"></i></span><div class="sub">hạn mức 100 triệu</div></td>
+          </tr>
+          <tr class="dong">
+            <td><div class="ten">CÔNG TY CỔ PHẦN PHÚC LONG HERITAGE</div><div class="sub"><span class="tag">KH004</span><span>4 hoá đơn</span><span class="tag tag--do">Vượt hạn mức</span></div></td>
+            <td class="r num"><span class="tien">61.200.000</span><div class="sub do" style="justify-content:flex-end">quá hạn 12.000.000</div></td>
+            <td class="num">02/09/2026<div class="sub do">trễ 34 ngày</div></td>
+            <td class="r num an-dt">15.000.000</td>
+            <td><div class="num do" style="font-size:13px">Đã dùng 102%</div><span class="vach vach--vuot" style="margin-top:6px"><i style="width:100%"></i></span><div class="sub">hạn mức 60 triệu</div></td>
+          </tr>
+          <tr class="dong">
+            <td><div class="ten">CÔNG TY CỔ PHẦN BIBICA</div><div class="sub"><span class="tag">KH002</span><span>3 hoá đơn</span></div></td>
+            <td class="r num"><span class="tien">24.490.000</span><div class="sub do" style="justify-content:flex-end">quá hạn 6.200.000</div></td>
+            <td class="num">28/09/2026<div class="sub do">trễ 8 ngày</div></td>
+            <td class="r num an-dt">10.000.000</td>
+            <td><div class="num" style="font-size:13px">Đã dùng 49%</div><span class="vach" style="margin-top:6px"><i style="width:49%"></i></span><div class="sub">hạn mức 50 triệu</div></td>
+          </tr>
+          <tr class="dong">
+            <td><div class="ten">CÔNG TY CỔ PHẦN CAFÉ KATINAT</div><div class="sub"><span class="tag">KH005</span><span>1 hoá đơn</span></div></td>
+            <td class="r num"><span class="tien">4.730.000</span></td>
+            <td class="num">20/10/2026<div class="sub">còn 14 ngày</div></td>
+            <td class="r num muted an-dt">—</td>
+            <td class="muted" style="font-size:13px">Chưa đặt hạn mức</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="chan"><span>Trang 1/1</span><span>4 khách hàng</span></div>
+    </div>
+
+    <div class="cap">Ngăn khách → bấm "Thu tiền" (ngăn chồng)</div>
+    <div class="stage a-stage">
+      <div class="a-duoi">
+        <div class="nd">
+          <div class="nd1">Công nợ phải thu <span>›</span> Khách hàng</div>
+          <div class="nt"><h3>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</h3></div>
+        </div>
+      </div>
+      <div class="a-tren">
+        <div class="nd" style="padding-bottom:14px;border-bottom:1px solid var(--rule-soft)">
+          <div class="nd1">Cao Lợi Hưng <span>›</span> Hoá đơn 123<span class="ic"><span>✕</span></span></div>
+          <div class="nt"><h3>Thu tiền hoá đơn 123</h3><span class="tag">Còn phải thu 8.460.973 đ</span></div>
+        </div>
+        <div class="nb">
+          <div class="a-cot">
+            <div class="luoi">
+              <div>
+                <label class="lb">Số tiền thu<i>*</i></label>
+                <div class="tienlon"><input class="in num" value="8.460.973"></div>
+                <div class="goi"><span class="lk">Thu đủ</span></div>
+              </div>
+              <div class="g2">
+                <div><label class="lb">Ngày thu<i>*</i></label><input class="in" value="06/10/2026"><div class="goi">Từ 06/10/2026 tới hôm nay</div></div>
+                <div></div>
+              </div>
+              <div>
+                <label class="lb">Hình thức</label>
+                <div class="the2">
+                  <div class="thech on"><span class="o">₫</span><div><b>Tiền mặt</b><small>Thủ quỹ nhận rồi in phiếu thu</small></div></div>
+                  <div class="thech"><span class="o">⌂</span><div><b>Chuyển khoản</b><small>Cần tài khoản nhận và mã giao dịch</small></div></div>
+                </div>
+              </div>
+              <div class="g2">
+                <div><label class="lb">Người nộp tiền</label><input class="in" value="Nguyễn Thanh Vy"><div class="goi">Lấy từ liên hệ chính của khách</div></div>
+                <div><label class="lb">Lý do nộp</label><input class="in" value="Thu tiền hoá đơn 123"></div>
+              </div>
+              <div><label class="lb">Ghi chú nội bộ</label><textarea class="in" placeholder="Không in lên phiếu"></textarea></div>
+            </div>
+            <aside class="a-ben">
+              <h4>Hoá đơn đang thu</h4>
+              <div class="a-dong"><span class="muted">Số hoá đơn</span><b>123</b></div>
+              <div class="a-dong"><span class="muted">Ký hiệu</span><b>123</b></div>
+              <div class="a-dong"><span class="muted">Ngày hoá đơn</span><b>06/10/2026</b></div>
+              <div class="a-dong"><span class="muted">Đơn hàng</span><span class="lk">DH001</span></div>
+              <div class="a-dong"><span class="muted">Hạn thu</span><b>05/11/2026</b></div>
+              <div class="a-dong"><span class="muted">Giá trị</span><b class="num">8.460.973</b></div>
+              <div class="a-dong"><span class="muted">Đã thu</span><b class="num">0</b></div>
+            </aside>
+          </div>
+        </div>
+        <div class="nf">
+          <span class="xt">Sau khi lập, hoá đơn còn nợ <b>0 đ</b></span>
+          <button class="btn btn--txt">Đóng</button>
+          <button class="btn btn--pri">Lập phiếu thu</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cap">Ngăn khách (trước khi bấm "Thu tiền")</div>
+    <div class="stage">
+      <div class="ngan" style="min-height:0">
+        <div class="nd">
+          <div class="nd1">Công nợ phải thu <span>›</span> Khách hàng<span class="ic"><span>↑</span><span>↓</span><span>⤢</span><span>✕</span></span></div>
+          <div class="nt"><h3>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</h3><button class="btn btn--sm">↗ Hồ sơ khách hàng</button></div>
+          <div class="su">
+            <div><span>Còn nợ</span><b class="lon num">8.460.973 đ</b></div>
+            <div><span>Quá hạn</span><b>—</b></div>
+            <div><span>Hạn mức</span><b class="num">100.000.000 đ</b><span>Còn được nợ 91.539.027</span><span class="vach"><i style="width:8%"></i></span></div>
+            <div><span>Cho nợ</span><b>30 ngày sau hoá đơn</b></div>
+          </div>
+          <div class="tabs"><span class="on">Còn nợ <em>1</em></span><span>Quá hạn <em>0</em></span><span>Đã thu <em>0</em></span><span>Lịch sử</span></div>
+        </div>
+        <div class="nb">
+          <div class="bang">
+            <table>
+              <thead><tr><th>Số hoá đơn</th><th>Ngày HĐ</th><th>Hạn thu</th><th class="r">Giá trị</th><th class="r">Đã thu</th><th class="r">Còn nợ</th><th></th></tr></thead>
+              <tbody><tr>
+                <td><b>123</b><div class="sub"><span>Ký hiệu 123</span><span class="tag lk">DH001</span></div></td>
+                <td class="num">06/10/2026</td>
+                <td class="num">05/11/2026<div class="sub">còn 30 ngày</div></td>
+                <td class="r num">8.460.973</td>
+                <td class="r num muted">—</td>
+                <td class="r num"><b>8.460.973</b></td>
+                <td class="r"><button class="btn btn--sm" onclick="moA()">Thu tiền</button></td>
+              </tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== B ===================================================== -->
+  <section class="opt" id="o-b">
+    <div class="opt-head"><h2>B. Chọn hoá đơn, thu ở dải chân ngăn</h2><span class="src">Khuôn QuickBooks Online: Receive payment + A/R Aging theo khách</span></div>
+    <div class="why">
+      <b>Ý chính:</b> trong ngăn, bấm chọn một hoá đơn thì <b>dải thu tiền trồi lên ở chân ngăn</b> (kiểu QuickBooks "Receive payment"),
+      bảng hoá đơn vẫn nhìn thấy phía trên. Dải gồm đúng ba ô bắt buộc trên một hàng: số tiền, ngày thu, hình thức. Người nộp tiền và lý do nộp
+      tự điền sẵn, bấm thẻ mới mở ra sửa.
+      <ul>
+        <li>Hợp khi: kế toán thu nhanh nhiều hoá đơn liên tiếp, cần vừa nhìn hoá đơn vừa gõ.</li>
+        <li>Đổi lại: màn thấp (laptop 768px) thì dải chiếm gần nửa ngăn.</li>
+        <li>Danh sách: chia số còn nợ của từng khách theo <b>tuổi nợ</b> (Chưa tới hạn, Trễ 1–30, Trễ 31–60, Trễ trên 60) như báo cáo A/R Aging,
+          nhìn một dòng biết ngay khách nào đáng gọi. Mốc gộp lại 4 cột cho vừa bảng, còn băng tuổi nợ trên đầu trang vẫn giữ 6 mốc chi tiết.</li>
+        <li>Thu một lần cho nhiều hoá đơn (QuickBooks có) cần sửa máy chủ, bản này chỉ chọn một hoá đơn.</li>
+      </ul>
+    </div>
+
+    <div class="cap">Danh sách</div>
+    <div class="tool">
+      <div class="seg"><span class="on">Tất cả<b>4</b></span><span>Quá hạn<b>2</b></span><span>Vượt hạn mức<b>1</b></span></div>
+      <div class="tim">Tìm khách hàng, kể cả khách đã thu hết</div>
+      <div class="ky">Tháng này <small>theo ngày chứng từ</small></div>
+      <button class="btn">Lọc</button>
+    </div>
+    <div class="card">
+      <table class="b-tuoi">
+        <thead><tr><th>Khách hàng</th><th class="r">Còn nợ</th><th class="r an-dt">Chưa tới hạn</th><th class="r">Trễ 1–30</th><th class="r">Trễ 31–60</th><th class="r an-dt">Trễ trên 60</th><th class="r">Hạn mức đã dùng</th></tr></thead>
+        <tbody>
+          <tr class="dong">
+            <td><div class="ten">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</div><div class="sub"><span class="tag">KH006</span><span>1 hoá đơn</span><span>hạn gần nhất 05/11/2026</span></div></td>
+            <td class="r num"><span class="tien">8.460.973</span></td>
+            <td class="r num an-dt">8.460.973</td>
+            <td class="r muted">—</td><td class="r muted">—</td><td class="r muted an-dt">—</td>
+            <td class="r num">8%</td>
+          </tr>
+          <tr class="dong">
+            <td><div class="ten">CÔNG TY CỔ PHẦN PHÚC LONG HERITAGE</div><div class="sub"><span class="tag">KH004</span><span>4 hoá đơn</span><span class="tag tag--do">Vượt hạn mức</span></div></td>
+            <td class="r num"><span class="tien">61.200.000</span></td>
+            <td class="r num an-dt">49.200.000</td>
+            <td class="r muted">—</td><td class="r num do">12.000.000</td><td class="r muted an-dt">—</td>
+            <td class="r num do">102%</td>
+          </tr>
+          <tr class="dong">
+            <td><div class="ten">CÔNG TY CỔ PHẦN BIBICA</div><div class="sub"><span class="tag">KH002</span><span>3 hoá đơn</span></div></td>
+            <td class="r num"><span class="tien">24.490.000</span></td>
+            <td class="r num an-dt">18.290.000</td>
+            <td class="r num do">6.200.000</td><td class="r muted">—</td><td class="r muted an-dt">—</td>
+            <td class="r num">49%</td>
+          </tr>
+          <tr class="dong">
+            <td><div class="ten">CÔNG TY CỔ PHẦN CAFÉ KATINAT</div><div class="sub"><span class="tag">KH005</span><span>1 hoá đơn</span></div></td>
+            <td class="r num"><span class="tien">4.730.000</span></td>
+            <td class="r num an-dt">4.730.000</td>
+            <td class="r muted">—</td><td class="r muted">—</td><td class="r muted an-dt">—</td>
+            <td class="r muted">Chưa đặt</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="chan"><span>Trang 1/1</span><span>4 khách hàng</span></div>
+    </div>
+
+    <div class="cap">Ngăn khách → chọn hoá đơn 123 (dải thu ở chân)</div>
+    <div class="stage">
+      <div class="ngan" style="min-height:660px">
+        <div class="nd">
+          <div class="nd1">Công nợ phải thu <span>›</span> Khách hàng<span class="ic"><span>↑</span><span>↓</span><span>⤢</span><span>✕</span></span></div>
+          <div class="nt"><h3>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</h3><button class="btn btn--sm">↗ Hồ sơ khách hàng</button></div>
+          <div class="su">
+            <div><span>Còn nợ</span><b class="lon num">8.460.973 đ</b></div>
+            <div><span>Quá hạn</span><b>—</b></div>
+            <div><span>Hạn mức</span><b class="num">100.000.000 đ</b><span>Còn được nợ 91.539.027</span><span class="vach"><i style="width:8%"></i></span></div>
+            <div><span>Cho nợ</span><b>30 ngày sau hoá đơn</b></div>
+          </div>
+          <div class="tabs"><span class="on">Còn nợ <em>1</em></span><span>Quá hạn <em>0</em></span><span>Đã thu <em>0</em></span><span>Lịch sử</span></div>
+        </div>
+        <div class="nb">
+          <div class="bang">
+            <table>
+              <thead><tr><th style="width:36px"></th><th>Số hoá đơn</th><th>Ngày HĐ</th><th>Hạn thu</th><th class="r">Giá trị</th><th class="r">Đã thu</th><th class="r">Còn nợ</th></tr></thead>
+              <tbody><tr class="dong b-dang" onclick="toggleB()">
+                <td><span class="b-chon on" id="b-radio"></span></td>
+                <td><b>123</b><div class="sub"><span>Ký hiệu 123</span><span class="tag lk">DH001</span></div></td>
+                <td class="num">06/10/2026</td>
+                <td class="num">05/11/2026<div class="sub">còn 30 ngày</div></td>
+                <td class="r num">8.460.973</td>
+                <td class="r num muted">—</td>
+                <td class="r num"><b>8.460.973</b></td>
+              </tr></tbody>
+            </table>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin:10px 2px 0">Bấm vào dòng hoá đơn để chọn hoặc bỏ chọn.</p>
+        </div>
+        <div class="b-sheet" id="b-sheet">
+          <div class="b-sh1"><h4>Thu hoá đơn 123</h4><span class="tag">Còn phải thu 8.460.973 đ</span><span class="x" onclick="toggleB()">✕</span></div>
+          <div class="b-hang">
+            <div><label class="lb">Số tiền thu<i>*</i></label><div class="tienlon"><input class="in num" value="8.460.973"></div><div class="goi"><span class="lk">Thu đủ</span></div></div>
+            <div><label class="lb">Ngày thu<i>*</i></label><input class="in" value="06/10/2026"><div class="goi">Từ 06/10/2026</div></div>
+            <div><label class="lb">Hình thức</label><div class="segf"><span class="on">Tiền mặt</span><span>Chuyển khoản</span></div><div class="goi">&nbsp;</div></div>
+          </div>
+          <div class="b-them"><span>Đã điền sẵn:</span><span class="tag">Người nộp tiền <b style="margin-left:4px;color:var(--ink)">Nguyễn Thanh Vy</b></span><span class="tag">Lý do nộp <b style="margin-left:4px;color:var(--ink)">Thu tiền hoá đơn 123</b></span><span class="tag">+ Ghi chú nội bộ</span></div>
+          <div class="b-cuoi"><span class="xt">Sau khi lập, hoá đơn còn nợ <b>0 đ</b></span><button class="btn btn--txt" onclick="toggleB()">Bỏ chọn</button><button class="btn btn--pri">Lập phiếu thu</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== C ===================================================== -->
+  <section class="opt" id="o-c">
+    <div class="opt-head"><h2>C. Giữ thu ngay trong dòng, nhưng làm phẳng</h2><span class="src">Khuôn Xero: Invoices awaiting payment + Contacts list</span></div>
+    <div class="why">
+      <b>Ý chính:</b> giữ cách hiện tại (bấm "Thu tiền" thì dòng hoá đơn mở ra form ngay bên dưới) vì ít đổi thói quen nhất,
+      nhưng <b>bỏ hết hộp lồng hộp</b>: form nằm phẳng trên nền xám nhạt của chính dòng, hai hàng ô, nút ngay cuối form.
+      <ul>
+        <li>Hợp khi: muốn sửa ít, người dùng đã quen bấm "Thu tiền" ở từng dòng.</li>
+        <li>Đổi lại: hoá đơn nhiều thì form nằm giữa bảng, phải cuộn tìm.</li>
+        <li>Danh sách: dạng thẻ dòng kiểu Xero Contacts, tên đầy đủ trên một hàng riêng, số tiền to bên phải,
+          hàng dưới là các mẩu phụ tách bằng khoảng trống (hạn gần nhất, hạn mức, đã thu).</li>
+      </ul>
+    </div>
+
+    <div class="cap">Danh sách</div>
+    <div class="tool">
+      <div class="seg"><span class="on">Tất cả<b>4</b></span><span>Quá hạn<b>2</b></span><span>Vượt hạn mức<b>1</b></span></div>
+      <div class="tim">Tìm khách hàng, kể cả khách đã thu hết</div>
+      <div class="ky">Tháng này <small>theo ngày chứng từ</small></div>
+      <button class="btn">Lọc</button>
+    </div>
+    <div class="card">
+      <div class="c-the">
+        <div><div class="ten">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</div><div class="sub"><span class="tag">KH006</span><span>1 hoá đơn</span></div></div>
+        <div class="c-so num"><div class="tien">8.460.973</div><div class="sub" style="justify-content:flex-end">còn nợ</div></div>
+        <div class="c-meta"><span>Hạn gần nhất <b>05/11/2026</b></span><span class="tag">còn 30 ngày</span><span>Hạn mức đã dùng <b>8%</b></span><span>Đã thu trong kỳ <b>0</b></span></div>
+      </div>
+      <div class="c-the">
+        <div><div class="ten">CÔNG TY CỔ PHẦN PHÚC LONG HERITAGE</div><div class="sub"><span class="tag">KH004</span><span>4 hoá đơn</span><span class="tag tag--do">Vượt hạn mức</span></div></div>
+        <div class="c-so num"><div class="tien">61.200.000</div><div class="sub do" style="justify-content:flex-end">quá hạn 12.000.000</div></div>
+        <div class="c-meta"><span>Hạn gần nhất <b>02/09/2026</b></span><span class="tag tag--do">trễ 34 ngày</span><span>Hạn mức đã dùng <b class="do">102%</b></span><span>Đã thu trong kỳ <b>15.000.000</b></span></div>
+      </div>
+      <div class="c-the">
+        <div><div class="ten">CÔNG TY CỔ PHẦN BIBICA</div><div class="sub"><span class="tag">KH002</span><span>3 hoá đơn</span></div></div>
+        <div class="c-so num"><div class="tien">24.490.000</div><div class="sub do" style="justify-content:flex-end">quá hạn 6.200.000</div></div>
+        <div class="c-meta"><span>Hạn gần nhất <b>28/09/2026</b></span><span class="tag tag--amber">trễ 8 ngày</span><span>Hạn mức đã dùng <b>49%</b></span><span>Đã thu trong kỳ <b>10.000.000</b></span></div>
+      </div>
+      <div class="c-the">
+        <div><div class="ten">CÔNG TY CỔ PHẦN CAFÉ KATINAT</div><div class="sub"><span class="tag">KH005</span><span>1 hoá đơn</span></div></div>
+        <div class="c-so num"><div class="tien">4.730.000</div><div class="sub" style="justify-content:flex-end">còn nợ</div></div>
+        <div class="c-meta"><span>Hạn gần nhất <b>20/10/2026</b></span><span class="tag">còn 14 ngày</span><span>Chưa đặt hạn mức</span><span>Đã thu trong kỳ <b>0</b></span></div>
+      </div>
+      <div class="chan"><span>Trang 1/1</span><span>4 khách hàng</span></div>
+    </div>
+
+    <div class="cap">Ngăn khách → bấm "Thu tiền" (form mở phẳng trong dòng)</div>
+    <div class="stage">
+      <div class="ngan" style="min-height:0">
+        <div class="nd">
+          <div class="nd1">Công nợ phải thu <span>›</span> Khách hàng<span class="ic"><span>↑</span><span>↓</span><span>⤢</span><span>✕</span></span></div>
+          <div class="nt"><h3>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</h3><button class="btn btn--sm">↗ Hồ sơ khách hàng</button></div>
+          <div class="su">
+            <div><span>Còn nợ</span><b class="lon num">8.460.973 đ</b></div>
+            <div><span>Quá hạn</span><b>—</b></div>
+            <div><span>Hạn mức</span><b class="num">100.000.000 đ</b><span>Còn được nợ 91.539.027</span><span class="vach"><i style="width:8%"></i></span></div>
+            <div><span>Cho nợ</span><b>30 ngày sau hoá đơn</b></div>
+          </div>
+          <div class="tabs"><span class="on">Còn nợ <em>1</em></span><span>Quá hạn <em>0</em></span><span>Đã thu <em>0</em></span><span>Lịch sử</span></div>
+        </div>
+        <div class="nb">
+          <div class="bang">
+            <table>
+              <thead><tr><th>Số hoá đơn</th><th>Hạn thu</th><th class="r">Giá trị</th><th class="r">Đã thu</th><th class="r">Còn nợ</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><b>123</b><div class="sub"><span>Ký hiệu 123</span><span>06/10/2026</span><span class="tag lk">DH001</span></div></td>
+                  <td class="num">05/11/2026<div class="sub">còn 30 ngày</div></td>
+                  <td class="r num">8.460.973</td>
+                  <td class="r num muted">—</td>
+                  <td class="r num"><b>8.460.973</b></td>
+                  <td class="r"><button class="btn btn--sm" onclick="toggleC()">Thu tiền</button></td>
+                </tr>
+                <tr class="c-mo" id="c-mo"><td colspan="6">
+                  <div class="c-form">
+                    <div class="c-h1">
+                      <div><label class="lb">Số tiền thu<i>*</i></label><div class="tienlon"><input class="in num" value="8.460.973"></div><div class="goi"><span class="lk">Thu đủ</span></div></div>
+                      <div><label class="lb">Ngày thu<i>*</i></label><input class="in" value="06/10/2026"><div class="goi">Từ 06/10/2026</div></div>
+                      <div><label class="lb">Hình thức</label><div class="segf"><span class="on">Tiền mặt</span><span>Chuyển khoản</span></div><div class="goi">&nbsp;</div></div>
+                    </div>
+                    <div class="c-h2">
+                      <div><label class="lb">Người nộp tiền</label><input class="in" value="Nguyễn Thanh Vy"></div>
+                      <div><label class="lb">Lý do nộp</label><input class="in" value="Thu tiền hoá đơn 123"></div>
+                    </div>
+                    <div class="c-nut"><span class="xt">Sau khi lập, hoá đơn còn nợ <b>0 đ</b></span><button class="btn btn--txt" onclick="toggleC()">Đóng</button><button class="btn btn--pri">Lập phiếu thu</button></div>
+                  </div>
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+document.querySelectorAll('.switch button').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.switch button').forEach(function(x){x.classList.toggle('on',x===b)});
+    document.querySelectorAll('.opt').forEach(function(o){o.classList.toggle('on',o.id==='o-'+b.dataset.o)});
+  });
+});
+function moA(){document.querySelector('.a-stage').scrollIntoView({behavior:'smooth',block:'start'})}
+function toggleB(){
+  var s=document.getElementById('b-sheet'), r=document.getElementById('b-radio'), on=s.style.display!=='none';
+  s.style.display=on?'none':''; r.classList.toggle('on',!on); r.closest('tr').classList.toggle('b-dang',!on);
+}
+function toggleC(){var t=document.getElementById('c-mo');t.style.display=t.style.display==='none'?'':'none'}
+</script>
+</body>
+</html>

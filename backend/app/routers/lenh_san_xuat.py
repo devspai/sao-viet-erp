@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.user import User
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.lenh_san_xuat import LenhSxBoLocOut, LenhSxHoSoOut, LenhSxListOut
 from ..services.lenh_sx import danh_sach, ho_so, pham_vi, phieu_cong_nghe
 from ..services.rbac_service import AuthorizationService
@@ -45,6 +46,28 @@ def bo_loc(
     return danh_sach.bo_loc(db, sale_ids=sale_ids)
 
 
+@router.get("/khach-loc", response_model=list[LuaChonLoc])
+def khach_loc(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+):
+    """Ô "Khách hàng" của thanh lọc — khách của các lệnh trong phạm vi, kèm số lệnh."""
+    sale_ids = pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
+    return danh_sach.khach_loc(db, sale_ids=sale_ids)
+
+
+@router.get("/don-loc", response_model=list[LuaChonLoc])
+def don_loc(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+):
+    """Ô "Đơn hàng" của thanh lọc — đơn của các lệnh trong phạm vi, kèm số lệnh."""
+    sale_ids = pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
+    return danh_sach.don_loc(db, sale_ids=sale_ids)
+
+
 @router.get("", response_model=LenhSxListOut)
 def danh_sach_lenh(
     db: Annotated[Session, Depends(get_db)],
@@ -53,8 +76,15 @@ def danh_sach_lenh(
     tab: Tab | None = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
     khach_hang_id: int | None = None,
+    order_id: int | None = None,
+    gia_cong: Annotated[
+        str | None, Query(pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$")
+    ] = None,
+    # Dải kỳ (06/10/2026): khoảng ngày tính theo `moc` — ngày tạo lệnh (mặc định) / hạn SX / hạn
+    # giao khách. Khoảng hạn SX cũ (`tu_ngay`/`den_ngay` trần) nay là `moc=han_sx`.
     tu_ngay: date | None = None,
     den_ngay: date | None = None,
+    moc: Annotated[str, Query(pattern="^(tao|han_sx|han_giao)$")] = "tao",
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[
         int, Query(ge=1, le=danh_sach.PAGE_SIZE_TOI_DA)
@@ -70,6 +100,9 @@ def danh_sach_lenh(
         khach_hang_id=khach_hang_id,
         tu_ngay=tu_ngay,
         den_ngay=den_ngay,
+        moc=moc,
+        order_id=order_id,
+        gia_cong=gia_cong,
         page=page,
         page_size=page_size,
     )

@@ -7,7 +7,7 @@ import type { CatalogConfig, ChuanBiKhoanRow } from "./RebuildCatalogPage";
 import { ClockIcon, tongChuanBi } from "./RebuildCatalogPage";
 import { nhanDonViTocDo } from "./danh-muc/fields/DonViTocDo";
 import { nhanTramDai, tramOptions } from "./tenDonVi";
-import { NHOM_CONG_DOAN, ngay, ngayGio } from "./keHoachSxShared";
+import { NHOM_CONG_DOAN, ngayGio } from "./keHoachSxShared";
 import { QuyDoiCuaDonVi } from "./QuyDoiCuaDonVi";
 import { KhoViTriPanel } from "./KhoViTriPanel";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -249,12 +249,11 @@ export const CFG_MAY: CatalogConfig = {
       } },
   ],
   loadExtra: (token) => trangThaiMay(token),
-  // Lọc theo Nhóm máy — hàng tab lấy thẳng từ DANH MỤC nhóm máy (`/api/nhom-may`), đúng cái
-  // nguồn đổ ra mấy con chip trong drawer. Trước 22/08/2026 chỗ này liệt kê CỨNG 5 tên: nhóm chủ
-  // xưởng tự đặt chỉ hiện sau khi đã có máy thuộc về nó (tab sinh từ số đếm), còn 5 tên cứng thì
-  // treo mãi kể cả khi đã gỡ khỏi danh mục. `dynamic` vẫn giữ: máy cũ mang tên nhóm không còn
-  // trong danh mục vẫn phải có lối lọc tới, không được rơi khỏi hàng tab.
-  facet: { key: "loai_may", source: "/api/nhom-may", dynamic: true },
+  // Thanh lọc (06/10/2026): Nhóm máy — giá trị lấy thẳng từ DANH MỤC nhóm máy (`/api/nhom-may`),
+  // đúng nguồn đổ chip trong drawer, nên nhóm vừa khai mà chưa có máy vẫn chọn được (số 0). Máy cũ
+  // mang tên nhóm đã gỡ khỏi danh mục vẫn có lối lọc tới: máy chủ đếm được thì giá trị đó hiện thêm.
+  man: "may-thiet-bi",
+  dieuKien: [{ key: "loai_may", nhan: "Nhóm máy", icon: "nhom", nguon: "/api/nhom-may" }],
   // `nhanTabCongThuc` GỠ cùng ô "Cách đo lượng" (06/09/2026): màn Máy không còn ô công thức nào
   // nên tab công thức tự biến mất, giữ nhãn lại là nhãn của một tab không tồn tại.
   // Khai máy vẫn chia 3 tab theo việc: cuộn một mạch thì khối Lịch bảo trì nằm tít dưới đáy,
@@ -376,7 +375,14 @@ export const CFG_CONG_DOAN: CatalogConfig = {
   softDelete: true,
   // Drawer chỉ còn MỘT ô công thức (`cong_thuc_gia`) — ô "Công thức sản lượng ra" GỠ 18/09/2026
   // (mg `0324`). Ô còn lại tự khai `nhanTab` nên KHÔNG cần nhãn tab gộp `nhanTabCongThuc`.
-  facet: { key: "nhom", values: mapOpt(NHOM_CD) },
+  // Thanh lọc (06/10/2026): Giai đoạn · Tổ phụ trách (tên tổ do máy chủ gắn) · Cần khuôn.
+  man: "cong-doan",
+  dieuKien: [
+    { key: "nhom", nhan: "Giai đoạn", icon: "nhom", giaTri: mapOpt(NHOM_CD) },
+    { key: "to_id", nhan: "Tổ phụ trách", icon: "nguoi" },
+    { key: "can_khuon", nhan: "Cần khuôn", icon: "dung-cu",
+      giaTri: [{ value: "true", label: "Có cần khuôn" }, { value: "false", label: "Không cần khuôn" }] },
+  ],
   // Hai tab khai (18/09/2026): "Thông tin" gom mọi nhóm cũ, "Vật tư" là bảng vật tư + công thức
   // định mức của từng món (mg `0316`). Nhóm nào không liệt kê thì drawer tự dồn vào tab đầu.
   tabsKhai: [
@@ -546,6 +552,9 @@ export const CFG_GIAY: CatalogConfig = {
   prefix: "/api/vat-lieu-kho/giay",
   nhatKyLoai: "giay",
   softDelete: true,
+  // Thanh lọc (06/10/2026): Đơn vị giá — giá trị + tên đơn vị do máy chủ đếm/tra.
+  man: "giay",
+  dieuKien: [{ key: "don_vi_gia", nhan: "Đơn vị giá", icon: "don-vi" }],
   // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai
   // chỉ được phần dư — "Đang dùng ở" / "Cách tính tiền" từng bị ép còn vài chục px, chữ đè sang
   // cột bên. Cột KHÔNG khai (Ghi chú / cột cuối) ăn phần còn lại.
@@ -588,6 +597,8 @@ export const CFG_VAT_TU: CatalogConfig = {
   enableImport: true,
   prefix: "/api/vat-lieu-kho/vat-tu-in-an",
   nhatKyLoai: "vat_tu",
+  man: "vat-tu-in-an",
+  dieuKien: [{ key: "don_vi_gia", nhan: "Đơn vị giá", icon: "don-vi" }],
   // Hai tab công thức (giá · định mức) khai bằng `nhanTab` trên từng ô — xem `fields` bên dưới.
   // Xoá MỀM: nút "Xóa" hỏi server "còn ai dùng không" rồi tự chọn kết cục — chưa ai dùng thì
   // xoá hẳn, còn nơi dùng thì chỉ ngừng dùng. Mục đã ngừng xem lại ở công tắc trên dải lọc.
@@ -680,6 +691,9 @@ export const CFG_THANH_PHAM: CatalogConfig = {
   khongTaoTay: true,
   khongXoa: true,
   softDelete: true,
+  // Thanh lọc (06/10/2026): Khách đặt lần đầu (vết `customer_id`, tên do máy chủ gắn).
+  man: "thanh-pham",
+  dieuKien: [{ key: "khach_hang_id", nhan: "Khách đặt lần đầu", icon: "nguoi" }],
   columns: [
     // Ô CHỌN "Khách hàng" ĐÃ GỠ HẲN (chủ 21/08/2026: "khách hàng mình lưu làm gì, mình không
     // dùng tới — thành phẩm này là một cái tên hàng mới, nêu chưa khai để tái sử dụng, tránh
@@ -695,8 +709,7 @@ export const CFG_THANH_PHAM: CatalogConfig = {
     { key: "order_no", label: "Đơn đầu tiên", width: "11%", render: (r) => <MaDon r={r} ngan /> },
     { key: "customer_ten", label: "Khách đặt lần đầu", width: "16%",
       render: (r) => (r.customer_ten ? String(r.customer_ten) : "") },
-    { key: "created_at", label: "Ngày khai", width: "9%",
-      render: (r) => ngay(r.created_at as string | null) },
+    // Cột "Ngày khai" GỠ 06/10/2026: trang chung đã có cột "Ngày tạo" (cùng `created_at`).
     { key: "ghi_chu", label: "Ghi chú", width: "10%",
       render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
@@ -869,6 +882,8 @@ export const CFG_KHO_HANG: CatalogConfig = {
   prefix: "/api/kho",
   nhatKyLoai: "kho_hang",
   softDelete: true,
+  // Thanh lọc: kỳ Ngày tạo + Trạng thái (Đang dùng / Đã ngừng) — trang tự có, không khai thêm.
+  man: "khai-bao-kho",
   autoCode: true,          // mã KHO-#### sinh ngầm ở backend, ẩn ô nhập mã
   // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai
   // chỉ được phần dư — "Đang dùng ở" / "Cách tính tiền" từng bị ép còn vài chục px, chữ đè sang
@@ -930,17 +945,16 @@ export const CFG_KHUON_BE: CatalogConfig = {
   nhatKyLoai: "khuon_be",
   softDelete: true,
   autoCode: true,          // mã KB-#### sinh ngầm ở backend, ẩn ô nhập mã
-  // Chip theo LOẠI (chủ đổi 18/09/2026, trước đó chip theo tình trạng). Tình trạng + khách xuống
-  // bảng Lọc nâng cao — ba tiêu chí ghép VÀ, đều lọc ở máy chủ (`routers/khuon_be.py`: `loc` +
-  // `loc_them`). Đổi `key` ở đây là phải đổi cả tên tham số bên đó.
-  facet: { key: "loai", values: mapOpt(TOOLING_TYPE) },
-  locNangCao: [
-    // `size: 200` = trần của nền danh mục, cùng lý do với ô Khách hàng trong drawer bên dưới.
-    { key: "khach_hang_id", label: "Khách hàng", type: "ref-search", refPrefix: "/api/customers",
-      refParams: { size: 200 } },
-    { key: "tinh_trang", label: "Tình trạng", type: "select", options: mapOpt(TINH_TRANG_KHUON) },
-    // Khớp CHỨA ở máy chủ (`khuon_be_repo.extra_conds`): số kệ gõ tự do, người tìm chỉ nhớ "B3".
-    { key: "so_ke", label: "Số kệ", type: "text", placeholder: "Vd: B3" },
+  // Thanh lọc (06/10/2026) thay hàng chip LOẠI + bảng "Lọc nâng cao" cũ: Loại · Khách hàng ·
+  // Tình trạng · Số kệ, ghép VÀ, đều lọc + đếm ở máy chủ (`routers/khuon_be.py`: `loc` +
+  // `loc_them` + `dem_them`). Đổi `key` ở đây là phải đổi cả tên tham số bên đó. Số kệ nay CHỌN
+  // trong các số kệ đang có (máy chủ vẫn khớp CHỨA).
+  man: "khuon-be",
+  dieuKien: [
+    { key: "loai", nhan: "Loại", icon: "dung-cu", giaTri: mapOpt(TOOLING_TYPE), nhanGiaTri: LOAI_KHUON },
+    { key: "khach_hang_id", nhan: "Khách hàng", icon: "nguoi" },
+    { key: "tinh_trang", nhan: "Tình trạng", icon: "trang-thai", giaTri: mapOpt(TINH_TRANG_KHUON) },
+    { key: "so_ke", nhan: "Số kệ", icon: "vi-tri" },
   ],
   // Ô tìm quét cả tên khách + số kệ (`khuon_be_repo._loc_q`) — nói ra, không thì chẳng ai thử.
   timGoiY: "Tìm mã / tên / khách / số kệ…",
@@ -988,6 +1002,9 @@ export const CFG_DON_VI: CatalogConfig = {
   prefix: "/api/don-vi",
   nhatKyLoai: "don_vi_do",
   softDelete: true,
+  // Thanh lọc (06/10/2026): Loại đo (họ đơn vị — nhãn do máy chủ gắn từ `HO_NHAN`).
+  man: "don-vi",
+  dieuKien: [{ key: "ho", nhan: "Loại đo", icon: "don-vi" }],
   // Tạo xong giữ drawer mở để khai quy đổi ngay — khối quy đổi phải có id mới gắn vào được.
   moLaiSauKhiTao: true,
   // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai
@@ -1069,6 +1086,9 @@ export const CFG_XE: CatalogConfig = {
   // Xoá MỀM: xe bán đi vẫn phải giữ tên cho những chuyến nó đã chạy — xoá hẳn là làm mồ côi
   // `delivery_trips.vehicle_id` của cả lịch sử.
   softDelete: true,
+  // Thanh lọc (06/10/2026): Mức khoán km (tên mức do máy chủ gắn).
+  man: "xe",
+  dieuKien: [{ key: "muc_khoan_km_id", nhan: "Mức khoán km", icon: "xe" }],
   columns: [
     // Mức khoán km quyết định tiền mỗi chuyến — ô bắt buộc mà trước đây chỉ thấy khi mở thẻ xe.
     // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai

@@ -33,13 +33,14 @@ from ..models.quotation import STATUS_ACCEPTED, Quote
 from ..models.user import User
 from ..repositories.accounting_repo import AccountingRepository
 from ..repositories.audit_repo import AuditLogRepository
-from ..repositories.order_repo import OrderRepository
+from ..repositories.order_repo import LocDonHang, OrderRepository
 from ..repositories.org_scope import chu_cua
 from ..repositories.quotation_repo import QuotationRepository
 from . import san_pham_tai_ban_service
 from .thanh_pham_khai_bao import khai_cho_don
 from ..schemas.order import (
     EnumOption,
+    MonSanXuatOut,
     OrderActivityItem,
     OrderActivityOut,
     AttachmentOut,
@@ -296,10 +297,13 @@ class OrderService:
             )
             for r in self.accounting_repo.list_order_receipts(order.id)
         ]
+        atts = [a for a in order.attachments if a.kind == ATTACH_KIND_CONSENT]
+        nguoi_tai = self._user_names([a.uploaded_by for a in atts])
         consent_atts = [
             AttachmentOut(id=a.id, url=a.file_url, file_name=a.file_name,
-                          content_type=a.content_type, uploaded_at=a.uploaded_at)
-            for a in order.attachments if a.kind == ATTACH_KIND_CONSENT
+                          content_type=a.content_type, uploaded_at=a.uploaded_at,
+                          size_bytes=a.size_bytes or 0, uploaded_by_name=nguoi_tai.get(a.uploaded_by))
+            for a in atts
         ]
         can_confirm, blockers = self._confirm_gate(order)
         q_code = None
@@ -340,13 +344,38 @@ class OrderService:
         )
 
     # --- reads --------------------------------------------------------------
+    def _ap_dang_cho(self, *, actor, scope: str, q: str | None, order_kind: str | None,
+                     nguoi: int | None, loc: LocDonHang | None) -> LocDonHang | None:
+        """Bộ lọc "Đang chờ" suy từ lệnh / gia công / kho / giao / hoá đơn — không viết được bằng
+        một điều kiện SQL. Tính trên tập đơn đã chốt khớp các điều kiện khác, rồi đưa tập id xuống
+        repo qua `chi_id` để phân trang + đếm tab vẫn ở máy chủ."""
+        if loc is None or not loc.dang_cho:
+            return loc
+        from dataclasses import replace
+
+        from .don_hang_san_xuat import tom_tat_nhieu_don
+
+        ung_vien = self.repo.don_da_chot_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
+                                              nguoi=nguoi, loc=loc)
+        tom = tom_tat_nhieu_don(self.db, ung_vien)
+        return replace(loc, chi_id=sorted(i for i, t in tom.items() if loc.dang_cho in t["dang_cho"]))
+
+    def dem_dang_cho(self, *, actor, scope: str) -> dict[str, int]:
+        """Số đơn theo từng giá trị "Đang chờ" trong tầm nhìn — số đếm của menu lọc."""
+        from .don_hang_san_xuat import CHO_TAT_CA, tom_tat_nhieu_don
+
+        tom = tom_tat_nhieu_don(self.db, self.repo.don_da_chot_khop(scope=scope, actor=actor))
+        return {c: sum(1 for t in tom.values() if c in t["dang_cho"]) for c in CHO_TAT_CA}
+
     def list(
         self, *, actor, scope: str, q: str | None, status: str | None,
         order_kind: str | None, sort: str, page: int, size: int, nguoi: int | None = None,
+        loc: LocDonHang | None = None,
     ) -> OrderListOut:
+        loc = self._ap_dang_cho(actor=actor, scope=scope, q=q, order_kind=order_kind, nguoi=nguoi, loc=loc)
         rows, total, names, _totals = self.repo.list(
             scope=scope, actor=actor, q=q, status=status, order_kind=order_kind,
-            sort=sort, page=page, size=size, nguoi=nguoi,
+            sort=sort, page=page, size=size, nguoi=nguoi, loc=loc,
         )
         sale_names = self._user_names([r.sale_user_id for r in rows])
         q_codes = self._quote_codes([r.quotation_id for r in rows])
@@ -355,19 +384,30 @@ class OrderService:
         sums = self.repo.money_sums(order_ids)
         received = self.accounting_repo.received_deposit_sums(order_ids)
         line_sums = self.repo.line_summaries(order_ids)
+        from .don_hang_san_xuat import tom_tat_nhieu_don
+
+        sx = tom_tat_nhieu_don(self.db, rows)
         items = [
             self._row(o, names.get(o.id), sale_names.get(o.sale_user_id),
                       q_codes.get(o.quotation_id),
                       agg=sums.get(o.id, {}), received=received.get(o.id, 0),
-                      line_sum=line_sums.get(o.id))
+                      line_sum=line_sums.get(o.id)).model_copy(update={
+                          "san_xuat_mon": [MonSanXuatOut(**m) for m in sx.get(o.id, {}).get("mon", [])],
+                          "dang_cho": sx.get(o.id, {}).get("dang_cho", []),
+                      })
             for o in rows
         ]
         return OrderListOut(items=items, total=total, page=page, size=size)
 
-    def stats(self, *, actor, scope: str, nguoi: int | None = None) -> OrderStatsOut:
+    def stats(
+        self, *, actor, scope: str, nguoi: int | None = None, q: str | None = None,
+        order_kind: str | None = None, loc: LocDonHang | None = None,
+    ) -> OrderStatsOut:
         from ..models.order import STATUS_DRAFT, STATUS_ORDERED
 
-        counts = self.repo.stats(scope=scope, actor=actor, nguoi=nguoi)
+        # Số trên thanh tab theo bộ lọc đang áp; KPI tiền bên dưới giữ nguyên nghĩa cũ (cả tầm nhìn).
+        loc = self._ap_dang_cho(actor=actor, scope=scope, q=q, order_kind=order_kind, nguoi=nguoi, loc=loc)
+        counts = self.repo.stats(scope=scope, actor=actor, nguoi=nguoi, q=q, order_kind=order_kind, loc=loc)
         # KPI tiền: dùng CÙNG công thức _money (required = round(pct·twv/100), received từ phiếu thu)
         # nên số KPI = tổng đúng số hiện trên từng dòng.
         rows = self.repo.value_rows(scope=scope, actor=actor, statuses=(STATUS_DRAFT, STATUS_ORDERED),
@@ -390,6 +430,9 @@ class OrderService:
             ordered_value=ordered_value,
         )
 
+    def dem_theo_khach(self, *, actor, scope: str) -> list[tuple[int, str, int]]:
+        return self.repo.dem_theo_khach(scope=scope, actor=actor)
+
     def get(self, *, order_id: int, actor, scope: str) -> OrderDetailOut:
         order = self.repo.get_with_lines(order_id)
         if order is None:
@@ -397,6 +440,17 @@ class OrderService:
         if not self.repo.can_access(order=order, scope=scope, actor=actor):
             raise OrderNotFound("Không tìm thấy đơn hàng")  # ngoài vùng = 404
         return self._detail(order)
+
+    def tien_do(self, *, order_id: int, actor, scope: str) -> dict:
+        """Tiến độ một đơn (ô Sản xuất / Giao của ngăn đơn), cùng cổng đọc + phạm vi với chi tiết đơn.
+        Chỉ KIỂM vùng, không dựng chi tiết: trước 06/10/2026 router gọi `get()` để kiểm quyền nên mỗi
+        lần mở ngăn đơn máy chủ dựng chi tiết đơn HAI lần (một cho ngăn, một vứt đi ở đây)."""
+        from .don_hang_tien_do import tien_do_don
+
+        order = self.repo.get_by_id(order_id)
+        if order is None or not self.repo.can_access(order=order, scope=scope, actor=actor):
+            raise OrderNotFound("Không tìm thấy đơn hàng")  # ngoài vùng = 404
+        return tien_do_don(self.db, order)
 
     def activity(self, *, order_id: int, actor, scope: str) -> OrderActivityOut:
         order = self.repo.get_by_id(order_id)
@@ -665,11 +719,13 @@ class OrderService:
             customer_name = c.name if c else None
         try:
             # Cầu nối kế toán canonical (accounting-wip): lập phiếu thu 01-TT cọc đơn (Nợ 111/112·Có 131).
-            self.accounting.create_order_receipt(
+            phieu = self.accounting.create_order_receipt(
                 order_id=order.id, order_no=order.order_no, customer_name=customer_name, actor=actor,
                 receipt_method=payload.receipt_method, amount=payload.amount,
                 receipt_date=(payload.receipt_date or date.today()), note=payload.note,
                 company_bank_account_id=payload.company_bank_account_id,
+                payer_name=payload.payer_name, payer_address=payload.payer_address,
+                content=payload.content, bank_reference=payload.bank_reference,
             )
         except AccountingValidationError as exc:
             raise OrderValidationError(str(exc)) from exc
@@ -678,7 +734,9 @@ class OrderService:
             detail=f"Thu cọc {int(payload.amount):,}đ ({payload.receipt_method}) — đơn {order.order_no}",
         )
         self._tu_chuyen_sx(order, actor)
-        return self._detail(self.repo.get_with_lines(order_id))
+        d = self._detail(self.repo.get_with_lines(order_id))
+        d.phieu_vua_lap_id = phieu["id"]
+        return d
 
     # --- Chốt đơn (P4) — transaction compare-and-set + khóa báo giá ---------
     def confirm(self, *, order_id: int, actor, scope: str) -> OrderDetailOut:
@@ -795,7 +853,7 @@ class OrderService:
             detail=f"Hủy đơn {order.order_no}" + (f" (lỗi {fault})" if fault else "") + f" — {reason}")
         return self._detail(self.repo.get_with_lines(order_id))
 
-    # --- Đính kèm — chứng cứ khách đồng ý + minh chứng cọc (chỉ khi nháp) ----
+    # --- Tệp đính kèm của đơn (chỉ thêm/xoá khi nháp) ----
     def _load_editable_draft(self, order_id: int, actor, scope: str) -> Order:
         order = self.repo.get_by_id(order_id)
         if order is None or not self.repo.can_access(order=order, scope=scope, actor=actor):
@@ -813,7 +871,7 @@ class OrderService:
             file_name=safe, content_type=content_type, size_bytes=size, uploaded_by=actor.id))
         self.db.commit()
         self.audit.create(actor_user_id=actor.id, action="upload_consent",
-            target=f"order:{order.id}", detail=f"Chứng cứ đồng ý + {safe}")
+            target=f"order:{order.id}", detail=f"Đính kèm tệp {safe} vào đơn {order.order_no}")
         return self._detail(self.repo.get_with_lines(order_id))
 
     def delete_consent_attachment(self, *, order_id, attachment_id, actor, scope) -> OrderDetailOut:
@@ -821,11 +879,12 @@ class OrderService:
         att = self.db.get(OrderAttachment, attachment_id)
         if att is None or att.order_id != order.id:
             raise OrderNotFound("Không tìm thấy đính kèm")
+        ten = att.file_name or f"#{attachment_id}"
         _unlink_attachment(att.file_url)
         self.db.delete(att)
         self.db.commit()
         self.audit.create(actor_user_id=actor.id, action="delete_consent",
-            target=f"order:{order.id}", detail=f"Xóa chứng cứ #{attachment_id}")
+            target=f"order:{order.id}", detail=f"Xoá tệp {ten} khỏi đơn {order.order_no}")
         return self._detail(self.repo.get_with_lines(order_id))
 
     # V5: minh chứng đã thu cọc KHÔNG còn đính ở đơn — dùng PaymentReceiptAttachment (màn Phiếu thu

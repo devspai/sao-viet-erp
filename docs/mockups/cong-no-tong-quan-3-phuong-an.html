@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tổng quan công nợ — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --charcoal:#0f172a;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --amber:#9c7714; --amber-soft:#efe4c4; --amber-deep:#7a5c0f;
+  --signal:#8a1f1f; --signal-soft:#efd5d5; --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1260px;margin:0 auto;padding:32px 16px 80px}
+.page>h1{font-size:22px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 18px;max-width:920px}
+.lead b{color:var(--ink)}
+.lead ul{margin:6px 0 0;padding-left:18px}
+.lead li{margin:3px 0}
+.bar-ctl{display:flex;flex-wrap:wrap;gap:10px;position:sticky;top:12px;z-index:30;margin-bottom:24px}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--ash);padding:6px 14px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt>h2{font-size:19px;margin:0 0 4px}
+.src{display:inline-block;font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas);margin-bottom:10px}
+.why{color:var(--ash);margin:0 0 18px;max-width:920px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+.why li{margin:2px 0}
+
+/* khung màn app */
+.man{background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:28px 28px 24px;box-shadow:0 8px 28px rgba(15,23,42,.08)}
+.man h1{font-size:26px;margin:0;letter-spacing:-.01em}
+.man .mota{color:var(--ash-2);font-size:13px;margin:2px 0 0}
+.num{font-variant-numeric:tabular-nums}
+.do{color:var(--signal)}
+.mo{color:var(--ash-2)}
+.tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:12px;color:var(--ash);font-weight:500;white-space:nowrap}
+.tag--do{background:var(--signal-soft);border-color:transparent;color:var(--signal)}
+.tag--xanh{background:var(--moss-soft);border-color:transparent;color:var(--moss-deep)}
+
+/* thanh công cụ + bảng (giữ như màn hiện tại để thấy chiều cao thật) */
+.tool{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--canvas)}
+.seg span{padding:7px 12px;font-size:13px;font-weight:500;color:var(--ash);border-right:1px solid var(--rule-soft);white-space:nowrap}
+.seg span:last-child{border-right:0}
+.seg span.on{background:var(--charcoal);color:#fff}
+.seg b{font-weight:600;margin-left:6px;opacity:.75}
+.tim{flex:1 1 220px;height:36px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);display:flex;align-items:center;padding:0 12px;color:var(--ash-3);font-size:13px}
+.ky{height:36px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);display:flex;align-items:center;gap:8px;padding:0 12px;font-size:13px;font-weight:600;white-space:nowrap}
+.ky small{font-weight:400;color:var(--ash-2);font-size:12px}
+.loc{height:36px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);display:flex;align-items:center;gap:6px;padding:0 12px;font-size:13px;font-weight:600}
+.dem{margin-left:auto;font-size:13px;color:var(--ash)}
+.card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.04);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;font-weight:600;color:var(--ash);text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--rule-hair);vertical-align:top;font-size:13.5px}
+td.r,th.r{text-align:right}
+.ten{font-weight:600;line-height:1.35}
+.sub{font-size:12px;color:var(--ash-2);margin-top:2px}
+.bang-wrap{overflow-x:auto}
+
+.m0{background:var(--rule)}
+.m1{background:var(--amber-soft)}
+.m2{background:color-mix(in srgb,var(--amber) 60%,var(--amber-soft))}
+.m3{background:var(--amber)}
+.m4{background:color-mix(in srgb,var(--signal) 70%,var(--amber))}
+.m5{background:var(--signal)}
+.cham{display:inline-block;width:8px;height:8px;border-radius:2px;flex:none}
+
+/* ===== PHƯƠNG ÁN 1 — Stripe: thẻ số kiêm bộ lọc ===== */
+.p1-the{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.5fr);gap:10px;margin:18px 0 10px}
+.p1-the button{all:unset;box-sizing:border-box;cursor:pointer;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:10px 14px;display:grid;gap:2px;min-width:0}
+.p1-the button:hover{background:var(--rule-hair)}
+.p1-the button.on{border-color:var(--charcoal);box-shadow:inset 0 0 0 1px var(--charcoal)}
+.p1-the .nh{font-size:12.5px;color:var(--ash);font-weight:500;white-space:nowrap}
+.p1-the .duoi{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ash-2);white-space:nowrap}
+.p1-the .duoi em{font-style:normal}
+.p1-the b{font-size:18px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.p1-the .ky-o{cursor:default;background:transparent;border-style:dashed}
+.p1-the .ky-o:hover{background:transparent}
+.p1-ky{display:grid;grid-template-columns:auto 1fr auto;column-gap:12px;row-gap:2px;font-size:13px;align-items:baseline}
+.p1-ky span{color:var(--ash)}
+.p1-ky b{font-size:14px;text-align:right;white-space:nowrap}
+.p1-ky span{white-space:nowrap}
+.p1-ky small{font-size:11.5px;color:var(--ash-2);white-space:nowrap}
+.p1-tuoi{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 14px}
+.p1-tuoi>span{font-size:12.5px;color:var(--ash-2);margin-right:2px}
+.chip{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--rule-soft);border-radius:999px;background:var(--canvas);font-size:12.5px;color:var(--ash);white-space:nowrap}
+.chip b{color:var(--ink);font-weight:600}
+.chip:hover{background:var(--rule-hair)}
+.chip.on{border-color:var(--charcoal);box-shadow:inset 0 0 0 1px var(--charcoal)}
+
+/* ===== PHƯƠNG ÁN 2 — Xero: thẻ "Hoá đơn khách còn nợ" + cột tuổi nợ ===== */
+.p2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1fr);background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;margin:18px 0 14px}
+.p2>div{padding:14px 18px;min-width:0}
+.p2>div+div{border-left:1px solid var(--rule-hair)}
+.p2 .nh{font-size:12.5px;color:var(--ash);font-weight:500}
+.p2-so{display:grid;gap:10px}
+.p2-so .lon{font-size:22px;font-weight:600;letter-spacing:-.01em;line-height:1.2}
+.p2-so .vua{font-size:16px;font-weight:600}
+.p2-dong{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.p2-cot{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:end;height:84px;margin-top:6px}
+.p2-cot button{all:unset;cursor:pointer;display:grid;grid-template-rows:auto 1fr auto;height:100%;gap:3px;text-align:center;border-radius:6px;padding:0 2px}
+.p2-cot button:hover{background:var(--rule-hair)}
+.p2-cot button.on{box-shadow:inset 0 0 0 1px var(--charcoal)}
+.p2-cot .gt{font-size:11px;color:var(--ash);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p2-cot .ong{display:flex;align-items:flex-end;justify-content:center}
+.p2-cot .ong i{display:block;width:70%;max-width:36px;border-radius:3px 3px 0 0;min-height:2px}
+.p2-cot .ten-moc{font-size:11px;color:var(--ash-2);white-space:nowrap}
+.p2-ky{display:grid;gap:8px;font-size:13px}
+.p2-ky .nh{margin-bottom:2px}
+.p2-ky .p2-dong span{color:var(--ash)}
+.p2-ky .p2-dong b{font-size:15px}
+.p2-ky small{display:block;text-align:right;font-size:11.5px;color:var(--ash-2);margin-top:-6px}
+
+/* ===== PHƯƠNG ÁN 3 — Mercury/Linear: số nằm trên đầu trang, không khối ===== */
+.p3-dau{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 32px;padding-bottom:14px;border-bottom:1px solid var(--rule-soft);margin-bottom:14px}
+.p3-phai{display:flex;flex-wrap:wrap;gap:6px 28px;align-items:flex-end}
+.p3-phai>div{display:grid;gap:0}
+.p3-phai span{font-size:12px;color:var(--ash-2);white-space:nowrap}
+.p3-phai b{font-size:15px;font-weight:600;white-space:nowrap}
+.p3-phai .lon b{font-size:24px;letter-spacing:-.01em;line-height:1.15}
+.p3-vach{display:flex;gap:2px;height:4px;border-radius:2px;overflow:hidden;margin-top:6px;background:var(--rule-hair)}
+.p3-vach i{display:block;height:100%}
+.p3-tuoi{position:relative}
+.p3-pop{position:absolute;top:42px;right:0;z-index:5;width:300px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14);padding:6px}
+.p3-pop button{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:100%;padding:7px 10px;border-radius:6px;font-size:13px}
+.p3-pop button:hover{background:var(--rule-hair)}
+.p3-pop button.on{box-shadow:inset 0 0 0 1px var(--charcoal)}
+.p3-pop button.rong{color:var(--ash-3)}
+.p3-pop b{font-weight:600}
+.p3-pop small{color:var(--ash-2);font-size:11.5px;margin-left:6px}
+
+@media (max-width:760px){
+  .man{padding:18px 14px}
+  .p1-the{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .p1-the .ky-o{grid-column:1/-1}
+  .p2{grid-template-columns:1fr}
+  .p2>div+div{border-left:0;border-top:1px solid var(--rule-hair)}
+  .p3-phai .lon{flex-basis:100%}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Tổng quan công nợ — 3 phương án thay khối số đang to</h1>
+  <div class="lead">
+    Khối hiện tại cao gần 300px để nói một điều: “còn nợ 8.460.973 đ, chưa tới hạn”. Bốn lỗi cụ thể:
+    <ul>
+      <li><b>Số to quá cỡ</b> (26px và 20px) nhưng 3/4 số là 0, dòng “Cùng kỳ 0” lặp 4 lần không mang tin gì.</li>
+      <li><b>Sáu ô tuổi nợ luôn hiện kể cả khi 0 đ</b>, chiếm trọn một hàng; thanh xám dày 12px chỉ có một màu.</li>
+      <li><b>Trùng thông tin</b>: “Trong đó quá hạn” ở khối trên và nút “Quá hạn” ở thanh lọc dưới là một con số.</li>
+      <li><b>Dòng mô tả dưới tiêu đề bị khối số đè mất nửa chữ</b> (thấy rõ trong ảnh chụp).</li>
+    </ul>
+    Cả ba phương án dùng dữ liệu thật của màn. Bấm nút <b>Khi nhiều nợ</b> để xem lúc có 14 khách, nợ quá hạn rải đủ các mốc. Bấm <b>Phải trả</b> để xem màn nhà cung cấp dùng chung khuôn.
+  </div>
+
+  <div class="bar-ctl">
+    <div class="switch" id="sw-opt">
+      <button class="on" data-v="1">Phương án 1</button>
+      <button data-v="2">Phương án 2</button>
+      <button data-v="3">Phương án 3</button>
+    </div>
+    <div class="switch" id="sw-du">
+      <button class="on" data-v="hien">Dữ liệu hiện tại</button>
+      <button data-v="nhieu">Khi nhiều nợ</button>
+    </div>
+    <div class="switch" id="sw-man">
+      <button class="on" data-v="thu">Phải thu</button>
+      <button data-v="tra">Phải trả</button>
+    </div>
+  </div>
+
+  <section class="opt on" data-opt="1">
+    <h2>1. Thẻ số kiêm bộ lọc</h2>
+    <span class="src">Khuôn Stripe Dashboard: trang Payments và Invoices</span>
+    <div class="why">
+      Stripe đặt một hàng thẻ nhỏ trên đầu danh sách, mỗi thẻ là một bộ lọc có số tiền và số đếm, bấm thẻ là lọc bảng. Ở đây ba thẻ <b>Còn nợ / Quá hạn / Vượt hạn mức</b> thay luôn nhóm nút lọc đang có, nên hết trùng. Ô thứ tư (viền đứt, không bấm) ghi số trong kỳ. Tuổi nợ thành dải chip, <b>chỉ hiện các mốc có tiền</b>; nợ toàn chưa tới hạn thì dải này không hiện.
+      <ul>
+        <li>Chiều cao: khoảng 90px thay vì 300px (thêm 30px khi có nợ quá hạn). Cỡ số 18px.</li>
+        <li>Cùng kỳ chỉ hiện khi cùng kỳ có số, dạng “+21% so cùng kỳ” ở dòng dưới số.</li>
+      </ul>
+    </div>
+    <div class="man" id="m1"></div>
+  </section>
+
+  <section class="opt" data-opt="2">
+    <h2>2. Một thẻ ba cột: số chính, cột tuổi nợ, trong kỳ</h2>
+    <span class="src">Khuôn Xero: thẻ “Invoices owed to you” trên trang chủ, kèm biểu đồ cột theo hạn</span>
+    <div class="why">
+      Xero gói “đang chờ thu” và “quá hạn” vào một thẻ, cạnh đó là biểu đồ cột nhỏ theo độ trễ, bấm cột là ra danh sách hoá đơn của mốc đó. Ở đây một thẻ cao khoảng 140px chia ba cột: <b>số còn nợ và quá hạn</b> bên trái, <b>5 cột quá hạn theo số ngày trễ</b> ở giữa (cột 0 đ chỉ còn vạch mảnh; phần chưa tới hạn đứng ở cột trái để không đè dẹt các cột trễ), <b>bán thêm và đã thu trong kỳ</b> bên phải. Nhóm nút lọc dưới giữ nguyên.
+      <ul>
+        <li>Nhìn được hình dạng nợ (dồn về mốc nào) mà không phải đọc 6 con số.</li>
+        <li>Vẫn còn trùng nhẹ: số quá hạn ở thẻ và nút “Quá hạn” ở thanh lọc.</li>
+      </ul>
+    </div>
+    <div class="man" id="m2"></div>
+  </section>
+
+  <section class="opt" data-opt="3">
+    <h2>3. Số nằm ngay hàng tiêu đề, không có khối</h2>
+    <span class="src">Khuôn Mercury (trang tài khoản: tên bên trái, số dư bên phải) và Linear (bộ lọc gọn trong thanh công cụ)</span>
+    <div class="why">
+      Mercury không dựng khối KPI: số dư nằm cùng hàng với tên trang. Ở đây <b>còn nợ</b> là số lớn nhất bên phải tiêu đề, cạnh đó ba số nhỏ, dưới số còn nợ là vạch tuổi nợ mảnh 4px. Sáu mốc tuổi nợ dời vào nút <b>Tuổi nợ</b> trên thanh công cụ (bấm thử), mốc 0 đ xám lại. Bảng khách hàng lên sát đầu trang.
+      <ul>
+        <li>Gần như không tốn thêm chiều cao: số nằm chung hàng với tiêu đề. Gọn nhất trong ba.</li>
+        <li>Đổi lại: muốn xem tuổi nợ phải bấm mở, không thấy ngay.</li>
+      </ul>
+    </div>
+    <div class="man" id="m3"></div>
+  </section>
+</div>
+
+<script>
+const DU = {
+  hien: { tong: 8460973, doiTac: 1, hd: 1, quaHan: 0, dtQuaHan: 0, vuot: 0, ban: 8460973, thu: 0,
+          cung: null,
+          tuoi: [[8460973,1],[0,0],[0,0],[0,0],[0,0],[0,0]],
+          dong: [["CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM", "1 hoá đơn", 8460973, "05/11/2026", "còn 30 ngày", 8460973, 0, "8%"]] },
+  nhieu: { tong: 486350000, doiTac: 14, hd: 37, quaHan: 131900000, dtQuaHan: 5, vuot: 2, ban: 212400000, thu: 168750000,
+          cung: { tong: 402100000, quaHan: 96200000, ban: 188000000, thu: 175300000 },
+          tuoi: [[354450000,22],[42300000,5],[38100000,4],[27500000,3],[16200000,2],[7800000,1]],
+          dong: [["CÔNG TY TNHH BAO BÌ MINH PHÁT", "6 hoá đơn", 96400000, "12/09/2026", "trễ 24 ngày", 41200000, 18000000, "96%"],
+                 ["CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM", "1 hoá đơn", 8460973, "05/11/2026", "còn 30 ngày", 8460973, 0, "8%"],
+                 ["NHÀ SÁCH HỒNG ÂN", "4 hoá đơn", 52300000, "28/08/2026", "trễ 39 ngày", 0, 12500000, "52%"]] }
+};
+const MOC = ["Chưa tới hạn","Trễ 1–7 ngày","Trễ 8–15 ngày","Trễ 16–30 ngày","Trễ 31–60 ngày","Trễ trên 60 ngày"];
+const MOC_NGAN = ["Chưa hạn","1–7","8–15","16–30","31–60","> 60"];
+const CHU = {
+  thu: { tieuDe: "Công nợ phải thu", moTa: "Khách nào đang nợ và hoá đơn nào trễ. Nợ tính theo từng hoá đơn.",
+         dt: "khách", dtDay: "khách hàng", ban: "Bán thêm", thu: "Đã thu", cho: "Chờ thu", cot: "Khách hàng", tim: "Tìm khách hàng" },
+  tra: { tieuDe: "Công nợ phải trả", moTa: "Mình đang nợ nhà cung cấp nào và khoản nào tới hạn trả.",
+         dt: "NCC", dtDay: "nhà cung cấp", ban: "Mua thêm", thu: "Đã trả", cho: "Chờ trả", cot: "Nhà cung cấp", tim: "Tìm nhà cung cấp" }
+};
+let st = { du: "hien", man: "thu", loc: "tat", tuoi: null, pop: false };
+
+const vs = n => n.toLocaleString("vi-VN");
+const ti = n => vs(n) + " đ";
+function trieu(n){ if (n === 0) return "0"; if (n >= 1e9) return (n/1e9).toLocaleString("vi-VN",{maximumFractionDigits:1}) + " tỷ";
+  if (n >= 1e6) return (n/1e6).toLocaleString("vi-VN",{maximumFractionDigits:1}) + " tr"; return vs(n); }
+function lech(so, cung){ if (!cung) return ""; const p = Math.round((so - cung) / cung * 100);
+  return (p > 0 ? "+" : "") + p + "% so cùng kỳ"; }
+
+function bang(d, c){
+  const rows = d.dong.map(r => `<tr><td><div class="ten">${r[0]}</div><div class="sub">${r[1]}</div></td>
+    <td class="r"><b class="num">${vs(r[2])}</b></td>
+    <td>${r[3]}<div class="sub ${r[4].startsWith("trễ") ? "do" : ""}">${r[4]}</div></td>
+    <td><span class="mo">${c.ban}</span> <b class="num">${r[5] ? vs(r[5]) : "0"}</b><div class="sub">${c.thu} ${r[6] ? vs(r[6]) : "0"}</div></td>
+    <td>Đã dùng ${r[7]}</td></tr>`).join("");
+  return `<div class="card"><div class="bang-wrap"><table><thead><tr><th>${c.cot.toUpperCase()}</th><th class="r">CÒN NỢ</th><th>HẠN GẦN NHẤT</th><th>TRONG KỲ</th><th>HẠN MỨC</th></tr></thead>
+    <tbody>${rows}</tbody></table></div></div>`;
+}
+function dauTrang(c){ return `<h1>${c.tieuDe}</h1><p class="mota">${c.moTa}</p>`; }
+function kyO(){ return `<div class="ky">Tháng này <small>theo ngày chứng từ</small></div>`; }
+
+/* ---------- Phương án 1 ---------- */
+function v1(){
+  const d = DU[st.du], c = CHU[st.man];
+  const the = (k, nhan, so, dem, cung, xau) => {
+    const l = cung != null ? lech(so, cung) : "";
+    return `<button data-loc="${k}" class="${st.loc === k ? "on" : ""}">
+      <span class="nh">${nhan}</span>
+      <b class="num ${xau && so > 0 ? "do" : ""}">${ti(so)}</b>
+      <span class="duoi"><span>${vs(dem)} ${c.dt}</span>${l ? `<em class="${xau && so > cung ? "do" : ""}">${l}</em>` : ""}</span></button>`;
+  };
+  const tuoi = d.tuoi.map((t, i) => t[0] > 0 && i > 0 ? `<button class="chip ${st.tuoi === i ? "on" : ""}" data-tuoi="${i}"><i class="cham m${i}"></i>${MOC[i]} <b class="num">${vs(t[0])}</b></button>` : "").join("");
+  return `${dauTrang(c)}
+    <div class="p1-the">
+      ${the("tat", "Còn nợ tới 06/10/2026", d.tong, d.doiTac, d.cung && d.cung.tong)}
+      ${the("qua", "Quá hạn", d.quaHan, d.dtQuaHan, d.cung && d.cung.quaHan, true)}
+      ${the("vuot", "Vượt hạn mức", d.vuot ? 23750000 : 0, d.vuot, null, true)}
+      <div class="button ky-o p1-the-ky" style="border:1px dashed var(--rule);border-radius:10px;padding:10px 14px">
+        <div class="p1-ky">
+          <span>${c.ban} trong kỳ</span><b class="num">${ti(d.ban)}</b><small>${d.cung ? lech(d.ban, d.cung.ban) : ""}</small>
+          <span>${c.thu} trong kỳ</span><b class="num">${ti(d.thu)}</b><small>${d.cung ? lech(d.thu, d.cung.thu) : ""}</small>
+        </div>
+      </div>
+    </div>
+    ${tuoi ? `<div class="p1-tuoi"><span>Quá hạn theo mốc</span>${tuoi}</div>` : ""}
+    <div class="tool"><div class="tim">${c.tim}, kể cả ${c.dt} đã ${st.man === "thu" ? "thu" : "trả"} hết</div>${kyO()}<div class="loc">Lọc</div><span class="dem">${vs(d.doiTac)} ${c.dtDay}</span></div>
+    ${bang(d, c)}`;
+}
+
+/* ---------- Phương án 2 ---------- */
+function v2(){
+  const d = DU[st.du], c = CHU[st.man];
+  const max = Math.max(1, ...d.tuoi.slice(1).map(t => t[0]));
+  const cot = d.tuoi.map((t, i) => i === 0 ? "" : `<button data-tuoi="${i}" class="${st.tuoi === i ? "on" : ""}" title="${MOC[i]} ${ti(t[0])} ${t[1]} khoản">
+      <span class="gt num ${i >= 4 && t[0] ? "do" : ""}">${t[0] ? trieu(t[0]) : "0"}</span>
+      <span class="ong"><i class="m${i}" style="height:${t[0] ? Math.max(6, t[0] / max * 100) : 0}%"></i></span>
+      <span class="ten-moc">${MOC_NGAN[i]}</span></button>`).join("");
+  const cung = d.cung;
+  return `${dauTrang(c)}
+    <div class="p2">
+      <div class="p2-so">
+        <div><div class="nh">Còn nợ tới 06/10/2026</div><div class="lon num">${ti(d.tong)}</div>
+          <div class="sub">${vs(d.doiTac)} ${c.dt} <span style="margin-left:8px">${vs(d.hd)} hoá đơn</span>${cung ? `<span style="margin-left:8px">${lech(d.tong, cung.tong)}</span>` : ""}</div></div>
+        <div style="display:grid;gap:4px">
+          <div class="p2-dong"><span class="nh">Chưa tới hạn</span><b class="num">${ti(d.tuoi[0][0])}</b></div>
+          <div class="p2-dong"><span class="nh">Quá hạn</span><b class="num ${d.quaHan ? "do" : ""}">${ti(d.quaHan)}</b></div>
+        </div>
+      </div>
+      <div><div class="nh">Quá hạn theo số ngày trễ</div>${d.quaHan ? `<div class="p2-cot">${cot}</div>` : `<div class="sub" style="height:84px;margin-top:6px;display:grid;place-items:center;border:1px dashed var(--rule-soft);border-radius:8px">Không có khoản nào quá hạn</div>`}</div>
+      <div class="p2-ky"><div class="nh">Trong kỳ tháng này</div>
+        <div class="p2-dong"><span>${c.ban}</span><b class="num">${ti(d.ban)}</b></div>${cung ? `<small>${lech(d.ban, cung.ban)}</small>` : ""}
+        <div class="p2-dong"><span>${c.thu}</span><b class="num">${ti(d.thu)}</b></div>${cung ? `<small>${lech(d.thu, cung.thu)}</small>` : ""}
+      </div>
+    </div>
+    <div class="tool"><div class="seg"><span class="on">Tất cả<b>${d.doiTac}</b></span><span>Quá hạn<b>${d.dtQuaHan}</b></span><span>Vượt hạn mức<b>${d.vuot}</b></span></div>
+      <div class="tim">${c.tim}</div>${kyO()}<div class="loc">Lọc</div></div>
+    ${bang(d, c)}`;
+}
+
+/* ---------- Phương án 3 ---------- */
+function v3(){
+  const d = DU[st.du], c = CHU[st.man];
+  const vach = d.tuoi.map((t, i) => t[0] > 0 ? `<i class="m${i}" style="flex:${t[0]}"></i>` : "").join("");
+  const cung = d.cung;
+  const pop = st.pop ? `<div class="p3-pop">${d.tuoi.map((t, i) => `<button data-tuoi="${i}" class="${t[0] ? "" : "rong"} ${st.tuoi === i ? "on" : ""}">
+      <i class="cham m${i}"></i><span>${MOC[i]}<small>${t[1]} khoản</small></span><b class="num ${i >= 4 && t[0] ? "do" : ""}">${vs(t[0])}</b></button>`).join("")}</div>` : "";
+  return `<div class="p3-dau">
+      <div>${dauTrang(c)}</div>
+      <div class="p3-phai">
+        <div class="lon" title="${cung ? lech(d.tong, cung.tong) : "Cùng kỳ chưa có số"}"><span>Còn nợ tới 06/10/2026</span><b class="num">${ti(d.tong)}</b><div class="p3-vach">${vach}</div></div>
+        <div><span>Quá hạn</span><b class="num ${d.quaHan ? "do" : ""}">${ti(d.quaHan)}</b></div>
+        <div title="${cung ? lech(d.ban, cung.ban) : ""}"><span>${c.ban} trong kỳ</span><b class="num">${ti(d.ban)}</b></div>
+        <div title="${cung ? lech(d.thu, cung.thu) : ""}"><span>${c.thu} trong kỳ</span><b class="num">${ti(d.thu)}</b></div>
+      </div>
+    </div>
+    <div class="tool"><div class="seg"><span class="on">Tất cả<b>${d.doiTac}</b></span><span>Quá hạn<b>${d.dtQuaHan}</b></span><span>Vượt hạn mức<b>${d.vuot}</b></span></div>
+      <div class="tim">${c.tim}</div>${kyO()}
+      <div class="p3-tuoi"><button class="loc" id="mo-tuoi" style="font:inherit;font-size:13px;font-weight:600;cursor:pointer">Tuổi nợ${st.tuoi != null ? `: ${MOC[st.tuoi]}` : ""}</button>${pop}</div>
+      <div class="loc">Lọc</div></div>
+    ${bang(d, c)}`;
+}
+
+function ve(){
+  document.getElementById("m1").innerHTML = v1();
+  document.getElementById("m2").innerHTML = v2();
+  document.getElementById("m3").innerHTML = v3();
+}
+function sw(id, fn){ document.getElementById(id).addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  [...e.currentTarget.children].forEach(x => x.classList.toggle("on", x === b)); fn(b.dataset.v); }); }
+sw("sw-opt", v => document.querySelectorAll(".opt").forEach(o => o.classList.toggle("on", o.dataset.opt === v)));
+sw("sw-du", v => { st.du = v; st.tuoi = null; st.loc = "tat"; ve(); });
+sw("sw-man", v => { st.man = v; ve(); });
+document.addEventListener("click", e => {
+  const l = e.target.closest("[data-loc]"); if (l) { st.loc = l.dataset.loc; ve(); return; }
+  const t = e.target.closest("[data-tuoi]"); if (t) { const i = +t.dataset.tuoi; st.tuoi = st.tuoi === i ? null : i; st.pop = false; ve(); return; }
+  if (e.target.closest("#mo-tuoi")) { st.pop = !st.pop; ve(); return; }
+  if (st.pop && !e.target.closest(".p3-pop")) { st.pop = false; ve(); }
+});
+ve();
+</script>
+</body>
+</html>

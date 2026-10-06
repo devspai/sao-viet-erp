@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import date
 from typing import Annotated
 
 from fastapi import (
@@ -359,6 +360,15 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
     )
 
 
+def _xem_gia_man(authz, user: User, man: str, kho_id: int | None) -> bool:
+    """Ô "Xem giá thành" của ĐÚNG màn đang gọi danh sách phiếu (05/10/2026): màn tồn của từng kho
+    (`man=ton`) hỏi dòng `ton_kho_<kho_id>` — không chọn kho thì không có dòng nào để hỏi ⇒ không
+    giá; màn Yêu cầu nhập xuất (`man=yeu_cau`, mặc định) hỏi `kho.view_cost`."""
+    if man == "ton":
+        return kho_id is not None and gia_lo_theo_man(authz, user, "ton")(kho_id)
+    return authz.can(user, MODULE, "view_cost")
+
+
 @router.get("", response_model=StockVoucherPage)
 def list_vouchers(
     svc: Service, db: Db, authz: Authz,
@@ -368,14 +378,36 @@ def list_vouchers(
     request_id: int | None = Query(default=None),
     kho_id: int | None = Query(default=None),
     q: str | None = Query(default=None),
+    nhom: str | None = Query(default=None, pattern="^(nhap|xuat|dc)$",
+                             description="Tab màn tồn từng kho: phiếu nhập / phiếu xuất / điều chuyển"),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|ngay|ghi_so)$"),
+    nguoi_lap: list[int] | None = Query(default=None),
+    gia_tu: int | None = Query(default=None, ge=0),
+    gia_den: int | None = Query(default=None, ge=0),
+    man: str = Query(default="yeu_cau", pattern="^(ton|yeu_cau)$",
+                     description="Màn đang gọi — chọn ô Xem giá thành để gác tiền"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
 ) -> StockVoucherPage:
-    rows, total = svc.vouchers.list(
-        loai=loai, trang_thai=trang_thai, request_id=request_id,
-        kho_id=kho_id, q=q, page=page, size=size,
+    can_view_cost = _xem_gia_man(authz, user, man, kho_id)
+    hang_khop = None
+    if q and q.strip():
+        # Ô tìm bắt cả tên / mã vật tư đi trong phiếu: tra sẵn các mặt hàng khớp chữ.
+        hang_khop = [(d["hang_loai"], d["hang_id"])
+                     for d in _hang_service(db).tim_mat_hang(q.strip(), size=500)]
+    loc = dict(
+        loai=loai, trang_thai=trang_thai, request_id=request_id, kho_id=kho_id, q=q,
+        hang_khop=hang_khop, nhom=nhom, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
+        nguoi_lap=nguoi_lap,
+        # Lọc theo TIỀN chỉ khi người xem thấy tiền ở màn này — không quyền thì bỏ qua tham số
+        # (lọc được theo khoảng là dò ra được giá vốn từng phiếu).
+        gia_tu=gia_tu if can_view_cost else None,
+        gia_den=gia_den if can_view_cost else None,
     )
-    can_view_cost = authz.can(user, MODULE, "view_cost")
+    rows, total = svc.vouchers.list(page=page, size=size, **loc)
+    dem_theo_tab = svc.vouchers.dem_theo_nhom(**loc)
     # Nạp SẴN mã hàng / lô / đề nghị của cả trang trong vài query (tránh N+1 trong _serialize).
     hang_map = _hang_service(db).map_theo_cap(
         [(ln.hang_loai, ln.hang_id) for v in rows for ln in v.lines])
@@ -392,7 +424,24 @@ def list_vouchers(
             for v in rows
         ],
         total=total,
+        dem_theo_tab=dem_theo_tab,
     )
+
+
+@router.get("/loc-nguoi-lap")
+def loc_nguoi_lap(
+    svc: Service, db: Db,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    kho_id: int | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị của điều kiện "Người lập": ai đã lập phiếu (ở kho `kho_id`), kèm số phiếu."""
+    dem = dict(svc.vouchers.nguoi_lap_loc(kho_id=kho_id))
+    users = UserRepository(db)
+    ra = []
+    for uid, n in dem.items():
+        u = users.get_by_id(uid)
+        ra.append({"id": uid, "ten": getattr(u, "name", None) or f"#{uid}", "so": n})
+    return sorted(ra, key=lambda d: d["ten"])
 
 
 @router.get("/{voucher_id}", response_model=StockVoucherOut)

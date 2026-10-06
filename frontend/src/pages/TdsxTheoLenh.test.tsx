@@ -19,7 +19,8 @@ function lenh(id: number, extra: Partial<TdsxTheoLenhDong> = {}): TdsxTheoLenhDo
       { ten: "Bế", nhom: null, trang_thai: "cho", hien_tai: false },
     ],
     buoc_hien_tai: "Cán màng", khau: "dang_sx", khau_chi_tiet: null,
-    han_hoan_thanh_sx: "2026-10-10", du_kien_xong: null, canh_bao: [], tre_ngay: null,
+    han_hoan_thanh_sx: "2026-10-10", created_at: "2026-10-01T03:00:00Z", du_kien_xong: null,
+    canh_bao: [], tre_ngay: null,
     ...extra,
   };
 }
@@ -41,10 +42,10 @@ function ve(data: TdsxTheoLenhOut | null = DATA, onMo = vi.fn()) {
 }
 
 describe("TdsxTheoLenh · bảng theo lệnh", () => {
-  it("⭐ sáu cột đúng thứ tự", () => {
+  it("⭐ bảy cột đúng thứ tự", () => {
     ve();
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
-      "Lệnh", "Sản phẩm", "Khách", "Đang ở", "Hạn SX", "Vấn đề",
+      "Lệnh", "Sản phẩm", "Khách", "Đang ở", "Hạn SX", "Ngày tạo", "Vấn đề",
     ]);
   });
 

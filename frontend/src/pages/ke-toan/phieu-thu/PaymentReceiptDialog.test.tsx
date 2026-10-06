@@ -49,10 +49,10 @@ describe("Form sửa phiếu thu lại tiền đã chi (PT-4)", () => {
     });
     goi.updateReceipt.mockResolvedValue(r);
     render(<PaymentReceiptDialog voucher={PC_VND} receipt={r} onClose={() => {}} onSaved={() => {}} />);
-    expect(screen.getByLabelText(/Mã giao dịch ngân hàng/)).toHaveValue("FT2608");
+    expect(screen.getByLabelText(/Mã giao dịch/)).toHaveValue("FT2608");
     // Còn được thu = 10tr − 2tr − 3tr + 3tr (chính phiếu này đang chiếm chỗ).
-    expect(screen.getByText("Còn được thu").nextSibling).toHaveTextContent("8.000.000 đ");
-    await screen.findByRole("option", { name: "MB 933134668" });
+    expect(screen.getAllByText("Còn được thu")[0].nextSibling).toHaveTextContent("8.000.000 đ");
+    await screen.findByRole("option", { name: "933134668 tại MB" });
     await u.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
     expect(goi.updateReceipt).toHaveBeenCalledTimes(1);
     const [, id, gui] = goi.updateReceipt.mock.calls[0];
@@ -63,12 +63,14 @@ describe("Form sửa phiếu thu lại tiền đã chi (PT-4)", () => {
     });
   });
 
-  it("vượt Còn được thu thì lỗi tại ô Số tiền, không gọi máy chủ", async () => {
+  it("vượt Còn được thu: câu đỏ tại ô Số tiền, nút lập khoá; Thu đủ điền lại 5 tr", async () => {
     const u = userEvent.setup();
     render(<PaymentReceiptDialog voucher={PC_VND} onClose={() => {}} onSaved={() => {}} />);
     await u.type(screen.getByLabelText(/Số tiền/), "6000000");
-    await u.click(screen.getByRole("button", { name: "Lập phiếu thu" }));
-    expect(screen.getByText("Số tiền thu không được vượt quá 5.000.000 đ.")).toBeInTheDocument();
+    expect(screen.getByText("Thu quá số còn được thu 1.000.000 đ.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lập phiếu thu" })).toBeDisabled();
+    await u.click(screen.getByRole("button", { name: "Thu đủ" }));
+    expect(screen.getByLabelText(/Số tiền/)).toHaveValue("5.000.000");
     expect(goi.createReceipt).not.toHaveBeenCalled();
   });
 

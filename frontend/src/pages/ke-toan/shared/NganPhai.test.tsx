@@ -105,20 +105,23 @@ describe("độ rộng chung", () => {
 });
 
 describe("Esc và phím mũi tên", () => {
-  it("Esc đóng ngăn trên cùng, chanDong chặn khi đang gõ dở", () => {
+  it("Esc khi đang gõ dở: hỏi bằng hộp của app, Nhập tiếp thì ở lại", () => {
     const dong = vi.fn();
-    const hoi = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const hoi = vi.spyOn(window, "confirm");
     render(<NganPhai tieuDe="P" onDong={dong} chanDong={() => true}>x</NganPhai>);
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(hoi).toHaveBeenCalledWith("Bỏ nội dung đang nhập?");
+    expect(hoi).not.toHaveBeenCalled();
+    expect(screen.getByText("Bỏ phiếu đang nhập?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Nhập tiếp" }));
     expect(dong).not.toHaveBeenCalled();
+    expect(screen.queryByText("Bỏ phiếu đang nhập?")).not.toBeInTheDocument();
   });
 
   it("đồng ý bỏ nội dung dở thì đóng", () => {
     const dong = vi.fn();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<NganPhai tieuDe="P" onDong={dong} chanDong={() => true}>x</NganPhai>);
     fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ" }));
     expect(dong).toHaveBeenCalledTimes(1);
   });
 

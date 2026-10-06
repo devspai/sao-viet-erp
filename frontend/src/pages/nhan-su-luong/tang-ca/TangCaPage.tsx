@@ -5,15 +5,19 @@
 // Nguyên tắc (chốt với chủ 23/07/2026): phiếu = GIẤY PHÉP + MỨC TRẦN. Lượt bấm RA mới quyết tiền,
 // nên màn này KHÔNG nhập giờ làm thực — chỉ khai khoảng được phép tăng ca.
 // (tách từ pages/TangCaPage.tsx).
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type OvertimeRequest, type XinHuyChoDuyet } from "../../../api/client";
 import { useCan, useSelfService } from "../../../auth/permissions";
 import { useAuth } from "../../../auth/useAuth";
 import { Button } from "../../../components/Button";
 import { trangHopLe } from "../../../components/Pager";
 import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
-import { LocThangTao } from "../../../components/LocThangTao";
-import { ChevronDown } from "lucide-react";
+import { StatusTabs } from "../../../components/StatusTabs";
+import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
+import { thamSoKy } from "../../thanh-loc/ky-danh-sach";
+import { soDaAp } from "../../thanh-loc/thanh-loc";
+import { dkTabDon, nguoiLenUrl, nguoiTuUrl, tabTrangThai, thamSoNguoi, useLocTab } from "../dieu-kien-don";
+import { LOC_TC_TRONG, MAN_TANG_CA, MOC_TC, useDieuKienDuyetTangCa, type LocTangCa } from "./dieu-kien-tang-ca";
 import { RowActionButton } from "../../../components/RowActionButton";
 import { RequestTable } from "./components/RequestTable";
 import { OvertimeFormModal } from "./modals/OvertimeFormModal";
@@ -63,11 +67,31 @@ export function TangCaPage({
   const [queueTotal, setQueueTotal] = useState(0);
   const [queuePage, setQueuePage] = useState(1);
   const [queueSize, setQueueSize] = useState(PAGE_SIZE);
-  // Bộ lọc (23/09/2026): tháng TẠO phiếu cho cả hai tab + trạng thái cho tab Duyệt phiếu. Trạng thái
-  // mặc định "Chờ duyệt" — việc chính của người duyệt; đổi sang "Tất cả" mới thấy phiếu đã xử lý.
-  const [mineThang, setMineThang] = useState("");
-  const [queueThang, setQueueThang] = useState("");
-  const [queueStatus, setQueueStatus] = useState("pending");
+  // Bộ lọc (06/10/2026, thay ô "Tháng tạo"): kỳ (Ngày tạo / Ngày công) + trạng thái (thanh tab có
+  // số) cho cả hai tab, thêm Nhân viên, Phòng ban cho tab Duyệt — lọc, đếm, phân trang ở MÁY CHỦ.
+  // Trạng thái tab Duyệt mặc định "Chờ duyệt" — việc chính của người duyệt.
+  const [locMine, setLocMineGoc] = useLocTab<LocTangCa>({
+    man: MAN_TANG_CA, tienToUrl: "pt", moc: MOC_TC, mocMacDinh: "tao", ttMacDinh: "",
+    locTrong: LOC_TC_TRONG, locTuUrl: () => LOC_TC_TRONG, locLenUrl: () => ({}),
+  });
+  const [locQueue, setLocQueueGoc] = useLocTab<LocTangCa>({
+    man: MAN_TANG_CA, tienToUrl: "dy", moc: MOC_TC, mocMacDinh: "tao", ttMacDinh: "pending",
+    locTrong: LOC_TC_TRONG, locTuUrl: nguoiTuUrl, locLenUrl: nguoiLenUrl,
+  });
+  const dieuKienDuyet = useDieuKienDuyetTangCa(canApprove);
+  const [demMine, setDemMine] = useState<Record<string, number> | null>(null);
+  const [demQueue, setDemQueue] = useState<Record<string, number> | null>(null);
+  const queueStatus = locQueue.tt;
+  const khoaMine = JSON.stringify({ ...thamSoKy(locMine.ky), status_filter: locMine.tt || undefined });
+  const khoaQueue = JSON.stringify({
+    ...thamSoKy(locQueue.ky),
+    ...thamSoNguoi(locQueue.loc),
+    status_filter: queueStatus || undefined,
+  });
+  const queueCoLoc = locQueue.ky.loai !== "tat_ca" || soDaAp(dieuKienDuyet, locQueue.loc) > 0;
+  const mineCoLoc = locMine.ky.loai !== "tat_ca" || locMine.tt !== "";
+  const luotMine = useRef(0);
+  const luotQueue = useRef(0);
   // Người duyệt hủy thẳng phiếu ĐÃ DUYỆT — bắt buộc lý do (23/09/2026).
   const [huyPhieu, setHuyPhieu] = useState<OvertimeRequest | null>(null);
   const [huyBusy, setHuyBusy] = useState(false);
@@ -95,21 +119,25 @@ export function TangCaPage({
   const [xinHuyQueue, setXinHuyQueue] = useState<XinHuyChoDuyet<OvertimeRequest>[]>([]);
 
   const load = useCallback(() => {
+    const lm = ++luotMine.current;
     setLoadingMine(true);
     setErrMine(null);
     api.overtime
-      .mine(token, { page: minePage, size: mineSize, thang: mineThang || undefined })
+      .mine(token, { ...JSON.parse(khoaMine), page: minePage, size: mineSize })
       .then((r) => {
+        if (lm !== luotMine.current) return;
         setHasEmployee(r.has_employee);
         setMine(r.items ?? []);
         setMineTotal(r.total);
+        setDemMine(r.dem_theo_tab ?? null);
         // Hủy nốt phiếu cuối của trang 3 ⇒ chỉ còn 2 trang: nhảy về trang cuối còn thật.
         const trangCanVe = trangHopLe(minePage, r.total, mineSize);
         if (trangCanVe !== null) setMinePage(trangCanVe);
       })
-      .catch((e) => setErrMine(errText(e)))
-      .finally(() => setLoadingMine(false));
+      .catch((e) => { if (lm === luotMine.current) setErrMine(errText(e)); })
+      .finally(() => { if (lm === luotMine.current) setLoadingMine(false); });
     if (canApprove) {
+      const lq = ++luotQueue.current;
       setLoadingQueue(true);
       setErrQueue(null);
       // Mặc định lọc `pending` (bộ lọc trạng thái từ 23/09/2026). Chuyện cũ: không lọc là hàng đợi VÔ DỤNG.
@@ -121,20 +149,17 @@ export function TangCaPage({
       // ghi "Duyệt phiếu (3)" và tiêu đề bảng vẫn ghi "Phiếu chờ duyệt".
       // Tổ trưởng mở ra thấy toàn phiếu đã duyệt, tưởng hết việc rồi bỏ đi.
       api.overtime
-        .list(token, {
-          statusFilter: queueStatus || undefined,
-          thang: queueThang || undefined,
-          page: queuePage,
-          size: queueSize,
-        })
+        .list(token, { ...JSON.parse(khoaQueue), page: queuePage, size: queueSize })
         .then((r) => {
+          if (lq !== luotQueue.current) return;
           setQueue(r.items);
           setQueueTotal(r.total);
+          setDemQueue(r.dem_theo_tab ?? null);
           const trangCanVe = trangHopLe(queuePage, r.total, queueSize);
           if (trangCanVe !== null) setQueuePage(trangCanVe);
         })
-        .catch((e) => setErrQueue(errText(e)))
-        .finally(() => setLoadingQueue(false));
+        .catch((e) => { if (lq === luotQueue.current) setErrQueue(errText(e)); })
+        .finally(() => { if (lq === luotQueue.current) setLoadingQueue(false); });
       api.overtime
         .xinHuyChoDuyet(token)
         .then((r) => setXinHuyQueue(r.items))
@@ -147,12 +172,22 @@ export function TangCaPage({
     }
     api.overtime.markSeen(token).catch(() => undefined);
     onChanged?.(); // badge sidebar + chuông cập nhật ngay sau mỗi thao tác
-  }, [token, canApprove, onChanged, minePage, mineSize, queuePage, queueSize, mineThang, queueThang, queueStatus]);
+  }, [token, canApprove, onChanged, minePage, mineSize, queuePage, queueSize, khoaMine, khoaQueue]);
 
   // `eventTick` đổi = có sự kiện real-time → tải lại bảng, khỏi bắt người dùng F5.
   useEffect(() => {
     load();
   }, [load, eventTick]);
+
+  const setLocMine = (t: typeof locMine) => {
+    setLocMineGoc(t);
+    setMinePage(1);
+  };
+  const setLocQueue = (t: typeof locQueue) => {
+    setLocQueueGoc(t);
+    setQueuePage(1);
+    setSelected(new Set());
+  };
 
   function toggle(id: number) {
     setSelected((s) => {
@@ -247,14 +282,6 @@ export function TangCaPage({
             <h4 className="ns-section__title" style={{ margin: 0, flex: 1 }}>
               Phiếu tăng ca của tôi
             </h4>
-            {/* Đổi tháng ⇒ về trang 1 NGAY trong handler — không thì đứng trang 3 của tháng khác là rỗng. */}
-            <LocThangTao
-              value={mineThang}
-              onChange={(v) => {
-                setMineThang(v);
-                setMinePage(1);
-              }}
-            />
             {/* Hành động chính của tab → cam. Hai tab không bao giờ hiện cùng lúc nên màn
                 vẫn chỉ có ĐÚNG một nút cam. */}
             {hasEmployee && tuPhucVuGhi && (
@@ -263,6 +290,27 @@ export function TangCaPage({
               </Button>
             )}
           </div>
+          {hasEmployee && (
+            <>
+              <div className="cc-toolbar tl-thanh">
+                <ThanhLoc
+                  ky={locMine.ky}
+                  moc={MOC_TC}
+                  onKy={(ky) => setLocMine({ ...locMine, ky })}
+                  dieuKien={dkTabDon<LocTangCa>([], tabTrangThai(demMine))}
+                  loc={locMine}
+                  onLoc={setLocMine}
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <StatusTabs
+                  tabs={tabTrangThai(demMine)}
+                  active={locMine.tt}
+                  onChange={(tt) => setLocMine({ ...locMine, tt })}
+                />
+              </div>
+            </>
+          )}
           {!hasEmployee ? (
             <div className="tc-note">
               <span>
@@ -280,10 +328,10 @@ export function TangCaPage({
               loading={loadingMine}
               listError={errMine}
               onRetry={load}
-              emptyTitle={mineThang ? "Tháng này bạn chưa gửi phiếu nào" : "Chưa có phiếu tăng ca nào"}
+              emptyTitle={mineCoLoc ? "Không có phiếu nào khớp bộ lọc" : "Chưa có phiếu tăng ca nào"}
               emptySub={
-                mineThang
-                  ? "Bỏ lọc tháng (nút ✕) để xem mọi phiếu."
+                mineCoLoc
+                  ? "Đổi kỳ hoặc chọn tab Tất cả để xem mọi phiếu."
                   : "Bấm “+ Gửi phiếu” để xin khoảng được phép tăng ca."
               }
               actions={(r) =>
@@ -353,34 +401,22 @@ export function TangCaPage({
             </Button>
           </div>
           {/* Bộ lọc ở HÀNG RIÊNG dưới tiêu đề: xếp chung một hàng với tiêu đề + nút "Tạo hộ thợ" thì màn
-              hẹp vỡ hàng lộn xộn (ô trạng thái có luật chung chiếm trọn hàng ở màn hẹp). */}
-          <div className="tc-loc">
-            <div className="ns-select-wrapper">
-              {/* Đổi bộ lọc ⇒ về trang 1 NGAY trong handler, và bỏ các ô đã tick (chúng thuộc danh sách cũ). */}
-              <select
-                aria-label="Lọc theo trạng thái"
-                value={queueStatus}
-                onChange={(e) => {
-                  setQueueStatus(e.target.value);
-                  setQueuePage(1);
-                  setSelected(new Set());
-                }}
-              >
-                <option value="pending">Chờ duyệt</option>
-                <option value="approved">Đã duyệt</option>
-                <option value="rejected">Từ chối</option>
-                <option value="cancelled">Đã hủy</option>
-                <option value="">Tất cả</option>
-              </select>
-              <ChevronDown size={14} className="ns-select-chevron" />
-            </div>
-            <LocThangTao
-              value={queueThang}
-              onChange={(v) => {
-                setQueueThang(v);
-                setQueuePage(1);
-                setSelected(new Set());
-              }}
+              hẹp vỡ hàng lộn xộn. Đổi lọc ⇒ về trang 1 + bỏ các ô đã tick (thuộc danh sách cũ). */}
+          <div className="cc-toolbar tl-thanh">
+            <ThanhLoc
+              ky={locQueue.ky}
+              moc={MOC_TC}
+              onKy={(ky) => setLocQueue({ ...locQueue, ky })}
+              dieuKien={dkTabDon(dieuKienDuyet, tabTrangThai(demQueue))}
+              loc={locQueue}
+              onLoc={setLocQueue}
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <StatusTabs
+              tabs={tabTrangThai(demQueue)}
+              active={queueStatus}
+              onChange={(tt) => setLocQueue({ ...locQueue, tt })}
             />
           </div>
           {selected.size > 0 && (
@@ -424,14 +460,14 @@ export function TangCaPage({
             listError={errQueue}
             onRetry={load}
             emptyTitle={
-              queueStatus === "pending" && !queueThang
+              queueStatus === "pending" && !queueCoLoc
                 ? "Chưa có phiếu nào trong phạm vi của bạn"
                 : "Không có phiếu nào khớp bộ lọc"
             }
             emptySub={
-              queueStatus === "pending" && !queueThang
+              queueStatus === "pending" && !queueCoLoc
                 ? "Thợ gửi phiếu tăng ca thì việc sẽ hiện ở đây."
-                : "Đổi trạng thái hoặc bỏ lọc tháng (nút ✕) để xem thêm."
+                : "Chọn tab trạng thái khác, đổi kỳ hoặc bỏ bớt điều kiện lọc."
             }
             actions={(r) =>
               r.status === "approved" ? (

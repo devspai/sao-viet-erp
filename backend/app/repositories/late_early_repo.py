@@ -15,7 +15,11 @@ from ..models.late_early import (
     LateEarlyRequest,
 )
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
+from ..models.attendance import WorkShift
+from .loc_don_nhan_su import LocDon, dem_theo_trang_thai, dk_ky, dk_nguoi, lua_chon_nhan_vien, lua_chon_phong
 from .org_scope import dept_subtree_ids
+
+COT_MOC = {"tao": (LateEarlyRequest.created_at, False), "ngay_cong": (LateEarlyRequest.work_date, True)}
 
 _DECIDED = (STATUS_APPROVED, STATUS_REJECTED)
 _LIVE = (STATUS_PENDING, STATUS_APPROVED)
@@ -70,21 +74,67 @@ class LateEarlyRepository:
             return Employee.department_id.in_(dept_ids)
         raise ValueError(f"Unknown scope: {scope!r}")
 
-    def list_scoped(self, *, scope: str, actor, status: str | None = None,
-                    limit: int = 200) -> list[LateEarlyRequest]:
-        stmt = select(LateEarlyRequest).join(Employee, LateEarlyRequest.employee_id == Employee.id)
+    # --- danh sách có kỳ + bộ lọc + phân trang (06/10/2026) --------------------
+
+    def _dk_loc(self, *, scope: str, actor, loc: LocDon) -> list:
+        """Phạm vi + kỳ + nhân viên + phòng — mọi điều kiện TRỪ trạng thái và kiểu vắng."""
+        M = LateEarlyRequest
+        dk: list = []
         cond = self._scope_condition(scope=scope, actor=actor)
         if cond is not None:
-            stmt = stmt.where(cond)
+            dk.append(cond)
+        return [*dk, *dk_ky(COT_MOC, loc), *dk_nguoi(M, loc)]
+
+    @staticmethod
+    def _thu_tu():
+        # CHỜ DUYỆT lên đầu — đó là việc phải làm; trong nhóm thì ngày công mới nhất trước.
+        M = LateEarlyRequest
+        return (case((M.status == STATUS_PENDING, 0), else_=1), M.work_date.desc(), M.id.desc())
+
+    def dem_theo_tab(self, *, scope: str, actor, loc: LocDon) -> dict[str, int]:
+        return dem_theo_trang_thai(self.db, LateEarlyRequest, self._dk_loc(scope=scope, actor=actor, loc=loc))
+
+    def loc_scoped(self, *, scope: str, actor, loc: LocDon, status: str | None,
+                   limit: int, offset: int) -> tuple[list[LateEarlyRequest], int]:
+        M = LateEarlyRequest
+        dk = self._dk_loc(scope=scope, actor=actor, loc=loc)
         if status is not None:
-            stmt = stmt.where(LateEarlyRequest.status == status)
-        # CHỜ DUYỆT lên đầu — đó là việc phải làm. KHÔNG sort `status.asc()`: theo bảng chữ cái
-        # nó ra approved → cancelled → pending → rejected, chôn việc cần làm vào GIỮA bảng.
-        stmt = stmt.order_by(
-            case((LateEarlyRequest.status == STATUS_PENDING, 0), else_=1),
-            LateEarlyRequest.work_date.desc(), LateEarlyRequest.id.desc(),
-        ).limit(limit)
-        return list(self.db.execute(stmt).scalars())
+            dk.append(M.status == status)
+        base = select(M).join(Employee, M.employee_id == Employee.id).where(*dk)
+        total = int(self.db.execute(select(func.count()).select_from(base.subquery())).scalar_one())
+        rows = list(self.db.execute(base.order_by(*self._thu_tu()).limit(limit).offset(offset)).scalars())
+        return rows, total
+
+    def hang_kem_ca(self, *, scope: str, actor, loc: LocDon) -> list[tuple]:
+        """(id, trạng thái, từ phút, đến phút, ca bắt đầu, ca kết thúc, ca qua đêm) của MỌI phiếu
+        khớp kỳ / người — service suy KIỂU vắng theo ca mặc định của người lao động (luật kiểu vắng
+        không viết được gọn bằng SQL). Đã xếp đúng thứ tự hiển thị."""
+        M = LateEarlyRequest
+        return [tuple(r) for r in self.db.execute(
+            select(M.id, M.status, M.from_minute, M.to_minute,
+                   WorkShift.start_minute, WorkShift.end_minute, WorkShift.is_overnight)
+            .join(Employee, M.employee_id == Employee.id)
+            .outerjoin(WorkShift, Employee.default_shift_id == WorkShift.id)
+            .where(*self._dk_loc(scope=scope, actor=actor, loc=loc))
+            .order_by(*self._thu_tu())
+        ).all()]
+
+    def lay_theo_ids(self, ids: list[int]) -> list[LateEarlyRequest]:
+        """Nạp phiếu theo id, GIỮ thứ tự của `ids`."""
+        if not ids:
+            return []
+        rows = {r.id: r for r in self.db.execute(
+            select(LateEarlyRequest).where(LateEarlyRequest.id.in_(ids))).scalars()}
+        return [rows[i] for i in ids if i in rows]
+
+    def lua_chon(self, truong: str, *, scope: str, actor) -> list[dict]:
+        dk: list = []
+        cond = self._scope_condition(scope=scope, actor=actor)
+        if cond is not None:
+            dk.append(cond)
+        if truong == "phong":
+            return lua_chon_phong(self.db, LateEarlyRequest, dk)
+        return lua_chon_nhan_vien(self.db, LateEarlyRequest, dk)
 
     def count_pending_scoped(self, *, scope: str, actor) -> int:
         """Số phiếu ĐANG CHỜ DUYỆT trong scope người gọi — nuôi badge sidebar (COUNT ở DB)."""

@@ -11,6 +11,7 @@ còn chốt/mở kỳ nên `close_book` không dùng tới nữa (cột quyền 
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
@@ -23,7 +24,8 @@ from ..models.department import Department
 from ..models.tai_san import NGUON_DAU_KY, TT_DA_GIAM, TaiSan
 from .catalog_base import ImportExcelLoi, ImportExcelOut
 from ..models.user import User
-from ..repositories.tai_san_repo import TaiSanRepository
+from ..repositories.tai_san_repo import LocTaiSan, TaiSanRepository
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.tai_san import (
     BangThangOut,
     BienDongIn,
@@ -207,6 +209,14 @@ def import_excel(
 # =====================================================================================
 
 
+@router.get("/loc-bo-phan", response_model=list[LuaChonLoc])
+def loc_bo_phan(db: Db, _: Annotated[User, Depends(_DOC)]) -> list[LuaChonLoc]:
+    """Thẻ lọc "Bộ phận": bộ phận đang có tài sản, kèm số tài sản."""
+    return [
+        LuaChonLoc(id=i, ten=t, so=n) for i, t, n in TaiSanRepository(db).dem_theo_bo_phan()
+    ]
+
+
 @router.get("", response_model=TaiSanListOut)
 def danh_sach(
     db: Db,
@@ -216,26 +226,31 @@ def danh_sach(
     loai: str | None = None,
     bo_phan_id: int | None = None,
     trang_thai: str | None = None,
+    gia_tu: int | None = Query(None, ge=0),
+    gia_den: int | None = Query(None, ge=0),
+    tu_ngay: date | None = Query(None),
+    den_ngay: date | None = Query(None),
+    moc: str = Query("tao", pattern="^(tao|su_dung|giam)$"),
     offset: int = 0,
     limit: int = Query(default=50, ge=1, le=200),
 ) -> TaiSanListOut:
-    rows, tong = svc.repo.danh_sach(
+    loc = LocTaiSan(
         q=q, loai=loai, bo_phan_id=bo_phan_id, trang_thai=trang_thai,
-        offset=offset, limit=limit,
+        gia_tu=gia_tu, gia_den=gia_den, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
     )
+    rows, tong = svc.repo.danh_sach(loc, offset=offset, limit=limit)
     # Dải số đầu màn cộng trên CẢ bộ lọc — cộng trong JS chỉ ra tổng của trang đang xem.
     nam, thang = thang_da_tinh()
     tong_gia = tong_con_lai = 0
-    for o in svc.repo.tat_ca_theo_loc(
-        q=q, loai=loai, bo_phan_id=bo_phan_id, trang_thai=trang_thai,
-    ):
+    for o in svc.repo.tat_ca_theo_loc(loc):
         gia = int(o.nguyen_gia or 0)
         tong_gia += gia
         if o.trang_thai != TT_DA_GIAM:
             tong_con_lai += gia - svc.hao_mon_den(o, nam, thang)
     return TaiSanListOut(
         items=_dung_rows(db, svc, rows), total=tong,
-        dem_loai=svc.repo.dem_theo_loai(q=q, bo_phan_id=bo_phan_id, trang_thai=trang_thai),
+        dem_loai=svc.repo.dem_theo_loai(loc),
+        dem_trang_thai=svc.repo.dem_theo_trang_thai(loc),
         tong_gia=tong_gia, tong_con_lai=tong_con_lai,
     )
 

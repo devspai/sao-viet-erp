@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ngăn phiếu chi — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1100px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--ash);margin:0 0 12px;max-width:820px}
+.loi{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:14px 18px;margin:0 0 40px;max-width:860px;color:var(--ash)}
+.loi b{color:var(--ink)}
+.loi ol{margin:6px 0 0;padding-left:20px}
+.opt{margin-bottom:72px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.goi-y{font-size:12px;font-weight:600;color:var(--moss-deep);background:var(--moss-soft);border-radius:999px;padding:2px 10px}
+.why{color:var(--ash);margin:0 0 16px;max-width:880px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+
+/* Khung ngăn phải 920px như mọi ngăn */
+.ngan{background:var(--canvas);border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.14);max-width:920px;padding:20px 28px 28px}
+.crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ash-2)}
+.crumb .x{margin-left:auto;font-size:18px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap}
+.btn--icon{width:36px;justify-content:center;padding:0}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px;background:var(--moss-soft);color:var(--moss-deep)}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--moss)}
+.the{display:inline-flex;font-size:12px;color:var(--ash);background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:6px;padding:0 8px}
+.tabs{display:flex;gap:24px;border-bottom:1px solid var(--rule-soft);margin-top:22px}
+.tab{padding:10px 0;font-size:13.5px;color:var(--ash);border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;gap:6px;align-items:center}
+.tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+.cnt{font-size:11px;font-weight:600;background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:999px;padding:0 7px;color:var(--ash)}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--ash-2)}
+.mono{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+
+/* ============ A — Stripe ============ */
+.a-dau{display:flex;align-items:flex-start;gap:16px;margin-top:14px}
+.a-dau .nhan{font-size:12.5px;color:var(--ash-2)}
+.a-so{font-size:32px;font-weight:700;line-height:1.15;margin:2px 0 4px;display:flex;align-items:center;gap:12px}
+.a-chu{font-size:13px;color:var(--ash-2)}
+.a-nut{margin-left:auto;display:flex;gap:8px}
+.a-facts{display:flex;flex-wrap:wrap;gap:0;margin-top:18px;border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft)}
+.a-fact{padding:12px 28px 12px 0;margin-right:28px;border-right:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:2px}
+.a-fact:last-child{border-right:0}
+.a-fact span{font-size:12px;color:var(--ash-2)}
+.a-fact b{font-weight:600}
+.a-sec{margin-top:24px}
+.a-sec h4{margin:0 0 4px;font-size:15px;font-weight:700}
+.a-dl{margin:0;display:grid;grid-template-columns:200px 1fr}
+.a-dl dt,.a-dl dd{padding:9px 0;border-bottom:1px solid var(--rule-hair);margin:0}
+.a-dl dt{color:var(--ash-2)}
+.a-dl dd{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+
+/* ============ B — Wise ============ */
+.b-dau{display:flex;align-items:center;gap:10px;margin-top:14px}
+.b-dau .a-nut{margin-left:auto}
+.b-the{margin-top:16px;border:1px solid var(--rule-soft);border-radius:14px;overflow:hidden}
+.b-so{padding:22px 24px 18px;text-align:left;border-bottom:1px solid var(--rule-soft)}
+.b-so .nhan{font-size:12.5px;color:var(--ash-2)}
+.b-so .so{font-size:34px;font-weight:700;line-height:1.15;margin:2px 0}
+.b-so .chu{font-size:13px;color:var(--ash-2)}
+.b-tuyen{position:relative;padding:18px 24px 18px 56px}
+.b-tuyen::before{content:"";position:absolute;left:31px;top:34px;bottom:34px;width:2px;background:var(--rule)}
+.b-diem{position:relative;padding:6px 0}
+.b-diem + .b-diem{margin-top:18px}
+.b-diem::before{content:"";position:absolute;left:-30px;top:12px;width:12px;height:12px;border-radius:50%;background:var(--canvas);border:2px solid var(--ink)}
+.b-diem.den::before{background:var(--ink)}
+.b-diem .vai{font-size:12px;color:var(--ash-2)}
+.b-diem .ten{font-weight:700;font-size:15px}
+.b-diem .tk{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-top:2px}
+.b-dl{margin:22px 0 0;display:grid;grid-template-columns:200px 1fr}
+.b-dl dt,.b-dl dd{padding:9px 0;border-bottom:1px solid var(--rule-hair);margin:0}
+.b-dl dt{color:var(--ash-2)}
+
+/* ============ C — Xero ============ */
+.c-dau{display:flex;align-items:flex-start;gap:16px;margin-top:14px}
+.c-dau h3{margin:0;font-size:20px}
+.c-dau .phu{display:flex;gap:10px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.c-tong{margin-left:auto;text-align:right}
+.c-tong .so{font-size:28px;font-weight:700;line-height:1.15}
+.c-tong .chu{font-size:12.5px;color:var(--ash-2)}
+.c-nut{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.c-luoi{display:grid;grid-template-columns:1fr 1fr;gap:0 40px;margin-top:8px}
+.c-cot h4{margin:20px 0 6px;font-size:12px;font-weight:600;color:var(--ash-2);letter-spacing:.03em}
+.c-cot dl{margin:0;display:grid;grid-template-columns:130px 1fr}
+.c-cot dt,.c-cot dd{padding:8px 0;border-bottom:1px solid var(--rule-hair);margin:0}
+.c-cot dt{color:var(--ash-2)}
+.c-cot dd{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+
+@media (max-width:720px){
+  .a-dl,.b-dl,.c-cot dl{grid-template-columns:1fr}
+  .a-dl dt,.b-dl dt,.c-cot dt{border-bottom:0;padding-bottom:0}
+  .c-luoi{grid-template-columns:1fr}
+  .c-dau{flex-direction:column}
+  .c-tong{margin-left:0;text-align:left}
+  .a-fact{border-right:0}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ngăn chi tiết phiếu chi — 3 phương án</h1>
+  <p class="lead">Dữ liệu thật của phiếu UNC-261005-AQ71 (tiền điện tháng 9). Ngăn này dùng chung khung với Phiếu thu, chọn phương án nào thì Phiếu thu đổi theo cùng một kiểu.</p>
+
+  <div class="loi">
+    <b>Bản hiện tại hỏng ở đâu</b>
+    <ol>
+      <li><b>Một cái tên nói bốn lần:</b> "Công ty Điện lực Bình Dương" ở tiêu đề, ở dòng Người nhận, ở dòng chủ tài khoản nhận, và ngầm trong tiêu đề ngăn. Số 2.000.000 đ nói hai lần (số lớn và mũi tên ở Dòng tiền).</li>
+      <li><b>Hộp lồng hộp:</b> dải tóm tắt nền xám đóng khung, rồi hai hộp "Thông tin phiếu" và "Dòng tiền" đứng cạnh nhau cao thấp lệch, hộp trái trống nửa dưới.</li>
+      <li><b>"Nguồn: Khác"</b> chiếm một ô trên dải tóm tắt mà không nói gì.</li>
+      <li><b>Hai mã phiếu</b> (UNC-261005-AQ71 trên đường dẫn và Số chứng từ PC00002 trong hộp) không nói rõ cái nào là cái nào.</li>
+      <li><b>Tên ngân hàng và số tài khoản in đậm cỡ to</b> lấn át cả nội dung chi, trong khi đó là thứ người xem cần đọc đầu tiên.</li>
+    </ol>
+  </div>
+
+  <!-- ===================== A ===================== -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>A. Trang chi tiết thanh toán: số tiền đầu, một cột thông tin</h2>
+      <span class="src">Stripe: trang chi tiết Payment</span>
+      <span class="goi-y">Gợi ý chọn</span>
+    </div>
+    <div class="why">
+      <b>Ý chính:</b> số tiền là thứ đầu tiên, tên người nhận đứng ngay dưới làm câu "chi cho ai". Dải tóm tắt thôi đóng hộp, chỉ còn đường kẻ. Thân ngăn là MỘT cột nhãn–giá trị chia hai mục "Nội dung" và "Thanh toán", không hộp nào.
+      <ul>
+        <li>Stripe đặt số tiền và trạng thái trên cùng, dưới là hàng thông tin chia bằng vạch dọc, rồi từng mục "Payment details", "Payment method" là danh sách nhãn trái giá trị phải. Mắt đọc một đường thẳng từ trên xuống.</li>
+        <li>Tên người nhận chỉ nói một lần ở đầu. Dòng "Tài khoản nhận" chỉ còn ngân hàng và số, không lặp tên.</li>
+        <li>Ô "Nguồn" chỉ hiện khi phiếu đi ra từ một đơn mua hay tạm ứng lương. Phiếu lập tay thì không có ô đó.</li>
+      </ul>
+    </div>
+    <div class="ngan">
+      <div class="crumb">Phiếu chi <span>›</span> <span class="mono">UNC-261005-AQ71</span><span class="x">×</span></div>
+      <div class="a-dau">
+        <div>
+          <div class="nhan">Chi cho Công ty Điện lực Bình Dương</div>
+          <div class="a-so num">2.000.000 đ <span class="pill">Đã chi</span></div>
+          <div class="a-chu">Hai triệu đồng</div>
+        </div>
+        <div class="a-nut"><span class="btn">In phiếu</span><span class="btn btn--icon">⋯</span></div>
+      </div>
+      <div class="a-facts">
+        <div class="a-fact"><span>Ngày chi</span><b class="num">06/10/2026</b></div>
+        <div class="a-fact"><span>Hình thức</span><b>Chuyển khoản</b></div>
+        <div class="a-fact"><span>Người lập</span><b>Admin</b></div>
+      </div>
+      <div class="tabs"><span class="tab on">Chi tiết</span><span class="tab">Chứng từ <span class="cnt">0</span></span><span class="tab">Lịch sử <span class="cnt">1</span></span></div>
+      <div class="a-sec">
+        <h4>Nội dung</h4>
+        <dl class="a-dl">
+          <dt>Nội dung chi</dt><dd>Tiền điện tháng 9 xưởng in</dd>
+          <dt>Số chứng từ kế toán</dt><dd class="mono">PC00002</dd>
+        </dl>
+      </div>
+      <div class="a-sec">
+        <h4>Thanh toán</h4>
+        <dl class="a-dl">
+          <dt>Trả từ tài khoản</dt><dd><span>Vietcombank</span><span class="mono">0281000123456</span><span class="the">Bình Dương</span></dd>
+          <dt>Tài khoản nhận</dt><dd><span>Techcombank</span><span class="mono">1903456789012</span></dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== B ===================== -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>B. Biên lai chuyển tiền: từ đâu tới đâu</h2>
+      <span class="src">Wise: chi tiết lệnh chuyển</span>
+      <span class="src">App ngân hàng: biên lai giao dịch</span>
+    </div>
+    <div class="why">
+      <b>Ý chính:</b> phiếu chi thực chất là một lần tiền đi. Vẽ đúng như biên lai ngân hàng: một thẻ có số tiền ở đầu, dưới là tuyến hai điểm "Từ" và "Tới" nối bằng một vạch. Thông tin còn lại xếp thành danh sách bên dưới thẻ.
+      <ul>
+        <li>Wise và app ngân hàng Việt (VCB Digibank, Techcombank) đều trình bày giao dịch kiểu này. Kế toán nhìn quen, đối chiếu sao kê nhanh.</li>
+        <li>Phiếu tiền mặt dùng cùng thẻ: điểm "Từ" là Quỹ tiền mặt, điểm "Tới" là tên và địa chỉ người nhận.</li>
+        <li>Chỗ yếu: tên người nhận vẫn đứng hai lần (tiêu đề ngăn và điểm "Tới"), vì tiêu đề ngăn cần tên để biết đang mở phiếu nào.</li>
+      </ul>
+    </div>
+    <div class="ngan">
+      <div class="crumb">Phiếu chi <span>›</span> <span class="mono">UNC-261005-AQ71</span><span class="x">×</span></div>
+      <div class="b-dau">
+        <h3 style="margin:0;font-size:19px">Tiền điện tháng 9 xưởng in</h3><span class="pill">Đã chi</span>
+        <div class="a-nut"><span class="btn">In phiếu</span><span class="btn btn--icon">⋯</span></div>
+      </div>
+      <div class="b-the">
+        <div class="b-so">
+          <div class="nhan">Chuyển khoản ngày 06/10/2026</div>
+          <div class="so num">2.000.000 đ</div>
+          <div class="chu">Hai triệu đồng</div>
+        </div>
+        <div class="b-tuyen">
+          <div class="b-diem"><div class="vai">Từ</div><div class="ten">CÔNG TY IN SAO VIỆT NHẬT</div><div class="tk"><span>Vietcombank</span><span class="mono">0281000123456</span><span class="the">Bình Dương</span></div></div>
+          <div class="b-diem den"><div class="vai">Tới</div><div class="ten">Công ty Điện lực Bình Dương</div><div class="tk"><span>Techcombank</span><span class="mono">1903456789012</span></div></div>
+        </div>
+      </div>
+      <div class="tabs"><span class="tab on">Chi tiết</span><span class="tab">Chứng từ <span class="cnt">0</span></span><span class="tab">Lịch sử <span class="cnt">1</span></span></div>
+      <dl class="b-dl">
+        <dt>Số chứng từ kế toán</dt><dd class="mono">PC00002</dd>
+        <dt>Người lập</dt><dd>Admin</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ===================== C ===================== -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>C. Chứng từ kế toán hai cột</h2>
+      <span class="src">Xero: Bill payment</span>
+      <span class="src">QuickBooks: Expense</span>
+    </div>
+    <div class="why">
+      <b>Ý chính:</b> trình bày như tờ chứng từ: tên người nhận làm tiêu đề, tổng tiền canh phải như cuối hoá đơn. Thân chia hai cột cân nhau "Chi cho" và "Trả bằng", mỗi cột là danh sách nhãn–giá trị gọn, không hộp.
+      <ul>
+        <li>Xero và QuickBooks đặt người nhận bên trái, tổng tiền bên phải, rồi lưới thông tin hai cột ngang hàng. Người làm kế toán đọc quen bố cục này từ phiếu giấy.</li>
+        <li>Hai cột cùng là danh sách dòng nên cao gần bằng nhau, không còn một hộp trống nửa dưới.</li>
+        <li>Chỗ yếu: trên điện thoại hai cột phải xếp chồng, mất lợi thế đọc ngang.</li>
+      </ul>
+    </div>
+    <div class="ngan">
+      <div class="crumb">Phiếu chi <span>›</span> <span class="mono">UNC-261005-AQ71</span><span class="x">×</span></div>
+      <div class="c-dau">
+        <div>
+          <h3>Công ty Điện lực Bình Dương</h3>
+          <div class="phu"><span class="pill">Đã chi</span><span class="muted">Tiền điện tháng 9 xưởng in</span></div>
+        </div>
+        <div class="c-tong">
+          <div class="so num">2.000.000 đ</div>
+          <div class="chu">Hai triệu đồng</div>
+          <div class="c-nut"><span class="btn">In phiếu</span><span class="btn btn--icon">⋯</span></div>
+        </div>
+      </div>
+      <div class="tabs"><span class="tab on">Chi tiết</span><span class="tab">Chứng từ <span class="cnt">0</span></span><span class="tab">Lịch sử <span class="cnt">1</span></span></div>
+      <div class="c-luoi">
+        <div class="c-cot">
+          <h4>PHIẾU</h4>
+          <dl>
+            <dt>Ngày chi</dt><dd class="num">06/10/2026</dd>
+            <dt>Số chứng từ</dt><dd class="mono">PC00002</dd>
+            <dt>Người lập</dt><dd>Admin</dd>
+          </dl>
+        </div>
+        <div class="c-cot">
+          <h4>TRẢ BẰNG CHUYỂN KHOẢN</h4>
+          <dl>
+            <dt>Từ tài khoản</dt><dd><span>Vietcombank</span><span class="mono">0281000123456</span></dd>
+            <dt>Chi nhánh</dt><dd>Bình Dương</dd>
+            <dt>Tới tài khoản</dt><dd><span>Techcombank</span><span class="mono">1903456789012</span></dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

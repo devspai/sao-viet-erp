@@ -25,6 +25,17 @@ import { nhanKho } from "../lib/khoGiay";
 import { nhanDonVi } from "./lsxBuoc";
 import { moTaPhieuMua, tomTatPhieuMua, vetDangKep } from "./phieuMuaNhan";
 import { useNapTenDonVi } from "./tenDonVi";
+import {
+  LOC_KHVT_HANG_TRONG,
+  MAN_KHVT,
+  dieuKienKhvtHang,
+  locKhvtHangLenUrl,
+  locKhvtHangTuUrl,
+  type LocKhvtHang,
+} from "./loc-san-xuat/dieu-kien-ke-hoach-vat-tu";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
+import { useLocMan } from "./thanh-loc/useLocMan";
 
 /** Bốn màu — LUÔN kèm chữ, không chỉ dựa màu (a11y). Nhãn nói HỆ QUẢ, không nói màu. */
 const MAU_META: Record<CanDoiMau, { label: string; cls: string; hint: string }> = {
@@ -125,14 +136,15 @@ export function VatTuKeHoachView({
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [filterType, setFilterType] = useState<FilterType>("all");
+  const [loc, setLoc] = useLocMan(MAN_KHVT, LOC_KHVT_HANG_TRONG, locKhvtHangTuUrl, locKhvtHangLenUrl);
   const [chon, setChon] = useState<Set<string>>(new Set());
   const [dangGui, setDangGui] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [selectedNhomId, setSelectedNhomId] = useState<string | null>(null);
 
-  // KHÔNG gửi `chi_thieu` theo chip: năm chip lọc ngay trên bảng đã nạp (`nhomsHienThi`), còn
-  // gửi lên thì mỗi lần bấm chip là chạy lại cả bảng cân đối toàn xưởng — và số trên các chip
-  // khác tụt theo tập đã lọc. Chỉ ô tìm kiếm đi về máy chủ.
+  // Tab + "Loại hàng" lọc Ở MÁY CHỦ (06/10/2026): máy chủ cache bảng cân đối theo ô tìm rồi mới
+  // lọc tab, nên bấm tab không dựng lại bảng toàn xưởng; số trên tab đếm TRƯỚC tab đang chọn
+  // (`data.dem`), không tụt theo chính nó.
   //
   // `can-doi` là hàm nặng (duyệt mọi lệnh + bài ghép + lô kho). KHÔNG cho hai lượt chồng nhau: đang
   // có lượt chạy thì chỉ đánh dấu "cần chạy lại", xong lượt đó mới chạy đúng MỘT lượt nữa (lấy tham
@@ -149,7 +161,11 @@ export function VatTuKeHoachView({
     dangChay.current = true;
     setErr(null);
     api.keHoachVatTu
-      .canDoi(token, { q: q.trim() || undefined })
+      .canDoi(token, {
+        q: q.trim() || undefined,
+        tinh_trang: filterType === "all" ? undefined : filterType,
+        hang_loai: loc.loai,
+      })
       .then(setData)
       .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : String(e)))
       .finally(() => {
@@ -159,7 +175,7 @@ export function VatTuKeHoachView({
           napRef.current();
         }
       });
-  }, [token, q]);
+  }, [token, q, filterType, loc.loai]);
   useEffect(() => {
     napRef.current = load;
   }, [load]);
@@ -232,32 +248,40 @@ export function VatTuKeHoachView({
     });
   }
 
+  // Máy chủ đã lọc theo tab + loại hàng — `nhoms` là đúng tập đang hiện.
   const nhoms = data?.items ?? [];
-  const tongDo = nhoms.reduce((s, n) => s + n.so_dong_do, 0);
-  const tongKhongRo = nhoms.reduce((s, n) => s + n.so_dong_khong_ro, 0);
+  const dem = data?.dem;
+  const tongNhom = dem?.so_nhom ?? 0;
+  const tongDo = dem?.so_dong_do ?? 0;
+  const tongKhongRo = dem?.so_dong_khong_ro ?? 0;
+  const tongDu = dem?.so_nhom_du ?? 0;
+  // Trạng thái trong nút Lọc = chính hàng tab (đọc/ghi `filterType`), không đẻ state thứ hai.
+  const dieuKien: DieuKien<LocKhvtHang>[] = [
+    dkTheoTab<LocKhvtHang>({
+      tabs: [
+        { id: "all", nhan: "Tất cả", so: tongNhom },
+        { id: "thieu", nhan: "Cần mua ngay", so: tongDo },
+        { id: "khong_ro", nhan: "Chưa rõ ĐVT", so: tongKhongRo },
+        { id: "du", nhan: "Đã đủ 100%", so: tongDu },
+      ],
+      tatCa: "all", dang: filterType, dat: (id) => setFilterType(id as FilterType),
+    }),
+    ...dieuKienKhvtHang(dem?.theo_loai),
+  ];
 
-  const nhomAnToan = useMemo(() => {
-    return nhoms.filter((n) => n.so_dong_do === 0 && n.so_dong_khong_ro === 0);
-  }, [nhoms]);
-
-  // Báo ngược số dòng đỏ lên trang cha
+  // Báo ngược số dòng đỏ lên trang cha — chỉ khi đang nhìn CẢ XƯỞNG (không tìm, không lọc loại).
   useEffect(() => {
-    if (data && !q.trim()) {
+    if (data && !q.trim() && !loc.loai) {
       onSoDo?.(tongDo + tongKhongRo);
     }
-  }, [data, q, tongDo, tongKhongRo, onSoDo]);
+  }, [data, q, loc.loai, tongDo, tongKhongRo, onSoDo]);
 
   useEffect(() => {
     if (data) onSoGiuLau?.(data.so_giu_lau ?? 0);
   }, [data, onSoGiuLau]);
 
-  // Lọc danh sách theo filterType
-  const nhomsHienThi = useMemo(() => {
-    if (filterType === "thieu") return nhoms.filter((n) => n.so_dong_do > 0);
-    if (filterType === "khong_ro") return nhoms.filter((n) => n.so_dong_khong_ro > 0);
-    if (filterType === "du") return nhomAnToan;
-    return nhoms;
-  }, [nhoms, filterType, nhomAnToan]);
+  const nhomsHienThi = nhoms;
+  const dangLoc = !!q || filterType !== "all" || !!loc.loai;
 
   // Nhóm đang mở trong Drawer
   const selectedNhom = useMemo(() => {
@@ -373,7 +397,7 @@ export function VatTuKeHoachView({
             onClick={() => setFilterType("all")}
           >
             <span>Tất cả</span>
-            <span className="khvt-utab__count">{num(nhoms.length)}</span>
+            <span className="khvt-utab__count">{num(tongNhom)}</span>
           </button>
 
           <button
@@ -411,28 +435,31 @@ export function VatTuKeHoachView({
           >
             <span className="khvt-utab__dot" />
             <span>Đã đủ 100%</span>
-            <span className="khvt-utab__count khvt-utab__count--du">{num(nhomAnToan.length)}</span>
+            <span className="khvt-utab__count khvt-utab__count--du">{num(tongDu)}</span>
           </button>
         </div>
 
-        <div className="khvt-toolbar__search">
-          <Icon name="search" size={14} />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm mã lệnh, tên giấy, mực, khuôn..."
-            aria-label="Tìm trong bảng cân đối vật tư"
-          />
-          {q && (
-            <button
-              type="button"
-              className="khvt-toolbar__clear"
-              onClick={() => setQ("")}
-              title="Xoá tìm kiếm"
-            >
-              ✕
-            </button>
-          )}
+        <div className="khvt-toolbar__actions tl-thanh">
+          <div className="khvt-toolbar__search">
+            <Icon name="search" size={14} />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Tìm mã lệnh, tên giấy, mực, khuôn..."
+              aria-label="Tìm trong bảng cân đối vật tư"
+            />
+            {q && (
+              <button
+                type="button"
+                className="khvt-toolbar__clear"
+                onClick={() => setQ("")}
+                title="Xoá tìm kiếm"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <ThanhLoc dieuKien={dieuKien} loc={loc} onLoc={setLoc} />
         </div>
       </div>
 
@@ -459,19 +486,19 @@ export function VatTuKeHoachView({
         </div>
       ) : nhomsHienThi.length === 0 ? (
         <EmptyState
-          icon={q || filterType !== "all" ? "search" : "packageCheck"}
+          icon={dangLoc ? "search" : "packageCheck"}
           title={
-            q || filterType !== "all"
+            dangLoc
               ? "Không có mặt hàng nào khớp bộ lọc."
               : "Chưa có nhu cầu vật tư nào cần cân đối."
           }
           sub={
-            q || filterType !== "all"
+            dangLoc
               ? "Thử xoá ô tìm kiếm hoặc chuyển sang tab lọc khác."
               : "Bảng gom nhu cầu của các lệnh ở trạng thái Sẵn sàng · Đã lập kế hoạch · Đã phát hành."
           }
           action={
-            q || filterType !== "all" ? (
+            dangLoc ? (
               <Button
                 variant="secondary"
                 onClick={() => {

@@ -732,18 +732,24 @@ class EmployeeService:
             employee_id=emp.id, changes=payload, reason=_clean(reason),
         )
 
-    def my_update_requests(self, *, user, status: str | None = None, page: int = 1, size: int = 10):
-        """Một trang đề nghị của chính NV + tổng dòng + số đếm theo trạng thái.
+    def my_update_requests(self, *, user, statuses: list[str] | None = None,
+                           tu_ngay=None, den_ngay=None, page: int = 1, size: int = 10):
+        """Một trang đề nghị của chính NV + tổng dòng + số đếm theo trạng thái (toàn hồ sơ) + số
+        đếm theo trạng thái trong kỳ đang xem.
 
         Tài khoản chưa gắn hồ sơ (admin thuần) không phải lỗi — trả trang rỗng để màn "Hồ sơ của
         tôi" hiện trạng thái rỗng bình thường."""
         emp = self.employees.get_by_user_id(user.id)
         if emp is None:
-            return [], 0, {}
+            return [], 0, {}, {}
         rows, total = self.employees.list_update_requests_by_employee(
-            emp.id, status=status, page=page, size=size,
+            emp.id, statuses=statuses, tu_ngay=tu_ngay, den_ngay=den_ngay, page=page, size=size,
         )
-        return rows, total, self.employees.dem_update_requests_by_employee(emp.id)
+        return (
+            rows, total,
+            self.employees.dem_update_requests_by_employee(emp.id),
+            self.employees.dem_update_requests_by_employee(emp.id, tu_ngay=tu_ngay, den_ngay=den_ngay),
+        )
 
     def cancel_my_update_request(self, *, user, request_id: int):
         """NV tự RÚT LẠI đề nghị của chính mình khi HCNS chưa xử lý.

@@ -19,7 +19,6 @@ import {
   type StockMaterialHistory,
   type StockThreshold,
   type StockVoucher,
-  type StockVoucherStatus,
 } from "../api/client";
 import { useCan } from "../auth/permissions";
 import { CodeLink } from "../components/CodeLink";
@@ -28,7 +27,7 @@ import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { Select } from "../components/Select";
 import { StockLevelChip } from "../components/StockLevelChip";
 import type { NavigateFn } from "../components/AppShell";
-import { fmtDateISO, money } from "../utils/format";
+import { fmtDate, fmtDateISO, fmtDateTime, money } from "../utils/format";
 import { qrToSvg } from "../lib/qr";
 import { khoaNguong, khoaTon, nhanDongTon } from "../lib/khoGiay";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
@@ -46,6 +45,19 @@ import {
 } from "./khoShared";
 import { InboxRequestDrawer, VoucherDrawer, TransferDrawer } from "./KhoYeuCauPage";
 import { khoaTonKho } from "../auth/quyenKho";
+import {
+  LOC_PK_TRONG,
+  MOC_PHIEU_KHO,
+  locPKLenUrl,
+  locPKTuUrl,
+  thamSoLocPK,
+  useDieuKienPhieuKho,
+  type LocPhieuKho,
+} from "./loc-kho/dieu-kien-phieu-kho";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import { soDaAp } from "./thanh-loc/thanh-loc";
+import { useLocMan } from "./thanh-loc/useLocMan";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
@@ -119,6 +131,15 @@ interface MaterialGroup {
 }
 
 type TonTab = "ton" | "nhap" | "xuat" | "dc";
+
+// Kỳ + bộ lọc của ba tab phiếu (06/10/2026): ghi lên URL theo mã màn của kho (`kho-item:<id>`).
+type LocManPK = { ky: KyDS; loc: LocPhieuKho };
+const LOC_MAN_PK_TRONG: LocManPK = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_PK_TRONG };
+const docLocManPK = (p: URLSearchParams): LocManPK => ({
+  ky: kyTuUrl(p, MOC_PHIEU_KHO.map(([m]) => m), "tao"),
+  loc: locPKTuUrl(p),
+});
+const ghiLocManPK = (t: LocManPK) => ({ ...kyLenUrl(t.ky, "tao"), ...locPKLenUrl(t.loc) });
 
 
 /** Mức tồn 4 mức — MIRROR backend `stock_level` (bỏ "sắp hết/cận tồn"). Chưa khai ngưỡng
@@ -207,7 +228,10 @@ export function KhoTonKhoPage({
   const [lots, setLots] = useState<StockLot[]>([]);
   // Khoá `"giay:12"` — cặp (hang_loai, hang_id) dẹp thành chuỗi để dùng làm key Record/JSX.
   const [thresholds, setThresholds] = useState<Record<string, StockThreshold>>({});
+  // Phiếu của tab đang xem — ĐÚNG một trang, máy chủ đã lọc/đếm/phân trang (06/10/2026).
   const [vouchers, setVouchers] = useState<StockVoucher[]>([]);
+  const [vTotal, setVTotal] = useState(0);
+  const [demTab, setDemTab] = useState<{ nhap: number; xuat: number; dc: number }>({ nhap: 0, xuat: 0, dc: 0 });
   const [loading, setLoading] = useState(true);
   const [loadingV, setLoadingV] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -216,7 +240,6 @@ export function KhoTonKhoPage({
   const [openMaterial, setOpenMaterial] = useState<MaterialGroup | null>(null);
   // Mã đã tick để tạo Yêu cầu mua hàng (chỉ tab Tồn kho).
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [voucherFilter, setVoucherFilter] = useState<"all" | StockVoucherStatus>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [openVoucher, setOpenVoucher] = useState<number | null>(null);
@@ -250,11 +273,15 @@ export function KhoTonKhoPage({
   const [tonTo, setTonTo] = useState("");
   const [gtFrom, setGtFrom] = useState(""); // Giá trị tồn (g.value)
   const [gtTo, setGtTo] = useState("");
-  // Bộ lọc tab Phiếu Nhập/Xuất (RIÊNG — khác ngữ nghĩa tab tồn): khoảng NGÀY PHIẾU + khoảng GIÁ VỐN.
-  const [vDateFrom, setVDateFrom] = useState("");
-  const [vDateTo, setVDateTo] = useState("");
-  const [vValFrom, setVValFrom] = useState("");
-  const [vValTo, setVValTo] = useState("");
+  // Kỳ + điều kiện của ba tab phiếu (Trạng thái, Người lập, Giá vốn khi xem được giá kho này).
+  const [locMan, setLocManGoc] = useLocMan(`kho-item:${khoId}`, LOC_MAN_PK_TRONG, docLocManPK, ghiLocManPK);
+  const setLocMan = (t: LocManPK) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const dieuKienPK = useDieuKienPhieuKho(khoId, canViewCost);
+  const khoaLocPK = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocPK(locMan.loc, canViewCost) });
+  const coLocPK = locMan.ky.loai !== "tat_ca" || soDaAp(dieuKienPK, locMan.loc) > 0;
 
   // Bộ lọc Trạng thái Tồn kho
   const [statusFilter, setStatusFilter] = useState<"all" | "can_mua" | "du" | "du_ton" | "het" | "chuakhai" | "sap_het_han">("all");
@@ -281,22 +308,38 @@ export function KhoTonKhoPage({
   }, [token, khoId]);
 
 
+  // Tab "Tồn kho" vẫn nạp nhóm Phiếu nhập (1 dòng) để có số trên các tab phiếu.
+  const nhomPK = tab === "ton" ? "nhap" : tab;
+  const qPK = tab === "ton" ? "" : q.trim();
   const loadVouchers = useCallback(() => {
     setLoadingV(true);
     api.kho.phieu
-      .list(token, { kho_id: khoId, size: 200 })
+      .list(token, {
+        kho_id: khoId,
+        q: qPK || null,
+        loc: { nhom: nhomPK, man: "ton", ...JSON.parse(khoaLocPK) },
+        page: tab === "ton" ? 1 : page,
+        size: tab === "ton" ? 1 : pageSize,
+      })
       .then((r) => {
         setVouchers(r.items);
+        setVTotal(r.total);
+        if (r.dem_theo_tab) setDemTab(r.dem_theo_tab);
         setError(null);
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Không tải được phiếu kho."))
       .finally(() => setLoadingV(false));
-  }, [token, khoId]);
+  }, [token, khoId, tab, nhomPK, qPK, khoaLocPK, page, pageSize]);
 
   useEffect(() => {
     load();
-    loadVouchers();
-  }, [load, loadVouchers]);
+  }, [load]);
+
+  // Gõ tìm → chờ 300ms rồi mới hỏi máy chủ.
+  useEffect(() => {
+    const t = setTimeout(loadVouchers, 300);
+    return () => clearTimeout(t);
+  }, [loadVouchers]);
 
   useEffect(() => {
     setPage(1);
@@ -304,15 +347,11 @@ export function KhoTonKhoPage({
     tab,
     q,
     statusFilter,
-    voucherFilter,
     dateFrom,
     dateTo,
     tonFrom,
     tonTo,
-    vDateFrom,
-    vDateTo,
-    vValFrom,
-    vValTo,
+    khoaLocPK,
     pageSize,
   ]);
 
@@ -325,10 +364,6 @@ export function KhoTonKhoPage({
     setTonTo("");
     setGtFrom("");
     setGtTo("");
-    setVDateFrom("");
-    setVDateTo("");
-    setVValFrom("");
-    setVValTo("");
   }, [tab]);
 
 
@@ -464,50 +499,6 @@ export function KhoTonKhoPage({
   }, [groups, q, statusFilter, dateFrom, dateTo, tonFrom, tonTo, gtFrom, gtTo]);
 
 
-  const shownVouchers = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    // Tab quyết định nhóm phiếu: Nhập / Xuất (KHÔNG lẫn điều chuyển) · Điều chuyển (cả 2 vế của kho
-    // này — xuất đi + nhập về). Tab 'ton' không render list này.
-    const vf = vValFrom.trim() === "" ? null : Number(vValFrom);
-    const vt = vValTo.trim() === "" ? null : Number(vValTo);
-    return vouchers
-      .filter((v) =>
-        tab === "dc"
-          ? v.dieu_chuyen
-          : v.loai === (tab === "xuat" ? "XUAT" : "NHAP") && !v.dieu_chuyen,
-      )
-      .filter((v) => voucherFilter === "all" || v.trang_thai === voucherFilter)
-      .filter(
-        (v) =>
-          !s ||
-          v.ma.toLowerCase().includes(s) ||
-          (v.request_ma ?? "").toLowerCase().includes(s) ||
-          // Tìm cả theo TÊN / MÃ vật tư đi trong phiếu (khớp bất kỳ dòng nào).
-          v.lines.some(
-            (l) =>
-              (l.hang_ten ?? "").toLowerCase().includes(s) ||
-              (l.hang_ma ?? "").toLowerCase().includes(s),
-          ),
-      )
-      // Khoảng NGÀY PHIẾU (v.ngay) — so ISO yyyy-mm-dd bằng chuỗi (như filter ngày tab tồn).
-      .filter((v) => {
-        if (!vDateFrom && !vDateTo) return true;
-        const d = v.ngay.slice(0, 10);
-        if (vDateFrom && d < vDateFrom) return false;
-        if (vDateTo && d > vDateTo) return false;
-        return true;
-      })
-      // Khoảng GIÁ VỐN phiếu (v.gia_von) — chỉ khi xem được giá; phiếu chưa có giá vốn (null) bị
-      // loại khi có đặt cận (không có giá để so).
-      .filter((v) => {
-        if (vf == null && vt == null) return true;
-        if (v.gia_von == null) return false;
-        if (vf != null && !Number.isNaN(vf) && v.gia_von < vf) return false;
-        if (vt != null && !Number.isNaN(vt) && v.gia_von > vt) return false;
-        return true;
-      });
-  }, [vouchers, tab, voucherFilter, q, vDateFrom, vDateTo, vValFrom, vValTo]);
-
   function toggleSel(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -525,10 +516,6 @@ export function KhoTonKhoPage({
     setTonTo("");
     setGtFrom("");
     setGtTo("");
-    setVDateFrom("");
-    setVDateTo("");
-    setVValFrom("");
-    setVValTo("");
   }, []);
 
 
@@ -555,15 +542,17 @@ export function KhoTonKhoPage({
     });
   }
 
-  const voucherCols = canViewCost ? 6 : 5;
+  // Số phiếu · Theo yêu cầu · Người lập · Ngày tạo · Ngày nhập/xuất · Mặt hàng [· Giá vốn] · Trạng thái
+  const voucherCols = canViewCost ? 8 : 7;
 
   // Cột tab Tồn kho: [checkbox nếu canCreate] + Vật tư + Vị trí + Hạn sử dụng + Tồn khả dụng + Ngưỡng & Trạng Thái + Ngày nhập mới nhất [+ Giá trị tồn nếu view_cost]
   const tonCols = (canCreate ? 1 : 0) + 6 + (canViewCost ? 1 : 0);
 
   // Phân trang (dùng chung cho cả 2 tab; số tổng theo tab đang xem).
-  const pageTotal = tab === "ton" ? filtered.length : shownVouchers.length;
+  const pageTotal = tab === "ton" ? filtered.length : vTotal;
   const pagedGroups = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const pagedVouchers = shownVouchers.slice((page - 1) * pageSize, page * pageSize);
+  // Phiếu: máy chủ đã cắt đúng trang.
+  const pagedVouchers = vouchers;
 
   return (
     <main className="rc kho-list">
@@ -575,7 +564,7 @@ export function KhoTonKhoPage({
             <span className="rc__count">
               {tab === "ton"
                 ? `${groups.length} vật tư đang tồn`
-                : `${shownVouchers.length} phiếu`}
+                : `${vTotal} phiếu`}
               {ma ? ` · ${ma}` : ""}
             </span>
           </div>
@@ -592,14 +581,14 @@ export function KhoTonKhoPage({
       </header>
 
       {/* Unified Single-Row Toolbar (Gộp Tabs + Search + Select Filters) */}
-      <div className="rc__toolbar" style={{ marginTop: 0, marginBottom: 16, gap: 12 }}>
+      <div className="rc__toolbar tl-thanh" style={{ marginTop: 0, marginBottom: 16, gap: 12 }}>
         <div className="kho-shell__fns" style={{ margin: 0 }}>
           {(
             [
               ["ton", `Tồn kho (${groups.length})`],
-              ["nhap", `Phiếu nhập (${vouchers.filter((v) => v.loai === "NHAP" && !v.dieu_chuyen).length})`],
-              ["xuat", `Phiếu xuất (${vouchers.filter((v) => v.loai === "XUAT" && !v.dieu_chuyen).length})`],
-              ["dc", `Điều chuyển (${vouchers.filter((v) => v.dieu_chuyen).length})`],
+              ["nhap", `Phiếu nhập (${demTab.nhap})`],
+              ["xuat", `Phiếu xuất (${demTab.xuat})`],
+              ["dc", `Điều chuyển (${demTab.dc})`],
             ] as const
           ).filter(([id]) => !(AN_DIEU_CHUYEN && id === "dc")).map(([id, label]) => (
             <button
@@ -620,7 +609,7 @@ export function KhoTonKhoPage({
             placeholder={
               tab === "ton"
                 ? "Tìm mã, tên vật tư…"
-                : "Tìm số phiếu, mã yêu cầu…"
+                : "Tìm số phiếu, mã yêu cầu, vật tư…"
             }
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -646,31 +635,14 @@ export function KhoTonKhoPage({
             </div>
           </>
         ) : (
-          <div className="kho-picker" style={{ width: 155 }}>
-            <Select
-              options={[
-                { value: "all", label: "Mọi trạng thái", hint: String(vouchers.length) },
-                {
-                  value: "draft",
-                  label: "Chờ ghi sổ",
-                  hint: String(vouchers.filter((v) => v.trang_thai === "draft").length),
-                },
-                {
-                  value: "posted",
-                  label: "Đã ghi sổ",
-                  hint: String(vouchers.filter((v) => v.trang_thai === "posted").length),
-                },
-                {
-                  value: "cancelled",
-                  label: "Đã hủy",
-                  hint: String(vouchers.filter((v) => v.trang_thai === "cancelled").length),
-                },
-              ]}
-              value={voucherFilter}
-              onChange={(v) => v != null && setVoucherFilter(v as "all" | StockVoucherStatus)}
-              ariaLabel="Lọc trạng thái phiếu"
-            />
-          </div>
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_PHIEU_KHO}
+            onKy={(ky) => setLocMan({ ...locMan, ky })}
+            dieuKien={dieuKienPK}
+            loc={locMan.loc}
+            onLoc={(loc) => setLocMan({ ...locMan, loc })}
+          />
         )}
 
         <div className="rc__spacer" />
@@ -821,12 +793,13 @@ export function KhoTonKhoPage({
                 <th style={{ width: "14%" }}>Số phiếu</th>
                 <th style={{ width: "13%" }}>Theo yêu cầu</th>
                 <th style={{ width: "16%" }}>Người lập</th>
-                <DateFilterHead style={{ width: "12%" }} label={tab === "xuat" ? "Ngày xuất" : "Ngày nhập"} from={vDateFrom} to={vDateTo} onChange={(f, t) => { setVDateFrom(f); setVDateTo(t); }} />
+                <th style={{ width: "10%" }}>Ngày tạo</th>
+                <th style={{ width: "11%" }}>{tab === "xuat" ? "Ngày xuất" : tab === "nhap" ? "Ngày nhập" : "Ngày chuyển"}</th>
                 <th className="kho-num" style={{ width: "12%" }}>
                   Mặt hàng / Tổng SL
                 </th>
                 {canViewCost && (
-                  <NumFilterHead className="kho-num" style={{ width: "14%" }} label="Giá vốn" from={vValFrom} to={vValTo} onChange={(f, t) => { setVValFrom(f); setVValTo(t); }} />
+                  <th className="kho-num" style={{ width: "13%" }}>Giá vốn</th>
                 )}
                 <th style={{ width: "12%" }}>Trạng thái</th>
               </tr>
@@ -835,30 +808,30 @@ export function KhoTonKhoPage({
               {loadingV ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={`skv-${i}`} className="rc-skel__row">
-                    {Array.from({ length: voucherCols + 1 }).map((__, c) => (
+                    {Array.from({ length: voucherCols }).map((__, c) => (
                       <td key={c}>
                         <span className="rc-skel" style={{ width: c === 0 ? "60%" : "45%" }} />
                       </td>
                     ))}
                   </tr>
                 ))
-              ) : shownVouchers.length === 0 ? (
+              ) : vouchers.length === 0 ? (
                 <tr>
-                  <td colSpan={voucherCols + 1} className="rc__empty-state-td">
+                  <td colSpan={voucherCols} className="rc__empty-state-td">
                     <div className="rc__empty-state">
                       <BoxIcon />
                       <p className="rc__empty-text">
-                        {vouchers.length === 0
+                        {!coLocPK && !q.trim()
                           ? "Chưa có phiếu kho nào ở kho này. Phiếu được lập từ một yêu cầu đã duyệt."
                           : "Không có phiếu nào khớp bộ lọc."}
                       </p>
-                      {vouchers.length > 0 && (
+                      {(coLocPK || q.trim() !== "") && (
                         <button
                           type="button"
                           className="btn btn--ghost"
                           onClick={() => {
                             setQ("");
-                            setVoucherFilter("all");
+                            setLocMan(LOC_MAN_PK_TRONG);
                             clearFilters();
                           }}
                         >
@@ -904,6 +877,7 @@ export function KhoTonKhoPage({
                       <td>
                         <div className="rc__name">{v.nguoi_lap_ten ?? "—"}</div>
                       </td>
+                      <td className="rc__nowrap" title={fmtDateTime(v.created_at)}>{fmtDate(v.created_at)}</td>
                       <td className="rc__nowrap">{fmtDateISO(v.ngay)}</td>
                       <td className="kho-num">
                         {v.lines.length} / {fmtQty(sumQty)}

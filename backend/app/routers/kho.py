@@ -120,5 +120,6 @@ make_catalog_router(
     InModel=KhoHangIn, RowModel=KhoHangRow, ListModel=KhoHangListOut,
     dung_rows=_dung_rows,
     excel_spec=KHO_HANG,
+    co_ky=True,         # thanh lọc chung: kỳ Ngày tạo + Đang dùng / Đã ngừng
     ma_goi_y=True,      # repo khai `ma_prefix = "KHO-"`
 )

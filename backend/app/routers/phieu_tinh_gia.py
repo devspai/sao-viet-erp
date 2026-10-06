@@ -11,7 +11,7 @@ gia công + vật tư bên trong mỗi thành phần vẫn dựng lại từ đ�
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -34,6 +34,9 @@ from ..schemas.customer import SaleOption
 from ..services.nguoi_phu_trach_service import lua_chon_nguoi
 from ..repositories.tim_khong_dau import like_khong_dau
 from ..models.customer import Customer
+from ..models.quotation import Quote
+from ..repositories.loc_danh_sach import dk_khoang_ngay
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..services.actor_display import actor_labels
 from ..schemas.phieu_tinh_gia import (
     DanhMucDoi,
@@ -292,19 +295,23 @@ _SORT_COLUMNS = {
 }
 
 
-@router.get("", response_model=PhieuTinhGiaListOut)
-def list_items(
-    db: Annotated[Session, Depends(get_db)],
-    authz: Authz,
-    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-    q: str | None = Query(default=None),
-    status_filter: str | None = Query(default=None, alias="status"),
-    sort: str = Query(default="-ngay"),
-    page: int = Query(default=1, ge=1),
-    size: int = Query(default=20, ge=1, le=200),
-    nguoi: int | None = Query(default=None),
-) -> PhieuTinhGiaListOut:
-    stmt = select(PhieuTinhGia)
+def _loc_danh_sach(
+    stmt,
+    *,
+    db: Session,
+    user: User,
+    authz: AuthorizationService,
+    q: str | None,
+    nguoi: int | None,
+    tu_ngay: date | None,
+    den_ngay: date | None,
+    khach: int | None,
+    gv_tu: int | None,
+    gv_den: int | None,
+    bao_gia: str | None,
+):
+    """Mọi điều kiện lọc CHUNG của bảng và thanh tab (trừ chính tab trạng thái) — tab đếm đúng số
+    dòng bảng sẽ hiện khi bấm vào nó."""
     owner_ids = _owner_ids_for_scope(db, user, authz)
     if owner_ids is not None:
         stmt = stmt.where(_CHU_PHIEU.in_(owner_ids))
@@ -325,6 +332,44 @@ def list_items(
             # Cột "Khách hàng" ngoài bảng — gõ tên khách cũng phải ra phiếu.
             PhieuTinhGia.customer_id.in_(select(Customer.id).where(like_khong_dau(Customer.name, q))),
         ))
+    # Dải kỳ + bảng "Bộ lọc nâng cao" (06/10/2026).
+    for dk in dk_khoang_ngay(PhieuTinhGia.created_at, tu_ngay, den_ngay):
+        stmt = stmt.where(dk)
+    if khach is not None:
+        stmt = stmt.where(PhieuTinhGia.customer_id == khach)
+    if gv_tu is not None:
+        stmt = stmt.where(PhieuTinhGia.tong_gia_von >= gv_tu)
+    if gv_den is not None:
+        stmt = stmt.where(PhieuTinhGia.tong_gia_von <= gv_den)
+    if bao_gia in ("co", "chua"):
+        # Một phiếu một báo giá (UNIQUE `quotes.phieu_tinh_gia_id`, mọi trạng thái).
+        co_bg = select(Quote.id).where(Quote.phieu_tinh_gia_id == PhieuTinhGia.id).exists()
+        stmt = stmt.where(co_bg if bao_gia == "co" else ~co_bg)
+    return stmt
+
+
+@router.get("", response_model=PhieuTinhGiaListOut)
+def list_items(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    q: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+    sort: str = Query(default="-ngay"),
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=200),
+    nguoi: int | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    khach: int | None = Query(default=None),
+    gv_tu: int | None = Query(default=None, ge=0),
+    gv_den: int | None = Query(default=None, ge=0),
+    bao_gia: str | None = Query(default=None, pattern="^(co|chua)$"),
+) -> PhieuTinhGiaListOut:
+    stmt = _loc_danh_sach(
+        select(PhieuTinhGia), db=db, user=user, authz=authz, q=q, nguoi=nguoi,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, khach=khach, gv_tu=gv_tu, gv_den=gv_den, bao_gia=bao_gia,
+    )
     # "Nháp"/"Đã tính giá" không phải cột DB — phiếu KHÔNG có sản phẩm nào bên trong = nháp
     # (đồng nhất với so_thanh_phan == 0 mà FE dùng để tô badge, xem vòng lặp bên dưới).
     has_thanh_phan = select(PhieuThanhPhan.id).where(PhieuThanhPhan.phieu_id == PhieuTinhGia.id).exists()
@@ -370,20 +415,45 @@ def stats(
     db: Annotated[Session, Depends(get_db)],
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    q: str | None = Query(default=None),
     nguoi: int | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    khach: int | None = Query(default=None),
+    gv_tu: int | None = Query(default=None, ge=0),
+    gv_den: int | None = Query(default=None, ge=0),
+    bao_gia: str | None = Query(default=None, pattern="^(co|chua)$"),
 ) -> PhieuTinhGiaStatsOut:
-    """Đếm cho thanh tab — phải đặt TRƯỚC route `/{p_id}` (int) trong file, không thì FastAPI
-    thử ép "stats" thành int và 422 trước khi kịp rơi xuống route này."""
-    stmt = select(PhieuTinhGia.id)
-    owner_ids = _owner_ids_for_scope(db, user, authz)
-    if owner_ids is not None:
-        stmt = stmt.where(_CHU_PHIEU.in_(owner_ids))
-    if nguoi is not None:
-        stmt = stmt.where(PhieuTinhGia.created_by == nguoi)
+    """Đếm cho thanh tab, theo ĐÚNG bộ lọc đang áp trên bảng — phải đặt TRƯỚC route `/{p_id}` (int)
+    trong file, không thì FastAPI thử ép "stats" thành int và 422 trước khi kịp rơi xuống route này."""
+    stmt = _loc_danh_sach(
+        select(PhieuTinhGia.id), db=db, user=user, authz=authz, q=q, nguoi=nguoi,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, khach=khach, gv_tu=gv_tu, gv_den=gv_den, bao_gia=bao_gia,
+    )
     has_thanh_phan = select(PhieuThanhPhan.id).where(PhieuThanhPhan.phieu_id == PhieuTinhGia.id).exists()
     total_all = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     total_draft = db.scalar(select(func.count()).select_from(stmt.where(~has_thanh_phan).subquery())) or 0
     return PhieuTinhGiaStatsOut(all=total_all, draft=total_draft, calculated=total_all - total_draft)
+
+
+@router.get("/khach-loc", response_model=list[LuaChonLoc])
+def list_khach_loc(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[LuaChonLoc]:
+    """Ô "Khách hàng" của bảng lọc: khách đang có phiếu TRONG tầm nhìn, kèm số phiếu. Không mượn
+    danh sách của màn Khách hàng — người chỉ có quyền Tính giá vẫn lọc được."""
+    stmt = (
+        select(Customer.id, Customer.name, func.count(PhieuTinhGia.id))
+        .join(Customer, Customer.id == PhieuTinhGia.customer_id)
+        .group_by(Customer.id, Customer.name)
+        .order_by(Customer.name)
+    )
+    owner_ids = _owner_ids_for_scope(db, user, authz)
+    if owner_ids is not None:
+        stmt = stmt.where(_CHU_PHIEU.in_(owner_ids))
+    return [LuaChonLoc(id=i, ten=t, so=int(n)) for i, t, n in db.execute(stmt)]
 
 
 @router.get("/nguoi-lap", response_model=list[SaleOption])

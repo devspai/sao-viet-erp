@@ -71,8 +71,6 @@ class GiaCongNgoai(Base):
     nha_cung_cap_ten: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     # "Cán màng" · "Bế + Dán" · "Gia công trọn gói" — nhãn cho khối trên lệnh và lý do chi.
     ten_viec: Mapped[str] = mapped_column(String(255), nullable=False, default="")
-    # Đơn giá theo ĐƠN VỊ của con số cuối (`don_vi`). Bỏ trống được — kế toán gõ tiền tay.
-    don_gia: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)
     don_vi: Mapped[str | None] = mapped_column(String(40), nullable=True)
     # Chỉ trọn gói: số đặt nhà gia công làm (điền sẵn SL lệnh).
     sl_dat: Mapped[float | None] = mapped_column(Numeric(18, 3), nullable=True)

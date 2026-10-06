@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, api } from "../api/client";
-import type { LenhSxItem, LenhSxKhachLoc, LenhSxTab } from "../api/client";
+import type { LenhSxItem, LenhSxTab } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import type { NavigateFn } from "../components/AppShell";
 import { Button } from "../components/Button";
@@ -19,6 +19,20 @@ import { useTre } from "../lib/useTre";
 import { LenhSxHoSoView } from "./LenhSxHoSoView";
 import { BangLoi, EmptyState, Skeleton, ngay, num } from "./keHoachSxShared";
 import { PillKhau, TheDaDong, TheGap } from "./lsxKhau";
+import {
+  LOC_HO_SO_LENH_TRONG,
+  MOC_HO_SO_LENH,
+  locHoSoLenhLenUrl,
+  locHoSoLenhTuUrl,
+  thamSoLocHoSoLenh,
+  useDieuKienHoSoLenh,
+  type LocHoSoLenh,
+} from "./loc-san-xuat/dieu-kien-lenh-san-xuat";
+import { ngayDayDu, ngayGioDayDu } from "./loc-san-xuat/ngay";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import { daAp, dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
+import { useLocMan } from "./thanh-loc/useLocMan";
 // `ke-hoach-sx.css` cho `EmptyState`/`Skeleton` (lớp `.khsx-*`), rồi CSS chung của hai màn.
 import "./ke-hoach-sx.css";
 import "./lenh-sx-chung.css";
@@ -34,14 +48,15 @@ const TABS: { key: LenhSxTab; label: string }[] = [
   { key: "da_giao", label: "Đã giao đủ" },
 ];
 
-/** `<input type="date">` cho gõ năm 6 chữ số ⇒ máy chủ 422 câm. Trống = không gửi; sai = không gửi
- *  + viền đỏ; hợp lệ = gửi. */
-function ngayHopLe(v: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
-  const nam = Number(v.slice(0, 4));
-  if (nam < 2000 || nam > 2999) return false;
-  return !Number.isNaN(new Date(v).getTime());
-}
+/** Thanh lọc (06/10/2026): kỳ theo ngày tạo / hạn SX / hạn giao + Khách, Đơn, Gia công ngoài.
+ *  Ghi lên URL `?man=lenh-san-xuat`, nhớ theo màn. Thay hai ô Khách + Hạn SX rời cũ. */
+type LocMan = { ky: KyDS; loc: LocHoSoLenh };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_HO_SO_LENH_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_HO_SO_LENH.map(([m]) => m), "tao"),
+  loc: locHoSoLenhTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locHoSoLenhLenUrl(t.loc) });
 
 export function LenhSanXuatPage({
   eventTick,
@@ -67,9 +82,9 @@ export function LenhSanXuatPage({
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [q, setQ] = useState("");
   const qTre = useTre(q);
-  const [khachId, setKhachId] = useState("");
-  const [tuNgay, setTuNgay] = useState("");
-  const [denNgay, setDenNgay] = useState("");
+  const [locMan, setLocMan] = useLocMan("lenh-san-xuat", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const dieuKien = useDieuKienHoSoLenh();
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocHoSoLenh(locMan.loc) });
   const [tab, setTab] = useState<LenhSxTab>("tat_ca");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -84,10 +99,6 @@ export function LenhSanXuatPage({
     window.addEventListener("keydown", phim);
     return () => window.removeEventListener("keydown", phim);
   }, []);
-
-  const tuGui = ngayHopLe(tuNgay) ? tuNgay : undefined;
-  const denGui = ngayHopLe(denNgay) ? denNgay : undefined;
-  const ngaySai = (tuNgay !== "" && !tuGui) || (denNgay !== "" && !denGui);
 
   // --- hồ sơ một lệnh: vẽ ĐÈ lên bảng để quay lại thấy y nguyên tab/lọc/trang ------------------
   const [hoSoId, setHoSoId] = useState<number | null>(null);
@@ -124,12 +135,11 @@ export function LenhSanXuatPage({
   const [loading, setLoading] = useState(true);
   const [daTai, setDaTai] = useState(false);
   const [loi, setLoi] = useState<{ text: string; cam: boolean } | null>(null);
-  const [dsKhach, setDsKhach] = useState<LenhSxKhachLoc[] | null>(null);
 
   // Đổi bộ lọc hay tab ⇒ về trang 1.
   useEffect(() => {
     setPage(1);
-  }, [qTre, khachId, tuGui, denGui, tab]);
+  }, [qTre, khoaLoc, tab]);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -138,9 +148,8 @@ export function LenhSanXuatPage({
       .danhSach(token, {
         tab,
         q: qTre.trim() || undefined,
-        khach_hang_id: khachId ? Number(khachId) : undefined,
-        tu_ngay: tuGui,
-        den_ngay: denGui,
+        // Kỳ (`tu_ngay`/`den_ngay`/`moc`) + Khách / Đơn / Gia công ngoài.
+        ...JSON.parse(khoaLoc),
         page,
         page_size: pageSize,
       })
@@ -165,28 +174,10 @@ export function LenhSanXuatPage({
         });
       })
       .finally(() => setLoading(false));
-  }, [token, tab, qTre, khachId, tuGui, denGui, page, pageSize]);
+  }, [token, tab, qTre, khoaLoc, page, pageSize]);
   useEffect(() => {
     load();
   }, [load]);
-
-  // Nguồn ô Khách — khách của chính các lệnh trong phạm vi (gác `lenh_san_xuat:read`). Hỏng ⇒ ô
-  // Khách ẩn, các ô khác vẫn chạy.
-  useEffect(() => {
-    if (!token) return;
-    let song = true;
-    api.lenhSanXuat
-      .boLoc(token)
-      .then((r) => {
-        if (song) setDsKhach(r.khach_hang);
-      })
-      .catch(() => {
-        if (song) setDsKhach(null);
-      });
-    return () => {
-      song = false;
-    };
-  }, [token]);
 
   // Realtime: gộp 2 giây rồi tải lại ĐÚNG một yêu cầu danh sách; giữ trang/tab/lọc. Hồ sơ đang mở
   // nhận CÙNG nhịp đã gộp (không nhận `eventTick` thô — mỗi sự kiện là một lượt hồ sơ nặng).
@@ -198,14 +189,13 @@ export function LenhSanXuatPage({
     load();
   }, [tickTre, load]);
 
-  const dangLoc = qTre.trim() !== "" || khachId !== "" || tuNgay !== "" || denNgay !== "";
+  const dangLoc = qTre.trim() !== "" || locMan.ky.loai !== "tat_ca"
+    || dieuKien.some((d) => daAp(d, locMan.loc));
   const xoaLoc = useCallback(() => {
     setQ("");
-    setKhachId("");
-    setTuNgay("");
-    setDenNgay("");
+    setLocMan({ ky: { loai: "tat_ca", moc: locMan.ky.moc }, loc: LOC_HO_SO_LENH_TRONG });
     setTab("tat_ca");
-  }, []);
+  }, [setLocMan, locMan.ky.moc]);
 
   // --- tab: roving tabindex, kích hoạt THỦ CÔNG (mỗi lần đổi tab là một yêu cầu) ---------------
   const tabIdx = Math.max(0, TABS.findIndex((t) => t.key === tab));
@@ -226,6 +216,15 @@ export function LenhSanXuatPage({
     tabRefs.current[toi]?.focus();
   }
 
+  // Trạng thái trong nút Lọc = chính hàng tab khâu (đọc/ghi `tab`), không đẻ state thứ hai.
+  const dkDu: DieuKien<LocHoSoLenh>[] = [
+    dkTheoTab<LocHoSoLenh>({
+      tabs: TABS.map((t) => ({ id: t.key, nhan: t.label, so: dem?.[t.key] })),
+      tatCa: "tat_ca", dang: tab, dat: (id) => setTab(id as LenhSxTab),
+    }),
+    ...dieuKien,
+  ];
+
   const tongTheoLoc = dem?.tat_ca ?? null;
   const nhanTab = TABS[tabIdx]?.label ?? "Tất cả";
 
@@ -236,7 +235,7 @@ export function LenhSanXuatPage({
         {tongTheoLoc !== null && <span className="lsc-count">{num(tongTheoLoc)} lệnh</span>}
       </header>
 
-      <section className="lsc-loc" aria-label="Lọc lệnh">
+      <section className="lsc-loc tl-thanh" aria-label="Lọc lệnh">
         <div className="lsc-search">
           <Icon name="search" size={15} />
           <input
@@ -257,49 +256,14 @@ export function LenhSanXuatPage({
           )}
         </div>
 
-        {dsKhach && dsKhach.length > 0 && (
-          <label className={`lsc-field${khachId !== "" ? " is-active" : ""}`}>
-            <span>Khách</span>
-            <select value={khachId} onChange={(e) => setKhachId(e.target.value)}>
-              <option value="">Tất cả</option>
-              {dsKhach.map((k) => (
-                <option key={k.id} value={String(k.id)}>
-                  {k.ten ?? `Khách #${k.id}`}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        <div
-          className={`lsc-field${ngaySai ? " is-sai" : tuGui || denGui ? " is-active" : ""}`}
-          role="group"
-          aria-labelledby="lsc-hansx"
-          title="Lệnh chưa khai hạn SX không nằm trong khoảng nào."
-        >
-          <span id="lsc-hansx">Hạn SX</span>
-          <input
-            type="date"
-            value={tuNgay}
-            min="2000-01-01"
-            max="2999-12-31"
-            onChange={(e) => setTuNgay(e.target.value)}
-            aria-label="Hạn SX từ ngày"
-            aria-invalid={(tuNgay !== "" && !tuGui) || undefined}
-          />
-          <span className="lsc-field__sep" aria-hidden="true">
-            →
-          </span>
-          <input
-            type="date"
-            value={denNgay}
-            min="2000-01-01"
-            max="2999-12-31"
-            onChange={(e) => setDenNgay(e.target.value)}
-            aria-label="Hạn SX đến ngày"
-            aria-invalid={(denNgay !== "" && !denGui) || undefined}
-          />
-        </div>
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_HO_SO_LENH}
+          onKy={(ky) => setLocMan({ ...locMan, ky })}
+          dieuKien={dkDu}
+          loc={locMan.loc}
+          onLoc={(loc) => setLocMan({ ...locMan, loc })}
+        />
 
         {(dangLoc || tab !== "tat_ca") && (
           <button type="button" className="lsc-link" onClick={xoaLoc}>
@@ -354,16 +318,17 @@ export function LenhSanXuatPage({
                 <th scope="col">Khách</th>
                 <th scope="col">Đơn</th>
                 <th scope="col">Hạn SX</th>
+                <th scope="col">Ngày tạo</th>
                 <th scope="col">Trạng thái</th>
               </tr>
             </thead>
             {loading && rows.length === 0 && !loi ? (
-              <Skeleton rows={8} cols={7} />
+              <Skeleton rows={8} cols={8} />
             ) : (
               <tbody className={loading ? "is-mo" : undefined}>
                 {rows.length === 0 ? (
                   <tr className="lsc-bang__rong">
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       {loi ? (
                         <EmptyState
                           icon="alert"
@@ -445,7 +410,7 @@ export function LenhSanXuatPage({
   );
 }
 
-/** MỘT dòng bảng — bảy cột tĩnh. Bấm mã lệnh để mở hồ sơ. */
+/** MỘT dòng bảng — tám cột tĩnh. Bấm mã lệnh để mở hồ sơ. */
 function Dong({ r, onMo }: { r: LenhSxItem; onMo: (id: number) => void }) {
   return (
     <tr>
@@ -471,6 +436,7 @@ function Dong({ r, onMo }: { r: LenhSxItem; onMo: (id: number) => void }) {
       <td>{r.khach_hang ?? "—"}</td>
       <td>{r.order_no ?? "—"}</td>
       <td>{ngay(r.han_hoan_thanh_sx)}</td>
+      <td title={ngayGioDayDu(r.created_at)}>{ngayDayDu(r.created_at)}</td>
       <td>
         <span className="lsc-cum">
           <PillKhau khau={r.khau} ct={r.khau_chi_tiet} />

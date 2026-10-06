@@ -15,13 +15,15 @@ export function ChonCachTra({
   giaTri,
   onDoi,
   khoa = "cach_tra",
+  gon,
 }: {
   giaTri: PaymentVoucherType;
   onDoi: (v: PaymentVoucherType) => void;
   khoa?: string;
+  gon?: boolean;
 }) {
   return (
-    <ChonCach giaTri={giaTri} onDoi={onDoi} khoa={khoa} nhan="Trả bằng"
+    <ChonCach giaTri={giaTri} onDoi={onDoi} khoa={khoa} nhan="Trả bằng" gon={gon}
       giaiTienMat="Thủ quỹ chi và người nhận ký phiếu" giaiChuyenKhoan="Ủy nhiệm chi qua ngân hàng" />
   );
 }

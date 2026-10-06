@@ -16979,3 +16979,81 @@ def _migrate_xem_gia_kho_theo_tung_man(db: Session) -> None:
 
 
 MIGRATIONS.append(("0370_xem_gia_kho_theo_tung_man", _migrate_xem_gia_kho_theo_tung_man))
+
+
+def _migrate_index_ngay_phieu_thu_chi(db: Session) -> None:
+    """0371 — index cột NGÀY của phiếu chi / phiếu thu (06/10/2026). Hai màn sổ quỹ lọc theo kỳ
+    (`tu_ngay`/`den_ngay`) và sắp theo ngày ở MỌI lượt mở, kèm lượt đếm "cùng kỳ năm trước" — trước
+    đây chỉ có index trạng thái / nguồn, lọc kỳ phải quét cả bảng. Chạy lại vô hại."""
+    tables = set(inspect(db.get_bind()).get_table_names())
+    if "payment_vouchers" in tables:
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_payment_vouchers_voucher_date "
+                        "ON payment_vouchers (voucher_date)"))
+    if "payment_receipts" in tables:
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_payment_receipts_receipt_date "
+                        "ON payment_receipts (receipt_date)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0371_index_ngay_phieu_thu_chi", _migrate_index_ngay_phieu_thu_chi))
+
+def _migrate_giao_thang_noi_nhan_cua_don(db: Session) -> None:
+    """0372 — yêu cầu giao do "nhà gia công giao thẳng" (06/10/2026) bản đầu ghi câu "Nhà gia công …
+    giao thẳng" ĐÈ vào ô địa chỉ, để trống người nhận + SĐT. Chép lại nơi nhận + lưu ý giao của ĐƠN
+    cho đúng các yêu cầu đó (chuyến có `gia_cong_ngoai_id`, địa chỉ còn là câu cũ). Chạy lại vô hại."""
+    tables = set(inspect(db.get_bind()).get_table_names())
+    if not {"delivery_requests", "delivery_trips", "orders"} <= tables:
+        return
+    db.execute(text(
+        "UPDATE delivery_requests SET "
+        " dia_chi = COALESCE(o.delivery_address, ''),"
+        " nguoi_nhan = o.delivery_contact_name,"
+        " sdt_nguoi_nhan = o.delivery_contact_phone,"
+        " ghi_chu = o.delivery_note "
+        "FROM orders o "
+        "WHERE o.id = delivery_requests.order_id"
+        " AND delivery_requests.dia_chi LIKE 'Nhà gia công %giao thẳng'"
+        " AND EXISTS (SELECT 1 FROM delivery_trips t WHERE t.request_id = delivery_requests.id"
+        "             AND t.gia_cong_ngoai_id IS NOT NULL)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0372_giao_thang_noi_nhan_cua_don", _migrate_giao_thang_noi_nhan_cua_don))
+
+
+def _migrate_giao_thang_hen_theo_han_don(db: Session) -> None:
+    """0373 — yêu cầu giao do "nhà gia công giao thẳng" bản đầu lấy NGÀY BẤM CHỐT làm ngày hẹn
+    (06/10/2026: DH001 hẹn khách 30/10 mà màn Giao hàng hiện "Hẹn 06/10"). Ngày hẹn = hạn trên đơn;
+    đơn không khai hạn thì giữ nguyên. Ngày khách nhận của chuyến cũ giữ nguyên — không biết ngày
+    thật, muốn đúng thì mở lại lần gia công rồi chốt lại. Chạy lại vô hại."""
+    tables = set(inspect(db.get_bind()).get_table_names())
+    if not {"delivery_requests", "delivery_trips", "orders"} <= tables:
+        return
+    db.execute(text(
+        "UPDATE delivery_requests SET ngay_can_giao = o.delivery_committed_date "
+        "FROM orders o "
+        "WHERE o.id = delivery_requests.order_id"
+        " AND o.delivery_committed_date IS NOT NULL"
+        " AND delivery_requests.ngay_can_giao <> o.delivery_committed_date"
+        " AND EXISTS (SELECT 1 FROM delivery_trips t WHERE t.request_id = delivery_requests.id"
+        "             AND t.gia_cong_ngoai_id IS NOT NULL)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0373_giao_thang_hen_theo_han_don", _migrate_giao_thang_hen_theo_han_don))
+
+
+def _migrate_go_don_gia_gia_cong(db) -> None:
+    """mg 0374 — gỡ hẳn ĐƠN GIÁ gia công ngoài (07/10/2026, chủ chốt: *"gỡ hẳn đi"*): cột
+    `gia_cong_ngoai.don_gia` và `lsx_cong_doan.don_gia_gia_cong`. Ô nhập đã bỏ từ 27/09; phiên
+    06/10 lỡ thêm lại. Tiền trả nhà gia công kế toán gõ ở phiếu chi theo hoá đơn của họ. Dự án chưa
+    có dữ liệu thật ⇒ gỡ thẳng. Idempotent: cột nào đã mất thì bỏ qua."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for ten_bang, cot in (("gia_cong_ngoai", "don_gia"), ("lsx_cong_doan", "don_gia_gia_cong")):
+        if ten_bang in bang and cot in _existing_columns(insp, ten_bang):
+            db.execute(text(f"ALTER TABLE {ten_bang} DROP COLUMN {cot}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0374_go_don_gia_gia_cong", _migrate_go_don_gia_gia_cong))

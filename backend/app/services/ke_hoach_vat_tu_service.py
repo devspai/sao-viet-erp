@@ -947,7 +947,17 @@ class KeHoachVatTuService:
         # thì chỉ GIẤY còn là nhu cầu của xưởng; không thì lệnh không cần gì từ kho.
         from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 
-        tron_goi = GiaCongNgoaiRepository(self.db).tron_goi_dang_chay({l.id for l in lenh})
+        gc_repo = GiaCongNgoaiRepository(self.db)
+        lan_tg = gc_repo.tron_goi_cua_lenh({l.id for l in lenh})
+        tron_goi = {i: bool(g.xuong_cap_giay) for i, g in lan_tg.items()}
+        # Giấy của lệnh trọn gói XƯỞNG CẤP (06/10/2026): đã gửi đề nghị xuất ⇒ nhu cầu = đúng dòng
+        # đề nghị (khổ + số tờ người kế hoạch chọn, cùng khoá với "đã cấp" nên kho xuất là trừ);
+        # chưa gửi ⇒ dòng giấy khai ở bước như mọi lệnh, không có thì theo quy cách lệnh (phiếu
+        # tính giá). Lần đã chốt số: hàng đã về, giấy không còn là việc phải lo.
+        cap_mo = {i: g for i, g in lan_tg.items() if g.xuong_cap_giay and g.chot_luc is None}
+        dong_xuat = gc_repo.dong_xuat_giay_cua_lan([g.id for g in cap_mo.values()])
+        giay_theo_de_nghi = {i for i, g in cap_mo.items() if dong_xuat.get(g.id)}
+        co_giay_buoc: set[int] = set()
         if buoc_map:
             vts = self.repo.vat_tu_theo_buoc_lenh(list(buoc_map))
             # Giấy: chỉ BƯỚC ĐẦU (theo thu_tu) mang mã đó lấy từ kho (spec 2026-10-01 §5); dòng ở các
@@ -957,7 +967,8 @@ class KeHoachVatTuService:
                 cd, l = buoc_map[vt.lsx_cong_doan_id]
                 if cd.step_key in bi_buoc_chung_de or _f(vt.so_luong) <= 0:
                     continue
-                if l.id in tron_goi and not (tron_goi[l.id] and vt.hang_loai == HANG_GIAY):
+                if l.id in tron_goi and not (l.id in cap_mo and vt.hang_loai == HANG_GIAY
+                                             and l.id not in giay_theo_de_nghi):
                     continue
                 if vt.hang_loai == HANG_GIAY and buoc_dau.get((l.id, vt.vat_tu_id)) != cd.id:
                     continue
@@ -972,6 +983,9 @@ class KeHoachVatTuService:
                 if dang == DANG_CUON:
                     d["dang"] = DANG_CUON
                 tho.append(d)
+                if vt.hang_loai == HANG_GIAY:
+                    co_giay_buoc.add(l.id)
+        tho.extend(self._giay_tron_goi(lenh_map, cap_mo, dong_xuat, co_giay_buoc))
 
         # --- lệnh/bài không sinh dòng nào: KHÔNG nói gì (23/09/2026) --------
         # Trước đây khối này đẻ danh sách `bo_qua` ("Lệnh chưa khai vật tư nào ở bước — kể cả
@@ -996,6 +1010,41 @@ class KeHoachVatTuService:
                                    _f(vt.so_luong), chung[vt.bai_ghep_cong_doan_id][0])
                 )
         return tho
+
+    def _giay_tron_goi(self, lenh_map: dict, cap_mo: dict, dong_xuat: dict,
+                       co_giay_buoc: set[int]) -> list[dict]:
+        """Dòng giấy của lệnh trọn gói xưởng cấp — xem chú thích ở `_gom_nhu_cau`. Lệnh không chạy
+        ở xưởng nên dòng không neo bước nào (`buoc_id=None`): không bước nào "chạy xong" làm nó rụng
+        nhầm, và nó rụng đúng lúc lần gia công chốt số. Không query thêm (quy cách đọc sẵn)."""
+        from .gia_cong_ngoai.tron_goi import de_xuat_tu_quy_cach
+
+        ra: list[dict] = []
+        for lsx_id, g in cap_mo.items():
+            l = lenh_map.get(lsx_id)
+            if l is None:
+                continue
+            dong = dong_xuat.get(g.id) or []
+            if dong:
+                for ln in dong:
+                    hang = khoa_ton(HANG_GIAY, int(ln.hang_id), dang=ln.dang_giay or DANG_TO,
+                                    kho_rong=ln.kho_rong or 0, kho_dai=ln.kho_dai or 0)
+                    d = self._dong_lenh(l, hang, ln.dvt, _f(ln.sl_de_nghi), None)
+                    if ln.dang_giay == DANG_CUON:
+                        d["dang"] = DANG_CUON
+                    d["ten_viec"] = "Cấp giấy gia công trọn gói"
+                    ra.append(d)
+                continue
+            if lsx_id in co_giay_buoc:
+                continue
+            dx = de_xuat_tu_quy_cach(l)
+            if not (dx["giay_id"] and dx["kho_rong"] and dx["kho_dai"] and _f(dx["so_to"]) > 0):
+                continue
+            hang = khoa_ton(HANG_GIAY, dx["giay_id"], dang=DANG_TO,
+                            kho_rong=dx["kho_rong"], kho_dai=dx["kho_dai"])
+            d = self._dong_lenh(l, hang, self._dv_to(), _f(dx["so_to"]), None)
+            d["ten_viec"] = "Cấp giấy gia công trọn gói"
+            ra.append(d)
+        return ra
 
     @staticmethod
     def _buoc_dau_giay(vts, buoc_map) -> dict[tuple[int, int], int]:
@@ -1364,6 +1413,39 @@ class KeHoachVatTuService:
                   if g["so_dong_do"] > 0
                   or g.get("so_dong_khong_ro", 0) > 0]
         return ra
+
+    @staticmethod
+    def loc_hien_thi(nhom: list[dict], *, hang_loai: str | None = None,
+                     tinh_trang: str | None = None) -> tuple[list[dict], dict]:
+        """Thanh tab + thanh lọc của màn Kế hoạch vật tư (06/10/2026) — lọc Ở MÁY CHỦ.
+
+        Chạy SAU bảng cân đối đã cache (`q`), nên đổi tab không dựng lại bảng toàn xưởng. Số đếm
+        tính trên tập đã qua `q` + `hang_loai` nhưng TRƯỚC `tinh_trang` — số trên tab không tự tụt
+        theo chính tab đang chọn. `theo_loai` đếm trước `hang_loai` (số bên cạnh từng giá trị của
+        điều kiện "Loại hàng").
+
+        `tinh_trang`: `thieu` = nhóm có dòng đỏ; `khong_ro` = nhóm có dòng chưa đánh giá được;
+        `du` = không dòng nào đỏ hay chưa rõ.
+        """
+        theo_loai: dict[str, int] = {}
+        for g in nhom:
+            theo_loai[g["hang_loai"]] = theo_loai.get(g["hang_loai"], 0) + 1
+        ra = [g for g in nhom if not hang_loai or g["hang_loai"] == hang_loai]
+        du = [g for g in ra if not g["so_dong_do"] and not g.get("so_dong_khong_ro", 0)]
+        dem = {
+            "so_nhom": len(ra),
+            "so_dong_do": sum(g["so_dong_do"] for g in ra),
+            "so_dong_khong_ro": sum(g.get("so_dong_khong_ro", 0) for g in ra),
+            "so_nhom_du": len(du),
+            "theo_loai": theo_loai,
+        }
+        if tinh_trang == "thieu":
+            ra = [g for g in ra if g["so_dong_do"] > 0]
+        elif tinh_trang == "khong_ro":
+            ra = [g for g in ra if g.get("so_dong_khong_ro", 0) > 0]
+        elif tinh_trang == "du":
+            ra = du
+        return ra, dem
 
     # ================== ĐỀ NGHỊ MUA ==================
 

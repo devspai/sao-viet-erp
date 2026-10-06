@@ -1,8 +1,8 @@
-/** Nối dây màn Phiếu chi: URL ↔ lọc + kỳ (A.18), lời gọi cùng kỳ, đường dẫn sâu không đè kỳ đã nhớ. */
+/** Nối dây màn Phiếu chi: URL ↔ lọc + kỳ (A.18), lời gọi cùng kỳ, đường dẫn sâu mở kỳ Tất cả. */
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TRAN_KHOANG_NGAY, congNgay, homNayVN, tinhKy } from "../../../utils/ky";
+import { khoangSo } from "../shared/kyKeToan";
 
 const vouchers = vi.fn();
 
@@ -36,27 +36,35 @@ beforeEach(() => {
 afterEach(() => window.history.replaceState(null, "", "/"));
 
 describe("PaymentVouchersPage — nối dây", () => {
-  it("mở từ link có lọc + kỳ: lời gọi đầu mang đúng tham số; so=0 thì không gọi cùng kỳ", async () => {
+  it("mở từ link có lọc + kỳ: lời gọi chính mang đúng tham số (kỳ theo Ngày tạo mặc định)", async () => {
     window.history.replaceState(
       null, "",
-      "/?man=ke-toan-phieu-chi&ky=nam&so=0&the=thieu&q=UNC&nhan=B%C3%ACnh%20Minh&nguon=po&tien_tu=5000000",
+      "/?man=ke-toan-phieu-chi&ky=nam&the=thieu&q=UNC&nguon=po&tien_tu=5000000",
     );
     render(<PaymentVouchersPage navigate={() => {}} />);
     await waitFor(() => expect(vouchers).toHaveBeenCalled());
-    expect(vouchers).toHaveBeenCalledTimes(1);
-    const p = vouchers.mock.calls[0][1];
-    const nam = tinhKy("nam", homNayVN());
+    const p = vouchers.mock.calls.find((c) => c[1].size !== 1)![1];
+    const nam = khoangSo({ loai: "nam", moc: "tao" });
     expect(p).toMatchObject({
-      status: "paid", chung_tu: "thieu", q: "UNC", nhan: "Bình Minh", nguon: ["purchase_request"],
-      tien_tu: 5_000_000, tu_ngay: nam.tu, den_ngay: nam.den, page: 1,
+      status: "paid", chung_tu: "thieu", q: "UNC", nguon: ["purchase_request"],
+      tien_tu: 5_000_000, tu_ngay: nam.tu, den_ngay: nam.den, moc: "tao", page: 1,
     });
+    expect(p.nhan).toBeUndefined();
     expect(screen.getByRole("textbox", { name: "Tìm phiếu chi" })).toHaveValue("UNC");
-    expect(screen.getByRole("button", { name: /^Người nhận:/ })).toBeInTheDocument();
   });
 
-  it("so=1: hai lời gọi (bảng + cùng kỳ size 1); thẻ lấy số từ lời gọi chính; URL ghi man + kỳ", async () => {
+  it("kỳ Tất cả: một lời gọi, không gửi ngày lẫn mốc, không gọi cùng kỳ", async () => {
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-chi&ky=tat_ca");
+    render(<PaymentVouchersPage navigate={() => {}} />);
+    await waitFor(() => expect(vouchers).toHaveBeenCalled());
+    expect(vouchers).toHaveBeenCalledTimes(1);
+    expect(vouchers.mock.calls[0][1].tu_ngay).toBeUndefined();
+    expect(vouchers.mock.calls[0][1].moc).toBeUndefined();
+  });
+
+  it("kỳ có khoảng: hai lời gọi (bảng + cùng kỳ size 1); thẻ lấy số từ lời gọi chính; URL ghi man + kỳ", async () => {
     // Bộ nhớ kỳ là biến cấp module (sống qua các test) — đặt kỳ bằng URL cho test này độc lập.
-    window.history.replaceState(null, "", "/?man=ke-toan-phieu-chi&ky=thang&so=1");
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-chi&ky=thang");
     render(<PaymentVouchersPage navigate={() => {}} />);
     await waitFor(() => expect(vouchers).toHaveBeenCalledTimes(2));
     const sizes = vouchers.mock.calls.map((c) => c[1].size);
@@ -68,16 +76,13 @@ describe("PaymentVouchersPage — nối dây", () => {
     expect(u.has("the")).toBe(false);
   });
 
-  it("đường dẫn sâu mở kỳ 10 năm nhưng KHÔNG đè kỳ đã nhớ của màn", async () => {
-    const { unmount } = render(<PaymentVouchersPage navigate={() => {}} focusQuery="PC-2610-01" />);
-    const hn = homNayVN();
+  it("đường dẫn sâu tìm đúng mã trên kỳ Tất cả (kỳ hiện trên thanh lọc khớp lời gọi)", async () => {
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-chi&ky=thang");
+    render(<PaymentVouchersPage navigate={() => {}} focusQuery="PC-2610-01" />);
     await waitFor(() =>
-      expect(vouchers.mock.calls.some((c) => c[1].q === "PC-2610-01" && c[1].tu_ngay === congNgay(hn, -TRAN_KHOANG_NGAY))).toBe(true),
+      expect(vouchers.mock.calls.some((c) => c[1].q === "PC-2610-01" && c[1].tu_ngay === undefined)).toBe(true),
     );
-    unmount();
-    vouchers.mockClear();
-    render(<PaymentVouchersPage navigate={() => {}} />);
-    await waitFor(() => expect(vouchers).toHaveBeenCalled());
-    expect(vouchers.mock.calls[0][1].tu_ngay).toBe(tinhKy("thang", hn).tu);
+    // Tất cả là kỳ mặc định của màn ⇒ URL bỏ khoá `ky`.
+    await waitFor(() => expect(new URLSearchParams(window.location.search).has("ky")).toBe(false));
   });
 });

@@ -74,6 +74,16 @@ class CustomerDisplayOut(BaseModel):
     credit_status_display: str
 
 
+class DuyetTomTat(BaseModel):
+    """Cột "Người duyệt" của danh sách. `trang_thai`: `cho` (đang chờ — `nguoi` là những người có
+    thể duyệt, `luc` là lúc trình), `da_duyet` / `tu_choi` (`nguoi` là người quyết, `luc` lúc quyết,
+    `y_kien` lời người duyệt), `khong_can` (báo giá thường, tới tay khách không qua duyệt)."""
+    trang_thai: str
+    nguoi: list[str] = []
+    luc: datetime | None = None
+    y_kien: str | None = None
+
+
 class QuotationRow(BaseModel):
     id: int
     code: str
@@ -90,6 +100,8 @@ class QuotationRow(BaseModel):
     product_summary: str | None = None       # "Catalogue A4 + 2 SP khác"
     updated_at: datetime | None = None
     salesperson_name: str | None = None
+    created_at: datetime | None = None
+    duyet: DuyetTomTat | None = None
 
 
 class QuotationListOut(BaseModel):

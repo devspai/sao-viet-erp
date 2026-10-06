@@ -45,7 +45,7 @@ def test_chot_ve_xuong_ghi_me_hoan_thanh_va_de_xuat_ban_giao(sess, admin, da_man
     assert bg.dich_cong_viec_id == cv_ten(sess, lsx_id, "Đóng gói").id
     assert kq["ban_giao"]["su_kien"] == "de_xuat"
     (d,) = lan_cua_lenh(sess, lsx_id)
-    assert d["trang_thai"] == TT_DA_XONG and d["thanh_tien"] == 1650 * 500
+    assert d["trang_thai"] == TT_DA_XONG and "thanh_tien" not in d
 
 
 def test_to_nhan_xac_nhan_duoc_nhu_thuong(sess, admin, da_mang_di):

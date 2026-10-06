@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cột sản xuất đơn hàng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+  --amber:#a07a12; --amber-soft:#efe4c4; --amber-deep:#7a5c0f;
+  --signal:#8a1f1f; --signal-soft:#f3dede;
+  --steel:#334155; --steel-soft:#e2e8f0; --charcoal:#0f172a;
+  --violet:#5b4b8a; --violet-soft:#e7e3f3;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1080px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:900px}
+.loi{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:14px 18px;margin:0 0 40px;color:var(--ash)}
+.loi b{color:var(--ink)}
+.loi ol{margin:6px 0 0;padding-left:20px}
+.sec{margin-bottom:64px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.sec-head h2{font-size:19px;margin:0}
+.goi-y{font-size:12px;font-weight:600;color:var(--moss-deep);background:var(--moss-soft);border-radius:999px;padding:2px 10px}
+.why{color:var(--ash);margin:0 0 14px;max-width:920px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+.thuoc{font-size:12px;color:var(--ash-2);margin:0 0 6px}
+
+/* Khung đúng bề ngang thật: nội dung màn 992px (máy 1280px trừ thanh bên). */
+.khung{width:992px;max-width:100%;overflow-x:auto;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;position:relative}
+.vach{font-size:12px;color:var(--ash-2);padding:8px 14px;border-top:1px solid var(--rule-soft)}
+.vach b{color:var(--ink)}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:600;color:var(--ash);text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:10px 10px;background:var(--paper);border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+td{padding:12px 10px;border-bottom:1px solid var(--rule-hair);vertical-align:top;font-size:13px}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--rule-hair);cursor:pointer}
+th.phai,td.phai{text-align:right}
+.ma{font-weight:700;white-space:nowrap}
+.gt{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mo{color:var(--ash-2);font-size:12px}
+.nw{white-space:nowrap}
+.kh{font-weight:500}
+.gap{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--rust);background:#fbe9e1;border-radius:999px;padding:1px 8px;margin-top:4px}
+.tt{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 10px;white-space:nowrap}
+.tt--chot{background:var(--moss-soft);color:var(--moss-deep)}
+.tt--coc{background:var(--amber-soft);color:var(--amber-deep)}
+.tt--nhap{background:var(--rule-hair);color:var(--ash);border:1px solid var(--rule-soft)}
+
+/* Thẻ "đang ở" — cùng bảng màu đã dùng ở bảng nổi + ngăn đơn. */
+.o{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px;white-space:nowrap;max-width:100%}
+.o::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.o span{overflow:hidden;text-overflow:clip;white-space:nowrap}
+.o--ok{background:var(--moss-soft);color:var(--moss-deep)}
+.o--ngoai{background:var(--amber-soft);color:var(--amber-deep)}
+.o--xuong{background:var(--steel-soft);color:var(--steel)}
+.o--cho{background:var(--canvas);color:var(--ash);border:1px solid var(--rule)}
+.o--giao{background:var(--violet-soft);color:var(--violet)}
+.o--tre{background:var(--signal-soft);color:var(--signal)}
+.them{font:inherit;font-size:12px;font-weight:600;color:var(--rust);background:none;border:0;padding:0;cursor:pointer;white-space:nowrap}
+.them:hover{text-decoration:underline}
+.chan{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+
+/* Phương án B: mỗi món một dòng */
+.mon{display:grid;grid-template-columns:8px minmax(0,1fr);gap:2px 8px;align-items:baseline;font-size:12.5px}
+.mon i{width:8px;height:8px;border-radius:50%;margin-top:5px}
+.mon .t{min-width:0;overflow-wrap:anywhere}
+.mon .t em{display:block}
+.mon .t b{font-weight:600}
+.mon .t em{font-style:normal;color:var(--ash-2)}
+.mon-ds{display:grid;gap:3px}
+.c-ok{background:var(--moss)} .c-ngoai{background:var(--amber)} .c-xuong{background:var(--steel)} .c-cho{background:var(--rule);box-shadow:inset 0 0 0 1px var(--ash-2)} .c-tre{background:var(--signal)}
+
+/* Phương án C: cột Đang chờ */
+.cho-ai{display:flex;flex-wrap:wrap;gap:4px}
+
+/* Bảng nổi (dùng chung) */
+.noi{position:absolute;z-index:5;width:400px;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.16);padding:6px;display:none}
+.noi.mo-ra{display:block}
+.noi-dau{font-size:12px;color:var(--ash);padding:6px 8px 8px}
+.noi-dong{display:grid;grid-template-columns:minmax(0,1fr) auto 14px;grid-template-areas:"ten the mo" "ct ct mo";gap:2px 10px;align-items:center;padding:8px;border-radius:8px;cursor:pointer}
+.noi-dong:hover{background:var(--rule-hair)}
+.noi-dong .ten{grid-area:ten;font-weight:600;font-size:13px}
+.noi-dong .o{grid-area:the;justify-self:end}
+.noi-dong .ct{grid-area:ct;font-size:12px;color:var(--ash)}
+.noi-dong .mo2{grid-area:mo;color:var(--ash-2)}
+.chu-thich{display:flex;flex-wrap:wrap;gap:6px 12px;margin:10px 0 0;font-size:12px;color:var(--ash)}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Cột Sản xuất trên danh sách Đơn hàng bán — 3 phương án</h1>
+  <p class="lead">Mọi khung bên dưới rộng đúng <b>992px</b> như màn thật (máy 1280px trừ thanh bên). Sáu đơn mẫu phủ các ca: 1 món đủ hàng nhờ giao thẳng, 1 món chưa xuống xưởng, 3 món lẫn lộn (xưởng / nhà gia công / chưa lệnh), 2 món đang giao dở, đơn chờ cọc, đơn nháp. Bấm chữ đỏ "+2 món" (A) hoặc thẻ ở cột Đang chờ (C) để thấy bảng nổi.</p>
+
+  <div class="loi">
+    <b>Bản đang chạy hỏng ở đâu</b> (đo trên màn thật):
+    <ol>
+      <li>Ô Sản xuất không xuống dòng nên chiếm 209px ⇒ bảng 1.060px trong khung 992px: phải cuộn ngang, cột NV bị bóp còn 70px (tên vỡ 3 dòng), thẻ "ĐÃ CHỐT" gãy đôi, tiêu đề "PO KHÁCH / NGÀY CHỐT / TRẠNG THÁI" gãy đôi.</li>
+      <li>Đơn 1 món (phần lớn đơn) thì dải màu chỉ là một thanh liền; thanh xám trông như "0%" hoặc đang tải.</li>
+      <li>"0/1 món đủ hàng" không nói đơn đang kẹt ở đâu — phải bấm mới biết "chưa xuống xưởng".</li>
+      <li>Mũi tên ▾ nhỏ và nhạt, không ai biết ô bấm được.</li>
+    </ol>
+  </div>
+
+  <!-- ===================== PHƯƠNG ÁN A ===================== -->
+  <section class="sec">
+    <div class="sec-head"><h2>A. Giữ 10 cột — ô nói thẳng chỗ kẹt</h2></div>
+    <div class="why">
+      Ô Sản xuất chỉ còn <b>một thẻ: mặt hàng chậm nhất đang ở đâu</b> + một dòng chi tiết. Đơn nhiều món thêm chữ đỏ "+2 món" mở bảng nổi. Để 10 cột vừa 992px phải gọn chữ ở cột khác:
+      <ul>
+        <li>Ngày bỏ năm khi là năm nay ("5/10"), tiêu đề rút "PO", "Chốt", "Giao".</li>
+        <li>Cột NV hiện tên gọi ("Huyên"), di chuột ra họ tên đủ.</li>
+        <li>Thẻ trạng thái không xuống dòng.</li>
+      </ul>
+    </div>
+    <p class="thuoc">Ít đổi nhất so với hiện tại. Đổi lại: nhìn danh sách chỉ thấy món chậm nhất, các món còn lại phải bấm.</p>
+    <div class="khung" id="kA">
+      <table>
+        <thead><tr>
+          <th>Mã đơn</th><th>Khách hàng</th><th>PO</th><th class="phai">Giá trị</th><th>Cọc</th><th>Chốt</th><th>Giao</th><th>Sản xuất</th><th>NV</th><th>Trạng thái</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="ma">DH005</div></td>
+            <td><div class="kh">CÔNG TY DƯỢC HẬU GIANG</div><div class="mo">Hộp thuốc +2 món</div></td>
+            <td class="nw">PO7781</td><td class="phai gt">412.600.000đ</td><td class="nw">30%</td>
+            <td class="nw">6/10</td><td class="nw"><div>20/10</div><div class="mo">còn 14 ngày</div></td>
+            <td><div class="chan"><span class="o o--cho"><span>Chưa có lệnh</span></span><span class="mo">Túi giấy <button class="them" data-noi="A5">+2 món</button></span></div></td>
+            <td class="nw" title="Trần Văn Nam">Nam</td><td><span class="tt tt--chot">Đã chốt</span></td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH003</div></td>
+            <td><div class="kh">CÔNG TY TNHH VINAMILK</div><div class="mo">Hộp sữa 180ml +1 món</div></td>
+            <td class="nw">PO5520</td><td class="phai gt">96.250.000đ</td><td class="nw">50%</td>
+            <td class="nw">2/10</td><td class="nw"><div>9/10</div><div class="mo">còn 3 ngày</div></td>
+            <td><div class="chan"><span class="o o--giao"><span>Giao dở</span></span><span class="mo">đã giao 6.000/10.000</span></div></td>
+            <td class="nw" title="Nguyễn Thị Huyên">Huyên</td><td><span class="tt tt--chot">Đã chốt</span></td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH002</div></td>
+            <td><div class="kh">CÔNG TY CỔ PHẦN BIBICA</div><div class="mo">Ruột sách A5 64 trang +1 món</div></td>
+            <td class="nw">PO451263</td><td class="phai gt">26.943.796đ</td><td class="nw">—</td>
+            <td class="nw">6/10</td><td class="nw"><div>6/11</div><div class="mo">còn 31 ngày</div></td>
+            <td><div class="chan"><span class="o o--cho"><span>Chưa xuống xưởng</span></span><span class="mo">chờ Kế hoạch phát hành</span></div></td>
+            <td class="nw" title="Nguyễn Thị Huyên">Huyên</td><td><span class="tt tt--chot">Đã chốt</span></td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH001</div><div class="gap">⚑ Gấp</div></td>
+            <td><div class="kh">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</div><div class="mo">Hộp kem 50ml (5×5×12 cm)</div></td>
+            <td class="nw">PO999</td><td class="phai gt">8.460.973đ</td><td class="nw">—</td>
+            <td class="nw">5/10</td><td class="nw"><div>30/10</div><div class="mo">còn 24 ngày</div></td>
+            <td><div class="chan"><span class="o o--ok"><span>Đủ hàng</span></span><span class="mo">giao thẳng 5.000</span></div></td>
+            <td class="nw" title="Nguyễn Thị Huyên">Huyên</td><td><span class="tt tt--chot">Đã chốt</span></td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH004</div></td>
+            <td><div class="kh">CÔNG TY TNHH ORION VINA</div><div class="mo">Hộp bánh 12 cái</div></td>
+            <td class="nw">PO3310</td><td class="phai gt">58.300.000đ</td><td class="nw">10%</td>
+            <td class="nw">6/10</td><td class="nw"><div>30/11</div><div class="mo">còn 55 ngày</div></td>
+            <td><span class="mo">Chờ đủ cọc</span></td>
+            <td class="nw" title="Lê Minh Tú">Tú</td><td><span class="tt tt--coc">Chờ cọc</span></td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH006</div></td>
+            <td><div class="kh">CÔNG TY CP BÁNH KẸO HẢI HÀ</div><div class="mo">Tem nhãn decal</div></td>
+            <td class="nw">—</td><td class="phai gt">4.200.000đ</td><td class="nw">—</td>
+            <td class="nw">—</td><td class="nw">—</td>
+            <td><span class="mo">—</span></td>
+            <td class="nw" title="Lê Minh Tú">Tú</td><td><span class="tt tt--nhap">Nháp</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="vach" data-do="kA"></div>
+    </div>
+  </section>
+
+  <!-- ===================== PHƯƠNG ÁN B ===================== -->
+  <section class="sec">
+    <div class="sec-head"><h2>B. 8 cột — thấy mọi món, không cần bấm</h2></div>
+    <div class="why">
+      Gộp bớt cột ít đọc để nhường chỗ: <b>Ngày chốt</b> xuống dưới Mã đơn, <b>Cọc</b> xuống dưới Giá trị. Cột Sản xuất rộng ra, <b>mỗi mặt hàng một dòng</b> (chấm màu + tên + đang ở đâu), tối đa 3 dòng; quá 3 thì dòng cuối "+n món nữa". Bấm dòng nào mở lệnh của món đó.
+    </div>
+    <p class="thuoc">Nhìn là biết hết, kể cả đơn nhiều món. Đổi lại: hàng cao lên theo số món, và Cọc / Ngày chốt không còn cột riêng để dò bằng mắt (vẫn lọc + sắp xếp được).</p>
+    <div class="khung" id="kB">
+      <table>
+        <thead><tr>
+          <th>Mã đơn</th><th>Khách hàng</th><th>PO</th><th class="phai">Giá trị</th><th>Giao</th><th style="width:220px">Sản xuất</th><th>NV</th><th>Trạng thái</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="ma">DH005</div><div class="mo nw">chốt 6/10</div></td>
+            <td><div class="kh">CÔNG TY DƯỢC HẬU GIANG</div><div class="mo">Hộp thuốc +2 món</div></td>
+            <td class="nw">PO7781</td>
+            <td class="phai"><div class="gt">412.600.000đ</div><div class="mo nw">cọc 30%</div></td>
+            <td class="nw"><div>20/10</div><div class="mo">còn 14 ngày</div></td>
+            <td><div class="mon-ds">
+              <div class="mon"><i class="c-xuong"></i><span class="t"><b>Hộp thuốc</b> <em>Xưởng, Bế 60%</em></span></div>
+              <div class="mon"><i class="c-ngoai"></i><span class="t"><b>Tờ HDSD</b> <em>Cán màng Hưng Thịnh</em></span></div>
+              <div class="mon"><i class="c-cho"></i><span class="t"><b>Túi giấy</b> <em>Chưa có lệnh</em></span></div>
+            </div></td>
+            <td class="nw">Trần Văn Nam</td><td><span class="tt tt--chot">Đã chốt</span></td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH003</div><div class="mo nw">chốt 2/10</div></td>
+            <td><div class="kh">CÔNG TY TNHH VINAMILK</div><div class="mo">Hộp sữa 180ml +1 món</div></td>
+            <td class="nw">PO5520</td>
+            <td class="phai"><div class="gt">96.250.000đ</div><div class="mo nw">cọc 50%</div></td>
+            <td class="nw"><div>9/10</div><div class="mo">còn 3 ngày</div></td>
+            <td><div class="mon-ds">
+              <div class="mon"><i class="c-ok"></i><span class="t"><b>Hộp sữa 180ml</b> <em>Đủ hàng, đã giao 6.000/10.000</em></span></div>
+              <div class="mon"><i class="c-ok"></i><span class="t"><b>Thùng carton</b> <em>Đủ hàng, chưa giao</em></span></div>
+            </div></td>
+            <td class="nw">Nguyễn Thị Huyên</td><td><span class="tt tt--chot">Đã chốt</span></td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH002</div><div class="mo nw">chốt 6/10</div></td>
+            <td><div class="kh">CÔNG TY CỔ PHẦN BIBICA</div><div class="mo">Ruột sách A5 64 trang +1 món</div></td>
+            <td class="nw">PO451263</td>
+            <td class="phai"><div class="gt">26.943.796đ</div></td>
+            <td class="nw"><div>6/11</div><div class="mo">còn 31 ngày</div></td>
+            <td><div class="mon-ds">
+              <div class="mon"><i class="c-cho"></i><span class="t"><b>Sách A5 64 trang</b> <em>Chưa xuống xưởng</em></span></div>
+            </div></td>
+            <td class="nw">Nguyễn Thị Huyên</td><td><span class="tt tt--chot">Đã chốt</span></td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH001</div><div class="mo nw">chốt 5/10</div><div class="gap">⚑ Gấp</div></td>
+            <td><div class="kh">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</div><div class="mo">Hộp kem 50ml (5×5×12 cm)</div></td>
+            <td class="nw">PO999</td>
+            <td class="phai"><div class="gt">8.460.973đ</div></td>
+            <td class="nw"><div>30/10</div><div class="mo">còn 24 ngày</div></td>
+            <td><div class="mon-ds">
+              <div class="mon"><i class="c-ok"></i><span class="t"><b>Hộp kem 50ml</b> <em>Đủ hàng, giao thẳng 5.000</em></span></div>
+            </div></td>
+            <td class="nw">Nguyễn Thị Huyên</td><td><span class="tt tt--chot">Đã chốt</span></td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH004</div><div class="mo nw">chốt 6/10</div></td>
+            <td><div class="kh">CÔNG TY TNHH ORION VINA</div><div class="mo">Hộp bánh 12 cái</div></td>
+            <td class="nw">PO3310</td>
+            <td class="phai"><div class="gt">58.300.000đ</div><div class="mo nw">cọc 10%</div></td>
+            <td class="nw"><div>30/11</div><div class="mo">còn 55 ngày</div></td>
+            <td><span class="mo">Chờ đủ cọc mới xuống sản xuất</span></td>
+            <td class="nw">Lê Minh Tú</td><td><span class="tt tt--coc">Chờ cọc</span></td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH006</div></td>
+            <td><div class="kh">CÔNG TY CP BÁNH KẸO HẢI HÀ</div><div class="mo">Tem nhãn decal</div></td>
+            <td class="nw">—</td>
+            <td class="phai"><div class="gt">4.200.000đ</div></td>
+            <td class="nw">—</td>
+            <td><span class="mo">—</span></td>
+            <td class="nw">Lê Minh Tú</td><td><span class="tt tt--nhap">Nháp</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="vach" data-do="kB"></div>
+    </div>
+    <div class="chu-thich">
+      <span><i class="c-ok" style="display:inline-block;width:8px;height:8px;border-radius:50%"></i> Đủ hàng</span>
+      <span><i class="c-xuong" style="display:inline-block;width:8px;height:8px;border-radius:50%"></i> Trong xưởng / chờ kho</span>
+      <span><i class="c-ngoai" style="display:inline-block;width:8px;height:8px;border-radius:50%"></i> Ở nhà gia công</span>
+      <span><i class="c-cho" style="display:inline-block;width:8px;height:8px;border-radius:50%"></i> Chưa có lệnh / chưa xuống xưởng</span>
+    </div>
+  </section>
+
+  <!-- ===================== PHƯƠNG ÁN C ===================== -->
+  <section class="sec">
+    <div class="sec-head"><h2>C. 9 cột — "Đang chờ" thay Sản xuất + Trạng thái</h2><span class="goi-y">Đề xuất</span></div>
+    <div class="why">
+      Đơn đã chốt thì thẻ "ĐÃ CHỐT" lặp lại đúng điều thanh tab đã nói. Thay hai cột bằng <b>một cột "Đang chờ"</b>: đơn đang nằm ở tay ai — Kế hoạch, Xưởng, tên nhà gia công, Kho, Giao hàng, Kế toán (hoá đơn), hoặc Xong. Đơn chưa chốt thì cột này hiện trạng thái chứng từ (Nháp, Chờ cọc) như cũ.
+      <ul>
+        <li>Đơn chờ nhiều bên cùng lúc hiện đủ các thẻ (DH005: Kế hoạch, Xưởng, Hưng Thịnh) — khớp đúng bộ lọc "Đang chờ" vừa làm.</li>
+        <li>Dòng nhỏ dưới thẻ nói món nào; bấm thẻ mở bảng nổi từng mặt hàng → bấm món mở lệnh.</li>
+        <li>Thừa chỗ ⇒ NV hiện đủ họ tên, ngày giữ nguyên, không cột nào bị bóp.</li>
+      </ul>
+    </div>
+    <p class="thuoc">Một câu trả lời cho "đơn này đang chờ ai", cùng chữ với bộ lọc. Đổi lại: chi tiết từng món (bước nào, bao nhiêu %) vẫn phải bấm.</p>
+    <div class="khung" id="kC">
+      <table>
+        <thead><tr>
+          <th>Mã đơn</th><th>Khách hàng</th><th>PO khách</th><th class="phai">Giá trị</th><th>Cọc</th><th>Ngày chốt</th><th>Ngày giao</th><th style="width:170px">Đang chờ</th><th>NV</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="ma">DH005</div></td>
+            <td><div class="kh">CÔNG TY DƯỢC HẬU GIANG</div><div class="mo">Hộp thuốc +2 món</div></td>
+            <td class="nw">PO7781</td><td class="phai gt">412.600.000đ</td><td class="nw">30%</td>
+            <td class="nw">6/10/2026</td><td class="nw"><div>20/10/2026</div><div class="mo">còn 14 ngày</div></td>
+            <td><div class="chan"><span class="cho-ai">
+              <span class="o o--cho" data-noi="C5"><span>Kế hoạch</span></span>
+              <span class="o o--xuong" data-noi="C5"><span>Xưởng</span></span>
+              <span class="o o--ngoai" data-noi="C5"><span>Hưng Thịnh</span></span>
+            </span><span class="mo">0/3 món đủ hàng</span></div></td>
+            <td class="nw">Trần Văn Nam</td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH003</div></td>
+            <td><div class="kh">CÔNG TY TNHH VINAMILK</div><div class="mo">Hộp sữa 180ml +1 món</div></td>
+            <td class="nw">PO5520</td><td class="phai gt">96.250.000đ</td><td class="nw">50%</td>
+            <td class="nw">2/10/2026</td><td class="nw"><div>9/10/2026</div><div class="mo">còn 3 ngày</div></td>
+            <td><div class="chan"><span class="o o--giao"><span>Giao hàng</span></span><span class="mo">đủ hàng, đã giao 6.000/14.000</span></div></td>
+            <td class="nw">Nguyễn Thị Huyên</td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH002</div></td>
+            <td><div class="kh">CÔNG TY CỔ PHẦN BIBICA</div><div class="mo">Ruột sách A5 64 trang +1 món</div></td>
+            <td class="nw">PO451263</td><td class="phai gt">26.943.796đ</td><td class="nw">—</td>
+            <td class="nw">6/10/2026</td><td class="nw"><div>6/11/2026</div><div class="mo">còn 31 ngày</div></td>
+            <td><div class="chan"><span class="o o--cho" data-noi="C2"><span>Kế hoạch</span></span><span class="mo">lệnh chưa phát hành</span></div></td>
+            <td class="nw">Nguyễn Thị Huyên</td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH001</div><div class="gap">⚑ Gấp</div></td>
+            <td><div class="kh">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</div><div class="mo">Hộp kem 50ml (5×5×12 cm)</div></td>
+            <td class="nw">PO999</td><td class="phai gt">8.460.973đ</td><td class="nw">—</td>
+            <td class="nw">5/10/2026</td><td class="nw"><div>30/10/2026</div><div class="mo">còn 24 ngày</div></td>
+            <td><div class="chan"><span class="o o--ok"><span>Kế toán</span></span><span class="mo">đã giao đủ, chưa ghi hoá đơn</span></div></td>
+            <td class="nw">Nguyễn Thị Huyên</td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH004</div></td>
+            <td><div class="kh">CÔNG TY TNHH ORION VINA</div><div class="mo">Hộp bánh 12 cái</div></td>
+            <td class="nw">PO3310</td><td class="phai gt">58.300.000đ</td><td class="nw">10%</td>
+            <td class="nw">6/10/2026</td><td class="nw"><div>30/11/2026</div><div class="mo">còn 55 ngày</div></td>
+            <td><div class="chan"><span class="tt tt--coc">Chờ cọc</span><span class="mo">thiếu 11.660.000đ</span></div></td>
+            <td class="nw">Lê Minh Tú</td>
+          </tr>
+          <tr>
+            <td><div class="ma">DH006</div></td>
+            <td><div class="kh">CÔNG TY CP BÁNH KẸO HẢI HÀ</div><div class="mo">Tem nhãn decal</div></td>
+            <td class="nw">—</td><td class="phai gt">4.200.000đ</td><td class="nw">—</td>
+            <td class="nw">—</td><td class="nw">—</td>
+            <td><span class="tt tt--nhap">Nháp</span></td>
+            <td class="nw">Lê Minh Tú</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="vach" data-do="kC"></div>
+    </div>
+  </section>
+</div>
+
+<!-- Bảng nổi mẫu -->
+<div class="noi" id="noi-A5"><div class="noi-dau">3 mặt hàng của DH005</div>
+  <div class="noi-dong"><span class="ten">Hộp thuốc</span><span class="o o--xuong"><span>Xưởng</span></span><span class="ct">Bế 60%</span><span class="mo2">↗</span></div>
+  <div class="noi-dong"><span class="ten">Tờ HDSD</span><span class="o o--ngoai"><span>Cán màng Hưng Thịnh</span></span><span class="ct">cán màng từ 09:15 06/10, về xưởng làm tiếp</span><span class="mo2">↗</span></div>
+  <div class="noi-dong"><span class="ten">Túi giấy</span><span class="o o--cho"><span>Chưa có lệnh</span></span><span class="ct">chờ Kế hoạch lên lệnh</span><span class="mo2">↗</span></div>
+</div>
+<div class="noi" id="noi-C5"><div class="noi-dau">3 mặt hàng của DH005</div>
+  <div class="noi-dong"><span class="ten">Hộp thuốc</span><span class="o o--xuong"><span>Xưởng</span></span><span class="ct">Bế 60%</span><span class="mo2">↗</span></div>
+  <div class="noi-dong"><span class="ten">Tờ HDSD</span><span class="o o--ngoai"><span>Cán màng Hưng Thịnh</span></span><span class="ct">cán màng từ 09:15 06/10, về xưởng làm tiếp</span><span class="mo2">↗</span></div>
+  <div class="noi-dong"><span class="ten">Túi giấy</span><span class="o o--cho"><span>Chưa có lệnh</span></span><span class="ct">chờ Kế hoạch lên lệnh</span><span class="mo2">↗</span></div>
+</div>
+<div class="noi" id="noi-C2"><div class="noi-dau">1 mặt hàng của DH002</div>
+  <div class="noi-dong"><span class="ten">Sách A5 64 trang</span><span class="o o--cho"><span>Chưa xuống xưởng</span></span><span class="ct">LSX26-0003 chờ Kế hoạch phát hành</span><span class="mo2">↗</span></div>
+</div>
+
+<script>
+// Đo bề ngang thật của từng bảng: tràn khung 992px là lộ ngay.
+document.querySelectorAll('.vach').forEach(v => {
+  const k = document.getElementById(v.dataset.do);
+  const t = k.querySelector('table');
+  const tran = t.scrollWidth > k.clientWidth + 1;
+  v.innerHTML = `Bảng rộng <b>${t.scrollWidth}px</b> trong khung <b>${k.clientWidth}px</b> — ${tran ? 'TRÀN, phải cuộn ngang' : 'vừa, không cuộn ngang'}.`;
+});
+let dangMo = null;
+document.addEventListener('click', e => {
+  const nut = e.target.closest('[data-noi]');
+  if (dangMo) { dangMo.classList.remove('mo-ra'); dangMo = null; }
+  if (!nut) return;
+  e.stopPropagation();
+  const noi = document.getElementById('noi-' + nut.dataset.noi);
+  const r = nut.getBoundingClientRect();
+  noi.style.top = (window.scrollY + r.bottom + 6) + 'px';
+  noi.style.left = Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - 416) + 'px';
+  noi.classList.add('mo-ra'); dangMo = noi;
+});
+</script>
+</body>
+</html>

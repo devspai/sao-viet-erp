@@ -4,11 +4,11 @@
 // đang tải (người quét QR ở xưởng không quan tâm trang mấy, tab nào). Khúc đầu dây chuyền (hash
 // sống sót qua đăng nhập) nằm ở `LoginPage.test.tsx`; khúc phân tích hash nằm ở
 // `appShellDeepLink.test.ts`; khúc băng cảnh báo phiên bản nằm ở `LenhSxHoSoView.test.tsx`.
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { LenhSxBoLocOut, LenhSxHoSoOut, LenhSxListOut } from "../api/client";
+import type { LenhSxHoSoOut, LenhSxListOut, LuaChonLoc } from "../api/client";
 import { AuthContext, type AuthState } from "../auth/AuthContext";
 import { PermissionsProvider, buildCapabilities } from "../auth/permissions";
 import type { ModuleCapability } from "../api/client";
@@ -22,7 +22,9 @@ const AUTH: AuthState = {
 
 const DON_VI = [{ ma: "cai", ten: "cái" }];
 
-const BO_LOC: LenhSxBoLocOut = { khach_hang: [{ id: 9, ten: "Công ty Sao" }] };
+/** Nguồn ô Khách / Đơn của thanh lọc (06/10/2026 — thay `/bo-loc`). */
+const KHACH_LOC: LuaChonLoc[] = [{ id: 9, ten: "Công ty Sao", so: 1 }];
+const DON_LOC: LuaChonLoc[] = [{ id: 3, ten: "DH-0003", so: 1 }];
 
 /** Bảng phía sau chỉ có lệnh #5 — KHÔNG có lệnh #77. Cố tình: hồ sơ mở qua deep link phải tự đứng
  *  được mà không cần bảng biết gì về nó, đúng thứ ghi chú `LenhSanXuatPage.tsx` nói ("hồ sơ vẽ ĐÈ
@@ -114,7 +116,8 @@ function stubApi(list: LenhSxListOut = LIST): string[] {
     let status = 200;
     const mHoSo = /\/api\/lenh-san-xuat\/(\d+)$/.exec(url);
     if (url.includes("/api/don-vi")) data = { items: DON_VI };
-    else if (url.includes("/api/lenh-san-xuat/bo-loc")) data = BO_LOC;
+    else if (url.includes("/api/lenh-san-xuat/khach-loc")) data = KHACH_LOC;
+    else if (url.includes("/api/lenh-san-xuat/don-loc")) data = DON_LOC;
     else if (mHoSo) {
       const id = Number(mHoSo[1]);
       const hs = HOSO_BY_ID[id];
@@ -306,13 +309,13 @@ describe("LenhSanXuatPage · danh sách tra cứu", () => {
     expect(screen.getByText("Đã đóng lệnh")).toBeInTheDocument();
     expect(screen.getByText("GẤP")).toBeInTheDocument();
     expect(screen.getByText("DH-0003")).toBeInTheDocument();
-    // Bảy cột tĩnh, không còn cột tiến độ hay cảnh báo.
+    // Tám cột tĩnh, không còn cột tiến độ hay cảnh báo; "Ngày tạo" thêm 06/10/2026.
     expect(screen.getAllByRole("columnheader").map((c) => c.textContent)).toEqual([
-      "Lệnh", "Sản phẩm", "Số lượng", "Khách", "Đơn", "Hạn SX", "Trạng thái",
+      "Lệnh", "Sản phẩm", "Số lượng", "Khách", "Đơn", "Hạn SX", "Ngày tạo", "Trạng thái",
     ]);
   });
 
-  it("⭐ đổi tab gửi `tab=`; chọn khách gửi `khach_hang_id=`; ngày hợp lệ gửi `tu_ngay=`", async () => {
+  it("⭐ đổi tab gửi `tab=`; thanh lọc chọn khách gửi `khach_hang_id=`; kỳ gửi `tu_ngay=` + `moc=`", async () => {
     const goi = stubApi();
     ve();
     await screen.findByText("LSX26-0005");
@@ -320,12 +323,17 @@ describe("LenhSanXuatPage · danh sách tra cứu", () => {
     await userEvent.click(screen.getByRole("tab", { name: /Sau sản xuất/ }));
     await waitFor(() => expect(goi.some((u) => u.includes("tab=sau_sx"))).toBe(true));
 
-    const khach = await screen.findByRole("combobox", { name: /Khách/ });
-    await userEvent.selectOptions(khach, "9");
+    await userEvent.click(screen.getByRole("button", { name: "Lọc" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /Khách hàng/ }));
+    await userEvent.click(await screen.findByRole("radio", { name: /Công ty Sao/ }));
     await waitFor(() => expect(goi.some((u) => u.includes("khach_hang_id=9"))).toBe(true));
 
-    fireEvent.change(screen.getByLabelText("Hạn SX từ ngày"), { target: { value: "2026-10-01" } });
-    await waitFor(() => expect(goi.some((u) => u.includes("tu_ngay=2026-10-01"))).toBe(true));
+    // Kỳ theo Hạn sản xuất (thay hai ô ngày rời cũ).
+    await userEvent.click(screen.getByRole("button", { name: /Mọi thời gian/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "Hạn sản xuất" }));
+    await userEvent.click(screen.getByRole("radio", { name: /Năm nay/ }));
+    await waitFor(() =>
+      expect(goi.some((u) => u.includes("moc=han_sx") && /tu_ngay=\d{4}-01-01/.test(u))).toBe(true));
 
     // Không còn gọi hai đường đã bỏ.
     expect(goi.some((u) => u.includes("/summary"))).toBe(false);

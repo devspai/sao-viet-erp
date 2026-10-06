@@ -12,9 +12,11 @@ describe("useTrangPhieu — sự kiện đẩy", () => {
   it("mở màn với eventTick > 0 chỉ tải một lượt; tick đổi thì tải lại và gọi onSuKien", async () => {
     const goi = vi.fn(async (_t: string, _p: ThamSoSo) => trong());
     const onSuKien = vi.fn();
-    window.history.replaceState(null, "", "/?man=man-phieu-tick&ky=thang&so=0");
+    // Kỳ "Tất cả" ⇒ không có lời gọi cùng kỳ năm trước.
+    window.history.replaceState(null, "", "/?man=man-phieu-tick&ky=tat_ca");
     const cauHinh = {
       man: "man-phieu-tick",
+      moc: [["tao", "Ngày tạo"]] as [string, string][],
       locTuUrl: () => ({ the: "tat_ca" as const, tim: "", loc: {} }),
       locLenUrl: () => ({}),
       locTrong: {},

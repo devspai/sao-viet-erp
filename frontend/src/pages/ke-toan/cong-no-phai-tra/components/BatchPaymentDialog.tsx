@@ -7,7 +7,12 @@
 //
 // ⚠️ TIỀN THẬT: payload gửi đi GIỮ Y NGUYÊN bản trước (cùng trường, cùng giá trị, cùng luật kiểm) —
 // chỉ đổi vỏ sang `NganPhai tang={1}`: Esc chỉ đóng lớp này, ngăn nhà cung cấp bên dưới vẫn mở.
-import { ChevronRight, Info } from "lucide-react";
+//
+// Kiểu khối mới (06/10/2026, đối xứng ngăn Thu tiền hoá đơn của Công nợ phải thu): "Các đợt sẽ trả"
+// (hàng đối chiếu Số đợt | Tổng phải trả + bảng đợt) → "Tiền chi" (dải sau lượt trả: NCC còn nợ, hạn
+// mức còn được nợ; Ngày chi | Trả bằng; tài khoản trả) → "Người nhận" (chip NCC + người liên hệ; lý do
+// chi chung) → "Chứng từ".
+import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -20,12 +25,11 @@ import {
   type VoucherBatchResult,
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
-import { tien, vietSo } from "../../shared/dinhDang";
-import { OChungTu } from "../../shared/tepChungTu";
+import { ngay, tien, vietSo } from "../../shared/dinhDang";
+import { HangDoiChieu, KhoiForm, ONgayPhieu, SauPhieu } from "../../shared/KhungFormPhieu";
+import { HangTraBang, KhoiChungTuChi, KhoiNguoiNhan, useGoiYNhaCungCap } from "../../phieu-chi/components/KhoiPhieuChi";
 import {
   KhungFormPhieu,
-  ONgayChi,
-  ThemChiTiet,
   OF,
   idO,
   loiNgayChi,
@@ -33,8 +37,7 @@ import {
   type DatO,
   type LoiForm,
 } from "../../phieu-chi/components/KhungFormPhieu";
-import { VoucherRecipientSection, loiChuyenKhoan } from "../../phieu-chi/components/VoucherRecipientSection";
-import { ChonCachTra } from "../../phieu-chi/components/VoucherSegments";
+import { loiChuyenKhoan } from "../../phieu-chi/components/VoucherRecipientSection";
 import { isoToday, optional } from "../../phieu-chi/shared/helpers";
 import { tenKhoan } from "../shared/helpers";
 
@@ -45,25 +48,32 @@ function noiMa(ma: string[]): string {
 
 /** Thứ tự ô trên form — con trỏ nhảy tới ô sai đầu tiên. */
 const THU_TU = [
-  "voucher_type",
-  "cash_recipient_name",
-  "company_bank_account_id",
-  "beneficiary_account_holder",
-  "beneficiary_account_number",
-  "beneficiary_bank_name",
   "voucher_date",
-  "content",
+  "voucher_type",
+  "company_bank_account_id",
+  "cash_recipient_name",
+  "beneficiary_bank_name",
+  "beneficiary_account_number",
+  "beneficiary_account_holder",
   "chung_tu",
 ];
 
 export function BatchPaymentDialog({
+  supplierId,
   supplierName,
+  conNoNcc,
+  hanMuc = 0,
   items,
   onClose,
   onSaved,
   onMoTaiKhoan,
 }: {
+  supplierId?: number | null;
   supplierName: string;
+  /** Tổng còn nợ của nhà cung cấp (ngăn dưới) — cho dải "sau lượt trả". */
+  conNoNcc?: number | null;
+  /** Hạn mức công nợ của nhà cung cấp; 0 = không đặt. */
+  hanMuc?: number;
   /** Các đợt đã chọn — MỌI phần tử đều có `delivery_id` (ô chọn chỉ có ở đợt đủ điều kiện). */
   items: PayableItemRow[];
   onClose: () => void;
@@ -98,7 +108,6 @@ export function BatchPaymentDialog({
   const [loi, setLoi] = useState<LoiForm>({});
   const [loiChung, setLoiChung] = useState<string | null>(null);
   const [dangLuu, setDangLuu] = useState(false);
-  const [moNoiDung, setMoNoiDung] = useState(false);
   // Chứng từ (UNC, biên nhận…) — MỘT bộ tệp gắn vào TỪNG phiếu vừa lập: cả lượt thường chỉ có một
   // bằng chứng đã chi, nhưng chứng từ thuộc về từng phiếu (không có "phiếu gộp").
   const [files, setFiles] = useState<File[]>([]);
@@ -202,6 +211,12 @@ export function BatchPaymentDialog({
   const goDo = () =>
     files.length > 0 || (Object.keys(dau) as (keyof PaymentVoucherBaseInput)[]).some((k) => form[k] !== dau[k]);
 
+  const goiY = useGoiYNhaCungCap(supplierId, supplierName);
+  const sau = [
+    ...(conNoNcc != null ? [{ nhan: "Nhà cung cấp còn nợ", tu: conNoNcc, den: conNoNcc - total }] : []),
+    ...(conNoNcc != null && hanMuc > 0 ? [{ nhan: "Hạn mức còn được nợ", den: hanMuc - (conNoNcc - total) }] : []),
+  ];
+
   return (
     <KhungFormPhieu
       tang={1}
@@ -213,6 +228,14 @@ export function BatchPaymentDialog({
         </>
       }
       tieuDe={`Trả ${n} đợt cùng lúc`}
+      phuDe={
+        <>
+          <span className="kt-tag">
+            Nhà cung cấp <b>{supplierName}</b>
+          </span>
+          <span className="kt-tag">Mỗi đợt ra một phiếu chi riêng</span>
+        </>
+      }
       xemTruoc={
         <>
           {"Lập "}
@@ -229,54 +252,63 @@ export function BatchPaymentDialog({
       onSubmit={() => void submit()}
       nhanNut={daLap ? "Xong" : `Lập ${n} phiếu chi`}
       khoaNut={!daLap && n === 0}
+      kieuMoi
     >
-      <div className="kt-nhom">
-        <table aria-label="Các đợt sẽ trả">
-          <thead>
-            <tr>
-              <th>Đơn mua</th>
-              <th>Đợt</th>
-              <th className="kt-so">Còn nợ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((it) => (
-              <tr key={it.delivery_id}>
-                <td>{it.code}</td>
-                <td>{tenKhoan(it)}</td>
-                <td className="kt-so">{vietSo(it.con_no)}</td>
+      <KhoiForm tieu="Các đợt sẽ trả">
+        <HangDoiChieu
+          o={[
+            { nhan: "Số đợt", giaTri: vietSo(n) },
+            { nhan: "Số đơn mua", giaTri: vietSo(new Set(items.map((it) => it.purchase_request_id)).size) },
+            { nhan: "Tổng phải trả", giaTri: tien(total), chot: true },
+          ]}
+        />
+        <div className="kt-lt">
+          <table aria-label="Các đợt sẽ trả">
+            <thead>
+              <tr>
+                <th>Đơn mua</th>
+                <th>Đợt</th>
+                <th>Hạn trả</th>
+                <th className="kt-so">Còn nợ</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="kt-bang-xam">
-        <Info size={16} aria-hidden="true" />
-        Mỗi đợt ra một phiếu chi riêng, số tiền đúng bằng còn nợ của đợt.
-      </p>
-
-      <div className="kt-f__muc">
-        <div className="kt-f__tieu">Trả bằng</div>
-        <ChonCachTra giaTri={form.voucher_type} onDoi={(v) => set("voucher_type", v)} khoa="voucher_type" />
-        <VoucherRecipientSection form={form} set={set} loi={loi} taiKhoan={taiKhoan} dangTai={dangTaiTk} loiTai={loiTk}
-          chonTaiKhoan={(v) => set("company_bank_account_id", v ? Number(v) : null)}
-          coNguoiNhanMat onMoTaiKhoan={onMoTaiKhoan} />
-        <div className="kt-f__hang">
-          <ONgayChi value={form.voucher_date} onChange={(v) => set("voucher_date", v)} loi={loi.voucher_date} />
+            </thead>
+            <tbody>
+              {items.map((it) => (
+                <tr key={it.delivery_id}>
+                  <td>{it.code}</td>
+                  <td>{tenKhoan(it)}</td>
+                  <td>{it.due_date ? ngay(it.due_date) : "Chưa đặt hạn"}</td>
+                  <td className="kt-so">{vietSo(it.con_no)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+        <p className="kt-khac">Số tiền mỗi phiếu đúng bằng còn nợ của đợt. Trả khác số đó thì lập riêng ở màn Đơn mua hàng.</p>
+      </KhoiForm>
 
-      <ThemChiTiet nhan="Thêm nội dung chung" tieu="Nội dung chung" cacO={["Nội dung"]} mo={moNoiDung}
-        onMo={() => setMoNoiDung(true)}>
-        <OF khoa="content" nhan="Nội dung chung" rong goi="Để trống thì mỗi phiếu tự ghi theo mã đơn và số đợt.">
-          <input id={idO("content")} value={form.content} onChange={(e) => set("content", e.target.value)} />
+      <KhoiForm tieu="Tiền chi">
+        {sau.length > 0 && <SauPhieu o={sau} />}
+        <HangTraBang form={form} onDoiCach={(v) => set("voucher_type", v)} loi={loi} taiKhoan={taiKhoan}
+          dangTai={dangTaiTk} loiTai={loiTk} chonTaiKhoan={(v) => set("company_bank_account_id", v ? Number(v) : null)}
+          onMoTaiKhoan={onMoTaiKhoan}
+          oNgay={
+            <ONgayPhieu khoa="voucher_date" nhan="Ngày chi" value={form.voucher_date}
+              onChange={(v) => set("voucher_date", v)} loi={loi.voucher_date} />
+          } />
+      </KhoiForm>
+
+      <KhoiNguoiNhan form={form} set={set} loi={loi} luonCoTen={false} goiY={goiY}>
+        <OF khoa="content" nhan="Lý do chi chung" rong>
+          <input id={idO("content")} value={form.content} placeholder="Để trống thì mỗi phiếu tự ghi mã đơn và số đợt"
+            onChange={(e) => set("content", e.target.value)} />
         </OF>
-      </ThemChiTiet>
+      </KhoiNguoiNhan>
 
-      <OChungTu files={files} setFiles={setFiles} loi={loi.chung_tu}
-        onLoi={(l) => setLoi((cu) => ({ ...cu, chung_tu: l ?? undefined }))}
-        nhan={`Chứng từ gắn vào cả ${n} phiếu`}
-        goi="Ảnh hoặc PDF tối đa 10 MB mỗi tệp, ví dụ một UNC trả gộp. Tải lên từng phiếu ngay khi lập xong." />
+      <KhoiChungTuChi form={form} set={set} coHopDong={false} coSoChungTu={false} files={files} setFiles={setFiles}
+        loiTep={loi.chung_tu} setLoiTep={(l) => setLoi((cu) => ({ ...cu, chung_tu: l ?? undefined }))}
+        nhanTep={`Ảnh chứng từ gắn vào cả ${n} phiếu`}
+        goiTep="Ví dụ một UNC trả gộp. Tải lên từng phiếu ngay khi lập xong." />
     </KhungFormPhieu>
   );
 }

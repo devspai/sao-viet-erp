@@ -6,12 +6,28 @@ còn dòng chưa lên lệnh. Không có cột trạng thái "đã tiếp nhận
 """
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
 
+from ..models.customer import Customer
 from ..models.lsx import LOAI_MOI, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc
 from ..models.order import STATUS_ORDERED, Order, OrderLine
 from .catalog_base import SIZE_TRAN
+from .loc_danh_sach import dk_khoang_ngay
+
+# Mốc ngày của dải kỳ trên bảng lệnh (06/10/2026): (cột, là cột Date).
+MOC_LENH = {
+    "tao": (Lsx.created_at, False),
+    "han_sx": (Lsx.han_hoan_thanh_sx, True),
+    "han_giao": (Lsx.han_giao_khach, True),
+}
+# Mốc ngày của dải kỳ trên hàng chờ: ngày tạo đơn / lúc Sale chuyển xuống sản xuất.
+MOC_HANG_CHO = {
+    "tao": (Order.created_at, False),
+    "chuyen": (Order.san_xuat_released_at, False),
+}
 
 
 class LsxRepository:
@@ -37,6 +53,9 @@ class LsxRepository:
         q: str | None = None,
         owner_ids: set[int] | None = None,
         gia_cong: str | None = None,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        moc: str = "tao",
     ) -> list:
         """Bộ lọc dùng CHUNG cho `list` và `dem_theo_trang_thai`, để số dòng trong bảng và số
         trên tab không bao giờ nói hai chuyện khác nhau (cùng lý do như `catalog_base._loc_q`)."""
@@ -73,6 +92,8 @@ class LsxRepository:
             from .gia_cong_ngoai_repo import lsx_ids_loc_gia_cong
 
             conds.append(Lsx.id.in_(lsx_ids_loc_gia_cong(gia_cong)))
+        cot, la_ngay = MOC_LENH.get(moc, MOC_LENH["tao"])
+        conds += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
         return conds
 
     def list(self, *, page: int = 1, size: int = 50, **kw) -> tuple[list[Lsx], int]:
@@ -109,6 +130,29 @@ class LsxRepository:
             .order_by(Order.order_no.desc())
         )
         return [(i, no, cid) for i, no, cid in self.db.execute(stmt).all()]
+
+    def khach_loc(self, *, owner_ids: set[int] | None) -> list[tuple[int, str, int]]:
+        """`(id, tên, số lệnh)` của khách đang có lệnh TRONG phạm vi — ô "Khách hàng" của thanh lọc."""
+        stmt = (
+            select(Customer.id, Customer.name, func.count(Lsx.id))
+            .join(Order, Order.customer_id == Customer.id)
+            .join(Lsx, Lsx.order_id == Order.id)
+            .where(*self._dieu_kien(owner_ids=owner_ids))
+            .group_by(Customer.id, Customer.name)
+            .order_by(Customer.name)
+        )
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
+
+    def don_loc(self, *, owner_ids: set[int] | None) -> list[tuple[int, str, int]]:
+        """`(id, mã đơn, số lệnh)` của đơn đang có lệnh TRONG phạm vi — ô "Đơn hàng", mới nhất trước."""
+        stmt = (
+            select(Order.id, Order.order_no, func.count(Lsx.id))
+            .join(Lsx, Lsx.order_id == Order.id)
+            .where(*self._dieu_kien(owner_ids=owner_ids))
+            .group_by(Order.id, Order.order_no)
+            .order_by(Order.order_no.desc())
+        )
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
 
     def dem_theo_trang_thai(self, **kw) -> dict[str, int]:
         """Số lệnh của TỪNG trạng thái, cùng bộ lọc nhưng BỎ `trang_thai`.
@@ -175,15 +219,8 @@ class LsxRepository:
         ).scalars()
         return {r.order_line_id: r for r in rows}
 
-    def orders_ban_giao(
-        self, *, page: int = 1, size: int = 50, chi_dem: bool = False,
-    ) -> tuple[list[Order], int]:
-        """Đơn đã chốt + đã chuyển xuống SX mà CÒN nợ lệnh (kèm dòng đơn), mới nhất trước.
-
-        Điều kiện "còn dòng chưa lên lệnh" nằm trong SQL chứ không lọc bằng Python sau khi kéo
-        toàn bộ lịch sử đơn hàng về kèm mọi dòng đơn — cách cũ làm endpoint không trả nổi kết
-        quả ở quy mô thật.
-        """
+    def _dk_hang_cho(self) -> tuple:
+        """Điều kiện NỀN của hàng chờ (chưa kể thanh lọc) — dùng chung cho bảng và ô lọc Khách."""
         # Viết bằng MỘT TẬP ID (union) chứ không phải `or_(EXISTS…, NOT EXISTS…)` ngay trong WHERE:
         # dạng OR làm Postgres ước lượng chi phí ~1.000.000, vượt `jit_above_cost` nên nó bật JIT
         # và đốt 470 ms biên dịch cho một câu chỉ chạy 80 ms (đo 18/08/2026 trên 20.000 đơn).
@@ -205,11 +242,39 @@ class LsxRepository:
             )
             .subquery()
         )
-        conds = (
+        return (
             Order.status == STATUS_ORDERED,
             Order.san_xuat_released_at.is_not(None),
             Order.id.in_(select(con_no.c.order_id)),
         )
+
+    def khach_hang_cho(self) -> list[tuple[int, str, int]]:
+        """`(id, tên, số đơn)` của khách đang có đơn nằm hàng chờ — ô "Khách hàng" của hàng chờ."""
+        stmt = (
+            select(Customer.id, Customer.name, func.count(Order.id))
+            .join(Order, Order.customer_id == Customer.id)
+            .where(*self._dk_hang_cho())
+            .group_by(Customer.id, Customer.name)
+            .order_by(Customer.name)
+        )
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
+
+    def orders_ban_giao(
+        self, *, page: int = 1, size: int = 50, chi_dem: bool = False,
+        customer_id: int | None = None, tu_ngay: date | None = None,
+        den_ngay: date | None = None, moc: str = "tao",
+    ) -> tuple[list[Order], int]:
+        """Đơn đã chốt + đã chuyển xuống SX mà CÒN nợ lệnh (kèm dòng đơn), mới nhất trước.
+
+        Điều kiện "còn dòng chưa lên lệnh" nằm trong SQL chứ không lọc bằng Python sau khi kéo
+        toàn bộ lịch sử đơn hàng về kèm mọi dòng đơn — cách cũ làm endpoint không trả nổi kết
+        quả ở quy mô thật.
+        """
+        conds = list(self._dk_hang_cho())
+        if customer_id is not None:
+            conds.append(Order.customer_id == customer_id)
+        cot, la_ngay = MOC_HANG_CHO.get(moc, MOC_HANG_CHO["tao"])
+        conds += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
         total = self.db.execute(select(func.count()).select_from(Order).where(*conds)).scalar_one()
         if chi_dem:
             # Badge chỉ cần TỔNG — khỏi nạp trang đơn + dòng đơn.

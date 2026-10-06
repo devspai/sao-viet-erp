@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .loc_danh_muc import DemDieuKien
+
 
 class KhoHangIn(BaseModel):
     ma: str | None = Field(default=None, max_length=30)  # tạo mới: bỏ trống → backend tự sinh KHO-####
@@ -22,6 +24,7 @@ class KhoHangRow(BaseModel):
     vi_tri: str | None = None
     ghi_chu: str | None = None
     active: bool
+    created_at: datetime | None = None
     updated_at: datetime | None = None
     #: Số vị trí cất (kệ/ô) ĐANG DÙNG của kho — router gắn theo trang (`_dung_rows`), không phải cột.
     so_vi_tri: int = 0
@@ -32,6 +35,8 @@ class KhoHangListOut(BaseModel):
     total: int
     page: int
     size: int
+    # Giá trị + số đếm của từng điều kiện lọc (thanh lọc chung) — xem `schemas/loc_danh_muc`.
+    dem: DemDieuKien = {}
 
 
 # ── Vị trí cất trong kho (bảng `kho_vi_tri`) ────────────────────────────────────────────────

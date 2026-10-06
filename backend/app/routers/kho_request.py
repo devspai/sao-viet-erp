@@ -51,6 +51,8 @@ from ..services.vat_lieu_kho_service import HANG_NHAN, VatLieuKhoError, VatLieuK
 
 router = APIRouter(prefix="/api/kho/de-nghi", tags=["kho-de-nghi"])
 MODULE = "kho"
+#: Mốc ngày của kỳ: Ngày yêu cầu / Ngày cần / Ngày duyệt.
+_MOC = "^(tao|can|duyet)$"
 # Màn TỒN KHO — mỗi kho một dòng quyền `ton_kho_<id>` từ 05/10/2026 (`services/quyen_kho.py`).
 # Ở router này nó CHỈ là cửa DỮ LIỆU: cột "tồn khả dụng" trên dòng yêu cầu chỉ điền cho người được
 # xem số tồn của ĐÚNG KHO của yêu cầu (`xem_ton_kho`; yêu cầu chưa chọn kho thì số là gộp mọi kho
@@ -325,17 +327,20 @@ def list_requests(
     dieu_chuyen: bool | None = Query(
         default=None, description="True = chỉ yêu cầu điều chuyển · False = nhập/xuất thường"),
     q: str | None = Query(default=None),
-    ngay_can_tu: date | None = Query(default=None),
-    ngay_can_den: date | None = Query(default=None),
-    tao_tu: date | None = Query(default=None),
-    tao_den: date | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern=_MOC),
+    bo_phan: int | None = Query(default=None, description="Điều kiện Phòng ban yêu cầu"),
+    nguoi_yeu_cau: list[int] | None = Query(default=None),
+    kho: int | None = Query(default=None, description="Điều kiện Kho: gắn kho hoặc có phiếu ở kho"),
     order: str = Query(default="id", pattern="^(id|updated)$"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
 ) -> StockRequestPage:
     rows, total = svc.requests.list(
         loai=loai, trang_thai=trang_thai, q=q, kho_id=kho_id, dieu_chuyen=dieu_chuyen,
-        ngay_can_tu=ngay_can_tu, ngay_can_den=ngay_can_den, tao_tu=tao_tu, tao_den=tao_den,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan,
+        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho,
         order=order, page=page, size=size,
         **_scoped_filters(db, user, authz),
     )
@@ -404,18 +409,84 @@ def request_counts_by_status(
     kho_id: int | None = Query(default=None),
     dieu_chuyen: bool | None = Query(default=None),
     q: str | None = Query(default=None),
-    ngay_can_tu: date | None = Query(default=None),
-    ngay_can_den: date | None = Query(default=None),
-    tao_tu: date | None = Query(default=None),
-    tao_den: date | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern=_MOC),
+    bo_phan: int | None = Query(default=None),
+    nguoi_yeu_cau: list[int] | None = Query(default=None),
+    kho: int | None = Query(default=None),
 ) -> dict[str, int]:
     """Đếm yêu cầu theo TỪNG trạng thái (áp cùng bộ lọc list, TRỪ tab) → FE cộng theo tab cho badge.
     Trả {trang_thai: số}. Áp SCOPE như list để badge khớp đúng danh sách người dùng thấy."""
     return svc.requests.count_by_status(
         loai=loai, base_trang_thai=trang_thai, kho_id=kho_id, dieu_chuyen=dieu_chuyen, q=q,
-        ngay_can_tu=ngay_can_tu, ngay_can_den=ngay_can_den, tao_tu=tao_tu, tao_den=tao_den,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan,
+        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho,
         **_scoped_filters(db, user, authz),
     )
+
+
+def _loc_nen(db: Session, user: User, authz: AuthorizationService, loai: str | None,
+             dieu_chuyen: bool | None) -> dict:
+    """Tầm của các danh sách giá trị lọc: đúng phạm vi + chiều + nhóm điều chuyển của màn gọi."""
+    return {"loai": loai, "dieu_chuyen": dieu_chuyen, **_scoped_filters(db, user, authz)}
+
+
+@router.get("/loc-bo-phan")
+def loc_bo_phan(
+    svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loai: str | None = Query(default=None),
+    dieu_chuyen: bool | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị điều kiện "Phòng ban yêu cầu": phòng ban có yêu cầu trong tầm nhìn, kèm số."""
+    dem = svc.requests.dem_theo_cot("bo_phan_id", **_loc_nen(db, user, authz, loai, dieu_chuyen))
+    phong = DepartmentRepository(db)
+    ra = [{"id": i, "ten": getattr(phong.get_by_id(i), "name", None) or f"#{i}", "so": n} for i, n in dem]
+    return sorted(ra, key=lambda d: d["ten"])
+
+
+@router.get("/loc-nguoi-yeu-cau")
+def loc_nguoi_yeu_cau(
+    svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loai: str | None = Query(default=None),
+    dieu_chuyen: bool | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị điều kiện "Người yêu cầu": người đã tạo yêu cầu trong tầm nhìn, kèm số."""
+    dem = svc.requests.dem_theo_cot("nguoi_tao_id", **_loc_nen(db, user, authz, loai, dieu_chuyen))
+    users = UserRepository(db)
+    ra = [{"id": i, "ten": getattr(users.get_by_id(i), "name", None) or f"#{i}", "so": n}
+          for i, n in dem]
+    return sorted(ra, key=lambda d: d["ten"])
+
+
+@router.get("/loc-kho")
+def loc_kho(
+    svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loai: str | None = Query(default=None),
+    dieu_chuyen: bool | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị điều kiện "Kho": mọi kho đang dùng, kèm số yêu cầu gắn kho đó hoặc có phiếu ở đó.
+    Kho không có yêu cầu nào thì bỏ (chọn vào chỉ ra danh sách trống)."""
+    nen = _loc_nen(db, user, authz, loai, dieu_chuyen)
+    ra = []
+    for kid, ten in KhoHangRepository(db).dang_dung():
+        n = svc.requests.dem(kho_loc=kid, **nen)
+        if n:
+            ra.append({"id": kid, "ten": ten, "so": n})
+    return ra
+
+
+@router.post("/seen-all", status_code=204)
+def mark_all_requests_seen(
+    svc: Service,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+):
+    """NGƯỜI TẠO mở màn danh sách yêu cầu → mọi phản hồi kho (Hoàn tất / Không thành) của họ thành
+    đã xem: nhìn thấy bản ghi là mất dấu, không bắt mở từng yêu cầu."""
+    svc.requests.mark_seen_all(user.id)
 
 
 @router.post("/{request_id}/seen", status_code=204)

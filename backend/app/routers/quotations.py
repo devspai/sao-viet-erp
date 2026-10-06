@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+from datetime import date
 from typing import Annotated
 
 from fastapi import (
@@ -47,6 +48,7 @@ from ..models.quotation import (
 from ..models.user import User
 from ..schemas.quotation import (
     CustomerDisplayOut,
+    DuyetTomTat,
     EnumOption,
     QuotationCreate,
     QuotationDetailOut,
@@ -79,6 +81,8 @@ from ..services.quotation_service import (
 from ..services.quotation_state import TRANSITIONS
 from ..services.thong_bao_man import bao
 from ..schemas.customer import SaleOption
+from ..schemas.loc_danh_sach import LuaChonLoc
+from ..repositories.quotation_repo import LocBaoGia
 from ..services.nguoi_phu_trach_service import lua_chon_nguoi
 from ..services.rbac_service import AuthorizationService
 from ..storage import get_storage, key_from_url, make_key, url_from_key
@@ -129,6 +133,7 @@ def _row(
     q: Quote,
     customer_name: str | None,
     user_names: dict[int, str] | None = None,
+    duyet: dict | None = None,
 ) -> QuotationRow:
     active_version = None
     for v in q.versions:
@@ -162,6 +167,8 @@ def _row(
         product_summary=product_summary,
         updated_at=q.updated_at,
         salesperson_name=(user_names or {}).get(q.salesperson_id),
+        created_at=q.created_at,
+        duyet=DuyetTomTat(**duyet) if duyet else None,
     )
 
 
@@ -320,11 +327,34 @@ def quotation_enums(
 
 # --- list ---------------------------------------------------------------------
 
+def _loc_bao_gia(
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|gui|hieu_luc)$"),
+    khach: int | None = Query(default=None),
+    duyet: list[str] = Query(default=[]),
+    nguoi_duyet: int | None = Query(default=None),
+    gia_tu: int | None = Query(default=None, ge=0),
+    gia_den: int | None = Query(default=None, ge=0),
+    hieu_luc: str | None = Query(default=None, pattern="^(con|sap_het|het)$"),
+) -> LocBaoGia:
+    """Dải kỳ + bảng "Bộ lọc nâng cao" — chung cho danh sách và thanh tab."""
+    return LocBaoGia(
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, khach=khach,
+        duyet=tuple(d for d in duyet if d in ("cho", "duyet", "tu_choi", "khong")),
+        nguoi_duyet=nguoi_duyet, gia_tu=gia_tu, gia_den=gia_den, hieu_luc=hieu_luc,
+    )
+
+
+LocBG = Annotated[LocBaoGia, Depends(_loc_bao_gia)]
+
+
 @router.get("", response_model=QuotationListOut)
 def list_quotations(
     svc: Service,
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loc: LocBG,
     q: str | None = Query(default=None),
     status_filter: str | None = Query(default=None, alias="status"),
     sort: str = Query(default="-created_at"),
@@ -335,15 +365,16 @@ def list_quotations(
     scope = _scope_for(authz, user)
     rows, total, names = svc.list_quotations(
         scope=scope, actor=user, q=q, status=status_filter, sort=sort, page=page, size=size,
-        nguoi=nguoi,
+        nguoi=nguoi, loc=loc,
     )
 
     # Bulk map cho hiển thị 2 tầng: tên người phụ trách
     user_ids: set[int] = {r.salesperson_id for r in rows if r.salesperson_id}
     user_names = svc.user_names(user_ids)
+    duyet = svc.tom_tat_duyet(rows)
 
     return QuotationListOut(
-        items=[_row(r, names.get(r.id), user_names) for r in rows],
+        items=[_row(r, names.get(r.id), user_names, duyet.get(r.id)) for r in rows],
         total=total,
         page=page,
         size=size,
@@ -355,10 +386,38 @@ def quotation_stats(
     svc: Service,
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loc: LocBG,
+    q: str | None = Query(default=None),
     nguoi: int | None = Query(default=None),
 ) -> QuotationStatsOut:
-    """Số đếm cho thanh tab list Báo giá — cùng phạm vi + hộp lọc người với bảng."""
-    return QuotationStatsOut(**svc.stats(scope=_scope_for(authz, user), actor=user, nguoi=nguoi))
+    """Số đếm cho thanh tab list Báo giá — cùng phạm vi, ô tìm, dải kỳ và bộ lọc với bảng."""
+    return QuotationStatsOut(**svc.stats(scope=_scope_for(authz, user), actor=user, nguoi=nguoi, q=q, loc=loc))
+
+
+@router.get("/khach-loc", response_model=list[LuaChonLoc])
+def list_khach_loc(
+    svc: Service,
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[LuaChonLoc]:
+    """Ô "Khách hàng" của bảng lọc: khách đang có báo giá trong tầm nhìn, kèm số báo giá."""
+    return [
+        LuaChonLoc(id=i, ten=t, so=n)
+        for i, t, n in svc.dem_theo_khach(scope=_scope_for(authz, user), actor=user)
+    ]
+
+
+@router.get("/nguoi-duyet", response_model=list[LuaChonLoc])
+def list_nguoi_duyet(
+    svc: Service,
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[LuaChonLoc]:
+    """Ô "Người duyệt" của bảng lọc: ai đã ra quyết định duyệt gần nhất trên báo giá trong tầm nhìn."""
+    return [
+        LuaChonLoc(id=i, ten=t, so=n)
+        for i, t, n in svc.dem_theo_nguoi_duyet(scope=_scope_for(authz, user), actor=user)
+    ]
 
 
 @router.get("/nguoi-phu-trach", response_model=list[SaleOption])

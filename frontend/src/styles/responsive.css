@@ -1022,7 +1022,6 @@
   .kho-list .kho-table td,
   .kho-ov__cell dd,
   .kho-qr__url,
-  .khsx-formula-code,
   .khsx-kpi-tile__label,
   .khsx-kpi-tile__val small,
   .khsx-kv__key,
@@ -1716,7 +1715,7 @@
    chưa vừa hẳn tên ("Sản xuất" ~52px). Ẩn chữ phụ (ngày, "kho đủ 2/3 món"…) — nó vẫn có ở câu "việc
    tiếp theo" và ở khung chặng bên dưới; giữ thì bị cắt "…" vô nghĩa. Tên được xuống dòng ở khoảng
    trắng ("Sản / xuất") thay vì cắt, mũi tên thu hẹp cho chữ thêm chỗ. */
-/* Bộ chọn có tiền tố `.dhb__path` / `.dhb__sx-mon`: don-hang-ban.css nạp SAU file này (theo trang),
+/* Bộ chọn có tiền tố `.dhb__path`: don-hang-ban.css nạp SAU file này (theo trang),
    cùng độ đặc hiệu thì nó thắng — đã thấy tên chặng vẫn bị cắt "Sả…" vì thế. */
 @media screen and (max-width: 768px) {
   .dhb__path .dhb__path-o small { display: none; }
@@ -1734,17 +1733,6 @@
     clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 6px 50%);
   }
   .dhb__path .dhb__path-o b { white-space: normal; text-overflow: clip; font-size: 12px; line-height: 1.25; }
-  /* Ba thanh SX: chữ dài ("chưa xuống xưởng") ép thanh còn mẩu. Ở màn hẹp mỗi khâu thành hai dòng
-     "nhãn … số" rồi thanh trải hết bề ngang. Thứ tự DOM là nhãn, thanh, số ×3 — `dense` cho ô số
-     lùi lên lấp chỗ cạnh nhãn. */
-  .dhb__sx-mon .dhb__sx-ba {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-auto-flow: row dense;
-    row-gap: 3px;
-  }
-  .dhb__sx-mon .dhb__sx-ba > :nth-child(3n + 1) { grid-column: 1; }
-  .dhb__sx-mon .dhb__sx-ba > :nth-child(3n + 2) { grid-column: 1 / -1; margin-bottom: 6px; }
-  .dhb__sx-mon .dhb__sx-ba > :nth-child(3n) { grid-column: 2; }
 }
 
 /* ===== §55. THẺ CHI TIẾT BƯỚC VÒNG ĐỜI — TIÊU ĐỀ BỊ BÓP CẠNH NHÃN DÀI =======
@@ -2353,12 +2341,8 @@
   }
 }
 
-/* §61 (d) — SÀN cho cột "Vật tư" của `.khsx-vtbang`, CHỈ ở điện thoại. Xem chú thích (d) ở trên. */
-@media screen and (max-width: 480px) {
-  .shell__content .khsx-vtbang__ten {
-    min-width: 180px;
-  }
-}
+/* §61 (d) — sàn 180px cho cột "Vật tư" ĐÃ GỠ 06/10/2026: ở ≤480px bảng `.khsx-vtbang` nay xếp
+   mỗi món thành một khối (ke-hoach-sx.css §3c), không còn cột để bóp. */
 
 /* ===== §62. SẢN XUẤT › BÀI GHÉP =============================================
    Rà bằng dev-browser thật ở 375×812 (instance `t6`, admin/admin123): mở màn Bài ghép → lăn cả

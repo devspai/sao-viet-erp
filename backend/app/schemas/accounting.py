@@ -37,6 +37,12 @@ class CompanyBankAccountOut(BankAccountBaseIn):
     updated_at: datetime
 
 
+class NganHangLocOut(BaseModel):
+    """Một lựa chọn của ô lọc "Ngân hàng" (màn Tài khoản ngân hàng): tên + số tài khoản."""
+    ten: str
+    so: int = 0
+
+
 class TaiKhoanThongKeOut(BaseModel):
     """Thu/chi ĐÃ XONG của một tài khoản ngân hàng công ty trong kỳ (số trên thẻ tài khoản)."""
 
@@ -190,8 +196,6 @@ class GiaCongChoChiOut(BaseModel):
     nha_cung_cap_ten: str
     sl_cuoi: float
     don_vi: str | None = None
-    don_gia: float | None = None
-    thanh_tien: float | None = None
     chot_luc: datetime | None = None
     chot_boi_ten: str | None = None
 
@@ -463,6 +467,8 @@ class SalesInvoiceListOut(BaseModel):
     invoiced_amount: int
     uninvoiced_amount: int
     deposit_received: int
+    payment_term_days: int | None = None
+    last_invoice_symbol: str | None = None
     items: list[SalesInvoiceOut]
 
 
@@ -514,6 +520,12 @@ class PayableSupplierOut(BaseModel):
     #: Hạn trả gần nhất trong các đợt CÒN NỢ — luôn theo HÔM NAY. None = không đợt nào có hạn.
     han_gan_nhat: date | None = None
     total_due: int
+    # Bảng đủ cột (06/10/2026): mã + liên hệ của NCC, lần TRẢ gần nhất (cả lịch sử, không theo kỳ).
+    supplier_code: str | None = None
+    lien_he_ten: str | None = None
+    lien_he_sdt: str | None = None
+    tra_gan_nhat_ngay: date | None = None
+    tra_gan_nhat_tien: int = 0
 
 
 class TheLocCongNoOut(BaseModel):
@@ -710,6 +722,14 @@ class ReceivableCustomerOut(BaseModel):
     han_gan_nhat: date | None = None
     #: Sale phụ trách khách (`Customer.sale_user_id`).
     sale_user_id: int | None = None
+    # Bảng đủ cột (06/10/2026): mã khách, liên hệ CHÍNH (không có thì ô liên hệ nhanh của khách),
+    # tên sale phụ trách, lần THU gần nhất (cả lịch sử, không theo kỳ).
+    customer_code: str | None = None
+    lien_he_ten: str | None = None
+    lien_he_sdt: str | None = None
+    sale_user_name: str | None = None
+    thu_gan_nhat_ngay: date | None = None
+    thu_gan_nhat_tien: int = 0
 
 
 class ReceivablesSummaryOut(BaseModel):

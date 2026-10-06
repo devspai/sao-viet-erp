@@ -1,0 +1,93 @@
+/* CongThucTip — chữ neo gạch chấm, rê vào hiện bong bóng công thức nền tối (cùng họ với tooltip
+   ô lượng ở chuỗi công đoạn màn Tính giá, `.tg-bvt__tip`). */
+.cong-thuc-tip__neo {
+  cursor: help;
+  text-decoration: underline dotted var(--ash-2);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  border-radius: 3px;
+  outline: none;
+}
+.cong-thuc-tip__neo:hover {
+  text-decoration-color: var(--ink);
+}
+.cong-thuc-tip__neo:focus-visible {
+  outline: 2px solid var(--rust);
+  outline-offset: 2px;
+}
+
+.cong-thuc-tip {
+  position: fixed;
+  z-index: 2100;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: max-content;
+  max-width: min(460px, calc(100vw - 24px));
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+  font-family: var(--ff-sans);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  /* Đo kích thước trước rồi mới hiện — tránh nháy ở toạ độ 0,0. */
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+.cong-thuc-tip--hien {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+}
+.cong-thuc-tip::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: calc(var(--mui, 14px) - 5px);
+  border: 5px solid transparent;
+  border-bottom-color: var(--ink);
+}
+.cong-thuc-tip--tren::after {
+  bottom: auto;
+  top: 100%;
+  border-bottom-color: transparent;
+  border-top-color: var(--ink);
+}
+.cong-thuc-tip__goc {
+  color: var(--rule-soft);
+}
+.cong-thuc-tip__so {
+  color: var(--paper);
+}
+.cong-thuc-tip__kq {
+  font-weight: 600;
+}
+/* Công thức có `if`: mỗi khối một dòng, thụt theo độ sâu. */
+.cong-thuc-tip__dong {
+  display: block;
+  padding-left: calc(var(--sau, 0) * 1.4em);
+}
+.cong-thuc-tip__ghi-chu {
+  margin-top: 2px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(248, 250, 252, 0.16);
+  font-size: 11.5px;
+  color: var(--on-charcoal-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cong-thuc-tip {
+    transition: none;
+  }
+}

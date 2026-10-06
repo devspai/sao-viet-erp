@@ -73,10 +73,32 @@ import {
   buildTree,
   initials,
 } from "./shared/helpers";
+import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "../../thanh-loc/ky-danh-sach";
+import { useLocMan } from "../../thanh-loc/useLocMan";
+import { useDebounced } from "../../../utils/useDebounced";
+import {
+  LOC_PB_TRONG,
+  MOC_PB,
+  dieuKienPhongBan,
+  locPhongBanLenUrl,
+  locPhongBanTuUrl,
+  thamSoLocPhongBan,
+  type LocPhongBan,
+} from "./dieu-kien-phong-ban";
 import "../../departments.css";
 import "../../nhan-su.css";
 import "../../redesign-phong-ban.css";
 import { EmptyState } from "../../../components/EmptyState";
+
+// Kỳ (Ngày tạo) + điều kiện lọc cây — ghi lên URL, nhớ theo màn.
+type LocMan = { ky: KyDS; loc: LocPhongBan };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_PB_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_PB.map(([m]) => m), "tao"),
+  loc: locPhongBanTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locPhongBanLenUrl(t.loc) });
 
 export function DepartmentsPage({
   onDeptChanged,
@@ -350,11 +372,20 @@ export function DepartmentsPage({
   const [creating, setCreating] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
-  // Cây tổ chức (cột trái) — tìm theo tên/mã + chip lọc phân loại phòng.
+  // Cây tổ chức (cột trái) — tìm theo tên/mã/trưởng phòng + thanh lọc chung (Kỳ, Khối, Tình
+  // trạng nhân sự). LỌC Ở MÁY CHỦ (06/10/2026): máy chủ trả phòng khớp kèm tổ tiên; `departments`
+  // vẫn là trọn cây (chi tiết phòng, chọn phòng cha, chuỗi tổ tiên cần cả cây).
   const [search, setSearch] = useState("");
-  const [treeFilter, setTreeFilter] = useState<"all" | "san_xuat" | "ngoai_sx" | "kinh_doanh" | "giao_hang" | "no_head" | "no_staff">(
-    "all",
-  );
+  const searchDebounced = useDebounced(search.trim());
+  const [locMan, setLocMan] = useLocMan("phong-ban", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const khoaLoc = JSON.stringify({
+    q: searchDebounced || undefined,
+    ...thamSoKy(locMan.ky),
+    ...thamSoLocPhongBan(locMan.loc),
+  });
+  /** Kết quả lọc của máy chủ; null = không lọc gì (hiện trọn cây). */
+  const [ketQuaLoc, setKetQuaLoc] = useState<Department[] | null>(null);
+  const [locLoi, setLocLoi] = useState<string | null>(null);
   // Chế độ xem: danh sách cây thẻ (tree) vs Sơ đồ khối trực quan (chart)
   const [viewMode, setViewMode] = useState<"tree" | "chart">("tree");
   // Mức thu phóng (zoom scale) cho Sơ đồ cây (chart mode)
@@ -613,6 +644,10 @@ export function DepartmentsPage({
     return { khoiSanXuat: sx, khoiKinhDoanh: kd };
   }, [roots, childrenOf]);
 
+  // Nhóm dùng chung chỉ tác động tới các màn khối Kinh doanh (org_scope.nhom_dung_chung_user_ids)
+  // — phòng ngoài khối (Kỹ thuật, Kế toán…) gộp nhóm là vô nghĩa nên không chào nút ở đó.
+  const gopNhomODay = canGopNhom && selectedId != null && khoiKinhDoanh.has(selectedId);
+
   // Đếm cho chip lọc cây và các ô số trên đầu trang. Sản xuất + Ngoài sản xuất = Tất cả;
   // Có trưởng + Thiếu trưởng + Chưa có nhân sự = Tất cả. Đếm RIÊNG hai loại chứ không gộp: gộp lại là mất đúng cái phân biệt vừa dựng ra — "có người mà
   // không ai phụ trách" là việc phải xử lý ngay, còn "phòng chưa tuyển ai" thì không.
@@ -620,6 +655,7 @@ export function DepartmentsPage({
     let sanXuat = 0;
     let kinhDoanh = 0;
     let giaoHang = 0;
+    let kcs = 0;
     let coTruong = 0;
     let noHead = 0;
     let noStaff = 0;
@@ -627,6 +663,7 @@ export function DepartmentsPage({
       if (khoiSanXuat.has(d.id)) sanXuat += 1;
       if (khoiKinhDoanh.has(d.id)) kinhDoanh += 1;
       if (d.la_giao_hang) giaoHang += 1;
+      if (d.is_kcs) kcs += 1;
       const st = deptStatus(d);
       if (st === "complete") coTruong += 1;
       else if (st === "no_head") noHead += 1;
@@ -637,6 +674,7 @@ export function DepartmentsPage({
       san_xuat: sanXuat,
       kinh_doanh: kinhDoanh,
       giao_hang: giaoHang,
+      kcs,
       ngoai_sx: departments.length - sanXuat,
       co_truong: coTruong,
       no_head: noHead,
@@ -653,21 +691,44 @@ export function DepartmentsPage({
       .catch(() => setCompanyProbationRatio(null));
   }, [token]);
 
-  const treeFiltersActive = search.trim() !== "" || treeFilter !== "all";
+  // Lọc ở MÁY CHỦ: có điều kiện thì hỏi `/api/departments` kèm tham số — máy chủ trả phòng KHỚP
+  // (`khop`) cùng tổ tiên của chúng. Danh sách hiện phẳng các phòng khớp; sơ đồ giữ cả tổ tiên để
+  // còn đường nối từ gốc xuống. Cây đổi (thêm/sửa/xoá phòng) thì hỏi lại.
+  useEffect(() => {
+    if (!token || khoaLoc === "{}") {
+      setKetQuaLoc(null);
+      setLocLoi(null);
+      return;
+    }
+    let huy = false;
+    api.rbac
+      .departments(token, JSON.parse(khoaLoc))
+      .then((ds) => {
+        if (huy) return;
+        setKetQuaLoc(ds);
+        setLocLoi(null);
+      })
+      .catch((e) => {
+        if (!huy) setLocLoi(e instanceof ApiError ? e.message : "Không lọc được phòng ban.");
+      });
+    return () => {
+      huy = true;
+    };
+  }, [token, khoaLoc, departments]);
+
+  const treeFiltersActive = ketQuaLoc != null;
+  const { khopIds, hienIds } = useMemo(() => {
+    const khop = new Set<number>();
+    const hien = new Set<number>();
+    for (const d of ketQuaLoc ?? []) {
+      hien.add(d.id);
+      if (d.khop !== false) khop.add(d.id);
+    }
+    return { khopIds: khop, hienIds: hien };
+  }, [ketQuaLoc]);
 
   function matchesTree(d: Department): boolean {
-    const q = search.trim().toLowerCase();
-    if (q) {
-      const hay = `${d.code ?? ""} ${d.name} ${d.head_name ?? ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    if (treeFilter === "san_xuat" && !khoiSanXuat.has(d.id)) return false;
-    if (treeFilter === "kinh_doanh" && !khoiKinhDoanh.has(d.id)) return false;
-    if (treeFilter === "giao_hang" && !d.la_giao_hang) return false;
-    if (treeFilter === "ngoai_sx" && khoiSanXuat.has(d.id)) return false;
-    if (treeFilter === "no_head" && deptStatus(d) !== "no_head") return false;
-    if (treeFilter === "no_staff" && deptStatus(d) !== "no_staff") return false;
-    return true;
+    return khopIds.has(d.id);
   }
 
   // Hàng cây: khi tìm/lọc → danh sách phẳng khớp; ngược lại → cây cha–con thu gọn được.
@@ -686,7 +747,7 @@ export function DepartmentsPage({
     for (const r of roots) walk(r, 0);
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [departments, roots, childrenOf, collapsed, treeFiltersActive, search, treeFilter]);
+  }, [departments, roots, childrenOf, collapsed, treeFiltersActive, khopIds]);
 
   // Nhân sự của phòng (theo HỒ SƠ), lọc + phân trang. Lọc "Đã khóa" chỉ áp cho người CÓ
   // tài khoản — người chưa có tài khoản không có trạng thái khóa/mở nào để lọc.
@@ -1468,7 +1529,7 @@ export function DepartmentsPage({
   /** Con trực tiếp còn hiện theo bộ lọc đang bật. */
   function visibleKids(dept: Department): Department[] {
     return (childrenOf.get(dept.id) ?? []).filter(
-      (child) => !treeFiltersActive || matchesTree(child),
+      (child) => !treeFiltersActive || hienIds.has(child.id),
     );
   }
 
@@ -1674,54 +1735,16 @@ export function DepartmentsPage({
     );
   }
 
-  const treeChips = [
-    { key: "all", label: "Tất cả", n: treeStats.all, title: undefined },
-    // Sản xuất + Ngoài sản xuất = Tất cả. Kinh doanh, Giao hàng là nhóm con của "ngoài sản xuất",
-    // không phải khối thứ ba — tooltip nói rõ để không ai cộng dồn các chip.
-    {
-      key: "san_xuat",
-      label: "Sản xuất",
-      n: treeStats.san_xuat,
-      title: "Khối Sản xuất cùng mọi tổ, nhóm bên dưới",
-    },
-    {
-      key: "ngoai_sx",
-      label: "Ngoài sản xuất",
-      n: treeStats.ngoai_sx,
-      title: "Mọi phòng không thuộc khối Sản xuất (ban giám đốc, văn phòng, giao hàng…)",
-    },
-    // Khối Kinh doanh: quyết định ai vào được danh sách "NV phụ trách" ở màn Khách hàng — chip
-    // này là chỗ duy nhất soi nhanh xem đã tick đúng phòng chưa.
-    {
-      key: "kinh_doanh",
-      label: "Kinh doanh",
-      n: treeStats.kinh_doanh,
-      title: "Phòng đánh dấu khối Kinh doanh cùng các phòng con",
-    },
-    // Khối Giao hàng: quyết định ai hiện ở tab Nhân viên giao hàng và ai chọn được khi phân
-    // chuyến — chip này là chỗ soi nhanh xem đã tick đúng phòng chưa.
-    {
-      key: "giao_hang",
-      label: "Giao hàng",
-      n: treeStats.giao_hang,
-      title: "Phòng đánh dấu Giao hàng (phòng con phải tự đánh dấu)",
-    },
-    // Hai chip RIÊNG, cố ý không gộp: "Thiếu trưởng" là việc phải xử lý ngay (phòng có người mà
-    // không ai phụ trách); "Chưa có nhân sự" chỉ là phòng mới khai, chưa tuyển ai. Gộp một số là
-    // mất đúng cái phân biệt này — và trước đây gộp kiểu ngược lại nên chip luôn đếm 0.
-    {
-      key: "no_head",
-      label: "Thiếu trưởng",
-      n: treeStats.no_head,
-      title: "Phòng đã có người (kể cả ở tổ con) mà chưa gán trưởng",
-    },
-    {
-      key: "no_staff",
-      label: "Chưa có nhân sự",
-      n: treeStats.no_staff,
-      title: "Phòng chưa gán trưởng và cả nhánh chưa có ai",
-    },
-  ] as const;
+  const dieuKien = dieuKienPhongBan({
+    san_xuat: treeStats.san_xuat,
+    ngoai_sx: treeStats.ngoai_sx,
+    kinh_doanh: treeStats.kinh_doanh,
+    giao_hang: treeStats.giao_hang,
+    kcs: treeStats.kcs,
+    co_truong: treeStats.co_truong,
+    thieu_truong: treeStats.no_head,
+    chua_co_nguoi: treeStats.no_staff,
+  });
   const tabs = [
     { key: "overview", label: "Tổng quan", count: undefined },
     { key: "staff", label: "Nhân sự", count: members.length },
@@ -1769,7 +1792,7 @@ export function DepartmentsPage({
 
           <div
             className="rdx-ckpi-item"
-            title={`${treeStats.co_truong} phòng đã gán trưởng; ${treeStats.no_head} phòng có người mà chưa gán trưởng; ${treeStats.no_staff} phòng chưa có ai. Bấm chip bên dưới để lọc.`}
+            title={`${treeStats.co_truong} phòng đã gán trưởng; ${treeStats.no_head} phòng có người mà chưa gán trưởng; ${treeStats.no_staff} phòng chưa có ai. Lọc theo Tình trạng nhân sự ở nút Lọc bên dưới.`}
           >
             <div className="rdx-ckpi-icon rdx-ckpi-icon--amber">
               <UserCheck size={15} />
@@ -1805,8 +1828,8 @@ export function DepartmentsPage({
 
       <div className="rdx-org-layout">
         <div className="rdx-org-toolbar">
-          <div className="rdx-org-toolbar__row1">
-            <div className="rdx-tree__search" style={{ width: "230px" }}>
+          <div className="rdx-org-toolbar__row1 tl-thanh">
+            <div className="rdx-tree__search">
               <Search size={15} className="rdx-tree__search-icon" />
               <input
                 className="rdx-tree__search-input"
@@ -1839,20 +1862,15 @@ export function DepartmentsPage({
               </button>
             </div>
 
-            <div className="rdx-tree__chips">
-              {treeChips.map((c) => (
-                <button
-                  key={c.key}
-                  type="button"
-                  className={`rdx-chip${treeFilter === c.key ? " is-active" : ""}`}
-                  aria-pressed={treeFilter === c.key}
-                  title={c.title}
-                  onClick={() => setTreeFilter(c.key)}
-                >
-                  {c.label}
-                  <span className="rdx-chip__n">{c.n}</span>
-                </button>
-              ))}
+            <div className="rdx-org-toolbar__loc">
+              <ThanhLoc
+                ky={locMan.ky}
+                moc={MOC_PB}
+                onKy={(ky) => setLocMan({ ...locMan, ky })}
+                dieuKien={dieuKien}
+                loc={locMan.loc}
+                onLoc={(loc) => setLocMan({ ...locMan, loc })}
+              />
             </div>
 
             <div className="rdx-org-toolbar__right">
@@ -1882,6 +1900,12 @@ export function DepartmentsPage({
             </div>
           </div>
         </div>
+
+        {locLoi && (
+          <div className="banner banner--error" role="alert">
+            {locLoi}
+          </div>
+        )}
 
         {/* Bề ngang hai cột khai bằng LỚP, không phải `style` inline: style inline thắng mọi
             luật CSS (trừ !important) nên khối @media ≤1024px trong redesign-phong-ban.css bị vô
@@ -2013,7 +2037,7 @@ export function DepartmentsPage({
                 >
                   <div className="rdx-org-tree-root">
                     {renderOrgRow(
-                      roots.filter((r) => !treeFiltersActive || matchesTree(r)),
+                      roots.filter((r) => !treeFiltersActive || hienIds.has(r.id)),
                       true,
                     )}
                   </div>
@@ -2290,7 +2314,7 @@ export function DepartmentsPage({
                             >
                               Bỏ chọn
                             </button>
-                            {selectedWithoutAccount > 0 && (canAssignRole || canGopNhom) && (
+                            {selectedWithoutAccount > 0 && (canAssignRole || gopNhomODay) && (
                               <span
                                 className="depts__batch-note"
                                 title="Vai trò và nhóm dùng chung gắn theo tài khoản — người chưa có tài khoản sẽ bị bỏ qua"
@@ -2311,7 +2335,7 @@ export function DepartmentsPage({
                                 <ShieldCheck size={14} /> Gán vai trò <ChevronDown size={14} className="depts__batch-caret" />
                               </button>
                             )}
-                            {canGopNhom && (
+                            {gopNhomODay && (
                               <button
                                 type="button"
                                 className="depts__batch-btn"

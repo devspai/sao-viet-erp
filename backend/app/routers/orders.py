@@ -9,6 +9,7 @@ HỦY ĐƠN ĐÃ CHỐT: từ 24/08/2026 MẶC ĐỊNH BẬT cho vai có `update
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -24,6 +25,8 @@ from ..db import get_db
 from ..models.user import User
 from ..services.thong_bao_man import bao
 from ..schemas.customer import SaleOption
+from ..schemas.loc_danh_sach import LuaChonLoc
+from ..repositories.order_repo import LocDonHang
 from ..services.nguoi_phu_trach_service import lua_chon_nguoi
 from ..schemas.order import (
     OrderActivityOut,
@@ -102,11 +105,39 @@ def get_enums(
     return svc.enums()
 
 
+def _loc_don_hang(
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|chot|giao)$"),
+    khach: int | None = Query(default=None),
+    gap: bool | None = Query(default=None),
+    gia_tu: int | None = Query(default=None, ge=0),
+    gia_den: int | None = Query(default=None, ge=0),
+    hen_giao: str | None = Query(default=None, pattern="^(qua|sap)$"),
+    dang_cho: str | None = Query(
+        default=None, pattern="^(coc|ke_hoach|xuong|gia_cong|kho|giao|hoa_don|xong)$"),
+    gia_cong: str | None = Query(default=None, pattern="^(co|tron_goi|mot_phan|giao_thang|khong)$"),
+    nha_gia_cong: int | None = Query(default=None),
+    giao: str | None = Query(default=None, pattern="^(chua|mot_phan|du)$"),
+    hoa_don: str | None = Query(default=None, pattern="^(chua|mot_phan|du)$"),
+) -> LocDonHang:
+    """Dải kỳ + bảng "Bộ lọc nâng cao" — chung cho danh sách và thanh tab."""
+    return LocDonHang(
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, khach=khach, gap=gap, gia_tu=gia_tu, gia_den=gia_den,
+        hen_giao=hen_giao, dang_cho=dang_cho, gia_cong=gia_cong, nha_gia_cong=nha_gia_cong,
+        giao=giao, hoa_don=hoa_don,
+    )
+
+
+LocDH = Annotated[LocDonHang, Depends(_loc_don_hang)]
+
+
 @router.get("", response_model=OrderListOut)
 def list_orders(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     svc: Service,
     authz: Authz,
+    loc: LocDH,
     q: str | None = Query(default=None),
     status_filter: str | None = Query(default=None, alias="status"),
     order_kind: str | None = Query(default=None),
@@ -119,7 +150,7 @@ def list_orders(
     scope = _effective_scope(_scope_for(authz, user), view_scope)
     return svc.list(
         actor=user, scope=scope, q=q, status=status_filter, order_kind=order_kind,
-        sort=sort, page=page, size=size, nguoi=nguoi,
+        sort=sort, page=page, size=size, nguoi=nguoi, loc=loc,
     )
 
 
@@ -128,11 +159,50 @@ def get_stats(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     svc: Service,
     authz: Authz,
+    loc: LocDH,
     view_scope: str | None = Query(default=None),
     nguoi: int | None = Query(default=None),
+    q: str | None = Query(default=None),
+    order_kind: str | None = Query(default=None),
 ) -> OrderStatsOut:
     return svc.stats(actor=user, scope=_effective_scope(_scope_for(authz, user), view_scope),
-                     nguoi=nguoi)
+                     nguoi=nguoi, q=q, order_kind=order_kind, loc=loc)
+
+
+@router.get("/khach-loc", response_model=list[LuaChonLoc])
+def list_khach_loc(
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    svc: Service,
+    authz: Authz,
+) -> list[LuaChonLoc]:
+    """Ô "Khách hàng" của bảng lọc: khách đang có đơn trong tầm nhìn, kèm số đơn."""
+    return [
+        LuaChonLoc(id=i, ten=t, so=n)
+        for i, t, n in svc.dem_theo_khach(actor=user, scope=_scope_for(authz, user))
+    ]
+
+
+@router.get("/dang-cho-dem")
+def dem_dang_cho(
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    svc: Service,
+    authz: Authz,
+) -> dict[str, int]:
+    """Số đơn theo từng giá trị ô lọc "Đang chờ", trong tầm nhìn."""
+    return svc.dem_dang_cho(actor=user, scope=_scope_for(authz, user))
+
+
+@router.get("/nha-gia-cong-loc", response_model=list[LuaChonLoc])
+def list_nha_gia_cong_loc(
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    svc: Service,
+    authz: Authz,
+) -> list[LuaChonLoc]:
+    """Ô "Nhà gia công" của bảng lọc: nhà gia công có lần trên đơn trong tầm nhìn, kèm số đơn."""
+    return [
+        LuaChonLoc(id=i, ten=t, so=n)
+        for i, t, n in svc.repo.dem_theo_nha_gia_cong(scope=_scope_for(authz, user), actor=user)
+    ]
 
 
 @router.get("/nguoi-phu-trach", response_model=list[SaleOption])
@@ -185,14 +255,10 @@ def get_tien_do(
 ) -> dict:
     """Thanh tiến độ của drawer đơn: Sản xuất → Nhập kho → Giao hàng theo từng sản phẩm (19/09/2026).
     Cùng cổng đọc + phạm vi với chi tiết đơn — ai xem được đơn thì xem được tiến độ của nó."""
-    from ..services.don_hang_tien_do import tien_do_don
-
     try:
-        svc.get(order_id=order_id, actor=user, scope=_scope_for(authz, user))
+        return svc.tien_do(order_id=order_id, actor=user, scope=_scope_for(authz, user))
     except Exception as exc:
         raise _map(exc)
-    order = svc.repo.get_by_id(order_id)
-    return tien_do_don(svc.db, order)
 
 
 @router.get("/{order_id}/activity", response_model=OrderActivityOut)
@@ -387,7 +453,7 @@ def add_deposit_receipt(
     return d
 
 
-# --- Đính kèm chứng cứ khách đồng ý (`update`) — minh chứng đã thu cọc nằm ở màn Phiếu thu Kế toán ---
+# --- Tệp đính kèm của đơn (`update`) — minh chứng đã thu cọc nằm ở màn Phiếu thu Kế toán ---
 @router.post("/{order_id}/attachments", response_model=OrderDetailOut)
 def upload_consent(
     order_id: int,

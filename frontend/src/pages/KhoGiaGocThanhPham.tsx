@@ -8,6 +8,7 @@
 // Lọc nâng cao (khoảng ngày nhập · kho nhập · khách hàng) cùng khuôn "Lọc nâng cao" của màn danh mục:
 // nút cạnh ô tìm, mở ra hàng ô; gập lại mà còn lọc thì hàng nhãn "Kho nhập: … ✕".
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { OGoDinhDang } from "../components/OGoDinhDang";
 import { Search } from "lucide-react";
 import { api, ApiError, type ThanhPhamChuaGiaGocPage, type ThanhPhamChuaGiaGocRow } from "../api/client";
 import type { Row } from "../api/rebuildCatalog";
@@ -65,7 +66,7 @@ function OGiaGoc({ row, dang, dv, onDoi, onBo, onLuu }: {
 
   return (
     <div className="kgg-gia">
-      <input
+      <OGoDinhDang
         ref={ref}
         className={`rc-input kgg-gia__o${doi ? " is-doi" : ""}`}
         inputMode="numeric"
@@ -85,7 +86,8 @@ function OGiaGoc({ row, dang, dv, onDoi, onBo, onLuu }: {
             so = so.slice(0, truoc) + so.slice(truoc + 1);
           }
           const g = docGia(so);
-          conTro.current = truoc;
+          // Bộ gõ tiếng Việt còn giữ từ đang gõ thì đừng dời con trỏ — dời là vùng gõ của nó lệch.
+          if (!(e.nativeEvent as InputEvent).isComposing) conTro.current = truoc;
           onDoi(g == null ? "" : tien(g));
         }}
         onBlur={() => {

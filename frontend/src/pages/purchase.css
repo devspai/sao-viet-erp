@@ -251,19 +251,25 @@
 }
 
 .supplier__table {
-  min-width: 1080px;
+  /* Sàn 960px: màn 1280px (lòng bảng ~970px) vừa khít, không phải kéo ngang. */
+  min-width: 960px;
   width: 100%;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
 }
 
+/* Hai cột cuối nội dung CỐ ĐỊNH (nhãn trạng thái, 2 nút) ⇒ bề rộng px; tính % thì ở màn ~1.500px
+   nhãn "Hoạt động" vỡ 2 dòng và nút cuối bị cắt mép (06/10/2026). Bốn cột chữ chia phần còn lại. */
 .supplier__col-name { width: 28%; }
-.supplier__col-sao { width: 20%; }
-.supplier__col-contact { width: 22%; }
-.supplier__col-items { width: 13%; }
-.supplier__col-status { width: 9%; }
-.supplier__col-actions { width: 8%; }
+.supplier__col-sao { width: 18%; }
+.supplier__col-contact { width: 24%; }
+.supplier__col-items { width: 16%; }
+.supplier__col-status { width: 128px; }
+/* Ngày tạo (thanh lọc chung 06/10/2026): "06/10/2026" cố định ⇒ px. */
+.supplier__col-ngay { width: 104px; }
+.supplier__col-actions { width: 96px; }
+.supplier__ngay-tao { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text-muted, #64748b); }
 
 /* Modern Table Header */
 .supplier__table thead th {
@@ -285,10 +291,11 @@
   border-bottom: 1px solid rgba(241, 245, 249, 0.9);
 }
 
+/* Hover chỉ đổi nền. Từng có `transform: translateY(-1px)` cho dòng "nổi lên": transform tạo lớp chồng
+   riêng cho dòng, nhốt thẻ xem nhanh báo giá (z-index 50) bên trong — dòng vẽ sau (chip "N mặt
+   hàng", nhãn trạng thái) đè lên thẻ (06/10/2026). */
 .supplier__table tbody tr.md-page__row:hover {
   background-color: rgba(241, 245, 249, 0.6) !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
 .supplier__table tbody td {
@@ -296,27 +303,11 @@
   vertical-align: middle;
 }
 
-/* Supplier Name Cell + Avatar */
+/* Supplier Name Cell */
 .supplier__name-box {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.supplier__avatar-wrap {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.02em;
-  flex-shrink: 0;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .supplier__name-meta {
@@ -369,6 +360,20 @@
   font-size: 10.5px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Cờ "Nhận gia công" — viền đủ cạnh tông rust để tách khỏi thẻ nhóm ngành (nền xám) bên cạnh:
+   nhóm là ngành hàng, cờ này là vai trò, hai thứ khác loại. */
+.supplier-gia-cong-badge {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--rust, #c5400a) 45%, transparent);
+  border-radius: var(--r-pill, 999px);
+  color: var(--rust, #c5400a);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
   white-space: nowrap;
 }
 
@@ -558,6 +563,7 @@
   color: #334155;
   font-size: 11.5px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: all 0.15s ease;
   border: 1px solid #e2e8f0;
@@ -685,6 +691,7 @@
   border-radius: 99px;
   font-size: 11.5px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .supplier__status-pill--active {
@@ -1223,55 +1230,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.supplier__contact-sub {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 2px;
-  font-size: 12px;
-  overflow: hidden;
-}
-
-.supplier__contact-link {
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
-  display: inline-block;
-}
-
-.supplier__contact-link--phone {
-  color: var(--moss-deep);
-  font-weight: var(--fw-medium);
-}
-
-.supplier__contact-link--email {
-  color: var(--ash);
-}
-
-.supplier__contact-link:hover {
-  text-decoration: underline;
-}
-
-.supplier__contact-sep {
-  color: var(--ash-2);
-  flex-shrink: 0;
-}
-
-/* Actions cell: width nhỏ nhất có thể, sat phải, nowrap */
-.supplier__actions-cell {
-  width: 1px;
-  white-space: nowrap;
-  text-align: right;
-  vertical-align: middle;
-}
-
-/* KHÔNG thêm margin cho nút trong ô này. Khoảng cách đã do `.purchase__actions--dense` (gap 4px)
-   cộng margin-left toàn cục của `.md-page__rowbtn` (master-data.css) lo — đúng bằng hai màn Thu
-   mua kia. Luật riêng cũ (margin-left 4px cho .md-page__rowbtn trong ô này) đã bỏ 09/08/2026:
-   cộng thêm một lớp nữa là riêng bảng NCC giãn rộng hơn mọi bảng khác. */
 
 .supplier__items-section {
   display: flex;
@@ -4171,3 +4129,6 @@ span.pdot__readonly-money {
 .md-page > .card.md-page__tablewrap.supplier__tablewrap + .ptdd {
   border-radius: 0 0 12px 12px;
 }
+
+/* Tab trạng thái có số của màn Yêu cầu mua hàng (06/10/2026) — nằm giữa thanh trên và bảng. */
+.purchase__tab-trang-thai { margin-bottom: var(--sp-3, 12px); }

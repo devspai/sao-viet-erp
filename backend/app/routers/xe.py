@@ -46,5 +46,9 @@ make_catalog_router(
     router, ten="xe", ServiceDep=Service, module=MODULE, doc=_DOC,
     InModel=XeIn, RowModel=XeRow, ListModel=XeListOut,
     excel_spec=XE,
+    # Thanh lọc chung (06/10/2026): kỳ Ngày tạo + Mức khoán km.
+    co_ky=True,
+    loc_them={"muc_khoan_km_id": int},
+    dem_them={"muc_khoan_km_id": "muc_khoan_km_id"},
     # Không mở `/ma-goi-y`: mã xe LÀ BIỂN SỐ, không có mã kế tiếp nào để gợi ý.
 )

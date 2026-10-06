@@ -43,6 +43,7 @@ from ..services.payroll_component_service import (
 from ..services.employee_service import EmployeeService
 from ..services.luong_excel import xuat_bang_luong
 from ..services.tam_ung_excel import xuat_file_chuyen_khoan
+from ..services.loc_luong import loc_bang_luong, loc_tam_ung
 from ..services.rbac_service import AuthorizationService
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.rbac_repo import DepartmentRepository
@@ -314,6 +315,7 @@ def _lines_out(lines, employees: EmployeeRepository, departments: DepartmentRepo
             o.employee_name = emp.full_name
             o.bank_account = emp.bank_account
             o.bank_name = emp.bank_name
+            o.department_id = emp.department_id
             o.department_name = dept_names.get(emp.department_id)
         out.append(o)
     return out
@@ -669,13 +671,40 @@ def delete_salary(salary_id: int, svc: Service, authz: Authz,
 def list_advances(svc: Service, employees: Employees, departments: Departments, authz: Authz,
                   user: Annotated[User, Depends(require_permission(MODULE, "read"))],
                   year: int = Query(...), month: int = Query(...),
-                  status_filter: str | None = Query(default=None, alias="status")) -> AdvancesOut:
+                  status_filter: str | None = Query(default=None, alias="status"),
+                  # Thanh lọc màn Tạm ứng (06/10/2026) — lọc, đếm tab, chia trang ở MÁY CHỦ.
+                  tab: str = Query(default="tat_ca",
+                                   pattern="^(tat_ca|cho_duyet|cho_chi|da_chi|tu_choi)$"),
+                  q: str | None = Query(default=None, max_length=100),
+                  loai: str | None = Query(default=None, pattern="^(tam_ung|luong_dot_1)$"),
+                  to: int | None = Query(default=None),
+                  tien_tu: float | None = Query(default=None, ge=0),
+                  tien_den: float | None = Query(default=None, ge=0),
+                  tu_ngay: date | None = Query(default=None),
+                  den_ngay: date | None = Query(default=None),
+                  moc: str = Query(default="tao", pattern="^(tao|ung)$"),
+                  page: int = Query(default=1, ge=1),
+                  # Bỏ trống = trả cả danh sách đã lọc (đường cũ + "chọn tất cả phiếu đang lọc").
+                  size: int | None = Query(default=None, ge=1, le=5000)) -> AdvancesOut:
     # Lọc theo PHẠM VI (07/09/2026, bản rà C4): `luong:read` là ô mọi vai seed đều có (xem phiếu
     # lương của mình) — không lọc là ai cũng đọc được tạm ứng + số tài khoản của cả công ty.
+    # Số tiền hiện / lọc được với MỌI người mở được danh sách này — đúng như cột Số tiền vốn có;
+    # cổng tiền ở đây chính là phạm vi + ô quyền của màn, không thêm cổng thứ hai.
     advs = svc.list_advances(year=year, month=month, status=status_filter,
                              scope=_emp_scope_for(authz, user), actor=user)
-    return AdvancesOut(items=_adv_out(advs, employees, departments,
-                                      svc.phieu_chi_theo_tam_ung([a.id for a in advs])))
+    pc = svc.phieu_chi_theo_tam_ung([a.id for a in advs])
+    kq = loc_tam_ung(advs, emp_map=employees.map_by_ids({a.employee_id for a in advs}),
+                     phieu_chi=pc, tab=tab, q=q, loai=loai, to=to, tien_tu=tien_tu,
+                     tien_den=tien_den, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
+                     ten_to={d.id: d.name for d in departments.list_all()} if advs else {})
+    loc = kq["loc"]
+    trang = loc if size is None else loc[(page - 1) * size: page * size]
+    return AdvancesOut(
+        items=_adv_out(trang, employees, departments, pc),
+        total=len(loc), page=page, size=size, dem_theo_tab=kq["dem_theo_tab"],
+        to_loc=kq["to_loc"], ids_tab=kq["ids_tab"], ids_loc=[a.id for a in loc],
+        tong_da_duyet=sum(float(a.amount or 0) for a in advs
+                          if a.status in ("approved", "paid")))
 
 
 @router.post("/advances", response_model=AdvanceOut, status_code=status.HTTP_201_CREATED)
@@ -879,7 +908,11 @@ def get_table(svc: Service, employees: Employees, departments: Departments, auth
               # Ô RIÊNG từ 15/08/2026 (mg 0195): bảng lương là công cụ quản lý, không đi theo cột
               # Xem nữa — cấp ô Lương ở phạm vi "Của tôi" không được mở bảng lương cả công ty.
               user: Annotated[User, Depends(require_permission(MODULE, "view_payroll_table"))],
-              year: int = Query(...), month: int = Query(...)) -> TableOut:
+              year: int = Query(...), month: int = Query(...),
+              # Thanh lọc (06/10/2026): tìm tên / mã, Phòng / tổ, hợp đồng — lọc ở máy chủ.
+              q: str | None = Query(default=None, max_length=100),
+              phong: int | None = Query(default=None),
+              hd: str | None = Query(default=None, pattern="^(ct|tv)$")) -> TableOut:
     # Trả cờ NGAY CẢ KHI chưa có kỳ lương: màn phải cảnh báo được "chốt công trước" từ trước lúc
     # bấm Khởi tạo, chứ không đợi tới lúc bấm Chốt mới báo.
     ly_do = svc.ly_do_chua_chot_duoc(year, month)
@@ -891,10 +924,11 @@ def get_table(svc: Service, employees: Employees, departments: Departments, auth
     if data is None:
         return TableOut(period=None, lines=[], chan_chot_ly_do=ly_do)
     lines_out = _lines_out(data["lines"], employees, departments, svc)
-    return TableOut(period=PeriodOut.model_validate(data["period"]), lines=lines_out,
-                    chan_chot_ly_do=ly_do,
-                    canh_bao_chot=_canh_bao_chot(
-                        lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month)))
+    # Cảnh báo chốt nói về CẢ kỳ — tính trước khi lọc, đổi bộ lọc không làm nó biến mất.
+    canh_bao = _canh_bao_chot(lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month))
+    hien, phong_loc = loc_bang_luong(lines_out, q=q, phong=phong, hd=hd)
+    return TableOut(period=PeriodOut.model_validate(data["period"]), lines=hien,
+                    chan_chot_ly_do=ly_do, canh_bao_chot=canh_bao, phong_loc=phong_loc)
 
 
 @router.post("/generate", response_model=TableOut)

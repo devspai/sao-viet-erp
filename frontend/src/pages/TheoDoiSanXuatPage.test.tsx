@@ -45,7 +45,7 @@ const THEO_LENH: TdsxTheoLenhOut = {
   items: [{
     lsx_id: 31, ma: "LSX26-0031", ten: "Hộp thuốc", is_rush: false, so_luong_dat: 100,
     don_vi_tinh: "cái", khach_hang: "Công ty Sao", chang: [], buoc_hien_tai: "In",
-    khau: "dang_sx", khau_chi_tiet: null, han_hoan_thanh_sx: null, du_kien_xong: null,
+    khau: "dang_sx", khau_chi_tiet: null, han_hoan_thanh_sx: null, created_at: null, du_kien_xong: null,
     canh_bao: [], tre_ngay: null,
   }],
   total: 1,
@@ -102,6 +102,8 @@ const goiToi = (goi: string[], duong: string) => goi.filter((u) => u.includes(du
 describe("TheoDoiSanXuatPage · khung màn", () => {
   beforeEach(() => {
     localStorage.clear();
+    // Thanh lọc ghi lên URL — mỗi bài bắt đầu từ URL sạch.
+    window.history.replaceState(null, "", "/");
   });
 
   it("⭐ mặc định Theo máy: chỉ gọi /theo-may, không gọi /theo-lenh", async () => {
@@ -111,8 +113,10 @@ describe("TheoDoiSanXuatPage · khung màn", () => {
     expect(screen.getByRole("button", { name: "Theo máy" })).toHaveAttribute("aria-pressed", "true");
     expect(goiToi(goi, "/theo-may")).toHaveLength(1);
     expect(goiToi(goi, "/theo-lenh")).toHaveLength(0);
-    // Ô Máy chỉ có ở góc Theo lệnh.
-    expect(screen.queryByRole("combobox", { name: /Máy/ })).toBeNull();
+    // Điều kiện Máy chỉ có ở góc Theo lệnh.
+    await userEvent.click(screen.getByRole("button", { name: "Lọc" }));
+    expect(screen.getByRole("menuitem", { name: /Khách hàng/ })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /^Máy/ })).toBeNull();
   });
 
   it("⭐ dải bất thường: số + chữ, mục 0 không bấm được, bấm lọc rồi bấm lại để bỏ", async () => {
@@ -135,7 +139,7 @@ describe("TheoDoiSanXuatPage · khung màn", () => {
     expect(screen.getByRole("button", { name: "1 máy hỏng" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("⭐ đổi sang Theo lệnh: gọi /theo-lenh, nhớ vào localStorage, có ô Máy gửi may_id", async () => {
+  it("⭐ đổi sang Theo lệnh: gọi /theo-lenh, nhớ vào localStorage, có điều kiện Máy gửi may_id", async () => {
     const goi = stubApi();
     ve();
     await screen.findByText("Máy in A");
@@ -144,8 +148,12 @@ describe("TheoDoiSanXuatPage · khung màn", () => {
     expect(localStorage.getItem("tdsx.goc")).toBe("theo_lenh");
     expect(goiToi(goi, "/theo-lenh")).toHaveLength(1);
 
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Máy/ }), "3");
+    await userEvent.click(screen.getByRole("button", { name: "Lọc" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /^Máy/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Máy in A/ }));
     await waitFor(() => expect(goiToi(goi, "may_id=3")).toHaveLength(1));
+    // Bỏ điều kiện để bài sau không thừa hưởng (thanh lọc nhớ theo màn).
+    await userEvent.click(screen.getByRole("button", { name: "Bỏ lọc Máy" }));
   });
 
   it("⭐ đã chọn Theo lệnh lần trước ⇒ mở màn là Theo lệnh, không gọi /theo-may", async () => {
@@ -156,14 +164,17 @@ describe("TheoDoiSanXuatPage · khung màn", () => {
     expect(goiToi(goi, "/theo-may")).toHaveLength(0);
   });
 
-  it("⭐ ô Khách gửi khach_hang_id; lọc rỗng ⇒ 'Bộ lọc không ra kết quả nào.' + Bỏ lọc", async () => {
+  it("⭐ điều kiện Khách gửi khach_hang_id; lọc rỗng ⇒ 'Bộ lọc không ra kết quả nào.' + Bỏ lọc", async () => {
     const goi = stubApi({ theoMay: { nhom: [], may_trong: [], bat_thuong: DEM } });
     ve();
-    await userEvent.selectOptions(await screen.findByRole("combobox", { name: /Khách/ }), "9");
+    await userEvent.click(await screen.findByRole("button", { name: "Lọc" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /Khách hàng/ }));
+    await userEvent.click(await screen.findByRole("radio", { name: /Công ty Sao/ }));
     await waitFor(() => expect(goiToi(goi, "khach_hang_id=9")).toHaveLength(1));
     expect(await screen.findByText("Bộ lọc không ra kết quả nào.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Khách hàng: Công ty Sao. Bấm để sửa" })).toBeInTheDocument();
     await userEvent.click(screen.getAllByRole("button", { name: "Bỏ lọc" })[0]);
-    expect(screen.getByRole("combobox", { name: /Khách/ })).toHaveValue("");
+    expect(screen.queryByRole("button", { name: /Khách hàng: Công ty Sao/ })).toBeNull();
   });
 
   it("⭐ 403 ⇒ nói đúng thiếu quyền Theo dõi sản xuất, không nút Thử lại", async () => {

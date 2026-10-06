@@ -2,32 +2,14 @@
 // xuất Excel cho nhiều phiếu đã duyệt một lượt — chủ: lập phiếu cho cả xưởng một cú mà bắt duyệt,
 // lập phiếu chi từng người là bất tiện.
 //
-// Thanh đi theo TAB trạng thái (xem `tamUngLoc.ts`): tab Chờ duyệt chỉ có Duyệt / Từ chối (ô
+// Thanh đi theo TAB trạng thái (xem `dieu-kien-tam-ung.ts`): tab Chờ duyệt chỉ có Duyệt / Từ chối (ô
 // `luong:approve`), tab Chờ chi chỉ có Lập phiếu chi (`phieu_chi:create`) / Xuất Excel (`luong:export`).
-// Lựa chọn GIỮ qua trang / loại / tổ / ô tìm ⇒ thanh phải nói rõ bao nhiêu phiếu đã chọn đang bị
-// bộ lọc che, và cho "Chỉ xem phiếu đã chọn" để soát trước khi bấm.
-import { useEffect, type Dispatch, type SetStateAction } from "react";
+// Lựa chọn GIỮ qua trang / điều kiện lọc / ô tìm ⇒ thanh phải nói rõ bao nhiêu phiếu đã chọn đang bị
+// bộ lọc che, và cho "Chỉ xem phiếu đã chọn" để soát trước khi bấm. Từ 06/10/2026 danh sách lọc và
+// chia trang ở máy chủ: máy chủ trả kèm id mọi phiếu khớp lọc (`ids_loc`) để đếm phần bị che.
 import { api, type SalaryAdvance } from "../../../../api/client";
 import { money } from "../shared/helpers";
-import type { TabTrangThai } from "./tamUngLoc";
-
-/** Danh sách tải lại (đổi kỳ, người khác vừa duyệt…) ⇒ bỏ khỏi lựa chọn những phiếu không còn
- *  thao tác được, để nút "Duyệt N phiếu" không đếm phiếu đã rời trạng thái. `phuThuoc` = dữ liệu
- *  khác mà `thaoTacDuoc` đọc (tab đang đứng). */
-export function useTiaLuaChon(
-  items: SalaryAdvance[],
-  setChon: Dispatch<SetStateAction<Set<number>>>,
-  thaoTacDuoc: (a: SalaryAdvance) => boolean,
-  phuThuoc: unknown,
-) {
-  useEffect(() => {
-    setChon((cu) => {
-      const con = new Set(items.filter((a) => cu.has(a.id) && thaoTacDuoc(a)).map((a) => a.id));
-      return con.size === cu.size ? cu : con;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, phuThuoc]);
-}
+import type { TabTrangThai } from "./dieu-kien-tam-ung";
 
 /** Tải file chuyển khoản (khuôn lô lương BIZ MBBank) — cả kỳ, hoặc chỉ `ids` đang tick. */
 export async function taiFileChuyenKhoan(
@@ -48,10 +30,12 @@ export async function taiFileChuyenKhoan(
 
 export function TamUngChonNhieu({
   tab,
-  tabRows,
-  dangLoc,
-  chon,
-  setChon,
+  coPhieuTrongTab,
+  idsLoc,
+  daChon,
+  dangChonTatCa,
+  onChonTatCa,
+  onBoChon,
   chiXemChon,
   setChiXemChon,
   busy,
@@ -64,12 +48,15 @@ export function TamUngChonNhieu({
   onXuatExcel,
 }: {
   tab: TabTrangThai;
-  /** Mọi phiếu của tab (bỏ qua bộ lọc) — tính phiếu đã chọn, kể cả phiếu bộ lọc đang che. */
-  tabRows: SalaryAdvance[];
-  /** Phiếu của tab KHỚP bộ lọc, mọi trang — nguồn "Chọn tất cả N phiếu đang lọc". */
-  dangLoc: SalaryAdvance[];
-  chon: Set<number>;
-  setChon: Dispatch<SetStateAction<Set<number>>>;
+  /** Tab đang đứng có phiếu nào không (bỏ qua bộ lọc). */
+  coPhieuTrongTab: boolean;
+  /** Id mọi phiếu của tab KHỚP bộ lọc, mọi trang (máy chủ trả). */
+  idsLoc: Set<number>;
+  daChon: SalaryAdvance[];
+  dangChonTatCa: boolean;
+  /** Nạp mọi phiếu khớp lọc từ máy chủ rồi thêm vào lựa chọn. */
+  onChonTatCa: () => void;
+  onBoChon: () => void;
   chiXemChon: boolean;
   setChiXemChon: (v: boolean) => void;
   busy: boolean;
@@ -83,30 +70,30 @@ export function TamUngChonNhieu({
 }) {
   const choDuyet = tab === "cho_duyet" && canDuyet;
   const choChi = tab === "cho_chi" && (canLapPhieuChi || canXuat);
-  if ((!choDuyet && !choChi) || tabRows.length === 0) return null;
+  if ((!choDuyet && !choChi) || !coPhieuTrongTab) return null;
 
-  const daChon = tabRows.filter((a) => chon.has(a.id));
-  const idLoc = new Set(dangLoc.map((a) => a.id));
-  const biChe = daChon.filter((a) => !idLoc.has(a.id)).length;
-  const chuaChonHet = dangLoc.some((a) => !chon.has(a.id));
+  const idChon = new Set(daChon.map((a) => a.id));
+  const biChe = daChon.filter((a) => !idsLoc.has(a.id)).length;
+  const chuaChonHet = [...idsLoc].some((id) => !idChon.has(id));
   const tong = daChon.reduce((s, a) => s + a.amount, 0);
 
   return (
     <div className="lg-tu-chon" role="toolbar" aria-label="Thao tác nhiều phiếu">
-      {chuaChonHet && dangLoc.length > 0 && (
+      {chuaChonHet && idsLoc.size > 0 && (
         <button
           type="button"
           className="btn btn--ghost"
-          onClick={() => setChon((cu) => new Set([...cu, ...dangLoc.map((a) => a.id)]))}
+          disabled={dangChonTatCa}
+          onClick={onChonTatCa}
           title="Chọn mọi phiếu khớp bộ lọc, ở mọi trang — phiếu đã chọn trước đó vẫn giữ"
         >
-          Chọn tất cả {dangLoc.length} phiếu đang lọc
+          Chọn tất cả {idsLoc.size} phiếu đang lọc
         </button>
       )}
       {daChon.length > 0 && (
         <>
           <span className="lg-tu-chon__dem">
-            Đã chọn <b>{daChon.length}</b> phiếu · {money(tong)}đ
+            Đã chọn <b>{daChon.length}</b> phiếu — tổng {money(tong)}đ
             {biChe > 0 && (
               <span className="lg-tu-chon__che">
                 {" "}
@@ -164,14 +151,7 @@ export function TamUngChonNhieu({
               Xuất Excel {daChon.length} phiếu
             </button>
           )}
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={() => {
-              setChon(new Set());
-              setChiXemChon(false);
-            }}
-          >
+          <button type="button" className="btn btn--ghost" onClick={onBoChon}>
             Bỏ chọn
           </button>
         </>
