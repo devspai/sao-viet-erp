@@ -2460,14 +2460,15 @@ def test_replace_routing_giu_nguyen_khoi_thue_ngoai(db, orders, lsx_svc, admin, 
         LsxCongDoanIn(
             ten="Cán màng", nhom="finishing", loai_buoc="thue_ngoai",
             so_luong_vao=5300, so_luong_ra=5250, don_vi_vao="to",
-            nha_cung_cap_id=s.id, don_gia_gia_cong=450,
+            nha_cung_cap_id=s.id,
         ),
     ])
     cd = lsx_svc.get(hop.id).cong_doans[0]
-    assert cd.nha_cung_cap == "Cơ sở Tân Bình" and float(cd.don_gia_gia_cong) == 450
+    assert cd.nha_cung_cap == "Cơ sở Tân Bình"
+    assert not hasattr(cd, "don_gia_gia_cong")  # gỡ 07/10/2026 (mg 0374)
     assert not hasattr(cd, "dieu_kien_json")
     # Task 4 (26/09/2026) gỡ 13 cột thuê ngoài cũ (sổ giao–nhận + ngày/đơn giá vận chuyển/yêu cầu
-    # kỹ thuật…) khỏi model — khối còn sống chỉ còn `nha_cung_cap_id`/`nha_cung_cap`/`don_gia_gia_cong`.
+    # kỹ thuật…) khỏi model — khối còn sống chỉ còn `nha_cung_cap_id`/`nha_cung_cap`.
     # `bat_buoc` cũng rời hợp đồng lưu routing (07/09/2026): mọi bước đều bắt buộc, server giữ
     # TRUE nên client có gửi `false` cũng không ghi được (mg 0275 backfill dòng cũ).
     assert cd.bat_buoc is True

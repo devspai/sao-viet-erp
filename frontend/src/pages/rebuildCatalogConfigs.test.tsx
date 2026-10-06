@@ -193,7 +193,7 @@ describe("Thành phẩm — hàng đặt riêng của MỘT khách (docs/prd-tha
     // Chủ 17/09/2026: "hiển thị hơi thiếu thông tin so với những gì nó lưu, hiển thị hết đi".
     // Đây là VẾT NGUỒN GỐC máy ghi lúc chốt đơn — cột xem, không phải ô chọn chủ (xem test dưới).
     const keys = CFG_THANH_PHAM.columns.map((c) => c.key);
-    expect(keys).toEqual(["don_vi_gia", "order_no", "customer_ten", "created_at", "ghi_chu"]);
+    expect(keys).toEqual(["don_vi_gia", "order_no", "customer_ten", "ghi_chu"]);
     // Trang tự giữ Mã 14% + Tên 24% + Hành động 8%; phần còn lại khai đủ đúng 54%, lệch là
     // `table-layout: fixed` co mọi cột không đều.
     const rong = CFG_THANH_PHAM.columns.reduce((s, c) => s + parseFloat(c.width ?? "NaN"), 0);

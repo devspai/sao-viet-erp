@@ -272,7 +272,7 @@ def test_item_chi_con_cot_tinh(client, seed_credentials, sess, lenh_that):
     row = next(i for i in d["items"] if i["id"] == lenh_that)
     assert set(row) == {
         "id", "ma", "ten", "so_luong_dat", "don_vi_tinh", "khach_hang", "order_id", "order_no",
-        "han_hoan_thanh_sx", "is_rush", "khau", "khau_chi_tiet", "da_dong",
+        "han_hoan_thanh_sx", "is_rush", "khau", "khau_chi_tiet", "da_dong", "created_at",
     }
     assert row["khau"] == trang_thai.KHAU_DANG_SX
     assert row["khau_chi_tiet"] is None

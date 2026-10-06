@@ -40,7 +40,7 @@ def test_drawer_chi_co_mot_o_nhap_so_luot_chay() -> None:
     source = DRAWER.read_text(encoding="utf-8")
 
     assert source.count('set("so_luot_chay", e.target.value)') == 1
-    assert "số lượt chạy qua máy" in _nhan(DRAWER)
+    assert "số lượt qua máy" in _nhan(DRAWER)  # nhãn rút gọn khi làm gọn drawer 06/10/2026
 
 
 def test_cong_doan_khong_khai_loai_thuc_hien_hoac_may_mac_dinh() -> None:
@@ -96,7 +96,7 @@ def test_drawer_hien_nhan_luc_ke_thua_va_ket_qua_thoi_gian_o_cuoi() -> None:
     # Nguồn tính đứng TRƯỚC kết quả — đọc từ "vì sao ra số này" rồi mới tới con số.
     assert "nguồn tính" in source
     assert "thời gian chiếm máy" in source
-    assert "tổng thời gian hoàn thành" in source
+    # Ô KPI "Tổng thời gian hoàn thành" GỠ khi làm gọn drawer 06/10/2026 — mỗi thông tin nói một lần.
     assert source.index("nguồn tính") < source.index("thời gian chiếm máy")
 
 

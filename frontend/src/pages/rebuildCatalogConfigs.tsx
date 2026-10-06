@@ -710,7 +710,7 @@ export const CFG_THANH_PHAM: CatalogConfig = {
     { key: "customer_ten", label: "Khách đặt lần đầu", width: "16%",
       render: (r) => (r.customer_ten ? String(r.customer_ten) : "") },
     // Cột "Ngày khai" GỠ 06/10/2026: trang chung đã có cột "Ngày tạo" (cùng `created_at`).
-    { key: "ghi_chu", label: "Ghi chú", width: "10%",
+    { key: "ghi_chu", label: "Ghi chú", width: "19%",
       render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [
