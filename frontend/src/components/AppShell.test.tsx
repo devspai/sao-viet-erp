@@ -6,23 +6,23 @@
 // — TRƯỚC ĐÓ KHÔNG CÓ LƯỚI NÀO CANH: xoá cả effect đọc hash, hoặc gõ nhầm khoá
 // `navParams?.openHoSoLsxId` thành thứ khác, hai bài canh kia vẫn xanh 100%.
 //
-// `DashboardPage` (đích tạm lúc mount, trước khi effect kịp điều hướng) và `LenhSanXuatPage` (đích
-// cuối) đều bị THAY bằng bản dò (probe): `LenhSanXuatPage` thật kéo theo cả một trang tra cứu with
+// `HoSoCuaToiPage` (màn mở mặc định từ 06/10/2026, trước là Dashboard; đích tạm lúc mount, trước
+// khi effect kịp điều hướng) và `LenhSanXuatPage` (đích cuối) đều bị THAY bằng bản dò (probe): `LenhSanXuatPage` thật kéo theo cả một trang tra cứu with
 // nhiều fetch riêng của nó (đã canh riêng ở `LenhSanXuatPage.test.tsx`); mount `AppShell` thật đã
 // kéo theo hàng chục side-effect khác không liên quan (badge tổ/kho, kênh SSE...). Mock để cô lập
 // ĐÚNG khúc dây chuyền cần canh, không phải bắt nó thoả luôn thân từng trang con.
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Bản dò Dashboard kèm một nút gọi `useReloadPermissions` — đứng thay cho màn Phòng ban (lưu vai
+// Bản dò "Hồ sơ của tôi" (màn mở mặc định, ô quyền `self_service` mọi vai đều có) kèm một nút gọi `useReloadPermissions` — đứng thay cho màn Phòng ban (lưu vai
 // trò xong thì gọi đúng hàm này), khỏi mount cả màn Phòng ban thật chỉ để bấm một nút Lưu.
-vi.mock("../pages/DashboardPage", async () => {
+vi.mock("../pages/nhan-su-luong/ho-so-cua-toi", async () => {
   const { useReloadPermissions } = await import("../auth/permissions");
   return {
-    DashboardPage: () => {
+    HoSoCuaToiPage: () => {
       const reload = useReloadPermissions();
       return (
-        <div data-testid="probe-dashboard">
+        <div data-testid="probe-ho-so-cua-toi">
           <button type="button" onClick={reload}>probe-tai-lai-quyen</button>
         </div>
       );
@@ -77,7 +77,7 @@ const AUTH: AuthState = {
  *  thì promise rơi vào nhánh `.catch` — vô hại cho bài này, nhưng để tránh nhiễu log lúc chạy vẫn
  *  khai đủ. */
 function stubApi(
-  quyen: { modules: string[] } = { modules: ["dashboard", "lenh_san_xuat"] },
+  quyen: { modules: string[] } = { modules: ["self_service", "lenh_san_xuat"] },
   thongBao: { kenh: Record<string, unknown> } = { kenh: {} },
   daGoi: string[] = [],
 ) {
@@ -130,22 +130,22 @@ describe("AppShell · deep link QR nối hash → props của LenhSanXuatPage (T
     expect(probe.dataset.openHoSoPv).toBe("2");
   });
 
-  it("không có hash ⇒ ở lại Dashboard, LenhSanXuatPage không mount (hành vi mặc định không đổi)", async () => {
+  it("không có hash ⇒ ở lại Hồ sơ của tôi, LenhSanXuatPage không mount (hành vi mặc định không đổi)", async () => {
     stubApi();
     ve();
 
-    await screen.findByTestId("probe-dashboard");
+    await screen.findByTestId("probe-ho-so-cua-toi");
     expect(screen.queryByTestId("probe-lenh-san-xuat")).not.toBeInTheDocument();
   });
 
   // Sửa vòng 1, P2: quét mã THỨ HAI trong lúc tab đã mở sẵn (AppShell đã mount, đang đứng ở
-  // Dashboard) chỉ đổi phần fragment của URL — same-document navigation, KHÔNG reload/remount.
+  // Hồ sơ của tôi) chỉ đổi phần fragment của URL — same-document navigation, KHÔNG reload/remount.
   // Bài này giả lập đúng việc trình duyệt tự làm: đổi `location.hash` rồi bắn sự kiện
   // `hashchange`, không unmount/mount lại `<AppShell>`.
   it("⭐ quét mã QR lúc tab đã mở sẵn (hashchange, không remount) ⇒ vẫn nhảy đúng lệnh vừa quét", async () => {
     stubApi();
     ve();
-    await screen.findByTestId("probe-dashboard");
+    await screen.findByTestId("probe-ho-so-cua-toi");
 
     act(() => {
       window.location.hash = "#lsx=88&pv=5";
@@ -162,17 +162,17 @@ describe("AppShell · deep link QR nối hash → props của LenhSanXuatPage (T
 // cả 9 dòng tổ của vai Giám đốc, menu vẫn bày đủ bàn tổ). Menu phải đi theo lượt hỏi quyền mới.
 describe("AppShell · tải lại quyền không cần F5", () => {
   it("⭐ gọi tải lại quyền ⇒ menu thêm mục vừa được cấp và bỏ mục vừa bị rút", async () => {
-    const quyen = { modules: ["dashboard"] };
+    const quyen = { modules: ["self_service"] };
     stubApi(quyen);
     ve();
-    await screen.findByTestId("probe-dashboard");
+    await screen.findByTestId("probe-ho-so-cua-toi");
     expect(screen.queryByText("Hồ sơ lệnh sản xuất")).not.toBeInTheDocument();
 
-    quyen.modules = ["dashboard", "lenh_san_xuat"];
+    quyen.modules = ["self_service", "lenh_san_xuat"];
     act(() => screen.getByRole("button", { name: "probe-tai-lai-quyen" }).click());
     expect(await screen.findByText("Hồ sơ lệnh sản xuất")).toBeInTheDocument();
 
-    quyen.modules = ["dashboard"];
+    quyen.modules = ["self_service"];
     act(() => screen.getByRole("button", { name: "probe-tai-lai-quyen" }).click());
     await waitFor(() =>
       expect(screen.queryByText("Hồ sơ lệnh sản xuất")).not.toBeInTheDocument(),
@@ -195,7 +195,7 @@ describe("AppShell · lượt hỏi quyền đầu tiên hỏng", () => {
           status = 500;
           data = { detail: "Lỗi máy chủ thử nghiệm." };
         } else {
-          data = { modules: ["dashboard"], permissions: [] };
+          data = { modules: ["self_service"], permissions: [] };
         }
       } else if (url.includes("/api/module-notifications/summary")) {
         data = { kenh: {} };
@@ -211,12 +211,12 @@ describe("AppShell · lượt hỏi quyền đầu tiên hỏng", () => {
     expect(await screen.findByText(/Không tải được quyền truy cập/)).toBeInTheDocument();
     expect(screen.getByText(/Lỗi máy chủ thử nghiệm\./)).toBeInTheDocument();
     act(() => screen.getByRole("button", { name: "Thử lại" }).click());
-    await screen.findByTestId("probe-dashboard");
+    await screen.findByTestId("probe-ho-so-cua-toi");
   });
 });
 
 // Người KHÁC đổi quyền của mình (lưu ma trận vai mình đang giữ, gán/gỡ vai, đổi phòng) ⇒ máy chủ đẩy
-// `quyen_doi`. Bắt đầu bằng tài khoản chỉ có Dashboard: trước 17/09/2026 kênh SSE không mở cho tài
+// `quyen_doi`. Bắt đầu bằng tài khoản chỉ có Hồ sơ của tôi: trước 17/09/2026 kênh SSE không mở cho tài
 // khoản như vậy, nên được gán vai xong vẫn nhìn menu trống tới khi F5.
 describe("AppShell · máy chủ đẩy quyen_doi", () => {
   beforeEach(() => {
@@ -224,23 +224,23 @@ describe("AppShell · máy chủ đẩy quyen_doi", () => {
   });
 
   it("⭐ tài khoản không có module thời gian thực vẫn nghe kênh, nhận quyen_doi là menu đổi + báo", async () => {
-    const quyen = { modules: ["dashboard"] };
+    const quyen = { modules: ["self_service"] };
     stubApi(quyen);
     ve();
-    await screen.findByTestId("probe-dashboard");
+    await screen.findByTestId("probe-ho-so-cua-toi");
     await waitFor(() => expect(kenh.phat).not.toBeNull());
     expect(screen.queryByText("Hồ sơ lệnh sản xuất")).not.toBeInTheDocument();
 
-    quyen.modules = ["dashboard", "lenh_san_xuat"];
+    quyen.modules = ["self_service", "lenh_san_xuat"];
     act(() => kenh.phat!({ type: "quyen_doi" }));
     expect(await screen.findByText("Hồ sơ lệnh sản xuất")).toBeInTheDocument();
     expect(screen.getByText("Quyền của bạn vừa được cập nhật.")).toBeInTheDocument();
   });
 
   it("bộ quyền hỏi lại y hệt ⇒ không báo, không nối lại kênh", async () => {
-    stubApi({ modules: ["dashboard"] });
+    stubApi({ modules: ["self_service"] });
     ve();
-    await screen.findByTestId("probe-dashboard");
+    await screen.findByTestId("probe-ho-so-cua-toi");
     await waitFor(() => expect(kenh.phat).not.toBeNull());
     const phatTruoc = kenh.phat;
 
@@ -259,7 +259,7 @@ describe("AppShell · chấm đỏ thanh bên", () => {
   it("⭐ kênh có bản ghi mới ⇒ mục có chấm; mở màn ⇒ đánh dấu đã xem và chấm biến mất", async () => {
     const daGoi: string[] = [];
     stubApi(
-      { modules: ["dashboard", "luong"] },
+      { modules: ["self_service", "luong"] },
       { kenh: { luong: { id: 5, loai: "tam_ung_moi", ma: null } } },
       daGoi,
     );
@@ -290,7 +290,7 @@ describe("AppShell · tóm tắt chấm đỏ không gọi dồn", () => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       let data: unknown = {};
       if (url.includes("/api/auth/permissions")) {
-        data = { modules: ["dashboard", "luong"], permissions: [] };
+        data = { modules: ["self_service", "luong"], permissions: [] };
       } else if (url.includes("/api/module-notifications/summary")) {
         soLuot += 1;
         const res = {
@@ -305,7 +305,7 @@ describe("AppShell · tóm tắt chấm đỏ không gọi dồn", () => {
       } as Response);
     }));
     ve();
-    await screen.findByTestId("probe-dashboard");
+    await screen.findByTestId("probe-ho-so-cua-toi");
     await waitFor(() => expect(kenh.phat).not.toBeNull());
     await waitFor(() => expect(soLuot).toBe(1));
     // Hai nhóm hoãn KHÁC khoá ⇒ hai lời gọi riêng sau ~800ms, cả hai rơi vào lúc lượt đầu còn bay.
