@@ -18,7 +18,10 @@ export function printVoucher(row: PaymentVoucherRow): boolean {
     reason: row.content,
     extraLines: [
       { label: "Nguồn chi", value: SOURCE_LABELS[row.source_type] ?? row.source_type },
-      { label: "Đợt thanh toán", value: STAGE_LABELS[row.payment_stage] },
+      // Chỉ phiếu theo đơn mua mới có đợt thanh toán; phiếu rời, gia công, tạm ứng in "Khác" là thừa.
+      ...(row.source_type === "purchase_request"
+        ? [{ label: "Đợt thanh toán", value: STAGE_LABELS[row.payment_stage] }]
+        : []),
       ...(isBank
         ? [
             {

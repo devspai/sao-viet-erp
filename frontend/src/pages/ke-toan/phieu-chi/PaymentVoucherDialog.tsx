@@ -1,13 +1,11 @@
-// Hộp LẬP PHIẾU CHI / UNC theo đơn mua hàng (tách từ pages/PaymentVoucherDialog.tsx).
-// ⚠️ TIỀN THẬT. Giữ ở đây nguyên văn: `maxAmountVnd` (trần đặt cọc vs công nợ theo đợt),
-// `amountVnd`, và toàn bộ `submit()` — mọi câu chặn trần/tỷ giá/đợt giao. Sáu khối JSX con chỉ
-// là chỗ HIỂN THỊ, nhận state qua props; không khối nào tự tính lại tiền.
-// Vỏ dùng KHUÔN DRAWER của Thu mua (`rc-drawer` + `purchase__hero-banner`) thay `acct-modal`
-// nền trắng giữa màn — chủ chốt 26/08/2026: "sao mỗi nơi một màu". Đây là FORM TIỀN nên đóng
-// AN TOÀN: scrim KHÔNG bắt click, KHÔNG Esc-to-close (tránh mất dữ liệu đang gõ). Drawer lấy
-// bản RỘNG (`acct-drawer-wide`) vì thân form là lưới nhiều cột + bảng phân bổ đợt giao — hẹp
-// lại là vỡ bảng. Việc 26/08 chỉ đổi vỏ: `maxAmountVnd` / `amountVnd` / `submit()` KHÔNG đụng.
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+// Form LẬP PHIẾU CHI theo đơn mua hàng (đặc tả PC-4) — mở từ màn Đơn mua hàng của Kế toán.
+// ⚠️ TIỀN THẬT. Giữ nguyên văn: `maxAmountVnd` (trần đặt cọc vs công nợ theo đợt), `amountVnd`,
+// `chonLoai`, `selectType`, `selectCompanyAccount` và mọi luật chặn trong `kiemTra()` (trần, tỷ giá,
+// đợt giao) cùng câu chữ của chúng. Các khối con chỉ HIỂN THỊ, nhận state qua props.
+//
+// Vỏ 06/10/2026: `NganPhai` (cùng độ rộng mọi ngăn, kéo rộng được), lỗi nằm TẠI Ô thay băng đỏ
+// chung, con trỏ nhảy tới ô sai đầu tiên; form gõ dở thì Esc / Đóng hỏi trước.
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   api,
@@ -18,34 +16,43 @@ import {
   type PaymentVoucherType,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
-import { Button } from "../../../components/Button";
+import { tien } from "../shared/dinhDang";
+import { KhungFormPhieu, OF, THU_TU_O, ThemChiTiet, idO, loiNgayChi, nhayToiLoi, ONgayChi, type DatO, type LoiForm } from "./components/KhungFormPhieu";
 import { VoucherAmountFields } from "./components/VoucherAmountFields";
-import { VoucherAttachSection } from "./components/VoucherAttachSection";
-import { VoucherRecipientSection } from "./components/VoucherRecipientSection";
-import { VoucherRefSection } from "./components/VoucherRefSection";
-import { VoucherSegments } from "./components/VoucherSegments";
-import { VoucherSummaryStrip } from "./components/VoucherSummaryStrip";
-import { cocGoiY, conNoDot, dotGoiY, initialForm, optional } from "./shared/helpers";
+import { taiChungTuSauKhiLap, VoucherAttachSection } from "./components/VoucherAttachSection";
+import { loiChuyenKhoan, VoucherRecipientSection } from "./components/VoucherRecipientSection";
+import { cacOChiTiet, coChiTiet, VoucherRefSection } from "./components/VoucherRefSection";
+import { ChonCachTra, ChonLoaiPhieu } from "./components/VoucherSegments";
+import { cocGoiY, conNoDot, dotGoiY, initialForm, kiemTraPhieuTheoDon, optional } from "./shared/helpers";
 import type { LoaiPhieu, PaymentVoucherDialogProps } from "./shared/types";
+import "../ke-toan.css";
 
 export function PaymentVoucherDialog({
   purchase,
   voucher = null,
   onClose,
   onSaved,
-}: PaymentVoucherDialogProps) {
+  onMoTaiKhoan,
+}: PaymentVoucherDialogProps & { onMoTaiKhoan?: () => void }) {
   const { token } = useAuth();
   const [form, setForm] = useState<PaymentVoucherBaseInput>(() =>
     initialForm(purchase, voucher),
   );
+  const goc = useRef<string | null>(null);
   const [companyAccounts, setCompanyAccounts] = useState<
     CompanyBankAccountRow[]
   >([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [loiTaiKhoan, setLoiTaiKhoan] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loi, setLoi] = useState<LoiForm>({});
+  const [moChiTiet, setMoChiTiet] = useState(() => coChiTiet(initialForm(purchase, voucher)));
   // Chứng từ đã mua (hóa đơn/biên nhận) chọn lúc lập — upload sau khi create.
   const [files, setFiles] = useState<File[]>([]);
+  const [loiTep, setLoiTep] = useState<string | null>(null);
+  // Phiếu ĐÃ lập nhưng tệp tải lên hỏng: bấm lại KHÔNG lập phiếu thứ hai, chỉ mở phiếu đã lập.
+  const [daLap, setDaLap] = useState<PaymentVoucherRow | null>(null);
 
   const loai: LoaiPhieu =
     form.payment_stage === "advance" ? "dat_coc" : "thanh_toan";
@@ -82,10 +89,6 @@ export function PaymentVoucherDialog({
       Math.round(Number(form.amount || 0) * Number(form.exchange_rate || 0)),
     [form.amount, form.exchange_rate],
   );
-  const dotDangChon = useMemo(
-    () => purchase.deliveries.find((d) => d.id === form.delivery_id) ?? null,
-    [purchase.deliveries, form.delivery_id],
-  );
 
   useEffect(() => {
     if (!token) return;
@@ -110,16 +113,19 @@ export function PaymentVoucherDialog({
           };
         });
       })
-      .catch(() => setError("Không tải được danh sách tài khoản ngân hàng."))
+      .catch(() => setLoiTaiKhoan("Không tải được danh sách tài khoản ngân hàng."))
       .finally(() => setLoadingAccounts(false));
   }, [token]);
 
-  function set<K extends keyof PaymentVoucherBaseInput>(
-    key: K,
-    value: PaymentVoucherBaseInput[K],
-  ) {
+  // Ảnh chụp form lúc mở (sau khi nạp tài khoản xong) — khác ảnh này là "đang gõ dở".
+  useEffect(() => {
+    if (!loadingAccounts && goc.current == null) goc.current = JSON.stringify(form);
+  }, [loadingAccounts, form]);
+
+  const set: DatO = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
-  }
+    setLoi((l) => (l[key] ? { ...l, [key]: undefined } : l));
+  };
 
   /** Đổi LOẠI phiếu là đổi cả ba thứ đi kèm: đợt giao, trần, và số tiền điền sẵn.
    *
@@ -143,25 +149,7 @@ export function PaymentVoucherDialog({
         amount: conNoDot(purchase, coDotGiao ? dotGoiY(purchase) : null),
       };
     });
-  }
-
-  function addFiles(list: FileList | null) {
-    if (!list) return;
-    const accepted: File[] = [];
-    for (const file of Array.from(list)) {
-      if (!(file.type.startsWith("image/") || file.type === "application/pdf")) {
-        setError(`"${file.name}": chỉ nhận ảnh hoặc PDF.`);
-        continue;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        setError(`"${file.name}" vượt quá 10 MB.`);
-        continue;
-      }
-      accepted.push(file);
-    }
-    if (accepted.length) {
-      setFiles((current) => [...current, ...accepted]);
-    }
+    setLoi({});
   }
 
   function selectType(type: PaymentVoucherType) {
@@ -187,6 +175,7 @@ export function PaymentVoucherDialog({
           ? current.cash_recipient_name || purchase.supplier_name || ""
           : current.cash_recipient_name,
     }));
+    setLoi({});
   }
 
   function selectCompanyAccount(value: string) {
@@ -203,64 +192,28 @@ export function PaymentVoucherDialog({
             ? 1
             : current.exchange_rate,
     }));
+    setLoi((l) => ({ ...l, company_bank_account_id: undefined }));
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  /** Mọi luật chặn trước khi gửi — luật tiền ở `kiemTraPhieuTheoDon` (có test), cộng ngày chi và
+   *  khối chuyển khoản dùng chung ba form. */
+  function kiemTra(): LoiForm {
+    const l: LoiForm = kiemTraPhieuTheoDon({ form, loai, coDotGiao, maxAmountVnd, amountVnd });
+    const loiNgay = loiNgayChi(form.voucher_date);
+    if (loiNgay) l.voucher_date = loiNgay;
+    return { ...l, ...loiChuyenKhoan(form) };
+  }
+
+  async function submit() {
     if (!token || saving) return;
-    if (!form.voucher_date || !form.content.trim()) {
-      setError("Vui lòng nhập ngày chứng từ và nội dung chi.");
+    if (daLap) {
+      onSaved(daLap);
       return;
     }
-    if (!Number.isFinite(form.amount) || form.amount <= 0) {
-      setError("Số tiền thanh toán phải lớn hơn 0.");
-      return;
-    }
-    if (!Number.isFinite(form.exchange_rate) || form.exchange_rate <= 0) {
-      setError("Tỷ giá phải lớn hơn 0.");
-      return;
-    }
-    if (
-      form.currency.trim().toUpperCase() === "VND" &&
-      form.exchange_rate !== 1
-    ) {
-      setError("Tỷ giá của VND phải bằng 1.");
-      return;
-    }
-    if (maxAmountVnd <= 0) {
-      setError(
-        loai === "dat_coc"
-          ? "Đơn này đã chi đủ giá trị đặt hàng — không còn chỗ để đặt cọc thêm."
-          : "Đơn này chưa phát sinh công nợ (hàng chưa về hoặc đã trả hết). Ghi đợt giao trước, hoặc lập phiếu Đặt cọc.",
-      );
-      return;
-    }
-    if (amountVnd > maxAmountVnd) {
-      setError(
-        `Số tiền quy đổi không được vượt quá ${maxAmountVnd.toLocaleString("vi-VN")} đ ` +
-          `(${loai === "dat_coc" ? "trần đặt cọc theo giá trị đơn đặt" : "công nợ hiện tại"}).`,
-      );
-      return;
-    }
-    // Đơn CÓ đợt giao thì phiếu thanh toán bắt buộc chỉ rõ trả cho đợt nào — không có nó thì công
-    // nợ biết TỔNG đã trả nhưng không biết đợt nào đã xong, và cột Quá hạn (tính theo hạn của từng
-    // đợt) không quy được về đâu. Server cũng chặn; đây chỉ chặn sớm cho đỡ một vòng gọi.
-    if (loai === "thanh_toan" && coDotGiao && !form.delivery_id) {
-      setError("Phiếu thanh toán phải chọn đợt giao.");
-      return;
-    }
-    if (form.voucher_type === "cash" && !form.cash_recipient_name?.trim()) {
-      setError("Phiếu chi phải có người nhận tiền.");
-      return;
-    }
-    if (
-      form.voucher_type === "bank_transfer" &&
-      (!form.company_bank_account_id ||
-        !form.beneficiary_account_holder?.trim() ||
-        !form.beneficiary_account_number?.trim() ||
-        !form.beneficiary_bank_name?.trim())
-    ) {
-      setError("UNC phải có tài khoản công ty, tên chủ tài khoản, số tài khoản và ngân hàng thụ hưởng.");
+    const l = kiemTra();
+    setLoi(l);
+    if (Object.values(l).some(Boolean)) {
+      nhayToiLoi(l, THU_TU_O);
       return;
     }
 
@@ -303,8 +256,7 @@ export function PaymentVoucherDialog({
     setError(null);
     try {
       // Đường "duyệt + lập phiếu chi trong một cú bấm" đã BỎ HẲN (chủ 04/08/2026): giám đốc duyệt
-      // ở màn Đơn mua hàng trước, kế toán mới lập phiếu chi. Hai chữ ký, hai người — một người
-      // vừa duyệt khoản chi vừa viết phiếu chi là phá tách vai.
+      // ở màn Đơn mua hàng trước, kế toán mới lập phiếu chi. Hai chữ ký, hai người.
       //
       // Và KHÔNG có nhánh "sửa" (chủ chốt 07/08/2026): phiếu chi phát hành ra là tiền đã rời két.
       // Sai thì huỷ rồi lập phiếu mới — endpoint PUT bên server cũng đã gỡ.
@@ -317,140 +269,106 @@ export function PaymentVoucherDialog({
         input,
       );
       if (files.length) {
-        try {
-          for (const file of files) {
-            await api.accounting.uploadVoucherAttachment(token, saved.id, file);
-          }
-        } catch {
-          setError(
-            `Chứng từ ${saved.code} đã lập nhưng có file đính kèm tải lên thất bại — mở chứng từ để đính kèm lại.`,
-          );
-          setSaving(false);
+        const hong = await taiChungTuSauKhiLap(token, saved, files);
+        if (hong) {
+          setDaLap(saved);
+          setError(hong);
           return;
         }
       }
       onSaved(saved);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Không lưu được Phiếu chi/UNC.",
+        err instanceof ApiError ? err.message : "Không lưu được phiếu chi.",
       );
     } finally {
       setSaving(false);
     }
   }
 
+  const chuyenKhoan = form.voucher_type === "bank_transfer";
+  const nguoiNhan = chuyenKhoan ? form.beneficiary_account_holder : form.cash_recipient_name;
+  const dot = purchase.deliveries.find((d) => d.id === form.delivery_id) ?? null;
+  const traDu = loai === "thanh_toan" && dot != null && amountVnd > 0 && amountVnd === dot.con_no;
+
   return (
-    <div className="rc-drawer__scrim" role="presentation">
-      <aside
-        className="rc-drawer acct-drawer-wide"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="payment-voucher-title"
-      >
-        <div className="purchase__hero-banner">
-          <div className="purchase__hero-top">
-            <div>
-              <span className="purchase__hero-kicker">
-                {voucher ? "Sửa chứng từ" : "Lập chứng từ thanh toán"}
-              </span>
-              <div className="purchase__hero-title-row">
-                <h2 className="purchase__hero-code" id="payment-voucher-title">
-                  {purchase.code} · {purchase.supplier_name}
-                </h2>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="purchase__hero-x"
-              onClick={onClose}
-              aria-label="Đóng"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-        <form className="purchase__drawer-form" onSubmit={submit}>
-        <div className="rc-drawer__body">
-          {error && (
-            <div className="banner banner--error" role="alert">
-              {error}
-            </div>
-          )}
+    <KhungFormPhieu
+      duongDan={<>Lập phiếu chi &gt; {purchase.code}</>}
+      tieuDe={purchase.supplier_name || purchase.code}
+      tomTat={[
+        { nhan: "Giá trị đơn", giaTri: tien(purchase.total_estimate) },
+        { nhan: "Hàng đã giao", giaTri: tien(purchase.gia_tri_da_giao) },
+        { nhan: "Đã chi", giaTri: tien(purchase.net_paid) },
+        { nhan: "Còn được chi", giaTri: <b>{tien(maxAmountVnd)}</b> },
+      ]}
+      xemTruoc={
+        daLap ? (
+          <>Phiếu <b>{daLap.code}</b> đã lập.</>
+        ) : amountVnd > 0 ? (
+          <>
+            Chi <b>{tien(amountVnd)}</b> {chuyenKhoan ? "chuyển khoản" : "tiền mặt"}
+            {nguoiNhan?.trim() ? <> cho <b>{nguoiNhan.trim()}</b></> : null}.
+            {traDu ? " Đợt này sẽ trả đủ." : ""} Lập xong không sửa được, chỉ hủy được.
+          </>
+        ) : (
+          "Lập xong không sửa được, chỉ hủy được."
+        )
+      }
+      dangLuu={saving}
+      loiChung={error}
+      onDong={onClose}
+      chanDong={() => !daLap && ((goc.current != null && JSON.stringify(form) !== goc.current) || files.length > 0)}
+      onSubmit={() => void submit()}
+      nhanNut={daLap ? "Mở phiếu đã lập" : undefined}
+    >
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Chi cho ai và bao nhiêu</div>
+        <ChonLoaiPhieu loai={loai} chonLoai={chonLoai} coDotGiao={coDotGiao} purchase={purchase} khoaPhieuCu={!!voucher} />
+        <VoucherAmountFields
+          loai={loai}
+          coDotGiao={coDotGiao}
+          form={form}
+          setForm={(next) => {
+            setForm(next);
+            setLoi((l) => ({ ...l, delivery_id: undefined, amount: undefined, currency: undefined, exchange_rate: undefined }));
+          }}
+          set={set}
+          purchase={purchase}
+          maxAmountVnd={maxAmountVnd}
+          amountVnd={amountVnd}
+          loi={loi}
+        />
+        <OF khoa="content" nhan="Nội dung chi" batBuoc rong loi={loi.content}>
+          <input id={idO("content")} value={form.content} aria-invalid={loi.content ? true : undefined}
+            onChange={(e) => set("content", e.target.value)} />
+        </OF>
+      </div>
 
-          <VoucherSummaryStrip
-            purchase={purchase}
-            loai={loai}
-            maxAmountVnd={maxAmountVnd}
-          />
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Trả bằng</div>
+        <ChonCachTra giaTri={form.voucher_type} onDoi={selectType} />
+        <VoucherRecipientSection
+          form={form}
+          set={set}
+          loi={loi}
+          taiKhoan={companyAccounts}
+          dangTai={loadingAccounts}
+          loiTai={loiTaiKhoan}
+          chonTaiKhoan={selectCompanyAccount}
+          coNguoiNhanMat
+          onMoTaiKhoan={onMoTaiKhoan}
+        />
+      </div>
 
-          <VoucherSegments
-            form={form}
-            voucher={voucher}
-            selectType={selectType}
-            loai={loai}
-            chonLoai={chonLoai}
-            coDotGiao={coDotGiao}
-            purchase={purchase}
-          />
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Khi nào</div>
+        <ONgayChi value={form.voucher_date} onChange={(v) => set("voucher_date", v)} loi={loi.voucher_date} />
+      </div>
 
-          <VoucherAmountFields
-            loai={loai}
-            coDotGiao={coDotGiao}
-            form={form}
-            setForm={setForm}
-            set={set}
-            voucher={voucher}
-            purchase={purchase}
-            dotDangChon={dotDangChon}
-            maxAmountVnd={maxAmountVnd}
-            amountVnd={amountVnd}
-          />
-
-          <label className="acct-field">
-            <span>
-              Nội dung chi <b>*</b>
-            </span>
-            <input
-              className="input"
-              value={form.content}
-              onChange={(e) => set("content", e.target.value)}
-            />
-          </label>
-
-          <VoucherRecipientSection
-            form={form}
-            set={set}
-            loadingAccounts={loadingAccounts}
-            companyAccounts={companyAccounts}
-            selectCompanyAccount={selectCompanyAccount}
-          />
-
-          <VoucherAttachSection
-            voucher={voucher}
-            files={files}
-            setFiles={setFiles}
-            addFiles={addFiles}
-          />
-
-          <VoucherRefSection form={form} set={set} />
-        </div>
-
-        <div className="purchase__drawer-footer">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onClose}
-            disabled={saving}
-          >
-            Hủy
-          </Button>
-          <Button type="submit" variant="accent" loading={saving}>
-            {voucher ? "Lưu thay đổi" : "Lập chứng từ"}
-          </Button>
-        </div>
-        </form>
-      </aside>
-    </div>
+      <ThemChiTiet cacO={cacOChiTiet(true)} mo={moChiTiet || files.length > 0} onMo={() => setMoChiTiet(true)}>
+        <VoucherRefSection form={form} set={set} coHopDong />
+        <VoucherAttachSection files={files} setFiles={setFiles} loi={loiTep ?? undefined} onLoi={setLoiTep} />
+      </ThemChiTiet>
+    </KhungFormPhieu>
   );
 }

@@ -1,8 +1,8 @@
 // Bảng danh sách đơn mua hàng (Kế toán) — tách từ pages/AccountingPurchaseInboxPage.tsx.
 import type { Dispatch, SetStateAction } from "react";
 import type { PurchaseRequestRow } from "../../../../api/client";
-import { Button } from "../../../../components/Button";
 import { CodeLink } from "../../../../components/CodeLink";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { fmtDate, money } from "../../../../utils/format";
 import { PAYMENT_META, STATUS_META } from "../shared/constants";
 import { DepositCell } from "./inboxCells";
@@ -16,7 +16,8 @@ export function InboxTable({
   total,
   page,
   setPage,
-  totalPages,
+  size,
+  onSize,
 }: {
   loading: boolean;
   rows: PurchaseRequestRow[];
@@ -27,7 +28,8 @@ export function InboxTable({
   total: number;
   page: number;
   setPage: Dispatch<SetStateAction<number>>;
-  totalPages: number;
+  size: number;
+  onSize: (size: number) => void;
 }) {
   return (
     <section className="md-page__tablewrap acct-list acct-dmh__frame">
@@ -135,29 +137,18 @@ export function InboxTable({
             })}
         </tbody>
       </table>
-      {!loading && (
-        <div className="md-page__pager">
-          <span>{total} đơn</span>
-          <div>
-            <Button
-              variant="ghost"
-              disabled={page <= 1}
-              onClick={() => setPage((value) => value - 1)}
-            >
-              Trước
-            </Button>
-            <span>
-              {page}/{totalPages}
-            </span>
-            <Button
-              variant="ghost"
-              disabled={page >= totalPages}
-              onClick={() => setPage((value) => value + 1)}
-            >
-              Sau
-            </Button>
-          </div>
-        </div>
+      {total > 0 && (
+        <PhanTrangDayDu
+          trang={page}
+          size={size}
+          tong={total}
+          soDong={rows.length}
+          onTrang={setPage}
+          onSize={onSize}
+          loading={loading}
+          donVi="đơn"
+          ariaLabel="Phân trang đơn mua hàng"
+        />
       )}
     </section>
   );

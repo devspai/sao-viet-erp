@@ -1,6 +1,4 @@
-// Kiểu dùng chung của màn Công nợ phải trả (tách từ pages/AccountingPayablesPage.tsx).
-/** Rổ đang xem trong drawer. Bấm số nào ngoài bảng thì mở sẵn rổ đó — đỡ một nhịp lọc tay. */
+// Kiểu dùng chung của màn Công nợ phải trả.
+/** Ô bấm ngoài bảng mở ngăn ở đâu: dòng NCC ("all"), số Quá hạn ("overdue" — tab Còn nợ lọc sẵn quá
+ *  hạn), số Đã trả trong kỳ ("paid" — tab Đã trả). */
 export type Bucket = "all" | "overdue" | "paid";
-
-/** Lọc ở BẢNG NGOÀI (khác `Bucket` — cái kia lọc trong drawer). */
-export type ListFilter = "all" | "overdue" | "chua_han" | "vuot_han_muc";

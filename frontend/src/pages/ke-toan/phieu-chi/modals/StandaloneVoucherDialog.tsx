@@ -1,10 +1,9 @@
-// Hộp LẬP PHIẾU CHI ĐỘC LẬP — khoản chi không gắn đơn mua hàng
-// (tách từ pages/PaymentVouchersPage.tsx).
-// Vỏ dùng KHUÔN DRAWER của Thu mua (`rc-drawer` + `purchase__hero-banner`) thay `acct-modal`
-// nền trắng giữa màn — chủ chốt 26/08/2026: "sao mỗi nơi một màu". Đây là FORM TIỀN nên đóng
-// AN TOÀN: scrim KHÔNG bắt click, KHÔNG Esc-to-close (tránh mất dữ liệu đang gõ). Toàn bộ
-// `submit()` / `payload` phía trên giữ NGUYÊN — chỉ đổi vỏ.
-import { useEffect, useState, type FormEvent } from "react";
+// Form LẬP PHIẾU CHI RỜI — khoản chi không gắn đơn mua hàng (đặc tả PC-3).
+// Thứ tự theo cách người ta nghĩ: chi cho ai → bao nhiêu → vì sao → trả bằng gì → khi nào.
+// Vỏ `NganPhai` (cùng độ rộng mọi ngăn); lỗi tại ô, con trỏ nhảy tới ô sai đầu tiên; gõ dở thì
+// Esc / Đóng hỏi trước. `payload` gửi lên giữ nguyên bản cũ (source_type "other", không đợt, không
+// đơn); thêm chứng từ đính kèm tải lên ngay sau khi lập.
+import { useEffect, useRef, useState } from "react";
 import {
   ApiError,
   api,
@@ -14,18 +13,27 @@ import {
   type PaymentVoucherType,
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
-import { Button } from "../../../../components/Button";
+import { amountInWords } from "../../../../utils/format";
+import { tien } from "../../shared/dinhDang";
+import { KhungFormPhieu, OF, OTienPhieu, THU_TU_O, ThemChiTiet, idO, loiNgayChi, nhayToiLoi, ONgayChi, type DatO, type LoiForm } from "../components/KhungFormPhieu";
+import { taiChungTuSauKhiLap, VoucherAttachSection } from "../components/VoucherAttachSection";
+import { loiChuyenKhoan, VoucherRecipientSection } from "../components/VoucherRecipientSection";
+import { cacOChiTiet, VoucherRefSection } from "../components/VoucherRefSection";
+import { ChonCachTra } from "../components/VoucherSegments";
 import { isoToday, optional } from "../shared/helpers";
+import "../../ke-toan.css";
 
 export function StandaloneVoucherDialog({
   onClose,
   onSaved,
+  onMoTaiKhoan,
 }: {
   onClose: () => void;
   onSaved: (voucher: PaymentVoucherRow) => void;
+  onMoTaiKhoan?: () => void;
 }) {
   const { token } = useAuth();
-  const [form, setForm] = useState<PaymentVoucherInput>({
+  const [form, setForm] = useState<PaymentVoucherInput>(() => ({
     source_type: "other",
     voucher_type: "cash",
     payment_stage: "other",
@@ -46,11 +54,18 @@ export function StandaloneVoucherDialog({
     debit_account: null,
     credit_account: null,
     note: null,
-  });
+  }));
+  const goc = useRef(JSON.stringify(form));
   const [companyAccounts, setCompanyAccounts] = useState<CompanyBankAccountRow[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [loiTaiKhoan, setLoiTaiKhoan] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loi, setLoi] = useState<LoiForm>({});
+  const [moChiTiet, setMoChiTiet] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [loiTep, setLoiTep] = useState<string | null>(null);
+  const [daLap, setDaLap] = useState<PaymentVoucherRow | null>(null);
   const isBank = form.voucher_type === "bank_transfer";
 
   useEffect(() => {
@@ -59,40 +74,49 @@ export function StandaloneVoucherDialog({
     api.accounting
       .companyAccounts(token, true, "pay")
       .then((accounts) => setCompanyAccounts(accounts))
-      .catch(() => setError("Không tải được danh sách tài khoản ngân hàng."))
+      .catch(() => setLoiTaiKhoan("Không tải được danh sách tài khoản ngân hàng."))
       .finally(() => setLoadingAccounts(false));
   }, [token]);
 
-  function set<K extends keyof PaymentVoucherInput>(key: K, value: PaymentVoucherInput[K]) {
+  const set: DatO = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
+    setLoi((l) => (l[key] ? { ...l, [key]: undefined } : l));
+  };
+
+  function chonCach(type: PaymentVoucherType) {
+    setForm((current) => ({
+      ...current,
+      voucher_type: type,
+      company_bank_account_id: type === "cash" ? null : current.company_bank_account_id,
+      // Chuyển khoản: chủ tài khoản người nhận thường chính là người nhận đã gõ ở trên.
+      beneficiary_account_holder:
+        type === "bank_transfer" && !optional(current.beneficiary_account_holder)
+          ? current.cash_recipient_name ?? null
+          : current.beneficiary_account_holder,
+    }));
+    setLoi({});
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  function kiemTra(): LoiForm {
+    const l: LoiForm = {};
+    if (!form.cash_recipient_name?.trim()) l.cash_recipient_name = "Ghi người hoặc đơn vị nhận tiền.";
+    if (!Number.isFinite(form.amount) || form.amount <= 0) l.amount = "Số tiền chi phải lớn hơn 0.";
+    if (!form.content.trim()) l.content = "Ghi nội dung chi.";
+    const loiNgay = loiNgayChi(form.voucher_date);
+    if (loiNgay) l.voucher_date = loiNgay;
+    return { ...l, ...loiChuyenKhoan(form) };
+  }
+
+  async function submit() {
     if (!token || saving) return;
-    if (!form.voucher_date || !form.content.trim()) {
-      setError("Vui lòng nhập ngày chứng từ và nội dung chi.");
+    if (daLap) {
+      onSaved(daLap);
       return;
     }
-    if (!form.cash_recipient_name?.trim()) {
-      setError("Vui lòng nhập người nhận / đối tượng nhận tiền.");
-      return;
-    }
-    if (!Number.isFinite(form.amount) || form.amount <= 0) {
-      setError("Số tiền chi phải lớn hơn 0.");
-      return;
-    }
-    if (isBank && !form.company_bank_account_id) {
-      setError("UNC phải chọn tài khoản trích nợ.");
-      return;
-    }
-    if (
-      isBank &&
-      (!optional(form.beneficiary_account_holder) ||
-        !optional(form.beneficiary_account_number) ||
-        !optional(form.beneficiary_bank_name))
-    ) {
-      setError("UNC phải có tên, số tài khoản và ngân hàng thụ hưởng.");
+    const l = kiemTra();
+    setLoi(l);
+    if (Object.values(l).some(Boolean)) {
+      nhayToiLoi(l, THU_TU_O);
       return;
     }
 
@@ -108,7 +132,7 @@ export function StandaloneVoucherDialog({
       currency: form.currency.trim().toUpperCase(),
       exchange_rate: Number(form.exchange_rate || 1),
       content: form.content.trim(),
-      cash_recipient_name: form.cash_recipient_name.trim(),
+      cash_recipient_name: (form.cash_recipient_name ?? "").trim(),
       cash_recipient_address: optional(form.cash_recipient_address),
       cash_recipient_identity: optional(form.cash_recipient_identity),
       company_bank_account_id: isBank ? form.company_bank_account_id ?? null : null,
@@ -129,6 +153,14 @@ export function StandaloneVoucherDialog({
     setError(null);
     try {
       const saved = await api.accounting.createVoucher(token, payload);
+      if (files.length) {
+        const hong = await taiChungTuSauKhiLap(token, saved, files);
+        if (hong) {
+          setDaLap(saved);
+          setError(hong);
+          return;
+        }
+      }
       onSaved(saved);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Không lập được phiếu chi.");
@@ -137,210 +169,73 @@ export function StandaloneVoucherDialog({
     }
   }
 
+  const ten = form.cash_recipient_name?.trim();
   return (
-    <div className="rc-drawer__scrim" role="presentation">
-      <aside
-        className="rc-drawer purchase__drawer-780"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Tạo phiếu chi"
-      >
-        <div className="purchase__hero-banner">
-          <div className="purchase__hero-top">
-            <div>
-              <span className="purchase__hero-kicker">Phiếu chi</span>
-              <div className="purchase__hero-title-row">
-                <h2 className="purchase__hero-code">Tạo phiếu chi</h2>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="purchase__hero-x"
-              onClick={onClose}
-              aria-label="Đóng"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="purchase__hero-meta">
-            <span>Khoản chi không gắn đơn mua hàng</span>
-            <span className="purchase__hero-dot">•</span>
-            <span>{isBank ? "Chuyển khoản" : "Tiền mặt"}</span>
-          </div>
-        </div>
-        <form className="purchase__drawer-form" onSubmit={submit}>
-        <div className="rc-drawer__body">
-          {error && (
-            <div className="banner banner--error" role="alert">
-              {error}
-            </div>
-          )}
-          <div className="acct-form-grid acct-form-grid--2">
-            <label className="acct-field">
-              <span>Ngày chứng từ <b>*</b></span>
-              <input
-                className="input"
-                type="date"
-                max={isoToday()}
-                value={form.voucher_date}
-                onChange={(event) => set("voucher_date", event.target.value)}
-              />
-            </label>
-          </div>
-          <div className="acct-segment" aria-label="Hình thức chi">
-            <button
-              type="button"
-              className={form.voucher_type === "cash" ? "is-active" : ""}
-              onClick={() => {
-                set("voucher_type", "cash" as PaymentVoucherType);
-                set("company_bank_account_id", null);
-              }}
-            >
-              Tiền mặt
-            </button>
-            <button
-              type="button"
-              className={isBank ? "is-active" : ""}
-              onClick={() => {
-                set("voucher_type", "bank_transfer" as PaymentVoucherType);
-              }}
-            >
-              Chuyển khoản
-            </button>
-          </div>
-          <div className="acct-form-grid acct-form-grid--2">
-            <label className="acct-field">
-              <span>Người nhận / đối tượng <b>*</b></span>
-              <input
-                className="input"
-                value={form.cash_recipient_name ?? ""}
-                onChange={(event) => set("cash_recipient_name", event.target.value)}
-                placeholder="Tên người, khách hàng hoặc đơn vị nhận tiền"
-              />
-            </label>
-            <label className="acct-field">
-              <span>Số tiền (VND) <b>*</b></span>
-              <input
-                className="input acct-money-input"
-                type="number"
-                min="1"
-                step="1"
-                value={form.amount === 0 ? "" : form.amount}
-                onChange={(event) => set("amount", Number(event.target.value))}
-              />
-            </label>
-          </div>
-          <label className="acct-field">
-            <span>Địa chỉ / thông tin liên hệ</span>
-            <input
-              className="input"
-              value={form.cash_recipient_address ?? ""}
-              onChange={(event) => set("cash_recipient_address", event.target.value)}
-            />
-          </label>
-          {isBank && (
-            <section className="acct-form-section">
-              <h3>Thông tin chuyển khoản</h3>
-              <div className="acct-form-grid acct-form-grid--2">
-                <label className="acct-field">
-                  <span>Tài khoản trích nợ <b>*</b></span>
-                  <select
-                    className="input"
-                    value={form.company_bank_account_id ?? ""}
-                    disabled={loadingAccounts}
-                    onChange={(event) =>
-                      set(
-                        "company_bank_account_id",
-                        event.target.value ? Number(event.target.value) : null,
-                      )
-                    }
-                  >
-                    <option value="">Chọn tài khoản công ty</option>
-                    {companyAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.bank_name} · {account.account_number} · {account.currency}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="acct-field">
-                  <span>Tên thụ hưởng <b>*</b></span>
-                  <input
-                    className="input"
-                    value={form.beneficiary_account_holder ?? ""}
-                    onChange={(event) => set("beneficiary_account_holder", event.target.value)}
-                  />
-                </label>
-                <label className="acct-field">
-                  <span>Số tài khoản <b>*</b></span>
-                  <input
-                    className="input"
-                    value={form.beneficiary_account_number ?? ""}
-                    onChange={(event) => set("beneficiary_account_number", event.target.value)}
-                  />
-                </label>
-                <label className="acct-field">
-                  <span>Ngân hàng <b>*</b></span>
-                  <input
-                    className="input"
-                    value={form.beneficiary_bank_name ?? ""}
-                    onChange={(event) => set("beneficiary_bank_name", event.target.value)}
-                  />
-                </label>
-              </div>
-            </section>
-          )}
-          <label className="acct-field">
-            <span>Nội dung chi <b>*</b></span>
-            <input
-              className="input"
-              value={form.content}
-              onChange={(event) => set("content", event.target.value)}
-              placeholder="VD: Thanh toán tiền điện tháng 8"
-            />
-          </label>
-          {/* Hai ô "Định khoản Nợ / Có" ĐÃ BỎ (chủ chốt 15/08/2026) — cùng lý do đã bỏ ở hộp
-              thoại phiếu chi theo đơn hôm 12/08: chúng bắt kế toán gõ số hiệu tài khoản cho từng
-              phiếu mà hệ thống KHÔNG hạch toán gì từ đó, chỉ in ra.
-              Đợt 12/08 tôi chỉ dọn hộp thoại lập-theo-đơn và bỏ sót đúng hai form LẬP RỜI này.
-              21/08/2026: thôi luôn việc ĐIỀN NGẦM 1111/1121 — chủ: "cái nợ và có ấy thì họ điền
-              gì kệ họ". Phiếu in ra để trống dòng chấm cho kế toán tự ghi (`printTT200` in sẵn
-              dấu chấm khi trống), đúng ý ban đầu của hai cột: "định khoản nhập tay". */}
-          <section className="acct-form-section">
-            <h3>Chứng từ tham chiếu</h3>
-            <div className="acct-form-grid acct-form-grid--2">
-              <label className="acct-field">
-                <span>Số hóa đơn</span>
-                <input
-                  className="input"
-                  value={form.invoice_number ?? ""}
-                  onChange={(event) => set("invoice_number", event.target.value)}
-                />
-              </label>
-              <label className="acct-field">
-                <span>Ngày hóa đơn</span>
-                <input
-                  className="input"
-                  type="date"
-                  max={isoToday()}
-                  value={form.invoice_date ?? ""}
-                  onChange={(event) => set("invoice_date", event.target.value || null)}
-                />
-              </label>
-            </div>
-          </section>
-        </div>
-        <div className="purchase__drawer-footer">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Hủy
-          </Button>
-          <Button type="submit" variant="primary" loading={saving}>
-            Lưu phiếu
-          </Button>
-        </div>
-        </form>
-      </aside>
-    </div>
+    <KhungFormPhieu
+      duongDan="Phiếu chi > Lập mới"
+      tieuDe="Lập phiếu chi"
+      xemTruoc={
+        daLap ? (
+          <>Phiếu <b>{daLap.code}</b> đã lập.</>
+        ) : form.amount > 0 ? (
+          <>
+            Chi <b>{tien(form.amount)}</b> {isBank ? "chuyển khoản" : "tiền mặt"}
+            {ten ? <> cho <b>{ten}</b></> : null}. Lập xong không sửa được, chỉ hủy được.
+          </>
+        ) : (
+          "Lập xong không sửa được, chỉ hủy được."
+        )
+      }
+      dangLuu={saving}
+      loiChung={error}
+      onDong={onClose}
+      chanDong={() => !daLap && (JSON.stringify(form) !== goc.current || files.length > 0)}
+      onSubmit={() => void submit()}
+      nhanNut={daLap ? "Mở phiếu đã lập" : undefined}
+    >
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Chi cho ai và bao nhiêu</div>
+        <OF khoa="cash_recipient_name" nhan="Chi cho" batBuoc rong loi={loi.cash_recipient_name}
+          goi="Người hoặc đơn vị nhận tiền.">
+          <input id={idO("cash_recipient_name")} value={form.cash_recipient_name ?? ""}
+            aria-invalid={loi.cash_recipient_name ? true : undefined}
+            onChange={(e) => set("cash_recipient_name", e.target.value)} />
+        </OF>
+        <OF khoa="amount" nhan="Số tiền" batBuoc loi={loi.amount}
+          goi={form.amount > 0 ? `${amountInWords(form.amount)}.` : undefined}>
+          <OTienPhieu khoa="amount" value={form.amount} onChange={(v) => set("amount", v)} loi={!!loi.amount} />
+        </OF>
+        <OF khoa="content" nhan="Nội dung chi" batBuoc rong loi={loi.content}>
+          <input id={idO("content")} value={form.content} placeholder="VD: Tiền điện tháng 9 xưởng in"
+            aria-invalid={loi.content ? true : undefined}
+            onChange={(e) => set("content", e.target.value)} />
+        </OF>
+      </div>
+
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Trả bằng</div>
+        <ChonCachTra giaTri={form.voucher_type} onDoi={chonCach} />
+        <VoucherRecipientSection
+          form={form}
+          set={set}
+          loi={loi}
+          taiKhoan={companyAccounts}
+          dangTai={loadingAccounts}
+          loiTai={loiTaiKhoan}
+          chonTaiKhoan={(v) => set("company_bank_account_id", v ? Number(v) : null)}
+          onMoTaiKhoan={onMoTaiKhoan}
+        />
+      </div>
+
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Khi nào</div>
+        <ONgayChi value={form.voucher_date} onChange={(v) => set("voucher_date", v)} loi={loi.voucher_date} />
+      </div>
+
+      <ThemChiTiet cacO={cacOChiTiet(false)} mo={moChiTiet || files.length > 0} onMo={() => setMoChiTiet(true)}>
+        <VoucherRefSection form={form} set={set} coHopDong={false} />
+        <VoucherAttachSection files={files} setFiles={setFiles} loi={loiTep ?? undefined} onLoi={setLoiTep} />
+      </ThemChiTiet>
+    </KhungFormPhieu>
   );
 }

@@ -3478,17 +3478,6 @@ export interface Role {
   department_id: number;
 }
 
-export interface RoleTemplate {
-  key: string;
-  label: string;
-  mo_ta: string;
-  /** Ma trận ĐẦY ĐỦ (mọi module) — áp mẫu là THAY SẠCH, không trộn với quyền cũ của vai. */
-  permissions: PermissionRow[];
-  /** Phần điền vào dòng quyền theo tổ CỦA PHÒNG mà vai thuộc về (Tổ trưởng / Công nhân) — giao
-   *  diện tự gắn vào `to_sx_<phòng đang mở>`. `null` = mẫu không đụng dòng tổ. */
-  quyen_to_cua_vai?: Omit<PermissionRow, "module_key"> | null;
-}
-
 export interface PermissionRow {
   module_key: string;
   can_read: boolean;
@@ -4594,7 +4583,6 @@ export interface QuotationDetail {
   total: number;
   
   allowed_transitions: string[];
-  can_approve: boolean;
   versions: VersionRow[];
   items: QuoteItemDetail[];
   // BG-2 — báo giá đặc thù (GĐ duyệt trước khi gửi khách). `markup_pct` = lợi nhuận / GIÁ VỐN —
@@ -4751,11 +4739,23 @@ export interface EmployeeDetail extends EmployeeRow {
   /** Thâm niên đã có TRƯỚC khi vào làm (tháng) — cộng với thời gian từ `hire_date` mới ra
    *  thâm niên tổng. Bỏ vế này là tính hụt với người chuyển từ nơi khác sang. */
   prior_seniority_months?: number;
-  /** Trưởng bộ phận. CHỈ `/api/employees/me` điền (màn HCNS để null — tránh N+1). */
+  /** Quản lý trực tiếp = người đứng đầu gần nhất từ phòng mình trở lên. CHỈ `/api/employees/me`
+   *  điền (màn HCNS để null — tránh N+1). */
   department_head_name?: string | null;
-  /** Ca NỀN đang hiệu lực HÔM NAY (mốc tương lai chưa tính) — chỉ `GET /api/employees/{id}` điền. */
+  /** Phòng mà người đó đứng đầu — khác phòng mình khi `department_head_inherited`. */
+  department_head_dept_name?: string | null;
+  department_head_avatar_url?: string | null;
+  /** true = phòng mình chưa chỉ định người đứng đầu, đây là người của phòng CẤP TRÊN. */
+  department_head_inherited?: boolean;
+  /** Ca NỀN đang hiệu lực HÔM NAY (mốc tương lai chưa tính) — `GET /{id}` và `/me` điền. */
   current_shift_id?: number | null;
   current_shift_name?: string | null;
+  /** Giờ vào–ra của ca hiện tại ("08:00–17:00") — chỉ `/me` điền. */
+  current_shift_hours?: string | null;
+  /** Lưới phân ca khai RIÊNG cho hôm nay, khác ca nền — chỉ `/me` điền; ngày thường để trống. */
+  today_shift_off?: boolean;
+  today_shift_name?: string | null;
+  today_shift_hours?: string | null;
 }
 
 export interface EmployeeKpis {
@@ -6914,6 +6914,9 @@ export interface PayableSupplierRow {
   /** Nợ đã QUÁ HẠN trả (theo hạn của từng đợt giao) và phần chưa tới hạn. Cộng lại = `total_due`. */
   overdue_amount: number;
   no_han_amount: number;
+  /** Rổ tuổi của RIÊNG NCC này (khoá rổ → tiền + số đợt) — máy chủ trả từ lâu, nay màn dùng để đếm
+   *  "n khoản" dưới tên. Server cũ thiếu trường này ⇒ coi như rỗng. */
+  aging?: Record<string, AgingCell>;
   /** `0` = NCC chưa đặt hạn mức ⇒ không bao giờ báo vượt. */
   credit_limit: number;
   /** `0` = trả ngay · `null` = chưa đặt hạn ⇒ đợt giao của NCC này không vào cột Quá hạn. */
@@ -6923,6 +6926,12 @@ export interface PayableSupplierRow {
   vuot_bao_nhieu: number;
   /** Tiền ĐÃ CHI trong kỳ. NCC trả hết vẫn giữ được dòng nhờ số này. */
   paid_in_period: number;
+  /** Hàng nhận thêm trong kỳ (PS Có TK 331). Chỉ có số khi gọi CÓ kỳ; không kỳ = 0. */
+  mua_trong_ky: number;
+  /** Hạn trả gần nhất trong các đợt CÒN NỢ (ISO date), luôn theo hôm nay. null = không đợt nào có hạn. */
+  han_gan_nhat: string | null;
+  /** Còn nợ, luôn ≥ 0. Kỳ kết thúc hôm nay (hoặc không kỳ) = ảnh chụp hôm nay; kỳ đã qua = dư cuối
+   *  kỳ của sổ 331 (dư âm vì ứng trước ⇒ 0). */
   total_due: number;
 }
 
@@ -7067,6 +7076,12 @@ export interface CongNoKhoaSoRow {
   ten: string | null;
 }
 
+export interface TheLocCongNo {
+  tat_ca: number;
+  qua_han: number;
+  vuot_han_muc: number;
+}
+
 export interface PayablesSummary {
   items: PayableSupplierRow[];
   total: number;
@@ -7076,10 +7091,16 @@ export interface PayablesSummary {
   total_due: number;
   overdue_amount: number;
   paid_in_period: number;
+  mua_trong_ky: number;
   vuot_han_muc_count: number;
+  /** Số dòng của từng nút đầu thanh lọc — đếm SAU tìm/kỳ/lọc nâng cao/mốc tuổi, TRƯỚC nút đang chọn. */
+  the_loc?: TheLocCongNo;
   /** Rổ tuổi TOÀN MÀN. Tổng 5 rổ trễ luôn đúng bằng `overdue_amount`. */
   aging: AgingBucket[];
   period_months: number;
+  /** Kỳ đã dùng để tính (ISO date). Không truyền kỳ thì là [hôm nay − 3 tháng, hôm nay]. */
+  tu_ngay: string | null;
+  den_ngay: string | null;
   as_of: string;
 }
 
@@ -7189,7 +7210,10 @@ export interface PayablesDetail {
   /** Cọc/ứng trước của cả đơn — hiện thành dòng riêng, KHÔNG cộng vào `paid` của đợt nào. */
   coc_chung: PayableCocRow[];
   coc_chung_amount: number;
+  /** Một trang lần trả (khi gọi kèm `paid_page`/`paid_size`), mới nhất trước. */
   paid: PayablePaidRow[];
+  /** Tổng số lần trả trong phạm vi — không theo trang. */
+  paid_total?: number;
   period_months: number;
   /** true = rổ "đã chi" đang hiện TOÀN BỘ lịch sử, không còn cắt theo kỳ. */
   all_history: boolean;
@@ -7218,6 +7242,12 @@ export interface ReceivableCustomerRow {
   /** Rổ tuổi của RIÊNG khách này, tra theo khoá rổ. Khách không nợ vẫn đủ 6 khoá = 0. */
   aging: Record<string, AgingCell>;
   received_in_period: number;
+  /** Hoá đơn bán thêm trong kỳ (PS Nợ TK 131). Chỉ có số khi gọi CÓ kỳ; không kỳ = 0. */
+  ban_trong_ky: number;
+  /** Hạn thu gần nhất trong các hoá đơn CÒN NỢ (ISO date), luôn theo hôm nay. */
+  han_gan_nhat: string | null;
+  /** Sale phụ trách khách. */
+  sale_user_id: number | null;
 }
 
 export interface ReceivablesSummary {
@@ -7229,10 +7259,15 @@ export interface ReceivablesSummary {
   total_due: number;
   overdue_amount: number;
   received_in_period: number;
+  ban_trong_ky: number;
   vuot_han_muc_count: number;
+  /** Số dòng của từng nút đầu thanh lọc — đếm SAU tìm/kỳ/lọc nâng cao/mốc tuổi, TRƯỚC nút đang chọn. */
+  the_loc?: TheLocCongNo;
   /** Rổ tuổi TOÀN MÀN. Tổng 5 rổ trễ luôn đúng bằng `overdue_amount`. */
   aging: AgingBucket[];
   period_months: number;
+  tu_ngay: string | null;
+  den_ngay: string | null;
   as_of: string;
 }
 
@@ -7330,6 +7365,8 @@ export interface ReceivablesDetail {
   vuot_bao_nhieu: number;
   items: ReceivableItemRow[];
   paid: ReceivableReceiptRow[];
+  /** Tổng số lần thu trong phạm vi — `paid` có thể chỉ là các trang đã tải (`paid_page`/`paid_size`). */
+  paid_total?: number;
   period_months: number;
   all_history: boolean;
   total_due: number;
@@ -7781,6 +7818,14 @@ export interface CompanyBankAccountRow extends CompanyBankAccountInput {
   updated_at: string;
 }
 
+/** Thu/chi ĐÃ XONG của một tài khoản công ty trong kỳ; tài khoản không có phiếu thì vắng mặt. */
+export interface TaiKhoanThongKe {
+  tai_khoan_id: number;
+  thu: number;
+  chi: number;
+  so_phieu: number;
+}
+
 export interface SupplierBankAccountInput extends BankAccountInput {
   supplier_id: number;
 }
@@ -7998,6 +8043,126 @@ export interface PaymentVoucherRow {
   updated_at: string;
 }
 
+/** Số trên hàng thẻ lọc Phiếu chi / Phiếu thu. Máy chủ đếm trên bộ lọc KHÔNG gồm `status` và
+ *  `chung_tu`, nên chọn một thẻ không làm các thẻ còn lại về 0. `xong` = đã chi / đã thu, `cho` =
+ *  chờ (phần còn lại sau khi trừ xong và đã huỷ), `thieu_chung_tu` chỉ tính phiếu đã xong. */
+export type TheLoc = {
+  tat_ca: number;
+  xong: number;
+  xong_tien: number;
+  thieu_chung_tu: number;
+  da_huy: number;
+  cho: number;
+};
+
+/** Bộ lọc kỳ + nâng cao dùng chung cho `accounting.vouchers` và `accounting.receipts`.
+ *  `nguon` ra query lặp (`nguon=a&nguon=b`); `dem_only` chỉ lấy `total` (items rỗng). */
+export type LocPhieu = {
+  q?: string;
+  status?: string;
+  sort?: string;
+  page?: number;
+  size?: number;
+  tu_ngay?: string;
+  den_ngay?: string;
+  tien_tu?: number;
+  tien_den?: number;
+  hinh_thuc?: "cash" | "bank_transfer";
+  nguon?: string[];
+  tai_khoan_id?: number;
+  nguoi_lap_id?: number;
+  chung_tu?: "co" | "thieu";
+  /** Ô tên người trong bộ lọc nâng cao, tách khỏi `q`. Phiếu chi: "Người nhận" (so tên người
+   *  nhận/chủ tài khoản/nhà cung cấp). Phiếu thu: "Người nộp" (so `payer_name`). */
+  nhan?: string;
+  dem_only?: boolean;
+};
+
+/** Gắn các khoá MỚI của `LocPhieu` vào query (khoá cũ do từng hàm tự gắn). Bỏ ô rỗng; mảng ra query lặp. */
+function themLocPhieuVaoQuery(qs: URLSearchParams, p: Omit<LocPhieu, "status">): void {
+  if (p.tu_ngay) qs.set("tu_ngay", p.tu_ngay);
+  if (p.den_ngay) qs.set("den_ngay", p.den_ngay);
+  if (p.tien_tu != null) qs.set("tien_tu", String(p.tien_tu));
+  if (p.tien_den != null) qs.set("tien_den", String(p.tien_den));
+  if (p.hinh_thuc) qs.set("hinh_thuc", p.hinh_thuc);
+  for (const n of p.nguon ?? []) qs.append("nguon", n);
+  if (p.tai_khoan_id != null) qs.set("tai_khoan_id", String(p.tai_khoan_id));
+  if (p.nguoi_lap_id != null) qs.set("nguoi_lap_id", String(p.nguoi_lap_id));
+  if (p.chung_tu) qs.set("chung_tu", p.chung_tu);
+  if (p.nhan?.trim()) qs.set("nhan", p.nhan.trim());
+  if (p.dem_only) qs.set("dem_only", "true");
+}
+
+/** Kỳ + bộ lọc nâng cao của màn Công nợ phải trả / phải thu (`accounting.payables`,
+ *  `accounting.receivables`). `tu_ngay`/`den_ngay` phải đi CẢ HAI (thiếu một ⇒ 422); không có kỳ =
+ *  hành vi cũ (ảnh chụp hôm nay, kỳ 3 tháng). `phu_trach_id` và `nhan` chỉ có nghĩa ở phải thu. */
+export type LocCongNo = {
+  q?: string;
+  filter?: string;
+  /** Khoá rổ tuổi — ra query `aging_bucket` (hai màn dùng chung một tên). */
+  aging?: string | null;
+  page?: number;
+  size?: number;
+  tu_ngay?: string;
+  den_ngay?: string;
+  no_tu?: number;
+  no_den?: number;
+  han_tra?: "qua_han" | "7_ngay" | "30_ngay";
+  han_muc?: "tren_80" | "vuot" | "chua_dat";
+  ca_da_tra_het?: boolean;
+  /** Chỉ màn phải trả: NCC có đợt giao còn nợ mà chưa ghi số hoá đơn. */
+  thieu_hoa_don?: boolean;
+  dem_only?: boolean;
+  /** Chỉ lấy các số TỔNG (`items` rỗng, máy chủ bỏ phần dựng dòng) — lời "cùng kỳ" của màn Công nợ. */
+  chi_tong?: boolean;
+  phu_trach_id?: number;
+  nhan?: string;
+};
+
+function locCongNoVaoQuery(p: LocCongNo): string {
+  const qs = new URLSearchParams();
+  if (p.q?.trim()) qs.set("q", p.q.trim());
+  if (p.filter && p.filter !== "all") qs.set("filter", p.filter);
+  if (p.aging) qs.set("aging_bucket", p.aging);
+  if (p.page) qs.set("page", String(p.page));
+  if (p.size) qs.set("size", String(p.size));
+  if (p.tu_ngay) qs.set("tu_ngay", p.tu_ngay);
+  if (p.den_ngay) qs.set("den_ngay", p.den_ngay);
+  if (p.no_tu != null) qs.set("no_tu", String(p.no_tu));
+  if (p.no_den != null) qs.set("no_den", String(p.no_den));
+  if (p.han_tra) qs.set("han_tra", p.han_tra);
+  if (p.han_muc) qs.set("han_muc", p.han_muc);
+  if (p.ca_da_tra_het) qs.set("ca_da_tra_het", "true");
+  if (p.thieu_hoa_don) qs.set("thieu_hoa_don", "true");
+  if (p.dem_only) qs.set("dem_only", "true");
+  if (p.chi_tong) qs.set("chi_tong", "true");
+  if (p.phu_trach_id != null) qs.set("phu_trach_id", String(p.phu_trach_id));
+  if (p.nhan?.trim()) qs.set("nhan", p.nhan.trim());
+  return qs.toString() ? `?${qs.toString()}` : "";
+}
+
+/** Một trang của tab Đã trả / Đã thu trong ngăn chi tiết công nợ (máy chủ cắt, `paid_total` là tổng số lần). */
+export type TrangDaTra = { paid_page: number; paid_size: number };
+
+/** Query của ngăn chi tiết công nợ: `all_history` và/hoặc kỳ cho tab Đã trả / Đã thu. */
+function chiTietCongNoQuery(
+  allHistory: boolean,
+  ky?: { tu_ngay: string; den_ngay: string },
+  trang?: TrangDaTra,
+): string {
+  const qs = new URLSearchParams();
+  if (allHistory) qs.set("all_history", "true");
+  if (ky) {
+    qs.set("tu_ngay", ky.tu_ngay);
+    qs.set("den_ngay", ky.den_ngay);
+  }
+  if (trang) {
+    qs.set("paid_page", String(trang.paid_page));
+    qs.set("paid_size", String(trang.paid_size));
+  }
+  return qs.toString() ? `?${qs.toString()}` : "";
+}
+
 export interface PaymentVoucherListOut {
   items: PaymentVoucherRow[];
   total: number;
@@ -8008,6 +8173,8 @@ export interface PaymentVoucherListOut {
   /** DORMANT từ 06/08/2026: không còn phiếu "chờ chi" nên số này luôn 0. Đừng hiện lên màn. */
   total_waiting_amount: number;
   total_receipt_received_amount: number;
+  /** Số trên hàng thẻ lọc. Đếm bỏ qua `status` và `chung_tu`. */
+  the_loc: TheLoc;
 }
 
 export interface PaymentVoucherAttachment {
@@ -8105,6 +8272,10 @@ export interface PaymentReceiptListOut {
   total: number;
   page: number;
   size: number;
+  /** Tổng tiền (VND) các phiếu ĐÃ THU khớp bộ lọc — mọi trang. */
+  total_received_amount: number;
+  /** Số trên hàng thẻ lọc; `cho` = chờ thu. Đếm bỏ qua `status` và `chung_tu`. */
+  the_loc: TheLoc;
 }
 
 // --- Đơn hàng bán (redesign-don-hang-ban.md) --------------------------------
@@ -9997,6 +10168,10 @@ export interface DieuChuyenResult {
   gia_von: number | null;
 }
 
+/** Ba màn cùng gọi danh sách lô / lịch sử mặt hàng — mỗi màn có ô "Xem giá thành" riêng:
+ *  `ton` = dòng của kho có lô · `yeu_cau` = Yêu cầu nhập xuất · `bao_cao` = Báo cáo kho. */
+export type ManKho = "ton" | "yeu_cau" | "bao_cao";
+
 export interface StockLot {
   id: number;
   ma_lo: string;
@@ -10723,11 +10898,6 @@ export const api = {
           department_id: opts?.departmentId ?? null,
         }),
       });
-    },
-    /** Bảng VAI MẪU — bộ quyền dựng sẵn cho các vai điển hình (đợt 6).
-     *  CHỈ ĐỌC: giao diện điền vào ma trận đang mở, người dùng xem lại rồi mới bấm Lưu. */
-    roleTemplates(token: string): Promise<RoleTemplate[]> {
-      return authed<RoleTemplate[]>("/api/roles/templates", token);
     },
     permissions(token: string, roleId: number): Promise<PermissionRow[]> {
       return authed<PermissionRow[]>(`/api/roles/${roleId}/permissions`, token);
@@ -13359,9 +13529,10 @@ export const api = {
 
     // --- KCS theo LỆNH (mg 0306) -----------------------------------------------------------
     /** Danh sách lệnh cho màn KCS — tìm + cắt trang ở máy chủ. Mặc định chỉ nhóm còn mở. */
-    kcsLenh(token: string, p: { tim?: string; trang?: number; daDong?: boolean } = {}): Promise<SxKcsLenhList> {
+    kcsLenh(token: string, p: { tim?: string; trang?: number; daDong?: boolean; coTrang?: number } = {}): Promise<SxKcsLenhList> {
       return authed<SxKcsLenhList>(`/api/san-xuat/kcs/lenh${qs({
         tim: p.tim?.trim() || undefined, trang: p.trang, da_dong: p.daDong || undefined,
+        co_trang: p.coTrang,
       })}`, token);
     },
     /** Chuỗi công đoạn của MỘT lệnh theo thứ tự routing + các lần kiểm. 403 nếu không phải người KCS. */
@@ -14147,64 +14318,37 @@ export const api = {
     },
     /** Công nợ phải trả gom theo NCC. Không phân trang — cắt trang là ra TỔNG sai.
         `q` lọc ở SERVER: NCC đã trả hết và im lặng lâu thì không có dòng nào để lọc phía màn. */
-    payables(
-      token: string,
-      params: {
-        q?: string;
-        filter?: string;
-        /** Khoá rổ tuổi — lọc danh sách theo rổ. Tên tham số PHẢI là `aging_bucket`, hai màn
-         *  dùng chung một tên để chép URL qua lại vẫn chạy. */
-        aging?: string | null;
-        page?: number;
-        size?: number;
-      } = {},
-    ): Promise<PayablesSummary> {
-      const qs = new URLSearchParams();
-      if (params.q?.trim()) qs.set("q", params.q.trim());
-      if (params.filter && params.filter !== "all") qs.set("filter", params.filter);
-      if (params.aging) qs.set("aging_bucket", params.aging);
-      if (params.page) qs.set("page", String(params.page));
-      if (params.size) qs.set("size", String(params.size));
-      const suffix = qs.toString() ? `?${qs.toString()}` : "";
-      return authed<PayablesSummary>(`/api/accounting/payables${suffix}`, token);
+    payables(token: string, params: LocCongNo = {}): Promise<PayablesSummary> {
+      return authed<PayablesSummary>(`/api/accounting/payables${locCongNoVaoQuery(params)}`, token);
     },
-    /** `allHistory` bỏ mốc kỳ cho rổ "đã chi" — nút "Xem lịch sử cũ hơn". Chỉ nới cho MỘT NCC. */
+    /** `allHistory` bỏ mốc kỳ cho rổ "đã chi" — nút "Xem lịch sử cũ hơn". Chỉ nới cho MỘT NCC.
+     *  `ky` = rổ "đã chi" theo đúng kỳ màn tổng hợp đang chọn. */
     payablesDetail(
       token: string,
       supplierId: number,
       allHistory = false,
+      ky?: { tu_ngay: string; den_ngay: string },
+      trang?: TrangDaTra,
     ): Promise<PayablesDetail> {
-      const suffix = allHistory ? "?all_history=true" : "";
-      return authed<PayablesDetail>(`/api/accounting/payables/${supplierId}${suffix}`, token);
+      return authed<PayablesDetail>(
+        `/api/accounting/payables/${supplierId}${chiTietCongNoQuery(allHistory, ky, trang)}`,
+        token,
+      );
     },
-    receivables(
-      token: string,
-      params: {
-        q?: string;
-        filter?: string;
-        /** Khoá rổ tuổi — lọc danh sách theo rổ. Tên tham số PHẢI là `aging_bucket`, hai màn
-         *  dùng chung một tên để chép URL qua lại vẫn chạy. */
-        aging?: string | null;
-        page?: number;
-        size?: number;
-      } = {},
-    ): Promise<ReceivablesSummary> {
-      const qs = new URLSearchParams();
-      if (params.q?.trim()) qs.set("q", params.q.trim());
-      if (params.filter && params.filter !== "all") qs.set("filter", params.filter);
-      if (params.aging) qs.set("aging_bucket", params.aging);
-      if (params.page) qs.set("page", String(params.page));
-      if (params.size) qs.set("size", String(params.size));
-      const suffix = qs.toString() ? `?${qs.toString()}` : "";
-      return authed<ReceivablesSummary>(`/api/accounting/receivables${suffix}`, token);
+    receivables(token: string, params: LocCongNo = {}): Promise<ReceivablesSummary> {
+      return authed<ReceivablesSummary>(`/api/accounting/receivables${locCongNoVaoQuery(params)}`, token);
     },
     receivablesDetail(
       token: string,
       customerId: number,
       allHistory = false,
+      ky?: { tu_ngay: string; den_ngay: string },
+      trang?: TrangDaTra,
     ): Promise<ReceivablesDetail> {
-      const suffix = allHistory ? "?all_history=true" : "";
-      return authed<ReceivablesDetail>(`/api/accounting/receivables/${customerId}${suffix}`, token);
+      return authed<ReceivablesDetail>(
+        `/api/accounting/receivables/${customerId}${chiTietCongNoQuery(allHistory, ky, trang)}`,
+        token,
+      );
     },
     /** SỔ TỔNG HỢP CÔNG NỢ theo kỳ. `ben` = "receivables" (131) | "payables" (331). */
     baoCaoCongNo(
@@ -14372,6 +14516,16 @@ export const api = {
         token,
       );
     },
+    thongKeTaiKhoan(
+      token: string,
+      ky: { tu_ngay: string; den_ngay: string },
+    ): Promise<TaiKhoanThongKe[]> {
+      const qs = new URLSearchParams({ tu_ngay: ky.tu_ngay, den_ngay: ky.den_ngay });
+      return authed<TaiKhoanThongKe[]>(
+        `/api/accounting/company-bank-accounts/thong-ke?${qs.toString()}`,
+        token,
+      );
+    },
     createCompanyAccount(token: string, input: CompanyBankAccountInput): Promise<CompanyBankAccountRow> {
       return authed<CompanyBankAccountRow>("/api/accounting/company-bank-accounts", token, {
         method: "POST",
@@ -14425,16 +14579,12 @@ export const api = {
     },
     vouchers(
       token: string,
-      params: {
-        q?: string;
+      params: Omit<LocPhieu, "status"> & {
         status?: string | null;
         source_type?: PaymentVoucherSource | null;
         voucher_type?: string | null;
         supplier_id?: number | null;
         purchase_request_id?: number | null;
-        sort?: string;
-        page?: number;
-        size?: number;
       } = {},
     ): Promise<PaymentVoucherListOut> {
       const qs = new URLSearchParams();
@@ -14448,6 +14598,7 @@ export const api = {
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      themLocPhieuVaoQuery(qs, params);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<PaymentVoucherListOut>(`/api/accounting/payment-vouchers${suffix}`, token);
     },
@@ -14534,14 +14685,10 @@ export const api = {
     },
     receipts(
       token: string,
-      params: {
-        q?: string;
+      params: Omit<LocPhieu, "status"> & {
         status?: string | null;
         payment_voucher_id?: number | null;
         source_type?: PaymentReceiptSource | null;
-        sort?: string;
-        page?: number;
-        size?: number;
       } = {},
     ): Promise<PaymentReceiptListOut> {
       const qs = new URLSearchParams();
@@ -14553,6 +14700,7 @@ export const api = {
       if (params.sort) qs.set("sort", params.sort);
       if (params.page) qs.set("page", String(params.page));
       if (params.size) qs.set("size", String(params.size));
+      themLocPhieuVaoQuery(qs, params);
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       return authed<PaymentReceiptListOut>(`/api/accounting/payment-receipts${suffix}`, token);
     },
@@ -14980,9 +15128,12 @@ export const api = {
           hang_loai?: HangLoai | null; hang_id?: number | null; kho_id?: number | null; con_hang?: boolean;
           /** Giấy: chỉ liệt kê lô đúng dạng (+ đúng khổ với tờ). */
           dang_giay?: "to" | "cuon" | null; kho_rong?: number; kho_dai?: number;
+          /** Màn đang gọi — máy chủ áp ô "Xem giá thành" của màn đó (mặc định: dòng của từng kho). */
+          man?: ManKho;
         },
       ): Promise<StockLot[]> {
         const qs = new URLSearchParams();
+        if (params.man) qs.set("man", params.man);
         if (params.dang_giay) {
           qs.set("dang_giay", params.dang_giay);
           if (params.kho_rong) qs.set("kho_rong", String(params.kho_rong));
@@ -15004,8 +15155,10 @@ export const api = {
         khoId: number,
         /** Giấy: lọc đúng một dòng tồn (dạng + khổ) — một mã có thể nhiều dòng theo khổ. */
         giay?: { dang: "to" | "cuon"; kho_rong: number; kho_dai: number },
+        /** Màn đang gọi — máy chủ áp ô "Xem giá thành" của màn đó. */
+        man: ManKho = "ton",
       ): Promise<StockMaterialHistory> {
-        const qs = new URLSearchParams({ kho_id: String(khoId) });
+        const qs = new URLSearchParams({ kho_id: String(khoId), man });
         if (giay) {
           qs.set("dang_giay", giay.dang);
           qs.set("kho_rong", String(giay.kho_rong));

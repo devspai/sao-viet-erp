@@ -1,21 +1,28 @@
-// Hộp lập/sửa PHIẾU THU tiền thừa của một phiếu chi (tách từ pages/PaymentReceiptDialog.tsx).
-// Vỏ dùng KHUÔN DRAWER của Thu mua (`rc-drawer` + `purchase__hero-banner`) thay `acct-modal`
-// nền trắng giữa màn — chủ chốt 26/08/2026: "sao mỗi nơi một màu". Đây là FORM TIỀN nên đóng
-// AN TOÀN: scrim KHÔNG bắt click, KHÔNG Esc-to-close (tránh mất dữ liệu đang gõ). `remainingVnd`,
-// `submit()` và khối `acct-summary-strip` giữ NGUYÊN — chỉ đổi vỏ.
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+// Form lập/sửa PHIẾU THU LẠI TIỀN ĐÃ CHI của một phiếu chi (đặc tả PT-4). Đường mở từ Phiếu chi đã
+// gỡ; form chỉ còn mở qua "Sửa" phiếu cũ chờ thu. Khung giống PT-3 (vỏ `NganPhai`, lỗi tại ô).
+//
+// ⚠️ TIỀN: `remainingVnd`, `amountVnd`, luật kiểm và `payload` giữ NGUYÊN bản cũ. Khác bản cũ:
+//   - Mã giao dịch điền lại sẵn khi sửa (lỗi thật số 4) và gửi theo hình thức (tiền mặt ⇒ null).
+//   - Số ngoại tệ + tỷ giá gõ được phần lẻ kiểu Việt Nam "12,5" (lỗi thật số 5). Cột `amount` của
+//     phiếu thu vẫn là số NGUYÊN ở máy chủ, nên số ngoại tệ có phần lẻ bị chặn tại ô với câu nói rõ
+//     (bản cũ `step=1` cũng chặn, chỉ là trình duyệt chặn không lời) — không làm tròn ngầm.
+//   - Kiểm thêm tại ô: chuyển khoản phải có mã giao dịch (máy chủ vốn chặn), ngày thu không sau hôm nay.
+import { useMemo, useRef, useState } from "react";
 import {
   ApiError,
   api,
-  type CompanyBankAccountRow,
   type PaymentReceiptInput,
   type PaymentVoucherType,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
-import { Button } from "../../../components/Button";
-import { money } from "../../../utils/format";
+import { amountInWords } from "../../../utils/format";
+import { tien, vietSo } from "../shared/dinhDang";
+import { KhungFormPhieu, OF, ONgayPhieu, OTienPhieu, idO, loiNgayPhieu, nhayToiLoi, type LoiForm } from "../shared/KhungFormPhieu";
+import { PhanNhanBang, THU_TU_O_THU, type DatOThu } from "./components/PhanNhanBang";
 import { initialForm, optional } from "./shared/helpers";
+import { useTaiKhoanNhan } from "./shared/taiKhoanNhan";
 import type { PaymentReceiptDialogProps } from "./shared/types";
+import "../ke-toan.css";
 
 export function PaymentReceiptDialog({
   voucher,
@@ -33,74 +40,57 @@ export function PaymentReceiptDialog({
       (receipt?.status === "waiting_receipt" ? receipt.amount_vnd : 0),
     [voucher, receipt],
   );
-  const [form, setForm] = useState<PaymentReceiptInput>(() =>
-    initialForm(voucher, receipt),
-  );
-  const [companyAccounts, setCompanyAccounts] = useState<
-    CompanyBankAccountRow[]
-  >([]);
-  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [form, setForm] = useState<PaymentReceiptInput>(() => initialForm(voucher, receipt));
+  const goc = useRef(JSON.stringify(form));
+  const { taiKhoan: companyAccounts, dangTai: loadingAccounts, loiTai: loiTaiKhoan } = useTaiKhoanNhan(voucher.currency);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loi, setLoi] = useState<LoiForm>({});
 
   const amountVnd = useMemo(
-    () =>
-      Math.round(
-        Number(form.amount || 0) *
-          Number(form.exchange_rate || voucher.exchange_rate || 1),
-      ),
+    () => Math.round(Number(form.amount || 0) * Number(form.exchange_rate || voucher.exchange_rate || 1)),
     [form.amount, form.exchange_rate, voucher.exchange_rate],
   );
   const isBank = form.receipt_method === "bank_transfer";
+  const ngoaiTe = voucher.currency !== "VND";
 
-  useEffect(() => {
-    if (!token) return;
-    setLoadingAccounts(true);
-    api.accounting
-      .companyAccounts(token, true, "receive")
-      .then((accounts) => {
-        const matching = accounts.filter(
-          (row) => row.currency === voucher.currency,
-        );
-        setCompanyAccounts(matching);
-      })
-      .catch(() => setError("Không tải được danh sách tài khoản ngân hàng."))
-      .finally(() => setLoadingAccounts(false));
-  }, [token, voucher.currency]);
-
-  function set<K extends keyof PaymentReceiptInput>(
-    key: K,
-    value: PaymentReceiptInput[K],
-  ) {
+  const set: DatOThu = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
+    setLoi((l) => (l[key] ? { ...l, [key]: undefined } : l));
+  };
+
+  function chonCach(type: PaymentVoucherType) {
+    set("receipt_method", type);
+    setLoi({});
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!token || saving) return;
-    if (!form.payer_name.trim()) {
-      setError("Vui lòng nhập người nộp tiền.");
-      return;
+  function kiemTra(): LoiForm {
+    const l: LoiForm = {};
+    if (!form.payer_name.trim()) l.payer_name = "Ghi người hoặc đơn vị nộp tiền.";
+    if (!Number.isFinite(form.amount) || form.amount <= 0) l.amount = "Số tiền thu phải lớn hơn 0.";
+    else if (!Number.isInteger(form.amount)) {
+      l.amount = `Số ${voucher.currency} có phần lẻ — máy chủ chưa lưu được phần lẻ ngoại tệ, ghi số nguyên.`;
+    } else if (amountVnd > remainingVnd) {
+      l.amount = `Số tiền thu không được vượt quá ${remainingVnd.toLocaleString("vi-VN")} đ.`;
     }
-    if (!form.receipt_date || !form.content.trim()) {
-      setError("Vui lòng nhập ngày thu và nội dung thu.");
-      return;
+    if (!form.content.trim()) l.content = "Ghi nội dung thu.";
+    const loiNgay = loiNgayPhieu(form.receipt_date, "Ngày thu");
+    if (loiNgay) l.receipt_date = loiNgay;
+    if (isBank && !form.company_bank_account_id) l.company_bank_account_id = "Chọn tài khoản công ty nhận tiền.";
+    if (isBank && !optional(form.bank_reference)) {
+      l.bank_reference = "Thu qua ngân hàng phải có mã giao dịch hoặc số báo có.";
     }
-    if (!Number.isFinite(form.amount) || form.amount <= 0) {
-      setError("Số tiền thu phải lớn hơn 0.");
-      return;
-    }
-    if (amountVnd > remainingVnd) {
-      setError(
-        `Số tiền thu không được vượt quá ${remainingVnd.toLocaleString("vi-VN")} đ.`,
-      );
-      return;
-    }
-    if (isBank && !form.company_bank_account_id) {
-      setError("Vui lòng chọn tài khoản công ty nhận tiền.");
-      return;
-    }
+    return l;
+  }
 
+  async function submit() {
+    if (!token || saving) return;
+    const l = kiemTra();
+    setLoi(l);
+    if (Object.values(l).some(Boolean)) {
+      nhayToiLoi(l, THU_TU_O_THU);
+      return;
+    }
     const payload: PaymentReceiptInput = {
       ...form,
       payer_name: form.payer_name.trim(),
@@ -110,9 +100,8 @@ export function PaymentReceiptDialog({
       amount: Math.round(Number(form.amount)),
       exchange_rate: Number(form.exchange_rate || voucher.exchange_rate || 1),
       content: form.content.trim(),
-      company_bank_account_id: isBank
-        ? (form.company_bank_account_id ?? null)
-        : null,
+      company_bank_account_id: isBank ? (form.company_bank_account_id ?? null) : null,
+      bank_reference: isBank ? optional(form.bank_reference) : null,
       note: optional(form.note),
     };
     setSaving(true);
@@ -123,256 +112,86 @@ export function PaymentReceiptDialog({
         : await api.accounting.createReceipt(token, voucher.id, payload);
       onSaved(saved);
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Không lưu được phiếu thu.",
-      );
+      setError(err instanceof ApiError ? err.message : "Không lưu được phiếu thu.");
     } finally {
       setSaving(false);
     }
   }
 
+  const ten = form.payer_name.trim();
   return (
-    <div className="rc-drawer__scrim" role="presentation">
-      <aside
-        className="rc-drawer purchase__drawer-780"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="payment-receipt-title"
-      >
-        <div className="purchase__hero-banner">
-          <div className="purchase__hero-top">
-            <div>
-              <span className="purchase__hero-kicker">
-                {receipt ? "Sửa phiếu thu" : "Lập phiếu thu"}
-              </span>
-              <div className="purchase__hero-title-row">
-                <h2 className="purchase__hero-code" id="payment-receipt-title">
-                  {voucher.code} · {voucher.supplier_name}
-                </h2>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="purchase__hero-x"
-              onClick={onClose}
-              aria-label="Đóng"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-        <form className="purchase__drawer-form" onSubmit={submit}>
-        <div className="rc-drawer__body">
-          {error && (
-            <div className="banner banner--error" role="alert">
-              {error}
-            </div>
+    <KhungFormPhieu
+      duongDan={`Phiếu thu > ${receipt ? receipt.code : `Thu lại ${voucher.code}`}`}
+      tieuDe={receipt ? "Sửa phiếu thu" : "Lập phiếu thu"}
+      tomTat={[
+        { nhan: "Đã chi", giaTri: tien(voucher.amount_vnd) },
+        { nhan: "Đã thu", giaTri: tien(voucher.receipt_received_amount) },
+        { nhan: "Chờ thu", giaTri: tien(voucher.receipt_pending_amount) },
+        { nhan: "Còn được thu", giaTri: tien(remainingVnd) },
+      ]}
+      xemTruoc={
+        amountVnd > 0 ? (
+          <>
+            Thu <b>{tien(amountVnd)}</b> {isBank ? "chuyển khoản" : "tiền mặt"}
+            {ten ? <> của <b>{ten}</b></> : null}.
+          </>
+        ) : null
+      }
+      dangLuu={saving}
+      loiChung={error}
+      onDong={onClose}
+      chanDong={() => JSON.stringify(form) !== goc.current}
+      onSubmit={() => void submit()}
+      nhanNut={receipt ? "Lưu thay đổi" : "Lập phiếu thu"}
+      nhanDangLuu="Đang lưu…"
+    >
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Thu của ai và bao nhiêu</div>
+        <OF khoa="payer_name" nhan="Thu của" batBuoc loi={loi.payer_name} goi={`Phiếu chi gốc ${voucher.code} trả cho ${voucher.supplier_name}.`}>
+          <input id={idO("payer_name")} value={form.payer_name} aria-invalid={loi.payer_name ? true : undefined}
+            onChange={(e) => set("payer_name", e.target.value)} />
+        </OF>
+        <div className="kt-f__hang">
+          <OF khoa="amount" nhan={ngoaiTe ? `Số tiền (${voucher.currency})` : "Số tiền"} batBuoc loi={loi.amount}
+            goi={ngoaiTe ? `Quy đổi ${tien(amountVnd)}` : form.amount > 0 ? `${amountInWords(form.amount)}.` : undefined}>
+            <OTienPhieu khoa="amount" value={form.amount} onChange={(v) => set("amount", v)} loi={!!loi.amount}
+              hauTo={ngoaiTe ? voucher.currency : "đ"} soLe={ngoaiTe} />
+          </OF>
+          {ngoaiTe && (
+            <OF khoa="exchange_rate" nhan="Tỷ giá" batBuoc goi={`Tỷ giá phiếu chi gốc ${vietSo(voucher.exchange_rate)}.`}>
+              <OTienPhieu khoa="exchange_rate" value={Number(form.exchange_rate ?? voucher.exchange_rate)}
+                onChange={(v) => set("exchange_rate", v)} soLe />
+            </OF>
           )}
-
-          <div className="acct-summary-strip">
-            <div>
-              <span>Đã chi</span>
-              <strong>{money(voucher.amount_vnd)}</strong>
-            </div>
-            <div>
-              <span>Đã thu</span>
-              <strong>{money(voucher.receipt_received_amount)}</strong>
-            </div>
-            <div>
-              <span>Chờ thu</span>
-              <strong>{money(voucher.receipt_pending_amount)}</strong>
-            </div>
-            <div>
-              <span>Còn được thu</span>
-              <strong>{money(remainingVnd)}</strong>
-            </div>
-          </div>
-
-          <div className="acct-form-grid acct-form-grid--2">
-            <label className="acct-field">
-              <span>
-                Người nộp tiền <b>*</b>
-              </span>
-              <input
-                className="input"
-                value={form.payer_name}
-                onChange={(e) => set("payer_name", e.target.value)}
-                placeholder="NCC hoặc nhân viên phụ trách mua"
-              />
-            </label>
-            <label className="acct-field">
-              <span>Địa chỉ người nộp</span>
-              <input
-                className="input"
-                maxLength={500}
-                value={form.payer_address ?? ""}
-                onChange={(e) => set("payer_address", e.target.value)}
-              />
-            </label>
-          </div>
-
-          {/* Khối "Định khoản" ĐÃ BỎ (chủ chốt 12/08/2026): hai ô Nợ / Có bắt kế toán gõ số
-              hiệu tài khoản cho từng phiếu, mà hệ thống không hạch toán gì từ chúng — chỉ in ra.
-              Cột `debit_account` và `credit_account` GIỮ NGUYÊN trong DB để phiếu cũ in lại vẫn
-              đúng; chỉ gỡ ô nhập. */}
-          <div className="acct-segment" aria-label="Hình thức thu">
-            <button
-              type="button"
-              className={form.receipt_method === "cash" ? "is-active" : ""}
-              onClick={() => set("receipt_method", "cash" as PaymentVoucherType)}
-            >
-              Nhập quỹ tiền mặt
-            </button>
-            <button
-              type="button"
-              className={
-                form.receipt_method === "bank_transfer" ? "is-active" : ""
-              }
-              onClick={() =>
-                set("receipt_method", "bank_transfer" as PaymentVoucherType)
-              }
-            >
-              Về TK ngân hàng
-            </button>
-          </div>
-
-          {isBank && (
-            <label className="acct-field">
-              <span>
-                Tài khoản công ty nhận tiền <b>*</b>
-              </span>
-              <select
-                className="input"
-                value={form.company_bank_account_id ?? ""}
-                onChange={(e) =>
-                  set(
-                    "company_bank_account_id",
-                    e.target.value ? Number(e.target.value) : null,
-                  )
-                }
-                disabled={loadingAccounts}
-              >
-                <option value="">Chọn tài khoản công ty</option>
-                {companyAccounts.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.bank_name} · {row.account_number} · {row.currency}
-                  </option>
-                ))}
-              </select>
-              {!loadingAccounts && companyAccounts.length === 0 && (
-                <small>
-                  Chưa có tài khoản công ty loại tiền {voucher.currency}. Khai
-                  báo trong mục Tài khoản ngân hàng trước.
-                </small>
-              )}
-            </label>
-          )}
-
-          <div className="acct-form-grid acct-form-grid--3">
-            <label className="acct-field">
-              <span>
-                Ngày thu <b>*</b>
-              </span>
-              <input
-                className="input"
-                type="date"
-                value={form.receipt_date}
-                onChange={(e) => set("receipt_date", e.target.value)}
-              />
-            </label>
-            <label className="acct-field">
-              <span>
-                Số tiền nguyên tệ ({voucher.currency}) <b>*</b>
-              </span>
-              <input
-                className="input acct-money-input"
-                type="number"
-                min="1"
-                step="1"
-                value={form.amount === 0 ? "" : form.amount}
-                onChange={(e) => set("amount", Number(e.target.value))}
-              />
-            </label>
-            {voucher.currency !== "VND" ? (
-              <label className="acct-field">
-                <span>
-                  Tỷ giá VND <b>*</b>
-                </span>
-                <input
-                  className="input acct-money-input"
-                  type="number"
-                  min="0.000001"
-                  step="0.000001"
-                  value={form.exchange_rate ?? voucher.exchange_rate}
-                  onChange={(e) => set("exchange_rate", Number(e.target.value))}
-                />
-                <small>Quy đổi: {amountVnd.toLocaleString("vi-VN")} đ</small>
-              </label>
-            ) : (
-              <div className="acct-field">
-                <span>Quy đổi</span>
-                <strong style={{ alignSelf: "flex-start" }}>
-                  {money(amountVnd)}
-                </strong>
-              </div>
-            )}
-          </div>
-
-          {/* MÃ GIAO DỊCH hỏi ngay tại form lập (27/08/2026). Trước kia ô này nằm ở bước "Xác nhận
-              đã thu"; bỏ bước đó mà không dời ô sang đây là mọi khoản về qua ngân hàng mất sạch
-              dấu đối chiếu sao kê. Server chặn nếu chuyển khoản mà để trống. */}
-          {isBank && (
-            <label className="acct-field">
-              <span>
-                Mã giao dịch / số báo có <b>*</b>
-              </span>
-              <input
-                className="input"
-                maxLength={64}
-                value={form.bank_reference ?? ""}
-                onChange={(e) => set("bank_reference", e.target.value)}
-                placeholder="Số tham chiếu trên sao kê"
-              />
-            </label>
-          )}
-
-          <label className="acct-field">
-            <span>
-              Nội dung thu <b>*</b>
-            </span>
-            <input
-              className="input"
-              value={form.content}
-              onChange={(e) => set("content", e.target.value)}
-            />
-          </label>
-
-          <label className="acct-field">
-            <span>Ghi chú</span>
-            <textarea
-              className="input acct-textarea"
-              value={form.note ?? ""}
-              onChange={(e) => set("note", e.target.value)}
-            />
-          </label>
         </div>
+        <OF khoa="content" nhan="Nội dung thu" batBuoc rong loi={loi.content}>
+          <input id={idO("content")} value={form.content} aria-invalid={loi.content ? true : undefined}
+            onChange={(e) => set("content", e.target.value)} />
+        </OF>
+      </div>
 
-        <div className="purchase__drawer-footer">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onClose}
-            disabled={saving}
-          >
-            Hủy
-          </Button>
-          <Button type="submit" variant="accent" loading={saving}>
-            {receipt ? "Lưu thay đổi" : "Lập phiếu thu"}
-          </Button>
-        </div>
-        </form>
-      </aside>
-    </div>
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Nhận bằng</div>
+        <PhanNhanBang form={form} set={set} loi={loi} onDoiCach={chonCach} taiKhoan={companyAccounts}
+          dangTai={loadingAccounts} loiTai={loiTaiKhoan} tienTe={voucher.currency} />
+      </div>
+
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Khi nào</div>
+        <ONgayPhieu khoa="receipt_date" nhan="Ngày thu" goi="Ngày tiền thật sự vào quỹ hoặc tài khoản. Không chọn ngày sau hôm nay."
+          value={form.receipt_date} onChange={(v) => set("receipt_date", v)} loi={loi.receipt_date} />
+      </div>
+
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Chi tiết thêm</div>
+        <OF khoa="payer_address" nhan="Địa chỉ người nộp" rong>
+          <input id={idO("payer_address")} maxLength={500} value={form.payer_address ?? ""}
+            onChange={(e) => set("payer_address", e.target.value)} />
+        </OF>
+        <OF khoa="note" nhan="Ghi chú" rong>
+          <textarea id={idO("note")} value={form.note ?? ""} onChange={(e) => set("note", e.target.value)} />
+        </OF>
+      </div>
+    </KhungFormPhieu>
   );
 }

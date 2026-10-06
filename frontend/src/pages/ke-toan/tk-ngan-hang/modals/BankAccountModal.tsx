@@ -1,238 +1,161 @@
-// Hộp thêm/sửa TÀI KHOẢN NGÂN HÀNG (tách từ pages/AccountingBankAccountsPage.tsx).
-// Vỏ dùng KHUÔN DRAWER của Thu mua (`rc-drawer` + `purchase__hero-banner`) thay `acct-modal`
-// nền trắng giữa màn — chủ chốt 26/08/2026: "sao mỗi nơi một màu". Đây là FORM NHẬP LIỆU nên
-// đóng AN TOÀN: scrim KHÔNG bắt click, KHÔNG Esc-to-close (tránh mất dữ liệu đang gõ).
-import type { Dispatch, FormEvent, SetStateAction } from "react";
-import type { SupplierRow } from "../../../../api/client";
-import { Button } from "../../../../components/Button";
-import type { AccountForm, AccountRow, AccountTab } from "../shared/types";
+// Form THÊM / SỬA tài khoản ngân hàng công ty (đặc tả TK-3, A.2, A.3, A.5).
+// Vỏ `KhungFormPhieu` → `NganPhai` (cùng độ rộng chung với mọi ngăn), cột ô tối đa 560px canh trái.
+// Lỗi nằm TẠI Ô, con trỏ nhảy tới ô sai đầu tiên, nút Lưu luôn bấm được. Trùng số tài khoản: máy chủ
+// đã chặn bằng khoá duy nhất (ngân hàng + số) và trả 409 ⇒ báo ngay dưới ô Số tài khoản. Esc đóng
+// (form gõ dở thì hỏi trước). Ô "Đang hoạt động" đã bỏ — ngừng / dùng lại là thao tác riêng (TK-4).
+import { CircleAlert } from "lucide-react";
+import { useRef, useState } from "react";
+
+import { ApiError, api } from "../../../../api/client";
+import { useAuth } from "../../../../auth/useAuth";
+import { NhomNut } from "../../shared/BoLocNangCao";
+import { KhungFormPhieu, OF, idO, nhayToiLoi, type LoiForm } from "../../shared/KhungFormPhieu";
+import {
+  THU_TU_O,
+  formTrong,
+  formTuTaiKhoan,
+  loiFormTaiKhoan,
+  payloadTaiKhoan,
+} from "../shared/helpers";
+import type { FormTaiKhoan, LoaiTien, TaiKhoan } from "../shared/types";
+
+const TRUNG = "Tài khoản này đã có trong danh sách.";
 
 export function BankAccountModal({
-  tab,
-  suppliers,
-  formSupplierId,
-  setFormSupplierId,
-  form,
-  setForm,
   editing,
-  busy,
-  closeModal,
-  save,
+  tang,
+  onDong,
+  onDaLuu,
 }: {
-  tab: AccountTab;
-  suppliers: SupplierRow[];
-  formSupplierId: number | null;
-  setFormSupplierId: Dispatch<SetStateAction<number | null>>;
-  form: AccountForm;
-  setForm: Dispatch<SetStateAction<AccountForm>>;
-  editing: AccountRow | null;
-  busy: boolean;
-  closeModal: () => void;
-  save: (event: FormEvent) => Promise<void>;
+  editing: TaiKhoan | null;
+  /** 1 = mở từ ngăn tài khoản (chồng lên ngăn): Esc chỉ đóng form. */
+  tang?: number;
+  onDong: () => void;
+  onDaLuu: (r: TaiKhoan) => void;
 }) {
+  const { token } = useAuth();
+  const [dau] = useState<FormTaiKhoan>(() => (editing ? formTuTaiKhoan(editing) : formTrong()));
+  const [f, setF] = useState<FormTaiKhoan>(dau);
+  const [loi, setLoi] = useState<LoiForm>({});
+  const [loiChung, setLoiChung] = useState<string | null>(null);
+  const [dangLuu, setDangLuu] = useState(false);
+  const daBam = useRef(false);
+
+  // Gõ lại ô nào thì lỗi của ô đó tự kiểm lại (sau lần bấm Lưu đầu); lỗi trùng số thì xoá khi đổi số.
+  const doi = (moi: Partial<FormTaiKhoan>) => {
+    const sau = { ...f, ...moi };
+    setF(sau);
+    if (daBam.current) setLoi(loiFormTaiKhoan(sau));
+  };
+
+  async function luu() {
+    daBam.current = true;
+    const l = loiFormTaiKhoan(f);
+    setLoi(l);
+    setLoiChung(null);
+    if (Object.keys(l).length > 0) {
+      nhayToiLoi(l, THU_TU_O);
+      return;
+    }
+    if (!token) return;
+    setDangLuu(true);
+    try {
+      const payload = payloadTaiKhoan(f, editing);
+      const r = editing
+        ? await api.accounting.updateCompanyAccount(token, editing.id, payload)
+        : await api.accounting.createCompanyAccount(token, payload);
+      onDaLuu(r);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        const l2 = { account_number: TRUNG };
+        setLoi(l2);
+        nhayToiLoi(l2, THU_TU_O);
+      } else {
+        setLoiChung(err instanceof ApiError ? err.message : "Không lưu được tài khoản ngân hàng.");
+      }
+    } finally {
+      setDangLuu(false);
+    }
+  }
+
+  const oChu = (khoa: keyof FormTaiKhoan & string, nhan: string, toiDa: number, tuDong = false, goi?: string) => (
+    <OF khoa={khoa} nhan={nhan} batBuoc loi={loi[khoa]} goi={goi}>
+      <input id={idO(khoa)} type="text" autoFocus={tuDong} maxLength={toiDa} value={f[khoa] as string}
+        aria-invalid={loi[khoa] ? true : undefined}
+        onChange={(e) => doi({ [khoa]: e.target.value } as Partial<FormTaiKhoan>)} />
+    </OF>
+  );
+
   return (
-    <div className="rc-drawer__scrim" role="presentation">
-      <aside
-        className="rc-drawer purchase__drawer-780"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={editing ? "Sửa tài khoản" : "Thêm tài khoản"}
-      >
-        <div className="purchase__hero-banner">
-          <div className="purchase__hero-top">
-            <div>
-              <span className="purchase__hero-kicker">Tài khoản ngân hàng</span>
-              <div className="purchase__hero-title-row">
-                <h2 className="purchase__hero-code">
-                  {editing ? "Sửa tài khoản" : "Thêm tài khoản"}
-                </h2>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="purchase__hero-x"
-              onClick={closeModal}
-              aria-label="Đóng"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="purchase__hero-meta">
-            <span>{tab === "supplier" ? "Của nhà cung cấp" : "Của công ty"}</span>
+    <KhungFormPhieu
+      duongDan="Tài khoản ngân hàng"
+      tieuDe={editing ? "Sửa tài khoản" : "Thêm tài khoản"}
+      xemTruoc={null}
+      dangLuu={dangLuu}
+      loiChung={loiChung}
+      onDong={onDong}
+      chanDong={() => JSON.stringify(f) !== JSON.stringify(dau)}
+      onSubmit={() => void luu()}
+      nhanNut="Lưu tài khoản"
+      nhanDangLuu="Đang lưu…"
+      tang={tang}
+      hep
+    >
+      <div className="kt-f__muc">
+        {/* Mã trong ngoặc là chữ hiện ở vòng thẻ và tiêu đề ngăn ("VCB 0281 …") — không có thì dùng nguyên tên. */}
+        {oChu("bank_name", "Ngân hàng", 255, true, "Ghi mã viết tắt trong ngoặc, ví dụ Vietcombank (VCB)")}
+        {oChu("account_number", "Số tài khoản", 64)}
+        {oChu("account_holder", "Chủ tài khoản", 255)}
+        {oChu("bank_branch", "Chi nhánh", 255)}
+      </div>
+      <div className="kt-f__muc">
+        <div className="kt-f__tieu">Dùng thế nào</div>
+        <div className="kt-o" role="group" aria-labelledby="tkf-loai-tien">
+          <span id="tkf-loai-tien" className="kt-o__nhan">Loại tiền</span>
+          <div>
+            <NhomNut<LoaiTien> giaTri={f.loaiTien} luaChon={[["VND", "VND"], ["USD", "USD"], ["khac", "Khác"]]}
+              onDoi={(v) => doi({ loaiTien: v })} />
           </div>
         </div>
-        <form className="purchase__drawer-form" onSubmit={save}>
-        <div className="rc-drawer__body">
-          {tab === "supplier" && (
-            <label className="acct-field">
-              <span>
-                Nhà cung cấp <b>*</b>
-              </span>
-              <select
-                className="input"
-                value={formSupplierId ?? ""}
-                onChange={(event) =>
-                  setFormSupplierId(
-                    event.target.value ? Number(event.target.value) : null,
-                  )
-                }
-              >
-                <option value="">Chọn nhà cung cấp</option>
-                {suppliers.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <div className="acct-form-grid acct-form-grid--2">
-            <label className="acct-field">
-              <span>
-                Chủ tài khoản <b>*</b>
-              </span>
-              <input
-                autoFocus
-                className="input"
-                value={form.account_holder}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    account_holder: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="acct-field">
-              <span>
-                Số tài khoản <b>*</b>
-              </span>
-              <input
-                className="input"
-                value={form.account_number}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    account_number: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="acct-field">
-              <span>
-                Ngân hàng <b>*</b>
-              </span>
-              <input
-                className="input"
-                value={form.bank_name}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    bank_name: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="acct-field">
-              <span>
-                Chi nhánh <b>*</b>
-              </span>
-              <input
-                className="input"
-                value={form.bank_branch}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    bank_branch: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="acct-field">
-              <span>Loại tiền</span>
-              <input
-                className="input"
-                maxLength={3}
-                value={form.currency}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    currency: event.target.value.toUpperCase(),
-                  }))
-                }
-              />
-            </label>
-          </div>
-          <div className="acct-checks">
-            <label>
-              <input
-                type="checkbox"
-                checked={form.is_active}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    is_active: event.target.checked,
-                  }))
-                }
-              />{" "}
-              Đang hoạt động
-            </label>
-            {tab === "company" && (
-              <>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={form.use_for_receipts}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        use_for_receipts: event.target.checked,
-                      }))
-                    }
-                  />{" "}
-                  Dùng để thu
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={form.use_for_payments}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        use_for_payments: event.target.checked,
-                      }))
-                    }
-                  />{" "}
-                  Dùng để chi
-                </label>
-              </>
-            )}
-          </div>
-          <label className="acct-field">
-            <span>Ghi chú</span>
-            <textarea
-              className="input acct-textarea"
-              value={form.note ?? ""}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  note: event.target.value,
-                }))
-              }
-            />
+        {f.loaiTien === "khac" && (
+          <OF khoa="tien_khac" nhan="Mã loại tiền" batBuoc loi={loi.tien_khac} goi="3 chữ cái in hoa, ví dụ EUR">
+            <input id={idO("tien_khac")} type="text" maxLength={3} autoComplete="off" value={f.tienKhac}
+              aria-invalid={loi.tien_khac ? true : undefined}
+              onChange={(e) => doi({ tienKhac: e.target.value.replace(/[^a-z]/gi, "").toUpperCase() })} />
+          </OF>
+        )}
+        <div className={`kt-o${loi.dung ? " kt-o--loi" : ""}`} role="group" aria-labelledby="tkf-dung">
+          <span id="tkf-dung" className="kt-o__nhan">
+            Dùng để
+            <em className="kt-bb">*</em>
+          </span>
+          <label className="kt-ck-hang">
+            <input id={idO("dung")} type="checkbox" className="kt-ck" checked={f.use_for_receipts}
+              onChange={(e) => doi({ use_for_receipts: e.target.checked })} />
+            <span>
+              Nhận tiền
+              <small>Hiện khi lập phiếu thu chuyển khoản</small>
+            </span>
           </label>
+          <label className="kt-ck-hang">
+            <input type="checkbox" className="kt-ck" checked={f.use_for_payments}
+              onChange={(e) => doi({ use_for_payments: e.target.checked })} />
+            <span>
+              Trả tiền
+              <small>Hiện khi lập phiếu chi chuyển khoản</small>
+            </span>
+          </label>
+          {loi.dung && (
+            <span className="kt-o__loi" role="alert">
+              <CircleAlert size={14} aria-hidden="true" />
+              {loi.dung}
+            </span>
+          )}
         </div>
-        <div className="purchase__drawer-footer">
-          <Button type="button" variant="ghost" onClick={closeModal}>
-            Hủy
-          </Button>
-          <Button type="submit" variant="accent" loading={busy}>
-            Lưu tài khoản
-          </Button>
-        </div>
-        </form>
-      </aside>
-    </div>
+        <OF khoa="note" nhan="Ghi chú">
+          <textarea id={idO("note")} maxLength={2000} value={f.note} onChange={(e) => doi({ note: e.target.value })} />
+        </OF>
+      </div>
+    </KhungFormPhieu>
   );
 }

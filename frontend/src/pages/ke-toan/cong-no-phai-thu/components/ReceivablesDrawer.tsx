@@ -1,431 +1,268 @@
-// Drawer CHI TIẾT công nợ một khách hàng (tách từ pages/AccountingReceivablesPage.tsx).
-import { useCallback, useEffect, useState } from "react";
+// Ngăn CHI TIẾT công nợ một khách hàng (đặc tả NPTh-2) — vỏ `NganCongNo` chung hai màn công nợ.
+//
+// Đầu ngăn: "Công nợ phải thu > Khách hàng" — tên + pill "Vượt hạn mức" — nút "Hồ sơ khách hàng" —
+// tóm tắt Còn nợ | Quá hạn | Hạn mức (còn được nợ + vạch) | Cho nợ — dải amber khi vượt hạn mức. Hai
+// tab có số: "Hoá đơn còn nợ" (lọc Tất cả / Quá hạn / mốc tuổi đang lọc ở danh sách; "Thu tiền" mở
+// khung thu ngay dưới dòng — NPTh-3) và "Đã thu" (trong kỳ của trang / tất cả; máy chủ cắt trang).
+//
+// Khung Thu tiền đang gõ dở thì không để mất nháp lặng lẽ: đổi tab / đổi lọc làm dòng biến mất phải
+// hỏi trước, ↑ ↓ sang khách khác tạm tắt, đóng ngăn hỏi trước.
+import { useEffect, useMemo, useState } from "react";
+
 import {
-  ApiError,
   api,
-  type CompanyBankAccountRow,
-  type ReceivableCustomerRow,
+  type KyXem,
+  type PaymentReceiptRow,
   type ReceivableItemRow,
+  type ReceivableReceiptRow,
   type ReceivablesDetail,
 } from "../../../../api/client";
-import { useCan } from "../../../../auth/permissions";
+import { useAuth } from "../../../../auth/useAuth";
 import type { NavigateFn } from "../../../../components/AppShell";
-import { Button } from "../../../../components/Button";
-import { CodeLink } from "../../../../components/CodeLink";
-import { EmptyState } from "../../../../components/EmptyState";
-import { Icon } from "../../../../components/Icons";
-import { fmtDate, money } from "../../../../utils/format";
-import { methodText } from "../shared/helpers";
-import { InvoiceReceiptForm } from "./InvoiceReceiptForm";
+import { homNayVN } from "../../../../utils/ky";
+import { NhomNut } from "../../shared/BoLocNangCao";
+import { useChiTietCongNo } from "../../shared/chiTietCongNo";
+import type { PhamViDaTra } from "../../shared/KhungLanTra";
+import { NganCongNo } from "../../shared/NganCongNo";
+import { useTabNho } from "../../shared/NganPhieu";
+import { PAID_PAGE } from "../shared/constants";
+import type { Bucket, TuoiDangLoc } from "../shared/types";
+import { DaThuBlock } from "./DaThuBlock";
+import { HoaDonConNoBlock } from "./HoaDonConNoBlock";
+
+export type QuyenCongNoThu = {
+  /** Lập phiếu thu (`phieu_thu.create`) — nút "Thu tiền". */
+  thu: boolean;
+  xemPhieuThu: boolean;
+  xemKhach: boolean;
+  xemDonBan: boolean;
+};
+
+/** Lọc hoá đơn trong ngăn: "all" | "overdue" | khoá mốc tuổi đang lọc ở danh sách. */
+type LocHoaDon = string;
+
+/** Hoá đơn có thuộc nút lọc không. Máy chủ để `aging_bucket` TRỐNG khi chưa trễ, nên mốc "Chưa tới
+ *  hạn" là "không trễ ngày nào" chứ không so khoá. */
+function khopLoc(row: ReceivableItemRow, loc: LocHoaDon): boolean {
+  if (loc === "all") return true;
+  if (loc === "overdue") return row.overdue_days > 0;
+  if (loc === "chua_toi_han") return row.overdue_days <= 0;
+  return row.aging_bucket === loc;
+}
+
+const HOI_BO = "Bỏ nội dung đang nhập?";
 
 export function ReceivablesDrawer({
-  row,
-  token,
+  customerId,
+  customerName,
+  bucket,
+  tuoi = null,
+  ky,
+  eventTick = 0,
+  quyen,
   navigate,
-  eventTick,
-  onChanged,
+  len,
+  xuong,
   onClose,
+  onChanged,
 }: {
-  row: ReceivableCustomerRow;
-  token: string | null;
+  customerId: number;
+  customerName: string;
+  bucket: Bucket;
+  /** Mốc tuổi nợ đang lọc ở danh sách ⇒ tab hoá đơn lọc sẵn mốc đó. */
+  tuoi?: TuoiDangLoc | null;
+  /** Kỳ đang xem ở trang — tab Đã thu "Trong kỳ" lấy đúng kỳ này. */
+  ky: KyXem;
+  /** Sự kiện đẩy (SSE): đổi số ⇒ ngăn nạp lại. */
+  eventTick?: number;
+  quyen: QuyenCongNoThu;
   navigate: NavigateFn;
-  eventTick: number;
-  onChanged: () => void;
+  len?: () => void;
+  xuong?: () => void;
   onClose: () => void;
+  onChanged: () => void;
 }) {
-  const can = useCan();
-  const canCreateReceipt = can("phieu_thu", "create");
-  const [detail, setDetail] = useState<ReceivablesDetail | null>(null);
-  const [allHistory, setAllHistory] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [receiptFor, setReceiptFor] = useState<ReceivableItemRow | null>(null);
-  const [view, setView] = useState<"open" | "terms" | "history">("open");
-  // Cùng công thức với Công nợ phải trả (PayablesDrawer): còn được nợ = hạn mức trừ đang nợ,
-  // không giới hạn dưới 0.
-  const conDuocNo = detail ? Math.max(0, detail.credit_limit - detail.total_due) : 0;
-  const [accounts, setAccounts] = useState<CompanyBankAccountRow[]>([]);
-  const [accountsLoading, setAccountsLoading] = useState(false);
+  const { token } = useAuth();
+  const [tabNho, setTabNho] = useTabNho("cong-no-phai-thu", "no");
+  const [tab, setTabTho] = useState(bucket === "paid" ? "thu" : bucket === "overdue" || tuoi ? "no" : tabNho);
+  const [loc, setLocTho] = useState<LocHoaDon>(bucket === "overdue" ? "overdue" : tuoi ? tuoi.khoa : "all");
+  const [phamVi, setPhamVi] = useState<PhamViDaTra>("ky");
+  const [moThu, setMoThu] = useState<number | null>(null);
+  const [formBan, setFormBan] = useState(false);
+  const [daLap, setDaLap] = useState<PaymentReceiptRow | null>(null);
+  /** Khung Thu tiền đang mở VÀ có nội dung gõ dở. */
+  const banNhap = moThu != null && formBan;
 
-  const loadDetail = useCallback(() => {
-    if (!token || row.customer_id == null) return;
-    setError(null);
-    api.accounting
-      .receivablesDetail(token, row.customer_id, allHistory)
-      .then(setDetail)
-      .catch((cause) => setError(cause instanceof ApiError ? cause.message : "Không tải được chi tiết công nợ."));
-  }, [token, row.customer_id, allHistory]);
+  const tatCa = phamVi === "tat_ca";
+  const { detail, setDetail, loading, loi, reload, xemThem, dangTaiThem } = useChiTietCongNo<
+    ReceivableReceiptRow,
+    ReceivablesDetail
+  >({
+    token,
+    khoa: `${customerId}|${phamVi}|${ky.tu}|${ky.den}`,
+    coTrang: PAID_PAGE,
+    goi: (t, trang) =>
+      api.accounting.receivablesDetail(t, customerId, tatCa, tatCa ? undefined : { tu_ngay: ky.tu, den_ngay: ky.den }, trang),
+    khoaDong: (p) => p.receipt_id,
+    eventTick,
+    chuLoi: "Không tải được chi tiết công nợ.",
+    chuLoiThem: "Không tải thêm được lần thu.",
+  });
 
+  // Thông báo "Đã lập PT-…" tự tắt sau vài giây.
   useEffect(() => {
-    loadDetail();
-  }, [loadDetail]);
+    if (!daLap) return;
+    const t = window.setTimeout(() => setDaLap(null), 8000);
+    return () => window.clearTimeout(t);
+  }, [daLap]);
 
-  useEffect(() => {
-    if (eventTick <= 0) return;
-    loadDetail();
-  }, [eventTick, loadDetail]);
+  // Backend cũ hơn giao diện có thể thiếu `items`/`paid` — báo rõ, không sập, không coi là rỗng.
+  const hopLe = detail != null && Array.isArray(detail.items) && Array.isArray(detail.paid);
+  const items = useMemo(() => (hopLe ? detail!.items : []), [hopLe, detail]);
+  const soConNo = items.filter((x) => x.remaining_amount > 0).length;
+  const dangHien = useMemo(() => items.filter((x) => khopLoc(x, loc)), [items, loc]);
 
-  useEffect(() => {
-    if (!token || !receiptFor) return;
-    setAccountsLoading(true);
-    api.accounting
-      .companyAccounts(token, true, "receive")
-      .then((items) => setAccounts(items.filter((item) => item.currency === "VND")))
-      .catch(() => setAccounts([]))
-      .finally(() => setAccountsLoading(false));
-  }, [token, receiptFor]);
+  // Đổi tab: khung Thu tiền (chỉ ở tab hoá đơn) sẽ bị gỡ ⇒ gõ dở thì hỏi trước.
+  const setTab = (t: string) => {
+    if (t === tab) return;
+    if (banNhap && !window.confirm(HOI_BO)) return;
+    setMoThu(null);
+    setTabNho(t);
+    setTabTho(t);
+  };
+  // Đổi nút lọc: chỉ hỏi khi dòng đang thu biến mất khỏi danh sách mới.
+  const setLoc = (v: LocHoaDon) => {
+    const dong = items.find((x) => x.invoice_id === moThu);
+    const mat = dong != null && !khopLoc(dong, v);
+    if (mat && banNhap && !window.confirm(HOI_BO)) return;
+    if (mat) setMoThu(null);
+    setLocTho(v);
+  };
 
-  async function afterReceipt() {
-    setReceiptFor(null);
-    loadDetail();
+  /** Lập xong: dòng hoá đơn đổi NGAY (không đợi nạp lại), rồi mới nạp lại cho khớp máy chủ. */
+  function daLapPhieu(row: ReceivableItemRow, receipt: PaymentReceiptRow) {
+    const tienThu = receipt.amount_vnd ?? receipt.amount;
+    setDetail((cu) =>
+      cu
+        ? {
+            ...cu,
+            total_due: Math.max(0, cu.total_due - tienThu),
+            overdue_amount: row.overdue_days > 0 ? Math.max(0, cu.overdue_amount - tienThu) : cu.overdue_amount,
+            items: cu.items.map((x) =>
+              x.invoice_id === row.invoice_id
+                ? {
+                    ...x,
+                    direct_received_amount: x.direct_received_amount + tienThu,
+                    received_amount: x.received_amount + tienThu,
+                    remaining_amount: Math.max(0, x.remaining_amount - tienThu),
+                  }
+                : x,
+            ),
+          }
+        : cu,
+    );
+    setMoThu(null);
+    setDaLap(receipt);
+    reload();
     onChanged();
   }
 
-  // ĐÓNG AN TOÀN: đang bung form thu tiền (receiptFor != null) thì Esc/scrim/✕ KHÔNG đóng —
-  // tránh mất bản nháp đang gõ. Chỉ đóng khi không có form nào mở.
-  const closeIfIdle = () => {
-    if (receiptFor == null) onClose();
-  };
+  const moDon = quyen.xemDonBan
+    ? (orderId: number) => {
+        onClose();
+        navigate("don-hang-ban", { openOrderId: orderId });
+      }
+    : undefined;
+  const moPhieu = quyen.xemPhieuThu
+    ? (code: string) => {
+        onClose();
+        navigate("ke-toan-phieu-thu", { focusReceiptQuery: code });
+      }
+    : undefined;
 
-  // Drawer tự nghe Esc (trước đây do DetailModal lo). Guard receiptFor để không nuốt draft.
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape" && receiptFor == null) onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [receiptFor, onClose]);
+  const luaChonLoc: [string, string][] = [["all", "Tất cả"], ["overdue", "Quá hạn"]];
+  if (tuoi) luaChonLoc.push([tuoi.khoa, tuoi.nhan]);
+  // Hoá đơn còn nợ luôn tính tới HÔM NAY (máy chủ), kể cả khi trang đang xem một kỳ đã qua.
+  const kyDaQua = ky.den < homNayVN();
 
   return (
-    <div className="rc-drawer__scrim" onClick={closeIfIdle}>
-      <aside
-        className="rc-drawer purchase__drawer-780 cnpt-drawer"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={row.customer_name}
-      >
-        <div className="purchase__hero-banner acct-cnu-hero">
-          <div className="purchase__hero-top">
-            <div>
-              <span className="purchase__hero-kicker">Công nợ phải thu</span>
-              <div className="purchase__hero-title-row">
-                <h2 className="purchase__hero-code">{row.customer_name}</h2>
-                {detail?.vuot_han_muc ? (
-                  <span className="pay-badge pay-badge--danger">
-                    <i className="pay-badge__dot" />
-                    Vượt hạn mức {money(detail.vuot_bao_nhieu)}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-            <button
-              type="button"
-              className="purchase__hero-x"
-              onClick={closeIfIdle}
-              aria-label="Đóng"
-            >
-              ✕
-            </button>
-          </div>
-          <dl className="acct-hero-facts">
-            <div>
-              <dt><Icon name="fileText" size={13} />Hóa đơn còn nợ</dt>
-              <dd>{row.invoice_count}</dd>
-            </div>
-            <div>
-              <dt><Icon name="shield" size={13} />Hạn mức</dt>
-              <dd>{detail ? (detail.credit_limit > 0 ? money(detail.credit_limit) : "Chưa đặt") : "—"}</dd>
-            </div>
-            <div>
-              <dt><Icon name="clock" size={13} />Số ngày cho nợ</dt>
-              <dd>
-                {!detail || detail.payment_term_days == null
-                  ? "Chưa đặt"
-                  : detail.payment_term_days === 0
-                    ? "Trả ngay"
-                    : `${detail.payment_term_days} ngày`}
-              </dd>
-            </div>
-          </dl>
-        </div>
-
-        {/* Dải tab con — chia theo nội dung thật của drawer: hóa đơn đang nợ, chính sách cho nợ,
-            lịch sử thu. Cùng khuôn `acct-drawer__tabs` với drawer Đơn mua hàng. */}
-        <div className="acct-drawer__tabs" role="tablist" aria-label="Chi tiết công nợ phải thu">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "open"}
-            className={`acct-drawer__tab-btn${view === "open" ? " is-active" : ""}`}
-            onClick={() => setView("open")}
-          >
-            <Icon name="fileText" size={15} />
-            <span>Hóa đơn còn phải thu</span>
-            {detail && detail.items.length > 0 && (
-              <span className="acct-drawer__tab-badge">{detail.items.length}</span>
-            )}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "terms"}
-            className={`acct-drawer__tab-btn${view === "terms" ? " is-active" : ""}`}
-            onClick={() => setView("terms")}
-          >
-            <Icon name="shield" size={15} />
-            <span>Hạn mức & Điều khoản</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "history"}
-            className={`acct-drawer__tab-btn${view === "history" ? " is-active" : ""}`}
-            onClick={() => setView("history")}
-          >
-            <Icon name="history" size={15} />
-            <span>Lịch sử thanh toán</span>
-          </button>
-        </div>
-        <div className="rc-drawer__body">
-      {error && <div className="banner banner--error">{error}</div>}
-      {!detail && !error && <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải chi tiết…" />}
-      {detail && (
+    <NganCongNo
+      nhanMan="Công nợ phải thu"
+      nhanDoiTac="Khách hàng"
+      tieuDe={detail?.customer_name ?? customerName}
+      tong={hopLe ? detail : null}
+      choNo={hopLe ? detail!.payment_term_days : null}
+      sauNgay="sau hoá đơn"
+      conDuocNo
+      nutHoSo={
+        quyen.xemKhach
+          ? {
+              nhan: "Hồ sơ khách hàng",
+              onMo: () => {
+                onClose();
+                navigate("khach-hang");
+              },
+            }
+          : undefined
+      }
+      chuCanh="Chỉ là cảnh báo, vẫn bán và thu bình thường."
+      loi={loi}
+      loading={loading}
+      thieu={detail != null && !hopLe}
+      chuThieu="Dữ liệu trả về thiếu phần hoá đơn hoặc lần thu: máy chủ đang chạy bản cũ hơn giao diện. Khởi động lại máy chủ rồi tải lại trang."
+      onTaiLai={reload}
+      tabs={
+        hopLe
+          ? [
+              { id: "no", nhan: "Hoá đơn còn nợ", dem: soConNo },
+              { id: "thu", nhan: "Đã thu", dem: detail!.paid_total ?? detail!.paid.length },
+            ]
+          : undefined
+      }
+      tab={tab}
+      onTab={setTab}
+      // Đang gõ dở thì tạm tắt ↑ ↓ sang khách khác (ngăn dựng lại là mất nháp).
+      len={banNhap ? undefined : len}
+      xuong={banNhap ? undefined : xuong}
+      onDong={onClose}
+      chanDong={() => banNhap}
+    >
+      {hopLe && tab === "no" && (
         <>
-          {view === "open" && (
-          <div className="cnpt-drawer__stack">
-            <div className="acct-kpi-grid">
-              <div className="acct-kpi-card acct-kpi-card--total">
-                <div className="acct-kpi-card__head">
-                  <span className="acct-kpi-card__label">Tổng phải thu</span>
-                  <span className="acct-kpi-card__tag">{detail.items.length} hóa đơn</span>
-                </div>
-                <div className="acct-kpi-card__val">{money(detail.total_due)}</div>
-              </div>
-              <div className={`acct-kpi-card acct-kpi-card--due${detail.overdue_amount > 0 ? " is-overdue" : ""}`}>
-                <div className="acct-kpi-card__head">
-                  <span className="acct-kpi-card__label">Quá hạn</span>
-                  <span className="acct-kpi-card__tag">{detail.overdue_amount > 0 ? "Cần đòi" : "Không có"}</span>
-                </div>
-                <div className={`acct-kpi-card__val${detail.overdue_amount > 0 ? " pay-cell--danger" : ""}`}>{money(detail.overdue_amount)}</div>
-              </div>
-              <div className="acct-kpi-card acct-kpi-card--paid">
-                <div className="acct-kpi-card__head">
-                  <span className="acct-kpi-card__label">Đã thu trong kỳ</span>
-                  <span className="acct-kpi-card__tag">Thực tế</span>
-                </div>
-                <div className="acct-kpi-card__val">{money(detail.received_in_period)}</div>
-              </div>
-              <div className="acct-kpi-card acct-kpi-card--delivered">
-                <div className="acct-kpi-card__head">
-                  <span className="acct-kpi-card__label">Còn được nợ</span>
-                  <span className="acct-kpi-card__tag">Hạn mức</span>
-                </div>
-                <div className="acct-kpi-card__val">{detail.credit_limit > 0 ? money(conDuocNo) : "Không giới hạn"}</div>
-              </div>
-            </div>
-          <section className="pay-block ar-invoices">
-            <div className="pay-block__head"><h3>Hóa đơn còn phải thu</h3><strong>{money(detail.total_due)}</strong></div>
-            <p className="pay-block__hint">Tiền cấn cọc và phiếu thu được tách riêng để dễ đối soát.</p>
-            <div className="ar-tablewrap">
-              <table className="pay-table ar-invoice-table">
-                <thead>
-                  <tr>
-                    {/* "Đơn nguồn" gộp vào ô Hóa đơn (dòng nhỏ bên dưới): 8 cột không vừa bề
-                        rộng ô, và cột bị đẩy ra ngoài chính là cột NÚT — người dùng phải kéo
-                        ngang mới bấm được "Thu tiền". */}
-                    <th>Hóa đơn</th>
-                    {/* "Hạn thu" thôi — ngày phát hành hoá đơn đã nằm ở dòng nhỏ dưới mã hoá đơn
-                        rồi. Nhãn "Ngày / hạn thu" cũ vừa lặp vừa dài, gãy làm hai dòng kéo cả dải
-                        tiêu đề cao gấp đôi. */}
-                    <th>Hạn thu</th>
-                    {/* `pay-num` cho CẢ th (UI_DESIGN §6): thiếu nó thì tiêu đề canh trái trong khi
-                        số canh phải — bốn cột tiền lệch hẳn khỏi nhãn của chính chúng. Bên Công nợ
-                        phải trả vốn đã khai đúng, màn này sót. */}
-                    <th className="pay-num">Giá trị</th>
-                    <th className="pay-num">Cấn cọc</th>
-                    <th className="pay-num">Đã thu</th>
-                    <th className="pay-num">Còn nợ</th>
-                    <th className="ar-invoice-table__act">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.items.length === 0 && (
-                    <tr>
-                      <td colSpan={7}>
-                        <div className="acct-empty-state">
-                          <div className="acct-empty-state__icon"><Icon name="fileCheck" size={20} /></div>
-                          <div className="acct-empty-state__text">Khách hàng này không còn hóa đơn phải thu.</div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  {detail.items.map((item) => (
-                    <tr
-                      key={item.invoice_id}
-                      className={receiptFor?.invoice_id === item.invoice_id ? "ar-row--active" : undefined}
-                    >
-                      <td>
-                        <strong>{item.invoice_symbol ? `${item.invoice_symbol} · ` : ""}{item.invoice_number}</strong>
-                        <small>
-                          {fmtDate(item.invoice_date)} ·{" "}
-                          <CodeLink code={item.order_code} onOpen={() => navigate("don-hang-ban", { openOrderId: item.order_id })} />
-                        </small>
-                      </td>
-                      <td>
-                        {item.chua_dat_han ? (
-                          <span className="pay-cell--zero">Chưa đặt hạn</span>
-                        ) : (
-                          fmtDate(item.due_date)
-                        )}
-                        {item.overdue_days > 0 && <small className="pay-cell--danger">Quá {item.overdue_days} ngày</small>}
-                      </td>
-                      <td className="pay-num">{money(item.amount)}</td>
-                      {/* Cấn cọc / Đã thu phần lớn là 0. In "0 đ" cho mỗi dòng là hai cột đầy số
-                          không mang tin, át mất cột thật sự phải đọc (Còn nợ). Gạch mờ = "chưa có
-                          gì ở đây", mắt lướt qua được. */}
-                      <td className="pay-num">
-                        {item.deposit_offset_amount > 0 ? (
-                          money(item.deposit_offset_amount)
-                        ) : (
-                          <span className="pay-cell--zero">—</span>
-                        )}
-                      </td>
-                      <td className="pay-num">
-                        {item.direct_received_amount > 0 ? (
-                          money(item.direct_received_amount)
-                        ) : (
-                          <span className="pay-cell--zero">—</span>
-                        )}
-                      </td>
-                      <td className="pay-num"><strong>{money(item.remaining_amount)}</strong></td>
-                      <td className="ar-invoice-table__act">
-                        {canCreateReceipt && item.remaining_amount > 0 && (
-                          <Button variant="ghost" onClick={() => setReceiptFor(receiptFor?.invoice_id === item.invoice_id ? null : item)}>
-                            {receiptFor?.invoice_id === item.invoice_id ? "Đang thu ▲" : "Thu tiền"}
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <div className="kt-hang-loc">
+            <NhomNut<string> giaTri={loc} luaChon={luaChonLoc} onDoi={setLoc} />
+            {kyDaQua && <span className="kt-mo">Hoá đơn tính tới hôm nay</span>}
           </div>
-          )}
-
-          {view === "terms" && (
-            <div className="cnpt-drawer__stack">
-          {/* Chính sách "cho nợ" của khách — cùng khuôn `.pay-credit` với Công nợ phải trả, đọc
-              từ Customer.credit_limit/payment_term_days (đã có sẵn, sửa ở màn Khách hàng, quyền
-              `set_credit_terms`) — không phải trường mới. */}
-          <dl className="pay-credit">
-            <div>
-              <dt>Hạn mức công nợ</dt>
-              <dd>
-                {detail.credit_limit > 0 ? (
-                  money(detail.credit_limit)
-                ) : (
-                  <span className="pay-cell--zero">Chưa đặt</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Đang nợ</dt>
-              <dd className={detail.vuot_han_muc ? "pay-cell--danger" : ""}>
-                {money(detail.total_due)}
-              </dd>
-            </div>
-            <div>
-              <dt>Còn được nợ</dt>
-              <dd>
-                {detail.credit_limit > 0 ? (
-                  money(conDuocNo)
-                ) : (
-                  <span className="pay-cell--zero">Không giới hạn</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Số ngày cho nợ</dt>
-              <dd>
-                {detail.payment_term_days == null ? (
-                  <span className="pay-cell--zero">Chưa đặt</span>
-                ) : detail.payment_term_days === 0 ? (
-                  "Trả ngay"
-                ) : (
-                  `${detail.payment_term_days} ngày`
-                )}
-              </dd>
-            </div>
-          </dl>
-            </div>
-          )}
-
-          {receiptFor && (
-            <InvoiceReceiptForm
-              item={receiptFor}
-              customerName={row.customer_name}
-              token={token}
-              accounts={accounts}
-              accountsLoading={accountsLoading}
-              onCancel={() => setReceiptFor(null)}
-              onSaved={afterReceipt}
-            />
-          )}
-
-          {view === "history" && (
-          <section className="pay-block pay-block--ok">
-            <div className="pay-block__head"><h3>Lịch sử đã thu / cấn cọc</h3><strong>{money(detail.received_in_period)}</strong></div>
-            {/* Rỗng thì nói một câu, ĐỪNG bày 7 tiêu đề cột cho một dòng "chưa có gì" — bảng
-                trống trông như đang hỏng chứ không như đang trống. */}
-            {detail.paid.length === 0 ? (
-              <div className="acct-empty-state">
-                <div className="acct-empty-state__icon"><Icon name="fileText" size={20} /></div>
-                <div className="acct-empty-state__text">Chưa có khoản thu trong kỳ đang xem.</div>
-              </div>
-            ) : (
-            <div className="ar-tablewrap">
-              <table className="pay-table ar-history-table">
-                {/* "Người lập" đứng cạnh chính số phiếu của người đó — soi lịch sử thấy dòng lạ
-                    thì câu hỏi đầu tiên luôn là "phiếu này ai ghi". Bên Công nợ phải trả đặt cùng
-                    chỗ, để hai màn đọc như nhau. */}
-                <thead><tr><th>Phiếu thu</th><th>Người lập</th><th>Áp dụng</th><th>Hóa đơn / đơn</th><th>Ngày thu</th><th>Hình thức</th><th>Số tiền</th></tr></thead>
-                <tbody>
-                  {detail.paid.map((receipt) => (
-                    <tr key={`${receipt.receipt_id}-${receipt.applied_to}-${receipt.sales_invoice_id ?? receipt.order_id}`}>
-                      <td>
-                        <CodeLink code={receipt.code} onOpen={() => navigate("ke-toan-phieu-thu", { focusReceiptQuery: receipt.code })} />
-                        {receipt.doc_no && <small>Số {receipt.doc_no}</small>}
-                      </td>
-                      <td title={receipt.created_by_name ?? undefined}>{receipt.created_by_name || "—"}</td>
-                      <td>{receipt.applied_to === "deposit_offset" ? "Cấn cọc" : "Thu hóa đơn"}</td>
-                      <td>
-                        {receipt.sales_invoice_number ?? "—"}
-                        {receipt.order_code && <small>Đơn {receipt.order_code}</small>}
-                      </td>
-                      <td>{fmtDate(receipt.receipt_date)}</td>
-                      <td>{methodText(receipt.receipt_method)}</td>
-                      <td className="pay-num"><strong>{money(receipt.amount)}</strong></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            )}
-            {!detail.all_history && (
-              /* Nút đứng ngay sau bảng nên phải TỰ tách khoảng — `pay-block` chỉ giãn cách giữa
-                 các khối, không chen vào giữa con của một khối. */
-              <div className="ar-more">
-                <Button variant="ghost" onClick={() => setAllHistory(true)}>Xem lịch sử thu cũ hơn</Button>
-              </div>
-            )}
-          </section>
-          )}
+          <HoaDonConNoBlock items={dangHien} customerName={detail!.customer_name || customerName} coThu={quyen.thu}
+            moThu={moThu}
+            onMoThu={(id) => {
+              // Mở khung ở dòng khác thì khung đang gõ dở bị gỡ ⇒ hỏi. Đóng (null) thì khung đã tự hỏi.
+              if (id != null && id !== moThu && banNhap && !window.confirm(HOI_BO)) return;
+              setMoThu(id);
+            }}
+            onDaLap={daLapPhieu} onBan={setFormBan} onMoDon={moDon}
+            onMoTaiKhoan={() => {
+              onClose();
+              navigate("ke-toan-tai-khoan-ngan-hang");
+            }} />
         </>
       )}
+
+      {hopLe && tab === "thu" && (
+        <DaThuBlock detail={detail!} phamVi={phamVi} onPhamVi={setPhamVi} onMoPhieu={moPhieu} onXemThem={xemThem}
+          dangTaiThem={dangTaiThem} />
+      )}
+
+      {daLap && (
+        <div className="kt-bao" role="status">
+          <span>{`Đã lập ${daLap.code}`}</span>
+          {moPhieu && (
+            <button type="button" onClick={() => moPhieu(daLap.code)}>
+              Xem phiếu
+            </button>
+          )}
         </div>
-      </aside>
-    </div>
+      )}
+    </NganCongNo>
   );
 }

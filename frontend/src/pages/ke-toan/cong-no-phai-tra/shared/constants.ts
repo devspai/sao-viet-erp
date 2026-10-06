@@ -1,18 +1,6 @@
-// Hằng dùng chung của màn Công nợ phải trả (tách từ pages/AccountingPayablesPage.tsx).
-import type { Bucket, ListFilter } from "./types";
+// Hằng dùng chung của màn Công nợ phải trả.
 
-export const BUCKET_LABEL: Record<Bucket, string> = {
-  all: "Tất cả đợt còn nợ",
-  overdue: "Quá hạn",
-  paid: "Đã trả",
-};
-
-export const LIST_FILTERS: { id: ListFilter; label: string }[] = [
-  { id: "all", label: "Tất cả" },
-  { id: "overdue", label: "Quá hạn" },
-  { id: "chua_han", label: "Chưa tới hạn" },
-  { id: "vuot_han_muc", label: "Vượt hạn mức" },
-];
-
+/** Cỡ một trang lần trả ở tab Đã trả của ngăn — máy chủ cắt (`paid_size`), "Xem thêm" tải trang kế. */
 export const PAID_PAGE = 10;
-export const PAGE_SIZE = 20;
+/** Cỡ trang MẶC ĐỊNH — người dùng đổi ở ô Dòng/trang dưới chân bảng. */
+export const PAGE_SIZE = 25;

@@ -65,6 +65,7 @@ export function AccountingPurchaseInboxPage({
   const [rows, setRows] = useState<PurchaseRequestRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   const [q, setQ] = useState(focusRequestCode ?? "");
   // Mới vào hiện TẤT CẢ (chủ 04/08/2026). Trước đây mặc định lọc "chờ duyệt" nên mở màn ra là
   // giấu mất đơn đã duyệt, đã mua, đã nhận — kế toán tưởng chưa có gì để lập phiếu chi.
@@ -102,7 +103,7 @@ export function AccountingPurchaseInboxPage({
         needed_to: neededTo || null,
         sort: "-created_at",
         page,
-        size: PAGE_SIZE,
+        size,
       })
       .then((response) => {
         setRows(response.items);
@@ -133,6 +134,7 @@ export function AccountingPurchaseInboxPage({
     neededFrom,
     neededTo,
     page,
+    size,
     onDataRefreshed,
   ]);
 
@@ -235,7 +237,11 @@ export function AccountingPurchaseInboxPage({
     };
   }, [token, selected]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Đổi cỡ trang thì trang đang đứng có thể không còn tồn tại — về trang 1.
+  const doiCoTrang = (n: number) => {
+    setSize(n);
+    setPage(1);
+  };
   /** Đóng popup rồi mới mở form — không chồng hai lớp cửa sổ. */
   function closeDetailThen(action: () => void) {
     setSelectedId(null);
@@ -355,7 +361,8 @@ export function AccountingPurchaseInboxPage({
         total={total}
         page={page}
         setPage={setPage}
-        totalPages={totalPages}
+        size={size}
+        onSize={doiCoTrang}
       />
 
       {selected && (

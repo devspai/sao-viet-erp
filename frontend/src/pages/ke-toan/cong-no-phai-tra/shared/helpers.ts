@@ -1,11 +1,5 @@
-// Hàm dùng chung của màn Công nợ phải trả (tách từ pages/AccountingPayablesPage.tsx).
+// Hàm dùng chung của màn Công nợ phải trả.
 import type { PayableItemRow, PayablesDetail } from "../../../../api/client";
-import { money } from "../../../../utils/format";
-
-/** `—` khi CHƯA BIẾT (đang tải / lỗi), số khi đã tính ra. Đừng bao giờ lẫn hai thứ. */
-export function kpi(value: number | undefined, biet: boolean): string {
-  return biet && value != null ? money(value) : "—";
-}
 
 /** Nhãn một khoản nợ trong phạm vi MỘT đơn: "Đợt 2", hoặc "Cả đơn" với đơn cũ không theo đợt. */
 export function tenKhoan(row: PayableItemRow): string {

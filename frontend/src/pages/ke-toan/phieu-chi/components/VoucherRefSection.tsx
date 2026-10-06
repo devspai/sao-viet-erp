@@ -1,63 +1,55 @@
-// Khối CHỨNG TỪ THAM CHIẾU (số hoá đơn / ngày hoá đơn / số hợp đồng / ghi chú)
-// — tách từ pages/PaymentVoucherDialog.tsx.
+/** Các ô gấp trong "Thêm chi tiết" của form lập phiếu chi (đặc tả PC-3, PC-4): Số hoá đơn, Ngày
+ *  hoá đơn, Số hợp đồng (chỉ form theo đơn mua), Ghi chú. Chứng từ đính kèm do form tự đặt sau
+ *  khối này (`VoucherAttachSection`).
+ *
+ *  Khối "Định khoản" Nợ / Có ĐÃ BỎ (12/08 và 15/08/2026): hệ không hạch toán gì từ hai ô đó. Cột
+ *  `debit_account` / `credit_account` GIỮ trong DB để phiếu cũ in lại vẫn đúng.
+ */
 import type { PaymentVoucherBaseInput } from "../../../../api/client";
-import { HOM_NAY } from "../shared/constants";
+import { homNayVN } from "../../../../utils/ky";
+import { optional } from "../shared/helpers";
+import { idO, OF, type DatO } from "./KhungFormPhieu";
+
+/** Tên các ô đang gấp — hiện thành thẻ nhỏ trên nút "Thêm chi tiết". */
+export function cacOChiTiet(coHopDong: boolean): string[] {
+  return ["Số hoá đơn", "Ngày hoá đơn", ...(coHopDong ? ["Số hợp đồng"] : []), "Ghi chú", "Chứng từ đính kèm"];
+}
+
+/** Đã gõ gì vào nhóm gấp chưa — có thì mở sẵn, đừng giấu chữ người ta đã gõ. */
+export function coChiTiet(form: PaymentVoucherBaseInput): boolean {
+  return !!(optional(form.invoice_number) || form.invoice_date || optional(form.contract_number) || optional(form.note));
+}
 
 export function VoucherRefSection({
   form,
   set,
+  coHopDong,
 }: {
   form: PaymentVoucherBaseInput;
-  set: <K extends keyof PaymentVoucherBaseInput>(
-    key: K,
-    value: PaymentVoucherBaseInput[K],
-  ) => void;
+  set: DatO;
+  coHopDong: boolean;
 }) {
   return (
     <>
-    {/* Khối "Định khoản" ĐÃ BỎ (chủ chốt 12/08/2026): hai ô Nợ / Có bắt kế toán gõ số
-        hiệu tài khoản cho từng phiếu, mà hệ thống không hạch toán gì từ chúng — chỉ in ra.
-        Cột `debit_account` và `credit_account` GIỮ NGUYÊN trong DB để phiếu cũ in lại vẫn
-        đúng; chỉ gỡ ô nhập. */}
-    <section className="acct-form-section">
-      <h3>Chứng từ tham chiếu</h3>
-      <div className="acct-form-grid acct-form-grid--3">
-        <label className="acct-field">
-          <span>Số hóa đơn</span>
-          <input
-            className="input"
-            value={form.invoice_number ?? ""}
-            onChange={(e) => set("invoice_number", e.target.value)}
-          />
-        </label>
-        <label className="acct-field">
-          <span>Ngày hóa đơn</span>
-          <input
-            className="input"
-            type="date"
-            max={HOM_NAY}
-            value={form.invoice_date ?? ""}
-            onChange={(e) => set("invoice_date", e.target.value || null)}
-          />
-        </label>
-        <label className="acct-field">
-          <span>Số hợp đồng</span>
-          <input
-            className="input"
-            value={form.contract_number ?? ""}
-            onChange={(e) => set("contract_number", e.target.value)}
-          />
-        </label>
+      <div className="kt-f__hang">
+        <OF khoa="invoice_number" nhan="Số hoá đơn">
+          <input id={idO("invoice_number")} value={form.invoice_number ?? ""}
+            onChange={(e) => set("invoice_number", e.target.value)} />
+        </OF>
+        <OF khoa="invoice_date" nhan="Ngày hoá đơn" ngay>
+          <input id={idO("invoice_date")} type="date" max={homNayVN()} value={form.invoice_date ?? ""}
+            onChange={(e) => set("invoice_date", e.target.value || null)} />
+        </OF>
+        {coHopDong && (
+          <OF khoa="contract_number" nhan="Số hợp đồng">
+            <input id={idO("contract_number")} value={form.contract_number ?? ""}
+              onChange={(e) => set("contract_number", e.target.value)} />
+          </OF>
+        )}
       </div>
-      <label className="acct-field">
-        <span>Ghi chú</span>
-        <textarea
-          className="input acct-textarea"
-          value={form.note ?? ""}
-          onChange={(e) => set("note", e.target.value)}
-        />
-      </label>
-    </section>
+      <OF khoa="note" nhan="Ghi chú" rong>
+        <textarea id={idO("note")} value={form.note ?? ""} onChange={(e) => set("note", e.target.value)} />
+      </OF>
     </>
   );
 }

@@ -200,6 +200,83 @@ def _aging_ra_danh_sach(ro: dict[str, dict[str, int]]) -> list[dict]:
     ]
 
 
+def _ap_du_cuoi_ky_qua_khu(muc: dict, it: dict | None, *, phai_tra: bool) -> None:
+    """Kỳ đã QUA (`den_ngay` < hôm nay): ghi đè phần CÒN NỢ của một dòng màn Công nợ bằng dư cuối
+    kỳ + tuổi nợ tại `den_ngay` của SỔ THEO KỲ (`bao_cao_cong_no`) — không tính lại đồng nào.
+
+    331 (`phai_tra`) dư Có là còn nợ; 131 dư Nợ là còn nợ. Dư ≤ 0 (cọc/ứng trước vượt hàng — sổ
+    cộng RÒNG theo đối tượng) hoặc `it=None` (không có số trong kỳ) ⇒ mọi ô còn nợ về 0: màn này
+    đếm nợ phải đi trả/đi đòi, không hiện số âm (chốt 05/10/2026)."""
+    du = 0
+    if it is not None:
+        du = (it["cuoi_co"] - it["cuoi_no"]) if phai_tra else (it["cuoi_no"] - it["cuoi_co"])
+    if du <= 0:
+        muc.update(total_due=0, overdue_amount=0, no_han_amount=0, aging=_aging_rong())
+        return
+    ro = {k: {"amount": int(it["aging"][k]["amount"]), "count": int(it["aging"][k]["count"])}
+          for k in AGING_KEYS}
+    muc["total_due"] = du
+    muc["aging"] = ro
+    muc["overdue_amount"] = sum(ro[k]["amount"] for k in AGING_KEYS_TRE)
+    muc["no_han_amount"] = ro[AGING_CHUA_TOI_HAN]["amount"]
+
+
+def _loc_nang_cao(
+    items: list[dict],
+    *,
+    no_tu: int | None,
+    no_den: int | None,
+    han_tra: str | None,
+    han_muc: str | None,
+    moc: date,
+) -> list[dict]:
+    """Bộ lọc nâng cao dùng CHUNG cho Công nợ phải trả và phải thu (đặc tả 05/10/2026): khoảng
+    còn nợ, hạn trả gần nhất, mức dùng hạn mức. Chọn DÒNG, không đổi số của dòng.
+
+    `moc` = ngày cuối kỳ (không kỳ thì hôm nay): "tới hạn trong 7 ngày" đếm từ mốc đó. Khoá lạ thì
+    BỎ QUA như `filter_` — cửa lọc không phải chỗ ném 422."""
+    if no_tu is not None:
+        items = [m for m in items if m["total_due"] >= no_tu]
+    if no_den is not None:
+        items = [m for m in items if m["total_due"] <= no_den]
+    if han_tra == "qua_han":
+        items = [m for m in items if m["overdue_amount"] > 0]
+    elif han_tra in ("7_ngay", "30_ngay"):
+        toi = moc + timedelta(days=7 if han_tra == "7_ngay" else 30)
+        items = [m for m in items if m.get("han_gan_nhat") and moc <= m["han_gan_nhat"] <= toi]
+    if han_muc == "tren_80":
+        items = [
+            m for m in items
+            if m["credit_limit"] > 0 and m["total_due"] * 100 >= m["credit_limit"] * 80
+        ]
+    elif han_muc == "vuot":
+        items = [m for m in items if m["vuot_han_muc"]]
+    elif han_muc == "chua_dat":
+        items = [m for m in items if not m["credit_limit"]]
+    return items
+
+
+def _loc_the_cong_no(items: list[dict], filter_: str) -> list[dict]:
+    """Nút nhóm của hai màn công nợ (`filter`). Khoá lạ thì bỏ qua — không 422."""
+    if filter_ == "overdue":
+        return [m for m in items if m["overdue_amount"] > 0]
+    if filter_ == "chua_han":
+        return [m for m in items if m["no_han_amount"] > 0]
+    if filter_ == "vuot_han_muc":
+        return [m for m in items if m["vuot_han_muc"]]
+    return items
+
+
+def _the_loc_cong_no(items: list[dict]) -> dict:
+    """Số trên ba nút "Tất cả | Quá hạn | Vượt hạn mức" — đếm trên danh sách ĐÃ qua tìm / kỳ /
+    bộ lọc nâng cao / rổ tuổi, TRƯỚC `filter_`: bấm nút nào bảng ra đúng số trên nút đó."""
+    return {
+        "tat_ca": len(items),
+        "qua_han": len(_loc_the_cong_no(items, "overdue")),
+        "vuot_han_muc": len(_loc_the_cong_no(items, "vuot_han_muc")),
+    }
+
+
 def _delete_stored_file(file_url: str | None) -> None:
     """Gỡ bytes best-effort — xoá row mới là việc chính, file rác không được làm hỏng request."""
     key = key_from_url(file_url)
@@ -226,17 +303,25 @@ def _order_total_with_vat(order: Order) -> int:
 
 
 def receivable_rows(
-    repo: AccountingRepository, *, customer_id: int | None = None
+    repo: AccountingRepository,
+    *,
+    customer_id: int | None = None,
+    invoices: list[SalesInvoice] | None = None,
 ) -> list[dict]:
     """Một nguồn sự thật cho Công nợ phải thu và thẻ công nợ CRM.
 
     Chỉ hóa đơn `issued` sinh nợ. Phiếu thu gắn hóa đơn trừ đích danh; cọc gắn đơn
     được cấn FIFO theo (ngày hóa đơn, id) nhưng không tự biến thành công nợ trước
     khi hóa đơn xuất hiện.
+
+    `invoices` (tuỳ chọn) = danh sách người gọi đã nạp sẵn bằng ĐÚNG
+    `list_sales_invoices(customer_id=customer_id, status=issued)` — màn Công nợ phải thu dùng chung
+    với sổ 131 để khỏi nạp hoá đơn hai lần. Không truyền thì tự nạp như cũ.
     """
-    invoices = repo.list_sales_invoices(
-        customer_id=customer_id, status=SALES_INVOICE_ISSUED
-    )
+    if invoices is None:
+        invoices = repo.list_sales_invoices(
+            customer_id=customer_id, status=SALES_INVOICE_ISSUED
+        )
     if not invoices:
         return []
 
@@ -280,6 +365,8 @@ def receivable_rows(
                 "customer_name": invoice.customer_name_snapshot,
                 "credit_limit": int(customer.credit_limit or 0) if customer else 0,
                 "payment_term_days": customer.payment_term_days if customer else None,
+                # Sale phụ trách khách — cho bộ lọc "Người phụ trách" ở Công nợ phải thu.
+                "sale_user_id": customer.sale_user_id if customer else None,
                 "payment_term_days_snapshot": invoice.payment_term_days_snapshot,
                 "due_date": invoice.due_date,
                 "amount": amount,
@@ -322,6 +409,9 @@ class AccountingService:
         if usage not in (None, "receive", "pay"):
             raise AccountingValidationError("Mục đích tài khoản không hợp lệ.")
         return self.repo.list_company_accounts(active_only=active_only, usage=usage)
+
+    def thong_ke_tai_khoan(self, *, tu_ngay: date, den_ngay: date) -> list[dict]:
+        return self.repo.thong_ke_tai_khoan(tu_ngay=tu_ngay, den_ngay=den_ngay)
 
     def create_company_account(self, *, actor, **values):
         cleaned = self._clean_bank_account(values, include_usage=True)
@@ -674,6 +764,32 @@ class AccountingService:
             self.repo, self.purchases, tu_ngay=tu_ngay, den_ngay=den_ngay, loc=loc
         )
 
+    @staticmethod
+    def _han_gan_nhat_phieu(row) -> date | None:
+        """Hạn trả GẦN NHẤT trong các đợt CÒN NỢ của một phiếu (None = không đợt nào có hạn).
+
+        Cùng phép phân bổ (`phan_bo_tien_dot`, `con_no` đã trừ cọc) và cùng hàm hạn
+        (`han_tra_dot`) mà `_no_tung_dot`/`_no_theo_han` dùng — chỉ khỏi dựng phần hiển thị
+        từng dòng hàng, vì ở đây chỉ cần một cái ngày."""
+        phan_bo, _coc, _du = phan_bo_tien_dot(row)
+        cac_han = [
+            han
+            for m in phan_bo
+            if m["con_no"] > 0
+            and (han := han_tra_dot(m["delivery"], row.supplier, row.debt_cutoff_date)) is not None
+        ]
+        return min(cac_han, default=None)
+
+    @staticmethod
+    def _co_dot_thieu_hoa_don(row) -> bool:
+        """Phiếu còn ít nhất một ĐỢT GIAO CÒN NỢ chưa ghi số hoá đơn (bộ lọc "Có đợt giao chưa ghi
+        hoá đơn"). Cùng phép phân bổ `phan_bo_tien_dot` (`con_no` đã trừ cọc). Phiếu cũ không theo
+        đợt không có hoá đơn theo đợt ⇒ không tính."""
+        phan_bo, _coc, _du = phan_bo_tien_dot(row)
+        return any(
+            m["con_no"] > 0 and not (m["delivery"].invoice_number or "").strip() for m in phan_bo
+        )
+
     def payables_summary(
         self,
         *,
@@ -682,6 +798,16 @@ class AccountingService:
         aging_bucket: str | None = None,
         page: int = 1,
         size: int = 20,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        no_tu: int | None = None,
+        no_den: int | None = None,
+        han_tra: str | None = None,
+        han_muc: str | None = None,
+        ca_da_tra_het: bool = False,
+        thieu_hoa_don: bool = False,
+        dem_only: bool = False,
+        chi_tong: bool = False,
     ) -> dict:
         """Công nợ phải trả gom theo nhà cung cấp.
 
@@ -696,37 +822,77 @@ class AccountingService:
 
         `aging_bucket` = một khoá trong `AGING_KEYS`: chỉ giữ NCC còn tiền trong RỔ TUỔI đó. Đi
         cùng đường với `filter_` (lọc trên danh sách đã dựng, sau khi thẻ tổng đã chốt), nên bấm
-        một rổ KHÔNG làm mấy con số tổng ở đầu màn nhảy theo."""
+        một rổ KHÔNG làm mấy con số tổng ở đầu màn nhảy theo.
+
+        THEO KỲ (05/10/2026): có `tu_ngay` + `den_ngay` thì `paid_in_period` = phiếu chi có ngày chi
+        trong kỳ (cách ảnh chụp), `mua_trong_ky` = PS Có của sổ 331 (`bao_cao_cong_no`). Còn nợ /
+        quá hạn / tuổi nợ: kỳ kết thúc hôm nay ⇒ ảnh chụp như cũ; kỳ đã qua ⇒ dư cuối kỳ + tuổi nợ
+        tại `den_ngay` của sổ, kẹp ≥ 0 — không có công thức thứ hai. Hạn mức, số ngày cho nợ,
+        `han_gan_nhat`, "đơn còn nợ" luôn của HÔM NAY. Không có kỳ = hành vi cũ (kỳ 3 tháng).
+
+        Bộ lọc nâng cao (`no_tu/no_den`, `han_tra`, `han_muc`) đi cùng đường với `filter_`: chọn
+        DÒNG, không đổi số tổng đầu màn. Có kỳ thì NCC đã về 0 bị ẩn khỏi danh sách (vẫn được cộng
+        vào tổng "đã trả") trừ khi `ca_da_tra_het` hoặc đang tìm tên. `thieu_hoa_don` = chỉ giữ NCC
+        còn ít nhất một đợt giao CÒN NỢ chưa ghi số hoá đơn (theo hôm nay, như `han_gan_nhat`).
+        `dem_only` = chỉ trả số đếm.
+
+        `chi_tong` (06/10/2026) = chỉ các số TỔNG (lời "cùng kỳ" của màn): bỏ phần chỉ phục vụ dòng
+        (`han_gan_nhat`, `thieu_hoa_don`, bộ lọc, đếm nhóm nút, cắt trang) và trả `items=[]`,
+        `total=0`, `the_loc` mặc định. Các số tổng tính CÙNG đoạn mã với lời thường nên bằng đúng.
+
+        `the_loc` = số NCC của ba nút "Tất cả | Quá hạn | Vượt hạn mức", đếm SAU tìm / kỳ / bộ lọc
+        nâng cao / rổ tuổi nhưng TRƯỚC `filter_` — số của mỗi nút không đổi theo nút đang chọn, và
+        bấm nút nào bảng ra đúng số đó. Tính trong cùng lượt, màn khỏi gọi thêm ba lời đếm."""
         hom_nay = _business_today()
-        moc_ky = hom_nay - timedelta(days=31 * PAYABLES_PERIOD_MONTHS)
+        co_ky = tu_ngay is not None and den_ngay is not None
+        moc_ky = tu_ngay if co_ky else hom_nay - timedelta(days=31 * PAYABLES_PERIOD_MONTHS)
+        # `den_ngay` ở tương lai ⇒ chặn về hôm nay: chưa có chứng từ nào sau hôm nay, và mốc của bộ
+        # lọc "tới hạn trong 7/30 ngày" phải đếm từ hôm nay chứ không từ một ngày chưa tới.
+        cuoi_ky = min(den_ngay, hom_nay) if co_ky else hom_nay
+        # Kỳ kết thúc HÔM NAY (mọi kỳ mặc định: tháng/quý/năm này, 12 tháng qua) thì phần CÒN NỢ /
+        # quá hạn / tuổi nợ vẫn tính bằng ẢNH CHỤP như cũ, KHÔNG lấy dư cuối kỳ của sổ 331: sổ cộng
+        # RÒNG theo NCC nên cọc thừa của đơn này bù sang đơn khác (ra nợ âm), và sổ chỉ ghi nợ theo
+        # ĐỢT GIAO nên đơn nhận hàng bằng `mark-received` (không có đợt) biến mất. Chỉ kỳ đã QUA mới
+        # dùng dư cuối kỳ của sổ (kẹp ≥ 0). Hai lỗ của sổ theo dõi riêng (chốt 05/10/2026).
+        so_chup = cuoi_ky >= hom_nay
         tim = (q or "").strip().lower()
         theo_ncc: dict[int | None, dict] = {}
 
-        def _muc(row) -> dict:
-            han_muc = int(getattr(row.supplier, "credit_limit", 0) or 0) if row.supplier else 0
-            return theo_ncc.setdefault(
-                row.supplier_id,
-                {
-                    "supplier_id": row.supplier_id,
-                    "supplier_name": row.supplier.name if row.supplier else "(không rõ NCC)",
-                    "order_count": 0,
-                    "overdue_amount": 0,
-                    "no_han_amount": 0,
-                    # Rổ tuổi của RIÊNG NCC này. NCC không nợ gì vẫn có đủ 6 rổ = 0.
-                    "aging": _aging_rong(),
-                    "paid_in_period": 0,
-                    "total_due": 0,
-                    "credit_limit": han_muc,
-                    "credit_days": getattr(row.supplier, "credit_days", None) if row.supplier else None,
-                },
-            )
+        def _muc_moi(supplier_id, ten, supplier) -> dict:
+            return {
+                "supplier_id": supplier_id,
+                "supplier_name": ten,
+                "order_count": 0,
+                "overdue_amount": 0,
+                "no_han_amount": 0,
+                # Rổ tuổi của RIÊNG NCC này. NCC không nợ gì vẫn có đủ 6 rổ = 0.
+                "aging": _aging_rong(),
+                "paid_in_period": 0,
+                "mua_trong_ky": 0,
+                "han_gan_nhat": None,
+                "total_due": 0,
+                "credit_limit": int(getattr(supplier, "credit_limit", 0) or 0) if supplier else 0,
+                "credit_days": getattr(supplier, "credit_days", None) if supplier else None,
+            }
 
-        for row in self.purchases.list_for_payables():
+        def _muc(row) -> dict:
+            if row.supplier_id not in theo_ncc:
+                theo_ncc[row.supplier_id] = _muc_moi(
+                    row.supplier_id,
+                    row.supplier.name if row.supplier else "(không rõ NCC)",
+                    row.supplier,
+                )
+            return theo_ncc[row.supplier_id]
+
+        # Nạp MỘT lần cả lịch sử phiếu mua đã duyệt: vòng ảnh chụp dưới đây và sổ 331 (khối
+        # `if co_ky`) dùng chung, không nạp lại.
+        don_ds = self.purchases.list_for_payables()
+        for row in don_ds:
             no = self._no_cua_phieu(row)
             da_tra_ky = sum(
                 int(v.amount_vnd)
                 for v in row.payment_vouchers
-                if v.status == PAYMENT_VOUCHER_PAID and self._ngay_chi(v) >= moc_ky
+                if v.status == PAYMENT_VOUCHER_PAID and moc_ky <= self._ngay_chi(v) <= cuoi_ky
             )
             ten = (row.supplier.name if row.supplier else "").lower()
             khop_tim = bool(tim) and tim in ten
@@ -739,12 +905,44 @@ class AccountingService:
                 # cột đếm mà lẫn đơn đã xong là nó chửi nhau với cột "Tổng còn nợ".
                 continue
             muc["order_count"] += 1
+            # `han_gan_nhat` và cờ thiếu hoá đơn chỉ phục vụ DÒNG — lời `chi_tong` bỏ qua.
+            han = None if chi_tong else self._han_gan_nhat_phieu(row)
+            if han is not None and (muc["han_gan_nhat"] is None or han < muc["han_gan_nhat"]):
+                muc["han_gan_nhat"] = han
+            if thieu_hoa_don and not chi_tong and not muc.get("_thieu_hoa_don"):
+                # Chỉ tính khi có người lọc — thêm một lượt phân bổ cho phiếu này.
+                muc["_thieu_hoa_don"] = self._co_dot_thieu_hoa_don(row)
+            if not so_chup:
+                # Kỳ đã qua: còn nợ do sổ 331 ghi đè ngay dưới — tính ở đây là phí hai lượt phân bổ.
+                continue
             muc["total_due"] += no["con_no"]
             qua_han, chua_han = self._no_theo_han(row, no["con_no"], hom_nay)
             muc["overdue_amount"] += qua_han
             muc["no_han_amount"] += chua_han
             # Rổ tuổi = xé chính hai con số trên ra theo `overdue_days`, không cộng lại từ đầu.
             _aging_cong(muc["aging"], self._no_theo_ro_tuoi(row, no["con_no"], hom_nay))
+
+        if co_ky:
+            # Kỳ kết thúc hôm nay thì rổ tuổi của sổ không được đọc (còn nợ / tuổi nợ theo ảnh
+            # chụp) ⇒ bỏ luôn lượt phân tuổi của sổ: mỗi đơn đỡ một lần `phan_bo_tien_dot`.
+            bc = bao_cao_cong_no.tong_hop_phai_tra(
+                self.repo, self.purchases, tu_ngay=tu_ngay, den_ngay=cuoi_ky,
+                don_da_nap=don_ds, tinh_tuoi=not so_chup,
+            )
+            theo_bc = {it["doi_tuong_id"]: it for it in bc["items"] if it["doi_tuong_id"] is not None}
+            # NCC chỉ có phát sinh trong kỳ (hôm nay đã hết nợ) vẫn phải có dòng — nạp danh mục
+            # MỘT lượt cho cả nhóm đó.
+            thieu = {sid for sid in theo_bc if sid not in theo_ncc}
+            ncc = self.repo.ncc_theo_ids(thieu)
+            for sid in thieu:
+                theo_ncc[sid] = _muc_moi(sid, theo_bc[sid]["ten"], ncc.get(sid))
+            for sid, muc in theo_ncc.items():
+                it = theo_bc.get(sid)
+                # "Mua thêm trong kỳ" = PS Có của sổ (gồm cả tiền NCC hoàn lại). "Đã trả trong kỳ"
+                # giữ cách ảnh chụp: phiếu chi của đơn có ngày chi trong kỳ (đã cộng ở vòng trên).
+                muc["mua_trong_ky"] = it["ps_co"] if it else 0
+                if not so_chup:
+                    _ap_du_cuoi_ky_qua_khu(muc, it, phai_tra=True)
 
         items = sorted(
             theo_ncc.values(),
@@ -757,28 +955,56 @@ class AccountingService:
             m["vuot_bao_nhieu"] = (
                 max(0, m["total_due"] - m["credit_limit"]) if m["credit_limit"] > 0 else 0
             )
+
         # Thẻ tổng quan luôn tính trên TOÀN BỘ NCC đang có hoạt động/nợ, không đổi theo ô tìm kiếm,
         # bộ lọc hay trang hiện tại. Dòng nợ 0 chỉ được lôi ra khi người dùng chủ động tìm tên.
-        tong_hop = [m for m in items if m["total_due"] > 0 or m["paid_in_period"] > 0]
-        if tim:
-            items = [m for m in items if tim in (m["supplier_name"] or "").lower()]
-        if filter_ == "overdue":
-            items = [m for m in items if m["overdue_amount"] > 0]
-        elif filter_ == "chua_han":
-            items = [m for m in items if m["no_han_amount"] > 0]
-        elif filter_ == "vuot_han_muc":
-            items = [m for m in items if m["vuot_han_muc"]]
-        # Lọc theo RỔ TUỔI đi sau, cùng kiểu với `filter_`: khoá lạ thì BỎ QUA (không lọc), y như
-        # `filter_` lạ — cửa lọc không phải chỗ ném 422 vào mặt người đang xem công nợ.
-        if aging_bucket in AGING_KEYS:
-            items = [m for m in items if m["aging"][aging_bucket]["amount"] > 0]
-
+        tong_hop = [
+            m for m in items
+            if m["total_due"] > 0 or m["paid_in_period"] > 0 or m["mua_trong_ky"] > 0
+        ]
         # Dải rổ tuổi ở ĐẦU MÀN tính trên `tong_hop` — cùng gốc với thẻ "Tổng phải trả"/"Quá hạn",
         # nên bấm lọc hay lật trang KHÔNG làm nó nhảy. Dải mà nhảy theo trang thì nó đang đo cái
         # trang, không đo món nợ.
         tong_ro = _aging_rong()
         for m in tong_hop:
             _aging_cong(tong_ro, m["aging"])
+        # Mọi số TỔNG của câu trả lời, một chỗ: lời thường và lời `chi_tong` cùng đọc từ đây.
+        tong_so = {
+            "total_due": sum(m["total_due"] for m in tong_hop),
+            # GIỮ NGUYÊN: nhiều chỗ đang ăn con số này. Rổ tuổi chỉ XÉ nó ra chứ không thay nó.
+            "overdue_amount": sum(m["overdue_amount"] for m in tong_hop),
+            "aging": _aging_ra_danh_sach(tong_ro),
+            "paid_in_period": sum(m["paid_in_period"] for m in tong_hop),
+            "mua_trong_ky": sum(m["mua_trong_ky"] for m in tong_hop),
+            "vuot_han_muc_count": sum(1 for m in tong_hop if m["vuot_han_muc"]),
+            "period_months": PAYABLES_PERIOD_MONTHS,
+            "tu_ngay": moc_ky,
+            "den_ngay": cuoi_ky,
+            "as_of": hom_nay,
+        }
+        if chi_tong:
+            return {"items": [], "total": 0, "page": 1, "size": 1, "pages": 1, **tong_so}
+        if tim:
+            items = [m for m in items if tim in (m["supplier_name"] or "").lower()]
+        else:
+            items = tong_hop
+            if co_ky and not ca_da_tra_het:
+                items = [m for m in items if m["total_due"] > 0]
+        items = _loc_nang_cao(
+            items, no_tu=no_tu, no_den=no_den, han_tra=han_tra, han_muc=han_muc, moc=cuoi_ky
+        )
+        if thieu_hoa_don:
+            items = [m for m in items if m.get("_thieu_hoa_don")]
+        # Khoá phụ chỉ để lọc — không đi ra ngoài service (schema bỏ qua, nhưng dict thì không).
+        for m in theo_ncc.values():
+            m.pop("_thieu_hoa_don", None)
+        # Lọc theo RỔ TUỔI: khoá lạ thì BỎ QUA (không lọc), y như `filter_` lạ — cửa lọc không phải
+        # chỗ ném 422 vào mặt người đang xem công nợ.
+        if aging_bucket in AGING_KEYS:
+            items = [m for m in items if m["aging"][aging_bucket]["amount"] > 0]
+        # Số trên nhóm nút đếm TRƯỚC `filter_` (lọc giao nhau nên đổi thứ tự không đổi kết quả).
+        the_loc = _the_loc_cong_no(items)
+        items = _loc_the_cong_no(items, filter_)
 
         page = max(1, page)
         size = max(1, min(size, 200))
@@ -787,22 +1013,25 @@ class AccountingService:
         page = min(page, pages)
         bat_dau = (page - 1) * size
         return {
-            "items": items[bat_dau:bat_dau + size],
+            "items": [] if dem_only else items[bat_dau:bat_dau + size],
             "total": total,
             "page": page,
             "size": size,
             "pages": pages,
-            "total_due": sum(m["total_due"] for m in tong_hop),
-            # GIỮ NGUYÊN: nhiều chỗ đang ăn con số này. Rổ tuổi chỉ XÉ nó ra chứ không thay nó.
-            "overdue_amount": sum(m["overdue_amount"] for m in tong_hop),
-            "aging": _aging_ra_danh_sach(tong_ro),
-            "paid_in_period": sum(m["paid_in_period"] for m in tong_hop),
-            "vuot_han_muc_count": sum(1 for m in tong_hop if m["vuot_han_muc"]),
-            "period_months": PAYABLES_PERIOD_MONTHS,
-            "as_of": hom_nay,
+            "the_loc": the_loc,
+            **tong_so,
         }
 
-    def payables_detail(self, supplier_id: int, *, all_history: bool = False) -> dict:
+    def payables_detail(
+        self,
+        supplier_id: int,
+        *,
+        all_history: bool = False,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        paid_page: int = 1,
+        paid_size: int | None = None,
+    ) -> dict:
         """Chi tiết công nợ một NCC — chưa vào sổ · 🟡 chờ chi · ✅ đã chi trong kỳ.
 
 
@@ -811,11 +1040,23 @@ class AccountingService:
         những gì; nút này để với tới.
 
         Nới chỉ cho MỘT NCC nên vẫn nhẹ. Đừng bao giờ nới cho cả bảng tổng hợp — lúc đó mỗi lần mở
-        màn phải quét mọi đơn từ ngày mở công ty."""
+        màn phải quét mọi đơn từ ngày mở công ty.
+
+        `tu_ngay` + `den_ngay` (05/10/2026): rổ ✅ chỉ lấy phiếu chi có ngày chi trong kỳ — khớp
+        cột "Đã trả trong kỳ" của màn tổng hợp đang chọn cùng kỳ. Các khoản CÒN NỢ vẫn là của hôm
+        nay (đó là việc phải làm, không phải sổ). `all_history` thắng kỳ: bỏ cả hai mốc.
+
+        `paid_size` (06/10/2026): rổ ✅ chỉ trả MỘT TRANG (`paid_page`, mới nhất trước) — nút "Xem
+        thêm" của ngăn gọi trang tiếp. `paid_total` / `paid_in_period` vẫn là của CẢ phạm vi.
+        Không truyền `paid_size` = trả trọn như cũ."""
         hom_nay = _business_today()
+        co_ky = tu_ngay is not None and den_ngay is not None and not all_history
         moc_ky = (
-            date.min if all_history else hom_nay - timedelta(days=31 * PAYABLES_PERIOD_MONTHS)
+            date.min if all_history
+            else tu_ngay if co_ky
+            else hom_nay - timedelta(days=31 * PAYABLES_PERIOD_MONTHS)
         )
+        cuoi_ky = den_ngay if co_ky else date.max
         supplier = self.suppliers.get_by_id(supplier_id)
         con_no: list[dict] = []
         coc_chung: list[dict] = []
@@ -929,7 +1170,7 @@ class AccountingService:
                 if v.status != PAYMENT_VOUCHER_PAID:
                     continue
                 ngay = self._ngay_chi(v)
-                if ngay < moc_ky:
+                if ngay < moc_ky or ngay > cuoi_ky:
                     continue
                 did = getattr(v, "delivery_id", None)
                 da_chi.append(
@@ -970,6 +1211,12 @@ class AccountingService:
             )
         )
         da_chi.sort(key=lambda x: x["paid_date"], reverse=True)
+        tong_da_chi = sum(x["amount"] for x in da_chi)
+        so_lan_chi = len(da_chi)
+        if paid_size is not None:
+            paid_size = max(1, min(paid_size, 200))
+            bat_dau = (max(1, paid_page) - 1) * paid_size
+            da_chi = da_chi[bat_dau:bat_dau + paid_size]
         han_muc = int(getattr(supplier, "credit_limit", 0) or 0) if supplier is not None else 0
         # `con_no` của từng đợt ĐÃ trừ cọc trong `_no_tung_dot` ⇒ cộng thẳng, KHÔNG trừ lần nữa.
         # Cọc lớn hơn nợ (ứng trước nhiều, hàng về ít) chỉ làm mọi đợt về 0, không thành số âm —
@@ -1001,12 +1248,13 @@ class AccountingService:
             "coc_chung": coc_chung,
             "coc_chung_amount": tong_coc,
             "paid": da_chi,
+            "paid_total": so_lan_chi,
             "period_months": PAYABLES_PERIOD_MONTHS,
             "all_history": all_history,
             "total_due": tong_no,
             "overdue_amount": qua_han_tong,
             "aging": _aging_ra_danh_sach(ro_chi_tiet),
-            "paid_in_period": sum(x["amount"] for x in da_chi),
+            "paid_in_period": tong_da_chi,
             "as_of": hom_nay,
         }
 
@@ -1374,13 +1622,15 @@ class AccountingService:
         return self._sales_invoice_out(saved)
 
     def _receipts_for_receivable_rows(
-        self, rows: list[dict], *, since: date | None = None
+        self, rows: list[dict], *, since: date | None = None, until: date | None = None
     ) -> list[dict]:
         invoice_ids = sorted({row["invoice_id"] for row in rows})
         order_ids = sorted({row["order_id"] for row in rows})
         receipts = self.repo.list_receipts_for_receivables(
             invoice_ids=invoice_ids, order_ids=order_ids, since=since
         )
+        if until is not None:
+            receipts = [r for r in receipts if r.receipt_date <= until]
         return [
             {
                 "receipt_id": row.id,
@@ -1420,6 +1670,17 @@ class AccountingService:
         aging_bucket: str | None = None,
         page: int = 1,
         size: int = 20,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        no_tu: int | None = None,
+        no_den: int | None = None,
+        han_tra: str | None = None,
+        han_muc: str | None = None,
+        ca_da_tra_het: bool = False,
+        phu_trach_id: int | None = None,
+        nhan: str | None = None,
+        dem_only: bool = False,
+        chi_tong: bool = False,
     ) -> dict:
         """Công nợ phải thu gom theo khách hàng.
 
@@ -1434,15 +1695,37 @@ class AccountingService:
 
         `aging_bucket` lọc trên danh sách ĐÃ dựng, sau khi thẻ tổng đã chốt — bấm một rổ không
         làm mấy con số tổng ở đầu màn nhảy theo. Cùng đường với `filter_`.
+
+        THEO KỲ (05/10/2026): cùng khuôn với `payables_summary` — `received_in_period` = phiếu thu
+        có ngày thu trong kỳ (cách ảnh chụp), `ban_trong_ky` = PS Nợ của sổ 131. Còn nợ / quá hạn /
+        tuổi nợ: kỳ kết thúc hôm nay ⇒ ảnh chụp như cũ; kỳ đã qua ⇒ dư cuối kỳ + tuổi nợ tại
+        `den_ngay` của sổ (`bao_cao_cong_no.tong_hop_phai_thu`), kẹp ≥ 0. `phu_trach_id` (sale phụ
+        trách) và `nhan` (nhãn khách) chọn DÒNG.
+
+        `chi_tong` (06/10/2026) = chỉ các số TỔNG (lời "cùng kỳ" của màn): bỏ `han_gan_nhat`, bộ
+        lọc, đếm nhóm nút, cắt trang; trả `items=[]`, `total=0`, `the_loc` mặc định. Các số tổng
+        tính CÙNG đoạn mã với lời thường nên bằng đúng.
         """
         hom_nay = _business_today()
-        moc_ky = hom_nay - timedelta(days=31 * PAYABLES_PERIOD_MONTHS)
+        co_ky = tu_ngay is not None and den_ngay is not None
+        moc_ky = tu_ngay if co_ky else hom_nay - timedelta(days=31 * PAYABLES_PERIOD_MONTHS)
+        # `den_ngay` ở tương lai ⇒ chặn về hôm nay (xem `payables_summary`).
+        cuoi_ky = min(den_ngay, hom_nay) if co_ky else hom_nay
+        # Kỳ kết thúc hôm nay ⇒ còn nợ theo ẢNH CHỤP, không theo dư cuối kỳ của sổ 131: sổ cộng RÒNG
+        # theo khách nên cọc của đơn CHƯA có hoá đơn bù sang hoá đơn của đơn khác. Chỉ kỳ đã qua mới
+        # dùng dư cuối kỳ của sổ (kẹp ≥ 0). Xem ghi chú cùng chỗ ở `payables_summary`.
+        so_chup = cuoi_ky >= hom_nay
         tim = (q or "").strip().lower()
-        rows = self._receivable_rows()
-        receipts = self._receipts_for_receivable_rows(rows, since=moc_ky)
+        # Hoá đơn đã phát hành nạp MỘT lần: dựng dòng ảnh chụp (bên dưới) và sổ 131 (khối `if co_ky`)
+        # dùng chung.
+        hoa_don_ds = self.repo.list_sales_invoices(status=SALES_INVOICE_ISSUED)
+        rows = receivable_rows(self.repo, invoices=hoa_don_ds)
+        thu_theo_khach: dict[int | None, int] = {}
+        receipts = self._receipts_for_receivable_rows(
+            rows, since=moc_ky, until=cuoi_ky if co_ky else None
+        )
         order_to_customer = {r["order_id"]: r["customer_id"] for r in rows}
         invoice_to_customer = {r["invoice_id"]: r["customer_id"] for r in rows}
-        thu_theo_khach: dict[int | None, int] = {}
         for receipt in receipts:
             cid = (
                 invoice_to_customer.get(receipt["sales_invoice_id"])
@@ -1451,34 +1734,49 @@ class AccountingService:
             )
             thu_theo_khach[cid] = thu_theo_khach.get(cid, 0) + receipt["amount"]
 
+        def _muc_moi(cid, ten, credit_limit, payment_term_days, sale_user_id) -> dict:
+            return {
+                "customer_id": cid,
+                "customer_name": ten,
+                "invoice_count": 0,
+                "invoiced_amount": 0,
+                "received_amount": 0,
+                "total_due": 0,
+                "overdue_amount": 0,
+                "no_han_amount": 0,
+                # Khách không nợ gì vẫn có đủ 6 rổ = 0, không phải `{}` — thiếu khoá là giao
+                # diện đọc ra `undefined` rồi in "NaN đ".
+                "aging": _aging_rong(),
+                "credit_limit": credit_limit,
+                "payment_term_days": payment_term_days,
+                "sale_user_id": sale_user_id,
+                "received_in_period": 0,
+                "ban_trong_ky": 0,
+                "han_gan_nhat": None,
+            }
+
         theo_khach: dict[int | None, dict] = {}
         for row in rows:
             cid = row["customer_id"]
-            bucket = theo_khach.setdefault(
-                cid,
-                {
-                    "customer_id": cid,
-                    "customer_name": row["customer_name"],
-                    "invoice_count": 0,
-                    "invoiced_amount": 0,
-                    "received_amount": 0,
-                    "total_due": 0,
-                    "overdue_amount": 0,
-                    "no_han_amount": 0,
-                    # Khách không nợ gì vẫn có đủ 6 rổ = 0, không phải `{}` — thiếu khoá là giao
-                    # diện đọc ra `undefined` rồi in "NaN đ".
-                    "aging": _aging_rong(),
-                    "credit_limit": row["credit_limit"],
-                    "payment_term_days": row["payment_term_days"],
-                    "received_in_period": 0,
-                },
-            )
+            if cid not in theo_khach:
+                theo_khach[cid] = _muc_moi(
+                    cid, row["customer_name"], row["credit_limit"],
+                    row["payment_term_days"], row["sale_user_id"],
+                )
+            bucket = theo_khach[cid]
             bucket["invoiced_amount"] += row["amount"]
             bucket["received_amount"] += row["received_amount"]
             con_no = row["remaining_amount"]
             if con_no <= 0:
                 continue
             bucket["invoice_count"] += 1
+            han = row["due_date"]
+            # `han_gan_nhat` chỉ phục vụ DÒNG — lời `chi_tong` bỏ qua.
+            if (
+                not chi_tong and han is not None
+                and (bucket["han_gan_nhat"] is None or han < bucket["han_gan_nhat"])
+            ):
+                bucket["han_gan_nhat"] = han
             bucket["total_due"] += con_no
             # Tính MỘT lần rồi dùng cho cả hai: `overdue/no_han` và RỔ TUỔI phải luôn khớp
             # nhau. Tách ra so hạn hai lần là mở đúng cửa cho chúng lệch.
@@ -1502,10 +1800,29 @@ class AccountingService:
             if cid in theo_khach:
                 theo_khach[cid]["received_in_period"] += amount
 
+        if co_ky:
+            # Kỳ kết thúc hôm nay thì rổ tuổi của sổ không được đọc (xem `payables_summary`).
+            bc = bao_cao_cong_no.tong_hop_phai_thu(
+                self.repo, tu_ngay=tu_ngay, den_ngay=cuoi_ky,
+                hoa_don_da_nap=hoa_don_ds, tinh_tuoi=not so_chup,
+            )
+            theo_bc = {it["doi_tuong_id"]: it for it in bc["items"] if it["doi_tuong_id"] is not None}
+            # Không dựng dòng cho khách CHỈ có trong sổ: không có hoá đơn đang phát hành thì PS Nợ
+            # = 0 và dư cuối kỳ ≤ 0 (chỉ phiếu thu/cọc) ⇒ sau khi kẹp vẫn không có số nào để hiện.
+            # Hoá đơn không gắn khách (cid None): `theo_bc` đã bỏ dòng "không gắn" ⇒ về 0.
+            for cid, muc in theo_khach.items():
+                it = theo_bc.get(cid)
+                muc["ban_trong_ky"] = it["ps_no"] if it else 0
+                if not so_chup:
+                    _ap_du_cuoi_ky_qua_khu(muc, it, phai_tra=False)
+
+        def _co_so(i) -> bool:
+            return i["total_due"] > 0 or i["received_in_period"] > 0 or i["ban_trong_ky"] > 0
+
         items = []
         for item in theo_khach.values():
             khop_tim = bool(tim) and tim in (item["customer_name"] or "").lower()
-            if item["total_due"] <= 0 and item["received_in_period"] <= 0 and not khop_tim:
+            if not _co_so(item) and not khop_tim:
                 continue
             item["vuot_han_muc"] = item["credit_limit"] > 0 and item["total_due"] > item["credit_limit"]
             item["vuot_bao_nhieu"] = (
@@ -1513,21 +1830,43 @@ class AccountingService:
             )
             items.append(item)
         items.sort(key=lambda x: (x["total_due"], x["received_in_period"]), reverse=True)
-        tong_hop = [i for i in items if i["total_due"] > 0 or i["received_in_period"] > 0]
-        if tim:
-            items = [i for i in items if tim in (i["customer_name"] or "").lower()]
-        if filter_ == "overdue":
-            items = [i for i in items if i["overdue_amount"] > 0]
-        elif filter_ == "chua_han":
-            items = [i for i in items if i["no_han_amount"] > 0]
-        elif filter_ == "vuot_han_muc":
-            items = [i for i in items if i["vuot_han_muc"]]
-        if aging_bucket in AGING_KEYS:
-            items = [i for i in items if i["aging"][aging_bucket]["amount"] > 0]
-
+        tong_hop = [i for i in items if _co_so(i)]
         tong_ro = _aging_rong()
         for i in tong_hop:
             _aging_cong(tong_ro, i["aging"])
+        # Mọi số TỔNG của câu trả lời, một chỗ: lời thường và lời `chi_tong` cùng đọc từ đây.
+        tong_so = {
+            "total_due": sum(i["total_due"] for i in tong_hop),
+            "overdue_amount": sum(i["overdue_amount"] for i in tong_hop),
+            "received_in_period": sum(i["received_in_period"] for i in tong_hop),
+            "ban_trong_ky": sum(i["ban_trong_ky"] for i in tong_hop),
+            "vuot_han_muc_count": sum(1 for i in tong_hop if i["vuot_han_muc"]),
+            "aging": _aging_ra_danh_sach(tong_ro),
+            "period_months": PAYABLES_PERIOD_MONTHS,
+            "tu_ngay": moc_ky,
+            "den_ngay": cuoi_ky,
+            "as_of": hom_nay,
+        }
+        if chi_tong:
+            return {"items": [], "total": 0, "page": 1, "size": 1, "pages": 1, **tong_so}
+        if tim:
+            items = [i for i in items if tim in (i["customer_name"] or "").lower()]
+        elif co_ky and not ca_da_tra_het:
+            # Có kỳ: khách đã thu hết (còn nợ = 0) ẩn khỏi danh sách, vẫn cộng vào tổng.
+            items = [i for i in items if i["total_due"] > 0]
+        items = _loc_nang_cao(
+            items, no_tu=no_tu, no_den=no_den, han_tra=han_tra, han_muc=han_muc, moc=cuoi_ky
+        )
+        if phu_trach_id is not None:
+            items = [i for i in items if i["sale_user_id"] == phu_trach_id]
+        if (nhan or "").strip():
+            co_nhan = self.repo.customer_ids_co_nhan(nhan)
+            items = [i for i in items if i["customer_id"] in co_nhan]
+        if aging_bucket in AGING_KEYS:
+            items = [i for i in items if i["aging"][aging_bucket]["amount"] > 0]
+        # Số trên nhóm nút: đếm TRƯỚC `filter_` — cùng luật với phải trả.
+        the_loc = _the_loc_cong_no(items)
+        items = _loc_the_cong_no(items, filter_)
 
         page = max(1, page)
         size = max(1, min(size, 200))
@@ -1536,23 +1875,38 @@ class AccountingService:
         page = min(page, pages)
         bat_dau = (page - 1) * size
         return {
-            "items": items[bat_dau:bat_dau + size],
+            "items": [] if dem_only else items[bat_dau:bat_dau + size],
             "total": total,
             "page": page,
             "size": size,
             "pages": pages,
-            "total_due": sum(i["total_due"] for i in tong_hop),
-            "overdue_amount": sum(i["overdue_amount"] for i in tong_hop),
-            "received_in_period": sum(i["received_in_period"] for i in tong_hop),
-            "vuot_han_muc_count": sum(1 for i in tong_hop if i["vuot_han_muc"]),
-            "aging": _aging_ra_danh_sach(tong_ro),
-            "period_months": PAYABLES_PERIOD_MONTHS,
-            "as_of": hom_nay,
+            "the_loc": the_loc,
+            **tong_so,
         }
 
-    def receivables_detail(self, customer_id: int, *, all_history: bool = False) -> dict:
+    def receivables_detail(
+        self,
+        customer_id: int,
+        *,
+        all_history: bool = False,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        paid_page: int = 1,
+        paid_size: int | None = None,
+    ) -> dict:
+        """Chi tiết công nợ một khách. `tu_ngay` + `den_ngay` chỉ đổi tab Đã thu (phiếu thu trong
+        kỳ); các hoá đơn còn nợ vẫn là của hôm nay. `all_history` thắng kỳ.
+
+        `paid_size` (06/10/2026, cùng khuôn `payables_detail`): rổ "đã thu" chỉ trả MỘT TRANG
+        (`paid_page`, mới nhất trước) — nút "Xem thêm" của ngăn gọi trang tiếp. `paid_total` /
+        `received_in_period` vẫn là của CẢ phạm vi. Không truyền `paid_size` = trả trọn như cũ."""
         hom_nay = _business_today()
-        moc_ky = date.min if all_history else hom_nay - timedelta(days=31 * PAYABLES_PERIOD_MONTHS)
+        co_ky = tu_ngay is not None and den_ngay is not None and not all_history
+        moc_ky = (
+            date.min if all_history
+            else tu_ngay if co_ky
+            else hom_nay - timedelta(days=31 * PAYABLES_PERIOD_MONTHS)
+        )
         customer = self.repo.get_customer(customer_id)
         if customer is None:
             raise AccountingNotFound("Không tìm thấy khách hàng.")
@@ -1597,7 +1951,15 @@ class AccountingService:
             ro_chi_tiet[khoa]["amount"] += it["remaining_amount"]
             ro_chi_tiet[khoa]["count"] += 1
         items.sort(key=lambda x: (x["due_date"] is not None, x["due_date"] or hom_nay))
-        paid = self._receipts_for_receivable_rows(rows, since=moc_ky)
+        paid = self._receipts_for_receivable_rows(
+            rows, since=moc_ky, until=den_ngay if co_ky else None
+        )
+        tong_da_thu = sum(p["amount"] for p in paid)
+        so_lan_thu = len(paid)
+        if paid_size is not None:
+            paid_size = max(1, min(paid_size, 200))
+            bat_dau = (max(1, paid_page) - 1) * paid_size
+            paid = paid[bat_dau:bat_dau + paid_size]
         total_due = sum(i["remaining_amount"] for i in items)
         overdue_amount = sum(i["remaining_amount"] for i in items if i["overdue_days"] > 0)
         credit_limit = int(customer.credit_limit or 0)
@@ -1610,12 +1972,13 @@ class AccountingService:
             "vuot_bao_nhieu": max(0, total_due - credit_limit) if credit_limit > 0 else 0,
             "items": items,
             "paid": paid,
+            "paid_total": so_lan_thu,
             "period_months": PAYABLES_PERIOD_MONTHS,
             "all_history": all_history,
             "total_due": total_due,
             "overdue_amount": overdue_amount,
             "aging": _aging_ra_danh_sach(ro_chi_tiet),
-            "received_in_period": sum(p["amount"] for p in paid),
+            "received_in_period": tong_da_thu,
             "as_of": hom_nay,
         }
 
@@ -1628,22 +1991,45 @@ class AccountingService:
         status: str | None = None,
         payment_voucher_id: int | None = None,
         source_type: str | None = None,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        tien_tu: int | None = None,
+        tien_den: int | None = None,
+        hinh_thuc: str | None = None,
+        nguon: list[str] | None = None,
+        tai_khoan_id: int | None = None,
+        nguoi_lap_id: int | None = None,
+        chung_tu: str | None = None,
+        nhan: str | None = None,
+        dem_only: bool = False,
         sort: str = "-created_at",
         page: int = 1,
         size: int = 20,
-    ) -> tuple[list[dict], int]:
+    ) -> tuple[list[dict], int, dict]:
         # Màn Phiếu thu kế toán là một sổ chung: thu hoàn phiếu chi, thu cọc đơn bán, và thu khác.
         # Truyền source_type khi cần lọc riêng từng nguồn; None = xem toàn bộ sổ.
-        rows, total = self.repo.list_receipts(
+        # `extra` = tổng đã thu + số trên hàng thẻ lọc (rỗng khi `dem_only`).
+        rows, total, extra = self.repo.list_receipts(
             q=q,
             status=status,
             payment_voucher_id=payment_voucher_id,
             source_type=source_type,
+            tu_ngay=tu_ngay,
+            den_ngay=den_ngay,
+            tien_tu=tien_tu,
+            tien_den=tien_den,
+            hinh_thuc=hinh_thuc,
+            nguon=nguon,
+            tai_khoan_id=tai_khoan_id,
+            nguoi_lap_id=nguoi_lap_id,
+            chung_tu=chung_tu,
+            nhan=nhan,
+            dem_only=dem_only,
             sort=sort,
             page=page,
             size=size,
         )
-        return [self._receipt_out(row) for row in rows], total
+        return [self._receipt_out(row) for row in rows], total, extra
 
     def create_other_receipt(self, *, actor, **values):
         prepared = self._prepare_other_receipt(values)

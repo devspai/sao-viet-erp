@@ -1,431 +1,392 @@
-// Drawer CHI TIẾT một phiếu chi (tách từ pages/PaymentVouchersPage.tsx).
-import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+/** Ngăn CHI TIẾT một phiếu chi (đặc tả A.5, PC-2, PC-6) — vỏ chung `NganPhai`.
+ *
+ *  Đầu ngăn: đường dẫn "Phiếu chi > mã" + chép mã — người nhận + pill — "In phiếu", "⋯" — số tiền
+ *  và bằng chữ — dải tóm tắt (Ngày chi, Hình thức, Nguồn, Người lập) — tab Chi tiết / Chứng từ /
+ *  Lịch sử. Ngăn tự nạp lại phiếu và tệp đính kèm khi có sự kiện đẩy (`eventTick`).
+ *  Hủy phiếu là KHUNG viền đỏ ở đầu tab Chi tiết, lỗi nằm ngay trong khung (không banner sau lớp phủ).
+ *  Phiếu chi không sửa được: sai thì hủy (có lý do) rồi lập lại.
+ */
+import { ArrowDown, Check, CircleAlert, ExternalLink, Printer } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+
 import {
-  anhNho, assetUrl,
+  api,
   type PaymentVoucherAttachment,
   type PaymentVoucherRow,
+  type PurchaseRequestRow,
 } from "../../../../api/client";
-import { CodeLink } from "../../../../components/CodeLink";
-import { Icon } from "../../../../components/Icons";
+import { useAuth } from "../../../../auth/useAuth";
+import { taiVaInBangKe } from "../../../../utils/printBangKeTamUng";
+import { NganPhai } from "../../shared/NganPhai";
+import { Cum, TheNho } from "../../shared/Cum";
+import { ngay, tien } from "../../shared/dinhDang";
 import {
-  amountInWords,
-  fmtDate,
-  fmtDateTime,
-  money,
-  originalMoney,
-} from "../../../../utils/format";
-import {
-  SOURCE_LABELS,
-  STAGE_LABELS,
-  STATUS_META,
-} from "../shared/list-constants";
+  BangDaHuy,
+  Dong,
+  DuongDanPhieu,
+  KhungHuyPhieu,
+  MenuThaoTac,
+  SoLonPhieu,
+  TienDot,
+  soTaiKhoan,
+  useHuyPhieu,
+  useTabNho,
+} from "../../shared/NganPhieu";
+import { TabChungTu } from "../../shared/TabChungTu";
+import { printVoucher } from "../print";
+import { STATUS_META, VOUCHER_METHOD_LABELS, nguonPhieu } from "../shared/list-constants";
+import { TabLichSu, viecLichSu } from "./TabLichSu";
 
-type DrawerTab = "overview" | "attachments" | "history";
+
+
+export type QuyenNgan = {
+  /** Gán / xoá chứng từ (ô Lập của màn Phiếu chi). */
+  lap: boolean;
+  huy: boolean;
+  in: boolean;
+  /** Ô Xem của màn Đơn mua hàng (Kế toán) — mới mở được đơn và đọc số đợt giao. */
+  xemDonMua: boolean;
+};
+
 
 export function VouchersDrawer({
-  selected,
-  setSelectedId,
-  canApprove,
-  openYcmh,
-  openReceipts,
-  attachments,
-  attachmentBusy,
-  uploadAttachments,
-  removeAttachment,
-  actions,
+  dau,
+  eventTick,
+  quyen,
+  len,
+  xuong,
+  onDong,
+  onDoi,
+  onMoDonMua,
+  onMoPhieuThu,
+  onMoYeuCau,
 }: {
-  selected: PaymentVoucherRow;
-  setSelectedId: Dispatch<SetStateAction<number | null>>;
-  canApprove: boolean;
-  /** Thiếu = không có ô Xem màn Yêu cầu mua hàng ⇒ mã chỉ hiện dạng chữ. */
-  openYcmh?: (code: string) => void;
-  openReceipts: (query: string) => void;
-  attachments: PaymentVoucherAttachment[];
-  attachmentBusy: boolean;
-  uploadAttachments: (list: FileList | null) => Promise<void>;
-  removeAttachment: (attachment: PaymentVoucherAttachment) => Promise<void>;
-  actions: (row: PaymentVoucherRow) => ReactNode;
+  /** Dòng của bảng — vẽ ngay, rồi ngăn tự nạp bản mới nhất. */
+  dau: PaymentVoucherRow;
+  eventTick: number;
+  quyen: QuyenNgan;
+  len?: () => void;
+  xuong?: () => void;
+  onDong: () => void;
+  /** Phiếu vừa đổi (hủy, thêm/xoá chứng từ) — trang nạp lại bảng và thẻ lọc. */
+  onDoi: () => void;
+  onMoDonMua?: (code: string) => void;
+  onMoPhieuThu: (code: string) => void;
+  /** Mở màn Yêu cầu mua hàng theo mã — chỉ truyền khi người xem có ô Xem của màn đó. */
+  onMoYeuCau?: (code: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<DrawerTab>("overview");
-  const actionNode = actions(selected);
-  const coTienThu =
-    selected.receipt_received_amount > 0 || selected.receipt_pending_amount > 0;
+  const { token } = useAuth();
+  const [phieu, setPhieu] = useState<PaymentVoucherRow>(dau);
+  const [tep, setTep] = useState<PaymentVoucherAttachment[]>([]);
+  const [don, setDon] = useState<PurchaseRequestRow | null>(null);
+  // Tab đang xem nhớ tới khi đóng trang (đặc tả A.5).
+  const [tab, setTab] = useTabNho("phieu-chi");
+  const [lamMoi, setLamMoi] = useState(0);
+  const [loi, setLoi] = useState<string | null>(null);
+  const id = dau.id;
+
+
+  // Đổi sang phiếu khác (↑ ↓): bỏ mọi thứ đang dở của phiếu trước.
+  useEffect(() => {
+    setPhieu(dau);
+    setTep([]);
+    setDon(null);
+    setLoi(null);
+    huy.datLai();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Nạp lại phiếu + tệp: lúc mở, khi có sự kiện đẩy, và sau mỗi thao tác trong ngăn.
+  useEffect(() => {
+    if (!token) return;
+    let conHieuLuc = true;
+    api.accounting.voucher(token, id)
+      .then((p) => conHieuLuc && setPhieu(p))
+      .catch(() => undefined);
+    api.accounting.voucherAttachments(token, id)
+      .then((r) => conHieuLuc && setTep(r.items))
+      .catch(() => conHieuLuc && setTep([]));
+    return () => {
+      conHieuLuc = false;
+    };
+  }, [token, id, eventTick, lamMoi]);
+
+  // Số của đợt giao (Giá trị — Trừ cọc — Còn nợ) nằm ở đơn mua, không ở phiếu.
+  const donId = phieu.source_type === "purchase_request" ? phieu.purchase_request_id : null;
+  useEffect(() => {
+    if (!token || donId == null || !quyen.xemDonMua) return;
+    let conHieuLuc = true;
+    api.purchaseRequests.get(token, donId)
+      .then((d) => conHieuLuc && setDon(d))
+      .catch(() => conHieuLuc && setDon(null));
+    return () => {
+      conHieuLuc = false;
+    };
+  }, [token, donId, quyen.xemDonMua, eventTick, lamMoi]);
+
+  const thayDoi = () => {
+    setLamMoi((n) => n + 1);
+    onDoi();
+  };
+
+  // Khung hủy phiếu (PC-6).
+  const huy = useHuyPhieu(
+    token ? (lyDo) => api.accounting.cancelVoucher(token, phieu.id, lyDo) : null,
+    (p: PaymentVoucherRow) => {
+      setPhieu(p);
+      thayDoi();
+    },
+  );
+
+  const nguon = nguonPhieu(phieu);
+  const coThuLai = phieu.receipt_received_amount + phieu.receipt_pending_amount > 0;
+  const lyDoKhongHuy = coThuLai ? "Phiếu đã có phiếu thu lại — hủy phiếu thu trước" : null;
+  const huyDuoc = quyen.huy && phieu.status === "paid";
+  const viec = viecLichSu(phieu, tep);
+
+  function inPhieu() {
+    setLoi(null);
+    if (!printVoucher(phieu)) setLoi("Trình duyệt đang chặn cửa sổ in. Cho phép cửa sổ bật lên rồi thử lại.");
+  }
+
+  const nguonO: ReactNode =
+    phieu.source_type === "purchase_request" && nguon.ma && onMoDonMua ? (
+      <button type="button" className="kt-lk" onClick={() => onMoDonMua(nguon.ma!)}>
+        {`${nguon.loai} ${nguon.ma}`}
+      </button>
+    ) : (
+      [nguon.loai, nguon.ma].filter(Boolean).join(" ")
+    );
+
+  const dot = don && phieu.delivery_id != null ? don.deliveries.find((d) => d.id === phieu.delivery_id) ?? null : null;
+
   return (
-    <div className="rc-drawer__scrim" onClick={() => setSelectedId(null)}>
-      <aside
-        className="rc-drawer purchase__drawer-780 acct-pc-drawer"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={selected.code}
-      >
-        <div className="purchase__hero-banner">
-          <div className="purchase__hero-top">
-            <div>
-              <span className="purchase__hero-kicker">
-                {selected.voucher_type === "cash" ? "Phiếu chi" : "Ủy nhiệm chi"}
-              </span>
-              <div className="purchase__hero-title-row">
-                <h2 className="purchase__hero-code">{selected.code}</h2>
-                <div className="acct-status-stack">
-                  <span
-                    className={`acct-dmh__state acct-dmh__state--${STATUS_META[selected.status].tone}`}
-                  >
-                    <i className="acct-dmh__dot" />
-                    {STATUS_META[selected.status].label}
-                  </span>
-                  {selected.status === "paid" &&
-                    selected.attachment_count === 0 && (
-                      <span className="acct-pc__flag">
-                        <i className="acct-pc__dot" />
-                        Thiếu chứng từ
-                      </span>
-                    )}
-                </div>
+    <NganPhai
+      duongDan={<DuongDanPhieu loai="Phiếu chi" ma={phieu.code} />}
+      tieuDe={phieu.supplier_name || phieu.code}
+      the={<span className={`kt-tt kt-tt--${phieu.status === "paid" ? "xanh" : "xam"}`}>{STATUS_META[phieu.status].label}</span>}
+      hanhDong={
+        <>
+          {quyen.in && (
+            <button type="button" className="kt-btn" onClick={inPhieu}>
+              <Printer size={16} aria-hidden="true" />
+              In phiếu
+            </button>
+          )}
+          {quyen.in && phieu.source_type === "salary_advance" && token && (
+            <button type="button" className="kt-btn"
+              onClick={() => {
+                setLoi(null);
+                taiVaInBangKe(token, phieu.id).catch((e: Error) => setLoi(e.message));
+              }}>
+              In bảng kê
+            </button>
+          )}
+          {huyDuoc && (
+            <MenuThaoTac muc={[{
+              nhan: "Hủy phiếu",
+              phu: lyDoKhongHuy ?? "Phiếu còn trong sổ với dấu Đã hủy",
+              nguy: true,
+              khoa: !!lyDoKhongHuy,
+              onChon: () => {
+                setTab("tt");
+                huy.moKhung();
+              },
+            }]} />
+          )}
+        </>
+      }
+      soLon={<SoLonPhieu soVnd={phieu.amount_vnd} so={phieu.amount} tienTe={phieu.currency} tyGia={phieu.exchange_rate} />}
+      tomTat={[
+        { nhan: "Ngày chi", giaTri: ngay(phieu.voucher_date) },
+        { nhan: "Hình thức", giaTri: VOUCHER_METHOD_LABELS[phieu.voucher_type] },
+        { nhan: "Nguồn", giaTri: nguonO },
+        { nhan: "Người lập", giaTri: phieu.created_by_name || "—" },
+      ]}
+      tabs={[
+        { id: "tt", nhan: "Chi tiết" },
+        { id: "ct", nhan: "Chứng từ", dem: tep.length },
+        { id: "ls", nhan: "Lịch sử", dem: viec.length },
+      ]}
+      tab={tab}
+      onTab={setTab}
+      len={len}
+      xuong={xuong}
+      onDong={onDong}
+      chanDong={huy.goDo}
+    >
+      {phieu.status === "cancelled" && <BangDaHuy moc={phieu.cancelled_at} lyDo={phieu.cancel_reason} />}
+      {loi && <p className="kt-o__loi" role="alert"><CircleAlert size={14} aria-hidden="true" />{loi}</p>}
+
+      {tab === "tt" && (
+        <>
+          {huy.mo && (
+            <KhungHuyPhieu ma={phieu.code} huy={huy}
+              ghi="Phiếu vẫn còn trong sổ với dấu Đã hủy, in ra có chữ ĐÃ HỦY. Cần chi lại thì lập phiếu mới." />
+          )}
+
+          <div className="kt-luoi2">
+            <div className="kt-hop">
+              <div className="kt-hop__tieu">Thông tin phiếu</div>
+              <div className="kt-hop__than">
+                <dl className="kt-kv">
+                  <Dong nhan="Nội dung chi">{phieu.content}</Dong>
+                  <Dong nhan="Người nhận">
+                    {phieu.voucher_type === "cash" ? phieu.cash_recipient_name : phieu.beneficiary_account_holder}
+                  </Dong>
+                  {phieu.voucher_type === "cash" && (
+                    <>
+                      <Dong nhan="Địa chỉ người nhận">{phieu.cash_recipient_address}</Dong>
+                      <Dong nhan="Giấy tờ (CCCD)">{phieu.cash_recipient_identity}</Dong>
+                    </>
+                  )}
+                  <Dong nhan="Mã giao dịch ngân hàng">{phieu.bank_reference}</Dong>
+                  <Dong nhan="Số chứng từ">{phieu.doc_no}</Dong>
+                  {phieu.invoice_number && (
+                    <Dong nhan="Hoá đơn">
+                      <Cum>
+                        <span>{phieu.invoice_number}</span>
+                        {phieu.invoice_date && <TheNho>{`Ngày ${ngay(phieu.invoice_date)}`}</TheNho>}
+                      </Cum>
+                    </Dong>
+                  )}
+                  <Dong nhan="Số hợp đồng">{phieu.contract_number}</Dong>
+                  {phieu.source_request_codes.length > 0 && (
+                    <Dong nhan="Yêu cầu mua">
+                      <Cum>
+                        {phieu.source_request_codes.map((ma) =>
+                          onMoYeuCau ? (
+                            <button key={ma} type="button" className="kt-lk" onClick={() => onMoYeuCau(ma)}>{ma}</button>
+                          ) : (
+                            <span key={ma}>{ma}</span>
+                          ),
+                        )}
+                      </Cum>
+                    </Dong>
+                  )}
+                  <Dong nhan="Ghi chú">{phieu.note}</Dong>
+                </dl>
               </div>
             </div>
-            <button
-              type="button"
-              className="purchase__hero-x"
-              onClick={() => setSelectedId(null)}
-              aria-label="Đóng"
-            >
-              ✕
-            </button>
+            <div className="kt-hop">
+              <div className="kt-hop__tieu">Dòng tiền</div>
+              <div className="kt-dt-tien">
+                {phieu.voucher_type === "bank_transfer" ? (
+                  <>
+                    <div className="kt-dt-tien__muc">
+                      <span>Trả từ tài khoản</span>
+                      <b>{soTaiKhoan(phieu.company_bank_name, phieu.company_account_number)}</b>
+                      <em className="kt-cum">
+                        {phieu.company_account_holder && <span>{phieu.company_account_holder}</span>}
+                        {phieu.company_bank_branch && <TheNho>{phieu.company_bank_branch}</TheNho>}
+                      </em>
+                    </div>
+                    <div className="kt-dt-tien__mui">
+                      <i><ArrowDown size={14} aria-hidden="true" /></i>
+                      {tien(phieu.amount_vnd)}
+                    </div>
+                    <div className="kt-dt-tien__muc">
+                      <span>Tài khoản người nhận</span>
+                      <b>{soTaiKhoan(phieu.beneficiary_bank_name, phieu.beneficiary_account_number)}</b>
+                      <em className="kt-cum">
+                        {phieu.beneficiary_account_holder && <span>{phieu.beneficiary_account_holder}</span>}
+                        {phieu.beneficiary_bank_branch && <TheNho>{phieu.beneficiary_bank_branch}</TheNho>}
+                      </em>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="kt-dt-tien__muc">
+                      <span>Trả từ</span>
+                      <b>Quỹ tiền mặt</b>
+                    </div>
+                    <div className="kt-dt-tien__mui">
+                      <i><ArrowDown size={14} aria-hidden="true" /></i>
+                      {tien(phieu.amount_vnd)}
+                    </div>
+                    <div className="kt-dt-tien__muc">
+                      <span>Người nhận</span>
+                      <b>{phieu.cash_recipient_name || phieu.supplier_name || "—"}</b>
+                      {phieu.cash_recipient_address && <em>{phieu.cash_recipient_address}</em>}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
-          {selected.content?.trim() && (
-            <div className="acct-hero-purpose">
-              <Icon name="book" size={14} />
-              <span>{selected.content}</span>
+
+          {coThuLai && (
+            <div className="kt-bang-xam">
+              <span className="kt-cum">
+                {phieu.receipt_received_amount > 0 && <span>{`Đã thu lại ${tien(phieu.receipt_received_amount)}`}</span>}
+                {phieu.receipt_pending_amount > 0 && <span>{`Chờ thu ${tien(phieu.receipt_pending_amount)}`}</span>}
+                <button type="button" className="kt-lk" onClick={() => onMoPhieuThu(phieu.code)}>Xem phiếu thu</button>
+              </span>
             </div>
           )}
-          <dl className="acct-hero-facts">
-            <div>
-              <dt>
-                <Icon name="building" size={13} />
-                {selected.source_type === "purchase_request" ? "Nhà cung cấp" : "Đối tượng nhận"}
-              </dt>
-              <dd title={selected.supplier_name}>{selected.supplier_name || "—"}</dd>
-            </div>
-            <div>
-              <dt>
-                <Icon name="calendar" size={13} />
-                Ngày chứng từ
-              </dt>
-              <dd>{fmtDate(selected.voucher_date)}</dd>
-            </div>
-            <div>
-              <dt>
-                <Icon name="users" size={13} />
-                Người lập
-              </dt>
-              <dd>{selected.created_by_name || "—"}</dd>
-            </div>
-          </dl>
-        </div>
 
-        <div className="acct-drawer__tabs" role="tablist" aria-label="Chi tiết phiếu chi">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "overview"}
-            className={`acct-drawer__tab-btn${activeTab === "overview" ? " is-active" : ""}`}
-            onClick={() => setActiveTab("overview")}
-          >
-            <Icon name="fileText" size={15} />
-            <span>Tổng quan</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "attachments"}
-            className={`acct-drawer__tab-btn${activeTab === "attachments" ? " is-active" : ""}`}
-            onClick={() => setActiveTab("attachments")}
-          >
-            <Icon name="paperclip" size={15} />
-            <span>Chứng từ đính kèm</span>
-            {attachments.length > 0 && (
-              <span className="acct-drawer__tab-badge">{attachments.length}</span>
-            )}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "history"}
-            className={`acct-drawer__tab-btn${activeTab === "history" ? " is-active" : ""}`}
-            onClick={() => setActiveTab("history")}
-          >
-            <Icon name="history" size={15} />
-            <span>Lịch sử</span>
-          </button>
-        </div>
-
-        <div className="rc-drawer__body acct-pc__body">
-      {selected.cancel_reason && (
-        <div className="banner banner--error">
-          Lý do hủy: {selected.cancel_reason}
-        </div>
-      )}
-      {activeTab === "overview" && (
-        <>
-      <div className="acct-kpi-grid acct-pcx__kpis">
-        <div className="acct-kpi-card acct-kpi-card--total">
-          <div className="acct-kpi-card__head">
-            <span className="acct-kpi-card__label">Số tiền quy đổi</span>
-            <span className="acct-kpi-card__tag">{selected.currency || "VND"}</span>
-          </div>
-          <div className="acct-kpi-card__val">{money(selected.amount_vnd)}</div>
-          <small className="acct-pcx__kpi-sub">
-            {selected.currency !== "VND"
-              ? `${originalMoney(selected.amount, selected.currency)} · tỷ giá ${selected.exchange_rate}`
-              : amountInWords(selected.amount_vnd)}
-          </small>
-        </div>
-        {coTienThu && (
-          <>
-            <div className="acct-kpi-card acct-kpi-card--paid">
-              <div className="acct-kpi-card__head">
-                <span className="acct-kpi-card__label">Đã thu lại</span>
-                <span className="acct-kpi-card__tag">Phiếu thu</span>
+          {phieu.source_type === "purchase_request" && (
+            <div className="kt-hop">
+              <div className="kt-hop__tieu">
+                {phieu.payment_stage === "advance" ? "Đặt cọc cho đơn mua" : "Trả cho đợt giao"}
+                {onMoDonMua && nguon.ma && (
+                  <button type="button" className="kt-lk" onClick={() => onMoDonMua(nguon.ma!)}>
+                    Mở đơn mua
+                    <ExternalLink size={14} aria-hidden="true" />
+                  </button>
+                )}
               </div>
-              <div className="acct-kpi-card__val">
-                <button
-                  type="button"
-                  className="code-link"
-                  onClick={() => openReceipts(selected.code)}
-                >
-                  {money(selected.receipt_received_amount)}
-                </button>
+              <div className="kt-hop__than kt-hop__than--luoi">
+                {phieu.payment_stage === "advance" ? (
+                  <span className="kt-mo">Phiếu đặt cọc không gắn đợt giao. Cọc trừ dần vào công nợ của cả đơn.</span>
+                ) : phieu.delivery_seq_no == null ? (
+                  <span className="kt-mo">Đơn không theo dõi theo đợt giao.</span>
+                ) : (
+                  <>
+                    <div className="kt-dong-dot">
+                      <b>{`Đợt ${phieu.delivery_seq_no}`}</b>
+                      {dot && (
+                        <Cum className="kt-mo">
+                          <span>{`Giao ${ngay(dot.delivery_date)}`}</span>
+                          {dot.invoice_number && <TheNho>{`Hoá đơn ${dot.invoice_number}`}</TheNho>}
+                          {dot.lines.slice(0, 2).map((l) => (
+                            <TheNho key={l.id}>{l.item_name}</TheNho>
+                          ))}
+                          {dot.lines.length > 2 && <span>{`và ${dot.lines.length - 2} mặt hàng khác`}</span>}
+                        </Cum>
+                      )}
+                      {dot && dot.con_no <= 0 && (
+                        <span className="kt-pill kt-pill--xanh">
+                          <Check size={14} aria-hidden="true" />
+                          Đợt đã trả đủ
+                        </span>
+                      )}
+                    </div>
+                    {dot && (
+                      <TienDot o={[
+                        { nhan: "Giá trị đợt", so: dot.amount },
+                        { nhan: "Trừ cọc", so: dot.coc_bu },
+                        { nhan: "Phiếu này", so: phieu.amount_vnd },
+                        { nhan: "Còn nợ", so: dot.con_no },
+                      ]} />
+                    )}
+                  </>
+                )}
               </div>
             </div>
-            <div className="acct-kpi-card acct-kpi-card--due">
-              <div className="acct-kpi-card__head">
-                <span className="acct-kpi-card__label">Chờ thu</span>
-                <span className="acct-kpi-card__tag">Phiếu thu</span>
-              </div>
-              <div className="acct-kpi-card__val">
-                <button
-                  type="button"
-                  className="code-link"
-                  onClick={() => openReceipts(selected.code)}
-                >
-                  {money(selected.receipt_pending_amount)}
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-      <dl className="purchase__facts">
-        {selected.doc_no && (
-          <div>
-            <dt>Số chứng từ</dt>
-            <dd>{selected.doc_no}</dd>
-          </div>
-        )}
-        {selected.source_type === "purchase_request" ? (
-          <>
-            <div>
-              <dt>PMH nguồn</dt>
-              <dd>{selected.purchase_request_code}</dd>
-            </div>
-            <div>
-              <dt>YCMH nguồn</dt>
-              <dd>
-                {selected.source_request_codes.length
-                  ? selected.source_request_codes.map((code, index) => (
-                      <span key={code}>
-                        {index > 0 && ", "}
-                        <CodeLink code={code} onOpen={openYcmh} />
-                      </span>
-                    ))
-                  : "—"}
-              </dd>
-            </div>
-          </>
-        ) : (
-          <>
-            <div>
-              <dt>Nguồn chi</dt>
-              <dd>{SOURCE_LABELS[selected.source_type] ?? selected.source_type}</dd>
-            </div>
-          </>
-        )}
-        <div>
-          <dt>Đợt thanh toán</dt>
-          <dd>
-            {selected.source_type === "purchase_request"
-              ? STAGE_LABELS[selected.payment_stage]
-              : SOURCE_LABELS[selected.source_type]}
-          </dd>
-        </div>
-        {selected.source_type === "purchase_request" && (
-          <div>
-            <dt>Trả cho đợt giao</dt>
-            <dd>
-              {selected.delivery_seq_no != null
-                ? `Đợt ${selected.delivery_seq_no}`
-                : selected.payment_stage === "advance"
-                  ? "Không gắn đợt (đặt cọc)"
-                  : "Đơn không theo dõi theo đợt"}
-            </dd>
-          </div>
-        )}
-      </dl>
-      {selected.voucher_type === "bank_transfer" ? (
-        <div className="acct-account-pair">
-          <div>
-            <span>Trích nợ</span>
-            <strong>{selected.company_account_holder}</strong>
-            <small>
-              {selected.company_account_number} ·{" "}
-              {selected.company_bank_name}
-            </small>
-          </div>
-          <div>
-            <span>Thụ hưởng</span>
-            <strong>{selected.beneficiary_account_holder}</strong>
-            <small>
-              {selected.beneficiary_account_number} ·{" "}
-              {selected.beneficiary_bank_name}
-            </small>
-          </div>
-        </div>
-      ) : (
-        <div className="acct-account-pair">
-          <div>
-            <span>Người nhận</span>
-            <strong>{selected.cash_recipient_name}</strong>
-            <small>{selected.cash_recipient_address || "—"}</small>
-          </div>
-        </div>
-      )}
-      {selected.bank_reference && (
-        <div className="purchase__note">
-          Mã giao dịch: <strong>{selected.bank_reference}</strong>
-        </div>
-      )}
+          )}
         </>
       )}
-      {activeTab === "attachments" && (
-      <div className="acct-attachments">
-        <span className="acct-attachments__label">
-          Chứng từ đính kèm
-        </span>
-        {attachments.length === 0 && (
-          <div className="acct-empty-state">
-            <div className="acct-empty-state__icon">
-              <Icon name="paperclip" size={20} />
-            </div>
-            <div className="acct-empty-state__text">
-              Chưa có file đính kèm.
-              {selected.status === "paid" &&
-                " Phiếu đã chi — cần bổ sung hóa đơn/biên nhận."}
-            </div>
-          </div>
-        )}
-        {attachments.length > 0 && (
-          <div className="acct-att-grid">
-            {attachments.map((attachment) => {
-              const isImage = [
-                "image/jpeg",
-                "image/png",
-                "image/webp",
-                "image/gif",
-              ].includes(attachment.file_type ?? "");
-              const href = assetUrl(attachment.file_url) ?? "#";
-              return (
-                <div className="acct-att-item" key={attachment.id}>
-                  {isImage ? (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={attachment.file_name}
-                    >
-                      <img
-                        className="acct-att-thumb"
-                        src={anhNho(attachment.file_url) ?? href}
-                        alt={attachment.file_name}
-                      />
-                    </a>
-                  ) : (
-                    <a
-                      className="acct-att-file"
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={attachment.file_name}
-                    >
-                      📎 {attachment.file_name}
-                    </a>
-                  )}
-                  {canApprove && (
-                    <button
-                      type="button"
-                      className="acct-att-x"
-                      aria-label={`Xóa ${attachment.file_name}`}
-                      disabled={attachmentBusy}
-                      onClick={() => removeAttachment(attachment)}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {canApprove && selected.status !== "cancelled" && (
-          <label className="acct-field">
-            <span>Thêm ảnh hóa đơn / PDF (tối đa 10 MB)</span>
-            <input
-              className="input"
-              type="file"
-              multiple
-              accept="image/*,application/pdf"
-              disabled={attachmentBusy}
-              onChange={(event) => {
-                uploadAttachments(event.target.files);
-                event.target.value = "";
-              }}
-            />
-          </label>
-        )}
-      </div>
+
+      {tab === "ct" && token && (
+        <TabChungTu tep={tep} daHuy={phieu.status === "cancelled"} coQuyen={quyen.lap} onDoi={thayDoi}
+          taiMot={(f) => api.accounting.uploadVoucherAttachment(token, phieu.id, f)}
+          xoaMot={(tepId) => api.accounting.deleteVoucherAttachment(token, phieu.id, tepId)}
+          chuKeo="Kéo ảnh hoá đơn hoặc ủy nhiệm chi vào đây" chuChuaCo="Chưa có chứng từ. Kéo ảnh biên nhận vào đây" />
       )}
-      {activeTab === "history" && (
-        <ol className="acct-pcx__timeline">
-          <li>
-            <strong>Lập phiếu</strong>
-            <span>
-              {selected.created_by_name || "—"} · {fmtDateTime(selected.created_at)}
-            </span>
-          </li>
-          {selected.paid_at && (
-            <li>
-              <strong>Ghi nhận đã chi</strong>
-              <span>
-                {selected.paid_by_name || "—"} · {fmtDateTime(selected.paid_at)}
-              </span>
-            </li>
-          )}
-          {selected.cancelled_at && (
-            <li className="is-cancelled">
-              <strong>Hủy phiếu</strong>
-              <span>
-                {selected.cancelled_by_name || "—"} · {fmtDateTime(selected.cancelled_at)}
-              </span>
-              {selected.cancel_reason && <em>Lý do: {selected.cancel_reason}</em>}
-            </li>
-          )}
-        </ol>
-      )}
-        </div>
-        {actionNode && (
-          <div className="purchase__drawer-footer">{actionNode}</div>
-        )}
-      </aside>
-    </div>
+
+      {tab === "ls" && <TabLichSu viec={viec} />}
+    </NganPhai>
   );
 }

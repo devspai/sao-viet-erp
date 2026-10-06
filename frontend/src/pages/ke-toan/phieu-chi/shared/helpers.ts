@@ -4,10 +4,17 @@ import type {
   PaymentVoucherRow,
   PurchaseRequestRow,
 } from "../../../../api/client";
+import { homNayVN } from "../../../../utils/ky";
+import type { LoaiPhieu } from "./types";
 
+/** Hôm nay `yyyy-mm-dd` theo giờ Việt Nam, tính LÚC GỌI (đặc tả A.14 — bản cũ lấy ngày UTC nên
+ *  từ 0h tới 7h sáng ra ngày hôm qua). */
 export function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
+  return homNayVN();
 }
+
+/** "05/10/2026 10:02" — chuyển vào kit (`shared/dinhDang.ts`), giữ tên cũ cho nơi đang gọi. */
+export { ngayGio } from "../../shared/dinhDang";
 
 export function optional(value?: string | null): string | null {
   const cleaned = (value ?? "").trim();
@@ -121,4 +128,57 @@ export function initialForm(
     credit_account: null,
     note: null,
   };
+}
+
+/** Luật chặn của form lập phiếu chi THEO ĐƠN MUA (PC-4), gom THEO Ô (đặc tả A.2) thay vì dừng ở câu
+ *  đầu. ⚠️ TIỀN THẬT: luật và câu chữ phần tiền (trần cọc, trần đợt, tỷ giá, đợt giao) giữ nguyên
+ *  bản trước 06/10/2026; máy chủ vẫn kiểm lại tất cả. Ngày chi và khối chuyển khoản do form ghép
+ *  thêm (`loiNgayChi`, `loiChuyenKhoan` — luật chung ba form).
+ *
+ *  Trần chỉ được xét khi Số tiền và Tỷ giá đã hợp lệ: số sai thì một ô một lỗi, form vẫn bị chặn. */
+export function kiemTraPhieuTheoDon({
+  form,
+  loai,
+  coDotGiao,
+  maxAmountVnd,
+  amountVnd,
+}: {
+  form: PaymentVoucherBaseInput;
+  loai: LoaiPhieu;
+  coDotGiao: boolean;
+  maxAmountVnd: number;
+  amountVnd: number;
+}): Partial<Record<string, string>> {
+  const l: Partial<Record<string, string>> = {};
+  if (!form.content.trim()) l.content = "Ghi nội dung chi.";
+  if (!Number.isFinite(form.amount) || form.amount <= 0) {
+    l.amount = "Số tiền thanh toán phải lớn hơn 0.";
+  }
+  if (!Number.isFinite(form.exchange_rate) || form.exchange_rate <= 0) {
+    l.exchange_rate = "Tỷ giá phải lớn hơn 0.";
+  } else if (form.currency.trim().toUpperCase() === "VND" && form.exchange_rate !== 1) {
+    l.exchange_rate = "Tỷ giá của VND phải bằng 1.";
+  }
+  if (!l.amount && !l.exchange_rate) {
+    if (maxAmountVnd <= 0) {
+      l.amount =
+        loai === "dat_coc"
+          ? "Đơn này đã chi đủ giá trị đặt hàng — không còn chỗ để đặt cọc thêm."
+          : "Đơn này chưa phát sinh công nợ (hàng chưa về hoặc đã trả hết). Ghi đợt giao trước, hoặc lập phiếu Đặt cọc.";
+    } else if (amountVnd > maxAmountVnd) {
+      l.amount =
+        `Số tiền quy đổi không được vượt quá ${maxAmountVnd.toLocaleString("vi-VN")} đ ` +
+        `(${loai === "dat_coc" ? "trần đặt cọc theo giá trị đơn đặt" : "công nợ hiện tại"}).`;
+    }
+  }
+  // Đơn CÓ đợt giao thì phiếu thanh toán bắt buộc chỉ rõ trả cho đợt nào — không có nó thì công
+  // nợ biết TỔNG đã trả nhưng không biết đợt nào đã xong, và cột Quá hạn (tính theo hạn của từng
+  // đợt) không quy được về đâu. Server cũng chặn; đây chỉ chặn sớm cho đỡ một vòng gọi.
+  if (loai === "thanh_toan" && coDotGiao && !form.delivery_id) {
+    l.delivery_id = "Phiếu thanh toán phải chọn đợt giao.";
+  }
+  if (form.voucher_type === "cash" && !form.cash_recipient_name?.trim()) {
+    l.cash_recipient_name = "Phiếu chi phải có người nhận tiền.";
+  }
+  return l;
 }

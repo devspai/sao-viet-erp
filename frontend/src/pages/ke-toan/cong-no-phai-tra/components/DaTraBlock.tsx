@@ -1,136 +1,98 @@
-// Khối "Đã trả" (lịch sử tiền đã rời két) trong drawer Công nợ phải trả
-// (tách từ pages/AccountingPayablesPage.tsx).
-import type { Dispatch, SetStateAction } from "react";
+// Tab "Đã trả" của ngăn Công nợ phải trả (đặc tả NPT-2): tiền đã rời quỹ cho nhà cung cấp, từng lần
+// một — cộng lại đúng bằng cột "Đã trả trong kỳ" ngoài bảng. "Trong kỳ" = kỳ đang chọn ở trang,
+// "Tất cả" = mọi lần trả (nhà cung cấp trả hết từ lâu vẫn tra được đã trả những gì).
+//
+// Máy chủ cắt trang (`paid_page`/`paid_size`): `detail.paid` là các lần ĐÃ TẢI, `paid_total` là tổng số
+// lần trong phạm vi. "Xem thêm" do ngăn tải trang kế rồi nối vào. Khung (nhóm nút, rỗng, Xem thêm)
+// dùng chung với tab "Đã thu" của Công nợ phải thu: `KhungLanTra`.
 import type { PayablesDetail } from "../../../../api/client";
-import { Button } from "../../../../components/Button";
-import { Icon } from "../../../../components/Icons";
-import { fmtDate, money } from "../../../../utils/format";
-import { PAID_PAGE } from "../shared/constants";
+import { ThieuChungTu } from "../../shared/BangPhieu";
+import { Cum, TheNho } from "../../shared/Cum";
+import { ngay, vietSo } from "../../shared/dinhDang";
+import { KhungLanTra, type PhamViDaTra } from "../../shared/KhungLanTra";
 import { HoaDon } from "./payablesCells";
+
+export type { PhamViDaTra };
 
 export function DaTraBlock({
   detail,
-  paidShown,
-  setPaidShown,
-  setXemHetLichSu,
+  phamVi,
+  onPhamVi,
+  onMoPhieu,
+  onMoDon,
+  onXemThem,
+  dangTaiThem = false,
 }: {
   detail: PayablesDetail;
-  paidShown: number;
-  setPaidShown: Dispatch<SetStateAction<number>>;
-  setXemHetLichSu: Dispatch<SetStateAction<boolean>>;
+  phamVi: PhamViDaTra;
+  onPhamVi: (v: PhamViDaTra) => void;
+  /** Không có = không có quyền xem Phiếu chi ⇒ mã phiếu là chữ thường. */
+  onMoPhieu?: (code: string) => void;
+  onMoDon?: (code: string) => void;
+  onXemThem: () => void;
+  dangTaiThem?: boolean;
 }) {
+  const paid = detail.paid;
+
   return (
-    <section className="pay-block pay-block--ok">
-      <header className="pay-block__head">
-        <h3>
-          {detail.all_history
-            ? "Đã trả — toàn bộ lịch sử"
-            : `Đã trả (${detail.period_months} tháng)`}{" "}
-          ({detail.paid.length} lần)
-        </h3>
-        <strong>{money(detail.paid_in_period)}</strong>
-      </header>
-      {(detail.paid.length === 0 ? (
-          <>
-            <div className="acct-empty-state cnt-chuan__rong-khoi">
-              <div className="acct-empty-state__icon">
-                <Icon name="fileText" size={20} />
-              </div>
-              <div className="acct-empty-state__text">
-                {detail.all_history
-                  ? "Chưa trả lần nào cho nhà cung cấp này."
-                  : `Chưa trả lần nào trong ${detail.period_months} tháng gần nhất.`}
-              </div>
-            </div>
-            {!detail.all_history && (
-              <Button
-                variant="ghost"
-                onClick={() => setXemHetLichSu(true)}
-              >
-                Xem lịch sử cũ hơn
-              </Button>
-            )}
-          </>
-        ) : (
-          <>
-            <p className="pay-block__hint">
-              Tiền đã rời két — từng lần một, cộng lại đúng bằng cột "Đã
-              trả" ngoài bảng. Đặt cạnh sao kê nhà cung cấp là đối chiếu
-              được từng dòng.
-            </p>
-            <table className="pay-table">
-              <thead>
-                <tr>
-                  <th>Ngày trả</th>
-                  <th>Phiếu chi</th>
-                  {/* Ai LẬP phiếu — đứng cạnh chính số phiếu của người đó, vì câu hỏi khi
-                      soi sao kê luôn là "phiếu này ai cho ra". */}
-                  <th>Người lập</th>
-                  <th>Hóa đơn</th>
-                  <th>Đơn · Đợt</th>
-                  <th className="pay-num">Số tiền</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.paid.slice(0, paidShown).map((row) => (
-                  <tr key={row.voucher_id}>
-                    <td>{fmtDate(row.paid_date)}</td>
-                    <td>
-                      {row.code}
-                      {!row.has_attachment && (
-                        // CẢNH BÁO, không chặn — tiền đã ra rồi, chặn ở đây chẳng cứu được gì.
-                        <small className="pay-warn">
-                          {" "}
-                          chưa có chứng từ
-                        </small>
-                      )}
-                    </td>
-                    <td title={row.created_by_name ?? undefined}>
-                      {row.created_by_name || "—"}
-                    </td>
-                    <td>
-                      <HoaDon
-                        so={row.invoice_number}
-                        ngay={row.invoice_date}
-                      />
-                    </td>
-                    <td>
-                      {row.purchase_code}
-                      {/* Phải nói ĐỢT MẤY, không được ghi "trả theo đợt" chung chung: người
-                          cầm sao kê nhà cung cấp đối chiếu từng dòng cần biết dòng nào ứng
-                          với đợt nào. */}
-                      <small>
-                        {" "}
-                        {row.payment_stage === "advance"
-                          ? "· đặt cọc"
-                          : row.delivery_seq_no != null
-                            ? `· Đợt ${row.delivery_seq_no}`
-                            : "· không theo đợt"}
-                      </small>
-                    </td>
-                    <td className="pay-num">{money(row.amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {detail.paid.length > paidShown && (
-              <Button
-                variant="ghost"
-                onClick={() => setPaidShown((n) => n + PAID_PAGE)}
-              >
-                Xem thêm {detail.paid.length - paidShown} lần trả
-              </Button>
-            )}
-            {!detail.all_history && (
-              <Button
-                variant="ghost"
-                onClick={() => setXemHetLichSu(true)}
-              >
-                Xem lịch sử cũ hơn {detail.period_months} tháng
-              </Button>
-            )}
-          </>
-        ))}
-    </section>
+    <KhungLanTra phamVi={phamVi} onPhamVi={onPhamVi} tong={detail.paid_total ?? paid.length} soDaTai={paid.length}
+      donVi="lần trả" tongTien={detail.paid_in_period} chuRongKy="Chưa trả lần nào trong kỳ này."
+      nutXemMoi="Xem mọi lần trả" chuRongTatCa="Chưa trả lần nào cho nhà cung cấp này."
+      onXemThem={onXemThem} dangTaiThem={dangTaiThem}>
+      <div className="kt-nhom">
+        <table>
+          <thead>
+            <tr>
+              <th>Ngày trả</th>
+              <th>Mã phiếu</th>
+              {/* Phải nói ĐỢT MẤY: người cầm sao kê nhà cung cấp dò từng dòng ứng với đợt nào. */}
+              <th>Đơn mua và đợt</th>
+              <th>Hoá đơn</th>
+              <th>Người lập</th>
+              <th className="kt-so">Số tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paid.map((row) => (
+              <tr key={row.voucher_id}>
+                <td>{ngay(row.paid_date)}</td>
+                <td>
+                  <Cum>
+                    {onMoPhieu ? (
+                      <button type="button" className="kt-lk" onClick={() => onMoPhieu(row.code)}>{row.code}</button>
+                    ) : (
+                      <span>{row.code}</span>
+                    )}
+                    {/* Cảnh báo, không chặn — tiền đã ra rồi. */}
+                    {!row.has_attachment && <ThieuChungTu />}
+                  </Cum>
+                </td>
+                <td>
+                  <Cum>
+                    {onMoDon ? (
+                      <button type="button" className="kt-lk" onClick={() => onMoDon(row.purchase_code)}>{row.purchase_code}</button>
+                    ) : (
+                      <span>{row.purchase_code}</span>
+                    )}
+                    <TheNho>
+                      {row.payment_stage === "advance"
+                        ? "Đặt cọc"
+                        : row.delivery_seq_no != null
+                          ? `Đợt ${row.delivery_seq_no}`
+                          : "Không theo đợt"}
+                    </TheNho>
+                  </Cum>
+                </td>
+                <td>
+                  <HoaDon so={row.invoice_number} ngayHd={row.invoice_date} />
+                </td>
+                <td>{row.created_by_name || <span className="kt-mo">—</span>}</td>
+                <td className="kt-so">{vietSo(row.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </KhungLanTra>
   );
 }

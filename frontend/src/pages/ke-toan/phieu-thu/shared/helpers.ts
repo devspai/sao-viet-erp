@@ -1,13 +1,15 @@
-// Hàm dùng chung của màn Phiếu thu
-// (tách từ pages/PaymentReceiptDialog.tsx + pages/PaymentReceiptsPage.tsx).
+// Hàm dùng chung của màn Phiếu thu.
 import type {
   PaymentReceiptInput,
   PaymentReceiptRow,
   PaymentVoucherRow,
 } from "../../../../api/client";
+import { homNayVN } from "../../../../utils/ky";
+import { METHOD_LABELS, SOURCE_LABELS } from "./constants";
 
+/** Hôm nay theo giờ Việt Nam (đặc tả A.14) — bản cũ lấy ngày UTC nên 0h–7h sáng ra hôm qua. */
 export function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
+  return homNayVN();
 }
 
 export function optional(value?: string | null): string | null {
@@ -29,6 +31,8 @@ export function initialForm(
       exchange_rate: receipt.exchange_rate,
       content: receipt.content,
       company_bank_account_id: receipt.company_bank_account_id,
+      // Lỗi thật số 4: sửa phiếu chuyển khoản phải điền lại sẵn Mã giao dịch (bản cũ bỏ sót).
+      bank_reference: receipt.bank_reference,
       debit_account: receipt.debit_account,
       credit_account: receipt.credit_account,
       note: receipt.note,
@@ -55,33 +59,19 @@ export function initialForm(
   };
 }
 
-// --- Thêm từ pages/PaymentReceiptsPage.tsx --------------------------------------
-// `isoToday` và `optional` ở trên vốn được KHAI HAI LẦN, byte-identical, ở cả
-// PaymentReceiptDialog.tsx lẫn PaymentReceiptsPage.tsx — nay dùng chung một bản.
-
-export function methodText(row: PaymentReceiptRow): string {
-  return row.receipt_method === "bank_transfer"
-    ? "Về TK ngân hàng"
-    : "Nhập quỹ tiền mặt";
+/** "Tiền mặt" / "Chuyển khoản" — cùng chữ với Phiếu chi (đặc tả PT-4); bản in cũng dùng. */
+export function methodText(row: Pick<PaymentReceiptRow, "receipt_method">): string {
+  return METHOD_LABELS[row.receipt_method] ?? row.receipt_method;
 }
 
-export function sourceLabel(row: PaymentReceiptRow): string {
-  if (row.source_type === "order_deposit") return "Cọc đơn bán";
-  if (row.source_type === "sales_invoice") return "Thu hóa đơn";
-  if (row.source_type === "other") return "Thu khác";
-  return "Thu hoàn phiếu chi";
+export function sourceLabel(row: Pick<PaymentReceiptRow, "source_type">): string {
+  return SOURCE_LABELS[row.source_type] ?? row.source_type;
 }
 
+/** Mã chứng từ nguồn: số hoá đơn, mã đơn bán (cọc) hoặc mã phiếu chi (thu lại). Thu khác: không có. */
 export function sourceCode(row: PaymentReceiptRow): string | null {
   if (row.source_type === "order_deposit") return row.order_code;
   if (row.source_type === "sales_invoice") return row.sales_invoice_number;
   if (row.source_type === "purchase_refund") return row.payment_voucher_code;
   return null;
-}
-
-export function sourceName(row: PaymentReceiptRow): string {
-  if (row.source_type === "order_deposit") return row.customer_name || "Khách hàng";
-  if (row.source_type === "sales_invoice") return row.customer_name || "Khách hàng";
-  if (row.source_type === "purchase_refund") return row.supplier_name || "Nhà cung cấp";
-  return row.payer_name;
 }

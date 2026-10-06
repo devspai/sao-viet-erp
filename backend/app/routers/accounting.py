@@ -68,6 +68,7 @@ from ..schemas.accounting import (
     SalesInvoiceOut,
     SupplierBankAccountIn,
     SupplierBankAccountOut,
+    TaiKhoanThongKeOut,
 )
 from ..schemas.purchase import PurchaseRequestListOut
 from ..services import bao_cao_cong_no, bao_cao_cong_no_excel
@@ -236,6 +237,21 @@ def accounting_payables(
     aging_bucket: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
+    # KỲ (05/10/2026): có đủ hai ngày thì số tiền theo sổ 331 của kỳ; thiếu cả hai = hành vi cũ
+    # (ảnh chụp hôm nay, kỳ 3 tháng) cho các nơi khác đang gọi; thiếu một = 422.
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    # Bộ lọc nâng cao — chọn DÒNG, không đổi số tổng đầu màn. Khoá lạ thì bỏ qua như `filter`.
+    no_tu: int | None = Query(default=None),
+    no_den: int | None = Query(default=None),
+    han_tra: str | None = Query(default=None),
+    han_muc: str | None = Query(default=None),
+    ca_da_tra_het: bool = Query(default=False),
+    # Chỉ giữ NCC còn đợt giao CÒN NỢ chưa ghi số hoá đơn (ô "Có đợt giao chưa ghi hoá đơn").
+    thieu_hoa_don: bool = Query(default=False),
+    dem_only: bool = Query(default=False),
+    # Chỉ các số TỔNG (lời "cùng kỳ" của màn): items rỗng, máy chủ khỏi dựng dòng / lọc / cắt trang.
+    chi_tong: bool = Query(default=False),
 ) -> PayablesSummaryOut:
     # Chỉ ĐỌC — không đẻ ô quyền mới, `ke_toan:read` là đủ. Không phân trang: cắt trang là ra
     # TỔNG sai.
@@ -245,9 +261,13 @@ def accounting_payables(
     #
     # `aging_bucket` = một khoá rổ tuổi (`AGING_KEYS`). Router chỉ chuyển tiếp; việc gom rổ và
     # hiểu khoá nằm ở service.
+    _ky_du_hai_dau(tu_ngay, den_ngay)
     return PayablesSummaryOut(
         **svc.payables_summary(
-            q=q, filter_=filter_, aging_bucket=aging_bucket, page=page, size=size
+            q=q, filter_=filter_, aging_bucket=aging_bucket, page=page, size=size,
+            tu_ngay=tu_ngay, den_ngay=den_ngay, no_tu=no_tu, no_den=no_den,
+            han_tra=han_tra, han_muc=han_muc, ca_da_tra_het=ca_da_tra_het,
+            thieu_hoa_don=thieu_hoa_don, dem_only=dem_only, chi_tong=chi_tong,
         )
     )
 
@@ -258,10 +278,22 @@ def accounting_payables_detail(
     svc: Annotated[AccountingService, Depends(get_accounting_service)],
     _: Annotated[User, Depends(require_permission(MODULE_CN_TRA, "read"))],
     all_history: bool = Query(default=False),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    # Trang của rổ "đã chi" (nút "Xem thêm"); không truyền `paid_size` = trả trọn như cũ.
+    paid_page: int = Query(default=1, ge=1),
+    paid_size: int | None = Query(default=None, ge=1, le=200),
 ) -> PayablesDetailOut:
     # `all_history` bỏ mốc kỳ cho riêng rổ "đã chi" — nút "Xem lịch sử cũ hơn". Chỉ nới cho MỘT
-    # NCC nên vẫn nhẹ; đừng bao giờ nới cho bảng tổng hợp.
-    return PayablesDetailOut(**svc.payables_detail(supplier_id, all_history=all_history))
+    # NCC nên vẫn nhẹ; đừng bao giờ nới cho bảng tổng hợp. `tu_ngay`/`den_ngay` = rổ "đã chi"
+    # theo đúng kỳ màn tổng hợp đang chọn.
+    _ky_du_hai_dau(tu_ngay, den_ngay)
+    return PayablesDetailOut(
+        **svc.payables_detail(
+            supplier_id, all_history=all_history, tu_ngay=tu_ngay, den_ngay=den_ngay,
+            paid_page=paid_page, paid_size=paid_size,
+        )
+    )
 
 
 @router.get("/api/accounting/receivables", response_model=ReceivablesSummaryOut)
@@ -275,10 +307,28 @@ def accounting_receivables(
     aging_bucket: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
+    # Cùng bộ tham số kỳ + lọc với `/payables` (cùng tên — xem ghi chú `aging_bucket`).
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    no_tu: int | None = Query(default=None),
+    no_den: int | None = Query(default=None),
+    han_tra: str | None = Query(default=None),
+    han_muc: str | None = Query(default=None),
+    ca_da_tra_het: bool = Query(default=False),
+    # Riêng phải thu: sale phụ trách (`Customer.sale_user_id`) và nhãn khách (`customer_tags`).
+    phu_trach_id: int | None = Query(default=None),
+    nhan: str | None = Query(default=None),
+    dem_only: bool = Query(default=False),
+    # Chỉ các số TỔNG — cùng nghĩa với `/payables`.
+    chi_tong: bool = Query(default=False),
 ) -> ReceivablesSummaryOut:
+    _ky_du_hai_dau(tu_ngay, den_ngay)
     return ReceivablesSummaryOut(
         **svc.receivables_summary(
-            q=q, filter_=filter_, aging_bucket=aging_bucket, page=page, size=size
+            q=q, filter_=filter_, aging_bucket=aging_bucket, page=page, size=size,
+            tu_ngay=tu_ngay, den_ngay=den_ngay, no_tu=no_tu, no_den=no_den,
+            han_tra=han_tra, han_muc=han_muc, ca_da_tra_het=ca_da_tra_het,
+            phu_trach_id=phu_trach_id, nhan=nhan, dem_only=dem_only, chi_tong=chi_tong,
         )
     )
 
@@ -289,8 +339,19 @@ def accounting_receivables_detail(
     svc: Annotated[AccountingService, Depends(get_accounting_service)],
     _: Annotated[User, Depends(require_permission(MODULE_CN_THU, "read"))],
     all_history: bool = Query(default=False),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    # Trang của rổ "đã thu" (nút "Xem thêm"); không truyền `paid_size` = trả trọn như cũ.
+    paid_page: int = Query(default=1, ge=1),
+    paid_size: int | None = Query(default=None, ge=1, le=200),
 ) -> ReceivablesDetailOut:
-    return ReceivablesDetailOut(**svc.receivables_detail(customer_id, all_history=all_history))
+    _ky_du_hai_dau(tu_ngay, den_ngay)
+    return ReceivablesDetailOut(
+        **svc.receivables_detail(
+            customer_id, all_history=all_history, tu_ngay=tu_ngay, den_ngay=den_ngay,
+            paid_page=paid_page, paid_size=paid_size,
+        )
+    )
 
 
 # --- BÁO CÁO TỔNG HỢP CÔNG NỢ THEO KỲ (docs/prd-bao-cao-cong-no.md §5.1) -------------------
@@ -314,6 +375,18 @@ def _khoang_ngay(tu_ngay: date, den_ngay: date) -> None:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Từ ngày phải trước hoặc bằng đến ngày.",
         )
+
+
+def _ky_du_hai_dau(tu_ngay: date | None, den_ngay: date | None) -> None:
+    """Kỳ của màn Công nợ: có đủ hai ngày (rồi chặn ngược bằng `_khoang_ngay`) hoặc không có ngày
+    nào (hành vi cũ). Chỉ một ngày thì không biết kỳ là gì ⇒ 422, đừng tự đoán nửa còn lại."""
+    if (tu_ngay is None) != (den_ngay is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Chọn đủ từ ngày và đến ngày.",
+        )
+    if tu_ngay is not None and den_ngay is not None:
+        _khoang_ngay(tu_ngay, den_ngay)
 
 
 def _loc_ro(bc: dict, khoa: str | None) -> dict:
@@ -680,6 +753,18 @@ def list_company_bank_accounts(
         raise _map_error(exc) from None
 
 
+# Khai TRƯỚC mọi `/company-bank-accounts/{account_id}` để "thong-ke" không bị nuốt làm account_id.
+@router.get("/api/accounting/company-bank-accounts/thong-ke", response_model=list[TaiKhoanThongKeOut])
+def thong_ke_tai_khoan(
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_TKNH, "read"))],
+    tu_ngay: date = Query(...),
+    den_ngay: date = Query(...),
+):
+    _khoang_ngay(tu_ngay, den_ngay)
+    return svc.thong_ke_tai_khoan(tu_ngay=tu_ngay, den_ngay=den_ngay)
+
+
 @router.post(
     "/api/accounting/company-bank-accounts",
     response_model=CompanyBankAccountOut,
@@ -794,10 +879,24 @@ def list_payment_vouchers(
     voucher_type: str | None = Query(default=None),
     supplier_id: int | None = Query(default=None),
     purchase_request_id: int | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    tien_tu: int | None = Query(default=None, ge=0),
+    tien_den: int | None = Query(default=None, ge=0),
+    hinh_thuc: str | None = Query(default=None, pattern="^(cash|bank_transfer)$"),
+    nguon: list[str] = Query(default=[]),
+    tai_khoan_id: int | None = Query(default=None),
+    nguoi_lap_id: int | None = Query(default=None),
+    chung_tu: str | None = Query(default=None, pattern="^(co|thieu)$"),
+    # Ô "Người nhận" của bộ lọc nâng cao — tách khỏi `q` (xem `_dieu_kien_phieu_chi`).
+    nhan: str | None = Query(default=None, max_length=200),
+    dem_only: bool = Query(default=False),
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
 ):
+    if tu_ngay and den_ngay:
+        _khoang_ngay(tu_ngay, den_ngay)
     rows, total, totals = svc.list_vouchers(
         q=q,
         status=status_,
@@ -805,6 +904,17 @@ def list_payment_vouchers(
         voucher_type=voucher_type,
         supplier_id=supplier_id,
         purchase_request_id=purchase_request_id,
+        tu_ngay=tu_ngay,
+        den_ngay=den_ngay,
+        tien_tu=tien_tu,
+        tien_den=tien_den,
+        hinh_thuc=hinh_thuc,
+        nguon=nguon,
+        tai_khoan_id=tai_khoan_id,
+        nguoi_lap_id=nguoi_lap_id,
+        chung_tu=chung_tu,
+        nhan=nhan,
+        dem_only=dem_only,
         sort=sort,
         page=page,
         size=size,
@@ -1074,20 +1184,45 @@ def list_payment_receipts(
     status_: str | None = Query(default=None, alias="status"),
     payment_voucher_id: int | None = Query(default=None),
     source_type: str | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    tien_tu: int | None = Query(default=None, ge=0),
+    tien_den: int | None = Query(default=None, ge=0),
+    hinh_thuc: str | None = Query(default=None, pattern="^(cash|bank_transfer)$"),
+    nguon: list[str] = Query(default=[]),
+    tai_khoan_id: int | None = Query(default=None),
+    nguoi_lap_id: int | None = Query(default=None),
+    chung_tu: str | None = Query(default=None, pattern="^(co|thieu)$"),
+    # Ô "Người nộp" của bộ lọc nâng cao — chỉ so tên người nộp, đi cùng `q` là AND.
+    nhan: str | None = Query(default=None, max_length=200),
+    dem_only: bool = Query(default=False),
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
 ):
-    rows, total = svc.list_receipts(
+    if tu_ngay and den_ngay:
+        _khoang_ngay(tu_ngay, den_ngay)
+    rows, total, extra = svc.list_receipts(
         q=q,
         status=status_,
         payment_voucher_id=payment_voucher_id,
         source_type=source_type,
+        tu_ngay=tu_ngay,
+        den_ngay=den_ngay,
+        tien_tu=tien_tu,
+        tien_den=tien_den,
+        hinh_thuc=hinh_thuc,
+        nguon=nguon,
+        tai_khoan_id=tai_khoan_id,
+        nguoi_lap_id=nguoi_lap_id,
+        chung_tu=chung_tu,
+        nhan=nhan,
+        dem_only=dem_only,
         sort=sort,
         page=page,
         size=size,
     )
-    return PaymentReceiptListOut(items=rows, total=total, page=page, size=size)
+    return PaymentReceiptListOut(items=rows, total=total, page=page, size=size, **extra)
 
 
 @router.post(
