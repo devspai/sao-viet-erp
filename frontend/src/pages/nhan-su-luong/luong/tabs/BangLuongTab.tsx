@@ -18,10 +18,21 @@ import {
 } from "lucide-react";
 import {
   api,
+  type LuaChonLoc,
   type PayrollLine,
   type PayrollParams,
   type PayrollPeriod,
 } from "../../../../api/client";
+import { useTre } from "../../../../lib/useTre";
+import { ThanhLoc } from "../../../thanh-loc/ThanhLoc";
+import { docThamSoMan, useDongBoUrl } from "../../../ke-toan/shared/urlMan";
+import {
+  LOC_BL_TRONG,
+  dieuKienBangLuong,
+  locBangLuongLenUrl,
+  locBangLuongTuUrl,
+  thamSoLocBangLuong,
+} from "./dieu-kien-bang-luong";
 import { MonthPicker } from "../../../../components/MonthPicker";
 import { GIO_NHAP_MAX, GIO_NHAP_MIN, gioNhapSai } from "../../../../lib/gioNhap";
 import { fmtDateTime } from "../../../../utils/format";
@@ -83,9 +94,21 @@ export function BangLuongTab({
   // Hai ô ĐỀU được bỏ trống (mỗi kiểu trống một nghĩa) nên "trống" không phải lỗi — chỉ chặn khi
   // có gõ mà không dùng được. Công bố nhầm năm 0920 là phiếu lương mở ở một thế kỷ khác.
   const congBoGioSai = gioNhapSai(congBo?.mo) || gioNhapSai(congBo?.dong);
-  const [filter, setFilter] = useState<"all" | "ct" | "tv">("all");
+  // Tìm + Phòng / tổ + Hợp đồng lọc ở MÁY CHỦ (06/10/2026). Phòng / Hợp đồng ghi lên URL cùng dấu
+  // `man=luong`; ô tìm gõ tới đâu gửi tới đó sau một nhịp nghỉ.
   const [q, setQ] = useState("");
-  const [dept, setDept] = useState("all");
+  const qGui = useTre(q.trim(), 300);
+  // KHÔNG dùng `useLocMan`: tab Tạm ứng dùng nó với cùng mã màn `luong`, bộ nhớ theo màn sẽ trao nhầm
+  // bộ lọc của tab này sang tab kia. Ở đây chỉ đọc URL lúc mở + ghi lại URL.
+  const [loc, setLoc] = useState(() => {
+    const p = docThamSoMan("luong");
+    return p ? locBangLuongTuUrl(p) : LOC_BL_TRONG;
+  });
+  useDongBoUrl("luong", locBangLuongLenUrl(loc));
+  const [phongLoc, setPhongLoc] = useState<LuaChonLoc[]>([]);
+  const dieuKien = useMemo(() => dieuKienBangLuong(phongLoc), [phongLoc]);
+  const khoaLoc = JSON.stringify({ q: qGui || undefined, ...thamSoLocBangLuong(loc) });
+  const dangLoc = !!qGui || loc.phong != null || loc.hd != null;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // ⚠️ HAI ô nhớ lỗi KHÁC NHAU, đừng gộp lại:
@@ -117,10 +140,11 @@ export function BangLuongTab({
   const load = useCallback(() => {
     setListLoading(true);
     api.luong
-      .table(token, year, month)
+      .table(token, year, month, JSON.parse(khoaLoc))
       .then((t) => {
         setPeriod(t.period);
         setLines(t.lines);
+        setPhongLoc(t.phong_loc ?? []);
         setChanChotLyDo(t.chan_chot_ly_do ?? null);
         setCanhBaoChot(t.canh_bao_chot ?? null);
         setListErr(null);
@@ -135,7 +159,7 @@ export function BangLuongTab({
         setListErr(errText(e));
       })
       .finally(() => setListLoading(false));
-  }, [token, year, month]);
+  }, [token, year, month, khoaLoc]);
   useEffect(() => {
     load();
   }, [load]);
@@ -153,28 +177,8 @@ export function BangLuongTab({
     }
   }
 
-  // Danh sách Phòng/Tổ lấy từ CHÍNH các dòng lương đang có, không gọi thêm API: kỳ lương nào
-  // cũng chỉ gồm người có mặt trong kỳ đó, nên đổ cả cây phòng ban ra là bày cả những tổ không
-  // có ai để lọc.
-  const dsPhong = useMemo(
-    () =>
-      Array.from(
-        new Set(lines.map((l) => (l.department_name ?? "").trim()).filter(Boolean)),
-      ).sort((a, b) => a.localeCompare(b, "vi")),
-    [lines],
-  );
-
-  const kw = q.trim().toLowerCase();
-  const shown = lines.filter((l) => {
-    if (filter !== "all" && (filter === "tv") !== l.is_probation) return false;
-    if (dept !== "all" && (l.department_name ?? "").trim() !== dept) return false;
-    if (!kw) return true;
-    // Tìm theo CẢ mã lẫn họ tên — người trả lương gõ mã, người soát gõ tên.
-    return (
-      (l.employee_name ?? "").toLowerCase().includes(kw) ||
-      (l.employee_code ?? "").toLowerCase().includes(kw)
-    );
-  });
+  // Máy chủ đã lọc theo tìm / phòng / hợp đồng — bảng hiện đúng các dòng trả về.
+  const shown = lines;
 
   // Helper tính giá trị từng cột số liệu (dùng chung cho hiển thị dòng, tóm tắt, và tfoot)
   const getLuongCongVal = (l: PayrollLine) => {
@@ -333,7 +337,7 @@ export function BangLuongTab({
     <div>
       <div className="cc-toolbar cc-ts-toolbar lg-toolbar">
         {/* Nhóm bộ lọc (bên trái) */}
-        <div className="lg-toolbar-filters">
+        <div className="lg-toolbar-filters tl-thanh">
           <div className="lg-date-wrapper">
             <span className="lg-date-icon">
               <Calendar size={14} />
@@ -361,30 +365,7 @@ export function BangLuongTab({
               </button>
             )}
           </div>
-          {dsPhong.length > 1 && (
-            <select
-              className="lg-dept-filter"
-              value={dept}
-              onChange={(e) => setDept(e.target.value)}
-              title="Lọc theo Phòng / Tổ"
-            >
-              <option value="all">Tất cả phòng / tổ</option>
-              {dsPhong.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          )}
-          <div className="lg-seg">
-            {(["all", "ct", "tv"] as const).map((f) => (
-              <button
-                key={f}
-                className={filter === f ? "is-active" : ""}
-                onClick={() => setFilter(f)}
-              >
-                {f === "all" ? "Tất cả" : f === "ct" ? "Chính thức" : "Thử việc"}
-              </button>
-            ))}
-          </div>
+          <ThanhLoc dieuKien={dieuKien} loc={loc} onLoc={setLoc} />
 
           {/* Toggle chế độ xem: Chi tiết vs Tóm tắt */}
           <div className="lg-seg lg-view-seg" role="group" aria-label="Chế độ xem bảng lương">
@@ -1313,24 +1294,23 @@ export function BangLuongTab({
                   onThuLai={load}
                   icon="users"
                   title={
-                    lines.length
+                    dangLoc
                       ? "Chưa có ai khớp bộ lọc"
                       : "Chưa có dòng lương nào trong kỳ"
                   }
                   sub={
-                    lines.length
-                      ? "Bỏ bớt từ khoá, phòng/tổ hoặc nhóm Chính thức / Thử việc rồi xem lại."
+                    dangLoc
+                      ? "Bỏ bớt từ khoá, phòng/tổ hoặc hợp đồng rồi xem lại."
                       : "Bấm “Tính lại” để dựng lại bảng lương của kỳ này từ chấm công."
                   }
                   action={
-                    lines.length ? (
+                    dangLoc ? (
                       <button
                         type="button"
                         className="btn btn--ghost"
                         onClick={() => {
                           setQ("");
-                          setDept("all");
-                          setFilter("all");
+                          setLoc(LOC_BL_TRONG);
                         }}
                       >
                         Xoá bộ lọc

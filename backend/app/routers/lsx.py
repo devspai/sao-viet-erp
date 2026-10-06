@@ -8,6 +8,7 @@ Luồng: Sale bấm "Chuyển xuống sản xuất" (đơn hàng) → đơn rơi
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
@@ -27,6 +28,7 @@ from ..repositories.catalog_base import SIZE_TRAN
 from ..repositories.document_sequence_repo import DocumentSequenceRepository
 from ..repositories.lsx_repo import LsxRepository
 from ..repositories.org_scope import dept_subtree_ids
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.lsx import (
     BuocMacDinhOut,
     HangChoOut,
@@ -127,7 +129,12 @@ def _guard_scope(db: Session, lsx, user: User, authz: AuthorizationService) -> N
 
 
 def _out(svc: LsxService, lsx) -> LsxOut:
-    return LsxOut.model_validate({**lsx.__dict__, **svc.detail_dict(lsx)})
+    from ..services.gia_cong_ngoai.tron_goi import _DAT_DUOC, chan_tron_goi
+    chan = chan_tron_goi(svc.db, lsx.id) if lsx.trang_thai in _DAT_DUOC else None
+    return LsxOut.model_validate({
+        **lsx.__dict__, **svc.detail_dict(lsx),
+        "tron_goi_chan_ngan": chan[0] if chan else None, "tron_goi_chan": chan[1] if chan else None,
+    })
 
 
 # --- Hàng chờ tiếp nhận -------------------------------------------------------
@@ -139,13 +146,34 @@ def hang_cho(
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=SIZE_TRAN),
     chi_dem: bool = Query(default=False, description="True ⇒ chỉ trả `total` (badge), `items` rỗng"),
+    # Thanh lọc của hàng chờ (06/10/2026): kỳ theo ngày tạo đơn / lúc chuyển xuống SX + khách.
+    customer_id: int | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|chuyen)$"),
 ) -> HangChoOut:
     """Đơn Sale đã chuyển xuống SX mà còn dòng chưa lên lệnh. Chỉ người có phạm vi TOÀN BỘ (Kế
     hoạch SX) mới thấy — đơn chưa lên lệnh thì chưa thuộc về ai bên sản xuất."""
     if _owner_ids_for_scope(db, user, authz) is not None:
         return HangChoOut(items=[], total=0, page=page, size=size)
-    items, total = _svc(db).hang_cho(page=page, size=size, chi_dem=chi_dem)
+    items, total = _svc(db).hang_cho(
+        page=page, size=size, chi_dem=chi_dem,
+        customer_id=customer_id, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
+    )
     return HangChoOut(items=items, total=total, page=page, size=size)
+
+
+@router.get("/hang-cho/khach-loc", response_model=list[LuaChonLoc])
+def hang_cho_khach_loc(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[LuaChonLoc]:
+    """Ô "Khách hàng" của thanh lọc hàng chờ: khách đang có đơn chờ lên lệnh, kèm số đơn. Cùng cửa
+    phạm vi với `/hang-cho` — người không có phạm vi toàn bộ thì rỗng."""
+    if _owner_ids_for_scope(db, user, authz) is not None:
+        return []
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in _svc(db).khach_hang_cho()]
 
 
 # --- Xem trước danh sách lệnh dự kiến ----------------------------------------
@@ -194,6 +222,10 @@ def list_items(
     trang_thai: str | None = Query(default=None),
     q: str | None = Query(default=None),
     gia_cong: str | None = Query(default=None, pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$"),
+    # Dải kỳ (06/10/2026): khoảng ngày tính theo `moc` — ngày tạo lệnh / hạn SX / hạn giao khách.
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|han_sx|han_giao)$"),
     page: int = Query(default=1, ge=1),
     # Trần 200 khớp `repositories/catalog_base.SIZE_TRAN` — chặn client gõ `?size=99999` để kéo
     # cả bảng về, đúng cái đã làm chết endpoint này ở 100.000 lệnh.
@@ -203,6 +235,7 @@ def list_items(
     loc = {
         "order_id": order_id, "customer_id": customer_id, "trang_thai": trang_thai, "q": q,
         "gia_cong": gia_cong,
+        "tu_ngay": tu_ngay, "den_ngay": den_ngay, "moc": moc,
         "owner_ids": _owner_ids_for_scope(db, user, authz),
     }
     rows, total = svc.list_rows(page=page, size=size, **loc)
@@ -230,6 +263,29 @@ def bo_loc(
         trang_thai=trang_thai, q=q, gia_cong=gia_cong,
         owner_ids=_owner_ids_for_scope(db, user, authz),
     ))
+
+
+@router.get("/khach-loc", response_model=list[LuaChonLoc])
+def khach_loc(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[LuaChonLoc]:
+    """Ô "Khách hàng" của thanh lọc bảng lệnh: khách đang có lệnh trong phạm vi, kèm số lệnh.
+    ⚠️ Đường TĨNH — phải đứng trước `/{lsx_id}`."""
+    owner_ids = _owner_ids_for_scope(db, user, authz)
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in _svc(db).khach_loc(owner_ids=owner_ids)]
+
+
+@router.get("/don-loc", response_model=list[LuaChonLoc])
+def don_loc(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[LuaChonLoc]:
+    """Ô "Đơn hàng" của thanh lọc bảng lệnh: đơn đang có lệnh trong phạm vi, kèm số lệnh."""
+    owner_ids = _owner_ids_for_scope(db, user, authz)
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in _svc(db).don_loc(owner_ids=owner_ids)]
 
 
 # --- Hàng đèn tổng quan -------------------------------------------------------

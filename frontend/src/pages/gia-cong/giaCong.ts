@@ -1,6 +1,8 @@
 /** Hàm THUẦN của Gia công ngoài (spec docs/superpowers/specs/2026-09-26-gia-cong-ngoai-design.md).
  *  Không gọi API, không React — vitest soi thẳng. */
-import type { GiaCongNgoaiLan, GiaCongNoiVe, GiaCongTrangThai, LsxLoaiBuoc } from "../../api/client";
+import type {
+  GiaCongCapGiay, GiaCongNgoaiLan, GiaCongNoiVe, GiaCongTrangThai, LsxLoaiBuoc,
+} from "../../api/client";
 
 /** Tối thiểu một bước cần có để suy dải — `EditRow` của bảng routing khớp kiểu này. */
 export interface BuocDai {
@@ -58,9 +60,19 @@ export function viTriTrongDai(rows: BuocDai[], i: number): ViTriDai | null {
 export const NHAN_TRANG_THAI: Record<GiaCongTrangThai, string> = {
   cho_mang_di: "Chờ mang đi",
   dang_o_ngoai: "Đang ở nhà gia công",
-  dang_gia_cong: "Đang gia công trọn gói",
-  da_xong: "Đã xong",
+  // Trọn gói: tiêu đề thẻ đã nói "trọn gói" — chip chỉ nói hàng đang ở đâu.
+  dang_gia_cong: "Đang ở nhà gia công",
+  da_xong: "Đã nhận về",
   da_huy: "Đã huỷ",
+};
+
+/** Nhãn NGẮN cho chip chật (dòng bảng lệnh). */
+export const NHAN_NGAN: Record<GiaCongTrangThai, string> = {
+  cho_mang_di: "chờ mang đi",
+  dang_o_ngoai: "đang ở ngoài",
+  dang_gia_cong: "đang gia công",
+  da_xong: "đã nhận về",
+  da_huy: "đã huỷ",
 };
 
 export const NHAN_NOI_VE: Record<GiaCongNoiVe, string> = {
@@ -73,7 +85,8 @@ export interface NutLan {
   mangDi: boolean;
   chot: boolean;
   moLai: boolean;
-  xuatGiay: boolean;
+  /** Trọn gói xưởng cấp giấy chưa gửi đề nghị xuất — dải "Chưa cấp giấy" + nút "Chọn giấy". */
+  chonGiay: boolean;
   huyTronGoi: boolean;
 }
 
@@ -87,8 +100,8 @@ export function nutCuaLan(l: GiaCongNgoaiLan): NutLan {
       && (l.sl_cho_mang_di > 0 || (l.trang_thai === "cho_mang_di" && !l.co_buoc_truoc)),
     chot: l.trang_thai === "dang_o_ngoai" || l.trang_thai === "dang_gia_cong",
     moLai: l.trang_thai === "da_xong" && l.phieu_chi == null,
-    xuatGiay: l.kieu === "tron_goi" && l.trang_thai === "dang_gia_cong" && l.xuong_cap_giay
-      && l.xuat_giay == null,
+    // Máy chủ chỉ gửi `cap_giay` khi lần đang chờ cấp giấy — cùng luật `cho_cap_giay` phía máy chủ.
+    chonGiay: l.kieu === "tron_goi" && l.trang_thai === "dang_gia_cong" && l.cap_giay != null,
     huyTronGoi: l.kieu === "tron_goi" && l.trang_thai === "dang_gia_cong",
   };
 }
@@ -105,21 +118,42 @@ export function goiYChot(l: GiaCongNgoaiLan): { sl: string; noiVe: GiaCongNoiVe 
 
 const so = (n: number) => n.toLocaleString("vi-VN");
 
-/** Dòng tóm tắt sau khi xong (spec §7): "Nguyễn A mang đi 1.660 · Nguyễn A chốt 1.650 · 247.500đ".
- *  `dvTen` dịch mã đơn vị sang tên danh mục (không in thẳng mã). Không có quyền xem tiền thì
- *  `thanh_tien` là null ⇒ không có đoạn tiền. */
-export function tomTat(l: GiaCongNgoaiLan, dvTen: (ma: string | null) => string): string {
-  const phan: string[] = [];
-  if (l.mang_di_boi_ten && l.sl_gui != null) {
-    phan.push(`${l.mang_di_boi_ten} mang đi ${so(l.sl_gui)} ${dvTen(l.don_vi_gui)}`.trim());
+/** Một mốc trên dải tiến độ của lần: ai, lúc nào, bao nhiêu — mỗi mảnh một ô riêng (không nối
+ *  chuỗi bằng "·"). `muc`: xong = đã qua · dang = lần đang đứng ở đây · cho = chưa tới. */
+export interface MocLan {
+  nhan: string;
+  muc: "xong" | "dang" | "cho";
+  luc: string | null;
+  ai: string | null;
+  so: string | null;
+}
+
+/** Ba mốc của lần (spec §7: giao việc → ở ngoài → nhận về). Trọn gói không có "mang đi": đặt là
+ *  hàng đã ở nhà gia công. Lần huỷ vẫn trả mốc đã qua — nơi gọi vẽ thêm dòng huỷ. */
+export function mocCuaLan(l: GiaCongNgoaiLan, dvTen: (ma: string | null) => string): MocLan[] {
+  const huy = l.trang_thai === "da_huy";
+  const xong = l.chot_luc != null;
+  const soDv = (n: number | null, dv: string | null) =>
+    n != null ? `${so(n)} ${dvTen(dv)}`.trim() : null;
+  const nhanVe: MocLan = {
+    nhan: "Nhận về", muc: xong ? "xong" : "cho",
+    luc: l.chot_luc, ai: l.chot_boi_ten, so: soDv(l.sl_cuoi, l.don_vi),
+  };
+  if (l.kieu === "tron_goi") {
+    return [
+      { nhan: "Giao việc", muc: "xong", luc: l.tao_luc ?? null, ai: l.tao_boi_ten ?? null,
+        so: soDv(l.sl_dat, l.don_vi) },
+      { nhan: "Đang gia công", muc: xong ? "xong" : huy ? "cho" : "dang", luc: null, ai: null, so: null },
+      nhanVe,
+    ];
   }
-  if (l.chot_boi_ten && l.sl_cuoi != null) {
-    const ve = l.noi_ve ? ` — ${NHAN_NOI_VE[l.noi_ve].toLowerCase()}` : "";
-    phan.push(`${l.chot_boi_ten} chốt ${so(l.sl_cuoi)} ${dvTen(l.don_vi)}`.trim() + ve);
-  }
-  if (l.thanh_tien != null) phan.push(`${so(l.thanh_tien)}đ`);
-  if (l.phieu_chi) phan.push(`Phiếu chi ${l.phieu_chi.code}`);
-  return phan.join(" · ");
+  const daMang = l.mang_di_luc != null;
+  return [
+    { nhan: "Phát hành", muc: "xong", luc: l.tao_luc ?? null, ai: l.tao_boi_ten ?? null, so: null },
+    { nhan: "Mang đi", muc: daMang ? "xong" : huy ? "cho" : "dang",
+      luc: l.mang_di_luc, ai: l.mang_di_boi_ten, so: soDv(l.sl_gui, l.don_vi_gui) },
+    { ...nhanVe, muc: xong ? "xong" : daMang && !huy ? "dang" : "cho" },
+  ];
 }
 
 type DongChia = NonNullable<GiaCongNgoaiLan["chia_theo_lenh"]>[number];
@@ -132,4 +166,28 @@ export function soNhanChia(sl: number, c: DongChia, dvTen: (ma: string | null) =
   const heSo = c.he_so_nhan ?? c.so_con;
   const nhan = `${lam(sl * heSo)} ${dvTen(c.don_vi)}`.trim();
   return heSo !== c.so_con ? `${nhan} (ra ${lam(sl * c.so_con)} con)` : nhan;
+}
+
+/** Trạng thái đề nghị xuất giấy nói theo phía người kế hoạch — "kho đang làm tới đâu". */
+export const NHAN_XUAT_GIAY: Record<string, string> = {
+  approved: "Chờ kho soạn",
+  received: "Kho đã nhận",
+  preparing: "Kho đang soạn",
+  partial: "Đã xuất một phần",
+  done: "Đã xuất đủ",
+};
+
+/** Giá trị ban đầu của phần "Chọn giấy": khổ đề xuất (nếu kho có khổ đó trong danh sách) + số tờ
+ *  điền sẵn theo đề xuất. Không có khổ đề xuất ⇒ chưa chọn gì, ô số để trống. */
+export function chonGiayBanDau(cg: GiaCongCapGiay): { kho: string | null; so: string } {
+  const dx = cg.de_xuat;
+  if (!dx) return { kho: null, so: "" };
+  return { kho: `${dx.kho_rong}x${dx.kho_dai}`, so: dx.so_to != null ? String(dx.so_to) : "" };
+}
+
+/** Kho thiếu bao nhiêu tờ so với số xin — null khi đủ / chưa chọn. Thiếu vẫn cho gửi. */
+export function thieuTo(cg: GiaCongCapGiay, kho: string | null, so: number): number | null {
+  const k = cg.kho.find((x) => `${x.kho_rong}x${x.kho_dai}` === kho);
+  if (!k || !(so > 0) || k.ton >= so) return null;
+  return so - k.ton;
 }

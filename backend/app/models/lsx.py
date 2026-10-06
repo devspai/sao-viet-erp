@@ -337,9 +337,6 @@ class LsxCongDoan(Base):
     # hồ sơ lệnh, phiếu công nghệ, chip…) khỏi phải đổi. Client không gửi cột chữ.
     nha_cung_cap_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     nha_cung_cap: Mapped[str | None] = mapped_column(String(150), nullable=True)
-    # Đơn giá gia công của bước — chỉ ô ở BƯỚC CUỐI một dải thuê ngoài được đọc lúc phát hành
-    # (đơn giá cả lần, theo đơn vị ra của bước đó). Tiền = con số chốt × đơn giá, không lưu cột.
-    don_gia_gia_cong: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)
 
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
 

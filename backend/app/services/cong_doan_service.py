@@ -376,6 +376,10 @@ class CongDoanService(CatalogService):
         """Số công đoạn theo giai đoạn — cho tab lọc của màn Công đoạn (xem repo)."""
         return self.repo.dem_theo_nhom(**kw)
 
+    def dem_theo_to(self, **kw) -> list[dict]:
+        """Số công đoạn theo tổ phụ trách, kèm tên tổ — cho thanh lọc (xem repo)."""
+        return self.repo.dem_theo_to(**kw)
+
     def phong_ban_options(self) -> list[dict]:
         """TỔ cho dropdown 'Phòng ban / Tổ phụ trách' ở form Công đoạn (`{id, ma, ten}`).
 

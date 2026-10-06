@@ -1364,8 +1364,11 @@ select.input {
 /* ---- Cards + tables (list & detail) ---------------------------------------- */
 /* `overflow-x: auto`: 6 cột không vừa khung hẹp — `hidden` thì cắt cụt cột Trạng thái/Cập nhật
    mà không cuộn được. `overflow-y: hidden` vẫn bo góc như cũ. Sàn min-width để cột không bị
-   bóp thành cột chữ dọc; pager (`.foot`) là anh em nên không trôi theo khi cuộn. */
+   bóp thành cột chữ dọc; chân phân trang (`.ptdd`) là anh em nên không trôi theo khi cuộn. */
 .rdx-quote .q-card { background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--r-5); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+/* Anh em nhưng phải NHÌN như đáy của thẻ bảng (khuôn Nhật ký): bỏ bo góc dưới của thẻ, chân nối viền. */
+.rdx-quote .q-card:has(+ .ptdd) { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.rdx-quote .q-card + .ptdd { border: 1px solid var(--rule); border-top: 0; border-radius: 0 0 var(--r-5) var(--r-5); }
 .rdx-quote .q-card > table { min-width: 860px; }
 .rdx-quote table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .rdx-quote thead th { font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ash); font-weight: 700; text-align: left; padding: 10px 14px; background: var(--paper); border-bottom: 1.5px solid var(--rule); white-space: nowrap; }
@@ -1392,8 +1395,6 @@ select.input {
 /* Tham chiếu ước tính hệ cũ (Estimate) — KHÔNG mở được: mờ, không gạch chân, không con trỏ tay. */
 
 /* ---- Pager foot ------------------------------------------------------------ */
-.rdx-quote .foot { color: var(--ash); font-size: 12.5px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.rdx-quote .foot-btns { display: flex; gap: 8px; }
 .rdx-quote .tl-empty { padding: 20px; text-align: center; color: var(--ash); font-size: 13px; }
 
 /* ---- DETAIL: header -------------------------------------------------------- */

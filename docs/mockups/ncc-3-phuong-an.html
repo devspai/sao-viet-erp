@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nhà cung cấp — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+  --amber-soft:#efe4c4; --amber-deep:#7a5c0f; --signal:#8a1f1f;
+  --steel-soft:#dde1e5; --charcoal:#0f172a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1080px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--ash);margin:0 0 36px;max-width:780px}
+.opt{margin-bottom:64px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.why{color:var(--ash);margin:0 0 16px;max-width:860px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+
+/* Khung mô phỏng ngăn kéo */
+.drawer{background:var(--canvas);border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.14);overflow:hidden;max-width:980px}
+.dh{display:flex;align-items:center;gap:12px;padding:18px 24px}
+.dh h3{margin:0;font-size:19px;font-weight:700}
+.x{margin-left:auto;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--ash-2);font-size:18px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px}
+.pill--on{background:var(--moss-soft);color:var(--moss-deep)}
+.pill--on::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--moss)}
+.pill--moi{background:var(--rule-hair);color:var(--ash);border:1px solid var(--rule-soft)}
+.tabs{display:flex;gap:24px;padding:0 24px;border-bottom:1px solid var(--rule-soft)}
+.tab{padding:10px 0;font-size:13.5px;color:var(--ash);border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;gap:6px;align-items:center}
+.tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+.cnt{font-size:11px;font-weight:600;background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:999px;padding:0 7px;color:var(--ash)}
+.foot{display:flex;align-items:center;gap:10px;padding:14px 24px;border-top:1px solid var(--rule-soft);background:var(--canvas)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash)}
+.btn--nguy{border-color:transparent;background:transparent;color:var(--signal)}
+.btn--sm{height:30px;padding:0 10px;font-size:12.5px}
+.muted{color:var(--ash-2)}
+.num{font-variant-numeric:tabular-nums}
+.r{text-align:right}
+input,textarea,select{font:inherit;color:inherit}
+
+/* ===================== A — Odoo / SAP Fiori ===================== */
+.a-head{padding:4px 24px 18px;display:flex;flex-direction:column;gap:14px}
+.a-facts{display:flex;flex-wrap:wrap;gap:28px}
+.a-fact{display:flex;flex-direction:column;gap:2px}
+.a-fact span{font-size:12px;color:var(--ash-2)}
+.a-fact b{font-size:14px;font-weight:600}
+.a-body{padding:20px 24px 24px;background:var(--canvas)}
+.a-sec{margin-bottom:22px}
+.a-sec h4{margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-2)}
+.a-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:40px}
+.a-row{display:grid;grid-template-columns:150px minmax(0,1fr);align-items:center;min-height:40px;border-bottom:1px solid var(--rule-hair)}
+.a-row label{font-size:13px;color:var(--ash);font-weight:500}
+.a-row label i{font-style:normal;color:var(--rust);margin-left:2px}
+.a-in{border:1px solid transparent;border-radius:6px;padding:6px 8px;margin-left:-8px;width:calc(100% + 8px);background:transparent}
+.a-in:hover{background:var(--rule-hair)}
+.a-in:focus{outline:none;border-color:var(--rule);background:var(--canvas)}
+.a-row--full{grid-column:1/-1}
+.sw{display:inline-flex;align-items:center;gap:10px;font-size:13px;color:var(--ash)}
+.sw i{width:32px;height:18px;border-radius:999px;background:var(--rule);position:relative;display:inline-block}
+.sw i::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw.on i{background:var(--rust)}
+.sw.on i::after{left:16px}
+/* bảng giá kiểu danh sách sửa tại chỗ */
+.a-list{width:100%;border-collapse:collapse}
+.a-list th{font-size:12px;font-weight:600;color:var(--ash-2);text-align:left;padding:8px;border-bottom:1px solid var(--rule-soft)}
+.a-list td{padding:0 8px;height:42px;border-bottom:1px solid var(--rule-hair)}
+.a-list tr:hover td{background:var(--rule-hair)}
+.a-list .del{color:var(--ash-2);opacity:0;font-size:16px}
+.a-list tr:hover .del{opacity:1}
+.a-add{display:inline-block;padding:10px 8px;color:var(--rust);font-weight:600;font-size:13px}
+
+/* ===================== B — Shopify Polaris / Stripe ===================== */
+.b-save{display:flex;align-items:center;gap:10px;padding:10px 24px;background:var(--charcoal);color:#f8fafc;font-size:13.5px}
+.b-save b{font-weight:600}
+.b-save .sp{flex:1}
+.b-save .btn{height:32px}
+.b-save .btn--ghost{background:transparent;color:#f8fafc;border-color:#475569}
+.b-wrap{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:16px;padding:20px 24px 24px;background:var(--paper)}
+.b-card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.b-card h4{margin:0 0 12px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.b-card h4 .act{margin-left:auto;font-size:13px;font-weight:500;color:var(--rust)}
+.b-g{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.b-f{display:flex;flex-direction:column;gap:5px}
+.b-f.full{grid-column:1/-1}
+.b-f label{font-size:13px;font-weight:500;color:var(--ink)}
+.b-f label i{font-style:normal;color:var(--rust);margin-left:2px}
+.b-in{height:38px;border:1px solid var(--rule);border-radius:8px;padding:0 12px;background:var(--canvas);width:100%}
+.b-suf{position:relative}
+.b-suf span{position:absolute;right:12px;top:9px;color:var(--ash-2);font-size:13px}
+.b-help{font-size:12px;color:var(--ash-2)}
+.b-tbl{width:100%;border-collapse:collapse;margin:0 -18px;width:calc(100% + 36px)}
+.b-tbl th{font-size:12px;font-weight:600;color:var(--ash);text-align:left;padding:8px 18px;background:var(--paper);border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft)}
+.b-tbl td{padding:10px 18px;border-bottom:1px solid var(--rule-hair)}
+.b-tbl tr:last-child td{border-bottom:0}
+.b-tbl .name{font-weight:500}
+.b-chip{display:inline-block;font-size:12px;border:1px solid var(--rule-soft);border-radius:6px;padding:1px 8px;color:var(--ash)}
+.b-side .row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;font-size:13px}
+.b-side .row span{color:var(--ash-2)}
+.b-side .row b{font-weight:600}
+.b-moi{font-size:13px;color:var(--ash);margin:0}
+
+/* ===================== C — Attio / Linear ===================== */
+.c-wrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:560px}
+.c-main{padding:22px 28px;border-right:1px solid var(--rule-soft)}
+.c-title{font-size:22px;font-weight:700;margin:0 0 4px}
+.c-sub{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+.c-sec{margin-bottom:26px}
+.c-sec-h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.c-sec-h h4{margin:0;font-size:14px;font-weight:600}
+.c-sec-h .sp{flex:1}
+.c-tbl{width:100%;border-collapse:collapse;border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.c-tbl th{font-size:12px;font-weight:500;color:var(--ash-2);text-align:left;padding:8px 12px;background:var(--paper);border-bottom:1px solid var(--rule-soft)}
+.c-tbl td{padding:9px 12px;border-bottom:1px solid var(--rule-hair)}
+.c-tbl tr:hover td{background:var(--rule-hair)}
+.c-tbl .add td{color:var(--ash-2);font-size:13px}
+.c-empty{border:1px dashed var(--rule);border-radius:10px;padding:18px;color:var(--ash-2);font-size:13px;text-align:center}
+.c-side{padding:18px 18px;background:var(--canvas)}
+.c-side h5{margin:14px 0 4px;font-size:12px;font-weight:600;color:var(--ash-2)}
+.c-side h5:first-child{margin-top:0}
+.c-prop{display:grid;grid-template-columns:112px minmax(0,1fr);align-items:center;gap:8px;min-height:34px;border-radius:6px;padding:0 6px;margin:0 -6px}
+.c-prop:hover{background:var(--rule-hair)}
+.c-prop span{font-size:12.5px;color:var(--ash-2)}
+.c-prop b{font-size:13px;font-weight:500;overflow-wrap:anywhere}
+.c-prop b.trong{color:var(--ash-2);font-weight:400}
+.c-prop.edit{background:var(--canvas);box-shadow:0 0 0 1px var(--rule)}
+.c-prop.edit input{border:0;outline:0;font-size:13px;font-weight:500;width:100%;background:transparent}
+.c-note{font-size:12px;color:var(--ash-2);margin:10px 0 0}
+
+@media (max-width:760px){
+  .a-grid,.b-wrap,.c-wrap,.b-g{grid-template-columns:1fr}
+  .c-main{border-right:0;border-bottom:1px solid var(--rule-soft)}
+  .a-row{grid-template-columns:120px minmax(0,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Nhà cung cấp — 3 phương án</h1>
+  <p class="lead">Dữ liệu lấy đúng NCC trong ảnh (Công ty CP Màng và Keo Đông Á). Cả ba đều bỏ thẻ "Đối tác mới hợp tác" to chiếm nửa màn: NCC chưa có đơn nào thì chỉ cần một nhãn nhỏ "Chưa chấm sao". Ô Trạng thái cũng bỏ, vì nút Ngừng hợp tác ở chân ngăn đã làm việc đó.</p>
+
+  <!-- ============================ A ============================ -->
+  <section class="opt">
+    <div class="opt-head"><h2>A. Trang hồ sơ đặc</h2><span class="src">Odoo (hồ sơ NCC)</span><span class="src">SAP Fiori (Object Page)</span></div>
+    <div class="why">Khuôn của phần mềm ERP: <b>đầu trang tóm các thông tin hay nhìn nhất</b>, thân là các cặp nhãn bên trái và giá trị bên phải. Ô nhập trông như chữ thường, rê chuột mới hiện nền và bấm vào mới hiện khung. Bảng giá là danh sách sửa ngay tại dòng, có "Thêm một dòng" ở cuối như Odoo.
+      <ul><li>Hợp với người dùng nhiều, nhập nhanh: màn đặc, không phải cuộn.</li><li>Nhược: người mới khó nhận ra chỗ nào bấm sửa được.</li></ul></div>
+
+    <div class="drawer">
+      <div class="dh"><h3>Công ty CP Màng và Keo Đông Á</h3><span class="pill pill--on">Hoạt động</span><span class="pill pill--moi">Chưa chấm sao</span><span class="x">✕</span></div>
+      <div class="a-head">
+        <div class="a-facts">
+          <div class="a-fact"><span>Nhóm hàng</span><b>Màng &amp; keo</b></div>
+          <div class="a-fact"><span>Liên hệ</span><b>Võ Thị Hồng</b></div>
+          <div class="a-fact"><span>Điện thoại</span><b class="num">0966 959 579</b></div>
+          <div class="a-fact"><span>Cho nợ</span><b>30 ngày</b></div>
+          <div class="a-fact"><span>Mặt hàng báo giá</span><b>3</b></div>
+        </div>
+      </div>
+      <div class="tabs"><span class="tab on">Thông tin chung</span><span class="tab">Bảng giá vật tư <span class="cnt">3</span></span><span class="tab">Lịch sử mua hàng</span></div>
+      <div class="a-body">
+        <div class="a-sec">
+          <h4>Định danh</h4>
+          <div class="a-grid">
+            <div class="a-row a-row--full"><label>Tên nhà cung cấp<i>*</i></label><input class="a-in" value="Công ty CP Màng và Keo Đông Á"></div>
+            <div class="a-row"><label>Nhóm hàng<i>*</i></label><input class="a-in" value="Màng &amp; keo"></div>
+            <div class="a-row"><label>Mã số thuế<i>*</i></label><input class="a-in num" value="0387850855"></div>
+            <div class="a-row a-row--full"><label>Nhận gia công ngoài</label><span class="sw"><i></i>Không</span></div>
+          </div>
+        </div>
+        <div class="a-grid">
+          <div class="a-sec">
+            <h4>Liên hệ</h4>
+            <div class="a-row"><label>Người liên hệ<i>*</i></label><input class="a-in" value="Võ Thị Hồng"></div>
+            <div class="a-row"><label>Điện thoại<i>*</i></label><input class="a-in num" value="0966959579"></div>
+            <div class="a-row"><label>Email<i>*</i></label><input class="a-in" value="lienhencc005@example.com"></div>
+            <div class="a-row"><label>Địa chỉ<i>*</i></label><input class="a-in" value="TX. Thuận An, Bình Dương"></div>
+          </div>
+          <div class="a-sec">
+            <h4>Thanh toán</h4>
+            <div class="a-row"><label>Số ngày cho nợ</label><input class="a-in num" value="30 ngày"></div>
+            <div class="a-row"><label>Hạn mức công nợ</label><input class="a-in muted" placeholder="Không giới hạn"></div>
+            <div class="a-row"><label>Điều khoản</label><input class="a-in" value="Chuyển khoản sau giao hàng"></div>
+            <div class="a-row"><label>Ghi chú</label><input class="a-in" placeholder="Năng lực, chiết khấu…"></div>
+          </div>
+        </div>
+        <div class="a-sec" style="margin:8px 0 0">
+          <h4>Bảng giá vật tư (tab 2 trông như sau)</h4>
+          <table class="a-list">
+            <thead><tr><th>Vật tư</th><th style="width:130px">Đơn vị</th><th class="r" style="width:150px">Đơn giá</th><th style="width:36px"></th></tr></thead>
+            <tbody>
+              <tr><td>Màng cán bóng</td><td>m²</td><td class="r num">1.600 đ</td><td class="del">✕</td></tr>
+              <tr><td>Màng cán mờ</td><td>m²</td><td class="r num">1.800 đ</td><td class="del">✕</td></tr>
+              <tr><td>Keo nhiệt (vào gáy sách)</td><td>kg</td><td class="r num">70.600 đ</td><td class="del">✕</td></tr>
+            </tbody>
+          </table>
+          <span class="a-add">Thêm một dòng</span>
+        </div>
+      </div>
+      <div class="foot"><span class="btn btn--nguy">Ngừng hợp tác</span><span style="flex:1"></span><span class="btn btn--txt">Huỷ</span><span class="btn btn--pri">Lưu</span></div>
+    </div>
+  </section>
+
+  <!-- ============================ B ============================ -->
+  <section class="opt">
+    <div class="opt-head"><h2>B. Thẻ chính và cột phụ</h2><span class="src">Shopify Polaris (trang sửa)</span><span class="src">Stripe Dashboard</span></div>
+    <div class="why">Khuôn trang sửa của Shopify: <b>cột trái để nhập</b> (thông tin, liên hệ, bảng giá), <b>cột phải hẹp để xem</b> (đánh giá, thanh toán, trạng thái). Ô nhập có khung rõ, nhãn nằm trên. Thanh "Có thay đổi chưa lưu" chỉ hiện khi đã sửa gì đó, nên không phải đứng canh hai nút Huỷ/Lưu suốt.
+      <ul><li>Dễ dùng nhất cho người mới: nhìn là biết ô nào để nhập.</li><li>Nhược: dài hơn A, cột phải chiếm 280px nên ngăn kéo phải đủ rộng; điện thoại xếp thành một cột.</li></ul></div>
+
+    <div class="drawer">
+      <div class="dh"><h3>Công ty CP Màng và Keo Đông Á</h3><span class="pill pill--on">Hoạt động</span><span class="x">✕</span></div>
+      <div class="b-save"><b>Có thay đổi chưa lưu</b><span class="sp"></span><span class="btn btn--ghost">Bỏ thay đổi</span><span class="btn btn--pri">Lưu</span></div>
+      <div class="tabs"><span class="tab on">Thông tin chung</span><span class="tab">Bảng giá vật tư <span class="cnt">3</span></span><span class="tab">Lịch sử mua hàng</span></div>
+      <div class="b-wrap">
+        <div>
+          <div class="b-card">
+            <h4>Nhà cung cấp</h4>
+            <div class="b-g">
+              <div class="b-f full"><label>Tên nhà cung cấp<i>*</i></label><input class="b-in" value="Công ty CP Màng và Keo Đông Á"></div>
+              <div class="b-f"><label>Nhóm hàng<i>*</i></label><input class="b-in" value="Màng &amp; keo"></div>
+              <div class="b-f"><label>Mã số thuế<i>*</i></label><input class="b-in num" value="0387850855"></div>
+            </div>
+          </div>
+          <div class="b-card">
+            <h4>Liên hệ</h4>
+            <div class="b-g">
+              <div class="b-f"><label>Người liên hệ<i>*</i></label><input class="b-in" value="Võ Thị Hồng"></div>
+              <div class="b-f"><label>Số điện thoại<i>*</i></label><input class="b-in num" value="0966959579"></div>
+              <div class="b-f full"><label>Email<i>*</i></label><input class="b-in" value="lienhencc005@example.com"></div>
+              <div class="b-f full"><label>Địa chỉ<i>*</i></label><input class="b-in" value="TX. Thuận An, Bình Dương"></div>
+            </div>
+          </div>
+          <div class="b-card">
+            <h4>Bảng giá vật tư <span class="act">Thêm mặt hàng</span></h4>
+            <table class="b-tbl">
+              <thead><tr><th>Vật tư</th><th>Đơn vị</th><th class="r">Đơn giá</th></tr></thead>
+              <tbody>
+                <tr><td class="name">Màng cán bóng</td><td><span class="b-chip">m²</span></td><td class="r num">1.600 đ</td></tr>
+                <tr><td class="name">Màng cán mờ</td><td><span class="b-chip">m²</span></td><td class="r num">1.800 đ</td></tr>
+                <tr><td class="name">Keo nhiệt (vào gáy sách)</td><td><span class="b-chip">kg</span></td><td class="r num">70.600 đ</td></tr>
+              </tbody>
+            </table>
+            <p class="b-help" style="margin:10px 0 0">Bấm vào dòng để sửa. Tải mẫu, nhập hay xuất Excel nằm trong nút "Excel" ở góc thẻ.</p>
+          </div>
+        </div>
+        <div class="b-side">
+          <div class="b-card">
+            <h4>Đánh giá</h4>
+            <p class="b-moi">Chưa có đơn hoàn tất nên chưa chấm sao. Điểm và tỷ lệ đúng hẹn tự tính sau đơn đầu tiên.</p>
+          </div>
+          <div class="b-card">
+            <h4>Thanh toán</h4>
+            <div class="b-f" style="margin-bottom:10px"><label>Số ngày cho nợ</label><div class="b-suf"><input class="b-in num" value="30"><span>ngày</span></div></div>
+            <div class="b-f" style="margin-bottom:10px"><label>Hạn mức công nợ</label><div class="b-suf"><input class="b-in num" placeholder="Không giới hạn"><span>đ</span></div></div>
+            <div class="b-f"><label>Điều khoản</label><input class="b-in" value="Chuyển khoản sau giao hàng"></div>
+          </div>
+          <div class="b-card">
+            <h4>Vai trò</h4>
+            <span class="sw"><i></i>Nhận gia công ngoài</span>
+            <p class="b-help" style="margin:8px 0 0">Bật thì NCC này có trong ô chọn nơi làm của công đoạn thuê ngoài.</p>
+          </div>
+        </div>
+      </div>
+      <div class="foot"><span class="btn btn--nguy">Ngừng hợp tác</span></div>
+    </div>
+  </section>
+
+  <!-- ============================ C ============================ -->
+  <section class="opt">
+    <div class="opt-head"><h2>C. Hồ sơ một trang, thuộc tính bên phải</h2><span class="src">Attio (hồ sơ CRM)</span><span class="src">Linear (chi tiết việc)</span></div>
+    <div class="why">Khuôn hồ sơ của các phần mềm CRM thế hệ mới: <b>bỏ hẳn tab</b>. Bên trái là thứ người ta làm việc cùng (bảng giá, lịch sử mua). Bên phải là danh sách thuộc tính dạng "nhãn và giá trị"; bấm vào dòng nào thì dòng đó thành ô nhập, rời ra là <b>tự lưu</b>.
+      <ul><li>Mở ra là thấy ngay giá và lịch sử mua, đúng thứ phòng mua cần khi so giá.</li><li>Nhược: đổi cách lưu từ "sửa rồi bấm Lưu" sang tự lưu từng ô, tốn công hơn A và B.</li></ul></div>
+
+    <div class="drawer">
+      <div class="dh" style="padding-bottom:0"><span class="muted" style="font-size:13px">Nhà cung cấp</span><span class="x">✕</span></div>
+      <div class="c-wrap">
+        <div class="c-main">
+          <h3 class="c-title">Công ty CP Màng và Keo Đông Á</h3>
+          <div class="c-sub"><span class="pill pill--on">Hoạt động</span><span class="pill pill--moi">Chưa chấm sao</span><span class="pill pill--moi">Màng &amp; keo</span></div>
+
+          <div class="c-sec">
+            <div class="c-sec-h"><h4>Bảng giá vật tư</h4><span class="cnt">3</span><span class="sp"></span><span class="btn btn--sm">Excel</span><span class="btn btn--sm">Thêm mặt hàng</span></div>
+            <table class="c-tbl">
+              <thead><tr><th>Vật tư</th><th style="width:110px">Đơn vị</th><th class="r" style="width:140px">Đơn giá</th></tr></thead>
+              <tbody>
+                <tr><td>Màng cán bóng</td><td>m²</td><td class="r num">1.600 đ</td></tr>
+                <tr><td>Màng cán mờ</td><td>m²</td><td class="r num">1.800 đ</td></tr>
+                <tr><td>Keo nhiệt (vào gáy sách)</td><td>kg</td><td class="r num">70.600 đ</td></tr>
+                <tr class="add"><td colspan="3">Thêm mặt hàng</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="c-sec">
+            <div class="c-sec-h"><h4>Lịch sử mua hàng</h4></div>
+            <div class="c-empty">Chưa có phiếu mua hàng nào với nhà cung cấp này.</div>
+          </div>
+        </div>
+        <div class="c-side">
+          <h5>Định danh</h5>
+          <div class="c-prop"><span>Nhóm hàng</span><b>Màng &amp; keo</b></div>
+          <div class="c-prop"><span>Mã số thuế</span><b class="num">0387850855</b></div>
+          <div class="c-prop"><span>Gia công ngoài</span><b class="trong">Không nhận</b></div>
+          <h5>Liên hệ</h5>
+          <div class="c-prop edit"><span>Người liên hệ</span><input value="Võ Thị Hồng"></div>
+          <div class="c-prop"><span>Điện thoại</span><b class="num">0966959579</b></div>
+          <div class="c-prop"><span>Email</span><b>lienhencc005@example.com</b></div>
+          <div class="c-prop"><span>Địa chỉ</span><b>TX. Thuận An, Bình Dương</b></div>
+          <h5>Thanh toán</h5>
+          <div class="c-prop"><span>Cho nợ</span><b>30 ngày</b></div>
+          <div class="c-prop"><span>Hạn mức</span><b class="trong">Không giới hạn</b></div>
+          <div class="c-prop"><span>Điều khoản</span><b>Chuyển khoản sau giao hàng</b></div>
+          <h5>Khác</h5>
+          <div class="c-prop"><span>Ghi chú</span><b class="trong">Chưa có</b></div>
+          <p class="c-note">Dòng "Người liên hệ" đang được sửa: bấm vào là thành ô nhập, rời ra là tự lưu.</p>
+          <div style="margin-top:18px"><span class="btn btn--nguy" style="padding:0">Ngừng hợp tác</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

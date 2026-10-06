@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thu tiền ngăn chồng — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07; --charcoal:#0f172a;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss-soft:#dbe7dd; --moss-deep:#244a2e; --signal:#8a1f1f;
+  --in:"Times New Roman",Times,serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1000px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 20px;max-width:820px}
+.lead ol{margin:6px 0 0;padding-left:20px}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:28px;position:sticky;top:12px;z-index:30;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--ash);padding:6px 14px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt h2{font-size:19px;margin:0 0 4px}
+.src{display:inline-block;font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas);margin-bottom:10px}
+.why{color:var(--ash);margin:0 0 18px;max-width:820px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+
+/* ---------- khung ngăn chồng ---------- */
+.stage{position:relative;background:rgba(15,23,42,.28);border-radius:14px;padding-left:28px;overflow:hidden}
+.stage::before{content:"";position:absolute;left:0;top:0;bottom:0;width:28px;background:#dfe4ea}
+.ngan{position:relative;background:var(--canvas);height:820px;display:flex;flex-direction:column;box-shadow:-10px 0 30px rgba(15,23,42,.18)}
+.nd{padding:14px 24px 14px;border-bottom:1px solid var(--rule-soft)}
+.nd1{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ash-2);min-height:28px}
+.nd1 .x{margin-left:auto;width:30px;height:30px;display:grid;place-items:center;border-radius:8px;color:var(--ash-2);cursor:pointer}
+.nd1 .x:hover{background:var(--rule-hair)}
+.nt{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:2px}
+.nt h3{margin:0;font-size:20px;font-weight:700}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);font-size:12px;color:var(--ash);font-weight:500;white-space:nowrap}
+.tag b{color:var(--ink);font-weight:600;margin-left:4px}
+.nb{flex:1;overflow:auto}
+.nf{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--rule-soft);background:var(--canvas)}
+.nf .cau{margin-right:auto;font-size:13px;color:var(--ash);min-width:0}
+.nf .cau b{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 16px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn:focus-visible,.in:focus-visible,.seg button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash)}
+.btn--sm{height:30px;padding:0 10px;font-size:12.5px}
+input,select,textarea{font:inherit;color:inherit}
+.in{width:100%;height:40px;border:1px solid var(--rule);border-radius:8px;padding:0 12px;background:var(--canvas)}
+.in:hover{border-color:var(--ash-3)}
+.in:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px var(--rule-hair)}
+.in::placeholder{color:var(--ash-3)}
+select.in{appearance:none;background:var(--canvas) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E") no-repeat right 12px center;padding-right:32px}
+textarea.in{height:68px;padding:9px 12px;resize:vertical}
+.lb{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px}
+.lb small{font-weight:400;color:var(--ash-2);font-size:12px}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--rule);border-radius:8px;padding:3px;gap:3px;background:var(--paper);height:40px}
+.seg button{border:1px solid transparent;border-radius:6px;background:transparent;font:inherit;font-size:13px;font-weight:500;color:var(--ash);cursor:pointer}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--canvas);border-color:var(--rule);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.06)}
+.an{display:none!important}
+.lk{background:none;border:0;padding:0;font:inherit;color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px;cursor:pointer}
+
+/* tờ phiếu in (dùng chung) */
+.to{background:#fff;font-family:var(--in);color:#111827;box-shadow:0 1px 2px rgba(15,23,42,.08),0 10px 30px rgba(15,23,42,.10);border:1px solid var(--rule-soft)}
+.to__dau{display:flex;justify-content:space-between;gap:16px}
+.to__cty b{display:block;font-weight:700}
+.to__mau{text-align:right}
+.to h4{font-family:var(--in);text-align:center;font-weight:700;letter-spacing:.04em;margin:0}
+.to__ngay{text-align:center;font-style:italic}
+.to__ky{display:grid;grid-template-columns:repeat(5,1fr);text-align:center;font-weight:700}
+.to__ky span small{display:block;font-weight:400;font-style:italic}
+
+/* =============== 1. Điền thẳng lên tờ phiếu =============== */
+.p1{padding:28px 24px 32px;background:var(--paper)}
+.p1 .to{max-width:640px;margin:0 auto;padding:30px 36px 28px;font-size:15px;line-height:1.5}
+.p1 .to__dau{font-size:13px}
+.p1 .to h4{font-size:24px;margin-top:18px}
+.p1 .to__ngay{margin:2px 0 4px;font-size:14px;display:flex;justify-content:center;align-items:baseline;gap:4px}
+.p1 .to__so{text-align:center;font-size:13px;color:#4b5563;margin-bottom:18px}
+.dong{display:flex;align-items:baseline;gap:8px;padding:5px 0}
+.dong>span:first-child{white-space:nowrap}
+.o1{flex:1;min-width:0;border:0;border-bottom:1px dotted #9ca3af;background:transparent;font-family:"Be Vietnam Pro",system-ui,sans-serif;font-size:14.5px;font-weight:600;color:var(--ink);padding:3px 6px;border-radius:4px 4px 0 0}
+.o1:hover{background:var(--rule-hair)}
+.o1:focus{outline:none;background:var(--rule-hair);border-bottom:1px solid var(--ink)}
+.o1::placeholder{font-weight:400;color:var(--ash-3);font-style:normal}
+.o1--so{font-size:22px;font-weight:700;letter-spacing:-.01em}
+.o1--ngay{flex:none;width:34px;text-align:center;padding:2px 0}
+.o1--nam{width:52px}
+.p1 .chu{flex:1;font-style:italic;border-bottom:1px dotted #9ca3af;padding:3px 6px;min-height:28px}
+.cach1{display:inline-flex;gap:6px}
+.cach1 button{font-family:"Be Vietnam Pro",sans-serif;font-size:13px;font-weight:500;color:var(--ash);border:1px solid var(--rule);background:#fff;border-radius:6px;height:28px;padding:0 10px;cursor:pointer}
+.cach1 button.on{border-color:var(--ink);color:var(--ink);font-weight:600;box-shadow:inset 0 0 0 1px var(--ink)}
+.p1 select.o1{appearance:none;cursor:pointer}
+.kem{display:inline-flex;align-items:center;gap:8px;font-family:"Be Vietnam Pro",sans-serif;font-size:13px}
+.p1 .to__ky{margin-top:26px;font-size:13px}
+.p1 .to__ky span{min-height:70px}
+.p1-ngoai{max-width:640px;margin:18px auto 0}
+.p1-goi{font-size:12.5px;color:var(--ash-2);margin-top:6px}
+
+/* =============== 2. Số tiền lên đầu, còn lại là danh sách =============== */
+.p2{padding:32px 24px 24px;display:flex;justify-content:center}
+.p2c{width:100%;max-width:560px}
+.so2{text-align:center;padding-bottom:22px}
+.so2 label{display:block;font-size:13px;color:var(--ash-2);margin-bottom:6px}
+.so2 .o{display:inline-flex;align-items:baseline;gap:8px;border-bottom:2px solid var(--rule-soft);padding:0 6px 4px}
+.so2 .o:focus-within{border-color:var(--ink)}
+.so2 input{border:0;outline:0;text-align:center;font-size:44px;font-weight:700;letter-spacing:-.02em;width:6ch;min-width:2ch;max-width:420px;background:transparent;font-variant-numeric:tabular-nums}
+.so2 .dv{font-size:22px;font-weight:600;color:var(--ash-2)}
+.so2 .chu{margin-top:8px;font-size:13px;color:var(--ash);font-style:italic;min-height:20px}
+.so2 .goi{display:flex;justify-content:center;gap:8px;margin-top:12px}
+.chip{height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:12.5px;color:var(--ash);cursor:pointer}
+.chip:hover{background:var(--rule-hair);color:var(--ink)}
+.chip.on{border-color:var(--ink);color:var(--ink);font-weight:600}
+.p2 .seg{margin:4px 0 18px;height:44px}
+.ds{border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.ds__h{display:grid;grid-template-columns:150px minmax(0,1fr) 16px;gap:14px;align-items:center;padding:13px 16px;border-bottom:1px solid var(--rule-hair);cursor:pointer;min-height:52px}
+.ds__h:last-child{border-bottom:0}
+.ds__h:hover{background:var(--rule-hair)}
+.ds__h>span:first-child{color:var(--ash);font-size:13px}
+.ds__h .gt{font-weight:500;min-width:0;overflow-wrap:anywhere}
+.ds__h .gt.trong{color:var(--ash-3);font-weight:400}
+.ds__h .mt{color:var(--ash-3)}
+.ds__h.sua{cursor:default;background:var(--canvas)}
+.ds__h.sua .mt{visibility:hidden}
+.ds__h .in{height:36px}
+
+/* =============== 3. Form trái, tờ phiếu thật bên phải =============== */
+.p3{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:32px;padding:24px}
+.p3f{display:grid;grid-template-columns:1fr 1fr;gap:18px 16px;align-content:start}
+.p3f .full{grid-column:1 / -1}
+.so3{position:relative}
+.so3 input{height:56px;font-size:26px;font-weight:700;letter-spacing:-.01em;padding-right:40px;font-variant-numeric:tabular-nums}
+.so3::after{content:"đ";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:17px;font-weight:600;color:var(--ash-2)}
+.so3-duoi{display:flex;justify-content:space-between;gap:12px;margin-top:6px;font-size:12.5px;color:var(--ash-2)}
+.so3-duoi i{color:var(--ash)}
+.nhom{grid-column:1 / -1;font-size:13px;font-weight:600;color:var(--ink);padding-top:8px;margin-bottom:-6px;border-top:1px solid var(--rule-hair);padding-top:16px}
+.tha{display:flex;align-items:center;gap:12px;border:1px solid var(--rule-soft);background:var(--paper);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--ash)}
+.tha .ic{width:34px;height:34px;border-radius:8px;background:var(--canvas);border:1px solid var(--rule-soft);display:grid;place-items:center;color:var(--ash-2);flex:none}
+.tha .btn{margin-left:auto}
+.p3x{position:sticky;top:0;align-self:start}
+.p3x .to{padding:22px 22px 20px;font-size:11.5px;line-height:1.45;aspect-ratio:148/210}
+.p3x .to__dau{font-size:10px}
+.p3x .to h4{font-size:17px;margin-top:14px}
+.p3x .to__ngay{font-size:11px;margin-bottom:12px}
+.p3x .dg{padding:4px 0;border-bottom:1px dotted #cbd5e1}
+.p3x .dg b{font-weight:700}
+.p3x .dg em{font-style:italic}
+.p3x .to__ky{margin-top:16px;font-size:9.5px;gap:2px}
+.p3x .cap{font-size:12px;color:var(--ash-2);margin-top:10px;text-align:center}
+
+@media (max-width:760px){
+  .stage{padding-left:0}.stage::before{display:none}
+  .p3{grid-template-columns:1fr}.p3x{position:static}
+  .p3f{grid-template-columns:1fr}
+  .p1 .to{padding:22px 18px}
+  .to__ky{grid-template-columns:repeat(3,1fr)}
+  .ds__h{grid-template-columns:1fr 16px}.ds__h>span:first-child{grid-column:1 / -1}
+  .so2 input{width:220px;font-size:34px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Thu tiền ở ngăn chồng — 3 kiểu form</h1>
+  <div class="lead">
+    Khung đã chốt là cách A: bấm "Thu tiền" ở hoá đơn thì mở ngăn chồng. Bản này chỉ vẽ lại <b>form bên trong</b>. Form này sẽ dùng chung cho
+    nút "Lập phiếu thu" ở màn Phiếu thu, nên chữa luôn mấy chỗ xấu của form hiện có:
+    <ol>
+      <li>Lưới lệch: hàng trên chia đôi, hàng dưới chia 2 phần 1, mép các ô không thẳng nhau.</li>
+      <li>Số tiền là thứ quan trọng nhất lại là một ô nhỏ nằm ở góc.</li>
+      <li>Mỗi khối một kiểu khung: ô viền, đường kẻ, hộp gạch đứt, thẻ "Bản in" bọc thêm tờ giấy.</li>
+      <li>Tờ xem trước bé, ô trống ghi "chưa ghi" in nghiêng, trông không giống tờ phiếu thật.</li>
+      <li>"Nhận bằng" là nút tròn trơn, lạc tông với các ô còn lại.</li>
+    </ol>
+    Số liệu thật: hoá đơn 123 của Cao Lợi Hưng, còn phải thu 8.460.973 đ, hai tài khoản nhận tiền đang có trên DB dev.
+    Các ô gõ được, bấm Chuyển khoản sẽ hiện thêm ô tài khoản và mã giao dịch.
+  </div>
+
+  <div class="switch">
+    <button class="on" data-o="1">1. Điền lên tờ phiếu</button>
+    <button data-o="2">2. Số tiền lên đầu</button>
+    <button data-o="3">3. Form và tờ phiếu</button>
+  </div>
+
+  <!-- ======================= 1 ======================= -->
+  <section class="opt on" id="o-1">
+    <h2>1. Điền thẳng lên tờ phiếu thu</h2>
+    <span class="src">Khuôn FreshBooks: sửa trực tiếp trên tờ hoá đơn</span>
+    <div class="why">
+      <b>Ý chính:</b> không còn form riêng và bản xem trước riêng. Ngăn chồng hiện <b>tờ phiếu thu mẫu 01-TT cỡ thật</b>, chỗ nào cần điền là
+      một dòng chấm gõ được ngay. Kế toán đã quen tờ phiếu giấy nên nhìn là biết điền gì, thấy sao in ra vậy.
+      <ul>
+        <li>Hợp khi: muốn chắc chắn bản in đúng từng chữ, người dùng quen phiếu giấy.</li>
+        <li>Đổi lại: ô không in (ghi chú nội bộ, ảnh chứng từ) phải nằm ngoài tờ. Trên điện thoại tờ phiếu khá dài.</li>
+      </ul>
+    </div>
+    <div class="stage"><div class="ngan">
+      <div class="nd">
+        <div class="nd1">Cao Lợi Hưng <span>›</span> Hoá đơn 123<span class="x" title="Đóng">✕</span></div>
+        <div class="nt"><h3>Thu tiền hoá đơn 123</h3></div>
+        <div class="meta"><span class="tag">Còn phải thu<b>8.460.973 đ</b></span><span class="tag">Ký hiệu<b>123</b></span><span class="tag">Đơn<b>DH001</b></span><span class="tag">Hạn thu<b>05/11/2026</b></span></div>
+      </div>
+      <div class="nb p1">
+        <div class="to">
+          <div class="to__dau">
+            <div class="to__cty"><b>CÔNG TY CỔ PHẦN IN SAO VIỆT NHẬT</b>1/473 Khu Phố Hòa Lân 2, Phường Thuận Giao, TP. Hồ Chí Minh</div>
+            <div class="to__mau"><b>Mẫu số 01 - TT</b><br><i>(Theo TT 200/2014/TT-BTC)</i></div>
+          </div>
+          <h4>PHIẾU THU</h4>
+          <div class="to__ngay">Ngày <input class="o1 o1--ngay" value="06" aria-label="Ngày"> tháng <input class="o1 o1--ngay" value="10" aria-label="Tháng"> năm <input class="o1 o1--ngay o1--nam" value="2026" aria-label="Năm"></div>
+          <div class="to__so">Số: tự cấp khi lập</div>
+          <div class="dong"><span>Họ và tên người nộp tiền:</span><input class="o1" value="CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM"></div>
+          <div class="dong"><span>Địa chỉ:</span><input class="o1" placeholder="Không bắt buộc"></div>
+          <div class="dong"><span>Lý do nộp:</span><input class="o1" value="Thu hóa đơn 123 của đơn DH001"></div>
+          <div class="dong"><span>Hình thức:</span>
+            <span class="cach1" data-cach="1"><button class="on" data-v="cash">Tiền mặt</button><button data-v="bank">Chuyển khoản</button></span>
+          </div>
+          <div class="dong an" data-ck="1"><span>Tài khoản nhận:</span>
+            <select class="o1"><option>933134668 tại Ngân hàng TMCP Quân đội</option><option>0281000123456 tại Vietcombank</option></select></div>
+          <div class="dong an" data-ck="1"><span>Mã giao dịch:</span><input class="o1" placeholder="Mã in trên sao kê hoặc tin nhắn báo có"></div>
+          <div class="dong"><span>Số tiền:</span><input class="o1 o1--so" data-tien="1" value="8.460.973" inputmode="numeric"><span>đồng</span></div>
+          <div class="dong"><span>Viết bằng chữ:</span><span class="chu" data-chu="1"></span></div>
+          <div class="dong"><span>Kèm theo:</span><span class="kem"><b data-kem="1">0</b> chứng từ gốc <button class="btn btn--sm" data-themanh="1">Thêm ảnh</button></span></div>
+          <div class="to__ky"><span>Giám đốc<small>(Ký, họ tên, đóng dấu)</small></span><span>Kế toán trưởng<small>(Ký, họ tên)</small></span><span>Người nộp tiền<small>(Ký, họ tên)</small></span><span>Người lập phiếu<small>(Ký, họ tên)</small></span><span>Thủ quỹ<small>(Ký, họ tên)</small></span></div>
+        </div>
+        <div class="p1-ngoai">
+          <label class="lb">Ghi chú nội bộ <small>không in lên phiếu</small></label>
+          <textarea class="in" placeholder="VD: Khách hẹn chuyển nốt phần lẻ tuần sau"></textarea>
+        </div>
+      </div>
+      <div class="nf"><span class="cau" data-cau="1"></span><button class="btn btn--txt">Đóng</button><button class="btn btn--pri">Lập phiếu thu</button></div>
+    </div></div>
+  </section>
+
+  <!-- ======================= 2 ======================= -->
+  <section class="opt" id="o-2">
+    <h2>2. Số tiền lên đầu, phần còn lại là danh sách để soát</h2>
+    <span class="src">Khuôn Mercury và Wise: màn chuyển tiền</span>
+    <div class="why">
+      <b>Ý chính:</b> một cột giữa, <b>số tiền to ở trên cùng</b> kèm dòng viết bằng chữ, ngay dưới là chọn Tiền mặt hay Chuyển khoản.
+      Các ô khác đã điền sẵn nên hiện thành danh sách để <b>soát</b>, bấm dòng nào thì dòng đó mở ô sửa. Bản in mở bằng nút ở chân ngăn.
+      <ul>
+        <li>Hợp khi: phần lớn lượt thu chỉ cần xác nhận số tiền và hình thức, các ô khác giữ nguyên.</li>
+        <li>Đổi lại: không thấy tờ phiếu trong lúc gõ, muốn soát bản in phải bấm "Xem bản in".</li>
+      </ul>
+    </div>
+    <div class="stage"><div class="ngan">
+      <div class="nd">
+        <div class="nd1">Cao Lợi Hưng <span>›</span> Hoá đơn 123<span class="x">✕</span></div>
+        <div class="nt"><h3>Thu tiền hoá đơn 123</h3></div>
+        <div class="meta"><span class="tag">Ký hiệu<b>123</b></span><span class="tag">Đơn<b>DH001</b></span><span class="tag">Hạn thu<b>05/11/2026</b></span></div>
+      </div>
+      <div class="nb p2"><div class="p2c">
+        <div class="so2">
+          <label for="t2">Số tiền thu</label>
+          <span class="o"><input id="t2" data-tien="2" value="8.460.973" inputmode="numeric"><span class="dv">đ</span></span>
+          <div class="chu" data-chu="2"></div>
+          <div class="goi"><button class="chip on" data-dat="8460973" data-nhom="2">Thu đủ 8.460.973</button><button class="chip" data-dat="4230487" data-nhom="2">Một nửa</button></div>
+        </div>
+        <div class="seg" data-cach="2"><button class="on" data-v="cash">Tiền mặt</button><button data-v="bank">Chuyển khoản</button></div>
+        <div class="ds">
+          <div class="ds__h an" data-ck="2" data-sua="select"><span>Tài khoản nhận</span><span class="gt">933134668 tại Ngân hàng TMCP Quân đội</span><span class="mt">›</span></div>
+          <div class="ds__h an" data-ck="2" data-sua="text"><span>Mã giao dịch</span><span class="gt trong">Bắt buộc khi chuyển khoản</span><span class="mt">›</span></div>
+          <div class="ds__h" data-sua="date"><span>Ngày thu</span><span class="gt">06/10/2026</span><span class="mt">›</span></div>
+          <div class="ds__h" data-sua="text"><span>Người nộp tiền</span><span class="gt">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</span><span class="mt">›</span></div>
+          <div class="ds__h" data-sua="text"><span>Lý do nộp</span><span class="gt">Thu hóa đơn 123 của đơn DH001</span><span class="mt">›</span></div>
+          <div class="ds__h" data-sua="text"><span>Địa chỉ người nộp</span><span class="gt trong">Không bắt buộc</span><span class="mt">›</span></div>
+          <div class="ds__h"><span>Ảnh chứng từ gốc</span><span class="gt trong">Chưa có ảnh</span><span class="mt">+</span></div>
+          <div class="ds__h" data-sua="text"><span>Ghi chú nội bộ</span><span class="gt trong">Không in lên phiếu</span><span class="mt">›</span></div>
+        </div>
+      </div></div>
+      <div class="nf"><span class="cau" data-cau="2"></span><button class="btn btn--txt">Xem bản in</button><button class="btn btn--pri">Lập phiếu thu</button></div>
+    </div></div>
+  </section>
+
+  <!-- ======================= 3 ======================= -->
+  <section class="opt" id="o-3">
+    <h2>3. Form gọn bên trái, tờ phiếu thật bên phải</h2>
+    <span class="src">Khuôn Stripe: tạo hoá đơn có bản xem trước sống</span>
+    <div class="why">
+      <b>Ý chính:</b> giữ bố cục form cộng bản xem trước mà bạn đã chọn ở Lập phiếu thu, nhưng làm lại cho sạch: một lưới hai cột thẳng mép,
+      số tiền là ô to nhất và có chữ viết bằng chữ ngay dưới, chia hai nhóm "Tiền" và "Người nộp", không còn hộp gạch đứt.
+      Tờ phiếu bên phải đúng tỉ lệ A5, chữ in như bản thật, đứng yên khi cuộn form.
+      <ul>
+        <li>Hợp khi: vừa muốn form quen tay vừa muốn soát bản in liên tục.</li>
+        <li>Đổi lại: tờ phiếu chiếm 340px nên ô form hẹp hơn hai cách kia.</li>
+      </ul>
+    </div>
+    <div class="stage"><div class="ngan">
+      <div class="nd">
+        <div class="nd1">Cao Lợi Hưng <span>›</span> Hoá đơn 123<span class="x">✕</span></div>
+        <div class="nt"><h3>Thu tiền hoá đơn 123</h3></div>
+        <div class="meta"><span class="tag">Ký hiệu<b>123</b></span><span class="tag">Đơn<b>DH001</b></span><span class="tag">Hạn thu<b>05/11/2026</b></span></div>
+      </div>
+      <div class="nb"><div class="p3">
+        <div class="p3f">
+          <div class="full">
+            <label class="lb" for="t3">Số tiền thu</label>
+            <div class="so3"><input class="in" id="t3" data-tien="3" value="8.460.973" inputmode="numeric"></div>
+            <div class="so3-duoi"><i data-chu="3"></i><button class="lk" data-dat="8460973" data-nhom="3">Thu đủ</button></div>
+          </div>
+          <div><label class="lb">Ngày thu</label><input class="in" type="date" value="2026-10-06" data-ngay="3"></div>
+          <div><label class="lb">Nhận bằng</label><div class="seg" data-cach="3"><button class="on" data-v="cash">Tiền mặt</button><button data-v="bank">Chuyển khoản</button></div></div>
+          <div class="full an" data-ck="3"><label class="lb">Tài khoản nhận</label><select class="in" data-tk="3"><option>933134668 tại Ngân hàng TMCP Quân đội</option><option>0281000123456 tại Vietcombank</option></select></div>
+          <div class="full an" data-ck="3"><label class="lb">Mã giao dịch</label><input class="in" placeholder="Mã trên sao kê hoặc tin báo có"></div>
+          <div class="nhom">Người nộp</div>
+          <div class="full"><label class="lb">Người nộp tiền</label><input class="in" data-ban="nguoi" value="CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM"></div>
+          <div class="full"><label class="lb">Lý do nộp</label><input class="in" data-ban="lydo" value="Thu hóa đơn 123 của đơn DH001"></div>
+          <div class="full"><label class="lb">Địa chỉ người nộp <small>không bắt buộc</small></label><input class="in" data-ban="diachi" placeholder="In lên phiếu nếu có"></div>
+          <div class="nhom">Chứng từ</div>
+          <div class="full tha"><span class="ic">▤</span><span>Ảnh chứng từ gốc <small style="display:block;color:var(--ash-2)">Kéo ảnh vào đây, in thành "Kèm theo" trên phiếu</small></span><button class="btn btn--sm" data-themanh="3">Chọn ảnh</button></div>
+          <div class="full"><label class="lb">Ghi chú nội bộ <small>không in lên phiếu</small></label><textarea class="in"></textarea></div>
+        </div>
+        <div class="p3x">
+          <div class="to">
+            <div class="to__dau"><div class="to__cty"><b>CÔNG TY CỔ PHẦN IN SAO VIỆT NHẬT</b></div><div class="to__mau"><b>Mẫu số 01 - TT</b><br>Số: <i>tự cấp</i></div></div>
+            <h4>PHIẾU THU</h4>
+            <div class="to__ngay" data-xngay="3">Ngày 6 tháng 10 năm 2026</div>
+            <div class="dg">Họ và tên người nộp tiền: <b data-x="nguoi"></b></div>
+            <div class="dg an" data-x-wrap="diachi">Địa chỉ: <b data-x="diachi"></b></div>
+            <div class="dg">Lý do nộp: <b data-x="lydo"></b></div>
+            <div class="dg">Hình thức: <b data-xcach="3">Tiền mặt</b></div>
+            <div class="dg an" data-ck="3">Tài khoản nhận: <b data-xtk="3">933134668 tại Ngân hàng TMCP Quân đội</b></div>
+            <div class="dg">Số tiền: <b data-xso="3"></b></div>
+            <div class="dg">Viết bằng chữ: <em data-chu="3x"></em></div>
+            <div class="dg">Kèm theo: <b><span data-kem="3">0</span> chứng từ gốc</b></div>
+            <div class="to__ky"><span>Giám đốc</span><span>Kế toán trưởng</span><span>Người nộp tiền</span><span>Người lập phiếu</span><span>Thủ quỹ</span></div>
+          </div>
+          <div class="cap">Đổi theo từng phím gõ, in ra đúng như vậy</div>
+        </div>
+      </div></div>
+      <div class="nf"><span class="cau" data-cau="3"></span><button class="btn btn--txt">Đóng</button><button class="btn btn--pri">Lập phiếu thu</button></div>
+    </div></div>
+  </section>
+</div>
+
+<script>
+var CON = 8460973;
+var CS = ["không","một","hai","ba","bốn","năm","sáu","bảy","tám","chín"];
+function ba(n, du){ // đọc nhóm 3 chữ số; du = phải đọc đủ "không trăm", "linh"
+  var t=Math.floor(n/100), c=Math.floor(n%100/10), d=n%10, r=[];
+  if(t>0||du) r.push(CS[t]+" trăm");
+  if(c>1){ r.push(CS[c]+" mươi"); if(d===1) r.push("mốt"); else if(d===5) r.push("lăm"); else if(d>0) r.push(CS[d]); }
+  else if(c===1){ r.push("mười"); if(d===5) r.push("lăm"); else if(d>0) r.push(CS[d]); }
+  else if(d>0){ if(t>0||du) r.push("linh"); r.push(CS[d]); }
+  return r.join(" ");
+}
+function bangChu(n){
+  if(!n) return "";
+  var don=["","nghìn","triệu","tỷ"], nhom=[], i=0;
+  while(n>0){ nhom.push(n%1000); n=Math.floor(n/1000); }
+  var r=[];
+  for(i=nhom.length-1;i>=0;i--){
+    if(nhom[i]===0) continue;
+    r.push(ba(nhom[i], i<nhom.length-1) + (don[i]?" "+don[i]:""));
+  }
+  var s=r.join(" ").trim()+" đồng";
+  return s.charAt(0).toUpperCase()+s.slice(1)+".";
+}
+function so(v){ return parseInt(String(v).replace(/\D/g,""),10)||0; }
+function dd(n){ return n.toLocaleString("vi-VN"); }
+function cau(k){
+  var n=so(document.querySelector('[data-tien="'+k+'"]').value);
+  var bank=document.querySelector('[data-cach="'+k+'"] .on').dataset.v==="bank";
+  var con=Math.max(0,CON-n), el=document.querySelector('[data-cau="'+k+'"]');
+  if(!n){ el.innerHTML="Nhập số tiền thu"; return; }
+  if(n>CON){ el.innerHTML='<b style="color:var(--signal)">Thu quá số còn nợ '+dd(n-CON)+' đ</b>'; return; }
+  el.innerHTML="Thu <b>"+dd(n)+" đ</b> "+(bank?"chuyển khoản":"tiền mặt")+", hoá đơn còn nợ <b>"+dd(con)+" đ</b>";
+}
+function capNhat(k){
+  var inp=document.querySelector('[data-tien="'+k+'"]'), n=so(inp.value);
+  document.querySelectorAll('[data-chu="'+k+'"],[data-chu="'+k+'x"]').forEach(function(e){e.textContent=bangChu(n);});
+  if(k==="2") inp.style.width=Math.max(2,inp.value.length*0.62+0.4)+"em";
+  var x=document.querySelector('[data-xso="'+k+'"]'); if(x) x.textContent=n?dd(n)+" đồng":"";
+  document.querySelectorAll('[data-nhom="'+k+'"]').forEach(function(c){c.classList.toggle("on",so(c.dataset.dat)===n);});
+  cau(k);
+}
+document.querySelectorAll("[data-tien]").forEach(function(inp){
+  var k=inp.dataset.tien;
+  inp.addEventListener("input",function(){
+    var n=so(inp.value); inp.value=n?dd(n):""; capNhat(k);
+  });
+  capNhat(k);
+});
+document.querySelectorAll("[data-dat]").forEach(function(b){
+  b.addEventListener("click",function(){
+    var k=b.dataset.nhom, inp=document.querySelector('[data-tien="'+k+'"]');
+    inp.value=dd(so(b.dataset.dat)); capNhat(k);
+  });
+});
+document.querySelectorAll("[data-cach]").forEach(function(g){
+  var k=g.dataset.cach;
+  g.querySelectorAll("button").forEach(function(b){
+    b.addEventListener("click",function(){
+      g.querySelectorAll("button").forEach(function(x){x.classList.toggle("on",x===b);});
+      var bank=b.dataset.v==="bank";
+      document.querySelectorAll('[data-ck="'+k+'"]').forEach(function(e){e.classList.toggle("an",!bank);});
+      var xc=document.querySelector('[data-xcach="'+k+'"]'); if(xc) xc.textContent=bank?"Chuyển khoản":"Tiền mặt";
+      cau(k);
+    });
+  });
+});
+document.querySelectorAll("[data-themanh]").forEach(function(b){
+  b.addEventListener("click",function(){
+    var k=b.dataset.themanh; var e=document.querySelector('[data-kem="'+k+'"]'); e.textContent=so(e.textContent)+1;
+  });
+});
+// 3: tờ phiếu bám theo form
+function ban3(){
+  ["nguoi","lydo","diachi"].forEach(function(f){
+    var v=document.querySelector('[data-ban="'+f+'"]').value.trim();
+    document.querySelector('[data-x="'+f+'"]').textContent=v;
+    var w=document.querySelector('[data-x-wrap="'+f+'"]'); if(w) w.classList.toggle("an",!v);
+  });
+  var d=document.querySelector('[data-ngay="3"]').value.split("-");
+  if(d.length===3) document.querySelector('[data-xngay="3"]').textContent="Ngày "+(+d[2])+" tháng "+(+d[1])+" năm "+d[0];
+  document.querySelector('[data-xtk="3"]').textContent=document.querySelector('[data-tk="3"]').value;
+}
+document.querySelectorAll('[data-ban],[data-ngay="3"],[data-tk="3"]').forEach(function(e){e.addEventListener("input",ban3);e.addEventListener("change",ban3);});
+ban3();
+// 2: bấm dòng thì mở ô sửa
+document.querySelectorAll(".ds__h[data-sua]").forEach(function(h){
+  h.addEventListener("click",function(){
+    if(h.classList.contains("sua")) return;
+    var gt=h.querySelector(".gt"), trong=gt.classList.contains("trong"), loai=h.dataset.sua, el;
+    if(loai==="select"){ el=document.createElement("select"); el.className="in";
+      ["933134668 tại Ngân hàng TMCP Quân đội","0281000123456 tại Vietcombank"].forEach(function(t){var o=document.createElement("option");o.textContent=t;el.appendChild(o);});
+    } else { el=document.createElement("input"); el.className="in";
+      if(loai==="date"){ el.type="date"; el.value="2026-10-06"; } else { el.value=trong?"":gt.textContent; el.placeholder=trong?gt.textContent:""; } }
+    gt.replaceWith(el); h.classList.add("sua"); el.focus();
+    el.addEventListener("blur",function(){
+      var v=el.value; if(loai==="date"&&v){var p=v.split("-");v=p[2]+"/"+p[1]+"/"+p[0];}
+      var s=document.createElement("span"); s.className="gt"+(v?"":" trong"); s.textContent=v||(el.placeholder||"");
+      el.replaceWith(s); h.classList.remove("sua");
+    });
+  });
+});
+document.querySelectorAll(".switch button").forEach(function(b){
+  b.addEventListener("click",function(){
+    document.querySelectorAll(".switch button").forEach(function(x){x.classList.toggle("on",x===b);});
+    document.querySelectorAll(".opt").forEach(function(o){o.classList.toggle("on",o.id==="o-"+b.dataset.o);});
+  });
+});
+</script>
+</body>
+</html>

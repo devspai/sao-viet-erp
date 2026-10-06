@@ -511,8 +511,8 @@ class XepLichService:
 
         --- RÚT VỀ TẦNG REPOSITORY (Ruling C117, task-16-brief.md) -------------------------------
         Thân hàm (trước đây tự `select(WorkShift)...`) nay CHỈ gọi lại
-        `AttendanceRepository.ca_lich_xuong()` — tab "Theo ca" của Theo dõi sản xuất
-        (`services/lenh_sx/bang_theo_doi.theo_ca`) cần ĐÚNG tập ca này để xếp việc vào cột ca
+        `AttendanceRepository.ca_lich_xuong()` — tab "Theo ca" của Theo dõi sản xuất (đã xoá
+        05/10/2026) từng cần ĐÚNG tập ca này để xếp việc vào cột ca
         không lệch với chỗ Xếp lịch đã đặt việc. Giữ nguyên toàn bộ luật ở trên (docstring này chỉ
         mô tả LẠI, không đổi hành vi) — hai nơi gọi CÙNG một câu SQL, không phải hai bản sao có
         nguy cơ trôi nhau.

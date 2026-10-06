@@ -2,10 +2,10 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { DepartmentPurchaseRequestRow } from "../../../../api/client";
 import { EmptyRow } from "../../../../components/EmptyState";
-import { fmtDate } from "../../../../utils/format";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
+import { fmtDate, fmtDateTime } from "../../../../utils/format";
 import { SOURCE_STATUS_META, SOURCE_TYPE_LABELS } from "../shared/constants";
 import { dongSong } from "../shared/helpers";
-import type { StatusFilter } from "../shared/types";
 import { SourceStatusBadge } from "./requestCells";
 
 export function RequestsTable({
@@ -13,14 +13,13 @@ export function RequestsTable({
   listError,
   load,
   rows,
-  q,
-  setQ,
-  status,
-  setStatus,
+  coLoc,
+  xoaLoc,
   page,
   setPage,
   total,
-  totalPages,
+  size,
+  onSize,
   focusRequestCode,
   selectedId,
   setSelectedId,
@@ -29,19 +28,20 @@ export function RequestsTable({
   listError: string | null;
   load: () => void;
   rows: DepartmentPurchaseRequestRow[];
-  q: string;
-  setQ: Dispatch<SetStateAction<string>>;
-  status: StatusFilter;
-  setStatus: Dispatch<SetStateAction<StatusFilter>>;
+  /** Đang có ô tìm / tab / kỳ / điều kiện nào khác mặc định không — ô rỗng mời xoá lọc. */
+  coLoc: boolean;
+  xoaLoc: () => void;
   page: number;
   setPage: Dispatch<SetStateAction<number>>;
   total: number;
-  totalPages: number;
+  size: number;
+  onSize: (size: number) => void;
   focusRequestCode: string | null;
   selectedId: number | null;
   setSelectedId: Dispatch<SetStateAction<number | null>>;
 }) {
   return (
+    <>
       <section className="card md-page__tablewrap">
         <table className="md-page__table purchase__table-modern">
           <thead>
@@ -49,6 +49,7 @@ export function RequestsTable({
               <th style={{ width: "160px" }}>Mã yêu cầu</th>
               <th style={{ width: "210px" }}>Bộ phận / Người tạo</th>
               <th style={{ width: "110px" }}>Vật tư</th>
+              <th style={{ width: "110px" }}>Ngày tạo</th>
               <th style={{ width: "130px" }}>Ngày cần hàng</th>
               <th style={{ width: "180px" }}>Trạng thái</th>
             </tr>
@@ -60,35 +61,35 @@ export function RequestsTable({
                   <td><div className="purchase__skeleton-bar" style={{ width: "120px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "140px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "70px" }} /></td>
+                  <td><div className="purchase__skeleton-bar" style={{ width: "90px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "100px" }} /></td>
                   <td><div className="purchase__skeleton-bar" style={{ width: "130px" }} /></td>
                 </tr>
               ))
             ) : listError ? (
               <EmptyRow
-                colSpan={5}
+                colSpan={6}
                 trangThai="loi"
                 loi={listError}
                 onThuLai={load}
               />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={5}
+                colSpan={6}
                 icon="clipboard"
-                title="Chưa có yêu cầu mua hàng nào khớp"
+                title={coLoc ? "Không có yêu cầu mua hàng nào khớp" : "Chưa có yêu cầu mua hàng nào"}
                 sub={
-                  q.trim() || status !== "all"
+                  coLoc
                     ? "Thử bỏ bớt bộ lọc hoặc xoá từ khoá tìm kiếm."
                     : "Bộ phận gửi yêu cầu vật tư sang Thu mua tại đây."
                 }
                 action={
-                  q.trim() || status !== "all" ? (
+                  coLoc ? (
                     <button
                       type="button"
                       className="btn btn--ghost"
                       onClick={() => {
-                        setQ("");
-                        setStatus("all");
+                        xoaLoc();
                         setPage(1);
                       }}
                     >
@@ -130,6 +131,7 @@ export function RequestsTable({
                   <td title={row.lines.map((line) => line.item_name).join(", ")}>
                     <span className="purchase__item-chip">{dongSong(row).length} món</span>
                   </td>
+                  <td title={fmtDateTime(row.created_at)}>{fmtDate(row.created_at)}</td>
                   <td>{fmtDate(row.needed_date)}</td>
                   <td>
                     <div className="purchase__status-col">
@@ -146,31 +148,22 @@ export function RequestsTable({
             )}
           </tbody>
         </table>
-        {!loading && totalPages > 1 && (
-          <div className="purchase__source-foot">
-            <span className="md-page__muted">
-              Tổng {total} yêu cầu · Trang {page}/{totalPages}
-            </span>
-            <div className="md-page__pager-btns">
-              <button
-                type="button"
-                className="btn btn--ghost"
-                disabled={page <= 1 || loading}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Trước
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                disabled={page >= totalPages || loading}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        )}
       </section>
+      {/* Chân đặt NGAY SAU thẻ chứ không trong thẻ: thẻ vừa có padding vừa là khung cuộn ngang,
+          đặt trong thì chân lọt vào padding và trôi theo bảng khi cuộn. purchase.css nối hai mảnh. */}
+      {total > 0 && (
+        <PhanTrangDayDu
+          trang={page}
+          size={size}
+          tong={total}
+          soDong={rows.length}
+          onTrang={setPage}
+          onSize={onSize}
+          loading={loading}
+          donVi="yêu cầu"
+          ariaLabel="Phân trang yêu cầu mua hàng"
+        />
+      )}
+    </>
   );
 }

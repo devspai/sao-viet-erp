@@ -234,6 +234,125 @@ def test_ho_so_cua_toi_tra_du_o_bhxh_thue_va_quan_ly_truc_tiep(client):
     assert emp["national_id_date"] == "2021-03-04" and emp["national_id_place"] == "Cục CS QLHC"
     assert emp["probation_end_date"] == "2024-03-15"
     assert emp["department_head_name"] == head_name
+    assert emp["department_head_dept_name"] == "Hành chính nhân sự"
+    assert emp["department_head_inherited"] is False
+
+
+def test_quan_ly_truc_tiep_lan_len_phong_cap_tren(client):
+    """Phòng của mình chưa chỉ định người đứng đầu ⇒ "Quản lý trực tiếp" lấy người đứng đầu GẦN
+    NHẤT phía trên (lần qua nhiều tầng). Người đứng đầu chính là mình thì cũng phải lên tầng trên —
+    trưởng phòng không tự quản lý mình."""
+    admin = _admin_token(client)
+    hcns = _dept_id("Hành chính nhân sự")
+    r = _create(client, admin, full_name="NV Tổ Con", department_id=hcns,
+                account={"username": "nvtocon", "password": "nvtocon123", "role_id": _vai_tho(client, admin)})
+    assert r.status_code == 201, r.text
+    emp_id = r.json()["employee"]["id"]
+
+    db = SessionLocal()
+    try:
+        depts = DepartmentRepository(db)
+        users = UserRepository(db)
+        admin_user = users.get_by_username("admin")
+        depts.set_head(depts.get_by_id(hcns), admin_user.id)
+        # Hai tầng con trống người đứng đầu: HCNS → Nhóm A → Tổ A1 (NV ngồi ở Tổ A1).
+        nhom = depts.create(name="Nhóm A thử", parent_id=hcns)
+        to = depts.create(name="Tổ A1 thử", parent_id=nhom.id)
+        from app.models.employee import Employee
+        e = db.get(Employee, emp_id)
+        e.department_id = to.id
+        db.commit()
+        nv_user_id = e.user_id
+        head_name = admin_user.name or admin_user.username
+    finally:
+        db.close()
+
+    tok = client.post("/api/auth/login",
+                      json={"username": "nvtocon", "password": "nvtocon123"}).json()["access_token"]
+    emp = client.get("/api/employees/me", headers=_h(tok)).json()["employee"]
+    assert emp["department_head_name"] == head_name
+    assert emp["department_head_dept_name"] == "Hành chính nhân sự"
+    assert emp["department_head_inherited"] is True
+
+    # Chính NV là người đứng đầu Tổ A1 ⇒ vẫn lên tới HCNS, không trả về chính mình.
+    db = SessionLocal()
+    try:
+        depts = DepartmentRepository(db)
+        depts.set_head(depts.get_by_name("Tổ A1 thử"), nv_user_id)
+    finally:
+        db.close()
+    emp = client.get("/api/employees/me", headers=_h(tok)).json()["employee"]
+    assert emp["department_head_name"] == head_name
+    assert emp["department_head_inherited"] is True
+
+
+def test_ho_so_cua_toi_bao_ca_hom_nay_khi_luoi_doi_ca(client):
+    """Ô "Ca làm việc" hiện CA NỀN; lưới phân ca đổi riêng HÔM NAY (ca khác / nghỉ theo lịch) thì
+    `/me` phải nói thêm — không thì NV đi làm theo ca nền. Ngày thường, hay ô lưới TRÙNG ca nền:
+    không nói gì (để trống, màn không thêm dòng)."""
+    from app.models.attendance import WorkShift
+    from app.models.employee import Employee, EmployeeShiftDay
+    from app.services.leave_service import hom_nay_vn
+
+    admin = _admin_token(client)
+    r = _create(client, admin, full_name="NV Đổi Ca",
+                account={"username": "nvdoica", "password": "nvdoica123", "role_id": _vai_tho(client, admin)})
+    assert r.status_code == 201, r.text
+    emp_id = r.json()["employee"]["id"]
+    tok = client.post("/api/auth/login",
+                      json={"username": "nvdoica", "password": "nvdoica123"}).json()["access_token"]
+
+    def me():
+        return client.get("/api/employees/me", headers=_h(tok)).json()["employee"]
+
+    db = SessionLocal()
+    try:
+        hc = WorkShift(name="HC thử", start_minute=480, end_minute=1020)
+        dem = WorkShift(name="Ca 3 thử", start_minute=1320, end_minute=360, is_overnight=True)
+        db.add_all([hc, dem])
+        db.flush()
+        db.get(Employee, emp_id).default_shift_id = hc.id
+        db.commit()
+        hc_id, dem_id = hc.id, dem.id
+    finally:
+        db.close()
+
+    # Ngày thường: không có ô lưới.
+    e = me()
+    assert e["current_shift_name"] == "HC thử" and e["current_shift_hours"] == "08:00–17:00"
+    assert e["today_shift_name"] is None and e["today_shift_off"] is False
+
+    db = SessionLocal()
+    try:
+        day = EmployeeShiftDay(employee_id=emp_id, work_date=hom_nay_vn(), shift_id=dem_id)
+        db.add(day)
+        db.commit()
+        day_id = day.id
+    finally:
+        db.close()
+    e = me()
+    assert e["today_shift_name"] == "Ca 3 thử" and e["today_shift_hours"] == "22:00–06:00"
+    assert e["today_shift_off"] is False
+
+    # Ô lưới trùng ca nền ⇒ không phải "đổi ca", im lặng.
+    db = SessionLocal()
+    try:
+        db.get(EmployeeShiftDay, day_id).shift_id = hc_id
+        db.commit()
+    finally:
+        db.close()
+    assert me()["today_shift_name"] is None
+
+    # Nghỉ theo lịch.
+    db = SessionLocal()
+    try:
+        d = db.get(EmployeeShiftDay, day_id)
+        d.shift_id, d.is_off = None, True
+        db.commit()
+    finally:
+        db.close()
+    e = me()
+    assert e["today_shift_off"] is True and e["today_shift_name"] is None
 
 
 def test_nv_tu_rut_de_nghi_khi_hcns_chua_xu_ly(client):

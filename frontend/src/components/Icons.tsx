@@ -457,6 +457,337 @@ const ICONS = {
       <path d="M7 10l5 5 5-5M12 15V3" />
     </>
   ),
+
+  // ---- Rail điều hướng: MỖI MỤC MỘT GLYPH (05/10/2026) -------------------------------------
+  // Trước đó cả rail xoay vòng ~12 glyph (users ×3, truck ×3, bag ×4, activity ×4…) nên nhìn icon
+  // không đoán được mục. Các glyph dưới đây chỉ thêm, KHÔNG sửa glyph cũ — glyph cũ còn được
+  // hàng chục màn dùng làm nhãn khối/nút.
+  userCircle: (
+    <>
+      <circle cx="12" cy="12" r="9.25" />
+      <circle cx="12" cy="10" r="3.4" />
+      <path d="M6.4 19.2a6.2 6.2 0 0 1 11.2 0" />
+    </>
+  ),
+  // Giao hàng — tuyến của lượt xe qua nhiều điểm giao
+  route: (
+    <>
+      <circle cx="6" cy="18.5" r="2.5" />
+      <circle cx="18" cy="5.5" r="2.5" />
+      <path d="M8.5 18.5h8.25a3.25 3.25 0 0 0 0-6.5H7.25a3.25 3.25 0 0 1 0-6.5h8.25" />
+    </>
+  ),
+  // Khách hàng — người + ngôi sao nhỏ (khách quen)
+  contact: (
+    <>
+      <circle cx="9.5" cy="8" r="3.75" />
+      <path d="M3 20.5v-1a5.5 5.5 0 0 1 9.4-3.9" />
+      <path d="m17.5 13.2 1.2 2.4 2.6.4-1.9 1.85.45 2.6-2.35-1.25-2.35 1.25.45-2.6L13.7 16l2.6-.4Z" />
+    </>
+  ),
+  // Kế hoạch sản xuất — bảng kẹp có danh sách việc
+  clipboardList: (
+    <>
+      <rect x="5" y="4.5" width="14" height="16.5" rx="2" />
+      <rect x="8.75" y="2.5" width="6.5" height="3.8" rx="1.2" />
+      <path d="M12 11h4M12 15.5h4M8.5 11h.01M8.5 15.5h.01" />
+    </>
+  ),
+  // Hồ sơ lệnh sản xuất — tập hồ sơ mở
+  folderOpen: (
+    <>
+      <path d="M3 18.5V5.5A1.5 1.5 0 0 1 4.5 4h4.1a1.5 1.5 0 0 1 1.2.6l1.1 1.4h7.6A1.5 1.5 0 0 1 20 7.5V9.5" />
+      <path d="M3 18.5 5.6 11a1.5 1.5 0 0 1 1.42-1h13.4a1 1 0 0 1 .95 1.3l-2.3 7.2a1.5 1.5 0 0 1-1.43 1H4.5A1.5 1.5 0 0 1 3 18.5Z" />
+    </>
+  ),
+  // Theo dõi sản xuất — đồng hồ đo
+  gauge: (
+    <>
+      <path d="M3.5 17a9 9 0 1 1 17 0" />
+      <path d="m12 14 4-5" />
+      <circle cx="12" cy="14.5" r="1.4" />
+      <path d="M6.2 12h.01M12 6.5h.01M17.8 12h.01" />
+    </>
+  ),
+  // Xếp lịch — biểu đồ Gantt
+  gantt: (
+    <>
+      <path d="M3.5 3.5v15a2 2 0 0 0 2 2h15" />
+      <path d="M8 7.5h7M11 12h7.5M9 16.5h5" />
+    </>
+  ),
+  // Tổ sản xuất — mũ bảo hộ
+  hardHat: (
+    <>
+      <path d="M2.5 18.5h19v-1.75a1 1 0 0 0-1-1h-17a1 1 0 0 0-1 1Z" />
+      <path d="M4.5 15.75V14a7.5 7.5 0 0 1 15 0v1.75" />
+      <path d="M10 6.7V4.5h4v2.2M10 15.75V9.5M14 15.75V9.5" />
+    </>
+  ),
+  // KCS — huy hiệu đạt chuẩn
+  badgeCheck: (
+    <>
+      <path d="M12 2.8 14.3 4.4l2.8-.1.9 2.65 2.25 1.7-.85 2.7.85 2.7-2.25 1.7-.9 2.65-2.8-.1L12 21.2l-2.3-1.6-2.8.1-.9-2.65-2.25-1.7.85-2.7-.85-2.7L6 6.95l.9-2.65 2.8.1Z" />
+      <path d="m8.8 12.2 2.2 2.2 4.2-4.4" />
+    </>
+  ),
+  // Sửa chữa máy — cờ lê
+  wrench: (
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.4-3.4a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9Z" />
+  ),
+  // Phiếu bảo trì — bảng kẹp có dấu tích
+  clipboardCheck: (
+    <>
+      <rect x="5" y="4.5" width="14" height="16.5" rx="2" />
+      <rect x="8.75" y="2.5" width="6.5" height="3.8" rx="1.2" />
+      <path d="m9 13.5 2.2 2.2 4-4.2" />
+    </>
+  ),
+  // Yêu cầu mua hàng — tờ giấy có dấu cộng
+  filePlus: (
+    <>
+      <path d="M14 2.6H7A2 2 0 0 0 5 4.6v14.8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7.6Z" />
+      <path d="M14 2.6V7.6h5" />
+      <path d="M12 11.5v6M9 14.5h6" />
+    </>
+  ),
+  // Nhà cung cấp — cửa hàng có mái hiên
+  store: (
+    <>
+      <path d="M3.5 8.5 5 4h14l1.5 4.5" />
+      <path d="M3.5 8.5a2.83 2.83 0 0 0 5.67 0 2.83 2.83 0 0 0 5.66 0 2.83 2.83 0 0 0 5.67 0" />
+      <path d="M5 11.2V20h14v-8.8" />
+      <path d="M9.5 20v-4.5h5V20" />
+    </>
+  ),
+  // Đơn mua hàng (kế toán DUYỆT) — con dấu
+  stamp: (
+    <>
+      <path d="M5 21h14" />
+      <path d="M4 15.5A2.5 2.5 0 0 1 6.5 13h11a2.5 2.5 0 0 1 2.5 2.5V17a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z" />
+      <path d="M14 13V8.6c0-1.4 1-1.6 1-3.6a3 3 0 0 0-6 0c0 2 1 2.2 1 3.6V13" />
+    </>
+  ),
+  // Phiếu chi / Phiếu thu — tờ tiền + mũi tên ra / vào
+  banknoteOut: (
+    <>
+      <path d="M12 18H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4.5" />
+      <circle cx="12" cy="12" r="2.2" />
+      <path d="M6 12h.01M19 22v-6M16 19l3-3 3 3" />
+    </>
+  ),
+  banknoteIn: (
+    <>
+      <path d="M12 18H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4.5" />
+      <circle cx="12" cy="12" r="2.2" />
+      <path d="M6 12h.01M19 16v6M16 19l3 3 3-3" />
+    </>
+  ),
+  // Công nợ phải trả — ví
+  wallet: (
+    <>
+      <path d="M19 7.5V5a1 1 0 0 0-1-1H5.5a2 2 0 0 0 0 4H20a1 1 0 0 1 1 1v3" />
+      <path d="M3.5 6v12.5a2 2 0 0 0 2 2H20a1 1 0 0 0 1-1v-3" />
+      <path d="M21 12h-3.5a2 2 0 0 0 0 4H21Z" />
+    </>
+  ),
+  // Công nợ phải thu — bàn tay nhận xu
+  handCoins: (
+    <>
+      <path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17" />
+      <path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.9l-4.2 3.9" />
+      <path d="m2 16 6 6" />
+      <circle cx="16" cy="9" r="2.9" />
+      <circle cx="6" cy="5" r="3" />
+    </>
+  ),
+  // Tài khoản ngân hàng — toà nhà ngân hàng
+  landmark: (
+    <>
+      <path d="M3 21h18M5 18h14" />
+      <path d="M6.5 18v-7M10 18v-7M14 18v-7M17.5 18v-7" />
+      <path d="M12 2.8 3.5 7.5V9h17V7.5Z" />
+    </>
+  ),
+  // Yêu cầu nhập xuất kho — hai chiều vào/ra
+  transfer: (
+    <>
+      <path d="M8 3 4 7l4 4" />
+      <path d="M4 7h16" />
+      <path d="m16 21 4-4-4-4" />
+      <path d="M20 17H4" />
+    </>
+  ),
+  // Báo cáo kinh doanh (doanh số theo kỳ) · Báo cáo kho (nhập–xuất theo kho)
+  chartLine: (
+    <>
+      <path d="M3.5 3.5v15a2 2 0 0 0 2 2h15" />
+      <path d="m19 8.5-5 5-4-4-3 3" />
+    </>
+  ),
+  chartColumn: (
+    <>
+      <path d="M3.5 3.5v15a2 2 0 0 0 2 2h15" />
+      <path d="M8 16.5v-3M12.5 16.5V7M17 16.5v-6" />
+    </>
+  ),
+  // Công đoạn — danh sách có đánh số thứ tự
+  listOrdered: (
+    <>
+      <path d="M10 6h11M10 12h11M10 18h11" />
+      <path d="M4 6h1v4M4 10h2" />
+      <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+    </>
+  ),
+  // Đơn vị & quy đổi — thước kẻ
+  ruler: (
+    <>
+      <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z" />
+      <path d="m14.5 12.5 2-2M11.5 9.5l2-2M8.5 6.5l2-2M17.5 15.5l2-2" />
+    </>
+  ),
+  // Giấy — chồng tờ
+  paper: (
+    <>
+      <rect x="4" y="6.5" width="12.5" height="15" rx="1.5" />
+      <path d="M7.5 6.5V4a1.5 1.5 0 0 1 1.5-1.5h9.5A1.5 1.5 0 0 1 20 4v12.5a1.5 1.5 0 0 1-1.5 1.5h-2" />
+      <path d="M7 11h6.5M7 14.5h6.5M7 18h4" />
+    </>
+  ),
+  // Tiêu chí KCS — danh sách có tích
+  listChecks: (
+    <>
+      <path d="m3 6.5 1.6 1.6L8 4.8M3 15.5l1.6 1.6L8 13.8" />
+      <path d="M12 6.5h9M12 12h9M12 17.5h9" />
+    </>
+  ),
+  // Phòng ban — sơ đồ tổ chức
+  network: (
+    <>
+      <rect x="9" y="2.5" width="6" height="5.5" rx="1" />
+      <rect x="2.5" y="16" width="6" height="5.5" rx="1" />
+      <rect x="15.5" y="16" width="6" height="5.5" rx="1" />
+      <path d="M12 8v4M5.5 16v-3a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v3" />
+    </>
+  ),
+  // Hồ sơ nhân sự — thẻ nhân viên
+  idCard: (
+    <>
+      <rect x="2.5" y="5" width="19" height="14" rx="2" />
+      <circle cx="8.5" cy="10.5" r="2" />
+      <path d="M5.4 15.5a3.3 3.3 0 0 1 6.2 0" />
+      <path d="M14.5 10h4M14.5 13.5h4" />
+    </>
+  ),
+  // Nghỉ phép — lịch có dấu gạch chéo (ngày nghỉ)
+  calendarX: (
+    <>
+      <rect x="3.5" y="5" width="17" height="16" rx="2" />
+      <path d="M3.5 9.8h17M8.5 2.6v4.4M15.5 2.6v4.4" />
+      <path d="m10 13.3 4 4M14 13.3l-4 4" />
+    </>
+  ),
+  // Tăng ca — đồng hồ cộng thêm giờ
+  clockPlus: (
+    <>
+      <path d="M21.4 13.3a9.25 9.25 0 1 0-8.1 8.1" />
+      <path d="M12 7v5l3 1.8" />
+      <path d="M16 19h6M19 16v6" />
+    </>
+  ),
+  // Lương — chồng xu
+  coins: (
+    <>
+      <circle cx="8.5" cy="8.5" r="6" />
+      <path d="M18.1 10.4a6 6 0 1 1-7.7 7.7" />
+      <path d="M7.5 6.5h1v4" />
+      <path d="m16.7 13.9.7.7-2.8 2.8" />
+    </>
+  ),
+  // Đơn hàng bán — đơn sinh khi khách chốt, đi tới hoá đơn: tờ hoá đơn răng cưa
+  receipt: (
+    <>
+      <path d="M4 2.5v19l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1v-19l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+      <path d="M15.5 8h-7M15.5 12h-7M13 16H8.5" />
+    </>
+  ),
+  // Kế hoạch vật tư — bảng CÂN ĐỐI cần / có / thiếu
+  scale: (
+    <>
+      <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+      <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+      <path d="M7 21h10M12 3v18" />
+      <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
+    </>
+  ),
+  // Chấm công — bấm VÀO/RA theo GPS, phải đứng trong bán kính điểm làm việc
+  mapPinCheck: (
+    <>
+      <path d="M19.4 12.9c.4-1 .6-1.95.6-2.9a8 8 0 0 0-16 0c0 5 5.54 10.2 7.4 11.8a1 1 0 0 0 1.2 0l.8-.73" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="m16 18.5 2 2 4-4" />
+    </>
+  ),
+  // Khuôn — tấm khuôn bế: ván có đường dao (nét đứt) theo hình hộp trải phẳng, nét liền là nét gấp
+  dieCut: (
+    <>
+      <rect x="2" y="2.5" width="20" height="19" rx="2" />
+      <path d="M4 9.5h4V6h4v3.5h8v5h-4V18h-4v-3.5H4Z" strokeDasharray="1.8 1.5" />
+      <path d="M8 9.5v5M12 9.5v5M16 9.5v5" strokeWidth={1.1} />
+    </>
+  ),
+  // Vật tư khác (mực · keo · màng · kẽm) — hộp/lon vật tư tiêu hao
+  canister: (
+    <>
+      <rect x="5" y="3" width="14" height="3" rx="1" />
+      <path d="M6 6v13.5A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V6" />
+      <path d="M6 10h12M6 17h12" />
+      <path d="M12 11.6c-.9 1-1.35 1.65-1.35 2.2a1.35 1.35 0 0 0 2.7 0c0-.55-.45-1.2-1.35-2.2Z" />
+    </>
+  ),
+  // Thiết bị & Máy móc — máy in khổ rộng (máy in offset là phần lớn danh mục máy): khay nạp tờ,
+  // thân máy có khe lô, tờ ra phía dưới. Khác `printer` (máy in văn phòng, nút In ở các màn).
+  machine: (
+    <>
+      <path d="M6.5 7V3.5h11V7" />
+      <rect x="2" y="7" width="20" height="9.5" rx="2" />
+      <path d="M5.5 11h13M18.5 13.5h.01" />
+      <path d="M6.5 16.5v4h11v-4" />
+    </>
+  ),
+  // Tài sản & CCDC — máy móc, dụng cụ xưởng dùng nhiều năm: hộp đồ nghề
+  toolbox: (
+    <>
+      <rect x="2.5" y="8" width="19" height="12" rx="2" />
+      <path d="M8.5 8V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V8" />
+      <path d="M2.5 13h19M7.5 11.5v3M16.5 11.5v3" />
+    </>
+  ),
+  // Khai báo kho — khai kho + kệ/ô cất hàng: giá kệ có thùng
+  shelves: (
+    <>
+      <path d="M4 3v18M20 3v18M4 9h16M4 15h16M4 21h16" />
+      <rect x="7" y="5" width="4.5" height="4" rx=".5" />
+      <rect x="12.5" y="11" width="4.5" height="4" rx=".5" />
+      <rect x="7" y="17" width="4.5" height="4" rx=".5" />
+    </>
+  ),
+  // Báo cáo công nợ — sổ tổng hợp / sổ chi tiết 331 · 131 kiểu MISA
+  bookOpen: (
+    <>
+      <path d="M12 7v14" />
+      <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3Z" />
+      <path d="M5.5 8h3M5.5 12h3M15.5 8h3M15.5 12h3" />
+    </>
+  ),
+  // Nội quy công ty — văn bản quy định: cuộn giấy
+  scrollText: (
+    <>
+      <path d="M15 8h-5M15 12h-5" />
+      <path d="M19 17V5a2 2 0 0 0-2-2H4" />
+      <path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICONS;

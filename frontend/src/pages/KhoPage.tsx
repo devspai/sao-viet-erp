@@ -1,14 +1,10 @@
 // Khung "Kho" — gộp Yêu cầu + Hộp yêu cầu vào MỘT module, chia tab.
 //
-// Hai trục tab:
-//   • VIỆC:   Yêu cầu · Hộp yêu cầu  (Hộp yêu cầu chỉ hiện cho vai trong kho)
-//   • CHIỀU:  Nhập · Xuất            (khoá chiều cho màn con qua prop `loai`)
-//
-// Không tách bảng DB — vẫn 1 bảng `stock_requests`/`stock_vouchers` cột `loai`, chỉ lọc theo
-// chiều. `key={chieu}` để đổi chiều là remount màn con với state sạch (khỏi lẫn dữ liệu 3 chiều).
+// Tab VIỆC: Yêu cầu · Phiếu từ yêu cầu (tab sau chỉ hiện cho vai trong kho).
+// Nhập và Xuất chung MỘT bảng (07/10/2026): bỏ cụm nút chiều Nhập/Xuất, chiều thành điều kiện "Loại"
+// trong nút Lọc (`loc-kho/dieu-kien-yeu-cau-kho.ts`). Tab Điều chuyển vẫn ẩn (`AN_DIEU_CHUYEN`).
 import { useCallback, useEffect, useState } from "react";
-import { AN_DIEU_CHUYEN, laNguoiKho } from "./khoShared";
-import type { StockRequestKind } from "../api/client";
+import { laNguoiKho } from "./khoShared";
 import { useCan } from "../auth/permissions";
 import { KhoDeNghiPage, type KhoNhapSeed } from "./KhoDeNghiPage";
 import { KhoYeuCauPage } from "./KhoYeuCauPage";
@@ -16,8 +12,6 @@ import "./rebuild-catalog.css";
 import "./kho-request.css";
 
 type FnTab = "denghi" | "yeucau";
-// CHIỀU: Nhập · Xuất · Điều chuyển (điều chuyển = yêu cầu NHẬP ở đích, tách tab riêng để khỏi lẫn).
-type Chieu = StockRequestKind | "DIEU_CHUYEN";
 
 export function KhoPage({
   eventTick = 0,
@@ -27,9 +21,9 @@ export function KhoPage({
   openRequest,
 }: {
   eventTick?: number;
-  /** Điều hướng từ "Nhập kho" (đợt giao đơn mua) → ép về tab Yêu cầu · Nhập, mở sẵn form đã điền. */
+  /** Điều hướng từ "Nhập kho" (đợt giao đơn mua) → ép về tab Yêu cầu, mở sẵn form NHẬP đã điền. */
   nhapSeed?: KhoNhapSeed | null;
-  /** Số yêu cầu ĐÃ DUYỆT chờ cấp theo chiều (badge Nhập/Xuất/Điều chuyển) + phản hồi kho chưa xem
+  /** Số yêu cầu ĐÃ DUYỆT chờ kho xử lý theo chiều (màn này không hiện) + phản hồi kho chưa xem
    *  của người tạo (done_unseen=Hoàn tất, fail_unseen=Không thành). */
   counts?: { nhap: number; xuat: number; dieu_chuyen: number; done_unseen: number; fail_unseen: number };
   /** Người tạo mở xem 1 yêu cầu → refetch badge/số đỏ (AppShell reloadBadges). */
@@ -46,18 +40,12 @@ export function KhoPage({
   // `ton_kho` — để nguyên là hộp việc của màn Kho đi mượn quyền của màn Tồn kho.
   const canYeuCau = laNguoiKho(can);
   const [fn, setFn] = useState<FnTab>(canDeNghi ? "denghi" : "yeucau");
-  // CHIỀU: Nhập · Xuất · Điều chuyển. Điều chuyển vốn là yêu cầu NHẬP ở đích nhưng tách tab riêng để
-  // Nhập/Xuất KHÔNG lẫn điều chuyển; màn con nhận `loai` (NHẬP cho tab điều chuyển) + cờ `dieuChuyen`.
-  const [chieu, setChieu] = useState<Chieu>("NHAP");
-  const dieuChuyenTab = chieu === "DIEU_CHUYEN";
-  const childLoai: StockRequestKind = dieuChuyenTab ? "NHAP" : chieu;
-  // Seed đang chờ đổ vào form (từ "Nhập kho" ở đơn mua). Effect ép tab Yêu cầu · Nhập; KhoDeNghiPage
+  // Seed đang chờ đổ vào form (từ "Nhập kho" ở đơn mua). Effect ép tab Yêu cầu; KhoDeNghiPage
   // tiêu thụ rồi gọi onSeedConsumed để xoá — tránh mở lại form khi bấm sang tab khác.
   const [pendingSeed, setPendingSeed] = useState<KhoNhapSeed | null>(null);
   useEffect(() => {
     if (nhapSeed?.seed?.length) {
       setFn("denghi");
-      setChieu("NHAP");
       setPendingSeed(nhapSeed);
     }
   }, [nhapSeed]);
@@ -92,10 +80,10 @@ export function KhoPage({
             >
               <FileTextIcon />
               <span>Yêu cầu</span>
+              {/* Đúng chấm đỏ của thanh bên (`sidebar__badge`: quầng + vòng lan), không số. Mở tab này
+                  là đã xem hết nên chấm tắt ngay. */}
               {phanHoiUnseen > 0 && (
-                <span className="kho-shell__count" aria-label={`${phanHoiUnseen} phản hồi chưa xem`}>
-                  {phanHoiUnseen}
-                </span>
+                <span className="sidebar__badge kho-shell__cham" aria-label="Có phản hồi kho chưa xem" title="Có phản hồi kho chưa xem" />
               )}
             </button>
           )}
@@ -110,46 +98,12 @@ export function KhoPage({
             </button>
           )}
         </div>
-        <div className="kho-shell__dirs">
-          {(["NHAP", "XUAT", "DIEU_CHUYEN"] as Chieu[])
-            .filter((k) => !(AN_DIEU_CHUYEN && k === "DIEU_CHUYEN"))
-            .map((k) => {
-            const n =
-              k === "NHAP"
-                ? counts?.nhap ?? 0
-                : k === "XUAT"
-                  ? counts?.xuat ?? 0
-                  : counts?.dieu_chuyen ?? 0;
-            const label = k === "NHAP" ? "Nhập" : k === "XUAT" ? "Xuất" : "Điều chuyển";
-            return (
-              <button
-                key={k}
-                type="button"
-                className={`seg${chieu === k ? " is-active" : ""}`}
-                onClick={() => setChieu(k)}
-              >
-                {k === "NHAP" ? (
-                  <ArrowDownIcon />
-                ) : k === "XUAT" ? (
-                  <ArrowUpIcon />
-                ) : (
-                  <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>⇄</span>
-                )}
-                <span>{label}</span>
-                {n > 0 && <span className="kho-shell__count" aria-label={`${n} yêu cầu chờ xử lý`}>{n}</span>}
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {activeFn === "denghi" ? (
         <KhoDeNghiPage
-          key={`dn-${chieu}`}
-          loai={childLoai}
-          dieuChuyen={dieuChuyenTab}
           eventTick={eventTick}
-          initialSeed={chieu === "NHAP" ? pendingSeed : null}
+          initialSeed={pendingSeed}
           onSeedConsumed={consumeSeed}
           unseenDone={counts?.done_unseen ?? 0}
           unseenFail={counts?.fail_unseen ?? 0}
@@ -159,9 +113,6 @@ export function KhoPage({
         />
       ) : (
         <KhoYeuCauPage
-          key={`yc-${chieu}`}
-          loai={childLoai}
-          dieuChuyen={dieuChuyenTab}
           eventTick={eventTick}
           openRequestId={openReqId}
           onOpenRequestConsumed={consumeOpenReq}
@@ -191,22 +142,3 @@ function InboxIcon() {
     </svg>
   );
 }
-
-function ArrowDownIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <polyline points="19 12 12 19 5 12" />
-    </svg>
-  );
-}
-
-function ArrowUpIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <line x1="12" y1="19" x2="12" y2="5" />
-      <polyline points="5 12 12 5 19 12" />
-    </svg>
-  );
-}
-

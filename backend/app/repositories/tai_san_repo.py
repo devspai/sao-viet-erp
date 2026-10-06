@@ -8,12 +8,38 @@ tài sản nạp sẵn `moc`: hao mòn lũy kế của từng dòng tính từ b
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
+from datetime import date
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.department import Department
 from ..models.employee import Employee
 from ..models.tai_san import TaiSan
+from .loc_danh_sach import dk_khoang_ngay
+
+#: Mốc của dải kỳ: (cột, là cột Date). `su_dung` = ngày bắt đầu dùng, `giam` = ngày thôi dùng.
+COT_MOC = {
+    "tao": (TaiSan.created_at, False),
+    "su_dung": (TaiSan.ngay_su_dung, True),
+    "giam": (TaiSan.ngay_giam, True),
+}
+
+
+@dataclass(frozen=True)
+class LocTaiSan:
+    """Bộ lọc của sổ tài sản — một gói cho cả danh sách, dải số đầu màn và các số đếm."""
+
+    q: str | None = None
+    loai: str | None = None
+    bo_phan_id: int | None = None
+    trang_thai: str | None = None
+    gia_tu: int | None = None
+    gia_den: int | None = None
+    tu_ngay: date | None = None
+    den_ngay: date | None = None
+    moc: str = "tao"
 
 
 class TaiSanRepository:
@@ -41,27 +67,8 @@ class TaiSanRepository:
     def tim_theo_ma(self, ma: str) -> TaiSan | None:
         return self.db.execute(select(TaiSan).where(TaiSan.ma == ma)).scalar_one_or_none()
 
-    def danh_sach(
-        self,
-        *,
-        q: str | None = None,
-        loai: str | None = None,
-        bo_phan_id: int | None = None,
-        trang_thai: str | None = None,
-        offset: int = 0,
-        limit: int = 50,
-    ) -> tuple[list[TaiSan], int]:
-        conds = []
-        if q:
-            kw = f"%{q.strip()}%"
-            conds.append(or_(TaiSan.ma.ilike(kw), TaiSan.ten.ilike(kw)))
-        if loai:
-            conds.append(TaiSan.loai == loai)
-        if bo_phan_id:
-            conds.append(TaiSan.bo_phan_id == bo_phan_id)
-        if trang_thai:
-            conds.append(TaiSan.trang_thai == trang_thai)
-
+    def danh_sach(self, loc: LocTaiSan, *, offset: int = 0, limit: int = 50) -> tuple[list[TaiSan], int]:
+        conds = self._dieu_kien(loc)
         tong = self.db.execute(
             select(func.count()).select_from(TaiSan).where(*conds)
         ).scalar_one()
@@ -76,6 +83,69 @@ class TaiSanRepository:
             ).scalars()
         )
         return rows, int(tong)
+
+    @staticmethod
+    def _dieu_kien(loc: LocTaiSan) -> list:
+        conds = []
+        if loc.q:
+            kw = f"%{loc.q.strip()}%"
+            conds.append(or_(TaiSan.ma.ilike(kw), TaiSan.ten.ilike(kw)))
+        if loc.loai:
+            conds.append(TaiSan.loai == loc.loai)
+        if loc.bo_phan_id:
+            conds.append(TaiSan.bo_phan_id == loc.bo_phan_id)
+        if loc.trang_thai:
+            conds.append(TaiSan.trang_thai == loc.trang_thai)
+        if loc.gia_tu is not None:
+            conds.append(TaiSan.nguyen_gia >= loc.gia_tu)
+        if loc.gia_den is not None:
+            conds.append(TaiSan.nguyen_gia <= loc.gia_den)
+        cot, la_ngay = COT_MOC[loc.moc]
+        conds += dk_khoang_ngay(cot, loc.tu_ngay, loc.den_ngay, cot_ngay=la_ngay)
+        return conds
+
+    def dem_theo_loai(self, loc: LocTaiSan) -> dict[str, int]:
+        """Số tài sản mỗi loại theo các bộ lọc KHÁC loại — thẻ lọc Loại hiện số đếm của cả hai
+        lựa chọn cùng lúc, nên không lọc theo loại đang chọn."""
+        conds = self._dieu_kien(replace(loc, loai=None))
+        return {
+            loai: int(n)
+            for loai, n in self.db.execute(
+                select(TaiSan.loai, func.count()).where(*conds).group_by(TaiSan.loai)
+            )
+        }
+
+    def dem_theo_trang_thai(self, loc: LocTaiSan) -> dict[str, int]:
+        """Như `dem_theo_loai` nhưng cho thẻ lọc Trạng thái (bỏ điều kiện trạng thái đang chọn)."""
+        conds = self._dieu_kien(replace(loc, trang_thai=None))
+        return {
+            tt: int(n)
+            for tt, n in self.db.execute(
+                select(TaiSan.trang_thai, func.count()).where(*conds).group_by(TaiSan.trang_thai)
+            )
+        }
+
+    def dem_theo_bo_phan(self) -> list[tuple[int, str, int]]:
+        """Thẻ lọc Bộ phận: bộ phận đang có tài sản, kèm số tài sản — xếp theo tên."""
+        return [
+            (int(i), ten, int(n))
+            for i, ten, n in self.db.execute(
+                select(Department.id, Department.name, func.count(TaiSan.id))
+                .join(TaiSan, TaiSan.bo_phan_id == Department.id)
+                .group_by(Department.id, Department.name)
+                .order_by(Department.name)
+            )
+        ]
+
+    def tat_ca_theo_loc(self, loc: LocTaiSan) -> list[TaiSan]:
+        """Mọi tài sản khớp bộ lọc, KHÔNG cắt trang — để cộng dải số đầu màn (tổng giá mua, còn
+        lại) cho đúng cả sổ chứ không chỉ trang đang xem. Nạp sẵn `moc` như `danh_sach`."""
+        conds = self._dieu_kien(loc)
+        return list(
+            self.db.execute(
+                select(TaiSan).options(selectinload(TaiSan.moc)).where(*conds)
+            ).scalars()
+        )
 
     def ma_lon_nhat(self, tien_to: str) -> str | None:
         """Mã lớn nhất đang có theo tiền tố — nền sinh số kế tiếp."""
@@ -112,6 +182,12 @@ class TaiSanRepository:
 
     def commit(self) -> None:
         self.db.commit()
+
+    def flush(self) -> None:
+        self.db.flush()
+
+    def rollback(self) -> None:
+        self.db.rollback()
 
     def xoa(self, obj) -> None:
         self.db.delete(obj)

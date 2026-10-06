@@ -76,6 +76,41 @@ def hhmm(minute: int) -> str:
     return f"{rem // 60:02d}:{rem % 60:02d}" + (f" (+{day})" if day else "")
 
 
+# Kiểu vắng suy theo khung ca (06/10/2026 dời từ màn Đi muộn/về sớm lên máy chủ để lọc được ở
+# máy chủ). PHẢI giữ đúng luật của `elKindOf` ở frontend: dung sai mép ca 10 phút; ca qua đêm thì
+# giờ đồng hồ trước giờ vào ca được đẩy sang trục "hôm sau".
+DUNG_SAI_MEP_CA = 10
+KIEU_VANG = ("late", "early", "half", "mid")
+
+
+def kieu_vang(tu: int, den: int, ca_bd: int | None, ca_kt: int | None,
+              qua_dem: bool | None) -> str | None:
+    """`late` đi muộn / `early` về sớm / `half` nghỉ nửa buổi / `mid` vắng giữa ca; không biết ca
+    ⇒ None (không khớp kiểu nào)."""
+    if ca_bd is None or ca_kt is None:
+        return None
+    kt = ca_kt + (1440 if (qua_dem or ca_kt <= ca_bd) else 0)
+    if kt <= ca_bd:
+        return None
+    dem = kt > 1440
+
+    def truc(m: int) -> int:
+        return m + 1440 if dem and m < ca_bd else m
+
+    a, b = truc(tu), truc(den)
+    nua = (kt - ca_bd) / 2
+    phut = b - a
+    if phut <= 0:
+        return None
+    if a <= ca_bd + DUNG_SAI_MEP_CA and phut < nua:
+        return "late"
+    if b >= kt - DUNG_SAI_MEP_CA and phut < nua:
+        return "early"
+    if phut >= nua:
+        return "half"
+    return "mid"
+
+
 class LateEarlyService:
     def __init__(self, late_early: LateEarlyRepository, employees: EmployeeRepository,
                  audit: AuditLogRepository, attendance=None, leaves=None) -> None:
@@ -258,10 +293,31 @@ class LateEarlyService:
         emp = self._employee_for_user(user)
         return self.late_early.list_by_employee(emp.id, limit=limit)
 
-    def list_requests(self, *, scope: str, actor, status: str | None = None,
-                      limit: int = 200) -> list[LateEarlyRequest]:
-        """Danh sách theo DATA-SCOPE người gọi ⇒ tổ trưởng chỉ thấy & duyệt được người trong tổ."""
-        return self.late_early.list_scoped(scope=scope, actor=actor, status=status, limit=limit)
+    def list_requests(self, *, scope: str, actor, status: str | None = None, loc,
+                      page: int = 1, size: int = 50) -> tuple[list[LateEarlyRequest], int, dict]:
+        """Danh sách theo DATA-SCOPE người gọi ⇒ tổ trưởng chỉ thấy & duyệt được người trong tổ.
+        Trả `(trang, tổng, đếm theo trạng thái)` — lọc, đếm, cắt trang đều ở máy chủ (06/10/2026).
+
+        Lọc KIỂU vắng (`loc.kieu`) suy từ ca mặc định của từng người nên chạy ở đây bằng Python
+        trên tập đã cắt phạm vi + kỳ, rồi mới đếm và cắt trang — số tab luôn khớp với bảng."""
+        offset = max(0, (page - 1) * size)
+        if not loc.kieu:
+            rows, total = self.late_early.loc_scoped(scope=scope, actor=actor, loc=loc,
+                                                     status=status, limit=size, offset=offset)
+            return rows, total, self.late_early.dem_theo_tab(scope=scope, actor=actor, loc=loc)
+        muon = set(loc.kieu)
+        khop = [(rid, st) for rid, st, tu, den, ca_bd, ca_kt, qua_dem
+                in self.late_early.hang_kem_ca(scope=scope, actor=actor, loc=loc)
+                if kieu_vang(tu, den, ca_bd, ca_kt, qua_dem) in muon]
+        dem: dict[str, int] = {}
+        for _, st in khop:
+            dem[st] = dem.get(st, 0) + 1
+        dem["tat_ca"] = len(khop)
+        ids = [rid for rid, st in khop if status is None or st == status]
+        return self.late_early.lay_theo_ids(ids[offset:offset + size]), len(ids), dem
+
+    def lua_chon(self, truong: str, *, scope: str, actor) -> list[dict]:
+        return self.late_early.lua_chon(truong, scope=scope, actor=actor)
 
     def count_pending(self, *, scope: str, actor) -> int:
         return self.late_early.count_pending_scoped(scope=scope, actor=actor)

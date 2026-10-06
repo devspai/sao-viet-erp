@@ -225,3 +225,71 @@
   font-family: var(--ff-sans);
   white-space: nowrap;
 }
+
+/* --- Dáng "ba bước" (prop `kieu="ba-buoc"`, Tài sản 05/10/2026) ---------------------------
+   Ba bước đánh số đọc từ trên xuống đúng thứ tự làm: tải mẫu, điền, chọn file. */
+.imx__buoc {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.imx__buoc > li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: var(--sp-3);
+  align-items: start;
+}
+.imx__buoc > li > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.imx__buoc h4 {
+  margin: 3px 0 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+.imx__buoc p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--ash);
+}
+.imx__buoc-so {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--rule-hair);
+  border: 1px solid var(--rule-soft);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+.imx__buoc .imx__dropzone,
+.imx__buoc .imx__file-card,
+.imx__buoc .imx__wrap,
+.imx__buoc .banner { align-self: stretch; }
+.imx__dropzone--gon { min-height: 0; padding: var(--sp-4); gap: 4px; color: var(--ash); }
+.imx__doi {
+  flex: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+/* Phải đặc hiệu hơn `.imx__buoc p` (màu ash) — không thì dòng lỗi xám như chữ thường. */
+.imx__buoc p.imx__kq { font-size: var(--fs-sm); color: var(--moss-deep); }
+.imx__buoc p.imx__kq--loi { color: var(--signal); }

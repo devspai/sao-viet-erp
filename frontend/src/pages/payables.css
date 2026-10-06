@@ -602,13 +602,6 @@
   padding: 12px 14px;
 }
 
-/* `.md-page__pager` dùng chung nhiều màn, không có padding/viền — dính sát mép dưới bảng. */
-.acct-cnt .md-page__pager {
-  padding: var(--sp-3) var(--sp-5);
-  border-top: 1px solid var(--rule-soft);
-  background: var(--canvas);
-}
-
 /* --- Khung trang Công nợ phải thu (bảng mang sẵn class `pay-card`, KHÔNG dùng `.acct-cnt` như
    Công nợ phải trả — <main> màn này chưa gắn class đó). Cùng lý do bẫy cascade ở UI_DESIGN §10:
    thắng padding var(--sp-8) của .card (global.css, bundle SAU page CSS) bằng độ đặc trưng 2
@@ -627,17 +620,6 @@
 
 .ar-summary-table .pay-table td {
   padding: 12px 14px;
-}
-
-/* `.md-page__pager` dùng chung nhiều màn, không có padding/viền — dính sát mép dưới bảng. Khoanh
-   vùng bằng `.pay-card` (CHỈ bảng khách hàng ngoài cùng của màn này mang class đó — xem
-   AccountingReceivablesPage.tsx, section bọc <table>+pager). Cùng giá trị với `.acct-cnt
-   .md-page__pager` (Công nợ phải trả) để hai màn khớp nhịp — cùng quy ước với `.acct-dmh`/
-   `.acct-pc`/`.acct-pt` đã áp cho các màn kế toán khác. */
-.pay-card .md-page__pager {
-  padding: var(--sp-3) var(--sp-5);
-  border-top: 1px solid var(--rule-soft);
-  background: var(--canvas);
 }
 
 /* Hero drawer phẳng hoá (ReceivablesDrawer) — compound selector TRÊN CÙNG MỘT THẺ, không phải

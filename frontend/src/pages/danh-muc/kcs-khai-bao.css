@@ -645,5 +645,7 @@
   }
 }
 
-
-
+/* Thanh lọc chung (06/10/2026) thay hàng tab giai đoạn: ô tìm + [Kỳ] [điều kiện…] [Lọc] xếp từ trái,
+   xuống dòng khi chật (thay vì đảo cột ở khổ hẹp như hàng tab cũ). */
+.kkb-topbar__toolbar.tl-thanh { justify-content: flex-start; flex-direction: row; align-items: center; }
+.kkb-topbar__toolbar.tl-thanh > .kkb-searchbox .kkb-searchbox__input { width: 100%; }

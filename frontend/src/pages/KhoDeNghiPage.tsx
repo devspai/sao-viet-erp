@@ -25,9 +25,25 @@ import { Icon } from "../components/Icons";
 import { DiscardChangesDialog } from "../components/DiscardChangesDialog";
 import { DonViChonTheoHang, MaterialCombobox } from "../components/MaterialCombobox";
 import { PrintSheet } from "../components/PrintSheet";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { DANG_GIAY_NHAN, chuanKho, nhanDangKho, type DangGiay } from "../lib/khoGiay";
-import { fmtDate, fmtDateISO } from "../utils/format";
-import { AN_IN_YEU_CAU, DateFilterHead, DecimalInput, GiaBanDong, GiaGocKcs, LoaiYeuCauChip, RequestStatusBadge, VoucherStatusBadge, PageSizeSelect, DEFAULT_PAGE_SIZE, fmtQty, isOverdue, todayISO, useHeaderTitles } from "./khoShared";
+import { fmtDate, fmtDateISO, fmtDateTime } from "../utils/format";
+import {
+  LOC_MAN_YCK_TRONG,
+  MAN_YEU_CAU_KHO,
+  MOC_YEU_CAU_KHO,
+  docLocManYCK,
+  ghiLocManYCK,
+  thamSoLocYCK,
+  useDieuKienYeuCauKho,
+  type LocManYCK,
+  type LocYeuCauKho,
+} from "./loc-kho/dieu-kien-yeu-cau-kho";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { thamSoKy } from "./thanh-loc/ky-danh-sach";
+import { dkTheoTab, soDaAp, type DieuKien } from "./thanh-loc/thanh-loc";
+import { useLocMan } from "./thanh-loc/useLocMan";
+import { AN_IN_YEU_CAU, DecimalInput, GiaBanDong, GiaGocKcs, LoaiYeuCauChip, RequestStatusBadge, VoucherStatusBadge, DEFAULT_PAGE_SIZE, fmtQty, isOverdue, todayISO, useHeaderTitles } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
@@ -44,7 +60,6 @@ const TAB_STATUSES: Record<Exclude<TabId, "all">, StockRequestStatus[]> = {
 
 export function KhoDeNghiPage({
   eventTick = 0,
-  loai,
   dieuChuyen = false,
   initialSeed = null,
   onSeedConsumed,
@@ -55,8 +70,6 @@ export function KhoDeNghiPage({
   onOpenRequestConsumed,
 }: {
   eventTick?: number;
-  /** Khoá chiều theo tab (Nhập/Xuất): lọc danh sách + cố định loại khi tạo mới. */
-  loai: StockRequestKind;
   /** Tab ĐIỀU CHUYỂN: chỉ hiện yêu cầu điều chuyển (dieu_chuyen=true) + ẩn nút "Tạo yêu cầu"
    *  (điều chuyển tạo từ màn Tồn kho, không tạo tay ở đây). */
   dieuChuyen?: boolean;
@@ -86,13 +99,18 @@ export function KhoDeNghiPage({
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<TabId>("all");
-  // Lọc theo khoảng NGÀY CẦN (rỗng = không lọc đầu đó) — nay là phễu cột "Ngày cần nhập/xuất".
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  // Lọc theo khoảng NGÀY YÊU CẦU (created_at) — phễu cột "Ngày yêu cầu".
-  const [reqFrom, setReqFrom] = useState("");
-  const [reqTo, setReqTo] = useState("");
   const [page, setPage] = useState(1);
+  // Kỳ (Ngày yêu cầu / Ngày cần / Ngày duyệt) + Phòng ban, Người yêu cầu, Kho — lọc ở máy chủ.
+  const [locMan, setLocManGoc] = useLocMan(MAN_YEU_CAU_KHO, LOC_MAN_YCK_TRONG, docLocManYCK, ghiLocManYCK);
+  const setLocMan = (t: LocManYCK) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const dieuKien = useDieuKienYeuCauKho(dieuChuyen);
+  // Nhập và Xuất chung một bảng; đang lọc đúng một chiều thì "Tạo yêu cầu" mở sẵn chiều đó.
+  const loai = locMan.loc.loai;
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYCK(locMan.loc) });
+  const coLoc = locMan.ky.loai !== "tat_ca" || soDaAp(dieuKien, locMan.loc) > 0;
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   // null = đóng; "new" = soạn mới; {id} = mở yêu cầu đã có; {seed} = tạo lại từ yêu cầu cũ.
   const [drawer, setDrawer] = useState<
@@ -123,16 +141,12 @@ export function KhoDeNghiPage({
   const load = useCallback(() => {
     if (!token) return;
     setLoading(true);
-    // BE-paging: tải ĐÚNG trang theo tab + lọc ngày (cần + tạo); đếm số theo trạng thái riêng.
+    // BE-paging: tải ĐÚNG trang theo tab + kỳ + điều kiện; đếm số theo trạng thái riêng (cùng lọc).
     // Sắp theo 'id' (mới TẠO lên đầu) — yêu cầu vừa tạo hiện trên cùng.
     const filters = {
       q: q || null,
-      loai,
       dieu_chuyen: dieuChuyen,
-      ngay_can_tu: dateFrom || null,
-      ngay_can_den: dateTo || null,
-      tao_tu: reqFrom || null,
-      tao_den: reqTo || null,
+      loc: JSON.parse(khoaLoc),
     };
     const tabStatuses = tab === "all" ? undefined : TAB_STATUSES[tab];
     Promise.all([
@@ -147,7 +161,7 @@ export function KhoDeNghiPage({
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Không tải được danh sách yêu cầu."))
       .finally(() => setLoading(false));
-  }, [token, q, loai, dieuChuyen, dateFrom, dateTo, reqFrom, reqTo, tab, page, pageSize]);
+  }, [token, q, dieuChuyen, khoaLoc, tab, page, pageSize]);
 
   // Gõ tìm → chờ 300ms rồi mới gọi (mỗi lần gọi backend phải tính đèn tồn cho từng dòng).
   useEffect(() => {
@@ -175,6 +189,14 @@ export function KhoDeNghiPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRequestId]);
 
+  // Đang đứng ở màn này mà có phản hồi kho chưa xem (lúc mở màn, hoặc SSE vừa đẩy tới) ⇒ coi như đã
+  // xem hết: bản ghi đã hiện trên danh sách, không bắt bấm mở từng cái mới tắt chấm.
+  useEffect(() => {
+    if (!token || unseenDone + unseenFail === 0) return;
+    api.kho.deNghi.seenAll(token).then(() => onSeen?.()).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, unseenDone, unseenFail]);
+
   const meId = user?.id ?? -1;
 
   // Mở xem 1 yêu cầu. Nếu là phản hồi cuối (Hoàn tất / Không thành) thì đánh dấu ĐÃ XEM (per-request)
@@ -201,17 +223,24 @@ export function KhoDeNghiPage({
   // → dùng thẳng danh sách trả về làm trang hiện tại.
   const total = totalCount;
   const shown = rows;
-  const maxPage = Math.max(1, Math.ceil(total / pageSize));
 
   useEffect(() => {
     setPage(1);
-  }, [tab, q, reqFrom, reqTo, dateFrom, dateTo, pageSize]);
+  }, [tab, q, khoaLoc, pageSize]);
 
   const tabs: { id: TabId; label: string }[] = [
     { id: "all", label: "Tất cả" },
     { id: "dang-cap", label: "Đang cấp" },
     { id: "done", label: "Hoàn tất" },
     { id: "khong-thanh", label: "Đã hủy" },
+  ];
+  // Trạng thái trong nút Lọc = chính dải chip (đọc/ghi `tab`), không đẻ state thứ hai.
+  const dkDu: DieuKien<LocYeuCauKho>[] = [
+    dkTheoTab<LocYeuCauKho>({
+      tabs: tabs.map((t) => ({ id: t.id, nhan: t.label, so: countOf(t.id) })),
+      tatCa: "all", dang: tab, dat: (id) => setTab(id as TabId),
+    }),
+    ...dieuKien,
   ];
 
   // Yêu cầu KHÔNG gắn kho nên không có tồn để soi → bỏ hẳn cột đèn. Cột "Người" thay vào để
@@ -230,7 +259,7 @@ export function KhoDeNghiPage({
         </p>
       </header>
 
-      <div className="rc__toolbar">
+      <div className="rc__toolbar tl-thanh">
         <div className="rc__search-wrapper">
           <SearchIcon />
           <input
@@ -251,12 +280,20 @@ export function KhoDeNghiPage({
           )}
         </div>
 
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_YEU_CAU_KHO}
+          onKy={(ky) => setLocMan({ ...locMan, ky })}
+          dieuKien={dkDu}
+          loc={locMan.loc}
+          onLoc={(loc) => setLocMan({ ...locMan, loc })}
+        />
+
         {/* LỌC TRẠNG THÁI — Dải Filter Chips trực quan */}
         <div className="kho-filter-chips">
           {tabs.map((t) => {
             const count = countOf(t.id);
             const isActive = tab === t.id;
-            const unread = t.id === "done" ? unseenDone : t.id === "khong-thanh" ? unseenFail : 0;
             return (
               <button
                 key={t.id}
@@ -266,7 +303,6 @@ export function KhoDeNghiPage({
               >
                 <span>{t.label}</span>
                 <span className="kho-filter-chip__count">{count}</span>
-                {unread > 0 && <span className="kho-filter-chip__unread">{unread}</span>}
               </button>
             );
           })}
@@ -303,8 +339,8 @@ export function KhoDeNghiPage({
               <th style={{ width: "11%" }}>Loại</th>
               <th>Vật tư</th>
               <th style={{ width: "17%" }}>Người yêu cầu</th>
-              <DateFilterHead style={{ width: "12%" }} label="Ngày yêu cầu" from={reqFrom} to={reqTo} onChange={(f, t) => { setReqFrom(f); setReqTo(t); }} />
-              <DateFilterHead style={{ width: "12%" }} label={loai === "NHAP" ? "Ngày cần nhập" : "Ngày cần xuất"} from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
+              <th style={{ width: "12%" }}>Ngày yêu cầu</th>
+              <th style={{ width: "12%" }}>{loai === "NHAP" ? "Ngày cần nhập" : loai === "XUAT" ? "Ngày cần xuất" : "Ngày cần"}</th>
               <th style={{ width: "13%" }}>Trạng thái</th>
             </tr>
           </thead>
@@ -325,13 +361,13 @@ export function KhoDeNghiPage({
                   <div className="rc__empty-state">
                     <EmptyIcon />
                     <p className="rc__empty-text">
-                      {rows.length === 0
+                      {!coLoc && !q && tab === "all"
                         ? dieuChuyen
                           ? "Chưa có điều chuyển nào. Tạo điều chuyển ở màn Tồn kho (nút “Chuyển kho”)."
                           : "Chưa có yêu cầu nào. Tạo yêu cầu để xin nhập hoặc lĩnh vật tư."
                         : "Không có yêu cầu nào ở trạng thái này."}
                     </p>
-                    {rows.length === 0 ? (
+                    {!coLoc && !q && tab === "all" ? (
                       canRequest && !dieuChuyen && (
                         <Button variant="ghost" onClick={() => setDrawer({ mode: "new", loai })}>
                           <PlusIcon /> Tạo yêu cầu
@@ -343,6 +379,7 @@ export function KhoDeNghiPage({
                         onClick={() => {
                           setQ("");
                           setTab("all");
+                          setLocMan(LOC_MAN_YCK_TRONG);
                         }}
                       >
                         Xóa bộ lọc
@@ -395,7 +432,7 @@ export function KhoDeNghiPage({
                         </div>
                       </div>
                     </td>
-                    <td className="rc__nowrap">{fmtDate(r.created_at)}</td>
+                    <td className="rc__nowrap" title={fmtDateTime(r.created_at)}>{fmtDate(r.created_at)}</td>
                     <td className={`rc__nowrap${overdue ? " kho-overdue" : ""}`}>
                       {r.ngay_can ? fmtDateISO(r.ngay_can) : "—"}
                     </td>
@@ -406,44 +443,16 @@ export function KhoDeNghiPage({
                 );
               })
             )}
-            {/* Hàng ĐỆM giữ ĐỘ DÀI (chiều cao) bảng cố định — ít yêu cầu (vd 1-5 dòng) bảng vẫn trải
-                đủ pageSize dòng, đồng bộ với bảng Tồn/Phiếu/Báo cáo, không teo lại. */}
-            {Array.from({
-              length: Math.max(0, pageSize - (loading ? 5 : shown.length === 0 ? 1 : shown.length)),
-            }).map((_, i) => (
-              <tr key={`rfiller-${i}`} className="rc__filler" aria-hidden="true">
-                <td colSpan={colCount}>&nbsp;</td>
-              </tr>
-            ))}
           </tbody>
         </table>
       </div>
 
+      {/* Về trang 1 ngay trong cùng lượt đổi cỡ — khỏi một lượt nạp thừa (trang cũ × cỡ mới) trước
+          khi effect reset kịp chạy. */}
       {total > 0 && (
-        <div className="kho-pager">
-          <PageSizeSelect value={pageSize} onChange={setPageSize} />
-          <span className="kho-pager__page">{total} yêu cầu</span>
-          <div className="rc__spacer" />
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Trước
-          </button>
-          <span className="kho-pager__page">
-            Trang {page} / {maxPage}
-          </span>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={page >= maxPage}
-            onClick={() => setPage((p) => Math.min(maxPage, p + 1))}
-          >
-            Sau
-          </button>
-        </div>
+        <PhanTrangDayDu trang={page} size={pageSize} tong={total} soDong={shown.length}
+          onTrang={setPage} onSize={(n) => { setPageSize(n); setPage(1); }} loading={loading} donVi="yêu cầu"
+          ariaLabel="Phân trang yêu cầu nhập xuất" />
       )}
 
       {drawer && token && (
@@ -1196,6 +1205,29 @@ function RequestDrawer({
               <section className="rc-sec">
                 <h3 className="rc-sec__title">Thông tin chung</h3>
                 <div className="kho-info-grid">
+                  {/* Nhập và Xuất chung một bảng (07/10/2026) nên chiều chọn NGAY trong form tạo; yêu cầu
+                      đã gửi hoặc đổ sẵn từ đơn mua thì chiều cố định, đọc ở dòng kicker phía trên. */}
+                  {editable && (
+                    <div className="kho-info-item">
+                      <span className="kho-info-item__label" id="kho-loai-yc">Loại yêu cầu</span>
+                      <div className="kho-info-item__val">
+                        <div className="kho-shell__dirs kho-chieu" role="radiogroup" aria-labelledby="kho-loai-yc">
+                          {(["NHAP", "XUAT"] as const).map((k) => (
+                            <button
+                              key={k}
+                              type="button"
+                              role="radio"
+                              aria-checked={loai === k}
+                              className={`seg${loai === k ? " is-active" : ""}`}
+                              onClick={() => touch(setLoai)(k)}
+                            >
+                              {k === "NHAP" ? "Nhập" : "Xuất"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {/* Điều chuyển nội bộ KHÔNG có "ngày cần" (popup Chuyển kho không nhập, ghi sổ ngay khi
                       kho đích nhận) → ẩn cho phiếu điều chuyển, chỉ hiện với nhập/xuất thường. */}
                   {!req?.dieu_chuyen && (

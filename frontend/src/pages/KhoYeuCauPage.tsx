@@ -17,7 +17,6 @@ import {
   type StockAllocationLine,
   type StockLot,
   type StockRequest,
-  type StockRequestKind,
   type StockRequestLine,
   type StockRequestStatus,
   type StockThreshold,
@@ -34,6 +33,7 @@ import { Icon } from "../components/Icons";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DiscardChangesDialog } from "../components/DiscardChangesDialog";
 import { MaterialCombobox } from "../components/MaterialCombobox";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { Select } from "../components/Select";
 import { fmtDate, fmtDateISO, fmtDateTime, money } from "../utils/format";
 import {
@@ -43,14 +43,12 @@ import {
   type TransferPrintData,
 } from "../utils/printStockVoucher";
 import {
-  DateFilterHead,
   DecimalInput,
   LoaiYeuCauChip,
   RequestStatusBadge,
   VoucherStatusBadge,
   TransferStatusBadge,
   type TransferStatus,
-  PageSizeSelect,
   DEFAULT_PAGE_SIZE,
   fmtGioCan,
   fmtQty,
@@ -64,6 +62,22 @@ import {
 } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import { chuanKho, nhanDangKho } from "../lib/khoGiay";
+import { khoaTonKho } from "../auth/quyenKho";
+import {
+  LOC_MAN_YCK_TRONG,
+  MAN_YEU_CAU_KHO,
+  MOC_YEU_CAU_KHO,
+  docLocManYCK,
+  ghiLocManYCK,
+  thamSoLocYCK,
+  useDieuKienYeuCauKho,
+  type LocManYCK,
+  type LocYeuCauKho,
+} from "./loc-kho/dieu-kien-yeu-cau-kho";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
+import { thamSoKy } from "./thanh-loc/ky-danh-sach";
+import { useLocMan } from "./thanh-loc/useLocMan";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
 
@@ -129,14 +143,11 @@ function ApproxMark({ raw, decimals }: { raw: number; decimals: number }) {
 
 export function KhoYeuCauPage({
   eventTick = 0,
-  loai,
   dieuChuyen = false,
   openRequestId = null,
   onOpenRequestConsumed,
 }: {
   eventTick?: number;
-  /** Khoá chiều theo tab (Nhập/Xuất): lọc yêu cầu + phiếu theo loai. */
-  loai: StockRequestKind;
   /** Tab ĐIỀU CHUYỂN: chỉ hiện yêu cầu điều chuyển (dieu_chuyen=true). */
   dieuChuyen?: boolean;
   /** Bấm thông báo → mở sẵn drawer "ứng theo yêu cầu" đúng id này. */
@@ -151,12 +162,13 @@ export function KhoYeuCauPage({
   // Ghi sổ đã GỘP vào quyền "create" (bỏ tách "post"/SoD) — khớp backend: post_voucher chỉ đòi
   // create. Ai lập được phiếu là ghi sổ được luôn, không còn bước "Chờ ghi sổ" chờ người khác.
   const canPost = canCreate;
-  // Cột "tồn khả dụng" trên dòng yêu cầu — đọc quyền của màn TỒN KHO (mg `0334`). Đây là đọc
-  // DỮ LIỆU của màn khác để hiện một cột, không phải mượn cửa để mở màn này.
-  const canViewStock = can("ton_kho", "read");
   const canViewCost = can("kho", "view_cost");
 
   const [khoList, setKhoList] = useState<KhoOption[]>([]);
+  // Cột "tồn khả dụng" trên dòng yêu cầu — đọc quyền của màn TỒN KHO, mỗi kho một dòng
+  // `ton_kho_<id>` (05/10/2026). Ngăn chi tiết tự hỏi đúng kho của yêu cầu; cờ này chỉ dùng cho yêu
+  // cầu CHƯA chọn kho — số khi đó là gộp mọi kho nên phải xem được MỌI kho (khớp máy chủ).
+  const canViewStock = khoList.length > 0 && khoList.every((k) => can(khoaTonKho(k.id), "read"));
   const [khoId, setKhoId] = useState<number | null>(() => readStoredKho(KHO_KEY));
   const [requests, setRequests] = useState<StockRequest[]>([]);
   const [totalCount, setTotalCount] = useState(0);         // tổng bản ghi khớp lọc (từ BE)
@@ -167,8 +179,15 @@ export function KhoYeuCauPage({
   const [tab, setTab] = useState<TabId>("can-cap");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
-  // Lọc khoảng ngày theo cột "Cần ngày" (ngay_can) — bấm tiêu đề cột để bung Từ/Đến.
-  const [dNeed, setDNeed] = useState({ from: "", to: "" });
+  // Kỳ (Ngày yêu cầu / Ngày cần / Ngày duyệt) + Phòng ban, Người yêu cầu, Kho — lọc ở máy chủ,
+  // chung khoá URL với màn "Yêu cầu nhập xuất" (cùng mục thanh bên).
+  const [locMan, setLocManGoc] = useLocMan(MAN_YEU_CAU_KHO, LOC_MAN_YCK_TRONG, docLocManYCK, ghiLocManYCK);
+  const setLocMan = (t: LocManYCK) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const dieuKien = useDieuKienYeuCauKho(dieuChuyen);
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYCK(locMan.loc) });
 
   const [openRequest, setOpenRequest] = useState<number | null>(null);
   const [creatingFor, setCreatingFor] = useState<StockRequest | null>(null);
@@ -213,10 +232,8 @@ export function KhoYeuCauPage({
     // BE-paging: chỉ tải ĐÚNG trang theo tab + lọc ngày; đếm số theo trạng thái riêng (badge tab).
     const filters = {
       q: q || null,
-      loai,
       dieu_chuyen: dieuChuyen,
-      ngay_can_tu: dNeed.from || null,
-      ngay_can_den: dNeed.to || null,
+      loc: JSON.parse(khoaLoc),
     };
     Promise.all([
       api.kho.deNghi.list(token, { ...filters, trang_thai: TAB_STATUSES[tab], page, size: pageSize }),
@@ -232,7 +249,7 @@ export function KhoYeuCauPage({
         setError(e instanceof ApiError ? e.message : "Không tải được hộp yêu cầu kho."),
       )
       .finally(() => setLoading(false));
-  }, [token, q, loai, dieuChuyen, dNeed, tab, page, pageSize]);
+  }, [token, q, dieuChuyen, khoaLoc, tab, page, pageSize]);
 
   // "Lập phiếu" / "Xem phiếu": yêu cầu đã có phiếu ĐANG CHỜ GHI SỔ (`open_voucher_id`) thì MỞ LẠI
   // đúng phiếu đó — thấy nguyên dữ liệu đã nhập + Ghi sổ/Hủy — thay vì đẻ ra phiếu trống (mất dữ
@@ -264,7 +281,7 @@ export function KhoYeuCauPage({
 
   useEffect(() => {
     setPage(1);
-  }, [tab, q, khoId, dNeed, pageSize]);
+  }, [tab, q, khoId, khoaLoc, pageSize]);
 
   // Số trên tab = CỘNG số theo trạng thái (BE trả `counts`) của các trạng thái thuộc tab đó.
   function countOf(id: TabId): number {
@@ -274,7 +291,6 @@ export function KhoYeuCauPage({
   // BE đã lọc (tab + ngày + q) + phân trang + sắp theo id giảm (≈ created_at desc như sortInbox)
   // → dùng thẳng danh sách trả về làm trang hiện tại, không cắt/lọc lại ở client.
   const total = totalCount;
-  const maxPage = Math.max(1, Math.ceil(total / pageSize));
   const pageRequests = requests;
   // "Mới" = yêu cầu MỚI NHẤT — nằm đầu TRANG 1 (BE sắp id desc); trang khác không đánh dấu.
   const newestReqId = page === 1 ? (requests[0]?.id ?? null) : null;
@@ -287,10 +303,17 @@ export function KhoYeuCauPage({
     { id: "done", label: "Hoàn tất" },
     { id: "da-huy", label: "Đã hủy" },
   ];
+  // Trạng thái trong nút Lọc = chính dải chip (đọc/ghi `tab`), không đẻ state thứ hai.
+  const dkDu: DieuKien<LocYeuCauKho>[] = [
+    dkTheoTab<LocYeuCauKho>({
+      tabs: tabs.map((t) => ({ id: t.id, nhan: t.label, so: countOf(t.id) })),
+      tatCa: "tat-ca", dang: tab, dat: (id) => setTab(id as TabId),
+    }),
+    ...dieuKien,
+  ];
 
-  // Cột yêu cầu: 8 khi có nút Lập phiếu, 7 khi không (đã bỏ cột Tồn — yêu cầu không gắn kho).
-  // Mã · Loại · Bộ phận · Vật tư · Cho lệnh · Tiến độ · Cần ngày · Trạng thái (+ cột thao tác).
-  const reqCols = canCreate ? 9 : 8;
+  // Mã · Loại · Bộ phận · Vật tư · Cho lệnh · Tiến độ · Ngày tạo · Cần lúc · Trạng thái (+ cột thao tác).
+  const reqCols = canCreate ? 10 : 9;
 
   return (
     <>
@@ -308,7 +331,7 @@ export function KhoYeuCauPage({
         </p>
       </header>
 
-      <div className="rc__toolbar">
+      <div className="rc__toolbar tl-thanh">
         <div className="rc__search-wrapper">
           <SearchIcon />
           <input
@@ -318,6 +341,14 @@ export function KhoYeuCauPage({
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_YEU_CAU_KHO}
+          onKy={(ky) => setLocMan({ ...locMan, ky })}
+          dieuKien={dkDu}
+          loc={locMan.loc}
+          onLoc={(loc) => setLocMan({ ...locMan, loc })}
+        />
         {/* LỌC TRẠNG THÁI — cùng dải Filter Chips với màn Yêu cầu nhập xuất cho nhất quán. */}
         <div className="kho-filter-chips">
           {tabs.map((t) => {
@@ -378,29 +409,23 @@ export function KhoYeuCauPage({
             canViewCost={canViewCost}
             newestReqId={newestReqId}
             tableRef={tableRef}
-            pageSize={pageSize}
             onOpen={setOpenTransfer}
           />
         ) : (
           <table ref={tableRef} className="rc__table rc__table--fixed">
             <thead>
               <tr>
-                <th style={{ width: "13%" }}>Mã</th>
-                <th style={{ width: "10%" }}>Loại</th>
-                <th style={{ width: "15%" }}>Bộ phận · Người</th>
+                <th style={{ width: "12%" }}>Mã</th>
+                <th style={{ width: "9%" }}>Loại</th>
+                <th style={{ width: "14%" }}>Bộ phận · Người</th>
                 <th>Vật tư</th>
                 {/* mg 0175 — soạn hàng theo LỆNH: thủ kho gom được các yêu cầu của cùng một lệnh
                     thay vì soạn rời từng phiếu. Cột thay cho việc dựng một màn "soạn hàng" riêng. */}
-                <th style={{ width: "11%" }}>Cho lệnh</th>
-                <th style={{ width: "12%" }}>Tiến độ</th>
-                <DateFilterHead
-                  label="Cần lúc"
-                  from={dNeed.from}
-                  to={dNeed.to}
-                  onChange={(from, to) => setDNeed({ from, to })}
-                  style={{ width: "11%" }}
-                />
-                <th style={{ width: "12%" }}>Trạng thái</th>
+                <th style={{ width: "10%" }}>Cho lệnh</th>
+                <th style={{ width: "11%" }}>Tiến độ</th>
+                <th style={{ width: "9%" }}>Ngày tạo</th>
+                <th style={{ width: "10%" }}>Cần lúc</th>
+                <th style={{ width: "11%" }}>Trạng thái</th>
                 {canCreate && <th className="rc__actcol" style={{ width: "10%" }} />}
               </tr>
             </thead>
@@ -476,6 +501,7 @@ export function KhoYeuCauPage({
                           </span>
                         </div>
                       </td>
+                      <td className="rc__nowrap" title={fmtDateTime(r.created_at)}>{fmtDate(r.created_at)}</td>
                       <td className={`rc__nowrap${overdue ? " kho-overdue" : ""}`}>
                         {/* GIỜ cần thật (từ đề nghị sản xuất) ưu tiên trước — `ngay_can` chỉ có DATE
                             nên không diễn đạt được ca chiều (task-8-ruling-man-kho). */}
@@ -503,48 +529,17 @@ export function KhoYeuCauPage({
                   })}
                 </>
               )}
-              {/* Hàng ĐỆM giữ chiều cao bảng cố định — ít yêu cầu vẫn trải đủ pageSize dòng (đồng bộ
-                  với các bảng kho khác), không teo lại khi lọc còn vài dòng. */}
-              {Array.from({
-                length: Math.max(
-                  0,
-                  pageSize - (loading ? 5 : requests.length === 0 ? 1 : pageRequests.length),
-                ),
-              }).map((_, i) => (
-                <tr key={`reqfiller-${i}`} className="rc__filler" aria-hidden="true">
-                  <td colSpan={reqCols}>&nbsp;</td>
-                </tr>
-              ))}
             </tbody>
           </table>
         )}
       </div>
 
+      {/* Về trang 1 ngay trong cùng lượt đổi cỡ — khỏi một lượt nạp thừa trước khi effect reset chạy. */}
       {total > 0 && (
-        <div className="kho-pager">
-          <PageSizeSelect value={pageSize} onChange={setPageSize} />
-          <span className="kho-pager__page">{total} yêu cầu</span>
-          <div className="rc__spacer" />
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Trước
-          </button>
-          <span className="kho-pager__page">
-            Trang {page} / {maxPage}
-          </span>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={page >= maxPage}
-            onClick={() => setPage((p) => Math.min(maxPage, p + 1))}
-          >
-            Sau
-          </button>
-        </div>
+        <PhanTrangDayDu trang={page} size={pageSize} tong={total} soDong={pageRequests.length}
+          onTrang={setPage} onSize={(n) => { setPageSize(n); setPage(1); }} loading={loading}
+          donVi={dieuChuyen ? "phiếu" : "yêu cầu"}
+          ariaLabel={dieuChuyen ? "Phân trang phiếu điều chuyển" : "Phân trang phiếu từ yêu cầu"} />
       )}
 
       {openRequest != null && token && (
@@ -623,7 +618,6 @@ function TransferTable({
   canViewCost,
   newestReqId,
   tableRef,
-  pageSize,
   onOpen,
 }: {
   rows: StockRequest[];
@@ -632,7 +626,6 @@ function TransferTable({
   canViewCost: boolean;
   newestReqId: number | null;
   tableRef: RefObject<HTMLTableElement>;
-  pageSize: number;
   onOpen: (id: number) => void;
 }) {
   // Mã · Tuyến · Ngày · Trạng thái · [Tổng giá vốn] · Số dòng · [thao tác]
@@ -643,7 +636,7 @@ function TransferTable({
         <tr>
           <th style={{ width: "15%" }}>Mã</th>
           <th style={{ width: "27%" }}>Tuyến</th>
-          <th style={{ width: "13%" }}>Ngày</th>
+          <th style={{ width: "13%" }}>Ngày tạo</th>
           <th style={{ width: "15%" }}>Trạng thái</th>
           {canViewCost && <th className="kho-num" style={{ width: "15%" }}>Tổng giá vốn</th>}
           <th className="kho-num" style={{ width: "9%" }}>Số dòng</th>
@@ -678,7 +671,7 @@ function TransferTable({
                     <span className="rc__name">{r.kho_ten ?? "—"}</span>
                   </div>
                 </td>
-                <td className="rc__nowrap">{fmtDate(r.created_at)}</td>
+                <td className="rc__nowrap" title={fmtDateTime(r.created_at)}>{fmtDate(r.created_at)}</td>
                 <td>
                   <TransferStatusBadge status={transferStatusOf(r)} />
                 </td>
@@ -699,14 +692,6 @@ function TransferTable({
             );
           })
         )}
-        {/* Hàng ĐỆM giữ chiều cao bảng cố định (giống bảng khác) — ít phiếu vẫn trải đủ pageSize dòng. */}
-        {Array.from({
-          length: Math.max(0, pageSize - (loading ? 5 : rows.length === 0 ? 1 : rows.length)),
-        }).map((_, i) => (
-          <tr key={`tfiller-${i}`} className="rc__filler" aria-hidden="true">
-            <td colSpan={cols}>&nbsp;</td>
-          </tr>
-        ))}
       </tbody>
     </table>
   );
@@ -1165,6 +1150,10 @@ export function InboxRequestDrawer({
   const [req, setReq] = useState<StockRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const can = useCan();
+  // Cột tồn đi theo DÒNG KHO của chính yêu cầu (`ton_kho_<id>`, 05/10/2026) — khớp máy chủ
+  // (`kho_request.py` chỉ điền `ton_kha_dung` cho người xem được kho đó). Chưa chọn kho thì theo cha.
+  const xemTon = req?.kho_id != null ? can(khoaTonKho(req.kho_id), "read") : canViewStock;
   // Phiếu đã lập từ yêu cầu này (chờ ghi sổ / đã ghi sổ) — xem lại kể cả khi yêu cầu đã Hoàn tất.
   const [vouchers, setVouchers] = useState<StockVoucher[]>([]);
   // Kho HỦY yêu cầu (quyết không cấp) — kèm lý do bắt buộc.
@@ -1395,7 +1384,7 @@ export function InboxRequestDrawer({
                         <th style={{ width: 60, textAlign: "center" }}>ĐVT</th>
                         <th className="kho-num" style={{ width: 100 }}>Yêu cầu</th>
                         {/* Cột Tồn khả dụng có chiều rộng 140px chuẩn, không bao giờ bị xén */}
-                        {canViewStock && <th className="kho-num" style={{ width: 140 }}>Tồn khả dụng</th>}
+                        {xemTon && <th className="kho-num" style={{ width: 140 }}>Tồn khả dụng</th>}
                         {canViewCost && <th className="kho-num" style={{ width: 100 }}>Đơn giá</th>}
                         {canViewCost && <th className="kho-num" style={{ width: 120 }}>Thành tiền</th>}
                         {hienGiaBan && <th className="kho-num" style={{ width: 120 }}>Giá bán</th>}
@@ -1466,7 +1455,7 @@ export function InboxRequestDrawer({
                                 </div>
                               )}
                             </td>
-                            {canViewStock && (
+                            {xemTon && (
                               <td className="kho-num">
                                 <div style={{ fontFamily: "var(--ff-sans)", fontWeight: "var(--fw-bold)" }}>
                                   {fmtQty(l.ton_kha_dung ?? 0)} <span className="kho-alloc__unit">{dvtGoc}</span>
@@ -1829,6 +1818,7 @@ function VoucherCreateDrawer({
               hang_loai: l.hang_loai, hang_id: l.hang_id, kho_id: khoId, con_hang: true,
               // Giấy: chỉ lô đúng dạng/khổ dòng xin.
               dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai,
+              man: "yeu_cau",
             })
             .catch(() => [] as StockLot[]),
           api.kho.phieu
@@ -2431,6 +2421,7 @@ function AllocRow({
       .danhSachLo(token, {
         hang_loai: l.hang_loai, hang_id: l.hang_id, kho_id: khoId, con_hang: true,
         dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai,
+        man: "yeu_cau",
       })
       .then((lots) => {
         if (cancelled) return;

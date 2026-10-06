@@ -1045,3 +1045,49 @@ def test_chuoi_kho_that_noi_duoc_ve_lenh(db, orders, lsx_svc, admin, customer):
     bc = boi_canh.nap(db, [lsx_id])
     assert [d.request_id for d in bc.nhap_kho_tp[lsx_id]] == [yc["request_id"]]
     assert bc.nhap_kho_tp[lsx_id][0].sl_da_nhan == 100
+
+
+# --- KHÂU (làm gọn Hồ sơ lệnh, 05/10/2026) --------------------------------------------------------
+# Tab của Hồ sơ lệnh chia theo KHÂU, không qua cờ cảnh báo: lệnh có sự cố vẫn ở đúng khâu của nó,
+# cảnh báo là việc của màn Theo dõi. Mỗi bài dưới đây đối chiếu với `trang_thai_chinh` ở những ca
+# hai hàm CỐ Ý nói khác nhau.
+def _khau(db, lsx_id):
+    return trang_thai.khau(boi_canh.nap(db, [lsx_id]), lsx_id)
+
+
+def test_khau_dang_chay_la_dang_sx(db, lenh_dang_chay):
+    assert _khau(db, lenh_dang_chay) == (trang_thai.KHAU_DANG_SX, None)
+
+
+def test_khau_khong_doc_co_su_co(db, lenh_dang_chay_co_su_co):
+    assert _tt(db, lenh_dang_chay_co_su_co) == trang_thai.TAB_CANH_BAO
+    assert _khau(db, lenh_dang_chay_co_su_co) == (trang_thai.KHAU_DANG_SX, None)
+
+
+def test_khau_khong_doc_co_tam_dung(db, lenh_tam_dung):
+    assert _tt(db, lenh_tam_dung) == trang_thai.TAB_CANH_BAO
+    assert _khau(db, lenh_tam_dung) == (trang_thai.KHAU_DANG_SX, None)
+
+
+def test_khau_dang_kcs(db, lenh_dang_kcs):
+    assert _khau(db, lenh_dang_kcs) == (trang_thai.KHAU_SAU_SX, trang_thai.CT_DANG_KCS)
+
+
+def test_khau_cho_nhap_kho(db, lenh_kcs_dat_chua_nhap):
+    assert _khau(db, lenh_kcs_dat_chua_nhap) == (trang_thai.KHAU_SAU_SX, trang_thai.CT_CHO_NHAP_KHO)
+
+
+def test_khau_san_sang_giao(db, lenh_da_nhap_kho):
+    assert _khau(db, lenh_da_nhap_kho) == (trang_thai.KHAU_SAU_SX, trang_thai.CT_SAN_SANG_GIAO)
+
+
+def test_khau_giao_du_an_truoc_ca_su_co(db, lenh_giao_het):
+    _su_co(db, lenh_giao_het, _cong_viec(db, lenh_giao_het)[1].id, ma="YC-KHAU-HT")
+    assert _khau(db, lenh_giao_het) == (trang_thai.KHAU_DA_GIAO, None)
+
+
+def test_khau_xong_san_xuat_ma_kcs_truot_het_van_la_sau_sx(db, lenh_kcs_khong_dat):
+    """Mọi công việc đã xong, KCS kết luận không đạt toàn bộ: `trang_thai_chinh` nói Cảnh báo, còn
+    khâu là Sau sản xuất — hàng đã ra khỏi chuyền, đang chờ KCS xử lý."""
+    assert _tt(db, lenh_kcs_khong_dat) == trang_thai.TAB_CANH_BAO
+    assert _khau(db, lenh_kcs_khong_dat) == (trang_thai.KHAU_SAU_SX, trang_thai.CT_DANG_KCS)

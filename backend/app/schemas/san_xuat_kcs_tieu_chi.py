@@ -31,6 +31,7 @@ class SanXuatKcsTieuChiRow(BaseModel):
     bat_buoc: bool
     thu_tu: int
     active: bool
+    created_at: datetime | None = None   # mốc kỳ `tao` của thanh lọc màn khai báo
     updated_at: datetime | None = None
 
 
@@ -68,3 +69,5 @@ class KcsCongDoanChonOut(BaseModel):
 class KcsKhaiBaoOut(BaseModel):
     giai_doan: list[KcsKhaiBaoGiaiDoanOut]
     cong_doan_chon: list[KcsCongDoanChonOut] = []
+    # {giai đoạn: số công đoạn} sau mọi lọc trừ giai đoạn ("" gộp vào "other") — số trên điều kiện.
+    dem_theo_nhom: dict[str, int] = {}

@@ -7,9 +7,8 @@ matrix (CRUD + scope per module), writing an audit row on every change.
 from __future__ import annotations
 
 from ..catalog_registry import MODULE_KEYS
-from ..models.role import Role, RolePermission
+from ..models.role import Role
 from ..quyen_notify import bao_quyen_doi
-from .role_templates import danh_sach_mau
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.rbac_repo import DepartmentRepository, ModuleRepository, RoleRepository
 from ..repositories.user_repo import UserRepository
@@ -83,10 +82,24 @@ SCOPELESS_MODULES = frozenset(MODULE_KEYS) | {
     # phòng tôi". Ô Xem đã khoá bật sẵn cho mọi vai (`rbac_repo.O_MAC_DINH`), nay phạm vi cũng ép
     # `all` ở máy chủ và giao diện khoá luôn ô chọn.
     "noi_quy",
-    # Tồn kho (24/09/2026, mg `0334`): người này thấy kho nào là do KHAI BÁO KHO quyết định, không
-    # phải phạm vi của vai — `kho_voucher.py` lọc theo `kho_id` người dùng chọn, không đọc scope.
-    "ton_kho",
+    # Tồn kho: từ 05/10/2026 là dòng ĐỘNG `ton_kho_<id>` mỗi kho một dòng — scopeless theo TIỀN TỐ
+    # (`_la_scopeless` dưới), không liệt kê được ở đây.
+    # Bốn màn sổ sách kế toán / tài sản (05/10/2026): `routers/accounting.py` và `routers/tai_san.py`
+    # không đọc phạm vi của các khoá này lần nào — bật Xem là thấy toàn bộ, nên ô Phạm vi đang nói
+    # dối người cấp quyền. Ép `all` lúc lưu, giao diện khoá cho khớp.
+    "phieu_chi",
+    "phieu_thu",
+    "tk_ngan_hang",
+    "tai_san",
 }
+
+def _la_scopeless(module_key: str) -> bool:
+    """Khoá tĩnh trong `SCOPELESS_MODULES`, cộng mọi dòng quyền theo kho (`ton_kho_<id>`): người
+    này thấy được kho nào là do CHÍNH DÒNG của kho đó quyết định, không phải phạm vi của vai."""
+    from .quyen_kho import la_khoa_kho
+
+    return module_key in SCOPELESS_MODULES or la_khoa_kho(module_key)
+
 
 READ_IMPLYING_KEYS = (
     "can_create",
@@ -142,24 +155,6 @@ READ_IMPLYING_KEYS = (
     "can_confirm_output",
     "can_warehouse",
 )
-
-
-#: Mọi cột boolean của `role_permissions`, lấy thẳng từ model — thêm cột quyền mới là bảng vai mẫu
-#: tự biết, không phải nhớ sửa thêm chỗ này.
-_COT_QUYEN = [
-    c.name for c in RolePermission.__table__.columns
-    if c.name not in ("id", "role_id", "module_key", "scope")
-]
-
-
-def _dong_mau_to(cai_dat: dict | None) -> dict | None:
-    """Phần mẫu trên dòng tổ → đủ các cột như một dòng ma trận (thiếu = tắt); None nếu mẫu không có."""
-    if not cai_dat:
-        return None
-    dong = {"scope": cai_dat.get("scope", "own")}
-    for cot in _COT_QUYEN:
-        dong[cot] = bool(cai_dat.get(cot, False))
-    return dong
 
 
 class RoleService:
@@ -291,7 +286,16 @@ class RoleService:
         (In/xuất phiếu · Đặt trưởng phòng · Xem lương…). Xem `deps.O_CHET_DA_XAC_MINH`.
         """
         from ..deps import O_CHET_DA_XAC_MINH
+        from ..repositories.quyen_kho_repo import QuyenKhoRepository
+        from .quyen_kho import khoa_kho, la_khoa_kho
         from .quyen_to import doc_cay, khoa_to
+
+        # Dòng quyền theo KHO (`ton_kho_<id>`, 05/10/2026): chỉ bày kho ĐANG DÙNG (đúng như thanh
+        # bên), theo thứ tự mã kho, kèm `kho_id` để ma trận xếp vào khối "Kho hàng". Ba việc
+        # create/update/delete chết sẵn — tồn kho không gõ tay, lô sinh từ phiếu nhập.
+        kho = QuyenKhoRepository(self.departments.db).danh_sach_kho()
+        thu_tu_kho = {khoa_kho(kid): (i, kid) for i, (kid, _ma, _ten, dung) in enumerate(kho) if dung}
+        dong_kho = []
 
         # Dòng quyền theo tổ (`to_sx_<id>`) đứng CUỐI, theo thứ tự cây + kèm cấp để ma trận thụt
         # lề; module tĩnh giữ thứ tự cũ.
@@ -299,6 +303,14 @@ class RoleService:
         thu_tu_to = {khoa_to(d): (i, d, cap) for i, (d, cap) in enumerate(cay.thu_tu())}
         tinh, dong_to = [], []
         for m in self.modules.list_all():
+            if la_khoa_kho(m.key):
+                if m.key in thu_tu_kho:
+                    i, kho_id = thu_tu_kho[m.key]
+                    dong_kho.append((i, {
+                        "key": m.key, "label": m.label,
+                        "viec_chet": ["create", "delete", "update"], "kho_id": kho_id,
+                    }))
+                continue  # kho ngừng dùng / dòng mồ côi — không bày ra
             vi_tri = thu_tu_to.get(m.key)
             if vi_tri is None:
                 if m.key.startswith("to_sx_"):
@@ -315,46 +327,8 @@ class RoleService:
                     "department_id": dept_id, "cap": cap,
                     "la_kcs": dept_id in cay.kcs,
                 }))
-        return tinh + [d for _, d in sorted(dong_to, key=lambda x: x[0])]
-
-    def role_templates(self) -> list[dict]:
-        """Bảng vai mẫu, mỗi mẫu kèm ma trận ĐẦY ĐỦ theo danh mục module hiện có.
-
-        Trả đủ mọi module (cờ ngoài mẫu = tắt) chứ không chỉ phần mẫu khai: giao diện thay thẳng
-        state là xong, không phải trộn với quyền cũ của vai — trộn nửa vời thì áp mẫu "Công nhân"
-        lên một vai đang có đầy quyền vẫn còn nguyên quyền cũ, đúng thứ vai mẫu sinh ra để tránh.
-
-        Khoá module nào mẫu khai mà DB chưa có (mẫu đi trước migration) thì BỎ QUA — thà thiếu một
-        dòng còn hơn trả về khoá không tồn tại rồi lưu xuống làm vỡ khoá ngoại.
-        """
-        khoa_co_that = [m.key for m in self.modules.list_all()]
-        ket: list[dict] = []
-        for mau in danh_sach_mau():
-            quyen = mau["quyen"]
-            rows = []
-            for khoa in khoa_co_that:
-                cai_dat = quyen.get(khoa, {})
-                dong = {"module_key": khoa, "scope": cai_dat.get("scope", "own")}
-                for cot in _COT_QUYEN:
-                    dong[cot] = bool(cai_dat.get(cot, False))
-                # HAI Ô MẶC ĐỊNH luôn BẬT trong mọi mẫu.
-                # ⚠️ Không có mấy dòng này thì áp mẫu = GỠ chúng: ma trận trả về là bản ĐẦY ĐỦ và
-                # giao diện thay sạch, nên khoá nào mẫu không khai sẽ về tắt. Áp mẫu "Công nhân"
-                # cho một vai thợ là thợ hết tự chấm công được — đúng loại hồi quy mà cả đợt phân
-                # quyền này sinh ra để chặn. Đo được khi soi giao diện thật 11/08/2026.
-                # Ép ở ĐÂY chứ không bắt từng mẫu tự khai: thêm mẫu thứ sáu là quên ngay.
-                if khoa in RoleRepository.O_MAC_DINH:
-                    dong["can_read"] = True
-                rows.append(dong)
-            ket.append({
-                "key": mau["key"], "label": mau["label"], "mo_ta": mau["mo_ta"],
-                "permissions": rows,
-                # Phần điền vào dòng quyền theo tổ của CHÍNH phòng mà vai thuộc về (Tổ trưởng /
-                # Công nhân). Mẫu không biết vai ở phòng nào — giao diện đang mở phòng nào thì điền
-                # vào dòng `to_sx_<phòng đó>`.
-                "quyen_to_cua_vai": _dong_mau_to(mau.get("quyen_to_cua_vai")),
-            })
-        return ket
+        return (tinh + [d for _, d in sorted(dong_kho, key=lambda x: x[0])]
+                + [d for _, d in sorted(dong_to, key=lambda x: x[0])])
 
     def get_matrix(self, role_id: int) -> list[dict]:
         """Full matrix for a role: one row per module, merged with stored permissions
@@ -457,7 +431,7 @@ class RoleService:
                         can_read = True
                         break
             normalized["can_read"] = can_read
-            if normalized["module_key"] in SCOPELESS_MODULES:
+            if _la_scopeless(normalized["module_key"]):
                 normalized["scope"] = "all"
             can_approve = normalized.get("can_approve", False)
             self.roles.set_permission(

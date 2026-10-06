@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .loc_danh_sach import LuaChonLoc
+
 
 # --- params -----------------------------------------------------------------
 
@@ -412,6 +414,19 @@ class AdvanceOut(BaseModel):
 
 class AdvancesOut(BaseModel):
     items: list[AdvanceOut]
+    # Danh sách màn Tạm ứng (06/10/2026) — lọc / đếm tab / chia trang ở MÁY CHỦ. Các đường lập /
+    # duyệt hàng loạt dùng chung lớp này nên mọi trường dưới đây đều tuỳ chọn.
+    total: int | None = None
+    page: int | None = None
+    size: int | None = None
+    dem_theo_tab: dict[str, int] | None = None
+    to_loc: list[LuaChonLoc] | None = None
+    #: Tổng tiền phiếu đã duyệt / đã chi của CẢ kỳ trong phạm vi (không theo bộ lọc) — chip đầu màn.
+    tong_da_duyet: float | None = None
+    #: Id mọi phiếu của tab đang đứng, bỏ qua điều kiện lọc — màn tỉa lựa chọn khi phiếu rời tab.
+    ids_tab: list[int] | None = None
+    #: Id mọi phiếu khớp lọc của tab (mọi trang) — "n phiếu đã chọn đang bị bộ lọc che", xuất Excel.
+    ids_loc: list[int] | None = None
 
 
 class MyAdvancesOut(BaseModel):
@@ -486,6 +501,7 @@ class LineOut(BaseModel):
     employee_id: int
     employee_code: str | None = None       # router fills
     employee_name: str | None = None
+    department_id: int | None = None       # router fills — lọc Phòng / tổ ở máy chủ
     department_name: str | None = None
     # Chưa khai ô "Mức đóng BHXH" ở mốc lương hiện hành ⇒ đang tạm đóng theo cơ bản + trách nhiệm
     # (chủ chốt 16/09/2026). Router điền; màn hình gắn nhãn, cảnh báo trước chốt réo tên.
@@ -610,6 +626,8 @@ class TableOut(BaseModel):
     #: CẢNH BÁO (không chặn) lúc chốt — vd người thực lĩnh 0 vì trừ nợ tạm ứng (chủ 07/09/2026: kệ,
     #: chỉ báo). Router điền.
     canh_bao_chot: str | None = None
+    #: Menu "Phòng / tổ" của thanh lọc — số người từng tổ trong kỳ (sau tìm + hợp đồng). Router điền.
+    phong_loc: list[LuaChonLoc] = []
 
 
 class LineUpdateIn(BaseModel):

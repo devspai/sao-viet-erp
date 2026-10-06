@@ -606,6 +606,36 @@
   border-radius: 4px;
 }
 
+/* Số món vật tư ở góc phải trên của thẻ — cùng kiểu số trong chip chuỗi bước (tab Vật tư lệnh). */
+.dag-node__vat-tu {
+  position: absolute;
+  /* Cao hơn mép thẻ đủ để không đè nút xoá ở góc phải đầu thẻ. */
+  top: -16px;
+  right: -12px;
+  z-index: 3;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border: 2px solid var(--canvas);
+  border-radius: 999px;
+  background: var(--charcoal);
+  color: var(--on-charcoal);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+}
+.dag-node__vat-tu:hover {
+  background: var(--charcoal-2);
+}
+.dag-node__vat-tu:focus-visible {
+  outline: 2px solid var(--rust);
+  outline-offset: 1px;
+}
+
 .dag-node__title {
   flex: 1;
   font-size: 13px;

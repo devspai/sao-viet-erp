@@ -23,8 +23,12 @@ class HangChoItem(BaseModel):
     is_rush: bool = False
     production_note: str | None = None
     san_xuat_released_at: datetime | None = None
+    created_at: datetime | None = None   # ngày tạo đơn — cột "Ngày tạo" + mốc kỳ `tao`
     so_dong: int = 0        # tổng dòng đơn
     so_dong_co_lsx: int = 0  # dòng đã lên lệnh
+    # Tên các hạng mục của đơn (OrderLine.description, bỏ trùng) — service đã trả từ lâu nhưng
+    # schema thiếu nên Pydantic nuốt im lặng, cột "Sản phẩm" của hàng chờ luôn trống.
+    san_pham_tom_tat: str | None = None
 
 
 class HangChoOut(BaseModel):
@@ -205,7 +209,6 @@ class LsxCongDoanIn(BaseModel):
     # Gia công ngoài (spec 2026-09-26): nhà gia công = NCC có tích "Nhận gia công". Chỉ gửi ID —
     # tên (`nha_cung_cap`) do máy chủ ghi theo NCC đã chọn, client không gửi chữ.
     nha_cung_cap_id: int | None = None
-    don_gia_gia_cong: float | None = Field(default=None, ge=0)
     ghi_chu: str | None = None
     phu_thuoc_step_keys: list[str] | None = None
     vat_tus: list[LsxBuocVatTuIn] | None = None
@@ -278,7 +281,6 @@ class LsxCongDoanOut(BaseModel):
 
     nha_cung_cap_id: int | None = None
     nha_cung_cap: str | None = None
-    don_gia_gia_cong: float | None = None
     ghi_chu: str | None = None
 
     # ⚠️ `khoan_rate_id` · `khoan_ten` · `khoan_chon_duoc` GỠ 18/09/2026 (mg `0320`): bước thôi chọn
@@ -313,11 +315,32 @@ class LsxListItem(BaseModel):
     han_giao_khach: date | None = None
     han_hoan_thanh_sx: date | None = None
     is_rush: bool = False
+    created_at: datetime | None = None   # ngày tạo lệnh — cột "Ngày tạo" + mốc kỳ `tao`
     to_dau_ten: str | None = None   # tổ của bước đầu (nhìn biết ai bắt việc)
     so_cong_doan: int = 0
     # MÃ đơn vị chặng TỜ IN của lệnh này — cột "Tờ in" liệt kê nhiều lệnh, mỗi lệnh có thể đếm
     # bằng đơn vị xưởng tự đặt. Client tra tên ở danh mục Đơn vị.
     don_vi_to: str | None = None
+    # Gia công ngoài của lệnh (lần chưa huỷ) — None = lệnh không đi gia công. Không khai ở đây là
+    # Pydantic nuốt im lặng và bảng lệnh lại không biết lệnh nào đang nằm ở nhà gia công.
+    gia_cong: "LsxListGiaCong | None" = None
+
+
+class LsxListGiaCong(BaseModel):
+    """Lần ĐẠI DIỆN của lệnh trên dòng danh sách — xem `gia_cong_ngoai.tom_tat_theo_lenh`."""
+
+    kieu: str                     # mot_phan | tron_goi
+    trang_thai: str               # cho_mang_di | dang_o_ngoai | dang_gia_cong | da_xong
+    nha_cung_cap_ten: str
+    ten_viec: str
+    bai_ghep_ma: str | None = None
+    so_lan: int = 1
+    so_lan_mo: int = 0
+    # Trọn gói xưởng cấp giấy chưa gửi đề nghị xuất giấy — bảng lệnh hiện chip "Chờ cấp giấy".
+    cho_cap_giay: bool = False
+
+
+LsxListItem.model_rebuild()
 
 
 class LsxListOut(BaseModel):
@@ -474,6 +497,12 @@ class LsxOut(BaseModel):
     # kế hoạch sửa xong cả routing mới ăn 409 lúc bấm Lưu, mà mỗi lần đổi công đoạn thì xem-trước
     # 409 im lặng nên số trên bảng đứng im không ai giải thích.
     giu_cho_bat: bool = False
+    # Lệnh chưa phát hành mà KHÔNG giao trọn gói được (đi chung lệnh khác / bài ghép) — câu nêu đích
+    # danh lệnh đang dính. Màn lệnh thay nút "Gia công trọn gói" bằng chip nói lý do (câu ngắn trên
+    # mặt chip, câu đầy đủ ở chú thích), khỏi để người kế hoạch điền xong hộp thoại mới biết.
+    # None = được (hoặc lệnh đã qua bước đặt trọn gói).
+    tron_goi_chan: str | None = None
+    tron_goi_chan_ngan: str | None = None
     # Danh mục Công đoạn đã đổi sau lúc lệnh chụp ảnh (None = còn khớp). Lệnh KHÔNG tự lấy số mới;
     # băng trên màn lệnh nói lệch chỗ nào rồi để người lập kế hoạch bấm "Cập nhật theo danh mục".
     danh_muc_doi: DanhMucDoiOut | None = None

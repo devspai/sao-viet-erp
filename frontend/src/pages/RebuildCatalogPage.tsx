@@ -13,5 +13,5 @@ export { isMayIn } from "./danh-muc/types";
 export { traBien, useBienCongThuc } from "./danh-muc/bienCongThuc";
 export type { BienCongThuc, TraBien } from "./danh-muc/bienCongThuc";
 export type {
-  CatalogConfig, ChuanBiKhoanRow, ColumnDef, FacetDef, FieldDef, HangMucConRow, LichBaoTriRow,
+  CatalogConfig, ChuanBiKhoanRow, ColumnDef, DieuKienDanhMuc, FieldDef, HangMucConRow, LichBaoTriRow,
 } from "./danh-muc/types";

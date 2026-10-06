@@ -9,8 +9,23 @@ import {
 } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
-import { Pager, trangHopLe } from "../../../../components/Pager";
-import { LocThangTao } from "../../../../components/LocThangTao";
+import { trangHopLe } from "../../../../components/Pager";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
+import { StatusTabs } from "../../../../components/StatusTabs";
+import { ThanhLoc } from "../../../thanh-loc/ThanhLoc";
+import { thamSoKy } from "../../../thanh-loc/ky-danh-sach";
+import { soDaAp } from "../../../thanh-loc/thanh-loc";
+import { dkTabDon, tabTrangThai, useLocTab } from "../../dieu-kien-don";
+import {
+  LOC_NP_TRONG,
+  MAN_NGHI_PHEP,
+  MOC_NP,
+  locNghiPhepLenUrl,
+  locNghiPhepTuUrl,
+  thamSoLocNghiPhep,
+  useDieuKienDonCuaToi,
+  type LocNghiPhep,
+} from "../dieu-kien-nghi-phep";
 import { Info, Plus } from "lucide-react";
 import { fmtDate } from "../../../../utils/format";
 import { LeaveTable } from "../components/LeaveTable";
@@ -22,20 +37,36 @@ import { homNayYmd, LyDoDialog } from "../../xin-huy/XinHuy";
 
 // --- Tab: Đơn của tôi -------------------------------------------------------
 
-export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
+export function MyLeaveTab({ token, onChanged, coQuyenGhi, coQuyenHuy, eventTick }: {
   token: string;
   onChanged?: () => void;
   /** Nhích theo mỗi sự kiện real-time — người duyệt quyết xin hủy thì bảng tự tươi (23/09/2026). */
   eventTick?: number;
-  /** Ô THAO TÁC của Tự phục vụ — gửi / huỷ đơn của chính mình (tách 11/08/2026). */
+  /** Ô THAO TÁC của màn Nghỉ phép — gửi đơn của chính mình. */
   coQuyenGhi: boolean;
+  /** Ô HUỶ (`nghi_phep:cancel`) hoặc ô Duyệt — huỷ / xin huỷ / rút lại xin huỷ đơn của mình. */
+  coQuyenHuy: boolean;
 }) {
   const [hasEmp, setHasEmp] = useState<boolean | null>(null);
   const [items, setItems] = useState<LeaveRequest[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  /** Lọc theo THÁNG TẠO đơn (`YYYY-MM`, rỗng = tất cả) — 23/09/2026. */
-  const [thang, setThang] = useState("");
+  const [size, setSize] = useState(PAGE_SIZE);
+  const [dem, setDem] = useState<Record<string, number> | null>(null);
+  // Kỳ (Ngày tạo / Ngày nghỉ) + trạng thái (thanh tab có số) + Loại nghỉ — lọc ở MÁY CHỦ
+  // (06/10/2026, thay ô "Tháng tạo"). Đổi lọc ⇒ về trang 1 ngay trong `setLocTab`.
+  const [locTab, setLocTabGoc] = useLocTab<LocNghiPhep>({
+    man: MAN_NGHI_PHEP, tienToUrl: "dt", moc: MOC_NP, mocMacDinh: "tao", ttMacDinh: "",
+    locTrong: LOC_NP_TRONG, locTuUrl: locNghiPhepTuUrl, locLenUrl: locNghiPhepLenUrl,
+  });
+  const setLocTab = (t: typeof locTab) => { setLocTabGoc(t); setPage(1); };
+  const dieuKien = useDieuKienDonCuaToi();
+  const coLoc = locTab.ky.loai !== "tat_ca" || locTab.tt !== "" || soDaAp(dieuKien, locTab.loc) > 0;
+  const khoaLoc = JSON.stringify({
+    ...thamSoKy(locTab.ky),
+    ...thamSoLocNghiPhep(locTab.loc),
+    status: locTab.tt || undefined,
+  });
   const [quotas, setQuotas] = useState<LeaveQuota[]>([]);
   const [types, setTypes] = useState<LeaveType[]>([]);
 
@@ -71,13 +102,14 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
   const load = useCallback(() => {
     setLoadingList(true);
     setListError(null);
-    api.leaves.me(token, { page, size: PAGE_SIZE, thang: thang || undefined }).then((r) => {
+    api.leaves.me(token, { ...JSON.parse(khoaLoc), page, size }).then((r) => {
       setHasEmp(r.has_employee);
       setItems(r.items);
       setTotal(r.total);
+      setDem(r.dem_theo_tab ?? null);
       // `quotas` KHÔNG bị phân trang (backend tính theo cả năm) — vẫn đúng ở mọi trang.
       setQuotas(r.quotas ?? []);
-      const trangCanVe = trangHopLe(page, r.total, PAGE_SIZE);
+      const trangCanVe = trangHopLe(page, r.total, size);
       if (trangCanVe !== null) setPage(trangCanVe);
 
       // Nếu modal đang mở thì đồng bộ lại trạng thái đơn (chỉ khi id còn khớp).
@@ -96,12 +128,9 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
       // thực sự trả lời.
       .catch((e) => setListError(errMsg(e)))
       .finally(() => setLoadingList(false));
-  }, [token, page, thang]);
+  }, [token, page, size, khoaLoc]);
 
   useEffect(() => { load(); }, [load, eventTick]);
-  // Đổi tháng ⇒ về trang 1 NGAY trong handler (không qua effect) — không thì lượt tải cũ bắn đi với
-  // trang cũ rồi mới tới lượt mới, và đứng ở trang 3 của tháng khác là bảng rỗng trơn.
-  const doiThang = (v: string) => { setThang(v); setPage(1); };
   useEffect(() => { api.leaves.types(token).then((r) => setTypes(r.items.filter((t) => t.is_active))).catch(() => {}); }, [token]);
 
   async function submit() {
@@ -217,7 +246,6 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
           </div>
 
           <div className="cc-leave-header-right">
-            <LocThangTao value={thang} onChange={doiThang} />
             <span className="cc-note-inline">
               <Info size={13} className="cc-note-inline-icon" />
               <span>Click dòng để xem chi tiết</span>
@@ -235,7 +263,6 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
         </div>
       ) : (
         <div className="cc-leave-header-strip cc-leave-header-strip--simple">
-          <LocThangTao value={thang} onChange={doiThang} />
           <span className="cc-note-inline">
             <Info size={13} className="cc-note-inline-icon" />
             <span>Click vào dòng bản ghi để xem chi tiết tiến trình đơn</span>
@@ -249,31 +276,44 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
         </div>
       )}
 
+      <div className="cc-ts-toolbar tl-thanh">
+        <ThanhLoc
+          ky={locTab.ky}
+          moc={MOC_NP}
+          onKy={(ky) => setLocTab({ ...locTab, ky })}
+          dieuKien={dkTabDon(dieuKien, tabTrangThai(dem))}
+          loc={locTab}
+          onLoc={setLocTab}
+        />
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <StatusTabs tabs={tabTrangThai(dem)} active={locTab.tt} onChange={(tt) => setLocTab({ ...locTab, tt })} />
+      </div>
       {actErr && <div className="banner banner--error" style={{ marginBottom: 12 }}>{actErr}</div>}
       <LeaveTable
         items={items}
         showEmployee={false}
-        onCancel={cancel}
-        onXinHuy={coQuyenGhi ? (r) => { setXinHuyErr(null); setXinHuyDon(r); } : undefined}
-        onRutLaiXinHuy={coQuyenGhi ? rutLai : undefined}
+        onCancel={coQuyenHuy ? cancel : undefined}
+        onXinHuy={coQuyenHuy ? (r) => { setXinHuyErr(null); setXinHuyDon(r); } : undefined}
+        onRutLaiXinHuy={coQuyenHuy ? rutLai : undefined}
         onRowClick={(r) => setSelectedRequest(r)}
         loading={loadingList}
         listError={listError}
         onRetry={load}
-        emptyTitle={thang ? "Tháng này bạn chưa gửi đơn nào" : undefined}
-        emptySub={thang ? "Bỏ lọc tháng (nút ✕) để xem mọi đơn." : undefined}
+        emptyTitle={coLoc ? "Không có đơn nào khớp bộ lọc" : undefined}
+        emptySub={coLoc ? "Đổi kỳ, chọn tab Tất cả hoặc bỏ điều kiện lọc ở trên." : undefined}
       />
 
-      {/* Chân bảng CHỈ hiện khi có dòng (chuẩn §2.7) — lúc tải/lỗi/rỗng thì khối trong bảng
-          đã nói hết rồi. */}
-      {!loadingList && !listError && items.length > 0 && (
-        <Pager
-          total={total}
-          page={page}
-          size={PAGE_SIZE}
+      {/* Chân bảng CHỈ hiện khi có dòng (chuẩn §2.7) — lỗi/rỗng thì khối trong bảng đã nói hết.
+          Lúc tải trang kế vẫn giữ chân (nút khoá qua `loading`) để dãy số không nhảy chỗ. */}
+      {!listError && total > 0 && (
+        <PhanTrangDayDu
+          trang={page} size={size} tong={total} soDong={items.length}
           loading={loadingList}
-          unit="đơn"
-          onPage={setPage}
+          donVi="đơn"
+          onTrang={setPage}
+          onSize={(n) => { setSize(n); setPage(1); }}
+          ariaLabel="Phân trang đơn nghỉ của tôi"
         />
       )}
 
@@ -294,9 +334,9 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, eventTick }: {
           request={selectedRequest}
           busy={busy}
           onClose={() => setSelectedRequest(null)}
-          onCancel={cancel}
-          onXinHuy={coQuyenGhi ? (r) => { setXinHuyErr(null); setXinHuyDon(r); } : undefined}
-          onRutLaiXinHuy={coQuyenGhi ? rutLai : undefined}
+          onCancel={coQuyenHuy ? cancel : undefined}
+          onXinHuy={coQuyenHuy ? (r) => { setXinHuyErr(null); setXinHuyDon(r); } : undefined}
+          onRutLaiXinHuy={coQuyenHuy ? rutLai : undefined}
         />
       )}
 

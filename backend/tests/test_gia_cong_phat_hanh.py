@@ -31,7 +31,6 @@ def test_hai_buoc_lien_nhau_cung_nha_gia_cong_la_mot_lan(sess, orders, lsx_svc, 
     (lan,) = _lan(sess, lsx_id)
     assert lan.kieu == KIEU_MOT_PHAN and lan.nha_cung_cap_id == a.id
     assert lan.ten_viec == "Cán màng + Bế" and lan.don_vi == "cai"
-    assert float(lan.don_gia) == 500
     for ten in ("Cán màng", "Bế"):
         cv = _cv(sess, lsx_id, ten)
         assert cv.gia_cong_ngoai_id == lan.id and cv.department_id is None
@@ -50,13 +49,13 @@ def test_khac_nha_hoac_chen_buoc_noi_bo_la_hai_lan(sess, orders, lsx_svc, admin,
     assert [l.ten_viec for l in _lan(sess, lsx_id)] == ["Cán màng", "Bế", "Ép kim"]
 
 
-def test_doc_khoi_lan_hien_tien(sess, orders, lsx_svc, admin, customer):
+def test_doc_khoi_lan_khong_co_don_gia(sess, orders, lsx_svc, admin, customer):
     lsx_id = dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, buoc=[
         ("In", "may", None, 1000, "to"),
         ("Cán màng", "thue_ngoai", ncc(sess), 1000, "to"),
     ])
     (co,) = lan_cua_lenh(sess, lsx_id)
-    assert co["trang_thai"] == TT_CHO_MANG_DI and co["don_gia"] == 500
+    assert co["trang_thai"] == TT_CHO_MANG_DI and "don_gia" not in co
     assert co["co_buoc_truoc"] is True and co["chang_sau"] == []
 
 
@@ -153,12 +152,12 @@ def test_hai_nhanh_song_song_cung_ncc_khong_gop(sess, orders, lsx_svc, admin, cu
     nhanh1 = LsxCongDoan(
         lsx_id=lsx.id, thu_tu=1, ten="Cán màng", nhom="finishing", loai_buoc=LB_THUE_NGOAI,
         department_id=None, nha_cung_cap_id=a_ncc.id, nha_cung_cap=a_ncc.name,
-        don_gia_gia_cong=500, so_luong_vao=1000, so_luong_ra=1000, don_vi_vao="to", don_vi_ra="to",
+        so_luong_vao=1000, so_luong_ra=1000, don_vi_vao="to", don_vi_ra="to",
     )
     nhanh2 = LsxCongDoan(
         lsx_id=lsx.id, thu_tu=2, ten="Bế", nhom="finishing", loai_buoc=LB_THUE_NGOAI,
         department_id=None, nha_cung_cap_id=a_ncc.id, nha_cung_cap=a_ncc.name,
-        don_gia_gia_cong=500, so_luong_vao=1000, so_luong_ra=1000, don_vi_vao="to", don_vi_ra="cai",
+        so_luong_vao=1000, so_luong_ra=1000, don_vi_vao="to", don_vi_ra="cai",
     )
     sess.add_all([nhanh1, nhanh2])
     sess.flush()
@@ -177,7 +176,7 @@ def test_hai_nhanh_song_song_cung_ncc_khong_gop(sess, orders, lsx_svc, admin, cu
 
 def test_cap_nhat_doi_ncc_thi_lan_chua_mang_di_theo_ncc_moi(sess, orders, lsx_svc, admin, customer):
     """Kế hoạch đổi nhà gia công của bước SAU khi đã phát hành — hàm đồng bộ (được
-    `phat_hanh_cap_nhat` gọi ở cuối) sửa lại lần CHƯA mang đi theo NCC/đơn giá mới, KHÔNG đẻ lần
+    `phat_hanh_cap_nhat` gọi ở cuối) sửa lại lần CHƯA mang đi theo NCC mới, KHÔNG đẻ lần
     mới (dải không đổi, chỉ đổi NCC)."""
     from app.models.lsx import LsxCongDoan
     from app.services.gia_cong_ngoai.lan import dong_bo_lan_khi_cap_nhat
@@ -193,7 +192,6 @@ def test_cap_nhat_doi_ncc_thi_lan_chua_mang_di_theo_ncc_moi(sess, orders, lsx_sv
     cd = sess.query(LsxCongDoan).filter_by(lsx_id=lsx_id, ten="Cán màng").one()
     cd.nha_cung_cap_id = b_ncc.id
     cd.nha_cung_cap = b_ncc.name
-    cd.don_gia_gia_cong = 700
     sess.commit()
 
     dong_bo_lan_khi_cap_nhat(sess, lsx_ids={lsx_id}, actor=admin)
@@ -202,7 +200,6 @@ def test_cap_nhat_doi_ncc_thi_lan_chua_mang_di_theo_ncc_moi(sess, orders, lsx_sv
     (lan_moi,) = _lan(sess, lsx_id)
     assert lan_moi.id == lan_cu_id            # dải không đổi ⇒ đồng bộ tại chỗ, không đẻ dòng mới
     assert lan_moi.nha_cung_cap_id == b_ncc.id
-    assert float(lan_moi.don_gia) == 700
     assert lan_moi.huy_luc is None
 
 

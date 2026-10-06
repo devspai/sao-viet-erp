@@ -20,6 +20,17 @@ import { BangLoi, ChipGap, EmptyState, Skeleton, classHan, ngay, num } from "./k
 import { nhanDonVi } from "./lsxBuoc";
 import { moTaPhieuMua, tomTatPhieuMua, vetDangKep } from "./phieuMuaNhan";
 import { useNapTenDonVi } from "./tenDonVi";
+import {
+  LOC_KHVT_LENH_TRONG,
+  MAN_KHVT,
+  dieuKienKhvtLenh,
+  locKhvtLenhLenUrl,
+  locKhvtLenhTuUrl,
+  type LocKhvtLenh,
+} from "./loc-san-xuat/dieu-kien-ke-hoach-vat-tu";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
+import { useLocMan } from "./thanh-loc/useLocMan";
 import { nhanKho } from "../lib/khoGiay";
 
 /** Giữ chỗ khoá (mã, khổ): hai khổ của một mã giấy là hai món. */
@@ -126,6 +137,8 @@ export function GiuChoTheoLenhView({
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState(focusLsxMa ?? "");
   const [filterType, setFilterType] = useState<FilterLenhType>("all");
+  const [loc, setLoc] = useLocMan(MAN_KHVT, LOC_KHVT_LENH_TRONG, locKhvtLenhTuUrl, locKhvtLenhLenUrl);
+  const dieuKien = dieuKienKhvtLenh();
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [dangChay, setDangChay] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -139,17 +152,20 @@ export function GiuChoTheoLenhView({
     if (focusLsxMa) setQ(focusLsxMa);
   }, [focusLsxMa]);
 
-  // Chip KHÔNG đi về máy chủ — `rowsHienThi` lọc ngay trên danh sách đã nạp. Trước đây chip
-  // "Đang giữ dở"/"Chưa giữ" gửi `chi_can_lo` (sót lại từ bản ô tick "chỉ lệnh còn việc phải lo"),
-  // nên mỗi lần bấm là dựng lại cả bảng cân đối, và danh sách ra ÍT hơn con số in trên chip.
+  // Tab + "Việc phải lo" lọc Ở MÁY CHỦ (06/10/2026). Số trên tab là `dem_theo_tab` — đếm sau ô
+  // tìm + điều kiện, TRƯỚC tab đang chọn, nên danh sách luôn khớp con số in trên tab.
   const load = useCallback(() => {
     if (!token) return;
     setErr(null);
     api.keHoachVatTu
-      .theoLenh(token, { q: q.trim() || undefined })
+      .theoLenh(token, {
+        q: q.trim() || undefined,
+        chi_can_lo: loc.can_lo,
+        giu: filterType === "all" ? undefined : filterType,
+      })
       .then(setData)
       .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : String(e)));
-  }, [token, q]);
+  }, [token, q, loc.can_lo, filterType]);
 
   useEffect(() => {
     const t = setTimeout(load, q ? 250 : 0);
@@ -310,22 +326,34 @@ export function GiuChoTheoLenhView({
     }
   }
 
-  const tomTat = useMemo(
-    () => ({
-      daGiu: rows.filter((r) => r.du).length,
-      dangCho: rows.filter((r) => r.bat && !r.du).length,
-      chuaBat: rows.filter((r) => !r.bat).length,
+  // Máy chủ đã lọc theo tab — `rows` là đúng tập đang hiện; số trên tab do máy chủ đếm.
+  const demTab = data?.dem_theo_tab ?? {};
+  const tomTat = {
+    tatCa: demTab.tat_ca ?? 0,
+    daGiu: demTab.du ?? 0,
+    dangCho: demTab.dang ?? 0,
+    chuaBat: demTab.tat ?? 0,
+    giuLau: demTab.giu_lau ?? 0,
+  };
+  // Trạng thái trong nút Lọc = chính hàng tab (đọc/ghi `filterType`), không đẻ state thứ hai. Tab
+  // "Giữ lâu" chỉ hiện khi có lệnh giữ lâu — menu cũng vậy.
+  const dkDu: DieuKien<LocKhvtLenh>[] = [
+    dkTheoTab<LocKhvtLenh>({
+      tabs: [
+        { id: "all", nhan: "Tất cả", so: tomTat.tatCa },
+        { id: "du", nhan: "Giữ đủ", so: tomTat.daGiu },
+        { id: "dang", nhan: "Đang giữ dở", so: tomTat.dangCho },
+        { id: "tat", nhan: "Chưa giữ", so: tomTat.chuaBat },
+        ...(soGiuLau > 0 || filterType === "giu_lau"
+          ? [{ id: "giu_lau", nhan: "Giữ lâu (>7 ngày)", so: tomTat.giuLau }]
+          : []),
+      ],
+      tatCa: "all", dang: filterType, dat: (id) => setFilterType(id as FilterLenhType),
     }),
-    [rows],
-  );
-
-  const rowsHienThi = useMemo(() => {
-    if (filterType === "du") return rows.filter((r) => r.du);
-    if (filterType === "dang") return rows.filter((r) => r.bat && !r.du);
-    if (filterType === "tat") return rows.filter((r) => !r.bat);
-    if (filterType === "giu_lau") return rows.filter((r) => r.giu_lau_chua_chay);
-    return rows;
-  }, [rows, filterType]);
+    ...dieuKien,
+  ];
+  const rowsHienThi = rows;
+  const dangLoc = !!q || filterType !== "all" || !!loc.can_lo;
 
   const daTickHetHienThi =
     rowsHienThi.length > 0 && rowsHienThi.every((r) => chon.has(khoaChu(r)));
@@ -353,7 +381,7 @@ export function GiuChoTheoLenhView({
             onClick={() => setFilterType("all")}
           >
             <span>Tất cả</span>
-            <span className="khvt-utab__count">{num(rows.length)}</span>
+            <span className="khvt-utab__count">{num(tomTat.tatCa)}</span>
           </button>
 
           <button
@@ -394,7 +422,7 @@ export function GiuChoTheoLenhView({
             <span className="khvt-utab__count khvt-utab__count--khongro">{num(tomTat.chuaBat)}</span>
           </button>
 
-          {soGiuLau > 0 && (
+          {(soGiuLau > 0 || filterType === "giu_lau") && (
             <button
               type="button"
               role="tab"
@@ -404,12 +432,12 @@ export function GiuChoTheoLenhView({
             >
               <span className="khvt-utab__dot" />
               <span>Giữ lâu (&gt;7 ngày)</span>
-              <span className="khvt-utab__count khvt-utab__count--do">{num(soGiuLau)}</span>
+              <span className="khvt-utab__count khvt-utab__count--do">{num(tomTat.giuLau)}</span>
             </button>
           )}
         </div>
 
-        <div className="khvt-toolbar__actions">
+        <div className="khvt-toolbar__actions tl-thanh">
           <div className="khvt-toolbar__search">
             <Icon name="search" size={14} />
             <input
@@ -429,6 +457,8 @@ export function GiuChoTheoLenhView({
               </button>
             )}
           </div>
+
+          <ThanhLoc dieuKien={dkDu} loc={loc} onLoc={setLoc} />
 
           {/* Công tắc chuyển đổi chế độ xem Bảng Stream ↔ Thẻ Bento */}
           <div className="khvt-view-switcher" role="group" aria-label="Chuyển chế độ xem">
@@ -472,19 +502,19 @@ export function GiuChoTheoLenhView({
         </div>
       ) : rowsHienThi.length === 0 ? (
         <EmptyState
-          icon={q || filterType !== "all" ? "search" : "packageCheck"}
+          icon={dangLoc ? "search" : "packageCheck"}
           title={
-            q || filterType !== "all"
+            dangLoc
               ? "Không có lệnh nào khớp bộ lọc."
               : "Chưa có lệnh nào cần cân đối vật tư."
           }
           sub={
-            q || filterType !== "all"
+            dangLoc
               ? "Thử xoá tìm kiếm hoặc chuyển sang bộ lọc khác."
               : "Bảng gom lệnh ở trạng thái Sẵn sàng · Đã lập kế hoạch · Đã phát hành."
           }
           action={
-            q || filterType !== "all" ? (
+            dangLoc ? (
               <Button
                 variant="secondary"
                 onClick={() => {

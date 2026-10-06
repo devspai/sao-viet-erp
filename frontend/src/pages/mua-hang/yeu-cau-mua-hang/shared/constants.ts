@@ -7,8 +7,8 @@ import type {
 
 /** Số dòng mỗi trang. TRƯỚC 08/08/2026 màn này tải cứng 100 dòng và KHÔNG có phân trang: quá 100
  *  yêu cầu là bảng cắt im lặng trong khi ô "Tổng" vẫn hiện đúng — người dùng không có cách nào
- *  biết mình đang thiếu gì. */
-export const PAGE_SIZE = 20;
+ *  biết mình đang thiếu gì. Đây là cỡ MẶC ĐỊNH — người dùng đổi ở ô Dòng/trang dưới chân bảng. */
+export const PAGE_SIZE = 25;
 
 export const SOURCE_TYPE_LABELS: Record<DepartmentPurchaseSourceType, string> = {
   kinh_doanh: "Kinh doanh",

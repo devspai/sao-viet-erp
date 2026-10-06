@@ -2,6 +2,7 @@
 // 1 component cho 10 danh mục qua `config` (danh sách ở `REBUILD_CONFIGS`). On-brand với
 // design system app (tokens rust/ink/paper).
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Boxes, CircleDot, MapPin, Ruler, Truck, Users, Wrench, type LucideIcon } from "lucide-react";
 
 import { useAuth } from "../../auth/useAuth";
 import { useCan } from "../../auth/permissions";
@@ -15,10 +16,18 @@ import { useNapTenDonVi } from "../tenDonVi";
 import { CatalogDrawer } from "./CatalogDrawer";
 import { ImportExcelDialog } from "../../components/ImportExcelDialog";
 import { OTim } from "./OTim";
-import { LocNangCao, type GiaTriLoc } from "./LocNangCao";
 import { XoaDanhMucDialog } from "./XoaDanhMucDialog";
-import { CopyIcon, DownloadIcon, FilterIcon, PlusIcon, TrashIcon, UndoIcon, UploadIcon } from "./icons";
-import type { CatalogConfig } from "./types";
+import { CopyIcon, DownloadIcon, PlusIcon, TrashIcon, UndoIcon, UploadIcon } from "./icons";
+import type { CatalogConfig, DieuKienDanhMuc, Option } from "./types";
+import type { DemGiaTri } from "../../api/rebuildCatalog";
+import { ThanhLoc } from "../thanh-loc/ThanhLoc";
+import { thamSoKy } from "../thanh-loc/ky-danh-sach";
+import { useLocMan } from "../thanh-loc/useLocMan";
+import type { DieuKien } from "../thanh-loc/thanh-loc";
+import {
+  KHOA_ACTIVE, MOC_DM, TRANG_THAI_DM, docLocDM, ghiLocDM, gopGiaTri, locMacDinh, nenCua, ngayGioTao, ngayTao,
+  type LocDM, type LocManDM,
+} from "./locDanhMuc";
 import { DieuHuongDanhMuc } from "./dieuHuong";
 import type { NavigateFn } from "../../components/AppShell";
 import "../rebuild-catalog.css";
@@ -45,6 +54,16 @@ const NUT_RONG = { nhanBan: 34, xoa: 34, batLai: 34 } as const;
 /** Khe giữa hai nút (`.rc__acts` gap) + đệm trái 8 / phải 12 của ô. */
 const NUT_KHE = 6;
 const COT_NUT_DEM = 20;
+/** Cột Ngày tạo: vừa "dd/mm/yyyy" + đệm ô. */
+const COT_NGAY_RONG = 104;
+
+/** Icon của điều kiện lọc theo tên khai trong config (`types.ts` không import component). */
+const ICON_DK: Record<NonNullable<DieuKienDanhMuc["icon"]>, LucideIcon> = {
+  nhom: Boxes, nguoi: Users, "trang-thai": CircleDot, "vi-tri": MapPin, "don-vi": Ruler,
+  xe: Truck, "dung-cu": Wrench,
+};
+/** Mã màn trên URL khi config không khai `man` (màn dùng trong test). */
+const manTuPrefix = (prefix: string) => prefix.replace(/^\/api\//, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 export function CatalogListPage({ config, onMutate, navigate }: {
   config: CatalogConfig; onMutate?: () => void;
@@ -78,10 +97,12 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   //   · "Nhập Excel" đòi CẢ `create` LẪN `update`: một dòng có thể là tạo mới hay cập nhật, mà
   //     lúc gác thì chưa ai biết — biết được thì đã đọc xong file rồi. Thiếu một trong hai mà vẫn
   //     hiện nút là mời bấm để ăn 403 giữa luồng.
-  //   · Màn `khongTaoTay` (Thành phẩm) thì quyền `create` không còn nghĩa gì — máy chủ chặn mọi dòng
-  //     mã mới, file chỉ còn SỬA được dòng đã có ⇒ đủ quyền `update` là được nhập.
+  //   · Kể cả màn `khongTaoTay` (Thành phẩm): file chỉ SỬA được dòng đã có, nhưng cổng
+  //     `POST /import-excel` của máy chủ vẫn đòi đủ `create` + `update` (`catalog_base.req_import`).
+  //     Trước 05/10/2026 màn này miễn `create` ⇒ người chỉ có `update` thấy nút rồi bấm ăn 403.
   const duocXuatExcel = Boolean(config.enableImport);
-  const duocImport = duocXuatExcel && duocBatLai && (Boolean(config.khongTaoTay) || duocTao);
+  const coQuyenTao = !mQuyen || can(mQuyen, "create");
+  const duocImport = duocXuatExcel && duocBatLai && coQuyenTao;
   const [showImport, setShowImport] = useState(false);
   const api = useMemo(() => crud(config.prefix), [config.prefix]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -91,23 +112,21 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   const [deleting, setDeleting] = useState<Row | null>(null);      // renderDeleteDialog: dialog xóa riêng
   const [q, setQ] = useState("");
   const qTre = useTre(q);              // gõ xong 300ms mới hỏi máy chủ
-  const [facet, setFacet] = useState("all");
-  // Lọc nâng cao (`config.locNangCao`): `{param: giá trị}`, khoá vắng = không lọc tiêu chí đó.
-  // Bảng mở/gập tách khỏi giá trị: gập lại thì bộ lọc VẪN áp, chỉ thu về hàng nhãn.
-  const [locNC, setLocNC] = useState<GiaTriLoc>({});
-  const [moLocNC, setMoLocNC] = useState(false);
-  const soLocNC = Object.keys(locNC).length;
-  // Xem các mục ĐÃ NGỪNG DÙNG. Trước 14/08/2026 hộp thoại xoá hứa "có thể khôi phục lại khi cần"
-  // mà màn lọc cứng `active:true` và không có nút nào bật lại — ẩn xong là mất tăm, lời hứa suông.
-  const [xemDaNgung, setXemDaNgung] = useState(false);
-  const [soDaNgung, setSoDaNgung] = useState(0);
+  // Thanh lọc chung (06/10/2026): kỳ theo Ngày tạo + điều kiện của màn + Đang dùng / Đã ngừng —
+  // thay hàng tab facet, bảng "Lọc nâng cao" và công tắc "Hiện mục đã ngừng" cũ. Ghi lên URL
+  // (`?man=<id màn>`) và nhớ theo màn; lọc + đếm + cắt trang đều ở máy chủ.
+  const man = config.man ?? manTuPrefix(config.prefix);
+  const macDinh = useMemo(() => locMacDinh(config), [config]);
+  const [locMan, setLocMan] = useLocMan<LocManDM>(man, macDinh,
+    (p) => docLocDM(p, config), (t) => ghiLocDM(t, config));
+  const khoaLoc = JSON.stringify(locMan);
+  const xemDaNgung = locMan.loc[KHOA_ACTIVE] === "false";
+  const [dem, setDem] = useState<Record<string, DemGiaTri[]>>({});   // giá trị + số của từng điều kiện
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(PAGE_SIZE);
   const [total, setTotal] = useState(0);                                  // tổng SAU bộ lọc
-  const [facets, setFacets] = useState<Record<string, number>>({});       // số cho từng tab lọc
-  const [tongServer, setTongServer] = useState<number | null>(null);      // `tong_theo_tim` nếu có
   // Đổi bộ lọc thì về trang đầu — đứng ở trang 7 rồi gõ tìm còn 3 kết quả là bảng trống trơn.
-  useEffect(() => { setPage(1); }, [qTre, facet, xemDaNgung, locNC, size]);
+  useEffect(() => { setPage(1); }, [qTre, khoaLoc, size]);
 
   // Dữ liệu phụ theo dòng (vd trạng thái máy). Nạp SONG SONG, không nối tiếp: cột phụ chậm không
   // được phép giữ cả bảng ở trạng thái skeleton.
@@ -116,28 +135,28 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   // mở bảng ra để tìm.
   const [extra, setExtra] = useState<Record<string, unknown> | null>(null);
 
-  const facetKey = config.facet?.key;
-
   const load = useCallback(() => {
     if (!token) return;
     setLoading(true);
     // MỘT request cho MỘT trang: lọc + đếm + cắt trang đều nằm ở máy chủ. Trước 14/08/2026 màn
     // kéo cả danh mục về rồi lọc trong JS — danh mục lớn là vừa nặng đường truyền vừa cụt dữ
     // liệu (trần `size` của backend là 200).
+    const { ky, loc } = JSON.parse(khoaLoc) as LocManDM;
     api.list(token, {
       page,
       size,
-      // Xoá mềm: mặc định chỉ hiện dòng còn dùng; bật công tắc thì xem ĐÚNG các dòng đã ngừng.
-      ...(config.softDelete ? { active: !xemDaNgung } : {}),
       ...(qTre.trim() ? { q: qTre.trim() } : {}),
-      ...(facetKey && facet !== "all" ? { [facetKey]: facet } : {}),
-      ...locNC,
+      // Kỳ (`tu_ngay`/`den_ngay`/`moc`) + mọi điều kiện, kể cả `active` của màn xoá mềm.
+      ...thamSoKy(ky),
+      ...loc,
+      // Xin số đếm của thanh lọc (`dem`) — máy chủ chỉ tính khi được hỏi rõ; ô chọn ở màn khác
+      // gọi cùng endpoint mà không gửi cờ này nên không gánh thêm câu GROUP BY.
+      kem_dem: true,
     })
       .then((r) => {
         setRows(r.items);
         setTotal(r.total);
-        if (r.facets) setFacets(r.facets);
-        setTongServer(typeof r.tong_theo_tim === "number" ? r.tong_theo_tim : null);
+        setDem(r.dem ?? {});
         // Xoá nốt dòng cuối của trang cuối ⇒ `total` co lại mà `page` đứng yên ⇒ bảng rỗng trơn,
         // người dùng tưởng mất sạch dữ liệu. Lùi về trang cuối còn thật.
         const ve = trangHopLe(page, r.total, size);
@@ -147,7 +166,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
       // đã nói câu đó rồi, nhét cả hai vào một chỗ là đọc ra hai lần cùng một ý.
       .catch((e) => setError(e instanceof ApiError ? e.message : "Máy chủ không phản hồi."))
       .finally(() => setLoading(false));
-  }, [token, api, config.softDelete, xemDaNgung, page, size, qTre, facet, facetKey, locNC]);
+  }, [token, api, page, size, qTre, khoaLoc]);
   useEffect(() => { load(); }, [load]);
 
   // Dữ liệu phụ nạp RIÊNG, không đi kèm mỗi lần lật trang: nó là map cho CẢ danh mục (vd trạng
@@ -159,74 +178,54 @@ export function CatalogListPage({ config, onMutate, navigate }: {
     config.loadExtra(token).then(setExtra).catch(() => setExtra(null));
   }, [token, config.loadExtra, tick]);
 
-  // Đếm số mục ĐÃ NGỪNG — một request rẻ (`size:1`, chỉ lấy `total`). Không có mục nào bị ngừng
-  // thì công tắc không mọc ra: đừng bày một cái nút mở ra danh sách rỗng.
-  useEffect(() => {
-    if (!token || !config.softDelete) { setSoDaNgung(0); return; }
-    api.list(token, { page: 1, size: 1, active: false })
-      .then((r) => {
-        setSoDaNgung(r.total);
-        // Bật lại cái cuối cùng ⇒ công tắc biến mất, mà màn vẫn đứng ở chế độ "đã ngừng" nhìn
-        // vào bảng rỗng. Tự quay về danh sách chính.
-        if (r.total === 0) setXemDaNgung(false);
-      })
-      .catch(() => setSoDaNgung(0));   // hỏng thì coi như không có — không chặn màn chính
-  }, [token, api, config.softDelete, tick]);
-
   /** Sau khi TẠO / SỬA / XÓA: tải lại cả bảng lẫn dữ liệu phụ. */
   const lamMoi = useCallback(() => { load(); setTick((t) => t + 1); }, [load]);
 
-  // Danh mục THẬT làm nền cho hàng tab (`facet.source`, vd Nhóm máy). Nạp riêng và nạp lại sau
-  // mỗi lần ghi (`tick`): khai thêm một nhóm trong drawer là hàng tab phải có ngay chỗ của nó.
-  // Trước 22/08/2026 tab chỉ mọc từ SỐ ĐẾM của máy chủ (`GROUP BY` trên chính bảng đang xem), nên
-  // nhóm vừa tạo — chưa dòng nào thuộc về — im lặng như thể không lưu được.
-  const facetSource = config.facet?.source;
-  const [facetDm, setFacetDm] = useState<{ value: string; label: string }[] | null>(null);
+  // Danh mục THẬT làm nền cho giá trị của điều kiện (`dieuKien[].nguon`, vd Nhóm máy). Nạp lại sau
+  // mỗi lần ghi (`tick`): khai thêm một nhóm trong drawer là thanh lọc phải có ngay chỗ của nó, kể
+  // cả khi chưa dòng nào thuộc về (số 0). Hỏng thì chỉ còn giá trị máy chủ đếm được — KHÔNG bịa ra
+  // danh sách tên nằm sẵn trong code (danh mục là động).
+  const khoaNguon = (config.dieuKien ?? []).map((d) => d.nguon).filter(Boolean).join("|");
+  const [nguon, setNguon] = useState<Record<string, Option[]>>({});
   useEffect(() => {
-    if (!token || !facetSource) { setFacetDm(null); return; }
+    if (!token || !khoaNguon) return;
     let alive = true;
-    crud(facetSource).list(token, { page: 1, size: 200 })
-      .then((r) => {
-        if (!alive) return;
-        setFacetDm(r.items
-          .map((it) => String(it.ten ?? "").trim())
-          .filter(Boolean)
-          .map((v) => ({ value: v, label: v })));
-      })
-      // Hỏng thì để `null`: hàng tab lùi về đúng những giá trị máy chủ đang đếm được, KHÔNG bịa
-      // ra một danh sách tên nằm sẵn trong code (danh mục là động, tên trong code sớm muộn lệch).
-      .catch(() => { if (alive) setFacetDm(null); });
+    for (const prefix of khoaNguon.split("|")) {
+      crud(prefix).list(token, { page: 1, size: 200 })
+        .then((r) => {
+          if (!alive) return;
+          const ds = r.items.map((it) => String(it.ten ?? "").trim()).filter(Boolean)
+            .map((v) => ({ value: v, label: v }));
+          setNguon((n) => ({ ...n, [prefix]: ds }));
+        })
+        .catch(() => {});
+    }
     return () => { alive = false; };
-  }, [token, facetSource, tick]);
+  }, [token, khoaNguon, tick]);
 
-  // Tab lọc: nền là danh mục thật (`source`) — hoặc danh sách khai cứng (`values`) với màn không
-  // có danh mục — rồi nối thêm giá trị TỰ DO đã có trong dữ liệu mà nền chưa liệt kê
-  // (`facet.dynamic`), đọc từ `facets` của máy chủ vì màn chỉ cầm 20 dòng.
-  const facetValues = useMemo(() => {
-    const f = config.facet;
-    if (!f) return [];
-    const nen = facetDm ?? f.values ?? [];
-    if (!f.dynamic) return nen;
-    const known = new Set(nen.map((v) => v.value));
-    const them = Object.keys(facets)
-      .filter((v) => v && !known.has(v))
-      .sort((a, b) => a.localeCompare(b, "vi"));
-    return [...nen, ...them.map((v) => ({ value: v, label: v }))];
-  }, [config.facet, facets, facetDm]);
+  const dieuKien = useMemo<DieuKien<LocDM>[]>(() => {
+    const ds: DieuKien<LocDM>[] = (config.dieuKien ?? []).map((d) => ({
+      khoa: d.key, nhan: d.nhan, icon: ICON_DK[d.icon ?? "nhom"], kieu: "mot",
+      // Giá trị đến từ danh mục khác hoặc từ chính dữ liệu (không có nền khai sẵn) ⇒ luôn có ô tìm.
+      tim: Boolean(d.nguon) || !d.giaTri,
+      giaTri: gopGiaTri(nenCua(d, nguon), dem[d.key], d.nhanGiaTri),
+      doc: (l) => l[d.key],
+      ghi: (l, v) => ({ ...l, [d.key]: v }),
+    }));
+    if (config.softDelete) {
+      ds.push({
+        khoa: KHOA_ACTIVE, nhan: "Trạng thái", icon: CircleDot, kieu: "mot",
+        giaTri: gopGiaTri(TRANG_THAI_DM, dem[KHOA_ACTIVE]),
+        doc: (l) => l[KHOA_ACTIVE],
+        ghi: (l, v) => ({ ...l, [KHOA_ACTIVE]: v }),
+      });
+    }
+    return ds;
+  }, [config.dieuKien, config.softDelete, nguon, dem]);
 
-  // Số cạnh tiêu đề và số trên tab "Tất cả": tổng theo Ô TÌM, KHÔNG theo tab đang chọn — đứng ở
-  // tab "Bế" mà tiêu đề tụt xuống còn 3 thì người ta tưởng danh mục có 3 dòng.
-  // `total` là tổng SAU cả tab, nên màn có tab thì cộng từ `facets`. Khoá rỗng trong `facets` là
-  // dòng chưa khai giá trị đó — vẫn phải cộng, bỏ đi là "Tất cả" hụt số.
-  // Màn mà một dòng nằm ở NHIỀU tab (Công việc khoán nhiều tổ) thì cộng là đếm trùng — server trả
-  // sẵn `tong_theo_tim`, có thì đọc nó.
-  const tongTheoTim = useMemo(() => {
-    if (tongServer != null) return tongServer;
-    const ds = Object.values(facets);
-    return config.facet && ds.length ? ds.reduce((a, b) => a + b, 0) : total;
-  }, [config.facet, facets, total, tongServer]);
-  // `xemDaNgung` cũng là một bộ lọc: bảng rỗng lúc đó KHÔNG có nghĩa "chưa có gì trong hệ thống".
-  const dangLoc = qTre.trim() !== "" || facet !== "all" || xemDaNgung || soLocNC > 0;
+  // Bảng rỗng khi đang lọc KHÔNG có nghĩa "chưa có gì trong hệ thống" — kể cả khi đang xem mục
+  // đã ngừng. Mặc định (Đang dùng, kỳ Tất cả) thì không tính là đang lọc.
+  const dangLoc = qTre.trim() !== "" || khoaLoc !== JSON.stringify(macDinh);
   const bangTrong = !loading && rows.length === 0;
   // Cột Hành động rộng theo cụm nút DÀI NHẤT có thể nằm trên một dòng: dòng còn dùng mang Nhân bản
   // + Xóa, dòng đã ngừng chỉ mang Bật lại. Sàn 96px để tiêu đề "Hành động" đứng một dòng. Không
@@ -314,8 +313,6 @@ export function CatalogListPage({ config, onMutate, navigate }: {
     }
   }
 
-  const facetCount = (v: string) => facets[v] ?? 0;
-
   return (
     // `rc--dm`: scope RIÊNG của màn danh mục. Không dùng `.rc` sẵn có làm mốc vì `KhoPage` và
     // `KhoHangView` cũng là `<main className="rc">` — đè theo `.rc` là rò ngược sang Kho.
@@ -325,13 +322,11 @@ export function CatalogListPage({ config, onMutate, navigate }: {
     <main className="rc rc--dm">
       {/* HEADER — MỘT dạng cho cả 13 màn, hai hàng cố định trên một kẻ ngang:
             1. tiêu đề · pill đếm ····· [+ Thêm …]
-            2. [ô tìm] [Lọc nâng cao] ····· dải chip lọc │ công tắc "Hiện mục đã ngừng"
-            (3.) bảng Lọc nâng cao khi mở, hoặc hàng nhãn bộ lọc đang áp khi gập — chỉ màn có
-                 `config.locNangCao`. */}
+            2. [ô tìm] [Kỳ ▾] [điều kiện đã áp…] [Lọc] — thanh lọc chung (06/10/2026). */}
       <header className="rc__head">
         <div className="rc__headrow">
           <h1 className="rc__title">{config.heading ?? config.title}</h1>
-          <span className="rc__count">{tongTheoTim} mục</span>
+          <span className="rc__count">{total} mục</span>
           <div className="rc__spacer" />
           {duocXuatExcel && (
             <Button variant="ghost" onClick={xuatExcel} title="Xuất toàn bộ cấu hình đang dùng ra Excel — sửa rồi nhập lại để cập nhật hàng loạt">
@@ -350,56 +345,18 @@ export function CatalogListPage({ config, onMutate, navigate }: {
           )}
         </div>
 
-        <div className="rc__filterbar">
+        {/* Ô tìm + thanh lọc chung: [Kỳ ▾] [điều kiện đã áp…] [Lọc] [Xoá lọc]. */}
+        <div className="rc__filterbar tl-thanh">
           <OTim value={q} onChange={setQ} placeholder={config.timGoiY} />
-          {config.locNangCao && (
-            <button type="button"
-              className={`rc__locnc-btn${moLocNC ? " is-open" : ""}${soLocNC > 0 ? " is-active" : ""}`}
-              aria-expanded={moLocNC}
-              onClick={() => setMoLocNC((v) => !v)}>
-              <FilterIcon /> Lọc nâng cao
-              {soLocNC > 0 && <span className="chip-count">{soLocNC}</span>}
-            </button>
-          )}
-          <div className="rc__spacer" />
-          {config.facet && (
-            // `.seg` = charcoal khi chọn. Đúng ngôn ngữ của app: rust dành cho HÀNH ĐỘNG và
-            // TOGGLE CHẾ ĐỘ, charcoal dành cho LỰA CHỌN LỌC. Bộ lọc gạch chân rust trước đây nói
-            // bằng giọng của cái nút bấm.
-            <div className="rc__segs" role="group" aria-label={`Lọc ${config.title.toLowerCase()}`}>
-              <button type="button"
-                className={`seg${facet === "all" && !xemDaNgung ? " is-active" : ""}`}
-                aria-pressed={facet === "all" && !xemDaNgung}
-                onClick={() => { setFacet("all"); setXemDaNgung(false); }}>
-                Tất cả <span className="chip-count">{tongTheoTim}</span>
-              </button>
-              {facetValues.map((v) => (
-                <button key={v.value} type="button"
-                  className={`seg${facet === v.value && !xemDaNgung ? " is-active" : ""}`}
-                  aria-pressed={facet === v.value && !xemDaNgung}
-                  onClick={() => { setFacet(v.value); setXemDaNgung(false); }}>
-                  {v.label} <span className="chip-count">{facetCount(v.value)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {/* KHÔNG phải một chip lọc: nó mở ra một TẬP KHÁC chứ không cắt tập đang xem. Nên tách
-              khỏi dải `.seg` bằng một vạch, và để màu trung tính — đây là chỗ cất đồ đã tắt, không
-              phải lối đi chính. Chỉ mọc khi THẬT SỰ có mục bị ngừng: đừng bày nút mở ra danh sách
-              rỗng. Đây là đường "khôi phục" mà hộp thoại xoá vẫn hứa suốt từ trước tới nay. */}
-          {config.softDelete && soDaNgung > 0 && (
-            <button type="button"
-              className={`rc__ngung${xemDaNgung ? " is-active" : ""}`}
-              aria-pressed={xemDaNgung}
-              onClick={() => setXemDaNgung((v) => !v)}>
-              Hiện mục đã ngừng <span className="chip-count">{soDaNgung}</span>
-            </button>
-          )}
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_DM}
+            onKy={(ky) => setLocMan({ ...locMan, ky })}
+            dieuKien={dieuKien}
+            loc={locMan.loc}
+            onLoc={(loc) => setLocMan({ ...locMan, loc })}
+          />
         </div>
-        {config.locNangCao && (
-          <LocNangCao defs={config.locNangCao} value={locNC} onChange={setLocNC}
-            mo={moLocNC} token={token} />
-        )}
       </header>
 
       {/* Bảng RỖNG vì tải hỏng thì để khối rỗng nói (nó có nút Tải lại rồi) — hai chỗ cùng kêu một
@@ -425,6 +382,8 @@ export function CatalogListPage({ config, onMutate, navigate }: {
                 const w = rongCot[i];
                 return <th key={c.key} style={w ? { width: w } : undefined} className={isCenter ? "text-center" : ""}>{c.label}</th>;
               })}
+              {/* Ngày tạo — CHUNG cho mọi màn danh mục (06/10/2026), cạnh mốc kỳ của thanh lọc. */}
+              <th style={{ width: `${COT_NGAY_RONG}px` }}>Ngày tạo</th>
               {coCotNut && <th className="rc__actcol" style={{ width: `${rongCotNut}px` }}>Hành động</th>}
             </tr>
           </thead>
@@ -438,6 +397,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
                   {config.columns.map((c) => (
                     <td key={c.key}><span className="rc-skel" style={{ width: "50%" }} /></td>
                   ))}
+                  <td><span className="rc-skel" style={{ width: "60%" }} /></td>
                   {coCotNut && <td className="rc__actcol"><span className="rc-skel" style={{ width: "70px" }} /></td>}
                 </tr>
               ))
@@ -446,7 +406,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
               // Trước 15/08/2026 backend chết là bảng vẫn in "Chưa có giấy nào trong hệ thống." —
               // bảng NÓI SAI SỰ THẬT, và câu sai đó còn mời người ta đi tạo lại dữ liệu đang có.
               <tr>
-                <td colSpan={config.columns.length + (coCotNut ? 3 : 2)} className="rc__empty-state-td">
+                <td colSpan={config.columns.length + (coCotNut ? 4 : 3)} className="rc__empty-state-td">
                   <EmptyState
                     inline
                     trangThai={error ? "loi" : "rong"}
@@ -459,7 +419,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
                       ? "Không tìm thấy kết quả phù hợp với bộ lọc."
                       : `Chưa có ${config.title.toLowerCase()} nào trong hệ thống.`}
                     action={dangLoc ? (
-                      <Button variant="ghost" onClick={() => { setQ(""); setFacet("all"); setXemDaNgung(false); }}>Xóa bộ lọc</Button>
+                      <Button variant="ghost" onClick={() => { setQ(""); setLocMan(macDinh); }}>Xóa bộ lọc</Button>
                     ) : duocTao ? (
                       <Button variant="ghost" onClick={() => setEditing("new")}><PlusIcon /> Tạo {config.title.toLowerCase()}</Button>
                     ) : undefined}
@@ -549,6 +509,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
                       SVG làm chân chữ ⇒ "Xóa" bị đội cao hơn "Nhân bản" 2px. Nhãn đọc màn hình kèm
                       TÊN dòng: cả cột đều là "Xóa", nghe một chuỗi "Xóa, Xóa, Xóa" là không biết
                       đang đứng ở dòng nào. */}
+                  <td className="rc__nowrap" title={ngayGioTao(r.created_at)}>{ngayTao(r.created_at)}</td>
                   {coCotNut && (
                   <td className="rc__actcol" onClick={(e) => e.stopPropagation()}>
                     <div className="rc__acts">

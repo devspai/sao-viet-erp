@@ -1225,11 +1225,25 @@ def test_loc_nhat_ky_theo_khoang_ngay(client):
                     den_ngay=hom_qua.isoformat(), q="khongkhopai") == []
 
 
-def test_loc_ngay_thi_NOI_TRAN_dong(client):
-    """Có lọc ngày thì trần phải nới: một ngày của xưởng đông người vượt xa 100 lượt, giữ trần cũ
-    là lọc xong vẫn mất nửa ngày TRONG IM LẶNG."""
-    from app.services.attendance_service import AttendanceService
-    assert AttendanceService.LOG_LIMIT_CO_LOC_NGAY > 100
+def test_nhat_ky_PHAN_TRANG_khong_con_tran_dong(client):
+    """Trần 100 / 1000 dòng cũ làm lọc xong vẫn mất dữ liệu TRONG IM LẶNG. Từ 06/10/2026 nhật ký
+    phân trang ở máy chủ: `total` là tổng thật, lật trang xem được hết."""
+    from datetime import datetime as _dt, timezone as _tz
+    from app.db import SessionLocal as _S
+    from app.models.attendance import AttendanceLog
+
+    token = _admin_token(client)
+    eid = _link_admin_employee(client, token)
+    db = _S()
+    try:
+        for gio in (8, 17):
+            db.add(AttendanceLog(employee_id=eid, check_type="in" if gio < 12 else "out",
+                                 checked_at=_dt(2026, 9, 1, gio, tzinfo=_tz.utc)))
+        db.commit()
+    finally:
+        db.close()
+    r = client.get("/api/attendance/logs?size=1&page=2", headers=_h(token)).json()
+    assert r["total"] == 2 and len(r["items"]) == 1 and r["page"] == 2
 
 
 def test_ca_san_xuat_luu_va_pho_ra_duoc(client):

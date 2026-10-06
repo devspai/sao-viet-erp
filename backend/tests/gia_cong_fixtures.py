@@ -39,7 +39,7 @@ def dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, *, buoc) -> int:
     """Lệnh ĐÃ PHÁT HÀNH, routing tuyến tính do bài test mô tả. Trả `lsx_id`.
 
     `buoc` = list `(ten, loai_buoc, nha_cung_cap | None, so_luong_ra, don_vi_ra)`. Bước máy/tổ về
-    MỘT tổ mới (admin có đủ quyền trên tổ); bước thuê ngoài không tổ, đơn giá 500đ."""
+    MỘT tổ mới (admin có đủ quyền trên tổ); bước thuê ngoài không tổ."""
     i = next(_dem)
     to = _to_moi(sess, f"Tổ GC {i}", f"TO-GC-{i}")
     lsx = lenh_chua_phat(sess, orders, lsx_svc, admin, customer)
@@ -53,7 +53,6 @@ def dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, *, buoc) -> int:
             lsx_id=lsx.id, thu_tu=k, ten=ten, nhom="print" if k == 0 else "finishing",
             loai_buoc=loai, department_id=None if loai == LB_THUE_NGOAI else to.id,
             nha_cung_cap_id=s.id if s else None, nha_cung_cap=s.name if s else None,
-            don_gia_gia_cong=500 if loai == LB_THUE_NGOAI else None,
             so_luong_vao=sl_ra, so_luong_ra=sl_ra, don_vi_vao=dv_truoc, don_vi_ra=dv_ra,
         )
         sess.add(cd)

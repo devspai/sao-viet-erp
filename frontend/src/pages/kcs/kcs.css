@@ -277,17 +277,16 @@
   padding: 0;
   overflow: hidden;
 }
+/* Đầu thẻ: tiêu đề · ô tìm · thanh lọc chung (kỳ + điều kiện, 06/10/2026) — xuống dòng được. */
 .kcs-lenh__dau {
-  display: grid;
-  grid-template-columns: auto minmax(160px, 1fr) auto;
-  grid-template-areas: "tieu tim chip";
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--rule-soft);
 }
 .kcs-lenh__tieu {
-  grid-area: tieu;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -298,11 +297,11 @@
   white-space: nowrap;
 }
 .kcs-lenh__tim {
-  grid-area: tim;
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 0;
+  flex: 1 1 220px;
+  min-width: 160px;
 }
 .kcs-lenh__tim-ic {
   position: absolute;
@@ -328,21 +327,6 @@
   border-color: var(--rust);
   box-shadow: 0 0 0 3px var(--rule-hair);
 }
-.kcs-lenh__chip {
-  grid-area: chip;
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  background: var(--paper);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-pill);
-}
-.kcs-lenh__chip .seg {
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: var(--fw-bold);
-  white-space: nowrap;
-}
 
 /* Bảng nằm TRONG thẻ: bỏ khung riêng của `.rc__tablewrap`, chân phân trang dính đáy thẻ. */
 .kcs-lenh .rc__tablewrap {
@@ -350,9 +334,9 @@
   border-radius: 0;
   box-shadow: none;
 }
-.kcs-lenh .pager {
-  margin: 0;
-  padding: var(--sp-2) var(--sp-4);
+/* Thẻ `.kcs-lenh` đã có viền + bo góc: chân nằm trong thẻ nên bỏ khung nối mà
+   `.rc__tablewrap + .ptdd` (rebuild-catalog.css) gắn cho bảng đứng riêng. */
+.kcs-lenh .rc__tablewrap + .ptdd {
   border: none;
   border-top: 1px solid var(--rule-soft);
   border-radius: 0;
@@ -368,11 +352,12 @@
   text-align: center;
 }
 
-.kcs-col--lenh { width: 30%; }
-.kcs-col--khach { width: 26%; }
-.kcs-col--nhom { width: 18%; }
-.kcs-col--kiem { width: 16%; }
-.kcs-col--loi { width: 10%; }
+.kcs-col--lenh { width: 24%; }
+.kcs-col--khach { width: 19%; }
+.kcs-col--nhom { width: 14%; }
+.kcs-col--ngay { width: 11%; }
+.kcs-col--kiem { width: 13%; }
+.kcs-col--loi { width: 8%; }
 
 .kcs-lenh .kcs-table--lenh thead th {
   padding: 10px var(--sp-4);
@@ -457,10 +442,7 @@
 }
 @media (max-width: 640px) {
   .kcs-dash__phai { grid-template-columns: minmax(0, 1fr); }
-  .kcs-lenh__dau {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "tieu chip" "tim tim";
-  }
+  .kcs-lenh__tim { flex-basis: 100%; }
   .kcs-the { padding: var(--sp-3) var(--sp-4); }
   .kcs-lenh { padding: 0; }
 }

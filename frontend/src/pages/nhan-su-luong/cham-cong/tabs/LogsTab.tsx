@@ -1,5 +1,5 @@
 // Tab Nhật ký chấm công + bảng log (tách từ pages/ChamCongPage.tsx).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type AttendanceLog, type TodayKpi } from "../../../../api/client";
 import {
   UserCheck,
@@ -14,9 +14,23 @@ import {
 } from "lucide-react";
 import { EmptyState } from "../../../../components/EmptyState";
 import { MixDonut } from "../../../../components/charts";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
+import { ThanhLoc } from "../../../thanh-loc/ThanhLoc";
+import { thamSoKy } from "../../../thanh-loc/ky-danh-sach";
+import { useLocTab } from "../../dieu-kien-don";
+import {
+  LOC_NK_TRONG,
+  MAN_CHAM_CONG,
+  MOC_NK,
+  locNhatKyLenUrl,
+  locNhatKyTuUrl,
+  thamSoLocNhatKy,
+  useDieuKienNhatKy,
+  type LocNhatKy,
+} from "../dieu-kien-cham-cong";
 import { getInitials } from "../shared/helpers";
 
-// --- Tab: Bảng chấm công (HR) -----------------------------------------------
+// --- Tab: Nhật ký chấm công (HR) ---------------------------------------------
 
 export function LogsTab({
   token,
@@ -26,45 +40,75 @@ export function LogsTab({
   focusEmployeeId?: number;
 }) {
   const [items, setItems] = useState<AttendanceLog[] | null>(null);
-  const [focus, setFocus] = useState<number | undefined>(focusEmployeeId);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(50);
+  const [dangTai, setDangTai] = useState(true);
   const [kpi, setKpi] = useState<TodayKpi | null>(null);
 
-  useEffect(() => setFocus(focusEmployeeId), [focusEmployeeId]);
+  // Kỳ (Giờ chấm / Ngày tạo) + Nhân viên, Phòng ban, Điểm chấm công — lọc + phân trang ở MÁY CHỦ
+  // (06/10/2026). Trước đó màn chỉ tải 100 lượt gần nhất (1000 khi lọc ngày) ⇒ lọc xong vẫn mất
+  // dữ liệu trong im lặng.
+  const [locTab, setLocTabGoc] = useLocTab<LocNhatKy>({
+    man: MAN_CHAM_CONG, tienToUrl: "nk", moc: MOC_NK, mocMacDinh: "cham", ttMacDinh: "",
+    locTrong: LOC_NK_TRONG, locTuUrl: locNhatKyTuUrl, locLenUrl: locNhatKyLenUrl,
+  });
+  const setLocTab = (t: typeof locTab) => {
+    setLocTabGoc(t);
+    setPage(1);
+  };
+  const dieuKien = useDieuKienNhatKy();
+  // Liên thông từ Hồ sơ NV: mở thẳng nhật ký của một người = áp điều kiện Nhân viên (bỏ được
+  // bằng nút × của chính điều kiện đó, không cần băng "Bỏ lọc" riêng).
+  useEffect(() => {
+    if (focusEmployeeId != null) setLocTab({ ...locTab, loc: { ...locTab.loc, nv: focusEmployeeId } });
+    // Chỉ chạy khi đổi người được liên thông sang.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusEmployeeId]);
+  const nv = locTab.loc.nv;
 
   // Ô tìm: gõ tới đâu gọi API tới đó thì mỗi phím một request. Chờ 300ms im tay rồi mới gọi.
   const [q, setQ] = useState("");
   const [qGui, setQGui] = useState("");
   useEffect(() => {
-    const t = setTimeout(() => setQGui(q), 300);
+    const t = setTimeout(() => {
+      setQGui(q.trim());
+      setPage(1);
+    }, 300);
     return () => clearTimeout(t);
   }, [q]);
 
-  // Khoảng ngày để xem lại NGÀY TRƯỚC. Không đặt mặc định = hôm nay: mở màn ra thấy ngay lượt
-  // gần nhất vẫn đúng ý hơn, ai cần lùi ngày thì tự chọn.
-  const [tuNgay, setTuNgay] = useState("");
-  const [denNgay, setDenNgay] = useState("");
-  const ngayNguoc = !!tuNgay && !!denNgay && denNgay < tuNgay;
-
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locTab.ky), ...thamSoLocNhatKy(locTab.loc) });
+  /** Chỉ nhận phản hồi của lượt tải mới nhất — đổi lọc liền tay thì lượt cũ về sau không đè. */
+  const luotTai = useRef(0);
   useEffect(() => {
-    if (ngayNguoc) return;      // khoảng vô nghĩa → giữ nguyên kết quả cũ, khỏi gọi API thừa
+    const luot = ++luotTai.current;
+    setDangTai(true);
     api.attendance
-      .logs(token, focus, qGui, tuNgay || undefined, denNgay || undefined)
-      .then((r) => setItems(r.items))
-      .catch(() => setItems([]));
-  }, [token, focus, qGui, tuNgay, denNgay, ngayNguoc]);
+      .logs(token, { q: qGui || undefined, page, size, ...JSON.parse(khoaLoc) })
+      .then((r) => {
+        if (luot !== luotTai.current) return;
+        setItems(r.items);
+        setTotal(r.total);
+      })
+      .catch(() => {
+        if (luot !== luotTai.current) return;
+        setItems([]);
+        setTotal(0);
+      })
+      .finally(() => {
+        if (luot === luotTai.current) setDangTai(false);
+      });
+  }, [token, qGui, page, size, khoaLoc]);
 
   useEffect(() => {
-    if (focus == null) {
+    if (nv == null) {
       api.attendance
         .kpi(token)
         .then(setKpi)
         .catch(() => setKpi(null));
     }
-  }, [token, focus]);
-
-  const focusName = focus
-    ? items?.find((l) => l.employee_id === focus)?.employee_name
-    : undefined;
+  }, [token, nv]);
 
   // Render chart slices for Recharts MixDonut
   const chartSlices = kpi
@@ -78,22 +122,7 @@ export function LogsTab({
 
   return (
     <div>
-      {focus != null && (
-        <div className="cc-focus">
-          <span>
-            Đang xem chấm công của <b>{focusName ?? `NV #${focus}`}</b>
-          </span>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={() => setFocus(undefined)}
-          >
-            ✕ Bỏ lọc — xem cả xưởng
-          </button>
-        </div>
-      )}
-
-      {focus == null && kpi && (
+      {nv == null && kpi && (
         <div className="cc-analytics-section">
           <div className="cc-analytics-grid">
             {/* KPI Cards Grid */}
@@ -177,9 +206,8 @@ export function LogsTab({
       )}
 
       {/* Dùng lại `cc-sp-search` của chính màn này (lưới Phân ca). KHÔNG mượn `lg-search-*` bên
-          màn Lương: class đó nằm trong `luong.css` mà file này không import — mượn là ô trần
-          không style, mà kéo cả `luong.css` sang thì tệ hơn nữa. */}
-      <div className="cc-toolbar" style={{ marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+          màn Lương: class đó nằm trong `luong.css` mà file này không import. */}
+      <div className="cc-toolbar tl-thanh" style={{ marginBottom: 10, gap: 8 }}>
         <label className="cc-sp-search">
           <Search size={14} />
           <input
@@ -188,59 +216,37 @@ export function LogsTab({
             onChange={(e) => setQ(e.target.value)}
           />
         </label>
-        <label className="cc-sp-search">
-          <span style={{ fontSize: 12 }}>Từ</span>
-          <input
-            type="date"
-            value={tuNgay}
-            max={denNgay || undefined}
-            onChange={(e) => setTuNgay(e.target.value)}
-          />
-        </label>
-        <label className="cc-sp-search">
-          <span style={{ fontSize: 12 }}>đến</span>
-          <input
-            type="date"
-            value={denNgay}
-            min={tuNgay || undefined}
-            onChange={(e) => setDenNgay(e.target.value)}
-          />
-        </label>
-        {(tuNgay || denNgay) && (
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={() => {
-              setTuNgay("");
-              setDenNgay("");
-            }}
-          >
-            ✕ Bỏ lọc ngày
-          </button>
-        )}
+        <ThanhLoc
+          ky={locTab.ky}
+          moc={MOC_NK}
+          onKy={(ky) => setLocTab({ ...locTab, ky })}
+          dieuKien={dieuKien}
+          loc={locTab.loc}
+          onLoc={(loc) => setLocTab({ ...locTab, loc })}
+        />
       </div>
-      {ngayNguoc && (
-        <div className="banner banner--error" style={{ marginBottom: 10 }}>
-          Đến ngày phải sau hoặc bằng từ ngày.
-        </div>
-      )}
 
       {!items ? (
         <EmptyState trangThai="dang-tai" inline />
       ) : (
         <>
-          <AttendanceTable logs={items} showEmployee={focus == null} />
-          {/* Nói THẬT về giới hạn: không ghi thì người dùng tưởng đã thấy hết rồi kết luận sai
-              ("hôm kia nó không chấm công") trong khi thật ra lượt cũ nằm ngoài 100 dòng này. */}
-          <p className="cc-note" style={{ marginTop: 8 }}>
-            {items.length === 0
-              ? `Không có lượt chấm công nào${qGui ? ` khớp “${qGui}”` : ""}${
-                  tuNgay || denNgay ? " trong khoảng ngày đã chọn" : ""
-                }.`
-              : tuNgay || denNgay
-                ? `Đang xem ${items.length} lượt bấm trong khoảng ngày đã chọn${qGui ? ` khớp “${qGui}”` : ""}.`
-                : `Đang xem ${items.length} lượt bấm gần nhất${qGui ? ` khớp “${qGui}”` : ""} — tối đa 100. Muốn xem ngày trước thì chọn khoảng ngày ở trên.`}
-          </p>
+          <AttendanceTable logs={items} showEmployee={nv == null} coLoc={khoaLoc !== "{}"} />
+          {total > 0 && (
+            <PhanTrangDayDu
+              trang={page}
+              size={size}
+              tong={total}
+              soDong={items.length}
+              loading={dangTai}
+              donVi="lượt bấm"
+              onTrang={setPage}
+              onSize={(n) => {
+                setSize(n);
+                setPage(1);
+              }}
+              ariaLabel="Phân trang nhật ký chấm công"
+            />
+          )}
         </>
       )}
     </div>
@@ -267,9 +273,11 @@ function parseDateTimeVN(iso: string | null | undefined) {
 function AttendanceTable({
   logs,
   showEmployee,
+  coLoc,
 }: {
   logs: AttendanceLog[];
   showEmployee: boolean;
+  coLoc: boolean;
 }) {
   return (
     <div className="ns__tablewrap">
@@ -372,7 +380,7 @@ function AttendanceTable({
           {logs.length === 0 && (
             <tr>
               <td colSpan={showEmployee ? 4 : 3} className="ns__empty">
-                Chưa có bản ghi chấm công.
+                {!coLoc ? "Chưa có bản ghi chấm công." : "Không có bản ghi chấm công nào khớp bộ lọc."}
               </td>
             </tr>
           )}

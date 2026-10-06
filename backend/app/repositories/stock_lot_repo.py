@@ -308,6 +308,17 @@ class StockLotRepository:
         keys = [tuple(h) for h in hangs]
         return {k: v.get(None, 0.0) for k, v in self._tong_theo_khoa(keys, kho_id, False).items()}
 
+    def ton_to_theo_kho(self, giay_id: int) -> list[tuple[int, int, float]]:
+        """Tồn tờ khả dụng của MỘT mã giấy, chia theo khổ: `[(rộng, dài, số tờ)]`. Một câu GROUP BY,
+        đi đúng chỉ mục `ix_stock_lots_giay_kho` — chọn khổ để cấp giấy cho nhà gia công."""
+        rows = self.db.execute(
+            select(StockLot.kho_rong, StockLot.kho_dai, func.sum(StockLot.sl_con_lai))
+            .where(StockLot.hang_loai == "giay", StockLot.hang_id == int(giay_id),
+                   StockLot.dang_giay == DANG_TO, StockLot.kho_rong > 0, StockLot.kho_dai > 0,
+                   StockLot.sl_con_lai > 0, StockLot.trang_thai.in_(LOT_ISSUABLE))
+            .group_by(StockLot.kho_rong, StockLot.kho_dai))
+        return [(int(r), int(d), float(s or 0)) for r, d, s in rows]
+
     def on_hand_by_kho(self, hangs: list[tuple]) -> dict[tuple, dict[int, float]]:
         """Tồn khả dụng của từng khoá, TÁCH THEO KHO — để xếp hạng "kho nào có nhiều hàng
         nhất" khi gợi ý kho xuất. Khoá ngoài như `on_hand_map`, khoá trong là `kho_id`; kho không có

@@ -21,6 +21,15 @@ export function fmtDateTime(s: string | null | undefined): string {
 }
 export const fmtSo = (n: number): string => n.toLocaleString("vi-VN");
 
+/** Tách nhóm SĐT cho DỄ ĐỌC, chỉ ở hiển thị (DB giữ nguyên chuỗi người nhập):
+ *  di động 10 số "0903 691 340", bàn 11 số "028 3812 3456". Dạng khác (có +84, máy lẻ…) để nguyên. */
+export function fmtSdt(s: string): string {
+  const d = s.replace(/[\s.-]/g, "");
+  if (/^0\d{9}$/.test(d)) return `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7)}`;
+  if (/^0\d{10}$/.test(d)) return `${d.slice(0, 3)} ${d.slice(3, 7)} ${d.slice(7)}`;
+  return s;
+}
+
 /** Thâm niên tổng = thâm niên khai TRƯỚC khi vào (tháng) + số tháng từ `hire_date` tới nay.
  *  Bỏ vế đầu là tính hụt với người chuyển từ nơi khác sang. Trả null khi chưa có gì để hiện. */
 export function thamNien(priorMonths: number | undefined, hireDate: string | null | undefined): string | null {

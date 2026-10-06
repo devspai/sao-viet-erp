@@ -146,8 +146,12 @@ def den_vat_tu_theo_lo(db: Session, lsx_ids: list[int]) -> dict[int, str]:
     return den_va_bang(db, lsx_ids)[0]
 
 
-def den_va_bang(db: Session, lsx_ids: list[int]) -> tuple[dict[int, str], dict | None]:
-    """Như `den_vat_tu_theo_lo`, nhưng TRẢ KÈM bảng cân đối mà lượt đó vừa dựng.
+def den_va_bang(
+    db: Session, lsx_ids: list[int]
+) -> tuple[dict[int, str], dict | None, dict[int, str]]:
+    """Như `den_vat_tu_theo_lo`, nhưng TRẢ KÈM bảng cân đối mà lượt đó vừa dựng, và CÂU CHỮ của
+    đèn (`{lsx_id: chu}`, vd "Chưa giữ chỗ vật tư") — hồ sơ phải nói đúng lý do đèn đỏ; tự đếm dòng
+    thiếu trong bảng thì ra "1 mặt hàng đang thiếu" cho một lệnh mà kho dư (06/10/2026).
 
     Cửa cho màn hồ sơ MỘT lệnh: nó cần chính các DÒNG của bảng cân đối, và không có cửa này thì
     nó phải gọi `can_doi()` lượt thứ hai — chạy lại đúng engine vừa chạy xong ở đây (đo được: một
@@ -161,7 +165,7 @@ def den_va_bang(db: Session, lsx_ids: list[int]) -> tuple[dict[int, str], dict |
     SQL của nó (`test_so_cau_sql_hang_tren_truc_lenh`) không bị chạm.
     """
     den, bang = lsx_tong_quan.den_vat_tu_va_bang(db, lsx_ids)
-    return {i: d["muc"] for i, d in den.items()}, bang
+    return {i: d["muc"] for i, d in den.items()}, bang, {i: d["chu"] for i, d in den.items()}
 
 
 def _co_su_co_dang_mo(bc: BoiCanh, lsx_id: int) -> bool:
@@ -371,3 +375,41 @@ def trang_thai_chinh(
     if _dang_o_kcs(bc, lsx_id):
         return TAB_KCS
     return TAB_DANG_SX
+
+
+# --- KHÂU của lệnh — tab của màn Hồ sơ lệnh (làm gọn 05/10/2026) ---------------------------------
+# Giá trị đi thẳng ra API (`?tab=`, `khau`) nên coi như hợp đồng.
+KHAU_DANG_SX = "dang_sx"
+KHAU_SAU_SX = "sau_sx"
+KHAU_DA_GIAO = "da_giao"
+KHAU = (KHAU_DANG_SX, KHAU_SAU_SX, KHAU_DA_GIAO)
+
+# Chi tiết của khâu Sau sản xuất — FE dịch ra chữ.
+CT_DANG_KCS = "dang_kcs"
+CT_CHO_NHAP_KHO = "cho_nhap_kho"
+CT_SAN_SANG_GIAO = "san_sang_giao"
+
+
+def khau(bc: BoiCanh, lsx_id: int) -> tuple[str, str | None]:
+    """`(khâu, chi tiết)` của một lệnh — tab của màn Hồ sơ lệnh, KHÔNG xét cờ cảnh báo.
+
+    Cùng các vị ngữ và cùng thứ tự với `trang_thai_chinh`, chỉ bỏ nhánh cảnh báo: màn tra cứu chia
+    lệnh theo chỗ nó đang đứng; lệnh có sự cố vẫn ở đúng khâu của nó, còn "đang có vấn đề gì" là
+    việc của màn Theo dõi. Nhờ vậy danh sách không phải chạy `can_doi()` lẫn đường găng.
+
+    Nhánh cuối "đã xong mọi công việc ⇒ Sau sản xuất / Đang KCS" bắt cả hai ca ba nhánh trên bỏ
+    sót: KCS kết luận không đạt toàn bộ, và lệnh không có công việc `la_kcs_cuoi`. Hàng đã ra khỏi
+    chuyền thì không còn là Đang sản xuất. Lệnh chưa có công việc nào (`all([])` là True) phải ở
+    lại Đang sản xuất — đó là lý do có vế `bc.cong_viec_du(lsx_id)`.
+
+    Không đổi `trang_thai_chinh`: đơn hàng bán vẫn đọc nó qua `danh_sach._soi`.
+    """
+    if _da_giao_het(bc, lsx_id):
+        return KHAU_DA_GIAO, None
+    if _co_ton_thanh_pham(bc, lsx_id):
+        return KHAU_SAU_SX, CT_SAN_SANG_GIAO
+    if _kcs_dat_cho_nhap(bc, lsx_id):
+        return KHAU_SAU_SX, CT_CHO_NHAP_KHO
+    if bc.cong_viec_du(lsx_id) and _sx_da_xong(bc, lsx_id):
+        return KHAU_SAU_SX, CT_DANG_KCS
+    return KHAU_DANG_SX, None

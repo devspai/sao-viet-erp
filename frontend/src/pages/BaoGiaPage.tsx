@@ -5,7 +5,6 @@ import {
   Fragment,
   useCallback,
   useEffect,
-  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -19,7 +18,6 @@ import {
   type QuotationEnumsOut,
   type QuotationRow,
   type QuotationStats,
-  type QuoteAttachment,
   type QuoteItemDetail,
 } from "../api/client";
 import { gopTheoNhom, gopTrungTen, nhomLechSoLuong } from "../utils/gop-nhom";
@@ -29,8 +27,15 @@ import { Button } from "../components/Button";
 import { EmptyRow, EmptyState } from "../components/EmptyState";
 import { StatusTabs } from "../components/StatusTabs";
 import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { DaiKhachHang } from "../components/DaiKhachHang";
 import { ONhapSo } from "../components/ONhapSo";
+import { LOC_BG_TRONG, locBGLenUrl, locBGTuUrl, thamSoLocBG, useDieuKienBaoGia, type LocBaoGia } from "./loc-kinh-doanh/dieu-kien-bao-gia";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { dkTheoTab } from "./thanh-loc/thanh-loc";
+import "./loc-kinh-doanh/loc-kinh-doanh.css";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import { useLocMan } from "./thanh-loc/useLocMan";
 // Đầu trang bản in = ĐÚNG tấm letterhead giấy của công ty (tên + logo + thông tin liên hệ + 4
 // huy hiệu chứng nhận + viền kép, đã nằm sẵn trong ảnh) — chủ xưởng đưa file, chốt 10/09/2026.
 // Trước đây khối này dựng bằng HTML từ 5 ảnh rời + SVN_COMPANY: mỗi lần letterhead giấy đổi là
@@ -49,13 +54,10 @@ import {
   ChevronLeft,
   CornerDownLeft,
   DollarSign,
-  Download,
   ExternalLink,
-  File as FileIcon,
   FileText,
   GitBranch,
   History,
-  Image as ImageIcon,
   ImagePlus,
   Lock,
   Paperclip,
@@ -67,10 +69,8 @@ import {
   Search,
   Send,
   Table,
-  Trash2,
   TriangleAlert,
   Undo2,
-  UploadCloud,
   X,
   Zap,
 } from "lucide-react";
@@ -103,7 +103,18 @@ const SVN_COMPANY = {
   senderEmail: "—",
 };
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 25;
+
+// Dải kỳ của danh sách tính theo một trong ba mốc; cột ngày cuối bảng hiện đúng mốc đang chọn.
+const MOC_BG: [string, string][] = [["tao", "Ngày tạo"], ["gui", "Ngày gửi khách"], ["hieu_luc", "Hạn hiệu lực"]];
+const COT_SAP_THEO_MOC: Record<string, string> = { tao: "created_at", gui: "sent_at", hieu_luc: "valid_until" };
+type LocMan = { ky: KyDS; loc: LocBaoGia };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_BG_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_BG.map(([m]) => m), "tao"),
+  loc: locBGTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locBGLenUrl(t.loc) });
 
 function labelOf(options: EnumOption[], value: string | null): string {
   if (!value) return "—";
@@ -140,12 +151,22 @@ export function BaoGiaPage({
   const [rows, setRows] = useState<QuotationRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   // Hộp lọc NV phụ trách — null = tất cả người trong tầm nhìn.
   const [nguoi, setNguoi] = useState<number | null>(null);
-  const [sort, setSort] = useState("-created_at");
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [enums, setEnums] = useState<QuotationEnumsOut | null>(null);
+  // Dải kỳ + bộ lọc nâng cao — ghi lên URL, nhớ theo màn khi mở chi tiết rồi quay lại.
+  const [locMan, setLocManGoc] = useLocMan("bao-gia", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const setLocMan = (t: LocMan) => {
+    setLocManGoc(t);
+    setPage(1);
+  };
+  const dkRieng = useDieuKienBaoGia();
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocBG(locMan.loc) });
+  // Mặc định xếp mới nhất theo đúng mốc của cột ngày (mở từ link "theo hạn hiệu lực" thì xếp theo hạn).
+  const [sort, setSort] = useState(() => `-${COT_SAP_THEO_MOC[locMan.ky.moc]}`);
 
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
@@ -174,7 +195,8 @@ export function BaoGiaPage({
         nguoi,
         sort,
         page,
-        size: PAGE_SIZE,
+        size,
+        loc: JSON.parse(khoaLoc),
       })
       .then((res) => {
         setRows(res.items);
@@ -186,11 +208,14 @@ export function BaoGiaPage({
       })
       .finally(() => setLoading(false));
 
-    // Số đếm cho thanh tab
-    api.quotations.stats(token, nguoi).then(setStats).catch(() => setStats(null));
+    // Số đếm cho thanh tab — theo ĐÚNG ô tìm, kỳ, bộ lọc đang áp: bấm tab nào bảng ra đúng số đó.
+    api.quotations
+      .stats(token, nguoi, { q: q.trim() || undefined, ...JSON.parse(khoaLoc) })
+      .then(setStats)
+      .catch(() => setStats(null));
     // eventTick: SSE báo có trình duyệt / có quyết định → chạy lại cả list lẫn stats.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, q, statusFilter, sort, page, eventTick, nguoi, openId]);
+  }, [token, q, statusFilter, sort, page, size, eventTick, nguoi, openId, khoaLoc]);
 
   useEffect(() => {
     load();
@@ -214,8 +239,39 @@ export function BaoGiaPage({
     setOpenId(row.id);
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const statuses = enums?.statuses ?? [];
+  // Tab trạng thái đếm số — "Cần xử lý" = nháp + đã gửi chờ khách. Dùng chung cho thanh tab và
+  // điều kiện "Trạng thái" trong nút Lọc (đọc/ghi thẳng tab, không đẻ state lọc thứ hai).
+  const tabTrangThai: { key: string; label: string; count?: number; tone?: "alert" }[] = [
+    { key: "", label: "Tất cả", count: stats?.total },
+    { key: "need_action", label: "Cần xử lý", count: stats?.need_action, tone: "alert" },
+    { key: "draft", label: "Soạn", count: stats?.draft },
+    // "Chờ duyệt" = báo giá đặc thù đã Trình duyệt (list đã lọc theo phạm vi → người duyệt
+    // thấy đúng "chờ TÔI duyệt"). Tone alert để nổi bật việc cần quyết định.
+    { key: "pending_approval", label: "Chờ duyệt", count: stats?.pending_approval, tone: "alert" },
+    // "Đã duyệt" cũng tô đỏ: GĐ duyệt xong thì bóng sang chân sale — còn nằm đây là còn
+    // việc (phải gửi khách), không phải trạng thái nghỉ.
+    { key: "approved", label: "Đã duyệt", count: stats?.approved, tone: "alert" },
+    { key: "sent", label: "Đã gửi khách", count: stats?.sent },
+    { key: "accepted", label: "Khách chốt", count: stats?.accepted },
+    { key: "converted_to_order", label: "Đã lên đơn", count: stats?.converted_to_order },
+    { key: "rejected", label: "Từ chối", count: stats?.rejected },
+    { key: "expired", label: "Hết hiệu lực", count: stats?.expired },
+  ];
+  const datTrangThai = (k: string) => {
+    setStatusFilter(k);
+    setPage(1);
+  };
+  const dieuKien = [
+    dkTheoTab<LocBaoGia>({
+      tabs: tabTrangThai.map((t) => ({ id: t.key, nhan: t.label, so: t.count })),
+      tatCa: "",
+      dang: statusFilter,
+      dat: datTrangThai,
+    }),
+    ...dkRieng,
+  ];
+  const nhanMoc = MOC_BG.find(([m]) => m === locMan.ky.moc)?.[1] ?? "Ngày tạo";
 
   if (forbidden) {
     return (
@@ -244,7 +300,7 @@ export function BaoGiaPage({
     <main className="rdx-quote">
       <div className="q-pagehead">
         <div>
-          <p className="q-eyebrow"><span className="sq" />Kinh doanh · Chứng từ khách hàng</p>
+          <p className="q-eyebrow"><span className="sq" />Kinh doanh</p>
           <h1>Báo giá thương mại</h1>
           <p className="sub">Giá bán gửi khách — dựng từ phiếu tính giá, cộng markup từng dòng.</p>
         </div>
@@ -255,7 +311,7 @@ export function BaoGiaPage({
         </Button>
       </div>
 
-      <form className="q-toolbar" onSubmit={onSearch} role="search">
+      <form className="q-toolbar tl-thanh" onSubmit={onSearch} role="search">
         <div className="q-search">
           <Search size={15} />
           <input
@@ -268,6 +324,20 @@ export function BaoGiaPage({
         <Button type="submit" variant="ghost">
           Tìm
         </Button>
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_BG}
+          onKy={(ky) => {
+            // Đổi mốc thì cột ngày cũng đổi — đang xếp theo cột ngày thì xếp theo mốc mới luôn.
+            if (ky.moc !== locMan.ky.moc && Object.values(COT_SAP_THEO_MOC).includes(sort.replace("-", ""))) {
+              setSort(`${sort.startsWith("-") ? "-" : ""}${COT_SAP_THEO_MOC[ky.moc]}`);
+            }
+            setLocMan({ ...locMan, ky });
+          }}
+          dieuKien={dieuKien}
+          loc={locMan.loc}
+          onLoc={(loc) => setLocMan({ ...locMan, loc })}
+        />
         <LocNguoiPhuTrach
           nap={api.quotations.nguoiPhuTrach}
           value={nguoi}
@@ -279,29 +349,11 @@ export function BaoGiaPage({
         />
       </form>
 
-      {/* Tab trạng thái đếm số — "Cần xử lý" = nháp + đã gửi chờ khách */}
       <div style={{ marginBottom: 14 }}>
         <StatusTabs
-          tabs={[
-            { key: "", label: "Tất cả", count: stats?.total },
-            { key: "need_action", label: "Cần xử lý", count: stats?.need_action, tone: "alert" },
-            { key: "draft", label: "Soạn", count: stats?.draft },
-            // "Chờ duyệt" = báo giá đặc thù đã Trình duyệt (list đã lọc theo phạm vi → người duyệt
-            // thấy đúng "chờ TÔI duyệt"). Tone alert để nổi bật việc cần quyết định.
-            { key: "pending_approval", label: "Chờ duyệt", count: stats?.pending_approval, tone: "alert" },
-            // "Đã duyệt" cũng tô đỏ: GĐ duyệt xong thì bóng sang chân sale — còn nằm đây là còn
-            // việc (phải gửi khách), không phải trạng thái nghỉ.
-            { key: "approved", label: "Đã duyệt", count: stats?.approved, tone: "alert" },
-            { key: "sent", label: "Đã gửi khách", count: stats?.sent },
-            { key: "accepted", label: "Khách chốt", count: stats?.accepted },
-            { key: "converted_to_order", label: "Đã lên đơn", count: stats?.converted_to_order },
-            { key: "rejected", label: "Từ chối", count: stats?.rejected },
-          ]}
+          tabs={tabTrangThai}
           active={statusFilter}
-          onChange={(k) => {
-            setStatusFilter(k);
-            setPage(1);
-          }}
+          onChange={datTrangThai}
         />
       </div>
 
@@ -313,22 +365,25 @@ export function BaoGiaPage({
                 <SortBtn label="Mã báo giá" col="code" sort={sort} onSort={setSort} />
               </th>
               <th>Khách hàng</th>
-              <th>Sản phẩm · nguồn PTG</th>
+              <th>Sản phẩm</th>
               <th className="num">
-                <SortBtn label="Giá bán · VAT" col="total" sort={sort} onSort={setSort} />
+                <SortBtn label="Giá bán gồm VAT" col="total" sort={sort} onSort={setSort} />
               </th>
               <th>
                 <SortBtn label="Trạng thái" col="status" sort={sort} onSort={setSort} />
               </th>
-              <th>Cập nhật</th>
+              <th>Người duyệt</th>
+              <th>
+                <SortBtn label={nhanMoc} col={COT_SAP_THEO_MOC[locMan.ky.moc]} sort={sort} onSort={setSort} />
+              </th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <EmptyRow colSpan={6} trangThai="dang-tai" />
+              <EmptyRow colSpan={7} trangThai="dang-tai" />
             ) : listError ? (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   <div className="banner banner--error" role="alert" style={{ margin: 14 }}>
                     <span>{listError}</span>
                     <button type="button" className="btn btn--ghost" onClick={() => load()}>
@@ -339,13 +394,15 @@ export function BaoGiaPage({
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="tl-empty">
-                  Chưa có báo giá thương mại nào được tạo.
+                <td colSpan={7} className="tl-empty">
+                  {!q.trim() && khoaLoc === "{}" && !statusFilter && nguoi == null
+                    ? "Chưa có báo giá thương mại nào được tạo."
+                    : "Không có báo giá nào khớp điều kiện đang lọc."}
                 </td>
               </tr>
             ) : (
               rows.map((r) => {
-                // Tuổi phiếu: đã gửi N ngày chưa có phản hồi → nhắc follow-up
+                // Tuổi phiếu: đã gửi N ngày chưa có phản hồi → nhắc gọi lại khách
                 const sentDays =
                   r.status === "sent" && r.sent_at
                     ? Math.floor((Date.now() - new Date(r.sent_at).getTime()) / 86_400_000)
@@ -390,14 +447,23 @@ export function BaoGiaPage({
                           className="vc"
                           style={sentDays >= 7 ? { color: "var(--rust-deep)", fontWeight: 600 } : undefined}
                         >
-                          Đã gửi {sentDays} ngày{sentDays >= 7 ? " · cần follow-up" : ""}
+                          Đã gửi {sentDays} ngày{sentDays >= 7 ? " chưa phản hồi" : ""}
                         </span>
                       )}
                     </td>
                     <td>
+                      <ODuyet duyet={r.duyet} />
+                    </td>
+                    <td>
                       <div className="prod">
                         <span className="nm" style={{ fontWeight: 500, whiteSpace: "nowrap" }}>
-                          {fmtDate(r.updated_at ?? null)}
+                          {fmtDate(
+                            locMan.ky.moc === "gui"
+                              ? r.sent_at ?? null
+                              : locMan.ky.moc === "hieu_luc"
+                                ? r.valid_until
+                                : r.created_at ?? null,
+                          )}
                         </span>
                         {r.salesperson_name && <span className="spec">{r.salesperson_name}</span>}
                       </div>
@@ -410,30 +476,53 @@ export function BaoGiaPage({
         </table>
       </div>
 
-      {!loading && !listError && rows.length > 0 && (
-        <div className="foot">
-          <span>
-            Tìm thấy {total} phiếu báo giá · Trang {page}/{totalPages}
-          </span>
-          <div className="foot-btns">
-            <Button
-              variant="ghost"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              ‹ Trước
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Sau ›
-            </Button>
-          </div>
-        </div>
+      {!listError && total > 0 && (
+        <PhanTrangDayDu
+          trang={page}
+          size={size}
+          tong={total}
+          soDong={rows.length}
+          onTrang={setPage}
+          onSize={(n) => {
+            setSize(n);
+            setPage(1);
+          }}
+          loading={loading}
+          donVi="phiếu báo giá"
+          ariaLabel="Phân trang báo giá"
+        />
       )}
     </main>
+  );
+}
+
+// --- Ô "Người duyệt" ------------------------------------------------------------
+// Chỉ báo giá ĐẶC THÙ phải qua duyệt. Chờ duyệt: ai có quyền duyệt (đang chờ từ lúc trình);
+// đã duyệt / từ chối: người quyết + lúc quyết, ý kiến xem ở chú thích khi rê chuột.
+function ODuyet({ duyet }: { duyet: QuotationRow["duyet"] }) {
+  if (!duyet) return <span className="lkd-duyet--trong">—</span>;
+  if (duyet.trang_thai === "khong_can") return <span className="lkd-duyet--trong">Không cần duyệt</span>;
+  const [dau, ...con] = duyet.nguoi;
+  const phu =
+    duyet.trang_thai === "cho"
+      ? `Đang chờ từ ${fmtDate(duyet.luc)}`
+      : duyet.trang_thai === "da_duyet"
+        ? `Đã duyệt ${fmtDate(duyet.luc)}`
+        : `Từ chối ${fmtDate(duyet.luc)}`;
+  const chuThich =
+    duyet.trang_thai === "cho"
+      ? duyet.nguoi.length > 1
+        ? `Ai trong số này duyệt cũng được:\n${duyet.nguoi.join("\n")}`
+        : undefined
+      : duyet.y_kien || undefined;
+  return (
+    <div className="lkd-duyet" title={chuThich}>
+      <div className="lkd-duyet__ten">
+        <span>{dau ?? "Chưa có người duyệt"}</span>
+        {con.length > 0 && <span className="lkd-duyet__them">và {con.length} người</span>}
+      </div>
+      <span className={`lkd-duyet__phu${duyet.trang_thai === "tu_choi" ? " lkd-duyet__phu--do" : ""}`}>{phu}</span>
+    </div>
   );
 }
 
@@ -545,220 +634,6 @@ function gomDongTheoNhom(items: QuoteItemDetail[]): NodeBaoGia[] {
 }
 
 
-// ============================================================================
-// Tài liệu đính kèm (NỘI BỘ) — file khách gửi / mẫu thiết kế / ảnh tham khảo.
-// Neo vào báo giá, KHÔNG in ra bản gửi khách. Ảnh: thumbnail + phóng to; PDF: mở
-// xem trong khung; file thiết kế (.ai/.cdr/.psd/.zip): icon + tải về.
-// ============================================================================
-const MAX_ATTACH_MB = 25;
-
-function isImageAtt(a: QuoteAttachment): boolean {
-  return (a.file_type?.startsWith("image/") ?? false) || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(a.file_name);
-}
-function isPdfAtt(a: QuoteAttachment): boolean {
-  return a.file_type === "application/pdf" || /\.pdf$/i.test(a.file_name);
-}
-
-function AttachmentsPanel({
-  token,
-  quoteId,
-  canEdit,
-}: {
-  token: string | null;
-  quoteId: number;
-  canEdit: boolean;
-}) {
-  const [items, setItems] = useState<QuoteAttachment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [drag, setDrag] = useState(false);
-  const [preview, setPreview] = useState<QuoteAttachment | null>(null);
-  const [pendingDel, setPendingDel] = useState<QuoteAttachment | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  const load = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const r = await api.quotations.attachments(token, quoteId);
-      setItems(r.items);
-    } catch {
-      setErr("Không tải được danh sách tài liệu.");
-    } finally {
-      setLoading(false);
-    }
-  }, [token, quoteId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function doUpload(files: FileList | File[]) {
-    if (!token || !canEdit) return;
-    const list = Array.from(files);
-    if (!list.length) return;
-    setErr(null);
-    const tooBig = list.find((f) => f.size > MAX_ATTACH_MB * 1024 * 1024);
-    if (tooBig) {
-      setErr(`Tệp "${tooBig.name}" vượt quá ${MAX_ATTACH_MB}MB.`);
-      return;
-    }
-    setUploading(true);
-    try {
-      for (const f of list) {
-        await api.quotations.uploadAttachment(token, quoteId, f);
-      }
-      await load();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Tải tệp lên thất bại.");
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
-  }
-
-  async function confirmDelete() {
-    if (!token || !pendingDel) return;
-    setDeleting(true);
-    try {
-      await api.quotations.deleteAttachment(token, quoteId, pendingDel.id);
-      setPendingDel(null);
-      await load();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Xóa tệp thất bại.");
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  return (
-    <div className="panel att-panel">
-      <div className="panel__hd">
-        <h3><Paperclip size={16} /> Tài liệu đính kèm</h3>
-        <span className="tag">{items.length} tệp</span>
-      </div>
-      <div className="att-body">
-        {canEdit && (
-          <label
-            className={`att-drop${drag ? " drag" : ""}${uploading ? " busy" : ""}`}
-            onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-            onDragLeave={() => setDrag(false)}
-            onDrop={(e) => { e.preventDefault(); setDrag(false); doUpload(e.dataTransfer.files); }}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              multiple
-              hidden
-              onChange={(e) => { if (e.target.files) doUpload(e.target.files); }}
-            />
-            <UploadCloud size={22} />
-            <span className="att-drop__lead">
-              {uploading ? "Đang tải lên…" : <>Kéo-thả tệp vào đây, hoặc <b>bấm chọn</b></>}
-            </span>
-            <span className="att-drop__hint">Ảnh, PDF, AI/CDR/PSD, ZIP… tối đa {MAX_ATTACH_MB}MB/tệp</span>
-          </label>
-        )}
-        {err && <div className="att-err"><TriangleAlert size={14} /> {err}</div>}
-        {loading ? (
-          <EmptyState trangThai="dang-tai" gon />
-        ) : items.length === 0 ? (
-          <div className="att-empty">
-            Chưa có tài liệu.{canEdit ? " Đính kèm tệp khách gửi, mẫu thiết kế, ảnh tham khảo…" : ""}
-          </div>
-        ) : (
-          <ul className="att-list">
-            {items.map((a) => {
-              const img = isImageAtt(a);
-              const pdf = isPdfAtt(a);
-              const canPreview = img || pdf;
-              const href = assetUrl(a.file_url) ?? "#";
-              return (
-                <li key={a.id} className="att-item">
-                  <button
-                    type="button"
-                    className={`att-thumb${canPreview ? " ok" : ""}`}
-                    onClick={() => { if (canPreview) setPreview(a); }}
-                    disabled={!canPreview}
-                    title={canPreview ? "Xem trước" : a.file_name}
-                  >
-                    {img ? (
-                      <img src={anhNho(a.file_url) ?? "#"} alt={a.file_name} loading="lazy" />
-                    ) : pdf ? (
-                      <FileText size={20} />
-                    ) : (
-                      <FileIcon size={20} />
-                    )}
-                  </button>
-                  <div className="att-meta">
-                    <div className="att-name" title={a.file_name}>{a.file_name}</div>
-                    <div className="att-sub">{fmtDateTime(a.uploaded_at)}</div>
-                  </div>
-                  <div className="att-actions">
-                    {canPreview && (
-                      <button type="button" className="att-act" onClick={() => setPreview(a)} title="Xem trước" aria-label="Xem trước"><ImageIcon size={15} /></button>
-                    )}
-                    <a className="att-act" href={href} download={a.file_name} title="Tải về" aria-label="Tải về"><Download size={15} /></a>
-                    {canEdit && (
-                      <button type="button" className="att-act danger" onClick={() => setPendingDel(a)} title="Xóa" aria-label="Xóa"><Trash2 size={15} /></button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      {preview && (
-        <div
-          className="att-lightbox"
-          role="presentation"
-          onMouseDown={(e) => { if (e.target === e.currentTarget) setPreview(null); }}
-        >
-          <div className="att-lightbox__box" role="dialog" aria-modal="true" aria-label={preview.file_name}>
-            <header className="att-lightbox__head">
-              <span className="att-lightbox__name">{preview.file_name}</span>
-              <div className="att-lightbox__acts">
-                <a href={assetUrl(preview.file_url) ?? "#"} target="_blank" rel="noreferrer" title="Mở tab mới"><ExternalLink size={17} /></a>
-                <button type="button" onClick={() => setPreview(null)} aria-label="Đóng"><X size={18} /></button>
-              </div>
-            </header>
-            <div className="att-lightbox__body">
-              {isImageAtt(preview) ? (
-                <img src={assetUrl(preview.file_url) ?? ""} alt={preview.file_name} />
-              ) : (
-                <iframe src={assetUrl(preview.file_url) ?? ""} title={preview.file_name} />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {pendingDel && (
-        <div className="bg__overlay" onClick={() => { if (!deleting) setPendingDel(null); }}>
-          <div className="card bg__dialog" style={{ maxWidth: "420px" }} onClick={(e) => e.stopPropagation()}>
-            <div className="bg__dialog-head">
-              <h2>Xóa tài liệu?</h2>
-              <button type="button" className="bg__close" onClick={() => setPendingDel(null)} aria-label="Đóng"><X size={18} /></button>
-            </div>
-            <div style={{ padding: "16px" }}>
-              <p style={{ margin: "0 0 14px", color: "var(--ash)", fontSize: "13px" }}>
-                “{pendingDel.file_name}” sẽ bị xóa khỏi báo giá này. Không thể hoàn tác.
-              </p>
-              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-                <Button variant="ghost" disabled={deleting} onClick={() => setPendingDel(null)}>Giữ lại</Button>
-                <Button variant="danger" disabled={deleting} onClick={confirmDelete}><Trash2 size={15} /> Xóa</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function QuotationDetailView({
   quotationId,
@@ -774,8 +649,8 @@ function QuotationDetailView({
   onChanged: () => void;
 }) {
   const { token } = useAuth();
-  // Xuất PDF đối ngoại = quyền chi tiết `export` (tách khỏi "xem").
-  const canExport = useCan()("bao_gia", "export");
+  // Xuất PDF đối ngoại = ô THAO TÁC của Báo giá (05/10/2026) — khớp `quotations.py` /pdf.
+  const canExport = useCan()("bao_gia", "update");
   // Tạo phiên bản mới (requote) + toàn bộ thao tác vòng đời THƯỜNG (gửi khách / từ chối / trình
   // duyệt) = ai SỬA được báo giá thì làm được (gộp vào `update` ở P8; quyền `requote` cũ đã bỏ).
   // Backend (`quotations.py` transition_quotation) cũng chỉ đòi `update`, KHÔNG đòi `manage_status`
@@ -1333,15 +1208,13 @@ function QuotationDetailView({
               (quotations.py transition_quotation) — dùng `canRequote` (= can_update) cho khớp,
               KHÔNG dùng `manage_status` (cột đó không có ô tick nào trên ma trận phân quyền nên
               không vai nào ngoài 4 vai seed cứng bật được, khiến nút biến mất — bug 26/08/2026).
-              Chốt cần `approve` (server tính d.can_approve), tạo bản mới cần `update`. */}
-          {viewingLatest && d.status === "sent" && (
+              Khách chốt cũng vậy: trước 05/10/2026 nút này gác bằng cờ `approve` — cột không có ô
+              nào trên ma trận Báo giá, nên chỉ vai Giám đốc seed cứng thấy nút dù máy chủ chỉ đòi
+              `update`. Bài học 26/08 lặp lại; giờ cả hai nút cùng một cờ. */}
+          {viewingLatest && d.status === "sent" && canRequote && (
             <>
-              {canRequote && (
-                <Button variant="secondary" disabled={busy} onClick={() => doTransition("rejected")}><X size={15} /> Khách từ chối</Button>
-              )}
-              {d.can_approve && (
-                <Button variant="primary" disabled={busy || !d.allowed_transitions.includes("accepted")} onClick={openAcceptPicker}><Check size={15} /> Khách chốt</Button>
-              )}
+              <Button variant="secondary" disabled={busy} onClick={() => doTransition("rejected")}><X size={15} /> Khách từ chối</Button>
+              <Button variant="primary" disabled={busy || !d.allowed_transitions.includes("accepted")} onClick={openAcceptPicker}><Check size={15} /> Khách chốt</Button>
             </>
           )}
           {/* Nháp: báo giá ĐẶC THÙ phải TRÌNH DUYỆT (→ Chờ duyệt → GĐ Kinh doanh duyệt); báo giá
@@ -1814,8 +1687,6 @@ function QuotationDetailView({
             )}
           </div>
 
-          {/* Tài liệu đính kèm — vùng kéo-thả cần bề rộng nên ở cột nội dung, không nhét sidebar. */}
-          <AttachmentsPanel token={token} quoteId={d.id} canEdit={canRequote && d.status !== "cancelled"} />
 
         </div>
 

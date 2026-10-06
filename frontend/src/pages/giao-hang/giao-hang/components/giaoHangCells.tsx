@@ -60,7 +60,12 @@ export function TraHang({
 }) {
   if (t.tra_hang_ma) {
     const xong = t.tra_hang_trang_thai === "done";
-    return <Pill text={`${xong ? "Kho đã nhận lại" : "Chờ kho nhận lại"} · ${t.tra_hang_ma}`} tone={xong ? "on" : "warn"} />;
+    return (
+      <span className="gh-tra">
+        <Pill text={xong ? "Kho đã nhận lại" : "Chờ kho nhận lại"} tone={xong ? "on" : "warn"} />
+        <span className="gh-the">{t.tra_hang_ma}</span>
+      </span>
+    );
   }
   if (t.trang_thai === "dang_tra_hang" && onDaTra)
     return <NutCho variant="ghost" bam={onDaTra}>Lập phiếu trả kho</NutCho>;

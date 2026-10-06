@@ -30,13 +30,23 @@ nằm trong dữ liệu sống (`cong_doan.don_vi_vao/ra`, công thức tính gi
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Any, ClassVar
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from .loc_danh_sach import dk_khoang_ngay
+
 # Trần số dòng một trang — chặn client gõ `?size=99999` để kéo cả bảng về.
 SIZE_TRAN = 200
+
+
+def _kieu_python(cot) -> type | None:
+    try:
+        return cot.type.python_type
+    except NotImplementedError:
+        return None
 
 
 class CatalogRepo:
@@ -60,6 +70,12 @@ class CatalogRepo:
 
     order_cols: ClassVar[tuple[str, ...]] = ("ma",)
     """Thứ tự sắp xếp mặc định của `list()`."""
+
+    nhan_cot: ClassVar[dict[str, dict[str, str]]] = {}
+    """Bảng nhãn có sẵn cho giá trị của một cột, dùng ở `dem_theo_cot` (vd họ đơn vị)."""
+
+    bang_nhan_cot: ClassVar[dict[str, tuple[Any, Any]]] = {}
+    """`{cột: (cột id, cột tên)}` của bảng khác để `dem_theo_cot` tra TÊN (khách, mức khoán…)."""
 
     commit_on_write: ClassVar[bool] = True
     """False = chỉ `flush()`, để nơi gọi tự chốt bằng `chot_giao_dich()`.
@@ -140,15 +156,53 @@ class CatalogRepo:
         """SELECT gốc của `list()` — repo con ghi đè để chèn `selectinload` cho quan hệ con."""
         return select(self.model)
 
-    def _dieu_kien(self, *, q: str | None, active: bool | None, **kw) -> list:
+    def _dieu_kien(self, *, q: str | None = None, active: bool | None = None,
+                   tu_ngay: date | None = None, den_ngay: date | None = None,
+                   moc: str | None = None, **kw) -> list:
+        """Mọi điều kiện lọc của màn: ô tìm, đang dùng / đã ngừng, KỲ theo Ngày tạo (`tu_ngay` /
+        `den_ngay`, ranh ngày giờ VN — `moc` hiện chỉ có `tao`), rồi bộ lọc riêng của danh mục."""
         conds = []
         loc_q = self._loc_q(q)
         if loc_q is not None:
             conds.append(loc_q)
         if active is not None:
             conds.append(self.model.active.is_(active))
+        if tu_ngay is not None or den_ngay is not None:
+            conds.extend(dk_khoang_ngay(self.model.created_at, tu_ngay, den_ngay))
         conds.extend(self.extra_conds(**kw))
         return conds
+
+    def dem_theo_cot(self, cot, *, nhan: dict[str, str] | None = None,
+                     bang_nhan: tuple[Any, Any] | None = None, **kw) -> list[dict]:
+        """Giá trị + số dòng của MỘT cột (`cot` = tên cột hoặc biểu thức), dưới ĐÚNG bộ lọc `kw`
+        — nơi gọi đã bỏ điều kiện theo chính cột này ra (giá trị đang không chọn vẫn khoe số).
+
+        Giá trị rỗng/NULL bỏ ra: không lọc được theo "chưa khai". Cột Boolean ra `"true"`/`"false"`.
+        `nhan` = bảng nhãn có sẵn; `bang_nhan = (cột id, cột tên)` = tra tên ở bảng khác (khách,
+        mức khoán, đơn vị) — một truy vấn cho cả danh sách.
+        """
+        if isinstance(cot, str):
+            nhan = nhan if nhan is not None else self.nhan_cot.get(cot)
+            bang_nhan = bang_nhan if bang_nhan is not None else self.bang_nhan_cot.get(cot)
+        col = getattr(self.model, cot) if isinstance(cot, str) else cot
+        stmt = select(col, func.count()).group_by(col)
+        for c in self._dieu_kien(**kw):
+            stmt = stmt.where(c)
+        dem: list[dict] = []
+        for v, n in self.db.execute(stmt):
+            if v is None or (isinstance(v, str) and not v.strip()):
+                continue
+            khoa = ("true" if v else "false") if isinstance(v, bool) else str(v).strip()
+            dem.append({"value": khoa, "nhan": (nhan or {}).get(khoa), "so": int(n)})
+        if bang_nhan is not None and dem:
+            cot_id, cot_ten = bang_nhan
+            ids = [d["value"] for d in dem]
+            if _kieu_python(cot_id) is int:
+                ids = [int(i) for i in ids if i.lstrip("-").isdigit()]
+            ten = {str(i): t for i, t in self.db.execute(select(cot_id, cot_ten).where(cot_id.in_(ids)))}
+            for d in dem:
+                d["nhan"] = ten.get(d["value"]) or d["nhan"]
+        return dem
 
     def list(self, *, q: str | None = None, active: bool | None = None,
              page: int = 1, size: int = 50, **kw):

@@ -132,12 +132,9 @@ MODULES: list[tuple[str, str]] = [
     # PHÂN HỆ nên ma trận bày ra "Kho hàng › Kho hàng", còn trên thanh bên thì không có mục nào
     # tên vậy — người đi cấp quyền không nối được ô với màn.
     ("kho", "Yêu cầu nhập xuất"),
-    # Tồn kho (24/09/2026, mg `0334`) — tách khỏi ô CHI TIẾT `kho:can_view_stock`. Mỗi kho đã khai
-    # báo là MỘT mục menu (AppShell tiêm động dưới khối "Kho hàng"), mở màn Tồn kho của kho đó;
-    # trước đây cả nhóm màn ấy nấp sau một công tắc nằm trong panel chi tiết của màn Yêu cầu nhập
-    # xuất — đúng kiểu "màn không có dòng của riêng nó" mà `bao_cao_kho` vừa thoát ra (mg `0329`).
-    # Xem = thấy khối kho trên menu + số tồn; ô chi tiết `set_threshold` = khai ngưỡng tồn.
-    ("ton_kho", "Tồn kho"),
+    # Tồn kho: KHÔNG còn khoá tĩnh `ton_kho` (05/10/2026, mg `0369`) — mỗi kho đã khai báo là một
+    # dòng quyền ĐỘNG `ton_kho_<id>` mang tên kho, tự sinh theo Khai báo kho
+    # (`services/quyen_kho.py`). Chủ chốt: *"làm kho giống tổ đi, mỗi kho một dòng"*.
     # Báo cáo kho (24/09/2026) — tách khỏi `kho`, CÙNG MỘT LÝ DO với `bao_cao_cong_no` (mg 0260,
     # chủ chốt: *"báo cáo đó là một module riêng mà"*). Trước đó mục menu "Báo cáo kho" gắn khoá
     # `kho` rồi lọc thêm bằng ô CHI TIẾT `kho:close_book` — nghĩa là một MÀN không có dòng của
@@ -332,9 +329,14 @@ def _read(scope: str) -> dict:
 # Cụm TỒN KHO: Xem = thấy khối kho trên thanh bên + số tồn + lô. Việc GHI duy nhất của màn là
 # KHAI NGƯỠNG, đi bằng ô CHI TIẾT `can_set_threshold` (cùng khuôn `bao_cao_kho` + `close_book`):
 # thêm/sửa/xoá của màn này không có nghĩa — kho khai ở danh mục riêng, lô sinh ra từ phiếu nhập.
-# KHÔNG kèm giá vốn — `can_view_cost` vẫn là MỘT công tắc duy nhất nằm trên khoá `kho`, dùng chung
-# cho cả ba màn kho (yêu cầu · tồn · báo cáo), vì quyền thấy giá là của NGƯỜI chứ không của màn.
-# Phạm vi: `ton_kho` scopeless (máy chủ ép `all`) — thấy kho nào là do KHAI BÁO KHO quyết định.
+# KHÔNG kèm giá vốn — từ 05/10/2026 mỗi màn kho có ô "Xem giá thành" RIÊNG (`kho` · từng
+# `ton_kho_<id>` · `bao_cao_kho`); vai nào được thấy tiền ở màn nào thì bật đúng ô của màn đó.
+# Phạm vi: dòng kho scopeless (máy chủ ép `all`).
+#
+# Từ 05/10/2026 mỗi kho một dòng `ton_kho_<id>` — trong `ROLES` khoá `MOI_KHO` ("ton_kho") là khoá
+# GIẢ nghĩa là "cấp y vậy trên MỌI dòng kho đang có" (`seed_roles` bung ra; kho seed SAU vai nên
+# `cap_moi_kho_theo_mau` chạy lại lúc kho đã có).
+MOI_KHO = "ton_kho"
 _TON_KHO = {
     "can_read": True, "can_create": False, "can_update": False, "can_delete": False,
     "can_set_threshold": True, "scope": SCOPE_ALL,
@@ -443,6 +445,7 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
         ADMIN_ROLE,
         {
             **{k: _full(SCOPE_ALL) for k in ALL_MODULE_KEYS},
+            MOI_KHO: _full(SCOPE_ALL),
             "noi_quy": dict(
                 can_read=True, can_create=True, can_update=False, can_delete=True,
                 scope=SCOPE_ALL,
@@ -690,9 +693,9 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
             # Riêng báo giá ĐẶC THÙ (biên thấp / giá trị cao) phải TRÌNH DUYỆT: chỉ TP KD / GĐ KD cầm
             # `can_approve_exception` mới duyệt được (redesign-bao-gia §10). NV Sales KHÔNG có cờ đó.
             "bao_gia": _full(SCOPE_OWN),
-            # Đơn hàng bán: NV KD lập/sửa/chốt đơn CỦA MÌNH (_rcu own + quản trạng thái). Đơn đặc thù
-            # (nhập tay/bổ sung) phải TRÌNH lên TP/GĐ (can_approve_exception). Ghi cọc = Kế toán (P2).
-            "don_hang_ban": {**_rcu(SCOPE_OWN), "can_manage_status": True},
+            # Đơn hàng bán: NV KD lập/sửa/chốt đơn CỦA MÌNH (_rcu own — chốt đi theo Sửa từ
+            # 05/10/2026, không còn ô riêng). Ghi cọc = Kế toán (P2).
+            "don_hang_ban": _rcu(SCOPE_OWN),
             "bao_cao_kinh_doanh": _read(SCOPE_OWN),
             # Xem lệnh SX của ĐƠN mình phụ trách: cùng phạm vi với đơn hàng, không rộng hơn.
             "lenh_san_xuat": _read(SCOPE_OWN),
@@ -726,7 +729,7 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
                 "can_read": True, "can_create": True, "can_update": True, "can_delete": True,
                 "scope": SCOPE_ALL,
             },
-            "ton_kho": dict(_TON_KHO),
+            MOI_KHO: dict(_TON_KHO),
             # Danh mục hàng + khai báo kho: GIỮ NGUYÊN khả năng cũ (hồi chúng còn gác bằng quyền
             # `kho`) — tách module không phải để âm thầm rút quyền của người đang làm việc. Muốn
             # siết "thủ kho không đặt đơn giá giấy" thì tắt công tắc Thao tác ở ma trận.
@@ -755,7 +758,7 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
                 "can_read": True, "can_create": True, "can_update": True, "can_delete": True,
                 "scope": SCOPE_ALL,
             },
-            "ton_kho": dict(_TON_KHO),
+            MOI_KHO: dict(_TON_KHO),
             **{k: _dm_full() for k in ("dm_giay", "dm_vat_tu", "dm_kho_hang")},
             "san_xuat": _read(SCOPE_ALL),
             # Scope rộng hơn giữa `san_xuat` (all, không có `don_hang_ban`) = all.
@@ -782,9 +785,8 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
     ),
     # Kế toán tổng hợp (26/08/2026): 5 màn tách khỏi khoá `ke_toan` ngày 10/08/2026 (Phiếu chi ·
     # Phiếu thu · hai màn Công nợ · Tài khoản ngân hàng) đến nay KHÔNG vai nào cầm ngoài Giám đốc
-    # — người làm kế toán không mở nổi màn của chính mình. Bộ ô bám ĐÚNG vai mẫu `ke_toan` trong
-    # `services/role_templates.py` (thứ ma trận đang chào admin khi tạo vai), thêm cụm Lương vì
-    # kế toán là người CHI lương.
+    # — người làm kế toán không mở nổi màn của chính mình. Bộ ô bám vai mẫu `ke_toan` cũ (bảng vai
+    # mẫu đã gỡ 05/10/2026), thêm cụm Lương vì kế toán là người CHI lương.
     (
         "Kế toán",
         "Kế toán tổng hợp",
@@ -837,11 +839,11 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
             # Kế toán kho: XEM GIÁ VỐN (can_view_cost — tách riêng khỏi xem tồn) + KHÓA KỲ (chốt sổ)
             # + Báo cáo kho + export MISA (can_close_book). Chỉ vai này (+ GĐ) thấy giá.
             "kho": {**_read(SCOPE_ALL), "can_view_cost": True, "can_close_book": True},
-            "ton_kho": dict(_TON_KHO),
+            MOI_KHO: {**_TON_KHO, "can_view_cost": True},
             # Báo cáo kho tách thành module riêng 24/09/2026: Xem = vào màn + export MISA,
             # `can_close_book` = khoá kỳ / tính giá kỳ. Cờ `kho.can_close_book` ở trên GIỮ LẠI
             # cho các cửa cũ của chính màn Kho (popup lịch sử mặt hàng) — xem mg `0329`.
-            "bao_cao_kho": {**_read(SCOPE_ALL), "can_close_book": True},
+            "bao_cao_kho": {**_read(SCOPE_ALL), "can_view_cost": True, "can_close_book": True},
             # Đối chiếu giá vốn cần TRA danh mục, không sửa.
             **{k: _read(SCOPE_ALL) for k in ("dm_giay", "dm_vat_tu")},
         },
@@ -1072,7 +1074,35 @@ def seed_roles(db: Session, *, chi_phong: str | None = None) -> None:
         # `commit=False`: 277 lượt upsert cho một lần dựng DB — commit từng lượt là pha tốn
         # nhất của bộ test. Chốt MỘT lần sau vòng lặp ngoài.
         for module_key, perm in du.items():
-            roles.set_permission(role_id=role.id, module_key=module_key, commit=False, **perm)
+            for khoa in _bung_khoa(db, module_key):
+                roles.set_permission(role_id=role.id, module_key=khoa, commit=False, **perm)
+    db.commit()
+
+
+def _bung_khoa(db: Session, module_key: str) -> list[str]:
+    """Khoá GIẢ `MOI_KHO` → mọi dòng quyền theo kho đang có; khoá thường giữ nguyên."""
+    if module_key != MOI_KHO:
+        return [module_key]
+    from .repositories.quyen_kho_repo import QuyenKhoRepository
+    return sorted(QuyenKhoRepository(db).module_kho())
+
+
+def cap_moi_kho_theo_mau(db: Session) -> None:
+    """Kho seed SAU vai (`seed_kho_ncc`) ⇒ lúc `seed_roles` chạy chưa có dòng kho nào. Gọi sau khi
+    đã có kho: đồng bộ dòng kho rồi cấp đúng phần `MOI_KHO` của từng vai mẫu."""
+    from .services.quyen_kho import dong_bo_dong_quyen_kho
+    dong_bo_dong_quyen_kho(db)
+    depts = DepartmentRepository(db)
+    roles = RoleRepository(db)
+    for dept_name, role_name, perms in ROLES:
+        if MOI_KHO not in perms:
+            continue
+        dept = depts.get_by_name(dept_name)
+        role = roles.get_by_name_and_department(role_name, dept.id) if dept else None
+        if role is None:
+            continue
+        for khoa in _bung_khoa(db, MOI_KHO):
+            roles.set_permission(role_id=role.id, module_key=khoa, commit=False, **perms[MOI_KHO])
     db.commit()
 
 
@@ -3106,6 +3136,10 @@ def dong_bo_danh_muc_he_thong(db: Session) -> None:
     seed_modules(db)
     from .services.quyen_to import dong_bo_dong_quyen_to
     dong_bo_dong_quyen_to(db)
+    # Dòng quyền theo KHO (`ton_kho_<id>`, 05/10/2026) soi theo bảng kho người dùng đã khai — cùng
+    # luật: chỉ phản chiếu, không đẻ kho.
+    from .services.quyen_kho import dong_bo_dong_quyen_kho
+    dong_bo_dong_quyen_kho(db)
 
 
 def seed_all(db: Session) -> None:
@@ -3194,6 +3228,9 @@ def seed_du_lieu(db: Session, *, demo: bool) -> None:
         # + lô tồn + ngưỡng (đèn đủ/cần mua). CHẠY SAU vì lặp trên danh mục giấy/vật tư ở trên.
         from .seed_kho_ncc import seed_kho_ncc
         seed_kho_ncc(db)
+        # Kho vừa seed ⇒ dòng quyền theo kho + phần "mọi kho" của các vai mẫu (Thủ kho, Kế toán
+        # kho…) — lúc `seed_roles` chạy chưa có kho nào để cấp.
+        cap_moi_kho_theo_mau(db)
         # Kỹ thuật máy: lịch bảo trì trên máy + phiếu sửa chữa + phiếu bảo trì. CHẠY SAU vì cần
         # danh mục máy (`_ensure_may_nang_luc` ở trên) và vai "Thợ sửa chữa" từ seed RBAC.
         from .seed_ky_thuat_may import seed_ky_thuat_may

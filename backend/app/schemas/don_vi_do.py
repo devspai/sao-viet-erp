@@ -5,6 +5,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .loc_danh_muc import DemDieuKien
+
 
 class DonViDoIn(BaseModel):
     ma: str = Field(min_length=1, max_length=24)
@@ -33,6 +35,7 @@ class DonViDoRow(BaseModel):
     ghi_chu: str | None = None
     active: bool
     dung_lam_toc_do: bool = False
+    created_at: datetime | None = None
     updated_at: datetime | None = None
     # Cảnh báo mềm (chưa khai quy đổi với ai) — hiện ở màn khai, không chặn lưu.
     canh_bao: list[str] = Field(default_factory=list)
@@ -51,6 +54,8 @@ class DonViDoListOut(BaseModel):
     total: int
     page: int
     size: int
+    # Giá trị + số đếm của từng điều kiện lọc (thanh lọc chung) — xem `schemas/loc_danh_muc`.
+    dem: DemDieuKien = {}
 
 
 class BienListOut(BaseModel):

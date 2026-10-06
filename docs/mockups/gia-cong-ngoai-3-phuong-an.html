@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gia công ngoài — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+  --amber:#a07a12; --amber-soft:#efe4c4; --amber-deep:#7a5c0f; --signal:#8a1f1f;
+  --steel-soft:#dde1e5; --charcoal:#0f172a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1120px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--ash);margin:0 0 12px;max-width:820px}
+.loi{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:14px 18px;margin:0 0 40px;max-width:860px;color:var(--ash)}
+.loi b{color:var(--ink)}
+.loi ol{margin:6px 0 0;padding-left:20px}
+.opt{margin-bottom:72px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.goi-y{font-size:12px;font-weight:600;color:var(--moss-deep);background:var(--moss-soft);border-radius:999px;padding:2px 10px}
+.why{color:var(--ash);margin:0 0 16px;max-width:880px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+.trang-thai-mau{font-size:12px;font-weight:600;color:var(--ash-2);margin:22px 0 8px;letter-spacing:.02em}
+
+/* Ngữ cảnh: phần trên + dải tab của hồ sơ lệnh, mờ đi để khối gia công nổi lên. */
+.ctx{opacity:.55;pointer-events:none}
+.ctx-card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:14px 22px;margin-bottom:12px}
+.ctx-card h3{margin:0 0 10px;font-size:18px}
+.ctx-chips{display:flex;flex-wrap:wrap;gap:8px}
+.ctx-chip{border:1px solid var(--rule);border-radius:999px;padding:3px 12px;font-size:13px}
+.ctx-tabs{display:flex;gap:6px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:5px;margin-top:12px}
+.ctx-tab{padding:6px 16px;border-radius:8px;font-size:13.5px;color:var(--ash)}
+.ctx-tab.on{background:var(--charcoal);color:#fff;font-weight:600}
+
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash)}
+.btn--sm{height:30px;padding:0 10px;font-size:12.5px}
+.lk{color:var(--rust);font-weight:600;font-size:13px;background:none;border:0;padding:0;font:inherit;font-size:13px;cursor:pointer}
+.lk:hover{text-decoration:underline}
+.muted{color:var(--ash-2)}
+.num{font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill--ngoai{background:var(--amber-soft);color:var(--amber-deep)}
+.pill--ve{background:var(--moss-soft);color:var(--moss-deep)}
+.the{display:inline-flex;align-items:center;font-size:12px;color:var(--ash);background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:6px;padding:1px 8px;white-space:nowrap}
+.tel{display:inline-flex;align-items:center;gap:5px;color:var(--rust);font-size:13px;text-decoration:none}
+.tel svg{width:12px;height:12px}
+.chua{color:var(--amber-deep);font-weight:600}
+
+/* ===================== A — Shopify Fulfillment + Stripe Timeline ===================== */
+.a{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.a-dau{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid var(--rule-soft)}
+.a-dau h4{margin:0;font-size:16px;font-weight:700}
+.a-dau .nhan{font-size:12px;color:var(--ash-2);font-weight:600}
+.a-dau-nut{margin-left:auto;display:flex;gap:8px}
+.a-than{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
+.a-dl{margin:0;padding:6px 22px 14px}
+.a-dl > div{display:grid;grid-template-columns:120px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--rule-hair)}
+.a-dl > div:last-child{border-bottom:0}
+.a-dl dt{color:var(--ash-2);font-size:13px}
+.a-dl dd{margin:0;display:flex;flex-direction:column;gap:2px}
+.a-dl dd b{font-weight:600}
+.a-dl .hang{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.a-tl{padding:16px 22px;border-left:1px solid var(--rule-soft);background:var(--paper)}
+.a-tl h5{margin:0 0 12px;font-size:12px;font-weight:600;color:var(--ash-2)}
+.a-tl ol{list-style:none;margin:0;padding:0}
+.a-tl li{position:relative;padding:0 0 18px 28px}
+.a-tl li:last-child{padding-bottom:0}
+.a-tl li::before{content:"";position:absolute;left:5px;top:6px;width:12px;height:12px;border-radius:50%;border:2px solid var(--rule);background:var(--canvas)}
+.a-tl li::after{content:"";position:absolute;left:10px;top:20px;bottom:-2px;width:2px;background:var(--rule-soft)}
+.a-tl li:last-child::after{display:none}
+.a-tl li.xong::before{background:var(--moss);border-color:var(--moss)}
+.a-tl li.dang::before{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 4px var(--amber-soft)}
+.a-tl .t{font-weight:600}
+.a-tl .p{display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--ash-2)}
+.a-tl .phu{margin-top:6px;padding:6px 10px;border:1px solid var(--rule-soft);border-radius:8px;background:var(--canvas);font-size:12.5px;color:var(--ash)}
+.a-tl li.cho .t{color:var(--ash-2);font-weight:500}
+
+/* ===================== B — Linear / Attio: một dải gọn ===================== */
+.b{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:14px 20px;display:flex;flex-direction:column;gap:10px}
+.b-dong1{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.b-nhan{font-size:12px;font-weight:600;color:var(--ash-2);width:100%;margin-bottom:-6px}
+.b-cau{font-size:15px;font-weight:600;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.b-cau .ncc{font-weight:700}
+.b-nut{margin-left:auto;display:flex;gap:8px}
+.b-props{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;padding-top:10px;border-top:1px solid var(--rule-hair)}
+.b-prop{display:inline-flex;align-items:baseline;gap:8px;font-size:13px}
+.b-prop span:first-child{color:var(--ash-2);font-size:12px}
+.b-prop b{font-weight:600}
+.b-chuyen{font-size:12.5px;color:var(--ash-2);display:flex;align-items:center;gap:6px}
+.b-chuyen b{color:var(--ink);font-weight:600}
+.b-log{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:6px 22px;margin-top:12px}
+.b-log-dong{display:grid;grid-template-columns:110px 1fr;gap:14px;padding:10px 0;border-bottom:1px solid var(--rule-hair);font-size:13px}
+.b-log-dong:last-child{border-bottom:0}
+.b-log-dong .luc{color:var(--ash-2);font-variant-numeric:tabular-nums}
+.b-log-dong .nhom{display:inline-block;margin-right:8px}
+
+/* ===================== C — Flexport / theo dõi vận đơn ===================== */
+.c{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:18px 22px 16px}
+.c-dau{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.c-dau h4{margin:0;font-size:16px;font-weight:700}
+.c-dau .nhan{font-size:12px;color:var(--ash-2);font-weight:600}
+.c-dau-phu{margin-left:auto}
+.c-track{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:0;padding:0;list-style:none}
+.c-buoc{position:relative;padding:0 16px 0 0}
+.c-buoc .dot{position:relative;z-index:1;width:22px;height:22px;border-radius:50%;border:2px solid var(--rule);background:var(--canvas);display:grid;place-items:center;font-size:12px;color:#fff}
+.c-buoc::after{content:"";position:absolute;top:10px;left:22px;right:0;height:2px;background:var(--rule-soft)}
+.c-buoc:last-child::after{display:none}
+.c-buoc.xong .dot{background:var(--moss);border-color:var(--moss)}
+.c-buoc.xong::after{background:var(--moss)}
+.c-buoc.dang .dot{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 4px var(--amber-soft)}
+.c-buoc .t{margin-top:8px;font-weight:600}
+.c-buoc.cho .t{color:var(--ash-2);font-weight:500}
+.c-buoc .p{display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--ash-2);min-height:19px}
+.c-buoc .hanh-dong{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.c-facts{display:flex;flex-wrap:wrap;gap:8px 32px;margin-top:18px;padding-top:14px;border-top:1px solid var(--rule-hair)}
+.c-fact{display:flex;flex-direction:column;gap:1px;min-width:0}
+.c-fact > span{font-size:12px;color:var(--ash-2)}
+.c-fact b{font-weight:600}
+.c-fact .hang{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.c-khac{margin-top:12px;font-size:12.5px;color:var(--ash-2)}
+
+@media (max-width:760px){
+  .a-than{grid-template-columns:1fr}
+  .a-tl{border-left:0;border-top:1px solid var(--rule-soft)}
+  .a-dau,.c-dau{flex-wrap:wrap}
+  .a-dau-nut,.b-nut{margin-left:0;width:100%}
+  .c-track{grid-template-columns:1fr;gap:16px}
+  .c-buoc::after{display:none}
+  .b-log-dong{grid-template-columns:1fr;gap:2px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Khối Gia công ngoài trên hồ sơ lệnh — 3 phương án</h1>
+  <p class="lead">Dữ liệu thật của lệnh LSX26-0002 (Hộp kem 50ml). Mỗi phương án vẽ hai lúc: lúc đang ở nhà gia công (đúng ảnh chụp) và một lần gia công một phần đã nhận về, để thấy khối co giãn ra sao khi có tiền và phiếu chi.</p>
+
+  <div class="loi">
+    <b>Khối hiện tại hỏng ở đâu</b>
+    <ol>
+      <li><b>Lịch sử lặp lại hết phần trên.</b> Dòng "Admin đặt gia công ngoài" chính là mốc "Giao việc 11:11 Admin" của thanh tiến độ, còn câu chi tiết nhắc lại nhà gia công, 5.000 cái và chuyện giấy đã có ở hàng thông tin.</li>
+      <li><b>Câu chi tiết do máy chủ ghép</b> bằng gạch ngang và chấm phẩy, in "5000" không có dấu chấm nghìn.</li>
+      <li><b>Ngày in là "06-10"</b> trong khi cả hệ thống viết "06/10".</li>
+      <li><b>Thanh tiến độ ba đoạn mảnh dàn hết bề ngang</b>: hai phần ba bề rộng chỉ để vẽ một vạch màu, chữ "Đang gia công" không cho biết đã ở ngoài bao lâu.</li>
+      <li><b>Bốn cặp nhãn–giá trị rải trên 1.500px</b>, mắt phải quét ngang cả màn. Ô "Chưa khai" màu cam đứng sát "Khai giá" cũng màu cam, trông như hai chữ lỗi.</li>
+      <li><b>Khối cao ~400px chen giữa phần đầu lệnh và dải tab</b>, đẩy nội dung chính xuống dưới mép màn hình.</li>
+    </ol>
+  </div>
+
+  <!-- ======================================================= A ======================================================= -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>A. Thẻ hai cột: thông tin trái, dòng thời gian phải</h2>
+      <span class="src">Shopify: thẻ Fulfillment của trang đơn</span>
+      <span class="src">Stripe: Timeline của trang thanh toán</span>
+    </div>
+    <div class="why">
+      <b>Ý chính:</b> gộp thanh tiến độ và Lịch sử thành MỘT dòng thời gian dọc. Mỗi sự kiện của sổ nhật ký mọc đúng dưới mốc của nó (sửa đơn giá, mở lại), nên không còn hai chỗ kể cùng một chuyện.
+      <ul>
+        <li>Shopify đặt thông tin giao hàng (đơn vị vận chuyển, mã vận đơn) bên trái và mốc giao nhận bên phải trong cùng một thẻ. Stripe gom mọi sự kiện của khoản thanh toán vào một cột thời gian.</li>
+        <li>Mốc đang đứng nói luôn đã ở ngoài bao lâu. Mốc chưa tới nói việc tiếp theo.</li>
+        <li>Chiều cao gần như cố định: lần nhiều sự kiện thì cột phải dài ra, cột trái không đổi.</li>
+      </ul>
+    </div>
+
+    <div class="trang-thai-mau">LÚC ĐANG Ở NHÀ GIA CÔNG (trọn gói)</div>
+    <div class="ctx"><div class="ctx-card"><h3>Hộp kem 50ml (5×5×12 cm)</h3><div class="ctx-chips"><span class="ctx-chip">Đơn DH001</span><span class="ctx-chip">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</span><span class="ctx-chip">PO: PO999</span></div></div></div>
+    <article class="a">
+      <header class="a-dau">
+        <div>
+          <div class="nhan">GIA CÔNG NGOÀI</div>
+          <div style="display:flex;align-items:center;gap:10px"><h4>Trọn gói cả lệnh</h4><span class="pill pill--ngoai">Đang ở nhà gia công</span></div>
+        </div>
+        <div class="a-dau-nut"><button class="btn btn--txt">Huỷ gia công</button><button class="btn btn--pri">Nhận hàng về</button></div>
+      </header>
+      <div class="a-than">
+        <dl class="a-dl">
+          <div><dt>Nhà gia công</dt><dd><b>Cơ sở Gia công Cán màng Thành Công</b><a class="tel" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>0910726420</a></dd></div>
+          <div><dt>Số đặt</dt><dd><b class="num">5.000 cái</b></dd></div>
+          <div><dt>Giấy</dt><dd><b>Nhà gia công tự lo</b></dd></div>
+          <div><dt>Đơn giá</dt><dd class="hang"><span class="muted">Chưa khai</span><button class="lk">Khai giá</button></dd></div>
+        </dl>
+        <div class="a-tl">
+          <h5>DÒNG THỜI GIAN</h5>
+          <ol>
+            <li class="xong"><div class="t">Giao việc</div><div class="p"><span>11:11 06/10</span><span>Admin</span></div></li>
+            <li class="dang"><div class="t">Đang gia công</div><div class="p"><span>Được 2 giờ</span></div></li>
+            <li class="cho"><div class="t">Nhận hàng về</div><div class="p"><span>Bấm Nhận hàng về khi nhà gia công trả hàng</span></div></li>
+          </ol>
+        </div>
+      </div>
+    </article>
+    <div class="ctx"><div class="ctx-tabs"><span class="ctx-tab on">Thông tin chung</span><span class="ctx-tab">Quy cách</span><span class="ctx-tab">Công đoạn</span><span class="ctx-tab">Vật tư</span><span class="ctx-tab">Tệp đính kèm</span><span class="ctx-tab">Nhật ký</span></div></div>
+
+    <div class="trang-thai-mau">LÚC ĐÃ NHẬN VỀ (một phần, có đơn giá, đã sửa giá một lần)</div>
+    <article class="a">
+      <header class="a-dau">
+        <div>
+          <div class="nhan">GIA CÔNG NGOÀI</div>
+          <div style="display:flex;align-items:center;gap:10px"><h4>Cán màng bóng</h4><span class="pill pill--ve">Đã nhận về</span></div>
+        </div>
+        <div class="a-dau-nut"><button class="btn">Mở lại</button></div>
+      </header>
+      <div class="a-than">
+        <dl class="a-dl">
+          <div><dt>Nhà gia công</dt><dd><b>Cơ sở Gia công Cán màng Thành Công</b><a class="tel" href="#">0910726420</a></dd></div>
+          <div><dt>Mang đi</dt><dd><b class="num">2.600 tờ</b></dd></div>
+          <div><dt>Nhận về</dt><dd><b class="num">2.580 tờ</b><span class="muted">Về xưởng làm tiếp ở bước Bế</span></dd></div>
+          <div><dt>Đơn giá</dt><dd><span class="hang"><b class="num">350đ / tờ</b><button class="lk">Sửa</button></span><span class="muted num">Thành tiền 903.000đ</span></dd></div>
+          <div><dt>Chi tiền</dt><dd><b>Chờ kế toán chi</b></dd></div>
+        </dl>
+        <div class="a-tl">
+          <h5>DÒNG THỜI GIAN</h5>
+          <ol>
+            <li class="xong"><div class="t">Phát hành</div><div class="p"><span>08:20 07/10</span><span>Admin</span></div></li>
+            <li class="xong"><div class="t">Mang đi</div><div class="p"><span>14:05 07/10</span><span>Admin</span></div></li>
+            <li class="xong"><div class="t">Nhận về</div><div class="p"><span>09:30 08/10</span><span>Admin</span></div>
+              <div class="phu">10:02 08/10 Admin sửa đơn giá từ 320đ thành 350đ</div></li>
+          </ol>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- ======================================================= B ======================================================= -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>B. Một dải gọn, lịch sử về tab Nhật ký</h2>
+      <span class="src">Linear: dải thuộc tính của issue</span>
+      <span class="src">Attio: đầu bản ghi</span>
+      <span class="goi-y">Gợi ý chọn</span>
+    </div>
+    <div class="why">
+      <b>Ý chính:</b> khối này nằm chắn giữa đầu lệnh và dải tab, nên chỉ được trả lời đúng một câu: <b>hàng đang ở đâu, từ bao giờ, việc tiếp theo là gì</b>. Mọi thứ còn lại thu thành một hàng thuộc tính nhỏ. Lịch sử chuyển về tab <b>Nhật ký</b> của lệnh, nơi người ta vốn tìm "ai làm gì lúc nào".
+      <ul>
+        <li>Linear không đặt lịch sử cạnh thuộc tính. Thuộc tính là một hàng chip, hoạt động nằm ở luồng riêng bên dưới. Attio cũng vậy: đầu bản ghi chỉ có vài trường then chốt.</li>
+        <li>Khối cao ~110px thay vì ~400px. Nhìn là hiểu ngay câu chuyện mà không phải ghép bốn ô lại.</li>
+        <li><b>Phải sửa máy chủ một chút:</b> tab Nhật ký hiện chỉ đọc sổ của lệnh, chưa đọc sổ của lần gia công. Cần gộp thêm, và viết lại câu chi tiết cho sạch (bỏ gạch ngang, chấm phẩy, in số có dấu chấm nghìn).</li>
+      </ul>
+    </div>
+
+    <div class="trang-thai-mau">LÚC ĐANG Ở NHÀ GIA CÔNG (trọn gói)</div>
+    <div class="ctx"><div class="ctx-card"><h3>Hộp kem 50ml (5×5×12 cm)</h3><div class="ctx-chips"><span class="ctx-chip">Đơn DH001</span><span class="ctx-chip">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</span><span class="ctx-chip">PO: PO999</span></div></div></div>
+    <article class="b">
+      <div class="b-dong1">
+        <span class="b-nhan">GIA CÔNG NGOÀI TRỌN GÓI CẢ LỆNH</span>
+        <div class="b-cau">
+          <span class="pill pill--ngoai">Đang ở nhà gia công</span>
+          <span class="ncc">Cơ sở Gia công Cán màng Thành Công</span>
+          <span class="the">Từ 11:11 06/10</span>
+          <span class="the">Được 2 giờ</span>
+        </div>
+        <div class="b-nut"><button class="btn btn--txt">Huỷ gia công</button><button class="btn btn--pri">Nhận hàng về</button></div>
+      </div>
+      <div class="b-props">
+        <span class="b-prop"><span>Số đặt</span><b class="num">5.000 cái</b></span>
+        <span class="b-prop"><span>Giấy</span><b>Nhà gia công tự lo</b></span>
+        <span class="b-prop"><span>Gọi</span><a class="tel" href="#">0910726420</a></span>
+        <span class="b-prop"><span>Đơn giá</span><span class="muted">Chưa khai</span><button class="lk">Khai giá</button></span>
+        <span class="b-chuyen" style="margin-left:auto">Giao việc bởi <b>Admin</b></span>
+      </div>
+    </article>
+    <div class="ctx"><div class="ctx-tabs"><span class="ctx-tab on">Thông tin chung</span><span class="ctx-tab">Quy cách</span><span class="ctx-tab">Công đoạn</span><span class="ctx-tab">Vật tư</span><span class="ctx-tab">Tệp đính kèm</span><span class="ctx-tab">Nhật ký</span></div></div>
+
+    <div class="trang-thai-mau">LÚC ĐÃ NHẬN VỀ (một phần, có đơn giá)</div>
+    <article class="b">
+      <div class="b-dong1">
+        <span class="b-nhan">GIA CÔNG NGOÀI CÁN MÀNG BÓNG</span>
+        <div class="b-cau">
+          <span class="pill pill--ve">Đã nhận về</span>
+          <span class="ncc num">2.580 tờ</span>
+          <span class="the">Về xưởng làm tiếp ở bước Bế</span>
+          <span class="the">09:30 08/10</span>
+        </div>
+        <div class="b-nut"><button class="btn">Mở lại</button></div>
+      </div>
+      <div class="b-props">
+        <span class="b-prop"><span>Nhà gia công</span><b>Cơ sở Gia công Cán màng Thành Công</b></span>
+        <span class="b-prop"><span>Mang đi</span><b class="num">2.600 tờ</b></span>
+        <span class="b-prop"><span>Đơn giá</span><b class="num">350đ / tờ</b><button class="lk">Sửa</button></span>
+        <span class="b-prop"><span>Thành tiền</span><b class="num">903.000đ</b></span>
+        <span class="b-prop"><span>Chi tiền</span><b>Chờ kế toán chi</b></span>
+      </div>
+    </article>
+
+    <div class="trang-thai-mau">TAB NHẬT KÝ CỦA LỆNH SAU KHI GỘP (các dòng gia công có thẻ nhóm riêng)</div>
+    <div class="b-log">
+      <div class="b-log-dong"><span class="luc">10:02 08/10</span><span><span class="the nhom">Gia công ngoài</span><b>Admin</b> sửa đơn giá Cán màng bóng từ 320đ thành 350đ</span></div>
+      <div class="b-log-dong"><span class="luc">09:30 08/10</span><span><span class="the nhom">Gia công ngoài</span><b>Admin</b> nhận về 2.580 tờ Cán màng bóng</span></div>
+      <div class="b-log-dong"><span class="luc">11:11 06/10</span><span><span class="the nhom">Gia công ngoài</span><b>Admin</b> giao trọn gói cho Cơ sở Gia công Cán màng Thành Công</span></div>
+      <div class="b-log-dong"><span class="luc">10:48 06/10</span><span><b>Admin</b> sửa hạn giao thành 30/10/2026</span></div>
+    </div>
+  </section>
+
+  <!-- ======================================================= C ======================================================= -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>C. Thanh theo dõi ngang, nút nằm ngay ở mốc kế tiếp</h2>
+      <span class="src">Flexport: theo dõi lô hàng</span>
+      <span class="src">Grab / Giao Hàng Nhanh: trạng thái đơn giao</span>
+    </div>
+    <div class="why">
+      <b>Ý chính:</b> giữ thanh tiến độ ngang nhưng làm nó có nghĩa: mỗi mốc là một chấm có tên, giờ và người, mốc đang đứng nói đã bao lâu. Nút hành động <b>nằm dưới mốc kế tiếp</b> thay vì dồn ở góc phải, nên người dùng thấy bấm nút là đi tới mốc nào.
+      <ul>
+        <li>Flexport và các app giao hàng đều vẽ chặng ngang với chấm, nút xác nhận đặt ngay ở chặng đang chờ.</li>
+        <li>Thông tin thu thành một hàng cặp nhãn–giá trị sát nhau, không rải hết bề ngang.</li>
+        <li>Lịch sử bỏ hẳn khỏi khối. Sự kiện không thuộc mốc nào (sửa giá, mở lại) hiện thành một dòng chữ nhỏ cuối khối.</li>
+      </ul>
+    </div>
+
+    <div class="trang-thai-mau">LÚC ĐANG Ở NHÀ GIA CÔNG (trọn gói)</div>
+    <div class="ctx"><div class="ctx-card"><h3>Hộp kem 50ml (5×5×12 cm)</h3><div class="ctx-chips"><span class="ctx-chip">Đơn DH001</span><span class="ctx-chip">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</span><span class="ctx-chip">PO: PO999</span></div></div></div>
+    <article class="c">
+      <div class="c-dau">
+        <div>
+          <div class="nhan">GIA CÔNG NGOÀI</div>
+          <h4>Trọn gói cả lệnh</h4>
+        </div>
+        <div class="c-dau-phu"><button class="btn btn--txt btn--sm">Huỷ gia công</button></div>
+      </div>
+      <ol class="c-track">
+        <li class="c-buoc xong"><span class="dot">✓</span><div class="t">Giao việc</div><div class="p"><span>11:11 06/10</span><span>Admin</span></div></li>
+        <li class="c-buoc dang"><span class="dot"></span><div class="t">Đang ở nhà gia công</div><div class="p"><span>Được 2 giờ</span></div></li>
+        <li class="c-buoc cho"><span class="dot"></span><div class="t">Nhận về</div><div class="p"></div>
+          <div class="hanh-dong"><button class="btn btn--pri btn--sm">Nhận hàng về</button></div></li>
+      </ol>
+      <div class="c-facts">
+        <div class="c-fact"><span>Nhà gia công</span><div class="hang"><b>Cơ sở Gia công Cán màng Thành Công</b><a class="tel" href="#">0910726420</a></div></div>
+        <div class="c-fact"><span>Số đặt</span><b class="num">5.000 cái</b></div>
+        <div class="c-fact"><span>Giấy</span><b>Nhà gia công tự lo</b></div>
+        <div class="c-fact"><span>Đơn giá</span><div class="hang"><span class="muted">Chưa khai</span><button class="lk">Khai giá</button></div></div>
+      </div>
+    </article>
+    <div class="ctx"><div class="ctx-tabs"><span class="ctx-tab on">Thông tin chung</span><span class="ctx-tab">Quy cách</span><span class="ctx-tab">Công đoạn</span><span class="ctx-tab">Vật tư</span><span class="ctx-tab">Tệp đính kèm</span><span class="ctx-tab">Nhật ký</span></div></div>
+
+    <div class="trang-thai-mau">LÚC ĐÃ NHẬN VỀ (một phần, có đơn giá, đã sửa giá một lần)</div>
+    <article class="c">
+      <div class="c-dau">
+        <div>
+          <div class="nhan">GIA CÔNG NGOÀI</div>
+          <h4>Cán màng bóng</h4>
+        </div>
+        <div class="c-dau-phu"><button class="btn btn--sm">Mở lại</button></div>
+      </div>
+      <ol class="c-track">
+        <li class="c-buoc xong"><span class="dot">✓</span><div class="t">Phát hành</div><div class="p"><span>08:20 07/10</span><span>Admin</span></div></li>
+        <li class="c-buoc xong"><span class="dot">✓</span><div class="t">Mang đi <span class="num">2.600 tờ</span></div><div class="p"><span>14:05 07/10</span><span>Admin</span></div></li>
+        <li class="c-buoc xong"><span class="dot">✓</span><div class="t">Nhận về <span class="num">2.580 tờ</span></div><div class="p"><span>09:30 08/10</span><span>Admin</span></div></li>
+      </ol>
+      <div class="c-facts">
+        <div class="c-fact"><span>Nhà gia công</span><div class="hang"><b>Cơ sở Gia công Cán màng Thành Công</b><a class="tel" href="#">0910726420</a></div></div>
+        <div class="c-fact"><span>Hàng về</span><b>Về xưởng làm tiếp ở bước Bế</b></div>
+        <div class="c-fact"><span>Đơn giá</span><div class="hang"><b class="num">350đ / tờ</b><button class="lk">Sửa</button></div></div>
+        <div class="c-fact"><span>Thành tiền</span><b class="num">903.000đ</b></div>
+        <div class="c-fact"><span>Chi tiền</span><b>Chờ kế toán chi</b></div>
+      </div>
+      <div class="c-khac">10:02 08/10 Admin sửa đơn giá từ 320đ thành 350đ</div>
+    </article>
+  </section>
+</div>
+</body>
+</html>

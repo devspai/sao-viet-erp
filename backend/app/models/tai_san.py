@@ -34,15 +34,20 @@ from ..db import Base
 LOAI_TSCD = "tscd"
 LOAI_CCDC = "ccdc"
 
-# `tai_san_bien_dong.loai` — hai chứng từ, một bảng. `ghi_giam` chỉ còn ở dòng CŨ: chủ bỏ nghiệp
-# vụ ghi giảm 08/09/2026 ("cái ghi giảm bỏ đi") — món bán / hỏng / không dùng nữa thì XOÁ khỏi sổ.
+# `tai_san_bien_dong.loai` — ba chứng từ, một bảng. `ghi_giam` chỉ còn ở dòng CŨ (nghiệp vụ ghi giảm
+# kiểu kế toán bỏ 08/09/2026). Từ 05/10/2026 món bán / hỏng / mất đi bằng `thoi_dung`: ngừng trích
+# từ ngày đó, thẻ vẫn còn để tra cứu — XOÁ chỉ còn cho tài sản nhập nhầm, chưa có lịch sử.
 BD_DIEU_CHUYEN = "dieu_chuyen"
 BD_NANG_CAP = "nang_cap"
 BD_GHI_GIAM = "ghi_giam"
+BD_THOI_DUNG = "thoi_dung"
+
+#: `tai_san_bien_dong.kieu_thoi_dung` — lý do thôi dùng, chọn một.
+KIEU_THOI_DUNG = {"ban": "Bán", "thanh_ly": "Thanh lý", "hong": "Hỏng", "mat": "Mất"}
 
 TT_DANG_DUNG = "dang_dung"
-#: Chỉ dòng CŨ (đã ghi giảm trước 08/09/2026): engine vẫn ngừng trích từ `ngay_giam`, bảng vẫn
-#: hiện "Đã ghi giảm" + còn lại 0; không mã nào đặt trạng thái này nữa.
+#: Đã thôi dùng (bán / thanh lý / hỏng / mất — chứng từ `thoi_dung`; dòng cũ trước 08/09/2026 là
+#: ghi giảm). Engine ngừng trích từ `ngay_giam`. Giữ giá trị `da_giam` cho khỏi đổi dữ liệu cũ.
 TT_DA_GIAM = "da_giam"
 
 # `nguon_vao` — tài sản mua mới trong kỳ vs số dư mang sang lúc bắt đầu dùng phần mềm.
@@ -122,8 +127,7 @@ class TaiSan(Base):
     trang_thai: Mapped[str] = mapped_column(
         String(12), nullable=False, index=True, default=TT_DANG_DUNG, server_default=TT_DANG_DUNG
     )
-    #: Chỉ dòng CŨ đã ghi giảm trước 08/09/2026 — từ ngày này engine ngừng trích. Không còn mã
-    #: nào ghi vào cột này.
+    #: Ngày thôi dùng (`trang_thai = da_giam`) — từ ngày này engine ngừng trích.
     ngay_giam: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     created_by_user_id: Mapped[int | None] = mapped_column(
@@ -198,7 +202,7 @@ class TaiSanMoc(Base):
 
 
 class TaiSanBienDong(Base):
-    """Một chứng từ biến động: điều chuyển | nâng cấp | ghi giảm.
+    """Một chứng từ biến động: điều chuyển | nâng cấp (sửa chữa lớn) | thôi dùng (| ghi giảm cũ).
 
     MỘT bảng chứ không ba: ba nghiệp vụ dùng chung phần lớn cột (tài sản, ngày, lý do) và luôn
     được đọc chung ở tab lịch sử của tài sản. Cột riêng để NULL.
@@ -221,6 +225,8 @@ class TaiSanBienDong(Base):
     so_thang_con_lai: Mapped[int | None] = mapped_column(Integer, nullable=True)
     #: Chỉ ghi giảm CCDC theo lô: bỏ mấy cái trong lô.
     so_luong_giam: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: Chỉ thôi dùng: `ban` | `thanh_ly` | `hong` | `mat` (xem `KIEU_THOI_DUNG`). mg 0367.
+    kieu_thoi_dung: Mapped[str | None] = mapped_column(String(16), nullable=True)
     ly_do: Mapped[str | None] = mapped_column(String(255), nullable=True)
     nguoi_tao_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True

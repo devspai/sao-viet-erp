@@ -1,17 +1,20 @@
-// Tab "Vật tư" của màn chi tiết lệnh — bảng kê NVL · vật tư · dụng cụ, GOM THEO TỪNG CÔNG ĐOẠN.
+// Tab "Vật tư" của màn chi tiết lệnh — MỘT bảng vật tư, bước dùng là một cột.
 //
-// Vì sao gom theo công đoạn chứ không theo loại vật tư: câu người lập lệnh hỏi ở đây là "bước này
-// ăn gì", đi dọc chuỗi đúng thứ tự chạy. Câu "mua bao nhiêu" thì gom theo món — nằm ở khối TỔNG
-// GOM cuối bảng, và đó cũng là chỗ nối sang màn Kế hoạch vật tư.
+// [06/10/2026] Trước đây bày theo chuỗi bước: mỗi bước một thẻ, bước có vật tư thì một bảng 1–2
+// dòng lặp lại đầu cột, bước không có thì ba dòng chỉ để nói "không tiêu hao", rồi khối TỔNG GOM
+// ở cuối nói lại cùng những món đó. Lệnh 6 bước 2 món phải cuộn qua 6 thẻ mới tới câu "cần gì".
+// Nay theo lối tab Thành phần của Odoo: vật tư đứng đầu, một dòng một món (đã gom), ô "Dùng ở
+// bước" nói nó ăn ở đâu và tính trên bao nhiêu. Chuỗi bước thu thành dải chip trên đầu bảng.
 //
 // Màn này CHỈ NÓI CẦN. Không tồn, không thiếu, không "phải mua" — ba thứ đó phải trừ tồn + hàng
 // đang về + phần kho đã cấp, mà màn lệnh không biết và không nên biết. Hai chỗ cùng tính tồn thì
 // sớm muộn lệch nhau, lúc lệch không biết tin bên nào.
+import { Fragment } from "react";
 import { Icon } from "../components/Icons";
 import { num } from "./keHoachSxShared";
 import { nhanDonVi } from "./lsxBuoc";
 import { useNapTenDonVi } from "./tenDonVi";
-import type { BangKeVatTu, DongKe, TongKe } from "./lsxVatTu";
+import type { BangKeVatTu, BuocKe, NhomVatTu, TongKe } from "./lsxVatTu";
 
 /** Nhãn tình trạng khuôn — cùng bộ mã với danh mục Khuôn. Mã lạ thì hiện mã trần, không nuốt. */
 const TINH_TRANG: Record<string, string> = {
@@ -21,71 +24,92 @@ const TINH_TRANG: Record<string, string> = {
   thanh_ly: "đã thanh lý",
 };
 
-/** Một hàng vật tư. Trước đây mỗi món là một CARD xếp dọc: cùng một thông tin mà mã, tên, số
- *  lượng, đơn vị của các món không thẳng cột nào với nhau, đọc 8 món phải quét mắt zig-zag. Bảng
- *  cho số lượng thẳng cột và nhóm/bước thành cột lọc được bằng mắt. */
-function HangMon({ d, buocs, coBuoc }: { d: DongKe; buocs?: number[]; coBuoc: boolean }) {
-  const chu =
-    d.nhom === "dung_cu" && d.chu_thich
-      ? (TINH_TRANG[d.chu_thich] ?? d.chu_thich)
-      : d.chu_thich;
+const NHOM: { ma: NhomVatTu; nhan: string }[] = [
+  { ma: "nvl", nhan: "NVL chính" },
+  { ma: "vat_tu", nhan: "Phụ liệu" },
+  { ma: "dung_cu", nhan: "Dụng cụ / Khuôn" },
+];
 
-  const nhomLabel =
-    d.nhom === "nvl" ? "NVL chính" : d.nhom === "dung_cu" ? "Dụng cụ / Khuôn" : "Phụ liệu";
+/** Một lần một món được ăn ở một bước — nuôi ô "Dùng ở bước". */
+interface LanDung {
+  buoc: BuocKe;
+  so_luong: number | null;
+}
+
+/** Tìm các bước ăn món `t` bằng cách dò ngược `buocs[].dong` theo khoá (+ đơn vị, cùng luật gom
+ *  của `gomTong`). Không dựa `t.buocs`: ở bài ghép khối tổng là bảng cân đối server, `buocs` rỗng,
+ *  nhưng phần ăn ở bước CHUNG vẫn dò được từ thẻ bước. */
+function lanDungCua(t: TongKe, buocs: BuocKe[]): LanDung[] {
+  const ra: LanDung[] = [];
+  for (const b of buocs) {
+    const khop = b.dong.filter(
+      (d) => d.khoa === t.khoa && (t.nhom === "dung_cu" || (d.don_vi ?? "") === (t.don_vi ?? "")),
+    );
+    if (khop.length === 0) continue;
+    const sl = t.nhom === "dung_cu" ? null : khop.reduce((s, d) => s + (d.so_luong ?? 0), 0);
+    ra.push({ buoc: b, so_luong: sl });
+  }
+  return ra;
+}
+
+function OBuoc({ t, buocs }: { t: TongKe; buocs: BuocKe[] }) {
+  const lan = lanDungCua(t, buocs);
+  const dv = t.don_vi ? nhanDonVi(t.don_vi) : "";
+  // Phần tổng KHÔNG quy về bước nào trên màn này — ở bài ghép là vật tư bước riêng của từng lệnh
+  // thành viên. Nói ra phần đó thay vì để người đọc cộng các dòng trên không ra tổng.
+  const daQuy = lan.reduce((s, l) => s + (l.so_luong ?? 0), 0);
+  const conLai = t.nhom === "dung_cu" || t.so_luong == null ? 0 : t.so_luong - daQuy;
+  const nhieuDong = lan.length + (conLai > 1e-6 ? 1 : 0) > 1;
 
   return (
-    <tr className={`khsx-vtbang__r khsx-vtbang__r--${d.nhom}`}>
-      <td className="khsx-vtbang__ma">{d.ma || ""}</td>
-      <td className="khsx-vtbang__ten">
-        <span className="khsx-vtbang__ten-txt">{d.ten}</span>
-        {chu && <span className="khsx-vtbang__sub">{chu}</span>}
-      </td>
-      <td className="khsx-vtbang__sl">{d.so_luong != null ? num(d.so_luong) : "—"}</td>
-      <td className="khsx-vtbang__dv">{d.don_vi ? nhanDonVi(d.don_vi) : ""}</td>
-      <td className="khsx-vtbang__nhom">
-        <span className={`khsx-vtcard__tag khsx-vtcard__tag--${d.nhom}`}>{nhomLabel}</span>
-      </td>
-      {coBuoc && (
-        <td className="khsx-vtbang__buoc">
-          {buocs && buocs.length > 0 && (
-            <span className={`khsx-vtcard__buoc${buocs.length > 1 ? " is-nhieu" : ""}`}>
-              {buocs.map((b) => `#${b}`).join(" · ")}
+    <div className="khsx-vtbang__buocs">
+      {lan.map((l) => (
+        <div className="khsx-vtbang__lan" key={l.buoc.id}>
+          <span className="khsx-vtbang__lan-ten">
+            #{l.buoc.thu_tu} {l.buoc.ten}
+          </span>
+          {nhieuDong && l.so_luong != null && (
+            <span className="khsx-vtbang__lan-sl">
+              {num(l.so_luong)} {dv}
             </span>
           )}
-        </td>
+          {t.nhom !== "dung_cu" && l.buoc.sl_vao > 0 && (
+            <span className="khsx-vtbang__lan-co-so">
+              tính trên {num(l.buoc.sl_vao)} {l.buoc.dv_vao}
+            </span>
+          )}
+        </div>
+      ))}
+      {conLai > 1e-6 && (
+        <div className="khsx-vtbang__lan">
+          <span className="khsx-vtbang__lan-ten is-rieng">Bước riêng của từng lệnh</span>
+          {nhieuDong && (
+            <span className="khsx-vtbang__lan-sl">
+              {num(conLai)} {dv}
+            </span>
+          )}
+        </div>
       )}
-    </tr>
+    </div>
   );
 }
 
-/** Bảng vật tư dùng chung cho hai chỗ: trong từng bước (không có cột Bước — đã biết bước nào rồi)
- *  và ở khối BOM tổng gom (có cột Bước, vì một món đi vào nhiều bước). */
-function BangMon({ dong, coBuoc = false }: { dong: (DongKe | TongKe)[]; coBuoc?: boolean }) {
+function HangMon({ t, buocs }: { t: TongKe; buocs: BuocKe[] }) {
+  const chu =
+    t.nhom === "dung_cu" && t.chu_thich ? (TINH_TRANG[t.chu_thich] ?? t.chu_thich) : t.chu_thich;
   return (
-    <div className="khsx-vtbang__wrap">
-      <table className="khsx-vtbang">
-        <thead>
-          <tr>
-            <th className="khsx-vtbang__ma">Mã</th>
-            <th className="khsx-vtbang__ten">Vật tư</th>
-            <th className="khsx-vtbang__sl">Số lượng</th>
-            <th className="khsx-vtbang__dv">ĐVT</th>
-            <th className="khsx-vtbang__nhom">Nhóm</th>
-            {coBuoc && <th className="khsx-vtbang__buoc">Bước</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {dong.map((d) => (
-            <HangMon
-              d={d}
-              buocs={"buocs" in d ? d.buocs : undefined}
-              coBuoc={coBuoc}
-              key={`${d.khoa}|${d.don_vi ?? ""}`}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <tr>
+      <td className="khsx-vtbang__ma">{t.ma || ""}</td>
+      <td className="khsx-vtbang__ten">
+        <span className="khsx-vtbang__ten-txt">{t.ten}</span>
+        {chu && <span className="khsx-vtbang__sub">{chu}</span>}
+      </td>
+      <td className="khsx-vtbang__sl">{t.so_luong != null ? num(t.so_luong) : "—"}</td>
+      <td className="khsx-vtbang__dv">{t.don_vi ? nhanDonVi(t.don_vi) : ""}</td>
+      <td className="khsx-vtbang__buoc">
+        <OBuoc t={t} buocs={buocs} />
+      </td>
+    </tr>
   );
 }
 
@@ -94,17 +118,16 @@ export function LsxVatTuPanel({ ke }: { ke: BangKeVatTu }) {
   // Panel này mount từ HAI màn (Lệnh SX · Bài ghép 2) — tự nạp nhãn đơn vị thay vì trông chờ màn
   // cha, vì bên Bài ghép 2 không có ai nạp. Hook có cache chung nên gọi thêm không tốn lượt gọi.
   useNapTenDonVi();
-  // Không có bước NÀO để bày pipeline VÀ cũng chẳng có món nào để gom ⇒ trống thật, mới báo trống.
-  // Ở lệnh đơn hai điều kiện luôn đi cùng (tổng suy từ bước, không bước thì không món) nên câu này
-  // giữ nguyên. Ở bài ghép, bước = bước CHUNG (`sd.gop`) có thể còn rỗng khi chưa gộp, nhưng BOM vẫn
-  // gồm vật tư bước riêng của thành viên — lúc đó phải hiện BOM, đừng nuốt cả buy-list.
+  // Không có bước NÀO VÀ cũng chẳng có món nào ⇒ trống thật, mới báo trống. Ở bài ghép bước = bước
+  // CHUNG có thể còn rỗng khi chưa gộp, nhưng khối tổng vẫn gồm vật tư bước riêng — vẫn phải hiện.
   if (ke.buocs.length === 0 && ke.tong.length === 0) {
     return <p className="khsx-muted">Lệnh chưa có công đoạn nào — khai công đoạn trước đã.</p>;
   }
 
+  const thieuKhuon = ke.buocs.filter((b) => b.thieu_khuon);
+
   return (
     <div className="khsx-vtke">
-      {/* Dải Compact Strip KPI Tóm Tắt */}
       <div className="khsx-vtke__strip">
         <div className="khsx-vtke__strip-item">
           <span className="khsx-vtke__strip-lbl">Tổng nhu cầu</span>
@@ -112,113 +135,87 @@ export function LsxVatTuPanel({ ke }: { ke: BangKeVatTu }) {
             <b>{ke.so_mon}</b> <small>món</small>
           </span>
         </div>
-
-        <div className="khsx-vtke__strip-sep" aria-hidden="true" />
-
-        <div className="khsx-vtke__strip-item">
-          <span className="khsx-vtke__strip-lbl">Độ phủ công đoạn</span>
-          <span className="khsx-vtke__strip-val">
-            <b>{ke.buocs.length - ke.so_buoc_trong}/{ke.buocs.length}</b> <small>bước dùng vật tư</small>
-          </span>
-        </div>
-
-        {ke.buocs.some((b) => b.thieu_khuon) && (
+        {thieuKhuon.length > 0 && (
           <>
             <div className="khsx-vtke__strip-sep" aria-hidden="true" />
-            <div className="khsx-vtke__strip-item">
-              <span className="khsx-vtke__strip-lbl">Cảnh báo</span>
-              <div className="khsx-vtke__strip-alerts">
-                {ke.buocs.some((b) => b.thieu_khuon) && (
-                  <span className="khsx-vtke__strip-badge khsx-vtke__strip-badge--danger">
-                    <Icon name="alert" size={12} /> Thiếu khuôn bế
-                  </span>
-                )}
-              </div>
-            </div>
+            <span className="khsx-vtke__strip-badge khsx-vtke__strip-badge--danger">
+              <Icon name="alert" size={12} /> Thiếu khuôn bế
+            </span>
+            {thieuKhuon.map((b) => (
+              <span className="khsx-vtke__strip-buoc" key={b.id}>
+                #{b.thu_tu} {b.ten}
+              </span>
+            ))}
           </>
         )}
       </div>
 
-      {/* Dòng chảy vật tư theo Trục Tiến trình (Vertical Process Pipeline) */}
-      <ol className="khsx-vtke__pipeline">
-        {ke.buocs.map((b) => {
-          const hasVatTu = b.dong.length > 0;
-          return (
-            <li className={`khsx-vtke__step ${hasVatTu ? "has-vattu" : ""}`} key={b.id}>
-              <div className="khsx-vtke__node-col">
-                <span className="khsx-vtke__node">#{b.thu_tu}</span>
-                <div className="khsx-vtke__line" aria-hidden="true" />
-              </div>
-
-              <div className="khsx-vtke__step-body">
-                <div className="khsx-vtke__step-head">
-                  <div className="khsx-vtke__step-title-wrap">
-                    <span className="khsx-vtke__step-title">{b.ten}</span>
-                    {b.to && <span className="khsx-vtke__org-tag">{b.to}</span>}
-                    {b.may && <span className="khsx-vtke__mach-tag">{b.may}</span>}
-                  </div>
-                </div>
-
-                <div className="khsx-vtke__flow-bar">
-                  <span className="khsx-vtke__flow-num">
-                    <b>{num(b.sl_vao)}</b> {b.dv_vao}
-                  </span>
-                  <span className="khsx-vtke__flow-arrow" aria-hidden="true">→</span>
-                  <span className="khsx-vtke__flow-num">
-                    <b>{num(b.sl_ra)}</b> {b.dv_ra}
-                  </span>
-                  {!b.tren_dong_giay && (
-                    <span
-                      className="khsx-vtke__ngoai"
-                      title="Bước này đo bằng đơn vị riêng, không nằm trên dòng giấy — số vào/ra không nối với bước liền kề."
-                    >
-                      ngoài dòng giấy
-                    </span>
-                  )}
-                </div>
-
-                {hasVatTu ? (
-                  <BangMon dong={b.dong} />
-                ) : (
-                  <div className="khsx-vtke__empty-step">
-                    <span>— Không tiêu hao vật tư ở bước này</span>
-                  </div>
-                )}
-
-                {b.thieu_khuon && (
-                  <div className="khsx-vtke__alert-box">
-                    <Icon name="alert" size={13} />
-                    <span>Công đoạn này cần khuôn nhưng lệnh chưa gán con nào.</span>
-                  </div>
-                )}
-              </div>
+      {ke.buocs.length > 0 && (
+        <ol className="khsx-vtke__chuoi" aria-label="Chuỗi công đoạn">
+          {ke.buocs.map((b, i) => (
+            <li className="khsx-vtke__chuoi-o" key={b.id}>
+              {i > 0 && (
+                <span className="khsx-vtke__chuoi-mui" aria-hidden="true">
+                  →
+                </span>
+              )}
+              <span
+                className={`khsx-vtke__chip${b.dong.length > 0 ? " is-co" : ""}${b.thieu_khuon ? " is-thieu" : ""}`}
+                title={b.dong.length > 0 ? `${b.dong.length} món vật tư` : "Không dùng vật tư"}
+              >
+                #{b.thu_tu} {b.ten}
+                {b.dong.length > 0 && <span className="khsx-vtke__chip-dem">{b.dong.length}</span>}
+                {b.thieu_khuon && <Icon name="alert" size={11} />}
+              </span>
             </li>
-          );
-        })}
-      </ol>
+          ))}
+        </ol>
+      )}
 
-      {/* Khối BOM Tổng gom cuối bảng */}
-      <div className="khsx-vtke__bom">
-        <div className="khsx-vtke__bom-head">
-          <div className="khsx-vtke__bom-title-row">
-            <Icon name="layers" size={15} />
-            <h5 className="khsx-vtke__bom-title">Tổng gom vật tư cần dùng (BOM)</h5>
-          </div>
-          <span className="khsx-vtke__bom-count">{ke.tong.length} mặt hàng</span>
+      {ke.tong.length === 0 ? (
+        <p className="khsx-muted">
+          Chưa bước nào khai vật tư. Khai ở ô "Thêm vật tư" của từng bước trong tab Công đoạn.
+        </p>
+      ) : (
+        <div className="khsx-vtbang__wrap">
+          <table className="khsx-vtbang">
+            <thead>
+              <tr>
+                <th className="khsx-vtbang__ma">Mã</th>
+                <th className="khsx-vtbang__ten">Vật tư</th>
+                <th className="khsx-vtbang__sl">Số lượng</th>
+                <th className="khsx-vtbang__dv">ĐVT</th>
+                <th className="khsx-vtbang__buoc">Dùng ở bước</th>
+              </tr>
+            </thead>
+            <tbody>
+              {NHOM.map(({ ma, nhan }) => {
+                const dong = ke.tong.filter((t) => t.nhom === ma);
+                if (dong.length === 0) return null;
+                return (
+                  <Fragment key={ma}>
+                    <tr className="khsx-vtbang__nhom-r">
+                      <td colSpan={5}>
+                        {nhan} <span className="khsx-vtbang__nhom-dem">{dong.length}</span>
+                      </td>
+                    </tr>
+                    {dong.map((t) => (
+                      <HangMon t={t} buocs={ke.buocs} key={`${t.khoa}|${t.don_vi ?? ""}`} />
+                    ))}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
+      )}
 
-        {ke.tong.length === 0 ? (
-          <p className="khsx-muted">Chưa có món nào để gom.</p>
-        ) : (
-          <BangMon dong={ke.tong} coBuoc />
-        )}
-
-        <div className="khsx-vtke__bom-foot">
-          <Icon name="alert" size={14} />
-          <span>
-            Đây là <b>tổng số cần</b> theo định mức kỹ thuật — Kiểm tra tồn kho, giữ chỗ và cấp phát tại <b>Kế hoạch vật tư</b>.
-          </span>
-        </div>
+      <div className="khsx-vtke__foot">
+        <Icon name="alert" size={14} />
+        <span>
+          Đây là <b>tổng số cần</b> theo định mức kỹ thuật — Kiểm tra tồn kho, giữ chỗ và cấp phát
+          tại <b>Kế hoạch vật tư</b>.
+        </span>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 """Danh mục nội quy: mọi tài khoản xem được; quyền thêm và xóa theo RBAC."""
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import (
@@ -10,6 +11,7 @@ from fastapi import (
 from ..deps import CurrentUser, get_noi_quy_service, get_user_repository, require_permission
 from ..models.user import User
 from ..repositories.user_repo import UserRepository
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.noi_quy import NoiQuyRecordOut, NoiQuyRecordsOut
 from ..services.noi_quy_service import (
     NoiQuyError,
@@ -81,16 +83,32 @@ def list_records(
     # khác ở chỗ từ nay nó HIỆN trên ma trận và gỡ được, chứ không phải luật ngầm.
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     q: str | None = Query(default=None),
+    # Thanh lọc (06/10/2026): kỳ theo Ngày tải lên (`moc=tao`), Người tải lên, Loại tệp.
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^tao$"),
+    nguoi: int | None = Query(default=None),
+    loai: str | None = Query(default=None, pattern="^(pdf|anh)$"),
     page: int = Query(default=1, ge=1),
     # TRẦN 100: `_out` gọi `users.get_by_id` cho TỪNG dòng (N+1). Cỡ trang chuẩn của hệ là 20;
     # trần 100 để ai cần xuất/đối chiếu vẫn kéo được một mẻ lớn mà không mở cửa cho `size=100000`
     # kéo sập máy chủ bằng một lời gọi.
     size: int = Query(default=20, ge=1, le=100),
 ) -> NoiQuyRecordsOut:
-    rows, total = svc.list_records(q=q, page=page, size=size)
+    rows, total = svc.list_records(q=q, page=page, size=size, nguoi=nguoi, loai=loai,
+                                   tu_ngay=tu_ngay, den_ngay=den_ngay)
     return NoiQuyRecordsOut(
         items=[_out(users, row) for row in rows], total=total, page=page, size=size,
     )
+
+
+@router.get("/nguoi-tai-loc", response_model=list[LuaChonLoc])
+def nguoi_tai_loc(
+    svc: Service,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[dict]:
+    """Giá trị điều kiện "Người tải lên" của thanh lọc — kèm số tài liệu mỗi người."""
+    return svc.nguoi_tai_loc()
 
 
 @router.post("", response_model=NoiQuyRecordOut, status_code=status.HTTP_201_CREATED)

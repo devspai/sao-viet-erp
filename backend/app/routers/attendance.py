@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 
 from ..deps import (
     get_current_user,
@@ -25,7 +25,9 @@ from ..models.user import User
 from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
 from ..repositories.employee_repo import EmployeeRepository
+from ..repositories.loc_don_nhan_su import LocDon
 from ..repositories.rbac_repo import DepartmentRepository
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.attendance import (
     AdjustIn,
     AdjustQuotaOut,
@@ -546,23 +548,42 @@ def list_logs(
     # cả xưởng. Ai cần xem công để tính lương thì không đương nhiên cần đọc dấu chân từng người.
     user: Annotated[User, Depends(require_permission(MODULE, "view_log"))],
     employee_id: int | None = Query(default=None),
-    # Tìm theo TÊN hoặc MÃ nhân viên. Lọc ở SQL (xem `AttendanceRepository.list_all`) — danh sách
-    # chỉ trả 100 lượt gần nhất nên lọc ở FE là gõ tên ai cũng dễ ra "không tìm thấy".
+    # Tìm theo TÊN hoặc MÃ nhân viên — lọc ở SQL bên trong phạm vi xem.
     q: str | None = Query(default=None, max_length=100),
-    # Khoảng NGÀY VN (trọn hai đầu). Có lọc ngày thì service tự nới trần dòng — một ngày của xưởng
-    # đông người vượt xa 100 lượt, giữ trần cũ là lọc xong vẫn mất nửa ngày.
+    # Kỳ theo NGÀY VN (trọn hai đầu). Mốc `cham` = giờ bấm (mặc định), `tao` = lúc ghi bản ghi.
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="cham", pattern="^(cham|tao)$"),
+    phong: int | None = Query(default=None),
+    diem: int | None = Query(default=None),
+    # Phân trang ở máy chủ (06/10/2026) — thay trần 100 lượt gần nhất.
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=50, ge=1, le=200),
 ) -> AttendanceLogsOut:
-    logs = svc.list_logs(scope=_scope_for(authz, user), actor=user, employee_id=employee_id, q=q,
-                         tu_ngay=tu_ngay, den_ngay=den_ngay)
+    loc = LocDon(tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, employee_id=employee_id,
+                 phong=phong, diem=diem)
+    logs, total = svc.list_logs(scope=_scope_for(authz, user), actor=user, loc=loc, q=q,
+                                page=page, size=size)
     loc_names = {l.id: l.name for l in svc.list_locations()}
     emp_names: dict[int, str] = {}
     for eid in {l.employee_id for l in logs}:
         emp = employees.get_by_id(eid)
         if emp is not None:
             emp_names[eid] = emp.full_name
-    return AttendanceLogsOut(items=[_log_out(l, emp_names, loc_names) for l in logs])
+    return AttendanceLogsOut(items=[_log_out(l, emp_names, loc_names) for l in logs],
+                             total=total, page=page, size=size)
+
+
+@router.get("/logs/loc/{truong}", response_model=list[LuaChonLoc])
+def loc_logs(
+    truong: Annotated[str, Path(pattern="^(nhan_vien|phong|diem)$")],
+    svc: Service,
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "view_log"))],
+) -> list[LuaChonLoc]:
+    """Giá trị của điều kiện lọc Nhân viên / Phòng ban / Điểm chấm công — chỉ cái có lượt bấm
+    trong phạm vi xem, kèm số lượt."""
+    return [LuaChonLoc(**x) for x in svc.lua_chon_logs(truong, scope=_scope_for(authz, user), actor=user)]
 
 
 # --- bảng công tháng (HR) ---------------------------------------------------
@@ -880,10 +901,32 @@ def list_adjust_requests(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
     status: str | None = Query(default="pending"),
+    # Kỳ: `tao` = ngày tạo yêu cầu (mặc định), `ngay_cong` = ngày công cần chỉnh.
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|ngay_cong)$"),
+    employee_id: int | None = Query(default=None),
+    phong: int | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=50, ge=1, le=200),
 ) -> AdjustRequestsOut:
-    items = svc.list_requests(scope=_scope_for(authz, user), actor=user,
-                              status=None if status in (None, "all") else status)
-    return AdjustRequestsOut(items=[AdjustRequestOut(**r) for r in items])
+    loc = LocDon(tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, employee_id=employee_id, phong=phong)
+    items, total, dem = svc.list_requests(scope=_scope_for(authz, user), actor=user,
+                                          status=None if status in (None, "all") else status,
+                                          loc=loc, page=page, size=size)
+    return AdjustRequestsOut(items=[AdjustRequestOut(**r) for r in items], total=total,
+                             page=page, size=size, dem_theo_tab=dem)
+
+
+@router.get("/adjust-requests/loc/{truong}", response_model=list[LuaChonLoc])
+def loc_adjust_requests(
+    truong: Annotated[str, Path(pattern="^(nhan_vien|phong)$")],
+    svc: Service,
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
+) -> list[LuaChonLoc]:
+    return [LuaChonLoc(**x) for x in
+            svc.lua_chon_requests(truong, scope=_scope_for(authz, user), actor=user)]
 
 
 @router.post("/adjust-requests/{request_id}/approve", response_model=AdjustRequestOut)

@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bộ lọc nâng cao — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --signal:#8a1f1f; --charcoal:#0f172a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1240px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 10px;max-width:940px}
+.lead b{color:var(--ink)}
+.loi{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:14px 18px;margin:16px 0 36px;max-width:940px}
+.loi h2{font-size:15px;margin:0 0 6px}
+.loi ol{margin:0;padding-left:20px;color:var(--ash)}
+.loi li{margin:3px 0}
+.loi b{color:var(--ink)}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 36px}
+.toc a{font-size:13px;color:var(--ink);text-decoration:none;border:1px solid var(--rule);background:var(--canvas);border-radius:999px;padding:4px 12px}
+.opt{margin-bottom:76px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.de{font-size:12px;font-weight:600;color:#fff;background:var(--ink);border-radius:999px;padding:2px 10px}
+.why{color:var(--ash);margin:0 0 18px;max-width:940px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+.why li{margin:3px 0}
+.state{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-2);margin:22px 0 8px}
+svg.i{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- khung màn ---------- */
+.screen{background:var(--paper);border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.14);padding:20px 24px 24px;position:relative}
+.screen.cao{min-height:560px}
+.eyebrow{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--ash);text-transform:uppercase}
+.eyebrow::before{content:"";width:8px;height:8px;background:var(--rust)}
+.sh{display:flex;align-items:flex-end;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--rule-soft);margin-bottom:16px}
+.sh h3{margin:4px 0 0;font-size:24px;font-weight:700}
+.sh .btn--pri{margin-left:auto}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash);font-weight:500}
+.dem{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--ink);color:#fff;font-size:11px;font-weight:700}
+.search{flex:1 1 260px;min-width:0;display:flex;align-items:center;gap:8px;height:38px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);padding:0 12px;color:var(--ash-2);font-size:13.5px}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px;position:relative}
+.tabs{display:inline-flex;flex-wrap:wrap;gap:2px;background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:10px;padding:4px;margin-bottom:14px}
+.tabs span{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:7px;font-size:13px;color:var(--ash)}
+.tabs span.on{background:var(--canvas);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.tabs i{font-style:normal;font-size:11px;font-weight:600;background:var(--rule-soft);border-radius:999px;padding:0 7px;color:var(--ash)}
+.tabs span.on i{background:var(--ink);color:#fff}
+
+/* bảng */
+.tw{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:820px}
+th{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ash);text-align:left;padding:11px 14px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+th.on{color:var(--rust)}
+td{padding:12px 14px;border-bottom:1px solid var(--rule-hair);vertical-align:top;font-size:13.5px}
+tr:last-child td{border-bottom:0}
+.r{text-align:right}
+.ma{font-weight:700;white-space:nowrap}
+.ma small{font-weight:500;color:var(--ash-2);margin-left:4px}
+.sub{display:block;font-size:12px;color:var(--ash-2);margin-top:2px;font-weight:400}
+.tien{font-weight:700;color:var(--rust-deep);font-variant-numeric:tabular-nums}
+.badge{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;background:var(--ink);color:#fff}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--rust)}
+.muted{color:var(--ash-2)}
+
+/* lớp nổi chung */
+.pop{position:absolute;z-index:5;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 16px 40px rgba(15,23,42,.18)}
+.pop__chan{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--rule-soft)}
+.pop__chan .khop{margin-right:auto;font-size:12.5px;color:var(--ash-2)}
+.nhan{display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin:0 0 6px}
+.nhan small{font-weight:400;color:var(--ash-2);margin-left:6px}
+.o{display:flex;align-items:center;height:36px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);padding:0 10px;font-size:13.5px;color:var(--ink);min-width:0}
+.o.mo{color:var(--ash-2)}
+.o .dv{margin-left:auto;color:var(--ash-2);font-size:12.5px;padding-left:8px}
+.o svg{margin-left:auto;color:var(--ash-2)}
+.khoang{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.khoang label{display:block;font-size:12px;color:var(--ash-2);margin-bottom:4px}
+.radio{display:flex;flex-direction:column;gap:2px}
+.radio span{display:flex;align-items:center;gap:10px;height:32px;padding:0 8px;border-radius:7px;font-size:13.5px}
+.radio span::before{content:"";width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rule);flex:none;box-sizing:border-box}
+.radio span.on::before{border:4.5px solid var(--ink)}
+.radio span.on{font-weight:600}
+.radio span em{margin-left:auto;font-style:normal;font-size:12px;color:var(--ash-2)}
+.check span::before{border-radius:4px}
+.check span.on::before{border:0;background:var(--ink) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center/10px no-repeat}
+
+/* ---------- Phương án 1: thẻ lọc kiểu Stripe ---------- */
+.pill{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px dashed var(--rule);border-radius:999px;background:transparent;font-size:13px;color:var(--ash);white-space:nowrap}
+.pill svg{width:13px;height:13px}
+.pill.dat{border-style:solid;background:var(--canvas);color:var(--ink);padding-right:6px}
+.pill.dat b{font-weight:600}
+.pill.dat .x{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;color:var(--ash-2)}
+.pill.mo{border-style:solid;border-color:var(--ink);background:var(--canvas);color:var(--ink)}
+.pill .sep{width:1px;height:14px;background:var(--rule)}
+.p1-ky{width:520px;top:42px;left:258px;display:grid;grid-template-columns:170px 1fr}
+.p1-ky .ds{border-right:1px solid var(--rule-soft);padding:8px}
+.p1-ky .ds span{display:block;padding:7px 10px;border-radius:7px;font-size:13.5px;color:var(--ink)}
+.p1-ky .ds span.on{background:var(--rule-hair);font-weight:600}
+.p1-ky .ben{padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+.p1-ky .pop__chan{grid-column:1/-1}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.seg span{padding:6px 12px;font-size:13px;color:var(--ash);white-space:nowrap}
+.seg span+span{border-left:1px solid var(--rule-soft)}
+.seg span.on{background:var(--ink);color:#fff;font-weight:600}
+.p1-tien{width:340px;top:46px;left:640px}
+.p1-tien .than{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+
+/* ---------- Phương án 2: nút Lọc + menu kiểu Linear ---------- */
+.kyb{display:inline-flex;align-items:center;gap:8px;height:38px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);padding:0 12px;font-size:13.5px;white-space:nowrap}
+.kyb .muted{font-size:12.5px}
+.dk{display:inline-flex;align-items:center;height:30px;border:1px solid var(--rule);border-radius:7px;background:var(--canvas);font-size:13px;overflow:hidden;white-space:nowrap}
+.dk > span{padding:0 9px;height:100%;display:inline-flex;align-items:center}
+.dk > span+span{border-left:1px solid var(--rule-soft)}
+.dk .tr{color:var(--ash-2)}
+.dk .gt{font-weight:600}
+.dk .x{color:var(--ash-2);padding:0 7px}
+.p2-menu{width:290px;top:44px;left:550px;padding:6px}
+.p2-menu .tim{display:flex;align-items:center;gap:8px;height:34px;padding:0 8px;border-bottom:1px solid var(--rule-soft);margin:-6px -6px 6px;color:var(--ash-2);font-size:13px}
+.p2-menu .dong{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:7px;font-size:13.5px}
+.p2-menu .dong.on{background:var(--rule-hair)}
+.p2-menu .dong svg:last-child{margin-left:auto;color:var(--ash-2)}
+.p2-menu .dong em{margin-left:auto;font-style:normal;font-size:12px;color:var(--ash-2)}
+.p2-con{width:300px;top:44px;left:846px}
+.p2-con .tim{display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-bottom:1px solid var(--rule-soft);color:var(--ash-2);font-size:13px}
+.p2-con .radio{padding:6px}
+.p2-ky{width:340px;top:44px;left:248px;padding:6px}
+.p2-ky .nhom{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-2);padding:8px 10px 4px}
+
+/* ---------- Phương án 3: ngăn lọc bên phải kiểu Shopify ---------- */
+.p3-mo{position:absolute;inset:0;border-radius:14px;background:rgba(15,23,42,.28)}
+.sheet{position:absolute;top:0;right:0;bottom:0;width:400px;background:var(--canvas);border-radius:0 14px 14px 0;box-shadow:-12px 0 32px rgba(15,23,42,.18);display:flex;flex-direction:column}
+.sheet__dau{display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--rule-soft)}
+.sheet__dau b{font-size:16px}
+.sheet__dau .x{margin-left:auto;color:var(--ash-2)}
+.sheet__than{flex:1;overflow:auto}
+.muc{border-bottom:1px solid var(--rule-hair);padding:12px 18px}
+.muc__dau{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600}
+.muc__dau .gt{margin-left:auto;font-weight:500;color:var(--ash-2);font-size:12.5px}
+.muc__dau .gt.co{color:var(--ink)}
+.muc__dau svg{color:var(--ash-2)}
+.muc__than{margin-top:10px;display:flex;flex-direction:column;gap:10px}
+.sheet .pop__chan{border-radius:0 0 14px 0}
+.tag{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;border-radius:7px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:13px}
+.tag .x{display:inline-grid;place-items:center;width:18px;height:18px;color:var(--ash-2)}
+
+/* điện thoại */
+.dt-hang{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.phone{width:360px;background:var(--paper);border-radius:22px;box-shadow:0 12px 40px rgba(15,23,42,.18);padding:16px;position:relative;overflow:hidden;min-height:420px}
+.phone .sh h3{font-size:20px}
+.phone .bar{gap:6px}
+.phone .search{flex-basis:100%}
+.cuon{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;flex:1 1 100%}
+.ghichu{flex:1 1 300px;color:var(--ash);font-size:13.5px;max-width:520px}
+.ghichu b{color:var(--ink)}
+.ghichu ul{margin:6px 0 0;padding-left:18px}
+.bang-so{border-collapse:collapse;min-width:0;width:100%;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden;margin-top:8px}
+.bang-so th,.bang-so td{font-size:13px;padding:9px 12px;border-bottom:1px solid var(--rule-hair);text-transform:none;letter-spacing:0}
+.bang-so th{color:var(--ink);background:var(--rule-hair)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="tim" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="loc" viewBox="0 0 24 24"><path d="M3 6h18M7 12h10M10 18h4"/></symbol>
+  <symbol id="cong" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="xuong" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="phai" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="lich" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+  <symbol id="nguoi" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></symbol>
+  <symbol id="khach" viewBox="0 0 24 24"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21v-6h6v6"/></symbol>
+  <symbol id="tien" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></symbol>
+  <symbol id="duyet" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="dong-ho" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+</svg>
+
+<div class="page">
+  <h1>Bộ lọc nâng cao — làm lại giao diện, 3 phương án</h1>
+  <p class="lead">Áp chung cho <b>mọi danh sách chứng từ</b> (Tính giá, Báo giá, Đơn hàng bán, Kế toán, kho, mua hàng, sản xuất…). Phần giữ nguyên ở cả ba phương án: lọc và đếm ở máy chủ, số trên thẻ trạng thái đếm theo điều kiện đang áp, điều kiện ghi lên địa chỉ trang, mốc mặc định của kỳ là <b>Ngày tạo</b> và bảng nào chưa có cột Ngày tạo thì thêm. Màn mẫu dưới đây là Báo giá thương mại với dữ liệu đang có trên máy dev.</p>
+
+  <div class="loi">
+    <h2>Bản hiện tại đang vướng gì (theo hai ảnh chụp)</h2>
+    <ol>
+      <li><b>Bốn hàng chồng nhau trước khi tới bảng:</b> dải kỳ, ô tìm, hàng chip, thẻ trạng thái. Mắt phải đi qua bốn hàng mới gặp dữ liệu.</li>
+      <li><b>Kỳ tách khỏi điều kiện lọc:</b> "Tính theo" đứng xa nhóm nút kỳ, nhãn "01/10/2026 – 06/10/2026" bị đẩy xuống một dòng riêng và cụt ở mép phải.</li>
+      <li><b>Bảng lọc vỡ ở cột hẹp:</b> nhóm ba nút "Tất cả, Đã lên báo giá, Chưa lên báo giá" gãy thành hai dòng. Ô khoảng tiền chỉ có chữ mờ "Từ" / "Không giới hạn" nằm trong ô, không có nhãn.</li>
+      <li><b>Mở bảng lọc là che mất thẻ trạng thái và đầu bảng,</b> và phải mở cả bảng chỉ để đổi một điều kiện.</li>
+    </ol>
+  </div>
+
+  <div class="toc">
+    <a href="#p1">1. Thẻ lọc từng điều kiện (Stripe)</a>
+    <a href="#p2">2. Nút Lọc + menu chọn điều kiện (Linear)</a>
+    <a href="#p3">3. Ngăn lọc bên phải (Shopify)</a>
+    <a href="#so">So sánh nhanh</a>
+  </div>
+
+  <!-- ===================== PHƯƠNG ÁN 1 ===================== -->
+  <section class="opt" id="p1">
+    <div class="opt-head"><h2>1. Thẻ lọc từng điều kiện</h2><span class="src">Khuôn Stripe Dashboard</span><span class="de">Đề xuất</span></div>
+    <div class="why">
+      Danh sách Thanh toán của Stripe để <b>mỗi điều kiện là một thẻ viền đứt</b> ngay cạnh ô tìm ("+ Ngày", "+ Số tiền", "+ Trạng thái"). Bấm thẻ nào mở đúng một ô nhỏ cho điều kiện đó; đã chọn thì thẻ thành viền liền, hiện luôn giá trị và có nút ×.
+      <ul>
+        <li>Một hàng duy nhất trước thẻ trạng thái. Thẻ đã đặt chính là chip, nên <b>không còn hàng chip riêng</b>.</li>
+        <li>Kỳ thành thẻ đầu tiên "Ngày tạo: Tháng này". Mốc ngày nằm ngay trong ô kỳ, không còn tách rời.</li>
+        <li>Đổi một điều kiện chỉ mở ô của điều kiện đó, không che cả màn. Nút áp ghi luôn số khớp: "Xem 1 báo giá".</li>
+        <li>Màn nhiều điều kiện (Đơn hàng có 6) thì hiện 4 thẻ hay dùng, phần còn lại nằm trong thẻ "+ Thêm điều kiện".</li>
+      </ul>
+    </div>
+
+    <div class="state">Lúc mở màn</div>
+    <div class="screen">
+      <div class="sh"><div><div class="eyebrow">Kinh doanh</div><h3>Báo giá thương mại</h3></div><span class="btn btn--pri"><svg class="i"><use href="#cong"/></svg>Báo giá mới</span></div>
+      <div class="bar">
+        <div class="search"><svg class="i"><use href="#tim"/></svg>Tìm mã báo giá, khách hàng, sản phẩm…</div>
+        <span class="pill"><svg class="i"><use href="#lich"/></svg>Ngày tạo</span>
+        <span class="pill"><svg class="i"><use href="#khach"/></svg>Khách hàng</span>
+        <span class="pill"><svg class="i"><use href="#duyet"/></svg>Kết quả duyệt</span>
+        <span class="pill"><svg class="i"><use href="#tien"/></svg>Giá bán</span>
+        <span class="pill"><svg class="i"><use href="#cong"/></svg>Thêm điều kiện</span>
+        <span class="pill"><svg class="i"><use href="#nguoi"/></svg>NV phụ trách</span>
+      </div>
+      <div class="tabs"><span class="on">Tất cả <i>2</i></span><span>Cần xử lý <i>0</i></span><span>Soạn <i>0</i></span><span>Chờ duyệt <i>0</i></span><span>Đã duyệt <i>0</i></span><span>Đã gửi khách <i>0</i></span><span>Khách chốt <i>0</i></span><span>Đã lên đơn <i>2</i></span><span>Từ chối <i>0</i></span><span>Hết hiệu lực <i>0</i></span></div>
+      <div class="tw"><table>
+        <thead><tr><th>Mã báo giá</th><th>Khách hàng</th><th>Sản phẩm</th><th class="r">Giá bán gồm VAT</th><th>Trạng thái</th><th>Người duyệt</th><th class="on">Ngày tạo ↓</th></tr></thead>
+        <tbody>
+          <tr><td class="ma">BG26-0002<small>v1</small></td><td>CÔNG TY CỔ PHẦN BIBICA</td><td><b>Ruột sách A5 64 trang</b><span class="sub">và 1 sản phẩm khác</span></td><td class="r"><span class="tien">26.943.795 đ</span><span class="sub">markup 20%</span></td><td><span class="badge">Đã lên đơn</span></td><td class="muted">Không cần duyệt</td><td>6/10/2026<span class="sub">Nguyễn Thị Huyên</span></td></tr>
+          <tr><td class="ma">BG26-0001<small>v2</small><span class="sub">2 phiên bản</span></td><td>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</td><td><b>Hộp kem 50ml (5×5×12 cm)</b></td><td class="r"><span class="tien">8.460.973 đ</span><span class="sub">markup 25%</span></td><td><span class="badge">Đã lên đơn</span></td><td><b>Bùi Thị Hoa</b><span class="sub">Đã duyệt 5/10/2026</span></td><td>5/10/2026<span class="sub">Nguyễn Thị Huyên</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="state">Đang chọn kỳ (bấm thẻ Ngày tạo)</div>
+    <div class="screen cao">
+      <div class="sh"><div><div class="eyebrow">Kinh doanh</div><h3>Báo giá thương mại</h3></div><span class="btn btn--pri"><svg class="i"><use href="#cong"/></svg>Báo giá mới</span></div>
+      <div class="bar">
+        <div class="search" style="flex-basis:250px;flex-grow:0"><svg class="i"><use href="#tim"/></svg>Tìm mã báo giá, khách…</div>
+        <span class="pill mo"><svg class="i"><use href="#lich"/></svg>Ngày tạo<svg class="i"><use href="#xuong"/></svg></span>
+        <span class="pill"><svg class="i"><use href="#khach"/></svg>Khách hàng</span>
+        <span class="pill"><svg class="i"><use href="#duyet"/></svg>Kết quả duyệt</span>
+        <span class="pill"><svg class="i"><use href="#tien"/></svg>Giá bán</span>
+        <span class="pill"><svg class="i"><use href="#cong"/></svg>Thêm điều kiện</span>
+        <div class="pop p1-ky">
+          <div class="ds">
+            <span>Mọi thời gian</span><span>Hôm nay</span><span>7 ngày qua</span><span class="on">Tháng này</span><span>Tháng trước</span><span>Quý này</span><span>Năm nay</span><span>12 tháng qua</span>
+          </div>
+          <div class="ben">
+            <div><span class="nhan">Tính theo</span><div class="seg"><span class="on">Ngày tạo</span><span>Ngày gửi khách</span><span>Hạn hiệu lực</span></div></div>
+            <div class="khoang">
+              <div><label>Từ ngày</label><div class="o">01/10/2026<svg class="i"><use href="#lich"/></svg></div></div>
+              <div><label>Đến ngày</label><div class="o">31/10/2026<svg class="i"><use href="#lich"/></svg></div></div>
+            </div>
+            <div class="muted" style="font-size:12.5px">Gõ thẳng vào hai ô ngày là thành kỳ tuỳ chọn.</div>
+          </div>
+          <div class="pop__chan"><span class="khop">Khớp 2 báo giá</span><span class="btn btn--txt">Huỷ</span><span class="btn btn--pri">Xem 2 báo giá</span></div>
+        </div>
+      </div>
+      <div class="tabs"><span class="on">Tất cả <i>2</i></span><span>Cần xử lý <i>0</i></span><span>Soạn <i>0</i></span><span>Chờ duyệt <i>0</i></span><span>Đã duyệt <i>0</i></span></div>
+    </div>
+
+    <div class="state">Đã áp ba điều kiện, đang sửa Giá bán</div>
+    <div class="screen cao">
+      <div class="sh"><div><div class="eyebrow">Kinh doanh</div><h3>Báo giá thương mại</h3></div><span class="btn btn--pri"><svg class="i"><use href="#cong"/></svg>Báo giá mới</span></div>
+      <div class="bar">
+        <div class="search" style="flex:0 0 170px"><svg class="i"><use href="#tim"/></svg>Tìm…</div>
+        <span class="pill dat"><svg class="i"><use href="#lich"/></svg>Ngày tạo <b>Tháng này</b><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+        <span class="pill dat"><svg class="i"><use href="#duyet"/></svg>Kết quả duyệt <b>Đã duyệt</b><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+        <span class="pill mo"><svg class="i"><use href="#tien"/></svg>Giá bán <b>từ 5.000.000 đ</b><svg class="i"><use href="#xuong"/></svg></span>
+        <span class="pill"><svg class="i"><use href="#cong"/></svg>Thêm điều kiện</span>
+        <span class="btn btn--txt" style="height:32px">Xoá hết</span>
+        <div class="pop p1-tien" style="left:721px;top:42px">
+          <div class="than">
+            <span class="nhan" style="margin:0">Giá bán gồm VAT</span>
+            <div class="khoang">
+              <div><label>Từ</label><div class="o">5.000.000<span class="dv">đ</span></div></div>
+              <div><label>Đến</label><div class="o mo">Không giới hạn<span class="dv">đ</span></div></div>
+            </div>
+          </div>
+          <div class="pop__chan"><span class="khop">Khớp 1 báo giá</span><span class="btn btn--txt">Huỷ</span><span class="btn btn--pri">Xem 1 báo giá</span></div>
+        </div>
+      </div>
+      <div class="tabs"><span class="on">Tất cả <i>1</i></span><span>Cần xử lý <i>0</i></span><span>Soạn <i>0</i></span><span>Chờ duyệt <i>0</i></span><span>Đã duyệt <i>0</i></span><span>Đã lên đơn <i>1</i></span></div>
+    </div>
+
+    <div class="state">Điện thoại 360px</div>
+    <div class="dt-hang">
+      <div class="phone">
+        <div class="sh"><div><div class="eyebrow">Kinh doanh</div><h3>Báo giá thương mại</h3></div></div>
+        <div class="bar">
+          <div class="search"><svg class="i"><use href="#tim"/></svg>Tìm mã báo giá…</div>
+          <div class="cuon">
+            <span class="pill dat"><svg class="i"><use href="#lich"/></svg>Ngày tạo <b>Tháng này</b><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+            <span class="pill"><svg class="i"><use href="#khach"/></svg>Khách hàng</span>
+            <span class="pill"><svg class="i"><use href="#duyet"/></svg>Kết quả duyệt</span>
+            <span class="pill"><svg class="i"><use href="#tien"/></svg>Giá bán</span>
+          </div>
+        </div>
+      </div>
+      <div class="ghichu">Trên điện thoại hàng thẻ <b>cuộn ngang</b> dưới ô tìm. Bấm thẻ thì ô điều kiện mở thành <b>tấm trượt từ đáy màn</b>, rộng hết màn, nút "Xem n báo giá" ở chân.</div>
+    </div>
+  </section>
+
+  <!-- ===================== PHƯƠNG ÁN 2 ===================== -->
+  <section class="opt" id="p2">
+    <div class="opt-head"><h2>2. Nút Lọc + menu chọn điều kiện</h2><span class="src">Khuôn Linear, Notion</span></div>
+    <div class="why">
+      Linear chỉ có <b>một nút "Lọc"</b>. Bấm vào ra menu các điều kiện có ô gõ tìm, chọn một điều kiện thì sang menu con các giá trị, mỗi giá trị kèm số bản ghi. Điều kiện đã đặt hiện thành một <b>khối ba ngăn "trường / giá trị / ×"</b> ngay trên hàng.
+      <ul>
+        <li>Gọn nhất khi màn có nhiều điều kiện: hàng công cụ lúc đầu chỉ có ô tìm, nút kỳ và nút Lọc.</li>
+        <li>Gõ là tìm được điều kiện, rồi tìm được khách. Dùng nhiều thì thao tác nhanh bằng bàn phím.</li>
+        <li>Chọn giá trị trong menu là áp ngay, không có bước nháp. Bù lại phải bấm hai lớp mới thấy giá trị, và chưa dùng quen thì khó biết màn lọc được những gì.</li>
+      </ul>
+    </div>
+
+    <div class="state">Bấm Lọc, chọn Khách hàng</div>
+    <div class="screen cao">
+      <div class="sh"><div><div class="eyebrow">Kinh doanh</div><h3>Báo giá thương mại</h3></div><span class="btn btn--pri"><svg class="i"><use href="#cong"/></svg>Báo giá mới</span></div>
+      <div class="bar">
+        <div class="search" style="flex:0 0 300px"><svg class="i"><use href="#tim"/></svg>Tìm mã báo giá, khách hàng…</div>
+        <span class="kyb"><svg class="i"><use href="#lich"/></svg>Tháng này <span class="muted">theo ngày tạo</span><svg class="i"><use href="#xuong"/></svg></span>
+        <span class="btn" style="border-color:var(--ink)"><svg class="i"><use href="#loc"/></svg>Lọc</span>
+        <span class="btn"><svg class="i"><use href="#nguoi"/></svg>Tất cả NV phụ trách<svg class="i"><use href="#xuong"/></svg></span>
+        <div class="pop p2-menu">
+          <div class="tim"><svg class="i"><use href="#tim"/></svg>Lọc theo…</div>
+          <div class="dong on"><svg class="i"><use href="#khach"/></svg>Khách hàng<svg class="i"><use href="#phai"/></svg></div>
+          <div class="dong"><svg class="i"><use href="#nguoi"/></svg>Người duyệt<svg class="i"><use href="#phai"/></svg></div>
+          <div class="dong"><svg class="i"><use href="#duyet"/></svg>Kết quả duyệt<svg class="i"><use href="#phai"/></svg></div>
+          <div class="dong"><svg class="i"><use href="#tien"/></svg>Giá bán gồm VAT<svg class="i"><use href="#phai"/></svg></div>
+          <div class="dong"><svg class="i"><use href="#dong-ho"/></svg>Hạn hiệu lực<svg class="i"><use href="#phai"/></svg></div>
+        </div>
+        <div class="pop p2-con">
+          <div class="tim"><svg class="i"><use href="#tim"/></svg>Gõ tên khách…</div>
+          <div class="radio check">
+            <span>CÔNG TY CỔ PHẦN BIBICA<em>1</em></span>
+            <span>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM<em>1</em></span>
+          </div>
+        </div>
+      </div>
+      <div class="tabs"><span class="on">Tất cả <i>2</i></span><span>Cần xử lý <i>0</i></span><span>Soạn <i>0</i></span></div>
+    </div>
+
+    <div class="state">Đã áp hai điều kiện, đang mở kỳ</div>
+    <div class="screen cao">
+      <div class="sh"><div><div class="eyebrow">Kinh doanh</div><h3>Báo giá thương mại</h3></div><span class="btn btn--pri"><svg class="i"><use href="#cong"/></svg>Báo giá mới</span></div>
+      <div class="bar">
+        <div class="search" style="flex-basis:240px;flex-grow:0"><svg class="i"><use href="#tim"/></svg>Tìm mã báo giá…</div>
+        <span class="kyb" style="border-color:var(--ink)"><svg class="i"><use href="#lich"/></svg>Quý này <span class="muted">theo hạn hiệu lực</span><svg class="i"><use href="#xuong"/></svg></span>
+        <span class="dk"><span class="tr">Khách hàng</span><span class="gt">BIBICA</span><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+        <span class="dk"><span class="tr">Kết quả duyệt</span><span class="gt">Đã duyệt</span><span class="x"><svg class="i"><use href="#x"/></svg></span></span>
+        <span class="btn btn--txt"><svg class="i"><use href="#loc"/></svg>Lọc</span>
+        <div class="pop p2-ky">
+          <div class="nhom">Tính theo</div>
+          <div class="radio" style="padding:0 4px"><span>Ngày tạo</span><span>Ngày gửi khách</span><span class="on">Hạn hiệu lực</span></div>
+          <div class="nhom">Kỳ</div>
+          <div class="radio" style="padding:0 4px"><span>Mọi thời gian</span><span>Tháng này</span><span class="on">Quý này<em>01/10 – 31/12</em></span><span>Năm nay</span><span>Tuỳ chọn…</span></div>
+        </div>
+      </div>
+      <div class="tabs"><span class="on">Tất cả <i>0</i></span><span>Cần xử lý <i>0</i></span><span>Soạn <i>0</i></span></div>
+    </div>
+  </section>
+
+  <!-- ===================== PHƯƠNG ÁN 3 ===================== -->
+  <section class="opt" id="p3">
+    <div class="opt-head"><h2>3. Ngăn lọc bên phải</h2><span class="src">Khuôn Shopify Admin (Polaris), Airtable</span></div>
+    <div class="why">
+      Danh sách Đơn hàng của Shopify mở <b>ngăn "Thêm bộ lọc" trượt từ bên phải</b>, các điều kiện xếp một cột, mỗi mục gập mở được và ghi sẵn giá trị đang chọn ở đầu mục. Điều kiện đã áp hiện thành thẻ nhỏ dưới ô tìm.
+      <ul>
+        <li>Giữ nguyên cách làm hiện tại (bản nháp, số "Khớp n", bấm "Xem n" mới áp) nên người đã quen bản A không phải học lại.</li>
+        <li>Một cột rộng 400px nên không còn nút gãy dòng hay ô tiền chật. Lựa chọn dạng danh sách chấm tròn thay cho nhóm nút.</li>
+        <li>Kỳ vẫn đứng ngoài thành một nút trên hàng công cụ, vì đổi kỳ là việc làm thường xuyên nhất.</li>
+        <li>Mở ngăn là che phần bên phải bảng; có thêm một tầng mờ phía sau.</li>
+      </ul>
+    </div>
+
+    <div class="state">Mở ngăn lọc</div>
+    <div class="screen" style="min-height:620px;overflow:hidden">
+      <div class="sh"><div><div class="eyebrow">Kinh doanh</div><h3>Báo giá thương mại</h3></div><span class="btn btn--pri"><svg class="i"><use href="#cong"/></svg>Báo giá mới</span></div>
+      <div class="bar">
+        <div class="search"><svg class="i"><use href="#tim"/></svg>Tìm mã báo giá, khách hàng, sản phẩm…</div>
+        <span class="kyb"><svg class="i"><use href="#lich"/></svg>Tháng này <span class="muted">theo ngày tạo</span><svg class="i"><use href="#xuong"/></svg></span>
+        <span class="btn"><svg class="i"><use href="#loc"/></svg>Bộ lọc <span class="dem">2</span></span>
+      </div>
+      <div class="bar"><span class="tag">Kết quả duyệt: Đã duyệt<span class="x"><svg class="i"><use href="#x"/></svg></span></span><span class="tag">Giá bán: từ 5.000.000 đ<span class="x"><svg class="i"><use href="#x"/></svg></span></span><span class="btn btn--txt" style="height:28px">Xoá hết</span></div>
+      <div class="tabs"><span class="on">Tất cả <i>1</i></span><span>Cần xử lý <i>0</i></span><span>Soạn <i>0</i></span></div>
+      <div class="p3-mo"></div>
+      <div class="sheet">
+        <div class="sheet__dau"><b>Bộ lọc</b><span class="x"><svg class="i"><use href="#x"/></svg></span></div>
+        <div class="sheet__than">
+          <div class="muc"><div class="muc__dau">Khách hàng<span class="gt">Mọi khách hàng</span><svg class="i"><use href="#xuong"/></svg></div></div>
+          <div class="muc"><div class="muc__dau">Người duyệt<span class="gt">Mọi người duyệt</span><svg class="i"><use href="#xuong"/></svg></div></div>
+          <div class="muc">
+            <div class="muc__dau">Kết quả duyệt<span class="gt co">Đã duyệt</span><svg class="i" style="transform:rotate(180deg)"><use href="#xuong"/></svg></div>
+            <div class="muc__than"><div class="radio check"><span>Đang chờ duyệt<em>0</em></span><span class="on">Đã duyệt<em>1</em></span><span>Bị từ chối<em>0</em></span><span>Không qua duyệt<em>1</em></span></div></div>
+          </div>
+          <div class="muc">
+            <div class="muc__dau">Giá bán gồm VAT<span class="gt co">từ 5.000.000 đ</span><svg class="i" style="transform:rotate(180deg)"><use href="#xuong"/></svg></div>
+            <div class="muc__than"><div class="khoang">
+              <div><label>Từ</label><div class="o">5.000.000<span class="dv">đ</span></div></div>
+              <div><label>Đến</label><div class="o mo">Không giới hạn<span class="dv">đ</span></div></div>
+            </div></div>
+          </div>
+          <div class="muc"><div class="muc__dau">Hạn hiệu lực<span class="gt">Tất cả</span><svg class="i"><use href="#xuong"/></svg></div></div>
+        </div>
+        <div class="pop__chan"><span class="khop">Khớp 1 báo giá</span><span class="btn btn--txt">Xoá hết</span><span class="btn btn--pri">Xem 1 báo giá</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SO SÁNH ===================== -->
+  <section class="opt" id="so">
+    <div class="opt-head"><h2>So sánh nhanh</h2></div>
+    <table class="bang-so">
+      <thead><tr><th></th><th>1. Thẻ lọc (Stripe)</th><th>2. Nút Lọc + menu (Linear)</th><th>3. Ngăn bên phải (Shopify)</th></tr></thead>
+      <tbody>
+        <tr><td><b>Số hàng trước bảng</b></td><td>2 (công cụ, thẻ trạng thái)</td><td>2</td><td>3 (thêm hàng thẻ đã áp)</td></tr>
+        <tr><td><b>Thấy ngay lọc được gì</b></td><td>Có, thẻ viền đứt bày sẵn</td><td>Không, phải mở menu</td><td>Có khi mở ngăn</td></tr>
+        <tr><td><b>Đổi một điều kiện</b></td><td>1 bấm mở đúng ô đó</td><td>1 bấm vào khối điều kiện</td><td>Mở ngăn, tìm mục, sửa</td></tr>
+        <tr><td><b>Màn nhiều điều kiện</b></td><td>4 thẻ chính, còn lại vào "Thêm điều kiện"</td><td>Tốt nhất</td><td>Tốt, cuộn trong ngăn</td></tr>
+        <tr><td><b>Điện thoại</b></td><td>Thẻ cuộn ngang, ô mở thành tấm từ đáy</td><td>Menu hai lớp chật</td><td>Ngăn thành toàn màn</td></tr>
+        <tr><td><b>Đổi so với bản đang chạy</b></td><td>Đổi nhiều: bỏ bảng lọc lớn</td><td>Đổi nhiều</td><td>Ít: thay khung, giữ cách áp</td></tr>
+      </tbody>
+    </table>
+    <p class="why" style="margin-top:14px">Tôi đề xuất <b>phương án 1</b>: ít hàng nhất, nhìn là biết màn lọc được gì, và sửa đúng lỗi thứ 2 của bản hiện tại vì kỳ nằm chung với các điều kiện khác. Chọn phương án nào thì bộ phận chung (dải kỳ, khung lọc) đổi một lần, rồi áp lần lượt cho cả các màn Kế toán đang dùng bản cũ để toàn hệ một kiểu.</p>
+  </section>
+</div>
+</body>
+</html>

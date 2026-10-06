@@ -17,7 +17,7 @@ import { useAuth } from "../../auth/useAuth";
 import { useCan, useKcs } from "../../auth/permissions";
 import type { NavigateFn } from "../../components/AppShell";
 import { EmptyState } from "../../components/EmptyState";
-import { Pager } from "../../components/Pager";
+import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
 import { Icon } from "../../components/Icons";
 import { useDebounced } from "../../utils/useDebounced";
 import { num } from "../keHoachSxShared";
@@ -25,6 +25,24 @@ import { laNguoiKho } from "../khoShared";
 import { KcsChuoiCongDoan } from "./KcsChuoiCongDoan";
 import { KcsBaoCaoLoc, KcsDashboard, KCS_DASH_FILTERS_RONG, type KcsDashFilters } from "./KcsDashboard";
 import { KCS_NHOM_TRANG_THAI } from "./kcsNhan";
+import {
+  LOC_KCS_TRONG, MOC_KCS, locKcsLenUrl, locKcsTuUrl, thamSoLocKcs, useDieuKienKcs, type LocKcs,
+} from "../loc-san-xuat/dieu-kien-kcs";
+import { ngayDayDu, ngayGioDayDu } from "../loc-san-xuat/ngay";
+import { ThanhLoc } from "../thanh-loc/ThanhLoc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "../thanh-loc/ky-danh-sach";
+import { daAp } from "../thanh-loc/thanh-loc";
+import { useLocMan } from "../thanh-loc/useLocMan";
+
+/** Thanh lọc danh sách lệnh (06/10/2026): kỳ theo ngày tạo lệnh / lần KCS gần nhất + Khách, Nhóm
+ *  thành phẩm. Ghi lên URL `?man=kcs`. Thay cặp nút "Chưa đóng / Tất cả" cũ. */
+type LocMan = { ky: KyDS; loc: LocKcs };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_KCS_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_KCS.map(([m]) => m), "tao"),
+  loc: locKcsTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locKcsLenUrl(t.loc) });
 import "../rebuild-catalog.css";
 import "./kcs.css";
 
@@ -50,24 +68,28 @@ export function KcsTheoLenhPage({
   // ---- Danh sách lệnh --------------------------------------------------------------------
   const [tim, setTim] = useState("");
   const timCham = useDebounced(tim.trim());
-  const [daDong, setDaDong] = useState(false);
+  const [locMan, setLocMan] = useLocMan("kcs", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const dieuKien = useDieuKienKcs();
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocKcs(locMan.loc) });
+  const coLoc = locMan.ky.loai !== "tat_ca" || dieuKien.some((d) => daAp(d, locMan.loc));
   const [trang, setTrang] = useState(1);
+  const [coTrang, setCoTrang] = useState(25);
   const [lenh, setLenh] = useState<SxKcsLenhList | null>(null);
   const [lenhLoading, setLenhLoading] = useState(true);
   const [lenhLoi, setLenhLoi] = useState<string | null>(null);
   const [lenhTick, setLenhTick] = useState(0);
 
-  useEffect(() => { setTrang(1); }, [timCham, daDong]);
+  useEffect(() => { setTrang(1); }, [timCham, khoaLoc]);
   useEffect(() => {
     if (!token) return;
     let alive = true;
     setLenhLoading(true);
-    api.sanXuat.kcsLenh(token, { tim: timCham || undefined, trang, daDong })
+    api.sanXuat.kcsLenh(token, { tim: timCham || undefined, trang, coTrang, loc: JSON.parse(khoaLoc) })
       .then((r) => { if (alive) { setLenh(r); setLenhLoi(null); } })
       .catch((e) => { if (alive) setLenhLoi(e instanceof ApiError ? e.message : "Không tải được danh sách lệnh."); })
       .finally(() => { if (alive) setLenhLoading(false); });
     return () => { alive = false; };
-  }, [token, timCham, trang, daDong, lenhTick, eventTick]);
+  }, [token, timCham, trang, khoaLoc, coTrang, lenhTick, eventTick]);
 
   // ---- Báo cáo -----------------------------------------------------------------------------
   const [filters, setFilters] = useState<KcsDashFilters>(KCS_DASH_FILTERS_RONG);
@@ -138,19 +160,21 @@ export function KcsTheoLenhPage({
 
   const bangLenh = (
     <section className="kcs-the kcs-lenh" aria-label="Lệnh sản xuất">
-      <div className="kcs-lenh__dau">
+      <div className="kcs-lenh__dau tl-thanh">
         <h2 className="kcs-lenh__tieu">Lệnh sản xuất <span className="rc__count">{lenh?.tong ?? 0}</span></h2>
         <div className="kcs-lenh__tim">
           <Icon name="search" size={15} className="kcs-lenh__tim-ic" />
           <input type="search" placeholder="Tìm mã lệnh, sản phẩm, khách hàng…" value={tim}
             aria-label="Tìm lệnh" onChange={(e) => setTim(e.target.value)} />
         </div>
-        <div className="kcs-lenh__chip" role="group" aria-label="Phạm vi nhóm">
-          <button type="button" className={`seg${daDong ? "" : " is-active"}`} aria-pressed={!daDong}
-            onClick={() => setDaDong(false)}>Chưa đóng</button>
-          <button type="button" className={`seg${daDong ? " is-active" : ""}`} aria-pressed={daDong}
-            onClick={() => setDaDong(true)}>Tất cả</button>
-        </div>
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_KCS}
+          onKy={(ky) => setLocMan({ ...locMan, ky })}
+          dieuKien={dieuKien}
+          loc={locMan.loc}
+          onLoc={(loc) => setLocMan({ ...locMan, loc })}
+        />
       </div>
 
       {lenhLoi ? (
@@ -164,10 +188,18 @@ export function KcsTheoLenhPage({
       ) : lenh.items.length === 0 ? (
         <div className="kcs-lenh__trong">
           <p className="rc__empty-text">
-            {timCham ? "Không có lệnh nào khớp." : daDong ? "Chưa có lệnh nào qua KCS." : "Chưa có lệnh nào đang sản xuất."}
+            {timCham || coLoc ? "Không có lệnh nào khớp." : "Chưa có lệnh nào đang sản xuất."}
           </p>
-          {!daDong && !timCham && (
-            <button type="button" className="btn btn--ghost" onClick={() => setDaDong(true)}>Xem cả nhóm đã đóng</button>
+          {coLoc ? (
+            <button type="button" className="btn btn--ghost"
+              onClick={() => setLocMan({ ky: { loai: "tat_ca", moc: locMan.ky.moc }, loc: LOC_KCS_TRONG })}>
+              Xoá bộ lọc
+            </button>
+          ) : !timCham && (
+            <button type="button" className="btn btn--ghost"
+              onClick={() => setLocMan({ ...locMan, loc: { ...locMan.loc, nhom: "tat_ca" } })}>
+              Xem cả nhóm đã đóng
+            </button>
           )}
         </div>
       ) : (
@@ -178,6 +210,8 @@ export function KcsTheoLenhPage({
                 <col className="kcs-col--lenh" />
                 <col className="kcs-col--khach" />
                 <col className="kcs-col--nhom" />
+                <col className="kcs-col--ngay" />
+                <col className="kcs-col--ngay" />
                 <col className="kcs-col--kiem" />
                 <col className="kcs-col--loi" />
               </colgroup>
@@ -186,6 +220,8 @@ export function KcsTheoLenhPage({
                   <th>Lệnh</th>
                   <th>Khách hàng</th>
                   <th>Nhóm</th>
+                  <th>Ngày tạo</th>
+                  <th>Lần KCS gần nhất</th>
                   {/* Chỉ công đoạn cuối mới kiểm đạt (19/09/2026) — đếm "x/y công đoạn đã kiểm" báo thiếu oan. */}
                   <th className="num">Đạt ở công đoạn cuối</th>
                   <th className="num">Lỗi</th>
@@ -208,6 +244,8 @@ export function KcsTheoLenhPage({
                         {l.nhom_ma ?? "—"}
                         {nt && <div className="rc__sub"><span className={`badge-sem ${nt.cls}`}>{nt.nhan}</span></div>}
                       </td>
+                      <td title={ngayGioDayDu(l.created_at)}>{ngayDayDu(l.created_at)}</td>
+                      <td title={ngayGioDayDu(l.kcs_gan_nhat)}>{ngayDayDu(l.kcs_gan_nhat)}</td>
                       <td className="num">
                         {l.cuoi && l.cuoi.tot > 0 ? (
                           <span className={`kcs-dot-pill ${kiemDu ? "kcs-dot-pill--moss" : "kcs-dot-pill--amber"}`}
@@ -231,8 +269,10 @@ export function KcsTheoLenhPage({
               </tbody>
             </table>
           </div>
-          <Pager total={lenh.tong} page={lenh.trang} size={lenh.co_trang} onPage={setTrang}
-            loading={lenhLoading} unit="lệnh" />
+          {/* Cỡ trang lấy từ máy chủ trả về (`co_trang`) — đúng con số đã cắt, kể cả khi máy chủ kẹp lại. */}
+          <PhanTrangDayDu trang={lenh.trang} size={lenh.co_trang} tong={lenh.tong} soDong={lenh.items.length}
+            onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }}
+            loading={lenhLoading} donVi="lệnh" ariaLabel="Phân trang lệnh KCS" />
         </>
       )}
     </section>

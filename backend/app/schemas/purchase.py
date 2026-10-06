@@ -476,6 +476,18 @@ class DepartmentPurchaseRequestListOut(BaseModel):
     total: int
     page: int
     size: int
+    # Số yêu cầu theo trạng thái hiển thị (`workflow_status`) + `tat_ca` — cùng bộ lọc, chưa lọc
+    # trạng thái (06/10/2026).
+    dem_theo_tab: dict[str, int] | None = None
+
+
+class LuaChonLocMa(BaseModel):
+    """Một lựa chọn của ô lọc mà khoá không phải một id số — vd mặt hàng `giay:12` (cặp
+    `hang_loai`, `hang_id`). Cùng hình với `LuaChonLoc`, chỉ đổi `id` thành `ma` kiểu chuỗi."""
+
+    ma: str
+    ten: str
+    so: int = 0
 
 
 class PurchaseRequestSourceOut(BaseModel):
@@ -656,6 +668,9 @@ class PurchaseRequestListOut(BaseModel):
     total: int
     page: int
     size: int
+    # Số phiếu theo trạng thái (cùng bộ lọc, chưa lọc trạng thái) + `tat_ca` — chỉ hộp Đơn mua hàng
+    # của Kế toán trả; nơi khác để None.
+    dem_theo_tab: dict[str, int] | None = None
 
 
 class PurchaseNotifySummaryOut(BaseModel):

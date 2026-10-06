@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import MetaData, Table, asc, case, desc, func, inspect, or_, select, update
+from sqlalchemy import MetaData, Table, and_, asc, case, desc, exists, func, inspect, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.accounting import (
@@ -24,7 +24,9 @@ from ..models.accounting import (
     SalesInvoice,
     SupplierBankAccount,
 )
-from ..models.customer import Customer
+from ..models.customer import Customer, CustomerContact
+from .customer_repo import CustomerRepository
+from .loc_danh_sach import dk_khoang_ngay
 from ..models.payroll import SalaryAdvance
 from ..models.order import Order
 from ..models.purchase import PurchaseRequest, PurchaseRequestSource, Supplier
@@ -42,6 +44,7 @@ _RECEIPT_SORTABLE = {
     "code": PaymentReceipt.code,
     "status": PaymentReceipt.status,
     "amount": PaymentReceipt.amount_vnd,
+    "receipt_date": PaymentReceipt.receipt_date,
     "created_at": PaymentReceipt.created_at,
 }
 
@@ -53,11 +56,20 @@ class AccountingRepository:
     # --- company bank accounts -------------------------------------------
 
     def list_company_accounts(
-        self, *, active_only: bool = False, usage: str | None = None
+        self,
+        *,
+        active_only: bool = False,
+        usage: str | None = None,
+        ngan_hang: str | None = None,
+        trang_thai: str | None = None,
     ) -> list[CompanyBankAccount]:
         stmt = select(CompanyBankAccount)
-        if active_only:
+        if active_only or trang_thai == "dang_dung":
             stmt = stmt.where(CompanyBankAccount.is_active.is_(True))
+        elif trang_thai == "ngung":
+            stmt = stmt.where(CompanyBankAccount.is_active.is_(False))
+        if ngan_hang:
+            stmt = stmt.where(CompanyBankAccount.bank_name == ngan_hang)
         if usage == "receive":
             stmt = stmt.where(CompanyBankAccount.use_for_receipts.is_(True))
         elif usage == "pay":
@@ -67,6 +79,14 @@ class AccountingRepository:
                 stmt.order_by(CompanyBankAccount.is_default.desc(), CompanyBankAccount.bank_name, CompanyBankAccount.id)
             ).scalars()
         )
+
+    def dem_tai_khoan_theo_ngan_hang(self) -> list[tuple[str, int]]:
+        stmt = (
+            select(CompanyBankAccount.bank_name, func.count())
+            .group_by(CompanyBankAccount.bank_name)
+            .order_by(CompanyBankAccount.bank_name)
+        )
+        return [(t, int(n)) for t, n in self.db.execute(stmt).all()]
 
     def get_company_account(self, account_id: int) -> CompanyBankAccount | None:
         return self.db.get(CompanyBankAccount, account_id)
@@ -204,23 +224,32 @@ class AccountingRepository:
             select(PaymentVoucher).where(PaymentVoucher.code == code)
         ).scalars().first()
 
-    def list_vouchers(
+    def _dieu_kien_phieu_chi(
         self,
         *,
         q: str | None = None,
-        status: str | None = None,
         source_type: str | None = None,
         voucher_type: str | None = None,
         supplier_id: int | None = None,
         purchase_request_id: int | None = None,
-        sort: str = "-created_at",
-        page: int = 1,
-        size: int = 20,
-    ) -> tuple[list[PaymentVoucher], int]:
-        conditions = []
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        tien_tu: int | None = None,
+        tien_den: int | None = None,
+        nguon: list[str] | None = None,
+        tai_khoan_id: int | None = None,
+        nguoi_lap_id: int | None = None,
+        nhan: str | None = None,
+        moc: str = "chi",
+    ) -> list:
+        """Điều kiện lọc CHUNG cho bảng, số đếm thẻ lọc và tổng tiền — một nguồn, không ba chỗ tự lọc.
+
+        KHÔNG gồm `status` / `chung_tu`: hai cái đó là thẻ lọc, thẻ phải đếm trên nền CHƯA chọn thẻ
+        (chọn "Đã huỷ" mà các thẻ còn lại về 0 thì người dùng không còn thấy đường quay lại)."""
+        c = []
         if q:
             like = f"%{q.strip().lower()}%"
-            conditions.append(
+            c.append(
                 or_(
                     func.lower(PaymentVoucher.code).like(like),
                     func.lower(func.coalesce(PaymentVoucher.doc_no, "")).like(like),
@@ -237,16 +266,108 @@ class AccountingRepository:
                     ),
                 )
             )
+        if source_type:
+            c.append(PaymentVoucher.source_type == source_type)
+        if nguon:
+            c.append(PaymentVoucher.source_type.in_(list(nguon)))
+        if voucher_type:
+            c.append(PaymentVoucher.voucher_type == voucher_type)
+        if supplier_id is not None:
+            c.append(PaymentVoucher.supplier_id == supplier_id)
+        if purchase_request_id is not None:
+            c.append(PaymentVoucher.purchase_request_id == purchase_request_id)
+        # Kỳ tính theo mốc (06/10/2026): `chi` = ngày chi trên chứng từ (Date), `tao` = lúc lập phiếu
+        # (mốc giờ UTC — ranh ngày theo giờ VN).
+        if moc == "tao":
+            c.extend(dk_khoang_ngay(PaymentVoucher.created_at, tu_ngay, den_ngay))
+        else:
+            c.extend(dk_khoang_ngay(PaymentVoucher.voucher_date, tu_ngay, den_ngay, cot_ngay=True))
+        if tien_tu is not None:
+            c.append(PaymentVoucher.amount_vnd >= tien_tu)
+        if tien_den is not None:
+            c.append(PaymentVoucher.amount_vnd <= tien_den)
+        if tai_khoan_id is not None:
+            c.append(PaymentVoucher.company_bank_account_id == tai_khoan_id)
+        if nguoi_lap_id is not None:
+            c.append(PaymentVoucher.created_by_user_id == nguoi_lap_id)
+        if (nhan or "").strip():
+            # Ô lọc "Người nhận" của bộ lọc nâng cao — RIÊNG với ô tìm `q` (q còn so mã, nội dung,
+            # mã đơn): chỉ so tên người nhận tiền mặt, chủ tài khoản nhận, nhà cung cấp. Đi cùng `q` là AND.
+            like_nhan = f"%{nhan.strip().lower()}%"
+            c.append(
+                or_(
+                    func.lower(func.coalesce(PaymentVoucher.cash_recipient_name, "")).like(like_nhan),
+                    func.lower(func.coalesce(PaymentVoucher.beneficiary_account_holder_snapshot, "")).like(like_nhan),
+                    func.lower(func.coalesce(PaymentVoucher.supplier_name_snapshot, "")).like(like_nhan),
+                )
+            )
+        return c
+
+    @staticmethod
+    def _co_chung_tu_chi():
+        return exists().where(PaymentVoucherAttachment.payment_voucher_id == PaymentVoucher.id)
+
+    def _the_loc_chi(self, nen: list) -> dict:
+        """Số trên hàng thẻ lọc: đếm trên nền đã lọc kỳ + bộ lọc nâng cao nhưng CHƯA chọn thẻ.
+        "Thiếu chứng từ" chỉ tính phiếu ĐÃ CHI (phiếu huỷ không cần chứng từ)."""
+        da_chi = PaymentVoucher.status == PAYMENT_VOUCHER_PAID
+        stmt = select(
+            func.count(),
+            func.coalesce(func.sum(case((da_chi, 1), else_=0)), 0),
+            func.coalesce(func.sum(case((da_chi, PaymentVoucher.amount_vnd), else_=0)), 0),
+            func.coalesce(func.sum(case((and_(da_chi, ~self._co_chung_tu_chi()), 1), else_=0)), 0),
+            func.coalesce(func.sum(case((PaymentVoucher.status == PAYMENT_VOUCHER_CANCELLED, 1), else_=0)), 0),
+        ).select_from(PaymentVoucher)
+        for dk in nen:
+            stmt = stmt.where(dk)
+        tat_ca, xong, xong_tien, thieu, huy = self.db.execute(stmt).one()
+        return {
+            "tat_ca": int(tat_ca),
+            "xong": int(xong),
+            "xong_tien": int(xong_tien),
+            "thieu_chung_tu": int(thieu),
+            "da_huy": int(huy),
+            "cho": int(tat_ca) - int(xong) - int(huy),
+        }
+
+    def list_vouchers(
+        self,
+        *,
+        q: str | None = None,
+        status: str | None = None,
+        source_type: str | None = None,
+        voucher_type: str | None = None,
+        supplier_id: int | None = None,
+        purchase_request_id: int | None = None,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        tien_tu: int | None = None,
+        tien_den: int | None = None,
+        hinh_thuc: str | None = None,
+        nguon: list[str] | None = None,
+        tai_khoan_id: int | None = None,
+        nguoi_lap_id: int | None = None,
+        chung_tu: str | None = None,
+        nhan: str | None = None,
+        moc: str = "chi",
+        dem_only: bool = False,
+        sort: str = "-created_at",
+        page: int = 1,
+        size: int = 20,
+    ) -> tuple[list[PaymentVoucher], int, dict]:
+        nen = self._dieu_kien_phieu_chi(
+            q=q, source_type=source_type, voucher_type=hinh_thuc or voucher_type,
+            supplier_id=supplier_id, purchase_request_id=purchase_request_id,
+            tu_ngay=tu_ngay, den_ngay=den_ngay, tien_tu=tien_tu, tien_den=tien_den,
+            nguon=nguon, tai_khoan_id=tai_khoan_id, nguoi_lap_id=nguoi_lap_id, nhan=nhan, moc=moc,
+        )
+        conditions = list(nen)
         if status:
             conditions.append(PaymentVoucher.status == status)
-        if source_type:
-            conditions.append(PaymentVoucher.source_type == source_type)
-        if voucher_type:
-            conditions.append(PaymentVoucher.voucher_type == voucher_type)
-        if supplier_id is not None:
-            conditions.append(PaymentVoucher.supplier_id == supplier_id)
-        if purchase_request_id is not None:
-            conditions.append(PaymentVoucher.purchase_request_id == purchase_request_id)
+        if chung_tu == "co":
+            conditions.append(self._co_chung_tu_chi())
+        elif chung_tu == "thieu":
+            conditions.append(~self._co_chung_tu_chi())
 
         stmt = self._voucher_stmt()
         count_stmt = select(func.count()).select_from(PaymentVoucher)
@@ -255,6 +376,9 @@ class AccountingRepository:
             count_stmt = count_stmt.where(condition)
 
         total = self.db.execute(count_stmt).scalar_one()
+        if dem_only:
+            # Chỉ cần "Khớp n phiếu" khi người dùng đang chỉnh bộ lọc — khỏi kéo hàng + tổng tiền.
+            return [], total, {}
         direction = asc
         key = sort or "-created_at"
         if key.startswith("-"):
@@ -290,7 +414,7 @@ class AccountingRepository:
         page = max(1, page)
         size = max(1, min(size, 200))
         rows = list(self.db.execute(stmt.offset((page - 1) * size).limit(size)).scalars())
-        return rows, total, self._voucher_totals(conditions)
+        return rows, total, {**self._voucher_totals(conditions), "the_loc": self._the_loc_chi(nen)}
 
     def _voucher_totals(self, conditions) -> dict:
         """Tổng tiền trên TOÀN BỘ kết quả khớp bộ lọc (không chỉ trang hiện tại) —
@@ -333,20 +457,47 @@ class AccountingRepository:
 
     # --- payment receipts ---------------------------------------------------
 
-    def list_receipts(
+    def _dieu_kien_phieu_thu(
         self,
         *,
         q: str | None = None,
-        status: str | None = None,
         payment_voucher_id: int | None = None,
         source_type: str | None = None,
-        sort: str = "-created_at",
-        page: int = 1,
-        size: int = 20,
-    ) -> tuple[list[PaymentReceipt], int]:
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        tien_tu: int | None = None,
+        tien_den: int | None = None,
+        hinh_thuc: str | None = None,
+        nguon: list[str] | None = None,
+        tai_khoan_id: int | None = None,
+        nguoi_lap_id: int | None = None,
+        nhan: str | None = None,
+        moc: str = "thu",
+    ) -> list:
+        """Điều kiện lọc CHUNG của phiếu thu (bảng + số thẻ lọc + tổng đã thu). KHÔNG gồm `status`
+        và `chung_tu` — xem `_dieu_kien_phieu_chi`."""
         conditions = []
         if source_type is not None:
             conditions.append(PaymentReceipt.source_type == source_type)
+        if nguon:
+            conditions.append(PaymentReceipt.source_type.in_(list(nguon)))
+        if hinh_thuc:
+            conditions.append(PaymentReceipt.receipt_method == hinh_thuc)
+        # Kỳ theo mốc: `thu` = ngày thu trên chứng từ (Date), `tao` = lúc lập phiếu (giờ VN).
+        if moc == "tao":
+            conditions.extend(dk_khoang_ngay(PaymentReceipt.created_at, tu_ngay, den_ngay))
+        else:
+            conditions.extend(dk_khoang_ngay(PaymentReceipt.receipt_date, tu_ngay, den_ngay, cot_ngay=True))
+        if tien_tu is not None:
+            conditions.append(PaymentReceipt.amount_vnd >= tien_tu)
+        if tien_den is not None:
+            conditions.append(PaymentReceipt.amount_vnd <= tien_den)
+        if tai_khoan_id is not None:
+            conditions.append(PaymentReceipt.company_bank_account_id == tai_khoan_id)
+        if nguoi_lap_id is not None:
+            conditions.append(PaymentReceipt.created_by_user_id == nguoi_lap_id)
+        if payment_voucher_id is not None:
+            conditions.append(PaymentReceipt.payment_voucher_id == payment_voucher_id)
         if q:
             like = f"%{q.strip().lower()}%"
             conditions.append(
@@ -365,10 +516,76 @@ class AccountingRepository:
                     func.lower(PaymentReceipt.content).like(like),
                 )
             )
+        if (nhan or "").strip():
+            # Ô lọc "Người nộp" — RIÊNG với ô tìm `q` (q còn so mã, nội dung, số hoá đơn): chỉ so tên
+            # người nộp. Đi cùng `q` là AND (cùng luật với "Người nhận" của phiếu chi).
+            like_nhan = f"%{nhan.strip().lower()}%"
+            conditions.append(func.lower(PaymentReceipt.payer_name).like(like_nhan))
+        return conditions
+
+    @staticmethod
+    def _co_chung_tu_thu():
+        return exists().where(PaymentReceiptAttachment.payment_receipt_id == PaymentReceipt.id)
+
+    def _the_loc_thu(self, nen: list) -> dict:
+        """Số trên hàng thẻ lọc phiếu thu: nền đã lọc kỳ + bộ lọc nâng cao, CHƯA chọn thẻ.
+        `xong` = đã thu, `cho` = chờ thu (phần còn lại sau khi trừ đã thu và đã huỷ)."""
+        da_thu = PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED
+        stmt = select(
+            func.count(),
+            func.coalesce(func.sum(case((da_thu, 1), else_=0)), 0),
+            func.coalesce(func.sum(case((da_thu, PaymentReceipt.amount_vnd), else_=0)), 0),
+            func.coalesce(func.sum(case((and_(da_thu, ~self._co_chung_tu_thu()), 1), else_=0)), 0),
+            func.coalesce(func.sum(case((PaymentReceipt.status == PAYMENT_RECEIPT_CANCELLED, 1), else_=0)), 0),
+        ).select_from(PaymentReceipt)
+        for dk in nen:
+            stmt = stmt.where(dk)
+        tat_ca, xong, xong_tien, thieu, huy = self.db.execute(stmt).one()
+        return {
+            "tat_ca": int(tat_ca),
+            "xong": int(xong),
+            "xong_tien": int(xong_tien),
+            "thieu_chung_tu": int(thieu),
+            "da_huy": int(huy),
+            "cho": int(tat_ca) - int(xong) - int(huy),
+        }
+
+    def list_receipts(
+        self,
+        *,
+        q: str | None = None,
+        status: str | None = None,
+        payment_voucher_id: int | None = None,
+        source_type: str | None = None,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        tien_tu: int | None = None,
+        tien_den: int | None = None,
+        hinh_thuc: str | None = None,
+        nguon: list[str] | None = None,
+        tai_khoan_id: int | None = None,
+        nguoi_lap_id: int | None = None,
+        chung_tu: str | None = None,
+        nhan: str | None = None,
+        moc: str = "thu",
+        dem_only: bool = False,
+        sort: str = "-created_at",
+        page: int = 1,
+        size: int = 20,
+    ) -> tuple[list[PaymentReceipt], int, dict]:
+        nen = self._dieu_kien_phieu_thu(
+            q=q, payment_voucher_id=payment_voucher_id, source_type=source_type,
+            tu_ngay=tu_ngay, den_ngay=den_ngay, tien_tu=tien_tu, tien_den=tien_den,
+            hinh_thuc=hinh_thuc, nguon=nguon, tai_khoan_id=tai_khoan_id, nguoi_lap_id=nguoi_lap_id,
+            nhan=nhan, moc=moc,
+        )
+        conditions = list(nen)
         if status:
             conditions.append(PaymentReceipt.status == status)
-        if payment_voucher_id is not None:
-            conditions.append(PaymentReceipt.payment_voucher_id == payment_voucher_id)
+        if chung_tu == "co":
+            conditions.append(self._co_chung_tu_thu())
+        elif chung_tu == "thieu":
+            conditions.append(~self._co_chung_tu_thu())
 
         stmt = self._receipt_stmt()
         count_stmt = select(func.count()).select_from(PaymentReceipt)
@@ -377,6 +594,8 @@ class AccountingRepository:
             count_stmt = count_stmt.where(condition)
 
         total = self.db.execute(count_stmt).scalar_one()
+        if dem_only:
+            return [], total, {}
         direction = asc
         key = sort or "-created_at"
         if key.startswith("-"):
@@ -389,7 +608,16 @@ class AccountingRepository:
         page = max(1, page)
         size = max(1, min(size, 200))
         rows = list(self.db.execute(stmt.offset((page - 1) * size).limit(size)).scalars())
-        return rows, total
+        tong_stmt = select(func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0)).where(
+            PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED
+        )
+        for condition in conditions:
+            tong_stmt = tong_stmt.where(condition)
+        tong_da_thu = int(self.db.execute(tong_stmt).scalar_one())
+        return rows, total, {
+            "total_received_amount": tong_da_thu,
+            "the_loc": self._the_loc_thu(nen),
+        }
 
     def get_receipt(self, receipt_id: int) -> PaymentReceipt | None:
         return self.db.execute(
@@ -496,9 +724,69 @@ class AccountingRepository:
         ).scalars()
         return {row.id: row for row in rows}
 
+    def lien_he_chinh_theo_khach(self, customer_ids: set[int]) -> dict[int, tuple[str, str | None]]:
+        """`{customer_id: (tên, số điện thoại)}` của LIÊN HỆ CHÍNH (`is_primary`) — cột Liên hệ của
+        bảng Công nợ phải thu. Khách chưa đánh dấu ai là chính thì KHÔNG có khoá: người gọi lùi về
+        ô liên hệ nhanh của khách (`contact_name` / `phone`)."""
+        if not customer_ids:
+            return {}
+        rows = self.db.execute(
+            select(CustomerContact.customer_id, CustomerContact.name, CustomerContact.phone)
+            .where(CustomerContact.customer_id.in_(customer_ids), CustomerContact.is_primary.is_(True))
+            .order_by(CustomerContact.id.asc())
+        ).all()
+        out: dict[int, tuple[str, str | None]] = {}
+        for cid, ten, sdt in rows:
+            out.setdefault(cid, (ten, sdt))
+        return out
+
+    def lan_thu_cuoi_cong_no(self, *, invoice_ids: list[int], order_ids: list[int]) -> list[tuple]:
+        """Phiếu thu ĐÃ THU gắn các hoá đơn / cọc đơn này, MỚI NHẤT trước — cột thô
+        `(sales_invoice_id, order_id, receipt_date, id, amount_vnd)`, không nạp đối tượng. Cùng luật
+        nối với `list_receipts_for_receivables` nhưng KHÔNG mốc kỳ: "thu gần nhất" là của cả lịch sử."""
+        if not invoice_ids and not order_ids:
+            return []
+        links = []
+        if invoice_ids:
+            links.append(PaymentReceipt.sales_invoice_id.in_(invoice_ids))
+        if order_ids:
+            links.append(
+                (PaymentReceipt.order_id.in_(order_ids))
+                & (PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER)
+            )
+        return list(
+            self.db.execute(
+                select(
+                    PaymentReceipt.sales_invoice_id,
+                    PaymentReceipt.order_id,
+                    PaymentReceipt.receipt_date,
+                    PaymentReceipt.id,
+                    PaymentReceipt.amount_vnd,
+                )
+                .where(or_(*links), PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED)
+                .order_by(PaymentReceipt.receipt_date.desc(), PaymentReceipt.id.desc())
+            ).all()
+        )
+
+    def customer_ids_co_nhan(self, label: str) -> set[int]:
+        """Id các khách mang nhãn `label` — lọc Công nợ phải thu theo nhãn. Gọi thẳng
+        `CustomerRepository.ids_with_label` (nguồn DUY NHẤT của phép so nhãn), không chép luật."""
+        if not (label or "").strip():
+            return set()
+        return CustomerRepository(self.db).ids_with_label(label)
+
     def get_sales_invoice(self, invoice_id: int) -> SalesInvoice | None:
         return self.db.execute(
             self._sales_invoice_stmt().where(SalesInvoice.id == invoice_id)
+        ).scalar_one_or_none()
+
+    def latest_sales_invoice_symbol(self) -> str | None:
+        """Ký hiệu của hoá đơn bán ghi gần nhất (mọi đơn) — cả năm thường chỉ một dãy."""
+        return self.db.execute(
+            select(SalesInvoice.invoice_symbol)
+            .where(SalesInvoice.invoice_symbol.is_not(None), SalesInvoice.invoice_symbol != "")
+            .order_by(SalesInvoice.id.desc())
+            .limit(1)
         ).scalar_one_or_none()
 
     def list_sales_invoices(
@@ -520,6 +808,15 @@ class AccountingRepository:
                 stmt.order_by(SalesInvoice.invoice_date, SalesInvoice.id)
             ).scalars()
         )
+
+    def issued_invoice_sums(self, order_ids: list[int]) -> dict[int, int]:
+        """`{order_id: Σ hoá đơn đã ghi}` MỘT câu cho nhiều đơn — đơn chưa ghi vắng mặt."""
+        if not order_ids:
+            return {}
+        return {int(oid): int(s or 0) for oid, s in self.db.execute(
+            select(SalesInvoice.order_id, func.coalesce(func.sum(SalesInvoice.amount_vnd), 0))
+            .where(SalesInvoice.order_id.in_(order_ids), SalesInvoice.status == SALES_INVOICE_ISSUED)
+            .group_by(SalesInvoice.order_id))}
 
     def issued_invoice_amount_for_order(self, order_id: int) -> int:
         return int(
@@ -641,6 +938,35 @@ class AccountingRepository:
             .order_by(PaymentVoucher.voucher_date, PaymentVoucher.id)
         )
         return list(self.db.execute(stmt).scalars().unique().all())
+
+    def thong_ke_tai_khoan(self, *, tu_ngay: date, den_ngay: date) -> list[dict]:
+        """Thu/chi ĐÃ XONG của từng tài khoản ngân hàng công ty trong kỳ (theo ngày chứng từ).
+
+        Chỉ phiếu `paid` / `received` — phiếu huỷ không vào số. Tài khoản không có phiếu nào trong
+        kỳ thì vắng mặt; chỗ gọi tự điền 0 cho thẻ tài khoản của mình."""
+        chi = {i: (tong, dem) for i, tong, dem in self.db.execute(
+            select(PaymentVoucher.company_bank_account_id,
+                   func.sum(PaymentVoucher.amount_vnd), func.count())
+            .where(PaymentVoucher.status == PAYMENT_VOUCHER_PAID,
+                   PaymentVoucher.company_bank_account_id.is_not(None),
+                   PaymentVoucher.voucher_date.between(tu_ngay, den_ngay))
+            .group_by(PaymentVoucher.company_bank_account_id)).all()}
+        thu = {i: (tong, dem) for i, tong, dem in self.db.execute(
+            select(PaymentReceipt.company_bank_account_id,
+                   func.sum(PaymentReceipt.amount_vnd), func.count())
+            .where(PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
+                   PaymentReceipt.company_bank_account_id.is_not(None),
+                   PaymentReceipt.receipt_date.between(tu_ngay, den_ngay))
+            .group_by(PaymentReceipt.company_bank_account_id)).all()}
+        return [
+            {
+                "tai_khoan_id": i,
+                "thu": int(thu.get(i, (0, 0))[0] or 0),
+                "chi": int(chi.get(i, (0, 0))[0] or 0),
+                "so_phieu": int(thu.get(i, (0, 0))[1]) + int(chi.get(i, (0, 0))[1]),
+            }
+            for i in sorted(set(chi) | set(thu))
+        ]
 
     def khach_cua_don(self, order_ids: list[int]) -> dict[int, int]:
         """`{order_id: customer_id}` — truy khách cho phiếu thu đi đường CỌC ĐƠN HÀNG.

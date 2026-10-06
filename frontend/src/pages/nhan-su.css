@@ -732,25 +732,21 @@ button.ns__kpi {
 .ns-badge--due .ns-badge-dot { background: #f97316; }
 .ns-badge--danger .ns-badge-dot { background: #f43f5e; }
 
-/* Pager UI - Minimalist Footer Bar */
-.ns__pager {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 12px;
-  background: var(--paper);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-3);
-  margin-top: 6px;
-  color: var(--ash);
-  font-size: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+/* Chân phân trang (`.ptdd`, khuôn Nhật ký — 05/10/2026 thay `.ns__pager`) nối vào đáy thẻ bảng
+   thành MỘT khối: khung bảng tự là thẻ có viền nên chân đứng ngay sau, mượn viền cho ba cạnh.
+   (1) Hồ sơ nhân sự: giữa bảng và chân còn khối thẻ điện thoại (`.ns-cards-wrapper`, giấu ở màn
+   rộng) — nối qua nó. Màn hẹp thì bảng bị giấu, chân đứng riêng (xem @media 768px).
+   (2) Tăng ca + mọi bảng `.ns__tablewrap` khác có chân ngay sau. */
+.ns-table-wrapper:has(+ .ns-cards-wrapper + .ptdd),
+.ns__tablewrap:has(+ .ptdd) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
-
-.ns__pagerbtns {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.ns-cards-wrapper + .ptdd,
+.ns__tablewrap + .ptdd {
+  border: 1px solid var(--rule);
+  border-top: 0;
+  border-radius: 0 0 var(--r-5) var(--r-5);
 }
 
 /* Modals Overlay with Blur */
@@ -2849,6 +2845,12 @@ button.ns__kpi {
   .ns-cards-wrapper {
     display: flex;
   }
+  /* Bảng đã giấu, không còn đáy thẻ để nối — chân thành một dải riêng dưới chồng thẻ. */
+  .ns-cards-wrapper + .ptdd {
+    margin-top: 10px;
+    border-top: 1px solid var(--rule);
+    border-radius: var(--r-5);
+  }
   .ns-detail-drawer {
     width: 100vw;
     border-radius: 0;
@@ -3066,4 +3068,16 @@ input:checked + .cc-slider:before {
   align-items: center;
   flex-shrink: 0;
   margin-left: auto;
+}
+
+/* Thanh lọc chung (06/10/2026) thay 3 select lọc cũ: ô tìm, [Kỳ][Lọc], sắp xếp, nút Excel xếp
+   trên MỘT dòng xuống dòng được — bỏ lưới 4 select của khổ máy tính bảng/điện thoại. */
+.ns2__toolbar.tl-thanh { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; }
+.ns2__toolbar.tl-thanh > .ns-search-wrapper { order: 1; }
+.ns2__toolbar.tl-thanh > .ns2__loc { order: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.ns2__toolbar.tl-thanh > .ns2__filters { order: 3; display: flex; grid-row: auto; grid-column: auto; width: auto; }
+.ns2__toolbar.tl-thanh > .ns-btn-excel { order: 4; grid-row: auto; }
+@media (max-width: 640px) {
+  .ns2__toolbar.tl-thanh > .ns2__loc { flex: 1 1 100%; }
+  .ns2__toolbar.tl-thanh > .ns2__filters { margin-left: 0; }
 }

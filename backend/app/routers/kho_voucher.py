@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import date
 from typing import Annotated
 
 from fastapi import (
@@ -25,7 +26,13 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from ..db import SessionLocal, get_db
-from ..deps import get_authorization_service, require_any_permission, require_permission
+from ..deps import (
+    get_authorization_service,
+    get_current_user,
+    require_permission,
+    require_xem_kho_nao,
+)
+from ..services.quyen_kho import gia_lo_theo_man, kho_duoc, khoa_kho, xem_ton_kho
 from ..models.stock_voucher import VOUCHER_NHAP
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
@@ -87,13 +94,10 @@ threshold_router = APIRouter(prefix="/api/kho/nguong-ton", tags=["kho-nguong"])
 # Điều chuyển kho — prefix RIÊNG (không nhét dưới /phieu) để không bị `/phieu/{voucher_id}` nuốt.
 dieu_chuyen_router = APIRouter(prefix="/api/kho/dieu-chuyen", tags=["kho-dieu-chuyen"])
 MODULE = "kho"
-# Màn TỒN KHO của từng kho (mục menu động dưới khối "Kho hàng") — module RIÊNG từ 24/09/2026
-# (mg `0334`). Xem = đọc SỐ tồn + lô; việc GHI duy nhất là khai ngưỡng, đi bằng ô CHI TIẾT
-# `set_threshold` của chính dòng này. Trước đó là hai ô chi tiết
-# `kho:view_stock` / `kho:set_threshold`, tức cả nhóm màn nấp trong panel của màn Yêu cầu nhập
-# xuất. Tên biến phải mở đầu bằng `MODULE` thì guard `test_giao_dien_khop_may_chu` mới lần ra được
-# cặp (khoá, việc) mà giao diện đang hỏi.
-MODULE_TON_KHO = "ton_kho"
+# Màn TỒN KHO của từng kho (mục menu động dưới khối "Kho hàng"): MỖI KHO MỘT DÒNG QUYỀN
+# `ton_kho_<id kho>` từ 05/10/2026 (`services/quyen_kho.py`) — Xem = đọc SỐ tồn + lô của kho đó;
+# việc GHI duy nhất là khai ngưỡng, ô chi tiết `set_threshold` của chính dòng kho đó. Trước đó là
+# MỘT khoá `ton_kho` chung (mg `0334`) mở cùng lúc mọi kho.
 # Action nhật ký khi ĐIỀU CHỈNH phiếu xuất (SX dùng ít hơn) — đọc lại cho "Lịch sử điều chỉnh".
 _ACTION_DIEU_CHINH_XUAT = "kho_xuat_dieu_chinh"
 
@@ -356,6 +360,15 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
     )
 
 
+def _xem_gia_man(authz, user: User, man: str, kho_id: int | None) -> bool:
+    """Ô "Xem giá thành" của ĐÚNG màn đang gọi danh sách phiếu (05/10/2026): màn tồn của từng kho
+    (`man=ton`) hỏi dòng `ton_kho_<kho_id>` — không chọn kho thì không có dòng nào để hỏi ⇒ không
+    giá; màn Yêu cầu nhập xuất (`man=yeu_cau`, mặc định) hỏi `kho.view_cost`."""
+    if man == "ton":
+        return kho_id is not None and gia_lo_theo_man(authz, user, "ton")(kho_id)
+    return authz.can(user, MODULE, "view_cost")
+
+
 @router.get("", response_model=StockVoucherPage)
 def list_vouchers(
     svc: Service, db: Db, authz: Authz,
@@ -365,14 +378,36 @@ def list_vouchers(
     request_id: int | None = Query(default=None),
     kho_id: int | None = Query(default=None),
     q: str | None = Query(default=None),
+    nhom: str | None = Query(default=None, pattern="^(nhap|xuat|dc)$",
+                             description="Tab màn tồn từng kho: phiếu nhập / phiếu xuất / điều chuyển"),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|ngay|ghi_so)$"),
+    nguoi_lap: list[int] | None = Query(default=None),
+    gia_tu: int | None = Query(default=None, ge=0),
+    gia_den: int | None = Query(default=None, ge=0),
+    man: str = Query(default="yeu_cau", pattern="^(ton|yeu_cau)$",
+                     description="Màn đang gọi — chọn ô Xem giá thành để gác tiền"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
 ) -> StockVoucherPage:
-    rows, total = svc.vouchers.list(
-        loai=loai, trang_thai=trang_thai, request_id=request_id,
-        kho_id=kho_id, q=q, page=page, size=size,
+    can_view_cost = _xem_gia_man(authz, user, man, kho_id)
+    hang_khop = None
+    if q and q.strip():
+        # Ô tìm bắt cả tên / mã vật tư đi trong phiếu: tra sẵn các mặt hàng khớp chữ.
+        hang_khop = [(d["hang_loai"], d["hang_id"])
+                     for d in _hang_service(db).tim_mat_hang(q.strip(), size=500)]
+    loc = dict(
+        loai=loai, trang_thai=trang_thai, request_id=request_id, kho_id=kho_id, q=q,
+        hang_khop=hang_khop, nhom=nhom, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
+        nguoi_lap=nguoi_lap,
+        # Lọc theo TIỀN chỉ khi người xem thấy tiền ở màn này — không quyền thì bỏ qua tham số
+        # (lọc được theo khoảng là dò ra được giá vốn từng phiếu).
+        gia_tu=gia_tu if can_view_cost else None,
+        gia_den=gia_den if can_view_cost else None,
     )
-    can_view_cost = authz.can(user, MODULE, "view_cost")
+    rows, total = svc.vouchers.list(page=page, size=size, **loc)
+    dem_theo_tab = svc.vouchers.dem_theo_nhom(**loc)
     # Nạp SẴN mã hàng / lô / đề nghị của cả trang trong vài query (tránh N+1 trong _serialize).
     hang_map = _hang_service(db).map_theo_cap(
         [(ln.hang_loai, ln.hang_id) for v in rows for ln in v.lines])
@@ -389,7 +424,24 @@ def list_vouchers(
             for v in rows
         ],
         total=total,
+        dem_theo_tab=dem_theo_tab,
     )
+
+
+@router.get("/loc-nguoi-lap")
+def loc_nguoi_lap(
+    svc: Service, db: Db,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    kho_id: int | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị của điều kiện "Người lập": ai đã lập phiếu (ở kho `kho_id`), kèm số phiếu."""
+    dem = dict(svc.vouchers.nguoi_lap_loc(kho_id=kho_id))
+    users = UserRepository(db)
+    ra = []
+    for uid, n in dem.items():
+        u = users.get_by_id(uid)
+        ra.append({"id": uid, "ten": getattr(u, "name", None) or f"#{uid}", "so": n})
+    return sorted(ra, key=lambda d: d["ten"])
 
 
 @router.get("/{voucher_id}", response_model=StockVoucherOut)
@@ -551,8 +603,9 @@ def bo_sung_dang_kho_lo(
 @router.patch("/lo/{lot_id}/gia-goc", response_model=GiaGocOut)
 def sua_gia_goc(
     lot_id: int, payload: GiaGocIn, db: Annotated[Session, Depends(get_db)],
-    # Người không thấy giá thì cũng không sửa giá — tái dùng ô "xem giá vốn" (Kế toán kho).
-    user: Annotated[User, Depends(require_permission(MODULE, "view_cost"))],
+    # Người không thấy giá thì cũng không sửa giá. Màn gõ giá gốc là tab "Giá gốc thành phẩm" của
+    # BÁO CÁO KHO ⇒ ô "Xem giá thành" của Báo cáo kho (05/10/2026 — mỗi màn kho một ô xem giá).
+    user: Annotated[User, Depends(require_permission("bao_cao_kho", "view_cost"))],
 ) -> GiaGocOut:
     """Kế toán kho gõ giá gốc cho lô thành phẩm nhập từ KCS — ghi lô gốc + mọi lô sinh ra từ nó qua
     điều chuyển, một giao dịch (design nhập kho thành phẩm §5)."""
@@ -830,7 +883,7 @@ def export_stock_xlsx(
     return _xlsx_response(_build_stock_xlsx(rows), filename)
 
 
-def _chan_neu_khong_xem_ton(authz, user: User) -> None:
+def _chan_neu_khong_xem_ton(db, authz, user: User, kho_id: int | None) -> None:
     """Chặn ở MÁY CHỦ người không được đọc SỐ tồn/lô. Được: người xem tồn (`ton_kho:read`), người lập
     phiếu (`create` — lập phiếu xuất phải thấy lô, `/lo/goi-y` vốn đã trả lô) và người vào được
     BÁO CÁO KHO (`bao_cao_kho:read` — popup lịch sử mặt hàng nằm trong màn đó). Vai chỉ `kho:read`
@@ -840,22 +893,28 @@ def _chan_neu_khong_xem_ton(authz, user: User) -> None:
     Cửa thứ ba trước 24/09/2026 là `kho:close_book`; ô đó đã dời sang module riêng `bao_cao_kho`
     (mg `0329`) nên phải hỏi đúng khoá mới, không thì kế toán kho được cấp lại vẫn mở không nổi
     popup lịch sử. Cửa thứ nhất cũng đã dời cùng ngày: `kho:view_stock` → `ton_kho:read` (mg
-    `0334`)."""
-    if not authz.can(user, MODULE_TON_KHO, "read") and not authz.can(
+    `0334`), rồi 05/10/2026 thành Xem ở DÒNG CỦA KHO ĐANG HỎI (`ton_kho_<id>`) — không truyền kho
+    là gộp mọi kho, phải xem được mọi kho (`quyen_kho.xem_ton_kho`)."""
+    if not xem_ton_kho(db, authz, user, kho_id) and not authz.can(
         user, MODULE, "create"
     ) and not authz.can(user, "bao_cao_kho", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Cần quyền Xem tồn kho.")
 
 
+#: Ba màn cùng gọi danh sách lô / lịch sử mặt hàng — mỗi màn có ô "Xem giá thành" riêng
+#: (`quyen_kho.gia_lo_theo_man`).
+_MAN_MO_TA = ("Màn đang gọi, quyết định ô 'Xem giá thành' nào được áp: ton = dòng của kho có lô · "
+              "yeu_cau = Yêu cầu nhập xuất · bao_cao = Báo cáo kho")
+
+
 @router.get("/lo/danh-sach", response_model=list[StockLotOut])
 def list_lots(
     svc: Service, db: Db, authz: Authz,
     # Cửa NGOÀI chỉ lọc "có phải người của kho không" — ai ĐƯỢC đọc số tồn thật thì
-    # `_chan_neu_khong_xem_ton` bên dưới quyết. Phải nhận cả `ton_kho` từ 24/09/2026 (mg `0334`):
-    # vai chỉ được cấp màn Tồn kho thì không có `kho:read` nào cả.
-    user: Annotated[User, Depends(
-        require_any_permission((MODULE, "read"), (MODULE_TON_KHO, "read")))],
+    # `_chan_neu_khong_xem_ton` bên dưới quyết. Phải nhận cả người chỉ có dòng kho (`ton_kho_<id>`):
+    # vai chỉ được cấp màn Tồn kho của vài kho thì không có `kho:read` nào cả.
+    user: Annotated[User, Depends(require_xem_kho_nao((MODULE, "read")))],
     hang_loai: str | None = Query(default=None),
     hang_id: int | None = Query(default=None),
     kho_id: int | None = Query(default=None),
@@ -863,9 +922,10 @@ def list_lots(
     dang_giay: str | None = Query(default=None, pattern="^(to|cuon)$"),
     kho_rong: int = Query(default=0, ge=0),
     kho_dai: int = Query(default=0, ge=0),
+    man: str = Query(default="ton", pattern="^(ton|yeu_cau|bao_cao)$", description=_MAN_MO_TA),
 ) -> list[StockLotOut]:
-    _chan_neu_khong_xem_ton(authz, user)
-    can_view_cost = authz.can(user, MODULE, "view_cost")
+    _chan_neu_khong_xem_ton(db, authz, user, kho_id)
+    gia_kho = gia_lo_theo_man(authz, user, man)
     hang = (hang_loai, hang_id) if (hang_loai and hang_id) else None
     lots = svc.lots.list_lots(hang=hang, kho_id=kho_id, con_hang=con_hang,
                               dang=dang_giay, kho_rong=kho_rong, kho_dai=kho_dai)
@@ -889,7 +949,8 @@ def list_lots(
         row.dvt = don_vi_goc_to() if lot.dang_giay == "to" else getattr(m, "don_vi_gia", None)
         row.dvt_ten = dv_ten.get(row.dvt, row.dvt)
         row.voucher_ma = voucher_ma_map.get(lot.voucher_id) if lot.voucher_id else None
-        # Thủ kho chọn lô nhưng KHÔNG thấy giá (spec §6).
+        # Thủ kho chọn lô nhưng KHÔNG thấy giá (spec §6). Tiền theo ô xem giá của MÀN gọi.
+        can_view_cost = gia_kho(lot.kho_id)
         row.don_gia_nhap = int(lot.don_gia_nhap or 0) if can_view_cost else None
         _gan_nguon_lo(row, nguon.get(lot.id), can_view_cost)
         out.append(row)
@@ -908,18 +969,18 @@ def _gan_nguon_lo(row: StockLotOut, n: dict | None, can_view_cost: bool) -> None
 @router.get("/mat-hang/{hang_loai}/{hang_id}/lich-su", response_model=MaterialHistoryOut)
 def material_history(
     hang_loai: str, hang_id: int, svc: Service, db: Db, authz: Authz,
-    user: Annotated[User, Depends(
-        require_any_permission((MODULE, "read"), (MODULE_TON_KHO, "read")))],
+    user: Annotated[User, Depends(require_xem_kho_nao((MODULE, "read")))],
     kho_id: int = Query(...),
     dang_giay: str | None = Query(default=None, pattern="^(to|cuon)$"),
     kho_rong: int = Query(default=0, ge=0),
     kho_dai: int = Query(default=0, ge=0),
+    man: str = Query(default="ton", pattern="^(ton|yeu_cau|bao_cao)$", description=_MAN_MO_TA),
 ) -> MaterialHistoryOut:
     """Lịch sử NHẬP (mọi lô, kể cả đã hết) + XUẤT (dòng phiếu xuất đã ghi sổ) của 1 mặt hàng
-    tại 1 kho — cho popup màn Tồn kho, tách theo dõi nhập/xuất riêng. Giá vốn ẩn nếu thiếu
-    `can_view_cost` (đường path nhiều đoạn nên không đụng route `/{voucher_id}`)."""
-    _chan_neu_khong_xem_ton(authz, user)
-    can_view_cost = authz.can(user, MODULE, "view_cost")
+    tại 1 kho — cho popup màn Tồn kho / Báo cáo kho, tách theo dõi nhập/xuất riêng. Giá vốn ẩn nếu
+    thiếu ô xem giá của màn gọi (đường path nhiều đoạn nên không đụng route `/{voucher_id}`)."""
+    _chan_neu_khong_xem_ton(db, authz, user, kho_id)
+    can_view_cost = gia_lo_theo_man(authz, user, man)(kho_id)
     hang = (hang_loai, hang_id)
     m = svc.hang.map_theo_cap([hang]).get(hang)
     dvt = getattr(m, "don_vi_gia", None)
@@ -1047,21 +1108,31 @@ def delete_voucher_attachment(
 
 @threshold_router.get("", response_model=list[StockThresholdOut])
 def list_thresholds(
-    db: Db, _: Annotated[User, Depends(require_permission(MODULE_TON_KHO, "read"))],
+    db: Db, authz: Authz, user: Annotated[User, Depends(require_xem_kho_nao())],
 ) -> list[StockThresholdOut]:
+    # Chỉ ngưỡng của những kho người này có Xem ở dòng kho (`ton_kho_<id>`, 05/10/2026).
+    duoc = kho_duoc(authz, user, "read")
     return [
         StockThresholdOut.model_validate(t)
-        for t in StockThresholdRepository(db).list_active()
+        for t in StockThresholdRepository(db).list_active() if t.kho_id in duoc
     ]
 
 
 @threshold_router.put("", response_model=StockThresholdOut)
 def upsert_threshold(
-    payload: StockThresholdIn, db: Db,
-    _: Annotated[User, Depends(require_permission(MODULE_TON_KHO, "set_threshold"))],
+    payload: StockThresholdIn, db: Db, authz: Authz,
+    user: Annotated[User, Depends(get_current_user)],
 ) -> StockThresholdOut:
     """Khai ngưỡng. Bỏ trống `nguong_can_ton` thì để NULL — service tự suy ra
-    `nguong_ton × 1.3` lúc so sánh, khỏi phải backfill khi đổi hệ số."""
+    `nguong_ton × 1.3` lúc so sánh, khỏi phải backfill khi đổi hệ số.
+
+    Quyền: ô "Khai ngưỡng tồn" trên DÒNG CỦA KHO được khai (`ton_kho_<kho_id>:set_threshold`,
+    05/10/2026) — khai ngưỡng Kho giấy không cần quyền gì ở Kho thành phẩm."""
+    if not authz.can(user, khoa_kho(payload.kho_id), "set_threshold"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn không có quyền khai ngưỡng tồn ở kho này.",
+        )
     if payload.nguong_can_ton is not None and payload.nguong_can_ton < payload.nguong_ton:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

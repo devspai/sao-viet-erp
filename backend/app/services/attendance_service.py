@@ -1197,35 +1197,20 @@ class AttendanceService:
             return None
         return {e.id for e in self.employees.list_scoped_all(scope=scope, actor=actor)}
 
-    # Trần khi CÓ lọc ngày. Khoảng ngày đã tự bó dữ liệu lại, nhưng một ngày của xưởng 50 người là
-    # ~200 lượt — giữ trần 100 thì lọc xong vẫn MẤT NỬA NGÀY trong im lặng, tức lọc ngày mà vẫn
-    # không tin được. Số này cũng là số hiện trên màn ("tối đa N"), đừng để hai nơi lệch nhau.
-    LOG_LIMIT_CO_LOC_NGAY = 1000
+    def list_logs(self, *, scope=None, actor=None, loc, q: str | None = None,
+                  page: int = 1, size: int = 50):
+        """Nhật ký chấm công LỌC THEO SCOPE người gọi (own/department/all), phân trang ở máy chủ —
+        trả `(trang, tổng)`. Trước 06/10/2026 chỉ trả 100 lượt gần nhất (1000 khi lọc ngày): lọc
+        xong vẫn mất dữ liệu trong im lặng.
 
-    def list_logs(self, *, scope=None, actor=None, employee_id: int | None = None,
-                  limit: int = 100, q: str | None = None, tu_ngay=None, den_ngay=None):
-        """Log chấm công, LỌC THEO SCOPE của người gọi (own/department/all). `employee_id` do
-        client truyền chỉ được chấp nhận nếu nằm trong tập cho phép (ngoài → rỗng, không rò).
-
-        `q` (tìm theo tên/mã NV) đi XUỐNG SQL cùng tập `allowed` — nó THU HẸP thêm chứ không bao
-        giờ thay thế lớp scope. Gõ tên người ngoài phạm vi thì `allowed` đã loại từ trước, kết quả
-        rỗng; tìm kiếm không được là đường vòng để nhìn trộm."""
-        # Ngày do người dùng chọn là NGÀY VN; log lưu UTC ⇒ phải quy đổi ở đây, không đẩy xuống
-        # repo. `den_ngay` lấy TRỌN ngày đó nên biên phải là 00:00 hôm SAU (nửa mở), không thì
-        # người chọn "đến 28/7" mất sạch lượt bấm trong ngày 28.
-        tu = datetime.combine(tu_ngay, dtime(0, 0), tzinfo=VN_TZ).astimezone(timezone.utc) if tu_ngay else None
-        den = (datetime.combine(den_ngay, dtime(0, 0), tzinfo=VN_TZ)
-               + timedelta(days=1)).astimezone(timezone.utc) if den_ngay else None
-        if tu is not None or den is not None:
-            limit = self.LOG_LIMIT_CO_LOC_NGAY
-
+        Mọi điều kiện (`q`, nhân viên, phòng, điểm chấm) THU HẸP bên trong tập `allowed` — không
+        bao giờ thay lớp scope. Gõ tên / chọn id người ngoài phạm vi thì kết quả rỗng."""
         allowed = self._allowed_employee_ids(scope, actor)
-        if employee_id is not None:
-            if allowed is not None and employee_id not in allowed:
-                return []
-            return self.attendance.list_all(employee_ids={employee_id}, limit=limit, q=q,
-                                            tu=tu, den=den)
-        return self.attendance.list_all(employee_ids=allowed, limit=limit, q=q, tu=tu, den=den)
+        return self.attendance.loc_logs(employee_ids=allowed, loc=loc, q=q, limit=size,
+                                        offset=max(0, (page - 1) * size))
+
+    def lua_chon_logs(self, truong: str, *, scope=None, actor=None) -> list[dict]:
+        return self.attendance.lua_chon_logs(truong, employee_ids=self._allowed_employee_ids(scope, actor))
 
     # --- lịch sử thay đổi ca + hộp thư của NV -------------------------------
 
@@ -3070,6 +3055,7 @@ class AttendanceService:
             "reason": r.reason, "fault_party": r.fault_party,
             "status": r.status, "decided_at": r.decided_at, "decision_note": r.decision_note,
             "decided_by_name": decider_name,
+            "created_at": getattr(r, "created_at", None),
         }
 
     def adjust_quota(self, employee_id: int, year: int, month: int) -> dict:
@@ -3156,15 +3142,22 @@ class AttendanceService:
                           detail=f"{emp.code} {r.work_date} {r.check_type}")
         return self._req_out(r, emp_name=emp.full_name)
 
-    def list_requests(self, *, scope, actor, status: str | None = REQ_PENDING) -> list[dict]:
-        """HCNS xem yêu cầu chỉnh công theo scope."""
+    def list_requests(self, *, scope, actor, status: str | None = REQ_PENDING, loc,
+                      page: int = 1, size: int = 50) -> tuple[list[dict], int, dict]:
+        """HCNS xem yêu cầu chỉnh công theo scope — `(trang, tổng, đếm theo trạng thái)`."""
         allowed = self._allowed_employee_ids(scope, actor)
-        rows = self.attendance.list_requests(status=status, employee_ids=allowed)
+        rows, total, dem = self.attendance.loc_requests(
+            status=status, employee_ids=allowed, loc=loc, limit=size,
+            offset=max(0, (page - 1) * size))
         out = []
         for r in rows:
             emp = self.employees.get_by_id(r.employee_id)
             out.append(self._req_out(r, emp_name=emp.full_name if emp else None))
-        return out
+        return out, total, dem
+
+    def lua_chon_requests(self, truong: str, *, scope, actor) -> list[dict]:
+        return self.attendance.lua_chon_requests(
+            truong, employee_ids=self._allowed_employee_ids(scope, actor))
 
     def approve_request(self, *, actor, scope, request_id: int, time_hhmm: str | None,
                         fault_party: str | None, note: str | None = None,

@@ -43,8 +43,32 @@ class CongDoanRepository(CatalogRepo):
             selectinload(CongDoan.khoan).selectinload(CongDoanKhoan.viec_phat_sinh),
         )
 
-    def extra_conds(self, *, nhom: str | None = None, **_) -> list:
-        return [CongDoan.nhom == nhom] if nhom else []
+    def extra_conds(self, *, nhom: str | None = None, to_id: int | None = None,
+                    can_khuon: bool | None = None, **_) -> list:
+        """Giai đoạn · tổ phụ trách (một công đoạn nhiều tổ ⇒ `IN` bảng nối) · cần khuôn."""
+        conds = []
+        if nhom:
+            conds.append(CongDoan.nhom == nhom)
+        if to_id:
+            conds.append(CongDoan.id.in_(
+                select(CongDoanTo.cong_doan_id).where(CongDoanTo.department_id == to_id)))
+        if can_khuon is not None:
+            conds.append(CongDoan.requires_tooling.is_(can_khuon))
+        return conds
+
+    def dem_theo_to(self, **kw) -> list[dict]:
+        """Số công đoạn theo TỪNG tổ phụ trách (đếm qua bảng nối), kèm tên tổ — cho thanh lọc."""
+        from ..models.department import Department
+
+        stmt = (select(CongDoanTo.department_id, func.count(func.distinct(CongDoan.id)))
+                .join(CongDoan, CongDoan.id == CongDoanTo.cong_doan_id)
+                .group_by(CongDoanTo.department_id))
+        for c in self._dieu_kien(**kw):
+            stmt = stmt.where(c)
+        so = {int(i): int(n) for i, n in self.db.execute(stmt)}
+        ten = {int(i): t for i, t in self.db.execute(
+            select(Department.id, Department.name).where(Department.id.in_(list(so))))} if so else {}
+        return [{"value": str(i), "nhan": ten.get(i), "so": n} for i, n in so.items()]
 
     def get(self, cd_id: int) -> CongDoan | None:
         return self.db.execute(
@@ -102,15 +126,13 @@ class CongDoanRepository(CatalogRepo):
         rows = self.db.execute(select(DonViDo).where(DonViDo.ma.in_(mas))).scalars()
         return {r.ma: r for r in rows}
 
-    def dem_theo_nhom(self, *, q: str | None = None, active: bool | None = None) -> dict[str, int]:
-        """Số công đoạn của TỪNG giai đoạn — số hiện trên tab lọc. Không áp điều kiện `nhom`
-        (tab nào cũng phải có số của nó), nhưng CÓ áp `q` và `active`."""
+    def dem_theo_nhom(self, **kw) -> dict[str, int]:
+        """Số công đoạn của TỪNG giai đoạn — số hiện trên thanh lọc. Không áp điều kiện `nhom`
+        (giá trị nào cũng phải có số của nó), nhưng CÓ áp mọi bộ lọc khác (tìm, đang dùng, kỳ, tổ,
+        cần khuôn)."""
         stmt = select(CongDoan.nhom, func.count()).group_by(CongDoan.nhom)
-        loc = self._loc_q(q)
-        if loc is not None:
-            stmt = stmt.where(loc)
-        if active is not None:
-            stmt = stmt.where(CongDoan.active.is_(active))
+        for c in self._dieu_kien(**kw):
+            stmt = stmt.where(c)
         # Nhóm khuyết gom vào khoá rỗng "" (xem `may_thiet_bi_repo.dem_theo_loai`).
         return {(str(nhom).strip() if nhom is not None else ""): int(n)
                 for nhom, n in self.db.execute(stmt)}

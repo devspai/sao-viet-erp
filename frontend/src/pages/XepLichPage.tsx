@@ -12,6 +12,18 @@ import { XlChiTiet } from "./XlChiTiet";
 import { XlGantt } from "./XlGantt";
 import { XlHangCho } from "./XlHangCho";
 import {
+  LOC_HANG_CHO_TRONG,
+  MAN_XEP_LICH,
+  MOC_HANG_CHO,
+  locHangChoLenUrl,
+  locHangChoTuUrl,
+  thamSoLocHangCho,
+  useDieuKienHangCho,
+} from "./loc-san-xuat/dieu-kien-hang-cho";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { thamSoKy } from "./thanh-loc/ky-danh-sach";
+import { useLocMan } from "./thanh-loc/useLocMan";
+import {
   NGAY_NHAP_MAX, NGAY_NHAP_MIN, dauTuan, gioPhut, loiKhoangNgay, phutChayTrongCuaSo, soNgayGiua, themNgay, treHan,
 } from "./xlShared";
 import "./xep-lich.css";
@@ -70,6 +82,10 @@ export function XepLichPage({
   const [tim, setTim] = useState("");
   const timCho = useDebounced(tim, 300);
   const [trang, setTrang] = useState(1);
+  // Kỳ + điều kiện của HÀNG CHỜ (lưới Gantt giữ ô Từ/Đến riêng) — ghi lên URL, nhớ theo màn.
+  const [locCho, setLocCho] = useLocMan(MAN_XEP_LICH, LOC_HANG_CHO_TRONG, locHangChoTuUrl, locHangChoLenUrl);
+  const dieuKienCho = useDieuKienHangCho();
+  const khoaLocCho = JSON.stringify({ ...thamSoKy(locCho.ky), ...thamSoLocHangCho(locCho.loc) });
 
   const [chonId, setChonId] = useState<number | null>(null);
   const [ct, setCt] = useState<XlChiTietData | null>(null);
@@ -134,7 +150,7 @@ export function XepLichPage({
     let huy = false;
     setTaiCho(true);
     api.xepLich
-      .hangCho(token, { tim: timCho, trang, moi_trang: MOI_TRANG })
+      .hangCho(token, { ...JSON.parse(khoaLocCho), tim: timCho, trang, moi_trang: MOI_TRANG })
       .then((r) => {
         if (huy) return;
         setThe(r.dong);
@@ -145,7 +161,7 @@ export function XepLichPage({
     return () => {
       huy = true;
     };
-  }, [token, timCho, trang, eventTick, nhip]);
+  }, [token, timCho, trang, khoaLocCho, eventTick, nhip]);
 
   useEffect(() => {
     if (!token || chonId === null) {
@@ -182,7 +198,7 @@ export function XepLichPage({
     };
   }, [token, chonId, eventTick, nhip]);
 
-  useEffect(() => setTrang(1), [timCho]);
+  useEffect(() => setTrang(1), [timCho, khoaLocCho]);
 
   // ---------------------------------------------------------------- ghi
   const sau = useCallback(
@@ -531,6 +547,17 @@ export function XepLichPage({
           isCollapsed={choCollapsed}
           onToggleCollapse={() => setChoCollapsed((c) => !c)}
           onTim={setTim}
+          thanhLoc={
+            <ThanhLoc
+              ky={locCho.ky}
+              moc={MOC_HANG_CHO}
+              onKy={(ky) => setLocCho({ ...locCho, ky })}
+              dieuKien={dieuKienCho}
+              loc={locCho.loc}
+              onLoc={(loc) => setLocCho({ ...locCho, loc })}
+            />
+          }
+          dangLoc={khoaLocCho !== "{}"}
           onTrang={setTrang}
           onChon={setChonId}
           onKeo={setKeoTuHangCho}

@@ -185,6 +185,7 @@ class LenhNhomOut(BaseModel):
     som_nhat: datetime | None = None   # giờ dự kiến bước SỚM NHẤT của tổ trong lệnh
     muon_nhat: datetime | None = None
     nhan_luc: datetime | None = None   # lúc tổ nhận việc SỚM NHẤT của lệnh (giờ xưởng)
+    tao_luc: datetime | None = None    # ngày tạo LỆNH / BÀI GHÉP (giờ xưởng) — cột "Ngày tạo"
     so_viec: int
     digest: dict[str, int]             # released / running / paused / completed
     # Chuỗi công đoạn ĐẦY ĐỦ của lệnh (mọi tổ, chỉ đọc). Rỗng khi lệnh chỉ có một bước.
@@ -1248,6 +1249,9 @@ class KcsLenhItemOut(BaseModel):
     so_da_kiem: int
     so_loi: float
     cuoi: KcsCuoiTomTatOut | None = None
+    # Cột "Ngày tạo" + "Lần KCS gần nhất" (06/10/2026) — cũng là hai mốc kỳ `tao` / `kcs`.
+    created_at: datetime | None = None
+    kcs_gan_nhat: datetime | None = None
 
 
 class KcsLenhListOut(BaseModel):

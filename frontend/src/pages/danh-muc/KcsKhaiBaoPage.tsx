@@ -18,6 +18,15 @@ import {
 import { useAuth } from "../../auth/useAuth";
 import { useCan } from "../../auth/permissions";
 import { NHOM_CONG_DOAN } from "../keHoachSxShared";
+import {
+  LOC_MAN_KCS_TIEU_CHI_TRONG, MOC_KCS_TIEU_CHI, dieuKienKcsTieuChi, locKcsTieuChiLenUrl,
+  locKcsTieuChiTuUrl, thamSoLocKcsTieuChi,
+} from "../loc-san-xuat/dieu-kien-kcs-tieu-chi";
+import { ngayGioDayDu } from "../loc-san-xuat/ngay";
+import { ThanhLoc } from "../thanh-loc/ThanhLoc";
+import { thamSoKy } from "../thanh-loc/ky-danh-sach";
+import { useLocMan } from "../thanh-loc/useLocMan";
+import { useDebounced } from "../../utils/useDebounced";
 import "../rebuild-catalog.css";
 import "./kcs-khai-bao.css";
 
@@ -72,43 +81,6 @@ function IconInfo() {
       <circle cx="12" cy="12" r="10" />
       <line x1="12" y1="16" x2="12" y2="12" />
       <line x1="12" y1="8" x2="12.01" y2="8" />
-    </svg>
-  );
-}
-
-function StageIcon({ nhom }: { nhom: string }) {
-  if (nhom === "prepress") {
-    return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <circle cx="12" cy="8" r="2" />
-        <circle cx="8" cy="14" r="2" />
-        <circle cx="16" cy="14" r="2" />
-      </svg>
-    );
-  }
-  if (nhom === "print") {
-    return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="6 9 6 2 18 2 18 9" />
-        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-        <rect x="6" y="14" width="12" height="8" />
-      </svg>
-    );
-  }
-  if (nhom === "finishing") {
-    return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="6" cy="6" r="3" />
-        <circle cx="6" cy="18" r="3" />
-        <line x1="20" y1="4" x2="8.12" y2="15.88" />
-        <line x1="14.47" y1="14.47" x2="20" y2="20" />
-      </svg>
-    );
-  }
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
     </svg>
   );
 }
@@ -173,7 +145,17 @@ export function KcsKhaiBaoPage() {
   const [congDoanOpts, setCongDoanOpts] = useState<KcsCongDoanChon[]>([]);
   const [loi, setLoi] = useState<string | null>(null);
   const [tuKhoa, setTuKhoa] = useState("");
-  const [tabGiaiDoan, setTabGiaiDoan] = useState<string>("all");
+  const tuKhoaCham = useDebounced(tuKhoa.trim());
+  // Thanh lọc (06/10/2026): kỳ theo ngày tạo hạng mục + Trạng thái (Đang dùng / Ngừng dùng), Giai đoạn, Bắt buộc — ghi
+  // URL `?man=kcs-tieu-chi`; lọc ở máy chủ, thay hàng tab giai đoạn + lọc chữ trong trình duyệt cũ.
+  const [locMan, setLocMan] = useLocMan(
+    "kcs-tieu-chi", LOC_MAN_KCS_TIEU_CHI_TRONG, locKcsTieuChiTuUrl, locKcsTieuChiLenUrl);
+  const [demNhom, setDemNhom] = useState<Record<string, number>>({});
+  const dieuKien = useMemo(() => dieuKienKcsTieuChi(demNhom), [demNhom]);
+  const khoaLoc = JSON.stringify({
+    ...thamSoKy(locMan.ky), ...thamSoLocKcsTieuChi(locMan.loc), q: tuKhoaCham || undefined,
+  });
+  const coLoc = khoaLoc !== "{}";
   const [moThemCongDoan, setMoThemCongDoan] = useState(false);
 
   const [form, setForm] = useState<FormState | null>(null);
@@ -187,16 +169,17 @@ export function KcsKhaiBaoPage() {
   const tai = useCallback(() => {
     if (!token) return;
     setLoi(null);
-    api.kcsHangMuc.khaiBao(token)
+    api.kcsHangMuc.khaiBao(token, JSON.parse(khoaLoc))
       .then((kb) => {
         setGiaiDoan(kb.giai_doan);
         setCongDoanOpts(kb.cong_doan_chon);
+        setDemNhom(kb.dem_theo_nhom ?? {});
       })
       .catch((e) => {
         setGiaiDoan([]);
         setLoi(e instanceof ApiError ? e.message : "Không tải được danh mục.");
       });
-  }, [token]);
+  }, [token, khoaLoc]);
 
   useEffect(() => { tai(); }, [tai]);
 
@@ -211,48 +194,22 @@ export function KcsKhaiBaoPage() {
     [congDoanOpts, themNhom],
   );
 
-  // Thống kê tổng số công đoạn & số hạng mục + Đếm theo nhóm
-  const { soCongDoan, soHangMuc, demCongDoanTheoNhom } = useMemo(() => {
-    if (!giaiDoan) return { soCongDoan: 0, soHangMuc: 0, demCongDoanTheoNhom: {} as Record<string, number> };
-    let cdCount = 0;
-    let hmCount = 0;
-    const demNhom: Record<string, number> = {};
-    for (const g of giaiDoan) {
-      const n = g.cong_doan.length;
-      cdCount += n;
-      demNhom[g.nhom || "other"] = n;
-      for (const c of g.cong_doan) {
-        hmCount += c.hang_muc.length;
-      }
+  // Số công đoạn & hạng mục của cây ĐANG HIỆN (máy chủ đã lọc).
+  const { soCongDoan, soHangMuc } = useMemo(() => {
+    let cd = 0;
+    let hm = 0;
+    for (const g of giaiDoan ?? []) {
+      cd += g.cong_doan.length;
+      for (const c of g.cong_doan) hm += c.hang_muc.length;
     }
-    return { soCongDoan: cdCount, soHangMuc: hmCount, demCongDoanTheoNhom: demNhom };
+    return { soCongDoan: cd, soHangMuc: hm };
   }, [giaiDoan]);
 
-  // Lọc theo từ khóa tìm kiếm & Tab giai đoạn
-  const danhSachCongDoanHienThi = useMemo(() => {
-    if (!giaiDoan) return [];
-    const q = tuKhoa.trim().toLowerCase();
-
-    const result: TheCongDoan[] = [];
-
-    for (const gd of giaiDoan) {
-      const nhomMa = gd.nhom || "other";
-      if (tabGiaiDoan !== "all" && tabGiaiDoan !== nhomMa) continue;
-
-      for (const cd of gd.cong_doan) {
-        if (q) {
-          const cdKhop = cd.ten.toLowerCase().includes(q) || cd.ma.toLowerCase().includes(q);
-          const hmKhop = cd.hang_muc.some(
-            (h) => h.ten.toLowerCase().includes(q) || (h.huong_dan && h.huong_dan.toLowerCase().includes(q)),
-          );
-          if (!cdKhop && !hmKhop) continue;
-        }
-        result.push({ gdNhom: nhomMa, cd });
-      }
-    }
-
-    return result;
-  }, [giaiDoan, tuKhoa, tabGiaiDoan]);
+  // Máy chủ đã lọc (chữ, giai đoạn, cờ, kỳ) — ở đây chỉ trải cây thành danh sách thẻ.
+  const danhSachCongDoanHienThi = useMemo(
+    () => (giaiDoan ?? []).flatMap((gd) => gd.cong_doan.map((cd) => ({ gdNhom: gd.nhom || "other", cd }))),
+    [giaiDoan],
+  );
 
   // Số cột theo bề ngang KHUNG LƯỚI (không theo cửa sổ: sidebar ăn bớt chỗ). Ref dạng callback vì
   // lưới chỉ mount khi đã có dữ liệu; đo ngay lúc gắn để lần vẽ đầu đã đúng số cột.
@@ -355,7 +312,8 @@ export function KcsKhaiBaoPage() {
         <div className="kkb-topbar__header">
           <div className="kkb-topbar__left">
             <h1 className="kkb-topbar__title">Thiết lập Tiêu chí</h1>
-            <span className="kkb-topbar__count">{soCongDoan} CĐ · {soHangMuc} Tiêu chí</span>
+            <span className="kkb-topbar__count">{soCongDoan} công đoạn</span>
+            <span className="kkb-topbar__count">{soHangMuc} tiêu chí</span>
           </div>
 
           {suaDuoc && (
@@ -370,31 +328,7 @@ export function KcsKhaiBaoPage() {
         </div>
 
         {/* Tầng 2: Toolbar Bộ lọc Giai đoạn & Tìm kiếm */}
-        <div className="kkb-topbar__toolbar">
-          <nav className="kkb-tabs">
-            <button
-              type="button"
-              className={`kkb-tab ${tabGiaiDoan === "all" ? "kkb-tab--active" : ""}`}
-              onClick={() => setTabGiaiDoan("all")}
-            >
-              <span>Tất cả ({soCongDoan})</span>
-            </button>
-            {Object.entries(NHOM_CONG_DOAN).map(([ma, nhan]) => {
-              const cnt = demCongDoanTheoNhom[ma] || 0;
-              return (
-                <button
-                  key={ma}
-                  type="button"
-                  className={`kkb-tab kkb-tab--${ma} ${tabGiaiDoan === ma ? "kkb-tab--active" : ""}`}
-                  onClick={() => setTabGiaiDoan(ma)}
-                >
-                  <StageIcon nhom={ma} />
-                  <span>{nhan} ({cnt})</span>
-                </button>
-              );
-            })}
-          </nav>
-
+        <div className="kkb-topbar__toolbar tl-thanh">
           <div className="kkb-searchbox">
             <IconSearch />
             <input
@@ -415,6 +349,8 @@ export function KcsKhaiBaoPage() {
               </button>
             )}
           </div>
+          <ThanhLoc ky={locMan.ky} moc={MOC_KCS_TIEU_CHI} onKy={(ky) => setLocMan({ ...locMan, ky })}
+            dieuKien={dieuKien} loc={locMan.loc} onLoc={(loc) => setLocMan({ ...locMan, loc })} />
         </div>
       </header>
 
@@ -488,10 +424,10 @@ export function KcsKhaiBaoPage() {
       ) : danhSachCongDoanHienThi.length === 0 ? (
         <div className="rc__empty-state kkb-empty">
           <p className="rc__empty-text">
-            {tuKhoa ? `Không tìm thấy tiêu chí KCS phù hợp với từ khóa "${tuKhoa}".` : "Không có công đoạn nào."}
+            {coLoc ? "Không có tiêu chí KCS nào khớp tìm kiếm và bộ lọc." : "Không có công đoạn nào."}
           </p>
           <p className="rc__empty-sub">
-            {tuKhoa ? "Thử tìm từ khóa khác hoặc bấm nút Xoá tìm kiếm." : "Chọn giai đoạn và thêm công đoạn cần kiểm."}
+            {coLoc ? "Thử từ khoá khác, nới kỳ hoặc bỏ bớt điều kiện lọc." : "Chọn giai đoạn và thêm công đoạn cần kiểm."}
           </p>
         </div>
       ) : (
@@ -530,14 +466,15 @@ export function KcsKhaiBaoPage() {
 
                   <div className="kkb-cd__body">
                     {cd.hang_muc.map((h, i) => (
-                      <div key={h.id} className={`kkb-hm ${h.active ? "" : "kkb-hm--tat"}`}>
+                      <div key={h.id} className={`kkb-hm ${h.active ? "" : "kkb-hm--tat"}`}
+                        title={h.created_at ? `Ngày tạo ${ngayGioDayDu(h.created_at) ?? ""}` : undefined}>
                         <div className={`kkb-hm__num-chip kkb-hm__num-chip--${gdNhom}`}>
                           {i + 1}
                         </div>
                         <div className="kkb-hm__content">
                           <div className="kkb-hm__ten">
                             {h.ten}
-                            {!h.active && <span className="kkb-tat"> · ngừng dùng</span>}
+                            {!h.active && <span className="kkb-tat"> (ngừng dùng)</span>}
                           </div>
                           {h.huong_dan && (
                             <div className="kkb-hm__hd">

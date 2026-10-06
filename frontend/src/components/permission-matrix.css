@@ -423,20 +423,6 @@
 }
 /* Dấu hỏi tròn giải thích quyền — icon nét (bộ Icons), không dùng ký tự Unicode.
    inline-flex + vertical-align để icon canh giữa theo dòng chữ bên cạnh. */
-.rdx-perm__fine-hint {
-  color: var(--ash);
-  cursor: help;
-  display: inline-flex;
-  align-items: center;
-  margin-left: 5px;
-  vertical-align: middle;
-  opacity: 0.65;
-  transition: opacity 0.15s ease;
-}
-.rdx-perm__fine-hint:hover {
-  opacity: 1;
-}
-
 /* Nhãn "cần Phạm vi Tất cả" trên ô cấu hình dùng chung (15/08/2026). Nói RA MẶT vì sao ô mờ —
    để trong tooltip thì người cấp quyền phải rê chuột mới biết, mà họ có biết đâu mà rê. */
 .rdx-perm__fine-warn {
@@ -470,50 +456,21 @@
   }
 }
 
-/* ---- Thanh VAI MẪU (đợt 6) ---------------------------------------------
-   Đứng trên cùng ma trận: sau khi tách quyền theo màn, cấp tay 32 khoá mất 10-15 phút và dễ
-   tick nhầm. Cố ý dùng nút phẳng, KHÔNG phải nút chính (btn--primary): đây là tiện ích điền
-   sẵn, nút hành động thật của form vẫn là "Lưu". */
-.rdx-perm__mau {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  padding: var(--sp-2);
-  border: 1px dashed var(--rule-soft);
-  border-radius: var(--radius-sm);
-  background: var(--surface-muted, transparent);
+/* Ô tích "bật hết quyền" của một dòng / cả nhóm (05/10/2026). Tích đủ = mọi công tắc đang bật,
+   gạch ngang = bật một phần. Đứng TRƯỚC tên module; dòng không có ô thì chừa chỗ để tên thẳng cột. */
+.rdx-perm__tick,
+.rdx-perm__tick-cho {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
 }
-
-.rdx-perm__mau-nhan {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.rdx-perm__mau-nut {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1);
-}
-
-.rdx-perm__mau-btn {
-  padding: 4px 10px;
-  border: 1px solid var(--rule-soft);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 13px;
+.rdx-perm__tick {
+  accent-color: var(--rust);
   cursor: pointer;
 }
-
-.rdx-perm__mau-btn:hover {
-  border-color: var(--accent, var(--ink));
-  color: var(--accent, var(--ink));
-}
-
-.rdx-perm__mau-ghi {
-  margin: 0;
-  font-size: 12px;
-  color: var(--ink-soft);
+.rdx-perm__colhead .rdx-perm__c-mod {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
 }

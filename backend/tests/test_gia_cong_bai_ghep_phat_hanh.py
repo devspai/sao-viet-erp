@@ -28,7 +28,6 @@ def test_buoc_chung_thue_ngoai_sinh_mot_lan_gan_bai_ghep(sess, orders, lsx_svc, 
     (lan,) = _lan(sess, bai_ghep_id=bg.id)
     assert lan.lsx_id is None and lan.nha_cung_cap_id == tp.id
     assert lan.ten_viec == "Cán màng" and lan.nha_cung_cap_ten == "Cán màng Tân Phát"
-    assert lan.don_gia is None               # không ô đơn giá — kế toán gõ tiền ở phiếu chi
     can = cv_chung(sess, bg.id, "Cán màng")
     assert can.gia_cong_ngoai_id == lan.id and can.department_id is None
     assert not _lan(sess, lsx_id=a) and not _lan(sess, lsx_id=b)

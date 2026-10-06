@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lập phiếu chi / thu — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+  --amber-soft:#efe4c4; --amber-deep:#7a5c0f; --signal:#8a1f1f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1000px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--ash);margin:0 0 20px;max-width:800px}
+.lead ul{margin:6px 0 0;padding-left:18px}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:36px}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--ash);padding:6px 16px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{margin-bottom:72px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.why{color:var(--ash);margin:0 0 16px;max-width:860px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+
+.drawer{background:var(--canvas);border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.14);overflow:hidden;width:100%;max-width:920px;display:flex;flex-direction:column;position:relative}
+.dh{display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid var(--rule-soft)}
+.dh h3{margin:0;font-size:18px;font-weight:700}
+.crumb{font-size:12px;color:var(--ash-2)}
+.x{margin-left:auto;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--ash-2);font-size:18px}
+.foot{display:flex;align-items:center;gap:10px;padding:14px 24px;border-top:1px solid var(--rule-soft);background:var(--canvas)}
+.foot .sum{font-size:13px;color:var(--ash);margin-right:auto}
+.foot .sum b{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash)}
+.btn--nguy{background:var(--signal);border-color:var(--signal);color:#fff}
+.btn--sm{height:30px;padding:0 10px;font-size:12.5px}
+.muted{color:var(--ash-2)}
+.num{font-variant-numeric:tabular-nums}
+input,textarea,select{font:inherit;color:inherit}
+.in{width:100%;height:38px;border:1px solid var(--rule);border-radius:8px;padding:0 12px;background:var(--canvas)}
+.in:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px var(--rule-hair)}
+.in::placeholder{color:var(--ash-3)}
+textarea.in{height:64px;padding:8px 12px;resize:vertical}
+.lb{display:block;font-size:13px;font-weight:500;color:var(--ash);margin-bottom:6px}
+.lb i{font-style:normal;color:var(--rust);margin-left:2px}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:12px;color:var(--ash);font-weight:500}
+.tag--moss{background:var(--moss-soft);border-color:transparent;color:var(--moss-deep)}
+.link{color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px;font-size:13px;cursor:pointer}
+.ic{width:16px;height:16px;flex:none}
+
+/* hộp xác nhận bỏ (thay confirm() của trình duyệt) — dùng chung */
+.bo{position:absolute;inset:0;background:rgba(15,23,42,.35);display:none;align-items:center;justify-content:center;z-index:5}
+.bo.on{display:flex}
+.bo__h{background:var(--canvas);border-radius:12px;box-shadow:0 20px 50px rgba(15,23,42,.25);width:380px;padding:20px}
+.bo__h h4{margin:0 0 6px;font-size:16px}
+.bo__h p{margin:0 0 18px;color:var(--ash);font-size:13.5px}
+.bo__n{display:flex;justify-content:flex-end;gap:8px}
+
+/* ===================== A — Mercury / Wise: số tiền lên đầu ===================== */
+.a-body{padding:28px 0 8px;display:flex;justify-content:center}
+.a-col{width:100%;max-width:560px;padding:0 24px}
+.a-amt{text-align:center;padding:8px 0 22px;border-bottom:1px solid var(--rule-soft);margin-bottom:22px}
+.a-amt__lb{font-size:13px;color:var(--ash-2);margin-bottom:4px}
+.a-amt__so{display:inline-flex;align-items:baseline;gap:6px;font-size:40px;font-weight:700;letter-spacing:-.02em}
+.a-amt__so .dv{font-size:22px;color:var(--ash-2);font-weight:600}
+.a-amt__chu{font-size:13px;color:var(--ash);margin-top:4px}
+.a-f{margin-bottom:18px}
+.a-goi{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.a-goi .muted{font-size:12px;margin-right:2px}
+.a-goi button{border:1px solid var(--rule-soft);background:var(--canvas);border-radius:999px;height:26px;padding:0 10px;font:inherit;font-size:12.5px;color:var(--ash);cursor:pointer}
+.a-goi button:hover{background:var(--rule-hair)}
+.a-seg{display:grid;grid-template-columns:1fr 1fr;background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:10px;padding:3px;margin-bottom:12px}
+.a-seg button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--ash);height:34px;border-radius:7px;cursor:pointer}
+.a-seg button.on{background:var(--canvas);color:var(--ink);box-shadow:0 1px 3px rgba(15,23,42,.12)}
+.a-acc{display:flex;align-items:center;gap:12px;border:1px solid var(--rule);border-radius:10px;padding:10px 12px}
+.a-acc__logo{width:34px;height:34px;border-radius:8px;background:var(--rule-hair);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--ash)}
+.a-acc__t{flex:1;min-width:0}
+.a-acc__t b{display:block;font-size:13.5px}
+.a-acc__t small{font-size:12px;color:var(--ash-2)}
+.a-acc__du{text-align:right}
+.a-acc__du small{display:block;font-size:11.5px;color:var(--ash-2)}
+.a-acc__du b{font-size:13.5px}
+.a-ben{border:1px solid var(--rule-soft);border-radius:10px;padding:14px;margin-top:12px}
+.a-ben__tt{font-size:13px;font-weight:600;margin-bottom:10px}
+.a-g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.a-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.a-more{display:flex;gap:16px;flex-wrap:wrap;padding:6px 0 20px}
+.a-more button{border:0;background:none;padding:0;font:inherit;font-size:13px;color:var(--ash);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.a-more button:hover{color:var(--ink)}
+
+/* ===================== B — Stripe Invoicing: form trái + bản phiếu bên phải ===================== */
+.b-body{display:grid;grid-template-columns:minmax(0,1fr) 380px;min-height:560px}
+.b-form{padding:22px 24px}
+.b-sec{margin-bottom:22px}
+.b-sec h4{margin:0 0 12px;font-size:14px;font-weight:600}
+.b-g2{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.b-full{grid-column:1/-1}
+.b-tien{position:relative}
+.b-tien .in{padding-right:28px;text-align:right;font-weight:600}
+.b-tien span{position:absolute;right:12px;top:9px;color:var(--ash-2)}
+.b-radio{display:flex;gap:18px;height:38px;align-items:center}
+.b-radio label{display:inline-flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer}
+.b-radio input{accent-color:var(--ink);width:16px;height:16px}
+.b-prev{background:var(--paper);border-left:1px solid var(--rule-soft);padding:22px 20px}
+.b-prev__tt{font-size:12px;color:var(--ash-2);margin-bottom:10px;display:flex;justify-content:space-between}
+.paper{background:#fff;border:1px solid var(--rule-soft);border-radius:6px;box-shadow:0 4px 16px rgba(15,23,42,.08);padding:18px 18px 22px;font-size:11.5px;line-height:1.55;font-family:"Times New Roman",serif;color:#111}
+.paper__dn{display:flex;justify-content:space-between;font-size:10.5px}
+.paper h5{text-align:center;font-size:16px;margin:12px 0 0;letter-spacing:.04em}
+.paper .ngay{text-align:center;font-style:italic;font-size:11px;margin-bottom:10px}
+.paper .dong{display:flex;gap:4px;border-bottom:1px dotted #999;padding:3px 0}
+.paper .dong span{white-space:nowrap}
+.paper .dong b{font-weight:600}
+.paper .rong{color:#bbb}
+.paper .ky{display:grid;grid-template-columns:repeat(3,1fr);text-align:center;margin-top:16px;font-size:10.5px;font-weight:700}
+.paper .ky small{display:block;font-weight:400;font-style:italic}
+.b-note{font-size:12px;color:var(--ash-2);margin-top:12px}
+
+/* ===================== C — Ramp / Odoo: nhãn trái, chọn “Chi từ” gộp cách trả ===================== */
+.c-body{padding:8px 24px 16px}
+.c-sec{padding:14px 0 6px;border-bottom:1px solid var(--rule-hair)}
+.c-sec:last-child{border-bottom:0}
+.c-sec h4{margin:0 0 4px;font-size:12px;font-weight:600;color:var(--ash-2)}
+.c-row{display:grid;grid-template-columns:170px minmax(0,1fr);align-items:center;min-height:46px;gap:16px}
+.c-row>label{font-size:13.5px;color:var(--ash);font-weight:500}
+.c-row>label i{font-style:normal;color:var(--rust);margin-left:2px}
+.c-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.c-tien{display:flex;align-items:center;gap:14px}
+.c-tien .in{width:220px;text-align:right;font-weight:600;font-size:15px}
+.c-tien small{font-size:12.5px;color:var(--ash)}
+.c-pick{position:relative}
+.c-pick__btn{display:flex;align-items:center;gap:10px;width:100%;height:42px;border:1px solid var(--ink);border-radius:8px;padding:0 12px;background:var(--canvas);box-shadow:0 0 0 3px var(--rule-hair)}
+.c-pick__btn b{font-size:13.5px}
+.c-pick__btn .muted{font-size:12.5px}
+.c-pick__btn .chev{margin-left:auto;color:var(--ash-2)}
+.c-menu{margin-top:6px;border:1px solid var(--rule);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.12);background:var(--canvas);padding:6px}
+.c-menu__nh{font-size:11.5px;color:var(--ash-2);padding:6px 10px 4px}
+.c-opt{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:7px;border:1px solid transparent}
+.c-opt:hover{background:var(--rule-hair)}
+.c-opt.on{border-color:var(--ink)}
+.c-opt .lg{width:32px;height:32px;border-radius:7px;background:var(--rule-hair);display:grid;place-items:center;font-size:10.5px;font-weight:700;color:var(--ash)}
+.c-opt b{font-size:13.5px;display:block}
+.c-opt small{font-size:12px;color:var(--ash-2)}
+.c-opt .du{text-align:right;font-size:13px}
+.c-opt .du small{display:block}
+.c-hint{font-size:12.5px;color:var(--ash-2);margin-top:4px}
+.c-saved{display:flex;align-items:center;gap:10px;border:1px solid var(--rule-soft);border-radius:8px;padding:9px 12px}
+.c-saved b{font-size:13.5px}
+.c-saved .muted{font-size:12.5px}
+.c-saved .link{margin-left:auto}
+.c-more{display:flex;gap:8px;flex-wrap:wrap;padding:12px 0 4px}
+.c-more button{border:1px dashed var(--rule);background:var(--canvas);border-radius:999px;height:30px;padding:0 12px;font:inherit;font-size:12.5px;color:var(--ash);cursor:pointer}
+.c-more button:hover{background:var(--rule-hair);color:var(--ink)}
+
+.thu-only{display:none}
+body.thu .chi-only{display:none}
+body.thu .thu-only{display:revert}
+@media (max-width:760px){
+  .b-body{grid-template-columns:1fr}
+  .b-prev{border-left:0;border-top:1px solid var(--rule-soft)}
+  .c-row{grid-template-columns:1fr;gap:6px;padding:6px 0}
+  .c-tien{flex-direction:column;align-items:stretch}.c-tien .in{width:100%}
+  .a-g2,.a-row2,.b-g2,.c-pair{grid-template-columns:1fr}
+  .a-amt__so{font-size:32px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Lập phiếu chi / phiếu thu — 3 phương án</h1>
+  <div class="lead">
+    Form hiện tại xấu vì: số tiền (thứ quan trọng nhất) là ô nhỏ xíu lẫn giữa các ô chữ; bốn tiêu đề chữ IN HOA chia một form 8 ô thành 4 khúc; hai thẻ Tiền mặt / Chuyển khoản to như nút bấm chính rồi lại thêm một ô chọn tài khoản ở dưới; dòng gợi ý xám dưới mọi ô; khối tài khoản người nhận bốn ô chen một hàng; và hộp "localhost:5173 cho biết" của trình duyệt khi bấm Đóng.
+    <ul>
+      <li>Cả ba phương án dùng chung: hộp xác nhận bỏ nằm TRONG ngăn (bấm <b>Đóng</b> ở mỗi phương án để xem), ngăn rộng 920px như mọi ngăn, ô tuỳ chọn gấp lại thành nút "+ Thêm …".</li>
+      <li>Nút bên dưới đổi cả ba mockup giữa phiếu chi và phiếu thu để thấy một khuôn dùng được cho cả hai.</li>
+    </ul>
+  </div>
+  <div class="switch" role="tablist">
+    <button class="on" data-mode="chi">Phiếu chi</button>
+    <button data-mode="thu">Phiếu thu</button>
+  </div>
+
+  <!-- ===================================================== A -->
+  <section class="opt">
+    <div class="opt-head"><h2>A. Số tiền lên đầu, một cột hẹp</h2><span class="src">Khuôn: Mercury "Send money", Wise chuyển tiền</span></div>
+    <div class="why">
+      Mercury và Wise đặt <b>số tiền to giữa màn</b> làm điểm nhìn đầu tiên, rồi mới tới người nhận và nguồn tiền. Hợp vì kế toán nghĩ "chi bao nhiêu" trước, và số chữ hiện ngay dưới để soát. Tiền mặt / Chuyển khoản thành <b>một thanh chuyển gọn</b>; tài khoản công ty hiện như một thẻ có <b>số dư</b> (Mercury luôn cho thấy số dư ở bước chọn nguồn). Gợi ý <b>người nhận gần đây</b> để khỏi gõ lại tên + số tài khoản.
+      Đổi lại: cột hẹp giữa ngăn 920px để thừa hai bên.
+    </div>
+    <div class="drawer">
+      <div class="dh"><div><div class="crumb"><span class="chi-only">Phiếu chi</span><span class="thu-only">Phiếu thu</span> &gt; Lập mới</div><h3><span class="chi-only">Lập phiếu chi</span><span class="thu-only">Lập phiếu thu</span></h3></div><div class="x">✕</div></div>
+      <div class="a-body"><div class="a-col">
+        <div class="a-amt">
+          <div class="a-amt__lb"><span class="chi-only">Số tiền chi</span><span class="thu-only">Số tiền thu</span></div>
+          <div class="a-amt__so num"><span class="chi-only">12.450.000</span><span class="thu-only">750.000</span><span class="dv">đ</span></div>
+          <div class="a-amt__chu"><span class="chi-only">Mười hai triệu bốn trăm năm mươi nghìn đồng</span><span class="thu-only">Bảy trăm năm mươi nghìn đồng</span></div>
+        </div>
+
+        <div class="a-f">
+          <label class="lb"><span class="chi-only">Chi cho</span><span class="thu-only">Thu của</span><i>*</i></label>
+          <input class="in" value="" placeholder="Gõ tên người hoặc đơn vị" data-chi="Công ty Điện lực Hà Đông" data-thu="Cơ sở phế liệu Minh Phát">
+          <div class="a-goi"><span class="muted">Gần đây</span><button>Điện lực Hà Đông</button><button>Nước sạch Hà Đông</button><button>Vận tải Hưng Thịnh</button></div>
+        </div>
+        <div class="a-f">
+          <label class="lb"><span class="chi-only">Nội dung chi</span><span class="thu-only">Nội dung thu</span><i>*</i></label>
+          <input class="in" data-chi="Tiền điện tháng 9 xưởng in" data-thu="Bán giấy vụn và lề xén tháng 9">
+        </div>
+
+        <div class="a-f">
+          <label class="lb"><span class="chi-only">Trả bằng</span><span class="thu-only">Nhận bằng</span></label>
+          <div class="a-seg"><button>Tiền mặt</button><button class="on">Chuyển khoản</button></div>
+          <div class="a-acc">
+            <div class="a-acc__logo">VCB</div>
+            <div class="a-acc__t"><b>Vietcombank Hà Đông</b><small>Tài khoản 0021 0008 8821</small></div>
+            <div class="a-acc__du"><small>Số dư</small><b class="num">486.200.000 đ</b></div>
+            <span class="link">Đổi</span>
+          </div>
+          <div class="a-ben chi-only">
+            <div class="a-ben__tt">Tài khoản nhận tiền</div>
+            <div class="a-g2">
+              <div><label class="lb">Số tài khoản<i>*</i></label><input class="in num" value="1400 2056 7788"></div>
+              <div><label class="lb">Ngân hàng<i>*</i></label><input class="in" value="Agribank"></div>
+              <div><label class="lb">Chủ tài khoản<i>*</i></label><input class="in" value="CONG TY DIEN LUC HA DONG"></div>
+              <div><label class="lb">Chi nhánh</label><input class="in" placeholder="Không bắt buộc"></div>
+            </div>
+          </div>
+          <div class="a-f thu-only" style="margin-top:12px"><label class="lb">Mã giao dịch ngân hàng<i>*</i></label><input class="in" placeholder="Số tham chiếu trên sao kê"></div>
+        </div>
+
+        <div class="a-row2 a-f">
+          <div><label class="lb"><span class="chi-only">Ngày chi</span><span class="thu-only">Ngày thu</span><i>*</i></label><input class="in" value="Hôm nay, 06/10/2026"></div>
+          <div></div>
+        </div>
+        <div class="a-more">
+          <button class="chi-only">+ Hoá đơn</button>
+          <button class="thu-only">+ Địa chỉ người nộp</button>
+          <button>+ Ghi chú</button>
+          <button>+ Chứng từ đính kèm</button>
+        </div>
+      </div></div>
+      <div class="foot">
+        <div class="sum"><span class="chi-only">Chi <b>12.450.000 đ</b> chuyển khoản cho <b>Điện lực Hà Đông</b></span><span class="thu-only">Thu <b>750.000 đ</b> chuyển khoản của <b>Phế liệu Minh Phát</b></span></div>
+        <button class="btn btn--txt js-dong">Đóng</button>
+        <button class="btn btn--pri"><span class="chi-only">Lập phiếu chi</span><span class="thu-only">Lập phiếu thu</span></button>
+      </div>
+      <div class="bo"><div class="bo__h"><h4>Bỏ phiếu đang nhập?</h4><p>Những gì đã gõ sẽ mất. Phiếu chưa được lập.</p><div class="bo__n"><button class="btn js-o">Nhập tiếp</button><button class="btn btn--nguy">Bỏ phiếu</button></div></div></div>
+    </div>
+  </section>
+
+  <!-- ===================================================== B -->
+  <section class="opt">
+    <div class="opt-head"><h2>B. Form trái, bản phiếu in bên phải</h2><span class="src">Khuôn: Stripe Invoicing, Xero "Spend money"</span></div>
+    <div class="why">
+      Trình soạn hoá đơn của Stripe chia đôi: <b>nhập bên trái, bản in hiện dần bên phải</b> theo từng phím gõ. Phiếu chi / thu ở đây cũng là tờ giấy phải in ra ký (mẫu 02-TT / 01-TT), nên thấy trước tờ phiếu giúp kế toán soát chữ số, tên người nhận và số tiền bằng chữ trước khi bấm "Lập", mà "lập xong không sửa được". Bên trái xếp hai cột như Xero <b>Spend money</b>: Chi cho + Số tiền cùng hàng, Chi từ tài khoản + Ngày cùng hàng. Dùng hết 920px.
+      Đổi lại: hai vùng nhìn, trên điện thoại bản phiếu rớt xuống dưới.
+    </div>
+    <div class="drawer">
+      <div class="dh"><div><div class="crumb"><span class="chi-only">Phiếu chi</span><span class="thu-only">Phiếu thu</span> &gt; Lập mới</div><h3><span class="chi-only">Lập phiếu chi</span><span class="thu-only">Lập phiếu thu</span></h3></div><div class="x">✕</div></div>
+      <div class="b-body">
+        <div class="b-form">
+          <div class="b-sec">
+            <div class="b-g2">
+              <div><label class="lb"><span class="chi-only">Chi cho</span><span class="thu-only">Thu của</span><i>*</i></label><input class="in" data-chi="Công ty Điện lực Hà Đông" data-thu="Cơ sở phế liệu Minh Phát"></div>
+              <div><label class="lb">Số tiền<i>*</i></label><div class="b-tien"><input class="in num" data-chi="12.450.000" data-thu="750.000"><span>đ</span></div></div>
+              <div class="b-full"><label class="lb"><span class="chi-only">Nội dung chi</span><span class="thu-only">Nội dung thu</span><i>*</i></label><input class="in" data-chi="Tiền điện tháng 9 xưởng in" data-thu="Bán giấy vụn và lề xén tháng 9"></div>
+            </div>
+          </div>
+          <div class="b-sec">
+            <h4><span class="chi-only">Trả bằng</span><span class="thu-only">Nhận bằng</span></h4>
+            <div class="b-g2">
+              <div class="b-full b-radio"><label><input type="radio" name="b">Tiền mặt</label><label><input type="radio" name="b" checked>Chuyển khoản</label></div>
+              <div><label class="lb"><span class="chi-only">Chi từ tài khoản</span><span class="thu-only">Vào tài khoản</span><i>*</i></label><select class="in"><option>Vietcombank 0021 0008 8821</option></select></div>
+              <div><label class="lb"><span class="chi-only">Ngày chi</span><span class="thu-only">Ngày thu</span><i>*</i></label><input class="in" value="06/10/2026"></div>
+            </div>
+          </div>
+          <div class="b-sec chi-only">
+            <h4>Tài khoản nhận tiền</h4>
+            <div class="b-g2">
+              <div><label class="lb">Số tài khoản<i>*</i></label><input class="in num" value="1400 2056 7788"></div>
+              <div><label class="lb">Ngân hàng<i>*</i></label><input class="in" value="Agribank"></div>
+              <div><label class="lb">Chủ tài khoản<i>*</i></label><input class="in" value="CONG TY DIEN LUC HA DONG"></div>
+              <div><label class="lb">Chi nhánh</label><input class="in"></div>
+            </div>
+          </div>
+          <div class="b-sec thu-only">
+            <div class="b-g2"><div class="b-full"><label class="lb">Mã giao dịch ngân hàng<i>*</i></label><input class="in" placeholder="Số tham chiếu trên sao kê"></div></div>
+          </div>
+          <div class="a-more" style="padding-top:0">
+            <button class="chi-only">+ Hoá đơn</button><button class="thu-only">+ Địa chỉ người nộp</button><button>+ Ghi chú</button><button>+ Chứng từ đính kèm</button>
+          </div>
+        </div>
+        <div class="b-prev">
+          <div class="b-prev__tt"><span>Bản in</span><span>Mẫu <span class="chi-only">02-TT</span><span class="thu-only">01-TT</span></span></div>
+          <div class="paper">
+            <div class="paper__dn"><span><b>CÔNG TY TNHH SAO VIỆT NHẬT</b><br>Hà Đông, Hà Nội</span><span style="text-align:right">Quyển số: 10<br>Số: <span class="rong">sẽ cấp khi lập</span></span></div>
+            <h5><span class="chi-only">PHIẾU CHI</span><span class="thu-only">PHIẾU THU</span></h5>
+            <div class="ngay">Ngày 06 tháng 10 năm 2026</div>
+            <div class="dong"><span><span class="chi-only">Họ tên người nhận tiền:</span><span class="thu-only">Họ tên người nộp tiền:</span></span><b class="chi-only">Công ty Điện lực Hà Đông</b><b class="thu-only">Cơ sở phế liệu Minh Phát</b></div>
+            <div class="dong"><span><span class="chi-only">Lý do chi:</span><span class="thu-only">Lý do nộp:</span></span><b class="chi-only">Tiền điện tháng 9 xưởng in</b><b class="thu-only">Bán giấy vụn và lề xén tháng 9</b></div>
+            <div class="dong"><span>Số tiền:</span><b class="chi-only">12.450.000 đ</b><b class="thu-only">750.000 đ</b></div>
+            <div class="dong"><span>Viết bằng chữ:</span><b class="chi-only">Mười hai triệu bốn trăm năm mươi nghìn đồng</b><b class="thu-only">Bảy trăm năm mươi nghìn đồng</b></div>
+            <div class="dong"><span>Hình thức:</span><b>Chuyển khoản qua Vietcombank</b></div>
+            <div class="dong"><span>Kèm theo:</span><span class="rong">chứng từ gốc</span></div>
+            <div class="ky"><div>Giám đốc<small>(Ký, họ tên)</small></div><div>Kế toán trưởng<small>(Ký, họ tên)</small></div><div><span class="chi-only">Người nhận tiền</span><span class="thu-only">Người nộp tiền</span><small>(Ký, họ tên)</small></div></div>
+          </div>
+          <div class="b-note">Ô nào còn trống thì dòng tương ứng trên phiếu để xám.</div>
+        </div>
+      </div>
+      <div class="foot">
+        <div class="sum">Lập xong không sửa được, chỉ huỷ được.</div>
+        <button class="btn btn--txt js-dong">Đóng</button>
+        <button class="btn btn--pri"><span class="chi-only">Lập phiếu chi</span><span class="thu-only">Lập phiếu thu</span></button>
+      </div>
+      <div class="bo"><div class="bo__h"><h4>Bỏ phiếu đang nhập?</h4><p>Những gì đã gõ sẽ mất. Phiếu chưa được lập.</p><div class="bo__n"><button class="btn js-o">Nhập tiếp</button><button class="btn btn--nguy">Bỏ phiếu</button></div></div></div>
+    </div>
+  </section>
+
+  <!-- ===================================================== C -->
+  <section class="opt">
+    <div class="opt-head"><h2>C. Nhãn bên trái, một ô "Chi từ" thay cho thẻ Tiền mặt / Chuyển khoản</h2><span class="src">Khuôn: Ramp Bill Pay ("Pay from"), Odoo form kế toán</span></div>
+    <div class="why">
+      Ramp không bắt chọn "cách trả" rồi mới chọn tài khoản: chỉ có <b>một ô "Pay from"</b> liệt kê quỹ và các tài khoản kèm số dư, chọn quỹ tiền mặt nghĩa là trả tiền mặt. Bớt hẳn một bước và hai thẻ to. Nhãn đặt <b>bên trái</b> như form Odoo nên mỗi ô một dòng thấp, cả form gọn trong một màn không cuộn. Người nhận đã từng chuyển khoản thì <b>tự điền lại tài khoản đã lưu</b>, chỉ hiện một dòng "Agribank 1400 2056 7788" kèm nút Sửa.
+      Đổi lại: kế toán quen tư duy "tiền mặt hay chuyển khoản" phải mở ô mới thấy hai nhóm.
+    </div>
+    <div class="drawer">
+      <div class="dh"><div><div class="crumb"><span class="chi-only">Phiếu chi</span><span class="thu-only">Phiếu thu</span> &gt; Lập mới</div><h3><span class="chi-only">Lập phiếu chi</span><span class="thu-only">Lập phiếu thu</span></h3></div><div class="x">✕</div></div>
+      <div class="c-body">
+        <div class="c-sec">
+          <div class="c-row"><label><span class="chi-only">Chi cho</span><span class="thu-only">Thu của</span><i>*</i></label><input class="in" data-chi="Công ty Điện lực Hà Đông" data-thu="Cơ sở phế liệu Minh Phát"></div>
+          <div class="c-row"><label>Số tiền<i>*</i></label>
+            <div class="c-tien"><input class="in num" data-chi="12.450.000 đ" data-thu="750.000 đ"><small class="chi-only">Mười hai triệu bốn trăm năm mươi nghìn đồng</small><small class="thu-only">Bảy trăm năm mươi nghìn đồng</small></div></div>
+          <div class="c-row"><label><span class="chi-only">Nội dung chi</span><span class="thu-only">Nội dung thu</span><i>*</i></label><input class="in" data-chi="Tiền điện tháng 9 xưởng in" data-thu="Bán giấy vụn và lề xén tháng 9"></div>
+          <div class="c-row"><label><span class="chi-only">Ngày chi</span><span class="thu-only">Ngày thu</span><i>*</i></label><div class="c-pair"><input class="in" value="06/10/2026"><span></span></div></div>
+        </div>
+        <div class="c-sec">
+          <div class="c-row" style="align-items:start;padding-top:10px"><label style="padding-top:10px"><span class="chi-only">Chi từ</span><span class="thu-only">Vào</span><i>*</i></label>
+            <div class="c-pick">
+              <div class="c-pick__btn"><b>Vietcombank Hà Đông</b><span class="muted num">0021 0008 8821</span><span class="tag">Chuyển khoản</span><span class="chev">⌄</span></div>
+              <div class="c-menu">
+                <div class="c-menu__nh">Tiền mặt</div>
+                <div class="c-opt"><div class="lg">Quỹ</div><div><b>Quỹ tiền mặt văn phòng</b><small>Thủ quỹ Nguyễn Thị Lan</small></div><div class="du num">38.500.000 đ<small>số dư</small></div></div>
+                <div class="c-menu__nh">Chuyển khoản</div>
+                <div class="c-opt on"><div class="lg">VCB</div><div><b>Vietcombank Hà Đông</b><small class="num">0021 0008 8821</small></div><div class="du num">486.200.000 đ<small>số dư</small></div></div>
+                <div class="c-opt"><div class="lg">BIDV</div><div><b>BIDV Thanh Xuân</b><small class="num">2161 0000 4512</small></div><div class="du num">92.040.000 đ<small>số dư</small></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="c-row chi-only"><label>Tài khoản nhận<i>*</i></label>
+            <div><div class="c-saved"><b>Agribank</b><span class="muted num">1400 2056 7788</span><span class="muted">CONG TY DIEN LUC HA DONG</span><span class="link">Sửa</span></div>
+            <div class="c-hint">Lấy từ lần chi trước cho người này.</div></div></div>
+          <div class="c-row thu-only"><label>Mã giao dịch<i>*</i></label><input class="in" placeholder="Số tham chiếu trên sao kê"></div>
+        </div>
+        <div class="c-more">
+          <button class="chi-only">+ Hoá đơn</button><button class="thu-only">+ Địa chỉ người nộp</button><button>+ Ghi chú</button><button>+ Chứng từ đính kèm</button>
+        </div>
+      </div>
+      <div class="foot">
+        <div class="sum">Lập xong không sửa được, chỉ huỷ được.</div>
+        <button class="btn btn--txt js-dong">Đóng</button>
+        <button class="btn btn--pri"><span class="chi-only">Lập phiếu chi</span><span class="thu-only">Lập phiếu thu</span></button>
+      </div>
+      <div class="bo"><div class="bo__h"><h4>Bỏ phiếu đang nhập?</h4><p>Những gì đã gõ sẽ mất. Phiếu chưa được lập.</p><div class="bo__n"><button class="btn js-o">Nhập tiếp</button><button class="btn btn--nguy">Bỏ phiếu</button></div></div></div>
+    </div>
+  </section>
+</div>
+<script>
+function datCheDo(m){
+  document.body.classList.toggle('thu', m==='thu');
+  document.querySelectorAll('.switch button').forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
+  document.querySelectorAll('[data-chi]').forEach(i=>{ i.value = i.dataset[m]; });
+}
+document.querySelectorAll('.switch button').forEach(b=>b.onclick=()=>datCheDo(b.dataset.mode));
+document.querySelectorAll('.js-dong').forEach(b=>b.onclick=()=>b.closest('.drawer').querySelector('.bo').classList.add('on'));
+document.querySelectorAll('.js-o, .btn--nguy').forEach(b=>b.onclick=()=>b.closest('.bo').classList.remove('on'));
+datCheDo('chi');
+</script>
+</body>
+</html>

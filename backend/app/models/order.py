@@ -296,8 +296,8 @@ class OrderApproval(Base):
     )
 
 
-# --- Đính kèm CẤP ĐƠN (chứng cứ khách đồng ý — cổng chốt §8d) ------------------
-ATTACH_KIND_CONSENT = "consent"     # chứng cứ khách đồng ý (ảnh PO/Zalo…)
+# --- Tệp đính kèm CẤP ĐƠN (ảnh/PDF; không còn là cổng chốt) ------------------
+ATTACH_KIND_CONSENT = "consent"     # mã cũ giữ nguyên trong DB; nghĩa nay = tệp đính kèm của đơn
 ATTACH_KINDS = (ATTACH_KIND_CONSENT,)
 
 

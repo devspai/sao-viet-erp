@@ -2574,8 +2574,8 @@ td.acct-count-cell {
    trên chính thẻ <table> trần ở trình duyệt này — cùng lúc `overflow:hidden` ở khung ngoài lại
    THẮNG `overflow-x:auto` sẵn có của `.md-page__tablewrap` (cùng đặc trưng, file nạp sau thắng),
    kết quả là bảng bị CẮT MẤT cột ở màn hẹp thay vì cuộn được. Bỏ hẳn overflow:hidden — để
-   `.md-page__tablewrap` tự lo cuộn ngang như thiết kế gốc; `.md-page__pager` đã tự có padding
-   riêng nên không đụng bo góc dưới. */
+   `.md-page__tablewrap` tự lo cuộn ngang như thiết kế gốc (khung cuộn tự cắt theo bo góc, nên chân
+   phân trang `.ptdd` nằm trong khung vẫn ăn khớp góc dưới). */
 :is(.acct-dmh, .acct-std) .acct-dmh__frame {
   background: var(--canvas);
   border: 1px solid var(--rule);
@@ -2808,6 +2808,12 @@ td.acct-count-cell {
   color: var(--on-charcoal);
   font-weight: var(--fw-bold);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
+}
+/* Số đơn của tab — máy chủ đếm theo ô tìm, kỳ và điều kiện đang áp. */
+.acct-toolbar__tab-count {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
 }
 
 /* Dải Tab con trong Drawer Chi tiết đơn mua hàng */
@@ -3177,15 +3183,6 @@ td.acct-count-cell {
   flex-shrink: 0;
 }
 
-/* `.md-page__pager` (master-data.css) dùng chung nhiều màn, KHÔNG có padding/border/nền —
-   trong khung bảng mới (`.acct-dmh__frame`, viền + bo góc riêng) nó dính sát mép dưới không
-   có gì tách khỏi thân bảng. Khoanh vùng bằng `.acct-dmh`, không sửa định nghĩa gốc. */
-:is(.acct-dmh, .acct-std) .md-page__pager {
-  padding: var(--sp-3) var(--sp-5);
-  border-top: 1px solid var(--rule-soft);
-  background: var(--canvas);
-}
-
 @media (max-width: 900px) {
   .acct-dmh__toolrow { flex-direction: column; align-items: stretch; }
 }
@@ -3203,11 +3200,6 @@ td.acct-count-cell {
    này có ô 2 dòng + 2 badge trạng thái cần chỗ hơn, xem comment `.acct-list--voucher tbody tr`. */
 .acct-pc .acct-list--voucher td {
   padding: 12px 14px;
-}
-.acct-pc .md-page__pager {
-  padding: var(--sp-3) var(--sp-5);
-  border-top: 1px solid var(--rule-soft);
-  background: var(--canvas);
 }
 .acct-pc strong { font-weight: var(--fw-bold); }
 .acct-pc .acct-list--voucher tbody tr:hover { background: var(--rule-hair); }
@@ -3330,9 +3322,6 @@ td.acct-count-cell {
   width: 5px;
   height: 5px;
   flex: 0 0 5px;
-}
-.acct-pt .md-page__pager {
-  padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--rule-soft); background: var(--canvas);
 }
 .acct-pt-drawer .purchase__hero-banner { background: var(--charcoal); border-bottom: none; }
 /* purchase.css có sẵn !important trên font-family của .purchase__hero-code (dùng chung 19 màn)

@@ -77,7 +77,8 @@ def test_hang_cho_chi_co_lan_da_chot(client, h, lan_da_chot):
     r = client.get("/api/accounting/gia-cong-cho-chi", headers=h)
     assert r.status_code == 200, r.text
     (d,) = r.json()
-    assert d["gia_cong_ngoai_id"] == lan_da_chot.id and d["thanh_tien"] == 825_000
+    # Không đơn giá ⇒ không tiền gợi ý: kế toán gõ tiền theo hoá đơn nhà gia công.
+    assert d["gia_cong_ngoai_id"] == lan_da_chot.id and "thanh_tien" not in d
     assert d["nha_cung_cap_ten"] == "Cán màng Minh Long"
     assert client.get("/api/accounting/gia-cong-cho-chi/dem", headers=h).json() == {"so": 1}
 
@@ -87,8 +88,6 @@ def test_hang_cho_chi_hien_gia_du_thieu_view_cost(client, h_khong_xem_gia, lan_d
     assert r.status_code == 200, r.text
     (d,) = r.json()
     assert d["gia_cong_ngoai_id"] == lan_da_chot.id
-    # Chủ chốt 27/09/2026: tiền gia công KHÔNG gác view_cost.
-    assert d["thanh_tien"] == 825_000
     assert d["sl_cuoi"] == 1650 and d["nha_cung_cap_ten"] == "Cán màng Minh Long"
 
 

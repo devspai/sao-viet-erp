@@ -39,7 +39,8 @@ export interface TT200PrintData {
   cancelled?: boolean;
 }
 
-const FORM = {
+/** Nhãn của hai mẫu — dùng chung cho bản in và bản xem trước trong form lập (`BanXemPhieu`). */
+export const MAU_TT200 = {
   chi: {
     formCode: "Mẫu số 02 - TT",
     title: "PHIẾU CHI",
@@ -67,7 +68,7 @@ function row(label: string, value: string, dotted = true): string {
 export function printTT200(data: TT200PrintData): boolean {
   const win = window.open("", "_blank", "width=980,height=760");
   if (!win) return false;
-  const form = FORM[data.kind];
+  const form = MAU_TT200[data.kind];
   const { d, m, y } = dmyParts(data.docDate);
   const words = amountInWords(data.amountVnd);
   const foreign =

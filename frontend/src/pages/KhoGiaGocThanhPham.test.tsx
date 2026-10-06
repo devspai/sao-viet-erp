@@ -69,6 +69,16 @@ describe("KhoGiaGocThanhPham", () => {
     expect(o.value).toBe("1.900");
   });
 
+  it("chân bảng: mặc định xin 25 dòng, đổi Dòng/trang thì gửi cỡ mới và về trang 1", async () => {
+    const ds = vi.spyOn(api.kho.baoCao, "thanhPhamChuaGiaGoc").mockResolvedValue(trang([lo({})]));
+    render(<KhoGiaGocThanhPham token="t" />);
+    await screen.findByText("LOT-TP-00010-260918-01");
+    expect(ds).toHaveBeenLastCalledWith("t", expect.objectContaining({ page: 1, size: 25 }));
+    expect(screen.getByRole("navigation", { name: "Phân trang giá gốc thành phẩm" })).toBeTruthy();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "50" } });
+    await waitFor(() => expect(ds).toHaveBeenLastCalledWith("t", expect.objectContaining({ page: 1, size: 50 })));
+  });
+
   it("Lưu mở hộp xác nhận giá cũ → mới rồi gọi sửa giá gốc", async () => {
     vi.spyOn(api.kho.baoCao, "thanhPhamChuaGiaGoc").mockResolvedValue(trang([lo({})]));
     const sua = vi.spyOn(api.kho.phieu, "suaGiaGoc").mockResolvedValue({

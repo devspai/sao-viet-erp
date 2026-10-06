@@ -117,7 +117,6 @@ export interface EditRow {
   nha_cung_cap_id: number | null;
   /** Tên do máy chủ ghi — chỉ để hiện, không gửi lên. */
   nha_cung_cap: string;
-  don_gia_gia_cong: string;
   ghi_chu: string;
   /* Khối KHOÁN THEO ĐẦU VIỆC (`khoan_rate_id` · `khoan_chon_duoc` · `khoan_rate_id_luc_tai`) GỠ
      18/09/2026 (mg `0320`): bước thôi mang đầu việc. Việc khoán chọn LÚC GHI MẺ ở bàn tổ. */
@@ -213,7 +212,6 @@ export function toEdit(cd: LsxCongDoan): EditRow {
     })),
     nha_cung_cap_id: cd.nha_cung_cap_id ?? null,
     nha_cung_cap: cd.nha_cung_cap ?? "",
-    don_gia_gia_cong: s(cd.don_gia_gia_cong),
     ghi_chu: cd.ghi_chu ?? "",
   };
 }
@@ -283,7 +281,7 @@ export function emptyRow(): EditRow {
     thoi_luong_dien_giai: {},
     vat_tu_goi_y: [], so_luong_vao_moi: null, so_luong_ra_moi: null,
     phu_thuoc_step_keys: [], vat_tus: [],
-    nha_cung_cap_id: null, nha_cung_cap: "", don_gia_gia_cong: "",
+    nha_cung_cap_id: null, nha_cung_cap: "",
     ghi_chu: "",
   };
 }
@@ -412,7 +410,6 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
               gia_tri_chip: v.gia_tri_chip ?? {} })),
       // Chỉ gửi khi bước ĐANG là thuê ngoài — đổi loại rồi thì server tự dọn (Task 3).
       nha_cung_cap_id: ngoai ? r.nha_cung_cap_id : null,
-      don_gia_gia_cong: ngoai ? on(r.don_gia_gia_cong) : undefined,
       ghi_chu: ot(r.ghi_chu),
       // `piece_rate_id` GỠ 18/09/2026 (mg `0320`) — bước thôi ghim đầu việc khoán.
     };

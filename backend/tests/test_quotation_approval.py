@@ -202,13 +202,18 @@ def test_sales_can_submit_own_quote_for_approval(client):
 
 
 def test_sales_can_accept_own_normal_quote(client):
-    """NV Sales tự đánh dấu 'Khách hàng đồng ý' cho báo giá THƯỜNG của mình (can_approve, scope own)."""
+    """NV Sales tự đánh dấu 'Khách hàng đồng ý' cho báo giá THƯỜNG của mình — chỉ cần `update`.
+
+    Chi tiết báo giá KHÔNG còn trả cờ `can_approve` (05/10/2026): cờ đó từng gác nút Khách chốt ở
+    giao diện, nhưng ma trận Báo giá không có ô nào bật được nó ⇒ vai tự dựng không bao giờ thấy nút
+    dù máy chủ chỉ đòi `update`. Giao diện giờ gác bằng chính `update`."""
     _token(client)  # đảm bảo roles đã seed
     sales = _role_token("nv_sales_accept", "NV Sales")
     pid = _seed_ptg(gia_von_tp=1_000_000, cua=sales)  # giá bán 1.25tr → KHÔNG đặc thù
     q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(sales)).json()
     assert q["exception_required"] is False
-    # Gửi khách (manage_status) rồi khách chốt (approve) — cả hai đều là quyền của NV Sales.
+    assert "can_approve" not in q
+    # Gửi khách rồi khách chốt — cả hai đều là quyền của NV Sales.
     client.post(f"/api/quotations/{q['id']}/transition", json={"to_status": "sent"}, headers=_h(sales))
     r = client.post(f"/api/quotations/{q['id']}/transition", json={"to_status": "accepted"}, headers=_h(sales))
     assert r.status_code == 200, r.text

@@ -683,6 +683,9 @@ class PurchaseService:
         status: str | None = None,
         supplier_group: str | None = None,
         rating_min: float | None = None,
+        nhan_gia_cong: bool | None = None,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
         sort: str = "name",
         page: int = 1,
         size: int = 20,
@@ -697,6 +700,9 @@ class PurchaseService:
             status=status,
             supplier_group=supplier_group,
             rating_min=rating_min,
+            nhan_gia_cong=nhan_gia_cong,
+            tu_ngay=tu_ngay,
+            den_ngay=den_ngay,
             sort=sort,
             page=page,
             size=size,
@@ -1236,23 +1242,50 @@ class PurchaseService:
         sort: str = "-created_at",
         page: int = 1,
         size: int = 20,
+        **loc,
     ) -> tuple[list[dict], int]:
-        pham_vi = self.authz.scope_for(actor, "yeu_cau_mua_hang")
+        """`loc` = thanh lọc chung (06/10/2026): `tu_ngay/den_ngay/moc` (tao | can), `phong_ban_id`,
+        `nguoi_yeu_cau_id`, `mat_hang` (cặp `hang_loai`, `hang_id`)."""
         rows, total = self.department_requests.list(
             q=q,
             status=status,
             source_type=source_type,
+            sort=sort,
+            page=page,
+            size=size,
+            **self._pham_vi_yeu_cau(actor),
+            **loc,
+        )
+        nap = self._nap_lo_yeu_cau(rows)
+        return [self._to_department_request_out(row, nap) for row in rows], total
+
+    def _pham_vi_yeu_cau(self, actor) -> dict:
+        """Ba tham số phạm vi nhìn YCMH của actor — danh sách, số trên tab và các ô chọn của thanh lọc
+        dùng CHUNG, để không con số nào đếm vượt cái người xem mở ra được."""
+        pham_vi = self.authz.scope_for(actor, "yeu_cau_mua_hang")
+        return dict(
             requesting_department_id=actor.department_id,
             filter_by_department=not self._sees_all_department_requests(actor),
             # `own` = ĐÚNG yêu cầu do chính mình gửi. Trước 11/08/2026 `own` rơi xuống nhánh lọc
             # theo phòng nên thấy luôn yêu cầu của đồng nghiệp — đo được 1 dòng do người khác tạo.
             requested_by_user_id=actor.id if pham_vi == SCOPE_OWN else None,
-            sort=sort,
-            page=page,
-            size=size,
         )
-        nap = self._nap_lo_yeu_cau(rows)
-        return [self._to_department_request_out(row, nap) for row in rows], total
+
+    def dem_yeu_cau_theo_trang_thai(self, *, actor, **loc) -> dict[str, int]:
+        """Số yêu cầu theo trạng thái hiển thị + `tat_ca` — cùng bộ lọc với bảng, chưa lọc trạng thái."""
+        dem = self.department_requests.dem_theo_trang_thai(**self._pham_vi_yeu_cau(actor), **loc)
+        dem["tat_ca"] = sum(dem.values())
+        return dem
+
+    def lua_chon_loc_yeu_cau(self, *, actor, truong: str) -> list:
+        """Giá trị cho một ô chọn của thanh lọc YCMH, đếm trong tầm nhìn của người xem.
+        `truong`: `phong_ban` | `nguoi_yeu_cau` | `mat_hang`."""
+        pv = self._pham_vi_yeu_cau(actor)
+        if truong == "phong_ban":
+            return self.department_requests.dem_theo_phong_ban(**pv)
+        if truong == "nguoi_yeu_cau":
+            return self.department_requests.dem_theo_nguoi_yeu_cau(**pv)
+        return self.department_requests.dem_theo_mat_hang(**pv)
 
     def _sees_all_department_requests(self, actor) -> bool:
         """Có nhìn được YCMH của TOÀN công ty không.
@@ -1304,6 +1337,14 @@ class PurchaseService:
         if self._sees_all_department_requests(actor):
             return True
         return row.requesting_department_id == actor.department_id
+
+    def _duoc_huy_ho(self, row: DepartmentPurchaseRequest, actor) -> bool:
+        """Huỷ HỘ yêu cầu của người khác: theo đúng phạm vi người huỷ NHÌN THẤY ở danh sách.
+        `own` chỉ thấy yêu cầu của chính mình ⇒ không huỷ hộ ai; `department` = yêu cầu của phòng
+        mình; `all` = mọi phòng. Ô Thao tác đã được router đòi trước khi vào đây."""
+        if self.authz.scope_for(actor, "yeu_cau_mua_hang") == SCOPE_OWN:
+            return False
+        return self._can_view_department_request(row, actor)
 
     def _department_request(self, request_id: int) -> DepartmentPurchaseRequest:
         row = self.department_requests.get_by_id(request_id)
@@ -1559,9 +1600,11 @@ class PurchaseService:
         row = self._department_request(request_id)
         if row.status != DPR_OPEN:
             raise PurchaseConflict("Chi yeu cau dang cho mua moi duoc huy.")
-        can_cancel_any = self.authz.can(actor, "yeu_cau_mua_hang", "cancel")
-        if row.requested_by_user_id != actor.id and not can_cancel_any:
-            raise PurchaseForbidden("Chi nguoi tao yeu cau hoac admin moi duoc huy.")
+        # Huỷ HỘ người khác (05/10/2026): router đã đòi ô Thao tác (`yeu_cau_mua_hang:update`), ở
+        # đây chỉ chặn yêu cầu NGOÀI phạm vi người huỷ xem được. Trước đó đòi ô `cancel` riêng mà
+        # ma trận không bày ⇒ ngoài admin không ai huỷ hộ được.
+        if row.requested_by_user_id != actor.id and not self._duoc_huy_ho(row, actor):
+            raise PurchaseForbidden("Yêu cầu này nằm ngoài phạm vi của bạn nên không huỷ được.")
         # Lý do vào cột RIÊNG. Trước đây `row.note = reason` GHI ĐÈ mất ghi chú người lập.
         row.reject_reason = (reason or "").strip() or None
         self._dat_trang_thai(row, DPR_CANCELLED, doc_type=DOC_YCMH, actor=actor, ly_do=reason)
@@ -1622,9 +1665,11 @@ class PurchaseService:
         row = self._department_request(request_id)
         if row.status == DPR_CANCELLED:
             raise PurchaseConflict("Yêu cầu này đã huỷ.")
-        can_cancel_any = self.authz.can(actor, "yeu_cau_mua_hang", "cancel")
-        if row.requested_by_user_id != actor.id and not can_cancel_any:
-            raise PurchaseForbidden("Chi nguoi tao yeu cau hoac admin moi duoc huy.")
+        # Huỷ HỘ người khác (05/10/2026): router đã đòi ô Thao tác (`yeu_cau_mua_hang:update`), ở
+        # đây chỉ chặn yêu cầu NGOÀI phạm vi người huỷ xem được. Trước đó đòi ô `cancel` riêng mà
+        # ma trận không bày ⇒ ngoài admin không ai huỷ hộ được.
+        if row.requested_by_user_id != actor.id and not self._duoc_huy_ho(row, actor):
+            raise PurchaseForbidden("Yêu cầu này nằm ngoài phạm vi của bạn nên không huỷ được.")
         ly_do = (reason or "").strip()
         if not ly_do:
             # Bỏ một món giữa chừng là việc người khác sẽ hỏi lại ("sao không mua nữa?") ⇒ bắt ghi
@@ -1668,18 +1713,17 @@ class PurchaseService:
         q: str | None = None,
         status: str | None = None,
         supplier_id: int | None = None,
-        created_from: date | None = None,
-        created_to: date | None = None,
-        needed_from: date | None = None,
-        needed_to: date | None = None,
-        expected_receipt_from: date | None = None,
-        expected_receipt_to: date | None = None,
         deposit_status: str | None = None,
         sort: str = "-created_at",
         page: int = 1,
         size: int = 20,
         actor=None,
         exclude_statuses: list[str] | None = None,
+        tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+        moc: str = "tao",
+        tong_tu: int | None = None,
+        tong_den: int | None = None,
     ) -> tuple[list[dict], int]:
         # PHẠM VI NHÌN (chủ 04/08/2026: "nhân viên chỉ thấy đơn của tôi thôi, trưởng bộ phận hoặc
         # giám đốc mới thấy cả"). Trước đây hàm này KHÔNG nhận `actor` — ai có `thu_mua:read` là
@@ -1689,20 +1733,27 @@ class PurchaseService:
             q=q,
             status=status,
             supplier_id=supplier_id,
-            created_from=created_from,
-            created_to=created_to,
-            needed_from=needed_from,
-            needed_to=needed_to,
-            expected_receipt_from=expected_receipt_from,
-            expected_receipt_to=expected_receipt_to,
             deposit_status=deposit_status,
+            tong_tu=tong_tu,
+            tong_den=tong_den,
             sort=sort,
             page=page,
             size=size,
             creator_ids=creator_ids, exclude_statuses=exclude_statuses,
+            tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
         )
         nap = self._nap_lo_phieu_mua(rows)
         return [self._to_request_out(r, nap) for r in rows], total
+
+    def dem_theo_trang_thai(self, *, actor=None, **loc) -> dict[str, int]:
+        """Số phiếu theo trạng thái — cùng bộ lọc và phạm vi nhìn với `list_requests`, trừ trạng thái."""
+        creator_ids = None if actor is None else self._creator_ids_theo_scope(actor)
+        return self.requests.dem_theo_trang_thai(creator_ids=creator_ids, **loc)
+
+    def dem_theo_ncc(self, *, actor=None, **loc) -> list[tuple[int, str, int]]:
+        """Ô lọc "Nhà cung cấp": NCC có phiếu trong tầm nhìn của người xem, kèm số phiếu."""
+        creator_ids = None if actor is None else self._creator_ids_theo_scope(actor)
+        return self.requests.dem_theo_ncc(creator_ids=creator_ids, **loc)
 
     def _purchase_scope(self, actor) -> str | None:
         """Phạm vi phiếu mua actor được nhìn: `all` | `department` | `own`.

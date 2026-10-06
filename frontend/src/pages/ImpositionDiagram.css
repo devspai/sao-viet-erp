@@ -1,0 +1,165 @@
+/* Sơ đồ bình bài — đi KÈM component (dùng ở Tính giá lẫn Lệnh SX). Trước nằm trong tinh-gia.css nên
+   mở thẳng Lệnh SX chưa qua Tính giá thì SVG không có fill → tờ in tô đen. */
+/* ---------- Sơ đồ bình bài live ---------- */
+.tg-imp-wrap {
+  margin-top: var(--sp-2);
+}
+.tg-imp {
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  background: var(--rule-hair);
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.tg-imp--empty {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--ash-2);
+  padding: var(--sp-5) var(--sp-4);
+  border-style: dashed;
+}
+.tg-imp__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ash-2);
+  max-width: 40ch;
+  line-height: 1.4;
+}
+.tg-imp__stage {
+  display: flex;
+  justify-content: center;
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-2);
+  padding: var(--sp-3);
+}
+.tg-imp__svg {
+  width: 100%;
+  max-height: 260px;
+  height: auto;
+}
+.tg-imp__sheet {
+  fill: var(--paper-contrast);
+  stroke: var(--ash-2);
+  stroke-width: 1.5;
+}
+.tg-imp__usable {
+  fill: none;
+  stroke: var(--ash-2);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  opacity: 0.7;
+}
+.tg-imp__piece {
+  fill: var(--rule-hair);
+  stroke: var(--rust);
+  stroke-width: 1.2;
+  transition: all var(--duration-base) var(--easing-standard);
+}
+/* Vùng TRÀN LỀ quanh mỗi con (bleed > 0): con thật nằm gọn bên trong hình này. */
+.tg-imp__bleed {
+  fill: var(--rule-hair);
+  stroke: var(--rust);
+  stroke-width: 0.8;
+  stroke-dasharray: 3 2;
+  opacity: 0.4;
+}
+.tg-imp__piece--unused {
+  fill: transparent;
+  stroke: var(--rule);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  opacity: 0.55;
+}
+.tg-imp--bad .tg-imp__sheet {
+  stroke: var(--signal, #8a1f1f);
+}
+.tg-imp__cross {
+  stroke: var(--signal, #8a1f1f);
+  stroke-width: 2;
+  opacity: 0.6;
+}
+.tg-imp__pnum {
+  fill: var(--rust-deep, var(--rust));
+  font-family: var(--ff-sans);
+  font-weight: 700;
+}
+.tg-imp__caption {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  color: var(--ash);
+}
+.tg-imp__con {
+    font-family: var(--ff-sans);
+  font-size: 18px;
+  font-weight: var(--fw-bold);
+  color: var(--rust);
+  font-variant-numeric: tabular-nums;
+}
+/* "con/tờ" nay là TÊN ĐƠN VỊ đọc từ danh mục — có thể dài ("SẢN PHẨM XONG/TỜ CHẠY MÁY"). Caption
+   đã `flex-wrap`, chỉ cần cho phép ngắt trong chính chuỗi tên. */
+.tg-imp__con-unit {
+  min-width: 0;
+  font-size: 11px;
+  color: var(--ash);
+  overflow-wrap: anywhere;
+}
+.tg-imp__sep {
+  color: var(--rule);
+}
+.tg-imp__eff {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+.tg-imp__grid {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ash-2);
+}
+.tg-imp__warn {
+  color: var(--signal, #8a1f1f);
+  font-weight: var(--fw-bold);
+}
+/* Đè số con vượt sức chứa lưới — nhắc, không chặn. */
+.tg-imp__over {
+  font-size: 10.5px;
+  color: var(--signal, #8a1f1f);
+  font-weight: var(--fw-medium);
+  margin-left: 2px;
+}
+/* Thông số bình bài đang áp dụng (bleed / khe cắt / chừa) — dòng phụ dưới caption. */
+.tg-imp__params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 6px;
+  font-family: var(--ff-sans);
+  font-size: 10.5px;
+  color: var(--ash-2);
+}
+.tg-imp__param {
+  padding: 2px 7px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-contrast);
+  /* `nowrap` cũ hợp lý khi chip là "con 58×90"; nay chữ "con" là tên đơn vị của xưởng nên chip
+     phải co được, không thì nó chọc ra khỏi thẻ. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tg-imp__param b {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+.tg-imp__loading {
+  color: var(--ash-2);
+  font-style: italic;
+}
+

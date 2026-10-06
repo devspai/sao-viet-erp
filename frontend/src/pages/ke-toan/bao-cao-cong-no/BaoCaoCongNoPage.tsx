@@ -20,6 +20,7 @@ import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import type { NavigateFn } from "../../../components/AppShell";
 import { Icon } from "../../../components/Icons";
 import { money } from "../../../utils/format";
+import { useDebounced } from "../../../utils/useDebounced";
 // import { printBaoCaoCongNo } from "../../../utils/printBaoCaoCongNo";
 import { SoChiTietDrawer } from "./SoChiTietDrawer";
 import { nhanKy, type Ky } from "./shared/ky";
@@ -167,13 +168,15 @@ export function BaoCaoCongNoPage({
 
   useEffect(loadTrangThaiKhoa, [loadTrangThaiKhoa]);
 
+  // Ô tìm lọc ở MÁY CHỦ (06/10/2026); gọi máy chủ theo giá trị đã chậm 300ms để gõ không bắn thừa.
+  const qTre = useDebounced(q.trim());
   const load = useCallback(() => {
     if (!token) return;
     setLoading(true);
     setError(null);
 
     api.accounting
-      .baoCaoCongNo(token, ben, { tuNgay: ky.tu, denNgay: ky.den })
+      .baoCaoCongNo(token, ben, { tuNgay: ky.tu, denNgay: ky.den, q: qTre })
       .then(setData)
       .catch((cause) => {
         setError(
@@ -183,21 +186,12 @@ export function BaoCaoCongNoPage({
         );
       })
       .finally(() => setLoading(false));
-  }, [token, ben, ky.tu, ky.den]);
+  }, [token, ben, ky.tu, ky.den, qTre]);
 
   useEffect(load, [load]);
 
-  // Lọc dữ liệu Sổ tổng hợp
-  const dongSo = useMemo(() => {
-    const tim = q.trim().toLowerCase();
-    return (data?.items ?? []).filter((d) => {
-      if (!tim) return true;
-      return (
-        d.ten.toLowerCase().includes(tim) ||
-        (d.ma ?? "").toLowerCase().includes(tim)
-      );
-    });
-  }, [data, q]);
+  // Dòng của Sổ tổng hợp — máy chủ đã lọc theo ô tìm.
+  const dongSo = useMemo(() => data?.items ?? [], [data]);
 
   // Tổng cộng của phần sổ đang hiện
   const tongSo = useMemo(() => {

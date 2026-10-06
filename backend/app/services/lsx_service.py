@@ -55,6 +55,7 @@ from ..models.quotation import QuoteVersion
 from ..models.user import User
 from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, GiayNguyen, VatTuInAn
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+from .gia_cong_ngoai import lan_can_hoi_xuat_giay, tom_tat_theo_lenh as tom_tat_gcn_theo_lenh
 from ..services.bu_hao_engine import hao_buoc
 from ..models.don_vi_do import (
     TRAM_CAI, TRAM_CON, TRAM_TAY, TRAM_TO, TRAM_TO_NGUYEN,
@@ -64,7 +65,7 @@ from ..services.dong_giay import (
 )
 from ..models.don_vi_do import DonViDo
 from ..services.kho_giay import (
-    DANG_CUON, dong_giay_theo_dau_vao, don_vi_goc_to, nhan_kho,
+    DANG_CUON, dong_giay_theo_dau_vao, don_vi_goc_to,
 )
 from ..services.bien_cong_thuc import MAC_DINH_TANG_LENH, ngu_canh_lenh, quy_cach_bien
 from ..services.don_vi_do_service import cong_thuc_chu, cong_thuc_the_so
@@ -749,8 +750,10 @@ class LsxService:
                 d = self._dong_giay_cho_ma(buoc, qc_giay, mon_id)
                 dien_giai = None
                 if d["so_luong"] is not None:
-                    dien_giai = (("Cuộn " if d["dang"] == DANG_CUON else "Tờ ")
-                                 + f"theo đầu vào của bước · {nhan_kho(d['kho_rong'], d['kho_dai'])}")
+                    # Chỉ nói NGUỒN của số — dạng + khổ đã in ngay dưới tên giấy ở ngăn bước, nhắc lại
+                    # trong bong bóng là lặp; không nối mẩu bằng dấu chấm giữa.
+                    dien_giai = ("Số kg và khổ cuộn" if d["dang"] == DANG_CUON
+                                 else "Số tờ và khổ") + " lấy theo đầu vào của bước"
                 ra.append({
                     "hang_loai": HANG_GIAY, "vat_tu_id": mon_id, "dang_giay": d["dang"],
                     "so_luong": (round(d["so_luong"], 3) if d["so_luong"] is not None else None),
@@ -1217,14 +1220,15 @@ class LsxService:
     # ================= HÀNG CHỜ =================
 
     def hang_cho(self, *, page: int = 1, size: int = 50,
-                 chi_dem: bool = False) -> tuple[list[dict], int]:
+                 chi_dem: bool = False, **loc) -> tuple[list[dict], int]:
         """`(đơn của TRANG này, TỔNG số đơn còn nợ lệnh)`.
 
         Điều kiện "còn dòng chưa lên lệnh" đã chuyển xuống SQL (`repo.orders_ban_giao`) — ở đây
         chỉ còn đếm để HIỆN "x/y dòng đã lên lệnh". `chi_dem` ⇒ chỉ đếm (badge menu): `([], total)`,
         không nạp dòng đơn / tên khách / tên sale.
         """
-        orders, total = self.repo.orders_ban_giao(page=page, size=size, chi_dem=chi_dem)
+        # `loc` = thanh lọc của hàng chờ (06/10/2026): `customer_id`, `tu_ngay`/`den_ngay`/`moc`.
+        orders, total = self.repo.orders_ban_giao(page=page, size=size, chi_dem=chi_dem, **loc)
         if not orders:
             return [], total
         line_ids = [ln.id for o in orders for ln in o.lines]
@@ -1247,6 +1251,7 @@ class LsxService:
                 "is_rush": bool(o.is_rush),
                 "production_note": o.production_note,
                 "san_xuat_released_at": o.san_xuat_released_at,
+                "created_at": o.created_at,
                 "so_dong": so_dong,
                 "so_dong_co_lsx": so_co,
                 "san_pham_tom_tat": san_pham_tom_tat,
@@ -2464,10 +2469,9 @@ class LsxService:
             "setup_phut": t["dien_giai"]["setup_phut"],
             "phat_sinh_phut": _f(cd.phat_sinh_phut),
             "chay_phut": t["chay_phut"],
-            # Gia công ngoài (spec 2026-09-26): nhà gia công + đơn giá của BƯỚC. Việc mang đi / chốt
+            # Gia công ngoài (spec 2026-09-26): nhà gia công của BƯỚC. Việc mang đi / chốt
             # số nằm ở LẦN GIA CÔNG (`/api/gia-cong-ngoai/lenh/{id}`), không ở bước.
             "nha_cung_cap_id": cd.nha_cung_cap_id, "nha_cung_cap": cd.nha_cung_cap,
-            "don_gia_gia_cong": cd.don_gia_gia_cong and _f(cd.don_gia_gia_cong),
             "ghi_chu": cd.ghi_chu,
             # CHỈ lấy hai số DẪN XUẤT. KHÔNG spread cả `thoi_luong_buoc` vào đây: nó cũng có key
             # `chay_phut` và sẽ GHI ĐÈ giá trị đã lưu ở trên — client nhận số đã-tính, tưởng là
@@ -2531,6 +2535,12 @@ class LsxService:
         dept_names = self._dept_names(dept_ids)
         khach_names = self._customer_names({o.customer_id for o in orders.values() if o.customer_id})
         tram = self._tram()          # đọc MỘT lần cho cả danh sách
+        # Gia công ngoài của cả trang — một câu (`cua_nhieu_lenh`), không gọi `lan_dict` theo dòng.
+        gc_repo = GiaCongNgoaiRepository(self.db)
+        cap = gc_repo.cua_nhieu_lenh([r.id for r in rows])
+        # Chip "Chờ cấp giấy": thêm tối đa MỘT câu, và chỉ khi trang có trọn gói xưởng cấp giấy.
+        gia_cong = tom_tat_gcn_theo_lenh(
+            cap, gc_repo.co_yeu_cau_xuat(lan_can_hoi_xuat_giay(cap)))
         out: list[dict] = []
         for r in rows:
             o = orders.get(r.order_id)
@@ -2545,11 +2555,13 @@ class LsxService:
                 "so_to_ke_hoach": r.so_to_ke_hoach,
                 "han_giao_khach": r.han_giao_khach, "han_hoan_thanh_sx": r.han_hoan_thanh_sx,
                 "is_rush": bool(r.is_rush),
+                "created_at": r.created_at,
                 "to_dau_ten": dept_names.get(first.department_id) if first else None,
                 "so_cong_doan": len(r.cong_doans),
                 # `r.cong_doans` đã nạp sẵn (dùng ngay ở hai dòng trên) nên chỗ này KHÔNG thêm
                 # query nào — đừng đổi sang tra danh mục theo từng dòng, danh sách sẽ thành N+1.
                 "don_vi_to": don_vi_chuoi(r.cong_doans, tram)["to"],
+                "gia_cong": gia_cong.get(r.id),
             })
         return out, total
 
@@ -2572,6 +2584,18 @@ class LsxService:
                 )
             ],
         }
+
+    def khach_loc(self, *, owner_ids: set[int] | None) -> list[tuple[int, str, int]]:
+        """Ô "Khách hàng" của thanh lọc bảng lệnh — khách đang có lệnh trong phạm vi, kèm số lệnh."""
+        return self.repo.khach_loc(owner_ids=owner_ids)
+
+    def don_loc(self, *, owner_ids: set[int] | None) -> list[tuple[int, str, int]]:
+        """Ô "Đơn hàng" của thanh lọc bảng lệnh — đơn đang có lệnh trong phạm vi, kèm số lệnh."""
+        return self.repo.don_loc(owner_ids=owner_ids)
+
+    def khach_hang_cho(self) -> list[tuple[int, str, int]]:
+        """Ô "Khách hàng" của thanh lọc hàng chờ — khách đang có đơn chờ lên lệnh, kèm số đơn."""
+        return self.repo.khach_hang_cho()
 
     def dem_trang_thai(self, **kw) -> dict[str, int]:
         """Số trên TAB lọc — đếm ở máy chủ theo cùng bộ lọc trừ chính `trang_thai`.
@@ -2814,7 +2838,6 @@ class LsxService:
         # SỐ GIỜ KẾ HOẠCH của bước TỔ (mg `0319`) — số gõ tay, KHÔNG kế thừa từ đâu cả, nên nó
         # thuộc bộ "nhận thẳng" này. Thay chỗ `so_nhan_cong_tieu_chuan` (kíp chuẩn) đã gỡ.
         "so_gio_ke_hoach", "phat_sinh_phut",
-        "don_gia_gia_cong",
         "ghi_chu",
         # `kcs_tieu_chi_bo_sung_json` rời bộ này 08/09/2026 (mg `0283`): tiêu chí KCS chỉ còn MỘT
         # nguồn là danh mục gắn theo công đoạn — `docs/design-kcs-theo-cong-doan.md` mục 5.
@@ -3102,7 +3125,6 @@ class LsxService:
             else:
                 # Đổi khỏi thuê ngoài thì dọn dữ liệu nhà gia công — không để checklist hiểu nhầm.
                 row.nha_cung_cap_id, row.nha_cung_cap = None, None
-                row.don_gia_gia_cong = None
             # ⚠️ Cả khối ĐẦU VIỆC KHOÁN của bước GỠ 18/09/2026 (mg `0320`): nhận `piece_rate_id`,
             #    ghim `khoan_json`, kế thừa kíp chuẩn + năng suất người-giờ, và cửa dọn ảnh chụp
             #    cho bước máy / thuê ngoài. Bước thôi mang đầu việc; việc khoán chọn LÚC GHI MẺ ở

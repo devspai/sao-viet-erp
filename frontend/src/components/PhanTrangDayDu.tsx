@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import "./phan-trang-day-du.css";
@@ -24,8 +25,8 @@ export function dayTrang(hienTai: number, tong: number): (number | "…")[] {
 
 export const CO_TRANG_MAC_DINH = [15, 25, 50, 100];
 
-/** Chân bảng phân trang ĐẦY ĐỦ — khuôn của màn Nhật ký (05/10/2026 dời ra đây để danh mục dùng
- *  chung): bên trái "Trang x/y · n dòng / tổng N", bên phải ô Dòng/trang + dãy số trang.
+/** Chân bảng phân trang ĐẦY ĐỦ — khuôn của màn Nhật ký (05/10/2026 dời ra đây, rồi phủ mọi
+ *  bảng danh sách của sidebar): bên trái "Trang x/y · n dòng / tổng N", bên phải ô Dòng/trang + dãy số trang.
  *
  *  Khác `Pager` (tổng + Trước/Sau): dành cho bảng DÀI mà người dùng hay nhảy xa hoặc muốn xem
  *  nhiều dòng một lượt. Cả hai đều cắt trang Ở MÁY CHỦ — `tong` phải là tổng máy chủ trả. */
@@ -40,6 +41,7 @@ export function PhanTrangDayDu({
   loading,
   donVi = "bản ghi",
   hauTo,
+  ghiChu,
   ariaLabel = "Phân trang",
 }: {
   trang: number;
@@ -56,9 +58,14 @@ export function PhanTrangDayDu({
   donVi?: string;
   /** Chữ nối sau tổng, vd "khớp bộ lọc". */
   hauTo?: string;
+  /** Câu lưu ý in sau dòng thông tin, vd "duyệt hàng loạt chỉ áp cho trang đang xem". */
+  ghiChu?: ReactNode;
   ariaLabel?: string;
 }) {
   const tongSoTrang = Math.max(1, Math.ceil((tong ?? soDong) / Math.max(1, size)));
+  // Màn có cỡ trang riêng (KCS 30…) mà ô chọn thiếu số đó thì trình duyệt hiện số ĐẦU danh sách —
+  // người dùng tưởng đang xem 15 dòng. Chen cỡ đang dùng vào cho ô luôn nói thật.
+  const luaChon = coTrang.includes(size) ? coTrang : [...coTrang, size].sort((a, b) => a - b);
   return (
     <footer className="ptdd">
       <div className="ptdd__info">
@@ -68,6 +75,7 @@ export function PhanTrangDayDu({
             {" "}/ tổng <strong>{tong}</strong> {donVi}{hauTo ? ` ${hauTo}` : ""}
           </>
         )}
+        {ghiChu && <span className="ptdd__ghichu">{ghiChu}</span>}
       </div>
 
       <div className="ptdd__nav">
@@ -75,7 +83,7 @@ export function PhanTrangDayDu({
           <label className="ptdd__size">
             <span>Dòng/trang:</span>
             <select value={size} onChange={(e) => onSize(Number(e.target.value))}>
-              {coTrang.map((n) => <option key={n} value={n}>{n}</option>)}
+              {luaChon.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
         )}

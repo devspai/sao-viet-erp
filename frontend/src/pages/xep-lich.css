@@ -3064,3 +3064,11 @@
   color: #0284c7;
   font-weight: 600;
 }
+
+/* Thanh lọc chung của hàng chờ (06/10/2026): kỳ + điều kiện, xuống dòng trong cột hẹp. */
+.xl-cho__loc {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--sp-2);
+}

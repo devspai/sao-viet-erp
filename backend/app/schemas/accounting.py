@@ -37,6 +37,21 @@ class CompanyBankAccountOut(BankAccountBaseIn):
     updated_at: datetime
 
 
+class NganHangLocOut(BaseModel):
+    """Một lựa chọn của ô lọc "Ngân hàng" (màn Tài khoản ngân hàng): tên + số tài khoản."""
+    ten: str
+    so: int = 0
+
+
+class TaiKhoanThongKeOut(BaseModel):
+    """Thu/chi ĐÃ XONG của một tài khoản ngân hàng công ty trong kỳ (số trên thẻ tài khoản)."""
+
+    tai_khoan_id: int
+    thu: int
+    chi: int
+    so_phieu: int
+
+
 class SupplierBankAccountOut(BankAccountBaseIn):
     model_config = ConfigDict(from_attributes=True)
 
@@ -181,8 +196,6 @@ class GiaCongChoChiOut(BaseModel):
     nha_cung_cap_ten: str
     sl_cuoi: float
     don_vi: str | None = None
-    don_gia: float | None = None
-    thanh_tien: float | None = None
     chot_luc: datetime | None = None
     chot_boi_ten: str | None = None
 
@@ -267,6 +280,18 @@ class VoucherBatchOut(BaseModel):
     total_amount: int = 0
 
 
+class TheLocOut(BaseModel):
+    """Số trên hàng thẻ lọc của Phiếu chi / Phiếu thu. Đếm trên bộ lọc KHÔNG gồm trạng thái và
+    chứng từ, nên chọn một thẻ không làm các thẻ còn lại sập về 0."""
+
+    tat_ca: int = 0
+    xong: int = 0
+    xong_tien: int = 0
+    thieu_chung_tu: int = 0
+    da_huy: int = 0
+    cho: int = 0
+
+
 class PaymentVoucherListOut(BaseModel):
     items: list[PaymentVoucherOut]
     total: int
@@ -276,6 +301,7 @@ class PaymentVoucherListOut(BaseModel):
     total_paid_amount: int = 0
     total_waiting_amount: int = 0
     total_receipt_received_amount: int = 0
+    the_loc: TheLocOut = TheLocOut()
 
 
 class PaymentVoucherAttachmentOut(BaseModel):
@@ -373,6 +399,9 @@ class PaymentReceiptListOut(BaseModel):
     total: int
     page: int
     size: int
+    # Tổng tiền các phiếu ĐÃ THU khớp bộ lọc (mọi trang) — quy đổi VND.
+    total_received_amount: int = 0
+    the_loc: TheLocOut = TheLocOut()
 
 
 class PaymentReceiptAttachmentOut(BaseModel):
@@ -438,6 +467,8 @@ class SalesInvoiceListOut(BaseModel):
     invoiced_amount: int
     uninvoiced_amount: int
     deposit_received: int
+    payment_term_days: int | None = None
+    last_invoice_symbol: str | None = None
     items: list[SalesInvoiceOut]
 
 
@@ -484,7 +515,26 @@ class PayableSupplierOut(BaseModel):
     # Tiền ĐÃ CHI trong kỳ. NCC trả hết vẫn giữ được dòng nhờ số này ⇒ "đã trả hết" là thứ NHÌN
     # THẤY, không phải suy ra từ việc không thấy gì.
     paid_in_period: int = 0
+    #: Hàng nhận thêm trong kỳ (PS Có TK 331). Chỉ có số khi gọi CÓ kỳ; không kỳ = 0.
+    mua_trong_ky: int = 0
+    #: Hạn trả gần nhất trong các đợt CÒN NỢ — luôn theo HÔM NAY. None = không đợt nào có hạn.
+    han_gan_nhat: date | None = None
     total_due: int
+    # Bảng đủ cột (06/10/2026): mã + liên hệ của NCC, lần TRẢ gần nhất (cả lịch sử, không theo kỳ).
+    supplier_code: str | None = None
+    lien_he_ten: str | None = None
+    lien_he_sdt: str | None = None
+    tra_gan_nhat_ngay: date | None = None
+    tra_gan_nhat_tien: int = 0
+
+
+class TheLocCongNoOut(BaseModel):
+    """Số trên nhóm nút "Tất cả | Quá hạn | Vượt hạn mức" của hai màn công nợ — đếm sau tìm / kỳ /
+    bộ lọc nâng cao / rổ tuổi, TRƯỚC nút đang chọn (`filter`)."""
+
+    tat_ca: int = 0
+    qua_han: int = 0
+    vuot_han_muc: int = 0
 
 
 class PayablesSummaryOut(BaseModel):
@@ -499,8 +549,13 @@ class PayablesSummaryOut(BaseModel):
     # `overdue_amount` ở trên GIỮ NGUYÊN nghĩa cũ và luôn = tổng 5 rổ trễ trong này.
     aging: list[AgingBucketOut] = Field(default_factory=list)
     paid_in_period: int = 0
+    mua_trong_ky: int = 0
     vuot_han_muc_count: int = 0
+    the_loc: TheLocCongNoOut = Field(default_factory=TheLocCongNoOut)
     period_months: int = 3
+    #: Kỳ đã dùng để tính. Không truyền kỳ thì là [hôm nay − 3 tháng, hôm nay].
+    tu_ngay: date | None = None
+    den_ngay: date | None = None
     as_of: date
 
 
@@ -628,6 +683,9 @@ class PayablesDetailOut(BaseModel):
     coc_chung: list[PayableCocOut] = Field(default_factory=list)
     coc_chung_amount: int = 0
     paid: list[PayablePaidOut]
+    #: Tổng số lần trả trong phạm vi (kỳ / toàn bộ) — `paid` có thể chỉ là MỘT TRANG của nó
+    #: (`paid_page` / `paid_size`). "Đã trả (n)" và "n lần trả" đọc số này.
+    paid_total: int = 0
     period_months: int
     # True = đã bỏ mốc kỳ, rổ "đã chi" đang hiện TOÀN BỘ lịch sử (nút "Xem lịch sử cũ hơn").
     all_history: bool = False
@@ -658,6 +716,20 @@ class ReceivableCustomerOut(BaseModel):
     #: 6 rổ tuổi nợ của RIÊNG khách này. Khách không nợ gì vẫn đủ 6 khoá = 0.
     aging: dict[str, AgingCellOut] = Field(default_factory=dict)
     received_in_period: int = 0
+    #: Hoá đơn bán thêm trong kỳ (PS Nợ TK 131). Chỉ có số khi gọi CÓ kỳ; không kỳ = 0.
+    ban_trong_ky: int = 0
+    #: Hạn thu gần nhất trong các hoá đơn CÒN NỢ — luôn theo HÔM NAY.
+    han_gan_nhat: date | None = None
+    #: Sale phụ trách khách (`Customer.sale_user_id`).
+    sale_user_id: int | None = None
+    # Bảng đủ cột (06/10/2026): mã khách, liên hệ CHÍNH (không có thì ô liên hệ nhanh của khách),
+    # tên sale phụ trách, lần THU gần nhất (cả lịch sử, không theo kỳ).
+    customer_code: str | None = None
+    lien_he_ten: str | None = None
+    lien_he_sdt: str | None = None
+    sale_user_name: str | None = None
+    thu_gan_nhat_ngay: date | None = None
+    thu_gan_nhat_tien: int = 0
 
 
 class ReceivablesSummaryOut(BaseModel):
@@ -669,11 +741,15 @@ class ReceivablesSummaryOut(BaseModel):
     total_due: int
     overdue_amount: int
     received_in_period: int = 0
+    ban_trong_ky: int = 0
     vuot_han_muc_count: int = 0
+    the_loc: TheLocCongNoOut = Field(default_factory=TheLocCongNoOut)
     #: Rổ tuổi TOÀN MÀN. Tổng 5 rổ trễ luôn bằng `overdue_amount`, rổ "chưa tới hạn" bằng phần
     #: còn lại — hai chỗ nói hai kiểu tiền là lỗi nặng nhất của màn này.
     aging: list[AgingBucketOut] = Field(default_factory=list)
     period_months: int = 3
+    tu_ngay: date | None = None
+    den_ngay: date | None = None
     as_of: date
 
 
@@ -727,6 +803,9 @@ class ReceivablesDetailOut(BaseModel):
     vuot_bao_nhieu: int = 0
     items: list[ReceivableItemOut]
     paid: list[ReceivableReceiptOut]
+    #: Tổng số lần thu trong phạm vi (kỳ / toàn bộ) — `paid` có thể chỉ là MỘT TRANG của nó
+    #: (`paid_page` / `paid_size`). "Đã thu (n)" và "n lần thu" đọc số này.
+    paid_total: int = 0
     period_months: int
     all_history: bool = False
     total_due: int

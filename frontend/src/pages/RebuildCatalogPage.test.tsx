@@ -24,16 +24,19 @@ const CONFIG: CatalogConfig = {
   fields: [{ key: "ghi_chu", label: "Ghi chú", type: "text" }],
 };
 
-/** Bản có TAB LỌC — số trên tab phải lấy từ `facets` của máy chủ. */
+/** Bản có điều kiện lọc — số cạnh mỗi giá trị phải lấy từ `dem` của máy chủ. */
 const CONFIG_TAB: CatalogConfig = {
   ...CONFIG,
-  facet: { key: "nhom", values: [{ value: "in", label: "In" }, { value: "sau_in", label: "Sau in" }] },
+  // Mã màn RIÊNG: bộ lọc được nhớ theo màn trong phiên trang — dùng chung mã với các test khác là
+  // test sau mở ra đã đứng sẵn ở "Sau in".
+  man: "thu-dieu-kien",
+  dieuKien: [{ key: "nhom", nhan: "Giai đoạn", giaTri: [{ value: "in", label: "In" }, { value: "sau_in", label: "Sau in" }] }],
 };
 
-/** Bản lấy hàng tab từ DANH MỤC THẬT (`facet.source`) thay vì liệt kê cứng trong config. */
+/** Bản lấy giá trị từ DANH MỤC THẬT (`nguon`) thay vì liệt kê cứng trong config. */
 const CONFIG_TAB_DM: CatalogConfig = {
   ...CONFIG,
-  facet: { key: "nhom", source: "/api/nhom-cd", dynamic: true },
+  dieuKien: [{ key: "nhom", nhan: "Giai đoạn", nguon: "/api/nhom-cd" }],
 };
 
 /** Danh mục nguồn của hàng tab. "moi-khai" CỐ Ý chưa có dòng nào thuộc về — đúng cảnh nhóm vừa
@@ -79,7 +82,8 @@ function stubApi(tong: number) {
     return Promise.resolve(new Response(
       JSON.stringify({
         items: khop.slice((page - 1) * size, page * size),
-        total: khop.length, page, size, facets,
+        total: khop.length, page, size,
+        dem: { nhom: Object.entries(facets).map(([value, so]) => ({ value, so })) },
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     ));
@@ -192,36 +196,37 @@ describe("RebuildCatalogPage — phân trang 25 dòng/trang Ở MÁY CHỦ", () 
     expect(reqDanhSach(goi).length - truoc).toBe(1);   // 7 phím = 1 request, không phải 7
   });
 
-  it("tab lọc: số trên tab lấy từ `facets` của máy chủ, bấm tab thì gửi bộ lọc lên", async () => {
+  it("điều kiện lọc: số cạnh giá trị lấy từ `dem` của máy chủ, chọn giá trị thì gửi bộ lọc lên", async () => {
     const goi = stubApi(45);
     const user = userEvent.setup();
     moMan(CONFIG_TAB);
 
     await screen.findByText("CD-001");
-    const tabs = screen.getByRole("button", { name: /^Tất cả/ });
-    expect(tabs.textContent).toContain("45");                        // tổng, không phải 25 dòng đang xem
-    expect(screen.getByRole("button", { name: /^In/ }).textContent).toContain("23");
-    expect(screen.getByRole("button", { name: /^Sau in/ }).textContent).toContain("22");
+    await user.click(screen.getByRole("button", { name: "Lọc" }));
+    await user.click(screen.getByRole("menuitem", { name: /Giai đoạn/ }));
+    expect(screen.getByRole("radio", { name: /^In/ }).textContent).toContain("23");
+    const sauIn = screen.getByRole("radio", { name: /^Sau in/ });
+    expect(sauIn.textContent).toContain("22");
 
-    await user.click(screen.getByRole("button", { name: /^Sau in/ }));
+    await user.click(sauIn);
     await waitFor(() => expect(reqCuoi(goi).searchParams.get("nhom")).toBe("sau_in"));
     await waitFor(() => expect(screen.getByText(/tổng/).closest("footer")!.textContent).toContain("tổng 22 bản ghi"));
-    // Đang đứng ở tab con nhưng số cạnh tiêu đề vẫn là tổng cả danh mục.
-    expect(within(screen.getByRole("main")).getByText("45 mục")).toBeTruthy();
+    expect(within(screen.getByRole("main")).getByText("22 mục")).toBeTruthy();
   });
 
-  it("tab lấy từ DANH MỤC nguồn: nhóm chưa có dòng nào vẫn có tab, số 0", async () => {
+  it("giá trị lấy từ DANH MỤC nguồn: nhóm chưa có dòng nào vẫn chọn được, số 0", async () => {
     stubApi(45);
+    const user = userEvent.setup();
     moMan(CONFIG_TAB_DM);
 
     await screen.findByText("CD-001");
-    // Máy chủ chỉ đếm được nhóm ĐANG CÓ dòng, nên "moi-khai" không nằm trong `facets`. Trước
-    // 22/08/2026 hàng tab dựng từ chính `facets` ⇒ nhóm vừa khai xong biến mất, người khai tưởng
-    // nó không lưu được. Nay tab bày theo danh mục, chưa có máy nào thì đứng ở số 0.
-    const tab = await screen.findByRole("button", { name: /^moi-khai/ });
-    expect(tab.textContent).toContain("0");
-    // Nhóm có dòng vẫn lấy số từ máy chủ như cũ.
-    expect(screen.getByRole("button", { name: /^in/ }).textContent).toContain("23");
+    await user.click(screen.getByRole("button", { name: "Lọc" }));
+    await user.click(screen.getByRole("menuitem", { name: /Giai đoạn/ }));
+    // Máy chủ chỉ đếm được nhóm ĐANG CÓ dòng, nên "moi-khai" không nằm trong `dem`. Nhóm vừa khai
+    // xong vẫn phải chọn được (số 0), không thì người khai tưởng nó không lưu được.
+    const moi = await screen.findByRole("radio", { name: /^moi-khai/ });
+    expect(moi.textContent).toContain("0");
+    expect(screen.getByRole("radio", { name: /^in/ }).textContent).toContain("23");
   });
 
   it("bảng rỗng thì KHÔNG hiện chân phân trang (khối “chưa có…” nói thay rồi)", async () => {

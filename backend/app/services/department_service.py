@@ -6,6 +6,8 @@ rule, and a block on deleting a department that still has roles or users.
 """
 from __future__ import annotations
 
+from datetime import date, timedelta, timezone
+
 from ..models.department import Department
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.delivery_repo import DeliveryRepository
@@ -16,6 +18,9 @@ from ..repositories.user_repo import UserRepository
 # Sentinel: "caller did not send this field" — distinct from an explicit None (which means
 # "clear the parent / make it a root"). Lets a partial update keep the current parent.
 _KEEP = object()
+
+# Giờ Việt Nam — ranh ngày của bộ lọc Ngày tạo.
+_VN_TZ = timezone(timedelta(hours=7))
 
 
 class DepartmentError(Exception):
@@ -197,6 +202,7 @@ class DepartmentService:
             "total_user_count": tong[1],
             "total_employee_count": tong[2],
             "has_piece_work": dept.has_piece_work,
+            "created_at": dept.created_at,
         }
 
     def _nap_head_level(self, depts: list[Department]) -> tuple[dict, dict]:
@@ -248,6 +254,88 @@ class DepartmentService:
             )
             for dept in depts
         ]
+
+    def loc_summaries(
+        self, *, q: str | None = None, khoi: list[str] | None = None,
+        tinh_trang: list[str] | None = None, tu_ngay: date | None = None,
+        den_ngay: date | None = None,
+    ) -> list[dict]:
+        """Danh sách phòng theo thanh lọc của màn Phòng ban (06/10/2026) — lọc ở MÁY CHỦ.
+
+        Trả phòng KHỚP (`khop=True`) cùng mọi TỔ TIÊN của nó (`khop=False`) để màn vẽ được cây/sơ
+        đồ có đường nối từ gốc xuống. Không có điều kiện nào ⇒ trả trọn cây, mọi dòng `khop=True`.
+
+        - `khoi`: tập con `san_xuat` / `ngoai_sx` / `kinh_doanh` / `giao_hang` / `kcs` — khớp một
+          là đủ. Sản xuất, Kinh doanh KẾ THỪA cây (tổ tiên bật cờ là thuộc khối, cùng luật
+          `rbac_repo._khoi_theo_co`); Giao hàng, KCS đọc cờ riêng của phòng.
+        - `tinh_trang`: `co_truong` / `thieu_truong` (có người cả nhánh mà chưa gán trưởng) /
+          `chua_co_nguoi` (chưa gán trưởng và cả nhánh chưa có ai) — xét trưởng TRƯỚC.
+        - `tu_ngay` / `den_ngay`: Ngày tạo theo giờ VN.
+
+        Số phòng cỡ vài chục và cờ khối phải đi ngược cây ⇒ lọc trên các dòng đã dựng (cùng
+        `list_summaries`, số truy vấn cố định), không dịch sang SQL.
+        """
+        rows = self.list_summaries()
+        khoi = [k for k in (khoi or []) if k]
+        tinh_trang = [t for t in (tinh_trang or []) if t]
+        go = (q or "").strip().lower()
+        if not (go or khoi or tinh_trang or tu_ngay or den_ngay):
+            return [{**r, "khop": True} for r in rows]
+
+        by_id = {r["id"]: r for r in rows}
+
+        def to_tien(r: dict):
+            seen: set[int] = set()
+            cur = r
+            while cur is not None and cur["id"] not in seen:
+                seen.add(cur["id"])
+                yield cur
+                cur = by_id.get(cur["parent_id"]) if cur["parent_id"] is not None else None
+
+        def thuoc_khoi(r: dict, k: str) -> bool:
+            if k == "san_xuat":
+                return any(x["la_san_xuat"] for x in to_tien(r))
+            if k == "ngoai_sx":
+                return not any(x["la_san_xuat"] for x in to_tien(r))
+            if k == "kinh_doanh":
+                return any(x["la_kinh_doanh"] for x in to_tien(r))
+            if k == "giao_hang":
+                return bool(r["la_giao_hang"])
+            if k == "kcs":
+                return bool(r["is_kcs"])
+            return False
+
+        def tinh_trang_cua(r: dict) -> str:
+            if r["head_user_id"] is not None:
+                return "co_truong"
+            return "chua_co_nguoi" if not r["total_employee_count"] else "thieu_truong"
+
+        def ngay_tao(r: dict) -> date | None:
+            t = r.get("created_at")
+            if t is None:
+                return None
+            if t.tzinfo is None:  # SQLite (bộ test) cất mốc UTC không múi
+                t = t.replace(tzinfo=timezone.utc)
+            return t.astimezone(_VN_TZ).date()
+
+        def khop(r: dict) -> bool:
+            if go and go not in f"{r['code'] or ''} {r['name']} {r['head_name'] or ''}".lower():
+                return False
+            if khoi and not any(thuoc_khoi(r, k) for k in khoi):
+                return False
+            if tinh_trang and tinh_trang_cua(r) not in tinh_trang:
+                return False
+            if tu_ngay or den_ngay:
+                d = ngay_tao(r)
+                if d is None or (tu_ngay and d < tu_ngay) or (den_ngay and d > den_ngay):
+                    return False
+            return True
+
+        khop_ids = {r["id"] for r in rows if khop(r)}
+        hien: set[int] = set()
+        for i in khop_ids:
+            hien.update(x["id"] for x in to_tien(by_id[i]))
+        return [{**r, "khop": r["id"] in khop_ids} for r in rows if r["id"] in hien]
 
     def summary_of(self, dept: Department) -> dict:
         """Build the list-row shape for a single department (after create/update), including

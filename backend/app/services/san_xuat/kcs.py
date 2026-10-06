@@ -723,14 +723,18 @@ def _tom_cuoi(bc, cvs) -> dict | None:
 
 
 def danh_sach_lenh_kcs(
-    db: Session, user, *, tim: str | None = None, trang: int = 1, gom_da_dong: bool = False
+    db: Session, user, *, tim: str | None = None, trang: int = 1, gom_da_dong: bool = False,
+    co_trang: int = _CO_TRANG, **loc,
 ) -> dict:
-    """Danh sách lệnh cho màn KCS — phân trang + tìm ở máy chủ."""
+    """Danh sách lệnh cho màn KCS — phân trang + tìm ở máy chủ. `co_trang` do ô Dòng/trang ở chân
+    bảng gửi lên; router đã chặn 1..100, ở đây chỉ chặn dưới cho lời gọi nội bộ."""
     gate_kcs(db, user)
     repo = SanXuatKcsRepository(db)
     trang = max(1, int(trang or 1))
+    co_trang = max(1, int(co_trang or _CO_TRANG))
+    # `loc` = thanh lọc (06/10/2026): `chi_da_dong`, `khach_id`, `tu_ngay`/`den_ngay`/`moc`.
     ids, tong = repo.trang_lenh(
-        tim=tim, gom_da_dong=gom_da_dong, offset=(trang - 1) * _CO_TRANG, limit=_CO_TRANG
+        tim=tim, gom_da_dong=gom_da_dong, offset=(trang - 1) * co_trang, limit=co_trang, **loc
     )
     bc = boi_canh.nap(db, ids)
     items = []
@@ -753,8 +757,20 @@ def danh_sach_lenh_kcs(
             "so_da_kiem": sum(1 for cv in cvs if bc.kcs[cv.id]),
             "so_loi": sum(float(k.so_luong_khong_dat or 0) for cv in cvs for k in bc.kcs[cv.id]),
             "cuoi": _tom_cuoi(bc, cvs),
+            "created_at": lenh.created_at,
+            # Lần KCS gần nhất — cùng tập công việc với mốc kỳ `kcs` ở repo (`kcs_gan_nhat_cua_lenh`).
+            "kcs_gan_nhat": max(
+                (k.ket_thuc for cv in cvs for k in bc.kcs[cv.id] if k.ket_thuc is not None),
+                default=None,
+            ),
         })
-    return {"items": items, "tong": tong, "trang": trang, "co_trang": _CO_TRANG}
+    return {"items": items, "tong": tong, "trang": trang, "co_trang": co_trang}
+
+
+def khach_loc_kcs(db: Session, user) -> list[dict]:
+    """Ô "Khách hàng" của thanh lọc màn KCS: khách có lệnh đã vào nhóm thành phẩm, kèm số lệnh."""
+    gate_kcs(db, user)
+    return [{"id": i, "ten": t, "so": n} for i, t, n in SanXuatKcsRepository(db).khach_loc()]
 
 
 def chuoi_cong_doan_kcs(db: Session, user, lsx_id: int) -> dict:

@@ -21,6 +21,7 @@ import { useDebounced } from "../utils/useDebounced";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Icon } from "../components/Icons";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import "../components/empty-state.css";
 import { BangLoi, EmptyState, ngay, ngayGio, thoiLuong } from "./keHoachSxShared";
 import { useNapTenDonVi } from "./tenDonVi";
@@ -32,7 +33,13 @@ import { ThsxDrawer, type ThsxDrawerTab } from "./ThsxDrawer";
 import { type ThsxExec } from "./ThsxExecPanels";
 import { ThsxChoNgoaiBan } from "./ThsxChoNgoaiBan";
 import { ThsxChotGiay } from "./ThsxChotGiay";
-import { LOC_TRONG, ThsxLocNangCao, ThsxNutLoc, soTieuChi, thamSoLoc, type ThsxLoc } from "./ThsxLocNangCao";
+import {
+  LOC_MAN_BAN_TO_TRONG, MOC_BAN_TO, SAP_XEP_BAN_TO, dieuKienBanTo, locBanToLenUrl, locBanToTuUrl,
+  thamSoLocBanTo, type ThsxSapXep,
+} from "./loc-san-xuat/dieu-kien-ban-to";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { thamSoKy } from "./thanh-loc/ky-danh-sach";
+import { useLocMan } from "./thanh-loc/useLocMan";
 import { ChamCho, choNgoaiBan, choTheoViec, tabCho, tongCho, type SxChoCuaViec } from "./thsxChoXacNhan";
 import { ThsxSanLuongCuaToi } from "./ThsxSanLuongCuaToi";
 import { ThsxSanLuongTab } from "./ThsxSanLuongTab";
@@ -69,8 +76,6 @@ function nhanKhoang(tu: string, den: string): string {
   const namTu = tu.slice(0, 4) !== den.slice(0, 4) ? `/${tu.slice(0, 4)}` : "";
   return `${dm(tu)}${namTu} – ${dm(den)}/${den.slice(0, 4)}`;
 }
-
-const CO_TRANG = 20; // lệnh / trang — đơn vị trang của bàn tổ là LỆNH, không phải bước
 
 // View Lịch là lưới CỘT NGÀY như bàn Xếp lịch (15/09/2026) — bỏ zoom Giờ/Ca/Ngày/Tuần. Ba nấc số ngày
 // một màn; ◀▶ dời đúng số ngày đang xem.
@@ -138,6 +143,8 @@ export function ThucHienSxPage({
   const [items, setItems] = useState<SxWorkItem[] | null>(null);
   const [lenh, setLenh] = useState<SxLenhNhom[] | null>(null);
   const [trang, setTrang] = useState(1);
+  // Lệnh / trang — đơn vị trang của bàn tổ là LỆNH, không phải bước. Máy chủ nhận tối đa 100.
+  const [coTrang, setCoTrang] = useState(25);
   const [tongLenh, setTongLenh] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<SxNhanVienChon[]>([]);
@@ -153,13 +160,15 @@ export function ThucHienSxPage({
   // Việc chờ tổ bấm (§11.5) — bàn giao đến · hỗ trợ chéo chờ bên tổ mình · lỗi KCS chưa xem (máy chủ
   // lọc theo quyền). Không còn hộp đầu trang: thành chấm đỏ trên dòng công đoạn / đầu lệnh / tab ngăn.
   const [choXn, setChoXn] = useState<SxChoXacNhan | null>(null);
-  // Ô "chờ xác nhận" trên thanh lọc: bật thì máy chủ chỉ trả lệnh có việc chờ (lọc TRƯỚC khi cắt trang).
-  const [chiCho, setChiCho] = useState(false);
-  // Lọc nâng cao của view Bảng (trạng thái · ngày tổ nhận · cách sắp) — máy chủ lọc trước khi cắt trang.
-  const [loc, setLoc] = useState<ThsxLoc>(LOC_TRONG);
-  const [moLoc, setMoLoc] = useState(false);
-  const locMayChu = useMemo(() => thamSoLoc(loc), [loc]);
-  const khoaLoc = JSON.stringify(locMayChu);
+  // Thanh lọc của view Bảng (06/10/2026): kỳ theo ngày tổ nhận / ngày tạo lệnh / dự kiến bắt đầu +
+  // Trạng thái + Chờ xác nhận; cách sắp riêng bên phải. Ghi URL `?man=thuc-hien-sx:<tổ>`, máy chủ lọc
+  // trước khi cắt trang. "Chờ xác nhận" dùng chung với nút chờ của view Lịch.
+  const [locMan, setLocMan] = useLocMan(`thuc-hien-sx:${teamId}`, LOC_MAN_BAN_TO_TRONG, locBanToTuUrl, locBanToLenUrl);
+  const chiCho = !!locMan.loc.cho;
+  const setChiCho = (b: boolean) => setLocMan({ ...locMan, loc: { ...locMan.loc, cho: b || undefined } });
+  const sapXep = locMan.sapXep;
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocBanTo(locMan.loc) });
+  const coLoc = khoaLoc !== "{}";
   const [g5Tick, setG5Tick] = useState(0); // nhịp refetch riêng cho G5 sau mỗi lệnh ghi
 
   const [winTu, setWinTu] = useState<string>(() => mondayOf(new Date()));
@@ -176,6 +185,7 @@ export function ThucHienSxPage({
   const qd = useDebounced(q, 200);
   const choMap = useMemo(() => choTheoViec(choXn), [choXn]);
   const soChoXn = tongCho(choXn);
+  const dieuKienBan = useMemo(() => dieuKienBanTo(soChoXn), [soChoXn]);
   const ngoaiBan = useMemo(() => choNgoaiBan(choXn), [choXn]);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -209,7 +219,10 @@ export function ThucHienSxPage({
       // Tìm kiếm lọc Ở MÁY CHỦ, trước khi cắt trang — lọc bằng JS sau khi trang về thì ô tìm
       // kiếm chỉ soi được đúng 20 lệnh đang hiện. Chế độ phẳng kéo trọn bàn nên màn tự lọc.
       ...(phang ? { tuNgay: winTu, denNgay: winDen }
-        : { tim: timMayChu || undefined, trang, coTrang: CO_TRANG, ...locMayChu }),
+        : {
+          tim: timMayChu || undefined, trang, coTrang, loc: JSON.parse(khoaLoc),
+          sapXep: sapXep === "moi_nhan" ? undefined : sapXep,
+        }),
       choXacNhan: chiCho || undefined,
     })
       .then((r) => {
@@ -228,17 +241,14 @@ export function ThucHienSxPage({
           ? (e.isForbidden ? "Tổ này ngoài phạm vi của bạn." : e.message)
           : String(e));
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `khoaLoc` đại diện `locMayChu`
-  }, [token, teamId, view, timMayChu, trang, winTu, winDen, chiCho, khoaLoc]);
+  }, [token, teamId, view, timMayChu, trang, coTrang, winTu, winDen, chiCho, khoaLoc, sapXep]);
 
   // SSE bump (`eventTick`) nạp lại nhưng GIỮ NGUYÊN `trang` — nhảy về trang 1 giữa lúc tổ đang
   // thao tác ở trang 3 là cướp chỗ đứng của người ta.
   useEffect(() => { loadItems(); }, [loadItems, eventTick]);
   // Đổi tổ / đổi từ khoá / đổi chế độ lọc ⇒ trang cũ không còn nghĩa, về trang 1.
-  useEffect(() => { setTrang(1); }, [teamId, qd, chiCho, khoaLoc]);
-  // Đổi tổ thì tắt ô "chờ xác nhận" — ô đó là của bàn trước.
-  useEffect(() => { setChiCho(false); }, [teamId]);
-  const soTrang = Math.max(1, Math.ceil(tongLenh / CO_TRANG));
+  // Ô "chờ xác nhận" theo từng bàn: khoá URL/bộ nhớ của thanh lọc mang mã tổ, đổi tổ là bàn khác.
+  useEffect(() => { setTrang(1); }, [teamId, qd, chiCho, khoaLoc, sapXep]);
 
   // Luỹ kế sản lượng tháng của CHÍNH mình — CHỈ nạp khi vào tổ với tư cách THỢ (§6). Tổ trưởng
   // không có băng này: bảng ai-được-bao-nhiêu của cả tổ đã nằm trong drawer từng mẻ.
@@ -732,7 +742,7 @@ export function ThucHienSxPage({
       ) : (<>
       {/* Thanh phụ: tìm + digest — CHỈ view Bảng. View Lịch để số liệu trên thanh trên và ô tìm ở
           đầu cột Hàng chờ, như bàn Xếp lịch. */}
-      {view === "danh_sach" && <div className="thsx-subbar">
+      {view === "danh_sach" && <div className="thsx-subbar tl-thanh tl--xuong">
         <div className="thsx-search">
           <Icon name="search" size={15} className="thsx-search__ic" />
           <input type="search" className="thsx-search__in" value={q}
@@ -744,9 +754,16 @@ export function ThucHienSxPage({
             </button>
           )}
         </div>
-        <ThsxNutLoc mo={moLoc} so={soTieuChi(loc)} onDoi={() => setMoLoc((v) => !v)} />
-        <ONutCho so={soChoXn} bat={chiCho} onDoi={setChiCho} />
+        <ThanhLoc ky={locMan.ky} moc={MOC_BAN_TO} onKy={(ky) => setLocMan({ ...locMan, ky })}
+          dieuKien={dieuKienBan} loc={locMan.loc} onLoc={(loc) => setLocMan({ ...locMan, loc })} />
         <div className="thsx-subbar__spacer" />
+        <label className="thsx-sapxep">
+          <span className="thsx-sapxep__nhan">Sắp xếp</span>
+          <select className="thsx-sapxep__o" value={sapXep}
+            onChange={(e) => setLocMan({ ...locMan, sapXep: e.target.value as ThsxSapXep })}>
+            {SAP_XEP_BAN_TO.map(([v, nhan]) => <option key={v} value={v}>{nhan}</option>)}
+          </select>
+        </label>
         <div className="thsx-digest" aria-label="Tổng quan việc của tổ">
           <span className="thsx-digest__chip thsx-digest__chip--tong"><Icon name="clipboard" size={12} /> <b className="thsx-num">{digest.tong}</b> việc</span>
           <span className="thsx-digest__chip thsx-digest__chip--run"><Icon name="play" size={12} /> <b className="thsx-num">{digest.running}</b> đang chạy</span>
@@ -754,7 +771,6 @@ export function ThucHienSxPage({
           <span className="thsx-digest__chip thsx-digest__chip--released"><Icon name="clock" size={12} /> <b className="thsx-num">{digest.released}</b> chờ làm</span>
           <span className="thsx-digest__chip thsx-digest__chip--done"><Icon name="check" size={12} /> <b className="thsx-num">{digest.completed}</b> hoàn thành</span>
         </div>
-        <ThsxLocNangCao mo={moLoc} value={loc} onChange={setLoc} />
       </div>}
 
       {view === "danh_sach" && laToCat && (
@@ -844,12 +860,12 @@ export function ThucHienSxPage({
           ) : view === "danh_sach" ? (
             (lenh ?? []).length === 0 ? (
               <div className="thsx-centerempty">
-                <EmptyState icon={q || soTieuChi(loc) ? "search" : "check"}
+                <EmptyState icon={q || coLoc ? "search" : "check"}
                   title={q ? "Không khớp tìm kiếm" : chiCho ? "Không có lệnh nào trên bàn đang chờ xác nhận"
-                    : soTieuChi(loc) ? "Không có lệnh nào khớp bộ lọc" : "Chưa có việc phát hành"}
+                    : coLoc ? "Không có lệnh nào khớp bộ lọc" : "Chưa có việc phát hành"}
                   sub={q ? "Thử đổi từ khoá."
                     : chiCho ? "Việc chờ còn lại thuộc công đoạn ngoài bàn này — xem danh sách phía trên."
-                      : soTieuChi(loc) ? "Nới trạng thái hoặc khoảng ngày nhận, hoặc bấm \"Xoá bộ lọc\"."
+                      : coLoc ? "Nới kỳ hoặc bỏ bớt điều kiện lọc."
                         : "Khi một gói được phát hành, việc của tổ sẽ hiện ở đây."} />
               </div>
             ) : (
@@ -860,7 +876,12 @@ export function ThucHienSxPage({
                   onPick={pickViec}
                   cho={choMap}
                 />
-                <ThanhTrang trang={trang} soTrang={soTrang} tong={tongLenh} onDoi={setTrang} />
+                {/* Chân là đáy cột giữa, ngoài vùng cuộn của các thẻ lệnh — luôn trong tầm mắt. */}
+                {tongLenh > 0 && (
+                  <PhanTrangDayDu trang={trang} size={coTrang} tong={tongLenh} soDong={(lenh ?? []).length}
+                    onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }}
+                    donVi="lệnh" ariaLabel="Phân trang lệnh của tổ" />
+                )}
               </>
             )
           ) : (
@@ -1085,36 +1106,6 @@ function ListSkeleton() {
   return (
     <div className="thsx-skel-q" role="status" aria-label="Đang tải danh sách việc">
       {[0, 1, 2, 3].map((i) => <div className="thsx-skel__q" key={i} />)}
-    </div>
-  );
-}
-
-// ===================== thanh phân trang (đếm theo LỆNH) =====================
-/** Máy chủ cắt trang, màn chỉ đi tới/lui. Đơn vị đếm là LỆNH nên con số ở đây là "12 lệnh", không
- *  phải số bước — một lệnh không bao giờ bị xé qua hai trang. */
-function ThanhTrang({
-  trang, soTrang, tong, onDoi,
-}: {
-  trang: number;
-  soTrang: number;
-  tong: number;
-  onDoi: (t: number) => void;
-}) {
-  if (soTrang <= 1) return null;
-  return (
-    <div className="thsx-trang">
-      <button type="button" className="thsx-trang__nut" disabled={trang <= 1}
-        onClick={() => onDoi(Math.max(1, trang - 1))}>
-        <Icon name="chevron" size={14} className="thsx-rot90" /> Trước
-      </button>
-      <span className="thsx-trang__vt">
-        Trang <b className="thsx-num">{trang}</b>/<b className="thsx-num">{soTrang}</b>
-        <span className="thsx-trang__tong"> · <b className="thsx-num">{tong}</b> lệnh</span>
-      </span>
-      <button type="button" className="thsx-trang__nut" disabled={trang >= soTrang}
-        onClick={() => onDoi(Math.min(soTrang, trang + 1))}>
-        Sau <Icon name="chevron" size={14} className="thsx-rot-90" />
-      </button>
     </div>
   );
 }

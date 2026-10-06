@@ -6,6 +6,8 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .loc_danh_muc import DemDieuKien
+
 RowT = TypeVar("RowT")
 
 
@@ -81,6 +83,7 @@ class GiayRow(BaseModel):
     cong_thuc_gia: str | None = None
     thay_the_ids: list[int] | None = None
     active: bool
+    created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
@@ -129,6 +132,7 @@ class VatTuRow(BaseModel):
     chips: list[VatTuChipRow] = Field(default_factory=list)
     thay_the_ids: list[int] | None = None
     active: bool
+    created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
@@ -189,6 +193,8 @@ class ListOut(BaseModel, Generic[RowT]):
     total: int
     page: int
     size: int
+    # Giá trị + số đếm của từng điều kiện lọc (thanh lọc chung) — xem `schemas/loc_danh_muc`.
+    dem: DemDieuKien = {}
 
 
 class VatLieuAnhOut(BaseModel):

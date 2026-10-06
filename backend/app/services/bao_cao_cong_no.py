@@ -307,7 +307,7 @@ def _chung_tu_phai_tra(don, chi, hoan, ma_ncc, *, den_ngay: date) -> list[dict]:
                 "loai": "dot_giao",
                 # Số ĐỢT TRONG ĐƠN, không phải id bản ghi — cùng bài học đã vá ở
                 # `cong_no_chi_tiet_phai_tra` (đợt đầu tiên hiện thành "Đợt #20" vì id là 20).
-                "so_ct": f"{pr.code} · Đợt {d.seq_no}",
+                "so_ct": f"{pr.code} đợt {d.seq_no}",
                 "dien_giai": "Hàng đã nhận",
                 "luc": getattr(d, "created_at", None),
                 "net": -tien,
@@ -340,14 +340,21 @@ def _chung_tu_phai_tra(don, chi, hoan, ma_ncc, *, den_ngay: date) -> list[dict]:
     return ra
 
 
-def _nap_phai_thu(repo, *, den_ngay: date) -> tuple[list, list, dict, dict]:
+def _nap_phai_thu(
+    repo, *, den_ngay: date, hoa_don_da_nap: list | None = None
+) -> tuple[list, list, dict, dict]:
     """Nạp nguyên liệu TK 131 MỘT LẦN. Dùng chung cho sổ tổng hợp và sổ chi tiết — hai bên phải
-    nhìn CÙNG một tập chứng từ, không chỉ cùng luật cộng."""
-    hoa_don = [
-        hd
-        for hd in repo.list_sales_invoices(status=SALES_INVOICE_ISSUED)
-        if hd.invoice_date <= den_ngay
-    ]
+    nhìn CÙNG một tập chứng từ, không chỉ cùng luật cộng.
+
+    `hoa_don_da_nap` = MỌI hoá đơn `issued` (chưa lọc ngày) mà người gọi đã nạp sẵn bằng đúng
+    `list_sales_invoices(status=issued)` — màn Công nợ phải thu truyền vào để khỏi nạp lần hai.
+    Không truyền thì tự nạp như cũ."""
+    nguon = (
+        hoa_don_da_nap
+        if hoa_don_da_nap is not None
+        else repo.list_sales_invoices(status=SALES_INVOICE_ISSUED)
+    )
+    hoa_don = [hd for hd in nguon if hd.invoice_date <= den_ngay]
     phieu = repo.phieu_thu_cho_bao_cao(den_ngay=den_ngay)
     khach_don = repo.khach_cua_don([p.order_id for p in phieu if p.order_id is not None])
     # Nạp danh mục khách MỘT LẦN cho cả ba nguồn. Trước đó dùng hai bản đồ rời nên khách chỉ có
@@ -361,9 +368,14 @@ def _nap_phai_thu(repo, *, den_ngay: date) -> tuple[list, list, dict, dict]:
     return hoa_don, phieu, khach_don, ma_khach
 
 
-def _nap_phai_tra(repo, purchases, *, den_ngay: date) -> tuple[list, list, list, dict]:
-    """Nạp nguyên liệu TK 331 MỘT LẦN — xem ghi chú ở `_nap_phai_thu`."""
-    don = purchases.list_for_payables()
+def _nap_phai_tra(
+    repo, purchases, *, den_ngay: date, don_da_nap: list | None = None
+) -> tuple[list, list, list, dict]:
+    """Nạp nguyên liệu TK 331 MỘT LẦN — xem ghi chú ở `_nap_phai_thu`.
+
+    `don_da_nap` = kết quả `purchases.list_for_payables()` mà người gọi đã nạp sẵn (màn Công nợ
+    phải trả truyền vào để khỏi nạp lại cả lịch sử phiếu mua). Không truyền thì tự nạp như cũ."""
+    don = don_da_nap if don_da_nap is not None else purchases.list_for_payables()
     chi = [v for v in repo.phieu_chi_cho_bao_cao() if ngay_chi(v) <= den_ngay]
     hoan = [
         p
@@ -460,8 +472,15 @@ def _so_chi_tiet(
 # ══════════════════════════════════════════════════════════════════════════════════
 # TK 131 — PHẢI THU KHÁCH HÀNG
 # ══════════════════════════════════════════════════════════════════════════════════
-def tong_hop_phai_thu(repo, *, tu_ngay: date, den_ngay: date) -> dict:
+def tong_hop_phai_thu(
+    repo, *, tu_ngay: date, den_ngay: date,
+    hoa_don_da_nap: list | None = None, tinh_tuoi: bool = True,
+) -> dict:
     """Sổ tổng hợp công nợ phải thu (TK 131) cho kỳ `[tu_ngay, den_ngay]`.
+
+    `hoa_don_da_nap` (tuỳ chọn): xem `_nap_phai_thu`. `tinh_tuoi=False` bỏ phần PHÂN TUỔI NỢ — rổ
+    tuổi của mọi dòng ra 0. Chỉ màn Công nợ (kỳ kết thúc hôm nay, đọc số theo ảnh chụp) dùng,
+    vì nó không đọc rổ tuổi của sổ; sổ báo cáo luôn tính đủ.
 
     PS Nợ = hoá đơn bán `issued` có `invoice_date` trong kỳ.
     PS Có = phiếu thu `received` có `receipt_date` trong kỳ, truy về khách qua hoá đơn hoặc đơn.
@@ -473,7 +492,9 @@ def tong_hop_phai_thu(repo, *, tu_ngay: date, den_ngay: date) -> dict:
     Phiếu thu `purchase_refund` (NCC hoàn tiền) KHÔNG thuộc 131 — nó là chuyện của 331.
     """
     gom = _Gom(tu_ngay, den_ngay, TK_PHAI_THU, KHONG_GAN_TEN_THU)
-    hoa_don, phieu, khach_don, ma_khach = _nap_phai_thu(repo, den_ngay=den_ngay)
+    hoa_don, phieu, khach_don, ma_khach = _nap_phai_thu(
+        repo, den_ngay=den_ngay, hoa_don_da_nap=hoa_don_da_nap
+    )
 
     def _muc(kh_id: int | None, ten_lui: str | None) -> dict:
         k = ma_khach.get(kh_id) if kh_id else None
@@ -509,7 +530,7 @@ def tong_hop_phai_thu(repo, *, tu_ngay: date, den_ngay: date) -> dict:
     for hd in hoa_don:
         theo_don.setdefault(hd.order_id, []).append(hd)
 
-    for don_id, ds in theo_don.items():
+    for don_id, ds in (theo_don.items() if tinh_tuoi else ()):
         con_coc = coc_theo_don.get(don_id, 0)
         for hd in sorted(ds, key=lambda x: (x.invoice_date, x.id)):
             tien = int(hd.amount_vnd)
@@ -546,8 +567,15 @@ def tong_hop_phai_thu(repo, *, tu_ngay: date, den_ngay: date) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════════
 # TK 331 — PHẢI TRẢ NGƯỜI BÁN
 # ══════════════════════════════════════════════════════════════════════════════════
-def tong_hop_phai_tra(repo, purchases, *, tu_ngay: date, den_ngay: date) -> dict:
+def tong_hop_phai_tra(
+    repo, purchases, *, tu_ngay: date, den_ngay: date,
+    don_da_nap: list | None = None, tinh_tuoi: bool = True,
+) -> dict:
     """Sổ tổng hợp công nợ phải trả (TK 331) cho kỳ `[tu_ngay, den_ngay]`.
+
+    `don_da_nap` (tuỳ chọn): xem `_nap_phai_tra`. `tinh_tuoi=False` bỏ phần PHÂN TUỔI NỢ (mỗi đơn
+    một lượt `phan_bo_tien_dot`) — rổ tuổi của mọi dòng ra 0. Chỉ màn Công nợ (kỳ kết thúc hôm
+    nay, đọc số theo ảnh chụp) dùng, vì nó không đọc rổ tuổi của sổ; sổ báo cáo luôn tính đủ.
 
     PS Có = giá trị HÀNG ĐÃ NHẬN, theo `delivery_date` của từng đợt giao (chốt 03/09/2026: ghi nợ
     NCC theo NGÀY HÀNG VỀ, không phải ngày hoá đơn NCC — §5.4). Tiền của đợt lấy từ
@@ -558,7 +586,9 @@ def tong_hop_phai_tra(repo, purchases, *, tu_ngay: date, den_ngay: date) -> dict
     PS Có (thêm) = phiếu thu `purchase_refund` — NCC hoàn tiền lại thì nợ TĂNG trở lại.
     """
     gom = _Gom(tu_ngay, den_ngay, TK_PHAI_TRA, KHONG_GAN_TEN_TRA)
-    don, chi, hoan, ma_ncc = _nap_phai_tra(repo, purchases, den_ngay=den_ngay)
+    don, chi, hoan, ma_ncc = _nap_phai_tra(
+        repo, purchases, den_ngay=den_ngay, don_da_nap=don_da_nap
+    )
 
     def _muc(ncc_id: int | None, ten_lui: str | None) -> dict:
         n = ma_ncc.get(ncc_id) if ncc_id else None
@@ -574,7 +604,7 @@ def tong_hop_phai_tra(repo, purchases, *, tu_ngay: date, den_ngay: date) -> dict
     # `phan_bo_tien_dot(..., den_ngay=...)` chỉ đếm tiền đã chi TỚI HẾT ngày đó, nên phần còn nợ
     # của từng đợt là con số ĐÚNG TẠI MỐC ĐANG XEM. Hạn trả lấy bằng `han_tra_dot` — cùng thang
     # 4 bậc mà màn Công nợ đang dùng, không tự đặt luật hạn riêng ở đây.
-    for pr in don:
+    for pr in (don if tinh_tuoi else ()):
         phan_bo, _, _ = phan_bo_tien_dot(pr, den_ngay=den_ngay)
         for m in phan_bo:
             d = m["delivery"]

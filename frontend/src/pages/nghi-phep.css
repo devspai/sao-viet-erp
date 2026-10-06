@@ -788,6 +788,39 @@
   box-shadow: var(--shadow-1);
 }
 
+/* Chân phân trang (`.ptdd`) nối vào đáy thẻ bảng thành MỘT khối, khuôn màn Nhật ký (05/10/2026).
+   Khung bảng tự là thẻ có viền nên chân đứng ngay sau nó, mượn viền thẻ cho ba cạnh còn lại.
+   (1) Lịch nghỉ + Loại nghỉ chế độ bảng: `.cc-calendar-scroll-wrapper`. */
+.cc-calendar-scroll-wrapper:has(+ .ptdd) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.cc-calendar-scroll-wrapper + .ptdd {
+  border: 1px solid var(--rule);
+  border-top: 0;
+  border-radius: 0 0 var(--r-5) var(--r-5);
+}
+/* (2) Đơn của tôi + Duyệt đơn: thẻ có viền là khung cuộn BÊN TRONG `.cc-table-card` (thẻ ngoài
+   chỉ kẻ hai đường trên/dưới) — bỏ đường dưới của thẻ ngoài để không thành hai vạch chồng. */
+.cc-table-card:has(+ .ptdd) {
+  border-bottom: 0;
+}
+.cc-table-card:has(+ .ptdd) .cc-timesheet-scroll-container {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.cc-table-card + .ptdd {
+  border: 1px solid var(--rule-soft);
+  border-top: 0;
+  border-radius: 0 0 var(--r-5) var(--r-5);
+}
+/* (3) Loại nghỉ chế độ thẻ: không có khung bảng để bám — chân đứng riêng thành dải có viền. */
+.cc-leave-types-grid + .ptdd {
+  margin-top: var(--sp-3);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+}
+
 /* Glassmorphic Hover Popover Tooltip */
 .cc-calendar-tooltip {
   width: 240px;

@@ -76,6 +76,8 @@ class OvertimeRequestsOut(BaseModel):
     total: int = 0     # tổng phiếu khớp phạm vi + bộ lọc (KHÔNG phải số dòng của trang)
     page: int = 1
     size: int = 20
+    # Số theo trạng thái cho thanh tab — cùng kỳ + bộ lọc, trước khi lọc trạng thái (06/10/2026).
+    dem_theo_tab: dict[str, int] | None = None
 
 
 class MyOvertimeOut(BaseModel):
@@ -85,6 +87,8 @@ class MyOvertimeOut(BaseModel):
     total: int = 0
     page: int = 1
     size: int = 20
+    # Số theo trạng thái cho thanh tab — cùng kỳ + bộ lọc, trước khi lọc trạng thái (06/10/2026).
+    dem_theo_tab: dict[str, int] | None = None
 
 
 class OvertimeBulkIn(BaseModel):

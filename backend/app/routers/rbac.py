@@ -22,7 +22,6 @@ from ..deps import (
     require_permission,
 )
 from ..schemas.rbac import (
-    RoleTemplateOut,
     ActiveUpdate,
     AuditFacets,
     AuditPage,
@@ -100,7 +99,8 @@ from ..db import SessionLocal
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.rbac_repo import RoleRepository
 from ..repositories.user_repo import UserRepository
-from ..services.activity_service import ActivityService
+from ..repositories.loc_danh_sach import VN_TZ
+from ..services.activity_service import ActivityService, doc_moc_ky
 from ..services.rbac_service import AuthorizationService
 from ..services.payroll_service import PayrollError, PayrollService
 
@@ -117,14 +117,29 @@ Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
 Activity = Annotated[ActivityService, Depends(get_activity_service)]
 AuditRepo = Annotated[AuditLogRepository, Depends(get_audit_repository)]
 
+#: Kỳ của Nhật ký (06/10/2026, thanh lọc chung): `tu_ngay` / `den_ngay` là NGÀY giờ VN như mọi danh
+#: sách (chuỗi có giờ của link cũ vẫn nhận), `moc` chỉ có `tao`, `tat_ca=true` = kỳ "Tất cả" (bỏ
+#: cửa sổ 30 ngày mặc định).
+KyNk = Annotated[str | None, Query(description="YYYY-MM-DD theo giờ VN")]
+MocNk = Annotated[str, Query(pattern="^tao$")]
+
+
+def _ky_nhat_ky(tu_ngay: str | None, den_ngay: str | None) -> tuple[datetime | None, datetime | None]:
+    try:
+        return doc_moc_ky(tu_ngay, cuoi=False), doc_moc_ky(den_ngay, cuoi=True)
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Ngày lọc không hợp lệ.") from None
+
 
 @router.get("/audit", response_model=AuditPage)
 def list_audit(
     activity: Activity,
     user: Annotated[object, Depends(require_permission("activity_log", "read"))],
     q: Annotated[str | None, Query(description="tìm trong nội dung / đối tượng")] = None,
-    tu_ngay: Annotated[datetime | None, Query()] = None,
-    den_ngay: Annotated[datetime | None, Query()] = None,
+    tu_ngay: KyNk = None,
+    den_ngay: KyNk = None,
+    moc: MocNk = "tao",
+    tat_ca: bool = False,
     action: Annotated[list[str] | None, Query()] = None,
     actor_id: Annotated[list[int] | None, Query()] = None,
     loai: Annotated[list[str] | None, Query(description="tiền tố của target")] = None,
@@ -137,9 +152,10 @@ def list_audit(
     Trước 25/09/2026 endpoint này không nhận tham số nào và trả cứng 100 dòng mới nhất; màn hình
     lọc/cắt trang/xuất CSV trên đúng 100 dòng ấy, nên dòng thứ 101 trở đi không có đường nào lấy
     ra. Không truyền khoảng ngày thì mặc định 30 ngày gần nhất (màn đổ sẵn ra ô chọn)."""
+    tu, den = _ky_nhat_ky(tu_ngay, den_ngay)
     return activity.liet_ke(
-        user=user, q=q, tu=tu_ngay, den=den_ngay, actions=action,
-        actor_ids=actor_id, loais=loai, limit=limit, trang=trang, neo=neo,
+        user=user, q=q, tu=tu, den=den, actions=action,
+        actor_ids=actor_id, loais=loai, limit=limit, trang=trang, neo=neo, tat_ca=tat_ca,
     )
 
 
@@ -148,12 +164,15 @@ def audit_facets(
     activity: Activity,
     user: Annotated[object, Depends(require_permission("activity_log", "read"))],
     q: Annotated[str | None, Query()] = None,
-    tu_ngay: Annotated[datetime | None, Query()] = None,
-    den_ngay: Annotated[datetime | None, Query()] = None,
+    tu_ngay: KyNk = None,
+    den_ngay: KyNk = None,
+    moc: MocNk = "tao",
+    tat_ca: bool = False,
 ) -> dict:
     """Danh mục hành động / người thao tác / nhóm, ĐẾM theo khoảng ngày đang xem — để hai dropdown
     liệt kê đủ chứ không chỉ những mã tình cờ có mặt trong trang hiện tại."""
-    return activity.danh_muc_hanh_dong(user=user, q=q, tu=tu_ngay, den=den_ngay)
+    tu, den = _ky_nhat_ky(tu_ngay, den_ngay)
+    return activity.danh_muc_hanh_dong(user=user, q=q, tu=tu, den=den, tat_ca=tat_ca)
 
 
 @router.get("/audit/export")
@@ -162,8 +181,10 @@ def audit_export(
     audit_repo: AuditRepo,
     user: Annotated[object, Depends(require_permission("activity_log", "export"))],
     q: Annotated[str | None, Query()] = None,
-    tu_ngay: Annotated[datetime | None, Query()] = None,
-    den_ngay: Annotated[datetime | None, Query()] = None,
+    tu_ngay: KyNk = None,
+    den_ngay: KyNk = None,
+    moc: MocNk = "tao",
+    tat_ca: bool = False,
     action: Annotated[list[str] | None, Query()] = None,
     actor_id: Annotated[list[int] | None, Query()] = None,
     loai: Annotated[list[str] | None, Query()] = None,
@@ -173,10 +194,11 @@ def audit_export(
     Hai điểm khác bản cũ ở frontend: (a) xuất được TOÀN BỘ dữ liệu khớp chứ không tối đa 100 dòng;
     (b) chính việc xuất được ghi lại một dòng nhật ký (`audit_export`) — cùng lối màn Báo cáo kho
     đã làm với `kho_export`. Lấy cả nhật ký ra ngoài là việc cần để lại vết."""
+    tu, den = _ky_nhat_ky(tu_ngay, den_ngay)
     uid = getattr(user, "id", None)
     audit_repo.create(
         actor_user_id=uid, action="audit_export",
-        target="audit", detail=_mo_ta_bo_loc(q, tu_ngay, den_ngay, action, actor_id, loai),
+        target="audit", detail=_mo_ta_bo_loc(q, tu, den, action, actor_id, loai),
     )
 
     def dong():
@@ -190,8 +212,8 @@ def audit_export(
             )
             nguoi = UserRepository(db).get_by_id(uid) if uid else None
             yield "﻿ID,Thời gian,Người thực hiện,Hành động,Đối tượng,Chi tiết\n"
-            for d in svc.xuat(user=nguoi, q=q, tu=tu_ngay, den=den_ngay, actions=action,
-                              actor_ids=actor_id, loais=loai):
+            for d in svc.xuat(user=nguoi, q=q, tu=tu, den=den, actions=action,
+                              actor_ids=actor_id, loais=loai, tat_ca=tat_ca):
                 yield ",".join([
                     str(d["id"]),
                     _o(d["created_at"].isoformat()),
@@ -218,7 +240,9 @@ def _o(v: str) -> str:
 def _mo_ta_bo_loc(q, tu, den, action, actor_id, loai) -> str:
     phan = []
     if tu or den:
-        phan.append(f"{tu.date() if tu else '…'} → {den.date() if den else '…'}")
+        def _ngay(m):
+            return (m.astimezone(VN_TZ) if m.tzinfo else m).date() if m else "…"
+        phan.append(f"{_ngay(tu)} → {_ngay(den)}")
     if q:
         phan.append(f'tìm "{q}"')
     if action:
@@ -247,8 +271,16 @@ def list_modules(
 def list_departments(
     depts: Depts,
     _: Annotated[object, Depends(require_permission("phong_ban", "read"))],
+    # Thanh lọc màn Phòng ban (06/10/2026). Không gửi gì = trọn cây như mọi nơi khác vẫn dùng.
+    q: str | None = Query(default=None),
+    khoi: list[str] = Query(default=[]),
+    tinh_trang: list[str] = Query(default=[]),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^tao$"),
 ) -> list[DepartmentSummaryOut]:
-    return depts.list_summaries()
+    return depts.loc_summaries(q=q, khoi=khoi, tinh_trang=tinh_trang,
+                               tu_ngay=tu_ngay, den_ngay=den_ngay)
 
 
 @router.get("/departments/{dept_id}/users", response_model=list[DepartmentMemberOut])
@@ -790,23 +822,6 @@ def delete_role(
     except RoleNotFound as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/roles/templates", response_model=list[RoleTemplateOut])
-def list_role_templates(
-    svc: Service,
-    _: Annotated[object, Depends(require_permission("phong_ban", "read"))],
-) -> list[RoleTemplateOut]:
-    """Bảng VAI MẪU — bộ quyền dựng sẵn cho các vai điển hình.
-
-    ⚠️ ĐƯỜNG DẪN PHẢI ĐỨNG TRƯỚC `/roles/{role_id}/permissions`: FastAPI khớp route theo thứ tự
-    khai báo, để sau thì "templates" bị nuốt làm `role_id` và trả 422.
-
-    CHỈ ĐỌC — không có đường nào ghi thẳng vào DB từ đây. Giao diện điền mẫu vào ma trận đang mở,
-    quản trị xem lại rồi mới bấm Lưu (đi qua `PUT /roles/{id}/permissions`, vẫn gác
-    `phong_ban:manage_permissions` như cũ). Nhờ vậy chọn nhầm mẫu cũng không hỏng gì.
-    """
-    return [RoleTemplateOut(**m) for m in svc.role_templates()]
 
 
 @router.get("/roles/{role_id}/permissions", response_model=list[PermissionRow])

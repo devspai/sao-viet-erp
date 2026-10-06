@@ -21,6 +21,8 @@ class ModuleOut(BaseModel):
     department_id: int | None = None
     cap: int = 0
     la_kcs: bool = False
+    #: Dòng quyền THEO KHO (`ton_kho_<id>`, 05/10/2026): kho của dòng. Module tĩnh để trống.
+    kho_id: int | None = None
 
 
 class DepartmentOut(BaseModel):
@@ -78,6 +80,9 @@ class DepartmentSummaryOut(BaseModel):
     total_user_count: int = 0
     total_employee_count: int = 0
     has_piece_work: bool = False
+    created_at: datetime | None = None
+    # Thanh lọc màn Phòng ban: False = dòng chỉ là TỔ TIÊN của phòng khớp (để vẽ đường cây).
+    khop: bool = True
 
 
 class DepartmentMemberOut(BaseModel):
@@ -391,21 +396,6 @@ class RoleDuplicate(BaseModel):
 
     name: str | None = Field(default=None, max_length=255)
     department_id: int | None = None
-
-
-class RoleTemplateOut(BaseModel):
-    """Một VAI MẪU: mô tả + bộ quyền điền sẵn cho ma trận (đợt 6, 11/08/2026).
-
-    `permissions` là ma trận ĐẦY ĐỦ (mọi module, cờ nào không thuộc mẫu thì tắt) để giao diện chỉ
-    việc thay thẳng state — không phải trộn nửa vời rồi lẫn với quyền cũ của vai."""
-
-    key: str
-    label: str
-    mo_ta: str
-    permissions: list["PermissionRow"]
-    #: Ô điền vào dòng quyền theo tổ của phòng mà vai thuộc về (`to_sx_<phòng>`); None = mẫu không
-    #: đụng dòng tổ. `module_key` để trống — giao diện tự gắn theo phòng đang mở.
-    quyen_to_cua_vai: dict | None = None
 
 
 class PermissionRow(BaseModel):

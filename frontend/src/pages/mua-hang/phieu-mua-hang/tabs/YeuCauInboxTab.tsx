@@ -1,24 +1,20 @@
 // Tab "Yêu cầu chờ xử lý" — hộp yêu cầu của bộ phận (tách từ pages/PurchaseRequestsPage.tsx).
-// Giao diện theo CHUẨN Đơn mua hàng (Kế toán): một thẻ lọc `ToolbarChuan` + bảng `acct-dmh__frame`.
+// Giao diện theo CHUẨN Đơn mua hàng (Kế toán): thẻ lọc (tab có số + ô tìm + thanh lọc chung `ThanhLoc`)
+// + bảng `acct-dmh__frame`. 06/10/2026: bỏ `ToolbarChuan` + ô "Trạng thái khác" rời; kỳ theo Ngày tạo /
+// Ngày cần hàng, điều kiện Phòng ban, Người yêu cầu, Mặt hàng — cùng bộ với màn Yêu cầu mua hàng.
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { DepartmentPurchaseRequestRow } from "../../../../api/client";
-import { Button } from "../../../../components/Button";
 import { EmptyRow } from "../../../../components/EmptyState";
-import { fmtDate } from "../../../../utils/format";
-import { ToolbarChuan } from "../../../ke-toan/components/ToolbarChuan";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
+import { fmtDate, fmtDateTime } from "../../../../utils/format";
+import type { KyDS } from "../../../thanh-loc/ky-danh-sach";
+import type { DieuKien } from "../../../thanh-loc/thanh-loc";
+import { ThanhCongCuMuaHang, tabCoSo } from "../../loc-mua-hang/ThanhCongCuMuaHang";
+import { MOC_YEU_CAU, TAB_CHINH_YEU_CAU, type LocYeuCau } from "../../loc-mua-hang/dieu-kien-yeu-cau";
 import { SOURCE_STATUS_META } from "../shared/constants";
 import { purchaseChildSummary } from "../shared/helpers";
 import type { SourceStatusFilter } from "../shared/types";
 import { SourceStatusBadge } from "../components/purchaseCells";
-
-/** Tab trạng thái hay dùng (≤6); phần còn lại nằm ở ô chọn "Trạng thái khác" để không mất đường lọc. */
-const SOURCE_TABS: { value: string; label: string }[] = [
-  { value: "all", label: "Tất cả" },
-  { value: "open", label: SOURCE_STATUS_META.open.label },
-  { value: "pending_approval", label: SOURCE_STATUS_META.pending_approval.label },
-  { value: "in_purchase", label: SOURCE_STATUS_META.in_purchase.label },
-  { value: "done", label: SOURCE_STATUS_META.done.label },
-];
 
 export function YeuCauInboxTab({
   bannerLoi,
@@ -26,13 +22,22 @@ export function YeuCauInboxTab({
   setSourceQ,
   sourceStatus,
   setSourceStatus,
+  demTheoTab,
+  ky,
+  onKy,
+  dieuKien,
+  loc,
+  onLoc,
+  xoaLocThem,
+  coLocThem,
   sourcePage,
   setSourcePage,
   sourceLoading,
   sourceError,
   sourceRows,
   sourceTotal,
-  sourceTotalPages,
+  sourceSize,
+  onSourceSize,
   loadSources,
   canCreate,
   openCreatePurchaseRequest,
@@ -42,29 +47,42 @@ export function YeuCauInboxTab({
   setSourceQ: Dispatch<SetStateAction<string>>;
   sourceStatus: SourceStatusFilter;
   setSourceStatus: Dispatch<SetStateAction<SourceStatusFilter>>;
+  /** Số yêu cầu theo trạng thái hiển thị — máy chủ đếm sau lọc, trước tab. */
+  demTheoTab: Record<string, number> | null;
+  ky: KyDS;
+  onKy: (k: KyDS) => void;
+  dieuKien: DieuKien<LocYeuCau>[];
+  loc: LocYeuCau;
+  onLoc: (l: LocYeuCau) => void;
+  /** Bỏ kỳ + điều kiện của thanh lọc (ô tìm và tab do tab này tự bỏ). */
+  xoaLocThem: () => void;
+  coLocThem: boolean;
   sourcePage: number;
   setSourcePage: Dispatch<SetStateAction<number>>;
   sourceLoading: boolean;
   sourceError: string | null;
   sourceRows: DepartmentPurchaseRequestRow[];
   sourceTotal: number;
-  sourceTotalPages: number;
+  sourceSize: number;
+  onSourceSize: (size: number) => void;
   loadSources: () => void;
   canCreate: boolean;
   openCreatePurchaseRequest: (pickedSource: DepartmentPurchaseRequestRow) => void;
 }) {
-  const coLoc = sourceQ.trim() !== "" || sourceStatus !== "all";
-  const tabStatus = SOURCE_TABS.some((t) => t.value === sourceStatus) ? sourceStatus : "";
-  const trangThaiKhac = Object.entries(SOURCE_STATUS_META).filter(
-    ([value]) => !SOURCE_TABS.some((t) => t.value === value),
-  );
+  const coLoc = sourceQ.trim() !== "" || sourceStatus !== "all" || coLocThem;
+  const xoaLoc = () => {
+    setSourceQ("");
+    setSourceStatus("all");
+    xoaLocThem();
+    setSourcePage(1);
+  };
   return (
     <>
       {bannerLoi}
 
-      <ToolbarChuan
-        tabs={SOURCE_TABS}
-        tab={tabStatus}
+      <ThanhCongCuMuaHang
+        tabs={tabCoSo(TAB_CHINH_YEU_CAU, SOURCE_STATUS_META, demTheoTab, sourceStatus)}
+        tab={sourceStatus}
         ariaTabs="Lọc trạng thái yêu cầu"
         onTab={(v) => {
           setSourceStatus(v as SourceStatusFilter);
@@ -75,32 +93,13 @@ export function YeuCauInboxTab({
           setSourceQ(v);
           setSourcePage(1);
         }}
-        onSearchSubmit={() => setSourcePage(1)}
         placeholder="Tìm mã yêu cầu, mục đích..."
-        hasFilter={coLoc}
-        onReset={() => {
-          setSourceQ("");
-          setSourceStatus("all");
-          setSourcePage(1);
-        }}
-        selects={
-          <select
-            className="input acct-toolbar__select"
-            aria-label="Trạng thái khác"
-            value={tabStatus === "" ? sourceStatus : "all"}
-            onChange={(e) => {
-              setSourceStatus(e.target.value as SourceStatusFilter);
-              setSourcePage(1);
-            }}
-          >
-            <option value="all">Trạng thái khác</option>
-            {trangThaiKhac.map(([value, meta]) => (
-              <option key={value} value={value}>
-                {meta.label}
-              </option>
-            ))}
-          </select>
-        }
+        ky={ky}
+        moc={MOC_YEU_CAU}
+        onKy={onKy}
+        dieuKien={dieuKien}
+        loc={loc}
+        onLoc={onLoc}
       />
 
       <section className="md-page__tablewrap acct-list acct-dmh__frame purchase__source-inbox">
@@ -140,8 +139,19 @@ export function YeuCauInboxTab({
               <EmptyRow
                 colSpan={6}
                 icon="clipboard"
-                title="Chưa có yêu cầu mua từ phòng ban"
-                sub="Đơn mua hàng luôn bắt đầu từ một yêu cầu của bộ phận — chờ họ gửi sang."
+                title={coLoc ? "Không có yêu cầu nào khớp" : "Chưa có yêu cầu mua từ phòng ban"}
+                sub={
+                  coLoc
+                    ? "Thử bỏ bớt bộ lọc hoặc xoá từ khoá tìm kiếm."
+                    : "Đơn mua hàng luôn bắt đầu từ một yêu cầu của bộ phận — chờ họ gửi sang."
+                }
+                action={
+                  coLoc ? (
+                    <button type="button" className="btn btn--ghost" onClick={xoaLoc}>
+                      Xoá bộ lọc
+                    </button>
+                  ) : undefined
+                }
               />
             ) : (
               sourceRows.map((row) => {
@@ -179,7 +189,9 @@ export function YeuCauInboxTab({
                         <div className="pmh__sub">{row.requested_by_name}</div>
                       )}
                     </td>
-                    <td className="acct-dmh__date">{fmtDate(row.created_at)}</td>
+                    <td className="acct-dmh__date" title={fmtDateTime(row.created_at)}>
+                      {fmtDate(row.created_at)}
+                    </td>
                     <td className="acct-dmh__date">{fmtDate(row.needed_date)}</td>
                     <td title={dong.map((line) => line.item_name).join(", ")}>
                       <span className="purchase__item-chip">{dong.length} món</span>
@@ -196,29 +208,18 @@ export function YeuCauInboxTab({
             )}
           </tbody>
         </table>
-        {!sourceLoading && (
-          <div className="md-page__pager">
-            <span>{sourceTotal} yêu cầu</span>
-            <div>
-              <Button
-                variant="ghost"
-                disabled={sourcePage <= 1}
-                onClick={() => setSourcePage((value) => value - 1)}
-              >
-                Trước
-              </Button>
-              <span>
-                {sourcePage}/{sourceTotalPages}
-              </span>
-              <Button
-                variant="ghost"
-                disabled={sourcePage >= sourceTotalPages}
-                onClick={() => setSourcePage((value) => value + 1)}
-              >
-                Sau
-              </Button>
-            </div>
-          </div>
+        {sourceTotal > 0 && (
+          <PhanTrangDayDu
+            trang={sourcePage}
+            size={sourceSize}
+            tong={sourceTotal}
+            soDong={sourceRows.length}
+            onTrang={setSourcePage}
+            onSize={onSourceSize}
+            loading={sourceLoading}
+            donVi="yêu cầu"
+            ariaLabel="Phân trang yêu cầu chờ xử lý"
+          />
         )}
       </section>
     </>

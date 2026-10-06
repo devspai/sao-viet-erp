@@ -34,7 +34,8 @@ export const REQ_FIELD_LABEL: Record<string, string> = {
   dependents_count: "Người phụ thuộc",
 };
 
-export const REQ_PAGE_SIZE = 10;
+/** Cỡ trang MẶC ĐỊNH của bảng đề nghị — người dùng đổi được ở ô Dòng/trang. */
+export const REQ_PAGE_SIZE = 25;
 // Nhãn PILL ngắn ("Chờ duyệt") vì nó là bộ lọc; nhãn BADGE trong bảng mới là câu đủ
 // ("Chờ HCNS duyệt") vì nó là trạng thái. Đừng dùng lẫn.
 export const REQ_LOC = [

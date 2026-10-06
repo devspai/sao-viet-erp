@@ -28,6 +28,7 @@ import type { KhoNhapSeed } from "../pages/KhoDeNghiPage";
 // Danh mục rebuild (config .tsx — render pill JSX). Nạp TĨNH: bảng này quyết định định tuyến
 // (`REBUILD_CONFIGS[baseId]`) nên phải có ngay, không chờ được.
 import { REBUILD_CONFIGS } from "../pages/rebuildCatalogConfigs";
+import { manTrenUrl } from "../pages/ke-toan/shared/urlMan";
 import {
   MOI_NHOM,
   nhomCua,
@@ -114,6 +115,7 @@ import {
 } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { coQuyenBanTo, khoaBanTo } from "./appShellRealtime";
+import { khoaTonKho, xemKhoNao } from "../auth/quyenKho";
 import { docDeepLinkLsx } from "./appShellDeepLink";
 
 /** A cross-module navigation intent: which screen to open + optional payload so the
@@ -125,6 +127,10 @@ export interface NavParams {
   openQuoteId?: number;
   /** Open this order's detail on the Đơn hàng bán screen. */
   openOrderId?: number;
+  /** Mở thẳng hồ sơ của đúng khách này ở màn Khách hàng (nút "Hồ sơ khách hàng" ở Công nợ phải thu). */
+  openCustomerId?: number;
+  /** Mở thẳng hồ sơ của đúng NCC này ở màn Nhà cung cấp (nút "Hồ sơ nhà cung cấp" ở Công nợ phải trả). */
+  openSupplierId?: number;
   /** Liên thông: mở Chấm công / Nghỉ phép / Lương lọc theo đúng nhân viên này. */
   focusEmployeeId?: number;
   /** Liên thông từ Hồ sơ NV, nút "Đặt ca nền" (bản rà E6, 07/09/2026): mở Chấm công ở tab
@@ -141,6 +147,9 @@ export interface NavParams {
   focusVoucherQuery?: string;
   /** Liên thông: mở màn Phiếu thu với ô tìm kiếm điền sẵn (mã PC/PT...). */
   focusReceiptQuery?: string;
+  /** Liên thông Phiếu thu → Công nợ phải thu (lỗi 11): tìm theo tên khách và mở ngăn của đúng
+   *  khách này. `id` null = không đọc được mã khách, chỉ điền ô tìm. */
+  focusReceivableCustomer?: { id: number | null; name: string };
   /** P3 (redesign-bao-gia §6): mở thẳng 1 Phiếu tính giá (link "↳ PTG" từ Báo giá). */
   focusPhieuId?: number;
   /** Liên thông Hồ sơ khách → Tính giá: mở thẳng form phiếu tính giá MỚI (phiếu nháp, chưa ghi DB).
@@ -213,7 +222,10 @@ const KCS_NAV_KEY = "kcs_theo_lenh";
 
 export function AppShell() {
   const { token, user } = useAuth();
-  const [activeId, setActiveId] = useState("dashboard");
+  // Link có dấu `?man=<màn>` (màn kế toán ghi trạng thái lọc + kỳ lên URL, đặc tả A.18): vào
+  // thẳng màn đó — tải lại trang hay mở link đồng nghiệp gửi đều thấy đúng danh sách. Màn không
+  // có quyền thì nhánh `allowed` bên dưới hiện 403 như mọi lối vào khác.
+  const [activeId, setActiveId] = useState(() => manTrenUrl() ?? "ho-so-cua-toi");
   const [navParams, setNavParams] = useState<NavParams | null>(null);
   // Ngăn kéo điều hướng ở màn hẹp (≤1024px). Màn rộng: sidebar cố định, cờ này vô hại.
   const [navOpen, setNavOpen] = useState(false);
@@ -491,14 +503,6 @@ export function AppShell() {
     [markModuleNotificationsRead],
   );
 
-  // Giữ TÊN `reloadBadges`: hàng chục màn nhận nó qua `onBadgeStale`. Nay chỉ là một lượt tóm tắt.
-  const reloadBadges = useCallback(() => {
-    napThongBao();
-  }, [napThongBao]);
-  useEffect(() => {
-    reloadBadges();
-  }, [reloadBadges]);
-
   // Số tab TRONG màn Kho (Nhập/Xuất/Điều chuyển + phản hồi chưa xem) — chỉ nạp khi màn Kho đang
   // mở; chấm đỏ của mục Kho thì đi theo kênh `kho` như mọi mục khác.
   const napSoKho = useCallback(() => {
@@ -507,9 +511,20 @@ export function AppShell() {
     api.kho.deNghi.counts(token).then(setKhoCounts).catch(() => {});
   }, [token, readable]);
 
-  // Danh sách kho cho menu con động (chỉ người có quyền `kho`). Gọi lại sau mỗi lần khai báo kho.
+  // Giữ TÊN `reloadBadges`: hàng chục màn nhận nó qua `onBadgeStale`. Một lượt tóm tắt + số trong màn
+  // Kho — thiếu vế sau thì đánh dấu đã xem xong chấm "phản hồi chưa xem" ở tab Yêu cầu vẫn kẹt.
+  const reloadBadges = useCallback(() => {
+    napThongBao();
+    napSoKho();
+  }, [napThongBao, napSoKho]);
+  useEffect(() => {
+    reloadBadges();
+  }, [reloadBadges]);
+
+  // Danh sách kho cho menu con động (người có quyền `kho`, hoặc Xem ở một dòng kho `ton_kho_<id>`).
+  // Gọi lại sau mỗi lần khai báo kho.
   const reloadKho = useCallback(() => {
-    if (!token || readable === null || !readable.has("kho")) return;
+    if (!token || readable === null || !(readable.has("kho") || xemKhoNao(readable))) return;
     crud("/api/kho")
       .list(token, { active: true })
       .then((r) => setKhoList(r.items.map((w) => ({ id: Number(w.id), ma: String(w.ma), ten: String(w.ten) }))))
@@ -1061,11 +1076,10 @@ export function AppShell() {
 
   const baseId = activeId.split(":")[0];
   // Màn TỒN KHO của từng kho là VIỆC CỦA KHO, không phải của người đề nghị: ông sản xuất chỉ có
-  // `kho:read` để đi xin vật tư thì KHÔNG được nhìn tồn/lô. Từ 24/09/2026 (mg `0334`) đây là
-  // module RIÊNG `ton_kho` có dòng của mình trong ma trận, thay cho ô chi tiết `kho:view_stock`
-  // — trước đó cả nhóm mục menu này nấp sau một công tắc trong panel của màn Yêu cầu nhập xuất.
-  const canViewStock = !!caps.get("ton_kho")?.can_read;
-  // "kho-item:<id>" = màn Tồn kho của 1 kho — gác `ton_kho:read`.
+  // `kho:read` để đi xin vật tư thì KHÔNG được nhìn tồn/lô. Từ 05/10/2026 MỖI KHO một dòng quyền
+  // `ton_kho_<id>` (chủ chốt: "làm kho giống tổ đi, mỗi kho một dòng") — trước đó một dòng
+  // `ton_kho` chung mở cùng lúc mọi kho.
+  // "kho-item:<id>" = màn Tồn kho của 1 kho — gác Xem ở dòng của ĐÚNG kho đó.
   const isKhoView = baseId === "kho-item";
   const moduleKeys =
     MODULES_BY_NAV_ID[baseId] ??
@@ -1073,7 +1087,7 @@ export function AppShell() {
     // không có, phải khai tay ở đây.
     (baseId === "thuc-hien-sx"
       ? khoaBanTo(readable)
-      : isKhoView ? ["ton_kho"] : undefined);
+      : isKhoView ? [khoaTonKho(Number(activeId.split(":")[1]))] : undefined);
   const allowed =
     AUTHENTICATED_NAV_IDS.has(baseId) ||
     // Màn KCS: người thuộc phòng ban "Tổ KCS", không đi qua ô quyền của vai.
@@ -1086,11 +1100,12 @@ export function AppShell() {
 
   const itemChildren: Record<string, { id: string; label: string }[]> = {};
   // Kho đã khai báo → item ĐỘNG dưới SECTION "Kho hàng" (id section = "kho-hang"). Bấm 1 kho → màn tạm.
-  // Chỉ đổ khi có `ton_kho:read`; thiếu quyền → khối chỉ còn 2 mục nghiệp vụ (hoặc rỗng, tự ẩn).
+  // Mỗi mục mang khoá dòng của chính kho đó (`ton_kho_<id>`) — Sidebar lọc theo `readable` nên kho
+  // nào chưa được bật Xem thì mục đó không hiện.
   const dynamicItems: Record<string, NavItem[]> = {};
-  if (khoList.length && canViewStock) {
+  if (khoList.length) {
     dynamicItems["kho-hang"] = khoList.map((w): NavItem => ({
-      id: `kho-item:${w.id}`, label: w.ten, icon: "warehouse", module: "ton_kho",
+      id: `kho-item:${w.id}`, label: w.ten, icon: "warehouse", module: khoaTonKho(w.id),
     }));
   }
   // Mục "KCS" (KCS theo lệnh, mg 0306) — MỘT mục cho người thuộc phòng ban "Tổ KCS", kiểm mọi tổ.
@@ -1098,7 +1113,7 @@ export function AppShell() {
   // quyền nào trong ma trận.
   const sanXuatDong: NavItem[] = [];
   if (kcsTuCach.kcs) {
-    sanXuatDong.push({ id: "kcs", label: "KCS", icon: "shield", module: KCS_NAV_KEY });
+    sanXuatDong.push({ id: "kcs", label: "KCS", icon: "badgeCheck", module: KCS_NAV_KEY });
   }
   // Tổ đã khai báo → node lá ĐỘNG dưới SECTION "Tổ sản xuất" (id section = "to-san-xuat", khối
   // tách riêng 24/09/2026 — trước đó đổ chung vào khối "Sản xuất"). Bấm 1 tổ → mở
@@ -1117,7 +1132,7 @@ export function AppShell() {
       while (nganh.length && nganh[nganh.length - 1].cap >= cap) nganh.pop();
       const id = `thuc-hien-sx:${t.id}`;
       sanXuatDong.push({
-        id, label: t.ten, icon: "users", module: "to_sx",
+        id, label: t.ten, icon: "hardHat", module: "to_sx",
         modules: cacKhoaTo, indent: cap,
         parentId: nganh.length ? nganh[nganh.length - 1].id : undefined,
       });
@@ -1140,9 +1155,9 @@ export function AppShell() {
               type="button"
               className="btn btn--ghost"
               style={{ padding: "2px 10px" }}
-              onClick={() => setActiveId("dashboard")}
+              onClick={() => setActiveId("ho-so-cua-toi")}
             >
-              Về Dashboard
+              Về Hồ sơ của tôi
             </button>
           </div>
         </main>
@@ -1226,7 +1241,13 @@ export function AppShell() {
     }
     switch (baseId) {
       case "quy-trinh-kinh-doanh":
-        return <QuyTrinhKinhDoanhPage navigate={navigate} />;
+        return (
+          <QuyTrinhKinhDoanhPage
+            navigate={navigate}
+            // Cùng cổng `allowed` ở trên: KCS đi theo phòng ban, màn khác theo ô quyền của menu.
+            moDuoc={(id) => (id === "kcs" ? kcsTuCach.kcs : (MODULES_BY_NAV_ID[id] ?? []).some((m) => readable?.has(m) ?? false))}
+          />
+        );
       case "phong-ban":
         return <DepartmentsPage navigate={navigate} />;
       case "nhan-su":
@@ -1263,7 +1284,10 @@ export function AppShell() {
           />
         );
       case "khach-hang":
-        return <KhachHangPage navigate={navigate} onBadgeStale={reloadBadges} eventTick={tickCua("ban_hang")} />;
+        return (
+          <KhachHangPage navigate={navigate} onBadgeStale={reloadBadges} eventTick={tickCua("ban_hang")}
+            openCustomerId={navParams?.openCustomerId ?? null} />
+        );
       case "tinh-gia":
         return (
           <TinhGiaPage
@@ -1382,7 +1406,7 @@ export function AppShell() {
           />
         );
       case "nha-cung-cap":
-        return <SuppliersPage eventTick={tickCua("mua_ke_toan")} />;
+        return <SuppliersPage eventTick={tickCua("mua_ke_toan")} openSupplierId={navParams?.openSupplierId ?? null} />;
       // Nhóm con "Kế toán thu mua" đã BỎ ngày 12/08/2026 — ba màn của nó nay đứng ngang hàng với
       // Phiếu thu / Công nợ phải thu. Không còn id cha nên cũng không cần nhánh rơi-vào-con-đầu.
       case "ke-toan-don-mua-hang":
@@ -1405,11 +1429,17 @@ export function AppShell() {
       case "ke-toan-cong-no":
         return <AccountingPayablesPage navigate={navigate} eventTick={tickCua("mua_ke_toan")} />;
       case "ke-toan-cong-no-phai-thu":
-        return <AccountingReceivablesPage navigate={navigate} eventTick={tickCua("mua_ke_toan", "ban_hang")} />;
+        return (
+          <AccountingReceivablesPage
+            navigate={navigate}
+            eventTick={tickCua("mua_ke_toan", "ban_hang")}
+            focusCustomer={navParams?.focusReceivableCustomer ?? null}
+          />
+        );
       case "ke-toan-bao-cao":
         return <BaoCaoKeToanPage navigate={navigate} />;
       case "ke-toan-tai-khoan-ngan-hang":
-        return <AccountingBankAccountsPage />;
+        return <AccountingBankAccountsPage navigate={navigate} eventTick={tickCua("mua_ke_toan", "ban_hang")} />;
       case "tai-san":
         return <TaiSanPage />;
       case "ke-toan-phieu-thu":

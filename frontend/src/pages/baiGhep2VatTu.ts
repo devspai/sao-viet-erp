@@ -1,5 +1,5 @@
 // Bảng kê VẬT TƯ của MỘT bài ghép — nặn về đúng khuôn `BangKeVatTu` để DÙNG LẠI `LsxVatTuPanel`
-// (cùng dải KPI + thẻ theo bước + khối TỔNG GOM của màn Lệnh). Không đẻ kiểu trình bày thứ hai.
+// (cùng dải tóm tắt + chuỗi bước + bảng vật tư của màn Lệnh). Không đẻ kiểu trình bày thứ hai.
 //
 // Bài ghép có HAI tầng, khác lệnh đơn:
 //   · Bước CHUNG (`sd.gop`) — lượt chạy chung cho cả tờ (in chung, ghi kẽm chung). Có đủ tổ/máy/

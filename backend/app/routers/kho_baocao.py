@@ -36,6 +36,7 @@ from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.kho_hang_repo import KhoHangRepository
 from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
 from ..repositories.kho_ky_ton_repo import KhoKyTonRepository
+from ..repositories.tim_khong_dau import bo_dau
 from ..repositories.user_repo import UserRepository
 from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
 from ..services.kho_giay import don_vi_goc_to, nhan_kho
@@ -63,9 +64,6 @@ router = APIRouter(prefix="/api/kho", tags=["kho-bao-cao"])
 # `kho:close_book`, nghĩa là một mục menu không có dòng nào mang tên nó trong ma trận phân quyền.
 # Cùng lý do đã tách `bao_cao_cong_no` khỏi hai khoá công nợ (mg 0260).
 MODULE = "bao_cao_kho"
-#: Khoá của màn KHO nghiệp vụ — còn dùng cho đúng MỘT cửa ở đây: bảng "thành phẩm chưa có giá
-#: gốc" đọc GIÁ VỐN, mà quyền thấy giá vốn thuộc về màn Kho (`kho:view_cost`), không phải báo cáo.
-MODULE_KHO = "kho"
 
 Db = Annotated[Session, Depends(get_db)]
 Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
@@ -83,14 +81,13 @@ _O_TIEN: dict[str, tuple[str, ...]] = {
 
 
 def _thay_gia(authz: AuthorizationService, user: User) -> bool:
-    """Ai thấy ĐƠN GIÁ / THÀNH TIỀN trong báo cáo kho: CHỈ người có `kho:view_cost`.
+    """Ai thấy ĐƠN GIÁ / THÀNH TIỀN trong báo cáo kho: CHỈ người có ô "Xem giá thành" của CHÍNH màn
+    này (`bao_cao_kho:view_cost`).
 
-    Ô "Báo cáo kho" (module riêng từ 24/09/2026) mở CỬA VÀO MÀN — nó không phải giấy phép xem
-    giá vốn. Chủ dự án chốt 10/08/2026: *mọi số tiền của kho gác bằng `kho:view_cost` ở MÁY CHỦ,
-    không ngoại lệ*. Trước đây màn này chỉ kế toán kho vào (ô `kho:close_book`, mà vai nào có ô
-    đó cũng có sẵn `view_cost`) nên chưa lộ ra; tách module xong thì quản trị cấp được cho người
-    ngoài kế toán, và họ phải thấy SỐ LƯỢNG mà không thấy TIỀN."""
-    return authz.can(user, MODULE_KHO, "view_cost")
+    Xem (`read`) mở CỬA VÀO MÀN — nó không phải giấy phép xem giá vốn: người được vào phải thấy SỐ
+    LƯỢNG mà không thấy TIỀN. Trước 05/10/2026 ô xem giá là MỘT cột `kho:view_cost` chung cho mọi
+    màn kho; chủ chốt mỗi màn một ô riêng (mg 0370 chép quyền cũ sang)."""
+    return authz.can(user, MODULE, "view_cost")
 
 
 def _an_tien(rows: list, loai: str, cho_xem: bool) -> list:
@@ -121,12 +118,22 @@ def _ngay_ghi_so_vn(dt) -> date | None:
 
 # --- Truy vấn dòng nhập-xuất (chỉ phiếu ĐÃ GHI SỔ) -----------------------------
 
+def _ngay_moc(v, moc: str) -> date | None:
+    """Ngày của phiếu theo MỐC kỳ của thanh lọc (06/10/2026): `ct` = ngày chứng từ (ngày nhập/xuất
+    kho ghi trên phiếu — ngày hạch toán, cùng mốc khóa kỳ); `ghi_so` = ngày bấm ghi sổ theo giờ VN."""
+    return _ngay_ghi_so_vn(v.ghi_so_luc) if moc == "ghi_so" else v.ngay
+
+
+def _khop_tim(kim: str, *vals) -> bool:
+    return not kim or any(kim in bo_dau(v) for v in vals)
+
+
 def _report_rows(
     db: Session, *, tu: date | None, den: date | None, kho_id: int | None,
-    loai: str | None, q: str | None = None,
+    loai: str | None, q: str | None = None, moc: str = "ct",
 ) -> list[BaoCaoKhoRow]:
-    # `q` = tìm số CT / mã hàng / tên hàng (khớp ô Tìm ở màn) → để "lọc gì = xuất nấy".
-    ql = (q or "").strip().lower()
+    # `q` = tìm số CT / mã hàng / tên hàng (khớp ô Tìm ở màn, không dấu) → "lọc gì = xuất nấy".
+    ql = bo_dau(q)
     stmt = (
         select(StockVoucher, StockVoucherLine, StockRequest, KhoHang, StockLot)
         .join(StockVoucherLine, StockVoucherLine.voucher_id == StockVoucher.id)
@@ -162,8 +169,9 @@ def _report_rows(
     for v, ln, req, kho, lot in results:
         mh = hang_map.get((ln.hang_loai, ln.hang_id))
         # NGÀY HẠCH TOÁN = NGÀY NHẬP/XUẤT KHO trên phiếu (`v.ngay`) — CÙNG mốc với khóa kỳ, nên
-        # phiếu bị chặn ở kỳ nào thì cũng nằm đúng kỳ đó trên sổ. `ghi_so_luc` chỉ còn vai kiểm toán.
-        d = v.ngay
+        # phiếu bị chặn ở kỳ nào thì cũng nằm đúng kỳ đó trên sổ. Kỳ theo ngày ghi sổ khi `moc`
+        # = `ghi_so` (vai kiểm toán: ai bấm lúc nào).
+        d = _ngay_moc(v, moc)
         if tu and (d is None or d < tu):
             continue
         if den and (d is None or d > den):
@@ -198,12 +206,34 @@ def _report_rows(
             han_su_dung=getattr(lot, "hsd", None),  # NHẬP: lô vừa tạo · XUẤT: lô bị xuất
             dieu_chuyen=bool(getattr(v, "dieu_chuyen", False)),
         )
-        if ql and not any(
-            ql in (val or "").lower() for val in (row.so_ct, row.ma_hang, row.ten_hang)
-        ):
+        if not _khop_tim(ql, row.so_ct, row.ma_hang, row.ten_hang):
             continue
         rows.append(row)
     return rows
+
+
+#: Mốc kỳ của Sổ kho trên thanh lọc chung: ngày chứng từ (nhập/xuất kho) hoặc ngày ghi sổ.
+_MOC_SO = "^(ct|ghi_so)$"
+
+
+def _loc_so_va_trang(
+    rows: list, *, cho_xem: bool, price_attr: str, total_attr: str,
+    sl_from, sl_to, dg_from, dg_to, tt_from, tt_to, page: int | None, size: int,
+) -> tuple[list, int, int | None]:
+    """Lọc khoảng số (SL · Đơn giá · Thành tiền) + cắt trang ở MÁY CHỦ (06/10/2026 — trước đó màn
+    tải cả sổ rồi lọc/cắt trong trình duyệt). Trả (dòng của trang, tổng số dòng, tổng tiền mọi dòng).
+
+    Người KHÔNG có ô xem giá: bỏ qua khoảng Đơn giá / Thành tiền — lọc theo con số họ không được
+    thấy là lộ tiền qua đường vòng (cùng luật màn Phiếu kho). `page` None = trả hết (tab Tổng quan)."""
+    if not cho_xem:
+        dg_from = dg_to = tt_from = tt_to = None
+    rows = [r for r in rows if _passes_funnel(
+        r, sl_from=sl_from, sl_to=sl_to, dg_from=dg_from, dg_to=dg_to, tt_from=tt_from,
+        tt_to=tt_to, price_attr=price_attr, total_attr=total_attr)]
+    tong = sum(getattr(r, total_attr) or 0 for r in rows) if cho_xem else None
+    if page is not None:
+        return rows[(page - 1) * size: page * size], len(rows), tong
+    return rows, len(rows), tong
 
 
 @router.get("/bao-cao/dong", response_model=BaoCaoKhoPage)
@@ -211,23 +241,37 @@ def bao_cao_dong(
     db: Db,
     authz: Authz,
     user: XemBaoCaoUser,
-    tu: date | None = Query(default=None),
-    den: date | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query("ct", pattern=_MOC_SO),
     kho_id: int | None = Query(default=None),
     loai: str | None = Query(default=None, pattern="^(NHAP|XUAT)$"),
-    q: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
+    sl_from: float | None = Query(default=None),
+    sl_to: float | None = Query(default=None),
+    dg_from: float | None = Query(default=None),
+    dg_to: float | None = Query(default=None),
+    tt_from: float | None = Query(default=None),
+    tt_to: float | None = Query(default=None),
+    page: int | None = Query(default=None, ge=1),
+    size: int = Query(default=20, ge=1, le=200),
 ) -> BaoCaoKhoPage:
+    cho_xem = _thay_gia(authz, user)
     rows = _an_tien(
-        _report_rows(db, tu=tu, den=den, kho_id=kho_id, loai=loai, q=q),
-        "so", _thay_gia(authz, user),
+        _report_rows(db, tu=tu_ngay, den=den_ngay, kho_id=kho_id, loai=loai, q=q, moc=moc),
+        "so", cho_xem,
     )
-    return BaoCaoKhoPage(items=rows, total=len(rows))
+    items, total, tong = _loc_so_va_trang(
+        rows, cho_xem=cho_xem, price_attr="don_gia", total_attr="thanh_tien",
+        sl_from=sl_from, sl_to=sl_to, dg_from=dg_from, dg_to=dg_to, tt_from=tt_from, tt_to=tt_to,
+        page=page, size=size)
+    return BaoCaoKhoPage(items=items, total=total, tong_tien=tong)
 
 
 @router.get("/bao-cao/thanh-pham-chua-gia-goc", response_model=ThanhPhamChuaGiaGocPage)
 def thanh_pham_chua_gia_goc(
     db: Db,
-    _: Annotated[User, Depends(require_permission(MODULE_KHO, "view_cost"))],
+    _: Annotated[User, Depends(require_permission(MODULE, "view_cost"))],
     q: str | None = Query(default=None, max_length=100),
     chi_chua_gia: bool = Query(default=True),
     tu: date | None = Query(default=None),
@@ -251,10 +295,11 @@ def thanh_pham_chua_gia_goc(
 
 def _chuyen_kho_rows(
     db: Session, *, tu: date | None, den: date | None, kho_id: int | None, q: str | None = None,
+    moc: str = "ct",
 ) -> list[BaoCaoChuyenKhoRow]:
     """Dòng điều chuyển ĐÃ GHI SỔ: mỗi dòng phiếu NHẬP đích (đại diện điều chuyển) → gộp kho nguồn
     (Xuất tại kho) + kho đích (Nhập tại kho) trên cùng 1 dòng, giá vốn chốt từ nguồn."""
-    ql = (q or "").strip().lower()
+    ql = bo_dau(q)
     stmt = (
         select(StockVoucher, StockVoucherLine, StockRequest, KhoHang)
         .join(StockVoucherLine, StockVoucherLine.voucher_id == StockVoucher.id)
@@ -283,7 +328,7 @@ def _chuyen_kho_rows(
     rows: list[BaoCaoChuyenKhoRow] = []
     for v, ln, req, kho in results:
         mh = hang_map.get((ln.hang_loai, ln.hang_id))
-        d = v.ngay        # NGÀY HẠCH TOÁN (ngày nhập/xuất kho) — cùng mốc với khóa kỳ
+        d = _ngay_moc(v, moc)   # mặc định NGÀY HẠCH TOÁN (ngày nhập/xuất kho) — cùng mốc khóa kỳ
         if tu and (d is None or d < tu):
             continue
         if den and (d is None or d > den):
@@ -313,9 +358,7 @@ def _chuyen_kho_rows(
             kho_nhap_id=v.kho_id,       # kho đích (phiếu nhập đích ghi sổ ở đây)
             dien_giai=v.ghi_chu or (req.ghi_chu if req else None),
         )
-        if ql and not any(
-            ql in (val or "").lower() for val in (row.so_ct, row.ma_hang, row.ten_hang)
-        ):
+        if not _khop_tim(ql, row.so_ct, row.ma_hang, row.ten_hang):
             continue
         rows.append(row)
     return rows
@@ -326,14 +369,30 @@ def bao_cao_chuyen_kho(
     db: Db,
     authz: Authz,
     user: XemBaoCaoUser,
-    tu: date | None = Query(default=None),
-    den: date | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query("ct", pattern=_MOC_SO),
     kho_id: int | None = Query(default=None),
-    q: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
+    sl_from: float | None = Query(default=None),
+    sl_to: float | None = Query(default=None),
+    dg_from: float | None = Query(default=None),
+    dg_to: float | None = Query(default=None),
+    tt_from: float | None = Query(default=None),
+    tt_to: float | None = Query(default=None),
+    page: int | None = Query(default=None, ge=1),
+    size: int = Query(default=20, ge=1, le=200),
 ) -> BaoCaoChuyenKhoPage:
-    rows = _an_tien(_chuyen_kho_rows(db, tu=tu, den=den, kho_id=kho_id, q=q),
-                    "chuyen", _thay_gia(authz, user))
-    return BaoCaoChuyenKhoPage(items=rows, total=len(rows))
+    cho_xem = _thay_gia(authz, user)
+    rows = _an_tien(
+        _chuyen_kho_rows(db, tu=tu_ngay, den=den_ngay, kho_id=kho_id, q=q, moc=moc),
+        "chuyen", cho_xem,
+    )
+    items, total, tong = _loc_so_va_trang(
+        rows, cho_xem=cho_xem, price_attr="don_gia_von", total_attr="tien_von",
+        sl_from=sl_from, sl_to=sl_to, dg_from=dg_from, dg_to=dg_to, tt_from=tt_from, tt_to=tt_to,
+        page=page, size=size)
+    return BaoCaoChuyenKhoPage(items=items, total=total, tong_tien=tong)
 
 
 # --- Nhập-Xuất-Tồn theo kỳ (bình quân gia quyền cuối kỳ) — kiểu MISA "Tính giá kỳ" ------------
@@ -440,7 +499,7 @@ def _nxt_compute(
 def _nxt_rows(
     db: Session, *, tu: date, den: date, kho_id: int | None, q: str | None = None,
 ) -> list[BaoCaoNXTRow]:
-    ql = (q or "").strip().lower()
+    ql = bo_dau(q)
     kho_ids = [kho_id] if kho_id else None
     comp = _nxt_compute(db, tu=tu, den=den, kho_ids=kho_ids)
 
@@ -473,7 +532,7 @@ def _nxt_rows(
             cuoi_sl=c["cuoi_sl"], cuoi_gt=c["cuoi_gt"],
             don_gia_bq=round(c["don_gia_bq"], 2) if c["don_gia_bq"] is not None else None,
         )
-        if ql and not any(ql in (val or "").lower() for val in (row.ma_hang, row.ten_hang)):
+        if not _khop_tim(ql, row.ma_hang, row.ten_hang):
             continue
         rows.append(row)
     rows.sort(key=lambda r: ((r.kho_ten or "").lower(), (r.ten_hang or "").lower(),
@@ -940,19 +999,11 @@ def get_lich_su_export(db: Db, _: XemBaoCaoUser) -> list[KhoExportLogRow]:
 
 
 def _passes_funnel(
-    r, *, ct_from, ct_to, sl_from, sl_to, dg_from, dg_to, tt_from, tt_to,
-    price_attr: str, total_attr: str,
+    r, *, sl_from, sl_to, dg_from, dg_to, tt_from, tt_to, price_attr: str, total_attr: str,
 ) -> bool:
-    """Lọc funnel theo CỘT giống hệt bảng FE (inDateRange/inNumRange): khoảng BAO GỒM hai đầu, để
-    trống = không chặn, giá trị None mà đang có chặn = loại. Nhờ vậy 'xuất Excel' ĐÚNG BẰNG những gì
-    màn đang hiển thị, không kéo thừa dòng đã bị lọc cột (Ngày CT · Số lượng · Đơn giá · Thành tiền)."""
-    # `ct_from`/`ct_to` GIỮ TÊN cũ (khỏi đổi API/FE) nhưng nay lọc NGÀY GHI SỔ — đúng cột thứ 2 của
-    # sổ. Cột 1 (ngày nhập/xuất kho = ngày hạch toán) đã do `tu`/`den` lo.
-    d = r.ngay_ghi_so
-    if ct_from is not None and (d is None or d < ct_from):
-        return False
-    if ct_to is not None and (d is None or d > ct_to):
-        return False
+    """Lọc khoảng số theo CỘT (Số lượng · Đơn giá · Thành tiền): khoảng BAO GỒM hai đầu, để trống =
+    không chặn, giá trị None mà đang có chặn = loại. Màn và file Excel dùng CHUNG hàm này nên 'xuất
+    Excel' ĐÚNG BẰNG bảng đang xem. Ngày đã do kỳ (`tu_ngay`/`den_ngay`/`moc`) lo từ 06/10/2026."""
 
     def num_ok(v, lo, hi) -> bool:
         if lo is None and hi is None:
@@ -978,12 +1029,11 @@ def export_bao_cao(
     authz: Authz,
     user: XemBaoCaoUser,
     loai: str = Query(pattern="^(NHAP|XUAT)$"),
-    tu: date | None = Query(default=None),
-    den: date | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query("ct", pattern=_MOC_SO),
     kho_id: int | None = Query(default=None),
-    q: str | None = Query(default=None),
-    ct_from: date | None = Query(default=None),
-    ct_to: date | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
     sl_from: float | None = Query(default=None),
     sl_to: float | None = Query(default=None),
     dg_from: float | None = Query(default=None),
@@ -995,18 +1045,19 @@ def export_bao_cao(
     # MISA nhập/xuất tự động không dính điều chuyển; điều chuyển có mẫu "Chuyển kho" riêng.
     # Ẩn tiền TRƯỚC khi lọc funnel: bộ lọc theo Đơn giá/Thành tiền phải thấy cùng một bảng với
     # người dùng, không thì file lọc ra theo con số mà họ không được nhìn.
-    rows = _an_tien(_report_rows(db, tu=tu, den=den, kho_id=kho_id, loai=loai, q=q),
-                    "so", _thay_gia(authz, user))
-    # Áp bộ lọc funnel theo cột (nếu FE truyền) → file = đúng bảng đang xem.
-    rows = [
-        r for r in rows
-        if _passes_funnel(r, ct_from=ct_from, ct_to=ct_to, sl_from=sl_from, sl_to=sl_to,
-                          dg_from=dg_from, dg_to=dg_to, tt_from=tt_from, tt_to=tt_to,
-                          price_attr="don_gia", total_attr="thanh_tien")
-    ]
+    cho_xem = _thay_gia(authz, user)
+    rows = _an_tien(
+        _report_rows(db, tu=tu_ngay, den=den_ngay, kho_id=kho_id, loai=loai, q=q, moc=moc),
+        "so", cho_xem,
+    )
+    # Áp CÙNG bộ lọc khoảng số với màn (không cắt trang) → file = đúng bảng đang xem.
+    rows, _, _ = _loc_so_va_trang(
+        rows, cho_xem=cho_xem, price_attr="don_gia", total_attr="thanh_tien",
+        sl_from=sl_from, sl_to=sl_to, dg_from=dg_from, dg_to=dg_to, tt_from=tt_from, tt_to=tt_to,
+        page=None, size=1)
     content = _build_xlsx(rows, loai)
     _log_export(db, user, loai_label="Nhập kho" if loai == VOUCHER_NHAP else "Xuất kho",
-                kho_id=kho_id, tu=tu, den=den)
+                kho_id=kho_id, tu=tu_ngay, den=den_ngay)
     fname = f"bao-cao-kho-{'nhap' if loai == VOUCHER_NHAP else 'xuat'}.xlsx"
     return Response(
         content=content,
@@ -1173,12 +1224,11 @@ def export_chuyen_kho(
     db: Db,
     authz: Authz,
     user: XemBaoCaoUser,
-    tu: date | None = Query(default=None),
-    den: date | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query("ct", pattern=_MOC_SO),
     kho_id: int | None = Query(default=None),
-    q: str | None = Query(default=None),
-    ct_from: date | None = Query(default=None),
-    ct_to: date | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=100),
     sl_from: float | None = Query(default=None),
     sl_to: float | None = Query(default=None),
     dg_from: float | None = Query(default=None),
@@ -1186,17 +1236,18 @@ def export_chuyen_kho(
     tt_from: float | None = Query(default=None),
     tt_to: float | None = Query(default=None),
 ) -> Response:
-    rows = _an_tien(_chuyen_kho_rows(db, tu=tu, den=den, kho_id=kho_id, q=q),
-                    "chuyen", _thay_gia(authz, user))
-    # Bảng Chuyển kho lọc funnel theo `don_gia_von`/`tien_von` (cột Đơn giá/Thành tiền) — khớp FE.
-    rows = [
-        r for r in rows
-        if _passes_funnel(r, ct_from=ct_from, ct_to=ct_to, sl_from=sl_from, sl_to=sl_to,
-                          dg_from=dg_from, dg_to=dg_to, tt_from=tt_from, tt_to=tt_to,
-                          price_attr="don_gia_von", total_attr="tien_von")
-    ]
+    cho_xem = _thay_gia(authz, user)
+    rows = _an_tien(
+        _chuyen_kho_rows(db, tu=tu_ngay, den=den_ngay, kho_id=kho_id, q=q, moc=moc),
+        "chuyen", cho_xem,
+    )
+    # Bảng Chuyển kho lọc theo `don_gia_von`/`tien_von` (cột Đơn giá/Thành tiền) — khớp màn.
+    rows, _, _ = _loc_so_va_trang(
+        rows, cho_xem=cho_xem, price_attr="don_gia_von", total_attr="tien_von",
+        sl_from=sl_from, sl_to=sl_to, dg_from=dg_from, dg_to=dg_to, tt_from=tt_from, tt_to=tt_to,
+        page=None, size=1)
     content = _build_chuyen_xlsx(rows)
-    _log_export(db, user, loai_label="Chuyển kho", kho_id=kho_id, tu=tu, den=den)
+    _log_export(db, user, loai_label="Chuyển kho", kho_id=kho_id, tu=tu_ngay, den=den_ngay)
     return Response(
         content=content,
         media_type=_XLSX_MEDIA,

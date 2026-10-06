@@ -22,6 +22,7 @@ tên là trùng `operation_id` và OpenAPI không dựng được (test `test_op
 """
 from __future__ import annotations
 
+from datetime import date
 from inspect import Parameter, Signature
 from typing import Any, Callable
 
@@ -102,7 +103,7 @@ def loi_http(e: Exception) -> HTTPException:
 
 
 def _tham_so(ServiceDep, doc, loc: str | None, co_active: bool,
-             loc_them: dict[str, type] | None = None) -> list[Parameter]:
+             loc_them: dict[str, type] | None = None, co_ky: bool = False) -> list[Parameter]:
     """Chữ ký của handler `list` — dựng bằng tay vì bộ lọc KHÁC NHAU theo từng màn.
 
     Không thể viết một `def` cố định: màn Máy không có cột `active`, còn bộ lọc riêng thì mỗi màn
@@ -122,6 +123,17 @@ def _tham_so(ServiceDep, doc, loc: str | None, co_active: bool,
         ps.append(Parameter(ten_loc, K, default=Query(default=None), annotation=kieu | None))
     if co_active:
         ps.append(Parameter("active", K, default=Query(default=None), annotation=bool | None))
+    if co_ky:
+        # Kỳ của thanh lọc chung — CÙNG quy ước mọi danh sách: `tu_ngay`/`den_ngay` theo giờ VN,
+        # `moc` = mốc ngày. Danh mục chỉ có một mốc: Ngày tạo.
+        ps += [
+            Parameter("tu_ngay", K, default=Query(default=None), annotation=date | None),
+            Parameter("den_ngay", K, default=Query(default=None), annotation=date | None),
+            Parameter("moc", K, default=Query(default="tao", pattern="^tao$"), annotation=str),
+            # Số đếm của thanh lọc (`dem`) CHỈ tính khi client xin rõ — ô chọn ở màn khác gọi các
+            # endpoint danh mục rất nhiều, không được gánh thêm mấy câu GROUP BY mỗi lượt.
+            Parameter("kem_dem", K, default=Query(default=False), annotation=bool),
+        ]
     ps += [
         Parameter("page", K, default=Query(default=1, ge=1), annotation=int),
         # Trần 200 khớp `repositories/catalog_base.SIZE_TRAN` — chặn client gõ `?size=99999`.
@@ -144,6 +156,8 @@ def make_catalog_router(
     loc: str | None = None,
     loc_them: dict[str, type] | None = None,
     co_active: bool = True,
+    co_ky: bool = False,
+    dem_them: dict[str, str | Callable[[Any, dict], list[dict]]] | None = None,
     facets: Callable[[Any, dict], dict] | None = None,
     tong_theo_tim: Callable[[Any, dict], int] | None = None,
     dung_rows: Callable[[Any, list], list] | None = None,
@@ -170,6 +184,14 @@ def make_catalog_router(
       chỗ `facets` VẪN áp chúng: lọc khách X rồi thì số trên chip phải là số khuôn của khách X.
       Repo nhận qua `extra_conds(**kw)` như `loc`.
     * `co_active` — màn Máy đặt `False`: `may_thiet_bi` KHÔNG có cột `active`.
+    * `co_ky` — nhận kỳ của thanh lọc chung (`tu_ngay` · `den_ngay` · `moc=tao`), lọc theo
+      `Model.created_at` với ranh ngày giờ VN (`repositories/catalog_base._dieu_kien`).
+    * `dem_them` — số đếm cho các điều kiện của thanh lọc, `{tên tham số: cột | hàm(svc, kw)}`.
+      Chuỗi = tên cột của model (`svc.dem_theo_cot`), hàm = đếm riêng (bảng nối, tên khách…) trả
+      `[{"value", "nhan", "so"}]`. `kw` của từng điều kiện là bộ lọc ĐÃ BỎ chính điều kiện đó.
+      Trả về ở `dem` của phong bì; `co_active` thì tự có thêm `dem["active"]` (`true`/`false`) và
+      `loc` + `facets` thì `dem[loc]` lấy từ `facets`. CHỈ tính khi client gửi `kem_dem=true`
+      (màn danh mục gửi; ô chọn ở màn khác không gửi ⇒ `dem` rỗng, số câu SQL như cũ).
     * `facets(svc, kw)` — số trên tab lọc; `kw` là bộ lọc ĐÃ BỎ bộ lọc riêng (tab đang không được
       chọn vẫn phải khoe số của nó).
     * `tong_theo_tim(svc, kw)` — số của tab "Tất cả" (cùng `kw` với `facets`). Chỉ cần khi một dòng
@@ -223,6 +245,7 @@ def make_catalog_router(
     def _list(**kw):
         svc = kw.pop("svc")
         kw.pop("_", None)
+        kem_dem = kw.pop("kem_dem", False)
         page, size = kw["page"], kw["size"]
         rows, total = svc.list(**kw)
         them = {}
@@ -232,9 +255,25 @@ def make_catalog_router(
             them["facets"] = facets(svc, kw_tab)
         if tong_theo_tim is not None:
             them["tong_theo_tim"] = tong_theo_tim(svc, kw_tab)
+        if kem_dem:
+            them["dem"] = _dem(svc, kw, them.get("facets"))
         return ListModel(items=_rows(svc, rows), total=total, page=page, size=size, **them)
 
-    _list.__signature__ = Signature(_tham_so(ServiceDep, doc, loc, co_active, loc_them))
+    def _dem(svc, kw: dict, so_facets: dict | None) -> dict:
+        """Số đếm cho từng điều kiện của thanh lọc — mỗi điều kiện đếm dưới mọi bộ lọc KHÁC nó."""
+        def bo(ten: str) -> dict:
+            return {k: v for k, v in kw.items() if k not in ("page", "size", ten)}
+        dem: dict[str, list[dict]] = {}
+        if co_active and (co_ky or dem_them):
+            dem["active"] = svc.dem_theo_cot("active", **bo("active"))
+        if loc and so_facets is not None and loc not in (dem_them or {}):
+            dem[loc] = [{"value": k, "so": n} for k, n in so_facets.items() if k]
+        for ten_dk, cach in (dem_them or {}).items():
+            dem[ten_dk] = (svc.dem_theo_cot(cach, **bo(ten_dk)) if isinstance(cach, str)
+                           else cach(svc, bo(ten_dk)))
+        return dem
+
+    _list.__signature__ = Signature(_tham_so(ServiceDep, doc, loc, co_active, loc_them, co_ky))
     _list.__name__ = f"list_{ten}"
     router.get(goc or "", response_model=ListModel, name=f"list_{ten}")(_list)
 

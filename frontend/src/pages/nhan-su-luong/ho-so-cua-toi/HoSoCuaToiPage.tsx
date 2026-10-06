@@ -17,7 +17,6 @@ import {
   type LeaveQuota,
   type Profile,
   type UpdateRequest,
-  type WorkShift,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useSelfServiceWrite } from "../../../auth/permissions";
@@ -26,8 +25,12 @@ import { Button } from "../../../components/Button";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { EmptyRow, EmptyState } from "../../../components/EmptyState";
 import { Icon } from "../../../components/Icons";
-import { Pager, trangHopLe } from "../../../components/Pager";
+import { trangHopLe } from "../../../components/Pager";
+import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { Timeline, type TimelineEntry } from "../../../components/Timeline";
+import { thamSoKy } from "../../thanh-loc/ky-danh-sach";
+import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
+import { useLocMan } from "../../thanh-loc/useLocMan";
 import { ReqRow } from "./components/ReqRow";
 import { StatChip } from "./components/StatChip";
 import { LockChip, Row } from "./components/info-display";
@@ -43,7 +46,6 @@ import {
   EVENT_LABEL,
   GENDER_LABEL,
   PIT_MODE_LABEL,
-  REQ_LOC,
   REQ_PAGE_SIZE,
   STATUS_CLASS,
   STATUS_LABEL,
@@ -51,14 +53,17 @@ import {
 import {
   fmtDate,
   fmtDateTime,
+  fmtSdt,
   fmtSo,
   kieuFile,
   messageFor,
-  nhanLoc,
   oThieu,
   thamNien,
 } from "./shared/helpers";
 import type { SoCong, SoLuong, SoPhep, Tai } from "./shared/types";
+import {
+  LOC_DE_NGHI_TRONG, MOC_DE_NGHI, dieuKienDeNghi, locDeNghiLenUrl, locDeNghiTuUrl, type LocManDeNghi,
+} from "./shared/dieu-kien-de-nghi";
 import "../../nhan-su.css";
 import "../../ho-so-cua-toi.css";
 
@@ -77,19 +82,23 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [events, setEvents] = useState<EmployeeEvent[]>([]);
   const [files, setFiles] = useState<Tai<EmployeeAttachment[]>>(DANG_TAI);
-  const [shift, setShift] = useState<WorkShift | null>(null);
   const [editing, setEditing] = useState(false);
   const [reqs, setReqs] = useState<Tai<UpdateRequest[]>>(DANG_TAI);
   const [requesting, setRequesting] = useState(false);
   const [huyReq, setHuyReq] = useState<UpdateRequest | null>(null);
   const [huyBusy, setHuyBusy] = useState(false);
   const [huyErr, setHuyErr] = useState<string | null>(null);
-  // Đề nghị cập nhật: CẮT TRANG Ở MÁY CHỦ. `reqDem` là số đếm theo trạng thái trên TOÀN BỘ hồ sơ
-  // (máy chủ trả) — pill lọc và chip đầu màn đọc ô này, KHÔNG đếm lại từ trang đang xem.
+  // Đề nghị cập nhật: CẮT TRANG + LỌC Ở MÁY CHỦ. `reqDem` là số đếm theo trạng thái trên TOÀN BỘ
+  // hồ sơ (chip "chờ duyệt" đầu màn đọc ô này); `reqDemKy` = trong kỳ đang xem, cho thẻ lọc
+  // Trạng thái. KHÔNG đếm lại từ trang đang xem.
   const [reqTotal, setReqTotal] = useState(0);
   const [reqDem, setReqDem] = useState<Record<string, number>>({});
-  const [reqLoc, setReqLoc] = useState<string>("all");
+  const [reqDemKy, setReqDemKy] = useState<Record<string, number>>({});
+  // Kỳ (Ngày tạo) + Trạng thái — ghi lên URL `?man=ho-so-cua-toi`, nhớ theo màn (06/10/2026).
+  const [locReq, setLocReqGoc] = useLocMan("ho-so-cua-toi", LOC_DE_NGHI_TRONG, locDeNghiTuUrl, locDeNghiLenUrl);
+  const khoaReq = JSON.stringify({ status: locReq.loc.trang_thai, loc: thamSoKy(locReq.ky) });
   const [reqPage, setReqPage] = useState(1);
+  const [reqSize, setReqSize] = useState(REQ_PAGE_SIZE);
   const [xemReq, setXemReq] = useState<UpdateRequest | null>(null);
   // Số liệu "của tôi" — mỗi nguồn tải/thử lại ĐỘC LẬP, hỏng một chip không kéo sập cả màn.
   const [phep, setPhep] = useState<Tai<SoPhep>>(DANG_TAI);
@@ -104,20 +113,18 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
 
   const loadReqs = useCallback(() => {
     if (!token) return;
-    api.employees.myRequests(token, {
-      ...(reqLoc !== "all" ? { status: reqLoc } : {}),
-      page: reqPage, size: REQ_PAGE_SIZE,
-    })
+    api.employees.myRequests(token, { ...JSON.parse(khoaReq), page: reqPage, size: reqSize })
       .then((r) => {
         setReqs({ tt: "ok", du: r.items });
         setReqTotal(r.total);
         setReqDem(r.dem ?? {});
+        setReqDemKy(r.dem_theo_tab ?? {});
         // Rút lại đề nghị cuối của trang cuối ⇒ tổng co lại, trang này rỗng trơn: lùi về trang có thật.
-        const ve = trangHopLe(reqPage, r.total, REQ_PAGE_SIZE);
+        const ve = trangHopLe(reqPage, r.total, reqSize);
         if (ve !== null) setReqPage(ve);
       })
       .catch(() => setReqs({ tt: "loi" }));
-  }, [token, reqLoc, reqPage]);
+  }, [token, khoaReq, reqPage, reqSize]);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -135,12 +142,8 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
   // Danh sách đề nghị tải RIÊNG: đổi pill lọc hay lật trang chỉ gọi lại đúng nó, không kéo theo
   // hồ sơ · giấy tờ · quá trình công tác chạy lại cả loạt.
   useEffect(() => { loadReqs(); }, [loadReqs]);
-  useEffect(() => { setReqPage(1); }, [reqLoc]);
-  useEffect(() => {
-    if (emp?.default_shift_id && token) {
-      api.attendance.shifts(token).then((r) => setShift(r.items.find((s) => s.id === emp.default_shift_id) ?? null)).catch(() => setShift(null));
-    }
-  }, [token, emp?.default_shift_id]);
+  const setLocReq = (t: LocManDeNghi) => { setLocReqGoc(t); setReqPage(1); };
+  const dangLocReq = khoaReq !== JSON.stringify({ status: [], loc: {} });
 
   // --- 3 nguồn số liệu "của tôi" (chỉ nhánh nhân viên) ---------------------
   const napPhep = useCallback(() => {
@@ -222,17 +225,13 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
 
   const dsReq = reqs.tt === "ok" ? reqs.du : [];
   const soCho = reqDem.pending ?? 0;
-  // Pill "Tất cả" cộng các ô đếm, KHÔNG lấy `reqTotal`: `total` là tổng SAU bộ lọc, đứng ở pill
-  // "Từ chối" mà "Tất cả" tụt xuống 1 thì người xem tưởng mất dữ liệu.
-  const tongDem = Object.values(reqDem).reduce((a, b) => a + b, 0);
-
-  /** Về "Tất cả" · trang 1 rồi tải lại — dùng sau khi GỬI đề nghị mới: đứng ở pill "Từ chối"
-   *  trang 3 thì cái vừa gửi nằm ngoài tầm mắt, người ta tưởng bấm hụt. */
+  /** Bỏ lọc · trang 1 rồi tải lại — dùng sau khi GỬI đề nghị mới: đang lọc "Từ chối" trang 3 thì
+   *  cái vừa gửi nằm ngoài tầm mắt, người ta tưởng bấm hụt. */
   const veDauDsReq = useCallback(() => {
-    if (reqLoc !== "all") setReqLoc("all");
+    if (dangLocReq) setLocReqGoc(LOC_DE_NGHI_TRONG);
     if (reqPage !== 1) setReqPage(1);
-    if (reqLoc === "all" && reqPage === 1) loadReqs();
-  }, [reqLoc, reqPage, loadReqs]);
+    if (!dangLocReq && reqPage === 1) loadReqs();
+  }, [dangLocReq, setLocReqGoc, reqPage, loadReqs]);
   // Ô còn trống — tách hai nhóm vì hai nhóm dẫn tới HAI việc khác nhau: tự điền vs gửi đề nghị.
   const thieu = useMemo(() => oThieu(emp), [emp]);
 
@@ -329,9 +328,8 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
 
   // === NHÁNH NHÂN VIÊN: hồ sơ của tôi ===
   const tn = thamNien(emp.prior_seniority_months, emp.hire_date);
-  const badgeTrangThai = emp.status === "probation" && emp.probation_end_date
-    ? `${STATUS_LABEL.probation} · đến ${fmtDate(emp.probation_end_date)}`
-    : STATUS_LABEL[emp.status] ?? emp.status;
+  // Ngày hết thử việc nằm ở ô "Vào làm" ngay dưới — badge chỉ nói trạng thái.
+  const badgeTrangThai = STATUS_LABEL[emp.status] ?? emp.status;
 
   const statusBadgeClass = STATUS_CLASS[emp.status]
     ? `mine__hero-badge--${emp.status === "active" ? "ok" : emp.status === "probation" ? "warn" : "muted"}`
@@ -352,26 +350,101 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
         <div className="mine__heroid">
           <h1>
             {emp.full_name}
+            {/* Họ tên do HCNS quản: ✎ mở thẳng form đề nghị, chú thích nói rõ vì sao không sửa tại chỗ. */}
+            {tuPhucVuGhi && (
+              <button
+                type="button" className="mine__name-edit mine__name-req"
+                aria-label="Họ tên do HCNS quản lý — bấm để gửi đề nghị sửa"
+                onClick={() => setRequesting(true)}
+              >
+                <Icon name="pencil" size={14} />
+                <span className="mine__tip" aria-hidden="true">Họ tên do HCNS quản lý — bấm để gửi đề nghị sửa</span>
+              </button>
+            )}
             <span className={`mine__hero-badge ${statusBadgeClass}`}>
               {badgeTrangThai}
             </span>
           </h1>
-          <p>
-            {emp.department_name ?? "—"}
-            {emp.position && emp.position !== emp.department_name ? ` · ${emp.position}` : ""}
-          </p>
-          <p className="mine__herosub">
-            Mã NV: {emp.code} · Vào làm {fmtDate(emp.hire_date)}{tn ? ` · Thâm niên ${tn}` : ""}
-          </p>
-          {emp.department_head_name && (
-            <p className="mine__herosub">Trưởng bộ phận: {emp.department_head_name}</p>
+          {emp.position && emp.position !== emp.department_name && (
+            <p className="mine__herotitle">{emp.position}</p>
           )}
-          {tuPhucVuGhi && (
-            <button type="button" className="mine__namehint" onClick={() => setRequesting(true)}>
-              Cần đổi tên? Gửi đề nghị
-            </button>
-          )}
+          <div className="mine__herotags">
+            {emp.department_name && (
+              <span className="mine__herotag"><Icon name="building" size={13} />{emp.department_name}</span>
+            )}
+            <span className="mine__herotag" title="Mã nhân viên"><Icon name="clipboard" size={13} />{emp.code}</span>
+          </div>
+          <div className="mine__facts">
+            <div className="mine__fact">
+              <Icon name="calendar" size={16} />
+              <div>
+                <p className="mine__lab">Vào làm</p>
+                <p className="mine__val">{emp.hire_date ? fmtDate(emp.hire_date) : "Chưa khai"}</p>
+                {emp.status === "probation" && emp.probation_end_date ? (
+                  <p className="mine__sub mine__sub--warn">Hết thử việc {fmtDate(emp.probation_end_date)}</p>
+                ) : tn ? (
+                  <p className="mine__sub">Thâm niên {tn}</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="mine__fact">
+              <Icon name="clock" size={16} />
+              <div>
+                <p className="mine__lab">Ca làm việc</p>
+                <p className="mine__val">{emp.current_shift_name ?? "Chưa gán"}</p>
+                {emp.current_shift_hours && <p className="mine__sub">{emp.current_shift_hours}</p>}
+                {/* Lưới phân ca đổi riêng hôm nay — không nói thì người ta đi làm theo ca nền. */}
+                {emp.today_shift_off ? (
+                  <p className="mine__sub mine__sub--warn">Hôm nay: nghỉ theo lịch</p>
+                ) : emp.today_shift_name ? (
+                  <p className="mine__sub mine__sub--warn">
+                    Hôm nay: {emp.today_shift_name}{emp.today_shift_hours ? ` ${emp.today_shift_hours}` : ""}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="mine__fact">
+              <Icon name="shield" size={16} />
+              <div>
+                <p className="mine__lab">Tài khoản</p>
+                <p className="mine__val">{emp.account_username ?? profile?.username ?? "—"}</p>
+                {profile?.role_name && <p className="mine__sub">Vai trò {profile.role_name}</p>}
+              </div>
+            </div>
+          </div>
         </div>
+        <aside className="mine__heroside">
+          <div>
+            <p className="mine__lab">Quản lý trực tiếp</p>
+            {emp.department_head_name ? (
+              <div className="mine__mgr">
+                <span className="mine__mgr-av">
+                  {assetUrl(emp.department_head_avatar_url)
+                    ? <img src={assetUrl(emp.department_head_avatar_url)!} alt="" />
+                    : vietTat(emp.department_head_name)}
+                </span>
+                <div>
+                  <p className="mine__val">{emp.department_head_name}</p>
+                  <p className="mine__sub">Đứng đầu {emp.department_head_dept_name}</p>
+                  {emp.department_head_inherited && emp.department_name && (
+                    <p className="mine__sub mine__sub--muted">{emp.department_name} chưa chỉ định người đứng đầu</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="mine__sub">Chưa có người đứng đầu ở phòng bạn và các phòng cấp trên</p>
+            )}
+          </div>
+          <div>
+            <p className="mine__lab">Liên hệ</p>
+            <p className="mine__ct"><Icon name="phone" size={15} />
+              {emp.phone ? fmtSdt(emp.phone) : <ThemLienHe onClick={tuPhucVuGhi ? () => setEditing(true) : undefined}>Chưa có SĐT</ThemLienHe>}
+            </p>
+            <p className="mine__ct"><Icon name="mail" size={15} />
+              {emp.email ?? <ThemLienHe onClick={tuPhucVuGhi ? () => setEditing(true) : undefined}>Chưa có email</ThemLienHe>}
+            </p>
+          </div>
+        </aside>
       </div>
 
       {/* Số liệu "của tôi" — kéo từ 3 màn nguồn về đây, bấm là sang đúng màn đó. */}
@@ -464,11 +537,11 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
               <button className="btn btn--ghost" onClick={() => setEditing(true)}>Sửa</button>
             )}
           </div>
-          <Row k="SĐT" v={emp.phone} />
+          <Row k="SĐT" v={emp.phone ? fmtSdt(emp.phone) : null} />
           <Row k="Email" v={emp.email} />
           <Row k="Chỗ ở hiện tại" v={emp.current_address} />
           <Row k="Liên hệ khẩn (tên)" v={emp.emergency_contact_name} />
-          <Row k="Liên hệ khẩn (SĐT)" v={emp.emergency_contact_phone} />
+          <Row k="Liên hệ khẩn (SĐT)" v={emp.emergency_contact_phone ? fmtSdt(emp.emergency_contact_phone) : null} />
           {tuPhucVuGhi && (
             <button className="btn btn--ghost mine__editbtn" onClick={() => setEditing(true)}>Sửa</button>
           )}
@@ -511,11 +584,13 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
             Công việc
           </h4>
           <Row
-            k="Ca mặc định"
-            v={shift ? `${shift.name} (${shift.start_time}–${shift.end_time})` : null}
+            k="Ca hiện tại"
+            v={emp.current_shift_name
+              ? `${emp.current_shift_name}${emp.current_shift_hours ? ` (${emp.current_shift_hours})` : ""}`
+              : null}
             hint="Ca do HCNS gán ở màn Chấm công"
           />
-          {emp.department_head_name && <Row k="Trưởng bộ phận" v={emp.department_head_name} />}
+          {emp.department_head_name && <Row k="Quản lý trực tiếp" v={emp.department_head_name} />}
           {emp.status === "probation" && (
             <Row k="Hết thử việc" v={emp.probation_end_date ? fmtDate(emp.probation_end_date) : null} />
           )}
@@ -545,37 +620,23 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
           <span>Các mục do HCNS quản lý (tên, CCCD, hộ khẩu, số tài khoản…) bạn gửi đề nghị sửa để HCNS xét duyệt.</span>
         </div>
 
-        {/* Pill lọc — số đếm lấy từ `reqDem` của máy chủ nên KHÔNG đổi theo trang đang xem.
-            Giữ đủ 5 pill kể cả khi đếm 0: vị trí không nhảy giữa các lần tải, và "Từ chối 0"
-            tự nó là tin tốt. */}
-        <div className="mine__reqfilter" role="group" aria-label="Lọc đề nghị theo trạng thái">
-          <button
-            type="button" className={`seg${reqLoc === "all" ? " is-active" : ""}`}
-            aria-pressed={reqLoc === "all"} onClick={() => setReqLoc("all")}
-          >
-            Tất cả <span className="chip-count">{tongDem}</span>
-          </button>
-          {REQ_LOC.map((f) => {
-            const n = reqDem[f.key] ?? 0;
-            const on = reqLoc === f.key;
-            return (
-              <button
-                key={f.key} type="button" className={`seg${on ? " is-active" : ""}`}
-                aria-pressed={on} onClick={() => setReqLoc(f.key)}
-              >
-                {f.label}
-                {/* rust = việc CẦN LÀM; pill đang chọn đã tự rust nên không dán thêm class. */}
-                <span className={`chip-count${f.key === "pending" && n > 0 && !on ? " chip-count--alert" : ""}`}>{n}</span>
-              </button>
-            );
-          })}
+        {/* Thanh lọc chung: kỳ theo Ngày tạo + Trạng thái (số đếm máy chủ theo kỳ đang xem). */}
+        <div className="mine__reqfilter tl-thanh">
+          <ThanhLoc
+            ky={locReq.ky}
+            moc={MOC_DE_NGHI}
+            onKy={(ky) => setLocReq({ ...locReq, ky })}
+            dieuKien={dieuKienDeNghi(reqDemKy)}
+            loc={locReq.loc}
+            onLoc={(loc) => setLocReq({ ...locReq, loc })}
+          />
         </div>
 
         <div className="ns__tablewrap mine__reqtable">
           <table className="ns__table">
             <thead>
               <tr>
-                <th className="mine__reqcol-date">Ngày gửi</th>
+                <th className="mine__reqcol-date">Ngày tạo</th>
                 <th className="mine__reqcol-st">Trạng thái</th>
                 <th>Nội dung đề nghị</th>
                 <th className="mine__reqcol-who">Người xử lý</th>
@@ -591,11 +652,11 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
                 ))
               ) : reqs.tt === "loi" ? (
                 <EmptyRow colSpan={5} trangThai="loi" onThuLai={loadReqs} />
-              ) : dsReq.length === 0 && reqLoc !== "all" ? (
+              ) : dsReq.length === 0 && dangLocReq ? (
                 <EmptyRow
                   colSpan={5} icon="search"
-                  title={`Chưa có đề nghị nào ở trạng thái "${nhanLoc(reqLoc)}".`}
-                  action={<Button variant="ghost" onClick={() => setReqLoc("all")}>Xem tất cả</Button>}
+                  title="Không có đề nghị nào khớp bộ lọc."
+                  action={<Button variant="ghost" onClick={() => setLocReq(LOC_DE_NGHI_TRONG)}>Xem tất cả</Button>}
                 />
               ) : dsReq.length === 0 ? (
                 <EmptyRow
@@ -616,9 +677,11 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
           </table>
         </div>
         {reqs.tt === "ok" && reqTotal > 0 && (
-          <Pager
-            total={reqTotal} page={reqPage} size={REQ_PAGE_SIZE}
-            onPage={setReqPage} unit="đề nghị"
+          <PhanTrangDayDu
+            trang={reqPage} size={reqSize} tong={reqTotal} soDong={dsReq.length}
+            onTrang={setReqPage}
+            onSize={(n) => { setReqSize(n); setReqPage(1); }}
+            donVi="đề nghị" ariaLabel="Phân trang đề nghị của tôi"
           />
         )}
       </div>
@@ -679,5 +742,21 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
       />
       {accountModals}
     </main>
+  );
+}
+
+/** "Bùi Thị Hoa" → "BH" (chữ đầu của từ đầu + từ cuối) cho ô ảnh người quản lý chưa có ảnh. */
+function vietTat(ten: string): string {
+  const w = ten.trim().split(/\s+/);
+  return ((w[0]?.[0] ?? "") + (w.length > 1 ? w[w.length - 1][0] : "")).toUpperCase();
+}
+
+/** Ô liên hệ còn trống ở hero: có quyền tự sửa thì bấm mở thẳng form liên hệ, không thì chỉ nói thiếu. */
+function ThemLienHe({ children, onClick }: { children: string; onClick?: () => void }) {
+  if (!onClick) return <span className="mine__ct-thieu">{children}</span>;
+  return (
+    <button type="button" className="mine__ct-them" onClick={onClick}>
+      {children} — thêm
+    </button>
   );
 }

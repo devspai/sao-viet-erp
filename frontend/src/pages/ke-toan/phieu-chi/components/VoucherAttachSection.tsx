@@ -1,59 +1,11 @@
-// Khối CHỨNG TỪ ĐÃ MUA (ảnh/PDF đính kèm lúc lập) — tách từ pages/PaymentVoucherDialog.tsx.
-import type { Dispatch, SetStateAction } from "react";
-import type { PaymentVoucherRow } from "../../../../api/client";
+/** Ô "Ảnh chứng từ gốc" của form lập phiếu chi (đặc tả PC-3) — khuôn chung `OChungTu` /
+ *  `locTep` ở `shared/tepChungTu.tsx` (Phiếu thu dùng cùng). Ở đây chỉ còn lời gọi tải lên của
+ *  phiếu CHI.
+ */
+import { api, type PaymentVoucherRow } from "../../../../api/client";
+import { taiTepSauKhiLap } from "../../shared/tepChungTu";
 
-export function VoucherAttachSection({
-  voucher,
-  files,
-  setFiles,
-  addFiles,
-}: {
-  voucher: PaymentVoucherRow | null;
-  files: File[];
-  setFiles: Dispatch<SetStateAction<File[]>>;
-  addFiles: (list: FileList | null) => void;
-}) {
-  return (
-    <>
-    {!voucher && (
-      <section className="acct-form-section">
-        <h3>Chứng từ đã mua (hóa đơn, biên nhận, UNC…)</h3>
-        <label className="acct-field">
-          <span>Ảnh / PDF — tối đa 10 MB mỗi file</span>
-          <input
-            className="input"
-            type="file"
-            multiple
-            accept="image/*,application/pdf"
-            onChange={(e) => {
-              addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-        </label>
-        {files.length > 0 && (
-          <ul className="acct-filelist">
-            {files.map((file, index) => (
-              <li key={`${file.name}-${index}`}>
-                📎 {file.name}
-                <button
-                  type="button"
-                  className="acct-modal__x acct-filelist__x"
-                  aria-label={`Bỏ ${file.name}`}
-                  onClick={() =>
-                    setFiles((current) =>
-                      current.filter((_, i) => i !== index),
-                    )
-                  }
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    )}
-    </>
-  );
+/** Tải các tệp đã chọn lên phiếu vừa lập. Trả câu lỗi nếu có tệp hỏng (phiếu VẪN đã lập). */
+export function taiChungTuSauKhiLap(token: string, phieu: PaymentVoucherRow, tep: File[]): Promise<string | null> {
+  return taiTepSauKhiLap(phieu.code, tep, (f) => api.accounting.uploadVoucherAttachment(token, phieu.id, f));
 }

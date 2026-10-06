@@ -51,7 +51,10 @@ def xuat_xlsx(bc: dict) -> bytes:
     ws["A1"].font = Font(name="Times New Roman", size=14, bold=True)
     ws["A1"].alignment = Alignment(horizontal="center")
     ws.merge_cells("A2:O2")
-    ws["A2"] = (f"Đơn đã chốt từ ngày {_dmy(bc['tu_ngay'])} đến ngày {_dmy(bc['den_ngay'])}"
+    tu, den = bc["tu_ngay"], bc["den_ngay"]
+    ky = (f"từ ngày {_dmy(tu)} đến ngày {_dmy(den)}" if tu and den else
+          f"từ ngày {_dmy(tu)}" if tu else f"đến ngày {_dmy(den)}" if den else "mọi thời gian")
+    ws["A2"] = (f"Đơn đã chốt {ky}"
                 f" · {bc['tong']['so_khach']} khách · {bc['tong']['so_don']} đơn")
     ws["A2"].font = Font(name="Times New Roman", size=11, bold=True)
     ws["A2"].alignment = Alignment(horizontal="center")
@@ -140,5 +143,8 @@ def ten_file(bc: dict, *, ma_khach: str | None = None) -> str:
         tho = unicodedata.normalize("NFKD", ma_khach.replace("đ", "d").replace("Đ", "D"))
         tho = re.sub(r"[^A-Za-z0-9]+", "-", tho.encode("ascii", "ignore").decode()).strip("-")
         ai = f"{tho[:40]}-" if tho else ""
-    return (f"bao-cao-kinh-doanh-{ai}{bc['tu_ngay']:%Y-%m-%d}"
-            f"-den-{bc['den_ngay']:%Y-%m-%d}.xlsx")
+    tu, den = bc["tu_ngay"], bc["den_ngay"]
+    if tu is None and den is None:
+        return f"bao-cao-kinh-doanh-{ai}tat-ca.xlsx"
+    return (f"bao-cao-kinh-doanh-{ai}{f'{tu:%Y-%m-%d}' if tu else 'dau'}"
+            f"-den-{f'{den:%Y-%m-%d}' if den else 'nay'}.xlsx")

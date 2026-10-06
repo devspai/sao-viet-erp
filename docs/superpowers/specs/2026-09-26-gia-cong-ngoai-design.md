@@ -5,6 +5,13 @@
 (xuất giấy, nhập thành phẩm) · Giao hàng · Phiếu chi · Xếp lịch 3 (chỉ bỏ phần ngày).
 **Thay thế:** `docs/spec-thue-ngoai-giao-nhan.md` và quyết định 05/09 "nhà gia công khai thành máy".
 
+> 🔴 **07/10/2026 — GỠ HẲN ĐƠN GIÁ** (chủ chốt: *"gỡ hẳn đi"*). Gia công ngoài KHÔNG có đơn giá ở
+> bất cứ đâu: không ô ở bước thuê ngoài / hộp trọn gói / bước chung bài ghép, không cửa sửa đơn giá
+> trên lệnh, không tiền tạm tính, hàng "Gia công chờ chi" không có cột tiền. Kế toán gõ số tiền ở
+> phiếu chi theo **hoá đơn của nhà gia công**. Cột `gia_cong_ngoai.don_gia` và
+> `lsx_cong_doan.don_gia_gia_cong` gỡ ở mg `0374`. Mọi chỗ bên dưới còn nhắc "đơn giá" / "tiền =
+> con số cuối × đơn giá" là bản cũ, đã bỏ. (Ô nhập đã bỏ từ 27/09; phiên 06/10 lỡ thêm lại.)
+
 ---
 
 ## 1. Quyết định của chủ xưởng
@@ -83,14 +90,23 @@ tư (vd màng) thì kế hoạch lập **đề nghị xuất kho thường** ghi
 
 | # | Ai | Làm gì | Hệ ghi / hiện |
 |---|---|---|---|
-| 1 | Kế hoạch | Lệnh tạo từ đơn như thường. Ở lệnh chưa phát hành (đã xếp lịch thì hệ tự gỡ lịch), bấm **Gia công trọn gói** thay cho phát hành → chọn nhà gia công, đơn giá, số đặt (điền sẵn), xưởng cấp giấy có/không. | Lệnh sang *gia công trọn gói*: trên sổ nó là lệnh đã thả đi với MỘT việc duy nhất "Gia công trọn gói — ‹nhà gia công›", không tổ nào nhận ⇒ không vào bàn tổ, không vào Xếp lịch, không khoán, nhưng vẫn hiện ở màn Theo dõi SX. Routing của lệnh không cần khai. Lệnh đang ghép cụm với lệnh khác (cùng nhóm thành phẩm / bài ghép) thì chưa cho trọn gói. |
-| 2a | Kế hoạch · Kho | **Nếu xưởng cấp giấy:** bấm **Đề nghị xuất giấy** trên lần gia công → hệ lập đề nghị xuất kho sẵn dòng giấy của lệnh, người nhận = người kế hoạch, ghi chú "Cấp giấy gia công trọn gói — ‹nhà gia công›". Kho xuất như mọi đề nghị. | Giữ chỗ giấy của lệnh được tiêu như thường. Phiếu xuất kho là vết giấy rời công ty — **không có nút "Đã mang đi"** cho trọn gói. |
+| 1 | Kế hoạch | Lệnh tạo từ đơn như thường. Ở lệnh chưa phát hành (đã xếp lịch thì hệ tự gỡ lịch), bấm **Gia công trọn gói** thay cho phát hành → chọn nhà gia công, số đặt (điền sẵn), xưởng cấp giấy có/không. | Lệnh sang *gia công trọn gói*: trên sổ nó là lệnh đã thả đi với MỘT việc duy nhất "Gia công trọn gói — ‹nhà gia công›", không tổ nào nhận ⇒ không vào bàn tổ, không vào Xếp lịch, không khoán, nhưng vẫn hiện ở màn Theo dõi SX. Routing của lệnh không cần khai. Lệnh đang ghép cụm với lệnh khác (cùng nhóm thành phẩm / bài ghép) thì chưa cho trọn gói. |
+| 2a | Kế hoạch · Kho | **Nếu xưởng cấp giấy** (ô tick sẵn theo nguồn giấy của phiếu tính giá — công ty lo giấy): khối Gia công ngoài hiện dải hổ phách "Chưa cấp giấy cho nhà gia công" + nút **Chọn giấy** (C1, 06/10/2026, mockup `docs/mockups/tron-goi-cap-giay-C-3-phuong-an.html`). Bấm thì mở ngay tại chỗ: khổ TỜ của mã giấy đang có trong kho kèm tồn (khổ đúng phiếu tính giá chọn sẵn, đứng đầu, kể cả khi hết), ô số tờ điền sẵn theo phiếu (khổ khác ⇒ để trống, bắt gõ); kho thiếu thì cảnh báo mà vẫn cho gửi. Gửi = MỘT đề nghị xuất, MỘT dòng giấy tờ đúng khổ (mã giấy máy chủ lấy theo lệnh, không nhận từ client), ghi chú "Cấp giấy gia công trọn gói — ‹nhà gia công›". Ô Giấy sau đó hiện khổ + số tờ + trạng thái kho + mã đề nghị; bảng lệnh có chip "Chờ cấp giấy" tới khi gửi. Đề nghị bị huỷ / từ chối thì dải hiện lại. Kho xuất như mọi đề nghị. | Kế hoạch vật tư đòi giấy của lệnh theo dòng đề nghị xuất (chưa gửi thì theo giấy ở bước, không có thì theo quy cách phiếu); mọi vật tư khác của lệnh trọn gói bỏ. Đang giữ chỗ mà gửi khổ khác ⇒ nhả rồi giữ lại theo khổ mới. Chốt số ⇒ nhu cầu rụng. Giữ chỗ giấy của lệnh được tiêu như thường. Phiếu xuất kho là vết giấy rời công ty — **không có nút "Đã mang đi"** cho trọn gói. |
 | 2b | — | **Nếu nhà gia công tự lo giấy:** không làm gì. | Lệnh thôi đòi giấy: nhả giữ chỗ, kế hoạch vật tư bỏ nhu cầu giấy của lệnh. |
 | 3 | Kế hoạch | Hàng xong, tự kiểm ngoài phần mềm, bấm **Chốt** → gõ con số cuối + chọn nơi về. | Kế toán nhận thông báo "có lần gia công chờ chi". |
 | 4 | Kho → Giao hàng | **Nơi về = kho:** hệ tự lập **đề nghị nhập kho thành phẩm** (mã thành phẩm của dòng đơn) theo con số cuối, **không qua KCS**. Kho ghi sổ. Sau đó giao khách như đơn thường. | Số nhập này tính vào "giao được" của đơn như hàng xưởng làm. |
-| 5 | — | **Nơi về = khách** (nhà gia công giao thẳng): con số cuối = số khách nhận; ngày giao = giờ chốt. | Hệ ghi một yêu cầu giao + một lần giao *thành công* ghi rõ "nhà gia công giao thẳng", đứng tên người chốt ⇒ cộng vào **"đã giao"** của dòng đơn. Không kho, không xe, không phiếu xuất, không tính tiền km. Đơn vẫn hiện *giao đủ* để kế toán xuất hoá đơn. Chỉ cho khi dòng đơn của lệnh đứng riêng một cụm bán. |
-| 6 | Kế toán | Lập phiếu chi từ lần gia công. | Tiền điền sẵn, sửa được (vd trừ hàng lỗi). |
+| 5 | Kế hoạch | **Nơi về = khách** (nhà gia công giao thẳng): con số cuối = số khách nhận; gõ **Khách nhận ngày** (mặc định hôm nay, không được sau hôm nay) theo biên bản nhà gia công gửi về. | Hệ ghi một yêu cầu giao + một lần giao *thành công* ghi rõ "nhà gia công giao thẳng", đứng tên người chốt ⇒ cộng vào **"đã giao"** của dòng đơn. Ngày giao = ngày khách nhận (KHÔNG phải giờ bấm chốt); ngày hẹn = hạn trên đơn (`orders.delivery_committed_date`; đơn không khai hạn thì lấy chính ngày khách nhận — cột NOT NULL). Không kho, không xe, không phiếu xuất, không tính tiền km. Đơn vẫn hiện *giao đủ* để kế toán xuất hoá đơn. Chỉ cho khi dòng đơn của lệnh đứng riêng một cụm bán. |
+| 6 | Kế toán | Nhà gia công gửi về HAI tờ: **biên bản khách ký** → đính ở màn Giao hàng, dòng giao thẳng, tab Chứng từ; **hoá đơn tiền gia công** → lập phiếu chi từ lần gia công (thẻ "Gia công chờ chi") rồi đính vào phiếu. | Kế toán gõ số tiền theo hoá đơn nhà gia công (không đơn giá, không điền sẵn). Đính tệp ở Giao hàng dùng quyền Thao tác của module Giao hàng (không tách quyền riêng); vai Kế toán cần phạm vi Tất cả. |
 | 7 | — | Lần đã chốt ⇒ lệnh **xong**. | — |
+
+**Giao thẳng và kế toán (chốt 06/10/2026).** Theo chế độ kế toán (TT200 → TT99 từ 01/01/2026),
+sản phẩm làm xong không nhập kho mà chuyển giao thẳng cho người mua ghi Nợ 632 / Có 154 — kho thành
+phẩm không tăng không giảm, nên hệ KHÔNG lập phiếu nhập/xuất kho giả. Chứng từ kế toán cần là
+lần giao ghi đúng **ngày khách nhận** (thời điểm chuyển giao quyền sở hữu ⇒ kỳ của hoá đơn bán, giá
+vốn) kèm biên bản khách ký. Màn Giao hàng hiện dòng giao thẳng với hai mốc *Hẹn* (hạn đơn) và
+*Khách nhận* (kèm sớm/trễ); "Ghi nhận" vẫn là ai chốt, lúc nào. Dữ liệu cũ (mg `0373`): ngày hẹn sửa về hạn
+đơn; ngày giao giữ nguyên (không biết ngày thật — muốn đúng thì mở lại lần gia công rồi chốt lại).
+Hint ô quyền module Giao hàng ghi thêm: Thao tác gồm đính chứng từ giao hàng (biên bản khách ký).
 
 **Huỷ trọn gói:** trước khi chốt, kế hoạch bấm **Huỷ gia công trọn gói** (bắt lý do) → gói thu hồi,
 đề nghị xuất giấy chưa xuất huỷ theo, lệnh về *nháp*; muốn làm trong xưởng thì phát hành lại như lệnh

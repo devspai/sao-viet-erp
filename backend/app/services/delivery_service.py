@@ -264,6 +264,9 @@ class DeliveryService:
         db = self.deliveries.db
         cums = cum_ban(order)
         dat, da_giao, dang_giu = self._so_giao(order)
+        # Phần nhà gia công GIAO THẲNG cho khách: đã tới tay khách nhưng không qua KCS trên phần mềm,
+        # không qua kho ⇒ là hàng ĐÃ CÓ của cụm, và không được trừ vào phần kho đã nhận.
+        giao_thang = self.deliveries.giao_thang_theo_dong(order.id)
         lenh = self.deliveries.lenh_theo_dong_don(order.id)
 
         tp_cua_cum = {c.khoa: tim_theo_ten(db, c.ten) for c in cums}
@@ -289,7 +292,8 @@ class DeliveryService:
             if tp is None:
                 continue
             d = c.dong_dau.id
-            dung[tp.id] = dung.get(tp.id, 0.0) + da_giao.get(d, 0) + dang_giu.get(d, 0)
+            dung[tp.id] = (dung.get(tp.id, 0.0) + da_giao.get(d, 0) - giao_thang.get(d, 0)
+                           + dang_giu.get(d, 0))
             co_lenh_theo_tp[tp.id] = co_lenh_theo_tp.get(tp.id, False) or any(
                 lenh.get(od.id) for od in c.dong)
         con_kho: dict[int, float] = {}
@@ -316,6 +320,7 @@ class DeliveryService:
                 "lsx_ids": sorted({s for od in c.dong for s in lenh.get(od.id, [])}),
                 "dat": int(c.so_luong),
                 "da_giao": int(da_giao.get(d, 0)),
+                "giao_thang": int(giao_thang.get(d, 0)),
                 "dang_giu": int(dang_giu.get(d, 0)),
                 "con_phai_giao": int(con),
                 "kho_de_nghi": de_nghi.get(tp.id, 0.0) if tp is not None else 0.0,
@@ -334,14 +339,20 @@ class DeliveryService:
         da_giao = self.deliveries.da_giao_theo_dong(order_id)
         return all(int(da_giao.get(ln.id, 0)) >= int(ln.qty or 0) for ln in order.lines)
 
-    def trang_thai_yeu_cau(self, request) -> str:
-        """Trạng thái HIỂN THỊ của yêu cầu — hàm, không lưu (PRD §7 tầng 1)."""
+    def trang_thai_yeu_cau(self, request, *, trips: list | None = None,
+                           da_giao: dict[int, int] | None = None) -> str:
+        """Trạng thái HIỂN THỊ của yêu cầu — hàm, không lưu (PRD §7 tầng 1).
+
+        `trips` / `da_giao` truyền vào khi nơi gọi đã nạp sẵn (gom nhiều yêu cầu một lượt) — khỏi
+        hỏi DB lần nữa cho từng yêu cầu."""
         if request.trang_thai == YC_DA_HUY:
             return YC_DA_HUY
-        trips = self.deliveries.trips_cua_yeu_cau(request.id)
+        if trips is None:
+            trips = self.deliveries.trips_cua_yeu_cau(request.id)
         if not trips:
             return YC_CHO_LEN_KE_HOACH
-        da_giao = self.deliveries.da_giao_cua_yeu_cau(request.id)
+        if da_giao is None:
+            da_giao = self.deliveries.da_giao_cua_yeu_cau(request.id)
         if all(int(da_giao.get(ln.order_line_id, 0)) >= int(ln.qty) for ln in request.lines):
             return YC_DA_GIAO_DU
         if any(t.trang_thai in LAN_GIAO_DANG_CHAY for t in trips):

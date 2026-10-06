@@ -61,13 +61,13 @@ def test_ghi_tang_roi_doc_lai(client, seed_credentials):
 
     du_kien = client.get(f"/api/tai-san/{ts['id']}/du-kien", headers=h).json()
     assert du_kien[0]["muc_trich"] == 19516129
-    assert du_kien[0]["dien_giai"] == "Dùng từ 10/03: tháng đầu trích 22/31 ngày"
+    assert du_kien[0]["dien_giai"] == "Bắt đầu dùng 10/03: tháng đầu tính 22/31 ngày"
     assert du_kien[0]["su_kien"] == [{
-        "loai": "dau", "nhan": "Tháng đầu 22/31 ngày",
-        "chi_tiet": "Dùng từ 10/03: tháng đầu trích 22/31 ngày",
+        "loai": "dau", "nhan": "Tháng đầu, tính từ ngày 10",
+        "chi_tiet": "Bắt đầu dùng 10/03: tháng đầu tính 22/31 ngày",
     }]
     assert du_kien[1]["dien_giai"] is None and du_kien[1]["su_kien"] == []
-    assert du_kien[-1]["dien_giai"].startswith("Hết khấu hao")
+    assert du_kien[-1]["dien_giai"].startswith("Khấu hao hết")
     assert sum(d["muc_trich"] for d in du_kien) == 3300000000
 
 
@@ -81,6 +81,25 @@ def test_loc_va_phan_trang_o_may_chu(client, seed_credentials):
     r = client.get("/api/tai-san?loai=ccdc&limit=2&offset=0", headers=h).json()
     assert r["total"] == 3
     assert len(r["items"]) == 2
+
+
+def test_dai_so_dau_man_cong_ca_bo_loc_khong_chi_trang(client, seed_credentials):
+    """Tổng giá mua / còn lại cộng trên CẢ bộ lọc (trang 1 chỉ có 2 dòng mà tổng phải đủ 3); số
+    đếm theo loại bỏ qua bộ lọc loại để nhóm nút hiện đủ số của từng lựa chọn."""
+    h = _token(client, seed_credentials)
+    for i in range(3):
+        client.post("/api/tai-san", headers=h, json={
+            "ten": f"Tam cao su {i}", "loai": "ccdc", "so_luong": 12, "don_gia": 2400000,
+            "so_thang": 24, "ngay_su_dung": "2026-07-01", "nguon_vao": "ghi_tang",
+        })
+    _komori(client, h)
+
+    r = client.get("/api/tai-san?loai=ccdc&limit=2", headers=h).json()
+    assert len(r["items"]) == 2
+    assert r["tong_gia"] == 3 * 12 * 2400000
+    tat_ca = client.get("/api/tai-san?loai=ccdc&limit=200", headers=h).json()["items"]
+    assert r["tong_con_lai"] == sum(x["con_lai"] for x in tat_ca)
+    assert r["dem_loai"] == {"ccdc": 3, "tscd": 1}
 
 
 def test_nap_dau_ky_qua_api(client, seed_credentials):
@@ -112,7 +131,7 @@ def test_bang_khau_hao_thang_tinh_tai_cho(client, seed_credentials):
     assert bang["tong_muc_trich"] == 19516129
     assert bang["items"][0]["luy_ke"] == 19516129
     assert bang["items"][0]["so_luong"] == 1
-    assert bang["items"][0]["dien_giai"] == "Dùng từ 10/03: tháng đầu trích 22/31 ngày"
+    assert bang["items"][0]["dien_giai"] == "Bắt đầu dùng 10/03: tháng đầu tính 22/31 ngày"
     assert "trang_thai" not in bang                     # không còn kỳ mở/chốt
     assert client.get("/api/tai-san/thang/2026/2", headers=h).json()["items"] == []
     # hỏi lại vẫn thế — không có nút tính, không có gì để chốt
@@ -166,9 +185,9 @@ def test_sua_o_so_sau_khi_co_chung_tu_thi_409(client, seed_credentials):
     assert r.status_code == 201, r.text
     assert client.put(f"/api/tai-san/{ts['id']}", headers=h, json={"so_thang": 60}).status_code == 409
     assert client.put(f"/api/tai-san/{ts['id']}", headers=h, json={"ten": "Doi ten"}).status_code == 200
-    # xoá thì luôn được (ghi giảm đã bỏ — xoá là lối ra cho món không dùng nữa)
-    assert client.delete(f"/api/tai-san/{ts['id']}", headers=h).status_code == 204
-    assert client.get(f"/api/tai-san/{ts['id']}", headers=h).status_code == 404
+    # đã có lịch sử ⇒ không xoá được nữa (05/10/2026): món bán / hỏng đi bằng Thôi dùng
+    r = client.delete(f"/api/tai-san/{ts['id']}", headers=h)
+    assert r.status_code == 409 and "Thôi dùng" in r.json()["detail"]
 
 
 def test_route_thang_khong_bi_nuot_boi_route_id(client, seed_credentials):

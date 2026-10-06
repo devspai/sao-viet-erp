@@ -32,7 +32,7 @@ from ..models.quotation import (
 )
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT
 from ..repositories.audit_repo import AuditLogRepository
-from ..repositories.quotation_repo import QuotationRepository
+from ..repositories.quotation_repo import LocBaoGia, QuotationRepository
 from ..services import quotation_ports
 from ..services.exception_gate import (
     DECISIONS as _EXC_DECISIONS,
@@ -221,8 +221,15 @@ class QuotationService:
     )
 
     def chep_khach_tu_phieu(self, quote: Quote, ptg) -> None:
-        """Chép khách + điểm giao + người nhận + ghi chú (→ `internal_note`) từ phiếu sang báo giá."""
+        """Chép khách + điểm giao + người nhận + ghi chú (→ `internal_note`) từ phiếu sang báo giá.
+
+        NV phụ trách báo giá = người phụ trách KHÁCH (05/10/2026), không phải người bấm tạo: trợ lý
+        soạn hộ cho khách của Huyên thì báo giá đứng tên Huyên — đơn lên từ báo giá chép tên này,
+        hoa hồng chụp theo nó. Khách chưa gán ai thì giữ người soạn."""
+        from ..repositories.org_scope import chu_cua
+
         quote.customer_id = ptg.customer_id
+        quote.salesperson_id = chu_cua(self.quotations.db, ptg.customer_id, quote.salesperson_id)
         quote.customer_name_snapshot = self._customer_display_name(ptg.customer_id)
         quote.delivery_address = ptg.delivery_address
         quote.contact_name_snapshot = ptg.contact_name_snapshot
@@ -497,10 +504,11 @@ class QuotationService:
         page: int = 1,
         size: int = 20,
         nguoi: int | None = None,
+        loc: LocBaoGia | None = None,
     ):
         return self.quotations.list(
             scope=scope, actor=actor, q=q, status=status, sort=sort, page=page, size=size,
-            nguoi=nguoi,
+            nguoi=nguoi, loc=loc,
         )
 
     def get_quotation(self, *, quotation_id: int, scope: str, actor) -> Quote:
@@ -511,8 +519,20 @@ class QuotationService:
             raise QuotationForbidden("Bạn không có quyền xem báo giá này.")
         return quote
 
-    def stats(self, *, scope: str, actor, nguoi: int | None = None) -> dict:
-        return self.quotations.stats(scope=scope, actor=actor, nguoi=nguoi)
+    def stats(
+        self, *, scope: str, actor, nguoi: int | None = None, q: str | None = None,
+        loc: LocBaoGia | None = None,
+    ) -> dict:
+        return self.quotations.stats(scope=scope, actor=actor, nguoi=nguoi, q=q, loc=loc)
+
+    def dem_theo_khach(self, *, scope: str, actor) -> list[tuple[int, str, int]]:
+        return self.quotations.dem_theo_khach(scope=scope, actor=actor)
+
+    def dem_theo_nguoi_duyet(self, *, scope: str, actor) -> list[tuple[int, str, int]]:
+        return self.quotations.dem_theo_nguoi_duyet(scope=scope, actor=actor)
+
+    def tom_tat_duyet(self, rows: list[Quote]) -> dict[int, dict]:
+        return self.quotations.tom_tat_duyet(rows)
 
     def dem_theo_nguoi(self, *, scope: str, actor) -> dict[int, int]:
         return self.quotations.dem_theo_nguoi(scope=scope, actor=actor)

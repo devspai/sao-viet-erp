@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thu tiền phương án 3 bản 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07; --charcoal:#0f172a;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss-soft:#dbe7dd; --moss-deep:#244a2e; --amber-soft:#efe4c4; --amber-deep:#7a5c0f;
+  --signal:#8a1f1f; --signal-soft:#efd5d5;
+  --in:"Times New Roman",Times,serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1000px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 18px;max-width:840px}
+.lead ol{margin:6px 0 0;padding-left:20px}
+.lead li{margin:3px 0}
+.lead b{color:var(--ink)}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:20px}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--ash);padding:6px 14px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+
+.stage{position:relative;background:rgba(15,23,42,.28);border-radius:14px;padding-left:28px;overflow:hidden}
+.stage::before{content:"";position:absolute;left:0;top:0;bottom:0;width:28px;background:#dfe4ea}
+.ngan{position:relative;background:var(--canvas);height:900px;display:flex;flex-direction:column;box-shadow:-10px 0 30px rgba(15,23,42,.18)}
+.nd{padding:14px 24px 14px;border-bottom:1px solid var(--rule-soft)}
+.nd1{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ash-2);min-height:28px}
+.nd1 .x{margin-left:auto;width:30px;height:30px;display:grid;place-items:center;border-radius:8px;color:var(--ash-2);cursor:pointer}
+.nd1 .x:hover{background:var(--rule-hair)}
+.nt h3{margin:2px 0 0;font-size:20px;font-weight:700}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);font-size:12px;color:var(--ash);font-weight:500;white-space:nowrap}
+.tag b{color:var(--ink);font-weight:600}
+.tag--do{background:var(--signal-soft);color:var(--signal)}
+.tag--do b{color:var(--signal)}
+.tag--moss{background:var(--moss-soft);color:var(--moss-deep)}
+.nb{flex:1;overflow:auto}
+.nf{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--rule-soft);background:var(--canvas)}
+.nf .cau{margin-right:auto;font-size:13px;color:var(--ash)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 16px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn:focus-visible,.in:focus-visible,.seg button:focus-visible,.goiy button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash)}
+.btn--sm{height:30px;padding:0 10px;font-size:12.5px}
+.lk{background:none;border:0;padding:0;font:inherit;color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+.in{width:100%;height:40px;border:1px solid var(--rule);border-radius:8px;padding:0 12px;background:var(--canvas)}
+.in:hover{border-color:var(--ash-3)}
+.in:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px var(--rule-hair)}
+.in::placeholder{color:var(--ash-3)}
+select.in{appearance:none;background:var(--canvas) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E") no-repeat right 12px center;padding-right:32px}
+textarea.in{height:64px;padding:9px 12px;resize:vertical}
+.lb{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px}
+.lb small{font-weight:400;color:var(--ash-2);font-size:12px}
+.goi{font-size:12px;color:var(--ash-2);margin-top:5px}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--rule);border-radius:8px;padding:3px;gap:3px;background:var(--paper);height:40px}
+.seg button{border:1px solid transparent;border-radius:6px;background:transparent;font:inherit;font-size:13px;font-weight:500;color:var(--ash);cursor:pointer}
+.seg button.on{background:var(--canvas);border-color:var(--rule);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.06)}
+.an{display:none!important}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- thân ---------- */
+.p3{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:28px;padding:20px 24px 28px}
+.trai{display:grid;gap:22px;align-content:start;min-width:0}
+.khoi h4{margin:0 0 10px;font-size:13px;font-weight:600}
+.luoi{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.full{grid-column:1 / -1}
+
+/* đối chiếu hoá đơn: hàng số, không đóng hộp từng ô */
+.dc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft)}
+.dc>div{padding:10px 12px 10px 0}
+.dc>div+div{padding-left:12px}
+.dc span{display:block;font-size:12px;color:var(--ash-2)}
+.dc b{display:block;font-size:15px;font-weight:600;margin-top:1px}
+.dc .chot b{font-size:17px;font-weight:700}
+.dc .lk{font-size:12px}
+.lt{margin-top:10px;border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden}
+.lt table{width:100%;border-collapse:collapse;font-size:12.5px}
+.lt th{font-size:12px;font-weight:500;color:var(--ash-2);text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule-soft);background:var(--paper)}
+.lt td{padding:8px 10px;border-bottom:1px solid var(--rule-hair)}
+.lt tr:last-child td{border-bottom:0}
+.lt .r{text-align:right}
+.khac{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:10px;font-size:13px;color:var(--ash)}
+.khac b{color:var(--ink)}
+
+.so3{position:relative}
+.so3 input{height:56px;font-size:26px;font-weight:700;letter-spacing:-.01em;padding-right:40px}
+.so3::after{content:"đ";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:17px;font-weight:600;color:var(--ash-2)}
+.so3.loi input{border-color:var(--signal)}
+.so3-duoi{display:flex;justify-content:space-between;gap:12px;margin-top:6px;font-size:12.5px;color:var(--ash)}
+.so3-duoi .nut{display:flex;gap:12px;flex:none}
+.sau{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px;padding:10px 12px;background:var(--paper);border-radius:8px}
+.sau span{display:block;font-size:12px;color:var(--ash-2)}
+.sau b{display:block;font-size:13.5px;font-weight:600}
+.sau .tu{font-weight:400;color:var(--ash-3);text-decoration:line-through;margin-right:6px}
+.canh{margin-top:8px;font-size:12.5px;color:var(--signal)}
+
+.goiy{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.goiy button{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--rule-soft);background:var(--canvas);font:inherit;font-size:12.5px;color:var(--ash);cursor:pointer}
+.goiy button:hover{background:var(--rule-hair);color:var(--ink)}
+.goiy button.on{border-color:var(--ink);color:var(--ink);font-weight:600}
+.goiy small{font-size:11.5px;color:var(--ash-2);font-weight:400}
+
+.tha{display:flex;align-items:center;gap:12px;border:1px solid var(--rule-soft);background:var(--paper);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--ash)}
+.tha .ic{width:34px;height:34px;border-radius:8px;background:var(--canvas);border:1px solid var(--rule-soft);display:grid;place-items:center;color:var(--ash-2);flex:none}
+.tha .btn{margin-left:auto}
+.tha small{display:block;color:var(--ash-2)}
+
+/* tờ phiếu */
+.phai{position:sticky;top:0;align-self:start}
+.to{background:#fff;font-family:var(--in);color:#111827;border:1px solid var(--rule-soft);box-shadow:0 1px 2px rgba(15,23,42,.08),0 10px 30px rgba(15,23,42,.10);padding:20px 20px 18px;font-size:11.5px;line-height:1.45;aspect-ratio:148/210;display:flex;flex-direction:column}
+.to__dau{display:flex;justify-content:space-between;gap:12px;font-size:10px}
+.to__dau b{display:block}
+.to__mau{text-align:right}
+.to h4{font-family:var(--in);text-align:center;font-weight:700;letter-spacing:.04em;margin:12px 0 0;font-size:17px}
+.to__ngay{text-align:center;font-style:italic;font-size:11px}
+.to__so{text-align:center;font-size:10.5px;margin-bottom:10px}
+.dg{padding:3px 0;border-bottom:1px dotted #cbd5e1}
+.dg b{font-weight:700}
+.dg em{font-style:italic}
+.to__ky{display:grid;grid-template-columns:repeat(5,1fr);text-align:center;font-weight:700;font-size:9.5px;gap:2px;margin-top:14px}
+.to__ky span i{display:block;font-weight:400;margin-top:26px;font-style:normal}
+.cap{font-size:12px;color:var(--ash-2);margin-top:10px;text-align:center}
+.phai .ghi{margin-top:16px;font-size:12.5px;color:var(--ash);display:grid;gap:6px}
+.phai .ghi div{display:flex;justify-content:space-between;gap:10px}
+.phai .ghi b{color:var(--ink);font-weight:500;text-align:right}
+
+@media (max-width:780px){
+  .stage{padding-left:0}.stage::before{display:none}
+  .ngan{height:auto}
+  .p3{grid-template-columns:1fr}.phai{position:static}
+  .luoi{grid-template-columns:1fr}
+  .dc{grid-template-columns:1fr 1fr}.dc>div{padding-left:0!important}
+  .sau{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Thu tiền ở ngăn chồng, phương án 3 bản 2</h1>
+  <div class="lead">
+    Bản 1 chỉ có các ô để gõ, thiếu những thứ kế toán cần nhìn khi thu tiền. Bản này thêm:
+    <ol>
+      <li><b>Đối chiếu hoá đơn</b>: giá trị, trừ cọc, đã thu, còn phải thu. Thấy ngay vì sao còn phải thu đúng số đó.</li>
+      <li><b>Các lần thu trước</b> của hoá đơn này: mã phiếu, ngày, hình thức, người lập. Tránh lập trùng phiếu.</li>
+      <li><b>Sau phiếu này</b>: hoá đơn còn nợ, khách còn nợ, hạn mức còn được nợ. Đổi theo từng phím gõ, thu quá số còn nợ thì báo đỏ.</li>
+      <li><b>Hoá đơn khác của khách còn nợ</b>, để tiện hỏi khách trả luôn.</li>
+      <li><b>Người nộp tiền</b> gợi ý từ tên khách và danh bạ liên hệ của khách (người chính có số điện thoại).</li>
+      <li>Tờ phiếu ghi số phiếu sẽ cấp, nguồn thu, tên người lập lấy từ tài khoản đang đăng nhập.</li>
+    </ol>
+    Ca "Hoá đơn thật" là đúng số trên DB dev (chưa thu đồng nào). Ca "Đã thu một phần" là số minh hoạ để thấy đủ các khối khi có dữ liệu.
+  </div>
+
+  <div class="switch">
+    <button class="on" data-ca="that">Hoá đơn thật</button>
+    <button data-ca="mot-phan">Đã thu một phần (minh hoạ)</button>
+  </div>
+
+  <div class="stage"><div class="ngan">
+    <div class="nd">
+      <div class="nd1">Cao Lợi Hưng <span>›</span> Hoá đơn 123<span class="x" title="Đóng (Esc)">✕</span></div>
+      <div class="nt"><h3>Thu tiền hoá đơn 123</h3></div>
+      <div class="meta">
+        <span class="tag">Ngày hoá đơn <b>06/10/2026</b></span>
+        <span class="tag">Ký hiệu <b>123</b></span>
+        <span class="tag">Đơn <b><button class="lk">DH001</button></b></span>
+        <span class="tag" id="tagHan">Hạn thu <b>05/11/2026</b> còn 30 ngày</span>
+      </div>
+    </div>
+
+    <div class="nb"><div class="p3">
+      <div class="trai">
+
+        <section class="khoi">
+          <h4>Hoá đơn này</h4>
+          <div class="dc num">
+            <div><span>Giá trị hoá đơn</span><b>8.460.973</b></div>
+            <div><span>Trừ cọc</span><b id="dcCoc">0</b></div>
+            <div><span>Đã thu</span><b id="dcThu">0</b></div>
+            <div class="chot"><span>Còn phải thu</span><b id="dcCon">8.460.973</b></div>
+          </div>
+          <div class="lt an" id="lt">
+            <table class="num">
+              <thead><tr><th>Phiếu thu</th><th>Ngày thu</th><th>Hình thức</th><th>Người lập</th><th class="r">Số tiền</th></tr></thead>
+              <tbody><tr><td><button class="lk">PT-261001-K7QZ</button></td><td>01/10/2026</td><td>Chuyển khoản MB</td><td>Admin</td><td class="r">3.000.000</td></tr></tbody>
+            </table>
+          </div>
+          <div class="khac" id="khac">Khách không còn hoá đơn nào khác chưa thu.</div>
+        </section>
+
+        <section class="khoi">
+          <h4>Tiền thu</h4>
+          <div class="luoi">
+            <div class="full">
+              <label class="lb" for="tien">Số tiền thu</label>
+              <div class="so3" id="so3"><input class="in num" id="tien" value="8.460.973" inputmode="numeric"></div>
+              <div class="so3-duoi"><i id="chu"></i><span class="nut"><button class="lk" id="thuDu">Thu đủ</button></span></div>
+              <div class="canh an" id="canh"></div>
+              <div class="sau num">
+                <div><span>Hoá đơn còn nợ</span><b id="sauHd"></b></div>
+                <div><span>Khách còn nợ</span><b id="sauKh"></b></div>
+                <div><span>Hạn mức còn được nợ</span><b id="sauHm"></b></div>
+              </div>
+            </div>
+            <div><label class="lb">Ngày thu</label><input class="in" type="date" id="ngay" value="2026-10-06" min="2026-10-06" max="2026-10-06"><div class="goi">Từ ngày hoá đơn 06/10/2026 tới hôm nay</div></div>
+            <div><label class="lb">Nhận bằng</label><div class="seg" id="cach"><button class="on" data-v="cash">Tiền mặt</button><button data-v="bank">Chuyển khoản</button></div></div>
+            <div class="full an ck"><label class="lb">Tài khoản nhận</label>
+              <select class="in" id="tk"><option value="933134668 tại Ngân hàng TMCP Quân đội">933134668 tại Ngân hàng TMCP Quân đội, CN Thuận An</option><option value="0281000123456 tại Vietcombank">0281000123456 tại Vietcombank</option></select>
+              <div class="goi">Chủ tài khoản CÔNG TY CỔ PHẦN IN SAO VIỆT NHẬT</div></div>
+            <div class="full an ck"><label class="lb">Mã giao dịch</label><input class="in" id="maGd" placeholder="Mã trên sao kê hoặc tin nhắn báo có"><div class="goi">In lên phiếu, dùng để đối chiếu sao kê</div></div>
+          </div>
+        </section>
+
+        <section class="khoi">
+          <h4>Người nộp</h4>
+          <div class="luoi">
+            <div class="full"><label class="lb">Người nộp tiền</label><input class="in" id="nguoi" value="CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM">
+              <div class="goiy" id="goiy">
+                <button class="on" data-ten="CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM">Tên khách</button>
+                <button data-ten="Nguyễn Thanh Vy">Nguyễn Thanh Vy <small>liên hệ chính 0797 235 637</small></button>
+                <button data-ten="Đỗ Quốc Bảo">Đỗ Quốc Bảo</button>
+                <button data-ten="Huỳnh Hoài Hằng">Huỳnh Hoài Hằng</button>
+              </div></div>
+            <div class="full"><label class="lb">Lý do nộp</label><input class="in" id="lydo" value="Thu hóa đơn 123 của đơn DH001"></div>
+            <div class="full"><label class="lb">Địa chỉ người nộp <small>không bắt buộc</small></label><input class="in" id="diachi" placeholder="In lên phiếu nếu có"></div>
+          </div>
+        </section>
+
+        <section class="khoi">
+          <h4>Chứng từ</h4>
+          <div class="luoi">
+            <div class="full tha"><span class="ic">▤</span><span>Ảnh chứng từ gốc<small>Biên nhận, ảnh chụp sao kê. Số ảnh in thành "Kèm theo" trên phiếu</small></span><button class="btn btn--sm" id="themAnh">Chọn ảnh</button></div>
+            <div class="full"><label class="lb">Ghi chú nội bộ <small>không in lên phiếu</small></label><textarea class="in" placeholder="VD: Khách hẹn chuyển nốt phần còn lại tuần sau"></textarea></div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="phai">
+        <div class="to">
+          <div class="to__dau"><div><b>CÔNG TY CỔ PHẦN IN SAO VIỆT NHẬT</b>1/473 KP Hòa Lân 2, P. Thuận Giao, TP. HCM</div><div class="to__mau"><b>Mẫu số 01 - TT</b><i>(TT 200/2014/TT-BTC)</i></div></div>
+          <h4>PHIẾU THU</h4>
+          <div class="to__ngay" id="xNgay">Ngày 6 tháng 10 năm 2026</div>
+          <div class="to__so">Số: PT-261006-<i>tự cấp</i></div>
+          <div class="dg">Họ và tên người nộp tiền: <b id="xNguoi"></b></div>
+          <div class="dg an" id="xDcW">Địa chỉ: <b id="xDc"></b></div>
+          <div class="dg">Lý do nộp: <b id="xLydo"></b></div>
+          <div class="dg">Nguồn thu: <b>Thu hoá đơn 123</b></div>
+          <div class="dg">Hình thức: <b id="xCach">Tiền mặt</b></div>
+          <div class="dg an ck">Tài khoản nhận: <b id="xTk"></b></div>
+          <div class="dg an ck" id="xGdW">Mã giao dịch: <b id="xGd"></b></div>
+          <div class="dg">Số tiền: <b id="xSo"></b></div>
+          <div class="dg">Viết bằng chữ: <em id="xChu"></em></div>
+          <div class="dg">Kèm theo: <b><span id="xKem">0</span> chứng từ gốc</b></div>
+          <div class="to__ky"><span>Giám đốc</span><span>Kế toán trưởng</span><span>Người nộp tiền<i id="xKyNguoi"></i></span><span>Người lập phiếu<i>Admin</i></span><span>Thủ quỹ</span></div>
+        </div>
+        <div class="cap">Bản in đổi theo từng phím gõ</div>
+      </aside>
+    </div></div>
+
+    <div class="nf"><span class="cau">Lập xong không sửa được, chỉ hủy được.</span><button class="btn btn--txt">Đóng</button><button class="btn btn--pri" id="lap">Lập phiếu thu</button></div>
+  </div></div>
+</div>
+
+<script>
+var CA={
+  that:{coc:0,thu:0,con:8460973,khachNo:8460973,hanMuc:100000000,lt:false,
+    khac:'Khách không còn hoá đơn nào khác chưa thu.',han:'Hạn thu <b>05/11/2026</b> còn 30 ngày',hanDo:false},
+  "mot-phan":{coc:2000000,thu:3000000,con:3460973,khachNo:8660973,hanMuc:100000000,lt:true,
+    khac:'Khách còn nợ hoá đơn khác: <span class="tag tag--do">HĐ 118 <b>5.200.000</b> trễ 8 ngày</span><button class="lk">Mở ở ngăn khách</button>',
+    han:'Hạn thu <b>05/11/2026</b> còn 30 ngày',hanDo:false}
+};
+var ca=CA.that;
+var CS=["không","một","hai","ba","bốn","năm","sáu","bảy","tám","chín"];
+function ba(n,du){var t=Math.floor(n/100),c=Math.floor(n%100/10),d=n%10,r=[];
+  if(t>0||du)r.push(CS[t]+" trăm");
+  if(c>1){r.push(CS[c]+" mươi");if(d===1)r.push("mốt");else if(d===5)r.push("lăm");else if(d>0)r.push(CS[d]);}
+  else if(c===1){r.push("mười");if(d===5)r.push("lăm");else if(d>0)r.push(CS[d]);}
+  else if(d>0){if(t>0||du)r.push("linh");r.push(CS[d]);}
+  return r.join(" ");}
+function bangChu(n){if(!n)return"";var don=["","nghìn","triệu","tỷ"],g=[],r=[];while(n>0){g.push(n%1000);n=Math.floor(n/1000);}
+  for(var i=g.length-1;i>=0;i--){if(g[i]===0)continue;r.push(ba(g[i],i<g.length-1)+(don[i]?" "+don[i]:""));}
+  var s=r.join(" ")+" đồng";return s.charAt(0).toUpperCase()+s.slice(1)+".";}
+function so(v){return parseInt(String(v).replace(/\D/g,""),10)||0;}
+function dd(n){return n.toLocaleString("vi-VN");}
+var $=function(id){return document.getElementById(id);};
+
+function tinh(){
+  var n=so($("tien").value);
+  $("chu").textContent=n?bangChu(n):"Nhập số tiền khách nộp";
+  $("xSo").textContent=n?dd(n)+" đồng":"";
+  $("xChu").textContent=bangChu(n);
+  var vuot=n>ca.con;
+  $("so3").classList.toggle("loi",vuot);
+  $("canh").classList.toggle("an",!vuot);
+  if(vuot)$("canh").textContent="Thu quá số còn phải thu "+dd(n-ca.con)+" đ. Phiếu thu một hoá đơn không được vượt số còn nợ.";
+  var con=Math.max(0,ca.con-n), kh=Math.max(0,ca.khachNo-Math.min(n,ca.con));
+  $("sauHd").innerHTML='<span class="tu">'+dd(ca.con)+'</span>'+dd(con)+' đ';
+  $("sauKh").innerHTML='<span class="tu">'+dd(ca.khachNo)+'</span>'+dd(kh)+' đ';
+  $("sauHm").textContent=dd(Math.max(0,ca.hanMuc-kh))+" đ";
+  $("lap").disabled=!n||vuot;$("lap").style.opacity=(!n||vuot)?.5:1;
+}
+function ban(){
+  $("xNguoi").textContent=$("nguoi").value.trim();
+  $("xKyNguoi").textContent=$("nguoi").value.trim().length<=22?$("nguoi").value.trim():"";
+  $("xLydo").textContent=$("lydo").value.trim();
+  var dc=$("diachi").value.trim();$("xDc").textContent=dc;$("xDcW").classList.toggle("an",!dc);
+  var d=$("ngay").value.split("-");if(d.length===3)$("xNgay").textContent="Ngày "+(+d[2])+" tháng "+(+d[1])+" năm "+d[0];
+  $("xTk").textContent=$("tk").value;
+  var gd=$("maGd").value.trim();$("xGd").textContent=gd;
+  document.querySelectorAll("#goiy button").forEach(function(b){b.classList.toggle("on",b.dataset.ten===$("nguoi").value.trim());});
+}
+function datCa(k){
+  ca=CA[k];
+  $("dcCoc").textContent=dd(ca.coc);$("dcThu").textContent=dd(ca.thu);$("dcCon").textContent=dd(ca.con);
+  $("lt").classList.toggle("an",!ca.lt);
+  $("khac").innerHTML=ca.khac;$("tagHan").innerHTML=ca.han;
+  $("tien").value=dd(ca.con);tinh();
+}
+$("tien").addEventListener("input",function(){var n=so(this.value);this.value=n?dd(n):"";tinh();});
+$("thuDu").addEventListener("click",function(){$("tien").value=dd(ca.con);tinh();});
+document.querySelectorAll("#cach button").forEach(function(b){b.addEventListener("click",function(){
+  document.querySelectorAll("#cach button").forEach(function(x){x.classList.toggle("on",x===b);});
+  var bank=b.dataset.v==="bank";document.querySelectorAll(".ck").forEach(function(e){e.classList.toggle("an",!bank);});
+  $("xCach").textContent=bank?"Chuyển khoản":"Tiền mặt";ban();});});
+document.querySelectorAll("#goiy button").forEach(function(b){b.addEventListener("click",function(){$("nguoi").value=b.dataset.ten;ban();});});
+["nguoi","lydo","diachi","ngay","tk","maGd"].forEach(function(id){$(id).addEventListener("input",ban);$(id).addEventListener("change",ban);});
+$("themAnh").addEventListener("click",function(){$("xKem").textContent=so($("xKem").textContent)+1;});
+document.querySelectorAll(".switch button").forEach(function(b){b.addEventListener("click",function(){
+  document.querySelectorAll(".switch button").forEach(function(x){x.classList.toggle("on",x===b);});datCa(b.dataset.ca);});});
+datCa("that");ban();
+</script>
+</body>
+</html>

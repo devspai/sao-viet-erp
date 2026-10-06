@@ -7,9 +7,10 @@ Real-time: gửi/hủy → broadcast cho người duyệt; quyết định → �
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from ..deps import (
     get_current_user,
@@ -28,6 +29,8 @@ from ..realtime import hub
 from ..repositories.attendance_repo import AttendanceRepository
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.leave_repo import LeaveRepository
+from ..repositories.loc_don_nhan_su import LocDon
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.late_early import (
     LateEarlyBulkIn,
     LateEarlyBulkRejectIn,
@@ -46,6 +49,7 @@ from ..schemas.late_early import (
 )
 from ..services.thong_bao_man import bao
 from ..services.late_early_service import (
+    KIEU_VANG,
     LateEarlyError,
     LateEarlyForbidden,
     LateEarlyNotFound,
@@ -289,10 +293,32 @@ def list_requests(svc: Service, employees: Employees, leaves: Leaves, authz: Aut
                   # không, tôi chỉ thấy Duyệt phiếu đi muộn/về sớm là dùng được thôi"*).
                   # Ai chỉ xem phiếu CỦA MÌNH thì đi bằng `/me` (ô Tự phục vụ), không qua đây.
                   user: Annotated[User, Depends(require_permission(MODULE_CHAM_CONG, "approve_late_early"))],
-                  status_filter: str | None = None):
+                  status_filter: str | None = None,
+                  # Kỳ: `tao` = ngày tạo phiếu (mặc định), `ngay_cong` = ngày công vắng mặt.
+                  tu_ngay: date | None = Query(default=None),
+                  den_ngay: date | None = Query(default=None),
+                  moc: str = Query(default="tao", pattern="^(tao|ngay_cong)$"),
+                  employee_id: int | None = Query(default=None),
+                  phong: int | None = Query(default=None),
+                  kieu: list[str] = Query(default=[]),
+                  page: int = Query(default=1, ge=1),
+                  size: int = Query(default=50, ge=1, le=200)):
     scope = authz.scope_for(user, MODULE_CHAM_CONG) or "own"
-    reqs = svc.list_requests(scope=scope, actor=user, status=status_filter)
-    return LateEarlyRequestsOut(items=_resolve(employees, leaves, reqs))
+    loc = LocDon(tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, employee_id=employee_id, phong=phong,
+                 kieu=[k for k in kieu if k in KIEU_VANG])
+    reqs, total, dem = svc.list_requests(scope=scope, actor=user, status=status_filter, loc=loc,
+                                         page=page, size=size)
+    return LateEarlyRequestsOut(items=_resolve(employees, leaves, reqs), total=total, page=page,
+                                size=size, dem_theo_tab=dem)
+
+
+@router.get("/loc/{truong}", response_model=list[LuaChonLoc])
+def loc_lua_chon(truong: Annotated[str, Path(pattern="^(nhan_vien|phong)$")], svc: Service,
+                 authz: Authz,
+                 user: Annotated[User, Depends(require_permission(MODULE_CHAM_CONG, "approve_late_early"))]):
+    """Giá trị của điều kiện Nhân viên / Phòng ban — chỉ người có phiếu trong phạm vi, kèm số phiếu."""
+    scope = authz.scope_for(user, MODULE_CHAM_CONG) or "own"
+    return [LuaChonLoc(**x) for x in svc.lua_chon(truong, scope=scope, actor=user)]
 
 
 @router.post("/bulk-approve", response_model=LateEarlyBulkResultOut)

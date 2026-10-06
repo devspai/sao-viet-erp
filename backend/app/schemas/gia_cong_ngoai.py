@@ -1,7 +1,7 @@
 """Body / response của `/api/gia-cong-ngoai` — spec 2026-09-26."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,8 @@ class ChotIn(BaseModel):
     sl_cuoi: float = Field(gt=0)
     noi_ve: str = Field(pattern="^(xuong|kho|khach)$")
     dich_cong_viec_id: int | None = None
+    # Giao thẳng: ngày khách nhận theo biên bản nhà gia công gửi về — trống = hôm nay.
+    ngay_khach_nhan: date | None = None
 
 
 class MoLaiIn(BaseModel):
@@ -25,7 +27,6 @@ class MoLaiIn(BaseModel):
 class TronGoiIn(BaseModel):
     nha_cung_cap_id: int = Field(gt=0)
     sl_dat: float = Field(gt=0)
-    don_gia: float | None = Field(default=None, ge=0)
     xuong_cap_giay: bool = False
 
 
@@ -35,13 +36,46 @@ class HuyTronGoiIn(BaseModel):
 
 
 class XuatGiayIn(BaseModel):
+    """Khổ + số tờ người kế hoạch chọn. Mã giấy KHÔNG nhận từ client — máy chủ đọc theo lệnh."""
     version: int
+    kho_rong: int = Field(gt=0)
+    kho_dai: int = Field(gt=0)
+    so_to: float = Field(gt=0)
 
 
 class XuatGiayOut(BaseModel):
     id: int
     ma: str
     trang_thai: str
+    kho_rong: int = 0
+    kho_dai: int = 0
+    so_to: float | None = None
+    don_vi: str | None = None
+
+
+class CapGiayKhoOut(BaseModel):
+    kho_rong: int
+    kho_dai: int
+    ton: float
+    dung_de_xuat: bool
+
+
+class CapGiayDeXuatOut(BaseModel):
+    kho_rong: int
+    kho_dai: int
+    so_to: float | None = None
+
+
+class CapGiayOut(BaseModel):
+    """Phần "Chọn giấy" của lần trọn gói xưởng cấp giấy chưa đề nghị xuất (C1)."""
+    giay_id: int | None = None
+    giay_ma: str | None = None
+    giay_ten: str | None = None
+    don_vi: str
+    nguon: str
+    de_xuat: CapGiayDeXuatOut | None = None
+    kho: list[CapGiayKhoOut] = []
+    ly_do: str | None = None
 
 
 class NhaGiaCongOut(BaseModel):
@@ -99,10 +133,13 @@ class GiaCongNgoaiOut(BaseModel):
     trang_thai: str
     nha_cung_cap_id: int
     nha_cung_cap_ten: str
+    # Đọc sống từ danh mục NCC (lần chỉ chép tên) — gọi nhà gia công ngay trên khối.
+    nha_cung_cap_sdt: str | None = None
+    # Mốc giao việc: trọn gói = lúc đặt, một phần = lúc phát hành gom ra lần.
+    tao_boi_ten: str | None = None
+    tao_luc: datetime | None = None
     ten_viec: str
     don_vi: str | None = None
-    don_gia: float | None = None          # None khi không có quyền xem tiền
-    thanh_tien: float | None = None
     sl_dat: float | None = None
     xuong_cap_giay: bool = False
     don_vi_gui: str | None = None
@@ -126,4 +163,5 @@ class GiaCongNgoaiOut(BaseModel):
     ly_do_khong_mo_lai: str | None = None
     lich_su: list[LichSuOut] = []
     xuat_giay: XuatGiayOut | None = None
+    cap_giay: CapGiayOut | None = None
     version: int

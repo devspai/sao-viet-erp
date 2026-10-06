@@ -39,8 +39,7 @@ class MayThietBiRepository(CatalogRepo):
         """
         return [int(i) for i in self.db.execute(select(MayThietBi.id)).scalars()]
 
-    def dem_theo_loai(self, *, q: str | None = None,
-                      active: bool | None = None) -> dict[str, int]:
+    def dem_theo_loai(self, **kw) -> dict[str, int]:
         """Số máy của TỪNG loại — số hiện trên tab lọc của màn Thiết bị.
 
         Cố ý KHÔNG áp điều kiện `loai_may`: tab nào cũng phải khoe số của nó, kể cả tab đang
@@ -51,11 +50,10 @@ class MayThietBiRepository(CatalogRepo):
         dùng thì bảng một đằng, số trên tab một nẻo — y như `khuon_be_repo.dem_theo_tinh_trang`.
         """
         stmt = select(MayThietBi.loai_may, func.count()).group_by(MayThietBi.loai_may)
-        loc = self._loc_q(q)
-        if loc is not None:
-            stmt = stmt.where(loc)
-        if active is not None:
-            stmt = stmt.where(MayThietBi.active.is_(active))
+        # 06/10/2026: áp ĐỦ bộ lọc của màn (ô tìm, đang dùng, kỳ Ngày tạo…) — trừ `loai_may`, nơi
+        # gọi đã bỏ ra.
+        for c in self._dieu_kien(**kw):
+            stmt = stmt.where(c)
         # Máy CHƯA khai loại gom vào khoá rỗng "" thay vì bị loại: màn cộng các số này ra tổng
         # cho tab "Tất cả", bỏ nhóm khuyết đi là tab đó hụt số mà không ai biết vì sao.
         return {(str(loai).strip() if loai is not None else ""): int(n)

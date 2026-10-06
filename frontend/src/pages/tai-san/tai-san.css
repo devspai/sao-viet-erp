@@ -1,334 +1,1054 @@
-/* Tài sản & CCDC — chỉ phần RIÊNG của màn này.
-   Khung (head · toolbar · tab · bảng · drawer · ô nhập) tái dùng nguyên `rebuild-catalog.css`.
-   Ở đây chỉ khai những khối bên đó không có: cột tiền, bảng dòng chi phí, bảng dự kiến, băng
-   chip sự kiện, ngăn xem chi tiết. */
+/* Tài sản & Công cụ dụng cụ — chỉ phần RIÊNG của màn này.
+   Làm lại 05/10/2026 theo `docs/superpowers/specs/2026-10-05-tai-san-ui-ux-tung-man.md` (bản
+   xem: `docs/mockups/tai-san-ui-ux-tung-man.html`). Khung trang (head, tab) và ô nhập (`rc-input`,
+   `rc-field`) tái dùng `rebuild-catalog.css`; ngăn kéo dùng khung `rc-drawer` rồi chỉnh ở đây.
+   Luật token: cỡ chữ chỉ dùng thang `--fs-*`, không nửa pixel, không hex trần, không viền một
+   cạnh, hover = `--rule-hair`, đang chọn = viền/nền charcoal, cam rust chỉ cho nút hành động. */
 
 .ts { max-width: var(--page-max-w); }
 
-/* --- Thanh công cụ ----------------------------------------------------------
-   `.rc__unified-bar` dựng cho màn Kỹ thuật máy (một ô tìm + một nút). Ở đây có thêm BA ô lọc,
-   mà `.rc__search-wrapper` khai `width: 260px` KHÔNG kèm `flex: none` ⇒ flex bóp nó còn 57px:
-   ô tìm hiện ra như một mẩu trống không đọc được placeholder. Khai đè trong phạm vi `.ts` thôi —
-   sửa ở file chung là hai màn kia đổi theo mà không ai kiểm. */
-.ts .rc__unified-bar { flex-wrap: wrap; }
-.ts .rc__unified-right { flex-wrap: wrap; gap: var(--sp-2, 8px); }
-.ts .rc__search-wrapper { flex: 0 0 260px; }
-/* `.rc-input` là `width: 100%` — dùng làm ô lọc trên thanh ngang thì phải tự co theo nội dung. */
-.ts .rc__unified-right .rc-input { width: auto; min-width: 148px; }
-.ts .ts-kybar .rc-input { width: auto; min-width: 240px; }
+/* --- Số tiền ------------------------------------------------------------------ */
+.ts-num { text-align: right; white-space: nowrap; }
+.ts-num--manh { font-weight: var(--fw-bold); color: var(--ink); }
+/* Giá trị rỗng / đã hết — có mặt nhưng lùi về sau. */
+.ts-mo { color: var(--ash-2); }
 
-/* --- Cột tiền ---------------------------------------------------------------
-   Số tiền phải canh PHẢI và dùng chữ số đều bề ngang, không thì mắt không so được hai dòng
-   3.300.000.000 và 333.750.000 nằm cạnh nhau. */
-.ts-num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+/* --- Nút chỉ có biểu tượng (đóng, lên/xuống, lùi/tới tháng) ---------------------- */
+.ts-nut-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-3);
+  background: none;
+  color: var(--ash);
+  cursor: pointer;
+}
+.ts-nut-icon:hover:not(:disabled) { background: var(--rule-hair); color: var(--ink); }
+.ts-nut-icon:disabled { opacity: 0.35; cursor: default; }
+.ts-nut-icon:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+/* Icon `chevron` vẽ mũi chỉ XUỐNG — xoay để có lên / trái / phải. */
+.ts-xoay-len { transform: rotate(180deg); }
+.ts-xoay-trai { transform: rotate(90deg); }
+.ts-xoay-phai { transform: rotate(-90deg); }
+
+.ts-lienket {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
   white-space: nowrap;
 }
-.ts-num--manh { font-weight: var(--fw-medium, 500); }
-/* Đã trích hết / còn lại 0 — hết giá trị thì thôi kêu gọi chú ý. */
-.ts-num--het { color: var(--ash-2, #94a3b8); }
+.ts-lienket:hover { color: var(--ash); }
 
-/* Dòng phụ dưới ô chính trong bảng (tên bộ phận, ngày đưa vào dùng) */
-.ts-phu {
-  font-size: 11.5px;
-  color: var(--ash-2, #94a3b8);
-  margin-top: 2px;
-  font-weight: var(--fw-regular, 400);
+kbd {
+  font: inherit;
+  font-size: var(--fs-2xs);
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: var(--r-2);
+  padding: 0 5px;
+  background: var(--canvas);
 }
 
-/* --- Badge loại / trạng thái -------------------------------------------------
-   Chỉ tô nền cho thứ ĐÃ RỜI KHỎI SỔ. "Đang dùng" là mặc định của gần như cả bảng — tô nó thì
-   cả cột rực lên và mắt không bắt được mấy dòng đã ghi giảm. */
+/* ===========================================================================
+   1. DẢI SỐ ĐẦU MÀN — một dòng mảnh, không phải bốn thẻ to (Polaris / Stripe)
+   =========================================================================== */
+.ts-so {
+  display: flex;
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  margin-bottom: var(--sp-3);
+  overflow-x: auto;
+}
+.ts-so__o {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 9px var(--sp-4);
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.ts-so__o + .ts-so__o { border-left: 1px solid var(--rule-hair); }
+.ts-so__o span { color: var(--ash-2); font-size: var(--fs-sm); }
+.ts-so__o strong { font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--ink); }
+.ts-so__o--bam { cursor: pointer; }
+.ts-so__o--bam:hover { background: var(--rule-hair); }
+.ts-so__o--bam svg { align-self: center; color: var(--ash-2); }
+.ts-so__o--bam:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+
+/* ===========================================================================
+   2. THANH LỌC
+   =========================================================================== */
+.ts-loc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.ts-tim {
+  position: relative;
+  flex: 1 1 180px;
+  min-width: 160px;
+  max-width: 320px;
+  display: block;
+}
+.ts-tim svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ash-2); pointer-events: none; }
+.ts-tim input {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px 0 32px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  font: inherit;
+  font-size: var(--fs-md);
+  color: var(--ink);
+}
+.ts-tim input:focus { outline: 2px solid var(--ink); outline-offset: -1px; border-color: transparent; }
+
+.ts-loc__phai { margin-left: auto; display: flex; gap: var(--sp-2); }
+
+/* Nút tách "Thêm tài sản | ▾" (Carbon: một hành động chính, phương án phụ trong menu). */
+.ts-tach { position: relative; display: inline-flex; }
+.ts-tach > .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.ts-tach__mui.btn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+  padding: 0 9px;
+  margin-left: 0;
+}
+
+/* Menu thả (dùng chung: nút Thêm, nút "…" trong ngăn chi tiết). */
+.ts-menu { position: relative; display: inline-flex; }
+.ts-menu__ds {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 250px;
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+.ts-menu__ds--phai { left: auto; right: 0; }
+.ts-menu .ts-menu__ds { left: auto; right: 0; }
+.ts-menu__muc {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 8px 10px;
+  border-radius: var(--r-3);
+  font: inherit;
+  font-size: var(--fs-md);
+  color: var(--ink);
+  cursor: pointer;
+}
+.ts-menu__muc small { color: var(--ash-2); font-size: var(--fs-xs); }
+.ts-menu__muc:hover,
+.ts-menu__muc:focus-visible { background: var(--rule-hair); outline: none; }
+.ts-menu__muc--nguy span { color: var(--signal); }
+.ts-menu__nut.btn { width: 36px; padding: 0; justify-content: center; }
+
+/* ===========================================================================
+   3. BẢNG — chuẩn bảng của app (tiêu đề 11px viết hoa trên nền paper)
+   =========================================================================== */
+.ts-bang {
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-6);
+  overflow: hidden;
+}
+.ts-bang table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.ts-bang th {
+  background: var(--paper);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ash-2);
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1.5px solid var(--rule);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ts-bang th.ts-num { text-align: right; }
+.ts-bang td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--rule-hair);
+  vertical-align: middle;
+  font-size: var(--fs-md);
+  color: var(--ink);
+}
+.ts-bang tbody tr:last-child td { border-bottom: 0; }
+.ts-dong { cursor: pointer; transition: background var(--duration-base); }
+.ts-dong:hover td,
+.ts-dong.is-chon td,
+.ts-dong:focus-visible td { background: var(--rule-hair); }
+.ts-dong:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.ts-ma { color: var(--ash-2); font-weight: var(--fw-medium); font-size: var(--fs-sm); white-space: nowrap; }
+.ts-ten {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--sp-2);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+.ts-bp { color: var(--ash); line-height: 1.35; overflow-wrap: anywhere; }
+.ts-dong__mui { color: var(--rule); text-align: right; }
+.ts-dong:hover .ts-dong__mui { color: var(--ash-2); }
+
+/* Thẻ nhỏ dưới tên (loại, ngày bắt đầu, số cái) — tách bằng khoảng trống, không nối bằng "·". */
+.ts-phu { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 4px; }
+.ts-phu-tag {
+  font-size: var(--fs-2xs);
+  color: var(--ash);
+  background: var(--rule-hair);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-pill);
+  padding: 1px 8px;
+  white-space: nowrap;
+  font-weight: var(--fw-regular);
+}
+
+/* Dấu "+" cạnh giá mua: giá đã gồm sửa chữa lớn (chi tiết ở tooltip). */
+.ts-cong {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--rule-hair);
+  border: 1px solid var(--rule-soft);
+  font-size: var(--fs-2xs);
+  color: var(--ash);
+  margin-right: 6px;
+  vertical-align: 1px;
+  cursor: help;
+}
+
+/* Thanh mảnh dưới số còn lại: phần đã khấu hao. */
+.ts-thanh {
+  display: block;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--rule-soft);
+  margin-top: 6px;
+  overflow: hidden;
+}
+.ts-thanh i { display: block; height: 100%; background: var(--ash-2); }
+
+/* Dòng TỔNG của bảng tháng — con số kế toán chép đi. */
+.ts-bang tr.ts-bang__tong td {
+  font-weight: var(--fw-bold);
+  background: var(--paper);
+  border-top: 1.5px solid var(--rule);
+  border-bottom: 0;
+}
+
+.ts-phim { font-size: var(--fs-xs); color: var(--ash-2); margin: var(--sp-2) 0 0; }
+
+/* Badge trạng thái (chấm màu + chữ). */
 .ts-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  border-radius: var(--r-pill);
   padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: var(--fw-medium, 500);
   white-space: nowrap;
-  color: var(--ash, #475569);
+  color: var(--ash);
+  background: var(--rule-hair);
 }
-.ts-badge--tscd { color: var(--ash, #475569); }
-.ts-badge--ccdc { color: var(--ash-2, #94a3b8); }
-.ts-badge--dang_dung { color: var(--moss, #2f5d3a); }
-.ts-badge--da_giam {
-  color: var(--ash-2, #94a3b8);
-  background: var(--rule-hair, #f1f5f9);
-  text-decoration: line-through;
+.ts-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ts-badge--tscd,
+.ts-badge--ccdc { background: none; padding: 0; }
+.ts-badge--tscd::before,
+.ts-badge--ccdc::before { display: none; }
+.ts-badge--dang_dung { color: var(--moss-deep); background: var(--moss-soft); }
+.ts-badge--da_giam { color: var(--steel); background: var(--steel-soft); }
+.ts-badge--het { color: var(--amber-deep); background: var(--amber-soft); }
+
+/* Chip ghi chú tháng — nhãn ngắn, câu đầy đủ ở tooltip. */
+.ts-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ts-chip {
+  display: inline-block;
+  font-size: var(--fs-2xs);
+  line-height: 16px;
+  color: var(--ash);
+  border: 1px solid var(--rule-soft);
+  background: var(--paper);
+  border-radius: var(--r-pill);
+  padding: 1px 8px;
+  white-space: normal;
+  cursor: help;
+}
+.ts-chip--nang_cap { color: var(--moss-deep); background: var(--moss-soft); border-color: var(--moss-soft); }
+.ts-chip--thoi_dung { color: var(--steel); background: var(--steel-soft); border-color: var(--steel-soft); }
+
+/* Màn trống (NN/g): nói vì sao trống + việc làm tiếp. */
+.ts-bang td.ts-trong-td { padding: 0; cursor: default; }
+.ts-trong {
+  padding: 56px var(--sp-5);
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+.ts-trong__ic {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--rule-hair);
+  display: grid;
+  place-items: center;
+  color: var(--ash-2);
+}
+.ts-trong h3 { margin: 4px 0 0; font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--ink); }
+.ts-trong p { margin: 0; color: var(--ash); max-width: 440px; font-size: var(--fs-md); line-height: 1.5; }
+.ts-trong__nut { display: flex; gap: var(--sp-3); align-items: center; margin-top: 6px; flex-wrap: wrap; justify-content: center; }
+
+/* Thẻ cho điện thoại — chỉ hiện dưới 640px. */
+.ts-the-ds { display: none; list-style: none; margin: 0; padding: 0; }
+.ts-the-ds li + li { border-top: 1px solid var(--rule-hair); }
+.ts-the-ds button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.ts-the-ds button:hover { background: var(--rule-hair); }
+.ts-the-ds__hang { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2); }
+.ts-the-ds__hang strong { font-weight: var(--fw-medium); min-width: 0; overflow-wrap: anywhere; }
+.ts-the-ds__hang > :last-child { white-space: nowrap; flex: none; }
+.ts-the-ds__so { color: var(--ash); font-size: var(--fs-sm); }
+.ts-the-ds__so strong { color: var(--ink); font-weight: var(--fw-bold); }
+
+/* ===========================================================================
+   4. TAB KHẤU HAO TỪNG THÁNG
+   =========================================================================== */
+.ts-thangbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.ts-thang {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  padding: 1px;
+}
+.ts-thang .ts-nut-icon { width: 32px; height: 32px; }
+.ts-thang__chon { min-width: 150px; }
+.ts-tongthang {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-5);
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-6);
+  padding: 14px 18px;
+  margin-bottom: var(--sp-3);
+}
+.ts-tongthang__nhan { color: var(--ash-2); font-size: var(--fs-sm); }
+.ts-tongthang__so {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+}
+.ts-tongthang__so .btn { font-size: var(--fs-sm); }
+.ts-tongthang .ts-phu { margin-top: 0; }
+.ts-tongthang__chu { flex-basis: 100%; margin: 0; color: var(--ash-2); font-size: var(--fs-sm); }
+
+/* ===========================================================================
+   5. NGĂN KÉO (chi tiết, thêm, sửa) — nền mờ nhẹ, KHÔNG blur: người dùng vẫn đọc được bảng
+   =========================================================================== */
+.rc-drawer__scrim.ts-ngan {
+  background: rgba(15, 23, 42, 0.2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.rc-drawer__scrim.ts-ngan--tren { z-index: 61; }
+.rc-drawer.ts-ngan__khung { width: min(680px, 100vw); max-width: 100vw; }
+.ts-ngan__khung .rc-drawer__head { align-items: flex-start; gap: var(--sp-3); }
+.ts-ngan__dau { min-width: 0; flex: 1; }
+.ts-ngan__nhan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--ash-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+.ts-ngan__khung .rc-drawer__title { font-size: var(--fs-xl); overflow-wrap: anywhere; }
+.ts-ngan__nut { display: flex; gap: 2px; flex: none; }
+.ts-ngan__khung .rc-drawer__body { gap: var(--sp-5); }
+.rc-drawer__foot.ts-ngan__chan { align-items: center; flex-wrap: wrap; }
+.ts-ngan__xemtruoc { margin-right: auto; color: var(--ash); font-size: var(--fs-sm); min-width: 0; flex: 1 1 220px; }
+.ts-ngan__xemtruoc strong { color: var(--ink); }
+
+/* Hàng nút thao tác — ngay dưới tiêu đề ngăn chi tiết. */
+.ts-ngan__phu { margin-top: var(--sp-3); }
+.ts-thaotac { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.ts-thaotac .btn { gap: 6px; }
+
+/* Ngăn chi tiết RỘNG, hai cột: cột chính (số + lịch) | cột bên (thông tin + lịch sử). */
+.rc-drawer.ts-ngan__khung--rong { width: min(1040px, calc(100vw - 32px)); }
+.ts-ct {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--sp-5);
+  align-items: start;
+}
+.ts-ct__chinh { display: grid; gap: var(--sp-5); min-width: 0; }
+.ts-ct__ben { display: grid; gap: var(--sp-4); min-width: 0; }
+
+/* Thẻ lớn: còn lại bao nhiêu, đã đi bao xa, bao giờ hết (Stripe "balance card"). */
+.ts-hero {
+  display: grid;
+  gap: var(--sp-4);
+  padding: 18px 20px;
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-6);
+  box-shadow: var(--shadow-4);
+}
+.ts-hero__chinh { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ts-hero__nhan { font-size: var(--fs-sm); color: var(--ash-2); }
+.ts-hero__so {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.ts-hero__phu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--ash);
+}
+.ts-hero__thanh {
+  height: 6px;
+  margin-top: var(--sp-3);
+  border-radius: var(--r-pill);
+  background: var(--rule-hair);
+  overflow: hidden;
+}
+.ts-hero__thanh i { display: block; height: 100%; min-width: 4px; border-radius: inherit; background: var(--charcoal); }
+.ts-hero__moc {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--ash);
+}
+.ts-hero__moc strong { color: var(--ink); font-weight: var(--fw-bold); }
+/* Ba số phụ: MỘT hàng nhỏ dưới thanh tiến độ — không tranh chỗ với con số chính. */
+.ts-hero__ben {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-6, 32px);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--rule-hair);
+}
+.ts-hero__ben dt { font-size: var(--fs-2xs); color: var(--ash-2); }
+.ts-hero__ben dd { margin: 2px 0 0; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--ink); white-space: nowrap; }
+.ts-hero--cho { gap: var(--sp-3); }
+.rc-skel.ts-skel--tieude { width: 240px; height: 20px; vertical-align: middle; }
+
+.ts-muc { display: grid; gap: var(--sp-2); }
+.ts-muc__ten {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ash-2);
 }
 
-/* --- Bảng dòng cấu thành nguyên giá (trong dialog ghi tăng) -------------------
-   Nguyên giá KHÔNG phải một ô gõ tay: nó là tổng của giá mua + vận chuyển + lắp đặt chạy thử.
-   Gõ tay một con số thì ba tháng sau không ai lần được vì sao ra con số đó. */
+/* Thẻ cột bên. */
+.ts-the-ben {
+  display: grid;
+  gap: var(--sp-3);
+  padding: 14px 16px;
+  background: var(--paper);
+  border: 1px solid var(--rule-hair);
+  border-radius: var(--r-5);
+}
+/* Thông tin: nhãn nhỏ TRÊN giá trị (Linear) — cột hẹp vẫn đọc thẳng một mạch. */
+.ts-tt { margin: 0; display: grid; gap: var(--sp-3); }
+.ts-tt > div { display: grid; gap: 2px; min-width: 0; }
+.ts-tt dt { font-size: var(--fs-2xs); color: var(--ash-2); }
+.ts-tt dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ts-tt dd.ts-mo,
+.ts-tt dd .ts-mo { color: var(--ash-2); font-weight: var(--fw-regular); }
+
+/* Lịch sử dạng dòng thời gian: chấm nối bằng một vạch dọc, mới nhất ở trên. */
+.ts-dongthoi { list-style: none; margin: 0; padding: 0; display: grid; position: relative; }
+.ts-dongthoi::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--rule-soft);
+}
+.ts-dongthoi:has(> li:only-child)::before { display: none; }
+.ts-dongthoi__muc { position: relative; padding: 0 0 var(--sp-4) 22px; display: grid; gap: 2px; }
+.ts-dongthoi__muc:last-child { padding-bottom: 0; }
+.ts-dongthoi__muc::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--canvas);
+  box-shadow: inset 0 0 0 2px var(--ash-2);
+}
+.ts-dongthoi__muc--nang_cap::before { box-shadow: inset 0 0 0 2px var(--moss); }
+.ts-dongthoi__muc--thoi_dung::before,
+.ts-dongthoi__muc--ghi_giam::before { background: var(--steel); box-shadow: none; }
+.ts-dongthoi__muc--bat_dau::before { background: var(--charcoal); box-shadow: none; }
+.ts-dongthoi__dau { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2); }
+.ts-dongthoi__dau strong { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--ink); }
+.ts-dongthoi__dau time { font-size: var(--fs-xs); color: var(--ash-2); white-space: nowrap; }
+.ts-dongthoi__muc p { margin: 0; font-size: var(--fs-xs); color: var(--ash); line-height: 1.45; }
+.ts-dongthoi__muc p.ts-dongthoi__lydo { font-size: var(--fs-xs); color: var(--ash-2); }
+
+/* Lịch khấu hao — gộp theo năm, năm nay mở sẵn. */
+/* Không trần chiều cao: năm đã gộp thành một dòng, khung cuộn lồng trong ngăn đang cuộn thì khó đọc. */
+.ts-dukien { border: 1px solid var(--rule-soft); border-radius: var(--r-5); overflow: auto; }
+.ts-dukien table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.ts-dukien th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ash-2);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1.5px solid var(--rule);
+  white-space: nowrap;
+}
+.ts-dukien th.ts-num { text-align: right; }
+.ts-dukien td { padding: 7px 12px; border-bottom: 1px solid var(--rule-hair); color: var(--ash); }
+.ts-dukien tr:last-child td { border-bottom: 0; }
+.ts-dukien__nam td { font-weight: var(--fw-bold); background: var(--paper); color: var(--ink); }
+.ts-dukien__mo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+  cursor: pointer;
+}
+.ts-dukien__mo svg { transition: transform var(--duration-base); }
+.ts-dukien__thang { padding-left: 30px !important; white-space: nowrap; }
+.ts-dukien__da td { color: var(--ink); }
+.ts-dukien__nay td { background: var(--rule-hair); font-weight: var(--fw-bold); color: var(--ink); }
+
+/* Hộp thao tác giữa màn (Chuyển bộ phận, Sửa chữa lớn, Thôi dùng): form | "Sau khi lưu". */
+.ts-hop__ts { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px var(--sp-2); font-size: var(--fs-sm); color: var(--ash); }
+.ts-hop__ghi { margin: 0 0 var(--sp-4); font-size: var(--fs-sm); line-height: 1.5; color: var(--ash); }
+.ts-hop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: var(--sp-5);
+  align-items: start;
+}
+.ts-hop__form { min-width: 0; }
+.ts-hop__xem {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 16px;
+  background: var(--paper);
+  border: 1px solid var(--rule-hair);
+  border-radius: var(--r-5);
+}
+.ts-hop--tren { grid-template-columns: minmax(0, 1fr); }
+.ts-hop--tren .ts-hop__xem { order: -1; padding: 0; background: none; border: 0; }
+.ts-hop__chu { margin: 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--ash-2); }
+.ts-hop__yen { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-sm); color: var(--moss-deep); }
+
+/* Thẻ so sánh: số mới to, số cũ gạch ngang. */
+.ts-ss {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  transition: border-color var(--duration-base), box-shadow var(--duration-base);
+}
+.ts-ss.is-doi { border-color: var(--charcoal); box-shadow: var(--shadow-4); }
+.ts-ss__nhan { font-size: var(--fs-xs); color: var(--ash-2); }
+.ts-ss__so { font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--ink); }
+.ts-ss:not(.is-doi) .ts-ss__so { color: var(--ash); }
+.ts-ss__cu { font-size: var(--fs-xs); color: var(--ash-2); }
+.ts-ss__cu s { color: var(--ash); }
+
+/* Chuyển bộ phận: "Đang ở" → "Chuyển sang". */
+.ts-chuyen { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: var(--sp-3); }
+.ts-chuyen__o {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 14px 16px;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  min-width: 0;
+}
+.ts-chuyen__o strong { font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--ink); overflow-wrap: anywhere; }
+.ts-chuyen__o.is-moi { background: var(--canvas); border-color: var(--charcoal); box-shadow: var(--shadow-4); }
+.ts-chuyen__o.is-trong { background: var(--canvas); border-style: dashed; border-color: var(--rule); }
+.ts-chuyen__o.is-trong strong { color: var(--ash-2); font-weight: var(--fw-medium); }
+.ts-chuyen__nhan {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ash-2);
+}
+.ts-chuyen__nguoi { display: flex; align-items: center; gap: 5px; font-size: var(--fs-xs); color: var(--ash); }
+.ts-chuyen__mui { display: grid; place-items: center; color: var(--ash-2); }
+
+/* Thông báo đáy màn có Hoàn tác (Primer: hoàn tác thay vì hỏi lại). */
+.ts-thongbao {
+  position: fixed;
+  z-index: 90;
+  left: 50%;
+  bottom: var(--sp-5);
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  background: var(--charcoal);
+  color: var(--on-charcoal);
+  border-radius: var(--r-5);
+  padding: 10px 8px 10px var(--sp-4);
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  box-shadow: var(--shadow-lg);
+  font-size: var(--fs-md);
+}
+.ts-thongbao__nut {
+  background: none;
+  border: 0;
+  padding: 4px 6px;
+  font: inherit;
+  font-weight: var(--fw-bold);
+  color: var(--on-charcoal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ts-thongbao__x {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: none;
+  color: var(--on-charcoal-muted);
+  cursor: pointer;
+}
+.ts-thongbao__x:hover { color: var(--on-charcoal); }
+
+/* ===========================================================================
+   6. FORM (thêm / sửa tài sản và ba khung thao tác)
+   =========================================================================== */
+.ts-form { display: flex; flex-direction: column; gap: var(--sp-4); }
+.ts-form__hang { display: flex; flex-wrap: wrap; gap: var(--sp-4); align-items: flex-start; }
+.ts-form__hang > .rc-field { flex: 1 1 200px; min-width: 0; }
+/* Hàng "tự co": mỗi ô chỉ rộng bằng thứ nó chứa (giá, số lượng, ngày). */
+.ts-form__hang--tu > .rc-field { flex: 0 0 auto; }
+.ts-form__hang > .ts-o--rong { flex: 2 1 260px; }
+.ts-form .rc-field__label em { color: var(--signal); font-style: normal; margin-left: 2px; }
+.ts-o--tien .rc-input { width: 220px; max-width: 100%; }
+.ts-o--sl .rc-input { width: 96px; }
+.ts-o--ngay .rc-input { width: 170px; max-width: 100%; }
+.ts-o--vua { max-width: 260px; }
+.ts-o--thang { display: inline-flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-md); color: var(--ash); }
+.ts-o--thang .rc-input { width: 96px; }
+.ts-o--thangchon { display: inline-block; min-width: 170px; }
+.ts-o--thangchon:focus { outline: 2px solid var(--signal); outline-offset: 2px; border-radius: var(--r-3); }
+.ts-o-khoa {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 220px;
+  background: var(--rule-hair);
+  color: var(--ink);
+  cursor: default;
+}
+.ts-form .rc-input[aria-invalid="true"] { border-color: var(--signal); }
+
+/* Lỗi ngay dưới ô (NN/g: nói rõ sai gì, sửa thế nào). */
+.ts-loi {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 4px;
+  color: var(--signal);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+.ts-loi svg { flex: none; margin-top: 1px; }
+
+.ts-gioithieu { margin: 0; font-size: var(--fs-sm); line-height: 1.55; color: var(--ash); }
+
+/* Nhắc lệch luật (giá ≥ 30 triệu mà chọn công cụ dụng cụ…) — chỉ nhắc, không chặn. */
+.ts-nhac {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--amber-deep);
+}
+.ts-nhac svg { flex: none; margin-top: 2px; }
+
+/* Chọn một trong vài (Loại, Lý do thôi dùng) — đang chọn viền charcoal đủ bốn cạnh. */
+.ts-chon { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.ts-chon__nut {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--ash);
+  cursor: pointer;
+}
+.ts-chon__nut:hover:not(:disabled):not(.is-active) { background: var(--rule-hair); }
+.ts-chon__nut.is-active { border-color: var(--charcoal); box-shadow: inset 0 0 0 1px var(--charcoal); color: var(--ink); font-weight: var(--fw-bold); }
+.ts-chon__nut:disabled { opacity: 0.55; cursor: default; }
+
+/* Chọn nhanh số tháng (5 năm, 7 năm…). */
+.ts-nhanh { display: flex; gap: 6px; flex-wrap: wrap; margin-top: var(--sp-2); }
+.ts-nhanh__nut {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-pill);
+  background: var(--canvas);
+  font: inherit;
+  font-size: var(--fs-xs);
+  color: var(--ash);
+  cursor: pointer;
+}
+.ts-nhanh__nut:hover:not(.is-active) { background: var(--rule-hair); }
+.ts-nhanh__nut.is-active { border-color: var(--charcoal); color: var(--ink); font-weight: var(--fw-bold); }
+
+/* Khối phụ (Đã khấu hao tới lúc này, Thêm chi tiết). */
+.ts-khoi { border-top: 1px solid var(--rule-soft); padding-top: var(--sp-4); display: grid; gap: var(--sp-3); }
+.ts-gap {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.ts-gap__phu { font-weight: var(--fw-regular); font-size: var(--fs-xs); color: var(--ash-2); }
+.ts-gap svg { transition: transform var(--duration-base); flex: none; }
+.ts-gap__dong { transform: rotate(-90deg); }
+
+/* Bảng khoản cấu thành giá mua (Thêm chi tiết). */
 .ts-chiphi { width: 100%; border-collapse: collapse; }
 .ts-chiphi th {
   text-align: left;
-  font-size: 11.5px;
-  font-weight: var(--fw-medium, 500);
-  color: var(--ash-2, #94a3b8);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-medium);
+  color: var(--ash-2);
   padding: 0 0 4px;
 }
 .ts-chiphi th:nth-child(2) { text-align: right; }
 .ts-chiphi td { padding: 3px 0; vertical-align: middle; }
-.ts-chiphi td + td { padding-left: var(--sp-2, 8px); }
+.ts-chiphi td + td { padding-left: var(--sp-2); }
 .ts-chiphi__tien { width: 190px; }
 .ts-chiphi__x {
   width: 30px;
   border: 0;
   background: none;
   cursor: pointer;
-  color: var(--ash-2, #94a3b8);
-  border-radius: 6px;
+  color: var(--ash-2);
+  border-radius: var(--r-3);
   line-height: 0;
   padding: 5px;
 }
-.ts-chiphi__x:hover { color: var(--signal-deep, #6b1717); background: var(--rule-hair, #f1f5f9); }
+.ts-chiphi__x:hover { color: var(--signal); background: var(--rule-hair); }
 .ts-chiphi__x:disabled { opacity: 0.35; cursor: default; }
+.ts-them-khoan { margin-top: 4px; align-self: flex-start; }
 
-.ts-tong {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--sp-3, 12px);
-  margin-top: var(--sp-2, 8px);
-  padding-top: var(--sp-2, 8px);
-  border-top: 1px solid var(--rule-soft, #e8e3d3);
+/* Form thêm / sửa tài sản trong ngăn RỘNG: cột form | thẻ "Mỗi tháng khấu hao" dính bên phải. */
+.ts-tg {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--sp-6);
+  align-items: start;
 }
-.ts-tong__nhan { font-size: 12px; color: var(--ash, #475569); }
-.ts-tong__so {
-  font-size: 17px;
-  font-weight: var(--fw-semibold, 600);
-  font-variant-numeric: tabular-nums;
-}
+.ts-tg__form { gap: var(--sp-5); min-width: 0; }
+.ts-tg__xem { position: sticky; top: 0; display: grid; gap: var(--sp-2); }
+/* Câu tóm tắt ở chân ngăn chỉ cần khi thẻ xem trước rơi xuống cuối form (màn hẹp). */
+.rc-drawer__foot .ts-tg__chan { display: none; }
+.ts-daluu { max-width: 680px; }
 
-/* Cảnh báo MỀM (dưới ngưỡng TSCĐ, kỳ trước chưa chốt…) — nói rồi vẫn cho đi tiếp. */
-.ts-luuy {
+/* Mua mới / Đang dùng từ trước — hai thẻ chọn có câu giải thích ngay trong thẻ. */
+.ts-cach-khung { display: grid; gap: var(--sp-2); }
+.ts-cach { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+.ts-cach__nut {
   display: flex;
   align-items: flex-start;
-  gap: 7px;
-  margin-top: var(--sp-2, 8px);
-  padding: 8px 11px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--amber-deep, #7a5c0f);
-  background: var(--amber-soft, #efe4c4);
-}
-.ts-luuy svg { flex: none; margin-top: 2px; }
-
-/* --- Bảng khấu hao dự kiến ---------------------------------------------------
-   Hiện ngay sau khi lưu: kế toán thấy tháng đầu bị chia theo ngày, thấy tháng cuối gánh phần lẻ,
-   thì mới tin con số của máy. */
-.ts-dukien { max-height: 300px; overflow: auto; border-radius: 8px; border: 1px solid var(--rule-soft, #e8e3d3); }
-.ts-dukien table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.ts-dukien th {
-  position: sticky;
-  top: 0;
-  background: var(--paper, #fdfcf8);
-  text-align: right;
-  font-size: 11.5px;
-  font-weight: var(--fw-medium, 500);
-  color: var(--ash-2, #94a3b8);
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--rule-soft, #e8e3d3);
-}
-.ts-dukien th:first-child { text-align: left; }
-.ts-dukien td {
-  padding: 5px 10px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  border-bottom: 1px solid var(--rule-hair, #f1f5f9);
-}
-.ts-dukien td:first-child { text-align: left; }
-.ts-dukien tr:last-child td { border-bottom: 0; }
-/* Tháng đã gộp vào hao mòn lũy kế (ngăn xem chi tiết) — in đậm để tách khỏi phần dự kiến. */
-.ts-dukien .ts-dukien__da td { font-weight: var(--fw-semibold, 600); }
-/* Tháng có chuyện (bớt cái, nâng cấp, ghi giảm…) — vạch đỏ bên trái, câu giải nghĩa ở `.ts-moc`. */
-.ts-dukien .ts-dukien__moc td:first-child { box-shadow: inset 3px 0 0 var(--rust, #c5400a); }
-.ts-moc {
-  margin: var(--sp-2, 8px) 0 0;
-  padding-left: 18px;
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--ash, #475569);
-}
-.ts-moc li + li { margin-top: 4px; }
-
-/* Chip sự kiện dưới tên ở bảng tháng: nhãn ngắn, câu đầy đủ nằm ở tooltip / ngăn chi tiết.
-   Cả câu chèn vào bảng thì dòng cao gấp ba (chủ 08/09: "giao diện xấu"). */
-.ts-ten__sl { color: var(--ash-2, #94a3b8); font-weight: 400; }
-.ts-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.ts-chip {
-  display: inline-block;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  line-height: 18px;
-  white-space: nowrap;
-  color: var(--ash, #475569);
-  background: var(--paper, #fdfcf8);
-  border: 1px solid var(--rule-soft, #e8e3d3);
-  cursor: help;
-}
-/* Dòng xem trước trong form Sửa chữa lớn: nguyên giá trước → sau, mức tháng mới. */
-.ts-xemtruoc {
-  padding: 8px 12px;
-  border-radius: 9px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--moss, #2f5d3a);
-  background: var(--moss-soft, #dfeadf);
-}
-.ts-chip--nang_cap { color: var(--moss, #2f5d3a); background: var(--moss-soft, #dfeadf); border-color: #c5dcc7; }
-
-/* Dòng bấm được ở sổ và ở bảng tháng (mở ngăn xem chi tiết + bảng khấu hao dự kiến). */
-.ts .rc__table tbody tr.ts-row--xem { cursor: pointer; }
-.ts .rc__table tbody tr.ts-row--xem:hover td { background: var(--paper, #fdfcf8); }
-
-/* --- Thanh chọn tháng của bảng khấu hao ---------------------------------------
-   Không còn kỳ chốt (08/09/2026): chỉ ô tháng, một câu chú thích, nút Xuất Excel. */
-.ts-kybar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2, 8px);
-  flex-wrap: wrap;
-  margin-bottom: var(--sp-3, 12px);
-}
-.ts-kybar__phai { margin-left: auto; display: flex; gap: var(--sp-2, 8px); flex-wrap: wrap; }
-.ts-kybar__chu { font-size: 12.5px; color: var(--ash-2, #94a3b8); }
-
-/* Dòng TỔNG của bảng tháng — đây là con số kế toán chép sang phần mềm kế toán, phải nổi hơn mọi dòng. */
-.ts-table__tong td {
-  font-weight: var(--fw-semibold, 600);
-  border-top: 2px solid var(--rule-soft, #e8e3d3);
-  background: var(--paper, #fdfcf8);
-}
-/* Tab của dialog biến động — hai chế độ (điều chuyển · sửa chữa lớn), mỗi lúc một khung. */
-.ts-mode { display: flex; gap: 6px; margin-bottom: var(--sp-3, 12px); flex-wrap: wrap; }
-.ts-mode__nut {
-  border: 1px solid var(--rule-soft, #e8e3d3);
-  background: var(--paper, #fdfcf8);
-  border-radius: 999px;
-  padding: 6px 15px;
-  font-size: 12.5px;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-5);
+  background: var(--canvas);
+  font: inherit;
+  text-align: left;
   cursor: pointer;
-  color: var(--ash, #475569);
+  transition: border-color var(--duration-base), box-shadow var(--duration-base);
 }
-.ts-mode__nut.is-active {
-  border-color: var(--ink, #1f2937);
-  color: var(--ink, #1f2937);
-  font-weight: var(--fw-medium, 500);
+.ts-cach__nut:hover:not(.is-active) { background: var(--rule-hair); }
+.ts-cach__nut.is-active { border-color: var(--charcoal); box-shadow: inset 0 0 0 1px var(--charcoal); }
+.ts-cach__cham {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--rule);
+  background: var(--canvas);
 }
+.ts-cach__nut.is-active .ts-cach__cham { box-shadow: inset 0 0 0 5px var(--charcoal); }
+.ts-cach__chu { display: grid; gap: 2px; min-width: 0; }
+.ts-cach__chu strong { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--ink); }
+.ts-cach__chu span { font-size: var(--fs-xs); line-height: 1.45; color: var(--ash); }
 
-/* Dòng lịch sử biến động trong drawer chi tiết */
-.ts-bd { display: flex; flex-direction: column; gap: 7px; }
-.ts-bd__dong {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 12.5px;
-  padding-bottom: 7px;
-  border-bottom: 1px solid var(--rule-hair, #f1f5f9);
-}
-.ts-bd__dong:last-child { border-bottom: 0; padding-bottom: 0; }
-.ts-bd__ngay { color: var(--ash-2, #94a3b8); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ts-bd__loai { font-weight: var(--fw-medium, 500); white-space: nowrap; }
-.ts-bd__ly-do { color: var(--ash, #475569); }
+/* Một phần form: tiêu đề nhỏ + lưới ô đều cột, ngăn cách bằng vạch mảnh. */
+.ts-phan { display: grid; gap: var(--sp-3); padding-top: var(--sp-5); border-top: 1px solid var(--rule-hair); }
+.ts-tg__form > .ts-phan:first-child { padding-top: 0; border-top: 0; }
+.ts-phan__ghi { margin: -4px 0 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--ash); }
+.ts-luoi { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4); align-items: start; }
+.ts-luoi--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ts-luoi > .ts-o--ca { grid-column: 1 / -1; }
+.ts-luoi > .ts-o--hai { grid-column: span 2; }
+/* Trong lưới mọi ô cao 38px và đầy cột — hết cảnh ô dài ô ngắn, ô cao ô thấp. */
+.ts-luoi .rc-input,
+.ts-luoi .ts-o-khoa { width: 100%; max-width: none; min-height: 38px; }
+.ts-luoi textarea.rc-input { min-height: 0; }
+.ts-luoi input[type="date"].rc-input { height: 38px; }
+.ts-luoi .ts-o--thang .rc-input { width: 96px; flex: none; }
+.ts-chon--deu { display: grid; grid-template-columns: 1fr 1fr; max-width: 420px; }
+.ts-chon--deu .ts-chon__nut { height: 38px; }
+.ts-thoigian { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-5); }
+.ts-thoigian .ts-nhanh { margin-top: 0; }
+.ts-tg .ts-nhanh__nut { height: 30px; padding: 0 12px; }
 
-/* --- Sổ tài sản: chín cột không nhét vừa 986px --------------------------------
-   Bề ngang tối thiểu đo được của từng cột (đặt `nowrap` rồi để bảng tự giãn): mã 98 · tên 242 ·
-   loại 141 · bộ phận 104 · ba cột tiền 127/111/123 · trạng thái 108 · thao tác 124 = 1177px.
-   Khung nội dung trên màn 1280 chỉ có 986px, tức luôn thiếu — và thứ bị bóp là cột KHÔNG khai
-   bề ngang, chính là cột Tên. Cho bảng một cái sàn rồi cuộn ngang trong `.rc__tablewrap` (khung
-   này vốn đã `overflow: auto`) thì mọi cột giữ đúng phần của nó; màn ≥1600px vẫn phủ kín 100%
-   theo đúng tỷ lệ đã khai. Chỉ áp cho sổ tài sản: bảng tháng (7 cột) còn thừa chỗ, thêm sàn vào
-   là bắt cuộn ngang vô cớ. */
-@media screen and (min-width: 1025px) {
-  .ts .ts-table--so { min-width: 1180px; }
+/* Ô chọn tháng và ô chọn bộ phận khoác đúng bộ mặt `rc-input`. */
+.ts-luoi .ts-o--thangchon { display: block; min-width: 0; }
+.ts-luoi .ts-o--thangchon .month-picker { display: flex; width: 100%; }
+.ts-luoi .ts-o--thangchon .month-picker__label {
+  flex: 1;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  font-size: var(--fs-sm);
 }
+.ts-luoi .ts-o--thangchon .month-picker__label:hover { border-color: var(--ash-2); }
+.sel__trigger.ts-sel {
+  min-height: 38px;
+  padding: 0 12px;
+  border-color: var(--rule);
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
+.sel__trigger.ts-sel:hover:not(:disabled) { border-color: var(--ash-2); }
+.sel__trigger.ts-sel.is-open,
+.sel__trigger.ts-sel:focus-visible { border-color: var(--charcoal); box-shadow: none; }
+
+/* Thẻ xem trước. */
+.ts-xem {
+  display: grid;
+  gap: 4px;
+  padding: 18px;
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-6);
+  box-shadow: var(--shadow-4);
+}
+.ts-xem__nhan { font-size: var(--fs-xs); color: var(--ash-2); }
+.ts-xem__so { font-size: var(--fs-xl); font-weight: var(--fw-bold); line-height: 1.2; color: var(--ink); }
+.ts-xem__phu { font-size: var(--fs-xs); color: var(--ash); }
+.ts-xem__phu strong { color: var(--ink); font-weight: var(--fw-bold); }
+.ts-xem__trong { margin: 2px 0 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--ash-2); }
+.ts-xem__ds { margin: var(--sp-3) 0 0; padding-top: var(--sp-3); border-top: 1px solid var(--rule-hair); display: grid; gap: var(--sp-2); }
+.ts-xem__ds > div { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-3); }
+.ts-xem__ds dt { font-size: var(--fs-xs); color: var(--ash-2); }
+.ts-xem__ds dd { margin: 0; font-size: var(--fs-sm); color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.ts-xem__ds > .ts-xem__con { padding-top: var(--sp-2); border-top: 1px dashed var(--rule-soft); }
+.ts-xem__ds > .ts-xem__con dd { font-weight: var(--fw-bold); }
+.ts-xem__chu { margin: 0; padding: 0 4px; font-size: var(--fs-xs); color: var(--ash-2); }
 
 /* ===========================================================================
-   MÀN HẸP — điện thoại và máy tính bảng dọc
-   ---------------------------------------------------------------------------
-   Khung chung (`rc__tablewrap` cuộn ngang, `rc-grid` về một cột, đầu ngăn kéo) đã có luật ở
-   `styles/responsive.css`. Dưới đây CHỈ những chỗ luật chung xử lý sai vì nội dung riêng của
-   module này. Mọi luật đều bọc trong `.ts` để thắng độ ưu tiên: `responsive.css` nạp SAU file
-   này, luật cùng độ đặc hiệu bên đó sẽ đè.
+   MÀN HẸP
    =========================================================================== */
-
-/* --- Sàn cột: cột chữ nới ra, cụm nút giữ một hàng --------------------------
-   §11 của `responsive.css` cho bảng tự giãn theo nội dung ở ≤1024px với sàn 96px MỘT CỠ cho mọi
-   cột. Sàn ấy vừa vặn với cột số, nhưng:
-
-   • Cột Tên nhận đúng 96px trong khi bảng đã rộng 967px và vốn đã cuộn ngang — "Máy in Komori 4
-     màu (LS440)" rơi bốn dòng, dòng bảng cao 153px, cuộn mãi mới hết hai món.
-   • Cột Thao tác không mang lớp `.rc__actcol` nên dính `white-space: normal` của §11: BA nút
-     icon dựng đứng thành cột, chính là thứ đẩy dòng lên 153px. */
-/* --- Lưới form trong ngăn kéo ở 769–860px ----------------------------------
-   Một rule `.rc-grid { grid-template-columns: 1fr }` KHÔNG scope của trang khác đè lưới về một
-   cột trong dải này, nhưng `.rc-field--full` vẫn `span 2` ⇒ sinh cột ngầm: ô "Ngày chứng từ" của
-   hộp Biến động bị bóp về 0px, ô "Bộ phận nhận" chiếm trọn hàng. Khớp lại cho ngăn kéo của module. */
-@media screen and (max-width: 860px) {
-  .ts .rc-field--full { grid-column: span 1; }
-}
-
-@media screen and (max-width: 1024px) {
-  .ts .rc__table :is(th, td).ts-col-ten { min-width: 200px; }
-  .ts .rc__table :is(th, td).ts-actcol { white-space: nowrap; }
+@media screen and (max-width: 960px) {
+  .ts-ct { grid-template-columns: minmax(0, 1fr); }
+  .ts-hop { grid-template-columns: minmax(0, 1fr); }
+  .ts-tg { grid-template-columns: minmax(0, 1fr); }
+  .ts-tg__xem { position: static; }
+  .rc-drawer__foot .ts-tg__chan { display: block; }
 }
 
 @media screen and (max-width: 640px) {
-  /* --- Thanh công cụ: một ô tìm + ba ô lọc + nút Ghi tăng -------------------
-     Ở 375px `flex: 0 0 260px` của ô tìm chừa 90px trống bên phải rồi ba ô lọc mỗi ô một dòng,
-     dài rộng khác nhau, nút Ghi tăng nép vào chỗ thừa của dòng cuối — thanh cao 218px mà nhìn
-     như xếp nhầm. Cho ô tìm và nút chiếm trọn hàng, ba ô lọc chia đôi. */
-  .ts .rc__search-wrapper { flex: 1 1 100%; }
-  .ts .rc__unified-right .rc-input {
-    flex: 0 1 calc(50% - 4px);
-    min-width: 0;
-  }
-  .ts .rc__unified-right .btn { flex: 1 1 calc(50% - 4px); justify-content: center; }
-  /* Chia đôi hàng thì ô lọc còn 157px, mà "Mọi trạng thái" cần 110px chữ + 12 đệm trái + 36 đệm
-     phải = 158px: đúng một pixel nữa là chữ chui xuống dưới mũi tên. Mũi tên rộng 14px neo cách
-     mép phải 12px, nên hạ đệm phải xuống 30px vẫn chừa đủ chỗ cho nó. */
-  .ts .rc__unified-right select.rc-input { padding-right: 30px; }
+  /* Dải số: lưới 2×2 thay vì cuộn ngang — đủ bốn số trong một lần nhìn. */
+  .ts-so { display: grid; grid-template-columns: 1fr 1fr; overflow: visible; }
+  .ts-so__o { flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; white-space: normal; }
+  .ts-so__o + .ts-so__o { border-left: 0; }
+  .ts-so__o:nth-child(even) { border-left: 1px solid var(--rule-hair); }
+  .ts-so__o:nth-child(n + 3) { border-top: 1px solid var(--rule-hair); }
+  .ts-so__o--bam { position: relative; padding-right: 28px; }
+  .ts-so__o--bam svg { position: absolute; right: 8px; top: 50%; transform: translateY(-50%) rotate(-90deg); }
+  .ts-thaotac .btn { padding-left: 10px; padding-right: 10px; }
+  .ts-ngan__xemtruoc { flex-basis: 100%; }
+  .ts-tim { flex-basis: 100%; max-width: none; }
+  .ts-loc__phai { margin-left: 0; flex-basis: 100%; }
+  .ts-tach { flex: 1; }
+  .ts-tach > .btn:first-child { flex: 1; justify-content: center; }
 
-  /* --- Bảng dòng cấu thành nguyên giá: xếp dọc -----------------------------
-     Ô tiền khoá cứng 190px, trong thân ngăn kéo 316px thì ô Khoản mục chỉ còn 74px — không đọc
-     nổi "Vận chuyển" đã gõ, chưa nói tới placeholder. Hai ô mỗi ô một dòng, nút xoá neo góc
-     phải để không ăn thêm chiều ngang. Bỏ hàng tiêu đề: cả hai ô đều có placeholder. */
+  .ts-bang table { display: none; }
+  .ts-bang:has(.ts-the-ds) table { display: none; }
+  .ts-the-ds { display: block; }
+  /* Tab tháng không có thẻ điện thoại — giữ bảng, cho cuộn ngang. */
+  .ts-bang:not(:has(.ts-the-ds)) { overflow-x: auto; }
+  .ts-bang:not(:has(.ts-the-ds)) table { display: table; min-width: 920px; }
+  .ts-bang:not(:has(.ts-the-ds)) td.ts-trong-td { position: sticky; left: 0; }
+  .ts-phim { display: none; }
+
+  .ts-tongthang__so { font-size: var(--fs-xl); }
+
+  .rc-drawer.ts-ngan__khung--rong { width: 100vw; }
+  /* `responsive.css` cho đầu ngăn xuống hàng — ở đây ba nút icon phải giữ góc phải. */
+  .ts-ngan__khung .rc-drawer__head { flex-wrap: nowrap; position: relative; }
+  .ts-ngan__khung .ts-ngan__nut { position: absolute; top: var(--sp-3); right: var(--sp-3); }
+  .ts-ngan__khung .ts-ngan__nhan,
+  .ts-ngan__khung .rc-drawer__title { padding-right: 112px; }
+  .ts-hero { padding: 16px; }
+  .ts-chuyen { grid-template-columns: 1fr; }
+  .ts-chuyen__mui { transform: rotate(90deg); }
+  .ts-o--tien .rc-input,
+  .ts-o-khoa { width: 100%; }
+  .ts-form__hang--tu > .rc-field { flex: 1 1 100%; }
+  .ts-cach,
+  .ts-luoi,
+  .ts-luoi--2 { grid-template-columns: minmax(0, 1fr); }
+  .ts-luoi > .ts-o--hai { grid-column: auto; }
+  .ts-chon--deu { max-width: none; }
+  /* `responsive.css` đẩy ô nhập lên 16px/44px cho điện thoại — hai ô tự vẽ phải theo cùng cỡ. */
+  .sel__trigger.ts-sel,
+  .ts-luoi .ts-o--thangchon .month-picker__label { min-height: 44px; font-size: var(--fs-lg); }
+  .ts-gap { flex-wrap: wrap; }
+  .ts-gap__phu { flex-basis: 100%; padding-left: 23px; }
+
   .ts-chiphi thead { display: none; }
   .ts-chiphi,
   .ts-chiphi tbody,
   .ts-chiphi tr,
   .ts-chiphi td { display: block; width: auto; }
-  .ts-chiphi tr {
-    position: relative;
-    padding: 8px 38px 8px 0;
-    border-bottom: 1px solid var(--rule-hair, #f1f5f9);
-  }
+  .ts-chiphi tr { position: relative; padding: 8px 38px 8px 0; border-bottom: 1px solid var(--rule-hair); }
   .ts-chiphi tr:last-child { border-bottom: 0; }
   .ts-chiphi td + td { padding-left: 0; }
   .ts-chiphi__tien { width: auto; }
   .ts-chiphi__x { position: absolute; top: 10px; right: 0; }
-
-  /* --- Bảng khấu hao dự kiến ------------------------------------------------
-     `width: 100%` nằm trong khung `overflow: auto` thì bảng bị ép đúng bề ngang khung, bốn cột
-     chia nhau 316px và khung cuộn thành vô dụng. Đặt sàn cho BẢNG rồi mới cuộn được. */
-  .ts-dukien table { min-width: 420px; }
-  .ts-dukien :is(th, td) { white-space: nowrap; }
-
-  /* --- Dòng lịch sử biến động ----------------------------------------------
-     Ngày và loại đều `nowrap`, nên lý do bị dồn vào 164px còn lại và rơi ba dòng. Cho nó xuống
-     hàng riêng, đọc liền một mạch. */
-  .ts-bd__dong { flex-wrap: wrap; }
-  .ts-bd__ly-do { flex: 1 1 100%; }
-
 }
 
-/* --- Màn cảm ứng: nút phải đủ to để chạm ------------------------------------
-   Nút xoá dòng chi phí cao 28px là cỡ cho con trỏ chuột, không phải cho đầu ngón tay. */
 @media (hover: none) {
   .ts-chiphi__x { padding: 9px; }
+  .ts-nut-icon { width: 40px; height: 40px; }
 }

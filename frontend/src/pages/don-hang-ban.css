@@ -97,6 +97,11 @@
   flex: 1;
 }
 
+/* Hàng tìm + kỳ + điều kiện lọc, tab nằm hàng dưới. */
+.dhb__toolbar--loc {
+  margin-bottom: var(--sp-3);
+}
+
 .dhb__select {
   padding: 8px 12px;
   border-radius: var(--r-3);
@@ -200,46 +205,16 @@
   box-shadow: 0 6px 16px rgba(20, 19, 15, 0.08);
 }
 
-.dhb__pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-  margin-top: var(--sp-3);
+/* Chân phân trang là anh em của khung cuộn ngang (để không trôi theo khi cuộn) nhưng phải NHÌN
+   như đáy của thẻ bảng (khuôn Nhật ký): bỏ bo góc dưới của khung, chân nối viền. */
+.dhb__tablewrap:has(+ .ptdd) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
-
-.dhb__pager-info {
-  font-family: var(--ff-sans);
-  font-size: 12px;
-  color: var(--ash);
-}
-
-.dhb__pager-btns {
-  display: flex;
-  gap: var(--sp-2);
-}
-
-.dhb__pager-btn {
-  padding: 6px 14px;
-  border-radius: var(--r-3);
+.dhb__tablewrap + .ptdd {
   border: 1px solid var(--rule-soft);
-  background: var(--canvas);
-  color: var(--ink);
-  font-family: var(--ff-sans);
-  font-size: 12.5px;
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--easing-standard);
-}
-
-.dhb__pager-btn:hover:not(:disabled) {
-  border-color: var(--ash-2);
-  background: var(--paper-contrast);
-}
-
-.dhb__pager-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+  border-top: 0;
+  border-radius: 0 0 var(--r-6) var(--r-6);
 }
 
 .dhb__table {
@@ -252,7 +227,8 @@
 }
 
 .dhb__table thead th {
-  padding: 12px 16px;
+  padding: 12px 10px;
+  white-space: nowrap;
   font-weight: 600;
   font-size: 11px;
   color: var(--ash);
@@ -264,7 +240,7 @@
 }
 
 .dhb__table tbody td {
-  padding: 14px 16px;
+  padding: 14px 10px;
   vertical-align: top;
   border-bottom: 1px solid var(--rule-hair);
   color: var(--ink);
@@ -300,12 +276,17 @@
   text-align: right;
 }
 
-/* Cột "Giá trị" ở list — số quyết định, nổi bật nhất hàng */
+/* Tiêu đề cột số căn phải theo số — `.dhb__table thead th` ép trái nên phải nói rõ ở đây. */
+.dhb__table thead th.dhb__text-right {
+  text-align: right;
+}
+
+/* Cột "Giá trị" ở list — cùng cỡ chữ các ô khác trong hàng, chữ số đều để hàng nọ thẳng hàng kia */
 .dhb__val {
   font-family: var(--ff-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   text-align: right;
   white-space: nowrap;
   color: var(--ink);
@@ -337,6 +318,8 @@
 .dhb__row-more {
   color: var(--ash-2);
 }
+
+.dhb__nw { white-space: nowrap; }
 
 .dhb__sx {
   font-size: 12px;
@@ -418,6 +401,7 @@
 /* --- Status and flags --- */
 .dhb__status-badge {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   padding: 3px 10px;
   border-radius: var(--r-pill);
@@ -452,6 +436,10 @@
 .status--ordered {
   background: var(--moss-soft);
   color: var(--moss-deep);
+}
+.status--hoan_tat {
+  background: var(--steel-soft);
+  color: var(--ink);
 }
 .status--cancelled {
   background: var(--signal-soft);
@@ -503,21 +491,63 @@
      (6 cột tiền) bị cắt và phải cuộn ngang mới đọc hết — đọc số tiền mà phải kéo ngang là mời
      đọc nhầm dòng.
      `min-width` giữ sàn để trên laptop 13" (1280px) ô vẫn là 640px chứ không bóp lại. */
-  width: 50vw;
-  min-width: 580px;
-  max-width: 95vw;
+  /* 06/10/2026: thôi 50vw — dùng CHUNG độ rộng mọi ngăn bên phải (`--kt-ngan-w`, mặc định 920px,
+     kéo mép trái để đổi, xem `ThanhKeoNgan`). 50vw trên màn 1.470px chỉ còn ~735px, bảng hoá đơn
+     vẫn phải cuộn ngang. */
+  position: relative;
+  width: var(--kt-ngan-w, 920px);
+  max-width: 100vw;
   height: 100%;
   background: var(--canvas);
   overflow-y: auto;
   /* CỐ Ý KHÔNG đặt `overflow-x: hidden` (đã thử và gỡ ngày 21/08/2026). Nó không làm nội dung vừa
      ô — chỉ CẮT CỤT phần thừa, mà cắt số tiền thì tệ hơn hẳn một thanh cuộn xấu. Cách chữa đúng
-     là để nội dung co được: xem `min-width: 0` ở `.dhb__timeline-step` và khung cuộn riêng của
+     là để nội dung co được: xem `min-width: 0` ở `.dhb__path-buoc` và khung cuộn riêng của
      `.dhb__invoice-tablewrap`. Còn thừa chỗ nào thì phải THẤY nó mà sửa, không phải giấu đi. */
   box-shadow: var(--shadow-lg);
   border-left: 1px solid var(--rule-soft);
   animation: dhb-slide-in 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
   display: flex;
   flex-direction: column;
+}
+
+.dhb__drawer-keo {
+  position: sticky;
+  top: 0;
+  flex: none;
+  height: 0;
+  z-index: 3;
+  cursor: col-resize;
+  touch-action: none;
+}
+.dhb__drawer-keo::before {
+  /* Vùng bắt chuột 12px phủ hết chiều cao ngăn, nằm đè mép trái. */
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 12px;
+  height: 100vh;
+}
+.dhb__drawer-keo::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: calc(50vh - 22px);
+  width: 4px;
+  height: 44px;
+  border-radius: 4px;
+  background: var(--rule);
+  transition: background var(--duration-base), height var(--duration-base), top var(--duration-base);
+}
+.dhb__drawer-keo:hover::after,
+.dhb__drawer-keo.is-keo::after {
+  background: var(--ash-2);
+  height: 72px;
+  top: calc(50vh - 36px);
+}
+.dhb__drawer-content:has(.dhb__drawer-keo.is-keo) {
+  user-select: none;
 }
 
 @keyframes dhb-slide-in {
@@ -693,42 +723,6 @@
   margin-top: var(--sp-2);
 }
 
-/* --- Attachments --- */
-.dhb__attachment-list {
-  display: grid;
-  gap: 6px;
-}
-
-.dhb__attachment-item {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 12.5px;
-  padding: 6px 10px;
-  background: var(--canvas);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-3);
-  transition: all var(--duration-fast) var(--easing-standard);
-}
-
-.dhb__attachment-item:hover {
-  border-color: var(--ash-2);
-}
-
-.dhb__attachment-link {
-  color: var(--rust-deep);
-  font-weight: 500;
-  text-decoration: none;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dhb__attachment-link:hover {
-  text-decoration: underline;
-}
-
 /* Modals & Dialogs */
 .dhb__modal-overlay {
   position: fixed;
@@ -787,114 +781,88 @@
   color: var(--ash);
 }
 
-.dhb__lifecycle-subtitle {
-  font-size: 11px;
-  color: var(--ash-2);
-  font-style: italic;
-}
-
-.dhb__timeline {
-  /* Mép trái/phải của đường nối = tâm chấm đầu/cuối: 6 bước chia đều ⇒ 1/12 bề ngang. */
-  --dhb-tl-le: 8.33%;
+/* Thanh chặng (phương án A, 05/10/2026) — Chốt → Cọc → Sản xuất (gồm nhập kho) → Giao → Hóa đơn.
+   Ô hình mũi tên bằng clip-path; chọn = viền ĐỦ quanh mũi tên (drop-shadow 4 phía bám theo hình
+   đã cắt — outline/border thì bị clip-path cắt mất). */
+.dhb__path {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-  padding: 0 var(--sp-4);
-  margin-bottom: var(--sp-3);
-}
-
-.dhb__timeline-track,
-.dhb__timeline-fill {
-  position: absolute;
-  top: 13px;
-  height: 2px;
-  border-radius: 2px;
-  z-index: 1;
-}
-
-.dhb__timeline-track {
-  left: var(--dhb-tl-le);
-  right: var(--dhb-tl-le);
-  background: var(--rule-soft);
-}
-
-.dhb__timeline-fill {
-  left: var(--dhb-tl-le);
-  background: var(--moss);
-  transition: width var(--duration-base) var(--easing-standard);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dhb__timeline-fill { transition: none; }
-}
-
-.dhb__timeline-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  z-index: 2;
-  flex: 1;
-  /* ⚠️ `flex: 1` KHÔNG đủ để co: mặc định `min-width: auto` giữ mỗi bước rộng bằng chữ dài nhất
-     trong nó ("không cần cọc", "đã ghi một phần"). 5 bước như vậy cộng lại rộng hơn ô chi tiết
-     ⇒ đẩy tràn cả viền, và vì `.dhb__drawer-content` cuộn được nên nền không đi theo, nhìn như
-     chữ lòi hẳn ra ngoài (chủ báo 21/08/2026: "ở laptop nó tràn viền luôn"). */
+  gap: 3px;
   min-width: 0;
 }
-
-/* Nhãn bước: xuống dòng còn đọc được; kéo ngang thì cả dải vỡ. */
-.dhb__timeline-label,
-.dhb__timeline-sub {
-  overflow-wrap: anywhere;
-  text-align: center;
+.dhb__path-buoc {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
+.dhb__path-o {
+  display: grid;
+  gap: 1px;
+  padding: 7px 6px 7px 16px;
+  background: var(--rule-hair);
+  color: var(--ash-2);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%, 9px 50%);
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+.dhb__path-buoc:first-child .dhb__path-o {
+  padding-left: 10px;
+  border-radius: var(--r-2) 0 0 var(--r-2);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%);
+}
+.dhb__path-buoc:last-child .dhb__path-o {
+  border-radius: 0 var(--r-2) var(--r-2) 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 9px 50%);
+}
+.dhb__path-o b,
+.dhb__path-o small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dhb__path-o b { font-size: 12.5px; font-weight: 600; }
+.dhb__path-o small { font-size: 11.5px; }
+.dhb__path-o small.is-warn { color: var(--signal); font-weight: 600; }
+.dhb__path-buoc:hover .dhb__path-o { background: var(--rule-soft); }
+.dhb__path-buoc.is-done .dhb__path-o { background: var(--moss-soft); color: var(--moss-deep); }
+.dhb__path-buoc.is-do .dhb__path-o { background: var(--steel-soft); color: var(--ink); }
+.dhb__path-buoc.is-dang .dhb__path-o { background: var(--ink); color: var(--canvas); }
+.dhb__path-buoc.is-dang .dhb__path-o small.is-warn { color: var(--signal-soft); }
+.dhb__path-buoc.is-selected {
+  filter: drop-shadow(1.5px 0 0 var(--rust)) drop-shadow(-1.5px 0 0 var(--rust))
+    drop-shadow(0 1.5px 0 var(--rust)) drop-shadow(0 -1.5px 0 var(--rust));
+  position: relative;
+  z-index: 1;
+}
+.dhb__path-buoc:focus-visible { outline: none; }
+.dhb__path-buoc:focus-visible .dhb__path-o { background: var(--rule-soft); }
 
-.dhb__timeline-dot {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-pill);
-  background: var(--paper-contrast);
-  border: 2px solid var(--rule-soft);
+/* Việc tiếp theo — một câu + thẻ nhỏ + một nút, luôn ngay dưới thanh chặng. */
+.dhb__viec {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  margin-bottom: var(--sp-1);
-  color: var(--ash-2);
-  transition: all var(--duration-base) var(--easing-standard);
-  font-size: 11.5px;
-  font-weight: 700;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3);
+  padding: 10px 12px;
 }
+.dhb__viec-chu { display: grid; gap: 6px; min-width: 0; flex: 1 1 260px; }
+.dhb__viec-cau { font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.dhb__viec-the { display: flex; flex-wrap: wrap; gap: 6px; }
+.dhb__viec-nut { flex: 0 0 auto; }
 
-.dhb__timeline-step.is-done .dhb__timeline-dot {
-  background: var(--moss);
-  border-color: var(--moss);
-  color: #fff;
-}
-
-.dhb__timeline-step.is-active .dhb__timeline-dot {
-  background: var(--paper-contrast);
-  border-color: var(--amber);
-  color: var(--amber-deep);
-}
-
-.dhb__timeline-label {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ash);
-  text-align: center;
-}
-
-.dhb__timeline-step.is-done .dhb__timeline-label {
-  color: var(--ink);
-}
-
-.dhb__timeline-sub {
-  font-size: 10.5px;
-  color: var(--ash-2);
-  margin-top: 2px;
-  font-family: var(--ff-sans);
-}
+/* Ô chi tiết chặng cao THEO chặng đang mở (06/10/2026). Bản 05/10 chồng năm khung trong một ô lưới,
+   khung không chọn chỉ `visibility: hidden` ⇒ ô luôn cao bằng chặng dài nhất (Giao / Hóa đơn), chặng
+   ngắn như Sản xuất một dòng bị kéo dãn, nửa dưới trống trơn (chủ báo). Ô nằm cuối ngăn đơn nên đổi
+   chặng chỉ co giãn phần đuôi, không đẩy thứ gì phía dưới. */
+.dhb__chang-khung { min-width: 0; }
+.dhb__chang-o { min-width: 0; display: flex; flex-direction: column; }
+.dhb__chang-o:not(.is-mo) { display: none; }
 
 /* Sections inside Vòng đời đơn */
 .dhb__lifecycle-box {
@@ -1037,6 +1005,99 @@
   padding: var(--sp-3) 0;
   border-top: 1px solid var(--rule-soft);
   border-bottom: 1px solid var(--rule-soft);
+}
+
+/* Popup ghi nhận hóa đơn: khung modal đã có lề + viền, bỏ đường kẻ trên/dưới của form nằm trong bảng. */
+.dhb__invoice-form--popup {
+  width: 560px;
+  gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-8);
+  border: 1px solid var(--rule-soft);
+}
+
+.dhb__invoice-lead {
+  margin: calc(-1 * var(--sp-2)) 0 0;
+  color: var(--ash);
+  font-size: 13px;
+}
+
+.dhb__invoice-hint {
+  color: var(--ash-2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.dhb__invoice-hint.is-loi {
+  color: var(--signal);
+}
+
+.dhb__invoice-money-wrap {
+  position: relative;
+  display: block;
+}
+
+.dhb__invoice-money-wrap .dhb__invoice-money {
+  width: 100%;
+  padding-right: 28px;
+}
+
+.dhb__invoice-money-wrap i {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ash);
+  font-style: normal;
+  pointer-events: none;
+}
+
+.dhb__invoice-result {
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--rule-soft);
+}
+
+.dhb__invoice-result h4 {
+  margin: 0 0 var(--sp-2);
+  color: var(--ash-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.dhb__invoice-result dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px var(--sp-4);
+  margin: 0;
+  font-size: 13px;
+}
+
+.dhb__invoice-result dt {
+  color: var(--ash);
+}
+
+.dhb__invoice-result dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px var(--sp-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.dhb__invoice-result dd b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.dhb__invoice-result dd small {
+  color: var(--ash-2);
+  font-size: 12px;
+}
+
+.dhb__invoice-warn {
+  color: var(--signal);
 }
 
 .dhb__invoice-form-grid {
@@ -1375,28 +1436,14 @@
   gap: var(--sp-2) var(--sp-5);
 }
 
-/* --- Timeline Interactive Steps --- */
-.dhb__timeline-step {
-  cursor: pointer;
-  transition: transform var(--duration-fast) var(--easing-standard);
-}
-
-.dhb__timeline-step:hover {
-  transform: translateY(-1px);
-}
-
-.dhb__timeline-step.is-selected .dhb__timeline-dot {
-  box-shadow: 0 0 0 3px var(--rule-hair);
-  border-color: var(--rust);
-}
-
 @media (max-width: 760px) {
   .dhb__drawer-content {
     width: 100%;
-    /* PHẢI gỡ luôn `min-width` của bản rộng — máy hẹp hơn 580px thì cái sàn đó đẩy ô tràn khỏi
-       màn, kéo ngang cả trang. */
-    min-width: 0;
     max-width: 100vw;
+  }
+
+  .dhb__drawer-keo {
+    display: none;
   }
 
   .dhb__invoice-metrics,
@@ -1468,25 +1515,7 @@
 
 
 /* --- Tiến độ đơn: SX → Nhập kho → Giao (19/09/2026) --- */
-.dhb__td-mini {
-  display: block;
-  width: 70%;
-  height: 4px;
-  margin-top: 4px;
-  border-radius: 2px;
-  background: var(--rule-soft);
-  overflow: hidden;
-}
-.dhb__td-mini-fill {
-  display: block;
-  height: 100%;
-  background: var(--amber);
-}
-.dhb__td-mini-fill.is-xong { background: var(--moss); }
-.dhb__timeline-sub.is-warn { color: var(--signal); font-weight: 600; }
-
 .dhb__td-tre { margin: 0 0 var(--sp-2); font-size: 12px; }
-.dhb__td-dung { margin: 0 0 var(--sp-2); font-size: 12px; color: var(--moss-deep); }
 .dhb__td-note { margin: 0; font-size: 12px; color: var(--ash); }
 .dhb__td-warn { color: var(--signal); font-style: normal; }
 
@@ -1536,6 +1565,137 @@
   color: var(--ash);
   overflow-wrap: anywhere;
 }
+
+/* Khối Sản xuất của ngăn đơn + ô Sản xuất ngoài danh sách — từng mặt hàng (07/10/2026). */
+.dhb__sx-goi-y { font-size: 12px; color: var(--ash-2); }
+.dhb__sx-tag {
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ash);
+  background: none;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-2);
+  padding: 0 7px;
+  white-space: nowrap;
+}
+.dhb__sx-tag--lenh { color: var(--rust); font-weight: 600; cursor: pointer; }
+.dhb__sx-tag--lenh:hover { background: var(--rule-hair); }
+.dhb__sx-tag--ok { background: var(--moss-soft); border-color: transparent; color: var(--moss-deep); }
+.dhb__sx-tag--warn { background: var(--amber-soft); border-color: transparent; color: var(--amber-deep); }
+.dhb__sx-tag--bad { background: var(--signal-soft); border-color: transparent; color: var(--signal); }
+
+/* Thẻ "đang ở" + dải màu: mỗi mặt hàng một đoạn. */
+.sxm-the {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 0 7px;
+  border-radius: var(--r-2);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.sxm-the--ok { background: var(--moss-soft); color: var(--moss-deep); }
+.sxm-the--ngoai { background: var(--amber-soft); color: var(--amber-deep); }
+.sxm-the--xuong { background: var(--steel-soft); color: var(--steel); }
+.sxm-the--cho { background: var(--rule-hair); color: var(--ash); border: 1px solid var(--rule-soft); line-height: 16px; }
+.sxm-the--tre { background: var(--signal-soft); color: var(--signal); }
+.sxm-mo-nhat { font-size: 12px; color: var(--ash); }
+
+/* Ô Sản xuất ngoài danh sách (phương án A): thẻ chỗ kẹt + một dòng chi tiết, KHÔNG ép một dòng —
+   bản dải màu nowrap từng làm bảng tràn 1.060px trong khung 992px, bóp cột NV / Trạng thái. */
+.sxm-the--giao { background: var(--plum-soft); color: var(--plum-deep); }
+.sxm-o { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.sxm-o__the { font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+.sxm-o__the.sxm-the--cho { border-color: var(--rule); }
+.sxm-o__the:hover, .sxm-o__the[aria-expanded="true"] { border-color: var(--ash-2); }
+.sxm-o__ct { font-size: 12px; color: var(--ash); overflow-wrap: anywhere; }
+.sxm-o__them {
+  font: inherit;
+  font-weight: 600;
+  color: var(--rust);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sxm-o__them:hover { text-decoration: underline; }
+
+.sxm-noi {
+  position: fixed;
+  z-index: 1200;
+  width: min(440px, calc(100vw - 32px));
+  max-height: min(420px, calc(100vh - 32px));
+  overflow-y: auto;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+}
+.sxm-noi__dau { font-size: 12px; color: var(--ash); padding: 6px 8px 8px; }
+.sxm-noi__dong {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 14px;
+  grid-template-areas: "ten the mo" "ct ct mo";
+  align-items: center;
+  gap: 2px 10px;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: var(--r-2);
+  padding: 8px;
+  cursor: pointer;
+}
+.sxm-noi__dong:hover { background: var(--rule-hair); }
+.sxm-noi__ten { grid-area: ten; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.sxm-noi__dong > .sxm-the { grid-area: the; justify-self: end; }
+.sxm-noi__ct { grid-area: ct; font-size: 12px; color: var(--ash); }
+.sxm-noi__mo { grid-area: mo; color: var(--ash-2); }
+
+/* Bảng Sản xuất trong ngăn đơn (phương án B) — hẹp thì cuộn ngang trong khung. */
+.sxm-bang-khung { overflow-x: auto; min-width: 0; }
+.sxm-bang { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 13px; }
+.sxm-bang th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ash);
+  padding: 0 10px 8px 0;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+.sxm-bang td { padding: 10px 10px 10px 0; border-bottom: 1px solid var(--rule-hair); vertical-align: top; }
+.sxm-bang tr:last-child td { border-bottom: 0; }
+.sxm-bang__mo { cursor: pointer; }
+.sxm-bang__mo:hover td { background: var(--rule-hair); }
+.sxm-bang__ten { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.sxm-lenhs { display: flex; flex-wrap: wrap; gap: 4px; }
+.sxm-lenh {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rust);
+  background: none;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-2);
+  padding: 0 6px;
+  line-height: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sxm-lenh:hover { background: var(--rule-hair); }
+.sxm-lenh:disabled { color: var(--ash); cursor: default; }
+.sxm-o-cot { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.sxm-co-cot { display: grid; gap: 4px; min-width: 110px; }
+.sxm-thanh { display: block; height: 6px; border-radius: 3px; background: var(--rule-soft); overflow: hidden; }
+.sxm-thanh > i { display: block; height: 100%; background: var(--moss); }
+.sxm-so { font-size: 12px; color: var(--ash); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .dhb__td-giao { display: grid; gap: var(--sp-3); min-width: 0; }
 .dhb__td-yc-list { display: grid; gap: var(--sp-2); }

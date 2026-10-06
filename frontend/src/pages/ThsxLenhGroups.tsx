@@ -10,6 +10,7 @@ import { useState, type ReactNode } from "react";
 import { Icon } from "../components/Icons";
 import type { SxLenhNhom, SxWorkItem } from "../api/client";
 import { ngayGio } from "./keHoachSxShared";
+import { ngayDayDu, ngayGioDayDu } from "./loc-san-xuat/ngay";
 import { ChamCho, type SxChoCuaViec } from "./thsxChoXacNhan";
 import { ThsxDaiRouting } from "./ThsxDaiRouting";
 import { sxNguonIcon } from "./thsxShared";
@@ -87,6 +88,12 @@ export function ThsxLenhGroups({
               )}
               <ChamCho c={choLenh} />
               <span className="thsx-lenh__spacer" />
+              {/* Cột "Ngày tạo" của bàn (06/10/2026) — ngày tạo LỆNH / bài ghép, title đủ giờ. */}
+              {l.tao_luc && (
+                <span className="thsx-lenh__gio thsx-num" title={`Ngày tạo lệnh ${ngayGioDayDu(l.tao_luc) ?? ""}`}>
+                  Tạo {ngayDayDu(l.tao_luc)}
+                </span>
+              )}
               {l.nhan_luc && (
                 <span className="thsx-lenh__gio thsx-num" title="Lúc tổ nhận việc (phát hành xuống tổ)">
                   Nhận {ngayGio(l.nhan_luc)}

@@ -297,6 +297,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Cột Ngày tạo của danh bạ (thanh lọc chung 06/10/2026). */
+.kh__table td.kh__ngay-tao {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--ash-2);
+}
+
 .kh__toolbar-controls {
   display: flex;
   align-items: center;
@@ -783,7 +790,7 @@
 }
 .kh__card-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   background: #f8fafc;
   padding: 10px 12px;
@@ -960,113 +967,22 @@
   }
 }
 
-/* ---- Pager UI - Modern Footer Bar ---------------------------------------- */
-.kh__pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 18px;
-  background: var(--canvas);
-  border-top: 1px solid var(--rule);
-  border-radius: 0 0 var(--r-6) var(--r-6);
-  font-size: 13px;
-  gap: 16px;
-  flex-wrap: nowrap;
+/* ---- Chân phân trang (`PhanTrangDayDu`) ---------------------------------- */
+/* Chân là anh em của khung bảng (để đứng yên khi bảng cuộn ngang) nhưng phải NHÌN như đáy của
+   thẻ bảng (khuôn Nhật ký). `!important` vì `.kh__tablewrap` ở cuối tệp khai bo góc `!important`. */
+.kh__tablewrap:has(+ .ptdd) {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
 }
-
-.kh__pager-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-shrink: 0;
-}
-
-.kh__pager-info {
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.kh__pager-info strong {
-  color: var(--ink);
-  font-weight: 500;
-}
-
-.kh__pager-divider {
-  width: 1px;
-  height: 16px;
-  background: var(--rule);
-  flex-shrink: 0;
-}
-
-.kh__pager-size {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.kh__pager-size span {
-  white-space: nowrap;
-  display: inline-block;
-  font-size: 13px;
-  color: var(--ink);
-  font-weight: 500;
-}
-
-.kh__pager-size > :last-child {
-  min-width: 96px;
-}
-
-.kh__pager-btns {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.kh__pager-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 12px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--ink);
-  background: var(--canvas);
+.kh__tablewrap + .ptdd {
   border: 1px solid var(--rule);
-  border-radius: var(--r-3);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all var(--duration-base) var(--easing-standard);
+  border-top: 0;
+  border-radius: 0 0 var(--r-5) var(--r-5);
 }
-
-/* Hover nút phụ = nền xám nhạt + viền/chữ rust (UI_DESIGN §2, giống .rdx-chip:hover). */
-.kh__pager-btn:hover:not(:disabled) {
-  background: var(--rule-hair);
-  border-color: var(--rust);
-  color: var(--rust-deep);
-}
-
-.kh__pager-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: var(--canvas);
-  border-color: var(--rule);
-  color: var(--ash-2);
-}
-
-.kh__pager-page-indicator {
-  padding: 0 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-  white-space: nowrap;
+/* Kiểu xem thẻ: không có thẻ bảng làm đáy ⇒ chân thành một dải có viền riêng dưới lưới thẻ. */
+.kh__cards-grid + .ptdd {
+  border: 1px solid var(--rule);
+  border-radius: var(--r-5);
 }
 
 /* ========================================================================== */
@@ -1530,8 +1446,7 @@
 .kh__form-wide {
   grid-column: 1 / -1;
 }
-.kh__dialog .field__label,
-.kh__finpolicy-edit .field__label {
+.kh__dialog .field__label {
   font-family: var(--ff-sans);
   font-size: 11px;
   font-weight: var(--fw-bold);
@@ -1541,23 +1456,19 @@
   margin-bottom: 5px;
   display: block;
 }
-.kh__dialog .input,
-.kh__finpolicy-edit .input {
+.kh__dialog .input {
   border-radius: var(--r-3);
   border-color: var(--rule);
   transition: border-color var(--duration-base) var(--easing-standard),
               box-shadow var(--duration-base) var(--easing-standard);
 }
-.kh__dialog .input:focus-visible,
-.kh__finpolicy-edit .input:focus-visible {
+.kh__dialog .input:focus-visible {
   outline: none !important;
   border-color: var(--rust);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--rust) 14%, transparent);
 }
 .kh__dialog .input[readonly],
-.kh__dialog .input:disabled,
-.kh__finpolicy-edit .input[readonly],
-.kh__finpolicy-edit .input:disabled {
+.kh__dialog .input:disabled {
   background: var(--paper-contrast);
   border-style: dashed;
   border-color: var(--rule);
@@ -1673,34 +1584,121 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.kh__finpolicy-edit {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--sp-3);
-  padding-top: 6px;
+/* Form sửa chính sách (05/10/2026): hai nhóm "Công nợ" / "Rào giá khi báo giá", mỗi dòng nhãn
+   trái – ô phải như bản xem để bật Sửa không nhảy bố cục. Rào CK/Markup là MỘT dòng "từ … đến …"
+   thay bốn ô rời; ô số có đơn vị nằm trong ô, chấm nghìn ngay khi gõ. */
+.kh__fin-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding-top: 4px;
 }
-.kh__fin-wide {
-  grid-column: 1 / -1;
+.kh__fin-nhom {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.kh__fin-bounds {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--sp-3);
-  padding-top: 8px;
+.kh__fin-nhom legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+.kh__fin-nhom + .kh__fin-nhom {
+  padding-top: var(--sp-4);
   border-top: 1px dashed var(--rule);
 }
+.kh__fin-dong {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--sp-4);
+  row-gap: 4px;
+}
+.kh__fin-nhan {
+  color: var(--ash);
+  font-size: 13px;
+}
+.kh__fin-cum {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.kh__fin-phu {
+  color: var(--ash);
+  font-size: 13px;
+}
+.kh__fin-so {
+  display: inline-flex;
+  align-items: center;
+  width: 120px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  transition: border-color var(--duration-base) var(--easing-standard),
+              box-shadow var(--duration-base) var(--easing-standard);
+}
+.kh__fin-so--rong {
+  width: 220px;
+}
+.kh__fin-so:focus-within {
+  border-color: var(--rust);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rust) 14%, transparent);
+}
+.kh__fin-so.is-loi {
+  border-color: var(--signal);
+}
+.kh__fin-so input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--ff-sans);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.kh__fin-so input::placeholder {
+  color: var(--ash-2);
+  font-family: var(--ff-sans);
+}
+.kh__fin-so-dv {
+  margin-left: 6px;
+  color: var(--ash);
+  font-size: 13px;
+}
+.kh__fin-loi {
+  grid-column: 2;
+  margin: 0;
+  color: var(--signal);
+  font-size: 12px;
+}
+.kh__fin-goi-y {
+  margin: 0;
+  color: var(--ash-2);
+  font-size: 12px;
+}
 .kh__fin-actions {
-  grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
   gap: var(--sp-3);
-  margin-top: 4px;
 }
 @media (max-width: 640px) {
-  .kh__finpolicy-edit,
-  .kh__fin-bounds {
-    grid-template-columns: 1fr;
+  .kh__fin-dong {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .kh__fin-loi {
+    grid-column: 1;
   }
 }
 .kh__dialog-actions {
@@ -5537,10 +5535,6 @@
   flex-wrap: wrap;
   justify-content: flex-end;
 }
-.kh__pager,
-.kh__pager-left {
-  flex-wrap: wrap;
-}
 
 @media (max-width: 1024px) {
   .kh {
@@ -5587,28 +5581,6 @@
     flex-wrap: wrap;
     row-gap: 8px;
     border-radius: var(--r-5);
-  }
-  .kh__pager {
-    justify-content: flex-start;
-    gap: 10px;
-  }
-  .kh__pager-btns {
-    margin-left: auto;
-  }
-  /* `flex-shrink:0` + hai cụm `nowrap` (dòng "Tổng … · Trang x/y" và ô "Hiển thị N dòng"
-     min-width 96px) cộng lại > bề ngang điện thoại ⇒ ĐẨY CẢ VÙNG NỘI DUNG trượt ngang.
-     Cho phép co + xuống dòng thì pager tự gãy hàng, bảng bên trên vẫn cuộn trong khung. */
-  .kh__pager-left {
-    flex-shrink: 1;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    min-width: 0;
-  }
-  .kh__pager-info {
-    white-space: normal;
-  }
-  .kh__pager-divider {
-    display: none;
   }
 }
 

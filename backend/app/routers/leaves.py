@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from ..deps import (
     get_current_user,
@@ -23,6 +23,8 @@ from ..models.user import User
 from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
 from ..repositories.employee_repo import EmployeeRepository
+from ..repositories.loc_don_nhan_su import LocDon
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.leave import (
     HuyDonIn,
     QuyetXinHuyIn,
@@ -79,8 +81,9 @@ SelfUser = Annotated[User, Depends(get_current_user)]
 # cả hai ô. Ai không có ô nào trong hai ô này thì không đụng được — trước đây chỉ cần
 # đăng nhập là gọi được, đúng chỗ tester bắt.
 SelfOrApprover = Annotated[
-    # HUỶ đơn là ĐƯỜNG GHI ⇒ ô Thao tác của chính màn Nghỉ phép (15/08/2026). Người DUYỆT huỷ hộ
-    # thì đi bằng ô Duyệt. Trước 15/08 nó đi theo ô Thao tác của Tự phục vụ — ô đó đã bỏ.
+    # HUỶ đơn đòi ô `nghi_phep:cancel` (người tạo) hoặc ô Duyệt (người duyệt huỷ hộ) — KHÔNG phải ô
+    # Thao tác như ghi chú cũ. Ma trận có ô "Huỷ đơn nghỉ của mình" (`can_cancel`) từ 05/10/2026 —
+    # trước đó thiếu ô nên nhân viên thường bấm "Hủy đơn" ăn 403. Màn ẩn nút theo đúng hai ô này.
     User, Depends(require_any_permission((MODULE, "cancel"), (MODULE, "approve")))
 ]
 
@@ -251,13 +254,20 @@ def my_requests(svc: Service, employees: Employees,
                 user: SelfUser,
                 page: int = Query(default=1, ge=1),
                 size: int = Query(default=20, ge=1, le=100),
-                thang: str | None = Query(default=None, description="YYYY-MM — lọc theo tháng NGÀY TẠO đơn"),
+                status_filter: str | None = Query(default=None, alias="status"),
+                # Kỳ: `tao` = ngày tạo đơn (mặc định), `nghi` = ngày nghỉ GIAO với kỳ.
+                tu_ngay: date | None = Query(default=None),
+                den_ngay: date | None = Query(default=None),
+                moc: str = Query(default="tao", pattern="^(tao|nghi)$"),
+                loai: int | None = Query(default=None),
                 ) -> MyLeaveOut:
     if not svc.has_employee(user=user):
         return MyLeaveOut(has_employee=False, employee_name=None, items=[], quotas=[],
                           total=0, page=page, size=size)
+    loc = LocDon(tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, loai=loai)
     try:
-        reqs, total = svc.my_requests(user=user, page=page, size=size, thang=thang)
+        reqs, total, dem = svc.my_requests(user=user, loc=loc, status=status_filter,
+                                           page=page, size=size)
     except LeaveError as exc:
         _raise(exc)
     # Tên lấy từ HỒ SƠ GẮN TÀI KHOẢN, không suy từ `reqs[0]` như trước: sang trang 2 mà trang đó
@@ -267,7 +277,7 @@ def my_requests(svc: Service, employees: Employees,
     quotas = svc.my_quotas(user=user, year=date.today().year)
     return MyLeaveOut(has_employee=True, employee_name=name,
                       items=_resolve(svc, employees, reqs), quotas=quotas,
-                      total=total, page=page, size=size)
+                      total=total, page=page, size=size, dem_theo_tab=dem)
 
 
 @router.get("/summary", response_model=LeaveSummaryOut)
@@ -390,18 +400,32 @@ def list_requests(svc: Service, employees: Employees, authz: Authz,
                   employee_id: int | None = Query(default=None),
                   page: int = Query(default=1, ge=1),
                   size: int = Query(default=20, ge=1, le=100),
-                  thang: str | None = Query(default=None, description="YYYY-MM — lọc theo tháng NGÀY TẠO đơn"),
+                  tu_ngay: date | None = Query(default=None),
+                  den_ngay: date | None = Query(default=None),
+                  moc: str = Query(default="tao", pattern="^(tao|nghi)$"),
+                  loai: int | None = Query(default=None),
+                  phong: int | None = Query(default=None),
                   ) -> LeaveRequestsOut:
     # Data-scope: HCNS/Admin (scope=all) thấy mọi đơn; NV (scope=own) chỉ thấy đơn của mình.
-    # `employee_id` KHÔNG nới phạm vi — nó lọc THÊM bên trong phạm vi đã có (xem service).
+    # `employee_id` / `phong` KHÔNG nới phạm vi — chỉ lọc THÊM bên trong phạm vi đã có.
     scope = authz.scope_for(user, MODULE) or "own"
+    loc = LocDon(tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, employee_id=employee_id,
+                 phong=phong, loai=loai)
     try:
-        reqs, total = svc.list_requests(scope=scope, actor=user, status=status_filter,
-                                        employee_id=employee_id, page=page, size=size, thang=thang)
+        reqs, total, dem = svc.list_requests(scope=scope, actor=user, loc=loc, status=status_filter,
+                                             page=page, size=size)
     except LeaveError as exc:
         _raise(exc)
     return LeaveRequestsOut(items=_resolve(svc, employees, reqs),
-                            total=total, page=page, size=size)
+                            total=total, page=page, size=size, dem_theo_tab=dem)
+
+
+@router.get("/loc/{truong}", response_model=list[LuaChonLoc])
+def loc_lua_chon(truong: Annotated[str, Path(pattern="^(nhan_vien|phong)$")], svc: Service,
+                 authz: Authz, user: Annotated[User, Depends(require_permission(MODULE, "read"))]):
+    """Giá trị của điều kiện Nhân viên / Phòng ban ở tab Duyệt — chỉ người có đơn trong phạm vi."""
+    scope = authz.scope_for(user, MODULE) or "own"
+    return [LuaChonLoc(**x) for x in svc.lua_chon(truong, scope=scope, actor=user)]
 
 
 @router.post("/{request_id}/approve", response_model=LeaveRequestOut)

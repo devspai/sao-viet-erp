@@ -32,7 +32,6 @@ from .bien_che import ly_do_ngoai_bien_che
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.leave_repo import LeaveRepository
-from .khoang_thang import khoang_tao_theo_thang
 from .ky_cong_guard import ly_do_ky_cong_da_chot
 
 
@@ -296,41 +295,23 @@ class LeaveService:
                           detail=f"{emp.code} {lt.name} {start_date}→{end_date} ({days}n)")
         return r
 
-    @staticmethod
-    def _khoang_thang(thang):
-        """`thang` (YYYY-MM, theo NGÀY TẠO đơn) → (tu, den) UTC, hoặc (None, None) = không lọc."""
-        try:
-            k = khoang_tao_theo_thang(thang)
-        except ValueError as exc:
-            raise LeaveValidationError(str(exc)) from None
-        return k if k is not None else (None, None)
-
-    def my_requests(self, *, user, page: int = 1, size: int = 20,
-                    thang: str | None = None) -> tuple[list[LeaveRequest], int]:
-        """Trả `(rows, total)` — `total` là TỔNG đơn của NV (trong tháng tạo nếu lọc), không phải
-        số dòng của trang. Mới tạo nhất lên đầu."""
+    def my_requests(self, *, user, loc, status: str | None = None, page: int = 1,
+                    size: int = 20) -> tuple[list[LeaveRequest], int, dict]:
+        """Trả `(trang, tổng, đếm theo trạng thái)` của đơn CHÍNH MÌNH — kỳ + bộ lọc ở máy chủ
+        (06/10/2026, thay lọc một tháng tạo). Mới tạo nhất lên đầu."""
         emp = self._employee_for_user(user)
-        tu, den = self._khoang_thang(thang)
-        total = self.leaves.count_by_employee(emp.id, tao_tu=tu, tao_den=den)
-        rows = self.leaves.list_by_employee(emp.id, limit=size, offset=max(0, (page - 1) * size),
-                                            tao_tu=tu, tao_den=den)
-        return rows, total
+        return self.leaves.loc_cua_nv(emp.id, loc=loc, status=status, limit=size,
+                                      offset=max(0, (page - 1) * size))
 
-    def list_requests(self, *, scope: str, actor, status: str | None = None,
-                      employee_id: int | None = None, page: int = 1,
-                      size: int = 20, thang: str | None = None) -> tuple[list[LeaveRequest], int]:
-        """Danh sách đơn theo DATA-SCOPE người gọi (own = của mình / department = của phòng /
-        all = tất cả). Duyệt tập trung: HCNS/Admin scope=all thấy mọi đơn.
+    def list_requests(self, *, scope: str, actor, loc, status: str | None = None,
+                      page: int = 1, size: int = 20) -> tuple[list[LeaveRequest], int, dict]:
+        """Danh sách theo DATA-SCOPE người gọi (own / department = phòng mình + cây con / all).
+        `loc.employee_id` chỉ THU HẸP thêm bên trong phạm vi đã có — không nới quyền."""
+        return self.leaves.loc_scoped(scope=scope, actor=actor, loc=loc, status=status, limit=size,
+                                      offset=max(0, (page - 1) * size))
 
-        `employee_id` chỉ THU HẸP thêm bên trong phạm vi đã có — không mở rộng quyền: gõ id của
-        người ngoài phạm vi thì `_scope_condition` vẫn cắt, kết quả rỗng chứ không lộ đơn."""
-        tu, den = self._khoang_thang(thang)
-        total = self.leaves.count_scoped(scope=scope, actor=actor, status=status,
-                                         employee_id=employee_id, tao_tu=tu, tao_den=den)
-        rows = self.leaves.list_scoped(scope=scope, actor=actor, status=status,
-                                       employee_id=employee_id, limit=size,
-                                       offset=max(0, (page - 1) * size), tao_tu=tu, tao_den=den)
-        return rows, total
+    def lua_chon(self, truong: str, *, scope: str, actor) -> list[dict]:
+        return self.leaves.lua_chon(truong, scope=scope, actor=actor)
 
     def count_pending(self, *, scope: str, actor) -> int:
         """Số việc chờ duyệt trong scope — nuôi badge sidebar: đơn mới + yêu cầu HỦY đơn đã duyệt

@@ -398,8 +398,8 @@ def test_loc_theo_luc_nhan_truoc_khi_cat_trang(db, to_nhan_lech_ngay):
     repo = SanXuatRepository(db)
     rows, tong = repo.lenh_cua_to_phan_trang(
         {to_id}, co_trang=1,
-        nhan_tu=datetime(2026, 9, 11, tzinfo=timezone.utc),
-        nhan_den=datetime(2026, 9, 16, tzinfo=timezone.utc))
+        moc="nhan", ky_tu=datetime(2026, 9, 11, tzinfo=timezone.utc),
+        ky_den=datetime(2026, 9, 16, tzinfo=timezone.utc))
     assert tong == 2, "đếm tổng SAU khi lọc — trang mới đúng số"
     assert [k for k, _, _ in rows] == [tang[2]]
 
@@ -418,7 +418,7 @@ def test_loc_trang_thai_giu_lenh_co_buoc_khop(db, to_co_3_lenh_9_buoc):
 
 def test_board_loc_trang_thai_chi_bay_buoc_khop_va_ngay_la_ngay_xuong(
         db, admin, to_co_3_lenh_9_buoc):
-    """Qua service: trong lệnh chỉ còn bước khớp trạng thái; `nhan_tu/nhan_den` là NGÀY XƯỞNG."""
+    """Qua service: trong lệnh chỉ còn bước khớp trạng thái; kỳ `tu_ngay/den_ngay` (mốc `nhan`) là NGÀY XƯỞNG."""
     from datetime import date
 
     from app.repositories.rbac_repo import RoleRepository
@@ -436,7 +436,7 @@ def test_board_loc_trang_thai_chi_bay_buoc_khop_va_ngay_la_ngay_xuong(
     assert [cv["id"] for l in kq["lenh"] for cv in l["cong_viec"]] == [chay.id]
 
     ngay = ve_gio_xuong(chay.created_at).date()
-    kq = board.work_items(db, admin, authz, team_id=to_id, nhan_tu=ngay, nhan_den=ngay)
+    kq = board.work_items(db, admin, authz, team_id=to_id, tu_ngay=ngay, den_ngay=ngay)
     assert kq["trang"]["tong"] == 3
-    kq = board.work_items(db, admin, authz, team_id=to_id, nhan_tu=ngay + timedelta(days=1))
+    kq = board.work_items(db, admin, authz, team_id=to_id, tu_ngay=ngay + timedelta(days=1))
     assert kq["trang"]["tong"] == 0

@@ -121,6 +121,10 @@ class AttendanceLogOut(BaseModel):
 
 class AttendanceLogsOut(BaseModel):
     items: list[AttendanceLogOut]
+    # Nhật ký của HCNS phân trang ở máy chủ (06/10/2026); `/me/logs` để None.
+    total: int | None = None
+    page: int | None = None
+    size: int | None = None
 
 
 # --- self check-in ----------------------------------------------------------
@@ -522,6 +526,7 @@ class AdjustRequestOut(BaseModel):
     decided_at: datetime | None = None
     decision_note: str | None = None
     decided_by_name: str | None = None
+    created_at: datetime | None = None
 
 
 class AdjustQuotaOut(BaseModel):
@@ -540,6 +545,11 @@ class AdjustRequestsOut(BaseModel):
     items: list[AdjustRequestOut]
     # Chỉ điền ở đường TỰ PHỤC VỤ (`/me/adjust-requests`); danh sách của HCNS để None.
     quota: AdjustQuotaOut | None = None
+    # Danh sách của HCNS (06/10/2026): phân trang + số theo trạng thái cho thanh tab.
+    total: int | None = None
+    page: int | None = None
+    size: int | None = None
+    dem_theo_tab: dict[str, int] | None = None
 
 
 class RequestAdjustIn(BaseModel):

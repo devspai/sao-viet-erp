@@ -54,8 +54,8 @@ người mua lập phiếu, kế toán quyết chi. Tách vai cố ý.
 
 Vai **Kế toán tổng hợp** thêm 26/08/2026 — trước đó 5 màn tách khỏi khoá `ke_toan` ngày
 10/08/2026 (Phiếu chi · Phiếu thu · hai màn Công nợ · Tài khoản ngân hàng) không vai nào cầm
-ngoài Giám đốc, tức người làm kế toán không mở nổi màn của chính mình. Bộ ô bám đúng vai mẫu
-`ke_toan` trong `services/role_templates.py` — thứ ma trận đang chào admin khi tạo vai mới.
+ngoài Giám đốc, tức người làm kế toán không mở nổi màn của chính mình. Bộ ô bám vai mẫu
+`ke_toan` cũ (bảng vai mẫu + nút "Điền theo vai mẫu" đã gỡ 05/10/2026 — cấp quyền từng ô trực tiếp).
 
 ⚠️ **Kế toán tổng hợp KHÔNG duyệt được PMH.** Ô *Duyệt / từ chối PMH* (`ke_toan:approve`) vẫn
 chỉ Giám đốc giữ — cùng cách chia việc với phân hệ Mua hàng ở §2.1: người ghi sổ không tự quyết chi.
@@ -166,7 +166,7 @@ của đội khác.)*
 - **Tăng ca** (`tang_ca`) — phạm vi *Tất cả*  
   Xem · Thêm · Sửa · Xoá · Duyệt
 - **Lương** (`luong`) — phạm vi *Tất cả*  
-  Xem · Thêm · Sửa · Xoá · Xuất file · Duyệt · Đổi trạng thái · Khoá / Chốt kỳ · Xem lương & BHXH · Bảng lương tháng · Lương nhân viên · Lương khoán
+  Xem · Thêm · Sửa · Xoá · Xuất file · Duyệt · Đổi trạng thái · Khoá / Chốt kỳ · Xem lương & BHXH · Bảng lương tháng · Lương nhân viên
 - **Nội quy công ty** (`noi_quy`) — phạm vi *Tất cả*  
   Xem · Thêm · Xoá
 
@@ -212,7 +212,7 @@ của đội khác.)*
 - **Tăng ca** (`tang_ca`) — phạm vi *Tất cả*  
   Xem · Thêm · Sửa · Duyệt
 - **Lương** (`luong`) — phạm vi *Tất cả*  
-  Xem · Thêm · Sửa · Xoá · Xuất file · Duyệt · Đổi trạng thái · Khoá / Chốt kỳ · Xem lương & BHXH · Bảng lương tháng · Lương nhân viên · Lương khoán
+  Xem · Thêm · Sửa · Xoá · Xuất file · Duyệt · Đổi trạng thái · Khoá / Chốt kỳ · Xem lương & BHXH · Bảng lương tháng · Lương nhân viên
 - **Nội quy công ty** (`noi_quy`) — phạm vi *Tất cả*  
   Xem
 

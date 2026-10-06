@@ -7,9 +7,10 @@ Real-time: gửi/hủy → broadcast cho người duyệt; quyết định → �
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from ..deps import (
     get_current_user,
@@ -24,6 +25,8 @@ from ..models.user import User
 from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
 from ..repositories.employee_repo import EmployeeRepository
+from ..repositories.loc_don_nhan_su import LocDon
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.overtime import (
     HuyDonIn,
     OtXinHuyChoDuyetListOut,
@@ -207,19 +210,25 @@ def create_my_request(body: OvertimeRequestIn, svc: Service, employees: Employee
 def my_requests(svc: Service, employees: Employees, user: SelfUser,
                 page: int = Query(default=1, ge=1),
                 size: int = Query(default=20, ge=1, le=100),
-                thang: str | None = Query(default=None, description="YYYY-MM — lọc theo tháng NGÀY TẠO đơn"),
+                status_filter: str | None = None,
+                # Kỳ: `tao` = ngày tạo phiếu (mặc định), `ngay_cong` = ngày làm thêm.
+                tu_ngay: date | None = Query(default=None),
+                den_ngay: date | None = Query(default=None),
+                moc: str = Query(default="tao", pattern="^(tao|ngay_cong)$"),
                 ):
     if not svc.has_employee(user=user):
         return MyOvertimeOut(has_employee=False, page=page, size=size)
+    loc = LocDon(tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
     try:
-        reqs, total = svc.my_requests(user=user, page=page, size=size, thang=thang)
+        reqs, total, dem = svc.my_requests(user=user, loc=loc, status=status_filter,
+                                           page=page, size=size)
     except OvertimeError as exc:
         _raise(exc)
     emp = employees.get_by_user_id(user.id)
     return MyOvertimeOut(has_employee=True,
                          employee_name=emp.full_name if emp is not None else None,
                          items=_resolve(employees, reqs, svc),
-                         total=total, page=page, size=size)
+                         total=total, page=page, size=size, dem_theo_tab=dem)
 
 
 @router.get("/summary", response_model=OvertimeSummaryOut)
@@ -305,17 +314,29 @@ def list_requests(svc: Service, employees: Employees, authz: Authz,
                   employee_id: int | None = Query(default=None),
                   page: int = Query(default=1, ge=1),
                   size: int = Query(default=20, ge=1, le=100),
-                  thang: str | None = Query(default=None, description="YYYY-MM — lọc theo tháng NGÀY TẠO đơn"),
+                  tu_ngay: date | None = Query(default=None),
+                  den_ngay: date | None = Query(default=None),
+                  moc: str = Query(default="tao", pattern="^(tao|ngay_cong)$"),
+                  phong: int | None = Query(default=None),
                   ):
-    # `employee_id` KHÔNG nới phạm vi — chỉ lọc THÊM bên trong phạm vi đã có (xem service).
+    # `employee_id` / `phong` KHÔNG nới phạm vi — chỉ lọc THÊM bên trong phạm vi đã có.
     scope = authz.scope_for(user, MODULE) or "own"
+    loc = LocDon(tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, employee_id=employee_id, phong=phong)
     try:
-        reqs, total = svc.list_requests(scope=scope, actor=user, status=status_filter,
-                                        employee_id=employee_id, page=page, size=size, thang=thang)
+        reqs, total, dem = svc.list_requests(scope=scope, actor=user, loc=loc, status=status_filter,
+                                             page=page, size=size)
     except OvertimeError as exc:
         _raise(exc)
     return OvertimeRequestsOut(items=_resolve(employees, reqs, svc),
-                               total=total, page=page, size=size)
+                               total=total, page=page, size=size, dem_theo_tab=dem)
+
+
+@router.get("/loc/{truong}", response_model=list[LuaChonLoc])
+def loc_lua_chon(truong: Annotated[str, Path(pattern="^(nhan_vien|phong)$")], svc: Service,
+                 authz: Authz, user: Annotated[User, Depends(require_permission(MODULE, "read"))]):
+    """Giá trị của điều kiện Nhân viên / Phòng ban ở tab Duyệt — chỉ người có phiếu trong phạm vi."""
+    scope = authz.scope_for(user, MODULE) or "own"
+    return [LuaChonLoc(**x) for x in svc.lua_chon(truong, scope=scope, actor=user)]
 
 
 @router.post("/bulk-approve", response_model=OvertimeBulkResultOut)

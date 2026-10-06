@@ -6,6 +6,7 @@ giảm lô đẻ mốc mới, mốc cũ giữ nguyên (08/09/2026).
 from datetime import date
 
 from app.services.tai_san.khau_hao import (
+    DongThang,
     Moc,
     lich_du_kien,
     lich_khau_hao,
@@ -165,7 +166,32 @@ def test_khong_moc_thi_lich_rong():
 
 
 def test_muc_trich_0_khong_lap_vo_tan():
-    """Nguyên giá 10đ chia 120 tháng ⇒ mức 0 mỗi tháng — vòng lặp phải tự dừng."""
+    """Nguyên giá 10đ chia 120 tháng ⇒ mức 0 mỗi tháng — vòng lặp phải tự dừng. Tháng thứ 120
+    (tháng cuối) trích nốt cả 10đ, nên lịch có đúng một dòng và không kéo sang tháng 121."""
     ti_hon = Moc(tu_ngay=date(2026, 1, 1), nguyen_gia=10, co_so_trich=10, so_thang_con=120)
-    assert lich_khau_hao([ti_hon]) == []
+    assert lich_khau_hao([ti_hon]) == [DongThang(2035, 12, 10, 10, 0)]
     assert luy_ke_den([ti_hon], 2030, 1) == 0
+
+
+def test_thang_cuoi_trich_not_phan_le_khong_moc_thang_thua():
+    """205.833.334đ chia 65 tháng: 64 tháng × 3.166.666, tháng thứ 65 gánh phần lẻ — không có
+    tháng thứ 66 trích 44đ (lỗi trước 05/10/2026)."""
+    moc = Moc(tu_ngay=date(2026, 10, 1), nguyen_gia=380_000_000, co_so_trich=205_833_334,
+              so_thang_con=65, luy_ke_dau=174_166_666)
+    lich = lich_khau_hao([moc])
+    assert len(lich) == 65
+    assert {d.muc_trich for d in lich[:-1]} == {3_166_666}
+    assert (lich[-1].nam, lich[-1].thang) == (2032, 2)
+    assert lich[-1].muc_trich == 3_166_710
+    assert lich[-1].con_lai == 0
+
+
+def test_bat_dau_giua_thang_thang_cuoi_la_thang_thu_n_cong_1():
+    """Dùng từ 12/09 chia 120 tháng: tháng đầu lẻ ngày, phần còn thiếu dồn vào 09/2036."""
+    moc = Moc(tu_ngay=date(2026, 9, 12), nguyen_gia=450_000_000, co_so_trich=450_000_000,
+              so_thang_con=120)
+    lich = lich_khau_hao([moc])
+    assert len(lich) == 121
+    assert lich[0].muc_trich == 2_375_000
+    assert (lich[-1].nam, lich[-1].thang) == (2036, 9)
+    assert lich[-1].con_lai == 0

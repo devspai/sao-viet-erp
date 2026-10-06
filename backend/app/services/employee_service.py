@@ -57,6 +57,7 @@ from ..repositories.user_repo import UserRepository
 from ..quyen_notify import bao_quyen_doi
 from ..security import hash_password
 from ..shift_notify import push_shift_changes
+from .leave_service import hom_nay_vn
 
 # Mốc bật "tự đánh dấu HẾT THỬ VIỆC" (chủ chốt 22/08/2026). Hồ sơ có NGÀY HẾT THỬ VIỆC TRƯỚC
 # mốc này là dữ liệu tồn từ thời chưa có tính năng — máy KHÔNG đụng, để HCNS tự xử. Đụng vào là
@@ -322,6 +323,62 @@ class EmployeeService:
         if shift_id is None:
             return None, None
         return shift_id, self.employees.shift_name(shift_id)
+
+    def current_shift_hours(self, shift_id: int | None) -> str | None:
+        """Giờ vào–ra của ca ("08:00–17:00") — màn "Hồ sơ của tôi" không gọi được danh mục ca
+        (`/attendance/shifts` đòi quyền Khai ca) nên máy chủ đưa sẵn kèm tên ca."""
+        if shift_id is None:
+            return None
+        s = self.employees.get_shift(shift_id)
+        if s is None:
+            return None
+        hhmm = lambda m: f"{m // 60:02d}:{m % 60:02d}"  # noqa: E731
+        return f"{hhmm(s.start_minute)}–{hhmm(s.end_minute)}"
+
+    def today_shift_override(self, employee: Employee, on: date | None = None) -> dict | None:
+        """Lưới phân ca có khai RIÊNG cho hôm nay và khác ca nền ⇒ {"off", "name", "hours"}.
+
+        Ô "Ca làm việc" của "Hồ sơ của tôi" hiện CA NỀN; hôm nay bị xếp ca khác (hoặc nghỉ theo
+        lịch) mà không nói thì nhân viên đi làm sai giờ. Ngày thường (không có ô lưới, hoặc ô
+        trùng ca nền) trả None — màn không thêm dòng nào. Cùng luật ưu tiên với `shift_id_on`."""
+        on = on or hom_nay_vn()
+        day = self.employees.shift_day_on(employee.id, on)
+        if day is None:
+            return None
+        if day.shift_id is not None:
+            if day.shift_id == self.employees.base_shift_id_on(employee, on):
+                return None
+            return {"off": False, "name": self.employees.shift_name(day.shift_id),
+                    "hours": self.current_shift_hours(day.shift_id)}
+        if day.is_off:
+            return {"off": True, "name": None, "hours": None}
+        return None
+
+    def direct_manager(self, employee: Employee) -> dict | None:
+        """Quản lý trực tiếp = người đứng đầu GẦN NHẤT tính từ phòng của nhân viên trở lên.
+
+        Phòng chưa chỉ định người đứng đầu (hoặc người đứng đầu chính là nhân viên này, hoặc
+        tài khoản đó đã khoá) thì lần lên phòng cha, tới gốc cây mà vẫn không có thì trả None.
+        `inherited` = người tìm được đứng đầu một phòng CẤP TRÊN chứ không phải phòng mình."""
+        dept_id = employee.department_id
+        seen: set[int] = set()
+        while dept_id is not None and dept_id not in seen:
+            seen.add(dept_id)
+            d = self.departments.get_by_id(dept_id)
+            if d is None:
+                return None
+            head_id = d.head_user_id
+            if head_id is not None and head_id != employee.user_id:
+                u = self.users.get_by_id(head_id)
+                if u is not None and u.is_active:
+                    return {
+                        "name": u.name or u.username,
+                        "avatar_url": u.avatar_url,
+                        "dept_name": d.name,
+                        "inherited": d.id != employee.department_id,
+                    }
+            dept_id = d.parent_id
+        return None
 
     def get_employee(self, *, employee_id: int, scope: str, actor) -> Employee:
         employee = self.employees.get_by_id(employee_id)
@@ -675,18 +732,24 @@ class EmployeeService:
             employee_id=emp.id, changes=payload, reason=_clean(reason),
         )
 
-    def my_update_requests(self, *, user, status: str | None = None, page: int = 1, size: int = 10):
-        """Một trang đề nghị của chính NV + tổng dòng + số đếm theo trạng thái.
+    def my_update_requests(self, *, user, statuses: list[str] | None = None,
+                           tu_ngay=None, den_ngay=None, page: int = 1, size: int = 10):
+        """Một trang đề nghị của chính NV + tổng dòng + số đếm theo trạng thái (toàn hồ sơ) + số
+        đếm theo trạng thái trong kỳ đang xem.
 
         Tài khoản chưa gắn hồ sơ (admin thuần) không phải lỗi — trả trang rỗng để màn "Hồ sơ của
         tôi" hiện trạng thái rỗng bình thường."""
         emp = self.employees.get_by_user_id(user.id)
         if emp is None:
-            return [], 0, {}
+            return [], 0, {}, {}
         rows, total = self.employees.list_update_requests_by_employee(
-            emp.id, status=status, page=page, size=size,
+            emp.id, statuses=statuses, tu_ngay=tu_ngay, den_ngay=den_ngay, page=page, size=size,
         )
-        return rows, total, self.employees.dem_update_requests_by_employee(emp.id)
+        return (
+            rows, total,
+            self.employees.dem_update_requests_by_employee(emp.id),
+            self.employees.dem_update_requests_by_employee(emp.id, tu_ngay=tu_ngay, den_ngay=den_ngay),
+        )
 
     def cancel_my_update_request(self, *, user, request_id: int):
         """NV tự RÚT LẠI đề nghị của chính mình khi HCNS chưa xử lý.

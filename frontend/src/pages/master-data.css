@@ -210,18 +210,6 @@
   border-radius: var(--r-2);
 }
 
-/* Pager */
-.md-page__pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-}
-.md-page__pager-btns {
-  display: flex;
-  gap: var(--sp-2);
-}
-
 /* Dialog Overlay */
 .md-page__overlay {
   position: fixed;

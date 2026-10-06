@@ -96,7 +96,7 @@ def _rows_thanh_pham(svc: MotDanhMucVatLieu, objs: list, RowModel) -> list:
 
 
 def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool, enable_clone: bool = False,
-          excel_spec=None):
+          excel_spec=None, loc_them: dict | None = None, dem_them: dict | None = None):
     mod = MODULE_BY_KIND[kind]
     make_catalog_router(
         router, goc=f"/{path}", ten=kind, ServiceDep=_mot(kind), module=mod,
@@ -115,17 +115,26 @@ def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool, enable_c
         # `COUCHE-300-65x86`), không phải một dãy số ⇒ không có "mã kế tiếp" nào đúng.
         enable_clone=enable_clone,
         excel_spec=excel_spec,
+        # Thanh lọc chung (06/10/2026): kỳ Ngày tạo + điều kiện riêng của từng danh mục.
+        co_ky=True,
+        loc_them=loc_them,
+        dem_them=dem_them,
     )
 
 
-_khai("giay", GiayIn, GiayRow, "giay", kem_don_vi=True, enable_clone=True, excel_spec=GIAY)
+# Đơn vị giá: lọc + đếm theo mã đơn vị, nhãn = tên đơn vị (repo tra danh mục Đơn vị).
+_DON_VI_GIA = {"loc_them": {"don_vi_gia": str}, "dem_them": {"don_vi_gia": "don_vi_gia"}}
+_khai("giay", GiayIn, GiayRow, "giay", kem_don_vi=True, enable_clone=True, excel_spec=GIAY,
+      **_DON_VI_GIA)
 _khai("vat_tu", VatTuIn, VatTuRow, "vat-tu-in-an", kem_don_vi=True, enable_clone=True,
-      excel_spec=VAT_TU)
+      excel_spec=VAT_TU, **_DON_VI_GIA)
 # Thành phẩm: CÙNG nền CRUD, nhưng `VatLieuKhoService._chan_tao_tay` / `_chan_go_tay` chặn tạo/xoá — dòng ở
 # đây chỉ do `OrderService.confirm()` sinh ra (docs/prd-thanh-pham.md L1, L5). Không nhân bản được
 # vì cùng lý do: đây không phải danh mục khai tay.
 _khai("thanh_pham", ThanhPhamIn, ThanhPhamRow, "thanh-pham", kem_don_vi="khach",
-      excel_spec=THANH_PHAM)
+      excel_spec=THANH_PHAM,
+      # Khách đặt lần đầu (vết `customer_id`) — tham số mang tên chung với màn Khuôn.
+      loc_them={"khach_hang_id": int}, dem_them={"khach_hang_id": "customer_id"})
 
 
 # -- MẶT HÀNG GỐC: hai cửa Kho + NCC dùng để chọn hàng và chọn đơn vị --

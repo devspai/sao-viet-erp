@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+from datetime import date
 from typing import Annotated
 
 from fastapi import (
@@ -47,6 +48,7 @@ from ..models.quotation import (
 from ..models.user import User
 from ..schemas.quotation import (
     CustomerDisplayOut,
+    DuyetTomTat,
     EnumOption,
     QuotationCreate,
     QuotationDetailOut,
@@ -79,6 +81,8 @@ from ..services.quotation_service import (
 from ..services.quotation_state import TRANSITIONS
 from ..services.thong_bao_man import bao
 from ..schemas.customer import SaleOption
+from ..schemas.loc_danh_sach import LuaChonLoc
+from ..repositories.quotation_repo import LocBaoGia
 from ..services.nguoi_phu_trach_service import lua_chon_nguoi
 from ..services.rbac_service import AuthorizationService
 from ..storage import get_storage, key_from_url, make_key, url_from_key
@@ -129,6 +133,7 @@ def _row(
     q: Quote,
     customer_name: str | None,
     user_names: dict[int, str] | None = None,
+    duyet: dict | None = None,
 ) -> QuotationRow:
     active_version = None
     for v in q.versions:
@@ -162,12 +167,14 @@ def _row(
         product_summary=product_summary,
         updated_at=q.updated_at,
         salesperson_name=(user_names or {}).get(q.salesperson_id),
+        created_at=q.created_at,
+        duyet=DuyetTomTat(**duyet) if duyet else None,
     )
 
 
 def _detail(
     svc: QuotationService, q: Quote, scope: str, *,
-    can_approve: bool = False, can_approve_exception: bool = False,
+    can_approve_exception: bool = False,
 ) -> QuotationDetailOut:
     ref = svc.customer_display(q)
     customer = (
@@ -290,7 +297,6 @@ def _detail(
         versions=versions_out,
         items=items_out,
         allowed_transitions=_allowed_transitions(q.status),
-        can_approve=can_approve,
         order_id=linked_order.id if linked_order else None,
         order_no=linked_order.order_no if linked_order else None,
         **_gate_fields(svc, q, can_approve_exception),
@@ -321,11 +327,34 @@ def quotation_enums(
 
 # --- list ---------------------------------------------------------------------
 
+def _loc_bao_gia(
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|gui|hieu_luc)$"),
+    khach: int | None = Query(default=None),
+    duyet: list[str] = Query(default=[]),
+    nguoi_duyet: int | None = Query(default=None),
+    gia_tu: int | None = Query(default=None, ge=0),
+    gia_den: int | None = Query(default=None, ge=0),
+    hieu_luc: str | None = Query(default=None, pattern="^(con|sap_het|het)$"),
+) -> LocBaoGia:
+    """Dải kỳ + bảng "Bộ lọc nâng cao" — chung cho danh sách và thanh tab."""
+    return LocBaoGia(
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, khach=khach,
+        duyet=tuple(d for d in duyet if d in ("cho", "duyet", "tu_choi", "khong")),
+        nguoi_duyet=nguoi_duyet, gia_tu=gia_tu, gia_den=gia_den, hieu_luc=hieu_luc,
+    )
+
+
+LocBG = Annotated[LocBaoGia, Depends(_loc_bao_gia)]
+
+
 @router.get("", response_model=QuotationListOut)
 def list_quotations(
     svc: Service,
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loc: LocBG,
     q: str | None = Query(default=None),
     status_filter: str | None = Query(default=None, alias="status"),
     sort: str = Query(default="-created_at"),
@@ -336,15 +365,16 @@ def list_quotations(
     scope = _scope_for(authz, user)
     rows, total, names = svc.list_quotations(
         scope=scope, actor=user, q=q, status=status_filter, sort=sort, page=page, size=size,
-        nguoi=nguoi,
+        nguoi=nguoi, loc=loc,
     )
 
     # Bulk map cho hiển thị 2 tầng: tên người phụ trách
     user_ids: set[int] = {r.salesperson_id for r in rows if r.salesperson_id}
     user_names = svc.user_names(user_ids)
+    duyet = svc.tom_tat_duyet(rows)
 
     return QuotationListOut(
-        items=[_row(r, names.get(r.id), user_names) for r in rows],
+        items=[_row(r, names.get(r.id), user_names, duyet.get(r.id)) for r in rows],
         total=total,
         page=page,
         size=size,
@@ -356,10 +386,38 @@ def quotation_stats(
     svc: Service,
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loc: LocBG,
+    q: str | None = Query(default=None),
     nguoi: int | None = Query(default=None),
 ) -> QuotationStatsOut:
-    """Số đếm cho thanh tab list Báo giá — cùng phạm vi + hộp lọc người với bảng."""
-    return QuotationStatsOut(**svc.stats(scope=_scope_for(authz, user), actor=user, nguoi=nguoi))
+    """Số đếm cho thanh tab list Báo giá — cùng phạm vi, ô tìm, dải kỳ và bộ lọc với bảng."""
+    return QuotationStatsOut(**svc.stats(scope=_scope_for(authz, user), actor=user, nguoi=nguoi, q=q, loc=loc))
+
+
+@router.get("/khach-loc", response_model=list[LuaChonLoc])
+def list_khach_loc(
+    svc: Service,
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[LuaChonLoc]:
+    """Ô "Khách hàng" của bảng lọc: khách đang có báo giá trong tầm nhìn, kèm số báo giá."""
+    return [
+        LuaChonLoc(id=i, ten=t, so=n)
+        for i, t, n in svc.dem_theo_khach(scope=_scope_for(authz, user), actor=user)
+    ]
+
+
+@router.get("/nguoi-duyet", response_model=list[LuaChonLoc])
+def list_nguoi_duyet(
+    svc: Service,
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[LuaChonLoc]:
+    """Ô "Người duyệt" của bảng lọc: ai đã ra quyết định duyệt gần nhất trên báo giá trong tầm nhìn."""
+    return [
+        LuaChonLoc(id=i, ten=t, so=n)
+        for i, t, n in svc.dem_theo_nguoi_duyet(scope=_scope_for(authz, user), actor=user)
+    ]
 
 
 @router.get("/nguoi-phu-trach", response_model=list[SaleOption])
@@ -521,8 +579,7 @@ def create_quotation(
     except QuotationConflict as e:
         # BG-1: PTG đã có báo giá đang hiệu lực (1 PTG → 1 BG).
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from None
-    return _detail(svc, q, scope, can_approve=authz.can(user, MODULE, "approve"),
-        can_approve_exception=authz.can(user, MODULE, "approve_exception"))
+    return _detail(svc, q, scope, can_approve_exception=authz.can(user, MODULE, "approve_exception"))
 
 
 @router.get("/by-phieu/{phieu_tinh_gia_id}")
@@ -577,8 +634,7 @@ def get_quotation(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy báo giá.") from None
     except QuotationForbidden:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy báo giá.") from None
-    return _detail(svc, q, scope, can_approve=authz.can(user, MODULE, "approve"),
-        can_approve_exception=authz.can(user, MODULE, "approve_exception"))
+    return _detail(svc, q, scope, can_approve_exception=authz.can(user, MODULE, "approve_exception"))
 
 
 @router.put("/{quotation_id}", response_model=QuotationDetailOut)
@@ -617,8 +673,7 @@ def update_quotation(
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from None
     except QuotationValidationError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from None
-    return _detail(svc, q, scope, can_approve=authz.can(user, MODULE, "approve"),
-        can_approve_exception=authz.can(user, MODULE, "approve_exception"))
+    return _detail(svc, q, scope, can_approve_exception=authz.can(user, MODULE, "approve_exception"))
 
 
 # --- lifecycle transitions ----------------------------------------------------
@@ -666,8 +721,7 @@ def transition_quotation(
         bao(db, kenh="bao_gia", loai="bao_gia_cho_duyet", actor_id=user.id,
             quyen="approve_exception", phong_id=sale.department_id if sale else None,
             ma=q.quote_number)
-    return _detail(svc, q, scope, can_approve=authz.can(user, MODULE, "approve"),
-        can_approve_exception=authz.can(user, MODULE, "approve_exception"))
+    return _detail(svc, q, scope, can_approve_exception=authz.can(user, MODULE, "approve_exception"))
 
 
 # --- BG-2: GĐ duyệt "báo giá đặc thù" → mở khóa "gửi khách" --------------------
@@ -704,8 +758,7 @@ def record_quote_approval(
         bao(db, kenh="bao_gia", loai="bao_gia_quyet_dinh", actor_id=user.id,
             nguoi_nhan=q.salesperson_id, ma=q.quote_number)
     hub.gui({"type": "quote_pending_changed", "code": q.quote_number}, quyen=MAN_BAN_HANG)
-    return _detail(svc, q, scope, can_approve=authz.can(user, MODULE, "approve"),
-        can_approve_exception=authz.can(user, MODULE, "approve_exception"))
+    return _detail(svc, q, scope, can_approve_exception=authz.can(user, MODULE, "approve_exception"))
 
 
 @router.get("/{quotation_id}/approvals", response_model=QuoteApprovalListOut)
@@ -745,8 +798,7 @@ def requote_quotation(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from None
     except QuotationConflict as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from None
-    return _detail(svc, new_v, scope, can_approve=authz.can(user, MODULE, "approve"),
-        can_approve_exception=authz.can(user, MODULE, "approve_exception"))
+    return _detail(svc, new_v, scope, can_approve_exception=authz.can(user, MODULE, "approve_exception"))
 
 
 @router.get("/{quotation_id}/activity", response_model=QuoteActivityOut)
@@ -772,7 +824,10 @@ def quotation_pdf(
     quotation_id: int,
     svc: Service,
     authz: Authz,
-    user: Annotated[User, Depends(require_permission(MODULE, "export"))],
+    # PDF đi theo ô THAO TÁC của Báo giá (05/10/2026, chủ chốt: "là quyền thao tác trong báo giá").
+    # Trước đó gác `export` — mà ma trận không có ô `can_export` cho Báo giá ⇒ ngoài admin không ai
+    # tải được PDF dù đã bật đủ Xem + Thao tác.
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
 ) -> Response:
     scope = _scope_for(authz, user)
     try:

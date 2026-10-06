@@ -213,7 +213,7 @@ class PaymentVoucher(Base):
     status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=PAYMENT_VOUCHER_WAITING, index=True
     )
-    voucher_date: Mapped[date] = mapped_column(Date, nullable=False)
+    voucher_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     planned_payment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     amount_vnd: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -375,7 +375,7 @@ class PaymentReceipt(Base):
     status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=PAYMENT_RECEIPT_WAITING, index=True
     )
-    receipt_date: Mapped[date] = mapped_column(Date, nullable=False)
+    receipt_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     amount_vnd: Mapped[int] = mapped_column(BigInteger, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="VND")

@@ -111,7 +111,7 @@ def test_het_khau_hao_thi_thoi():
     cuoi = bang_thang(db, 2028, 6)
     assert cuoi[0]["muc_trich"] == 1_200_000 and cuoi[0]["con_lai"] == 0
     assert cuoi[0]["su_kien"][0]["loai"] == "cuoi" and cuoi[0]["su_kien"][0]["nhan"] == "Tháng cuối"
-    assert cuoi[0]["dien_giai"].startswith("Hết khấu hao")
+    assert cuoi[0]["dien_giai"].startswith("Khấu hao hết")
     assert bang_thang(db, 2028, 7) == []
 
 
@@ -140,10 +140,10 @@ def test_su_kien_thang_dau_nang_cap_dieu_chuyen():
     db.commit()
     t = _komori(svc)
     dau = bang_thang(db, 2026, 3)[0]
-    assert dau["dien_giai"] == "Dùng từ 10/03: tháng đầu trích 22/31 ngày"
+    assert dau["dien_giai"] == "Bắt đầu dùng 10/03: tháng đầu tính 22/31 ngày"
     assert dau["su_kien"] == [{
-        "loai": "dau", "nhan": "Tháng đầu 22/31 ngày",
-        "chi_tiet": "Dùng từ 10/03: tháng đầu trích 22/31 ngày",
+        "loai": "dau", "nhan": "Tháng đầu, tính từ ngày 10",
+        "chi_tiet": "Bắt đầu dùng 10/03: tháng đầu tính 22/31 ngày",
     }]
     binh_thuong = bang_thang(db, 2026, 4)[0]
     assert binh_thuong["dien_giai"] is None and binh_thuong["su_kien"] == []
@@ -153,8 +153,8 @@ def test_su_kien_thang_dau_nang_cap_dieu_chuyen():
     assert bang_thang(db, 2026, 4)[0]["dien_giai"] is None         # tháng chứng từ: vẫn mức cũ
     t5 = bang_thang(db, 2026, 5)[0]
     assert t5["dien_giai"] == (
-        "Sửa chữa lớn +100.000.000 ngày 15/04: nguyên giá 3.300.000.000 → 3.400.000.000, "
-        "mức tháng 27.500.000 → 28.415.117; Điều chuyển sang To Be ngày 10/05"
+        "Sửa chữa lớn +100.000.000 ngày 15/04: từ 05/2026 mỗi tháng 27.500.000 → 28.415.117; "
+        "Chuyển sang To Be ngày 10/05"
     )
     assert [(s["loai"], s["nhan"]) for s in t5["su_kien"]] == [
         ("nang_cap", "Sửa chữa lớn +100.000.000"), ("chuyen", "Chuyển sang To Be 10/05"),
@@ -171,8 +171,8 @@ def test_su_kien_nap_dau_ky():
     ))
     dau = bang_thang(db, 2026, 1)[0]
     assert dau["tai_san_id"] == t.id
-    assert dau["dien_giai"] == "Bắt đầu tính trên phần mềm, hao mòn mang sang 116.250.000"
-    assert dau["su_kien"][0]["nhan"] == "Số dư mang sang"
+    assert dau["dien_giai"] == "Bắt đầu tính trên phần mềm, đã khấu hao trước đó 116.250.000"
+    assert dau["su_kien"][0]["nhan"] == "Mang sang từ sổ cũ"
     assert bang_thang(db, 2026, 2)[0]["dien_giai"] is None
 
 

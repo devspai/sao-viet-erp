@@ -238,6 +238,10 @@ class VatLieuKhoService:
     def list(self, kind: str, **kw):
         return self.repo.list(kind, **kw)
 
+    def dem_theo_cot(self, kind: str, cot, **kw) -> list[dict]:
+        """Giá trị + số dòng theo một cột của một danh mục — số trên thanh lọc."""
+        return self.repo.dem_theo_cot(kind, cot, **kw)
+
     def create(self, kind: str, data: dict, actor_id: int | None = None):
         self._chan_tao_tay(kind)
         self._validate(kind, data)
@@ -640,6 +644,9 @@ class MotDanhMucVatLieu:
 
     def list(self, **kw):
         return self.goc.list(self.kind, **kw)
+
+    def dem_theo_cot(self, cot, **kw) -> list[dict]:
+        return self.goc.dem_theo_cot(self.kind, cot, **kw)
 
     def find_by_ma(self, ma: str):
         """Tra bản ghi theo mã, riêng trong `self.kind` — dùng cho import Excel UPSERT."""

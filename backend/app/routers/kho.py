@@ -36,9 +36,11 @@ from .catalog_base import loi_http, make_catalog_router
 router = APIRouter(prefix="/api/kho", tags=["kho"])
 MODULE = "dm_kho_hang"
 # Đọc danh sách kho: người khai (module này) + mọi vai làm nghiệp vụ kho / mua hàng / sản xuất —
-# họ phải chọn kho ở phiếu, không thì dropdown rỗng mà không hiểu vì sao.
-_doc_kho = require_quyen_to("read", 
-    (MODULE, "read"), ("kho", "read"), ("thu_mua", "read"), ("san_xuat", "read"))
+# họ phải chọn kho ở phiếu, không thì dropdown rỗng mà không hiểu vì sao. Cộng người có Xem ở một
+# dòng quyền theo kho (`ton_kho_<id>`, 05/10/2026): thanh bên dựng mục kho từ chính danh sách này.
+_doc_kho = require_quyen_to(
+    "read", (MODULE, "read"), ("kho", "read"), ("thu_mua", "read"), ("san_xuat", "read"),
+    cho_dong_kho=True)
 
 
 def get_service(db: Annotated[Session, Depends(get_db)]) -> KhoHangService:
@@ -118,5 +120,6 @@ make_catalog_router(
     InModel=KhoHangIn, RowModel=KhoHangRow, ListModel=KhoHangListOut,
     dung_rows=_dung_rows,
     excel_spec=KHO_HANG,
+    co_ky=True,         # thanh lọc chung: kỳ Ngày tạo + Đang dùng / Đã ngừng
     ma_goi_y=True,      # repo khai `ma_prefix = "KHO-"`
 )

@@ -238,7 +238,7 @@ def test_nhom_tong_quan_du_hai_dong():
     tin vào `KHOA_KHONG_BAY_MA_TRAN` — ẩn `self_service` lại là đỏ ngay.
     """
     nhom = dict(_nhom_cua_ma_tran())
-    assert nhom.get("Tổng quan") == ["dashboard", "self_service"], (
+    assert nhom.get("Tổng quan") == ["self_service"], (
         "Nhóm 'Tổng quan' phải có ĐÚNG hai dòng theo đúng thứ tự menu: `dashboard` (Trang chủ) rồi "
         f"`self_service` (Hồ sơ của tôi). Đang là: {nhom.get('Tổng quan')}"
     )

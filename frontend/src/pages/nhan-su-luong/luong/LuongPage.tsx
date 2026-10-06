@@ -18,6 +18,7 @@ import { useAuth } from "../../../auth/useAuth";
 import { useCan, useSelfService } from "../../../auth/permissions";
 import { CauHinhLuongTab } from "./cau-hinh";
 import { DiscardChangesDialog } from "../../../components/DiscardChangesDialog";
+import { docThamSoMan } from "../../ke-toan/shared/urlMan";
 import type { Tab } from "./shared/types";
 import { BangLuongTab } from "./tabs/BangLuongTab";
 import { NhanVienTab } from "./tabs/NhanVienTab";
@@ -75,8 +76,11 @@ export function LuongPage({
   // `|| canManage`: ai bật ô Thao tác là tab cấu hình tự bung ra — mà sửa một dòng lương và sửa
   // cơ chế / hệ số / thuế của cả công ty là hai mức khác hẳn nhau.
   const canReadConfig = can("luong", "view_salary");
-  const [tab, setTab] = useState<Tab>(
-    canOpenBangLuong ? "bang" : canReadConfig ? "cauhinh" : "phieu",
+  // Link / tải lại trang có `tab=tamung` (thanh lọc Tạm ứng ghi lên URL) ⇒ mở thẳng tab Tạm ứng.
+  const [tab, setTab] = useState<Tab>(() =>
+    canOpenTamUng && docThamSoMan("luong")?.get("tab") === "tamung"
+      ? "tamung"
+      : canOpenBangLuong ? "bang" : canReadConfig ? "cauhinh" : "phieu",
   );
   // Cấu hình lương đang có thay đổi chưa lưu → chặn rời tab (S5).
   const [cfgDirty, setCfgDirty] = useState(false);

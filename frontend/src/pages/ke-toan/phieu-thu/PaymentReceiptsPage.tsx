@@ -1,30 +1,46 @@
-// Màn PHIẾU THU — shell (tách từ pages/PaymentReceiptsPage.tsx).
-// Giữ ở đây: state + `load()` + handlers (`startPrint` · `uploadAttachments` ·
-// `removeAttachment` · `openEdit` · `confirmReceived` · `confirmCancel`) + `actions()`.
+/** Màn PHIẾU THU (đặc tả PT-1 … PT-4, A.16 – A.18) — đối xứng màn Phiếu chi, cùng bộ khung chung kế toán.
+ *
+ *  Khuôn trang: đầu trang (tiêu đề + một câu + nút rust) → hàng thẻ lọc → thanh lọc (ô tìm, thanh lọc
+ *  chung `ThanhLoc`: kỳ theo Ngày tạo / Ngày thu + điều kiện, "n phiếu") → bảng + chân phân trang. Bấm dòng mở ngăn chi tiết bên phải.
+ *  Mọi lọc chạy ở MÁY CHỦ; kỳ lọc theo NGÀY THU. Số trên thẻ lọc (`the_loc`) tính theo kỳ + bộ lọc,
+ *  KHÔNG theo thẻ đang chọn. Thẻ "Chờ thu" chỉ hiện khi còn phiếu CŨ chờ thu (phiếu mới lập là đã thu).
+ *
+ *  Thu cọc lập ở Đơn hàng bán, thu hoá đơn lập ở Công nợ phải thu; ở đây chỉ lập khoản thu khác.
+ */
+import { Plus, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ApiError,
-  api,
-  type PaymentReceiptAttachment,
-  type PaymentReceiptRow,
-  type PaymentVoucherRow,
-} from "../../../api/client";
+
+import { ApiError, api, type PaymentReceiptRow, type PaymentVoucherRow } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
-import { ReceiptRowActions } from "./components/ReceiptRowActions";
+import { GoiYPhim } from "../shared/BangPhieu";
+import { vietSo } from "../shared/dinhDang";
+import { TheLoc, type TheLocMuc } from "../shared/TheLoc";
+import { theLocSo, useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
 import { ReceiptsDrawer } from "./components/ReceiptsDrawer";
 import { ReceiptsTable } from "./components/ReceiptsTable";
-import { ReceiptsToolbar } from "./components/ReceiptsToolbar";
 import { OtherReceiptDialog } from "./modals/OtherReceiptDialog";
-import { ReceiptConfirmModals } from "./modals/ReceiptConfirmModals";
 import { PaymentReceiptDialog } from "./PaymentReceiptDialog";
-import { printReceipt } from "./print";
 import { PAGE_SIZE } from "./shared/constants";
-import "../../master-data.css";
-import "../../accounting.css";
-import "../../purchase.css";
-import "./phieu-thu-chuan.css";
+import {
+  CAU_HINH_LOC_PT,
+  LOC_TRONG,
+  MOC_PT,
+  dangLoc,
+  locLenUrl,
+  locTuUrl,
+  thamSoLoc,
+  thamSoTai,
+  type LocPT,
+  type TheLocPT,
+} from "./shared/loc";
+import { dieuKienPhieu, dkTrangThaiPhieu } from "../shared/locPhieu";
+import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
+import "../ke-toan.css";
+
+/** Mã màn — khoá nhớ kỳ và dấu `man` trên URL (đặc tả A.18). */
+const MAN = "ke-toan-phieu-thu";
 
 export function PaymentReceiptsPage({
   navigate,
@@ -33,367 +49,204 @@ export function PaymentReceiptsPage({
 }: {
   navigate: NavigateFn;
   eventTick?: number;
-  /** Liên thông từ trang Phiếu chi: lọc theo mã PC/UNC khi mở trang. */
+  /** Liên thông từ Phiếu chi / Đơn hàng bán / Công nợ phải thu: điền sẵn ô tìm (mã phiếu). */
   focusQuery?: string | null;
 }) {
   const { token } = useAuth();
   const can = useCan();
-  // Khoá RIÊNG của màn Phiếu thu (tách 10/08/2026). `create` = LẬP/SỬA phiếu + gán chứng từ;
-  // trước đây gọi là `approve` nên nhìn ma trận tưởng là quyền duyệt.
-  const canApprove = can("phieu_thu", "create");
-  const canMarkReceived = can("phieu_thu", "manage_status");
-  const canCancel = can("phieu_thu", "cancel");
-  const canExport = can("phieu_thu", "export");
-  const [rows, setRows] = useState<PaymentReceiptRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [q, setQ] = useState(focusQuery ?? "");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [editState, setEditState] = useState<null | {
-    voucher: PaymentVoucherRow;
-    receipt: PaymentReceiptRow;
-  }>(null);
-  const [creatingOther, setCreatingOther] = useState(false);
-  const [marking, setMarking] = useState<PaymentReceiptRow | null>(null);
-  const [bankReference, setBankReference] = useState("");
-  const [cancelling, setCancelling] = useState<PaymentReceiptRow | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
-  const [attachments, setAttachments] = useState<PaymentReceiptAttachment[]>(
-    [],
-  );
-  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  // Khoá RIÊNG của màn Phiếu thu. `create` = LẬP/SỬA phiếu + gán chứng từ.
+  const coLap = can("phieu_thu", "create");
+  const coXacNhan = can("phieu_thu", "manage_status");
+  const coHuy = can("phieu_thu", "cancel");
+  const coIn = can("phieu_thu", "export");
+  const coXemTaiKhoan = can("tk_ngan_hang", "read");
+  // Link sang màn khác — theo ô Xem của CHÍNH màn đó, không mượn khoá.
+  const coXemCongNo = can("cong_no_phai_thu", "read");
+  const coXemDonBan = can("don_hang_ban", "read");
+  const coXemPhieuChi = can("phieu_chi", "read");
 
-  const load = useCallback(() => {
-    if (!token) return;
-    setLoading(true);
-    api.accounting
-      .receipts(token, {
-        q: q.trim() || undefined,
-        status: statusFilter === "all" ? null : statusFilter,
-        sort: "-created_at",
-        page,
-        size: PAGE_SIZE,
-      })
-      .then((response) => {
-        setRows(response.items);
-        setTotal(response.total);
-        setSelectedId((current) =>
-          current != null && response.items.some((row) => row.id === current)
-            ? current
-            : null,
-        );
-      })
-      .catch((err) =>
-        setError(
-          err instanceof ApiError ? err.message : "Không tải được phiếu thu.",
-        ),
-      )
-      .finally(() => setLoading(false));
-  }, [token, q, statusFilter, page]);
+  const [loiMo, setLoiMo] = useState<string | null>(null);
+  const [lapKhac, setLapKhac] = useState(false);
+  const [sua, setSua] = useState<{ voucher: PaymentVoucherRow; receipt: PaymentReceiptRow } | null>(null);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    if (eventTick <= 0) return;
-    load();
-  }, [eventTick, load]);
-
-  useEffect(() => {
-    if (!focusQuery) return;
-    setQ(focusQuery);
-    setStatusFilter("all");
-    setPage(1);
-  }, [focusQuery]);
-
-  const selected = useMemo(
-    () => rows.find((row) => row.id === selectedId) ?? null,
-    [rows, selectedId],
-  );
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const openSource = (row: PaymentReceiptRow) => {
-    if (row.source_type === "purchase_refund" && row.payment_voucher_code) {
-      navigate("ke-toan-phieu-chi", { focusVoucherQuery: row.payment_voucher_code });
-      return;
-    }
-    if (row.source_type === "order_deposit" && row.order_id) {
-      navigate("don-hang-ban", { openOrderId: row.order_id });
-      return;
-    }
-    if (row.source_type === "sales_invoice" && row.order_id) {
-      navigate("don-hang-ban", { openOrderId: row.order_id });
-    }
+  // Nối dây trang sổ (kỳ, thẻ, lọc, URL, tải + cùng kỳ, SSE, liên thông, ngăn): khuôn chung. Không có
+  // endpoint đọc MỘT phiếu thu ⇒ ngăn đang mở nhận bản mới của dòng sau mỗi lần tải.
+  const cauHinh: CauHinhTrangPhieu<PaymentReceiptRow, TheLocPT, LocPT> = {
+    man: MAN,
+    moc: MOC_PT,
+    locTuUrl,
+    locLenUrl,
+    locTrong: LOC_TRONG,
+    thamSoLoc,
+    thamSoTai,
+    goiDanhSach: (t, p) => api.accounting.receipts(t, p),
+    chuLoi: "Không tải được danh sách phiếu thu.",
+    coTrang: PAGE_SIZE,
+    coXemTaiKhoan,
+    mucDichTaiKhoan: "receive",
+    moTheoBang: true,
   };
-  const selectedReceiptId = selected?.id ?? null;
-  /** Đóng popup rồi mới mở form — không chồng hai lớp cửa sổ. */
-  function closeDetailThen(action: () => void) {
-    setSelectedId(null);
-    action();
-  }
+  const sp = useTrangPhieu(cauHinh, token, eventTick, focusQuery);
+  const { the, setThe, loc, rows, mo, setMo, load, soThe, soTheCung } = sp;
 
-  // Drawer chi tiết: Esc để đóng (trước đây do DetailModal lo, nay drawer tự nghe).
+  // Thẻ "Chờ thu" chỉ có khi còn phiếu cũ chờ thu: mở từ link `the=cho` lúc đã hết thì về Tất cả.
   useEffect(() => {
-    if (selectedId == null) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setSelectedId(null);
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [selectedId]);
+    if (the === "cho" && soThe && soThe.cho === 0) setThe("tat_ca");
+  }, [the, soThe, setThe]);
 
-  useEffect(() => {
-    if (!token || selectedReceiptId == null) {
-      setAttachments([]);
-      return;
-    }
-    let cancelled = false;
-    api.accounting
-      .receiptAttachments(token, selectedReceiptId)
-      .then((response) => {
-        if (!cancelled) setAttachments(response.items);
-      })
-      .catch(() => {
-        if (!cancelled) setAttachments([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token, selectedReceiptId]);
-
-  function startPrint(row: PaymentReceiptRow) {
-    if (!printReceipt(row))
-      setError(
-        "Trình duyệt đang chặn cửa sổ in. Vui lòng cho phép pop-up rồi thử lại.",
-      );
-  }
-
-  async function uploadAttachments(list: FileList | null) {
-    if (!token || selectedReceiptId == null || !list?.length) return;
-    setAttachmentBusy(true);
-    setError(null);
-    try {
-      for (const file of Array.from(list)) {
-        await api.accounting.uploadReceiptAttachment(
-          token,
-          selectedReceiptId,
-          file,
-        );
+  // Lỗi 11: "Thu hoá đơn" mở Công nợ phải thu, ngăn của đúng khách — mã khách nằm ở hoá đơn bán.
+  const moCongNoCuaPhieu = useCallback(
+    async (row: PaymentReceiptRow) => {
+      let khach = { id: null as number | null, name: row.customer_name || row.payer_name };
+      if (token && row.order_id != null && row.sales_invoice_id != null) {
+        try {
+          const r = await api.accounting.salesInvoices(token, row.order_id);
+          const hd = r.items.find((h) => h.id === row.sales_invoice_id);
+          if (hd) khach = { id: hd.customer_id, name: hd.customer_name };
+        } catch {
+          // Không đọc được hoá đơn: vẫn mở Công nợ phải thu, tìm theo tên khách.
+        }
       }
-      const response = await api.accounting.receiptAttachments(
-        token,
-        selectedReceiptId,
-      );
-      setAttachments(response.items);
-      load(); // cập nhật attachment_count → badge "Thiếu chứng từ" ở bảng
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Không tải được file lên.",
-      );
-    } finally {
-      setAttachmentBusy(false);
-    }
-  }
+      navigate("ke-toan-cong-no-phai-thu", { focusReceivableCustomer: khach });
+    },
+    [token, navigate],
+  );
 
-  async function removeAttachment(attachment: PaymentReceiptAttachment) {
-    if (!token || selectedReceiptId == null) return;
-    setAttachmentBusy(true);
-    setError(null);
+  const moNguon = useCallback(
+    (row: PaymentReceiptRow): (() => void) | undefined => {
+      if (row.source_type === "sales_invoice" && coXemCongNo) return () => void moCongNoCuaPhieu(row);
+      if (row.source_type === "order_deposit" && coXemDonBan && row.order_id != null) {
+        const id = row.order_id;
+        return () => navigate("don-hang-ban", { openOrderId: id });
+      }
+      if (row.source_type === "purchase_refund" && coXemPhieuChi && row.payment_voucher_code) {
+        const ma = row.payment_voucher_code;
+        return () => navigate("ke-toan-phieu-chi", { focusVoucherQuery: ma });
+      }
+      return undefined;
+    },
+    [coXemCongNo, coXemDonBan, coXemPhieuChi, moCongNoCuaPhieu, navigate],
+  );
+
+  // "Sửa" phiếu cũ chờ thu từ phiếu chi (PT-4): cần phiếu chi gốc để tính "Còn được thu".
+  async function moSua(row: PaymentReceiptRow) {
+    if (!token || row.payment_voucher_id == null) return;
+    setLoiMo(null);
     try {
-      await api.accounting.deleteReceiptAttachment(
-        token,
-        selectedReceiptId,
-        attachment.id,
-      );
-      setAttachments((current) =>
-        current.filter((row) => row.id !== attachment.id),
-      );
-      load();
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Không xóa được file đính kèm.",
-      );
-    } finally {
-      setAttachmentBusy(false);
+      const voucher = await api.accounting.voucher(token, row.payment_voucher_id);
+      setMo(null);
+      setSua({ voucher, receipt: row });
+    } catch (e) {
+      setLoiMo(e instanceof ApiError ? e.message : "Không tải được phiếu chi gốc.");
     }
   }
 
-  async function openEdit(row: PaymentReceiptRow) {
-    if (!token) return;
-    if (!row.payment_voucher_id) {
-      setError("Phiếu thu này không có phiếu chi nguồn để sửa ở form thu hoàn.");
-      return;
+  const muc = useMemo<TheLocMuc[]>(() => {
+    const chung = theLocSo(soThe, soTheCung, { nhanXong: "Đã thu", phuThieu: "chưa có báo có hoặc biên nhận" });
+    const ds = [chung.tatCa, chung.xong, chung.thieu];
+    if (soThe && soThe.cho > 0) {
+      ds.push({ id: "cho", nhan: "Chờ thu", cham: "amber", so: vietSo(soThe.cho), phu: "phiếu cũ chưa xác nhận" });
     }
-    setBusy(true);
-    try {
-      const voucher = await api.accounting.voucher(
-        token,
-        row.payment_voucher_id,
-      );
-      setEditState({ voucher, receipt: row });
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : "Không tải được phiếu chi nguồn.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmReceived() {
-    if (!token || !marking) return;
-    if (marking.receipt_method === "bank_transfer" && !bankReference.trim()) {
-      setError("Thu qua ngân hàng phải có mã giao dịch hoặc số báo có.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await api.accounting.markReceiptReceived(
-        token,
-        marking.id,
-        bankReference.trim() || null,
-      );
-      setMarking(null);
-      setBankReference("");
-      load();
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : "Không xác nhận được phiếu thu.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmCancel() {
-    if (!token || !cancelling) return;
-    if (!cancelReason.trim()) {
-      setError("Vui lòng nhập lý do hủy.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await api.accounting.cancelReceipt(
-        token,
-        cancelling.id,
-        cancelReason.trim(),
-      );
-      setCancelling(null);
-      setCancelReason("");
-      load();
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Không hủy được phiếu thu.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function actions(row: PaymentReceiptRow) {
-    return ReceiptRowActions({
-      row,
-      canExport,
-      startPrint,
-      canApprove,
-      closeDetailThen,
-      openEdit,
-      busy,
-      canMarkReceived,
-      setMarking,
-      setBankReference,
-      canCancel,
-      setCancelling,
-      setCancelReason,
-    });
-  }
+    ds.push(chung.daHuy);
+    return ds;
+  }, [soThe, soTheCung]);
+  // Trạng thái trong nút Lọc = hàng thẻ lọc (đọc/ghi thẳng thẻ đang chọn).
+  const dieuKien = useMemo(
+    () => [
+      dkTrangThaiPhieu({ muc, n: soThe, dang: the, dat: (id) => setThe(id as TheLocPT) }),
+      ...dieuKienPhieu(CAU_HINH_LOC_PT, sp.taiKhoan),
+    ],
+    [muc, soThe, the, setThe, sp.taiKhoan],
+  );
 
   return (
-    <main className="md-page acct-std acct-ptx">
-      <header className="md-page__head" style={{ marginBottom: "var(--sp-3)" }}>
-        <h1 className="md-page__title">Phiếu thu</h1>
-      </header>
-      {error && (
-        <div className="banner banner--error" role="alert">
-          {error}
+    <main className="kt-trang">
+      <header className="kt-ph">
+        <div>
+          <h1>Phiếu thu</h1>
+          <p>Sổ tiền vào. Thu cọc lập ở Đơn hàng bán, thu hoá đơn lập ở Công nợ phải thu.</p>
         </div>
-      )}
-      <ReceiptsToolbar
-        q={q}
-        setQ={setQ}
-        setPage={setPage}
-        load={load}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        canApprove={canApprove}
-        setCreatingOther={setCreatingOther}
-      />
+        {coLap && (
+          <div className="kt-ph__nut">
+            <button type="button" className="kt-btn kt-btn--chinh" onClick={() => setLapKhac(true)}>
+              <Plus size={16} aria-hidden="true" />
+              Lập phiếu thu
+            </button>
+          </div>
+        )}
+      </header>
+
+      <TheLoc muc={muc} dangChon={the} onChon={(id) => setThe(id as TheLocPT)} />
+
+      <div className="kt-tb tl-thanh">
+        <label className="kt-tim">
+          <Search size={16} aria-hidden="true" />
+          <input aria-label="Tìm phiếu thu" placeholder="Tìm mã phiếu, người nộp, số hoá đơn, mã đơn bán" value={sp.tim}
+            onChange={(e) => sp.setTim(e.target.value)} />
+        </label>
+        <ThanhLoc ky={sp.ky} moc={MOC_PT} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
+        <span className="kt-tb__dem">{`${vietSo(sp.tong)} phiếu`}</span>
+      </div>
+      {loiMo && <p className="kt-o__loi" role="alert">{loiMo}</p>}
       <ReceiptsTable
-        loading={loading}
         rows={rows}
-        selected={selected}
-        setSelectedId={setSelectedId}
-        openSource={openSource}
-        total={total}
-        page={page}
-        setPage={setPage}
-        totalPages={totalPages}
+        loading={sp.loading}
+        loi={sp.loi}
+        onTaiLai={load}
+        dangXem={mo?.id ?? null}
+        onMo={(id) => setMo(rows.find((r) => r.id === id) ?? null)}
+        coLoc={dangLoc(the, loc, sp.timTre)}
+        onBoLoc={sp.boLoc}
+        onLap={coLap ? () => setLapKhac(true) : undefined}
+        trang={sp.page}
+        size={sp.size}
+        tong={sp.tong}
+        onTrang={sp.datTrang}
+        onSize={sp.setSize}
+        moNguon={moNguon}
       />
-      {selected && (
+      <GoiYPhim />
+
+      {mo && (
         <ReceiptsDrawer
-          selected={selected}
-          setSelectedId={setSelectedId}
-          canApprove={canApprove}
-          openSource={openSource}
-          attachments={attachments}
-          attachmentBusy={attachmentBusy}
-          uploadAttachments={uploadAttachments}
-          removeAttachment={removeAttachment}
-          actions={actions}
+          dau={mo}
+          eventTick={eventTick}
+          quyen={{ lap: coLap, huy: coHuy, xacNhan: coXacNhan, in: coIn, sua: coLap }}
+          len={sp.len}
+          xuong={sp.xuong}
+          onDong={() => setMo(null)}
+          onDoi={load}
+          onSua={(row) => void moSua(row)}
+          onMoNguon={moNguon}
+          onMoDonBan={coXemDonBan ? (orderId) => navigate("don-hang-ban", { openOrderId: orderId }) : undefined}
+          onMoPhieuChi={coXemPhieuChi ? (code) => navigate("ke-toan-phieu-chi", { focusVoucherQuery: code }) : undefined}
+          onMoCongNo={coXemCongNo ? (khach) => navigate("ke-toan-cong-no-phai-thu", { focusReceivableCustomer: khach }) : undefined}
         />
       )}
-      {editState && (
-        <PaymentReceiptDialog
-          key={editState.receipt.id}
-          voucher={editState.voucher}
-          receipt={editState.receipt}
-          onClose={() => setEditState(null)}
-          onSaved={() => {
-            setEditState(null);
-            load();
-          }}
-        />
-      )}
-      {creatingOther && (
+      {lapKhac && (
         <OtherReceiptDialog
-          onClose={() => setCreatingOther(false)}
-          onSaved={() => {
-            setCreatingOther(false);
+          onClose={() => setLapKhac(false)}
+          onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
+          onSaved={(saved) => {
+            setLapKhac(false);
+            setMo(saved);
             load();
           }}
         />
       )}
-      <ReceiptConfirmModals
-        marking={marking}
-        setMarking={setMarking}
-        bankReference={bankReference}
-        setBankReference={setBankReference}
-        busy={busy}
-        confirmReceived={confirmReceived}
-        cancelling={cancelling}
-        setCancelling={setCancelling}
-        cancelReason={cancelReason}
-        setCancelReason={setCancelReason}
-        confirmCancel={confirmCancel}
-      />
+      {sua && (
+        <PaymentReceiptDialog
+          key={sua.receipt.id}
+          voucher={sua.voucher}
+          receipt={sua.receipt}
+          onClose={() => setSua(null)}
+          onSaved={(saved) => {
+            setSua(null);
+            setMo(saved);
+            load();
+          }}
+        />
+      )}
     </main>
   );
 }

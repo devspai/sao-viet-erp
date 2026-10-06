@@ -25,7 +25,8 @@ COT_CU = ("sl_gui", "ngay_gui_dk", "van_chuyen_ngay", "gia_cong_ngay", "ngay_nha
 def test_model_khong_con_cot_cu():
     cot = set(Base.metadata.tables["lsx_cong_doan"].columns.keys())
     assert not (set(COT_CU) & cot)
-    assert {"nha_cung_cap_id", "nha_cung_cap", "don_gia_gia_cong"} <= cot
+    assert {"nha_cung_cap_id", "nha_cung_cap"} <= cot
+    assert "don_gia_gia_cong" not in cot          # gỡ 07/10/2026 (mg 0374)
 
 
 def test_migration_0340_go_cot_va_chay_lai_la_no_op():
@@ -73,3 +74,18 @@ def test_cua_giao_nhan_cu_da_go(client):
     h = {"Authorization": f"Bearer {tok.json()['access_token']}"}
     r = client.post("/api/lsx/1/buoc/1/giao-nhan", headers=h, json={"su_kien": "giao"})
     assert r.status_code in (404, 405)
+
+
+def test_migration_0374_go_don_gia_gia_cong_va_chay_lai_la_no_op():
+    from app.db_migrations import _migrate_go_don_gia_gia_cong
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    with engine.begin() as cn:
+        cn.execute(text("CREATE TABLE gia_cong_ngoai (id INTEGER PRIMARY KEY, don_gia NUMERIC(18,2))"))
+        cn.execute(text(
+            "CREATE TABLE lsx_cong_doan (id INTEGER PRIMARY KEY, don_gia_gia_cong NUMERIC(18,2))"))
+    for _ in range(2):
+        with Session(engine) as db:
+            _migrate_go_don_gia_gia_cong(db)
+    insp = inspect(engine)
+    assert {c["name"] for c in insp.get_columns("gia_cong_ngoai")} == {"id"}
+    assert {c["name"] for c in insp.get_columns("lsx_cong_doan")} == {"id"}

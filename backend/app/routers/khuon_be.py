@@ -39,5 +39,8 @@ make_catalog_router(
     loc="loai",
     loc_them={"tinh_trang": str, "khach_hang_id": int, "so_ke": str},
     facets=lambda svc, kw: svc.dem_theo_loai(**kw),
+    # Thanh lọc chung (06/10/2026): kỳ Ngày tạo; bảng "Lọc nâng cao" cũ thành điều kiện có số đếm.
+    co_ky=True,
+    dem_them={"tinh_trang": "tinh_trang", "khach_hang_id": "khach_hang_id", "so_ke": "so_ke"},
     ma_goi_y=True,      # repo khai `ma_prefix = "KB-"`
 )

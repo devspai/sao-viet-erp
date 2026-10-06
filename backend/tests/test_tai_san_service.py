@@ -1,8 +1,8 @@
 """Sổ tài sản — ghi tăng, nạp đầu kỳ, hao mòn đọc từ lịch, khoá ô số sau khi có chứng từ.
 
 Không còn kỳ chốt (08/09/2026): "đã trích tới tháng X" là `svc.hao_mon_den(t, nam, thang)`, hỏi
-lúc nào cũng ra đúng một số. Luật khoá: có chứng từ biến động thì không sửa ô số; xoá thì luôn
-được (ghi giảm đã bỏ — xoá là lối ra cho món không dùng nữa).
+lúc nào cũng ra đúng một số. Luật khoá: có chứng từ biến động thì không sửa ô số và không xoá
+(05/10/2026 — món bán / hỏng đi bằng Thôi dùng, xem `test_tai_san_thoi_dung.py`).
 """
 from datetime import date
 
@@ -23,7 +23,7 @@ from app.models.tai_san import (
     TaiSanBienDong,
     TaiSanMoc,
 )
-from app.repositories.tai_san_repo import TaiSanRepository
+from app.repositories.tai_san_repo import LocTaiSan, TaiSanRepository
 from app.services.tai_san.service import (
     TaiSanDaCoChungTu,
     TaiSanService,
@@ -135,10 +135,13 @@ def test_nap_dau_ky_ep_moc_ve_ngay_1():
     assert svc.muc_thang(t, 2026, 1) == (3_750_000, 120_000_000)
 
 
-def test_nap_dau_ky_hao_mon_phai_nho_hon_nguyen_gia():
+def test_nap_dau_ky_so_mang_sang_khong_vuot_gia_mua():
     db, svc = _svc()
     with pytest.raises(TaiSanValidationError):
-        svc.nap_dau_ky({**_polar(), "hao_mon_dau_ky": 450_000_000})
+        svc.nap_dau_ky({**_polar(), "hao_mon_dau_ky": 450_000_001})
+    with pytest.raises(TaiSanValidationError):
+        svc.nap_dau_ky({**_polar(), "thang_da_trich_dau_ky": 121})
+    # đủ số tháng mà tiền chưa đủ ⇒ mâu thuẫn, máy sẽ không bao giờ trích nốt phần còn lại
     with pytest.raises(TaiSanValidationError):
         svc.nap_dau_ky({**_polar(), "thang_da_trich_dau_ky": 120})
 
@@ -197,18 +200,17 @@ def test_chan_sua_o_anh_huong_so_khi_da_co_chung_tu():
     assert t2.ghi_chu == "211 / 6274 - to Be"
 
 
-def test_xoa_duoc_ca_khi_da_co_chung_tu():
-    """Không có nghiệp vụ ghi giảm (chủ bỏ 08/09/2026) ⇒ xoá là lối ra duy nhất cho món bán /
-    hỏng — kể cả khi đã điều chuyển / nâng cấp; chứng từ và mốc đi theo."""
+def test_xoa_bi_chan_khi_da_co_chung_tu():
+    """Xoá chỉ cho tài sản nhập nhầm (05/10/2026). Đã chuyển bộ phận / sửa chữa lớn thì phải
+    giữ lịch sử — món bán / hỏng đi bằng Thôi dùng."""
     db, svc = _svc()
     t = svc.ghi_tang(_komori())
     bp = _bo_phan(db)
     svc.dieu_chuyen(t.id, ngay=date(2026, 4, 1), bo_phan_moi_id=bp.id)
-    svc.nang_cap(t.id, ngay=date(2026, 5, 1), so_tien=10_000_000, so_thang_con_lai=100)
-    svc.xoa(t.id)
-    assert svc.repo.lay(t.id) is None
-    assert db.query(TaiSanBienDong).count() == 0
-    assert db.query(TaiSanMoc).count() == 0
+    with pytest.raises(TaiSanDaCoChungTu):
+        svc.xoa(t.id)
+    assert svc.repo.lay(t.id) is not None
+    assert db.query(TaiSanBienDong).count() == 1
 
 
 def test_xoa_duoc_khi_chua_co_chung_tu_va_moc_di_theo():
@@ -227,8 +229,8 @@ def test_danh_sach_loc_va_cat_trang_o_sql():
             so_thang=24, ngay_su_dung=date(2026, 7, 1),
         ))
     svc.ghi_tang(_komori())
-    rows, tong = svc.repo.danh_sach(loai=LOAI_CCDC, offset=0, limit=2)
+    rows, tong = svc.repo.danh_sach(LocTaiSan(loai=LOAI_CCDC), offset=0, limit=2)
     assert tong == 3
     assert len(rows) == 2
-    rows, tong = svc.repo.danh_sach(q="Komori")
+    rows, tong = svc.repo.danh_sach(LocTaiSan(q="Komori"))
     assert tong == 1

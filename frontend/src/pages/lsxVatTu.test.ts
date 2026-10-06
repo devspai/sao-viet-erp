@@ -71,7 +71,7 @@ describe("bangKeVatTu", () => {
     expect(nvl).toHaveLength(1);
     expect(nvl[0].ten).toBe("Ford 70 65×86");
     expect(nvl[0].so_luong).toBe(436.02);
-    expect(nvl[0].chu_thich).toBe("NVL chính · 650 × 860 mm");
+    expect(nvl[0].chu_thich).toBe("650 × 860 mm");
   });
 
   it("không bước nào khai giấy ⇒ bảng kê KHÔNG tự đẻ dòng NVL", () => {

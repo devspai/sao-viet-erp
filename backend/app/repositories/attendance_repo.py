@@ -20,6 +20,19 @@ from ..models.attendance import (
     WorkLocation,
     WorkShift,
 )
+from .loc_don_nhan_su import (
+    LocDon,
+    dem_theo_trang_thai,
+    dk_ky,
+    dk_nguoi,
+    lua_chon_nhan_vien,
+    lua_chon_phong,
+)
+
+# Mốc kỳ của hai danh sách HCNS (06/10/2026): (cột, là cột Date).
+COT_MOC_LOG = {"cham": (AttendanceLog.checked_at, False), "tao": (AttendanceLog.created_at, False)}
+COT_MOC_YC = {"tao": (AttendanceAdjustRequest.created_at, False),
+              "ngay_cong": (AttendanceAdjustRequest.work_date, True)}
 
 
 def _load_ot_days(raw):
@@ -98,8 +111,9 @@ class AttendanceRepository:
 
     def ca_lich_xuong(self) -> list[WorkShift]:
         """Tập ca CHẠY DƯỚI XƯỞNG — NGUỒN DÙNG CHUNG cho cả Xếp lịch
-        (`XepLichService._ca_lich_may`, nay chỉ gọi lại hàm này) và Theo dõi sản xuất
-        (`services/lenh_sx/bang_theo_doi.theo_ca`) — Ruling C117, task-16-brief.md.
+        (`XepLichService._ca_lich_may`, nay chỉ gọi lại hàm này) và bàn tổ (`_ca_cua` ở
+        `services/san_xuat/board.py`) — Ruling C117, task-16-brief.md. Tab Theo ca của Theo dõi
+        SX (đã xoá 05/10/2026) từng là nơi dùng thứ hai.
 
         Ca ĐANG DÙNG (`is_active`) VÀ có tick "chạy dưới xưởng" (`ca_san_xuat`), sort theo giờ
         vào rồi id. Ca văn phòng ("Hành chính" 08:00–17:00) KHÔNG được vào đây — xem
@@ -111,10 +125,11 @@ class AttendanceRepository:
         rơi về fallback 08:00–16:00 im lặng, không ai thấy.
 
         Trước Task 16, `XepLichService._ca_lich_may()` tự truy vấn thẳng `work_shifts` (một bản
-        sao gần giống hệt hàm này). Rút về MỘT chỗ vì tab "Theo ca" của Theo dõi sản xuất xếp
-        việc vào cột ca, mà việc đó do Xếp lịch đặt bằng đúng tập ca kia — hai bên tự đi lấy tập
-        ca theo hai đường khác nhau là có việc rơi ra ngoài mọi cột ở một bên mà không ai biết.
-        Bài canh hai bên trùng nhau: `tests/test_theo_doi_may_ca_gantt.py::test_tap_ca_trung_voi_xep_lich`.
+        sao gần giống hệt hàm này). Rút về MỘT chỗ vì tab "Theo ca" của Theo dõi sản xuất (đã xoá
+        05/10/2026) xếp việc vào cột ca, mà việc đó do Xếp lịch đặt bằng đúng tập ca kia — hai bên
+        tự đi lấy tập ca theo hai đường khác nhau là có việc rơi ra ngoài mọi cột ở một bên mà không
+        ai biết. Bài canh lọc ca + đường lùi: `tests/test_xep_lich_service.py::
+        test_ca_lich_may_bo_ca_van_phong` và `test_ca_lich_may_khong_ai_tick_thi_lay_HET_ca`.
         """
         cas = self.list_shifts(active_only=True)  # đã ORDER BY start_minute, id
         return [s for s in cas if bool(getattr(s, "ca_san_xuat", True))] or cas
@@ -280,15 +295,78 @@ class AttendanceRepository:
             .limit(limit)
         ).scalars())
 
-    def list_requests(self, *, status: str | None = None, employee_ids: set[int] | None = None,
-                      limit: int = 200) -> list[AttendanceAdjustRequest]:
-        stmt = select(AttendanceAdjustRequest)
+    # --- danh sách HCNS có kỳ + bộ lọc + phân trang (06/10/2026) -----------------
+
+    @staticmethod
+    def _dk_pham_vi(model, employee_ids: set[int] | None) -> list:
+        return [] if employee_ids is None else [model.employee_id.in_(employee_ids)]
+
+    def _dk_yc(self, *, employee_ids, loc: LocDon) -> list:
+        """Mọi điều kiện của danh sách yêu cầu chỉnh công TRỪ trạng thái (đếm tab dùng chung)."""
+        M = AttendanceAdjustRequest
+        return [*self._dk_pham_vi(M, employee_ids), *dk_ky(COT_MOC_YC, loc), *dk_nguoi(M, loc)]
+
+    def loc_requests(self, *, status: str | None, employee_ids: set[int] | None, loc: LocDon,
+                     limit: int, offset: int) -> tuple[list[AttendanceAdjustRequest], int, dict]:
+        """(trang, tổng, đếm theo trạng thái). Mới tạo nhất lên đầu."""
+        M = AttendanceAdjustRequest
+        dk = self._dk_yc(employee_ids=employee_ids, loc=loc)
+        dem = dem_theo_trang_thai(self.db, M, dk)
         if status is not None:
-            stmt = stmt.where(AttendanceAdjustRequest.status == status)
-        if employee_ids is not None:
-            stmt = stmt.where(AttendanceAdjustRequest.employee_id.in_(employee_ids))
-        stmt = stmt.order_by(AttendanceAdjustRequest.created_at.desc(), AttendanceAdjustRequest.id.desc()).limit(limit)
-        return list(self.db.execute(stmt).scalars())
+            dk = [*dk, M.status == status]
+        base = select(M).join(Employee, M.employee_id == Employee.id).where(*dk)
+        total = int(self.db.execute(select(func.count()).select_from(base.subquery())).scalar_one())
+        rows = list(self.db.execute(
+            base.order_by(M.created_at.desc(), M.id.desc()).limit(limit).offset(offset)
+        ).scalars())
+        return rows, total, dem
+
+    def lua_chon_requests(self, truong: str, *, employee_ids: set[int] | None) -> list[dict]:
+        dk = self._dk_pham_vi(AttendanceAdjustRequest, employee_ids)
+        if truong == "phong":
+            return lua_chon_phong(self.db, AttendanceAdjustRequest, dk)
+        return lua_chon_nhan_vien(self.db, AttendanceAdjustRequest, dk)
+
+    def _dk_log(self, *, employee_ids, loc: LocDon, q: str | None) -> list:
+        M = AttendanceLog
+        dk = [*self._dk_pham_vi(M, employee_ids), *dk_ky(COT_MOC_LOG, loc), *dk_nguoi(M, loc)]
+        if loc.diem is not None:
+            dk.append(M.work_location_id == loc.diem)
+        kw = (q or "").strip()
+        if kw:
+            like = f"%{kw.lower()}%"
+            dk.append(or_(func.lower(Employee.full_name).like(like), func.lower(Employee.code).like(like)))
+        return dk
+
+    def loc_logs(self, *, employee_ids: set[int] | None, loc: LocDon, q: str | None,
+                 limit: int, offset: int) -> tuple[list[AttendanceLog], int]:
+        """Nhật ký chấm công phân trang ở máy chủ — thay trần 100 dòng cũ (06/10/2026)."""
+        M = AttendanceLog
+        dk = self._dk_log(employee_ids=employee_ids, loc=loc, q=q)
+        base = select(M).join(Employee, M.employee_id == Employee.id).where(*dk)
+        total = int(self.db.execute(select(func.count()).select_from(base.subquery())).scalar_one())
+        rows = list(self.db.execute(
+            base.order_by(M.checked_at.desc(), M.id.desc()).limit(limit).offset(offset)
+        ).scalars())
+        return rows, total
+
+    def lua_chon_logs(self, truong: str, *, employee_ids: set[int] | None) -> list[dict]:
+        M = AttendanceLog
+        dk = self._dk_pham_vi(M, employee_ids)
+        if truong == "phong":
+            return lua_chon_phong(self.db, M, dk)
+        if truong == "diem":
+            rows = self.db.execute(
+                select(WorkLocation.id, WorkLocation.name, func.count(M.id))
+                .select_from(M)
+                .join(Employee, M.employee_id == Employee.id)
+                .join(WorkLocation, M.work_location_id == WorkLocation.id)
+                .where(*dk)
+                .group_by(WorkLocation.id, WorkLocation.name)
+                .order_by(WorkLocation.name)
+            ).all()
+            return [{"id": i, "ten": t, "so": int(n)} for i, t, n in rows]
+        return lua_chon_nhan_vien(self.db, M, dk)
 
     def live_adjust_days(self, employee_id: int, year: int, month: int) -> set:
         """Tập NGÀY CÔNG (`work_date`) mà NV đang có yêu cầu chỉnh công CÒN HIỆU LỰC trong tháng —
@@ -326,38 +404,6 @@ class AttendanceRepository:
         if end is not None:
             stmt = stmt.where(AttendanceAdjustRequest.work_date <= end)
         return self.db.execute(stmt).scalar_one()
-
-    def list_all(
-        self, *, employee_ids: set[int] | None = None, limit: int = 100, q: str | None = None,
-        tu=None, den=None,
-    ) -> list[AttendanceLog]:
-        """Logs mới nhất. `employee_ids=None` = mọi nhân viên; tập rỗng = không ai (an toàn
-        cho scope không thấy NV nào); tập có phần tử = chỉ các NV đó (dùng cho lọc scope).
-
-        `q` = tìm theo TÊN hoặc MÃ nhân viên. Lọc ở SQL chứ không ở FE là có chủ đích: hàm này chỉ
-        trả `limit` lượt gần nhất của CẢ XƯỞNG, mà xưởng 50 người bấm 2–4 lượt/ngày thì 100 lượt
-        chưa hết nửa ngày — lọc sau khi đã cắt thì gõ tên ai không bấm trong vài giờ qua sẽ ra
-        "không tìm thấy" dù họ vẫn đi làm. Đẩy xuống SQL để `limit` là 100 lượt CỦA NGƯỜI ĐƯỢC TÌM.
-
-        ⚠️ `q` lọc BÊN TRONG `employee_ids` (đã áp scope ở service), KHÔNG thay thế nó — tìm kiếm
-        không được là đường vòng để thấy người ngoài phạm vi."""
-        stmt = select(AttendanceLog)
-        if employee_ids is not None:
-            stmt = stmt.where(AttendanceLog.employee_id.in_(employee_ids))
-        # `tu`/`den` là mốc UTC đã quy đổi từ NGÀY VN ở service — repo không tự đoán múi giờ.
-        if tu is not None:
-            stmt = stmt.where(AttendanceLog.checked_at >= tu)
-        if den is not None:
-            stmt = stmt.where(AttendanceLog.checked_at < den)
-        kw = (q or "").strip()
-        if kw:
-            like = f"%{kw.lower()}%"
-            stmt = stmt.join(Employee, Employee.id == AttendanceLog.employee_id).where(
-                or_(func.lower(Employee.full_name).like(like),
-                    func.lower(Employee.code).like(like))
-            )
-        stmt = stmt.order_by(AttendanceLog.checked_at.desc(), AttendanceLog.id.desc()).limit(limit)
-        return list(self.db.execute(stmt).scalars())
 
     # --- attendance_periods (Chốt công) ------------------------------------
 

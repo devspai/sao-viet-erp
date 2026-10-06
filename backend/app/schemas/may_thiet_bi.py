@@ -8,6 +8,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from .loc_danh_muc import DemDieuKien
+
 
 class MayThietBiIn(BaseModel):
     # Cho phép field phụ (theo loai_may) đi kèm — service/repo lọc theo ASSIGNABLE.
@@ -97,6 +99,8 @@ class MayThietBiListOut(BaseModel):
     # Phải do server trả: màn chỉ cầm 20 dòng của trang đang xem nên không tự đếm được nữa, mà
     # `loai_may` là chữ TỰ DO nên màn cũng không biết trước có những tab nào.
     facets: dict[str, int] = {}
+    # Giá trị + số đếm của từng điều kiện lọc (thanh lọc chung) — xem `schemas/loc_danh_muc`.
+    dem: DemDieuKien = {}
 
 
 # --- Trạng thái máy LÚC NÀY (dẫn xuất) ---------------------------------------

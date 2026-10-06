@@ -35,13 +35,15 @@ def _ngay_vn(dt: datetime | None) -> date | None:
 
 
 def lap_bao_cao(
-    orders_repo, accounting_repo, *, tu_ngay: date, den_ngay: date, scope: str, actor,
-    customer_id: int | None = None,
+    orders_repo, accounting_repo, *, tu_ngay: date | None, den_ngay: date | None, scope: str,
+    actor, customer_id: int | None = None, sale_user_id: int | None = None,
 ) -> dict:
-    """Báo cáo `[tu_ngay, den_ngay]` (tính cả hai đầu, giờ VN), gom theo khách → đơn → dòng."""
+    """Báo cáo `[tu_ngay, den_ngay]` (tính cả hai đầu, giờ VN), gom theo khách → đơn → dòng.
+    Đầu nào None thì không chặn đầu đó (kỳ "Tất cả" của thanh lọc, 06/10/2026)."""
     don = orders_repo.chot_trong_khoang(
-        tu=_moc_utc(tu_ngay), den=_moc_utc(den_ngay + timedelta(days=1)),
-        scope=scope, actor=actor, customer_id=customer_id,
+        tu=_moc_utc(tu_ngay) if tu_ngay else None,
+        den=_moc_utc(den_ngay + timedelta(days=1)) if den_ngay else None,
+        scope=scope, actor=actor, customer_id=customer_id, sale_user_id=sale_user_id,
     )
     ids = [o.id for o in don]
     tien = orders_repo.money_sums(ids)

@@ -28,7 +28,6 @@ from .bien_che import ly_do_ngoai_bien_che
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.overtime_repo import OvertimeRepository
-from .khoang_thang import khoang_tao_theo_thang
 from .ky_cong_guard import ly_do_ky_cong_da_chot
 
 # Trần độ dài MỘT phiếu (phút). Đ107 BLLĐ: tổng giờ làm + tăng ca ≤ 12h/ngày → 12h là trần rộng rãi.
@@ -247,42 +246,23 @@ class OvertimeService:
 
     # --- đọc ----------------------------------------------------------------
 
-    @staticmethod
-    def _khoang_thang(thang):
-        """`thang` (YYYY-MM, theo NGÀY TẠO phiếu) → (tu, den) UTC, hoặc (None, None) = không lọc."""
-        try:
-            k = khoang_tao_theo_thang(thang)
-        except ValueError as exc:
-            raise OvertimeValidationError(str(exc)) from None
-        return k if k is not None else (None, None)
-
-    def my_requests(self, *, user, page: int = 1, size: int = 20,
-                    thang: str | None = None) -> tuple[list[OvertimeRequest], int]:
-        """Trả `(rows, total)` — `total` là TỔNG phiếu của NV (trong tháng tạo nếu lọc), không phải
-        số dòng của trang. Mới tạo nhất lên đầu."""
+    def my_requests(self, *, user, loc, status: str | None = None, page: int = 1,
+                    size: int = 20) -> tuple[list[OvertimeRequest], int, dict]:
+        """Trả `(trang, tổng, đếm theo trạng thái)` của phiếu CHÍNH MÌNH — kỳ + bộ lọc ở máy chủ
+        (06/10/2026, thay lọc một tháng tạo). Mới tạo nhất lên đầu."""
         emp = self._employee_for_user(user)
-        tu, den = self._khoang_thang(thang)
-        total = self.overtime.count_by_employee(emp.id, tao_tu=tu, tao_den=den)
-        rows = self.overtime.list_by_employee(emp.id, limit=size,
-                                              offset=max(0, (page - 1) * size),
-                                              tao_tu=tu, tao_den=den)
-        return rows, total
+        return self.overtime.loc_cua_nv(emp.id, loc=loc, status=status, limit=size,
+                                      offset=max(0, (page - 1) * size))
 
-    def list_requests(self, *, scope: str, actor, status: str | None = None,
-                      employee_id: int | None = None, page: int = 1,
-                      size: int = 20, thang: str | None = None) -> tuple[list[OvertimeRequest], int]:
-        """Danh sách phiếu theo DATA-SCOPE người gọi (own = của mình / department = tổ mình +
-        cây con / all = tất cả) ⇒ tổ trưởng chỉ thấy & duyệt được người trong tổ.
+    def list_requests(self, *, scope: str, actor, loc, status: str | None = None,
+                      page: int = 1, size: int = 20) -> tuple[list[OvertimeRequest], int, dict]:
+        """Danh sách theo DATA-SCOPE người gọi (own / department = phòng mình + cây con / all).
+        `loc.employee_id` chỉ THU HẸP thêm bên trong phạm vi đã có — không nới quyền."""
+        return self.overtime.loc_scoped(scope=scope, actor=actor, loc=loc, status=status, limit=size,
+                                      offset=max(0, (page - 1) * size))
 
-        `employee_id` chỉ THU HẸP thêm bên trong phạm vi đã có — không nới quyền: gõ id người
-        ngoài tổ thì `_scope_condition` vẫn cắt, kết quả rỗng chứ không lộ phiếu."""
-        tu, den = self._khoang_thang(thang)
-        total = self.overtime.count_scoped(scope=scope, actor=actor, status=status,
-                                           employee_id=employee_id, tao_tu=tu, tao_den=den)
-        rows = self.overtime.list_scoped(scope=scope, actor=actor, status=status,
-                                         employee_id=employee_id, limit=size,
-                                         offset=max(0, (page - 1) * size), tao_tu=tu, tao_den=den)
-        return rows, total
+    def lua_chon(self, truong: str, *, scope: str, actor) -> list[dict]:
+        return self.overtime.lua_chon(truong, scope=scope, actor=actor)
 
     def count_pending(self, *, scope: str, actor) -> int:
         """Việc chờ duyệt trong phạm vi: phiếu mới + yêu cầu HỦY phiếu đã duyệt (23/09/2026)."""

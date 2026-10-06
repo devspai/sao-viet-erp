@@ -1012,13 +1012,11 @@
   background: var(--canvas);
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-5);
-  overflow: auto;
-  /* Giới hạn chiều cao + cuộn dọc TRONG khung: bảng nhiều cột (Máy, Bù hao, Đơn vị & quy đổi...)
-     cần cuộn ngang mới thấy hết cột, nhưng nếu khung cao tự do theo hết số hàng thì thanh cuộn
-     ngang bị đẩy xuống tận đáy trang, ngoài tầm nhìn màn hình thường (~720-800px) — mở trang lên
-     thấy cột bị cụt mà không biết cuộn đâu. Ép max-height để thanh cuộn ngang luôn nằm ngay dưới
-     các hàng đang thấy. */
-  max-height: calc(100vh - 320px);
+  /* KHÔNG trần chiều cao (05/10/2026, chủ: "không giới hạn chiều cao bảng như nhật ký"): bảng
+     cao theo số dòng của trang, cả TRANG cuộn — khuôn màn Nhật ký. Trước đây có
+     `max-height: calc(100vh - 320px)` + cuộn dọc trong khung để thanh cuộn ngang luôn trong tầm
+     mắt; số dòng nay do ô Dòng/trang ở chân bảng quyết, nên trần đó chỉ còn là khe nhìn hẹp. */
+  overflow-x: auto;
   box-shadow: var(--shadow-1);
 }
 .rc__table {
@@ -1041,10 +1039,6 @@
      ("Khổ máy & vùng in") thì nowrap làm chữ tràn đè lên cột bên cạnh, đọc không nổi. */
   white-space: normal;
   line-height: 1.3;
-  /* Ghim tiêu đề khi cuộn dọc trong khung (đi cùng max-height ở .rc__tablewrap phía trên). */
-  position: sticky;
-  top: 0;
-  z-index: 1;
 }
 .rc__table td {
   padding: 10px 14px;
@@ -1236,18 +1230,13 @@
 /* Cột Hành động của MÀN DANH MỤC — bề rộng tính bằng px ở `CatalogListPage` (NUT_RONG), khớp đúng
    đệm trái 8px ở đây. Nút xếp trong một hàng flex dồn phải, khe 4px, không dùng `margin-left` của
    `.rc__link-btn` (luật chung đó còn phục vụ Kho / Kỹ thuật máy nên để nguyên). */
-/* Màn danh mục cuộn THEO TRANG như Nhật ký (05/10/2026, chủ: "không cố định chiều cao nữa"): bỏ trần
-   `max-height: calc(100vh - 320px)` của `.rc__tablewrap` — trần đó sinh ra để thanh cuộn NGANG
-   nằm trong tầm mắt, mà bảng danh mục nay vừa khổ 1480px nên không còn cuộn ngang. Chân phân
-   trang (`.ptdd`) nối liền vào đáy thẻ bảng thành MỘT khối, đúng khuôn màn Nhật ký. */
-.rc--dm .rc__tablewrap {
-  max-height: none;
-}
-.rc--dm .rc__tablewrap:has(+ .ptdd) {
+/* Chân phân trang (`.ptdd`) nối liền vào đáy thẻ bảng thành MỘT khối, đúng khuôn màn Nhật ký —
+   mọi màn dùng `.rc__tablewrap` (danh mục, KCS, Kỹ thuật máy, Tài sản, Kho, Giao hàng). */
+.rc__tablewrap:has(+ .ptdd) {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
-.rc--dm .rc__tablewrap + .ptdd {
+.rc__tablewrap + .ptdd {
   border: 1px solid var(--rule-soft);
   border-top: 0;
   border-radius: 0 0 var(--r-5) var(--r-5);
@@ -2548,10 +2537,14 @@ select.rc-input:focus {
 /* Trung bình đậm hơn hai mốc biên vì nó là số hệ THẬT SỰ chia để ra thời lượng bước
    (`lsx_service._thoi_luong` / `xep_lich_service`); min–max chỉ dựng khoảng nhanh–chậm. */
 .rc-dinh-muc-table .rc-may-nl--tb { color: var(--ink, #14130f); font-weight: 600; }
-/* Bốn cột số cộng thêm ~400px: cho khung cuộn ngang (wrapper đã `overflow-x: auto`) thay vì bóp
-   hai ô công thức xuống còn vài ký tự. */
-.rc-dinh-muc-table--may { min-width: 1120px; }
-.rc-dinh-muc-table--may-gia { min-width: 1280px; }
+/* Ô công thức CÓ TRẦN (06/10/2026): công thức `if (…)` dài vài trăm ký tự mà để ô tự giãn thì bảng
+   phình tới ~8.800px, muốn thấy cột "Cách tính giá" phải kéo ngang mãi. Nay hai ô chia nhau phần
+   còn lại của khung, chữ thừa thành "…"; bấm ô là popup bày đủ công thức (`FormulaPopover`).
+   `max-width: 0` = bỏ bề rộng chữ ra khỏi phép tính cột, để cột ăn theo `width` chứ không theo nội
+   dung. `min-width` của bảng chỉ còn giữ cho ô công thức không teo dưới ~120px ở ngăn hẹp. */
+.rc-dinh-muc-table--may { min-width: 820px; }
+.rc-dinh-muc-table--may-gia { min-width: 960px; }
+.rc-dinh-muc-table--may .rc-ct-td { max-width: 0; width: 40%; }
 .rc-dinh-muc-note {
   font-size: 11.5px;
   color: var(--ash, #8a8676);

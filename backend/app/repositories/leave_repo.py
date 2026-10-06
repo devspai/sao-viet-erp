@@ -16,7 +16,10 @@ from ..models.leave import (
     LeaveType,
 )
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
+from .loc_don_nhan_su import LocDon, dem_theo_trang_thai, dk_ky, dk_nguoi, lua_chon_nhan_vien, lua_chon_phong
 from .org_scope import dept_subtree_ids
+
+COT_MOC = {"tao": (LeaveRequest.created_at, False)}
 
 _DECIDED = (STATUS_APPROVED, STATUS_REJECTED)
 
@@ -73,31 +76,6 @@ class LeaveRepository:
         self.db.refresh(r)
         return r
 
-    # SẮP XẾP: mới TẠO nhất lên đầu (chủ 23/09/2026). Trước đó xếp theo ngày nghỉ / ngày công, rồi
-    # (ở hàng đợi duyệt) theo `status` dạng chữ — đơn vừa gửi có thể nằm tít trang sau.
-    # LỌC THÁNG = tháng của NGÀY TẠO (`tao_tu`/`tao_den`, UTC, nửa mở) — xem services/khoang_thang.py.
-    def list_by_employee(self, employee_id: int, *, limit: int = 100, offset: int = 0,
-                         tao_tu=None, tao_den=None) -> list[LeaveRequest]:
-        stmt = select(LeaveRequest).where(LeaveRequest.employee_id == employee_id)
-        if tao_tu is not None:
-            stmt = stmt.where(LeaveRequest.created_at >= tao_tu, LeaveRequest.created_at < tao_den)
-        return list(
-            self.db.execute(
-                stmt
-                .order_by(LeaveRequest.created_at.desc(), LeaveRequest.id.desc())
-                .limit(limit)
-                .offset(offset)
-            ).scalars()
-        )
-
-    def count_by_employee(self, employee_id: int, *, tao_tu=None, tao_den=None) -> int:
-        """Tổng đơn của 1 NV — nuôi chân phân trang tab "Đơn của tôi". COUNT ở DB, đừng
-        `len(list_by_employee())`: hàm kia đang bị `limit` cắt nên đếm ra số của TRANG."""
-        stmt = select(func.count(LeaveRequest.id)).where(LeaveRequest.employee_id == employee_id)
-        if tao_tu is not None:
-            stmt = stmt.where(LeaveRequest.created_at >= tao_tu, LeaveRequest.created_at < tao_den)
-        return int(self.db.execute(stmt).scalar_one())
-
     def list_all(self, *, status: str | None = None, limit: int = 200) -> list[LeaveRequest]:
         stmt = select(LeaveRequest)
         if status is not None:
@@ -124,49 +102,57 @@ class LeaveRepository:
             return Employee.department_id.in_(dept_ids)
         raise ValueError(f"Unknown scope: {scope!r}")
 
-    def _scoped_filters(self, stmt, *, scope: str, actor, status: str | None,
-                        employee_id: int | None, tao_tu=None, tao_den=None):
-        """Bộ lọc DÙNG CHUNG cho `list_scoped` và `count_scoped`.
+    # --- danh sách có kỳ + bộ lọc + phân trang (06/10/2026) --------------------
+    # SẮP XẾP: mới TẠO nhất lên đầu (chủ 23/09/2026). Lọc, đếm tab, cắt trang ĐỀU ở máy chủ và
+    # dùng CHUNG một bộ điều kiện — số tab, tổng ở chân bảng và bảng không bao giờ lệch nhau.
 
-        Phải chung một chỗ: hai hàm mà lọc lệch nhau thì `total` ở chân bảng không mở ra xem
-        được — báo 30 nhưng lật hết trang chỉ thấy 12, người dùng thôi tin con số đó."""
-        cond = self._scope_condition(scope=scope, actor=actor)
-        if cond is not None:
-            stmt = stmt.where(cond)
+    def _dk_loc(self, cond, loc: LocDon) -> list:
+        """Phạm vi (`cond`) + kỳ + người + loại nghỉ — mọi điều kiện TRỪ trạng thái."""
+        M = LeaveRequest
+        dk: list = [] if cond is None else [cond]
+        if loc.moc == "nghi":
+            # Mốc NGHỈ: đơn có ngày nghỉ GIAO với kỳ (đơn 28/09–03/10 thuộc cả tháng 9 lẫn 10).
+            if loc.den_ngay is not None:
+                dk.append(M.start_date <= loc.den_ngay)
+            if loc.tu_ngay is not None:
+                dk.append(M.end_date >= loc.tu_ngay)
+        else:
+            dk += dk_ky(COT_MOC, loc)
+        dk += dk_nguoi(M, loc)
+        if loc.loai is not None:
+            dk.append(M.leave_type_id == loc.loai)
+        return dk
+
+    def _loc(self, cond, loc: LocDon, status: str | None, limit: int,
+             offset: int) -> tuple[list[LeaveRequest], int, dict]:
+        M = LeaveRequest
+        dk = self._dk_loc(cond, loc)
+        dem = dem_theo_trang_thai(self.db, M, dk)
         if status is not None:
-            stmt = stmt.where(LeaveRequest.status == status)
-        if employee_id is not None:
-            stmt = stmt.where(LeaveRequest.employee_id == employee_id)
-        if tao_tu is not None:
-            stmt = stmt.where(LeaveRequest.created_at >= tao_tu, LeaveRequest.created_at < tao_den)
-        return stmt
+            dk.append(M.status == status)
+        base = select(M).join(Employee, M.employee_id == Employee.id).where(*dk)
+        total = int(self.db.execute(select(func.count()).select_from(base.subquery())).scalar_one())
+        rows = list(self.db.execute(
+            base.order_by(M.created_at.desc(), M.id.desc()).limit(limit).offset(offset)).scalars())
+        return rows, total, dem
 
-    def list_scoped(self, *, scope: str, actor, status: str | None = None,
-                    employee_id: int | None = None, limit: int = 200,
-                    offset: int = 0, tao_tu=None, tao_den=None) -> list[LeaveRequest]:
-        stmt = select(LeaveRequest).join(Employee, LeaveRequest.employee_id == Employee.id)
-        stmt = self._scoped_filters(stmt, scope=scope, actor=actor, status=status,
-                                    employee_id=employee_id, tao_tu=tao_tu, tao_den=tao_den)
-        stmt = stmt.order_by(
-            LeaveRequest.created_at.desc(), LeaveRequest.id.desc()
-        ).limit(limit).offset(offset)
-        return list(self.db.execute(stmt).scalars())
+    def loc_cua_nv(self, employee_id: int, *, loc: LocDon, status: str | None, limit: int,
+                   offset: int) -> tuple[list[LeaveRequest], int, dict]:
+        """Tab "của tôi": `(trang, tổng, đếm theo trạng thái)`."""
+        return self._loc(LeaveRequest.employee_id == employee_id, loc, status, limit, offset)
 
-    def count_scoped(self, *, scope: str, actor, status: str | None = None,
-                     employee_id: int | None = None, tao_tu=None, tao_den=None) -> int:
-        """Tổng đơn trong phạm vi + bộ lọc — chân phân trang tab "Duyệt đơn".
+    def loc_scoped(self, *, scope: str, actor, loc: LocDon, status: str | None, limit: int,
+                   offset: int) -> tuple[list[LeaveRequest], int, dict]:
+        """Tab duyệt theo DATA-SCOPE. `loc.employee_id` chỉ THU HẸP bên trong phạm vi — gõ id
+        người ngoài phạm vi thì `_scope_condition` vẫn cắt, kết quả rỗng chứ không lộ."""
+        return self._loc(self._scope_condition(scope=scope, actor=actor), loc, status, limit, offset)
 
-        `employee_id` LỌC Ở MÁY CHỦ chứ không ở client nữa: liên thông từ Hồ sơ NV lọc đúng 1
-        người, mà lọc ở client thì đơn của người đó rơi sang trang khác là màn báo "chưa có
-        đơn" — sai sự thật."""
-        stmt = (
-            select(func.count(LeaveRequest.id))
-            .select_from(LeaveRequest)
-            .join(Employee, LeaveRequest.employee_id == Employee.id)
-        )
-        stmt = self._scoped_filters(stmt, scope=scope, actor=actor, status=status,
-                                    employee_id=employee_id, tao_tu=tao_tu, tao_den=tao_den)
-        return int(self.db.execute(stmt).scalar_one())
+    def lua_chon(self, truong: str, *, scope: str, actor) -> list[dict]:
+        cond = self._scope_condition(scope=scope, actor=actor)
+        dk = [] if cond is None else [cond]
+        if truong == "phong":
+            return lua_chon_phong(self.db, LeaveRequest, dk)
+        return lua_chon_nhan_vien(self.db, LeaveRequest, dk)
 
     def count_pending_scoped(self, *, scope: str, actor) -> int:
         """Số đơn ĐANG CHỜ DUYỆT trong scope người gọi — nuôi badge sidebar (COUNT ở DB,

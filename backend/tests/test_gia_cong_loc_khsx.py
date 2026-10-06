@@ -30,7 +30,7 @@ def test_loc_gia_cong(client, sess, orders, lsx_svc, admin, customer):
     mang_di(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
     tron = lenh_chua_phat(sess, orders, lsx_svc, admin, customer)
     dat_tron_goi(sess, user=admin, lsx_id=tron.id, nha_cung_cap_id=ncc(sess, "GC C").id,
-                 sl_dat=1000, don_gia=None, xuong_cap_giay=False)
+                 sl_dat=1000, xuong_cap_giay=False)
     thuong = lenh_chua_phat(sess, orders, lsx_svc, admin, customer)
 
     tok = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})

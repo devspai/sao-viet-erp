@@ -42,6 +42,7 @@ from ..deps import (
 from ..models.customer import Customer
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
+from ..repositories.loc_danh_sach import trong_khoang_ngay
 from ..repositories.org_scope import dept_subtree_ids
 from ..repositories.rbac_repo import DepartmentRepository, RoleRepository
 from ..repositories.user_repo import UserRepository
@@ -198,6 +199,14 @@ def list_customers(
     # trong tầm nhìn (phạm vi own/department lọc theo chủ sổ nên khách vô chủ tự rơi ra ngoài).
     chua_gan: bool = Query(default=False),
     tag: str | None = Query(default=None),
+    # Thanh lọc chung (06/10/2026): kỳ theo Ngày tạo + loại khách + trạng thái mua hàng.
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^tao$"),
+    loai: str | None = Query(default=None, pattern="^(ca_nhan|cong_ty)$"),
+    # Trạng thái mua hàng — suy từ ĐƠN ĐÃ CHỐT, đúng như cột "Mua hàng 12 tháng" của bảng:
+    # `dang_mua` có đơn trong 12 tháng · `ngung` từng có đơn nhưng 12 tháng nay không · `chua_don`.
+    mua: str | None = Query(default=None, pattern="^(dang_mua|ngung|chua_don)$"),
     sort: str = Query(default="code"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
@@ -228,6 +237,18 @@ def list_customers(
         # Lọc theo nhãn thủ công (#7) — case-insensitive.
         tagged_ids = svc.customers.ids_with_label(tag)
         filtered = [c for c in filtered if c.id in tagged_ids]
+    if tu_ngay is not None or den_ngay is not None:
+        filtered = [c for c in filtered if trong_khoang_ngay(c.created_at, tu_ngay, den_ngay)]
+    if loai:
+        filtered = [c for c in filtered if c.customer_kind == loai]
+    if mua:
+        def _tinh_trang(c: Customer) -> str:
+            st = stats.per_customer.get(c.id)
+            if st is None or st.orders_total == 0:
+                return "chua_don"
+            return "dang_mua" if st.orders_12m > 0 else "ngung"
+
+        filtered = [c for c in filtered if _tinh_trang(c) == mua]
 
     key, is_desc = _sort_key(sort or "code")
     derived = {"revenue": "revenue_12m", "orders": "orders_total"}

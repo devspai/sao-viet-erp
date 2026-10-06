@@ -229,8 +229,19 @@ class EmployeeOut(EmployeeRow):
     # Trưởng bộ phận (departments.head_user_id → tên tài khoản). CHỈ route self-service
     # `/me` điền — danh sách HCNS bỏ trống để không phải tra thêm mỗi dòng (N+1).
     department_head_name: str | None = None
+    # Đi kèm `department_head_name` (cũng chỉ `/me` điền): người đó đứng đầu phòng nào, ảnh, và
+    # có phải lấy từ phòng CẤP TRÊN không (phòng mình chưa chỉ định người đứng đầu).
+    department_head_dept_name: str | None = None
+    department_head_avatar_url: str | None = None
+    department_head_inherited: bool = False
+    # Giờ vào–ra của ca hiện tại ("08:00–17:00") — chỉ `/me` điền.
+    current_shift_hours: str | None = None
+    # Lưới phân ca khai RIÊNG cho hôm nay, khác ca nền — chỉ `/me` điền. Ngày thường để trống.
+    today_shift_off: bool = False
+    today_shift_name: str | None = None
+    today_shift_hours: str | None = None
     # Ca nền ĐANG hiệu lực hôm nay (khác `default_shift_id` = mốc mới nhất, có thể là mốc tương
-    # lai). CHỈ `GET /{id}` điền — tab Thông tin hiện thẳng, khỏi tự tải lịch sử mốc + danh mục ca.
+    # lai). `GET /{id}` và `/me` điền — tab Thông tin hiện thẳng, khỏi tự tải lịch sử mốc + danh mục ca.
     current_shift_id: int | None = None
     current_shift_name: str | None = None
 
@@ -340,6 +351,8 @@ class MyUpdateRequestsOut(UpdateRequestsOut):
     page: int = 1
     size: int = 0
     dem: dict[str, int] = Field(default_factory=dict)
+    #: Số đề nghị theo trạng thái trong KỲ đang xem (bỏ điều kiện trạng thái) — số trên thẻ lọc.
+    dem_theo_tab: dict[str, int] = Field(default_factory=dict)
 
 
 class EmployeeEventOut(BaseModel):

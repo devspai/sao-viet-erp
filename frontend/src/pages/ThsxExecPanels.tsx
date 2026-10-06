@@ -1759,8 +1759,12 @@ function VtDeNghiLanRow({ d, tenNguoi }: { d: SxVatTuCapLan; tenNguoi: Map<numbe
               <tbody>
                 {d.dongs.map((x) => (
                   <tr key={vtKhoa(x)}>
-                    <td>{x.ten}{x.hang_loai === "giay" && nhanDangKho(x.dang_giay, x.kho_rong, x.kho_dai)
-                      ? ` · ${nhanDangKho(x.dang_giay, x.kho_rong, x.kho_dai)}` : ""}</td>
+                    <td>
+                      {x.ten}
+                      {x.hang_loai === "giay" && nhanDangKho(x.dang_giay, x.kho_rong, x.kho_dai) && (
+                        <div className="kho-lines__code">{nhanDangKho(x.dang_giay, x.kho_rong, x.kho_dai)}</div>
+                      )}
+                    </td>
                     <td className="r thsx-num">{num(x.sl_yeu_cau)}<span className="thsx-x-unit"> {nhanDonVi(x.dvt)}</span></td>
                     <td><span className="thsx-x-butru__mo">{x.ly_do_chenh_lech || "—"}</span></td>
                   </tr>

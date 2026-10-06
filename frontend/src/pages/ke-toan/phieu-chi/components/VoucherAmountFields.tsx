@@ -1,17 +1,76 @@
-// Cụm ô SỐ TIỀN / ĐỢT GIAO / TỶ GIÁ của hộp lập phiếu chi
-// (tách từ pages/PaymentVoucherDialog.tsx).
-// ⚠️ TIỀN THẬT — trần `maxAmountVnd`, `conNoDot()` và ô quy đổi move nguyên văn.
-import type {
-  PaymentStage,
-  PaymentVoucherBaseInput,
-  PaymentVoucherRow,
-  PurchaseRequestRow,
-} from "../../../../api/client";
-import { fmtDate, money } from "../../../../utils/format";
-import { HOM_NAY, STAGE_LABELS } from "../shared/constants";
+/** Đợt giao + Số tiền (+ ngoại tệ) của form lập phiếu chi theo đơn mua (đặc tả PC-4).
+ *
+ *  ⚠️ TIỀN THẬT — trần `maxAmountVnd` và `amountVnd` do `PaymentVoucherDialog` tính; khối này
+ *  CHỈ HIỂN THỊ, không tự tính lại tiền. Chọn đợt thì số tiền điền lại bằng `conNoDot()` của đợt
+ *  đó (đổi đợt là đổi trần — giữ số cũ là bấm lập rồi ăn lỗi mà không hiểu vì sao).
+ *
+ *  - `ChonDotGiao`: danh sách nút tròn, mỗi đợt một dòng "Đợt 2 | Giao 28/09 | [Hoá đơn 0004571] |
+ *    còn nợ 45.200.000 đ"; đợt đã trả đủ mờ và có thẻ "Đã trả đủ".
+ *  - `VoucherAmountFields` (kiểu mới 06/10/2026): VND là ô tiền LỚN + bằng chữ + "Trả đủ" (= trần) +
+ *    dải "sau phiếu này"; vượt trần thì câu đỏ của chính luật chặn hiện ngay khi gõ (`loiTran`).
+ *    Link nhỏ "Trả bằng ngoại tệ" mới mở Loại tiền + Tỷ giá + "= … đ" (ô số thường, có phần lẻ).
+ */
+import type { Dispatch, SetStateAction } from "react";
+import { useState } from "react";
+
+import type { PaymentVoucherBaseInput, PurchaseRequestRow } from "../../../../api/client";
+import { Cum, TheNho } from "../../shared/Cum";
+import { ngay, tien } from "../../shared/dinhDang";
+import { OTienLon, SauPhieu } from "../../shared/KhungFormPhieu";
 import { conNoDot } from "../shared/helpers";
 import type { LoaiPhieu } from "../shared/types";
-import type { Dispatch, SetStateAction } from "react";
+import { idO, OF, OTienPhieu, type DatO, type LoiForm } from "./KhungFormPhieu";
+
+export function ChonDotGiao({
+  form,
+  setForm,
+  purchase,
+  loi,
+}: {
+  form: PaymentVoucherBaseInput;
+  setForm: Dispatch<SetStateAction<PaymentVoucherBaseInput>>;
+  purchase: PurchaseRequestRow;
+  loi: LoiForm;
+}) {
+  return (
+    <div className={`kt-o kt-o--rong${loi.delivery_id ? " kt-o--loi" : ""}`}>
+      <span className="kt-o__nhan" id={`${idO("delivery_id")}-nhan`}>
+        Đợt giao<em className="kt-bb">*</em>
+      </span>
+      <div className="kt-dots" role="radiogroup" aria-labelledby={`${idO("delivery_id")}-nhan`}
+        id={idO("delivery_id")} tabIndex={-1}>
+        {purchase.deliveries.map((d) => {
+          const on = form.delivery_id === d.id;
+          const du = d.con_no <= 0;
+          return (
+            <button key={d.id} type="button" role="radio" aria-checked={on} className={on ? "on" : undefined}
+              disabled={du && !on}
+              onClick={() =>
+                setForm((current) => ({ ...current, delivery_id: d.id, amount: conNoDot(purchase, d.id) }))
+              }>
+              <span className="kt-vong-chon" aria-hidden="true" />
+              <Cum>
+                <b>{`Đợt ${d.seq_no}`}</b>
+                <span>{`Giao ${ngay(d.delivery_date)}`}</span>
+                <TheNho>{d.invoice_number ? `Hoá đơn ${d.invoice_number}` : "Chưa có hoá đơn"}</TheNho>
+              </Cum>
+              {du ? (
+                <span className="kt-pill kt-pill--xanh">Đã trả đủ</span>
+              ) : (
+                <span>
+                  còn nợ <b>{tien(d.con_no)}</b>
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {loi.delivery_id && (
+        <span className="kt-o__loi" role="alert">{loi.delivery_id}</span>
+      )}
+    </div>
+  );
+}
 
 export function VoucherAmountFields({
   loai,
@@ -19,155 +78,70 @@ export function VoucherAmountFields({
   form,
   setForm,
   set,
-  voucher,
-  purchase,
-  dotDangChon,
   maxAmountVnd,
   amountVnd,
+  loi,
+  loiTran,
 }: {
   loai: LoaiPhieu;
   coDotGiao: boolean;
   form: PaymentVoucherBaseInput;
   setForm: Dispatch<SetStateAction<PaymentVoucherBaseInput>>;
-  set: <K extends keyof PaymentVoucherBaseInput>(
-    key: K,
-    value: PaymentVoucherBaseInput[K],
-  ) => void;
-  voucher: PaymentVoucherRow | null;
-  purchase: PurchaseRequestRow;
-  dotDangChon: PurchaseRequestRow["deliveries"][number] | null;
+  set: DatO;
   maxAmountVnd: number;
   amountVnd: number;
+  loi: LoiForm;
+  /** Câu vượt trần tính ngay khi gõ (cùng câu với luật chặn); có thì form cha khoá nút lập. */
+  loiTran?: string | null;
 }) {
+  const vnd = form.currency.trim().toUpperCase() === "VND";
+  const [moNgoaiTe, setMoNgoaiTe] = useState(!vnd);
+  const hienNgoaiTe = moNgoaiTe || !vnd;
+  const nhanTran = loai === "dat_coc" ? "Còn được cọc" : coDotGiao ? "Đợt còn nợ" : "Còn được chi";
+
+  if (!hienNgoaiTe) {
+    return (
+      <>
+        <OTienLon khoa="amount" nhan="Số tiền chi" value={form.amount} onChange={(v) => set("amount", v)}
+          loi={loi.amount} vuot={loiTran} goiTrong="Nhập số tiền chi ra"
+          nutDu={{ nhan: loai === "dat_coc" ? "Cọc tối đa" : "Trả đủ", so: maxAmountVnd }}
+          con={<SauPhieu o={[{ nhan: nhanTran, tu: maxAmountVnd, den: maxAmountVnd - amountVnd }]} />} />
+        <div>
+          <button type="button" className="kt-lk" onClick={() => setMoNgoaiTe(true)}>
+            Trả bằng ngoại tệ
+          </button>
+        </div>
+      </>
+    );
+  }
+
   return (
-    <div className="acct-form-grid acct-form-grid--3">
-      {loai === "thanh_toan" && coDotGiao ? (
-        <label className="acct-field">
-          <span>
-            Đợt giao <b>*</b>
-          </span>
-          <select
-            className="input"
-            value={form.delivery_id ?? ""}
-            disabled={!!voucher}
+    <>
+      <OF khoa="amount" nhan="Số tiền" batBuoc loi={loi.amount ?? loiTran ?? undefined}
+        goi={`Tối đa ${tien(maxAmountVnd)} ${loai === "dat_coc" ? "theo giá trị đơn đặt" : coDotGiao ? "là số còn nợ của đợt" : "là công nợ hiện tại"}.`}>
+        <OTienPhieu khoa="amount" value={form.amount} onChange={(v) => set("amount", v)}
+          hauTo={vnd ? "đ" : form.currency.trim().toUpperCase()} loi={!!loi.amount || !!loiTran} />
+      </OF>
+      <div className="kt-f__hang">
+        <OF khoa="currency" nhan="Loại tiền" batBuoc loi={loi.currency}
+          goi={form.voucher_type === "bank_transfer" ? "Theo loại tiền của tài khoản trả." : undefined}>
+          <input id={idO("currency")} maxLength={3} readOnly={form.voucher_type === "bank_transfer"}
+            value={form.currency}
             onChange={(e) => {
-              // Đổi đợt là đổi TRẦN ⇒ điền lại số tiền theo đợt mới. Giữ số cũ là người dùng
-              // bấm Lưu với con số của đợt trước rồi ăn lỗi mà không hiểu vì sao.
-              const id = e.target.value ? Number(e.target.value) : null;
+              const currency = e.target.value.toUpperCase();
               setForm((current) => ({
                 ...current,
-                delivery_id: id,
-                amount: conNoDot(purchase, id),
+                currency,
+                exchange_rate: currency === "VND" ? 1 : current.exchange_rate,
               }));
-            }}
-          >
-            <option value="">Chọn đợt giao</option>
-            {purchase.deliveries.map((d) => (
-              <option key={d.id} value={d.id}>
-                Đợt {d.seq_no} · {fmtDate(d.delivery_date)} ·{" "}
-                {d.con_no > 0 ? `còn nợ ${money(d.con_no)}` : "đã trả xong"}
-              </option>
-            ))}
-          </select>
-          {dotDangChon && (
-            <small>
-              Giá trị đợt {money(dotDangChon.amount)} · đã trả{" "}
-              {money(dotDangChon.paid_amount)}
-
-              {` · còn nợ ${money(dotDangChon.con_no)}`}
-              {dotDangChon.invoice_number
-                ? ` · HĐ ${dotDangChon.invoice_number}`
-                : " · chưa gán hóa đơn"}
-            </small>
-          )}
-        </label>
-      ) : (
-        <label className="acct-field">
-          <span>Đợt thanh toán</span>
-          <select
-            className="input"
-            value={form.payment_stage}
-            disabled={loai === "dat_coc"}
-            onChange={(e) =>
-              set("payment_stage", e.target.value as PaymentStage)
-            }
-          >
-            {Object.entries(STAGE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      <label className="acct-field">
-        <span>
-          Ngày chứng từ <b>*</b>
-        </span>
-        {/* Chặn TƯƠNG LAI, KHÔNG chặn quá khứ: hoá đơn về muộn là chuyện thường, phiếu phải
-            mang ngày chi tiêu thật mới vào đúng kỳ kế toán. */}
-        <input
-          className="input"
-          type="date"
-          max={HOM_NAY}
-          value={form.voucher_date}
-          onChange={(e) => set("voucher_date", e.target.value)}
-        />
-      </label>
-      {/* Ô "Hạn trả tiền" ĐÃ BỎ (06/08/2026). Phiếu chi là tiền đã ra thì nó không có hạn
-          trả; hạn nay thuộc về ĐỢT GIAO (`due_date`, suy từ số ngày cho nợ của NCC), khai ở
-          màn Mua hàng. Để lại ô này là đẻ hai nơi khai cùng một thứ. */}
-      <label className="acct-field">
-        <span>
-          Số tiền nguyên tệ <b>*</b>
-        </span>
-        <input
-          className="input acct-money-input"
-          type="number"
-          min="1"
-          step="1"
-          value={form.amount}
-          onChange={(e) => set("amount", Number(e.target.value))}
-        />
-        <small>
-          Tối đa {maxAmountVnd.toLocaleString("vi-VN")} đ
-        </small>
-      </label>
-      <label className="acct-field">
-        <span>
-          Loại tiền <b>*</b>
-        </span>
-        <input
-          className="input"
-          maxLength={3}
-          readOnly={form.voucher_type === "bank_transfer"}
-          value={form.currency}
-          onChange={(e) => {
-            const currency = e.target.value.toUpperCase();
-            setForm((current) => ({
-              ...current,
-              currency,
-              exchange_rate:
-                currency === "VND" ? 1 : current.exchange_rate,
-            }));
-          }}
-        />
-      </label>
-      <label className="acct-field">
-        <span>
-          Tỷ giá VND <b>*</b>
-        </span>
-        <input
-          className="input acct-money-input"
-          type="number"
-          min="0.000001"
-          step="0.000001"
-          disabled={form.currency === "VND"}
-          value={form.exchange_rate}
-          onChange={(e) => set("exchange_rate", Number(e.target.value))}
-        />
-        <small>Quy đổi: {amountVnd.toLocaleString("vi-VN")} đ</small>
-      </label>
-    </div>
+            }} />
+        </OF>
+        <OF khoa="exchange_rate" nhan="Tỷ giá" batBuoc loi={loi.exchange_rate}
+          goi={`= ${tien(amountVnd)}`}>
+          <input id={idO("exchange_rate")} type="number" min="0.000001" step="0.000001" disabled={vnd}
+            value={form.exchange_rate} onChange={(e) => set("exchange_rate", Number(e.target.value))} />
+        </OF>
+      </div>
+    </>
   );
 }

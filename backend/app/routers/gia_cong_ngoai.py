@@ -199,7 +199,8 @@ def chot(
     _gac_lan(db, authz, user, gcn_id)
     res = _chay(lambda: chot_svc.chot(
         db, user=user, gcn_id=gcn_id, expected_version=body.version, sl_cuoi=body.sl_cuoi,
-        noi_ve=body.noi_ve, dich_cong_viec_id=body.dich_cong_viec_id))
+        noi_ve=body.noi_ve, dich_cong_viec_id=body.dich_cong_viec_id,
+        ngay_khach_nhan=body.ngay_khach_nhan))
     if res["ban_giao"]:
         phat_ban_giao(res["ban_giao"])
     if res.get("toa"):
@@ -244,7 +245,7 @@ def dat_tron_goi(
     _gac_lenh(db, authz, user, lsx_id)
     kq = _chay(lambda: tron_goi.dat_tron_goi(
         db, user=user, lsx_id=lsx_id, nha_cung_cap_id=body.nha_cung_cap_id, sl_dat=body.sl_dat,
-        don_gia=body.don_gia, xuong_cap_giay=body.xuong_cap_giay))
+        xuong_cap_giay=body.xuong_cap_giay))
     _phat_doi(lsx_id)
     return _ra(db, authz, user, kq["gia_cong_ngoai_id"])
 
@@ -273,7 +274,8 @@ def xuat_giay(
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
 ) -> dict:
     _gac_lan(db, authz, user, gcn_id)
-    _chay(lambda: tron_goi.de_nghi_xuat_giay(db, user=user, gcn_id=gcn_id,
-                                              expected_version=body.version))
+    _chay(lambda: tron_goi.de_nghi_xuat_giay(
+        db, user=user, gcn_id=gcn_id, expected_version=body.version,
+        kho_rong=body.kho_rong, kho_dai=body.kho_dai, so_to=body.so_to))
     _phat_doi_lan(db, gcn_id)
     return _ra(db, authz, user, gcn_id)

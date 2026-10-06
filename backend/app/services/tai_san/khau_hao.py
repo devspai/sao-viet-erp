@@ -11,9 +11,10 @@ tháng = cộng dồn lịch tới hết tháng đó. Cùng một sổ hỏi lú
 
 Luật một tháng:  mức tròn tháng = co_so_trich // so_thang_con  (của mốc đang hiệu lực).
 Prorate theo NGÀY chỉ ở tháng chứa `tu_ngay` của mốc (khi không rơi vào ngày 1) và tháng ghi
-giảm. Luôn cap bởi `nguyen_gia − lũy kế` nên kỳ cuối tự trích nốt phần lẻ do làm tròn — không cần
-luật riêng cho kỳ cuối. Làm tròn XUỐNG đồng ở từng kỳ (`//`), phần dư dồn hết vào kỳ cuối: cách
-ngược lại (làm tròn đều rồi bù kỳ cuối bằng số ÂM) cho ra dòng "trích -37đ" trên bảng in.
+giảm. Làm tròn XUỐNG đồng ở từng kỳ (`//`), phần dư dồn hết vào THÁNG CUỐI theo số tháng của mốc
+(từ 05/10/2026 — trước đó phần dư mọc thành một tháng thừa trích vài chục đồng). Cách ngược lại
+(làm tròn đều rồi bù kỳ cuối bằng số ÂM) cho ra dòng "trích -37đ" trên bảng in. Mỗi tháng vẫn
+chặn trên bởi `nguyen_gia − lũy kế`.
 """
 from __future__ import annotations
 
@@ -88,6 +89,15 @@ def _muc_ky(moc: Moc, luy_ke: int, nam: int, thang: int, ngay_giam: date | None)
         return 0
 
     muc = muc_trich_thang(moc.co_so_trich, moc.so_thang_con)
+    # Tháng CUỐI theo số tháng của mốc thì trích nốt phần lẻ do làm tròn xuống. Thiếu dòng này
+    # thì 205.833.334 đ chia 65 tháng ra 65 × 3.166.666 rồi mọc tháng thứ 66 trích đúng 44 đ —
+    # "khấu hao trong 120 tháng" mà lịch kéo 121 tháng (sửa 05/10/2026). Mốc bắt đầu giữa tháng
+    # thì tháng đầu chỉ tính lẻ ngày, nên tháng cuối là tháng thứ so_thang_con + 1 và phần còn
+    # lại ở đó đã tự gồm cả ngày thiếu của tháng đầu.
+    thu_tu = (nam * 12 + thang) - (moc.tu_ngay.year * 12 + moc.tu_ngay.month)
+    thang_cuoi = moc.so_thang_con - 1 if moc.tu_ngay.day == 1 else moc.so_thang_con
+    if thu_tu >= thang_cuoi:
+        muc = con_lai
     so_ngay_dung = (den - tu).days + 1
     if so_ngay_dung < ngay_trong_thang:
         muc = muc * so_ngay_dung // ngay_trong_thang

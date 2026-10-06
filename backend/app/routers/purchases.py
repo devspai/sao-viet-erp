@@ -21,6 +21,7 @@ from ..deps import (
     get_purchase_service,
     require_any_permission,
     require_permission,
+    require_xem_kho_nao,
 )
 from ..models.user import User
 from ..doi_tuong_nhan import MAN_KHVT, MAN_MUA_KE_TOAN, hop
@@ -30,6 +31,7 @@ from ..repositories.module_notification_repo import (
     CHANNEL_THU_MUA,
     ModuleNotificationRepository,
 )
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.purchase import (
     DepartmentPurchaseRequestIn,
     DepartmentPurchaseRequestListOut,
@@ -40,6 +42,7 @@ from ..schemas.purchase import (
     PurchaseNotifySummaryOut,
     PurchaseRequestBatchIn,
     PurchaseRequestIn,
+    LuaChonLocMa,
     PurchaseRequestListOut,
     PurchaseRequestOut,
     ReasonIn,
@@ -155,14 +158,88 @@ def list_department_purchase_requests(
     q: str | None = Query(default=None),
     status_: str | None = Query(default=None, alias="status"),
     source_type: str | None = Query(default=None),
+    # Thanh lọc chung (06/10/2026): kỳ theo `moc` = tao (Ngày tạo) | can (Ngày cần hàng) + ba điều
+    # kiện Phòng ban, Người yêu cầu, Mặt hàng (`giay:12` = cặp `hang_loai:hang_id`).
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|can)$"),
+    phong_ban: int | None = Query(default=None),
+    nguoi_yeu_cau: int | None = Query(default=None),
+    mat_hang: str | None = Query(default=None, pattern=r"^[a-z_]+:\d+$"),
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
 ) -> DepartmentPurchaseRequestListOut:
-    rows, total = svc.list_department_requests(
-        actor=user, q=q, status=status_, source_type=source_type, sort=sort, page=page, size=size
+    _chan_khoang_nguoc(tu_ngay, den_ngay)
+    loc = dict(
+        q=q,
+        source_type=source_type,
+        tu_ngay=tu_ngay,
+        den_ngay=den_ngay,
+        moc=moc,
+        phong_ban_id=phong_ban,
+        nguoi_yeu_cau_id=nguoi_yeu_cau,
+        mat_hang=_cap_mat_hang(mat_hang),
     )
-    return DepartmentPurchaseRequestListOut(items=rows, total=total, page=page, size=size)
+    rows, total = svc.list_department_requests(
+        actor=user, status=status_, sort=sort, page=page, size=size, **loc
+    )
+    # Số trên tab trạng thái: cùng ô tìm, kỳ, điều kiện với bảng — chưa lọc trạng thái.
+    dem = svc.dem_yeu_cau_theo_trang_thai(actor=user, **loc)
+    return DepartmentPurchaseRequestListOut(
+        items=rows, total=total, page=page, size=size, dem_theo_tab=dem
+    )
+
+
+def _chan_khoang_nguoc(tu_ngay: date | None, den_ngay: date | None) -> None:
+    if tu_ngay and den_ngay and tu_ngay > den_ngay:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Từ ngày phải trước hoặc bằng đến ngày.",
+        )
+
+
+def _cap_mat_hang(mat_hang: str | None) -> tuple[str, int] | None:
+    """`giay:12` → ("giay", 12). Khuôn đã chặn ở Query nên tách thẳng."""
+    if not mat_hang:
+        return None
+    loai, _, hid = mat_hang.partition(":")
+    return loai, int(hid)
+
+
+# Giá trị cho ba ô chọn của thanh lọc YCMH — đếm trong tầm nhìn của người xem. PHẢI khai trước
+# `/{request_id}` (khớp theo thứ tự đăng ký; để sau là rơi vào route id và chết 422).
+@router.get("/api/department-purchase-requests/loc-phong-ban", response_model=list[LuaChonLoc])
+def loc_yeu_cau_phong_ban(
+    svc: Annotated[PurchaseService, Depends(get_purchase_service)],
+    user: Annotated[User, Depends(require_any_permission(*DEPARTMENT_REQUEST_READERS))],
+) -> list[LuaChonLoc]:
+    return [
+        LuaChonLoc(id=i, ten=t, so=n)
+        for i, t, n in svc.lua_chon_loc_yeu_cau(actor=user, truong="phong_ban")
+    ]
+
+
+@router.get("/api/department-purchase-requests/loc-nguoi-yeu-cau", response_model=list[LuaChonLoc])
+def loc_yeu_cau_nguoi(
+    svc: Annotated[PurchaseService, Depends(get_purchase_service)],
+    user: Annotated[User, Depends(require_any_permission(*DEPARTMENT_REQUEST_READERS))],
+) -> list[LuaChonLoc]:
+    return [
+        LuaChonLoc(id=i, ten=t, so=n)
+        for i, t, n in svc.lua_chon_loc_yeu_cau(actor=user, truong="nguoi_yeu_cau")
+    ]
+
+
+@router.get("/api/department-purchase-requests/loc-mat-hang", response_model=list[LuaChonLocMa])
+def loc_yeu_cau_mat_hang(
+    svc: Annotated[PurchaseService, Depends(get_purchase_service)],
+    user: Annotated[User, Depends(require_any_permission(*DEPARTMENT_REQUEST_READERS))],
+) -> list[LuaChonLocMa]:
+    return [
+        LuaChonLocMa(ma=f"{loai}:{hid}", ten=t, so=n)
+        for loai, hid, t, n in svc.lua_chon_loc_yeu_cau(actor=user, truong="mat_hang")
+    ]
 
 
 @router.get("/api/department-purchase-requests/can-create")
@@ -329,6 +406,11 @@ def list_suppliers(
     # Lọc theo SAO — chỉ lấy NCC có trung bình ≥ mức này. NCC "Chưa đánh giá" rơi ra khỏi kết quả,
     # đúng ý: hỏi "≥4 sao" là đang hỏi ai ĐÃ chứng minh được, không phải ai chưa bị chê.
     rating_min: float | None = Query(default=None, ge=1, le=5),
+    # Thanh lọc chung (06/10/2026): cờ "Nhận gia công" + kỳ theo Ngày tạo (mốc duy nhất `tao`).
+    nhan_gia_cong: bool | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^tao$"),
     # Mặc định MỚI NHẤT TRƯỚC (chủ chốt 12/08/2026) — NCC vừa khai xong phải thấy ngay,
     # đừng bắt người ta đi tìm chính thứ mình vừa tạo. Đổi ở đây thôi là chưa đủ nếu giao
     # diện tự truyền `sort=name` — đã soi, màn Nhà cung cấp không truyền tham số này.
@@ -342,6 +424,9 @@ def list_suppliers(
         status=status_,
         supplier_group=supplier_group,
         rating_min=rating_min,
+        nhan_gia_cong=nhan_gia_cong,
+        tu_ngay=tu_ngay,
+        den_ngay=den_ngay,
         sort=sort,
         page=page,
         size=size,
@@ -353,6 +438,21 @@ def list_suppliers(
         page=page,
         size=size,
     )
+
+
+@router.get("/api/suppliers/{supplier_id}", response_model=SupplierRow)
+def get_supplier(
+    supplier_id: int,
+    svc: Annotated[PurchaseService, Depends(get_purchase_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_NCC, "read"))],
+) -> SupplierRow:
+    """Một NCC theo mã — cho nút "Hồ sơ nhà cung cấp" ở màn khác mở thẳng hồ sơ của đúng NCC đó
+    (06/10/2026). Cùng ô quyền với màn Nhà cung cấp: không xem được màn thì không mở được hồ sơ."""
+    try:
+        row = svc.get_supplier(supplier_id)
+    except PurchaseError as exc:
+        raise _map_error(exc) from None
+    return _dong_ncc(row, svc.danh_gia_ncc(row.id), svc.quy_doi_bang_gia([row]))
 
 
 @router.get("/api/supplier-items/catalog", response_model=SupplierItemCatalogOut)
@@ -367,9 +467,11 @@ def supplier_item_catalog(
 def so_gia_ncc(
     svc: Annotated[PurchaseService, Depends(get_purchase_service)],
     # Báo giá NCC là GIÁ → chỉ vai được XEM GIÁ (mua hàng · NCC · kế toán · KHO có `view_cost`) mới
-    # xem. Ẩn ở SERVER, không chỉ ẩn UI: thủ kho không có `view_cost` gọi thẳng cũng bị chặn.
-    _: Annotated[User, Depends(require_any_permission(
-        (MODULE, "read"), (MODULE_NCC, "read"), ("ke_toan", "read"), ("kho", "view_cost")))],
+    # xem. Ẩn ở SERVER, không chỉ ẩn UI: thủ kho không có `view_cost` gọi thẳng cũng bị chặn. Bảng
+    # này nằm trong màn tồn của TỪNG KHO ⇒ ô "Xem giá thành" của dòng kho nào cũng mở (05/10/2026).
+    _: Annotated[User, Depends(require_xem_kho_nao(
+        (MODULE, "read"), (MODULE_NCC, "read"), ("ke_toan", "read"), ("kho", "view_cost"),
+        viec="view_cost"))],
     hang_loai: str = Query(..., pattern="^(giay|vat_tu)$"),
     hang_id: int = Query(..., gt=0),
 ) -> SoGiaOut:
@@ -488,34 +590,52 @@ def list_purchase_requests(
     q: str | None = Query(default=None),
     status_: str | None = Query(default=None, alias="status"),
     supplier_id: int | None = Query(default=None),
-    created_from: date | None = Query(default=None),
-    created_to: date | None = Query(default=None),
-    needed_from: date | None = Query(default=None),
-    needed_to: date | None = Query(default=None),
-    expected_receipt_from: date | None = Query(default=None),
-    expected_receipt_to: date | None = Query(default=None),
-    deposit_status: str | None = Query(default=None),
+    # Thanh lọc chung (06/10/2026) thay bộ `created_from/to`, `needed_from/to`,
+    # `expected_receipt_from/to` cũ: kỳ theo `moc` = tao (Ngày tạo) | can (Ngày cần) | nhan (Ngày dự
+    # kiến nhận); `tong_tu/tong_den` = khoảng Tổng dự kiến (đồng).
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|can|nhan)$"),
+    deposit_status: str | None = Query(default=None, pattern="^(none|unpaid|partial|enough)$"),
+    tong_tu: int | None = Query(default=None, ge=0),
+    tong_den: int | None = Query(default=None, ge=0),
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
 ) -> PurchaseRequestListOut:
-    rows, total = svc.list_requests(
+    _chan_khoang_nguoc(tu_ngay, den_ngay)
+    if tong_tu is not None and tong_den is not None and tong_tu > tong_den:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Tổng tiền từ phải nhỏ hơn hoặc bằng tổng tiền đến.",
+        )
+    loc = dict(
         q=q,
-        status=status_,
         supplier_id=supplier_id,
-        created_from=created_from,
-        created_to=created_to,
-        needed_from=needed_from,
-        needed_to=needed_to,
-        expected_receipt_from=expected_receipt_from,
-        expected_receipt_to=expected_receipt_to,
+        tu_ngay=tu_ngay,
+        den_ngay=den_ngay,
+        moc=moc,
         deposit_status=deposit_status,
-        sort=sort,
-        page=page,
-        size=size,
-        actor=user,
+        tong_tu=tong_tu,
+        tong_den=tong_den,
     )
-    return PurchaseRequestListOut(items=rows, total=total, page=page, size=size)
+    rows, total = svc.list_requests(
+        status=status_, sort=sort, page=page, size=size, actor=user, **loc
+    )
+    # Số trên tab trạng thái: cùng ô tìm, kỳ, điều kiện với bảng — chưa lọc trạng thái.
+    dem = svc.dem_theo_trang_thai(actor=user, **loc)
+    dem["tat_ca"] = sum(dem.values())
+    return PurchaseRequestListOut(items=rows, total=total, page=page, size=size, dem_theo_tab=dem)
+
+
+@router.get("/api/purchase-requests/loc-ncc", response_model=list[LuaChonLoc])
+def purchase_requests_loc_ncc(
+    svc: Annotated[PurchaseService, Depends(get_purchase_service)],
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[LuaChonLoc]:
+    """Ô "Nhà cung cấp" của thanh lọc Đơn mua hàng: NCC đang có đơn trong tầm nhìn, kèm số đơn.
+    ⚠️ Khai TRƯỚC `/{request_id}`."""
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in svc.dem_theo_ncc(actor=user)]
 
 
 @router.get("/api/purchase-requests/notify-summary", response_model=PurchaseNotifySummaryOut)

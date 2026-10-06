@@ -6,9 +6,12 @@ Giữ đúng tầng: mọi truy vấn/ghi DB của lần kiểm · lỗi · ản
 """
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy import func, or_, select, true
 from sqlalchemy.orm import Session
 
+from ..models.bai_ghep_cong_doan import BaiGhepCongDoanMap
 from ..models.cong_doan import CongDoan
 from ..models.customer import Customer
 from ..models.department import Department
@@ -19,6 +22,26 @@ from ..models.san_xuat import (
 )
 from ..models.san_xuat_kcs import SanXuatKcsBatch, SanXuatKcsLoi, SanXuatKcsLoiAnh
 from ..models.user import User
+from .loc_danh_sach import dk_khoang_ngay
+
+
+def kcs_gan_nhat_cua_lenh():
+    """`max(ket_thuc)` các lần KCS của MỘT lệnh — subquery tương quan theo `Lsx.id`. Tính cả công
+    việc CHUNG của bài ghép (`lsx_id IS NULL`, nối qua `bai_ghep_cong_doan_map`), đúng tập công việc
+    mà `boi_canh.cong_viec_du` đưa ra màn."""
+    return (
+        select(func.max(SanXuatKcsBatch.ket_thuc))
+        .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatKcsBatch.cong_viec_id)
+        .where(or_(
+            SanXuatCongViec.lsx_id == Lsx.id,
+            SanXuatCongViec.bai_ghep_cong_doan_id.in_(
+                select(BaiGhepCongDoanMap.bai_ghep_cong_doan_id)
+                .where(BaiGhepCongDoanMap.lsx_id == Lsx.id)
+            ),
+        ))
+        .correlate(Lsx)
+        .scalar_subquery()
+    )
 
 
 class SanXuatKcsRepository:
@@ -112,20 +135,34 @@ class SanXuatKcsRepository:
             return {}
         return {i: ma for i, ma in self.db.execute(select(Lsx.id, Lsx.ma).where(Lsx.id.in_(ids))).all()}
 
-    def trang_lenh(
-        self, *, tim: str | None, gom_da_dong: bool, offset: int, limit: int
-    ) -> tuple[list[int], int]:
-        """Trang lệnh cho màn KCS — lệnh ĐÃ vào nhóm thành phẩm (tức đã phát hành), mặc định chỉ
-        nhóm còn mở. Tìm theo mã/tên lệnh, mã nhóm, tên khách. Mới nhất lên đầu."""
-        q = (
+    def _lenh_trong_nhom(self):
+        return (
             select(Lsx.id)
             .join(SanXuatNhomLsx, SanXuatNhomLsx.lsx_id == Lsx.id)
             .join(SanXuatNhom, SanXuatNhom.id == SanXuatNhomLsx.nhom_id)
             .outerjoin(Order, Order.id == Lsx.order_id)
             .outerjoin(Customer, Customer.id == Order.customer_id)
         )
-        if not gom_da_dong:
+
+    def trang_lenh(
+        self, *, tim: str | None, gom_da_dong: bool, offset: int, limit: int,
+        chi_da_dong: bool = False, khach_id: int | None = None,
+        tu_ngay: date | None = None, den_ngay: date | None = None, moc: str = "tao",
+    ) -> tuple[list[int], int]:
+        """Trang lệnh cho màn KCS — lệnh ĐÃ vào nhóm thành phẩm (tức đã phát hành), mặc định chỉ
+        nhóm còn mở (`gom_da_dong` ⇒ mọi nhóm, `chi_da_dong` ⇒ chỉ nhóm đã đóng). Tìm theo mã/tên
+        lệnh, mã nhóm, tên khách. Dải kỳ theo `moc`: `tao` ngày tạo lệnh, `kcs` lần KCS gần nhất.
+        Mới nhất lên đầu."""
+        q = self._lenh_trong_nhom()
+        if chi_da_dong:
+            q = q.where(SanXuatNhom.trang_thai != NHOM_DANG_SX)
+        elif not gom_da_dong:
             q = q.where(SanXuatNhom.trang_thai== NHOM_DANG_SX)
+        if khach_id is not None:
+            q = q.where(Order.customer_id == khach_id)
+        cot = kcs_gan_nhat_cua_lenh() if moc == "kcs" else Lsx.created_at
+        for dk in dk_khoang_ngay(cot, tu_ngay, den_ngay):
+            q = q.where(dk)
         tim = (tim or "").strip()
         if tim:
             mau = f"%{tim}%"
@@ -136,6 +173,19 @@ class SanXuatKcsRepository:
         tong = int(self.db.scalar(select(func.count()).select_from(q.subquery())) or 0)
         ids = list(self.db.scalars(q.order_by(Lsx.id.desc()).offset(offset).limit(limit)))
         return ids, tong
+
+    def khach_loc(self) -> list[tuple[int, str, int]]:
+        """`(id, tên, số lệnh)` của khách có lệnh đã vào nhóm thành phẩm — ô "Khách hàng" màn KCS."""
+        ids = self._lenh_trong_nhom().subquery()
+        stmt = (
+            select(Customer.id, Customer.name, func.count(Lsx.id))
+            .join(Order, Order.customer_id == Customer.id)
+            .join(Lsx, Lsx.order_id == Order.id)
+            .where(Lsx.id.in_(select(ids.c.id)))
+            .group_by(Customer.id, Customer.name)
+            .order_by(Customer.name)
+        )
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
 
     def thu_tu_buoc(self, lsx_ids) -> dict[int, tuple[int, int]]:
         """{lsx_cong_doan.id: (lsx_id, thu_tu)} — xếp chuỗi công đoạn theo đúng thứ tự routing."""

@@ -159,6 +159,29 @@ def test_cong_no_phai_thu_phan_trang_nhung_tong_tien_khong_doi(client):
     }
 
 
+def test_so_hoa_don_cua_don_tra_so_ngay_cong_no_va_ky_hieu_gan_nhat(client):
+    """Popup ghi nhận hoá đơn cần hai số này để hiện trước hạn trả và điền sẵn ký hiệu."""
+    headers = _headers(client)
+    order_id, _ = _sales_order(term_days=45)
+    other_id, _ = _sales_order(term_days=None, suffix="02")
+
+    truoc = client.get(f"/api/accounting/sales-invoices?order_id={order_id}", headers=headers).json()
+    assert truoc["payment_term_days"] == 45
+    assert truoc["last_invoice_symbol"] is None
+
+    created = client.post(
+        "/api/accounting/sales-invoices",
+        json={**_invoice_payload(order_id, number="00000009", amount=100_000), "invoice_symbol": "1C26TAB"},
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+
+    # Ký hiệu gần nhất lấy trên MỌI đơn; khách chưa đặt số ngày công nợ ⇒ null.
+    khac = client.get(f"/api/accounting/sales-invoices?order_id={other_id}", headers=headers).json()
+    assert khac["last_invoice_symbol"] == "1C26TAB"
+    assert khac["payment_term_days"] is None
+
+
 def test_partial_invoices_are_capped_by_order_total(client):
     headers = _headers(client)
     order_id, _ = _sales_order()

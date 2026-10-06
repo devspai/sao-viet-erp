@@ -3036,6 +3036,20 @@
   margin-bottom: 20px;
 }
 
+/* Chân phân trang (`.ptdd`, khuôn Nhật ký — 05/10/2026) nối vào đáy thẻ bảng thành MỘT khối
+   (tab Nhân viên + Tạm ứng): khoảng hở 20px dời xuống dưới chân, chân mượn viền thẻ ba cạnh. */
+.lg-emp-table-wrapper:has(+ .ptdd) {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.lg-emp-table-wrapper + .ptdd {
+  border: 1px solid #e2e8f0;
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  margin-bottom: 20px;
+}
+
 .lg-emp-table {
   width: 100%;
   min-width: 960px;

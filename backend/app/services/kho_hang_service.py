@@ -55,6 +55,13 @@ class KhoHangService(CatalogService):
     def __init__(self, repo: KhoHangRepository, audit=None) -> None:
         super().__init__(repo, audit)
 
+    def _sau_ghi(self) -> None:
+        """Mỗi kho một dòng quyền `ton_kho_<id>` (05/10/2026): khai kho mới / đổi tên / nhập Excel
+        xong là ma trận có ngay dòng mang tên kho đó — cùng khuôn phòng ban ↔ dòng quyền theo tổ."""
+        from .quyen_kho import dong_bo_dong_quyen_kho
+
+        dong_bo_dong_quyen_kho(self.repo.db)
+
     def _validate(self, data: dict, obj=None) -> None:
         if not (data.get("ten") or "").strip():
             raise KhoHangValidationError("Tên kho không được trống.")

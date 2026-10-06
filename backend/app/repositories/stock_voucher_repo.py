@@ -1,16 +1,48 @@
 """Repository — Phiếu nhập/xuất kho (spec-kho-de-nghi §5)."""
 from __future__ import annotations
 
-from sqlalchemy import func, or_, select
+from datetime import date
+
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from ..models.stock_lot import StockLot
+from ..models.stock_request import StockRequest
 from ..models.stock_voucher import (
     VOUCHER_DRAFT,
+    VOUCHER_NHAP,
     VOUCHER_XUAT,
     StockVoucher,
     StockVoucherAttachment,
     StockVoucherLine,
 )
+from .loc_danh_sach import dk_khoang_ngay
+
+#: Mốc ngày của kỳ trên danh sách phiếu kho → (cột, là cột Date).
+_COT_MOC = {
+    "tao": (StockVoucher.created_at, False),
+    "ngay": (StockVoucher.ngay, True),
+    "ghi_so": (StockVoucher.ghi_so_luc, False),
+}
+
+
+def _gia_von_phieu():
+    """Giá vốn của phiếu dưới dạng biểu thức SQL — cùng công thức với `_serialize` của router:
+    NHẬP = Σ đơn giá dòng × SL khai; XUẤT = Σ giá lô × SL gốc (bỏ phần làm tròn đơn giá bình quân,
+    lệch tối đa vài đồng — đủ cho một khoảng lọc)."""
+    L = StockVoucherLine
+    tien = case(
+        (StockVoucher.loai == VOUCHER_NHAP, func.coalesce(L.don_gia, 0) * L.so_luong),
+        else_=func.coalesce(StockLot.don_gia_nhap, 0) * L.sl_goc,
+    )
+    return (
+        select(func.coalesce(func.sum(tien), 0))
+        .select_from(L)
+        .outerjoin(StockLot, StockLot.id == L.lot_id)
+        .where(L.voucher_id == StockVoucher.id)
+        .correlate(StockVoucher)
+        .scalar_subquery()
+    )
 
 _HEADER_FIELDS = ("kho_id", "ngay", "nguoi_giao_nhan", "ghi_chu",
                   # ĐIỀU CHUYỂN KHO (mig 0203) — bật cho cả phiếu xuất nguồn lẫn nhập đích.
@@ -66,12 +98,23 @@ class StockVoucherRepository:
             .where(StockVoucher.id == voucher_id)
         ).scalars().first()
 
-    def list(self, *, loai: str | None = None, trang_thai: str | None = None,
-             request_id: int | None = None, kho_id: int | None = None,
-             q: str | None = None, page: int = 1, size: int = 50):
+    def _dieu_kien(self, *, loai: str | None = None, trang_thai: str | None = None,
+                   request_id: int | None = None, kho_id: int | None = None,
+                   q: str | None = None, hang_khop: list[tuple[str, int]] | None = None,
+                   nhom: str | None = None, tu_ngay: date | None = None,
+                   den_ngay: date | None = None, moc: str = "tao",
+                   nguoi_lap: list[int] | None = None,
+                   gia_tu: int | None = None, gia_den: int | None = None) -> list:
+        """Điều kiện lọc CHUNG của `list` và `dem_theo_nhom` — số trên tab khớp đúng danh sách.
+
+        `nhom`: nhóm của thanh tab màn tồn từng kho (`nhap` / `xuat` = phiếu thường, `dc` = điều
+        chuyển cả hai ve). `moc` chọn cột ngày của kỳ (06/10/2026): `tao` Ngày tạo, `ngay` Ngày
+        nhập/xuất (Date), `ghi_so` Ngày ghi sổ. `gia_tu/gia_den` lọc theo GIÁ VỐN phiếu — router chỉ
+        chuyển xuống khi người xem có ô xem giá của màn đang gọi. `hang_khop` = các cặp mặt hàng
+        khớp chữ tìm (router tra sẵn), để ô tìm bắt cả tên/mã vật tư trong phiếu."""
         conds = []
-        # ẨN phiếu điều chuyển CÒN NHÁP khỏi danh sách phiếu thường: cả vế XUẤT nguồn (bút toán nội
-        # bộ) LẪN vế NHẬP đích — vế nhập đích hiện qua "Phiếu điều chuyển" (mặt tiền riêng,
+        # ẨN phiếu điều chuyển CÒN NHÁP khỏi danh sách phiếu thường: cả ve XUẤT nguồn (bút toán nội
+        # bộ) LẪN ve NHẬP đích — ve nhập đích hiện qua "Phiếu điều chuyển" (mặt tiền riêng,
         # spec-phieu-dieu-chuyen §6), không lẫn vào list phiếu nhập. Đã ghi sổ thì HIỆN (đối chiếu).
         conds.append(or_(
             StockVoucher.dieu_chuyen.is_(False),
@@ -79,19 +122,50 @@ class StockVoucherRepository:
         ))
         if loai:
             conds.append(StockVoucher.loai == loai)
+        if nhom == "dc":
+            conds.append(StockVoucher.dieu_chuyen.is_(True))
+        elif nhom in ("nhap", "xuat"):
+            conds.append(StockVoucher.dieu_chuyen.is_(False))
+            conds.append(StockVoucher.loai == (VOUCHER_NHAP if nhom == "nhap" else VOUCHER_XUAT))
         if trang_thai:
             conds.append(StockVoucher.trang_thai == trang_thai)
         if request_id is not None:
             conds.append(StockVoucher.request_id == request_id)
         if kho_id is not None:
             conds.append(StockVoucher.kho_id == kho_id)
-        if q:
+        if nguoi_lap:
+            conds.append(StockVoucher.nguoi_lap_id.in_(nguoi_lap))
+        cot, la_ngay = _COT_MOC.get(moc, _COT_MOC["tao"])
+        conds += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
+        if gia_tu is not None or gia_den is not None:
+            gia = _gia_von_phieu()
+            if gia_tu is not None:
+                conds.append(gia >= gia_tu)
+            if gia_den is not None:
+                conds.append(gia <= gia_den)
+        if q and q.strip():
             like = f"%{q.strip().lower()}%"
-            conds.append(or_(
+            ve = [
                 func.lower(StockVoucher.ma).like(like),
                 func.lower(func.coalesce(StockVoucher.ghi_chu, "")).like(like),
-            ))
+                StockVoucher.request_id.in_(
+                    select(StockRequest.id).where(func.lower(StockRequest.ma).like(like))),
+            ]
+            theo_loai: dict[str, set[int]] = {}
+            for hl, hid in hang_khop or []:
+                theo_loai.setdefault(hl, set()).add(int(hid))
+            if theo_loai:
+                ve.append(StockVoucher.id.in_(
+                    select(StockVoucherLine.voucher_id).where(or_(*(
+                        and_(StockVoucherLine.hang_loai == hl, StockVoucherLine.hang_id.in_(sorted(ids)))
+                        for hl, ids in theo_loai.items()
+                    )))
+                ))
+            conds.append(or_(*ve))
+        return conds
 
+    def list(self, *, page: int = 1, size: int = 50, **loc):
+        conds = self._dieu_kien(**loc)
         base = select(StockVoucher).options(selectinload(StockVoucher.lines))
         count_stmt = select(func.count()).select_from(StockVoucher)
         for c in conds:
@@ -101,6 +175,29 @@ class StockVoucherRepository:
         page, size = max(1, page), max(1, min(size, 200))
         base = base.order_by(StockVoucher.id.desc()).offset((page - 1) * size).limit(size)
         return list(self.db.execute(base).scalars()), total
+
+    def dem_theo_nhom(self, **loc) -> dict[str, int]:
+        """Số phiếu theo nhóm tab `nhap` / `xuat` / `dc` — cùng bộ lọc với `list`, TRỪ nhóm."""
+        loc.pop("nhom", None)
+        rows = self.db.execute(
+            select(StockVoucher.loai, StockVoucher.dieu_chuyen, func.count())
+            .where(*self._dieu_kien(**loc))
+            .group_by(StockVoucher.loai, StockVoucher.dieu_chuyen)
+        ).all()
+        dem = {"nhap": 0, "xuat": 0, "dc": 0}
+        for loai, dc, n in rows:
+            k = "dc" if dc else ("nhap" if loai == VOUCHER_NHAP else "xuat")
+            dem[k] += int(n)
+        return dem
+
+    def nguoi_lap_loc(self, *, kho_id: int | None = None) -> list[tuple[int, int]]:
+        """[(id người lập, số phiếu)] trong danh sách (cùng luật ẩn điều chuyển nháp) — giá trị
+        cho điều kiện lọc "Người lập"."""
+        return [(int(u), int(n)) for u, n in self.db.execute(
+            select(StockVoucher.nguoi_lap_id, func.count())
+            .where(*self._dieu_kien(kho_id=kho_id), StockVoucher.nguoi_lap_id.is_not(None))
+            .group_by(StockVoucher.nguoi_lap_id)
+        ).all()]
 
     def draft_ids_by_request(self, request_ids: list[int]) -> dict[int, int]:
         """Map {request_id: id phiếu ĐANG CHỜ GHI SỔ (draft) mới nhất}. Để yêu cầu biết đã có

@@ -139,11 +139,22 @@ describe("danh mục do HỆ SINH — `khongTaoTay` / `khongXoa`", () => {
     expect(await screen.findByText(/Chỉnh sửa/)).toBeInTheDocument();
   });
 
-  it("⭐ vẫn NHẬP EXCEL được chỉ với quyền sửa — file chỉ còn sửa dòng đã có", async () => {
-    // Thành phẩm 18/09/2026: bỏ nút Thêm nhưng giữ Nhập Excel để sửa hàng loạt. Gác theo `create`
-    // như màn thường thì cờ này giấu luôn Nhập Excel, mà `create` ở đây đâu còn nghĩa gì.
+  it("⭐ NHẬP EXCEL cần đủ quyền thêm + sửa, kể cả khi màn không cho tạo tay", async () => {
+    // Thành phẩm 18/09/2026: bỏ nút Thêm nhưng giữ Nhập Excel để sửa hàng loạt. Cổng
+    // `POST /import-excel` của máy chủ vẫn đòi đủ `create` + `update` (`catalog_base.req_import`),
+    // nên chỉ có `update` mà hiện nút là mời bấm để ăn 403 (rà soát 05/10/2026).
     stub({ items: DONG });
     moMan({ ...CFG_SINH, enableImport: true }, [quyen("dm_giay", { can_update: true })]);
+
+    await screen.findByText("TP-DH-2026-041-11");
+    expect(screen.queryByRole("button", { name: /Thêm giấy/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Nhập Excel/ })).toBeNull();
+  });
+
+  it("đủ quyền thêm + sửa thì màn không cho tạo tay vẫn có Nhập Excel, vẫn không có nút Thêm", async () => {
+    stub({ items: DONG });
+    moMan({ ...CFG_SINH, enableImport: true },
+          [quyen("dm_giay", { can_create: true, can_update: true })]);
 
     await screen.findByText("TP-DH-2026-041-11");
     expect(screen.queryByRole("button", { name: /Thêm giấy/ })).toBeNull();
@@ -213,68 +224,64 @@ describe("bấm link sang MÀN KHÁC từ drawer (vd mã đơn ở Thành phẩm
   });
 });
 
-describe("Lọc nâng cao (`config.locNangCao`) — lọc ở MÁY CHỦ, ghép với chip", () => {
+describe("Thanh lọc chung (06/10/2026) — kỳ Ngày tạo + điều kiện + Đang dùng/Đã ngừng, lọc ở MÁY CHỦ", () => {
   const CFG_LOC: CatalogConfig = {
     ...CFG,
     title: "Khuôn",
     prefix: "/api/khuon-be",
-    facet: { key: "loai", values: [{ value: "khuon_be", label: "Khuôn bế" }] },
-    locNangCao: [{
-      key: "tinh_trang", label: "Tình trạng", type: "select",
-      options: [{ value: "hong", label: "Hỏng" }],
-    }],
+    softDelete: true,
+    man: "khuon-be",
+    dieuKien: [
+      { key: "tinh_trang", nhan: "Tình trạng", giaTri: [{ value: "hong", label: "Hỏng" }] },
+      { key: "khach_hang_id", nhan: "Khách hàng" },
+    ],
   };
+  /** Danh sách kèm `dem` của máy chủ (giá trị + số đếm từng điều kiện). */
+  function stubDem() {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      items: [{ id: 1, ma: "KB-0001", ten: "Hộp A", ghi_chu: "", active: true, created_at: "2026-10-02T03:00:00Z" }],
+      total: 1, page: 1, size: 25,
+      dem: {
+        tinh_trang: [{ value: "hong", so: 3 }],
+        khach_hang_id: [{ value: "7", nhan: "Minh Long", so: 2 }],
+        active: [{ value: "true", so: 1 }, { value: "false", so: 4 }],
+      },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }))));
+  }
+  const urls = () => vi.mocked(fetch).mock.calls.map((c) => String(c[0]));
 
-  it("màn không khai `locNangCao` ⇒ không mọc nút", async () => {
-    stub({ items: [] });
-    moMan(CFG);
-    await screen.findByText(/Chưa có giấy nào/);
-    expect(screen.queryByRole("button", { name: /Lọc nâng cao/ })).toBeNull();
+  it("mặc định chỉ xem dòng đang dùng (`active=true`) và NÓI ra thành một điều kiện; có cột Ngày tạo", async () => {
+    stubDem();
+    window.history.replaceState(null, "", "/");
+    moMan(CFG_LOC);
+    await screen.findByText("Hộp A");
+    expect(urls().some((x) => x.includes("/api/khuon-be?") && x.includes("active=true")
+      && x.includes("kem_dem=true"))).toBe(true);
+    expect(screen.getByRole("button", { name: "Bỏ lọc Trạng thái" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Ngày tạo" })).toBeTruthy();
+    expect(screen.getByText("02/10/2026")).toBeTruthy();
   });
 
-  it("⭐ chọn tiêu chí ⇒ query có tham số đó; gập bảng vẫn lọc và hiện nhãn; ✕ gỡ lọc", async () => {
-    stub({ items: [] });
+  it("⭐ chọn điều kiện ⇒ query có tham số đó, giá trị lấy tên + số từ máy chủ; bỏ Trạng thái ⇒ xem tất cả", async () => {
+    stubDem();
+    window.history.replaceState(null, "", "/");
     const u = userEvent.setup();
     moMan(CFG_LOC);
-    const fetchMock = vi.mocked(fetch);
-    const urls = () => fetchMock.mock.calls.map((c) => String(c[0]));
+    await screen.findByText("Hộp A");
 
-    await u.click(await screen.findByRole("button", { name: /Lọc nâng cao/ }));
-    await u.selectOptions(screen.getByRole("combobox", { name: "Tình trạng" }), "hong");
-    await waitFor(() => expect(urls().some((x) => x.includes("tinh_trang=hong"))).toBe(true));
-    // Chip loại + lọc nâng cao đi CÙNG một request.
-    await u.click(screen.getByRole("button", { name: /Khuôn bế/ }));
+    await u.click(screen.getByRole("button", { name: "Lọc" }));
+    await u.click(screen.getByRole("menuitem", { name: /Khách hàng/ }));
+    await u.click(screen.getByRole("radio", { name: /Minh Long/ }));
     await waitFor(() => expect(urls().some(
-      (x) => x.includes("tinh_trang=hong") && x.includes("loai=khuon_be"))).toBe(true));
+      (x) => x.includes("khach_hang_id=7") && x.includes("active=true"))).toBe(true));
+    // Lọc ghi lên URL của màn.
+    expect(window.location.search).toContain("man=khuon-be");
+    expect(window.location.search).toContain("khach_hang_id=7");
 
-    // Gập bảng: bộ lọc còn áp, nói thành nhãn.
-    await u.click(screen.getByRole("button", { name: /Lọc nâng cao/ }));
-    expect(screen.getByText("Hỏng")).toBeTruthy();
-    fetchMock.mockClear();
-    await u.click(screen.getByRole("button", { name: "Bỏ lọc Tình trạng" }));
-    await waitFor(() => expect(urls().some((x) => x.includes("/api/khuon-be?"))).toBe(true));
-    expect(urls().some((x) => x.includes("tinh_trang="))).toBe(false);
-  });
-
-  it("ô `text` (Số kệ) chờ gõ xong mới hỏi máy chủ, một lần; Xoá bộ lọc thì ô về trống", async () => {
-    stub({ items: [] });
-    const u = userEvent.setup();
-    moMan({ ...CFG_LOC, locNangCao: [{ key: "so_ke", label: "Số kệ", type: "text" }] });
-    const fetchMock = vi.mocked(fetch);
-    const urls = () => fetchMock.mock.calls.map((c) => String(c[0]));
-
-    await u.click(await screen.findByRole("button", { name: /Lọc nâng cao/ }));
-    const o = screen.getByRole("textbox", { name: "Số kệ" });
-    await u.type(o, "b3");
-    await waitFor(() => expect(urls().some((x) => x.includes("so_ke=b3"))).toBe(true));
-    // Gõ từng phím mà không chờ thì "b" lẻ không được đi riêng một lượt.
-    expect(urls().some((x) => /so_ke=b(&|$)/.test(x))).toBe(false);
-
-    await u.click(screen.getByRole("button", { name: "Xoá bộ lọc" }));
-    await waitFor(() => expect((o as HTMLInputElement).value).toBe(""));
-    fetchMock.mockClear();
-    await new Promise((r) => setTimeout(r, 400));
-    // Ô về trống từ NGOÀI thì không được bắn ngược một lượt `so_ke` nào nữa.
-    expect(urls().some((x) => x.includes("so_ke="))).toBe(false);
+    vi.mocked(fetch).mockClear();
+    await u.click(screen.getByRole("button", { name: "Bỏ lọc Trạng thái" }));
+    await waitFor(() => expect(urls().some((x) => x.includes("khach_hang_id=7"))).toBe(true));
+    expect(urls().some((x) => x.includes("active="))).toBe(false);
+    expect(window.location.search).toContain("active=tat_ca");
   });
 });

@@ -267,6 +267,18 @@ class KyThuatMayService:
         ).all()
         return {int(r[0]): {"ma": r[1], "ten": r[2], "loai_may": r[3]} for r in rows}
 
+    def loc_may(self, loai: str) -> list[tuple[int, str, int]]:
+        """[(may_id, nhãn, số chứng từ)] — giá trị của điều kiện "Máy" trên thanh lọc của danh sách
+        `loai` (sua_chua, yeu_cau, bao_tri). Nhãn = mã máy + tên (máy cùng tên phân biệt bằng mã)."""
+        dem = self.repo.dem_theo_may(loai)
+        may = self.may_map([m for m, _ in dem])
+        out = []
+        for m, n in dem:
+            thong_tin = may.get(m) or {}
+            nhan = " ".join(x for x in (thong_tin.get("ma"), thong_tin.get("ten")) if x) or f"Máy #{m}"
+            out.append((m, nhan, n))
+        return sorted(out, key=lambda r: r[1].lower())
+
     def _kiem_anh_chung_thuc(self, loai_phieu: str, phieu_id: int) -> None:
         if self.repo.dem_anh_sau(loai_phieu, phieu_id) < 1:
             raise KyThuatMayThieuAnh(

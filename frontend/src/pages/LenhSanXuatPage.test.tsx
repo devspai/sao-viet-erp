@@ -4,16 +4,11 @@
 // đang tải (người quét QR ở xưởng không quan tâm trang mấy, tab nào). Khúc đầu dây chuyền (hash
 // sống sót qua đăng nhập) nằm ở `LoginPage.test.tsx`; khúc phân tích hash nằm ở
 // `appShellDeepLink.test.ts`; khúc băng cảnh báo phiên bản nằm ở `LenhSxHoSoView.test.tsx`.
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type {
-  LenhSxBoLocOut,
-  LenhSxHoSoOut,
-  LenhSxListOut,
-  LenhSxSummaryOut,
-} from "../api/client";
+import type { LenhSxHoSoOut, LenhSxListOut, LuaChonLoc } from "../api/client";
 import { AuthContext, type AuthState } from "../auth/AuthContext";
 import { PermissionsProvider, buildCapabilities } from "../auth/permissions";
 import type { ModuleCapability } from "../api/client";
@@ -27,33 +22,22 @@ const AUTH: AuthState = {
 
 const DON_VI = [{ ma: "cai", ten: "cái" }];
 
-const KPI: LenhSxSummaryOut = {
-  dang_sx: 1, cong_doan_xong_hom_nay: 0, du_kien_tre: 0, ty_le_kcs_dat_hom_nay: null,
-};
-
-const BO_LOC: LenhSxBoLocOut = { may: [] };
+/** Nguồn ô Khách / Đơn của thanh lọc (06/10/2026 — thay `/bo-loc`). */
+const KHACH_LOC: LuaChonLoc[] = [{ id: 9, ten: "Công ty Sao", so: 1 }];
+const DON_LOC: LuaChonLoc[] = [{ id: 3, ten: "DH-0003", so: 1 }];
 
 /** Bảng phía sau chỉ có lệnh #5 — KHÔNG có lệnh #77. Cố tình: hồ sơ mở qua deep link phải tự đứng
  *  được mà không cần bảng biết gì về nó, đúng thứ ghi chú `LenhSanXuatPage.tsx` nói ("hồ sơ vẽ ĐÈ
  *  lên bảng chứ không thay màn"). */
 const LIST: LenhSxListOut = {
   items: [{
-    id: 5, ma: "LSX26-0005", ten: "Lệnh khác", khach_hang: null, khach_hang_id: null,
-    sale: null, so_luong_dat: 10, don_vi_tinh: "cái", da_giao: 0, is_rush: false,
-    buoc_hien_tai: null, nhom_cong_doan: null, may: null, nguoi: [],
-    tien_do_pct: 0, tien_do_uoc_tinh: false, gio_may: 0,
-    // Dải chặng: bốn công đoạn, lệnh đang đứng ở "In" — đủ cả bốn trạng thái mà `danh_sach.chang()`
-    // biết đẻ ra, để bài canh dưới soi được cả màu lẫn chữ đọc-ra-lời.
-    chang: [
-      { ten: "Cắt tờ", nhom: null, trang_thai: "xong", hien_tai: false },
-      { ten: "In", nhom: null, trang_thai: "chay", hien_tai: true },
-      { ten: "Cán màng", nhom: null, trang_thai: "dung", hien_tai: false },
-      { ten: "Bế", nhom: null, trang_thai: "cho", hien_tai: false },
-    ],
-    han_hoan_thanh_sx: null, han_giao_khach: null, du_kien_xong: null,
-    trang_thai: "dang_sx", canh_bao: [],
+    id: 5, ma: "LSX26-0005", ten: "Lệnh khác", so_luong_dat: 10, don_vi_tinh: "cái",
+    khach_hang: "Công ty Sao", order_id: 3, order_no: "DH-0003",
+    han_hoan_thanh_sx: "2026-10-20", is_rush: true,
+    khau: "sau_sx", khau_chi_tiet: "cho_nhap_kho", da_dong: true,
   }],
-  total: 1, page: 1, page_size: 50, dem_theo_tab: { tat_ca: 1 },
+  total: 1, page: 1, page_size: 25,
+  dem_theo_tab: { tat_ca: 1, dang_sx: 0, sau_sx: 1, da_giao: 0 },
 };
 
 /** Hồ sơ TỐI GIẢN — chỉ đủ mọi trường bắt buộc của `LenhSxHoSoOut`, không cần đủ 13 khối như bài
@@ -66,13 +50,13 @@ const HOSO_77: LenhSxHoSoOut = {
     khach_hang: null, khach_hang_id: null, sale: null,
     so_luong_dat: 100, don_vi_tinh: "cái", is_rush: false,
     han_hoan_thanh_sx: null, han_giao_khach: null,
-    ban_giao_at: null, ghi_chu: null, tao_luc: null,
+    ban_giao_at: null, ghi_chu: null, tao_luc: null, da_dong: false, nhom_ten: null,
   },
   tien_do: {
     phan_tram: 0, uoc_tinh: false, gio_may: 0,
     du_kien_xong: null, trang_thai: "dang_sx", canh_bao: [],
     buoc_hien_tai: null, buoc_hien_tai_cong_viec_id: null, nhom_cong_doan: null,
-    may: null, nguoi: [], da_giao: 0,
+    may: null, nguoi: [], da_giao: 0, khau: "dang_sx", khau_chi_tiet: null, vat_tu_chu: null,
   },
   thong_so: {
     giay_ten: null, dinh_luong: null,
@@ -86,7 +70,7 @@ const HOSO_77: LenhSxHoSoOut = {
   routing: { nodes: [], canh: [] },
   vat_tu: { hien_tai: { du: true, dong: [] }, canh_bao_sau: [], da_cap: [] },
   nhan_luc: { hien_tai: [], lich_su: [] },
-  san_luong: { tong: 0, tot: 0, hong: 0, batch: [] },
+  san_luong: { batch: [] },
   su_co: [],
   kcs: { tong_nhan: 0, tong_dat: 0, tong_khong_dat: 0, ty_le_dat: null, batch: [] },
   kho: { so_lenh_trong_nhom: 0, yeu_cau: [] },
@@ -111,10 +95,10 @@ const HOSO_5: LenhSxHoSoOut = {
 
 const HOSO_BY_ID: Record<number, LenhSxHoSoOut> = { 77: HOSO_77, 5: HOSO_5 };
 
-/** Fetch giả PHÂN BIỆT ĐƯỜNG DẪN — bốn nguồn `LenhSanXuatPage` gọi lúc mount (danh sách, KPI, bộ
- *  lọc máy) cộng nguồn `LenhSxHoSoView` gọi khi hồ sơ mở (hồ sơ một lệnh, danh mục đơn vị). Thứ tự
- *  kiểm PHẢI cụ thể trước chung: `/summary` và `/bo-loc` đứng trước lượt kiểm số ở cuối đường dẫn,
- *  nếu không chúng rơi nhầm vào nhánh danh sách trần.
+/** Fetch giả PHÂN BIỆT ĐƯỜNG DẪN — hai nguồn `LenhSanXuatPage` gọi lúc mount (danh sách, bộ lọc
+ *  khách) cộng nguồn `LenhSxHoSoView` gọi khi hồ sơ mở (hồ sơ một lệnh, danh mục đơn vị). Thứ tự
+ *  kiểm PHẢI cụ thể trước chung: `/bo-loc` đứng trước lượt kiểm số ở cuối đường dẫn, nếu không nó
+ *  rơi nhầm vào nhánh danh sách trần. Trả về mảng URL đã gọi để bài canh tham số gửi đi.
  *
  *  Sửa vòng 1 (P4): nhánh hồ sơ TRƯỚC ĐÂY trả `HOSO_77` bất kể id hỏi là gì — bài test dựa vào stub
  *  đó không canh được việc `LenhSanXuatPage` có truyền ĐÚNG id đã yêu cầu hay không (một bug hardcode
@@ -122,16 +106,18 @@ const HOSO_BY_ID: Record<number, LenhSxHoSoOut> = { 77: HOSO_77, 5: HOSO_5 };
  *  ⇒ trả 404 thật (không phải "trả bừa `HOSO_77`") để một bug id-sai lộ ra thành lỗi tải hồ sơ, có
  *  thể quan sát được thay vì im lặng trùng khớp. */
 /** `list` đổi được để bài canh dải chặng dựng một bảng khác mà không phải chép lại cả stub. */
-function stubApi(list: LenhSxListOut = LIST) {
+function stubApi(list: LenhSxListOut = LIST): string[] {
+  const goi: string[] = [];
   vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
     const url =
       typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    goi.push(url);
     let data: unknown;
     let status = 200;
     const mHoSo = /\/api\/lenh-san-xuat\/(\d+)$/.exec(url);
     if (url.includes("/api/don-vi")) data = { items: DON_VI };
-    else if (url.includes("/api/lenh-san-xuat/summary")) data = KPI;
-    else if (url.includes("/api/lenh-san-xuat/bo-loc")) data = BO_LOC;
+    else if (url.includes("/api/lenh-san-xuat/khach-loc")) data = KHACH_LOC;
+    else if (url.includes("/api/lenh-san-xuat/don-loc")) data = DON_LOC;
     else if (mHoSo) {
       const id = Number(mHoSo[1]);
       const hs = HOSO_BY_ID[id];
@@ -147,6 +133,7 @@ function stubApi(list: LenhSxListOut = LIST) {
       json: async () => data, text: async () => JSON.stringify(data),
     } as Response);
   }));
+  return goi;
 }
 
 const CAPS = buildCapabilities([
@@ -227,7 +214,7 @@ describe("LenhSanXuatPage · đường `pv` (Task 14, sửa vòng 1 P5)", () => 
     await screen.findByRole("heading", { name: "LSX26-0077" });
     expect(screen.getByText(/Phiếu giấy v1/)).toBeInTheDocument();
 
-    // Đóng hồ sơ QR — nút DUY NHẤT rõ vai "đóng" của màn (`hslsx-hs__back`, xem LenhSxHoSoView.tsx).
+    // Đóng hồ sơ QR — nút DUY NHẤT rõ vai "đóng" của màn (xem LenhSxHoSoView.tsx).
     await userEvent.click(screen.getByRole("button", { name: "Quay lại danh sách" }));
     expect(screen.queryByRole("heading", { name: "LSX26-0077" })).not.toBeInTheDocument();
 
@@ -253,7 +240,7 @@ describe("LenhSanXuatPage · đường `pv` (Task 14, sửa vòng 1 P5)", () => 
   // #77 còn che màn) KHÔNG PHẢI chuột: lớp phủ hồ sơ vẽ ĐÈ, chặn hit-test chuột lên dòng bảng phía
   // sau trong một trình duyệt thật — jsdom không hit-test nên chuột "click qua" được, còn đời thật
   // thì không. Đường thật là BÀN PHÍM (Shift+Tab từ "Quay lại danh sách" lọt xuống nút mở của dòng
-  // bị che — chính `dongHoSo` cũng dựa vào nút đó để trả tiêu điểm, xem `.hslsx__open[data-lsx]`
+  // bị che — chính `dongHoSo` cũng dựa vào nút đó để trả tiêu điểm, xem `.lsc-ma[data-lsx]`
   // — rồi Enter). Bấm theo `aria-label` của nút đó (khớp `LenhSanXuatPage.tsx:944-949`) để mô
   // phỏng đúng đường bàn phím thay vì click xuyên lớp phủ mà chuột thật không làm được.
   //
@@ -307,45 +294,57 @@ describe("LenhSanXuatPage · quét LẠI đúng lệnh vừa đóng vẫn phải
   });
 });
 
-// Dải chặng (`DaiChang` trong `LenhSanXuatPage.tsx`): hàng bảng phải nói được lệnh đang ở KHÚC NÀO
-// của đường đi, không chỉ tên bước đang đứng. Hai bài dưới canh đúng hai nhánh của nó — có chuỗi
-// công đoạn thì vẽ dải, chuỗi RỖNG thì lùi về thanh tiến độ cũ chứ không vẽ đốt giả.
-describe("LenhSanXuatPage · dải chặng trong hàng bảng", () => {
-  it("⭐ lệnh có 4 công đoạn ⇒ 4 đốt, đốt đang chạy mang lớp `--chay`, không còn thanh tiến độ", async () => {
+// Làm gọn 05/10/2026: 4 tab theo khâu, 7 cột tĩnh, lọc khách + một ô khoảng Hạn SX.
+describe("LenhSanXuatPage · danh sách tra cứu", () => {
+  it("⭐ bốn tab lấy số nguyên từ `dem_theo_tab`; dòng có pill khâu, thẻ Đã đóng lệnh, GẤP", async () => {
     stubApi();
-    const { container } = ve();
+    ve();
 
     await screen.findByText("LSX26-0005");
-
-    const dot = container.querySelectorAll(".hslsx__chang");
-    expect(dot).toHaveLength(4);
-    // Thứ tự đốt là thứ tự máy chủ trả (theo giờ dự kiến bắt đầu) — KHÔNG được sort lại ở FE.
-    expect(Array.from(dot).map((d) => d.getAttribute("title"))).toEqual([
-      "Cắt tờ — đã xong",
-      "In — đang chạy",
-      "Cán màng — tạm dừng",
-      "Bế — chưa tới",
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual([
+      "Tất cả1", "Đang sản xuất0", "Sau sản xuất1", "Đã giao đủ0",
     ]);
-    // Đúng MỘT đốt được tô accent: luật màu của dải (xem `.hslsx__chang--chay` bên CSS).
-    expect(container.querySelectorAll(".hslsx__chang--chay")).toHaveLength(1);
-    // Có dải rồi thì thanh cũ phải biến mất, không vẽ chồng hai chỉ báo tiến độ trong một ô.
-    expect(container.querySelector(".hslsx__bar")).toBeNull();
-
-    // Người đi bàn phím không rê được `title` của từng đốt ⇒ cả dải phải tự xưng vị trí ở một chỗ.
-    expect(screen.getByRole("progressbar")).toHaveAttribute(
-      "aria-valuetext",
-      "công đoạn 2 trên 4, In — 0 phần trăm",
-    );
+    expect(screen.getByText("Chờ nhập kho")).toBeInTheDocument();
+    expect(screen.getByText("Đã đóng lệnh")).toBeInTheDocument();
+    expect(screen.getByText("GẤP")).toBeInTheDocument();
+    expect(screen.getByText("DH-0003")).toBeInTheDocument();
+    // Tám cột tĩnh, không còn cột tiến độ hay cảnh báo; "Ngày tạo" thêm 06/10/2026.
+    expect(screen.getAllByRole("columnheader").map((c) => c.textContent)).toEqual([
+      "Lệnh", "Sản phẩm", "Số lượng", "Khách", "Đơn", "Hạn SX", "Ngày tạo", "Trạng thái",
+    ]);
   });
 
-  it("⭐ lệnh chưa có công việc nào (chang rỗng) ⇒ lùi về thanh tiến độ, KHÔNG vẽ đốt", async () => {
-    // Dải trống trơn trông y hệt "mọi công đoạn đều chưa tới" — hai chuyện khác hẳn nhau.
-    stubApi({ ...LIST, items: [{ ...LIST.items[0], chang: [] }] });
-    const { container } = ve();
-
+  it("⭐ đổi tab gửi `tab=`; thanh lọc chọn khách gửi `khach_hang_id=`; kỳ gửi `tu_ngay=` + `moc=`", async () => {
+    const goi = stubApi();
+    ve();
     await screen.findByText("LSX26-0005");
 
-    expect(container.querySelectorAll(".hslsx__chang")).toHaveLength(0);
-    expect(container.querySelector(".hslsx__bar")).not.toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: /Sau sản xuất/ }));
+    await waitFor(() => expect(goi.some((u) => u.includes("tab=sau_sx"))).toBe(true));
+
+    await userEvent.click(screen.getByRole("button", { name: "Lọc" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /Khách hàng/ }));
+    await userEvent.click(await screen.findByRole("radio", { name: /Công ty Sao/ }));
+    await waitFor(() => expect(goi.some((u) => u.includes("khach_hang_id=9"))).toBe(true));
+
+    // Kỳ theo Hạn sản xuất (thay hai ô ngày rời cũ).
+    await userEvent.click(screen.getByRole("button", { name: /Mọi thời gian/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "Hạn sản xuất" }));
+    await userEvent.click(screen.getByRole("radio", { name: /Năm nay/ }));
+    await waitFor(() =>
+      expect(goi.some((u) => u.includes("moc=han_sx") && /tu_ngay=\d{4}-01-01/.test(u))).toBe(true));
+
+    // Không còn gọi hai đường đã bỏ.
+    expect(goi.some((u) => u.includes("/summary"))).toBe(false);
+  });
+
+  it("⭐ tab rỗng mà bộ lọc vẫn có lệnh ⇒ mời về tab Tất cả", async () => {
+    stubApi({ ...LIST, items: [], total: 0 });
+    ve();
+    await screen.findAllByRole("tab");
+    await userEvent.click(screen.getByRole("tab", { name: /Đã giao đủ/ }));
+    const panel = screen.getByRole("tabpanel");
+    expect(await within(panel).findByText("Tab «Đã giao đủ» hiện không có lệnh nào.")).toBeInTheDocument();
   });
 });

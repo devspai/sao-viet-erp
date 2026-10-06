@@ -14,9 +14,10 @@ tránh CTE đệ quy để giữ portable SQLite/Postgres.
 """
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..models.customer import Customer
 from ..models.department import Department
 from ..models.nhom_dung_chung import NhomDungChungThanhVien
 
@@ -59,3 +60,30 @@ def nhom_dung_chung_user_ids(db: Session, user_id: int) -> set[int]:
     nhom_cua_toi = select(tv.nhom_id).where(tv.user_id == user_id)
     ids = db.execute(select(tv.user_id).where(tv.nhom_id.in_(nhom_cua_toi))).scalars().all()
     return set(ids) | {user_id}
+
+
+# --- Chủ của chứng từ = người phụ trách KHÁCH (05/10/2026) ---------------------------------------
+# Phiếu tính giá · báo giá · đơn hàng bán thuộc về NGƯỜI PHỤ TRÁCH KHÁCH của nó, không phải người
+# bấm tạo. Trước đó lọc theo người lập/người soạn: trợ lý ở hai nhóm dùng chung (Luyến ở "luyến –
+# hiệp" và "luyến – huyên") lập phiếu cho khách của Huyên thì Hiệp cũng thấy, dù màn Khách hàng
+# của Hiệp không hề có khách đó. Giờ ba màn lọc ĐÚNG như màn Khách hàng.
+# Chứng từ chưa chọn khách, hoặc khách chưa gán ai, thì rơi về người lập/người soạn như cũ.
+
+
+def chu_theo_khach(customer_id_col, nguoi_col):
+    """Biểu thức SQL "chủ" của một dòng chứng từ: sale phụ trách khách, thiếu thì `nguoi_col`."""
+    sale_cua_khach = (
+        select(Customer.sale_user_id).where(Customer.id == customer_id_col).scalar_subquery()
+    )
+    return func.coalesce(sale_cua_khach, nguoi_col)
+
+
+def chu_cua(db: Session, customer_id: int | None, nguoi_id: int | None) -> int | None:
+    """Bản Python của `chu_theo_khach` cho một chứng từ đã nạp (cửa chặn xem chi tiết)."""
+    if customer_id is not None:
+        sale = db.execute(
+            select(Customer.sale_user_id).where(Customer.id == customer_id)
+        ).scalar_one_or_none()
+        if sale is not None:
+            return sale
+    return nguoi_id

@@ -13,7 +13,7 @@ from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..san_xuat import ban_giao
-from . import kiem_version
+from . import kiem_version, so_vi
 from .lan import co_buoc_truoc, nguon_lan
 
 _EPS = 1e-9
@@ -67,7 +67,7 @@ def mang_di(db: Session, *, user, gcn_id: int, expected_version: int | None,
     gcn.version += 1
     AuditLogRepository(db).create(
         actor_user_id=uid, action="gia_cong_ngoai_mang_di", target=f"gia_cong_ngoai:{gcn.id}",
-        detail=f"Mang đi {so:g} — tổng đã gửi {float(gcn.sl_gui):g}", commit=False,
+        detail=f"Mang đi {so_vi(so)} — tổng đã gửi {so_vi(gcn.sl_gui)}", commit=False,
     )
     db.commit()
     nguon = nguon_lan(db, gcn)

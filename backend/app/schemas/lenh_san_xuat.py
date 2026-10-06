@@ -34,50 +34,25 @@ class LenhSxChang(BaseModel):
 
 
 class LenhSxItem(BaseModel):
-    """MỘT dòng bảng lệnh. Các cột đã chốt: Mã · Sản phẩm/SL · Khách · Máy · Công đoạn + tiến độ ·
-    Hạn/Dự kiến · Trạng thái."""
+    """MỘT dòng bảng Hồ sơ lệnh (làm gọn 05/10/2026) — chỉ cột tĩnh. `khau` ∈ `dang_sx` / `sau_sx`
+    / `da_giao`; `khau_chi_tiet` ∈ `dang_kcs` / `cho_nhap_kho` / `san_sang_giao` khi `khau =
+    sau_sx`, còn lại `None`. `da_dong` = KCS đã đóng lệnh (`lsx.trang_thai = da_dong`)."""
 
     id: int
     ma: str
     ten: str | None = None
-    khach_hang: str | None = None
-    khach_hang_id: int | None = None
-    sale: str | None = None
-
     so_luong_dat: int
     don_vi_tinh: str | None = None
-    # Số đã giao THẬT (`delivery_lines.qty_delivered`), không phải số yêu cầu giao — xem
-    # `BoiCanh.da_giao_cua`.
-    da_giao: int = 0
-
-    is_rush: bool = False
-    buoc_hien_tai: str | None = None
-    nhom_cong_doan: str | None = None
-    may: str | None = None
-    # Nửa "người" của cột Máy/người: TÊN những người đang được giao ở ĐÚNG bước đang hiện ở cột
-    # "Máy". Danh sách chứ không phải chuỗi "A +2" dựng sẵn — nhiều người trên một bước là chuyện
-    # thường (roster), cột hẹp thì UI tự cắt "+N", còn tooltip vẫn có đủ tên mà không phải gọi thêm
-    # API. Thứ tự là THỨ TỰ GIAO nên cắt từ cuối là an toàn. Rỗng = bước chưa giao ai (đừng bịa).
-    # Người đã bị RÚT (`trang_thai='removed'`) không có mặt ở đây — xem `BoiCanh.nguoi_cua`.
-    nguoi: list[str] = []
-    # Cả chuỗi công đoạn của lệnh, theo trục THỜI GIAN dự kiến — để bảng vẽ được lệnh đang ở đâu
-    # trên đường đi chứ không chỉ tên bước đang đứng. Rỗng = lệnh chưa có công việc nào (chưa phát
-    # hành gói, hoặc routing rỗng); UI phải chịu được danh sách rỗng, đừng bịa một đốt.
-    chang: list[LenhSxChang] = []
-
-    tien_do_pct: float
-    # `True` = phần trăm đang đo bằng THỜI LƯỢNG kế hoạch vì bước chưa khai sản lượng. Bắt buộc
-    # phải ra tới UI: 40% "đo được" và 40% "ước tính" là hai mức tin cậy khác hẳn nhau, gộp làm một
-    # là mời điều độ ra quyết định trên con số họ tưởng chắc hơn thực tế.
-    tien_do_uoc_tinh: bool = False
-    gio_may: float = 0.0
-
+    khach_hang: str | None = None
+    order_id: int | None = None
+    order_no: str | None = None
     han_hoan_thanh_sx: date | None = None
-    han_giao_khach: date | None = None
-    du_kien_xong: datetime | None = None
-
-    trang_thai: str
-    canh_bao: list[str] = []
+    is_rush: bool = False
+    khau: str
+    khau_chi_tiet: str | None = None
+    da_dong: bool = False
+    # Ngày tạo lệnh — cột "Ngày tạo" + mốc kỳ `tao` (06/10/2026).
+    created_at: datetime | None = None
 
 
 class LenhSxListOut(BaseModel):
@@ -91,36 +66,15 @@ class LenhSxListOut(BaseModel):
     dem_theo_tab: dict[str, int]
 
 
-class LenhSxMayLocOut(BaseModel):
-    """MỘT lựa chọn của ô lọc Máy. `so_lenh` = số LỆNH đang dính máy này trong phạm vi người gọi
-    (ca in ghép phục vụ hai lệnh thì đếm hai) — để ô chọn nói luôn "chọn cái này ra bao nhiêu dòng".
-
-    KHÔNG có trường tiền, và cũng không có cột năng lực máy (tốc độ, khổ in): đây là một ô LỌC,
-    không phải cửa sổ danh mục máy — vai QC dùng màn này không có quyền `dm_thiet_bi`."""
-
+class LenhSxKhachLocOut(BaseModel):
     id: int
-    ma: str | None = None
     ten: str | None = None
-    so_lenh: int = 0
 
 
 class LenhSxBoLocOut(BaseModel):
-    """Nguồn của các ô lọc cần DANH SÁCH ĐỘNG. Hôm nay chỉ có Máy: ba ô còn lại (Nhóm công đoạn ·
-    Ưu tiên · khoảng ngày) là enum/kiểu cố định, đã khai ở `Literal` của router — bơm chúng qua đây
-    là đẻ ra nguồn sự thật thứ hai cho cùng một danh sách."""
+    """Nguồn ô Khách của Hồ sơ lệnh — khách của chính các lệnh trong phạm vi người gọi."""
 
-    may: list[LenhSxMayLocOut] = []
-
-
-class LenhSxSummaryOut(BaseModel):
-    """Bốn thẻ KPI. "Hôm nay" = ngày GIỜ XƯỞNG (+7), không phải ngày UTC — xưởng chạy ca đêm."""
-
-    dang_sx: int
-    cong_doan_xong_hom_nay: int
-    du_kien_tre: int
-    # `None` = CHƯA kiểm cái nào hôm nay, khác hẳn `0.0` = kiểm rồi và trượt sạch. UI phải hiện
-    # "—" cho `None`; đổ 0 vào đó là báo động giả mỗi sáng sớm.
-    ty_le_kcs_dat_hom_nay: float | None = None
+    khach_hang: list[LenhSxKhachLocOut] = []
 
 
 # ================= HỒ SƠ MỘT LỆNH (Task 10) =================
@@ -148,6 +102,10 @@ class ThongTinOut(BaseModel):
     ban_giao_at: datetime | None = None
     ghi_chu: str | None = None
     tao_luc: datetime | None = None
+    # KCS đã đóng lệnh (`lsx.trang_thai = da_dong`) — phần đầu hồ sơ (làm gọn 05/10/2026).
+    da_dong: bool = False
+    # Tên nhóm sản xuất của lệnh (`san_xuat_nhom`), `None` khi chưa vào nhóm nào.
+    nhom_ten: str | None = None
 
 
 class TienDoOut(BaseModel):
@@ -166,6 +124,12 @@ class TienDoOut(BaseModel):
     may: str | None = None
     nguoi: list[str] = []
     da_giao: int = 0
+    # KHÂU của lệnh (`trang_thai.khau`) — không xét cờ cảnh báo; `khau_chi_tiet` chỉ có khi
+    # `khau = sau_sx` (`dang_kcs` / `cho_nhap_kho` / `san_sang_giao`).
+    khau: str = "dang_sx"
+    khau_chi_tiet: str | None = None
+    # Câu chữ đèn vật tư khi đèn ĐỎ (vd "Chưa giữ chỗ vật tư"); None khi không đỏ.
+    vat_tu_chu: str | None = None
 
 
 class ThongSoOut(BaseModel):
@@ -346,9 +310,8 @@ class SanLuongBatchOut(BaseModel):
 
 
 class SanLuongOut(BaseModel):
-    tong: float = 0.0
-    tot: float = 0.0
-    hong: float = 0.0
+    """Chỉ còn từng batch — ba tổng cộng lẫn tờ in với thành phẩm đã gỡ (05/10/2026)."""
+
     batch: list[SanLuongBatchOut] = []
 
 

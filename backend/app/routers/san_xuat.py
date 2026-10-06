@@ -42,6 +42,7 @@ from ..services.thong_bao_man import bao, kenh_to
 from ..repositories.san_xuat_repo import SanXuatRepository
 from ..storage import get_storage, make_key, url_from_key
 from ..tai_len import doc_gioi_han
+from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.san_xuat import (
     ChotGiayDongOut,
     ChotGiayIn,
@@ -357,8 +358,7 @@ def work_items(
     den_ngay: date | None = Query(None),
     cho_xac_nhan: bool = Query(False),
     trang_thai: list[Literal["released", "running", "paused", "completed"]] | None = Query(None),
-    nhan_tu: date | None = Query(None),
-    nhan_den: date | None = Query(None),
+    moc: Literal["nhan", "tao", "du_kien"] = Query("nhan"),
     sap_xep: Literal["moi_nhan", "cu_nhan", "du_kien"] = Query("moi_nhan"),
 ) -> WorkItemsOut:
     """Việc đã phát hành của MỘT tổ (§18 /work-items).
@@ -375,8 +375,9 @@ def work_items(
 
     `cho_xac_nhan=true` (ô "chờ xác nhận" của bàn): chỉ lệnh có công đoạn đang chờ tổ bấm.
 
-    Lọc nâng cao (view Bảng): `trang_thai` (lặp tham số), `nhan_tu`/`nhan_den` (ngày xưởng tổ
-    nhận lệnh, gồm cả hai đầu), `sap_xep` (mặc định `moi_nhan`: lệnh phát hành sau nằm trên).
+    Lọc nâng cao (view Bảng): `trang_thai` (lặp tham số), kỳ `tu_ngay`/`den_ngay` (ngày xưởng,
+    gồm cả hai đầu) theo mốc `moc` — `nhan` lúc tổ nhận lệnh (mặc định), `tao` ngày tạo lệnh,
+    `du_kien` dự kiến bắt đầu; `sap_xep` (mặc định `moi_nhan`: lệnh phát hành sau nằm trên).
 
     403 nếu tổ ngoài phạm vi quyền."""
     try:
@@ -384,7 +385,7 @@ def work_items(
             board.work_items(db, user, authz, team_id=team_id, nhom=nhom, tim=tim,
                              trang=trang, co_trang=co_trang, tu_ngay=tu_ngay, den_ngay=den_ngay,
                              cho_xac_nhan=cho_xac_nhan, trang_thai=set(trang_thai or ()) or None,
-                             nhan_tu=nhan_tu, nhan_den=nhan_den, sap_xep=sap_xep)
+                             moc=moc, sap_xep=sap_xep)
         )
     except PermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
@@ -1041,10 +1042,31 @@ def danh_sach_lenh_kcs(
     tim: str | None = Query(None, max_length=200),
     trang: int = Query(1, ge=1),
     da_dong: bool = Query(False),
+    # Thanh lọc (06/10/2026). `nhom`: bỏ trống = chỉ nhóm còn mở (như cũ), `tat_ca` = gồm cả nhóm
+    # đã đóng (= `da_dong=true` cũ), `da_dong` = chỉ nhóm đã đóng.
+    nhom: str | None = Query(None, pattern="^(tat_ca|da_dong)$"),
+    khach_id: int | None = Query(None),
+    tu_ngay: date | None = Query(None),
+    den_ngay: date | None = Query(None),
+    moc: str = Query("tao", pattern="^(tao|kcs)$"),
+    co_trang: int = Query(30, ge=1, le=100),
 ) -> dict:
     """Danh sách lệnh cho màn KCS — lệnh đã vào nhóm thành phẩm, mặc định chỉ nhóm còn mở.
-    Tìm + cắt trang ở máy chủ."""
-    return _chay(lambda: kcs.danh_sach_lenh_kcs(db, user, tim=tim, trang=trang, gom_da_dong=da_dong))
+    Tìm + lọc + cắt trang ở máy chủ."""
+    return _chay(lambda: kcs.danh_sach_lenh_kcs(
+        db, user, tim=tim, trang=trang, gom_da_dong=da_dong or nhom == "tat_ca",
+        co_trang=co_trang, chi_da_dong=nhom == "da_dong", khach_id=khach_id,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
+    ))
+
+
+@router.get("/kcs/lenh/khach-loc", response_model=list[LuaChonLoc])
+def khach_loc_kcs(
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> list[dict]:
+    """Ô "Khách hàng" của thanh lọc màn KCS. Đường TĨNH — phải đứng trước `/kcs/lenh/{lsx_id}`."""
+    return _chay(lambda: kcs.khach_loc_kcs(db, user))
 
 
 @router.get("/kcs/lenh/{lsx_id}", response_model=KcsChuoiCongDoanOut)
@@ -1229,10 +1251,11 @@ def export_bao_cao_kcs(
     tu_khoa: str | None = Query(default=None),
     cong_doan_id: int | None = Query(default=None),
 ) -> Response:
-    """Xuất Excel — người thuộc tổ KCS, hoặc vai có ô `san_xuat:export` (§4.4); KHÁC `read` của
+    """Xuất Excel — CHỈ người thuộc phòng ban tổ KCS (05/10/2026 gỡ ô `san_xuat:export`: nút xuất
+    nằm ở màn KCS mà màn đó chỉ mở cho tổ KCS, nên ô vai cấp xong cũng không ai thấy). KHÁC `read` của
     endpoint JSON ở trên. Dùng CHUNG hàm lấy dòng với `/kcs/bao-cao` (§9 mục 10: cùng filter phải
     trả cùng tổng)."""
-    if not (authz.can(user, MODULE, "export") or kcs.la_nguoi_kcs(db, user)):
+    if not kcs.la_nguoi_kcs(db, user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Bạn không có quyền thực hiện thao tác này")
     content, filename = kcs_bao_cao.xuat_excel_kcs(
         db, user, authz, tu=tu, den=den,

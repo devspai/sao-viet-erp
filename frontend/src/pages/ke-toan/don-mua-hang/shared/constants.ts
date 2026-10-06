@@ -4,7 +4,8 @@ import type {
   PurchaseRequestStatus,
 } from "../../../../api/client";
 
-export const PAGE_SIZE = 20;
+/** Cỡ trang MẶC ĐỊNH — người dùng đổi ở ô Dòng/trang dưới chân bảng. */
+export const PAGE_SIZE = 25;
 
 export const STATUS_META: Record<
   PurchaseRequestStatus,

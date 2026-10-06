@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type LeaveCalendar } from "../../../../api/client";
 import { EmptyState } from "../../../../components/EmptyState";
-import { Pager } from "../../../../components/Pager";
+import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import {
   Calendar,
   CheckCircle2,
@@ -25,8 +25,9 @@ export function CalendarTab({ token }: { token: string }) {
   const [data, setData] = useState<LeaveCalendar | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "pending" | "paid" | "unpaid">("all");
-  /** Trang của LƯỚI (mỗi trang 20 HÀNG nhân viên). Cắt ở client — xem ghi chú ở `PAGE_SIZE`. */
+  /** Trang của LƯỚI (mỗi trang `size` HÀNG nhân viên). Cắt ở client — xem ghi chú ở `PAGE_SIZE`. */
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(PAGE_SIZE);
   const [hoveredCell, setHoveredCell] = useState<{
     employeeName: string;
     day: number;
@@ -109,10 +110,10 @@ export function CalendarTab({ token }: { token: string }) {
 
   // Cắt trang trên danh sách ĐÃ LỌC. Ba thẻ thống kê phía trên vẫn tính trên `data.employees`
   // đầy đủ — chúng là số của cả tháng, không phải của trang.
-  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / size));
   const pageSafe = Math.min(page, totalPages);
   const pagedEmployees = filteredEmployees.slice(
-    (pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE,
+    (pageSafe - 1) * size, pageSafe * size,
   );
 
   const ymStr = `${ym.year}-${String(ym.month).padStart(2, "0")}`;
@@ -373,12 +374,12 @@ export function CalendarTab({ token }: { token: string }) {
       {/* Chân bảng chỉ có nghĩa khi lưới đang hiện — ba ca tải/lỗi/rỗng ở trên đã thay chỗ
           của lưới rồi thì đừng in thêm "Tổng 0 nhân viên" bên dưới. */}
       {!loading && !listError && filteredEmployees.length > 0 && (
-        <Pager
-          total={filteredEmployees.length}
-          page={pageSafe}
-          size={PAGE_SIZE}
-          unit="nhân viên"
-          onPage={setPage}
+        <PhanTrangDayDu
+          trang={pageSafe} size={size} tong={filteredEmployees.length} soDong={pagedEmployees.length}
+          donVi="nhân viên"
+          onTrang={setPage}
+          onSize={(n) => { setSize(n); setPage(1); }}
+          ariaLabel="Phân trang lịch nghỉ"
         />
       )}
 

@@ -371,11 +371,10 @@
 .ktm-anh__them:disabled { opacity: .6; cursor: progress; }
 .ktm-anh__loi { margin: 8px 0 0; font-size: 12px; color: var(--signal-deep, #6b1717); }
 
-/* --- Phân trang + lọc tháng ------------------------------------------------------ */
-.ktm-thangloc { width: 150px; padding: 7px 10px; font-size: 13px; }
 
-/* Thanh phân trang riêng `.ktm-trang` ĐÃ GỠ 14/08/2026 cùng component `PhanTrang` — hai màn dùng
-   `components/Pager.tsx` (kèm `pager.css`) như mọi màn khác trong hệ. */
+/* Thanh phân trang riêng `.ktm-trang` ĐÃ GỠ 14/08/2026 cùng component `PhanTrang`. Từ 05/10/2026 hai
+   màn dùng chân chung `components/PhanTrangDayDu.tsx`; khung `.rc__tablewrap` + chân đã có luật nối
+   sẵn ở rebuild-catalog.css. */
 
 /* --- Chuyển chế độ xem Lịch | Bảng --------------------------------------------- */
 .ktm-xem {
@@ -662,14 +661,6 @@
 .ktm-popover-item__huy { flex-basis: 100%; padding-left: 3px; border-left: 3px solid var(--ash-2, #94a3b8); padding: 2px 0 2px 8px; color: var(--ash, #475569); }
 
 /* --- Table View Enhancements ---------------------------------------------------- */
-.ktm-thangloc-wrap { position: relative; display: inline-flex; align-items: center; }
-.ktm-thangloc-wrap .ktm-thangloc { padding-right: 24px; }
-.ktm-thangloc-x {
-  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-  border: 0; background: transparent; cursor: pointer; color: var(--ash-2, var(--ash-2));
-  display: grid; place-items: center; padding: 2px; border-radius: 999px;
-}
-.ktm-thangloc-x:hover { color: var(--ink, #0f172a); background: var(--rule-soft, #e2e8f0); }
 
 .rc__tab.is-qua-han { color: #9f1239; font-weight: 600; }
 .rc__tab.is-qua-han .rc__tabn { background: #ffe4e6; color: #9f1239; }
@@ -1187,20 +1178,6 @@
 /* Bộ phận hỏng + mức độ trên MỘT dòng: hai mẩu thông tin luôn đọc cùng nhau. */
 .ktm-hong { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-/* Công tắc "Chỉ của tôi" — cắt ngang mọi tab nên đứng riêng ở thanh công cụ, không thành tab. */
-.ktm-loc {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 13px; border: 1px solid var(--rule-soft, #e2e8f0); border-radius: 999px;
-  background: var(--paper, #fff); cursor: pointer;
-  font: inherit; font-size: 12.5px; color: var(--ash, #475569);
-}
-.ktm-loc:hover { border-color: var(--ash-2, #94a3b8); color: var(--ink, #0f172a); }
-.ktm-loc.is-active {
-  border-color: var(--rust, #c5400a);
-  background: var(--rule-hair);
-  color: var(--rust-deep, #8a3208);
-  font-weight: var(--fw-medium, 500);
-}
 
 /* Ô tick "máy đang dừng" — ô này quyết định thứ tự hàng chờ nên trình bày to hơn checkbox thường,
    nhãn phụ nói thẳng hậu quả của việc tick. */

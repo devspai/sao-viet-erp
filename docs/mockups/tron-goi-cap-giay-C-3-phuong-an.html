@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cấp giấy trọn gói — 3 cách trình bày</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+  --amber:#a07a12; --amber-soft:#efe4c4; --amber-deep:#7a5c0f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1120px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--ash);margin:0 0 12px;max-width:880px}
+.loi{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:14px 18px;margin:0 0 40px;max-width:900px;color:var(--ash)}
+.loi b{color:var(--ink)}
+.loi ul{margin:6px 0 0;padding-left:20px}
+.opt{margin-bottom:76px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.goi-y{font-size:12px;font-weight:600;color:var(--moss-deep);background:var(--moss-soft);border-radius:999px;padding:2px 10px}
+.why{color:var(--ash);margin:0 0 18px;max-width:900px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+.cap{font-size:12px;font-weight:600;color:var(--ash-2);margin:26px 0 8px;letter-spacing:.03em}
+
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--huy{color:#8a1f1f}
+.btn--sm{height:30px;padding:0 10px;font-size:12.5px}
+.lk{color:var(--rust);font-weight:600;background:none;border:0;padding:0;font:inherit;font-size:13px;cursor:pointer}
+.lk:hover{text-decoration:underline}
+.muted{color:var(--ash-2)}
+.num{font-variant-numeric:tabular-nums}
+.the{display:inline-flex;align-items:center;font-size:12px;color:var(--ash);background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:6px;padding:1px 8px;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.pill--amber{background:var(--amber-soft);color:var(--amber-deep)}
+.pill--moss{background:var(--moss-soft);color:var(--moss-deep)}
+.pill--xam{background:var(--rule-hair);color:var(--ash);border:1px solid var(--rule-soft)}
+
+/* Khối Gia công ngoài — khung giống màn thật */
+.khoi{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:18px 22px}
+.khoi-tieu{font-size:12px;font-weight:600;color:var(--ash);letter-spacing:.05em;margin:0 0 12px}
+.khoi-dau{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px}
+.khoi-dau h4{margin:0;font-size:16px}
+.khoi-dau .nut{margin-left:auto;display:flex;flex-wrap:wrap;gap:8px}
+.moc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:16px 0 4px}
+.moc > div{display:grid;gap:4px}
+.moc .vach{height:4px;border-radius:2px;background:var(--rule-soft)}
+.moc .xong .vach{background:var(--moss)}
+.moc .dang .vach{background:var(--amber)}
+.moc .t{font-weight:600;font-size:13.5px}
+.moc .dang .t{color:var(--amber-deep)}
+.moc .chua .t{color:var(--ash-2);font-weight:500}
+.moc .p{font-size:12.5px;color:var(--ash-2);display:flex;flex-wrap:wrap;gap:8px}
+.luoi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding-top:14px;margin-top:14px;border-top:1px solid var(--rule-hair)}
+.luoi .k{font-size:12.5px;color:var(--ash-2)}
+.luoi .v{font-weight:600;font-size:15px}
+.luoi .p{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;font-size:13px}
+.tel{color:var(--rust);font-size:13px;text-decoration:none}
+.ls{margin-top:12px;color:var(--ash);font-size:13px}
+
+/* Danh sách khổ — dùng chung */
+.kho-ds{border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.kho-h{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--rule-hair);cursor:pointer}
+.kho-h:first-child{border-top:0}
+.kho-h:hover{background:var(--rule-hair)}
+.kho-h .ra{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--rule)}
+.kho-h.on{outline:2px solid var(--rust);outline-offset:-2px;border-radius:9px}
+.kho-h.on .ra{border:5px solid var(--rust)}
+.kho-h .ten{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.kho-h .ton{text-align:right;font-variant-numeric:tabular-nums}
+.kho-h .ton small{display:block;font-size:12px;color:var(--ash-2)}
+.kho-h.het{color:var(--ash-2);cursor:default}
+.kho-h.het:hover{background:transparent}
+.o{display:flex;align-items:center;height:38px;border:1px solid var(--rule);border-radius:8px;padding:0 12px;background:var(--canvas);gap:8px;font-variant-numeric:tabular-nums}
+.o .dv{margin-left:auto;color:var(--ash-2);font-size:13px}
+.nhan{font-size:13px;font-weight:600;color:var(--ash);margin:0 0 6px;display:block}
+.goi{font-size:12.5px;color:var(--ash-2);margin-top:6px}
+.bao{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--amber-soft);background:#faf6ea;border-radius:8px;padding:10px 12px;color:var(--amber-deep);font-size:13px}
+.bao b{color:var(--ink)}
+
+/* ===== C1 — dải "còn phải làm" (Shopify Admin: dải việc cần xử lý trên đơn) ===== */
+.c1-dai{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:16px;padding:12px 14px;border:1px solid var(--amber-soft);background:#faf6ea;border-radius:10px}
+.c1-dai .dau{width:28px;height:28px;border-radius:50%;background:var(--amber-soft);color:var(--amber-deep);display:grid;place-items:center;font-weight:700;flex:0 0 auto}
+.c1-dai .chu b{display:block}
+.c1-dai .chu span{font-size:13px;color:var(--amber-deep)}
+.c1-dai .btn{margin-left:auto}
+.c1-mo{margin-top:12px;padding:16px;border:1px solid var(--rule-soft);border-radius:10px;display:grid;gap:14px}
+.c1-mo .hang{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
+.c1-mo .chan{display:flex;justify-content:flex-end;gap:8px}
+
+/* ===== C2 — sửa ngay tại ô Giấy, bảng nổi (Notion / Airtable: sửa ô tại chỗ) ===== */
+.c2-o{position:relative}
+.c2-o .chua-chon{display:inline-flex;align-items:center;gap:6px;margin-top:6px}
+.c2-pop{position:absolute;right:0;top:calc(100% + 8px);width:420px;max-width:calc(100vw - 48px);background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 14px 40px rgba(15,23,42,.16);padding:14px;display:grid;gap:12px;z-index:2}
+.c2-pop h5{margin:0;font-size:14px}
+.c2-pop .chan{display:flex;justify-content:flex-end;gap:8px}
+.c2-cho{padding-bottom:360px}
+@media (max-width:900px){
+  .c2-pop{position:static;width:auto;margin-top:10px}
+  .c2-cho{padding-bottom:0}
+}
+
+/* ===== C3 — hộp thoại "Cấp giấy" riêng (Shopify: Fulfill items) ===== */
+.dlg{background:var(--canvas);border-radius:14px;box-shadow:0 10px 40px rgba(15,23,42,.14);border:1px solid var(--rule-soft);max-width:620px;width:100%}
+.dlg-dau{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--rule-soft)}
+.dlg-dau h3{margin:0;font-size:17px}
+.dlg-dau .x{margin-left:auto;color:var(--ash-2);font-size:20px}
+.dlg-than{padding:18px 22px;display:grid;gap:16px}
+.dlg-chan{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--rule-soft)}
+.dlg-chan .ghi{margin-right:auto;font-size:12.5px;color:var(--ash-2)}
+.c3-ngu{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.c3-ngu .k{font-size:12.5px;color:var(--ash-2)}
+.c3-ngu .v{font-weight:600}
+
+/* Hộp đặt trọn gói — phần dùng chung */
+.dat{background:var(--canvas);border-radius:14px;box-shadow:0 10px 40px rgba(15,23,42,.12);border:1px solid var(--rule-soft);max-width:560px}
+.dat .than{padding:16px 22px;display:grid;gap:14px}
+.tick{display:flex;gap:10px;align-items:flex-start}
+.tick .hop{width:18px;height:18px;border-radius:4px;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px;flex:0 0 auto;margin-top:2px}
+.tick b{display:block}
+.tick span{color:var(--ash-2);font-size:13px}
+
+@media (max-width:640px){
+  .moc,.luoi,.c1-mo .hang,.c3-ngu{grid-template-columns:1fr}
+  .c2-pop{position:static;width:auto;margin-top:10px}
+  .c2-cho{min-height:0}
+  .khoi-dau .nut{margin-left:0}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Phương án C — chọn giấy lúc mang đi: 3 cách trình bày</h1>
+  <p class="lead">Cùng một luồng: đặt trọn gói (hộp gọn, chỉ tick "Xưởng cấp giấy") → trên lệnh còn một việc "cấp giấy" → người kế hoạch chọn khổ và số tờ → gửi đề nghị xuất sang kho. Ví dụ LSX26-0005, COUCHE 150GSM, phiếu tính giá cần 425 tờ khổ 109×79. Số tồn là số minh hoạ.</p>
+  <div class="loi">
+    <b>Chung cho cả ba</b>
+    <ul>
+      <li><b>Hộp đặt trọn gói</b> giữ như bây giờ, ô "Xưởng cấp giấy" tự tick theo phiếu tính giá và nói rõ bước sau (xem dưới cùng).</li>
+      <li><b>Chọn khổ bằng danh sách có tồn</b>, không phải ô thả xuống: thấy ngay khổ nào đủ, khổ nào thiếu. Khổ đúng phiếu tính giá chọn sẵn, số tờ điền sẵn 425.</li>
+      <li><b>Chọn khổ khác</b> thì ô số tờ để trống, bắt gõ — máy không tự đổi 425 tờ sang khổ khác vì khổ khác cắt ra số con khác.</li>
+      <li><b>Việc còn treo</b> hiện cả ở bảng lệnh (chip "Chờ cấp giấy" ở cột tiến độ) để không ai quên; gửi đề nghị xong thì chip rụng.</li>
+      <li>Chỉ <b>một khổ</b> mỗi lệnh. Cần hai khổ thì gửi xong khổ đầu, việc vẫn treo với phần còn thiếu.</li>
+    </ul>
+  </div>
+
+  <!-- ===================== C1 ===================== -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>C1. Dải "còn phải làm" dưới mốc, bấm thì mở ngay tại chỗ</h2>
+      <span class="src">Khuôn: Shopify Admin — dải việc cần xử lý trên trang đơn</span>
+      <span class="goi-y">Mình đề xuất</span>
+    </div>
+    <div class="why">
+      Ngay dưới ba mốc là một dải màu hổ phách nói việc đang chờ và ai đang đợi. Bấm "Chọn giấy" thì phần chọn mở ra ngay bên dưới, không bật hộp thoại, vẫn thấy cả khối.
+      <ul>
+        <li><b>Hợp vì:</b> việc treo nằm đúng chỗ mắt nhìn đầu tiên; mở tại chỗ nên người kế hoạch vẫn thấy nhà gia công, số đặt lúc chọn.</li>
+        <li><b>Giới hạn:</b> khối dài ra khi mở; trên điện thoại phải cuộn.</li>
+      </ul>
+    </div>
+
+    <p class="cap">1. VỪA ĐẶT XONG — CHƯA CẤP GIẤY</p>
+    <div class="khoi">
+      <p class="khoi-tieu">GIA CÔNG NGOÀI</p>
+      <div class="khoi-dau"><h4>Trọn gói cả lệnh</h4><span class="pill pill--amber">Đang ở nhà gia công</span>
+        <div class="nut"><button class="btn btn--huy">Huỷ gia công</button><button class="btn btn--pri">Nhận hàng về</button></div></div>
+      <div class="moc">
+        <div class="xong"><div class="vach"></div><div class="t">Giao việc</div><div class="p"><span>19:36 06/10</span><span>Admin</span></div></div>
+        <div class="dang"><div class="vach"></div><div class="t">Đang gia công</div></div>
+        <div class="chua"><div class="vach"></div><div class="t">Nhận về</div></div>
+      </div>
+      <div class="c1-dai">
+        <div class="dau">!</div>
+        <div class="chu"><b>Chưa cấp giấy cho nhà gia công</b><span>Nhà gia công đang chờ giấy để làm</span></div>
+        <button class="btn btn--pri btn--sm">Chọn giấy</button>
+      </div>
+      <div class="luoi">
+        <div><div class="k">Nhà gia công</div><div class="v">Cơ sở Gia công Cán màng Thành Công</div><a class="tel" href="#">0910726420</a></div>
+        <div><div class="k">Số đặt</div><div class="v num">3.000 <span class="muted" style="font-weight:400;font-size:13px">tờ</span></div></div>
+        <div><div class="k">Giấy</div><div class="v">Xưởng cấp</div><div class="p muted">Chưa chọn khổ</div></div>
+      </div>
+      <div class="ls">▸ Lịch sử (1)</div>
+    </div>
+
+    <p class="cap">2. BẤM "CHỌN GIẤY" — MỞ TẠI CHỖ</p>
+    <div class="khoi">
+      <p class="khoi-tieu">GIA CÔNG NGOÀI</p>
+      <div class="khoi-dau"><h4>Trọn gói cả lệnh</h4><span class="pill pill--amber">Đang ở nhà gia công</span>
+        <div class="nut"><button class="btn btn--huy">Huỷ gia công</button><button class="btn btn--pri">Nhận hàng về</button></div></div>
+      <div class="c1-mo">
+        <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px"><b style="font-size:15px">Cấp giấy COUCHE 150GSM</b><span class="muted" style="font-size:13px">Phiếu tính giá cần 425 tờ khổ 109×79</span></div>
+        <div class="hang">
+          <div>
+            <span class="nhan">Khổ trong kho</span>
+            <div class="kho-ds">
+              <div class="kho-h on"><span class="ra"></span><div class="ten"><b class="num">109×79</b><span class="the">đúng phiếu tính giá</span></div><div class="ton"><b>300 tờ</b><small>tồn</small></div></div>
+              <div class="kho-h"><span class="ra"></span><div class="ten"><b class="num">65×86</b></div><div class="ton"><b>1.000 tờ</b><small>tồn</small></div></div>
+              <div class="kho-h het"><span class="ra"></span><div class="ten"><b class="num">79×109</b><span class="the">hết</span></div><div class="ton"><b>0 tờ</b><small>tồn</small></div></div>
+            </div>
+          </div>
+          <div>
+            <span class="nhan">Số tờ xin xuất</span>
+            <div class="o">425<span class="dv">tờ</span></div>
+            <div class="goi">Điền theo phiếu tính giá</div>
+          </div>
+        </div>
+        <div class="bao"><span>⚠</span><div>Khổ 109×79 còn <b>300 tờ</b>, thiếu <b>125 tờ</b>. Vẫn gửi được — kho báo thiếu và lập mua. Hoặc chọn khổ 65×86.</div></div>
+        <div class="chan"><button class="btn btn--sm">Để sau</button><button class="btn btn--sm btn--pri">Gửi đề nghị xuất giấy</button></div>
+      </div>
+      <div class="luoi">
+        <div><div class="k">Nhà gia công</div><div class="v">Cơ sở Gia công Cán màng Thành Công</div><a class="tel" href="#">0910726420</a></div>
+        <div><div class="k">Số đặt</div><div class="v num">3.000 <span class="muted" style="font-weight:400;font-size:13px">tờ</span></div></div>
+        <div><div class="k">Giấy</div><div class="v">Xưởng cấp</div><div class="p muted">Chưa chọn khổ</div></div>
+      </div>
+    </div>
+
+    <p class="cap">3. ĐÃ GỬI — DẢI RỤNG, Ô GIẤY THEO DÕI KHO</p>
+    <div class="khoi">
+      <p class="khoi-tieu">GIA CÔNG NGOÀI</p>
+      <div class="khoi-dau"><h4>Trọn gói cả lệnh</h4><span class="pill pill--amber">Đang ở nhà gia công</span>
+        <div class="nut"><button class="btn btn--huy">Huỷ gia công</button><button class="btn btn--pri">Nhận hàng về</button></div></div>
+      <div class="moc">
+        <div class="xong"><div class="vach"></div><div class="t">Giao việc</div><div class="p"><span>19:36 06/10</span><span>Admin</span></div></div>
+        <div class="dang"><div class="vach"></div><div class="t">Đang gia công</div></div>
+        <div class="chua"><div class="vach"></div><div class="t">Nhận về</div></div>
+      </div>
+      <div class="luoi">
+        <div><div class="k">Nhà gia công</div><div class="v">Cơ sở Gia công Cán màng Thành Công</div><a class="tel" href="#">0910726420</a></div>
+        <div><div class="k">Số đặt</div><div class="v num">3.000 <span class="muted" style="font-weight:400;font-size:13px">tờ</span></div></div>
+        <div><div class="k">Giấy</div><div class="v">Xưởng cấp</div>
+          <div class="p"><span class="the num">109×79</span><span class="the num">425 tờ</span></div>
+          <div class="p"><span class="pill pill--amber">Chờ kho soạn</span><button class="lk">YCX26-0012</button></div>
+        </div>
+      </div>
+      <div class="ls">▸ Lịch sử (2)</div>
+    </div>
+  </section>
+
+  <!-- ===================== C2 ===================== -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>C2. Bấm thẳng vào ô Giấy, bảng nổi bật ra</h2>
+      <span class="src">Khuôn: Notion / Airtable — sửa một ô tại chỗ bằng bảng nổi</span>
+    </div>
+    <div class="why">
+      Không thêm dải nào: ô "Giấy" trong lưới tự nói "Chưa chọn khổ" kèm nút. Bấm thì bảng nổi bật ra ngay cạnh ô. Huy hiệu đầu khối đổi thành "Chờ cấp giấy" để vẫn nổi.
+      <ul>
+        <li><b>Hợp vì:</b> gọn nhất, thông tin giấy nói đúng một chỗ; khối không dài ra.</li>
+        <li><b>Giới hạn:</b> nút nằm trong ô góc phải, dễ bị lướt qua hơn dải hổ phách; trên điện thoại bảng nổi phải thành khung trải dưới.</li>
+      </ul>
+    </div>
+
+    <p class="cap">BẤM "CHỌN GIẤY" Ở Ô GIẤY</p>
+    <div class="c2-cho">
+    <div class="khoi">
+      <p class="khoi-tieu">GIA CÔNG NGOÀI</p>
+      <div class="khoi-dau"><h4>Trọn gói cả lệnh</h4><span class="pill pill--amber">Chờ cấp giấy</span>
+        <div class="nut"><button class="btn btn--huy">Huỷ gia công</button><button class="btn btn--pri">Nhận hàng về</button></div></div>
+      <div class="moc">
+        <div class="xong"><div class="vach"></div><div class="t">Giao việc</div><div class="p"><span>19:36 06/10</span><span>Admin</span></div></div>
+        <div class="dang"><div class="vach"></div><div class="t">Đang gia công</div></div>
+        <div class="chua"><div class="vach"></div><div class="t">Nhận về</div></div>
+      </div>
+      <div class="luoi">
+        <div><div class="k">Nhà gia công</div><div class="v">Cơ sở Gia công Cán màng Thành Công</div><a class="tel" href="#">0910726420</a></div>
+        <div><div class="k">Số đặt</div><div class="v num">3.000 <span class="muted" style="font-weight:400;font-size:13px">tờ</span></div></div>
+        <div class="c2-o"><div class="k">Giấy</div><div class="v">Xưởng cấp</div>
+          <div class="chua-chon"><span class="muted" style="font-size:13px">Chưa chọn khổ</span><button class="btn btn--sm btn--pri">Chọn giấy</button></div>
+          <div class="c2-pop">
+            <h5>COUCHE 150GSM</h5>
+            <div class="muted" style="font-size:13px;margin-top:-8px">Phiếu tính giá cần 425 tờ khổ 109×79</div>
+            <div class="kho-ds">
+              <div class="kho-h"><span class="ra"></span><div class="ten"><b class="num">109×79</b><span class="the">đúng phiếu tính giá</span></div><div class="ton"><b>300 tờ</b><small>tồn</small></div></div>
+              <div class="kho-h on"><span class="ra"></span><div class="ten"><b class="num">65×86</b></div><div class="ton"><b>1.000 tờ</b><small>tồn</small></div></div>
+              <div class="kho-h het"><span class="ra"></span><div class="ten"><b class="num">79×109</b><span class="the">hết</span></div><div class="ton"><b>0 tờ</b><small>tồn</small></div></div>
+            </div>
+            <div>
+              <span class="nhan">Số tờ khổ 65×86</span>
+              <div class="o"><span class="muted">Gõ số tờ</span><span class="dv">tờ</span></div>
+              <div class="goi">Khác khổ phiếu tính giá — khổ này cắt ra số con khác, máy không tự đổi 425 tờ.</div>
+            </div>
+            <div class="chan"><button class="btn btn--sm">Huỷ</button><button class="btn btn--sm btn--pri">Gửi đề nghị xuất</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <!-- ===================== C3 ===================== -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>C3. Nút chính "Cấp giấy" ở đầu khối, mở hộp thoại riêng</h2>
+      <span class="src">Khuôn: Shopify — nút "Giao hàng" mở hộp chọn kho và số lượng</span>
+    </div>
+    <div class="why">
+      Chừng nào chưa cấp giấy, nút chính (màu cam) của khối là "Cấp giấy"; "Nhận hàng về" lùi thành nút phụ. Hộp thoại có đủ chỗ: tóm tắt việc, danh sách khổ, số tờ, và câu nói rõ sẽ gửi gì cho kho.
+      <ul>
+        <li><b>Hợp vì:</b> thứ tự việc hiện bằng chính nút chính — làm gì trước thì nút đó nổi; hộp thoại rộng, dễ dùng trên điện thoại.</li>
+        <li><b>Giới hạn:</b> thêm một hộp thoại; lúc chọn không thấy phần còn lại của lệnh.</li>
+      </ul>
+    </div>
+
+    <p class="cap">1. CHƯA CẤP GIẤY — NÚT CHÍNH LÀ "CẤP GIẤY"</p>
+    <div class="khoi">
+      <p class="khoi-tieu">GIA CÔNG NGOÀI</p>
+      <div class="khoi-dau"><h4>Trọn gói cả lệnh</h4><span class="pill pill--amber">Chờ cấp giấy</span>
+        <div class="nut"><button class="btn btn--huy">Huỷ gia công</button><button class="btn">Nhận hàng về</button><button class="btn btn--pri">Cấp giấy</button></div></div>
+      <div class="moc">
+        <div class="xong"><div class="vach"></div><div class="t">Giao việc</div><div class="p"><span>19:36 06/10</span><span>Admin</span></div></div>
+        <div class="dang"><div class="vach"></div><div class="t">Đang gia công</div></div>
+        <div class="chua"><div class="vach"></div><div class="t">Nhận về</div></div>
+      </div>
+      <div class="luoi">
+        <div><div class="k">Nhà gia công</div><div class="v">Cơ sở Gia công Cán màng Thành Công</div><a class="tel" href="#">0910726420</a></div>
+        <div><div class="k">Số đặt</div><div class="v num">3.000 <span class="muted" style="font-weight:400;font-size:13px">tờ</span></div></div>
+        <div><div class="k">Giấy</div><div class="v">Xưởng cấp</div><div class="p muted">Chưa chọn khổ</div></div>
+      </div>
+    </div>
+
+    <p class="cap">2. HỘP THOẠI CẤP GIẤY</p>
+    <div class="dlg">
+      <div class="dlg-dau"><h3>Cấp giấy cho nhà gia công — LSX26-0005</h3><span class="x">×</span></div>
+      <div class="dlg-than">
+        <div class="c3-ngu">
+          <div><div class="k">Nhà gia công</div><div class="v">Cơ sở Gia công Cán màng Thành Công</div></div>
+          <div><div class="k">Giấy</div><div class="v">COUCHE 150GSM</div></div>
+          <div><div class="k">Phiếu tính giá cần</div><div class="v num">425 tờ khổ 109×79</div></div>
+        </div>
+        <div>
+          <span class="nhan">Chọn khổ trong kho</span>
+          <div class="kho-ds">
+            <div class="kho-h on"><span class="ra"></span><div class="ten"><b class="num">109×79</b><span class="the">đúng phiếu tính giá</span></div><div class="ton"><b>300 tờ</b><small>tồn</small></div></div>
+            <div class="kho-h"><span class="ra"></span><div class="ten"><b class="num">65×86</b></div><div class="ton"><b>1.000 tờ</b><small>tồn</small></div></div>
+            <div class="kho-h het"><span class="ra"></span><div class="ten"><b class="num">79×109</b><span class="the">hết</span></div><div class="ton"><b>0 tờ</b><small>tồn</small></div></div>
+          </div>
+        </div>
+        <div style="max-width:260px">
+          <span class="nhan">Số tờ xin xuất</span>
+          <div class="o">425<span class="dv">tờ</span></div>
+        </div>
+        <div class="bao"><span>⚠</span><div>Khổ 109×79 còn <b>300 tờ</b>, thiếu <b>125 tờ</b>. Vẫn gửi được — kho báo thiếu và lập mua.</div></div>
+      </div>
+      <div class="dlg-chan"><span class="ghi">Kho nhận đề nghị xuất ngay, có thông báo</span><button class="btn">Huỷ</button><button class="btn btn--pri">Gửi đề nghị xuất giấy</button></div>
+    </div>
+  </section>
+
+  <!-- ===================== Chung ===================== -->
+  <section class="opt">
+    <div class="opt-head"><h2>Chung cho cả ba — hộp đặt trọn gói</h2></div>
+    <div class="why">Giữ gọn như bây giờ. Chỉ khác: ô tick có sẵn theo phiếu tính giá và câu phụ nói trước bước sau, để người đặt biết còn một việc.</div>
+    <div class="dat">
+      <div class="than">
+        <div class="tick"><div class="hop">✓</div><div><b>Xưởng cấp giấy</b><span>Theo phiếu tính giá, giấy công ty lo. Đặt xong, chọn khổ và số tờ ở khối Gia công ngoài trên lệnh để kho xuất.</span></div></div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

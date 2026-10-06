@@ -18,19 +18,42 @@ import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icons";
-import { Pager, trangHopLe } from "../components/Pager";
+import { trangHopLe } from "../components/Pager";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useTre } from "../lib/useTre";
 import {
   kyThuatMay, NHAN_MUC_DO, NHAN_TT_SUA_CHUA, NHAN_TT_YEU_CAU, TT_YEU_CAU,
   type Anh, type MayChon, type SuaChua, type YeuCau,
 } from "../api/kyThuatMay";
 import { AnhBox, Badge, NhatKyPhieu, fmtNgayGio } from "./KyThuatMayChung";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import { useLocMan } from "./thanh-loc/useLocMan";
+import { ngayDayDu, ngayGioDayDu } from "./loc-san-xuat/ngay";
+import {
+  LOC_SUA_CHUA_TRONG, MOC_SUA_CHUA, MOC_YEU_CAU, locSuaChuaLenUrl, locSuaChuaTuUrl,
+  thamSoLocPhieu, thamSoLocYeuCau, useDieuKienSuaChua, type LocSuaChua,
+} from "./loc-ky-thuat-may/dieu-kien-ky-thuat-may";
 
-const SIZE = 20;
 import "./rebuild-catalog.css";
 import "./ky-thuat-may.css";
 
 const MUC_DO_CHON = ["nhe", "trung_binh", "nghiem_trong"];
+
+// Kỳ + bộ lọc của màn — DÙNG CHUNG hai khung (xem `dieu-kien-ky-thuat-may.ts`), ghi lên URL `?man=`.
+type LocMan = { ky: KyDS; loc: LocSuaChua };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_SUA_CHUA_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_SUA_CHUA.map(([m]) => m), "tao"),
+  loc: locSuaChuaTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locSuaChuaLenUrl(t.loc) });
+
+/** Ô ngày `dd/MM/yyyy`, di chuột thấy đủ giờ. */
+function ONgay({ v }: { v: string | null }) {
+  return <td className="rc__nowrap" title={ngayGioDayDu(v)}>{ngayDayDu(v)}</td>;
+}
 
 interface FormState {
   may_id: string;
@@ -130,6 +153,8 @@ export function SuaChuaMayPage({ eventTick = 0, onBadgeStale }: {
 
   const doiKhung = (k: "phieu" | "yeu-cau") => { setKhung(k); setMoPhieuId(null); };
 
+  const [locMan, setLocMan] = useLocMan("sua-chua-may", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+
   // Công tắc đứng ĐẦU thanh công cụ: nó đổi cả màn bên dưới, nấp ở góc phải thì không ai tìm ra.
   const chuyen = xemPhieu && xemYc ? (
     <div className="ktm-xem" role="group" aria-label="Chế độ xem">
@@ -153,12 +178,14 @@ export function SuaChuaMayPage({ eventTick = 0, onBadgeStale }: {
         chuyen={chuyen}
         may={may} loiMay={loiMay} onCanMay={() => setCanMay(true)}
         moId={moPhieuId} onDaMo={() => setMoPhieuId(null)}
+        locMan={locMan} onLocMan={setLocMan}
       />
     );
   }
   return (
     <KhungYeuCau
       chuyen={chuyen}
+      locMan={locMan} onLocMan={setLocMan}
       guiDuoc={guiYcDuoc} tiepNhanDuoc={tiepNhanDuoc} tuChoiDuoc={tuChoiDuoc}
       may={may} loiMay={loiMay} onCanMay={() => setCanMay(true)}
       eventTick={eventTick}
@@ -170,13 +197,15 @@ export function SuaChuaMayPage({ eventTick = 0, onBadgeStale }: {
 
 // ==================== Khung 1: phiếu sửa chữa ====================
 
-function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
+function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLocMan }: {
   chuyen: ReactNode;
   may: MayChon[];
   loiMay: string | null;
   onCanMay: () => void;
   moId: number | null;
   onDaMo: () => void;
+  locMan: LocMan;
+  onLocMan: (t: LocMan) => void;
 }) {
   const { token } = useAuth();
   const can = useCan();
@@ -189,6 +218,7 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
   const [dem, setDem] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(25);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -196,6 +226,8 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
   // Mặc định: máy CÒN NẰM. Phiếu đã đóng tích lại theo tháng, để chung là càng chạy càng phải cuộn.
   const [tab, setTab] = useState<string>("can_lam");
   const [mo, setMo] = useState<SuaChua | "new" | null>(null);
+  const dieuKien = useDieuKienSuaChua("phieu");
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocPhieu(locMan.loc) });
 
   // Lọc + tìm kiếm + phân trang ở SERVER (xem ghi chú cùng chỗ bên màn Phiếu bảo trì).
   const load = useCallback(() => {
@@ -204,19 +236,20 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
     kyThuatMay.listSuaChua(token, {
       q: qTre.trim() || undefined,
       trang_thai: tab === "all" ? undefined : tab,
+      ...JSON.parse(khoaLoc),
       page,
-      size: SIZE,
+      size,
     })
       .then((r) => {
         setRows(r.items); setDem(r.dem ?? {}); setTotal(r.total); setError(null);
         // Đang đứng trang 3 mà bộ lọc co danh sách còn 2 trang ⇒ nhảy về trang cuối, không để
         // người dùng nhìn một bảng rỗng rồi tưởng mất sạch dữ liệu.
-        const ve = trangHopLe(page, r.total, SIZE);
+        const ve = trangHopLe(page, r.total, size);
         if (ve !== null) setPage(ve);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Không tải được danh sách."))
       .finally(() => setLoading(false));
-  }, [token, qTre, tab, page]);
+  }, [token, qTre, tab, khoaLoc, page, size]);
 
   useEffect(load, [load]);
 
@@ -239,8 +272,23 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
   // Số trên tab đếm ở DB (`dem`), không phải đếm trang đang xem.
   const soCanLam = (dem.cho_sua ?? 0) + (dem.dang_sua ?? 0) + (dem.cho_vat_tu ?? 0);
   const tongTatCa = soCanLam + (dem.da_sua_xong ?? 0);
+  // Bảng rỗng vì CHƯA CÓ phiếu nào, hay vì bộ lọc — `dem` đã đi theo bộ lọc nên phải hỏi cả lọc.
+  const chuaCo = tongTatCa === 0 && !qTre.trim() && khoaLoc === "{}";
 
   const doiLoc = (fn: () => void) => { fn(); setPage(1); };
+  const datLoc = (t: LocMan) => doiLoc(() => onLocMan(t));
+  // Trạng thái trong nút Lọc = chính hàng tab (đọc/ghi `tab`, về trang 1 như bấm tab).
+  const dkDu: DieuKien<LocSuaChua>[] = [
+    dkTheoTab<LocSuaChua>({
+      tabs: [
+        { id: "can_lam", nhan: "Cần làm", so: soCanLam },
+        { id: "all", nhan: "Tất cả", so: tongTatCa },
+        { id: "da_sua_xong", nhan: NHAN_TT_SUA_CHUA.da_sua_xong, so: dem.da_sua_xong ?? 0 },
+      ],
+      tatCa: "all", dang: tab, dat: (id) => doiLoc(() => setTab(id)),
+    }),
+    ...dieuKien,
+  ];
 
   return (
     <div className="rc ktm">
@@ -259,14 +307,22 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
         </div>
       </div>
 
-      <div className="rc__unified-bar">
+      <div className="rc__unified-bar tl-thanh">
         {chuyen}
+        <div className="rc__search-wrapper">
+          <Icon name="search" size={15} />
+          <input className="rc__search" placeholder="Tìm mã phiếu, máy, bộ phận hỏng…"
+            value={q} onChange={(e) => doiLoc(() => setQ(e.target.value))} />
+        </div>
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_SUA_CHUA}
+          onKy={(ky) => datLoc({ ...locMan, ky })}
+          dieuKien={dkDu}
+          loc={locMan.loc}
+          onLoc={(loc) => datLoc({ ...locMan, loc })}
+        />
         <div className="rc__unified-right" style={{ marginLeft: "auto" }}>
-          <div className="rc__search-wrapper">
-            <Icon name="search" size={15} />
-            <input className="rc__search" placeholder="Tìm mã phiếu, máy, bộ phận hỏng…"
-              value={q} onChange={(e) => doiLoc(() => setQ(e.target.value))} />
-          </div>
           {taoDuoc && (
             <Button variant="accent" onClick={() => setMo("new")}>
               <Icon name="plus" size={15} /> Ghi nhận máy hỏng
@@ -304,11 +360,13 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
         <table className="rc__table">
           <thead>
             <tr>
-              <th style={{ width: "11%" }}>Mã phiếu</th>
-              <th style={{ width: "18%" }}>Máy</th>
+              <th style={{ width: "10%" }}>Mã phiếu</th>
+              <th style={{ width: "15%" }}>Máy</th>
               <th>Hỏng hóc</th>
-              <th style={{ width: "13%" }}>Mức độ</th>
-              <th style={{ width: "14%" }}>Trạng thái</th>
+              <th style={{ width: "11%" }}>Mức độ</th>
+              <th style={{ width: "12%" }}>Trạng thái</th>
+              <th style={{ width: "11%" }}>Thời điểm hỏng</th>
+              <th style={{ width: "9%" }}>Ngày tạo</th>
               <th style={{ width: "8%" }} className="text-center">Ảnh</th>
             </tr>
           </thead>
@@ -316,14 +374,14 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={`sk-${i}`} className="rc-skel__row">
-                  {Array.from({ length: 6 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <td key={j}><span className="rc-skel" style={{ width: "70%" }} /></td>
                   ))}
                 </tr>
               ))
             ) : hien.length === 0 ? (
               <tr>
-                <td colSpan={6} className="rc__empty-state-td">
+                <td colSpan={8} className="rc__empty-state-td">
                   <div className="rc__empty-state">
                     {/* Cùng cỡ/nét với màn danh mục: bảng rỗng không có hình thì nhìn như lỗi render. */}
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -331,19 +389,21 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
                       <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
                     </svg>
                     <p className="rc__empty-text">
-                      {tongTatCa === 0
+                      {chuaCo
                         ? "Chưa có phiếu sửa chữa nào. Máy hỏng thì ghi nhận ngay để có vết."
                         : "Không có phiếu nào khớp bộ lọc."}
                     </p>
                     {/* Màn rỗng phải chỉ ra BƯỚC KẾ TIẾP, không bỏ người dùng đứng đó. */}
-                    {tongTatCa === 0 ? (
+                    {chuaCo ? (
                       taoDuoc && (
                         <Button variant="ghost" onClick={() => setMo("new")}>
                           <Icon name="plus" size={15} /> Ghi nhận máy hỏng
                         </Button>
                       )
                     ) : (
-                      <Button variant="ghost" onClick={() => doiLoc(() => { setQ(""); setTab("all"); })}>
+                      <Button variant="ghost" onClick={() => doiLoc(() => {
+                        setQ(""); setTab("all"); onLocMan(LOC_MAN_TRONG);
+                      })}>
                         Xoá bộ lọc
                       </Button>
                     )}
@@ -354,7 +414,6 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
               <tr key={r.id} className="rc__row" onClick={() => setMo(r)}>
                 <td className="rc__mono rc__nowrap">
                   <span className="rc__code-badge ktm-ma">{r.ma}</span>
-                  <div className="ktm-phu">{fmtNgayGio(r.thoi_diem)}</div>
                 </td>
                 <td className="rc__name">
                   {r.may_ma ? (
@@ -375,6 +434,8 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
                   </Badge>
                 </td>
                 <td><Badge kieu={`tt-${r.trang_thai}`}>{NHAN_TT_SUA_CHUA[r.trang_thai] ?? r.trang_thai}</Badge></td>
+                <td className="rc__nowrap">{fmtNgayGio(r.thoi_diem)}</td>
+                <ONgay v={r.created_at} />
                 <td className="text-center rc__nowrap">
                   <span className={`ktm-anhchip${r.so_anh === 0 ? "" : r.co_anh_sau ? " is-du" : " is-thieu"}`}>
                     <Icon name="camera" size={12} /> {r.so_anh} ảnh
@@ -385,7 +446,11 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo }: {
           </tbody>
         </table>
       </div>
-      <Pager total={total} page={page} size={SIZE} onPage={setPage} loading={loading} unit="phiếu" />
+      {total > 0 && (
+        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+          onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+          donVi="phiếu" ariaLabel="Phân trang phiếu sửa chữa" />
+      )}
 
       {mo && (
         <SuaChuaDrawer
@@ -712,9 +777,11 @@ function SuaChuaDrawer({ phieu, may, loiMay, suaDuoc, onClose, onSaved }: {
 
 function KhungYeuCau({
   chuyen, guiDuoc, tiepNhanDuoc, tuChoiDuoc, may, loiMay, onCanMay, eventTick,
-  onThayDoi, onMoPhieu,
+  onThayDoi, onMoPhieu, locMan, onLocMan,
 }: {
   chuyen: ReactNode;
+  locMan: LocMan;
+  onLocMan: (t: LocMan) => void;
   guiDuoc: boolean;
   tiepNhanDuoc: boolean;
   tuChoiDuoc: boolean;
@@ -730,15 +797,17 @@ function KhungYeuCau({
   const [dem, setDem] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(25);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const qTre = useTre(q);
   const [tab, setTab] = useState<string>("cho_tiep_nhan");
-  // "Chỉ của tôi" cắt NGANG các tab (một yêu cầu vừa của tôi vừa đang chờ) ⇒ là công tắc riêng,
-  // không phải tab thứ năm.
-  const [cuaToi, setCuaToi] = useState(false);
+  // "Chỉ của tôi" cắt NGANG các tab (một yêu cầu vừa của tôi vừa đang chờ) ⇒ là điều kiện
+  // "Người gửi" trên thanh lọc, không phải tab thứ năm.
   const [mo, setMo] = useState<YeuCau | "new" | null>(null);
+  const dieuKien = useDieuKienSuaChua("yeu-cau");
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYeuCau(locMan.loc) });
 
   const load = useCallback(() => {
     if (!token) return;
@@ -746,19 +815,19 @@ function KhungYeuCau({
     kyThuatMay.listYeuCau(token, {
       q: qTre.trim() || undefined,
       trang_thai: tab === "all" ? undefined : tab,
-      cua_toi: cuaToi ? 1 : undefined,
+      ...JSON.parse(khoaLoc),
       page,
-      size: SIZE,
+      size,
     })
       .then((r) => {
         setRows(r.items); setDem(r.dem ?? {}); setTotal(r.total); setError(null);
-        const ve = trangHopLe(page, r.total, SIZE);
+        const ve = trangHopLe(page, r.total, size);
         if (ve !== null) setPage(ve);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Không tải được danh sách."))
       .finally(() => setLoading(false));
     // `eventTick`: có yêu cầu mới đẩy về là danh sách tự nhích, không bắt tổ sửa chữa bấm tải lại.
-  }, [token, qTre, tab, cuaToi, page, eventTick]);
+  }, [token, qTre, tab, khoaLoc, page, size, eventTick]);
 
   useEffect(load, [load]);
   // Cùng lý do như bên khung Phiếu: mở một yêu cầu đã gửi cũng phải tra được tên máy.
@@ -766,7 +835,23 @@ function KhungYeuCau({
 
   const soCho = dem.cho_tiep_nhan ?? 0;
   const tongTatCa = soCho + (dem.da_tao_phieu ?? 0) + (dem.tu_choi ?? 0);
+  const chuaCo = tongTatCa === 0 && !qTre.trim() && khoaLoc === "{}";
   const doiLoc = (fn: () => void) => { fn(); setPage(1); };
+
+  const datLoc = (t: LocMan) => doiLoc(() => onLocMan(t));
+  // Trạng thái trong nút Lọc = chính hàng tab (đọc/ghi `tab`, về trang 1 như bấm tab).
+  const dkDu: DieuKien<LocSuaChua>[] = [
+    dkTheoTab<LocSuaChua>({
+      tabs: [
+        { id: "cho_tiep_nhan", nhan: "Chờ tiếp nhận", so: soCho },
+        { id: "all", nhan: "Tất cả", so: tongTatCa },
+        ...TT_YEU_CAU.filter((tt) => tt !== "cho_tiep_nhan")
+          .map((tt) => ({ id: tt, nhan: NHAN_TT_YEU_CAU[tt], so: dem[tt] ?? 0 })),
+      ],
+      tatCa: "all", dang: tab, dat: (id) => doiLoc(() => setTab(id)),
+    }),
+    ...dieuKien,
+  ];
 
   const sauKhiLuu = () => { load(); onThayDoi(); };
 
@@ -784,18 +869,22 @@ function KhungYeuCau({
         </div>
       </div>
 
-      <div className="rc__unified-bar">
+      <div className="rc__unified-bar tl-thanh">
         {chuyen}
+        <div className="rc__search-wrapper">
+          <Icon name="search" size={15} />
+          <input className="rc__search" placeholder="Tìm mã YC, máy, bộ phận hỏng, người báo…"
+            value={q} onChange={(e) => doiLoc(() => setQ(e.target.value))} />
+        </div>
+        <ThanhLoc
+          ky={locMan.ky}
+          moc={MOC_YEU_CAU}
+          onKy={(ky) => datLoc({ ...locMan, ky })}
+          dieuKien={dkDu}
+          loc={locMan.loc}
+          onLoc={(loc) => datLoc({ ...locMan, loc })}
+        />
         <div className="rc__unified-right" style={{ marginLeft: "auto" }}>
-          <button type="button" className={`ktm-loc${cuaToi ? " is-active" : ""}`}
-            aria-pressed={cuaToi} onClick={() => doiLoc(() => setCuaToi((v) => !v))}>
-            <Icon name="users" size={14} /> Chỉ của tôi
-          </button>
-          <div className="rc__search-wrapper">
-            <Icon name="search" size={15} />
-            <input className="rc__search" placeholder="Tìm mã YC, máy, bộ phận hỏng, người báo…"
-              value={q} onChange={(e) => doiLoc(() => setQ(e.target.value))} />
-          </div>
           {guiDuoc && (
             <Button variant="accent" onClick={() => setMo("new")}>
               <Icon name="plus" size={15} /> Báo máy hỏng
@@ -832,11 +921,13 @@ function KhungYeuCau({
         <table className="rc__table">
           <thead>
             <tr>
-              <th style={{ width: "12%" }}>Mã YC</th>
-              <th style={{ width: "18%" }}>Máy</th>
+              <th style={{ width: "10%" }}>Mã YC</th>
+              <th style={{ width: "15%" }}>Máy</th>
               <th>Hỏng hóc</th>
-              <th style={{ width: "16%" }}>Người báo</th>
-              <th style={{ width: "16%" }}>Trạng thái</th>
+              <th style={{ width: "14%" }}>Người báo</th>
+              <th style={{ width: "13%" }}>Trạng thái</th>
+              <th style={{ width: "11%" }}>Thời điểm hỏng</th>
+              <th style={{ width: "9%" }}>Ngày tạo</th>
               <th style={{ width: "8%" }} className="text-center">Ảnh</th>
             </tr>
           </thead>
@@ -844,14 +935,14 @@ function KhungYeuCau({
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={`sk-${i}`} className="rc-skel__row">
-                  {Array.from({ length: 6 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <td key={j}><span className="rc-skel" style={{ width: "70%" }} /></td>
                   ))}
                 </tr>
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="rc__empty-state-td">
+                <td colSpan={8} className="rc__empty-state-td">
                   <div className="rc__empty-state">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                       strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="rc__empty-icon">
@@ -859,13 +950,13 @@ function KhungYeuCau({
                       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                     </svg>
                     <p className="rc__empty-text">
-                      {tongTatCa === 0
+                      {chuaCo
                         ? "Chưa ai báo máy hỏng. Máy trục trặc thì báo ngay — tổ sửa chữa thấy liền."
                         : tab === "cho_tiep_nhan"
                           ? "Không còn yêu cầu nào chờ tiếp nhận."
                           : "Không có yêu cầu nào khớp bộ lọc."}
                     </p>
-                    {tongTatCa === 0 ? (
+                    {chuaCo ? (
                       guiDuoc && (
                         <Button variant="ghost" onClick={() => setMo("new")}>
                           <Icon name="plus" size={15} /> Báo máy hỏng
@@ -873,7 +964,7 @@ function KhungYeuCau({
                       )
                     ) : (
                       <Button variant="ghost"
-                        onClick={() => doiLoc(() => { setQ(""); setCuaToi(false); setTab("all"); })}>
+                        onClick={() => doiLoc(() => { setQ(""); onLocMan(LOC_MAN_TRONG); setTab("all"); })}>
                         Xoá bộ lọc
                       </Button>
                     )}
@@ -884,7 +975,6 @@ function KhungYeuCau({
               <tr key={r.id} className="rc__row" onClick={() => setMo(r)}>
                 <td className="rc__mono rc__nowrap">
                   <span className="rc__code-badge ktm-ma">{r.ma}</span>
-                  <div className="ktm-phu">{fmtNgayGio(r.thoi_diem)}</div>
                 </td>
                 <td className="rc__name">
                   {r.may_ma ? <span className="ktm-may-badge">{r.may_ma}</span> : "—"}
@@ -914,6 +1004,8 @@ function KhungYeuCau({
                   </Badge>
                   {r.phieu_ma && <div className="ktm-phu">{r.phieu_ma}</div>}
                 </td>
+                <td className="rc__nowrap">{fmtNgayGio(r.thoi_diem)}</td>
+                <ONgay v={r.created_at} />
                 <td className="text-center rc__nowrap">
                   <span className={`ktm-anhchip${r.so_anh === 0 ? "" : " is-du"}`}>
                     <Icon name="camera" size={12} /> {r.so_anh} ảnh
@@ -924,7 +1016,11 @@ function KhungYeuCau({
           </tbody>
         </table>
       </div>
-      <Pager total={total} page={page} size={SIZE} onPage={setPage} loading={loading} unit="yêu cầu" />
+      {total > 0 && (
+        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+          onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+          donVi="yêu cầu" ariaLabel="Phân trang yêu cầu sửa chữa" />
+      )}
 
       {mo && (
         <YeuCauDrawer

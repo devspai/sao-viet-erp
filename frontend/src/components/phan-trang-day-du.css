@@ -1,5 +1,5 @@
 /* Chân bảng phân trang đầy đủ (`PhanTrangDayDu`) — khuôn dời nguyên từ màn Nhật ký (05/10/2026,
-   trước đó là `.act-footer*` trong `pages/activity.css`). Dùng chung: Nhật ký · 9 màn danh mục. */
+   trước đó là `.act-footer*` trong `pages/activity.css`). Dùng chung: Nhật ký + mọi bảng danh sách của sidebar. */
 .ptdd {
   display: flex;
   align-items: center;
@@ -11,6 +11,11 @@
   font-size: 12px;
   color: var(--ash-2);
   flex-wrap: wrap;
+}
+
+.ptdd__ghichu {
+  margin-left: 8px;
+  opacity: 0.85;
 }
 
 .ptdd__nav {

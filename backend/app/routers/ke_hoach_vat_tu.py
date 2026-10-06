@@ -15,7 +15,7 @@ Dependency dựng INLINE (`get_service`) theo lối `routers/kho_request.py`, kh
 """
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -93,6 +93,9 @@ def can_doi(
     _user: Annotated[object, Depends(require_permission(MODULE, "read"))],
     q: str | None = Query(default=None, description="Mã lệnh / mã hoặc tên mặt hàng"),
     chi_thieu: bool = Query(default=False, description="Chỉ nhóm có dòng đỏ"),
+    hang_loai: Literal["giay", "vat_tu"] | None = Query(default=None, description="Loại hàng"),
+    tinh_trang: Literal["thieu", "khong_ro", "du"] | None = Query(
+        default=None, description="Tab: nhóm đang thiếu / chưa rõ đơn vị / đã đủ"),
 ) -> CanDoiOut:
     def tinh() -> dict:
         bang = svc.can_doi(q=q, chi_thieu=chi_thieu)
@@ -102,23 +105,29 @@ def can_doi(
     try:
         # Cache 45 giây theo (q, chi_thieu) — kết quả không phụ thuộc người gọi (xem
         # `services/can_doi_cache.py`); xoá sớm khi có `ke_hoach_vat_tu_thay_doi`/`lsx_changed`.
-        return CanDoiOut(**lay_hoac_tinh(tinh, q=q or "", chi_thieu=bool(chi_thieu)))
+        bang = lay_hoac_tinh(tinh, q=q or "", chi_thieu=bool(chi_thieu))
     except KeHoachVatTuError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
+    # Tab + điều kiện lọc chạy SAU cache: đổi tab không dựng lại bảng toàn xưởng.
+    items, dem = KeHoachVatTuService.loc_hien_thi(
+        bang["items"], hang_loai=hang_loai, tinh_trang=tinh_trang)
+    return CanDoiOut(items=items, so_giu_lau=bang.get("so_giu_lau", 0), dem=dem)
 
 
 @router.get("/theo-lenh", response_model=TheoLenhOut)
 def theo_lenh(
-    giu: GiuCho,
+    giu_cho: GiuCho,
     _user: Annotated[object, Depends(require_permission(MODULE, "read"))],
     q: str | None = Query(default=None, description="Mã lệnh / mã hoặc tên mặt hàng"),
     chi_can_lo: bool = Query(default=False, description="Chỉ lệnh còn việc phải lo"),
     chi_giu_lau: bool = Query(default=False, description="Chỉ lệnh giữ lâu mà chưa xếp lịch"),
+    giu: Literal["du", "dang", "tat", "giu_lau"] | None = Query(
+        default=None, description="Tab: giữ đủ / đang giữ dở / chưa giữ / giữ lâu"),
 ) -> TheoLenhOut:
     """CÙNG bảng cân đối, xoay theo LỆNH. Quyền y hệt `/can-doi` — vẫn chỉ là công cụ NHÌN."""
     try:
-        return TheoLenhOut(**giu.theo_chu_the(q=q, chi_can_lo=chi_can_lo,
-                                              chi_giu_lau=chi_giu_lau))
+        return TheoLenhOut(**giu_cho.theo_chu_the(q=q, chi_can_lo=chi_can_lo,
+                                                  chi_giu_lau=chi_giu_lau, giu=giu))
     except KeHoachVatTuError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
 

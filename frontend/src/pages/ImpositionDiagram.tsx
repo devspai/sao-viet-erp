@@ -2,6 +2,7 @@
 // KHÔNG tự tính layout kiểu khác: gọi endpoint (debounce ~300ms) → dùng cols/rows/rotated/usable
 // để hình luôn khớp số con thật. con=0 (khổ TP > khổ in) → cảnh báo đỏ "không vừa". SVG thuần,
 // viewBox theo khổ (mm), token repo (rust accent), KHÔNG emoji.
+import "./ImpositionDiagram.css";
 import { useEffect, useRef, useState } from "react";
 import { api, type BinhBaiOut } from "../api/client";
 import { useAuth } from "../auth/useAuth";

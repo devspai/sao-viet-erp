@@ -72,6 +72,67 @@
 .mine__name-edit:hover { background: rgba(255, 255, 255, .15); color: #ffffff; }
 .mine__name-edit:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
 
+/* --- Hero nhân viên: thông tin tách thành ô (nhãn trên, giá trị dưới), KHÔNG nối bằng "·" ---- */
+.mine__hero:has(.mine__heroside) { align-items: flex-start; }
+.mine__name-req {
+  border-radius: var(--r-3); border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .06);
+}
+.mine__tip {
+  position: absolute; left: 50%; top: calc(100% + 8px); transform: translateX(-50%); z-index: 3;
+  white-space: nowrap; padding: 6px 10px; border-radius: var(--r-3);
+  background: var(--canvas); color: var(--ink); font-size: 12px; font-weight: var(--fw-regular);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .25); opacity: 0; pointer-events: none; transition: opacity .12s;
+}
+.mine__name-req:hover .mine__tip, .mine__name-req:focus-visible .mine__tip { opacity: 1; }
+
+.mine__hero .mine__herotitle { margin: 2px 0 10px; font-size: 14.5px; color: rgba(255, 255, 255, .88); }
+.mine__herotags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--sp-5); }
+.mine__herotag {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, .1); color: rgba(255, 255, 255, .88); font-size: 12.5px;
+}
+.mine__herotag svg { opacity: .7; }
+
+/* Trần 220px/ô: màn rộng không kéo ba ô cách nhau cả trăm px — chúng đứng thành cụm bên trái. */
+.mine__facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 220px)); gap: var(--sp-4) var(--sp-6); }
+.mine__fact { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.mine__fact > svg { flex: none; margin-top: 3px; color: rgba(255, 255, 255, .45); }
+.mine__fact > div { min-width: 0; }
+
+.mine__hero .mine__lab {
+  margin: 0 0 2px; font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
+  color: rgba(255, 255, 255, .55);
+}
+.mine__hero .mine__val { margin: 0; font-size: 14px; font-weight: var(--fw-medium); color: #ffffff; overflow-wrap: anywhere; }
+.mine__hero .mine__sub { margin: 2px 0 0; font-size: 12.5px; color: rgba(255, 255, 255, .6); }
+.mine__hero .mine__sub--warn { color: #fde047; }
+.mine__hero .mine__sub--muted { color: rgba(255, 255, 255, .45); font-size: 12px; }
+
+.mine__heroside {
+  flex: none; width: 260px; align-self: stretch;
+  display: flex; flex-direction: column; gap: var(--sp-5);
+  padding-left: var(--sp-6); border-left: 1px solid rgba(255, 255, 255, .12);
+}
+.mine__mgr { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.mine__mgr-av {
+  width: 36px; height: 36px; flex: none; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center; background: #e2e8f0; color: #334155;
+  font-size: 13px; font-weight: var(--fw-medium);
+}
+.mine__mgr-av img { width: 100%; height: 100%; object-fit: cover; }
+.mine__hero .mine__ct { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 14px; color: #ffffff; }
+.mine__ct > svg { flex: none; color: rgba(255, 255, 255, .45); }
+.mine__ct-them {
+  padding: 0; background: none; border: 0; text-align: left;
+  color: #fde047; font: inherit; font-size: 13px; cursor: pointer;
+  /* text-decoration chứ không border-bottom: điện thoại ép nút cao 44px, gạch chân sẽ rơi xa chữ. */
+  text-decoration: underline dashed rgba(253, 224, 71, .5); text-underline-offset: 3px;
+}
+.mine__ct-them:hover { text-decoration-style: solid; }
+.mine__ct-them:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
+.mine__ct-thieu { color: rgba(255, 255, 255, .5); font-size: 13px; }
+
 /* --- Thẻ self-service (2 cột) ----------------------------------------------- */
 .mine__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-4); }
 .mine__card {
@@ -255,6 +316,9 @@ div.mine__stat { cursor: default; }
 /* `table-layout: fixed` là BẮT BUỘC — thiếu nó thì ô "Nội dung" cứ nở ra thay vì cắt ellipsis. */
 .mine__reqtable table { table-layout: fixed; }
 .mine__reqtable .ns__table td { padding: 9px 14px; }
+/* Khung bảng tự có viền ⇒ chân phân trang nối vào làm đáy của nó, không trôi lơ lửng bên dưới. */
+.mine__reqtable:has(+ .ptdd) { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.mine__reqtable + .ptdd { border: 1px solid var(--rule); border-top: 0; border-radius: 0 0 var(--r-5) var(--r-5); }
 
 .mine__reqrow { cursor: pointer; transition: background-color var(--duration-fast) var(--easing-standard); }
 .mine__reqrow:hover { background: var(--rule-hair); }
@@ -638,3 +702,22 @@ input.mine__input-num::placeholder {
 }
 
 
+
+/* Hero nhân viên ở khổ hẹp — đặt CUỐI file để đè luật căn giữa của @media 640 ở trên. */
+@media (max-width: 1023px) {
+  .mine__hero:has(.mine__heroside) { flex-wrap: wrap; }
+  .mine__hero:has(.mine__heroside) .mine__heroside {
+    width: 100%; flex-direction: row; flex-wrap: wrap; gap: var(--sp-4) var(--sp-8);
+    padding: var(--sp-4) 0 0; border-left: 0; border-top: 1px solid rgba(255, 255, 255, .12);
+  }
+}
+@media (max-width: 640px) {
+  .mine__hero:has(.mine__heroside) { align-items: flex-start; text-align: left; }
+  .mine__hero:has(.mine__heroside) .mine__heroid h1 { justify-content: flex-start; }
+  .mine__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); }
+  .mine__hero:has(.mine__heroside) .mine__heroside { flex-direction: column; }
+  /* Luật chạm 44px (responsive.css) kéo ✎ thành ô đứng — giữ ô vuông 32px, vùng chạm đã có
+     `::before` nới 9px mỗi phía (50px). */
+  .shell__content .mine__name-req { min-height: 0; width: 32px; height: 32px; }
+  .mine__tip { left: 0; transform: none; white-space: normal; width: 220px; }
+}

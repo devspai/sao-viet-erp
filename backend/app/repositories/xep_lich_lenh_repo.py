@@ -6,11 +6,12 @@ duyệt vài chục lệnh, hỏi routing từng lệnh là đúng bài N+1 đã
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
+from ..models.customer import Customer
 from ..models.department import Department
 from ..models.don_vi_do import DonViDo
 from ..models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc
@@ -19,7 +20,15 @@ from ..models.san_xuat import (
     GOI_DANG_PHAT_HANH, SanXuatCongViec, SanXuatCongViecLichSu, SanXuatGoiPhatHanh,
 )
 from ..models.san_xuat_thuc_thi import SanXuatPhienChay
+from ..models.order import Order
 from ..models.xep_lich_lenh import XepLichLenh
+from .loc_danh_sach import dk_khoang_ngay
+
+#: Mốc kỳ của hàng chờ → (cột, là cột Date).
+MOC_HANG_CHO = {
+    "tao": (Lsx.created_at, False),
+    "han_sx": (Lsx.han_hoan_thanh_sx, True),
+}
 
 
 class XepLichLenhRepository:
@@ -186,13 +195,10 @@ class XepLichLenhRepository:
         rows = self.db.execute(select(Lsx).where(Lsx.id.in_(lsx_ids))).scalars()
         return {r.id: r for r in rows}
 
-    def hang_cho(self, *, trang_thai: tuple[str, ...], tim: str | None,
-                 trang: int, cd_trang: int) -> tuple[list[Lsx], int]:
-        """Lệnh đủ điều kiện xếp mà CHƯA có mốc. Lọc + phân trang Ở MÁY CHỦ, luôn.
-
-        Cắt trang trong JS sau khi kéo cả bảng về là đường đã bị bác một lần — thẻ hàng chờ có thể
-        lên vài trăm khi xưởng dồn việc cuối tháng.
-        """
+    def _dk_hang_cho(self, *, trang_thai: tuple[str, ...], tim: str | None = None,
+                     tu_ngay: date | None = None, den_ngay: date | None = None,
+                     moc: str = "tao", khach_id: int | None = None) -> list:
+        """Điều kiện của hàng chờ — dùng chung cho danh sách và nguồn ô "Khách hàng"."""
         dieu_kien = [
             Lsx.trang_thai.in_(trang_thai),
             ~select(XepLichLenh.id).where(XepLichLenh.lsx_id == Lsx.id).exists(),
@@ -200,6 +206,42 @@ class XepLichLenhRepository:
         if tim:
             mau = f"%{tim.strip()}%"
             dieu_kien.append(or_(Lsx.ma.ilike(mau), Lsx.ten.ilike(mau)))
+        cot, la_ngay = MOC_HANG_CHO[moc]
+        dieu_kien += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
+        if khach_id is not None:
+            dieu_kien.append(Lsx.order_id.in_(
+                select(Order.id).where(Order.customer_id == khach_id)))
+        return dieu_kien
+
+    def khach_hang_cho(self, *, trang_thai: tuple[str, ...], tim: str | None = None,
+                       tu_ngay: date | None = None, den_ngay: date | None = None,
+                       moc: str = "tao") -> list[tuple[int, str, int]]:
+        """Nguồn ô "Khách hàng": khách đang có lệnh trong hàng chờ (đã qua tìm + kỳ), kèm số lệnh."""
+        dk = self._dk_hang_cho(trang_thai=trang_thai, tim=tim, tu_ngay=tu_ngay,
+                               den_ngay=den_ngay, moc=moc)
+        rows = self.db.execute(
+            select(Customer.id, Customer.name, func.count(Lsx.id))
+            .select_from(Lsx)
+            .join(Order, Order.id == Lsx.order_id)
+            .join(Customer, Customer.id == Order.customer_id)
+            .where(*dk)
+            .group_by(Customer.id, Customer.name)
+            .order_by(Customer.name)
+        ).all()
+        return [(int(i), t or f"Khách #{i}", int(n)) for i, t, n in rows]
+
+    def hang_cho(self, *, trang_thai: tuple[str, ...], tim: str | None,
+                 trang: int, cd_trang: int, tu_ngay: date | None = None,
+                 den_ngay: date | None = None, moc: str = "tao",
+                 khach_id: int | None = None) -> tuple[list[Lsx], int]:
+        """Lệnh đủ điều kiện xếp mà CHƯA có mốc. Lọc + phân trang Ở MÁY CHỦ, luôn.
+
+        Cắt trang trong JS sau khi kéo cả bảng về là đường đã bị bác một lần — thẻ hàng chờ có thể
+        lên vài trăm khi xưởng dồn việc cuối tháng. Kỳ (`tu_ngay`/`den_ngay`/`moc`) + khách thêm
+        06/10/2026 cho thanh lọc chung.
+        """
+        dieu_kien = self._dk_hang_cho(trang_thai=trang_thai, tim=tim, tu_ngay=tu_ngay,
+                                      den_ngay=den_ngay, moc=moc, khach_id=khach_id)
         tong = self.db.execute(
             select(func.count()).select_from(Lsx).where(*dieu_kien)
         ).scalar_one()

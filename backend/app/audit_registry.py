@@ -97,8 +97,8 @@ _HD += _dong("kinh_doanh", "don_hang_ban", {
     "update_production_hint": "Sửa lưu ý sản xuất của đơn",
     "push_production": "Đẩy đơn xuống sản xuất",
     "release_production": "Phát lệnh sản xuất từ đơn",
-    "upload_consent": "Tải lên xác nhận của khách",
-    "delete_consent": "Xoá xác nhận của khách",
+    "upload_consent": "Đính kèm tệp vào đơn",
+    "delete_consent": "Xoá tệp đính kèm của đơn",
 })
 _HD += _dong("kinh_doanh", "tinh_gia_thanh", {
     "create_ptg": "Tạo phiếu tính giá",
@@ -122,6 +122,7 @@ _HD += _dong("san_xuat", "san_xuat", {
     "gia_cong_ngoai_mo_lai": "Mở lại lần gia công ngoài",
     "gia_cong_ngoai_huy": "Huỷ gia công ngoài",
     "gia_cong_ngoai_xuat_giay": "Đề nghị xuất giấy cho gia công ngoài",
+    "gia_cong_ngoai_don_gia": "Sửa đơn giá gia công ngoài",
 })
 _HD += _dong("san_xuat", "bai_ghep_2", {
     "tao_bai_ghep": "Tạo bài ghép",

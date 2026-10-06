@@ -26,14 +26,15 @@ export function nhanKho(khoRong: number | null | undefined, khoDai: number | nul
   return "chưa có khổ";
 }
 
-/** Dòng giấy: "Tờ · 780 × 905 mm" / "Cuộn · khổ 1000 mm". Hàng khác (không có dạng) ⇒ chuỗi rỗng. */
+/** Dòng giấy: "Tờ 780 × 905 mm" / "Cuộn khổ 1000 mm" — đọc liền như một cụm, không chen dấu `·`.
+ *  Hàng khác (không có dạng) ⇒ chuỗi rỗng. */
 export function nhanDangKho(
   dang: string | null | undefined,
   khoRong: number | null | undefined,
   khoDai: number | null | undefined,
 ): string {
   if (dang !== "to" && dang !== "cuon") return "";
-  return `${DANG_GIAY_NHAN[dang]} · ${nhanKho(khoRong, khoDai)}`;
+  return `${DANG_GIAY_NHAN[dang]} ${nhanKho(khoRong, khoDai)}`;
 }
 
 /** Khoá DÒNG TỒN dạng chuỗi — phản chiếu `khoa_ton_cua` (backend): giấy tờ `giay:id:rộng:dài`, giấy
