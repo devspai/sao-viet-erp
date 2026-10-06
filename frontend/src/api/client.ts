@@ -9439,6 +9439,8 @@ export interface LenhSxTienDo {
   /** Khâu của lệnh — cùng hàm với cột Trạng thái ở danh sách. */
   khau: LenhSxKhau;
   khau_chi_tiet: LenhSxKhauChiTiet | null;
+  /** Câu chữ đèn vật tư khi đèn ĐỎ (vd "Chưa giữ chỗ vật tư"); `null` khi không đỏ. */
+  vat_tu_chu: string | null;
 }
 
 /** Ảnh chụp thông số kỹ thuật từ phiếu tính giá. Khoá thiếu (lệnh cũ) ⇒ `null` ⇒ UI hiện "—",

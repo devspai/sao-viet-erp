@@ -126,6 +126,8 @@ class TienDoOut(BaseModel):
     # `khau = sau_sx` (`dang_kcs` / `cho_nhap_kho` / `san_sang_giao`).
     khau: str = "dang_sx"
     khau_chi_tiet: str | None = None
+    # Câu chữ đèn vật tư khi đèn ĐỎ (vd "Chưa giữ chỗ vật tư"); None khi không đỏ.
+    vat_tu_chu: str | None = None
 
 
 class ThongSoOut(BaseModel):

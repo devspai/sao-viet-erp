@@ -1081,3 +1081,12 @@ def test_phan_dau_ho_so_co_khau_da_dong_va_nhom(client, seed_credentials, sess, 
     sess.get(Lsx, lenh_that).trang_thai = "da_dong"
     sess.commit()
     assert _ho_so(client, seed_credentials, lenh_that)["thong_tin"]["da_dong"] is True
+
+
+def test_den_vat_tu_do_thi_ho_so_noi_dung_cau_cua_den(client, seed_credentials, lenh_that):
+    """Bấm thử 06/10/2026: kho DƯ mà lệnh chưa giữ chỗ ⇒ đèn vật tư đỏ, băng hồ sơ tự đếm dòng
+    thiếu rồi bịa "1 mặt hàng đang thiếu". Nay máy chủ trả NGUYÊN câu của đèn để băng nói đúng lý do.
+    `lenh_that` không khai vật tư ở bước nào ⇒ đèn đỏ với lý do đó, bảng vật tư không có dòng thiếu."""
+    d = _ho_so(client, seed_credentials, lenh_that)
+    assert "thieu_vat_tu" in d["tien_do"]["canh_bao"]
+    assert d["tien_do"]["vat_tu_chu"] == "Chưa khai vật tư nào ở bước — kể cả giấy"

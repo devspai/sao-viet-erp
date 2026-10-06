@@ -76,6 +76,7 @@ from ...models.user import User
 from ...repositories.bai_ghep_repo import BaiGhepRepository
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ..gio_xuong import lich_hien_thi, thuc_te_hien_thi
+from .. import lsx_tong_quan
 from . import boi_canh, danh_sach, pham_vi, tien_do, trang_thai
 from .boi_canh import BoiCanh
 
@@ -179,6 +180,8 @@ def _tien_do(bc: BoiCanh, lsx_id: int, bay_gio: datetime, tinh: dict) -> dict:
         "da_giao": bc.da_giao_cua(lsx_id),
         "khau": khau,
         "khau_chi_tiet": khau_ct,
+        # Câu chữ đèn vật tư khi đèn ĐỎ (cờ `thieu_vat_tu`), None khi không đỏ.
+        "vat_tu_chu": tinh.get("vat_tu_chu"),
     }
 
 
@@ -971,13 +974,17 @@ def ho_so(
     # dựng để tính đèn. Bản trước gọi `can_doi()` lượt thứ hai ở đây — chạy lại đúng engine vừa
     # chạy xong, đo được 143 câu SQL cho một lần mở hồ sơ (1 bài ghép trong kho).
     den = bang = None
+    chu_den: dict[int, str] = {}
     tinh = None
     if can & {"tien_do", "vat_tu"}:
-        den, bang = trang_thai.den_va_bang(db, [lsx_id])
+        den, bang, chu_den = trang_thai.den_va_bang(db, [lsx_id])
     if "tien_do" in can:
         xong = tien_do.du_kien_xong(bc, lsx_id, bay_gio)
         tinh = {
             "xong": xong,
+            "vat_tu_chu": (
+                chu_den.get(lsx_id) if (den or {}).get(lsx_id) == lsx_tong_quan.MUC_DO else None
+            ),
             "canh_bao": trang_thai.co_canh_bao(bc, lsx_id, bay_gio, den_vat_tu=den, xong=xong),
             "trang_thai": trang_thai.trang_thai_chinh(
                 bc, lsx_id, bay_gio, den_vat_tu=den, xong=xong

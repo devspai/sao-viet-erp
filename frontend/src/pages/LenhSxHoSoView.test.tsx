@@ -40,7 +40,7 @@ const HOSO: LenhSxHoSoOut = {
     du_kien_xong: "2026-09-08T09:00:00Z", trang_thai: "dang_sx", canh_bao: ["su_co"],
     buoc_hien_tai: "In", buoc_hien_tai_cong_viec_id: 501, nhom_cong_doan: "in",
     may: "Máy in A", nguoi: ["Thợ Nam", "Thợ Bình"], da_giao: 200,
-    khau: "dang_sx", khau_chi_tiet: null,
+    khau: "dang_sx", khau_chi_tiet: null, vat_tu_chu: null,
   },
   thong_so: {
     giay_ten: "Couche 250", dinh_luong: 250,
@@ -486,6 +486,20 @@ describe("Hồ sơ lệnh sản xuất · phần đầu gọn (05/10/2026)", () 
     expect(screen.getByText("bước 2 trên 3")).toBeInTheDocument();
     expect(screen.getByText("Dự kiến xong 08/09, kịp")).toBeInTheDocument();
     expect(screen.getByText("200 trên 12.000 cái")).toBeInTheDocument();
+  });
+
+  it("⭐ đèn vật tư đỏ ⇒ băng nói ĐÚNG câu máy chủ, không tự đếm 'N mặt hàng thiếu'", async () => {
+    // Bắt được khi bấm thử 06/10/2026: kho dư mà chưa giữ chỗ ⇒ đèn đỏ, băng cũ bịa "1 mặt hàng".
+    stubApi({
+      ...HOSO,
+      su_co: [],
+      tien_do: { ...HOSO.tien_do, canh_bao: ["thieu_vat_tu"], vat_tu_chu: "Chưa giữ chỗ vật tư" },
+    });
+    ve();
+    await screen.findByText("LSX26-0031");
+    const dong = screen.getByText("Chưa giữ chỗ vật tư").closest("li");
+    expect(dong?.className).toContain("lhs-canhbao__do");
+    expect(screen.queryByText(/mặt hàng đang thiếu/)).toBeNull();
   });
 
   it("⭐ dự kiến vượt hạn ⇒ 'trễ N ngày'", async () => {

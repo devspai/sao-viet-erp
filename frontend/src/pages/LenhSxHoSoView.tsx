@@ -186,14 +186,11 @@ export function LenhSxHoSoView({
   const kcsHong = td?.canh_bao.includes("kcs_khong_dat")
     ? (d?.kcs.batch.filter((b) => b.ket_luan === "khong_dat") ?? [])
     : [];
-  const soThieu = useMemo(() => {
-    if (!d || !d.tien_do.canh_bao.includes("thieu_vat_tu")) return 0;
-    const k = new Set<string>();
-    for (const v of [...d.vat_tu.hien_tai.dong, ...d.vat_tu.canh_bao_sau]) {
-      if ((v.thieu ?? 0) > 0) k.add(`${v.hang_loai}-${v.hang_id}`);
-    }
-    return Math.max(k.size, 1);
-  }, [d]);
+  // Lý do đèn vật tư đỏ lấy NGUYÊN câu máy chủ — đèn đỏ cả khi kho dư mà chưa giữ chỗ, nên tự đếm
+  // dòng thiếu trong bảng là bịa ra "1 mặt hàng đang thiếu" (bắt được khi bấm thử 06/10/2026).
+  const thieuVatTu = td?.canh_bao.includes("thieu_vat_tu")
+    ? (td.vat_tu_chu ?? "Đèn vật tư đang đỏ")
+    : null;
 
   const nhanTrenNen = useRef(false);
   const xongSx = td ? td.khau !== "dang_sx" : false;
@@ -276,7 +273,7 @@ export function LenhSxHoSoView({
               </div>
             )}
 
-            {d && (suCoMo.length > 0 || suCoDangSua.length > 0 || kcsHong.length > 0 || soThieu > 0) && (
+            {d && (suCoMo.length > 0 || suCoDangSua.length > 0 || kcsHong.length > 0 || thieuVatTu) && (
               <ul className="lhs-canhbao" aria-label="Cảnh báo của lệnh">
                 {suCoMo.map((s) => (
                   <li key={s.id} className="lhs-canhbao__do">
@@ -303,10 +300,10 @@ export function LenhSxHoSoView({
                     <span className="lsc-phu">{b.ket_thuc ? ngayGio(b.ket_thuc) : "—"}</span>
                   </li>
                 ))}
-                {soThieu > 0 && (
+                {thieuVatTu && (
                   <li className="lhs-canhbao__do">
-                    <b>Thiếu vật tư</b>
-                    <span>{soThieu} mặt hàng đang thiếu</span>
+                    <b>Vật tư</b>
+                    <span>{thieuVatTu}</span>
                     <button type="button" className="lsc-link" onClick={() => toiMuc("vat-tu")}>
                       Xem mục Vật tư
                     </button>

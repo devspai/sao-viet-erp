@@ -146,8 +146,12 @@ def den_vat_tu_theo_lo(db: Session, lsx_ids: list[int]) -> dict[int, str]:
     return den_va_bang(db, lsx_ids)[0]
 
 
-def den_va_bang(db: Session, lsx_ids: list[int]) -> tuple[dict[int, str], dict | None]:
-    """Như `den_vat_tu_theo_lo`, nhưng TRẢ KÈM bảng cân đối mà lượt đó vừa dựng.
+def den_va_bang(
+    db: Session, lsx_ids: list[int]
+) -> tuple[dict[int, str], dict | None, dict[int, str]]:
+    """Như `den_vat_tu_theo_lo`, nhưng TRẢ KÈM bảng cân đối mà lượt đó vừa dựng, và CÂU CHỮ của
+    đèn (`{lsx_id: chu}`, vd "Chưa giữ chỗ vật tư") — hồ sơ phải nói đúng lý do đèn đỏ; tự đếm dòng
+    thiếu trong bảng thì ra "1 mặt hàng đang thiếu" cho một lệnh mà kho dư (06/10/2026).
 
     Cửa cho màn hồ sơ MỘT lệnh: nó cần chính các DÒNG của bảng cân đối, và không có cửa này thì
     nó phải gọi `can_doi()` lượt thứ hai — chạy lại đúng engine vừa chạy xong ở đây (đo được: một
@@ -161,7 +165,7 @@ def den_va_bang(db: Session, lsx_ids: list[int]) -> tuple[dict[int, str], dict |
     SQL của nó (`test_so_cau_sql_hang_tren_truc_lenh`) không bị chạm.
     """
     den, bang = lsx_tong_quan.den_vat_tu_va_bang(db, lsx_ids)
-    return {i: d["muc"] for i, d in den.items()}, bang
+    return {i: d["muc"] for i, d in den.items()}, bang, {i: d["chu"] for i, d in den.items()}
 
 
 def _co_su_co_dang_mo(bc: BoiCanh, lsx_id: int) -> bool:
