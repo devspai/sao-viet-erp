@@ -1,91 +1,32 @@
-"""Tầng DANH SÁCH + KPI của màn "Hồ sơ lệnh sản xuất" (Task 9) — cửa HTTP đầu tiên của cả tầng đọc.
+"""Tầng DANH SÁCH của màn "Hồ sơ lệnh sản xuất" — tra cứu mọi lệnh đã phát hành (làm gọn 05/10/2026).
 
-Hai hàm: `danh_sach()` (bảng + facet tab) và `summary()` (4 thẻ KPI). Cả hai CHỈ ĐỌC.
+`danh_sach()` trả bảng + facet bốn tab theo KHÂU (`trang_thai.khau`): Tất cả · Đang sản xuất ·
+Sau sản xuất · Đã giao đủ. Khâu không đọc cờ cảnh báo, nên danh sách KHÔNG chạy `can_doi()` lẫn
+đường găng — cảnh báo là việc của màn Theo dõi (`theo_doi.py`).
 
---- LỌC HAI TẦNG, và nói thẳng ra thay vì giấu (phán quyết C60) ---------------------------------
-`tab` và `tre` KHÔNG phải cột. Chúng là kết quả của `trang_thai.trang_thai_chinh` /
-`tien_do.tre_han`, tính lúc đọc từ 20 map của `boi_canh` — không có mệnh đề `WHERE` nào diễn đạt
-được chúng. Thêm nữa `dem_theo_tab` (số trên từng tab) BẮT BUỘC tính trên TOÀN BỘ tập đã lọc chứ
-không phải trang đang xem: tab hiện "3" trong khi tập có 47 là một con số sai mà không ai thấy sai.
+Lọc hai tầng, như trước:
+  TẦNG 1 — SQL (`_loc_sql`): phạm vi người bán + đã phát hành, `q`, khách, khoảng hạn SX.
+  TẦNG 2 — Python: lệnh đã giao hết tách bằng `_tach_da_giao_het` (A7, không nạp); lệnh còn sống
+           qua MỘT `boi_canh.nap()` rồi `khau()` ⇒ đếm tab ⇒ lọc tab ⇒ sắp ⇒ cắt trang.
 
-Nên đường đi là:
+Sắp: tab Đang sản xuất và Sau sản xuất giữ GẤP → hạn tăng → mã (`_khoa_sap`); tab Tất cả và Đã giao
+đủ là tra cứu nên hạn GIẢM dần → mã (`_khoa_sap_tra_cuu`) — xếp tăng thì trang 1 toàn lệnh cũ.
 
-  TẦNG 1 — SQL (`_loc_sql`): phạm vi người bán + `da_phat_hanh` (`pham_vi.loc_lsx_da_phat_hanh`),
-           `q`, khoảng ngày hạn SX, `may_id`, `nhom_cong_doan`, `uu_tien`. Trả về TẬP `lsx_id`.
-  TẦNG 2 — Python (`_soi`): MỘT lần `boi_canh.nap()` + MỘT lần `den_vat_tu_theo_lo()` cho cả tập
-           ⇒ trạng thái + cờ cảnh báo ⇒ dựng `dem_theo_tab` ⇒ lọc `tab`/`tre` ⇒ SẮP ⇒ CẮT TRANG.
+`_soi`, `buoc_hien_tai`, `may_cua_buoc`, `chang` giữ nguyên chữ ký: đơn hàng bán
+(`services/don_hang_tien_do.py`) và Theo dõi gọi chúng.
 
-Điều bị cấm ở dự án này là CLIENT kéo cả bảng về rồi slice trong JS. Tính dẫn xuất ở MÁY CHỦ trên
-một tập đã hẹp là chuyện khác — trình duyệt vẫn chỉ nhận đúng một trang.
-
-CHI PHÍ PHẢI BIẾT (đo lại 30/09/2026 — bản trước của đoạn này đã cũ, đừng dẫn lại):
-  * Tầng 1 trả MỌI lệnh đã phát hành trong phạm vi (trừ phần `q`/ngày/máy/nhóm cắt bớt) — tập này
-    tăng theo thời gian, nhưng chỉ tốn MỘT cột ID + ba cột nhẹ (`_tach_da_giao_het`). Lệnh ĐÃ GIAO
-    HẾT xếp tab từ hai con số và chỉ nạp khi rơi vào trang đang xem (A7, 28/09/2026). Đi đường cũ
-    (nạp cả lịch sử) chỉ còn bộ lọc `tre` — xem chú thích tại chỗ.
-    "Rẻ" chỉ đúng khi câu cộng số đã giao KHÔNG lọc trạng thái chuyến trong SQL (xem
-    `lenh_sx_doc_repo.lenh_nhe`): bản lọc trong SQL tăng theo bình phương lịch sử — 2.000 lệnh đã
-    giao làm danh sách 2,96s / KPI 2,66s; lọc ở Python còn 0,51s / 0,31s (30/09/2026).
-  * Phần nặng (`_soi` → `boi_canh.nap` + đèn vật tư → `can_doi()`) tuyến tính theo lệnh CÒN SỐNG,
-    không theo lịch sử: bảng cân đối chỉ tính `TRANG_THAI_TINH` (lệnh `da_dong` đã rời phạm vi).
-    Đo engine cân đối: ~0,5 ms mỗi lệnh còn sống; số câu SQL KHÔNG đổi theo số lệnh lẫn số bài
-    ghép (5 hay 40 bài đều 25 câu — N+1 theo bài đã vá 18/09/2026, khoá ở
-    `test_ke_hoach_vat_tu_so_truy_van`). Đèn đi qua cache 45 giây (`_den_vat_tu_co_cache`).
-  * Số câu SQL của cả lượt: hằng số theo số lệnh (`test_so_cau_sql_hang_tren_truc_lenh`).
-
-Khi xưởng có hàng nghìn lệnh CÒN SỐNG cùng lúc mới đáng làm tiếp: vật chất hoá `trang_thai_chinh`
-thành cột được ghi lại mỗi lần công việc/KCS/kho/giao hàng đổi, rồi `WHERE` + cắt trang thẳng trong
-SQL. ĐỪNG vá bằng cách đếm tab trên trang đang xem.
-
---- "HÔM NAY" CỦA KPI LÀ NGÀY GIỜ XƯỞNG (phán quyết C61) ----------------------------------------
-Dùng `tien_do.BUSINESS_TZ` (+7), đúng như `tien_do.tre_han` đã làm — KHÔNG phải ngày UTC. Xưởng
-CÓ chạy ca đêm: 2h sáng giờ VN vẫn là ngày HÔM TRƯỚC theo UTC, nên KPI tính theo UTC sẽ cắt đôi
-một ca đêm và đổ nửa đầu sang hôm qua. Bài canh: `test_summary_cong_doan_xong_theo_gio_xuong`.
-
---- BỐN KPI, mỗi cái đọc từ đâu ------------------------------------------------------------------
-  `dang_sx`                — số lệnh trong phạm vi CHƯA ra khỏi nhà máy (`trang_thai_chinh` khác
-                             `TAB_HOAN_THANH`). KHÔNG phải số đếm của tab "Đang SX": lệnh đang
-                             chạy mà dính sự cố nằm ở tab Cảnh báo, nhưng nó vẫn đang sản xuất.
-  `cong_doan_xong_hom_nay` — số CÔNG VIỆC `completed` có `hoan_thanh_luc` rơi vào ngày xưởng hôm
-                             nay. Cột NGHIỆP VỤ riêng (mig `0256`), KHÔNG phải `updated_at`: mốc
-                             bảo trì dời theo mọi `version += 1` về sau, và đó là lỗi ĐÃ ĐO —
-                             `thuc_thi.go_phan_cong` rút người khỏi một bước đã xong cũng
-                             `version += 1`, kéo một bước đóng năm 2020 vào KPI hôm nay. Bịt riêng
-                             đường ghi ấy không xử được lớp lỗi: đường ghi thêm sau lại phá lại,
-                             âm thầm. Dấu đóng ở `thuc_thi.ket_thuc` — chỗ DUY NHẤT trong hệ đặt
-                             `trang_thai='completed'`. Bài canh:
-                             `test_kpi_khong_bi_go_phan_cong_keo_vao_hom_nay`.
-                             KHÔNG đếm qua phiên chạy: bước bị TẠM DỪNG rồi mới Kết thúc không có
-                             phiên nào mang `loai_dong='ket_thuc'` (`thuc_thi.ket_thuc:396` chỉ
-                             đóng phiên ĐANG MỞ, mà việc tạm dừng thì không còn phiên mở) — đếm
-                             kiểu đó là bỏ sót im lặng đúng những bước gặp trục trặc.
-                             Đếm theo ID CÔNG VIỆC (`set`), nên ca in GHÉP phục vụ nhiều lệnh chỉ
-                             tính MỘT — nó là một công đoạn, không phải ba.
-  `du_kien_tre`            — số lệnh chưa xong mà `tien_do.tre_han` bật. Tập con của `dang_sx`:
-                             lệnh đã giao đủ thì không còn "dự kiến" gì để trễ.
-  `ty_le_kcs_dat_hom_nay`  — `Σ so_luong_dat / Σ so_luong_nhan` của các batch KCS KẾT THÚC trong
-                             ngày xưởng, theo SỐ chứ không phải trung bình cộng các batch (batch
-                             10 cái và batch 10.000 cái không cân nhau). Mốc là `ket_thuc` (lúc
-                             kiểm xong) chứ không phải `created_at` (lúc gõ vào máy): ca đêm nhập
-                             số buổi sáng vẫn phải nằm ở ngày kiểm.
-                             KHÔNG kiểm cái nào ⇒ `None`, không phải `0.0`: "0% đạt" là một lời
-                             báo động sai, và nó sẽ xuất hiện mỗi sáng sớm.
-
---- MỘT BẢNG, MỘT SỐ TIỀN CŨNG KHÔNG --------------------------------------------------------------
-Ràng buộc toàn cục của cả plan: không `don_gia` / `gia_von` / `thanh_tien` / `luong_khoan` /
-`chi_phi`. Hàm dựng dòng ở đây chỉ chạm mã · tên · khách · số lượng · thời gian · trạng thái.
+Không một số tiền nào: hàm dựng dòng chỉ chạm mã · tên · khách · đơn · số lượng · hạn · khâu.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ...models.bai_ghep_cong_doan import BaiGhepCongDoanMap
 from ...models.customer import Customer
-from ...models.lsx import Lsx, LsxCongDoan
-from ...models.may_thiet_bi import MayThietBi
+from ...models.lsx import TT_DA_DONG, Lsx, LsxCongDoan
 from ...models.order import Order
 from ...models.san_xuat import CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG, SanXuatCongViec
 from ...repositories.lenh_sx_doc_repo import LenhNhe, LenhSxDocRepository
@@ -93,17 +34,9 @@ from ..can_doi_cache import lay_hoac_tinh
 from . import boi_canh, pham_vi, tien_do, trang_thai
 from .boi_canh import BoiCanh
 
-# Tab thứ BẢY của màn — "tất cả", không phải một trạng thái. Để cạnh `TAB_CHINH` của
-# `trang_thai.py` chứ không trộn vào đó: `trang_thai_chinh` không bao giờ trả giá trị này, mà
-# nhét nó vào `TAB_CHINH` sẽ làm mọi vòng lặp "duyệt 6 tab" ở tầng khác đếm thừa một ô.
+# Tab "tất cả" đứng cạnh ba khâu của `trang_thai.KHAU`; giá trị đi thẳng ra `?tab=` của API.
 TAB_TAT_CA = "tat_ca"
-TAB_CHO_PHEP = (TAB_TAT_CA,) + trang_thai.TAB_CHINH
-
-# Giá trị hợp lệ của bộ lọc `uu_tien`. Bám nguyên chuỗi của `schemas/stock.py:42` để cả hệ nói
-# cùng một từ; cột thật trên lệnh là `lsx.is_rush` (Boolean), không phải một cột chuỗi.
-UU_TIEN_GAP = "gap"
-UU_TIEN_THUONG = "binh_thuong"
-UU_TIEN_CHO_PHEP = (UU_TIEN_GAP, UU_TIEN_THUONG)
+TAB_CHO_PHEP = (TAB_TAT_CA,) + trang_thai.KHAU
 
 PAGE_SIZE_MAC_DINH = 50
 PAGE_SIZE_TOI_DA = 200
@@ -129,18 +62,6 @@ def _aware(dt: datetime) -> datetime:
     cục bộ thay vì import `tien_do._aware` (tên `_`-riêng tư của module khác), đúng thói quen sẵn
     có của gói này."""
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
-
-
-def _ngay_xuong(bay_gio: datetime) -> tuple[datetime, datetime]:
-    """Nửa khoảng `[đầu ngày, đầu ngày sau)` của NGÀY GIỜ XƯỞNG chứa `bay_gio` (phán quyết C61).
-
-    Trả về mốc AWARE nên so được thẳng với `_aware(...)` của mọi cột thời gian, bất kể chúng được
-    lưu ở múi nào.
-    """
-    dau = _aware(bay_gio).astimezone(tien_do.BUSINESS_TZ).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    return dau, dau + timedelta(days=1)
 
 
 # --- TẦNG 1: những gì SQL nói được ---------------------------------------------------------------
@@ -185,22 +106,17 @@ def _co_buoc(cot_cong_viec, cot_routing, gia_tri):
 
 def _loc_sql(
     sale_ids: set[int] | None, *,
-    q: str | None, tu_ngay: date | None, den_ngay: date | None,
-    may_id: int | None, nhom_cong_doan: str | None, uu_tien: str | None,
+    q: str | None, khach_hang_id: int | None, tu_ngay: date | None, den_ngay: date | None,
 ):
-    """`select(Lsx.id)` đã gắn HẾT phần lọc mà SQL diễn đạt được. Phần còn lại ở `_soi`.
+    """`select(Lsx.id)` đã gắn hết phần lọc SQL diễn đạt được.
 
-    Khoảng ngày soi `han_hoan_thanh_sx` — hạn SX NỘI BỘ, cùng cột mà `tien_do.tre_han` lấy làm mốc.
-    Chọn cột này chứ không phải `han_giao_khach` để bộ lọc ngày và cột Trạng thái nói cùng một
-    chuyện; lệnh CHƯA có hạn SX rơi ra ngoài mọi khoảng (NULL không khớp phép so nào) — đúng, vì
-    không có hạn thì không xếp được vào khoảng nào cả.
+    Khoảng ngày soi `han_hoan_thanh_sx` (hạn SX nội bộ); lệnh chưa có hạn rơi ra ngoài mọi khoảng.
+    Khách đi qua SUBQUERY trên `orders`, không `join`: phạm vi hẹp có thể đã join `orders` rồi.
     """
     stmt = pham_vi.loc_lsx_da_phat_hanh(select(Lsx.id), sale_ids)
 
     if q and q.strip():
         mau = f"%{q.strip()}%"
-        # Khách + số đơn đi qua SUBQUERY chứ không JOIN thêm: `loc_lsx_da_phat_hanh` ĐÃ có thể
-        # join `orders` cho phần phạm vi, join lần hai là bảng xuất hiện hai lần trong cùng câu.
         don_khop = (
             select(Order.id)
             .outerjoin(Customer, Customer.id == Order.customer_id)
@@ -209,23 +125,14 @@ def _loc_sql(
         stmt = stmt.where(
             or_(Lsx.ma.ilike(mau), Lsx.ten.ilike(mau), Lsx.order_id.in_(don_khop))
         )
-
+    if khach_hang_id is not None:
+        stmt = stmt.where(
+            Lsx.order_id.in_(select(Order.id).where(Order.customer_id == khach_hang_id))
+        )
     if tu_ngay is not None:
         stmt = stmt.where(Lsx.han_hoan_thanh_sx >= tu_ngay)
     if den_ngay is not None:
         stmt = stmt.where(Lsx.han_hoan_thanh_sx <= den_ngay)
-
-    if may_id is not None:
-        stmt = stmt.where(_co_buoc(SanXuatCongViec.may_id, LsxCongDoan.may_id, may_id))
-    if nhom_cong_doan:
-        stmt = stmt.where(
-            _co_buoc(SanXuatCongViec.nhom_cong_doan, LsxCongDoan.nhom, nhom_cong_doan)
-        )
-
-    if uu_tien == UU_TIEN_GAP:
-        stmt = stmt.where(Lsx.is_rush.is_(True))
-    elif uu_tien == UU_TIEN_THUONG:
-        stmt = stmt.where(Lsx.is_rush.is_(False))
     return stmt
 
 
@@ -400,44 +307,25 @@ def chang(bc: BoiCanh, lsx_id: int, cv_nay: SanXuatCongViec | None) -> list[dict
     return ra
 
 
-def _dong(bc: BoiCanh, lsx_id: int, tinh: dict, bay_gio: datetime) -> dict:
-    """MỘT dòng bảng. Không một con số tiền nào — xem docstring module."""
+def _dong(bc: BoiCanh, lsx_id: int, khau_ct: tuple[str, str | None]) -> dict:
+    """MỘT dòng bảng tra cứu — chỉ cột tĩnh."""
     lsx = bc.lenh[lsx_id]
     don = bc.don.get(lsx.order_id)
     khach = bc.khach.get(don.customer_id) if don is not None and don.customer_id else None
-    sale = bc.sale.get(don.sale_user_id) if don is not None and don.sale_user_id else None
-    cv = buoc_hien_tai(bc, lsx_id)
-    may_id = may_cua_buoc(bc, cv)
-    pct, uoc_tinh = tien_do.phan_tram(bc, lsx_id)
     return {
         "id": lsx.id,
         "ma": lsx.ma,
         "ten": lsx.ten,
-        "khach_hang": khach.name if khach is not None else None,
-        "khach_hang_id": khach.id if khach is not None else None,
-        "sale": sale.name if sale is not None else None,
         "so_luong_dat": lsx.so_luong_dat,
         "don_vi_tinh": lsx.don_vi_tinh,
-        "da_giao": bc.da_giao_cua(lsx_id),
-        "is_rush": bool(lsx.is_rush),
-        "buoc_hien_tai": cv.ten_cong_doan if cv is not None else None,
-        "nhom_cong_doan": cv.nhom_cong_doan if cv is not None else None,
-        "may": may.ten if (may := bc.may.get(may_id)) is not None else None,
-        # Cột "Máy/người" — nửa NGƯỜI. Trả DANH SÁCH tên chứ không phải chuỗi "A +2" dựng sẵn:
-        # cột hẹp thì FE cắt được (và cắt từ cuối, vì thứ tự là thứ tự giao), nhưng tooltip/hồ sơ
-        # cần đủ tên — cắt sẵn ở đây là FE không còn đường lấy hai người kia mà không gọi thêm API.
-        # Rỗng khi bước hiện tại chưa giao ai; ĐỪNG bịa chữ thay thế, đó là việc của UI.
-        "nguoi": bc.nguoi_cua(cv.id) if cv is not None else [],
-        # Cả ĐƯỜNG ĐI của lệnh, không chỉ bước đang đứng — xem `chang()`.
-        "chang": chang(bc, lsx_id, cv),
-        "tien_do_pct": pct,
-        "tien_do_uoc_tinh": uoc_tinh,
-        "gio_may": tien_do.gio_may(bc, lsx_id, bay_gio),
+        "khach_hang": khach.name if khach is not None else None,
+        "order_id": lsx.order_id,
+        "order_no": don.order_no if don is not None else None,
         "han_hoan_thanh_sx": lsx.han_hoan_thanh_sx,
-        "han_giao_khach": lsx.han_giao_khach,
-        "du_kien_xong": tinh["xong"],
-        "trang_thai": tinh["trang_thai"],
-        "canh_bao": tinh["canh_bao"],
+        "is_rush": bool(lsx.is_rush),
+        "khau": khau_ct[0],
+        "khau_chi_tiet": khau_ct[1],
+        "da_dong": lsx.trang_thai == TT_DA_DONG,
     }
 
 
@@ -455,6 +343,13 @@ def _khoa_sap(lsx: LenhNhe) -> tuple:
     `boi_canh.nap()` nữa, nhưng vẫn phải đứng đúng chỗ trong tab Hoàn thành / Tất cả.
     """
     return (0 if lsx.is_rush else 1, lsx.han_hoan_thanh_sx or _NGAY_XA, lsx.ma or "")
+
+
+def _khoa_sap_tra_cuu(lsx: LenhNhe) -> tuple:
+    """Tab Tất cả / Đã giao đủ: hạn SX GIẢM dần, lệnh chưa có hạn xuống cuối, mã làm nấc cuối để
+    thứ tự toàn phần (trang 1 và trang 2 không chồng nhau)."""
+    han = lsx.han_hoan_thanh_sx
+    return (0 if han is not None else 1, -han.toordinal() if han is not None else 0, lsx.ma or "")
 
 
 def _tach_da_giao_het(db: Session, ids: list[int]) -> tuple[dict[int, LenhNhe], set[int]]:
@@ -477,74 +372,45 @@ def _tach_da_giao_het(db: Session, ids: list[int]) -> tuple[dict[int, LenhNhe], 
 
 def danh_sach(
     db: Session, *, sale_ids: set[int] | None,
-    tab: str | None = None, q: str | None = None,
-    page: int = 1, page_size: int = PAGE_SIZE_MAC_DINH,
-    nhom_cong_doan: str | None = None, may_id: int | None = None,
-    uu_tien: str | None = None, tre: bool | None = None,
+    tab: str | None = None, q: str | None = None, khach_hang_id: int | None = None,
     tu_ngay: date | None = None, den_ngay: date | None = None,
-    bay_gio: datetime | None = None,
+    page: int = 1, page_size: int = PAGE_SIZE_MAC_DINH,
 ) -> dict:
-    """`{items, total, page, page_size, dem_theo_tab}` — bảng lệnh đã lọc, đếm và CẮT TRANG.
+    """`{items, total, page, page_size, dem_theo_tab}` — bảng đã lọc, đếm và CẮT TRANG ở máy chủ.
 
-    `total` = số dòng khớp TOÀN BỘ bộ lọc (kể cả `tab`), không phải số dòng của trang đang xem.
-    `dem_theo_tab` = số dòng theo từng tab của tập đã lọc TRỪ chính `tab` — nó là FACET: đổi ô tìm
-    kiếm hay bộ lọc thì các con số đổi theo, còn bấm sang tab khác thì chúng đứng yên. Tính khác đi
-    là người dùng bấm một tab rồi thấy mọi tab còn lại về 0.
-
-    `bay_gio` để bài test chốt được con số (cùng lý do `tien_do.gio_may` nhận tham số ấy); phần còn
-    lại của hệ gọi không truyền và lấy mốc máy chủ.
+    `dem_theo_tab` là FACET: đổi ô lọc thì số đổi, bấm sang tab khác thì số đứng yên.
     """
-    bay_gio = _aware(bay_gio) if bay_gio is not None else datetime.now(timezone.utc)
     page = max(1, page)
-    # LỚP THỨ HAI, không phải lớp duy nhất: router đã chặn `page_size` bằng `Query(le=...)`
-    # nên URL vượt trần ăn 422 chứ không tới đây. Giữ trần ở service cho những nơi gọi thẳng
-    # hàm này (test, tác vụ nền, router sau này) — service không được tin người gọi.
     page_size = max(1, min(page_size, PAGE_SIZE_TOI_DA))
 
-    ids = list(
-        db.execute(
-            _loc_sql(
-                sale_ids, q=q, tu_ngay=tu_ngay, den_ngay=den_ngay, may_id=may_id,
-                nhom_cong_doan=nhom_cong_doan, uu_tien=uu_tien,
-            )
-        ).scalars()
-    )
-    # A7 — chỉ lệnh CÒN SỐNG đi qua lượt nạp nặng; lệnh đã giao hết biết chắc tab của nó từ hai con
-    # số (xem `_tach_da_giao_het`). NGOẠI LỆ: bộ lọc `tre` hỏi `tien_do.tre_han`, mà cờ đó có nghĩa
-    # cả với lệnh đã giao ("xong trễ hạn") và cần công việc + phiên của nó ⇒ khi lọc `tre` thì nạp
-    # đủ như cũ. Đó là lựa chọn chủ động của người dùng, không phải đường mặc định của màn.
+    ids = list(db.execute(_loc_sql(
+        sale_ids, q=q, khach_hang_id=khach_hang_id, tu_ngay=tu_ngay, den_ngay=den_ngay,
+    )).scalars())
     nhe, da_giao_het = _tach_da_giao_het(db, ids)
-    if tre is not None:
-        da_giao_het = set()
-    bc, tinh = _soi(db, [i for i in ids if i not in da_giao_het], bay_gio)
+    song = [i for i in ids if i not in da_giao_het]
+    bc = boi_canh.nap(db, song)
+    kh: dict[int, tuple[str, str | None]] = {i: trang_thai.khau(bc, i) for i in song}
+    for i in da_giao_het:
+        kh[i] = (trang_thai.KHAU_DA_GIAO, None)
 
-    def tt(i: int) -> str:
-        return tinh[i]["trang_thai"] if i in tinh else trang_thai.TAB_HOAN_THANH
-
-    if tre is not None:
-        ids = [i for i in ids if tinh[i]["tre"] is tre]
-
-    dem = {t: 0 for t in trang_thai.TAB_CHINH}
+    dem = {t: 0 for t in trang_thai.KHAU}
     for i in ids:
-        dem[tt(i)] += 1
+        dem[kh[i][0]] += 1
     dem[TAB_TAT_CA] = len(ids)
 
     if tab and tab != TAB_TAT_CA:
-        ids = [i for i in ids if tt(i) == tab]
+        ids = [i for i in ids if kh[i][0] == tab]
+    if tab in (trang_thai.KHAU_DANG_SX, trang_thai.KHAU_SAU_SX):
+        ids.sort(key=lambda i: _khoa_sap(nhe[i]))
+    else:
+        ids.sort(key=lambda i: _khoa_sap_tra_cuu(nhe[i]))
 
-    ids.sort(key=lambda i: _khoa_sap(nhe[i]))
     dau = (page - 1) * page_size
     trang = ids[dau:dau + page_size]
-    # Lệnh đã giao hết rơi vào TRANG đang xem (tab Hoàn thành / Tất cả) thì mới nạp — đúng số dòng
-    # của trang, không phải cả lịch sử. Dòng của nó vẫn cần đủ bối cảnh (dải chặng, người, cờ cảnh
-    # báo…) như mọi dòng khác, nên đi qua CHÍNH `_soi`, không dựng tắt.
-    bc_trang, tinh_trang = _soi(db, [i for i in trang if i not in tinh], bay_gio)
+    tap_song = set(song)
+    bc_trang = boi_canh.nap(db, [i for i in trang if i not in tap_song])
     return {
-        "items": [
-            _dong(bc, i, tinh[i], bay_gio) if i in tinh
-            else _dong(bc_trang, i, tinh_trang[i], bay_gio)
-            for i in trang
-        ],
+        "items": [_dong(bc if i in tap_song else bc_trang, i, kh[i]) for i in trang],
         "total": len(ids),
         "page": page,
         "page_size": page_size,
@@ -552,143 +418,26 @@ def danh_sach(
     }
 
 
-def bo_loc(db: Session, *, sale_ids: set[int] | None) -> dict:
-    """Nguồn của ô lọc **Máy** trên màn: chỉ những máy CÓ THẬT trong tập lệnh của người gọi.
+def khach_trong_pham_vi(db: Session, sale_ids: set[int] | None) -> list[dict]:
+    """Khách CỦA CHÍNH các lệnh đã phát hành trong phạm vi người gọi — MỘT câu SQL.
 
-    --- VÌ SAO KHÔNG DÙNG `/api/may-thiet-bi` ------------------------------------------------------
-    Endpoint danh mục máy gác bằng `require_any_permission(("dm_thiet_bi","read"),
-    ("tinh_gia_thanh","read"))` (`routers/may_thiet_bi.py:52`). Vai **QC** — vai dùng màn này nhiều
-    nhất — có `lenh_san_xuat: read(all)` mà KHÔNG có cả hai ô kia (`seed.ROLES`), nên bày một ô lọc
-    lấy nguồn từ đó là mời họ ăn 403 giữa luồng. Hàm này gác bằng chính `lenh_san_xuat:read` và đi
-    qua đúng `pham_vi.loc_lsx_da_phat_hanh` như bảng, nên ô lọc không bao giờ rộng hơn dữ liệu
-    người gọi được thấy.
-
-    --- GOM TỪ ĐÚNG BA NƠI MÀ BỘ LỌC ĐANG SOI ------------------------------------------------------
-    `_loc_sql` lọc máy bằng `_co_buoc(SanXuatCongViec.may_id, LsxCongDoan.may_id, may_id)` — BA vế
-    `EXISTS`. Danh sách gợi ý phải gom từ ĐÚNG ba nơi đó, nếu không hai đầu nói hai chuyện:
-      · gom thiếu vế CẦU GHÉP ⇒ thiếu đúng máy của ca in ghép (máy ấy chỉ nằm ở công việc CHUNG,
-        `lsx_id IS NULL`, và KHÔNG chỗ nào ghi ngược về `lsx_cong_doan.may_id`) — bảng hiện tên máy
-        mà ô lọc không có tên đó;
-      · gom thiếu vế ROUTING ⇒ thiếu máy mới khai ở routing sau phát hành;
-      · gom THỪA (vd cả danh mục máy) ⇒ chọn xong lọc ra RỖNG — một lựa chọn dẫn tới ngõ cụt.
-    Chốt lại thành LUẬT: mọi mục trả về ở đây, đem gán `?may_id=`, phải ra ít nhất một dòng. Bài
-    canh: `test_bo_loc_moi_may_deu_loc_ra_it_nhat_mot_lenh`.
-
-    `so_lenh` là số lệnh (đếm ID, không đếm bước) — ca in ghép phục vụ hai lệnh thì đếm HAI, vì
-    người dùng bấm vào nó để xem danh sách LỆNH chứ không phải danh sách ca chạy.
-
-    Máy đã bị XOÁ khỏi danh mục (ba cột `may_id` là SOFT-REF, không FK) không lên danh sách: cột
-    "Máy" của bảng cũng để trống cho chúng (`bc.may.get()` trả `None`), nên bày ra một mục không
-    tên là bày một ô chọn không đọc được. Không một số tiền nào — như cả module.
-    """
-    trong_pham_vi = pham_vi.loc_lsx_da_phat_hanh(select(Lsx.id), sale_ids)
-
-    cap: list[tuple[int, int]] = []      # (may_id, lsx_id)
-    # Vế 1 — công việc NEO THẲNG vào lệnh (snapshot lúc phát hành + `thuc_thi.doi_may` ghi đè).
-    cap += db.execute(
-        select(SanXuatCongViec.may_id, SanXuatCongViec.lsx_id).where(
-            SanXuatCongViec.lsx_id.in_(trong_pham_vi),
-            SanXuatCongViec.may_id.is_not(None),
-        )
+    Nguồn chung của ô Khách ở cả Hồ sơ lệnh (`bo_loc` dưới đây) lẫn Theo dõi
+    (`bang_theo_doi.bo_loc`); chọn một khách không có lệnh nào là ngõ cụt nên không bày cả sổ
+    khách. Sắp theo tên rồi id để thứ tự ổn định."""
+    trong = pham_vi.loc_lsx_da_phat_hanh(select(Lsx.id), sale_ids)
+    rows = db.execute(
+        select(Customer.id, Customer.name)
+        .join(Order, Order.customer_id == Customer.id)
+        .join(Lsx, Lsx.order_id == Order.id)
+        .where(Lsx.id.in_(trong))
+        .distinct()
     ).all()
-    # Vế 2 — công việc CHUNG của ca in ghép, với tới lệnh qua bảng phủ. Bỏ vế này là bỏ đúng khâu
-    # nặng nhất của lệnh in ghép (xem docstring `_co_buoc`).
-    cap += db.execute(
-        select(SanXuatCongViec.may_id, BaiGhepCongDoanMap.lsx_id)
-        .join(
-            BaiGhepCongDoanMap,
-            BaiGhepCongDoanMap.bai_ghep_cong_doan_id
-            == SanXuatCongViec.bai_ghep_cong_doan_id,
-        )
-        .where(
-            BaiGhepCongDoanMap.lsx_id.in_(trong_pham_vi),
-            SanXuatCongViec.may_id.is_not(None),
-        )
-    ).all()
-    # Vế 3 — routing của chính lệnh (bước đã khai máy mà snapshot chưa mang).
-    cap += db.execute(
-        select(LsxCongDoan.may_id, LsxCongDoan.lsx_id).where(
-            LsxCongDoan.lsx_id.in_(trong_pham_vi),
-            LsxCongDoan.may_id.is_not(None),
-        )
-    ).all()
-
-    theo_may: dict[int, set[int]] = {}
-    for may_id, lsx_id in cap:
-        theo_may.setdefault(may_id, set()).add(lsx_id)
-    if not theo_may:
-        return {"may": []}
-
-    dm = {
-        m.id: m
-        for m in db.execute(
-            select(MayThietBi).where(MayThietBi.id.in_(theo_may))
-        ).scalars()
-    }
-    ds = [
-        {"id": mid, "ma": dm[mid].ma, "ten": dm[mid].ten, "so_lenh": len(ls)}
-        for mid, ls in theo_may.items()
-        if mid in dm
-    ]
-    # Sắp theo TÊN (thứ người dùng đọc trong ô chọn), mã làm nấc phân giải cuối cho thứ tự toàn
-    # phần — hai máy trùng tên mà không có nấc thứ hai thì thứ tự đổi giữa hai lần gọi.
-    ds.sort(key=lambda m: (m["ten"] or "", m["ma"] or ""))
-    return {"may": ds}
-
-
-def summary(
-    db: Session, *, sale_ids: set[int] | None, bay_gio: datetime | None = None
-) -> dict:
-    """Bốn thẻ KPI trên đầu màn. Cùng phạm vi với bảng — xem docstring module cho định nghĩa từng số.
-
-    Phạm vi phải hẹp GIỐNG bảng: KPI của cả nhà máy đặt trên một cái bảng chỉ có một dòng là con số
-    mà người đọc không có cách nào đối chiếu.
-    """
-    bay_gio = _aware(bay_gio) if bay_gio is not None else datetime.now(timezone.utc)
-    dau, cuoi = _ngay_xuong(bay_gio)
-
-    ids = list(db.execute(pham_vi.loc_lsx_da_phat_hanh(select(Lsx.id), sale_ids)).scalars())
-    # A7 — lệnh đã giao hết không góp gì vào `dang_sx`/`du_kien_tre` (cả hai đòi khác Hoàn thành).
-    # Nó CHỈ còn góp được vào hai KPI "hôm nay" nếu có công việc đóng / batch KCS kết thúc trong
-    # ngày — nên giữ lại đúng những lệnh đó (câu SQL chặn mép trái, lùi thêm MỘT NGÀY cho khỏi vướng
-    # múi giờ: lọt thừa thì vòng dưới tự loại, còn sót là KPI hụt âm thầm). Mép so bằng UTC thật —
-    # SQLite cất giờ không kèm múi, ném mốc +7 vào là lệch 7 tiếng.
-    _nhe, da_giao_het = _tach_da_giao_het(db, ids)
-    con_hoat_dong = LenhSxDocRepository(db).lenh_co_viec_tu(
-        sorted(da_giao_het), (dau - timedelta(days=1)).astimezone(timezone.utc),
+    return sorted(
+        ({"id": cid, "ten": ten} for cid, ten in rows),
+        key=lambda k: (k["ten"] or "", k["id"]),
     )
-    ids = [i for i in ids if i not in da_giao_het or i in con_hoat_dong]
-    bc, tinh = _soi(db, ids, bay_gio)
 
-    dang_sx = du_kien_tre = 0
-    # Đếm theo ID: một công việc GHÉP phục vụ nhiều lệnh vẫn là MỘT công đoạn, một batch KCS của
-    # bước ghép vẫn là MỘT lần kiểm. Cộng theo lệnh là nhân số thật lên đúng bằng số thành viên ca.
-    cv_xong: set[int] = set()
-    kcs_da_dem: set[int] = set()
-    kcs_nhan = kcs_dat = 0.0
-    for i in ids:
-        if tinh[i]["trang_thai"] != trang_thai.TAB_HOAN_THANH:
-            dang_sx += 1
-            if tinh[i]["tre"]:
-                du_kien_tre += 1
-        for cv in bc.cong_viec_du(i):
-            if (
-                cv.trang_thai == CV_HOAN_THANH
-                and cv.hoan_thanh_luc is not None
-                and dau <= _aware(cv.hoan_thanh_luc) < cuoi
-            ):
-                cv_xong.add(cv.id)
-            for k in bc.kcs[cv.id]:
-                if k.id in kcs_da_dem or not (dau <= _aware(k.ket_thuc) < cuoi):
-                    continue
-                kcs_da_dem.add(k.id)
-                # `Numeric` ⇒ `Decimal`; ép `float` ngay tại chỗ đọc (bẫy `Decimal / float`).
-                kcs_nhan += float(k.so_luong_nhan or 0)
-                kcs_dat += float(k.so_luong_dat or 0)
 
-    return {
-        "dang_sx": dang_sx,
-        "cong_doan_xong_hom_nay": len(cv_xong),
-        "du_kien_tre": du_kien_tre,
-        "ty_le_kcs_dat_hom_nay": (100.0 * kcs_dat / kcs_nhan) if kcs_nhan > 0 else None,
-    }
+def bo_loc(db: Session, *, sale_ids: set[int] | None) -> dict:
+    """Nguồn ô Khách của Hồ sơ lệnh, gác `lenh_san_xuat:read` (không mượn đường của Theo dõi)."""
+    return {"khach_hang": khach_trong_pham_vi(db, sale_ids)}

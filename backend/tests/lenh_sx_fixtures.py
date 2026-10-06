@@ -40,9 +40,9 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import event, update
 
-from app.db import SessionLocal
+from app.db import SessionLocal, engine
 from app.models.bai_ghep import BaiGhep, BaiGhepThanhVien
 from app.models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
 from app.models.customer import Customer
@@ -68,7 +68,7 @@ from app.repositories.purchase_repo import PurchaseRequestRepository, SupplierRe
 from app.repositories.quotation_repo import QuotationRepository
 from app.repositories.rbac_repo import DepartmentRepository, RoleRepository
 from app.repositories.user_repo import UserRepository
-from app.security import hash_password
+from app.security import create_access_token, hash_password
 from app.services.accounting_service import AccountingService
 from app.services.lsx_service import LsxService
 from app.services.order_service import OrderService
@@ -571,4 +571,50 @@ def _chay_that(sess, admin, cv, *, ma: str, ten: str) -> None:
         sess, user=admin, cong_viec_id=cv.id,
     )
     thuc_thi.ket_thuc(sess, user=admin, cong_viec_id=cv.id)
+    sess.expire_all()
+
+
+# --- Helper chung của các bài Theo dõi SX (rút từ `test_theo_doi_kanban.py`, 05/10/2026) ---------
+def _dem_sql(fn) -> int:
+    """Đếm câu SQL thật sự gửi xuống driver trong lúc chạy `fn`."""
+    n = 0
+
+    def _ghi(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001, ARG001
+        nonlocal n
+        n += 1
+
+    event.listen(engine, "before_cursor_execute", _ghi)
+    try:
+        fn()
+    finally:
+        event.remove(engine, "before_cursor_execute", _ghi)
+    return n
+
+
+def _token_khong_quyen_theo_doi(sess) -> str:
+    """Token của một người mà vai chỉ có `dashboard:own` — KHÔNG có `theo_doi_san_xuat`."""
+    users = UserRepository(sess)
+    co_san = users.get_by_username("td-khong-quyen")
+    if co_san is not None:
+        return create_access_token(str(co_san.id))
+    kd = DepartmentRepository(sess).get_by_name("Kinh doanh")
+    roles = RoleRepository(sess)
+    role = roles.create(name="R-td-khong-quyen", department_id=kd.id)
+    roles.set_permission(role_id=role.id, module_key="dashboard", can_read=True, scope="own")
+    u = users.create(
+        username="td-khong-quyen", name="U không quyền theo dõi SX",
+        password_hash=hash_password("x"),
+    )
+    users.set_assignment(u, department_id=kd.id, role_id=role.id, is_active=True)
+    sess.commit()
+    return create_access_token(str(u.id))
+
+
+def _bat_dau_that(sess, admin, cv, *, ma: str, ten: str) -> None:
+    """Bắt đầu một bước qua ĐÚNG đường ghi production, KHÔNG kết thúc (xem `_chay_that`)."""
+    to = sess.get(Department, cv.department_id)
+    to.has_piece_work = True
+    sess.commit()
+    _giao_nguoi(sess, admin, cv, ma=ma, ten=ten)
+    thuc_thi.bat_dau(sess, user=admin, cong_viec_id=cv.id)
     sess.expire_all()

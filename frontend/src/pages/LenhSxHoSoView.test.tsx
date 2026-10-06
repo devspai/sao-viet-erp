@@ -6,9 +6,9 @@
 // bịa ra tiền từ dữ liệu không phải tiền. Luật "không nút ghi" thì trước đó KHÔNG có gì canh —
 // 1.400 dòng màn mới, ai thêm một nút «Bắt đầu» vào đây cũng không ai kêu.
 //
-// Dựng DTO ĐẦY ĐỦ 13 khối rồi MỞ HẾT các khối gập trước khi soi: khối đóng nằm dưới `hidden`, mà
-// truy vấn theo vai của testing-library bỏ qua nhánh ẩn — soi lúc còn đóng là soi một màn rỗng.
-import { render, screen } from "@testing-library/react";
+// Dựng DTO ĐẦY ĐỦ 13 khối rồi MỞ HẾT các dòng công đoạn và "Xem đủ thông số" trước khi soi.
+// Làm gọn 05/10/2026: khung còn 5 mục (Công đoạn · Quy cách · Vật tư · Sau sản xuất · Nhật ký).
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,12 +33,14 @@ const HOSO: LenhSxHoSoOut = {
     han_hoan_thanh_sx: "2026-09-10", han_giao_khach: "2026-09-15",
     ban_giao_at: "2026-09-01T02:00:00Z", ghi_chu: "Cán bóng một mặt",
     tao_luc: "2026-08-28T01:00:00Z",
+    da_dong: false, nhom_ten: "Nhóm hộp thuốc",
   },
   tien_do: {
     phan_tram: 62.5, uoc_tinh: false, gio_may: 7.25,
     du_kien_xong: "2026-09-08T09:00:00Z", trang_thai: "dang_sx", canh_bao: ["su_co"],
     buoc_hien_tai: "In", buoc_hien_tai_cong_viec_id: 501, nhom_cong_doan: "in",
     may: "Máy in A", nguoi: ["Thợ Nam", "Thợ Bình"], da_giao: 200,
+    khau: "dang_sx", khau_chi_tiet: null,
   },
   thong_so: {
     giay_ten: "Couche 250", dinh_luong: 250,
@@ -129,7 +131,6 @@ const HOSO: LenhSxHoSoOut = {
     ],
   },
   san_luong: {
-    tong: 500, tot: 480, hong: 20,
     batch: [{
       id: 71, cong_viec_id: 501, ten_viec: "In", la_buoc_ghep: true,
       bat_dau: "2026-09-02T01:00:00Z", ket_thuc: "2026-09-02T05:00:00Z",
@@ -219,7 +220,7 @@ function stubApi(body: LenhSxHoSoOut = HOSO) {
 /** Dựng màn với quyền ĐẦY ĐỦ bên giao hàng — ca rộng nhất, tức ca bày ra nhiều nút nhất.
  *  `pv`: phiên bản in trên tờ giấy đã quét (Task 14, deep link QR) — không truyền = mở tay,
  *  giống hệt trước đây, không phá bài canh cũ nào ở trên. */
-function ve(pv?: number | null) {
+function ve(pv?: number | null, onMoDon: (id: number) => void = () => {}) {
   const caps = buildCapabilities([
     {
       module_key: "giao_hang", scope: "all",
@@ -229,14 +230,13 @@ function ve(pv?: number | null) {
   return render(
     <AuthContext.Provider value={AUTH}>
       <PermissionsProvider caps={caps}>
-        <LenhSxHoSoView lsxId={31} pv={pv} onClose={() => {}} onMoDon={() => {}} />
+        <LenhSxHoSoView lsxId={31} pv={pv} onClose={() => {}} onMoDon={onMoDon} />
       </PermissionsProvider>
     </AuthContext.Provider>,
   );
 }
 
-/** Mở HẾT khối gập. Khối đóng nằm dưới `hidden`, mà `getAllByRole` bỏ qua nhánh ẩn — không mở thì
- *  bài chỉ soi được cái dải tổng quan. */
+/** Mở HẾT dòng công đoạn có chi tiết và ô "Xem đủ thông số" (mọi nút `aria-expanded=false`). */
 async function moHetKhoi() {
   for (const nut of screen.queryAllByRole("button", { expanded: false })) {
     await userEvent.click(nut);
@@ -296,41 +296,34 @@ describe("Hồ sơ lệnh sản xuất · hai bất biến của màn", () => {
   });
 });
 
-// Nhánh "cả lệnh ghi bằng ≥ 2 thang đo" KHÔNG dựng được trên dev: cả bốn lệnh đang có đều ghi bằng
-// `to`, và đẻ một lệnh trộn thang phải đi qua chừng năm màn khác. Nên nhánh này nghiệm thu bằng
-// lưới chứ không bằng mắt — và lưới thì ở lại, còn một lượt seed thì không.
-describe("Hồ sơ lệnh sản xuất · trộn đơn vị thì IM con số tổng", () => {
-  const NHIEU = "Nhiều đơn vị — không cộng được";
-
-  it("⭐ sản lượng ghi bằng hai thang ⇒ ô đầu màn không bày tổng", async () => {
+// Ba tổng `san_luong.tong/tot/hong` đã gỡ ở máy chủ (cộng tờ in với thành phẩm). Màn chỉ cộng mẻ của
+// CÙNG một bước theo TỪNG đơn vị; KCS chỉ bày lô KCS cuối, không tỉ lệ gộp.
+describe("Hồ sơ lệnh sản xuất · không còn tổng cộng lẫn bước", () => {
+  it("⭐ hai bước ghi hai thang ⇒ mỗi bước một số, không có tổng cộng bừa", async () => {
     const b = HOSO.san_luong.batch[0];
     stubApi({
       ...HOSO,
       san_luong: {
-        // Tổng của máy chủ GIỮ NGUYÊN con số cộng bừa (508) — chính vì nó vô nghĩa nên màn phải
-        // từ chối bày, chứ không phải vì máy chủ đã tự dọn.
-        tong: 508, tot: 488, hong: 20,
         batch: [
           { ...b, tong: 500, tot: 480, hong: 20, don_vi: "to" },
-          { ...b, id: 72, cong_viec_id: 502, ten_viec: "Phơi kẽm", tong: 8, tot: 8, hong: 0, don_vi: "kem" },
+          { ...b, id: 72, cong_viec_id: 500, ten_viec: "CTP", la_buoc_ghep: false, tong: 8, tot: 8, hong: 0, don_vi: "kem" },
         ],
       },
     });
     ve();
     await screen.findByText("LSX26-0031");
 
-    const o = screen.getByText("Sản lượng tốt").closest(".hslsx-hs__tile");
-    expect(o?.textContent).toContain(NHIEU);
-    expect(o?.textContent, "ô đầu màn vẫn bày tổng cộng bừa qua hai thang").not.toContain("488");
+    const cd = within(document.getElementById("lhs-muc-cong-doan")!);
+    expect(cd.getByText("480 tờ")).toBeInTheDocument();
+    expect(cd.getByText("8 bản kẽm")).toBeInTheDocument();
+    expect(document.body.textContent, "có tổng cộng qua hai thang").not.toContain("488");
   });
 
-  it("⭐ KCS ghi bằng hai thang ⇒ không tổng, không tỉ lệ, kể cả trên thanh tiêu đề", async () => {
+  it("⭐ KCS: chỉ lô KCS cuối ở Sau sản xuất, không tổng, không tỉ lệ gộp", async () => {
     const k = HOSO.kcs.batch[0];
     stubApi({
       ...HOSO,
       kcs: {
-        // 1000/1000 `to` giữa chuyền + 400/500 `cai` cuối chuyền ⇒ máy chủ ra 93,3 %, che mất việc
-        // 1/5 thành phẩm cuối trượt KCS. Đây đúng là ca phải chặn.
         tong_nhan: 1500, tong_dat: 1400, tong_khong_dat: 100, ty_le_dat: 93.33333,
         batch: [
           { ...k, so_luong_nhan: 1000, so_luong_dat: 1000, so_luong_khong_dat: 0, don_vi: "to", ket_luan: "dat" },
@@ -345,15 +338,11 @@ describe("Hồ sơ lệnh sản xuất · trộn đơn vị thì IM con số t�
     ve();
     await screen.findByText("LSX26-0031");
 
-    // Thanh tiêu đề là thứ đọc được KHI KHỐI CÒN ĐÓNG — soi nó TRƯỚC khi mở.
-    const thanh = screen.getByRole("button", { name: /KCS/ });
-    expect(thanh.textContent).toContain("nhiều đơn vị");
-    expect(thanh.textContent, "thanh tiêu đề vẫn bày tỉ lệ gộp hai thang").not.toContain("93,3");
-
-    await moHetKhoi();
-    const than = screen.getByText("Tỉ lệ đạt").closest(".hslsx-hs__kvs");
-    expect(than?.textContent).toContain(NHIEU);
-    expect(than?.textContent, "bốn ô tổng vẫn bày số cộng qua hai thang").not.toContain("1.400");
+    const sau = within(document.getElementById("lhs-muc-sau-sx")!);
+    expect(sau.getByText(/Nhận 500 cái, đạt 400, không đạt 100/)).toBeInTheDocument();
+    expect(sau.queryByText(/Nhận 1\.000/)).toBeNull();
+    expect(document.body.textContent).not.toContain("93,3");
+    expect(document.body.textContent).not.toContain("1.400");
   });
 });
 
@@ -395,7 +384,7 @@ describe("Hồ sơ lệnh sản xuất · bước bị bài ghép phủ", () => 
     await screen.findByText("LSX26-0031");
     await moHetKhoi();
 
-    expect(screen.getByText("đi chung bài ghép GB26-0002")).toBeInTheDocument();
+    expect(screen.getByText("Bài ghép GB26-0002")).toBeInTheDocument();
     expect(screen.getByText("Tân Phát")).toBeInTheDocument();
   });
 });
@@ -409,9 +398,8 @@ describe("Hồ sơ lệnh sản xuất · bày TÊN đơn vị chứ không bày
 
     // Routing bước CTP ghi `kem` cả vào lẫn ra ⇒ phải đọc được thành chữ.
     await screen.findByText(/5 bản kẽm → 5 bản kẽm/);
-    // Sản lượng theo lượt ghi: `to` ⇒ "tờ". Ô đầu màn cũng vậy (một thang nên có bày tổng).
-    expect(screen.getByText("Sản lượng tốt").closest(".hslsx-hs__tile")?.textContent)
-      .toContain("tờ");
+    // Cột Tốt, hỏng của bước In: `to` ⇒ "tờ".
+    expect(within(document.getElementById("lhs-muc-cong-doan")!).getByText("480 tờ")).toBeInTheDocument();
 
     // Và không còn mã trần nào lọt tới mắt người đọc. `\bkem\b` không đụng "kẽm" (chữ có dấu), nên
     // nó bắt đúng cái mã; `\d\s+to\b` bắt ca "500 to" mà không bắt "500 tờ".
@@ -454,5 +442,93 @@ describe("Hồ sơ lệnh sản xuất · băng cảnh báo phiếu giấy cũ (
     await screen.findByText("LSX26-0031");
 
     expect(screen.queryByText(/Phiếu giấy v/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Hồ sơ lệnh sản xuất · phần đầu gọn (05/10/2026)", () => {
+  it("⭐ pill khâu, thẻ Nhóm có số lệnh, Đơn bấm sang đơn hàng", async () => {
+    const moDon = vi.fn();
+    stubApi();
+    ve(undefined, moDon);
+    await screen.findByText("LSX26-0031");
+
+    expect(screen.getByText("Đang sản xuất")).toBeInTheDocument();
+    expect(screen.queryByText("Đã đóng lệnh")).toBeNull();
+    expect(screen.getByText("Nhóm hộp thuốc")).toBeInTheDocument();
+    expect(screen.getByText("2 lệnh")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "DH26-0007" }));
+    expect(moDon).toHaveBeenCalledWith(7);
+  });
+
+  it("⭐ sự cố đã có phiếu đang sửa ⇒ dòng VÀNG 'Đang sửa, phiếu …', không dòng đỏ", async () => {
+    stubApi();
+    ve();
+    await screen.findByText("LSX26-0031");
+    const dong = screen.getByText("Đang sửa, phiếu SC26-0008").closest("li");
+    expect(dong?.className).toContain("lhs-canhbao__vang");
+    expect(document.querySelector(".lhs-canhbao__do")).toBeNull();
+  });
+
+  it("⭐ sự cố chờ tiếp nhận ⇒ dòng ĐỎ có mã, máy, bộ phận hỏng, thẻ Máy dừng", async () => {
+    stubApi({ ...HOSO, su_co: [{ ...HOSO.su_co[0], trang_thai: "cho_tiep_nhan", phieu: null }] });
+    ve();
+    await screen.findByText("LSX26-0031");
+    const dong = screen.getByText("Sự cố YC26-0044").closest("li");
+    expect(dong?.className).toContain("lhs-canhbao__do");
+    expect(dong?.textContent).toContain("Máy in A, Cụm cấp giấy");
+    expect(dong?.textContent).toContain("Máy dừng");
+  });
+
+  it("⭐ ba ô tổng quan: bước i trên n, dự kiến kịp, đã giao trên đặt", async () => {
+    stubApi();
+    ve();
+    await screen.findByText("LSX26-0031");
+    expect(screen.getByText("bước 2 trên 3")).toBeInTheDocument();
+    expect(screen.getByText("Dự kiến xong 08/09, kịp")).toBeInTheDocument();
+    expect(screen.getByText("200 trên 12.000 cái")).toBeInTheDocument();
+  });
+
+  it("⭐ dự kiến vượt hạn ⇒ 'trễ N ngày'", async () => {
+    stubApi({ ...HOSO, tien_do: { ...HOSO.tien_do, du_kien_xong: "2026-09-12T09:00:00Z" } });
+    ve();
+    await screen.findByText("LSX26-0031");
+    expect(screen.getByText("Dự kiến xong 12/09, trễ 2 ngày")).toBeInTheDocument();
+  });
+});
+
+describe("Hồ sơ lệnh sản xuất · năm mục", () => {
+  it("⭐ mở dòng bước In ⇒ các mẻ, đổi máy và câu ca ghép", async () => {
+    stubApi();
+    ve();
+    await screen.findByText("LSX26-0031");
+    await userEvent.click(screen.getByRole("button", { name: "2. In" }));
+    expect(screen.getByText("Số trên dòng này là của cả ca in ghép, không riêng lệnh này.")).toBeInTheDocument();
+    expect(screen.getByText("Đổi máy Máy in B → Máy in A, lý do: Máy cũ kẹt giấy")).toBeInTheDocument();
+    expect(screen.getByText("Ghi 480 tờ tốt, 20 hỏng, lỗi: Nhăn giấy")).toBeInTheDocument();
+  });
+
+  it("⭐ vật tư: một bảng, ba nút lọc, mặc định nút đầu có dòng", async () => {
+    stubApi();
+    ve();
+    await screen.findByText("LSX26-0031");
+    const vt = within(document.getElementById("lhs-muc-vat-tu")!);
+    expect(vt.getByRole("button", { name: "Bước đang làm 1" })).toHaveAttribute("aria-pressed", "true");
+    expect(vt.getByText("Couche 250")).toBeInTheDocument();
+    await userEvent.click(vt.getByRole("button", { name: "Kho đã cấp 1" }));
+    expect(vt.getByText("Mực đen")).toBeInTheDocument();
+    expect(vt.queryByText("Couche 250")).toBeNull();
+  });
+
+  it("⭐ nhật ký: mới nhất trên, 'Sản lượng, KCS' mặc định tắt", async () => {
+    stubApi();
+    ve();
+    await screen.findByText("LSX26-0031");
+    const nk = within(document.getElementById("lhs-muc-nhat-ky")!);
+    expect(nk.getByText("Phát hành phiên bản 1")).toBeInTheDocument();
+    expect(nk.queryByText(/^KCS In/)).toBeNull();
+    await userEvent.click(nk.getByRole("button", { name: "Sản lượng, KCS" }));
+    const dong = nk.getAllByRole("listitem");
+    expect(dong[0].textContent).toContain("KCS In");
+    expect(dong[1].textContent).toContain("Phát hành phiên bản 1");
   });
 });

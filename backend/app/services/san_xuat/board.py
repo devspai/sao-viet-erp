@@ -797,19 +797,39 @@ def _phien_giao_me(phien_rows, b) -> list:
     return ra
 
 
+def _ca_cua_moc(cas, moc_tuong: datetime):
+    """Ca (và NGÀY của ca đó) mà `moc_tuong` (giờ TƯỜNG, NAIVE) rơi vào — `(ca, ngay)` hoặc None.
+
+    Ca qua nửa đêm tính theo mốc BẮT ĐẦU ca (Ruling C120): việc chạy 01:00 nằm trong cửa sổ
+    `[0, end_minute)` của HÔM NAY là phần ĐUÔI của ca đã bắt đầu TỐI HÔM QUA — ngày của ca lùi một
+    ngày. `cas` phải đã sort theo `start_minute` (đúng thứ tự `ca_lich_xuong()` trả về).
+
+    Chuyển từ `lenh_sx/bang_theo_doi.py` (05/10/2026) khi tab Theo ca bị xoá — bàn tổ là nơi duy
+    nhất còn dùng luật này."""
+    phut = moc_tuong.hour * 60 + moc_tuong.minute
+    ngay = moc_tuong.date()
+    for ca in cas:
+        if not ca.is_overnight:
+            if ca.start_minute <= phut < ca.end_minute:
+                return ca, ngay
+        elif phut >= ca.start_minute:
+            return ca, ngay
+        elif phut < ca.end_minute:
+            return ca, ngay - timedelta(days=1)
+    return None
+
+
 def _ca_cua(cas, dt) -> str | None:
     """Tên CA chứa mốc THỰC THI `dt` (UTC thật), hoặc None khi mốc rơi ngoài mọi ca đã khai.
 
-    Dùng lại đúng `_ca_cua_moc` của Theo dõi sản xuất thay vì viết bản so giờ thứ hai: luật ca qua
-    nửa đêm (Ruling C120) chỉ nên có MỘT chỗ, hai bản chép nhau là sớm muộn lệch nhau. "Ngoài ca"
-    là một câu trả lời thật và tổ trưởng cần thấy đúng nó — đừng đoán ca gần nhất.
+    Dùng `_ca_cua_moc` ngay trên: luật ca qua nửa đêm (Ruling C120) chỉ nên có MỘT chỗ, hai bản
+    chép nhau là sớm muộn lệch nhau. "Ngoài ca" là một câu trả lời thật và tổ trưởng cần thấy đúng
+    nó — đừng đoán ca gần nhất.
 
     Phút ca (`start_minute`) là phút-trong-ngày theo GIỜ TƯỜNG, nên phải đưa mốc về giờ xưởng
     trước khi so — trả UTC thật vào đây là mẻ 20:00 rơi vào Ca 1 (13:00)."""
     if dt is None:
         return None
-    from ..lenh_sx.bang_theo_doi import _ca_cua_moc
-
     kq = _ca_cua_moc(list(cas), thuc_te_hien_thi(dt))
     return kq[0].name if kq else None
 

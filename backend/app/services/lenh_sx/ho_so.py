@@ -67,7 +67,7 @@ from ...models.department import Department
 from ...models.employee import Employee
 from ...models.khuon_be import KhuonBe
 from ...models.ky_thuat_may import SuaChuaMay
-from ...models.lsx import Lsx, LsxCongDoan
+from ...models.lsx import TT_DA_DONG, Lsx, LsxCongDoan
 from ...models.san_xuat import GOI_DANG_PHAT_HANH, SanXuatGoiPhatHanh, SanXuatPhienBan
 from ...models.san_xuat_thuc_thi import (
     PC_DA_RUT, PHIEN_DOI_MAY, PHIEN_KET_THUC, PHIEN_TAM_DUNG, SanXuatPhanCong,
@@ -124,6 +124,10 @@ def _thong_tin(bc: BoiCanh, lsx_id: int) -> dict:
     don = bc.don.get(lsx.order_id)
     khach = bc.khach.get(don.customer_id) if don is not None and don.customer_id else None
     sale = bc.sale.get(don.sale_user_id) if don is not None and don.sale_user_id else None
+    nhom_id = next(
+        (cv.nhom_id for cv in bc.cong_viec_du(lsx_id) if cv.nhom_id is not None), None
+    )
+    nhom = bc.nhom.get(nhom_id) if nhom_id is not None else None
     return {
         "id": lsx.id,
         "ma": lsx.ma,
@@ -143,6 +147,8 @@ def _thong_tin(bc: BoiCanh, lsx_id: int) -> dict:
         "ban_giao_at": lsx.ban_giao_at,
         "ghi_chu": lsx.ghi_chu,
         "tao_luc": lsx.created_at,
+        "da_dong": lsx.trang_thai == TT_DA_DONG,
+        "nhom_ten": (nhom.ten or nhom.ma) if nhom is not None else None,
     }
 
 
@@ -157,6 +163,7 @@ def _tien_do(bc: BoiCanh, lsx_id: int, bay_gio: datetime, tinh: dict) -> dict:
     cv = danh_sach.buoc_hien_tai(bc, lsx_id)
     may = bc.may.get(danh_sach.may_cua_buoc(bc, cv))
     pct, uoc_tinh = tien_do.phan_tram(bc, lsx_id)
+    khau, khau_ct = trang_thai.khau(bc, lsx_id)
     return {
         "phan_tram": pct,
         "uoc_tinh": uoc_tinh,
@@ -170,6 +177,8 @@ def _tien_do(bc: BoiCanh, lsx_id: int, bay_gio: datetime, tinh: dict) -> dict:
         "may": may.ten if may is not None else None,
         "nguoi": bc.nguoi_cua(cv.id) if cv is not None else [],
         "da_giao": bc.da_giao_cua(lsx_id),
+        "khau": khau,
+        "khau_chi_tiet": khau_ct,
     }
 
 
@@ -551,16 +560,11 @@ def _nhan_luc(db: Session, bc: BoiCanh, lsx_id: int, *, cv_ids: list[int],
 
 # --- Sản lượng · KCS · sự cố · kho ---------------------------------------------------------------
 def _san_luong(bc: BoiCanh, lsx_id: int) -> dict:
-    """Tổng tốt/hỏng + từng batch. Số của bước GHÉP là số của CẢ CA — nói rõ bằng `la_buoc_ghep`,
-    không im lặng cộng nó vào như thể của riêng lệnh này."""
+    """Từng batch của mọi bước. Số của bước GHÉP là số của CẢ CA — nói rõ bằng `la_buoc_ghep`. KHÔNG có tổng: cộng qua các bước là cộng tờ in với thành phẩm (gỡ 05/10/2026)."""
     ghep = {cv.id for cv in bc.cong_viec_ghep[lsx_id]}
     dong = []
-    tong = tot = hong = 0.0
     for cv in bc.cong_viec_du(lsx_id):
         for b in sorted(bc.batch[cv.id], key=lambda x: _aware(x.ket_thuc)):
-            tong += _f(b.tong)
-            tot += _f(b.tot)
-            hong += _f(b.hong)
             dong.append({
                 "id": b.id,
                 "cong_viec_id": cv.id,
@@ -576,7 +580,7 @@ def _san_luong(bc: BoiCanh, lsx_id: int) -> dict:
                 "don_vi": b.don_vi,
                 "mo_ta_loi": b.mo_ta_loi,
             })
-    return {"tong": tong, "tot": tot, "hong": hong, "batch": dong}
+    return {"batch": dong}
 
 
 def _kcs(bc: BoiCanh, lsx_id: int) -> dict:
