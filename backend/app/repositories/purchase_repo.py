@@ -930,11 +930,13 @@ class DepartmentPurchaseRequestRepository:
         cùng 38,08 kg vì lẽ đó.
 
         `done`/`cancelled` bỏ (việc đã khép), `in_purchase` GIỮ (PMH sinh ra từ nó có thể còn nằm
-        chờ duyệt). Chỉ nạp `lines` — phía gọi cần mã · trạng thái · mặt hàng, không cần phiếu con.
+        chờ duyệt). Nạp `lines` + `nguon_lenh` — Kế hoạch vật tư dựng "phiếu của ô" (lệnh × món) từ
+        liên kết lệnh của chính các yêu cầu này (spec một ô một phiếu, 07/10/2026).
         """
         stmt = (
             select(DepartmentPurchaseRequest)
-            .options(selectinload(DepartmentPurchaseRequest.lines))
+            .options(selectinload(DepartmentPurchaseRequest.lines),
+                     selectinload(DepartmentPurchaseRequest.nguon_lenh))
             .where(
                 DepartmentPurchaseRequest.status.in_(
                     [DPR_OPEN, DPR_PENDING_APPROVAL, DPR_IN_PURCHASE]
@@ -998,6 +1000,21 @@ class DepartmentPurchaseRequestRepository:
             raise
         self.db.refresh(row)
         return self.get_by_id(row.id) or row
+
+    def ma_chu_the(self, lsx_ids, bai_ids) -> dict[tuple, str]:
+        """`{("lsx", id): mã lệnh, ("bai", id): mã bài}` — để câu báo lỗi nói đúng mã người dùng đọc."""
+        from ..models.bai_ghep import BaiGhep
+        from ..models.lsx import Lsx
+
+        ra: dict[tuple, str] = {}
+        if lsx_ids:
+            for i, m in self.db.execute(select(Lsx.id, Lsx.ma).where(Lsx.id.in_(sorted(lsx_ids)))):
+                ra[("lsx", i)] = m
+        if bai_ids:
+            for i, m in self.db.execute(
+                    select(BaiGhep.id, BaiGhep.ma).where(BaiGhep.id.in_(sorted(bai_ids)))):
+                ra[("bai", i)] = m
+        return ra
 
     def _nguon_con_song(self, nguon_lenh: Sequence[dict]) -> list[dict]:
         """Bỏ liên kết trỏ vào lệnh/bài KHÔNG còn tồn tại (bảng cân đối mở từ lâu, lệnh vừa xoá) —
@@ -1392,6 +1409,25 @@ class PurchaseRequestRepository:
             )
         )
         return list(self.db.execute(stmt.order_by(PurchaseRequest.id.asc())).scalars())
+
+    def dong_tu_yeu_cau(self, dong_yc_ids) -> list[PurchaseRequestLine]:
+        """Mọi dòng đơn mua (MỌI trạng thái) lập từ các dòng yêu cầu này — kèm phiếu + đợt giao.
+
+        Kế hoạch vật tư dựng mạch "yêu cầu → đơn → nhập kho" của từng ô: cần cả đơn đã nhận đủ (mạch
+        xong) và đơn bị huỷ (mạch chờ lập lại), thứ mà `dong_dang_ve`/`dong_cho_duyet` cố ý bỏ."""
+        ids = sorted({int(i) for i in dong_yc_ids or () if i is not None})
+        if not ids:
+            return []
+        stmt = (
+            select(PurchaseRequestLine)
+            .options(
+                selectinload(PurchaseRequestLine.request)
+                .selectinload(PurchaseRequest.deliveries).selectinload(PurchaseDelivery.lines),
+            )
+            .where(PurchaseRequestLine.department_request_line_id.in_(ids))
+            .order_by(PurchaseRequestLine.id.asc())
+        )
+        return list(self.db.execute(stmt).scalars())
 
     def dong_cho_duyet(self) -> list[PurchaseRequest]:
         """PMH đã lập, ĐANG CHỜ DUYỆT — hàng chưa chắc có nên KHÔNG được cộng vào tồn.

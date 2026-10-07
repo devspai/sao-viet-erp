@@ -17,12 +17,13 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import CurrentUser, get_purchase_service, require_permission
 from ..services.can_doi_cache import lay_hoac_tinh, xoa_cache_can_doi
+from ..services import luoi_vat_tu
 from ..repositories.bai_ghep_repo import BaiGhepRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.lsx_repo import LsxRepository
@@ -38,6 +39,9 @@ from ..schemas.ke_hoach_vat_tu import (
     GiuChoIn,
     GiuChoNhieuIn,
     GiuChoNhieuOut,
+    LuoiHangOut,
+    LuoiLenhOut,
+    LuoiOut,
     TheoLenhOut,
     TheoLenhRow,
 )
@@ -130,6 +134,86 @@ def theo_lenh(
                                                   chi_giu_lau=chi_giu_lau, giu=giu))
     except KeHoachVatTuError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
+
+
+def _luoi(giu: GiuChoService) -> dict:
+    """Bản đầy đủ của lưới qua cache 45 giây chung với `/can-doi` (cùng chỗ xoá sớm)."""
+    try:
+        return lay_hoac_tinh(lambda: luoi_vat_tu.dung_luoi(giu), luoi=1)
+    except KeHoachVatTuError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
+
+
+@router.get("/luoi", response_model=LuoiOut)
+def luoi(
+    giu: GiuCho,
+    _user: Annotated[object, Depends(require_permission(MODULE, "read"))],
+    xem: Literal["lenh", "hang"] = Query(default="lenh", description="Nhóm theo lệnh / mặt hàng"),
+    q: str | None = Query(default=None, description="Mã lệnh, sản phẩm, mặt hàng, mã phiếu"),
+    tinh_trang: Literal["chua_tinh", "can_mua", "dang_mua", "chua_giu", "cho_ve", "co_kho",
+                        "da_xuat", "co_ghi_chu"] | None = Query(default=None),
+    hang_loai: Literal["giay", "vat_tu"] | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=200),
+) -> LuoiOut:
+    """Lưới Kế hoạch vật tư — mỗi dòng một ô (lệnh × mặt hàng), cắt trang theo NHÓM ở máy chủ."""
+    return LuoiOut(**luoi_vat_tu.chon_trang(_luoi(giu), xem=xem, q=q, tinh_trang=tinh_trang,
+                                            hang_loai=hang_loai, page=page, size=size))
+
+
+@router.get("/luoi/xuat.xlsx")
+def luoi_xuat(
+    giu: GiuCho,
+    _user: Annotated[object, Depends(require_permission(MODULE, "read"))],
+    xem: Literal["lenh", "hang"] = Query(default="lenh"),
+    q: str | None = Query(default=None),
+    tinh_trang: Literal["chua_tinh", "can_mua", "dang_mua", "chua_giu", "cho_ve", "co_kho",
+                        "da_xuat", "co_ghi_chu"] | None = Query(default=None),
+    hang_loai: Literal["giay", "vat_tu"] | None = Query(default=None),
+) -> Response:
+    """Xuất Excel đúng các dòng đang lọc trên lưới (mọi trang)."""
+    data = luoi_vat_tu.xuat_xlsx(_luoi(giu), xem=xem, q=q, tinh_trang=tinh_trang,
+                                 hang_loai=hang_loai)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="ke-hoach-vat-tu.xlsx"'},
+    )
+
+
+@router.get("/luoi/lenh", response_model=LuoiLenhOut)
+def luoi_lenh(
+    giu: GiuCho,
+    _user: Annotated[object, Depends(require_permission(MODULE, "read"))],
+    lsx_id: int | None = Query(default=None),
+    bai_ghep_id: int | None = Query(default=None),
+) -> LuoiLenhOut:
+    """Ngăn lệnh: mọi ô của lệnh (kể cả ngoài trang đang xem) + lịch sử."""
+    if (lsx_id is None) == (bai_ghep_id is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Chọn đúng một lệnh hoặc một bài ghép.")
+    ra = luoi_vat_tu.mot_lenh(_luoi(giu), luoi_vat_tu.khoa_chu(lsx_id, bai_ghep_id))
+    if ra is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            detail="Lệnh này không còn trong kế hoạch vật tư.")
+    return LuoiLenhOut(**ra)
+
+
+@router.get("/luoi/hang", response_model=LuoiHangOut)
+def luoi_hang(
+    giu: GiuCho,
+    _user: Annotated[object, Depends(require_permission(MODULE, "read"))],
+    hang_loai: Literal["giay", "vat_tu"] = Query(),
+    hang_id: int = Query(gt=0),
+    kho_rong: int = Query(default=0, ge=0),
+    kho_dai: int = Query(default=0, ge=0),
+) -> LuoiHangOut:
+    """Ngăn mặt hàng: đơn mua (đặt cho ai, dư bao nhiêu), phiếu nên huỷ, lệnh dùng, lịch sử."""
+    ra = luoi_vat_tu.mot_hang(_luoi(giu), f"{hang_loai}:{hang_id}:{kho_rong}:{kho_dai}")
+    if ra is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            detail="Mặt hàng này không còn lệnh nào cần.")
+    return LuoiHangOut(**ra)
 
 
 def _mot_chu_the(payload: GiuChoIn) -> tuple[int | None, int | None]:

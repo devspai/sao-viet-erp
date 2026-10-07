@@ -83,8 +83,8 @@ def soat_vat_tu(db: Session, *, lsx_id: int | None = None,
 
     `chan` LUÔN rỗng từ 01/10/2026 (giữ khoá cho nơi gọi cũ). `canh_bao`: chưa quy đổi được đơn vị
     (`vat_tu_chua_xac_dinh`) · thiếu hàng CHƯA có phiếu mua (`vat_tu_chua_du`) · thiếu hàng ĐÃ đặt
-    mua nhưng NCC chưa hẹn ngày (`vat_tu_chua_co_ngay`) · một phần dựa vào lô ĐANG VỀ có ngày hứa
-    (`vat_tu_dang_ve`).
+    mua nhưng NCC chưa hẹn ngày (`vat_tu_chua_co_ngay`). Cảnh báo "dựa vào lô đang về, hứa ngày …"
+    (`vat_tu_dang_ve`) ĐÃ BỎ 07/10/2026 cùng logic "chạy được từ" (spec một ô một phiếu §6).
 
     Vì sao tách "chưa có ngày" khỏi "chưa mua": việc người dùng phải làm KHÁC nhau — một bên đi mua,
     một bên giục NCC chốt ngày.
@@ -131,13 +131,6 @@ def soat_vat_tu(db: Session, *, lsx_id: int | None = None,
                 "Vật tư chưa giữ đủ.",
                 goi_y="Vào màn Kế hoạch vật tư bấm Giữ chỗ (hàng về hệ tự giữ nốt).",
             ))
-
-    if tt.get("xep_som_nhat"):
-        canh_bao.append(issue(
-            "vat_tu_dang_ve", MUC_CANH_BAO,
-            f"Một phần vật tư dựa vào lô đang về, hứa ngày {tt['xep_som_nhat']}.",
-            goi_y="Lịch không đặt trước ngày này; hàng về sớm thì dời lên.",
-        ))
     return {"chan": [], "canh_bao": canh_bao}
 
 

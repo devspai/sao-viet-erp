@@ -1494,6 +1494,8 @@ class PurchaseService:
             source_type=source_type, purpose=noi_dung, needed_date=needed_date
         )
         cleaned_lines = self._clean_department_lines(lines)
+        nguon_sach = self._clean_nguon_lenh(nguon_lenh, cleaned_lines)
+        self._chan_o_da_co_phieu(nguon_sach)
         row = self.department_requests.create(
             code=self._new_department_request_code(),
             source_type=source_type,
@@ -1505,7 +1507,7 @@ class PurchaseService:
             content=noi_dung,
             needed_date=needed_date,
             lines=cleaned_lines,
-            nguon_lenh=self._clean_nguon_lenh(nguon_lenh, cleaned_lines),
+            nguon_lenh=nguon_sach,
         )
         self.audit.create(
             actor_user_id=actor.id,
@@ -1521,24 +1523,69 @@ class PurchaseService:
         cầu, đúng một chủ thể (lệnh HOẶC bài), không trùng lặp.
 
         Bỏ lặng lẽ chứ không báo lỗi: người lập được xoá dòng hàng khỏi form trước khi lưu, lúc đó
-        liên kết của món đó chỉ đơn giản là không còn đúng nữa."""
+        liên kết của món đó chỉ đơn giản là không còn đúng nữa.
+
+        MỘT liên kết cho mỗi ô (mặt hàng + khổ + lệnh/bài, spec một ô một phiếu 07/10/2026): Kế
+        hoạch vật tư gửi từng dòng bước, hai bước cùng ô gộp lại và CỘNG số đề nghị. Một dòng thiếu
+        số (client cũ) thì cả ô để `None` — đơn mua lúc đó chia theo số cần hiện tại của ô."""
         hangs = {(ln.hang_loai, int(ln.hang_id)) for ln in lines
                  if ln.hang_loai and ln.hang_id}
-        ra: list[dict] = []
-        da_co: set[tuple] = set()
+        theo_o: dict[tuple, dict] = {}
         for n in raw or []:
             get = n.get if isinstance(n, dict) else (lambda k, d=None, _n=n: getattr(_n, k, d))
             hang_loai, hang_id = get("hang_loai"), get("hang_id")
             lsx_id, bai_ghep_id = get("lsx_id"), get("bai_ghep_id")
             if not hang_loai or not hang_id or (lsx_id is None) == (bai_ghep_id is None):
                 continue
-            khoa = (hang_loai, int(hang_id), lsx_id, bai_ghep_id)
-            if (hang_loai, int(hang_id)) not in hangs or khoa in da_co:
+            if (hang_loai, int(hang_id)) not in hangs:
                 continue
-            da_co.add(khoa)
-            ra.append({"hang_loai": hang_loai, "hang_id": int(hang_id), "lsx_id": lsx_id,
-                       "bai_ghep_id": bai_ghep_id, "buoc_id": get("buoc_id")})
-        return ra
+            kr, kd = int(get("kho_rong") or 0), int(get("kho_dai") or 0)
+            khoa = (hang_loai, int(hang_id), kr, kd, lsx_id, bai_ghep_id)
+            sl = get("so_luong")
+            cur = theo_o.get(khoa)
+            if cur is None:
+                theo_o[khoa] = {"hang_loai": hang_loai, "hang_id": int(hang_id),
+                                "kho_rong": kr, "kho_dai": kd, "lsx_id": lsx_id,
+                                "bai_ghep_id": bai_ghep_id, "buoc_id": get("buoc_id"),
+                                "so_luong": None if sl is None else float(sl)}
+            elif cur["so_luong"] is not None:
+                cur["so_luong"] = None if sl is None else cur["so_luong"] + float(sl)
+        return list(theo_o.values())
+
+    def _chan_o_da_co_phieu(self, nguon: list[dict]) -> None:
+        """Ô đã có phiếu còn chạy (yêu cầu mở, hoặc đơn lập từ nó chưa nhập kho xong) thì KHÔNG lập
+        yêu cầu thứ hai cho ô đó — huỷ phiếu cũ trước (spec một ô một phiếu §2).
+
+        Dựng mạch bằng chính `mach_mua.dung_mach` của Kế hoạch vật tư; bước của mạch không cần quy
+        đổi đơn vị nên `ve_goc` trả nguyên số."""
+        if not nguon:
+            return
+        from .kho_giay import khoa_ton
+        from .mach_mua import dung_mach
+
+        ycs = self.department_requests.dang_de_nghi()
+        dong = self.requests.dong_tu_yeu_cau([ln.id for yc in ycs for ln in yc.lines])
+        theo_o = dung_mach(ycs, dong, ve_goc=lambda _h, _u, sl: sl,
+                           can_o=lambda _k: 0.0)["theo_o"]
+        vuong = []
+        for n in nguon:
+            hang = khoa_ton(n["hang_loai"], n["hang_id"], kho_rong=n["kho_rong"],
+                            kho_dai=n["kho_dai"])
+            ph = (theo_o.get((hang, n["lsx_id"], n["bai_ghep_id"])) or {}).get("phieu")
+            if ph is not None:
+                vuong.append((n, ph))
+        if not vuong:
+            return
+        ma = self.department_requests.ma_chu_the(
+            {n["lsx_id"] for n, _ in vuong if n["lsx_id"]},
+            {n["bai_ghep_id"] for n, _ in vuong if n["bai_ghep_id"]},
+        )
+        n, ph = vuong[0]
+        ma_lenh = ma.get(("lsx", n["lsx_id"]) if n["lsx_id"] else ("bai", n["bai_ghep_id"]), "")
+        raise PurchaseConflict(
+            f"Lệnh {ma_lenh} đã có phiếu {ph['ma']} cho mặt hàng này. Huỷ phiếu đó trước rồi mới "
+            "đề nghị lại."
+        )
 
     def can_create_department_request(self, actor) -> bool:
         """Được LẬP yêu cầu mua hàng hay không — HỎI ĐÚNG MỘT THỨ: ô quyền của màn đó.

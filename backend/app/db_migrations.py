@@ -17057,3 +17057,25 @@ def _migrate_go_don_gia_gia_cong(db) -> None:
 
 
 MIGRATIONS.append(("0374_go_don_gia_gia_cong", _migrate_go_don_gia_gia_cong))
+
+
+def _migrate_nguon_lenh_so_luong(db: Session) -> None:
+    """0378 — `yeu_cau_mua_nguon_lenh.kho_rong/kho_dai/so_luong` (07/10/2026, spec một ô một phiếu).
+
+    Một dòng yêu cầu mua có thể gộp nhiều lệnh; đơn mua lập từ nó chia "phần đặt cho lệnh" theo
+    đúng số từng lệnh đã đề nghị, nên liên kết phải nhớ số (đơn vị gốc) và khổ của ô. Liên kết cũ
+    để NULL — bảng cân đối coi bằng số cần hiện tại của ô. Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    if "yeu_cau_mua_nguon_lenh" not in insp.get_table_names():
+        return
+    co = _existing_columns(insp, "yeu_cau_mua_nguon_lenh")
+    for ten in ("kho_rong", "kho_dai"):
+        if ten not in co:
+            db.execute(text(
+                f"ALTER TABLE yeu_cau_mua_nguon_lenh ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    if "so_luong" not in co:
+        db.execute(text("ALTER TABLE yeu_cau_mua_nguon_lenh ADD COLUMN so_luong NUMERIC(14, 4)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0378_nguon_lenh_so_luong", _migrate_nguon_lenh_so_luong))

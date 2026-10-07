@@ -268,6 +268,9 @@ class YeuCauMuaNguonLenhIn(BaseModel):
     lsx_id: int | None = Field(default=None, gt=0)
     bai_ghep_id: int | None = Field(default=None, gt=0)
     buoc_id: int | None = Field(default=None, gt=0)
+    #: Số đề nghị cho dòng này, đơn vị gốc của mặt hàng (mg 0378). Đơn mua lập từ yêu cầu chia
+    #: "phần đặt cho lệnh" theo số này. Thiếu ⇒ chia theo số cần hiện tại của ô.
+    so_luong: float | None = Field(default=None, ge=0)
 
 
 class DepartmentPurchaseRequestIn(BaseModel):

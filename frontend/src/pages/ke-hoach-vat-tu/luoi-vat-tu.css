@@ -1,0 +1,138 @@
+/* Lưới Kế hoạch vật tư — mockup docs/mockups/ke-hoach-vat-tu-mot-o-mot-phieu.html (07/10/2026).
+   Một lưới đặc kiểu bảng tính: dòng thấp, chữ 13px, không thẻ số to; dòng nhóm nền xám. */
+
+.lvt { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.lvt-tool { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lvt-sp { flex: 1; }
+.lvt-h { font-size: 18px; font-weight: 500; margin: 0 12px 0 0; letter-spacing: -.01em; white-space: nowrap; }
+.lvt-lbl { font-size: 12.5px; color: var(--ash-2); }
+.lvt-seg { display: inline-flex; background: var(--rule-hair); border-radius: 8px; padding: 2px; gap: 2px; }
+.lvt-seg button { border: 1px solid transparent; background: transparent; padding: 4px 11px; border-radius: 6px;
+  font-size: 13px; color: var(--ash); cursor: pointer; }
+.lvt-seg button.on { background: var(--canvas, #fff); border-color: var(--rule); color: var(--ink); }
+
+.lvt-search { display: flex; align-items: center; gap: 7px; border: 1px solid var(--rule); background: var(--canvas, #fff);
+  border-radius: 7px; padding: 0 9px; height: 30px; width: 270px; max-width: 100%; color: var(--ash-3); }
+.lvt-search input { border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink);
+  flex: 1; min-width: 0; }
+.lvt-x { border: 0; background: transparent; color: var(--ash-2); cursor: pointer; display: grid; place-items: center; padding: 2px; }
+
+.lvt-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); background: var(--canvas, #fff);
+  border-radius: 7px; height: 30px; padding: 0 11px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+  white-space: nowrap; color: var(--ink); }
+.lvt-btn:hover:not(:disabled) { background: var(--rule-hair); }
+.lvt-btn:disabled { opacity: .55; cursor: default; }
+.lvt-btn--pri { background: var(--rust); border-color: var(--rust); color: #fff; }
+.lvt-btn--pri:hover:not(:disabled) { background: var(--rust-deep, var(--rust)); }
+.lvt-btn--ghost { border-color: transparent; background: transparent; color: var(--ash); }
+.lvt-btn--danger { color: var(--tt-do-fg); }
+.lvt-btn--xs { height: 24px; padding: 0 8px; font-size: 12px; font-weight: 400; }
+
+.lvt-flt { display: flex; gap: 2px; flex-wrap: wrap; }
+.lvt-flt button { border: 1px solid transparent; background: transparent; border-radius: 7px; padding: 4px 10px; font: inherit;
+  font-size: 13px; color: var(--ash); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.lvt-flt button:hover { background: var(--rule-hair); }
+.lvt-flt button.on { border-color: var(--rule); background: var(--canvas, #fff); color: var(--ink); }
+.lvt-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.lvt-dot--do { background: var(--tt-do-dot); }
+.lvt-dot--vang { background: var(--tt-vang-dot); }
+.lvt-dot--xanh { background: var(--tt-xanh-dot); }
+.lvt-dot--cham { background: var(--tt-cham-dot); }
+.lvt-dot--la { background: var(--tt-la-dot); }
+.lvt-dot--xam { background: var(--tt-xam-dot); }
+.lvt-dot--cam { background: var(--tt-cam-dot); }
+.lvt-amb { color: var(--tt-vang-fg); }
+.lvt-loi { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+.lvt-sheet { background: var(--canvas, #fff); border: 1px solid var(--rule-soft); border-radius: 10px; overflow: hidden; }
+.lvt-cuon { overflow-x: auto; }
+.lvt-g { border-collapse: collapse; width: 100%; min-width: 1240px; table-layout: fixed; }
+.kt-ngan .lvt-g { min-width: 860px; }
+/* Tab Vật tư của ngăn lệnh: đủ chỗ cho cả 9 cột ở bề ngang ngăn mặc định; ngăn hẹp hơn thì cuộn ngang. */
+.kt-ngan .lvt-g--ngan { min-width: 1120px; }
+.lvt-g th, .lvt-g td { border-right: 1px solid var(--rule-hair); border-bottom: 1px solid var(--rule-hair); padding: 6px 10px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; height: 34px; text-align: left; }
+.lvt-g th:last-child, .lvt-g td:last-child { border-right: 0; }
+.lvt-g th { background: var(--paper); color: var(--ash-2); font-weight: 500; font-size: 12px;
+  border-bottom: 1px solid var(--rule-soft); height: 32px; }
+.lvt-g td.n, .lvt-g th.n { text-align: right; }
+.lvt-g tr.row:hover td { background: var(--rule-hair); }
+.lvt-g tr.row.sel td { background: var(--rule-hair); }
+.lvt-g tr.gr td { background: var(--rule-hair); font-size: 13px; color: var(--ink-2, var(--ink)); }
+.lvt-g tr.gr td.lead { overflow: visible; }
+.lvt-g td.red, .lvt-g tr.gr td.red, .lvt-kv b.red { color: var(--tt-do-fg); }
+.lvt-trong { text-align: center !important; color: var(--ash-2); height: 64px !important; }
+
+.gl { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.lvt-chev { border: 0; background: transparent; color: var(--ash-3); cursor: pointer; display: grid; place-items: center;
+  width: 16px; padding: 0; }
+.lvt-k { color: var(--ash-2); font-size: 12px; }
+.lvt-mu { color: var(--ash-2); }
+.lvt-mu3 { color: var(--ash-3); }
+.lvt-u { color: var(--ash-2); font-size: 11.5px; margin-left: 3px; }
+.lvt-gap { font-size: 11px; color: var(--tt-do-fg); background: var(--tt-do-bg); border-radius: 4px; padding: 0 6px; }
+
+.lvt-lk { border: 0; background: transparent; padding: 0; font: inherit; color: #1d4ed8; cursor: pointer; text-align: left;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvt-lk:hover { text-decoration: underline; }
+.lvt-lk--chu { color: inherit; }
+.lvt-dutu, .lvt-cap, .lvt-cd, .lvt-dau { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.lvt-cap { gap: 12px; }
+.lvt-g tr.gr .lvt-cap { gap: 18px; }
+
+.lvt-cb { width: 14px; height: 14px; margin: 0; accent-color: var(--ink); cursor: pointer; vertical-align: -2px; }
+.lvt-cb:disabled { opacity: .35; cursor: default; }
+
+.lvt-tag { display: inline-block; background: var(--canvas, #fff); border: 1px solid var(--rule-soft); border-radius: 4px;
+  padding: 0 6px; font-size: 12px; color: var(--ink-2, var(--ink)); margin-left: 8px; }
+.lvt-dau .lvt-tag { margin-left: 0; background: var(--rule-hair); border-color: transparent; }
+.lvt-kind { display: inline-block; font-size: 11px; color: var(--ash); border: 1px solid var(--rule-soft); border-radius: 4px;
+  padding: 0 5px; }
+
+.lvt-chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 1px 9px 1px 7px;
+  font-size: 12px; font-weight: 500; white-space: nowrap; }
+.lvt-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.lvt-chip--do { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.lvt-chip--vang { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.lvt-chip--xanh { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.lvt-chip--cham { background: var(--tt-cham-bg); color: var(--tt-cham-fg); }
+.lvt-chip--la { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.lvt-chip--xam { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
+.lvt-chip--cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+
+.lvt-buoc { display: inline-flex; align-items: center; }
+.lvt-nac { display: inline-flex; gap: 2px; margin-right: 8px; }
+.lvt-nac b { width: 10px; height: 4px; border-radius: 2px; background: var(--rule-soft); display: block; }
+.lvt-nac b.ok { background: var(--tt-la-dot); }
+.lvt-nac b.now { background: var(--ink); }
+
+.lvt-ghichu { display: inline-flex; gap: 12px; }
+.lvt-warn { display: inline-flex; align-items: center; gap: 5px; color: var(--tt-vang-fg); font-size: 12.5px; }
+
+.lvt-bulk { position: sticky; bottom: 16px; align-self: center; background: var(--canvas, #fff); border: 1px solid var(--rule);
+  border-radius: 10px; box-shadow: 0 10px 30px rgba(15, 23, 42, .14); display: flex; align-items: center; gap: 12px;
+  padding: 7px 8px 7px 16px; font-size: 13px; white-space: nowrap; z-index: 5; max-width: 100%; }
+.lvt-bulk .lvt-mu { overflow: hidden; text-overflow: ellipsis; }
+
+.lvt-sec { font-size: 12.5px; color: var(--ash-2); margin: 16px 0 6px; }
+.lvt-sec:first-child { margin-top: 2px; }
+.lvt-kv { display: flex; gap: 22px; align-items: baseline; flex-wrap: wrap; font-size: 13px; color: var(--ash-2); }
+.lvt-kv b { font-weight: 400; color: var(--ink); font-size: 15px; margin-left: 6px; }
+.lvt-hist { list-style: none; margin: 0; padding: 0; }
+.lvt-hist li { display: grid; grid-template-columns: 140px 1fr; gap: 14px; padding: 7px 0; border-bottom: 1px solid var(--rule-hair);
+  font-size: 13px; }
+.lvt-hist li span:first-child { color: var(--ash-2); }
+
+.lvt-hop { margin: 0 0 8px; }
+.lvt-hop__ds { margin: 0 0 10px; padding-left: 18px; }
+.lvt-hop__ds li { display: flex; gap: 10px; }
+.lvt-hop__o { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ash-2); }
+.lvt-hop__o input { height: 32px; border: 1px solid var(--rule); border-radius: 7px; padding: 0 10px; font: inherit;
+  font-size: 13px; color: var(--ink); }
+.lvt-hop__loi { color: var(--tt-do-fg); margin: 8px 0 0; font-size: 12.5px; }
+
+@media (max-width: 720px) {
+  .lvt-search { width: 100%; }
+  .lvt-bulk { white-space: normal; flex-wrap: wrap; }
+}

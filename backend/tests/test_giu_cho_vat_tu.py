@@ -310,8 +310,8 @@ def test_hang_ve_thi_lenh_CAN_SOM_nhat_duoc_uu_tien(db, svc, customer):
 # ================== GIỮ HỨA (lô đang về) ==================
 
 
-def test_giu_hua_bam_lo_dang_ve_va_CHAN_DUOI_lich(db, svc, customer):
-    """Hàng chưa có thật thì ngày về là chặn dưới của lịch — nhốt rắc rối ngày vào đúng một nhánh."""
+def test_giu_hua_bam_lo_dang_ve(db, svc, customer):
+    """Hàng chưa có thật vẫn giữ được (giữ hứa) — đủ là đủ, không còn ngày nào khoá lịch (07/10/2026)."""
     g = _giay(db)
     ve = HOM_NAY + timedelta(days=10)
     _phieu_mua(db, hang=_giay_hang(g), so_luong=100, ngay_ve=ve)
@@ -320,15 +320,17 @@ def test_giu_hua_bam_lo_dang_ve_va_CHAN_DUOI_lich(db, svc, customer):
 
     tt = svc.bat(lsx_id=a.id)
     assert tt["du"] is True
-    assert tt["xep_som_nhat"] == ve, "giữ hứa ⇒ không xếp lịch trước ngày về"
+    assert "xep_som_nhat" not in tt, "logic 'chạy được từ' đã bỏ"
+    assert any(r.nguon == "dang_ve" for r in svc.repo.cua_chu_the(lsx_id=a.id, bai_ghep_id=None))
 
 
-def test_giu_CHAC_thi_khong_rang_buoc_ngay(db, svc, customer):
+def test_giu_CHAC_tu_kho(db, svc, customer):
     g = _giay(db)
     _ton(db, _giay_hang(g), 100)
     a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=200)
 
-    assert svc.bat(lsx_id=a.id)["xep_som_nhat"] is None
+    assert svc.bat(lsx_id=a.id)["du"] is True
+    assert all(r.nguon == "kho" for r in svc.repo.cua_chu_the(lsx_id=a.id, bai_ghep_id=None))
 
 
 def test_hai_lenh_KHONG_cung_bam_mot_lo_dang_ve(db, svc, customer):
@@ -1199,15 +1201,16 @@ def test_chuyen_dang_ve_sang_kho_go_khoa_ngay(db, svc, kh, customer):
     _phieu_mua(db, hang=_giay_hang(g), so_luong=100, ngay_ve=MAI)
     svc.bat(lsx_id=a.id)
     tt_truoc = svc.trang_thai(lsx_id=a.id)
-    assert tt_truoc["xep_som_nhat"] is not None, "đang giữ hứa nên phải có ngày khoá lịch"
+    rows_truoc = svc.repo.cua_chu_the(lsx_id=a.id, bai_ghep_id=None)
+    assert any(r.nguon == NGUON_DANG_VE for r in rows_truoc), "đang giữ hứa"
+    assert tt_truoc["du"] is True
 
     svc.chuyen_dang_ve_sang_kho(_giay_hang(g), 100)
 
     rows = svc.repo.cua_chu_the(lsx_id=a.id, bai_ghep_id=None)
     assert all(r.nguon == NGUON_KHO for r in rows), "phải chuyển hết sang kho"
     assert not any(r.nguon == NGUON_DANG_VE for r in rows)
-    tt_sau = svc.trang_thai(lsx_id=a.id)
-    assert tt_sau["xep_som_nhat"] is None, "hàng đã có thật thì không còn ngày nào khoá lịch nữa"
+    assert svc.trang_thai(lsx_id=a.id)["du"] is True
 
 
 # ================== TÁCH NGUỒN TRONG trang_thai() ==================

@@ -9444,6 +9444,8 @@ export interface CanDoiKhoaDong {
   lsx_id: number | null;
   bai_ghep_id: number | null;
   buoc_id: number | null;
+  /** Số đề nghị của dòng (đơn vị gốc) — xem-trước trả về, form gửi nguyên văn lúc Lưu. */
+  so_luong?: number | null;
 }
 
 /** Bản NHÁP của yêu cầu mua, tính từ các dòng đã tick — server CHƯA ghi gì.
@@ -9469,6 +9471,154 @@ export interface DeNghiMuaXemTruoc {
   /** Khoá các dòng đã tick — form gửi nguyên văn vào `nguon_lenh` lúc Lưu. */
   nguon: CanDoiKhoaDong[];
 }
+
+/* ---------------- Lưới Kế hoạch vật tư (spec một ô một phiếu, 07/10/2026) ---------------- */
+
+/** Bước của phiếu mua (mạch yêu cầu → đơn → nhập kho). */
+export type BuocPhieu =
+  | "moi_de_nghi"
+  | "don_bi_tra"
+  | "dang_lap_don"
+  | "cho_duyet"
+  | "da_dat_hang"
+  | "da_nhap_kho";
+
+/** Tình trạng của MỘT Ô (lệnh × mặt hàng). */
+export type TinhTrangO =
+  | "chua_tinh"
+  | "can_mua"
+  | "dang_mua"
+  | "chua_giu"
+  | "cho_ve"
+  | "co_kho"
+  | "da_xuat";
+
+export interface LuoiPhieu {
+  /** Mã đơn nếu đã có đơn sống, không thì mã yêu cầu. */
+  ma: string;
+  loai: "pmh" | "ycmh";
+  buoc: BuocPhieu;
+  ngay_ve: string | null;
+  yc_ma: string;
+  yc_id: number;
+  yc_line_id: number;
+  pr_id: number | null;
+  co_don: boolean;
+  /** Huỷ được (huỷ món trên yêu cầu) — chưa đơn sống nào nắm món. */
+  co_the_huy: boolean;
+  /** Chỉ có ở danh sách "phiếu nên huỷ". */
+  lap_cho: string[];
+  ly_do: string | null;
+  /** Số phiếu đặt cho ô này — chỉ có ở phiếu của dòng lưới. */
+  phan?: number | null;
+}
+
+export interface LuoiDong {
+  khoa: string;
+  chu: string;
+  lsx_id: number | null;
+  bai_ghep_id: number | null;
+  ma: string;
+  hang: string;
+  hang_loai: HangLoai;
+  hang_id: number;
+  kho_rong: number;
+  kho_dai: number;
+  hang_ma: string | null;
+  hang_ten: string;
+  dvt: string;
+  can: number;
+  da_xuat: number;
+  giu_kho: number;
+  giu_ve: number;
+  /** Đã xuất + đã giữ trong kho + đã giữ trên đơn đang về. */
+  da_giu: number;
+  con_thieu: number;
+  /** Số sẽ đề nghị mua nếu tick — chỉ dòng "Cần mua". */
+  so_de_nghi: number;
+  phieu: LuoiPhieu | null;
+  trung: LuoiPhieu[];
+  /** Mã đơn mà ô đang giữ phần dư trên đó. */
+  du_tu: string[];
+  ngay_co_hang: { loai: "da_xuat" | "co_san" | "ngay_ve" | "hen" | null; ngay: string | null };
+  tinh_trang: TinhTrangO;
+  ghi_chu: string[];
+  buoc: { buoc_id: number | null; ten_viec: string | null; can: number; da_xuat: number; thieu: number }[];
+  khoa_mua: CanDoiKhoaDong[];
+}
+
+export interface LuoiLichSu {
+  luc: string | null;
+  chu: string;
+}
+
+export interface LuoiLenh {
+  chu: string;
+  lsx_id: number | null;
+  bai_ghep_id: number | null;
+  ma: string;
+  ten_sp: string | null;
+  khach_ten: string | null;
+  han_giao_khach: string | null;
+  is_rush: boolean;
+  ngoai_pham_vi: boolean;
+  /** Công tắc giữ chỗ của lệnh. */
+  bat: boolean;
+  lich_su: LuoiLichSu[];
+}
+
+export interface LuoiDon {
+  ma: string | null;
+  buoc: BuocPhieu;
+  ngay_ve: string | null;
+  /** Đơn đã đặt: số còn đang về; đơn chưa đặt: số trên đơn. */
+  so: number;
+  dat_cho: { ma: string; so: number }[];
+  du: number;
+  giu_du: { ma: string; so: number }[];
+  du_trong: number;
+  da_dat: boolean;
+}
+
+export interface LuoiHang {
+  hang: string;
+  hang_loai: HangLoai;
+  hang_id: number;
+  kho_rong: number;
+  kho_dai: number;
+  kho: string | null;
+  hang_ma: string | null;
+  hang_ten: string;
+  dvt: string;
+  ton: number;
+  dang_ve: number;
+  can: number;
+  da_giu: number;
+  con_thieu: number;
+  dat_du: number;
+  don: LuoiDon[];
+  nen_huy: LuoiPhieu[];
+  ghi_chu: string[];
+  lich_su: LuoiLichSu[];
+}
+
+export interface LuoiOut {
+  items: { khoa: string; lenh: LuoiLenh | null; hang: LuoiHang | null; dong: LuoiDong[] }[];
+  tong_nhom: number;
+  tong_dong: number;
+  page: number;
+  size: number;
+  dem: Record<string, number>;
+}
+
+export type LuoiThamSo = {
+  xem: "lenh" | "hang";
+  q?: string;
+  tinh_trang?: TinhTrangO | "co_ghi_chu";
+  hang_loai?: HangLoai;
+  page?: number;
+  size?: number;
+};
 
 /** Một MẶT HÀNG mà một lệnh/bài cần — đã gộp mọi công đoạn của lệnh đó. */
 export interface TheoLenhHang {
@@ -9528,8 +9678,6 @@ export interface TheoLenhRow {
   /** Giữ đủ 100% ⇒ cửa xếp lịch mở. Đây là điều kiện DUY NHẤT của cửa đó. */
   du: boolean;
   khong_ro: boolean;
-  /** Ngày sớm nhất được xếp bước tiêu thụ — `null` khi mọi phần đều là hàng có thật trong kho. */
-  xep_som_nhat: string | null;
   da_xep_lich: boolean;
   giu_tu: string | null;
   so_ngay_giu: number | null;
@@ -13218,6 +13366,22 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ dong, ghi_chu: ghiChu ?? null }),
       });
+    },
+    /** Lưới: mỗi dòng một ô (lệnh × mặt hàng), cắt trang theo NHÓM ở máy chủ. */
+    luoi(token: string, p: LuoiThamSo): Promise<LuoiOut> {
+      return authed<LuoiOut>(`/api/ke-hoach-vat-tu/luoi${qs({ ...p })}`, token);
+    },
+    luoiLenh(token: string, chu: { lsx_id: number | null; bai_ghep_id: number | null }): Promise<{ lenh: LuoiLenh; dong: LuoiDong[] }> {
+      return authed(`/api/ke-hoach-vat-tu/luoi/lenh${qs({ lsx_id: chu.lsx_id, bai_ghep_id: chu.bai_ghep_id })}`, token);
+    },
+    luoiHang(
+      token: string,
+      h: { hang_loai: HangLoai; hang_id: number; kho_rong: number; kho_dai: number },
+    ): Promise<{ hang: LuoiHang; dong: LuoiDong[] }> {
+      return authed(`/api/ke-hoach-vat-tu/luoi/hang${qs({ ...h })}`, token);
+    },
+    xuatLuoiBlobUrl(token: string, p: Omit<LuoiThamSo, "page" | "size">): Promise<string> {
+      return blobUrl(`/api/ke-hoach-vat-tu/luoi/xuat.xlsx${qs({ ...p })}`, token);
     },
     /** CÙNG bảng cân đối, xoay theo LỆNH — "lệnh này chạy được chưa" thay vì "còn thiếu gì". */
     theoLenh(

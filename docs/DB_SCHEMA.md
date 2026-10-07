@@ -2259,6 +2259,9 @@ có gì báo lỗi.
 | `lsx_id`                | `Integer` → `INTEGER`                 | **FK→lsx.id**, **IX**                          | yes  | —              | Lệnh được mua cho (cascade). Đúng một trong `lsx_id`/`bai_ghep_id`. |
 | `bai_ghep_id`           | `Integer` → `INTEGER`                 | **FK→bai_ghep.id**, **IX**                     | yes  | —              | Bài ghép được mua cho (giấy chung của bài). |
 | `buoc_id`               | `Integer` → `INTEGER`                 | —                                              | yes  | —              | Bước đã tick lúc lập (bước lệnh hoặc bước chung của bài) — chỉ để truy vết, không dùng để khớp. |
+| `kho_rong`              | `Integer` → `INTEGER`                 | —                                              | no   | `0`            | Khổ của ô giấy tờ — cạnh ngắn, mm (mg 0378). Hàng khác `0`. |
+| `kho_dai`               | `Integer` → `INTEGER`                 | —                                              | no   | `0`            | Khổ của ô giấy tờ — cạnh dài, mm (mg 0378). Hàng khác `0`. |
+| `so_luong`              | `Numeric(14,4)` → `NUMERIC(14,4)`     | —                                              | yes  | —              | Số đề nghị cho ô này, đơn vị gốc (mg 0378) — đơn mua chia "phần đặt cho lệnh" theo số này. `NULL` = liên kết trước 07/10/2026, coi bằng số cần hiện tại của ô. |
 
 **Keys & indexes**
 

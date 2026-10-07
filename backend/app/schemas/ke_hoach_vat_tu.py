@@ -21,6 +21,8 @@ class CanDoiDong(BaseModel):
     buoc_id: int | None = None
     #: Mã lệnh / mã bài — thứ người dùng đọc.
     ma: str
+    #: Tên sản phẩm của lệnh (hoặc tên bài ghép) — dòng nhóm lệnh ở lưới Kế hoạch vật tư.
+    ten_sp: str | None = None
     #: Lệnh có cờ GẤP. CHỈ ĐỂ BÀY — máy không xếp ưu tiên, không cướp chỗ, không nhắc. Người lập kế
     #: hoạch nhìn cờ rồi tự quyết nhả chỗ của lệnh nào (chủ chốt 17/08/2026).
     is_rush: bool = False
@@ -156,6 +158,13 @@ class DeNghiMuaDong(BaseModel):
     buoc_id: int | None = None
 
 
+class DeNghiMuaNguon(DeNghiMuaDong):
+    """Khoá dòng KÈM số đề nghị của dòng (đơn vị gốc) — xem-trước trả về, form gửi nguyên văn vào
+    `nguon_lenh` lúc Lưu. Đơn mua lập từ yêu cầu chia "phần đặt cho lệnh" theo số này (mg 0378)."""
+
+    so_luong: float | None = None
+
+
 class TheoLenhHang(BaseModel):
     """Một MẶT HÀNG mà một lệnh/bài cần — đã gộp mọi công đoạn của lệnh đó."""
 
@@ -221,8 +230,6 @@ class TheoLenhRow(BaseModel):
     #: Giữ đủ 100% ⇒ cửa xếp lịch mở. Đây là điều kiện DUY NHẤT của cửa đó.
     du: bool = False
     khong_ro: bool = False
-    #: Ngày sớm nhất được xếp bước tiêu thụ — `None` khi mọi phần đều là hàng có thật trong kho.
-    xep_som_nhat: date | None = None
     da_xep_lich: bool = False
     giu_tu: datetime | None = None
     so_ngay_giu: int | None = None
@@ -310,7 +317,7 @@ class DeNghiMuaXemTruocOut(BaseModel):
     noi_dung: str
     lines: list[DeNghiMuaDongOut]
     #: Khoá các dòng đã tick — form gửi lại nguyên văn lúc Lưu để yêu cầu nhớ mình mua cho lệnh nào.
-    nguon: list[DeNghiMuaDong] = Field(default_factory=list)
+    nguon: list[DeNghiMuaNguon] = Field(default_factory=list)
 
 
 class DeNghiMuaOut(BaseModel):
@@ -321,3 +328,174 @@ class DeNghiMuaOut(BaseModel):
 
     id: int
     code: str
+
+
+# ================== LƯỚI (spec một ô một phiếu §5, 07/10/2026) ==================
+
+
+class LuoiPhieu(BaseModel):
+    """Một mạch phiếu (yêu cầu → đơn) tóm tắt — xem `services/mach_mua.tom_tat`."""
+
+    #: Mã hiện trên ô: mã đơn nếu đã có đơn sống, không thì mã yêu cầu.
+    ma: str
+    #: `pmh` | `ycmh` — `ma` là mã đơn hay mã yêu cầu.
+    loai: str
+    #: moi_de_nghi | don_bi_tra | dang_lap_don | cho_duyet | da_dat_hang | da_nhap_kho
+    buoc: str
+    ngay_ve: date | None = None
+    yc_ma: str
+    yc_id: int
+    yc_line_id: int
+    pr_id: int | None = None
+    co_don: bool = False
+    #: Huỷ được bằng nút "Huỷ phiếu" (huỷ món trên yêu cầu) — chỉ khi chưa đơn sống nào nắm món.
+    co_the_huy: bool = False
+    #: Chỉ có ở danh sách "phiếu nên huỷ".
+    lap_cho: list[str] = Field(default_factory=list)
+    ly_do: str | None = None
+    #: Số phiếu đặt cho Ô này (đơn vị gốc) — chỉ có ở phiếu của dòng lưới.
+    phan: float | None = None
+
+
+class LuoiNgayCoHang(BaseModel):
+    #: da_xuat | co_san | ngay_ve | hen | None
+    loai: str | None = None
+    ngay: date | None = None
+
+
+class LuoiBuoc(BaseModel):
+    buoc_id: int | None = None
+    ten_viec: str | None = None
+    can: float = 0
+    da_xuat: float = 0
+    thieu: float = 0
+
+
+class LuoiDong(BaseModel):
+    """MỘT Ô = lệnh/bài × mặt hàng (giấy thêm khổ), đã gộp mọi công đoạn."""
+
+    khoa: str
+    #: `l:<lsx_id>` | `b:<bai_ghep_id>`
+    chu: str
+    lsx_id: int | None = None
+    bai_ghep_id: int | None = None
+    ma: str
+    #: `<loai>:<id>:<rộng>:<dài>`
+    hang: str
+    hang_loai: str
+    hang_id: int
+    kho_rong: int = 0
+    kho_dai: int = 0
+    hang_ma: str | None = None
+    hang_ten: str
+    dvt: str
+    can: float
+    da_xuat: float
+    giu_kho: float
+    giu_ve: float
+    #: Đã xuất + đã giữ trong kho + đã giữ trên đơn đang về.
+    da_giu: float
+    con_thieu: float
+    #: Số sẽ đề nghị mua nếu tick (phần thiếu theo bảng cân đối) — chỉ dòng "Cần mua".
+    so_de_nghi: float = 0
+    phieu: LuoiPhieu | None = None
+    trung: list[LuoiPhieu] = Field(default_factory=list)
+    #: Mã đơn mà ô đang giữ PHẦN DƯ trên đó ("dư từ …").
+    du_tu: list[str] = Field(default_factory=list)
+    ngay_co_hang: LuoiNgayCoHang
+    #: chua_tinh | can_mua | dang_mua | chua_giu | cho_ve | co_kho | da_xuat
+    tinh_trang: str
+    ghi_chu: list[str] = Field(default_factory=list)
+    buoc: list[LuoiBuoc] = Field(default_factory=list)
+    #: Khoá dòng bảng cân đối để gửi `/de-nghi-mua/xem-truoc` — chỉ dòng "Cần mua".
+    khoa_mua: list[DeNghiMuaDong] = Field(default_factory=list)
+
+
+class LuoiLichSu(BaseModel):
+    luc: datetime | None = None
+    chu: str
+
+
+class LuoiLenh(BaseModel):
+    chu: str
+    lsx_id: int | None = None
+    bai_ghep_id: int | None = None
+    ma: str
+    ten_sp: str | None = None
+    khach_ten: str | None = None
+    han_giao_khach: date | None = None
+    is_rush: bool = False
+    ngoai_pham_vi: bool = False
+    #: Công tắc giữ chỗ của lệnh (`giu_cho_bat`).
+    bat: bool = False
+    lich_su: list[LuoiLichSu] = Field(default_factory=list)
+
+
+class LuoiPhanO(BaseModel):
+    ma: str
+    so: float
+
+
+class LuoiDon(BaseModel):
+    """Một dòng đơn mua của mặt hàng — ngăn mặt hàng, tab Đơn mua."""
+
+    ma: str | None = None
+    buoc: str
+    ngay_ve: date | None = None
+    #: Đơn đã đặt: số CÒN ĐANG VỀ; đơn chưa đặt: số trên đơn.
+    so: float
+    dat_cho: list[LuoiPhanO] = Field(default_factory=list)
+    du: float = 0
+    giu_du: list[LuoiPhanO] = Field(default_factory=list)
+    du_trong: float = 0
+    #: Đơn đã đặt nhà cung cấp có ngày về — chỉ phần dư của đơn đó mới giữ được.
+    da_dat: bool = True
+
+
+class LuoiHang(BaseModel):
+    hang: str
+    hang_loai: str
+    hang_id: int
+    kho_rong: int = 0
+    kho_dai: int = 0
+    kho: str | None = None
+    hang_ma: str | None = None
+    hang_ten: str
+    dvt: str
+    ton: float = 0
+    dang_ve: float = 0
+    can: float = 0
+    da_giu: float = 0
+    con_thieu: float = 0
+    dat_du: float = 0
+    don: list[LuoiDon] = Field(default_factory=list)
+    nen_huy: list[LuoiPhieu] = Field(default_factory=list)
+    ghi_chu: list[str] = Field(default_factory=list)
+    lich_su: list[LuoiLichSu] = Field(default_factory=list)
+
+
+class LuoiNhom(BaseModel):
+    khoa: str
+    lenh: LuoiLenh | None = None
+    hang: LuoiHang | None = None
+    dong: list[LuoiDong]
+
+
+class LuoiOut(BaseModel):
+    items: list[LuoiNhom]
+    tong_nhom: int
+    tong_dong: int
+    page: int
+    size: int
+    #: Số dòng theo tình trạng — tính sau ô tìm + loại hàng, TRƯỚC tab tình trạng.
+    dem: dict[str, int]
+
+
+class LuoiLenhOut(BaseModel):
+    lenh: LuoiLenh
+    dong: list[LuoiDong]
+
+
+class LuoiHangOut(BaseModel):
+    hang: LuoiHang
+    dong: list[LuoiDong]

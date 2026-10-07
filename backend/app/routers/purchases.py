@@ -113,12 +113,15 @@ def _notify_purchase_changed(
             recipient_user_id=recipient_user_id,
             source_code=code,
         )
-    # Nhóm `mua_ke_toan` (mọi màn Thu mua / Kế toán); PMH đổi và đợt giao còn nhích nhóm `khvt`
-    # (hàng đang về của Kế hoạch vật tư). Người đứng tên phiếu (`recipient_user_id`) nhận đích danh
-    # kết quả duyệt / từ chối của phiếu mình.
-    quyen = (hop(MAN_MUA_KE_TOAN, MAN_KHVT)
-             if event_type == "purchase_changed" or event_type.startswith("purchase_delivery_")
-             else MAN_MUA_KE_TOAN)
+    # Nhóm `mua_ke_toan` (mọi màn Thu mua / Kế toán) + `khvt`: từ 07/10/2026 lưới Kế hoạch vật tư
+    # bày BƯỚC của phiếu mua từng ô (lập yêu cầu, gửi duyệt, duyệt, đợt giao…), nên mọi sự kiện
+    # mua đều làm ô đổi — và bản cache 45 giây của lưới phải bỏ ngay. Người đứng tên phiếu
+    # (`recipient_user_id`) nhận đích danh kết quả duyệt / từ chối của phiếu mình.
+    from ..services.can_doi_cache import xoa_cache_can_doi
+
+    xoa_cache_can_doi()
+    quyen = (MAN_MUA_KE_TOAN if event_type == "purchase_invoice_updated"
+             else hop(MAN_MUA_KE_TOAN, MAN_KHVT))
     hub.gui({
         "type": event_type,
         "code": code,

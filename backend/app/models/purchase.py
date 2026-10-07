@@ -651,6 +651,12 @@ class YeuCauMuaNguonLenh(Base):
     # Bước đã tick lúc lập (id bước lệnh hoặc bước chung của bài) — chỉ để truy vết, không dùng để
     # khớp: ngày cần là của LỆNH, bước có thể bị sửa/xoá sau đó.
     buoc_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Khổ của ô (giấy tờ; hàng khác 0 · 0) và SỐ đề nghị cho ô này, đơn vị gốc (mg 0378). Một dòng
+    # yêu cầu gộp nhiều lệnh thì đơn mua lập từ nó chia "phần đặt cho lệnh" theo đúng số này.
+    # NULL = liên kết lập trước 07/10/2026 ⇒ coi bằng số cần hiện tại của ô.
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    so_luong: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
 
     request: Mapped[DepartmentPurchaseRequest] = relationship(
         "DepartmentPurchaseRequest", back_populates="nguon_lenh"

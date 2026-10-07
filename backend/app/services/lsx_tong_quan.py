@@ -87,14 +87,10 @@ def _den(muc: str, chu: str = "", man: str | None = None, lsx_id: int | None = N
 def _den_vat_tu(tt: dict, lsx_id: int) -> dict:
     """Đèn vật tư từ trạng thái giữ chỗ — cảnh báo, không còn là cửa chặn (01/10/2026).
 
-    `du=True` mà còn hàng đang trên đường về → vàng kèm ngày: chạy được, nhưng đừng xếp trước ngày
-    đó. Đây là thông tin điều độ cần TRƯỚC khi kéo thanh, không phải sau khi bị báo đỏ.
+    Giữ đủ là xanh, kể cả khi một phần là hàng đang về — đèn vàng "xếp từ ngày hàng về trở đi" đã
+    bỏ 07/10/2026 cùng logic "chạy được từ" (spec một ô một phiếu §6).
     """
     if tt.get("du"):
-        ngay = tt.get("xep_som_nhat")
-        if ngay:
-            return _den(MUC_VANG, f"Đủ, nhưng hàng về {ngay:%d/%m} — xếp từ ngày đó trở đi",
-                        MAN_VAT_TU, lsx_id)
         return _den(MUC_OK)
     if not tt.get("bat"):
         # Lệnh không ra được nhu cầu nào cũng rơi vào đây (`du` cần `bool(can)`).
