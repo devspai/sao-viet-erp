@@ -173,10 +173,10 @@ export function XlLuoi({
   // ------------------------------------------------------------ bề rộng nhãn trên thanh
   // Nhãn (mã, tên, vật tư, "Xong …", cảnh báo) dài hơn chỗ trống bên phải thanh thì bị khay che mất
   // đúng phần quan trọng nhất (giờ xong, trễ). Đo thật rồi mới chọn neo trái / neo phải / dồn mép.
-  const tenEl = useRef(new Map<number, HTMLDivElement>());
-  const [rongTen, setRongTen] = useState<Record<number, number>>({});
+  const tenEl = useRef(new Map<string, HTMLDivElement>());
+  const [rongTen, setRongTen] = useState<Record<string, number>>({});
   useLayoutEffect(() => {
-    const moi: Record<number, number> = {};
+    const moi: Record<string, number> = {};
     let khac = false;
     tenEl.current.forEach((el, id) => {
       moi[id] = el.scrollWidth;
@@ -484,7 +484,7 @@ export function XlLuoi({
     const baseR = nhin ? nhin.trai + nhin.rong : 0;
     // Nhãn lọt bên phải mép đầu thanh thì neo trái; không lọt thì neo vào mép cuối thanh (chữ chạy
     // ngược sang trái); vẫn không lọt thì dồn sát mép phải lưới.
-    const rongNhan = rongTen[d.lsx_id] ?? 0;
+    const rongNhan = rongTen[`n${d.lsx_id}`] ?? 0;
     const tenPhai = !dangDoi && !!nhin && baseL + rongNhan > W && baseL > 0;
     const tenStyle: CSSProperties = dangDoi && doiKhung
       ? { left: Math.max(0, Math.min(doiKhung.trai, W - rongNhan)) }
@@ -502,7 +502,7 @@ export function XlLuoi({
     return (
       <div key={d.lsx_id} className={lop} style={{ position: "absolute", left: 0, top: y, width: W }}>
         <div className={`xa-ten${tenPhai ? " xa-ten--phai" : ""}`} style={{ ...tenStyle, maxWidth: W }}
-          ref={(el) => { if (el) tenEl.current.set(d.lsx_id, el); else tenEl.current.delete(d.lsx_id); }}
+          ref={(el) => { if (el) tenEl.current.set(`n${d.lsx_id}`, el); else tenEl.current.delete(`n${d.lsx_id}`); }}
           onClick={() => onChon(d.lsx_id)} onPointerEnter={() => vaoThanh(d.lsx_id)} onPointerLeave={raThanh}>
           {catTrai && !tenPhai && <span className="xa-truoc">‹</span>}
           <IconTT tt={d.trang_thai} />
@@ -587,7 +587,8 @@ export function XlLuoi({
         })}
 
         {hien.thoang && !dangDoi && (
-          <div className="xa-thong-tin" style={{ left: Math.max(0, tenPhai ? baseR - 300 : baseL) }}>
+          <div className="xa-thong-tin" style={{ left: Math.max(0, Math.min(tenPhai ? baseR - (rongTen[`t${d.lsx_id}`] ?? 0) : baseL, W - (rongTen[`t${d.lsx_id}`] ?? 0))), maxWidth: W }}
+            ref={(el) => { if (el) tenEl.current.set(`t${d.lsx_id}`, el); else tenEl.current.delete(`t${d.lsx_id}`); }}>
             {hien.khach && d.customer_name && <span className="xa-nho"><Building2 size={12} />{d.customer_name}</span>}
             {hien.may && d.may_ten && <span className="xa-nho"><Printer size={12} />{d.may_ten}</span>}
             {hien.sl && <span className="xa-nho">{d.so_luong_dat.toLocaleString("vi-VN")} {d.don_vi_tinh ?? ""}</span>}
@@ -640,6 +641,11 @@ export function XlLuoi({
         <span className="xa-nho">{c.lsx.length} lệnh{c.phu ? ` ${c.phu}` : ""}</span>
         <span className="xa-nho xa-nho--tim">phát hành cùng nhau</span>
         {chuaXep > 0 && <span className="xa-nho xa-nho--vang">{chuaXep} lệnh chưa xếp lịch</span>}
+        {[...new Map(ds.flatMap((d) => d.lien.filter((l) => l.loai === "cho").map((l) => [`${d.lsx_id}-${l.thu_tu}-${l.lsx_id_khac}-${l.thu_tu_khac}`, { d, l }]))).values()].map(({ d, l }) => (
+          <span key={`${d.lsx_id}-${l.cong_doan_id}-${l.cong_doan_id_khac}`} className="xa-nho xa-nho--xanh" title={`${d.ma} bước ${l.thu_tu} ${l.ten_buoc} chỉ bắt đầu khi ${l.ma_khac} xong bước ${l.thu_tu_khac} ${l.ten_buoc_khac}`}>
+            <Link2 size={12} />{d.ma} bước {l.thu_tu} chờ {l.ma_khac} bước {l.thu_tu_khac}
+          </span>
+        ))}
         {chung.length > 0 && (lech > 60_000
           ? <span className="xa-canh xa-chu-vang"><AlertCircle size={13} />các lệnh đang in lệch nhau {quangDongHo(lech / 60_000)}</span>
           : <span className="xa-canh" style={{ color: "#6d28d9" }}><Layers size={13} />in chung một lượt {thuNgayGio(chung[0].luc_nay)}</span>)}
@@ -649,6 +655,8 @@ export function XlLuoi({
 
   // ------------------------------------------------------------ đường nối
   const duongNoi: ReactNode[] = [];
+  const theMep: ReactNode[] = [];
+  const kep = (v: number) => Math.max(0, Math.min(W, v));
   for (const m of muc) {
     if (m.loai !== "lane" || doi?.lsxId === m.d.lsx_id) continue;
     const yN = m.y + 47;
@@ -656,19 +664,33 @@ export function XlLuoi({
       const yK0 = yCua.get(l.lsx_id_khac);
       if (yK0 === undefined || doi?.lsxId === l.lsx_id_khac || !l.luc_nay || !l.luc_khac) return;
       const yK = yK0 + 47;
-      const xN = px(l.luc_nay) ?? 0;
-      const xK = px(l.luc_khac) ?? 0;
+      const xN0 = px(l.luc_nay) ?? 0;
+      const xK0 = px(l.luc_khac) ?? 0;
       if (l.loai === "cho") {
         const sai = (moc(l.luc_khac) ?? 0) > (moc(l.luc_nay) ?? 0) + 60_000;
         const mau = sai ? "#dc2626" : "#3b82f6";
+        if ((xN0 < 0 && xK0 < 0) || (xN0 > W && xK0 > W)) return;
+        // Một đầu rơi ngoài khoảng đang xem: đường vẫn vẽ tới mép lưới, mép đó ghi bước + giờ của đầu bị khuất.
+        const xN = kep(xN0);
+        const xK = kep(xK0);
+        const ngoai = (x0: number, y: number, chu: string, k: string) => {
+          if (x0 >= 0 && x0 <= W) return;
+          theMep.push(
+            <span key={k} className={`xa-noi-mep${sai ? " xa-noi-mep--do" : ""}`}
+              style={x0 > W ? { right: 0, top: y + 14 } : { left: 0, top: y + 14 }}>{x0 < 0 && "‹ "}{chu}{x0 > W && " ›"}</span>,
+          );
+        };
+        ngoai(xN0, yN, `bước ${l.thu_tu} vào lúc ${thuNgayGio(l.luc_nay)}`, `mn${m.d.lsx_id}-${i}`);
+        ngoai(xK0, yK, `bước ${l.thu_tu_khac} xong lúc ${thuNgayGio(l.luc_khac)}`, `mk${m.d.lsx_id}-${i}`);
         duongNoi.push(
           <g key={`${m.d.lsx_id}-${i}`}>
             <path d={`M${xK} ${yK} C${xK + 30} ${yK}, ${xN - 30} ${yN}, ${xN} ${yN}`} fill="none" stroke={mau} strokeWidth="2" strokeDasharray="2 4" strokeLinecap="round" />
-            <circle cx={xN} cy={yN} r="3.5" fill={mau} />
+            {xK0 >= 0 && xK0 <= W && <circle cx={xK} cy={yK} r="3" fill="#fff" stroke={mau} strokeWidth="1.5" />}
+            {xN0 >= 0 && xN0 <= W && <circle cx={xN} cy={yN} r="3.5" fill={mau} />}
           </g>,
         );
       } else if (l.loai === "chung" && m.d.lsx_id < l.lsx_id_khac) {
-        const [x1, y1, x2, y2] = yN < yK ? [xN, yN + 14, xK, yK - 14] : [xK, yK + 14, xN, yN - 14];
+        const [x1, y1, x2, y2] = yN < yK ? [kep(xN0), yN + 14, kep(xK0), yK - 14] : [kep(xK0), yK + 14, kep(xN0), yN - 14];
         duongNoi.push(
           <path key={`${m.d.lsx_id}-${i}`} d={`M${x1} ${y1} L${x2} ${y2}`} fill="none" stroke="#8b5cf6" strokeWidth="2" strokeDasharray="2 4" strokeLinecap="round" />,
         );
@@ -738,7 +760,8 @@ export function XlLuoi({
               {keoTuKhay ? "Thả lệnh vào ngày muốn bắt đầu." : (trong ?? "Không có lệnh nào chạy trong khoảng này.")}
             </div>
           )}
-          <svg className="xa-noi-svg" width={W} height={Math.max(cao, 220)}>{duongNoi}</svg>
+          <svg className="xa-noi-svg xa-noi-svg--tren" width={W} height={Math.max(cao, 220)}>{duongNoi}</svg>
+          {theMep}
           {muc.map((m) => (m.loai === "cum" ? veCum(m.cum, m.y, m.ds) : veLane(m.d, m.y)))}
           {peek}
           {bongTha}

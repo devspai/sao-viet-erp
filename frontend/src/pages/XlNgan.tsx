@@ -172,7 +172,8 @@ export function XlNgan({
   const coBuocCho = ct.cong_doans.filter((c) => c.cho_tu).length;
 
   // Câu "Bước N chưa tính được giờ …" đã hiện ngay trên thẻ bước đó — ở đầu ngăn chỉ giữ ghi chú cấp lệnh.
-  const ghiChu = ct.ghi_chu.filter((g) => !/^Bước \d+ /.test(g));
+  // "Không tính thời gian gia công ngoài" cũng đã có viên "Gia công ngoài" trên thẻ bước.
+  const ghiChu = ct.ghi_chu.filter((g) => !/^Bước \d+ /.test(g) && !/gia công ngoài/i.test(g));
   const doi = (phut: number) => { if (ct.bat_dau_at) onDoiGio(congPhut(ct.bat_dau_at, phut)); };
 
   // ---------------------------------------------------------------- trái
@@ -304,9 +305,9 @@ export function XlNgan({
       <div className={`xa-ng-so${cho > 0 && nghi > 0 ? " xa-ng-so--ba" : ""}`}>
         <div className="xa-ng-so__o xa-ng-so__o--chay"><div className="xa-ng-so__dau"><PlayCircle size={13} />Máy chạy</div><div className="xa-ng-so__gt">{gioChu(chay)}</div></div>
         {cho > 0 && <div className="xa-ng-so__o xa-ng-so__o--cho"><div className="xa-ng-so__dau"><Link2 size={13} />Chờ lệnh khác</div><div className="xa-ng-so__gt">{quangDongHo(cho)}</div></div>}
-        {nghi > 0 && <div className="xa-ng-so__o xa-ng-so__o--nghi"><div className="xa-ng-so__dau"><PauseCircle size={13} />{dem > 0 ? `Ngoài ca ${dem} đêm` : "Nghỉ và ngoài ca"}</div><div className="xa-ng-so__gt">{quangDongHo(nghi)}</div></div>}
+        {nghi > 0 && <div className="xa-ng-so__o xa-ng-so__o--nghi"><div className="xa-ng-so__dau"><PauseCircle size={13} />{dem > 0 && !(phanTach?.ngay_nghi_phut) ? `Ngoài ca ${dem} đêm` : "Nghỉ và ngoài ca"}</div><div className="xa-ng-so__gt">{quangDongHo(nghi)}</div></div>}
       </div>
-      {nghi > 0 && phanTach?.cac_ca?.map((c) => (
+      {nghi > 0 && (phanTach?.cac_ca?.length ?? 0) > 1 && phanTach?.cac_ca?.map((c) => (
         <div key={`${c.ten}${c.tu}`} className="xa-ng-dong">
           <span className="xa-oic xa-m-cat"><Sun size={15} /></span>
           <div><div className="xa-ng-dong__ten">{c.ten}</div>
@@ -326,7 +327,7 @@ export function XlNgan({
         <div className="xa-ng-dong">
           <span className="xa-oic xa-m-cham"><Moon size={15} /></span>
           <div><div className="xa-ng-dong__ten">Ngoài ca</div>
-            <div className="xa-ng-dong__phu">{phanTach.ngoai_ca.map((k, i) => <span key={i} className="xa-nho">từ {k.tu} tới {k.den}{k.so_lan > 1 ? ` ${k.so_lan} lần` : ""}</span>)}</div></div>
+            <div className="xa-ng-dong__phu">{dem > 0 ? `${dem} đêm máy dừng giữa hai ca` : "trước và sau giờ ca"}</div></div>
           <span className="xa-ng-dong__gt">{gioChu(phanTach.ngoai_ca_phut)}</span>
         </div>
       )}
@@ -334,12 +335,11 @@ export function XlNgan({
         <div className="xa-ng-dong">
           <span className="xa-oic xa-m-xam"><CalendarX size={15} /></span>
           <div><div className="xa-ng-dong__ten">Ngày nghỉ</div>
-            <div className="xa-ng-dong__phu xa-ng-dong__phu--cot">
-              {phanTach.ngay_nghi.map((n, i) => (
-                <span key={i}>
-                  <span className={`xa-cl ${n.loai === "work" ? "xa-cl--bu" : n.ten ? "xa-cl--le" : "xa-cl--nghi"}`}>{n.ten ? "Nghỉ lễ" : "Nghỉ tuần"}</span>
-                  {thuNgay(n.ngay)}{n.ten ? ` ${n.ten}` : ""}
-                </span>
+            {/* Nghỉ tuần chỉ đếm; ngày lễ mới kể tên — lệnh vắt qua vài tháng thì danh sách từng Chủ nhật dài cả trang. */}
+            <div className="xa-ng-dong__phu">
+              {phanTach.ngay_nghi.some((n) => !n.ten) && <span>{phanTach.ngay_nghi.filter((n) => !n.ten).length} ngày nghỉ tuần</span>}
+              {phanTach.ngay_nghi.filter((n) => n.ten).map((n, i) => (
+                <span key={i} className={`xa-cl ${n.loai === "work" ? "xa-cl--bu" : "xa-cl--le"}`} title={n.ten ?? undefined}>{thuNgay(n.ngay)} {n.ten}</span>
               ))}
             </div></div>
           <span className="xa-ng-dong__gt">{gioChu(phanTach.ngay_nghi_phut)}</span>
@@ -390,8 +390,9 @@ export function XlNgan({
             {choPhut > 0 && <span className="xa-vien xa-vien--vang"><Clock size={13} />chờ {quangDongHo(choPhut)}</span>}
             {c.du_kien_bat_dau && c.du_kien_ket_thuc !== c.du_kien_bat_dau && <span className="xa-ng-buoc__ly">{tuDen(c.du_kien_bat_dau, c.du_kien_ket_thuc)}</span>}
           </div>
+          {/* Chỉ câu đầu của cảnh báo (lý do); phần hướng dẫn sửa ở đâu nằm trong title để thẻ bước không dài cả khúc. */}
           {!c.la_thue_ngoai && c.chay_phut <= 0 && c.canh_bao && (
-            <div className="xa-ng-buoc__kh xa-chu-vang">{c.canh_bao}</div>
+            <div className="xa-ng-buoc__kh xa-chu-vang" title={c.canh_bao}>{c.canh_bao.split(/\s—\s|\.\s/)[0]}</div>
           )}
           {(c.ke_hoach_bat_dau || c.thuc_bat_dau) && (
             <div className="xa-ng-buoc__kh">
@@ -431,15 +432,16 @@ export function XlNgan({
       <div className="xa-ng-qc">
         <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><Package size={13} />Sản lượng đặt</div>
           <div className="xa-ng-qc__gt">{ct.so_luong_dat.toLocaleString("vi-VN")} {ct.don_vi_tinh ?? ""}</div></div>
-        <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><FileText size={13} />Tờ in</div>
-          <div className="xa-ng-qc__gt">{ct.so_to_ke_hoach.toLocaleString("vi-VN")} tờ{ct.so_con > 1 && <span className="xa-nho">{ct.so_con} con một tờ</span>}</div></div>
+        {/* Thẻ phụ nằm trên hàng nhãn: để ở hàng số thì ô hẹp xuống dòng, cả hàng ô cao gấp đôi. */}
+        <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><FileText size={13} />Tờ in{ct.so_con > 1 && <span className="xa-nho" title={`${ct.so_con} con một tờ`}>{ct.so_con} con một tờ</span>}</div>
+          <div className="xa-ng-qc__gt">{ct.so_to_ke_hoach.toLocaleString("vi-VN")} tờ</div></div>
         {ct.so_kem && <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><Layers size={13} />Kẽm</div><div className="xa-ng-qc__gt">{ct.so_kem} tấm</div></div>}
-        <div className="xa-ng-qc__o xa-ng-qc__o--rong"><div className="xa-ng-qc__nhan"><FileText size={13} />Giấy</div>
+        <div className="xa-ng-qc__o xa-ng-qc__o--rong"><div className="xa-ng-qc__nhan"><FileText size={13} />Giấy
+            {vatTu && vatTu.muc !== "ok" && <span className={`xa-nho ${vatTu.muc === "do" ? "xa-nho--do" : "xa-nho--vang"}`} title={vatTu.chu}>{vatTu.chu}</span>}
+            {vatTu && vatTu.muc === "ok" && <span className="xa-nho xa-nho--la">đủ vật tư</span>}</div>
           <div className="xa-ng-qc__gt">{ct.giay ?? <span className="xa-mo">Chưa chọn giấy</span>}
             {ct.kho_in && <span className="xa-nho">khổ {ct.kho_in}</span>}
             {ct.so_mau && <span className="xa-nho">{ct.so_mau} màu</span>}
-            {vatTu && vatTu.muc !== "ok" && <span className={`xa-nho ${vatTu.muc === "do" ? "xa-nho--do" : "xa-nho--vang"}`}>{vatTu.chu}</span>}
-            {vatTu && vatTu.muc === "ok" && <span className="xa-nho xa-nho--la">đủ vật tư</span>}
           </div></div>
         {ct.sale_name && <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><UserRound size={13} />Kinh doanh</div><div className="xa-ng-qc__gt">{ct.sale_name}</div></div>}
         {ct.nguoi_phu_trach_ten && <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><UserRound size={13} />Phụ trách</div><div className="xa-ng-qc__gt">{ct.nguoi_phu_trach_ten}</div></div>}
