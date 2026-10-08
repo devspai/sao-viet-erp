@@ -231,7 +231,8 @@ export function XlNgan({
               <span>Lệnh đã vào việc {thuNgayGio(ct.thuc_bat_dau_lenh)}, xong {ct.so_buoc_xong} trên {ct.so_buoc} bước. Giờ ở trên là giờ bắt đầu phần còn lại; không lùi được xuống dưới bước đã xong.</span>
             </div>
           )}
-          {ct.co_thuc_te && ct.ket_thuc_thuc_te && (
+          {/* Chỉ khi xưởng đã vào việc — lệnh mới phát hành chưa làm gì thì "theo việc đã làm" là câu rỗng nghĩa. */}
+          {daChayDo && ct.ket_thuc_thuc_te && (
             <div className="xa-ng-canh" style={{ background: "#eff6ff", borderColor: "#bfdbfe", color: "#1e40af" }}>
               <Clock size={16} />
               <span>Theo việc đã làm, dự kiến xong {thuNgayGio(ct.ket_thuc_thuc_te)}
@@ -303,9 +304,9 @@ export function XlNgan({
         <span className="b" style={{ width: `${Math.max(0, 100 - pt(chay) - pt(cho))}%` }} />
       </div>
       <div className={`xa-ng-so${cho > 0 && nghi > 0 ? " xa-ng-so--ba" : ""}`}>
-        <div className="xa-ng-so__o xa-ng-so__o--chay"><div className="xa-ng-so__dau"><PlayCircle size={13} />Máy chạy</div><div className="xa-ng-so__gt">{gioChu(chay)}</div></div>
-        {cho > 0 && <div className="xa-ng-so__o xa-ng-so__o--cho"><div className="xa-ng-so__dau"><Link2 size={13} />Chờ lệnh khác</div><div className="xa-ng-so__gt">{quangDongHo(cho)}</div></div>}
-        {nghi > 0 && <div className="xa-ng-so__o xa-ng-so__o--nghi"><div className="xa-ng-so__dau"><PauseCircle size={13} />{dem > 0 && !(phanTach?.ngay_nghi_phut) ? `Ngoài ca ${dem} đêm` : "Nghỉ và ngoài ca"}</div><div className="xa-ng-so__gt">{quangDongHo(nghi)}</div></div>}
+        <div className="xa-ng-so__o xa-ng-so__o--chay"><div className="xa-ng-so__dau"><PlayCircle size={13} />Máy chạy<span className="xa-pt">{pt(chay)}%</span></div><div className="xa-ng-so__gt">{gioChu(chay)}</div></div>
+        {cho > 0 && <div className="xa-ng-so__o xa-ng-so__o--cho"><div className="xa-ng-so__dau"><Link2 size={13} />Chờ lệnh khác<span className="xa-pt">{pt(cho)}%</span></div><div className="xa-ng-so__gt">{quangDongHo(cho)}</div></div>}
+        {nghi > 0 && <div className="xa-ng-so__o xa-ng-so__o--nghi"><div className="xa-ng-so__dau"><PauseCircle size={13} />{dem > 0 && !(phanTach?.ngay_nghi_phut) ? `Ngoài ca ${dem} đêm` : "Nghỉ và ngoài ca"}<span className="xa-pt">{Math.max(0, 100 - pt(chay) - pt(cho))}%</span></div><div className="xa-ng-so__gt">{quangDongHo(nghi)}</div></div>}
       </div>
       {nghi > 0 && (phanTach?.cac_ca?.length ?? 0) > 1 && phanTach?.cac_ca?.map((c) => (
         <div key={`${c.ten}${c.tu}`} className="xa-ng-dong">
@@ -372,7 +373,7 @@ export function XlNgan({
               {c.ten}
               {c.song_song && <span className="xa-nho" title="Cùng lớp với bước khác nên hai bước không chặn nhau; lịch cấp lệnh vẫn xếp lần lượt.">song song được</span>}
               {c.bai_ghep_ma && <span className="xa-nho xa-nho--tim">bài ghép {c.bai_ghep_ma}</span>}
-              {c.trang_thai && <span className="xa-nho">{TT_BUOC[c.trang_thai] ?? c.trang_thai}</span>}
+              {c.trang_thai && c.trang_thai !== "released" && <span className="xa-nho">{TT_BUOC[c.trang_thai] ?? c.trang_thai}</span>}
             </div>
             <div className="xa-ng-buoc__phu">
               <span className="xa-ng-buoc__may">{c.may_ten ? <Printer size={13} /> : <Users size={13} />}
@@ -394,10 +395,10 @@ export function XlNgan({
           {!c.la_thue_ngoai && c.chay_phut <= 0 && c.canh_bao && (
             <div className="xa-ng-buoc__kh xa-chu-vang" title={c.canh_bao}>{c.canh_bao.split(/\s—\s|\.\s/)[0]}</div>
           )}
-          {(c.ke_hoach_bat_dau || c.thuc_bat_dau) && (
+          {/* Chỉ nói khi xưởng đã vào việc: "chưa vào việc" và giờ kế hoạch đã gửi lặp lại đúng thứ thẻ bước đang bày. */}
+          {c.thuc_bat_dau && (
             <div className="xa-ng-buoc__kh">
-              <span>Kế hoạch đã phát hành {gio(c.ke_hoach_bat_dau)} đến {gio(c.ke_hoach_ket_thuc)}</span>
-              <span>Thực tế {c.thuc_bat_dau ? `${gio(c.thuc_bat_dau)} đến ${c.thuc_ket_thuc ? gio(c.thuc_ket_thuc) : "đang chạy"}` : "chưa vào việc"}
+              <span>Thực tế {gio(c.thuc_bat_dau)} đến {c.thuc_ket_thuc ? gio(c.thuc_ket_thuc) : "đang chạy"}
                 {c.lech_phut != null && Math.abs(c.lech_phut) > 15 && ` ${c.lech_phut > 0 ? "muộn" : "sớm"} ${quangDongHo(Math.abs(c.lech_phut))}`}</span>
             </div>
           )}
@@ -432,19 +433,20 @@ export function XlNgan({
       <div className="xa-ng-qc">
         <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><Package size={13} />Sản lượng đặt</div>
           <div className="xa-ng-qc__gt">{ct.so_luong_dat.toLocaleString("vi-VN")} {ct.don_vi_tinh ?? ""}</div></div>
-        {/* Thẻ phụ nằm trên hàng nhãn: để ở hàng số thì ô hẹp xuống dòng, cả hàng ô cao gấp đôi. */}
-        <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><FileText size={13} />Tờ in{ct.so_con > 1 && <span className="xa-nho" title={`${ct.so_con} con một tờ`}>{ct.so_con} con một tờ</span>}</div>
-          <div className="xa-ng-qc__gt">{ct.so_to_ke_hoach.toLocaleString("vi-VN")} tờ</div></div>
+        <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><FileText size={13} />Tờ in</div>
+          <div className="xa-ng-qc__gt">{ct.so_to_ke_hoach.toLocaleString("vi-VN")} tờ{ct.so_con > 1 && <span className="xa-nho">{ct.so_con} con một tờ</span>}</div></div>
         {ct.so_kem && <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><Layers size={13} />Kẽm</div><div className="xa-ng-qc__gt">{ct.so_kem} tấm</div></div>}
-        <div className="xa-ng-qc__o xa-ng-qc__o--rong"><div className="xa-ng-qc__nhan"><FileText size={13} />Giấy
-            {vatTu && vatTu.muc !== "ok" && <span className={`xa-nho ${vatTu.muc === "do" ? "xa-nho--do" : "xa-nho--vang"}`} title={vatTu.chu}>{vatTu.chu}</span>}
-            {vatTu && vatTu.muc === "ok" && <span className="xa-nho xa-nho--la">đủ vật tư</span>}</div>
+        <div className="xa-ng-qc__o xa-ng-qc__o--rong"><div className="xa-ng-qc__nhan"><FileText size={13} />Giấy</div>
           <div className="xa-ng-qc__gt">{ct.giay ?? <span className="xa-mo">Chưa chọn giấy</span>}
             {ct.kho_in && <span className="xa-nho">khổ {ct.kho_in}</span>}
             {ct.so_mau && <span className="xa-nho">{ct.so_mau} màu</span>}
+            {vatTu && vatTu.muc !== "ok" && <span className={`xa-nho ${vatTu.muc === "do" ? "xa-nho--do" : "xa-nho--vang"}`}>{vatTu.chu}</span>}
+            {vatTu && vatTu.muc === "ok" && <span className="xa-nho xa-nho--la">đủ vật tư</span>}
           </div></div>
-        {ct.sale_name && <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><UserRound size={13} />Kinh doanh</div><div className="xa-ng-qc__gt">{ct.sale_name}</div></div>}
-        {ct.nguoi_phu_trach_ten && <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><UserRound size={13} />Phụ trách</div><div className="xa-ng-qc__gt">{ct.nguoi_phu_trach_ten}</div></div>}
+        {ct.sale_name && (
+          <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><UserRound size={13} />Kinh doanh</div>
+            <div className="xa-ng-qc__gt xa-ng-qc__gt--nguoi" title={ct.sale_name}><span className="xa-ng-av">{ct.sale_name.trim().charAt(0).toUpperCase()}</span><span className="xa-ng-qc__ten">{ct.sale_name}</span></div></div>
+        )}
       </div>
       {ct.luu_y_gui_xuong && <div className="xa-ng-luu-y"><AlertCircle size={16} /><span>Dặn xưởng: {ct.luu_y_gui_xuong}</span></div>}
     </section>
@@ -547,6 +549,8 @@ export function XlNgan({
           {ct.customer_name && <span className="xa-chip-dau"><Building2 size={13} />{ct.customer_name}</span>}
           {ct.order_no && <span className="xa-chip-dau"><FileText size={13} />Đơn {ct.order_no}</span>}
           {ct.customer_po_no && <span className="xa-chip-dau"><Tag size={13} />PO {ct.customer_po_no}</span>}
+          {/* Phụ trách lên hàng chip đầu ngăn: ô thứ sáu của Quy cách đẻ thêm một hàng và ngăn phải cuộn. */}
+          {ct.nguoi_phu_trach_ten && <span className="xa-chip-dau"><UserRound size={13} />Phụ trách {ct.nguoi_phu_trach_ten}</span>}
         </span>
       )}
       hanhDong={(
