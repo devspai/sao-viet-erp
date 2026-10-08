@@ -37,7 +37,8 @@ def nen(client) -> dict:
     from app.models.vat_lieu_kho import VatTuInAn
 
     with Session(engine) as db:
-        to = Department(name="Tổ In offset", code="PB901")
+        # `la_san_xuat=True`: ô "Tổ phụ trách" chỉ nhận tổ LÁ trong khối Sản xuất (07/10/2026).
+        to = Department(name="Tổ In offset", code="PB901", la_san_xuat=True)
         may = MayThietBi(ma="IN-TEST", ten="Máy 4 màu", loai_may="Máy in", active=True)
         vat_tu = VatTuInAn(ma="MUC-TEST", ten="Mực đen", don_vi_gia="kg", don_gia=180_000,
                            active=True)
