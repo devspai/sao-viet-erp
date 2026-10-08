@@ -10,7 +10,7 @@ import { useState, type MouseEvent, type ReactNode } from "react";
 import type { TdsxLsxThamChieu, TdsxMayDong, TdsxSanLuong, TdsxTheoMayOut, TdsxViec } from "../api/client";
 import { EmptyRow } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
-import { ChipTT, CuonLuoi, rongLuoi, soCotGhim, xepCot, type MauTT } from "../components/LuoiDs";
+import { ChipTT, CuonLuoi, rongLuoi, soCotGhim, xepCot, apLuoi, type CauHinhLuoi, type MauTT } from "../components/LuoiDs";
 import type { CotTdsx } from "./TdsxTheoLenh";
 import { nhanChang } from "./lsxBuoc";
 import { so } from "./lsxHoSoChung";
@@ -72,6 +72,7 @@ export function TdsxTheoMay({
   dangTai,
   rong,
   onMo,
+  luoi,
   cotAn = TRONG,
   thuTu = [],
 }: {
@@ -82,12 +83,14 @@ export function TdsxTheoMay({
   /** Ô báo khi bảng không có dòng nào — trang quyết câu chữ (lỗi, lọc rỗng, chưa có gì). */
   rong: ReactNode;
   onMo: (lsxId: number) => void;
+  /** Cấu hình lưới của màn cha — có thì ghim + kéo độ rộng được. */
+  luoi?: CauHinhLuoi;
   cotAn?: Set<string>;
   thuTu?: string[];
 }) {
   const [moTrong, setMoTrong] = useState(false);
   const [chon, moChon, dongChon] = useChonLenh();
-  const cotHien = xepCot(COT_MAY, thuTu).filter((c) => !cotAn.has(c.key));
+  const cotHien = apLuoi(luoi, xepCot(COT_MAY, thuTu).filter((c) => !cotAn.has(c.key)));
   const soCot = cotHien.length;
 
   /** Một việc phục vụ một lệnh ⇒ mở thẳng; từ hai lệnh ⇒ bật bảng chọn, không đoán. */
@@ -106,7 +109,7 @@ export function TdsxTheoMay({
   return (
     <>
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={soCotGhim(cotHien, luoi?.ghim)}>
           <table className="lds-g tdsx-may" style={{ minWidth: rongLuoi(cotHien) }}>
             <caption className="sr-only">Máy, việc đang chạy và việc kế tiếp</caption>
             <colgroup>
@@ -119,6 +122,7 @@ export function TdsxTheoMay({
                 {cotHien.map((c) => (
                   <th key={c.key} scope="col">
                     {c.label}
+                    {luoi?.keo(c.key)}
                   </th>
                 ))}
               </tr>

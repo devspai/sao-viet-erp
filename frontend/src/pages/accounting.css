@@ -20,6 +20,12 @@
 .acct-toolbar__date {
   width: 138px !important;
 }
+/* Ô ngày tự vẽ (ChonNgay) có icon lịch + nút xoá: 138px không đủ chỗ cho "dd/mm/yyyy". */
+.cn-khung.acct-toolbar__date {
+  width: 156px !important;
+  padding: 0 10px;
+  gap: 6px;
+}
 
 /* Ô lọc "Nhà cung cấp" là <Select searchable> chứ không phải <select> (danh sách NCC dài, thẻ
    gốc không gõ tìm được). `.sel` khai `width:100%` nên phải có thẻ bọc, không thì nó chiếm
@@ -1663,7 +1669,8 @@ td.acct-count-cell {
     flex-wrap: wrap;
     width: 100%;
   }
-  .acct-toolbar__date {
+  .acct-toolbar__date,
+  .cn-khung.acct-toolbar__date {
     flex: 1 1 120px;
     width: auto !important;
     min-width: 0;

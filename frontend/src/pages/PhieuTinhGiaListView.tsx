@@ -13,7 +13,6 @@ import { Button } from "../components/Button";
 import { EmptyRow } from "../components/EmptyState";
 import {
   CuonLuoi,
-  soCotGhim,
   ChipTT,
   ChonCot,
   LocNhanhTrangThai,
@@ -23,9 +22,7 @@ import {
   soVN,
   tenKhachGon,
   rongLuoi,
-  useCotAn,
-  useThuTuCot,
-  xepCot,
+  useCauHinhLuoi,
   type CotLuoi,
   type MauTT,
   type MucLocNhanh,
@@ -50,14 +47,17 @@ const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locTGLenUrl(t.l
 
 // Cột của lưới, đúng thứ tự hiện: Mã, Ngày tạo, Khách, Hàng, Số lượng, Tiền, Trạng thái, chứng từ
 // kế tiếp (Báo giá), Người, Ghi chú cuối (giãn theo chỗ trống).
-const COT: (CotLuoi & { w?: number })[] = [
-  { key: "ma", label: "Mã phiếu", coDinh: true, w: 135 },
-  { key: "ngay", label: "Ngày tạo", w: 100 },
+// `sx` = khoá sắp xếp gửi máy chủ; `n` = cột số (căn phải).
+const COT: (CotLuoi & { w?: number; n?: boolean; sx?: string; goiY?: string })[] = [
+  { key: "ma", label: "Mã phiếu", coDinh: true, w: 135, sx: "ma" },
+  { key: "ngay", label: "Ngày tạo", w: 100, sx: "ngay" },
   { key: "khach", label: "Khách hàng", w: 200 },
   { key: "sp", label: "Sản phẩm", w: 210 },
-  { key: "sl", label: "Số lượng", w: 100 },
-  { key: "gv", label: "Giá vốn mỗi sp", w: 115 },
-  { key: "tong", label: "Tổng giá vốn", w: 120 },
+  // Số lượng = Σ SL CÁC SẢN PHẨM trong phiếu (không phải ô SL mặc định đầu phiếu) — có vậy SL × giá
+  // vốn mỗi sp mới ra tổng giá vốn.
+  { key: "sl", label: "Số lượng", w: 100, n: true, sx: "so_luong", goiY: "Tổng số lượng của các sản phẩm trong phiếu" },
+  { key: "gv", label: "Giá vốn mỗi sp", w: 115, n: true, sx: "gia_von_don" },
+  { key: "tong", label: "Tổng giá vốn", w: 120, n: true, sx: "tong_gia_von" },
   { key: "tt", label: "Trạng thái", w: 115 },
   { key: "bg", label: "Báo giá", w: 100 },
   { key: "nguoi", label: "Người lập", w: 135 },
@@ -96,8 +96,7 @@ export function PhieuTinhGiaListView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<PhieuTinhGiaStatsOut | null>(null);
-  const [cotAn, setCotAn] = useCotAn("tinh-gia");
-  const [thuTu, setThuTu] = useThuTuCot("tinh-gia");
+  const luoi = useCauHinhLuoi("tinh-gia");
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [sort, setSort] = useState("-ngay");
@@ -167,8 +166,8 @@ export function PhieuTinhGiaListView({
     }),
     ...dkRieng,
   ];
-  const hien = (k: string) => !cotAn.has(k);
-  const cotHien = xepCot(COT, thuTu).filter((c) => hien(c.key));
+  const hien = (k: string) => !luoi.an.has(k);
+  const cotHien = luoi.rongHien(luoi.xep(COT).filter((c) => hien(c.key)));
   const viTriTong = cotHien.findIndex((c) => c.key === "tong");
 
   return (
@@ -213,12 +212,12 @@ export function PhieuTinhGiaListView({
             tatCa="Tất cả người lập"
             donVi="phiếu"
           />
-          <ChonCot cot={COT} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={COT} {...luoi.chonCot} />
         </div>
       </section>
 
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <colgroup>
               {cotHien.map((c) => (
@@ -227,23 +226,12 @@ export function PhieuTinhGiaListView({
             </colgroup>
             <thead>
               <tr>
-                <th><TieuDeSapXep label="Mã phiếu" cot="ma" sort={sort} onSort={setSort} /></th>
-                {hien("ngay") && <th><TieuDeSapXep label="Ngày tạo" cot="ngay" sort={sort} onSort={setSort} /></th>}
-                {hien("khach") && <th>Khách hàng</th>}
-                {hien("sp") && <th>Sản phẩm</th>}
-                {/* Số lượng = Σ SL CÁC SẢN PHẨM trong phiếu (không phải ô SL mặc định đầu phiếu) —
-                    có vậy SL × giá vốn mỗi sp mới ra tổng giá vốn ngay cột bên cạnh. */}
-                {hien("sl") && (
-                  <th className="n" title="Tổng số lượng của các sản phẩm trong phiếu">
-                    <TieuDeSapXep label="Số lượng" cot="so_luong" sort={sort} onSort={setSort} />
+                {cotHien.map((c) => (
+                  <th key={c.key} className={c.n ? "n" : undefined} title={c.goiY}>
+                    {c.sx ? <TieuDeSapXep label={c.label} cot={c.sx} sort={sort} onSort={setSort} /> : c.label}
+                    {luoi.keo(c.key)}
                   </th>
-                )}
-                {hien("gv") && <th className="n"><TieuDeSapXep label="Giá vốn mỗi sp" cot="gia_von_don" sort={sort} onSort={setSort} /></th>}
-                {hien("tong") && <th className="n"><TieuDeSapXep label="Tổng giá vốn" cot="tong_gia_von" sort={sort} onSort={setSort} /></th>}
-                {hien("tt") && <th>Trạng thái</th>}
-                {hien("bg") && <th>Báo giá</th>}
-                {hien("nguoi") && <th>Người lập</th>}
-                {hien("gc") && <th>Ghi chú</th>}
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -283,54 +271,69 @@ export function PhieuTinhGiaListView({
                         }
                       }}
                     >
-                      <td>{it.ma}</td>
-                      {hien("ngay") && <td>{ngayVN(it.ngay)}</td>}
-                      {hien("khach") && (
-                        <td title={it.customer_name ?? undefined}>
-                          {it.customer_name ? tenKhachGon(it.customer_name) : <span className="lds-mu3">Chưa chọn</span>}
-                        </td>
-                      )}
-                      {hien("sp") && (
-                        <td title={trong.length > 1 ? trong.join("\n") : chinh || undefined}>
-                          {chinh || "—"}
-                          {con.length > 0 ? <span className="lds-tag">+{con.length}</span> : null}
-                        </td>
-                      )}
-                      {hien("sl") && <td className="n">{soVN(it.so_luong)}</td>}
-                      {hien("gv") && (
-                        <td className="n">{it.gia_von_don ? soVN(it.gia_von_don) : <span className="lds-mu3">—</span>}</td>
-                      )}
-                      {hien("tong") && (
-                        <td className="n">{it.tong_gia_von ? soVN(it.tong_gia_von) : <span className="lds-mu3">—</span>}</td>
-                      )}
-                      {hien("tt") && <td><ChipTT mau={tt.mau}>{tt.nhan}</ChipTT></td>}
-                      {hien("bg") && (
-                        <td>
-                          {it.bao_gia_ma ? (
-                            onMoBaoGia && it.bao_gia_id ? (
-                              <button
-                                type="button"
-                                className="lds-lk"
-                                title={`Mở ${it.bao_gia_ma}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onMoBaoGia(it.bao_gia_id!);
-                                }}
-                              >
-                                {it.bao_gia_ma}
-                              </button>
-                            ) : (
-                              it.bao_gia_ma
-                            )
-                          ) : (
-                            <span className="lds-mu3">{tt.key === "calculated" ? "Chưa lập" : "—"}</span>
-                          )}
-                        </td>
-                      )}
-                      {hien("nguoi") && <td>{it.ktv ?? "—"}</td>}
-                      {hien("gc") && (
-                        <td className="lds-mu" title={it.ghi_chu?.trim() || undefined}>{it.ghi_chu?.trim() ?? ""}</td>
-                      )}
+                      {cotHien.map((c) => {
+                        switch (c.key) {
+                          case "ma":
+                            return <td key={c.key}>{it.ma}</td>;
+                          case "ngay":
+                            return <td key={c.key}>{ngayVN(it.ngay)}</td>;
+                          case "khach":
+                            return (
+                              <td key={c.key} title={it.customer_name ?? undefined}>
+                                {it.customer_name ? tenKhachGon(it.customer_name) : <span className="lds-mu3">Chưa chọn</span>}
+                              </td>
+                            );
+                          case "sp":
+                            return (
+                              <td key={c.key} title={trong.length > 1 ? trong.join("\n") : chinh || undefined}>
+                                {chinh || "—"}
+                                {con.length > 0 ? <span className="lds-tag">+{con.length}</span> : null}
+                              </td>
+                            );
+                          case "sl":
+                            return <td key={c.key} className="n">{soVN(it.so_luong)}</td>;
+                          case "gv":
+                            return (
+                              <td key={c.key} className="n">{it.gia_von_don ? soVN(it.gia_von_don) : <span className="lds-mu3">—</span>}</td>
+                            );
+                          case "tong":
+                            return (
+                              <td key={c.key} className="n">{it.tong_gia_von ? soVN(it.tong_gia_von) : <span className="lds-mu3">—</span>}</td>
+                            );
+                          case "tt":
+                            return <td key={c.key}><ChipTT mau={tt.mau}>{tt.nhan}</ChipTT></td>;
+                          case "bg":
+                            return (
+                              <td key={c.key}>
+                                {it.bao_gia_ma ? (
+                                  onMoBaoGia && it.bao_gia_id ? (
+                                    <button
+                                      type="button"
+                                      className="lds-lk"
+                                      title={`Mở ${it.bao_gia_ma}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onMoBaoGia(it.bao_gia_id!);
+                                      }}
+                                    >
+                                      {it.bao_gia_ma}
+                                    </button>
+                                  ) : (
+                                    it.bao_gia_ma
+                                  )
+                                ) : (
+                                  <span className="lds-mu3">{tt.key === "calculated" ? "Chưa lập" : "—"}</span>
+                                )}
+                              </td>
+                            );
+                          case "nguoi":
+                            return <td key={c.key}>{it.ktv ?? "—"}</td>;
+                          default:
+                            return (
+                              <td key={c.key} className="lds-mu" title={it.ghi_chu?.trim() || undefined}>{it.ghi_chu?.trim() ?? ""}</td>
+                            );
+                        }
+                      })}
                     </tr>
                   );
                 })

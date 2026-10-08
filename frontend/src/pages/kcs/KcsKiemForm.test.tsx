@@ -9,7 +9,7 @@ const lenh = { id: 4, ma: "LSX26-0004", ten: "Hộp bánh", khach: null, nhom_id
 const cd = {
   cong_viec_id: 11, ten: "Bế", phan_doan_so: 1, phan_doan_tong: 1, to_id: 3, to_ten: "Tổ bế",
   trang_thai: "running", tot: 120, hong: 0, don_vi: "con", la_kcs_cuoi: true, checklist: [],
-  so_lan_kiem: 2, tong_dat: 50, tong_loi: 3, da_yeu_cau_kho: 0, con_gui_kho: 0, yeu_cau_kho: [], lan_kiem: [],
+  so_lan_kiem: 2, tong_dat: 50, tong_loi: 3, loi_tai_cho: 3, da_yeu_cau_kho: 0, con_gui_kho: 0, yeu_cau_kho: [], lan_kiem: [],
   so_luong_ra: null, may: null, ghi_chu_ky_thuat: null, quy_cach: null, me: [],
 } as SxKcsCongDoan;
 
@@ -148,44 +148,129 @@ describe("KcsKiemForm · chỉ gõ số lỗi", () => {
     expect(kiem.mock.calls[0][2].so_loi).toBe(0);
   });
 
-  const checklist = [
-    { thu_tu: 1, ma: "MAU", ten: "Đúng màu", bat_buoc: true },
-    { thu_tu: 2, ma: "MEP", ten: "Mép bế sạch", bat_buoc: false },
-  ] as SxKcsCongDoan["checklist"];
-  const o = (ten: RegExp) => screen.getByRole("checkbox", { name: ten }) as HTMLInputElement;
+});
 
-  it("tiêu chí là ô tick: tick = đạt, để trống = không đạt; gửi đủ mọi tiêu chí", async () => {
+describe("KcsKiemForm · bước cuối xét theo thẻ công đoạn", () => {
+  let dem = 0;
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn();
+    URL.createObjectURL = vi.fn(() => `blob:the-${++dem}`);
+    URL.revokeObjectURL = vi.fn();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  // Tiêu chí gộp: In của lệnh phụ (cv 9) xếp trước, Bế là chính bước cuối (cv 11).
+  const checklist = [
+    { cong_viec_id: 9, ten_cong_doan: "In offset", thu_tu: 1, ten: "Đúng màu", la_lenh_phu: true, lsx_ma: "LSX26-0003", ten_lenh: "Ruột" },
+    { cong_viec_id: 11, ten_cong_doan: "Bế", thu_tu: 1, ten: "Bế đúng đường" },
+    { cong_viec_id: 11, ten_cong_doan: "Bế", thu_tu: 2, ten: "Mép bế sạch" },
+  ] as SxKcsCongDoan["checklist"];
+  const nguon_loi = [
+    { cong_viec_id: 9, ten: "In offset", lsx_ma: "LSX26-0003", to_ten: "Tổ in", la_dang_kiem: false },
+    { cong_viec_id: 10, ten: "Gỡ phôi", lsx_ma: "LSX26-0004", to_ten: "Tổ gỡ", la_dang_kiem: false },
+    { cong_viec_id: 11, ten: "Bế", lsx_ma: "LSX26-0004", to_ten: "Tổ bế", la_dang_kiem: true },
+  ];
+  const cdThe = { ...cd, checklist, nguon_loi } as SxKcsCongDoan;
+  const luu = () => screen.getByRole("button", { name: "Lưu kết quả kiểm" }) as HTMLButtonElement;
+  const lyDo = () => document.querySelector(".kkf-day__ly")?.textContent ?? null;
+  const theBe = () => screen.getByText("Bế", { selector: ".kkf-tcd__ten span" }).closest("section") as HTMLElement;
+
+  it("mỗi công đoạn một thẻ; khoá kèm lý do; Đạt hết còn lại; gửi kết quả từng tiêu chí theo cặp khoá", async () => {
     const kiem = vi.spyOn(api.sanXuat, "kiemCongDoan").mockResolvedValue({} as SxKcsKiemKetQua);
-    render(<KcsKiemForm lenh={lenh} cd={{ ...cd, checklist }} onClose={vi.fn()} onSaved={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Đạt" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Lưu kết quả kiểm" }));
-    expect(screen.getByRole("alert").textContent).toBe(
-      'Tiêu chí bắt buộc "Đúng màu" chưa tick đạt — đạt thì tick, không đạt thì ghi Số lỗi.',
-    );
-    fireEvent.click(o(/Đúng màu/));
-    expect(o(/Đúng màu/).checked).toBe(true);
-    expect(screen.queryByRole("alert")).toBeNull();
-    fireEvent.click(o(/Mép bế sạch/));
-    fireEvent.click(o(/Mép bế sạch/));
-    expect(o(/Mép bế sạch/).checked).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Lưu kết quả kiểm" }));
+    render(<KcsKiemForm lenh={lenh} cd={cdThe} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(Array.from(document.querySelectorAll(".kkf-tcd__ten")).map((x) => x.textContent))
+      .toEqual(["In offsetLệnh phụ Ruột LSX26-0003", "Bế"]);
+    // Không còn ô tick đạt từng tiêu chí, không ô ghi chú từng tiêu chí, không ô Số lỗi chung.
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByLabelText("Số lỗi")).toBeNull();
+    expect(screen.getByText("Ghi chú chung (nếu có)")).toBeTruthy();
+    expect(luu().disabled).toBe(true);
+    expect(lyDo()).toBe("Còn 2 công đoạn chưa xét");
+    expect(document.querySelector(".kkf-day")?.textContent).toContain("67 đạt");
+
+    fireEvent.click(within(theBe()).getByRole("button", { name: /Đạt/ }));
+    expect(lyDo()).toBe("Còn 1 công đoạn chưa xét");
+    fireEvent.click(screen.getByRole("button", { name: "Đạt hết 1 công đoạn còn lại" }));
+    expect(lyDo()).toBeNull();
+    expect(screen.getByText("Đã xét 2/2 công đoạn")).toBeTruthy();
+    fireEvent.click(luu());
     await waitFor(() => expect(kiem).toHaveBeenCalledTimes(1));
-    expect(kiem.mock.calls[0][2].checklist).toEqual([
-      { thu_tu: 1, dat: true, ghi_chu: null },
-      { thu_tu: 2, dat: false, ghi_chu: null },
+    const body = kiem.mock.calls[0][2];
+    expect(body.checklist).toEqual([
+      { cong_viec_id: 9, thu_tu: 1, dat: true, ghi_chu: null },
+      { cong_viec_id: 11, thu_tu: 1, dat: true, ghi_chu: null },
+      { cong_viec_id: 11, thu_tu: 2, dat: true, ghi_chu: null },
     ]);
+    expect(body.loi).toEqual([]);
+    expect(body.so_loi).toBe(0);
   });
 
-  it("Tất cả đạt tick hết rồi đổi thành Bỏ tick hết; bắt buộc để trống mà có Số lỗi thì qua cổng tiêu chí", () => {
-    render(<KcsKiemForm lenh={lenh} cd={{ ...cd, checklist }} onClose={vi.fn()} onSaved={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Tất cả đạt" }));
-    expect([o(/Đúng màu/).checked, o(/Mép bế sạch/).checked]).toEqual([true, true]);
-    fireEvent.click(screen.getByRole("button", { name: "Bỏ tick hết" }));
-    expect([o(/Đúng màu/).checked, o(/Mép bế sạch/).checked]).toEqual([false, false]);
-    // Không đạt tiêu chí bắt buộc = có hàng lỗi ⇒ ghi Số lỗi là hợp lệ, form đi tiếp tới luật mô tả lỗi.
-    fireEvent.change(screen.getByLabelText("Số lỗi"), { target: { value: "2" } });
-    fireEvent.click(screen.getByRole("button", { name: "Lưu kết quả kiểm" }));
-    expect(screen.getByRole("alert").textContent).toBe("Có lỗi thì phải mô tả lỗi.");
+  it("Có lỗi: tick mục hỏng, mô tả tự điền (sửa tay thì thôi), số lỗi trừ vào đạt, ảnh; Đạt hết không đè thẻ có lỗi", async () => {
+    const kiem = vi.spyOn(api.sanXuat, "kiemCongDoan").mockResolvedValue({} as SxKcsKiemKetQua);
+    render(<KcsKiemForm lenh={lenh} cd={cdThe} onClose={vi.fn()} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Có lỗi ở Bế" }));
+    fireEvent.click(screen.getByRole("button", { name: "Đạt hết 1 công đoạn còn lại" }));
+    expect(lyDo()).toBe("Tick mục hỏng của bế");
+    fireEvent.click(within(theBe()).getByRole("checkbox", { name: "Mép bế sạch" }));
+    const moTa = within(theBe()).getByLabelText(/Mô tả/) as HTMLTextAreaElement;
+    expect(moTa.value).toBe("Mép bế sạch");
+    fireEvent.click(within(theBe()).getByRole("checkbox", { name: "Bế đúng đường" }));
+    expect(moTa.value).toBe("Bế đúng đường\nMép bế sạch");
+    expect(within(theBe()).getByText("2 mục hỏng")).toBeTruthy();
+    fireEvent.change(moTa, { target: { value: "Bế lệch, xơ mép" } });
+    fireEvent.click(within(theBe()).getByRole("checkbox", { name: "Bế đúng đường" }));
+    expect(moTa.value).toBe("Bế lệch, xơ mép");
+    expect(lyDo()).toBe("Gõ số lỗi cho bế");
+
+    fireEvent.change(within(theBe()).getByLabelText("Số lỗi (con)"), { target: { value: "80" } });
+    expect(lyDo()).toBe("Chụp ít nhất một ảnh lỗi bế");
+    fireEvent.click(within(theBe()).getByRole("button", { name: /Chụp ảnh/ }));
+    chon("Chụp ảnh lỗi", anh("be.png"));
+    await screen.findByText("be.png");
+    expect(lyDo()).toBe("Tổng lỗi vượt phần chưa kiểm (67)");
+    fireEvent.change(within(theBe()).getByLabelText("Số lỗi (con)"), { target: { value: "5" } });
+    expect(lyDo()).toBeNull();
+    expect(document.querySelector(".kkf-day")?.textContent).toContain("62 đạt");
+
+    fireEvent.click(luu());
+    await waitFor(() => expect(kiem).toHaveBeenCalledTimes(1));
+    const body = kiem.mock.calls[0][2];
+    expect(body.so_loi).toBe(5);
+    expect(body.checklist).toEqual([
+      { cong_viec_id: 9, thu_tu: 1, dat: true, ghi_chu: null },
+      { cong_viec_id: 11, thu_tu: 1, dat: true, ghi_chu: null },
+      { cong_viec_id: 11, thu_tu: 2, dat: false, ghi_chu: null },
+    ]);
+    // Thẻ của chính bước đang kiểm ⇒ `cong_viec_id` để trống, máy chủ tự hiểu.
+    expect(body.loi!.map((d) => [d.cong_viec_id, d.so_luong, d.mo_ta, d.files.map((f) => f.name)]))
+      .toEqual([[null, 5, "Bế lệch, xơ mép", ["be.png"]]]);
+  });
+
+  it("Thôi, đạt bỏ dòng lỗi của thẻ; + Lỗi ở công đoạn khác chọn từ danh sách máy chủ (kể cả lệnh phụ)", async () => {
+    const kiem = vi.spyOn(api.sanXuat, "kiemCongDoan").mockResolvedValue({} as SxKcsKiemKetQua);
+    render(<KcsKiemForm lenh={lenh} cd={cdThe} onClose={vi.fn()} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Có lỗi ở In offset" }));
+    fireEvent.click(screen.getByRole("button", { name: /Thôi, đạt/ }));
+    expect(screen.getByText("Đã xét 1/2 công đoạn")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Đạt hết 1 công đoạn còn lại" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Lỗi ở công đoạn khác" }));
+    const sel = screen.getByLabelText("Lỗi do công đoạn dòng 1") as HTMLSelectElement;
+    expect(Array.from(sel.options).map((x) => x.textContent)).toEqual([
+      "In offset (lệnh LSX26-0003) · Tổ in", "Gỡ phôi · Tổ gỡ", "Bế · Tổ bế (đang kiểm)",
+    ]);
+    // Gợi sẵn công đoạn KHÔNG có thẻ gần bước cuối nhất.
+    expect(sel.value).toBe("10");
+    fireEvent.change(screen.getByLabelText("Số lỗi dòng 1"), { target: { value: "3" } });
+    expect(lyDo()).toBe("Dòng lỗi 1: có lỗi thì phải mô tả lỗi.");
+    fireEvent.change(screen.getByLabelText("Mô tả lỗi dòng 1"), { target: { value: "Rách khi gỡ" } });
+    fireEvent.click(screen.getAllByRole("button", { name: /Chọn ảnh có sẵn/ })[0]);
+    chon("Chọn ảnh lỗi", anh("go.png"));
+    await screen.findByText("go.png");
+    expect(lyDo()).toBeNull();
+    fireEvent.click(luu());
+    await waitFor(() => expect(kiem).toHaveBeenCalledTimes(1));
+    expect(kiem.mock.calls[0][2].loi!.map((d) => [d.cong_viec_id, d.so_luong])).toEqual([[10, 3]]);
   });
 
   it("tổ chưa ghi thêm gì từ lần kiểm trước ⇒ nói rõ, không cho lưu", () => {
@@ -203,7 +288,7 @@ describe("KcsKiemForm · công đoạn giữa chỉ ghi lỗi", () => {
     URL.revokeObjectURL = vi.fn();
   });
   afterEach(() => vi.restoreAllMocks());
-  const checklist = [{ thu_tu: 1, ma: "MAU", ten: "Đúng màu", bat_buoc: true }] as SxKcsCongDoan["checklist"];
+  const checklist = [{ thu_tu: 1, ma: "MAU", ten: "Đúng màu" }] as SxKcsCongDoan["checklist"];
   const giua = { ...cd, la_kcs_cuoi: false, checklist } as SxKcsCongDoan;
 
   it("không tiêu chí, không đạt; bắt buộc có lỗi; trần = số tốt − lỗi đã ghi; gửi checklist rỗng", async () => {

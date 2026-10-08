@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 
 import { useAuth } from "../../../auth/useAuth";
 import { kyThuatMay } from "../../../api/kyThuatMay";
+import { ChonNgay } from "../../../components/ChonNgay";
 import { TrashIcon } from "../icons";
 import type { HangMucConRow, LichBaoTriRow } from "../types";
 
@@ -101,11 +102,11 @@ export function LichBaoTriField({
                   phiếu cùng ngày. Khai một lần ở đây là hết cảnh đó. */}
               <label className="rc-goi__o rc-goi__o--ngay">
                 <span>Bắt đầu từ</span>
-                <input
+                <ChonNgay
                   className="rc-input"
-                  type="date"
+                  aria-label="Bắt đầu từ"
                   value={r.ngay_bat_dau ?? ""}
-                  onChange={(e) => setRow(i, { ngay_bat_dau: e.target.value || undefined })}
+                  onChange={(v) => setRow(i, { ngay_bat_dau: v || undefined })}
                 />
               </label>
               {/* "Lần cuối làm" + "Dừng máy (phút)" đã BỎ khỏi form 12/08/2026 (chủ xưởng chốt).

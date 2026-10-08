@@ -1,30 +1,27 @@
 // Tab "Loại nghỉ" (HR) (tách từ pages/NghiPhepPage.tsx).
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, type LeaveType } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
 import { EmptyState } from "../../../../components/EmptyState";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { RowActionButton } from "../../../../components/RowActionButton";
-import {
-  CheckCircle2,
-  Edit3,
-  Layers,
-  LayoutGrid,
-  List,
-  Plus,
-  ShieldCheck,
-  Trash2,
-} from "lucide-react";
+import { ChipTT, LocNhanhTrangThai } from "../../../../components/LuoiDs";
+import { Plus } from "lucide-react";
 import { LeaveTypeForm } from "../modals/LeaveTypeForm";
 import { PAGE_SIZE } from "../shared/constants";
 import { errMsg } from "../shared/helpers";
 
 // --- Tab: Loại nghỉ (HR) ----------------------------------------------------
 
-export function LeaveTypesTab({ token }: { token: string }) {
+export function LeaveTypesTab({ token, dau }: {
+  token: string;
+  /** Hàng đầu màn do trang dựng; phần này chỉ gài nút chính vào bên phải. */
+  dau: (phai?: ReactNode) => ReactNode;
+}) {
   const [items, setItems] = useState<LeaveType[] | null>(null);
   const [editing, setEditing] = useState<LeaveType | "new" | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  /** Lọc nhanh theo chế độ lương — thay ba thẻ số cũ; danh mục ngắn nên lọc ở client. */
+  const [locLuong, setLocLuong] = useState<"" | "paid" | "unpaid">("");
   /** Trang của danh mục — cắt ở CLIENT (endpoint `/types` còn nuôi 2 dropdown, xem `PAGE_SIZE`). */
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(PAGE_SIZE);
@@ -70,81 +67,34 @@ export function LeaveTypesTab({ token }: { token: string }) {
     }
   }
 
-  // Ba thẻ thống kê tính trên TOÀN BỘ danh mục, không phải trang đang xem.
-  const totalTypes = items?.length ?? 0;
+  // Số trên hàng lọc nhanh tính trên TOÀN BỘ danh mục, không phải trang đang xem.
   const paidTypes = items?.filter((t) => t.is_paid).length ?? 0;
   const unpaidTypes = items?.filter((t) => !t.is_paid).length ?? 0;
+  const loc = (items ?? []).filter((t) => (locLuong === "paid" ? t.is_paid : locLuong === "unpaid" ? !t.is_paid : true));
 
-  // Cắt trang cho CẢ hai chế độ xem (thẻ và bảng) — hai chế độ chỉ khác cách vẽ, cùng một
-  // danh sách, nên chuyển qua lại không được nhảy sang tập dữ liệu khác.
+  const totalTypes = loc.length;
   const totalPages = Math.max(1, Math.ceil(totalTypes / size));
   const pageSafe = Math.min(page, totalPages);
-  const pagedTypes = (items ?? []).slice((pageSafe - 1) * size, pageSafe * size);
+  const pagedTypes = loc.slice((pageSafe - 1) * size, pageSafe * size);
 
   return (
-    <div className="cc-leave-types-wrapper">
+    <>
+    {/* Hành động chính DUY NHẤT của phần → cam, gài lên hàng đầu màn. */}
+    {dau(
+      <Button variant="accent" onClick={() => setEditing("new")}>
+        <Plus size={16} />
+        <span>Thêm loại nghỉ mới</span>
+      </Button>,
+    )}
+    <div className="cc-leave-types-wrapper lds">
       {canhBao && (
-        <div className="banner banner--warn" style={{ marginBottom: 12 }}>
+        <div className="banner banner--warn">
           {canhBao}{" "}
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => setCanhBao(null)}>
             Đã hiểu
           </button>
         </div>
       )}
-      {/* 1. Header Toolbar & Quick Stats */}
-      <div className="cc-calendar-dashboard" style={{ marginBottom: 20 }}>
-        <div className="cc-calendar-stats-strip">
-          <div className="cc-calendar-stat-card">
-            <span className="cc-calendar-stat-icon cc-calendar-stat-icon--users"><Layers size={16} /></span>
-            <div className="cc-calendar-stat-info">
-              <span className="cc-calendar-stat-val">{totalTypes}</span>
-              <span className="cc-calendar-stat-label">Loại nghỉ</span>
-            </div>
-          </div>
-          <div className="cc-calendar-stat-card">
-            <span className="cc-calendar-stat-icon cc-calendar-stat-icon--check"><CheckCircle2 size={16} /></span>
-            <div className="cc-calendar-stat-info">
-              <span className="cc-calendar-stat-val">{paidTypes}</span>
-              <span className="cc-calendar-stat-label">Có lương P</span>
-            </div>
-          </div>
-          <div className="cc-calendar-stat-card">
-            <span className="cc-calendar-stat-icon cc-calendar-stat-icon--clock"><ShieldCheck size={16} /></span>
-            <div className="cc-calendar-stat-info">
-              <span className="cc-calendar-stat-val">{unpaidTypes}</span>
-              <span className="cc-calendar-stat-label">Không lương</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="cc-leave-types-toolbar-right">
-          <div className="cc-view-toggle">
-            <button
-              className={`cc-view-toggle-btn ${viewMode === "grid" ? "is-active" : ""}`}
-              onClick={() => setViewMode("grid")}
-              title="Xem dạng thẻ"
-            >
-              <LayoutGrid size={15} />
-            </button>
-            <button
-              className={`cc-view-toggle-btn ${viewMode === "table" ? "is-active" : ""}`}
-              onClick={() => setViewMode("table")}
-              title="Xem dạng bảng"
-            >
-              <List size={15} />
-            </button>
-          </div>
-
-          {/* Hành động chính DUY NHẤT của tab → cam. (Cặp nút xem thẻ/bảng bên trái là
-              công tắc hiển thị, không phải hành động — giữ nguyên dáng cũ.) */}
-          <Button variant="accent" className="ns-btn-cta" onClick={() => setEditing("new")}>
-            <Plus size={16} />
-            <span>Thêm loại nghỉ mới</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* 2. Main Content Display */}
       {loading ? (
         <EmptyState trangThai="dang-tai" />
       ) : listError ? (
@@ -155,123 +105,71 @@ export function LeaveTypesTab({ token }: { token: string }) {
           title="Chưa khai loại nghỉ nào"
           sub="Bấm “Thêm loại nghỉ mới” để khai phép năm, nghỉ ốm, việc riêng…"
         />
-      ) : viewMode === "grid" ? (
-        /* GRID VIEW (FEATURE CARDS) */
-        <div className="cc-leave-types-grid">
-          {pagedTypes.map((t) => {
-            return (
-              <div key={t.id} className={`cc-leave-type-card ${!t.is_active ? "is-inactive" : ""}`}>
-                <div className="cc-leave-type-card-head">
-                  <div className="cc-leave-type-title-group">
-                    <h3 className="cc-leave-type-card-name" title={t.name}>{t.name}</h3>
-                    <div className="cc-leave-type-badges-row">
-                      {t.is_paid ? (
-                        <span className="cc-type-badge cc-type-badge--paid">
-                          Có lương
-                        </span>
-                      ) : (
-                        <span className="cc-type-badge cc-type-badge--unpaid">
-                          Không lương
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="cc-leave-type-active-switch">
-                    <label className="cc-switch" title={t.is_active ? "Đang sử dụng (Click để tắt)" : "Đã tắt (Click để bật)"}>
-                      <input type="checkbox" checked={t.is_active} onChange={() => toggleActive(t)} />
-                      <span className="cc-slider" />
-                    </label>
-                  </div>
-                </div>
-
-                <div className="cc-leave-type-card-body">
-                  <div className="cc-leave-type-info-row">
-                    <span className="cc-leave-type-info-label">Hạn mức/năm:</span>
-                    <span className="cc-leave-type-info-val">
-                      {t.annual_quota > 0 ? (
-                        <span className="cc-quota-badge-val">{t.annual_quota} ngày</span>
-                      ) : (
-                        <span className="cc-quota-badge-val cc-quota-badge-val--unlimited">Theo đơn xin</span>
-                      )}
-                    </span>
-                  </div>
-                  {t.note && (
-                    <p className="cc-leave-type-note-text" title={t.note}>
-                      {t.note}
-                    </p>
-                  )}
-                </div>
-
-                <div className="cc-leave-type-card-foot">
-                  <button className="cc-leave-type-action-btn" onClick={() => setEditing(t)}>
-                    <Edit3 size={13} />
-                    <span>Sửa</span>
-                  </button>
-                  <button className="cc-leave-type-action-btn cc-leave-type-action-btn--danger" onClick={() => handleDelete(t)}>
-                    <Trash2 size={13} />
-                    <span>Xóa</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       ) : (
-        /* TABLE VIEW */
-        <div className="cc-timesheet-scroll-container cc-calendar-scroll-wrapper">
-          <table className="cc-timesheet-table">
-            <thead>
-              <tr>
-                <th>Tên loại nghỉ</th>
-                <th className="ns-col-mid">Chế độ lương</th>
-                <th className="ns-col-mid">Hạn mức hàng năm</th>
-                <th className="ns-col-mid">Trạng thái</th>
-                <th className="ns-col-act">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagedTypes.map((t) => {
-                return (
-                  <tr key={t.id} className={!t.is_active ? "is-inactive-row" : ""}>
-                    <td style={{ fontWeight: "bold", color: "var(--ink)" }}>
-                      <span>{t.name}</span>
+        <>
+          {/* Lưới kiểu bảng tính (08/10/2026) thay cặp xem thẻ / bảng + ba thẻ số: hàng lọc nhanh dính
+              liền đầu lưới; bấm dòng để sửa, công tắc bật/tắt ngay trên dòng. */}
+          <section className="lds-loc">
+            <LocNhanhTrangThai dang={locLuong} onChon={(k) => { setLocLuong(k as typeof locLuong); setPage(1); }}
+              ariaLabel="Lọc theo chế độ lương"
+              muc={[
+                { key: "", label: "Tất cả", count: items.length },
+                { key: "paid", label: "Có lương", count: paidTypes, mau: "la" },
+                { key: "unpaid", label: "Không lương", count: unpaidTypes, mau: "xam" },
+              ]} />
+          </section>
+          <div className="lds-sheet">
+            <table className="lds-g np-loai">
+              <colgroup>
+                <col />
+                <col style={{ width: 130 }} />
+                <col style={{ width: 130 }} />
+                <col />
+                <col style={{ width: 96 }} />
+                <col style={{ width: 52 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Tên loại nghỉ</th>
+                  <th>Chế độ lương</th>
+                  <th className="n">Hạn mức mỗi năm</th>
+                  <th>Ghi chú</th>
+                  <th className="c">Đang dùng</th>
+                  <th aria-label="Xóa" />
+                </tr>
+              </thead>
+              <tbody>
+                {pagedTypes.length === 0 ? (
+                  <tr><td colSpan={6} className="lds-trong">Không có loại nghỉ nào khớp bộ lọc.</td></tr>
+                ) : pagedTypes.map((t) => (
+                  <tr key={t.id} className={`lds-dong${t.is_active ? "" : " np-loai--tat"}`} tabIndex={0}
+                    onClick={() => setEditing(t)}
+                    onKeyDown={(e) => { if (e.key === "Enter") setEditing(t); }}
+                    title="Bấm để sửa">
+                    <td title={t.name}>{t.name}</td>
+                    <td>{t.is_paid ? <ChipTT mau="la">Có lương</ChipTT> : <ChipTT mau="xam">Không lương</ChipTT>}</td>
+                    <td className={t.annual_quota > 0 ? "n" : "n lds-mu"}>
+                      {t.annual_quota > 0 ? `${t.annual_quota} ngày` : "Theo đơn xin"}
                     </td>
-                    <td className="ns-col-mid">
-                      {t.is_paid ? (
-                        <span className="cc-type-badge cc-type-badge--paid">
-                          Có lương
-                        </span>
-                      ) : (
-                        <span className="cc-type-badge cc-type-badge--unpaid">
-                          Không lương
-                        </span>
-                      )}
-                    </td>
-                    <td className="ns-col-mid" style={{ fontWeight: "bold" }}>
-                      {t.annual_quota > 0 ? `${t.annual_quota} ngày/năm` : "Theo đơn xin"}
-                    </td>
-                    <td className="ns-col-mid">
-                      <label className="cc-switch" title={t.is_active ? "Đang sử dụng" : "Đã tắt"}>
+                    <td className="lds-mu" title={t.note ?? undefined}>{t.note}</td>
+                    <td className="c" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      <label className="cc-switch np-loai__cong-tac" title={t.is_active ? "Đang dùng — bấm để tắt" : "Đã tắt — bấm để bật"}>
                         <input type="checkbox" checked={t.is_active} onChange={() => toggleActive(t)} aria-label={`Bật/tắt loại nghỉ ${t.name}`} />
                         <span className="cc-slider" />
                       </label>
                     </td>
-                    <td className="ns-col-act">
-                      {/* Xoá loại nghỉ đụng tới đơn cũ ⇒ GIỮ `danger`. */}
-                      <div className="cc-approve-actions-cell ns-rowact">
-                        <RowActionButton dense label="Sửa" icon="pencil" onClick={() => setEditing(t)} />
-                        <RowActionButton dense danger label="Xóa" icon="trash" onClick={() => handleDelete(t)} />
-                      </div>
+                    {/* Xoá loại nghỉ đụng tới đơn cũ ⇒ GIỮ `danger`, vẫn qua hộp xác nhận. */}
+                    <td className="lds-nut" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      <RowActionButton dense danger label={`Xóa ${t.name}`} icon="trash" onClick={() => handleDelete(t)} />
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
-      {/* Chân bảng chung cho CẢ hai chế độ xem (thẻ / bảng) — cùng một danh sách đã cắt. */}
       {!loading && !listError && totalTypes > 0 && (
         <PhanTrangDayDu
           trang={pageSafe} size={size} tong={totalTypes} soDong={pagedTypes.length}
@@ -291,5 +189,6 @@ export function LeaveTypesTab({ token }: { token: string }) {
         />
       )}
     </div>
+    </>
   );
 }

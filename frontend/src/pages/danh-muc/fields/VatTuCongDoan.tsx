@@ -13,6 +13,9 @@ import { TrashIcon } from "../icons";
 import type { Row, VatTuCongDoanRow } from "../types";
 import { RefSearchField } from "./RefFields";
 
+/** Tên ĐVT (`bộ`, `cái`, `m²`) do máy chủ gắn vào `don_vi_ten` — đừng in mã (`bo`, `cai`, `m2`). */
+const tenDvt = (v: Row) => String(v.don_vi_ten ?? v.don_vi_gia ?? "—");
+
 export function VatTuCongDoanField({ value, onChange }: {
   value: VatTuCongDoanRow[];
   onChange: (v: VatTuCongDoanRow[]) => void;
@@ -35,7 +38,7 @@ export function VatTuCongDoanField({ value, onChange }: {
   // gõ được nhưng không in ra. Món đã có trong bảng thì không mời chọn lại.
   const conLai = useMemo(() => vatTu
     .filter((v) => !value.some((x) => x.vat_tu_id === Number(v.id)))
-    .map((v) => ({ ...v, ten: `${String(v.ten)} (${String(v.don_vi_gia ?? "—")})` })),
+    .map((v) => ({ ...v, ten: `${String(v.ten)} (${tenDvt(v)})` })),
   [vatTu, value]);
 
   return <div className="rc-bands rc-bands--dinh-muc">
@@ -53,7 +56,7 @@ export function VatTuCongDoanField({ value, onChange }: {
           {value.map((v, i) => { const vt = theoId.get(v.vat_tu_id); return (
             <tr key={v.vat_tu_id}>
               <td className="rc-col--left">{String(vt?.ten ?? "(đã gỡ khỏi danh mục)")}</td>
-              <td className="rc-col--unit">{String(vt?.don_vi_gia ?? "—")}</td>
+              <td className="rc-col--unit">{vt ? tenDvt(vt) : "—"}</td>
               <td className="rc-col--center">
                 <button type="button" className="rc-bands__del" title="Bỏ vật tư khỏi công đoạn"
                   onClick={() => onChange(value.filter((_, j) => j !== i))}>

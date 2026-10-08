@@ -28,6 +28,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
+import { ChonGio } from "../../../../components/ChonNgay";
 import { MonthPicker } from "../../../../components/MonthPicker";
 import { OtConfirmModal } from "../modals/OtConfirmModal";
 import { EmployeeCalendarModal } from "../modals/EmployeeCalendarModal";
@@ -1463,11 +1464,12 @@ function DayDetailModal({
                             Ra tăng ca (thực tế)
                           </span>
                           <div className="cc-input-time-wrapper">
-                            <input
-                              type="time"
-                              value={otOut}
-                              onChange={(e) => setOtOut(e.target.value)}
-                            />{" "}
+                            <ChonGio
+                              className="cc-input-text"
+                              value={otOut ?? ""}
+                              onChange={(v) => setOtOut(v)}
+                              aria-label="Ra tăng ca (thực tế)"
+                            />
                           </div>
                         </div>
                         <label
@@ -1522,11 +1524,12 @@ function DayDetailModal({
                     <div className="cc-adjust-field">
                       <span className="cc-field-label">Giờ</span>
                       <div className="cc-input-time-wrapper">
-                        <input
-                          type="time"
-                          value={time}
-                          onChange={(e) => setTime(e.target.value)}
-                        />{" "}
+                        <ChonGio
+                          className="cc-input-text"
+                          value={time ?? ""}
+                          onChange={(v) => setTime(v)}
+                          aria-label="Giờ"
+                        />
                       </div>
                     </div>
                     <div className="cc-adjust-field">

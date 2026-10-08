@@ -531,7 +531,6 @@ class StockVoucherCreate(BaseModel):
     # Số phiếu tự nhập (tuỳ chọn); bỏ trống → hệ thống tự sinh (PNK/PXK####).
     ma: str | None = Field(default=None, max_length=30)
     ngay: date | None = None
-    nguoi_giao_nhan: str | None = Field(default=None, max_length=150)
     ghi_chu: str | None = Field(default=None, max_length=1000)
     lines: list[StockVoucherLineIn] = Field(min_length=1)
 

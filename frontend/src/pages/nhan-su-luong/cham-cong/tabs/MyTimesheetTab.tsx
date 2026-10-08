@@ -7,8 +7,9 @@ import {
   type Timesheet,
   type ShiftChange,
 } from "../../../../api/client";
-import { CalendarDays, ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { EmptyState } from "../../../../components/EmptyState";
+import { MonthPicker } from "../../../../components/MonthPicker";
 import { statusBadge } from "../components/badges";
 import { RequestAdjustModal } from "../modals/RequestAdjustModal";
 import { HE_SO_NGAY_MAC_DINH } from "../shared/constants";
@@ -187,21 +188,13 @@ export function MyTimesheetTab({ token }: { token: string }) {
           >
             <ChevronRight size={16} />
           </button>
-          <div className="cc-month-picker-wrapper">
-            <input
-              type="month"
-              className="cc-month-picker-hidden"
-              value={ym}
-              onChange={(e) => setYm(e.target.value)}
-              id="cc-month-picker"
-            />
-            <label
-              htmlFor="cc-month-picker"
+          <div className="cc-month-picker-wrapper" title="Chọn tháng nhanh">
+            <MonthPicker
               className="cc-month-picker-trigger"
-              title="Chọn tháng nhanh"
-            >
-              <CalendarDays size={14} /> Chọn tháng
-            </label>
+              value={ym}
+              onChange={(v) => { if (v) setYm(v); }}
+              ariaLabel="Chọn tháng nhanh"
+            />
           </div>
         </div>
 

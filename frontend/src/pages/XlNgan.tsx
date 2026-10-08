@@ -1,19 +1,21 @@
-// XẾP LỊCH — NGĂN CHI TIẾT một lệnh (mockup A cải tiến mục 7, 08/10/2026). Vỏ là `NganPhai` dùng
-// chung (rộng 1180px, kéo mép trái, Esc, ↑ ↓ đổi lệnh); thân hai cột như hộp chi tiết cũ:
-//   trái  — Bắt đầu lệnh (± 15 phút, hoàn tác) · Phát hành cùng nhau (cụm) · Từ bắt đầu tới xong;
-//   phải  — Quy trình (từng bước dính lệnh nào) · Quy cách và vật tư.
-// Tab "Lịch sử phát hành" giữ nguyên luồng so hai phiên bản của hộp cũ.
+// XẾP LỊCH — NGĂN CHI TIẾT một lệnh. Vỏ là `NganPhai` dùng chung (rộng 1180px, kéo mép trái, Esc,
+// ↑ ↓ đổi lệnh). Thân theo phương án B (`docs/mockups/xep-lich-ngan-gon-3-phuong-an.html`, 08/10/2026):
+//   dải ô số một hàng (bắt đầu · xong · tổng · máy chạy · hạn) →
+//   bảng bước, cột cuối là thanh thời gian của chính lệnh trên trục ngày (vùng gạch = ngoài ca) →
+//   hai khối thấp: Phát hành cùng nhau · Quy cách và vật tư.
+// Mục tiêu: một lần nhìn thấy hết, không phải cuộn. Tab "Lịch sử phát hành" giữ nguyên luồng so hai phiên bản.
 import {
   AlertCircle, ArrowLeft, ArrowRight, Box, Building2, CalendarClock, Check, Clock, Copy, ExternalLink,
-  FileText, FoldVertical, Layers, Link2, Moon, Package, PackageCheck, PauseCircle, PlayCircle, Printer,
-  RotateCcw, Scissors, Send, Sparkles, Sun, Tag, Target, Trash2, Truck, UserRound, Users, CalendarX,
+  FileText, FoldVertical, Layers, Link2, Package, PackageCheck, PlayCircle, Printer,
+  RotateCcw, Scissors, Send, Sparkles, Tag, Target, Trash2, Truck, UserRound,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import type {
   XlChiTiet, XlCongDoan, XlGoiPhatHanh, XlNoi, XlSoSanh, XlVatTu,
 } from "../api/client";
+import { ChonNgayGio } from "../components/ChonNgay";
 import { EmptyState } from "../components/EmptyState";
 import { NganPhai } from "./ke-toan/shared/NganPhai";
 import { IconTT } from "./XlLuoi";
@@ -22,22 +24,24 @@ import {
 } from "./xlShared";
 import "./ke-toan/ke-toan.css";
 
-/** Bộ màu + biểu tượng theo loại bước — cùng bộ của hộp chi tiết cũ (`.xl-c-icon--*`). */
-function theBuoc(ten: string): { ic: ReactNode; mau: string; vien: string } {
+/** Bộ màu + biểu tượng theo loại bước — cùng bộ của lưới (`.xa-m-*`). */
+function theBuoc(ten: string): { ic: ReactNode; mau: string } {
   const t = ten.toLowerCase();
-  if (t.includes("ctp") || t.includes("bản") || t.includes("kẽm")) return { ic: <Layers size={19} />, mau: "xa-m-cham", vien: "#4f46e5" };
-  if (t.includes("cắt") || t.includes("xả")) return { ic: <Scissors size={19} />, mau: "xa-m-cat", vien: "#d97706" };
-  if (t.includes("in")) return { ic: <Printer size={19} />, mau: "xa-m-in", vien: "#0891b2" };
-  if (t.includes("cán") || t.includes("màng") || t.includes("phủ") || t.includes("uv") || t.includes("ép kim")) return { ic: <Sparkles size={19} />, mau: "xa-m-can", vien: "#9333ea" };
-  if (t.includes("bế") || t.includes("dập")) return { ic: <Box size={19} />, mau: "xa-m-tp", vien: "#e11d48" };
-  if (t.includes("dán") || t.includes("gấp") || t.includes("đóng cuốn") || t.includes("khâu")) return { ic: <FoldVertical size={19} />, mau: "xa-m-xanh", vien: "#2563eb" };
-  if (t.includes("kcs") || t.includes("đóng gói") || t.includes("giao")) return { ic: <PackageCheck size={19} />, mau: "xa-m-la", vien: "#16a34a" };
-  return { ic: <Box size={19} />, mau: "xa-m-xam", vien: "#64748b" };
+  if (t.includes("ctp") || t.includes("bản") || t.includes("kẽm")) return { ic: <Layers size={14} />, mau: "xa-m-cham" };
+  if (t.includes("cắt") || t.includes("xả") || t.includes("xén")) return { ic: <Scissors size={14} />, mau: "xa-m-cat" };
+  if (t.includes("in")) return { ic: <Printer size={14} />, mau: "xa-m-in" };
+  if (t.includes("cán") || t.includes("màng") || t.includes("phủ") || t.includes("uv") || t.includes("ép kim")) return { ic: <Sparkles size={14} />, mau: "xa-m-can" };
+  if (t.includes("bế") || t.includes("dập")) return { ic: <Box size={14} />, mau: "xa-m-tp" };
+  if (t.includes("dán") || t.includes("gấp") || t.includes("đóng cuốn") || t.includes("khâu") || t.includes("keo")) return { ic: <FoldVertical size={14} />, mau: "xa-m-xanh" };
+  if (t.includes("kcs") || t.includes("đóng gói") || t.includes("giao")) return { ic: <PackageCheck size={14} />, mau: "xa-m-la" };
+  return { ic: <Box size={14} />, mau: "xa-m-xam" };
 }
 
 const TT_BUOC: Record<string, string> = {
   released: "Chờ chạy", running: "Đang chạy", paused: "Tạm dừng", completed: "Xong",
 };
+
+const NGAY_MS = 86_400_000;
 
 /** "T2 12/10 14:00 đến 18:00" — cùng ngày thì vế sau chỉ ghi giờ. */
 function tuDen(a: string | null, b: string | null): string {
@@ -59,21 +63,25 @@ function TrangThaiLenh({ ct }: { ct: XlChiTiet }) {
   return <span className="xa-vien xa-vien--xanh">Có lịch, chưa phát hành</span>;
 }
 
-/** Câu nói một dải nối từ phía bước của lệnh đang mở. */
-function cauLien(l: XlNoi): ReactNode {
-  const ma = <span className="xa-ma">{l.ma_khac}</span>;
+/** Câu đầy đủ của một dải nối — để trong `title` của nhãn ngắn trên trục. */
+function cauLien(l: XlNoi): string {
   if (l.loai === "cho") {
     return l.luc_khac
-      ? <>Chờ bước {l.thu_tu_khac} {l.ten_buoc_khac} của {l.ten_lenh_khac} {ma} xong lúc {thuNgayGio(l.luc_khac)}</>
-      : <>Chờ bước {l.thu_tu_khac} {l.ten_buoc_khac} của {l.ten_lenh_khac} {ma}. Lệnh đó chưa xếp lịch nên chưa biết lúc nào xong.</>;
+      ? `Chờ bước ${l.thu_tu_khac} ${l.ten_buoc_khac} của ${l.ten_lenh_khac} ${l.ma_khac} xong lúc ${thuNgayGio(l.luc_khac)}`
+      : `Chờ bước ${l.thu_tu_khac} ${l.ten_buoc_khac} của ${l.ten_lenh_khac} ${l.ma_khac}. Lệnh đó chưa xếp lịch nên chưa biết lúc nào xong.`;
   }
   if (l.loai === "doi") {
-    return <>{l.ten_lenh_khac} {ma} chờ bước này xong mới vào bước {l.thu_tu_khac} {l.ten_buoc_khac}. Bước này xong muộn bao nhiêu, lệnh đó xong muộn bấy nhiêu.</>;
+    return `${l.ten_lenh_khac} ${l.ma_khac} chờ bước này xong mới vào bước ${l.thu_tu_khac} ${l.ten_buoc_khac}. Bước này xong muộn bao nhiêu, lệnh đó xong muộn bấy nhiêu.`;
   }
-  return (
-    <>In chung một tờ với {ma} {l.ten_lenh_khac}{l.bai_ghep_ma ? `, bài ghép ${l.bai_ghep_ma}` : ""}.
-      {l.luc_nay ? ` Một lượt máy lúc ${thuNgayGio(l.luc_nay)} cho cả hai lệnh.` : ""}</>
-  );
+  return `In chung một tờ với ${l.ma_khac} ${l.ten_lenh_khac}${l.bai_ghep_ma ? `, bài ghép ${l.bai_ghep_ma}` : ""}.`
+    + (l.luc_nay ? ` Một lượt máy lúc ${thuNgayGio(l.luc_nay)} cho cả hai lệnh.` : "");
+}
+
+/** Nhãn ngắn của dải nối, nằm cạnh thanh. */
+function nhanLien(l: XlNoi): string {
+  if (l.loai === "cho") return `chờ ${l.ma_khac} bước ${l.thu_tu_khac}`;
+  if (l.loai === "doi") return `${l.ma_khac} chờ ở đây`;
+  return `in chung ${l.ma_khac}`;
 }
 
 /** Lý do hai lệnh trong cụm dính nhau, nhìn từ lệnh đang mở. */
@@ -91,7 +99,105 @@ function lyDoCum(lien: XlNoi[], khacId: number): string[] {
 function soDem(a: string | null, b: string | null): number {
   const x = moc(a?.slice(0, 10) + "T00:00");
   const y = moc(b?.slice(0, 10) + "T00:00");
-  return x !== null && y !== null ? Math.round((y - x) / 86_400_000) : 0;
+  return x !== null && y !== null ? Math.round((y - x) / NGAY_MS) : 0;
+}
+
+// ---------------------------------------------------------------- hình học trục thời gian
+
+function phutTrongNgay(hhmm: string): number | null {
+  const m = hhmm.match(/^(\d{1,2}):(\d{2})/);
+  return m ? +m[1] * 60 + +m[2] : null;
+}
+
+function dauNgay(ms: number): number {
+  const d = new Date(ms);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+function ymd(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Khung ca trong một ngày, phút tính từ 00:00, đã sắp. Ca vắt qua nửa đêm tách hai khúc. */
+function khungCa(pt: XlPhanTachNghi | null): [number, number][] {
+  const ds = (pt?.cac_ca?.length ? pt.cac_ca : pt?.ca_san_xuat) ?? [];
+  const ra: [number, number][] = [];
+  for (const c of ds) {
+    const a = phutTrongNgay(c.tu);
+    const b = phutTrongNgay(c.den);
+    if (a == null || b == null) continue;
+    if (b > a) ra.push([a, b]);
+    else { ra.push([a, 1440]); if (b > 0) ra.push([0, b]); }
+  }
+  return ra.sort((x, y) => x[0] - y[0]);
+}
+
+interface Truc {
+  tu: number;
+  den: number;
+  ca: [number, number][];
+  /** Ngày nghỉ hẳn (nghỉ tuần, lễ) — làm bù KHÔNG nằm đây. */
+  nghi: Set<string>;
+}
+
+/** Vị trí % của một mốc trên trục. */
+function vt(t: Truc, ms: number): number {
+  return Math.max(0, Math.min(100, ((ms - t.tu) / (t.den - t.tu)) * 100));
+}
+
+/** Những khúc của [a, b] rơi vào giờ ca của ngày làm — phần máy thật sự chạy. Chưa khai ca thì cả khúc. */
+function khucTrongCa(t: Truc, a: number, b: number): [number, number][] {
+  if (b <= a) return [];
+  if (t.ca.length === 0) return [[a, b]];
+  const ra: [number, number][] = [];
+  for (let d = dauNgay(a); d < b; d += NGAY_MS) {
+    if (t.nghi.has(ymd(d))) continue;
+    for (const [s, e] of t.ca) {
+      const x = Math.max(a, d + s * 60_000);
+      const y = Math.min(b, d + e * 60_000);
+      if (y > x) ra.push([x, y]);
+    }
+  }
+  return ra;
+}
+
+/** Vùng gạch: ngoài giờ ca của ngày làm, và trọn ngày nghỉ. */
+function vungNgoaiCa(t: Truc): { a: number; b: number; nghi: boolean }[] {
+  if (t.ca.length === 0) return [];
+  const ra: { a: number; b: number; nghi: boolean }[] = [];
+  for (let d = t.tu; d < t.den; d += NGAY_MS) {
+    if (t.nghi.has(ymd(d))) { ra.push({ a: d, b: d + NGAY_MS, nghi: true }); continue; }
+    let con = d;
+    for (const [s, e] of t.ca) {
+      const x = d + s * 60_000;
+      if (x > con) ra.push({ a: con, b: x, nghi: false });
+      con = Math.max(con, d + e * 60_000);
+    }
+    if (con < d + NGAY_MS) ra.push({ a: con, b: d + NGAY_MS, nghi: false });
+  }
+  return ra;
+}
+
+/** Trục bao trọn lệnh: từ đầu ngày bắt đầu tới hết ngày xong (kể cả quãng chờ lệnh khác). */
+function dungTruc(ct: XlChiTiet, pt: XlPhanTachNghi | null): Truc | null {
+  const ds: number[] = [];
+  for (const s of [ct.bat_dau_at, ct.ket_thuc]) { const m = moc(s); if (m !== null) ds.push(m); }
+  for (const c of ct.cong_doans) {
+    for (const s of [c.du_kien_bat_dau, c.du_kien_ket_thuc, c.cho_tu, c.thuc_bat_dau, c.thuc_ket_thuc]) {
+      const m = moc(s); if (m !== null) ds.push(m);
+    }
+  }
+  if (ds.length === 0) return null;
+  const tu = dauNgay(Math.min(...ds));
+  const den = dauNgay(Math.max(...ds)) + NGAY_MS;
+  const nghi = new Set((pt?.ngay_nghi ?? []).filter((n) => n.loai !== "work").map((n) => n.ngay.slice(0, 10)));
+  return { tu, den, ca: khungCa(pt), nghi };
+}
+
+/** Nhãn đặt cạnh mốc: nửa trái thì nằm bên phải mốc, nửa phải thì nằm bên trái để khỏi tràn mép. */
+function choNhan(p: number): CSSProperties {
+  return p < 62 ? { left: `calc(${p}% + 10px)` } : { right: `calc(${100 - p}% + 10px)`, textAlign: "right" };
 }
 
 export function XlNgan({
@@ -169,287 +275,289 @@ export function XlNgan({
   const sua = suaDuoc && !daDong && !dangGhi;
   const cum = ct.cum;
   const khac = cum ? cum.lsx.filter((z) => z.lsx_id !== ct.lsx_id) : [];
-  const coBuocCho = ct.cong_doans.filter((c) => c.cho_tu).length;
 
-  // Câu "Bước N chưa tính được giờ …" đã hiện ngay trên thẻ bước đó — ở đầu ngăn chỉ giữ ghi chú cấp lệnh.
-  // "Không tính thời gian gia công ngoài" cũng đã có viên "Gia công ngoài" trên thẻ bước.
+  // Câu "Bước N chưa tính được giờ …" đã nằm trong title của viên giờ bước đó — ở đây chỉ giữ ghi chú cấp lệnh.
+  // "Không tính thời gian gia công ngoài" cũng đã có viên "Gia công ngoài" trên dòng bước.
   const ghiChu = ct.ghi_chu.filter((g) => !/^Bước \d+ /.test(g) && !/gia công ngoài/i.test(g));
   const doi = (phut: number) => { if (ct.bat_dau_at) onDoiGio(congPhut(ct.bat_dau_at, phut)); };
 
-  // ---------------------------------------------------------------- trái
-  const theBatDau = (
-    <section className="xa-ng-the">
-      <div className="xa-ng-the__dau">
-        <span className="xa-oic xa-m-rust"><PlayCircle size={15} /></span>
-        {daXongHet ? "Đã xong" : daChayDo ? "Bắt đầu phần còn lại" : "Bắt đầu lệnh"}
-      </div>
-      {daXongHet ? (
-        <div className="xa-ng-moc">
-          <div className="xa-ng-o"><div className="xa-ng-o__nhan"><CalendarClock size={13} />Vào việc</div>
-            <div className="xa-ng-o__gt">{thuNgayGio(ct.thuc_bat_dau_lenh)}</div></div>
-          <div className="xa-ng-mui"><span><ArrowRight size={13} /></span></div>
-          <div className="xa-ng-o xa-ng-o--xong"><div className="xa-ng-o__nhan"><Target size={13} />Xong thực tế</div>
-            <div className="xa-ng-o__gt">{thuNgayGio(ct.ket_thuc_thuc_te)}</div></div>
-        </div>
-      ) : (
-        <>
-          <div className="xa-ng-moc">
-            <label className={`xa-ng-o${sua ? " xa-ng-o--nhap" : ""}`}>
-              <div className="xa-ng-o__nhan"><CalendarClock size={13} />Bắt đầu</div>
-              {sua ? (
-                <input type="datetime-local" value={nhapGio} min="2000-01-01T00:00" max="2099-12-31T23:59" aria-label="Giờ bắt đầu"
-                  onChange={(e) => setNhapGio(e.target.value)}
-                  onBlur={() => { if (nhapGio && nhapGio !== (ct.bat_dau_at ?? "").slice(0, 16)) onDoiGio(`${nhapGio}:00`); }}
-                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-              ) : (
-                <div className="xa-ng-o__gt">{daXep ? thuNgayGio(ct.bat_dau_at) : "Chưa xếp lịch"}</div>
-              )}
-            </label>
-            <div className="xa-ng-mui"><span><ArrowRight size={13} /></span></div>
-            <div className="xa-ng-o xa-ng-o--xong">
-              <div className="xa-ng-o__nhan"><Target size={13} />Dự kiến xong</div>
-              <div className="xa-ng-o__gt">{daXep ? thuNgayGio(ct.ket_thuc) : "—"}</div>
-            </div>
-          </div>
-          {daXep && sua && (
-            <div className="xa-ng-doi">
-              <div className="xa-nhom-nut">
-                <button type="button" onClick={() => doi(-15)}><ArrowLeft size={13} />15 phút</button>
-                <button type="button" onClick={() => doi(15)}>15 phút<ArrowRight size={13} /></button>
-              </div>
-              <span>hoặc kéo thanh trên lịch</span>
-              {truocDo && (
-                <span className="xa-ng-vua">từ {truocDo.slice(0, 10) === (ct.bat_dau_at ?? "").slice(0, 10) ? truocDo.slice(11, 16) : thuNgayGio(truocDo)}
-                  <button type="button" className="xa-lk" onClick={onHoanTac}><RotateCcw size={14} />Hoàn tác</button>
-                </span>
-              )}
-            </div>
-          )}
-          {!daXep && <p className="xa-ng-ghi">Gõ giờ bắt đầu ở trên hoặc kéo lệnh từ khay Chờ xếp lịch thả vào lịch.</p>}
-          {daChayDo && (
-            <div className="xa-ng-canh"><PlayCircle size={16} />
-              <span>Lệnh đã vào việc {thuNgayGio(ct.thuc_bat_dau_lenh)}, xong {ct.so_buoc_xong} trên {ct.so_buoc} bước. Giờ ở trên là giờ bắt đầu phần còn lại; không lùi được xuống dưới bước đã xong.</span>
-            </div>
-          )}
-          {/* Chỉ khi xưởng đã vào việc — lệnh mới phát hành chưa làm gì thì "theo việc đã làm" là câu rỗng nghĩa. */}
-          {daChayDo && ct.ket_thuc_thuc_te && (
-            <div className="xa-ng-canh" style={{ background: "#eff6ff", borderColor: "#bfdbfe", color: "#1e40af" }}>
-              <Clock size={16} />
-              <span>Theo việc đã làm, dự kiến xong {thuNgayGio(ct.ket_thuc_thuc_te)}
-                {ct.lech_ket_thuc_phut != null && Math.abs(ct.lech_ket_thuc_phut) > 15
-                  ? `, ${ct.lech_ket_thuc_phut > 0 ? "muộn" : "sớm"} ${quangDongHo(Math.abs(ct.lech_ket_thuc_phut))} so với kế hoạch.` : ", đúng kế hoạch."}</span>
-            </div>
-          )}
-        </>
-      )}
-      {ghiChu.length > 0 && (
-        <div className="xa-ng-canh"><AlertCircle size={16} /><span>{ghiChu.map((g, i) => <span key={i} style={{ display: "block" }}>{g}</span>)}</span></div>
-      )}
-      <div className="xa-ng-han">
-        {([["Hạn xong sản xuất", ct.han_hoan_thanh_sx, <Target size={14} key="t" />], ["Hạn giao khách", ct.han_giao_khach, <Truck size={14} key="g" />]] as const).map(([ten, h, ic]) => (
-          <div key={ten} className={`xa-ng-han__o${h ? "" : " xa-ng-han__o--trong"}`}>
-            <div className="xa-ng-han__nhan">{ic}{ten}</div>
-            <div className="xa-ng-han__dong">
-              {h ? <><span>{thuNgay(h)}</span>{daXep && <DuTre du={soNgayDu(ketThuc, h)} />}</> : <span className="xa-mo">Chưa có hạn</span>}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-
-  const theCum = cum && (
-    <section className="xa-ng-the">
-      <div className="xa-ng-the__dau">
-        <span className="xa-oic xa-m-cham"><Link2 size={15} /></span>Phát hành cùng nhau
-        <span className="xa-gian" /><span className="xa-phu">{cum.lsx.length} lệnh{cum.phu ? ` ${cum.phu}` : ""}</span>
-      </div>
-      {[cum.lsx.find((z) => z.lsx_id === ct.lsx_id), ...khac].filter(Boolean).map((z) => {
-        const nay = z!.lsx_id === ct.lsx_id;
-        const ly = nay ? [] : lyDoCum(ct.lien, z!.lsx_id);
-        return (
-          <div key={z!.lsx_id} className={`xa-ng-cum${nay ? " xa-ng-cum--nay" : ""}`}>
-            <IconTT tt={z!.trang_thai} />
-            <div><span className="xa-ma">{z!.ma}</span> {z!.ten}</div>
-            {nay ? <span className="xa-mo" style={{ fontSize: 12 }}>lệnh này</span>
-              : <button type="button" className="xa-btn" onClick={() => onMoLenh(z!.lsx_id)}><ExternalLink size={13} />Mở</button>}
-            {(ly.length > 0 || (!nay && !z!.co_lich)) && (
-              <div className="xa-ly">
-                {ly.map((t) => <span key={t} className="xa-nho xa-nho--vang">{t}</span>)}
-                {!nay && !z!.co_lich && <span className="xa-nho">chưa xếp lịch</span>}
-              </div>
-            )}
-          </div>
-        );
-      })}
-      <p className="xa-ng-ghi">Phát hành lệnh nào thì cả {cum.lsx.length} lệnh cùng xuống xưởng.</p>
-    </section>
-  );
-
-  const tong = daXep ? Math.max(0, ((moc(ct.ket_thuc) ?? 0) - (moc(ct.bat_dau_at) ?? 0)) / 60_000) : 0;
+  // ---------------------------------------------------------------- số tổng
+  const tong = daXongHet
+    ? Math.max(0, ((moc(ct.ket_thuc_thuc_te) ?? 0) - (moc(ct.thuc_bat_dau_lenh) ?? 0)) / 60_000)
+    : daXep ? Math.max(0, ((moc(ct.ket_thuc) ?? 0) - (moc(ct.bat_dau_at) ?? 0)) / 60_000) : 0;
   const chay = ct.chay_phut || 0;
   const cho = ct.cho_phut || 0;
   const nghi = Math.max(0, tong - chay - cho);
   const pt = (v: number) => (tong > 0 ? Math.round((v / tong) * 100) : 0);
   const dem = soDem(ct.bat_dau_at, ct.ket_thuc);
-  const theThoiGian = daXep && !daXongHet && (
-    <section className="xa-ng-the">
-      <div className="xa-ng-the__dau">
-        <span className="xa-oic xa-m-xanh"><Clock size={15} /></span>Từ bắt đầu tới xong
-        <span className="xa-gian" /><span>{quangDongHo(tong)}</span>
+
+  // ---------------------------------------------------------------- dải ô số
+  const oHan = (ten: string, h: string | null, ic: ReactNode) => (
+    <div className="xa-b-o" key={ten}>
+      <div className="xa-b-o__n">{ic}{ten}</div>
+      <div className="xa-b-o__g">
+        {h ? <><span>{thuNgay(h)}</span>{daXep && <DuTre du={soNgayDu(ketThuc, h)} />}</> : <span className="xa-mo">Chưa có hạn</span>}
       </div>
-      <div className="xa-ng-thanh">
-        <span className="a" style={{ width: `${pt(chay)}%` }} />
-        {cho > 0 && <span className="c" style={{ width: `${pt(cho)}%` }} />}
-        <span className="b" style={{ width: `${Math.max(0, 100 - pt(chay) - pt(cho))}%` }} />
+    </div>
+  );
+  const daiSo = (
+    <div className={`xa-b-so${ct.han_hoan_thanh_sx ? " xa-b-so--sau" : ""}`}>
+      {daXongHet ? (
+        <div className="xa-b-o"><div className="xa-b-o__n"><CalendarClock size={13} />Vào việc</div>
+          <div className="xa-b-o__g">{thuNgayGio(ct.thuc_bat_dau_lenh)}</div></div>
+      ) : (
+        <label className={`xa-b-o${sua ? " xa-b-o--nhap" : ""}`}>
+          <div className="xa-b-o__n"><CalendarClock size={13} />{daChayDo ? "Bắt đầu phần còn lại" : "Bắt đầu"}</div>
+          <div className="xa-b-o__g">
+            {sua ? (
+              <ChonNgayGio value={nhapGio} min="2000-01-01T00:00" max="2099-12-31T23:59" aria-label="Giờ bắt đầu" xoaDuoc={false}
+                onChange={(v) => { setNhapGio(v); if (v && v !== (ct.bat_dau_at ?? "").slice(0, 16)) onDoiGio(`${v}:00`); }} />
+            ) : (
+              <span>{daXep ? thuNgayGio(ct.bat_dau_at) : "Chưa xếp lịch"}</span>
+            )}
+            {daXep && sua && (
+              <span className="xa-nhom-nut">
+                <button type="button" title="Lùi 15 phút" aria-label="Lùi 15 phút" onClick={(e) => { e.preventDefault(); doi(-15); }}><ArrowLeft size={13} />15</button>
+                <button type="button" title="Tới 15 phút" aria-label="Tới 15 phút" onClick={(e) => { e.preventDefault(); doi(15); }}>15<ArrowRight size={13} /></button>
+              </span>
+            )}
+            {daXep && sua && truocDo && (
+              <button type="button" className="xa-b-hoan" onClick={(e) => { e.preventDefault(); onHoanTac(); }}
+                title={`Về lại ${truocDo.slice(0, 10) === (ct.bat_dau_at ?? "").slice(0, 10) ? truocDo.slice(11, 16) : thuNgayGio(truocDo)}`}>
+                <RotateCcw size={13} />Hoàn tác
+              </button>
+            )}
+          </div>
+        </label>
+      )}
+      <div className="xa-b-o xa-b-o--xong">
+        <div className="xa-b-o__n"><Target size={13} />{daXongHet ? "Xong thực tế" : "Dự kiến xong"}</div>
+        <div className="xa-b-o__g">{daXongHet ? thuNgayGio(ct.ket_thuc_thuc_te) : daXep ? thuNgayGio(ct.ket_thuc) : "—"}</div>
       </div>
-      <div className={`xa-ng-so${cho > 0 && nghi > 0 ? " xa-ng-so--ba" : ""}`}>
-        <div className="xa-ng-so__o xa-ng-so__o--chay"><div className="xa-ng-so__dau"><PlayCircle size={13} />Máy chạy<span className="xa-pt">{pt(chay)}%</span></div><div className="xa-ng-so__gt">{gioChu(chay)}</div></div>
-        {cho > 0 && <div className="xa-ng-so__o xa-ng-so__o--cho"><div className="xa-ng-so__dau"><Link2 size={13} />Chờ lệnh khác<span className="xa-pt">{pt(cho)}%</span></div><div className="xa-ng-so__gt">{quangDongHo(cho)}</div></div>}
-        {nghi > 0 && <div className="xa-ng-so__o xa-ng-so__o--nghi"><div className="xa-ng-so__dau"><PauseCircle size={13} />{dem > 0 && !(phanTach?.ngay_nghi_phut) ? `Ngoài ca ${dem} đêm` : "Nghỉ và ngoài ca"}<span className="xa-pt">{Math.max(0, 100 - pt(chay) - pt(cho))}%</span></div><div className="xa-ng-so__gt">{quangDongHo(nghi)}</div></div>}
-      </div>
-      {nghi > 0 && (phanTach?.cac_ca?.length ?? 0) > 1 && phanTach?.cac_ca?.map((c) => (
-        <div key={`${c.ten}${c.tu}`} className="xa-ng-dong">
-          <span className="xa-oic xa-m-cat"><Sun size={15} /></span>
-          <div><div className="xa-ng-dong__ten">{c.ten}</div>
-            <div className="xa-ng-dong__phu">{c.tu} đến {c.den} mỗi ngày làm{c.nghi_tu && <span className="xa-nho">nghỉ {c.nghi_tu} đến {c.nghi_den}</span>}</div></div>
-          <span className="xa-ng-dong__gt" />
-        </div>
-      ))}
-      {phanTach && phanTach.nghi_giua_ca_phut > 0 && (
-        <div className="xa-ng-dong">
-          <span className="xa-oic xa-m-xam"><PauseCircle size={15} /></span>
-          <div><div className="xa-ng-dong__ten">Nghỉ giữa ca</div>
-            <div className="xa-ng-dong__phu">{phanTach.nghi_giua_ca.map((k, i) => <span key={i} className="xa-nho">{k.tu} đến {k.den}{k.so_lan > 1 ? ` ${k.so_lan} lần` : ""}</span>)}</div></div>
-          <span className="xa-ng-dong__gt">{gioChu(phanTach.nghi_giua_ca_phut)}</span>
-        </div>
-      )}
-      {phanTach && phanTach.ngoai_ca_phut > 0 && (
-        <div className="xa-ng-dong">
-          <span className="xa-oic xa-m-cham"><Moon size={15} /></span>
-          <div><div className="xa-ng-dong__ten">Ngoài ca</div>
-            <div className="xa-ng-dong__phu">{dem > 0 ? `${dem} đêm máy dừng giữa hai ca` : "trước và sau giờ ca"}</div></div>
-          <span className="xa-ng-dong__gt">{gioChu(phanTach.ngoai_ca_phut)}</span>
-        </div>
-      )}
-      {phanTach && phanTach.ngay_nghi_phut > 0 && (
-        <div className="xa-ng-dong">
-          <span className="xa-oic xa-m-xam"><CalendarX size={15} /></span>
-          <div><div className="xa-ng-dong__ten">Ngày nghỉ</div>
-            {/* Nghỉ tuần chỉ đếm; ngày lễ mới kể tên — lệnh vắt qua vài tháng thì danh sách từng Chủ nhật dài cả trang. */}
-            <div className="xa-ng-dong__phu">
-              {phanTach.ngay_nghi.some((n) => !n.ten) && <span>{phanTach.ngay_nghi.filter((n) => !n.ten).length} ngày nghỉ tuần</span>}
-              {phanTach.ngay_nghi.filter((n) => n.ten).map((n, i) => (
-                <span key={i} className={`xa-cl ${n.loai === "work" ? "xa-cl--bu" : "xa-cl--le"}`} title={n.ten ?? undefined}>{thuNgay(n.ngay)} {n.ten}</span>
-              ))}
-            </div></div>
-          <span className="xa-ng-dong__gt">{gioChu(phanTach.ngay_nghi_phut)}</span>
-        </div>
-      )}
-      {phanTach && phanTach.gia_cong_ngoai_phut > 0 && (
-        <div className="xa-ng-dong">
-          <span className="xa-oic xa-m-tp"><Truck size={15} /></span>
-          <div><div className="xa-ng-dong__ten">Gia công ngoài</div><div className="xa-ng-dong__phu">bên gia công giữ hàng</div></div>
-          <span className="xa-ng-dong__gt">{gioChu(phanTach.gia_cong_ngoai_phut)}</span>
-        </div>
-      )}
-    </section>
+      <div className="xa-b-o"><div className="xa-b-o__n"><Clock size={13} />Từ đầu tới xong</div>
+        <div className="xa-b-o__g">{tong > 0 ? quangDongHo(tong) : "—"}</div></div>
+      <div className="xa-b-o"><div className="xa-b-o__n"><PlayCircle size={13} />Máy chạy</div>
+        <div className="xa-b-o__g">{chay > 0 ? gioChu(chay) : "—"}{tong > 0 && chay > 0 && <span className="xa-mo2 xa-b-pt">{pt(chay)}%</span>}</div></div>
+      {ct.han_hoan_thanh_sx && oHan("Hạn xong sản xuất", ct.han_hoan_thanh_sx, <Target size={13} />)}
+      {oHan("Hạn giao khách", ct.han_giao_khach, <Truck size={13} />)}
+    </div>
   );
 
-  // ---------------------------------------------------------------- phải
-  const buoc = (c: XlCongDoan) => {
+  const canh: ReactNode[] = [];
+  if (!daXep) canh.push(<>Gõ giờ bắt đầu ở trên hoặc kéo lệnh từ khay Chờ xếp lịch thả vào lịch.</>);
+  if (daChayDo && !daXongHet) {
+    canh.push(<>Lệnh đã vào việc {thuNgayGio(ct.thuc_bat_dau_lenh)}, xong {ct.so_buoc_xong} trên {ct.so_buoc} bước. Giờ bắt đầu là của phần còn lại; không lùi được xuống dưới bước đã xong.</>);
+  }
+  // Chỉ khi xưởng đã vào việc — lệnh mới phát hành chưa làm gì thì "theo việc đã làm" là câu rỗng nghĩa.
+  if (daChayDo && !daXongHet && ct.ket_thuc_thuc_te) {
+    canh.push(<>Theo việc đã làm, dự kiến xong {thuNgayGio(ct.ket_thuc_thuc_te)}
+      {ct.lech_ket_thuc_phut != null && Math.abs(ct.lech_ket_thuc_phut) > 15
+        ? `, ${ct.lech_ket_thuc_phut > 0 ? "muộn" : "sớm"} ${quangDongHo(Math.abs(ct.lech_ket_thuc_phut))} so với kế hoạch.` : ", đúng kế hoạch."}</>);
+  }
+  ghiChu.forEach((g) => canh.push(<>{g}</>));
+
+  // ---------------------------------------------------------------- bảng bước + trục
+  const truc = dungTruc(ct, phanTach);
+  const soNgay = truc ? Math.round((truc.den - truc.tu) / NGAY_MS) : 0;
+  const buocNhan = Math.max(1, Math.ceil(soNgay / 8));
+  const gach = truc ? vungNgoaiCa(truc) : [];
+  const nenTruc = truc && gach.map((g, i) => (
+    <span key={i} className={`xa-b-gach${g.nghi ? " xa-b-gach--nghi" : ""}`} style={{ left: `${vt(truc, g.a)}%`, width: `${vt(truc, g.b) - vt(truc, g.a)}%` }} />
+  ));
+  const coTo = ct.cong_doans.some((c) => c.loai_buoc === "to");
+  const coDoi = ct.cong_doans.some((c) => c.lien.some((l) => l.loai === "doi"));
+  const coCho = ct.cong_doans.some((c) => c.cho_tu);
+  const coThuc = ct.cong_doans.some((c) => c.thuc_bat_dau);
+
+  const dongBuoc = (c: XlCongDoan) => {
     const t = theBuoc(c.ten);
+    const a = moc(c.du_kien_bat_dau);
+    const b = moc(c.du_kien_ket_thuc);
+    const choTu = moc(c.cho_tu);
+    const choPhut = choTu !== null && a !== null ? (a - choTu) / 60_000 : 0;
     const chung = c.lien.some((l) => l.loai === "chung");
-    const choPhut = c.cho_tu && c.du_kien_bat_dau ? ((moc(c.du_kien_bat_dau) ?? 0) - (moc(c.cho_tu) ?? 0)) / 60_000 : 0;
-    const sl = c.so_luong_vao != null && c.so_luong_vao > 0
-      ? `${c.so_luong_vao.toLocaleString("vi-VN")} ${c.don_vi_vao_ten ?? c.don_vi_vao ?? ""}` : null;
+    const giao = c.la_thue_ngoai;
+    const nhanGio = giao ? <span className="xa-vien xa-vien--cam">Gia công ngoài</span>
+      : c.chay_phut > 0 ? <span className="xa-vien xa-vien--xanh">{gioChu(c.chay_phut)}</span>
+        : <span className="xa-vien xa-vien--vang" title={c.canh_bao ?? undefined}>Chưa tính được giờ</span>;
+
+    // Trên trục: thanh nền nhạt từ lúc vào tới lúc ra, đoạn đậm là phần nằm trong giờ ca.
+    let truCot: ReactNode = null;
+    if (truc) {
+      const coThanh = !giao && a !== null && b !== null && b > a;
+      const pa = a !== null ? vt(truc, a) : null;
+      const pb = b !== null ? vt(truc, b) : null;
+      const moc1 = pb ?? pa;   // chỗ cắm hình thoi "lệnh khác chờ ở đây"
+      const doiL = c.lien.filter((l) => l.loai === "doi");
+      const choL = c.lien.filter((l) => l.loai === "cho");
+      const chungL = c.lien.filter((l) => l.loai === "chung");
+      const thucA = moc(c.thuc_bat_dau);
+      const thucB = moc(c.thuc_ket_thuc) ?? (c.thuc_bat_dau ? Date.now() : null);
+      const ngan = coThanh && pa !== null && pb !== null && pb - pa < 14;
+      truCot = (
+        <>
+          {nenTruc}
+          {choTu !== null && a !== null && a > choTu && (
+            <span className="xa-b-cho" style={{ left: `${vt(truc, choTu)}%`, width: `${vt(truc, a) - vt(truc, choTu)}%` }} />
+          )}
+          {coThanh && pa !== null && pb !== null && (
+            <span className={`xa-b-thanh${chung ? " xa-b-thanh--chung" : ""}`} style={{ left: `${pa}%`, width: `${Math.max(0.4, pb - pa)}%` }}
+              title={tuDen(c.du_kien_bat_dau, c.du_kien_ket_thuc)}>
+              {khucTrongCa(truc, a!, b!).map(([x, y], i) => (
+                <i key={i} className={c.loai_buoc === "to" ? "xa-b-to" : undefined}
+                  style={{ left: `${((x - a!) / (b! - a!)) * 100}%`, width: `${((y - x) / (b! - a!)) * 100}%` }} />
+              ))}
+            </span>
+          )}
+          {thucA !== null && thucB !== null && thucB > thucA && (
+            <span className="xa-b-thuc" style={{ left: `${vt(truc, thucA)}%`, width: `${Math.max(0.4, vt(truc, thucB) - vt(truc, thucA))}%` }}
+              title={`Thực tế ${gio(c.thuc_bat_dau)} đến ${c.thuc_ket_thuc ? gio(c.thuc_ket_thuc) : "đang chạy"}`} />
+          )}
+          {doiL.length > 0 && moc1 !== null && <span className="xa-b-thoi" style={{ left: `${moc1}%` }} />}
+          {/* Một nhãn mỗi dòng: dải nối nếu có (bấm mở lệnh kia), không thì giờ của thanh ngắn. */}
+          {(() => {
+            const l = choL[0] ?? doiL[0] ?? chungL[0];
+            if (l) {
+              const p = l.loai === "cho" && choTu !== null ? vt(truc, choTu) : l.loai === "doi" ? (moc1 ?? 0) : (pb ?? pa ?? 0);
+              const st = l.loai === "cho" ? { right: `calc(${100 - p}% + 8px)`, textAlign: "right" as const } : choNhan(p);
+              return (
+                <button type="button" className={`xa-b-nhan xa-b-nhan--${l.loai}`} style={st} title={cauLien(l)} onClick={() => onMoLenh(l.lsx_id_khac)}>
+                  {nhanLien(l)}{l.loai === "cho" && choPhut > 0 ? ` ${quangDongHo(choPhut)}` : ""}
+                </button>
+              );
+            }
+            if (ngan && pb !== null) return <span className="xa-b-nhan xa-b-nhan--gio" style={choNhan(pb)}>{tuDen(c.du_kien_bat_dau, c.du_kien_ket_thuc).replace(/^\S+ \S+ /, "")}</span>;
+            return null;
+          })()}
+        </>
+      );
+    }
+
+    const sl = c.so_luong_vao != null && c.so_luong_vao > 0 ? c.so_luong_vao.toLocaleString("vi-VN") : null;
     return (
-      <div key={c.id} className="xa-ng-buoc">
-        <span className="xa-ng-so-tt" style={{ borderColor: t.vien, color: t.vien }}>{c.thu_tu}</span>
-        <div className={`xa-ng-buoc__the${choPhut > 0 ? " xa-ng-buoc__the--cho" : chung ? " xa-ng-buoc__the--chung" : ""}`}>
-          <span className={`xa-oic xa-oic--lon ${t.mau}`}>{t.ic}</span>
-          <div style={{ minWidth: 0 }}>
-            <div className="xa-ng-buoc__ten">
-              {c.ten}
-              {c.song_song && <span className="xa-nho" title="Cùng lớp với bước khác nên hai bước không chặn nhau; lịch cấp lệnh vẫn xếp lần lượt.">song song được</span>}
+      <div key={c.id} className={`xa-b-hang${choPhut > 0 ? " xa-b-hang--cho" : ""}`}>
+        <div className="xa-b-ten">
+          <span className="xa-b-stt">{c.thu_tu}</span>
+          <span className={`xa-oic xa-b-oic ${t.mau}`}>{t.ic}</span>
+          <span className="xa-b-cot">
+            <span className="xa-b-t" title={c.ten}>{c.ten}
+              {c.song_song && <span className="xa-nho" title="Cùng lớp với bước khác nên hai bước không chặn nhau; lịch cấp lệnh vẫn xếp lần lượt.">song song</span>}
               {c.bai_ghep_ma && <span className="xa-nho xa-nho--tim">bài ghép {c.bai_ghep_ma}</span>}
               {c.trang_thai && c.trang_thai !== "released" && <span className="xa-nho">{TT_BUOC[c.trang_thai] ?? c.trang_thai}</span>}
-            </div>
-            <div className="xa-ng-buoc__phu">
-              <span className="xa-ng-buoc__may">{c.may_ten ? <Printer size={13} /> : <Users size={13} />}
-                {c.may_ten ?? c.to_ten ?? "Chưa gán máy"}
-                {c.may_ke_hoach_ten && <span className="xa-mo2" title="Xưởng đã đổi máy so với kế hoạch">kế hoạch {c.may_ke_hoach_ten}</span>}
-              </span>
-              {sl ? <span className="xa-nho">{sl}</span> : <span className="xa-nho">chưa khai số lượng vào</span>}
-              {c.so_nguoi_chuan > 0 && <span className="xa-nho">{c.so_nguoi_chuan} người</span>}
-            </div>
-          </div>
-          <div className="xa-ng-buoc__phai">
-            {c.la_thue_ngoai ? <span className="xa-vien xa-vien--cam">Gia công ngoài</span>
-              : c.chay_phut > 0 ? <span className="xa-vien xa-vien--xanh">{gioChu(c.chay_phut)}</span>
-                : <span className="xa-vien xa-vien--vang">Chưa tính được giờ</span>}
-            {choPhut > 0 && <span className="xa-vien xa-vien--vang"><Clock size={13} />chờ {quangDongHo(choPhut)}</span>}
-            {c.du_kien_bat_dau && c.du_kien_ket_thuc !== c.du_kien_bat_dau && <span className="xa-ng-buoc__ly">{tuDen(c.du_kien_bat_dau, c.du_kien_ket_thuc)}</span>}
-          </div>
-          {/* Chỉ câu đầu của cảnh báo (lý do); phần hướng dẫn sửa ở đâu nằm trong title để thẻ bước không dài cả khúc. */}
-          {!c.la_thue_ngoai && c.chay_phut <= 0 && c.canh_bao && (
-            <div className="xa-ng-buoc__kh xa-chu-vang" title={c.canh_bao}>{c.canh_bao.split(/\s—\s|\.\s/)[0]}</div>
-          )}
-          {/* Chỉ nói khi xưởng đã vào việc: "chưa vào việc" và giờ kế hoạch đã gửi lặp lại đúng thứ thẻ bước đang bày. */}
-          {c.thuc_bat_dau && (
-            <div className="xa-ng-buoc__kh">
-              <span>Thực tế {gio(c.thuc_bat_dau)} đến {c.thuc_ket_thuc ? gio(c.thuc_ket_thuc) : "đang chạy"}
-                {c.lech_phut != null && Math.abs(c.lech_phut) > 15 && ` ${c.lech_phut > 0 ? "muộn" : "sớm"} ${quangDongHo(Math.abs(c.lech_phut))}`}</span>
-            </div>
-          )}
-          {c.lien.map((l, k) => (
-            <div key={k} className={`xa-ng-lien xa-ng-lien--${l.loai}`}>
-              {l.loai === "chung" ? <Layers size={15} /> : <Link2 size={15} />}
-              <span>{cauLien(l)}</span>
-              <button type="button" className="xa-btn" onClick={() => onMoLenh(l.lsx_id_khac)}><ExternalLink size={13} />Mở lệnh</button>
-            </div>
-          ))}
+            </span>
+            <span className={`xa-b-m${!c.may_ten && !c.to_ten && !giao ? " xa-chu-vang" : ""}`} title={c.may_ke_hoach_ten ? `Xưởng đã đổi máy, kế hoạch là ${c.may_ke_hoach_ten}` : undefined}>
+              {c.may_ten ?? c.to_ten ?? (giao ? "Gia công ngoài" : "Chưa gán máy")}
+              {c.may_ke_hoach_ten && <span className="xa-mo2"> kế hoạch {c.may_ke_hoach_ten}</span>}
+            </span>
+          </span>
         </div>
+        <div className="xa-b-sl">
+          {sl ? <><span>{sl}</span><span className="xa-b-dv">{c.don_vi_vao_ten ?? c.don_vi_vao ?? ""}</span></> : <span className="xa-mo2" title="Chưa khai số lượng vào">—</span>}
+        </div>
+        <div className="xa-b-gio">{nhanGio}</div>
+        <div className="xa-b-truc">{truCot}</div>
       </div>
     );
   };
 
-  const theQuyTrinh = (
-    <section className="xa-ng-the">
-      <div className="xa-ng-the__dau">
-        <span className="xa-oic xa-m-rust"><Layers size={15} /></span>Quy trình sản xuất
-        <span className="xa-gian" /><span className="xa-phu">{ct.cong_doans.length} bước</span>
-        {coBuocCho > 0 && <span className="xa-nho xa-nho--vang">{coBuocCho} bước chờ lệnh khác</span>}
+  const nhanNgay = truc && Array.from({ length: soNgay }, (_, i) => {
+    if (i % buocNhan) return null;
+    const d = truc.tu + i * NGAY_MS;
+    const s = ymd(d);
+    return (
+      <span key={i} className="xa-b-ngay" style={{ left: `${vt(truc, d)}%` }}>
+        {buocNhan === 1 ? thuNgay(s) : `${s.slice(8, 10)}/${s.slice(5, 7)}`}
+      </span>
+    );
+  });
+
+  const caChu = (phanTach?.cac_ca?.length ? phanTach.cac_ca : phanTach?.ca_san_xuat ?? [])
+    .map((c) => `${"ten" in c && c.ten ? `${c.ten} ` : ""}${c.tu} đến ${c.den}`);
+  const leTen = (phanTach?.ngay_nghi ?? []).filter((n) => n.ten);
+  const soNghiTuan = (phanTach?.ngay_nghi ?? []).filter((n) => !n.ten && n.loai !== "work").length;
+
+  const bang = (
+    <div className="xa-b-bang">
+      <div className="xa-b-hang xa-b-hang--dau">
+        <div>Bước <span className="xa-mo2">{ct.cong_doans.length}</span></div>
+        <div className="xa-b-sl">Số lượng</div>
+        <div className="xa-b-gio">Giờ</div>
+        <div className="xa-b-truc">{truc ? nhanNgay : <span className="xa-b-ngay xa-mo2">Chưa xếp lịch</span>}</div>
       </div>
       {ct.cong_doans.length === 0
-        ? <p className="xa-ng-ghi">Lệnh chưa có quy trình. Khai quy trình ở Kế hoạch sản xuất.</p>
-        : <div className="xa-ng-buoc-ds">{ct.cong_doans.map(buoc)}</div>}
+        ? <p className="xa-b-trong">Lệnh chưa có quy trình. Khai quy trình ở Kế hoạch sản xuất.</p>
+        : ct.cong_doans.map(dongBuoc)}
+      {truc && (
+        <div className="xa-b-chu">
+          <span><i className="xa-b-ct xa-b-ct--chay" />Máy chạy {chay > 0 ? gioChu(chay) : "0 phút"}{tong > 0 && <span className="xa-mo2"> {pt(chay)}%</span>}</span>
+          {coTo && <span><i className="xa-b-ct xa-b-ct--to" />Tổ làm</span>}
+          {(coCho || cho > 0) && <span><i className="xa-b-ct xa-b-ct--cho" />Chờ lệnh khác {quangDongHo(cho)}{tong > 0 && <span className="xa-mo2"> {pt(cho)}%</span>}</span>}
+          {nghi > 0 && (
+            <span><i className="xa-b-ct xa-b-ct--gach" />{dem > 0 && !(phanTach?.ngay_nghi_phut) ? `Ngoài ca ${dem} đêm` : "Nghỉ và ngoài ca"} {quangDongHo(nghi)}
+              {tong > 0 && <span className="xa-mo2"> {Math.max(0, 100 - pt(chay) - pt(cho))}%</span>}</span>
+          )}
+          {phanTach && phanTach.nghi_giua_ca_phut > 0 && <span className="xa-mo">nghỉ giữa ca {gioChu(phanTach.nghi_giua_ca_phut)}</span>}
+          {soNghiTuan > 0 && <span className="xa-mo">{soNghiTuan} ngày nghỉ tuần</span>}
+          {leTen.map((n, i) => (
+            <span key={i} className={`xa-cl ${n.loai === "work" ? "xa-cl--bu" : "xa-cl--le"}`} title={n.ten ?? undefined}>{thuNgay(n.ngay)} {n.ten}</span>
+          ))}
+          {phanTach && phanTach.gia_cong_ngoai_phut > 0 && <span className="xa-mo">gia công ngoài {gioChu(phanTach.gia_cong_ngoai_phut)}</span>}
+          {coThuc && <span><i className="xa-b-ct xa-b-ct--thuc" />Thực tế</span>}
+          {coDoi && <span><i className="xa-b-ct xa-b-ct--thoi" />Lệnh khác chờ</span>}
+          <span className="xa-gian" />
+          {caChu.length > 0 && <span className="xa-mo">{caChu.join(" và ")}</span>}
+        </div>
+      )}
+    </div>
+  );
+
+  // ---------------------------------------------------------------- đáy: cụm + quy cách
+  const khoiCum = cum && khac.length > 0 && (
+    <section className="xa-b-khoi">
+      <h4><Link2 size={13} className="xa-chu-tim" />Phát hành cùng nhau, {cum.lsx.length} lệnh{cum.phu ? ` ${cum.phu}` : ""}</h4>
+      {khac.map((z) => {
+        const ly = lyDoCum(ct.lien, z.lsx_id);
+        return (
+          <div key={z.lsx_id} className="xa-b-dong">
+            <IconTT tt={z.trang_thai} />
+            <span><span className="xa-ma">{z.ma}</span> {z.ten}</span>
+            {ly.map((t) => <span key={t} className="xa-nho xa-nho--vang">{t}</span>)}
+            {!z.co_lich && <span className="xa-nho">chưa xếp lịch</span>}
+            <button type="button" className="xa-btn xa-b-mo" onClick={() => onMoLenh(z.lsx_id)}><ExternalLink size={12} />Mở</button>
+          </div>
+        );
+      })}
     </section>
   );
 
-  const theQuyCach = (
-    <section className="xa-ng-the">
-      <div className="xa-ng-the__dau"><span className="xa-oic xa-m-can"><Tag size={15} /></span>Quy cách và vật tư</div>
-      <div className="xa-ng-qc">
-        <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><Package size={13} />Sản lượng đặt</div>
-          <div className="xa-ng-qc__gt">{ct.so_luong_dat.toLocaleString("vi-VN")} {ct.don_vi_tinh ?? ""}</div></div>
-        <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><FileText size={13} />Tờ in</div>
-          <div className="xa-ng-qc__gt">{ct.so_to_ke_hoach.toLocaleString("vi-VN")} tờ{ct.so_con > 1 && <span className="xa-nho">{ct.so_con} con một tờ</span>}</div></div>
-        {ct.so_kem && <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><Layers size={13} />Kẽm</div><div className="xa-ng-qc__gt">{ct.so_kem} tấm</div></div>}
-        <div className="xa-ng-qc__o xa-ng-qc__o--rong"><div className="xa-ng-qc__nhan"><FileText size={13} />Giấy</div>
-          <div className="xa-ng-qc__gt">{ct.giay ?? <span className="xa-mo">Chưa chọn giấy</span>}
-            {ct.kho_in && <span className="xa-nho">khổ {ct.kho_in}</span>}
-            {ct.so_mau && <span className="xa-nho">{ct.so_mau} màu</span>}
-            {vatTu && vatTu.muc !== "ok" && <span className={`xa-nho ${vatTu.muc === "do" ? "xa-nho--do" : "xa-nho--vang"}`}>{vatTu.chu}</span>}
-            {vatTu && vatTu.muc === "ok" && <span className="xa-nho xa-nho--la">đủ vật tư</span>}
-          </div></div>
+  const khoiQuyCach = (
+    <section className="xa-b-khoi">
+      <h4><Tag size={13} />Quy cách và vật tư</h4>
+      <div className="xa-b-dong">
+        <span className="xa-chip-dau"><Package size={13} />{ct.so_luong_dat.toLocaleString("vi-VN")} {ct.don_vi_tinh ?? ""}</span>
+        <span className="xa-chip-dau"><FileText size={13} />{ct.so_to_ke_hoach.toLocaleString("vi-VN")} tờ in</span>
+        {ct.so_con > 1 && <span className="xa-chip-dau">{ct.so_con} con một tờ</span>}
+        {ct.so_kem && <span className="xa-chip-dau"><Layers size={13} />{ct.so_kem} tấm kẽm</span>}
+        {ct.giay ? <span className="xa-chip-dau">{ct.giay}</span> : <span className="xa-chip-dau xa-mo">Chưa chọn giấy</span>}
+        {ct.kho_in && <span className="xa-chip-dau">khổ {ct.kho_in}</span>}
+        {ct.so_mau && <span className="xa-chip-dau">{ct.so_mau} màu</span>}
+        {vatTu && vatTu.muc !== "ok" && <span className={`xa-nho ${vatTu.muc === "do" ? "xa-nho--do" : "xa-nho--vang"}`}>{vatTu.chu}</span>}
+        {vatTu && vatTu.muc === "ok" && <span className="xa-nho xa-nho--la">đủ vật tư</span>}
         {ct.sale_name && (
-          <div className="xa-ng-qc__o"><div className="xa-ng-qc__nhan"><UserRound size={13} />Kinh doanh</div>
-            <div className="xa-ng-qc__gt xa-ng-qc__gt--nguoi" title={ct.sale_name}><span className="xa-ng-av">{ct.sale_name.trim().charAt(0).toUpperCase()}</span><span className="xa-ng-qc__ten">{ct.sale_name}</span></div></div>
+          <span className="xa-chip-dau" title={`Kinh doanh ${ct.sale_name}`}><span className="xa-ng-av">{ct.sale_name.trim().charAt(0).toUpperCase()}</span>{ct.sale_name}</span>
         )}
       </div>
-      {ct.luu_y_gui_xuong && <div className="xa-ng-luu-y"><AlertCircle size={16} /><span>Dặn xưởng: {ct.luu_y_gui_xuong}</span></div>}
+      {ct.luu_y_gui_xuong && <div className="xa-b-luu-y"><AlertCircle size={14} />Dặn xưởng: {ct.luu_y_gui_xuong}</div>}
     </section>
+  );
+
+  const chiTiet = (
+    <div className="xa-b">
+      {daiSo}
+      {canh.map((n, i) => <div key={i} className="xa-b-canh"><AlertCircle size={14} /><span>{n}</span></div>)}
+      {bang}
+      <div className={`xa-b-day${khoiCum ? "" : " xa-b-day--mot"}`}>{khoiCum}{khoiQuyCach}</div>
+    </div>
   );
 
   // ---------------------------------------------------------------- lịch sử phát hành
@@ -549,7 +657,6 @@ export function XlNgan({
           {ct.customer_name && <span className="xa-chip-dau"><Building2 size={13} />{ct.customer_name}</span>}
           {ct.order_no && <span className="xa-chip-dau"><FileText size={13} />Đơn {ct.order_no}</span>}
           {ct.customer_po_no && <span className="xa-chip-dau"><Tag size={13} />PO {ct.customer_po_no}</span>}
-          {/* Phụ trách lên hàng chip đầu ngăn: ô thứ sáu của Quy cách đẻ thêm một hàng và ngăn phải cuộn. */}
           {ct.nguoi_phu_trach_ten && <span className="xa-chip-dau"><UserRound size={13} />Phụ trách {ct.nguoi_phu_trach_ten}</span>}
         </span>
       )}
@@ -567,13 +674,9 @@ export function XlNgan({
       onDong={onDong}
     >
       <div className="xa">
-        {tab === "chi-tiet" ? (
-          <div className="xa-ng">
-            <div className="xa-ng-cot">{theBatDau}{theCum}{theThoiGian}</div>
-            <div className="xa-ng-cot">{theQuyTrinh}{theQuyCach}</div>
-          </div>
-        ) : lichSu}
+        {tab === "chi-tiet" ? chiTiet : lichSu}
       </div>
     </NganPhai>
   );
 }
+

@@ -16,6 +16,23 @@ import { AuthContext, type AuthState } from "../../../auth/AuthContext";
 import { PermissionsProvider, buildCapabilities } from "../../../auth/permissions";
 import type { ModuleCapability } from "../../../api/client";
 
+/** Ô ngày-giờ tự vẽ (ChonNgayGio): hai ô gõ "<nhãn>, ngày" (dd/mm/yyyy) và "<nhãn>, giờ" (HH:mm), rời ô là chốt. */
+function datNgayGio(goc: HTMLElement, ten: string, iso: string) {
+  const [ngay, gio] = iso.split("T");
+  const oNgay = within(goc).getByRole("textbox", { name: `${ten}, ngày` });
+  fireEvent.change(oNgay, { target: { value: ngay.split("-").reverse().join("/") } });
+  fireEvent.blur(oNgay);
+  const oGio = within(goc).getByRole("textbox", { name: `${ten}, giờ` });
+  fireEvent.change(oGio, { target: { value: gio } });
+  fireEvent.blur(oGio);
+}
+/** Đọc lại giá trị ô ngày-giờ tự vẽ thành "YYYY-MM-DDTHH:mm". */
+function docNgayGio(goc: HTMLElement, ten: string): string {
+  const ngay = (within(goc).getByRole("textbox", { name: `${ten}, ngày` }) as HTMLInputElement).value;
+  const gio = (within(goc).getByRole("textbox", { name: `${ten}, giờ` }) as HTMLInputElement).value;
+  return `${ngay.split("/").reverse().join("-")}T${gio}`;
+}
+
 const AUTH: AuthState = {
   status: "authenticated", user: null, token: "t",
   login: async () => {}, logout: async () => {},
@@ -432,8 +449,14 @@ describe("Giao hàng · KM ngày và KM tháng là HAI cột", () => {
     ve({ can_read: true, can_view_drivers: true });
     await userEvent.click(await screen.findByRole("tab", { name: /Nhân viên giao hàng/ }));
 
-    const o = await screen.findByLabelText(/Tháng/);
-    fireEvent.change(o, { target: { value: "2026-09" } });
+    // Ô kỳ tự vẽ (MonthPicker): bấm mở bảng 12 tháng, lật về năm 2026 rồi bấm Tháng 9.
+    await userEvent.click(await screen.findByLabelText(/Tháng/));
+    const bang = screen.getByRole("dialog", { name: "Tháng" });
+    for (let i = 0; i < 20 && !within(bang).queryByText("Năm 2026"); i++) {
+      const nam = Number(within(bang).getByText(/^Năm \d+$/).textContent!.slice(4));
+      await userEvent.click(within(bang).getByRole("button", { name: nam > 2026 ? "Năm trước" : "Năm sau" }));
+    }
+    await userEvent.click(within(bang).getByRole("button", { name: "Tháng 9" }));
     await waitFor(() =>
       expect(goi.some((g) => g.url.includes("thang=2026-09"))).toBe(true));
   });
@@ -585,8 +608,8 @@ describe("Giao hàng · LƯỢT XE — lên đơn vào lượt (PRD khoán km §
     await userEvent.click(await screen.findByRole("button", { name: /Lên đơn giao/ }));
     await userEvent.click(await screen.findByRole("button", { name: "Tài xế: Trần Văn Hùng" }));
     await userEvent.click(await screen.findByRole("radio", { name: /51D-853\.66/ }));
-    fireEvent.change(screen.getByLabelText(/Lấy hàng/), { target: { value: "2026-09-18T08:00" } });
-    fireEvent.change(screen.getByLabelText(/Dự kiến giao/), { target: { value: "2026-09-18T10:00" } });
+    datNgayGio(document.body, "Lấy hàng", "2026-09-18T08:00");
+    datNgayGio(document.body, "Dự kiến giao", "2026-09-18T10:00");
     return goi;
   }
 
@@ -680,8 +703,8 @@ describe("Giao hàng · ngăn LÊN ĐƠN phương án B (07/10/2026)", () => {
 
   it("⭐ giờ lấy hàng mặc định BÂY GIỜ, dự kiến giao mặc định bây giờ + 2 tiếng", async () => {
     const hop = await mo();
-    const lay = (within(hop).getByLabelText(/Lấy hàng/) as HTMLInputElement).value;
-    const giao = (within(hop).getByLabelText(/Dự kiến giao/) as HTMLInputElement).value;
+    const lay = docNgayGio(hop, "Lấy hàng");
+    const giao = docNgayGio(hop, "Dự kiến giao");
     expect(lay).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
     expect(Math.abs(new Date(lay).getTime() - Date.now())).toBeLessThan(2 * 60_000);
     expect(new Date(giao).getTime() - new Date(lay).getTime()).toBe(2 * 3_600_000);
@@ -1092,8 +1115,8 @@ describe("Giao hàng · GOM NHIỀU YÊU CẦU chạy MỘT lượt (chủ chố
     expect(within(hop).getByText("2 yêu cầu")).toBeInTheDocument();
     await userEvent.click(within(hop).getByRole("button", { name: "Tài xế: Trần Văn Hùng" }));
     await userEvent.click(await within(hop).findByRole("radio", { name: /51D-853\.66/ }));
-    fireEvent.change(within(hop).getByLabelText(/Lấy hàng/), { target: { value: "2026-09-19T08:00" } });
-    fireEvent.change(within(hop).getByLabelText(/Dự kiến giao/), { target: { value: "2026-09-19T11:00" } });
+    datNgayGio(hop, "Lấy hàng", "2026-09-19T08:00");
+    datNgayGio(hop, "Dự kiến giao", "2026-09-19T11:00");
     await userEvent.click(within(hop).getByRole("button", { name: "Lên lượt xe cho 2 đơn" }));
 
     await waitFor(() => expect(goi.some((g) => g.url.endsWith("/giao-hang/luot-xe"))).toBe(true));
@@ -1118,8 +1141,8 @@ describe("Giao hàng · GOM NHIỀU YÊU CẦU chạy MỘT lượt (chủ chố
     await userEvent.click(screen.getByRole("button", { name: "Lên lượt xe (2)" }));
     const hop = await screen.findByRole("dialog");
     await userEvent.click(await within(hop).findByRole("button", { name: "Tài xế: Trần Văn Hùng" }));
-    fireEvent.change(within(hop).getByLabelText(/Lấy hàng/), { target: { value: "2026-09-19T08:00" } });
-    fireEvent.change(within(hop).getByLabelText(/Dự kiến giao/), { target: { value: "2026-09-19T11:00" } });
+    datNgayGio(hop, "Lấy hàng", "2026-09-19T08:00");
+    datNgayGio(hop, "Dự kiến giao", "2026-09-19T11:00");
     expect(within(hop).getByRole("button", { name: "Lên lượt xe cho 2 đơn" })).toBeDisabled();
     expect(within(hop).getByText(/lượt là vòng chạy của một chiếc xe/)).toBeInTheDocument();
   });

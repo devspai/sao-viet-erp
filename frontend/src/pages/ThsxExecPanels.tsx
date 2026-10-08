@@ -18,6 +18,7 @@ import type {
   SxVatTuDeNghiIn, SxVatTuDeNghiDongIn, SxTranGhi, SxVatTuNhapLaiIn,
 } from "../api/client";
 import { Button } from "../components/Button";
+import { ChonNgay, ChonNgayGio } from "../components/ChonNgay";
 import { Icon } from "../components/Icons";
 import type { IconName } from "../components/Icons";
 import { DonViChonTheoHang, MaterialCombobox } from "../components/MaterialCombobox";
@@ -566,12 +567,12 @@ export function BatchForm({
         <div className="thsx-time-section">
           <div className="thsx-glass-time-grid thsx-x-grid2">
             <Field label="Bắt đầu">
-              <input type="datetime-local" className="thsx-x-in thsx-glass-in" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
-                value={batDau} onChange={(e) => setBatDau(e.target.value)} />
+              <ChonNgayGio className="thsx-x-in thsx-glass-in" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX} aria-label="Bắt đầu"
+                value={batDau} onChange={(v) => setBatDau(v)} />
             </Field>
             <Field label="Kết thúc">
-              <input type="datetime-local" className="thsx-x-in thsx-glass-in" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
-                value={ketThuc} onChange={(e) => setKetThuc(e.target.value)} />
+              <ChonNgayGio className="thsx-x-in thsx-glass-in" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX} aria-label="Kết thúc"
+                value={ketThuc} onChange={(v) => setKetThuc(v)} />
             </Field>
           </div>
 
@@ -2173,8 +2174,8 @@ function VatTuDeNghiForm({
               ) : (
                 <label className="kho-info-item">
                   <span className="kho-info-item__label">Giờ cần</span>
-                  <input type="datetime-local" className="rc-input" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
-                    value={canLuc} disabled={busy} onChange={(e) => setCanLuc(e.target.value)} />
+                  <ChonNgayGio className="rc-input" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX} aria-label="Giờ cần"
+                    value={canLuc} disabled={busy} onChange={(v) => setCanLuc(v)} />
                 </label>
               )}
               {cv.nguon_ma && (
@@ -2542,7 +2543,7 @@ function HoTroForm({
       </div>
       {/* Ô "Tỷ lệ (%)" GỠ 18/09/2026 (mg `0322`) — tỷ lệ chỉ để chia sản lượng, lớp chia đã gỡ. */}
       <Field label="Ngày làm">
-        <input type="date" className="thsx-x-in" value={ngayLv} onChange={(e) => setNgayLv(e.target.value)} />
+        <ChonNgay className="thsx-x-in" aria-label="Ngày làm" value={ngayLv} onChange={(v) => setNgayLv(v)} />
       </Field>
       <Field label="Mô tả">
         <input type="text" className="thsx-x-in" value={moTa} onChange={(e) => setMoTa(e.target.value)} placeholder="Nội dung hỗ trợ (tuỳ chọn)" />

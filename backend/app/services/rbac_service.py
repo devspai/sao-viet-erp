@@ -75,6 +75,7 @@ ACTION_VIEW_DRIVERS = "view_drivers"  # giao_hang: tab Nhân viên giao hàng (l
 ACTION_RUN_ORDER = "run_order"            # Thực hiện lệnh
 ACTION_CONFIRM_OUTPUT = "confirm_output"  # Xác nhận sản lượng
 ACTION_WAREHOUSE = "warehouse"            # Kho
+ACTION_CLOSE_SHORT = "close_short"        # Đóng lệnh thiếu — chỉ dòng tổ KCS
 # Ghi chú: don_hang_ban tái dùng ACTION_APPROVE (= "Chốt đơn") và ACTION_CANCEL (= "Hủy đơn");
 # ACTION_APPROVE_EXCEPTION TÁCH RIÊNG (chỉ GĐ) — duyệt đơn đặc thù mới được chốt.
 
@@ -132,6 +133,7 @@ _ACTION_ATTR = {
     ACTION_RUN_ORDER: "can_run_order",
     ACTION_CONFIRM_OUTPUT: "can_confirm_output",
     ACTION_WAREHOUSE: "can_warehouse",
+    ACTION_CLOSE_SHORT: "can_close_short",
 }
 
 
@@ -290,6 +292,7 @@ class AuthorizationService:
                 "can_run_order": p.can_run_order,
                 "can_confirm_output": p.can_confirm_output,
                 "can_warehouse": p.can_warehouse,
+                "can_close_short": p.can_close_short,
             }
             for p in self._permissions_for(user.role_id)
         ]

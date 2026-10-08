@@ -5,7 +5,7 @@ import { Icon } from "../components/Icons";
 import type { SxLenhNhom, SxWorkItem } from "../api/client";
 import { ChipKcs, ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import {
-  ChipTT, CuonLuoi, rongLuoi, soCotGhim, xepCot, type CotLuoi, type MauTT,
+  ChipTT, CuonLuoi, rongLuoi, soCotGhim, xepCot, apLuoi, type CauHinhLuoi, type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { num, ngayGio, thoiLuong } from "./keHoachSxShared";
 import { nhanDonVi } from "./lsxBuoc";
@@ -55,6 +55,8 @@ interface Props {
   /** Cột đang ẩn + thứ tự cột người xem đã kéo (do trang cha giữ cùng nút "Cột"). */
   cotAn?: ReadonlySet<string>;
   thuTu?: string[];
+  /** Cấu hình lưới của màn cha — có thì ghim + kéo độ rộng được. */
+  luoi?: CauHinhLuoi;
 }
 
 /** Quy cách in: mỗi mẩu một thẻ nhỏ, không nối bằng dấu. Rỗng thì trả mảng rỗng. */
@@ -81,9 +83,9 @@ function phutChayGon(w: SxWorkItem): { main: string; sub?: string } | null {
 }
 
 export function ThsxDanhSach({
-  lenh, selectedId, onPick, cho, cotAn, thuTu,
+  lenh, selectedId, onPick, cho, cotAn, thuTu, luoi,
 }: Props) {
-  const cotHien = xepCot(COT_THSX, thuTu ?? []).filter((c) => !cotAn?.has(c.key));
+  const cotHien = apLuoi(luoi, xepCot(COT_THSX, thuTu ?? []).filter((c) => !cotAn?.has(c.key)));
   return (
     <div className="thsx-ds__scroll">
       <ThsxLenhGroups
@@ -94,6 +96,7 @@ export function ThsxDanhSach({
           <DsBang
             viec={viec}
             cot={cotHien}
+            luoi={luoi}
             selectedId={selectedId}
             onPick={onPick}
             cho={cho}
@@ -107,10 +110,11 @@ export function ThsxDanhSach({
 /** Lưới bước CỦA MỘT LỆNH. Nhãn "đang chạy / tạm dừng" của lệnh nằm ở dòng lệnh (`LenhDigest`),
  *  ở đây chỉ còn lưới — khỏi đếm hai lần trên cùng một màn. */
 function DsBang({
-  viec, cot, selectedId, onPick, cho,
+  viec, cot, luoi, selectedId, onPick, cho,
 }: {
   viec: SxWorkItem[];
   cot: CotThsx[];
+  luoi?: CauHinhLuoi;
   selectedId: number | null;
   onPick: (w: SxWorkItem) => void;
   cho?: ReadonlyMap<number, SxChoCuaViec>;
@@ -119,14 +123,14 @@ function DsBang({
 
   return (
     <div className="lds-sheet thsx-lds-sheet">
-      <CuonLuoi ghim={soCotGhim(cot)}>
+      <CuonLuoi ghim={soCotGhim(cot, luoi?.ghim)}>
         <table className="lds-g" style={{ minWidth: rongLuoi(cot) }}>
           <colgroup>
             {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
           </colgroup>
           <thead>
             <tr>
-              {cot.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}</th>)}
+              {cot.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}{luoi?.keo(c.key)}</th>)}
             </tr>
           </thead>
           <tbody>

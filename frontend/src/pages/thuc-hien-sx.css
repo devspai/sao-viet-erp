@@ -4065,6 +4065,7 @@
 .thsx-sl__loc { gap: var(--sp-3); }
 .thsx-sl__f { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--ash); }
 .thsx-sl__f input,
+.thsx-sl__f .cn-khung,
 .thsx-sl__f select {
   height: 34px;
   padding: 0 10px;
@@ -4211,7 +4212,7 @@
 @media (max-width: 820px) {
   .thsx-sl__f { flex: 1 1 100%; justify-content: space-between; }
   .thsx-sl__f span { flex: none; }
-  .thsx-sl__f input, .thsx-sl__f select { flex: 1 1 auto; min-width: 0; }
+  .thsx-sl__f input, .thsx-sl__f .cn-khung, .thsx-sl__f select { flex: 1 1 auto; min-width: 0; }
 }
 
 /* ---------------- Ghi mẻ theo CÔNG VIỆC KHOÁN (spec 2026-09-18 §7.1) --------
@@ -4349,6 +4350,7 @@
   font-size: var(--fs-xs); min-width: 0;
 }
 .thsx-sl--hep .thsx-sl__f input,
+.thsx-sl--hep .thsx-sl__f .cn-khung,
 .thsx-sl--hep .thsx-sl__f select { width: 100%; min-width: 0; height: 38px; }
 .thsx-sl--hep .thsx-sl__loc > .thsx-trang__nut { align-self: end; min-height: 38px; justify-content: center; }
 .thsx-sl--hep .thsx-sl__tong { padding: var(--sp-2) var(--sp-3); }
@@ -5699,6 +5701,7 @@
 .thsx .thsx-sl.lds .thsx-sl__muc-phu { color: var(--ash-2); }
 .thsx .thsx-sl.lds .lds-loc__thanh .thsx-sl__f { font-size: 13px; }
 .thsx .thsx-sl.lds .lds-loc__thanh .thsx-sl__f input,
+.thsx .thsx-sl.lds .lds-loc__thanh .thsx-sl__f .cn-khung,
 .thsx .thsx-sl.lds .lds-loc__thanh .thsx-sl__f select { height: 32px; font-size: 13px; border-radius: 7px; }
 .thsx .thsx-sl.lds .lds-loc__thanh .thsx-trang__nut { height: 32px; }
 /* Dòng mẻ chỉ để đọc (không mở ngăn nào): giữ hover của lưới nhưng con trỏ thường. */

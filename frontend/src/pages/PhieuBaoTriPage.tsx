@@ -17,12 +17,12 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
+import { ChonNgay } from "../components/ChonNgay";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { EmptyRow } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
 import {
-  ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot,
-  type CotLuoi, type MauTT,
+  ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, useCauHinhLuoi, type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { mayThietBi, type Row } from "../api/rebuildCatalog";
 import {
@@ -117,9 +117,8 @@ export function PhieuBaoTriPage() {
   const [size, setSize] = useState(25);
   const [locMan, setLocMan] = useLocMan("phieu-bao-tri", LOC_MAN_TRONG, docLocMan, ghiLocMan);
   const dieuKien = useDieuKienBaoTri();
-  const [cotAn, setCotAn] = useCotAn("phieu-bao-tri");
-  const [thuTu, setThuTu] = useThuTuCot("phieu-bao-tri");
-  const cotHien = xepCot(COT_BT, thuTu).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("phieu-bao-tri");
+  const cotHien = luoi.rongHien(luoi.xep(COT_BT).filter((c) => !luoi.an.has(c.key)));
   const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocBaoTri(locMan.loc) });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -313,7 +312,7 @@ export function PhieuBaoTriPage() {
               onLoc={(loc) => datLoc({ ...locMan, loc })}
             />
             {/* Điện thoại hiện thẻ chứ không hiện lưới nên không có cột để ẩn. */}
-            {!hepMan && <ChonCot cot={COT_BT} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />}
+            {!hepMan && <ChonCot cot={COT_BT} {...luoi.chonCot} />}
           </div>
         )}
       </section>
@@ -379,14 +378,14 @@ export function PhieuBaoTriPage() {
         </>
       ) : (
         <div className="lds-sheet">
-          <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <CuonLuoi ghim={luoi.soGhim(cotHien)}>
             <table className="lds-g" style={{ minWidth: rongLuoi(cotHien, 180) }}>
               <colgroup>
                 {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
               </colgroup>
               <thead>
                 <tr>
-                  {cotHien.map((c) => <th key={c.key} className={c.c ? "c" : undefined} title={c.title}>{c.label}</th>)}
+                  {cotHien.map((c) => <th key={c.key} className={c.c ? "c" : undefined} title={c.title}>{c.label}{luoi.keo(c.key)}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -499,7 +498,7 @@ function ThemNgoaiLichHop({ may, loiMay, onClose, onCreated }: {
         </label>
         <label className="ktm-f">
           <span className="ktm-f__nhan">Hạn làm</span>
-          <input className="ktm-o" type="date" value={ngay} onChange={(e) => setNgay(e.target.value)} />
+          <ChonNgay className="ktm-o" aria-label="Hạn làm" value={ngay} onChange={(v) => setNgay(v)} />
         </label>
       </div>
       <ONhap nhan="Việc bảo trì" giaTri={goiTen} khoa={false}
@@ -726,8 +725,8 @@ function BaoTriDrawer({ phieu, suaDuoc, onClose, onSaved }: {
     <>
       <label className="ktm-f">
         <span className="ktm-f__nhan">Ngày làm xong</span>
-        <input className="ktm-o" type="date" value={ngayXong} max={homNay()}
-          onChange={(e) => setNgayXong(e.target.value)} />
+        <ChonNgay className="ktm-o" aria-label="Ngày làm xong" value={ngayXong} max={homNay()}
+          onChange={(v) => setNgayXong(v)} />
       </label>
       <Button variant="accent" disabled={!!lyDoKhoa || dangDoi} onClick={() => void doiTrangThai("hoan_thanh")}>
         {dangDoi ? "Đang lưu…" : "Xác nhận đã bảo trì xong"}

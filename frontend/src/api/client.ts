@@ -2432,16 +2432,24 @@ export type SxKcsKetLuan = "dat" | "dat_mot_phan" | "khong_dat";
 /** Trạng thái gửi kho suy từ các yêu cầu nhập kho neo vào lần kiểm — "khong_ap_dung" cho công đoạn
  *  không phải công đoạn cuối của nhóm. */
 export type SxKcsTrangThaiGuiKho = "chua_gui" | "dang_cho" | "da_nhap" | "khong_ap_dung";
-/** Một dòng snapshot tiêu chí checklist KCS (chụp lúc phát hành LSX) — xem `kcs_tieu_chi_json`. */
+/** Một tiêu chí bước KCS cuối xét — gộp từ ảnh chụp `kcs_tieu_chi_json` của mọi công việc trong
+ *  chuỗi, kể cả lệnh phụ cùng nhóm (08/10/2026). Khoá kết quả là cặp (`cong_viec_id`, `thu_tu`). */
 export interface SxKcsChiTietTieuChi {
+  cong_viec_id?: number | null;
+  ten_cong_doan?: string | null;
+  nhom_cong_doan?: string | null;
   tieu_chi_id?: number | null;
   ma?: string | null;
   ten?: string | null;
-  huong_dan?: string | null;
-  bat_buoc: boolean;
   thu_tu: number;
+  lsx_id?: number | null;
+  lsx_ma?: string | null;
+  ten_lenh?: string | null;
+  la_lenh_phu?: boolean;
 }
+/** Kết quả một tiêu chí. `cong_viec_id` bỏ trống = của chính công việc lần kiểm (dữ liệu cũ). */
 export interface SxKcsChecklistKetQuaIn {
+  cong_viec_id?: number | null;
   thu_tu: number;
   dat: boolean;
   ghi_chu?: string | null;
@@ -2544,7 +2552,10 @@ export interface SxKcsCongDoan {
   checklist: SxKcsChiTietTieuChi[];
   so_lan_kiem: number;
   tong_dat: number;
+  /** Σ hàng không đạt KCS bắt ở công đoạn này (kể cả phần quy về bước khác). */
   tong_loi: number;
+  /** Lỗi bắt ở đây VÀ do chính công đoạn này — cùng `loi_buoc_sau` là lỗi TÍNH cho công đoạn. */
+  loi_tai_cho: number;
   /** Σ đã đề nghị nhập kho (yêu cầu còn hiệu lực), quy về đơn vị của công đoạn. */
   da_yeu_cau_kho: number;
   /** Chỉ công đoạn cuối: min(Σ đạt, Σ tốt) − đã đề nghị — > 0 thì bày nút "Tạo yêu cầu nhập kho". */
@@ -2564,6 +2575,15 @@ export interface SxKcsCongDoan {
   quy_cach: SxQuyCachThe | null;
   /** Mẻ tổ đã ghi, mới nhất trước. */
   me: SxKcsMe[];
+  /** Chỉ bước cuối: công việc quy lỗi về được — chuỗi gộp, kể cả lệnh phụ cùng nhóm. */
+  nguon_loi?: SxKcsNguonLoi[];
+}
+export interface SxKcsNguonLoi {
+  cong_viec_id: number;
+  ten: string;
+  lsx_ma: string | null;
+  to_ten: string;
+  la_dang_kiem: boolean;
 }
 /** Một mẻ tổ đã ghi, bày trong form kiểm KCS — `so_luong` là số làm được. */
 export interface SxKcsMe {
@@ -2634,22 +2654,6 @@ export interface SxKcsDaXemKetQua {
   department_id: number | null;
   da_xem_luc: string | null;
   nguoi_xem: string | null;
-  version: number;
-}
-export interface SxKcsDieuChinhIn {
-  so_luong_dat: number;
-  so_luong_khong_dat: number;
-  checklist_ket_qua?: SxKcsChecklistKetQuaIn[] | null;
-  ghi_chu?: string | null;
-  expected_version: number;
-}
-export interface SxKcsDieuChinhKetQua {
-  kcs_batch_id: number;
-  cong_viec_id: number;
-  so_luong_nhan: number;
-  so_luong_dat: number;
-  so_luong_khong_dat: number;
-  ket_luan: SxKcsKetLuan;
   version: number;
 }
 export interface SxKcsBaoCaoTheoNgayRow {
@@ -2744,6 +2748,8 @@ export interface SxDongLenhTinhTrang {
   canh_bao: SxDongLenhCanhBao[];
   dong_boi: string | null;
   dong_luc: string | null;
+  /** Người xem đóng được khi còn cảnh báo và mở lại được (ô "Đóng lệnh thiếu"). */
+  duoc_dong_thieu: boolean;
 }
 export interface SxDongLenhKetQua {
   nhom_id: number;
@@ -3585,6 +3591,8 @@ export interface ModuleCapability {
   can_run_order?: boolean;
   can_confirm_output?: boolean;
   can_warehouse?: boolean;
+  /** Chỉ dòng tổ có cờ KCS (mg 0382) — Đóng lệnh thiếu. */
+  can_close_short?: boolean;
   /** cham_cong (mg 0194) — MỘT Ô = MỘT TAB. Xem `PermissionMatrix` để biết ô nào mở tab nào. */
   can_view_timesheet?: boolean;
   can_approve_late_early?: boolean;
@@ -3665,6 +3673,8 @@ export interface PermissionRow {
   can_run_order?: boolean;
   can_confirm_output?: boolean;
   can_warehouse?: boolean;
+  /** Chỉ dòng tổ có cờ KCS (mg 0382) — Đóng lệnh thiếu. */
+  can_close_short?: boolean;
   /** cham_cong (mg 0194) — MỘT Ô = MỘT TAB. Xem `PermissionMatrix` để biết ô nào mở tab nào. */
   can_view_timesheet?: boolean;
   can_approve_late_early?: boolean;
@@ -5250,7 +5260,7 @@ export interface MyShift {
 export interface TodaySummary {
   first_in: string | null;   // "HH:MM"
   last_out: string | null;
-  cong: number | null;       // công dự kiến hôm nay theo ca
+  cong: number | null;       // công đã tính từ các lượt chấm hôm nay theo ca (0 khi chưa chấm RA ca chính)
   reason: string | null;     // lý do khi công chưa đủ (thiếu chấm RA / vào trễ / về sớm…)
   late: boolean;
   early: boolean;
@@ -6377,32 +6387,28 @@ export interface MyPayslip {
   cho_phat: ChoPhat | null;
 }
 
-/** Một HẠNG MỤC KIỂM của MỘT công đoạn (danh mục Tiêu chí KCS sau mg `0285`). */
+/** Một TIÊU CHÍ KIỂM của MỘT công đoạn — từ mg `0381` (08/10/2026) chỉ là một câu chữ;
+ *  `thu_tu` do máy chủ gán (thêm = nối cuối, kéo thả = `sapXep`). */
 export interface KcsHangMuc {
   id: number;
   ma: string;
   cong_doan_id: number;
   ten: string;
-  huong_dan: string | null;
-  bat_buoc: boolean;
   thu_tu: number;
-  active: boolean;
-  /** Mốc kỳ `tao` của thanh lọc màn khai báo. */
   created_at?: string | null;
 }
-/** Thân ghi — KHÔNG có `ma` (server cấp `KM####`). */
+/** Thân ghi — KHÔNG có `ma` (server cấp `KM####`) và `thu_tu` (server gán). */
 export interface KcsHangMucBody {
   cong_doan_id: number;
   ten: string;
-  huong_dan?: string | null;
-  bat_buoc: boolean;
-  thu_tu: number;
-  active: boolean;
 }
 export interface KcsKhaiBaoCongDoan {
   cong_doan_id: number;
   ma: string;
   ten: string;
+  /** Mã giai đoạn = `cong_doan.nhom`; "" = chưa khai giai đoạn. */
+  nhom: string;
+  /** `[]` = công đoạn đang dùng chưa có tiêu chí. */
   hang_muc: KcsHangMuc[];
 }
 export interface KcsKhaiBaoGiaiDoan {
@@ -6410,20 +6416,13 @@ export interface KcsKhaiBaoGiaiDoan {
   nhom: string;
   cong_doan: KcsKhaiBaoCongDoan[];
 }
-/** Công đoạn ĐANG DÙNG chưa khai hạng mục — ô chọn "Khai báo công đoạn kiểm tra mới".
- *  Server đã lọc + xếp theo mã, trả chung trong `khaiBao` để màn khỏi kéo cả `/api/cong-doan`. */
-export interface KcsCongDoanChon {
-  id: number;
-  ma: string;
-  ten: string;
-  /** Mã giai đoạn = `cong_doan.nhom`; "" = chưa khai giai đoạn. */
-  nhom: string;
-}
 export interface KcsKhaiBao {
   giai_doan: KcsKhaiBaoGiaiDoan[];
-  cong_doan_chon: KcsCongDoanChon[];
-  /** {giai đoạn: số công đoạn} sau mọi lọc trừ giai đoạn — số trên điều kiện "Giai đoạn". */
-  dem_theo_nhom?: Record<string, number>;
+}
+export interface KcsChepKetQua {
+  da_chep: number;
+  bo_qua: number;
+  theo_dich: { cong_doan_id: number; da_chep: number; bo_qua: number }[];
 }
 
 export interface CongDoanLite {
@@ -10817,7 +10816,6 @@ export interface StockVoucherInput {
   /** Số phiếu tự nhập; bỏ trống → hệ thống tự sinh. */
   ma?: string | null;
   ngay?: string | null;
-  nguoi_giao_nhan?: string | null;
   ghi_chu?: string | null;
   lines: StockVoucherLineInput[];
 }
@@ -14362,12 +14360,6 @@ export const api = {
         method: "POST",
       });
     },
-    /** Điều chỉnh một lần kiểm đã ghi — không xoá, ghi audit trước/sau. */
-    dieuChinhKcs(token: string, kcsBatchId: number, body: SxKcsDieuChinhIn): Promise<SxKcsDieuChinhKetQua> {
-      return authed<SxKcsDieuChinhKetQua>(`/api/san-xuat/kcs/${kcsBatchId}`, token, {
-        method: "PATCH", body: JSON.stringify(body),
-      });
-    },
     /** "Tạo yêu cầu nhập kho" trên công đoạn cuối nhóm — server tự tính phần đạt chưa gửi (trần =
      *  min(Σ đạt, Σ tốt) − đã đề nghị), không nhận số từ client; đẻ MỘT yêu cầu NHẬP thật (DNN…) chờ kho
      *  nhận ở Hộp yêu cầu. 409 nếu không còn gì để gửi. */
@@ -15691,17 +15683,29 @@ export const api = {
 
   // --- Sản xuất: Lệnh sản xuất (LSX) ---------------------------------------
 
-  // --- Hạng mục kiểm KCS (danh mục, khai theo cây Giai đoạn → Công đoạn → hạng mục) --------
+  // --- Tiêu chí KCS (danh mục hai ô: công đoạn | tiêu chí) ----------------------------------
   // Nền CRUD chung `/api/san-xuat-kcs-tieu-chi` (POST "" · PUT /{id} · DELETE /{id}), thêm
-  // `GET /khai-bao` trả sẵn ba tầng để màn không phải tự ghép. `ma` server cấp — không gửi.
+  // `GET /khai-bao` (mọi công đoạn kèm tiêu chí), `PUT /sap-xep` (kéo thả), `POST /chep`.
   kcsHangMuc: {
-    /** `loc` = thanh lọc (06/10/2026): `q`, `nhom`, `bat_buoc`, `active`, `tu_ngay`/`den_ngay`/`moc`. */
-    khaiBao(token: string, loc?: ThamSoLoc): Promise<KcsKhaiBao> {
+    /** `q` tìm tương đối ở máy chủ: mã/tên công đoạn hoặc câu chữ tiêu chí. */
+    khaiBao(token: string, q?: string): Promise<KcsKhaiBao> {
       const s = new URLSearchParams();
-      ganThamSoLoc(s, loc);
+      if (q) s.set("q", q);
       return authed<KcsKhaiBao>(
         `/api/san-xuat-kcs-tieu-chi/khai-bao${s.toString() ? `?${s}` : ""}`, token,
       );
+    },
+    /** `ids` = thứ tự MỚI của TOÀN BỘ tiêu chí công đoạn (lệch tập id ⇒ 422). */
+    sapXep(token: string, cong_doan_id: number, ids: number[]): Promise<{ cong_doan_id: number; hang_muc: KcsHangMuc[] }> {
+      return authed("/api/san-xuat-kcs-tieu-chi/sap-xep", token, {
+        method: "PUT", body: JSON.stringify({ cong_doan_id, ids }),
+      });
+    },
+    /** Chép CÂU CHỮ (bản đã soạn trong hộp) sang nhiều công đoạn — một giao dịch, câu đã có bỏ qua. */
+    chep(token: string, den_cong_doan_ids: number[], tieu_chi: string[]): Promise<KcsChepKetQua> {
+      return authed<KcsChepKetQua>("/api/san-xuat-kcs-tieu-chi/chep", token, {
+        method: "POST", body: JSON.stringify({ den_cong_doan_ids, tieu_chi }),
+      });
     },
     tao(token: string, body: KcsHangMucBody): Promise<KcsHangMuc> {
       return authed<KcsHangMuc>("/api/san-xuat-kcs-tieu-chi", token, {

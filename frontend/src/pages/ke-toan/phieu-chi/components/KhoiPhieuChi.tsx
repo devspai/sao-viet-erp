@@ -11,6 +11,7 @@
  *    còn chip tên).
  *  Form cha giữ state, luật kiểm và payload — các khối chỉ hiển thị.
  */
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { api, type CompanyBankAccountRow, type PaymentVoucherBaseInput, type PaymentVoucherType } from "../../../../api/client";
@@ -247,8 +248,8 @@ export function KhoiChungTuChi({
               onChange={(e) => set("invoice_number", e.target.value)} />
           </OF>
           <OF khoa="invoice_date" nhan="Ngày chứng từ" ngay>
-            <input id={idO("invoice_date")} type="date" max={homNayVN()} value={form.invoice_date ?? ""}
-              onChange={(e) => set("invoice_date", e.target.value || null)} />
+            <ChonNgay id={idO("invoice_date")} aria-label="Ngày chứng từ" max={homNayVN()} value={form.invoice_date ?? ""}
+              onChange={(v) => set("invoice_date", v || null)} />
           </OF>
           {coHopDong && (
             <OF khoa="contract_number" nhan="Số hợp đồng">

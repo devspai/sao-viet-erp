@@ -480,9 +480,18 @@ export function MyCheckIn({
                   </span>
                 </div>
                 <div className="cc-today-metric-item">
-                  <span className="cc-today-metric-label">CÔNG DỰ KIẾN</span>
+                  {/* Số công máy chủ đã TÍNH từ các lượt chấm hôm nay theo ca — không phải con số "dự kiến".
+                      Chưa chấm RA ca chính thì máy chủ trả 0 ⇒ hiện "chưa tính", đừng in "0 công" như thể
+                      cả ngày làm không được công nào (dòng lý do bên dưới đã nói vì sao). */}
+                  <span className="cc-today-metric-label">CÔNG ĐÃ TÍNH</span>
                   <span className="cc-today-metric-val" style={{ color: "var(--ink)" }}>
-                    {status.today?.cong != null ? `${status.today.cong} công` : "—"}
+                    {status.today?.cong == null ? (
+                      "—"
+                    ) : !status.today.last_out ? (
+                      <span style={{ color: "var(--ash-2)" }}>chưa tính</span>
+                    ) : (
+                      `${status.today.cong} công`
+                    )}
                   </span>
                 </div>
               </div>

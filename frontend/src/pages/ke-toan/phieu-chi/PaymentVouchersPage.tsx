@@ -18,13 +18,13 @@ import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import { Button } from "../../../components/Button";
 import {
-  ChonCot, LocNhanhTrangThai, OTim, useCotAn, useThuTuCot, xepCot, type MucLocNhanh,
+  ChonCot, LocNhanhTrangThai, OTim, useCauHinhLuoi, type MucLocNhanh,
 } from "../../../components/LuoiDs";
 import { VOUCHER_PAGE_LABEL } from "../../../constants/features";
 import { GoiYPhim } from "../shared/BangPhieu";
 import { soPhieuCong } from "../shared/PhieuGon";
 import { useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
-import { HangChoGiaCong } from "./components/HangChoGiaCong";
+import { COT_GIA_CONG, HangChoGiaCong } from "./components/HangChoGiaCong";
 import { VouchersDrawer } from "./components/VouchersDrawer";
 import { COT_PHIEU_CHI, VouchersTable } from "./components/VouchersTable";
 import { LapPhieuChiGiaCongModal } from "./modals/LapPhieuChiGiaCongModal";
@@ -137,9 +137,9 @@ export function PaymentVouchersPage({
   );
   // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab + ô Chứng từ).
   const soXong = soPhieuCong({ the, chungTu: loc.chung_tu, n: soThe, tong: sp.tong });
-  const [cotAn, setCotAn] = useCotAn(MAN);
-  const [thuTu, setThuTu] = useThuTuCot(MAN);
-  const cotHien = xepCot(COT_PHIEU_CHI, thuTu).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi(MAN);
+  const luoiGc = useCauHinhLuoi(`${MAN}:gia-cong`);
+  const cotHien = luoi.rongHien(luoi.xep(COT_PHIEU_CHI).filter((c) => !luoi.an.has(c.key)));
 
   return (
     <main className="kt-trang lds">
@@ -156,23 +156,29 @@ export function PaymentVouchersPage({
 
       <section className="lds-loc">
         <LocNhanhTrangThai muc={muc} dang={the} onChon={(k) => setThe(k as TheLocPC)} />
-        {/* Mục "Gia công chờ chi" không có bảng phiếu ⇒ ô tìm, bộ lọc và nút Cột không áp vào, ẩn đi. */}
-        {the !== "gc" && (
+        {/* Mục "Gia công chờ chi" không có bảng phiếu ⇒ ô tìm, bộ lọc không áp vào, ẩn đi; còn nút Cột
+            của chính hàng gia công. */}
+        {the === "gc" ? (
+          <div className="lds-loc__thanh tl-thanh">
+            <ChonCot cot={COT_GIA_CONG} {...luoiGc.chonCot} />
+          </div>
+        ) : (
           <div className="lds-loc__thanh tl-thanh" role="search">
             <OTim value={sp.tim} onChange={sp.setTim} placeholder="Tìm số phiếu, người nhận, lý do, mã đơn"
               ariaLabel="Tìm phiếu chi" />
             <ThanhLoc ky={sp.ky} moc={MOC_PC} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
-            <ChonCot cot={COT_PHIEU_CHI} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+            <ChonCot cot={COT_PHIEU_CHI} {...luoi.chonCot} />
           </div>
         )}
       </section>
 
       {the === "gc" ? (
-        <HangChoGiaCong rows={gc} loi={gcLoi} onLap={coLap ? setLapGc : undefined} />
+        <HangChoGiaCong rows={gc} loi={gcLoi} onLap={coLap ? setLapGc : undefined} luoi={luoiGc} />
       ) : (
         <>
           <VouchersTable
             cot={cotHien}
+            luoi={luoi}
             rows={rows}
             loading={sp.loading}
             loi={sp.loi}

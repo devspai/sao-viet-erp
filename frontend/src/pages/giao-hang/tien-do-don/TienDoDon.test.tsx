@@ -1,7 +1,7 @@
 // Bước "Giao hàng" trong drawer đơn — luật chốt 19/09/2026: KHÔNG lập yêu cầu giao cho phần chưa
 // nhập kho. Ô số lượng điền sẵn và TRẦN theo `giao_duoc` máy chủ tính; sản phẩm chưa có hàng trong
 // kho thì không có ô.
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -90,17 +90,18 @@ describe("Bước Giao hàng · chỉ giao phần kho đã nhận", () => {
     expect(screen.queryByLabelText("Số lượng giao — Tờ hướng dẫn")).toBeNull();
     expect(screen.getByText(/Chưa có hàng trong kho: Tờ hướng dẫn/)).toBeInTheDocument();
 
-    const ngay = document.querySelector("input[type=date]") as HTMLInputElement;
-    // Yêu cầu mới điền sẵn HÔM NAY — đổi ngày thì xoá rồi gõ.
+    const ngay = screen.getByPlaceholderText("dd/mm/yyyy") as HTMLInputElement;
+    // Yêu cầu mới điền sẵn HÔM NAY — đổi ngày thì gõ đè rồi rời ô (rời ô là chốt).
     expect(ngay.value).not.toBe("");
-    await userEvent.clear(ngay);
-    await userEvent.type(ngay, ngayMai());
+    fireEvent.change(ngay, { target: { value: ngayMai().split("-").reverse().join("/") } });
+    fireEvent.blur(ngay);
     await userEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0].lines).toEqual([{ order_line_id: 11, qty: 40 }]);
     // Không đổi gì ⇒ nơi nhận theo đơn; không có ô gõ tay nào.
     expect(posts[0]).toMatchObject({ dia_chi_id: null, lien_he_id: null });
-    expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+    // Ô ngày tự vẽ cũng là textbox — loại nó ra, còn lại không được có ô gõ tay nào.
+    expect(screen.queryAllByRole("textbox").filter((el) => el.getAttribute("placeholder") !== "dd/mm/yyyy")).toHaveLength(0);
   });
 
   it("nơi nhận CHỌN trong sổ của khách, lưu ý giao lấy của đơn", async () => {
@@ -110,11 +111,11 @@ describe("Bước Giao hàng · chỉ giao phần kho đã nhận", () => {
     expect(screen.getByText("Gọi trước 30 phút")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "Kho Bắc Ninh" }));
     await userEvent.click(screen.getByRole("radio", { name: "Anh Tùng" }));
-    const ngay = document.querySelector("input[type=date]") as HTMLInputElement;
-    // Yêu cầu mới điền sẵn HÔM NAY — đổi ngày thì xoá rồi gõ.
+    const ngay = screen.getByPlaceholderText("dd/mm/yyyy") as HTMLInputElement;
+    // Yêu cầu mới điền sẵn HÔM NAY — đổi ngày thì gõ đè rồi rời ô (rời ô là chốt).
     expect(ngay.value).not.toBe("");
-    await userEvent.clear(ngay);
-    await userEvent.type(ngay, ngayMai());
+    fireEvent.change(ngay, { target: { value: ngayMai().split("-").reverse().join("/") } });
+    fireEvent.blur(ngay);
     await userEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0]).toMatchObject({ dia_chi_id: 21, lien_he_id: 31 });

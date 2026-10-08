@@ -7,6 +7,7 @@ import {
   type PaymentVoucherType,
   type SalaryAdvance,
 } from "../../../../api/client";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { errText, money, todayYmd } from "../shared/helpers";
 
 /** Lập PHIẾU CHI từ một phiếu tạm ứng ĐÃ DUYỆT (chủ chốt 18/08/2026).
@@ -177,11 +178,10 @@ export function LapPhieuChiModal({
             <label className="ns-field">
               <span className="ns-field__label">Ngày chứng từ *</span>
               {/* `max` chặn ngay ở ô chọn — backend cũng từ chối ngày tương lai (422). */}
-              <input
-                type="date"
+              <ChonNgay
                 max={homNay}
                 value={ngay}
-                onChange={(e) => setNgay(e.target.value)}
+                onChange={setNgay}
               />
             </label>
           </div>

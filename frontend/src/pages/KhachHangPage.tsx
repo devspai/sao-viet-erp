@@ -30,12 +30,12 @@ import { useCan, useScopeOf } from "../auth/permissions";
 import { BangLichHen, CareCalendar, useLichHen } from "./CareCalendar";
 import { TabBaoGia, TabMuaHang, TabTongQuan, ThanhKy, useSoLieuKhach, type TabSoLieu } from "./khachHangThongKe";
 import { Button } from "../components/Button";
+import { ChonNgay } from "../components/ChonNgay";
 import { docSoVN } from "../components/ONhapSo";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { EmptyRow, EmptyState } from "../components/EmptyState";
 import {
   CuonLuoi,
-  soCotGhim,
   ChipTT,
   ChonCot,
   LocNhanhTrangThai,
@@ -45,9 +45,7 @@ import {
   rongLuoi,
   soVN,
   tenKhachGon,
-  useCotAn,
-  useThuTuCot,
-  xepCot,
+  useCauHinhLuoi,
   type CotLuoi,
   type MauTT,
 } from "../components/LuoiDs";
@@ -314,8 +312,7 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
     }, 250);
     return () => clearTimeout(t);
   }, [q]);
-  const [cotAn, setCotAn] = useCotAn("khach-hang");
-  const [thuTu, setThuTu] = useThuTuCot("khach-hang");
+  const luoi = useCauHinhLuoi("khach-hang");
   // Kỳ + điều kiện lọc (NV phụ trách, Nhãn, Trạng thái mua hàng, Loại khách) — ghi lên URL, nhớ
   // theo màn. Tab "Cần theo dõi" gỡ 05/10/2026 — trùng việc với nút "Lịch hẹn".
   const [locMan, setLocManGoc] = useLocMan("khach-hang", LOC_MAN_KH_TRONG, docLocManKH, ghiLocManKH);
@@ -560,8 +557,8 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
     );
   }
 
-  const hien = (k: string) => !cotAn.has(k) && (k !== "chon" || canReassign);
-  const cotHien = xepCot(COT_KH, thuTu).filter((c) => hien(c.key));
+  const hien = (k: string) => !luoi.an.has(k) && (k !== "chon" || canReassign);
+  const cotHien = luoi.rongHien(luoi.xep(COT_KH).filter((c) => hien(c.key)));
   const viTriMua = cotHien.findIndex((c) => c.key === "mua");
   const mucMua = [
     { key: "", label: "Tất cả", count: Object.values(demMua).reduce((a, b) => a + b, 0) },
@@ -675,7 +672,7 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
                 <CalendarDays size={14} /> Lịch hẹn
                 {lh.so > 0 && <span className="kh__lich-hen-so">{lh.so}</span>}
               </button>
-              <ChonCot cot={COT_KH} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+              <ChonCot cot={COT_KH} {...luoi.chonCot} />
             </div>
           </div>
         )}
@@ -691,7 +688,7 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
       )}
 
         <div className="lds-sheet">
-          <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <CuonLuoi ghim={luoi.soGhim(cotHien)}>
             <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
               <colgroup>
                 {cotHien.map((c) => (
@@ -716,6 +713,7 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
                       ) : (
                         c.label
                       )}
+                      {luoi.keo(c.key)}
                     </th>
                   ))}
                 </tr>
@@ -2227,26 +2225,26 @@ function AuditTab({
 
             {timeRange === "custom" && (
               <div className="kh__tl-custom-dates">
-                <input
-                  type="date"
+                <ChonNgay
                   className="kh__tl-date-input"
                   value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
+                  onChange={(v) => {
+                    setStartDate(v);
                     setPage(1);
                   }}
                   title="Từ ngày"
+                  aria-label="Từ ngày"
                 />
                 <span className="kh__muted" style={{ fontSize: "12px" }}>-</span>
-                <input
-                  type="date"
+                <ChonNgay
                   className="kh__tl-date-input"
                   value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
+                  onChange={(v) => {
+                    setEndDate(v);
                     setPage(1);
                   }}
                   title="Đến ngày"
+                  aria-label="Đến ngày"
                 />
               </div>
             )}

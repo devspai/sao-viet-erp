@@ -2,6 +2,7 @@
 // hàng 1 = dải tab trạng thái (segmented) + nút "Xóa bộ lọc" + nút hành động bên phải;
 // hàng 2 = ô tìm có icon + các ô chọn tuỳ màn + nút "Khoảng ngày" mở bảng lọc ngày.
 // Dùng lại đúng class `acct-toolbar__*` / `acct-dmh__toolbar-card` trong accounting.css — đừng đẻ class mới.
+import { ChonNgay } from "../../../components/ChonNgay";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../../components/Icons";
 
@@ -131,20 +132,20 @@ export function ToolbarChuan({
           {dateGroups.map((g) => (
             <div key={g.label} className="acct-toolbar__date-group">
               <span className="acct-toolbar__date-label">{g.label}:</span>
-              <input
+              <ChonNgay
                 className="input acct-toolbar__date"
-                type="date"
                 title={`${g.label} từ`}
+                aria-label={`${g.label} từ`}
                 value={g.from}
-                onChange={(e) => g.onFrom(e.target.value)}
+                onChange={(v) => g.onFrom(v)}
               />
               <span className="acct-toolbar__date-sep">→</span>
-              <input
+              <ChonNgay
                 className="input acct-toolbar__date"
-                type="date"
                 title={`${g.label} đến`}
+                aria-label={`${g.label} đến`}
                 value={g.to}
-                onChange={(e) => g.onTo(e.target.value)}
+                onChange={(v) => g.onTo(v)}
               />
             </div>
           ))}

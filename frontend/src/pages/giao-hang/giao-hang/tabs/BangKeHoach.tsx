@@ -26,7 +26,7 @@ import {
   type FormLuot,
 } from "../shared/helpers";
 import { ChipGh, KhoangTrong, NutCho, TraHang } from "../components/giaoHangCells";
-import { CuonLuoi, soCotGhim, ChipTT, rongLuoi, tenKhachGon, xepCot, type CotLuoi } from "../../../../components/LuoiDs";
+import { CuonLuoi, soCotGhim, ChipTT, rongLuoi, tenKhachGon, xepCot, apLuoi, type CauHinhLuoi, type CotLuoi } from "../../../../components/LuoiDs";
 
 export const khoaKhoi = (it: BangGiaoItem) =>
   it.luot ? `l${it.luot.id}` : it.trip ? `t${it.trip.id}` : "";
@@ -64,6 +64,7 @@ export function BangKeHoach({
   dangMo,
   onMoNgan,
   onLamLuot,
+  luoi,
   cotAn,
   thuTu = [],
   pheTrang,
@@ -82,6 +83,8 @@ export function BangKeHoach({
   onMoNgan: (it: BangGiaoItem, form?: FormLuot) => void;
   onLamLuot: (b: Extract<BuocLuot, { lam: unknown }>) => Promise<unknown>;
   /** Cột người xem đã ẩn (nút "Cột"). */
+  /** Cấu hình lưới của màn cha — có thì ghim + kéo độ rộng được. */
+  luoi?: CauHinhLuoi;
   cotAn?: Set<string>;
   /** Thứ tự cột người xem đã kéo (nút "Cột"). */
   thuTu?: string[];
@@ -110,10 +113,10 @@ export function BangKeHoach({
     );
   if (loading && items.length === 0) return <EmptyState trangThai="dang-tai" />;
 
-  const cot = xepCot(COT_DON, thuTu).filter((c) => !cotAn?.has(c.key));
+  const cot = apLuoi(luoi, xepCot(COT_DON, thuTu).filter((c) => !cotAn?.has(c.key)));
   return (
     <div className="lds-sheet">
-      <CuonLuoi ghim={soCotGhim(cot)}>
+      <CuonLuoi ghim={soCotGhim(cot, luoi?.ghim)}>
         <table className="lds-g" style={{ minWidth: rongLuoi(cot, 190) }}>
           <colgroup>
             {cot.map((c) => (
@@ -125,6 +128,7 @@ export function BangKeHoach({
               {cot.map((c) => (
                 <th key={c.key} className={c.n ? "n" : undefined} aria-label={c.key === "nut" ? "Bước kế tiếp" : undefined}>
                   {c.key === "nut" ? null : c.label}
+                  {luoi?.keo(c.key)}
                 </th>
               ))}
             </tr>

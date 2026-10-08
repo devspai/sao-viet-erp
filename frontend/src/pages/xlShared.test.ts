@@ -43,10 +43,10 @@ describe("loiKhoangNgay", () => {
 });
 
 describe("màn A cải tiến", () => {
-  it("nhanKhoang ghi gọn theo tháng và năm", () => {
-    expect(nhanKhoang("2026-10-05", "2026-10-18")).toBe("5 đến 18 tháng 10, 2026");
-    expect(nhanKhoang("2026-09-28", "2026-10-11")).toBe("28 tháng 9 đến 11 tháng 10, 2026");
-    expect(nhanKhoang("2026-12-28", "2027-01-10")).toBe("28 tháng 12, 2026 đến 10 tháng 1, 2027");
+  it("nhanKhoang ghi ngày/tháng gọn, năm ghi một lần nếu trùng", () => {
+    expect(nhanKhoang("2026-10-05", "2026-10-18")).toBe("5/10 đến 18/10/2026");
+    expect(nhanKhoang("2026-09-28", "2026-10-11")).toBe("28/9 đến 11/10/2026");
+    expect(nhanKhoang("2026-12-28", "2027-01-10")).toBe("28/12/2026 đến 10/1/2027");
   });
 
   it("soNgayDu đếm tới hết ngày hạn, âm khi trễ", () => {

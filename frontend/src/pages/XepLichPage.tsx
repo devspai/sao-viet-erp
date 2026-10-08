@@ -4,7 +4,7 @@
 // Hoàn tác + Ctrl Z, ngăn chi tiết 1180px. Lọc + đếm ở MÁY CHỦ; chỉ `bat_dau_at` được ghi.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Building2, CalendarDays, ChevronLeft, ChevronRight, CircleDot, Clock, Inbox, RotateCcw, Search, Send,
+  ArrowRight, Building2, CalendarDays, ChevronLeft, ChevronRight, CircleDot, Clock, Inbox, RotateCcw, Search, Send,
   SlidersHorizontal, Users, X, Zap, FileText, Package, Printer, Hash,
 } from "lucide-react";
 
@@ -35,7 +35,7 @@ import type { DieuKien } from "./thanh-loc/thanh-loc";
 import { thamSoKy } from "./thanh-loc/ky-danh-sach";
 import { useLocMan } from "./thanh-loc/useLocMan";
 import {
-  dauTuan, gioChu, moc, nhanKhoang, phutChayTrongCuaSo, soNgayGiua, themNgay, thuNgayGio,
+  dauTuan, gioChu, moc, phutChayTrongCuaSo, soNgayGiua, themNgay, thuNgayGio, ymd,
 } from "./xlShared";
 import "./ke-toan/ke-toan.css";
 import "./xep-lich-a.css";
@@ -81,6 +81,51 @@ function phutCa(ca: XlLien["cac_ca"]): number {
   return d > 0 ? d : d + 1440;
 }
 
+type CoNhin = "tuan" | "hai_tuan" | "thang";
+const CO_NHIN: { id: CoNhin; ten: string }[] = [
+  { id: "tuan", ten: "Tuần" }, { id: "hai_tuan", ten: "2 tuần" }, { id: "thang", ten: "Tháng" },
+];
+
+/** Khoảng của một cỡ nhìn chứa ngày `moc`: tuần bắt đầu thứ Hai, tháng từ ngày 1 tới ngày cuối. */
+function khoangTheoCo(co: CoNhin, moc: string): [string, string] {
+  const [y, m, d] = moc.split("-").map(Number);
+  if (co === "thang") return [ymd(new Date(y, m - 1, 1)), ymd(new Date(y, m, 0))];
+  const t2 = dauTuan(new Date(y, m - 1, d));
+  return [t2, themNgay(t2, co === "tuan" ? 6 : 13)];
+}
+
+function laCoNhin(tu: string, den: string): CoNhin | null {
+  for (const c of CO_NHIN) {
+    const [a, b] = khoangTheoCo(c.id, tu);
+    if (a === tu && b === den) return c.id;
+  }
+  return null;
+}
+
+/** Số tuần ISO của một ngày — "Tuần 41" như lịch Google/Outlook. */
+function soTuan(s: string): number {
+  const [y, m, d] = s.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  const thu = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - thu);
+  const dauNam = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t.getTime() - dauNam.getTime()) / 86_400_000 + 1) / 7);
+}
+
+/** "5 → 18 tháng 10" + năm mờ; khác tháng thì ghi ngày/tháng hai đầu. */
+function NhanKhoang({ tu, den }: { tu: string; den: string }) {
+  const [y1, m1, d1] = tu.split("-").map(Number);
+  const [y2, m2, d2] = den.split("-").map(Number);
+  const mui = <ArrowRight size={13} className="xa-kn__mt" />;
+  if (y1 !== y2) return <span className="xa-kn__chu">{d1}/{m1}/{y1}{mui}{d2}/{m2}/{y2}</span>;
+  return (
+    <span className="xa-kn__chu">
+      {m1 === m2 ? <>{d1}{mui}{d2} tháng {m2}</> : <>{d1}/{m1}{mui}{d2}/{m2}</>}
+      <span className="xa-kn__nam">{y2}</span>
+    </span>
+  );
+}
+
 export function XepLichPage({
   eventTick = 0,
   onBadgeStale,
@@ -101,14 +146,31 @@ export function XepLichPage({
   const soNgay = soNgayGiua(tu, den);
   const [moKhoang, setMoKhoang] = useState(false);
   const luiTien = (huong: 1 | -1) => {
+    if (laCoNhin(tu, den) === "thang") {
+      const [y, m] = tu.split("-").map(Number);
+      const [a, b] = khoangTheoCo("thang", ymd(new Date(y, m - 1 + huong, 1)));
+      setTu(a);
+      setDen(b);
+      return;
+    }
     setTu(themNgay(tu, huong * soNgay));
     setDen(themNgay(den, huong * soNgay));
   };
+  // Ba cỡ nhìn nhanh; khoảng gõ tay ở bảng lịch thì không cỡ nào sáng.
+  const coNhin: CoNhin | null = laCoNhin(tu, den);
+  const chonCo = (co: CoNhin, moc: string = tu) => {
+    const [a, b] = khoangTheoCo(co, moc);
+    setTu(a);
+    setDen(b);
+  };
   const homNay = () => {
+    const nay = ymd(new Date());
+    if (coNhin) { chonCo(coNhin, nay); return; }
     const t2 = dauTuan(new Date());
     setTu(t2);
     setDen(themNgay(t2, soNgay - 1));
   };
+  const coHomNay = ymd(new Date()) >= tu && ymd(new Date()) <= den;
 
   // ---------------------------------------------------------------- lọc lưới
   const [timLuoi, setTimLuoi] = useState("");
@@ -520,14 +582,27 @@ export function XepLichPage({
       <header className="xa-dau">
         <h1>Xếp lịch</h1>
         <div className="xa-kn">
-          <button type="button" className="xa-kn__mui" aria-label="Khoảng trước" onClick={() => luiTien(-1)}><ChevronLeft size={16} /></button>
-          <button type="button" className={`xa-kn__giua${moKhoang ? " is-mo" : ""}`} aria-haspopup="dialog" aria-expanded={moKhoang}
-            onClick={() => setMoKhoang((m) => !m)}>
-            <CalendarDays size={15} />{nhanKhoang(tu, den)}<span className="xa-mo">{soNgay} ngày</span>
+          <button type="button" className={`xa-kn__nay${coHomNay ? " is-trong" : ""}`} onClick={homNay}
+            title={coHomNay ? "Hôm nay đang nằm trong khoảng xem" : "Về khoảng có hôm nay"}>
+            <i />Hôm nay
           </button>
-          <button type="button" className="xa-kn__mui" aria-label="Khoảng sau" onClick={() => luiTien(1)}><ChevronRight size={16} /></button>
+          <div className={`xa-kn__hop${moKhoang ? " is-mo" : ""}`}>
+            <button type="button" className="xa-kn__mui" aria-label="Khoảng trước" title="Lùi một khoảng" onClick={() => luiTien(-1)}><ChevronLeft size={17} /></button>
+            <button type="button" className="xa-kn__giua" aria-haspopup="dialog" aria-expanded={moKhoang}
+              title="Chọn khoảng ngày" onClick={() => setMoKhoang((m) => !m)}>
+              <span className="xa-kn__lich"><CalendarDays size={14} /></span>
+              <NhanKhoang tu={tu} den={den} />
+              {coNhin === "tuan" && <span className="xa-kn__phu">tuần {soTuan(tu)}</span>}
+              {!coNhin && <span className="xa-kn__phu">{soNgay} ngày</span>}
+            </button>
+            <button type="button" className="xa-kn__mui" aria-label="Khoảng sau" title="Tới một khoảng" onClick={() => luiTien(1)}><ChevronRight size={17} /></button>
+          </div>
+          <div className="xa-kn__co" role="group" aria-label="Cỡ nhìn">
+            {CO_NHIN.map((c) => (
+              <button key={c.id} type="button" aria-pressed={coNhin === c.id} onClick={() => chonCo(c.id)}>{c.ten}</button>
+            ))}
+          </div>
         </div>
-        <button type="button" className="xa-btn" onClick={homNay}>Hôm nay</button>
         {moKhoang && (
           <XlKhoangNgay tu={tu} den={den} onDong={() => setMoKhoang(false)}
             onApDung={(a, b) => { setTu(a); setDen(b); setMoKhoang(false); }} />

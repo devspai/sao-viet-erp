@@ -1,6 +1,7 @@
 // Modal xin chỉnh công (tách từ pages/ChamCongPage.tsx).
 import { useState } from "react";
 import { api, type AdjustQuota } from "../../../../api/client";
+import { ChonGio } from "../../../../components/ChonNgay";
 
 // NV gửi yêu cầu chỉnh công cho 1 ngày (self-service).
 export function RequestAdjustModal({
@@ -106,10 +107,10 @@ export function RequestAdjustModal({
               <span className="ns-field__label">
                 Giờ (gợi ý, không bắt buộc)
               </span>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
+              <ChonGio
+                value={time ?? ""}
+                onChange={(v) => setTime(v)}
+                aria-label="Giờ"
               />
             </label>
           </div>

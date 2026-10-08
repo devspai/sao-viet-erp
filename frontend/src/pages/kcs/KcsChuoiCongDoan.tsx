@@ -26,6 +26,12 @@ import {
   KCS_CD_TRANG_THAI, KCS_NHOM_TRANG_THAI, KCS_YC_KHO_TRANG_THAI, kiemDuoc, loiHoiNhapKho, tinhTrangKiem,
 } from "./kcsNhan";
 
+/** Lỗi TÍNH cho công đoạn (08/10/2026): lỗi nó gây — bắt ngay tại nó hoặc ở bước sau. Lẫn đơn vị
+ *  (bắt ở nhiều bước) nên chỉ dùng để biết có hay không, không cộng ra một con số để in. */
+function loiCuaCongDoan(cd: SxKcsCongDoan): number {
+  return cd.loi_tai_cho + (cd.loi_buoc_sau ?? []).reduce((s, l) => s + l.so_luong, 0);
+}
+
 export function KcsChuoiCongDoan({
   lsxId, eventTick, onBack, onChanged, onMoYeuCauKho,
 }: {
@@ -151,7 +157,7 @@ export function KcsChuoiCongDoan({
         <div className="kcs-pipeline">
           <div className="kcs-pipeline__track">
             {congDoan.map((cd, i) => {
-              const tt = tinhTrangKiem(cd.so_lan_kiem, cd.tong_loi, cd.la_kcs_cuoi);
+              const tt = tinhTrangKiem(cd.so_lan_kiem, loiCuaCongDoan(cd), cd.la_kcs_cuoi);
               const isLast = i === congDoan.length - 1;
               return (
                 <div key={cd.cong_viec_id} className="kcs-pipeline__node">
@@ -220,7 +226,7 @@ export function KcsChuoiCongDoan({
               </thead>
               <tbody>
                 {congDoan.map((cd, i) => {
-                  const tt = tinhTrangKiem(cd.so_lan_kiem, cd.tong_loi, cd.la_kcs_cuoi);
+                  const tt = tinhTrangKiem(cd.so_lan_kiem, loiCuaCongDoan(cd), cd.la_kcs_cuoi);
                   const dv = nhanChang(cd.don_vi);
                   const choKiem = kiemDuoc(cd.trang_thai);
 
@@ -251,13 +257,13 @@ export function KcsChuoiCongDoan({
                       </td>
                       <td>
                         {!cd.la_kcs_cuoi ? (
-                          cd.tong_loi > 0 ? (
+                          cd.loi_tai_cho > 0 ? (
                             <span className="kcs-matrix__stat">
-                              Lỗi <b style={{ color: "#b91c1c" }}>{num(cd.tong_loi)}</b> {dv}
+                              Lỗi <b style={{ color: "#b91c1c" }}>{num(cd.loi_tai_cho)}</b> {dv}
                             </span>
-                          ) : (
+                          ) : cd.so_lan_kiem === 0 && (cd.loi_buoc_sau ?? []).length === 0 ? (
                             <span style={{ color: "#94a3b8", fontSize: "12px" }}>Chưa ghi lỗi</span>
-                          )
+                          ) : null
                         ) : cd.so_lan_kiem > 0 ? (
                           <span className="kcs-matrix__stat">
                             Đạt <b style={{ color: "#047857" }}>{num(cd.tong_dat)}</b> · Lỗi <b style={{ color: cd.tong_loi > 0 ? "#b91c1c" : "#64748b" }}>{num(cd.tong_loi)}</b> {dv}
@@ -272,8 +278,9 @@ export function KcsChuoiCongDoan({
                         )}
                         {(cd.loi_buoc_sau ?? []).map((l) => (
                           <span key={`${l.phat_hien_o}-${l.don_vi}`} className="kcs-matrix__loi-sau"
-                            title="Lỗi KCS bắt ở công đoạn sau, quy trách nhiệm về công đoạn này — không trừ số của công đoạn này">
-                            +{num(l.so_luong)} {nhanChang(l.don_vi)} lỗi bắt ở {l.phat_hien_o}
+                            title="Lỗi do công đoạn này, KCS bắt được ở công đoạn sau — số theo đơn vị nơi bắt, không trừ số tổ đã làm">
+                            Lỗi <b>{num(l.so_luong)}</b> {nhanChang(l.don_vi)}
+                            <span className="kcs-matrix__bat-o">bắt ở {l.phat_hien_o}</span>
                           </span>
                         ))}
                       </td>

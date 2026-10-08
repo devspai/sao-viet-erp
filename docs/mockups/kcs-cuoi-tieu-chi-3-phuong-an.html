@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KCS cuối — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8; --chu-5:#cbd5e1;
+  --vien:#e2e8f0; --vien-2:#edf0f4; --vien-3:#f5f7f9; --hair:#f1f5f9;
+  --rust:#c5400a; --do:#b91c1c; --vang:#b45309;
+  --khac-bg:#ffedd5; --khac-fg:#c2410c; --khac-dot:#f97316;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1320px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:22px;font-weight:500;margin:0 0 8px}
+.lead{color:var(--chu-2);margin:0 0 6px;max-width:1000px}
+.lead ol{margin:6px 0 0;padding-left:20px}
+.hang-dt{display:grid;grid-template-columns:repeat(3,390px);gap:28px;justify-content:center;margin-top:28px}
+.cot-pa h2{font-size:16px;font-weight:500;margin:0 0 4px}
+.cot-pa h2 small{font-size:12.5px;color:var(--rust);font-weight:400;margin-left:6px}
+.cot-pa p{color:var(--chu-2);font-size:13px;margin:0 0 4px;min-height:80px}
+.uu{font-size:12.5px;margin:0 0 12px;min-height:58px}
+.uu div{color:#15803d} .uu div.chua{color:var(--do)}
+svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+.dt{width:390px;height:800px;border:10px solid #0f172a;border-radius:40px;overflow:hidden;display:flex;flex-direction:column;background:var(--trang);box-shadow:0 18px 50px rgba(15,23,42,.18)}
+.dt-dau{padding:14px 16px 10px;border-bottom:1px solid var(--vien)}
+.dt-dau .ma{font-size:17px;font-weight:500}
+.dt-dau .ten{color:var(--chu-3);font-size:13px}
+.gd{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:12px;background:var(--khac-bg);color:var(--khac-fg);margin-top:6px}
+.gd::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--khac-dot)}
+.dt-than{flex:1;overflow:auto;padding:4px 16px 16px}
+.dt-chan{border-top:1px solid var(--vien);padding:10px 16px 14px;background:var(--trang)}
+.so-hang{display:flex;gap:18px;align-items:baseline;margin:0 0 8px;font-size:13px;color:var(--chu-3)}
+.so-hang b{font-weight:500;font-size:20px;color:var(--chu);margin-right:3px}
+.so-hang .loi b{color:var(--do)}
+.luu{width:100%;height:46px;border:0;border-radius:10px;background:var(--chu);color:#fff;font:inherit;font-size:15px;cursor:pointer}
+.luu:disabled{background:var(--chu-5);cursor:default}
+.ly-do{font-size:12px;color:var(--vang);margin:0 0 6px;text-align:center}
+.goi-y{font-size:12.5px;color:var(--chu-3);margin:10px 0 2px}
+.tien-do{display:flex;align-items:center;justify-content:space-between;margin:10px 0 0;font-size:13px;color:var(--chu-2)}
+.nut-nho{height:34px;padding:0 12px;border:1px solid var(--vien);border-radius:8px;background:var(--trang);font:inherit;font-size:13px;color:var(--chu);cursor:pointer}
+.nhom{margin:16px 0 4px;font-size:12.5px;color:var(--chu-3)}
+
+/* dòng tiêu chí */
+.dong{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 4px;border-bottom:1px solid var(--vien-2);cursor:pointer;user-select:none}
+.dong .ten{flex:1}
+.dau-tick{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--chu-5);color:var(--chu-4);flex:none}
+.dong.dat .dau-tick{border-color:var(--chu-4);color:var(--chu-2)}
+.dong.loi .ten{color:var(--do)}
+.dong.loi .dau-tick{border-color:var(--do);color:var(--do)}
+
+/* hai nút đạt / lỗi */
+.dong2{padding:8px 0;border-bottom:1px solid var(--vien-2)}
+.dong2 .ten{margin:0 0 6px}
+.dong2.loi .ten{color:var(--do)}
+.cap{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cap button{height:40px;border:1px solid var(--vien);border-radius:9px;background:var(--trang);font:inherit;font-size:14px;color:var(--chu-3);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.cap button[aria-pressed="true"].d{border-color:var(--chu);color:var(--chu)}
+.cap button[aria-pressed="true"].l{border-color:var(--chu);color:var(--do)}
+
+/* khối lỗi gắn dưới nhóm */
+.khoi-loi{border:1px solid var(--vien);border-radius:12px;padding:10px 12px;margin:8px 0 4px}
+.khoi-loi .nhan{font-size:12.5px;color:var(--chu-3);margin:0 0 4px}
+.khoi-loi .o-so{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+.khoi-loi input{height:44px;width:130px;border:1px solid var(--vien);border-radius:9px;padding:0 12px;font:inherit;font-size:18px}
+.khoi-loi textarea{width:100%;border:1px solid var(--vien);border-radius:9px;padding:8px 10px;font:inherit;font-size:13.5px;resize:none;min-height:60px;margin:0 0 10px}
+.anh{display:flex;gap:8px;align-items:center}
+.anh .chup{height:44px;padding:0 14px;border:1px dashed var(--chu-4);border-radius:9px;background:var(--trang);font:inherit;font-size:13.5px;display:flex;gap:6px;align-items:center;color:var(--chu);cursor:pointer}
+.anh .tam{width:44px;height:44px;border-radius:8px;background:repeating-linear-gradient(45deg,#e2e8f0 0 6px,#f1f5f9 6px 12px)}
+
+/* thẻ công đoạn */
+.the{border:1px solid var(--vien);border-radius:12px;padding:12px 12px 10px;margin:10px 0}
+.the.xong{border-color:var(--chu-5)}
+.the-dau{display:flex;align-items:baseline;gap:8px}
+.the-dau .ten{font-size:15px;flex:1}
+.the-dau .tt{font-size:12.5px;color:var(--chu-3)}
+.the-dau .tt.loi{color:var(--do)}
+.the ul{margin:6px 0 10px;padding-left:18px;color:var(--chu-2);font-size:13px}
+.the ul li{margin:2px 0}
+.the .chon-loi{list-style:none;padding:0;margin:6px 0 4px}
+.the .chon-loi li{display:flex;gap:10px;align-items:center;min-height:42px;border-bottom:1px solid var(--vien-2);cursor:pointer;font-size:14px;color:var(--chu)}
+.the .chon-loi li .o{width:22px;height:22px;border:1.5px solid var(--chu-5);border-radius:6px;display:grid;place-items:center;flex:none}
+.the .chon-loi li.hong{color:var(--do)}
+.the .chon-loi li.hong .o{border-color:var(--do);color:var(--do)}
+.ghi-chung{width:100%;border:1px solid var(--vien);border-radius:9px;padding:8px 10px;font:inherit;font-size:13.5px;resize:none;min-height:44px;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Bước KCS cuối — làm lại phần tiêu chí và lỗi</h1>
+<div class="lead">Lệnh hộp giấy chạy Ra bản kẽm → In offset → Cán màng → Bế cấn → Dán máy → Đóng gói, phần chưa kiểm 1.200 hộp. Bốn chỗ bản cũ làm nặng, ba phương án dưới đều sửa:
+<ol>
+<li>Ô ghi chú lặp ở từng dòng: bỏ, chỉ còn một ô ghi chú chung cuối form.</li>
+<li>Ô tick khó hiểu (chưa tick = không đạt): đổi sang trạng thái nói rõ chữ.</li>
+<li>Khối lỗi nằm tách sang cột phải: đưa về ngay dưới công đoạn bị lỗi, mô tả tự điền sửa được.</li>
+<li>Hai cột không hợp điện thoại: một cột, nút cao từ 40px, thanh số đạt/lỗi và nút Lưu ghim đáy.</li>
+</ol>
+Bấm thử trong từng điện thoại.</div>
+
+<div class="hang-dt">
+  <div class="cot-pa">
+    <h2>1. Chỉ chạm mục hỏng</h2>
+    <p>Mở ra là mọi tiêu chí coi như đạt. KCS chỉ chạm vào mục thấy hỏng: dòng chuyển đỏ, ngay dưới công đoạn đó hiện ô số lỗi, ảnh và mô tả tự điền.</p>
+    <div class="uu"><div>+ Ít chạm nhất, hàng tốt là bấm Lưu luôn</div><div class="chua">− Không có dấu vết KCS đã xét từng mục</div></div>
+    <div class="dt" id="p1"></div>
+  </div>
+  <div class="cot-pa">
+    <h2>2. Đạt / Lỗi từng dòng</h2>
+    <p>Mỗi tiêu chí hai nút to Đạt và Lỗi, phải xét hết mới lưu được. Có nút "Đạt hết phần còn lại" cho lúc hàng tốt. Chọn Lỗi thì khối lỗi hiện ngay dưới công đoạn đó.</p>
+    <div class="uu"><div>+ Rõ ràng, có dấu vết từng mục</div><div>+ Giống app kiểm tra phổ biến</div><div class="chua">− Màn dài nhất, 17 mục là 17 cặp nút</div></div>
+    <div class="dt" id="p2"></div>
+  </div>
+  <div class="cot-pa">
+    <h2>3. Xét theo công đoạn<small>đã chọn</small></h2>
+    <p>Mỗi công đoạn một thẻ, tiêu chí bày sẵn để đọc. Hàng tốt thì bấm "Đạt" cho cả thẻ. Thấy hỏng thì bấm "Có lỗi": thẻ mở ra để tick mục hỏng, gõ số lỗi, chụp ảnh. Khớp tờ ISO (mỗi dòng một công đoạn) và khớp luật một dòng lỗi mỗi công đoạn.</p>
+    <div class="uu"><div>+ Sáu thẻ thay vì 17 dòng, vẫn có dấu vết</div><div>+ Lỗi nằm gọn trong thẻ công đoạn chịu</div><div class="chua">− Đạt là đạt cả công đoạn, không lưu từng mục</div></div>
+    <div class="dt" id="p3"></div>
+  </div>
+</div>
+</div>
+
+<script>
+const CHUOI = [
+  {ten:"Ra bản kẽm", tc:["Bản kẽm đúng khổ máy, không trầy xước","Đủ số bản theo số màu"]},
+  {ten:"In offset", tc:["Màu đúng mẫu đã ký","Chồng màu khớp, không lệch dấu","Không lem mực, không bẩn nền","Chữ rõ, không mất nét"]},
+  {ten:"Cán màng", tc:["Màng không bong, không nhăn","Không bọt khí"]},
+  {ten:"Bế cấn", tc:["Bế đúng đường, không lệch hình in","Đường cấn gấp không nứt","Mép không xơ"]},
+  {ten:"Dán máy", tc:["Dán chắc, không bung keo","Không tràn keo ra mặt hộp","Hộp vuông thành, không lệch góc","Keo khô trước khi đóng thùng"]},
+  {ten:"Đóng gói", tc:["Đủ số lượng mỗi kiện","Tem nhãn đúng mã hàng"]},
+];
+const CHUA_KIEM = 1200;
+const esc = s => String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const so = n => n.toLocaleString("vi-VN");
+const I_OK='<svg class="i" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>';
+const I_X='<svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+const I_CAM='<svg class="i" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+const dau = `<div class="dt-dau"><div class="ma">LSX26-0042</div><div class="ten">Hộp giấy cán màng bế dán</div><span class="gd">KCS thành phẩm</span></div>`;
+
+// khối lỗi của một công đoạn: state {so, moTa, sua}
+function khoiLoi(pfx, ci, st, hong){
+  const moTa = st.sua ? st.moTa : hong.join("\n");
+  return `<div class="khoi-loi">
+    <div class="nhan">Số lỗi do ${esc(CHUOI[ci].ten.toLowerCase())}</div>
+    <div class="o-so"><input inputmode="numeric" data-so="${pfx}${ci}" value="${st.so||""}" placeholder="0"><span class="mo" style="color:var(--chu-3)">hộp</span></div>
+    <div class="nhan">Mô tả <span style="color:var(--chu-4)">(tự điền từ mục hỏng, sửa được)</span></div>
+    <textarea data-mt="${pfx}${ci}">${esc(moTa)}</textarea>
+    <div class="anh"><button class="chup">${I_CAM}Chụp ảnh</button>${st.anh?'<span class="tam"></span>':""}</div>
+  </div>`;
+}
+function chan(tongLoi, lyDo){
+  return `<div class="dt-chan">${lyDo?`<div class="ly-do">${lyDo}</div>`:""}
+    <div class="so-hang"><span><b>${so(CHUA_KIEM - tongLoi)}</b>đạt</span><span class="loi"><b>${so(tongLoi)}</b>lỗi</span><span>trên ${so(CHUA_KIEM)} chưa kiểm</span></div>
+    <button class="luu" ${lyDo?"disabled":""}>Lưu kết quả kiểm</button></div>`;
+}
+function ganLoi(root, loiSt, pfx, ve){
+  root.querySelectorAll("[data-so]").forEach(o=>o.oninput=()=>{ const ci=+o.dataset.so.slice(pfx.length); loiSt[ci].so=Math.max(0,parseInt(o.value)||0); ve(o.dataset.so); });
+  root.querySelectorAll("[data-mt]").forEach(o=>o.oninput=()=>{ const ci=+o.dataset.mt.slice(pfx.length); loiSt[ci].moTa=o.value; loiSt[ci].sua=true; });
+  root.querySelectorAll(".chup").forEach(b=>b.onclick=()=>{ const ci=+b.closest(".khoi-loi").querySelector("[data-so]").dataset.so.slice(pfx.length); loiSt[ci].anh=true; ve(); });
+}
+function giuFocus(root, key){ if(!key) return; const o=root.querySelector(`[data-so="${key}"]`); if(o){o.focus(); o.setSelectionRange(o.value.length,o.value.length);} }
+function lyDoLoi(cacCd, loiSt){
+  for (const ci of cacCd) { if (!loiSt[ci].so) return `Gõ số lỗi cho ${CHUOI[ci].ten.toLowerCase()}`; if (!loiSt[ci].anh) return `Chụp ít nhất một ảnh lỗi ${CHUOI[ci].ten.toLowerCase()}`; }
+  return "";
+}
+
+/* ===== P1: chỉ chạm mục hỏng ===== */
+(function(){
+  const root = document.getElementById("p1");
+  const hong = CHUOI.map(c=>c.tc.map(()=>false));
+  const loiSt = CHUOI.map(()=>({}));
+  function ve(focusKey){
+    let h = dau + `<div class="dt-than"><div class="goi-y">Mọi tiêu chí đang tính là đạt. Chạm vào mục thấy hỏng.</div>`;
+    const cdLoi = [];
+    CHUOI.forEach((c,ci)=>{
+      h += `<div class="nhom">${esc(c.ten)}</div>`;
+      c.tc.forEach((t,ti)=>{ const x = hong[ci][ti];
+        h += `<div class="dong ${x?"loi":"dat"}" data-c="${ci}" data-t="${ti}"><span class="dau-tick">${x?I_X:I_OK}</span><span class="ten">${esc(t)}</span></div>`; });
+      const ds = c.tc.filter((_,ti)=>hong[ci][ti]);
+      if (ds.length) { cdLoi.push(ci); h += khoiLoi("a", ci, loiSt[ci], ds); }
+    });
+    h += `<textarea class="ghi-chung" placeholder="Ghi chú chung (nếu có)"></textarea></div>`;
+    const tongLoi = cdLoi.reduce((s,ci)=>s+(loiSt[ci].so||0),0);
+    h += chan(tongLoi, lyDoLoi(cdLoi, loiSt));
+    root.innerHTML = h;
+    root.querySelectorAll(".dong").forEach(el=>el.onclick=()=>{ const ci=+el.dataset.c, ti=+el.dataset.t; hong[ci][ti]=!hong[ci][ti]; if(!loiSt[ci].sua) loiSt[ci].moTa=""; ve(); });
+    ganLoi(root, loiSt, "a", ve); giuFocus(root, focusKey);
+  }
+  ve();
+})();
+
+/* ===== P2: Đạt / Lỗi từng dòng ===== */
+(function(){
+  const root = document.getElementById("p2");
+  const kq = CHUOI.map(c=>c.tc.map(()=>null)); // null | "d" | "l"
+  const loiSt = CHUOI.map(()=>({}));
+  function ve(focusKey){
+    const tong = kq.flat().length, daXet = kq.flat().filter(Boolean).length, con = tong - daXet;
+    let h = dau + `<div class="dt-than"><div class="tien-do"><span>Đã xét ${daXet}/${tong} mục</span>${con?`<button class="nut-nho" id="p2Het">Đạt hết ${con} mục còn lại</button>`:""}</div>`;
+    const cdLoi = [];
+    CHUOI.forEach((c,ci)=>{
+      h += `<div class="nhom">${esc(c.ten)}</div>`;
+      c.tc.forEach((t,ti)=>{ const v = kq[ci][ti];
+        h += `<div class="dong2 ${v==="l"?"loi":""}"><div class="ten">${esc(t)}</div><div class="cap">
+          <button class="d" aria-pressed="${v==="d"}" data-c="${ci}" data-t="${ti}" data-v="d">${I_OK}Đạt</button>
+          <button class="l" aria-pressed="${v==="l"}" data-c="${ci}" data-t="${ti}" data-v="l">${I_X}Lỗi</button></div></div>`; });
+      const ds = c.tc.filter((_,ti)=>kq[ci][ti]==="l");
+      if (ds.length) { cdLoi.push(ci); h += khoiLoi("b", ci, loiSt[ci], ds); }
+    });
+    h += `<textarea class="ghi-chung" placeholder="Ghi chú chung (nếu có)"></textarea></div>`;
+    const tongLoi = cdLoi.reduce((s,ci)=>s+(loiSt[ci].so||0),0);
+    h += chan(tongLoi, con ? `Còn ${con} mục chưa xét` : lyDoLoi(cdLoi, loiSt));
+    root.innerHTML = h;
+    root.querySelectorAll(".cap button").forEach(b=>b.onclick=()=>{ kq[+b.dataset.c][+b.dataset.t]=b.dataset.v; ve(); });
+    const het = root.querySelector("#p2Het"); if (het) het.onclick=()=>{ kq.forEach(r=>r.forEach((v,i)=>{ if(!v) r[i]="d"; })); ve(); };
+    ganLoi(root, loiSt, "b", ve); giuFocus(root, focusKey);
+  }
+  ve();
+})();
+
+/* ===== P3: xét theo công đoạn ===== */
+(function(){
+  const root = document.getElementById("p3");
+  const tt = CHUOI.map(()=>null); // null | "dat" | "loi"
+  const hong = CHUOI.map(c=>c.tc.map(()=>false));
+  const loiSt = CHUOI.map(()=>({}));
+  function ve(focusKey){
+    const con = tt.filter(x=>!x).length;
+    let h = dau + `<div class="dt-than"><div class="tien-do"><span>Đã xét ${CHUOI.length-con}/${CHUOI.length} công đoạn</span>${con?`<button class="nut-nho" id="p3Het">Đạt hết ${con} công đoạn còn lại</button>`:""}</div>`;
+    const cdLoi = [];
+    CHUOI.forEach((c,ci)=>{
+      const v = tt[ci], soHong = hong[ci].filter(Boolean).length;
+      h += `<div class="the ${v?"xong":""}"><div class="the-dau"><span class="ten">${esc(c.ten)}</span><span class="tt ${v==="loi"?"loi":""}">${v==="dat"?"Đạt":v==="loi"?(soHong?`${soHong} mục hỏng`:"Có lỗi"):`${c.tc.length} tiêu chí`}</span></div>`;
+      if (v === "loi") {
+        h += `<div class="goi-y" style="margin:6px 0 0">Tick mục hỏng</div><ul class="chon-loi">` + c.tc.map((t,ti)=>`<li class="${hong[ci][ti]?"hong":""}" data-c="${ci}" data-t="${ti}"><span class="o">${hong[ci][ti]?I_X:""}</span>${esc(t)}</li>`).join("") + `</ul>`;
+        cdLoi.push(ci);
+        h += khoiLoi("c", ci, loiSt[ci], c.tc.filter((_,ti)=>hong[ci][ti]));
+        h += `<div class="cap" style="margin-top:8px"><button class="d" data-c="${ci}" data-v="dat">${I_OK}Thôi, đạt</button><span></span></div>`;
+      } else {
+        h += `<ul>${c.tc.map(t=>`<li>${esc(t)}</li>`).join("")}</ul>`;
+        h += `<div class="cap"><button class="d" aria-pressed="${v==="dat"}" data-c="${ci}" data-v="dat">${I_OK}Đạt</button><button class="l" data-c="${ci}" data-v="loi">${I_X}Có lỗi</button></div>`;
+      }
+      h += `</div>`;
+    });
+    h += `<textarea class="ghi-chung" placeholder="Ghi chú chung (nếu có)"></textarea></div>`;
+    const tongLoi = cdLoi.reduce((s,ci)=>s+(loiSt[ci].so||0),0);
+    const thieuTick = cdLoi.find(ci=>!hong[ci].some(Boolean));
+    h += chan(tongLoi, con ? `Còn ${con} công đoạn chưa xét` : thieuTick!=null ? `Tick mục hỏng của ${CHUOI[thieuTick].ten.toLowerCase()}` : lyDoLoi(cdLoi, loiSt));
+    root.innerHTML = h;
+    root.querySelectorAll(".cap button").forEach(b=>b.onclick=()=>{ tt[+b.dataset.c]=b.dataset.v; ve(); });
+    root.querySelectorAll(".chon-loi li").forEach(el=>el.onclick=()=>{ const ci=+el.dataset.c, ti=+el.dataset.t; hong[ci][ti]=!hong[ci][ti]; ve(); });
+    const het = root.querySelector("#p3Het"); if (het) het.onclick=()=>{ tt.forEach((v,i)=>{ if(!v) tt[i]="dat"; }); ve(); };
+    ganLoi(root, loiSt, "c", ve); giuFocus(root, focusKey);
+  }
+  ve();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+/* Ô chọn một ngày (ChonNgay.tsx) — nút như ô nhập + lịch nổi. */
+/* Khung ô: viền/cỡ đặt trong :where() để lớp cũ của màn (`input`, `rc-input`…) truyền vào className thắng. */
+:where(.cn-khung) { height: 38px; padding: 0 8px 0 10px; border: 1px solid var(--rule-soft); border-radius: 10px; background: #fff;
+  font-size: 14px; color: var(--ink); box-sizing: border-box; }
+.cn-khung { position: relative; display: inline-flex; align-items: center; gap: 8px; min-width: 0; cursor: text;
+  transition: border-color .15s, box-shadow .15s; }
+:where(.cn-khung):hover { border-color: var(--rule); }
+.cn-khung.is-mo, .cn-khung:focus-within { outline: 0; border-color: #60a5fa !important; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.cn-khung.is-khoa { opacity: .6; cursor: not-allowed; }
+.cn-khung__ic { flex: none; color: var(--ash-2); }
+.cn-khung.is-mo .cn-khung__ic { color: #2563eb; }
+/* Màn cũ hay có luật kiểu `.form input { height; padding; border }` — ô gõ bên trong khung phải miễn nhiễm. */
+.cn-khung .cn-khung__go { flex: 1 1 auto; min-width: 0; width: 100% !important; height: 100% !important; min-height: 0 !important;
+  margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; outline: 0 !important;
+  background: transparent !important; box-shadow: none !important; font: inherit; color: inherit; font-variant-numeric: tabular-nums; }
+.cn-khung__go::placeholder { color: #a3adbb; }
+.cn-khung__go:disabled { cursor: not-allowed; }
+.cn-khung:not(.cn-khung--ngay-gio) .cn-khung__go { min-width: 84px; }
+.cn-khung--gio .cn-khung__go { min-width: 44px; }
+.cn-khung .cn-khung__go--ngay { flex: 0 1 92px; width: 92px !important; min-width: 84px; }
+.cn-khung .cn-khung__go--gio { flex: 1 1 48px; min-width: 44px; padding-left: 8px !important; border-left: 1px solid var(--rule-soft) !important; }
+.cn-khung__thu { flex: none; font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
+.cn-khung__xoa { flex: none; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center;
+  background: transparent; color: var(--ash-2); cursor: pointer; opacity: 0; transition: opacity .15s, background .15s; }
+.cn-khung:hover .cn-khung__xoa, .cn-khung:focus-within .cn-khung__xoa { opacity: 1; }
+.cn-khung__xoa:hover { background: var(--rule-hair); color: var(--ink); }
+
+.cn-hop { position: fixed; z-index: 1000; width: 300px; padding: 12px; border-radius: 16px; background: #fff; color: var(--ink);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, .18), 0 0 0 1px rgba(15, 23, 42, .06);
+  animation: cnVao .16s cubic-bezier(.16, 1, .3, 1); font-size: 13.5px; }
+@keyframes cnVao { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+
+.cn-dau { display: flex; align-items: center; gap: 2px; margin-bottom: 8px; }
+.cn-gian { flex: 1; }
+.cn-tieu-de { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 0; border-radius: 9px;
+  background: transparent; font: inherit; font-size: 14.5px; color: var(--ink); cursor: pointer; }
+.cn-tieu-de:hover { background: var(--rule-hair); }
+.cn-tieu-de svg { color: var(--ash-2); transition: transform .2s; }
+.cn-tieu-de svg.is-lat { transform: rotate(180deg); }
+.cn-mui { width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; display: grid; place-items: center;
+  color: var(--ash); cursor: pointer; }
+.cn-mui:hover { background: var(--rule-hair); color: var(--ink); }
+
+.cn-luoi { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; outline: 0; }
+.cn-thu { height: 28px; display: grid; place-items: center; font-size: 11.5px; color: var(--ash-2); }
+.cn-thu--cuoi { color: #94a3b8; }
+.cn-o { position: relative; height: 38px; padding: 0; border: 0; background: transparent; display: grid; place-items: center;
+  font: inherit; color: var(--ink); cursor: pointer; font-variant-numeric: tabular-nums; }
+.cn-o > span { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; transition: background .12s, color .12s; }
+.cn-o--cuoi { color: var(--ash); }
+.cn-o--ngoai { color: #c0c8d4; }
+.cn-o--con > span { background: var(--rule-hair); }
+/* hover chỉ tô ô — KHÔNG dời con trỏ lịch (dời sang ngày tháng bên cạnh làm cả lưới nhảy tháng) */
+.cn-o:not(:disabled):hover > span { background: var(--rule-hair); }
+.cn-luoi:focus-visible .cn-o--con > span { box-shadow: 0 0 0 2px #93c5fd; }
+.cn-o--nay > span { box-shadow: inset 0 0 0 1.5px var(--rust); color: var(--rust); }
+.cn-o--chon > span { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff; box-shadow: 0 4px 10px rgba(37, 99, 235, .3); }
+.cn-o--khoa { cursor: default; color: #d5dbe3; }
+.cn-o--khoa > span { background: transparent !important; }
+.cn-cham { position: absolute; bottom: 3px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; }
+.cn-cham--la { background: var(--tt-la-dot); }
+.cn-cham--xanh { background: var(--tt-xanh-dot); }
+.cn-cham--vang { background: var(--tt-vang-dot); }
+.cn-cham--do { background: var(--tt-do-dot); }
+.cn-cham--tim { background: var(--tt-tim-dot); }
+.cn-o--chon .cn-cham { background: #fff; }
+
+.cn-thang { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px 0 2px; }
+.cn-th { height: 44px; border: 0; border-radius: 10px; background: transparent; font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.cn-th:hover, .cn-th.is-con { background: var(--rule-hair); }
+.cn-th.is-chon { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff; }
+
+.cn-chan { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--rule-hair); }
+.cn-nho { height: 28px; padding: 0 11px; border: 1px solid var(--rule-soft); border-radius: 999px; background: #fff; font: inherit;
+  font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.cn-nho:hover:not(:disabled) { background: var(--rule-hair); }
+.cn-nho:disabled { opacity: .5; cursor: default; }
+.cn-goi-y { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ash-2); }
+.cn-goi-y .cn-cham { position: static; margin: 0; }
+.cn-nho--tron { border-color: transparent; color: var(--ash); }
+.cn-nho--chinh { border-color: transparent; background: var(--ink); color: #fff; }
+.cn-nho--chinh:hover:not(:disabled) { background: #1e293b; }
+
+/* giờ */
+.cn-gio-ds { display: flex; flex-direction: column; gap: 2px; max-height: 264px; overflow-y: auto; padding: 2px; scrollbar-width: thin; }
+.cn-gio { flex: none; height: 32px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13.5px;
+  color: var(--ink); cursor: pointer; font-variant-numeric: tabular-nums; }
+.cn-gio.is-dem { color: var(--ash-2); }
+.cn-gio:hover:not(:disabled) { background: var(--rule-hair); }
+.cn-gio.is-chon { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff; }
+.cn-gio:disabled { color: #d5dbe3; cursor: default; }
+.cn-ngay-gio { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 10px; }
+.cn-ngay-gio__gio { display: flex; flex-direction: column; min-height: 0; padding-left: 10px; border-left: 1px solid var(--rule-hair); }
+.cn-ngay-gio__nhan { height: 32px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--ash); }
+.cn-ngay-gio .cn-gio-ds { max-height: 268px; }
+
+/* ô tháng: là nút, không gõ */
+.cn-khung--thang { font: inherit; text-align: left; cursor: pointer; }
+.cn-khung__chu { flex: 1; min-width: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cn-khung__chu--trong { color: var(--ash-2); }
+.cn-khung__mui { flex: none; color: var(--ash-2); transition: transform .2s; }
+.cn-khung.is-mo .cn-khung__mui { transform: rotate(180deg); }
+.cn-tieu-de--tinh { cursor: default; }
+.cn-tieu-de--tinh:hover { background: transparent; }
+.cn-th.is-nay:not(.is-chon) { box-shadow: inset 0 0 0 1.5px var(--rust); color: var(--rust); }
+.cn-th:disabled { color: #d5dbe3; cursor: default; background: transparent; }

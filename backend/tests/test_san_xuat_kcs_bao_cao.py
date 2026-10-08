@@ -57,13 +57,10 @@ from tests.test_san_xuat_kcs import (  # noqa: F401
 
 _XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-# Checklist mẫu 2 tiêu chí, cả hai KHÔNG bắt buộc — để test gửi/không-gửi checklist đều hợp lệ,
-# không vướng luật `_validate_checklist_bat_buoc` (mục 3.7).
+# Ảnh chụp 2 tiêu chí theo khuôn mg 0381 — mỗi mục chỉ là một câu chữ.
 _TIEU_CHI_2 = [
-    {"tieu_chi_id": 1, "ma": "TC-01", "ten": "Không lệch màu", "huong_dan": None,
-     "bat_buoc": False, "nguon": "danh_muc", "thu_tu": 1},
-    {"tieu_chi_id": 2, "ma": "TC-02", "ten": "Không rách giấy", "huong_dan": None,
-     "bat_buoc": False, "nguon": "danh_muc", "thu_tu": 2},
+    {"tieu_chi_id": 1, "ma": "TC-01", "ten": "Không lệch màu", "thu_tu": 1},
+    {"tieu_chi_id": 2, "ma": "TC-02", "ten": "Không rách giấy", "thu_tu": 2},
 ]
 
 
@@ -392,7 +389,7 @@ def test_excel_ten_sheet_va_header_dung(db, orders, lsx_svc, admin, customer):
     ]
     header2 = [c.value for c in wb["Chi tiết checklist"][1]]
     assert header2 == [
-        "Mã kết quả", "Thời điểm", "Mã tiêu chí", "Tên tiêu chí", "Bắt buộc", "Đạt", "Ghi chú",
+        "Mã kết quả", "Thời điểm", "Công đoạn", "Mã tiêu chí", "Tên tiêu chí", "Đạt", "Ghi chú",
     ]
 
 
@@ -417,6 +414,10 @@ def test_excel_so_dong_khop_du_lieu(db, orders, lsx_svc, admin, customer):
 
     ws2 = wb["Chi tiết checklist"]
     assert ws2.max_row - 1 == 2   # chỉ batch A góp 2 dòng (2 tiêu chí); B góp 0 dòng
+    # Giờ ở sheet tiêu chí trùng giờ sheet kết quả của cùng lần kiểm — trước 08/10/2026 bị quy
+    # đổi giờ hai lần, lệch đúng bằng múi giờ máy chủ.
+    gio_kq = {r[0]: r[1] for r in ws1.iter_rows(min_row=2, values_only=True)}
+    assert all(r[1] == gio_kq[r[0]] for r in ws2.iter_rows(min_row=2, values_only=True))
 
 
 def test_excel_url_anh_xuat_hien_dung_cot(db, orders, lsx_svc, admin, customer):

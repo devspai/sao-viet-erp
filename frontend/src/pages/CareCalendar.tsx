@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Plus, Repeat, X } from "lucide-react";
 import { api, ApiError, type CareOccurrence, type LichHenDong } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
+import { ChonGio, ChonNgay } from "../components/ChonNgay";
 import { congNgay, homNayVN, ngayCuaMoc, soNgay } from "./khachHangSo";
 import "./care-calendar.css";
 
@@ -279,7 +280,10 @@ export function CareCalendar({ customerId, onChange, moHenTick = 0, eventTick = 
   useEffect(() => {
     if (!taoNgay && !sel) return;
     function onDown(e: MouseEvent) {
-      if (popRef.current && !popRef.current.contains(e.target as Node)) dong();
+      const t = e.target as Element;
+      // Lịch nổi của ô ngày/giờ portal ra body — bấm trong đó không tính là bấm ra ngoài.
+      if (t.closest?.(".cn-hop")) return;
+      if (popRef.current && !popRef.current.contains(t)) dong();
     }
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") dong(); }
     document.addEventListener("mousedown", onDown);
@@ -494,8 +498,8 @@ export function CareCalendar({ customerId, onChange, moHenTick = 0, eventTick = 
                 onKeyDown={(e) => { if (e.key === "Enter") tao(); }}
               />
               <div className="cc__row">
-                <input type="date" className="cc__input" value={fNgay} onChange={(e) => setFNgay(e.target.value)} aria-label="Ngày hẹn" />
-                <input type="time" className="cc__input" value={fGio} onChange={(e) => setFGio(e.target.value)} aria-label="Giờ hẹn" />
+                <ChonNgay className="cc__input" value={fNgay ?? ""} onChange={(v) => setFNgay(v)} aria-label="Ngày hẹn" />
+                <ChonGio className="cc__input" value={fGio ?? ""} onChange={(v) => setFGio(v)} aria-label="Giờ hẹn" xoaDuoc={false} />
               </div>
               <div className="cc__row">
                 <select className="cc__select" value={fLap} onChange={(e) => setFLap(e.target.value)} aria-label="Lặp lại">
@@ -513,7 +517,7 @@ export function CareCalendar({ customerId, onChange, moHenTick = 0, eventTick = 
                     </label>
                     <label className="cc__nho">
                       đến
-                      <input type="date" className="cc__input" value={fDen} onChange={(e) => setFDen(e.target.value)} />
+                      <ChonNgay className="cc__input" value={fDen ?? ""} onChange={(v) => setFDen(v)} aria-label="Lặp đến ngày" />
                     </label>
                   </>
                 )}
@@ -547,8 +551,8 @@ export function CareCalendar({ customerId, onChange, moHenTick = 0, eventTick = 
                 <>
                   {sel.status === "open" && (
                     <div className="cc__row">
-                      <input type="date" className="cc__input" value={doiNgay} onChange={(e) => setDoiNgay(e.target.value)} aria-label="Dời sang ngày" />
-                      <input type="time" className="cc__input" value={doiGio} onChange={(e) => setDoiGio(e.target.value)} aria-label="Dời sang giờ" />
+                      <ChonNgay className="cc__input" value={doiNgay ?? ""} onChange={(v) => setDoiNgay(v)} aria-label="Dời sang ngày" />
+                      <ChonGio className="cc__input" value={doiGio ?? ""} onChange={(v) => setDoiGio(v)} aria-label="Dời sang giờ" xoaDuoc={false} />
                       <button
                         type="button"
                         className="btn btn--ghost"

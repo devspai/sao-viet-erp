@@ -87,6 +87,13 @@
 .lds-cot__hop label { flex: 1; display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 4px; font-size: 13px;
   cursor: pointer; white-space: nowrap; }
 .lds-cot__hop input { accent-color: var(--ink); margin: 0; }
+/* Nút ghim cuối dòng: mờ khi chưa ghim, màu chữ khi đã ghim; ghim mà khung quá hẹp thì ghi chú nhỏ. */
+.lds-cot__ghim { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; margin-right: 2px; border: 0;
+  background: transparent; color: var(--lds-mo); border-radius: 5px; cursor: pointer; padding: 0; }
+.lds-cot__ghim:hover, .lds-cot__ghim:focus-visible { color: var(--ink); background: var(--rule); }
+.lds-cot__ghim[aria-pressed="true"] { color: var(--ink); }
+.lds-cot__hep { font-size: 11.5px; color: var(--ash-2); margin-left: auto; padding-left: 8px; }
+.lds-cot__ngan { border-top: 1px solid var(--rule-hair); margin: 4px 0; }
 .lds-cot__hop .lds-cot__lai { border-top: 1px solid var(--rule-hair); margin-top: 4px; padding-top: 4px; }
 
 /* Lưới. */
@@ -176,6 +183,15 @@ th.n .lds-sx { flex-direction: row-reverse; }
    theo transform. */
 .lds-cuon thead th { position: relative; z-index: 2; transform: translateY(var(--lds-tieu-de, 0px)); }
 .lds-cuon.is-ghim-tren thead th { box-shadow: inset 0 -1px 0 var(--rule-soft), 0 6px 10px -8px rgba(15, 23, 42, .28); }
+/* Tay kéo đổi độ rộng cột: dải 8px ở mép phải ô tiêu đề, rê tới hiện vạch. Cột cuối co giãn ăn phần
+   thừa của khung nên không có tay kéo. Màn cảm ứng không rê được — ẩn hẳn. */
+.lds-g th:has(> .lds-keo-cot) { position: relative; }
+.lds-keo-cot { position: absolute; top: 0; right: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 1; touch-action: none; }
+.lds-keo-cot::after { content: ""; position: absolute; top: 6px; bottom: 6px; right: 0; width: 2px; border-radius: 1px; background: transparent; }
+.lds-keo-cot:hover::after, .lds-dang-keo-cot .lds-keo-cot:active::after { background: var(--ash-2); }
+.lds-g th:last-child > .lds-keo-cot { display: none; }
+.lds-dang-keo-cot, .lds-dang-keo-cot * { cursor: col-resize !important; user-select: none !important; }
+@media (hover: none) { .lds-keo-cot { display: none; } }
 
 /* Cột ghim bên trái (data-ghim = số cột): đứng yên khi cuộn ngang. Nền đặc theo trạng thái dòng
    (biến --lds-nen-ghim) để chữ cột khác trượt qua không lộ ra dưới. */
@@ -187,22 +203,30 @@ th.n .lds-sx { flex-direction: row-reverse; }
 .lds-cuon[data-ghim] tr > :nth-child(2) { --lds-trai: var(--lds-g2); }
 .lds-cuon[data-ghim] tr > :nth-child(3) { --lds-trai: var(--lds-g3); }
 .lds-cuon[data-ghim] tr > :nth-child(4) { --lds-trai: var(--lds-g4); }
+.lds-cuon[data-ghim] tr > :nth-child(5) { --lds-trai: var(--lds-g5); }
+.lds-cuon[data-ghim] tr > :nth-child(6) { --lds-trai: var(--lds-g6); }
 .lds-cuon[data-ghim="1"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+1),
 .lds-cuon[data-ghim="2"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+2),
 .lds-cuon[data-ghim="3"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+3),
-.lds-cuon[data-ghim="4"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+4) {
+.lds-cuon[data-ghim="4"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+4),
+.lds-cuon[data-ghim="5"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+5),
+.lds-cuon[data-ghim="6"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+6) {
   position: sticky; left: var(--lds-trai); z-index: 1; background: var(--lds-nen-ghim, var(--canvas, #fff));
 }
 /* Lặp .lds-cuon để thắng quy tắc sticky chung ở trên (nó mang cả `tbody tr.lds-dong` nên nặng hơn). */
 .lds-cuon.lds-cuon[data-ghim="1"] thead tr > :nth-child(-n+1),
 .lds-cuon.lds-cuon[data-ghim="2"] thead tr > :nth-child(-n+2),
 .lds-cuon.lds-cuon[data-ghim="3"] thead tr > :nth-child(-n+3),
-.lds-cuon.lds-cuon[data-ghim="4"] thead tr > :nth-child(-n+4) { z-index: 3; background: var(--paper); }
+.lds-cuon.lds-cuon[data-ghim="4"] thead tr > :nth-child(-n+4),
+.lds-cuon.lds-cuon[data-ghim="5"] thead tr > :nth-child(-n+5),
+.lds-cuon.lds-cuon[data-ghim="6"] thead tr > :nth-child(-n+6) { z-index: 3; background: var(--paper); }
 /* Mép phải cột ghim cuối: có bóng khi lưới đã cuộn ngang (biết là còn cột khuất bên dưới). */
 .lds-cuon[data-ghim="1"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(1),
 .lds-cuon[data-ghim="2"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(2),
 .lds-cuon[data-ghim="3"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(3),
-.lds-cuon[data-ghim="4"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(4) {
+.lds-cuon[data-ghim="4"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(4),
+.lds-cuon[data-ghim="5"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(5),
+.lds-cuon[data-ghim="6"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(6) {
   box-shadow: inset -1px 0 0 var(--rule-soft), 6px 0 8px -6px rgba(15, 23, 42, .22);
 }
 
@@ -242,3 +266,37 @@ th.n .lds-sx { flex-direction: row-reverse; }
 .lds-bang.lds-bang--nhap .lds-g tbody td :is(input, select, textarea) { max-width: 100%; box-sizing: border-box; }
 /* Ô tick chọn / bỏ đầu dòng: căn giữa, đệm hẹp. */
 .lds-bang.lds-bang--nhap .lds-g td.lds-tick, .lds-bang.lds-bang--nhap .lds-g th.lds-tick { text-align: center; padding: 6px 4px; }
+
+/* Nút chuyển phần / bộ cột dạng viên trên hàng đầu màn (`lds-dau`), vd "Phiếu của tôi | Duyệt phiếu",
+   "Tuổi nợ | Trong kỳ và liên hệ" — đổi cả phần bên dưới, không phải bộ lọc. Chấm cam = còn việc chờ
+   (không số — luật không badge số trên tab). */
+.lds-xem { display: inline-flex; flex: none; flex-wrap: wrap; gap: 2px; padding: 2px; border: 1px solid var(--rule-soft, #e2e8f0);
+  border-radius: 999px; background: var(--rule-hair, #f8fafc); }
+.lds-xem__nut { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 0; border-radius: 999px;
+  background: transparent; cursor: pointer; font: inherit; font-size: 12.5px; color: var(--ash, #475569); }
+.lds-xem__nut:hover { color: var(--ink, #0f172a); }
+.lds-xem__nut.is-active { background: var(--paper, #fff); color: var(--ink, #0f172a); font-weight: var(--fw-medium, 500);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .08); }
+.lds-xem__cham { width: 7px; height: 7px; border-radius: 50%; background: var(--rust, #c5400a); display: inline-block; }
+
+/* Dòng Cộng của lưới có cột ghim: ô nhãn đầu dòng cũng đứng yên khi cuộn ngang — không thì nhãn trôi mất
+   và số của các cột bên dưới lộ ra chỗ cột ghim (08/10/2026, Công nợ). Ô colSpan (dòng nhóm) không ghim. */
+.lds-cuon[data-ghim] tbody tr.lds-cong > td.lead:not([colspan]) {
+  position: sticky; left: var(--lds-trai, 0); z-index: 1; background: var(--paper);
+}
+
+/* Thẻ đếm "N vật tư" (TheDem) + thẻ nổi liệt kê khi rê chuột — cùng khuôn thẻ "N mặt hàng" của NCC. */
+.lds-dem { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; max-width: 100%;
+  border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--rule-hair); color: var(--ink);
+  font-size: 12px; white-space: nowrap; cursor: default; vertical-align: middle; }
+.lds-dem svg { color: var(--ash-2); flex: none; }
+.lds-dem:hover, .lds-dem:focus-visible, .lds-dem.is-mo { border-color: var(--rule); background: #fff; outline: 0; }
+.lds-dem-the { position: fixed; z-index: 1000; width: 300px; padding: 8px 10px; background: #fff; border: 1px solid var(--rule);
+  border-radius: 9px; box-shadow: 0 12px 28px rgba(15, 23, 42, .16); display: flex; flex-direction: column; gap: 2px;
+  font-size: 12.5px; user-select: text; }
+.lds-dem-the.is-len { transform: translateY(-100%); }
+.lds-dem-the__dau { color: var(--ash-2); font-size: 12px; padding-bottom: 4px; margin-bottom: 2px; border-bottom: 1px solid var(--rule-hair); }
+.lds-dem-the__dong { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 3px 0; }
+.lds-dem-the__dong > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--ink); }
+.lds-dem-the__dong > span:last-child { flex: none; color: var(--ash-2); font-size: 12px; }
+.lds-dem-the__them { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--rule-hair); color: var(--ash-2); font-size: 12px; text-align: center; }

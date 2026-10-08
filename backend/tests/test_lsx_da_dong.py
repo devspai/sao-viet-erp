@@ -11,6 +11,7 @@ from app.services.san_xuat import dong_lenh
 from tests.test_san_xuat_kcs import (  # noqa: F401
     _batch, admin, customer, db, lsx_svc, orders,
 )
+from tests.quyen_to_fixtures import cap_dong_thieu
 from tests.test_xep_lich_lenh_service import lenh, svc3  # noqa: F401
 from app.services.xep_lich import XepLichLenhConflict
 
@@ -19,6 +20,7 @@ def _lenh_da_dong(db, orders, lsx_svc, admin, customer) -> Lsx:
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
     db.get(Lsx, cv.lsx_id).trang_thai = "da_phat_hanh"
     db.commit()
+    cap_dong_thieu(db, res["nguoi_kcs"])
     dong_lenh.dong(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=None)
     l = db.get(Lsx, cv.lsx_id)
     assert l.trang_thai == TT_DA_DONG

@@ -69,12 +69,10 @@ def _cong_doan(db, ma: str):
     ))
 
 
-def _tieu_chi(db, ma: str, *, cong_doan_id: int, active=True, thu_tu=0):
+def _tieu_chi(db, ma: str, *, cong_doan_id: int, thu_tu=None):
     """Một HẠNG MỤC KIỂM của MỘT công đoạn (mg `0285` — không còn nhiều-nhiều)."""
     svc = SanXuatKcsTieuChiService(SanXuatKcsTieuChiRepository(db))
-    return svc.create(dict(
-        ma=ma, ten=ma, active=active, thu_tu=thu_tu, cong_doan_id=cong_doan_id,
-    ))
+    return svc.create(dict(ma=ma, ten=ma, thu_tu=thu_tu, cong_doan_id=cong_doan_id))
 
 
 def _them_buoc(
@@ -335,14 +333,16 @@ def test_diem_toa_buoc_cat_doi_he_so_theo_so_con_tren_to_ghep(
 
 
 # --- Checklist KCS đóng băng vào snapshot khi phát hành (Task 3) -----------------------------
-def test_snapshot_checklist_chi_lay_tieu_chi_active(db, orders, lsx_svc, admin, customer):
-    """Bước neo `cong_doan_id` tới danh mục có 2 tiêu chí (1 active, 1 đã ngừng) — snapshot chỉ
-    đóng băng tiêu chí ACTIVE, nguồn `danh_muc`."""
+def test_snapshot_checklist_mot_cau_thu_tu_la_vi_tri(db, orders, lsx_svc, admin, customer):
+    """Bước neo `cong_doan_id` tới danh mục có 2 tiêu chí — snapshot đóng băng cả hai, mỗi mục chỉ
+    là một câu chữ (mg `0381`), `thu_tu` = vị trí 1..n theo thứ tự danh mục (không lấy số thô)."""
     a, _b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
     to = _to_hoan_thien(db)
     cd = _cong_doan(db, "CD-KT-CUOI")
-    tc_on = _tieu_chi(db, "TC-ON", active=True, thu_tu=1, cong_doan_id=cd.id)
-    _tieu_chi(db, "TC-OFF", active=False, thu_tu=2, cong_doan_id=cd.id)
+    tc_sau = _tieu_chi(db, "TC-SAU", cong_doan_id=cd.id)
+    tc_truoc = _tieu_chi(db, "TC-TRUOC", cong_doan_id=cd.id)
+    # Số thô có lỗ hổng (dữ liệu trước mg 0381) — snapshot vẫn đánh 1..n theo thứ tự.
+    tc_sau.thu_tu, tc_truoc.thu_tu = 7, 3
     buoc = _them_buoc(
         db, a.id, thu_tu=1, ten="Kiểm tra cuối", department_id=to.id,
         cong_doan_id=cd.id,
@@ -353,10 +353,10 @@ def test_snapshot_checklist_chi_lay_tieu_chi_active(db, orders, lsx_svc, admin, 
     db.commit()
 
     cv = db.query(SanXuatCongViec).filter_by(goi_id=goi.id, step_key=buoc.step_key).one()
-    assert cv.kcs_tieu_chi_json == [{
-        "tieu_chi_id": tc_on.id, "ma": "TC-ON", "ten": "TC-ON", "huong_dan": None,
-        "bat_buoc": True, "nguon": "danh_muc", "thu_tu": 1,
-    }]
+    assert cv.kcs_tieu_chi_json == [
+        {"tieu_chi_id": tc_truoc.id, "ma": "TC-TRUOC", "ten": "TC-TRUOC", "thu_tu": 1},
+        {"tieu_chi_id": tc_sau.id, "ma": "TC-SAU", "ten": "TC-SAU", "thu_tu": 2},
+    ]
 
 
 def test_snapshot_checklist_moi_buoc_co_tieu_chi(db, orders, lsx_svc, admin, customer):
@@ -369,7 +369,7 @@ def test_snapshot_checklist_moi_buoc_co_tieu_chi(db, orders, lsx_svc, admin, cus
     db.flush()
     to = _to_hoan_thien(db)
     cd = _cong_doan(db, "CD-IN-GIUA")
-    tc = _tieu_chi(db, "TC-CHONG-MAU", active=True, thu_tu=1, cong_doan_id=cd.id)
+    tc = _tieu_chi(db, "TC-CHONG-MAU", thu_tu=1, cong_doan_id=cd.id)
     giua = _them_buoc(db, a.id, thu_tu=1, ten="In offset", department_id=to_in.id, cong_doan_id=cd.id)
     cuoi = _them_buoc(db, a.id, thu_tu=2, ten="Đóng gói", department_id=to.id)
     db.commit()
@@ -387,12 +387,12 @@ def test_snapshot_checklist_moi_buoc_co_tieu_chi(db, orders, lsx_svc, admin, cus
 
 
 def test_snapshot_checklist_bat_bien_sau_khi_sua_danh_muc(db, orders, lsx_svc, admin, customer):
-    """Snapshot đã phát hành PHẢI đứng yên — sửa danh mục (ngừng active) SAU khi phát hành không
+    """Snapshot đã phát hành PHẢI đứng yên — sửa/xoá tiêu chí ở danh mục SAU khi phát hành không
     được lan ngược vào `SanXuatCongViec.kcs_tieu_chi_json` đã đóng băng."""
     a, _b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
     to = _to_hoan_thien(db)
     cd = _cong_doan(db, "CD-KT-CUOI-3")
-    tc = _tieu_chi(db, "TC-BAT-BIEN", active=True, thu_tu=1, cong_doan_id=cd.id)
+    tc = _tieu_chi(db, "TC-BAT-BIEN", thu_tu=1, cong_doan_id=cd.id)
     buoc = _them_buoc(
         db, a.id, thu_tu=1, ten="Kiểm tra cuối", department_id=to.id,
         cong_doan_id=cd.id,
@@ -406,9 +406,10 @@ def test_snapshot_checklist_bat_bien_sau_khi_sua_danh_muc(db, orders, lsx_svc, a
     checklist_truoc = truoc.kcs_tieu_chi_json
     assert len(checklist_truoc) == 1
 
-    # Ngừng dùng tiêu chí ở danh mục SAU khi đã phát hành.
-    tc_svc = SanXuatKcsTieuChiService(SanXuatKcsTieuChiRepository(db))
-    tc_svc.dat_active(tc.id, False)
+    # Sửa câu chữ rồi xoá hẳn tiêu chí ở danh mục SAU khi đã phát hành.
+    tc.ten = "Câu đã sửa"
+    db.commit()
+    db.delete(tc)
     db.commit()
     db.expire_all()   # đọc lại THẬT từ DB, không phải cache Python đang giữ
 

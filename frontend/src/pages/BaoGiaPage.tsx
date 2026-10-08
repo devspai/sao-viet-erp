@@ -23,10 +23,10 @@ import { gopTheoNhom, gopTrungTen, nhomLechSoLuong } from "../utils/gop-nhom";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
+import { ChonNgay } from "../components/ChonNgay";
 import { EmptyRow, EmptyState } from "../components/EmptyState";
 import {
   CuonLuoi,
-  soCotGhim,
   ChipTT,
   ChonCot,
   LocNhanhTrangThai,
@@ -36,9 +36,7 @@ import {
   ngayVN,
   soVN,
   tenKhachGon,
-  useCotAn,
-  useThuTuCot,
-  xepCot,
+  useCauHinhLuoi,
   type CotLuoi,
   type MauTT,
 } from "../components/LuoiDs";
@@ -188,8 +186,7 @@ export function BaoGiaPage({
 
   const [stats, setStats] = useState<QuotationStats | null>(null);
   const [tongGiaBan, setTongGiaBan] = useState(0);
-  const [cotAn, setCotAn] = useCotAn("bao-gia");
-  const [thuTu, setThuTu] = useThuTuCot("bao-gia");
+  const luoi = useCauHinhLuoi("bao-gia");
   const xemDon = useCan()("don_hang_ban", "read");
 
   // Đi từ màn khác tới (phiếu tính giá, CRM, nhật ký): mở thẳng chi tiết.
@@ -308,8 +305,8 @@ export function BaoGiaPage({
   // Hiệu lực riêng nên cột này về Ngày tạo.
   const mocNgay = locMan.ky.moc === "gui" ? "gui" : "tao";
   const nhanNgay = mocNgay === "gui" ? "Ngày gửi khách" : "Ngày tạo";
-  const hien = (k: string) => !cotAn.has(k);
-  const cotHien = xepCot(COT_BG, thuTu).filter((c) => hien(c.key)).map((c) => (c.key === "ngay" ? { ...c, label: nhanNgay } : c));
+  const hien = (k: string) => !luoi.an.has(k);
+  const cotHien = luoi.rongHien(luoi.xep(COT_BG).filter((c) => hien(c.key)).map((c) => (c.key === "ngay" ? { ...c, label: nhanNgay } : c)));
   const viTriGia = cotHien.findIndex((c) => c.key === "gia");
   const muc = tabTrangThai.map((t) => ({ ...t, mau: t.key ? MAU_TRANG_THAI[t.key] : undefined }));
 
@@ -361,12 +358,12 @@ export function BaoGiaPage({
             }}
             donVi="BG"
           />
-          <ChonCot cot={COT_BG} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={COT_BG} {...luoi.chonCot} />
         </div>
       </section>
 
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <colgroup>
               {cotHien.map((c) => (
@@ -382,6 +379,7 @@ export function BaoGiaPage({
                     ) : (
                       c.label
                     )}
+                    {luoi.keo(c.key)}
                   </th>
                 ))}
               </tr>
@@ -1660,11 +1658,11 @@ function QuotationDetailView({
                     <span className="validity-lbl">Hạn hiệu lực báo giá</span>
                     <div className="validity-val-row">
                       {editable ? (
-                        <input
+                        <ChonNgay
                           className="datepill-edit"
-                          type="date"
-                          value={validUntilEdit}
-                          onChange={(e) => setValidUntilEdit(e.target.value)}
+                          aria-label="Hạn hiệu lực báo giá"
+                          value={validUntilEdit ?? ""}
+                          onChange={(v) => setValidUntilEdit(v)}
                         />
                       ) : (
                         <span className="validity-date-str">

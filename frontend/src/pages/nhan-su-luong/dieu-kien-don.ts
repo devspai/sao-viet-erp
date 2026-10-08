@@ -7,6 +7,7 @@
 import { Building2, CircleDot, UserRound } from "lucide-react";
 
 import type { ThamSoLoc } from "../../api/client";
+import type { MauTT } from "../../components/LuoiDs";
 import type { StatusTabItem } from "../../components/StatusTabs";
 import type { GiaTriUrl } from "../ke-toan/shared/urlMan";
 import { kyLenUrl, kyTuUrl, soLenUrl, soTuUrl, type KyDS } from "../thanh-loc/ky-danh-sach";
@@ -66,6 +67,16 @@ export function tabTrangThai(
     count: dem ? (key === "" ? dem.tat_ca ?? 0 : dem[key] ?? 0) : undefined,
     tone: key === "pending" ? "alert" : "default",
   }));
+}
+
+/** Màu chấm hàng lọc nhanh — cùng bộ sắc `--tt-*` với chip trạng thái trong bảng. */
+const MAU_TT: Record<string, MauTT> = { pending: "vang", approved: "la", rejected: "do", cancelled: "xam" };
+
+/** Hàng lọc nhanh trạng thái (`LocNhanhTrangThai`) theo khuôn lưới chung: "Tất cả" đứng đầu. */
+export function mucLocNhanh(dem: Record<string, number> | null | undefined, tabs: [string, string][] = TAB_TRANG_THAI) {
+  const ds = tabTrangThai(dem, tabs);
+  return [...ds.filter((t) => t.key === ""), ...ds.filter((t) => t.key !== "")]
+    .map((t) => ({ key: t.key, label: t.label, count: t.count, mau: MAU_TT[t.key] }));
 }
 
 /** Bộ lọc của một tab danh sách: kỳ + trạng thái (thanh tab) + các điều kiện riêng `loc`. */

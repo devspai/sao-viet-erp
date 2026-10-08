@@ -11,7 +11,8 @@ import { NHOM_CONG_DOAN, ngayGio } from "./keHoachSxShared";
 import { QuyDoiCuaDonVi } from "./QuyDoiCuaDonVi";
 import { KhoViTriPanel } from "./KhoViTriPanel";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { ChipTT, type MauTT } from "../components/LuoiDs";
+import { Package } from "lucide-react";
+import { ChipTT, TheDem, type MauTT } from "../components/LuoiDs";
 import { CodeLink } from "../components/CodeLink";
 import { useCan } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
@@ -120,7 +121,7 @@ const dvCell = (r: Row) => {
 /** `{id: tên}` của một danh mục nguồn, nạp qua `thamChieu` — mọi ô cùng nguồn trên trang dùng CHUNG
  *  một request (nhớ + gộp lúc đang bay), nên 20 dòng không đẻ 20 lượt gọi. Chưa về / không quyền
  *  đọc thì `null`: ô tự hiện số đếm thay vì bịa tên. */
-function useBangTen(prefix: string): Map<number, string> | null {
+function useBangDong(prefix: string): Map<number, Row> | null {
   const { token } = useAuth();
   const [rows, setRows] = useState<Row[] | undefined>(() => (token ? crud(prefix).daNho(token) : undefined));
   useEffect(() => {
@@ -131,7 +132,31 @@ function useBangTen(prefix: string): Map<number, string> | null {
     moi.then((r) => { if (song) setRows(r); }).catch(() => { /* mất cột phụ, không làm trắng bảng */ });
     return () => { song = false; };
   }, [token, prefix]);
-  return useMemo(() => (rows ? new Map(rows.map((r) => [Number(r.id), String(r.ten)])) : null), [rows]);
+  return useMemo(() => (rows ? new Map(rows.map((r) => [Number(r.id), r])) : null), [rows]);
+}
+function useBangTen(prefix: string): Map<number, string> | null {
+  const bang = useBangDong(prefix);
+  return useMemo(() => (bang ? new Map([...bang].map(([id, r]) => [id, String(r.ten)])) : null), [bang]);
+}
+
+/** Có / chưa có — chip hai sắc cho cột "đã khai X chưa" (CT tính giá, CT khoán của Công đoạn). */
+const chipCo = (co: boolean, title?: string) =>
+  co ? <ChipTT mau="la" title={title}>Có</ChipTT> : <ChipTT mau="xam">Chưa có</ChipTT>;
+const coChu = (v: unknown) => typeof v === "string" && v.trim() !== "";
+
+/** Cột Vật tư của Công đoạn: thẻ "N vật tư", rê chuột liệt kê tên + ĐVT từng món (tên tra danh mục
+ *  Vật tư khác — cùng nguồn với ô chọn trong drawer). Chưa về danh mục thì vẫn đếm, tên tạm `#id`. */
+function VatTuCongDoanO({ ds }: { ds: unknown }) {
+  const bang = useBangDong("/api/vat-lieu-kho/vat-tu-in-an");
+  const ids = Array.isArray(ds) ? ds.map((d) => Number((d as { vat_tu_id?: unknown }).vat_tu_id)).filter(Number.isFinite) : [];
+  if (ids.length === 0) return <span className="lds-mu">Chưa có</span>;
+  const dong = ids.map((id) => {
+    const r = bang?.get(id);
+    const dv = r ? String(r.don_vi_ten ?? r.don_vi_gia ?? "") : "";
+    return { ten: r ? String(r.ten) : `#${id}`, phu: dv };
+  });
+  return <TheDem dong={dong} donVi="vật tư" tieuDe="Vật tư công đoạn tiêu thụ"
+    icon={<Package size={13} strokeWidth={1.8} aria-hidden="true" />} />;
 }
 
 /** Hàng chip tên cho một mảng id (tổ phụ trách, giấy thay thế). Rỗng ⇒ ô trống. Chỉ bày `toiDa`
@@ -422,17 +447,28 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     // Tổ đầu tiên là tổ MẶC ĐỊNH lúc lên lệnh (rê chuột thấy chữ "mặc định").
     { key: "department_ids", label: "Tổ phụ trách", w: 210,
       render: (r) => <ChipTen prefix="/api/cong-doan/phong-ban" ids={r.department_ids} nhanDau="mặc định" /> },
-    // Đếm thôi, không kể tên: tên máy/vật tư nằm trong thẻ công đoạn. Đủ để thấy bước nào CHƯA gán
-    // máy (bài ghép không chặn được gán sai) hay chưa có vật tư (lệnh SX không ra định mức).
-    { key: "may_lam_duoc", label: "Máy & vật tư", w: 250, render: (r) => {
+    // Đếm máy thôi, không kể tên: tên máy nằm trong thẻ công đoạn. Đủ để thấy bước nào CHƯA gán máy
+    // (bài ghép không chặn được gán sai). Vật tư tách cột riêng (08/10/2026) — rê chuột xem từng món.
+    { key: "may_lam_duoc", label: "Máy", w: 170, render: (r) => {
         const may = Array.isArray(r.may_lam_duoc) ? r.may_lam_duoc.length : 0;
-        const vt = Array.isArray(r.vat_tus) ? r.vat_tus.length : 0;
         return doc([
           <span key="m" className={may ? undefined : "lds-mu"}>{may ? `${may} máy` : "Chưa gán máy"}</span>,
-          vt ? <span key="v">{vt} vật tư</span> : null,
           r.requires_tooling ? <span key="k" className="lds-tag">Cần khuôn bế</span> : null,
         ]);
       } },
+    { key: "vat_tus", label: "Vật tư", w: 120, render: (r) => <VatTuCongDoanO ds={r.vat_tus} /> },
+    // Có / chưa có công thức (08/10/2026). Giá: công thức chung của công đoạn HOẶC công thức riêng ở
+    // máy (ghi đè khi phiếu tính giá chọn đúng máy) — có một trong hai là tính được.
+    { key: "ct_gia", label: "CT tính giá", w: 110, render: (r) => {
+        const mays = Array.isArray(r.may_lam_duoc) ? (r.may_lam_duoc as { cong_thuc_gia?: unknown }[]) : [];
+        const theoMay = mays.filter((m) => coChu(m.cong_thuc_gia)).length;
+        const chung = coChu(r.cong_thuc_gia);
+        const title = [chung ? "Có công thức chung" : "", theoMay ? `Công thức riêng ở ${theoMay}/${mays.length} máy` : ""]
+          .filter(Boolean).join("\n");
+        return chipCo(chung || theoMay > 0, title || undefined);
+      } },
+    { key: "ct_khoan", label: "CT khoán", w: 100, render: (r) =>
+        chipCo(coChu((r.khoan as { cong_thuc_khoan?: unknown } | null | undefined)?.cong_thuc_khoan)) },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [

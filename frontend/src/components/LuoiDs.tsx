@@ -1,5 +1,5 @@
 // Mẩu dùng chung của lưới danh sách kiểu bảng tính (phương án A, 07/10/2026) — xem luoi-ds.css.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode, type Ref } from "react";
 import { createPortal } from "react-dom";
 import "./hover-tip.css";
 import "./luoi-ds.css";
@@ -98,6 +98,183 @@ export function useThuTuCot(man: string): [string[], (v: string[]) => void] {
   return useDsLuu(`lds-cot-thu-tu:${man}`);
 }
 
+/** Nhớ cột người xem đã ghim bên trái theo màn. */
+export function useCotGhim(man: string): [string[], (v: string[]) => void] {
+  return useDsLuu(`lds-cot-ghim:${man}`);
+}
+
+/** Đưa cột đã ghim lên vùng ghim: ngay sau khối cột cố định đầu lưới (Mã, ô chọn…), giữ thứ tự hiện
+ *  có giữa chúng. Ghim phải dời cột vì `sticky` chỉ bám đúng khi các cột ghim liền nhau từ mép trái. */
+export function apGhim<T extends CotLuoi>(cot: T[], ghim: string[]): T[] {
+  if (ghim.length === 0) return cot;
+  const i = cot.findIndex((c) => !c.coDinh);
+  if (i < 0) return cot;
+  const sau = cot.slice(i);
+  return [...cot.slice(0, i), ...sau.filter((c) => ghim.includes(c.key)), ...sau.filter((c) => !ghim.includes(c.key))];
+}
+
+/** Nhớ độ rộng cột người xem đã kéo theo màn: `{khoá cột: px}` (rỗng = độ rộng mặc định). */
+export function useRongCot(man: string): [Record<string, number>, (v: Record<string, number>) => void] {
+  const khoa = `lds-cot-rong:${man}`;
+  const [rong, setRong] = useState<Record<string, number>>(() => {
+    try {
+      const v = localStorage.getItem(khoa);
+      return v ? (JSON.parse(v) as Record<string, number>) : {};
+    } catch {
+      return {};
+    }
+  });
+  const dat = (v: Record<string, number>) => {
+    setRong(v);
+    try {
+      if (Object.keys(v).length) localStorage.setItem(khoa, JSON.stringify(v));
+      else localStorage.removeItem(khoa);
+    } catch {
+      /* trình duyệt chặn lưu thì thôi */
+    }
+  };
+  return [rong, dat];
+}
+
+/** Áp độ rộng đã kéo lên bộ cột đang hiện. Lưới luôn giữ ít nhất một cột co giãn (cột cuối) để ăn
+ *  phần thừa của khung: `table-layout: fixed` mà mọi cột đều có số thì trình duyệt rải phần thừa lên
+ *  tất cả, kéo hẹp một cột trông như không ăn. */
+export function apRong<T extends { key: string; w?: number }>(cot: T[], rong: Record<string, number>): T[] {
+  if (Object.keys(rong).length === 0) return cot;
+  const coGian = cot.some((c) => !c.w);
+  const moi = cot.map((c) => (rong[c.key] ? { ...c, w: rong[c.key] } : c));
+  if (coGian && moi.length > 0 && moi.every((c) => c.w)) moi[moi.length - 1] = { ...moi[moi.length - 1], w: undefined };
+  return moi;
+}
+
+const RONG_CO_MIN = 48;
+const RONG_CO_MAX = 640;
+
+/** Thẻ `<col>` ứng với ô tiêu đề (cộng dồn colSpan các ô đứng trước). */
+function colCua(th: HTMLTableCellElement): { col: HTMLTableColElement; i: number } | null {
+  let i = 0;
+  for (let o = th.previousElementSibling; o; o = o.previousElementSibling) i += (o as HTMLTableCellElement).colSpan || 1;
+  const col = th.closest("table")?.querySelectorAll<HTMLTableColElement>("colgroup col")[i];
+  return col ? { col, i } : null;
+}
+
+/** Tay kéo ở mép phải ô tiêu đề để đổi độ rộng cột (kiểu Excel); nhấp đúp = co vừa nội dung đang
+ *  hiện. Trong lúc kéo chỉ sửa thẳng `<col>` (khỏi vẽ lại cả lưới theo từng nhịp chuột), thả mới ghi. */
+export function TayKeoCot({ onRong }: { onRong: (w: number) => void }) {
+  const batDau = (e: RPointerEvent<HTMLSpanElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const tay = e.currentTarget;
+    const th = tay.closest("th");
+    const bang = th?.closest("table");
+    const vt = th ? colCua(th) : null;
+    if (!th || !bang || !vt) return;
+    const x0 = e.clientX;
+    const w0 = Math.round(th.getBoundingClientRect().width);
+    const min0 = parseFloat(bang.style.minWidth) || bang.getBoundingClientRect().width;
+    let w = w0;
+    tay.setPointerCapture(e.pointerId);
+    document.body.classList.add("lds-dang-keo-cot");
+    const di = (ev: PointerEvent) => {
+      w = Math.min(RONG_CO_MAX, Math.max(RONG_CO_MIN, Math.round(w0 + ev.clientX - x0)));
+      vt.col.style.width = `${w}px`;
+      bang.style.minWidth = `${min0 + w - w0}px`;
+    };
+    const tha = () => {
+      tay.removeEventListener("pointermove", di);
+      tay.removeEventListener("pointerup", tha);
+      tay.removeEventListener("pointercancel", tha);
+      document.body.classList.remove("lds-dang-keo-cot");
+      if (w !== w0) onRong(w);
+    };
+    tay.addEventListener("pointermove", di);
+    tay.addEventListener("pointerup", tha);
+    tay.addEventListener("pointercancel", tha);
+  };
+
+  const vuaNoiDung = (e: RMouseEvent<HTMLSpanElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = e.currentTarget.closest("th");
+    const bang = th?.closest("table");
+    const vt = th ? colCua(th) : null;
+    if (!th || !bang || !vt) return;
+    // Ép cột về tối thiểu rồi đo `scrollWidth` = bề rộng nội dung cần (kể cả chữ đang bị cắt "…").
+    const cu = vt.col.style.width;
+    vt.col.style.width = "1px";
+    let can = th.scrollWidth;
+    const soCot = bang.querySelectorAll("colgroup col").length;
+    for (const tb of Array.from(bang.tBodies)) {
+      for (const tr of Array.from(tb.rows)) {
+        // Dòng có ô gộp (dòng trống, dòng cộng) không đo được theo cột.
+        if (tr.cells.length !== soCot) continue;
+        can = Math.max(can, tr.cells[vt.i].scrollWidth);
+      }
+    }
+    vt.col.style.width = cu;
+    onRong(Math.min(RONG_CO_MAX, Math.max(RONG_CO_MIN, Math.ceil(can) + 2)));
+  };
+
+  return (
+    <span
+      className="lds-keo-cot"
+      aria-hidden="true"
+      title="Kéo để đổi độ rộng cột, nhấp đúp để vừa nội dung"
+      onPointerDown={batDau}
+      onDoubleClick={vuaNoiDung}
+      onClick={(e) => e.stopPropagation()}
+    />
+  );
+}
+
+/** Cấu hình lưới của người xem theo màn — ẩn, thứ tự, độ rộng, ghim — gói một chỗ để màn chỉ nối một lần:
+ *  `luoi.xep(COT)` → lọc ẩn (màn tự lọc, vì có điều kiện riêng) → `luoi.rongHien(...)` ra bộ cột vẽ;
+ *  `<ChonCot cot={COT} {...luoi.chonCot} />`, `<CuonLuoi ghim={luoi.soGhim(cotHien)}>`, `{luoi.keo(c.key)}` trong `<th>`. */
+export interface CauHinhLuoi {
+  an: Set<string>;
+  thuTu: string[];
+  ghim: string[];
+  xep: <T extends CotLuoi>(cot: T[]) => T[];
+  rongHien: <T extends { key: string; w?: number }>(cot: T[]) => T[];
+  soGhim: (cot: { key?: string; coDinh?: boolean }[]) => number;
+  chonCot: {
+    an: Set<string>;
+    onAn: (s: Set<string>) => void;
+    thuTu: string[];
+    onThuTu: (v: string[]) => void;
+    rong: Record<string, number>;
+    onRong: (v: Record<string, number>) => void;
+    ghim: string[];
+    onGhim: (v: string[]) => void;
+  };
+  keo: (key: string) => ReactNode;
+}
+
+/** Bảng con nhận cấu hình từ màn cha (cha vẫn truyền `cotAn`/`thuTu` để xếp, lọc): áp ghim + độ rộng
+ *  lên bộ cột đã xếp, lọc. Vắng `luoi` (test, chỗ dùng không có nút "Cột") thì giữ nguyên. */
+export function apLuoi<T extends CotLuoi & { w?: number }>(luoi: CauHinhLuoi | undefined, cot: T[]): T[] {
+  return luoi ? luoi.rongHien(apGhim(cot, luoi.ghim)) : cot;
+}
+
+export function useCauHinhLuoi(man: string): CauHinhLuoi {
+  const [an, datAn] = useCotAn(man);
+  const [thuTu, datThuTu] = useThuTuCot(man);
+  const [rong, datRong] = useRongCot(man);
+  const [ghim, datGhim] = useCotGhim(man);
+  return {
+    an,
+    thuTu,
+    ghim,
+    xep: (cot) => apGhim(xepCot(cot, thuTu), ghim),
+    rongHien: (cot) => apRong(cot, rong),
+    soGhim: (cot) => soCotGhim(cot, ghim),
+    chonCot: { an, onAn: datAn, thuTu, onThuTu: datThuTu, rong, onRong: datRong, ghim, onGhim: datGhim },
+    // Cột ô chọn (khoá "chon") hẹp cố định — không có gì để kéo.
+    keo: (key) => (key === "chon" ? null : <TayKeoCot onRong={(w) => datRong({ ...rong, [key]: w })} />),
+  };
+}
+
 /** Xếp cột theo thứ tự người xem đã kéo. Cột cố định (mã, ô chọn, nút thao tác) đứng nguyên chỗ;
  *  cột mới thêm sau này (chưa có trong thứ tự đã lưu) đứng cuối nhóm cột đổi chỗ được. */
 export function xepCot<T extends CotLuoi>(cot: T[], thuTu: string[]): T[] {
@@ -127,12 +304,22 @@ export function ChonCot({
   onAn,
   thuTu,
   onThuTu,
+  rong,
+  onRong,
+  ghim,
+  onGhim,
 }: {
   cot: CotLuoi[];
   an: Set<string>;
   onAn: (s: Set<string>) => void;
   thuTu?: string[];
   onThuTu?: (v: string[]) => void;
+  /** Độ rộng cột đã kéo — có thì "Về mặc định" xoá luôn. */
+  rong?: Record<string, number>;
+  onRong?: (v: Record<string, number>) => void;
+  /** Cột đã ghim — có `onGhim` thì mỗi dòng có nút ghim. */
+  ghim?: string[];
+  onGhim?: (v: string[]) => void;
 }) {
   const [mo, setMo] = useState(false);
   // Hộp mở về phía còn chỗ: nút nằm sát mép trái (màn hẹp) thì neo trái, kẻo hộp chui dưới thanh bên.
@@ -155,9 +342,33 @@ export function ChonCot({
     };
   }, [mo]);
 
+  // Số cột ghim THỰC của lưới đi kèm (CuonLuoi bỏ bớt khi tổng bề rộng quá nửa khung) — đọc sau mỗi
+  // lần vẽ để báo cột nào đã bấm ghim mà khung hẹp chưa ghim được.
+  const [ghimThuc, setGhimThuc] = useState<number | null>(null);
+  const dsGhim = ghim ?? [];
+  // Theo dõi `data-ghim` chứ không đọc một lần: lưới có thể đo lại sau lượt vẽ này (đổi bề rộng cột
+  // kéo theo ResizeObserver), đọc sớm là báo "chưa ghim được" thoáng qua cho cột đã ghim xong. Đăng ký
+  // ở layout effect (trước khi vẽ) để lần đổi `data-ghim` ngay trong lượt này cũng kịp sửa trước khi hiện.
+  useLayoutEffect(() => {
+    if (!mo || !ref.current) return;
+    const tu = ref.current;
+    const cuon = Array.from(document.querySelectorAll<HTMLElement>(".lds-cuon")).find(
+      (el) => tu.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    const doc = () => setGhimThuc(cuon ? Number(cuon.dataset.ghim ?? 0) : null);
+    doc();
+    if (!cuon || typeof MutationObserver === "undefined") return;
+    const theo = new MutationObserver(doc);
+    theo.observe(cuon, { attributes: true, attributeFilter: ["data-ghim"] });
+    return () => theo.disconnect();
+  });
+
   const keoDuoc = !!onThuTu;
   const macDinh = cot.filter((c) => !c.coDinh).map((c) => c.key);
-  const hienTai = xepCot(cot, thuTu ?? []).filter((c) => !c.coDinh).map((c) => c.key);
+  const xepDu = apGhim(xepCot(cot, thuTu ?? []), dsGhim);
+  const hienTai = xepDu.filter((c) => !c.coDinh).map((c) => c.key);
+  const viTriHien = xepDu.filter((c) => !an.has(c.key)).map((c) => c.key);
+  const soGhimMenu = hienTai.filter((k) => dsGhim.includes(k)).length;
   const dsKhoa = nhap ?? hienTai;
   const theoKhoa = new Map(cot.map((c) => [c.key, c]));
   const doiCho = (ds: string[], k: string, toi: number) => {
@@ -191,68 +402,88 @@ export function ChonCot({
           {dsKhoa.map((k, i) => {
             const c = theoKhoa.get(k);
             if (!c) return null;
+            const daGhim = dsGhim.includes(k);
+            const hep = daGhim && !an.has(k) && ghimThuc !== null && viTriHien.indexOf(k) >= ghimThuc;
             return (
-              <div
-                key={k}
-                className={`lds-cot__dong${keo === k ? " is-keo" : ""}`}
-                draggable={keoDuoc}
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = "move";
-                  e.dataTransfer.setData("text/plain", k);
-                  setKeo(k);
-                  setNhap(hienTai);
-                }}
-                onDragOver={(e) => {
-                  if (!keo || !nhap) return;
-                  e.preventDefault();
-                  if (keo !== k) setNhap(doiCho(nhap, keo, nhap.indexOf(k)));
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  xongKeo();
-                }}
-                onDragEnd={xongKeo}
-              >
-                {keoDuoc ? (
-                  <button
-                    type="button"
-                    className="lds-cot__nam"
-                    aria-label={`Đổi vị trí cột ${c.label}, dùng phím mũi tên lên xuống`}
-                    title="Kéo để đổi vị trí"
-                    onKeyDown={(e) => {
-                      const toi = e.key === "ArrowUp" ? i - 1 : e.key === "ArrowDown" ? i + 1 : -1;
-                      if (toi < 0 || toi >= dsKhoa.length) return;
-                      e.preventDefault();
-                      onThuTu?.(doiCho(dsKhoa, k, toi));
-                    }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <circle cx="9" cy="6" r="1.6" />
-                      <circle cx="15" cy="6" r="1.6" />
-                      <circle cx="9" cy="12" r="1.6" />
-                      <circle cx="15" cy="12" r="1.6" />
-                      <circle cx="9" cy="18" r="1.6" />
-                      <circle cx="15" cy="18" r="1.6" />
-                    </svg>
-                  </button>
-                ) : null}
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!an.has(k)}
-                    onChange={() => {
-                      const s = new Set(an);
-                      if (s.has(k)) s.delete(k);
-                      else s.add(k);
-                      onAn(s);
-                    }}
-                  />
-                  {c.label}
-                </label>
-              </div>
+              <Fragment key={k}>
+                {i === soGhimMenu && soGhimMenu > 0 ? <div className="lds-cot__ngan" /> : null}
+                <div
+                  className={`lds-cot__dong${keo === k ? " is-keo" : ""}`}
+                  draggable={keoDuoc}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", k);
+                    setKeo(k);
+                    setNhap(hienTai);
+                  }}
+                  onDragOver={(e) => {
+                    if (!keo || !nhap) return;
+                    e.preventDefault();
+                    if (keo !== k) setNhap(doiCho(nhap, keo, nhap.indexOf(k)));
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    xongKeo();
+                  }}
+                  onDragEnd={xongKeo}
+                >
+                  {keoDuoc ? (
+                    <button
+                      type="button"
+                      className="lds-cot__nam"
+                      aria-label={`Đổi vị trí cột ${c.label}, dùng phím mũi tên lên xuống`}
+                      title="Kéo để đổi vị trí"
+                      onKeyDown={(e) => {
+                        const toi = e.key === "ArrowUp" ? i - 1 : e.key === "ArrowDown" ? i + 1 : -1;
+                        if (toi < 0 || toi >= dsKhoa.length) return;
+                        e.preventDefault();
+                        onThuTu?.(doiCho(dsKhoa, k, toi));
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="9" cy="6" r="1.6" />
+                        <circle cx="15" cy="6" r="1.6" />
+                        <circle cx="9" cy="12" r="1.6" />
+                        <circle cx="15" cy="12" r="1.6" />
+                        <circle cx="9" cy="18" r="1.6" />
+                        <circle cx="15" cy="18" r="1.6" />
+                      </svg>
+                    </button>
+                  ) : null}
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!an.has(k)}
+                      onChange={() => {
+                        const s = new Set(an);
+                        if (s.has(k)) s.delete(k);
+                        else s.add(k);
+                        onAn(s);
+                      }}
+                    />
+                    {c.label}
+                    {hep ? <span className="lds-cot__hep">khung hẹp, chưa ghim được</span> : null}
+                  </label>
+                  {onGhim ? (
+                    <button
+                      type="button"
+                      className="lds-cot__ghim"
+                      aria-pressed={daGhim}
+                      aria-label={daGhim ? `Bỏ ghim cột ${c.label}` : `Ghim cột ${c.label} bên trái`}
+                      title={daGhim ? "Bỏ ghim" : "Ghim bên trái"}
+                      onClick={() => onGhim(daGhim ? dsGhim.filter((x) => x !== k) : [...dsGhim, k])}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill={daGhim ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M9 3h6l-1 6 4 4H6l4-4-1-6Z" />
+                        <path d="M12 13v8" fill="none" />
+                      </svg>
+                    </button>
+                  ) : null}
+                </div>
+              </Fragment>
             );
           })}
-          {an.size > 0 || hienTai.join() !== macDinh.join() ? (
+          {an.size > 0 || hienTai.join() !== macDinh.join() || Object.keys(rong ?? {}).length > 0 || dsGhim.length > 0 ? (
             <div className="lds-cot__lai">
               <button
                 type="button"
@@ -260,6 +491,8 @@ export function ChonCot({
                 onClick={() => {
                   onAn(new Set());
                   onThuTu?.([]);
+                  onRong?.({});
+                  onGhim?.([]);
                 }}
               >
                 Về mặc định
@@ -349,11 +582,15 @@ export function ngayVN(iso: string | null | undefined): string {
   return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-/** Số cột đầu được ghim khi cuộn ngang = các cột cố định đứng liền nhau từ trái (ô chọn, mã, tên…). */
-export function soCotGhim(cot: { coDinh?: boolean }[]): number {
-  const i = cot.findIndex((c) => !c.coDinh);
-  // Toàn cột cố định (người xem ẩn hết cột khác) thì không có gì để cuộn qua — khỏi ghim.
-  return i < 0 ? 0 : Math.min(i, 4);
+/** Số cột ghim tối đa (khớp số quy tắc `data-ghim` trong luoi-ds.css). */
+const GHIM_TOI_DA = 6;
+
+/** Số cột đầu được ghim khi cuộn ngang = các cột cố định đứng liền nhau từ trái (ô chọn, mã, tên…)
+ *  cộng các cột người xem đã ghim (`apGhim` đã dời chúng lên liền sau). */
+export function soCotGhim(cot: { key?: string; coDinh?: boolean }[], ghim: string[] = []): number {
+  const i = cot.findIndex((c) => !c.coDinh && !(c.key && ghim.includes(c.key)));
+  // Toàn cột ghim (người xem ẩn hết cột khác) thì không có gì để cuộn qua — khỏi ghim.
+  return i < 0 ? 0 : Math.min(i, GHIM_TOI_DA);
 }
 
 /** Khung cuộn dọc gần nhất (vùng nội dung của ứng dụng) — tiêu đề lưới bám theo nó. */
@@ -387,7 +624,7 @@ export function CuonLuoi({ ghim = 0, children }: { ghim?: number; children: Reac
     const tran = k.clientWidth / 2;
     let trai = 0;
     let n = 0;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < GHIM_TOI_DA; i++) {
       const w = i < ghim && ths[i] ? ths[i].getBoundingClientRect().width : 0;
       const vua = coBoCuc ? w > 0 && trai + w <= tran : i < ghim && !!ths[i];
       if (vua && n === i) {
@@ -408,7 +645,7 @@ export function CuonLuoi({ ghim = 0, children }: { ghim?: number; children: Reac
     const ths = k?.querySelectorAll<HTMLTableCellElement>("thead tr:first-child > th");
     let chuKy = `${ghim}|${ths?.length ?? 0}`;
     ths?.forEach((th, i) => {
-      if (i < 5) chuKy += `|${th.colSpan}:${th.style.width}:${th.textContent}`;
+      if (i <= GHIM_TOI_DA) chuKy += `|${th.colSpan}:${th.style.width}:${th.textContent}`;
     });
     k?.querySelectorAll<HTMLTableColElement>("colgroup col").forEach((c) => {
       chuKy += `|${c.style.width}`;
@@ -655,5 +892,88 @@ export function GoiYBang() {
       ))}
     </div>,
     document.body,
+  );
+}
+
+export interface DongTheDem {
+  /** Chữ bên trái (tên món). */
+  ten: string;
+  /** Chữ phụ bên phải, màu nhạt (đơn vị, giá…). */
+  phu?: ReactNode;
+}
+
+/** Thẻ đếm "N vật tư" trong ô lưới — rê chuột / Tab tới thì nổi thẻ trắng liệt kê từng món (cùng khuôn
+ *  thẻ "N mặt hàng" ở danh sách Nhà cung cấp). Thẻ nổi vẽ qua portal toạ độ cố định vì ô lưới cắt
+ *  `overflow: hidden`; gần đáy màn thì lật lên; rời chuột có 150ms để kịp rê vào thẻ (bôi đen chép
+ *  được). Cuộn trang thì đóng. Bong bóng chung `GoiYBang` không chen vào (`data-khong-goi-y`). */
+export function TheDem({ dong, donVi, tieuDe, icon, toiDa = 8 }: {
+  dong: DongTheDem[];
+  /** Chữ sau số đếm: "vật tư", "máy"… */
+  donVi: string;
+  tieuDe: string;
+  icon?: ReactNode;
+  /** Quá số dòng này thì gom "và n món nữa". */
+  toiDa?: number;
+}) {
+  const nut = useRef<HTMLSpanElement | null>(null);
+  const hen = useRef<number | undefined>(undefined);
+  const [vt, setVt] = useState<{ x: number; y: number; len: boolean } | null>(null);
+  const mo = () => {
+    window.clearTimeout(hen.current);
+    const r = nut.current?.getBoundingClientRect();
+    if (!r) return;
+    const len = window.innerHeight - r.bottom < 60 + Math.min(dong.length, toiDa) * 26;
+    setVt({ x: Math.max(8, Math.min(r.left, window.innerWidth - 308)), y: len ? r.top - 6 : r.bottom + 6, len });
+  };
+  const dong150 = () => {
+    window.clearTimeout(hen.current);
+    hen.current = window.setTimeout(() => setVt(null), 150);
+  };
+  useEffect(() => () => window.clearTimeout(hen.current), []);
+  useEffect(() => {
+    if (!vt) return;
+    const tat = () => setVt(null);
+    window.addEventListener("scroll", tat, true);
+    return () => window.removeEventListener("scroll", tat, true);
+  }, [vt]);
+  const con = dong.length - toiDa;
+  return (
+    <>
+      <span
+        ref={nut}
+        tabIndex={0}
+        className={`lds-dem${vt ? " is-mo" : ""}`}
+        data-khong-goi-y=""
+        aria-label={`${dong.length} ${donVi}: ${dong.map((d) => d.ten).join(", ")}`}
+        onMouseEnter={mo}
+        onMouseLeave={dong150}
+        onFocus={mo}
+        onBlur={dong150}
+      >
+        {icon}
+        {dong.length} {donVi}
+      </span>
+      {vt &&
+        createPortal(
+          <div
+            className={`lds-dem-the${vt.len ? " is-len" : ""}`}
+            role="tooltip"
+            data-khong-goi-y=""
+            style={{ left: vt.x, top: vt.y }}
+            onMouseEnter={() => window.clearTimeout(hen.current)}
+            onMouseLeave={dong150}
+          >
+            <div className="lds-dem-the__dau">{tieuDe}</div>
+            {dong.slice(0, toiDa).map((d, i) => (
+              <div key={i} className="lds-dem-the__dong">
+                <span>{d.ten}</span>
+                {d.phu != null && d.phu !== "" && <span>{d.phu}</span>}
+              </div>
+            ))}
+            {con > 0 && <div className="lds-dem-the__them">và {con} món nữa — mở thẻ để xem đủ</div>}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }

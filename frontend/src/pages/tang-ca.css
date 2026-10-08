@@ -25,13 +25,6 @@
   color: #4b5563;
 }
 
-.tc-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
 .tc-note {
   display: flex;
   gap: 8px;
@@ -157,3 +150,11 @@
 .tc-table .cc-rowact {
   justify-content: flex-end;
 }
+
+/* Bảng phiếu tăng ca — lưới kiểu bảng tính (08/10/2026), cùng dáng bảng đơn Nghỉ phép. */
+.tc-g td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-g td.tc-g__tt { overflow: visible; }
+.tc-g td.tc-g__tt .xh-nhan { display: inline-flex; margin-left: 6px; vertical-align: middle; }
+.tc-g__ghi-chu { margin-left: 10px; color: var(--ash-2); font-size: 12px; }
+.tc-g__nut { display: inline-flex; gap: 4px; justify-content: flex-end; }
+.tc-g td.c input { vertical-align: middle; }

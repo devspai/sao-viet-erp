@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { OGoDinhDang } from "../components/OGoDinhDang";
 
 import { Button } from "../components/Button";
+import { ChonNgay } from "../components/ChonNgay";
 import { Icon, type IconName } from "../components/Icons";
 import { DinhKemTep } from "../components/DinhKemTep";
 import { EmptyRow, EmptyState } from "../components/EmptyState";
@@ -13,9 +14,7 @@ import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import {
   CuonLuoi,
-  soCotGhim,
-  ChipTT, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, TieuDeSapXep, ngayVN, soVN, tenKhachGon, useCotAn, useThuTuCot, xepCot,
-  type CotLuoi, type MauTT,
+  ChipTT, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, TieuDeSapXep, ngayVN, soVN, tenKhachGon, useCauHinhLuoi, type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
@@ -167,8 +166,7 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
   const [total, setTotal] = useState(0);
   const [tong, setTong] = useState({ giaTri: 0, coc: 0 });
   const [sort, setSort] = useState("-created_at");
-  const [cotAn, setCotAn] = useCotAn("don-hang-ban");
-  const [thuTu, setThuTu] = useThuTuCot("don-hang-ban");
+  const luoi = useCauHinhLuoi("don-hang-ban");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // `/enums` không còn được nạp ở đây: nó chỉ phục vụ hộp thoại tạo đơn (đã xoá). Nhãn trạng thái
@@ -244,8 +242,8 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
 
   // Cột ngày thứ hai theo mốc kỳ: Ngày tạo / Ngày chốt (mốc "Ngày giao hẹn" đã có cột Hẹn giao).
   const mocNgay = locMan.ky.moc === "chot" ? "chot" : "tao";
-  const cotHien = xepCot(COT_DH, thuTu).filter((c) => !cotAn.has(c.key)).map((c) =>
-    c.key === "ngay" && mocNgay === "chot" ? { ...c, label: "Ngày chốt", sx: "ordered_at" } : c);
+  const cotHien = luoi.rongHien(luoi.xep(COT_DH).filter((c) => !luoi.an.has(c.key)).map((c) =>
+    c.key === "ngay" && mocNgay === "chot" ? { ...c, label: "Ngày chốt", sx: "ordered_at" } : c));
   const viTriGia = cotHien.findIndex((c) => c.key === "gia");
   const muc = TABS.map((t) => ({ key: t.id, label: t.label, count: stats?.[t.countKey], mau: MAU_TAB[t.id] }));
 
@@ -271,12 +269,12 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
           />
           <LocNguoiPhuTrach nap={api.orders.nguoiPhuTrach} value={nguoi} onChange={setNguoi} donVi="đơn" />
-          <ChonCot cot={COT_DH} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={COT_DH} {...luoi.chonCot} />
         </div>
       </section>
 
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <colgroup>
               {cotHien.map((c) => (
@@ -288,6 +286,7 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
                 {cotHien.map((c) => (
                   <th key={c.key} className={c.n ? "n" : undefined}>
                     {c.sx ? <TieuDeSapXep label={c.label} cot={c.sx} sort={sort} onSort={setSort} /> : c.label}
+                    {luoi.keo(c.key)}
                   </th>
                 ))}
               </tr>
@@ -1429,7 +1428,7 @@ function InvoicePanel({
                 </label>
                 <label>
                   <span>Ngày hóa đơn <b>*</b></span>
-                  <input className="dhb__input" type="date" min={order.ordered_at?.slice(0, 10)} max={today} value={invoiceDate} onChange={(event) => setInvoiceDate(event.target.value)} />
+                  <ChonNgay className="dhb__input" aria-label="Ngày hóa đơn" min={order.ordered_at?.slice(0, 10)} max={today} value={invoiceDate} onChange={(v) => setInvoiceDate(v)} />
                 </label>
                 <label>
                   <span>Giá trị hóa đơn <b>*</b></span>
@@ -1759,7 +1758,7 @@ function EditDialog({ order, onCancel, onSaved }: { order: OrderDetail; onCancel
           className="dhb__input"
         />
       </Field>
-      <Field label="Ngày giao cam kết"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="dhb__input" /></Field>
+      <Field label="Ngày giao cam kết"><ChonNgay aria-label="Ngày giao cam kết" value={date} onChange={(v) => setDate(v)} className="dhb__input" /></Field>
       {/* Địa chỉ giao + người nhận: KẾ THỪA từ báo giá gốc (Sale chọn ở màn Báo giá) — chỉ đọc ở
           đây, không sửa lại được trên đơn. */}
       <Field label="Địa chỉ giao">

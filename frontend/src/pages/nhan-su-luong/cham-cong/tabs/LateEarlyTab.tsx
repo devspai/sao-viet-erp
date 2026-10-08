@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { statusText, statusBadge } from "../components/badges";
 import { fmtDateTime, isoToday, getInitials, elErr } from "../shared/helpers";
+import { ChonGio, ChonNgay } from "../../../../components/ChonNgay";
 import { EmptyState } from "../../../../components/EmptyState";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { StatusTabs } from "../../../../components/StatusTabs";
@@ -738,10 +739,11 @@ function ElFormModal({
 
           <label className={`ns-field ${forEmployee ? "el-field" : ""}`}>
             <span className="ns-field__label">Ngày công *</span>
-            <input
-              type="date"
-              value={workDate}
-              onChange={(e) => setWorkDate(e.target.value)}
+            <ChonNgay
+              value={workDate ?? ""}
+              onChange={(v) => setWorkDate(v)}
+              aria-label="Ngày công"
+              xoaDuoc={false}
             />
           </label>
 
@@ -802,18 +804,20 @@ function ElFormModal({
           <div className="el-timegrid">
             <label className="ns-field">
               <span className="ns-field__label">Vắng từ lúc *</span>
-              <input
-                type="time"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
+              <ChonGio
+                value={from ?? ""}
+                onChange={(v) => setFrom(v)}
+                aria-label="Vắng từ lúc"
+                xoaDuoc={false}
               />
             </label>
             <label className="ns-field">
               <span className="ns-field__label">Đến lúc *</span>
-              <input
-                type="time"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
+              <ChonGio
+                value={to ?? ""}
+                onChange={(v) => setTo(v)}
+                aria-label="Đến lúc"
+                xoaDuoc={false}
               />
             </label>
           </div>

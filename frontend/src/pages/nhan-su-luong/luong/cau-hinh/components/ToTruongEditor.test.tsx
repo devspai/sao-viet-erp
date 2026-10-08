@@ -3,7 +3,7 @@
 // Khoá bốn điều người khai dựa vào: (1) thấy tổ trưởng là ai + chế độ ĐANG ÁP DỤNG ở góc thẻ, (2) dòng
 // ví dụ theo đúng lời chủ (tổ làm 100.000 đ) đổi theo chế độ + tỷ lệ vừa gõ, (3) tỷ lệ sai bị nói ngay
 // và khoá nút lưu, (4) lưu gửi đúng payload rồi thẻ cập nhật theo kết quả máy chủ.
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -122,9 +122,9 @@ describe("ToTruongEditor", () => {
     const { container } = ve();
     await screen.findByText("đang áp dụng từ 01/01/2020");
 
-    const ngay = container.querySelector('input[type="date"]') as HTMLInputElement;
-    await user.clear(ngay);
-    await user.type(ngay, "2020-01-01");
+    const ngay = screen.getByPlaceholderText("dd/mm/yyyy");
+    fireEvent.change(ngay, { target: { value: "01/01/2020" } });
+    fireEvent.blur(ngay);
     expect(screen.getByRole("button", { name: "Sửa mốc" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "Ăn chia" }));
@@ -150,11 +150,11 @@ describe("ToTruongEditor", () => {
     toTruong.mockResolvedValueOnce(ds([], null));
     khaiToTruong.mockResolvedValueOnce(ds([], null));
     const user = userEvent.setup();
-    const { container } = ve();
+    ve();
     await screen.findByText("Chưa khai — không áp dụng");
-    const ngay = container.querySelector('input[type="date"]') as HTMLInputElement;
-    await user.clear(ngay);
-    await user.type(ngay, "2021-01-01");
+    const ngay = screen.getByPlaceholderText("dd/mm/yyyy");
+    fireEvent.change(ngay, { target: { value: "01/01/2021" } });
+    fireEvent.blur(ngay);
     await user.type(screen.getByPlaceholderText("5"), "5");
     await user.click(screen.getByRole("radio", { name: "Không áp dụng" }));
     await user.click(screen.getByRole("button", { name: "Thêm mốc" }));

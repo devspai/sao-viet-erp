@@ -25,6 +25,7 @@ import { crud } from "../api/rebuildCatalog";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
+import { ChonNgay } from "../components/ChonNgay";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DinhKemTep } from "../components/DinhKemTep";
 import { EmptyState } from "../components/EmptyState";
@@ -1151,10 +1152,10 @@ export function LsxDetailView({
                       </label>
                       <label className="khsx-field khsx-field--flex1">
                         <span className="khsx-field__label">Hạn hoàn thành sản xuất</span>
-                        <input
-                          type="date"
+                        <ChonNgay
                           value={form.han_hoan_thanh_sx}
-                          onChange={(e) => set("han_hoan_thanh_sx", e.target.value)}
+                          aria-label="Hạn hoàn thành sản xuất"
+                          onChange={(v) => set("han_hoan_thanh_sx", v)}
                         />
                       </label>
                     </div>

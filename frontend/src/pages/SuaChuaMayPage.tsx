@@ -25,8 +25,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { EmptyRow } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
 import {
-  ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot,
-  type CotLuoi,
+  ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, useCauHinhLuoi, type CauHinhLuoi, type CotLuoi,
 } from "../components/LuoiDs";
 import { trangHopLe } from "../components/Pager";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
@@ -158,8 +157,9 @@ function OMay({ ma, ten }: { ma: string | null; ten: string | null }) {
 
 /** Lưới chung của hai khung: bọc `CuonLuoi` (tiêu đề bám khi cuộn trang, cột mã ghim khi cuộn ngang).
  *  `cot` là danh sách cột ĐANG HIỆN (đã qua ẩn/hiện + đổi chỗ của nút "Cột"). */
-function Luoi<T extends { id: number }>({ cot, rows, loading, rong, o, onMo }: {
+function Luoi<T extends { id: number }>({ cot, luoi, rows, loading, rong, o, onMo }: {
   cot: Cot[];
+  luoi: CauHinhLuoi;
   rows: T[];
   loading: boolean;
   rong: ReactNode;
@@ -167,14 +167,14 @@ function Luoi<T extends { id: number }>({ cot, rows, loading, rong, o, onMo }: {
   onMo: (r: T) => void;
 }) {
   return (
-    <CuonLuoi ghim={soCotGhim(cot)}>
+    <CuonLuoi ghim={luoi.soGhim(cot)}>
       <table className="lds-g" style={{ minWidth: rongLuoi(cot, 240) }}>
         <colgroup>
           {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
         </colgroup>
         <thead>
           <tr>
-            {cot.map((c) => <th key={c.key} className={c.c ? "c" : undefined} title={c.title}>{c.label}</th>)}
+            {cot.map((c) => <th key={c.key} className={c.c ? "c" : undefined} title={c.title}>{c.label}{luoi.keo(c.key)}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -330,9 +330,8 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
   const [tab, setTab] = useState<string>("can_lam");
   const [mo, setMo] = useState<SuaChua | "new" | null>(null);
   const dieuKien = useDieuKienSuaChua("phieu");
-  const [cotAn, setCotAn] = useCotAn("sua-chua-may-phieu");
-  const [thuTu, setThuTu] = useThuTuCot("sua-chua-may-phieu");
-  const cotHien = xepCot(COT_PHIEU, thuTu).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("sua-chua-may-phieu");
+  const cotHien = luoi.rongHien(luoi.xep(COT_PHIEU).filter((c) => !luoi.an.has(c.key)));
   const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocPhieu(locMan.loc) });
 
   // Lọc + tìm kiếm + phân trang ở SERVER (xem ghi chú cùng chỗ bên màn Phiếu bảo trì).
@@ -453,7 +452,7 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
             onLoc={(loc) => datLoc({ ...locMan, loc })}
           />
           {/* Điện thoại hiện thẻ chứ không hiện lưới nên không có cột để ẩn. */}
-          {!hepMan && <ChonCot cot={COT_PHIEU} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />}
+          {!hepMan && <ChonCot cot={COT_PHIEU} {...luoi.chonCot} />}
         </div>
       </section>
 
@@ -502,7 +501,7 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
         </>
       ) : (
         <div className="lds-sheet">
-          <Luoi cot={cotHien} rows={rows} loading={loading} rong={rong} o={o} onMo={setMo} />
+          <Luoi cot={cotHien} luoi={luoi} rows={rows} loading={loading} rong={rong} o={o} onMo={setMo} />
           {total > 0 && (
             <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
               onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
@@ -811,9 +810,8 @@ function KhungYeuCau({
   // "Người gửi" trên thanh lọc, không phải một nút lọc nhanh nữa.
   const [mo, setMo] = useState<YeuCau | "new" | null>(null);
   const dieuKien = useDieuKienSuaChua("yeu-cau");
-  const [cotAn, setCotAn] = useCotAn("sua-chua-may-yeu-cau");
-  const [thuTu, setThuTu] = useThuTuCot("sua-chua-may-yeu-cau");
-  const cotHien = xepCot(COT_YC, thuTu).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("sua-chua-may-yeu-cau");
+  const cotHien = luoi.rongHien(luoi.xep(COT_YC).filter((c) => !luoi.an.has(c.key)));
   const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYeuCau(locMan.loc) });
 
   const load = useCallback(() => {
@@ -988,7 +986,7 @@ function KhungYeuCau({
             onLoc={(loc) => datLoc({ ...locMan, loc })}
           />
           {/* Điện thoại hiện thẻ chứ không hiện lưới nên không có cột để ẩn. */}
-          {!hepMan && <ChonCot cot={COT_YC} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />}
+          {!hepMan && <ChonCot cot={COT_YC} {...luoi.chonCot} />}
         </div>
       </section>
 
@@ -1038,7 +1036,7 @@ function KhungYeuCau({
         </>
       ) : (
         <div className="lds-sheet">
-          <Luoi cot={cotHien} rows={rows} loading={loading} rong={rong} o={o} onMo={setMo} />
+          <Luoi cot={cotHien} luoi={luoi} rows={rows} loading={loading} rong={rong} o={o} onMo={setMo} />
           {total > 0 && (
             <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
               onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}

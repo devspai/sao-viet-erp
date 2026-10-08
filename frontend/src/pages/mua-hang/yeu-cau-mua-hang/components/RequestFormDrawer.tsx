@@ -16,6 +16,7 @@ import type {
 import { api } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import { Button } from "../../../../components/Button";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { Icon } from "../../../../components/Icons";
 import { DonViChonTheoHang, MaterialCombobox } from "../../../../components/MaterialCombobox";
 import { KhungKho } from "../../../../components/kho-giay/KhungKho";
@@ -185,13 +186,12 @@ export function RequestFormDrawer({
         <div className="ycf3-dau">
           <label className="kna-o-truong">
             <span>Ngày cần hàng <em>*</em></span>
-            <input
+            <ChonNgay
               className="kna-o"
-              type="date"
               required
               min={minNeededDate}
               value={form.needed_date}
-              onChange={(e) => setForm({ ...form, needed_date: e.target.value })}
+              onChange={(v) => setForm({ ...form, needed_date: v })}
             />
           </label>
           <div className="ycf-pick" role="group" aria-label="Chọn nhanh ngày cần">

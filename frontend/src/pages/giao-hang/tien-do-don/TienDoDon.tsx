@@ -14,6 +14,7 @@ import {
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import { Button } from "../../../components/Button";
+import { ChonNgay } from "../../../components/ChonNgay";
 import { DetailModal } from "../../../components/DetailModal";
 import { EmptyState } from "../../../components/EmptyState";
 import { fmtDate, fmtDateTime } from "../../../utils/format";
@@ -604,7 +605,7 @@ function FormYeuCau({
           <div className="pform__grid">
             <label className="pform__field">
               Ngày cần giao
-              <input className="input" type="date" value={ngay} min={HOM_NAY} onChange={(e) => setNgay(e.target.value)} />
+              <ChonNgay className="input" aria-label="Ngày cần giao" value={ngay} min={HOM_NAY} onChange={(v) => setNgay(v)} />
               {ngayQuaKhu && <span className="pform__hint is-error">Không được ở quá khứ — hôm nay là {fmtDate(HOM_NAY)}.</span>}
             </label>
           </div>

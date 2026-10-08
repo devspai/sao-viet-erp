@@ -6,7 +6,9 @@ Ba bảng GHI neo lên snapshot công việc (`san_xuat_cong_viec`), KHÔNG ché
   san_xuat_kcs_batch   — MỘT LẦN KIỂM một công đoạn: số đạt / lỗi (`so_luong_nhan` = tổng), checklist
                          đã tick, người kiểm = `created_by`. Bản ghi chất lượng thuần: không đẻ mẻ sản
                          lượng, không trừ số, không đổi trạng thái công việc.
-  san_xuat_kcs_loi     — phần LỖI của một lần kiểm: mô tả, số lượng, tổ chịu = tổ của công đoạn.
+  san_xuat_kcs_loi     — phần LỖI của một lần kiểm: mô tả, số lượng, công đoạn GÂY lỗi
+                         (`cong_doan_ref_id`, KCS chọn được bước đứng trước) + tổ của nó (`to_chiu_id`).
+                         Tình trạng / chip / báo cáo tính lỗi theo công đoạn gây (08/10/2026).
                          Tổ bấm "Đã xem" → `phan_hoi_by_id` / `phan_hoi_luc`. Không có nhận / từ chối.
   san_xuat_kcs_loi_anh — ẢNH bằng chứng của một lỗi (≥1 ảnh, service kiểm).
 
@@ -17,8 +19,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, JSON, Numeric, String, UniqueConstraint,
-    true as sa_true,
+    DateTime, ForeignKey, Integer, JSON, Numeric, String, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -62,7 +63,9 @@ class SanXuatKcsBatch(Base):
     don_vi: Mapped[str] = mapped_column(String(24), nullable=False)
     ket_luan: Mapped[str] = mapped_column(String(16), nullable=False, default=KCS_DAT)
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # Kết quả checklist đã tick: list[{thu_tu, dat}] khớp `san_xuat_cong_viec.kcs_tieu_chi_json`.
+    # Kết quả checklist: list[{cong_viec_id, thu_tu, dat, ghi_chu}] — bước KCS cuối xét tiêu chí GỘP
+    # của cả chuỗi (`kcs_checklist.checklist_gop`), khoá theo cặp (công việc nguồn, `thu_tu` trong
+    # `kcs_tieu_chi_json` của nó). Phần tử cũ thiếu `cong_viec_id` = của chính công việc lần kiểm.
     # NULL = công đoạn không có tiêu chí.
     checklist_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -126,8 +129,10 @@ class SanXuatKcsLoiAnh(Base):
 
 
 class SanXuatKcsTieuChi(Base):
-    """Một HẠNG MỤC KIỂM của MỘT công đoạn — vd "Chồng màu đúng mẫu đã ký" của công đoạn In
-    offset. `bat_buoc` = mục này chưa trả lời thì KCS không gửi được kết luận.
+    """Một TIÊU CHÍ KIỂM của MỘT công đoạn — vd "Chồng màu đúng mẫu đã ký" của công đoạn In
+    offset. Từ mg `0381` (08/10/2026) một tiêu chí chỉ là MỘT câu chữ: gỡ `huong_dan`, `bat_buoc`
+    (mọi tiêu chí đều phải xét), `active` (xoá là đủ — lệnh đã phát hành giữ bản chép riêng).
+    `thu_tu` do máy chủ gán (thêm = cuối, kéo thả = đánh lại 1..n).
 
     THUỘC ĐÚNG MỘT CÔNG ĐOẠN (mg `0285`, đổi từ nhiều-nhiều). Người khai đi theo đường
     Giai đoạn → Công đoạn → hạng mục, nên hạng mục sinh ra đã nằm dưới một công đoạn; cùng một
@@ -154,10 +159,7 @@ class SanXuatKcsTieuChi(Base):
         ForeignKey("cong_doan.id", ondelete="CASCADE"), nullable=False, index=True
     )
     ten: Mapped[str] = mapped_column(String(200), nullable=False)
-    huong_dan: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    bat_buoc: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
-    active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

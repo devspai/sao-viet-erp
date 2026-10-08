@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { ApiError, api, type PurchaseRequestRow } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
 import { fmtDate, money } from "../../../../utils/format";
 import { todayInputValue } from "../shared/helpers";
@@ -79,12 +80,11 @@ export function InvoiceDialog({
         </label>
         <label className="purchase__field">
           <span>Ngày hoá đơn</span>
-          <input
+          <ChonNgay
             className="input"
-            type="date"
             max={todayInputValue()}
             value={ngay}
-            onChange={(e) => setNgay(e.target.value)}
+            onChange={(v) => setNgay(v)}
           />
         </label>
       </div>

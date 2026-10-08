@@ -471,7 +471,7 @@ def create_voucher(
         v = svc.create(
             user=user, request_id=payload.request_id, kho_id=payload.kho_id, ma=payload.ma,
             lines=[ln.model_dump() for ln in payload.lines],
-            ngay=payload.ngay, nguoi_giao_nhan=payload.nguoi_giao_nhan, ghi_chu=payload.ghi_chu,
+            ngay=payload.ngay, ghi_chu=payload.ghi_chu,
         )
     except StockVoucherError as e:
         raise _err(e) from None

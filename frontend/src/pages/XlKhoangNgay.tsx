@@ -3,6 +3,7 @@
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { ChonNgay } from "../components/ChonNgay";
 import { NGAY_NHAP_MAX, NGAY_NHAP_MIN, dauTuan, loiKhoangNgay, soNgayGiua, themNgay, ymd } from "./xlShared";
 
 const THU_T2 = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
@@ -48,7 +49,8 @@ export function XlKhoangNgay({
   useEffect(() => {
     const ngoai = (e: MouseEvent) => {
       const t = e.target as Element;
-      if (!ref.current?.contains(t) && !t.closest?.(".xa-kn")) onDong();
+      // `.cn-hop`: lịch nổi của ô Từ/Đến ngày portal ra body — bấm trong đó không phải bấm ra ngoài.
+      if (!ref.current?.contains(t) && !t.closest?.(".xa-kn, .cn-hop")) onDong();
     };
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onDong(); };
     document.addEventListener("mousedown", ngoai);
@@ -132,14 +134,14 @@ export function XlKhoangNgay({
         <div className="xa-lp__o">
           <label>
             <div className="xa-lp__nhan">Từ ngày <span className="xa-mo2">{thuCua(a)}</span></div>
-            <input type="date" className={`xa-lp__nhap${!chonDen ? " on" : ""}`} value={a} min={NGAY_NHAP_MIN} max={NGAY_NHAP_MAX}
-              onChange={(e) => setA(e.target.value)} />
+            <ChonNgay className={`xa-lp__nhap${!chonDen ? " on" : ""}`} value={a} min={NGAY_NHAP_MIN} max={NGAY_NHAP_MAX}
+              aria-label="Từ ngày" onChange={(v) => setA(v)} />
           </label>
           <span className="xa-mui"><ArrowRight size={16} /></span>
           <label>
             <div className="xa-lp__nhan">Đến ngày <span className="xa-mo2">{thuCua(b)}</span></div>
-            <input type="date" className={`xa-lp__nhap${chonDen ? " on" : ""}`} value={b} min={a || NGAY_NHAP_MIN} max={NGAY_NHAP_MAX}
-              onChange={(e) => setB(e.target.value)} />
+            <ChonNgay className={`xa-lp__nhap${chonDen ? " on" : ""}`} value={b} min={a || NGAY_NHAP_MIN} max={NGAY_NHAP_MAX}
+              aria-label="Đến ngày" onChange={(v) => setB(v)} />
           </label>
         </div>
         <div className="xa-lp__thang2">

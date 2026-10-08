@@ -5,9 +5,8 @@
 import {
   ChipTT,
   ChonCot,
-  useCotAn,
-  useThuTuCot,
-  xepCot,
+  useCauHinhLuoi,
+  type CauHinhLuoi,
   type CotLuoi,
   type MauTT,
 } from "../../components/LuoiDs";
@@ -27,21 +26,27 @@ export interface CotBang<C extends CotMH = CotMH> {
   setAn: (s: Set<string>) => void;
   thuTu: string[];
   setThuTu: (v: string[]) => void;
-  /** Cột đang hiện, đã xếp theo thứ tự người xem kéo. */
+  /** Cột đang hiện, đã xếp theo thứ tự người xem kéo, cột ghim lên đầu, độ rộng đã kéo. */
   hien: C[];
+  /** Cấu hình lưới (ghim, độ rộng) — vắng (test dựng tay) thì lưới không ghim / kéo được. */
+  luoi?: CauHinhLuoi;
 }
 
 /** Cột của một lưới ở MỘT màn. `khoa` phải khác nhau giữa các màn dùng chung một lưới. */
 export function useCotBang<C extends CotMH>(khoa: string, cot: C[]): CotBang<C> {
-  const [an, setAn] = useCotAn(khoa);
-  const [thuTu, setThuTu] = useThuTuCot(khoa);
-  const hien = xepCot(cot, thuTu).filter((c) => !an.has(c.key));
-  return { cot, an, setAn, thuTu, setThuTu, hien };
+  const luoi = useCauHinhLuoi(khoa);
+  const { an, thuTu } = luoi;
+  const hien = luoi.rongHien(luoi.xep(cot).filter((c) => !an.has(c.key)));
+  return { cot, an, setAn: luoi.chonCot.onAn, thuTu, setThuTu: luoi.chonCot.onThuTu, hien, luoi };
 }
 
 /** Nút "Cột" của thanh lọc — gắn vào `chonCot` của `ThanhCongCuMuaHang`. */
 export function ChonCotBang({ b }: { b: CotBang }) {
-  return <ChonCot cot={b.cot} an={b.an} onAn={b.setAn} thuTu={b.thuTu} onThuTu={b.setThuTu} />;
+  return b.luoi ? (
+    <ChonCot cot={b.cot} {...b.luoi.chonCot} />
+  ) : (
+    <ChonCot cot={b.cot} an={b.an} onAn={b.setAn} thuTu={b.thuTu} onThuTu={b.setThuTu} />
+  );
 }
 
 /** Chip trạng thái theo bảng nhãn `trang-thai-mua` ({ label, mau }). */

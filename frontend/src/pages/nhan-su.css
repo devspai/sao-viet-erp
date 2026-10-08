@@ -1489,6 +1489,13 @@ button.ns__kpi {
   transition: all 0.2s ease;
 }
 
+/* Ô ngày/giờ tự vẽ (ChonNgay/ChonGio): khung ngoài mặc cùng áo với ô nhập bên cạnh. */
+.ns-field .cn-khung {
+  border: 1px solid var(--rule);
+  border-radius: var(--r-5);
+  background: var(--canvas);
+}
+
 .ns-field input:focus,
 .ns-field select:focus {
   border-color: var(--rust);

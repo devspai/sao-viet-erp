@@ -2563,17 +2563,9 @@
   margin-left: var(--sp-2);
 }
 
-.cc-month-picker-hidden {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  top: 0;
-  left: 0;
-  z-index: -1;
-}
-
+/* Nút chọn tháng nhanh = MonthPicker (khung .cn-khung--thang) mặc áo nút thanh công cụ. */
 .cc-month-picker-trigger {
+  height: 32px;
   border: 1px solid var(--rule-soft);
   background: var(--paper);
   padding: 6px var(--sp-3);

@@ -368,6 +368,12 @@
 .kt-o__loi { color: var(--signal); font-size: var(--fs-xs); display: flex; gap: 4px; align-items: center; font-weight: 500; }
 .kt-o--loi input, .kt-o--loi select, .kt-o--loi textarea { border-color: var(--signal); }
 .kt-o--ngay input { max-width: 200px; }
+/* Ô ngày tự vẽ (ChonNgay): khung ngoài là div nên luật `.kt-o input` không bắt — khai cỡ/viền cho khung. */
+.kt-o .cn-khung { height: 40px; padding: 0 12px; border: 1px solid var(--rule); border-radius: var(--r-3); background: var(--canvas);
+  width: 100%; font-size: var(--fs-md); }
+.kt-o--ngay .cn-khung { max-width: 200px; }
+.kt-f--moi .kt-o--ngay .cn-khung { max-width: none; }
+.kt-o--loi .cn-khung { border-color: var(--signal); }
 .kt-o .kt-khoang input { height: 36px; }
 .kt-o-tien { position: relative; max-width: 320px; }
 .kt-o-tien input { height: 52px; width: 100%; padding: 0 40px 0 12px; border: 1px solid var(--rule); border-radius: var(--r-3);
@@ -652,6 +658,10 @@
 /* ===== Công nợ phải trả / phải thu: lưới lds-g (08/10/2026) ===== */
 /* "Hạn sớm nhất": chữ "còn / trễ N ngày" cách ngày 8px. */
 .lds-g .kt-cn-ben { margin-left: 8px; }
+/* Ô Hạn sớm nhất: ngày trái, "còn / trễ n ngày" dạt phải (08/10/2026). */
+.lds-g .kt-cn-han { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.lds-g .kt-cn-han > .kt-cn-ben { margin-left: 0; flex: none; }
+.kt-cn-moc { font-size: 13px; white-space: nowrap; }
 
 /* ===== Ngăn công nợ kiểu 3 (Task 8, 07/10/2026): lưới đợt / hoá đơn + cột thuộc tính ===== */
 .kt-ncn-ben { margin-left: 6px; }

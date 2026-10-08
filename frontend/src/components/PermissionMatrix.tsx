@@ -75,7 +75,9 @@ export type ActionKey =
   // Dòng quyền theo tổ (mg 0302) — ba quyền chi tiết của Bàn tổ.
   | "can_run_order"
   | "can_confirm_output"
-  | "can_warehouse";
+  | "can_warehouse"
+  // Chỉ dòng tổ có cờ KCS (mg 0382, 08/10/2026).
+  | "can_close_short";
 
 // UI gộp Thêm/Sửa/Xóa thành một công tắc "quyền chỉnh sửa": tick là bật cả ba.
 // Dữ liệu vẫn lưu tách (can_create/can_update/can_delete) nên backend không đổi.
@@ -179,7 +181,7 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
     {
       key: "can_approve",
       label: "Phát hành lịch",
-      hint: "Cho phép đưa lịch đã xếp xuống xưởng, hoặc thu hồi lại. Không bật thì chỉ xếp thử được.",
+      hint: "Cho phép phát hành lệnh xuống xưởng, thu hồi lệnh đã phát hành, và phát hành cập nhật khi lịch đổi. Lưu ý: đặt hoặc dời giờ trên lịch là ô Thao tác, phải bật kèm.",
     },
     // "Duyệt ngoại lệ khi phát hành" (can_approve_exception) ĐÃ GỠ 05/10/2026: di sản bàn xếp lịch
     // theo công đoạn (xoá 18/09/2026), không endpoint nào của `xep_lich` còn hỏi tới.
@@ -802,6 +804,7 @@ const MODULE_GROUPS: {
 // dòng `to_sx_<id>`, máy chủ tự sinh / đổi tên / gỡ theo cây. Dòng không có cột Thao tác — ba quyền
 // chi tiết dưới đây thay nó, và cùng Xem đi theo Phạm vi của dòng. Không có ô "KCS" (gỡ mg 0306):
 // người KCS là thành viên phòng ban có cờ "Tổ KCS", kiểm được mọi tổ — không cấp theo từng tổ.
+// Riêng dòng của tổ có cờ KCS có thêm ô "Đóng lệnh thiếu" (`FINE_TO_KCS`, mg 0382).
 const KHOA_TO_TIEN_TO = "to_sx_";
 const laDongTo = (moduleKey: string) => moduleKey.startsWith(KHOA_TO_TIEN_TO);
 
@@ -820,6 +823,15 @@ const FINE_TO: { key: ActionKey; label: string; hint: string }[] = [
     key: "can_warehouse",
     label: "Kho",
     hint: "Cho phép: đề nghị lĩnh vật tư; xác nhận đã nhận vật tư; nhập lại vật tư thừa.",
+  },
+];
+
+const FINE_TO_KCS: { key: ActionKey; label: string; hint: string }[] = [
+  ...FINE_TO,
+  {
+    key: "can_close_short",
+    label: "Đóng lệnh thiếu",
+    hint: "Cho phép: đóng nhóm lệnh khi còn hàng chưa kiểm, chưa gửi kho, thiếu số so với đơn hoặc còn việc đang làm; mở lại nhóm đã đóng. Đóng khi đã đủ hết thì mọi người KCS làm được, không cần ô này.",
   },
 ];
 
@@ -863,11 +875,11 @@ const FINE_KHO: FineAction[] = [
   ),
 ];
 
-const fineCua = (moduleKey: string): FineAction[] | undefined =>
+const fineCua = (moduleKey: string, laKcs = false): FineAction[] | undefined =>
   FINE_ACTIONS[moduleKey]?.length
     ? FINE_ACTIONS[moduleKey]
     : laDongTo(moduleKey)
-      ? FINE_TO
+      ? (laKcs ? FINE_TO_KCS : FINE_TO)
       : laDongKho(moduleKey)
         ? FINE_KHO
         : undefined;
@@ -919,13 +931,15 @@ export function defaultMatrix(modules: ModuleDef[]): PermissionRow[] {
     can_run_order: false,
     can_confirm_output: false,
     can_warehouse: false,
+    can_close_short: false,
   }));
 }
 
 /** Một module có "quyền" nào không (để đếm N/M ở đầu nhóm + quyết định nhóm nào mở sẵn). */
 function rowHasAny(row: PermissionRow): boolean {
   if (row.can_read || cotThaoTac(row.module_key).some((k) => row[k])) return true;
-  const fine = fineCua(row.module_key);
+  // `laKcs = true`: dòng tổ thường luôn tắt ô Đóng lệnh thiếu nên đếm thêm cũng vô hại.
+  const fine = fineCua(row.module_key, true);
   return fine ? fine.some((a) => row[a.key]) : false;
 }
 
@@ -1165,7 +1179,7 @@ export function PermissionMatrix({
         ks.forEach((k) => out.push({ khoa, key: k, on: !!row[k] }));
       }
     }
-    for (const a of fineCua(khoa) ?? []) {
+    for (const a of fineCua(khoa, !!moduleDef.get(khoa)?.la_kcs) ?? []) {
       if (!oSong(khoa, a.key.replace("can_", ""))) continue;
       if (doiPhamViToanCty(khoa, a.key) && row.scope !== "all") continue;
       (a.keys ?? [a.key]).forEach((k) => out.push({ khoa, key: k, on: !!row[k] }));
@@ -1258,8 +1272,8 @@ export function PermissionMatrix({
                   );
                   const phamViChoPhep =
                     PHAM_VI_CHO_PHEP[row.module_key] ?? (laDongKho(row.module_key) ? ["all"] : undefined);
-                  const fineActs = fineCua(row.module_key);
                   const def = moduleDef.get(row.module_key);
+                  const fineActs = fineCua(row.module_key, !!def?.la_kcs);
                   // Công tắc gộp (`keys`): bật = TẤT CẢ cột bật.
                   const fineOn = (a: FineAction) =>
                     a.keys ? a.keys.every((k) => row[k]) : !!row[a.key];

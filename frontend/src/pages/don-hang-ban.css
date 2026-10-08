@@ -172,6 +172,9 @@
   transition: border-color var(--duration-fast) var(--easing-standard), box-shadow var(--duration-fast) var(--easing-standard);
 }
 
+/* Ô ngày tự vẽ (ChonNgay) mang lớp dhb__input trên khung — cao bằng ô nhập chữ cạnh nó. */
+.cn-khung.dhb__input { height: 34px; padding-top: 0; padding-bottom: 0; }
+
 .dhb__input::placeholder {
   color: var(--ash-2);
 }

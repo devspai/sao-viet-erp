@@ -24,6 +24,7 @@ import {
   type UngVienTamUng,
   type UngVienTamUngList,
 } from "../../../../api/client";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { Pager, trangHopLe } from "../../../../components/Pager";
 import { khopGanDung } from "../../../../utils/timGanDung";
 import { errText, khoangKyUng, money, trangThaiKyUng, vuongIds, ymLabel } from "../shared/helpers";
@@ -522,11 +523,10 @@ export function LapHangLoatModal({
                   <Calendar size={13} />
                   <span>Ngày lập phiếu</span>
                 </label>
-                <input
-                  type="date"
+                <ChonNgay
                   className="lg-hl-input"
                   value={ngay}
-                  onChange={(e) => setNgay(e.target.value)}
+                  onChange={setNgay}
                 />
               </div>
 

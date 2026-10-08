@@ -15,7 +15,7 @@
  *  Mỗi mốc trễ là một cột riêng (tiêu đề một hàng như mọi lưới lds). Cột tên đứng yên khi cuộn ngang
  *  (cột cố định của `CuonLuoi`).
  */
-import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
 import { dkTheoTab, type DieuKien } from "../../thanh-loc/thanh-loc";
@@ -23,7 +23,7 @@ import { dkTheoTab, type DieuKien } from "../../thanh-loc/thanh-loc";
 import type { AgingBucket, CotSapXepCongNo, TongLocCongNo } from "../../../api/client";
 import { EmptyRow } from "../../../components/EmptyState";
 import {
-  ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, TieuDeSapXep, rongLuoi, soCotGhim, soVN, useCotAn, useThuTuCot, xepCot,
+  ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, TieuDeSapXep, rongLuoi, soVN, useCauHinhLuoi,
   type CotLuoi, type MauTT, type MucLocNhanh,
 } from "../../../components/LuoiDs";
 import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
@@ -141,13 +141,14 @@ function soHoacGach(n: number): ReactNode {
 function HanSom({ han, homNay, conNo }: { han: string | null; homNay: string; conNo: boolean }) {
   if (!han) return <span className="lds-mu3">{conNo ? "chưa đặt hạn nợ" : "–"}</span>;
   const d = soNgay(homNay, han);
+  // Ngày bên trái, "còn / trễ" dạt phải: cột đọc dọc như hai cột, không dính chữ vào nhau.
   return (
-    <>
+    <span className="kt-cn-han">
       <span>{ngay(han)}</span>
       <span className={`kt-cn-ben ${d < 0 ? "lds-do" : "lds-mu"}`}>
         {d > 0 ? `còn ${soVN(d)} ngày` : d < 0 ? `trễ ${soVN(-d)} ngày` : "tới hạn"}
       </span>
-    </>
+    </span>
   );
 }
 
@@ -195,17 +196,14 @@ export function ThanTrangCongNo<R extends DongCongNo, S extends TomTatTrang<R>>(
   const coLoc = dangLocCongNo({ the, tuoi, tim: sp.timTre, loc });
   const sx = sapXepHienTai(sp.sx);
   const [boCot, setBoCot] = useState<BoCot>(docBoCot);
-  const idXemCot = useId();
   const doiBoCot = (v: BoCot) => {
     setBoCot(v);
     ghiBoCot(v);
   };
   // Mỗi bộ cột nhớ cột ẩn / thứ tự riêng (khoá theo màn: phải trả / phải thu).
   const khoaMan = `cong-no:${ch.donVi}`;
-  const [anTuoi, setAnTuoi] = useCotAn(`${khoaMan}:tuoi`);
-  const [anKy, setAnKy] = useCotAn(`${khoaMan}:ky`);
-  const [thuTuTuoi, setThuTuTuoi] = useThuTuCot(`${khoaMan}:tuoi`);
-  const [thuTuKy, setThuTuKy] = useThuTuCot(`${khoaMan}:ky`);
+  const luoiTuoi = useCauHinhLuoi(`${khoaMan}:tuoi`);
+  const luoiKy = useCauHinhLuoi(`${khoaMan}:ky`);
   // Bộ cột đang xem không có cột đang sắp (Hạn sớm nhất chỉ ở Tuổi nợ, Trả / Thu gần nhất chỉ ở Trong kỳ)
   // ⇒ trả sắp xếp về mặc định, kẻo bảng sắp theo một cột không hiện mũi tên ở đâu cả.
   const cotSap = sp.sx?.cot;
@@ -268,8 +266,8 @@ export function ThanTrangCongNo<R extends DongCongNo, S extends TomTatTrang<R>>(
     { key: "sdt", label: "Điện thoại", w: 120 },
   ];
   const cotDay = boCot === "tuoi" ? cotTuoi : cotKy;
-  const cotHien = xepCot(cotDay, boCot === "tuoi" ? thuTuTuoi : thuTuKy)
-    .filter((c) => !(boCot === "tuoi" ? anTuoi : anKy).has(c.key));
+  const luoi = boCot === "tuoi" ? luoiTuoi : luoiKy;
+  const cotHien = luoi.rongHien(luoi.xep(cotDay).filter((c) => !luoi.an.has(c.key)));
 
   /** Ô của một dòng đối tác theo khoá cột. */
   const oDong = (c: CotCN, row: R) => {
@@ -396,9 +394,10 @@ export function ThanTrangCongNo<R extends DongCongNo, S extends TomTatTrang<R>>(
           sort={sx.cot === c.sx ? (sx.chieu === "desc" ? `-${c.sx}` : c.sx) : ""}
           onSort={() => sp.datSapXep(c.sx!)}
         />
+        {luoi.keo(c.key)}
       </th>
     ) : (
-      <th key={c.key} className={c.n ? "n" : undefined}>{c.label}</th>
+      <th key={c.key} className={c.n ? "n" : undefined}>{c.label}{luoi.keo(c.key)}</th>
     );
 
   const dongProps = (row: R) => {
@@ -415,8 +414,22 @@ export function ThanTrangCongNo<R extends DongCongNo, S extends TomTatTrang<R>>(
 
   return (
     <main className="kt-trang lds">
+      {/* Hàng đầu (08/10/2026): tên màn + nút chuyển bộ cột dạng viên (đổi cả lưới, không phải bộ lọc nên
+          không nằm trong thẻ lọc) + mốc của cột Còn nợ dạt phải. Thẻ lọc bên dưới chỉ còn tìm, lọc, Cột. */}
       <header className="lds-dau">
         <h1 className="lds-dau__ten">{ch.tieuDe}</h1>
+        <div className="lds-xem" role="group" aria-label="Xem cột">
+          {([["tuoi", "Tuổi nợ"], ["ky", "Trong kỳ và liên hệ"]] as const).map(([v, nhan]) => (
+            <button key={v} type="button" aria-pressed={boCot === v}
+              className={`lds-xem__nut${boCot === v ? " is-active" : ""}`} onClick={() => doiBoCot(v)}>
+              {nhan}
+            </button>
+          ))}
+        </div>
+        {/* Tải hỏng thì câu lỗi nằm MỘT chỗ — dòng rỗng của lưới bên dưới. */}
+        <div className="lds-dau__nut">
+          {data ? <span className="lds-mu kt-cn-moc">{`Còn nợ tới ${ngay(moc)}`}</span> : null}
+        </div>
       </header>
 
       <section className="lds-loc">
@@ -428,25 +441,12 @@ export function ThanTrangCongNo<R extends DongCongNo, S extends TomTatTrang<R>>(
               sp.setTuoi(l.tuoi);
               sp.setLoc(l.loc);
             }} />
-          {/* Tải hỏng thì câu lỗi nằm MỘT chỗ — dòng rỗng của lưới bên dưới. */}
-          {data ? <span className="lds-mu kt-cn-moc">{`Còn nợ tới ${ngay(moc)}`}</span> : null}
-          <span className="lds-mu kt-cn-xem" id={idXemCot}>Xem cột</span>
-          <div className="lds-flt" role="group" aria-labelledby={idXemCot}>
-            {([["tuoi", "Tuổi nợ"], ["ky", "Trong kỳ và liên hệ"]] as const).map(([v, nhan]) => (
-              <button key={v} type="button" aria-pressed={boCot === v} className={boCot === v ? "on" : undefined}
-                onClick={() => doiBoCot(v)}>
-                {nhan}
-              </button>
-            ))}
-          </div>
-          <ChonCot cot={cotDay}
-            an={boCot === "tuoi" ? anTuoi : anKy} onAn={boCot === "tuoi" ? setAnTuoi : setAnKy}
-            thuTu={boCot === "tuoi" ? thuTuTuoi : thuTuKy} onThuTu={boCot === "tuoi" ? setThuTuTuoi : setThuTuKy} />
+          <ChonCot cot={cotDay} {...luoi.chonCot} />
         </div>
       </section>
 
       <div className="lds-sheet" aria-busy={sp.loading || undefined}>
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <colgroup>
               {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}

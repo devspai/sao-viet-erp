@@ -4,6 +4,10 @@ Thay cổng tự đóng 4 điều kiện (`dong_nhom.py`, gỡ 29/09/2026). Đơ
 giao dịch ghi cả `san_xuat_nhom.trang_thai` (in_production ⇄ closed) lẫn `lsx.trang_thai` của mọi
 lệnh trong nhóm (da_phat_hanh ⇄ da_dong). KHÔNG có điều kiện chặn: phần còn dở chỉ là CẢNH BÁO để
 hộp xác nhận bày ra — người KCS quyết. Số lúc đóng chụp vào audit để tra "đóng thiếu" về sau.
+
+Quyền (08/10/2026, `docs/design-kcs-quy-trach-nhiem.md` §2.4): đóng ĐỦ (không còn cảnh báo) — mọi
+người KCS. Đóng khi còn cảnh báo, và MỞ LẠI — người KCS mà vai bật ô "Đóng lệnh thiếu"
+(`can_close_short`) trọn tổ trên dòng của chính phòng `is_kcs` họ đứng.
 """
 from __future__ import annotations
 
@@ -16,9 +20,19 @@ from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.san_xuat_kcs_repo import SanXuatKcsRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
+from ..quyen_to import VIEC_DONG_THIEU, quyen_to_cua
 from .kcs import _EPS, gate_kcs
 
 CHAN_DA_DONG = "Lệnh đã đóng — KCS mở lại nếu cần ghi thêm."
+THIEU_QUYEN_DONG_THIEU = "Cần quyền Đóng lệnh thiếu"
+
+
+def duoc_dong_thieu(db: Session, user) -> bool:
+    """Vai của `user` bật "Đóng lệnh thiếu" trọn tổ trên dòng phòng ban của chính họ. Chỉ phòng
+    `is_kcs` mới có ô này trên ma trận; người gọi còn tự `gate_kcs`."""
+    if user is None or getattr(user, "role_id", None) is None:
+        return False
+    return quyen_to_cua(db, user).co_tron(VIEC_DONG_THIEU, getattr(user, "department_id", None))
 
 
 def _so(v: float) -> str:
@@ -85,7 +99,7 @@ def _canh_bao(db: Session, s: dict) -> list[dict]:
     return out
 
 
-def tinh_trang_dong(db: Session, nhom_id: int) -> dict:
+def tinh_trang_dong(db: Session, nhom_id: int, user=None) -> dict:
     repo = SanXuatRepository(db)
     nhom = _nhom(repo, nhom_id)
     s = _so_lieu(db, nhom_id)
@@ -102,6 +116,8 @@ def tinh_trang_dong(db: Session, nhom_id: int) -> dict:
         "canh_bao": _canh_bao(db, s) if nhom.trang_thai != NHOM_DONG else [],
         "dong_boi": lan[0] if lan else None,
         "dong_luc": lan[1] if lan else None,
+        # Giao diện khoá nút đóng khi còn cảnh báo / nút mở lại theo cờ này — máy chủ vẫn gác lại.
+        "duoc_dong_thieu": duoc_dong_thieu(db, user),
     }
 
 
@@ -120,6 +136,11 @@ def _chuyen(db: Session, *, user, nhom_id: int, expected_version: int | None, do
         raise ValueError("Vừa có người cập nhật lệnh này, hãy tải lại rồi thao tác.")
 
     s = _so_lieu(db, nhom_id)
+    if (not dong or _canh_bao(db, s)) and not duoc_dong_thieu(db, user):
+        raise PermissionError(
+            f"{THIEU_QUYEN_DONG_THIEU} để "
+            + ("mở lại lệnh đã đóng." if not dong else "đóng khi còn việc chưa xong.")
+        )
     tu, den = (TT_DA_PHAT_HANH, TT_DA_DONG) if dong else (TT_DA_DONG, TT_DA_PHAT_HANH)
     lenh = [l for l, _tv in repo.lenh_cua_nhom(nhom_id)]
     for l in lenh:

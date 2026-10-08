@@ -300,3 +300,8 @@ class RolePermission(Base):
     can_warehouse: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    # Đóng lệnh thiếu (mg 0382, 08/10/2026) — CHỈ có nghĩa trên dòng của tổ `is_kcs`: đóng nhóm
+    # thành phẩm khi còn cảnh báo (chưa kiểm / chưa gửi kho / thiếu số / việc dở) và mở lại nhóm.
+    can_close_short: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )

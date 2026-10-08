@@ -34,3 +34,13 @@ def cap_quyen_to(db, user, dept, *, scope: str = SCOPE_ALL, viec=BON_VIEC, xem: 
         co[COT_VIEC[v]] = True
     roles.set_permission(role_id=user.role_id, module_key=khoa_to(dept.id), scope=scope, **co)
     return user
+
+
+def cap_dong_thieu(db, user):
+    """Bật "Đóng lệnh thiếu" (mg 0382) cho vai của `user` trên dòng phòng `is_kcs` họ đứng — phòng
+    đó phải nằm trong khối Sản xuất mới có dòng quyền, y như ma trận thật."""
+    from app.models.department import Department
+
+    dept = db.get(Department, user.department_id)
+    dept.la_san_xuat = True
+    return cap_quyen_to(db, user, dept, viec=("close_short",), xem=False)

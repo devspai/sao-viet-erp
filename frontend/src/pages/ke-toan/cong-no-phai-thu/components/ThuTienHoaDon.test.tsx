@@ -207,14 +207,23 @@ describe("ThuTienHoaDon — bối cảnh hoá đơn", () => {
 });
 
 describe("ThuTienHoaDon — ngày thu", () => {
-  it("ô ngày: min là ngày hoá đơn, max là hôm nay giờ Việt Nam; trước ngày hoá đơn thì lỗi", async () => {
+  it("ô ngày: min là ngày hoá đơn, max là hôm nay giờ Việt Nam; ngoài khoảng thì ô không nhận", async () => {
     render(ve());
-    const o = screen.getByLabelText(/Ngày thu/);
-    expect(o).toHaveAttribute("min", "2026-07-21");
-    expect(o).toHaveAttribute("max", homNayVN());
-    fireEvent.change(o, { target: { value: "2026-07-20" } });
-    await lap();
-    expect(await screen.findByText("Ngày thu không được trước ngày hoá đơn 21/07/2026.")).toBeInTheDocument();
+    // Ô ngày tự vẽ (ChonNgay): gõ dd/mm/yyyy, rời ô là chốt; ngày ngoài [min, max] bị trả về như cũ.
+    const o = screen.getByLabelText(/Ngày thu/) as HTMLInputElement;
+    const cu = o.value;
+    fireEvent.change(o, { target: { value: "20/07/2026" } });
+    fireEvent.blur(o);
+    expect(o.value).toBe(cu);
+    const [y, m, d] = homNayVN().split("-").map(Number);
+    const mai = new Date(y, m - 1, d + 1);
+    const chuMai = `${String(mai.getDate()).padStart(2, "0")}/${String(mai.getMonth() + 1).padStart(2, "0")}/${mai.getFullYear()}`;
+    fireEvent.change(o, { target: { value: chuMai } });
+    fireEvent.blur(o);
+    expect(o.value).toBe(cu);
+    fireEvent.change(o, { target: { value: "21/07/2026" } });
+    fireEvent.blur(o);
+    expect(o.value).toBe("21/07/2026");
     expect(createSalesInvoiceReceipt).not.toHaveBeenCalled();
   });
 });

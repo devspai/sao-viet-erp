@@ -10,6 +10,7 @@ from app.repositories.san_xuat_repo import SanXuatRepository
 from app.services.gia_cong_ngoai.chot import chot, mo_lai
 from app.services.san_xuat import dong_lenh
 from tests.gia_cong_fixtures import cv_ten, nguoi_kcs, nhan_vien_cua
+from tests.quyen_to_fixtures import cap_dong_thieu
 from tests.lenh_sx_fixtures import (  # noqa: F401
     admin, customer, ghep_doi, lsx_svc, orders, sess,
 )
@@ -21,7 +22,7 @@ def _nhom_cua(sess, lsx_id: int) -> int:
 
 
 def _dong_nhom(sess, kcs, nhom_id: int) -> None:
-    dong_lenh.dong(sess, user=kcs, nhom_id=nhom_id)
+    dong_lenh.dong(sess, user=cap_dong_thieu(sess, kcs), nhom_id=nhom_id)
 
 
 def _hien_o_ban_to(sess, cv) -> bool:
@@ -30,7 +31,7 @@ def _hien_o_ban_to(sess, cv) -> bool:
 
 def test_viec_chung_bai_ghep_chi_dong_khi_dong_het_nhom(sess, ghep_doi):
     a_id, b_id, cv = ghep_doi
-    kcs = nguoi_kcs(sess)
+    kcs = cap_dong_thieu(sess, nguoi_kcs(sess))
     na, nb = _nhom_cua(sess, a_id), _nhom_cua(sess, b_id)
     assert na != nb and cv.nhom_id is None and cv.bai_ghep_id is not None
     for l in (sess.get(Lsx, a_id), sess.get(Lsx, b_id)):
@@ -64,7 +65,7 @@ def test_go_so_chot_gia_cong_ngoai_bi_chan_khi_nhom_da_dong(sess, admin, dai_cuo
     cuoi = cv_ten(sess, lsx_id, "Đóng gói")
     sess.get(Lsx, lsx_id).trang_thai = TT_DA_PHAT_HANH
     sess.commit()
-    dong_lenh.dong(sess, user=nguoi_kcs(sess), nhom_id=cuoi.nhom_id)
+    dong_lenh.dong(sess, user=cap_dong_thieu(sess, nguoi_kcs(sess)), nhom_id=cuoi.nhom_id)
     sess.refresh(lan)
     with pytest.raises(ValueError, match="Lệnh đã đóng"):
         mo_lai(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)

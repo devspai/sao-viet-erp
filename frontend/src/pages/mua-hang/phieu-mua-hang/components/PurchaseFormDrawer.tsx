@@ -7,6 +7,7 @@
 import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import type { PurchaseRequestRow, SupplierRow } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { Icon } from "../../../../components/Icons";
 import { KhungKho } from "../../../../components/kho-giay/KhungKho";
 import { NganPhai } from "../../../ke-toan/shared/NganPhai";
@@ -385,13 +386,12 @@ export function PurchaseFormDrawer({
                 )}
                 <label className="kna-o-truong">
                   <span>Ngày cần hàng <em>*</em></span>
-                  <input
+                  <ChonNgay
                     className="kna-o"
-                    type="date"
                     required
                     min={minPurchaseDate}
                     value={form.needed_date ?? ""}
-                    onChange={(e) => setForm({ ...form, needed_date: e.target.value })}
+                    onChange={(v) => setForm({ ...form, needed_date: v })}
                   />
                   {/* Chỉ nhắc khi ô đã đổi khác ngày yêu cầu — trùng nhau thì ô đã nói rồi. */}
                   {canNhat && taoMoi && form.needed_date !== canNhat && (
@@ -404,12 +404,11 @@ export function PurchaseFormDrawer({
                 {!taoMoi && (
                   <label className="kna-o-truong">
                     <span>Dự kiến nhận hàng</span>
-                    <input
+                    <ChonNgay
                       className="kna-o"
-                      type="date"
                       min={expectedReceiptMinDate}
                       value={form.expected_receipt_date ?? ""}
-                      onChange={(e) => setForm({ ...form, expected_receipt_date: e.target.value })}
+                      onChange={(v) => setForm({ ...form, expected_receipt_date: v })}
                     />
                   </label>
                 )}

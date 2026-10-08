@@ -5,6 +5,7 @@
 // vẫn nằm đó, và "đã trả/còn nợ" tính tại HÔM NAY (`_no_tung_dot` không nhận mốc ngày) nên in
 // lại kỳ cũ ra số khác lần in trước. Vai trò của nó nay chia đôi: giải thích số của kỳ →
 // `SoChiTietDrawer` (§5.1, lọc đúng kỳ); xem đợt nào quá hạn → màn Công nợ phải trả.
+import { ChonNgay } from "../../../components/ChonNgay";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
@@ -772,11 +773,12 @@ export function BaoCaoCongNoPage({
                   khoá mới nhất để mở chứ, sao lại chọn ngày"*). Khoá kỳ: ngày đầu do máy chủ nối
                   tiếp, không cho chọn lệch. Mở kỳ: chỉ có MỘT đích là mở NGUYÊN kỳ đang xem — bày ô
                   ngày cho gõ là mời người ta mở nửa kỳ hoặc một khoảng chẳng trùng kỳ nào. */}
-              <input
+              <ChonNgay
                 id="bccn-khoa-tu"
-                type="date"
+                aria-label="Từ ngày"
                 className="input"
                 value={khoaTu}
+                onChange={() => {}}
                 readOnly
                 title={
                   khoaHanhDong === "khoa"
@@ -789,15 +791,15 @@ export function BaoCaoCongNoPage({
               <label className="kho-khoa__label" htmlFor="bccn-khoa-den">
                 Đến ngày
               </label>
-              <input
+              <ChonNgay
                 id="bccn-khoa-den"
-                type="date"
+                aria-label="Đến ngày"
                 className="input"
                 value={khoaDen}
                 readOnly={khoaHanhDong === "mo"}
                 min={khoaTu || undefined}
                 max={homNayISO()}
-                onChange={(e) => setKhoaDen(e.target.value)}
+                onChange={(v) => setKhoaDen(v)}
                 title={
                   khoaHanhDong === "mo"
                     ? "Mở nguyên kỳ đang chọn — không mở nửa kỳ."

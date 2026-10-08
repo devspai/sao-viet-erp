@@ -8,9 +8,9 @@
 import { useState } from "react";
 import type { DeliveryDriver } from "../../../../api/client";
 import { EmptyRow } from "../../../../components/EmptyState";
+import { MonthPicker } from "../../../../components/MonthPicker";
 import {
-  ChonCot, CuonLuoi, LocNhanhTrangThai, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot,
-  type CotLuoi, type MauTT,
+  ChonCot, CuonLuoi, LocNhanhTrangThai, rongLuoi, useCauHinhLuoi, type CotLuoi, type MauTT,
 } from "../../../../components/LuoiDs";
 import { NHAN_TRANG_THAI_NV } from "../shared/constants";
 import { ChipGh } from "../components/giaoHangCells";
@@ -53,9 +53,8 @@ export function BangNhanVien({ rows, loading, thang, onDoiThang }: {
   thang: string; onDoiThang: (t: string) => void;
 }) {
   const [loc, setLoc] = useState<string | null>(null);
-  const [cotAn, setCotAn] = useCotAn("giao-hang-nv");
-  const [thuTu, setThuTu] = useThuTuCot("giao-hang-nv");
-  const cot = xepCot(COT_NV, thuTu).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("giao-hang-nv");
+  const cot = luoi.rongHien(luoi.xep(COT_NV).filter((c) => !luoi.an.has(c.key)));
 
   const dem = new Map<string, number>();
   for (const d of rows) dem.set(d.trang_thai, (dem.get(d.trang_thai) ?? 0) + 1);
@@ -120,22 +119,22 @@ export function BangNhanVien({ rows, loading, thang, onDoiThang }: {
         <div className="lds-loc__thanh tl-thanh">
           <label className="gh-nv-thang">
             <span>Tháng</span>
-            <input className="input" type="month" value={thang}
-              onChange={(e) => onDoiThang(e.target.value)} />
+            <MonthPicker className="input" value={thang} ariaLabel="Tháng"
+              onChange={(v) => onDoiThang(v)} />
           </label>
           <span className="gh-nho">Hai cột cuối theo tháng đã chọn</span>
-          <ChonCot cot={COT_NV} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={COT_NV} {...luoi.chonCot} />
         </div>
       </section>
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cot)}>
+        <CuonLuoi ghim={luoi.soGhim(cot)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cot, 110) }}>
             <colgroup>
               {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
             </colgroup>
             <thead>
               <tr>
-                {cot.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}</th>)}
+                {cot.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}{luoi.keo(c.key)}</th>)}
               </tr>
             </thead>
             <tbody>

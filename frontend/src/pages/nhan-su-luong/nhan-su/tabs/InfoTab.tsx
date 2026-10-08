@@ -6,6 +6,7 @@ import {
   type EmployeeInput,
 } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { fmtDate } from "../../../../utils/format";
 import {
   Briefcase,
@@ -91,10 +92,9 @@ export function InfoTab({
           {/* Ngày sinh + Giới tính: trước 28/09/2026 chỉ khai được lúc TẠO hồ sơ (wizard), form sửa
               thiếu hẳn — khai sai là không có đường sửa. */}
           <Field label="Ngày sinh">
-            <input
-              type="date"
+            <ChonNgay
               value={form.date_of_birth ?? ""}
-              onChange={(e) => set("date_of_birth", e.target.value || null)}
+              onChange={(v) => set("date_of_birth", v || null)}
             />
           </Field>
           <Field label="Giới tính">
@@ -127,10 +127,9 @@ export function InfoTab({
             />
           </Field>
           <Field label="Ngày cấp CCCD">
-            <input
-              type="date"
+            <ChonNgay
               value={form.national_id_date ?? ""}
-              onChange={(e) => set("national_id_date", e.target.value)}
+              onChange={(v) => set("national_id_date", v)}
             />
           </Field>
           <Field label="Nơi cấp CCCD">

@@ -2,6 +2,8 @@
 // rồi tự bấm đóng — KHÔNG có cổng điều kiện; phần còn dở chỉ hiện thành cảnh báo trong hộp xác nhận.
 // Đóng theo NHÓM: mọi lệnh của nhóm đóng cùng lúc. Mở lại được. Thay `KcsChotNhom` (tự đóng đủ /
 // trưởng KCS đóng thiếu — gỡ 29/09/2026).
+// Quyền (08/10/2026): đóng khi đã đủ thì mọi người KCS; còn cảnh báo, hoặc mở lại, thì phải có ô
+// "Đóng lệnh thiếu" trên dòng tổ KCS (`duoc_dong_thieu`). Thiếu ô: nút vẫn hiện nhưng khoá kèm lý do.
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api, type SxDongLenhTinhTrang } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
@@ -68,6 +70,11 @@ export function KcsDongLenh({
   }
 
   const dv = tt?.don_vi ? ` ${nhanDonVi(tt.don_vi)}` : "";
+  const soCanhBao = tt?.canh_bao.length ?? 0;
+  const khoa = tt != null && !tt.duoc_dong_thieu && (daDong || soCanhBao > 0);
+  const lyDoKhoa = daDong
+    ? "Cần quyền Đóng lệnh thiếu để mở lại."
+    : `Còn ${soCanhBao} việc chưa xong — cần quyền Đóng lệnh thiếu.`;
 
   return (
     <section className="kcs-section">
@@ -93,10 +100,16 @@ export function KcsDongLenh({
             {canDong && !hop && (
               <div className="kcs-chot__nut">
                 <button type="button" className={`btn btn--sm ${daDong ? "btn--ghost" : "btn--accent"}`}
-                  onClick={() => setHop(true)} disabled={busy}>
+                  onClick={() => setHop(true)} disabled={busy || khoa} title={khoa ? lyDoKhoa : undefined}>
                   <Icon name={daDong ? "rotateCcw" : "packageCheck"} size={13} /> {daDong ? "Mở lại" : "Đóng lệnh"}
                 </button>
+                {khoa && <span className="kcs-chot__khoa">{lyDoKhoa}</span>}
               </div>
+            )}
+            {canDong && !hop && khoa && !daDong && (
+              <ul className="kcs-chot__chan">
+                {tt.canh_bao.map((c) => <li key={c.ma}>{c.cau}</li>)}
+              </ul>
             )}
 
             {canDong && hop && (

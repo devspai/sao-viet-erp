@@ -1123,6 +1123,7 @@ button.khsx-thieu__buoc:hover {
 }
 .khsx-field__warn { font-size: var(--fs-xs); color: #d97706; }
 .khsx-field input,
+.khsx-field .cn-khung,
 .khsx-field select,
 .khsx-field textarea {
   font: inherit;

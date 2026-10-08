@@ -1091,7 +1091,10 @@ class HoTroKetQuaOut(BaseModel):
 
 # --- KCS theo LỆNH (mg 0306, docs/design-kcs-theo-lenh.md) -----------------------------------
 class KcsChecklistKetQuaIn(BaseModel):
-    """Một kết quả checklist khớp theo `thu_tu` của snapshot `kcs_tieu_chi_json` (mg 0250)."""
+    """Một kết quả tiêu chí, khoá theo cặp (công việc nguồn, `thu_tu` trong `kcs_tieu_chi_json` của
+    nó). Bước KCS cuối xét tiêu chí gộp cả chuỗi (08/10/2026) nên phải nói tiêu chí của công việc
+    nào; bỏ trống = của chính công việc lần kiểm."""
+    cong_viec_id: int | None = None
     thu_tu: int
     dat: bool
     ghi_chu: str | None = None
@@ -1132,26 +1135,6 @@ class KcsDaXemKetQuaOut(BaseModel):
     version: int
 
 
-class KcsDieuChinhIn(BaseModel):
-    """Điều chỉnh một lần kiểm đã ghi. `so_luong_dat + so_luong_khong_dat` PHẢI khớp đúng tổng số
-    đã kiểm của lần đó."""
-    so_luong_dat: float
-    so_luong_khong_dat: float
-    checklist_ket_qua: list[KcsChecklistKetQuaIn] | None = None
-    ghi_chu: str | None = None
-    expected_version: int
-
-
-class KcsDieuChinhKetQuaOut(BaseModel):
-    kcs_batch_id: int
-    cong_viec_id: int
-    so_luong_nhan: float
-    so_luong_dat: float
-    so_luong_khong_dat: float
-    ket_luan: str
-    version: int
-
-
 class KcsAnhOut(BaseModel):
     id: int
     file_name: str
@@ -1175,13 +1158,20 @@ class KcsLanKiemLoiOut(BaseModel):
 
 
 class KcsChiTietTieuChiOut(BaseModel):
-    """Một dòng snapshot tiêu chí KCS (chụp lúc phát hành LSX) — xem `kcs_tieu_chi_json`."""
+    """Một tiêu chí bước KCS cuối xét — gộp từ ảnh chụp `kcs_tieu_chi_json` của mọi công việc trong
+    chuỗi (`services/san_xuat/kcs_checklist.checklist_gop`), kèm công việc + lệnh nguồn để form
+    gom thẻ theo công đoạn."""
+    cong_viec_id: int | None = None
+    ten_cong_doan: str | None = None
+    nhom_cong_doan: str | None = None
     tieu_chi_id: int | None = None
     ma: str | None = None
     ten: str | None = None
-    huong_dan: str | None = None
-    bat_buoc: bool = False
     thu_tu: int = 0
+    lsx_id: int | None = None
+    lsx_ma: str | None = None
+    ten_lenh: str | None = None
+    la_lenh_phu: bool = False
 
 
 class KcsLanKiemOut(BaseModel):
@@ -1290,6 +1280,15 @@ class KcsLoiBuocSauOut(BaseModel):
     so_luong: float
 
 
+class KcsNguonLoiOut(BaseModel):
+    """Một công việc mà bước KCS cuối quy lỗi về được (chuỗi gộp, kể cả lệnh phụ cùng nhóm)."""
+    cong_viec_id: int
+    ten: str
+    lsx_ma: str | None = None
+    to_ten: str = ""
+    la_dang_kiem: bool = False
+
+
 class KcsCongDoanOut(BaseModel):
     cong_viec_id: int
     ten: str
@@ -1303,9 +1302,11 @@ class KcsCongDoanOut(BaseModel):
     don_vi: str | None = None
     la_kcs_cuoi: bool
     checklist: list[KcsChiTietTieuChiOut] = []
+    nguon_loi: list[KcsNguonLoiOut] = []
     so_lan_kiem: int
     tong_dat: float
     tong_loi: float
+    loi_tai_cho: float = 0.0             # bắt ở đây VÀ do chính công đoạn này (08/10/2026)
     da_yeu_cau_kho: float = 0.0
     con_gui_kho: float = 0.0
     yeu_cau_kho: list[KcsYeuCauKhoOut] = []
@@ -1461,6 +1462,7 @@ class DongLenhTinhTrangOut(BaseModel):
     canh_bao: list[DongLenhCanhBaoOut] = []
     dong_boi: str | None = None
     dong_luc: datetime | None = None
+    duoc_dong_thieu: bool = False        # người xem đóng được khi còn cảnh báo / mở lại
 
 
 class DongLenhIn(BaseModel):

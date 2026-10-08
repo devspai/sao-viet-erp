@@ -18,7 +18,7 @@ import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import { Button } from "../../../components/Button";
 import {
-  ChonCot, LocNhanhTrangThai, OTim, useCotAn, useThuTuCot, xepCot, type MucLocNhanh,
+  ChonCot, LocNhanhTrangThai, OTim, useCauHinhLuoi, type MucLocNhanh,
 } from "../../../components/LuoiDs";
 import { GoiYPhim } from "../shared/BangPhieu";
 import { soPhieuCong } from "../shared/PhieuGon";
@@ -168,9 +168,8 @@ export function PaymentReceiptsPage({
   );
   // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab + ô Chứng từ).
   const soXong = soPhieuCong({ the, chungTu: loc.chung_tu, n: soThe, tong: sp.tong });
-  const [cotAn, setCotAn] = useCotAn(MAN);
-  const [thuTu, setThuTu] = useThuTuCot(MAN);
-  const cotHien = xepCot(COT_PHIEU_THU, thuTu).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi(MAN);
+  const cotHien = luoi.rongHien(luoi.xep(COT_PHIEU_THU).filter((c) => !luoi.an.has(c.key)));
 
   return (
     <main className="kt-trang lds">
@@ -192,12 +191,13 @@ export function PaymentReceiptsPage({
           <OTim value={sp.tim} onChange={sp.setTim} placeholder="Tìm số phiếu, người nộp, số hoá đơn"
             ariaLabel="Tìm phiếu thu" />
           <ThanhLoc ky={sp.ky} moc={MOC_PT} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
-          <ChonCot cot={COT_PHIEU_THU} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={COT_PHIEU_THU} {...luoi.chonCot} />
         </div>
       </section>
 
       <ReceiptsTable
         cot={cotHien}
+        luoi={luoi}
         rows={rows}
         loading={sp.loading}
         loi={sp.loi}

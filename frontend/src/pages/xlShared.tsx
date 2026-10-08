@@ -336,14 +336,11 @@ export function kieuNgay(d: string, nghi: Set<string>, dac: Map<string, XlNgayDa
   return nghi.has(d) ? "tuan" : "";
 }
 
-/** Nhãn khoảng ngày của nút đầu màn: "5 đến 18 tháng 10, 2026", "28 tháng 9 đến 11 tháng 10, 2026",
- *  qua năm thì ghi năm cả hai đầu. */
+/** Nhãn khoảng ngày của nút đầu màn: "5/10 đến 18/10/2026"; qua năm thì ghi năm cả hai đầu. */
 export function nhanKhoang(tu: string, den: string): string {
   const [y1, m1, d1] = tu.split("-").map(Number);
   const [y2, m2, d2] = den.split("-").map(Number);
-  if (y1 !== y2) return `${d1} tháng ${m1}, ${y1} đến ${d2} tháng ${m2}, ${y2}`;
-  if (m1 !== m2) return `${d1} tháng ${m1} đến ${d2} tháng ${m2}, ${y2}`;
-  return `${d1} đến ${d2} tháng ${m2}, ${y2}`;
+  return y1 !== y2 ? `${d1}/${m1}/${y1} đến ${d2}/${m2}/${y2}` : `${d1}/${m1} đến ${d2}/${m2}/${y2}`;
 }
 
 /** Hạn của một lệnh để so trễ: hạn SX, không có thì hạn giao — đúng như mockup. Trả mốc HẾT ngày. */

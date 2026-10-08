@@ -3,7 +3,7 @@
 // Khoá ba điều người khai dựa vào: (1) thấy ngay số ĐANG ÁP DỤNG ở góc thẻ, (2) gõ trùng ngày của
 // mốc cũ thì nút đổi thành "Sửa mốc" (ghi đè, không đẻ mốc mới), (3) lưu gửi đúng ngày + số tiền +
 // ghi chú đã cắt khoảng trắng, rồi thẻ cập nhật theo kết quả máy chủ trả về.
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -71,9 +71,9 @@ describe("ChiTieuNgayEditor", () => {
     const { container } = render(<ChiTieuNgayEditor token="t" departmentId={9} deptName="Tổ Bồi" />);
     await screen.findByText("đang áp dụng từ 01/01/2020");
 
-    const ngay = container.querySelector('input[type="date"]') as HTMLInputElement;
-    await user.clear(ngay);
-    await user.type(ngay, "2020-01-01");
+    const ngay = screen.getByPlaceholderText("dd/mm/yyyy");
+    fireEvent.change(ngay, { target: { value: "01/01/2020" } });
+    fireEvent.blur(ngay);
     expect(screen.getByRole("button", { name: "Sửa mốc" })).toBeInTheDocument();
     // Chưa gõ số thì chưa nhắc ghi đè (bảng mốc ngay dưới đã hiện mốc đó rồi).
     expect(screen.queryByText(/đã có mốc 350.000 đ\/công/)).toBeNull();
@@ -101,12 +101,12 @@ describe("ChiTieuNgayEditor", () => {
     chiTieuNgay.mockResolvedValueOnce(ds([coGhiChu], coGhiChu));
     khaiChiTieuNgay.mockResolvedValueOnce(ds([coGhiChu], coGhiChu));
     const user = userEvent.setup();
-    const { container } = render(<ChiTieuNgayEditor token="t" departmentId={9} deptName="Tổ Bồi" />);
+    render(<ChiTieuNgayEditor token="t" departmentId={9} deptName="Tổ Bồi" />);
     await screen.findByText("đang áp dụng từ 01/01/2020");
 
-    const ngay = container.querySelector('input[type="date"]') as HTMLInputElement;
-    await user.clear(ngay);
-    await user.type(ngay, "2020-01-01");
+    const ngay = screen.getByPlaceholderText("dd/mm/yyyy");
+    fireEvent.change(ngay, { target: { value: "01/01/2020" } });
+    fireEvent.blur(ngay);
     await user.type(screen.getByPlaceholderText("350000"), "360000");
     await user.click(screen.getByRole("button", { name: "Sửa mốc" }));
 

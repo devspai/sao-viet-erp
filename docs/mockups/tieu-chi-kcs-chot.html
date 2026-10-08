@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiêu chí KCS — bản chốt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8; --chu-5:#cbd5e1;
+  --vien:#e2e8f0; --vien-2:#edf0f4; --vien-3:#f5f7f9; --hair:#f1f5f9;
+  --rust:#c5400a;
+  /* Bộ màu trạng thái của app (tokens.css --tt-*) — mỗi giai đoạn một sắc, không trùng. */
+  --truoc-bg:#cffafe; --truoc-fg:#0e7490; --truoc-dot:#06b6d4;
+  --in-bg:#dbeafe;    --in-fg:#1d4ed8;    --in-dot:#3b82f6;
+  --sau-bg:#ede9fe;   --sau-fg:#6d28d9;   --sau-dot:#8b5cf6;
+  --khac-bg:#ffedd5;  --khac-fg:#c2410c;  --khac-dot:#f97316;
+  --la-bg:#dcfce7; --la-fg:#15803d; --la-dot:#22c55e;
+  --do-bg:#fee2e2; --do-fg:#b91c1c; --do-dot:#ef4444;
+  --vang-bg:#fef3c7; --vang-fg:#b45309;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1280px;margin:0 auto;padding:32px 20px 96px}
+h1{font-size:22px;font-weight:500;margin:0 0 8px}
+.lead{color:var(--chu-2);margin:0 0 6px;max-width:980px}
+.buoc{font-size:17px;font-weight:500;margin:44px 0 4px}
+.buoc-mo{color:var(--chu-2);margin:0 0 14px;max-width:980px}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.screen{position:relative;background:var(--trang);border-radius:14px;box-shadow:0 14px 44px rgba(15,23,42,.12);overflow:hidden}
+.dau{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--vien)}
+.dau h3{font-size:18px;font-weight:500;margin:0}
+.dau .phai{margin-left:auto;display:flex;gap:8px;align-items:center}
+.mo{color:var(--chu-3);font-size:13px}
+.ma{font-size:12px;color:var(--chu-4)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--vien);background:var(--trang);border-radius:8px;font:inherit;font-size:13px;color:var(--chu);cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--hair)}
+.btn--chinh{background:var(--chu);border-color:var(--chu);color:#fff}
+.btn--chinh:hover{background:#1e293b}
+.btn--chinh:disabled{background:var(--chu-5);border-color:var(--chu-5);cursor:default}
+.btn--tron{border-color:transparent;background:transparent;color:var(--chu-2)}
+
+/* chip giai đoạn + đếm, cùng sắc */
+.gd{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:12px;white-space:nowrap}
+.gd::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dot)}
+.g-truoc{--bg:var(--truoc-bg);--fg:var(--truoc-fg);--dot:var(--truoc-dot)}
+.g-in{--bg:var(--in-bg);--fg:var(--in-fg);--dot:var(--in-dot)}
+.g-sau{--bg:var(--sau-bg);--fg:var(--sau-fg);--dot:var(--sau-dot)}
+.g-khac{--bg:var(--khac-bg);--fg:var(--khac-fg);--dot:var(--khac-dot)}
+.gd{background:var(--bg);color:var(--fg)}
+.dem{display:inline-grid;place-items:center;min-width:24px;height:20px;padding:0 7px;border-radius:999px;font-size:12px;background:var(--vien-3);color:var(--chu-3)}
+.dem--rong{background:transparent;color:var(--chu-4);border:1px dashed var(--chu-5);font-size:11.5px}
+
+/* ===== màn A ===== */
+.a{display:grid;grid-template-columns:290px minmax(0,1fr);min-height:540px}
+.a-trai{border-right:1px solid var(--vien);display:flex;flex-direction:column}
+.tim{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--vien);border-radius:8px;color:var(--chu-3);background:var(--trang)}
+.tim:focus-within{border-color:#93c5fd}
+.tim input{border:0;outline:0;font:inherit;font-size:13.5px;width:100%;background:transparent;color:var(--chu)}
+.a-trai .tim{margin:12px 12px 6px}
+.a-loc{padding:0 14px 8px;font-size:12.5px;color:var(--chu-3)}
+.a-loc label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.a-ds{overflow:auto;padding:0 8px 12px;flex:1}
+.a-nhom{padding:12px 6px 4px}
+.a-cd{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent;margin:1px 0}
+.a-cd:hover{background:var(--hair)}
+.a-cd[aria-selected="true"]{border-color:var(--chu-5);background:var(--trang)}
+.a-cd .ten{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.a-cd.rong .ten{color:var(--chu-4)}
+.a-phai{display:flex;flex-direction:column;min-width:0}
+.a-phai .dau{border-bottom:0;padding-bottom:4px}
+.a-phu{padding:0 20px 10px;color:var(--chu-3);font-size:13px}
+.ds{list-style:none;margin:0;padding:0 12px}
+.tc{display:grid;grid-template-columns:20px 30px minmax(0,1fr) 30px;gap:6px;align-items:center;padding:6px 8px;border-radius:8px;border-bottom:1px solid var(--vien-2)}
+.tc:hover{background:var(--hair)}
+.tc .nam{color:var(--chu-5);cursor:grab;display:flex}
+.tc:hover .nam{color:var(--chu-3)}
+.stt{display:inline-block;text-align:right;padding-right:6px;font-size:13px;color:var(--chu-4)}
+.tc .cau{outline:0;border-radius:4px;padding:2px 4px}
+.tc .cau:focus{box-shadow:0 0 0 2px #bfdbfe;background:var(--trang)}
+.tc .xoa{visibility:hidden;color:var(--chu-4);border:0;background:none;cursor:pointer;padding:3px;border-radius:6px;display:flex}
+.tc:hover .xoa{visibility:visible}
+.tc .xoa:hover{color:var(--do-fg);background:var(--do-bg)}
+.moi{display:grid;grid-template-columns:20px 30px minmax(0,1fr);gap:6px;align-items:center;padding:8px 20px}
+.moi .cong{text-align:right;padding-right:6px;color:var(--chu-4)}
+.moi input{border:1px dashed var(--chu-5);border-radius:8px;height:34px;padding:0 10px;font:inherit;font-size:14px;outline:0;width:100%}
+.moi input:focus{border-style:solid;border-color:#93c5fd}
+.ghi-chan{padding:10px 20px;border-top:1px solid var(--vien);font-size:12.5px;color:var(--chu-3)}
+.toast{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);background:var(--chu);color:#fff;border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:center;font-size:13px;box-shadow:0 10px 30px rgba(15,23,42,.25);z-index:5}
+.toast .ok{display:none}
+
+/* ngăn xem trước */
+.ngan{position:absolute;top:0;right:0;bottom:0;width:440px;background:var(--trang);border-left:1px solid var(--vien);box-shadow:-12px 0 32px rgba(15,23,42,.10);padding:14px 18px;overflow:auto;z-index:3}
+.ngan[hidden]{display:none}
+.ngan-dau{display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:500;margin:0 0 4px}
+.chon-gd{margin:10px 0 6px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;margin:0 6px 6px 0;border:1px solid var(--vien);border-radius:999px;font-size:12.5px;color:var(--chu-2);cursor:pointer;background:var(--trang)}
+.chip[aria-pressed="true"]{border-color:var(--chu);color:var(--chu)}
+.chip.rong{color:var(--chu-4)}
+.xem{border:1px solid var(--vien);border-radius:10px;padding:6px 12px;margin-top:10px}
+.xem-tong{font-size:13px;color:var(--chu-2);padding:6px 0}
+.xem-nhom{padding:8px 0 2px;font-size:12.5px;color:var(--chu-3)}
+.xem-tc{display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px}
+.xem-tc .o{width:16px;height:16px;border:1.5px solid var(--chu-5);border-radius:4px;flex:none}
+
+/* hộp chép */
+.phu-man{position:absolute;inset:0;background:rgba(15,23,42,.35);display:grid;place-items:center;z-index:6}
+.hop{background:var(--trang);border-radius:14px;width:min(900px,94%);height:92%;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(15,23,42,.3)}
+.hop-dau{padding:14px 20px;border-bottom:1px solid var(--vien);display:flex;align-items:center;gap:10px}
+.hop-dau h4{margin:0;font-size:16px;font-weight:500}
+.hop-than{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:0;flex:1}
+.hop-trai{padding:12px 16px;overflow:auto;border-right:1px solid var(--vien)}
+.hop-phai{padding:12px 12px;overflow:auto;background:var(--vien-3)}
+.hop-nhan{font-size:12.5px;color:var(--chu-3);margin:0 0 8px}
+.soan{display:grid;grid-template-columns:22px minmax(0,1fr) 28px;gap:8px;align-items:center;padding:6px 6px;border-bottom:1px solid var(--vien-2);border-radius:6px}
+.soan:hover{background:var(--hair)}
+.soan input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:#0f172a}
+.soan.bo .cau{color:var(--chu-4);text-decoration:line-through}
+.soan .cau{outline:0;padding:2px 4px;border-radius:4px}
+.soan .cau:focus{box-shadow:0 0 0 2px #bfdbfe}
+.soan .xoa{color:var(--chu-4);border:0;background:none;cursor:pointer;padding:3px;border-radius:6px;visibility:hidden;display:flex}
+.soan:hover .xoa{visibility:visible}
+.soan .xoa:hover{color:var(--do-fg);background:var(--do-bg)}
+.soan .tag{font-size:11.5px;color:var(--chu-4);margin-left:6px}
+.soan-moi{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;align-items:center;padding:8px 6px}
+.soan-moi input{border:1px dashed var(--chu-5);border-radius:8px;height:32px;padding:0 10px;font:inherit;font-size:13.5px;outline:0;width:100%}
+.hop-phai .tim{margin:0 0 8px}
+.xoa-tim{border:0;background:none;color:var(--chu-4);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
+.da-chon{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px;align-items:center;font-size:12px;color:var(--chu-3)}
+.chip-chon{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 4px 0 9px;border-radius:999px;font-size:12.5px;border:1px solid var(--chu-5);background:var(--trang);color:var(--chu)}
+.chip-chon button{border:0;background:none;color:inherit;opacity:.7;cursor:pointer;font-size:14px;line-height:1;padding:0 3px}
+.ket-tim{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--chu-3);margin:0 2px 4px}
+.ket-tim button{border:0;background:none;color:var(--chu);text-decoration:underline;font:inherit;cursor:pointer;padding:0}
+.trong-tim{font-size:13px;color:var(--chu-4);padding:16px 6px;text-align:center}
+.dich-gd{margin:10px 2px 6px}
+.dich{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border-radius:8px;cursor:pointer;font-size:13.5px;background:var(--trang);border:1px solid var(--vien);margin:0 0 6px}
+.dich input{margin:3px 0 0;accent-color:#0f172a}
+.dich .noi{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.dich .canh{flex-basis:100%;font-size:12px;color:var(--vang-fg)}
+.dich.chon{border-color:var(--chu)}
+.dich.nguon{opacity:.55;cursor:default}
+.hop-chan{padding:12px 20px;border-top:1px solid var(--vien);display:flex;align-items:center;gap:10px}
+.hop-chan .tom{color:var(--chu-2);font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.so-moi{}
+.so-bo{color:var(--vang-fg)}
+.hop-chan .phai{margin-left:auto;display:flex;gap:8px}
+
+/* ===== KCS cuối ===== */
+.k{display:grid;grid-template-columns:minmax(0,1fr) 420px}
+.k-trai{padding:16px 20px;border-right:1px solid var(--vien)}
+.k-nhan{display:flex;align-items:center;gap:10px;margin:0 0 6px;color:var(--chu-2);font-size:13px}
+.k-nhan .phai{margin-left:auto}
+.k-dem{display:inline-flex;gap:6px}
+.k-nhom{margin:12px 0 2px;font-size:12.5px;color:var(--chu-3)}
+.k-tc{display:grid;grid-template-columns:22px minmax(0,1fr) 200px;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;border:1px solid transparent}
+.k-tc:hover{background:var(--hair)}
+.k-tc input[type=checkbox]{width:17px;height:17px;accent-color:#0f172a;margin:0}
+.k-tc.khong{}
+.k-tc.khong .ten{color:var(--do-fg)}
+.k-tc input[type=text]{height:30px;border:1px solid var(--vien);border-radius:6px;padding:0 8px;font:inherit;font-size:12.5px;width:100%}
+.k-phai{padding:16px 20px}
+.k-loi{border:1px solid var(--vien);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.k-loi .hang{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px;align-items:start;margin:0 0 8px;font-size:13px;color:var(--chu-2)}
+.k-loi .o{min-height:32px;border:1px solid var(--vien);border-radius:6px;padding:5px 8px;background:var(--trang);color:var(--chu)}
+.k-loi .o div{line-height:1.5}
+.tu{font-size:11.5px;color:var(--chu-4);margin-left:6px}
+.k-canh{font-size:12.5px;color:var(--vang-fg)}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Tiêu chí KCS — bản chốt</h1>
+<p class="lead">Gom mọi điều đã chốt: hai ô (phương án A), một tiêu chí chỉ còn một câu chữ (bỏ Cách kiểm), hộp chép có tìm tương đối, nút xem KCS cuối thấy gì, và bước KCS cuối gộp tiêu chí cả chuỗi. Màu CHỈ ở chip giai đoạn (Trước in xanh ngọc, In xanh dương, Gia công sau in tím, Dịch vụ khác cam) để phân biệt bốn loại. Còn lại để trung tính; ngoại lệ duy nhất là chữ đỏ cho tiêu chí không đạt và chữ vàng cho câu trùng sẽ bỏ qua.</p>
+
+<div class="buoc">1. Màn danh mục</div>
+<p class="buoc-mo">Bấm công đoạn bên trái, gõ tiêu chí rồi Enter bên phải. Bấm chữ để sửa, rê chuột để hiện thùng rác. Bấm "Chép sang…" hoặc "Xem KCS cuối thấy gì" để mở hai phần còn lại.</p>
+<div class="screen" id="man">
+  <div class="dau">
+    <h3>Tiêu chí KCS</h3>
+    <span class="mo" id="demCd"></span>
+    <div class="phai"><button class="btn" id="moXem"><svg class="i" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Xem KCS cuối thấy gì</button></div>
+  </div>
+  <div class="a">
+    <aside class="a-trai">
+      <label class="tim"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="timTrai" placeholder="Tìm công đoạn hoặc tiêu chí"></label>
+      <div class="a-loc"><label><input type="checkbox" id="anRong"> Ẩn công đoạn chưa có tiêu chí</label></div>
+      <div class="a-ds" id="trai"></div>
+    </aside>
+    <section class="a-phai" id="phai"></section>
+  </div>
+  <div class="ghi-chan">Sửa ở đây áp cho lệnh phát hành từ nay. Lệnh đã phát hành giữ bộ tiêu chí lúc phát hành.</div>
+  <aside class="ngan" id="ngan" hidden></aside>
+  <div id="hopCho"></div>
+  <div id="toastCho"></div>
+</div>
+
+<div class="buoc">2. Bước KCS cuối — danh sách gộp theo chuỗi <span style="font-size:13px;color:var(--rust);font-weight:400">ĐÃ THAY bằng cách 3 "xét theo công đoạn" trong kcs-cuoi-tieu-chi-3-phuong-an.html</span></div>
+<p class="buoc-mo">Lệnh hộp giấy chạy Ra bản kẽm → In offset → Cán màng → Bế cấn → Dán máy → Đóng gói. Bấm "Tất cả đạt" rồi bỏ tick vài mục: mỗi công đoạn có mục trượt được một dòng lỗi soạn sẵn.</p>
+<div class="screen">
+  <div class="dau"><h3>LSX26-0042</h3><span class="mo">Hộp giấy cán màng bế dán</span><span class="gd g-khac">KCS thành phẩm</span></div>
+  <div class="k">
+    <div class="k-trai"><div class="k-nhan">Tiêu chí kiểm <span class="k-dem" id="kDem"></span><button class="btn phai" id="kTatCa">Tất cả đạt</button></div><div id="kDs"></div></div>
+    <div class="k-phai"><div class="k-nhan">Số lỗi</div><div id="kLoi"></div></div>
+  </div>
+</div>
+</div>
+
+<script>
+const GD = {truoc:"Trước in", in:"In", sau:"Gia công sau in", khac:"Dịch vụ khác"};
+const DATA = [
+  {g:"truoc", ma:"CTP", ten:"Ra bản kẽm", tc:["Bản kẽm đúng khổ máy, không trầy xước","Đủ số bản theo số màu"]},
+  {g:"truoc", ma:"BB", ten:"Bình bài", tc:[]},
+  {g:"in", ma:"IN-OFS", ten:"In offset", tc:["Màu đúng mẫu đã ký","Chồng màu khớp, không lệch dấu","Không lem mực, không bẩn nền","Chữ rõ, không mất nét"]},
+  {g:"in", ma:"PHU-UV", ten:"Phủ UV", tc:["Lớp phủ đều, không sót mảng"]},
+  {g:"in", ma:"IN-KTS", ten:"In kỹ thuật số", tc:[]},
+  {g:"sau", ma:"CAN-MANG", ten:"Cán màng", tc:["Màng không bong, không nhăn","Không bọt khí"]},
+  {g:"sau", ma:"BE", ten:"Bế cấn", tc:["Bế đúng đường, không lệch hình in","Đường cấn gấp không nứt","Mép không xơ"]},
+  {g:"sau", ma:"GO-PHOI", ten:"Gỡ phôi", tc:[]},
+  {g:"sau", ma:"DAN-MAY", ten:"Dán máy", tc:["Dán chắc, không bung keo","Không tràn keo ra mặt hộp","Hộp vuông thành, không lệch góc","Keo khô trước khi đóng thùng"]},
+  {g:"sau", ma:"DAN-TAY", ten:"Dán thủ công", tc:["Không tràn keo ra mặt hộp"]},
+  {g:"sau", ma:"DAN-CUA-SO", ten:"Dán cửa sổ", tc:[]},
+  {g:"sau", ma:"DAN-HOP-DAY", ten:"Dán hộp đáy khoá", tc:[]},
+  {g:"sau", ma:"BOI-SONG", ten:"Bồi sóng carton", tc:[]},
+  {g:"sau", ma:"CAT-TE", ten:"Cắt tề", tc:["Đúng kích thước thành phẩm"]},
+  {g:"sau", ma:"DONG-GOI", ten:"Đóng gói", tc:["Đủ số lượng mỗi kiện","Tem nhãn đúng mã hàng"]},
+  {g:"khac", ma:"GIAO", ten:"Giao hàng", tc:[]},
+];
+const by = Object.fromEntries(DATA.map(d=>[d.ma,d]));
+const esc = s => String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const boDau = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/đ/g,"d").replace(/[^a-z0-9]+/g," ").trim();
+const khop = (chuoi, tim) => { const t = boDau(tim); if (!t) return true; const n = boDau(chuoi); return t.split(" ").every(tu=>n.includes(tu)); };
+const I_NAM='<svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg>';
+const I_XOA='<svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+const I_CHEP='<svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg>';
+const I_TIM='<svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>';
+const $ = id => document.getElementById(id);
+
+let chon = "DAN-MAY", qTrai = "";
+function toast(t){ $("toastCho").innerHTML = `<div class="toast"><span class="ok">✓</span>${t}</div>`; clearTimeout(toast.h); toast.h = setTimeout(()=>$("toastCho").innerHTML="", 3500); }
+
+function veTrai(){
+  const an = $("anRong").checked;
+  let h = "";
+  for (const g of Object.keys(GD)) {
+    const ds = DATA.filter(d=>d.g===g && (!an || d.tc.length) && khop(`${d.ma} ${d.ten} ${d.tc.join(" ")}`, qTrai));
+    if (!ds.length) continue;
+    h += `<div class="a-nhom"><span class="gd g-${g}">${GD[g]}</span></div>`;
+    for (const d of ds) h += `<div class="a-cd g-${g}${d.tc.length?"":" rong"}" aria-selected="${d.ma===chon}" data-ma="${d.ma}"><span class="ten">${esc(d.ten)}</span>${d.tc.length?`<span class="dem">${d.tc.length}</span>`:`<span class="dem dem--rong">chưa có</span>`}</div>`;
+  }
+  $("trai").innerHTML = h || `<div class="trong-tim">Không có công đoạn nào khớp.</div>`;
+  $("trai").querySelectorAll(".a-cd").forEach(el=>el.onclick=()=>{chon=el.dataset.ma;veTrai();vePhai();});
+  $("demCd").textContent = `${DATA.filter(d=>d.tc.length).length} công đoạn có tiêu chí`;
+}
+function vePhai(){
+  const d = by[chon];
+  let p = `<div class="dau g-${d.g}"><h3>${esc(d.ten)}</h3><span class="ma">${d.ma}</span><span class="gd g-${d.g}">${GD[d.g]}</span>
+    <div class="phai"><button class="btn" id="nutChep">${I_CHEP}${d.tc.length?"Chép sang…":"Chép từ công đoạn khác"}</button></div></div>
+    <div class="a-phu">${d.tc.length?`${d.tc.length} tiêu chí. KCS cuối thấy nhóm này khi lệnh có chạy ${esc(d.ten.toLowerCase())}.`:"Chưa có tiêu chí. Gõ tiêu chí đầu tiên bên dưới hoặc chép từ công đoạn khác."}</div>
+    <ul class="ds g-${d.g}">`;
+  d.tc.forEach((c,i)=>{ p += `<li class="tc"><span class="nam" title="Kéo để đổi thứ tự">${I_NAM}</span><span class="stt">${i+1}</span><div class="cau" contenteditable data-i="${i}">${esc(c)}</div><button class="xoa" data-i="${i}" title="Xoá tiêu chí">${I_XOA}</button></li>`; });
+  p += `</ul><div class="moi g-${d.g}"><span></span><span class="cong">+</span><input id="oMoi" placeholder="Gõ tiêu chí mới rồi bấm Enter"></div>`;
+  $("phai").innerHTML = p;
+  $("oMoi").onkeydown = e => { const v = e.target.value.trim(); if (e.key==="Enter" && v) { if (!d.tc.includes(v)) d.tc.push(v); veTrai(); vePhai(); $("oMoi").focus(); } };
+  $("phai").querySelectorAll(".xoa").forEach(b=>b.onclick=()=>{ if (confirm(`Xoá tiêu chí “${d.tc[+b.dataset.i]}”?`)) { d.tc.splice(+b.dataset.i,1); veTrai(); vePhai(); } });
+  $("phai").querySelectorAll(".cau").forEach(o=>o.onblur=()=>{ const v=o.textContent.trim(); if (v) d.tc[+o.dataset.i]=v; vePhai(); });
+  $("nutChep").onclick = ()=> d.tc.length ? moHop(chon, null) : moHop(null, chon);
+}
+$("anRong").onchange = veTrai;
+$("timTrai").oninput = e => { qTrai = e.target.value; veTrai(); };
+
+/* ---------- Xem KCS cuối thấy gì ---------- */
+const xemChon = new Set(["CTP","IN-OFS","CAN-MANG","BE","DAN-MAY","DONG-GOI"]);
+function veNgan(){
+  let h = `<div class="ngan-dau"><span>KCS cuối sẽ thấy gì</span><button class="btn btn--tron" id="dongXem">Đóng</button></div>
+    <p class="mo" style="margin:0 0 4px">Bấm chọn các công đoạn một lệnh sẽ chạy qua. Lệnh thật xếp theo thứ tự routing.</p>`;
+  for (const g of Object.keys(GD)) {
+    h += `<div class="chon-gd"><span class="gd g-${g}">${GD[g]}</span></div>`;
+    h += DATA.filter(d=>d.g===g).map(d=>`<span class="chip g-${g}${d.tc.length?"":" rong"}" aria-pressed="${xemChon.has(d.ma)}" data-ma="${d.ma}">${esc(d.ten)}</span>`).join("");
+  }
+  let x = "", n = 0;
+  for (const d of DATA) { if (!xemChon.has(d.ma) || !d.tc.length) continue;
+    x += `<div class="xem-nhom">${esc(d.ten)}</div>` + d.tc.map(c=>{n++;return `<div class="xem-tc"><span class="o"></span>${esc(c)}</div>`;}).join(""); }
+  h += `<div class="xem">${x?`<div class="xem-tong">${n} tiêu chí KCS sẽ tick</div>${x}`:`<div class="xem-tong" style="color:var(--chu-4)">Các công đoạn đã chọn chưa có tiêu chí nào.</div>`}</div>`;
+  $("ngan").innerHTML = h;
+  $("ngan").querySelectorAll(".chip").forEach(el=>el.onclick=()=>{ xemChon.has(el.dataset.ma)?xemChon.delete(el.dataset.ma):xemChon.add(el.dataset.ma); veNgan(); });
+  $("dongXem").onclick = ()=>{ $("ngan").hidden = true; };
+}
+$("moXem").onclick = ()=>{ $("ngan").hidden = !$("ngan").hidden; veNgan(); };
+
+/* ---------- Hộp chép ---------- */
+let hop = null; // {nguon, soan:[{c,lay,moi}], dich:Set, q, giuTim}
+function moHop(nguon, dichSan){
+  hop = { nguon, soan: nguon ? by[nguon].tc.map(c=>({c,lay:true})) : [], dich: new Set(dichSan?[dichSan]:[]), q:"", giuTim:false, qNguon:"" };
+  veHop();
+}
+function veHop(){
+  if (!hop) { $("hopCho").innerHTML = ""; return; }
+  const n = hop.nguon ? by[hop.nguon] : null;
+  let t = `<div class="phu-man"><div class="hop"><div class="hop-dau">`;
+  t += n ? `<h4>Chép tiêu chí của ${esc(n.ten)}</h4><span class="gd g-${n.g}">${GD[n.g]}</span>` : `<h4>Chép tiêu chí từ công đoạn khác</h4>`;
+  t += `<div style="margin-left:auto"><button class="btn btn--tron" id="hDong">Đóng</button></div></div><div class="hop-than"><div class="hop-trai">`;
+  if (!n) {
+    t += `<div class="hop-nhan">Chọn công đoạn nguồn</div><label class="tim" style="margin-bottom:8px">${I_TIM}<input id="hTimNguon" placeholder="Tìm công đoạn, gõ không dấu được" value="${esc(hop.qNguon)}"></label>`;
+    for (const g of Object.keys(GD)) { const ds = DATA.filter(d=>d.g===g && d.tc.length && khop(`${d.ma} ${d.ten} ${GD[g]}`, hop.qNguon)); if (!ds.length) continue;
+      t += `<div class="dich-gd"><span class="gd g-${g}">${GD[g]}</span></div>` + ds.map(d=>`<div class="dich g-${g}" data-nguon="${d.ma}"><span class="noi">${esc(d.ten)} <span class="dem">${d.tc.length}</span></span></div>`).join(""); }
+  } else {
+    t += `<div class="hop-nhan">Bộ tiêu chí sẽ chép. Bỏ tick để không chép, bấm vào chữ để sửa. Sửa ở đây không đổi ${esc(n.ten)}.</div>`;
+    hop.soan.forEach((s,i)=>{ t += `<div class="soan${s.lay?"":" bo"}"><input type="checkbox" data-i="${i}" ${s.lay?"checked":""}><div><span class="cau" contenteditable data-i="${i}">${esc(s.c)}</span>${s.moi?'<span class="tag">thêm mới</span>':""}</div><button class="xoa" data-x="${i}" title="Bỏ khỏi bản chép">${I_XOA}</button></div>`; });
+    t += `<div class="soan-moi"><span style="color:var(--chu-4);text-align:center">+</span><input id="hMoi" placeholder="Thêm tiêu chí chỉ cho bản chép rồi bấm Enter"></div>`;
+  }
+  t += `</div><div class="hop-phai"><div class="hop-nhan">Chép vào (chọn được nhiều)</div>
+    <label class="tim">${I_TIM}<input id="hTim" placeholder="Tìm công đoạn, gõ không dấu được" value="${esc(hop.q)}">${hop.q?'<button class="xoa-tim" id="hXoaTim" title="Xoá tìm">×</button>':""}</label>`;
+  const lay = hop.soan.filter(s=>s.lay && s.c.trim());
+  if (hop.dich.size) t += `<div class="da-chon">Đã chọn ${[...hop.dich].map(m=>`<span class="chip-chon">${esc(by[m].ten)}<button data-bo="${m}" title="Bỏ chọn">×</button></span>`).join("")}</div>`;
+  const ketQua = DATA.filter(x=>khop(`${x.ma} ${x.ten} ${GD[x.g]}`, hop.q));
+  const chonDuoc = ketQua.filter(x=>x.ma!==hop.nguon && !hop.dich.has(x.ma));
+  if (hop.q) t += `<div class="ket-tim"><span>${ketQua.length} công đoạn khớp</span>${chonDuoc.length?`<button id="hChonHet">Chọn cả ${chonDuoc.length}</button>`:""}</div>`;
+  if (hop.q && !ketQua.length) t += `<div class="trong-tim">Không có công đoạn nào khớp “${esc(hop.q)}”.</div>`;
+  let moi = 0, bo = 0;
+  for (const m of hop.dich) for (const s of lay) by[m].tc.includes(s.c.trim()) ? bo++ : moi++;
+  for (const g of Object.keys(GD)) { const ds = ketQua.filter(x=>x.g===g); if (!ds.length) continue;
+    t += `<div class="dich-gd"><span class="gd g-${g}">${GD[g]}</span></div>`;
+    for (const x of ds) { const la = x.ma===hop.nguon, co = hop.dich.has(x.ma);
+      const trung = co ? lay.filter(s=>x.tc.includes(s.c.trim())).length : 0;
+      t += `<label class="dich g-${g}${co?" chon":""}${la?" nguon":""}"><input type="checkbox" data-ma="${x.ma}" ${co?"checked":""} ${la?"disabled":""}>
+        <span class="noi">${esc(x.ten)} ${la?'<span class="mo" style="font-size:12px">đang chép từ đây</span>':(x.tc.length?`<span class="dem">${x.tc.length}</span>`:'<span class="dem dem--rong">chưa có</span>')}${trung?`<span class="canh">${trung} câu đã có, sẽ bỏ qua</span>`:""}</span></label>`; }
+  }
+  t += `</div></div><div class="hop-chan"><span class="tom">${lay.length} tiêu chí, ${hop.dich.size} công đoạn đích ${moi?`<span class="so-moi">thêm mới ${moi} dòng</span>`:""}${bo?`<span class="so-bo">bỏ qua ${bo} câu trùng</span>`:""}</span>
+    <div class="phai"><button class="btn" id="hHuy">Huỷ</button><button class="btn btn--chinh" id="hOk" ${hop.dich.size&&lay.length?"":"disabled"}>Chép vào ${hop.dich.size} công đoạn</button></div></div></div></div>`;
+  $("hopCho").innerHTML = t;
+  const H = $("hopCho");
+  H.querySelector("#hDong").onclick = H.querySelector("#hHuy").onclick = ()=>{ hop=null; veHop(); };
+  H.querySelectorAll("[data-nguon]").forEach(el=>el.onclick=()=>{ hop.nguon=el.dataset.nguon; hop.soan=by[hop.nguon].tc.map(c=>({c,lay:true})); hop.dich.delete(hop.nguon); veHop(); });
+  const tn = H.querySelector("#hTimNguon"); if (tn) tn.oninput = ()=>{ hop.qNguon = tn.value; veHop(); const o=$("hTimNguon"); o.focus(); o.setSelectionRange(o.value.length,o.value.length); };
+  H.querySelectorAll(".soan input[type=checkbox]").forEach(o=>o.onchange=()=>{hop.soan[+o.dataset.i].lay=o.checked;veHop();});
+  H.querySelectorAll(".soan .cau").forEach(o=>o.onblur=()=>{const v=o.textContent.trim(); if(v) hop.soan[+o.dataset.i].c=v; veHop();});
+  H.querySelectorAll(".soan .xoa").forEach(b=>b.onclick=()=>{hop.soan.splice(+b.dataset.x,1);veHop();});
+  const m = H.querySelector("#hMoi"); if (m) m.onkeydown = e=>{ const v=m.value.trim(); if(e.key==="Enter"&&v){ if(!hop.soan.some(s=>s.c===v)) hop.soan.push({c:v,lay:true,moi:true}); veHop(); $("hMoi").focus(); } };
+  const tim = H.querySelector("#hTim"); tim.oninput = ()=>{ hop.q = tim.value; hop.giuTim = true; veHop(); };
+  if (hop.giuTim) { const o=$("hTim"); o.focus(); o.setSelectionRange(o.value.length,o.value.length); hop.giuTim=false; }
+  const xt = H.querySelector("#hXoaTim"); if (xt) xt.onclick = ()=>{ hop.q=""; hop.giuTim=true; veHop(); };
+  H.querySelectorAll("[data-bo]").forEach(b=>b.onclick=e=>{ e.preventDefault(); hop.dich.delete(b.dataset.bo); veHop(); });
+  const ch = H.querySelector("#hChonHet"); if (ch) ch.onclick = ()=>{ chonDuoc.forEach(x=>hop.dich.add(x.ma)); veHop(); };
+  H.querySelectorAll(".dich input[data-ma]").forEach(o=>o.onchange=()=>{ o.checked?hop.dich.add(o.dataset.ma):hop.dich.delete(o.dataset.ma); veHop(); });
+  H.querySelector("#hOk").onclick = ()=>{
+    let a=0, b=0;
+    for (const mm of hop.dich) for (const s of lay) { const v=s.c.trim(); if (by[mm].tc.includes(v)) { b++; continue; } by[mm].tc.push(v); a++; }
+    const so = hop.dich.size; hop = null; veHop(); veTrai(); vePhai();
+    toast(`Đã chép ${a} tiêu chí vào ${so} công đoạn${b?`, bỏ qua ${b} câu đã có`:""}.`);
+  };
+}
+
+/* ---------- KCS cuối ---------- */
+const KCHUOI = ["CTP","IN-OFS","CAN-MANG","BE","DAN-MAY","DONG-GOI"];
+const kDat = {}; KCHUOI.forEach(m=>by[m].tc.forEach((_,i)=>kDat[m+"#"+i]=false));
+let kDaBam = false;
+function veK(){
+  let h = "", tong = 0, dat = 0;
+  for (const m of KCHUOI) { const d = by[m]; if (!d.tc.length) continue;
+    h += `<div class="k-nhom">${esc(d.ten)}</div>`;
+    d.tc.forEach((c,i)=>{ const k=m+"#"+i, v=kDat[k]; tong++; if(v) dat++;
+      h += `<label class="k-tc${kDaBam&&!v?" khong":""}"><input type="checkbox" data-k="${k}" ${v?"checked":""}><span class="ten">${esc(c)}</span><input type="text" placeholder="Ghi chú (nếu có)"></label>`; });
+  }
+  $("kDs").innerHTML = h;
+  $("kDem").innerHTML = `<span>${dat}/${tong} đạt</span>${kDaBam&&tong-dat?`<span style="color:var(--do-fg)">${tong-dat} không đạt</span>`:""}`;
+  $("kTatCa").textContent = dat===tong ? "Bỏ tick hết" : "Tất cả đạt";
+  $("kDs").querySelectorAll("input[type=checkbox]").forEach(o=>o.onchange=()=>{kDat[o.dataset.k]=o.checked;kDaBam=true;veK();});
+  const truot = {};
+  if (kDaBam) for (const [k,v] of Object.entries(kDat)) if (!v) { const [m,i]=k.split("#"); (truot[m] ||= []).push(by[m].tc[+i]); }
+  let l = "";
+  const ds = Object.entries(truot);
+  if (!ds.length) l = `<div class="mo">${kDaBam?"Mọi tiêu chí đạt. Có hàng lỗi thì vẫn thêm dòng lỗi như cũ.":"Bấm Tất cả đạt rồi bỏ tick mục không đạt."}</div>`;
+  for (const [m, cs] of ds) l += `<div class="k-loi">
+      <div class="hang">Lỗi do công đoạn<span class="o">${esc(by[m].ten)}<span class="tu">tự điền</span></span></div>
+      <div class="hang">Mô tả<span class="o">${cs.map(c=>`<div>${esc(c)}</div>`).join("")}<span class="tu" style="margin:4px 0 0">tự điền</span></span></div>
+      <div class="hang">Số lỗi<span class="o" style="width:120px;color:var(--chu-4)">gõ số</span></div>
+      <div class="hang">Ảnh<span class="o" style="color:var(--chu-4)">Chụp ảnh hoặc chọn ảnh</span></div></div>`;
+  if (ds.length) l += `<div class="k-canh">Có tiêu chí không đạt ở ${ds.length} công đoạn. Chưa gõ số lỗi thì chưa lưu được.</div>`;
+  $("kLoi").innerHTML = l;
+}
+$("kTatCa").onclick = ()=>{ const tatCa = Object.values(kDat).every(Boolean); for (const k in kDat) kDat[k] = !tatCa; kDaBam = true; veK(); };
+
+veTrai(); vePhai(); veK();
+</script>
+</body>
+</html>

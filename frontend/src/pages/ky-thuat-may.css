@@ -937,6 +937,8 @@ textarea.ktm-input-modern,
 textarea.ktm-o { padding: 7px 10px; line-height: 1.45; resize: vertical; }
 .ktm-o::placeholder { color: var(--lds-mo, #94a3b8); }
 .ktm-o:focus { outline: none; border-color: var(--ash-2); }
+/* Ô ngày tự vẽ (ChonNgay) mang lớp ktm-o lên khung — cao bằng ô nhập bên cạnh. */
+.ktm-o.cn-khung { height: 32px; }
 .ktm-luoi2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
 .ktm-hang { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; }
 .ktm-o-chon { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }

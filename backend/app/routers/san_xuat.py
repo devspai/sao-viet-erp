@@ -70,8 +70,6 @@ from ..schemas.san_xuat import (
     KcsCongDoanLocListOut,
     KcsCongViecOut,
     KcsDaXemKetQuaOut,
-    KcsDieuChinhIn,
-    KcsDieuChinhKetQuaOut,
     KcsKiemKetQuaOut,
     KcsLenhListOut,
     KetThucIn,
@@ -1167,28 +1165,6 @@ def kiem_cong_doan(
     return res
 
 
-@router.patch("/kcs/{kcs_batch_id}", response_model=KcsDieuChinhKetQuaOut)
-def dieu_chinh_kcs(
-    kcs_batch_id: int,
-    body: KcsDieuChinhIn,
-    db: Annotated[Session, Depends(get_db)],
-    user: Annotated[User, Depends(get_current_user)],
-) -> dict:
-    """Điều chỉnh một lần kiểm đã ghi — không xoá, audit trước/sau, kiểm expected_version. Chặn
-    khi đã có yêu cầu nhập kho chưa huỷ từ lần kiểm đó."""
-    checklist_ket_qua = (
-        [kq.model_dump() for kq in body.checklist_ket_qua] if body.checklist_ket_qua else None
-    )
-    res = _chay(lambda: kcs.dieu_chinh_ket_qua(
-        db, user=user, kcs_batch_id=kcs_batch_id, so_luong_dat=body.so_luong_dat,
-        so_luong_khong_dat=body.so_luong_khong_dat, checklist_ket_qua=checklist_ket_qua,
-        ghi_chu=body.ghi_chu, expected_version=body.expected_version,
-    ))
-    _phat_sse_kcs(res)
-    _cham_kcs(db, res, user.id)
-    return res
-
-
 @router.post("/kcs/loi/{loi_id}/da-xem", response_model=KcsDaXemKetQuaOut)
 def da_xem_loi_kcs(
     loi_id: int,
@@ -1304,7 +1280,7 @@ def tinh_trang_dong_lenh(
     user: Annotated[User, Depends(require_quyen_to("read", (KHO_MODULE, "read"), cho_kcs=True))],
 ) -> dict:
     """Số tóm tắt + cảnh báo cho hộp xác nhận "Đóng lệnh". Không có cổng điều kiện."""
-    return _chay(lambda: dong_lenh.tinh_trang_dong(db, nhom_id))
+    return _chay(lambda: dong_lenh.tinh_trang_dong(db, nhom_id, user))
 
 
 @router.post("/kcs/nhom/{nhom_id}/dong", response_model=DongLenhKetQuaOut)

@@ -633,6 +633,8 @@ kbd {
   cursor: default;
 }
 .ts-form .rc-input[aria-invalid="true"] { border-color: var(--signal); }
+/* Ô ngày tự vẽ (ChonNgay) không mang aria-invalid ở khung ngoài — báo lỗi bằng lớp `is-loi`. */
+.ts-form .rc-input.cn-khung.is-loi { border-color: var(--signal); }
 
 /* Lỗi ngay dưới ô (NN/g: nói rõ sai gì, sửa thế nào). */
 .ts-loi {
@@ -793,6 +795,7 @@ col.ts-chiphi__x-cot { width: 44px; }
 .ts-luoi .ts-o-khoa { width: 100%; max-width: none; min-height: 38px; }
 .ts-luoi textarea.rc-input { min-height: 0; }
 .ts-luoi input[type="date"].rc-input { height: 38px; }
+.ts-luoi .rc-input.cn-khung { height: 38px; }
 .ts-luoi .ts-o--thang .rc-input { width: 96px; flex: none; }
 .ts-chon--deu { display: grid; grid-template-columns: 1fr 1fr; max-width: 420px; }
 .ts-chon--deu .ts-chon__nut { height: 38px; }

@@ -5,7 +5,8 @@ Spec: `docs/superpowers/specs/2026-09-14-quyen-theo-to-va-tab-san-luong.md`.
 MỘT DÒNG QUYỀN CHO MỖI NÚT của khối Sản xuất trong cây Phòng ban (kể cả cấp gom), khoá
 `to_sx_<id phòng ban>`. Dòng tự sinh / đổi tên / xoá theo phòng ban (`dong_bo_dong_quyen_to`).
 Mỗi dòng có Xem (`can_read`) · Phạm vi (`scope`) · 3 quyền chi tiết (`can_run_order`,
-`can_confirm_output`, `can_warehouse`).
+`can_confirm_output`, `can_warehouse`). Dòng của tổ `is_kcs` có thêm ô Đóng lệnh thiếu
+(`can_close_short`, mg 0382) — xem `services/san_xuat/dong_lenh.py`.
 
 KCS KHÔNG còn là quyền theo tổ (mg `0306`, `docs/design-kcs-theo-lenh.md`): người thuộc tổ
 `is_kcs` kiểm được mọi tổ — xem `services/san_xuat/kcs.gate_kcs`.
@@ -33,6 +34,7 @@ VIEC_XEM = "read"
 VIEC_THUC_HIEN = "run_order"
 VIEC_XAC_NHAN = "confirm_output"
 VIEC_KHO = "warehouse"
+VIEC_DONG_THIEU = "close_short"  # chỉ dòng tổ KCS — không nằm trong VIEC_CHI_TIET (không gắn việc)
 
 #: việc → cột `role_permissions`.
 COT_VIEC: dict[str, str] = {
@@ -40,6 +42,7 @@ COT_VIEC: dict[str, str] = {
     VIEC_THUC_HIEN: "can_run_order",
     VIEC_XAC_NHAN: "can_confirm_output",
     VIEC_KHO: "can_warehouse",
+    VIEC_DONG_THIEU: "can_close_short",
 }
 VIEC_CHI_TIET = (VIEC_THUC_HIEN, VIEC_XAC_NHAN, VIEC_KHO)
 
@@ -51,6 +54,7 @@ _THONG_BAO_THIEU = {
     VIEC_THUC_HIEN: "Bạn không có quyền Thực hiện lệnh ở tổ này",
     VIEC_XAC_NHAN: "Bạn không có quyền Xác nhận sản lượng ở tổ này",
     VIEC_KHO: "Bạn không có quyền Kho ở tổ này",
+    VIEC_DONG_THIEU: "Bạn không có quyền Đóng lệnh thiếu",
 }
 
 

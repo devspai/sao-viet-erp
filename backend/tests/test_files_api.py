@@ -91,6 +91,32 @@ def test_thieu_quyen_module_thi_khong_xem_duoc_ho_so_nhan_su(client):
     assert client.get("/api/files/hr/1/ho-so.jpg").status_code == 404
 
 
+def test_nguoi_to_kcs_xem_duoc_anh_loi_ban_to_khi_khong_giu_o_quyen_nao(client):
+    """Người KCS vào màn KCS bằng tư cách phòng ban "Tổ KCS", không qua vai — ảnh lỗi họ vừa chụp
+    (`san-xuat/kcs-loi/…`) phải mở được; người không vai ở phòng ban thường thì vẫn 403."""
+    db = SessionLocal()
+    try:
+        depts = DepartmentRepository(db)
+        to_kcs = depts.create(name="Tổ KCS thử ảnh")
+        to_kcs.is_kcs = True
+        thuong = depts.create(name="Tổ thường thử ảnh")
+        db.commit()
+        users = UserRepository(db)
+        for ten, dept in (("kcs-xem-anh", to_kcs), ("thuong-xem-anh", thuong)):
+            u = users.create(username=ten, name=ten, password_hash=hash_password("matkhau123"))
+            users.set_assignment(u, department_id=dept.id, role_id=None, is_active=True)
+    finally:
+        db.close()
+
+    _login(client, "thuong-xem-anh", "matkhau123")
+    assert client.get("/api/files/san-xuat/kcs-loi/1/x_loi.jpg").status_code == 403
+    _login(client, "kcs-xem-anh", "matkhau123")
+    # Qua cổng quyền; tệp không có nên 404.
+    assert client.get("/api/files/san-xuat/kcs-loi/1/x_loi.jpg").status_code == 404
+    # Chỉ mở thư mục Bàn tổ, không phải mọi thư mục.
+    assert client.get("/api/files/hr/1/ho-so.jpg").status_code == 403
+
+
 def test_logout_thi_cookie_file_het_hieu_luc(client):
     headers = _login(client)
     url = _upload_avatar(client, headers)

@@ -7,7 +7,7 @@ khi một bên sửa mà quên bên kia.
 
 KCS theo lệnh (mg 0306): một lần kiểm chỉ còn một loại, tổ gắn với nó là tổ của CÔNG ĐOẠN bị kiểm
 (`cong_viec.department_id`). Người thuộc tổ KCS thấy mọi lần kiểm; người khác thấy lần kiểm trên
-công đoạn của tổ mình XEM TRỌN.
+công đoạn của tổ mình XEM TRỌN, và lần kiểm ở tổ khác có lỗi quy về tổ đó (08/10/2026).
 """
 from __future__ import annotations
 
@@ -34,7 +34,8 @@ from ...services.rbac_service import AuthorizationService
 from ..gio_xuong import thuc_te_hien_thi
 from ..quyen_to import VIEC_XEM, quyen_to_cua
 
-_KET_LUAN_LABEL = {KCS_DAT: "Đạt", KCS_DAT_MOT_PHAN: "Đạt một phần", KCS_KHONG_DAT: "Không đạt"}
+# Cùng chữ với màn KCS (`kcsNhan.KCS_KET_LUAN`) — "Có lỗi", không phải "Đạt một phần".
+_KET_LUAN_LABEL = {KCS_DAT: "Đạt", KCS_DAT_MOT_PHAN: "Có lỗi", KCS_KHONG_DAT: "Không đạt"}
 _CHUA_PHAN_LOAI = "Chưa phân loại"
 
 
@@ -80,6 +81,11 @@ def _hang_kcs_theo_scope(
 
     # Người KCS thấy mọi tổ; người khác chỉ tổ XEM TRỌN — "Của tôi" không mở số liệu cả tổ.
     ids_thay_duoc = None if la_nguoi_kcs(db, user) else quyen_to_cua(db, user).tron[VIEC_XEM]
+    # Lần kiểm ở tổ khác mà có lỗi quy về tổ mình thấy được — tổ chịu phải thấy lỗi của mình
+    # (08/10/2026, lỗi tính theo công đoạn GÂY).
+    batch_co_loi_cua_minh = (
+        SanXuatKcsRepository(db).batch_co_loi_cua_to(ids_thay_duoc) if ids_thay_duoc else set()
+    )
 
     stmt = (
         select(SanXuatKcsBatch, SanXuatCongViec)
@@ -109,7 +115,8 @@ def _hang_kcs_theo_scope(
 
     out: list[tuple[SanXuatKcsBatch, SanXuatCongViec]] = []
     for kcs, cv in db.execute(stmt).all():
-        if ids_thay_duoc is not None and cv.department_id not in ids_thay_duoc:
+        if (ids_thay_duoc is not None and cv.department_id not in ids_thay_duoc
+                and kcs.id not in batch_co_loi_cua_minh):
             continue
         d = _ngay_vn(kcs.bat_dau)
         if tu and (d is None or d < tu):
@@ -120,26 +127,29 @@ def _hang_kcs_theo_scope(
     return out
 
 
-def _checklist_rows_cho_batch(kcs: SanXuatKcsBatch, cv: SanXuatCongViec) -> list[dict]:
-    """1 dòng/tiêu chí/kết quả — JOIN `checklist_json` (câu trả lời, key `thu_tu`) với
-    `cv.kcs_tieu_chi_json` (tên/mã/bắt buộc, cùng key `thu_tu`) — hai field JSON KHÁC NHAU
-    (mục 3.7), không phải cùng một cột."""
-    if not kcs.checklist_json or not cv.kcs_tieu_chi_json:
+def _checklist_rows_cho_batch(kcs: SanXuatKcsBatch, cv: SanXuatCongViec,
+                              cv_theo_id: dict[int, SanXuatCongViec]) -> list[dict]:
+    """1 dòng/tiêu chí/kết quả — JOIN `checklist_json` (câu trả lời) với ảnh chụp
+    `kcs_tieu_chi_json` (mã/tên) của công việc NGUỒN — hai field JSON KHÁC NHAU (mục 3.7). Khoá =
+    (công việc nguồn, `thu_tu`): bước KCS cuối xét tiêu chí gộp cả chuỗi (08/10/2026), phần tử cũ
+    thiếu `cong_viec_id` là của chính công việc lần kiểm. `cv_theo_id` = công việc nguồn nạp sẵn."""
+    if not kcs.checklist_json:
         return []
-    tieu_chi = {
-        t.get("thu_tu"): t for t in cv.kcs_tieu_chi_json if isinstance(t, dict)
-    }
     out = []
     for kq in kcs.checklist_json:
         if not isinstance(kq, dict):
             continue
-        tc = tieu_chi.get(kq.get("thu_tu")) or {}
+        nguon = cv_theo_id.get(kq.get("cong_viec_id") or cv.id) or cv
+        if not nguon.kcs_tieu_chi_json:
+            continue        # việc cũ không có ảnh chụp tiêu chí — không đẻ dòng rác
+        tc = next((t for t in (nguon.kcs_tieu_chi_json or [])
+                   if isinstance(t, dict) and t.get("thu_tu") == kq.get("thu_tu")), {})
         out.append({
             "kcs_batch_id": kcs.id,
             "thoi_diem": _ve_gio_vn(kcs.bat_dau),
+            "cong_doan": nguon.ten_cong_doan,
             "ma": tc.get("ma"),
             "ten": tc.get("ten"),
-            "bat_buoc": tc.get("bat_buoc"),
             "dat": bool(kq.get("dat")),
             "ghi_chu": kq.get("ghi_chu"),
         })
@@ -347,6 +357,12 @@ def xuat_excel_kcs(
     cd_chiu = repo.cong_viec_nhieu(
         {l.cong_doan_ref_id for ls in loi_by_batch.values() for l in ls if l.cong_doan_ref_id}
     )
+    # Công việc NGUỒN của từng kết quả tiêu chí (bước cuối xét tiêu chí gộp cả chuỗi) — một lượt.
+    cv_theo_id = {cv.id: cv for _kcs, cv in hang}
+    cv_theo_id.update(repo.cong_viec_nhieu({
+        kq.get("cong_viec_id") for kcs, _cv in hang for kq in (kcs.checklist_json or [])
+        if isinstance(kq, dict) and kq.get("cong_viec_id") not in cv_theo_id
+    }))
 
     wb = Workbook()
     ws1 = wb.active
@@ -389,15 +405,14 @@ def xuat_excel_kcs(
     ws1.auto_filter.ref = ws1.dimensions
 
     ws2 = wb.create_sheet("Chi tiết checklist")
-    ws2.append(["Mã kết quả", "Thời điểm", "Mã tiêu chí", "Tên tiêu chí", "Bắt buộc", "Đạt", "Ghi chú"])
+    ws2.append(["Mã kết quả", "Thời điểm", "Công đoạn", "Mã tiêu chí", "Tên tiêu chí", "Đạt", "Ghi chú"])
     for cell in ws2[1]:
         cell.font = Font(bold=True)
     for kcs, cv in hang:
-        for cr in _checklist_rows_cho_batch(kcs, cv):
+        for cr in _checklist_rows_cho_batch(kcs, cv, cv_theo_id):
             ws2.append([
-                cr["kcs_batch_id"], _ve_gio_vn(cr["thoi_diem"]), cr["ma"] or "", cr["ten"] or "",
-                "Có" if cr["bat_buoc"] else ("Không" if cr["bat_buoc"] is not None else ""),
-                "Có" if cr["dat"] else "Không", cr["ghi_chu"] or "",
+                cr["kcs_batch_id"], cr["thoi_diem"], cr["cong_doan"] or "",
+                cr["ma"] or "", cr["ten"] or "", "Có" if cr["dat"] else "Không", cr["ghi_chu"] or "",
             ])
             ws2.cell(row=ws2.max_row, column=2).number_format = "dd/mm/yyyy hh:mm"
     ws2.freeze_panes = "A2"

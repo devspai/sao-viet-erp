@@ -20,7 +20,7 @@ import type {
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import type { NavigateFn } from "../components/AppShell";
-import { ChonCot, LocNhanhTrangThai, OTim, useCotAn, useThuTuCot, type MauTT } from "../components/LuoiDs";
+import { ChonCot, LocNhanhTrangThai, OTim, useCauHinhLuoi, type MauTT } from "../components/LuoiDs";
 import { useTre } from "../lib/useTre";
 import { LenhSxHoSoView } from "./LenhSxHoSoView";
 import { COT_LENH, TdsxTheoLenh } from "./TdsxTheoLenh";
@@ -188,10 +188,8 @@ export function TheoDoiSanXuatPage({
   }, [hoSoId]);
 
   // Cột hiện / thứ tự cột nhớ theo từng góc (mỗi góc một lưới riêng).
-  const [cotAnLenh, setCotAnLenh] = useCotAn("tdsx-lenh");
-  const [thuTuLenh, setThuTuLenh] = useThuTuCot("tdsx-lenh");
-  const [cotAnMay, setCotAnMay] = useCotAn("tdsx-may");
-  const [thuTuMay, setThuTuMay] = useThuTuCot("tdsx-may");
+  const luoiLenh = useCauHinhLuoi("tdsx-lenh");
+  const luoiMay = useCauHinhLuoi("tdsx-may");
 
   const dangLoc =
     qTre.trim() !== "" || loc.khach != null || batThuong !== null
@@ -250,10 +248,7 @@ export function TheoDoiSanXuatPage({
     });
 
   const cot = goc === "theo_may" ? COT_MAY : COT_LENH;
-  const cotAn = goc === "theo_may" ? cotAnMay : cotAnLenh;
-  const setCotAn = goc === "theo_may" ? setCotAnMay : setCotAnLenh;
-  const thuTu = goc === "theo_may" ? thuTuMay : thuTuLenh;
-  const setThuTu = goc === "theo_may" ? setThuTuMay : setThuTuLenh;
+  const luoi = goc === "theo_may" ? luoiMay : luoiLenh;
 
   return (
     <main className="tdsx lds" ref={khungRef} tabIndex={-1}>
@@ -300,7 +295,7 @@ export function TheoDoiSanXuatPage({
                 Theo lệnh
               </button>
             </div>
-            <ChonCot cot={cot} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+            <ChonCot cot={cot} {...luoi.chonCot} />
           </div>
         </div>
       </section>
@@ -311,8 +306,9 @@ export function TheoDoiSanXuatPage({
           dangTai={loading}
           rong={rong}
           onMo={setHoSoId}
-          cotAn={cotAnMay}
-          thuTu={thuTuMay}
+          luoi={luoiMay}
+          cotAn={luoiMay.an}
+          thuTu={luoiMay.thuTu}
         />
       ) : (
         <TdsxTheoLenh
@@ -321,8 +317,9 @@ export function TheoDoiSanXuatPage({
           rong={rong}
           onMo={setHoSoId}
           dangMo={hoSoId}
-          cotAn={cotAnLenh}
-          thuTu={thuTuLenh}
+          luoi={luoiLenh}
+          cotAn={luoiLenh.an}
+          thuTu={luoiLenh.thuTu}
         />
       )}
 

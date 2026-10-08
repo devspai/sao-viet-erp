@@ -73,7 +73,7 @@ export const VT_MAU: Record<string, PillMeta> = {
 
 export const KCS_KET_LUAN: Record<string, PillMeta> = {
   dat: { label: "Đạt", cls: "lsc-pill--moss" },
-  dat_mot_phan: { label: "Đạt một phần", cls: "lsc-pill--rust" },
+  dat_mot_phan: { label: "Có lỗi", cls: "lsc-pill--rust" },
   khong_dat: { label: "Không đạt", cls: "lsc-pill--signal" },
 };
 

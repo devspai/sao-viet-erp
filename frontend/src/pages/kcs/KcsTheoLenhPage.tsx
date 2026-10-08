@@ -18,8 +18,7 @@ import { useCan, useKcs } from "../../auth/permissions";
 import type { NavigateFn } from "../../components/AppShell";
 import { EmptyRow } from "../../components/EmptyState";
 import {
-  ChipTT, ChonCot, CuonLuoi, OTim, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot,
-  type CotLuoi, type MauTT,
+  ChipTT, ChonCot, CuonLuoi, OTim, rongLuoi, useCauHinhLuoi, type CotLuoi, type MauTT,
 } from "../../components/LuoiDs";
 import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
 import { Icon } from "../../components/Icons";
@@ -121,9 +120,8 @@ export function KcsTheoLenhPage({
     : undefined;
   const [lsxId, setLsxId] = useState<number | null>(null);
   // Cột của lưới lệnh: ẩn / đổi chỗ nhớ theo máy người xem.
-  const [cotAn, setCotAn] = useCotAn("kcs-lenh");
-  const [thuTuCot, setThuTuCot] = useThuTuCot("kcs-lenh");
-  const cotHien = xepCot(COT_KCS, thuTuCot).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("kcs-lenh");
+  const cotHien = luoi.rongHien(luoi.xep(COT_KCS).filter((c) => !luoi.an.has(c.key)));
 
   // ---- Danh sách lệnh --------------------------------------------------------------------
   const [tim, setTim] = useState("");
@@ -232,12 +230,12 @@ export function KcsTheoLenhPage({
             loc={locMan.loc}
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
           />
-          <ChonCot cot={COT_KCS} an={cotAn} onAn={setCotAn} thuTu={thuTuCot} onThuTu={setThuTuCot} />
+          <ChonCot cot={COT_KCS} {...luoi.chonCot} />
         </div>
       </section>
 
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <colgroup>
               {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
@@ -245,7 +243,7 @@ export function KcsTheoLenhPage({
             <thead>
               <tr>
                 {/* Chỉ công đoạn cuối mới kiểm đạt (19/09/2026) — đếm "x/y công đoạn đã kiểm" báo thiếu oan. */}
-                {cotHien.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}</th>)}
+                {cotHien.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}{luoi.keo(c.key)}</th>)}
               </tr>
             </thead>
             <tbody>

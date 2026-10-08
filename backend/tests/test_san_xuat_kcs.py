@@ -306,21 +306,24 @@ def test_khong_loi_thi_khong_ghi_dong_loi(db, orders, lsx_svc, admin, customer):
     assert db.query(SanXuatKcsLoi).count() == 0
 
 
-def test_checklist_bat_buoc(db, orders, lsx_svc, admin, customer):
+def test_checklist_moi_tieu_chi_phai_xet(db, orders, lsx_svc, admin, customer):
+    """Mọi tiêu chí đều phải có kết quả (mg 0381 gỡ `bat_buoc`); kết quả lưu ở dạng chuẩn có
+    `cong_viec_id` — phần tử không gửi `cong_viec_id` là của chính công việc lần kiểm."""
     _to, cv = _cv_kcs(db, orders, lsx_svc, admin, customer, cuoi=True)
-    cv.kcs_tieu_chi_json = [
-        {"thu_tu": 1, "ten": "Đúng màu", "bat_buoc": True},
-        {"thu_tu": 2, "ten": "Sạch bụi", "bat_buoc": False},
-    ]
+    cv.kcs_tieu_chi_json = [{"thu_tu": 1, "ten": "Đúng màu"}, {"thu_tu": 2, "ten": "Sạch bụi"}]
     db.commit()
     _ghi_tot(db, cv, 5)
     _d, nguoi = _to_kiem(db)
-    with pytest.raises(ValueError, match="tiêu chí kiểm tra bắt buộc"):
+    with pytest.raises(ValueError, match="Còn 1 tiêu chí chưa ghi kết quả"):
         kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=cv.id, so_dat=5,
                            checklist_ket_qua=[{"thu_tu": 2, "dat": True}])
-    res = kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=cv.id, so_dat=5,
-                             checklist_ket_qua=[{"thu_tu": 1, "dat": True}])
-    assert db.get(SanXuatKcsBatch, res["kcs_batch_id"]).checklist_json == [{"thu_tu": 1, "dat": True}]
+    res = kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=cv.id, so_dat=5, checklist_ket_qua=[
+        {"thu_tu": 2, "dat": True}, {"cong_viec_id": cv.id, "thu_tu": 1, "dat": True, "ghi_chu": " "},
+    ])
+    assert db.get(SanXuatKcsBatch, res["kcs_batch_id"]).checklist_json == [
+        {"cong_viec_id": cv.id, "thu_tu": 1, "dat": True, "ghi_chu": None},
+        {"cong_viec_id": cv.id, "thu_tu": 2, "dat": True, "ghi_chu": None},
+    ]
 
 
 def test_so_dat_tuong_minh_cung_khong_vuot_phan_chua_kiem(db, orders, lsx_svc, admin, customer):
@@ -443,74 +446,12 @@ def test_loi_cho_xem_het_khi_to_da_xem(db, orders, lsx_svc, admin, customer):
 
 
 # --- Điều chỉnh -----------------------------------------------------------------------------
-def test_dieu_chinh_gate_version_va_tong(db, orders, lsx_svc, admin, customer):
-    _to, _cv, res = _batch(db, orders, lsx_svc, admin, customer)
-    nguoi, kid = res["nguoi_kcs"], res["kcs_batch_id"]
-    with pytest.raises(PermissionError):
-        kcs.dieu_chinh_ket_qua(db, user=admin, kcs_batch_id=kid, so_luong_dat=95,
-                               so_luong_khong_dat=5, expected_version=1)
-    with pytest.raises(ValueError, match="Phiên bản"):
-        kcs.dieu_chinh_ket_qua(db, user=nguoi, kcs_batch_id=kid, so_luong_dat=95,
-                               so_luong_khong_dat=5, expected_version=7)
-    with pytest.raises(ValueError, match="không đổi tổng"):
-        kcs.dieu_chinh_ket_qua(db, user=nguoi, kcs_batch_id=kid, so_luong_dat=95,
-                               so_luong_khong_dat=10, expected_version=1)
-
-
-def test_dieu_chinh_chia_lai_dat_loi_va_audit(db, orders, lsx_svc, admin, customer):
-    _to, _cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
-    kid = res["kcs_batch_id"]
-    out = kcs.dieu_chinh_ket_qua(db, user=res["nguoi_kcs"], kcs_batch_id=kid, so_luong_dat=95,
-                                 so_luong_khong_dat=5, expected_version=1)
-    assert out["version"] == 2 and out["ket_luan"] == KCS_DAT_MOT_PHAN
-    loi = db.get(SanXuatKcsLoi, res["loi_id"])
-    assert float(loi.so_luong) == 5 and loi.version == 2
-    assert db.query(SanXuatKcsLoiAnh).filter_by(loi_id=loi.id).count() == 1
-    log = AuditLogRepository(db).list_for_target(f"san_xuat_kcs_batch:{kid}")
-    dc = [r for r in log if r.action == "san_xuat_kcs_dieu_chinh"]
-    assert dc and "truoc(dat=90, loi=10" in dc[0].detail and "sau(dat=95, loi=5" in dc[0].detail
-
-
-def test_dieu_chinh_them_loi_khi_chua_co_mo_ta_bi_chan(db, orders, lsx_svc, admin, customer):
-    _to, _cv, res = _batch(db, orders, lsx_svc, admin, customer, dat=10, khong_dat=0, cuoi=True)
-    with pytest.raises(ValueError, match="chưa có mô tả"):
-        kcs.dieu_chinh_ket_qua(db, user=res["nguoi_kcs"], kcs_batch_id=res["kcs_batch_id"],
-                               so_luong_dat=7, so_luong_khong_dat=3, expected_version=1)
-
-
-def test_dieu_chinh_cong_doan_cuoi_van_giu_tran_tot(db, orders, lsx_svc, admin, customer):
-    _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, dat=60, khong_dat=0, cuoi=True, tot=100)
-    r2 = kcs.kiem_cong_doan(db, user=res["nguoi_kcs"], cong_viec_id=cv.id, so_dat=30, so_loi=10,
-                            loi_mo_ta="Lem", anh=_anh())
-    # Tổ hạ mẻ SAU khi KCS đã kiểm ⇒ điều chỉnh (giữ tổng) vẫn không được đẩy Σ đạt vượt tốt.
-    me = db.query(SanXuatBatch).filter_by(cong_viec_id=cv.id).one()
-    me.tot = me.tong = 95
-    db.commit()
-    with pytest.raises(ValueError, match="vượt số tốt"):
-        kcs.dieu_chinh_ket_qua(db, user=res["nguoi_kcs"], kcs_batch_id=r2["kcs_batch_id"],
-                               so_luong_dat=40, so_luong_khong_dat=0, expected_version=1)
-
-
 def _huy_boi_kho(db, request_id: int) -> None:
     """Kho huỷ yêu cầu nhập (Hộp yêu cầu ▸ Huỷ) — đúng hàm router kho gọi."""
     req = db.get(StockRequest, request_id)
     _req_service(db, _hang_service(db)).cancel_by_kho(req, "Không nhận")
 
 
-def test_dieu_chinh_khong_ha_dat_duoi_so_da_gui_kho(db, orders, lsx_svc, admin, customer):
-    """Đã đề nghị nhập 90 thì Σ đạt không được hạ dưới 90; kho huỷ yêu cầu thì hạ được."""
-    _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
-    nguoi, kid = res["nguoi_kcs"], res["kcs_batch_id"]
-    yc = kho.tao_yeu_cau_nhap_kho_cong_doan(db, user=nguoi, cong_viec_id=cv.id)
-    with pytest.raises(ValueError, match="đã đề nghị nhập kho 90"):
-        kcs.dieu_chinh_ket_qua(db, user=nguoi, kcs_batch_id=kid, so_luong_dat=85,
-                               so_luong_khong_dat=15, expected_version=1)
-    _huy_boi_kho(db, yc["request_id"])
-    kcs.dieu_chinh_ket_qua(db, user=nguoi, kcs_batch_id=kid, so_luong_dat=85,
-                           so_luong_khong_dat=15, expected_version=1)
-
-
-# --- Đọc ------------------------------------------------------------------------------------
 def test_ket_qua_kcs_cong_viec(db, orders, lsx_svc, admin, customer):
     to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
     _ghi_tot(db, cv, 5)
@@ -781,6 +722,9 @@ def test_kiem_quy_loi_ve_cong_doan_truoc(db, orders, lsx_svc, admin, customer):
 
     loc = board.work_items(db, tt, _Az(RoleRepository(db)), team_id=to_chiu.id, cho_xac_nhan=True)
     assert [[w["id"] for w in l["cong_viec"]] for l in loc["lenh"]] == [[truoc.id]]
+    # Chip KCS trên thẻ việc của tổ chịu: lỗi do công đoạn này gây dù chưa kiểm lần nào ở đây.
+    w = loc["lenh"][0]["cong_viec"][0]
+    assert (w["kcs_so_lan"], w["kcs_loi"]) == (0, 8)
 
     # Tab KCS của công đoạn trước: lần kiểm ở bước sau, chỉ mang lỗi của mình.
     kq = kcs.ket_qua_kcs_cong_viec(db, nguoi, truoc.id)
@@ -788,9 +732,11 @@ def test_kiem_quy_loi_ve_cong_doan_truoc(db, orders, lsx_svc, admin, customer):
     assert lk["cong_doan_ten"] == sau.ten_cong_doan and [l["mo_ta"] for l in lk["loi"]] == ["Lem mực"]
     assert lk["loi"][0]["cong_doan_id"] == truoc.id and lk["loi"][0]["to_chiu_ten"] == to_chiu.name
 
-    # Chuỗi công đoạn: số lượng vẫn tính ở bước bắt, bước trước có dòng "bắt ở bước sau".
+    # Chuỗi công đoạn: số kiểm vẫn tính ở bước bắt (`tong_loi`); tình trạng tính theo bước GÂY
+    # (08/10/2026) — bước sau chỉ chịu 5 lỗi của chính nó, bước trước chịu 8 "bắt ở bước sau".
     ds = {c["cong_viec_id"]: c for c in kcs.chuoi_cong_doan_kcs(db, nguoi, truoc.lsx_id)["cong_doan"]}
     assert ds[sau.id]["tong_loi"] == 13 and ds[truoc.id]["tong_loi"] == 0
+    assert ds[sau.id]["loi_tai_cho"] == 5 and ds[truoc.id]["loi_tai_cho"] == 0
     assert ds[truoc.id]["loi_buoc_sau"] == [
         {"phat_hien_o": sau.ten_cong_doan, "don_vi": sau.don_vi_ra, "so_luong": 8.0}
     ]
@@ -803,6 +749,10 @@ def test_kiem_quy_loi_ve_cong_doan_truoc(db, orders, lsx_svc, admin, customer):
     bc = kcs_bao_cao.bao_cao_kcs(db, nguoi, AuthorizationService(db))
     theo_to = {r["to_id"]: r["tong_so_luong"] for r in bc["to"]}
     assert theo_to[to_chiu.id] == 8 and theo_to[sau.department_id] == 5
+    # Tổ chịu (không thuộc KCS, không xem được tổ bắt) vẫn thấy lỗi quy về mình (08/10/2026).
+    bc_to = kcs_bao_cao.bao_cao_kcs(db, tt, AuthorizationService(db))
+    assert {r["to_id"]: r["tong_so_luong"] for r in bc_to["to"]}[to_chiu.id] == 8
+    assert [r["kcs_batch_id"] for r in bc_to["lich_su"]] == [res["kcs_batch_id"]]
 
 
 def test_kiem_quy_loi_chan_sai(db, orders, lsx_svc, admin, customer):
@@ -831,19 +781,3 @@ def test_kiem_quy_loi_chan_sai(db, orders, lsx_svc, admin, customer):
     assert db.query(SanXuatKcsBatch).count() == 0
 
 
-def test_dieu_chinh_chan_doi_tong_khi_loi_chia_nhieu_cong_doan(db, orders, lsx_svc, admin, customer):
-    truoc, sau, _to_chiu_, _tt, nguoi = _chuoi_hai_to(db, orders, lsx_svc, admin, customer, "KCS-QD")
-    res = kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=sau.id, lsx_id=truoc.lsx_id, cac_loi=[
-        {"cong_viec_id": truoc.id, "so_luong": 4, "mo_ta": "Lem", "anh": _anh()},
-        {"cong_viec_id": sau.id, "so_luong": 6, "mo_ta": "Móp", "anh": _anh()},
-    ])
-    with pytest.raises(ValueError, match="nhiều công đoạn"):
-        kcs.dieu_chinh_ket_qua(db, user=nguoi, kcs_batch_id=res["kcs_batch_id"], so_luong_dat=92,
-                               so_luong_khong_dat=8, expected_version=res["version"])
-    # Giữ nguyên tổng lỗi thì vẫn sửa được phần khác (ghi chú).
-    kq = kcs.dieu_chinh_ket_qua(db, user=nguoi, kcs_batch_id=res["kcs_batch_id"], so_luong_dat=90,
-                                so_luong_khong_dat=10, ghi_chu="soát lại",
-                                expected_version=res["version"])
-    assert kq["so_luong_khong_dat"] == 10
-    assert sorted(float(l.so_luong) for l in db.query(SanXuatKcsLoi)
-                  .filter_by(kcs_batch_id=res["kcs_batch_id"])) == [4.0, 6.0]

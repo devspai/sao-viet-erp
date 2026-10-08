@@ -231,7 +231,7 @@ def test_timeline_kcs_noi_tieng_viet_khong_ro_khoa_enum(
     d = _ho_so(client, seed_credentials, lenh_that)
     cau = [e["noi_dung"] for e in d["timeline"] if e["loai"] == "kcs"]
     assert len(cau) == 1, "tiền đề: đúng một sự kiện KCS trên dòng thời gian"
-    assert "Đạt một phần" in cau[0], f"nhãn tiếng Việt không ra tới câu timeline: {cau[0]!r}"
+    assert "Có lỗi" in cau[0], f"nhãn tiếng Việt không ra tới câu timeline: {cau[0]!r}"
     assert "dat_mot_phan" not in cau[0], f"khoá enum thô lọt ra mặt người dùng: {cau[0]!r}"
     assert d["kcs"]["batch"][0]["ket_luan"] == "dat_mot_phan", "trường thô phải giữ nguyên khoá"
 

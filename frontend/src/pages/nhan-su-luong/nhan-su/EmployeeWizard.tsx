@@ -7,6 +7,7 @@ import {
   type PayrollComponent,
 } from "../../../api/client";
 import { Button } from "../../../components/Button";
+import { ChonNgay } from "../../../components/ChonNgay";
 import { fmtDate, money } from "../../../utils/format";
 import { Trash2 } from "lucide-react";
 import { DOC_KIND_LABEL } from "./shared/constants";
@@ -292,10 +293,9 @@ export function EmployeeWizard({
                 )}
               </Field>
               <Field label="Ngày vào">
-                <input
-                  type="date"
+                <ChonNgay
                   value={form.hire_date ?? ""}
-                  onChange={(e) => set("hire_date", e.target.value)}
+                  onChange={(v) => set("hire_date", v)}
                 />
               </Field>
               <Field label="Trạng thái">
@@ -310,11 +310,10 @@ export function EmployeeWizard({
               {form.status === "probation" && (
                 <>
                   <Field label="Ngày hết thử việc *">
-                    <input
-                      type="date"
+                    <ChonNgay
                       required
                       value={form.probation_end_date ?? ""}
-                      onChange={(e) => set("probation_end_date", e.target.value)}
+                      onChange={(v) => set("probation_end_date", v)}
                     />
                   </Field>
                   <div
@@ -336,10 +335,9 @@ export function EmployeeWizard({
           {STEPS[step] === "Cá nhân" && (
             <div className="ns-grid">
               <Field label="Ngày sinh">
-                <input
-                  type="date"
+                <ChonNgay
                   value={form.date_of_birth ?? ""}
-                  onChange={(e) => set("date_of_birth", e.target.value)}
+                  onChange={(v) => set("date_of_birth", v)}
                 />
               </Field>
               <Field label="Giới tính">

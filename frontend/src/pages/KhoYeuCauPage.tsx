@@ -7,7 +7,8 @@
 // Hai cột nhạy cảm — "Tồn khả dụng" và "Giá vốn" — KHÔNG render khi thiếu quyền: cột biến mất
 // khỏi <thead> chứ không hiện "—". Dấu gạch vẫn là một câu trả lời ("chỗ này có số, bạn không
 // được xem"), còn ở đây phải im lặng hoàn toàn.
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChonNgay } from "../components/ChonNgay";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { AlertTriangle, ChevronRight, FileText, Package, Pencil, Plus, Printer } from "lucide-react";
 import {
   ApiError,
@@ -35,8 +36,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MaterialCombobox } from "../components/MaterialCombobox";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import {
-  CuonLuoi, soCotGhim, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, soVN, useCotAn, useThuTuCot, xepCot,
-  type CotLuoi, type MauTT,
+  CuonLuoi, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, soVN, useCauHinhLuoi, type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { EmptyRow as DongTrongLds } from "../components/EmptyState";
 import { Select } from "../components/Select";
@@ -162,8 +162,7 @@ export function KhoYeuCauPage({
   useNapTenDonVi();
   const canCreate = can("kho", "create");
   // Cột ẩn / thứ tự cột người xem đã chọn — nhớ theo màn (điều chuyển có lưới riêng).
-  const [cotAn, setCotAn] = useCotAn(dieuChuyen ? "kho-dieu-chuyen" : "kho-phieu-yeu-cau");
-  const [thuTu, setThuTu] = useThuTuCot(dieuChuyen ? "kho-dieu-chuyen" : "kho-phieu-yeu-cau");
+  const luoi = useCauHinhLuoi(dieuChuyen ? "kho-dieu-chuyen" : "kho-phieu-yeu-cau");
   // Ghi sổ đã GỘP vào quyền "create" (bỏ tách "post"/SoD) — khớp backend: post_voucher chỉ đòi
   // create. Ai lập được phiếu là ghi sổ được luôn, không còn bước "Chờ ghi sổ" chờ người khác.
   const canPost = canCreate;
@@ -323,7 +322,7 @@ export function KhoYeuCauPage({
   const cotDs = dieuChuyen
     ? COT_DC.filter((c) => (c.key !== "giavon" || canViewCost) && (c.key !== "nut" || canCreate))
     : COT_YCK.filter((c) => c.key !== "nut" || canCreate);
-  const cotHien = xepCot(cotDs, thuTu).filter((c) => !cotAn.has(c.key));
+  const cotHien = luoi.rongHien(luoi.xep(cotDs).filter((c) => !luoi.an.has(c.key)));
   const muc = tabs.map((t) => ({ key: t.id, label: t.label, count: countOf(t.id), mau: MAU_TAB[t.id] }));
   const coLoc = locMan.ky.loai !== "tat_ca" || soDaAp(dieuKien, locMan.loc) > 0;
   const donVi = dieuChuyen ? "phiếu" : "yêu cầu";
@@ -346,18 +345,18 @@ export function KhoYeuCauPage({
             loc={locMan.loc}
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
           />
-          <ChonCot cot={cotDs} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={cotDs} {...luoi.chonCot} />
         </div>
       </section>
 
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <colgroup>
               {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
             </colgroup>
             <thead>
-              <tr>{cotHien.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.key === "nut" ? "" : c.label}</th>)}</tr>
+              <tr>{cotHien.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.key === "nut" ? "" : c.label}{luoi.keo(c.key)}</th>)}</tr>
             </thead>
             <tbody>
               {loading && requests.length === 0 ? (
@@ -1599,8 +1598,8 @@ function VoucherCreateDrawer({
   // NGÀY NHẬP/XUẤT KHO = HÔM NAY, KHÓA CỨNG (không cho chọn). Đây là NGÀY HẠCH TOÁN — mốc
   // quyết định phiếu thuộc kỳ nào (khóa sổ + Sổ kho + N-X-T), nên không để người lập tự đặt.
   const [ngay] = useState(todayISO());
-  // Người giao/nhận hàng mặc định = NGƯỜI YÊU CẦU (hàng về/ra theo đúng người xin); thủ kho sửa được.
-  const [nguoiGiaoNhan, setNguoiGiaoNhan] = useState(request.nguoi_tao_ten ?? "");
+  // Người giao/nhận hàng = NGƯỜI YÊU CẦU, khoá cứng — server tự chốt từ tài khoản người tạo yêu cầu.
+  const nguoiGiaoNhan = request.nguoi_tao_ten ?? "";
   // ĐIỀU CHUYỂN: ghi chú phiếu nhập đích LẤY SẴN từ ghi chú điều chuyển (đã gắn vào yêu cầu); sửa được.
   const [ghiChu, setGhiChu] = useState(request.dieu_chuyen ? (request.ghi_chu ?? "") : "");
   // Chứng từ (ảnh/PDF) chọn SẴN lúc tạo — giữ client-side, upload sau khi có voucher_id.
@@ -1873,7 +1872,6 @@ function VoucherCreateDrawer({
         kho_id: khoId,
         // Số phiếu LUÔN tự sinh (PNK/PXK####) — không cho tự nhập.
         ngay,
-        nguoi_giao_nhan: nguoiGiaoNhan || null,
         ghi_chu: ghiChu || null,
         lines: payload,
       });
@@ -1927,7 +1925,9 @@ function VoucherCreateDrawer({
     const lay = isNhap ? b.cap : b.lots.reduce((s, x) => s + x.so_luong, 0) / (b.heSoVeGoc || 1);
     return lay >= b.line.sl_con_lai - 1e-9;
   }).length;
-  const soCot = (isNhap ? 6 : 5) + (hienGiaBan ? 1 : 0);
+  // NHẬP: Vị trí + Hạn dùng (+ Dạng và khổ khi có dòng giấy) là cột của lưới, mỗi mặt hàng MỘT dòng.
+  const coGiay = isNhap && blocks.some((b) => b.line.hang_loai === "giay" && b.line.sl_con_lai > 0);
+  const soCot = (isNhap ? 8 + (coGiay ? 1 : 0) : 5) + (hienGiaBan ? 1 : 0);
 
   function bamGhiSo() {
     // Báo NGAY khi bấm (ứng vượt / cấp thiếu chưa nêu lý do) — không mở popup rồi mới báo.
@@ -1990,22 +1990,32 @@ function VoucherCreateDrawer({
                     )}
                     {/* Cột cố định cộng lại + 200 cho cột Vật tư (tên, mã, ảnh, khổ giấy): đủ rộng thì vừa khung, chật hơn
                         (đủ cột Đơn giá + Giá bán ở cột chính ~760px) thì khung tự cuộn ngang thay vì bóp cột Vật tư. */}
-                    <table className="lds-g" style={{ minWidth: 200 + 84 + 84 + (isNhap ? 156 : 112) + (isNhap ? 88 : 0) + 96 + (hienGiaBan ? 84 : 0) }}>
+                    <table className={`lds-g${isNhap ? " kna-luoi-nhap" : ""}`} style={{
+                      minWidth: isNhap
+                        ? 176 + 76 + 64 + 88 + 96 + 132 + (coGiay ? 220 : 0) + 76 + 84 + (hienGiaBan ? 84 : 0)
+                        : 200 + 84 + 84 + 112 + 96 + (hienGiaBan ? 84 : 0),
+                    }}>
                       <colgroup>
                         <col />
-                        <col style={{ width: 84 }} />
-                        <col style={{ width: 84 }} />
-                        <col style={{ width: isNhap ? 156 : 112 }} />
-                        {isNhap && <col style={{ width: 88 }} />}
-                        <col style={{ width: 96 }} />
+                        <col style={{ width: isNhap ? 76 : 84 }} />
+                        <col style={{ width: isNhap ? 64 : 84 }} />
+                        <col style={{ width: isNhap ? 88 : 112 }} />
+                        {isNhap && <col style={{ width: 96 }} />}
+                        {isNhap && <col style={{ width: 132 }} />}
+                        {coGiay && <col style={{ width: 220 }} />}
+                        {isNhap && <col style={{ width: 76 }} />}
+                        <col style={{ width: isNhap ? 84 : 96 }} />
                         {hienGiaBan && <col style={{ width: 84 }} />}
                       </colgroup>
                       <thead>
                         <tr>
                           <th>Vật tư</th>
                           <th className="n">Yêu cầu</th>
-                          <th className="n">{isNhap ? "Tồn hiện có" : "Tồn kho"}</th>
-                          <th className="n">{isNhap ? "Nhập lần này" : "Cấp lần này"}</th>
+                          <th className="n">{isNhap ? "Tồn" : "Tồn kho"}</th>
+                          <th className="n">{isNhap ? "Nhập" : "Cấp lần này"}</th>
+                          {isNhap && <th>Vị trí cất</th>}
+                          {isNhap && <th>Hạn dùng</th>}
+                          {coGiay && <th>Dạng và khổ thực nhận</th>}
                           {isNhap && <th className="n">{blocks.some((b) => b.line.tu_kcs) ? "Giá gốc" : "Đơn giá"}</th>}
                           <th className="n">Thành tiền</th>
                           {hienGiaBan && <th className="n">Giá bán</th>}
@@ -2022,6 +2032,7 @@ function VoucherCreateDrawer({
                             canViewCost={canViewCost}
                             hienGiaBan={hienGiaBan}
                             soCot={soCot}
+                            coGiay={coGiay}
                             viTriListId={isNhap && viTriOptions.length > 0 ? "kho-vitri-suggest" : undefined}
                             onCap={(v) => patch(b.line.id, (cur) => ({ ...cur, touched: true, cap: v }))}
                             onLyDo={(v) => patch(b.line.id, (cur) => ({ ...cur, lyDo: v }))}
@@ -2117,11 +2128,8 @@ function VoucherCreateDrawer({
                   </label>
                   <label className="kna-o-truong">
                     <span>{isNhap ? "Người giao hàng" : "Người nhận hàng"}</span>
-                    <input className="kna-o" value={nguoiGiaoNhan}
-                      onChange={(e) => {
-                        setDirty(true);
-                        setNguoiGiaoNhan(e.target.value);
-                      }} />
+                    <input className="kna-o kna-o--khoa" value={nguoiGiaoNhan} readOnly
+                      title="Luôn là người yêu cầu, lấy theo tài khoản nên không sửa được." />
                   </label>
                   <label className="kna-o-truong">
                     <span>Ghi chú</span>
@@ -2196,6 +2204,7 @@ function AllocRow({
   canViewCost,
   hienGiaBan,
   soCot,
+  coGiay,
   viTriListId,
   onCap,
   onLyDo,
@@ -2215,6 +2224,8 @@ function AllocRow({
   hienGiaBan: boolean;
   /** Số cột của bảng — hàng phụ (lô / cất hàng / lý do) trải hết bề ngang. */
   soCot: number;
+  /** Lưới NHẬP có cột "Dạng và khổ thực nhận" (có ít nhất một dòng giấy còn phải nhập). */
+  coGiay: boolean;
   /** id của <datalist> gợi ý vị trí (kệ/ô) đã khai của kho; undefined = không gợi ý (vẫn gõ tự do). */
   viTriListId?: string;
   onCap: (v: number) => void;
@@ -2311,11 +2322,60 @@ function AllocRow({
     </label>
   ) : null;
 
-  const anhNut = (
+  const chonAnh = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) onAnhPick(f);
+    e.target.value = "";
+  };
+  // Ô ảnh nhỏ đầu dòng: chưa có ảnh thì bấm để thêm (lưới khỏi chữ "Thêm ảnh"); có ảnh thì bấm phóng to,
+  // đổi / xoá ảnh nằm trong khung phóng to.
+  const anhNut = !shownAnh && !settled ? (
+    <label className="kna-hang__anh kna-hang__anh--them" title="Thêm ảnh mặt hàng" aria-label={`Thêm ảnh ${block.matLabel}`}>
+      <Package size={14} aria-hidden="true" />
+      <input type="file" accept="image/*" hidden onChange={chonAnh} />
+    </label>
+  ) : (
     <button type="button" className="kna-hang__anh" onClick={() => (shownAnh ? setAnhZoom(true) : undefined)}
       title={shownAnh ? "Bấm để phóng to" : "Chưa có ảnh"} aria-label={shownAnh ? `Phóng to ảnh ${block.matLabel}` : "Chưa có ảnh"}>
-      {shownAnh ? <img src={shownAnh} alt="" /> : <Package size={16} aria-hidden="true" />}
+      {shownAnh ? <img src={shownAnh} alt="" /> : <Package size={14} aria-hidden="true" />}
     </button>
+  );
+  const khoGiayO = (
+    <div className="kna-kho-giay">
+      <select className="kna-o kna-o--nho" aria-label="Dạng giấy" value={block.dang ?? ""}
+        onChange={(e) => {
+          const d = (e.target.value || null) as "to" | "cuon" | null;
+          onDangKho({ dang: d, ...(d === "cuon" ? { khoDai: 0 } : {}) });
+        }}>
+        <option value="">Dạng</option>
+        <option value="to">Tờ</option>
+        <option value="cuon">Cuộn</option>
+      </select>
+      {block.dang && (
+        <>
+          <DecimalInput
+            className="kna-o kna-o--nho kna-o--so"
+            value={block.khoRong || null}
+            onChange={(n) => onDangKho({ khoRong: n ?? 0 })}
+            aria-label={block.dang === "to" ? "Khổ giấy, cạnh thứ nhất (mm)" : "Khổ rộng cuộn (mm)"}
+            placeholder={block.dang === "to" ? "Rộng" : "Khổ"}
+          />
+          {block.dang === "to" && (
+            <>
+              <span aria-hidden="true">×</span>
+              <DecimalInput
+                className="kna-o kna-o--nho kna-o--so"
+                value={block.khoDai || null}
+                onChange={(n) => onDangKho({ khoDai: n ?? 0 })}
+                aria-label="Khổ giấy, cạnh thứ hai (mm)"
+                placeholder="Dài"
+              />
+            </>
+          )}
+          <span className="kna-dv">mm</span>
+        </>
+      )}
+    </div>
   );
 
   return (
@@ -2327,23 +2387,6 @@ function AllocRow({
               {block.matCode && <span className="kna-tag kna-tag--ma">{block.matCode}</span>}
               {!(isNhap && l.hang_loai === "giay") && l.dang_giay && <span>{nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai)}</span>}
               {(l.lsx_ma || l.bai_ghep_ma) && <span>{l.lsx_ma ?? l.bai_ghep_ma}</span>}
-              {/* Đổi / Xóa ảnh mặt hàng (lưu vào danh mục khi lập phiếu). */}
-              {!settled && (
-                <label className="kna-lien kna-lien--mo">
-                  {shownAnh ? "Đổi ảnh" : "Thêm ảnh"}
-                  <input type="file" accept="image/*" hidden
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) onAnhPick(f);
-                      e.target.value = "";
-                    }} />
-                </label>
-              )}
-              {!settled && shownAnh && (
-                <button type="button" className="kna-lien kna-lien--mo" onClick={() => { onAnhClear(); setAnhZoom(false); }}>
-                  Xóa ảnh
-                </button>
-              )}
             </>} />
         </td>
         <td className="n">
@@ -2369,17 +2412,15 @@ function AllocRow({
           {settled ? (
             <span className="kna-chip kna-chip--la">{isNhap ? "Đã nhập đủ" : "Đã cấp đủ"}</span>
           ) : isNhap ? (
-            // Dòng không muốn làm đợt này thì để 0 là tự bỏ qua — không cần ô tick riêng.
-            <span className="kna-sl">
-              <DecimalInput
-                id={`cap-${l.id}`}
-                className="kna-o kna-o--so"
-                value={block.cap}
-                onChange={(n) => onCap(n ?? 0)}
-                aria-label={`Số lượng nhập ${block.matLabel}`}
-              />
-              <span className="kna-dv">/ {fmtQty(l.sl_con_lai)}</span>
-            </span>
+            // Dòng không muốn làm đợt này thì để 0 là tự bỏ qua — không cần ô tick riêng. Mốc tối đa
+            // (còn phải nhập) đã ở cột Yêu cầu nên khỏi lặp "/ 1.500" bên cạnh ô.
+            <DecimalInput
+              id={`cap-${l.id}`}
+              className={`kna-o kna-o--nho kna-o--so${isShort ? " kna-o--thieu" : ""}`}
+              value={block.cap}
+              onChange={(n) => onCap(n ?? 0)}
+              aria-label={`Số lượng nhập ${block.matLabel}, còn phải nhập ${fmtQty(l.sl_con_lai)} ${dvtYc}`}
+            />
           ) : (
             // XUẤT: số cấp lần này = TỔNG ô "Lấy" ở bảng lô bên dưới (quy về đơn vị dòng yêu cầu).
             <span>
@@ -2388,6 +2429,23 @@ function AllocRow({
             </span>
           )}
         </td>
+        {isNhap && (
+          <td>
+            {!settled && (
+              <input className="kna-o kna-o--nho" value={block.viTri} list={viTriListId}
+                onChange={(e) => onViTri(e.target.value)} placeholder="Kệ, ô" aria-label={`Vị trí cất ${block.matLabel}`} />
+            )}
+          </td>
+        )}
+        {isNhap && (
+          <td>
+            {!settled && (
+              <ChonNgay className="kna-o kna-o--nho" value={block.hsd}
+                onChange={(v) => onHsd(v)} aria-label={`Hạn dùng ${block.matLabel}`} />
+            )}
+          </td>
+        )}
+        {coGiay && <td>{!settled && l.hang_loai === "giay" ? khoGiayO : null}</td>}
         {isNhap && (
           <td className="n kna-so">
             {kcsChuaGia ? (
@@ -2419,66 +2477,12 @@ function AllocRow({
         )}
       </tr>
 
-      {!settled && (
+      {!settled && (!isNhap || quyDoiHint || lyDoBox) && (
         <tr className="kna-bang__phu">
           <td colSpan={soCot}>
             <div className="kna-phu">
               {isNhap ? (
                 <>
-                  <div className="kna-cat">
-                    <label className="kna-o-truong">
-                      <span>Cất ở vị trí</span>
-                      <input className="kna-o kna-o--nho" value={block.viTri} list={viTriListId}
-                        onChange={(e) => onViTri(e.target.value)} placeholder="Kệ, ô" />
-                    </label>
-                    <label className="kna-o-truong">
-                      <span>Hạn dùng</span>
-                      <input type="date" className="kna-o kna-o--nho" value={block.hsd}
-                        onChange={(e) => onHsd(e.target.value)} aria-label="Hạn dùng" />
-                    </label>
-                    {l.hang_loai === "giay" ? (
-                      <div className="kna-o-truong">
-                        <span>Dạng và khổ thực nhận</span>
-                        <div className="kna-kho-giay">
-                          <select className="kna-o kna-o--nho" aria-label="Dạng giấy" value={block.dang ?? ""}
-                            onChange={(e) => {
-                              const d = (e.target.value || null) as "to" | "cuon" | null;
-                              onDangKho({ dang: d, ...(d === "cuon" ? { khoDai: 0 } : {}) });
-                            }}>
-                            <option value="">Dạng</option>
-                            <option value="to">Tờ</option>
-                            <option value="cuon">Cuộn</option>
-                          </select>
-                          {block.dang && (
-                            <>
-                              <DecimalInput
-                                className="kna-o kna-o--nho kna-o--so"
-                                value={block.khoRong || null}
-                                onChange={(n) => onDangKho({ khoRong: n ?? 0 })}
-                                aria-label={block.dang === "to" ? "Khổ giấy, cạnh thứ nhất (mm)" : "Khổ rộng cuộn (mm)"}
-                                placeholder={block.dang === "to" ? "Rộng" : "Khổ"}
-                              />
-                              {block.dang === "to" && (
-                                <>
-                                  <span aria-hidden="true">×</span>
-                                  <DecimalInput
-                                    className="kna-o kna-o--nho kna-o--so"
-                                    value={block.khoDai || null}
-                                    onChange={(n) => onDangKho({ khoDai: n ?? 0 })}
-                                    aria-label="Khổ giấy, cạnh thứ hai (mm)"
-                                    placeholder="Dài"
-                                  />
-                                </>
-                              )}
-                              <span className="kna-dv">mm</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div />
-                    )}
-                  </div>
                   {quyDoiHint}
                   {lyDoBox}
                 </>
@@ -2573,6 +2577,17 @@ function AllocRow({
           <td colSpan={soCot} style={{ padding: 0, border: 0 }}>
             <div className="kho-anh__lightbox" role="dialog" aria-modal="true" onClick={() => setAnhZoom(false)}>
               <img src={shownAnh} alt={block.matLabel} onClick={(e) => e.stopPropagation()} />
+              {!settled && (
+                <div className="kna-anh-nut" onClick={(e) => e.stopPropagation()}>
+                  <label className="kna-nut">
+                    Đổi ảnh
+                    <input type="file" accept="image/*" hidden onChange={chonAnh} />
+                  </label>
+                  <button type="button" className="kna-nut kna-nut--do" onClick={() => { onAnhClear(); setAnhZoom(false); }}>
+                    Xoá ảnh
+                  </button>
+                </div>
+              )}
             </div>
           </td>
         </tr>

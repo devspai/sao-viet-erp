@@ -12,14 +12,14 @@ import { useAuth } from "../../../auth/useAuth";
 import { Button } from "../../../components/Button";
 import { trangHopLe } from "../../../components/Pager";
 import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
-import { StatusTabs } from "../../../components/StatusTabs";
+import { ChonCot, LocNhanhTrangThai, useCauHinhLuoi } from "../../../components/LuoiDs";
 import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
 import { thamSoKy } from "../../thanh-loc/ky-danh-sach";
 import { soDaAp } from "../../thanh-loc/thanh-loc";
-import { dkTabDon, nguoiLenUrl, nguoiTuUrl, tabTrangThai, thamSoNguoi, useLocTab } from "../dieu-kien-don";
+import { dkTabDon, mucLocNhanh, nguoiLenUrl, nguoiTuUrl, tabTrangThai, thamSoNguoi, useLocTab } from "../dieu-kien-don";
 import { LOC_TC_TRONG, MAN_TANG_CA, MOC_TC, useDieuKienDuyetTangCa, type LocTangCa } from "./dieu-kien-tang-ca";
 import { RowActionButton } from "../../../components/RowActionButton";
-import { RequestTable } from "./components/RequestTable";
+import { cotPhieuTc, RequestTable } from "./components/RequestTable";
 import { OvertimeFormModal } from "./modals/OvertimeFormModal";
 import { RejectModal } from "./modals/RejectModal";
 import { PAGE_SIZE } from "./shared/constants";
@@ -60,6 +60,8 @@ export function TangCaPage({
   const [tab, setTab] = useState<Tab>(canApprove && !tuPhucVu ? "approve" : "mine");
   const [mine, setMine] = useState<OvertimeRequest[]>([]);
   const [mineTotal, setMineTotal] = useState(0);
+  const luoiMine = useCauHinhLuoi("tang-ca-cua-toi");
+  const luoiQueue = useCauHinhLuoi("tang-ca-duyet");
   const [minePage, setMinePage] = useState(1);
   const [mineSize, setMineSize] = useState(PAGE_SIZE);
   const [hasEmployee, setHasEmployee] = useState(true);
@@ -240,55 +242,55 @@ export function TangCaPage({
   }
 
   return (
-    <div className="ns">
-      {/* `.ns__head` là flex ngang: để `h1` và đoạn mô tả làm HAI con trực tiếp thì chúng
-          nằm cạnh nhau, không phải trên–dưới. Bọc chung một `<div>` cho khớp mọi màn khác
-          trong nhóm (Hồ sơ nhân sự / Nghỉ phép / Nội quy) rồi mới thêm eyebrow. */}
-      <header className="ns__head">
-        <div>
-          <p className="eyebrow">Nhân sự &amp; Lương</p>
-          <h1 className="ns__title">Tăng ca</h1>
+    // Đầu trang theo khuôn lưới chung (phương án A, 08/10/2026): hàng `lds-dau` tên màn + nút chuyển
+    // "Phiếu của tôi | Duyệt phiếu" (đổi cả phần dưới, như Lịch | Bảng của Phiếu bảo trì) + nút chính
+    // dạt phải; dưới là thẻ `lds-loc`: hàng lọc nhanh trạng thái rồi thanh kỳ + Lọc. Bỏ eyebrow, bỏ
+    // tiêu đề phụ "Phiếu tăng ca của tôi" (nút chuyển đã nói), bỏ số đếm trên nút Duyệt phiếu (luật
+    // không badge số trên tab — còn phiếu chờ thì chấm cam, số nằm ở "Chờ duyệt" của hàng lọc).
+    <div className="ns lds tc-a">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Tăng ca</h1>
+        {tuPhucVu && canApprove && (
+          <div className="lds-xem" role="group" aria-label="Phiếu đang xem">
+            <button type="button" className={`lds-xem__nut${tab === "mine" ? " is-active" : ""}`}
+              aria-pressed={tab === "mine"} onClick={() => setTab("mine")}>
+              Phiếu của tôi
+            </button>
+            <button type="button" className={`lds-xem__nut${tab === "approve" ? " is-active" : ""}`}
+              aria-pressed={tab === "approve"} onClick={() => setTab("approve")}
+              title={pendingCount ? `${pendingCount} phiếu chờ duyệt` : undefined}>
+              Duyệt phiếu
+              {pendingCount > 0 && <i className="lds-xem__cham" aria-label={`${pendingCount} phiếu chờ duyệt`} />}
+            </button>
+          </div>
+        )}
+        {/* Hai chế độ không hiện cùng lúc nên màn chỉ có ĐÚNG một nút cam. */}
+        <div className="lds-dau__nut">
+          {tab === "mine" && tuPhucVu && hasEmployee && tuPhucVuGhi && (
+            <Button variant="accent" onClick={() => setCreating("mine")}>
+              + Gửi phiếu
+            </Button>
+          )}
+          {tab === "approve" && canApprove && (
+            <Button variant="accent" onClick={() => setCreating("for")}>
+              + Tạo hộ thợ
+            </Button>
+          )}
         </div>
       </header>
 
       {err && <div className="banner banner--error">{err}</div>}
 
-      <div className="tc-tabs">
-        {tuPhucVu && (
-          <button
-            className={`btn ${tab === "mine" ? "btn--primary" : "btn--ghost"}`}
-            onClick={() => setTab("mine")}
-          >
-            Phiếu của tôi
-          </button>
-        )}
-        {canApprove && (
-          <button
-            className={`btn ${tab === "approve" ? "btn--primary" : "btn--ghost"}`}
-            onClick={() => setTab("approve")}
-          >
-            Duyệt phiếu{pendingCount ? ` (${pendingCount})` : ""}
-          </button>
-        )}
-      </div>
-
       {tab === "mine" && tuPhucVu && (
         <>
-          <div className="cc-toolbar">
-            <h4 className="ns-section__title" style={{ margin: 0, flex: 1 }}>
-              Phiếu tăng ca của tôi
-            </h4>
-            {/* Hành động chính của tab → cam. Hai tab không bao giờ hiện cùng lúc nên màn
-                vẫn chỉ có ĐÚNG một nút cam. */}
-            {hasEmployee && tuPhucVuGhi && (
-              <Button variant="accent" onClick={() => setCreating("mine")}>
-                + Gửi phiếu
-              </Button>
-            )}
-          </div>
           {hasEmployee && (
-            <>
-              <div className="cc-toolbar tl-thanh">
+            <section className="lds-loc">
+              <LocNhanhTrangThai
+                dang={locMine.tt}
+                onChon={(tt) => setLocMine({ ...locMine, tt })}
+                muc={mucLocNhanh(demMine)}
+              />
+              <div className="lds-loc__thanh tl-thanh">
                 <ThanhLoc
                   ky={locMine.ky}
                   moc={MOC_TC}
@@ -297,15 +299,9 @@ export function TangCaPage({
                   loc={locMine}
                   onLoc={setLocMine}
                 />
+                <ChonCot cot={cotPhieuTc({ selectable: false, showEmployee: false })} {...luoiMine.chonCot} />
               </div>
-              <div style={{ marginBottom: 12 }}>
-                <StatusTabs
-                  tabs={tabTrangThai(demMine)}
-                  active={locMine.tt}
-                  onChange={(tt) => setLocMine({ ...locMine, tt })}
-                />
-              </div>
-            </>
+            </section>
           )}
           {!hasEmployee ? (
             <div className="tc-note">
@@ -318,6 +314,7 @@ export function TangCaPage({
             <RequestTable
               rows={mine}
               showEmployee={false}
+              luoi={luoiMine}
               selectable={false}
               selected={selected}
               onToggle={toggle}
@@ -369,18 +366,17 @@ export function TangCaPage({
                   />
                 ) : null
               }
-            />
-          )}
-          {/* Chân bảng CHỈ hiện khi có dòng (chuẩn §2.7) — lỗi/rỗng thì khối trong bảng đã nói
-              hết. Lúc tải trang kế vẫn giữ chân (nút khoá qua `loading`) để dãy số không nhảy chỗ. */}
-          {hasEmployee && !errMine && mineTotal > 0 && (
-            <PhanTrangDayDu
-              trang={minePage} size={mineSize} tong={mineTotal} soDong={mine.length}
-              loading={loadingMine}
-              donVi="phiếu"
-              onTrang={setMinePage}
-              onSize={(n) => { setMineSize(n); setMinePage(1); }}
-              ariaLabel="Phân trang phiếu tăng ca của tôi"
+              // Chân bảng CHỈ hiện khi có dòng (chuẩn §2.7); lúc tải trang kế vẫn giữ chân để dãy số không nhảy chỗ.
+              chan={!errMine && mineTotal > 0 && (
+                <PhanTrangDayDu
+                  trang={minePage} size={mineSize} tong={mineTotal} soDong={mine.length}
+                  loading={loadingMine}
+                  donVi="phiếu"
+                  onTrang={setMinePage}
+                  onSize={(n) => { setMineSize(n); setMinePage(1); }}
+                  ariaLabel="Phân trang phiếu tăng ca của tôi"
+                />
+              )}
             />
           )}
         </>
@@ -388,33 +384,26 @@ export function TangCaPage({
 
       {tab === "approve" && canApprove && (
         <>
-          <div className="cc-toolbar">
-            <h4 className="ns-section__title" style={{ margin: 0, flex: 1 }}>
-              {queueStatus === "pending" ? "Phiếu chờ duyệt trong phạm vi của bạn" : "Phiếu trong phạm vi của bạn"}
-            </h4>
-            <Button variant="accent" onClick={() => setCreating("for")}>
-              + Tạo hộ thợ
-            </Button>
-          </div>
-          {/* Bộ lọc ở HÀNG RIÊNG dưới tiêu đề: xếp chung một hàng với tiêu đề + nút "Tạo hộ thợ" thì màn
-              hẹp vỡ hàng lộn xộn. Đổi lọc ⇒ về trang 1 + bỏ các ô đã tick (thuộc danh sách cũ). */}
-          <div className="cc-toolbar tl-thanh">
-            <ThanhLoc
-              ky={locQueue.ky}
-              moc={MOC_TC}
-              onKy={(ky) => setLocQueue({ ...locQueue, ky })}
-              dieuKien={dkTabDon(dieuKienDuyet, tabTrangThai(demQueue))}
-              loc={locQueue}
-              onLoc={setLocQueue}
+          {/* Phạm vi duyệt (scope phòng ban) do máy chủ cắt — tổ trưởng chỉ thấy người trong tổ. Đổi lọc
+              ⇒ về trang 1 + bỏ các ô đã tick (thuộc danh sách cũ). */}
+          <section className="lds-loc">
+            <LocNhanhTrangThai
+              dang={queueStatus}
+              onChon={(tt) => setLocQueue({ ...locQueue, tt })}
+              muc={mucLocNhanh(demQueue)}
             />
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <StatusTabs
-              tabs={tabTrangThai(demQueue)}
-              active={queueStatus}
-              onChange={(tt) => setLocQueue({ ...locQueue, tt })}
-            />
-          </div>
+            <div className="lds-loc__thanh tl-thanh">
+              <ThanhLoc
+                ky={locQueue.ky}
+                moc={MOC_TC}
+                onKy={(ky) => setLocQueue({ ...locQueue, ky })}
+                dieuKien={dkTabDon(dieuKienDuyet, tabTrangThai(demQueue))}
+                loc={locQueue}
+                onLoc={setLocQueue}
+              />
+              <ChonCot cot={cotPhieuTc({ selectable: true, showEmployee: true })} {...luoiQueue.chonCot} />
+            </div>
+          </section>
           {selected.size > 0 && (
             <div className="tc-bulkbar">
               <span>Đã chọn {selected.size} phiếu</span>
@@ -449,6 +438,7 @@ export function TangCaPage({
           <RequestTable
             rows={queue}
             showEmployee
+            luoi={luoiQueue}
             selectable
             selected={selected}
             onToggle={toggle}
@@ -496,21 +486,21 @@ export function TangCaPage({
                 </>
               ) : null
             }
+            chan={!errQueue && queueTotal > 0 && (
+              <PhanTrangDayDu
+                trang={queuePage} size={queueSize} tong={queueTotal} soDong={queue.length}
+                loading={loadingQueue}
+                donVi="phiếu"
+                onTrang={setQueuePage}
+                onSize={(n) => { setQueueSize(n); setQueuePage(1); }}
+                // "Duyệt tất cả / Từ chối tất cả" chạy trên `selected`, mà ô tick chỉ có ở dòng
+                // của trang đang xem ⇒ nói thẳng giới hạn đó, đừng để tổ trưởng tưởng đã dọn
+                // sạch cả hàng đợi.
+                ghiChu={queueTotal > queueSize ? "duyệt hàng loạt chỉ áp cho trang đang xem" : undefined}
+                ariaLabel="Phân trang phiếu tăng ca cần duyệt"
+              />
+            )}
           />
-          {!errQueue && queueTotal > 0 && (
-            <PhanTrangDayDu
-              trang={queuePage} size={queueSize} tong={queueTotal} soDong={queue.length}
-              loading={loadingQueue}
-              donVi="phiếu"
-              onTrang={setQueuePage}
-              onSize={(n) => { setQueueSize(n); setQueuePage(1); }}
-              // "Duyệt tất cả / Từ chối tất cả" chạy trên `selected`, mà ô tick chỉ có ở dòng
-              // của trang đang xem ⇒ nói thẳng giới hạn đó, đừng để tổ trưởng tưởng đã dọn
-              // sạch cả hàng đợi.
-              ghiChu={queueTotal > queueSize ? "duyệt hàng loạt chỉ áp cho trang đang xem" : undefined}
-              ariaLabel="Phân trang phiếu tăng ca cần duyệt"
-            />
-          )}
         </>
       )}
 

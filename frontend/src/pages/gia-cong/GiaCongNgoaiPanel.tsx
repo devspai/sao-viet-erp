@@ -25,6 +25,7 @@ import { useAuth } from "../../auth/useAuth";
 import { useCan } from "../../auth/permissions";
 import { ChungTuKhoNoi, type ChungTuKho } from "./ChungTuKhoNoi";
 import { Button } from "../../components/Button";
+import { ChonNgay } from "../../components/ChonNgay";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Icon } from "../../components/Icons";
 import { nhanDonVi } from "../lsxBuoc";
@@ -526,12 +527,12 @@ export function GiaCongNgoaiPanel({
                 {f.noiVe === "khach" && (
                   <label className="gcn__chot-o">
                     <span className="gcn__chot-nhan">Khách nhận ngày</span>
-                    <input
-                      type="date"
+                    <ChonNgay
+                      aria-label="Khách nhận ngày"
                       value={f.nhan}
                       min={l.tao_luc ? ngayIsoVn(new Date(l.tao_luc)) : undefined}
                       max={ngayIsoVn()}
-                      onChange={(e) => setChot((m) => ({ ...m, [l.id]: { ...f, nhan: e.target.value } }))}
+                      onChange={(v) => setChot((m) => ({ ...m, [l.id]: { ...f, nhan: v } }))}
                     />
                     <small className="gcn__phu">Theo biên bản khách ký mà nhà gia công gửi về.</small>
                   </label>

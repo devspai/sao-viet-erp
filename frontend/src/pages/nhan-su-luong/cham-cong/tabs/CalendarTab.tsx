@@ -379,6 +379,7 @@ export function CalendarTab({ token }: { token: string }) {
           token={token}
           special={editing === "new" ? null : editing}
           year={year}
+          daKhai={special?.items ?? []}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);

@@ -1,5 +1,5 @@
 // Tab "Đơn của tôi" (tách từ pages/NghiPhepPage.tsx).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   api,
   ApiError,
@@ -11,11 +11,11 @@ import { Button } from "../../../../components/Button";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
 import { trangHopLe } from "../../../../components/Pager";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
-import { StatusTabs } from "../../../../components/StatusTabs";
 import { ThanhLoc } from "../../../thanh-loc/ThanhLoc";
 import { thamSoKy } from "../../../thanh-loc/ky-danh-sach";
 import { soDaAp } from "../../../thanh-loc/thanh-loc";
-import { dkTabDon, tabTrangThai, useLocTab } from "../../dieu-kien-don";
+import { dkTabDon, mucLocNhanh, tabTrangThai, useLocTab } from "../../dieu-kien-don";
+import { ChonCot, LocNhanhTrangThai, useCauHinhLuoi } from "../../../../components/LuoiDs";
 import {
   LOC_NP_TRONG,
   MAN_NGHI_PHEP,
@@ -28,7 +28,7 @@ import {
 } from "../dieu-kien-nghi-phep";
 import { Info, Plus } from "lucide-react";
 import { fmtDate } from "../../../../utils/format";
-import { LeaveTable } from "../components/LeaveTable";
+import { cotDonNghi, LeaveTable } from "../components/LeaveTable";
 import { LeaveRequestDetailModal } from "../modals/LeaveRequestDetailModal";
 import { LeaveRequestFormModal } from "../modals/LeaveRequestFormModal";
 import { PAGE_SIZE } from "../shared/constants";
@@ -37,8 +37,10 @@ import { homNayYmd, LyDoDialog } from "../../xin-huy/XinHuy";
 
 // --- Tab: Đơn của tôi -------------------------------------------------------
 
-export function MyLeaveTab({ token, onChanged, coQuyenGhi, coQuyenHuy, eventTick }: {
+export function MyLeaveTab({ token, dau, onChanged, coQuyenGhi, coQuyenHuy, eventTick }: {
   token: string;
+  /** Hàng đầu màn do trang dựng; phần này chỉ gài nút chính vào bên phải. */
+  dau: (phai?: ReactNode) => ReactNode;
   onChanged?: () => void;
   /** Nhích theo mỗi sự kiện real-time — người duyệt quyết xin hủy thì bảng tự tươi (23/09/2026). */
   eventTick?: number;
@@ -50,6 +52,7 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, coQuyenHuy, eventTick
   const [hasEmp, setHasEmp] = useState<boolean | null>(null);
   const [items, setItems] = useState<LeaveRequest[]>([]);
   const [total, setTotal] = useState(0);
+  const luoi = useCauHinhLuoi("nghi-phep-cua-toi");
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(PAGE_SIZE);
   const [dem, setDem] = useState<Record<string, number> | null>(null);
@@ -216,83 +219,63 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, coQuyenHuy, eventTick
     : null;
 
   if (hasEmp === false) {
-    return <div className="banner banner--warn" style={{ marginTop: 12 }}>
-      Tài khoản của bạn <strong>chưa gắn hồ sơ nhân viên</strong> nên không tạo đơn nghỉ được. Liên hệ HCNS.
-    </div>;
+    return <>
+      {dau()}
+      <div className="banner banner--warn">
+        Tài khoản của bạn <strong>chưa gắn hồ sơ nhân viên</strong> nên không tạo đơn nghỉ được. Liên hệ HCNS.
+      </div>
+    </>;
   }
 
   return (
-    <div>
-      {quotas.length > 0 ? (
-        <div className="cc-leave-header-strip">
-          <div className="cc-quota-chips">
-            {quotas.map((q) => {
-              const isLow = q.remaining <= 0;
-              const isMedium = q.remaining > 0 && q.remaining <= 2;
-              const tone = isLow ? "low" : isMedium ? "medium" : "high";
-              return (
-                <div key={q.leave_type_id} className={`cc-quota-chip cc-quota-chip--${tone}`}>
-                  <span className="cc-quota-chip-label">{q.name}</span>
-                  <span className="cc-quota-chip-val">
-                    còn <strong>{q.remaining}</strong>/{q.annual_quota} ngày
-                  </span>
-                  <span className="cc-quota-chip-sub">
-                    (đã dùng {q.used - (q.pending ?? 0)} ngày
-                    {(q.pending ?? 0) > 0 ? ` · đang chờ ${q.pending}` : ""})
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="cc-leave-header-right">
-            <span className="cc-note-inline">
-              <Info size={13} className="cc-note-inline-icon" />
-              <span>Click dòng để xem chi tiết</span>
+    <>
+      {/* Hành động chính của phần → cam, gài lên hàng đầu màn. */}
+      {dau(coQuyenGhi ? (
+        <Button variant="accent" onClick={() => { setIsCreateOpen(true); setError(null); }}>
+          <Plus size={15} />
+          <span>Xin nghỉ phép</span>
+        </Button>
+      ) : undefined)}
+      {/* Phép còn lại + gợi ý bấm dòng: một hàng chữ nhỏ dưới đầu màn, không đóng hộp. */}
+      <div className="np-han">
+        {quotas.map((q) => {
+          const tone = q.remaining <= 0 ? "low" : q.remaining <= 2 ? "medium" : "high";
+          return (
+            <span key={q.leave_type_id} className={`np-han__muc np-han__muc--${tone}`}>
+              <span className="np-han__ten">{q.name}</span>
+              <span>còn <b>{q.remaining}</b>/{q.annual_quota} ngày</span>
+              <span className="np-han__phu">
+                đã dùng {q.used - (q.pending ?? 0)} ngày
+                {(q.pending ?? 0) > 0 ? `, đang chờ ${q.pending}` : ""}
+              </span>
             </span>
-            {/* Hành động chính của tab → cam. Lớp cũ `cc-btn-cta-compact` ép navy bằng 6
-                dòng `!important`, gỡ nó ra là mất luôn hình dạng nút ⇒ thay bằng
-                `ns-btn-cta` (chỉ giữ dáng: đậm chữ + không rớt dòng, KHÔNG khai màu). */}
-            {coQuyenGhi && (
-              <Button variant="accent" className="ns-btn-cta" onClick={() => { setIsCreateOpen(true); setError(null); }}>
-                <Plus size={15} />
-                <span>Xin nghỉ phép</span>
-              </Button>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="cc-leave-header-strip cc-leave-header-strip--simple">
-          <span className="cc-note-inline">
-            <Info size={13} className="cc-note-inline-icon" />
-            <span>Click vào dòng bản ghi để xem chi tiết tiến trình đơn</span>
-          </span>
-          {coQuyenGhi && (
-            <Button variant="accent" className="ns-btn-cta" onClick={() => { setIsCreateOpen(true); setError(null); }}>
-              <Plus size={15} />
-              <span>Xin nghỉ phép</span>
-            </Button>
-          )}
-        </div>
-      )}
+          );
+        })}
+        <span className="cc-note-inline np-han__goi-y">
+          <Info size={13} className="cc-note-inline-icon" />
+          <span>Bấm vào dòng để xem chi tiết tiến trình đơn</span>
+        </span>
+      </div>
 
-      <div className="cc-ts-toolbar tl-thanh">
-        <ThanhLoc
-          ky={locTab.ky}
-          moc={MOC_NP}
-          onKy={(ky) => setLocTab({ ...locTab, ky })}
-          dieuKien={dkTabDon(dieuKien, tabTrangThai(dem))}
-          loc={locTab}
-          onLoc={setLocTab}
-        />
-      </div>
-      <div style={{ marginBottom: 12 }}>
-        <StatusTabs tabs={tabTrangThai(dem)} active={locTab.tt} onChange={(tt) => setLocTab({ ...locTab, tt })} />
-      </div>
-      {actErr && <div className="banner banner--error" style={{ marginBottom: 12 }}>{actErr}</div>}
+      <section className="lds-loc">
+        <LocNhanhTrangThai dang={locTab.tt} onChon={(tt) => setLocTab({ ...locTab, tt })} muc={mucLocNhanh(dem)} />
+        <div className="lds-loc__thanh tl-thanh">
+          <ThanhLoc
+            ky={locTab.ky}
+            moc={MOC_NP}
+            onKy={(ky) => setLocTab({ ...locTab, ky })}
+            dieuKien={dkTabDon(dieuKien, tabTrangThai(dem))}
+            loc={locTab}
+            onLoc={setLocTab}
+          />
+          <ChonCot cot={cotDonNghi({ showEmployee: false })} {...luoi.chonCot} />
+        </div>
+      </section>
+      {actErr && <div className="banner banner--error">{actErr}</div>}
       <LeaveTable
         items={items}
         showEmployee={false}
+        luoi={luoi}
         onCancel={coQuyenHuy ? cancel : undefined}
         onXinHuy={coQuyenHuy ? (r) => { setXinHuyErr(null); setXinHuyDon(r); } : undefined}
         onRutLaiXinHuy={coQuyenHuy ? rutLai : undefined}
@@ -302,20 +285,17 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, coQuyenHuy, eventTick
         onRetry={load}
         emptyTitle={coLoc ? "Không có đơn nào khớp bộ lọc" : undefined}
         emptySub={coLoc ? "Đổi kỳ, chọn tab Tất cả hoặc bỏ điều kiện lọc ở trên." : undefined}
+        chan={!listError && total > 0 && (
+          <PhanTrangDayDu
+            trang={page} size={size} tong={total} soDong={items.length}
+            loading={loadingList}
+            donVi="đơn"
+            onTrang={setPage}
+            onSize={(n) => { setSize(n); setPage(1); }}
+            ariaLabel="Phân trang đơn nghỉ của tôi"
+          />
+        )}
       />
-
-      {/* Chân bảng CHỈ hiện khi có dòng (chuẩn §2.7) — lỗi/rỗng thì khối trong bảng đã nói hết.
-          Lúc tải trang kế vẫn giữ chân (nút khoá qua `loading`) để dãy số không nhảy chỗ. */}
-      {!listError && total > 0 && (
-        <PhanTrangDayDu
-          trang={page} size={size} tong={total} soDong={items.length}
-          loading={loadingList}
-          donVi="đơn"
-          onTrang={setPage}
-          onSize={(n) => { setSize(n); setPage(1); }}
-          ariaLabel="Phân trang đơn nghỉ của tôi"
-        />
-      )}
 
       {isCreateOpen && (
         <LeaveRequestFormModal 
@@ -407,6 +387,6 @@ export function MyLeaveTab({ token, onChanged, coQuyenGhi, coQuyenHuy, eventTick
           </div>
         )}
       </ConfirmDialog>
-    </div>
+    </>
   );
 }

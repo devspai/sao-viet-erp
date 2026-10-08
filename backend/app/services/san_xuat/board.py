@@ -299,8 +299,8 @@ def _item_dict(cv, lsx_map, bg_map, may_map, nhom_map, phien_map=None, so_map=No
         "nhom_cong_doan": cv.nhom_cong_doan,
         "loai_buoc": cv.loai_buoc,
         "la_kcs_cuoi": cv.la_kcs_cuoi,
-        # Dấu KCS trên thẻ việc (KCS theo lệnh): số lần kiểm + Σ đạt/lỗi. Chỗ gọi không nạp
-        # `kcs_map` thì để 0 — drawer đọc chi tiết qua mục "Kết quả KCS".
+        # Dấu KCS trên thẻ việc (KCS theo lệnh): số lần kiểm + Σ đạt + Σ lỗi do việc này gây. Chỗ
+        # gọi không nạp `kcs_map` thì để 0 — drawer đọc chi tiết qua mục "Kết quả KCS".
         "kcs_so_lan": (kcs_map or {}).get(cv.id, (0, 0.0, 0.0))[0],
         "kcs_dat": (kcs_map or {}).get(cv.id, (0, 0.0, 0.0))[1],
         "kcs_loi": (kcs_map or {}).get(cv.id, (0, 0.0, 0.0))[2],
@@ -397,7 +397,15 @@ def _dung_items(db: Session, repo: SanXuatRepository, rows: list,
     cv_ids = {cv.id for cv in rows}
     so_map = _so_lieu_map(db, sl_repo, rows, sl_repo.tong_tot_nhieu(cv_ids),
                           sl_repo.tong_thuc_nhan_nhieu(cv_ids))
-    kcs_map = SanXuatKcsRepository(db).tong_kiem_nhieu(cv_ids)
+    kcs_repo = SanXuatKcsRepository(db)
+    kiem = kcs_repo.tong_kiem_nhieu(cv_ids)
+    # Chip lỗi trên thẻ việc tính lỗi DO công đoạn này gây (08/10/2026), kể cả KCS bắt ở bước sau —
+    # không phải lỗi KCS bắt được tại đây mà quy về bước khác.
+    loi_do = kcs_repo.loi_do_cong_doan_nhieu(cv_ids)
+    kcs_map = {
+        cid: (kiem.get(cid, (0, 0.0, 0.0))[0], kiem.get(cid, (0, 0.0, 0.0))[1], loi_do.get(cid, 0.0))
+        for cid in set(kiem) | set(loi_do)
+    }
     return [
         _item_dict(cv, lsx_map, bg_map, may_map, nhom_map, phien_map, so_map, chay_ids, kcs_map,
                    khach_map)

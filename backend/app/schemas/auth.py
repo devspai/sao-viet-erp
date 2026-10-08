@@ -101,6 +101,7 @@ class ModuleCapability(BaseModel):
     can_run_order: bool = False          # dòng quyền theo tổ — Thực hiện lệnh
     can_confirm_output: bool = False     # dòng quyền theo tổ — Xác nhận sản lượng
     can_warehouse: bool = False          # dòng quyền theo tổ — Kho
+    can_close_short: bool = False        # dòng quyền theo tổ KCS — Đóng lệnh thiếu
     # cham_cong (mg 0194) — MỘT Ô = MỘT TAB. ⚠️ `response_model` của FastAPI CẮT BỎ mọi field
     # không khai ở đây: thiếu một dòng thì cờ vẫn nằm trong `capabilities()` mà KHÔNG tới được
     # trình duyệt. Đúng chỗ lọt ngày 15/08/2026.

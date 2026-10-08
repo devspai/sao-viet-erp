@@ -7,7 +7,7 @@
  */
 import type { PaymentVoucherRow } from "../../../../api/client";
 import { EmptyRow } from "../../../../components/EmptyState";
-import { CuonLuoi, ChipTT, rongLuoi, soCotGhim, soVN, type CotLuoi } from "../../../../components/LuoiDs";
+import { CuonLuoi, ChipTT, rongLuoi, soCotGhim, type CauHinhLuoi, soVN, type CotLuoi } from "../../../../components/LuoiDs";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { diChuyen } from "../../shared/BangPhieu";
 import { ngay, ngayGio } from "../../shared/dinhDang";
@@ -98,6 +98,7 @@ function OPhieuChi({ cot, row, onMoDonMua }: {
 
 export function VouchersTable({
   cot,
+  luoi,
   rows,
   loading,
   loi,
@@ -118,6 +119,8 @@ export function VouchersTable({
 }: {
   /** Cột đang hiện, đã xếp theo thứ tự người xem chọn. */
   cot: CotPhieuChi[];
+  /** Cấu hình lưới của màn cha — có thì ghim + kéo độ rộng được. */
+  luoi?: CauHinhLuoi;
   rows: PaymentVoucherRow[];
   loading: boolean;
   /** Lỗi tải danh sách — bảng rỗng thì nói "không tải được", không nói "chưa có". */
@@ -145,13 +148,13 @@ export function VouchersTable({
   const viTriTien = cot.findIndex((c) => c.key === "so_tien");
   return (
     <div className="lds-sheet" aria-busy={loading || undefined}>
-      <CuonLuoi ghim={soCotGhim(cot)}>
+      <CuonLuoi ghim={soCotGhim(cot, luoi?.ghim)}>
         <table className="lds-g" style={{ minWidth: rongLuoi(cot) }}>
           <colgroup>
             {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
           </colgroup>
           <thead>
-            <tr>{cot.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}</th>)}</tr>
+            <tr>{cot.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}{luoi?.keo(c.key)}</th>)}</tr>
           </thead>
           <tbody>
             {loading && rows.length === 0 ? (
