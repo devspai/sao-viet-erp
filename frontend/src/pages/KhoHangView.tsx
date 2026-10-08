@@ -9,7 +9,6 @@ export function KhoHangView({ ten, ma }: { ten: string; ma?: string }) {
           <h1 className="rc__title">{ten}</h1>
           {ma && <span className="rc__code-badge">{ma}</span>}
         </div>
-        <p className="rc__sub">Thông tin danh tính và cấu hình quản lý kho vật lý.</p>
       </header>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "var(--sp-4)", marginBottom: "var(--sp-6)" }}>

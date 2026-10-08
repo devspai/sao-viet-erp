@@ -5,8 +5,9 @@
 // xuất ngắn (vài chục), bày hết ra bấm một nhát nhanh hơn mở menu từng lần. Lưu ID (khác ô nhóm máy
 // lưu tên).
 //
-// Tổ đang chọn mà KHÔNG còn trong danh sách (bị xoá khỏi cây tổ chức) vẫn hiện thành chip đã bật,
-// đánh dấu "đã xoá" — bỏ nó đi ngầm thì bấm Lưu là mất dấu việc từng thuộc tổ nào mà không ai hay.
+// Tổ đang chọn mà KHÔNG còn trong danh sách (bị xoá khỏi cây tổ chức, hoặc đã có tổ con nên thôi là
+// nút lá) vẫn hiện thành chip đã bật để người khai tự gỡ — bỏ nó đi ngầm thì bấm Lưu là mất dấu việc
+// từng thuộc tổ nào mà không ai hay.
 import type { Row } from "../types";
 
 export function ToMultiField({ value, options, nhanDau, onChange }: {
@@ -37,9 +38,9 @@ export function ToMultiField({ value, options, nhanDau, onChange }: {
         );
       })}
       {daXoa.map((id) => (
-        <label key={id} className="seg is-active" title="Tổ này không còn trong cây tổ chức — bỏ chọn để gỡ">
+        <label key={id} className="seg is-active" title="Không còn là tổ (đã xoá hoặc đã có tổ con) — bỏ chọn để gỡ">
           <input type="checkbox" checked onChange={() => toggle(id)} />
-          Tổ #{id} (đã xoá)
+          Tổ #{id} (không còn trong danh sách)
           {id === dau && <span className="rc-to-multi__dau"> · {nhanDau}</span>}
         </label>
       ))}

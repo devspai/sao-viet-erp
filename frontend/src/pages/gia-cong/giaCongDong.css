@@ -21,11 +21,11 @@
 }
 .gcd__chip--mo,
 .gcd__chip--dang_o_ngoai,
-.gcd__chip--dang_gia_cong { background: var(--amber-soft); color: var(--amber-deep); border-color: #e3d3a4; }
+.gcd__chip--dang_gia_cong { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); }
 .gcd__chip--xong,
-.gcd__chip--da_xong { background: var(--moss-soft); color: var(--moss); }
-.gcd__chip--cho_mang_di { background: var(--steel-soft); color: var(--steel); }
-.gcd__chip--cho-giay { background: #fff; color: var(--amber-deep); border-color: var(--amber); }
+.gcd__chip--da_xong { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.gcd__chip--cho_mang_di { background: var(--tt-cham-bg); color: var(--tt-cham-fg); }
+.gcd__chip--cho-giay { background: #fff; color: var(--tt-vang-fg); border-color: var(--tt-vang-dot); }
 .gcd__chip--nho { font-size: 11px; font-weight: 500; padding: 1px 7px; margin-top: 2px; }
 .gcd__viec {
   overflow: hidden;
@@ -41,8 +41,9 @@
   white-space: nowrap;
   max-width: 100%;
 }
-.gcd__pill--mo { background: var(--amber-soft); color: var(--amber-deep); border: 1px solid #e3d3a4; }
-.gcd__pill--xong { background: var(--moss-soft); color: var(--moss); border: 1px solid var(--moss-soft); }
+/* Trọn gói thay "Đã phát hành" ⇒ không trùng sắc lá của nó: ở ngoài = vàng (chờ bên khác), về = ngọc. */
+.gcd__pill--mo { background: var(--tt-vang-bg); color: var(--tt-vang-fg); --pill-dot: var(--tt-vang-dot); }
+.gcd__pill--xong { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); --pill-dot: var(--tt-ngoc-dot); }
 
 /* Máy cảm ứng / màn hẹp: chữ không bị cắt mất phần trạng thái — xuống dòng thay vì ellipsis. */
 @media (max-width: 640px) {

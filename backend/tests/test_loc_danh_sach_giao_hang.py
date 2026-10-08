@@ -179,3 +179,34 @@ def test_bang_giao_loc_xe(client):
     assert _ma_chuyen(r) == {t["request_code"]} and r["so_don"] == 1
     ds_xe = client.get(f"{GOC}/bang-giao/loc-xe", headers=h).json()
     assert [(x["id"], x["ten"], x["so"]) for x in ds_xe] == [(xe, "51D-853.66", 1)]
+
+
+def test_loc_nhanh_han_can_giao_va_so_dem(client):
+    """Hàng lọc nhanh "Cần giao" của tab Yêu cầu giao: lọc + đếm theo hạn ở máy chủ (07/10/2026)."""
+    h = _admin(client)
+    qua = _yc(client, h, "HQ", ngay=date.today() + timedelta(days=1))
+    nay = _yc(client, h, "HN", ngay=date.today() + timedelta(days=1))
+    mai = _yc(client, h, "HM", ngay=date.today() + timedelta(days=1))
+    sau = _yc(client, h, "HS", ngay=date.today() + timedelta(days=9))
+    # Ngày cần giao ghi thẳng (ô tạo yêu cầu có thể chặn ngày quá khứ).
+    _dat(DeliveryRequest, qua["id"], ngay_can_giao=date.today() - timedelta(days=2))
+    _dat(DeliveryRequest, nay["id"], ngay_can_giao=date.today())
+    r = _cho(client, h, han="hom_nay")
+    assert [x["code"] for x in r["items"]] == [nay["code"]] and r["total"] == 1
+    assert r["dem_han"] == {"qua_han": 1, "hom_nay": 1, "ngay_mai": 1, "sau": 1}
+    assert [x["code"] for x in _cho(client, h, han="qua_han")["items"]] == [qua["code"]]
+    assert [x["code"] for x in _cho(client, h, han="ngay_mai")["items"]] == [mai["code"]]
+    assert [x["code"] for x in _cho(client, h, han="sau")["items"]] == [sau["code"]]
+
+
+def test_bang_giao_dem_theo_nhom_tinh_trang(client):
+    """Tab Đơn giao hàng: số đơn giao theo nhóm tình trạng, bỏ qua chính ô Trạng thái đang lọc."""
+    h = _admin(client)
+    a = _yc(client, h, "NA")
+    b = _yc(client, h, "NB")
+    _len_kh(client, h, a["id"], _tai_xe("Tai xe nhom A"), ngay=1)
+    tb = _len_kh(client, h, b["id"], _tai_xe("Tai xe nhom B"), ngay=1).json()["trip"]
+    _dat(DeliveryTrip, tb["id"], trang_thai="thanh_cong")
+    r = _bang(client, h, trang_thai=["thanh_cong"])
+    assert _ma_chuyen(r) == {b["code"]}
+    assert r["dem_tinh_trang"] == {"chuan_bi": 1, "dang_giao": 0, "da_giao": 1, "giao_thieu": 0, "that_bai": 0}

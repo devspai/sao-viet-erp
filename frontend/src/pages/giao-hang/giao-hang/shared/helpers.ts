@@ -3,6 +3,47 @@ import type { CaLuotKetQua, DeliveryTrip, LuotXeChiTiet } from "../../../../api/
 import { api } from "../../../../api/client";
 import { NHAN_TRANG_THAI_CHUYEN } from "./constants";
 
+/** Sắc của pill trạng thái — bộ màu chip chung `--tt-*` (tokens.css). "on"/"off"/"warn" là ba tông
+ *  chung (xong lá · dừng/huỷ xám · chờ vàng) cho các pill một-hai trạng thái. */
+export type GhTone =
+  | "on" | "off" | "warn"
+  | "xanh" | "cyan" | "cham" | "tim" | "ngoc" | "cam" | "do" | "vang" | "xam" | "la" | "slate";
+
+/** Mỗi trạng thái chuyến một màu — liếc là biết chuyến đang ở đâu. */
+const TONE_CHUYEN: Record<string, GhTone> = {
+  da_len_ke_hoach: "xanh",
+  dang_chuan_bi: "tim",
+  da_lay_hang: "cham",
+  dang_giao: "cyan",
+  thanh_cong: "la",
+  giao_thieu: "cam",
+  hen_lai: "vang",
+  that_bai: "do",
+  dang_tra_hang: "ngoc",
+  da_tra_hang: "slate",
+  da_huy: "xam",
+};
+
+/** Màu trạng thái YÊU CẦU giao — dùng chung drawer Giao hàng. */
+export const TONE_YC: Record<string, GhTone> = {
+  cho_len_ke_hoach: "vang",
+  dang_thuc_hien: "cyan",
+  da_giao_du: "la",
+  giao_thieu: "cam",
+  that_bai: "do",
+  chuyen_da_huy: "tim",
+  da_huy: "xam",
+};
+
+/** Màu trạng thái NHÂN VIÊN giao hàng. */
+export const TONE_NV: Record<string, GhTone> = {
+  ranh: "la",
+  co_lich: "xanh",
+  dang_giao: "cyan",
+  dang_tra_hang: "ngoc",
+  nghi: "xam",
+};
+
 /** Nhãn trạng thái của MỘT chuyến — MỘT hàm cho MỌI chỗ render.
  *
  *  Kho lập phiếu xong ⇒ hàng đã soạn, tài xế tới lấy được, nên chữ đổi thành "Kho đã chuẩn bị
@@ -16,10 +57,8 @@ export function nhanChuyen(t: { trang_thai: string; kho_da_lap_phieu?: boolean }
   return NHAN_TRANG_THAI_CHUYEN[t.trang_thai] ?? t.trang_thai;
 }
 
-export function toneChuyen(tt: string): "on" | "off" | "warn" {
-  if (tt === "thanh_cong") return "on";
-  if (tt === "that_bai" || tt === "da_huy") return "off";
-  return "warn";
+export function toneChuyen(tt: string): GhTone {
+  return TONE_CHUYEN[tt] ?? "slate";
 }
 
 /** Chuyến CHƯA có kết quả giao. */
@@ -73,14 +112,14 @@ export function ngayIso(v?: string | null): string | null {
   return d ? d.toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }) : null;
 }
 
-/** Ngày khách nhận so với ngày hẹn: "Sớm 26 ngày" / "Trễ 3 ngày" / "Đúng hẹn". */
+/** Ngày khách nhận so với ngày hẹn: "Trước hẹn 26 ngày" / "Trễ 3 ngày" / "Đúng hẹn". */
 export function soVoiHen(hen?: string | null, nhan?: string | null): { text: string; tre: boolean } | null {
   const a = ngayIso(hen);
   const b = ngayIso(nhan);
   if (!a || !b) return null;
   const n = Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
   if (n === 0) return { text: "Đúng hẹn", tre: false };
-  return n < 0 ? { text: `Sớm ${-n} ngày`, tre: false } : { text: `Trễ ${n} ngày`, tre: true };
+  return n < 0 ? { text: `Trước hẹn ${-n} ngày`, tre: false } : { text: `Trễ ${n} ngày`, tre: true };
 }
 
 /** Địa chỉ rút gọn cho bảng: bỏ số nhà/đường đầu và tỉnh/thành cuối, giữ khu + phường/xã — đủ để
@@ -102,16 +141,16 @@ export function sdtDoc(s: string): string {
 }
 
 /** Trạng thái CẢ lượt — một câu, đọc từ số đếm máy chủ trả (không tự suy từ từng dòng hai kiểu). */
-export function trangThaiLuot(l: LuotXeChiTiet): { text: string; tone: "on" | "warn" } {
+export function trangThaiLuot(l: LuotXeChiTiet): { text: string; tone: GhTone } {
   if (l.ve_kho_luc) return { text: "Đã về kho", tone: "on" };
   if (l.cho_ve_kho) return { text: "Chờ về kho", tone: "warn" };
-  if (l.so_dang_giao > 0) return { text: "Đang giao", tone: "warn" };
-  if (l.so_cho_bat_dau > 0) return { text: "Đã lấy hàng", tone: "warn" };
+  if (l.so_dang_giao > 0) return { text: "Đang giao", tone: "cyan" };
+  if (l.so_cho_bat_dau > 0) return { text: "Đã lấy hàng", tone: "cham" };
   if (l.so_cho_lay_hang > 0) {
     const xong = l.diem.every((t) => t.trang_thai !== "dang_chuan_bi" || t.kho_da_lap_phieu);
-    return { text: xong ? "Kho đã chuẩn bị xong" : "Kho đang chuẩn bị", tone: "warn" };
+    return { text: xong ? "Kho đã chuẩn bị xong" : "Kho đang chuẩn bị", tone: xong ? "ngoc" : "tim" };
   }
-  return { text: "Chờ gửi kho", tone: "warn" };
+  return { text: "Chờ gửi kho", tone: "slate" };
 }
 
 export const coKetQua = (t: DeliveryTrip) => !CHUA_KET_QUA.includes(t.trang_thai);
@@ -146,4 +185,25 @@ export function buocLuot(l: LuotXeChiTiet, canPlan: boolean, canWrite: boolean):
   }
   if (canWrite && l.cho_ve_kho) ds.push({ nhan: "Về kho", form: "ve_kho" });
   return ds;
+}
+
+/** "2026-10-07" → "07/10/2026" — ngày thuần, không qua Date để khỏi lệch múi. */
+export function ngayThuan(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return d && m && y ? `${d}/${m}/${y}` : iso;
+}
+
+/** Hạn giao nói theo hôm nay: quá hạn / hôm nay / ngày mai có pill, xa hơn chỉ ghi ngày. */
+export function hanGiao(iso: string | null | undefined, homNay = new Date()):
+  { text: string; tone: GhTone | null } {
+  if (!iso) return { text: "—", tone: null };
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return { text: iso, tone: null };
+  const han = Date.UTC(y, m - 1, d);
+  const nay = Date.UTC(homNay.getFullYear(), homNay.getMonth(), homNay.getDate());
+  const lech = Math.round((han - nay) / 86_400_000);
+  if (lech < 0) return { text: `Quá hạn ${-lech} ngày`, tone: "do" };
+  if (lech === 0) return { text: "Hôm nay", tone: "vang" };
+  if (lech === 1) return { text: "Ngày mai", tone: "xanh" };
+  return { text: ngayThuan(iso), tone: null };
 }

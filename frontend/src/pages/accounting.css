@@ -2647,52 +2647,31 @@ td.acct-count-cell {
   flex: 0 0 6px;
 }
 
-/* Tone màu sắc nét cho từng trạng thái đơn mua hàng */
-.acct-dmh__state--pending {
-  background: #fffbe3;
-  color: #9c7714;
-  border-color: #efe4c4;
-}
-.acct-dmh__state--pending .acct-dmh__dot {
-  background: #9c7714;
-  box-shadow: 0 0 6px rgba(156, 119, 20, 0.4);
-}
-
-.acct-dmh__state--approved,
-.acct-dmh__state--purchased {
-  background: #f0f4f8;
-  color: #2b4c6f;
-  border-color: #d0dbe5;
-}
-.acct-dmh__state--approved .acct-dmh__dot,
-.acct-dmh__state--purchased .acct-dmh__dot {
-  background: #2b4c6f;
-}
-
-.acct-dmh__state--partial,
-.acct-dmh__state--received,
-.acct-dmh__state--paid {
-  background: #edf6f0;
-  color: #2f5d3a;
-  border-color: #cbe3d2;
-}
-.acct-dmh__state--partial .acct-dmh__dot,
-.acct-dmh__state--received .acct-dmh__dot,
-.acct-dmh__state--paid .acct-dmh__dot {
-  background: #2f5d3a;
-  box-shadow: 0 0 6px rgba(47, 93, 58, 0.4);
-}
-
-.acct-dmh__state--rejected,
-.acct-dmh__state--cancelled {
-  background: #fdf0f0;
-  color: #8a1f1f;
-  border-color: #f3cece;
-}
-.acct-dmh__state--rejected .acct-dmh__dot,
-.acct-dmh__state--cancelled .acct-dmh__dot {
-  background: #8a1f1f;
-}
+/* Tone trạng thái đơn mua hàng — mỗi trạng thái một sắc từ bộ chip chung --tt-* (tokens.css):
+   nháp slate · chờ Thu mua chàm · Thu mua đang lập tím · chờ duyệt vàng · đã duyệt xanh dương ·
+   đang mua cyan · giao một phần cam · đã nhận/đã chi lá · từ chối đỏ · đã hủy xám. */
+.acct-dmh__state--draft { background: var(--tt-slate-bg); color: var(--tt-slate-fg); border-color: transparent; }
+.acct-dmh__state--draft .acct-dmh__dot { background: var(--tt-slate-dot); }
+.acct-dmh__state--open { background: var(--tt-cham-bg); color: var(--tt-cham-fg); border-color: transparent; }
+.acct-dmh__state--open .acct-dmh__dot { background: var(--tt-cham-dot); }
+.acct-dmh__state--drafting { background: var(--tt-tim-bg); color: var(--tt-tim-fg); border-color: transparent; }
+.acct-dmh__state--drafting .acct-dmh__dot { background: var(--tt-tim-dot); }
+.acct-dmh__state--pending { background: var(--tt-vang-bg); color: var(--tt-vang-fg); border-color: transparent; }
+.acct-dmh__state--pending .acct-dmh__dot { background: var(--tt-vang-dot); }
+.acct-dmh__state--approved { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); border-color: transparent; }
+.acct-dmh__state--approved .acct-dmh__dot { background: var(--tt-xanh-dot); }
+.acct-dmh__state--purchased { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); border-color: transparent; }
+.acct-dmh__state--purchased .acct-dmh__dot { background: var(--tt-cyan-dot); }
+.acct-dmh__state--partial { background: var(--tt-cam-bg); color: var(--tt-cam-fg); border-color: transparent; }
+.acct-dmh__state--partial .acct-dmh__dot { background: var(--tt-cam-dot); }
+.acct-dmh__state--received { background: var(--tt-la-bg); color: var(--tt-la-fg); border-color: transparent; }
+.acct-dmh__state--received .acct-dmh__dot { background: var(--tt-la-dot); }
+.acct-dmh__state--paid { background: var(--tt-la-bg); color: var(--tt-la-fg); border-color: transparent; }
+.acct-dmh__state--paid .acct-dmh__dot { background: var(--tt-la-dot); }
+.acct-dmh__state--rejected { background: var(--tt-do-bg); color: var(--tt-do-fg); border-color: transparent; }
+.acct-dmh__state--rejected .acct-dmh__dot { background: var(--tt-do-dot); }
+.acct-dmh__state--cancelled { background: var(--tt-xam-bg); color: var(--tt-xam-fg); border-color: transparent; }
+.acct-dmh__state--cancelled .acct-dmh__dot { background: var(--tt-xam-dot); }
 
 .acct-dmh__due {
   display: block;
@@ -2778,6 +2757,9 @@ td.acct-count-cell {
 /* Dải Tab trạng thái Segmented Controls */
 .acct-toolbar__tabs {
   display: inline-flex;
+  /* Nhiều trạng thái (Mua hàng có 8) thì xuống dòng trong khung, không đẩy cả màn tràn ngang. */
+  flex-wrap: wrap;
+  max-width: 100%;
   align-items: center;
   gap: 4px;
   padding: 3px;
@@ -3377,4 +3359,18 @@ td.acct-count-cell {
   border-bottom: 0;
   background: var(--canvas-2, #f8fafc);
   font-weight: 600;
+}
+
+/* Bảng Đơn mua hàng vừa khung 1280px không cuộn ngang (07/10/2026): ô đệm 10px, tên NCC được
+   xuống dòng (đủ tên, khỏi cắt "…") thay vì giữ một dòng rộng 200px. */
+.acct-dmh__frame .acct-dmh__bang thead th,
+.acct-dmh__frame .acct-dmh__bang tbody td {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+.acct-list .acct-dmh__bang td.acct-supplier-cell {
+  min-width: 130px;
+  max-width: 160px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }

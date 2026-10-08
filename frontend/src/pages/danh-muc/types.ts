@@ -74,10 +74,11 @@ export interface FieldDef {
 export interface ColumnDef {
   key: string;
   label: string;
-  /** Bề rộng cột (`"9%"`). Vắng thì `CatalogListPage` tra bảng bề rộng theo `key` như cũ — TRỪ khi
-   *  màn đã khai `width` cho cột khác: khi đó cột vắng là cột ăn phần còn lại. Khai khi màn có
-   *  nhiều cột hơn thường: `table-layout: fixed` cộng quá 100% là mọi cột bị co không đều. */
-  width?: string;
+  /** Bề rộng cột bằng px (lưới kiểu bảng tính, 08/10/2026). Vắng = cột co giãn ăn phần còn lại —
+   *  chỉ nên để vắng ở cột CUỐI (Ghi chú). Chữ dài hơn bề rộng bị cắt "…", rê chuột xem đủ. */
+  w?: number;
+  /** Cột số: canh phải, chữ số đều nhau. */
+  n?: boolean;
   /** `extra` = dữ liệu PHỤ của chính dòng này, do `config.loadExtra` nạp song song (vd trạng thái
    *  máy lúc này). `undefined` khi chưa nạp xong hoặc dòng không có gì để nói. */
   render?: (r: Row, extra?: unknown) => ReactNode;
@@ -122,11 +123,11 @@ export interface CatalogConfig {
    *  Có khoá này thì drawer mọc thêm tab "Nhật ký" khi đang SỬA một bản ghi đã lưu. */
   nhatKyLoai?: string;
   columns: ColumnDef[];
-  /** Bề rộng hai cột trang tự vẽ (`"10%"`). Vắng ⇒ Mã 14% · Tên 24%, hợp với danh mục tên dài
-   *  (Giấy, Thành phẩm). Chỉ hạ khi tên/mã ngắn mà màn lại nhiều cột: Công đoạn tên chỉ "Bế",
-   *  "Dán" mà giữ 24% thì bốn cột Giai đoạn · Đơn vị · Bù hao · Ràng buộc bị ép còn "Gia côn…". */
-  widthMa?: string;
-  widthTen?: string;
+  /** Bề rộng (px) hai cột đầu trang tự vẽ, đều được ghim khi cuộn ngang. Vắng ⇒ Mã 130 · Tên 240,
+   *  hợp với danh mục tên dài (Giấy, Thành phẩm). Chỉ hạ khi mã/tên ngắn mà màn lại nhiều cột:
+   *  Công đoạn tên chỉ "Bế", "Dán" mà giữ 240 thì phần cuộn ngang dài ra vô ích. */
+  widthMa?: number;
+  widthTen?: number;
   fields: FieldDef[];
   /** Điều kiện của thanh lọc (ngoài kỳ Ngày tạo + Đang dùng / Đã ngừng, hai thứ trang tự có). */
   dieuKien?: DieuKienDanhMuc[];

@@ -20,6 +20,9 @@ type Chung = {
   icon: LucideIcon;
   /** Giá trị nạp từ dữ liệu (khách, người, máy…) ⇒ menu con LUÔN có ô tìm, dù danh sách ngắn. */
   tim?: boolean;
+  /** Giá trị đang chọn đã hiện ở chỗ khác trên màn (vd hàng nút lọc nhanh) ⇒ không vẽ thêm khối
+   *  "trường | giá trị | ×" cạnh nút Lọc — nói hai lần. Menu Lọc vẫn có điều kiện này. */
+  anKhoi?: boolean;
 };
 
 export type DieuKienMot<L> = Chung & {
@@ -133,8 +136,10 @@ export function dkTheoTab<L>(o: {
   khoa?: string;
   nhan?: string;
   icon?: LucideIcon;
+  anKhoi?: boolean;
 }): DieuKienMot<L> {
   return {
+    anKhoi: o.anKhoi,
     khoa: o.khoa ?? "trang_thai_tab",
     nhan: o.nhan ?? "Trạng thái",
     icon: o.icon ?? CircleDot,

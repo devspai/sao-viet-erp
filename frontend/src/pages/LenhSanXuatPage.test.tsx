@@ -235,34 +235,38 @@ describe("LenhSanXuatPage · đường `pv` (Task 14, sửa vòng 1 P5)", () => 
   // (Shift+Tab lọt xuống dòng bị che rồi bấm Enter). Bài dưới đi đúng đường đó — mở tay lệnh #5
   // trong khi hồ sơ #77 (mang `pv=1`) CHƯA đóng — để cô lập ĐÚNG MỘT dòng: `setHoSoPv(null)` bên
   // trong `moHoSoTay`.
-  // Sửa vòng 2 (mục D): bài trước dùng `userEvent.click(screen.getByText("LSX26-0005"))` — bấm
-  // vào CHỮ hiển thị trong dòng. Đường thật của kịch bản này (mở tay lệnh khác trong khi hồ sơ
-  // #77 còn che màn) KHÔNG PHẢI chuột: lớp phủ hồ sơ vẽ ĐÈ, chặn hit-test chuột lên dòng bảng phía
-  // sau trong một trình duyệt thật — jsdom không hit-test nên chuột "click qua" được, còn đời thật
-  // thì không. Đường thật là BÀN PHÍM (Shift+Tab từ "Quay lại danh sách" lọt xuống nút mở của dòng
-  // bị che — chính `dongHoSo` cũng dựa vào nút đó để trả tiêu điểm, xem `.lsc-ma[data-lsx]`
-  // — rồi Enter). Bấm theo `aria-label` của nút đó (khớp `LenhSanXuatPage.tsx:944-949`) để mô
-  // phỏng đúng đường bàn phím thay vì click xuyên lớp phủ mà chuột thật không làm được.
+  // Đường thật của kịch bản này (mở tay lệnh khác trong khi hồ sơ #77 còn che màn) KHÔNG PHẢI chuột:
+  // lớp phủ hồ sơ vẽ ĐÈ, chặn hit-test chuột lên dòng bảng phía sau trong trình duyệt thật — jsdom
+  // không hit-test nên chuột "click qua" được, còn đời thật thì không. Đường thật là BÀN PHÍM:
+  // Shift+Tab từ "Quay lại danh sách" lọt xuống dòng bị che (`tr.lds-dong`, tabIndex=0) rồi Enter.
+  // Bài này đi đúng đường đó: lấy tiêu điểm vào dòng rồi bấm Enter. Sau đó đóng hồ sơ và canh
+  // `dongHoSo` trả tiêu điểm về đúng dòng vừa mở (`tr[data-lsx]`), đặt trong `requestAnimationFrame`.
   //
   // Đường này sống được là NHỜ lớp phủ hồ sơ chưa trap tiêu điểm / chưa `inert` nền phía sau (soi
   // ở rà lại vòng 1, N29 — điều phối viên đã park, KHÔNG sửa trong Task 14 vì nó đụng mọi ngăn kéo
   // trong hệ chứ không riêng gì deep link). Nếu sau này khiếm khuyết a11y đó được vá (ngăn kéo trap
-  // tiêu điểm / nền `inert`), đường bàn phím này không còn bấm tới nút của dòng bị che được nữa —
+  // tiêu điểm / nền `inert`), đường bàn phím này không còn tới được dòng bị che nữa —
   // `setHoSoPv(null)` trong `moHoSoTay` khi đó thành thuần phòng thủ (không còn đường thật nào gọi
   // tới nó qua ngả này) và BÀI NÀY HẾT Ý NGHĨA. Lúc đó XOÁ bài, đừng vá lại cho nó xanh.
-  it("⭐ mở tay lệnh #5 trong khi hồ sơ QR khác CHƯA đóng ⇒ `moHoSoTay` tự xoá pv cũ, không băng", async () => {
+  it("⭐ mở tay lệnh #5 trong khi hồ sơ QR khác CHƯA đóng ⇒ `moHoSoTay` tự xoá pv cũ, không băng; đóng thì tiêu điểm về dòng", async () => {
     stubApi();
     ve(77, 1);
 
     await screen.findByRole("heading", { name: "LSX26-0077" });
     expect(screen.getByText(/Phiếu giấy v1/)).toBeInTheDocument();
 
-    // KHÔNG bấm nút đóng — mở thẳng lệnh #5 trong khi hồ sơ #77 còn đang mở, như đường
-    // Shift+Tab/Enter mà `LenhSxHoSoView.tsx` đã tự ghi nhận là có thật.
-    await userEvent.click(screen.getByRole("button", { name: "Mở hồ sơ lệnh LSX26-0005 — Lệnh khác" }));
+    // KHÔNG bấm nút đóng — mở thẳng lệnh #5 trong khi hồ sơ #77 còn đang mở: tiêu điểm vào dòng
+    // (như Shift+Tab lọt xuống) rồi Enter.
+    const dong = (await screen.findByText("LSX26-0005")).closest("tr") as HTMLElement;
+    dong.focus();
+    await userEvent.keyboard("{Enter}");
     await screen.findByRole("heading", { name: "LSX26-0005" });
 
     expect(screen.queryByText(/^Phiếu giấy v/)).not.toBeInTheDocument();
+
+    // Đóng hồ sơ: tiêu điểm phải về đúng dòng vừa mở (trả trong requestAnimationFrame).
+    await userEvent.click(screen.getByRole("button", { name: "Quay lại danh sách" }));
+    await waitFor(() => expect(document.activeElement).toBe(dong));
   });
 });
 
@@ -301,7 +305,8 @@ describe("LenhSanXuatPage · danh sách tra cứu", () => {
     ve();
 
     await screen.findByText("LSX26-0005");
-    const tabs = screen.getAllByRole("tab");
+    // Hàng lọc nhanh khâu (nút bật, khuôn lưới chung) — số lấy nguyên từ `dem_theo_tab`.
+    const tabs = within(screen.getByRole("group", { name: "Lọc lệnh theo khâu" })).getAllByRole("button");
     expect(tabs.map((t) => t.textContent)).toEqual([
       "Tất cả1", "Đang sản xuất0", "Sau sản xuất1", "Đã giao đủ0",
     ]);
@@ -309,9 +314,10 @@ describe("LenhSanXuatPage · danh sách tra cứu", () => {
     expect(screen.getByText("Đã đóng lệnh")).toBeInTheDocument();
     expect(screen.getByText("GẤP")).toBeInTheDocument();
     expect(screen.getByText("DH-0003")).toBeInTheDocument();
-    // Tám cột tĩnh, không còn cột tiến độ hay cảnh báo; "Ngày tạo" thêm 06/10/2026.
+    // Tám cột tĩnh, không còn cột tiến độ hay cảnh báo; thứ tự theo nhóm nghĩa của lưới chung
+    // (Mã, hai cột ngày liền nhau, Khách, Đơn, Hàng, Số lượng, Trạng thái).
     expect(screen.getAllByRole("columnheader").map((c) => c.textContent)).toEqual([
-      "Lệnh", "Sản phẩm", "Số lượng", "Khách", "Đơn", "Hạn SX", "Ngày tạo", "Trạng thái",
+      "Lệnh", "Ngày tạo", "Hạn SX", "Khách", "Đơn", "Sản phẩm", "Số lượng", "Trạng thái",
     ]);
   });
 
@@ -320,7 +326,7 @@ describe("LenhSanXuatPage · danh sách tra cứu", () => {
     ve();
     await screen.findByText("LSX26-0005");
 
-    await userEvent.click(screen.getByRole("tab", { name: /Sau sản xuất/ }));
+    await userEvent.click(within(screen.getByRole("group", { name: "Lọc lệnh theo khâu" })).getByRole("button", { name: /Sau sản xuất/ }));
     await waitFor(() => expect(goi.some((u) => u.includes("tab=sau_sx"))).toBe(true));
 
     await userEvent.click(screen.getByRole("button", { name: "Lọc" }));
@@ -342,9 +348,8 @@ describe("LenhSanXuatPage · danh sách tra cứu", () => {
   it("⭐ tab rỗng mà bộ lọc vẫn có lệnh ⇒ mời về tab Tất cả", async () => {
     stubApi({ ...LIST, items: [], total: 0 });
     ve();
-    await screen.findAllByRole("tab");
-    await userEvent.click(screen.getByRole("tab", { name: /Đã giao đủ/ }));
-    const panel = screen.getByRole("tabpanel");
-    expect(await within(panel).findByText("Tab «Đã giao đủ» hiện không có lệnh nào.")).toBeInTheDocument();
+    const loc = await screen.findByRole("group", { name: "Lọc lệnh theo khâu" });
+    await userEvent.click(within(loc).getByRole("button", { name: /Đã giao đủ/ }));
+    expect(await screen.findByText("Tab «Đã giao đủ» hiện không có lệnh nào.")).toBeInTheDocument();
   });
 });

@@ -1,10 +1,12 @@
-// Ngăn CHI TIẾT công nợ một khách hàng — phương án 2 (sổ chi tiết kiểu Xero, 06/10/2026), vỏ
-// `NganCongNo` chung hai màn công nợ.
+// Ngăn CHI TIẾT công nợ một khách hàng — kiểu 3 (docs/mockups/ke-toan-gon-3-phuong-an.html,
+// 07/10/2026), vỏ `NganCongNo` chung hai màn công nợ.
 //
-// Đầu ngăn: "Công nợ phải thu > Khách hàng" — tên + thẻ mã — "In sao kê" và "Hồ sơ khách hàng" — khối
-// số: còn nợ tới hôm nay + quá hạn, vạch tuổi nợ (bấm mốc = lọc tab Còn nợ), hạn mức. Ba tab:
-// - "Còn nợ": hoá đơn còn nợ; lọc theo mốc tuổi (từ khối số, từ mốc đang lọc ở danh sách, hoặc "Quá
-//   hạn" khi bấm số Quá hạn ngoài bảng) hiện thành thẻ kèm "Bỏ lọc". "Thu" mở NGĂN CHỒNG thu tiền.
+// Đầu ngăn: "Công nợ phải thu > Khách hàng" — tên + thẻ mã — "In sao kê" và "Hồ sơ khách hàng" — ba
+// tab. Cột thuộc tính bên phải: còn nợ tới hôm nay, quá hạn, hạn sớm nhất, hạn mức + cho nợ, người liên
+// hệ, phụ trách. Ba tab:
+// - "Còn nợ": một lưới hoá đơn còn nợ nhóm theo đơn bán (hoặc xếp theo hạn thu); mở từ danh sách đang
+//   lọc mốc tuổi / bấm số Quá hạn ngoài bảng thì lọc sẵn (thẻ lọc + "Bỏ lọc"). "Thu" từng hoá đơn mở
+//   NGĂN CHỒNG thu tiền — chưa tick nhiều hoá đơn vì máy chủ chưa có thu nhiều hoá đơn một lượt.
 // - "Sao kê": số dư đầu kỳ, từng chứng từ với số dư chạy, số dư cuối kỳ; in được.
 // - "Lịch sử": dòng thời gian mọi chứng từ với khách + các hoá đơn đã trễ.
 //
@@ -25,7 +27,8 @@ import type { NavigateFn } from "../../../../components/AppShell";
 import { useChiTietCongNo } from "../../shared/chiTietCongNo";
 import { LichSuCongNo, type KhoanTre } from "../../shared/LichSuCongNo";
 import { nhanLocNo, TheLocNo } from "../../shared/locNoNgan";
-import { NganCongNo } from "../../shared/NganCongNo";
+import { RayThuocTinh } from "../../shared/LuoiGon";
+import { NganCongNo, oRayCongNo } from "../../shared/NganCongNo";
 import { useTabNho } from "../../shared/NganPhieu";
 import { TabSaoKe } from "../../shared/TabSaoKe";
 import { PAID_PAGE } from "../shared/constants";
@@ -141,10 +144,6 @@ export function ReceivablesDrawer({
     setTabNho(t);
     setTabTho(t);
   };
-  const chonLoc = (k: string | null) => {
-    setLoc(k);
-    if (k) setTab("no");
-  };
 
   /** Lập xong: dòng hoá đơn đổi NGAY (không đợi nạp lại), rồi mới nạp lại cho khớp máy chủ. */
   function daLapPhieu(row: ReceivableItemRow, receipt: PaymentReceiptRow) {
@@ -191,6 +190,12 @@ export function ReceivablesDrawer({
   const ten = detail?.customer_name || customerName;
   const lan = eventTick + soLanLap;
   const nhan = hopLe ? nhanLocNo(loc, detail!.aging, tuoi?.nhan) : null;
+  const moHoSo = quyen.xemKhach
+    ? () => {
+        onClose();
+        navigate("khach-hang", { openCustomerId: customerId });
+      }
+    : undefined;
 
   return (
     <>
@@ -199,32 +204,32 @@ export function ReceivablesDrawer({
         nhanDoiTac="Khách hàng"
         tieuDe={ten}
         ma={ma}
-        tong={hopLe ? detail : null}
-        choNo={hopLe ? detail!.payment_term_days : null}
-        sauNgay="sau hoá đơn"
-        nutHoSo={
-          quyen.xemKhach
-            ? {
-                nhan: "Hồ sơ khách hàng",
-                onMo: () => {
-                  onClose();
-                  navigate("khach-hang", { openCustomerId: customerId });
-                },
-              }
-            : undefined
-        }
+        coSo={hopLe}
+        nutHoSo={moHoSo ? { nhan: "Hồ sơ khách hàng", onMo: moHoSo } : undefined}
         onInSaoKe={() => {
           setTab("sk");
           setDangIn(true);
         }}
-        chuCanh="Chỉ là cảnh báo, vẫn bán và thu bình thường."
-        dangLoc={loc}
-        onLoc={chonLoc}
         loi={loi}
         loading={loading}
         thieu={detail != null && !hopLe}
         chuThieu="Dữ liệu trả về thiếu phần hoá đơn hoặc tuổi nợ: máy chủ đang chạy bản cũ hơn giao diện. Khởi động lại máy chủ rồi tải lại trang."
         onTaiLai={reload}
+        cot={
+          hopLe ? (
+            <RayThuocTinh o={[
+              ...oRayCongNo({
+                tong: detail!,
+                hanCacKhoan: conNo.map((x) => x.due_date),
+                choNo: detail!.payment_term_days,
+                sauNgay: "sau mỗi hoá đơn",
+                chuCanh: "Chỉ là cảnh báo, vẫn bán và thu bình thường.",
+                onDatHoSo: moHoSo,
+              }),
+              { nhan: "Phụ trách", giaTri: detail!.phu_trach || null },
+            ]} />
+          ) : undefined
+        }
         tabs={
           hopLe
             ? [
@@ -243,11 +248,12 @@ export function ReceivablesDrawer({
         {hopLe && tab === "no" && (
           <>
             {nhan && (
-              <div className="kt-hang-loc">
+              <div className="kt-hang-loc kt-ncn-loc">
                 <TheLocNo nhan={nhan} so={dangHien.length} onBo={() => setLoc(null)} />
               </div>
             )}
-            <HoaDonConNoBlock items={dangHien} homNay={detail!.as_of} coThu={quyen.thu} onThu={setDangThu} onMoDon={moDon} />
+            <HoaDonConNoBlock items={dangHien} homNay={detail!.as_of} khachChuaDatHan={detail!.payment_term_days == null}
+              dangLoc={loc != null} coThu={quyen.thu} onThu={setDangThu} onMoDon={moDon} />
           </>
         )}
 

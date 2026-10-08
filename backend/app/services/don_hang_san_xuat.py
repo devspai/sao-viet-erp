@@ -146,7 +146,7 @@ def tom_tat_nhieu_don(db: Session, orders: list, *, nguon_san: dict[int, list] |
                 o_cum = min((x["o"] for x in ds), key=_THU_TU_O.index)
                 if o_cum == O_DU_HANG:      # mọi lệnh "xong" mà hàng chưa đủ ⇒ chờ KCS / kho
                     o_cum = O_CHO_KHO
-            if not du and n["con_phai_giao"] > 0:
+            if not du and not n["khach_nhan_du"]:
                 # Khách đã nhận đủ thì sản xuất / kho không còn giữ đơn — sổ kho có trễ cũng vậy.
                 for x in ds or [{"o": O_CHUA_LENH}]:
                     if x["o"] in _O_SANG_CHO:
@@ -156,10 +156,11 @@ def tom_tat_nhieu_don(db: Session, orders: list, *, nguon_san: dict[int, list] |
                 "dat": n["dat"], "co_hang": round(co, 3), "du_hang": du, "o": o_cum,
                 "co_lenh": n["co_lenh"], "tu_ton": not n["co_lenh"] and du,
                 "giao_thang": giao_thang, "da_giao": n["da_giao"], "con_phai_giao": n["con_phai_giao"],
+                "khach_nhan_du": n["khach_nhan_du"],
                 "lenh": ds,
             })
         if not cho:
-            giao_du = bool(mons) and all(m["con_phai_giao"] <= 0 for m in mons)
+            giao_du = bool(mons) and all(m["khach_nhan_du"] for m in mons)
             if not giao_du:
                 cho.add(CHO_GIAO)
             else:

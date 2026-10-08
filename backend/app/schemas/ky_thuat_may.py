@@ -135,6 +135,8 @@ class YeuCauRow(BaseModel):
     so_anh: int = 0
     phieu_ma: str | None = None              # mã phiếu SC đã sinh — để người báo bấm theo dõi tiếp
     phieu_trang_thai: str | None = None
+    lsx_id: int | None = None                # lệnh đang chạy lúc báo hỏng (báo từ Thực hiện SX)
+    lsx_ma: str | None = None
 
 
 class YeuCauListOut(BaseModel):

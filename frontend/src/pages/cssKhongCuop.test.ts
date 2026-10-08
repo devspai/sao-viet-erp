@@ -48,8 +48,10 @@ const NO_DA_BIET: Record<string, number> = {
   //   `.rc-sec`/`.rc-sec__title` cho card dashboard (`.kho-dash .rc-sec…`) + tiêu đề section drawer.
   //   NỢ THẬT nên trả sau: chuyển các section kho sang class `kho-*` riêng thay vì đè lên `.rc-sec`
   //   dùng chung. (Bảng tồn/phiếu/điều chuyển set width:100% KHÔNG đụng rc-* — không tính vào đây.)
+  // 40→37 (đo lại 08/10/2026) khi lưới Tồn kho/Yêu cầu nhập xuất sang khuôn lưới chung (08/10/2026): gỡ `.kho-table-card .rc__table`
+  //   cùng cả khối `.kho-table-card` đã không còn ai dùng.
   // Vẫn chỉ được CO LẠI từ đây.
-  "./kho-request.css": 40,
+  "./kho-request.css": 37,
   // .rc-drawer__kicker trong .khvt-drawer__head (màn Kế hoạch vật tư tái dùng đầu drawer của rc, có chủ đích).
   "./ke-hoach-sx.css": 1,
   "./ky-thuat-may.css": 1,  // .rc__tab.is-qua-han — hex cứng thay token
@@ -139,7 +141,7 @@ describe("@media print không được ẩn toàn cục", () => {
    *
    *  Luật: mọi selector nhắm `body`/`html`/`*` trong `@media print` phải khoá phạm vi bằng
    *  `:has(...)` của chính màn đó. Bốn màn in hiện có đều làm vậy: `.qpdf` · `.tg-page` ·
-   *  `.lg-payslip-print` · `.ktm-drawer`.
+   *  `.lg-payslip-print` · `.ktm-pbt` (ngăn phiếu bảo trì, 07/10/2026 — trước là `.ktm-drawer`).
    */
   const files = Object.keys(CSS);
 
@@ -160,18 +162,19 @@ describe("@media print không được ẩn toàn cục", () => {
     ).toEqual([]);
   });
 
-  it("bản in Kỹ thuật máy vẫn còn luật hiện drawer của nó", () => {
-    // Khoá phạm vi mà lỡ tay khoá luôn cả phần hiện drawer thì màn KTM in ra trắng — đổi bệnh
-    // chứ không chữa bệnh. Giữ một mốc để chắc phần "cho hiện" còn nguyên.
+  it("bản in Kỹ thuật máy vẫn còn luật hiện ngăn của nó", () => {
+    // Khoá phạm vi mà lỡ tay khoá luôn cả phần hiện ngăn thì màn KTM in ra trắng — đổi bệnh
+    // chứ không chữa bệnh. Giữ một mốc để chắc phần "cho hiện" còn nguyên. Từ 07/10/2026 phiếu bảo
+    // trì mở trong ngăn chung `.kt-ngan`, khoá phạm vi bằng thân ngăn riêng `.ktm-pbt`.
     const luat = luatTrongMediaPrint(docCss("./ky-thuat-may.css"));
     expect(luat.length, "khối @media print của KTM biến mất").toBeGreaterThan(0);
     expect(
-      luat.some((l) => l.sel.includes(".ktm-drawer") && l.sel.includes(":has(")),
-      "KTM phải khoá phạm vi bằng :has(.ktm-drawer)",
+      luat.some((l) => l.sel.includes(".ktm-pbt") && l.sel.includes(":has(")),
+      "KTM phải khoá phạm vi bằng :has(.ktm-pbt)",
     ).toBe(true);
     expect(
-      luat.some((l) => l.sel.includes(".rc-drawer__scrim") && /visibility\s*:\s*visible/i.test(l.khai)),
-      "KTM phải còn luật CHO HIỆN drawer, không thì chính nó in ra trắng",
+      luat.some((l) => l.sel.includes(".kt-ngan") && /visibility\s*:\s*visible/i.test(l.khai)),
+      "KTM phải còn luật CHO HIỆN ngăn, không thì chính nó in ra trắng",
     ).toBe(true);
   });
 });

@@ -86,6 +86,9 @@ class DeliveryRequestOut(BaseModel):
 class DeliveryRequestPage(BaseModel):
     items: list[DeliveryRequestOut]
     total: int = 0
+    #: Tab Yêu cầu giao: số yêu cầu theo hạn cần giao (qua_han/hom_nay/ngay_mai/sau) — số của hàng
+    #: lọc nhanh, theo đúng ô tìm + kỳ + điều kiện đang áp (trừ chính ô hạn).
+    dem_han: dict[str, int] = {}
 
 
 # --- Lần giao ------------------------------------------------------------------------------
@@ -235,6 +238,9 @@ class TripOut(BaseModel):
     phieu_xuat: PhieuKhoOut | None = None
     phieu_tra: PhieuKhoOut | None = None
     giao_thang: GiaoThangOut | None = None
+    #: Dòng hàng của YÊU CẦU (tên, số yêu cầu, đã giao) — chỉ bảng giao điền, nạp gộp cả trang, để
+    #: ngăn chi tiết có bảng hàng NGAY lúc mở, khỏi gọi thêm chi tiết yêu cầu (07/10/2026).
+    hang: list[DeliveryRequestLineOut] = []
 
 
 class LuotXeTrongChuyenOut(BaseModel):
@@ -361,6 +367,9 @@ class BangGiaoPage(BaseModel):
     total: int
     #: Tổng số ĐƠN giao (chuyến) — số đếm trên tab / đầu trang, như trước.
     so_don: int
+    #: Số đơn giao theo nhóm tình trạng của hàng lọc nhanh (`NHOM_TINH_TRANG`), theo đúng ô tìm +
+    #: kỳ + điều kiện đang áp trừ ô Trạng thái.
+    dem_tinh_trang: dict[str, int] = {}
 
 
 class GuiXuatKhoCaLuotIn(BaseModel):

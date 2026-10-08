@@ -161,6 +161,7 @@ def dung_mach(ycs, dong_don, *, ve_goc, can_o) -> dict:
             mach.append({
                 "yc_line_id": int(ln.id), "yc_id": int(yc.id), "yc_ma": yc.code,
                 "yc_tao_luc": getattr(yc, "created_at", None), "ngay_can": yc.needed_date,
+                "loai_mua": getattr(yc, "loai_mua", None),
                 "hang": hang, "so_yc": so_yc, "o": o_list, "don": don,
                 "buoc": buoc, "song": buoc != BUOC_NHAP,
                 "ma": chinh["ma"] if chinh and buoc != BUOC_TRA else yc.code,

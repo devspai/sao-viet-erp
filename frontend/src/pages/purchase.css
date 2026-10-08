@@ -1379,43 +1379,20 @@
   white-space: nowrap;
 }
 
-.purchase__status--draft {
-  background: var(--steel-soft);
-  color: var(--steel);
-}
-
-.purchase__status--pending {
-  background: #fff0c2;
-  color: #7a4d00;
-}
-
-.purchase__status--approved {
-  background: var(--moss-soft);
-  color: var(--moss-deep);
-}
-
-.purchase__status--rejected,
-.purchase__status--cancelled {
-  background: #fde2df;
-  color: var(--signal);
-}
-
-.purchase__status--purchased {
-  background: #dff0ff;
-  color: #165b8c;
-}
-
-/* "Giao một phần" — bậc giữa "Đã mua" và "Đã nhận". Amber vì đây là việc CHƯA XONG: hàng còn
-   thiếu, và phần đã về đã đẻ ra công nợ. Dùng token, không cắm hex như mấy tone cũ phía trên. */
-.purchase__status--partial {
-  background: var(--amber-soft);
-  color: var(--amber-deep);
-}
-
-.purchase__status--received {
-  background: #e5f6ed;
-  color: #166036;
-}
+/* Tone trạng thái yêu cầu/phiếu mua — cùng bộ màu với đơn mua (`acct-dmh__state--*`, accounting.css),
+   lấy từ bộ chip chung --tt-* (tokens.css). "Hủy một phần" dùng tone partial (cam) — yêu cầu VẪN
+   SỐNG, đừng cho nó màu đã hủy. */
+.purchase__status--draft { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
+.purchase__status--open { background: var(--tt-cham-bg); color: var(--tt-cham-fg); }
+.purchase__status--drafting { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }
+.purchase__status--pending { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.purchase__status--approved { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.purchase__status--purchased { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); }
+.purchase__status--partial { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.purchase__status--received { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.purchase__status--paid { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.purchase__status--rejected { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.purchase__status--cancelled { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
 
 /* --- Ultra-Compact Unified Top Bar (64px Height Alignment) ------------------- */
 .purchase__topbar-unified {
@@ -2239,14 +2216,17 @@
   flex-shrink: 0;
 }
 
-.purchase__status-dot--draft { background: var(--steel, var(--ash-2)); }
-.purchase__status-dot--pending { background: #d97706; }
-.purchase__status-dot--approved { background: #16a34a; }
-.purchase__status-dot--rejected,
-.purchase__status-dot--cancelled { background: var(--signal, #dc2626); }
-.purchase__status-dot--purchased { background: #0284c7; }
-.purchase__status-dot--partial { background: #d97706; }
-.purchase__status-dot--received { background: #166036; }
+.purchase__status-dot--draft { background: var(--tt-slate-dot); }
+.purchase__status-dot--open { background: var(--tt-cham-dot); }
+.purchase__status-dot--drafting { background: var(--tt-tim-dot); }
+.purchase__status-dot--pending { background: var(--tt-vang-dot); }
+.purchase__status-dot--approved { background: var(--tt-xanh-dot); }
+.purchase__status-dot--purchased { background: var(--tt-cyan-dot); }
+.purchase__status-dot--partial { background: var(--tt-cam-dot); }
+.purchase__status-dot--received { background: var(--tt-la-dot); }
+.purchase__status-dot--paid { background: var(--tt-la-dot); }
+.purchase__status-dot--rejected { background: var(--tt-do-dot); }
+.purchase__status-dot--cancelled { background: var(--tt-xam-dot); }
 
 .purchase__dialog {
   max-width: min(1120px, calc(100vw - 48px));
@@ -2953,7 +2933,9 @@ span.purchase__readonly-field {
 }
 
 .supplier-drawer {
-  width: min(1080px, 96vw);
+  /* Cùng độ rộng chung với mọi ngăn phải (`--kt-ngan-w`, xem ke-toan/shared/doRongNgan.ts). */
+  width: var(--kt-ngan-w, 1180px);
+  max-width: 100vw;
   height: 100%;
   background: var(--canvas);
   box-shadow: -16px 0 48px rgba(0, 0, 0, 0.25);

@@ -534,6 +534,9 @@ class QuotationService:
     def tom_tat_duyet(self, rows: list[Quote]) -> dict[int, dict]:
         return self.quotations.tom_tat_duyet(rows)
 
+    def don_hang_cua(self, rows: list[Quote]) -> dict[int, tuple[int, str, str]]:
+        return self.quotations.don_hang_cua([r.id for r in rows])
+
     def dem_theo_nguoi(self, *, scope: str, actor) -> dict[int, int]:
         return self.quotations.dem_theo_nguoi(scope=scope, actor=actor)
 

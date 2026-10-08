@@ -189,15 +189,15 @@ describe("ô Cách đo lượng ĐÃ GỠ khỏi Máy · Vật tư khác (06/09/
 });
 
 describe("Thành phẩm — hàng đặt riêng của MỘT khách (docs/prd-thanh-pham.md)", () => {
-  it("bảng hiện ĐỦ thứ đang lưu: đơn + khách đặt lần đầu + ngày khai (chỉ đọc)", () => {
+  it("bảng hiện ĐỦ thứ đang lưu: đơn + khách đặt lần đầu (chỉ đọc)", () => {
     // Chủ 17/09/2026: "hiển thị hơi thiếu thông tin so với những gì nó lưu, hiển thị hết đi".
     // Đây là VẾT NGUỒN GỐC máy ghi lúc chốt đơn — cột xem, không phải ô chọn chủ (xem test dưới).
     const keys = CFG_THANH_PHAM.columns.map((c) => c.key);
     expect(keys).toEqual(["don_vi_gia", "order_no", "customer_ten", "ghi_chu"]);
-    // Trang tự giữ Mã 14% + Tên 24% + Hành động 8%; phần còn lại khai đủ đúng 54%, lệch là
-    // `table-layout: fixed` co mọi cột không đều.
-    const rong = CFG_THANH_PHAM.columns.reduce((s, c) => s + parseFloat(c.width ?? "NaN"), 0);
-    expect(rong).toBe(54);
+    // Lưới bề rộng px (08/10/2026): mọi cột khai `w` trừ cột CUỐI (Ghi chú ăn phần còn lại).
+    const cot = CFG_THANH_PHAM.columns;
+    expect(cot.slice(0, -1).every((c) => typeof c.w === "number" && c.w > 0)).toBe(true);
+    expect(cot[cot.length - 1].w).toBeUndefined();
   });
 
   it("dòng KHAI TAY không có đơn thì ghi rõ, đừng để ô trống như chưa nạp", () => {

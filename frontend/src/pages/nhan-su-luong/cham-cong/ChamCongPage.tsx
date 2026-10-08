@@ -100,9 +100,6 @@ export function ChamCongPage({
       <header className="ns__head">
         <div>
           <h1 className="ns__title">Chấm công</h1>
-          <p className="ns__sub">
-            Chấm công theo vị trí GPS · phải ở gần điểm làm việc đã khai
-          </p>
         </div>
       </header>
 

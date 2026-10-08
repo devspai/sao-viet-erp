@@ -42,6 +42,10 @@
 .mine__hero-badge--ok { background: rgba(47, 93, 58, 0.35); color: #86efac; border: 1px solid rgba(134, 239, 172, 0.25); }
 .mine__hero-badge--warn { background: rgba(156, 119, 20, 0.35); color: #fde047; border: 1px solid rgba(253, 224, 71, 0.25); }
 .mine__hero-badge--muted { background: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.75); }
+/* Thêm sắc cho các trạng thái còn lại — trên nền tối nên dùng chấm màu tươi pha trong suốt + chữ sáng. */
+.mine__hero-badge--due { background: rgba(249, 115, 22, 0.32); color: #fdba74; border: 1px solid rgba(253, 186, 116, 0.25); }
+.mine__hero-badge--tim { background: rgba(139, 92, 246, 0.34); color: #c4b5fd; border: 1px solid rgba(196, 181, 253, 0.25); }
+.mine__hero-badge--danger { background: rgba(239, 68, 68, 0.32); color: #fca5a5; border: 1px solid rgba(252, 165, 165, 0.25); }
 
 .mine__heroid p { margin: 3px 0; color: rgba(255, 255, 255, .85); font-size: 13.5px; }
 .mine__herosub { font-family: var(--ff-sans); font-size: 12.5px; color: rgba(255, 255, 255, .6) !important; }

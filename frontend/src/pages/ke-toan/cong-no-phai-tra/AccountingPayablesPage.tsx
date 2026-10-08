@@ -1,12 +1,12 @@
 /** Màn CÔNG NỢ PHẢI TRẢ (đặc tả NPT-1 … NPT-3, A.11, A.17, A.18) — dựng trên bộ khung chung kế toán.
  *
- *  Khuôn trang: đầu trang → khối TỔNG QUAN (Còn nợ tới cuối kỳ, quá hạn, mua thêm, đã trả + thanh
- *  tuổi nợ bấm được) → thanh lọc (nhóm nút có số, ô tìm, thanh lọc chung: kỳ + điều kiện, "n nhà
- *  cung cấp") → bảng + chân phân trang. Bấm dòng mở ngăn nhà cung cấp; bấm số Quá hạn / Đã trả mở ngăn
- *  đúng tab đó. Mọi lọc chạy ở MÁY CHỦ.
+ *  Khuôn trang (phương án A, 07/10/2026): tiêu đề + dải tab có số — ô tìm, thanh lọc chung → "Còn
+ *  nợ tới …" + "Xem cột" (Tuổi nợ | Trong kỳ và liên hệ) → lưới kiểu bảng tính, dòng Cộng đầu bảng
+ *  → chân phân trang. Bấm dòng mở ngăn nhà cung cấp; bấm số quá hạn / trả trong kỳ mở ngăn đúng chỗ
+ *  đó. Mọi lọc chạy ở MÁY CHỦ.
  *
- *  Thân trang (tổng quan, thanh lọc, bảng, thẻ điện thoại, phân trang) là khuôn chung `ThanTrangCongNo`
- *  — màn phải thu dùng cùng; màn này chỉ khai chữ, bốn số tổng quan và cách đọc trường.
+ *  Thân trang là khuôn chung `ThanTrangCongNo` — màn phải thu dùng cùng; màn này chỉ khai chữ và
+ *  cách đọc trường.
  *
  *  KHÔNG có bảng công nợ dưới DB: mọi số SUY RA từ đợt giao + phiếu chi (docs/prd-mua-hang-cong-no.md
  *  §5.3) — nợ = max(0, hàng ĐÃ GIAO − đã chi ròng), đo theo ĐỢT GIAO, hạn trả quy về đợt giao.
@@ -36,25 +36,23 @@ const MAN = "ke-toan-cong-no";
 
 const CAU_HINH: CauHinhThanCongNo<PayableSupplierRow> = {
   tieuDe: "Công nợ phải trả",
-  moTa: "Đang nợ nhà cung cấp nào, bao nhiêu, khoản nào trễ. Nợ tính theo từng đợt giao hàng.",
   donVi: "nhà cung cấp",
   nhanDoiTac: "Nhà cung cấp",
-  nhanHan: "Hạn trả gần nhất",
-  nhanThem: "Mua thêm",
-  nhanDa: "Đã trả",
+  nhanKhoan: "Đợt",
+  rongKhoan: 56,
+  nhanThemKy: "Mua trong kỳ",
+  nhanDaKy: "Trả trong kỳ",
   nhanGanNhat: "Trả gần nhất",
-  chuChuaGanNhat: "Chưa trả lần nào",
+  chuChuaGanNhat: "chưa trả lần nào",
   chuHet: "Đã trả hết",
-  donViKhoan: "khoản",
   nhanTim: "Tìm nhà cung cấp",
-  goiYTim: "Tìm nhà cung cấp, kể cả người đã trả hết",
+  goiYTim: "Tìm nhà cung cấp, kể cả đã trả hết",
   chuTai: "Đang tải công nợ phải trả…",
   chuLoi: "Không tải được công nợ phải trả.",
   chuChuaCo: "Không còn nợ nhà cung cấp nào",
   ariaPhanTrang: "Phân trang công nợ phải trả",
   id: (r) => r.supplier_id,
   ten: (r) => r.supplier_name,
-  ma: (r) => r.supplier_code,
   choNo: (r) => r.credit_days,
   themTrongKy: (r) => r.mua_trong_ky,
   daTraTrongKy: (r) => r.paid_in_period,
@@ -102,7 +100,6 @@ export function AccountingPayablesPage({
     <ThanTrangCongNo
       ch={CAU_HINH}
       sp={sp}
-      so={(d) => ({ conNo: d.total_due, quaHan: d.overdue_amount, them: d.mua_trong_ky, da: d.paid_in_period })}
       dieuKien={dieuKien}
       dangXem={open?.row.supplier_id ?? null}
       onMo={(row, bucket = "all") => setOpen({ row, bucket })}

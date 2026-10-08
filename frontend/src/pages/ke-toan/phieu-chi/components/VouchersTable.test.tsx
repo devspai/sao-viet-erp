@@ -1,15 +1,15 @@
-/** Bảng Phiếu chi: mẩu thông tin không nối bằng "·" hay dấu phẩy, dòng đi được bằng bàn phím,
- *  rỗng có ba câu tách bạch. */
+/** Bảng Phiếu chi (khuôn lưới chung `lds-g`): mười cột, mẩu thông tin không nối bằng "·" hay dấu
+ *  phẩy, dòng Cộng cuối bảng, dòng đi được bằng bàn phím, rỗng có ba câu tách bạch. */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { phieu } from "./phieuMau";
-import { VouchersTable } from "./VouchersTable";
+import { COT_PHIEU_CHI, VouchersTable } from "./VouchersTable";
 
 const ROWS = [
   phieu({
-    id: 1, code: "UNC-260930-W4PB", supplier_name: "Máy in Hoà Phát", voucher_type: "bank_transfer",
+    id: 1, code: "UNC-260930-W4PB", doc_no: "PC00018", supplier_name: "Máy in Hoà Phát", voucher_type: "bank_transfer",
     source_type: "purchase_request", purchase_request_code: "DMH-260920-9MKD", payment_stage: "final",
     amount: 1200, amount_vnd: 30_480_000, currency: "USD", exchange_rate: 25400, content: "Phụ tùng trục ép nhập khẩu",
   }),
@@ -23,11 +23,12 @@ const ROWS = [
 
 function ve(over: Partial<Parameters<typeof VouchersTable>[0]> = {}) {
   const props = {
-    rows: ROWS, loading: false, loi: null, onTaiLai: vi.fn(), dangXem: null, onMo: vi.fn(), coLoc: false,
-    onBoLoc: vi.fn(), onLap: vi.fn(), trang: 1, size: 25, tong: ROWS.length, onTrang: vi.fn(), onSize: vi.fn(), ...over,
+    cot: COT_PHIEU_CHI, rows: ROWS, loading: false, loi: null, onTaiLai: vi.fn(), dangXem: null, onMo: vi.fn(),
+    coLoc: false, onBoLoc: vi.fn(), onLap: vi.fn(), trang: 1, size: 25, tong: ROWS.length, onTrang: vi.fn(),
+    onSize: vi.fn(), tongTien: 31_330_000, soXong: 2, ...over,
   };
-  render(<VouchersTable {...props} />);
-  return props;
+  const r = render(<VouchersTable {...props} />);
+  return { ...props, container: r.container };
 }
 
 /** Mọi đoạn chữ TRẦN (text node) trong vùng — dấu nối nằm giữa các mẩu thì phải lộ ra ở đây. */
@@ -39,63 +40,134 @@ function chuTran(el: Element): string[] {
 }
 
 describe("VouchersTable", () => {
-  it("không nối mẩu thông tin bằng · • hay dấu phẩy; mẩu loại là thẻ nhỏ", () => {
+  it("mười cột đúng thứ tự: Trạng thái đứng sau Số tiền, Ghi chú cuối", () => {
     ve();
+    const tieuDe = screen.getAllByRole("columnheader").map((th) => th.textContent);
+    expect(tieuDe).toEqual([
+      "Số phiếu", "Ngày chi", "Người nhận tiền", "Lý do chi", "Chi theo", "Hình thức", "Số tiền", "Trạng thái",
+      "Ngày tạo", "Ghi chú",
+    ]);
+    // Khuôn lưới chung: bảng `lds-g`, số tiền canh phải, hai cột ghim không có (chỉ Số phiếu cố định).
+    expect(screen.getByRole("table")).toHaveClass("lds-g");
+    expect(screen.getByRole("columnheader", { name: "Số tiền" })).toHaveClass("n");
+  });
+
+  it("không nối mẩu thông tin bằng · • hay dấu phẩy; nhãn Chi theo là thẻ nhỏ", () => {
+    const { container } = ve();
     const bang = screen.getByRole("table");
     for (const t of chuTran(bang)) expect(t).not.toMatch(/[·•]|,\s/);
-    const dong = screen.getAllByRole("row").slice(1);
-    // Ngoại tệ: thẻ [USD 1.200] cạnh chữ "tỷ giá 25.400", không gộp một chuỗi.
-    const usd = within(dong[0]).getByText("USD 1.200");
-    expect(usd).toHaveClass("kt-the");
-    expect(within(dong[0]).getByText("tỷ giá 25.400")).not.toHaveClass("kt-the");
-    expect(within(dong[0]).getByText("30.480.000 đ")).toBeInTheDocument();
-    // Nguồn: loại + thẻ phụ "Đặt cọc", dưới là mã đơn.
-    expect(within(dong[1]).getByText("Đặt cọc")).toHaveClass("kt-the");
-    expect(within(dong[1]).getByText("Đơn mua")).toBeInTheDocument();
+    const dong = container.querySelectorAll<HTMLElement>("tr.lds-dong");
+    // Cột đầu là số in trên tờ phiếu; phiếu chưa có số thì mã hệ thống.
+    expect(within(dong[0]).getByText("PC00018")).toBeInTheDocument();
+    expect(within(dong[1]).getByText("UNC-261003-Z8WE")).toBeInTheDocument();
+    // Ngoại tệ: số VND không kèm " đ", nguyên tệ + tỷ giá nằm ở chữ nổi khi trỏ chuột.
+    const so = within(dong[0]).getByText("30.480.000");
+    expect(so).toHaveAttribute("title", "USD 1.200 tỷ giá 25.400");
+    expect(within(dong[0]).getByText("Đơn mua")).toHaveClass("lds-tag");
+    // Phiếu cọc: nhãn riêng "Cọc đơn mua", mã đơn đứng cạnh.
+    expect(within(dong[1]).getByText("Cọc đơn mua")).toHaveClass("lds-tag");
     expect(within(dong[1]).getByText("DMH-261002-K4P1")).toBeInTheDocument();
-    expect(within(dong[1]).getByText("Thiếu chứng từ")).toBeInTheDocument();
-    // Phiếu đã hủy không bị nhắc thiếu chứng từ.
-    expect(within(dong[2]).queryByText("Thiếu chứng từ")).toBeNull();
+  });
+
+  it("Trạng thái là chip, Ghi chú nhắc thiếu chứng từ gốc bằng chữ vàng; phiếu hủy mờ và không bị nhắc", () => {
+    const { container } = ve();
+    const dong = container.querySelectorAll<HTMLElement>("tr.lds-dong");
+    expect(within(dong[0]).getByText("Đã chi")).toHaveClass("lds-chip", "lds-chip--la");
+    expect(within(dong[0]).queryByText("Thiếu chứng từ gốc")).toBeNull();
+    expect(within(dong[1]).getByText("Thiếu chứng từ gốc")).toHaveClass("lds-vang");
     expect(dong[2]).toHaveClass("kt-da-huy");
-    // Thẻ điện thoại cũng theo luật: ngày + thẻ nguồn, không dấu nối.
-    const theDt = document.querySelector(".kt-the-dt")!;
-    for (const t of chuTran(theDt)) expect(t).not.toMatch(/[·•]|,\s/);
+    expect(within(dong[2]).getByText("Đã hủy")).toHaveClass("lds-chip", "lds-chip--xam");
+    expect(within(dong[2]).queryByText("Thiếu chứng từ gốc")).toBeNull();
+  });
+
+  it("cột người xem ẩn thì không vẽ, dòng Cộng vẫn thẳng cột", () => {
+    const { container } = ve({ cot: COT_PHIEU_CHI.filter((c) => c.key !== "hinh_thuc" && c.key !== "ghi_chu") });
+    expect(screen.queryByRole("columnheader", { name: "Hình thức" })).toBeNull();
+    const cong = container.querySelector<HTMLElement>("tr.lds-cong")!;
+    // Số phiếu … Chi theo = 5 cột trước ô tiền.
+    expect(cong.querySelector("td.lead")).toHaveAttribute("colspan", "5");
+    expect(within(cong).getByText("31.330.000")).toHaveClass("n");
+  });
+
+  it("ẩn cột Số tiền: dòng Cộng vẫn còn, số phiếu và tổng tiền đứng ở nhãn", () => {
+    const { container } = ve({ cot: COT_PHIEU_CHI.filter((c) => c.key !== "so_tien") });
+    const cong = container.querySelector<HTMLElement>("tr.lds-cong")!;
+    expect(cong).toHaveTextContent("Cộng 2 phiếu đã chi");
+    expect(cong).toHaveTextContent("31.330.000");
+    expect(cong.querySelector("td.lead")).toHaveAttribute("colspan", String(COT_PHIEU_CHI.length - 1));
+  });
+
+  it("mã đơn mua là nút mở đơn khi có quyền, bấm không mở ngăn", async () => {
+    const onMoDonMua = vi.fn();
+    const p = ve({ onMoDonMua });
+    await userEvent.click(screen.getByRole("button", { name: "DMH-261002-K4P1" }));
+    expect(onMoDonMua).toHaveBeenCalledWith("DMH-261002-K4P1");
+    expect(p.onMo).not.toHaveBeenCalled();
+  });
+
+  it("không có quyền xem đơn mua: mã là chữ thường", () => {
+    ve();
+    expect(screen.queryByRole("button", { name: "DMH-261002-K4P1" })).toBeNull();
+  });
+
+  it("dòng Cộng cuối bảng: số phiếu đã chi + tổng tiền, không phải dòng mở được", () => {
+    const { container } = ve();
+    const cong = container.querySelector<HTMLElement>("tr.lds-cong")!;
+    expect(cong).not.toHaveClass("lds-dong");
+    // Dòng Cộng nằm CUỐI tbody, sau các phiếu.
+    expect(cong.parentElement!.lastElementChild).toBe(cong);
+    expect(cong).toHaveTextContent("Cộng 2 phiếu đã chi");
+    expect(within(cong).getByText("không tính phiếu đã hủy")).toBeInTheDocument();
+    expect(within(cong).getByText("31.330.000")).toHaveClass("n");
+  });
+
+  it("chưa có tổng tiền thì không vẽ dòng Cộng", () => {
+    const { container } = ve({ tongTien: null });
+    expect(container.querySelector("tr.lds-cong")).toBeNull();
+  });
+
+  it("dòng đang mở ngăn viền đủ cạnh (is-chon)", () => {
+    const { container } = ve({ dangXem: 2 });
+    const dong = container.querySelectorAll<HTMLElement>("tr.lds-dong");
+    expect(dong[1]).toHaveClass("is-chon");
+    expect(dong[0]).not.toHaveClass("is-chon");
   });
 
   it("↑ ↓ chuyển dòng, Enter mở phiếu", async () => {
-    const p = ve();
-    const dong = screen.getAllByRole("row").slice(1);
+    const { container, onMo } = ve();
+    const dong = container.querySelectorAll<HTMLElement>("tr.lds-dong");
     dong[0].focus();
     fireEvent.keyDown(dong[0], { key: "ArrowDown" });
     expect(document.activeElement).toBe(dong[1]);
     fireEvent.keyDown(dong[1], { key: "Enter" });
-    expect(p.onMo).toHaveBeenCalledWith(2);
+    expect(onMo).toHaveBeenCalledWith(2);
     fireEvent.keyDown(dong[1], { key: "ArrowUp" });
     expect(document.activeElement).toBe(dong[0]);
     await userEvent.click(within(dong[2]).getByText("Kẽm CTP Phương Nam"));
-    expect(p.onMo).toHaveBeenLastCalledWith(3);
+    expect(onMo).toHaveBeenLastCalledWith(3);
   });
 
   it("ba câu rỗng: chưa có, lọc không ra, tải lỗi", async () => {
     const a = ve({ rows: [], tong: 0 });
-    expect(screen.getByText("Chưa có phiếu chi nào trong kỳ này")).toBeInTheDocument();
-    // Rust chỉ cho MỘT hành động chính (nút đầu trang) — nút ở trạng thái rỗng là nút phụ.
-    expect(screen.getByRole("button", { name: "Lập phiếu chi" })).not.toHaveClass("kt-btn--chinh");
+    expect(screen.getByText(/Chưa có phiếu chi nào trong kỳ này/)).toBeInTheDocument();
+    // Nút mời lập trong dòng rỗng là liên kết phụ — nút chính chỉ ở đầu trang.
+    expect(screen.getByRole("button", { name: "Lập phiếu chi" })).toHaveClass("lds-lk");
     await userEvent.click(screen.getByRole("button", { name: "Lập phiếu chi" }));
     expect(a.onLap).toHaveBeenCalled();
   });
 
-  it("lọc không ra thì mời Bỏ lọc", async () => {
+  it("lọc không ra thì mời Xoá bộ lọc", async () => {
     const p = ve({ rows: [], tong: 0, coLoc: true });
-    expect(screen.getByText("Không có phiếu nào khớp bộ lọc")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Bỏ lọc" }));
+    expect(screen.getByText(/Không có phiếu nào khớp điều kiện đang lọc/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Xoá bộ lọc" }));
     expect(p.onBoLoc).toHaveBeenCalled();
   });
 
-  it("tải lỗi không nói 'chưa có'", () => {
-    ve({ rows: [], tong: 0, loi: "Mất kết nối" });
+  it("tải lỗi không nói 'chưa có'", async () => {
+    const p = ve({ rows: [], tong: 0, loi: "Mất kết nối" });
     expect(screen.getByText(/Không tải được danh sách phiếu chi/)).toBeInTheDocument();
-    expect(screen.queryByText("Chưa có phiếu chi nào trong kỳ này")).toBeNull();
-    expect(screen.getByRole("button", { name: "Tải lại" })).toBeInTheDocument();
+    expect(screen.queryByText(/Chưa có phiếu chi nào trong kỳ này/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(p.onTaiLai).toHaveBeenCalled();
   });
 });

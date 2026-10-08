@@ -66,6 +66,7 @@ from .kho_giay import (
     khoa_ton,
     khoa_ton_cua,
     la_khoa_to,
+    la_ma_to_giay,
 )
 from .quy_doi_service import _so, cap_map, doi, don_vi_map
 from .stock_request_service import StockRequestService
@@ -265,7 +266,7 @@ class KeHoachVatTuService:
         self._he_so_cache: dict[tuple[str, str], dict] = {}
 
     def _dv_to(self) -> str:
-        """MÃ đơn vị đếm giấy TỜ (chặng tờ nguyên) — hỏi danh mục một lần cho cả bảng."""
+        """MÃ đơn vị đếm giấy TỜ ở kho / mua hàng (`to`) — nhớ một lần cho cả bảng."""
         if getattr(self, "_dv_to_cache", None) is None:
             self._dv_to_cache = don_vi_goc_to()
         return self._dv_to_cache
@@ -278,8 +279,8 @@ class KeHoachVatTuService:
         """Quy `so_luong` từ `dvt` về ĐƠN VỊ GỐC của mặt hàng. Trả `{sl, don_vi_goc_ten, hien_thi}`
         hoặc `{loi}`.
 
-        GIẤY TỜ đếm bằng tờ nguyên (spec giấy đếm tờ × khổ §3.2): đơn vị gốc là chặng tờ nguyên chứ
-        không phải `don_vi_gia` của mã (đơn vị đó chỉ còn cho tính giá và lô cuộn). Không có phép đổi
+        GIẤY TỜ đếm bằng "tờ" (spec giấy đếm tờ × khổ §3.2; từ 07/10/2026 là đơn vị kho `to`, mã
+        chặng tờ của lệnh quy về nó hệ số 1): đơn vị gốc không phải `don_vi_gia` của mã (đơn vị đó chỉ còn cho tính giá và lô cuộn). Không có phép đổi
         tờ ↔ kg nào — dòng giấy ghi kg (dữ liệu trước 01/10/2026) rơi vào "không đối chiếu được".
         `dang=DANG_CUON` ⇒ đếm theo đơn vị gốc của mã như vật tư khác.
         """
@@ -289,6 +290,12 @@ class KeHoachVatTuService:
         giay_to = hang[0] == HANG_GIAY and dang != DANG_CUON
         if giay_to:
             goc = self._dv_to()
+            if la_ma_to_giay(dvt):
+                # Mã chặng tờ của lệnh (`to_nguyen` / `to`) và đơn vị kho `to` là MỘT tờ, hệ số 1
+                # — tờ nào khác tờ nào là do khổ, không do đơn vị (chủ chốt 07/10/2026).
+                goc_ten = (self._dvs.get(goc.lower()) or {}).get("ten") or "tờ"
+                sl = _f(so_luong)
+                return {"sl": sl, "don_vi_goc_ten": goc_ten, "hien_thi": f"{_so(so_luong)} {goc_ten}"}
         else:
             goc = (getattr(obj, "don_vi_gia", None) or "").strip()
             if not goc:
@@ -485,6 +492,16 @@ class KeHoachVatTuService:
         thieu = sorted({(h[0], int(h[1])) for h in hangs} - set(self._objs))
         if thieu:
             self._objs.update(self.hang.map_theo_cap(thieu))
+
+    def dang_ve_va_vet_mua(self, hangs: list[tuple]) -> tuple[dict, dict]:
+        """Hàng đang về + vết mua (PMH/YCMH đang chạy) cho các mặt hàng — KHÔNG dựng bảng cân đối.
+
+        Màn Tồn kho cần hai thứ này cho cả mặt hàng CHƯA lệnh nào cần (bảng cân đối không có nhóm
+        của chúng). Cùng một nguồn với bảng (`_hang_dang_ve`, `_vet_mua_theo_hang`) để hai màn
+        không đếm hàng đang về theo hai luật.
+        """
+        self.nap_nen_quy_doi(hangs)
+        return self._hang_dang_ve(), self._vet_mua_theo_hang()
 
     def _hang_dang_ve(self) -> dict[tuple, list[tuple[date, float, str | None, int]]]:
         """`{hang: [(ngày về, số còn về, mã phiếu mua, id dòng phiếu)]}` đã sắp theo ngày — đơn vị GỐC.
@@ -878,7 +895,7 @@ class KeHoachVatTuService:
 
         # Gộp trùng SAU khi đã về đơn vị gốc — gộp trước là cộng 100 tờ với 12 kg. Khoá gộp là khoá
         # tồn 4 phần tử: cùng mã giấy hai khổ là hai dòng xin cấp, không cộng lẫn.
-        # Tên lấy thẳng từ `self._objs`, đơn vị gốc là tờ nguyên (giấy) hoặc `obj.don_vi_gia`, số
+        # Tên lấy thẳng từ `self._objs`, đơn vị gốc là "tờ" `to` (giấy) hoặc `obj.don_vi_gia`, số
         # gốc là `d["nhu_cau"]` (khoá do `_quy_doi_dong` đặt).
         gom: dict[tuple, dict] = {}
         for d in cua_buoc:
@@ -922,7 +939,7 @@ class KeHoachVatTuService:
         Ném `KeHoachVatTuError` khi không quy đổi được, KHÔNG trả 0 im lặng: Task 3 dùng con số
         này để so lệch kế hoạch, trả 0 âm thầm là một dòng "lệch" giả.
 
-        Giấy: `dang` quyết đơn vị gốc — tờ (mặc định) đếm tờ nguyên, cuộn đếm `don_vi_gia` của mã.
+        Giấy: `dang` quyết đơn vị gốc — tờ (mặc định) đếm bằng "tờ" (`to`), cuộn đếm `don_vi_gia` của mã.
         """
         hang = (hang_loai, int(hang_id))
         self.nap_nen_quy_doi([hang])
@@ -1439,6 +1456,8 @@ class KeHoachVatTuService:
                     "ngay_can": d["ngay_can"],
                     "khach_ten": d.get("khach_ten"),
                     "han_giao_khach": d.get("han_giao_khach"),
+                    # Hạn SX = khoá xếp thứ tự ăn tồn ở trên — màn Tồn kho vẽ dự báo theo đúng mốc này.
+                    "han_sx": d.get("han_sx"),
                     "nhu_cau": round(_f(d["nhu_cau"]), 4),
                     "nhu_cau_hien_thi": d["nhu_cau_hien_thi"],
                     "da_cap": round(cap, 4),

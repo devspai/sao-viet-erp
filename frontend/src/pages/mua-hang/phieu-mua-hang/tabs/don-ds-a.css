@@ -1,0 +1,9 @@
+/* Danh sách đơn mua — bản A (mockup A5). */
+.dla-ncc { white-space: normal; overflow-wrap: anywhere; min-width: 140px; }
+.dla-thanh > i.cam { background: var(--tt-cam-dot); }
+.dla-gach { text-decoration: line-through; color: var(--ash-2); }
+.dla-xanh { color: var(--tt-la-fg); }
+.dla-nw { white-space: nowrap; }
+.dla-wrap { white-space: normal; }
+/* 8 cột trên màn 1280px: đệm 14px mỗi bên ăn mất ~220px, thu còn 10px cho bảng khỏi tràn ngang. */
+.dla-bang th, .dla-bang td { padding-left: 10px !important; padding-right: 10px !important; }

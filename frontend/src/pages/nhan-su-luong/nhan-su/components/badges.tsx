@@ -12,20 +12,9 @@ import { STATUS_CLASS, STATUS_LABEL } from "../shared/constants";
 import { InfoCard, InfoField } from "./info-display";
 
 export function StatusBadge({ status }: { status: string }) {
-  const dotBg =
-    status === "active"
-      ? "#16a34a"
-      : status === "probation"
-      ? "#d97706"
-      : status === "on_leave"
-      ? "#9333ea"
-      : status === "resigned"
-      ? "#dc2626"
-      : "#9ca3af";
-
   return (
     <span className={`ns-badge ${STATUS_CLASS[status] ?? "ns-badge--muted"}`}>
-      <span className="ns-badge-dot" style={{ backgroundColor: dotBg }} />
+      <span className="ns-badge-dot" />
       <span>{STATUS_LABEL[status] ?? status}</span>
     </span>
   );

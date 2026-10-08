@@ -118,6 +118,8 @@ export function LsxRoutingTable({
   onXemTruocRouting,
   onDirtyChange,
   dvChuoi,
+  yeuCauMo,
+  onDaMo,
 }: {
   congDoans: LsxCongDoan[];
   soLuongDat: number;
@@ -165,6 +167,11 @@ export function LsxRoutingTable({
    *  luật suy chặng chỉ có một bản, ở `dong_giay.don_vi_chuoi`. Đánh đổi: đổi công đoạn của một
    *  bước thì nhãn ở băng bài ghép cập nhật sau khi bấm Lưu, không tức thì. */
   dvChuoi: DonViChuoi;
+  /** Màn cha xin mở ngăn của một bước (theo id bước) — vd bấm tên bước ở băng "Còn thiếu".
+   *  `lan` đổi mỗi lần bấm để bấm lại cùng một bước vẫn mở được. */
+  yeuCauMo?: { id: number; lan: number } | null;
+  /** Đã mở xong — cha xoá yêu cầu, nếu không bảng dựng lại (đổi tab rồi quay về) lại tự mở. */
+  onDaMo?: () => void;
 }) {
   // Nhãn đơn vị đọc từ DANH MỤC — nạp một lần cho cả phiên. Hook ở ĐÂY (gốc của bảng + DAG +
   // drawer) nên mọi chỗ gọi `dvNhan` vẽ lại khi danh mục về, khỏi phải truyền prop qua 22 chỗ.
@@ -532,6 +539,19 @@ export function LsxRoutingTable({
     setMoBuoc(null);
     hangMo.current?.focus();
   }
+
+  // Mở thẳng tab Phân công: cả ba thứ băng "Còn thiếu" gọi tên bước (tổ/máy, nhà gia công,
+  // khuôn) đều chọn ở tab đó.
+  useEffect(() => {
+    if (!yeuCauMo) return;
+    const i = rowsRef.current.findIndex((r) => r.id === yeuCauMo.id);
+    onDaMo?.();
+    if (i < 0) return;
+    hangMo.current = null;
+    setTabDau("phan_cong");
+    setMoBuoc(i);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ chạy khi có yêu cầu MỚI
+  }, [yeuCauMo]);
 
   function onRowKeyDown(e: KeyboardEvent, idx: number) {
     if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {

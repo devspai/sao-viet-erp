@@ -2048,6 +2048,9 @@ vật tư/dịch vụ, dùng để chọn vào phiếu yêu cầu mua hàng.
 | `supplier_id` | `Integer` → `INTEGER`                                  | **FK→suppliers.id**, **IX** | no   | —              | Nhà cung cấp sở hữu mặt hàng/bảng giá.       |
 | `hang_loai`   | `String(8)` → `VARCHAR(8)`                             | **IX** (cặp)         | yes  | —              | Mặt hàng gốc dòng này bán: `giay` \| `vat_tu` (mg 0172). |
 | `hang_id`     | `Integer` → `INTEGER`                                  | **IX** (cặp)         | yes  | —              | Id trong `giay_nguyen` / `vat_tu_in_an`. Soft ref. |
+| `dang_ban`    | `String(8)` → `VARCHAR(8)`                             | —                    | yes  | —              | Dạng bán của dòng giá GIẤY (mg 0376, 07/10/2026): `to` = bán tờ đúng khổ, so đ/tờ chỉ với NCC cùng khổ · `cuon` = bán cuộn, so đ/kg. Bắt buộc với dòng giấy; NULL với vật tư khác. |
+| `kho_rong`    | `Integer` → `INTEGER`                                  | —                    | no   | `0`            | Khổ (mm, cạnh ngắn) của dòng tờ; khổ cuộn của dòng cuộn (0 = mọi khổ). 0 với vật tư khác. |
+| `kho_dai`     | `Integer` → `INTEGER`                                  | —                    | no   | `0`            | Cạnh dài (mm) của dòng tờ; luôn 0 với cuộn và vật tư khác. |
 | `item_name`   | `String(255)` → `VARCHAR(255)`                         | **IX**               | no   | —              | Tên vật tư/sản phẩm/dịch vụ NCC cung cấp.    |
 | `unit`        | `String(32)` → `VARCHAR(32)`                           | —                    | no   | —              | Đơn vị NCC BÁN theo. Nếu đã gắn mặt hàng thì phải nằm trong tập đổi được của nó (service chặn) — không thì cột "giá quy về đơn vị gốc" vĩnh viễn trống và dòng đó biến mất khỏi so giá. |
 | `unit_price`  | `BigInteger` → `BIGINT`                                | —                    | no   | `0`            | Đơn giá hiện tại của NCC.                    |
@@ -2114,6 +2117,8 @@ trị đơn mà không ai phát hiện cho tới lúc đối chiếu với NCC.
 | `delivery_id` | `Integer` → `INTEGER` | **FK→purchase_deliveries.id** (CASCADE), **IX** | no | — | Đợt giao chứa dòng này. |
 | `purchase_request_line_id` | `Integer` → `INTEGER` | **FK→purchase_request_lines.id** (RESTRICT), **IX** | no | — | Dòng ĐẶT mà đợt này giao vào. |
 | `quantity` | `Numeric(14,2)` → `NUMERIC(14,2)` | — | no | `0` | Số thực nhận của RIÊNG đợt này. Tổng các đợt không được vượt số đặt. |
+| `kho_rong` | `Integer` → `INTEGER` | — | no | `0` | Khổ THỰC NHẬN (mm, cạnh ngắn) của dòng giấy tờ (mg 0377, 07/10/2026). 0 · 0 = đúng khổ đặt; NCC giao khác khổ thì hàng vào tồn theo khổ này. |
+| `kho_dai` | `Integer` → `INTEGER` | — | no | `0` | Cạnh dài khổ thực nhận (mm). 0 khi theo khổ đặt hoặc không phải giấy tờ. |
 | `note` | `Text` → `TEXT` | — | yes | — | Ghi chú dòng. |
 
 **Keys & indexes**
@@ -2186,6 +2191,7 @@ có gì báo lỗi.
 | `code`                     | `String(32)` → `VARCHAR(32)`                           | **U**, **IX**                 | no   | generated      | Mã yêu cầu nguồn do backend sinh, vd `YCMH-260710-K8P2`.                                         |
 | `status`                   | `String(24)` → `VARCHAR(24)`                           | **IX**                        | no   | `"open"`       | Trạng thái: `open`, `pending_approval`, `in_purchase`, `done`, `cancelled`.                      |
 | `source_type`              | `String(32)` → `VARCHAR(32)`                           | **IX**                        | no   | —              | Bộ phận/nguồn phát sinh: `kinh_doanh`, `kho`, `san_xuat`, `cong_nghe`, `gia_cong_ngoai`, `khac`. |
+| `loai_mua`                 | `String(16)` → `VARCHAR(16)`                           | **IX**                        | no   | `"theo_yeu_cau"` | Loại mua (mg 0380, 08/10/2026): `theo_yeu_cau`, `cho_lsx` (máy chủ đặt khi có `yeu_cau_mua_nguon_lenh`), `mua_ton`. Khác `source_type` (phòng ban người lập). |
 | `requesting_department_id` | `Integer` → `INTEGER`                                  | **FK→departments.id**, **IX** | yes  | —              | Phòng ban phát sinh yêu cầu, lấy từ user tạo nếu có.                                             |
 | `requested_by_user_id`     | `Integer` → `INTEGER`                                  | **FK→users.id**, **IX**       | yes  | —              | Người tạo yêu cầu mua.                                                                           |
 | `related_document_type`    | `String(64)` → `VARCHAR(64)`                           | —                             | yes  | —              | Loại chứng từ liên quan, vd `sales_order`, `production_order`.                                   |
@@ -3753,7 +3759,7 @@ Bảng mới → `create_all` tự dựng, không migration.
 **Tất cả cột:** `id`, `ma` (SC-#### sinh ngầm), `may_id` (soft → `may_thiet_bi.id`),
 `bo_phan_hong`, `mo_ta`, `muc_do` (nhe·trung_binh·nghiem_trong), `nguoi_bao_id` (soft →
 `employees.id`), `nguoi_bao_ten` (snapshot), `thoi_diem`, `nguyen_nhan_phuong_an`, `trang_thai`
-(cho_sua·dang_sua·cho_vat_tu·da_sua_xong), `hoan_thanh_at`, `hoan_thanh_boi`, `ghi_chu`,
+(cho_sua·da_sua_xong), `hoan_thanh_at`, `hoan_thanh_boi`, `ghi_chu`,
 `created_at`, `updated_at`.
 
 - **Người báo (`nguoi_bao_id` + `nguoi_bao_ten`) do SERVER chốt lúc tạo, KHÔNG gõ, KHÔNG sửa**
@@ -3766,7 +3772,8 @@ Bảng mới → `create_all` tự dựng, không migration.
   (`data` lúc tiếp nhận không đè được); chỉ phiếu tổ kỹ thuật tự lập mới chọn máy, và chỉ lúc lập.
   `SuaChuaPatch` không có `may_id`, `update_sua_chua` dùng `SUA_DUOC_SUA_CHUA` (bỏ `may_id`).
   Báo nhầm máy thì từ chối yêu cầu để người báo gửi lại.
-- `cho_vat_tu` lát này chỉ là chữ (thiếu đồ gì ghi vào `ghi_chu`); CHƯA nối `stock_requests`.
+- Chỉ 2 trạng thái (07/10/2026): `dang_sua`/`cho_vat_tu` đã gỡ, mg 0379 dồn phiếu cũ về `cho_sua`;
+  thiếu đồ gì ghi vào `ghi_chu`.
 - Đóng phiếu (`da_sua_xong`) đòi **≥1 ảnh `giai_doan="sau"`** — chặn ở service, không cờ quyền nào bỏ qua.
 
 ### `ky_thuat_yeu_cau_sua`
@@ -4012,7 +4019,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 **Purpose:** Thu mua — yêu cầu mua hàng từ bộ phận (nguồn của PMH). One row = 1 yêu cầu bộ phận.
 
-**Tất cả cột:** `id`, `code`, `status`, `source_type`, `requesting_department_id`, `requested_by_user_id`, `related_document_type`, `related_document_code`, `purpose`, `needed_date`, `note`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `code`, `status`, `source_type`, `loai_mua`, `requesting_department_id`, `requested_by_user_id`, `related_document_type`, `related_document_code`, `purpose`, `needed_date`, `note`, `created_at`, `updated_at`.
 
 ---
 

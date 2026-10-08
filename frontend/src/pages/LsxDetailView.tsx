@@ -224,6 +224,8 @@ export function LsxDetailView({
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("chung");
+  // Bấm tên bước ở băng "Còn thiếu" → sang tab Công đoạn và mở ngăn bước đó.
+  const [moBuocReq, setMoBuocReq] = useState<{ id: number; lan: number } | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [copiedOrder, setCopiedOrder] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -885,35 +887,14 @@ export function LsxDetailView({
         {/* Tầng 1: Trạng thái kiểm tra & Nút Hành động CTA chính */}
         <div className="khsx-topbar__header">
           <div className="khsx-topbar__status">
-            {/* Bảng "còn thiếu" trước đây chỉ mở bằng rê chuột — điện thoại không có chuột,
-                bàn phím cũng không tới được. Thẻ kích hoạt bên dưới có tabIndex để chạm/Tab
-                là mở (quy tắc :focus-within nằm ở §28 styles/responsive.css). */}
             {d.trang_thai === "san_sang" ? (
               <span className="khsx-topbar__tag khsx-topbar__tag--ok">
                 <Icon name="check" size={14} /> Sẵn sàng lập kế hoạch
               </span>
             ) : d.thieu.length > 0 ? (
-              <div className="khsx-topbar__pop-trigger" tabIndex={0}>
-                <span className="khsx-topbar__tag khsx-topbar__tag--warn">
-                  <Icon name="alert" size={14} /> Còn thiếu {d.thieu.length} mục
-                </span>
-                <div className="khsx-topbar__popover">
-                  <p className="khsx-topbar__pop-title">Danh sách mục chưa hoàn thiện:</p>
-                  <ul>
-                    {d.thieu.map((code) => (
-                      <li key={code}>
-                        <span>• {nhanMa(LSX_THIEU_LABELS, code, dvChuoi)}</span>
-                        {code === "thieu_routing" && (
-                          <button type="button" className="khsx-xlink" onClick={() => setTab("routing")}>Sửa →</button>
-                        )}
-                        {(code === "thieu_giay" || code === "thieu_kho") && (
-                          <button type="button" className="khsx-xlink" onClick={() => setTab("quycach")}>Xem →</button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+              <span className="khsx-topbar__tag khsx-topbar__tag--warn">
+                <Icon name="alert" size={14} /> Còn thiếu {d.thieu.length} mục
+              </span>
             ) : (
               <span className="khsx-topbar__tag khsx-topbar__tag--ok">
                 <Icon name="check" size={14} /> Đủ dữ liệu
@@ -945,6 +926,47 @@ export function LsxDetailView({
             )}
           </div>
         </div>
+
+        {/* Lý do nút Sẵn sàng bị khoá — HIỆN SẴN, không giấu sau rê chuột (07/10/2026: người dùng
+            nhìn nhãn "Còn thiếu 1 mục" mà không biết thiếu gì). Mục cấp bước gọi đích danh bước,
+            bấm tên bước là mở thẳng ngăn bước đó. */}
+        {d.trang_thai !== "san_sang" && d.thieu.length > 0 && (
+          <ul className="khsx-thieu">
+            {d.thieu.map((code) => {
+              const buocs = (d.thieu_buoc?.[code] ?? [])
+                .map((id) => d.cong_doans.find((c) => c.id === id))
+                .filter((c): c is NonNullable<typeof c> => c != null);
+              return (
+                <li key={code} className="khsx-thieu__dong">
+                  <span>{nhanMa(LSX_THIEU_LABELS, code, dvChuoi)}</span>
+                  {buocs.map((b) => (
+                    orderCancelled ? (
+                      <span key={b.id} className="khsx-thieu__buoc">{b.ten}</span>
+                    ) : (
+                      <button
+                        key={b.id}
+                        type="button"
+                        className="khsx-thieu__buoc"
+                        onClick={() => {
+                          setTab("routing");
+                          setMoBuocReq({ id: b.id, lan: Date.now() });
+                        }}
+                      >
+                        {b.ten} →
+                      </button>
+                    )
+                  ))}
+                  {code === "thieu_routing" && (
+                    <button type="button" className="khsx-xlink" onClick={() => setTab("routing")}>Sửa →</button>
+                  )}
+                  {(code === "thieu_giay" || code === "thieu_kho") && (
+                    <button type="button" className="khsx-xlink" onClick={() => setTab("quycach")}>Xem →</button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
 
         {/* Tầng 2: Dải thẻ KPI chỉ số (KPI Grid Tiles) */}
         <div className="khsx-topbar__metrics-grid">
@@ -1058,6 +1080,7 @@ export function LsxDetailView({
         onChanged={() => { load(); onChanged(); }}
         lansDau={lansDau?.lans}
         lansDauTick={lansDau?.tick}
+        daHien={{ slDat: d.so_luong_dat, toNguyen: d.so_to_nguyen }}
         onLans={(ds) => setTronGoi(timTronGoi(ds, lsxId))}
         // Màn Bài ghép đang ẩn (`BAI_GHEP_ENABLED`) thì route bị chặn — không mời bấm sang.
         onMoBaiGhep={navigate && BAI_GHEP_ENABLED
@@ -1546,6 +1569,8 @@ export function LsxDetailView({
                     onXemTruocRouting={xemTruocRouting}
                     onDirtyChange={setRoutingDirty}
                     dvChuoi={dvChuoi}
+                    yeuCauMo={moBuocReq}
+                    onDaMo={() => setMoBuocReq(null)}
                   />
                 </div>
               </div>

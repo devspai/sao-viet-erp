@@ -37,6 +37,8 @@ class CanDoiDong(BaseModel):
     #: Hạn giao KHÁCH (`lsx.han_giao_khach`), KHÁC hạn nội bộ `han_hoan_thanh_sx` mà bảng dùng để
     #: xếp thứ tự ăn tồn. Bài ghép lấy hạn sớm nhất trong các thành viên.
     han_giao_khach: date | None = None
+    #: Hạn HOÀN THÀNH SX nội bộ — chính là thứ tự ăn tồn của bảng. Màn Tồn kho vẽ dự báo theo mốc này.
+    han_sx: date | None = None
 
     #: Mọi số dưới đây theo ĐƠN VỊ GỐC của mặt hàng (kho đếm theo đơn vị đó). `None` ở dòng công cụ.
     nhu_cau: float | None = None

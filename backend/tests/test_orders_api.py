@@ -226,6 +226,23 @@ def test_confirm_gate_blocks_then_locks_quote(svc, admin, customer, db):
         svc.confirm(order_id=d.id, actor=admin, scope="all")
 
 
+def test_confirm_gate_chan_dvt_khong_co_trong_danh_muc(svc, admin, customer, db):
+    """ĐVT dòng đơn không tra ra mã danh mục ⇒ chặn chốt NGAY. Trước đây chốt vẫn qua, thành phẩm
+    mang đơn vị trống và chỉ lộ ra lúc nhập kho (TP-00003 «Tờ rơi A4 4/4», ĐVT «tờ»)."""
+    q = _accepted_quote(db, customer)
+    item = db.query(QuoteItem).join(QuoteVersion).filter(QuoteVersion.quote_id == q.id).first()
+    item.unit = "tờ-không-có"
+    db.commit()
+    d = svc.create(actor=admin, scope="all", payload=OrderCreate(quotation_id=q.id))
+    svc.update(order_id=d.id, actor=admin, scope="all",
+               payload=OrderUpdate(customer_po_no="PO1", delivery_committed_date=date.today()))
+    d = svc.get(order_id=d.id, actor=admin, scope="all")
+    assert d.can_confirm is False
+    assert any("tờ-không-có" in b for b in d.confirm_blockers)
+    with pytest.raises(OrderValidationError):
+        svc.confirm(order_id=d.id, actor=admin, scope="all")
+
+
 # --- Việc 4: gia hạn báo giá nguồn từ đơn (gỡ blocker "báo giá hết hạn") ------
 def test_extend_source_quote_clears_expiry_blocker(svc, admin, customer, db):
     q = _accepted_quote(db, customer)

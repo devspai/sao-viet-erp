@@ -5,7 +5,7 @@
 // "Theo lệnh" và "Theo mặt hàng" chỉ là hai cách nhóm cùng các dòng. Lọc, đếm, nhóm, cắt trang đều
 // ở máy chủ (`/api/ke-hoach-vat-tu/luoi`); hai ngăn đọc `/luoi/lenh` và `/luoi/hang` từ cùng bản số.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Download, Link2, Search, ShoppingCart, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Download, Link2, ShoppingCart } from "lucide-react";
 
 import {
   ApiError,
@@ -22,6 +22,8 @@ import {
 import { useCan } from "../../auth/permissions";
 import { useAuth } from "../../auth/useAuth";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { EmptyRow } from "../../components/EmptyState";
+import { ChipTT, CuonLuoi, LocNhanhTrangThai, OTim, type MauTT, type MucLocNhanh } from "../../components/LuoiDs";
 import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
 import { nhanKho } from "../../lib/khoGiay";
 import { NganPhai } from "../ke-toan/shared/NganPhai";
@@ -40,7 +42,7 @@ import "./luoi-vat-tu.css";
 type Xem = "lenh" | "hang";
 
 /** Tình trạng → nhãn + màu. Mỗi tình trạng một sắc riêng (bộ `--tt-*`). */
-export const TINH_TRANG: Record<TinhTrangO, { nhan: string; mau: string }> = {
+export const TINH_TRANG: Record<TinhTrangO, { nhan: string; mau: MauTT }> = {
   can_mua: { nhan: "Cần mua", mau: "do" },
   dang_mua: { nhan: "Đang mua", mau: "vang" },
   chua_giu: { nhan: "Chưa giữ", mau: "xanh" },
@@ -82,7 +84,7 @@ function ngayGio(v: string | null): string {
 
 export function Chip({ t }: { t: TinhTrangO }) {
   const c = TINH_TRANG[t];
-  return <span className={`lvt-chip lvt-chip--${c.mau}`}>{c.nhan}</span>;
+  return <ChipTT mau={c.mau}>{c.nhan}</ChipTT>;
 }
 
 export function Buoc({ b }: { b: BuocPhieu }) {
@@ -326,6 +328,15 @@ export function LuoiVatTu({
   const chonDs = [...chon.values()];
   const soLenhChon = new Set(chonDs.map((d) => d.chu)).size;
   const dieuKien = useMemo(() => dieuKienKhvtHang(), []);
+  // Số bên cạnh từng mục do MÁY CHỦ đếm (`dem`, trên tập đã tìm + lọc loại hàng, trước khi chọn
+  // tình trạng) — đếm theo DÒNG (ô lệnh × mặt hàng), không phải theo nhóm đang cắt trang.
+  const mucTinhTrang: MucLocNhanh[] = [
+    { key: "", label: "Tất cả", count: dem.tat_ca },
+    ...THU_TU_LOC.filter((t) => t !== "chua_tinh" || (dem.chua_tinh ?? 0) > 0 || tinh === "chua_tinh").map((t) => ({
+      key: t, label: TINH_TRANG[t].nhan, mau: TINH_TRANG[t].mau, count: dem[t],
+    })),
+    { key: "co_ghi_chu", label: "Có ghi chú", mau: "tim" as MauTT, count: dem.co_ghi_chu },
+  ];
 
   const doiNhom = (k: string) =>
     setDong((cu) => {
@@ -336,49 +347,16 @@ export function LuoiVatTu({
     });
 
   return (
-    <div className="lvt">
-      <div className="lvt-tool">
-        <h1 className="lvt-h">Kế hoạch vật tư</h1>
-        <span className="lvt-lbl">Xem theo</span>
-        <div className="lvt-seg" role="group" aria-label="Xem theo">
-          <button type="button" className={xem === "lenh" ? "on" : undefined} aria-pressed={xem === "lenh"} onClick={() => setXem("lenh")}>
-            Lệnh
-          </button>
-          <button type="button" className={xem === "hang" ? "on" : undefined} aria-pressed={xem === "hang"} onClick={() => setXem("hang")}>
-            Mặt hàng
+    <div className="lvt lds">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Kế hoạch vật tư</h1>
+        <div className="lds-dau__nut">
+          <button type="button" className="lds-btn" onClick={() => void xuatExcel()} disabled={ban === "xuat"}>
+            <Download size={14} aria-hidden="true" />
+            {ban === "xuat" ? "Đang xuất…" : "Xuất Excel"}
           </button>
         </div>
-        <span className="lvt-sp" />
-        <label className="lvt-search">
-          <Search size={14} aria-hidden="true" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm lệnh, mặt hàng, mã phiếu"
-            aria-label="Tìm lệnh, mặt hàng, mã phiếu" />
-          {q && (
-            <button type="button" className="lvt-x" aria-label="Xoá tìm kiếm" onClick={() => setQ("")}>
-              <X size={13} aria-hidden="true" />
-            </button>
-          )}
-        </label>
-        <ThanhLoc dieuKien={dieuKien} loc={loc} onLoc={setLoc} />
-        <button type="button" className="lvt-btn" onClick={() => void xuatExcel()} disabled={ban === "xuat"}>
-          <Download size={14} aria-hidden="true" />
-          {ban === "xuat" ? "Đang xuất…" : "Xuất Excel"}
-        </button>
-      </div>
-
-      <div className="lvt-flt" role="group" aria-label="Lọc theo tình trạng">
-        <button type="button" className={tinh == null ? "on" : undefined} onClick={() => setTinh(null)}>Tất cả</button>
-        {THU_TU_LOC.filter((t) => t !== "chua_tinh" || (dem.chua_tinh ?? 0) > 0 || tinh === "chua_tinh").map((t) => (
-          <button key={t} type="button" className={tinh === t ? "on" : undefined} onClick={() => setTinh(t)}>
-            <i className={`lvt-dot lvt-dot--${TINH_TRANG[t].mau}`} />
-            {TINH_TRANG[t].nhan}
-          </button>
-        ))}
-        <button type="button" className={tinh === "co_ghi_chu" ? "on" : undefined} onClick={() => setTinh("co_ghi_chu")}>
-          <AlertTriangle size={12} className="lvt-amb" aria-hidden="true" />
-          Có ghi chú
-        </button>
-      </div>
+      </header>
 
       {err && (
         <div className="banner banner--error lvt-loi" role="alert">
@@ -387,9 +365,27 @@ export function LuoiVatTu({
         </div>
       )}
 
-      <div className="lvt-sheet">
-        <div className="lvt-cuon">
-          <table className="lvt-g">
+      <section className="lds-loc">
+        <LocNhanhTrangThai muc={mucTinhTrang} dang={tinh ?? ""} onChon={(k) => setTinh(k === "" ? null : (k as TinhTrangO | "co_ghi_chu"))}
+          ariaLabel="Lọc theo tình trạng" />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <span className="lvt-lbl">Xem theo</span>
+          <div className="lvt-seg" role="group" aria-label="Xem theo">
+            <button type="button" className={xem === "lenh" ? "on" : undefined} aria-pressed={xem === "lenh"} onClick={() => setXem("lenh")}>
+              Lệnh
+            </button>
+            <button type="button" className={xem === "hang" ? "on" : undefined} aria-pressed={xem === "hang"} onClick={() => setXem("hang")}>
+              Mặt hàng
+            </button>
+          </div>
+          <OTim value={q} onChange={setQ} placeholder="Tìm lệnh, mặt hàng, mã phiếu" ariaLabel="Tìm lệnh, mặt hàng, mã phiếu" />
+          <ThanhLoc dieuKien={dieuKien} loc={loc} onLoc={setLoc} />
+        </div>
+      </section>
+
+      <div className="lds-sheet">
+        <CuonLuoi ghim={2}>
+          <table className="lds-g lvt-g">
             {xem === "lenh" ? (
               <colgroup>
                 <col style={{ width: 36 }} /><col style={{ width: 212 }} /><col style={{ width: 76 }} />
@@ -420,10 +416,11 @@ export function LuoiVatTu({
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 && (
+              {items.length === 0 && loading && <EmptyRow colSpan={xem === "lenh" ? 11 : 10} trangThai="dang-tai" />}
+              {items.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={xem === "lenh" ? 11 : 10} className="lvt-trong">
-                    {loading ? "Đang tải…" : q || tinh || loc.loai ? "Không dòng nào khớp điều kiện." : "Chưa lệnh nào cần vật tư."}
+                  <td colSpan={xem === "lenh" ? 11 : 10} className="lds-trong">
+                    {q || tinh || loc.loai ? "Không dòng nào khớp điều kiện." : "Chưa lệnh nào cần vật tư."}
                   </td>
                 </tr>
               )}
@@ -439,7 +436,7 @@ export function LuoiVatTu({
               })}
             </tbody>
           </table>
-        </div>
+        </CuonLuoi>
         <PhanTrangDayDu trang={data?.page ?? trang} size={size} tong={data?.tong_nhom ?? null}
           soDong={items.length} onTrang={setTrang} onSize={setSize} loading={loading}
           donVi={xem === "lenh" ? "lệnh" : "mặt hàng"} />
@@ -502,16 +499,19 @@ function NhomDong({
   return (
     <>
       {l && (
-        <tr className="gr">
+        <tr className="gr lds-nhom">
           <td colSpan={11} className="lead">
             <div className="gl">
-              <button type="button" className="lvt-chev" aria-expanded={mo} aria-label={mo ? "Thu nhóm" : "Mở nhóm"} onClick={onDoi}>{chev}</button>
-              <button type="button" className="lvt-lk" onClick={() => onMoLenh(l)}>{l.ma}</button>
-              {l.ten_sp && <span>{l.ten_sp}</span>}
-              {l.khach_ten && <span className="lvt-mu">{l.khach_ten}</span>}
-              {l.han_giao_khach && <span className="lvt-k">Giao {ngayNgan(l.han_giao_khach)}</span>}
-              {l.is_rush && <span className="lvt-gap">Gấp</span>}
-              {l.ngoai_pham_vi && <span className="lvt-k">Không còn trong kế hoạch</span>}
+              {/* Nhãn đứng yên bên trái khi cuộn ngang; nút Giữ hàng nằm ngoài, dạt mép phải dòng. */}
+              <span className="lds-dinh-trai">
+                <button type="button" className="lvt-chev" aria-expanded={mo} aria-label={mo ? "Thu nhóm" : "Mở nhóm"} onClick={onDoi}>{chev}</button>
+                <button type="button" className="lvt-lk" onClick={() => onMoLenh(l)}>{l.ma}</button>
+                {l.ten_sp && <span>{l.ten_sp}</span>}
+                {l.khach_ten && <span className="lvt-mu">{l.khach_ten}</span>}
+                {l.han_giao_khach && <span className="lvt-k">Giao {ngayNgan(l.han_giao_khach)}</span>}
+                {l.is_rush && <span className="lvt-gap">Gấp</span>}
+                {l.ngoai_pham_vi && <span className="lvt-k">Không còn trong kế hoạch</span>}
+              </span>
               <span className="lvt-sp" />
               {coGiu && !l.bat && !l.ngoai_pham_vi && (
                 <button type="button" className="lvt-btn lvt-btn--xs" disabled={ban === `giu:${l.ma}`}
@@ -525,13 +525,15 @@ function NhomDong({
         </tr>
       )}
       {h && (
-        <tr className="gr">
-          <td colSpan={2} className="lead">
+        <tr className="gr lds-nhom">
+          <td colSpan={2} className="lead lvt-gr-ghim">
             <div className="gl">
-              <button type="button" className="lvt-chev" aria-expanded={mo} aria-label={mo ? "Thu nhóm" : "Mở nhóm"} onClick={onDoi}>{chev}</button>
-              <button type="button" className="lvt-lk" onClick={() => onMoHang(n.dong[0])}>{h.hang_ten}</button>
-              {h.kho && <span className="lvt-tag">{h.kho}</span>}
-              <span className="lvt-k">{h.dvt}</span>
+              <span className="lds-dinh-trai">
+                <button type="button" className="lvt-chev" aria-expanded={mo} aria-label={mo ? "Thu nhóm" : "Mở nhóm"} onClick={onDoi}>{chev}</button>
+                <button type="button" className="lvt-lk" onClick={() => onMoHang(n.dong[0])}>{h.hang_ten}</button>
+                {h.kho && <span className="lvt-tag">{h.kho}</span>}
+                <span className="lvt-k">{h.dvt}</span>
+              </span>
             </div>
           </td>
           <td className="n">{so(h.can)}</td>
@@ -553,7 +555,7 @@ function NhomDong({
           const tickDuoc = canMua && d.tinh_trang === "can_mua";
           const da = chon.has(d.khoa);
           return (
-            <tr key={d.khoa} className={`row${da ? " sel" : ""}`}>
+            <tr key={d.khoa} className={`row lds-dong${da ? " sel" : ""}`}>
               <td>
                 <input type="checkbox" className="lvt-cb" checked={da} disabled={!tickDuoc}
                   aria-label={`Chọn ${d.hang_ten} của ${d.ma}`}

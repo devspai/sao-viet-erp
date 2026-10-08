@@ -1,11 +1,13 @@
-/** Ngăn nhà cung cấp — phương án 2 (sổ chi tiết kiểu Xero, 06/10/2026) + ngăn chồng "Trả nhiều đợt"
- *  (NPT-3).
+/** Ngăn nhà cung cấp — kiểu 3 (07/10/2026: nội dung trái, cột thuộc tính phải) + ngăn chồng "Trả nhiều
+ *  đợt" (NPT-3).
  *
- *  Khoá chặt: ba tab Còn nợ | Sao kê | Lịch sử; số trên tab Còn nợ = số đợt CÒN nợ (lỗi 7); vượt hạn
- *  mức chỉ nói ở khối hạn mức; chú thích tuổi nợ bấm = lọc đợt; sao kê TK 331 đọc ngược chiều (nhận
- *  hàng tăng, trả tiền giảm); tích đợt ⇒ chân tối có tổng; Esc ở ngăn chồng chỉ đóng ngăn chồng (lỗi
- *  6); sự kiện đẩy nạp lại ngăn (lỗi 8); payload lập phiếu GIỮ Y NGUYÊN như bản cũ (tiền thật); không
- *  nối mẩu thông tin bằng "·" / "•".
+ *  Khoá chặt: ba tab Còn nợ | Sao kê | Lịch sử; số trên tab Còn nợ = số đợt CÒN nợ (lỗi 7); cột thuộc
+ *  tính có còn nợ, quá hạn, hạn sớm nhất, hạn mức (đã dùng %), cho nợ, người liên hệ, tài khoản nhận;
+ *  không còn dải tuổi nợ bấm lọc ở đầu ngăn; một lưới nhóm theo đơn mua, ô chọn cả đơn ở dòng nhóm;
+ *  "Hạn trả" bỏ dòng nhóm, xếp theo hạn; sao kê TK 331 đọc ngược chiều (nhận hàng tăng, trả tiền giảm);
+ *  tích đợt ⇒ chân tối có tổng + "Lập phiếu chi trả"; Esc ở ngăn chồng chỉ đóng ngăn chồng (lỗi 6); sự
+ *  kiện đẩy nạp lại ngăn (lỗi 8); payload lập phiếu GIỮ Y NGUYÊN như bản cũ (tiền thật); không nối mẩu
+ *  thông tin bằng "·" / "•".
  */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -95,6 +97,7 @@ function chiTiet(p: Partial<PayablesDetail> = {}): PayablesDetail {
     ],
     period_months: 3, all_history: false, total_due: 96_500_000, overdue_amount: 26_500_000, aging: AGING,
     paid_in_period: 30_000_000, as_of: "2026-10-05",
+    lien_he_ten: "Trần Văn Minh", lien_he_sdt: "0903123456", tk_nhan: "Techcombank 19028765432019",
     ...p,
   };
 }
@@ -104,9 +107,9 @@ const navigate = vi.fn();
 const onChanged = vi.fn();
 const onClose = vi.fn();
 
-function ve(eventTick = 0, bucket: "all" | "overdue" | "paid" = "all") {
+function ve(eventTick = 0, bucket: "all" | "overdue" | "paid" = "all", tuoi: { khoa: string; nhan: string } | null = null) {
   return (
-    <PayablesDrawer supplierId={7} supplierName="Giấy Bình Minh" ma="NCC007" bucket={bucket} ky={KY} eventTick={eventTick}
+    <PayablesDrawer supplierId={7} supplierName="Giấy Bình Minh" ma="NCC007" bucket={bucket} tuoi={tuoi} ky={KY} eventTick={eventTick}
       quyen={{ lap: true, xemDonMua: true, xemNcc: true, xemPhieuChi: true }}
       navigate={navigate} onClose={onClose} onChanged={onChanged} />
   );
@@ -129,43 +132,108 @@ beforeEach(() => {
   });
 });
 
-async function moTabNo() {
-  render(ve());
+async function moTabNo(bucket: "all" | "overdue" = "all", tuoi: { khoa: string; nhan: string } | null = null) {
+  render(ve(0, bucket, tuoi));
   await screen.findByRole("tab", { name: /Còn nợ/ });
   await userEvent.click(screen.getByRole("tab", { name: /Còn nợ/ }));
 }
 
 describe("PayablesDrawer — NPT-2", () => {
-  it("đầu ngăn: thẻ mã, vượt hạn mức CHỈ ở khối hạn mức; ba tab, Còn nợ đếm đợt CÒN nợ (lỗi 7)", async () => {
+  it("đầu ngăn: thẻ mã, không còn dải số; cột thuộc tính đủ mục; ba tab, Còn nợ đếm đợt CÒN nợ (lỗi 7)", async () => {
     await moTabNo();
     expect(screen.getByRole("heading", { name: "Giấy Bình Minh" })).toBeInTheDocument();
     expect(screen.getByText("NCC007")).toHaveClass("kt-the");
-    expect(screen.getByText("Còn nợ tới 05/10/2026")).toBeInTheDocument();
-    expect(screen.getByText("Vượt 16.500.000")).toHaveAttribute("title", "Chỉ là cảnh báo, vẫn đặt mua được.");
-    expect(screen.queryByText("Vượt hạn mức")).toBeNull();
+    expect(document.querySelector(".kt-ndt")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Lọc theo tuổi nợ" })).toBeNull();
+    const cot = screen.getByRole("complementary", { name: "Thuộc tính" });
+    const muc = (nhan: string) => within(cot).getByText(nhan).nextElementSibling as HTMLElement;
+    expect(muc("Còn nợ tới 05/10/2026")).toHaveTextContent("96.500.000 đ");
+    expect(within(muc("Quá hạn")).getByText("26.500.000 đ")).toHaveClass("kt-do");
+    // Hạn sớm nhất tính ở máy khách: hạn nhỏ nhất của các đợt CÒN nợ (đợt 1 PMH-0012 đã trả xong).
+    expect(muc("Hạn sớm nhất")).toHaveTextContent("18/08/2026trễ 48 ngày");
+    expect(within(muc("Hạn sớm nhất")).getByText("trễ 48 ngày")).toHaveClass("kt-do");
+    // Vượt hạn mức: phần trăm đỏ, câu giải thích ở tooltip — không thẻ / dải cảnh báo nào khác.
+    expect(muc("Hạn mức")).toHaveTextContent("80.000.000 đđã dùng 121%");
+    const pt = within(muc("Hạn mức")).getByText("đã dùng 121%");
+    expect(pt).toHaveClass("kt-do");
+    expect(pt).toHaveAttribute("title", "Chỉ là cảnh báo, vẫn đặt mua được.");
     expect(document.querySelector(".kt-canh")).toBeNull();
-    expect(screen.getByText("Cho nợ 30 ngày sau mỗi đợt giao")).toBeInTheDocument();
+    expect(muc("Cho nợ")).toHaveTextContent("30 ngày sau mỗi đợt giao");
+    expect(muc("Người liên hệ")).toHaveTextContent("Trần Văn Minh0903 123 456");
+    expect(muc("Tài khoản nhận tiền")).toHaveTextContent("Techcombank 19028765432019");
+    // Số còn nợ nói MỘT lần: không lặp ở thân tab.
+    expect(screen.getAllByText("96.500.000 đ")).toHaveLength(1);
     // 4 dòng nhưng 1 đợt đã trả xong (mờ, để dò cọc) ⇒ còn nợ 3.
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Còn nợ3", "Sao kê", "Lịch sử"]);
     await userEvent.click(screen.getByRole("button", { name: "Hồ sơ nhà cung cấp" }));
     expect(navigate).toHaveBeenCalledWith("nha-cung-cap", { openSupplierId: 7 });
   });
 
-  it("nhóm theo đơn: đầu nhóm cọc bằng thẻ nhỏ, không nối bằng dấu chấm giữa / dấu phẩy", async () => {
+  it("một lưới nhóm theo đơn: dòng nhóm có ô chọn cả đơn, mã đơn, số đợt, 4 ô tổng; cọc còn dư là chữ mờ", async () => {
+    payablesDetail.mockImplementation(async () =>
+      chiTiet({ coc_chung: [{ purchase_request_id: 12, code: "PMH-0012", status: ST, amount: 40_000_000, da_dung: 30_000_000, con_du: 10_000_000 }] }));
     await moTabNo();
-    const nhom = screen.getByRole("group", { name: "Đơn PMH-0012" });
-    expect(within(nhom).getByText("Cọc 30.000.000")).toHaveClass("kt-the");
-    // Chỉ "Cọc" là thẻ; "Đã trừ" / "Còn" là chữ thường mờ.
-    expect(within(nhom).getByText("Đã trừ 30.000.000")).toHaveClass("kt-mo");
-    expect(within(nhom).getByText("Đã trừ 30.000.000")).not.toHaveClass("kt-the");
-    // Ô "chọn mọi đợt của đơn" nằm ở ô đầu cột của bảng, như bản xem.
-    expect(within(nhom).getByRole("checkbox", { name: "Chọn mọi đợt còn nợ của PMH-0012" }).closest("th")).not.toBeNull();
-    expect(within(nhom).getByText("Trễ 48 ngày")).toBeInTheDocument();
+    const bang = screen.getByRole("table", { name: "Các đợt còn nợ" });
+    expect(document.querySelectorAll(".kt-ngan__chinh table.lds-g")).toHaveLength(1);
+    expect(within(bang).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(
+      ["", "Đợt", "Hoá đơn", "Hạn trả", "Giá trị", "Trừ cọc", "Đã trả", "Còn nợ"]);
+    const nhom = within(bang).getByRole("button", { name: "PMH-0012" }).closest("tr")!;
+    expect(nhom).toHaveClass("lds-nhom");
+    const o = nhom.querySelectorAll("td");
+    expect(o[1]).toHaveTextContent("PMH-00122 đợtcọc còn 10.000.000");
+    expect(within(nhom).getByText("cọc còn 10.000.000")).toHaveClass("lds-mu");
+    expect([...o].slice(2).map((c) => c.textContent)).toEqual(["56.500.000", "30.000.000", "–", "26.500.000"]);
+    // Ô chọn cả đơn nằm ở dòng nhóm, không ở ô đầu cột.
+    expect(within(nhom).getByRole("checkbox", { name: "Chọn mọi đợt còn nợ của PMH-0012" })).toBeInTheDocument();
+    expect(bang.querySelector("th input")).toBeNull();
+    expect(within(bang).getByText("trễ 48")).toHaveClass("lds-do");
+    const cong = within(bang).getByText("Cộng 4 đợt").closest("tr")!;
+    expect([...cong.querySelectorAll("td")].slice(2).map((c) => c.textContent)).toEqual(
+      ["126.500.000", "30.000.000", "–", "96.500.000"]);
     const ngan = screen.getByRole("dialog", { name: "Giấy Bình Minh" });
     expect(ngan.textContent).not.toMatch(/[·•]/);
     expect(ngan.textContent).not.toMatch(/\d, đã trừ|, còn dư/);
     await userEvent.click(within(nhom).getByRole("button", { name: "PMH-0012" }));
     expect(navigate).toHaveBeenCalledWith("ke-toan-don-mua-hang", { focusRequestCode: "PMH-0012" });
+  });
+
+  it("tick dòng nhóm chọn cả đơn (chọn một phần thì ô nhóm gạch ngang); bỏ tick nhóm bỏ cả đơn", async () => {
+    const goc = chiTiet();
+    payablesDetail.mockImplementation(async () => ({
+      ...goc,
+      items: [...goc.items, { ...dot, purchase_request_id: 15, code: "PMH-0015", delivery_id: 104, seq_no: 2,
+        delivery_date: "2026-09-28", due_date: "2026-10-28", amount: 10_000_000, con_no: 10_000_000 }],
+    }));
+    await moTabNo();
+    const oNhom = screen.getByRole("checkbox", { name: "Chọn mọi đợt còn nợ của PMH-0015" }) as HTMLInputElement;
+    await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0015" }));
+    expect(oNhom.checked).toBe(false);
+    expect(oNhom.indeterminate).toBe(true);
+    await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0015" }));
+    await userEvent.click(oNhom);
+    expect(oNhom.checked).toBe(true);
+    expect(oNhom.indeterminate).toBe(false);
+    const chan = document.querySelector(".kt-ngan__chan--toi") as HTMLElement;
+    expect(within(chan).getByText(/Đã chọn 2 đợt/)).toBeInTheDocument();
+    expect(within(chan).getByText("78.400.000 đ")).toBeInTheDocument();
+    expect(within(chan).getByRole("button", { name: "Lập phiếu chi trả" })).toBeInTheDocument();
+    await userEvent.click(oNhom);
+    expect(document.querySelector(".kt-ngan__chan--toi")).toBeNull();
+  });
+
+  it("Hạn trả: bỏ dòng nhóm, xếp đợt theo hạn tăng dần, chưa có hạn sau, đã trả xong cuối; ô đợt mang mã đơn", async () => {
+    await moTabNo();
+    const xep = screen.getByRole("group", { name: "Xếp theo" });
+    await userEvent.click(within(xep).getByRole("button", { name: "Hạn trả" }));
+    const bang = screen.getByRole("table", { name: "Các đợt còn nợ" });
+    expect(bang.querySelector(".lds-nhom")).toBeNull();
+    expect(within(bang).getByRole("columnheader", { name: "Đơn mua và đợt" })).toBeInTheDocument();
+    const dong = [...bang.querySelectorAll("tbody tr:not(.lds-cong)")].map((r) => r.querySelectorAll("td")[1].textContent);
+    expect(dong).toEqual(["PMH-0012đợt 2", "PMH-0015đợt 1", "PMH-0009cả đơn", "PMH-0012đợt 1"]);
+    // Ô hạn có chữ đủ ở title.
+    expect(within(bang).getByText("trễ 48").closest("td")).toHaveAttribute("title", "18/08/2026 trễ 48 ngày");
+    await userEvent.click(within(xep).getByRole("button", { name: "Đơn mua" }));
+    expect(bang.querySelectorAll(".lds-nhom")).toHaveLength(3);
   });
 
   it("tích đợt ⇒ chân tối 'Đã chọn n đợt' + tổng; đợt Cả đơn không tích được; Bỏ chọn", async () => {
@@ -178,7 +246,7 @@ describe("PayablesDrawer — NPT-2", () => {
     expect(chan).not.toBeNull();
     expect(within(chan).getByText(/Đã chọn 2 đợt/)).toBeInTheDocument();
     expect(within(chan).getByText("94.900.000 đ").tagName).toBe("B");
-    expect(within(chan).getByRole("button", { name: "Trả 2 đợt" })).toBeInTheDocument();
+    expect(within(chan).getByRole("button", { name: "Lập phiếu chi trả" })).toBeInTheDocument();
     await userEvent.click(within(chan).getByRole("button", { name: "Bỏ chọn" }));
     expect(document.querySelector(".kt-ngan__chan--toi")).toBeNull();
   });
@@ -187,6 +255,8 @@ describe("PayablesDrawer — NPT-2", () => {
     await moTabNo();
     const dong = screen.getByText("Đợt 2").closest("tr")!;
     await userEvent.click(dong);
+    const hang = screen.getByRole("table", { name: "Hàng của đợt" });
+    expect(within(hang).getByRole("columnheader", { name: "Thành tiền" })).toHaveClass("n");
     expect(screen.getByText("Giấy Couche 150")).toBeInTheDocument();
     expect(screen.getByText("5.000 tờ")).toBeInTheDocument();
     expect(screen.getByText("Dư 200 tờ")).toHaveClass("kt-the");
@@ -217,24 +287,41 @@ describe("PayablesDrawer — NPT-2", () => {
     await waitFor(() => expect(payablesDetail).toHaveBeenCalledTimes(2));
   });
 
-  it("bấm mốc tuổi nợ: chỉ còn đợt CÒN nợ của mốc đó, xoá lựa chọn; Bỏ lọc hiện lại đủ", async () => {
-    await moTabNo();
-    await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0015" }));
-    const chu = within(screen.getByRole("group", { name: "Lọc theo tuổi nợ" })).getAllByRole("button");
-    expect(chu.map((b) => b.textContent)).toEqual(["Chưa tới hạn70.000.000", "Trễ 31–60 ngày26.500.000"]);
-    await userEvent.click(chu[1]);
-    expect(document.querySelector(".kt-ngan__chan--toi")).toBeNull();
+  it("mở từ danh sách đang lọc mốc tuổi: chỉ còn đợt CÒN nợ của mốc đó; Bỏ lọc hiện lại đủ và xoá lựa chọn", async () => {
+    await moTabNo("all", { khoa: "d31_60", nhan: "Trễ 31–60 ngày" });
     expect(screen.getByText("Trễ 31–60 ngày", { selector: ".kt-chip--loc" })).toHaveTextContent("Trễ 31–60 ngày1");
-    expect(screen.queryByRole("group", { name: "Đơn PMH-0015" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "PMH-0015" })).toBeNull();
     expect(screen.queryByText("Đợt 1")).toBeNull();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 2 của PMH-0012" }));
     await userEvent.click(screen.getByRole("button", { name: "Bỏ lọc" }));
-    expect(screen.getByRole("group", { name: "Đơn PMH-0015" })).toBeInTheDocument();
+    expect(document.querySelector(".kt-ngan__chan--toi")).toBeNull();
+    expect(screen.getByRole("button", { name: "PMH-0015" })).toBeInTheDocument();
   });
 
-  it("hạn trả chưa tới: thẻ Còn N ngày so với ngày máy chủ tính nợ", async () => {
+  it("bấm số Quá hạn ngoài bảng: thẻ lọc Quá hạn, chỉ đợt đang trễ", async () => {
+    await moTabNo("overdue");
+    expect(screen.getByText("Quá hạn", { selector: ".kt-chip--loc" })).toHaveTextContent("Quá hạn1");
+    expect(screen.getByText("Cộng 1 đợt")).toBeInTheDocument();
+  });
+
+  it("hạn trả chưa tới: ngày + 'còn N' (lưới gọn) so với ngày máy chủ tính nợ", async () => {
     await moTabNo();
-    const dong = within(screen.getByRole("group", { name: "Đơn PMH-0015" })).getByText("20/10/2026").closest("tr")!;
-    expect(within(dong).getByText("Còn 15 ngày")).toHaveClass("kt-pill");
+    const o = screen.getByText("20/10/2026").closest("td")!;
+    expect(o).toHaveTextContent("20/10/2026còn 15");
+    expect(o).toHaveAttribute("title", "20/10/2026 còn 15 ngày");
+    expect(within(o).getByText("còn 15")).toHaveClass("lds-mu");
+  });
+
+  it("thiếu cả hạn mức và cho nợ: một mục 'Hạn mức và cho nợ' chưa đặt + Đặt trong hồ sơ (như nút Hồ sơ)", async () => {
+    payablesDetail.mockImplementation(async () => chiTiet({ credit_limit: 0, credit_days: null, vuot_han_muc: false }));
+    await moTabNo();
+    const cot = screen.getByRole("complementary", { name: "Thuộc tính" });
+    expect(within(cot).queryByText("Hạn mức")).toBeNull();
+    expect(within(cot).queryByText("Cho nợ")).toBeNull();
+    expect(within(cot).getByText("Hạn mức và cho nợ").nextElementSibling).toHaveTextContent("chưa đặtĐặt trong hồ sơ");
+    await userEvent.click(within(cot).getByRole("button", { name: "Đặt trong hồ sơ" }));
+    expect(onClose).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith("nha-cung-cap", { openSupplierId: 7 });
   });
 
   it("bấm số Đã trả ngoài bảng mở Sao kê: nhận hàng là cột tăng, trả tiền là cột giảm, số dư = mình còn nợ", async () => {
@@ -274,7 +361,7 @@ describe("BatchPaymentDialog — NPT-3", () => {
     await moTabNo();
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 2 của PMH-0012" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0015" }));
-    await userEvent.click(screen.getByRole("button", { name: "Trả 2 đợt" }));
+    await userEvent.click(screen.getByRole("button", { name: "Lập phiếu chi trả" }));
     return screen.findByRole("dialog", { name: "Trả 2 đợt cùng lúc" });
   }
 
@@ -284,7 +371,7 @@ describe("BatchPaymentDialog — NPT-3", () => {
     await userEvent.click(screen.getByRole("tab", { name: /Còn nợ/ }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 2 của PMH-0012" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0015" }));
-    await userEvent.click(screen.getByRole("button", { name: "Trả 2 đợt" }));
+    await userEvent.click(screen.getByRole("button", { name: "Lập phiếu chi trả" }));
     await screen.findByRole("dialog", { name: "Trả 2 đợt cùng lúc" });
     payablesDetail.mockRejectedValue(new Error("mất mạng"));
     rerender(ve(1));

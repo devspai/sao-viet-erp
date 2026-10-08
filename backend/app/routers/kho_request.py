@@ -24,6 +24,7 @@ from ..repositories.document_sequence_repo import DocumentSequenceRepository
 from ..repositories.kho_gia_goc_repo import KhoGiaGocRepository
 from ..repositories.kho_hang_repo import KhoHangRepository
 from ..repositories.org_scope import dept_subtree_ids
+from ..repositories.purchase_repo import PurchaseRequestRepository
 from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.san_xuat_vat_tu_repo import SanXuatVatTuRepository
 from ..repositories.stock_lot_repo import StockLotRepository, StockThresholdRepository
@@ -41,12 +42,15 @@ from ..schemas.stock import (
     StockRequestUpdate,
 )
 from ..services.kho_giay import khoa_ton_cua
+from ..services.mua_cho import mua_cho_cua_dong, mua_cho_theo_dot
 from ..services.quyen_kho import xem_ton_kho
 from ..services.rbac_service import AuthorizationService
 from ..services.san_xuat.kho import phat_su_kien_kho
 from ..services.san_xuat.vat_tu_de_nghi import can_luc_hien_thi
 from ..services.sequence_service import SequenceService
-from ..services.stock_request_service import StockRequestError, StockRequestService
+from ..services.stock_request_service import (
+    StockRequestConflict, StockRequestError, StockRequestService,
+)
 from ..services.vat_lieu_kho_service import HANG_NHAN, VatLieuKhoError, VatLieuKhoService
 
 router = APIRouter(prefix="/api/kho/de-nghi", tags=["kho-de-nghi"])
@@ -98,6 +102,8 @@ Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
 
 
 def _err(e: StockRequestError) -> HTTPException:
+    if isinstance(e, StockRequestConflict):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
@@ -134,6 +140,9 @@ def _ten_map(db: Session, reqs) -> dict[str, dict[int, str]]:
         "dept": DepartmentRepository(db).names_by_ids({r.bo_phan_id for r in reqs if r.bo_phan_id}),
         "kho": KhoHangRepository(db).ten_theo_ids(
             {i for r in reqs for i in (r.kho_id, getattr(r, "kho_nguon_id", None)) if i}),
+        # Đợt giao mua → (id phiếu mua, mã, số đợt): ô "Nguồn" của yêu cầu nhập từ Mua hàng.
+        "dot": PurchaseRequestRepository(db).ma_dot_theo_ids(
+            {getattr(r, "purchase_delivery_id", None) for r in reqs}),
     }
 
 
@@ -162,7 +171,8 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
                boi_canh: dict | None = None,
                gia_kcs: tuple[dict, dict] | None = None,
                don_vi_map: dict | None = None,
-               ten_map: dict | None = None) -> StockRequestOut:
+               ten_map: dict | None = None,
+               mua_cho_map: dict | None = None) -> StockRequestOut:
     """Dựng payload + ÁP quyền hiển thị.
 
     `muc_ton` (đèn 5 màu) trả cho mọi vai vì không kèm con số; `ton_kha_dung` chỉ set khi
@@ -192,6 +202,10 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
     if boi_canh is None:
         boi_canh = SanXuatVatTuRepository(db).boi_canh_san_xuat([req.id])
     bc = boi_canh.get(req.id) or {}
+    dot_id = getattr(req, "purchase_delivery_id", None)
+    if mua_cho_map is None:
+        mua_cho_map = mua_cho_theo_dot(db, [dot_id])
+    mc_hang = mua_cho_map.get(dot_id) if dot_id else None
     lines: list[StockRequestLineOut] = []
     for ln in req.lines:
         key = (ln.hang_loai, ln.hang_id)
@@ -213,6 +227,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
                                                float(ln.sl_de_nghi)))
         except VatLieuKhoError as e:
             canh_bao = str(e)
+        mc = mua_cho_cua_dong(mc_hang, ln.hang_loai, ln.hang_id, ln.kho_rong, ln.kho_dai)
         lines.append(StockRequestLineOut(
             id=ln.id,
             hang_loai=ln.hang_loai,
@@ -244,6 +259,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             don_gia_ban=(int(ln.don_gia_ban)
                          if can_view_cost and ln.don_gia_ban is not None else None),
             don_ban_ma=don_map.get(ln.lsx_id) if ln.lsx_id else None,
+            mua_cho=mc["lenh"], loai_mua_cac=mc["loai_mua_cac"],
             ly_do_thieu=ln.ly_do_thieu,
             ghi_chu=ln.ghi_chu,
             muc_ton=(levels or {}).get(khoa_ton_cua(ln)),
@@ -253,6 +269,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         ten_map = _ten_map(db, [req])
     # ĐIỀU CHUYỂN: yêu cầu NHẬP đích có `kho_nguon_id` → hiện "Điều chuyển từ «kho nguồn»".
     kho_nguon_id = getattr(req, "kho_nguon_id", None)
+    dot = ten_map.get("dot", {}).get(getattr(req, "purchase_delivery_id", None))
     return StockRequestOut(
         id=req.id, ma=req.ma, loai=req.loai,
         nguoi_tao_id=req.nguoi_tao_id,
@@ -270,6 +287,9 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         kho_nguon_id=kho_nguon_id,
         kho_nguon_ten=ten_map["kho"].get(kho_nguon_id),
         xuat_voucher_id=getattr(req, "xuat_voucher_id", None),
+        purchase_delivery_id=getattr(req, "purchase_delivery_id", None),
+        don_mua_id=dot[0] if dot else None, don_mua_ma=dot[1] if dot else None,
+        dot_so=dot[2] if dot else None,
         # Gỡ nhãn UTC trước khi ra JSON: Postgres trả `can_luc` AWARE, còn FE (`fmtGioCan`,
         # `isOverdue`) đọc naive = giờ NHÀ MÁY — để nguyên là thủ kho thấy giờ cần lệch +7h.
         can_luc=can_luc_hien_thi(bc.get("can_luc")),
@@ -357,6 +377,7 @@ def list_requests(
     # trên đường mở màn chính của thủ kho (task-8-ruling-man-kho, Ruling 32/34).
     boi_canh = SanXuatVatTuRepository(db).boi_canh_san_xuat([r.id for r in rows])
     gia_kcs = _gia_kcs(db, rows) if can_view_cost else ({}, {})
+    mua_cho_map = mua_cho_theo_dot(db, [getattr(r, "purchase_delivery_id", None) for r in rows])
     items = []
     xem_ton: dict[int | None, bool] = {}  # theo kho — cả trang chỉ vài kho, khỏi hỏi lại từng dòng
     for r in rows:
@@ -369,7 +390,8 @@ def list_requests(
                                 levels=levels, on_hand=on_hand, lenh_map=lenh_map,
                                 open_voucher_id=draft_map.get(r.id), hang_map=hang_map,
                                 hang_svc=hang_svc, boi_canh=boi_canh, gia_kcs=gia_kcs,
-                                don_vi_map=don_vi_map, ten_map=ten_map))
+                                don_vi_map=don_vi_map, ten_map=ten_map,
+                                mua_cho_map=mua_cho_map))
     return StockRequestPage(items=items, total=total)
 
 

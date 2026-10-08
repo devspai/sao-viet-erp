@@ -45,6 +45,21 @@
   --plum: #5f4d9e;
   --plum-soft: #e6e0f2;
   --plum-deep: #483a7a;
+  /* Màu CHIP TRẠNG THÁI (07/10/2026) — TƯƠI, mỗi sắc một nghĩa, MỌI module dùng chung bộ này để
+     liếc là phân biệt. Ba biến mỗi sắc: -bg nền, -fg chữ (đạt AA trên -bg), -dot chấm đèn.
+     Quy ước: chờ người khác = vang · mới tạo/chờ kho = xanh · đang làm = cyan/cham · tạm dừng = cam
+     · xong = la · từ chối/lỗi = do · huỷ = xam · nháp = slate · nhánh phụ = tim/ngoc. */
+  --tt-vang-bg: #fef3c7;   --tt-vang-fg: #b45309;   --tt-vang-dot: #f59e0b;
+  --tt-cam-bg: #ffedd5;    --tt-cam-fg: #c2410c;    --tt-cam-dot: #f97316;
+  --tt-xanh-bg: #dbeafe;   --tt-xanh-fg: #1d4ed8;   --tt-xanh-dot: #3b82f6;
+  --tt-cyan-bg: #cffafe;   --tt-cyan-fg: #0e7490;   --tt-cyan-dot: #06b6d4;
+  --tt-cham-bg: #e0e7ff;   --tt-cham-fg: #4338ca;   --tt-cham-dot: #6366f1;
+  --tt-tim-bg: #ede9fe;    --tt-tim-fg: #6d28d9;    --tt-tim-dot: #8b5cf6;
+  --tt-ngoc-bg: #ccfbf1;   --tt-ngoc-fg: #0f766e;   --tt-ngoc-dot: #14b8a6;
+  --tt-la-bg: #dcfce7;     --tt-la-fg: #15803d;     --tt-la-dot: #22c55e;
+  --tt-do-bg: #fee2e2;     --tt-do-fg: #b91c1c;     --tt-do-dot: #ef4444;
+  --tt-xam-bg: #e5e7eb;    --tt-xam-fg: #374151;    --tt-xam-dot: #6b7280;
+  --tt-slate-bg: #f1f5f9;  --tt-slate-fg: #475569;  --tt-slate-dot: #94a3b8;
   /* Thang nhiệt (heatmap tần suất, ô định danh) — bậc 0 là "nguội" nên theo neutral lạnh,
      bậc 1→4 ấm dần tới rust. Tương phản ĐỔI CHIỀU ở bậc 3: bậc 1-2 chữ --ink, bậc 4 chữ
      --paper-contrast, RIÊNG bậc 3 phải dùng --ink (chữ giấy chỉ đạt 2,71:1 — UI_DESIGN §9). */

@@ -211,7 +211,8 @@ describe("RebuildCatalogPage — phân trang 25 dòng/trang Ở MÁY CHỦ", () 
     await user.click(sauIn);
     await waitFor(() => expect(reqCuoi(goi).searchParams.get("nhom")).toBe("sau_in"));
     await waitFor(() => expect(screen.getByText(/tổng/).closest("footer")!.textContent).toContain("tổng 22 bản ghi"));
-    expect(within(screen.getByRole("main")).getByText("22 mục")).toBeTruthy();
+    // Số bản ghi chỉ nói MỘT lần, ở chân bảng — đầu trang không còn pill "N mục" (lưới 08/10/2026).
+    expect(within(screen.getByRole("main")).queryByText("22 mục")).toBeNull();
   });
 
   it("giá trị lấy từ DANH MỤC nguồn: nhóm chưa có dòng nào vẫn chọn được, số 0", async () => {

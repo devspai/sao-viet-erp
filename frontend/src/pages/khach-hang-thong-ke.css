@@ -224,6 +224,16 @@
   color: var(--ash);
   border-color: var(--rule-soft);
 }
+/* Trạng thái đơn / kết quả báo giá — cùng sắc với màn Đơn hàng bán & Báo giá (bộ --tt-*, tokens.css). */
+.khtk__pill--slate { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
+.khtk__pill--vang { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.khtk__pill--xanh { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.khtk__pill--cyan { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); }
+.khtk__pill--la { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.khtk__pill--tim { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }
+.khtk__pill--cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.khtk__pill--do { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.khtk__pill--xam { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
 
 /* ---- Biểu đồ ---- */
 .khtk__chart {

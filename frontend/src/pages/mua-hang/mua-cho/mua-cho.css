@@ -1,0 +1,20 @@
+/* Ô "Mua cho" — chip lệnh tím, Tồn kho xanh ngọc, Theo yêu cầu xám (08/10/2026). */
+.mc-o { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.mc-trong { color: var(--ash-2); font-size: 12px; }
+.mc-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border: 0; border-radius: 6px;
+  font: inherit; font-size: 12px; font-weight: 400; white-space: nowrap; line-height: 20px; }
+.mc-chip--lenh { background: var(--tt-tim-bg); color: var(--tt-tim-fg); font-variant-numeric: tabular-nums; }
+.mc-chip--ton { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); }
+.mc-chip--yc { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
+.mc-chip.is-bam { cursor: pointer; }
+.mc-chip.is-bam:hover, .mc-chip.is-bam:focus-visible { text-decoration: underline; outline: none; }
+.mc-them { height: 20px; padding: 0 6px; border: 1px solid var(--rule-soft); border-radius: 6px; background: #fff;
+  color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.mc-them:hover, .mc-them:focus-visible { border-color: var(--rule); }
+.mc-the { position: fixed; z-index: 1000; width: 240px; padding: 8px 10px; background: #fff; border: 1px solid var(--rule);
+  border-radius: 9px; box-shadow: 0 12px 28px rgba(15, 23, 42, .16); display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+.mc-the.is-len { transform: translateY(-100%); }
+.mc-the__dau { color: var(--ash-2); font-size: 12px; padding-bottom: 4px; margin-bottom: 2px; border-bottom: 1px solid var(--rule-hair); }
+.mc-the__dong { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 3px 0; }
+.mc-the__dong > span:last-child { flex: none; font-variant-numeric: tabular-nums; color: var(--ink); }
+.mc-the__dong small { color: var(--ash-2); font-size: 11.5px; }

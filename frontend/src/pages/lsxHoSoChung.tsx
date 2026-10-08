@@ -55,15 +55,16 @@ export function Pill({ meta }: { meta: PillMeta | null }) {
 
 /** Trạng thái CÔNG VIỆC của một bước. `null` = bước chưa có công việc (chưa phát hành tới đó). */
 export const TT_BUOC: Record<string, PillMeta> = {
-  released: { label: "Chờ làm", cls: "lsc-pill--off" },
-  running: { label: "Đang chạy", cls: "lsc-pill--steel" },
-  paused: { label: "Tạm dừng", cls: "lsc-pill--signal" },
-  completed: { label: "Hoàn thành", cls: "lsc-pill--moss" },
+  // Cùng màu với Thực hiện SX (`thsx-tt--*`): chờ cyan · chạy lá · dừng vàng · xong slate.
+  released: { label: "Chờ làm", cls: "lsc-pill--sky" },
+  running: { label: "Đang chạy", cls: "lsc-pill--moss" },
+  paused: { label: "Tạm dừng", cls: "lsc-pill--amber" },
+  completed: { label: "Hoàn thành", cls: "lsc-pill--off" },
 };
 
 /** Màu cân đối vật tư — cùng chữ với màn Kế hoạch vật tư. */
 export const VT_MAU: Record<string, PillMeta> = {
-  xam: { label: "Đã cấp đủ", cls: "lsc-pill--off" },
+  xam: { label: "Đã cấp đủ", cls: "lsc-pill--teal" },
   xanh: { label: "Đủ trong kho", cls: "lsc-pill--moss" },
   vang: { label: "Đủ nhờ hàng về", cls: "lsc-pill--amber" },
   do: { label: "Thiếu", cls: "lsc-pill--signal" },
@@ -72,7 +73,7 @@ export const VT_MAU: Record<string, PillMeta> = {
 
 export const KCS_KET_LUAN: Record<string, PillMeta> = {
   dat: { label: "Đạt", cls: "lsc-pill--moss" },
-  dat_mot_phan: { label: "Đạt một phần", cls: "lsc-pill--amber" },
+  dat_mot_phan: { label: "Đạt một phần", cls: "lsc-pill--rust" },
   khong_dat: { label: "Không đạt", cls: "lsc-pill--signal" },
 };
 
@@ -80,13 +81,13 @@ export const KCS_KET_LUAN: Record<string, PillMeta> = {
 export const KHO_YC_TT: Record<string, PillMeta> = {
   draft: { label: "Nháp", cls: "lsc-pill--off" },
   pending: { label: "Chờ duyệt", cls: "lsc-pill--amber" },
-  approved: { label: "Chờ kho nhận", cls: "lsc-pill--amber" },
-  received: { label: "Kho đã tiếp nhận", cls: "lsc-pill--steel" },
-  preparing: { label: "Kho đang lập phiếu", cls: "lsc-pill--steel" },
-  partial: { label: "Nhận một phần", cls: "lsc-pill--steel" },
+  approved: { label: "Chờ kho nhận", cls: "lsc-pill--steel" },
+  received: { label: "Kho đã tiếp nhận", cls: "lsc-pill--sky" },
+  preparing: { label: "Kho đang lập phiếu", cls: "lsc-pill--plum" },
+  partial: { label: "Nhận một phần", cls: "lsc-pill--rust" },
   done: { label: "Đã nhận đủ", cls: "lsc-pill--moss" },
   rejected: { label: "Kho từ chối", cls: "lsc-pill--signal" },
-  cancelled: { label: "Đã huỷ", cls: "lsc-pill--off" },
+  cancelled: { label: "Đã huỷ", cls: "lsc-pill--gray" },
 };
 
 /** Loại lệnh (`models/lsx.LOAI_LSX`). */

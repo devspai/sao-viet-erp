@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bước lệnh khác trên sơ đồ — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c25e38; --blue:#2563eb;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --cho-bg:#fef3c7; --cho-fg:#b45309; --cho-line:#f59e0b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13px/1.45 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1300px;margin:0 auto;padding:24px 16px 96px}
+h1{font-size:21px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:1000px;font-size:14px}
+.lead b{color:var(--ink)}
+.switch{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 14px;margin:0 0 16px;background:rgba(233,237,242,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--rule)}
+.seg{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:9px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;font:inherit;font-weight:600;color:var(--ash);padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.seg button:hover{background:var(--rule-hair)}
+.seg button.on{background:var(--ink);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.why{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:10px 14px;margin:0 0 12px;color:var(--ash)}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}.why li{margin:3px 0}
+
+/* khung sơ đồ */
+.board{background:var(--canvas);border:1px solid var(--rule);border-radius:12px;overflow:auto}
+.tb{display:flex;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid var(--rule-soft);color:var(--ash-2);font-size:12px;flex-wrap:wrap}
+.tb .btn{height:30px;border:1px solid var(--rule);border-radius:7px;background:var(--canvas);padding:0 10px;font:inherit;font-weight:600;color:var(--ink);display:inline-flex;align-items:center}
+.tb .lg{display:inline-flex;align-items:center;gap:6px}
+.tb .dot{width:9px;height:9px;border-radius:50%}
+.tb .dash{width:22px;height:0;border-top:2px dashed var(--cho-line)}
+.tb .sp{margin-left:auto}
+.cv{position:relative;min-width:1360px;background-color:#fbfcfd;background-image:radial-gradient(#d5dbe3 1px,transparent 1px);background-size:16px 16px}
+svg.w{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.wire{fill:none;stroke:#9aa7b8;stroke-width:2}
+.wire-cho{fill:none;stroke:var(--cho-line);stroke-width:2;stroke-dasharray:6 5}
+
+/* thẻ bước */
+.n{position:absolute;width:206px;background:#fff;border:1px solid var(--rule);border-top:3px solid #64748b;border-radius:9px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.n .h{display:flex;align-items:center;gap:6px;padding:7px 9px 5px}
+.n .so{font-size:11px;font-weight:700;color:var(--ash);background:var(--rule-hair);border-radius:4px;padding:1px 5px}
+.n .t{font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.n .b{padding:0 9px 8px;display:flex;flex-direction:column;gap:5px}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ash);background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:5px;padding:1px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.io{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;border:1px solid var(--rule-soft);border-radius:6px;padding:3px 7px}
+.io small{color:var(--ash-2);font-size:10px}
+.io .ar{color:var(--rust)}
+.tl{display:flex;justify-content:space-between;font-size:11px;color:var(--ash-2)}
+.tl b{color:var(--ink);font-weight:600}
+.port{position:absolute;top:58px;width:11px;height:11px;border-radius:50%;background:#fff;border:2px solid var(--blue)}
+.port.in{left:-6px}.port.out{right:-6px;border-color:var(--rust)}
+.port.top,.port.bot{top:-7px;left:50%;margin-left:-6px;border-color:var(--cho-line);background:var(--cho-bg)}
+.port.bot{top:auto;bottom:-7px}
+
+/* thẻ bước lệnh khác */
+.g{position:absolute;width:236px;background:#fffdf7;border:1.5px dashed var(--cho-line);border-radius:9px;padding:8px 10px}
+.g .h{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.g .lsx{font-size:11px;font-weight:700;color:var(--cho-fg);background:var(--cho-bg);border-radius:4px;padding:1px 6px}
+.g .t{font-weight:700;font-size:12.5px}
+.g .sub{display:flex;gap:6px;flex-wrap:wrap}
+.g .cau{margin:6px 0 0;font-size:11.5px;color:var(--ink)}
+.g .cau b{color:var(--cho-fg)}
+.g .ro{font-size:10.5px;color:var(--ash-2);margin-top:3px}
+.nhan{position:absolute;font-size:11px;font-weight:600;color:var(--cho-fg);background:var(--cho-bg);border-radius:10px;padding:1px 8px;white-space:nowrap}
+
+/* hiện tại (để đối chiếu) */
+.g-cu{position:absolute;width:206px;background:#fff;border:1px dashed #9aa7b8;border-radius:9px;padding:8px 10px;color:var(--ash)}
+.g-cu .lsx{font-size:11px;font-weight:700;color:var(--rust);border:1px solid var(--rust);border-radius:4px;padding:0 5px}
+.loi{position:absolute;font-size:12px;font-weight:600;color:#b91c1c;background:#fee2e2;border-radius:8px;padding:4px 9px;max-width:300px}
+
+/* B — dải chờ trong thẻ */
+.cho{border-top:1px dashed var(--cho-line);background:#fffbeb;border-radius:0 0 9px 9px;padding:6px 9px 7px}
+.cho .k{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--cho-fg);margin-bottom:4px}
+.cho .k .x{margin-left:auto;color:var(--ash-3);font-weight:400}
+.cho .r{display:flex;align-items:center;gap:6px;font-size:11.5px}
+.cho .lsx{font-size:10.5px;font-weight:700;color:var(--cho-fg);background:var(--cho-bg);border-radius:4px;padding:0 5px}
+.pop{position:absolute;width:300px;background:#fff;border:1px solid var(--rule);border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.16);padding:12px 14px;font-size:12px}
+.pop h5{margin:0 0 6px;font-size:12.5px}
+.pop .row{display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--rule-hair)}
+.pop .row span:first-child{color:var(--ash-2)}
+.pop a{color:var(--blue);font-weight:600;text-decoration:none}
+.rail{position:absolute;left:0;top:0;bottom:0;width:190px;background:#fff;border-right:1px solid var(--rule-soft);padding:10px}
+.rail h6{margin:0 0 6px;font-size:12px}
+.rail p{margin:0 0 8px;font-size:11px;color:var(--ash-2)}
+.rail .grp{font-size:11px;font-weight:700;color:var(--cho-fg);margin:6px 0 4px}
+.rail .it{display:flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--rule-soft);border-radius:6px;padding:4px 7px;margin-bottom:4px;background:#fff}
+.rail .it .d{width:8px;height:8px;border-radius:50%;border:2px solid var(--cho-line)}
+.rail .it.on{border-color:var(--cho-line);background:#fffbeb}
+
+/* C — làn */
+.lane{position:absolute;left:0;right:0;border-top:1px solid var(--rule-soft)}
+.lane .lh{position:absolute;left:0;top:0;bottom:0;width:150px;padding:10px 12px;border-right:1px solid var(--rule-soft);background:#fff}
+.lane .lh b{display:block;font-size:12.5px}
+.lane .lh span{font-size:11px;color:var(--ash-2)}
+.lane.khac{background:rgba(254,243,199,.35)}
+.mini{position:absolute;width:150px;height:44px;border:1px dashed #b8c2cf;border-radius:8px;background:#fff;color:var(--ash-3);font-size:11.5px;display:flex;align-items:center;justify-content:center}
+.mini.on{border:1.5px solid var(--cho-line);color:var(--ink);font-weight:700;background:#fffdf7;flex-direction:column;line-height:1.25}
+.mini.on small{font-weight:500;color:var(--ash-2);font-size:10.5px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Bước của lệnh khác trên sơ đồ công đoạn</h1>
+  <p class="lead">Dữ liệu thật đang gây hiểu lầm: <b>Xén 3 mặt (#50)</b> của lệnh này phải chờ <b>Cắt thành phẩm</b> (bước 3) của <b>LSX26-0004 — Sách A5 64 trang</b> xong. Sơ đồ hiện tại lại khiến người xem đọc thành "LSX26-0004 chảy vào Cắt tờ". Cả 3 phương án đều sửa chung bốn chỗ: tách hẳn dây "chờ lệnh khác" (vàng, nét đứt) khỏi dây chảy vật liệu; nói tên bước bị chặn thay cho câu "Lệnh này chỉ chạy sau…"; bỏ số "#30" của lệnh kia vì trùng số với #30 Gấp; ghi rõ "Sách A5 64 trang" là hàng của lệnh kia.</p>
+
+  <div class="switch">
+    <div class="seg" id="seg">
+      <button data-o="cu" class="on">Hiện tại</button>
+      <button data-o="a">A — Treo trên bước bị chặn</button>
+      <button data-o="b">B — Dải "Chờ" trong thẻ bước</button>
+      <button data-o="c">C — Làn riêng cho lệnh khác</button>
+    </div>
+  </div>
+
+  <!-- ================= HIỆN TẠI ================= -->
+  <section class="opt on" id="o-cu">
+    <div class="why"><b>Vì sao đọc sai:</b>
+      <ul>
+        <li>Thẻ lệnh khác được đặt ở cột trái, <b>cùng hàng</b> với chuỗi. Dây của nó đi thẳng tới cổng Vào của #50, nhưng vì cùng độ cao nên chạy ngang <b>khuất sau</b> #10 → #40 — mắt thấy như nó nối vào Cắt tờ.</li>
+        <li>Dây chờ lệnh khác cùng màu, cùng nét với dây chảy vật liệu, cùng cắm vào cổng Vào bên trái — không phân biệt được hai loại quan hệ.</li>
+        <li>"Bước #30" của lệnh kia trùng số với #30 Gấp của lệnh này. Câu "Lệnh này chỉ chạy sau…" sai: chỉ Xén 3 mặt phải chờ, các bước khác vẫn chạy.</li>
+        <li>Kéo thẻ đi chỗ khác (ảnh 2) thì đúng hướng hơn, nhưng xếp lại tự động là nó quay về cột trái.</li>
+      </ul>
+    </div>
+    <div class="board">
+      <div class="tb"><span class="btn">Sắp xếp tự động</span><span class="lg"><span class="dot" style="background:var(--blue)"></span>Cổng Vào</span><span class="lg"><span class="dot" style="background:var(--rust)"></span>Cổng Ra</span><span class="lg"><span class="dot" style="border:1px dashed #9aa7b8"></span>Bước LSX khác</span></div>
+      <div class="cv" style="height:300px">
+        <svg class="w"><path class="wire" d="M226 112 L1138 112"/></svg>
+        <div class="g-cu" style="left:20px;top:54px">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><span class="lsx">LSX26-0004</span><b style="color:var(--ink);font-size:12.5px">Cắt thành phẩm</b></div>
+          <div style="display:flex;justify-content:space-between"><span class="chip">Bước #30</span><span class="chip">Sách A5 64 trang</span></div>
+          <div style="font-size:10.5px;margin-top:5px">Lệnh này chỉ chạy sau khi bước trên của lệnh kia xong.</div>
+        </div>
+        <div id="cu-chain"></div>
+        <div class="loi" style="left:20px;top:190px">Trông như: LSX26-0004 → Cắt tờ</div>
+        <div class="loi" style="left:1000px;top:190px;background:#dcfce7;color:#15803d">Thật ra: LSX26-0004 → Xén 3 mặt</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= A ================= -->
+  <section class="opt" id="o-a">
+    <div class="why"><b>Khuôn:</b> Microsoft Project / Primavera — việc của dự án khác hiện như "việc ngoài" mờ, treo sát ngay việc nó chặn, mũi tên phụ thuộc khác kiểu với luồng chính.
+      <ul>
+        <li>Thẻ lệnh khác luôn <b>treo phía trên đúng bước nó chặn</b>, dây vàng nét đứt rơi thẳng xuống cổng <b>Chờ</b> (chấm vàng ở mép trên). Cổng Vào bên trái chỉ dành cho vật liệu chảy trong lệnh này.</li>
+        <li>Xếp tự động đặt theo cột của bước bị chặn, không bao giờ cùng hàng với chuỗi nữa.</li>
+        <li>Thẻ nói nguyên câu: "Xén 3 mặt chờ bước này xong". Bấm vào mở lệnh LSX26-0004.</li>
+        <li>Giữ nguyên thao tác cũ: kéo từ ngăn "Bước lệnh khác" thả vào bước cần chờ.</li>
+      </ul>
+    </div>
+    <div class="board">
+      <div class="tb"><span class="btn">Sắp xếp tự động</span><span class="lg"><span class="dot" style="background:var(--blue)"></span>Cổng Vào</span><span class="lg"><span class="dot" style="background:var(--rust)"></span>Cổng Ra</span><span class="lg"><span class="dash"></span>Chờ lệnh khác xong</span></div>
+      <div class="cv" style="height:330px">
+        <svg class="w">
+          <path class="wire-cho" d="M1043 112 L1043 162"/>
+          <path d="M1037 154 L1043 164 L1049 154" fill="none" stroke="#f59e0b" stroke-width="2"/>
+        </svg>
+        <div class="g" style="left:925px;top:12px">
+          <div class="h"><span class="lsx">LSX26-0004</span><span class="t">Cắt thành phẩm</span></div>
+          <div class="sub"><span class="chip">Bước 3 của lệnh kia</span><span class="chip">Sách A5 64 trang</span></div>
+          <p class="cau"><b>Xén 3 mặt</b> chờ bước này xong</p>
+        </div>
+        <div id="a-chain"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= B ================= -->
+  <section class="opt" id="o-b">
+    <div class="why"><b>Khuôn:</b> Linear / Jira — quan hệ "Bị chặn bởi" là một dòng trên chính việc bị chặn, không vẽ thành nút riêng giữa sơ đồ.
+      <ul>
+        <li>Sơ đồ chỉ còn các bước của lệnh này — không còn dây nào cắt ngang được nữa. Gọn nhất, không thể đọc sai.</li>
+        <li>Bước bị chặn có dải vàng <b>Chờ lệnh khác</b> ở đáy thẻ, ghi mã lệnh + tên bước. Rê chuột hiện bảng nhỏ: hàng của lệnh kia, tình trạng bước đó, link mở lệnh. Dấu × gỡ quan hệ.</li>
+        <li>Thêm quan hệ: kéo bước từ ngăn trái thả lên thẻ (cả thẻ là vùng thả, không phải nhắm cổng 11px).</li>
+        <li>Đổi lại: mất cái nhìn "dây" — một bước chờ 3 lệnh khác thì dải dài ra 3 dòng.</li>
+      </ul>
+    </div>
+    <div class="board">
+      <div class="tb"><span class="btn">Sắp xếp tự động</span><span class="lg"><span class="dot" style="background:var(--blue)"></span>Cổng Vào</span><span class="lg"><span class="dot" style="background:var(--rust)"></span>Cổng Ra</span><span class="lg"><span class="dot" style="background:var(--cho-bg);border:1px solid var(--cho-line)"></span>Chờ lệnh khác</span></div>
+      <div class="cv" style="height:400px">
+        <div class="rail">
+          <h6>Bước lệnh khác</h6>
+          <p>Kéo thả lên bước cần chờ</p>
+          <div class="grp">LSX26-0004 Sách A5 64 trang</div>
+          <div class="it"><span class="d"></span>In ruột</div>
+          <div class="it"><span class="d"></span>Gấp ruột</div>
+          <div class="it on"><span class="d"></span>Cắt thành phẩm</div>
+        </div>
+        <div id="b-chain"></div>
+        <div class="pop" style="left:1010px;top:215px">
+          <h5>Xén 3 mặt chờ bước của lệnh khác</h5>
+          <div class="row"><span>Lệnh</span><a href="#">LSX26-0004 ↗</a></div>
+          <div class="row"><span>Hàng</span><span>Sách A5 64 trang</span></div>
+          <div class="row"><span>Bước</span><span>Cắt thành phẩm (bước 3)</span></div>
+          <div class="row"><span>Tình trạng</span><span>Chưa làm</span></div>
+        </div>
+      </div>
+    </div>
+    <p style="color:var(--ash-2);font-size:12px;margin:8px 2px">Ba bước "In ruột", "Gấp ruột" trong ngăn trái là minh hoạ; bảng nhỏ là trạng thái khi rê chuột vào dải vàng.</p>
+  </section>
+
+  <!-- ================= C ================= -->
+  <section class="opt" id="o-c">
+    <div class="why"><b>Khuôn:</b> NETRONIC VPS / Asana Timeline — mỗi lệnh một làn, phụ thuộc chéo giữa hai làn vẽ bằng mũi tên dọc.
+      <ul>
+        <li>Làn trên là lệnh đang mở (sửa được). Làn dưới là LSX26-0004 thu gọn, chỉ làm nổi bước đang được chờ; các bước khác xám, không sửa.</li>
+        <li>Nhìn ra ngay "hai lệnh chạy song song, gặp nhau ở Xén 3 mặt" — đúng hình dung của người lập kế hoạch.</li>
+        <li>Đổi lại: nặng nhất, thêm một làn cho mỗi lệnh được chờ; phải tải routing của lệnh kia.</li>
+      </ul>
+    </div>
+    <div class="board">
+      <div class="tb"><span class="btn">Sắp xếp tự động</span><span class="lg"><span class="dot" style="background:var(--blue)"></span>Cổng Vào</span><span class="lg"><span class="dot" style="background:var(--rust)"></span>Cổng Ra</span><span class="lg"><span class="dash"></span>Chờ lệnh khác xong</span></div>
+      <div class="cv" style="height:330px">
+        <div class="lane" style="top:0;height:200px"><div class="lh"><b>Lệnh này</b><span>sửa được</span></div></div>
+        <div class="lane khac" style="top:200px;height:130px"><div class="lh"><b>LSX26-0004</b><span>Sách A5 64 trang</span><br><span>chỉ xem</span></div></div>
+        <svg class="w">
+          <path class="wire" d="M325 284 L345 284" style="stroke:#c9d1dc"/>
+          <path class="wire" d="M495 284 L515 284" style="stroke:#c9d1dc"/>
+          <path class="wire" d="M665 284 L685 284" style="stroke:#c9d1dc"/>
+          <path class="wire-cho" d="M760 262 C 760 215, 1218 230, 1218 152"/>
+          <path d="M1212 160 L1218 150 L1224 160" fill="none" stroke="#f59e0b" stroke-width="2"/>
+        </svg>
+        <div class="nhan" style="left:930px;top:206px">Xén 3 mặt chờ bước này xong</div>
+        <div class="mini" style="left:175px;top:262px">In ruột</div>
+        <div class="mini" style="left:345px;top:262px">Gấp ruột</div>
+        <div class="mini on" style="left:685px;top:262px">Cắt thành phẩm<small>bước 3, chưa làm</small></div>
+        <div class="mini" style="left:515px;top:262px">Bắt keo</div>
+        <div id="c-chain"></div>
+      </div>
+    </div>
+    <p style="color:var(--ash-2);font-size:12px;margin:8px 2px">Các bước xám của LSX26-0004 là minh hoạ.</p>
+  </section>
+</div>
+
+<script>
+const BUOC=[
+  {so:10,t:"Cắt tờ",to:"Tổ Cắt 2",may:null,vao:["2.075","tờ nguyên"],ra:["4.150","tờ in"],tl:"–"},
+  {so:20,t:"Bài in 3 màu 4 màu (CMYK)",to:"Tổ Nhóm thợ in",may:"Máy in 5 màu Mitsu",vao:["4.150","tờ in"],ra:["4.000","tờ in"],tl:"1001 giờ 15 phút"},
+  {so:30,t:"Gấp",to:"Chưa chọn tổ",may:null,vao:["4.000","tờ in"],ra:["4.000","tay sách"],tl:"–"},
+  {so:40,t:"Bắt tay + vào keo",to:"Chưa chọn tổ",may:null,vao:["4.000","tay sách"],ra:["4.000","tay sách"],tl:"–"},
+  {so:50,t:"Xén 3 mặt",to:"Chưa chọn tổ",may:null,vao:["4.000","tay sách"],ra:["4.000","tay sách"],tl:"–"},
+];
+function the(b,x,y,opt={}){
+  const cho=opt.cho&&b.so===50;
+  return `<div class="n" style="left:${x}px;top:${y}px">
+    <div class="h"><span class="so">#${b.so}</span><span class="t">${b.t}</span></div>
+    <div class="b">
+      <div style="display:flex;gap:5px"><span class="chip">${b.to}</span>${b.may?`<span class="chip">${b.may}</span>`:""}</div>
+      <div class="io"><span>${b.vao[0]} <small>${b.vao[1]}</small></span><span class="ar">→</span><span>${b.ra[0]} <small>${b.ra[1]}</small></span></div>
+      <div class="tl"><span>Thời lượng</span><b>${b.tl}</b></div>
+    </div>
+    ${cho?`<div class="cho"><div class="k">Chờ lệnh khác<span class="x">×</span></div><div class="r"><span class="lsx">LSX26-0004</span>Cắt thành phẩm</div></div>`:""}
+    <span class="port in"></span><span class="port out"></span>${opt.top&&b.so===50?'<span class="port top"></span>':""}${opt.bot&&b.so===50?'<span class="port bot"></span>':""}
+  </div>`;
+}
+function chuoi(id,x0,y,step,opt={}){
+  const el=document.getElementById(id);
+  let svg='<svg class="w">';
+  BUOC.forEach((b,i)=>{ if(i) svg+=`<path class="wire" d="M${x0+(i-1)*step+206} ${y+64} L${x0+i*step} ${y+64}"/>`; });
+  el.innerHTML=svg+'</svg>'+BUOC.map((b,i)=>the(b,x0+i*step,y,opt)).join("");
+}
+chuoi("cu-chain",250,48,222);
+chuoi("a-chain",20,170,230,{top:true});
+chuoi("b-chain",210,40,222,{cho:true});
+chuoi("c-chain",175,22,235,{bot:true});
+
+document.querySelectorAll("#seg button").forEach(btn=>btn.onclick=()=>{
+  document.querySelectorAll("#seg button").forEach(x=>x.classList.toggle("on",x===btn));
+  document.querySelectorAll(".opt").forEach(s=>s.classList.toggle("on",s.id==="o-"+btn.dataset.o));
+});
+</script>
+</body>
+</html>

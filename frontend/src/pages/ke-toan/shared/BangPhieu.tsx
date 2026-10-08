@@ -1,54 +1,8 @@
-/** Mảnh dùng chung của BẢNG sổ phiếu (Phiếu chi, Phiếu thu — đặc tả A.10, A.12, A.16): đi dòng
- *  bằng bàn phím, lớp dòng, thẻ điện thoại, ba trạng thái rỗng, dấu "Thiếu chứng từ", dòng gợi ý
- *  phím dưới bảng.
+/** Mảnh dùng chung của sổ phiếu và công nợ (Phiếu chi, Phiếu thu, hai màn công nợ — đặc tả A.10, A.12,
+ *  A.16): đi dòng bằng bàn phím, ba trạng thái rỗng (Tài khoản ngân hàng còn dùng), dòng gợi ý phím
+ *  dưới bảng. Lưới danh sách tự vẽ bằng khuôn `lds-*` (components/LuoiDs).
  */
-import { Paperclip } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";
-
-import { Cum, TheNho } from "./Cum";
-import { ngay, tien } from "./dinhDang";
-
-/** Lớp của một dòng bảng: dòng đang mở ngăn viền đủ cạnh, dòng đã hủy mờ. */
-export function lopDong(id: number, dangXem: number | null, daHuy: boolean): string {
-  return ["kt-dong", id === dangXem ? "kt-dang-xem" : "", daHuy ? "kt-da-huy" : ""].filter(Boolean).join(" ");
-}
-
-/** Một thẻ điện thoại: hàng trên tên + số tiền; hàng dưới ngày + thẻ nguồn + "Thiếu chứng từ" + trạng thái. */
-export type TheDt = {
-  id: number;
-  ten: string;
-  ma: string;
-  soVnd: number;
-  ngay: string;
-  loai: string;
-  thieuChungTu: boolean;
-  trangThai: ReactNode;
-};
-
-/** Dưới 640px mỗi dòng bảng thành một thẻ hai hàng (đặc tả A.13). */
-export function TheDienThoai({ the, onMo }: { the: TheDt[]; onMo: (id: number) => void }) {
-  return (
-    <div className="kt-the-dt">
-      {the.map((t) => (
-        <div key={t.id} role="button" tabIndex={0} aria-label={`${t.ten} ${t.ma}`}
-          onClick={() => onMo(t.id)} onKeyDown={(e) => diChuyen(e, () => onMo(t.id))}>
-          <div className="kt-the-dt__h">
-            <span className="kt-ten">{t.ten || "—"}</span>
-            <span className="kt-tien">{tien(t.soVnd)}</span>
-          </div>
-          <div className="kt-the-dt__h">
-            <Cum className="kt-mo">
-              <span>{ngay(t.ngay).slice(0, 5)}</span>
-              <TheNho>{t.loai}</TheNho>
-              {t.thieuChungTu && <ThieuChungTu />}
-            </Cum>
-            {t.trangThai}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /** ↑ ↓ chuyển dòng (hoặc thẻ điện thoại) kế bên, Enter mở. */
 export function diChuyen(e: KeyboardEvent<HTMLElement>, onMo: () => void) {
@@ -63,16 +17,6 @@ export function diChuyen(e: KeyboardEvent<HTMLElement>, onMo: () => void) {
     e.preventDefault();
     ke.focus();
   }
-}
-
-/** Dấu amber "Thiếu chứng từ" có kẹp giấy (chỉ phiếu đã xong mới cần chứng từ). */
-export function ThieuChungTu() {
-  return (
-    <span className="kt-thieu">
-      <Paperclip size={14} aria-hidden="true" />
-      Thiếu chứng từ
-    </span>
-  );
 }
 
 /** Bảng không có dòng nào: đang tải / tải lỗi (không nói "chưa có") / lọc không ra (kèm "Bỏ lọc") /

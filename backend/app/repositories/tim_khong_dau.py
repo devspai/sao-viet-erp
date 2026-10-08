@@ -18,37 +18,12 @@ Chỉ cần bảng chữ THƯỜNG: cả hai phía đã `lower()` trước khi t
 """
 from __future__ import annotations
 
-import unicodedata
-
 from sqlalchemy import func
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.functions import FunctionElement
 from sqlalchemy.types import String
 
-#: `{chữ có dấu: chữ trần}` — đủ 67 nguyên âm tiếng Việt + `đ`. Dựng bằng NFD cho khỏi gõ tay sai.
-_NGUON = (
-    "àảãáạăằẳẵắặâầẩẫấậ"
-    "èẻẽéẹêềểễếệ"
-    "ìỉĩíị"
-    "òỏõóọôồổỗốộơờởỡớợ"
-    "ùủũúụưừửữứự"
-    "ỳỷỹýỵ"
-)
-
-
-def _tran(ch: str) -> str:
-    return "".join(c for c in unicodedata.normalize("NFD", ch) if unicodedata.category(c) != "Mn")
-
-
-#: Xếp theo chữ ĐÍCH để REPLACE lồng gom được: mọi `a` có dấu thay về `a` trong cùng một mạch.
-BANG: dict[str, str] = {ch: _tran(ch) for ch in _NGUON}
-BANG["đ"] = "d"
-
-
-def bo_dau(s: str | None) -> str:
-    """Bỏ dấu + hạ chữ THƯỜNG phía Python — dùng cho ô tìm, và cho những danh sách nhỏ lọc ngay
-    trong bộ nhớ (danh sách việc khoán của một tổ ở bàn tổ) thay vì đi thêm một vòng SQL."""
-    return "".join(BANG.get(c, c) for c in (s or "").strip().lower())
+from ..van_ban import BANG, bo_dau  # noqa: F401  (re-export: chỗ cũ vẫn import từ đây)
 
 
 class _BoDau(FunctionElement):

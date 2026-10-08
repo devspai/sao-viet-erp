@@ -117,6 +117,11 @@ const PILL: Record<LsxTrangThai, { label: string; cls: string }> = {
   da_dong: { label: "Đã đóng", cls: "khsx-pill--dadong" },
 };
 
+/** Nhãn chữ của trạng thái lệnh — lưới danh sách (ChipTT) dùng chung bộ nhãn với pill, không chép lại. */
+export function nhanTrangThaiLsx(tt: LsxTrangThai): string {
+  return (PILL[tt] ?? PILL.nhap).label;
+}
+
 export function TrangThaiPill({ tt, lg = false }: { tt: LsxTrangThai; lg?: boolean }) {
   const meta = PILL[tt] ?? PILL.nhap;
   return (

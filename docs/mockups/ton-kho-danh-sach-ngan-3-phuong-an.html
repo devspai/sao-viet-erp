@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tồn kho — danh sách và ngăn vật tư, 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+  --amber:#9c7714; --amber-soft:#efe4c4; --amber-deep:#7a5c0f;
+  --signal:#8a1f1f; --signal-soft:#efd5d5;
+  --steel:#4a5560; --steel-soft:#dde1e5;
+  --plum:#5f4d9e; --plum-soft:#e6e0f2;
+  --charcoal:#0f172a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1280px;margin:0 auto;padding:32px 16px 96px}
+h1{font-size:22px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 12px;max-width:820px}
+.note{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;color:var(--ash);max-width:900px;margin:0 0 40px;font-size:13px}
+.note b{color:var(--ink)}
+.opt{margin-bottom:80px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:20px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.why{color:var(--ash);margin:0 0 18px;max-width:900px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+.cap{font-size:12.5px;font-weight:600;color:var(--ash);margin:22px 0 8px}
+.scroll{overflow-x:auto;padding-bottom:6px}
+
+.muted{color:var(--ash-2)}
+.num{font-variant-numeric:tabular-nums}
+.r{text-align:right}
+.b{font-weight:600}
+.dvt{font-size:12px;color:var(--ash-2);font-weight:400;margin-left:4px}
+.tag{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:11.5px;color:var(--ash);white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip--du{background:var(--moss-soft);color:var(--moss-deep)}
+.chip--mua{background:var(--signal-soft);color:var(--signal)}
+.chip--thua{background:var(--amber-soft);color:var(--amber-deep)}
+.chip--chua{background:var(--rule-hair);color:var(--ash);border:1px solid var(--rule-soft)}
+.chip--chua::before{background:var(--rule)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:7px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash)}
+.x{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--ash-2);font-size:16px;border:0;background:none;cursor:pointer}
+.x:hover{background:var(--rule-hair)}
+.ico{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.thumb{width:36px;height:36px;border-radius:8px;background:var(--paper);border:1px solid var(--rule-soft);display:grid;place-items:center;color:var(--ash-2);flex:none}
+.thumb .ico{width:17px;height:17px}
+
+/* Bảng dùng chung */
+.card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+table{border-collapse:collapse;width:100%}
+th{font-size:12px;font-weight:600;color:var(--ash);text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);background:var(--canvas);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--rule-hair)}
+tr.sel td{background:var(--canvas);font-weight:inherit}
+tr.sel{outline:1.5px solid var(--ink);outline-offset:-1.5px}
+.name{font-weight:600;color:var(--ink);white-space:nowrap}
+.sub{display:flex;gap:6px;align-items:center;margin-top:3px;font-size:12px;color:var(--ash-2)}
+.item{display:flex;gap:12px;align-items:center}
+.foot{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;font-size:12.5px;color:var(--ash);background:var(--canvas)}
+.pg{display:flex;gap:6px;align-items:center}
+.pg span{min-width:28px;height:28px;border-radius:6px;border:1px solid var(--rule-soft);display:grid;place-items:center;font-size:12px}
+.pg span.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--rule-soft)}
+.search{flex:1;min-width:220px;max-width:340px;height:32px;border:1px solid var(--rule);border-radius:7px;padding:0 10px 0 32px;font:inherit;font-size:13px;background:var(--canvas) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 10px center}
+
+/* Khung ngăn mô phỏng */
+.stage{position:relative;background:#cfd6df;border-radius:14px;padding:0;overflow:hidden}
+.stage__ghost{position:absolute;inset:0;padding:18px;opacity:.45;filter:blur(1px);pointer-events:none}
+.stage__ghost div{height:44px;border-radius:8px;background:#fff;margin-bottom:8px;width:60%}
+.drawer{position:relative;margin-left:auto;background:var(--canvas);box-shadow:-12px 0 40px rgba(15,23,42,.16);display:flex;flex-direction:column}
+.grip{position:absolute;left:-6px;top:50%;width:12px;height:56px;margin-top:-28px;border-radius:6px;background:var(--canvas);border:1px solid var(--rule);display:grid;place-items:center;cursor:ew-resize}
+.grip::before{content:"";width:2px;height:22px;border-radius:2px;background:var(--rule);box-shadow:4px 0 0 var(--rule)}
+.dh{display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid var(--rule-soft)}
+.dh h3{margin:0;font-size:18px;font-weight:700}
+.dh .sp{flex:1}
+.tabs{display:flex;gap:22px;padding:0 24px;border-bottom:1px solid var(--rule-soft);overflow-x:auto}
+.tab{padding:11px 0;font-size:13.5px;color:var(--ash);border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;gap:6px;align-items:center;white-space:nowrap;cursor:pointer;background:none;border-top:0;border-left:0;border-right:0;font-family:inherit}
+.tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+.cnt{font-size:11px;font-weight:600;background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:999px;padding:0 7px;color:var(--ash)}
+.sec-t{font-size:13px;font-weight:600;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.sec-t .sp{flex:1}
+.link{color:var(--rust);font-weight:600;font-size:12.5px;cursor:pointer}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;font-size:13px;margin:0}
+.kv dt{color:var(--ash-2)}
+.kv dd{margin:0;text-align:right;font-weight:500}
+.hint{font-size:12.5px;color:var(--ash-2)}
+.warn{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:9px;background:var(--amber-soft);color:var(--amber-deep);font-size:13px}
+.warn .ico{margin-top:2px}
+
+/* ====================== A — Shopify Polaris ====================== */
+.a-split{display:flex;gap:6px;align-items:baseline;justify-content:flex-end}
+.a-cell-num{font-weight:600}
+.a-zero{color:var(--ash-2);font-weight:400}
+.a-body{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;padding:20px 24px 28px;background:var(--paper)}
+.a-card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:16px 18px}
+.a-main{display:flex;flex-direction:column;gap:16px;min-width:0}
+.a-side{display:flex;flex-direction:column;gap:16px}
+.a-states{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.a-state{padding:12px 14px;border-right:1px solid var(--rule-soft)}
+.a-state:last-child{border-right:0}
+.a-state span{display:block;font-size:12px;color:var(--ash-2)}
+.a-state b{display:block;font-size:20px;font-weight:700;margin-top:2px}
+.a-state small{font-size:12px;color:var(--ash-2)}
+.a-bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--rule-hair);margin:14px 0 8px}
+.a-bar i{display:block;height:100%}
+.a-leg{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--ash)}
+.a-leg span{display:inline-flex;gap:6px;align-items:center}
+.a-leg i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.a-mini th,.a-mini td{padding:9px 10px;font-size:13px}
+.a-mini th{background:var(--canvas)}
+.a-photo{height:150px;border-radius:10px;background:repeating-linear-gradient(45deg,var(--rule-hair) 0 10px,var(--paper) 10px 20px);border:1px dashed var(--rule);display:grid;place-items:center;color:var(--ash-2);font-size:12.5px}
+.a-ncc{display:flex;flex-direction:column;gap:0}
+.a-ncc-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 0;border-top:1px solid var(--rule-hair)}
+.a-ncc-row:first-child{border-top:0;padding-top:0}
+.a-ncc-row b{font-size:13px}
+.a-ncc-row .r b{font-size:14px}
+.a-thr{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px;border:1px dashed var(--rule);border-radius:10px}
+
+/* ====================== B — Linear / Attio ====================== */
+.b-grp td{background:var(--paper);font-size:12.5px;font-weight:600;color:var(--ash);padding:7px 14px;cursor:default}
+.b-grp:hover td{background:var(--paper)!important}
+.b-spark{display:block}
+.b-cover{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.b-meter{width:54px;height:6px;border-radius:999px;background:var(--rule-hair);overflow:hidden;display:inline-block}
+.b-meter i{display:block;height:100%;border-radius:999px}
+.b-body{display:grid;grid-template-columns:300px minmax(0,1fr)}
+.b-rail{border-right:1px solid var(--rule-soft);padding:20px 20px 28px;display:flex;flex-direction:column;gap:20px;background:var(--canvas)}
+.b-rail h4{margin:0 0 8px;font-size:12.5px;font-weight:600;color:var(--ash)}
+.b-attr{display:grid;grid-template-columns:110px 1fr;gap:8px 10px;font-size:13px}
+.b-attr span{color:var(--ash-2)}
+.b-attr b{font-weight:500;min-width:0}
+.b-empty{color:var(--ash-2);font-weight:400!important;font-style:normal}
+.b-add{color:var(--rust);font-weight:600!important;cursor:pointer}
+.b-main{min-width:0;display:flex;flex-direction:column}
+.b-kpi{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule-soft)}
+.b-k{padding:16px 20px;border-right:1px solid var(--rule-soft)}
+.b-k:last-child{border-right:0}
+.b-k span{display:block;font-size:12px;color:var(--ash-2)}
+.b-k b{display:block;font-size:22px;font-weight:700;margin:2px 0}
+.b-k small{font-size:12px;color:var(--ash-2)}
+.b-pane{padding:20px 24px 28px;display:flex;flex-direction:column;gap:22px}
+.b-chart-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.b-seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;margin-left:auto}
+.b-seg span{padding:4px 10px;font-size:12px;color:var(--ash);border-right:1px solid var(--rule);cursor:pointer}
+.b-seg span:last-child{border-right:0}
+.b-seg span.on{background:var(--ink);color:#fff}
+.b-tl{list-style:none;margin:0;padding:0}
+.b-tl li{display:grid;grid-template-columns:28px 1fr auto;gap:12px;padding:10px 0;border-top:1px solid var(--rule-hair);align-items:start}
+.b-tl li:first-child{border-top:0}
+.b-dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center}
+.b-dot .ico{width:14px;height:14px}
+.b-dot--in{background:var(--moss-soft);color:var(--moss-deep)}
+.b-dot--out{background:var(--rule-hair);color:var(--rust)}
+.b-dot--hold{background:var(--plum-soft);color:var(--plum)}
+.b-dot--ncc{background:var(--steel-soft);color:var(--steel)}
+.b-tl p{margin:0;font-size:13px}
+.b-tl .m{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.b-q{font-weight:600;white-space:nowrap;font-size:13px}
+
+/* ====================== C — Odoo / SAP Fiori ====================== */
+.c-bullet{position:relative;width:150px;height:8px;border-radius:999px;background:var(--rule-hair)}
+.c-bullet .band{position:absolute;top:0;bottom:0;background:var(--moss-soft)}
+.c-bullet .fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px}
+.c-bullet .tk{position:absolute;top:-3px;width:2px;height:14px;background:var(--ash)}
+.c-lvl{display:flex;flex-direction:column;gap:6px}
+.c-lvl small{font-size:12px;color:var(--ash-2);display:flex;gap:10px}
+.c-head{padding:18px 24px 0;border-bottom:1px solid var(--rule-soft)}
+.c-title{display:flex;align-items:flex-start;gap:14px}
+.c-title h3{margin:0;font-size:20px;font-weight:700}
+.c-title .sp{flex:1}
+.c-facets{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin:18px 0 0}
+.c-f{padding:0 18px 16px;border-right:1px solid var(--rule-soft)}
+.c-f:first-child{padding-left:0}
+.c-f:last-child{border-right:0}
+.c-f span{display:block;font-size:12px;color:var(--ash-2)}
+.c-f b{display:block;font-size:22px;font-weight:700;margin-top:2px}
+.c-f small{font-size:12px;color:var(--ash-2)}
+.c-f span.op{display:inline;font-size:14px;color:var(--ash-2);font-weight:600;margin-right:2px}
+.c-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:0}
+.c-left{padding:20px 24px 28px;display:flex;flex-direction:column;gap:22px;min-width:0;border-right:1px solid var(--rule-soft)}
+.c-right{padding:20px 22px 28px;display:flex;flex-direction:column;gap:22px;background:var(--paper)}
+.c-ev{display:grid;grid-template-columns:62px 1fr auto;gap:10px;padding:9px 0;border-top:1px solid var(--rule-soft);font-size:13px;align-items:center}
+.c-ev:first-of-type{border-top:0}
+.c-date{font-weight:600;font-size:12.5px}
+.c-plus{color:var(--moss-deep);font-weight:600}
+.c-minus{color:var(--rust);font-weight:600}
+.c-fifo{display:flex;flex-direction:column;gap:8px}
+.c-lot{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--rule-soft);border-radius:9px;background:var(--canvas);font-size:13px}
+.c-lot.first{border-color:var(--ink)}
+.c-ord{width:22px;height:22px;border-radius:6px;background:var(--rule-hair);display:grid;place-items:center;font-size:11.5px;font-weight:700;color:var(--ash)}
+.c-lot.first .c-ord{background:var(--ink);color:#fff}
+
+@media (max-width:900px){
+  .a-body,.b-body,.c-body{grid-template-columns:1fr}
+  .b-rail{border-right:0;border-bottom:1px solid var(--rule-soft)}
+  .c-left{border-right:0}
+  .a-states,.b-kpi{grid-template-columns:repeat(2,1fr)}
+  .c-facets{grid-template-columns:repeat(2,1fr);row-gap:14px}
+  .c-f{border-right:0;padding-left:0}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="i-roll" viewBox="0 0 24 24"><ellipse cx="7" cy="12" rx="4" ry="8"/><path d="M7 4h11a4 8 0 0 1 0 16H7"/><circle cx="7" cy="12" r="1.5"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4"/><path d="M3 8h14"/><path d="m17 20 4-4-4-4"/><path d="M21 16H7"/></symbol>
+  <symbol id="i-in" viewBox="0 0 24 24"><path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M12 20V8"/><path d="m7 13 5-5 5 5"/><path d="M5 4h14"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3v4h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17v.01"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12Z"/><circle cx="12" cy="9" r="2.5"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+</svg>
+
+<div class="page">
+  <h1>Tồn kho giấy — danh sách và ngăn vật tư</h1>
+  <p class="lead">Ba phương án cho hai chỗ: bảng tồn (ảnh 1) và phần dưới của ngăn vật tư (ảnh 2, phần khoanh đỏ). Ngăn vẽ ở 1.180px thay vì 920px, vẫn kéo mép trái được. Mỗi phương án dùng cùng bộ dữ liệu: mặt hàng đang mở là COUCHE 150GSM khổ 790 × 1090 có 500 tờ, nhập 06/10/2026, chưa khai ngưỡng, chưa gắn vị trí. Năm dòng còn lại trong bảng là dữ liệu mẫu để thấy đủ các trạng thái.</p>
+  <div class="note">
+    <b>Thông tin thêm vào</b> (máy chủ đã có nguồn, chỉ cần trả thêm): <b>Đã giữ cho lệnh</b> lấy từ giữ chỗ vật tư, <b>Đang về</b> lấy từ đợt giao đơn mua chưa nhập, <b>Tự do</b> = thực có − đã giữ. <b>Bớt đi</b>: bảng "Chỉ số vận hành kho" và "Tài chính" (lặp số đã có ở đầu ngăn), "Giá trị trung bình 1 lô", "Số lô đã xuất hết", ba ô tổng trên biểu đồ.<br>
+    <b>Lệch số đang có trên màn thật:</b> cột "Quy đổi (tờ nguyên)" ở bảng báo giá NCC đang hiện 24.400 đ, trùng y giá/kg. Một tờ 790 × 1090 định lượng 150 nặng 0,129 kg nên giá đúng khoảng 3.152 đ/tờ (An Phát) và 3.436 đ/tờ (Tân Mai). Mockup dưới đây ghi theo số đã quy đổi lại; chỗ lệch cần soát riêng trong <code>so_gia_ncc</code>.
+  </div>
+
+  <!-- ============================================================ A -->
+  <section class="opt" id="A">
+    <div class="opt-head"><h2>A. Bốn trạng thái số lượng</h2><span class="src">Khuôn: Shopify Polaris — Inventory</span></div>
+    <div class="why">Shopify tách tồn thành <b>Thực có</b>, <b>Đã cam kết</b>, <b>Khả dụng</b>, <b>Đang về</b> ngay trên bảng; trang sản phẩm chia cột chính và cột phụ bên phải. Hợp với xưởng in vì "500 tờ" hôm nay chưa chắc lĩnh được: một phần đã giữ cho lệnh khác.
+      <ul>
+        <li>Bảng: cột "Tồn khả dụng" tách thành Thực có, Đã giữ, Tự do, Đang về. Bỏ cột Hạn sử dụng (giấy không khai hạn); hạn vẫn nổi lên dưới tên khi có lô sắp hết hạn.</li>
+        <li>Ngăn: cột trái là số lượng và lô, cột phải 340px là thông tin tĩnh (ảnh, ngưỡng, nhà cung cấp, vị trí).</li>
+      </ul>
+    </div>
+
+    <div class="cap">Bảng tồn</div>
+    <div class="card scroll">
+      <div class="toolbar">
+        <input class="search" placeholder="Tìm mã hoặc tên vật tư">
+        <button class="btn">Lọc</button>
+        <span class="tag">Kho giấy</span>
+        <span style="flex:1"></span>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <table style="min-width:1100px">
+        <thead><tr>
+          <th style="width:36px"><input type="checkbox"></th>
+          <th>Vật tư</th><th>Vị trí</th>
+          <th class="r">Thực có</th><th class="r">Đã giữ</th><th class="r">Tự do</th><th class="r">Đang về</th>
+          <th>Mức tồn</th><th>Nhập gần nhất</th><th class="r">Giá trị</th>
+        </tr></thead>
+        <tbody>
+          <tr class="sel">
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">COUCHE 150GSM</div><div class="sub"><span>COUCHE-150</span><span class="tag">Tờ 790 × 1090</span></div></div></div></td>
+            <td class="muted">Chưa gắn</td>
+            <td class="r num a-cell-num">500 <span class="dvt">tờ</span></td>
+            <td class="r num a-zero">0</td>
+            <td class="r num a-cell-num">500</td>
+            <td class="r num a-zero">0</td>
+            <td><span class="chip chip--chua">Chưa khai ngưỡng</span></td>
+            <td class="num">06/10/2026</td>
+            <td class="r num"><span class="muted">Chưa có giá</span></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">COUCHE 150GSM</div><div class="sub"><span>COUCHE-150</span><span class="tag">Tờ 650 × 860</span></div></div></div></td>
+            <td><span class="tag">K2-03</span></td>
+            <td class="r num a-cell-num">3.200 <span class="dvt">tờ</span></td>
+            <td class="r num">2.400</td>
+            <td class="r num a-cell-num">800</td>
+            <td class="r num a-zero">0</td>
+            <td><span class="chip chip--mua">Cần mua</span></td>
+            <td class="num">28/09/2026</td>
+            <td class="r num b">9.120.000 đ</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">IVORY 300GSM</div><div class="sub"><span>IVORY-300</span><span class="tag">Tờ 790 × 1090</span></div></div></div></td>
+            <td><span class="tag">K1-01</span> <span class="tag">K1-02</span></td>
+            <td class="r num a-cell-num">6.000 <span class="dvt">tờ</span></td>
+            <td class="r num">1.500</td>
+            <td class="r num a-cell-num">4.500</td>
+            <td class="r num">2.000</td>
+            <td><span class="chip chip--du">Đủ</span></td>
+            <td class="num">02/10/2026</td>
+            <td class="r num b">41.400.000 đ</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-roll"/></svg></span><div><div class="name">DUPLEX 250GSM</div><div class="sub"><span>DUPLEX-250</span><span class="tag">Cuộn 1090</span></div></div></div></td>
+            <td><span class="tag">Bãi B</span></td>
+            <td class="r num a-cell-num">4.860 <span class="dvt">kg</span></td>
+            <td class="r num a-zero">0</td>
+            <td class="r num a-cell-num">4.860</td>
+            <td class="r num a-zero">0</td>
+            <td><span class="chip chip--thua">Vượt mức tối đa</span></td>
+            <td class="num">15/09/2026</td>
+            <td class="r num b">72.900.000 đ</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">BRISTOL 230GSM</div><div class="sub"><span>BRISTOL-230</span><span class="tag">Tờ 650 × 1000</span></div></div></div></td>
+            <td><span class="tag">K3-05</span></td>
+            <td class="r num a-cell-num">1.150 <span class="dvt">tờ</span></td>
+            <td class="r num">1.150</td>
+            <td class="r num a-cell-num" style="color:var(--signal)">0</td>
+            <td class="r num">3.000</td>
+            <td><span class="chip chip--mua">Cần mua</span></td>
+            <td class="num">21/08/2026</td>
+            <td class="r num b">4.600.000 đ</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="foot"><span>Trang 1/1 với 5 dòng</span><div class="pg"><span>‹</span><span class="on">1</span><span>›</span></div></div>
+    </div>
+
+    <div class="cap">Ngăn vật tư (1.180px), tab Tổng quan</div>
+    <div class="scroll"><div class="stage" style="min-width:1240px">
+      <div class="stage__ghost"><div></div><div></div><div></div></div>
+      <div class="drawer" style="width:1180px">
+        <span class="grip" title="Kéo để nới rộng"></span>
+        <div class="dh">
+          <span class="thumb" style="width:40px;height:40px"><svg class="ico"><use href="#i-layers"/></svg></span>
+          <div><h3>COUCHE 150GSM</h3><div class="sub"><span>COUCHE-150</span><span class="tag">Tờ 790 × 1090</span></div></div>
+          <span class="sp"></span>
+          <button class="btn"><svg class="ico"><use href="#i-swap"/></svg>Chuyển kho</button>
+          <button class="btn"><svg class="ico"><use href="#i-qr"/></svg>Tem QR</button>
+          <button class="btn btn--pri">Tạo yêu cầu mua</button>
+          <button class="x" title="Mở rộng hết"><svg class="ico"><use href="#i-expand"/></svg></button>
+          <button class="x" aria-label="Đóng">✕</button>
+        </div>
+        <div class="tabs">
+          <button class="tab on">Tổng quan</button>
+          <button class="tab">Lô tồn <span class="cnt">1</span></button>
+          <button class="tab">Lịch sử nhập <span class="cnt">1</span></button>
+          <button class="tab">Lịch sử xuất <span class="cnt">0</span></button>
+          <button class="tab">Lịch sử chuyển kho <span class="cnt">0</span></button>
+        </div>
+        <div class="a-body">
+          <div class="a-main">
+            <div class="a-card">
+              <div class="sec-t">Số lượng</div>
+              <div class="a-states">
+                <div class="a-state"><span>Thực có</span><b class="num">500</b><small>tờ trên kệ</small></div>
+                <div class="a-state"><span>Đã giữ cho lệnh</span><b class="num">0</b><small>chưa lệnh nào giữ</small></div>
+                <div class="a-state"><span>Tự do</span><b class="num" style="color:var(--moss-deep)">500</b><small>lĩnh được ngay</small></div>
+                <div class="a-state"><span>Đang về</span><b class="num">0</b><small>không có đơn mua mở</small></div>
+              </div>
+              <div class="a-bar"><i style="width:100%;background:var(--moss)"></i></div>
+              <div class="a-leg">
+                <span><i style="background:var(--moss)"></i>Tự do</span>
+                <span><i style="background:var(--plum)"></i>Đã giữ cho lệnh</span>
+                <span><i style="background:var(--rule)"></i>Đang về</span>
+              </div>
+            </div>
+
+            <div class="a-card">
+              <div class="sec-t">Nhập và xuất 12 tháng<span class="sp"></span><span class="hint">Tháng 10 nhập nhiều nhất</span></div>
+              <svg viewBox="0 0 640 170" width="100%" height="170" role="img" aria-label="Biểu đồ nhập xuất theo tháng">
+                <g font-size="11" fill="#64748b" font-family="Be Vietnam Pro">
+                  <line x1="34" x2="636" y1="20" y2="20" stroke="#f1f5f9"/><line x1="34" x2="636" y1="75" y2="75" stroke="#f1f5f9"/><line x1="34" x2="636" y1="130" y2="130" stroke="#cbd5e1"/>
+                  <text x="0" y="24">500</text><text x="0" y="79">250</text><text x="14" y="134">0</text>
+                  <g text-anchor="middle">
+                    <text x="59" y="150">T11</text><text x="109" y="150">T12</text><text x="159" y="150">T01</text><text x="209" y="150">T02</text><text x="259" y="150">T03</text><text x="309" y="150">T04</text><text x="359" y="150">T05</text><text x="409" y="150">T06</text><text x="459" y="150">T07</text><text x="509" y="150">T08</text><text x="559" y="150">T09</text><text x="609" y="150" fill="#0f172a" font-weight="600">T10</text>
+                  </g>
+                  <rect x="597" y="20" width="12" height="110" rx="3" fill="#2f5d3a"/>
+                </g>
+              </svg>
+              <div class="a-leg"><span><i style="background:var(--moss)"></i>Nhập</span><span><i style="background:var(--rust)"></i>Xuất</span></div>
+            </div>
+
+            <div class="a-card" style="padding:0;overflow:hidden">
+              <div class="sec-t" style="padding:14px 18px 0">Lô đang tồn<span class="sp"></span><span class="link">Xem tab Lô tồn</span></div>
+              <table class="a-mini">
+                <thead><tr><th>Phiếu nhập</th><th>Ngày nhập</th><th class="r">Còn lại</th><th>Vị trí</th><th class="r">Đơn giá</th></tr></thead>
+                <tbody><tr><td class="b">PN-0142</td><td class="num">06/10/2026</td><td class="r num b">500 <span class="dvt">tờ</span></td><td class="muted">Chưa gắn</td><td class="r"><span class="muted">Chưa có giá</span></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="a-side">
+            <div class="a-card">
+              <div class="a-photo"><span style="display:flex;gap:6px;align-items:center"><svg class="ico"><use href="#i-cam"/></svg>Thêm ảnh vật tư</span></div>
+            </div>
+            <div class="a-card">
+              <div class="sec-t">Ngưỡng tồn</div>
+              <div class="a-thr"><span class="hint">Chưa khai nên không cảnh báo khi sắp hết.</span><button class="btn">Đặt ngưỡng</button></div>
+            </div>
+            <div class="a-card">
+              <div class="sec-t">Giá trị tồn</div>
+              <dl class="kv">
+                <dt>Giá trị</dt><dd class="muted">Chưa có giá</dd>
+                <dt>Giá vốn bình quân</dt><dd class="muted">Chưa có giá</dd>
+              </dl>
+              <p class="hint" style="margin:10px 0 0">Lô PN-0142 nhập không kèm đơn giá.</p>
+            </div>
+            <div class="a-card">
+              <div class="sec-t">Nhà cung cấp</div>
+              <div class="a-ncc">
+                <div class="a-ncc-row"><b>Giấy An Phát</b><span class="r num"><b>3.152 đ</b><span class="dvt">/tờ</span></span><span class="hint">24.400 đ/kg</span><span class="r"><span class="chip chip--du">Rẻ nhất</span></span></div>
+                <div class="a-ncc-row"><b>Giấy Tân Mai Sài Gòn</b><span class="r num"><b>3.436 đ</b><span class="dvt">/tờ</span></span><span class="hint">26.600.000 đ/tấn</span><span></span></div>
+              </div>
+            </div>
+            <div class="a-card">
+              <div class="sec-t">Vị trí cất</div>
+              <div class="a-thr"><span class="hint">Chưa gắn kệ nào.</span><button class="btn"><svg class="ico"><use href="#i-pin"/></svg>Gắn vị trí</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- ============================================================ B -->
+  <section class="opt" id="B">
+    <div class="opt-head"><h2>B. Hồ sơ vật tư có cột thuộc tính</h2><span class="src">Khuôn: Attio record page và bảng của Linear</span></div>
+    <div class="why">Attio đặt mọi thuộc tính tĩnh vào một cột hẹp bên trái, bên phải là số liệu và dòng hoạt động. Linear gom bảng theo nhóm và nhồi xu hướng vào một cột nhỏ. Hợp khi kho có nhiều mã giấy giống tên khác khổ: nhìn nhóm trước, lướt xu hướng sau.
+      <ul>
+        <li>Bảng: gom theo loại giấy, thêm cột "Xuất 12 tháng" (biểu đồ nhỏ) và "Đủ dùng" (số ngày còn lại theo mức xuất bình quân 90 ngày).</li>
+        <li>Ngăn: cột trái 300px là thuộc tính, ô trống có nút khai ngay. Bên phải bốn ô số, biểu đồ đổi được tầm 3/6/12 tháng, dòng hoạt động gộp nhập, xuất, giữ chỗ, báo giá.</li>
+      </ul>
+    </div>
+
+    <div class="cap">Bảng tồn</div>
+    <div class="card scroll">
+      <div class="toolbar">
+        <input class="search" placeholder="Tìm mã hoặc tên vật tư">
+        <button class="btn">Lọc</button>
+        <button class="btn btn--txt">Nhóm theo: Loại giấy</button>
+        <span style="flex:1"></span>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <table style="min-width:1080px">
+        <thead><tr>
+          <th style="width:36px"><input type="checkbox"></th>
+          <th>Vật tư</th><th>Vị trí</th><th class="r">Tồn</th><th>Xuất 12 tháng</th><th>Đủ dùng</th><th>Mức tồn</th><th class="r">Giá trị</th>
+        </tr></thead>
+        <tbody>
+          <tr class="b-grp"><td colspan="8">Couche <span class="cnt">2</span></td></tr>
+          <tr class="sel">
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">COUCHE 150GSM</div><div class="sub"><span>COUCHE-150</span><span class="tag">Tờ 790 × 1090</span></div></div></div></td>
+            <td class="muted">Chưa gắn</td>
+            <td class="r num b">500<span class="dvt">tờ</span></td>
+            <td><svg class="b-spark" width="96" height="22"><line x1="0" y1="21" x2="96" y2="21" stroke="#e2e8f0"/></svg></td>
+            <td class="muted">Chưa xuất lần nào</td>
+            <td><span class="chip chip--chua">Chưa khai ngưỡng</span></td>
+            <td class="r muted">Chưa có giá</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">COUCHE 150GSM</div><div class="sub"><span>COUCHE-150</span><span class="tag">Tờ 650 × 860</span></div></div></div></td>
+            <td><span class="tag">K2-03</span></td>
+            <td class="r num b">3.200<span class="dvt">tờ</span></td>
+            <td><svg class="b-spark" width="96" height="22"><polyline fill="none" stroke="#c5400a" stroke-width="1.6" points="0,16 9,14 18,17 27,12 36,10 45,13 54,8 63,9 72,6 81,7 90,4 96,3"/></svg></td>
+            <td><span class="b-cover"><span class="b-meter"><i style="width:18%;background:var(--signal)"></i></span><span class="num b" style="color:var(--signal)">6 ngày</span></span></td>
+            <td><span class="chip chip--mua">Cần mua</span></td>
+            <td class="r num b">9.120.000 đ</td>
+          </tr>
+          <tr class="b-grp"><td colspan="8">Ivory <span class="cnt">1</span></td></tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">IVORY 300GSM</div><div class="sub"><span>IVORY-300</span><span class="tag">Tờ 790 × 1090</span></div></div></div></td>
+            <td><span class="tag">K1-01</span> <span class="tag">K1-02</span></td>
+            <td class="r num b">6.000<span class="dvt">tờ</span></td>
+            <td><svg class="b-spark" width="96" height="22"><polyline fill="none" stroke="#c5400a" stroke-width="1.6" points="0,12 9,10 18,13 27,9 36,11 45,8 54,12 63,10 72,9 81,11 90,8 96,10"/></svg></td>
+            <td><span class="b-cover"><span class="b-meter"><i style="width:62%;background:var(--moss)"></i></span><span class="num">38 ngày</span></span></td>
+            <td><span class="chip chip--du">Đủ</span></td>
+            <td class="r num b">41.400.000 đ</td>
+          </tr>
+          <tr class="b-grp"><td colspan="8">Duplex và Bristol <span class="cnt">2</span></td></tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-roll"/></svg></span><div><div class="name">DUPLEX 250GSM</div><div class="sub"><span>DUPLEX-250</span><span class="tag">Cuộn 1090</span></div></div></div></td>
+            <td><span class="tag">Bãi B</span></td>
+            <td class="r num b">4.860<span class="dvt">kg</span></td>
+            <td><svg class="b-spark" width="96" height="22"><polyline fill="none" stroke="#c5400a" stroke-width="1.6" points="0,8 9,10 18,12 27,11 36,14 45,15 54,17 63,16 72,18 81,19 90,19 96,20"/></svg></td>
+            <td><span class="b-cover"><span class="b-meter"><i style="width:100%;background:var(--amber)"></i></span><span class="num">140 ngày</span></span></td>
+            <td><span class="chip chip--thua">Vượt mức tối đa</span></td>
+            <td class="r num b">72.900.000 đ</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">BRISTOL 230GSM</div><div class="sub"><span>BRISTOL-230</span><span class="tag">Tờ 650 × 1000</span></div></div></div></td>
+            <td><span class="tag">K3-05</span></td>
+            <td class="r num b">1.150<span class="dvt">tờ</span></td>
+            <td><svg class="b-spark" width="96" height="22"><polyline fill="none" stroke="#c5400a" stroke-width="1.6" points="0,18 9,17 18,15 27,16 36,13 45,12 54,13 63,10 72,11 81,8 90,9 96,7"/></svg></td>
+            <td><span class="b-cover"><span class="b-meter"><i style="width:9%;background:var(--signal)"></i></span><span class="num b" style="color:var(--signal)">3 ngày</span></span></td>
+            <td><span class="chip chip--mua">Cần mua</span></td>
+            <td class="r num b">4.600.000 đ</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="foot"><span>Trang 1/1 với 5 dòng</span><div class="pg"><span>‹</span><span class="on">1</span><span>›</span></div></div>
+    </div>
+
+    <div class="cap">Ngăn vật tư (1.180px), tab Tổng quan</div>
+    <div class="scroll"><div class="stage" style="min-width:1240px">
+      <div class="stage__ghost"><div></div><div></div><div></div></div>
+      <div class="drawer" style="width:1180px">
+        <span class="grip" title="Kéo để nới rộng"></span>
+        <div class="dh">
+          <h3>COUCHE 150GSM</h3><span class="tag">Tờ 790 × 1090</span><span class="chip chip--chua">Chưa khai ngưỡng</span>
+          <span class="sp"></span>
+          <button class="btn"><svg class="ico"><use href="#i-swap"/></svg>Chuyển kho</button>
+          <button class="btn"><svg class="ico"><use href="#i-qr"/></svg>Tem QR</button>
+          <button class="x" title="Mở rộng hết"><svg class="ico"><use href="#i-expand"/></svg></button>
+          <button class="x" aria-label="Đóng">✕</button>
+        </div>
+        <div class="b-body">
+          <aside class="b-rail">
+            <div class="a-photo" style="height:120px"><span style="display:flex;gap:6px;align-items:center"><svg class="ico"><use href="#i-cam"/></svg>Thêm ảnh</span></div>
+            <div>
+              <h4>Thuộc tính</h4>
+              <div class="b-attr">
+                <span>Mã</span><b>COUCHE-150</b>
+                <span>Loại giấy</span><b>Couche</b>
+                <span>Định lượng</span><b>150 g/m²</b>
+                <span>Dạng</span><b>Tờ 790 × 1090 mm</b>
+                <span>Khối lượng tờ</span><b>0,129 kg</b>
+                <span>Đơn vị tồn</span><b>tờ</b>
+              </div>
+            </div>
+            <div>
+              <h4>Tại kho này</h4>
+              <div class="b-attr">
+                <span>Vị trí cất</span><b class="b-add">+ Gắn kệ</b>
+                <span>Ngưỡng tồn</span><b class="b-add">+ Đặt ngưỡng</b>
+                <span>Mức tối đa</span><b class="b-empty">Chưa khai</b>
+                <span>Hạn sử dụng</span><b class="b-empty">Không quản hạn</b>
+              </div>
+            </div>
+            <div>
+              <h4>Nhà cung cấp</h4>
+              <div class="b-attr" style="grid-template-columns:1fr auto">
+                <b>Giấy An Phát <span class="chip chip--du" style="margin-left:4px">Rẻ nhất</span></b><b class="r num">3.152 đ/tờ</b>
+                <b>Giấy Tân Mai Sài Gòn</b><b class="r num">3.436 đ/tờ</b>
+              </div>
+              <p class="hint" style="margin:8px 0 0">Đã quy đổi từ giá theo kg và theo tấn.</p>
+            </div>
+          </aside>
+
+          <div class="b-main">
+            <div class="tabs">
+              <button class="tab on">Tổng quan</button>
+              <button class="tab">Lô tồn <span class="cnt">1</span></button>
+              <button class="tab">Lịch sử <span class="cnt">1</span></button>
+              <button class="tab">Giữ chỗ cho lệnh <span class="cnt">0</span></button>
+            </div>
+            <div class="b-kpi">
+              <div class="b-k"><span>Tồn</span><b class="num">500</b><small>tờ trong 1 lô</small></div>
+              <div class="b-k"><span>Tự do</span><b class="num">500</b><small>không lệnh nào giữ</small></div>
+              <div class="b-k"><span>Đủ dùng</span><b class="muted" style="font-size:16px;padding:4px 0">Chưa đo được</b><small>cần ít nhất một lần xuất</small></div>
+              <div class="b-k"><span>Giá trị</span><b class="muted" style="font-size:16px;padding:4px 0">Chưa có giá</b><small>lô nhập không kèm đơn giá</small></div>
+            </div>
+            <div class="b-pane">
+              <div>
+                <div class="b-chart-h"><span class="sec-t" style="margin:0">Tồn cuối mỗi tháng</span><span class="b-seg"><span>3 tháng</span><span>6 tháng</span><span class="on">12 tháng</span></span></div>
+                <svg viewBox="0 0 780 180" width="100%" height="180" style="margin-top:8px" role="img" aria-label="Biểu đồ tồn cuối tháng">
+                  <g font-size="11" fill="#64748b" font-family="Be Vietnam Pro">
+                    <line x1="36" x2="776" y1="20" y2="20" stroke="#f1f5f9"/><line x1="36" x2="776" y1="80" y2="80" stroke="#f1f5f9"/><line x1="36" x2="776" y1="140" y2="140" stroke="#cbd5e1"/>
+                    <text x="2" y="24">500</text><text x="2" y="84">250</text><text x="22" y="144">0</text>
+                    <g text-anchor="middle">
+                      <text x="66" y="162">T11</text><text x="127" y="162">T12</text><text x="188" y="162">T01</text><text x="249" y="162">T02</text><text x="310" y="162">T03</text><text x="371" y="162">T04</text><text x="432" y="162">T05</text><text x="493" y="162">T06</text><text x="554" y="162">T07</text><text x="615" y="162">T08</text><text x="676" y="162">T09</text><text x="737" y="162" fill="#0f172a" font-weight="600">T10</text>
+                    </g>
+                    <path d="M36 140 H706 V20 H776" fill="none" stroke="#0f172a" stroke-width="2"/>
+                    <path d="M706 140 V20 H776 V140 Z" fill="#0f172a" opacity=".06"/>
+                    <circle cx="706" cy="20" r="3.5" fill="#2f5d3a"/>
+                    <text x="698" y="16" text-anchor="end" fill="#2f5d3a" font-weight="600">+500 nhập 06/10</text>
+                  </g>
+                </svg>
+              </div>
+              <div>
+                <div class="sec-t">Hoạt động<span class="sp"></span><span class="link">Mở tab Lịch sử</span></div>
+                <ul class="b-tl">
+                  <li><span class="b-dot b-dot--in"><svg class="ico"><use href="#i-in"/></svg></span>
+                    <div><p><b>Nhập kho</b> theo phiếu PN-0142</p><div class="m"><span class="tag">06/10/2026 14:20</span><span class="hint">Nguyễn Thị Hoa</span></div></div>
+                    <span class="b-q c-plus num">+500 tờ</span></li>
+                  <li><span class="b-dot b-dot--ncc"><svg class="ico"><use href="#i-truck"/></svg></span>
+                    <div><p><b>Báo giá mới</b> từ Giấy Tân Mai Sài Gòn</p><div class="m"><span class="tag">02/10/2026</span><span class="hint">26.600.000 đ/tấn</span></div></div>
+                    <span></span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- ============================================================ C -->
+  <section class="opt" id="C">
+    <div class="opt-head"><h2>C. Dự báo tồn theo ngày</h2><span class="src">Khuôn: Odoo Inventory — Forecasted report, đầu trang SAP Fiori object page</span></div>
+    <div class="why">Odoo không hỏi "đã nhập bao nhiêu" mà hỏi "tồn sẽ còn bao nhiêu vào ngày lệnh cần": cộng hàng đang về, trừ phần lệnh đã giữ, so với vạch min và max. Fiori đặt các con số đó thành hàng ô số ngay đầu trang. Hợp với kế hoạch sản xuất đã có giữ chỗ theo ngày cần.
+      <ul>
+        <li>Bảng: gộp Tồn và Ngưỡng thành một thanh có vạch min, vùng xanh là khoảng an toàn. Nhìn một dòng biết ngay dư hay thiếu bao xa.</li>
+        <li>Ngăn: đầu ngăn là phép tính Thực có − Đã giữ + Đang về = Dự kiến. Thân trái là đường tồn dự kiến 30 ngày và lịch các khoản sắp vào ra, thân phải là thứ tự lĩnh lô (lô cũ ra trước) và nhà cung cấp.</li>
+      </ul>
+    </div>
+
+    <div class="cap">Bảng tồn</div>
+    <div class="card scroll">
+      <div class="toolbar">
+        <input class="search" placeholder="Tìm mã hoặc tên vật tư">
+        <button class="btn">Lọc</button>
+        <span class="tag">Chỉ hiện dưới mức tối thiểu</span>
+        <span style="flex:1"></span>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <table style="min-width:1080px">
+        <thead><tr>
+          <th style="width:36px"><input type="checkbox"></th>
+          <th>Vật tư</th><th>Vị trí</th><th class="r">Tồn</th><th>So với ngưỡng</th><th class="r">Dự kiến 30 ngày</th><th>Nhập gần nhất</th><th class="r">Giá trị</th>
+        </tr></thead>
+        <tbody>
+          <tr class="sel">
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">COUCHE 150GSM</div><div class="sub"><span>COUCHE-150</span><span class="tag">Tờ 790 × 1090</span></div></div></div></td>
+            <td class="muted">Chưa gắn</td>
+            <td class="r num b">500<span class="dvt">tờ</span></td>
+            <td><span class="link">Đặt ngưỡng</span></td>
+            <td class="r num">500</td>
+            <td class="num">06/10/2026</td>
+            <td class="r muted">Chưa có giá</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">COUCHE 150GSM</div><div class="sub"><span>COUCHE-150</span><span class="tag">Tờ 650 × 860</span></div></div></div></td>
+            <td><span class="tag">K2-03</span></td>
+            <td class="r num b">3.200<span class="dvt">tờ</span></td>
+            <td><div class="c-lvl"><div class="c-bullet"><span class="band" style="left:57%;width:43%"></span><span class="fill" style="width:46%;background:var(--signal)"></span><span class="tk" style="left:57%"></span></div><small><span>Min 4.000</span><span>Max 7.000</span></small></div></td>
+            <td class="r num b" style="color:var(--signal)">800</td>
+            <td class="num">28/09/2026</td>
+            <td class="r num b">9.120.000 đ</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">IVORY 300GSM</div><div class="sub"><span>IVORY-300</span><span class="tag">Tờ 790 × 1090</span></div></div></div></td>
+            <td><span class="tag">K1-01</span> <span class="tag">K1-02</span></td>
+            <td class="r num b">6.000<span class="dvt">tờ</span></td>
+            <td><div class="c-lvl"><div class="c-bullet"><span class="band" style="left:25%;width:58%"></span><span class="fill" style="width:50%;background:var(--moss)"></span><span class="tk" style="left:25%"></span></div><small><span>Min 3.000</span><span>Max 10.000</span></small></div></td>
+            <td class="r num">6.500</td>
+            <td class="num">02/10/2026</td>
+            <td class="r num b">41.400.000 đ</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-roll"/></svg></span><div><div class="name">DUPLEX 250GSM</div><div class="sub"><span>DUPLEX-250</span><span class="tag">Cuộn 1090</span></div></div></div></td>
+            <td><span class="tag">Bãi B</span></td>
+            <td class="r num b">4.860<span class="dvt">kg</span></td>
+            <td><div class="c-lvl"><div class="c-bullet"><span class="band" style="left:18%;width:44%"></span><span class="fill" style="width:88%;background:var(--amber)"></span><span class="tk" style="left:18%"></span></div><small><span>Min 1.000</span><span>Max 3.500</span></small></div></td>
+            <td class="r num">4.300</td>
+            <td class="num">15/09/2026</td>
+            <td class="r num b">72.900.000 đ</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="item"><span class="thumb"><svg class="ico"><use href="#i-layers"/></svg></span><div><div class="name">BRISTOL 230GSM</div><div class="sub"><span>BRISTOL-230</span><span class="tag">Tờ 650 × 1000</span></div></div></div></td>
+            <td><span class="tag">K3-05</span></td>
+            <td class="r num b">1.150<span class="dvt">tờ</span></td>
+            <td><div class="c-lvl"><div class="c-bullet"><span class="band" style="left:40%;width:45%"></span><span class="fill" style="width:23%;background:var(--signal)"></span><span class="tk" style="left:40%"></span></div><small><span>Min 2.000</span><span>Max 4.250</span></small></div></td>
+            <td class="r num">3.000</td>
+            <td class="num">21/08/2026</td>
+            <td class="r num b">4.600.000 đ</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="foot"><span>Trang 1/1 với 5 dòng</span><div class="pg"><span>‹</span><span class="on">1</span><span>›</span></div></div>
+    </div>
+
+    <div class="cap">Ngăn vật tư (1.180px), tab Tổng quan. Để thấy đủ phần dự báo, ví dụ này mở dòng COUCHE 150GSM tờ 650 × 860 (có ngưỡng, có giữ chỗ, có hàng về).</div>
+    <div class="scroll"><div class="stage" style="min-width:1240px">
+      <div class="stage__ghost"><div></div><div></div><div></div></div>
+      <div class="drawer" style="width:1180px">
+        <span class="grip" title="Kéo để nới rộng"></span>
+        <div class="c-head">
+          <div class="c-title">
+            <span class="thumb" style="width:44px;height:44px"><svg class="ico"><use href="#i-layers"/></svg></span>
+            <div><h3>COUCHE 150GSM</h3><div class="sub"><span>COUCHE-150</span><span class="tag">Tờ 650 × 860</span><span class="tag">K2-03</span></div></div>
+            <span class="sp"></span>
+            <button class="btn"><svg class="ico"><use href="#i-swap"/></svg>Chuyển kho</button>
+            <button class="btn"><svg class="ico"><use href="#i-qr"/></svg>Tem QR</button>
+            <button class="btn btn--pri">Tạo yêu cầu mua</button>
+            <button class="x" title="Mở rộng hết"><svg class="ico"><use href="#i-expand"/></svg></button>
+            <button class="x" aria-label="Đóng">✕</button>
+          </div>
+          <div class="c-facets">
+            <div class="c-f"><span>Thực có</span><b class="num">3.200</b><small>tờ trong 2 lô</small></div>
+            <div class="c-f"><span><span class="op">−</span> Đã giữ cho lệnh</span><b class="num">2.400</b><small>3 lệnh</small></div>
+            <div class="c-f"><span><span class="op">+</span> Đang về</span><b class="num">0</b><small>chưa có đơn mua</small></div>
+            <div class="c-f"><span><span class="op">=</span> Dự kiến 30 ngày</span><b class="num" style="color:var(--signal)">800</b><small>dưới min 4.000</small></div>
+            <div class="c-f"><span>Giá trị tồn</span><b class="num">9.120.000 đ</b><small>2.850 đ/tờ bình quân</small></div>
+          </div>
+          <div class="tabs" style="padding:0;border-bottom:0;margin-top:4px">
+            <button class="tab on">Tổng quan</button>
+            <button class="tab">Lô tồn <span class="cnt">2</span></button>
+            <button class="tab">Giữ chỗ <span class="cnt">3</span></button>
+            <button class="tab">Lịch sử nhập <span class="cnt">6</span></button>
+            <button class="tab">Lịch sử xuất <span class="cnt">14</span></button>
+            <button class="tab">Lịch sử chuyển kho <span class="cnt">0</span></button>
+          </div>
+        </div>
+        <div class="c-body">
+          <div class="c-left">
+            <div class="warn"><svg class="ico"><use href="#i-alert"/></svg><div>Sau khi ba lệnh đã giữ lĩnh xong, kho còn 800 tờ, thiếu 3.200 tờ so với mức tối thiểu 4.000. Mua thêm 6.200 tờ thì về lại mức tối đa 7.000.</div></div>
+            <div>
+              <div class="sec-t">Tồn dự kiến 30 ngày tới</div>
+              <svg viewBox="0 0 700 200" width="100%" height="200" role="img" aria-label="Đường tồn dự kiến">
+                <g font-size="11" fill="#64748b" font-family="Be Vietnam Pro">
+                  <rect x="40" y="40" width="656" height="51" fill="#dbe7dd" opacity=".55"/>
+                  <line x1="40" x2="696" y1="40" y2="40" stroke="#2f5d3a" stroke-dasharray="4 4"/><text x="0" y="44">7.000</text>
+                  <line x1="40" x2="696" y1="91" y2="91" stroke="#8a1f1f" stroke-dasharray="4 4"/><text x="0" y="95">4.000</text>
+                  <line x1="40" x2="696" y1="160" y2="160" stroke="#cbd5e1"/><text x="26" y="164">0</text>
+                  <text x="600" y="36" fill="#2f5d3a">Max 7.000</text><text x="604" y="86" fill="#8a1f1f">Min 4.000</text>
+                  <path d="M40 105 H150 V126 H300 V138 H470 V146 H696" fill="none" stroke="#0f172a" stroke-width="2.2"/>
+                  <circle cx="150" cy="126" r="3.5" fill="#c5400a"/><circle cx="300" cy="138" r="3.5" fill="#c5400a"/><circle cx="470" cy="146" r="3.5" fill="#c5400a"/>
+                  <g text-anchor="middle"><text x="40" y="182">07/10</text><text x="150" y="182">10/10</text><text x="300" y="182">15/10</text><text x="470" y="182">21/10</text><text x="680" y="182">06/11</text></g>
+                </g>
+              </svg>
+            </div>
+            <div>
+              <div class="sec-t">Sắp vào ra<span class="sp"></span><span class="hint">theo ngày lệnh cần</span></div>
+              <div class="c-ev"><span class="c-date">10/10</span><span>Lệnh LSX-0318 in hộp bánh Kinh Đô lĩnh</span><span class="c-minus num">−1.200</span></div>
+              <div class="c-ev"><span class="c-date">15/10</span><span>Lệnh LSX-0322 in tờ gấp Vinamilk lĩnh</span><span class="c-minus num">−700</span></div>
+              <div class="c-ev"><span class="c-date">21/10</span><span>Lệnh LSX-0327 in catalogue Hoà Phát lĩnh</span><span class="c-minus num">−500</span></div>
+              <div class="c-ev"><span class="c-date">06/11</span><span>Còn lại trên kệ</span><span class="num b" style="color:var(--signal)">800</span></div>
+            </div>
+          </div>
+          <div class="c-right">
+            <div>
+              <div class="sec-t">Thứ tự lĩnh lô<span class="sp"></span><span class="hint">lô cũ ra trước</span></div>
+              <div class="c-fifo">
+                <div class="c-lot first"><span class="c-ord">1</span><div><b>PN-0129</b><div class="hint">nhập 12/09/2026 ở K2-03</div></div><span class="num b">1.200<span class="dvt">tờ</span></span></div>
+                <div class="c-lot"><span class="c-ord">2</span><div><b>PN-0137</b><div class="hint">nhập 28/09/2026 ở K2-03</div></div><span class="num b">2.000<span class="dvt">tờ</span></span></div>
+              </div>
+            </div>
+            <div>
+              <div class="sec-t">Nhà cung cấp</div>
+              <dl class="kv">
+                <dt>Giấy An Phát <span class="chip chip--du" style="margin-left:4px">Rẻ nhất</span></dt><dd class="num">2.046 đ/tờ</dd>
+                <dt>Giấy Tân Mai Sài Gòn</dt><dd class="num">2.230 đ/tờ</dd>
+              </dl>
+              <p class="hint" style="margin:8px 0 0">Mua đủ 6.200 tờ ở An Phát hết khoảng 12.685.000 đ.</p>
+            </div>
+            <div>
+              <div class="sec-t">Ngưỡng tại kho này<span class="sp"></span><span class="link">Sửa</span></div>
+              <dl class="kv"><dt>Tối thiểu</dt><dd class="num">4.000 tờ</dd><dt>Tối đa</dt><dd class="num">7.000 tờ</dd></dl>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+</div>
+</body>
+</html>

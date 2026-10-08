@@ -1,8 +1,11 @@
-// Tab 3 của drawer Nhà cung cấp — "Lịch sử mua hàng (PMH)" (tách từ pages/SuppliersPage.tsx).
+// Tab "Đơn mua" của ngăn Nhà cung cấp: các đơn mua với NCC này, lưới bảng tính `lds-g` một dòng mỗi
+// đơn (07/10/2026). Nhãn trạng thái dùng CHUNG bộ `TT_DON` của màn Mua hàng / Kế toán — cùng một đơn
+// không được chỗ ghi "Đã nhập kho", chỗ ghi "Đã về đủ".
 import type { PurchaseRequestRow, SupplierRow } from "../../../../api/client";
 import { EmptyState } from "../../../../components/EmptyState";
 import { fmtDate, money } from "../../../../utils/format";
-import { getPOStatusLabel } from "../shared/helpers";
+import { OMuaCho } from "../../mua-cho/OMuaCho";
+import { ChipTT, TT_DON } from "../../trang-thai-mua";
 
 export function SupplierHistoryTab({
   mode,
@@ -19,104 +22,72 @@ export function SupplierHistoryTab({
   poLoading: boolean;
   poError: string | null;
 }) {
+  // Ca "chưa lưu NCC" không phải đang tải / rỗng / lỗi: chưa đủ điều kiện hỏi máy chủ ⇒ lời dặn.
+  if (mode === "create" || !selected) {
+    return <div className="banner banner--info">Lưu nhà cung cấp trước rồi mới có đơn mua để xem.</div>;
+  }
+  if (poLoading) return <EmptyState trangThai="dang-tai" />;
+  if (poError) return <EmptyState trangThai="loi" loi={poError} />;
+  if (poList.length === 0) {
+    return (
+      <EmptyState
+        icon="cart"
+        title="Chưa có đơn mua nào với nhà cung cấp này"
+        sub="Đơn mua lập ở màn Mua hàng sẽ tự hiện ở đây."
+      />
+    );
+  }
   return (
-                  <div>
-                    <h3
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "bold",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      Lịch sử Phiếu Mua Hàng (PMH)
-                    </h3>
-
-
-                    {/* Ba ca đang tải / rỗng / lỗi dùng CHUNG khối `EmptyState` như mọi danh sách
-                        khác (chuẩn đợt 2 §f) — trước đây chỗ này tự dựng ba kiểu riêng.
-                        Ca "chưa lưu NCC" KHÔNG phải một trong ba ca đó: nó là điều kiện chưa đủ để
-                        hỏi máy chủ, nên vẫn là banner hướng dẫn.
-                        `poError` là ô nhớ RIÊNG của bảng này (chỉ ghi trong catch của lượt tải
-                        lịch sử), không dùng chung với `error` thao tác — giữ nguyên như vậy. */}
-                    {mode === "create" || !selected ? (
-                      <div className="banner banner--info">
-                        Vui lòng lưu thông tin nhà cung cấp trước khi xem lịch
-                        sử mua hàng.
-                      </div>
-                    ) : poLoading ? (
-                      <EmptyState trangThai="dang-tai" />
-                    ) : poError ? (
-                      <EmptyState trangThai="loi" loi={poError} />
-                    ) : poList.length === 0 ? (
-                      <EmptyState
-                        icon="cart"
-                        title="Chưa có phiếu mua hàng nào với nhà cung cấp này"
-                        sub="Phiếu mua lập từ màn Mua hàng sẽ tự hiện ở đây."
-                      />
-                    ) : (
-                      <>
-                      {poTotal > poList.length && (
-                        <p className="md-page__muted" style={{ fontSize: "13px" }}>
-                          Đang hiện {poList.length} phiếu mới nhất / {poTotal} phiếu — xem đủ ở
-                          màn Mua hàng, lọc theo nhà cung cấp này.
-                        </p>
-                      )}
-                      <div className="card md-page__tablewrap">
-                        <table className="md-page__table">
-                          <thead>
-                            <tr>
-                              <th>Mã PMH</th>
-                              <th>Ngày tạo</th>
-                              <th>Mục đích / Người tạo</th>
-                              <th style={{ textAlign: "right" }}>
-                                Tổng giá trị
-                              </th>
-                              <th>Trạng thái PMH</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {poList.map((po) => {
-                              const statusMeta = getPOStatusLabel(po.status);
-                              return (
-                                <tr key={po.id}>
-                                  <td
-                                    className="md-page__mono"
-                                    style={{ fontWeight: "bold", whiteSpace: "nowrap" }}
-                                  >
-                                    {po.code}
-                                  </td>
-                                  <td className="md-page__mono">
-                                    {fmtDate(po.created_at)}
-                                  </td>
-                                  <td>
-                                    <div>{po.purpose || "Mua vật tư in"}</div>
-                                    <div
-                                      className="md-page__muted"
-                                      style={{ fontSize: "12px" }}
-                                    >
-                                      Bởi: {po.created_by_name || "Hệ thống"}
-                                    </div>
-                                  </td>
-                                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                                    <strong className="md-page__price">
-                                      {money(po.total_estimate ?? 0)}
-                                    </strong>
-                                  </td>
-                                  <td>
-                                    <span
-                                      className={`purchase__status ${statusMeta.className}`}
-                                    >
-                                      {statusMeta.label}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                      </>
-                    )}
-                  </div>
+    <div className="ncc-dm">
+      <p className="ncc-dm__dem">
+        {poTotal > poList.length
+          ? `${poList.length} đơn mới nhất trên ${poTotal} đơn. Xem đủ ở màn Mua hàng, lọc theo nhà cung cấp này.`
+          : `${poTotal} đơn`}
+      </p>
+      {/* Ngăn kiểu 3 chừa vùng trái ~822px (cột phải 290px). Cột cố định cộng ~626px (mã DMH-261008-X7A0 cần
+          150px; ngày 96, tiền 114 vừa số 9 chữ số, trạng thái 124 vừa chip "Về một phần") để Nội dung còn ~196px mà không mọc thanh cuộn ngang; không đặt minWidth —
+          ô bị cắt "…" đã có bong bóng đủ chữ. Người tạo vào chú thích ô Mã đơn — với một NCC, ai lập đơn
+          ít khi là điều cần dò. */}
+      <div className="lds-bang">
+        <table className="lds-g">
+          <colgroup>
+            <col style={{ width: 152 }} />
+            <col style={{ width: 96 }} />
+            <col />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 114 }} />
+            <col style={{ width: 124 }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Mã đơn</th>
+              <th>Ngày tạo</th>
+              <th>Nội dung</th>
+              <th>Mua cho</th>
+              <th className="n">Tổng tiền</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            {poList.map((po) => (
+              <tr key={po.id}>
+                <td title={`Người tạo: ${po.created_by_name || "Hệ thống"}`}>{po.code}</td>
+                <td>{fmtDate(po.created_at)}</td>
+                <td title={po.purpose || undefined}>
+                  {po.purpose || <span className="lds-mu3">Không ghi</span>}
+                </td>
+                <td>
+                  <OMuaCho loai={po.loai_mua_cac} lenh={po.mua_cho} />
+                </td>
+                <td className="n">{money(po.total_estimate ?? 0)}</td>
+                <td>
+                  <ChipTT nhan={TT_DON[po.status as keyof typeof TT_DON]} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

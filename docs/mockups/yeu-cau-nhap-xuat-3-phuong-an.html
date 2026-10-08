@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yêu cầu nhập xuất</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --rust:#c5400a; --rust-deep:#8a2d07; --charcoal:#0f172a; --charcoal-2:#1e293b;
+  --tt-vang-bg:#fef3c7; --tt-vang-fg:#b45309; --tt-vang-dot:#f59e0b;
+  --tt-cam-bg:#ffedd5;  --tt-cam-fg:#c2410c;  --tt-cam-dot:#f97316;
+  --tt-xanh-bg:#dbeafe; --tt-xanh-fg:#1d4ed8; --tt-xanh-dot:#3b82f6;
+  --tt-cyan-bg:#cffafe; --tt-cyan-fg:#0e7490; --tt-cyan-dot:#06b6d4;
+  --tt-cham-bg:#e0e7ff; --tt-cham-fg:#4338ca; --tt-cham-dot:#6366f1;
+  --tt-tim-bg:#ede9fe;  --tt-tim-fg:#6d28d9;  --tt-tim-dot:#8b5cf6;
+  --tt-la-bg:#dcfce7;   --tt-la-fg:#15803d;   --tt-la-dot:#22c55e;
+  --tt-do-bg:#fee2e2;   --tt-do-fg:#b91c1c;   --tt-do-dot:#ef4444;
+  --tt-xam-bg:#e5e7eb;  --tt-xam-fg:#374151;  --tt-xam-dot:#6b7280;
+  --tt-slate-bg:#f1f5f9;--tt-slate-fg:#475569;--tt-slate-dot:#94a3b8;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1260px;margin:0 auto;padding:32px 16px 120px}
+h1{font-size:24px;margin:0 0 6px;letter-spacing:-.01em}
+.lead{color:var(--ash);margin:0 0 18px;max-width:920px}
+.box{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:16px 20px;margin-bottom:16px}
+.box h2{font-size:15px;margin:0 0 10px}
+.box ul{margin:0;padding-left:18px;display:grid;gap:4px;color:var(--ash);font-size:13.5px}
+.box b{color:var(--ink)}
+.cmp{border-collapse:collapse;width:100%;font-size:13px}
+.cmp th{font-size:12px;color:var(--ash-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);font-weight:600}
+.cmp td{padding:10px;border-bottom:1px solid var(--rule-hair);vertical-align:top;color:var(--ash)}
+.cmp td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
+.cmp tr:last-child td{border-bottom:0}
+.optnav{position:sticky;top:0;z-index:30;background:rgba(233,237,242,.94);backdrop-filter:blur(6px);padding:12px 0;margin:28px 0 22px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--rule)}
+.optnav button{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink-2);cursor:pointer}
+.optnav button:hover{background:var(--rule-hair)}
+.optnav button.on{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.optnav .hint{margin-left:auto}
+.opt{display:none}.opt.on{display:block}
+.opt-h{margin:0 0 6px;font-size:22px;letter-spacing:-.01em}
+.opt-lead{color:var(--ash);margin:0 0 12px;max-width:940px}
+.scrnav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 36px}
+.scrnav a{font-size:12.5px;color:var(--ash);text-decoration:none;border:1px solid var(--rule);background:var(--canvas);border-radius:999px;padding:3px 11px}
+.scrnav a:hover{background:var(--rule-hair);color:var(--ink)}
+.scr{margin:0 0 80px;scroll-margin-top:76px}
+.scr-h{display:flex;gap:10px;align-items:baseline}
+.scr-h h3{font-size:18px;margin:0}
+.n{font-size:12px;font-weight:600;color:var(--ash);border:1px solid var(--rule);background:var(--canvas);border-radius:999px;padding:1px 9px;white-space:nowrap}
+.why{color:var(--ash);margin:6px 0 16px;max-width:960px;font-size:13.5px}
+.why ul{margin:4px 0 0;padding-left:18px;display:grid;gap:3px}
+.why b{color:var(--ink)}
+.scroll{overflow-x:auto;padding-bottom:8px}
+
+/* ---------- chung ---------- */
+.muted{color:var(--ash-2)} .num{font-variant-numeric:tabular-nums} .r{text-align:right} .c{text-align:center} .b{font-weight:600} .nw{white-space:nowrap}
+.u{font-size:12px;color:var(--ash-2);font-weight:400;margin-left:3px}
+.red{color:var(--tt-do-fg)} .amb{color:var(--tt-vang-fg)} .grn{color:var(--tt-la-fg)}
+.ico{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:12px;color:var(--ash);white-space:nowrap;font-weight:500}
+.tag b{color:var(--ink);font-weight:600}
+.code{display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:6px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-weight:600;font-size:12.5px;white-space:nowrap;color:var(--ink)}
+.lk{color:var(--tt-xanh-fg);text-decoration:none;font-weight:600;cursor:pointer}
+.lk:hover{text-decoration:underline}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;background:var(--bg);color:var(--fg)}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--dot)}
+.chip--lon{height:28px;font-size:13px;padding:0 12px}
+.t-vang{--bg:var(--tt-vang-bg);--fg:var(--tt-vang-fg);--dot:var(--tt-vang-dot)}
+.t-cam{--bg:var(--tt-cam-bg);--fg:var(--tt-cam-fg);--dot:var(--tt-cam-dot)}
+.t-xanh{--bg:var(--tt-xanh-bg);--fg:var(--tt-xanh-fg);--dot:var(--tt-xanh-dot)}
+.t-cyan{--bg:var(--tt-cyan-bg);--fg:var(--tt-cyan-fg);--dot:var(--tt-cyan-dot)}
+.t-cham{--bg:var(--tt-cham-bg);--fg:var(--tt-cham-fg);--dot:var(--tt-cham-dot)}
+.t-la{--bg:var(--tt-la-bg);--fg:var(--tt-la-fg);--dot:var(--tt-la-dot)}
+.t-do{--bg:var(--tt-do-bg);--fg:var(--tt-do-fg);--dot:var(--tt-do-dot)}
+.t-xam{--bg:var(--tt-xam-bg);--fg:var(--tt-xam-fg);--dot:var(--tt-xam-dot)}
+.t-slate{--bg:var(--tt-slate-bg);--fg:var(--tt-slate-fg);--dot:var(--tt-slate-dot)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--toi{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.btn--ghost{border-color:transparent;background:transparent;color:var(--ash)}
+.btn--sm{height:30px;padding:0 10px;font-size:12.5px}
+.btn--dash{border-style:dashed;color:var(--ash)}
+.btn--ico{width:36px;padding:0}
+.btn--sm.btn--ico{width:30px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.x{width:32px;height:32px;border-radius:8px;display:inline-grid;place-items:center;color:var(--ash-2);border:0;background:none;cursor:pointer}
+.x:hover{background:var(--rule-hair);color:var(--ink)}
+.inp{height:36px;border:1px solid var(--rule);border-radius:8px;padding:0 10px;font:inherit;font-size:13.5px;background:var(--canvas);color:var(--ink);width:100%;display:flex;align-items:center;gap:8px}
+.inp.ph{color:var(--ash-3)}
+.inp.ta{height:auto;min-height:64px;align-items:flex-start;padding:8px 10px}
+.inp.loi{border-color:var(--tt-do-dot)}
+.inp .end{margin-left:auto;color:var(--ash-2);font-size:12.5px;white-space:nowrap}
+.inp.r{justify-content:flex-end}
+.inp.r .end{margin-left:6px}
+.fld{display:grid;gap:6px;align-content:start}
+.fld>label{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.fld>label em{color:var(--tt-do-fg);font-style:normal}
+.hint{font-size:12px;color:var(--ash-2)}
+.hint.red{color:var(--tt-do-fg)}
+.pick{display:flex;gap:6px;flex-wrap:wrap}
+.pick span{height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--rule);font-size:12px;color:var(--ash);display:inline-flex;align-items:center;cursor:pointer;background:var(--canvas)}
+.pick span:hover{background:var(--rule-hair)}
+.pick span.on{border-color:var(--charcoal);color:var(--ink);font-weight:600;box-shadow:inset 0 0 0 1px var(--charcoal)}
+
+/* ---------- trang danh sách ---------- */
+.app{background:var(--paper);border:1px solid var(--rule);border-radius:14px;padding:22px 24px;min-width:1120px}
+.app-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.app-h h4{font-size:22px;margin:0;letter-spacing:-.01em}
+.cnt{font-size:12px;font-weight:600;color:var(--ash);background:var(--rule-soft);border-radius:999px;padding:1px 8px}
+.search{height:36px;width:300px;border:1px solid var(--rule);border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--ash-3);background:var(--canvas);font-size:13.5px}
+.sp{flex:1}
+.seg{display:inline-flex;gap:2px;padding:3px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;margin-bottom:14px;flex-wrap:wrap}
+.seg span{padding:5px 12px;border-radius:7px;font-size:13px;color:var(--ash);display:inline-flex;gap:6px;align-items:center;white-space:nowrap;cursor:pointer;font-weight:500}
+.seg span em{font-style:normal;font-size:11.5px;color:var(--ash-2);font-weight:600}
+.seg span.on{background:var(--charcoal);color:#fff}
+.seg span.on em{color:#cbd5e1}
+.seg span:not(.on):hover{background:var(--rule-hair)}
+.card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+table{border-collapse:collapse;width:100%}
+th{font-size:12px;font-weight:600;color:var(--ash-2);text-align:left;padding:11px 14px;border-bottom:1px solid var(--rule-soft);white-space:nowrap;background:var(--canvas)}
+td{padding:12px 14px;border-bottom:1px solid var(--rule-hair);vertical-align:middle;font-size:13.5px}
+tbody tr:last-child td{border-bottom:0}
+.hov tbody tr:hover td{background:var(--rule-hair);cursor:pointer}
+.sub{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px;font-size:12px;color:var(--ash-2)}
+.ten{font-weight:600}
+.pager{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--rule-soft);font-size:12.5px;color:var(--ash)}
+.pager .pg{display:flex;gap:4px;margin-left:auto}
+.pager .pg span{min-width:28px;height:28px;border-radius:7px;border:1px solid var(--rule-soft);display:grid;place-items:center;font-size:12.5px}
+.pager .pg span.on{background:var(--charcoal);color:#fff;border-color:var(--charcoal)}
+.mbar{height:6px;border-radius:99px;background:var(--rule-soft);overflow:hidden;width:96px;display:flex}
+.mbar i{display:block;height:100%;background:var(--tt-la-dot)}
+.mbar i.cy{background:var(--tt-cyan-dot)} .mbar i.sl{background:var(--tt-slate-dot)} .mbar i.xm{background:var(--rule)} .mbar i.cam{background:var(--tt-cam-dot)} .mbar i.vg{background:var(--tt-vang-dot)}
+.mbar--rong{width:100%}
+
+/* ---------- ngăn phải 1180 (khung NganPhai) ---------- */
+.dw{width:1180px;background:var(--canvas);border:1px solid var(--rule);border-radius:14px;box-shadow:0 24px 48px -24px rgba(15,23,42,.35);overflow:hidden;display:flex;flex-direction:column}
+.dw-dau{padding:14px 24px 0}
+.dw-dau.form{padding-bottom:16px;border-bottom:1px solid var(--rule-soft)}
+.dw-1{display:flex;align-items:center;gap:8px;color:var(--ash-2);font-size:12.5px;min-height:32px}
+.dw-1 .end{margin-left:auto;display:flex;gap:2px}
+.dw-t{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.dw-t h4{margin:0;font-size:22px;font-weight:700;letter-spacing:-.01em}
+.dw-t .hd{margin-left:auto;display:flex;gap:8px;align-items:center}
+.dw-phu{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;font-size:13px;color:var(--ash)}
+.dw-nd{margin:10px 0 0;color:var(--ink-2);font-size:14px;max-width:760px}
+.dw-su{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px;padding:12px 16px;border:1px solid var(--rule-soft);border-radius:10px;background:var(--paper)}
+.dw-su>div{display:grid;gap:3px;min-width:0;align-content:start}
+.dw-su .l{font-size:11.5px;color:var(--ash-2)}
+.dw-su b{font-weight:600;font-size:14px}
+.dw-su .lon{font-size:17px;font-weight:700}
+.dw-tab{display:flex;gap:4px;margin-top:14px;padding-bottom:12px;border-bottom:1px solid var(--rule-soft);overflow-x:auto}
+.dw-tab button{height:32px;padding:0 12px;border:0;border-radius:8px;background:none;color:var(--ash);font:inherit;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.dw-tab button:hover{background:var(--rule-hair);color:var(--ink)}
+.dw-tab button.on{background:var(--charcoal);color:#fff}
+.dw-tab em{font-style:normal;font-size:11.5px;background:var(--rule-hair);color:var(--ash);border-radius:99px;padding:0 7px}
+.dw-tab button.on em{background:rgba(255,255,255,.18);color:#fff}
+.dw-than{padding:20px 24px 28px;min-height:380px;container-type:inline-size}
+.dw-than.xam{background:var(--paper)}
+.dw-chan{border-top:1px solid var(--rule-soft);padding:12px 24px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dw-chan .xt{margin-right:auto;color:var(--ash);font-size:13px}
+.dw-chan .xt b{color:var(--ink)}
+.pn{display:none}.pn.on{display:block}
+
+.the{border:1px solid var(--rule-soft);border-radius:12px;background:var(--canvas)}
+.the+.the{margin-top:14px}
+.g2b>.the+.the{margin-top:0}
+.the-h h5{flex:1 1 120px;min-width:0}
+.the-h .tag{white-space:nowrap}
+.dln{padding:14px 16px;border-top:1px solid var(--rule-hair)}
+.dln:first-child{border-top:0}
+.dln-1{display:flex;align-items:flex-start;gap:12px}
+.dln-1 .tt{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.dln-2{display:grid;grid-template-columns:1.3fr 1fr 1.2fr .7fr .7fr;gap:10px;margin-top:10px}
+.dln-2.y{grid-template-columns:220px minmax(0,1fr);margin-left:52px}
+.dln-2 .fld>label{font-weight:500;color:var(--ash-2);font-size:12px}
+.the-h{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule-hair);flex-wrap:wrap}
+.the-h h5{margin:0;font-size:14px;font-weight:600}
+.the-h .end{margin-left:auto;display:flex;gap:8px;align-items:center}
+.the-b{padding:14px 16px}
+.the table th{padding:9px 16px}
+.the table td{padding:11px 16px}
+.g2{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.g2>div{min-width:0}
+.cot{display:grid;gap:14px;align-content:start}
+.cot>.the+.the{margin-top:0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;font-size:13.5px;margin:0}
+.kv dt{color:var(--ash-2)}
+.kv dd{margin:0;text-align:right;font-weight:500;display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap;align-items:center}
+.tot{display:grid;gap:7px;font-size:13.5px}
+.tot>div{display:flex;justify-content:space-between;gap:12px}
+.tot>div span:first-child{color:var(--ash)}
+.tot .big{font-weight:700;font-size:16px;padding-top:9px;border-top:1px solid var(--rule-soft)}
+.tot .big span:first-child{color:var(--ink)}
+.muc{font-size:13px;font-weight:600;color:var(--ink-2);margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.muc .end{margin-left:auto}
+.bao{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:10px;border:1px solid var(--rule-soft);font-size:13.5px;background:var(--canvas);color:var(--ink-2)}
+.bao .ico{margin-top:2px}
+.bao .end{margin-left:auto;flex:none}
+.bao--vang{background:#fffbeb;border-color:#fcd34d;color:#78350f}
+.bao--vang .ico{color:var(--tt-vang-fg)}
+.bao--do{border-color:#fca5a5;color:#7f1d1d}
+.bao--do .ico{color:var(--tt-do-fg)}
+.bao--xanh{background:var(--paper)}
+.bao+.bao{margin-top:10px}
+.mb{margin-bottom:16px}
+.tl{list-style:none;margin:0;padding:0}
+.tl li{position:relative;padding:0 0 18px 30px;font-size:13.5px}
+.tl li::before{content:"";position:absolute;left:6px;top:5px;width:12px;height:12px;border-radius:50%;background:var(--canvas);border:2px solid var(--ash-3);box-sizing:border-box}
+.tl li::after{content:"";position:absolute;left:11.5px;top:20px;bottom:2px;width:1px;background:var(--rule-soft)}
+.tl li:last-child{padding-bottom:0}
+.tl li:last-child::after{display:none}
+.tl li.ok::before{border-color:var(--tt-la-dot);background:var(--tt-la-dot)}
+.tl li.vg::before{border-color:var(--tt-vang-dot);background:var(--tt-vang-dot)}
+.tl li.do::before{border-color:var(--tt-do-dot);background:var(--tt-do-dot)}
+.tl li.may::before{border-style:dashed}
+.tl .w{font-size:12px;color:var(--ash-2);display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px}
+.tl .ly{margin-top:6px;padding:8px 10px;border:1px solid var(--rule-soft);border-radius:8px;background:var(--paper);color:var(--ink-2)}
+.empty{border:1px dashed var(--rule);border-radius:12px;padding:28px;text-align:center;color:var(--ash);display:grid;gap:8px;justify-items:center}
+.empty .ico{width:28px;height:28px;color:var(--ash-3)}
+.thumb{width:36px;height:36px;border-radius:8px;background:var(--paper);border:1px solid var(--rule-soft);display:grid;place-items:center;color:var(--ash-2);flex:none}
+.item{display:flex;gap:12px;align-items:center;min-width:0}
+.gach{text-decoration:line-through;color:var(--ash-2)}
+.av{width:24px;height:24px;border-radius:50%;background:var(--charcoal-2);color:#fff;font-size:11px;font-weight:700;display:inline-grid;place-items:center;flex:none}
+.av--cam{background:var(--rust)}
+.av--xanh{background:#1d4ed8}
+.av--la{background:#15803d}
+.sep{width:1px;height:20px;background:var(--rule-soft)}
+.keo{position:relative}
+.ghi{font-size:12px;color:var(--ash-2);margin-top:10px}
+@media (max-width:760px){.optnav .hint{display:none}}
+
+/* ---------- bản A tinh gọn (khuôn Shopify đơn đặt hàng + Stripe soạn hoá đơn) ---------- */
+.dw-phu .l{color:var(--ash-2)}
+.dw-phu b{color:var(--ink);font-weight:600}
+.dw-phu .sep{margin:0 6px}
+.dw-than.gon{padding:18px 24px 20px;min-height:0}
+/* thân ngăn hai cột: việc chính bên trái, cột thuộc tính bên phải (như Shopify: Products bên trái, Cost summary bên phải) */
+.mr{display:grid;grid-template-columns:minmax(0,1fr) 316px;gap:20px;align-items:start}
+.mr>div{min-width:0}
+.sec-h{display:flex;align-items:center;gap:8px;margin:0 0 8px;min-height:30px}
+.sec-h h5{margin:0;font-size:14px;font-weight:600}
+.sec-h .end{margin-left:auto;display:flex;gap:6px}
+/* bảng dòng hàng dày: hàng thấp, nhãn cột một lần */
+.lt{table-layout:fixed}
+.lt th{padding:8px 12px;font-size:11.5px;background:var(--paper)}
+.lt td{padding:9px 12px;vertical-align:middle;font-size:13.5px}
+.lt td.top{vertical-align:top}
+.lt .ten{line-height:1.3}
+.lt tfoot td{background:var(--paper);border-top:1px solid var(--rule-soft);font-size:13px;padding:8px 12px}
+.ghi2{font-size:12px;color:var(--ash-2);margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ghi2 .them{height:20px}
+.gi{height:30px;border:1px solid var(--rule-soft);border-radius:7px;background:var(--canvas);display:flex;align-items:center;justify-content:flex-end;gap:5px;padding:0 8px;font-variant-numeric:tabular-nums;font-size:13.5px;cursor:text}
+.gi:hover{border-color:var(--rule)}
+.gi b{font-weight:600}
+.gi .dv{color:var(--ash-2);font-size:12px;white-space:nowrap}
+.gi.loi{border-color:var(--tt-do-dot)}
+.gi.chon{justify-content:space-between;cursor:pointer;white-space:nowrap;padding:0 6px 0 8px}
+.gi.chon .ico{width:13px;height:13px;color:var(--ash-2)}
+.duoi{font-size:11.5px;color:var(--ash-2);margin-top:3px;text-align:right;white-space:nowrap}
+.duoi.red{color:var(--tt-do-fg)}
+.duoi.amb{color:var(--tt-vang-fg)}
+.them{display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 7px;border-radius:6px;border:1px dashed var(--rule);font-size:11.5px;color:var(--ash);cursor:pointer;background:var(--canvas);white-space:nowrap}
+.them:hover{background:var(--rule-hair);color:var(--ink)}
+.them .ico{width:11px;height:11px}
+.x.nhe{color:var(--ash-3);width:28px;height:28px}
+.thumb.sm{width:30px;height:30px;border-radius:7px}
+.thumb.sm .ico{width:14px;height:14px}
+.canh{display:flex;gap:8px;align-items:center;margin:10px 12px 2px;padding:7px 12px;border:1px solid #fcd34d;border-radius:8px;background:#fffbeb;color:#78350f;font-size:12.5px}
+.canh .ico{color:var(--tt-vang-fg);width:14px;height:14px}
+.ncc{color:var(--ash);font-size:12.5px;font-weight:500}
+.dong-them{padding:8px 12px;border-top:1px solid var(--rule-hair)}
+.dong-them .inp{height:32px;max-width:420px;font-size:13px}
+.nccb{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--rule-soft)}
+.nccb h5{margin:0;font-size:13.5px;font-weight:600}
+.nccb .end{margin-left:auto;display:flex;gap:6px;align-items:center}
+.card+.card{margin-top:12px}
+/* cột phải: cặp nhãn–giá trị, không đóng hộp từng ô */
+.rail{display:grid;gap:12px;align-content:start}
+.pp{border:1px solid var(--rule-soft);border-radius:12px;background:var(--canvas)}
+.pp-h{padding:10px 14px;font-size:13px;font-weight:600;border-bottom:1px solid var(--rule-hair);display:flex;align-items:center;gap:8px}
+.pp-b{padding:12px 14px;display:grid;gap:12px}
+.pp .fld>label{font-size:12px;font-weight:500;color:var(--ash-2)}
+.pp .inp{height:32px;font-size:13px}
+.pp .inp.ta{min-height:54px;font-size:13px;line-height:1.4}
+.pp .pick span{height:24px;font-size:11.5px;padding:0 8px}
+.kv2{display:grid;grid-template-columns:auto 1fr;gap:7px 12px;font-size:13px;margin:0}
+.kv2 dt{color:var(--ash-2)}
+.kv2 dd{margin:0;text-align:right;font-weight:500;display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap;align-items:center}
+.cs{display:grid;gap:6px;font-size:13px}
+.cs>div{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.cs .l{color:var(--ash)}
+.cs .nh{font-weight:600;color:var(--ink);margin-top:4px}
+.cs .nh:first-child{margin-top:0}
+.cs .con{padding-left:12px}
+.cs .big{font-weight:700;font-size:15px;padding-top:8px;margin-top:4px;border-top:1px solid var(--rule-soft)}
+.cs .big .l{color:var(--ink)}
+.tt-ti{font-size:12px;color:var(--ash-2)}
+
+/* ---------- ô khổ giấy: một khung ghép như ô W × H của Figma ---------- */
+.kho{display:inline-flex;align-items:center;height:28px;border:1px solid var(--rule-soft);border-radius:7px;background:var(--canvas);font-size:13px;font-variant-numeric:tabular-nums;margin-top:5px;padding:0 8px 0 3px;gap:2px;cursor:text;white-space:nowrap}
+.kho:hover{border-color:var(--rule)}
+.kho .dang{display:inline-flex;align-items:center;gap:2px;height:22px;padding:0 5px 0 7px;border-radius:5px;background:var(--rule-hair);font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;margin-right:4px}
+.kho .dang .ico{width:12px;height:12px;color:var(--ash-2)}
+.kho .o{min-width:40px;text-align:right;padding:0 3px;font-weight:600}
+.kho .o.ph{color:var(--ash-3);font-weight:400}
+.kho .o.cur{box-shadow:inset -1.5px 0 0 var(--ink)}
+.kho .nhan{color:var(--ash-2);font-size:12px;padding:0 2px}
+.kho .x2{color:var(--ash-3);padding:0 1px}
+.kho .mm{color:var(--ash-2);font-size:12px;margin-left:3px}
+.kho.dang-go{border-color:var(--charcoal);box-shadow:0 0 0 3px rgba(15,23,42,.08)}
+.kho.loi{border-color:var(--tt-do-dot)}
+.kho-loi{font-size:11.5px;color:var(--tt-do-fg);margin-top:3px}
+.goi-wrap{position:relative}
+.goi{position:absolute;left:0;top:calc(100% + 6px);z-index:5;width:330px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;box-shadow:0 16px 32px -12px rgba(15,23,42,.28);padding:6px;font-size:13px}
+.goi .gh{font-size:11px;font-weight:600;color:var(--ash-2);padding:6px 8px 4px}
+.goi .gr{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:7px;cursor:pointer}
+.goi .gr:hover,.goi .gr.on{background:var(--rule-hair)}
+.goi .gr b{font-weight:600;font-variant-numeric:tabular-nums}
+.goi .gr .end{margin-left:auto;color:var(--ash-2);font-size:12px}
+.goi .gf{border-top:1px solid var(--rule-hair);margin-top:4px;padding:8px 8px 4px;font-size:11.5px;color:var(--ash-2)}
+.mo-goi{height:250px}
+.kbd{display:inline-block;border:1px solid var(--rule);border-bottom-width:2px;border-radius:4px;padding:0 4px;font-size:11px;color:var(--ink-2);background:var(--canvas)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M3 6h11v10H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></symbol>
+  <symbol id="i-cash" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10 12 4l9 6v10H3z"/><path d="M8 20v-6h8v6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chevr" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h12L22 7H6"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
+  <symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M12 14l4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/></symbol>
+  <symbol id="i-paste" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+</svg>
+
+<style>
+.fg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;margin-bottom:18px}
+.fg .fld{grid-template-columns:120px minmax(0,1fr);align-items:center;gap:10px}
+.fg .fld>label{margin:0}
+.fg .seg{margin:0}
+.seg.full{display:flex;margin:0}
+.seg.full span{flex:1;justify-content:center}
+.sb{display:flex;margin-left:auto;font-size:12px;font-weight:600}
+.sb span{padding:5px 12px 5px 16px;background:var(--rule-hair);color:var(--ash);clip-path:polygon(0 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,0 100%,8px 50%);margin-left:-4px}
+.sb span:first-child{clip-path:polygon(0 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,0 100%);padding-left:12px;border-radius:6px 0 0 6px;margin-left:0}
+.sb span.on{background:var(--charcoal);color:#fff}
+.lenh{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:6px;border:1px solid var(--rule-soft);background:var(--rule-hair);font-size:11.5px;color:var(--ink-2);font-weight:600;white-space:nowrap}
+.lenh .ico{width:11px;height:11px;color:var(--ash-2)}
+.thieu{font-size:11.5px;color:var(--tt-vang-fg);margin-top:3px;text-align:right;white-space:nowrap}
+.khoa{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.nguon{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.nguon div{border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px;background:var(--canvas);cursor:pointer}
+.nguon div b{display:block;font-size:13.5px;font-weight:600}
+.nguon div span{font-size:12px;color:var(--ash-2)}
+.nguon div.on{border-color:var(--charcoal);box-shadow:inset 0 0 0 1px var(--charcoal)}
+.ban{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 14px;margin-bottom:12px;background:var(--canvas);font-size:13px}
+.ban .end{margin-left:auto}
+.cb{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--rule);display:inline-grid;place-items:center;background:var(--canvas)}
+.cb.on{background:var(--charcoal);border-color:var(--charcoal)}
+.cb.on::after{content:"";width:8px;height:4px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
+.duoi-form{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;margin-top:14px}
+</style>
+<div class="page">
+<h1>Yêu cầu nhập xuất: 3 phương án form</h1>
+<div class="box" style="border-color:var(--charcoal)"><h2>Đã chọn: P2 (07/10/2026)</h2><ul><li>Bảng vật tư bên trái, cột thuộc tính bên phải, cùng khuôn form mua hàng phương án A. P1 và P3 giữ lại để đối chiếu.</li></ul></div>
+<p class="lead">Form mở từ nút Thêm của màn Yêu cầu nhập xuất, và từ nút Nhập kho của đợt giao đơn mua (code đang mở đúng màn này và đổ sẵn dòng). Mỗi phương án vẽ hai trạng thái: Xuất tạo tay cho lệnh, và Nhập mở từ đợt giao. Giấy tờ đếm tờ, giấy cuộn đếm kg, khổ dùng khung ghép như form mua hàng.</p>
+
+<div class="box">
+  <h2>Form hiện tại hụt ở đâu (ảnh chụp 07/10)</h2>
+  <ul>
+    <li>Ô ĐVT hẹp, chữ cụt "tờ nguyên (", và còn chữ "tờ nguyên" trong khi kho chỉ đếm tờ.</li>
+    <li>"Tổng SL" cộng tờ với kg với cái thành một số vô nghĩa.</li>
+    <li>Người xin không thấy tồn: xin 9.000 tờ khi kho có 7.240 thì chỉ biết lúc kho trả lời.</li>
+    <li>Không có ô ghi chú khi tạo, dù yêu cầu có trường ghi chú và kho in ra phiếu.</li>
+    <li>Khối "Thông tin chung" một hộp to cho hai ô; cột STT; nhãn in hoa; ô khổ hai ô rời có mũi tên.</li>
+  </ul>
+</div>
+<div class="box">
+  <h2>Chung cho cả ba</h2>
+  <ul>
+    <li>Đơn vị là chữ mờ trong ô số lượng (tờ, kg, cái), không còn cột ĐVT. Vật tư nhiều đơn vị thì chữ đơn vị bấm được để đổi.</li>
+    <li>Cột Tồn theo đúng mã + khổ; xin quá tồn thì hiện "Thiếu 1.760 tờ" màu vàng, không chặn gửi.</li>
+    <li>Chân form đếm số mặt hàng, không cộng số lượng khác đơn vị.</li>
+    <li>Mở từ đợt giao: chiều Nhập cố định, dòng và số lượng khoá theo đợt, có nguồn (đơn mua, đợt, hoá đơn).</li>
+  </ul>
+</div>
+
+<!-- ===================== P1 ===================== -->
+<div class="scr" id="P1">
+  <div class="scr-h"><span class="n">P1</span><h3>Phiếu một cột kiểu Odoo Inventory (phiếu nhận, phiếu giao)</h3></div>
+  <div class="why"><ul>
+    <li><b>Khuôn phiếu kho của Odoo</b>: trên cùng là lưới trường nhãn bên trái (Receive From, Source Document, Scheduled Date, Operation Type), dưới là bảng dòng Product, Demand, Quantity, Unit; thanh trạng thái ở góc phải.</li>
+    <li>Ở đây: lưới hai cột gồm Loại, Ngày cần, Cho lệnh mặc định, Ghi chú. Thanh trạng thái Nháp, Đã gửi, Kho lập phiếu, Hoàn tất thay bộ bước to hiện nay.</li>
+    <li>Cột Cho lệnh vẫn ở từng dòng; dòng mới lấy lệnh mặc định ở trên, sửa riêng được.</li>
+    <li>Hợp khi người xin quen màn kiểu biểu mẫu giấy; bảng rộng hết ngăn.</li>
+  </ul></div>
+  <div class="scroll"><div class="dw">
+    <div class="dw-dau form">
+      <div class="dw-1"><span>Kho</span><i data-i="chevr"></i><span>Yêu cầu nhập xuất</span><i data-i="chevr"></i><span>Tạo mới</span><span class="end"><button class="x"><i data-i="x"></i></button></span></div>
+      <div class="dw-t"><h4>Yêu cầu mới</h4><div class="sb"><span class="on">Nháp</span><span>Đã gửi</span><span>Kho lập phiếu</span><span>Hoàn tất</span></div></div>
+    </div>
+    <div class="dw-than gon">
+      <div class="fg">
+        <div class="fld"><label>Loại</label><div><div class="seg"><span>Nhập</span><span class="on">Xuất</span></div></div></div>
+        <div class="fld"><label>Ngày cần xuất <em>*</em></label><div class="inp num"><i data-i="cal"></i>09/10/2026</div></div>
+        <div class="fld"><label>Cho lệnh</label><div class="inp">LSX-261005-0012<span class="end">Hộp bánh Trung thu</span></div></div>
+        <div class="fld"><label>Ghi chú</label><div class="inp ph">Lý do xin, ai ra nhận…</div></div>
+      </div>
+      <div class="sec-h"><h5>Vật tư</h5><span class="tag">4 mặt hàng</span></div>
+      <div class="card"><table class="lt">
+        <colgroup><col><col style="width:190px"><col style="width:120px"><col style="width:160px"><col style="width:40px"></colgroup>
+        <thead><tr><th>Vật tư</th><th>Cho lệnh</th><th class="r">Tồn</th><th class="r">Số lượng xin</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><div class="ten">DUPLEX 230-250GSM</div><div class="kho"><span class="dang">Tờ<i data-i="chev"></i></span><span class="o">790</span><span class="x2">×</span><span class="o">1090</span><span class="mm">mm</span></div></td>
+            <td><div class="gi chon">LSX-261005-0012<i data-i="chev"></i></div></td>
+            <td class="r num">3.200<span class="u">tờ</span></td>
+            <td><div class="gi"><b>2.400</b><span class="dv">tờ</span></div></td>
+            <td class="r"><button class="x nhe"><i data-i="trash"></i></button></td></tr>
+          <tr><td class="top"><div class="ten">COUCHE 80GSM</div><div class="kho"><span class="dang">Tờ<i data-i="chev"></i></span><span class="o">650</span><span class="x2">×</span><span class="o">870</span><span class="mm">mm</span></div></td>
+            <td><div class="gi chon">LSX-261005-0012<i data-i="chev"></i></div></td>
+            <td class="r num">7.240<span class="u">tờ</span></td>
+            <td class="top"><div class="gi"><b>9.000</b><span class="dv">tờ</span></div><div class="thieu">Thiếu 1.760 tờ</div></td>
+            <td class="r"><button class="x nhe"><i data-i="trash"></i></button></td></tr>
+          <tr><td><div class="ten">COUCHE 150GSM</div><div class="kho"><span class="dang">Cuộn<i data-i="chev"></i></span><span class="nhan">Khổ</span><span class="o">1090</span><span class="mm">mm</span></div></td>
+            <td><div class="gi chon">LSX-261005-0012<i data-i="chev"></i></div></td>
+            <td class="r num">1.840<span class="u">kg</span></td>
+            <td><div class="gi"><b>300</b><span class="dv">kg</span></div></td>
+            <td class="r"><button class="x nhe"><i data-i="trash"></i></button></td></tr>
+          <tr><td><div class="ten">KEO NHIỆT EVA</div></td>
+            <td><div class="gi chon" style="color:var(--ash-2)">Không theo lệnh<i data-i="chev"></i></div></td>
+            <td class="r num">40<span class="u">kg</span></td>
+            <td><div class="gi"><b>5</b><span class="dv">kg</span></div></td>
+            <td class="r"><button class="x nhe"><i data-i="trash"></i></button></td></tr>
+        </tbody>
+      </table>
+      <div class="dong-them"><div class="inp ph"><i data-i="search"></i>Thêm vật tư: gõ tên hoặc mã…</div></div></div>
+    </div>
+    <div class="dw-chan"><span class="xt"><b>4 mặt hàng</b> <span style="color:var(--tt-vang-fg)">COUCHE 80GSM xin quá tồn</span></span><button class="btn">Huỷ</button><button class="btn btn--pri"><i data-i="send"></i>Gửi kho</button></div>
+  </div></div>
+
+  <div class="scroll" style="margin-top:18px"><div class="dw">
+    <div class="dw-dau form">
+      <div class="dw-1"><span>Kho</span><i data-i="chevr"></i><span>Yêu cầu nhập xuất</span><i data-i="chevr"></i><span>Nhập từ đợt giao</span><span class="end"><button class="x"><i data-i="x"></i></button></span></div>
+      <div class="dw-t"><h4>Yêu cầu mới</h4><div class="sb"><span class="on">Nháp</span><span>Đã gửi</span><span>Kho lập phiếu</span><span>Hoàn tất</span></div></div>
+    </div>
+    <div class="dw-than gon">
+      <div class="fg">
+        <div class="fld"><label>Loại</label><div><span class="tag"><b>Nhập</b></span></div></div>
+        <div class="fld"><label>Ngày nhận</label><b class="num">14/10/2026</b></div>
+        <div class="fld"><label>Nguồn</label><div style="display:flex;gap:6px;flex-wrap:wrap"><span class="lk">DMH-261008-TM01</span><span class="tag">Đợt 2</span><span class="tag">Tân Mai Sài Gòn</span></div></div>
+        <div class="fld"><label>Hoá đơn</label><b class="num">0001234</b></div>
+      </div>
+      <div class="sec-h"><h5>Vật tư</h5><span class="tag">2 mặt hàng</span><span class="end muted" style="font-size:12.5px">Khoá theo đợt giao</span></div>
+      <div class="card"><table class="lt">
+        <colgroup><col><col style="width:130px"><col style="width:130px"><col style="width:200px"></colgroup>
+        <thead><tr><th>Vật tư</th><th class="r">Đơn giá</th><th class="r">Nhập</th><th class="r">Tồn khổ này sau nhập</th></tr></thead>
+        <tbody>
+          <tr><td><div class="ten">COUCHE 80GSM</div><div class="kho"><span class="dang">Tờ</span><span class="o">650</span><span class="x2">×</span><span class="o">870</span><span class="mm">mm</span></div></td>
+            <td class="r num">1.040</td><td class="khoa">4.000<span class="u">tờ</span></td><td class="r num">11.240<span class="u">tờ</span></td></tr>
+          <tr><td><div class="ten">GIẤY IVORY 300-400GSM</div><div class="kho"><span class="dang">Tờ</span><span class="o">790</span><span class="x2">×</span><span class="o">1080</span><span class="mm">mm</span></div></td>
+            <td class="r num">3.150</td><td class="khoa">2.000<span class="u">tờ</span></td><td class="r"><span class="tag" style="height:20px">Khổ mới trong kho</span> <b class="num">2.000</b><span class="u">tờ</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="dw-chan"><span class="xt"><b>2 mặt hàng</b> từ đợt 2</span><button class="btn">Huỷ</button><button class="btn btn--pri"><i data-i="send"></i>Gửi kho</button></div>
+  </div></div>
+</div>
+
+<!-- ===================== P2 ===================== -->
+<div class="scr" id="P2">
+  <div class="scr-h"><span class="n">P2</span><h3>Bảng trái, thuộc tính phải kiểu Shopify (tạo chuyển kho)</h3></div>
+  <div class="why"><ul>
+    <li><b>Khuôn "Create transfer" của Shopify</b>: bảng sản phẩm với cột Quantity bên trái; bên phải là các thẻ Origin, Destination, Shipment details (Expected arrival), Additional details. Cùng khuôn với form mua hàng phương án A đã chọn.</li>
+    <li>Ở đây: cột phải có Loại (Nhập, Xuất), Ngày cần với nút chọn nhanh, thẻ Lệnh sản xuất kèm khách và hạn, Ghi chú. Bảng chỉ còn Vật tư, Tồn, Số lượng xin.</li>
+    <li>Lệnh của từng dòng là thẻ nhỏ dưới tên; dòng không theo lệnh hiện "Không theo lệnh" mờ, bấm để đổi.</li>
+    <li>Hợp nhất với các màn mua hàng vừa làm: người dùng đi từ đơn mua sang kho không phải học bố cục mới.</li>
+  </ul></div>
+  <div class="scroll"><div class="dw">
+    <div class="dw-dau form">
+      <div class="dw-1"><span>Kho</span><i data-i="chevr"></i><span>Yêu cầu nhập xuất</span><i data-i="chevr"></i><span>Tạo mới</span><span class="end"><button class="x"><i data-i="x"></i></button></span></div>
+      <div class="dw-t"><h4>Yêu cầu xuất kho</h4></div>
+    </div>
+    <div class="dw-than gon">
+      <div class="mr">
+        <div>
+          <div class="sec-h"><h5>Vật tư</h5><span class="tag">4 mặt hàng</span></div>
+          <div class="card"><table class="lt">
+            <colgroup><col><col style="width:120px"><col style="width:160px"><col style="width:40px"></colgroup>
+            <thead><tr><th>Vật tư</th><th class="r">Tồn</th><th class="r">Số lượng xin</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><div class="ten">DUPLEX 230-250GSM</div><div class="ghi2"><span class="kho" style="margin:0"><span class="dang">Tờ<i data-i="chev"></i></span><span class="o">790</span><span class="x2">×</span><span class="o">1090</span><span class="mm">mm</span></span><span class="lenh"><i data-i="board"></i>LSX-261005-0012</span></div></td>
+                <td class="r num">3.200<span class="u">tờ</span></td><td><div class="gi"><b>2.400</b><span class="dv">tờ</span></div></td><td class="r"><button class="x nhe"><i data-i="trash"></i></button></td></tr>
+              <tr><td class="top"><div class="ten">COUCHE 80GSM</div><div class="ghi2"><span class="kho" style="margin:0"><span class="dang">Tờ<i data-i="chev"></i></span><span class="o">650</span><span class="x2">×</span><span class="o">870</span><span class="mm">mm</span></span><span class="lenh"><i data-i="board"></i>LSX-261005-0012</span></div></td>
+                <td class="r num">7.240<span class="u">tờ</span></td><td class="top"><div class="gi"><b>9.000</b><span class="dv">tờ</span></div><div class="thieu">Thiếu 1.760 tờ</div></td><td class="r"><button class="x nhe"><i data-i="trash"></i></button></td></tr>
+              <tr><td><div class="ten">COUCHE 150GSM</div><div class="ghi2"><span class="kho" style="margin:0"><span class="dang">Cuộn<i data-i="chev"></i></span><span class="nhan">Khổ</span><span class="o">1090</span><span class="mm">mm</span></span><span class="lenh"><i data-i="board"></i>LSX-261005-0012</span></div></td>
+                <td class="r num">1.840<span class="u">kg</span></td><td><div class="gi"><b>300</b><span class="dv">kg</span></div></td><td class="r"><button class="x nhe"><i data-i="trash"></i></button></td></tr>
+              <tr><td><div class="ten">KEO NHIỆT EVA</div><div class="ghi2"><span class="them">Không theo lệnh</span></div></td>
+                <td class="r num">40<span class="u">kg</span></td><td><div class="gi"><b>5</b><span class="dv">kg</span></div></td><td class="r"><button class="x nhe"><i data-i="trash"></i></button></td></tr>
+            </tbody>
+          </table>
+          <div class="dong-them"><div class="inp ph"><i data-i="search"></i>Thêm vật tư: gõ tên hoặc mã…</div></div></div>
+        </div>
+        <div class="rail">
+          <div class="pp"><div class="pp-b">
+            <div class="seg full"><span>Nhập</span><span class="on">Xuất</span></div>
+            <div class="fld"><label>Ngày cần xuất <em>*</em></label><div class="inp num"><i data-i="cal"></i>09/10/2026</div>
+              <div class="pick"><span>Hôm nay</span><span class="on">Mai</span><span>+3 ngày</span></div></div>
+          </div></div>
+          <div class="pp"><div class="pp-h">Lệnh sản xuất<span class="end" style="margin-left:auto;font-weight:400;font-size:12px;color:var(--ash-2)">dòng mới lấy lệnh này</span></div><div class="pp-b">
+            <div class="inp">LSX-261005-0012<i data-i="chev" style="margin-left:auto"></i></div>
+            <dl class="kv2"><dt>Việc</dt><dd>Hộp bánh Trung thu</dd><dt>Khách</dt><dd>Bánh kẹo Hữu Nghị</dd><dt>Hạn sản xuất</dt><dd class="num">12/10/2026</dd></dl>
+          </div></div>
+          <div class="pp"><div class="pp-b"><div class="fld"><label>Ghi chú</label><div class="inp ta ph">Lý do xin, ai ra nhận…</div></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="dw-chan"><span class="xt"><b>4 mặt hàng</b> <span style="color:var(--tt-vang-fg)">COUCHE 80GSM xin quá tồn</span></span><button class="btn">Huỷ</button><button class="btn btn--pri"><i data-i="send"></i>Gửi kho</button></div>
+  </div></div>
+
+  <div class="scroll" style="margin-top:18px"><div class="dw">
+    <div class="dw-dau form">
+      <div class="dw-1"><span>Kho</span><i data-i="chevr"></i><span>Yêu cầu nhập xuất</span><i data-i="chevr"></i><span>Nhập từ đợt giao</span><span class="end"><button class="x"><i data-i="x"></i></button></span></div>
+      <div class="dw-t"><h4>Yêu cầu nhập kho</h4><span class="tag">Từ <b>DMH-261008-TM01</b></span><span class="tag">Đợt 2</span></div>
+    </div>
+    <div class="dw-than gon">
+      <div class="mr">
+        <div>
+          <div class="sec-h"><h5>Vật tư</h5><span class="tag">2 mặt hàng</span><span class="end muted" style="font-size:12.5px">Khoá theo đợt giao</span></div>
+          <div class="card"><table class="lt">
+            <colgroup><col><col style="width:130px"><col style="width:200px"></colgroup>
+            <thead><tr><th>Vật tư</th><th class="r">Nhập</th><th class="r">Tồn khổ này sau nhập</th></tr></thead>
+            <tbody>
+              <tr><td><div class="ten">COUCHE 80GSM</div><div class="kho"><span class="dang">Tờ</span><span class="o">650</span><span class="x2">×</span><span class="o">870</span><span class="mm">mm</span></div></td>
+                <td class="khoa">4.000<span class="u">tờ</span></td><td class="r num">11.240<span class="u">tờ</span></td></tr>
+              <tr><td><div class="ten">GIẤY IVORY 300-400GSM</div><div class="kho"><span class="dang">Tờ</span><span class="o">790</span><span class="x2">×</span><span class="o">1080</span><span class="mm">mm</span></div></td>
+                <td class="khoa">2.000<span class="u">tờ</span></td><td class="r"><span class="tag" style="height:20px">Khổ mới trong kho</span> <b class="num">2.000</b><span class="u">tờ</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="rail">
+          <div class="pp"><div class="pp-h">Nguồn</div><div class="pp-b">
+            <dl class="kv2"><dt>Đơn mua</dt><dd><span class="lk">DMH-261008-TM01</span></dd><dt>Đợt giao</dt><dd>Đợt 2</dd><dt>Nhà cung cấp</dt><dd>Tân Mai Sài Gòn</dd><dt>Ngày nhận</dt><dd class="num">14/10/2026</dd><dt>Hoá đơn</dt><dd class="num">0001234</dd></dl>
+          </div></div>
+          <div class="pp"><div class="pp-h">Giá trị nhập</div><div class="pp-b">
+            <div class="cs"><div><span class="l">COUCHE 80GSM</span><span class="num l">4.160.000</span></div><div><span class="l">IVORY 300-400GSM</span><span class="num l">6.300.000</span></div><div class="big"><span class="l">Chưa VAT</span><span class="num">10.460.000 đ</span></div></div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+    <div class="dw-chan"><span class="xt"><b>2 mặt hàng</b> từ đợt 2</span><button class="btn">Huỷ</button><button class="btn btn--pri"><i data-i="send"></i>Gửi kho</button></div>
+  </div></div>
+  <div class="why" style="margin-top:14px">Thẻ Giá trị nhập chỉ hiện với người có quyền xem tiền của màn kho.</div>
+</div>
+
+<!-- ===================== P3 ===================== -->
+<div class="scr" id="P3">
+  <div class="scr-h"><span class="n">P3</span><h3>Chọn nguồn trước, dòng tự hiện kiểu Zoho Inventory (nhận hàng theo đơn)</h3></div>
+  <div class="why"><ul>
+    <li><b>Khuôn "Purchase Receive" của Zoho Inventory</b>: nhận hàng bắt đầu từ đơn mua, danh sách món của đơn hiện sẵn, người dùng chỉ sửa "số lượng nhận"; nhận một phần thì đơn hiện đã nhận bao nhiêu trên tổng.</li>
+    <li>Ở đây áp cho cả hai chiều: chọn Nhập hoặc Xuất, rồi chọn nguồn bằng thẻ. Xuất cho lệnh thì vật tư của lệnh hiện sẵn với Cần theo lệnh, Đã cấp, Tồn; số xin điền sẵn phần còn thiếu, bỏ tick món chưa cần.</li>
+    <li>Vật tư ngoài lệnh thêm ở dòng dưới cùng. Nhập từ đợt giao là nguồn "Hàng mua về".</li>
+    <li>Hợp khi phần lớn yêu cầu đi theo lệnh: ít gõ nhất, khó xin nhầm khổ. Đổi lại form phụ thuộc dữ liệu vật tư của lệnh phải đủ.</li>
+  </ul></div>
+  <div class="scroll"><div class="dw">
+    <div class="dw-dau form">
+      <div class="dw-1"><span>Kho</span><i data-i="chevr"></i><span>Yêu cầu nhập xuất</span><i data-i="chevr"></i><span>Tạo mới</span><span class="end"><button class="x"><i data-i="x"></i></button></span></div>
+      <div class="dw-t"><h4>Yêu cầu mới</h4><div class="seg" style="margin:0 0 0 8px"><span>Nhập</span><span class="on">Xuất</span></div></div>
+    </div>
+    <div class="dw-than gon">
+      <div class="nguon">
+        <div class="on"><b>Cho lệnh sản xuất</b><span>Vật tư của lệnh hiện sẵn</span></div>
+        <div><b>Không theo lệnh</b><span>Xin lặt vặt: keo, dao, găng tay…</span></div>
+        <div style="visibility:hidden"></div>
+      </div>
+      <div class="ban"><i data-i="board"></i><b>LSX-261005-0012</b><span>Hộp bánh Trung thu</span><span class="tag">Bánh kẹo Hữu Nghị</span><span class="tag">Hạn <b>12/10/2026</b></span><span class="end"><button class="btn btn--sm btn--ghost">Đổi lệnh<i data-i="chev"></i></button></span></div>
+      <div class="card"><table class="lt">
+        <colgroup><col style="width:44px"><col><col style="width:120px"><col style="width:100px"><col style="width:110px"><col style="width:150px"></colgroup>
+        <thead><tr><th></th><th>Vật tư của lệnh</th><th class="r">Cần theo lệnh</th><th class="r">Đã cấp</th><th class="r">Tồn</th><th class="r">Xin lần này</th></tr></thead>
+        <tbody>
+          <tr><td><span class="cb on"></span></td><td><div class="ten">DUPLEX 230-250GSM</div><div class="kho"><span class="dang">Tờ</span><span class="o">790</span><span class="x2">×</span><span class="o">1090</span><span class="mm">mm</span></div></td>
+            <td class="r num">4.800<span class="u">tờ</span></td><td class="r num">2.400<span class="u">tờ</span></td><td class="r num">3.200<span class="u">tờ</span></td><td><div class="gi"><b>2.400</b><span class="dv">tờ</span></div></td></tr>
+          <tr><td><span class="cb on"></span></td><td class="top"><div class="ten">COUCHE 80GSM</div><div class="kho"><span class="dang">Tờ</span><span class="o">650</span><span class="x2">×</span><span class="o">870</span><span class="mm">mm</span></div></td>
+            <td class="r num">9.000<span class="u">tờ</span></td><td class="r num muted">0</td><td class="r num">7.240<span class="u">tờ</span></td><td class="top"><div class="gi"><b>9.000</b><span class="dv">tờ</span></div><div class="thieu">Thiếu 1.760 tờ</div></td></tr>
+          <tr><td><span class="cb on"></span></td><td><div class="ten">COUCHE 150GSM</div><div class="kho"><span class="dang">Cuộn</span><span class="nhan">Khổ</span><span class="o">1090</span><span class="mm">mm</span></div></td>
+            <td class="r num">300<span class="u">kg</span></td><td class="r num muted">0</td><td class="r num">1.840<span class="u">kg</span></td><td><div class="gi"><b>300</b><span class="dv">kg</span></div></td></tr>
+          <tr style="color:var(--ash-2)"><td><span class="cb"></span></td><td><div class="ten" style="color:var(--ash-2)">MÀNG BOPP BÓNG 18MIC</div></td>
+            <td class="r num">120<span class="u">kg</span></td><td class="r num">120<span class="u">kg</span></td><td class="r num">560<span class="u">kg</span></td><td class="r nw">Đã cấp đủ</td></tr>
+        </tbody>
+        <tbody>
+          <tr><td colspan="6" style="background:var(--paper);font-size:11.5px;color:var(--ash-2);padding:6px 12px">Vật tư ngoài lệnh</td></tr>
+          <tr><td><span class="cb on"></span></td><td><div class="ten">KEO NHIỆT EVA</div></td><td></td><td></td><td class="r num">40<span class="u">kg</span></td><td><div class="gi"><b>5</b><span class="dv">kg</span></div></td></tr>
+        </tbody>
+      </table>
+      <div class="dong-them"><div class="inp ph"><i data-i="search"></i>Thêm vật tư ngoài lệnh…</div></div></div>
+      <div class="duoi-form">
+        <div class="fld"><label>Ngày cần xuất <em>*</em></label><div class="inp num"><i data-i="cal"></i>09/10/2026</div></div>
+        <div class="fld"><label>Ghi chú</label><div class="inp ph">Lý do xin, ai ra nhận…</div></div>
+      </div>
+    </div>
+    <div class="dw-chan"><span class="xt"><b>4 mặt hàng</b> được chọn <span style="color:var(--tt-vang-fg)">COUCHE 80GSM xin quá tồn</span></span><button class="btn">Huỷ</button><button class="btn btn--pri"><i data-i="send"></i>Gửi kho</button></div>
+  </div></div>
+
+  <div class="scroll" style="margin-top:18px"><div class="dw">
+    <div class="dw-dau form">
+      <div class="dw-1"><span>Kho</span><i data-i="chevr"></i><span>Yêu cầu nhập xuất</span><i data-i="chevr"></i><span>Nhập từ đợt giao</span><span class="end"><button class="x"><i data-i="x"></i></button></span></div>
+      <div class="dw-t"><h4>Yêu cầu mới</h4><div class="seg" style="margin:0 0 0 8px"><span class="on">Nhập</span></div></div>
+    </div>
+    <div class="dw-than gon">
+      <div class="nguon">
+        <div class="on"><b>Hàng mua về</b><span>Theo đợt giao của đơn mua</span></div>
+        <div><b>Trả lại từ lệnh</b><span>Vật tư thừa sau sản xuất</span></div>
+        <div><b>Khác</b><span>Nhập không theo chứng từ</span></div>
+      </div>
+      <div class="ban"><i data-i="truck"></i><span class="lk">DMH-261008-TM01</span><span class="tag">Đợt 2</span><span>Tân Mai Sài Gòn</span><span class="tag">Nhận <b>14/10/2026</b></span><span class="tag">Hoá đơn <b>0001234</b></span></div>
+      <div class="card"><table class="lt">
+        <colgroup><col><col style="width:110px"><col style="width:110px"><col style="width:120px"><col style="width:190px"></colgroup>
+        <thead><tr><th>Vật tư của đợt</th><th class="r">Đặt</th><th class="r">Đã nhập</th><th class="r">Nhập lần này</th><th class="r">Tồn khổ này sau nhập</th></tr></thead>
+        <tbody>
+          <tr><td><div class="ten">COUCHE 80GSM</div><div class="kho"><span class="dang">Tờ</span><span class="o">650</span><span class="x2">×</span><span class="o">870</span><span class="mm">mm</span></div></td>
+            <td class="r num">10.000<span class="u">tờ</span></td><td class="r num">6.000<span class="u">tờ</span></td><td class="khoa">4.000<span class="u">tờ</span></td><td class="r num">11.240<span class="u">tờ</span></td></tr>
+          <tr><td><div class="ten">GIẤY IVORY 300-400GSM</div><div class="kho"><span class="dang">Tờ</span><span class="o">790</span><span class="x2">×</span><span class="o">1080</span><span class="mm">mm</span></div></td>
+            <td class="r num">2.000<span class="u">tờ</span></td><td class="r num muted">0</td><td class="khoa">2.000<span class="u">tờ</span></td><td class="r"><span class="tag" style="height:20px">Khổ mới trong kho</span> <b class="num">2.000</b><span class="u">tờ</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="dw-chan"><span class="xt"><b>2 mặt hàng</b> từ đợt 2</span><button class="btn">Huỷ</button><button class="btn btn--pri"><i data-i="send"></i>Gửi kho</button></div>
+  </div></div>
+  <div class="why" style="margin-top:14px">Lệnh, khách, tồn, số cần theo lệnh là số minh hoạ. Nguồn "Trả lại từ lệnh" và "Khác" chỉ vẽ thẻ, chưa vẽ nội dung.</div>
+</div>
+</div><!-- /page -->
+
+<script>
+document.querySelectorAll('i[data-i]').forEach(function(el){
+  var s='<svg class="ico" aria-hidden="true"><use href="#i-'+el.getAttribute('data-i')+'"/></svg>';
+  el.insertAdjacentHTML('beforebegin',s); el.remove();
+});
+document.querySelectorAll('[data-tabs]').forEach(function(bar){
+  var nx=bar.nextElementSibling;
+  var scope=(nx&&nx.classList.contains('nbp'))?nx:bar.closest('.dw').querySelector('.dw-than');
+  bar.querySelectorAll('button[data-t]').forEach(function(b){
+    b.addEventListener('click',function(){
+      bar.querySelectorAll('button[data-t]').forEach(function(x){x.classList.toggle('on',x===b)});
+      scope.querySelectorAll(':scope > .pn').forEach(function(p){p.classList.toggle('on',p.dataset.p===b.dataset.t)});
+    });
+  });
+});
+</script>
+</body>
+</html>

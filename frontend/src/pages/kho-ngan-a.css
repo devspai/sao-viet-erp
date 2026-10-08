@@ -1,0 +1,213 @@
+/* Ngăn kho khuôn A (07/10/2026) — Yêu cầu nhập/xuất, Lập phiếu, Phiếu nhập/xuất.
+   Bố cục kiểu Polaris: cột chính (thẻ Vật tư, Phiếu kho) + cột bên 320px (thẻ Yêu cầu, Nguồn hàng,
+   Ghi chú). Vỏ ngăn là `NganPhai` (độ rộng chung --kt-ngan-w, kéo mép, Esc lớp trên cùng).
+   Bản thiết kế: docs/mockups/yeu-cau-nhap-xuat-phuong-an-A.html. Tiền tố riêng `kna-` để không
+   giẫm lên kho-request.css. */
+
+/* Thân ngăn nền --paper để các thẻ trắng nổi lên. */
+.kt-ngan__than:has(> .kna) { background: var(--paper); }
+.kna { display: grid; gap: 16px; min-width: 0; }
+.kna-luoi { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+.kna-cot { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+@container (max-width: 900px) { .kna-luoi { grid-template-columns: minmax(0, 1fr); } }
+
+/* Thẻ */
+.kna-the { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); min-width: 0; }
+.kna-the--cat { overflow: hidden; }
+.kna-the__dau { display: flex; align-items: center; gap: 10px; padding: 14px 18px 0; flex-wrap: wrap; }
+.kna-the__dau h3 { margin: 0; font-size: var(--fs-md); font-weight: 600; }
+.kna-the__phai { margin-left: auto; font-size: var(--fs-sm); color: var(--ash-2); display: inline-flex; gap: 10px; align-items: center; }
+.kna-the__than { padding: 12px 18px 16px; }
+.kna-the__trong { padding: 12px 18px 16px; color: var(--ash-2); font-size: var(--fs-sm); }
+
+/* Hàng phụ dưới dòng vật tư (cất hàng, lô, lý do) dính sát dòng chính: kit `--nhap` đệm 8px mọi ô nên phải đè. */
+.lds-bang.lds-bang--nhap .lds-g tbody tr.kna-bang__phu > td { padding-top: 0; }
+/* Hàng "chưa có dòng nào" trong bảng nhập: kit `--nhap` để chiều cao tự động nên thêm đệm cho thoáng. */
+.lds-bang.lds-bang--nhap .lds-g tbody td.lds-trong { padding: 20px 8px; }
+
+/* Bảng dòng trong thẻ theo lưới `lds-g` (08/10/2026): Vật tư của yêu cầu, Dòng phiếu của phiếu kho.
+   Thẻ đã có khung bo góc nên `.lds-bang` bỏ viền, khỏi hai lớp viền; hàng tiêu đề nền --paper đã chia với tiêu đề thẻ. */
+.kna-the > .lds-bang { margin-top: 8px; border: 0; border-radius: 0; }
+/* Ô số: bảng chật thì đơn vị xuống dòng dưới con số, nhưng không gãy giữa số hay giữa tên đơn vị
+   (ô `lds-g` mặc định một dòng, cắt "…"). */
+.kna .lds-g td.n { white-space: normal; }
+.kna .lds-g td.n .kna-so, .kna .lds-g td.n .kna-dv { white-space: nowrap; }
+.kna .lds-g td.n .kna-dv { display: inline-block; }
+.kna .lds-g td.n.kna-so { white-space: nowrap; }      /* ô tiền "1.200 đ" không bao giờ gãy */
+.kna .lds-g tr.kna-bang__nhom > td { vertical-align: top; }
+/* Bảng ô nhập có ô Vật tư cao (tên + khổ giấy + lệnh): ô nhập đứng ngang dòng tên chứ không trôi giữa ô. */
+.lds-bang.lds-bang--nhap .lds-g.kna-tren tbody td { vertical-align: top; }
+/* Bảng nhập nhiều cột (Lập phiếu nhập): kit để `--nhap` không cuộn; ở đây ô nhập chỉ là ô số, không có menu thả
+   xuống nào bị cắt, nên cho khung cuộn ngang khi cột chính hẹp hơn tổng cột (table có minWidth). */
+.lds-bang.lds-bang--nhap.kna-cuon { overflow-x: auto; }
+/* Ô mặt hàng / số có hai dòng: không chữ đậm cho tên và số (lưới chung để chữ thường). */
+.kna .lds-g .kna-hang__ten, .kna .lds-g .kna-so--dam, .kna .lds-g .kna-so--thieu { font-weight: 400; }
+
+/* Ô số */
+.kna-so { font-variant-numeric: tabular-nums; }
+.kna-so--dam { font-weight: 600; }
+.kna-so--thieu { font-weight: 600; color: var(--tt-cam-fg); }
+.kna-dv { font-size: var(--fs-xs); color: var(--ash-2); font-weight: 400; margin-left: 4px; }
+.kna-mo { color: var(--ash-2); }
+
+/* Mặt hàng: ảnh nhỏ + tên + thẻ phụ */
+.kna-hang { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.kna-hang__anh { width: 36px; height: 36px; border-radius: 8px; background: var(--paper); border: 1px solid var(--rule-soft);
+  display: grid; place-items: center; color: var(--ash-2); flex: none; overflow: hidden; padding: 0; }
+.kna-hang__anh img { width: 100%; height: 100%; object-fit: cover; }
+button.kna-hang__anh { cursor: pointer; }
+button.kna-hang__anh:hover { border-color: var(--rule); }
+.kna-hang__ten { font-weight: 600; white-space: normal; min-width: 140px; }
+.kna-hang__phu { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 3px; font-size: var(--fs-xs); color: var(--ash-2); }
+
+/* Thẻ nhỏ (mã, nguồn) */
+.kna-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: var(--rule-hair);
+  border: 1px solid var(--rule-soft); font-size: 11.5px; color: var(--ash); white-space: nowrap; font-weight: 500; }
+/* inline-flex nuốt dấu cách giữa nhãn và <b> ("Nhận7/10/2026") — gap trả lại khoảng đó. */
+.kna-tag { gap: 4px; }
+.kna-tag--ma { color: var(--ink); }
+.kna-tag--canh { background: var(--tt-vang-bg); border-color: transparent; color: var(--tt-vang-fg); }
+.kna-nguon { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+/* Chip đủ/thiếu trong ô số (cùng bộ --tt-*) */
+.kna-chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: var(--fs-xs);
+  font-weight: 600; white-space: nowrap; }
+.kna-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--d); }
+.kna-chip--la { background: var(--tt-la-bg); color: var(--tt-la-fg); --d: var(--tt-la-dot); }
+.kna-chip--do { background: var(--tt-do-bg); color: var(--tt-do-fg); --d: var(--tt-do-dot); }
+.kna-chip--cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); --d: var(--tt-cam-dot); }
+
+/* Loại Nhập/Xuất ở thẻ phiếu */
+.kna-loai { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+.kna-loai--xuat { color: var(--tt-cam-fg); }
+.kna-loai--nhap { color: var(--tt-xanh-fg); }
+
+/* Lý do (thiếu / hủy) dưới dòng */
+.kna-ly { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--ash); white-space: normal; }
+.kna-ly svg { flex: none; margin-top: 2px; color: var(--tt-cam-fg); }
+.kna-ly b { color: var(--ink); font-weight: 600; }
+.kna-canh { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 9px; background: var(--tt-cam-bg);
+  color: var(--tt-cam-fg); font-size: var(--fs-sm); }
+.kna-canh svg { flex: none; margin-top: 2px; }
+.kna-canh b { font-weight: 600; }
+.kna-canh--do { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.kna-canh--xanh { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+
+/* Hàng phiếu kho trong ngăn yêu cầu */
+.kna-phieu { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 18px; border: 0; border-top: 1px solid var(--rule-hair);
+  background: none; font: inherit; font-size: var(--fs-sm); color: var(--ink); text-align: left; cursor: pointer; flex-wrap: wrap; }
+.kna-phieu:first-child { border-top: 0; }
+.kna-phieu:hover { background: var(--rule-hair); }
+.kna-phieu__dau { margin-left: auto; display: inline-flex; gap: 10px; align-items: center; }
+.kna-phieu svg { color: var(--ash-2); }
+
+/* Cặp nhãn – giá trị ở cột bên */
+.kna-kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 16px; margin: 0; font-size: var(--fs-sm); }
+.kna-kv dt { color: var(--ash-2); }
+.kna-kv dd { margin: 0; text-align: right; font-weight: 500; overflow-wrap: anywhere; }
+.kna-kv dd small { display: block; font-size: var(--fs-xs); color: var(--ash-2); font-weight: 400; }
+.kna-kv dd small.kna-tre { color: var(--tt-do-fg); }
+.kna-kv dd .kna-lon { font-size: var(--fs-lg); font-weight: 700; }
+.kna-ghi { color: var(--ash); font-size: var(--fs-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Thanh tiến độ ở danh sách */
+/* Số trên, vạch dưới — cột Tiến độ hẹp lại, nhường chỗ cho tên vật tư. */
+.kna-tien { display: inline-flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kna-tien .kna-so, .kna-tien .kna-dv { white-space: nowrap; }
+.kna-tien__vach { width: 100%; max-width: 96px; min-width: 56px; height: 6px; border-radius: 999px; background: var(--rule-soft); overflow: hidden; display: inline-block; flex: none; }
+.kna-tien__vach i { display: block; height: 100%; border-radius: 999px; background: var(--tt-la-dot); }
+.kna-tien__vach--do-dang i { background: var(--tt-cam-dot); }
+
+/* Người yêu cầu ở danh sách: tên trên, bộ phận dưới */
+.kna-ai b { display: block; font-weight: 600; line-height: 1.3; }
+.kna-ai small { display: block; font-size: var(--fs-xs); color: var(--ash-2); line-height: 1.3; }
+
+/* Dòng thời gian (tab Lịch sử) */
+.kna-tl { list-style: none; margin: 0; padding: 0; }
+.kna-tl > li { position: relative; padding: 0 0 18px 34px; }
+.kna-tl > li::before { content: ""; position: absolute; left: 11px; top: 24px; bottom: 0; width: 1.5px; background: var(--rule-soft); }
+.kna-tl > li:last-child::before { display: none; }
+.kna-tl__cham { position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--rule-hair); border: 1px solid var(--rule-soft); color: var(--ash-2); }
+.kna-tl__cham--xong { background: var(--tt-la-bg); border-color: transparent; color: var(--tt-la-fg); }
+.kna-tl__cham--canh { background: var(--tt-cam-bg); border-color: transparent; color: var(--tt-cam-fg); }
+.kna-tl__cham--huy { background: var(--tt-xam-bg); border-color: transparent; color: var(--tt-xam-fg); }
+.kna-tl__cham--cho { background: var(--canvas); border-style: dashed; }
+.kna-tl__t { font-size: var(--fs-sm); }
+.kna-tl__t b { font-weight: 600; }
+.kna-tl__m { font-size: var(--fs-xs); color: var(--ash-2); margin-top: 1px; }
+.kna-tl__q { margin-top: 6px; padding: 8px 12px; border: 1px solid var(--rule-soft); border-radius: 8px; background: var(--canvas);
+  font-size: var(--fs-sm); color: var(--ash); }
+.kna-tl__q ul { margin: 0; padding-left: 18px; }
+
+/* Nút trong ngăn (đầu ngăn + thẻ tổng) */
+.kna-nut { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 13px; border-radius: 8px;
+  border: 1px solid var(--rule); background: var(--canvas); font: inherit; font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  white-space: nowrap; cursor: pointer; }
+.kna-nut:hover:not(:disabled) { background: var(--rule-hair); }
+.kna-nut:disabled { opacity: .55; cursor: not-allowed; }
+.kna-nut--chinh { background: var(--rust); border-color: var(--rust); color: #fff; }
+.kna-nut--chinh:hover:not(:disabled) { background: var(--rust-deep, var(--rust)); }
+.kna-nut--nhat { border-color: transparent; background: transparent; color: var(--ash); }
+.kna-nut--do { color: var(--tt-do-fg); }
+.kna-lien { border: 0; background: none; padding: 0; font: inherit; font-size: var(--fs-xs); font-weight: 600; color: var(--rust); cursor: pointer;
+  white-space: nowrap; }
+.kna-lien:hover { text-decoration: underline; }
+.kna-lien--mo { color: var(--ash-2); }
+
+/* Ô nhập trong khuôn A */
+.kna-o { height: 34px; border: 1px solid var(--rule); border-radius: 8px; padding: 0 10px; font: inherit; font-size: var(--fs-sm);
+  background: var(--canvas); width: 100%; color: var(--ink); min-width: 0; }
+.kna-o:focus { outline: 2px solid var(--ink); outline-offset: -1px; }
+.kna-o--so { text-align: right; font-variant-numeric: tabular-nums; }
+.kna-o--nho { height: 30px; font-size: 12.5px; }
+.kna-o--khoa { background: var(--paper); color: var(--ash); }
+.kna-o--loi { border-color: var(--tt-do-dot); }
+.kna-o--sai { border-color: var(--rust); box-shadow: 0 0 0 1px var(--rust); }
+.kna-o-truong { display: block; min-width: 0; }
+.kna-o-truong > span { display: block; font-size: 12.5px; font-weight: 600; color: var(--ash); margin-bottom: 5px; }
+.kna-o-truong > span em { color: var(--tt-do-fg); font-style: normal; }
+.kna-o-truong__goi { font-size: var(--fs-xs); color: var(--ash-2); margin-top: 4px; }
+.kna-form { display: flex; flex-direction: column; gap: 12px; }
+
+/* Lập phiếu: ô số lượng + mốc "/ 550" */
+.kna-sl { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.kna-sl .kna-o { width: 84px; }
+.kna-sl__lon { font-size: 15px; font-variant-numeric: tabular-nums; }
+
+.kna-phu { display: grid; gap: 8px; padding: 2px 0 8px; white-space: normal; }
+.kna-phu__goi { font-size: var(--fs-xs); color: var(--ash-2); }
+.kna-phu__goi--ok { color: var(--tt-la-fg); }
+.kna-phu__goi--sai { color: var(--rust); }
+
+/* Lập phiếu NHẬP: hàng cất hàng */
+.kna-cat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.kna-cat .kna-o-truong > span { font-size: var(--fs-xs); }
+.kna-kho-giay { display: flex; gap: 6px; align-items: center; }
+.kna-kho-giay select { width: 72px; flex: none; }
+/* Rộng/dài co giãn theo cột — cố định 72px thì cột thứ ba tràn khỏi thẻ ở ngăn 1180px. */
+.kna-kho-giay .kna-o--so { flex: 1 1 0; min-width: 48px; width: auto; }
+@container (max-width: 640px) { .kna-cat { grid-template-columns: minmax(0, 1fr); } }
+
+/* Chứng từ: ô thả file + danh sách file */
+.kna-tha { display: block; border: 1.5px dashed var(--rule); border-radius: 10px; padding: 14px; text-align: center; font-size: 12.5px;
+  color: var(--ash-2); cursor: pointer; }
+.kna-tha:hover { border-color: var(--ash-2); }
+.kna-tha b { color: var(--ink); }
+.kna-tha--khoa { cursor: not-allowed; opacity: .6; }
+.kna-tep { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.kna-tep li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--rule-soft); border-radius: 8px; font-size: var(--fs-sm); }
+.kna-tep a, .kna-tep span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.kna-tep button { border: 0; background: none; color: var(--ash-2); cursor: pointer; display: grid; place-items: center; padding: 2px; }
+.kna-tep button:hover { color: var(--tt-do-fg); }
+
+/* Thẻ tổng của form lập phiếu */
+.kna-chot { display: flex; gap: 8px; margin-top: 14px; }
+.kna-chot .kna-nut { flex: 1; }
+.kna-chot .kna-nut--chinh { flex: 1.4; }
+
+/* Danh sách: dòng có nút thao tác thì nút nhỏ lại */
+.kna-nut--nho { height: 28px; padding: 0 10px; font-size: 12.5px; }
+
+/* Danh sách Yêu cầu nhập xuất: ô đệm 10px cho 9 cột vừa khung 1280px. */
+.kho-ds-bang th, .kho-ds-bang td { padding-left: 10px !important; padding-right: 10px !important; }

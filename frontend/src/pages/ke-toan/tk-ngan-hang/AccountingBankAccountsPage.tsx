@@ -183,7 +183,6 @@ export function AccountingBankAccountsPage({
       <header className="kt-ph">
         <div>
           <h1>Tài khoản ngân hàng</h1>
-          <p>Tài khoản công ty dùng khi lập phiếu chuyển khoản.</p>
         </div>
         {coSua && (
           <div className="kt-ph__nut">

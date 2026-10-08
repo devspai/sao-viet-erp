@@ -63,7 +63,6 @@ export function NghiPhepPage({ onChanged, focusEmployeeId, eventTick }: {
               item "Nghỉ phép" — tiêu đề ngay dưới đã nói rồi). Lớp phải là `eyebrow`. */}
           <p className="eyebrow">Nhân sự &amp; Lương</p>
           <h1 className="ns__title">Nghỉ phép</h1>
-          <p className="ns__sub">Đơn xin nghỉ · duyệt · loại nghỉ. Ngày nghỉ đã duyệt hiện trên Bảng công tháng.</p>
         </div>
       </header>
       <nav className="ns-tabs cc-tabs lg-tabs" aria-label="Phân hệ Nghỉ phép">

@@ -15,7 +15,7 @@ from ...models.san_xuat import (
     BUOC_THUE_NGOAI, CV_PHAT_HANH, PB_PHAT_HANH, SanXuatCongViec, SanXuatGoiPhatHanh,
     SanXuatPhienBan,
 )
-from ...models.stock_request import REQ_CANCELLED, REQ_XUAT
+from ...models.stock_request import REQ_CANCELLED, REQ_DONE, REQ_PARTIAL, REQ_XUAT
 from ...models.vat_lieu_kho import GiayNguyen
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.document_sequence_repo import DocumentSequenceRepository
@@ -27,7 +27,7 @@ from ...repositories.stock_request_repo import StockRequestRepository
 from ...repositories.xep_lich_lenh_repo import XepLichLenhRepository
 from ...repositories.xep_lich_repo import XepLichRepository
 from ..bien_cong_thuc import quy_cach_bien
-from ..kho_giay import DANG_TO, chuan_kho, don_vi_goc_to, goi_y_dong_giay, nhan_kho
+from ..kho_giay import DANG_TO, chuan_kho, don_vi_goc_to, goi_y_dong_giay, la_ma_to_giay, nhan_kho
 from ..san_xuat.component import thanh_phan_lien_thong
 from ..san_xuat.nhom import dam_bao_nhom
 from ..san_xuat.release_update import thu_hoi_goi
@@ -244,11 +244,11 @@ def _de_xuat_giay(db: Session, lsx) -> dict:
     """Giấy nên cấp cho nhà gia công: mã giấy + khổ + số tờ. Dòng giấy TỜ khai ở bước đầu tiên của
     lệnh thắng (người kế hoạch đã sửa tay); không có thì đọc quy cách lệnh — ảnh chụp từ phiếu tính
     giá (`goi_y_dong_giay`, cùng luật điền sẵn dòng giấy của bước). Mã giấy luôn lấy ở máy chủ."""
-    to = don_vi_goc_to()
     for vt in GiaCongNgoaiRepository(db).giay_cua_lenh(lsx.id):
         kr, kd = chuan_kho(vt.kho_rong, vt.kho_dai)
         if vt.dang_giay in (None, DANG_TO) and kr and kd:
-            so = float(vt.so_luong) if vt.don_vi_snapshot == to else None
+            # Dòng giấy lệnh mang MÃ CHẶNG (`to_nguyen` / `to`); qua cửa kho mọi mã tờ là một "tờ".
+            so = float(vt.so_luong) if la_ma_to_giay(vt.don_vi_snapshot) else None
             return {"giay_id": int(vt.vat_tu_id), "kho_rong": kr, "kho_dai": kd, "so_to": so,
                     "nguon": "lệnh"}
     return de_xuat_tu_quy_cach(lsx)
@@ -271,6 +271,24 @@ def cho_cap_giay(gcn, *, co_xuat: bool) -> bool:
     """Lần trọn gói xưởng cấp giấy, còn chạy, chưa có đề nghị xuất giấy còn sống."""
     return (gcn.kieu == KIEU_TRON_GOI and bool(gcn.xuong_cap_giay) and gcn.huy_luc is None
             and gcn.chot_luc is None and not co_xuat)
+
+
+def ly_do_khong_nhan_ve(repo: GiaCongNgoaiRepository, gcn, xuat: list | None = None) -> str | None:
+    """Trọn gói xưởng cấp giấy: kho chưa ghi sổ phiếu xuất giấy nào cho nhà gia công thì CHƯA cho
+    nhận hàng về (07/10/2026, chặn cứng). Hàng đã về mà giấy chưa rời kho trên sổ là tồn khai
+    khống, còn đề nghị xuất treo lại cho một lệnh đã xong. Xuất một phần là đủ — giấy đã đi.
+    `xuat` = đề nghị xuất còn sống nếu nơi gọi đã đọc sẵn. None = nhận về được."""
+    if gcn.kieu != KIEU_TRON_GOI or not gcn.xuong_cap_giay or gcn.chot_luc is not None \
+            or gcn.huy_luc is not None:
+        return None
+    if xuat is None:
+        xuat = repo.yeu_cau_xuat_cua(gcn.id)
+    if not xuat:
+        return ("Chưa cấp giấy cho nhà gia công — chọn giấy, gửi đề nghị xuất và chờ kho xuất "
+                "giấy rồi mới nhận hàng về.")
+    if not any(r.trang_thai in (REQ_PARTIAL, REQ_DONE) for r in xuat):
+        return f"Kho chưa xuất giấy theo đề nghị {xuat[0].ma} — chờ kho xuất giấy rồi mới nhận hàng về."
+    return None
 
 
 def goi_y_cap_giay(db: Session, gcn, *, co_xuat: bool) -> dict | None:

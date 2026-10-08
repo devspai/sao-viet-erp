@@ -22,6 +22,7 @@ export function emptyRequest(
 ): DepartmentPurchaseRequestInput {
   return {
     source_type: sourceType,
+    loai_mua: "theo_yeu_cau",
     related_document_type: null,
     related_document_code: null,
     content: "",
@@ -48,6 +49,13 @@ export function dongSong(
   return row.lines.filter((line) => !line.cancelled_at);
 }
 
+/** Món đang nằm trên một đơn mua CÒN CHẠY. Đơn đã huỷ hay bị trả vẫn hiện ở chi tiết món (để biết
+ *  lịch sử), nhưng không tính là "đã có đơn" — thu mua còn phải lập lại. */
+export function coDonSong(line: DepartmentPurchaseRequestLineOut): boolean {
+  const st = line.fulfilment?.purchase_status;
+  return !!st && st !== "cancelled" && st !== "rejected";
+}
+
 export function todayInputValue(): string {
   const now = new Date();
   const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
@@ -65,6 +73,8 @@ export function cleanRequest(
   };
   return {
     source_type: input.source_type ?? null,
+    // Cho lệnh SX do máy chủ chốt từ `nguon_lenh` — gửi lại khi sửa sẽ bị chặn, nên không gửi.
+    loai_mua: input.loai_mua && input.loai_mua !== "cho_lsx" ? input.loai_mua : null,
     // GIỮ vết chứng từ nguồn thay vì xoá trắng (20/08/2026). Trước đây hai ô này luôn bị nullhoá
     // vì form gõ tay không có chỗ nhập chúng — nhưng nó cũng xoá luôn vết của phiếu ĐI TỪ màn
     // khác sang (Kế hoạch vật tư gửi mã lệnh), và xoá cả lúc SỬA một phiếu vốn đã có vết. Người
@@ -95,10 +105,12 @@ export function cleanRequest(
 }
 
 /** Dạng giấy của dòng yêu cầu mua — quyết ĐVT hiện trên form (spec giấy theo khổ §4.4): đủ hai
- *  cạnh khổ ⇒ tờ (đếm tờ nguyên), thiếu khổ ⇒ cuộn (đơn vị gốc của mã). Không phải giấy ⇒ null. */
+ *  cạnh khổ ⇒ tờ (đơn vị kho `to`), thiếu khổ ⇒ cuộn (đơn vị gốc của mã). Không phải giấy ⇒ null. */
 export function dangGiayDong(
-  line: Pick<DepartmentPurchaseRequestLineInput, "hang_loai" | "kho_rong" | "kho_dai">,
+  line: Pick<DepartmentPurchaseRequestLineInput, "hang_loai" | "kho_rong" | "kho_dai" | "dang_giay">,
 ): "to" | "cuon" | null {
   if (line.hang_loai !== "giay") return null;
+  // Người đã bấm chọn Tờ / Cuộn ở ô khổ ghép thì theo đó — Tờ chưa gõ khổ vẫn là Tờ.
+  if (line.dang_giay) return line.dang_giay;
   return (line.kho_rong ?? 0) > 0 && (line.kho_dai ?? 0) > 0 ? "to" : "cuon";
 }

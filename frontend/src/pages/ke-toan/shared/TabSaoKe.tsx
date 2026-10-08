@@ -77,9 +77,12 @@ function BangSaoKe({ ben, so, onMoPhieu, inAn }: { ben: BenCongNo; so: SoChiTiet
   const tongTang = ben === "receivables" ? so.ps_no : so.ps_co;
   const tongGiam = ben === "receivables" ? so.ps_co : so.ps_no;
   const soTien = (n: number) => (n ? vietSo(n) : "");
+  // Bản xem trên ngăn dùng lưới lds-g (lớp căn `n`, dòng mốc `lds-cong`); bản in giữ bảng `ps-tbl` cũ (lớp `r`).
+  const lopSo = inAn ? "r" : "n";
+  const lopMoc = inAn ? "kt-sk__moc" : "lds-cong";
   return (
-    <table className={inAn ? "ps-tbl kt-sk-in" : "kt-sk"}>
-      {inAn && (
+    <table className={inAn ? "ps-tbl kt-sk-in" : "lds-g"}>
+      {inAn ? (
         <colgroup>
           <col style={{ width: "14%" }} />
           <col style={{ width: "20%" }} />
@@ -88,29 +91,39 @@ function BangSaoKe({ ben, so, onMoPhieu, inAn }: { ben: BenCongNo; so: SoChiTiet
           <col style={{ width: "14%" }} />
           <col style={{ width: "14%" }} />
         </colgroup>
+      ) : (
+        // Chứng từ rộng 190: "DMH-261007-VBF4 đợt 1" đo 189px khi xếp công nợ phải trả. Diễn giải co giãn.
+        <colgroup>
+          <col style={{ width: 102 }} />
+          <col style={{ width: 190 }} />
+          <col />
+          <col style={{ width: 116 }} />
+          <col style={{ width: 116 }} />
+          <col style={{ width: 116 }} />
+        </colgroup>
       )}
       <thead>
         <tr>
           <th>Ngày</th>
           <th>Chứng từ</th>
           <th>Diễn giải</th>
-          <th className={inAn ? "r" : "kt-so"}>{c.tang}</th>
-          <th className={inAn ? "r" : "kt-so"}>{c.giam}</th>
-          <th className={inAn ? "r" : "kt-so"}>Số dư</th>
+          <th className={lopSo}>{c.tang}</th>
+          <th className={lopSo}>{c.giam}</th>
+          <th className={lopSo}>Số dư</th>
         </tr>
       </thead>
       <tbody>
-        <tr className="kt-sk__moc">
+        <tr className={lopMoc}>
           <td>{ngay(so.tu_ngay)}</td>
           <td />
           <td>Số dư đầu kỳ</td>
           <td />
           <td />
-          <td className={inAn ? "r" : "kt-so"}>{vietSo(dau)}</td>
+          <td className={lopSo}>{vietSo(dau)}</td>
         </tr>
         {so.dong.length === 0 && (
           <tr>
-            <td colSpan={6} className="kt-mo">Không có chứng từ nào trong kỳ.</td>
+            <td colSpan={6} className={inAn ? "kt-mo" : "lds-trong"}>Không có chứng từ nào trong kỳ.</td>
           </tr>
         )}
         {so.dong.map((d, i) => {
@@ -127,21 +140,21 @@ function BangSaoKe({ ben, so, onMoPhieu, inAn }: { ben: BenCongNo; so: SoChiTiet
                 )}
               </td>
               <td>{d.dien_giai}</td>
-              <td className={inAn ? "r" : "kt-so"}>{soTien(s.tang)}</td>
-              <td className={inAn ? "r" : "kt-so"}>{soTien(s.giam)}</td>
-              <td className={inAn ? "r" : "kt-so"}>
-                <b>{vietSo(s.du)}</b>
+              <td className={lopSo}>{soTien(s.tang)}</td>
+              <td className={lopSo}>{soTien(s.giam)}</td>
+              <td className={lopSo}>
+                {inAn ? <b>{vietSo(s.du)}</b> : vietSo(s.du)}
               </td>
             </tr>
           );
         })}
-        <tr className="kt-sk__moc kt-sk__moc--cuoi">
+        <tr className={inAn ? "kt-sk__moc kt-sk__moc--cuoi" : "lds-cong"}>
           <td>{ngay(so.den_ngay)}</td>
           <td />
           <td>Số dư cuối kỳ</td>
-          <td className={inAn ? "r" : "kt-so"}>{vietSo(tongTang)}</td>
-          <td className={inAn ? "r" : "kt-so"}>{vietSo(tongGiam)}</td>
-          <td className={inAn ? "r" : "kt-so"}>{vietSo(cuoi)}</td>
+          <td className={lopSo}>{vietSo(tongTang)}</td>
+          <td className={lopSo}>{vietSo(tongGiam)}</td>
+          <td className={lopSo}>{vietSo(cuoi)}</td>
         </tr>
       </tbody>
     </table>
@@ -206,7 +219,7 @@ export function TabSaoKe({
       {loi && <p className="kt-do" role="alert">{loi}</p>}
       {!so && dangTai && <p className="kt-mo">Đang tải sao kê…</p>}
       {so && (
-        <div className={`kt-nhom kt-sk-khung${dangTai ? " kt-sk-khung--tai" : ""}`} aria-busy={dangTai}>
+        <div className={`lds-bang kt-sk-khung${dangTai ? " kt-sk-khung--tai" : ""}`} aria-busy={dangTai}>
           <BangSaoKe ben={ben} so={so} onMoPhieu={onMoPhieu} />
         </div>
       )}

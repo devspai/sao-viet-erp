@@ -59,6 +59,7 @@ export function KeHoachVatTuPage({
         purchaseSeedPurpose: nhap.noi_dung,
         purchaseSeedHeader: {
           source_type: "san_xuat",
+          loai_mua: "cho_lsx",
           needed_date: nhap.needed_date,
           related_document_type: nhap.related_document_type,
           related_document_code: nhap.related_document_code,

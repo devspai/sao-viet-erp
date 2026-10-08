@@ -1,23 +1,18 @@
-// Drawer CHI TIẾT ĐƠN MUA + cụm nút thao tác (tách từ pages/PurchaseRequestsPage.tsx).
-import { useState, type Dispatch, type SetStateAction } from "react";
-import { Icon } from "../../../../components/Icons";
+// Ngăn CHI TIẾT ĐƠN MUA ở màn Mua hàng — phương án 3 (07/10/2026): thân ngăn là `NganDonMua` dùng
+// CHUNG với Kế toán; ở đây chỉ còn cụm nút đầu ngăn và các việc trên đợt giao của Thu mua.
+import type { Dispatch, SetStateAction } from "react";
 import {
   api,
+  type MuaChoLenh,
   type PurchaseDeliveryRow,
   type PurchaseRequestRow,
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import { useCan } from "../../../../auth/permissions";
-import { CodeLink } from "../../../../components/CodeLink";
-import { PurchaseActivityTimeline } from "../../../../components/PurchaseActivityTimeline";
-import { daGiaoKhac, nhanKhoMua } from "../shared/helpers";
 import { RowActionButton } from "../../../../components/RowActionButton";
-import { fmtDate, money } from "../../../../utils/format";
-// Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị — xem pages/tenDonVi.ts.
-import { tenDonVi } from "../../../tenDonVi";
+import { NganDonMua } from "../../don-mua-chung/NganDonMua";
 import { printPurchaseRequest } from "../print";
 import { GHI_DOT_DUOC } from "../shared/constants";
-import { noiDung } from "../shared/helpers";
 import type {
   CloseModalState,
   DeletingDeliveryState,
@@ -25,14 +20,12 @@ import type {
   ReasonModalState,
   ReceiveModalState,
 } from "../shared/types";
-import { ContractBlock } from "./ContractBlock";
-import { DeliveriesBlock } from "./DeliveriesBlock";
-import { StatusBadge } from "./purchaseCells";
 
 export function PurchaseDetailDrawer({
   selected,
   setSelectedId,
   openYcmh,
+  onMoLenh,
   canUpdate,
   canApprovePurchase,
   updateRow,
@@ -53,6 +46,7 @@ export function PurchaseDetailDrawer({
   setSelectedId: Dispatch<SetStateAction<number | null>>;
   /** Thiếu = không có ô Xem màn Yêu cầu mua hàng ⇒ mã chỉ hiện dạng chữ. */
   openYcmh?: (code: string) => void;
+  onMoLenh?: (l: MuaChoLenh) => void;
   canUpdate: boolean;
   canApprovePurchase: boolean;
   updateRow: (next: PurchaseRequestRow) => void;
@@ -73,8 +67,6 @@ export function PurchaseDetailDrawer({
   setDeletingDelivery: Dispatch<SetStateAction<DeletingDeliveryState | null>>;
   setCloseModal: Dispatch<SetStateAction<CloseModalState | null>>;
 }) {
-  type DrawerTab = "overview" | "terms" | "deliveries" | "history";
-  const [tab, setTab] = useState<DrawerTab>("overview");
   // `user` chỉ cần cho luật "Huỷ phiếu" — luật đó đang ẩn (15/08/2026), bật lại thì lấy kèm.
   const { token, user } = useAuth();
   const can = useCan();
@@ -98,6 +90,10 @@ export function PurchaseDetailDrawer({
       );
     }
   }
+
+  // "Nhập kho" nhảy sang màn Kho, tab Đề nghị nhập với form điền sẵn ⇒ hỏi đúng ô mở tab đó
+  // (`kho:request`), KHÔNG phải `kho:create` — bộ phận mua hàng có `request` mà không có `create`.
+  const coQuyenNhapKho = can("kho", "request");
 
   function actionButtons(row: PurchaseRequestRow, dense = false) {
     const busy = (key: string) => actionBusy === `${key}:${row.id}`;
@@ -148,7 +144,7 @@ export function PurchaseDetailDrawer({
         {canUpdate && row.status === "approved" && (
           <RowActionButton
             dense={dense}
-            label="Đang mua"
+            label="Đã đặt hàng"
             icon="bag"
             loading={busy("purchased")}
             onClick={() =>
@@ -166,6 +162,16 @@ export function PurchaseDetailDrawer({
             label="Ghi đợt giao"
             icon="truck"
             onClick={() => setDeliveryModal({ row, delivery: null })}
+          />
+        )}
+        {/* "Đóng đơn" chỉ có nghĩa khi còn hàng chưa về: nhà cung cấp báo không giao nốt. Server đòi
+            `thu_mua:approve` + lý do. */}
+        {canUpdate && canApprovePurchase && row.status === "partially_received" && (
+          <RowActionButton
+            dense={dense}
+            label="Đóng đơn"
+            icon="packageCheck"
+            onClick={() => setCloseModal({ row, reason: "", error: null })}
           />
         )}
         {/* ĐƯỜNG CŨ, chỉ còn cho đơn KHÔNG theo dõi theo đợt (giao một lần, không ai muốn khai
@@ -217,315 +223,27 @@ export function PurchaseDetailDrawer({
   }
 
   return (
-    <div className="rc-drawer__scrim" onClick={() => setSelectedId(null)}>
-      <aside
-        className="rc-drawer purchase__drawer-780 acct-mh-drawer acct-dmh-drawer pmh-drawer"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={selected.code}
-      >
-        <div className="purchase__hero-banner">
-          <div className="purchase__hero-top">
-            <div>
-              <span className="purchase__hero-kicker">Chi tiết đơn</span>
-              <div className="purchase__hero-title-row">
-                <h2 className="purchase__hero-code">{selected.code}</h2>
-                <StatusBadge status={selected.status} />
-              </div>
-              {/* Nội dung / Mục đích mua hàng dạng Subtitle mượt */}
-              {noiDung(selected) && (
-                <div className="acct-hero-purpose">
-                  <Icon name="book" size={13} />
-                  <span>{noiDung(selected)}</span>
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              className="purchase__hero-x"
-              onClick={() => setSelectedId(null)}
-              aria-label="Đóng"
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Khối Thông Tin Đơn Hàng Tích Hợp Trong Header */}
-          <dl className="acct-hero-facts">
-            <div>
-              <dt>
-                <Icon name="truck" size={13} />
-                Nhà cung cấp
-              </dt>
-              <dd title={selected.supplier_name ?? undefined}>{selected.supplier_name || "Chưa chọn"}</dd>
-            </div>
-            <div>
-              <dt>
-                <Icon name="fileText" size={13} />
-                Yêu cầu mua hàng
-              </dt>
-              <dd>
-                {selected.sources.length
-                  ? selected.sources.map((source, index) => (
-                      <span key={source.id}>
-                        {index > 0 && ", "}
-                        <CodeLink code={source.code} onOpen={openYcmh} />
-                      </span>
-                    ))
-                  : "Chưa gắn"}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                <Icon name="calendar" size={13} />
-                Ngày cần hàng
-              </dt>
-              <dd>{fmtDate(selected.needed_date)}</dd>
-            </div>
-            <div>
-              <dt>
-                <Icon name="clock" size={13} />
-                Dự kiến nhận hàng
-              </dt>
-              <dd>{fmtDate(selected.expected_receipt_date)}</dd>
-            </div>
-            <div>
-              <dt>
-                <Icon name="users" size={13} />
-                Người lập
-              </dt>
-              <dd>{selected.created_by_name || "—"}</dd>
-            </div>
-            <div>
-              <dt>
-                <Icon name="send" size={13} />
-                Gửi duyệt
-              </dt>
-              <dd>{fmtDate(selected.submitted_at)}</dd>
-            </div>
-            <div>
-              <dt>
-                <Icon name="shield" size={13} />
-                Duyệt bởi
-              </dt>
-              <dd>{selected.approved_by_name || "—"}</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="acct-drawer__tabs" role="tablist" aria-label="Chi tiết đơn mua hàng">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "overview"}
-            className={`acct-drawer__tab-btn${tab === "overview" ? " is-active" : ""}`}
-            onClick={() => setTab("overview")}
-          >
-            <Icon name="box" size={15} />
-            <span>Vật tư & Tổng quan</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "terms"}
-            className={`acct-drawer__tab-btn${tab === "terms" ? " is-active" : ""}`}
-            onClick={() => setTab("terms")}
-          >
-            <Icon name="calculator" size={15} />
-            <span>Điều khoản & Nợ</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "deliveries"}
-            className={`acct-drawer__tab-btn${tab === "deliveries" ? " is-active" : ""}`}
-            onClick={() => setTab("deliveries")}
-          >
-            <Icon name="truck" size={15} />
-            <span>Đợt giao & Chi</span>
-            {selected.deliveries.length > 0 && (
-              <span className="acct-drawer__tab-badge">{selected.deliveries.length}</span>
-            )}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "history"}
-            className={`acct-drawer__tab-btn${tab === "history" ? " is-active" : ""}`}
-            onClick={() => setTab("history")}
-          >
-            <Icon name="history" size={15} />
-            <span>Lịch sử</span>
-          </button>
-        </div>
-
-        <div className="rc-drawer__body acct-mh__body">
-          {selected.reject_reason && (
-            <div className="purchase__note purchase__note--reject">
-              <strong>Lý do từ chối / huỷ:</strong> {selected.reject_reason}
-            </div>
-          )}
-
-          {/* TAB 1: VẬT TƯ & TỔNG QUAN */}
-          {tab === "overview" && (
-            <>
-              {/* Dải 4 Thẻ KPI Stat Grid */}
-              <div className="acct-kpi-grid">
-                <div className="acct-kpi-card acct-kpi-card--total">
-                  <div className="acct-kpi-card__head">
-                    <span className="acct-kpi-card__label">Tổng đơn mua</span>
-                    <span className="acct-kpi-card__tag">Dự kiến</span>
-                  </div>
-                  <div className="acct-kpi-card__val">{money(selected.total_estimate)}</div>
-                </div>
-                <div className="acct-kpi-card acct-kpi-card--delivered">
-                  <div className="acct-kpi-card__head">
-                    <span className="acct-kpi-card__label">Hàng đã giao</span>
-                    <span className="acct-kpi-card__tag">
-                      {selected.total_estimate > 0
-                        ? `${Math.round((selected.gia_tri_da_giao / selected.total_estimate) * 100)}%`
-                        : "0%"}
-                    </span>
-                  </div>
-                  <div className="acct-kpi-card__val">{money(selected.gia_tri_da_giao)}</div>
-                </div>
-                <div className="acct-kpi-card acct-kpi-card--paid">
-                  <div className="acct-kpi-card__head">
-                    <span className="acct-kpi-card__label">Đã chi ròng</span>
-                    <span className="acct-kpi-card__tag">Thực tế</span>
-                  </div>
-                  <div className="acct-kpi-card__val">{money(selected.net_paid)}</div>
-                </div>
-                <div
-                  className={`acct-kpi-card acct-kpi-card--due${
-                    selected.outstanding_amount > 0 ? " is-overdue" : ""
-                  }`}
-                >
-                  <div className="acct-kpi-card__head">
-                    <span className="acct-kpi-card__label">Còn nợ</span>
-                    <span className="acct-kpi-card__tag">
-                      {selected.outstanding_amount > 0 ? "Chờ chi" : "Đã xong"}
-                    </span>
-                  </div>
-                  <div className="acct-kpi-card__val">{money(selected.outstanding_amount)}</div>
-                </div>
-              </div>
-
-              {/* Bảng Danh Sách Vật Tư Phân Cột Chuẩn Enterprise */}
-              <div className="acct-items-frame">
-                <div className="acct-items-table-wrap">
-                  <table className="acct-items-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 40 }} className="text-center">#</th>
-                        <th>Tên vật tư</th>
-                        <th style={{ textAlign: "right" }}>Số lượng</th>
-                        <th style={{ textAlign: "right" }}>Đơn giá</th>
-                        <th style={{ textAlign: "center" }}>CK</th>
-                        <th style={{ textAlign: "center" }}>VAT</th>
-                        <th style={{ textAlign: "right" }}>Thành tiền</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selected.lines.map((line, idx) => {
-                        const daNhan = daGiaoKhac(selected, line.id, null);
-                        const du = Math.max(0, daNhan - Number(line.quantity || 0));
-                        const dvt = tenDonVi(line.unit) ?? line.unit;
-                        return (
-                          <tr key={line.id}>
-                            <td style={{ textAlign: "center", color: "#94a3b8" }}>{idx + 1}</td>
-                            <td>
-                              <div className="acct-table-item-name">{line.item_name}</div>
-                              {nhanKhoMua(line) && <div className="acct-table-item-note">{nhanKhoMua(line)}</div>}
-                              {line.note && <div className="acct-table-item-note">{line.note}</div>}
-                              {du > 0 && (
-                                <span
-                                  className="acct-tag-pill acct-tag-pill--note"
-                                  style={{ marginTop: 4, display: "inline-flex" }}
-                                  title={`Các đợt giao đã nhận ${daNhan.toLocaleString("vi-VN")} ${dvt}; ${du.toLocaleString("vi-VN")} vượt số đặt nên tính 0đ.`}
-                                >
-                                  Đã nhận {daNhan.toLocaleString("vi-VN")} · {du.toLocaleString("vi-VN")} dư
-                                </span>
-                              )}
-                            </td>
-                            <td style={{ textAlign: "right", fontWeight: 600 }}>
-                              {line.quantity.toLocaleString("vi-VN")}{" "}
-                              <small style={{ color: "#64748b", fontWeight: 400 }}>{dvt}</small>
-                            </td>
-                            <td style={{ textAlign: "right" }}>{money(line.expected_unit_price)}</td>
-                            <td style={{ textAlign: "center" }}>
-                              {line.discount_percent > 0 ? (
-                                <span className="acct-discount-badge">-{line.discount_percent}%</span>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                            <td style={{ textAlign: "center" }}>
-                              <span className="acct-vat-badge">{line.vat_percent}%</span>
-                            </td>
-                            <td style={{ textAlign: "right", fontWeight: 700, color: "#1d4ed8" }}>
-                              {money(line.line_total)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td colSpan={6} style={{ textAlign: "right", fontWeight: 700 }}>
-                          TỔNG DỰ KIẾN ({selected.lines.length} MẶT HÀNG)
-                        </td>
-                        <td style={{ textAlign: "right" }} className="acct-total-val">
-                          {money(selected.total_estimate)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* TAB 2: ĐIỀU KHOẢN & NỢ */}
-          {tab === "terms" && (
-            <ContractBlock
-              row={selected}
-              canUpdate={canUpdate}
-              onChanged={updateRow}
-              onError={setError}
-            />
-          )}
-
-          {/* TAB 3: ĐỢT GIAO & CHI */}
-          {tab === "deliveries" && (
-            <DeliveriesBlock
-              row={selected}
-              canUpdate={canUpdate}
-              canApprove={canApprovePurchase}
-              onGhiDot={(delivery) => setDeliveryModal({ row: selected, delivery })}
-              onGanHoaDon={() => setInvoiceModal(selected)}
-              onXoaDot={(delivery) => setDeletingDelivery({ row: selected, delivery })}
-              onDongDon={() => setCloseModal({ row: selected, reason: "", error: null })}
-              onNhapKho={(dot) => nhapKhoTuDot(selected, dot)}
-              onXemYeuCau={(dot) => xemYeuCauNhap(dot)}
-            />
-          )}
-
-          {/* TAB 4: LỊCH SỬ HOẠT ĐỘNG */}
-          {tab === "history" && (
-            <div>
-              <p className="eyebrow" style={{ marginTop: 8, marginBottom: 12 }}>
-                Lịch sử hoạt động đơn mua hàng
-              </p>
-              <PurchaseActivityTimeline items={selected.activity_history} />
-            </div>
-          )}
-        </div>
-        <div className="purchase__drawer-footer">
-          {actionButtons(selected)}
-        </div>
-      </aside>
-    </div>
+    <NganDonMua
+      key={selected.id}
+      row={selected}
+      duongDan="Mua hàng"
+      tabDau="mh"
+      hanhDong={actionButtons(selected)}
+      openYcmh={openYcmh}
+      onMoLenh={onMoLenh}
+      viecDot={{
+        ghiDuoc: canUpdate && GHI_DOT_DUOC.includes(selected.status),
+        nhapKhoDuoc: canUpdate && coQuyenNhapKho,
+        onSua: (delivery) => setDeliveryModal({ row: selected, delivery }),
+        onXoa: (delivery) => setDeletingDelivery({ row: selected, delivery }),
+        onNhapKho: (dot) => nhapKhoTuDot(selected, dot),
+        onXemNhap: (dot) => xemYeuCauNhap(dot),
+        onGanHoaDon: () => setInvoiceModal(selected),
+      }}
+      suaDuoc={canUpdate}
+      onDoi={updateRow}
+      onLoi={setError}
+      onDong={() => setSelectedId(null)}
+    />
   );
 }

@@ -12,10 +12,10 @@ describe("lsxKhau", () => {
     expect(nhanKhau("khau_moi", null)).toBe("khau_moi");
   });
 
-  it("pill khâu mang màu theo khâu", () => {
+  it("pill khâu mang màu theo chi tiết khâu", () => {
     const { container } = render(<PillKhau khau="sau_sx" ct="san_sang_giao" />);
     expect(screen.getByText("Sẵn sàng giao")).toBeInTheDocument();
-    expect(container.querySelector(".lsc-pill--amber")).not.toBeNull();
+    expect(container.querySelector(".lsc-pill--teal")).not.toBeNull();
   });
 
   it("dải chặng: một đốt mỗi công đoạn, đúng thứ tự, có chữ cho trình đọc màn hình", () => {

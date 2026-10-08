@@ -174,6 +174,33 @@ def test_xuong_cap_giay_lap_de_nghi_xuat_mot_lan(sess, admin, lenh):
         _xuat(sess, admin, lan)
 
 
+def test_o_giay_liet_ke_phieu_xuat_kho_cua_de_nghi(sess, admin, lenh):
+    """Ô Giấy hiện mã PXK lập theo đề nghị (bấm mở được) — xuất nhiều đợt thì nhiều phiếu, phiếu
+    huỷ không hiện."""
+    from datetime import date
+
+    from app.models.kho_hang import KhoHang
+    from app.models.stock_voucher import (
+        VOUCHER_CANCELLED, VOUCHER_DRAFT, VOUCHER_POSTED, VOUCHER_XUAT, StockVoucher,
+    )
+
+    lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
+    req = _xuat(sess, admin, lan)
+    (d,) = lan_cua_lenh(sess, lenh.id)
+    assert d["xuat_giay"]["id"] == req.id and d["xuat_giay"]["phieu"] == []
+
+    kho = KhoHang(ma="KHO-PXK", ten="Kho giấy test")
+    sess.add(kho)
+    sess.flush()
+    for ma, tt in (("PXK-T1", VOUCHER_POSTED), ("PXK-T2", VOUCHER_CANCELLED), ("PXK-T3", VOUCHER_DRAFT)):
+        sess.add(StockVoucher(ma=ma, loai=VOUCHER_XUAT, request_id=req.id, kho_id=kho.id,
+                              ngay=date(2026, 10, 7), nguoi_lap_id=admin.id, trang_thai=tt))
+    sess.commit()
+    (d,) = lan_cua_lenh(sess, lenh.id)
+    assert [(p["ma"], p["trang_thai"]) for p in d["xuat_giay"]["phieu"]] == [
+        ("PXK-T1", VOUCHER_POSTED), ("PXK-T3", VOUCHER_DRAFT)]
+
+
 def test_kho_tu_choi_thi_chon_giay_lai(sess, admin, lenh):
     from app.models.stock_request import REQ_REJECTED
 
@@ -618,8 +645,50 @@ def test_nha_gia_cong_lo_giay_khong_co_nhu_cau_giay(sess, admin, lenh):
     assert _giay_can(sess, lenh.id) == []
 
 
+def _kho_da_xuat(sess, req, trang_thai="done"):
+    """Kho ghi sổ phiếu xuất giấy — đề nghị sang Đã xuất một phần / đủ."""
+    req.trang_thai = trang_thai
+    sess.commit()
+
+
+def test_xuong_cap_giay_kho_chua_xuat_thi_chua_nhan_ve(sess, admin, lenh):
+    """Chặn cứng 07/10/2026: trọn gói xưởng cấp giấy, kho chưa ghi sổ phiếu xuất giấy ⇒ máy chủ
+    từ chối chốt, dict lần mang lý do để nút "Nhận hàng về" khoá sẵn. Xuất một phần là đủ."""
+    lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
+    (d,) = lan_cua_lenh(sess, lenh.id)
+    assert "Chưa cấp giấy" in d["ly_do_khong_nhan_ve"]
+    with pytest.raises(ValueError, match="Chưa cấp giấy"):
+        chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+             sl_cuoi=19_800, noi_ve=NOI_VE_KHO)
+
+    req = _xuat(sess, admin, lan)
+    (d,) = lan_cua_lenh(sess, lenh.id)
+    assert req.ma in d["ly_do_khong_nhan_ve"]
+    sess.refresh(lan)
+    with pytest.raises(ValueError, match="Kho chưa xuất giấy"):
+        chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+             sl_cuoi=19_800, noi_ve=NOI_VE_KHO)
+
+    _kho_da_xuat(sess, req, "partial")
+    (d,) = lan_cua_lenh(sess, lenh.id)
+    assert d["ly_do_khong_nhan_ve"] is None
+    sess.refresh(lan)
+    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+         sl_cuoi=19_800, noi_ve=NOI_VE_KHO)
+    sess.refresh(lan)
+    assert lan.chot_luc is not None
+
+
+def test_nha_gia_cong_lo_giay_nhan_ve_khong_can_xuat(sess, admin, lenh):
+    lan = _dat(sess, admin, lenh, xuong_cap_giay=False)
+    (d,) = lan_cua_lenh(sess, lenh.id)
+    assert d["ly_do_khong_nhan_ve"] is None
+
+
 def test_chot_so_thi_giay_rung(sess, admin, lenh):
     lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
+    _kho_da_xuat(sess, _xuat(sess, admin, lan))
+    sess.refresh(lan)
     chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
          sl_cuoi=19_800, noi_ve=NOI_VE_KHO)
     assert _giay_can(sess, lenh.id) == []

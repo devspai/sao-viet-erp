@@ -1,0 +1,17 @@
+/* Danh sách yêu cầu mua hàng — bản A (mockup A1). */
+.ycd-ten { font-weight: 500; color: var(--ink); }
+.ycd-phu { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; font-size: var(--fs-xs); color: var(--ash-2); }
+.ycd-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--rule-hair); color: var(--ink); }
+.ycd-vang { color: var(--tt-cam-fg, #b45309); }
+.ycd-do { color: var(--tt-do-fg); }
+.ycd-thanh { height: 6px; width: 80px; border-radius: 999px; background: var(--rule-hair); overflow: hidden; margin-top: 4px; }
+.ycd-thanh > i { display: block; height: 100%; background: var(--tt-la-dot); }
+/* Mã + chứng từ liên quan xếp dọc — đứng ngang thì cột Mã phình, bóp Nội dung còn một từ mỗi dòng. */
+.ycd-ma { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+
+/* Món đã bỏ trong bảng Vật tư của ngăn: cả hàng chữ nhạt (ô `lds-g` tự tô --ink nên phải đặt trên ô). */
+.lds-g tr.ycd-bo td { color: var(--ash-2); }
+.ycd-bang th, .ycd-bang td { padding-left: 10px !important; padding-right: 10px !important; }
+/* Cột nút "Bỏ món" (48px): nút 30px + đệm ô 2×10px = 50px tràn cột, ô cắt thành "…" (08/10/2026).
+   Đệm 4px và không cắt chữ ⇒ nút nằm gọn giữa ô. */
+.lds-g td.ycd-nut { padding: 0 4px; overflow: visible; text-overflow: clip; }

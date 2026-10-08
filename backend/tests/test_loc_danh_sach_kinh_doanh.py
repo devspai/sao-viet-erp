@@ -126,6 +126,37 @@ def test_bao_gia_loc_ky_khach_gia_hieu_luc_va_xep_theo_gia(client):
     khach = client.get("/api/quotations/khach-loc", headers=_h(t)).json()
     assert {"id": kh, "ten": "Công ty Lọc Kỳ", "so": 2} in khach
 
+    # Dòng "Cộng" cuối bảng: Σ giá bán của MỌI dòng khớp bộ lọc, không chỉ trang đang xem.
+    r = client.get("/api/quotations", params={"q": "BG-LK", "size": 1}, headers=_h(t)).json()
+    assert r["total"] == 3 and len(r["items"]) == 1 and r["tong_gia_ban"] == 15_000_000
+    r = client.get("/api/quotations", params={"q": "BG-LK", "khach": kh}, headers=_h(t)).json()
+    assert r["tong_gia_ban"] == 14_000_000
+
+
+def test_bao_gia_dong_kem_don_hang_va_so_luong(client):
+    """Lưới Báo giá: cột Đơn hàng (mã + trạng thái đơn lên từ báo giá), Số lượng + đơn vị dòng đầu."""
+    from app.models.quotation import QuoteItem
+    t = _token(client)
+    db = SessionLocal()
+    try:
+        q = Quote(quote_number="BG-DK1", status="converted_to_order")
+        db.add(q)
+        db.flush()
+        v = QuoteVersion(quote_id=q.id, version_number=1, final_amount=1_000_000)
+        db.add(v)
+        db.flush()
+        q.current_version_id = v.id
+        for i, (ten, sl, dv) in enumerate([("Ruột sách", 2000, "cuốn"), ("Bìa sách", 2000, "tờ")]):
+            db.add(QuoteItem(quote_version_id=v.id, line_no=i + 1, product_type="khac", product_name=ten,
+                             quantity=sl, unit=dv))
+        db.add(Order(order_no="DH-DK1", source_type="bao_gia", quotation_id=q.id, status="ordered"))
+        db.commit()
+    finally:
+        db.close()
+    it = client.get("/api/quotations", params={"q": "BG-DK1"}, headers=_h(t)).json()["items"][0]
+    assert (it["san_pham"], it["so_sp_khac"], it["so_luong"], it["don_vi"]) == ("Ruột sách", 1, 2000, "cuốn")
+    assert (it["don_hang_ma"], it["don_hang_trang_thai"]) == ("DH-DK1", "ordered")
+
 
 # --- Đơn hàng bán -------------------------------------------------------------------------------
 
@@ -223,6 +254,6 @@ def test_ptg_loc_ky_khach_gia_von_va_da_len_bao_gia(client):
     assert ma({"bao_gia": "co"}) == ["PTG-PL0"]
     assert ma({"bao_gia": "chua"}) == ["PTG-PL1"]
     st = client.get("/api/phieu-tinh-gia/stats", params={"khach": kh, "bao_gia": "chua"}, headers=_h(t)).json()
-    assert st == {"all": 1, "draft": 0, "calculated": 1}
+    assert st == {"all": 1, "draft": 0, "dang_tinh": 0, "calculated": 1}
     assert {"id": kh, "ten": "Công ty Phiếu Lọc", "so": 2} in client.get(
         "/api/phieu-tinh-gia/khach-loc", headers=_h(t)).json()

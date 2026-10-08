@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Danh sách Kinh doanh gọn: 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ink-2:#1e293b;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--charcoal:#0f172a;
+  --tt-vang-bg:#fef3c7;--tt-vang-fg:#b45309;
+  --tt-cam-bg:#ffedd5;--tt-cam-fg:#c2410c;
+  --tt-xanh-bg:#dbeafe;--tt-xanh-fg:#1d4ed8;
+  --tt-cyan-bg:#cffafe;--tt-cyan-fg:#0e7490;
+  --tt-cham-bg:#e0e7ff;--tt-cham-fg:#4338ca;
+  --tt-tim-bg:#ede9fe;--tt-tim-fg:#6d28d9;
+  --tt-la-bg:#dcfce7;--tt-la-fg:#15803d;
+  --tt-do-bg:#fee2e2;--tt-do-fg:#b91c1c;
+  --tt-xam-bg:#e5e7eb;--tt-xam-fg:#374151;
+  --tt-slate-bg:#f1f5f9;--tt-slate-fg:#475569;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b{font-weight:500}
+button{font:inherit;color:inherit}
+.doc{max-width:1660px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:26px;font-weight:500;margin:0 0 8px;letter-spacing:-.01em}
+.doc>p,.doc li{color:var(--ash);max-width:1100px}
+.doc ul{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.cap{margin:26px 0 6px;font-size:16px;font-weight:500}
+.note{color:var(--ash);font-size:13.5px;margin:0 0 10px;max-width:1180px}
+.words{border-collapse:collapse;background:#fff;border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden;margin:8px 0 4px;font-size:13px}
+.words th,.words td{padding:5px 12px;border-bottom:1px solid var(--rule-hair);text-align:left;vertical-align:top}
+.words th{background:#f8fafc;color:var(--ash-2);font-weight:500;font-size:12px}
+.words td:first-child{color:var(--ash-2);text-decoration:line-through;text-decoration-color:var(--ash-3)}
+.words td:last-child{color:var(--ash-2)}
+
+/* thanh chọn phương án + màn */
+.pick{position:sticky;top:0;z-index:20;background:#e9edf2ee;backdrop-filter:blur(6px);padding:12px 0;margin:18px 0 6px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.pick .lb{color:var(--ash-2);font-size:12.5px}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px}
+.pick .seg{background:#fff;border:1px solid var(--rule-soft)}
+.seg button{border:1px solid transparent;background:transparent;padding:4px 11px;border-radius:6px;font-size:13px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+.pick .seg button.on{background:var(--rule-hair)}
+.why{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:10px 0 14px;max-width:1180px;color:var(--ash);font-size:13.5px}
+.why .t{color:var(--ink);font-size:15px;font-weight:500;margin-bottom:4px}
+.why ul{margin:4px 0 0;padding-left:18px}
+.why li{margin:2px 0}
+.scroll{overflow-x:auto;padding-bottom:8px}
+
+/* khung app */
+.frame{width:1600px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;display:grid;grid-template-columns:56px 1fr;min-height:560px}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:14px}
+.rail i{width:26px;height:26px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{display:flex;flex-direction:column;min-width:0}
+.top{height:44px;background:#fff;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;justify-content:flex-end;padding:0 24px;gap:10px;color:var(--ash);font-size:13px}
+.top .av{width:26px;height:26px;border-radius:50%;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px}
+.body{padding:14px 24px 20px}
+
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.tool h2{font-size:18px;font-weight:500;margin:0 6px 0 0;letter-spacing:-.01em;white-space:nowrap}
+.tool .sp{flex:1}
+.search{display:flex;align-items:center;gap:7px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:280px;color:var(--ash-3);font-size:13px;white-space:nowrap;overflow:hidden}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.xs{padding:1px 8px;font-size:12px}
+.btn .car{color:var(--ash-3);font-size:10px}
+.ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+.flt{display:flex;gap:2px;flex-wrap:wrap}
+.flt button{border:1px solid transparent;background:transparent;border-radius:7px;padding:3px 10px;font-size:13px;color:var(--ash);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.flt button:hover{background:var(--rule-hair)}
+.flt button.on{border-color:var(--rule);background:#fff;color:var(--ink)}
+.flt button.z{color:var(--ash-3)}
+.flt i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.flt .n{color:var(--ash-3);font-size:12px}
+.row2{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.row2 .sp{flex:1}
+.sum{color:var(--ash-2);font-size:13px;white-space:nowrap}
+.sum b{color:var(--ink);font-weight:400;font-variant-numeric:tabular-nums;margin-left:6px}
+
+/* tab gạch dưới (phương án C + màn Giao hàng) */
+.utabs{display:flex;gap:20px;border-bottom:1px solid var(--rule-soft);margin-bottom:0}
+.utabs button{border:0;background:transparent;padding:8px 0 9px;font-size:13.5px;color:var(--ash);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;display:inline-flex;gap:6px;align-items:baseline}
+.utabs button.on{color:var(--ink);border-bottom-color:var(--ink)}
+.utabs button.z{color:var(--ash-3)}
+.utabs .n{color:var(--ash-3);font-size:12px}
+
+/* lưới */
+.sheet{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.sheet .inbar{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--rule-soft)}
+.sheet .inbar .sp{flex:1}
+.g{border-collapse:collapse;width:100%;table-layout:fixed}
+.g th,.g td{border-right:1px solid var(--rule-hair);border-bottom:1px solid var(--rule-hair);padding:6px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;height:34px}
+.g th:last-child,.g td:last-child{border-right:0}
+.g th{background:#f8fafc;color:var(--ash-2);font-weight:500;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:32px}
+.g th.srt{color:var(--ink-2)}
+.g td.n,.g th.n{text-align:right;font-variant-numeric:tabular-nums}
+.g td.c,.g th.c{text-align:center}
+.g tr.row:hover td{background:#f8fafc}
+.g tr.gr td{background:#f1f5f9;border-right-color:#e8edf3;color:var(--ink-2)}
+.g tr.gr td.lead,.g tr.tot td.lead{overflow:visible}
+.g tr.tot td{background:#f8fafc;color:var(--ink-2);border-bottom:0}
+.gl{display:flex;align-items:center;gap:10px}
+.gl .chev{color:var(--ash-3);font-size:11px;width:10px}
+.mu{color:var(--ash-2)}.mu3{color:var(--ash-3)}
+.red{color:var(--tt-do-fg)}.org{color:var(--tt-cam-fg)}.grn{color:var(--tt-la-fg)}
+.u{color:var(--ash-2);font-size:11.5px;margin-left:3px}
+a.lk{color:var(--tt-xanh-fg);text-decoration:none}
+a.lk:hover{text-decoration:underline}
+.cb{width:14px;height:14px;border:1px solid var(--rule);border-radius:4px;display:inline-block;background:#fff;vertical-align:-2px}
+.tag{white-space:nowrap;display:inline-block;background:var(--rule-hair);border-radius:4px;padding:0 6px;font-size:12px;color:var(--ink-2);margin-left:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;font-weight:500;white-space:nowrap}
+.chip:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip.sq{border-radius:5px}
+.c-vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg)}
+.c-cam{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}
+.c-xanh{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg)}
+.c-cyan{background:var(--tt-cyan-bg);color:var(--tt-cyan-fg)}
+.c-cham{background:var(--tt-cham-bg);color:var(--tt-cham-fg)}
+.c-tim{background:var(--tt-tim-bg);color:var(--tt-tim-fg)}
+.c-la{background:var(--tt-la-bg);color:var(--tt-la-fg)}
+.c-do{background:var(--tt-do-bg);color:var(--tt-do-fg)}
+.c-xam{background:var(--tt-xam-bg);color:var(--tt-xam-fg)}
+.c-slate{background:var(--tt-slate-bg);color:var(--tt-slate-fg)}
+.d-vang{background:#f59e0b}.d-xanh{background:#3b82f6}.d-cyan{background:#06b6d4}.d-cham{background:#6366f1}
+.d-tim{background:#8b5cf6}.d-la{background:#22c55e}.d-do{background:#ef4444}.d-xam{background:#6b7280}.d-slate{background:#94a3b8}.d-cam{background:#f97316}
+.bar{display:inline-block;width:46px;height:5px;border-radius:3px;background:var(--rule-hair);vertical-align:2px;margin-right:6px;position:relative;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:#22c55e;border-radius:3px}
+.foot{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;color:var(--ash-2);font-size:12.5px;border-top:1px solid var(--rule-soft)}
+.foot .l{display:flex;gap:14px}
+.pg{display:flex;gap:4px;align-items:center}
+.pg span{border:1px solid var(--rule-soft);border-radius:6px;padding:1px 8px;color:var(--ash)}
+.pg span.on{border-color:var(--rule);color:var(--ink)}
+.pg select{font:inherit;font-size:12.5px;border:1px solid var(--rule-soft);border-radius:6px;padding:1px 4px;margin-right:8px;background:#fff;color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Năm danh sách Kinh doanh và Giao hàng: 3 phương án gọn kiểu bảng tính</h1>
+<p>Màn: Tính giá thành, Báo giá thương mại, Đơn hàng bán, Giao hàng (tab Đơn giao hàng và tab Yêu cầu giao). Dữ liệu là dữ liệu thật trên ảnh chụp; riêng Tính giá thêm 4 phiếu PTG-0001…0004 để đủ 9 dòng như số trên tab.</p>
+<p>Giữ nguyên mọi luật đã chốt: ô tìm + nút kỳ + nút Lọc (phương án 2, Trạng thái đứng đầu menu) + người phụ trách; cột Ngày tạo; chân bảng phân trang đầy đủ, khung bảng không trần chiều cao; tiền chỉ hiện với người có quyền xem giá; chip trạng thái mỗi trạng thái một sắc; không chữ đậm, không nối thông tin bằng dấu chấm giữa hay dấu phẩy.</p>
+
+<div class="cap">Cái sai chung của 5 màn hiện tại</div>
+<ul>
+<li>Mỗi dòng cao 80–105px vì tên khách in hoa xuống 3 dòng, mã và tên hàng in đậm ⇒ một màn chỉ thấy 5–6 dòng.</li>
+<li>Đầu trang tốn hai tầng (nhãn nhỏ + tiêu đề 30px + đường kẻ) rồi thêm một tầng tab dạng hộp to.</li>
+<li>Chữ khó hiểu hoặc lệch nhau giữa các màn (bảng dưới).</li>
+<li>Đơn hàng: cột "Sản xuất" ghi "Đã giao đủ" trong khi khách chưa nhận (yêu cầu giao DH004 còn đang chờ) ⇒ dễ đọc nhầm là đã giao khách.</li>
+<li>Tính giá: tab "Tất cả 9" và "Đã tính giá 9" nhưng có một phiếu đang tính 0 đ ⇒ số tab đếm sai, phương án nào cũng tách riêng "Đang tính".</li>
+</ul>
+
+<div class="cap">Thứ tự cột (áp cho cả 3 phương án, mọi màn)</div>
+<p class="note">Đọc trái sang phải theo đúng câu hỏi: cái gì, tạo lúc nào, của ai, hàng gì bao nhiêu, bao nhiêu tiền, đang tới đâu, sang chứng từ nào, ai lo. Cụ thể: Mã, Ngày tạo, Khách hàng, Sản phẩm/Hàng, Số lượng, các cột tiền, Trạng thái rồi các khâu theo đúng thứ tự luồng (duyệt, hiệu lực, cọc, sản xuất, giao, hoá đơn), chứng từ kế tiếp (Báo giá, Đơn hàng), Người lập/Phụ trách, Ghi chú luôn đứng cuối và giãn theo chỗ trống. Giao hàng: Mã lượt/yêu cầu, Ngày tạo, Đơn, Khách, Giao tới, Hẹn giao, Xe và người giao, kết quả. Khuôn này giống danh sách đơn của Shopify và Stripe (mã, ngày, khách, tiền, các trạng thái).</p>
+<div class="cap">Đổi chữ (áp cho cả 3 phương án)</div>
+<table class="words">
+<tr><th>Hiện tại</th><th>Đổi thành</th><th>Vì sao</th></tr>
+<tr><td>Giá vốn/đơn</td><td>Giá vốn mỗi sp</td><td>"đơn" dễ hiểu thành đơn hàng</td></tr>
+<tr><td>SL (4.000)</td><td>Số lượng (4.000 tờ)</td><td>kèm đơn vị, khỏi đoán tờ hay cuốn</td></tr>
+<tr><td>markup 20%</td><td>Lãi 20%</td><td>cấm tiếng Anh trong UI</td></tr>
+<tr><td>Khách hàng đồng ý (chip) và Khách chốt (tab)</td><td>Khách đồng ý (cả hai)</td><td>một trạng thái một tên</td></tr>
+<tr><td>Không cần duyệt (lặp mọi dòng)</td><td>— (chữ mờ)</td><td>dòng nào cũng nói cùng câu là nhiễu</td></tr>
+<tr><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td>CAFÉ KATINAT (tên đủ khi rê chuột)</td><td>bỏ tiền tố loại hình công ty khi hiện trên lưới, tên khách hết xuống 3 dòng</td></tr>
+<tr><td>PO</td><td>PO khách</td><td></td></tr>
+<tr><td>Chốt / Giao / NV</td><td>Ngày chốt / Hẹn giao / Phụ trách</td><td>tiêu đề cột là chữ thường dễ hiểu</td></tr>
+<tr><td>Sản xuất: Đã giao đủ, kho đã nhận đủ</td><td>Đã nhập kho đủ</td><td>tách bạch xưởng giao kho với giao khách</td></tr>
+<tr><td>Chưa xuống xưởng, chờ Kế hoạch phát hành lệnh</td><td>Chờ phát lệnh</td><td></td></tr>
+<tr><td>Cơ sở Gia công Cán màng Thành Công, trọn gói từ 20:55 06-10</td><td>Thuê ngoài trọn gói (tên nhà gia công khi rê chuột)</td><td>ô SX chỉ cần nói đang ở khâu nào</td></tr>
+<tr><td>GIAO THÀNH CÔNG / NHÁP / ĐÃ CHỐT / HÔM NAY (in hoa)</td><td>Đã giao / Nháp / Đã chốt / Hôm nay</td><td>in hoa trông như la hét, chiếm chỗ</td></tr>
+<tr><td>Sớm 24 ngày</td><td>Trước hẹn 24 ngày</td><td>nói rõ so với cái gì</td></tr>
+<tr><td>Xe và kíp</td><td>Xe và người giao</td><td></td></tr>
+</table>
+
+<div class="pick">
+  <span class="lb">Phương án</span>
+  <div class="seg" id="pa"></div>
+  <span class="lb">Màn</span>
+  <div class="seg" id="man"></div>
+</div>
+<div class="why" id="why"></div>
+<div class="scroll"><div id="stage"></div></div>
+</div>
+
+<script>
+// ---------- tiện ích ----------
+const f = n => n.toLocaleString("vi-VN");
+const ch = (t, c, sq) => `<span class="chip c-${c}${sq ? " sq" : ""}">${t}</span>`;
+const lk = t => `<a class="lk" href="#">${t}</a>`;
+const mu = t => `<span class="mu">${t}</span>`;
+const mu3 = t => `<span class="mu3">${t}</span>`;
+const tag = t => `<span class="tag">${t}</span>`;
+const IC = {
+  q: '<svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  cal: '<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  flt: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>',
+  plus: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  rl: '<svg class="ic" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>',
+  cols: '<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>',
+};
+const KH = {
+  kat: "CÔNG TY CỔ PHẦN CAFÉ KATINAT",
+  bib: "CÔNG TY CỔ PHẦN BIBICA",
+  clh: "CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM",
+  vil: "CÔNG TY TNHH VI LỮ",
+};
+const kh = k => `<span title="${KH[k]}">${KH[k].replace(/^CÔNG TY (CỔ PHẦN|TNHH) /, "")}</span>`;
+
+// ---------- dữ liệu ----------
+const TG = [
+  {ma:"PTG-2026-0009", sp:"Tờ rơi A4 4/4", k:"kat", sl:4000, dv:"tờ", gv:1089, tong:4355295, tt:"Đã tính giá", bg:"BG26-0005", gc:"Phiếu test luồng: in 2 mặt tự trở, cắt ra 4", ngay:"06/10/2026", ng:"Admin"},
+  {ma:"PTG-2026-0008", sp:"test 999", k:"vil", sl:0, dv:"cái", gv:0, tong:0, tt:"Đang tính", bg:"", gc:"", ngay:"05/10/2026", ng:"Bùi Thị Hạnh"},
+  {ma:"PTG-2026-0007", sp:"Tờ rơi A4 4/4", k:"kat", sl:4000, dv:"tờ", gv:1089, tong:4355295, tt:"Đã tính giá", bg:"BG26-0004", gc:"Phiếu test luồng: in 2 mặt tự trở, cắt ra 4", ngay:"05/10/2026", ng:"Nguyễn Thị Huyên"},
+  {ma:"PTG-2026-0006", sp:"Tờ rơi A4 4/4", k:"kat", sl:25000, dv:"tờ", gv:599, tong:14967332, tt:"Đã tính giá", bg:"", gc:"Phiếu test luồng: in 2 mặt tự trở, cắt ra 4", ngay:"04/10/2026", ng:"Nguyễn Thị Huyên"},
+  {ma:"PTG-2026-0005", sp:"TEST Sách A5 64 trang", them:2, k:"bib", sl:2000, dv:"cuốn", gv:10206, tong:20411966, tt:"Đã tính giá", bg:"BG26-0002", gc:"Phiếu test luồng: tay sách (ruột) và bìa", ngay:"04/10/2026", ng:"Nguyễn Thị Huyên"},
+  {ma:"PTG-2026-0004", sp:"Tờ rơi A4 4/4", k:"kat", sl:4000, dv:"tờ", gv:1003, tong:4013426, tt:"Đã tính giá", bg:"BG26-0003", gc:"", ngay:"04/10/2026", ng:"Nguyễn Thị Huyên"},
+  {ma:"PTG-2026-0003", sp:"Hộp giấy cứng 2 mảnh", k:"clh", sl:1000, dv:"hộp", gv:7050, tong:7050000, tt:"Đã tính giá", bg:"", gc:"Khách hỏi thêm phương án bồi carton", ngay:"03/10/2026", ng:"Admin"},
+  {ma:"PTG-2026-0002", sp:"Catalogue A4 24 trang", k:"bib", sl:500, dv:"cuốn", gv:18420, tong:9210000, tt:"Đã tính giá", bg:"", gc:"", ngay:"02/10/2026", ng:"Bùi Thị Hạnh"},
+  {ma:"PTG-2026-0001", sp:"Hộp giấy cứng 2 mảnh", k:"clh", sl:1000, dv:"hộp", gv:6529, tong:6528528, tt:"Đã tính giá", bg:"BG26-0001", gc:"", ngay:"02/10/2026", ng:"Admin"},
+];
+const TT_TG = {"Đã tính giá":"la","Đang tính":"xanh","Nháp":"slate"};
+
+const BG = [
+  {ma:"BG26-0005", v:1, k:"kat", sp:"Tờ rơi A4 4/4", sl:"4.000 tờ", ptg:"PTG-0009", gia:5748988, lai:20, tt:"Khách đồng ý", han:"21/10/2026", dh:"DH005", dhtt:"Nháp", ngay:"07/10/2026", ng:"Nguyễn Thị Huyên", tiep:"Đơn DH005 còn nháp: chốt đơn"},
+  {ma:"BG26-0004", v:1, k:"kat", sp:"Tờ rơi A4 4/4", sl:"4.000 tờ", ptg:"PTG-0007", gia:5748988, lai:20, tt:"Đã lên đơn", han:"21/10/2026", dh:"DH004", dhtt:"Đã chốt", ngay:"07/10/2026", ng:"Nguyễn Thị Huyên"},
+  {ma:"BG26-0003", v:1, k:"kat", sp:"Tờ rơi A4 4/4", sl:"4.000 tờ", ptg:"PTG-0004", gia:5201400, lai:20, tt:"Đã lên đơn", han:"20/10/2026", dh:"DH003", dhtt:"Đã chốt", ngay:"06/10/2026", ng:"Nguyễn Thị Huyên"},
+  {ma:"BG26-0002", v:1, k:"bib", sp:"Ruột sách A5 64 trang", them:1, sl:"2.000 cuốn", ptg:"PTG-0005", gia:26943796, lai:22, tt:"Đã lên đơn", han:"20/10/2026", dh:"DH002", dhtt:"Đã chốt", ngay:"06/10/2026", ng:"Nguyễn Thị Huyên"},
+  {ma:"BG26-0001", v:1, k:"clh", sp:"Hộp giấy cứng 2 mảnh", sl:"1.000 hộp", ptg:"PTG-0001", gia:8460973, lai:20, tt:"Đã lên đơn", han:"19/10/2026", dh:"DH001", dhtt:"Hoàn tất", ngay:"05/10/2026", ng:"Nguyễn Thị Huyên"},
+];
+const TT_BG = {"Soạn":"slate","Chờ duyệt":"vang","Đã duyệt":"xanh","Đã gửi khách":"cyan","Khách đồng ý":"la","Đã lên đơn":"tim","Từ chối":"do","Hết hiệu lực":"xam"};
+const TAB_BG = [["Tất cả",5],["Cần xử lý",0],["Soạn",0],["Chờ duyệt",0],["Đã duyệt",0],["Đã gửi khách",0],["Khách đồng ý",1],["Đã lên đơn",4],["Từ chối",0],["Hết hiệu lực",0]];
+
+const DH = [
+  {ma:"DH005", k:"kat", hang:"Tờ rơi A4 4/4", po:"", gia:5748989, coc:null, chot:"", hen:"", con:"", sx:["",""], giao:["",""], hd:["",""], tt:"Nháp", nv:"Huyên", ngay:"07/10/2026", khau:"", tiep:"Nhập PO khách và ngày hẹn giao để chốt"},
+  {ma:"DH004", k:"kat", hang:"Tờ rơi A4 4/4", po:"www", gia:5748989, coc:null, chot:"07/10", hen:"27/10", con:"còn 20 ngày", sx:["Đã nhập kho đủ","la"], giao:["Chờ lên đơn","vang"], hd:["Chưa ghi","slate"], tt:"Đã chốt", nv:"Huyên", ngay:"07/10/2026", khau:"Giao hàng", tiep:"Kho lên đơn giao, khách cần hôm nay"},
+  {ma:"DH003", k:"kat", hang:"Tờ rơi A4 4/4", po:"po45623", gia:5201400, coc:[1560420,1560420], chot:"06/10", hen:"27/10", con:"còn 20 ngày", sx:["Thuê ngoài","cham"], giao:["Chưa giao","slate"], hd:["Chưa ghi","slate"], tt:"Đã chốt", nv:"Huyên", ngay:"06/10/2026", khau:"Thuê ngoài", tiep:"Chờ Cán màng Thành Công trả hàng"},
+  {ma:"DH002", k:"bib", hang:"Ruột sách A5 64 trang", them:1, po:"PO451263", gia:26943796, coc:null, chot:"06/10", hen:"06/11", con:"còn 30 ngày", sx:["Chờ phát lệnh","vang"], giao:["Chưa giao","slate"], hd:["Chưa ghi","slate"], tt:"Đã chốt", nv:"Huyên", ngay:"06/10/2026", khau:"Kế hoạch", tiep:"Kế hoạch phát lệnh sản xuất"},
+  {ma:"DH001", k:"clh", hang:"Hộp giấy cứng 2 mảnh", po:"PO999", gia:8460973, coc:null, chot:"05/10", hen:"30/10", con:"", sx:["Xong","la"], giao:["Khách đã nhận","la"], hd:["Đã ghi đủ","la"], tt:"Hoàn tất", nv:"Huyên", ngay:"05/10/2026", khau:"Xong", tiep:""},
+];
+const TT_DH = {"Nháp":"slate","Sẵn sàng chốt":"cham","Chờ cọc":"vang","Đã chốt":"xanh","Hoàn tất":"la","Hủy":"xam"};
+const TAB_DH = [["Tất cả",5],["Nháp",1],["Sẵn sàng chốt",0],["Chờ cọc",0],["Đã chốt",4],["Hoàn tất",1],["Hủy",0]];
+
+// ---------- khung ----------
+function frame(inner){
+  return `<div class="frame"><div class="rail"><i></i><i class="on"></i><i></i><i></i><i></i><i></i></div>
+  <div class="main"><div class="top"><span>Admin</span><span class="av">A</span></div><div class="body">${inner}</div></div></div>`;
+}
+const search = ph => `<div class="search">${IC.q}<span>${ph}</span></div>`;
+const ky = () => `<button class="btn">${IC.cal}Mọi thời gian <span class="car">▾</span></button>`;
+const loc = () => `<button class="btn">${IC.flt}Lọc</button>`;
+const nguoi = t => `<button class="btn">${t} <span class="car">▾</span></button>`;
+function foot(n, tong, them){
+  return `<div class="foot"><div class="l"><span>Trang 1/1</span><span>${n} dòng / tổng ${tong}</span>${them||""}</div>
+  <div class="pg">Dòng/trang <select><option>25</option></select><span>‹</span><span class="on">1</span><span>›</span></div></div>`;
+}
+// cols: [[tiêu đề, rộng, lớp]] theo thứ tự dữ liệu; order: thứ tự hiện (theo tên cột).
+// rows: mảng ô (theo thứ tự cols) hoặc dòng gộp {cls, lead, at:{tên cột: html}} — lead trải từ cột đầu
+// tới trước cột đầu tiên có giá trị trong at.
+function grid(cols, rows, order){
+  const idx = order ? order.map(n => { const i = cols.findIndex(c => c[0] === n); if (i < 0) throw n; return i; }) : cols.map((c, i) => i);
+  const oc = idx.map(i => cols[i]);
+  const cg = oc.map(c => c[1] ? `<col style="width:${c[1]}px">` : `<col>`).join("");
+  const th = oc.map(c => `<th class="${c[2]||""}">${c[0].startsWith("_") ? "" : c[0]}</th>`).join("");
+  const td = (c, k) => {
+    const t = typeof c === "string" ? c.replace(/<[^>]+>/g, "").replace(/"/g, "") : "";
+    return `<td class="${k||""}" title="${t}">${c ?? ""}</td>`;
+  };
+  const tb = rows.map(r => {
+    if (Array.isArray(r)) return `<tr class="row">` + idx.map((i, j) => td(r[i], oc[j][2])).join("") + "</tr>";
+    const at = r.at || {};
+    let span = oc.findIndex(c => c[0] in at);
+    if (span < 0) span = oc.length;
+    const lead = r.cls === "gr" ? `<div class="gl"><span class="chev">▾</span>${r.lead}</div>` : r.lead;
+    return `<tr class="${r.cls}"><td colspan="${span}" class="lead">${lead}</td>` + oc.slice(span).map(c => td(at[c[0]] ?? "", c[2])).join("") + "</tr>";
+  }).join("");
+  return `<table class="g"><colgroup>${cg}</colgroup><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+}
+const fltRow = (tabs, map, on) => `<div class="flt">` + tabs.map(([t, n], i) =>
+  `<button class="${i === (on||0) ? "on" : ""}${n === 0 ? " z" : ""}">${map && map[t] ? `<i class="d-${map[t]}"></i>` : ""}${t} <span class="n">${n}</span></button>`).join("") + `</div>`;
+const uTabs = (tabs, on) => `<div class="utabs">` + tabs.map(([t, n], i) =>
+  `<button class="${i === (on||0) ? "on" : ""}${n === 0 ? " z" : ""}">${t}${n != null ? ` <span class="n">${n}</span>` : ""}</button>`).join("") + `</div>`;
+const seg = (opts, on) => `<div class="seg">` + opts.map((o, i) => `<button class="${i === on ? "on" : ""}">${o}</button>`).join("") + `</div>`;
+const grRow = (lead, at) => ({cls:"gr", lead, at: at || {}});
+const totRow = (lead, at) => ({cls:"tot", lead: mu(lead), at});
+
+const sp = r => r.sp + (r.them ? `<span class="tag" title="và ${r.them} sản phẩm khác">+${r.them}</span>` : "");
+const hg = r => r.hang + (r.them ? `<span class="tag" title="và ${r.them} món khác">+${r.them}</span>` : "");
+const sumTG = TG.reduce((a, r) => a + r.tong, 0);
+const sumBG = BG.reduce((a, r) => a + r.gia, 0);
+const sumDH = DH.reduce((a, r) => a + r.gia, 0);
+const cocCell = r => !r.coc ? mu3("—") : `${f(r.coc[0])} ${r.coc[0] >= r.coc[1] ? `<span class="grn">đủ</span>` : ""}`;
+const henCell = r => r.hen ? r.hen + (r.con ? `<span class="u">${r.con}</span>` : "") : mu3("—");
+
+const TAB_TG = [["Tất cả",9],["Đã tính giá",8],["Đang tính",1],["Phiếu nháp",0]];
+const GH_TABS = [["Đơn giao hàng"],["Yêu cầu giao"],["Nhân viên giao hàng"]];
+
+// ===================================================================
+// PHƯƠNG ÁN A — Bảng tính (Google Sheets / Airtable grid view)
+// ===================================================================
+const A = {};
+A.tg = () => frame(`
+  <div class="tool"><h2>Tính giá thành</h2>${search("Tìm mã phiếu, khách hàng, sản phẩm")}${ky()}${loc()}${nguoi("Tất cả người lập")}<span class="sp"></span><button class="btn pri">${IC.plus}Lập phiếu tính giá</button></div>
+  <div class="row2">${fltRow(TAB_TG, TT_TG)}<span class="sp"></span><button class="btn">${IC.cols}Cột</button></div>
+  <div class="sheet">${grid(
+    [["Mã phiếu",135],["Sản phẩm",210],["Khách hàng",200],["Số lượng",100,"n"],["Giá vốn mỗi sp",110,"n"],["Tổng giá vốn",120,"n"],["Trạng thái",115],["Báo giá",100],["Ghi chú",0],["Ngày tạo ↓",100,"srt"],["Người lập",135]],
+    [...TG.map(r => [r.ma, sp(r), kh(r.k), r.sl ? `${f(r.sl)}<span class="u">${r.dv}</span>` : mu3("0"), r.gv ? f(r.gv) : mu3("0"), r.tong ? f(r.tong) : mu3("0"), ch(r.tt, TT_TG[r.tt]), r.bg ? lk(r.bg) : mu3("Chưa lập"), r.gc ? mu(r.gc) : "", r.ngay, r.ng]),
+     totRow("Cộng 9 phiếu", {"Tổng giá vốn": f(sumTG)})], ["Mã phiếu","Ngày tạo ↓","Khách hàng","Sản phẩm","Số lượng","Giá vốn mỗi sp","Tổng giá vốn","Trạng thái","Báo giá","Người lập","Ghi chú"]
+  )}${foot(9, 9)}</div>`);
+
+A.bg = () => frame(`
+  <div class="tool"><h2>Báo giá thương mại</h2>${search("Tìm mã báo giá, khách hàng, sản phẩm")}${ky()}${loc()}${nguoi("Tất cả NV phụ trách")}<span class="sp"></span><button class="btn pri">${IC.plus}Báo giá mới</button></div>
+  <div class="row2">${fltRow(TAB_BG, TT_BG)}<span class="sp"></span><button class="btn">${IC.cols}Cột</button></div>
+  <div class="sheet">${grid(
+    [["Mã báo giá",115],["Khách hàng",200],["Sản phẩm",195],["Số lượng",95,"n"],["Giá bán gồm VAT",125,"n"],["Lãi",55,"n"],["Trạng thái",140],["Đơn hàng",80],["Hiệu lực",100],["Người duyệt",95],["Ngày tạo ↓",100,"srt"],["Người lập",0]],
+    [...BG.map(r => [r.ma + `<span class="u">v${r.v}</span>`, kh(r.k), sp(r), r.sl, f(r.gia), r.lai + "%", ch(r.tt, TT_BG[r.tt]), lk(r.dh), r.han, mu3("—"), r.ngay, r.ng]),
+     totRow("Cộng 5 báo giá", {"Giá bán gồm VAT": f(sumBG)})], ["Mã báo giá","Ngày tạo ↓","Khách hàng","Sản phẩm","Số lượng","Giá bán gồm VAT","Lãi","Trạng thái","Người duyệt","Hiệu lực","Đơn hàng","Người lập"]
+  )}${foot(5, 5)}</div>`);
+
+A.dh = () => frame(`
+  <div class="tool"><h2>Đơn hàng bán</h2>${search("Tìm mã đơn, khách, PO, hàng")}${ky()}${loc()}${nguoi("Tất cả NV phụ trách")}<span class="sp"></span></div>
+  <div class="row2">${fltRow(TAB_DH, TT_DH)}<span class="sp"></span><button class="btn">${IC.cols}Cột</button></div>
+  <div class="sheet">${grid(
+    [["Mã đơn",70],["Khách hàng",200],["Hàng",192],["PO khách",88],["Giá trị",105,"n"],["Cọc",110],["Hẹn giao",130],["Sản xuất",150],["Giao khách",145],["Trạng thái",110],["Phụ trách",0],["Ngày tạo ↓",100,"srt"]],
+    [...DH.map(r => [r.ma, kh(r.k), hg(r), r.po || mu3("—"), f(r.gia), cocCell(r), henCell(r), r.sx[0] ? ch(r.sx[0], r.sx[1], 1) : mu3("—"), r.giao[0] ? ch(r.giao[0], r.giao[1], 1) : mu3("—"), ch(r.tt, TT_DH[r.tt]), r.nv, r.ngay]),
+     totRow("Cộng 5 đơn", {"Giá trị": f(sumDH), "Cọc": f(1560420)})], ["Mã đơn","Ngày tạo ↓","Khách hàng","Hàng","PO khách","Giá trị","Trạng thái","Hẹn giao","Cọc","Sản xuất","Giao khách","Phụ trách"]
+  )}${foot(5, 5)}</div>`);
+
+const ghHead = (on, right) => `<div class="tool"><h2>Giao hàng</h2>${seg(GH_TABS.map(t => t[0]), on)}<span class="sp"></span>${right||""}<button class="btn">${IC.rl}Tải lại</button></div>`;
+A.gl = () => frame(`
+  ${ghHead(0)}
+  <div class="row2">${search("Tìm mã yêu cầu, mã đơn, khách, mã lượt")}${ky()}${loc()}<span class="sp"></span>${fltRow([["Tất cả",1],["Đang chuẩn bị",0],["Đang giao",0],["Đã giao",1],["Giao thiếu",0],["Thất bại",0]], {"Đang chuẩn bị":"xanh","Đang giao":"cyan","Đã giao":"la","Giao thiếu":"cam","Thất bại":"do"})}</div>
+  <div class="sheet">${grid(
+    [["Lượt",195],["Xe và người giao",290],["Khách hàng",200],["Đơn",70],["Giao tới",0],["Hẹn giao",80],["Tình trạng",105],["So với hẹn",140],["Km",55,"n"],["Ngày tạo ↓",145,"srt"]],
+    [["Giao thẳng" + `<span class="u">khách nhận 06/10</span>`, ch("Nhà gia công","tim",1) + ` <span title="Cơ sở Gia công Cán màng Thành Công">Cán màng Thành Công</span>`, kh("clh"), lk("DH001"), "KCN VSIP 1, Phường Thuận An", "30/10", ch("Đã giao","la"), `<span class="grn">Trước hẹn 24 ngày</span>`, mu3("—"), "06/10/2026 12:46"]], ["Lượt","Ngày tạo ↓","Đơn","Khách hàng","Giao tới","Hẹn giao","Xe và người giao","Tình trạng","So với hẹn","Km"]
+  )}${foot(1, 1, "<span>1 lượt giao gồm 1 đơn giao</span>")}</div>`);
+
+A.yc = () => frame(`
+  ${ghHead(1)}
+  <div class="row2">${search("Tìm mã yêu cầu, mã đơn, khách")}${ky()}${loc()}<span class="sp"></span>${fltRow([["Tất cả",1],["Quá hẹn",0],["Hôm nay",1],["Ngày mai",0],["Sau đó",0]], {"Quá hẹn":"do","Hôm nay":"cam","Ngày mai":"vang","Sau đó":"slate"})}</div>
+  <div class="sheet">${grid(
+    [["_cb",36,"c"],["Mã yêu cầu",170],["Đơn",70],["Khách hàng",200],["Hàng",180],["Số lượng",95,"n"],["Cần giao",90],["Giao tới",280],["Người yêu cầu",120],["Ngày tạo ↓",100,"srt"],["_act",0,"c"]],
+    [['<span class="cb"></span>', lk("YCGH-261006-UHN8"), "DH004", kh("kat"), "Tờ rơi A4 4/4", `4.000<span class="u">tờ</span>`, `<span class="org">Hôm nay</span>`, "Lô 16, Đường số 3, KCN Tân Tạo, Bình Tân", "Admin", "07/10/2026", `<button class="btn xs">Lên đơn giao</button>`]], ["_cb","Mã yêu cầu","Ngày tạo ↓","Đơn","Khách hàng","Hàng","Số lượng","Cần giao","Giao tới","Người yêu cầu","_act"]
+  )}${foot(1, 1)}</div>`);
+
+// ===================================================================
+// PHƯƠNG ÁN B — Nhóm theo trạng thái (Linear / Attio list view)
+// ===================================================================
+const B = {};
+const xem = (opts) => `<span class="mu" style="font-size:12.5px">Xem theo</span>${seg(opts, 0)}`;
+B.tg = () => {
+  const cols = [["Mã phiếu",135],["Sản phẩm",220],["Khách hàng",200],["Số lượng",100,"n"],["Giá vốn mỗi sp",110,"n"],["Tổng giá vốn",120,"n"],["Báo giá",115],["Ghi chú",0],["Ngày tạo ↓",100,"srt"],["Người lập",135]];
+  const row = r => [r.ma, sp(r), kh(r.k), r.sl ? `${f(r.sl)}<span class="u">${r.dv}</span>` : mu3("0"), r.gv ? f(r.gv) : mu3("—"), r.tong ? f(r.tong) : mu3("—"), r.bg ? lk(r.bg) : (r.tong ? `<button class="btn xs">Lập báo giá</button>` : mu3("Chưa ra giá")), r.gc ? mu(r.gc) : "", r.ngay, r.ng];
+  const dang = TG.filter(r => r.tt === "Đang tính"), xong = TG.filter(r => r.tt === "Đã tính giá");
+  return frame(`
+  <div class="tool"><h2>Tính giá thành</h2>${search("Tìm mã phiếu, khách hàng, sản phẩm")}${ky()}${loc()}${nguoi("Tất cả người lập")}<span class="sp"></span>${xem(["Trạng thái","Khách hàng","Người lập","Không nhóm"])}<button class="btn pri">${IC.plus}Lập phiếu tính giá</button></div>
+  <div class="sheet">${grid(cols, [
+    grRow(`${ch("Đang tính","xanh")}<span class="mu">1 phiếu</span>`), ...dang.map(row),
+    grRow(`${ch("Đã tính giá","la")}<span class="mu">8 phiếu</span><span class="mu3">3 phiếu chưa lập báo giá</span>`, {"Tổng giá vốn": f(sumTG)}), ...xong.map(row),
+  ], ["Mã phiếu","Ngày tạo ↓","Khách hàng","Sản phẩm","Số lượng","Giá vốn mỗi sp","Tổng giá vốn","Báo giá","Người lập","Ghi chú"])}${foot(9, 9, "<span>Nhóm rỗng (Phiếu nháp) đang ẩn</span>")}</div>`);
+};
+B.bg = () => {
+  const cols = [["Mã báo giá",120],["Khách hàng",200],["Sản phẩm",195],["Số lượng",95,"n"],["Giá bán gồm VAT",125,"n"],["Lãi",55,"n"],["Đơn hàng",200],["Hiệu lực",100],["Người duyệt",95],["Ngày tạo ↓",100,"srt"],["Người lập",0]];
+  const row = r => [r.ma + `<span class="u">v${r.v}</span>`, kh(r.k), sp(r), r.sl, f(r.gia), r.lai + "%", lk(r.dh) + " " + ch(r.dhtt, TT_DH[r.dhtt]), r.han, mu3("—"), r.ngay, r.ng];
+  const g1 = BG.filter(r => r.tt === "Khách đồng ý"), g2 = BG.filter(r => r.tt === "Đã lên đơn");
+  return frame(`
+  <div class="tool"><h2>Báo giá thương mại</h2>${search("Tìm mã báo giá, khách hàng, sản phẩm")}${ky()}${loc()}${nguoi("Tất cả NV phụ trách")}<span class="sp"></span>${xem(["Trạng thái","Khách hàng","Phụ trách","Không nhóm"])}<button class="btn pri">${IC.plus}Báo giá mới</button></div>
+  <div class="sheet">${grid(cols, [
+    grRow(`${ch("Khách đồng ý","la")}<span class="mu">1 báo giá</span>`, {"Giá bán gồm VAT": f(g1.reduce((a, r) => a + r.gia, 0)), "Đơn hàng": `<span class="mu">Chốt đơn nháp</span>`}), ...g1.map(row),
+    grRow(`${ch("Đã lên đơn","tim")}<span class="mu">4 báo giá</span>`, {"Giá bán gồm VAT": f(g2.reduce((a, r) => a + r.gia, 0))}), ...g2.map(row),
+  ], ["Mã báo giá","Ngày tạo ↓","Khách hàng","Sản phẩm","Số lượng","Giá bán gồm VAT","Lãi","Người duyệt","Hiệu lực","Đơn hàng","Người lập"])}${foot(5, 5, "<span>8 nhóm rỗng đang ẩn</span>")}</div>`);
+};
+B.dh = () => {
+  const cols = [["Mã đơn",70],["Khách hàng",200],["Hàng",192],["PO khách",88],["Giá trị",105,"n"],["Cọc",110],["Hẹn giao",130],["Đang ở khâu",105],["Việc tiếp theo",0],["Phụ trách",78],["Ngày tạo ↓",100,"srt"]];
+  const row = r => [r.ma, kh(r.k), hg(r), r.po || mu3("—"), f(r.gia), cocCell(r), henCell(r), r.khau ? `<span class="tag" style="margin-left:0">${r.khau}</span>` : mu3("—"), r.tiep ? r.tiep : mu3("—"), r.nv, r.ngay];
+  const g = t => DH.filter(r => r.tt === t);
+  const s = t => f(g(t).reduce((a, r) => a + r.gia, 0));
+  return frame(`
+  <div class="tool"><h2>Đơn hàng bán</h2>${search("Tìm mã đơn, khách, PO, hàng")}${ky()}${loc()}${nguoi("Tất cả NV phụ trách")}<span class="sp"></span>${xem(["Trạng thái","Hẹn giao","Khách hàng","Không nhóm"])}</div>
+  <div class="sheet">${grid(cols, [
+    grRow(`${ch("Nháp","slate")}<span class="mu">1 đơn</span>`, {"Giá trị": s("Nháp")}), ...g("Nháp").map(row),
+    grRow(`${ch("Đã chốt","xanh")}<span class="mu">3 đơn</span>`, {"Giá trị": s("Đã chốt"), "Cọc": f(1560420)}), ...g("Đã chốt").map(row),
+    grRow(`${ch("Hoàn tất","la")}<span class="mu">1 đơn</span>`, {"Giá trị": s("Hoàn tất")}), ...g("Hoàn tất").map(row),
+  ], ["Mã đơn","Ngày tạo ↓","Khách hàng","Hàng","PO khách","Giá trị","Hẹn giao","Cọc","Đang ở khâu","Việc tiếp theo","Phụ trách"])}${foot(5, 5, "<span>Sẵn sàng chốt, Chờ cọc, Hủy đang rỗng nên ẩn</span>")}</div>`);
+};
+B.gl = () => frame(`
+  ${ghHead(0)}
+  <div class="row2">${search("Tìm mã yêu cầu, mã đơn, khách, mã lượt")}${ky()}${loc()}<span class="sp"></span>${xem(["Tình trạng","Ngày giao","Người giao","Không nhóm"])}</div>
+  <div class="sheet">${grid(
+    [["Lượt",195],["Xe và người giao",290],["Khách hàng",200],["Đơn",70],["Giao tới",0],["Hẹn giao",85],["So với hẹn",140],["Km",55,"n"],["Ngày tạo ↓",145,"srt"]],
+    [grRow(`${ch("Đã giao","la")}<span class="mu">1 lượt</span>`),
+     ["Giao thẳng" + `<span class="u">khách nhận 06/10</span>`, ch("Nhà gia công","tim",1) + ` <span title="Cơ sở Gia công Cán màng Thành Công">Cán màng Thành Công</span>`, kh("clh"), lk("DH001"), "KCN VSIP 1, Phường Thuận An", "30/10", `<span class="grn">Trước hẹn 24 ngày</span>`, mu3("—"), "06/10/2026 12:46"]], ["Lượt","Ngày tạo ↓","Đơn","Khách hàng","Giao tới","Hẹn giao","Xe và người giao","So với hẹn","Km"]
+  )}${foot(1, 1, "<span>1 lượt giao gồm 1 đơn giao</span>")}</div>`);
+B.yc = () => frame(`
+  ${ghHead(1)}
+  <div class="row2">${search("Tìm mã yêu cầu, mã đơn, khách")}${ky()}${loc()}<span class="sp"></span>${xem(["Cần giao","Khách hàng","Không nhóm"])}</div>
+  <div class="sheet">${grid(
+    [["_cb",36,"c"],["Mã yêu cầu",170],["Đơn",70],["Khách hàng",200],["Hàng",200],["Số lượng",100,"n"],["Giao tới",300],["Người yêu cầu",130],["Ngày tạo ↓",100,"srt"],["_act",0,"c"]],
+    [grRow(`<span class="cb"></span><span class="org">Hôm nay</span><span class="mu">1 yêu cầu</span><span class="mu3">chọn cả nhóm để lên một đơn giao</span>`),
+     ['<span class="cb"></span>', lk("YCGH-261006-UHN8"), "DH004", kh("kat"), "Tờ rơi A4 4/4", `4.000<span class="u">tờ</span>`, "Lô 16, Đường số 3, KCN Tân Tạo, Bình Tân", "Admin", "07/10/2026", `<button class="btn xs">Lên đơn giao</button>`]], ["_cb","Mã yêu cầu","Ngày tạo ↓","Đơn","Khách hàng","Hàng","Số lượng","Giao tới","Người yêu cầu","_act"]
+  )}${foot(1, 1, "<span>Quá hẹn, Ngày mai, Sau đó đang rỗng nên ẩn</span>")}</div>`);
+
+// ===================================================================
+// PHƯƠNG ÁN C — Cột theo khâu (Shopify Polaris Orders / Stripe)
+// ===================================================================
+const C = {};
+const head = (t, btn) => `<div class="tool" style="margin-bottom:4px"><h2>${t}</h2><span class="sp"></span>${btn||""}</div>`;
+const inbar = (ph, ng, right) => `<div class="inbar">${search(ph)}${ky()}${loc()}${ng ? nguoi(ng) : ""}<span class="sp"></span>${right||""}</div>`;
+C.tg = () => frame(`
+  ${head("Tính giá thành", `<button class="btn pri">${IC.plus}Lập phiếu tính giá</button>`)}
+  ${uTabs(TAB_TG)}
+  <div class="sheet" style="margin-top:12px">${inbar("Tìm mã phiếu, khách hàng, sản phẩm", "Tất cả người lập", `<span class="sum">Tổng giá vốn<b>${f(sumTG)} đ</b></span>`)}${grid(
+    [["Mã phiếu",135],["Sản phẩm",205],["Khách hàng",200],["Số lượng",100,"n"],["Giá vốn mỗi sp",110,"n"],["Tổng giá vốn",120,"n"],["Báo giá",215],["Ghi chú",0],["Ngày tạo ↓",100,"srt"],["Người lập",135]],
+    TG.map(r => {
+      const b = BG.find(x => x.ma === r.bg);
+      return [r.ma, sp(r), kh(r.k), r.sl ? `${f(r.sl)}<span class="u">${r.dv}</span>` : mu3("0"), r.gv ? f(r.gv) : mu3("—"), r.tong ? f(r.tong) : mu3("—"), b ? lk(b.ma) + " " + ch(b.tt, TT_BG[b.tt], 1) : (r.tong ? ch("Chưa lập báo giá", "slate", 1) : ch("Đang tính giá", "xanh", 1)), r.gc ? mu(r.gc) : "", r.ngay, r.ng];
+    }), ["Mã phiếu","Ngày tạo ↓","Khách hàng","Sản phẩm","Số lượng","Giá vốn mỗi sp","Tổng giá vốn","Báo giá","Người lập","Ghi chú"]
+  )}${foot(9, 9)}</div>`);
+C.bg = () => frame(`
+  ${head("Báo giá thương mại", `<button class="btn pri">${IC.plus}Báo giá mới</button>`)}
+  ${uTabs(TAB_BG)}
+  <div class="sheet" style="margin-top:12px">${inbar("Tìm mã báo giá, khách hàng, sản phẩm", "Tất cả NV phụ trách", `<span class="sum">Tổng giá bán<b>${f(sumBG)} đ</b></span>`)}${grid(
+    [["Mã báo giá",120],["Khách hàng",200],["Sản phẩm",170],["Số lượng",95,"n"],["Giá bán gồm VAT",125,"n"],["Lãi",55,"n"],["Duyệt",90],["Khách phản hồi",125],["Đơn hàng",155],["Hiệu lực",100],["Ngày tạo ↓",100,"srt"],["Người lập",0]],
+    BG.map(r => [r.ma + `<span class="u">v${r.v}</span>`, kh(r.k), sp(r), r.sl, f(r.gia), r.lai + "%", mu3("Không cần"), ch("Đồng ý", "la", 1), lk(r.dh) + " " + ch(r.dhtt, TT_DH[r.dhtt], 1), r.han, r.ngay, r.ng]), ["Mã báo giá","Ngày tạo ↓","Khách hàng","Sản phẩm","Số lượng","Giá bán gồm VAT","Lãi","Duyệt","Khách phản hồi","Hiệu lực","Đơn hàng","Người lập"]
+  )}${foot(5, 5)}</div>`);
+C.dh = () => frame(`
+  ${head("Đơn hàng bán")}
+  ${uTabs(TAB_DH)}
+  <div class="sheet" style="margin-top:12px">${inbar("Tìm mã đơn, khách, PO, hàng", "Tất cả NV phụ trách", `<span class="sum">Tổng giá trị<b>${f(sumDH)} đ</b></span>`)}${grid(
+    [["Mã đơn",70],["Khách hàng",200],["Hàng",192],["PO khách",88],["Giá trị",105,"n"],["Hẹn giao",130],["Cọc",95],["Sản xuất",150],["Giao khách",145],["Hoá đơn",110],["Phụ trách",0],["Ngày tạo ↓",100,"srt"]],
+    DH.map(r => [r.ma, kh(r.k), hg(r), r.po || mu3("—"), f(r.gia), henCell(r), r.coc ? ch("Đủ cọc", "la", 1) : (r.tt === "Nháp" ? mu3("—") : mu3("Không cọc")), r.sx[0] ? ch(r.sx[0], r.sx[1], 1) : ch("Chưa chốt đơn", "slate", 1), r.giao[0] ? ch(r.giao[0], r.giao[1], 1) : mu3("—"), r.hd[0] ? ch(r.hd[0], r.hd[1], 1) : mu3("—"), r.nv, r.ngay]), ["Mã đơn","Ngày tạo ↓","Khách hàng","Hàng","PO khách","Giá trị","Hẹn giao","Cọc","Sản xuất","Giao khách","Hoá đơn","Phụ trách"]
+  )}${foot(5, 5)}</div>`);
+C.gl = () => frame(`
+  ${head("Giao hàng", `<button class="btn">${IC.rl}Tải lại</button>`)}
+  ${uTabs([["Đơn giao hàng",1],["Yêu cầu giao",1],["Nhân viên giao hàng",null]], 0)}
+  <div class="sheet" style="margin-top:12px">${inbar("Tìm mã yêu cầu, mã đơn, khách, mã lượt", "", `<span class="sum">Đang trên đường<b>0 lượt</b></span>`)}${grid(
+    [["Lượt",110],["Xe và người giao",290],["Khách hàng",200],["Đơn",70],["Giao tới",0],["Hẹn giao",170],["Lấy hàng",125],["Kết quả",145],["Km",50,"n"],["Ngày tạo ↓",145,"srt"]],
+    [["Giao thẳng", ch("Nhà gia công","tim",1) + ` <span title="Cơ sở Gia công Cán màng Thành Công">Cán màng Thành Công</span>`, kh("clh"), lk("DH001"), "KCN VSIP 1, Phường Thuận An", `30/10<span class="u grn">trước hẹn 24 ngày</span>`, mu("Từ nhà gia công"), ch("Khách đã nhận","la",1), mu3("—"), "06/10/2026 12:46"]], ["Lượt","Ngày tạo ↓","Đơn","Khách hàng","Giao tới","Hẹn giao","Xe và người giao","Lấy hàng","Kết quả","Km"]
+  )}${foot(1, 1, "<span>1 lượt giao gồm 1 đơn giao</span>")}</div>`);
+C.yc = () => frame(`
+  ${head("Giao hàng", `<button class="btn">${IC.rl}Tải lại</button>`)}
+  ${uTabs([["Đơn giao hàng",1],["Yêu cầu giao",1],["Nhân viên giao hàng",null]], 1)}
+  <div class="sheet" style="margin-top:12px">${inbar("Tìm mã yêu cầu, mã đơn, khách", "", `<button class="btn">Lên đơn giao cho mục đã chọn</button>`)}${grid(
+    [["_cb",36,"c"],["Mã yêu cầu",170],["Đơn",70],["Khách hàng",200],["Hàng",170],["Số lượng",95,"n"],["Hàng trong kho",115],["Cần giao",85],["Giao tới",215],["Người yêu cầu",115],["Ngày tạo ↓",100,"srt"],["_act",0,"c"]],
+    [['<span class="cb"></span>', lk("YCGH-261006-UHN8"), "DH004", kh("kat"), "Tờ rơi A4 4/4", `4.000<span class="u">tờ</span>`, ch("Đủ hàng","la",1), `<span class="org">Hôm nay</span>`, "Lô 16, Đường số 3, KCN Tân Tạo, Bình Tân", "Admin", "07/10/2026", `<button class="btn xs">Lên đơn giao</button>`]], ["_cb","Mã yêu cầu","Ngày tạo ↓","Đơn","Khách hàng","Hàng","Số lượng","Hàng trong kho","Cần giao","Giao tới","Người yêu cầu","_act"]
+  )}${foot(1, 1)}</div>`);
+
+// ---------- mô tả từng phương án ----------
+const WHY = {
+  A: `<div class="t">A. Bảng tính: một lưới đặc, trạng thái là hàng lọc nhanh, cuối bảng có dòng Cộng</div>
+  Khuôn Google Sheets và Airtable (grid view): dòng 34px chữ 13px một dòng, mọi cột kẻ mảnh, chữ dài cắt bằng "…" và hiện đủ khi rê chuột.
+  <ul><li>Đầu trang gộp còn MỘT hàng: tên màn, tìm, kỳ, Lọc, người, nút chính. Bỏ nhãn nhỏ "GIÁ VỐN NỘI BỘ / KINH DOANH" và đường kẻ.</li>
+  <li>Tab trạng thái thành hàng chữ có chấm màu, số mờ, tab 0 thì chữ nhạt (vẫn bấm được). Bên phải nút "Cột" ẩn/hiện cột.</li>
+  <li>Dòng Cộng cuối bảng cộng tiền theo đúng bộ lọc đang áp, như hàng SUM của Excel.</li>
+  <li>Thêm cột nối khâu: Tính giá có cột Báo giá; Báo giá có cột Đơn hàng và Hiệu lực; Đơn hàng tách Sản xuất và Giao khách.</li>
+  <li>Hợp nhất khi người dùng quen Excel, cần so số cả cột. Yếu: 12 cột ở Đơn hàng thì màn 1366px phải cuộn ngang.</li></ul>`,
+  B: `<div class="t">B. Nhóm theo trạng thái: dòng nhóm xám có số đếm và tiền cộng sẵn</div>
+  Khuôn Linear (list view gom nhóm) và Attio: giống bản Kế hoạch vật tư đã duyệt, lưới đặc nhưng chia theo nhóm, đổi cách nhóm bằng "Xem theo".
+  <ul><li>Bỏ hàng tab: trạng thái đã nằm ở dòng nhóm, nên bỏ luôn cột Trạng thái trên từng dòng (mỗi thông tin nói một lần). Lọc trạng thái vẫn ở nút Lọc.</li>
+  <li>Nhóm rỗng ẩn, chân bảng ghi rõ nhóm nào đang ẩn. Bấm mũi tên để thu một nhóm.</li>
+  <li>Cột trống được thay bằng thông tin hành động: Tính giá có nút "Lập báo giá" ngay trên phiếu chưa có báo giá; Đơn hàng có "Đang ở khâu" và "Việc tiếp theo"; Yêu cầu giao nhóm theo Cần giao (Quá hẹn, Hôm nay, Ngày mai) và chọn cả nhóm để lên một đơn giao.</li>
+  <li>Hợp nhất cho người làm việc theo hàng đợi ("hôm nay phải xử lý gì"). Yếu: sắp xếp theo cột chỉ trong từng nhóm.</li></ul>`,
+  C: `<div class="t">C. Cột theo khâu: mỗi khâu một cột chip nhỏ, tab gạch dưới</div>
+  Khuôn Shopify Polaris (danh sách Orders: cột Payment status và Fulfillment status riêng) và Stripe Payments: tab gạch dưới ở trên, ô tìm và lọc nằm trong thẻ bảng, tổng tiền một dòng ở góc phải.
+  <ul><li>Trạng thái tổng của bản ghi nằm ở tab; trên dòng thay bằng các cột khâu: Đơn hàng có Cọc, Sản xuất, Giao khách, Hoá đơn (vì sao đơn chưa Hoàn tất nhìn là ra); Báo giá có Duyệt, Khách phản hồi, Đơn hàng; Tính giá có cột Báo giá (mã và trạng thái báo giá, hoặc Chưa lập báo giá, hoặc Đang tính giá).</li>
+  <li>Chip khâu dạng góc vuông nhỏ, để phân biệt với chip trạng thái tròn.</li>
+  <li>Yêu cầu giao thêm cột "Hàng trong kho" để kho biết lên đơn được ngay hay chưa.</li>
+  <li>Hợp nhất để trả lời "đơn này kẹt ở đâu". Yếu: nhiều chip màu trên một dòng, nhìn sặc sỡ hơn A và B.</li></ul>`,
+};
+const MAN = [["tg","Tính giá thành"],["bg","Báo giá"],["dh","Đơn hàng bán"],["gl","Giao hàng: Đơn giao"],["yc","Giao hàng: Yêu cầu giao"]];
+const PA = {A, B, C};
+let st = {pa:"A", man:"tg"};
+try { const s = JSON.parse(localStorage.getItem("ds-kd-gon") || "null"); if (s) st = s; } catch (e) {}
+function draw(){
+  document.getElementById("pa").innerHTML = ["A","B","C"].map(p => `<button data-p="${p}" class="${st.pa === p ? "on" : ""}">Phương án ${p}</button>`).join("");
+  document.getElementById("man").innerHTML = MAN.map(([k, t]) => `<button data-m="${k}" class="${st.man === k ? "on" : ""}">${t}</button>`).join("");
+  document.getElementById("why").innerHTML = WHY[st.pa];
+  document.getElementById("stage").innerHTML = PA[st.pa][st.man]();
+  try { localStorage.setItem("ds-kd-gon", JSON.stringify(st)); } catch (e) {}
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("button[data-p],button[data-m]");
+  if (!b) return;
+  if (b.dataset.p) st.pa = b.dataset.p;
+  if (b.dataset.m) st.man = b.dataset.m;
+  draw();
+});
+draw();
+</script>
+</body>
+</html>

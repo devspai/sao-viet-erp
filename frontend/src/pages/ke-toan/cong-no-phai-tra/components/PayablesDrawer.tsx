@@ -1,11 +1,13 @@
-// Ngăn CHI TIẾT công nợ một nhà cung cấp — phương án 2 (sổ chi tiết kiểu Xero, 06/10/2026), vỏ
-// `NganCongNo` chung hai màn công nợ.
+// Ngăn CHI TIẾT công nợ một nhà cung cấp — kiểu 3 (docs/mockups/ke-toan-gon-3-phuong-an.html,
+// 07/10/2026), vỏ `NganCongNo` chung hai màn công nợ.
 //
 // Đầu ngăn: "Công nợ phải trả > Nhà cung cấp" — tên + thẻ mã — "In sao kê" và "Hồ sơ nhà cung cấp" —
-// khối số: còn nợ tới hôm nay + quá hạn, vạch tuổi nợ (bấm mốc = lọc tab Còn nợ), hạn mức. Ba tab:
-// - "Còn nợ": các đợt giao gom theo đơn, tích để trả nhiều đợt. Tích đợt ⇒ chân tối "Đã chọn n đợt …
-//   — Bỏ chọn — Trả n đợt" mở ngăn chồng `BatchPaymentDialog` với ẢNH CHỤP các đợt lúc bấm (ngăn dưới
-//   nạp lại / tải hỏng cũng không đổi form đang gõ).
+// ba tab. Cột thuộc tính bên phải: còn nợ tới hôm nay, quá hạn, hạn sớm nhất, hạn mức + cho nợ, người
+// liên hệ, tài khoản nhận tiền. Ba tab:
+// - "Còn nợ": một lưới mọi đợt, nhóm theo đơn mua (hoặc xếp theo hạn trả), tích để trả nhiều đợt. Mở từ
+//   danh sách đang lọc quá hạn / mốc tuổi thì lọc sẵn (thẻ lọc + "Bỏ lọc"). Tích đợt ⇒ chân tối "Đã
+//   chọn n đợt … — Bỏ chọn — Lập phiếu chi trả" mở ngăn chồng `BatchPaymentDialog` với ẢNH CHỤP các đợt
+//   lúc bấm (ngăn dưới nạp lại / tải hỏng cũng không đổi form đang gõ).
 // - "Sao kê": số dư đầu kỳ, từng chứng từ với số dư chạy, số dư cuối kỳ; in được.
 // - "Lịch sử": dòng thời gian mọi chứng từ với nhà cung cấp + các đợt đã trễ.
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -24,7 +26,8 @@ import { useChiTietCongNo } from "../../shared/chiTietCongNo";
 import { tien, vietSo } from "../../shared/dinhDang";
 import { LichSuCongNo, type KhoanTre } from "../../shared/LichSuCongNo";
 import { nhanLocNo, TheLocNo } from "../../shared/locNoNgan";
-import { NganCongNo } from "../../shared/NganCongNo";
+import { RayThuocTinh } from "../../shared/LuoiGon";
+import { NganCongNo, oRayCongNo } from "../../shared/NganCongNo";
 import { useTabNho } from "../../shared/NganPhieu";
 import { TabSaoKe } from "../../shared/TabSaoKe";
 import { PAID_PAGE } from "../shared/constants";
@@ -167,10 +170,6 @@ export function PayablesDrawer({
     setLocTho(k);
     setChon(new Set());
   };
-  const chonLoc = (k: string | null) => {
-    setLoc(k);
-    if (k) setTab("no");
-  };
 
   const moDon = quyen.xemDonMua
     ? (code: string) => {
@@ -189,6 +188,12 @@ export function PayablesDrawer({
   const lan = eventTick + soLanLap;
   const nhan = hopLe ? nhanLocNo(loc, detail!.aging, tuoi?.nhan) : null;
   const coChan = tab === "no" && dotDaChon.length > 0;
+  const moHoSo = quyen.xemNcc
+    ? () => {
+        onClose();
+        navigate("nha-cung-cap", { openSupplierId: supplierId });
+      }
+    : undefined;
 
   return (
     <>
@@ -197,32 +202,32 @@ export function PayablesDrawer({
         nhanDoiTac="Nhà cung cấp"
         tieuDe={ten}
         ma={ma}
-        tong={hopLe ? detail : null}
-        choNo={hopLe ? detail!.credit_days : null}
-        sauNgay="sau mỗi đợt giao"
-        nutHoSo={
-          quyen.xemNcc
-            ? {
-                nhan: "Hồ sơ nhà cung cấp",
-                onMo: () => {
-                  onClose();
-                  navigate("nha-cung-cap", { openSupplierId: supplierId });
-                },
-              }
-            : undefined
-        }
+        coSo={hopLe}
+        nutHoSo={moHoSo ? { nhan: "Hồ sơ nhà cung cấp", onMo: moHoSo } : undefined}
         onInSaoKe={() => {
           setTab("sk");
           setDangIn(true);
         }}
-        chuCanh="Chỉ là cảnh báo, vẫn đặt mua được."
-        dangLoc={loc}
-        onLoc={chonLoc}
         loi={loi}
         loading={loading}
         thieu={detail != null && !hopLe}
         chuThieu="Dữ liệu trả về thiếu phần công nợ theo đợt giao: máy chủ đang chạy bản cũ hơn giao diện. Khởi động lại máy chủ rồi tải lại trang."
         onTaiLai={reload}
+        cot={
+          hopLe ? (
+            <RayThuocTinh o={[
+              ...oRayCongNo({
+                tong: detail!,
+                hanCacKhoan: items.filter((x) => x.con_no > 0).map((x) => x.due_date),
+                choNo: detail!.credit_days,
+                sauNgay: "sau mỗi đợt giao",
+                chuCanh: "Chỉ là cảnh báo, vẫn đặt mua được.",
+                onDatHoSo: moHoSo,
+              }),
+              { nhan: "Tài khoản nhận tiền", giaTri: detail!.tk_nhan || null },
+            ]} />
+          ) : undefined
+        }
         tabs={
           hopLe
             ? [
@@ -249,7 +254,7 @@ export function PayablesDrawer({
                 Bỏ chọn
               </button>
               <button type="button" className="kt-btn kt-btn--chinh" onClick={() => setMoTra(dotDaChon)}>
-                {`Trả ${vietSo(dotDaChon.length)} đợt`}
+                Lập phiếu chi trả
               </button>
             </>
           ) : undefined
@@ -257,10 +262,9 @@ export function PayablesDrawer({
       >
         {hopLe && tab === "no" && (
           <>
-            {(nhan || (quyen.lap && soConNo > 0)) && (
-              <div className="kt-hang-loc">
-                {nhan && <TheLocNo nhan={nhan} so={khoanNo.length} onBo={() => setLoc(null)} />}
-                {quyen.lap && soConNo > 0 && <span className="kt-mo">Tích các đợt muốn trả rồi bấm Trả ở thanh dưới.</span>}
+            {nhan && (
+              <div className="kt-hang-loc kt-ncn-loc">
+                <TheLocNo nhan={nhan} so={khoanNo.length} onBo={() => setLoc(null)} />
               </div>
             )}
             <DotConNoBlock detail={detail!} khoanNo={khoanNo} dangLoc={loc != null} coChon={quyen.lap}

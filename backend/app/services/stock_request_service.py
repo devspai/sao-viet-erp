@@ -52,6 +52,10 @@ class StockRequestError(Exception):
     """Lỗi nghiệp vụ yêu cầu kho — router dịch thành HTTP 400/403."""
 
 
+class StockRequestConflict(StockRequestError):
+    """Trùng việc đã có (vd đợt giao đã có yêu cầu nhập kho) — router trả 409."""
+
+
 def stock_level(on_hand: float, threshold) -> str:
     """Quy tồn khả dụng về 1 trong 5 mức (spec §7).
 
@@ -153,6 +157,15 @@ class StockRequestService:
         # Bộ phận mặc định = bộ phận người tạo, để scope `department` và ô "Bộ phận" trên
         # bản in luôn có dữ liệu mà không bắt người dùng chọn lại.
         header.setdefault("bo_phan_id", user.department_id)
+        # MỘT ĐỢT GIAO MUA HÀNG CHỈ NHẬP KHO MỘT LẦN (07/10/2026) — chặn ở máy chủ, không chỉ ẩn nút.
+        # Yêu cầu cũ bị huỷ / từ chối thì nhập lại được. Kiểm TRƯỚC lớp chống gửi lại: form nhập từ
+        # đợt bị khoá nên lần mở thứ hai (tab khác) gửi y hệt nội dung, lớp đó sẽ lặng lẽ trả yêu cầu
+        # cũ (201) và người dùng tưởng vừa tạo mới — phải nói thẳng đợt đã có yêu cầu nào.
+        dot_id = header.get("purchase_delivery_id")
+        if dot_id:
+            cu = self.requests.tim_theo_purchase_delivery(int(dot_id), khoa=True)
+            if cu is not None:
+                raise StockRequestConflict(f"Đợt giao này đã có yêu cầu nhập kho {cu.ma}.")
         if chong_gui_lai and not (ma or "").strip():
             self.requests.khoa_nguoi_tao(user.id)
             da_co = self._yeu_cau_trung(user=user, loai=loai, lines=lines, header=header)

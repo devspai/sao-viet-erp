@@ -248,10 +248,6 @@ export function TangCaPage({
         <div>
           <p className="eyebrow">Nhân sự &amp; Lương</p>
           <h1 className="ns__title">Tăng ca</h1>
-          <p className="ns__sub">
-            Muốn tính tiền tăng ca thì phải có phiếu được duyệt. Không có phiếu
-            vẫn <b>đủ công ca chính</b> — chỉ phần giờ vượt ca là không ra tiền.
-          </p>
         </div>
       </header>
 

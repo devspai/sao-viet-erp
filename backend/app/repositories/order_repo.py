@@ -44,6 +44,8 @@ _SORTABLE = {
     "order_type": Order.order_type,
     "order_kind": Order.order_kind,
     "created_at": Order.created_at,
+    "ordered_at": Order.ordered_at,
+    "delivery_committed_date": Order.delivery_committed_date,
 }
 
 
@@ -391,6 +393,17 @@ class OrderRepository:
             }
         return out
 
+    def tong_gia_tri(self, ids_stmt) -> int:
+        """Σ giá trị gồm VAT của mọi đơn trong `ids_stmt` — làm tròn theo TỪNG đơn như `money_sums`
+        để dòng "Cộng" khớp đúng tổng các ô trên lưới."""
+        moi_don = (
+            select((func.sum(_line_total_with_vat()) / 100).label("v"))
+            .where(OrderLine.order_id.in_(ids_stmt))
+            .group_by(OrderLine.order_id)
+            .subquery()
+        )
+        return int(self.db.execute(select(func.coalesce(func.sum(moi_don.c.v), 0))).scalar_one() or 0)
+
     def line_summaries(self, order_ids: list[int]) -> dict[int, tuple[str, int]]:
         """Tóm tắt hàng của mỗi đơn cho màn danh sách: (mô tả dòng ĐẦU, số dòng) — MỘT câu cả trang."""
         if not order_ids:
@@ -541,6 +554,8 @@ class OrderRepository:
             count_stmt = count_stmt.where(c)
 
         total = self.db.execute(count_stmt).scalar_one()
+        # Tập id MỌI đơn khớp bộ lọc (chưa cắt trang) — service cộng tiền cho dòng "Cộng" cuối bảng.
+        self.ids_khop_cuoi = base.with_only_columns(Order.id).order_by(None)
 
         direction = asc
         key = sort or "-created_at"

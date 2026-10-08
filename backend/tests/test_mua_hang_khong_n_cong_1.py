@@ -59,7 +59,7 @@ def _dung(client, h, n: int, tien_to: str) -> list[int]:
         "phone": "0901000001", "email": "ncc@example.com", "address": "HCM",
         "contact_name": "Lan", "supplier_group": "paper", "payment_terms": "30 ngay",
         "items": [{"hang_loai": "giay", "hang_id": gid, "item_name": f"Giay {tien_to} {i}",
-                   "unit": "kg", "unit_price": 22000, "vat_percent": 8}
+                   "dang_ban": "cuon", "unit": "kg", "unit_price": 22000, "vat_percent": 8}
                   for i, gid in enumerate(ids)],
     }, headers=h)
     assert ncc.status_code == 201, ncc.text

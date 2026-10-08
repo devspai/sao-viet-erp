@@ -237,36 +237,22 @@ class StockVoucherRepository:
             stmt = stmt.where(StockVoucher.id != exclude_voucher_id)
         return float(self.db.execute(stmt).scalar_one() or 0)
 
-    def xuat_history(self, hang: tuple[str, int], kho_id: int, *, dang: str | None = None,
-                     kho_rong: int = 0, kho_dai: int = 0) -> list[dict]:
-        """Lịch sử XUẤT của 1 mặt hàng tại 1 kho — mỗi dòng phiếu XUẤT ĐÃ GHI SỔ, đích danh lô.
-
-        Giá vốn của dòng xuất = giá của lô bị trừ (`don_gia_nhap`), không phải `line.don_gia`
-        (phiếu xuất không khai giá). Router ẩn giá nếu người gọi thiếu `can_view_cost`.
-
-        `sl_de_nghi` = SL xin trên dòng yêu cầu gốc (nối qua `request_line_id` → StockRequestLine)
-        — không phải tiền, luôn hiện được; None nếu dòng phiếu không nối được yêu cầu.
-        """
+    def _stmt_xuat(self, cols, hang: tuple[str, int], kho_id: int, *, dang: str | None,
+                   kho_rong: int, kho_dai: int, dieu_chuyen: bool | None):
+        """Khung câu XUẤT của 1 mặt hàng tại 1 kho: dòng phiếu XUẤT ĐÃ GHI SỔ (nối lô + dòng yêu cầu).
+        Giấy: chỉ dòng xuất từ lô đúng dạng (+ khổ với tờ) — cùng luật lọc lô của tồn.
+        `dieu_chuyen` None = cả hai; True/False = chỉ dòng của phiếu điều chuyển / chỉ xuất thường."""
         from ..models.stock_lot import StockLot
         from ..models.stock_request import StockRequestLine
         from ..models.stock_voucher import VOUCHER_POSTED, VOUCHER_XUAT
+        from .stock_lot_repo import StockLotRepository
 
         stmt = (
-            select(
-                StockVoucher.id, StockVoucher.ma, StockVoucher.ngay,
-                StockVoucher.dieu_chuyen,
-                StockVoucherLine.lot_id, StockVoucherLine.so_luong,
-                StockLot.ma_lo, StockLot.don_gia_nhap,
-                StockRequestLine.sl_de_nghi.label("sl_de_nghi"),
-                StockRequestLine.dvt.label("dvt_yeu_cau"),
-            )
+            select(*cols)
+            .select_from(StockVoucherLine)
             .join(StockVoucher, StockVoucher.id == StockVoucherLine.voucher_id)
             .join(StockLot, StockLot.id == StockVoucherLine.lot_id, isouter=True)
-            .join(
-                StockRequestLine,
-                StockRequestLine.id == StockVoucherLine.request_line_id,
-                isouter=True,
-            )
+            .join(StockRequestLine, StockRequestLine.id == StockVoucherLine.request_line_id, isouter=True)
             .where(
                 StockVoucherLine.hang_loai == hang[0],
                 StockVoucherLine.hang_id == hang[1],
@@ -274,11 +260,37 @@ class StockVoucherRepository:
                 StockVoucher.loai == VOUCHER_XUAT,
                 StockVoucher.trang_thai == VOUCHER_POSTED,
             )
-            .order_by(StockVoucher.ngay.desc(), StockVoucher.id.desc())
         )
-        # Giấy: chỉ dòng xuất từ lô đúng dạng (+ khổ với tờ) — cùng luật lọc lô của tồn.
-        from .stock_lot_repo import StockLotRepository
-        stmt = StockLotRepository._loc_dang_kho(stmt, dang, kho_rong, kho_dai)
+        if dieu_chuyen is not None:
+            stmt = stmt.where(StockVoucher.dieu_chuyen.is_(dieu_chuyen))
+        return StockLotRepository._loc_dang_kho(stmt, dang, kho_rong, kho_dai)
+
+    def xuat_history(self, hang: tuple[str, int], kho_id: int, *, dang: str | None = None,
+                     kho_rong: int = 0, kho_dai: int = 0, dieu_chuyen: bool | None = None,
+                     offset: int = 0, limit: int | None = None) -> list[dict]:
+        """Lịch sử XUẤT của 1 mặt hàng tại 1 kho — mỗi dòng phiếu XUẤT ĐÃ GHI SỔ, đích danh lô, mới
+        nhất trước. `limit` = cắt trang ở DB (ngăn mặt hàng); None = cả lịch sử (Báo cáo kho).
+
+        Giá vốn của dòng xuất = giá của lô bị trừ (`don_gia_nhap`), không phải `line.don_gia`
+        (phiếu xuất không khai giá). Router ẩn giá nếu người gọi thiếu `can_view_cost`.
+
+        `sl_de_nghi` = SL xin trên dòng yêu cầu gốc (nối qua `request_line_id` → StockRequestLine)
+        — không phải tiền, luôn hiện được; None nếu dòng phiếu không nối được yêu cầu. Vị trí + HSD
+        đọc ở LÔ trong cùng câu để trang lịch sử không phải nạp mọi lô chỉ để tra hai cột.
+        """
+        from ..models.stock_lot import StockLot
+        from ..models.stock_request import StockRequestLine
+
+        stmt = self._stmt_xuat(
+            (StockVoucher.id, StockVoucher.ma, StockVoucher.ngay, StockVoucher.dieu_chuyen,
+             StockVoucherLine.lot_id, StockVoucherLine.so_luong,
+             StockLot.ma_lo, StockLot.don_gia_nhap, StockLot.vi_tri, StockLot.hsd,
+             StockRequestLine.sl_de_nghi.label("sl_de_nghi"),
+             StockRequestLine.dvt.label("dvt_yeu_cau")),
+            hang, kho_id, dang=dang, kho_rong=kho_rong, kho_dai=kho_dai, dieu_chuyen=dieu_chuyen,
+        ).order_by(StockVoucher.ngay.desc(), StockVoucher.id.desc(), StockVoucherLine.id.desc())
+        if limit is not None:
+            stmt = stmt.offset(offset).limit(limit)
         return [
             {
                 "voucher_id": r.id, "voucher_ma": r.ma, "ngay": r.ngay,
@@ -287,9 +299,27 @@ class StockVoucherRepository:
                 "sl_de_nghi": float(r.sl_de_nghi) if r.sl_de_nghi is not None else None,
                 "dvt_yeu_cau": r.dvt_yeu_cau,
                 "dieu_chuyen": bool(r.dieu_chuyen),
+                "vi_tri": r.vi_tri, "hsd": r.hsd,
             }
             for r in self.db.execute(stmt).all()
         ]
+
+    def dem_xuat_theo_chieu(self, hang: tuple[str, int], kho_id: int, *, dang: str | None = None,
+                            kho_rong: int = 0, kho_dai: int = 0) -> dict[bool, int]:
+        """`{False: số dòng xuất thường, True: số dòng chuyển đi}` trong MỘT câu."""
+        stmt = self._stmt_xuat((StockVoucher.dieu_chuyen, func.count(StockVoucherLine.id)), hang, kho_id,
+                               dang=dang, kho_rong=kho_rong, kho_dai=kho_dai, dieu_chuyen=None)
+        out = {False: 0, True: 0}
+        for dc, n in self.db.execute(stmt.group_by(StockVoucher.dieu_chuyen)).all():
+            out[bool(dc)] += int(n)
+        return out
+
+    def tong_xuat(self, hang: tuple[str, int], kho_id: int, *, tu_ngay, dang: str | None = None,
+                  kho_rong: int = 0, kho_dai: int = 0) -> float:
+        """Tổng SL XUẤT THƯỜNG (không tính điều chuyển) từ `tu_ngay` — đơn vị gốc của lô."""
+        stmt = self._stmt_xuat((func.coalesce(func.sum(StockVoucherLine.so_luong), 0),), hang, kho_id,
+                               dang=dang, kho_rong=kho_rong, kho_dai=kho_dai, dieu_chuyen=False)
+        return float(self.db.execute(stmt.where(StockVoucher.ngay >= tu_ngay)).scalar() or 0)
 
     def sl_de_nghi_by_lot(self, lots) -> dict[int, tuple[float, str | None]]:
         """Map lot_id → (`sl_de_nghi`, `dvt`) của dòng yêu cầu đã sinh ra lô NHẬP.

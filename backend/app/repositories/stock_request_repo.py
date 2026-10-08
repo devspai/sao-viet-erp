@@ -138,6 +138,21 @@ class StockRequestRepository:
         co_bg = bai_ghep_id in (None, "") or self.db.get(BaiGhep, int(bai_ghep_id)) is not None
         return co_lsx, co_bg
 
+    def tim_theo_purchase_delivery(self, delivery_id: int, *, khoa: bool = False):
+        """Yêu cầu nhập kho CÒN SỐNG của một ĐỢT GIAO mua hàng (bỏ qua đã huỷ / từ chối) — một đợt
+        chỉ nhập kho một lần. `khoa=True`: khoá dòng đợt giao (`FOR UPDATE`, Postgres) trước khi hỏi
+        để hai cú gửi song song không cùng lọt; SQLite bỏ qua mệnh đề này."""
+        if khoa:
+            from ..models.purchase import PurchaseDelivery
+
+            self.db.execute(select(PurchaseDelivery.id)
+                            .where(PurchaseDelivery.id == delivery_id).with_for_update())
+        stmt = select(StockRequest).where(
+            StockRequest.purchase_delivery_id == delivery_id,
+            StockRequest.trang_thai.notin_([REQ_CANCELLED, REQ_REJECTED]),
+        )
+        return self.db.execute(stmt.order_by(StockRequest.id.desc())).scalars().first()
+
     def tim_theo_delivery_trip(self, trip_id: int, *, loai: str | None = None):
         """Yêu cầu kho CÒN SỐNG của một chuyến giao (bỏ qua đã huỷ / từ chối).
 

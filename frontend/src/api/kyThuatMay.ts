@@ -9,11 +9,9 @@ import { authed, type LuaChonLoc } from "./client";
 export type LoaiPhieu = "sua_chua" | "bao_tri" | "yeu_cau";
 
 // --- Trạng thái + nhãn: khai MỘT chỗ, cả bảng lẫn drawer lẫn tab đọc chung ---------------------
-export const TT_SUA_CHUA = ["cho_sua", "dang_sua", "cho_vat_tu", "da_sua_xong"] as const;
+export const TT_SUA_CHUA = ["cho_sua", "da_sua_xong"] as const;
 export const NHAN_TT_SUA_CHUA: Record<string, string> = {
   cho_sua: "Chờ sửa",
-  dang_sua: "Đang sửa",
-  cho_vat_tu: "Chờ vật tư",
   da_sua_xong: "Đã sửa xong",
 };
 // Bảo trì có BA trạng thái (mg 0224): chờ làm → xong; hoặc HỦY kèm lý do. Nấc "đang thực hiện" và
@@ -21,8 +19,8 @@ export const NHAN_TT_SUA_CHUA: Record<string, string> = {
 // KHÔNG đếm vào việc đang mở / quá hạn; đứng riêng một tab để còn lần lại được kỳ nào đã hủy.
 export const TT_BAO_TRI = ["cho_thuc_hien", "hoan_thanh", "da_huy"] as const;
 export const NHAN_TT_BAO_TRI: Record<string, string> = {
-  cho_thuc_hien: "Chờ thực hiện",
-  hoan_thanh: "Hoàn thành",
+  cho_thuc_hien: "Chưa làm",
+  hoan_thanh: "Đã xong",
   da_huy: "Đã hủy",
 };
 // Yêu cầu sửa chữa: người ngoài tổ kỹ thuật báo máy hỏng. BA trạng thái, không hơn — đây là lời
@@ -30,7 +28,7 @@ export const NHAN_TT_BAO_TRI: Record<string, string> = {
 export const TT_YEU_CAU = ["cho_tiep_nhan", "da_tao_phieu", "tu_choi"] as const;
 export const NHAN_TT_YEU_CAU: Record<string, string> = {
   cho_tiep_nhan: "Chờ tiếp nhận",
-  da_tao_phieu: "Đã tạo phiếu",
+  da_tao_phieu: "Đã lập phiếu",
   tu_choi: "Từ chối",
 };
 export const NHAN_MUC_DO: Record<string, string> = {
@@ -140,6 +138,8 @@ export interface YeuCau {
   so_anh: number;
   phieu_ma: string | null;
   phieu_trang_thai: string | null;
+  /** Lệnh đang chạy lúc máy hỏng — chỉ có khi yêu cầu báo từ màn Thực hiện SX. */
+  lsx_ma: string | null;
 }
 
 /** Ô chọn máy cho người KHÔNG có quyền danh mục thiết bị (`dm_thiet_bi`). Đúng bốn cột — người

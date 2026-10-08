@@ -396,6 +396,9 @@ class PhieuTinhGiaListItem(BaseModel):
     # tên hàng bên trong để cột "Sản phẩm" có cái mà rơi về. Danh sách đã selectinload sẵn,
     # không thêm truy vấn nào.
     ten_thanh_phans: list[str] = Field(default_factory=list)
+    # Báo giá lập từ phiếu này (một phiếu một báo giá) — router tra theo trang.
+    bao_gia_id: int | None = None
+    bao_gia_ma: str | None = None
     ngay: datetime | None = Field(default=None, validation_alias="created_at")
 
     @field_serializer("ngay")
@@ -406,12 +409,14 @@ class PhieuTinhGiaListItem(BaseModel):
 class PhieuTinhGiaListOut(BaseModel):
     items: list[PhieuTinhGiaListItem]
     total: int
+    tong_gia_von: float = 0   # Σ của mọi dòng khớp bộ lọc — dòng "Cộng" cuối bảng
 
 
 class PhieuTinhGiaStatsOut(BaseModel):
     """Đếm cho thanh tab — độc lập với trang/tìm kiếm hiện tại (đúng phạm vi scope người xem)."""
     all: int
     draft: int
+    dang_tinh: int = 0
     calculated: int
 
 

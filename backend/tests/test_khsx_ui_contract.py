@@ -187,6 +187,19 @@ def test_dag_noi_duoc_phu_thuoc_xuyen_lsx_ngay_tren_so_do() -> None:
     assert ".dag-rail" in css
     assert ".dag-node--ngoai" in css
 
+    # Thẻ lệnh khác TREO TRÊN bước đang chờ nó, dây chờ chạy dọc + nét đứt vàng vào chấm "Chờ" ở
+    # mép trên. Bản cũ xếp nó ở cột trái cùng hàng chuỗi: dây tới bước cuối chạy ngang khuất sau
+    # mọi thẻ, đọc thành "lệnh kia chảy vào bước đầu" (07/10/2026).
+    assert "datGhostTrenDich" in source
+    assert "themViTriGhost" not in source
+    assert "dag-wire--cho" in source and ".dag-wire--cho" in css
+    assert ".dag-port--cho" in css
+    card = (DAG_CANVAS.parent / "DagNodeCard.tsx").read_text(encoding="utf-8")
+    assert "dag-port--cho" in card
+    # Câu trên thẻ nói đích danh bước phải chờ; số "#30" của lệnh kia không in (trùng số lệnh này).
+    assert "Lệnh này chỉ chạy sau" not in source
+    assert "option.thu_tu * 10" not in source
+
 
 def test_drawer_van_giu_duong_chon_phu_thuoc_bang_ban_phim() -> None:
     """Canvas kéo-thả là chuột; drawer vẫn là đường a11y để chọn tiền nhiệm."""

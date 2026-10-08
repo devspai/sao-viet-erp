@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lên đơn giao hàng — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --la-bg:#dcfce7; --la-fg:#15803d; --la-dot:#22c55e;
+  --xanh-bg:#dbeafe; --xanh-fg:#1d4ed8; --xanh-dot:#3b82f6;
+  --vang-bg:#fef3c7; --vang-fg:#b45309; --vang-dot:#f59e0b;
+  --do-bg:#fee2e2; --do-fg:#b91c1c; --do-dot:#ef4444;
+  --xam-bg:#f1f5f9; --xam-fg:#475569; --xam-dot:#94a3b8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13px/1.45 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1480px;margin:0 auto;padding:24px 16px 96px}
+h1{font-size:21px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:980px;font-size:14px}
+.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+@media (max-width:1000px){.notes{grid-template-columns:1fr}}
+.note{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:12px 16px;color:var(--ash)}
+.note h4{margin:0 0 6px;font-size:13px;color:var(--ink)}
+.note ul{margin:0;padding-left:18px}
+.note li{margin:3px 0}
+.note b{color:var(--ink)}
+
+.switch{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 14px;margin:0 0 16px;background:rgba(233,237,242,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--rule)}
+.switch .lbl{font-size:12px;font-weight:600;color:var(--ash)}
+.seg{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:9px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;font:inherit;font-weight:600;color:var(--ash);padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.seg button:hover{background:var(--rule-hair)}
+.seg button.on{background:var(--ink);color:#fff}
+
+.opt{display:none}.opt.on{display:block}
+.mode{display:none}.mode.on{display:contents}
+.why{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:10px 14px;margin:0 0 12px;color:var(--ash)}
+.why b{color:var(--ink)}
+
+/* Khung app + ngăn phải 1180px (độ rộng chung mọi ngăn) */
+.app{background:var(--paper);border:1px solid var(--rule);border-radius:14px;overflow:hidden;position:relative;height:760px}
+.ghost{padding:18px 20px;filter:blur(1.5px);opacity:.55}
+.ghost h2{margin:0 0 14px;font-size:18px}
+.ghost .gl{height:30px;border-radius:8px;background:var(--rule-soft);margin:8px 0;width:60%}
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.28)}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(1180px,100%);background:var(--canvas);border-left:1px solid var(--rule);box-shadow:-12px 0 32px rgba(15,23,42,.12);display:flex;flex-direction:column}
+.dh{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--rule-soft)}
+.dh b{font-size:16px}
+.dh .x{margin-left:auto;width:28px;height:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:var(--ash);font-size:18px}
+.dh .x:hover{background:var(--rule-hair)}
+.dbody{flex:1;overflow:auto;padding:16px 20px}
+.dfoot{display:flex;align-items:center;gap:10px;padding:10px 20px;border-top:1px solid var(--rule-soft);background:var(--canvas)}
+
+.btn{height:32px;border:1px solid var(--rule);border-radius:7px;background:var(--canvas);padding:0 12px;font:inherit;font-weight:600;color:var(--ink);display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.pri:hover{background:var(--rust-deep)}
+.btn.sm{height:26px;padding:0 9px;font-size:12px}
+.sp{flex:1}
+.sub{color:var(--ash-2);font-size:12px}
+.mut{color:var(--ash-3)}
+.num{font-variant-numeric:tabular-nums}
+.r{text-align:right}
+.tag{display:inline-block;padding:0 6px;border:1px solid var(--rule-soft);border-radius:5px;font-size:11.5px;color:var(--ash);background:var(--canvas);white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.pill i{width:6px;height:6px;border-radius:50%}
+.p-la{background:var(--la-bg);color:var(--la-fg)} .p-la i{background:var(--la-dot)}
+.p-xanh{background:var(--xanh-bg);color:var(--xanh-fg)} .p-xanh i{background:var(--xanh-dot)}
+.p-vang{background:var(--vang-bg);color:var(--vang-fg)} .p-vang i{background:var(--vang-dot)}
+.p-xam{background:var(--xam-bg);color:var(--xam-fg)} .p-xam i{background:var(--xam-dot)}
+.sec{margin:18px 0 8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ash-2)}
+.sec:first-child{margin-top:0}
+
+/* Ô nhập */
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f > span{font-size:12px;font-weight:600;color:var(--ash)}
+.f > span em{font-style:normal;font-weight:400;color:var(--ash-3)}
+.f > span .req{color:var(--rust)}
+.in{height:34px;border:1px solid var(--rule);border-radius:7px;background:var(--canvas);padding:0 10px;display:flex;align-items:center;gap:8px;color:var(--ink);white-space:nowrap;overflow:hidden}
+.in.ph{color:var(--ash-3)}
+.in .car{margin-left:auto;color:var(--ash-3);font-size:11px}
+.in.focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(15,23,42,.08)}
+.hint{font-size:12px;color:var(--ash-2)}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 16px}
+.full{grid-column:1/-1}
+
+/* Tóm tắt yêu cầu: dòng chữ, không đóng hộp */
+.kv{display:grid;grid-template-columns:1.3fr 1fr 1.6fr .8fr;gap:2px 20px}
+.kv dt{font-size:11.5px;color:var(--ash-2)}
+.kv dd{margin:1px 0 0;font-weight:600}
+.kv dd small{display:block;font-weight:400;color:var(--ash-2);font-size:12px}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--ash-2);text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--rule-hair);vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.tbl{border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.lnk{color:var(--rust);font-weight:600}
+
+/* Thanh chọn trong menu thả (A) */
+.menu{border:1px solid var(--rule);border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.12);background:var(--canvas);margin-top:4px;overflow:hidden}
+.mi{display:grid;grid-template-columns:1fr auto;gap:0 10px;padding:7px 10px;border-bottom:1px solid var(--rule-hair)}
+.mi:last-child{border-bottom:0}
+.mi:hover{background:var(--rule-hair)}
+.mi .nm{font-weight:600}
+.mi.on{outline:1.5px solid var(--ink);outline-offset:-1.5px;border-radius:6px}
+
+/* B — danh sách chọn */
+.split{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:0;height:100%}
+.split > div{overflow:auto;padding:16px 20px}
+.split > div + div{border-left:1px solid var(--rule-soft)}
+.pick{border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.pr{display:grid;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--rule-hair);cursor:pointer}
+.pr:last-child{border-bottom:0}
+.pr:hover{background:var(--rule-hair)}
+.pr.on{outline:1.5px solid var(--ink);outline-offset:-1.5px;border-radius:8px}
+.pr.xe{grid-template-columns:18px 110px minmax(0,1fr) 70px 150px 120px}
+.pr.nv{grid-template-columns:24px minmax(0,1fr) 90px 90px 150px}
+.pr.dim{opacity:.55}
+.rad{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rule);display:inline-block}
+.rad.on{border:4px solid var(--ink)}
+.av{width:24px;height:24px;border-radius:50%;background:var(--rule-soft);color:var(--ash);display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700}
+.nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.role{display:inline-flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden}
+.role span{padding:2px 9px;font-size:12px;font-weight:600;color:var(--ash-2);white-space:nowrap}
+.role span + span{border-left:1px solid var(--rule)}
+.role span.on{background:var(--ink);color:#fff}
+.head-pick{display:flex;align-items:center;gap:10px;margin:18px 0 8px}
+.head-pick:first-child{margin-top:0}
+.head-pick .sec{margin:0}
+
+/* C — tờ phân công xem trước */
+.sheet{background:var(--paper);border-left:1px solid var(--rule-soft);padding:20px}
+.paper{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:16px 18px;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+.paper h5{margin:0 0 2px;font-size:14px}
+.stop{display:grid;grid-template-columns:18px 1fr;gap:10px;position:relative;padding-bottom:14px}
+.stop:before{content:"";position:absolute;left:5px;top:16px;bottom:0;width:2px;background:var(--rule-soft)}
+.stop:last-child{padding-bottom:0}
+.stop:last-child:before{display:none}
+.stop .b{width:12px;height:12px;border-radius:50%;border:2px solid var(--ash-3);background:var(--canvas);margin-top:4px}
+.stop .b.end{border-color:var(--rust);background:var(--rust)}
+.stop b{display:block}
+.next{list-style:none;margin:0;padding:0;counter-reset:n}
+.next li{counter-increment:n;display:grid;grid-template-columns:22px 1fr;gap:8px;padding:5px 0;color:var(--ash)}
+.next li:before{content:counter(n);width:20px;height:20px;border-radius:50%;background:var(--rule-hair);color:var(--ash);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.next li.me:before{background:var(--ink);color:#fff}
+.next li b{color:var(--ink)}
+.blank{color:var(--ash-3);font-style:italic}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Lên đơn giao hàng — 3 phương án</h1>
+<p class="lead">Dữ liệu thật của DB dev: yêu cầu YCGH-261006-UHN8 (DH004, Café Katinat, 4.000 tờ, cần giao hôm nay 07/10), 4 xe vừa khai, 11 người được chọn làm tài xế. Chế độ «Lên lượt xe» ghép thêm YCGH-261006-SICU (DH001). Cả ba phương án sửa chung các lỗi dưới đây; khác nhau ở cách chọn xe và người. Ngăn dùng độ rộng chung 1180px.</p>
+
+<div class="notes">
+  <div class="note"><h4>Lỗi của hộp hiện tại</h4><ul>
+    <li><b>Không thấy đang phân việc cho yêu cầu nào</b>: không có khách, hàng, nơi giao, hạn. Người lên đơn phải nhớ từ bảng bên dưới lớp mờ.</li>
+    <li><b>Chọn tài xế, chọn xe mà không biết ai, xe nào đang bận</b>; muốn biết phải đóng hộp sang tab Nhân viên giao hàng.</li>
+    <li><b>Nút Lưu nằm cuối</b>, phải cuộn qua ba khối mới thấy. Tên nút «Lưu kế hoạch» khác tên hộp «Lên đơn giao hàng».</li>
+  </ul></div>
+  <div class="note"><h4>Nói lặp, nói thừa</h4><ul>
+    <li>«Ghi chú phân công» nói 2 lần: tiêu đề khối và nhãn ô.</li>
+    <li>Câu dẫn đầu kể quy trình sau khi lưu; ba câu giải thích dưới ô Xe, Phụ xe luôn hiện dù đã biết.</li>
+    <li>Ba khối thẻ bọc, mỗi ô kéo dài hết 860px cho một biển số 9 ký tự.</li>
+    <li>Tiêu đề nối mã bằng dấu chấm giữa.</li>
+  </ul></div>
+  <div class="note"><h4>Giữ nguyên nghiệp vụ</h4><ul>
+    <li>Xe bắt buộc; lượt xe chỉ hiện khi đã chọn xe; phụ xe tuỳ chọn, tối đa 1, không trùng tài xế.</li>
+    <li>Người chưa có tài khoản vẫn phân được, kèm câu «bạn phải bấm hộ».</li>
+    <li>Hai chế độ một form: một yêu cầu, hoặc tick nhiều rồi Lên lượt xe.</li>
+    <li>Chọn = viền đủ 4 cạnh, hover nền xám nhạt, không dấu chấm giữa.</li>
+  </ul></div>
+</div>
+
+<div class="switch">
+  <span class="lbl">Phương án</span>
+  <div class="seg" id="optSeg">
+    <button data-opt="A" class="on">A: Form gọn kiểu Shopify</button>
+    <button data-opt="B">B: Bàn chọn người kiểu Onfleet</button>
+    <button data-opt="C">C: Có tờ phân công xem trước kiểu Stripe</button>
+  </div>
+  <span class="lbl">Chế độ</span>
+  <div class="seg" id="modeSeg">
+    <button data-mode="mot" class="on">Một yêu cầu</button>
+    <button data-mode="luot">Lên lượt xe (2 yêu cầu)</button>
+  </div>
+</div>
+
+<!-- ============================ A ============================ -->
+<div class="opt on" data-opt="A">
+<div class="why"><b>Khuôn: Shopify Polaris (Create shipping label, Fulfill items) + Stripe form.</b> Giữ dạng form thả xuống quen tay, chỉ thêm dải tóm tắt yêu cầu ở đầu, xếp ô thành lưới 2–3 cột, menu thả có trạng thái từng xe và người, nút cố định ở chân. Đổi ít nhất, code nhanh nhất.</div>
+<div class="app">
+  <div class="ghost"><h2>Giao hàng</h2><div class="gl"></div><div class="gl" style="width:80%"></div><div class="gl" style="width:72%"></div></div>
+  <div class="scrim"></div>
+  <aside class="drawer">
+    <div class="dh">
+      <span class="mode on" data-mode="mot"><b>Lên đơn giao hàng</b><span class="tag">YCGH-261006-UHN8</span></span>
+      <span class="mode" data-mode="luot"><b>Lên lượt xe</b><span class="tag">2 yêu cầu</span></span>
+      <span class="x">×</span>
+    </div>
+    <div class="dbody">
+      <div class="mode on" data-mode="mot">
+        <dl class="kv">
+          <div><dt>Khách</dt><dd>CÔNG TY CỔ PHẦN CAFÉ KATINAT<small>DH004</small></dd></div>
+          <div><dt>Hàng</dt><dd>Tờ rơi A4 4/4<small>4.000 tờ</small></dd></div>
+          <div><dt>Giao tới</dt><dd>Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh<small>Lý Đức Trung 0368 650 894</small></dd></div>
+          <div><dt>Cần giao</dt><dd><span class="pill p-vang"><i></i>Hôm nay</span><small>07/10/2026</small></dd></div>
+        </dl>
+      </div>
+      <div class="mode" data-mode="luot">
+        <div class="tbl"><table>
+          <thead><tr><th>Yêu cầu</th><th>Khách</th><th>Hàng</th><th class="r">Số lượng</th><th>Giao tới</th><th>Cần giao</th></tr></thead>
+          <tbody>
+            <tr><td class="lnk">YCGH-261006-UHN8</td><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td>Tờ rơi A4 4/4</td><td class="r num">4.000 <span class="sub">tờ</span></td><td class="sub">Lô 16, Đường số 3, KCN Tân Tạo</td><td><span class="pill p-vang"><i></i>Hôm nay</span></td></tr>
+            <tr><td class="lnk">YCGH-261006-SICU</td><td>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</td><td>Hộp kem 50ml (5×5×12 cm)</td><td class="r num">5.000 <span class="sub">cái</span></td><td class="sub">Số 18 Đại lộ Độc Lập, KCN VSIP 1</td><td class="num">30/10/2026</td></tr>
+          </tbody></table></div>
+        <p class="hint" style="margin:6px 0 0">Mỗi yêu cầu thành một đơn giao hàng riêng, chạy chung một lượt xe.</p>
+      </div>
+
+      <div class="sec" style="margin-top:22px">Xe và người</div>
+      <div class="g3">
+        <label class="f"><span>Xe <b class="req">*</b></span>
+          <div class="in focus">51K-77404 <span class="sub">Xe a Việt</span><span class="sub">5 tấn</span><span class="car">▾</span></div>
+          <div class="menu">
+            <div class="mi on"><span class="nm">51K-77404 <span class="sub">Xe a Việt</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub">5 tấn</span></div>
+            <div class="mi"><span class="nm">51C-62318 <span class="sub">Xe a Tùng</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub">2,5 tấn</span></div>
+            <div class="mi"><span class="nm">51D-40752 <span class="sub">Xe a Sang</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub">3,5 tấn</span></div>
+            <div class="mi"><span class="nm">51D-40917 <span class="sub">Xe a Dũng</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub">3,5 tấn</span></div>
+          </div>
+        </label>
+        <label class="f"><span>Lượt xe</span>
+          <div class="in">Lượt mới <span class="sub">xe xuất phát từ kho</span><span class="car">▾</span></div>
+          <span class="hint">Xe này chưa có lượt nào đang mở.</span>
+        </label>
+        <div></div>
+        <label class="f"><span>Tài xế <b class="req">*</b></span>
+          <div class="in">Nguyễn Văn Việt <span class="sub">NV094</span><span class="car">▾</span></div>
+          <span class="hint"><span class="pill p-la"><i></i>Rảnh</span>&nbsp; chưa có chuyến hôm nay</span>
+        </label>
+        <label class="f"><span>Phụ xe <em>không bắt buộc</em></span>
+          <div class="in ph">Đi một mình<span class="car">▾</span></div>
+          <span class="hint">Có phụ xe thì tiền chuyến chia theo tỷ lệ khai ở Phòng ban.</span>
+        </label>
+      </div>
+
+      <div class="sec">Giờ</div>
+      <div class="g3">
+        <label class="f"><span>Lấy hàng <b class="req">*</b></span><div class="in">07/10/2026 08:00<span class="car">▦</span></div></label>
+        <label class="f"><span>Dự kiến giao <b class="req">*</b></span><div class="in">07/10/2026 10:30<span class="car">▦</span></div></label>
+      </div>
+
+      <div class="sec">Ghi chú cho kíp xe</div>
+      <div class="in ph" style="height:60px;align-items:flex-start;padding-top:8px">Ví dụ: gọi trước cho bảo vệ KCN, cổng số 2</div>
+    </div>
+    <div class="dfoot">
+      <span class="sub">Lưu xong, đơn nằm ở tab Đơn giao hàng; gửi đề nghị xuất hàng ở đó.</span>
+      <span class="sp"></span>
+      <button class="btn">Huỷ</button>
+      <button class="btn pri"><span class="mode on" data-mode="mot">Lên đơn giao hàng</span><span class="mode" data-mode="luot">Lên lượt xe cho 2 đơn</span></button>
+    </div>
+  </aside>
+</div>
+</div>
+
+<!-- ============================ B ============================ -->
+<div class="opt" data-opt="B">
+<div class="why"><b>Khuôn: Onfleet / Tookan (bảng điều phối giao hàng) + Linear (chọn người bằng danh sách).</b> Việc chính của hộp này là chọn xe và người, nên bày thẳng danh sách xe và danh sách người kèm trạng thái, bấm một hàng là chọn, không phải mở menu thả. Mỗi người có công tắc Tài xế hoặc Phụ xe ngay trên hàng. Cột phải giữ yêu cầu, giờ, ghi chú và nút. Nhìn một lần thấy cả đội; code nhiều hơn A.</div>
+<div class="app">
+  <div class="ghost"><h2>Giao hàng</h2><div class="gl"></div><div class="gl" style="width:80%"></div></div>
+  <div class="scrim"></div>
+  <aside class="drawer">
+    <div class="dh">
+      <span class="mode on" data-mode="mot"><b>Lên đơn giao hàng</b><span class="tag">YCGH-261006-UHN8</span></span>
+      <span class="mode" data-mode="luot"><b>Lên lượt xe</b><span class="tag">2 yêu cầu</span></span>
+      <span class="x">×</span>
+    </div>
+    <div class="dbody" style="padding:0">
+    <div class="split">
+      <div>
+        <div class="head-pick"><span class="sec">Xe</span><span class="sub">bắt buộc</span></div>
+        <div class="pick">
+          <div class="pr xe on"><span class="rad on"></span><b>51K-77404</b><span class="nm">Xe a Việt</span><span class="sub num">5 tấn</span><span class="sub">Xe 51K-77404 (5 tấn)</span><span class="pill p-la"><i></i>Rảnh</span></div>
+          <div class="pr xe"><span class="rad"></span><b>51C-62318</b><span class="nm">Xe a Tùng</span><span class="sub num">2,5 tấn</span><span class="sub">Xe 2,5 – 3,5 tấn</span><span class="pill p-la"><i></i>Rảnh</span></div>
+          <div class="pr xe"><span class="rad"></span><b>51D-40752</b><span class="nm">Xe a Sang</span><span class="sub num">3,5 tấn</span><span class="sub">Xe 2,5 – 3,5 tấn</span><span class="pill p-la"><i></i>Rảnh</span></div>
+          <div class="pr xe"><span class="rad"></span><b>51D-40917</b><span class="nm">Xe a Dũng</span><span class="sub num">3,5 tấn</span><span class="sub">Xe 2,5 – 3,5 tấn</span><span class="pill p-la"><i></i>Rảnh</span></div>
+        </div>
+        <p class="hint" style="margin:6px 0 0">Cột thứ năm là mức khoán km xe đang ăn. Xe đang có lượt mở thì hiện «Đang chạy LX…» và chọn được «Ghép vào lượt» ngay trên hàng.</p>
+
+        <div class="head-pick"><span class="sec">Người</span><span class="sub">bấm Tài xế hoặc Phụ xe trên từng hàng</span><span class="sp"></span><span class="sub">Hôm nay</span></div>
+        <div class="pick">
+          <div class="pr nv on"><span class="av">VV</span><span class="nm"><b>Nguyễn Văn Việt</b> <span class="sub">NV094</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span class="on">Tài xế</span><span>Phụ xe</span></span></div>
+          <div class="pr nv on"><span class="av">TV</span><span class="nm"><b>Trần Phong Vũ</b> <span class="sub">NV097</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span>Tài xế</span><span class="on">Phụ xe</span></span></div>
+          <div class="pr nv"><span class="av">TG</span><span class="nm">Trần Hoàng Giang <span class="sub">NV096</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span>Tài xế</span><span>Phụ xe</span></span></div>
+          <div class="pr nv"><span class="av">TT</span><span class="nm">Trần Hùng Tín <span class="sub">NV099</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span>Tài xế</span><span>Phụ xe</span></span></div>
+          <div class="pr nv"><span class="av">TS</span><span class="nm">Trần Văn Thạch Sang <span class="sub">NV100</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span>Tài xế</span><span>Phụ xe</span></span></div>
+          <div class="pr nv"><span class="av">DN</span><span class="nm">Dương Văn Nhí <span class="sub">NV098</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span>Tài xế</span><span>Phụ xe</span></span></div>
+          <div class="pr nv"><span class="av">ND</span><span class="nm">Nguyễn Trung Dũng <span class="sub">NV101</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span>Tài xế</span><span>Phụ xe</span></span></div>
+          <div class="pr nv"><span class="av">NT</span><span class="nm">Nguyễn Hà Thanh Tùng <span class="sub">NV092</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span>Tài xế</span><span>Phụ xe</span></span></div>
+          <div class="pr nv"><span class="av">ĐT</span><span class="nm">Đặng Thành Triều <span class="sub">NV093</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span>Tài xế</span><span>Phụ xe</span></span></div>
+          <div class="pr nv"><span class="av">NĐ</span><span class="nm">Nghiêm Thành Được <span class="sub">NV095</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span>Tài xế</span><span>Phụ xe</span></span></div>
+          <div class="pr nv"><span class="av">MP</span><span class="nm">Nguyễn Thị Minh Phương <span class="sub">NV022</span></span><span class="pill p-la"><i></i>Rảnh</span><span class="sub mut">0 chuyến</span><span class="role"><span>Tài xế</span><span>Phụ xe</span></span></div>
+        </div>
+        <p class="hint" style="margin:6px 0 0">Người đang giao xếp lên đầu, người nghỉ chìm cuối và mờ. Người chưa có tài khoản có thẻ «Chưa có tài khoản»; chọn vẫn được, kèm câu «bạn phải bấm hộ».</p>
+      </div>
+
+      <div>
+        <div class="mode on" data-mode="mot">
+          <div class="sec">Yêu cầu</div>
+          <dl style="margin:0;display:grid;gap:10px">
+            <div><dt class="sub">Khách</dt><dd style="margin:0;font-weight:600">CÔNG TY CỔ PHẦN CAFÉ KATINAT <span class="tag">DH004</span></dd></div>
+            <div><dt class="sub">Hàng</dt><dd style="margin:0;font-weight:600">Tờ rơi A4 4/4 <span class="sub">4.000 tờ</span></dd></div>
+            <div><dt class="sub">Giao tới</dt><dd style="margin:0;font-weight:600">Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh</dd><dd class="sub" style="margin:0">Lý Đức Trung 0368 650 894</dd></div>
+            <div><dt class="sub">Cần giao</dt><dd style="margin:0"><span class="pill p-vang"><i></i>Hôm nay</span> <span class="sub">07/10/2026</span></dd></div>
+          </dl>
+        </div>
+        <div class="mode" data-mode="luot">
+          <div class="sec">2 yêu cầu chung một lượt</div>
+          <div class="tbl"><table><tbody>
+            <tr><td><span class="lnk">YCGH-261006-UHN8</span><div class="sub">Café Katinat <span class="tag">DH004</span></div></td><td class="r num">4.000 <span class="sub">tờ</span><div><span class="pill p-vang"><i></i>Hôm nay</span></div></td></tr>
+            <tr><td><span class="lnk">YCGH-261006-SICU</span><div class="sub">Cao Lợi Hưng <span class="tag">DH001</span></div></td><td class="r num">5.000 <span class="sub">cái</span><div class="sub">30/10/2026</div></td></tr>
+          </tbody></table></div>
+        </div>
+
+        <div class="sec">Lượt xe</div>
+        <div class="in">Lượt mới <span class="sub">xe xuất phát từ kho</span><span class="car">▾</span></div>
+
+        <div class="sec">Giờ</div>
+        <div class="g2">
+          <label class="f"><span>Lấy hàng <b class="req">*</b></span><div class="in">07/10/2026 08:00</div></label>
+          <label class="f"><span>Dự kiến giao <b class="req">*</b></span><div class="in">07/10/2026 10:30</div></label>
+        </div>
+
+        <div class="sec">Ghi chú cho kíp xe</div>
+        <div class="in ph" style="height:60px;align-items:flex-start;padding-top:8px">Ví dụ: gọi trước cho bảo vệ KCN</div>
+
+        <div class="sec">Đã chọn</div>
+        <p style="margin:0">Xe <b>51K-77404</b>, tài xế <b>Nguyễn Văn Việt</b>, phụ xe <b>Trần Phong Vũ</b>.</p>
+        <p class="hint" style="margin:4px 0 0">Tiền chuyến chia theo tỷ lệ khai ở Phòng ban.</p>
+      </div>
+    </div>
+    </div>
+    <div class="dfoot">
+      <span class="sub">Lưu xong, đơn nằm ở tab Đơn giao hàng; gửi đề nghị xuất hàng ở đó.</span>
+      <span class="sp"></span>
+      <button class="btn">Huỷ</button>
+      <button class="btn pri"><span class="mode on" data-mode="mot">Lên đơn giao hàng</span><span class="mode" data-mode="luot">Lên lượt xe cho 2 đơn</span></button>
+    </div>
+  </aside>
+</div>
+</div>
+
+<!-- ============================ C ============================ -->
+<div class="opt" data-opt="C">
+<div class="why"><b>Khuôn: Stripe (tạo hoá đơn có bản xem trước bên phải) + Shopify (Create order có cột tóm tắt).</b> Bên trái là form một cột như A. Bên phải là tờ phân công đúng như tài xế sẽ thấy trên điện thoại: đi đâu, lấy gì, gọi ai, mấy giờ. Ô nào chưa điền thì tờ để trống tương ứng. Câu «lưu xong rồi làm gì» thành ba bước đánh số dưới tờ. Cùng cách với form lập phiếu thu chi đã chốt.</div>
+<div class="app">
+  <div class="ghost"><h2>Giao hàng</h2><div class="gl"></div><div class="gl" style="width:80%"></div></div>
+  <div class="scrim"></div>
+  <aside class="drawer">
+    <div class="dh">
+      <span class="mode on" data-mode="mot"><b>Lên đơn giao hàng</b><span class="tag">YCGH-261006-UHN8</span></span>
+      <span class="mode" data-mode="luot"><b>Lên lượt xe</b><span class="tag">2 yêu cầu</span></span>
+      <span class="x">×</span>
+    </div>
+    <div class="dbody" style="padding:0">
+    <div class="split" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+      <div>
+        <div class="sec">Xe và người</div>
+        <div class="g2">
+          <label class="f"><span>Xe <b class="req">*</b></span><div class="in">51K-77404 <span class="sub">Xe a Việt</span><span class="car">▾</span></div></label>
+          <label class="f"><span>Lượt xe</span><div class="in">Lượt mới<span class="car">▾</span></div></label>
+          <label class="f"><span>Tài xế <b class="req">*</b></span><div class="in">Nguyễn Văn Việt <span class="pill p-la"><i></i>Rảnh</span><span class="car">▾</span></div></label>
+          <label class="f"><span>Phụ xe <em>không bắt buộc</em></span><div class="in ph">Đi một mình<span class="car">▾</span></div></label>
+        </div>
+        <div class="sec">Giờ</div>
+        <div class="g2">
+          <label class="f"><span>Lấy hàng <b class="req">*</b></span><div class="in">07/10/2026 08:00<span class="car">▦</span></div></label>
+          <label class="f"><span>Dự kiến giao <b class="req">*</b></span><div class="in focus ph">07/10/2026 --:--<span class="car">▦</span></div><span class="hint">Hạn khách: hôm nay 07/10.</span></label>
+        </div>
+        <div class="sec">Ghi chú cho kíp xe</div>
+        <div class="in ph" style="height:72px;align-items:flex-start;padding-top:8px">Ví dụ: gọi trước cho bảo vệ KCN</div>
+      </div>
+
+      <div class="sheet">
+        <div class="sec">Tờ phân công tài xế sẽ thấy</div>
+        <div class="paper">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <h5>Nguyễn Văn Việt</h5><span class="tag">51K-77404</span><span class="sp"></span><span class="sub">Đi một mình</span>
+          </div>
+          <div class="stop"><span class="b"></span><div><b>Lấy hàng ở kho</b><span class="sub">07/10/2026 08:00</span></div></div>
+          <div class="mode on" data-mode="mot">
+            <div class="stop"><span class="b end"></span><div>
+              <b>CÔNG TY CỔ PHẦN CAFÉ KATINAT</b>
+              <span class="sub">Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh</span>
+              <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap"><span class="tag">DH004</span><span class="tag">Tờ rơi A4 4/4</span><span class="tag">4.000 tờ</span></div>
+              <div style="margin-top:6px">Lý Đức Trung <span class="lnk">0368 650 894</span></div>
+              <div class="sub" style="margin-top:4px">Dự kiến giao <span class="blank">chưa điền</span></div>
+            </div></div>
+          </div>
+          <div class="mode" data-mode="luot">
+            <div class="stop"><span class="b"></span><div>
+              <b>CÔNG TY CỔ PHẦN CAFÉ KATINAT</b>
+              <span class="sub">Lô 16, Đường số 3, KCN Tân Tạo</span>
+              <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap"><span class="tag">YCGH-261006-UHN8</span><span class="tag">4.000 tờ</span></div>
+            </div></div>
+            <div class="stop"><span class="b end"></span><div>
+              <b>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</b>
+              <span class="sub">Số 18 Đại lộ Độc Lập, KCN VSIP 1</span>
+              <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap"><span class="tag">YCGH-261006-SICU</span><span class="tag">5.000 cái</span></div>
+            </div></div>
+          </div>
+        </div>
+
+        <div class="sec">Sau khi lưu</div>
+        <ol class="next">
+          <li class="me"><span>Đơn vào tab <b>Đơn giao hàng</b>, tài xế thấy ngay trên máy.</span></li>
+          <li><span>Bấm <b>Gửi đề nghị xuất hàng</b> ở tab đó.</span></li>
+          <li><span>Kho duyệt và xuất, tài xế bấm <b>Đã lấy hàng</b>.</span></li>
+        </ol>
+      </div>
+    </div>
+    </div>
+    <div class="dfoot">
+      <span class="sp"></span>
+      <button class="btn">Huỷ</button>
+      <button class="btn pri"><span class="mode on" data-mode="mot">Lên đơn giao hàng</span><span class="mode" data-mode="luot">Lên lượt xe cho 2 đơn</span></button>
+    </div>
+  </aside>
+</div>
+</div>
+
+</div>
+<script>
+function bind(segId, attr, sel){
+  document.querySelectorAll('#'+segId+' button').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#'+segId+' button').forEach(x=>x.classList.toggle('on',x===b));
+    const v=b.dataset[attr];
+    document.querySelectorAll(sel).forEach(el=>el.classList.toggle('on',el.dataset[attr]===v));
+  }));
+}
+bind('optSeg','opt','.opt');
+bind('modeSeg','mode','.mode');
+</script>
+</body>
+</html>

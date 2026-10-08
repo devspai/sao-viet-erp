@@ -17,6 +17,7 @@ from ..models.san_xuat_san_luong import BG_DE_XUAT, SanXuatBanGiao
 from ..models.stock_request import (
     REQ_CANCELLED, REQ_NHAP, REQ_REJECTED, REQ_XUAT, StockRequest, StockRequestLine,
 )
+from ..models.stock_voucher import VOUCHER_CANCELLED, StockVoucher
 from ..models.user import User
 from ..models.vat_lieu_kho import HANG_GIAY
 
@@ -288,6 +289,13 @@ class GiaCongNgoaiRepository:
         lại số chốt không đụng nhầm phiếu giấy đã xuất. Kho TỪ CHỐI cũng tính là hết sống: người kế
         hoạch phải chọn lại khổ / số tờ và gửi đề nghị khác."""
         return self._yeu_cau_cua(gcn_id, REQ_XUAT, (REQ_CANCELLED, REQ_REJECTED))
+
+    def phieu_cua_yeu_cau(self, request_id: int) -> list[StockVoucher]:
+        """Phiếu kho lập theo một đề nghị (chờ ghi sổ + đã ghi sổ; bỏ phiếu huỷ) — kho xuất nhiều
+        đợt thì nhiều phiếu, xếp theo thứ tự lập."""
+        return list(self.db.scalars(select(StockVoucher).where(
+            StockVoucher.request_id == request_id,
+            StockVoucher.trang_thai != VOUCHER_CANCELLED).order_by(StockVoucher.id)))
 
     def co_yeu_cau_xuat(self, gcn_ids) -> set[int]:
         """Lần nào (trong tập) đã có đề nghị xuất giấy còn sống — MỘT câu cho cả trang bảng lệnh

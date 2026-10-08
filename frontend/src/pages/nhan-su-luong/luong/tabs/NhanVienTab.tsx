@@ -384,7 +384,7 @@ export function NhanVienTab({
                 },
                 on_leave: {
                   label: "Nghỉ phép",
-                  className: "ns-badge ns-badge--info",
+                  className: "ns-badge ns-badge--tim",
                 },
                 suspended: {
                   label: "Tạm đình chỉ",
@@ -392,7 +392,7 @@ export function NhanVienTab({
                 },
                 resigned: {
                   label: "Đã thôi việc",
-                  className: "ns-badge ns-badge--muted",
+                  className: "ns-badge ns-badge--gray",
                 },
               };
               const statusInfo = statusLabels[e.status] ?? {

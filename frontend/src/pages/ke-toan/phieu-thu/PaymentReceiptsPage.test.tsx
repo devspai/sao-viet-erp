@@ -1,5 +1,5 @@
-/** Nối dây màn Phiếu thu (đặc tả PT-1, A.17, A.18): URL ↔ lọc + kỳ, lời gọi cùng kỳ, thẻ "Chờ thu" chỉ
- *  hiện khi còn phiếu cũ chờ thu, link "Thu hoá đơn" mở Công nợ phải thu đúng khách (lỗi 11). */
+/** Nối dây màn Phiếu thu (đặc tả PT-1, A.17, A.18; phương án A): URL ↔ lọc + kỳ, một lời gọi mỗi lượt tải, tab
+ *  "Chờ thu" chỉ hiện khi còn phiếu cũ chờ thu, mã hoá đơn mở Công nợ phải thu đúng khách (lỗi 11). */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,13 +32,11 @@ const HD_ROW = phieuThu({
   sales_invoice_id: 7, sales_invoice_number: "0001234", order_id: 40, order_code: "DH-0412",
   customer_name: "Thực phẩm An Phát",
 });
-const traVe = (the_loc = THE, items = [HD_ROW]) => ({ items, total: items.length, page: 1, size: 25, total_received_amount: 0, the_loc });
+const traVe = (the_loc = THE, items = [HD_ROW]) => ({ items, total: items.length, page: 1, size: 25, total_received_amount: 245_000_000, the_loc });
 
 beforeEach(() => {
   goi.receipts.mockReset();
-  goi.receipts.mockImplementation(async (_t: string, p: { size?: number; dem_only?: boolean }) =>
-    p.size === 1 ? traVe({ ...THE, xong_tien: 266_300_000 }, []) : traVe(),
-  );
+  goi.receipts.mockImplementation(async () => traVe());
   goi.companyAccounts.mockResolvedValue([]);
   goi.receiptAttachments.mockResolvedValue({ items: [] });
   goi.salesInvoices.mockResolvedValue({ items: [{ id: 7, customer_id: 12, customer_name: "Công ty CP Thực phẩm An Phát" }] });
@@ -54,42 +52,47 @@ describe("PaymentReceiptsPage — nối dây", () => {
     render(<PaymentReceiptsPage navigate={() => {}} />);
     await waitFor(() => expect(goi.receipts).toHaveBeenCalled());
     const nam = khoangSo({ loai: "nam", moc: "thu" });
-    const p = goi.receipts.mock.calls.find((c) => c[1].size !== 1)![1];
+    const p = goi.receipts.mock.calls[0][1];
     expect(p).toMatchObject({
       status: "received", chung_tu: "thieu", q: "PT-26", nguon: ["sales_invoice", "order_deposit"],
       hinh_thuc: "bank_transfer", tu_ngay: nam.tu, den_ngay: nam.den, moc: "thu", page: 1, sort: "-receipt_date",
     });
     expect(p.nhan).toBeUndefined();
     expect(screen.getByRole("textbox", { name: "Tìm phiếu thu" })).toHaveValue("PT-26");
-    expect(screen.getByText("Sổ tiền vào. Thu cọc lập ở Đơn hàng bán, thu hoá đơn lập ở Công nợ phải thu.")).toBeInTheDocument();
   });
 
-  it("kỳ có khoảng: thêm lời gọi cùng kỳ size 1; thẻ Đã thu lấy tiền + số phiếu + dòng cùng kỳ; không có thẻ Chờ thu khi cho = 0", async () => {
+  it("kỳ có khoảng: một lời gọi (không còn lời cùng kỳ); số nằm trong dải tab; dòng Cộng lấy tổng tiền đã thu; không có tab Chờ thu khi cho = 0", async () => {
     window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang");
     render(<PaymentReceiptsPage navigate={() => {}} />);
-    await waitFor(() => expect(goi.receipts).toHaveBeenCalledTimes(2));
-    expect(goi.receipts.mock.calls.map((c) => c[1].size)).toContain(1);
-    const daThu = await screen.findByRole("button", { name: /Đã thu/ });
-    await waitFor(() => expect(daThu).toHaveTextContent("245.000.000 đ"));
-    expect(daThu).toHaveTextContent("31 phiếu");
-    expect(daThu).toHaveTextContent("8% so với 266.300.000");
-    expect(screen.getByRole("button", { name: /Thiếu chứng từ/ })).toHaveTextContent("chưa có báo có hoặc biên nhận");
-    expect(screen.queryByRole("button", { name: /Chờ thu/ })).toBeNull();
+    const dai = screen.getByRole("group", { name: "Lọc theo trạng thái" });
+    await waitFor(() => expect(within(dai).getByRole("button", { name: /Tất cả/ })).toHaveTextContent("32"));
+    expect(goi.receipts).toHaveBeenCalledTimes(1);
+    expect(within(dai).getByRole("button", { name: /Đã thu/ })).toHaveTextContent("31");
+    expect(within(dai).getByRole("button", { name: /Thiếu chứng từ gốc/ })).toHaveTextContent("3");
+    expect(within(dai).queryByRole("button", { name: /Chờ thu/ })).toBeNull();
+    await waitFor(() => expect(document.querySelector("tr.lds-cong")).not.toBeNull());
+    const cong = document.querySelector<HTMLElement>("tr.lds-cong")!;
+    expect(cong).toHaveTextContent("Cộng 31 phiếu đã thu");
+    expect(cong).toHaveTextContent("245.000.000");
+    expect(screen.queryByRole("button", { name: /Xuất Excel/ })).toBeNull();
     const u = new URLSearchParams(window.location.search);
     expect(u.get("man")).toBe("ke-toan-phieu-thu");
     expect(u.get("ky")).toBe("thang");
   });
 
-  it("còn phiếu cũ chờ thu (cho > 0) thì hiện thẻ Chờ thu; bấm thẻ gửi status waiting_receipt", async () => {
+  it("còn phiếu cũ chờ thu (cho > 0) thì hiện tab Chờ thu; bấm tab gửi status waiting_receipt, không có dòng Cộng", async () => {
     window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang");
     goi.receipts.mockImplementation(async () => traVe({ ...THE, cho: 2 }));
     render(<PaymentReceiptsPage navigate={() => {}} />);
-    const cho = await screen.findByRole("button", { name: /Chờ thu/ });
+    const dai = screen.getByRole("group", { name: "Lọc theo trạng thái" });
+    const cho = await within(dai).findByRole("button", { name: /Chờ thu/ });
     expect(cho).toHaveTextContent("2");
     await userEvent.click(cho);
     await waitFor(() =>
       expect(goi.receipts.mock.calls.some((c) => c[1].status === "waiting_receipt" && !c[1].dem_only)).toBe(true),
     );
+    await waitFor(() => expect(cho).toHaveAttribute("aria-pressed", "true"));
+    expect(document.querySelector("tr.lds-cong")).toBeNull();
   });
 
   it("URL the=cho mà không còn phiếu chờ thu (cho = 0) thì về Tất cả", async () => {
@@ -99,14 +102,18 @@ describe("PaymentReceiptsPage — nối dây", () => {
       expect(goi.receipts.mock.calls.some((c) => c[1].status == null && !c[1].dem_only)).toBe(true),
     );
     await waitFor(() => expect(new URLSearchParams(window.location.search).has("the")).toBe(false));
-    expect(screen.getByRole("button", { name: /Tất cả/ })).toHaveAttribute("aria-pressed", "true");
+    const dai = screen.getByRole("group", { name: "Lọc theo trạng thái" });
+    expect(within(dai).getByRole("button", { name: /Tất cả/ })).toHaveAttribute("aria-pressed", "true");
+    expect(within(dai).queryByRole("button", { name: /Chờ thu/ })).toBeNull();
   });
 
-  it("link Thu hoá đơn mở Công nợ phải thu, ngăn của đúng khách — không mở đơn bán (lỗi 11)", async () => {
+  it("mã hoá đơn ở cột Thu theo mở Công nợ phải thu, ngăn của đúng khách — không mở đơn bán (lỗi 11)", async () => {
     window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=thang");
     const navigate = vi.fn();
     render(<PaymentReceiptsPage navigate={navigate} />);
-    const dong = (await screen.findAllByRole("row"))[1];
+    await waitFor(() => expect(document.querySelector("tr.lds-dong")).not.toBeNull());
+    const dong = document.querySelector<HTMLElement>("tr.lds-dong")!;
+    expect(within(dong).getByText("Hoá đơn")).toHaveClass("lds-tag");
     await userEvent.click(within(dong).getByRole("button", { name: "0001234" }));
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith("ke-toan-cong-no-phai-thu", {

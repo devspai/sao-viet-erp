@@ -17059,6 +17059,86 @@ def _migrate_go_don_gia_gia_cong(db) -> None:
 MIGRATIONS.append(("0374_go_don_gia_gia_cong", _migrate_go_don_gia_gia_cong))
 
 
+def _migrate_kho_mua_dem_to(db: Session) -> None:
+    """0375 — kho & mua hàng đếm giấy tờ bằng đơn vị `to` ("tờ") thay mã chặng `to_nguyen`
+    (chủ chốt 07/10/2026). Đảm bảo danh mục có `to`; đổi mã đơn vị đã lưu ở các dòng KHO/MUA
+    của giấy tờ. Dòng giấy của LỆNH (`lsx_cong_doan_vat_tu.don_vi_snapshot`) là mã chặng, không đụng.
+
+    Không thêm cặp quy đổi `to_nguyen ↔ to` (mg 0186 cấm cặp chặng ↔ chặng): mã chặng tờ qua cửa
+    kho được nhận hệ số 1 ở `kho_giay.la_ma_to_giay`. Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if "don_vi_do" in bang:
+        # created_at/updated_at NOT NULL không có server_default — phải ghi tay (cùng lối mg 0186).
+        db.execute(text(
+            "INSERT INTO don_vi_do (ma, ten, ho, he_so_goc, active, dung_lam_toc_do, "
+            "        ghi_chu, created_at, updated_at) "
+            "SELECT 'to', 'tờ', 'to', 1, TRUE, FALSE, 'Đơn vị đếm giấy tờ ở kho và mua hàng.', "
+            "       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP "
+            "WHERE NOT EXISTS (SELECT 1 FROM don_vi_do WHERE lower(ma) = 'to')"))
+        db.commit()
+    viec = [
+        ("stock_request_lines", "dvt", "hang_loai = 'giay' AND dang_giay = 'to'"),
+        ("san_xuat_vat_tu_de_nghi_dong", "dvt", "hang_loai = 'giay' AND dang_giay = 'to'"),
+        ("san_xuat_vat_tu_de_nghi_dong", "dvt_goc", "hang_loai = 'giay' AND dang_giay = 'to'"),
+        ("department_purchase_request_lines", "unit", "hang_loai = 'giay'"),
+        ("purchase_request_lines", "unit", "hang_loai = 'giay'"),
+        ("supplier_items", "unit", "hang_loai = 'giay'"),
+    ]
+    # Đọc cột của MỌI bảng trước rồi mới UPDATE: inspector mượn kết nối từ pool, trả về là
+    # rollback — xen giữa các câu UPDATE chưa commit thì (một kết nối dùng chung) mất việc vừa làm.
+    cot_cua = {t: _existing_columns(insp, t) for t in {v[0] for v in viec} if t in bang}
+    for ten_bang, cot, dk in viec:
+        cot_co = cot_cua.get(ten_bang, set())
+        if cot not in cot_co or "hang_loai" not in cot_co or (
+                "dang_giay" in dk and "dang_giay" not in cot_co):
+            continue
+        db.execute(text(f"UPDATE {ten_bang} SET {cot} = 'to' WHERE {cot} = 'to_nguyen' AND {dk}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0375_kho_mua_dem_to", _migrate_kho_mua_dem_to))
+
+
+def _migrate_ncc_gia_theo_dang(db: Session) -> None:
+    """0376 — `supplier_items.dang_ban/kho_rong/kho_dai` (dạng bán giấy, 07/10/2026). Dòng giấy cũ:
+    đơn vị đếm tờ (`to`, `to_nguyen`, `ram`) ⇒ `to` khổ 0×0 (phải khai khổ mới so được), còn lại ⇒
+    `cuon` (giá theo kg vẫn đúng). Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    if "supplier_items" not in insp.get_table_names():
+        return
+    co = _existing_columns(insp, "supplier_items")
+    if "dang_ban" not in co:
+        db.execute(text("ALTER TABLE supplier_items ADD COLUMN dang_ban VARCHAR(8)"))
+    for ten in ("kho_rong", "kho_dai"):
+        if ten not in co:
+            db.execute(text(f"ALTER TABLE supplier_items ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    db.execute(text(
+        "UPDATE supplier_items SET dang_ban = CASE WHEN lower(unit) IN ('to', 'to_nguyen', 'ram') "
+        "THEN 'to' ELSE 'cuon' END WHERE hang_loai = 'giay' AND dang_ban IS NULL"))
+    db.commit()
+
+
+MIGRATIONS.append(("0376_ncc_gia_theo_dang", _migrate_ncc_gia_theo_dang))
+
+
+def _migrate_dot_giao_kho_nhan(db: Session) -> None:
+    """0377 — `purchase_delivery_lines.kho_rong/kho_dai` (khổ thực nhận của giấy tờ; 0 · 0 = khổ
+    đặt, 07/10/2026). Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    if "purchase_delivery_lines" not in insp.get_table_names():
+        return
+    co = _existing_columns(insp, "purchase_delivery_lines")
+    for ten in ("kho_rong", "kho_dai"):
+        if ten not in co:
+            db.execute(text(
+                f"ALTER TABLE purchase_delivery_lines ADD COLUMN {ten} INTEGER NOT NULL DEFAULT 0"))
+    db.commit()
+
+
+MIGRATIONS.append(("0377_dot_giao_kho_nhan", _migrate_dot_giao_kho_nhan))
+
+
 def _migrate_nguon_lenh_so_luong(db: Session) -> None:
     """0378 — `yeu_cau_mua_nguon_lenh.kho_rong/kho_dai/so_luong` (07/10/2026, spec một ô một phiếu).
 
@@ -17079,3 +17159,51 @@ def _migrate_nguon_lenh_so_luong(db: Session) -> None:
 
 
 MIGRATIONS.append(("0378_nguon_lenh_so_luong", _migrate_nguon_lenh_so_luong))
+
+
+def _migrate_sua_chua_hai_trang_thai(db: Session) -> None:
+    """0379 — phiếu sửa chữa còn đúng 2 trạng thái (07/10/2026).
+
+    `dang_sua`/`cho_vat_tu` không còn nút nào chuyển tới; phiếu cũ kẹt ở hai nấc đó dồn về
+    `cho_sua` (vẫn là phiếu đang mở, vẫn nằm trong "Cần làm"). Không đụng mốc hoàn thành —
+    phiếu đang mở vốn không có. Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    if "ky_thuat_sua_chua" not in insp.get_table_names():
+        return
+    db.execute(text(
+        "UPDATE ky_thuat_sua_chua SET trang_thai = 'cho_sua' "
+        "WHERE trang_thai IN ('dang_sua', 'cho_vat_tu')"))
+    db.commit()
+
+
+MIGRATIONS.append(("0379_sua_chua_hai_trang_thai", _migrate_sua_chua_hai_trang_thai))
+
+
+def _migrate_loai_mua(db: Session) -> None:
+    """0380 — LOẠI MUA của yêu cầu mua (08/10/2026): theo_yeu_cau | cho_lsx | mua_ton.
+
+    Backfill: yêu cầu có liên kết lệnh (`yeu_cau_mua_nguon_lenh`) ⇒ cho_lsx; nội dung bắt đầu
+    "Bổ sung tồn" (câu nút Tạo yêu cầu mua ở màn Tồn kho điền sẵn) ⇒ mua_ton; còn lại để mặc định.
+    Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    if "department_purchase_requests" not in insp.get_table_names():
+        return
+    if "loai_mua" not in _existing_columns(insp, "department_purchase_requests"):
+        db.execute(text(
+            "ALTER TABLE department_purchase_requests "
+            "ADD COLUMN loai_mua VARCHAR(16) NOT NULL DEFAULT 'theo_yeu_cau'"))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_department_purchase_requests_loai_mua "
+        "ON department_purchase_requests (loai_mua)"))
+    if "yeu_cau_mua_nguon_lenh" in insp.get_table_names():
+        db.execute(text(
+            "UPDATE department_purchase_requests SET loai_mua = 'cho_lsx' "
+            "WHERE loai_mua <> 'cho_lsx' AND id IN "
+            "(SELECT department_request_id FROM yeu_cau_mua_nguon_lenh)"))
+    db.execute(text(
+        "UPDATE department_purchase_requests SET loai_mua = 'mua_ton' "
+        "WHERE loai_mua = 'theo_yeu_cau' AND content LIKE 'Bổ sung tồn%'"))
+    db.commit()
+
+
+MIGRATIONS.append(("0380_loai_mua", _migrate_loai_mua))

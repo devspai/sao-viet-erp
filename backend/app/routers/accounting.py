@@ -200,6 +200,7 @@ def accounting_inbox(
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern="^(tao|can)$"),
     deposit_status: str | None = Query(default=None),
+    tien: str | None = Query(default=None, pattern="^(chua_tra|mot_phan|qua_han|da_tra)$"),
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
@@ -219,11 +220,14 @@ def accounting_inbox(
         # 04/08/2026). Chặn ở API chứ không chỉ giấu ở giao diện.
         exclude_statuses=[PR_DRAFT],
     )
-    rows, total = purchases.list_requests(status=status_, sort=sort, page=page, size=size, actor=user, **loc)
-    # Số trên tab trạng thái: cùng kỳ / tìm / NCC / cọc với bảng, chưa lọc trạng thái.
-    dem = purchases.dem_theo_trang_thai(actor=user, **loc)
-    dem["tat_ca"] = sum(dem.values())
-    return PurchaseRequestListOut(items=rows, total=total, page=page, size=size, dem_theo_tab=dem)
+    # Cùng một hàm với màn Mua hàng: hai nhóm lọc Hàng (`status`) và Tiền (`tien`), số trên mỗi
+    # nhóm đếm trước khi lọc cả hai nhóm.
+    rows, total, dem, dem_tien = purchases.danh_sach_don(
+        status=status_, tien=tien, sort=sort, page=page, size=size, actor=user, **loc
+    )
+    return PurchaseRequestListOut(
+        items=rows, total=total, page=page, size=size, dem_theo_tab=dem, dem_theo_tien=dem_tien
+    )
 
 
 @router.get("/api/accounting/inbox/loc-ncc", response_model=list[LuaChonLoc])
@@ -1317,6 +1321,18 @@ def list_payment_receipts(
         size=size,
     )
     return PaymentReceiptListOut(items=rows, total=total, page=page, size=size, **extra)
+
+
+@router.get("/api/accounting/payment-receipts/{receipt_id}", response_model=PaymentReceiptOut)
+def get_payment_receipt(
+    receipt_id: int,
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_PT, "read"))],
+):
+    try:
+        return PaymentReceiptOut(**svc.get_receipt(receipt_id))
+    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
+        raise _map_error(exc) from None
 
 
 @router.post(

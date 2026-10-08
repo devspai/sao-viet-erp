@@ -32,10 +32,18 @@ const KHAU_MAU: Record<string, string> = {
   sau_sx: "lsc-pill--amber",
   da_giao: "lsc-pill--moss",
 };
+/** Sau sản xuất tách màu theo chi tiết — ba chặng khác việc thì phải liếc là phân biệt. */
+const KHAU_CT_MAU: Record<string, string> = {
+  dang_kcs: "lsc-pill--plum",
+  cho_nhap_kho: "lsc-pill--amber",
+  san_sang_giao: "lsc-pill--teal",
+};
 
-/** Pill khâu: Đang sản xuất xám thép, chi tiết sau sản xuất vàng, Đã giao đủ xanh. */
+/** Pill khâu: Đang sản xuất xanh dương, Đang KCS tím, Chờ nhập kho vàng, Sẵn sàng giao ngọc, Đã
+ *  giao đủ lá. */
 export function PillKhau({ khau, ct }: { khau: string; ct?: string | null }) {
-  return <span className={`lsc-pill ${KHAU_MAU[khau] ?? "lsc-pill--off"}`}>{nhanKhau(khau, ct)}</span>;
+  const mau = (khau === "sau_sx" && ct && KHAU_CT_MAU[ct]) || KHAU_MAU[khau] || "lsc-pill--off";
+  return <span className={`lsc-pill ${mau}`}>{nhanKhau(khau, ct)}</span>;
 }
 
 /** Thẻ "Đã đóng lệnh" — KCS đã đóng lệnh (`lsx.trang_thai = da_dong`). Đi KÈM pill khâu, không

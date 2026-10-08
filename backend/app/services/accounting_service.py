@@ -277,6 +277,26 @@ def _the_loc_cong_no(items: list[dict]) -> dict:
     }
 
 
+def _tong_loc_cong_no(items: list[dict], *, so_khoan, khoa_ky_1: str, khoa_ky_2: str) -> dict:
+    """Dòng CỘNG của bảng công nợ: tổng của MỌI dòng khớp bộ lọc, TRƯỚC khi cắt trang (07/10/2026).
+
+    Khác số tổng đầu màn (`total_due`, `aging`…) — những số đó cố ý KHÔNG theo bộ lọc nâng cao.
+    `so_khoan(m)` = số khoản nợ của một dòng (phải trả: số đợt còn nợ; phải thu: số hoá đơn còn nợ).
+    Rổ tuổi cộng bằng `_aging_cong` — cùng hàm với dải tổng đầu màn nên hai nơi không thể lệch."""
+    ro = _aging_rong()
+    for m in items:
+        _aging_cong(ro, m["aging"])
+    return {
+        "so_doi_tac": len(items),
+        "so_khoan": sum(so_khoan(m) for m in items),
+        "con_no": sum(m["total_due"] for m in items),
+        "aging": {k: ro[k]["amount"] for k in AGING_KEYS},
+        "qua_han": sum(m["overdue_amount"] for m in items),
+        "trong_ky_1": sum(m[khoa_ky_1] for m in items),
+        "trong_ky_2": sum(m[khoa_ky_2] for m in items),
+    }
+
+
 #: Cột sắp xếp được của hai bảng công nợ → chiều MẶC ĐỊNH khi bấm lần đầu: còn nợ lớn trước, hạn
 #: sớm trước, thu / trả gần nhất CŨ trước (khách im lâu nhất là người cần gọi trước).
 SAP_XEP_CONG_NO = {"con_no": "desc", "han": "asc", "gan_nhat": "asc"}
@@ -904,6 +924,7 @@ class AccountingService:
         theo_ncc: dict[int | None, dict] = {}
 
         def _muc_moi(supplier_id, ten, supplier) -> dict:
+            lien_he = self._lien_he_ncc(supplier)
             return {
                 "supplier_id": supplier_id,
                 "supplier_name": ten,
@@ -919,8 +940,8 @@ class AccountingService:
                 "credit_limit": int(getattr(supplier, "credit_limit", 0) or 0) if supplier else 0,
                 "credit_days": getattr(supplier, "credit_days", None) if supplier else None,
                 "supplier_code": getattr(supplier, "code", None) if supplier else None,
-                "lien_he_ten": getattr(supplier, "contact_name", None) if supplier else None,
-                "lien_he_sdt": getattr(supplier, "phone", None) if supplier else None,
+                "lien_he_ten": lien_he[0],
+                "lien_he_sdt": lien_he[1],
                 "tra_gan_nhat_ngay": None,
                 "tra_gan_nhat_tien": 0,
             }
@@ -1073,6 +1094,13 @@ class AccountingService:
         items = _sap_xep_cong_no(
             items, sap_xep, chieu, khoa_gan_nhat="tra_gan_nhat_ngay", khoa_ky="paid_in_period"
         )
+        # Dòng Cộng của bảng: trên MỌI dòng đã lọc, trước khi cắt trang. `dem_only` chỉ cần số đếm
+        # nên bỏ qua cho nhẹ (`chi_tong` đã thoát ở trên).
+        tong_loc = None if dem_only else _tong_loc_cong_no(
+            items,
+            so_khoan=lambda m: sum(r["count"] for r in m["aging"].values()),
+            khoa_ky_1="mua_trong_ky", khoa_ky_2="paid_in_period",
+        )
 
         page = max(1, page)
         size = max(1, min(size, 200))
@@ -1087,8 +1115,24 @@ class AccountingService:
             "size": size,
             "pages": pages,
             "the_loc": the_loc,
+            "tong_loc": tong_loc,
             **tong_so,
         }
+
+    @staticmethod
+    def _lien_he_ncc(supplier) -> tuple[str | None, str | None]:
+        """(Tên liên hệ, số điện thoại) của NCC — MỘT nguồn cho dòng danh sách và ngăn chi tiết."""
+        if supplier is None:
+            return None, None
+        return getattr(supplier, "contact_name", None), getattr(supplier, "phone", None)
+
+    def _tk_nhan_ncc(self, supplier_id: int) -> str | None:
+        """Tài khoản nhận tiền MẶC ĐỊNH (đang dùng) của NCC dạng "{ngân hàng} {số tài khoản}".
+        Không có tài khoản mặc định thì None — không đoán một tài khoản khác."""
+        for acc in self.repo.list_supplier_accounts(supplier_id=supplier_id, active_only=True):
+            if acc.is_default:
+                return f"{acc.bank_name} {acc.account_number}".strip()
+        return None
 
     def payables_detail(
         self,
@@ -1304,6 +1348,7 @@ class AccountingService:
             khoa = ro_tuoi(x["overdue_days"])
             ro_chi_tiet[khoa]["amount"] += x["con_no"]
             ro_chi_tiet[khoa]["count"] += 1
+        lien_he_ncc = self._lien_he_ncc(supplier)
         return {
             "supplier_id": supplier_id,
             "supplier_name": supplier.name if supplier is not None else "(không rõ NCC)",
@@ -1311,6 +1356,9 @@ class AccountingService:
             "credit_days": getattr(supplier, "credit_days", None) if supplier is not None else None,
             "vuot_han_muc": han_muc > 0 and tong_no > han_muc,
             "vuot_bao_nhieu": max(0, tong_no - han_muc) if han_muc > 0 else 0,
+            "lien_he_ten": lien_he_ncc[0],
+            "lien_he_sdt": lien_he_ncc[1],
+            "tk_nhan": self._tk_nhan_ncc(supplier_id) if supplier is not None else None,
             "items": con_no,
             # Cọc/ứng trước của CẢ ĐƠN — dòng riêng, không thuộc đợt nào (chủ chốt 06/08/2026).
             "coc_chung": coc_chung,
@@ -1333,7 +1381,29 @@ class AccountingService:
         return [self._voucher_out(row) for row in rows], total, totals
 
     def get_voucher(self, voucher_id: int):
-        return self._voucher_out(self._voucher(voucher_id))
+        row = self._voucher(voucher_id)
+        out = self._voucher_out(row)
+        out["truoc_do"], out["con_no_sau"] = self._doi_chieu_phieu_chi(row)
+        return out
+
+    def _doi_chieu_phieu_chi(self, row: PaymentVoucher) -> tuple[int | None, int | None]:
+        """Số đã trả TRƯỚC phiếu chi này và số còn nợ của đợt SAU phiếu này (bảng đối chiếu ở ngăn).
+
+        `paid` của đợt tính cả phiếu lập sau nên không dùng được. Chỉ phiếu trả đích danh một đợt
+        giao mới có số (cọc, gia công, tạm ứng, khác ⇒ `(None, None)`). Giá trị đợt và phần cọc bù
+        lấy từ `_no_tung_dot` — cùng nguồn với màn Công nợ, không tự tính lại."""
+        did = getattr(row, "delivery_id", None)
+        purchase = row.purchase_request
+        if did is None or purchase is None:
+            return None, None
+        # `phan_bo_tien_dot` là hàm nền của `_no_tung_dot` — gọi thẳng cho nhẹ (khỏi dựng dòng hàng).
+        dot = next((d for d in phan_bo_tien_dot(purchase)[0] if d["delivery"].id == did), None)
+        if dot is None:
+            return None, None
+        truoc_do = self.repo.tong_chi_dot_truoc_phieu(did, row.id)
+        phieu_nay = int(row.amount_vnd) if row.status == PAYMENT_VOUCHER_PAID else 0
+        con_no_sau = max(0, int(dot["amount"]) - int(dot["coc_bu"]) - truoc_do - phieu_nay)
+        return truoc_do, con_no_sau
 
     def create_voucher(self, *, actor, purchase_request_id: int | None = None,
                        salary_advance_id: int | None = None,
@@ -1965,6 +2035,15 @@ class AccountingService:
         items = _sap_xep_cong_no(
             items, sap_xep, chieu, khoa_gan_nhat="thu_gan_nhat_ngay", khoa_ky="received_in_period"
         )
+        # Dòng Cộng của bảng (xem `payables_summary`): số khoản = Σ số khoản các rổ tuổi của từng
+        # dòng, KHÔNG phải `invoice_count`. Kỳ đã qua ghi đè `aging` bằng số của sổ 131 mà không đụng
+        # `invoice_count` (số hoá đơn còn nợ hôm nay) — đếm bằng `invoice_count` thì dòng Cộng lệch
+        # cột từng dòng. Ở ảnh chụp hai số bằng nhau.
+        tong_loc = None if dem_only else _tong_loc_cong_no(
+            items,
+            so_khoan=lambda m: sum(r["count"] for r in m["aging"].values()),
+            khoa_ky_1="ban_trong_ky", khoa_ky_2="received_in_period",
+        )
 
         page = max(1, page)
         size = max(1, min(size, 200))
@@ -1981,6 +2060,7 @@ class AccountingService:
             "size": size,
             "pages": pages,
             "the_loc": the_loc,
+            "tong_loc": tong_loc,
             **tong_so,
         }
 
@@ -2084,6 +2164,9 @@ class AccountingService:
         total_due = sum(i["remaining_amount"] for i in items)
         overdue_amount = sum(i["remaining_amount"] for i in items if i["overdue_days"] > 0)
         credit_limit = int(customer.credit_limit or 0)
+        # Liên hệ chính + sale phụ trách: đi ĐÚNG đường của dòng danh sách (`_dien_lien_he_khach`).
+        thong_tin = {"customer_id": customer.id, "sale_user_id": customer.sale_user_id}
+        self._dien_lien_he_khach([thong_tin])
         return {
             "customer_id": customer.id,
             "customer_name": customer.name,
@@ -2091,6 +2174,9 @@ class AccountingService:
             "payment_term_days": customer.payment_term_days,
             "vuot_han_muc": credit_limit > 0 and total_due > credit_limit,
             "vuot_bao_nhieu": max(0, total_due - credit_limit) if credit_limit > 0 else 0,
+            "lien_he_ten": thong_tin.get("lien_he_ten"),
+            "lien_he_sdt": thong_tin.get("lien_he_sdt"),
+            "phu_trach": thong_tin.get("sale_user_name"),
             "items": items,
             "paid": paid,
             "paid_total": so_lan_thu,
@@ -2153,6 +2239,38 @@ class AccountingService:
             size=size,
         )
         return [self._receipt_out(row) for row in rows], total, extra
+
+    def get_receipt(self, receipt_id: int) -> dict:
+        row = self._receipt(receipt_id)
+        out = self._receipt_out(row)
+        out["truoc_do"], out["con_no_sau"] = self._doi_chieu_phieu_thu(row)
+        return out
+
+    def _doi_chieu_phieu_thu(self, row: PaymentReceipt) -> tuple[int | None, int | None]:
+        """Số đã thu TRƯỚC phiếu thu này và số hoá đơn còn nợ SAU phiếu này (chỉ phiếu thu gắn hoá
+        đơn). `received_amount` của hoá đơn tính cả phiếu lập sau nên không dùng được. Phần cọc cấn
+        vào hoá đơn lấy từ `receivable_rows` — cùng nguồn với màn Công nợ phải thu."""
+        iid = row.sales_invoice_id
+        invoice = row.sales_invoice
+        if iid is None or invoice is None:
+            return None, None
+        if invoice.status != SALES_INVOICE_ISSUED:
+            # Hoá đơn đã huỷ không còn sinh nợ ⇒ không có "còn nợ sau phiếu này" để đối chiếu.
+            return None, None
+        # Cọc cấn FIFO theo ĐƠN (`receivable_rows` gom theo `order_id`) ⇒ chỉ nạp hoá đơn của đúng
+        # đơn này: cùng số trừ cọc mà không quét cả khách (hoá đơn không gắn khách thì quét cả hệ thống).
+        hoa_don_don = self.repo.list_sales_invoices(
+            order_id=invoice.order_id, status=SALES_INVOICE_ISSUED
+        )
+        money = next(
+            (m for m in receivable_rows(self.repo, invoices=hoa_don_don) if m["invoice_id"] == iid),
+            None,
+        )
+        coc_can = int(money["deposit_offset_amount"]) if money else 0
+        truoc_do = self.repo.tong_thu_hoa_don_truoc_phieu(iid, row.id)
+        phieu_nay = int(row.amount_vnd) if row.status == PAYMENT_RECEIPT_RECEIVED else 0
+        con_no_sau = max(0, int(invoice.amount_vnd) - coc_can - truoc_do - phieu_nay)
+        return truoc_do, con_no_sau
 
     def create_other_receipt(self, *, actor, **values):
         prepared = self._prepare_other_receipt(values)

@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lên đơn giao hàng — phương án B</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --la-bg:#dcfce7; --la-fg:#15803d; --la-dot:#22c55e;
+  --xanh-bg:#dbeafe; --xanh-fg:#1d4ed8; --xanh-dot:#3b82f6;
+  --vang-bg:#fef3c7; --vang-fg:#b45309; --vang-dot:#f59e0b;
+  --xam-bg:#f1f5f9; --xam-fg:#475569; --xam-dot:#94a3b8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13px/1.45 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1480px;margin:0 auto;padding:24px 16px 96px}
+h1{font-size:20px;font-weight:600;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:1000px;font-size:14px}
+.notes{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:18px}
+@media (max-width:1000px){.notes{grid-template-columns:1fr}}
+.note{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:12px 16px;color:var(--ash)}
+.note h4{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--ink)}
+.note ul{margin:0;padding-left:18px}
+.note li{margin:3px 0}
+
+.switch{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 14px;margin:0 0 16px;background:rgba(233,237,242,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--rule)}
+.switch .lbl{font-size:12px;color:var(--ash)}
+.seg{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:9px;padding:3px;gap:2px}
+.seg button{border:1px solid transparent;background:none;font:inherit;font-weight:500;color:var(--ash);padding:5px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.seg button:hover{background:var(--rule-hair)}
+.seg button.on{border-color:var(--ink);color:var(--ink)}
+.mode{display:none}.mode.on{display:contents}
+
+/* Khung app + ngăn 1180px */
+.app{background:var(--paper);border:1px solid var(--rule);border-radius:14px;overflow:hidden;position:relative;height:820px}
+.ghost{padding:18px 20px;filter:blur(1.5px);opacity:.55}
+.ghost .gl{height:30px;border-radius:8px;background:var(--rule-soft);margin:8px 0;width:60%}
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.28)}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(1180px,100%);background:var(--canvas);border-left:1px solid var(--rule);box-shadow:-12px 0 32px rgba(15,23,42,.12);display:flex;flex-direction:column}
+.dh{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--rule-soft)}
+.dh .t{font-size:16px;font-weight:600}
+.dh .x{margin-left:auto;width:28px;height:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:var(--ash);font-size:18px;cursor:pointer}
+.dh .x:hover{background:var(--rule-hair)}
+.dfoot{display:flex;align-items:center;gap:10px;padding:10px 20px;border-top:1px solid var(--rule-soft)}
+
+.btn{height:32px;border:1px solid var(--rule);border-radius:7px;background:var(--canvas);padding:0 12px;font:inherit;font-weight:500;color:var(--ink);display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.pri:hover{background:var(--rust-deep)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.sp{flex:1}
+.sub{color:var(--ash-2);font-size:12px}
+.mut{color:var(--ash-3)}
+.num{font-variant-numeric:tabular-nums}
+.r{text-align:right}
+.tag{display:inline-block;padding:0 6px;border:1px solid var(--rule-soft);border-radius:5px;font-size:11.5px;color:var(--ash);background:var(--canvas);white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:500;white-space:nowrap}
+.pill i{width:6px;height:6px;border-radius:50%}
+.p-la{background:var(--la-bg);color:var(--la-fg)} .p-la i{background:var(--la-dot)}
+.p-xanh{background:var(--xanh-bg);color:var(--xanh-fg)} .p-xanh i{background:var(--xanh-dot)}
+.p-vang{background:var(--vang-bg);color:var(--vang-fg)} .p-vang i{background:var(--vang-dot)}
+.p-xam{background:var(--xam-bg);color:var(--xam-fg)} .p-xam i{background:var(--xam-dot)}
+.lnk{color:var(--rust)}
+
+/* Tiêu đề nhóm: chữ thường, không in hoa đậm */
+.ht{display:flex;align-items:center;gap:10px;margin:18px 0 8px}
+.ht:first-child{margin-top:0}
+.ht h3{margin:0;font-size:13px;font-weight:500;color:var(--ink)}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f > span{font-size:12px;color:var(--ash-2)}
+.f > span .req{color:var(--rust)}
+.in{height:34px;border:1px solid var(--rule);border-radius:7px;background:var(--canvas);padding:0 10px;display:flex;align-items:center;gap:8px;color:var(--ink);white-space:nowrap;overflow:hidden;font:inherit;width:100%}
+.in.ph{color:var(--ash-3)}
+.in .car{margin-left:auto;color:var(--ash-3);font-size:11px}
+.in:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(15,23,42,.08)}
+textarea.in{height:64px;padding-top:8px;resize:vertical}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
+.hint{font-size:12px;color:var(--ash-2);margin:6px 0 0}
+
+/* Bố cục 2 cột */
+.split{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);flex:1;min-height:0}
+.split > div{overflow:auto;padding:16px 20px}
+.split > div + div{border-left:1px solid var(--rule-soft)}
+
+/* Ô tìm */
+.search{position:relative;flex:1;max-width:340px}
+.search input{height:30px;width:100%;border:1px solid var(--rule);border-radius:7px;padding:0 28px 0 30px;font:inherit;color:var(--ink);background:var(--canvas)}
+.search input:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px rgba(15,23,42,.08)}
+.search .ic{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--ash-3)}
+.search .clr{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--ash-3);cursor:pointer;font-size:15px;display:none}
+.search.has .clr{display:block}
+
+/* Danh sách chọn — chữ thường, chọn = viền đủ 4 cạnh */
+.pick{border:1px solid var(--rule-soft);border-radius:10px;overflow:auto;max-height:300px}
+.pick.nvl{max-height:360px}
+.pr{display:grid;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--rule-hair);cursor:pointer}
+.pr:last-child{border-bottom:0}
+.pr:hover{background:var(--rule-hair)}
+.pr.on{outline:1.5px solid var(--ink);outline-offset:-1.5px;border-radius:8px}
+.pr.xe{grid-template-columns:16px 96px minmax(0,1fr) 64px minmax(0,1.3fr) 92px}
+.pr.nv{grid-template-columns:26px minmax(0,1fr) 92px 80px 136px}
+.pr.dim{color:var(--ash-3)}
+.rad{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--rule);display:inline-block}
+.rad.on{border:4px solid var(--ink)}
+.av{width:24px;height:24px;border-radius:50%;background:var(--rule-hair);color:var(--ash-2);display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:500}
+.nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.role{display:inline-flex;gap:4px}
+.role span{padding:1px 9px;font-size:12px;color:var(--ash-2);white-space:nowrap;border:1px solid var(--rule-soft);border-radius:6px;background:var(--canvas)}
+.role span:hover{background:var(--rule-hair)}
+.role span.on{border-color:var(--ink);color:var(--ink)}
+.empty{padding:18px 12px;color:var(--ash-2);text-align:center}
+.pin-sep{padding:3px 12px;font-size:11.5px;color:var(--ash-3);background:var(--paper);border-bottom:1px solid var(--rule-hair)}
+mark{background:#fef3c7;color:inherit;border-radius:2px;padding:0 1px}
+
+table{width:100%;border-collapse:collapse}
+td{padding:7px 10px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.tbl{border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.kv{display:grid;gap:10px;margin:0}
+.kv dt{font-size:12px;color:var(--ash-2)}
+.kv dd{margin:1px 0 0}
+.warn{border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:8px;padding:7px 10px;margin-top:8px;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Lên đơn giao hàng — phương án B, bản chỉnh</h1>
+<p class="lead">Bản đã chọn ở <a href="giao-hang-len-don-3-phuong-an.html">3 phương án</a>, chỉnh theo hai ý: có ô tìm tương đối cho danh sách xe và người vì thực tế sẽ dài, và bỏ chữ đậm. Mockup này bấm được thật: gõ tìm, chọn xe, bấm Tài xế hoặc Phụ xe.</p>
+
+<div class="notes">
+  <div class="note"><h4>Tìm tương đối</h4><ul>
+    <li>Không cần gõ dấu, không cần đúng thứ tự: «viet», «van viet», «viet nguyen» đều ra Nguyễn Văn Việt.</li>
+    <li>Gõ chữ cái đầu cũng ra: «nvv» ra Nguyễn Văn Việt, «tpv» ra Trần Phong Vũ.</li>
+    <li>Tìm được theo mã nhân viên («094»), theo biển số chỉ cần vài số («77404», «40752»), theo tên xe, tải trọng («3,5») và mức khoán.</li>
+    <li>Người và xe đã chọn luôn ghim trên đầu, gõ tìm không làm họ biến mất.</li>
+  </ul></div>
+  <div class="note"><h4>Bỏ chữ đậm</h4><ul>
+    <li>Biển số, tên người, tên nhóm đều về chữ thường; nhóm «Xe», «Người» thôi in hoa.</li>
+    <li>Chọn chỉ còn viền đủ bốn cạnh quanh hàng; nút Tài xế, Phụ xe đã chọn là viền đậm, không tô đen.</li>
+    <li>Bỏ khối «Đã chọn» ở cột phải: hàng đã chọn đã ghim trên đầu danh sách, nói lại lần nữa là thừa.</li>
+    <li>Câu chia tiền chuyến chỉ hiện khi đã chọn phụ xe.</li>
+  </ul></div>
+</div>
+
+<div class="switch">
+  <span class="lbl">Chế độ</span>
+  <div class="seg" id="modeSeg">
+    <button data-mode="mot" class="on">Một yêu cầu</button>
+    <button data-mode="luot">Lên lượt xe (2 yêu cầu)</button>
+  </div>
+  <span class="sub">Dữ liệu thật DB dev: 4 xe, 11 người. Hai ô giờ mở ra là thời điểm hiện tại, ghi chú để trống.</span>
+</div>
+
+<div class="app">
+  <div class="ghost"><div class="gl"></div><div class="gl" style="width:80%"></div><div class="gl" style="width:70%"></div></div>
+  <div class="scrim"></div>
+  <aside class="drawer">
+    <div class="dh">
+      <span class="mode on" data-mode="mot"><span class="t">Lên đơn giao hàng</span><span class="tag">YCGH-261006-UHN8</span></span>
+      <span class="mode" data-mode="luot"><span class="t">Lên lượt xe</span><span class="tag">2 yêu cầu</span></span>
+      <span class="x">×</span>
+    </div>
+    <div class="split">
+      <div>
+        <div class="ht"><h3>Xe</h3><span class="sub">bắt buộc</span><span class="sp"></span>
+          <label class="search" id="sXe"><span class="ic">⌕</span><input placeholder="Tìm biển số, tên xe, tải trọng" data-k="xe"><button class="clr" type="button">×</button></label>
+        </div>
+        <div class="pick" id="lXe"></div>
+        <p class="hint">Cột thứ năm là mức khoán km xe đang ăn. Xe đang có lượt mở thì hiện «Đang chạy» kèm mã lượt, chọn được ghép vào lượt đó ở ô Lượt xe bên phải.</p>
+
+        <div class="ht"><h3>Người</h3><span class="sub">bấm Tài xế hoặc Phụ xe trên hàng</span><span class="sp"></span>
+          <label class="search" id="sNv"><span class="ic">⌕</span><input placeholder="Tìm tên, mã nhân viên, chữ cái đầu" data-k="nv"><button class="clr" type="button">×</button></label>
+        </div>
+        <div class="pick nvl" id="lNv"></div>
+        <p class="hint">Xếp người đang rảnh lên trước, người nghỉ xuống cuối. Cột «Hôm nay» là số chuyến đã nhận trong ngày.</p>
+      </div>
+
+      <div>
+        <div class="mode on" data-mode="mot">
+          <div class="ht"><h3>Yêu cầu</h3></div>
+          <dl class="kv">
+            <div><dt>Khách</dt><dd>CÔNG TY CỔ PHẦN CAFÉ KATINAT <span class="tag">DH004</span></dd></div>
+            <div><dt>Hàng</dt><dd>Tờ rơi A4 4/4 <span class="sub">4.000 tờ</span></dd></div>
+            <div><dt>Giao tới</dt><dd>Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh</dd><dd class="sub">Lý Đức Trung 0368 650 894</dd></div>
+            <div><dt>Cần giao</dt><dd><span class="pill p-vang"><i></i>Hôm nay</span> <span class="sub">07/10/2026</span></dd></div>
+          </dl>
+        </div>
+        <div class="mode" data-mode="luot">
+          <div class="ht"><h3>Hai yêu cầu chung một lượt</h3></div>
+          <div class="tbl"><table><tbody>
+            <tr><td><span class="lnk">YCGH-261006-UHN8</span><div class="sub">Café Katinat <span class="tag">DH004</span></div></td><td class="r num">4.000 <span class="sub">tờ</span><div><span class="pill p-vang"><i></i>Hôm nay</span></div></td></tr>
+            <tr><td><span class="lnk">YCGH-261006-SICU</span><div class="sub">Cao Lợi Hưng <span class="tag">DH001</span></div></td><td class="r num">5.000 <span class="sub">cái</span><div class="sub">30/10/2026</div></td></tr>
+          </tbody></table></div>
+          <p class="hint">Mỗi yêu cầu thành một đơn giao hàng riêng, chạy chung một lượt xe.</p>
+        </div>
+
+        <div class="ht"><h3>Lượt xe</h3></div>
+        <div class="in" id="luot"><span class="mut">Chọn xe trước</span><span class="car">▾</span></div>
+
+        <div class="ht"><h3>Giờ</h3></div>
+        <div class="g2">
+          <label class="f"><span>Lấy hàng <span class="req">*</span></span><input class="in gio-mac-dinh" type="datetime-local"></label>
+          <label class="f"><span>Dự kiến giao <span class="req">*</span></span><input class="in gio-mac-dinh" type="datetime-local"></label>
+        </div>
+
+        <div class="ht"><h3>Ghi chú cho kíp xe</h3></div>
+        <textarea class="in" placeholder="Ví dụ: gọi trước cho bảo vệ KCN"></textarea>
+        <div id="canh"></div>
+      </div>
+    </div>
+    <div class="dfoot">
+      <span class="sub" id="thieu"></span>
+      <span class="sp"></span>
+      <button class="btn">Huỷ</button>
+      <button class="btn pri" id="luu" disabled><span class="mode on" data-mode="mot">Lên đơn giao hàng</span><span class="mode" data-mode="luot">Lên lượt xe cho 2 đơn</span></button>
+    </div>
+  </aside>
+</div>
+</div>
+
+<script>
+// Dữ liệu thật DB dev (07/10/2026).
+const XE = [
+  {id:13, bs:"51K-77404", ten:"Xe a Việt", tt:"5 tấn",   muc:"Xe 51K-77404 (5 tấn)", st:"ranh"},
+  {id:14, bs:"51C-62318", ten:"Xe a Tùng", tt:"2,5 tấn", muc:"Xe 2,5 – 3,5 tấn", st:"ranh"},
+  {id:15, bs:"51D-40752", ten:"Xe a Sang", tt:"3,5 tấn", muc:"Xe 2,5 – 3,5 tấn", st:"ranh"},
+  {id:16, bs:"51D-40917", ten:"Xe a Dũng", tt:"3,5 tấn", muc:"Xe 2,5 – 3,5 tấn", st:"ranh"},
+];
+const NV = [
+  ["NV094","Nguyễn Văn Việt"],["NV097","Trần Phong Vũ"],["NV096","Trần Hoàng Giang"],["NV099","Trần Hùng Tín"],
+  ["NV100","Trần Văn Thạch Sang"],["NV098","Dương Văn Nhí"],["NV101","Nguyễn Trung Dũng"],["NV092","Nguyễn Hà Thanh Tùng"],
+  ["NV093","Đặng Thành Triều"],["NV095","Nghiêm Thành Được"],["NV022","Nguyễn Thị Minh Phương"],
+].map(([ma,ten])=>({id:ma, ma, ten, st:"ranh", hn:0}));
+const ST = {ranh:["p-la","Rảnh"], dang_giao:["p-xanh","Đang giao"], nghi:["p-xam","Nghỉ"]};
+
+const sel = {xe:null, tai:null, phu:null};
+const q = {xe:"", nv:""};
+
+// ---- Tìm tương đối: bỏ dấu, không phân biệt hoa thường, mỗi từ gõ vào phải khớp một phần,
+// không cần đúng thứ tự; chuỗi chữ cái đầu («nvv») cũng tính là khớp.
+const bo = s => s.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D").toLowerCase();
+const dauChu = s => bo(s).split(/\s+/).map(w=>w[0]||"").join("");
+function khop(q, ...fields){
+  const t = bo(q).trim().split(/\s+/).filter(Boolean);
+  if(!t.length) return true;
+  const hay = fields.map(bo).join(" ") + " " + fields.map(f=>bo(f).replace(/[^a-z0-9]/g,"")).join(" ");
+  return t.every(w => hay.includes(w) || fields.some(f => dauChu(f).startsWith(w)));
+}
+const esc = s => s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+function to(text, query){
+  // Tô vàng phần khớp (theo chữ không dấu) để mắt thấy vì sao hàng này hiện.
+  const t = bo(query).trim().split(/\s+/).filter(w=>w.length>1);
+  if(!t.length) return esc(text);
+  const b = bo(text); const m = new Array(text.length).fill(false);
+  t.forEach(w=>{let i=b.indexOf(w); while(i>=0){for(let k=i;k<i+w.length;k++)m[k]=true; i=b.indexOf(w,i+1);}});
+  let out="",on=false;
+  for(let i=0;i<text.length;i++){ if(m[i]&&!on){out+="<mark>";on=true} if(!m[i]&&on){out+="</mark>";on=false} out+=esc(text[i]); }
+  return out+(on?"</mark>":"");
+}
+
+function veXe(){
+  const pin = XE.filter(x=>x.id===sel.xe);
+  const rest = XE.filter(x=>x.id!==sel.xe && khop(q.xe, x.bs, x.ten, x.tt, x.muc));
+  let h = pin.map(rowXe).join("");
+  if(pin.length && q.xe) h += `<div class="pin-sep">Kết quả tìm</div>`;
+  h += rest.map(rowXe).join("");
+  if(!rest.length && q.xe) h += `<div class="empty">Không có xe nào khớp «${esc(q.xe)}»</div>`;
+  document.getElementById("lXe").innerHTML = h;
+}
+function rowXe(x){
+  const on = x.id===sel.xe, [c,l]=ST[x.st];
+  return `<div class="pr xe${on?" on":""}" data-xe="${x.id}"><span class="rad${on?" on":""}"></span>
+    <span class="num">${to(x.bs,q.xe)}</span><span class="nm">${to(x.ten,q.xe)}</span>
+    <span class="sub num">${to(x.tt,q.xe)}</span><span class="sub nm">${to(x.muc,q.xe)}</span>
+    <span class="pill ${c}"><i></i>${l}</span></div>`;
+}
+function veNv(){
+  const chon = [sel.tai, sel.phu].filter(Boolean);
+  const pin = chon.map(id=>NV.find(n=>n.id===id));
+  const thu = {ranh:0, dang_giao:1, nghi:2};
+  const rest = NV.filter(n=>!chon.includes(n.id) && khop(q.nv, n.ten, n.ma))
+    .sort((a,b)=>thu[a.st]-thu[b.st]);
+  let h = pin.map(rowNv).join("");
+  if(pin.length && q.nv) h += `<div class="pin-sep">Kết quả tìm</div>`;
+  h += rest.map(rowNv).join("");
+  if(!rest.length && q.nv) h += `<div class="empty">Không có ai khớp «${esc(q.nv)}»</div>`;
+  document.getElementById("lNv").innerHTML = h;
+}
+function rowNv(n){
+  const on = n.id===sel.tai || n.id===sel.phu, [c,l]=ST[n.st];
+  const ini = n.ten.split(" ").slice(-2).map(w=>w[0]).join("");
+  return `<div class="pr nv${on?" on":""}${n.st==="nghi"?" dim":""}"><span class="av">${ini}</span>
+    <span class="nm">${to(n.ten,q.nv)} <span class="sub">${to(n.ma,q.nv)}</span></span>
+    <span><span class="pill ${c}"><i></i>${l}</span></span>
+    <span class="sub ${n.hn?"":"mut"}">${n.hn} chuyến</span>
+    <span class="role"><span data-tai="${n.id}" class="${sel.tai===n.id?"on":""}">Tài xế</span><span data-phu="${n.id}" class="${sel.phu===n.id?"on":""}">Phụ xe</span></span></div>`;
+}
+function veKhac(){
+  const xe = XE.find(x=>x.id===sel.xe);
+  document.getElementById("luot").innerHTML = xe
+    ? `Lượt mới <span class="sub">xe xuất phát từ kho</span><span class="car">▾</span>`
+    : `<span class="mut">Chọn xe trước</span><span class="car">▾</span>`;
+  document.getElementById("canh").innerHTML = sel.phu
+    ? `<p class="hint">Có phụ xe nên tiền chuyến chia theo tỷ lệ khai ở Phòng ban.</p>` : "";
+  const thieu = [!sel.xe&&"xe", !sel.tai&&"tài xế"].filter(Boolean);
+  document.getElementById("thieu").textContent = thieu.length ? "Còn thiếu " + thieu.join(" và ") + "." : "";
+  document.getElementById("luu").disabled = thieu.length > 0;
+}
+
+// Hai ô giờ mở ra là THỜI ĐIỂM HIỆN TẠI (giờ máy người dùng, tròn phút); người lên đơn sửa nếu khác.
+(function(){
+  const d = new Date(); d.setSeconds(0, 0);
+  const p = n => String(n).padStart(2, "0");
+  const v = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  document.querySelectorAll(".gio-mac-dinh").forEach(i => i.value = v);
+})();
+function ve(){ veXe(); veNv(); veKhac(); }
+
+document.getElementById("lXe").addEventListener("click", e=>{
+  const r = e.target.closest("[data-xe]"); if(!r) return;
+  const id = +r.dataset.xe; sel.xe = sel.xe===id ? null : id; ve();
+});
+document.getElementById("lNv").addEventListener("click", e=>{
+  const t = e.target.closest("[data-tai],[data-phu]"); if(!t) return;
+  if(t.dataset.tai){ const id=t.dataset.tai; sel.tai = sel.tai===id?null:id; if(sel.phu===id) sel.phu=null; }
+  else { const id=t.dataset.phu; sel.phu = sel.phu===id?null:id; if(sel.tai===id) sel.tai=null; }
+  ve();
+});
+document.querySelectorAll(".search").forEach(s=>{
+  const i = s.querySelector("input");
+  i.addEventListener("input",()=>{ q[i.dataset.k]=i.value; s.classList.toggle("has",!!i.value); ve(); });
+  s.querySelector(".clr").addEventListener("click",()=>{ i.value=""; q[i.dataset.k]=""; s.classList.remove("has"); ve(); i.focus(); });
+});
+document.querySelectorAll("#modeSeg button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll("#modeSeg button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".mode").forEach(el=>el.classList.toggle("on",el.dataset.mode===b.dataset.mode));
+}));
+ve();
+</script>
+</body>
+</html>

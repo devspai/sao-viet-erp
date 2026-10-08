@@ -105,14 +105,20 @@ function TabPhieu({
       {p.rows.length === 0 ? (
         <p className="kt-mo">Chưa có phiếu nào qua tài khoản này trong kỳ.</p>
       ) : (
-        <div className="kt-nhom">
-          <table>
+        <div className="lds-bang">
+          <table className="lds-g">
+            <colgroup>
+              <col style={{ width: 102 }} />
+              <col style={{ width: 170 }} />
+              <col />
+              <col style={{ width: 140 }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Ngày</th>
                 <th>Mã phiếu</th>
                 <th>Nội dung</th>
-                <th className="kt-so">Số tiền</th>
+                <th className="n">Số tiền</th>
               </tr>
             </thead>
             <tbody>
@@ -123,7 +129,7 @@ function TabPhieu({
                     <button type="button" className="kt-lk" onClick={() => moPhieu(d.loai, d.ma)}>{d.ma}</button>
                   </td>
                   <td>{d.noiDung}</td>
-                  <td className={d.loai === "thu" ? "kt-so kt-xanh" : "kt-so"}>{soTienCoDau(d.soTien, d.loai)}</td>
+                  <td className={d.loai === "thu" ? "n lds-la" : "n"}>{soTienCoDau(d.soTien, d.loai)}</td>
                 </tr>
               ))}
             </tbody>

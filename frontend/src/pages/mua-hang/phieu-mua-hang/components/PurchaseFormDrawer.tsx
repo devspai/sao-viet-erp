@@ -1,40 +1,42 @@
-// Drawer TẠO / SỬA đơn mua hàng (tách từ pages/PurchaseRequestsPage.tsx).
-// ⚠️ KHỐI CẤM XÉ — TÂM THUẾ: ô VAT / chiết khấu, `lineDiscountAmount`, `lineTotal` và bảng xem
-// trước `phieuSeTao` phải nằm cùng nhau. Hàm `save` (validate + gọi API) CỐ Ý Ở LẠI SHELL và
-// truyền xuống đây làm handler của <form>: nó chạm `rows`/`tab`/`loadSuppliers` bên đó.
-import type { Dispatch, FormEvent, SetStateAction } from "react";
-import { Icon } from "../../../../components/Icons";
+// Ngăn TẠO / SỬA đơn mua hàng — bản A (docs/mockups/mua-hang-phuong-an-A.html màn A4, chốt
+// 07/10/2026). Khuôn form đơn đặt hàng của Shopify: mỗi nhà cung cấp một bảng (mỗi nhà là một
+// đơn), mỗi dòng một hàng ngang Số lượng, Đơn giá, VAT, Thành tiền; tiền tổng ở thẻ "Tóm tắt chi
+// phí" cột phải. Chiết khấu + ghi chú dòng mở bằng nút ba chấm dưới dòng ("Item options" của Stripe).
+// ⚠️ KHỐI CẤM XÉ — TÂM THUẾ: `lineDiscountAmount`, `lineVatAmount`, `lineTotal` ở shared/helpers.
+// Hàm `save` (validate + gọi API) CỐ Ý Ở LẠI SHELL và truyền xuống làm handler của <form>.
+import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import type { PurchaseRequestRow, SupplierRow } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
-import { money } from "../../../../utils/format";
+import { Icon } from "../../../../components/Icons";
+import { KhungKho } from "../../../../components/kho-giay/KhungKho";
+import { NganPhai } from "../../../ke-toan/shared/NganPhai";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị — xem pages/tenDonVi.ts.
 import { tenDonVi } from "../../../tenDonVi";
 import {
   applySupplierPrices,
   bestSupplierIdForLines,
+  chaoGiaChoMatHang,
   lineDiscountAmount,
   lineTotal,
+  lineVatAmount,
 } from "../shared/helpers";
 import { dongDuocChon } from "../shared/types";
 import type { FormLine, FormState, PhieuSeTao } from "../shared/types";
 import { LineSupplierPicker } from "./LineSupplierPicker";
-import { LocalField, StatusBadge } from "./purchaseCells";
+import { OMuaCho } from "../../mua-cho/OMuaCho";
+import { StatusBadge } from "./purchaseCells";
+import "../../../ke-toan/ke-toan.css";
+import "../../../kho-ngan-a.css";
+import "../../yeu-cau-mua-hang/components/yc-form-a.css";
+import "./don-form-a.css";
 
-// Nhãn ĐI KÈM TỪNG Ô của lưới dòng hàng. Trên màn rộng luôn `display: none`
-// (khai ở §66 của `styles/responsive.css`) nên KHÔNG chiếm ô nào của grid —
-// bố cục màn rộng giữ nguyên hàng nhãn `.purchase__line-labels` như cũ. Chỉ ở
-// `@media (max-width: 768px)` nhãn mới bật lên, vì ở đó `purchase.css:1967` ẩn
-// hàng nhãn còn lưới xếp một cột: không có nhãn thì người dùng nhìn dãy ô số
-// "18000 · 5 · 8" mà không biết đâu là Đơn giá đâu là VAT — biểu mẫu này SINH
-// ĐƠN MUA và ghi tiền nên nhầm ô là ra đơn sai tiền.
-// `aria-hidden` vì mỗi ô đã có `aria-label` riêng, không đọc lặp hai lần.
-function NhanO({ chu, sao }: { chu: string; sao?: boolean }) {
-  return (
-    <span className="purchase__line-lb" aria-hidden="true">
-      {chu}
-      {sao ? <span className="purchase__required-star"> *</span> : null}
-    </span>
-  );
+const so = (n: number) => Math.round(n).toLocaleString("vi-VN");
+const MUC_VAT = [0, 5, 8, 10];
+
+/** Chữ viết tắt cho ô tròn đầu bảng NCC: hai chữ đầu của hai từ cuối tên ("Giấy An Phát" → AP). */
+function vietTat(ten: string): string {
+  const tu = ten.replace(/^(công ty|cty)\s+(tnhh|cp|cổ phần)?\s*(thương mại|tm)?\s*/i, "").trim().split(/\s+/);
+  return tu.slice(-2).map((t) => t[0] ?? "").join("").toUpperCase();
 }
 
 export function PurchaseFormDrawer({
@@ -51,6 +53,7 @@ export function PurchaseFormDrawer({
   minPurchaseDate,
   expectedReceiptMinDate,
   phieuSeTao,
+  nguon = [],
 }: {
   mode: "create" | "edit";
   setMode: Dispatch<SetStateAction<null | "create" | "edit">>;
@@ -66,467 +69,393 @@ export function PurchaseFormDrawer({
   minPurchaseDate: string;
   expectedReceiptMinDate: string;
   phieuSeTao: PhieuSeTao[];
+  /** Yêu cầu nguồn (mã + bộ phận) — thẻ nhỏ cạnh tiêu đề lúc lập đơn từ yêu cầu. */
+  nguon?: { code: string; bo_phan: string | null; needed_date: string }[];
 }) {
-  return (
-    <div className="rc-drawer__scrim" role="presentation">
-      <aside
-        className="rc-drawer purchase__drawer-780"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={
-          mode === "edit"
-            ? editing?.code ?? "Sửa đơn mua hàng"
-            : "Đơn mua hàng mới"
-        }
-      >
-        <div className="purchase__hero-banner">
-          <div className="purchase__hero-top">
-            <div>
-              <span className="purchase__hero-kicker">
-                {mode === "edit" ? "Sửa đơn mua hàng" : "Tạo đơn mua hàng"}
-              </span>
-              <div className="purchase__hero-title-row">
-                <h2 className="purchase__hero-code">
-                  {mode === "edit" ? editing?.code : "Đơn mua hàng mới"}
-                </h2>
-                {mode === "edit" && editing && (
-                  <StatusBadge status={editing.status} />
-                )}
-              </div>
-            </div>
-            <button
-              type="button"
-              className="purchase__hero-x"
-              onClick={() => setMode(null)}
-              aria-label="Đóng"
-            >
-              <Icon name="x" size={15} />
-            </button>
-          </div>
-          <div className="purchase__hero-meta">
-            {mode === "edit" ? (
-              <>
-                <span>{editing?.supplier_name || "Chưa chọn"}</span>
-                <span className="purchase__hero-dot">•</span>
-                <span>{form.lines.length} mặt hàng</span>
-              </>
-            ) : (
-              <>
-                <span>{form.lines.length} mặt hàng</span>
-                {form.source_request_ids.length > 0 && (
-                  <>
-                    <span className="purchase__hero-dot">•</span>
-                    <span>
-                      {form.source_request_ids.length} yêu cầu nguồn
-                    </span>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-        <form onSubmit={save} className="purchase__drawer-form">
-          <div className="rc-drawer__body">
-          {formError && (
-            <div className="banner banner--error" role="alert">
-              {formError}
-            </div>
-          )}
-          <div className="md-page__form-grid">
-            {/* Ô NCC ở ĐẦU PHIẾU chỉ còn cho chế độ SỬA: phiếu đã tồn tại thì nó vốn thuộc về
-                một nhà cung cấp. Lúc TẠO thì NCC gán ở từng DÒNG, vì một yêu cầu thường chứa
-                hàng của nhiều nơi và mỗi NCC phải ra một phiếu riêng. */}
-            {mode === "edit" && (
-            <LocalField label="Nhà cung cấp" required>
-              <select
-                className="input"
-                required
-                value={form.supplier_id ?? ""}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    supplier_id: e.target.value ? Number(e.target.value) : null,
-                    lines: applySupplierPrices(
-                      form.lines,
-                      suppliers,
-                      e.target.value ? Number(e.target.value) : null,
-                    ),
-                  })
-                }
-              >
-                <option value="">Chọn nhà cung cấp</option>
-                {suppliers.map((supplier) => {
-                  const bestId = bestSupplierIdForLines(form.lines, suppliers);
-                  const bestHint =
-                    supplier.id === bestId ? " - giá thấp nhất" : "";
-                  return (
-                    <option key={supplier.id} value={supplier.id}>
-                      {`${supplier.name}${bestHint}`}
-                    </option>
-                  );
-                })}
-              </select>
-            </LocalField>
-            )}
-            <LocalField label="Ngày cần hàng" required>
-              <input
-                className="input"
-                type="date"
-                required
-                min={minPurchaseDate}
-                value={form.needed_date ?? ""}
-                onChange={(e) =>
-                  setForm({ ...form, needed_date: e.target.value })
-                }
-              />
-            </LocalField>
-            {/* NGÀY NHẬN HÀNG CHỈ KHAI ĐƯỢC Ở CHẾ ĐỘ SỬA (chủ chốt 28/08/2026).
-                Lúc TẠO, phiếu này tách thành N đơn theo NCC — mà ô ở đây chỉ có MỘT, nên nó
-                đóng cùng một ngày lên cả N đơn dù mỗi NCC hẹn một ngày khác nhau. Không phải
-                lỗi trưng bày: ngày này là "ngày hàng về" của kế hoạch vật tư
-                (`ke_hoach_vat_tu_service.tinh_cung`), chép nhầm là bơm số sai vào đường cung.
-                Chế độ SỬA thì đúng — ở đó một phiếu = một NCC = một ngày. */}
-            {mode === "edit" && (
-            <LocalField label="Ngày dự kiến nhận hàng">
-              <input
-                className="input"
-                type="date"
-                min={expectedReceiptMinDate}
-                value={form.expected_receipt_date ?? ""}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    expected_receipt_date: e.target.value,
-                  })
-                }
-              />
-            </LocalField>
-            )}
-            {/* MỘT ô thay cho cặp "Mục đích" + "Ghi chú" (chủ chốt 07/08/2026) — xem
-                DepartmentPurchaseRequestsPage cho lý do. */}
-            <LocalField label="Nội dung / mục đích" wide required>
-              <textarea
-                className="input purchase__textarea"
-                required
-                value={form.content ?? ""}
-                onChange={(e) =>
-                  setForm({ ...form, content: e.target.value })
-                }
-                placeholder="Ví dụ: mua giấy cho đơn hàng ĐH-2026-031, giao trước 20/8"
-              />
-            </LocalField>
-          </div>
+  const [moTuyChon, setMoTuyChon] = useState<Set<number>>(new Set());
+  const taoMoi = mode !== "edit";
+  const nccCua = (id: number | null | undefined) => suppliers.find((s) => s.id === id) ?? null;
 
-          <div className="purchase__form-section">
-            <div className="purchase__form-section-head">
-              <h3>Dòng hàng</h3>
-              {/* KHÔNG có nút thêm dòng: danh sách hàng lấy nguyên từ yêu cầu của bộ phận.
-                  Thu mua thêm được một dòng thì thành mua thứ không ai xin. Cần mua thêm thì
-                  bộ phận gửi yêu cầu mới, để còn có người duyệt. */}
-              <span className="md-page__muted">
-                Lấy từ yêu cầu — Thu mua chọn nhà cung cấp và giá
-              </span>
-            </div>
-            <div
-              className={`purchase__line-editor${
-                mode !== "edit" ? " purchase__line-editor--tach-ncc" : ""
-              }`}
-            >
-              <div className="purchase__line-labels" aria-hidden="true">
-                <span>
-                  Vật tư <span className="purchase__required-star">*</span>
-                </span>
-                {mode !== "edit" && (
-                  <span>
-                    Nhà cung cấp{" "}
-                    <span className="purchase__required-star">*</span>
-                  </span>
-                )}
-                <span>
-                  ĐVT <span className="purchase__required-star">*</span>
-                </span>
-                <span>
-                  Số lượng{" "}
-                  <span className="purchase__required-star">*</span>
-                </span>
-                <span>
-                  Đơn giá <span className="purchase__required-star">*</span>
-                </span>
-                <span>Giảm (%)</span>
-                <span>Tiền giảm</span>
-                <span>VAT (%)</span>
-                <span>Ghi chú dòng</span>
-                <span>Thành tiền</span>
-                <span></span>
+  // Nhóm dòng theo NCC: lúc TẠO mỗi NCC thành một đơn; dòng chưa chọn NCC gom nhóm đầu (việc còn
+  // phải làm). Lúc SỬA cả phiếu thuộc MỘT NCC — một nhóm duy nhất.
+  const nhom = new Map<number | "chua", number[]>();
+  form.lines.forEach((line, i) => {
+    const k = taoMoi ? (line.supplier_id ?? "chua") : (form.supplier_id ?? "chua");
+    nhom.set(k, [...(nhom.get(k) ?? []), i]);
+  });
+  const khoaNhom = [...nhom.keys()].sort((a, b) => (a === "chua" ? -1 : b === "chua" ? 1 : 0));
+
+  const tinhNhom = (idx: number[]) => {
+    const ds = idx.map((i) => form.lines[i]).filter(dongDuocChon);
+    const hang = ds.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.expected_unit_price) || 0), 0);
+    return {
+      hang,
+      giam: ds.reduce((s, l) => s + lineDiscountAmount(l), 0),
+      vat: ds.reduce((s, l) => s + lineVatAmount(l), 0),
+      tong: ds.reduce((s, l) => s + lineTotal(l), 0),
+    };
+  };
+  const tongCong = form.lines.filter(dongDuocChon).reduce((s, l) => s + lineTotal(l), 0);
+  const soMon = form.lines.filter(dongDuocChon).length;
+  const soDon = taoMoi ? phieuSeTao.length : 1;
+  const canNhat = nguon.map((n) => n.needed_date).filter(Boolean).sort()[0];
+  // Đơn gom món của nhiều yêu cầu ⇒ ghi mã yêu cầu dưới tên vật tư; một yêu cầu thì tiêu đề đã nói.
+  const nhieuYeuCau = new Set(form.lines.map((l) => l.yeu_cau_ma).filter(Boolean)).size > 1;
+
+  function dongBang(line: FormLine, index: number) {
+    const chon = dongDuocChon(line);
+    const laGiay = line.hang_loai === "giay";
+    const dang = line.kho_rong && line.kho_dai ? "to" : "cuon";
+    const dv = tenDonVi(line.unit) ?? line.unit;
+    const tuyChon = moTuyChon.has(index) || (Number(line.discount_percent) || 0) > 0;
+    // Giá sổ: giá cùng dạng + khổ của NCC đang chọn — chỉ hiện khi đơn giá gõ LỆCH sổ.
+    const so_ = line.supplier_id
+      ? chaoGiaChoMatHang(line, suppliers).find((c) => c.supplier_id === line.supplier_id && !c.khac_kho)
+      : undefined;
+    const giaSo = so_ ? (so_.gia_quy_doi ?? so_.unit_price) : null;
+    const lech = giaSo != null && line.expected_unit_price > 0 ? line.expected_unit_price - giaSo : 0;
+    const thanhTien = line.quantity > 0 && line.expected_unit_price > 0 ? lineTotal(line) : null;
+    return (
+      <tr key={index} className={chon ? undefined : "kna-mo"}>
+        <td>
+          <div className="dfa-ten">
+            {taoMoi && (
+              <input
+                type="checkbox"
+                aria-label={`Đưa ${line.item_name} vào đơn`}
+                checked={chon}
+                onChange={(e) => setLine(index, { chon: e.target.checked })}
+              />
+            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="kna-hang__ten" title="Vật tư do bộ phận đề nghị khai, Thu mua không sửa được">
+                {line.item_name}
+                {nhieuYeuCau && line.yeu_cau_ma && <span className="ycd-tag dfa-yc">{line.yeu_cau_ma}</span>}
               </div>
-              {form.lines.map((line, index) => (
-                <div
-                  className={`purchase__line-edit${
-                    dongDuocChon(line) ? "" : " purchase__line-edit--bo"
-                  }`}
-                  key={index}
-                >
-                  {/* Vật tư và ĐVT do BỘ PHẬN ĐỀ NGHỊ quyết, thu mua không được đổi — đổi ở
-                      đây là mua thứ khác với thứ người ta xin mà không ai hay. Thu mua chỉ
-                      chọn MUA CỦA AI và giá. Cùng lý do: không thêm/xoá dòng. */}
-                  <NhanO chu="Vật tư" sao />
-                  <div className="purchase__line-name purchase__line-ten">
-                    <div className="purchase__line-ten-hang">
-                      {/* Lúc TẠO: bỏ tick = dòng không vào đơn này; dòng yêu cầu vẫn mở. */}
-                      {mode !== "edit" && (
-                        <input
-                          type="checkbox"
-                          aria-label={`Đưa “${line.item_name}” vào đơn`}
-                          checked={dongDuocChon(line)}
-                          onChange={(e) => setLine(index, { chon: e.target.checked })}
-                        />
-                      )}
-                      <input
-                        className="input purchase__readonly-field"
-                        required
-                        readOnly
-                        aria-label="Tên vật tư"
-                        title="Vật tư do bộ phận đề nghị khai — Thu mua không sửa được"
-                        value={line.item_name}
-                      />
-                    </div>
-                    {line.hang_loai === "giay" && dongDuocChon(line) && (
-                      <div className="purchase__kho-mm">
-                        <span className="purchase__kho-mm-nhan">Khổ mua (mm)</span>
-                        <input
-                          className="input purchase__input-flat pay-num"
-                          type="number"
-                          min="0"
-                          step="1"
-                          aria-label="Khổ mua — cạnh ngắn (mm)"
-                          placeholder="Rộng"
-                          value={line.kho_rong ? line.kho_rong : ""}
-                          onChange={(e) =>
-                            setLine(index, { kho_rong: Number(e.target.value || 0) })
-                          }
-                        />
-                        <span aria-hidden="true">×</span>
-                        <input
-                          className="input purchase__input-flat pay-num"
-                          type="number"
-                          min="0"
-                          step="1"
-                          aria-label="Khổ mua — cạnh dài (mm)"
-                          placeholder="Dài"
-                          value={line.kho_dai ? line.kho_dai : ""}
-                          onChange={(e) =>
-                            setLine(index, { kho_dai: Number(e.target.value || 0) })
-                          }
-                        />
-                      </div>
-                    )}
-                    {!dongDuocChon(line) && (
-                      <span className="md-page__muted purchase__line-bo-ghi">
-                        Dòng yêu cầu vẫn mở — huỷ dòng ở phiếu yêu cầu nếu không mua nữa.
-                      </span>
-                    )}
-                  </div>
-                  {mode !== "edit" && <NhanO chu="Nhà cung cấp" sao />}
-                  {mode !== "edit" && (
+              <div className="ycf-phu">
+                {laGiay && chon && (
+                  <KhungKho
+                    ariaLabel="Khổ mua"
+                    dang={dang}
+                    coTheDoiDang={false}
+                    rong={line.kho_rong ?? 0}
+                    dai={line.kho_dai ?? 0}
+                    onChange={(v) => setLine(index, { kho_rong: v.rong, kho_dai: v.dai })}
+                  />
+                )}
+                {taoMoi && chon && (
+                  <span className="dfa-ncc">
                     <LineSupplierPicker
                       line={line}
                       suppliers={suppliers}
                       onPick={(chao) =>
                         setLine(index, {
                           supplier_id: chao?.supplier_id ?? null,
-                          // Chọn NCC là lấy luôn GIÁ CỦA CHÍNH HỌ — để người dùng gõ lại là
-                          // mở đường cho việc đặt một đằng, giá một nẻo.
-                          ...(chao
-                            ? {
-                                // ĐVT giữ nguyên của DÒNG (đơn vị gốc — cả YCMH lẫn đơn mua đều
-                                // khoá về gốc). KHÔNG lấy `chao.unit`: NCC báo theo ram mà dòng
-                                // tính theo tờ thì đơn vị phải là tờ.
-                                unit: line.unit || chao.unit,
-                                // ⚠️ GIÁ ĐÃ QUY ĐỔI, không phải giá thô (29/08/2026). NCC báo
-                                // 1.020.000đ/ram, dòng tính theo tờ (1 ram = 500 tờ) ⇒ phải điền
-                                // 2.040đ/tờ. Lấy giá thô là dòng đơn thành 1.000 tờ × 1.020.000đ,
-                                // sai 500 lần mà không có gì chặn — đúng cái lỗ mở ra khi bảng
-                                // giá NCC được phép khai đơn vị khác gốc.
-                                // Chưa quy đổi được (`null`) thì lùi về giá thô: mặt hàng ngoài
-                                // danh mục vốn không có đơn vị gốc nào để mà lệch.
-                                expected_unit_price: chao.gia_quy_doi ?? chao.unit_price,
-                                vat_percent: chao.vat_percent,
-                              }
-                            : {}),
+                          // Chọn NCC là lấy luôn GIÁ CỦA CHÍNH HỌ. NCC bán khổ khác: không có giá
+                          // cùng khổ ⇒ để trống đơn giá cho người lập gõ theo báo giá.
+                          ...(chao?.khac_kho
+                            ? { expected_unit_price: 0, vat_percent: chao.vat_percent }
+                            : chao
+                              ? {
+                                  // ĐVT giữ nguyên của DÒNG (đơn vị gốc). KHÔNG lấy `chao.unit`.
+                                  unit: line.unit || chao.unit,
+                                  // ⚠️ GIÁ ĐÃ QUY ĐỔI về đơn vị của dòng, không phải giá thô
+                                  // (29/08/2026): NCC báo 1.020.000đ/ram, dòng tính tờ ⇒ 2.040đ/tờ.
+                                  expected_unit_price: chao.gia_quy_doi ?? chao.unit_price,
+                                  vat_percent: chao.vat_percent,
+                                }
+                              : {}),
                         })
                       }
                     />
-                  )}
-                  {/* ĐVT là số liệu bộ phận đề nghị khai, Thu mua KHÔNG sửa được. Nên để là THẺ
-                      CHỮ chứ không phải `<input readOnly>`:
-                       - `<input>` trong bảng này bị ép `width: 100%` của ô, mà bề rộng ô lại do
-                         TIÊU ĐỀ quyết định — nội dung dài hơn thì tràn ra ngoài một cách vô hình
-                         ("500.000.000" cụt còn "500.000."). Thẻ chữ thì cột tự nở vừa nội dung.
-                       - Hộp nhập rỗng mời người ta bấm vào gõ, rồi phát hiện không gõ được.
-                      Đơn vị hiện TÊN ("cái") chứ không phải mã (`cai`); `line.unit` trong state vẫn
-                      giữ mã và đó mới là thứ gửi lên. */}
-                  <NhanO chu="ĐVT" sao />
-                  <span
-                    className="input purchase__line-unit purchase__readonly-field"
-                    aria-label="Đơn vị tính"
-                    title={`${tenDonVi(line.unit) ?? line.unit} — đơn vị tính do bộ phận đề nghị khai, Thu mua không sửa được`}
-                  >
-                    {tenDonVi(line.unit) ?? line.unit}
                   </span>
-                  {/* SỐ LƯỢNG MUA sửa được (spec giấy theo khổ §4.4): mua khổ to hơn rồi tề thì số tờ
-                      khác số tờ cần; NCC chỉ bán chẵn ram cũng vậy. Mặc định = số yêu cầu. */}
-                  <NhanO chu="Số lượng" sao />
-                  <input
-                    className="input purchase__number-input"
-                    type="number"
-                    min="0"
-                    step="any"
-                    required={dongDuocChon(line)}
-                    disabled={!dongDuocChon(line)}
-                    aria-label="Số lượng mua"
-                    value={line.quantity > 0 ? line.quantity : ""}
-                    onChange={(e) =>
-                      setLine(index, { quantity: Number(e.target.value || 0) })
-                    }
-                  />
-                  <NhanO chu="Đơn giá" sao />
-                  <input
-                    className="input purchase__number-input"
-                    type="number"
-                    min="1"
-                    step="1"
-                    required
-                    aria-label="Đơn giá dự kiến"
-                    placeholder="VD: 2200"
-                    value={
-                      line.expected_unit_price > 0
-                        ? line.expected_unit_price
-                        : ""
-                    }
-                    onChange={(e) =>
-                      setLine(index, {
-                        expected_unit_price: Number(e.target.value || 0),
-                      })
-                    }
-                  />
-                  <NhanO chu="Giảm (%)" />
-                  <input
-                    className="input purchase__number-input"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    aria-label="Giảm giá phần trăm"
-                    placeholder="VD: 5"
-                    value={
-                      line.discount_percent > 0 ? line.discount_percent : ""
-                    }
-                    onChange={(e) =>
-                      setLine(index, {
-                        discount_percent: Number(e.target.value || 0),
-                      })
-                    }
-                  />
-                  <NhanO chu="Tiền giảm" />
-                  <strong className="purchase__line-sum">
-                    {lineDiscountAmount(line) > 0 ? (
-                      money(lineDiscountAmount(line))
-                    ) : (
-                      <span className="md-page__muted">0 đ</span>
-                    )}
-                  </strong>
-                  <NhanO chu="VAT (%)" />
-                  <input
-                    className="input purchase__number-input"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    aria-label="Thuế GTGT phần trăm"
-                    placeholder="VD: 8"
-                    value={line.vat_percent > 0 ? line.vat_percent : ""}
-                    onChange={(e) =>
-                      setLine(index, {
-                        vat_percent: Number(e.target.value || 0),
-                      })
-                    }
-                  />
-                  <NhanO chu="Ghi chú dòng" />
-                  <input
-                    className="input purchase__line-note"
-                    aria-label="Ghi chú dòng"
-                    placeholder="Nếu có"
-                    value={line.note ?? ""}
-                    onChange={(e) =>
-                      setLine(index, { note: e.target.value })
-                    }
-                  />
-                  {/* `title` = số ĐẦY ĐỦ. Ô có cắt gọn "…" cho ca tiền quá lớn (xem
-                      `.purchase__line-sum`), nên phải luôn có đường đọc lại trọn con số — cắt mất
-                      chữ số của một ô TIỀN mà không cách nào xem lại là kiểu giấu số tệ nhất. */}
-                  <NhanO chu="Thành tiền" />
-                  <strong
-                    className="purchase__line-sum"
-                    title={
-                      line.quantity > 0 && line.expected_unit_price > 0
-                        ? money(lineTotal(line))
-                        : undefined
-                    }
-                  >
-                    {line.quantity > 0 && line.expected_unit_price > 0 ? (
-                      money(lineTotal(line))
-                    ) : (
-                      <span className="md-page__muted">Chưa tính</span>
-                    )}
-                  </strong>
-                  {/* Ô trống giữ chỗ cột cuối — bỏ hẳn thì lưới lệch một cột. Không xoá dòng:
-                      lúc tạo thì BỎ TICK (dòng yêu cầu vẫn mở, còn hiện ở hộp yêu cầu chờ mua). */}
-                  <span aria-hidden="true" />
-                </div>
-              ))}
-            </div>
-            <div className="purchase__form-total">
-              <span>Tổng dự kiến</span>
-              <strong>
-                {money(
-                  form.lines.reduce(
-                    (sum, line) => (dongDuocChon(line) ? sum + lineTotal(line) : sum),
-                    0,
-                  ),
                 )}
-              </strong>
+                {chon && !tuyChon && (
+                  <button type="button" className="ycf-them"
+                    onClick={() => setMoTuyChon((s) => new Set(s).add(index))}>
+                    <Icon name="plus" size={11} /> Chiết khấu, ghi chú
+                  </button>
+                )}
+                {!chon && <span className="kna-mo">Không vào đơn này, dòng yêu cầu vẫn mở</span>}
+              </div>
+              {chon && tuyChon && (
+                <div className="dfa-tuy">
+                  <label className="ycf-gi dfa-gi--nho">
+                    <span>Giảm</span>
+                    <input
+                      inputMode="decimal"
+                      aria-label="Giảm giá phần trăm"
+                      value={line.discount_percent > 0 ? String(line.discount_percent) : ""}
+                      onChange={(e) => setLine(index, { discount_percent: Math.min(100, Number(e.target.value.replace(",", ".").replace(/[^\d.]/g, "")) || 0) })}
+                    />
+                    <span>%</span>
+                  </label>
+                  {lineDiscountAmount(line) > 0 && <span className="kna-mo">trừ {so(lineDiscountAmount(line))} đ</span>}
+                  <input
+                    className="ycf-ghi"
+                    aria-label="Ghi chú dòng"
+                    placeholder="Ghi chú dòng"
+                    value={line.note ?? ""}
+                    onChange={(e) => setLine(index, { note: e.target.value })}
+                  />
+                </div>
+              )}
             </div>
-            {/* Nói TRƯỚC sẽ đẻ ra mấy phiếu. Bấm Lưu rồi mới thấy danh sách nhảy thêm mấy
-                dòng là bất ngờ không đáng có — và người dùng cần biết để còn đổi NCC. */}
-            {mode !== "edit" && phieuSeTao.length > 0 && (
-              <p className="md-page__muted" style={{ marginTop: 4 }}>
-                Sẽ tạo <strong>{phieuSeTao.length} đơn</strong> —{" "}
-                {phieuSeTao
-                  .map(
-                    (p) =>
-                      `${p.ten}: ${p.soDong} dòng / ${money(p.tien)}`,
-                  )
-                  .join(" · ")}
-              </p>
+          </div>
+        </td>
+        <td>
+          <OMuaCho loai={line.loai_mua ? [line.loai_mua] : []} lenh={line.mua_cho} donVi={dv} />
+        </td>
+        <td className="n">
+          {/* SỐ LƯỢNG MUA sửa được: mua khổ to hơn rồi tề, NCC chỉ bán chẵn ram… Mặc định = số yêu cầu. */}
+          <label className={`ycf-gi dfa-gi${chon && !(line.quantity > 0) ? " loi" : ""}`}>
+            <input
+              inputMode="decimal"
+              disabled={!chon}
+              required={chon}
+              aria-label={`Số lượng mua ${line.item_name}`}
+              value={line.quantity > 0 ? String(line.quantity) : ""}
+              onChange={(e) => setLine(index, { quantity: Number(e.target.value.replace(",", ".").replace(/[^\d.]/g, "")) || 0 })}
+            />
+            <span title="Đơn vị do bộ phận đề nghị khai">{dv}</span>
+          </label>
+        </td>
+        <td className="n">
+          <label className={`ycf-gi dfa-gi${chon && !(line.expected_unit_price > 0) ? " loi" : ""}`}>
+            <input
+              inputMode="numeric"
+              disabled={!chon}
+              aria-label="Đơn giá dự kiến"
+              value={line.expected_unit_price > 0 ? line.expected_unit_price.toLocaleString("vi-VN") : ""}
+              onChange={(e) => setLine(index, { expected_unit_price: Number(e.target.value.replace(/\D/g, "")) || 0 })}
+            />
+            <span>đ/{dv}</span>
+          </label>
+          {chon && lech !== 0 && (
+            <div className={`dfa-duoi${lech > 0 ? " ycd-vang" : ""}`}>
+              {lech > 0 ? "Cao" : "Thấp"} hơn giá sổ {so(Math.abs(lech))}
+            </div>
+          )}
+        </td>
+        <td className="n">
+          <select
+            className="kna-o dfa-vat"
+            aria-label="Thuế GTGT phần trăm"
+            disabled={!chon}
+            value={line.vat_percent ?? 0}
+            onChange={(e) => setLine(index, { vat_percent: Number(e.target.value) })}
+          >
+            {[...new Set([...MUC_VAT, Number(line.vat_percent) || 0])].sort((a, b) => a - b).map((v) => (
+              <option key={v} value={v}>{v} %</option>
+            ))}
+          </select>
+        </td>
+        <td className="n">
+          {thanhTien != null && chon ? (
+            <span className="kna-so" title={`${so(thanhTien)} đ`}>{so(thanhTien)}</span>
+          ) : (
+            <span className="kna-mo">Chưa tính</span>
+          )}
+        </td>
+      </tr>
+    );
+  }
+
+  const chan = (
+    <>
+      <span className="ycf-xt">
+        {taoMoi ? (
+          <span>
+            <b>{soMon} món</b> vào {soDon} đơn. Lưu xong mỗi đơn ở trạng thái Nháp.
+          </span>
+        ) : (
+          <span><b>{soMon} món</b></span>
+        )}
+      </span>
+      <span className="rc__spacer" />
+      <Button variant="ghost" onClick={() => setMode(null)} disabled={saving}>Huỷ</Button>
+      <Button type="submit" form="dmh-form" variant="accent" loading={saving}>
+        {taoMoi ? (soDon > 1 ? `Lưu ${soDon} đơn` : "Lưu đơn") : "Lưu thay đổi"}
+      </Button>
+    </>
+  );
+
+  return (
+    <NganPhai
+      duongDan={taoMoi ? "Mua hàng > Lập đơn từ yêu cầu" : `Mua hàng > ${editing?.code ?? ""}`}
+      tieuDe={taoMoi ? "Đơn mua hàng mới" : (editing?.code ?? "Sửa đơn mua hàng")}
+      the={
+        taoMoi ? (
+          nguon.length ? (
+            <span className="dfa-the">
+              {nguon.map((n) => (
+                <span key={n.code} className="ycd-tag">Từ <b>{n.code}</b></span>
+              ))}
+              {[...new Set(nguon.map((n) => n.bo_phan).filter(Boolean))].map((b) => (
+                <span key={b} className="ycd-tag">{b}</span>
+              ))}
+            </span>
+          ) : undefined
+        ) : editing ? (
+          <StatusBadge status={editing.status} />
+        ) : undefined
+      }
+      chan={chan}
+      onDong={() => setMode(null)}
+    >
+      <form id="dmh-form" className="kna" onSubmit={save}>
+        {formError && <div className="kna-canh kna-canh--do" role="alert">{formError}</div>}
+        <div className="kna-luoi dfa-luoi">
+          <div className="kna-cot">
+            {taoMoi && (
+              <div className="dfa-dau">
+                <h3>{soDon > 0 ? `Sẽ tạo ${soDon} đơn` : "Chọn nhà cung cấp cho từng món"}</h3>
+                <span className="kna-mo">Món cùng nhà cung cấp gom vào một đơn</span>
+              </div>
             )}
+            {khoaNhom.map((k) => {
+              const idx = nhom.get(k) ?? [];
+              const ncc = k === "chua" ? null : nccCua(k);
+              return (
+                <section key={String(k)} className="kna-the kna-the--cat">
+                  <div className="kna-the__dau dfa-ncc-dau">
+                    {ncc ? (
+                      <>
+                        <span className="dfa-av">{vietTat(ncc.name)}</span>
+                        <h3>{ncc.name}</h3>
+                        {ncc.credit_days ? <span className="kna-tag">Cho nợ {ncc.credit_days} ngày</span> : null}
+                      </>
+                    ) : (
+                      <h3 className="ycd-do">{taoMoi ? "Chưa chọn nhà cung cấp" : "Chọn nhà cung cấp ở cột phải"}</h3>
+                    )}
+                  </div>
+                  <div className="lds-bang lds-bang--nhap dfa-bang dfa-bang--tien">
+                    <table className="lds-g kna-tren" style={{ minWidth: 816 }}>
+                      <colgroup>
+                        <col />
+                        <col style={{ width: 140 }} />
+                        <col style={{ width: 136 }} />
+                        <col style={{ width: 160 }} />
+                        <col style={{ width: 80 }} />
+                        <col style={{ width: 100 }} />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th>Vật tư</th>
+                          <th>Mua cho</th>
+                          <th className="n">Số lượng</th>
+                          <th className="n">Đơn giá</th>
+                          <th className="n">VAT</th>
+                          <th className="n">Thành tiền</th>
+                        </tr>
+                      </thead>
+                      <tbody>{idx.map((i) => dongBang(form.lines[i], i))}</tbody>
+                    </table>
+                  </div>
+                </section>
+              );
+            })}
           </div>
+
+          <div className="kna-cot">
+            <section className="kna-the">
+              <div className="kna-the__than kna-form">
+                {/* Ô NCC ở ĐẦU PHIẾU chỉ cho chế độ SỬA: phiếu đã tồn tại thì thuộc MỘT nhà cung
+                    cấp. Lúc TẠO NCC gán ở từng DÒNG rồi nhóm thành N đơn. */}
+                {!taoMoi && (
+                  <label className="kna-o-truong">
+                    <span>Nhà cung cấp <em>*</em></span>
+                    <select
+                      className="kna-o"
+                      required
+                      value={form.supplier_id ?? ""}
+                      onChange={(e) => {
+                        const id = e.target.value ? Number(e.target.value) : null;
+                        setForm({ ...form, supplier_id: id, lines: applySupplierPrices(form.lines, suppliers, id) });
+                      }}
+                    >
+                      <option value="">Chọn nhà cung cấp</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}{s.id === bestSupplierIdForLines(form.lines, suppliers) ? " (giá thấp nhất)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <label className="kna-o-truong">
+                  <span>Ngày cần hàng <em>*</em></span>
+                  <input
+                    className="kna-o"
+                    type="date"
+                    required
+                    min={minPurchaseDate}
+                    value={form.needed_date ?? ""}
+                    onChange={(e) => setForm({ ...form, needed_date: e.target.value })}
+                  />
+                  {/* Chỉ nhắc khi ô đã đổi khác ngày yêu cầu — trùng nhau thì ô đã nói rồi. */}
+                  {canNhat && taoMoi && form.needed_date !== canNhat && (
+                    <small className="kna-mo">Yêu cầu cần {canNhat.split("-").reverse().join("/")}.</small>
+                  )}
+                </label>
+                {/* NGÀY NHẬN HÀNG CHỈ Ở CHẾ ĐỘ SỬA (chủ chốt 28/08/2026): lúc TẠO phiếu tách N đơn
+                    theo NCC mà ô chỉ có MỘT, đóng cùng ngày lên cả N đơn là bơm số sai vào đường
+                    cung của kế hoạch vật tư. */}
+                {!taoMoi && (
+                  <label className="kna-o-truong">
+                    <span>Dự kiến nhận hàng</span>
+                    <input
+                      className="kna-o"
+                      type="date"
+                      min={expectedReceiptMinDate}
+                      value={form.expected_receipt_date ?? ""}
+                      onChange={(e) => setForm({ ...form, expected_receipt_date: e.target.value })}
+                    />
+                  </label>
+                )}
+                <label className="kna-o-truong">
+                  <span>Nội dung, mục đích <em>*</em></span>
+                  <textarea
+                    className="kna-o ycf-ta"
+                    required
+                    rows={3}
+                    value={form.content ?? ""}
+                    onChange={(e) => setForm({ ...form, content: e.target.value })}
+                    placeholder="VD: mua giấy cho đơn hàng ĐH-2026-031"
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="kna-the">
+              <div className="kna-the__dau"><h3>Tóm tắt chi phí</h3></div>
+              <div className="kna-the__than dfa-cs">
+                {khoaNhom.filter((k) => k !== "chua").map((k) => {
+                  const t = tinhNhom(nhom.get(k) ?? []);
+                  const ten = nccCua(k as number)?.name ?? "";
+                  return (
+                    <div key={String(k)} className="dfa-cs__nhom">
+                      <div className="dfa-cs__nh"><span>{ten}</span><b className="kna-so">{so(t.tong)} đ</b></div>
+                      <div className="dfa-cs__con"><span>Tiền hàng</span><span className="kna-so">{so(t.hang)}</span></div>
+                      {t.giam > 0 && <div className="dfa-cs__con"><span>Chiết khấu</span><span className="kna-so">{so(-t.giam)}</span></div>}
+                      <div className="dfa-cs__con"><span>VAT</span><span className="kna-so">{so(t.vat)}</span></div>
+                    </div>
+                  );
+                })}
+                {nhom.has("chua") && taoMoi && (
+                  <div className="dfa-cs__con ycd-do">
+                    <span>{(nhom.get("chua") ?? []).filter((i) => dongDuocChon(form.lines[i])).length} món chưa có nhà cung cấp</span>
+                  </div>
+                )}
+                <div className="dfa-cs__tong">
+                  <span>{soDon > 1 ? `Tổng ${soDon} đơn` : "Tổng"}</span>
+                  <b className="kna-so">{so(tongCong)} đ</b>
+                </div>
+              </div>
+            </section>
           </div>
-          <div className="purchase__drawer-footer">
-            <button
-              type="button"
-              className="btn btn--ghost"
-              onClick={() => setMode(null)}
-              disabled={saving}
-            >
-              Hủy
-            </button>
-            <Button type="submit" variant="accent" loading={saving}>
-              Lưu đơn
-            </Button>
-          </div>
-        </form>
-      </aside>
-    </div>
+        </div>
+      </form>
+    </NganPhai>
   );
 }

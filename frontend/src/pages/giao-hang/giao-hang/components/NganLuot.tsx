@@ -1,21 +1,37 @@
 // Ngăn chi tiết một dòng của tab "Đơn giao hàng" (06/10/2026, mockup
-// docs/mockups/giao-hang-phuong-an-B-chi-tiet.html) — vỏ `NganPhai` chung của hệ thống, 920px.
+// docs/mockups/giao-hang-phuong-an-B-chi-tiet.html) — vỏ `NganPhai` chung của hệ thống, 1180px.
 //
 //   Lộ trình — Rời kho → thẻ từng khách (nơi giao, người nhận, hẹn, lưu ý, hàng, kết quả) → Về kho.
 //              Bước CẢ LƯỢT (gửi kho, lấy hàng, xuất phát, về kho) ở đầu ngăn; việc của RIÊNG một
 //              điểm (nhập kết quả, trả hàng, đổi/huỷ) ở thẻ điểm đó.
 //   Chứng từ — MỖI ĐƠN một bộ giấy tờ (chủ chốt "cách 1"): cột trái các đơn của lượt, bên phải chỉ
-//              giấy tờ, hàng và tệp của đơn đang chọn. Một chuyến = một đơn trong lượt, nên phiếu
-//              kho và tệp đã gắn đúng đơn sẵn — không gom chung cả lượt.
+//              giấy tờ và tệp của đơn đang chọn (bảng hàng Yêu cầu / Đã giao / Còn nằm ở thẻ điểm
+//              bên Lộ trình — nói một lần). Một chuyến = một đơn trong lượt, nên phiếu kho và tệp
+//              đã gắn đúng đơn sẵn — không gom chung cả lượt.
 //   Lịch sử  — các mốc trạng thái của mọi điểm, mới nhất trước.
 //
-// Đơn NHÀ GIA CÔNG GIAO THẲNG không xe, không kíp, không km: bốn ô đầu ngăn đổi thành nhà gia
-// công, lệnh nguồn, số đã giao, người ghi nhận.
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { BangGiaoItem, DeliveryHistory, DeliveryRequestDetail, DeliveryTrip, LuotXeChiTiet } from "../../../../api/client";
+// Đơn NHÀ GIA CÔNG GIAO THẲNG không xe, không kíp, không km: cột thuộc tính nói nhà gia công, lệnh
+// nguồn, ngày khách nhận, người ghi nhận.
+// Phương án A (docs/mockups/giao-hang-lam-lai-3-phuong-an.html, 07/10/2026): tóm tắt là dải chữ
+// thường không đóng hộp, tab không mang số đếm, không nói lặp trạng thái / số lượng / mã.
+// Ngăn MỘT đơn (chuyến lẻ, giao thẳng) theo phương án A của docs/mockups/giao-hang-chi-tiet-3-phuong-an.html
+// (07/10/2026): bỏ thẻ viền, thân là các nhóm nhãn trái giá trị phải (`ChiTietDon`), nút của chuyến
+// lên đầu ngăn. Lượt nhiều điểm vẫn giữ thẻ từng điểm trên lộ trình.
+// Ngăn MỘT đơn theo kiểu 3 của ngăn Phiếu thu (08/10/2026): mã yêu cầu là tiêu đề + chip trạng thái chữ
+// thường; thân trái là khách + lưu ý + lưới hàng kiểu bảng tính; mọi ô ngắn (nơi giao, người nhận, xe,
+// nhà gia công, kết quả…) dồn vào cột thuộc tính bên phải (`RayThuocTinh`). Tab Chứng từ dùng lưới giấy
+// tờ + ô kéo-thả tệp của kế toán (`TabChungTu`) cho cả ngăn lượt.
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import type {
+  BangGiaoItem, DeliveryHistory, DeliveryRequestDetail, DeliveryRequestLine, DeliveryTrip, DinhKemChuyen,
+  LuotXeChiTiet,
+} from "../../../../api/client";
 import { api } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { Cum, TheNho } from "../../../ke-toan/shared/Cum";
+import { RayThuocTinh } from "../../../ke-toan/shared/LuoiGon";
 import { NganPhai } from "../../../ke-toan/shared/NganPhai";
+import { TabChungTu } from "../../../ke-toan/shared/TabChungTu";
 import { NHAN_TRANG_THAI_CHUYEN } from "../shared/constants";
 import {
   buocLuot,
@@ -34,14 +50,14 @@ import {
   type FormLuot,
 } from "../shared/helpers";
 import { NutBuocChuyen, type ThaoTacChuyen } from "../tabs/BangKeHoach";
-import { DinhKemChuyenBox } from "./DinhKemChuyenBox";
 import { FormSoDongHo } from "./FormSoDongHo";
-import { CHUA_CAM_HANG, Pill, TraHang } from "./giaoHangCells";
+import { CHUA_CAM_HANG, ChipGh, Pill, TraHang } from "./giaoHangCells";
 import "../../../ke-toan/ke-toan.css";
 
 type Tab = "lo-trinh" | "chung-tu" | "lich-su";
 
-/** Ô tóm tắt hai tầng: giá trị + dòng phụ nhỏ. */
+/** Ô tóm tắt hai tầng: giá trị + dòng phụ nhỏ. Dải tóm tắt là một hàng chữ thường dưới tiêu đề
+ *  (phương án A, 07/10/2026) — không dùng khối nền xám `tomTat` của NganPhai: ô dữ liệu không đóng hộp. */
 const o2 = (chinh: ReactNode, phu?: ReactNode) => (
   <>
     {chinh}
@@ -91,7 +107,8 @@ export function NganLuot({
   const [chonDon, setChonDon] = useState<number | null>(dau?.id ?? null);
   const [demTep, setDemTep] = useState<Record<number, number>>({});
 
-  // Hàng + lịch sử nằm ở chi tiết YÊU CẦU — nạp lại mỗi khi một điểm đổi trạng thái.
+  // Lịch sử nằm ở chi tiết YÊU CẦU — nạp lại mỗi khi một điểm đổi trạng thái. Bảng hàng KHÔNG chờ
+  // nó nữa: bảng giao gửi kèm `t.hang` (07/10/2026), chi tiết chỉ là đường dự phòng.
   const dsRef = useRef(ds);
   dsRef.current = ds;
   const khoaCt = ds.map((t) => `${t.request_id}:${t.trang_thai}:${t.tra_hang_trang_thai ?? ""}`).join("|");
@@ -172,25 +189,18 @@ export function NganLuot({
         },
         { nhan: "Đã chạy", giaTri: o2(`${so(l.tong_km)} km`, `${xong} trên ${ds.length} điểm`) },
       ]
-    : gt
-      ? [
-          { nhan: "Nhà gia công", giaTri: o2(gt.nha_cung_cap_ten ?? "—", gt.nha_cung_cap_sdt ? sdtDoc(gt.nha_cung_cap_sdt) : null) },
-          { nhan: "Từ lệnh", giaTri: gt.lsx_ma ?? "—" },
-          { nhan: "Đã giao", giaTri: daGiaoChuyen(dau, chiTiet[dau.request_id]) },
-          // Ngày khách nhận theo biên bản (kế toán ghi hoá đơn theo ngày này) — khác lúc bấm chốt.
-          {
-            nhan: "Khách nhận",
-            giaTri: o2(ngay(ngayIso(dau.thoi_gian_ket_thuc)), soVoiHen(dau.ngay_can_giao, dau.thoi_gian_ket_thuc)?.text ?? null),
-          },
-          { nhan: "Ghi nhận", giaTri: o2(dau.employee_name ?? "—", gioNgay(dau.created_at ?? dau.thoi_gian_ket_thuc)) },
-        ]
-      : [
-          { nhan: "Xe", giaTri: o2(dau.xe_bien_so ?? "—", dau.xe_ten) },
-          { nhan: "Tài xế", giaTri: o2(dau.employee_name ?? "—", dau.phu_xe_name ? `phụ xe ${dau.phu_xe_name}` : null) },
-          { nhan: "Lấy hàng", giaTri: o2(gioNgay(dau.gio_lay_hang), `giao dự kiến ${gioNgay(dau.gio_du_kien_giao)}`) },
-          { nhan: "Km", giaTri: dau.tong_km > 0 ? `${so(dau.tong_km)} km` : "—" },
-        ];
+    : [];
 
+  // Nút của MỘT chuyến (không lượt) đứng ở đầu ngăn như mọi ngăn khác (phương án A 07/10/2026);
+  // lượt nhiều điểm thì đầu ngăn là bước CẢ LƯỢT, nút riêng nằm ở thẻ từng điểm.
+  const nutChuyen = !l ? (
+    <>
+      <NutBuocChuyen t={dau} tt={tt} />
+      {CHUA_CAM_HANG.includes(dau.trang_thai) && onDoiChuyen && (
+        <Button variant="ghost" onClick={() => onDoiChuyen(dau)}>Đổi / huỷ chuyến</Button>
+      )}
+    </>
+  ) : undefined;
   const hanhDong = l && mo === null && buoc.length > 0
     ? buoc.map((b, i) => (
         <Button key={b.nhan} variant={i === 0 ? "accent" : "ghost"} disabled={dangGui}
@@ -198,7 +208,7 @@ export function NganLuot({
           {b.nhan}
         </Button>
       ))
-    : undefined;
+    : nutChuyen;
 
   const theDiem = (t: DeliveryTrip, i: number) => (
     <TheDiem key={t.id} t={t} stt={l ? i + 1 : null} ct={chiTiet[t.request_id]} giaoThang={!!gt}
@@ -226,14 +236,25 @@ export function NganLuot({
   return (
     <NganPhai
       duongDan={l ? "Lượt xe" : gt ? "Nhà gia công giao thẳng" : "Chuyến giao"}
-      tieuDe={l ? l.code : dau.request_code}
-      the={<Pill text={tinh.text} tone={tinh.tone} />}
+      tieuDe={l ? l.code : <span className="kt-ngan__soLon">{dau.request_code}</span>}
+      the={l ? <Pill text={tinh.text} tone={tinh.tone} /> : <ChipGh text={tinh.text} tone={tinh.tone} />}
       hanhDong={hanhDong}
-      tomTat={tomTat}
+      phuDe={l ? (
+        <dl className="gh-kv">
+          {tomTat.map((o) => (
+            <div key={o.nhan}>
+              <dt>{o.nhan}</dt>
+              <dd>{o.giaTri}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : undefined}
+      cot={l ? undefined : <RayDon t={dau} />}
+      // Tab không mang số đếm (luật chung).
       tabs={[
-        { id: "lo-trinh", nhan: l ? "Lộ trình" : "Chi tiết", ...(l ? { dem: ds.length } : {}) },
+        { id: "lo-trinh", nhan: l ? "Lộ trình" : "Chi tiết" },
         { id: "chung-tu", nhan: "Chứng từ" },
-        { id: "lich-su", nhan: "Lịch sử", dem: lichSu.length },
+        { id: "lich-su", nhan: "Lịch sử" },
       ]}
       tab={tab}
       onTab={(id) => setTab(id as Tab)}
@@ -325,7 +346,7 @@ export function NganLuot({
               <MocKho luot={l} loai="ve" />
             </ol>
           ) : (
-            theDiem(dau, 0)
+            <ChiTietDon t={dau} ct={chiTiet[dau.request_id]} />
           )}
         </>
       )}
@@ -352,7 +373,8 @@ export function NganLuot({
               ))}
             </nav>
           )}
-          <ChungTuDon key={tc.id} t={tc} ct={chiTiet[tc.request_id]} giaoThang={!!gt} nhieuDon={ds.length > 1} token={token}
+          <ChungTuDon key={tc.id} t={tc} giaoThang={!!gt} nhieuDon={ds.length > 1}
+            maLaTieuDe={!l} token={token}
             onDemTep={(n) => setDemTep((c) => (c[tc.id] === n ? c : { ...c, [tc.id]: n }))} />
         </div>
       )}
@@ -396,13 +418,6 @@ function lucXuatPhat(ds: DeliveryTrip[], ct: Record<number, DeliveryRequestDetai
   return moc[0] ?? null;
 }
 
-/** Số đã giao của chuyến (cộng các dòng) kèm đơn vị khi mọi dòng chung một đơn vị. */
-function daGiaoChuyen(t: DeliveryTrip, ct?: DeliveryRequestDetail): string {
-  const tong = t.lines.reduce((n, x) => n + x.qty_giao, 0);
-  const dv = new Set((ct?.request.lines ?? []).map((x) => x.don_vi_tinh ?? x.dvt ?? ""));
-  return dv.size === 1 ? `${so(tong)} ${[...dv][0]}`.trim() : so(tong);
-}
-
 function MocKho({ luot: l, loai, luc }: { luot: LuotXeChiTiet; loai: "roi" | "ve"; luc?: string | null }) {
   if (loai === "roi") {
     const da = l.so_dong_ho_xuat_phat != null;
@@ -437,6 +452,176 @@ function MocKho({ luot: l, loai, luc }: { luot: LuotXeChiTiet; loai: "roi" | "ve
   );
 }
 
+/** Dòng hàng của chuyến: bảng giao gửi kèm sẵn (`t.hang`, nạp gộp cả trang) nên ngăn có bảng hàng
+ *  ngay lúc mở; chỉ khi thiếu (chuyến không đi từ bảng giao) mới chờ chi tiết yêu cầu nạp riêng. */
+function dongHang(t: DeliveryTrip, ct?: DeliveryRequestDetail): DeliveryRequestLine[] {
+  return t.hang ?? ct?.request.lines ?? [];
+}
+
+/** Bảng hàng Yêu cầu / Đã giao / Còn trong thẻ từng điểm của lượt. */
+function BangHang({ dong }: { dong: DeliveryRequestLine[] }) {
+  if (dong.length === 0) return null;
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Hàng giao</th>
+          <th className="r">Yêu cầu</th>
+          <th className="r">Đã giao</th>
+          <th className="r">Còn</th>
+        </tr>
+      </thead>
+      <tbody>
+        {dong.map((x) => {
+          const dv = x.don_vi_tinh ?? x.dvt ?? "";
+          const con = x.qty - x.da_giao;
+          return (
+            <tr key={x.id}>
+              <td>{x.mo_ta ?? x.hang_ten}</td>
+              <td className="r gh-num">{so(x.qty)} <span className="gh-nho">{dv}</span></td>
+              <td className="r gh-num">{x.da_giao > 0 ? <>{so(x.da_giao)} <span className="gh-nho">{dv}</span></> : <span className="gh-mo">0</span>}</td>
+              <td className="r gh-num">{con > 0 ? <>{so(con)} <span className="gh-nho">{dv}</span></> : <span className="gh-mo">0</span>}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/** Ô số lượng của lưới hàng: số rồi đơn vị mờ; 0 thì gạch mờ như ô "Thu trước đó" của phiếu thu. */
+function oSl(n: number, dv: string) {
+  return n > 0 ? <>{so(n)} <span className="kt-mo">{dv}</span></> : <span className="kt-mo">–</span>;
+}
+
+/** Thân trái của ngăn MỘT đơn (kiểu 3, 08/10/2026): khách giao tới (chữ lớn như "Lý do nộp"), lưu ý khi
+ *  giao, lưới hàng kiểu bảng tính như "Áp vào hoá đơn". Các ô ngắn nằm ở cột phải (`RayDon`). */
+function ChiTietDon({ t, ct }: { t: DeliveryTrip; ct?: DeliveryRequestDetail }) {
+  const dong = dongHang(t, ct);
+  return (
+    <>
+      <div className="kt-ngan__muc">Giao cho</div>
+      <div className="kt-ngan__ly gh-k3-khach">
+        <span>{t.customer_name ?? "—"}</span>
+        {t.order_code && <TheNho>{t.order_code}</TheNho>}
+        {t.customer_po_no && <TheNho>PO {t.customer_po_no}</TheNho>}
+      </div>
+
+      {t.luu_y_giao && (
+        <>
+          <div className="kt-ngan__muc">Lưu ý khi giao</div>
+          <p className="gh-k3-luu">{t.luu_y_giao}</p>
+        </>
+      )}
+
+      {dong.length > 0 && (
+        <>
+          <div className="kt-ngan__muc">Hàng giao</div>
+          <div className="kt-bang">
+            <table className="kt-g" style={{ minWidth: 520 }}>
+              <colgroup>
+                <col />
+                <col style={{ width: 136 }} />
+                <col style={{ width: 136 }} />
+                <col style={{ width: 136 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Mặt hàng</th>
+                  <th className="kt-g__so">Yêu cầu</th>
+                  <th className="kt-g__so">Đã giao</th>
+                  <th className="kt-g__so">Còn</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dong.map((x) => {
+                  const dv = x.don_vi_tinh ?? x.dvt ?? "";
+                  const ten = x.mo_ta ?? x.hang_ten ?? "";
+                  return (
+                    <tr key={x.id}>
+                      <td title={ten}>{ten}</td>
+                      <td className="kt-g__so">{oSl(x.qty, dv)}</td>
+                      <td className="kt-g__so">{oSl(x.da_giao, dv)}</td>
+                      <td className="kt-g__so">{oSl(x.qty - x.da_giao, dv)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/** Cột thuộc tính bên phải của ngăn MỘT đơn. Ô trống tự ẩn (`RayThuocTinh` bỏ giá trị null).
+ *  Giao thẳng: không xe, không tài xế, không km — thay bằng nhà gia công, lệnh nguồn, ngày khách nhận
+ *  theo biên bản (kế toán ghi hoá đơn theo ngày này, khác lúc bấm chốt) và người ghi nhận. */
+function RayDon({ t }: { t: DeliveryTrip }) {
+  const gt = t.giao_thang ?? null;
+  const ketQua = coKetQua(t) && !gt;
+  const hen = gt ? soVoiHen(t.ngay_can_giao, t.thoi_gian_ket_thuc) : null;
+  return (
+    <RayThuocTinh o={[
+      { nhan: "Nơi giao", giaTri: (
+        <Cum>
+          <span>{t.dia_chi || "Chưa có địa chỉ"}</span>
+          {t.dia_chi && (
+            <a className="kt-lk" href={lienKetBanDo(t.dia_chi)} target="_blank" rel="noreferrer">Mở bản đồ</a>
+          )}
+        </Cum>
+      ) },
+      { nhan: "Người nhận", giaTri: (
+        <Cum>
+          <span>{t.nguoi_nhan || "—"}</span>
+          {t.sdt_nguoi_nhan && (
+            <a className="kt-lk" href={`tel:${t.sdt_nguoi_nhan.replace(/\s+/g, "")}`}>{sdtDoc(t.sdt_nguoi_nhan)}</a>
+          )}
+        </Cum>
+      ) },
+      // Giao thẳng: ô Khách nhận đã nói so với hẹn — khỏi nhắc hẹn lần nữa.
+      { nhan: "Hẹn giao", giaTri: gt ? null : ngay(t.ngay_can_giao) },
+      { nhan: "Nhà gia công", giaTri: gt ? (
+        <Cum>
+          <span>{gt.nha_cung_cap_ten ?? "—"}</span>
+          {gt.nha_cung_cap_sdt && (
+            <a className="kt-lk" href={`tel:${gt.nha_cung_cap_sdt.replace(/\s+/g, "")}`}>{sdtDoc(gt.nha_cung_cap_sdt)}</a>
+          )}
+        </Cum>
+      ) : null },
+      { nhan: "Từ lệnh", giaTri: gt ? gt.lsx_ma ?? "—" : null },
+      { nhan: "Khách nhận", giaTri: gt ? (
+        <Cum>
+          <span>{ngay(ngayIso(t.thoi_gian_ket_thuc))}</span>
+          {hen && <TheNho>{hen.text}</TheNho>}
+        </Cum>
+      ) : null },
+      { nhan: "Xe", giaTri: gt ? null : (
+        <Cum>
+          <span>{t.xe_bien_so ?? "—"}</span>
+          {t.xe_ten && <TheNho>{t.xe_ten}</TheNho>}
+        </Cum>
+      ) },
+      { nhan: "Tài xế", giaTri: gt ? null : t.employee_name ?? "—" },
+      { nhan: "Phụ xe", giaTri: gt ? null : t.phu_xe_name },
+      { nhan: "Lấy hàng", giaTri: gt ? null : gioNgay(t.gio_lay_hang) },
+      { nhan: "Giao dự kiến", giaTri: gt || !t.gio_du_kien_giao ? null : gioNgay(t.gio_du_kien_giao) },
+      { nhan: "Tới nơi", giaTri: ketQua ? gioNgay(t.thoi_gian_ket_thuc) : null },
+      { nhan: "Km", giaTri: gt ? null : t.km != null ? `${so(t.km)} km` : t.tong_km > 0 ? `${so(t.tong_km)} km` : null },
+      { nhan: "Ký nhận", giaTri: ketQua ? t.nguoi_nhan_thuc_te : null },
+      { nhan: "Lý do", giaTri: ketQua ? t.ly_do_that_bai : null },
+      { nhan: "Ghi chú kết quả", giaTri: ketQua && !t.ly_do_that_bai ? t.ghi_chu_ket_qua : null },
+      { nhan: "Ghi nhận", giaTri: gt ? (
+        <Cum>
+          <span>{t.employee_name ?? "—"}</span>
+          <TheNho>{gioNgay(t.created_at ?? t.thoi_gian_ket_thuc)}</TheNho>
+        </Cum>
+      ) : null },
+    ]} />
+  );
+}
+
 function TheDiem({
   t,
   stt,
@@ -450,7 +635,7 @@ function TheDiem({
   giaoThang: boolean;
   nut: ReactNode;
 }) {
-  const dong = ct?.request.lines ?? [];
+  const dong = dongHang(t, ct);
   const dangGiao = t.trang_thai === "dang_giao";
   return (
     <article className={`gh-dt${dangGiao ? " is-dang" : ""}`}
@@ -461,7 +646,8 @@ function TheDiem({
           <div className="gh-dt__the">
             {t.order_code && <span className="gh-the">{t.order_code}</span>}
             {t.customer_po_no && <span className="gh-the">PO {t.customer_po_no}</span>}
-            {t.request_code && <span className="gh-the">{t.request_code}</span>}
+            {/* Ngăn một yêu cầu: mã đã là tiêu đề ngăn — chỉ lượt nhiều điểm mới cần thẻ mã. */}
+            {stt != null && t.request_code && <span className="gh-the">{t.request_code}</span>}
           </div>
         </div>
         <div className="gh-dt__nut">
@@ -494,36 +680,27 @@ function TheDiem({
         <div>
           <dt>Hẹn giao</dt>
           <dd>
-            <b>{ngay(t.ngay_can_giao)}</b>
+            <span>{ngay(t.ngay_can_giao)}</span>
             {t.phieu_xuat && <span className="gh-nho">phiếu kho {t.phieu_xuat.ma}</span>}
           </dd>
         </div>
       </dl>
-      {t.luu_y_giao && <div className="gh-dt__luu">{t.luu_y_giao}</div>}
+      {t.luu_y_giao && (
+        <p className="gh-dt__luu"><span className="gh-nho">Lưu ý khi giao</span> {t.luu_y_giao}</p>
+      )}
       {dong.length > 0 && (
         <div className="gh-dt__hang">
-          <table>
-            <thead>
-              <tr><th>Hàng giao</th><th className="r">Số lượng</th></tr>
-            </thead>
-            <tbody>
-              {dong.map((x) => (
-                <tr key={x.id}>
-                  <td>{x.mo_ta ?? x.hang_ten}</td>
-                  <td className="r gh-num">{so(x.qty)} {x.don_vi_tinh ?? x.dvt}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <BangHang dong={dong} />
         </div>
       )}
       {coKetQua(t) && !giaoThang && (
         <div className="gh-dt__kq">
-          <span>Tới <b>{gioNgay(t.thoi_gian_ket_thuc)}</b></span>
-          {t.luot?.so_dong_ho != null && <span>Đồng hồ <b>{so(t.luot.so_dong_ho)}</b></span>}
-          {t.km != null && <span>{t.luot ? "Chặng" : "Km"} <b>{so(t.km)} km</b></span>}
-          {t.nguoi_nhan_thuc_te && <span>Ký nhận <b>{t.nguoi_nhan_thuc_te}</b></span>}
-          {t.ly_do_that_bai && <span>Lý do <b>{t.ly_do_that_bai}</b></span>}
+          <span>Tới <span className="gh-muc">{gioNgay(t.thoi_gian_ket_thuc)}</span></span>
+          {t.luot?.so_dong_ho != null && <span>Đồng hồ <span className="gh-muc">{so(t.luot.so_dong_ho)}</span></span>}
+          {t.km != null && <span>{t.luot ? "Chặng" : "Km"} <span className="gh-muc">{so(t.km)} km</span></span>}
+          {t.nguoi_nhan_thuc_te && <span>Ký nhận <span className="gh-muc">{t.nguoi_nhan_thuc_te}</span></span>}
+          {t.ly_do_that_bai && <span>Lý do <span className="gh-muc">{t.ly_do_that_bai}</span></span>}
+          {!t.ly_do_that_bai && t.ghi_chu_ket_qua && <span>Ghi chú <span className="gh-muc">{t.ghi_chu_ket_qua}</span></span>}
         </div>
       )}
     </article>
@@ -537,137 +714,136 @@ function nhanPhieuKho(tt: string, loai: "xuat" | "tra"): { text: string; tone: "
   return { text: loai === "xuat" ? "Kho đang soạn" : "Chờ kho nhận lại", tone: "warn" };
 }
 
+/** Một dòng của lưới giấy tờ: loại giấy | số | trạng thái | ai, lúc nào. */
+type DongGiay = { loai: string; so: ReactNode; tt: ReactNode; ai: ReactNode };
+
+/** Tệp của MỘT chuyến trong khuôn ô kéo-thả + lưới ảnh của kế toán. Đếm tệp báo lên cho rail đơn. */
+function TepChuyen({ tripId, token, onDem }: { tripId: number; token: string; onDem: (n: number) => void }) {
+  const [tep, setTep] = useState<DinhKemChuyen[]>([]);
+  const onDemRef = useRef(onDem);
+  onDemRef.current = onDem;
+  const nap = useCallback(() => {
+    api.giaoHang.dinhKemChuyen(token, tripId)
+      .then((r) => {
+        setTep(r.items);
+        onDemRef.current(r.items.length);
+      })
+      .catch(() => setTep([]));
+  }, [token, tripId]);
+  useEffect(nap, [nap]);
+  return (
+    <TabChungTu tep={tep} daHuy={false} coQuyen onDoi={nap}
+      taiMot={(f) => api.giaoHang.themDinhKemChuyen(token, tripId, f)}
+      xoaMot={(id) => api.giaoHang.xoaDinhKemChuyen(token, tripId, id)}
+      chuKeo="Kéo ảnh hoá đơn hoặc biên bản khách ký vào đây"
+      chuChuaCo="Chưa có tệp. Kéo ảnh hoá đơn hoặc biên bản khách ký vào đây" />
+  );
+}
+
 function ChungTuDon({
   t,
-  ct,
   giaoThang,
   nhieuDon,
+  maLaTieuDe,
   token,
   onDemTep,
 }: {
   t: DeliveryTrip;
-  ct?: DeliveryRequestDetail;
   giaoThang: boolean;
   /** Lượt nhiều đơn ⇒ nói trạng thái của đơn đang chọn; một đơn thì đầu ngăn đã nói. */
   nhieuDon: boolean;
+  /** Mã yêu cầu đang là tiêu đề ngăn (ngăn một chuyến) ⇒ dòng phiếu giao hàng khỏi nhắc lại. */
+  maLaTieuDe: boolean;
   token: string;
   onDemTep: (n: number) => void;
 }) {
-  const dong = ct?.request.lines ?? [];
   const daKy = coKetQua(t) && !!t.nguoi_nhan_thuc_te;
   const px = t.phieu_xuat ? nhanPhieuKho(t.phieu_xuat.trang_thai, "xuat") : null;
   const pt = t.phieu_tra ? nhanPhieuKho(t.phieu_tra.trang_thai, "tra") : null;
-  const ghiChu = t.ly_do_that_bai ? `Lý do: ${t.ly_do_that_bai}`
-    : coKetQua(t) && !giaoThang && t.ghi_chu_ket_qua ? `Ghi chú: ${t.ghi_chu_ket_qua}` : null;
+  const mo = <span className="kt-mo">–</span>;
+
+  const giay: DongGiay[] = [
+    {
+      loai: "Phiếu giao hàng",
+      so: maLaTieuDe ? mo : t.request_code,
+      // Giao thẳng đã xong mà một đơn: đầu ngăn đã nói "Giao thành công" — thôi nhắc.
+      tt: daKy ? <ChipGh text="Khách đã ký" tone="on" />
+        : giaoThang && coKetQua(t) ? (nhieuDon ? <ChipGh text="Đã giao" tone="on" /> : mo)
+          : <ChipGh text="Chưa giao" tone="warn" />,
+      ai: daKy ? <Cum><span>{t.nguoi_nhan_thuc_te}</span><TheNho>{gioNgay(t.thoi_gian_ket_thuc)}</TheNho></Cum> : null,
+    },
+    giaoThang
+      ? { loai: "Phiếu xuất kho", so: <span className="kt-mo">Không qua kho</span>, tt: mo,
+          ai: <span className="kt-mo">Nhà gia công giao thẳng cho khách</span> }
+      : t.phieu_xuat
+        ? { loai: "Phiếu xuất kho", so: t.phieu_xuat.ma, tt: <ChipGh text={px!.text} tone={px!.tone} />,
+            ai: <Cum><span>{t.phieu_xuat.boi_ten}</span><TheNho>{gioNgay(t.phieu_xuat.luc)}</TheNho></Cum> }
+        : { loai: t.yeu_cau_kho_ma ? "Yêu cầu xuất kho" : "Phiếu xuất kho", so: t.yeu_cau_kho_ma ?? mo,
+            tt: <ChipGh text={t.yeu_cau_kho_ma ? "Chờ kho lập phiếu" : "Chưa gửi kho"} tone="warn" />, ai: null },
+  ];
+  if (t.phieu_tra || t.tra_hang_ma) {
+    giay.push({
+      loai: "Phiếu nhập trả",
+      so: t.phieu_tra?.ma ?? t.tra_hang_ma,
+      tt: pt
+        ? <ChipGh text={pt.text} tone={pt.tone} />
+        : <ChipGh text={t.tra_hang_trang_thai === "done" ? "Kho đã nhận lại" : "Chờ kho nhận lại"}
+            tone={t.tra_hang_trang_thai === "done" ? "on" : "warn"} />,
+      ai: t.phieu_tra ? <Cum><span>{t.phieu_tra.boi_ten}</span><TheNho>{gioNgay(t.phieu_tra.luc)}</TheNho></Cum> : null,
+    });
+  }
+
   return (
     <div className="gh-ctd__mat">
-      <div className="gh-ctd__dau">
-        <div className="gh-dt__ten">
-          <b>{t.customer_name}</b>
-          <div className="gh-dt__the">
-            {t.order_code && <span className="gh-the">{t.order_code}</span>}
-            {t.customer_po_no && <span className="gh-the">PO {t.customer_po_no}</span>}
+      {/* Một đơn: khách + mã đơn đã ở tab Chi tiết — tab này chỉ giấy tờ và tệp. */}
+      {nhieuDon && (
+        <div className="gh-ctd__dau">
+          <div className="gh-dt__ten">
+            <b>{t.customer_name}</b>
+            <div className="gh-dt__the">
+              {t.order_code && <span className="gh-the">{t.order_code}</span>}
+              {t.customer_po_no && <span className="gh-the">PO {t.customer_po_no}</span>}
+            </div>
           </div>
+          <Pill text={nhanChuyen(t)} tone={toneChuyen(t.trang_thai)} />
         </div>
-        {nhieuDon && <Pill text={nhanChuyen(t)} tone={toneChuyen(t.trang_thai)} />}
-      </div>
+      )}
 
-      <section className="gh-hop">
-        <h3 className="gh-hop__tieu">Giấy tờ của đơn</h3>
-        <ul className="gh-gt">
-          <li>
-            <span className="gh-gt__loai">Phiếu giao hàng</span>
-            <span className="gh-gt__so">{t.request_code}</span>
-            <span className="gh-gt__tt">
-              {daKy ? <Pill text="Khách đã ký" tone="on" />
-                : giaoThang && coKetQua(t) ? <Pill text="Đã giao" tone="on" />
-                  : <Pill text="Chưa giao" tone="warn" />}
-            </span>
-            <span className="gh-gt__ai gh-nho">
-              {daKy && <>{t.nguoi_nhan_thuc_te} {gioNgay(t.thoi_gian_ket_thuc)}</>}
-            </span>
-          </li>
-          {giaoThang ? (
-            <li>
-              <span className="gh-gt__loai">Phiếu xuất kho</span>
-              <span className="gh-gt__so gh-nho">Không qua kho</span>
-              <span className="gh-gt__tt" />
-              <span className="gh-gt__ai gh-nho">Nhà gia công giao thẳng cho khách</span>
-            </li>
-          ) : t.phieu_xuat ? (
-            <li>
-              <span className="gh-gt__loai">Phiếu xuất kho</span>
-              <span className="gh-gt__so">{t.phieu_xuat.ma}</span>
-              <span className="gh-gt__tt">
-                <Pill text={px!.text} tone={px!.tone} />
-              </span>
-              <span className="gh-gt__ai gh-nho">
-                {t.phieu_xuat.boi_ten} {gioNgay(t.phieu_xuat.luc)}
-              </span>
-            </li>
-          ) : (
-            <li>
-              <span className="gh-gt__loai">{t.yeu_cau_kho_ma ? "Yêu cầu xuất kho" : "Phiếu xuất kho"}</span>
-              <span className="gh-gt__so">{t.yeu_cau_kho_ma ?? <span className="gh-nho">—</span>}</span>
-              <span className="gh-gt__tt">
-                <Pill text={t.yeu_cau_kho_ma ? "Chờ kho lập phiếu" : "Chưa gửi kho"} tone="warn" />
-              </span>
-              <span className="gh-gt__ai" />
-            </li>
-          )}
-          {(t.phieu_tra || t.tra_hang_ma) && (
-            <li>
-              <span className="gh-gt__loai">Phiếu nhập trả</span>
-              <span className="gh-gt__so">{t.phieu_tra?.ma ?? t.tra_hang_ma}</span>
-              <span className="gh-gt__tt">
-                {pt
-                  ? <Pill text={pt.text} tone={pt.tone} />
-                  : <Pill text={t.tra_hang_trang_thai === "done" ? "Kho đã nhận lại" : "Chờ kho nhận lại"}
-                      tone={t.tra_hang_trang_thai === "done" ? "on" : "warn"} />}
-              </span>
-              <span className="gh-gt__ai gh-nho">
-                {t.phieu_tra && <>{t.phieu_tra.boi_ten} {gioNgay(t.phieu_tra.luc)}</>}
-              </span>
-            </li>
-          )}
-        </ul>
-      </section>
-
-      <section className="gh-hop">
-        <h3 className="gh-hop__tieu">Hàng của đơn</h3>
-        {dong.length === 0 ? (
-          <p className="rc__sub gh-hop__than">Đang tải…</p>
-        ) : (
-          <table className="gh-hop__bang">
+      <section>
+        <div className="kt-ngan__muc">Giấy tờ của đơn</div>
+        <div className="kt-bang">
+          <table className="kt-g" style={{ minWidth: 620 }}>
+            <colgroup>
+              <col style={{ width: 150 }} />
+              <col style={{ width: 170 }} />
+              <col style={{ width: 160 }} />
+              <col />
+            </colgroup>
             <thead>
               <tr>
-                <th>Mặt hàng</th>
-                <th className="r">Yêu cầu</th>
-                <th className="r">Đã giao</th>
-                <th className="r">Còn</th>
+                <th>Giấy tờ</th>
+                <th>Số</th>
+                <th>Trạng thái</th>
+                <th>Người làm</th>
               </tr>
             </thead>
             <tbody>
-              {dong.map((x) => {
-                const dv = x.don_vi_tinh ?? x.dvt ?? "";
-                const con = x.qty - x.da_giao;
-                return (
-                  <tr key={x.id}>
-                    <td>{x.mo_ta ?? x.hang_ten}</td>
-                    <td className="r gh-num">{so(x.qty)} {dv}</td>
-                    <td className="r gh-num">{so(x.da_giao)} {dv}</td>
-                    <td className={`r gh-num${con > 0 ? "" : " gh-nho"}`}>{con > 0 ? <b>{so(con)} {dv}</b> : "0"}</td>
-                  </tr>
-                );
-              })}
+              {giay.map((g) => (
+                <tr key={g.loai}>
+                  <td>{g.loai}</td>
+                  <td>{g.so}</td>
+                  <td>{g.tt}</td>
+                  <td style={{ whiteSpace: "normal" }}>{g.ai ?? mo}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
-        )}
-        {ghiChu && <p className="gh-nho gh-hop__than">{ghiChu}</p>}
+        </div>
       </section>
 
-      <section className="gh-hop gh-hop--tep">
-        <DinhKemChuyenBox tripId={t.id} token={token} tieuDe="Tệp đính kèm của đơn" onDem={onDemTep} />
+      <section>
+        <div className="kt-ngan__muc">Tệp đính kèm của đơn</div>
+        <TepChuyen tripId={t.id} token={token} onDem={onDemTep} />
       </section>
     </div>
   );

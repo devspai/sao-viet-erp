@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giao hàng — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --la-bg:#dcfce7; --la-fg:#15803d; --la-dot:#22c55e;
+  --xanh-bg:#dbeafe; --xanh-fg:#1d4ed8; --xanh-dot:#3b82f6;
+  --vang-bg:#fef3c7; --vang-fg:#b45309; --vang-dot:#f59e0b;
+  --do-bg:#fee2e2; --do-fg:#b91c1c; --do-dot:#ef4444;
+  --xam-bg:#f1f5f9; --xam-fg:#475569; --xam-dot:#94a3b8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13px/1.45 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1480px;margin:0 auto;padding:24px 16px 96px}
+h1{font-size:21px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:960px;font-size:14px}
+.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+@media (max-width:1000px){.notes{grid-template-columns:1fr}}
+.note{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:12px 16px;color:var(--ash)}
+.note h4{margin:0 0 6px;font-size:13px;color:var(--ink)}
+.note ul{margin:0;padding-left:18px}
+.note li{margin:3px 0}
+.note b{color:var(--ink)}
+
+.switch{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 14px;margin:0 0 16px;background:rgba(233,237,242,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--rule)}
+.switch .lbl{font-size:12px;font-weight:600;color:var(--ash)}
+.seg{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:9px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;font:inherit;font-weight:600;color:var(--ash);padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.seg button:hover{background:var(--rule-hair)}
+.seg button.on{background:var(--ink);color:#fff}
+
+.opt,.scr{display:none}
+.opt.on,.scr.on{display:block}
+.why{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:10px 14px;margin:0 0 12px;color:var(--ash)}
+.why b{color:var(--ink)}
+
+/* Khung app */
+.app{background:var(--paper);border:1px solid var(--rule);border-radius:14px;overflow:hidden;position:relative;min-height:560px}
+.app-top{display:flex;align-items:center;gap:14px;padding:14px 20px 0}
+.app-top h2{font-size:18px;margin:0}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--rule-soft);padding:0 20px;margin-top:10px}
+.tabs span{padding:8px 12px;font-weight:600;color:var(--ash-2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.tabs span.on{color:var(--ink);border-bottom-color:var(--ink)}
+.tabs .moi{width:6px;height:6px;border-radius:50%;background:var(--rust)}
+.tabs .sp{flex:1;border:0}
+.body{padding:12px 20px 20px}
+
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.inp{height:30px;border:1px solid var(--rule);border-radius:7px;background:var(--canvas);padding:0 10px;display:inline-flex;align-items:center;gap:6px;color:var(--ash-2);white-space:nowrap}
+.inp.w{min-width:260px}
+.btn{height:30px;border:1px solid var(--rule);border-radius:7px;background:var(--canvas);padding:0 11px;font:inherit;font-weight:600;color:var(--ink);display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.pri:hover{background:var(--rust-deep)}
+.btn.sm{height:26px;padding:0 9px;font-size:12px}
+.btn.gh{border-color:transparent;background:none;color:var(--rust)}
+.btn.gh:hover{background:var(--rule-hair)}
+.sp{flex:1}
+
+/* Bảng dày */
+.card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--ash-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);background:var(--canvas);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--rule-hair);vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--rule-hair)}
+tr.sel td{background:#f8fafc}
+.r{text-align:right}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-variant-numeric:tabular-nums;font-weight:600}
+.mut{color:var(--ash-3)}
+.sub{color:var(--ash-2);font-size:12px}
+.lnk{color:var(--rust);font-weight:600}
+.wrap{white-space:normal}
+.foot{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--rule-soft);color:var(--ash-2);font-size:12px}
+.chk{width:14px;height:14px;border:1.5px solid var(--rule);border-radius:3px;display:inline-block;vertical-align:middle;background:var(--canvas)}
+.chk.on{background:var(--ink);border-color:var(--ink)}
+
+.pill{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.pill i{width:6px;height:6px;border-radius:50%}
+.p-la{background:var(--la-bg);color:var(--la-fg)} .p-la i{background:var(--la-dot)}
+.p-xanh{background:var(--xanh-bg);color:var(--xanh-fg)} .p-xanh i{background:var(--xanh-dot)}
+.p-vang{background:var(--vang-bg);color:var(--vang-fg)} .p-vang i{background:var(--vang-dot)}
+.p-do{background:var(--do-bg);color:var(--do-fg)} .p-do i{background:var(--do-dot)}
+.p-xam{background:var(--xam-bg);color:var(--xam-fg)} .p-xam i{background:var(--xam-dot)}
+.tag{display:inline-block;padding:0 6px;border:1px solid var(--rule-soft);border-radius:5px;font-size:11.5px;color:var(--ash);background:var(--canvas);white-space:nowrap}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+/* Thanh hành động hàng loạt — chỉ hiện khi đã tick */
+.bulk{display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--ink);border-radius:8px;background:var(--canvas);margin-bottom:8px}
+
+/* Ngăn chi tiết */
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.28)}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(920px,100%);background:var(--canvas);border-left:1px solid var(--rule);box-shadow:-12px 0 32px rgba(15,23,42,.12);display:flex;flex-direction:column}
+.dh{padding:14px 20px 10px;border-bottom:1px solid var(--rule-soft)}
+.dh .t{display:flex;align-items:center;gap:10px}
+.dh .t b{font-size:17px}
+.dh .ic{margin-left:auto;display:flex;gap:4px}
+.dh .ic span{width:28px;height:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:var(--ash)}
+.dtabs{display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--rule-soft)}
+.dtabs .tab{padding:8px 10px;font-weight:600;color:var(--ash-2);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap}
+.dtabs .tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+.dbody{flex:1;overflow:auto;padding:14px 20px}
+.pane{display:none}.pane.on{display:block}
+.kv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px 18px}
+.kv div{padding:4px 0}
+.kv dt{font-size:11.5px;color:var(--ash-2)}
+.kv dd{margin:0;font-weight:600}
+.kv dd small{display:block;font-weight:400;color:var(--ash-2);font-size:12px}
+.sec{margin:16px 0 6px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ash-2)}
+.rows td{padding:7px 0}
+.rows td+td{padding-left:14px}
+.rows tr:hover td{background:none}
+
+/* B — bảng điều phối */
+.split{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px}
+.grp td{background:var(--paper)!important;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ash-2);padding:6px 10px}
+.roster{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px}
+.roster h5{margin:0;padding:9px 12px;border-bottom:1px solid var(--rule-soft);font-size:12px;display:flex;align-items:center;gap:8px}
+.ro{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--rule-hair)}
+.ro:last-child{border-bottom:0}
+.ro:hover{background:var(--rule-hair)}
+.ro .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ro.pick{outline:1.5px solid var(--ink);outline-offset:-1.5px;border-radius:6px}
+.av{width:22px;height:22px;border-radius:50%;background:var(--rule-soft);color:var(--ash);display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;flex:none}
+.tl{list-style:none;margin:0;padding:0}
+.tl li{display:grid;grid-template-columns:18px 1fr auto;gap:10px;padding:0 0 14px;position:relative}
+.tl li:before{content:"";position:absolute;left:5px;top:14px;bottom:0;width:2px;background:var(--rule-soft)}
+.tl li:last-child:before{display:none}
+.tl .b{width:12px;height:12px;border-radius:50%;margin-top:3px;border:2px solid var(--rule);background:var(--canvas)}
+.tl .b.ok{border-color:var(--la-dot);background:var(--la-dot)}
+.tl .b.cur{border-color:var(--ink)}
+
+/* C — nhóm theo hạn + lưới thẻ người */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.pc{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:9px;padding:9px 11px;display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:center}
+.pc:hover{background:var(--rule-hair)}
+.pc .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc .st{grid-column:2/4;display:flex;gap:14px;color:var(--ash-2);font-size:12px}
+.pc .st b{color:var(--ink);font-weight:600}
+.strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.fchip{height:28px;border:1px solid var(--rule);border-radius:999px;padding:0 11px;display:inline-flex;align-items:center;gap:6px;background:var(--canvas);font-weight:600;color:var(--ash)}
+.fchip.on{border-color:var(--ink);color:var(--ink)}
+.fchip .n{font-variant-numeric:tabular-nums;color:var(--ink)}
+.layout2{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:0;height:100%}
+.side{border-left:1px solid var(--rule-soft);padding:14px 16px;background:var(--paper)}
+.side dl{margin:0}
+.side dt{font-size:11.5px;color:var(--ash-2);margin-top:10px}
+.side dd{margin:1px 0 0;font-weight:600}
+.side dd small{display:block;font-weight:400;color:var(--ash-2)}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Giao hàng — 3 phương án làm lại</h1>
+<p class="lead">Dữ liệu thật của DB dev: yêu cầu YCGH-261006-UHN8 (DH004), 10 nhân viên phòng Giao hàng, chuyến giao thẳng YCGH-261006-SICU (DH001). Cả ba phương án cùng sửa chung những lỗi dưới đây; khác nhau ở cách bày.</p>
+
+<div class="notes">
+  <div class="note"><h4>Lỗi chung của bản hiện tại</h4><ul>
+    <li><b>Tên người xuống 3 dòng</b>, mỗi hàng cao gấp ba, 11 người không vừa một màn.</li>
+    <li><b>Toàn số 0 in đậm</b>: mắt không biết nhìn đâu. Số 0 nên mờ, chỉ số có nghĩa mới đậm.</li>
+    <li><b>«1 mặt hàng»</b> giấu mất hàng gì, bao nhiêu; phải rê chuột mới biết.</li>
+    <li><b>Mã yêu cầu xuống dòng</b>, ngày hai kiểu (07/10/2026 và 7/10/2026).</li>
+    <li><b>Băng «Lên lượt xe»</b> chiếm một hàng thường trực dù chưa tick gì.</li>
+  </ul></div>
+  <div class="note"><h4>Ngăn chi tiết đang nói lặp</h4><ul>
+    <li>Trạng thái nói 2 lần: «GIAO THÀNH CÔNG» trên đầu và «ĐÃ GIAO» trong Giấy tờ.</li>
+    <li>Số lượng nói 2 lần: ô «Đã giao 5.000 cái» và bảng Hàng của đơn.</li>
+    <li>Mã YCGH nói 2 lần: tiêu đề và dòng «Phiếu giao hàng».</li>
+    <li>Chữ to, khối nền xám bọc ô dữ liệu; ngăn nên cao 13px như bảng.</li>
+  </ul></div>
+  <div class="note"><h4>Giữ đúng luật đã chốt</h4><ul>
+    <li>Không nối dữ liệu bằng dấu chấm giữa hay dấu phẩy; tách bằng thẻ nhỏ và khoảng trống.</li>
+    <li>Tab không mang số đếm; có việc mới thì chấm nhỏ.</li>
+    <li>Ngăn 920px, chia tab, có Lịch sử. Lọc vẫn là ô kỳ + nút Lọc chung.</li>
+    <li>Hover nền xám nhạt, chọn = viền đủ bốn cạnh.</li>
+  </ul></div>
+</div>
+
+<div class="switch">
+  <span class="lbl">Phương án</span>
+  <div class="seg" id="optSeg">
+    <button data-opt="A">A: Bảng dày kiểu Shopify</button>
+    <button data-opt="B">B: Bàn điều phối kiểu Onfleet</button>
+    <button data-opt="C">C: Nhóm theo hạn kiểu Linear</button>
+  </div>
+  <span class="lbl">Màn</span>
+  <div class="seg" id="scrSeg">
+    <button data-scr="yc">Yêu cầu giao</button>
+    <button data-scr="nv">Nhân viên giao hàng</button>
+    <button data-scr="ct">Ngăn chi tiết</button>
+  </div>
+</div>
+
+<!-- ============================== A ============================== -->
+<section class="opt" data-opt="A">
+<div class="why"><b>Khuôn: Shopify Polaris (Orders, Fulfillment) + Stripe (trang chi tiết thanh toán).</b> Giữ nguyên ba tab và bố cục quen, chỉ làm dày lại: hàng cao 36px, một dòng, hàng hoá ghi thẳng tên và số, nút hàng loạt chỉ hiện khi tick. Đổi ít nhất, code nhanh nhất.</div>
+
+<div class="scr" data-scr="yc">
+<div class="app">
+  <div class="app-top"><h2>Giao hàng</h2><span class="sp"></span><button class="btn">Tải lại</button></div>
+  <div class="tabs"><span>Đơn giao hàng</span><span class="on">Yêu cầu giao <i class="moi"></i></span><span>Nhân viên giao hàng</span></div>
+  <div class="body">
+    <div class="bar"><span class="inp w">Tìm mã yêu cầu, mã đơn, khách…</span><span class="inp">Mọi thời gian ▾</span><button class="btn">Lọc</button></div>
+    <div class="bulk"><span class="chk on"></span><b>Đã chọn 1 yêu cầu</b><span class="sub">Chở chung một lượt xe</span><span class="sp"></span><button class="btn gh sm">Bỏ chọn</button><button class="btn pri sm">Lên lượt xe</button></div>
+    <div class="card"><table>
+      <thead><tr><th style="width:28px"><span class="chk"></span></th><th>Mã yêu cầu</th><th>Đơn</th><th>Khách hàng</th><th>Hàng</th><th class="r">SL</th><th>Cần giao</th><th>Giao tới</th><th>Người yêu cầu</th><th>Ngày tạo</th><th></th></tr></thead>
+      <tbody>
+        <tr class="sel"><td><span class="chk on"></span></td><td><span class="lnk">YCGH-261006-UHN8</span></td><td>DH004</td><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td>Tờ rơi A4 4/4</td><td class="r mono">4.000 <span class="sub">tờ</span></td><td><span class="pill p-vang"><i></i>Hôm nay</span></td><td class="sub">Lô 16, Đường số 3, KCN Tân Tạo</td><td>Admin</td><td class="num sub">07/10/2026</td><td class="r"><button class="btn sm">Lên đơn giao</button></td></tr>
+      </tbody></table>
+      <div class="foot">1 yêu cầu<span class="sp"></span>Dòng/trang 25 ▾<span class="tag">1</span></div>
+    </div>
+    <p class="sub" style="margin-top:8px">Nhiều mặt hàng: cột Hàng ghi món đầu + thẻ «+2 món», bấm thẻ thì sổ đủ ngay dưới hàng. Cột Cần giao đổi chữ theo hạn: Quá hạn (đỏ), Hôm nay (vàng), Ngày mai, hoặc ngày.</p>
+  </div>
+</div>
+</div>
+
+<div class="scr" data-scr="nv">
+<div class="app">
+  <div class="app-top"><h2>Giao hàng</h2><span class="sp"></span><button class="btn">Tải lại</button></div>
+  <div class="tabs"><span>Đơn giao hàng</span><span>Yêu cầu giao</span><span class="on">Nhân viên giao hàng</span></div>
+  <div class="body">
+    <div class="bar"><span class="inp">Tháng 10/2026 ▾</span><span class="sub">Hai cột cuối theo tháng đã chọn</span><span class="sp"></span><span class="sub">10 người</span><span class="pill p-la"><i></i>Rảnh 10</span><span class="pill p-xanh"><i></i>Đang giao 0</span><span class="pill p-xam"><i></i>Nghỉ 0</span></div>
+    <div class="card"><table>
+      <thead><tr><th>Nhân viên</th><th>Trạng thái</th><th>Đang thực hiện</th><th>Chuyến kế tiếp</th><th class="r">Hôm nay</th><th class="r">Km hôm nay</th><th class="r">Tháng này</th><th class="r">Km tháng</th></tr></thead>
+      <tbody>
+        <tr><td>Trần Hoàng Giang</td><td><span class="pill p-la"><i></i>Rảnh</span></td><td class="mut">—</td><td class="mut">—</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td></tr>
+        <tr><td>Trần Phong Vũ</td><td><span class="pill p-la"><i></i>Rảnh</span></td><td class="mut">—</td><td class="mut">—</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td></tr>
+        <tr><td>Trần Hùng Tín</td><td><span class="pill p-la"><i></i>Rảnh</span></td><td class="mut">—</td><td class="mut">—</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td></tr>
+        <tr><td>Trần Văn Thạch Sang</td><td><span class="pill p-la"><i></i>Rảnh</span></td><td class="mut">—</td><td class="mut">—</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td></tr>
+        <tr><td>Dương Văn Nhí</td><td><span class="pill p-la"><i></i>Rảnh</span></td><td class="mut">—</td><td class="mut">—</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td></tr>
+        <tr><td>Nguyễn Trung Dũng</td><td><span class="pill p-la"><i></i>Rảnh</span></td><td class="mut">—</td><td class="mut">—</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td></tr>
+        <tr><td>Nguyễn Hà Thanh Tùng</td><td><span class="pill p-la"><i></i>Rảnh</span></td><td class="mut">—</td><td class="mut">—</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td></tr>
+        <tr><td>Đặng Thành Triều</td><td><span class="pill p-la"><i></i>Rảnh</span></td><td class="mut">—</td><td class="mut">—</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td></tr>
+        <tr><td>Nguyễn Văn Việt</td><td><span class="pill p-la"><i></i>Rảnh</span></td><td class="mut">—</td><td class="mut">—</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td></tr>
+        <tr><td>Nghiêm Thành Được</td><td><span class="pill p-la"><i></i>Rảnh</span></td><td class="mut">—</td><td class="mut">—</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td></tr>
+      </tbody></table></div>
+    <p class="sub" style="margin-top:8px">Người đang giao xếp lên đầu; số khác 0 in đậm đen, số 0 mờ. Bấm ba thẻ trạng thái ở trên để lọc nhanh.</p>
+  </div>
+</div>
+</div>
+
+<div class="scr" data-scr="ct">
+<div class="app" style="min-height:640px">
+  <div class="scrim"></div>
+  <div class="drawer">
+    <div class="dh">
+      <div class="sub">Nhà gia công giao thẳng</div>
+      <div class="t"><b>YCGH-261006-SICU</b><span class="pill p-la"><i></i>Giao thành công</span><div class="ic"><span>⤢</span><span>✕</span></div></div>
+    </div>
+    <div class="dtabs"><span class="tab on" data-pane="a1">Chi tiết</span><span class="tab" data-pane="a2">Chứng từ</span><span class="tab" data-pane="a3">Lịch sử</span></div>
+    <div class="dbody">
+      <div class="pane on" data-pane="a1">
+        <dl class="kv">
+          <div><dt>Khách hàng</dt><dd>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</dd></div>
+          <div><dt>Đơn</dt><dd>DH001 <span class="tag">PO PO999</span></dd></div>
+          <div><dt>Nhà gia công</dt><dd>Cơ sở Gia công Cán màng Thành Công<small>0910 726 420</small></dd></div>
+          <div><dt>Từ lệnh</dt><dd class="lnk">LSX26-0002</dd></div>
+          <div><dt>Khách nhận</dt><dd>06/10/2026<small>sớm 24 ngày so với hẹn 30/10</small></dd></div>
+          <div><dt>Người ghi nhận</dt><dd>Nguyễn Thị Minh Phương<small>12:46 06/10/2026</small></dd></div>
+        </dl>
+        <div class="sec">Hàng</div>
+        <div class="card"><table>
+          <thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Còn</th></tr></thead>
+          <tbody><tr><td>Hộp kem 50ml (5×5×12 cm)</td><td class="r num">5.000 <span class="sub">cái</span></td><td class="r mono">5.000 <span class="sub">cái</span></td><td class="r mut num">0</td></tr></tbody>
+        </table></div>
+      </div>
+      <div class="pane" data-pane="a2">
+        <table class="rows">
+          <tr><td class="sub" style="width:150px">Phiếu giao hàng</td><td>Khách chưa ký số</td><td class="r"><button class="btn sm">In phiếu</button></td></tr>
+          <tr><td class="sub">Phiếu xuất kho</td><td>Không qua kho <span class="sub">nhà gia công giao thẳng</span></td><td></td></tr>
+        </table>
+        <div class="sec">Tệp đính kèm</div>
+        <div class="bar"><span class="sub">Ảnh hoặc PDF, tối đa 10 MB mỗi tệp</span><span class="sp"></span><button class="btn sm">Thêm tệp</button></div>
+      </div>
+      <div class="pane" data-pane="a3">
+        <table class="rows"><tr><td class="num sub" style="width:130px">12:46 06/10/2026</td><td>Nguyễn Thị Minh Phương</td><td>Ghi nhận khách đã nhận 5.000 cái</td></tr></table>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</section>
+
+<!-- ============================== B ============================== -->
+<section class="opt" data-opt="B">
+<div class="why"><b>Khuôn: Onfleet Dashboard + Routific (bàn điều phối giao hàng).</b> Gộp «Yêu cầu giao» với danh sách tài xế thành một bàn: trái là hàng chờ xếp theo hạn, phải là ai đang rảnh. Tick yêu cầu rồi bấm tên người là lên lượt xe, không phải mở hộp thoại tìm người. Tab Nhân viên giữ cho số tháng. Ngăn chi tiết đi theo dòng thời gian.</div>
+
+<div class="scr" data-scr="yc">
+<div class="app">
+  <div class="app-top"><h2>Giao hàng</h2><span class="sp"></span><button class="btn">Tải lại</button></div>
+  <div class="tabs"><span>Đơn giao hàng</span><span class="on">Điều phối <i class="moi"></i></span><span>Nhân viên giao hàng</span></div>
+  <div class="body">
+    <div class="bar"><span class="inp w">Tìm mã yêu cầu, mã đơn, khách…</span><span class="inp">Mọi thời gian ▾</span><button class="btn">Lọc</button></div>
+    <div class="split">
+      <div>
+        <div class="bulk"><span class="chk on"></span><b>Đã chọn 1 yêu cầu</b><span class="sub">bấm một người bên phải để giao lượt</span><span class="sp"></span><button class="btn gh sm">Bỏ chọn</button><button class="btn pri sm">Lên lượt xe…</button></div>
+        <div class="card"><table>
+          <thead><tr><th style="width:28px"><span class="chk"></span></th><th>Yêu cầu</th><th>Khách hàng</th><th>Hàng</th><th class="r">SL</th><th>Giao tới</th><th></th></tr></thead>
+          <tbody>
+            <tr class="grp"><td colspan="7">Hôm nay 07/10/2026</td></tr>
+            <tr class="sel"><td><span class="chk on"></span></td><td><span class="lnk">YCGH-261006-UHN8</span><div class="sub">DH004 <span class="tag">Admin</span></div></td><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td>Tờ rơi A4 4/4</td><td class="r mono">4.000 <span class="sub">tờ</span></td><td class="sub">Lô 16, Đường số 3, KCN Tân Tạo</td><td class="r"><button class="btn sm">Lên đơn giao</button></td></tr>
+            <tr class="grp"><td colspan="7">Ngày mai và sau</td></tr>
+            <tr><td colspan="7" class="mut">Không có yêu cầu</td></tr>
+          </tbody></table></div>
+      </div>
+      <div class="roster">
+        <h5>Tài xế hôm nay<span class="sp"></span><span class="pill p-la"><i></i>10 rảnh</span></h5>
+        <div class="ro pick"><span class="av">TG</span><span class="nm">Trần Hoàng Giang</span><span class="sub">0 chuyến</span></div>
+        <div class="ro"><span class="av">TV</span><span class="nm">Trần Phong Vũ</span><span class="sub">0 chuyến</span></div>
+        <div class="ro"><span class="av">TT</span><span class="nm">Trần Hùng Tín</span><span class="sub">0 chuyến</span></div>
+        <div class="ro"><span class="av">TS</span><span class="nm">Trần Văn Thạch Sang</span><span class="sub">0 chuyến</span></div>
+        <div class="ro"><span class="av">DN</span><span class="nm">Dương Văn Nhí</span><span class="sub">0 chuyến</span></div>
+        <div class="ro"><span class="av">ND</span><span class="nm">Nguyễn Trung Dũng</span><span class="sub">0 chuyến</span></div>
+        <div class="ro"><span class="av">NT</span><span class="nm">Nguyễn Hà Thanh Tùng</span><span class="sub">0 chuyến</span></div>
+        <div class="ro"><span class="av">ĐT</span><span class="nm">Đặng Thành Triều</span><span class="sub">0 chuyến</span></div>
+        <div class="ro"><span class="av">NV</span><span class="nm">Nguyễn Văn Việt</span><span class="sub">0 chuyến</span></div>
+        <div class="ro"><span class="av">NĐ</span><span class="nm">Nghiêm Thành Được</span><span class="sub">0 chuyến</span></div>
+      </div>
+    </div>
+    <p class="sub" style="margin-top:8px">Người đang giao hiện chấm xanh kèm mã lượt; người nghỉ chìm xuống cuối và mờ. Bấm tên khi đã tick yêu cầu ⇒ mở hộp lên lượt với tài xế điền sẵn.</p>
+  </div>
+</div>
+</div>
+
+<div class="scr" data-scr="nv">
+<div class="app">
+  <div class="app-top"><h2>Giao hàng</h2><span class="sp"></span><button class="btn">Tải lại</button></div>
+  <div class="tabs"><span>Đơn giao hàng</span><span>Điều phối</span><span class="on">Nhân viên giao hàng</span></div>
+  <div class="body">
+    <div class="bar"><span class="inp">Tháng 10/2026 ▾</span><span class="sp"></span><span class="sub">Tổng tháng</span><b class="num">0 chuyến</b><b class="num">0 km</b></div>
+    <div class="card"><table>
+      <thead><tr><th>Nhân viên</th><th class="r">Chuyến</th><th class="r">Km</th><th class="r">Giao thiếu</th><th class="r">Thất bại</th><th style="width:40%">Chuyến theo ngày trong tháng</th></tr></thead>
+      <tbody>
+        <tr><td>Trần Hoàng Giang</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td><div style="height:6px;background:var(--rule-hair);border-radius:3px"></div></td></tr>
+        <tr><td>Trần Phong Vũ</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td><div style="height:6px;background:var(--rule-hair);border-radius:3px"></div></td></tr>
+        <tr><td>Trần Hùng Tín</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td><div style="height:6px;background:var(--rule-hair);border-radius:3px"></div></td></tr>
+        <tr><td>Trần Văn Thạch Sang</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td><div style="height:6px;background:var(--rule-hair);border-radius:3px"></div></td></tr>
+        <tr><td>Dương Văn Nhí</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td><div style="height:6px;background:var(--rule-hair);border-radius:3px"></div></td></tr>
+        <tr><td>Nguyễn Trung Dũng</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td><div style="height:6px;background:var(--rule-hair);border-radius:3px"></div></td></tr>
+        <tr><td>Nguyễn Hà Thanh Tùng</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td><div style="height:6px;background:var(--rule-hair);border-radius:3px"></div></td></tr>
+        <tr><td>Đặng Thành Triều</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td><div style="height:6px;background:var(--rule-hair);border-radius:3px"></div></td></tr>
+        <tr><td>Nguyễn Văn Việt</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td><div style="height:6px;background:var(--rule-hair);border-radius:3px"></div></td></tr>
+        <tr><td>Nghiêm Thành Được</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td class="r mut num">0</td><td><div style="height:6px;background:var(--rule-hair);border-radius:3px"></div></td></tr>
+      </tbody></table></div>
+    <p class="sub" style="margin-top:8px">Trạng thái «hôm nay» đã nằm ở bàn Điều phối nên tab này chỉ còn số tháng, thêm cột Giao thiếu/Thất bại để đánh giá người.</p>
+  </div>
+</div>
+</div>
+
+<div class="scr" data-scr="ct">
+<div class="app" style="min-height:640px">
+  <div class="scrim"></div>
+  <div class="drawer">
+    <div class="dh">
+      <div class="t"><b>YCGH-261006-SICU</b><span class="pill p-la"><i></i>Giao thành công</span><span class="tag">Nhà gia công giao thẳng</span><div class="ic"><span>⤢</span><span>✕</span></div></div>
+      <div class="sub" style="margin-top:4px">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM <span class="tag">DH001</span> <span class="tag">PO PO999</span></div>
+    </div>
+    <div class="dtabs"><span class="tab on" data-pane="b1">Lộ trình</span><span class="tab" data-pane="b2">Chứng từ</span><span class="tab" data-pane="b3">Lịch sử</span></div>
+    <div class="dbody">
+      <div class="pane on" data-pane="b1">
+        <ul class="tl">
+          <li><span class="b ok"></span><div><b>Nhà gia công nhận việc</b><div class="sub">Cơ sở Gia công Cán màng Thành Công <span class="tag">0910 726 420</span> <span class="tag">LSX26-0002</span></div></div><span class="sub num">06/10/2026</span></li>
+          <li><span class="b ok"></span><div><b>Khách nhận 5.000 cái</b><div class="sub">sớm 24 ngày so với hẹn 30/10/2026</div></div><span class="sub num">06/10/2026</span></li>
+          <li><span class="b ok"></span><div><b>Ghi nhận trên hệ thống</b><div class="sub">Nguyễn Thị Minh Phương</div></div><span class="sub num">12:46 06/10/2026</span></li>
+        </ul>
+        <div class="sec">Hàng</div>
+        <div class="card"><table>
+          <thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Còn</th></tr></thead>
+          <tbody><tr><td>Hộp kem 50ml (5×5×12 cm)</td><td class="r num">5.000 <span class="sub">cái</span></td><td class="r mono">5.000 <span class="sub">cái</span></td><td class="r mut num">0</td></tr></tbody>
+        </table></div>
+      </div>
+      <div class="pane" data-pane="b2">
+        <table class="rows">
+          <tr><td class="sub" style="width:150px">Phiếu giao hàng</td><td>Khách chưa ký số</td><td class="r"><button class="btn sm">In phiếu</button></td></tr>
+          <tr><td class="sub">Phiếu xuất kho</td><td>Không qua kho</td><td></td></tr>
+        </table>
+        <div class="sec">Tệp đính kèm</div>
+        <div class="bar"><span class="sub">Ảnh hoặc PDF, tối đa 10 MB mỗi tệp</span><span class="sp"></span><button class="btn sm">Thêm tệp</button></div>
+      </div>
+      <div class="pane" data-pane="b3">
+        <table class="rows"><tr><td class="num sub" style="width:130px">12:46 06/10/2026</td><td>Nguyễn Thị Minh Phương</td><td>Ghi nhận khách đã nhận</td></tr></table>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</section>
+
+<!-- ============================== C ============================== -->
+<section class="opt" data-opt="C">
+<div class="why"><b>Khuôn: Linear (danh sách nhóm theo hạn, ngăn có cột thuộc tính bên phải) + Samsara (lưới thẻ tài xế).</b> Nhìn một lần là biết việc nào gấp: yêu cầu nhóm Quá hạn / Hôm nay / Sắp tới. Nhân viên thành lưới thẻ nhỏ, 10 người vừa một màn không cuộn. Ngăn tách nội dung (trái) với thuộc tính (phải) nên không cần khối tóm tắt to.</div>
+
+<div class="scr" data-scr="yc">
+<div class="app">
+  <div class="app-top"><h2>Giao hàng</h2><span class="sp"></span><button class="btn">Tải lại</button></div>
+  <div class="tabs"><span>Đơn giao hàng</span><span class="on">Yêu cầu giao <i class="moi"></i></span><span>Nhân viên giao hàng</span></div>
+  <div class="body">
+    <div class="bar"><span class="inp w">Tìm mã yêu cầu, mã đơn, khách…</span><span class="inp">Mọi thời gian ▾</span><button class="btn">Lọc</button><span class="sp"></span><span class="fchip on">Quá hạn <span class="n">0</span></span><span class="fchip on">Hôm nay <span class="n">1</span></span><span class="fchip">Sắp tới <span class="n">0</span></span></div>
+    <div class="card"><table>
+      <tbody>
+        <tr class="grp"><td colspan="8">Hôm nay</td></tr>
+        <tr><td style="width:28px"><span class="chk"></span></td><td><span class="lnk">YCGH-261006-UHN8</span></td><td><span class="tag">DH004</span></td><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td>Tờ rơi A4 4/4 <b class="num">4.000</b> <span class="sub">tờ</span></td><td class="sub">Lô 16, Đường số 3, KCN Tân Tạo</td><td class="sub">Admin <span class="mut num">07/10</span></td><td class="r"><button class="btn sm">Lên đơn giao</button></td></tr>
+      </tbody></table>
+      <div class="foot">1 yêu cầu<span class="sp"></span>Tick nhiều dòng ⇒ thanh «Lên lượt xe» nổi ở đáy màn</div>
+    </div>
+    <p class="sub" style="margin-top:8px">Không có tiêu đề cột: mỗi hàng một dòng, thứ tự cố định (mã, đơn, khách, hàng + số, giao tới, người tạo + ngày). Nhóm rỗng tự ẩn.</p>
+  </div>
+</div>
+</div>
+
+<div class="scr" data-scr="nv">
+<div class="app">
+  <div class="app-top"><h2>Giao hàng</h2><span class="sp"></span><button class="btn">Tải lại</button></div>
+  <div class="tabs"><span>Đơn giao hàng</span><span>Yêu cầu giao</span><span class="on">Nhân viên giao hàng</span></div>
+  <div class="body">
+    <div class="strip"><span class="fchip on">Tất cả <span class="n">10</span></span><span class="fchip"><span class="dot" style="background:var(--xanh-dot);margin:0"></span>Đang giao <span class="n">0</span></span><span class="fchip"><span class="dot" style="background:var(--vang-dot);margin:0"></span>Có lịch <span class="n">0</span></span><span class="fchip"><span class="dot" style="background:var(--la-dot);margin:0"></span>Rảnh <span class="n">10</span></span><span class="fchip"><span class="dot" style="background:var(--xam-dot);margin:0"></span>Nghỉ <span class="n">0</span></span><span class="sp"></span><span class="inp">Tháng 10/2026 ▾</span></div>
+    <div class="grid">
+      <div class="pc"><span class="av">TG</span><span class="nm">Trần Hoàng Giang</span><span class="pill p-la"><i></i>Rảnh</span><div class="st"><span>Hôm nay <b class="mut">0</b> chuyến <b class="mut">0</b> km</span><span>Tháng <b class="mut">0</b></span></div></div>
+      <div class="pc"><span class="av">TV</span><span class="nm">Trần Phong Vũ</span><span class="pill p-la"><i></i>Rảnh</span><div class="st"><span>Hôm nay <b class="mut">0</b> chuyến <b class="mut">0</b> km</span><span>Tháng <b class="mut">0</b></span></div></div>
+      <div class="pc"><span class="av">TT</span><span class="nm">Trần Hùng Tín</span><span class="pill p-la"><i></i>Rảnh</span><div class="st"><span>Hôm nay <b class="mut">0</b> chuyến <b class="mut">0</b> km</span><span>Tháng <b class="mut">0</b></span></div></div>
+      <div class="pc"><span class="av">TS</span><span class="nm">Trần Văn Thạch Sang</span><span class="pill p-la"><i></i>Rảnh</span><div class="st"><span>Hôm nay <b class="mut">0</b> chuyến <b class="mut">0</b> km</span><span>Tháng <b class="mut">0</b></span></div></div>
+      <div class="pc"><span class="av">DN</span><span class="nm">Dương Văn Nhí</span><span class="pill p-la"><i></i>Rảnh</span><div class="st"><span>Hôm nay <b class="mut">0</b> chuyến <b class="mut">0</b> km</span><span>Tháng <b class="mut">0</b></span></div></div>
+      <div class="pc"><span class="av">ND</span><span class="nm">Nguyễn Trung Dũng</span><span class="pill p-la"><i></i>Rảnh</span><div class="st"><span>Hôm nay <b class="mut">0</b> chuyến <b class="mut">0</b> km</span><span>Tháng <b class="mut">0</b></span></div></div>
+      <div class="pc"><span class="av">NT</span><span class="nm">Nguyễn Hà Thanh Tùng</span><span class="pill p-la"><i></i>Rảnh</span><div class="st"><span>Hôm nay <b class="mut">0</b> chuyến <b class="mut">0</b> km</span><span>Tháng <b class="mut">0</b></span></div></div>
+      <div class="pc"><span class="av">ĐT</span><span class="nm">Đặng Thành Triều</span><span class="pill p-la"><i></i>Rảnh</span><div class="st"><span>Hôm nay <b class="mut">0</b> chuyến <b class="mut">0</b> km</span><span>Tháng <b class="mut">0</b></span></div></div>
+      <div class="pc"><span class="av">NV</span><span class="nm">Nguyễn Văn Việt</span><span class="pill p-la"><i></i>Rảnh</span><div class="st"><span>Hôm nay <b class="mut">0</b> chuyến <b class="mut">0</b> km</span><span>Tháng <b class="mut">0</b></span></div></div>
+      <div class="pc"><span class="av">NĐ</span><span class="nm">Nghiêm Thành Được</span><span class="pill p-la"><i></i>Rảnh</span><div class="st"><span>Hôm nay <b class="mut">0</b> chuyến <b class="mut">0</b> km</span><span>Tháng <b class="mut">0</b></span></div></div>
+    </div>
+    <p class="sub" style="margin-top:8px">Người đang giao: thẻ thêm một dòng «LX-… đang ở điểm 2/4», bấm thẻ mở lượt đó. Thẻ xếp Đang giao → Có lịch → Rảnh → Nghỉ.</p>
+  </div>
+</div>
+</div>
+
+<div class="scr" data-scr="ct">
+<div class="app" style="min-height:640px">
+  <div class="scrim"></div>
+  <div class="drawer">
+    <div class="dh">
+      <div class="t"><b>YCGH-261006-SICU</b><span class="tag">Nhà gia công giao thẳng</span><div class="ic"><span>⤢</span><span>✕</span></div></div>
+    </div>
+    <div class="layout2">
+      <div style="display:flex;flex-direction:column;min-width:0">
+        <div class="dtabs"><span class="tab on" data-pane="c1">Hàng</span><span class="tab" data-pane="c2">Chứng từ</span><span class="tab" data-pane="c3">Lịch sử</span></div>
+        <div class="dbody">
+          <div class="pane on" data-pane="c1">
+            <div class="card"><table>
+              <thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Còn</th></tr></thead>
+              <tbody><tr><td>Hộp kem 50ml (5×5×12 cm)</td><td class="r num">5.000 <span class="sub">cái</span></td><td class="r mono">5.000 <span class="sub">cái</span></td><td class="r mut num">0</td></tr></tbody>
+            </table></div>
+          </div>
+          <div class="pane" data-pane="c2">
+            <table class="rows">
+              <tr><td class="sub" style="width:140px">Phiếu giao hàng</td><td>Khách chưa ký số</td><td class="r"><button class="btn sm">In phiếu</button></td></tr>
+              <tr><td class="sub">Phiếu xuất kho</td><td>Không qua kho</td><td></td></tr>
+            </table>
+            <div class="sec">Tệp đính kèm</div>
+            <div class="bar"><span class="sub">Ảnh hoặc PDF, tối đa 10 MB</span><span class="sp"></span><button class="btn sm">Thêm tệp</button></div>
+          </div>
+          <div class="pane" data-pane="c3">
+            <table class="rows"><tr><td class="num sub" style="width:130px">12:46 06/10/2026</td><td>Nguyễn Thị Minh Phương</td><td>Ghi nhận khách đã nhận</td></tr></table>
+          </div>
+        </div>
+      </div>
+      <aside class="side">
+        <dl>
+          <dt>Trạng thái</dt><dd><span class="pill p-la"><i></i>Giao thành công</span></dd>
+          <dt>Khách hàng</dt><dd>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</dd>
+          <dt>Đơn</dt><dd><span class="lnk">DH001</span> <span class="tag">PO PO999</span></dd>
+          <dt>Nhà gia công</dt><dd>Cơ sở Gia công Cán màng Thành Công<small>0910 726 420</small></dd>
+          <dt>Từ lệnh</dt><dd class="lnk">LSX26-0002</dd>
+          <dt>Khách nhận</dt><dd>06/10/2026<small>sớm 24 ngày</small></dd>
+          <dt>Người ghi nhận</dt><dd>Nguyễn Thị Minh Phương<small>12:46 06/10/2026</small></dd>
+        </dl>
+      </aside>
+    </div>
+  </div>
+</div>
+</div>
+</section>
+
+</div>
+<script>
+(function(){
+  var opt='A', scr='yc';
+  var h=(location.hash||'').slice(1).split('-');
+  if(/^[ABC]$/.test(h[0])) opt=h[0];
+  if(/^(yc|nv|ct)$/.test(h[1]||'')) scr=h[1];
+  function render(){
+    document.querySelectorAll('.opt').forEach(function(s){s.classList.toggle('on',s.dataset.opt===opt)});
+    document.querySelectorAll('.opt.on .scr').forEach(function(s){s.classList.toggle('on',s.dataset.scr===scr)});
+    document.querySelectorAll('#optSeg button').forEach(function(b){b.classList.toggle('on',b.dataset.opt===opt)});
+    document.querySelectorAll('#scrSeg button').forEach(function(b){b.classList.toggle('on',b.dataset.scr===scr)});
+    history.replaceState(null,'','#'+opt+'-'+scr);
+  }
+  document.getElementById('optSeg').addEventListener('click',function(e){var b=e.target.closest('button');if(b){opt=b.dataset.opt;render();}});
+  document.getElementById('scrSeg').addEventListener('click',function(e){var b=e.target.closest('button');if(b){scr=b.dataset.scr;render();}});
+  document.addEventListener('click',function(e){
+    var t=e.target.closest('.tab[data-pane]'); if(!t) return;
+    var d=t.closest('.drawer');
+    d.querySelectorAll('.tab[data-pane]').forEach(function(x){x.classList.toggle('on',x===t)});
+    d.querySelectorAll('.pane').forEach(function(p){p.classList.toggle('on',p.dataset.pane===t.dataset.pane)});
+  });
+  render();
+})();
+</script>
+</body>
+</html>

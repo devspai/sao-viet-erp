@@ -6,7 +6,7 @@ import type {
   PurchaseRequestStatus,
 } from "../../../../api/client";
 import { money } from "../../../../utils/format";
-import { SOURCE_STATUS_META, STATUS_META } from "../shared/constants";
+import { ChipTT, TT_DON, TT_YEU_CAU } from "../../trang-thai-mua";
 
 function getInitial(name?: string | null): string {
   if (!name) return "?";
@@ -74,13 +74,7 @@ export function ApproverCell({
 }
 
 export function StatusBadge({ status }: { status: PurchaseRequestStatus }) {
-  const meta = STATUS_META[status];
-  return (
-    <span className={`acct-dmh__state acct-dmh__state--${meta.tone}`}>
-      <i className="acct-dmh__dot" />
-      {meta.label}
-    </span>
-  );
+  return <ChipTT nhan={TT_DON[status]} />;
 }
 
 export function SourceStatusBadge({
@@ -88,13 +82,7 @@ export function SourceStatusBadge({
 }: {
   status: DepartmentPurchaseWorkflowStatus;
 }) {
-  const meta = SOURCE_STATUS_META[status];
-  return (
-    <span className={`acct-dmh__state acct-dmh__state--${meta.tone}`}>
-      <i className="acct-dmh__dot" />
-      {meta.label}
-    </span>
-  );
+  return <ChipTT nhan={TT_YEU_CAU[status]} />;
 }
 
 export function LocalField({

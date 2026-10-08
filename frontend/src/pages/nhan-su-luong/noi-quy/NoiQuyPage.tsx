@@ -229,7 +229,6 @@ export function NoiQuyPage() {
               section "Nhân sự & Lương" nên chữ ở đây phải khớp tên section đó. */}
           <p className="eyebrow">Nhân sự &amp; Lương</p>
           <h1 className="ns__title">Nội quy công ty</h1>
-          <p className="ns__sub">Danh mục tài liệu nội quy và quy định đang lưu hành.</p>
         </div>
         {/* ⚠ `variant="primary"` trong code này ra màu NAVY. Hành động chính = `accent`. */}
         {canCreate && (

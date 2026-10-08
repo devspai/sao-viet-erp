@@ -79,39 +79,46 @@ export function ReceiveDialog({
       onConfirm={submit}
       onCancel={onClose}
     >
-      <table className="pay-table">
-        <thead>
-          <tr>
-            <th>Vật tư</th>
-            <th className="pay-num">Đặt</th>
-            <th className="pay-num">Thực nhận</th>
-          </tr>
-        </thead>
-        <tbody>
-          {row.lines.map((line) => (
-            <tr key={line.id}>
-              <td>{line.item_name}</td>
-              <td className="pay-num">
-                {line.quantity} {tenDonVi(line.unit) ?? line.unit}
-              </td>
-              <td className="pay-num">
-                <input
-                  className="input"
-                  type="number"
-                  min={0}
-                  max={line.quantity}
-                  step="any"
-                  style={{ width: 110, textAlign: "right" }}
-                  value={values[line.id] ?? ""}
-                  onChange={(e) =>
-                    setValues((current) => ({ ...current, [line.id]: e.target.value }))
-                  }
-                />
-              </td>
+      <div className="lds-bang lds-bang--nhap">
+        <table className="lds-g">
+          <colgroup>
+            <col />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 132 }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Vật tư</th>
+              <th className="n">Đặt</th>
+              <th className="n">Thực nhận</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {row.lines.map((line) => (
+              <tr key={line.id}>
+                <td>{line.item_name}</td>
+                <td className="n">
+                  {line.quantity} {tenDonVi(line.unit) ?? line.unit}
+                </td>
+                <td className="n">
+                  <input
+                    className="input"
+                    type="number"
+                    min={0}
+                    max={line.quantity}
+                    step="any"
+                    style={{ width: 110, textAlign: "right" }}
+                    value={values[line.id] ?? ""}
+                    onChange={(e) =>
+                      setValues((current) => ({ ...current, [line.id]: e.target.value }))
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {thieu && (
         <p className="pay-block__hint" style={{ marginTop: 8 }}>
           Có dòng nhận thiếu so với số đặt — công nợ và trần lập phiếu chi sẽ tính theo số thực

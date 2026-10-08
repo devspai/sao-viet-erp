@@ -8,12 +8,12 @@ import { advPrintData } from "../shared/helpers";
 
 /** Nhãn + màu chip trạng thái / loại phiếu của tab Tạm ứng. */
 export const STATUS: Record<string, [string, string]> = {
-  pending: ["Chờ duyệt", "ns-badge--muted"],
-  approved: ["Đã duyệt — chờ phiếu chi", "ns-badge--ok"],
+  pending: ["Chờ duyệt", "ns-badge--warn"],
+  approved: ["Đã duyệt — chờ phiếu chi", "ns-badge--info"],
   // Kế toán đã lập phiếu chi (07/09/2026): CHỈ phiếu này mới trừ vào lương.
-  paid: ["Đã chi", "ns-badge--info"],
+  paid: ["Đã chi", "ns-badge--ok"],
   rejected: ["Từ chối", "ns-badge--danger"],
-  cancelled: ["Đã hủy", "ns-badge--muted"],
+  cancelled: ["Đã hủy", "ns-badge--gray"],
 };
 export const KIND: Record<string, [string, string]> = {
   tam_ung: ["Tạm ứng", "ns-badge--muted"],

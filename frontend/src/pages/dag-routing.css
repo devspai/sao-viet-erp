@@ -439,6 +439,27 @@
   opacity: 0.2;
 }
 
+/* Dây CHỜ bước của LSX khác: dọc, vàng, nét đứt — khác hẳn dây chảy vật liệu (ngang, xám liền) */
+.dag-wire--cho {
+  stroke: #f59e0b;
+  stroke-dasharray: 7 5;
+}
+
+.dag-wire--cho:hover,
+.dag-wire--cho.dag-wire--highlighted {
+  stroke: #d97706;
+  filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.45));
+}
+
+.dag-wire__mui-cho {
+  fill: none;
+  stroke: #d97706;
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .dag-wire--draft {
   fill: none;
   stroke: #c25e38;
@@ -534,28 +555,31 @@
   border-color: #f59e0b;
 }
 
-/* Node bóng mờ = bước của LSX KHÁC: viền đứt, đầu nhạt, không sửa được ở màn này */
+/* Thẻ bước của LSX KHÁC: treo trên bước đang chờ nó, viền đứt VÀNG cùng màu dây chờ, không sửa
+   được ở màn này. Cao cố định (`GHOST_HEIGHT` trong DagRoutingCanvas.tsx) vì dây chờ neo ở mép
+   dưới — box-sizing border-box để mép dưới khớp đúng pos.y + GHOST_HEIGHT. */
 .dag-node--ngoai {
-  border-style: dashed;
-  border-color: #b9c0c8;
-  background: #fbfcfd;
+  box-sizing: border-box;
+  overflow: visible;
+  border: 1.5px dashed #f59e0b;
+  background: #fffdf7;
   box-shadow: none;
   cursor: move;
 }
 
 .dag-node--ngoai:hover {
-  border-color: #c25e38;
+  border-color: #d97706;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
 }
 
 .dag-node__head--ngoai {
-  background: #eef1f4;
+  background: #fef3c7;
   color: #3d4650;
-  border-bottom: 1px dashed #cfd6de;
+  border-bottom: 1px dashed #fcd34d;
 }
 
 .dag-node__head--ngoai .dag-node__title {
-  color: #3d4650;
+  color: #0f172a;
 }
 
 .dag-node__lsx {
@@ -563,22 +587,43 @@
   font-size: 11px;
   font-weight: 700;
   padding: 1px 6px;
-  border: 1px solid #e0b9a6;
+  border: 1px solid #fcd34d;
   border-radius: 4px;
   background: #ffffff;
-  color: #c25e38;
+  color: #b45309;
+}
+
+.dag-node__row--ngoai {
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.dag-node__row--ngoai .dag-node__badge {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .dag-node__ngoai-hint {
   margin: 0;
-  font-size: 11px;
-  line-height: 1.45;
-  color: #6c757d;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #475569;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.dag-legend__dot--ngoai {
-  background: #ffffff;
-  border: 1.5px dashed #98a2ad;
+.dag-node__ngoai-hint b {
+  color: #b45309;
+}
+
+/* Chú giải dây chờ: một đoạn nét đứt vàng, giống hệt dây trên canvas */
+.dag-legend__cho {
+  width: 20px;
+  height: 0;
+  border-top: 2px dashed #f59e0b;
 }
 
 /* Header của Node */
@@ -735,9 +780,46 @@
   font-size: 11px;
   color: #495057;
   max-width: 100%;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Chữ trong badge có icon: badge là inline-flex nên ellipsis phải đặt ở con chứa chữ. */
+.dag-node__badge-chu {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Nơi làm của bước thuê ngoài — cùng màu chip "Thuê ngoài" ở các màn khác. */
+.dag-node__badge--ngoai {
+  color: var(--rust-deep, #8a2d07);
+  font-weight: 600;
+}
+
+/* Bước thuê ngoài chưa chọn nhà gia công — thiếu thật, chặn phát hành. */
+.dag-node__badge--thieu {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+/* Đầu thẻ: tên bước luôn giữ chỗ tối thiểu, chip/nút không được ép nó về 0 hoặc tràn khỏi thẻ. */
+.dag-node__head > .dag-node__title {
+  min-width: 56px;
+}
+
+.dag-node__head > .chip-buoc,
+.dag-node__head > .dag-node__actions {
+  flex: none;
+}
+
+.dag-node__head > .chip-buoc {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dag-node__flow {
@@ -852,6 +934,34 @@
    ở CARD_H/2 nên vẫn dùng 50%. */
 .dag-canvas .dag-port {
   top: 56px;
+}
+
+/* Chấm vàng "Chờ" giữa mép trên bước + cổng Ra giữa mép dưới thẻ LSX khác: dây chờ chạy dọc
+   giữa hai chấm này. Phải viết kèm .dag-canvas để thắng `top: 56px` ở trên. */
+.dag-canvas .dag-port--cho,
+.dag-canvas .dag-port--cho-ra {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  border-color: #f59e0b;
+  background: #fef3c7;
+}
+
+.dag-canvas .dag-port--cho {
+  top: -10px;
+}
+
+.dag-canvas .dag-port--cho-ra {
+  top: auto;
+  bottom: -8px;
+}
+
+.dag-canvas .dag-port--cho:hover,
+.dag-canvas .dag-port--cho-ra:hover {
+  transform: translateX(-50%) scale(1.35);
+  background: #f59e0b;
+  border-color: #d97706;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.25);
 }
 
 .dag-port--out:hover {

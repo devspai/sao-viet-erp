@@ -13,11 +13,18 @@ export function soNgayVi(v: number | null): string {
 
 /** Khoá TRÙNG của một mặt hàng = tên + đơn vị, bỏ hoa/thường và khoảng trắng thừa.
  *  Phải khớp `_khoa_vat_tu` bên service — lệch nhau thì máy nói trùng mà màn hình nói không. */
-export function khoaVatTu(item: { item_name: string; unit: string }): string {
+export function khoaVatTu(item: {
+  item_name: string;
+  unit: string;
+  dang_ban?: string | null;
+  kho_rong?: number;
+  kho_dai?: number;
+}): string {
+  // Dạng bán + khổ thuộc khoá (07/10/2026): giấy tờ hai khổ là hai dòng giá khác nhau.
   return `${item.item_name.trim().replace(/\s+/g, " ").toLowerCase()}|${item.unit
     .trim()
     .replace(/\s+/g, " ")
-    .toLowerCase()}`;
+    .toLowerCase()}|${item.dang_ban ?? ""}|${item.kho_rong ?? 0}|${item.kho_dai ?? 0}`;
 }
 
 /** Gộp danh sách vừa đọc từ Excel VÀO danh sách đang có trong form.
@@ -51,6 +58,9 @@ export function gopVatTu(
 export function emptySupplierItem(): SupplierItemInput {
   return {
     item_name: "",
+    dang_ban: null,
+    kho_rong: 0,
+    kho_dai: 0,
     unit: "",
     unit_price: 0,
     vat_percent: 0,
@@ -101,6 +111,9 @@ export function fromSupplier(row: SupplierRow): SupplierInput {
           // theo bảng so giá trống.
           hang_loai: item.hang_loai,
           hang_id: item.hang_id,
+          dang_ban: item.dang_ban ?? null,
+          kho_rong: item.kho_rong ?? 0,
+          kho_dai: item.kho_dai ?? 0,
           item_name: item.item_name,
           unit: item.unit,
           unit_price: item.unit_price,
@@ -119,6 +132,9 @@ export function cleanSupplierItems(
     .map((item) => ({
       hang_loai: item.hang_loai ?? null,
       hang_id: item.hang_id ?? null,
+      dang_ban: item.hang_loai === "giay" ? (item.dang_ban ?? null) : null,
+      kho_rong: item.hang_loai === "giay" ? Number(item.kho_rong || 0) : 0,
+      kho_dai: item.hang_loai === "giay" && item.dang_ban === "to" ? Number(item.kho_dai || 0) : 0,
       item_name: (item.item_name ?? "").trim(),
       unit: (item.unit ?? "").trim(),
       unit_price: Number(item.unit_price || 0),
@@ -162,30 +178,3 @@ export function cleanSupplier(input: SupplierInput): SupplierInput {
   };
 }
 
-export function getPOStatusLabel(status: string): {
-  label: string;
-  className: string;
-} {
-  switch (status) {
-    case "draft":
-      return { label: "Nháp", className: "purchase__status--draft" };
-    case "pending":
-      return { label: "Chờ duyệt", className: "purchase__status--pending" };
-    case "approved":
-      return { label: "Đã duyệt", className: "purchase__status--approved" };
-    case "purchased":
-      return { label: "Đã mua hàng", className: "purchase__status--purchased" };
-    case "received":
-      return { label: "Đã nhập kho", className: "purchase__status--received" };
-    case "rejected":
-      return { label: "Từ chối", className: "purchase__status--rejected" };
-    case "cancelled":
-      return { label: "Đã hủy", className: "purchase__status--cancelled" };
-    case "pending_approval":
-      return { label: "Chờ phê duyệt", className: "purchase__status--pending" };
-    case "partially_received":
-      return { label: "Đã nhập kho một phần", className: "purchase__status--received" };
-    default:
-      return { label: status, className: "purchase__status--draft" };
-  }
-}

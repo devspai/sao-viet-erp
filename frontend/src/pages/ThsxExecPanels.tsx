@@ -130,12 +130,12 @@ const HT_TT: Record<string, { txt: string; cls: string }> = {
 // chỉ đổi sang chữ thường cho khớp văn phong pill của file này. Đừng bịa nhãn khác cho cùng trạng thái.
 const VT_TT: Record<string, { txt: string; cls: string }> = {
   approved: { txt: "chờ xử lý", cls: "thsx-x-pill--adj" },
-  received: { txt: "kho tiếp nhận", cls: "thsx-x-pill--adj" },
-  preparing: { txt: "đang chuẩn bị", cls: "thsx-x-pill--adj" },
+  received: { txt: "kho tiếp nhận", cls: "thsx-x-pill--sky" },
+  preparing: { txt: "đang chuẩn bị", cls: "thsx-x-pill--plum" },
   partial: { txt: "đã cấp một phần", cls: "thsx-x-pill--bad" },
   done: { txt: "hoàn tất", cls: "thsx-x-pill--ok" },
-  rejected: { txt: "từ chối", cls: "thsx-x-pill--bad" },
-  cancelled: { txt: "đã hủy", cls: "thsx-x-pill--off" },
+  rejected: { txt: "từ chối", cls: "thsx-x-pill--signal" },
+  cancelled: { txt: "đã hủy", cls: "thsx-x-pill--gray" },
 };
 /** Ngưỡng "coi như bằng nhau" — khớp `_EPS` phía BE, để hàng khớp không hiện chênh lệch rác.
  *  Dùng cho số CÙNG THANG TỔ KHAI (kế hoạch ↔ đã yêu cầu, "số này có > 0 không"). */

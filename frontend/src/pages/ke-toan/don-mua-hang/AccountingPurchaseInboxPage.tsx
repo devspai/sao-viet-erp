@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   api,
-  type PaymentVoucherRow,
+  type NhomTien,
   type PurchaseRequestRow,
   type SupplierCredit,
 } from "../../../api/client";
@@ -15,14 +15,20 @@ import type { NavigateFn } from "../../../components/AppShell";
 import { PaymentVoucherDialog } from "../phieu-chi/PaymentVoucherDialog";
 import { InboxDrawer } from "./components/InboxDrawer";
 import { InboxRowActions } from "./components/InboxRowActions";
-import { InboxTable } from "./components/InboxTable";
-import { InboxToolbar } from "./components/InboxToolbar";
+import { BangDonMua, COT_DON } from "../../mua-hang/don-mua-chung/BangDonMua";
+import { ChonCotBang, useCotBang } from "../../mua-hang/luoi-mua-hang";
+import { useMoLenh } from "../../mua-hang/mua-cho/OMuaCho";
+import { ThanhCongCuMuaHang, tabCoSo } from "../../mua-hang/loc-mua-hang/ThanhCongCuMuaHang";
+import { tabTien } from "../../mua-hang/phieu-mua-hang/tabs/PhieuListTab";
+import { TT_DON } from "../../mua-hang/trang-thai-mua";
+import { useDebounced } from "../../../utils/useDebounced";
 import { RejectModal } from "./modals/RejectModal";
 import { useNapTenDonVi } from "../../tenDonVi";
 import { PAGE_SIZE } from "./shared/constants";
 import {
   LOC_MAN_DON_MUA_TRONG,
   MAN_DON_MUA,
+  MOC_DON_MUA,
   locManDonMuaLenUrl,
   locManDonMuaTuUrl,
   thamSoLocDonMua,
@@ -34,6 +40,9 @@ import { useLocMan } from "../../thanh-loc/useLocMan";
 import "../../master-data.css";
 import "../../accounting.css";
 import "../../purchase.css";
+
+/** Chip Hàng luôn hiện ở hộp Kế toán — không có Nháp: đơn nháp chưa gửi duyệt, không thuộc hộp này. */
+const TAB_HANG_KT = ["pending_approval", "approved", "purchased", "partially_received", "received"];
 
 export function AccountingPurchaseInboxPage({
   navigate,
@@ -71,6 +80,8 @@ export function AccountingPurchaseInboxPage({
   const openYcmh = can("yeu_cau_mua_hang", "read")
     ? (code: string) => navigate("yeu-cau-mua-hang", { focusRequestCode: code })
     : undefined;
+  // Chip lệnh ở cột "Mua cho" chỉ bấm được khi có ô Xem của Sản xuất.
+  const moLenh = useMoLenh(can("san_xuat", "read") ? navigate : undefined);
   const [rows, setRows] = useState<PurchaseRequestRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -79,6 +90,12 @@ export function AccountingPurchaseInboxPage({
   // Mới vào hiện TẤT CẢ (chủ 04/08/2026). Trước đây mặc định lọc "chờ duyệt" nên mở màn ra là
   // giấu mất đơn đã duyệt, đã mua, đã nhận — kế toán tưởng chưa có gì để lập phiếu chi.
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  /** Nhóm cột Tiền (phương án 3) — độc lập với trạng thái Hàng. "" = không lọc tiền.
+   *  Mặc định KHÔNG lọc: màn này còn là chỗ DUYỆT đơn, lọc sẵn "Chưa trả" là giấu đơn chờ duyệt
+   *  (chủ chốt 04/08/2026: mới vào hiện tất cả). */
+  const [tien, setTien] = useState<NhomTien | "">("");
+  const [demTien, setDemTien] = useState<Record<string, number> | null>(null);
+  const qDebounced = useDebounced(q);
   // Kỳ + điều kiện (Nhà cung cấp, Tiền cọc) — ghi lên URL, nhớ theo màn; đổi là về trang 1.
   const [locMan, setLocManGoc] = useLocMan(MAN_DON_MUA, LOC_MAN_DON_MUA_TRONG, locManDonMuaTuUrl, locManDonMuaLenUrl);
   const setLocMan = (t: LocManDonMua) => {
@@ -86,14 +103,18 @@ export function AccountingPurchaseInboxPage({
     setPage(1);
   };
   const dieuKien = useDieuKienDonMua();
+  // Cột của lưới — nhớ riêng cho màn Kế toán (Mua hàng › Đơn mua nhớ khoá khác).
+  const cot = useCotBang("kt-don-mua", COT_DON);
   const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocDonMua(locMan.loc) });
   const [demTheoTab, setDemTheoTab] = useState<Record<string, number> | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** `dotId` = lập phiếu cho đúng một đợt giao (bấm từ tab Thanh toán của ngăn đơn). */
   const [voucherMode, setVoucherMode] = useState<null | {
     purchase: PurchaseRequestRow;
+    dotId?: number | null;
   }>(null);
   const [rejecting, setRejecting] = useState<PurchaseRequestRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -104,8 +125,9 @@ export function AccountingPurchaseInboxPage({
     setError(null);
     api.accounting
       .inbox(token, {
-        q: q.trim() || undefined,
+        q: qDebounced.trim() || undefined,
         status: statusFilter === "all" ? null : statusFilter,
+        tien: tien || null,
         ...(JSON.parse(khoaLoc) as { tu_ngay?: string; den_ngay?: string; moc?: string; supplier_id?: number; deposit_status?: string }),
         sort: "-created_at",
         page,
@@ -115,6 +137,7 @@ export function AccountingPurchaseInboxPage({
         setRows(response.items);
         setTotal(response.total);
         setDemTheoTab(response.dem_theo_tab ?? null);
+        setDemTien(response.dem_theo_tien ?? null);
         setSelectedId((current) =>
           current != null && response.items.some((row) => row.id === current)
             ? current
@@ -132,8 +155,9 @@ export function AccountingPurchaseInboxPage({
       .finally(() => setLoading(false));
   }, [
     token,
-    q,
+    qDebounced,
     statusFilter,
+    tien,
     khoaLoc,
     page,
     size,
@@ -174,38 +198,6 @@ export function AccountingPurchaseInboxPage({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [selectedId]);
-
-  const [vouchers, setVouchers] = useState<PaymentVoucherRow[]>([]);
-  const [vouchersLoading, setVouchersLoading] = useState(false);
-
-  useEffect(() => {
-    if (!token || selected == null) {
-      setVouchers([]);
-      setVouchersLoading(false);
-      return;
-    }
-    let ignore = false;
-    setVouchersLoading(true);
-    api.accounting
-      .vouchers(token, {
-        purchase_request_id: selected.id,
-        sort: "-created_at",
-        page: 1,
-        size: 50,
-      })
-      .then((data) => {
-        if (!ignore) setVouchers(data.items);
-      })
-      .catch(() => {
-        if (!ignore) setVouchers([]);
-      })
-      .finally(() => {
-        if (!ignore) setVouchersLoading(false);
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [token, selected, eventTick]);
 
   // HẠN MỨC CÔNG NỢ của NCC trên đơn đang mở — CẢNH BÁO MỀM (Đ6): chỉ nhắc, KHÔNG chặn duyệt.
   // Chặn cứng ở đây là đúng lúc gấp nhất (hết giấy, phải mua ngay) thì hệ khoá đường mua.
@@ -312,10 +304,10 @@ export function AccountingPurchaseInboxPage({
   }
 
   return (
-    <main className="md-page acct-dmh">
-      <header className="md-page__head" style={{ marginBottom: "var(--sp-3)" }}>
+    <main className="md-page acct-dmh mh-trang lds">
+      <header className="lds-dau">
         {/* Tên cũ "Yêu cầu mua hàng" SAI: màn này hiển thị PHIẾU MUA HÀNG (PMH), không phải YCMH. */}
-        <h1 className="md-page__title">Đơn mua hàng</h1>
+        <h1 className="lds-dau__ten">Đơn mua hàng</h1>
       </header>
 
       {error && (
@@ -324,31 +316,63 @@ export function AccountingPurchaseInboxPage({
         </div>
       )}
 
-      <InboxToolbar
+      <ThanhCongCuMuaHang
+        tabs={tabCoSo(TAB_HANG_KT, TT_DON, demTheoTab, statusFilter)}
+        tab={statusFilter}
+        ariaTabs="Lọc trạng thái hàng của đơn"
+        nhanNhom="Hàng"
+        onTab={(v) => {
+          setStatusFilter(v);
+          setPage(1);
+        }}
+        nhomPhu={{
+          nhan: "Tiền",
+          tabs: tabTien(demTien),
+          tab: tien,
+          boChon: "",
+          aria: "Lọc tình trạng tiền của đơn",
+          onTab: (v) => {
+            setTien(v as NhomTien | "");
+            setPage(1);
+          },
+        }}
         q={q}
-        setQ={setQ}
-        setPage={setPage}
-        load={load}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        demTheoTab={demTheoTab}
+        onQ={(v) => {
+          setQ(v);
+          setPage(1);
+        }}
+        placeholder="Tìm mã đơn, nhà cung cấp, mã yêu cầu…"
         ky={locMan.ky}
+        moc={MOC_DON_MUA}
         onKy={(ky) => setLocMan({ ...locMan, ky })}
         dieuKien={dieuKien}
         loc={locMan.loc}
         onLoc={(loc) => setLocMan({ ...locMan, loc })}
+        chonCot={<ChonCotBang b={cot} />}
       />
 
-      <InboxTable
-        loading={loading}
+      <BangDonMua
+        cot={cot}
         rows={rows}
-        selected={selected}
-        setSelectedId={setSelectedId}
+        loading={loading}
+        loi={error && rows.length === 0 ? error : null}
+        onThuLai={load}
+        chonId={selected?.id ?? null}
+        onChon={(id) => setSelectedId(id)}
         openYcmh={openYcmh}
+        onMoLenh={moLenh}
+        coLoc={q.trim() !== "" || statusFilter !== "all" || tien !== "" || khoaLoc !== "{}"}
+        onXoaLoc={() => {
+          setQ("");
+          setStatusFilter("all");
+          setTien("");
+          setLocMan(LOC_MAN_DON_MUA_TRONG);
+        }}
+        goiYTrong="Đơn mua hiện ở đây khi Thu mua gửi duyệt."
         total={total}
         page={page}
-        setPage={setPage}
         size={size}
+        onPage={setPage}
         onSize={doiCoTrang}
       />
 
@@ -356,17 +380,24 @@ export function AccountingPurchaseInboxPage({
         <InboxDrawer
           selected={selected}
           setSelectedId={setSelectedId}
-          vouchers={vouchers}
-          vouchersLoading={vouchersLoading}
           credit={credit}
           openYcmh={openYcmh}
+          onMoLenh={moLenh}
           actions={actions}
+          onLapPhieuChi={
+            canCreateVoucher
+              ? (dotId) => closeDetailThen(() => setVoucherMode({ purchase: selected, dotId }))
+              : undefined
+          }
+          onDoi={(next) => setRows((cu) => cu.map((r) => (r.id === next.id ? next : r)))}
+          onLoi={setError}
         />
       )}
 
       {voucherMode && (
         <PaymentVoucherDialog
           purchase={voucherMode.purchase}
+          dotId={voucherMode.dotId ?? null}
           onClose={() => setVoucherMode(null)}
           onSaved={() => {
             setVoucherMode(null);

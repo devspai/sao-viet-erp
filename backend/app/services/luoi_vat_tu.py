@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
+from ..models.purchase import LOAI_MUA_CHO_LSX
 from .giu_cho_service import EPS_GIU, GiuChoService, _k_dong, _k_nhom
 from .kho_giay import nhan_kho
 from .mach_mua import BUOC_DAT, BUOC_MOI, BUOC_NHAP, BUOC_TRA, tom_tat
@@ -320,7 +321,10 @@ def _hang(hang, h0, nhom, ds, ve, mach, theo_o, giu_rows, lenh) -> dict:
             continue
         cac_o = [(o["okey"][1], o["okey"][2]) for o in m["o"]]
         if not cac_o:
-            if con_thieu <= EPS_GIU and m["buoc"] == BUOC_MOI:
+            # Yêu cầu Mua tồn / Theo yêu cầu cố ý không gắn lệnh — lệnh hết thiếu không phải lý do
+            # huỷ nó (08/10/2026). Chỉ yêu cầu Cho lệnh SX mà mất liên kết mới đáng gợi ý.
+            if (con_thieu <= EPS_GIU and m["buoc"] == BUOC_MOI
+                    and m.get("loai_mua") == LOAI_MUA_CHO_LSX):
                 da_xet.add(m["yc_line_id"])
                 nen_huy.append(_huy_json(m, ma_lenh, "không lệnh nào còn thiếu mặt hàng này"))
             continue

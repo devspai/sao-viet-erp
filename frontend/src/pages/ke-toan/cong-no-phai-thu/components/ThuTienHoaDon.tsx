@@ -330,15 +330,22 @@ export function ThuTienHoaDon({
           ]}
         />
         {lanTruoc.length > 0 && (
-          <div className="kt-lt">
-            <table aria-label="Các lần thu trước của hoá đơn này">
+          <div className="lds-bang">
+            <table className="lds-g" style={{ minWidth: 520 }} aria-label="Các lần thu trước của hoá đơn này">
+              <colgroup>
+                <col style={{ width: 120 }} />
+                <col style={{ width: 96 }} />
+                <col style={{ width: 120 }} />
+                <col />
+                <col style={{ width: 112 }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Phiếu thu</th>
                   <th>Ngày thu</th>
                   <th>Hình thức</th>
                   <th>Người lập</th>
-                  <th className="kt-so">Số tiền</th>
+                  <th className="n">Số tiền</th>
                 </tr>
               </thead>
               <tbody>
@@ -354,7 +361,7 @@ export function ThuTienHoaDon({
                     <td>{ngay(p.receipt_date)}</td>
                     <td>{METHOD_LABELS[p.receipt_method] ?? p.receipt_method}</td>
                     <td>{p.created_by_name ?? "—"}</td>
-                    <td className="kt-so">{vietSo(p.amount)}</td>
+                    <td className="n">{vietSo(p.amount)}</td>
                   </tr>
                 ))}
               </tbody>

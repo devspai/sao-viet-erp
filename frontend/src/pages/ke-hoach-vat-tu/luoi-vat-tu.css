@@ -3,20 +3,12 @@
 
 .lvt { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
-.lvt-tool { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .lvt-sp { flex: 1; }
-.lvt-h { font-size: 18px; font-weight: 500; margin: 0 12px 0 0; letter-spacing: -.01em; white-space: nowrap; }
 .lvt-lbl { font-size: 12.5px; color: var(--ash-2); }
 .lvt-seg { display: inline-flex; background: var(--rule-hair); border-radius: 8px; padding: 2px; gap: 2px; }
 .lvt-seg button { border: 1px solid transparent; background: transparent; padding: 4px 11px; border-radius: 6px;
   font-size: 13px; color: var(--ash); cursor: pointer; }
 .lvt-seg button.on { background: var(--canvas, #fff); border-color: var(--rule); color: var(--ink); }
-
-.lvt-search { display: flex; align-items: center; gap: 7px; border: 1px solid var(--rule); background: var(--canvas, #fff);
-  border-radius: 7px; padding: 0 9px; height: 30px; width: 270px; max-width: 100%; color: var(--ash-3); }
-.lvt-search input { border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink);
-  flex: 1; min-width: 0; }
-.lvt-x { border: 0; background: transparent; color: var(--ash-2); cursor: pointer; display: grid; place-items: center; padding: 2px; }
 
 .lvt-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); background: var(--canvas, #fff);
   border-radius: 7px; height: 30px; padding: 0 11px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
@@ -29,19 +21,6 @@
 .lvt-btn--danger { color: var(--tt-do-fg); }
 .lvt-btn--xs { height: 24px; padding: 0 8px; font-size: 12px; font-weight: 400; }
 
-.lvt-flt { display: flex; gap: 2px; flex-wrap: wrap; }
-.lvt-flt button { border: 1px solid transparent; background: transparent; border-radius: 7px; padding: 4px 10px; font: inherit;
-  font-size: 13px; color: var(--ash); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-.lvt-flt button:hover { background: var(--rule-hair); }
-.lvt-flt button.on { border-color: var(--rule); background: var(--canvas, #fff); color: var(--ink); }
-.lvt-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-.lvt-dot--do { background: var(--tt-do-dot); }
-.lvt-dot--vang { background: var(--tt-vang-dot); }
-.lvt-dot--xanh { background: var(--tt-xanh-dot); }
-.lvt-dot--cham { background: var(--tt-cham-dot); }
-.lvt-dot--la { background: var(--tt-la-dot); }
-.lvt-dot--xam { background: var(--tt-xam-dot); }
-.lvt-dot--cam { background: var(--tt-cam-dot); }
 .lvt-amb { color: var(--tt-vang-fg); }
 .lvt-loi { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
@@ -62,7 +41,21 @@
 .lvt-g tr.gr td { background: var(--rule-hair); font-size: 13px; color: var(--ink-2, var(--ink)); }
 .lvt-g tr.gr td.lead { overflow: visible; }
 .lvt-g td.red, .lvt-g tr.gr td.red, .lvt-kv b.red { color: var(--tt-do-fg); }
-.lvt-trong { text-align: center !important; color: var(--ash-2); height: 64px !important; }
+
+/* Lưới chính nằm trong khuôn chung `lds` (CuonLuoi ghim ô chọn + cột đầu). Ba chỗ khuôn đè lên ô của
+   lưới này: `.lds-g td` tô --ink nên chữ mờ đặt thẳng trên ô phải nặng hơn; dòng `lds-dong` mặc định
+   là dòng bấm được nhưng ở đây chỉ các nút trong ô bấm; ô ghim lấy nền theo biến `--lds-nen-ghim`
+   nên dòng đang tick phải đặt biến này, kẻo ô ghim trắng giữa một dòng xám. */
+.lvt.lds .lvt-g td.lvt-mu { color: var(--ash-2); }
+.lvt.lds .lvt-g tbody tr.lds-dong { cursor: default; }
+.lvt.lds .lvt-g tbody tr.lds-dong.sel { --lds-nen-ghim: var(--rule-hair); }
+/* Dòng nhóm: khuôn đặt `overflow: visible` cho MỌI ô của dòng (để nhãn dính trái chạy ra ngoài ô);
+   các ô số liệu/ghi chú của nhóm mặt hàng vẫn phải cắt "…" như trước. Không ô nào của dòng nhóm hay
+   tổ tiên của nó có transform (chỉ hàng tiêu đề của CuonLuoi bị đẩy bằng transform). */
+.lvt.lds .lvt-g tr.gr > td:not(.lead) { overflow: hidden; }
+/* Nhóm mặt hàng: ô nhãn phủ đúng hai cột đang ghim (ô chọn + Lệnh) nên tự ghim theo, kẻo cuộn ngang
+   thì dòng dữ liệu đứng yên còn dòng nhóm trượt đi. Nền đặc để chữ cột khác không lộ ra dưới. */
+.lvt.lds .lds-cuon[data-ghim="2"] .lvt-g tr.gr > td.lvt-gr-ghim { position: sticky; left: 0; z-index: 1; background: var(--rule-hair); }
 
 .gl { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .lvt-chev { border: 0; background: transparent; color: var(--ash-3); cursor: pointer; display: grid; place-items: center;
@@ -89,17 +82,6 @@
 .lvt-dau .lvt-tag { margin-left: 0; background: var(--rule-hair); border-color: transparent; }
 .lvt-kind { display: inline-block; font-size: 11px; color: var(--ash); border: 1px solid var(--rule-soft); border-radius: 4px;
   padding: 0 5px; }
-
-.lvt-chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 1px 9px 1px 7px;
-  font-size: 12px; font-weight: 500; white-space: nowrap; }
-.lvt-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.lvt-chip--do { background: var(--tt-do-bg); color: var(--tt-do-fg); }
-.lvt-chip--vang { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
-.lvt-chip--xanh { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
-.lvt-chip--cham { background: var(--tt-cham-bg); color: var(--tt-cham-fg); }
-.lvt-chip--la { background: var(--tt-la-bg); color: var(--tt-la-fg); }
-.lvt-chip--xam { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
-.lvt-chip--cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
 
 .lvt-buoc { display: inline-flex; align-items: center; }
 .lvt-nac { display: inline-flex; gap: 2px; margin-right: 8px; }
@@ -133,6 +115,5 @@
 .lvt-hop__loi { color: var(--tt-do-fg); margin: 8px 0 0; font-size: 12.5px; }
 
 @media (max-width: 720px) {
-  .lvt-search { width: 100%; }
   .lvt-bulk { white-space: normal; flex-wrap: wrap; }
 }

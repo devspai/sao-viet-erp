@@ -4,14 +4,14 @@
  *  Hủy phiếu là KHUNG viền đỏ ở đầu tab Chi tiết, lỗi nằm ngay trong khung (không banner sau lớp
  *  phủ). Thiếu lý do thì lỗi dưới ô; lỗi máy chủ cũng hiện trong khung.
  */
-import { ArrowRight, Ban, Check, ChevronRight, CircleAlert, Copy, Ellipsis, X } from "lucide-react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Ban, Check, ChevronRight, CircleAlert, Copy, Ellipsis, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { ApiError } from "../../../api/client";
 import { amountInWords } from "../../../utils/format";
 import { Cum, TheNho } from "./Cum";
-import { ngay, tien, vietSo } from "./dinhDang";
+import { ngay, vietSo } from "./dinhDang";
 
 /** Tab đang xem của ngăn từng màn — nhớ tới khi đóng trang (đặc tả A.5): mở phiếu khác vẫn ở đúng
  *  tab đó. Khoá theo màn ("phieu-chi", "phieu-thu"…). */
@@ -31,93 +31,16 @@ export function soTaiKhoan(nganHang: string | null, so: string | null): string {
   return [nganHang, so].filter(Boolean).join(" ") || "—";
 }
 
-/** Số tiền lớn đầu ngăn: số VND + bằng chữ; ngoại tệ thì thẻ [USD 1.200] + "tỷ giá …" (không ghi
- *  "quy đổi" khi đã là VND). */
-export function SoLonPhieu({ soVnd, so, tienTe, tyGia }: { soVnd: number; so: number; tienTe: string; tyGia: number }) {
-  return (
-    <>
-      <span className="kt-ngan__tien">{tien(soVnd)}</span>
-      {tienTe !== "VND" ? (
-        <Cum className="kt-ngan__chu">
-          <TheNho>{`${tienTe} ${vietSo(so)}`}</TheNho>
-          <span>{`tỷ giá ${vietSo(tyGia)}`}</span>
-        </Cum>
-      ) : (
-        <span className="kt-ngan__chu">{amountInWords(soVnd)}</span>
-      )}
-    </>
-  );
-}
-
-/** Một đầu của tuyến tiền trong biên lai: vai ("Từ", "Tới"), tên, và các mẩu phụ (ngân hàng, số
- *  tài khoản, chi nhánh, địa chỉ) — mỗi mẩu một ô riêng, không nối bằng dấu. */
-export type DauTuyen = { vai: string; ten: ReactNode; phu?: ReactNode[] };
-
-/** Thẻ BIÊN LAI đầu ngăn phiếu (phương án B, docs/mockups/phieu-chi-ngan-chi-tiet-3-phuong-an.html —
- *  khuôn lệnh chuyển của Wise / biên lai app ngân hàng): dòng "Chuyển khoản ngày …", số tiền lớn +
- *  bằng chữ, rồi tuyến hai điểm Từ → Tới nối bằng một vạch. Thay số lớn + dải tóm tắt 4 ô + hộp
- *  "Dòng tiền": số tiền nói MỘT lần, tên người nhận không lặp ba chỗ. */
-export function BienLaiPhieu({ dongDau, soVnd, so, tienTe, tyGia, tu, toi }: {
-  dongDau: ReactNode;
-  soVnd: number;
-  so: number;
-  tienTe: string;
-  tyGia: number;
-  tu: DauTuyen;
-  toi: DauTuyen;
-}) {
-  const diem = (d: DauTuyen, cuoi: boolean) => (
-    <div className={`kt-bl__diem${cuoi ? " kt-bl__diem--toi" : ""}`}>
-      <span className="kt-bl__vai">{d.vai}</span>
-      <b className="kt-bl__ten">{d.ten}</b>
-      {d.phu && d.phu.some(Boolean) && <Cum className="kt-bl__phu">{d.phu.filter(Boolean).map((x, i) => <Fragment key={i}>{x}</Fragment>)}</Cum>}
-    </div>
-  );
-  return (
-    <section className="kt-bl" aria-label="Biên lai">
-      <div className="kt-bl__so">
-        <span className="kt-bl__dau">{dongDau}</span>
-        <div className="kt-ngan__so">
-          <SoLonPhieu soVnd={soVnd} so={so} tienTe={tienTe} tyGia={tyGia} />
-        </div>
-      </div>
-      {/* Tuyến NẰM NGANG: Từ ▸ Tới cùng một hàng — xếp dọc thì thẻ cao gấp đôi mà hai bên trống. */}
-      <div className="kt-bl__tuyen">
-        {diem(tu, false)}
-        <span className="kt-bl__mui" aria-hidden="true"><ArrowRight size={16} /></span>
-        {diem(toi, true)}
-      </div>
-    </section>
-  );
-}
-
-export type OThongTin = { nhan: string; giaTri: ReactNode; rong?: boolean };
-
-/** Lưới thông tin hai cột của tab Chi tiết (nhãn nhỏ trên, giá trị dưới — khuôn tóm tắt chứng từ
- *  của Xero): dày hơn danh sách một cột mà không phải đóng hộp. Ô trống không hiện. */
-export function LuoiThongTin({ o }: { o: OThongTin[] }) {
-  const con = o.filter((x) => x.giaTri != null && x.giaTri !== "" && x.giaTri !== false);
-  if (con.length === 0) return null;
-  return (
-    <dl className="kt-ltt">
-      {con.map((x) => (
-        <div key={x.nhan} className={x.rong ? "kt-ltt__o kt-ltt__o--rong" : "kt-ltt__o"}>
-          <dt>{x.nhan}</dt>
-          <dd>{x.giaTri}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-/** Dải bốn số của đợt / hoá đơn mà phiếu áp vào: Giá trị — Trừ cọc — Phiếu này — Còn nợ. */
-export function TienDot({ o }: { o: { nhan: string; so: number }[] }) {
-  return (
-    <div className="kt-tien-dot">
-      {o.map((x) => (
-        <div key={x.nhan}><span>{x.nhan}</span><b>{vietSo(x.so)}</b></div>
-      ))}
-    </div>
+/** Phần chữ đi cùng số tiền: VND thì bằng chữ; ngoại tệ thì thẻ [USD 1.200] + "tỷ giá …". Ngăn kiểu 3
+ *  đặt nó cạnh thẻ trạng thái, số tiền đã là tiêu đề ngăn. */
+export function ChuSoTien({ soVnd, so, tienTe, tyGia }: { soVnd: number; so: number; tienTe: string; tyGia: number }) {
+  return tienTe !== "VND" ? (
+    <Cum className="kt-ngan__chu">
+      <TheNho>{`${tienTe} ${vietSo(so)}`}</TheNho>
+      <span>{`tỷ giá ${vietSo(tyGia)}`}</span>
+    </Cum>
+  ) : (
+    <span className="kt-ngan__chu">{amountInWords(soVnd)}</span>
   );
 }
 

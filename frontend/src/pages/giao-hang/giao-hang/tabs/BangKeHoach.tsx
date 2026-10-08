@@ -25,7 +25,8 @@ import {
   type BuocLuot,
   type FormLuot,
 } from "../shared/helpers";
-import { KhoangTrong, NutCho, Pill, TraHang } from "../components/giaoHangCells";
+import { ChipGh, KhoangTrong, NutCho, TraHang } from "../components/giaoHangCells";
+import { CuonLuoi, soCotGhim, ChipTT, rongLuoi, tenKhachGon, xepCot, type CotLuoi } from "../../../../components/LuoiDs";
 
 export const khoaKhoi = (it: BangGiaoItem) =>
   it.luot ? `l${it.luot.id}` : it.trip ? `t${it.trip.id}` : "";
@@ -63,6 +64,9 @@ export function BangKeHoach({
   dangMo,
   onMoNgan,
   onLamLuot,
+  cotAn,
+  thuTu = [],
+  pheTrang,
   ...tt
 }: {
   items: BangGiaoItem[];
@@ -77,6 +81,12 @@ export function BangKeHoach({
   dangMo?: string | null;
   onMoNgan: (it: BangGiaoItem, form?: FormLuot) => void;
   onLamLuot: (b: Extract<BuocLuot, { lam: unknown }>) => Promise<unknown>;
+  /** Cột người xem đã ẩn (nút "Cột"). */
+  cotAn?: Set<string>;
+  /** Thứ tự cột người xem đã kéo (nút "Cột"). */
+  thuTu?: string[];
+  /** Chân bảng (phân trang) — nằm TRONG khung lưới. */
+  pheTrang?: ReactNode;
 } & ThaoTacChuyen) {
   useEffect(() => {
     if (luotMoi == null) return;
@@ -100,38 +110,63 @@ export function BangKeHoach({
     );
   if (loading && items.length === 0) return <EmptyState trangThai="dang-tai" />;
 
+  const cot = xepCot(COT_DON, thuTu).filter((c) => !cotAn?.has(c.key));
   return (
-    <div className="rc__tablewrap gh-bang">
-      <table className="gh-tbl">
-        <thead>
-          <tr>
-            <th className="gh-c-luot">Lượt</th>
-            <th className="gh-c-kip">Xe và kíp</th>
-            <th>Điểm giao</th>
-            <th className="gh-c-td">Tiến độ</th>
-            <th className="gh-c-km">Km</th>
-            <th className="gh-c-tao">Ngày tạo</th>
-            <th className="gh-c-nut" aria-label="Bước kế tiếp" />
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it) => {
-            const khoa = khoaKhoi(it);
-            return (
-              <Dong key={khoa} it={it} khoa={khoa} canPlan={canPlan} canWrite={canWrite}
-                moi={!!it.luot && it.luot.id === luotMoi} chon={khoa === dangMo}
-                onMoNgan={onMoNgan} onLamLuot={onLamLuot} tt={tt} />
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="lds-sheet">
+      <CuonLuoi ghim={soCotGhim(cot)}>
+        <table className="lds-g" style={{ minWidth: rongLuoi(cot, 190) }}>
+          <colgroup>
+            {cot.map((c) => (
+              <col key={c.key} style={c.w ? { width: c.w } : undefined} />
+            ))}
+          </colgroup>
+          <thead>
+            <tr>
+              {cot.map((c) => (
+                <th key={c.key} className={c.n ? "n" : undefined} aria-label={c.key === "nut" ? "Bước kế tiếp" : undefined}>
+                  {c.key === "nut" ? null : c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it) => {
+              const khoa = khoaKhoi(it);
+              return (
+                <Dong key={khoa} it={it} khoa={khoa} cot={cot.map((c) => c.key)} canPlan={canPlan} canWrite={canWrite}
+                  moi={!!it.luot && it.luot.id === luotMoi} chon={khoa === dangMo}
+                  onMoNgan={onMoNgan} onLamLuot={onLamLuot} tt={tt} />
+              );
+            })}
+          </tbody>
+        </table>
+      </CuonLuoi>
+      {pheTrang}
     </div>
   );
 }
 
+// Lưới phương án A (07/10/2026): mỗi lượt / chuyến MỘT dòng. Lượt nhiều điểm: Đơn, Khách, Giao tới,
+// Hẹn giao nói điểm ĐẦU kèm thẻ "+N điểm"; đủ các điểm ở chú thích khi rê chuột và trong ngăn.
+// Thứ tự: Lượt, Ngày tạo, Đơn, Khách, Giao tới, Hẹn giao, Xe và người giao, Tình trạng, So với hẹn, Km.
+export const COT_DON: (CotLuoi & { w?: number; n?: boolean })[] = [
+  { key: "luot", label: "Lượt", coDinh: true, w: 215 },
+  { key: "ngay", label: "Ngày tạo", w: 100 },
+  { key: "don", label: "Đơn", w: 110 },
+  { key: "khach", label: "Khách hàng", w: 200 },
+  { key: "toi", label: "Giao tới", w: 170 },
+  { key: "hen", label: "Hẹn giao", w: 85 },
+  { key: "xe", label: "Xe và người giao", w: 220 },
+  { key: "tt", label: "Tình trạng", w: 200 },
+  { key: "sovoi", label: "So với hẹn", w: 130 },
+  { key: "km", label: "Km", w: 70, n: true },
+  { key: "nut", label: "Bước kế tiếp", coDinh: true },
+];
+
 function Dong({
   it,
   khoa,
+  cot,
   canPlan,
   canWrite,
   moi,
@@ -142,6 +177,7 @@ function Dong({
 }: {
   it: BangGiaoItem;
   khoa: string;
+  cot: string[];
   canPlan: boolean;
   canWrite: boolean;
   moi: boolean;
@@ -163,7 +199,11 @@ function Dong({
   const daChay = l ? l.so_dong_ho_xuat_phat != null || xong > 0 : false;
   const km = l ? l.tong_km : gt ? 0 : dau.tong_km;
   const taoLuc = l ? l.created_at : dau.created_at;
-  const hen = gt && coKetQua(dau) ? soVoiHen(dau.ngay_can_giao, dau.thoi_gian_ket_thuc) : null;
+  const hen = !l && coKetQua(dau) ? soVoiHen(dau.ngay_can_giao, dau.thoi_gian_ket_thuc) : null;
+  const them = ds.length - 1;
+  const moiDiem = ds
+    .map((t, i) => `${i + 1}. ${t.customer_name ?? ""}${t.order_code ? ` (${t.order_code})` : ""}${t.dia_chi ? `: ${t.dia_chi}` : ""}, hẹn ${ngay(t.ngay_can_giao)}`)
+    .join("\n");
 
   let nut: ReactNode = null;
   if (l) {
@@ -182,77 +222,79 @@ function Dong({
     nut = <NutBuocChuyen t={dau} tt={tt} />;
   }
 
+  const o = (k: string): ReactNode => {
+    switch (k) {
+      case "luot":
+        return (
+          <td key={k}>
+            <span>{l ? l.code : gt ? "Giao thẳng" : dau.request_code}</span>
+            <span className="lds-u">
+              {gt ? `Khách nhận ${ngayNgan(ngayIso(dau.thoi_gian_ket_thuc))}` : `Lấy hàng ${gioNgay(dau.gio_lay_hang)}`}
+            </span>
+          </td>
+        );
+      case "ngay":
+        return <td key={k} title={taoLuc ? gioNgay(taoLuc) : undefined}>{ngay(taoLuc)}</td>;
+      case "don":
+        return <td key={k} title={them > 0 ? moiDiem : undefined}>{dau.order_code ?? <span className="lds-mu3">—</span>}</td>;
+      case "khach":
+        return (
+          <td key={k} title={them > 0 ? moiDiem : dau.customer_name ?? undefined}>
+            <span>{tenKhachGon(dau.customer_name)}</span>
+            {them > 0 ? <span className="lds-tag">+{them} điểm</span> : null}
+          </td>
+        );
+      case "toi":
+        return <td key={k} title={dau.dia_chi ?? undefined}>{dau.dia_chi ? diaChiGon(dau.dia_chi) : <span className="lds-mu3">—</span>}</td>;
+      case "hen":
+        return <td key={k} title={`Hẹn giao ${ngay(dau.ngay_can_giao)}`}>{ngayNgan(dau.ngay_can_giao)}</td>;
+      case "xe":
+        return gt ? (
+          <td key={k} title={gt.nha_cung_cap_ten ?? undefined}>
+            <ChipTT mau="tim" vuong>Nhà gia công</ChipTT>{" "}
+            <span>{gt.nha_cung_cap_ten ?? "—"}</span>
+          </td>
+        ) : (
+          <td key={k} title={dau.phu_xe_name ? `Phụ xe ${dau.phu_xe_name}` : undefined}>
+            {(l?.xe_bien_so ?? dau.xe_bien_so) ? <span className="lds-tag gh-xe">{l?.xe_bien_so ?? dau.xe_bien_so}</span> : null}{" "}
+            <span>{dau.employee_name}</span>
+          </td>
+        );
+      case "tt":
+        return (
+          <td key={k}>
+            <ChipGh text={tinh.text} tone={tinh.tone} />
+            {l && daChay ? <span className="lds-u">{xong} trên {ds.length} điểm</span> : null}
+          </td>
+        );
+      case "sovoi":
+        return (
+          <td key={k} className={hen?.tre ? "lds-do" : undefined}>
+            {hen ? hen.text : <span className="lds-mu3">—</span>}
+          </td>
+        );
+      case "km":
+        return <td key={k} className="n">{km > 0 ? so(km) : <span className="lds-mu3">—</span>}</td>;
+      case "nut":
+        // Bấm nút không mở ngăn — nút làm thẳng bước kế tiếp.
+        return (
+          <td key={k} className="lds-nut" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+            {nut}
+          </td>
+        );
+      default:
+        return <td key={k} />;
+    }
+  };
+
   return (
     <tr data-khoa={khoa} aria-label={ten} tabIndex={0}
-      className={`${moi ? "is-moi" : ""}${chon ? " is-chon" : ""}`}
+      className={`lds-dong${moi ? " is-moi" : ""}${chon ? " is-chon" : ""}`}
       onClick={() => onMoNgan(it)}
       onKeyDown={(e) => {
         if (e.key === "Enter" && e.target === e.currentTarget) onMoNgan(it);
       }}>
-      <td className="gh-c-luot">
-        <div className="gh-ma-luot">{l ? l.code : gt ? "Giao thẳng" : dau.request_code}</div>
-        <div className="gh-nho">
-          {gt ? `Khách nhận ${ngayNgan(ngayIso(dau.thoi_gian_ket_thuc))}` : `Lấy hàng ${gioNgay(dau.gio_lay_hang)}`}
-        </div>
-      </td>
-      <td className="gh-c-kip">
-        <div className="gh-kip">
-          {gt ? (
-            <>
-              <span className="gh-ncc">Nhà gia công</span>
-              <span>{gt.nha_cung_cap_ten ?? "—"}</span>
-            </>
-          ) : (
-            <>
-              {(l?.xe_bien_so ?? dau.xe_bien_so) && <span className="gh-the gh-the--xe">{l?.xe_bien_so ?? dau.xe_bien_so}</span>}
-              <span>{dau.employee_name}</span>
-              {dau.phu_xe_name && <span className="gh-nho">phụ xe {dau.phu_xe_name}</span>}
-            </>
-          )}
-        </div>
-      </td>
-      <td>
-        <ol className="gh-ldiem">
-          {ds.map((t, i) => (
-            <li key={t.id}>
-              <span className={`gh-so${coKetQua(t) ? " is-xong" : ""}`} aria-hidden="true">{i + 1}</span>
-              <div className="gh-ldiem__khach">
-                <div className="gh-ldiem__ten">{t.customer_name}</div>
-                <div className="gh-ldiem__phu">
-                  {t.order_code && <span className="gh-the">{t.order_code}</span>}
-                  {t.dia_chi && <span>{diaChiGon(t.dia_chi)}</span>}
-                </div>
-              </div>
-              <span className="gh-nho" title={`Hẹn giao ${ngay(t.ngay_can_giao)}`}>{ngayNgan(t.ngay_can_giao)}</span>
-            </li>
-          ))}
-        </ol>
-      </td>
-      <td className="gh-c-td">
-        <div className="gh-td">
-          <Pill text={tinh.text} tone={tinh.tone} />
-          {hen && (hen.tre ? <Pill text={hen.text} tone="warn" /> : <span className="gh-nho">{hen.text}</span>)}
-          {l && daChay && (
-            <>
-              <span className="gh-vach" aria-hidden="true">
-                {ds.map((t) => (
-                  <i key={t.id} className={coKetQua(t) ? "x" : t.trang_thai === "dang_giao" ? "d" : undefined} />
-                ))}
-              </span>
-              <span className="gh-nho">{xong} trên {ds.length} điểm</span>
-            </>
-          )}
-        </div>
-      </td>
-      <td className="gh-c-km">{km > 0 ? so(km) : <span className="gh-nho">—</span>}</td>
-      <td className="gh-c-tao">
-        <div>{ngay(taoLuc)}</div>
-        <div className="gh-nho">{taoLuc ? gioNgay(taoLuc).split(" ")[0] : ""}</div>
-      </td>
-      {/* Bấm nút không mở ngăn — nút làm thẳng bước kế tiếp. */}
-      <td className="gh-c-nut" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        {nut}
-      </td>
+      {cot.map(o)}
     </tr>
   );
 }

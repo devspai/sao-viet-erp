@@ -183,6 +183,11 @@ class PaymentVoucherOut(BaseModel):
     note: str | None = None
     created_at: datetime
     updated_at: datetime
+    # Bảng đối chiếu trong ngăn — CHỈ route đọc một phiếu mới điền (danh sách để None, tránh N truy vấn).
+    # `truoc_do` = đã trả/thu TRƯỚC phiếu này; `con_no_sau` = còn nợ SAU phiếu này. None = loại phiếu
+    # không đối chiếu theo đợt/hoá đơn được (cọc, gia công, tạm ứng, thu khác…).
+    truoc_do: int | None = None
+    con_no_sau: int | None = None
 
 
 class GiaCongChoChiOut(BaseModel):
@@ -392,6 +397,11 @@ class PaymentReceiptOut(BaseModel):
     attachment_count: int = 0
     created_at: datetime
     updated_at: datetime
+    # Bảng đối chiếu trong ngăn — CHỈ route đọc một phiếu mới điền (danh sách để None, tránh N truy vấn).
+    # `truoc_do` = đã trả/thu TRƯỚC phiếu này; `con_no_sau` = còn nợ SAU phiếu này. None = loại phiếu
+    # không đối chiếu theo đợt/hoá đơn được (cọc, gia công, tạm ứng, thu khác…).
+    truoc_do: int | None = None
+    con_no_sau: int | None = None
 
 
 class PaymentReceiptListOut(BaseModel):
@@ -537,6 +547,19 @@ class TheLocCongNoOut(BaseModel):
     vuot_han_muc: int = 0
 
 
+class TongLocCongNoOut(BaseModel):
+    """Tổng của MỌI dòng khớp bộ lọc (trước khi cắt trang) — dòng Cộng của bảng. Khác số tổng đầu
+    màn (`total_due`, `aging`…) vốn không theo bộ lọc nâng cao."""
+
+    so_doi_tac: int
+    so_khoan: int          # phải trả: số đợt còn nợ; phải thu: số hoá đơn còn nợ
+    con_no: int
+    aging: dict[str, int]  # khoá như AGING_KEYS: chua_toi_han, d1_7, d8_15, d16_30, d31_60, d60_plus
+    qua_han: int
+    trong_ky_1: int        # mua/bán trong kỳ
+    trong_ky_2: int        # trả/thu trong kỳ
+
+
 class PayablesSummaryOut(BaseModel):
     items: list[PayableSupplierOut]
     total: int
@@ -552,6 +575,8 @@ class PayablesSummaryOut(BaseModel):
     mua_trong_ky: int = 0
     vuot_han_muc_count: int = 0
     the_loc: TheLocCongNoOut = Field(default_factory=TheLocCongNoOut)
+    #: Dòng Cộng theo bộ lọc. None khi `dem_only` / `chi_tong` (hai lối nhanh không tính).
+    tong_loc: TongLocCongNoOut | None = None
     period_months: int = 3
     #: Kỳ đã dùng để tính. Không truyền kỳ thì là [hôm nay − 3 tháng, hôm nay].
     tu_ngay: date | None = None
@@ -676,6 +701,11 @@ class PayablesDetailOut(BaseModel):
     credit_days: int | None = None
     vuot_han_muc: bool = False
     vuot_bao_nhieu: int = 0
+    # Thông tin đối tác cho ngăn chi tiết (07/10/2026). `tk_nhan` = "{ngân hàng} {số tài khoản}" của
+    # tài khoản MẶC ĐỊNH của NCC; không có thì None.
+    lien_he_ten: str | None = None
+    lien_he_sdt: str | None = None
+    tk_nhan: str | None = None
     items: list[PayableItemOut]
     # CỌC / ứng trước của CẢ ĐƠN — không thuộc đợt nào nên hiện thành dòng riêng, KHÔNG nhét vào
     # cột "đã trả" của một đợt (chủ chốt 06/08/2026). Nhét vào là bảng nói dối: người đối chiếu
@@ -744,6 +774,8 @@ class ReceivablesSummaryOut(BaseModel):
     ban_trong_ky: int = 0
     vuot_han_muc_count: int = 0
     the_loc: TheLocCongNoOut = Field(default_factory=TheLocCongNoOut)
+    #: Dòng Cộng theo bộ lọc. None khi `dem_only` / `chi_tong` (hai lối nhanh không tính).
+    tong_loc: TongLocCongNoOut | None = None
     #: Rổ tuổi TOÀN MÀN. Tổng 5 rổ trễ luôn bằng `overdue_amount`, rổ "chưa tới hạn" bằng phần
     #: còn lại — hai chỗ nói hai kiểu tiền là lỗi nặng nhất của màn này.
     aging: list[AgingBucketOut] = Field(default_factory=list)
@@ -801,6 +833,10 @@ class ReceivablesDetailOut(BaseModel):
     payment_term_days: int | None = None
     vuot_han_muc: bool = False
     vuot_bao_nhieu: int = 0
+    # Thông tin đối tác cho ngăn chi tiết (07/10/2026): liên hệ chính + sale phụ trách khách.
+    lien_he_ten: str | None = None
+    lien_he_sdt: str | None = None
+    phu_trach: str | None = None
     items: list[ReceivableItemOut]
     paid: list[ReceivableReceiptOut]
     #: Tổng số lần thu trong phạm vi (kỳ / toàn bộ) — `paid` có thể chỉ là MỘT TRANG của nó

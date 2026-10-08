@@ -15,51 +15,13 @@
   background: var(--rule-hair);
   color: var(--ash);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   white-space: nowrap;
 }
-.ncc-a-dau__so-lieu {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 32px;
-  padding: 0 24px 18px;
-  flex-shrink: 0;
-}
-.ncc-a-dau__muc {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.ncc-a-dau__muc > span {
-  font-size: 12px;
-  color: var(--ash-2);
-}
-.ncc-a-dau__muc > b {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-.ncc-a-dau__muc > b.is-trong {
-  font-weight: 400;
-  color: var(--ash-2);
-}
-/* Đầu ngăn có dải số liệu thì đường kẻ dời xuống dưới dải. */
-.supplier-drawer__head.ncc-a-dau--co-so-lieu {
-  border-bottom: 0;
-}
-/* Số đếm trên tab: thẻ nhạt, không phải chấm cam la hét. */
-.supplier-drawer .supplier-tab-count {
-  min-width: 20px;
-  height: 18px;
-  padding: 0 6px;
-  border: 1px solid var(--rule-soft);
-  background: var(--rule-hair);
-  color: var(--ash);
-  font-size: 11px;
-  font-weight: 600;
-}
+/* Ngăn kiểu 3 (08/10/2026): vỏ NganPhai chung — tên NCC là tiêu đề 20px không đậm (tên dài thì
+   xuống dòng), form bọc các tab xếp dọc cách 12px. Dải số liệu dưới tên đã thành cột thuộc tính phải. */
+.ncc-k3-ten { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.ncc-k3-form { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 /* Nút đổi trạng thái hợp tác ở chân ngăn: chữ đỏ, không phải khối đỏ đặc đứng cạnh nút Lưu. */
 .ncc-a-chan__trang-thai.btn {
   border-color: transparent;
@@ -77,14 +39,12 @@
 .ncc-a {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 22px;
 }
 .ncc-a__khoi-ten {
-  margin: 0 0 4px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 400;
   color: var(--ash-2);
 }
 .ncc-a__luoi {
@@ -102,7 +62,7 @@
   grid-template-columns: 150px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
-  min-height: 44px;
+  min-height: 38px;
   border-bottom: 1px solid var(--rule-hair);
 }
 .ncc-a__dong--rong {
@@ -110,7 +70,7 @@
 }
 .ncc-a__nhan {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ash);
 }
 .ncc-a__sao {
@@ -122,13 +82,13 @@
 .ncc-a__o {
   width: calc(100% + 10px);
   margin-left: -10px;
-  padding: 6px 10px;
+  padding: 4px 10px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 14px;
+  font-size: 13.5px;
   transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 .ncc-a__o::placeholder {
@@ -147,8 +107,8 @@
   border-color: var(--signal);
 }
 .ncc-a__o--dam {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 400;
 }
 .ncc-a__so {
   font-variant-numeric: tabular-nums;
@@ -227,7 +187,7 @@
 .ncc-bg {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 .ncc-bg__thanh {
   display: flex;
@@ -253,41 +213,96 @@
   height: 32px;
   padding: 0 12px;
   font-size: 13px;
+  font-weight: 400;
 }
+.ncc-bg__tim.input {
+  height: 32px;
+  font-size: 13px;
+}
+/* Bảng giá kiểu bảng tính (08/10/2026) — cùng số đo lưới `kt-g` của ngăn Phiếu thu ("Áp vào hoá
+   đơn"): khung bo có bóng nhẹ, tiêu đề 32px nền --paper chữ 12px, dòng 34px, vạch dọc mảnh giữa các
+   cột. Ô nhập sát mép ô (đệm 2px), chữ trong ô thẳng hàng với chữ tiêu đề ở lề 11px. */
 .ncc-bg__bang {
-  border-top: 1px solid var(--rule-soft);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  overflow: hidden;
+  background: var(--canvas);
+  box-shadow: var(--shadow-1);
 }
 .ncc-bg__dong {
   display: grid;
-  gap: 12px;
-  align-items: center;
-  min-height: 46px;
-  padding: 4px 8px;
+  gap: 0;
+  align-items: stretch;
+  min-height: 34px;
+  padding: 0;
   border-bottom: 1px solid var(--rule-hair);
+  font-size: 13px;
+}
+.ncc-bg__dong > * {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 2px;
+  border-right: 1px solid var(--rule-hair);
+}
+.ncc-bg__dong > :last-child {
+  border-right: 0;
+}
+.ncc-bg__dong > .kho-combo,
+.ncc-bg__dong > div:has(> .ncc-bg__gia) {
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: center;
 }
 .ncc-bg__dong:not(.ncc-bg__dong--dau):hover {
   background: var(--rule-hair);
 }
 .ncc-bg__dong--dau {
-  min-height: 38px;
+  min-height: 32px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ash-2);
+  background: var(--paper);
   border-bottom-color: var(--rule-soft);
 }
+.ncc-bg__dong--dau > * {
+  padding: 0 11px;
+}
 .ncc-bg__phai {
+  justify-content: flex-end;
   text-align: right;
+}
+/* Số đơn giá dừng trước chữ "đ" trong ô (đệm phải 24px + viền + đệm ô) — tiêu đề lùi bằng ấy. */
+.ncc-bg__dong--dau > .ncc-bg__gia-dau {
+  padding-right: 27px;
+}
+/* Ô đơn vị dạng chữ (một đơn vị, chưa chọn vật tư) và nút đổi đơn vị: lề trái bằng chữ trong ô nhập. */
+.ncc-bg__dong .kho-dv__ro {
+  min-height: 30px;
+  padding: 0 9px;
+}
+.ncc-bg__dong .kho-dv__chu {
+  padding: 0 9px;
+}
+.ncc-bg__dong .kho-dv__nut {
+  padding-left: 9px;
 }
 
 /* Ô trong dòng trông như chữ: bỏ khung + nền, bấm vào mới hiện khung. Áp cho ô chọn vật tư, ô đơn
    vị (select) và ô đơn giá — ba ô dùng component chung nên chỉ đè ở trong bảng này. */
 .ncc-bg__dong .rc-input,
 .ncc-bg__gia .input {
-  height: 36px;
+  height: 30px;
+  /* Không đệm dọc: `.rc-input` gốc đệm 8px trên dưới ⇒ ô 30px chỉ còn 12px cho chữ, ô đơn vị
+     (select) cắt chân "m² (gốc)" và tụt khỏi hàng. */
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 8px;
+  border-radius: 4px;
   border-color: transparent;
   background-color: transparent;
   box-shadow: none;
-  font-size: 14px;
+  font-size: 13px;
 }
 .ncc-bg__dong .rc-input:hover:not(:disabled),
 .ncc-bg__gia .input:hover {
@@ -316,22 +331,26 @@
 }
 .ncc-bg__gia .input {
   width: 100%;
-  padding-right: 28px;
+  padding-right: 24px;
   text-align: right;
-  font-weight: 600;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 .ncc-bg__gia > span {
   position: absolute;
-  right: 12px;
+  right: 10px;
   font-size: 13px;
   color: var(--ash-2);
   pointer-events: none;
 }
 .ncc-bg__goc {
+  flex-direction: column;
+  align-items: flex-end !important;
+  justify-content: center;
+  padding: 2px 11px !important;
   text-align: right;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -361,6 +380,11 @@
   cursor: pointer;
   opacity: 0;
 }
+.ncc-bg__dong > .ncc-bg__xoa {
+  align-self: center;
+  justify-self: center;
+  padding: 0;
+}
 .ncc-bg__dong:hover .ncc-bg__xoa,
 .ncc-bg__xoa:focus-visible {
   opacity: 1;
@@ -373,29 +397,89 @@
   visibility: hidden;
 }
 .ncc-bg__them {
-  display: inline-block;
-  padding: 10px 8px;
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 11px;
   border: 0;
   background: transparent;
-  color: var(--rust);
+  color: var(--ash);
   font: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 400;
   cursor: pointer;
 }
 .ncc-bg__them:hover {
-  text-decoration: underline;
+  background: var(--rule-hair);
+  color: var(--ink);
 }
 .ncc-bg__nhan-o {
   display: none;
 }
 
+/* ---- Lưới danh sách: ô tên + thẻ Nhận gia công ---- */
+.ncc-ten { display: flex; align-items: center; min-width: 0; }
+.ncc-ten > span:first-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ncc-ten > .lds-tag { flex: none; }
+
+/* ---- Lưới danh sách: biểu tượng làm việc (07/10/2026) ---- */
+/* Đánh giá: ngôi sao vàng + điểm, thẻ đồng hồ đúng hẹn tô theo tỷ lệ (lá ≥80%, vàng ≥60%, đỏ). */
+.ncc-dg { display: inline-flex; align-items: center; gap: 8px; }
+.ncc-sao { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ncc-sao svg { color: #f59e0b; fill: #fbbf24; flex: none; }
+.ncc-sao--trong { color: var(--ash-3, #94a3b8); }
+.ncc-sao--trong svg { color: var(--rule); fill: none; }
+.ncc-dh { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 999px;
+  font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ncc-dh--la { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.ncc-dh--vang { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.ncc-dh--do { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+
+/* Điện thoại: biểu tượng máy + số, bấm là gọi. */
+.ncc-dt { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); text-decoration: none; font-variant-numeric: tabular-nums; }
+.ncc-dt svg { color: var(--ash-2); flex: none; }
+.ncc-dt:hover { color: var(--tt-xanh-fg); }
+.ncc-dt:hover svg { color: currentColor; }
+
+/* Mã số thuế + nút chép hiện khi rê dòng. */
+.ncc-o-chep { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.ncc-chep { display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 5px;
+  background: transparent; color: var(--ash-2); cursor: pointer; opacity: 0; }
+.ncc-g tr:hover .ncc-chep, .ncc-chep:focus-visible, .ncc-chep.is-xong { opacity: 1; }
+.ncc-chep:hover { background: var(--rule-hair); color: var(--ink); }
+.ncc-chep.is-xong { color: var(--tt-la-fg); }
+
+/* Thẻ "N mặt hàng": viên nhạt có biểu tượng hộp; rê chuột hiện bảng giá nổi. */
+.ncc-mh { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border: 1px solid var(--rule-soft);
+  border-radius: 6px; background: var(--rule-hair); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.ncc-mh svg { color: var(--ash-2); flex: none; }
+.ncc-mh:hover, .ncc-mh:focus-visible { border-color: var(--rule); background: #fff; }
+.ncc-mh-the { position: fixed; z-index: 1000; width: 288px; padding: 8px 10px; background: #fff; border: 1px solid var(--rule);
+  border-radius: 9px; box-shadow: 0 12px 28px rgba(15, 23, 42, .16); display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+.ncc-mh-the.is-len { transform: translateY(-100%); }
+.ncc-mh-the__dau { color: var(--ash-2); font-size: 12px; padding-bottom: 4px; margin-bottom: 2px; border-bottom: 1px solid var(--rule-hair); }
+.ncc-mh-the__dong { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 3px 0; }
+.ncc-mh-the__dong > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--ink); }
+.ncc-mh-the__dong > span:last-child { flex: none; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ncc-mh-the__dong small { color: var(--ash-2); font-size: 11.5px; }
+.ncc-mh-the__xem { display: flex; align-items: center; justify-content: center; gap: 3px; margin-top: 4px; padding: 6px 0 2px;
+  border: 0; border-top: 1px solid var(--rule-hair); background: none; font: inherit; font-size: 12px; color: var(--tt-xanh-fg); cursor: pointer; }
+.ncc-mh-the__xem:hover { text-decoration: underline; }
+
+/* Nhãn sao ở đầu ngăn: sao vàng khi đã có điểm. */
+.ncc-a-dau__nhan svg { color: var(--rule); fill: none; }
+.ncc-a-dau__nhan.is-co { color: var(--ink); }
+.ncc-a-dau__nhan.is-co svg { color: #f59e0b; fill: #fbbf24; }
+
+/* ---- Tab Đơn mua ---- */
+.ncc-dm__dem {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--ash-2);
+}
+
 /* ---- Điện thoại ---------------------------------------------------------- */
 @media (max-width: 640px) {
-  .ncc-a-dau__so-lieu {
-    padding: 0 16px 14px;
-    gap: 10px 20px;
-  }
   .ncc-a__luoi,
   .ncc-a__hai-cot {
     grid-template-columns: minmax(0, 1fr);
@@ -420,6 +504,10 @@
      hàng tiêu đề đã ẩn. Nút xoá luôn hiện — điện thoại không có rê chuột. */
   .ncc-bg__dong--dau {
     display: none;
+  }
+  .ncc-bg__dong > * {
+    border-right: 0;
+    padding: 0;
   }
   .ncc-bg__dong {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 30px !important;

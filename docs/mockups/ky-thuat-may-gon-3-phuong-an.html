@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kỹ thuật máy gọn: 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ink-2:#1e293b;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--charcoal:#0f172a;
+  --tt-vang-bg:#fef3c7;--tt-vang-fg:#b45309;--tt-vang-dot:#f59e0b;
+  --tt-cam-bg:#ffedd5;--tt-cam-fg:#c2410c;--tt-cam-dot:#f97316;
+  --tt-la-bg:#dcfce7;--tt-la-fg:#15803d;--tt-la-dot:#22c55e;
+  --tt-do-bg:#fee2e2;--tt-do-fg:#b91c1c;--tt-do-dot:#ef4444;
+  --tt-xanh-bg:#dbeafe;--tt-xanh-fg:#1d4ed8;--tt-xanh-dot:#3b82f6;
+  --tt-cyan-bg:#cffafe;--tt-cyan-fg:#0e7490;--tt-cyan-dot:#06b6d4;
+  --tt-xam-bg:#e5e7eb;--tt-xam-fg:#4b5563;--tt-xam-dot:#9ca3af;
+  --tt-slate-bg:#f1f5f9;--tt-slate-fg:#475569;--tt-slate-dot:#94a3b8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b{font-weight:500}
+button{font:inherit;color:inherit}
+.doc{max-width:1500px;margin:0 auto;padding:40px 24px 80px}
+.doc h1{font-size:26px;font-weight:500;margin:0 0 8px;letter-spacing:-.01em}
+.doc>p,.doc li{color:var(--ash);max-width:1080px}
+.doc ul{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.h2{margin:48px 0 4px;font-size:20px;font-weight:500;letter-spacing:-.01em;padding-top:20px;border-top:1px solid var(--rule)}
+.cap{margin:26px 0 6px;font-size:16px;font-weight:500}
+.note{color:var(--ash);font-size:13.5px;margin:0 0 10px;max-width:1120px}
+.scroll{overflow-x:auto;padding-bottom:6px}
+.words{border-collapse:collapse;background:#fff;border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden;margin:8px 0 4px;font-size:13px}
+.words th,.words td{padding:5px 12px;border-bottom:1px solid var(--rule-hair);text-align:left}
+.words th{background:#f8fafc;color:var(--ash-2);font-weight:500;font-size:12px}
+.words td:first-child{color:var(--ash-2);text-decoration:line-through;text-decoration-color:var(--ash-3)}
+
+/* khung app */
+.frame{width:1440px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;display:grid;grid-template-columns:60px 1fr}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px}
+.rail i{width:28px;height:28px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{display:flex;flex-direction:column;min-width:0}
+.top{height:48px;background:#fff;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;justify-content:flex-end;padding:0 24px;gap:10px;color:var(--ash);font-size:13px}
+.top .av{width:26px;height:26px;border-radius:50%;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px}
+.body{padding:16px 24px 20px}
+
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.tool h2{font-size:18px;font-weight:500;margin:0 6px 0 0;letter-spacing:-.01em;white-space:nowrap}
+.tool .sp{flex:1}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:1px solid transparent;background:transparent;padding:4px 11px;border-radius:6px;font-size:13px;color:var(--ash);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+.dotnew{width:7px;height:7px;border-radius:50%;background:var(--rust);display:inline-block}
+.flt{display:flex;gap:2px}
+.flt button{border:1px solid transparent;background:transparent;border-radius:7px;padding:4px 10px;font-size:13px;color:var(--ash);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.flt button:hover{background:var(--rule-hair)}
+.flt button.on{border-color:var(--rule);background:#fff;color:var(--ink)}
+.flt i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.flt .n{color:var(--ash-3);font-size:12px}
+.flt .n.do{color:var(--tt-do-fg)}
+.search{display:flex;align-items:center;gap:7px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:230px;color:var(--ash-3);font-size:13px;white-space:nowrap;overflow:hidden}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.xs{padding:1px 8px;font-size:12px;font-weight:400}
+.ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sum{color:var(--ash);font-size:13px;margin:0 0 10px;display:flex;gap:18px}
+.sum span em{font-style:normal;color:var(--ink)}
+.sum span em.do{color:var(--tt-do-fg)}
+
+/* lưới */
+.sheet{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.g{border-collapse:collapse;width:100%;table-layout:fixed}
+.g th,.g td{border-right:1px solid var(--rule-hair);border-bottom:1px solid var(--rule-hair);padding:6px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;height:34px}
+.g th:last-child,.g td:last-child{border-right:0}
+.g th{background:#f8fafc;color:var(--ash-2);font-weight:500;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:32px}
+.g td.n,.g th.n{text-align:right;font-variant-numeric:tabular-nums}
+.g td.c,.g th.c{text-align:center}
+.g tr.row:hover td{background:#f8fafc;cursor:pointer}
+.g tr.gr td{background:#f1f5f9;color:var(--ink-2);height:32px}
+.g tr.gr td .cnt{color:var(--ash-2);margin-left:6px}
+.g tr.gr td .tog{display:inline-block;width:12px;color:var(--ash-3)}
+.g tr.gr.gap td{color:var(--ash)}
+.g tr.done td{color:var(--ash-2)}
+.ma{color:var(--ash-2);font-variant-numeric:tabular-nums}
+.mm{color:var(--ink)}
+.mn{color:var(--ash-2);margin-left:8px}
+.mut{color:var(--ash-2)}
+.mut3{color:var(--ash-3)}
+.red{color:var(--tt-do-fg)}
+.orn{color:var(--tt-cam-fg)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:999px;font-size:12px;line-height:18px;white-space:nowrap}
+.chip i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.c-vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg)}.c-vang i{background:var(--tt-vang-dot)}
+.c-cam{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}.c-cam i{background:var(--tt-cam-dot)}
+.c-la{background:var(--tt-la-bg);color:var(--tt-la-fg)}.c-la i{background:var(--tt-la-dot)}
+.c-do{background:var(--tt-do-bg);color:var(--tt-do-fg)}.c-do i{background:var(--tt-do-dot)}
+.c-xanh{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg)}.c-xanh i{background:var(--tt-xanh-dot)}
+.c-cyan{background:var(--tt-cyan-bg);color:var(--tt-cyan-fg)}.c-cyan i{background:var(--tt-cyan-dot)}
+.c-xam{background:var(--tt-xam-bg);color:var(--tt-xam-fg)}.c-xam i{background:var(--tt-xam-dot)}
+.c-xam.huy{text-decoration:line-through}
+.lvl{display:inline-flex;align-items:center;gap:6px}
+.lvl i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.tag{display:inline-block;background:var(--rule-hair);border-radius:4px;padding:0 6px;font-size:12px;color:var(--ash);line-height:18px}
+.bar{display:inline-flex;align-items:center;gap:8px;width:100%}
+.bar s{flex:1;height:4px;border-radius:2px;background:var(--rule-soft);position:relative;overflow:hidden;text-decoration:none;max-width:70px}
+.bar s b{position:absolute;left:0;top:0;bottom:0;background:var(--tt-la-dot);border-radius:2px}
+.bar span{font-variant-numeric:tabular-nums;color:var(--ash);font-size:12.5px}
+.act{display:inline-flex;gap:4px}
+.foot{display:flex;align-items:center;gap:14px;padding:8px 12px;color:var(--ash-2);font-size:12.5px;border-top:1px solid var(--rule-hair)}
+.foot .sp{flex:1}
+.pg{display:inline-flex;gap:4px}
+.pg b{display:inline-grid;place-items:center;min-width:24px;height:24px;border:1px solid var(--rule);border-radius:6px;font-weight:400;font-size:12px;color:var(--ash)}
+.pg b.on{border-color:var(--ink);color:var(--ink)}
+
+/* phương án C: kế hoạch theo tuần */
+.plan td.wk{padding:3px 6px;text-align:center}
+.plan th.wk{text-align:center}
+.plan th.wk small{display:block;color:var(--ash-3);font-size:11px;font-weight:400;line-height:1.1}
+.plan th.now{color:var(--ink);background:#eef2f7}
+.plan td.now{background:#fafbfd}
+.pc{display:inline-block;border-radius:5px;padding:0 6px;font-size:12px;line-height:20px;white-space:nowrap}
+.pc.qh{background:var(--tt-do-bg);color:var(--tt-do-fg)}
+.pc.cho{background:var(--tt-vang-bg);color:var(--tt-vang-fg)}
+.pc.xong{background:var(--tt-la-bg);color:var(--tt-la-fg)}
+.pc.huy{background:var(--tt-xam-bg);color:var(--tt-xam-fg);text-decoration:line-through}
+.pc.dk{border:1px dashed var(--rule);color:var(--ash-3);background:#fff}
+.legend{display:flex;gap:16px;align-items:center;color:var(--ash-2);font-size:12.5px;margin:8px 0 0}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+
+.why{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:10px 0 0;max-width:1440px;color:var(--ash);font-size:13px}
+.why ul{margin:4px 0}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3.5"/><path d="M9 7l1.5-3h3L15 7"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
+</svg>
+
+<div class="doc">
+<h1>Kỹ thuật máy: làm gọn ba màn Sửa chữa máy, Yêu cầu báo hỏng, Phiếu bảo trì</h1>
+<p>Dữ liệu lấy từ ảnh chụp màn hình hiện tại (07/10/2026). Vài dòng yêu cầu báo hỏng là ví dụ dựng thêm cho đủ trạng thái, vì DB dev chỉ có một yêu cầu thử "ds". Ba phương án đều giữ nguyên luồng đã chốt:</p>
+<ul>
+  <li>Yêu cầu báo hỏng chỉ có ba trạng thái: Chờ tiếp nhận, Đã lập phiếu, Từ chối (bắt buộc lý do). Tiếp nhận một yêu cầu là lập phiếu sửa từ nó.</li>
+  <li>Phiếu sửa chữa: Chờ sửa, Đang sửa, Chờ vật tư, Đã sửa xong. Đóng phiếu cần ít nhất một ảnh sau khi sửa. Người báo do máy chủ chốt, không ai gõ. Không có nút xoá.</li>
+  <li>Phiếu bảo trì: Chưa làm, Đã xong, Đã hủy (kèm lý do). Quá hạn là dẫn xuất từ hạn làm. Người làm là người bấm xác nhận xong. Phiếu định kỳ chỉ sinh khi bấm ô dự kiến trên lịch, ngoài ra chỉ có nút tạo phiếu ngoài lịch.</li>
+  <li>Chấm báo mới không số, mở màn là đã xem. Mọi danh sách có nút kỳ, nút Lọc và cột Ngày tạo. Lọc và đếm ở máy chủ.</li>
+</ul>
+
+<div class="cap">Chung cho cả ba phương án</div>
+<ul>
+  <li>Bỏ băng tiêu đề riêng, hộp công cụ riêng và dải tab riêng: gom vào MỘT dòng công cụ. Màn cũ tốn khoảng 330px trước khi tới dòng dữ liệu đầu, nay còn khoảng 100px. Một màn 1080p thấy được 18 đến 20 phiếu thay vì 6.</li>
+  <li>Bỏ các viên "10 phiếu", "7 việc chưa xong", ba thẻ số to của Bảo trì: số đó đã nằm trên nút lọc ngay bên dưới, nói hai lần.</li>
+  <li>Dòng cao 34px, một dòng chữ. Mã máy và tên máy nằm cùng một ô, tên chữ nhạt. Mô tả hỏng đi ngay sau chỗ hỏng bằng chữ nhạt (hoặc cột riêng khi bảng còn chỗ), cắt bằng dấu ba chấm, rê chuột thấy đủ.</li>
+  <li>Bỏ khung bọc mã phiếu và mã máy, bỏ viên "0 ảnh" hồng. Ảnh chỉ hiện số khi có. Phiếu đang mở mà chưa có ảnh sau khi sửa thì không cần nhắc ở danh sách, cửa chặn nằm ở nút đóng phiếu.</li>
+  <li>Thêm cột "Máy dừng" cho yêu cầu (trường đã có trong dữ liệu, màn cũ không hiện, mà đây là câu tổ sửa chữa cần biết đầu tiên) và cột "Đã kéo dài" cho phiếu sửa (tính từ lúc hỏng tới giờ, hoặc tới lúc sửa xong).</li>
+  <li>Mức độ là chấm màu + chữ, không đóng viên, để bảng chỉ có một cột chip là Trạng thái.</li>
+</ul>
+<div class="cap">Đổi chữ</div>
+<div class="scroll"><table class="words">
+  <tr><th>Chữ cũ</th><th>Chữ mới</th><th>Vì sao</th></tr>
+  <tr><td>Hỏng hóc</td><td>Chỗ hỏng</td><td>cột đang chứa bộ phận hỏng, không phải mô tả</td></tr>
+  <tr><td>Thời điểm hỏng</td><td>Hỏng lúc</td><td>ngắn, đọc như nói</td></tr>
+  <tr><td>Mã YC</td><td>Mã</td><td>đang ở màn yêu cầu, chữ YC thừa</td></tr>
+  <tr><td>Ghi nhận máy hỏng</td><td>Lập phiếu sửa</td><td>màn cũ có hai nút gần nghĩa nhau (Ghi nhận máy hỏng và Báo máy hỏng); nút ở màn phiếu là tổ kỹ thuật tự lập phiếu</td></tr>
+  <tr><td>Đã tạo phiếu</td><td>Đã lập phiếu</td><td>cùng động từ với nút</td></tr>
+  <tr><td>Gói bảo trì</td><td>Việc bảo trì</td><td>thợ không nói "gói"</td></tr>
+  <tr><td>Ngày kế hoạch</td><td>Hạn làm</td><td>đi kèm cột Trễ hoặc Còn</td></tr>
+  <tr><td>Chờ thực hiện</td><td>Chưa làm</td><td></td></tr>
+  <tr><td>Hoàn thành</td><td>Đã xong</td><td></td></tr>
+  <tr><td>— Chờ làm (cột Người thực hiện)</td><td>để trống</td><td>lặp lại trạng thái; người làm chỉ có khi đã xong</td></tr>
+  <tr><td>Tạo phiếu đột xuất</td><td>Thêm việc ngoài lịch</td><td>nói rõ khác gì phiếu sinh từ lịch</td></tr>
+  <tr><td>mỗi 12 tháng (dưới mã phiếu)</td><td>cột Chu kỳ riêng: 12 tháng</td><td>chu kỳ là của việc, không phải của mã</td></tr>
+</table></div>
+
+<!-- ================= A ================= -->
+<div class="h2">Phương án A: danh sách một dòng kiểu Linear</div>
+<p class="note">Khuôn Linear (danh sách issue) và GitHub Issues: mọi thứ điều khiển nằm trên một dòng, dưới là lưới đặc. Hai màn Phiếu và Yêu cầu vẫn tách bằng nút chuyển như bây giờ, yêu cầu mới báo bằng chấm. Hợp khi muốn đổi ít nhất so với cách dùng hiện tại.</p>
+
+<div class="cap">A1. Phiếu sửa chữa</div>
+<div class="scroll"><div class="frame"><div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div><div class="main">
+  <div class="top"><span>Admin</span><span class="av">A</span></div>
+  <div class="body">
+    <div class="tool">
+      <h2>Sửa chữa máy</h2>
+      <div class="seg"><button class="on">Phiếu sửa chữa</button><button>Yêu cầu báo hỏng <span class="dotnew"></span></button></div>
+      <div class="flt">
+        <button class="on">Cần làm <span class="n">7</span></button>
+        <button>Đã sửa xong <span class="n">3</span></button>
+        <button>Tất cả <span class="n">10</span></button>
+      </div>
+      <span class="sp"></span>
+      <div class="search"><svg class="ic"><use href="#i-search"/></svg>Tìm mã phiếu, máy, chỗ hỏng</div>
+      <button class="btn"><svg class="ic"><use href="#i-cal"/></svg>Mọi thời gian<svg class="ic"><use href="#i-down"/></svg></button>
+      <button class="btn"><svg class="ic"><use href="#i-filter"/></svg>Lọc</button>
+      <button class="btn pri"><svg class="ic"><use href="#i-plus"/></svg>Lập phiếu sửa</button>
+    </div>
+    <div class="sheet"><table class="g" id="a1"></table>
+      <div class="foot"><span>Trang 1/1</span><span>7 dòng trên tổng 7 phiếu</span><span class="sp"></span><span>Dòng mỗi trang 25</span><span class="pg"><b class="on">1</b></span></div>
+    </div>
+  </div>
+</div></div></div>
+
+<div class="cap">A2. Yêu cầu báo hỏng</div>
+<div class="scroll"><div class="frame"><div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div><div class="main">
+  <div class="top"><span>Admin</span><span class="av">A</span></div>
+  <div class="body">
+    <div class="tool">
+      <h2>Sửa chữa máy</h2>
+      <div class="seg"><button>Phiếu sửa chữa</button><button class="on">Yêu cầu báo hỏng</button></div>
+      <div class="flt">
+        <button class="on">Chờ tiếp nhận <span class="n">2</span></button>
+        <button>Đã lập phiếu <span class="n">2</span></button>
+        <button>Từ chối <span class="n">1</span></button>
+        <button>Tất cả <span class="n">5</span></button>
+      </div>
+      <span class="sp"></span>
+      <div class="search"><svg class="ic"><use href="#i-search"/></svg>Tìm mã, máy, chỗ hỏng, người báo</div>
+      <button class="btn"><svg class="ic"><use href="#i-cal"/></svg>Mọi thời gian<svg class="ic"><use href="#i-down"/></svg></button>
+      <button class="btn"><svg class="ic"><use href="#i-filter"/></svg>Lọc</button>
+      <button class="btn pri"><svg class="ic"><use href="#i-plus"/></svg>Báo máy hỏng</button>
+    </div>
+    <div class="sheet"><table class="g" id="a2"></table>
+      <div class="foot"><span>Trang 1/1</span><span>5 dòng trên tổng 5 yêu cầu</span><span class="sp"></span><span>Dòng mỗi trang 25</span><span class="pg"><b class="on">1</b></span></div>
+    </div>
+    <p class="note" style="margin-top:8px">Ảnh này để tab Tất cả để thấy đủ trạng thái. Hai nút Lập phiếu và Từ chối nằm ngay trên dòng chờ tiếp nhận: tiếp nhận không cần mở ngăn chi tiết. Từ chối vẫn mở hộp bắt nhập lý do.</p>
+  </div>
+</div></div></div>
+
+<div class="cap">A3. Phiếu bảo trì (chế độ Bảng)</div>
+<div class="scroll"><div class="frame"><div class="rail"><i></i><i></i><i></i><i class="on"></i><i></i></div><div class="main">
+  <div class="top"><span>Admin</span><span class="av">A</span></div>
+  <div class="body">
+    <div class="tool">
+      <h2>Phiếu bảo trì</h2>
+      <div class="seg"><button>Lịch</button><button class="on">Bảng</button></div>
+      <div class="flt">
+        <button class="on">Cần làm <span class="n">9</span></button>
+        <button><i style="background:var(--tt-do-dot)"></i>Quá hạn <span class="n do">5</span></button>
+        <button>Hôm nay <span class="n">1</span></button>
+        <button>7 ngày tới <span class="n">3</span></button>
+        <button>Đã xong <span class="n">4</span></button>
+        <button>Đã hủy <span class="n">1</span></button>
+        <button>Tất cả <span class="n">14</span></button>
+      </div>
+      <span class="sp"></span>
+      <div class="search" style="width:200px"><svg class="ic"><use href="#i-search"/></svg>Tìm mã phiếu, máy, việc</div>
+      <button class="btn"><svg class="ic"><use href="#i-cal"/></svg>Mọi thời gian<svg class="ic"><use href="#i-down"/></svg></button>
+      <button class="btn"><svg class="ic"><use href="#i-filter"/></svg>Lọc</button>
+      <button class="btn pri"><svg class="ic"><use href="#i-plus"/></svg>Thêm việc ngoài lịch</button>
+    </div>
+    <div class="sheet"><table class="g" id="a3"></table>
+      <div class="foot"><span>Trang 1/1</span><span>9 dòng trên tổng 9 phiếu</span><span class="sp"></span><span>Dòng mỗi trang 25</span><span class="pg"><b class="on">1</b></span></div>
+    </div>
+    <p class="note" style="margin-top:8px">Quá hạn, Hôm nay, 7 ngày tới là ba lát của Cần làm (5 + 1 + 3 = 9), thay cho ba thẻ số to. Bộ lọc "Trạng thái: Cần làm ×" của màn cũ trùng với tab đang chọn nên bỏ. Cột Người làm và Xong ngày trống với phiếu chưa làm, có giá trị ở tab Đã xong.</p>
+  </div>
+</div></div></div>
+
+<div class="why"><b>Được:</b> ít đổi thói quen nhất, code sửa ít nhất (giữ nguyên hai màn, chỉ dồn thanh công cụ và đổi lưới). <b>Mất:</b> vẫn phải chuyển qua lại giữa Phiếu và Yêu cầu mới thấy toàn bộ việc sửa chữa đang có.</div>
+
+<!-- ================= B ================= -->
+<div class="h2">Phương án B: một hàng việc chia nhóm kiểu ServiceNow / Asana</div>
+<p class="note">Khuôn hàng việc của ServiceNow và Jira Service Management (yêu cầu vào, thợ nhận, xử lý) và nhóm theo mốc thời gian của Asana / Todoist (Quá hạn, Hôm nay, Sắp tới). Mỗi nhóm có một dòng xám đếm sẵn, nhóm đã xong gập lại. Cột Trạng thái biến mất vì tên nhóm đã nói rồi.</p>
+
+<div class="cap">B1. Sửa chữa máy: yêu cầu và phiếu chung một bảng</div>
+<div class="scroll"><div class="frame"><div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div><div class="main">
+  <div class="top"><span>Admin</span><span class="av">A</span></div>
+  <div class="body">
+    <div class="tool">
+      <h2>Sửa chữa máy</h2>
+      <button class="btn"><svg class="ic"><use href="#i-layers"/></svg>Xem theo: Trạng thái<svg class="ic"><use href="#i-down"/></svg></button>
+      <span class="sp"></span>
+      <div class="search"><svg class="ic"><use href="#i-search"/></svg>Tìm mã, máy, chỗ hỏng, người báo</div>
+      <button class="btn"><svg class="ic"><use href="#i-cal"/></svg>Mọi thời gian<svg class="ic"><use href="#i-down"/></svg></button>
+      <button class="btn"><svg class="ic"><use href="#i-filter"/></svg>Lọc</button>
+      <button class="btn">Báo máy hỏng</button>
+      <button class="btn pri"><svg class="ic"><use href="#i-plus"/></svg>Lập phiếu sửa</button>
+    </div>
+    <div class="sum"><span>Máy đang dừng <em class="do">3</em></span><span>Chờ tiếp nhận <em>2</em></span><span>Phiếu đang mở <em>7</em></span><span>Sửa xong trong kỳ <em>3</em></span></div>
+    <div class="sheet"><table class="g" id="b1"></table></div>
+    <p class="note" style="margin-top:8px">Dòng chờ tiếp nhận là YÊU CẦU (mã YC), các nhóm sau là PHIẾU (mã SC): hai bản ghi vẫn tách riêng như hiện tại, chỉ cùng hiện trên một bảng theo thứ tự luồng. Người chỉ có quyền báo hỏng vẫn thấy màn Yêu cầu của mình như cũ. "Xem theo" đổi nhóm sang Máy hoặc Mức độ.</p>
+  </div>
+</div></div></div>
+
+<div class="cap">B2. Phiếu bảo trì nhóm theo hạn</div>
+<div class="scroll"><div class="frame"><div class="rail"><i></i><i></i><i></i><i class="on"></i><i></i></div><div class="main">
+  <div class="top"><span>Admin</span><span class="av">A</span></div>
+  <div class="body">
+    <div class="tool">
+      <h2>Phiếu bảo trì</h2>
+      <div class="seg"><button>Lịch</button><button class="on">Bảng</button></div>
+      <button class="btn"><svg class="ic"><use href="#i-layers"/></svg>Xem theo: Hạn làm<svg class="ic"><use href="#i-down"/></svg></button>
+      <span class="sp"></span>
+      <div class="search"><svg class="ic"><use href="#i-search"/></svg>Tìm mã phiếu, máy, việc</div>
+      <button class="btn"><svg class="ic"><use href="#i-cal"/></svg>Mọi thời gian<svg class="ic"><use href="#i-down"/></svg></button>
+      <button class="btn"><svg class="ic"><use href="#i-filter"/></svg>Lọc</button>
+      <button class="btn pri"><svg class="ic"><use href="#i-plus"/></svg>Thêm việc ngoài lịch</button>
+    </div>
+    <div class="sheet"><table class="g" id="b2"></table></div>
+  </div>
+</div></div></div>
+
+<div class="why"><b>Được:</b> mở màn là thấy cả luồng sửa chữa từ lúc có người báo tới lúc sửa xong, đúng thứ tự cần xử lý; không còn hai màn phải chuyển. <b>Mất:</b> đổi nhiều hơn A (máy chủ phải trả chung yêu cầu và phiếu cho một bảng, phân trang theo nhóm).</div>
+
+<!-- ================= C ================= -->
+<div class="h2">Phương án C: sổ theo dõi kiểu Excel nhà xưởng (Fiix / MaintainX)</div>
+<p class="note">Khuôn màn Tài sản của Fiix và MaintainX, và chính tờ Excel "Kế hoạch bảo trì năm" các xưởng in hay kẹp ở phòng kỹ thuật: mỗi dòng là một MÁY (hoặc một việc bảo trì), cột là tình trạng hoặc tuần. Trả lời câu "máy nào đang có chuyện" thay vì "có những phiếu nào". Danh sách phiếu từng cái vẫn còn qua nút "Xem theo: Phiếu" (dạng A).</p>
+
+<div class="cap">C1. Sửa chữa máy xem theo máy</div>
+<div class="scroll"><div class="frame"><div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div><div class="main">
+  <div class="top"><span>Admin</span><span class="av">A</span></div>
+  <div class="body">
+    <div class="tool">
+      <h2>Sửa chữa máy</h2>
+      <div class="seg"><button class="on">Theo máy</button><button>Theo phiếu</button><button>Yêu cầu <span class="dotnew"></span></button></div>
+      <div class="flt">
+        <button class="on">Đang có chuyện <span class="n">9</span></button>
+        <button><i style="background:var(--tt-do-dot)"></i>Đang dừng <span class="n do">3</span></button>
+        <button>Mọi máy <span class="n">38</span></button>
+      </div>
+      <span class="sp"></span>
+      <div class="search" style="width:190px"><svg class="ic"><use href="#i-search"/></svg>Tìm máy</div>
+      <button class="btn"><svg class="ic"><use href="#i-cal"/></svg>Mọi thời gian<svg class="ic"><use href="#i-down"/></svg></button>
+      <button class="btn"><svg class="ic"><use href="#i-filter"/></svg>Lọc</button>
+      <button class="btn pri"><svg class="ic"><use href="#i-plus"/></svg>Lập phiếu sửa</button>
+    </div>
+    <div class="sheet"><table class="g" id="c1"></table></div>
+    <p class="note" style="margin-top:8px">Một máy có hai phiếu mở thì cột Phiếu đang mở hiện hai mã, chỗ hỏng lấy phiếu nặng nhất. "Sửa trong 90 ngày" đếm phiếu đã xong, giúp thấy máy hay hỏng lặp. "Bảo trì kế tiếp" lấy từ Phiếu bảo trì, chữ đỏ khi quá hạn. Bấm dòng mở ngăn máy với các phiếu của nó.</p>
+  </div>
+</div></div></div>
+
+<div class="cap">C2. Phiếu bảo trì: kế hoạch theo tuần (thay chế độ Lịch tháng)</div>
+<div class="scroll"><div class="frame"><div class="rail"><i></i><i></i><i></i><i class="on"></i><i></i></div><div class="main">
+  <div class="top"><span>Admin</span><span class="av">A</span></div>
+  <div class="body">
+    <div class="tool">
+      <h2>Phiếu bảo trì</h2>
+      <div class="seg"><button class="on">Kế hoạch</button><button>Bảng</button></div>
+      <div class="flt">
+        <button class="on">Mọi việc <span class="n">9</span></button>
+        <button><i style="background:var(--tt-do-dot)"></i>Có phiếu quá hạn <span class="n do">5</span></button>
+      </div>
+      <span class="sp"></span>
+      <button class="btn">‹</button><button class="btn">Tuần này</button><button class="btn">›</button>
+      <div class="search" style="width:180px"><svg class="ic"><use href="#i-search"/></svg>Tìm máy, việc</div>
+      <button class="btn"><svg class="ic"><use href="#i-filter"/></svg>Lọc</button>
+      <button class="btn pri"><svg class="ic"><use href="#i-plus"/></svg>Thêm việc ngoài lịch</button>
+    </div>
+    <div class="sheet"><table class="g plan" id="c2"></table></div>
+    <div class="legend">
+      <span><span class="pc qh">PBT</span>quá hạn</span>
+      <span><span class="pc cho">PBT</span>chưa làm</span>
+      <span><span class="pc xong">PBT</span>đã xong</span>
+      <span><span class="pc huy">PBT</span>đã hủy</span>
+      <span><span class="pc dk">dự kiến</span>chưa có phiếu, bấm để lập phiếu</span>
+    </div>
+    <p class="note" style="margin-top:8px">Cột "Trễ từ trước" gom phiếu quá hạn có hạn làm trước tuần đầu đang xem, để không phải lùi lịch mới thấy. Ô dự kiến vẫn do máy chủ tính lúc đọc (không lưu), bấm ô dự kiến là lập phiếu định kỳ như lịch hiện tại. Phiếu đột xuất nằm trong dòng "Ngoài lịch" của máy đó. Bảng phiếu từng cái vẫn ở nút Bảng (dạng A3).</p>
+  </div>
+</div></div></div>
+
+<div class="why"><b>Được:</b> nhìn một màn là biết máy nào đang dừng, máy nào hay hỏng, tuần này phải bảo trì những gì; gần nhất với tờ Excel thợ đang quen. <b>Mất:</b> đổi nhiều nhất: cần máy chủ dựng bảng theo máy (gộp phiếu sửa, yêu cầu, bảo trì kế tiếp) và lịch theo tuần thay lịch tháng.</div>
+
+</div>
+
+<script>
+const CHIP={cho_sua:['Chờ sửa','vang'],dang_sua:['Đang sửa','cyan'],cho_vat_tu:['Chờ vật tư','cam'],xong:['Đã sửa xong','la'],
+  cho_tn:['Chờ tiếp nhận','xanh'],da_lap:['Đã lập phiếu','la'],tu_choi:['Từ chối','do'],
+  bt_cho:['Chưa làm','vang'],bt_qh:['Quá hạn','do'],bt_xong:['Đã xong','la'],bt_huy:['Đã hủy','xam huy']};
+const chip=k=>`<span class="chip c-${CHIP[k][1]}"><i></i>${CHIP[k][0]}</span>`;
+const LVL={nhe:['Nhẹ','var(--tt-slate-dot)'],tb:['Trung bình','var(--tt-vang-dot)'],nt:['Nghiêm trọng','var(--tt-do-dot)']};
+const lvl=k=>`<span class="lvl"><i style="background:${LVL[k][1]}"></i>${LVL[k][0]}</span>`;
+const may=(c,n)=>`<span class="mm">${c}</span><span class="mn">${n}</span>`;
+const anh=n=>n?`<span class="mut">${n}</span>`:'';
+const cols=w=>`<colgroup>${w.map(x=>`<col style="width:${x}">`).join('')}</colgroup>`;
+const th=h=>`<tr>${h.map(x=>typeof x==='string'?`<th>${x}</th>`:`<th class="${x[1]}">${x[0]}</th>`).join('')}</tr>`;
+
+// Phiếu sửa chữa
+const SC=[
+ ['SC-0004','BOI-02','Máy bồi sóng 1700','Băng tải cấp phôi','Băng tải trượt khi bồi tấm dày, phôi vào lệch','nhe','cho_sua','07/10 11:30','10 giờ',0,'07/10/2026','Trần Văn Lực'],
+ ['SC-0009','IN-04','Máy in 6 màu Mitsubishi 72×102','Cụm cấp giấy (feeder)','Cấp giấy hay kéo đôi tờ khi chạy giấy couche','tb','cho_sua','07/10 10:20','11 giờ',1,'07/10/2026','Lê Thị Thu'],
+ ['SC-0003','IN-02','Máy in 4 màu Mitsubishi 79×109','Lô nước số 3','In lem nhẹ ở đơn catalogue, canh màu mãi không chuẩn','tb','cho_sua','06/10 10:20','1 ngày 11 giờ',1,'06/10/2026','Phạm Minh Đức'],
+ ['SC-0007','DAN-02','Máy dán hộp mềm tự động lớn','Súng phun keo số 1','Súng keo nhỏ giọt không đều, hộp dán bung mép','tb','dang_sua','06/10 08:00','1 ngày 13 giờ',1,'06/10/2026','Ngô Văn Tài'],
+ ['SC-0001','CM-01','Máy UV toàn phần','Nguồn đèn UV số 2','Chạy được 20 phút thì đèn UV số 2 tắt, mực không khô','nt','dang_sua','05/10 08:00','2 ngày 13 giờ',1,'05/10/2026','Đỗ Thị Hạnh'],
+ ['SC-0008','CAT-04','Máy cắt tờ Kyodo 132','Dao cắt chính','Dao cắt mẻ một đoạn 2 cm, xấp giấy cắt ra xơ mép','nt','cho_vat_tu','04/10 09:10','3 ngày 12 giờ',1,'04/10/2026','Vũ Văn Nam'],
+ ['SC-0002','BE-01','Máy bế tự động Aoer 1050','Tấm cao su đỡ bế','Tấm cao su mòn lõm, bế không đứt hết đường','tb','cho_vat_tu','03/10 14:00','4 ngày 7 giờ',2,'03/10/2026','Nguyễn Văn Hùng'],
+ ['SC-0005','IN-01','Máy in 2 màu Mitsubishi 72×102','Bơm chân không','Bơm kêu to, hút tờ yếu ở tốc độ cao','tb','xong','02/10 07:40','1 ngày 4 giờ',3,'02/10/2026','Lê Thị Thu'],
+ ['SC-0006','CM-03','Máy cán màng 1080 số 1','Lô ép nhiệt','Màng cán nhăn sóng ở mép phải','nhe','xong','01/10 13:00','6 giờ',2,'01/10/2026','Trần Văn Lực'],
+ ['SC-0010','BOI-01','Máy bồi sóng 1450','Dao cắt sóng','Cắt sóng không đứt, phải tách tay','tb','xong','29/09 09:00','2 ngày 2 giờ',2,'29/09/2026','Phạm Minh Đức'],
+];
+// Yêu cầu
+const YC=[
+ ['YC-0005','BE-03','Máy bế tự động Aoer 1500','Bàn nạp giấy','Bàn nạp kẹt, tờ vào lệch rồi dừng',true,'tb','Nguyễn Văn Hùng','Tổ bế','LSX-0142','cho_tn','07/10 21:15','07/10/2026'],
+ ['YC-0004','DAN-01','Máy dán hộp tự động 800','Băng tải ra hộp','Băng tải ra hộp chạy giật',false,'nhe','Trần Thị Mai','Tổ dán','','cho_tn','07/10 16:05','07/10/2026'],
+ ['YC-0003','IN-04','Máy in 6 màu Mitsubishi 72×102','Cụm cấp giấy','Kéo đôi tờ liên tục',false,'tb','Lê Thị Thu','Tổ in','LSX-0139','da_lap','07/10 10:10','07/10/2026','SC-0009'],
+ ['YC-0002','CAT-02','Máy cắt tờ Polar 115','Cảm biến tay','Máy báo lỗi cảm biến không cho cắt',true,'nt','Vũ Văn Nam','Tổ cắt','','tu_choi','05/10 15:30','05/10/2026','Lau cảm biến là chạy, tổ tự xử lý'],
+ ['YC-0001','CM-01','Máy UV toàn phần','Đèn UV','Đèn UV chập chờn',true,'nt','Đỗ Thị Hạnh','Tổ cán phủ','LSX-0131','da_lap','05/10 07:50','05/10/2026','SC-0001'],
+];
+// Bảo trì: ma, may, ten may, viec, chu ky, han, lech(+tre/-con), done/total, nguoi, xong, anh, tao, tt
+const BT=[
+ ['PBT-0014','IN-04','Máy in 6 màu Mitsubishi 72×102','Bảo trì năm máy in','12 tháng','11/12/2025',300,0,3,'','',0,'07/10/2026','qh'],
+ ['PBT-0011','CM-03','Máy cán màng 1080 số 1','Bảo trì tháng máy cán','1 tháng','27/09/2026',10,0,3,'','',0,'07/10/2026','qh'],
+ ['PBT-0006','IN-02','Máy in 4 màu Mitsubishi 79×109','Bảo trì tuần máy in','1 tuần','28/09/2026',9,0,2,'','',0,'07/10/2026','qh'],
+ ['PBT-0012','IN-01','Máy in 2 màu Mitsubishi 72×102','Bảo trì tuần máy in','1 tuần','04/10/2026',3,1,3,'','',0,'07/10/2026','qh'],
+ ['PBT-0013','IN-01','Máy in 2 màu Mitsubishi 72×102','Bảo trì 3 tháng máy in','3 tháng','05/10/2026',2,0,4,'','',0,'07/10/2026','qh'],
+ ['PBT-0015','BE-01','Máy bế tự động Aoer 1050','Bảo trì tuần máy bế','1 tuần','07/10/2026',0,0,3,'','',0,'07/10/2026','cho'],
+ ['PBT-0016','IN-05','Máy in 5 màu Komori 72×102','Bảo trì tuần máy in','1 tuần','08/10/2026',-1,0,2,'','',0,'07/10/2026','cho'],
+ ['PBT-0017','BOI-01','Máy bồi sóng 1450','Bảo trì tháng máy bồi','1 tháng','10/10/2026',-3,0,3,'','',0,'07/10/2026','cho'],
+ ['PBT-0018','BE-03','Máy bế tự động Aoer 1500','Tra dầu bàn nạp','Ngoài lịch','12/10/2026',-5,0,1,'','',0,'07/10/2026','cho'],
+ ['PBT-0010','IN-02','Máy in 4 màu Mitsubishi 79×109','Bảo trì tuần máy in','1 tuần','21/09/2026',null,2,2,'Phạm Minh Đức','22/09/2026',2,'14/09/2026','xong'],
+ ['PBT-0009','BE-03','Máy bế tự động Aoer 1500','Bảo trì tháng máy bế','1 tháng','20/09/2026',null,4,4,'Nguyễn Văn Hùng','20/09/2026',3,'13/09/2026','xong'],
+ ['PBT-0008','CM-04','Máy cán màng 1080 số 2','Bảo trì tháng máy cán','1 tháng','15/09/2026',null,3,3,'Trần Văn Lực','16/09/2026',1,'08/09/2026','xong'],
+ ['PBT-0007','IN-05','Máy in 5 màu Komori 72×102','Bảo trì tuần máy in','1 tuần','01/10/2026',null,2,2,'Lê Thị Thu','01/10/2026',2,'24/09/2026','xong'],
+ ['PBT-0005','BOI-01','Máy bồi sóng 1450','Thay dây curoa','Ngoài lịch','18/09/2026',null,0,1,'','',0,'15/09/2026','huy','Máy thay cả cụm khi sửa SC-0010'],
+];
+const lech=d=>d==null?'':d>0?`<span class="red">trễ ${d} ngày</span>`:d===0?`<span class="orn">hôm nay</span>`:`<span class="mut">còn ${-d} ngày</span>`;
+const bar=(a,b)=>`<span class="bar"><s><b style="width:${b?a/b*100:0}%"></b></s><span>${a}/${b}</span></span>`;
+
+// A1
+document.getElementById('a1').innerHTML=cols(['84px','270px','170px','auto','124px','118px','100px','112px','52px','96px'])+
+ th(['Mã','Máy','Chỗ hỏng','Mô tả','Mức độ','Trạng thái','Hỏng lúc','Đã kéo dài',['Ảnh','c'],'Ngày tạo'])+
+ SC.filter(r=>r[6]!=='xong').map(r=>`<tr class="row"><td class="ma">${r[0]}</td><td>${may(r[1],r[2])}</td><td>${r[3]}</td><td class="mut" title="${r[4]}">${r[4]}</td><td>${lvl(r[5])}</td><td>${chip(r[6])}</td><td>${r[7]}</td><td>${r[8]}</td><td class="c">${anh(r[9])}</td><td class="mut">${r[10]}</td></tr>`).join('');
+
+// A2
+document.getElementById('a2').innerHTML=cols(['84px','200px','auto','96px','124px','190px','76px','132px','100px','172px'])+
+ th(['Mã','Máy','Chỗ hỏng','Máy dừng','Mức độ','Người báo','Lệnh SX','Trạng thái','Hỏng lúc','Xử lý'])+
+ YC.map(r=>{let x='';
+  if(r[10]==='cho_tn')x=`<span class="act"><button class="btn xs">Lập phiếu</button><button class="btn xs">Từ chối</button></span>`;
+  else if(r[10]==='da_lap')x=`<span class="mut">sang ${r[13]}</span>`;
+  else x=`<span class="mut" title="${r[13]}">${r[13]}</span>`;
+  return `<tr class="row"><td class="ma">${r[0]}</td><td>${may(r[1],r[2])}</td><td title="${r[4]}">${r[3]}<span class="mn">${r[4]}</span></td><td>${r[5]?'<span class="red">Đang dừng</span>':'<span class="mut3">Chạy được</span>'}</td><td>${lvl(r[6])}</td><td>${r[7]} <span class="tag">${r[8]}</span></td><td class="mut">${r[9]}</td><td>${chip(r[10])}</td><td>${r[11]}</td><td>${x}</td></tr>`}).join('');
+
+// A3
+document.getElementById('a3').innerHTML=cols(['92px','260px','auto','86px','106px','110px','120px','110px','130px','48px','96px'])+
+ th(['Mã','Máy','Việc bảo trì','Chu kỳ','Hạn làm','Trễ hoặc còn','Việc con','Trạng thái','Người làm',['Ảnh','c'],'Ngày tạo'])+
+ BT.filter(r=>r[13]==='qh'||r[13]==='cho').map(r=>`<tr class="row"><td class="ma">${r[0]}</td><td>${may(r[1],r[2])}</td><td>${r[3]}</td><td class="mut">${r[4]}</td><td>${r[5]}</td><td>${lech(r[6])}</td><td>${bar(r[7],r[8])}</td><td>${chip(r[13]==='qh'?'bt_qh':'bt_cho')}</td><td></td><td class="c">${anh(r[11])}</td><td class="mut">${r[12]}</td></tr>`).join('');
+
+// B1
+const grp=(t,n,extra,open=true)=>`<tr class="gr${open?'':' gap'}"><td colspan="10"><span class="tog">${open?'▾':'▸'}</span>${t}<span class="cnt">${n}</span>${extra?`<span class="cnt" style="margin-left:16px">${extra}</span>`:''}</td></tr>`;
+const scRow=r=>`<tr class="row${r[6]==='xong'?' done':''}"><td class="ma">${r[0]}</td><td>${may(r[1],r[2])}</td><td title="${r[4]}">${r[3]}<span class="mn">${r[4]}</span></td><td>${lvl(r[5])}</td><td></td><td>${r[11]}</td><td>${r[7]}</td><td>${r[8]}</td><td class="c">${anh(r[9])}</td><td></td></tr>`;
+document.getElementById('b1').innerHTML=cols(['84px','260px','auto','124px','96px','140px','104px','112px','48px','172px'])+
+ th(['Mã','Máy','Chỗ hỏng','Mức độ','Máy dừng','Người báo','Hỏng lúc','Đã kéo dài',['Ảnh','c'],''])+
+ grp('Chờ tiếp nhận',2,'1 máy đang dừng')+
+ YC.filter(r=>r[10]==='cho_tn').map(r=>`<tr class="row"><td class="ma">${r[0]}</td><td>${may(r[1],r[2])}</td><td title="${r[4]}">${r[3]}<span class="mn">${r[4]}</span></td><td>${lvl(r[6])}</td><td>${r[5]?'<span class="red">Đang dừng</span>':''}</td><td>${r[7]}</td><td>${r[11]}</td><td>${r[5]?'15 phút':'5 giờ'}</td><td></td><td><span class="act"><button class="btn xs">Lập phiếu</button><button class="btn xs">Từ chối</button></span></td></tr>`).join('')+
+ grp('Đang sửa',2)+SC.filter(r=>r[6]==='dang_sua').map(scRow).join('')+
+ grp('Chờ vật tư',2)+SC.filter(r=>r[6]==='cho_vat_tu').map(scRow).join('')+
+ grp('Chờ sửa',3)+SC.filter(r=>r[6]==='cho_sua').map(scRow).join('')+
+ grp('Đã sửa xong',3,'',false)+grp('Từ chối',1,'',false);
+
+// B2
+const btRow=r=>`<tr class="row${r[13]==='xong'?' done':''}"><td class="ma">${r[0]}</td><td>${may(r[1],r[2])}</td><td>${r[3]}</td><td class="mut">${r[4]}</td><td>${r[5]}</td><td>${lech(r[6])}</td><td>${bar(r[7],r[8])}</td><td>${r[9]}</td><td class="c">${anh(r[11])}</td><td class="mut">${r[12]}</td></tr>`;
+const grp2=(t,n,open=true,cls='')=>`<tr class="gr${open?'':' gap'}"><td colspan="10"><span class="tog">${open?'▾':'▸'}</span><span class="${cls}">${t}</span><span class="cnt">${n}</span></td></tr>`;
+document.getElementById('b2').innerHTML=cols(['92px','260px','auto','86px','106px','110px','120px','140px','48px','96px'])+
+ th(['Mã','Máy','Việc bảo trì','Chu kỳ','Hạn làm','Trễ hoặc còn','Việc con','Người làm',['Ảnh','c'],'Ngày tạo'])+
+ grp2('Quá hạn',5,true,'red')+BT.filter(r=>r[13]==='qh').map(btRow).join('')+
+ grp2('Hôm nay',1)+BT.filter(r=>r[6]===0).map(btRow).join('')+
+ grp2('7 ngày tới',3)+BT.filter(r=>r[13]==='cho'&&r[6]<0).map(btRow).join('')+
+ grp2('Đã xong',4,false)+grp2('Đã hủy',1,false);
+
+// C1 theo máy
+const M=[
+ ['BE-03','Máy bế tự động Aoer 1500',true,'','YC-0005','Bàn nạp giấy','tb','07/10 21:15',1,'12/10/2026',''],
+ ['CM-01','Máy UV toàn phần',true,'SC-0001','','Nguồn đèn UV số 2','nt','05/10 08:00',0,'',''],
+ ['CAT-04','Máy cắt tờ Kyodo 132',true,'SC-0008','','Dao cắt chính','nt','04/10 09:10',2,'',''],
+ ['BE-01','Máy bế tự động Aoer 1050',false,'SC-0002','','Tấm cao su đỡ bế','tb','03/10 14:00',0,'07/10/2026','hn'],
+ ['DAN-02','Máy dán hộp mềm tự động lớn',false,'SC-0007','','Súng phun keo số 1','tb','06/10 08:00',1,'',''],
+ ['IN-02','Máy in 4 màu Mitsubishi 79×109',false,'SC-0003','','Lô nước số 3','tb','06/10 10:20',0,'28/09/2026','qh'],
+ ['IN-04','Máy in 6 màu Mitsubishi 72×102',false,'SC-0009','','Cụm cấp giấy (feeder)','tb','07/10 10:20',0,'11/12/2025','qh'],
+ ['BOI-02','Máy bồi sóng 1700',false,'SC-0004','','Băng tải cấp phôi','nhe','07/10 11:30',0,'',''],
+ ['DAN-01','Máy dán hộp tự động 800',false,'','YC-0004','Băng tải ra hộp','nhe','07/10 16:05',0,'',''],
+];
+document.getElementById('c1').innerHTML=cols(['260px','120px','96px','auto','124px','100px','170px','120px','160px'])+
+ th(['Máy','Tình trạng','Phiếu đang mở','Chỗ hỏng','Mức độ','Hỏng lúc','Yêu cầu chờ tiếp nhận',['Sửa trong 90 ngày','n'],'Bảo trì kế tiếp'])+
+ M.map(r=>`<tr class="row"><td>${may(r[0],r[1])}</td><td>${r[2]?'<span class="chip c-do"><i></i>Đang dừng</span>':'<span class="chip c-vang"><i></i>Chạy được</span>'}</td><td class="mut">${r[3]}</td><td>${r[5]}</td><td>${lvl(r[6])}</td><td>${r[7]}</td><td>${r[4]?`<span class="mut" style="margin-right:8px">${r[4]}</span><button class="btn xs">Lập phiếu</button>`:''}</td><td class="n">${r[8]||'<span class="mut3">0</span>'}</td><td>${r[10]==='qh'?`<span class="red">${r[9]} quá hạn</span>`:r[10]==='hn'?`<span class="orn">hôm nay</span>`:`<span class="mut">${r[9]}</span>`}</td></tr>`).join('');
+
+// C2 kế hoạch tuần: tuần 41 = 05–11/10
+const W=[['Tuần 40','28/9–4/10'],['Tuần 41','5–11/10'],['Tuần 42','12–18/10'],['Tuần 43','19–25/10'],['Tuần 44','26/10–1/11'],['Tuần 45','2–8/11']];
+const P=[
+ ['IN-04','Máy in 6 màu Mitsubishi 72×102','Bảo trì năm máy in','12 tháng','<span class="pc qh">PBT-0014</span>',['','','','','','']],
+ ['CM-03','Máy cán màng 1080 số 1','Bảo trì tháng máy cán','1 tháng','<span class="pc qh">PBT-0011</span>',['','','','','dk','']],
+ ['IN-02','Máy in 4 màu Mitsubishi 79×109','Bảo trì tuần máy in','1 tuần','',['<span class="pc qh">PBT-0006</span>','dk','dk','dk','dk','dk']],
+ ['IN-01','Máy in 2 màu Mitsubishi 72×102','Bảo trì tuần máy in','1 tuần','',['<span class="pc qh">PBT-0012</span>','dk','dk','dk','dk','dk']],
+ ['IN-01','Máy in 2 màu Mitsubishi 72×102','Bảo trì 3 tháng máy in','3 tháng','',['','<span class="pc qh">PBT-0013</span>','','','','']],
+ ['BE-01','Máy bế tự động Aoer 1050','Bảo trì tuần máy bế','1 tuần','',['','<span class="pc cho">PBT-0015</span>','dk','dk','dk','dk']],
+ ['IN-05','Máy in 5 màu Komori 72×102','Bảo trì tuần máy in','1 tuần','',['<span class="pc xong">PBT-0007</span>','<span class="pc cho">PBT-0016</span>','dk','dk','dk','dk']],
+ ['BOI-01','Máy bồi sóng 1450','Bảo trì tháng máy bồi','1 tháng','',['','<span class="pc cho">PBT-0017</span>','','','','dk']],
+ ['BE-03','Máy bế tự động Aoer 1500','Ngoài lịch','','',['','','<span class="pc cho">PBT-0018</span>','','','']],
+];
+document.getElementById('c2').innerHTML=cols(['250px','auto','76px','104px'].concat(W.map(()=> '108px')))+
+ `<tr><th>Máy</th><th>Việc bảo trì</th><th>Chu kỳ</th><th class="wk">Trễ từ trước</th>${W.map((w,i)=>`<th class="wk${i===1?' now':''}">${w[0]}<small>${w[1]}</small></th>`).join('')}</tr>`+
+ P.map(r=>`<tr class="row"><td>${may(r[0],r[1])}</td><td class="${r[2]==='Ngoài lịch'?'mut':''}">${r[2]}</td><td class="mut">${r[3]}</td><td class="wk">${r[4]}</td>${r[5].map((c,i)=>`<td class="wk${i===1?' now':''}">${c==='dk'?'<span class="pc dk">dự kiến</span>':c}</td>`).join('')}</tr>`).join('');
+</script>
+</body>
+</html>

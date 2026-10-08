@@ -11,6 +11,10 @@ export interface DagNodeCardProps {
   position: { x: number; y: number };
   isSelected: boolean;
   isConnecting: boolean;
+  /** Hiện chấm vàng "Chờ" ở mép trên: bước đang chờ bước LSX khác, hoặc đang kéo dây từ thẻ LSX
+   *  khác (chỗ thả). Dây chờ lệnh khác cắm vào đây, KHÔNG vào cổng Vào bên trái — cổng đó chỉ cho
+   *  vật liệu chảy trong lệnh này. */
+  congCho?: boolean;
   isHoveredPort: "in" | "out" | null;
   congDoanRefs: RefRow[] | null;
   toRefs: RefRow[] | null;
@@ -36,6 +40,7 @@ export function DagNodeCard({
   position,
   isSelected,
   isConnecting: _isConnecting,
+  congCho = false,
   isHoveredPort,
   congDoanRefs,
   toRefs,
@@ -82,6 +87,7 @@ export function DagNodeCard({
   else if (hasWarning) cardClass += " dag-node--has-warning";
 
   const seqNumber = (index + 1) * 10;
+  const ngoai = row.loai_buoc === "thue_ngoai";
 
   return (
     <div
@@ -107,6 +113,18 @@ export function DagNodeCard({
           onPortMouseUp(e, row.key, "in");
         }}
       />
+
+      {congCho && (
+        <div
+          className="dag-port dag-port--cho"
+          title="Chờ bước của lệnh khác — thả dây từ thẻ lệnh khác vào đây"
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => {
+            e.stopPropagation();
+            onPortMouseUp(e, row.key, "in");
+          }}
+        />
+      )}
 
       {/* Số món vật tư của bước — số ở GÓC thẻ, cùng kiểu số trong chip chuỗi bước ở tab Vật tư
           của lệnh. Nhìn cả chuỗi một lượt là biết bước nào ăn vật tư; bấm vào mở thẳng tab Vật tư. */}
@@ -141,7 +159,10 @@ export function DagNodeCard({
           /* Chip DÙNG CHUNG với bảng công đoạn và các màn xưởng (`ChipBuoc`) — thẻ DAG trước đây
              tự vẽ lại nhãn từ `LSX_LOAI_BUOC_META` nên bước thuê ngoài chưa điền nơi làm chỉ hiện
              chữ "Thuê ngoài" trống trơn, không ai biết còn thiếu gì. */
-          <ChipLoaiBuoc loai_buoc={row.loai_buoc} nha_cung_cap={row.nha_cung_cap} />
+          /* Thẻ chỉ rộng 240px: chip "Ngoài · <nhà gia công>" ở đầu thẻ đẩy tên bước về 0 rồi tràn
+             khỏi thẻ, mà kể cả chip ngắn "Thuê ngoài" cũng cắt tên bước còn vài chữ. Bước thuê
+             ngoài nói chuyện đó MỘT lần ở hàng nơi làm bên dưới (icon xe + tên nhà, màu thuê ngoài). */
+          !ngoai && <ChipLoaiBuoc loai_buoc={row.loai_buoc} nha_cung_cap={row.nha_cung_cap} />
         )}
         {/* Con dao của bước — thẻ DAG là chỗ người kế hoạch nhìn cả chuỗi một lượt, thiếu dao phải
             thấy ngay ở đây chứ không phải mở từng drawer. */}
@@ -184,12 +205,32 @@ export function DagNodeCard({
 
       {/* Body của Card */}
       <div className="dag-node__body">
-        {/* Tổ / Máy */}
+        {/* Tổ / Máy — bước thuê ngoài không có tổ trong xưởng: hàng này nói NƠI LÀM (nhà gia
+            công), "Chưa chọn tổ" ở đó là kêu thiếu một thứ không bao giờ phải điền. */}
         <div className="dag-node__row">
-          <span className="dag-node__badge">
-            <Icon name="users" size={11} />
-            {toTen ? `Tổ ${toTen}` : "Chưa chọn tổ"}
-          </span>
+          {ngoai ? (
+            <span
+              className={`dag-node__badge ${
+                row.nha_cung_cap_id == null ? "dag-node__badge--thieu" : "dag-node__badge--ngoai"
+              }`}
+              title={
+                row.nha_cung_cap_id != null
+                  ? `Thuê ngoài tại ${row.nha_cung_cap || "nhà đã chọn"}`
+                  : "Bước thuê ngoài chưa chọn nhà gia công"
+              }
+            >
+              <Icon name="truck" size={11} />
+              <span className="dag-node__badge-chu">
+                {row.nha_cung_cap_id != null ? row.nha_cung_cap || "Nhà đã chọn" : "Chưa chọn nhà gia công"}
+              </span>
+            </span>
+          ) : (
+            <span className="dag-node__badge">
+              <Icon name="users" size={11} />
+              {/* Danh mục đặt tên tổ đã kèm chữ "Tổ" ("Tổ Cán màng") — thêm tiền tố nữa thành "Tổ Tổ…". */}
+              {toTen ? (/^tổ\s/i.test(toTen) ? toTen : `Tổ ${toTen}`) : "Chưa chọn tổ"}
+            </span>
+          )}
           {mayTen && (
             <span className="dag-node__badge" title={`Máy: ${mayTen}`}>
               <Icon name="cpu" size={11} />

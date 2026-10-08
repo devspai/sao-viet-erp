@@ -528,6 +528,35 @@ def test_list_loc_trang_thai_nhap_da_tinh(client, auth_headers):
     assert all(it["so_thanh_phan"] > 0 for it in only_calc["items"])
 
 
+def test_list_dang_tinh_bao_gia_va_dong_cong(client, auth_headers):
+    """Tab Đang tính = có sản phẩm mà tổng giá vốn 0; danh sách kèm mã báo giá và Σ giá vốn theo bộ lọc."""
+    from app.models.phieu_tinh_gia import PhieuTinhGia
+    from app.models.quotation import Quote
+    giay_id, cd_id = _seed_catalog()
+    a = client.post("/api/phieu-tinh-gia", json={
+        "ten_san_pham": "Có giá", "so_luong": 1000, "thanh_phans": [_component(giay_id, cd_id)],
+    }, headers=auth_headers).json()
+    b = client.post("/api/phieu-tinh-gia", json={
+        "ten_san_pham": "Chưa ra giá", "so_luong": 1000, "thanh_phans": [_component(giay_id, cd_id)],
+    }, headers=auth_headers).json()
+    db = SessionLocal()
+    db.get(PhieuTinhGia, b["id"]).tong_gia_von = 0
+    db.add(Quote(quote_number="BG-T1", phieu_tinh_gia_id=a["id"], status="draft"))
+    db.commit()
+    tong = db.get(PhieuTinhGia, a["id"]).tong_gia_von
+    db.close()
+
+    st = client.get("/api/phieu-tinh-gia/stats", headers=auth_headers).json()
+    assert st["dang_tinh"] == 1 and st["calculated"] == 1
+    dang = client.get("/api/phieu-tinh-gia?status=dang_tinh", headers=auth_headers).json()
+    assert [it["id"] for it in dang["items"]] == [b["id"]]
+    tat_ca = client.get("/api/phieu-tinh-gia?size=1", headers=auth_headers).json()
+    assert tong > 0 and tat_ca["tong_gia_von"] == tong   # Σ cả bộ lọc, không chỉ trang 1 dòng
+    ca = client.get("/api/phieu-tinh-gia?size=200", headers=auth_headers).json()["items"]
+    bg = {it["id"]: it["bao_gia_ma"] for it in ca}
+    assert bg[a["id"]] == "BG-T1" and bg[b["id"]] is None
+
+
 def test_list_sap_xep_theo_so_luong(client, auth_headers):
     """sort=so_luong/-so_luong dùng ĐÚNG cột phái sinh (Σ SL sản phẩm, không phải SL đầu phiếu)."""
     giay_id, cd_id = _seed_catalog()
@@ -560,8 +589,10 @@ def test_stats_dem_doc_lap_voi_trang_hien_tai(client, auth_headers):
     stats = client.get("/api/phieu-tinh-gia/stats", headers=auth_headers).json()
     lst = client.get("/api/phieu-tinh-gia?size=200", headers=auth_headers).json()
     draft_count = sum(1 for it in lst["items"] if it["so_thanh_phan"] == 0)
-    calc_count = sum(1 for it in lst["items"] if it["so_thanh_phan"] > 0)
-    assert stats["all"] == lst["total"] == draft_count + calc_count
+    calc_count = sum(1 for it in lst["items"] if it["so_thanh_phan"] > 0 and it["tong_gia_von"] > 0)
+    dang_count = sum(1 for it in lst["items"] if it["so_thanh_phan"] > 0 and it["tong_gia_von"] <= 0)
+    assert stats["all"] == lst["total"] == draft_count + calc_count + dang_count
+    assert stats["dang_tinh"] == dang_count
     assert stats["draft"] == draft_count
     assert stats["calculated"] == calc_count
 

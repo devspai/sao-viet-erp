@@ -1,6 +1,6 @@
 // Nhãn trạng thái dùng chung của màn Giao hàng (tách từ pages/GiaoHangPage.tsx).
 export const NHAN_TRANG_THAI_YC: Record<string, string> = {
-  cho_len_ke_hoach: "Chờ lên kế hoạch",
+  cho_len_ke_hoach: "Chờ lên đơn",
   dang_thuc_hien: "Đang thực hiện",
   da_giao_du: "Đã giao đủ",
   giao_thieu: "Giao thiếu",

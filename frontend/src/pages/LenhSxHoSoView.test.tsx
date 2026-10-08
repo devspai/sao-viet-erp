@@ -143,7 +143,7 @@ const HOSO: LenhSxHoSoOut = {
     may_dung: true, nguoi_bao: "Thợ Nam", thoi_diem: "2026-09-02T03:30:00Z",
     trang_thai: "da_tao_phieu", ly_do_tu_choi: null,
     phieu: {
-      id: 8, ma: "SC26-0008", trang_thai: "dang_sua",
+      id: 8, ma: "SC26-0008", trang_thai: "cho_sua",
       nguyen_nhan_phuong_an: "Thay bánh cao su", hoan_thanh_at: null,
     },
   }],

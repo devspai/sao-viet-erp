@@ -264,21 +264,25 @@ export function LsxBuocDrawer({
     return nhomMayTheoLoai(mayChonDuoc(mayRefs, cd, row.may_id));
   }, [mayRefs, congDoanRefs, row.cong_doan_id, row.may_id]);
   // Ô TỔ: chỉ các tổ phụ trách khai ở danh mục Công đoạn (nhiều tổ, 18/09/2026), đúng thứ tự khai
-  // (tổ đầu = mặc định). Công đoạn chưa khai tổ ⇒ mời mọi tổ, như server không chặn. Tổ đang gán mà
-  // không còn phụ trách vẫn hiện (gắn nhãn) — bỏ nó khỏi danh sách là select nhảy về dòng trống.
+  // (tổ đầu = mặc định). Công đoạn chưa khai tổ ⇒ mời mọi tổ, như server không chặn.
+  // CHỈ nút lá (07/10/2026): `toRefs` là danh sách tổ = nút lá khối Sản xuất, id nào không nằm trong
+  // đó (nút cha, tổ đã xoá) thì không bày ra. Tổ đang gán là TỔ THẬT nhưng không còn phụ trách công
+  // đoạn thì vẫn hiện (gắn nhãn); bước đang gán nút cha thì select đứng ở "— chọn tổ —" — chỉ đổi khi
+  // người dùng chọn, nên không mất gì nếu họ không đụng.
   const toChon = useMemo(() => {
     if (!toRefs) return { items: [] as { id: number; ten: string }[], gioiHan: false };
     const cd = congDoanRefs?.find((c) => c.id === row.cong_doan_id) ?? null;
-    const ids = cd?.toChoPhep ?? [];
+    const ids = (cd?.toChoPhep ?? []).filter((id) => toRefs.some((t) => t.id === id));
     const items = ids.length
-      ? ids.map((id) => ({ id, ten: toRefs.find((t) => t.id === id)?.ten ?? `Tổ #${id} (đã xoá)` }))
+      ? ids.map((id) => ({ id, ten: toRefs.find((t) => t.id === id)!.ten }))
       : toRefs.map((t) => ({ id: t.id, ten: t.ten }));
-    if (row.department_id != null && !items.some((t) => t.id === row.department_id)) {
-      const ten = toRefs.find((t) => t.id === row.department_id)?.ten ?? row.department_ten ?? `Tổ #${row.department_id}`;
-      items.push({ id: row.department_id, ten: `${ten} (không còn phụ trách công đoạn)` });
+    const dangGan = toRefs.find((t) => t.id === row.department_id);
+    if (dangGan && !items.some((t) => t.id === dangGan.id)) {
+      items.push({ id: dangGan.id, ten: `${dangGan.ten} (không còn phụ trách công đoạn)` });
     }
     return { items, gioiHan: ids.length > 0 };
-  }, [toRefs, congDoanRefs, row.cong_doan_id, row.department_id, row.department_ten]);
+  }, [toRefs, congDoanRefs, row.cong_doan_id, row.department_id]);
+  const toDangGanHienDuoc = row.department_id != null && toChon.items.some((t) => t.id === row.department_id);
 
   // Đầu việc khoán của bước (`dsKhoan` / `khoanDaChon`) GỠ 18/09/2026 (mg `0320`).
   const mayDaChon = mayRefs?.find((m) => m.id === row.may_id);
@@ -787,11 +791,11 @@ export function LsxBuocDrawer({
                           <>
                             <select
                               className="khsx-select-std"
-                              value={row.department_id ?? ""}
+                              value={toDangGanHienDuoc ? (row.department_id ?? "") : ""}
                               disabled={!canUpdate}
                               onChange={(e) => onDoiTo(e.target.value ? Number(e.target.value) : null)}
                             >
-                              {row.department_id == null && <option value="">— chọn tổ —</option>}
+                              {!toDangGanHienDuoc && <option value="">— chọn tổ —</option>}
                               {toChon.items.map((t, i) => (
                                 <option key={t.id} value={t.id}>
                                   {toChon.gioiHan && i === 0 ? `${t.ten} (mặc định)` : t.ten}

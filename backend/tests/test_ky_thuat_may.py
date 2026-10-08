@@ -20,8 +20,8 @@ from app.models.ky_thuat_may import (
     LOAI_PHIEU_YEU_CAU,
     TT_BT_DA_HUY,
     TT_BT_HOAN_THANH,
+    TT_SC_CHO_SUA,
     TT_SC_DA_SUA_XONG,
-    TT_SC_DANG_SUA,
     TT_YC_CHO_TIEP_NHAN,
     TT_YC_DA_TAO_PHIEU,
     TT_YC_TU_CHOI,
@@ -433,8 +433,18 @@ def test_mo_lai_phieu_da_dong_thi_don_moc_hoan_thanh():
     _anh_sau(svc, LOAI_PHIEU_SUA_CHUA, phieu.id)
     svc.doi_trang_thai_sua_chua(phieu.id, TT_SC_DA_SUA_XONG)
 
-    phieu = svc.doi_trang_thai_sua_chua(phieu.id, TT_SC_DANG_SUA)
+    phieu = svc.doi_trang_thai_sua_chua(phieu.id, TT_SC_CHO_SUA)
     assert phieu.hoan_thanh_at is None and phieu.hoan_thanh_boi is None
+
+
+def test_sua_chua_chi_con_hai_trang_thai():
+    """"Đang sửa"/"Chờ vật tư" đã gỡ: máy chủ không nhận nữa, kể cả gọi thẳng API."""
+    db, svc = _svc()
+    may = _may(db, ma="CAN-01")
+    phieu = svc.tao_sua_chua({"may_id": may.id, "bo_phan_hong": "Trục cán"})
+    for tt in ("dang_sua", "cho_vat_tu"):
+        with pytest.raises(KyThuatMayValidationError):
+            svc.doi_trang_thai_sua_chua(phieu.id, tt)
 
 
 def test_khong_go_duoc_anh_chung_thuc_cua_phieu_da_dong():
@@ -858,6 +868,53 @@ def test_dem_tra_luon_so_qua_han_va_tuan_nay(client):
     assert dem["qua_han"] == 2          # -5, -1
     assert dem["den_hom_nay"] == 3      # -5, -1, 0
     assert dem["tuan_nay"] == 4         # thêm +3; +40 nằm ngoài
+
+
+def test_loc_hom_nay_va_7_ngay_toi_la_hai_lat_cua_can_lam(client):
+    """Hàng nút lọc màn Bảo trì: Quá hạn + Hôm nay + 7 ngày tới — ba lát KHÔNG chồng nhau của việc
+    còn dở. Lọc và đếm đều ở máy chủ, số trên nút phải khớp số dòng khi bấm vào."""
+    h = _headers(client)
+    may = client.post("/api/may-thiet-bi", json={"ma": "BE-04", "ten": "Bế 04",
+                                                "loai_may": "Bế"}, headers=h).json()
+    for lech in (-2, 0, 0, 1, 7, 8):
+        client.post("/api/ky-thuat-may/bao-tri",
+                    json={"may_id": may["id"], "loai": "dot_xuat",
+                          "ngay_ke_hoach": str(hom_nay_vn() + timedelta(days=lech))}, headers=h)
+
+    r = client.get("/api/ky-thuat-may/bao-tri?trang_thai=hom_nay&size=50", headers=h).json()
+    assert r["total"] == 2
+    r = client.get("/api/ky-thuat-may/bao-tri?trang_thai=sap_toi&size=50", headers=h).json()
+    assert r["total"] == 2              # +1, +7; +8 nằm ngoài, hôm nay không tính lại
+    dem = r["dem"]
+    assert dem["sap_toi"] == 2
+    assert dem["den_hom_nay"] - dem["qua_han"] == 2
+
+
+def test_yeu_cau_tra_ma_lenh_sx_dang_chay_luc_hong(client):
+    """Yêu cầu báo từ màn Thực hiện SX mang theo lệnh đang chạy — bảng yêu cầu hiện mã lệnh để tổ
+    sửa chữa biết máy đang cắm vào việc gì."""
+    from app.db import SessionLocal
+    from app.models.ky_thuat_may import YeuCauSuaChua
+    from app.models.lsx import Lsx
+    h = _headers(client)
+    may = client.post("/api/may-thiet-bi", json={"ma": "BE-05", "ten": "Bế 05",
+                                                "loai_may": "Bế"}, headers=h).json()
+    yc = client.post("/api/ky-thuat-may/yeu-cau",
+                     json={"may_id": may["id"], "bo_phan_hong": "Bàn nạp"}, headers=h).json()
+    db = SessionLocal()
+    try:
+        l = Lsx(ma="LSX26-0142", ten="", order_id=1, order_line_id=1)
+        db.add(l)
+        db.flush()
+        db.get(YeuCauSuaChua, yc["id"]).lsx_id = l.id
+        db.commit()
+    finally:
+        db.close()
+
+    items = client.get("/api/ky-thuat-may/yeu-cau?size=50", headers=h).json()["items"]
+    assert [i["lsx_ma"] for i in items if i["id"] == yc["id"]] == ["LSX26-0142"]
+    mot = client.get(f"/api/ky-thuat-may/yeu-cau/{yc['id']}", headers=h).json()
+    assert mot["lsx_ma"] == "LSX26-0142"
 
 
 def test_hom_nay_lay_theo_gio_VN_khong_phai_UTC():

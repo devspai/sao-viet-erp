@@ -381,3 +381,23 @@ def test_api_luoi_xuat_excel(client, db, customer):
     assert r.status_code == 200, r.text
     ws = load_workbook(BytesIO(r.content)).active
     assert ws["A2"].value == "LSX-A" and ws["N2"].value == "Cần mua" and ws["J2"].value == 500
+
+
+def test_yeu_cau_khong_gan_lenh_chi_goi_y_huy_khi_la_cho_lenh(db, svc, customer):
+    """08/10/2026: Mua tồn / Theo yêu cầu cố ý không gắn lệnh — lệnh hết thiếu không phải lý do huỷ.
+    Chỉ yêu cầu Cho lệnh SX mất liên kết mới vào danh sách nên huỷ."""
+    from app.models.purchase import LOAI_MUA_CHO_LSX, LOAI_MUA_THEO_YEU_CAU, LOAI_MUA_TON
+    from tests.test_ke_hoach_vat_tu import _ton
+
+    g = _giay(db)
+    _ton(db, g, 300)
+    a = _lenh(db, customer, ma="LSX-DU", giay_id=g.id, so_to_nguyen=100, han=MAI)
+    GiuChoService(db, svc).bat(lsx_id=a.id)  # giữ đủ từ tồn ⇒ không lệnh nào còn thiếu
+    for loai in (LOAI_MUA_TON, LOAI_MUA_THEO_YEU_CAU, LOAI_MUA_CHO_LSX):
+        yc, _ = _yc(db, _hang(g), [], so_luong=50)
+        yc.loai_mua = loai
+    db.commit()
+
+    luoi = _luoi(db, svc)
+    nen_huy = luoi["hang"][_o(luoi, a, g)["hang"]]["nen_huy"]
+    assert [n["yc_ma"] for n in nen_huy] == ["YCMH-3"]

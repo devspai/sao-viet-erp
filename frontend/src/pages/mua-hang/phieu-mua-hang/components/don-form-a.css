@@ -1,0 +1,68 @@
+/* Form lập / sửa đơn mua — bản A (mockup A4). Thân dùng `kna-*` + ô `ycf-*` của form yêu cầu. */
+.dfa-dau { display: flex; align-items: baseline; gap: 12px; }
+.dfa-dau h3 { margin: 0; font-size: var(--fs-md, 15px); }
+.dfa-the { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.dfa-ncc-dau { gap: 10px; }
+.dfa-av {
+  width: 28px; height: 28px; border-radius: 999px; display: inline-grid; place-items: center;
+  background: var(--tt-cam-bg); color: var(--tt-cam-fg); font-size: 11px; font-weight: 700; flex: none;
+}
+.dfa-ten { display: flex; align-items: flex-start; gap: 10px; }
+.dfa-yc { margin-left: 8px; font-size: 11.5px; }
+.dfa-ten > input[type="checkbox"] { margin-top: 3px; }
+.dfa-ncc select { height: 28px; font-size: var(--fs-xs); max-width: 300px; padding: 0 6px; }
+.dfa-tuy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.ycf-gi.dfa-gi { width: 100%; height: 30px; }
+.ycf-gi.dfa-gi--nho { width: 108px; height: 30px; }
+.dfa-vat { height: 30px; width: 72px; padding: 0 6px; }
+.dfa-duoi { font-size: var(--fs-xs); color: var(--ash-2); margin-top: 3px; }
+
+.dfa-cs { display: flex; flex-direction: column; gap: 6px; }
+.dfa-cs__nhom { display: flex; flex-direction: column; gap: 3px; padding-bottom: 8px; border-bottom: 1px solid var(--rule-hair); }
+.dfa-cs__nh, .dfa-cs__con, .dfa-cs__tong { display: flex; justify-content: space-between; gap: 12px; }
+.dfa-cs__nh span { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.dfa-cs__con { font-size: var(--fs-sm); color: var(--ash-2); padding-left: 10px; }
+.dfa-cs__tong { padding-top: 4px; font-size: var(--fs-md, 15px); }
+.dfa-cs--chan { margin-left: auto; width: min(100%, 320px); }
+
+/* Tab Đợt giao — mỗi đợt một thẻ (mockup A9b). */
+.dga-ds { display: flex; flex-direction: column; gap: 12px; }
+.dga-dau { flex-wrap: wrap; gap: 8px; }
+.dga-dau h3 { margin: 0; }
+.dga-nut { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.dga-anh { cursor: pointer; border: 0; font: inherit; }
+.dga-chan { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.dgd-hd { display: grid; grid-template-columns: 1fr 140px; gap: 6px; }
+
+/* Form tạo yêu cầu nhập xuất P2 — ô lệnh gọn dưới tên vật tư. */
+.tyc-lenh .kho-combo { min-width: 0 !important; }
+.tyc-lenh .kho-combo__input { height: 26px; font-size: var(--fs-xs); width: 170px; }
+.tyc-lenh--rong .kho-combo__input { width: 100%; height: 34px; font-size: var(--fs-sm); }
+
+/* Form lập đơn: bảng 5 cột cần chỗ hơn cột phải — thu cột phải còn 280px. */
+.kna-luoi.dfa-luoi { grid-template-columns: minmax(0, 1fr) 280px; }
+@container (max-width: 900px) { .kna-luoi.dfa-luoi { grid-template-columns: minmax(0, 1fr); } }
+.dfa-luoi .ycf-bang th, .dfa-luoi .ycf-bang td { padding-left: 10px; padding-right: 10px; }
+.dfa-luoi .dfa-vat { width: 62px; }
+.dfa-cs b, .dfa-cs .kna-so { white-space: nowrap; }
+
+/* Lệnh của từng dòng (form P2): chưa gắn = chữ mờ, bấm mới mở ô tìm; đã gắn = thẻ mã lệnh. */
+.tyc-lenh-the { font: inherit; font-size: var(--fs-xs); cursor: pointer; }
+.tyc-lenh-the--rong {
+  border: 0; background: none; padding: 2px 0; color: var(--ash-2);
+}
+.tyc-lenh-the--rong:hover { color: var(--ink); text-decoration: underline; }
+
+/* Cột phải 280px: chữ gợi ý cạnh tiêu đề thẻ ở cỡ 12px (như mockup P2) cho khỏi rớt xuống hàng riêng. */
+.dfa-luoi .kna-the__dau .dga-nut { font-size: 12px; }
+
+/* Bảng nhập theo lưới `lds-g` (08/10/2026) ở form lập đơn và hộp ghi đợt giao: ô nhập đứng ngang dòng tên
+   vật tư (cột Vật tư cao vì có khổ + chọn NCC). Cột cuối của form lập đơn là chữ Thành tiền, hạ xuống cho
+   ngang chữ trong ô nhập 30px. Dòng không vào đơn mờ đi (lưới `lds-g` tô --ink lên ô nên không thừa hưởng).
+   Ô nhập đứng ngang dòng tên: lớp `kna-tren` của bảng (kho-ngan-a.css). Bảng có `minWidth` (cột Vật tư không
+   bao giờ dưới ~200px): ngăn hẹp hơn thì khung bảng tự cuộn ngang. Menu thả xuống của ô chọn dựng qua portal
+   nên khung cuộn không cắt chúng. */
+.lds-bang.lds-bang--nhap.dfa-bang--tien .lds-g tbody td:last-child { padding-top: 14px; }
+.lds-bang.dfa-bang .lds-g tbody tr.kna-mo td { color: var(--ash-2); }
+.lds-bang.lds-bang--nhap.dfa-bang { overflow-x: auto; }
+.lds-bang.dfa-bang .ycf-gi { padding: 0 8px; }

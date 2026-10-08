@@ -1360,6 +1360,27 @@ select.input {
 .rdx-quote .badge.dark .d { background: var(--rust); }
 .rdx-quote .badge.signal { background: var(--signal-soft); color: var(--signal); }
 .rdx-quote .badge.signal .d { background: var(--signal); }
+/* Trạng thái phiếu — mỗi trạng thái một sắc từ bộ chip chung --tt-* (tokens.css). */
+.rdx-quote .badge.tt-slate { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
+.rdx-quote .badge.tt-slate .d { background: var(--tt-slate-dot); }
+.rdx-quote .badge.tt-vang { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.rdx-quote .badge.tt-vang .d { background: var(--tt-vang-dot); }
+.rdx-quote .badge.tt-xanh { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.rdx-quote .badge.tt-xanh .d { background: var(--tt-xanh-dot); }
+.rdx-quote .badge.tt-cyan { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); }
+.rdx-quote .badge.tt-cyan .d { background: var(--tt-cyan-dot); }
+.rdx-quote .badge.tt-la { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.rdx-quote .badge.tt-la .d { background: var(--tt-la-dot); }
+.rdx-quote .badge.tt-tim { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }
+.rdx-quote .badge.tt-tim .d { background: var(--tt-tim-dot); }
+.rdx-quote .badge.tt-ngoc { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); }
+.rdx-quote .badge.tt-ngoc .d { background: var(--tt-ngoc-dot); }
+.rdx-quote .badge.tt-cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.rdx-quote .badge.tt-cam .d { background: var(--tt-cam-dot); }
+.rdx-quote .badge.tt-do { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.rdx-quote .badge.tt-do .d { background: var(--tt-do-dot); }
+.rdx-quote .badge.tt-xam { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
+.rdx-quote .badge.tt-xam .d { background: var(--tt-xam-dot); }
 
 /* ---- Cards + tables (list & detail) ---------------------------------------- */
 /* `overflow-x: auto`: 6 cột không vừa khung hẹp — `hidden` thì cắt cụt cột Trạng thái/Cập nhật

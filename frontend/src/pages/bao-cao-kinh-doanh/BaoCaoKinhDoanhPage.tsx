@@ -161,7 +161,6 @@ export function BaoCaoKinhDoanhPage() {
       <header className="bckd__head">
         <div>
           <h1 className="bckd__title">Báo cáo kinh doanh</h1>
-          <p className="bckd__sub">Đơn đã chốt trong kỳ theo khách hàng, đơn hàng và mặt hàng</p>
         </div>
         <Button variant="ghost" onClick={() => void xuatExcel()} disabled={dangXuat || !data || khachHien.length === 0}>
           <Icon name="table" size={14} />{" "}

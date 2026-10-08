@@ -33,7 +33,7 @@ export function InvoiceDialog({
   async function submit() {
     if (!token || busy) return;
     if (chon.length === 0) {
-      setError("Chưa chọn đợt giao nào để gán hóa đơn.");
+      setError("Chưa chọn đợt giao nào để gán hoá đơn.");
       return;
     }
     setBusy(true);
@@ -48,7 +48,7 @@ export function InvoiceDialog({
       );
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Không gán được hóa đơn.",
+        err instanceof ApiError ? err.message : "Không gán được hoá đơn.",
       );
     } finally {
       setBusy(false);
@@ -58,9 +58,9 @@ export function InvoiceDialog({
   return (
     <ConfirmDialog
       open
-      title="Gán hóa đơn cho nhiều đợt"
-      message={`Phiếu ${row.code} — các đợt được chọn sẽ mang CÙNG một số hóa đơn. Để trống số hóa đơn là gỡ hóa đơn khỏi các đợt đó.`}
-      confirmLabel="Gán hóa đơn"
+      title="Gán hoá đơn cho nhiều đợt"
+      message={`Phiếu ${row.code} — các đợt được chọn sẽ mang CÙNG một số hoá đơn. Để trống số hoá đơn là gỡ hoá đơn khỏi các đợt đó.`}
+      confirmLabel="Gán hoá đơn"
       busy={busy}
       error={error}
       onConfirm={submit}
@@ -68,7 +68,7 @@ export function InvoiceDialog({
     >
       <div className="pdot__form">
         <label className="purchase__field">
-          <span>Số hóa đơn</span>
+          <span>Số hoá đơn</span>
           <input
             className="input"
             maxLength={64}
@@ -78,7 +78,7 @@ export function InvoiceDialog({
           />
         </label>
         <label className="purchase__field">
-          <span>Ngày hóa đơn</span>
+          <span>Ngày hoá đơn</span>
           <input
             className="input"
             type="date"
@@ -88,48 +88,55 @@ export function InvoiceDialog({
           />
         </label>
       </div>
-      <table className="pay-table">
-        <thead>
-          <tr>
-            {/* Cột ô chọn — `<th>` rỗng là ô câm với trình đọc màn hình, phải có `aria-label`. */}
-            <th aria-label="Chọn đợt giao" />
-            <th>Đợt</th>
-            <th>Ngày giao</th>
-            <th>Hóa đơn hiện tại</th>
-            <th className="pay-num">Thành tiền</th>
-          </tr>
-        </thead>
-        <tbody>
-          {row.deliveries.map((dot) => (
-            <tr key={dot.id}>
-              <td>
-                <input
-                  type="checkbox"
-                  aria-label={`Chọn đợt ${dot.seq_no}`}
-                  checked={chon.includes(dot.id)}
-                  onChange={(e) =>
-                    setChon((cur) =>
-                      e.target.checked
-                        ? [...cur, dot.id]
-                        : cur.filter((id) => id !== dot.id),
-                    )
-                  }
-                />
-              </td>
-              <td>
-                <strong>Đợt {dot.seq_no}</strong>
-              </td>
-              <td>{fmtDate(dot.delivery_date)}</td>
-              <td>
-                {dot.invoice_number ?? (
-                  <small className="pdot__muted">chưa gán</small>
-                )}
-              </td>
-              <td className="pay-num">{money(dot.amount)}</td>
+      <div className="lds-bang lds-bang--nhap">
+        <table className="lds-g">
+          <colgroup>
+            <col style={{ width: 40 }} />
+            <col style={{ width: 72 }} />
+            <col style={{ width: 92 }} />
+            <col />
+            <col style={{ width: 96 }} />
+          </colgroup>
+          <thead>
+            <tr>
+              {/* Cột ô chọn — `<th>` rỗng là ô câm với trình đọc màn hình, phải có `aria-label`. */}
+              <th className="lds-tick" aria-label="Chọn đợt giao" />
+              <th>Đợt</th>
+              <th>Ngày giao</th>
+              <th>Hoá đơn hiện tại</th>
+              <th className="n">Thành tiền</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {row.deliveries.map((dot) => (
+              <tr key={dot.id}>
+                <td className="lds-tick">
+                  <input
+                    type="checkbox"
+                    aria-label={`Chọn đợt ${dot.seq_no}`}
+                    checked={chon.includes(dot.id)}
+                    onChange={(e) =>
+                      setChon((cur) =>
+                        e.target.checked
+                          ? [...cur, dot.id]
+                          : cur.filter((id) => id !== dot.id),
+                      )
+                    }
+                  />
+                </td>
+                <td>Đợt {dot.seq_no}</td>
+                <td>{fmtDate(dot.delivery_date)}</td>
+                <td style={{ overflowWrap: "anywhere" }}>
+                  {dot.invoice_number ?? (
+                    <small className="pdot__muted">chưa gán</small>
+                  )}
+                </td>
+                <td className="n">{money(dot.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </ConfirmDialog>
   );
 }

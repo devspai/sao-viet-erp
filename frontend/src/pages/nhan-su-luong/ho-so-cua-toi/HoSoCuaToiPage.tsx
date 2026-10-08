@@ -47,7 +47,6 @@ import {
   GENDER_LABEL,
   PIT_MODE_LABEL,
   REQ_PAGE_SIZE,
-  STATUS_CLASS,
   STATUS_LABEL,
 } from "./shared/constants";
 import {
@@ -331,9 +330,11 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
   // Ngày hết thử việc nằm ở ô "Vào làm" ngay dưới — badge chỉ nói trạng thái.
   const badgeTrangThai = STATUS_LABEL[emp.status] ?? emp.status;
 
-  const statusBadgeClass = STATUS_CLASS[emp.status]
-    ? `mine__hero-badge--${emp.status === "active" ? "ok" : emp.status === "probation" ? "warn" : "muted"}`
-    : "mine__hero-badge--muted";
+  // Mỗi trạng thái một sắc (nền tối của hero): Đã nghỉ mới là xám.
+  const HERO_SAC: Record<string, string> = {
+    active: "ok", probation: "warn", probation_ended: "due", on_leave: "tim", suspended: "danger",
+  };
+  const statusBadgeClass = `mine__hero-badge--${HERO_SAC[emp.status] ?? "muted"}`;
   const statusDotClass = emp.status === "active" ? "mine__status-dot--active"
     : emp.status === "probation" ? "mine__status-dot--probation" : "";
 

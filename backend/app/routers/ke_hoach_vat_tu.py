@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import CurrentUser, get_purchase_service, require_permission
-from ..services.can_doi_cache import lay_hoac_tinh, xoa_cache_can_doi
+from ..services.can_doi_cache import bang_can_doi, lay_hoac_tinh, xoa_cache_can_doi
 from ..services import luoi_vat_tu
 from ..repositories.bai_ghep_repo import BaiGhepRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository
@@ -101,15 +101,10 @@ def can_doi(
     tinh_trang: Literal["thieu", "khong_ro", "du"] | None = Query(
         default=None, description="Tab: nhóm đang thiếu / chưa rõ đơn vị / đã đủ"),
 ) -> CanDoiOut:
-    def tinh() -> dict:
-        bang = svc.can_doi(q=q, chi_thieu=chi_thieu)
-        giu.gan_giu_cho_vao_bang(bang)
-        return CanDoiOut(**bang, so_giu_lau=giu.dem_giu_lau()).model_dump(mode="json")
-
     try:
         # Cache 45 giây theo (q, chi_thieu) — kết quả không phụ thuộc người gọi (xem
         # `services/can_doi_cache.py`); xoá sớm khi có `ke_hoach_vat_tu_thay_doi`/`lsx_changed`.
-        bang = lay_hoac_tinh(tinh, q=q or "", chi_thieu=bool(chi_thieu))
+        bang = bang_can_doi(svc, giu, q=q or "", chi_thieu=bool(chi_thieu))
     except KeHoachVatTuError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
     # Tab + điều kiện lọc chạy SAU cache: đổi tab không dựng lại bảng toàn xưởng.

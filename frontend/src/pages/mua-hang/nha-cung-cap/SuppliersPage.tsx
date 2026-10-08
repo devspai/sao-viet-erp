@@ -1,7 +1,7 @@
 // Màn NHÀ CUNG CẤP — shell (tách từ pages/SuppliersPage.tsx).
 // Giữ ở đây: state + `load()`/`loadAll()` + handlers (`taiFile` · `nhapExcel` · `openCreate` ·
 // `openEdit` · `closeDrawer` · `setSupplierItem` · `ghiQuyDoiDong` · `save` · `toggle`) + KHUNG
-// drawer `supplier-drawer` (đầu · 3 nút tab · <form> · chân) và chỗ mount ba tab.
+// ngăn `NganPhai` kiểu 3 (tên · 3 tab · <form> · cột thuộc tính · chân) và chỗ mount ba tab.
 // Lọc (06/10/2026): thanh lọc chung `ThanhLoc` — kỳ theo Ngày tạo + Trạng thái / Nhóm NCC / Số sao /
 // Nhận gia công, lọc ở máy chủ, ghi lên URL `?man=nha-cung-cap`. Dải pill nhóm cũ đã gỡ.
 import {
@@ -23,12 +23,17 @@ import {
   type SupplierTongQuan,
 } from "../../../api/client";
 import { useDebounced } from "../../../utils/useDebounced";
+import { RayThuocTinh } from "../../ke-toan/shared/LuoiGon";
+import { NganPhai, useDongNgan } from "../../ke-toan/shared/NganPhai";
 import { useAuth } from "../../../auth/useAuth";
 import { useKhiTickDoi } from "../../../hooks/useKhiTickDoi";
 import { useCan } from "../../../auth/permissions";
 import { Button } from "../../../components/Button";
-import { SuppliersTable } from "./components/SuppliersTable";
-import { SuppliersToolbar } from "./components/SuppliersToolbar";
+import { ChipTT, ChonCot, useCotAn, useThuTuCot, xepCot } from "../../../components/LuoiDs";
+import { Star } from "lucide-react";
+import { COT_NCC, SuppliersTable } from "./components/SuppliersTable";
+import { ttNcc } from "./shared/trang-thai-ncc";
+import { SuppliersToolbar, type TrangThaiNcc } from "./components/SuppliersToolbar";
 import { SupplierHistoryTab } from "./tabs/SupplierHistoryTab";
 import { SupplierInfoTab } from "./tabs/SupplierInfoTab";
 import { SupplierItemsTab } from "./tabs/SupplierItemsTab";
@@ -56,6 +61,10 @@ import {
 } from "./shared/helpers";
 import "../../master-data.css";
 import "../../purchase.css";
+import "../trang-thai-mua.css";
+// Vỏ `NganPhai` + cột thuộc tính `kt-ray` sống ở ke-toan.css — thiếu dòng này thì vào thẳng màn NCC
+// (chưa ghé màn kế toán nào) ngăn hiện trơ không kiểu.
+import "../../ke-toan/ke-toan.css";
 import "./tabs/ncc-form.css";
 
 const MOC_NCC: [string, string][] = [["tao", "Ngày tạo"]];
@@ -96,6 +105,10 @@ export function SuppliersPage({
   };
   const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocNcc(locMan.loc) });
   const [sort, setSort] = useState<SortNcc>("name");
+  // Cột ẩn/hiện và thứ tự cột người xem đã kéo — nhớ theo màn trên trình duyệt này.
+  const [cotAn, setCotAn] = useCotAn("nha-cung-cap");
+  const [thuTuCot, setThuTuCot] = useThuTuCot("nha-cung-cap");
+  const cotHien = xepCot(COT_NCC, thuTuCot).filter((c) => !cotAn.has(c.key));
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -117,6 +130,8 @@ export function SuppliersPage({
   const [mode, setMode] = useState<null | "create" | "edit">(null);
   const [selected, setSelected] = useState<SupplierRow | null>(null);
   const [form, setForm] = useState<SupplierInput>(emptySupplier());
+  // Bản lúc mở ngăn — khác bản đang gõ thì đóng ngăn phải hỏi trước (Esc, bấm ra ngoài, nút Huỷ).
+  const [formGoc, setFormGoc] = useState<SupplierInput | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"info" | "items" | "history">(
     "info",
@@ -263,21 +278,10 @@ export function SuppliersPage({
 
   const dieuKien = useMemo(() => dieuKienNcc(tongQuan), [tongQuan]);
 
-  // Metric stats — fallback về trang hiện tại khi tổng quan chưa tải xong
-  const stats = useMemo(() => {
-    if (tongQuan) {
-      return {
-        totalCount: tongQuan.tong,
-        activeCount: tongQuan.dang_hop_tac,
-        inactiveCount: tongQuan.tam_ngung,
-      };
-    }
-    return {
-      totalCount: total,
-      activeCount: rows.filter((s) => s.status === "active").length,
-      inactiveCount: rows.filter((s) => s.status === "inactive").length,
-    };
-  }, [tongQuan, rows, total]);
+  // Số trên dải lọc nhanh trạng thái — toàn danh mục, đếm ở máy chủ.
+  const dem = tongQuan
+    ? { tong: tongQuan.tong, dangHopTac: tongQuan.dang_hop_tac, tamNgung: tongQuan.tam_ngung }
+    : null;
 
   // Lịch sử PMH của NCC đang mở — nạp NGAY khi mở drawer, MỘT lần cho mỗi NCC (theo `id`).
   // Trước 27/09/2026 chỉ nạp khi bấm vào tab và nạp lại MỖI lần quay lại tab ⇒ lần nào cũng thấy
@@ -316,7 +320,9 @@ export function SuppliersPage({
 
   function openCreate() {
     setSelected(null);
-    setForm(emptySupplier());
+    const moi = emptySupplier();
+    setForm(moi);
+    setFormGoc(moi);
     setFormError(null);
     // Hệ số theo CHỈ SỐ dòng của NCC trước — không xoá là dòng i của NCC mới mượn số của NCC cũ.
     setQuyDoiDong({});
@@ -329,7 +335,9 @@ export function SuppliersPage({
 
   function openEdit(row: SupplierRow, initialTab: "info" | "items" | "history" = "info") {
     setSelected(row);
-    setForm(fromSupplier(row));
+    const goc = fromSupplier(row);
+    setForm(goc);
+    setFormGoc(goc);
     setFormError(null);
     // Hệ số theo CHỈ SỐ dòng của NCC trước — không xoá là dòng i của NCC mới mượn số của NCC cũ.
     setQuyDoiDong({});
@@ -511,11 +519,19 @@ export function SuppliersPage({
       );
     });
 
+  const coLoc = q.trim() !== "" || khoaLoc !== JSON.stringify({ ...thamSoKy(LOC_MAN_NCC_TRONG.ky), ...thamSoLocNcc(LOC_NCC_TRONG) });
+
   return (
-    <main className="md-page">
+    <main className="md-page mh-trang lds">
       <SuppliersToolbar
         q={q}
-        setQ={setQ}
+        onQ={(v) => {
+          setQ(v);
+          setPage(1);
+        }}
+        trangThai={(locMan.loc.trang_thai ?? "") as TrangThaiNcc}
+        onTrangThai={(v) => setLocMan({ ...locMan, loc: { ...locMan.loc, trang_thai: v || undefined } })}
+        dem={dem}
         boLoc={
           <ThanhLoc
             ky={locMan.ky}
@@ -526,289 +542,180 @@ export function SuppliersPage({
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
           />
         }
-        setPage={setPage}
-        load={load}
+        chonCot={<ChonCot cot={COT_NCC} an={cotAn} onAn={setCotAn} thuTu={thuTuCot} onThuTu={setThuTuCot} />}
         canCreate={canCreate}
         openCreate={openCreate}
-        stats={stats}
+        banner={
+          error && (
+            <div className="banner banner--error" role="alert">
+              {error}
+            </div>
+          )
+        }
       />
-
-      {error && (
-        <div className="banner banner--error" role="alert">
-          {error}
-        </div>
-      )}
 
       <SuppliersTable
         loading={loading}
         listError={listError}
         load={load}
         rows={rows}
-        canUpdate={canUpdate}
         openEdit={openEdit}
+        chonId={mode === "edit" ? (selected?.id ?? null) : null}
         sort={sort}
         setSort={setSort}
+        coLoc={coLoc}
+        onXoaLoc={() => {
+          setQ("");
+          setLocMan(LOC_MAN_NCC_TRONG);
+        }}
         total={total}
         page={page}
         setPage={setPage}
         size={size}
         onSize={doiCoTrang}
+        cotHien={cotHien}
       />
 
-      {/* Full Height Side Drawer (Replaces centered modal dialog) */}
+      {/* Ngăn kiểu 3 (08/10/2026, khuôn ngăn Phiếu thu): vỏ `NganPhai` chung — tên + nhãn trạng thái +
+          nhãn sao ở đầu, tab gạch dưới, thân trái là tab đang mở, cột phải là các số hay nhìn nhất
+          (trước là dải số liệu dưới tên). Cột phải đọc từ bản ĐÃ LƯU (`selected`), không chạy theo ô
+          đang gõ. NCC tạo mới chưa có gì để tóm ⇒ không có cột phải. */}
       {mode && (
-        <div
-          className="supplier-drawer-overlay"
-          role="presentation"
-          onClick={closeDrawer}
-        >
-          <div
-            className="supplier-drawer"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Đầu ngăn — phương án A (docs/mockups/ncc-3-phuong-an.html): tên + nhãn trạng thái +
-                nhãn đánh giá, dưới là dải số liệu hay nhìn nhất (khuôn Object Page của SAP Fiori).
-                Dải đọc từ bản ĐÃ LƯU (`selected`), không chạy theo ô đang gõ. Khối sao to ở đầu tab
-                Thông tin chung cũ đã gỡ: NCC chưa có đơn thì chỉ cần nhãn "Chưa chấm sao". */}
-            <div className={`supplier-drawer__head${selected && mode === "edit" ? " ncc-a-dau--co-so-lieu" : ""}`}>
-              <div className="supplier-drawer__head-info">
-                <h2>{mode === "edit" ? selected?.name : "Thêm nhà cung cấp mới"}</h2>
-                {mode === "edit" && selected && (
-                  <>
-                    <span
-                      className={`supplier__status-pill ${
-                        selected.status === "active"
-                          ? "supplier__status-pill--active"
-                          : "supplier__status-pill--inactive"
-                      }`}
-                    >
-                      <span
-                        className={`supplier__status-dot ${
-                          selected.status === "active"
-                            ? "supplier__status-dot--active"
-                            : "supplier__status-dot--inactive"
-                        }`}
-                      />
-                      {selected.status === "active" ? "Hoạt động" : "Tạm ngừng"}
-                    </span>
-                    <span
-                      className="ncc-a-dau__nhan"
-                      title={
-                        selected.rating === null
-                          ? "Điểm và tỷ lệ đúng hẹn tự tính sau khi đơn mua đầu tiên hoàn tất."
-                          : `Chấm trên ${selected.rating_count} đơn`
-                      }
-                    >
-                      {selected.rating === null
-                        ? "Chưa chấm sao"
-                        : `${selected.rating.toLocaleString("vi-VN", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} sao`}
-                    </span>
-                  </>
-                )}
-              </div>
-              <button
-                type="button"
-                className="md-page__close"
-                onClick={closeDrawer}
-                title="Đóng"
+        <NganPhai
+          duongDan="Nhà cung cấp"
+          tieuDe={<span className="ncc-k3-ten">{mode === "edit" ? selected?.name : "Thêm nhà cung cấp mới"}</span>}
+          the={mode === "edit" && selected ? (
+            <>
+              <ChipTT mau={ttNcc(selected.status).mau}>{ttNcc(selected.status).label}</ChipTT>
+              <span
+                className={`ncc-a-dau__nhan${selected.rating === null ? "" : " is-co"}`}
+                title={
+                  selected.rating === null
+                    ? "Điểm và tỷ lệ đúng hẹn tự tính sau khi đơn mua đầu tiên hoàn tất."
+                    : `Chấm trên ${selected.rating_count} đơn`
+                }
               >
-                ×
-              </button>
-            </div>
-            {mode === "edit" && selected && (
-              <div className="ncc-a-dau__so-lieu">
-                <div className="ncc-a-dau__muc">
-                  <span>Nhóm hàng</span>
-                  <b className={selected.supplier_group ? "" : "is-trong"}>{selected.supplier_group || "Chưa khai"}</b>
-                </div>
-                <div className="ncc-a-dau__muc">
-                  <span>Liên hệ</span>
-                  <b className={selected.contact_name ? "" : "is-trong"}>{selected.contact_name || "Chưa khai"}</b>
-                </div>
-                <div className="ncc-a-dau__muc">
-                  <span>Điện thoại</span>
-                  <b className={selected.phone ? "" : "is-trong"}>{selected.phone || "Chưa khai"}</b>
-                </div>
-                <div className="ncc-a-dau__muc">
-                  <span>Cho nợ</span>
-                  <b className={selected.credit_days ? "" : "is-trong"}>
-                    {selected.credit_days ? `${selected.credit_days} ngày` : "Chưa thỏa thuận"}
-                  </b>
-                </div>
-                <div className="ncc-a-dau__muc">
-                  <span>Mặt hàng báo giá</span>
-                  <b>{soMonDaKhai}</b>
-                </div>
-                {selected.rating !== null && selected.rating_count > 0 && (
-                  <div className="ncc-a-dau__muc">
-                    <span>Đúng hẹn</span>
-                    <b>
-                      {Math.round((selected.on_time_count / selected.rating_count) * 100)}% trên{" "}
-                      {selected.rating_count} đơn
-                    </b>
-                  </div>
-                )}
-                {selected.late_count > 0 && (
-                  <>
-                    <div className="ncc-a-dau__muc">
-                      <span>Đơn trễ hạn</span>
-                      <b>{selected.late_count} đơn</b>
-                    </div>
-                    <div className="ncc-a-dau__muc">
-                      <span>Trễ trung bình</span>
-                      <b>{soNgayVi(selected.avg_late_days)} ngày</b>
-                    </div>
-                  </>
-                )}
+                <Star size={13} strokeWidth={1.8} aria-hidden="true" />
+                {selected.rating === null
+                  ? "Chưa chấm sao"
+                  : selected.rating.toLocaleString("vi-VN", { maximumFractionDigits: 1, minimumFractionDigits: 1 })}
+              </span>
+            </>
+          ) : undefined}
+          // Tab không mang số đếm (luật chung): số mặt hàng ở cột phải, số đơn ở đầu tab Đơn mua.
+          tabs={[
+            { id: "info", nhan: "Thông tin chung" },
+            { id: "items", nhan: "Bảng giá vật tư" },
+            ...(mode === "edit" ? [{ id: "history", nhan: "Đơn mua" }] : []),
+          ]}
+          tab={activeTab}
+          onTab={(id) => setActiveTab(id as "info" | "items" | "history")}
+          onDong={closeDrawer}
+          chanDong={() => !saving && formGoc != null && JSON.stringify(form) !== JSON.stringify(formGoc)}
+          cot={mode === "edit" && selected ? (
+            <RayThuocTinh o={[
+              { nhan: "Nhóm hàng", giaTri: selected.supplier_group || <span className="kt-mo">Chưa khai</span> },
+              { nhan: "Liên hệ", giaTri: selected.contact_name || <span className="kt-mo">Chưa khai</span> },
+              { nhan: "Điện thoại", giaTri: selected.phone
+                  ? <a className="kt-lk" href={`tel:${selected.phone.replace(/\s+/g, "")}`}>{selected.phone}</a>
+                  : <span className="kt-mo">Chưa khai</span> },
+              { nhan: "Cho nợ", giaTri: selected.credit_days
+                  ? `${selected.credit_days} ngày`
+                  : <span className="kt-mo">Chưa thỏa thuận</span> },
+              { nhan: "Mặt hàng báo giá", giaTri: String(soMonDaKhai) },
+              { nhan: "Đúng hẹn", giaTri: selected.rating !== null && selected.rating_count > 0
+                  ? `${Math.round((selected.on_time_count / selected.rating_count) * 100)}% trên ${selected.rating_count} đơn`
+                  : null },
+              { nhan: "Đơn trễ hạn", giaTri: selected.late_count > 0 ? `${selected.late_count} đơn` : null },
+              { nhan: "Trễ trung bình", giaTri: selected.late_count > 0 ? `${soNgayVi(selected.avg_late_days)} ngày` : null },
+            ]} />
+          ) : undefined}
+          // Chân ngăn — đổi trạng thái hợp tác đứng TRÁI, tách khỏi cặp Huỷ/Lưu; chỉ hiện khi đang sửa
+          // một NCC có sẵn. Chữ đỏ chứ không phải khối đỏ đặc: Ngừng hợp tác cắt NCC khỏi mọi ô chọn
+          // phiếu mua nên vẫn phải đỏ, nhưng không được nổi hơn nút Lưu. Nút Lưu nằm ngoài <form>
+          // (chân ngăn là khối riêng của vỏ) nên gắn vào form bằng thuộc tính `form`.
+          chan={
+            <>
+              {mode === "edit" && selected && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={`ncc-a-chan__trang-thai${selected.status === "active" ? "" : " ncc-a-chan__trang-thai--mo"}`}
+                  onClick={() => toggle(selected)}
+                  disabled={saving}
+                  style={{ marginRight: "auto" }}
+                >
+                  {selected.status === "active" ? "Ngừng hợp tác" : "Mở lại hợp tác"}
+                </Button>
+              )}
+              <NutHuyNgan disabled={saving} />
+              <Button type="submit" form="ncc-form" variant="accent" loading={saving}>
+                Lưu
+              </Button>
+            </>
+          }
+        >
+          <form id="ncc-form" className="ncc-k3-form" onSubmit={save}>
+            {formError && (
+              <div className="banner banner--error" role="alert">
+                {formError}
               </div>
             )}
 
-            {/* Dải tab: bỏ số thứ tự "1. 2. 3." — không phải các bước phải làm lần lượt. */}
-            <div className="supplier-drawer__tabs">
-              <button
-                type="button"
-                className={`supplier-drawer__tab ${
-                  activeTab === "info" ? "supplier-drawer__tab--active" : ""
-                }`}
-                onClick={() => setActiveTab("info")}
-              >
-                Thông tin chung
-              </button>
+            {activeTab === "info" && (
+              <SupplierInfoTab
+                form={form}
+                setForm={setForm}
+                nhomGoiY={groupPills.map((g) => g.group)}
+              />
+            )}
 
-              <button
-                type="button"
-                className={`supplier-drawer__tab ${
-                  activeTab === "items" ? "supplier-drawer__tab--active" : ""
-                }`}
-                onClick={() => setActiveTab("items")}
-              >
-                Bảng giá vật tư
-                {soMonDaKhai > 0 && (
-                  <span className="supplier-tab-count">
-                    {soMonDaKhai}
-                  </span>
-                )}
-              </button>
+            {activeTab === "items" && (
+              <SupplierItemsTab
+                mode={mode}
+                selected={selected}
+                setForm={setForm}
+                itemsInForm={itemsInForm}
+                soMonDaKhai={soMonDaKhai}
+                filteredFormItems={filteredFormItems}
+                itemSearchQ={itemSearchQ}
+                setItemSearchQ={setItemSearchQ}
+                setSupplierItem={setSupplierItem}
+                quyDoiDong={quyDoiDong}
+                ghiQuyDoiDong={ghiQuyDoiDong}
+                fileVatTuRef={fileVatTuRef}
+                nhapDang={nhapDang}
+                nhapKetQua={nhapKetQua}
+                setNhapKetQua={setNhapKetQua}
+                nhapExcel={nhapExcel}
+                taiFile={taiFile}
+              />
+            )}
 
-              {mode === "edit" && (
-                <button
-                  type="button"
-                  className={`supplier-drawer__tab ${
-                    activeTab === "history"
-                      ? "supplier-drawer__tab--active"
-                      : ""
-                  }`}
-                  onClick={() => setActiveTab("history")}
-                >
-                  Lịch sử mua hàng
-                  {poTotal > 0 && (
-                    <span className="supplier-tab-count">
-                      {poTotal}
-                    </span>
-                  )}
-                </button>
-              )}
-            </div>
-
-            {/* Drawer Form Content */}
-            {/* `flex: 1` thay cho `height: calc(100% - 120px)`: chiều cao đầu ngăn đổi theo dải số
-                liệu, trừ cứng 120px là đẩy chân ngăn tụt khỏi mép dưới màn hình. */}
-            <form
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                flex: "1 1 auto",
-                minHeight: 0,
-              }}
-              onSubmit={save}
-            >
-              <div className="supplier-drawer__body">
-                {formError && (
-                  <div className="banner banner--error" role="alert">
-                    {formError}
-                  </div>
-                )}
-
-                {/* TAB 1: Thông tin chung & Pháp lý */}
-                {activeTab === "info" && (
-                  <SupplierInfoTab
-                    form={form}
-                    setForm={setForm}
-                    nhomGoiY={groupPills.map((g) => g.group)}
-                  />
-                )}
-
-                {/* TAB 2: Bảng giá mặt hàng vật tư */}
-                {activeTab === "items" && (
-                  <SupplierItemsTab
-                    mode={mode}
-                    selected={selected}
-                    setForm={setForm}
-                    itemsInForm={itemsInForm}
-                    soMonDaKhai={soMonDaKhai}
-                    filteredFormItems={filteredFormItems}
-                    itemSearchQ={itemSearchQ}
-                    setItemSearchQ={setItemSearchQ}
-                    setSupplierItem={setSupplierItem}
-                    quyDoiDong={quyDoiDong}
-                    ghiQuyDoiDong={ghiQuyDoiDong}
-                    fileVatTuRef={fileVatTuRef}
-                    nhapDang={nhapDang}
-                    nhapKetQua={nhapKetQua}
-                    setNhapKetQua={setNhapKetQua}
-                    nhapExcel={nhapExcel}
-                    taiFile={taiFile}
-                  />
-                )}
-
-                {/* TAB 3: Lịch sử Mua hàng (PMH) */}
-                {activeTab === "history" && (
-                  <SupplierHistoryTab
-                    mode={mode}
-                    selected={selected}
-                    poList={poList}
-                    poTotal={poTotal}
-                    poLoading={poLoading}
-                    poError={poError}
-                  />
-                )}
-              </div>
-
-              {/* Chân ngăn — đổi trạng thái hợp tác đứng TRÁI, tách khỏi cặp Huỷ/Lưu; chỉ hiện khi đang
-                  sửa một NCC có sẵn. `type="button"` vì nằm trong <form>. Chữ đỏ chứ không phải khối
-                  đỏ đặc: Ngừng hợp tác cắt NCC khỏi mọi ô chọn phiếu mua nên vẫn phải đỏ, nhưng không
-                  được nổi hơn nút Lưu. */}
-              <div className="supplier-drawer__foot">
-                {mode === "edit" && selected && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className={`ncc-a-chan__trang-thai${selected.status === "active" ? "" : " ncc-a-chan__trang-thai--mo"}`}
-                    onClick={() => toggle(selected)}
-                    disabled={saving}
-                    style={{ marginRight: "auto" }}
-                  >
-                    {selected.status === "active" ? "Ngừng hợp tác" : "Mở lại hợp tác"}
-                  </Button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={closeDrawer}
-                  disabled={saving}
-                >
-                  Huỷ
-                </button>
-                <Button type="submit" variant="accent" loading={saving}>
-                  Lưu
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
+            {activeTab === "history" && (
+              <SupplierHistoryTab
+                mode={mode}
+                selected={selected}
+                poList={poList}
+                poTotal={poTotal}
+                poLoading={poLoading}
+                poError={poError}
+              />
+            )}
+          </form>
+        </NganPhai>
       )}
     </main>
+  );
+}
+
+/** Nút Huỷ ở chân ngăn: đóng qua vỏ ngăn — đang gõ dở thì vỏ hỏi trước khi bỏ. */
+function NutHuyNgan({ disabled }: { disabled: boolean }) {
+  const dong = useDongNgan();
+  return (
+    <button type="button" className="btn btn--ghost" onClick={dong} disabled={disabled}
+      style={{ marginLeft: "auto" }}>
+      Huỷ
+    </button>
   );
 }

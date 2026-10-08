@@ -6,9 +6,9 @@
  *  khoá của danh sách yêu cầu mang tiền tố (`yc_ky`, `yc_pb`…) để không đè khoá của danh sách đơn.
  */
 import { useEffect, useState } from "react";
-import { Building2, Package, UserRound } from "lucide-react";
+import { Building2, Package, Target, UserRound } from "lucide-react";
 
-import { api, type ThamSoLoc } from "../../../api/client";
+import { api, type LoaiMua, type ThamSoLoc } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import type { GiaTriUrl } from "../../ke-toan/shared/urlMan";
 import { kyLenUrl, kyTuUrl, soLenUrl, soTuUrl, type KyDS } from "../../thanh-loc/ky-danh-sach";
@@ -22,7 +22,22 @@ export type LocYeuCau = {
   nguoi?: number;
   /** Mặt hàng danh mục, khoá `hang_loai:hang_id` (vd `giay:12`). */
   mat_hang?: string;
+  /** Mua cho: Cho lệnh SX / Tồn kho / Theo yêu cầu (loại mua, 08/10/2026). Rỗng = bỏ trống khoá. */
+  mua_cho?: LoaiMua[];
 };
+
+/** Ba giá trị của điều kiện "Mua cho" — dùng chung cho danh sách yêu cầu và danh sách đơn mua. */
+export const GIA_TRI_MUA_CHO: { value: LoaiMua; nhan: string }[] = [
+  { value: "cho_lsx", nhan: "Cho lệnh SX" },
+  { value: "mua_ton", nhan: "Tồn kho" },
+  { value: "theo_yeu_cau", nhan: "Theo yêu cầu" },
+];
+
+/** Đọc `a,b` trên URL thành danh sách loại mua hợp lệ; rỗng ⇒ undefined. */
+export function muaChoTuUrl(raw: string | null): LoaiMua[] | undefined {
+  const ds = (raw ?? "").split(",").filter((x): x is LoaiMua => GIA_TRI_MUA_CHO.some((g) => g.value === x));
+  return ds.length ? ds : undefined;
+}
 
 export type LocManYeuCau = { ky: KyDS; loc: LocYeuCau };
 
@@ -31,7 +46,10 @@ export const LOC_MAN_YC_TRONG: LocManYeuCau = { ky: { loai: "tat_ca", moc: "tao"
 const MA_MAT_HANG = /^[a-z_]+:\d+$/;
 
 export function thamSoLocYeuCau(loc: LocYeuCau): ThamSoLoc {
-  return { phong_ban: loc.phong_ban, nguoi_yeu_cau: loc.nguoi, mat_hang: loc.mat_hang };
+  return {
+    phong_ban: loc.phong_ban, nguoi_yeu_cau: loc.nguoi, mat_hang: loc.mat_hang,
+    loai_mua: loc.mua_cho?.length ? loc.mua_cho : undefined,
+  };
 }
 
 /** Phần query của một danh sách: bỏ tiền tố khỏi khoá (khoá không mang tiền tố thì bỏ qua). */
@@ -58,6 +76,7 @@ export function locManYeuCauTuUrl(goc: URLSearchParams, tienTo = ""): LocManYeuC
       phong_ban: soTuUrl(p.get("pb")),
       nguoi: soTuUrl(p.get("nyc")),
       mat_hang: mh && MA_MAT_HANG.test(mh) ? mh : undefined,
+      mua_cho: muaChoTuUrl(p.get("mc")),
     },
   };
 }
@@ -69,6 +88,7 @@ export function locManYeuCauLenUrl(t: LocManYeuCau, tienTo = ""): GiaTriUrl {
       pb: soLenUrl(t.loc.phong_ban),
       nyc: soLenUrl(t.loc.nguoi),
       mh: t.loc.mat_hang,
+      mc: t.loc.mua_cho?.length ? t.loc.mua_cho.join(",") : undefined,
     },
     tienTo,
   );
@@ -97,6 +117,11 @@ export function useDieuKienYeuCau(): DieuKien<LocYeuCau>[] {
   const nguoi = useLuaChonLoc(api.departmentPurchaseRequests.locNguoiYeuCau);
   const matHang = useMatHangLoc();
   return [
+    {
+      khoa: "mc", nhan: "Mua cho", icon: Target, kieu: "nhieu", giaTri: GIA_TRI_MUA_CHO,
+      doc: (l) => l.mua_cho ?? [],
+      ghi: (l, v) => ({ ...l, mua_cho: v.length ? (v as LoaiMua[]) : undefined }),
+    },
     {
       khoa: "phong_ban", nhan: "Phòng ban", icon: Building2, kieu: "mot", tim: true, giaTri: phongBan,
       doc: (l) => idThanhChu(l.phong_ban),

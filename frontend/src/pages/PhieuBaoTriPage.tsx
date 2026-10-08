@@ -9,23 +9,34 @@
 //
 // Đóng phiếu có HAI cửa, cả hai chặn ở service: đủ ảnh chứng thực VÀ hết việc trong checklist
 // (việc không phải làm thì đánh "không áp dụng" kèm lý do, đừng tick dối).
-import { useCallback, useEffect, useState } from "react";
+//
+// Bố cục (07/10/2026): danh sách theo khuôn lưới chung `LuoiDs` của Báo giá; ngăn chi tiết theo
+// phương án A2 của docs/mockups/ky-thuat-may-ngan-3-phuong-an.html; "Thêm việc ngoài lịch" là hộp
+// thoại giữa màn.
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { EmptyRow } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
+import {
+  ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot,
+  type CotLuoi, type MauTT,
+} from "../components/LuoiDs";
 import { mayThietBi, type Row } from "../api/rebuildCatalog";
 import {
-  kyThuatMay, NHAN_DON_VI_CHU_KY, NHAN_TT_BAO_TRI, TT_BAO_TRI,
-  type BaoTri, type DuKien,
+  kyThuatMay, NHAN_DON_VI_CHU_KY, NHAN_TT_BAO_TRI,
+  type Anh, type BaoTri, type DuKien,
 } from "../api/kyThuatMay";
 import { trangHopLe } from "../components/Pager";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useTre } from "../lib/useTre";
-import { AnhBox, BadgeBaoTri, NhatKyPhieu, fmtNgay, homNay, useManHep } from "./KyThuatMayChung";
-import type { Anh } from "../api/kyThuatMay";
+import {
+  AnhBox, BadgeBaoTri, CotPhieu, DongTT, HopThoai, NhatKyPhieu, ONhap, fmtNgay, hienChuDu, homNay, useManHep,
+} from "./KyThuatMayChung";
 import { LichBaoTri } from "./LichBaoTri";
+import { NganPhai } from "./ke-toan/shared/NganPhai";
 import { ThanhLoc } from "./thanh-loc/ThanhLoc";
 import { dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
 import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
@@ -36,6 +47,7 @@ import {
   useDieuKienBaoTri, type LocBaoTri,
 } from "./loc-ky-thuat-may/dieu-kien-ky-thuat-may";
 import "./rebuild-catalog.css";
+import "./ke-toan/ke-toan.css";
 import "./ky-thuat-may.css";
 
 // Kỳ + bộ lọc của chế độ Bảng, ghi lên URL `?man=`. Mốc MẶC ĐỊNH là Ngày kế hoạch (thay ô lọc
@@ -48,10 +60,47 @@ const docLocMan = (p: URLSearchParams): LocMan => ({
 });
 const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "ke_hoach"), ...locBaoTriLenUrl(t.loc) });
 
+interface Cot extends CotLuoi { w?: number; c?: boolean; title?: string }
+
+/** Cột lưới, xếp theo nhóm nghĩa: Mã, Ngày, Máy, Việc, Hạn, Việc con, Trạng thái, Ảnh, Người. Bề rộng
+ *  đủ cho chữ thật — tổng vượt khung thì lưới cuộn ngang như Báo giá, không ép cột hẹp rồi cắt "…".
+ *  Người làm là cột co giãn cuối. */
+const COT_BT: Cot[] = [
+  { key: "ma", label: "Mã phiếu", coDinh: true, w: 110 },
+  { key: "ngay", label: "Ngày tạo", w: 110 },
+  { key: "may", label: "Máy", w: 270 },
+  { key: "viec", label: "Việc bảo trì", w: 270 },
+  { key: "han", label: "Hạn làm", w: 190 },
+  { key: "vc", label: "Việc con", w: 120, title: "Việc con đã làm hoặc đánh không áp dụng, trên tổng số" },
+  { key: "tt", label: "Trạng thái", w: 120 },
+  { key: "anh", label: "Ảnh", w: 60, c: true },
+  { key: "nguoi", label: "Người làm", title: "Người bấm xác nhận đã bảo trì xong" },
+];
+
 function chuKyChu(p: BaoTri): string {
-  if (!p.chu_ky_so) return p.loai === "dot_xuat" ? "Đột xuất" : "—";
-  return `mỗi ${Number(p.chu_ky_so)} ${NHAN_DON_VI_CHU_KY[p.chu_ky_don_vi ?? ""] ?? p.chu_ky_don_vi ?? ""}`;
+  if (!p.chu_ky_so) return p.loai === "dot_xuat" ? "Ngoài lịch" : "—";
+  return `${Number(p.chu_ky_so)} ${NHAN_DON_VI_CHU_KY[p.chu_ky_don_vi ?? ""] ?? p.chu_ky_don_vi ?? ""}`;
 }
+
+/** Khoảng cách tới hạn: phiếu còn dở thì trễ/còn bao nhiêu ngày; đã xong thì ngày xong; đã hủy thì
+ *  nói là đã hủy (lý do ở tooltip). Tính theo ngày lịch của máy người dùng — cùng gốc với `homNay()`. */
+function soVoiHan(p: BaoTri): { chu: string; kieu: "tre" | "nay" | "con" | "nhat" } {
+  if (p.trang_thai === "hoan_thanh") return { chu: p.ngay_hoan_thanh ? `xong ${ngayDayDu(p.ngay_hoan_thanh)}` : "đã xong", kieu: "nhat" };
+  if (p.trang_thai === "da_huy") return { chu: "đã hủy", kieu: "nhat" };
+  const han = new Date(`${p.ngay_ke_hoach}T00:00:00`).getTime();
+  const nay = new Date(`${homNay()}T00:00:00`).getTime();
+  const lech = Math.round((han - nay) / 86400000);
+  if (lech < 0) return { chu: `trễ ${-lech} ngày`, kieu: "tre" };
+  if (lech === 0) return { chu: "hôm nay", kieu: "nay" };
+  return { chu: `còn ${lech} ngày`, kieu: "con" };
+}
+
+const tenViec = (r: BaoTri) => r.goi_ten ?? (r.loai === "dot_xuat" ? "Bảo trì ngoài lịch" : "—");
+
+/** Màu chấm của từng nút lọc nhanh. */
+const MAU_LOC: Record<string, MauTT> = {
+  can_lam: "vang", qua_han: "do", hom_nay: "cam", sap_toi: "xanh", hoan_thanh: "la", da_huy: "xam",
+};
 
 export function PhieuBaoTriPage() {
   const { token } = useAuth();
@@ -68,6 +117,9 @@ export function PhieuBaoTriPage() {
   const [size, setSize] = useState(25);
   const [locMan, setLocMan] = useLocMan("phieu-bao-tri", LOC_MAN_TRONG, docLocMan, ghiLocMan);
   const dieuKien = useDieuKienBaoTri();
+  const [cotAn, setCotAn] = useCotAn("phieu-bao-tri");
+  const [thuTu, setThuTu] = useThuTuCot("phieu-bao-tri");
+  const cotHien = xepCot(COT_BT, thuTu).filter((c) => !cotAn.has(c.key));
   const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocBaoTri(locMan.loc) });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,18 +131,17 @@ export function PhieuBaoTriPage() {
   const [mo, setMo] = useState<BaoTri | "new" | null>(null);
   const [may, setMay] = useState<Row[]>([]);
   const [loiMay, setLoiMay] = useState<string | null>(null);
-  // Mặc định mở ra là LỊCH: câu hỏi đầu tiên của thợ luôn là "hôm nay/tuần này phải làm gì", không
-  // phải "có bao nhiêu phiếu". Bảng giữ lại cho việc tìm kiếm + lọc theo tab.
-  const [xem, setXem] = useState<"lich" | "bang">("lich");
+  // Mặc định mở ra là BẢNG (user chốt 08/10/2026): đồng bộ mọi màn danh sách khác; Lịch là nút
+  // chuyển ngay cạnh tiêu đề.
+  const [xem, setXem] = useState<"lich" | "bang">("bang");
   const [thang, setThang] = useState(() => new Date());
   const [lichTick, setLichTick] = useState(0);   // đổi ⇒ lịch nạp lại (sau khi tạo/sửa/xoá phiếu)
   const [duKienMo, setDuKienMo] = useState<DuKien | null>(null);
 
   // Lọc + tìm kiếm + phân trang đều gửi LÊN SERVER. Lọc trên mảng đã tải chỉ lọc được trang đang
-  // xem, mà con số trên tab thì đếm ở DB ⇒ hai chỗ nói hai kiểu.
+  // xem, mà con số trên nút lọc thì đếm ở DB ⇒ hai chỗ nói hai kiểu.
   const load = useCallback(() => {
-    // Đang ở view LỊCH thì bảng đang bị ẩn — mà Lịch là view mặc định, gọi API của bảng ở đây là
-    // mỗi lần mở màn tốn thêm một request không ai nhìn. Số trên tiêu đề đọc từ `tomTat`.
+    // Đang ở view LỊCH thì bảng đang bị ẩn — gọi API của bảng ở đây là tốn một request không ai nhìn.
     if (!token || xem !== "bang") return;
     setLoading(true);
     kyThuatMay.listBaoTri(token, {
@@ -111,7 +162,7 @@ export function PhieuBaoTriPage() {
 
   useEffect(load, [load]);
 
-  // Danh mục máy chỉ dùng cho ô "Chọn máy" lúc LẬP PHIẾU ĐỘT XUẤT ⇒ nạp lười. Trước đây gọi ngay
+  // Danh mục máy chỉ dùng cho ô "Máy" lúc THÊM VIỆC NGOÀI LỊCH ⇒ nạp lười. Trước đây gọi ngay
   // khi mở màn: 200 máy kèm cả túi JSON thông số của từng cái, tải về rồi phần lớn không ai dùng.
   useEffect(() => {
     if (!token || mo !== "new" || may.length > 0) return;
@@ -121,103 +172,138 @@ export function PhieuBaoTriPage() {
       .catch((e) => setLoiMay(e instanceof Error ? e.message : "Không tải được danh mục máy."));
   }, [token, mo, may.length]);
 
-  // Dải tóm tắt đầu màn nói chuyện TOÀN XƯỞNG nên phải hỏi riêng, KHÔNG dùng `dem` của danh sách:
-  // `dem` đi theo bộ lọc đang xem, lọc tháng 3 thì "cần làm hôm nay" sẽ ra 0 và nhìn như hỏng.
-  // `size=1` để chỉ lấy phần đếm.
+  // Số trên nút lọc ở chế độ Lịch nói chuyện TOÀN XƯỞNG nên hỏi riêng, KHÔNG dùng `dem` của danh
+  // sách: `dem` đi theo bộ lọc đang xem. `size=1` để chỉ lấy phần đếm.
   useEffect(() => {
     if (!token) return;
     kyThuatMay.listBaoTri(token, { size: 1 })
       .then((r) => setTomTat(r.dem ?? {}))
       .catch(() => {});
-    // KHÔNG phụ thuộc `tab`/bộ lọc: ba con số này là toàn xưởng, đổi tab không làm chúng đổi —
-    // để `tab` vào đây là mỗi cú bấm tab lại bắn thêm một request không đổi kết quả.
   }, [token, lichTick]);
-
-  // `rows` giờ CHÍNH LÀ trang server trả về — không lọc lại lần nữa ở đây.
-  const hien = rows;
-
-  // Số trên tab: đếm ở DB theo ĐÚNG bộ lọc đang xem (`dem`), không phải đếm trang hiện tại.
-  const soCanLam = dem.cho_thuc_hien ?? 0;
-  // Tiêu đề "N phiếu" nói chuyện toàn xưởng nên đọc `tomTat`; view Lịch không gọi API danh sách
-  // nên `dem` ở đó còn rỗng.
-  // Gồm cả `da_huy`: tab "Tất cả" khi bấm trả về mọi trạng thái (kể cả đã hủy), nên con số phải
-  // khớp số dòng — và headline "N phiếu" bằng đúng tab Tất cả.
-  const tongTatCa = (tomTat.cho_thuc_hien ?? 0) + (tomTat.hoan_thanh ?? 0) + (tomTat.da_huy ?? 0);
-  const tongTheoLoc = soCanLam + (dem.hoan_thanh ?? 0) + (dem.da_huy ?? 0);
-  // `qua_han` phụ thuộc NGÀY nên backend đếm sẵn và trả kèm — trước đây FE phải bịa mẹo "chỉ hiện
-  // số khi đang đứng ở chính tab đó".
-  const soQuaHan = dem.qua_han ?? 0;
 
   // Đổi bộ lọc thì về trang 1: đứng ở trang 5 rồi lọc còn 2 trang là bảng trống trơn không rõ vì sao.
   const doiLoc = (fn: () => void) => { fn(); setPage(1); };
   const datLoc = (t: LocMan) => doiLoc(() => setLocMan(t));
-  // Trạng thái trong nút Lọc = chính hàng tab (đọc/ghi `tab`, về trang 1 như bấm tab).
+  // Nút đếm toàn xưởng ⇒ bấm từ Lịch thì bỏ kỳ + điều kiện để bảng khớp đúng con số vừa bấm.
+  const boLoc = () => setLocMan({ ...LOC_MAN_TRONG, ky: { loai: "tat_ca", moc: locMan.ky.moc } });
+
+  // Nút lọc nhanh hiện ở CẢ hai chế độ: ở Lịch thì đếm toàn xưởng (`tomTat`), bấm vào là sang Bảng
+  // đã lọc sẵn; ở Bảng thì đếm theo bộ lọc đang xem (`dem`). Quá hạn + Hôm nay + 7 ngày tới là ba
+  // lát KHÔNG chồng nhau của Chưa làm. Bảng chưa nạp lượt đầu thì mượn số toàn xưởng.
+  const nguon = xem === "bang" && Object.keys(dem).length > 0 ? dem : tomTat;
+  const quaHanN = nguon.qua_han ?? 0;
+  const tabs = [
+    { id: "all", nhan: "Tất cả", so: (nguon.cho_thuc_hien ?? 0) + (nguon.hoan_thanh ?? 0) + (nguon.da_huy ?? 0) },
+    { id: "can_lam", nhan: "Chưa làm", so: nguon.cho_thuc_hien ?? 0 },
+    { id: "qua_han", nhan: "Quá hạn", so: quaHanN },
+    { id: "hom_nay", nhan: "Hôm nay", so: (nguon.den_hom_nay ?? 0) - quaHanN },
+    { id: "sap_toi", nhan: "7 ngày tới", so: nguon.sap_toi ?? 0 },
+    { id: "hoan_thanh", nhan: NHAN_TT_BAO_TRI.hoan_thanh, so: nguon.hoan_thanh ?? 0 },
+    { id: "da_huy", nhan: NHAN_TT_BAO_TRI.da_huy, so: nguon.da_huy ?? 0 },
+  ];
+  const tongTatCa = (tomTat.cho_thuc_hien ?? 0) + (tomTat.hoan_thanh ?? 0) + (tomTat.da_huy ?? 0);
+  const chonLoc = (id: string) => {
+    if (xem === "bang") { doiLoc(() => setTab(id)); return; }
+    setXem("bang");
+    doiLoc(() => { setTab(id); boLoc(); });
+  };
+  // Trạng thái trong nút Lọc = chính hàng lọc nhanh (đọc/ghi `tab`, về trang 1 như bấm nút).
   const dkDu: DieuKien<LocBaoTri>[] = [
     dkTheoTab<LocBaoTri>({
-      tabs: [
-        { id: "can_lam", nhan: "Cần làm", so: soCanLam },
-        { id: "all", nhan: "Tất cả", so: tongTheoLoc },
-        ...TT_BAO_TRI.map((tt) => ({ id: tt, nhan: NHAN_TT_BAO_TRI[tt], so: dem[tt] ?? 0 })),
-        { id: "qua_han", nhan: "Quá hạn", so: soQuaHan },
-      ],
-      tatCa: "all", dang: tab, dat: (id) => doiLoc(() => setTab(id)),
+      tabs, tatCa: "all", dang: tab, dat: (id) => doiLoc(() => setTab(id)), anKhoi: true,
     }),
     ...dieuKien,
   ];
-  // Ô tóm tắt đếm TOÀN XƯỞNG ⇒ bấm vào thì bỏ kỳ + điều kiện để bảng khớp đúng con số vừa bấm.
-  const boLoc = () => setLocMan({ ...LOC_MAN_TRONG, ky: { loai: "tat_ca", moc: locMan.ky.moc } });
+
+  const xoaLoc = () => doiLoc(() => { setQ(""); setTab("all"); setLocMan(LOC_MAN_TRONG); });
+  const rong = tongTatCa === 0 ? (
+    <>
+      Chưa có phiếu nào. Mở chế độ Lịch: kỳ bảo trì sắp tới hiện mờ ở đúng ngày, bấm vào là tạo phiếu.{" "}
+      <button type="button" className="lds-lk" onClick={() => setXem("lich")}>Mở lịch bảo trì</button>
+    </>
+  ) : (
+    <>Không có phiếu nào khớp bộ lọc. <button type="button" className="lds-lk" onClick={xoaLoc}>Xoá bộ lọc</button></>
+  );
+
+  const o = (r: BaoTri, key: string): ReactNode => {
+    switch (key) {
+      case "ma": return r.ma;
+      case "may": return <>{r.may_ma ?? "—"}{r.may_ten && <span className="ktm-phu">{r.may_ten}</span>}</>;
+      case "viec": return (
+        <span title={tenViec(r)}>
+          {tenViec(r)}
+          {r.loai !== "dot_xuat" && <span className="lds-tag">{chuKyChu(r)}</span>}
+        </span>
+      );
+      // Hạn + khoảng cách tới hạn chung một ô; "trễ N ngày" màu đỏ ĐÃ là dấu quá hạn nên chip trạng
+      // thái không nhắc "Quá hạn" lần nữa.
+      case "han": {
+        const han = soVoiHan(r);
+        const chu = [
+          r.da_doi ? `Đã dời, hạn ban đầu ${fmtNgay(r.ngay_ke_hoach_goc)}` : "",
+          r.trang_thai === "da_huy" ? (r.ly_do_huy ?? "") : "",
+        ].filter(Boolean).join("\n");
+        return (
+          <span title={chu || undefined}>
+            {ngayDayDu(r.ngay_ke_hoach)}
+            <span className={`ktm-phu ktm-han--${han.kieu}`}>{han.chu}</span>
+          </span>
+        );
+      }
+      // Việc đánh "không áp dụng" cũng tính là đã xử lý — nó mở được cửa đóng phiếu, nên cột phải
+      // đếm, không thì phiếu đủ điều kiện xong mà cột vẫn hiện 3/4.
+      case "vc": {
+        const hm = r.hang_muc ?? [];
+        if (hm.length === 0) return <span className="lds-mu3">không có</span>;
+        const xong = hm.filter((h) => h.xong || h.bo_qua).length;
+        return (
+          <span className="ktm-viec">
+            <span className="ktm-viec__vach"><span style={{ width: `${Math.round((xong / hm.length) * 100)}%` }} /></span>
+            {xong}/{hm.length}
+          </span>
+        );
+      }
+      case "tt": return <BadgeBaoTri trangThai={r.trang_thai} />;
+      case "anh": return r.so_anh > 0 ? String(r.so_anh) : "";
+      case "ngay": return <span className="lds-mu" title={ngayGioDayDu(r.created_at)}>{ngayDayDu(r.created_at)}</span>;
+      case "nguoi": return r.nguoi_thuc_hien ?? "";
+      default: return null;
+    }
+  };
 
   return (
-    <div className="rc ktm">
-      <div className="rc__head">
-        <div className="rc__headrow">
-          <h1 className="rc__title">Phiếu bảo trì</h1>
-          <span className="rc__count">{tongTatCa} phiếu</span>
-        </div>
-
-        {/* Câu hỏi đầu tiên của thợ mỗi sáng là "hôm nay phải làm gì", không phải "có bao nhiêu
-            phiếu". Ba con số này đếm TOÀN XƯỞNG, bấm vào là mở bảng đã lọc sẵn. */}
-        <div className="ktm-tomtat" role="group" aria-label="Việc cần làm">
-          <button type="button"
-            className={`ktm-tomtat__o${(tomTat.den_hom_nay ?? 0) > 0 ? " is-co-viec" : ""}`}
-            onClick={() => { setXem("bang"); doiLoc(() => { setTab("can_lam"); boLoc(); }); }}>
-            <span className="ktm-tomtat__so">{tomTat.den_hom_nay ?? 0}</span>
-            <span className="ktm-tomtat__nhan"><Icon name="clock" size={13} /> Cần làm hôm nay</span>
-          </button>
-          <button type="button"
-            className={`ktm-tomtat__o${(tomTat.qua_han ?? 0) > 0 ? " is-tre" : ""}`}
-            onClick={() => { setXem("bang"); doiLoc(() => { setTab("qua_han"); boLoc(); }); }}>
-            <span className="ktm-tomtat__so">{tomTat.qua_han ?? 0}</span>
-            <span className="ktm-tomtat__nhan"><Icon name="alert" size={13} /> Quá hạn</span>
-          </button>
-          <button type="button" className="ktm-tomtat__o"
-            onClick={() => { setXem("lich"); setThang(new Date()); }}>
-            <span className="ktm-tomtat__so">{tomTat.tuan_nay ?? 0}</span>
-            <span className="ktm-tomtat__nhan"><Icon name="calendar" size={13} /> Trong 7 ngày tới</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="rc__unified-bar tl-thanh">
-        {/* Chuyển chế độ xem đứng ĐẦU thanh: nó đổi cả màn hình bên dưới, nấp ở góc phải thì
-            người ta không tìm ra. */}
+    <div className="ktm lds">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Phiếu bảo trì</h1>
+        {/* Chuyển chế độ xem đứng cạnh tên màn: nó đổi cả màn hình bên dưới. */}
         <div className="ktm-xem" role="group" aria-label="Chế độ xem">
           <button type="button" className={`ktm-xem__nut${xem === "lich" ? " is-active" : ""}`}
-            onClick={() => setXem("lich")}>
+            aria-pressed={xem === "lich"} onClick={() => setXem("lich")}>
             <Icon name="calendar" size={14} /> Lịch
           </button>
           <button type="button" className={`ktm-xem__nut${xem === "bang" ? " is-active" : ""}`}
-            onClick={() => setXem("bang")}>
+            aria-pressed={xem === "bang"} onClick={() => setXem("bang")}>
             <Icon name="table" size={14} /> Bảng
           </button>
         </div>
+        {/* Chỉ còn MỘT cách tạo phiếu định kỳ: bấm ô kỳ dự kiến trên màn Lịch. Nút dưới đây chỉ để
+            lập phiếu NGOÀI LỊCH. */}
+        <div className="lds-dau__nut">
+          {taoDuoc && (
+            <Button variant="accent" onClick={() => setMo("new")}>
+              <Icon name="plus" size={15} /> Thêm việc ngoài lịch
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <section className="lds-loc">
+        <LocNhanhTrangThai dang={xem === "bang" ? tab : ""} onChon={chonLoc}
+          muc={tabs.map((t) => ({ key: t.id, label: t.nhan, count: t.so, mau: MAU_LOC[t.id] }))} />
         {xem === "bang" && (
-          <>
-            <div className="rc__search-wrapper">
-              <Icon name="search" size={15} />
-              <input className="rc__search" placeholder="Tìm mã phiếu, máy, gói bảo trì…"
-                value={q} onChange={(e) => doiLoc(() => setQ(e.target.value))} />
-            </div>
+          <div className="lds-loc__thanh tl-thanh" role="search">
+            <OTim value={q} onChange={(v) => doiLoc(() => setQ(v))}
+              placeholder="Tìm mã phiếu, máy, việc" ariaLabel="Tìm phiếu bảo trì" />
             <ThanhLoc
               ky={locMan.ky}
               moc={MOC_BAO_TRI}
@@ -226,24 +312,16 @@ export function PhieuBaoTriPage() {
               loc={locMan.loc}
               onLoc={(loc) => datLoc({ ...locMan, loc })}
             />
-          </>
+            {/* Điện thoại hiện thẻ chứ không hiện lưới nên không có cột để ẩn. */}
+            {!hepMan && <ChonCot cot={COT_BT} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />}
+          </div>
         )}
-        <div className="rc__unified-right" style={{ marginLeft: "auto" }}>
-          {/* Chỉ còn MỘT cách tạo phiếu định kỳ: bấm ô kỳ dự kiến trên màn Lịch. Nút "Sinh phiếu
-              từ lịch" (quét mọi máy, đẻ hàng loạt) đã gỡ 12/08/2026 — một cú bấm ra 41 phiếu không
-              ai đặt hàng. Nút dưới đây chỉ để lập phiếu ĐỘT XUẤT. */}
-          {taoDuoc && (
-            <Button variant="accent" onClick={() => setMo("new")}>
-              <Icon name="plus" size={15} /> Tạo phiếu đột xuất
-            </Button>
-          )}
-        </div>
-      </div>
+      </section>
 
       {error && (
-        <div className="banner banner--error" role="alert" style={{ marginBottom: "var(--sp-4)" }}>
+        <div className="banner banner--error" role="alert">
           <span>{error}</span>
-          <button type="button" className="btn btn--ghost" onClick={load}>Tải lại</button>
+          <button type="button" className="lds-lk" onClick={load}>Tải lại</button>
         </div>
       )}
 
@@ -255,235 +333,106 @@ export function PhieuBaoTriPage() {
           onMoPhieu={(p) => setMo(p)}
           onTaoTuDuKien={(d) => setDuKienMo(d)}
         />
-      ) : (
+      ) : hepMan ? (
+        // Điện thoại: mỗi phiếu là một THẺ, giữ nguyên mọi thông tin của lưới.
         <>
-      <div className="rc__tabs">
-        <button className={`rc__tab${tab === "can_lam" ? " is-active" : ""}`}
-          onClick={() => doiLoc(() => setTab("can_lam"))}>
-          Cần làm <span className="rc__tabn">{soCanLam}</span>
-        </button>
-        <button className={`rc__tab${tab === "all" ? " is-active" : ""}`}
-          onClick={() => doiLoc(() => setTab("all"))}>
-          Tất cả <span className="rc__tabn">{tongTheoLoc}</span>
-        </button>
-        {TT_BAO_TRI.map((tt) => (
-          <button key={tt} className={`rc__tab${tab === tt ? " is-active" : ""}`}
-            onClick={() => doiLoc(() => setTab(tt))}>
-            {NHAN_TT_BAO_TRI[tt]} <span className="rc__tabn">{dem[tt] ?? 0}</span>
-          </button>
-        ))}
-        {/* Tab dẫn xuất, lọc Ở SERVER; số cũng do server đếm kèm (`dem.qua_han`) nên luôn có, kể
-            cả khi đang đứng ở tab khác. */}
-        <button className={`rc__tab${tab === "qua_han" ? " is-active" : ""}${soQuaHan > 0 ? " is-qua-han" : ""}`}
-          onClick={() => doiLoc(() => setTab("qua_han"))}>
-          Quá hạn <span className="rc__tabn">{soQuaHan}</span>
-        </button>
-      </div>
-
-      {/* Điện thoại: bỏ bảng 7 cột (mỗi cột còn ~50px, chữ vỡ vụn) — mỗi phiếu là một THẺ, giữ
-          nguyên mọi thông tin của bảng kể cả số ảnh (thứ quyết định phiếu đóng được hay không). */}
-      {hepMan ? (
-        <div className="ktm-the-ds">
-          {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <div key={`sk-${i}`} className="ktm-the is-skel">
-                <span className="rc-skel" style={{ width: "45%" }} />
-                <span className="rc-skel" style={{ width: "75%" }} />
-                <span className="rc-skel" style={{ width: "60%" }} />
-              </div>
-            ))
-          ) : hien.length === 0 ? (
-            <div className="rc__empty-state">
-              <p className="rc__empty-text">
-                {tongTatCa === 0
-                  ? "Chưa có phiếu nào. Mở chế độ Lịch: kỳ bảo trì sắp tới hiện mờ ở đúng ngày, bấm vào là tạo phiếu."
-                  : "Không có phiếu nào khớp bộ lọc."}
-              </p>
-              <Button variant="ghost" onClick={() => (tongTatCa === 0
-                ? setXem("lich")
-                : doiLoc(() => { setQ(""); setTab("all"); setLocMan(LOC_MAN_TRONG); }))}>
-                {tongTatCa === 0 ? <><Icon name="calendar" size={15} /> Mở lịch bảo trì</> : "Xoá bộ lọc"}
-              </Button>
-            </div>
-          ) : hien.map((r) => {
-            const xong = (r.hang_muc ?? []).filter((h) => h.xong || h.bo_qua).length;
-            const tong = (r.hang_muc ?? []).length;
-            return (
-              <button key={r.id} type="button"
-                className={`ktm-the ktm-the--${r.qua_han ? "qua" : r.trang_thai}`}
-                onClick={() => setMo(r)}>
-                <span className="ktm-the__dau">
-                  <span className="rc__code-badge ktm-ma">{r.ma}</span>
-                  <BadgeBaoTri trangThai={r.trang_thai} quaHan={r.qua_han} />
-                </span>
-                <span className="ktm-the__than">
-                  <span className="ktm-may-badge">{r.may_ma ?? "—"}</span>
-                  <strong className="ktm-the__goi">
-                    {r.goi_ten ?? (r.loai === "dot_xuat" ? "Bảo trì đột xuất" : "—")}
-                  </strong>
-                </span>
-                <span className="ktm-the__meta">
-                  <span><Icon name="calendar" size={12} /> {fmtNgay(r.ngay_ke_hoach)}</span>
-                  {tong > 0 && <span>{xong}/{tong} việc</span>}
-                  <span className={r.so_anh > 0 ? "ktm-anhchip is-du" : "ktm-anhchip is-thieu"}>
-                    <Icon name="camera" size={11} /> {r.so_anh} ảnh
-                  </span>
-                  {r.nguoi_thuc_hien && <span>{r.nguoi_thuc_hien}</span>}
-                  <span title={ngayGioDayDu(r.created_at)}>Tạo {ngayDayDu(r.created_at)}</span>
-                </span>
-                {r.da_doi && (
-                  <span className="ktm-doi-chip">
-                    <Icon name="history" size={12} /> Dời từ {fmtNgay(r.ngay_ke_hoach_goc)}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      ) : (
-      <div className="rc__tablewrap">
-        <table className="rc__table">
-          <thead>
-            <tr>
-              <th style={{ width: "12%" }}>Mã phiếu</th>
-              <th style={{ width: "15%" }}>Máy</th>
-              <th>Gói bảo trì</th>
-              <th style={{ width: "12%" }}>Ngày kế hoạch</th>
-              <th style={{ width: "14%" }}>Người thực hiện</th>
-              <th style={{ width: "12%" }}>Trạng thái</th>
-              <th style={{ width: "9%" }}>Ngày tạo</th>
-              <th style={{ width: "9%" }} className="text-center">Ảnh</th>
-            </tr>
-          </thead>
-          <tbody>
+          <div className="ktm-the-ds">
             {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`sk-${i}`} className="rc-skel__row">
-                  {Array.from({ length: 8 }).map((__, j) => (
-                    <td key={j}><span className="rc-skel" style={{ width: "70%" }} /></td>
-                  ))}
-                </tr>
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={`sk-${i}`} className="ktm-the is-skel">
+                  <span className="rc-skel" style={{ width: "45%" }} />
+                  <span className="rc-skel" style={{ width: "75%" }} />
+                  <span className="rc-skel" style={{ width: "60%" }} />
+                </div>
               ))
-            ) : hien.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="rc__empty-state-td">
-                  <div className="rc__empty-state">
-                    {/* Cùng cỡ/nét với màn danh mục — bảng rỗng không hình nhìn như lỗi render. */}
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="rc__empty-icon">
-                      <rect x="3" y="4" width="18" height="18" rx="2"/>
-                      <path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/>
-                    </svg>
-                    <p className="rc__empty-text">
-                      {tongTatCa === 0
-                        ? "Chưa có phiếu nào. Chuyển sang chế độ Lịch: các kỳ bảo trì sắp tới hiện mờ ở đúng ngày của nó, bấm vào là tạo phiếu."
-                        : "Không có phiếu nào khớp bộ lọc."}
-                    </p>
-                    {tongTatCa === 0 ? (
-                      <Button variant="ghost" onClick={() => setXem("lich")}>
-                        <Icon name="calendar" size={15} /> Mở lịch bảo trì
-                      </Button>
-                    ) : (
-                      <Button variant="ghost" onClick={() => doiLoc(() => { setQ(""); setTab("all"); setLocMan(LOC_MAN_TRONG); })}>
-                        Xoá bộ lọc
-                      </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ) : hien.map((r) => {
-              // Việc đánh "không áp dụng" cũng tính là đã xử lý — nó mở được cửa đóng phiếu, nên
-              // thanh tiến độ phải đếm, không thì phiếu đủ điều kiện xong mà cột vẫn hiện 3/4.
+            ) : rows.length === 0 ? <p className="ktm-the-rong">{rong}</p> : rows.map((r) => {
               const xong = (r.hang_muc ?? []).filter((h) => h.xong || h.bo_qua).length;
               const tong = (r.hang_muc ?? []).length;
-              const pct = tong > 0 ? Math.round((xong / tong) * 100) : 0;
+              const han = soVoiHan(r);
               return (
-                <tr key={r.id} className="rc__row" onClick={() => setMo(r)}>
-                  <td className="rc__mono rc__nowrap">
-                    <span className="rc__code-badge ktm-ma">{r.ma}</span>
-                    {r.loai === "dot_xuat" ? (
-                      <span className="ktm-tag-dotxuat"><Icon name="zap" size={11} /> Đột xuất</span>
-                    ) : (
-                      <div className="ktm-phu">{chuKyChu(r)}</div>
-                    )}
-                  </td>
-                  <td className="rc__name">
+                <button key={r.id} type="button" className="ktm-the" onClick={() => setMo(r)}>
+                  <span className="ktm-the__dau">
+                    <span className="ktm-ma">{r.ma}</span>
+                    <BadgeBaoTri trangThai={r.trang_thai} />
+                  </span>
+                  <span className="ktm-the__than">
                     <span className="ktm-may-badge">{r.may_ma ?? "—"}</span>
-                    <div className="ktm-phu">{r.may_ten ?? ""}</div>
-                  </td>
-                  <td>
-                    <strong className="ktm-goi-title">{r.goi_ten ?? (r.loai === "dot_xuat" ? "Bảo trì đột xuất" : "—")}</strong>
-                    {tong > 0 ? (
-                      <div className="ktm-progress-wrap" title={`${xong}/${tong} việc checklist đã hoàn thành`}>
-                        <div className="ktm-progress-bar">
-                          <div
-                            className={`ktm-progress-fill${pct === 100 ? " is-full" : ""}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="ktm-progress-text">{xong}/{tong} ({pct}%)</span>
-                      </div>
-                    ) : (
-                      <div className="ktm-phu-sub">Không có checklist</div>
-                    )}
-                  </td>
-                  <td className="rc__nowrap">
-                    <div className="ktm-ngay-kh">{fmtNgay(r.ngay_ke_hoach)}</div>
-                    {r.da_doi && (
-                      <div className="ktm-doi-chip" title={`Ngày kế hoạch ban đầu: ${fmtNgay(r.ngay_ke_hoach_goc)}`}>
-                        <Icon name="history" size={12} /> Dời từ {fmtNgay(r.ngay_ke_hoach_goc)}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    {r.nguoi_thuc_hien ? (
-                      <span className="ktm-user-pill">
-                        <Icon name="users" size={13} /> {r.nguoi_thuc_hien}
-                      </span>
-                    ) : (
-                      <span className="ktm-phu-cho">— Chờ làm</span>
-                    )}
-                  </td>
-                  <td>
-                    <BadgeBaoTri trangThai={r.trang_thai} quaHan={r.qua_han} />
-                  </td>
-                  <td className="rc__nowrap" title={ngayGioDayDu(r.created_at)}>{ngayDayDu(r.created_at)}</td>
-                  <td className="text-center rc__nowrap">
-                    {r.so_anh > 0 ? (
-                      <span className="ktm-anhchip is-du" title={`${r.so_anh} ảnh minh chứng đã tải`}>
-                        <Icon name="camera" size={12} /> {r.so_anh} ảnh
-                      </span>
-                    ) : (
-                      <span className="ktm-anhchip is-thieu" title="Cần có ít nhất 1 ảnh chứng thực mới xác nhận hoàn thành phiếu">
-                        <Icon name="camera" size={12} /> 0 ảnh
-                      </span>
-                    )}
-                  </td>
-                </tr>
+                    <span className="ktm-the__goi">{tenViec(r)}</span>
+                  </span>
+                  <span className="ktm-the__meta">
+                    <span>Hạn {fmtNgay(r.ngay_ke_hoach)}</span>
+                    <span className={`ktm-han--${han.kieu}`}>{han.chu}</span>
+                    {tong > 0 && <span>{xong}/{tong} việc</span>}
+                    {r.so_anh > 0 && <span>{r.so_anh} ảnh</span>}
+                    {r.nguoi_thuc_hien && <span>{r.nguoi_thuc_hien}</span>}
+                    <span title={ngayGioDayDu(r.created_at)}>Tạo {ngayDayDu(r.created_at)}</span>
+                  </span>
+                </button>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-      )}
-      {total > 0 && (
-        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
-          onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
-          donVi="phiếu" ariaLabel="Phân trang phiếu bảo trì" />
-      )}
+          </div>
+          {total > 0 && (
+            <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+              onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+              donVi="phiếu" ariaLabel="Phân trang phiếu bảo trì" />
+          )}
         </>
+      ) : (
+        <div className="lds-sheet">
+          <CuonLuoi ghim={soCotGhim(cotHien)}>
+            <table className="lds-g" style={{ minWidth: rongLuoi(cotHien, 180) }}>
+              <colgroup>
+                {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
+              </colgroup>
+              <thead>
+                <tr>
+                  {cotHien.map((c) => <th key={c.key} className={c.c ? "c" : undefined} title={c.title}>{c.label}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {loading && rows.length === 0 ? (
+                  <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />
+                ) : rows.length === 0 ? (
+                  <tr><td colSpan={cotHien.length} className="lds-trong">{rong}</td></tr>
+                ) : rows.map((r) => (
+                  <tr key={r.id} className="lds-dong" tabIndex={0} onClick={() => setMo(r)}
+                    onKeyDown={(e) => {
+                      if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+                        e.preventDefault();
+                        setMo(r);
+                      }
+                    }}>
+                    {cotHien.map((c) => {
+                      const v = o(r, c.key);
+                      return (
+                        <td key={c.key} className={c.c ? "c" : undefined} onMouseEnter={hienChuDu}>{v}</td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CuonLuoi>
+          {total > 0 && (
+            <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+              onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+              donVi="phiếu" ariaLabel="Phân trang phiếu bảo trì" />
+          )}
+        </div>
       )}
 
-      {mo && (
+      {mo === "new" ? (
+        <ThemNgoaiLichHop may={may} loiMay={loiMay} onClose={() => setMo(null)}
+          // Lập xong mở luôn phiếu: thêm ảnh, ghi chú, xác nhận xong đều ở ngăn chi tiết.
+          onCreated={(p) => { load(); setLichTick((t) => t + 1); setMo(p); }} />
+      ) : mo ? (
         <BaoTriDrawer
-          phieu={mo === "new" ? null : mo}
-          may={may}
-          loiMay={loiMay}
+          phieu={mo}
           suaDuoc={suaDuoc}
           onClose={() => setMo(null)}
           onSaved={(p) => { load(); setLichTick((t) => t + 1); setMo(p); }}
         />
-      )}
+      ) : null}
 
       {duKienMo && (
         <XacNhanTaoTuDuKien
@@ -498,6 +447,67 @@ export function PhieuBaoTriPage() {
         />
       )}
     </div>
+  );
+}
+
+/** Hộp thoại "Thêm việc ngoài lịch" — phiếu bảo trì đột xuất (máy kêu lạ, thuê hãng ngoài…). */
+function ThemNgoaiLichHop({ may, loiMay, onClose, onCreated }: {
+  may: Row[];
+  loiMay: string | null;
+  onClose: () => void;
+  onCreated: (p: BaoTri) => void;
+}) {
+  const { token } = useAuth();
+  const [mayId, setMayId] = useState("");
+  const [ngay, setNgay] = useState(homNay());
+  const [goiTen, setGoiTen] = useState("");
+  const [ghiChu, setGhiChu] = useState("");
+  const [dang, setDang] = useState(false);
+  const [loi, setLoi] = useState<string | null>(null);
+
+  const gui = async () => {
+    if (!token || dang) return;
+    if (!mayId) { setLoi("Chưa chọn máy."); return; }
+    setDang(true);
+    setLoi(null);
+    try {
+      const p = await kyThuatMay.createBaoTri(token, {
+        may_id: Number(mayId),
+        loai: "dot_xuat",
+        goi_ten: goiTen.trim() || null,
+        ngay_ke_hoach: ngay,
+        ghi_chu: ghiChu.trim() || null,
+      });
+      onCreated(p);
+    } catch (e) {
+      setLoi(e instanceof Error ? e.message : "Tạo phiếu không thành công.");
+      setDang(false);
+    }
+  };
+
+  return (
+    <HopThoai tieuDe="Thêm việc ngoài lịch" nutChinh="Tạo phiếu" dangGui={dang} loi={loi}
+      coNoiDung={!!(mayId || goiTen || ghiChu)} onGui={() => void gui()} onDong={onClose}>
+      <div className="ktm-luoi2">
+        <label className="ktm-f">
+          <span className="ktm-f__nhan">Máy</span>
+          <select className="ktm-o" value={mayId} onChange={(e) => setMayId(e.target.value)}>
+            <option value="">Chọn máy</option>
+            {may.map((m) => <option key={m.id} value={m.id}>{String(m.ma)} {String(m.ten)}</option>)}
+          </select>
+          {loiMay && <span className="ktm-f__goiy lds-do">{loiMay}</span>}
+        </label>
+        <label className="ktm-f">
+          <span className="ktm-f__nhan">Hạn làm</span>
+          <input className="ktm-o" type="date" value={ngay} onChange={(e) => setNgay(e.target.value)} />
+        </label>
+      </div>
+      <ONhap nhan="Việc bảo trì" giaTri={goiTen} khoa={false}
+        placeholder="vd: Kiểm tra cảm biến nhiệt, thay dao bế mòn" onChange={setGoiTen} />
+      <ONhap nhan="Ghi chú kỹ thuật" giaTri={ghiChu} khoa={false}
+        placeholder="Thuê hãng ngoài thì ghi ở đây, vd: KT hãng Bobst VN sang xử lý lúc 14h"
+        onChange={setGhiChu} />
+    </HopThoai>
   );
 }
 
@@ -573,92 +583,82 @@ function XacNhanTaoTuDuKien({ duKien, onClose, onCreated }: {
   );
 }
 
-function BaoTriDrawer({ phieu, may, loiMay, suaDuoc, onClose, onSaved }: {
-  phieu: BaoTri | null;
-  may: Row[];
-  loiMay: string | null;
+/** Ngăn chi tiết phiếu bảo trì (phương án A2): trái là việc cần làm + ghi chú + ảnh, phải là cột
+ *  thuộc tính + nút xác nhận xong / hủy phiếu ở đáy cột. */
+function BaoTriDrawer({ phieu, suaDuoc, onClose, onSaved }: {
+  phieu: BaoTri;
   suaDuoc: boolean;
   onClose: () => void;
   onSaved: (p: BaoTri) => void;
 }) {
   const { token } = useAuth();
-  const [hienTai, setHienTai] = useState<BaoTri | null>(phieu);
+  const [hienTai, setHienTai] = useState<BaoTri>(phieu);
   const [loi, setLoi] = useState<string | null>(null);
   const [anh, setAnh] = useState<Anh[]>([]);
   const [anhTick, setAnhTick] = useState(0);
-  const [tab, setTab] = useState<"chi-tiet" | "lich-su">("chi-tiet");
-
-  // form tạo mới / sửa nhẹ
-  const [mayId, setMayId] = useState(phieu ? String(phieu.may_id) : "");
-  const [goiTen, setGoiTen] = useState(phieu?.goi_ten ?? "");
-  const [ngay, setNgay] = useState(phieu?.ngay_ke_hoach ?? homNay());
-  const [ghiChu, setGhiChu] = useState(phieu?.ghi_chu ?? "");
+  const [tab, setTab] = useState("chi-tiet");
+  const [goiTen, setGoiTen] = useState(phieu.goi_ten ?? "");
+  const [ghiChu, setGhiChu] = useState(phieu.ghi_chu ?? "");
   const [luu, setLuu] = useState(false);
-
+  const [dangDoi, setDangDoi] = useState(false);
   // hủy phiếu — dialog kèm lý do (lý do do chính dialog giữ)
   const [moHuy, setMoHuy] = useState(false);
-
   // ngày làm THẬT khi xác nhận xong (thợ làm thứ Bảy, thứ Hai mới vào bấm)
   const [ngayXong, setNgayXong] = useState(homNay());
   // kỳ kế tiếp (chỉ phiếu đã xong, thuộc một gói) + việc đang hỏi lý do "không áp dụng"
   const [kySau, setKySau] = useState<string | null>(null);
   const [boQuaViec, setBoQuaViec] = useState<{ id: string; ten: string } | null>(null);
 
-  const xong = hienTai?.trang_thai === "hoan_thanh";
-  const daHuy = hienTai?.trang_thai === "da_huy";
+  const xong = hienTai.trang_thai === "hoan_thanh";
+  const daHuy = hienTai.trang_thai === "da_huy";
   const khoaSua = !suaDuoc || xong || daHuy;
+  const doi = goiTen !== (hienTai.goi_ten ?? "") || ghiChu !== (hienTai.ghi_chu ?? "");
+
+  useEffect(() => {
+    setHienTai(phieu);
+    setGoiTen(phieu.goi_ten ?? "");
+    setGhiChu(phieu.ghi_chu ?? "");
+  }, [phieu]);
 
   // Nạp lại ĐÚNG phiếu này sau khi ảnh đổi. Bản cũ kéo cả danh sách theo máy rồi `find`: phiếu nằm
   // ngoài trang đầu là không thấy ⇒ cờ `co_anh_sau` đứng im và nút "Xác nhận" vẫn khoá dù ảnh đã lên.
   useEffect(() => {
-    if (!token || !hienTai || anhTick === 0) return;
+    if (!token || anhTick === 0) return;
     kyThuatMay.getBaoTri(token, hienTai.id).then(setHienTai).catch(() => {});
-  }, [anhTick, token, hienTai?.id]);
+  }, [anhTick, token, hienTai.id]);
 
   // Ảnh nạp Ở ĐÂY một lần cho cả hai khối (trước/sau) — mỗi khối tự gọi là hai request giống hệt
   // nhau mỗi lần mở phiếu, thêm/xoá một tấm lại hai lần nữa.
   const napAnh = useCallback(() => {
-    if (!token || !hienTai) { setAnh([]); return; }
+    if (!token) return;
     kyThuatMay.listAnh(token, "bao_tri", hienTai.id).then(setAnh)
       // Ảnh lên rồi mà khối ảnh trống + nút xác nhận vẫn khoá, không lời nào — đúng cái bẫy này.
       .catch((e) => setLoi(e instanceof Error ? e.message : "Không tải được danh sách ảnh."));
-  }, [token, hienTai?.id]);
+  }, [token, hienTai.id]);
   useEffect(napAnh, [napAnh]);
+  const anhDoi = () => { napAnh(); setAnhTick((t) => t + 1); };
 
   // Kỳ kế tiếp của gói — hỏi backend (`/bao-tri/han/{may_id}`) chứ không tự cộng chu kỳ ở FE: mốc
   // thật là ngày hoàn thành MỚI NHẤT của gói, phiếu đang mở có thể không phải cái mới nhất.
   useEffect(() => {
     setKySau(null);
-    if (!token || !hienTai || hienTai.trang_thai !== "hoan_thanh" || !hienTai.goi_id) return;
+    if (!token || hienTai.trang_thai !== "hoan_thanh" || !hienTai.goi_id) return;
     kyThuatMay.hanCuaMay(token, hienTai.may_id)
       .then((ds) => setKySau(ds.find((g) => g.goi_id === hienTai.goi_id)?.han ?? null))
       .catch(() => {});
-  }, [token, hienTai?.id, hienTai?.trang_thai, hienTai?.goi_id]);
+  }, [token, hienTai.id, hienTai.trang_thai, hienTai.goi_id]);
 
   const luuPhieu = async () => {
-    if (!token) return;
+    if (!token || luu) return;
     setLoi(null);
     setLuu(true);
     try {
-      if (hienTai) {
-        const p = await kyThuatMay.updateBaoTri(token, hienTai.id, {
-          goi_ten: goiTen.trim() || null,
-          ghi_chu: ghiChu.trim() || null,
-        });
-        setHienTai(p);
-        onSaved(p);
-      } else {
-        if (!mayId) { setLoi("Chưa chọn máy."); setLuu(false); return; }
-        const p = await kyThuatMay.createBaoTri(token, {
-          may_id: Number(mayId),
-          loai: "dot_xuat",
-          goi_ten: goiTen.trim() || null,
-          ngay_ke_hoach: ngay,
-          ghi_chu: ghiChu.trim() || null,
-        });
-        setHienTai(p);
-        onSaved(p);
-      }
+      const p = await kyThuatMay.updateBaoTri(token, hienTai.id, {
+        goi_ten: goiTen.trim() || null,
+        ghi_chu: ghiChu.trim() || null,
+      });
+      setHienTai(p);
+      onSaved(p);
     } catch (e) {
       setLoi(e instanceof Error ? e.message : "Lưu không thành công.");
     } finally {
@@ -670,20 +670,20 @@ function BaoTriDrawer({ phieu, may, loiMay, suaDuoc, onClose, onSaved }: {
     hangMucId: string | null | undefined, giaTri: boolean,
     them?: { bo_qua?: boolean; ly_do?: string },
   ) => {
-    if (!token || !hienTai || !hangMucId) return;
+    if (!token || !hangMucId) return;
     try {
       const p = await kyThuatMay.tickHangMuc(token, hienTai.id, hangMucId, giaTri, them);
       setHienTai(p);
       onSaved(p);
     } catch (e) {
-      setLoi(e instanceof Error ? e.message : "Không lưu được checklist.");
+      setLoi(e instanceof Error ? e.message : "Không lưu được việc cần làm.");
     }
   };
 
   // Ném lỗi ra để dialog hủy tự hiện — thành công thì đóng dialog. Không nuốt lỗi ở đây, không thì
   // dialog đóng lại như đã hủy trong khi backend từ chối (vd phiếu vừa được người khác cho hoàn thành).
   const huyPhieu = async (ly_do: string) => {
-    if (!token || !hienTai) return;
+    if (!token) return;
     const p = await kyThuatMay.huyBaoTri(token, hienTai.id, ly_do);
     setHienTai(p);
     onSaved(p);
@@ -691,8 +691,9 @@ function BaoTriDrawer({ phieu, may, loiMay, suaDuoc, onClose, onSaved }: {
   };
 
   const doiTrangThai = async (tt: string) => {
-    if (!token || !hienTai) return;
+    if (!token || dangDoi) return;
     setLoi(null);
+    setDangDoi(true);
     try {
       const p = await kyThuatMay.trangThaiBaoTri(
         token, hienTai.id, tt, tt === "hoan_thanh" ? ngayXong : null,
@@ -701,338 +702,171 @@ function BaoTriDrawer({ phieu, may, loiMay, suaDuoc, onClose, onSaved }: {
       onSaved(p);
     } catch (e) {
       setLoi(e instanceof Error ? e.message : "Không đổi được trạng thái.");
+    } finally {
+      setDangDoi(false);
     }
   };
 
-  const hangMuc = hienTai?.hang_muc ?? [];
+  const hangMuc = hienTai.hang_muc ?? [];
   // "Đã xử lý" = tick xong HOẶC đánh không áp dụng — đây chính là điều kiện backend dùng để mở cửa
   // đóng phiếu, nên màn hình phải đếm y hệt, không thì nút khoá mà người dùng không hiểu vì sao.
   const daXuLy = hangMuc.filter((h) => h.xong || h.bo_qua).length;
   const conViec = hangMuc.length - daXuLy;
-  const ptTien = hangMuc.length > 0 ? Math.round((daXuLy / hangMuc.length) * 100) : 0;
-  const duDieuKien = conViec === 0 && !!hienTai?.co_anh_sau;
+  const han = soVoiHan(hienTai);
+  // Lý do nút khoá nói thẳng dưới nút (hai cửa thật của service), không giấu trong tooltip.
+  const thieu = [
+    conViec > 0 ? `còn ${conViec} việc chưa xử lý` : "",
+    !hienTai.co_anh_sau ? "chưa có ảnh sau khi làm" : "",
+  ].filter(Boolean);
+  const lyDoKhoa = thieu.length > 0
+    ? `${thieu.join(" và ").replace(/^./, (c) => c.toUpperCase())}.`
+    : doi ? "Lưu thay đổi trước đã." : null;
+
+  const cuoi = !suaDuoc ? undefined : !xong && !daHuy ? (
+    <>
+      <label className="ktm-f">
+        <span className="ktm-f__nhan">Ngày làm xong</span>
+        <input className="ktm-o" type="date" value={ngayXong} max={homNay()}
+          onChange={(e) => setNgayXong(e.target.value)} />
+      </label>
+      <Button variant="accent" disabled={!!lyDoKhoa || dangDoi} onClick={() => void doiTrangThai("hoan_thanh")}>
+        {dangDoi ? "Đang lưu…" : "Xác nhận đã bảo trì xong"}
+      </Button>
+      {lyDoKhoa && <span className="ktm-ly">{lyDoKhoa}</span>}
+      <Button variant="ghost" className="ktm-nut-do" onClick={() => { setMoHuy(true); setLoi(null); }}>
+        Hủy phiếu
+      </Button>
+    </>
+  ) : (
+    // Một lối lùi DUY NHẤT để sửa phiếu ký nhầm / hủy nhầm — mở lại về hàng chờ.
+    <Button variant="ghost" disabled={dangDoi} onClick={() => void doiTrangThai("cho_thuc_hien")}>
+      {xong ? "Mở lại phiếu (ghi nhầm)" : "Mở lại phiếu (hủy nhầm)"}
+    </Button>
+  );
+
+  const cot = (
+    <CotPhieu cuoi={cuoi}>
+      <DongTT nhan="Trạng thái"><BadgeBaoTri trangThai={hienTai.trang_thai} /></DongTT>
+      {daHuy && <DongTT nhan="Lý do hủy"><span className="lds-do">{hienTai.ly_do_huy ?? "—"}</span></DongTT>}
+      <DongTT nhan="Máy">
+        {hienTai.may_ma ?? "—"}{hienTai.may_ten && <span className="ktm-phu">{hienTai.may_ten}</span>}
+      </DongTT>
+      <DongTT nhan="Chu kỳ">{chuKyChu(hienTai)}</DongTT>
+      <DongTT nhan="Hạn làm">
+        {fmtNgay(hienTai.ngay_ke_hoach)}
+        {han.kieu !== "nhat" && <span className={`ktm-phu ktm-han--${han.kieu}`}>{han.chu}</span>}
+      </DongTT>
+      {/* "Đã dời" là dữ liệu CŨ — chức năng dời lịch đã gỡ, nhưng phiếu dời trước đó vẫn phải kể
+          lại đúng để không mất vết. */}
+      {hienTai.da_doi && (
+        <DongTT nhan="Hạn ban đầu">
+          <span title={hienTai.ly_do_doi ? `Lý do dời: ${hienTai.ly_do_doi}` : undefined}>
+            {fmtNgay(hienTai.ngay_ke_hoach_goc)}
+          </span>
+        </DongTT>
+      )}
+      {xong && <DongTT nhan="Làm xong ngày">{fmtNgay(hienTai.ngay_hoan_thanh)}</DongTT>}
+      {/* KHÔNG có ô "người nhận việc": ai bấm "Xác nhận đã bảo trì xong" thì chính người đó là
+          người làm, và tên chỉ có SAU khi xong. */}
+      <DongTT nhan="Người làm">
+        {hienTai.nguoi_thuc_hien ?? <span className="lds-mu3">người bấm xác nhận</span>}
+      </DongTT>
+      {kySau && <DongTT nhan="Kỳ kế tiếp">{fmtNgay(kySau)}</DongTT>}
+      <DongTT nhan="Ngày tạo"><span className="lds-mu">{fmtNgay(hienTai.created_at)}</span></DongTT>
+    </CotPhieu>
+  );
 
   return (
-    <div className="rc-drawer__scrim" role="dialog" aria-modal="true" onClick={onClose}>
-      <aside className="rc-drawer ktm-drawer" onClick={(e) => e.stopPropagation()}>
-        <header className="rc-drawer__head ktm-drawer-hero">
-          <div>
-            <div className="ktm-drawer-hero__status">
-              {hienTai ? (
-                <BadgeBaoTri trangThai={hienTai.trang_thai} quaHan={hienTai.qua_han} />
-              ) : (
-                <span className="ktm-badge ktm-tag-dotxuat">
-                  <Icon name="zap" size={12} /> Lập phiếu đột xuất
-                </span>
-              )}
+    <>
+      <NganPhai
+        tieuDe={<><span className="ktm-ngan-ma">{hienTai.ma}</span>{tenViec(hienTai)}</>}
+        // In bằng chính cửa sổ trình duyệt + khối `@media print` trong ky-thuat-may.css — không
+        // đẻ endpoint PDF cho một tờ giấy mang xuống xưởng.
+        hanhDong={
+          <button type="button" className="kt-ic ktm-in-nut" aria-label="In phiếu" title="In phiếu bảo trì"
+            onClick={() => window.print()}>
+            <Icon name="printer" size={16} />
+          </button>
+        }
+        tabs={[{ id: "chi-tiet", nhan: "Chi tiết" }, { id: "lich-su", nhan: "Lịch sử thao tác" }]}
+        tab={tab} onTab={setTab}
+        onDong={onClose}
+        chanDong={() => doi}
+        cot={cot}
+        chan={!khoaSua && tab === "chi-tiet" ? (
+          <>
+            <span className="kt-ngan__xt">{doi ? "Có thay đổi chưa lưu" : ""}</span>
+            <Button variant="ghost" disabled={!doi || luu}
+              onClick={() => { setGoiTen(hienTai.goi_ten ?? ""); setGhiChu(hienTai.ghi_chu ?? ""); }}>
+              Bỏ thay đổi
+            </Button>
+            <Button variant="accent" disabled={!doi || luu} onClick={() => void luuPhieu()}>
+              {luu ? "Đang lưu…" : "Lưu"}
+            </Button>
+          </>
+        ) : undefined}
+      >
+        {tab === "lich-su" ? (
+          <NhatKyPhieu loai="ky_thuat_bao_tri" phieuId={hienTai.id} />
+        ) : (
+          <div className="ktm-trai ktm-pbt">
+            {loi && <div className="banner banner--error" role="alert">{loi}</div>}
+            {hangMuc.length > 0 && (
+              <section>
+                <div className="ktm-viec-dau">
+                  <span className="ktm-f__nhan">Việc cần làm</span>
+                  <span className="ktm-viec">
+                    <span className="ktm-viec__vach ktm-viec__vach--dai">
+                      <span style={{ width: `${Math.round((daXuLy / hangMuc.length) * 100)}%` }} />
+                    </span>
+                    {daXuLy}/{hangMuc.length} đã xử lý
+                  </span>
+                </div>
+                <div className="ktm-ds-viec">
+                  {hangMuc.map((h, i) => (
+                    <div key={h.id ?? i} className={`ktm-ds-viec__dong${h.xong ? " is-xong" : ""}${h.bo_qua ? " is-bo" : ""}`}>
+                      <label className="ktm-ds-viec__chon">
+                        <input type="checkbox" checked={!!h.xong} disabled={khoaSua || !h.id || !!h.bo_qua}
+                          onChange={(e) => void tick(h.id, e.target.checked)} />
+                        <span className="ktm-ds-viec__ten">{h.ten}</span>
+                      </label>
+                      {h.bo_qua && (
+                        <span className="ktm-ds-viec__bo" title={h.ly_do_bo_qua ?? undefined}>
+                          Không áp dụng{h.ly_do_bo_qua && <span className="lds-mu">{h.ly_do_bo_qua}</span>}
+                        </span>
+                      )}
+                      {!khoaSua && h.id && !h.xong && (
+                        h.bo_qua ? (
+                          <button type="button" className="ktm-lk-nhat"
+                            onClick={() => void tick(h.id, false, { bo_qua: false })}>Bỏ đánh dấu</button>
+                        ) : (
+                          <button type="button" className="ktm-lk-nhat"
+                            onClick={() => setBoQuaViec({ id: h.id!, ten: h.ten })}>Không áp dụng</button>
+                        )
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+            {!khoaSua && (
+              <ONhap nhan="Việc bảo trì" giaTri={goiTen} khoa={false}
+                goiY={hienTai.goi_id ? "Sinh từ gói trong lịch bảo trì của máy. Sửa tên ở đây chỉ đổi trên phiếu này." : undefined}
+                onChange={setGoiTen} />
+            )}
+            <ONhap nhan="Ghi chú kỹ thuật" giaTri={ghiChu} khoa={khoaSua}
+              placeholder="Thuê hãng ngoài thì ghi ở đây, vd: KT hãng Bobst VN sang xử lý lúc 14h"
+              onChange={setGhiChu} />
+            <div className="ktm-luoi2">
+              <AnhBox loai="bao_tri" phieuId={hienTai.id} giaiDoan="truoc"
+                tieuDe="Ảnh trước khi làm" khoa={khoaSua} tatCaAnh={anh} onChanged={anhDoi} />
+              <AnhBox loai="bao_tri" phieuId={hienTai.id} giaiDoan="sau"
+                tieuDe="Ảnh sau khi làm" batBuoc canChu="cần ít nhất 1 ảnh"
+                khoa={xong || daHuy || !suaDuoc} tatCaAnh={anh} onChanged={anhDoi} />
             </div>
-
-            <h2 className="rc-drawer__title ktm-drawer-hero__title">
-              {hienTai ? hienTai.ma : "Phiếu bảo trì mới"}
-            </h2>
-
-            {hienTai && (
-              <div className="ktm-drawer-hero__meta">
-                <span className="ktm-may-badge">{hienTai.may_ma}</span>
-                {hienTai.may_ten && <span className="ktm-drawer-hero__mayten">{hienTai.may_ten}</span>}
-                <span className="ktm-meta-chip">
-                  <Icon name="calendar" size={12} /> Kế hoạch: <strong>{fmtNgay(hienTai.ngay_ke_hoach)}</strong>
-                </span>
-                <span className="ktm-meta-chip">
-                  {hienTai.loai === "dot_xuat" ? (
-                    <><Icon name="zap" size={11} /> Đột xuất</>
-                  ) : (
-                    <><Icon name="refresh" size={11} /> {chuKyChu(hienTai)}</>
-                  )}
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="ktm-drawer-hero__nut">
-            {/* In bằng chính cửa sổ trình duyệt + khối `@media print` trong ky-thuat-may.css —
-                không đẻ endpoint PDF cho một tờ giấy mang xuống xưởng. */}
-            {hienTai && (
-              <button type="button" className="rc-drawer__x ktm-in-nut" onClick={() => window.print()}
-                aria-label="In phiếu" title="In phiếu bảo trì">
-                <Icon name="printer" size={16} />
-              </button>
-            )}
-            <button type="button" className="rc-drawer__x" onClick={onClose} aria-label="Đóng">
-              <Icon name="x" size={16} />
-            </button>
-          </div>
-        </header>
-
-        {/* Tab chỉ hiện khi phiếu ĐÃ TỒN TẠI: phiếu mới chưa có gì để kể lại. */}
-        {hienTai && (
-          <div className="ktm-tab">
-            <button type="button" className={`ktm-tab__nut${tab === "chi-tiet" ? " is-active" : ""}`}
-              onClick={() => setTab("chi-tiet")}>Chi tiết</button>
-            <button type="button" className={`ktm-tab__nut${tab === "lich-su" ? " is-active" : ""}`}
-              onClick={() => setTab("lich-su")}>Lịch sử thao tác</button>
           </div>
         )}
-
-        <div className="rc-drawer__body">
-          {hienTai && tab === "lich-su" ? (
-            <NhatKyPhieu loai="ky_thuat_bao_tri" phieuId={hienTai.id} />
-          ) : (
-          <>
-          {loi && <div className="banner banner--error" style={{ marginBottom: "var(--sp-4)" }}>{loi}</div>}
-          {xong && (
-            <div className="ktm-thongbao ktm-thongbao--xong">
-              <Icon name="check" size={14} /> Hoàn thành ngày {fmtNgay(hienTai?.ngay_hoan_thanh)} —
-              {kySau
-                ? <> kỳ kế tiếp rơi vào <strong>{fmtNgay(kySau)}</strong>, lịch sẽ tự hiện chấm mờ ở ngày đó.</>
-                : " mốc này là gốc để tính kỳ bảo trì kế tiếp."}
-            </div>
-          )}
-          {/* "Đã dời" là dữ liệu CŨ — chức năng dời lịch đã gỡ, nhưng phiếu dời trước đó vẫn phải kể
-              lại đúng để không mất vết. */}
-          {hienTai?.da_doi && (
-            <div className="ktm-thongbao">
-              <Icon name="history" size={14} /> Đã dời từ {fmtNgay(hienTai.ngay_ke_hoach_goc)} — lý do:{" "}
-              {hienTai.ly_do_doi}
-            </div>
-          )}
-          {daHuy && (
-            <div className="ktm-thongbao ktm-thongbao--huy">
-              <Icon name="ban" size={14} />
-              <span>
-                Phiếu đã hủy{hienTai?.ly_do_huy ? <> — lý do: <strong>{hienTai.ly_do_huy}</strong></> : ""}.
-              </span>
-              {suaDuoc && (
-                <button type="button" className="rc__link-btn ktm-thongbao__nut"
-                  onClick={() => doiTrangThai("cho_thuc_hien")}>
-                  <Icon name="history" size={13} /> Mở lại (hủy nhầm)
-                </button>
-              )}
-            </div>
-          )}
-
-          {!hienTai && (
-            <div className="ktm-form-banner">
-              <Icon name="zap" size={16} />
-              <div>
-                <strong>Lập phiếu bảo trì đột xuất</strong>
-                <p>Khởi tạo khi thiết bị gặp sự cố, kiểm tra đột xuất hoặc thuê đơn vị ngoài bảo dưỡng. Phiếu sẽ tự động vào danh sách chờ thực hiện.</p>
-              </div>
-            </div>
-          )}
-
-          <section className="rc-sec">
-            <div className="rc-sec__title">Thông tin phiếu</div>
-            <div className="rc-grid">
-              {!hienTai && (
-                <>
-                  <label className="rc-field">
-                    <span className="rc-field__label">Máy cần bảo trì *</span>
-                    <select className="rc-input" value={mayId} onChange={(e) => setMayId(e.target.value)}>
-                      <option value="">— Chọn máy thiết bị —</option>
-                      {may.map((m) => (
-                        <option key={m.id} value={m.id}>[{String(m.ma)}] · {String(m.ten)}</option>
-                      ))}
-                    </select>
-                    {loiMay && <span className="ktm-hint ktm-hint--loi">{loiMay}</span>}
-                  </label>
-                  <label className="rc-field">
-                    <span className="rc-field__label">Ngày kế hoạch *</span>
-                    <input className="rc-input" type="date" value={ngay}
-                      onChange={(e) => setNgay(e.target.value)} />
-                  </label>
-                </>
-              )}
-
-              <label className="rc-field rc-field--full">
-                <span className="rc-field__label">Nội dung / gói bảo trì {!hienTai && "*"}</span>
-                <input className="rc-input" value={goiTen} disabled={khoaSua}
-                  placeholder="vd: Kiểm tra cảm biến nhiệt · Thay dao bế mòn · Bảo trì đột xuất"
-                  onChange={(e) => setGoiTen(e.target.value)} />
-                {hienTai?.goi_id && (
-                  <span className="ktm-hint">
-                    Sinh từ gói trong lịch bảo trì của máy — sửa tên ở đây chỉ đổi trên phiếu này.
-                  </span>
-                )}
-              </label>
-
-              {/* KHÔNG có ô "người nhận việc": không có bước nhận việc nào cả. Ai bấm "Xác nhận đã
-                  bảo trì xong" thì chính người đó là người làm, và tên chỉ hiện SAU khi xong. */}
-              {xong && hienTai?.nguoi_thuc_hien && (
-                <div className="rc-field">
-                  <span className="rc-field__label">Người làm</span>
-                  <div className="ktm-nguoinhan">
-                    <Icon name="users" size={14} /> {hienTai.nguoi_thuc_hien}
-                  </div>
-                </div>
-              )}
-
-              <label className="rc-field rc-field--full">
-                <span className="rc-field__label">Ghi chú kỹ thuật</span>
-                <input className="rc-input" value={ghiChu} disabled={khoaSua}
-                  placeholder="Thuê hãng ngoài thì ghi ở đây — vd: KT hãng Bobst VN sang xử lý lúc 14h"
-                  onChange={(e) => setGhiChu(e.target.value)} />
-              </label>
-            </div>
-
-            {!khoaSua && (
-              <div className="ktm-actions">
-                <Button variant="accent" onClick={luuPhieu} disabled={luu}>
-                  <Icon name={hienTai ? "pencil" : "plus"} size={14} />
-                  {luu ? "Đang lưu…" : hienTai ? "Lưu thay đổi" : "Tạo phiếu đột xuất"}
-                </Button>
-                {!hienTai ? (
-                  <button type="button" className="btn btn--ghost" onClick={onClose}>
-                    Hủy
-                  </button>
-                ) : (
-                  <button type="button" className="rc__link-btn ktm-link-huy"
-                    onClick={() => { setMoHuy(true); setLoi(null); }}>
-                    <Icon name="ban" size={14} /> Hủy phiếu
-                  </button>
-                )}
-              </div>
-            )}
-          </section>
-
-          {hangMuc.length > 0 && (
-            <section className="rc-sec">
-              <div className="rc-sec__title ktm-check-head">
-                <span>Hạng mục bảo trì</span>
-                <div className="ktm-progress-wrap">
-                  <div className="ktm-progress-bar" style={{ width: "110px" }}>
-                    <div
-                      className={`ktm-progress-fill${conViec === 0 ? " is-full" : ""}`}
-                      style={{ width: `${ptTien}%` }}
-                    />
-                  </div>
-                  <span className="ktm-progress-text">{daXuLy}/{hangMuc.length} ({ptTien}%)</span>
-                </div>
-              </div>
-              {!khoaSua && (
-                <p className="ktm-hint ktm-check-hint">
-                  Phải xử lý hết mới xác nhận hoàn thành được. Việc lần này không phải làm thì bấm
-                  <strong> Không áp dụng</strong> và ghi lý do — đừng tick cho xong.
-                </p>
-              )}
-
-              <div className="ktm-check-grid">
-                {hangMuc.map((h, i) => (
-                  <div key={h.id ?? i}
-                    className={`ktm-check-card${h.xong ? " is-checked" : ""}${h.bo_qua ? " is-boqua" : ""}`}>
-                    <label className="ktm-check-card__main">
-                      <input
-                        type="checkbox"
-                        checked={!!h.xong}
-                        disabled={khoaSua || !h.id}
-                        onChange={(e) => tick(h.id, e.target.checked)}
-                      />
-                      <span className="ktm-check-card__box">
-                        <Icon name="check" size={13} />
-                      </span>
-                      <span className="ktm-check-card__title">{h.ten}</span>
-                      {/* Icon của bộ icon đang dùng, KHÔNG phải ký tự ✓ / ⊘ gõ tay: glyph mỗi
-                          phông vẽ một kiểu và không ăn theo màu chữ. */}
-                      {h.xong && (
-                        <span className="ktm-check-card__status">
-                          <Icon name="check" size={12} /> Đã làm
-                        </span>
-                      )}
-                      {h.bo_qua && (
-                        <span className="ktm-check-card__status is-boqua">
-                          <Icon name="ban" size={12} /> Không áp dụng
-                        </span>
-                      )}
-                    </label>
-                    {h.bo_qua && h.ly_do_bo_qua && (
-                      <p className="ktm-check-card__lydo">Lý do: {h.ly_do_bo_qua}</p>
-                    )}
-                    {!khoaSua && h.id && !h.xong && (
-                      h.bo_qua ? (
-                        <button type="button" className="ktm-check-card__phu"
-                          onClick={() => tick(h.id, false, { bo_qua: false })}>
-                          Bỏ đánh dấu
-                        </button>
-                      ) : (
-                        <button type="button" className="ktm-check-card__phu"
-                          onClick={() => setBoQuaViec({ id: h.id!, ten: h.ten })}>
-                          Không áp dụng
-                        </button>
-                      )
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {hienTai && (
-            <>
-              <AnhBox loai="bao_tri" phieuId={hienTai.id} giaiDoan="truoc"
-                tieuDe="Ảnh hiện trạng trước bảo trì" khoa={khoaSua}
-                tatCaAnh={anh}
-                onChanged={() => { napAnh(); setAnhTick((t) => t + 1); }} />
-
-              <AnhBox loai="bao_tri" phieuId={hienTai.id} giaiDoan="sau"
-                tieuDe="Ảnh chứng thực sau bảo trì" batBuoc khoa={xong}
-                moTa="Bắt buộc để xác nhận hoàn thành."
-                tatCaAnh={anh}
-                onChanged={() => { napAnh(); setAnhTick((t) => t + 1); }} />
-
-              {/* Phiếu đã xong: một lối lùi DUY NHẤT để sửa phiếu ký nhầm — mở lại về hàng chờ. */}
-              {suaDuoc && xong && (
-                <div className="ktm-actions">
-                  <button type="button" className="rc__link-btn"
-                    onClick={() => doiTrangThai("cho_thuc_hien")}>
-                    <Icon name="history" size={14} /> Mở lại phiếu (ghi nhầm)
-                  </button>
-                </div>
-              )}
-
-              {suaDuoc && !xong && !daHuy && (
-                <section className={`ktm-gatekeeper${duDieuKien ? " is-ready" : ""}`}>
-                  <div className="ktm-gatekeeper__head">
-                    <Icon name="shield" size={16} />
-                    <span className="ktm-gatekeeper__title">Điều kiện xác nhận hoàn thành</span>
-                  </div>
-
-                  {/* Hai dòng này là ĐIỀU KIỆN THẬT (service chặn cả hai), không phải dòng nhắc
-                      việc — nên dòng nào chưa đạt thì đỏ, và nút bên dưới khoá. */}
-                  <div className="ktm-gatekeeper__conds">
-                    <div className={`ktm-gate-cond${conViec === 0 ? " is-pass" : " is-fail"}`}>
-                      <Icon name={conViec === 0 ? "check" : "alert"} size={13} />
-                      <span>
-                        Hạng mục công việc: {daXuLy}/{hangMuc.length}
-                        {conViec > 0 ? ` — còn ${conViec} việc chưa xử lý` : hangMuc.length > 0 ? " — đã xong" : " — phiếu không có checklist"}
-                      </span>
-                    </div>
-                    <div className={`ktm-gate-cond${hienTai.co_anh_sau ? " is-pass" : " is-fail"}`}>
-                      <Icon name={hienTai.co_anh_sau ? "check" : "alert"} size={13} />
-                      <span>Ảnh chứng thực sau bảo trì: {hienTai.co_anh_sau ? "Đã có ảnh minh chứng" : "Chưa có ảnh (Bắt buộc)"}</span>
-                    </div>
-                  </div>
-
-                  <div className="ktm-gatekeeper__action">
-                    <label className="rc-field ktm-ngayxong">
-                      <span className="rc-field__label">Ngày hoàn thành</span>
-                      <input className="rc-input" type="date" value={ngayXong} max={homNay()}
-                        onChange={(e) => setNgayXong(e.target.value)} />
-                    </label>
-                    <button type="button" className="ktm-xacnhan__nut"
-                      disabled={!duDieuKien}
-                      title={duDieuKien ? undefined
-                        : conViec > 0 ? `Còn ${conViec} hạng mục chưa xử lý` : "Chưa có ảnh chứng thực"}
-                      onClick={() => doiTrangThai("hoan_thanh")}>
-                      <Icon name="check" size={16} /> Xác nhận đã bảo trì xong
-                    </button>
-                  </div>
-                </section>
-              )}
-            </>
-          )}
-          </>
-          )}
-        </div>
-      </aside>
+      </NganPhai>
 
       {/* Lý do "không áp dụng" — hỏi bằng dialog chứ không prompt(): lý do này đi thẳng vào nhật ký
           phiếu và là thứ người ta đọc lại khi máy hỏng ngay sau kỳ bảo trì. */}
@@ -1047,10 +881,10 @@ function BaoTriDrawer({ phieu, may, loiMay, suaDuoc, onClose, onSaved }: {
         />
       )}
 
-      {moHuy && hienTai && (
+      {moHuy && (
         <HuyPhieuDialog ma={hienTai.ma} onCancel={() => setMoHuy(false)} onConfirm={huyPhieu} />
       )}
-    </div>
+    </>
   );
 }
 
@@ -1093,7 +927,7 @@ function LyDoBoQuaDialog({ ten, onCancel, onConfirm }: {
         <label className="rc-field">
           <span className="rc-field__label">Lý do *</span>
           <input className="rc-input" value={lyDo} autoFocus
-            placeholder="vd: máy này không có bộ lọc dầu · hãng vừa thay tuần trước"
+            placeholder="vd: máy này không có bộ lọc dầu"
             onChange={(e) => { setLyDo(e.target.value); setLoi(null); }} />
         </label>
         <p className="ktm-hint">
@@ -1150,7 +984,7 @@ function HuyPhieuDialog({ ma, onCancel, onConfirm }: {
         <label className="rc-field">
           <span className="rc-field__label">Lý do hủy *</span>
           <input className="rc-input" value={lyDo} autoFocus
-            placeholder="vd: máy đã thanh lý · gói này khai nhầm · hãng vừa bảo dưỡng tuần trước"
+            placeholder="vd: máy đã thanh lý"
             onChange={(e) => { setLyDo(e.target.value); setLoi(null); }} />
         </label>
       </div>

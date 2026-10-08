@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import (
     APIRouter,
@@ -23,6 +23,7 @@ from ..deps import (
     require_permission,
     require_xem_kho_nao,
 )
+from ..models.purchase import LOAI_MUA
 from ..models.user import User
 from ..doi_tuong_nhan import MAN_KHVT, MAN_MUA_KE_TOAN, hop
 from ..realtime import hub
@@ -35,6 +36,7 @@ from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.purchase import (
     DepartmentPurchaseRequestIn,
     DepartmentPurchaseRequestListOut,
+    YeuCauMonListOut,
     DepartmentPurchaseRequestOut,
     PurchaseContractIn,
     PurchaseDeliveryIn,
@@ -169,12 +171,15 @@ def list_department_purchase_requests(
     phong_ban: int | None = Query(default=None),
     nguoi_yeu_cau: int | None = Query(default=None),
     mat_hang: str | None = Query(default=None, pattern=r"^[a-z_]+:\d+$"),
+    # Mua cho (08/10/2026): lặp khoá, vd `?loai_mua=cho_lsx&loai_mua=mua_ton`.
+    loai_mua: list[str] | None = Query(default=None),
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
 ) -> DepartmentPurchaseRequestListOut:
     _chan_khoang_nguoc(tu_ngay, den_ngay)
     loc = dict(
+        loai_mua=_loai_mua(loai_mua),
         q=q,
         source_type=source_type,
         tu_ngay=tu_ngay,
@@ -192,6 +197,66 @@ def list_department_purchase_requests(
     return DepartmentPurchaseRequestListOut(
         items=rows, total=total, page=page, size=size, dem_theo_tab=dem
     )
+
+
+@router.get("/api/department-purchase-requests/mon", response_model=YeuCauMonListOut)
+def list_department_request_lines(
+    svc: Annotated[PurchaseService, Depends(get_purchase_service)],
+    user: Annotated[
+        User,
+        Depends(require_any_permission(
+            *((m, "read") for m in DEPARTMENT_REQUEST_READER_MODULES)
+        )),
+    ],
+    q: str | None = Query(default=None),
+    tinh_trang: str | None = Query(
+        default=None,
+        pattern="^(cho_lap|nhap|cho_duyet|tra_lai|cho_hang|mot_phan|du|nhap_kho|huy)$",
+    ),
+    source_type: str | None = Query(default=None),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    moc: str = Query(default="tao", pattern="^(tao|can)$"),
+    phong_ban: int | None = Query(default=None),
+    nguoi_yeu_cau: int | None = Query(default=None),
+    mat_hang: str | None = Query(default=None, pattern=r"^[a-z_]+:\d+$"),
+    loai_mua: list[str] | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=200),
+) -> YeuCauMonListOut:
+    """Yêu cầu mua hàng, chế độ xem TỪNG MÓN (phương án 3, 07/10/2026): cùng bộ lọc và phạm vi nhìn
+    với danh sách yêu cầu, mỗi món một dòng kèm đơn mua đang giữ nó và tiến độ."""
+    _chan_khoang_nguoc(tu_ngay, den_ngay)
+    return YeuCauMonListOut(
+        **svc.danh_sach_mon(
+            actor=user,
+            q=q,
+            tinh_trang=tinh_trang,
+            page=page,
+            size=size,
+            source_type=source_type,
+            tu_ngay=tu_ngay,
+            den_ngay=den_ngay,
+            moc=moc,
+            phong_ban_id=phong_ban,
+            nguoi_yeu_cau_id=nguoi_yeu_cau,
+            mat_hang=_cap_mat_hang(mat_hang),
+            loai_mua=_loai_mua(loai_mua),
+        )
+    )
+
+
+def _loai_mua(raw: list[str] | None) -> list[str] | None:
+    """Bộ lọc "Mua cho": bỏ trùng, chặn giá trị lạ (422) thay vì lọc ra rỗng im lặng."""
+    if not raw:
+        return None
+    sai = [v for v in raw if v not in LOAI_MUA]
+    if sai:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Loại mua không hợp lệ: " + ", ".join(sai) + ".",
+        )
+    return sorted(set(raw))
 
 
 def _chan_khoang_nguoc(tu_ngay: date | None, den_ngay: date | None) -> None:
@@ -477,6 +542,10 @@ def so_gia_ncc(
         viec="view_cost"))],
     hang_loai: str = Query(..., pattern="^(giay|vat_tu)$"),
     hang_id: int = Query(..., gt=0),
+    # Giấy: dạng của dòng đang mua (07/10/2026) — chỉ so NCC bán cùng dạng; tờ phải cùng khổ.
+    dang: Literal["to", "cuon"] | None = Query(default=None),
+    kho_rong: int = Query(default=0, ge=0),
+    kho_dai: int = Query(default=0, ge=0),
 ) -> SoGiaOut:
     """Các NCC bán mặt hàng này, GIÁ QUY VỀ ĐƠN VỊ GỐC để so ngang.
 
@@ -484,7 +553,7 @@ def so_gia_ncc(
     rẻ. Dòng không quy đổi được vẫn hiện (NCC đó có bán thật) nhưng xếp cuối kèm lý do.
     """
     try:
-        return SoGiaOut(**svc.so_gia_ncc(hang_loai, hang_id))
+        return SoGiaOut(**svc.so_gia_ncc(hang_loai, hang_id, dang=dang, kho_rong=kho_rong, kho_dai=kho_dai))
     except VatLieuKhoError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from None
 
@@ -600,8 +669,11 @@ def list_purchase_requests(
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern="^(tao|can|nhan)$"),
     deposit_status: str | None = Query(default=None, pattern="^(none|unpaid|partial|enough)$"),
+    # Nhóm TIỀN (phương án 3): chua_tra | mot_phan | qua_han | da_tra — độc lập với `status` (Hàng).
+    tien: str | None = Query(default=None, pattern="^(chua_tra|mot_phan|qua_han|da_tra)$"),
     tong_tu: int | None = Query(default=None, ge=0),
     tong_den: int | None = Query(default=None, ge=0),
+    loai_mua: list[str] | None = Query(default=None),
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
@@ -621,14 +693,17 @@ def list_purchase_requests(
         deposit_status=deposit_status,
         tong_tu=tong_tu,
         tong_den=tong_den,
+        loai_mua=_loai_mua(loai_mua),
     )
-    rows, total = svc.list_requests(
-        status=status_, sort=sort, page=page, size=size, actor=user, **loc
+    try:
+        rows, total, dem, dem_tien = svc.danh_sach_don(
+            status=status_, tien=tien, sort=sort, page=page, size=size, actor=user, **loc
+        )
+    except PurchaseValidationError as exc:
+        raise _map_error(exc) from None
+    return PurchaseRequestListOut(
+        items=rows, total=total, page=page, size=size, dem_theo_tab=dem, dem_theo_tien=dem_tien
     )
-    # Số trên tab trạng thái: cùng ô tìm, kỳ, điều kiện với bảng — chưa lọc trạng thái.
-    dem = svc.dem_theo_trang_thai(actor=user, **loc)
-    dem["tat_ca"] = sum(dem.values())
-    return PurchaseRequestListOut(items=rows, total=total, page=page, size=size, dem_theo_tab=dem)
 
 
 @router.get("/api/purchase-requests/loc-ncc", response_model=list[LuaChonLoc])

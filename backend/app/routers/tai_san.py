@@ -36,6 +36,7 @@ from ..schemas.tai_san import (
     SuKienOut,
     TaiSanDetailOut,
     TaiSanIn,
+    NhomTaiSanOut,
     TaiSanListOut,
     TaiSanRow,
     TaiSanSuaIn,
@@ -53,6 +54,7 @@ from ..services.tai_san.service import (
     TaiSanValidationError,
     mocs_cua,
     thang_da_tinh,
+    thang_hien_tai,
 )
 
 router = APIRouter(prefix="/api/tai-san", tags=["tai-san"])
@@ -93,19 +95,18 @@ def _dung_rows(db: Session, svc: TaiSanService, objs: list[TaiSan]) -> list[TaiS
     tháng thôi dùng và "còn lại" = 0 — nó đã ra khỏi xưởng."""
     ten = _ten_bo_phan(db, {o.bo_phan_id for o in objs})
     nam, thang = thang_da_tinh()
+    nam_nay, thang_nay = thang_hien_tai()
     ra = []
     for o in objs:
         row = TaiSanRow.model_validate(o)
         row.bo_phan_ten = ten.get(o.bo_phan_id)
         row.tien_sua_chua_lon = max(int(o.nguyen_gia or 0) - mocs_cua(o)[0].nguyen_gia, 0)
+        row.hao_mon_luy_ke, row.con_lai = svc.hao_mon_va_con_lai(o, nam, thang)
         if o.trang_thai == TT_DA_GIAM and o.ngay_giam is not None:
-            row.hao_mon_luy_ke = svc.hao_mon_den(o, o.ngay_giam.year, o.ngay_giam.month)
             row.luy_ke_den = f"{o.ngay_giam.year:04d}-{o.ngay_giam.month:02d}"
-            row.con_lai = 0
         else:
-            row.hao_mon_luy_ke = svc.hao_mon_den(o, nam, thang)
             row.luy_ke_den = f"{nam:04d}-{thang:02d}"
-            row.con_lai = int(o.nguyen_gia or 0) - row.hao_mon_luy_ke
+        row.muc_thang_nay = svc.muc_thang_nay(o, nam_nay, thang_nay)
         ra.append(row)
     return ra
 
@@ -231,6 +232,8 @@ def danh_sach(
     tu_ngay: date | None = Query(None),
     den_ngay: date | None = Query(None),
     moc: str = Query("tao", pattern="^(tao|su_dung|giam)$"),
+    #: Cách sắp + nhóm: `loai` (TSCĐ trước CCDC), `bo_phan` (bộ phận trống cuối), `khong` (theo mã).
+    nhom_theo: str = Query("loai", pattern="^(loai|bo_phan|khong)$"),
     offset: int = 0,
     limit: int = Query(default=50, ge=1, le=200),
 ) -> TaiSanListOut:
@@ -238,20 +241,19 @@ def danh_sach(
         q=q, loai=loai, bo_phan_id=bo_phan_id, trang_thai=trang_thai,
         gia_tu=gia_tu, gia_den=gia_den, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
     )
-    rows, tong = svc.repo.danh_sach(loc, offset=offset, limit=limit)
-    # Dải số đầu màn cộng trên CẢ bộ lọc — cộng trong JS chỉ ra tổng của trang đang xem.
-    nam, thang = thang_da_tinh()
-    tong_gia = tong_con_lai = 0
-    for o in svc.repo.tat_ca_theo_loc(loc):
-        gia = int(o.nguyen_gia or 0)
-        tong_gia += gia
-        if o.trang_thai != TT_DA_GIAM:
-            tong_con_lai += gia - svc.hao_mon_den(o, nam, thang)
+    rows, tong = svc.repo.danh_sach(loc, offset=offset, limit=limit, nhom_theo=nhom_theo)
+    # Dải số đầu màn + tổng theo nhóm cộng trên CẢ bộ lọc — cộng trong JS chỉ ra tổng của trang
+    # đang xem. Phần cộng nằm ở service; router chỉ ghép kết quả.
+    so = svc.tong_hop(
+        loc, nhom_theo, den_thang=thang_da_tinh(), thang_nay=thang_hien_tai()
+    )
     return TaiSanListOut(
         items=_dung_rows(db, svc, rows), total=tong,
         dem_loai=svc.repo.dem_theo_loai(loc),
         dem_trang_thai=svc.repo.dem_theo_trang_thai(loc),
-        tong_gia=tong_gia, tong_con_lai=tong_con_lai,
+        tong_gia=so["tong_gia"], tong_hao_mon=so["tong_hao_mon"],
+        tong_con_lai=so["tong_con_lai"], tong_muc_thang=so["tong_muc_thang"],
+        nhom=[NhomTaiSanOut(**g) for g in so["nhom"]],
     )
 
 

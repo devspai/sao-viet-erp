@@ -1,25 +1,30 @@
-/** Màn PHIẾU THU (đặc tả PT-1 … PT-4, A.16 – A.18) — đối xứng màn Phiếu chi, cùng bộ khung chung kế toán.
+/** Màn PHIẾU THU (đặc tả PT-1 … PT-4, A.16 – A.18) — khuôn lưới danh sách chung `lds-*` (08/10/2026),
+ *  đối xứng màn Phiếu chi.
  *
- *  Khuôn trang: đầu trang (tiêu đề + một câu + nút rust) → hàng thẻ lọc → thanh lọc (ô tìm, thanh lọc
- *  chung `ThanhLoc`: kỳ theo Ngày tạo / Ngày thu + điều kiện, "n phiếu") → bảng + chân phân trang. Bấm dòng mở ngăn chi tiết bên phải.
- *  Mọi lọc chạy ở MÁY CHỦ; kỳ lọc theo NGÀY THU. Số trên thẻ lọc (`the_loc`) tính theo kỳ + bộ lọc,
- *  KHÔNG theo thẻ đang chọn. Thẻ "Chờ thu" chỉ hiện khi còn phiếu CŨ chờ thu (phiếu mới lập là đã thu).
+ *  Khuôn trang: đầu trang (tiêu đề + nút "Lập phiếu thu") → thẻ lọc (hàng lọc nhanh trạng thái có số;
+ *  ô tìm, thanh lọc chung `ThanhLoc`: kỳ theo Ngày tạo / Ngày thu + điều kiện; nút Cột) → lưới kiểu
+ *  bảng tính + dòng Cộng + chân phân trang. Bấm dòng mở ngăn chi tiết kiểu 3 bên phải.
+ *  Mọi lọc chạy ở MÁY CHỦ. Số trên hàng lọc nhanh (`the_loc`) tính theo kỳ + bộ lọc, KHÔNG theo mục
+ *  đang chọn. Mục "Chờ thu" chỉ hiện khi còn phiếu CŨ chờ thu (phiếu mới lập là đã thu).
  *
  *  Thu cọc lập ở Đơn hàng bán, thu hoá đơn lập ở Công nợ phải thu; ở đây chỉ lập khoản thu khác.
  */
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError, api, type PaymentReceiptRow, type PaymentVoucherRow } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
+import { Button } from "../../../components/Button";
+import {
+  ChonCot, LocNhanhTrangThai, OTim, useCotAn, useThuTuCot, xepCot, type MucLocNhanh,
+} from "../../../components/LuoiDs";
 import { GoiYPhim } from "../shared/BangPhieu";
-import { vietSo } from "../shared/dinhDang";
-import { TheLoc, type TheLocMuc } from "../shared/TheLoc";
-import { theLocSo, useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
+import { soPhieuCong } from "../shared/PhieuGon";
+import { useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
 import { ReceiptsDrawer } from "./components/ReceiptsDrawer";
-import { ReceiptsTable } from "./components/ReceiptsTable";
+import { COT_PHIEU_THU, ReceiptsTable } from "./components/ReceiptsTable";
 import { OtherReceiptDialog } from "./modals/OtherReceiptDialog";
 import { PaymentReceiptDialog } from "./PaymentReceiptDialog";
 import { PAGE_SIZE } from "./shared/constants";
@@ -69,8 +74,8 @@ export function PaymentReceiptsPage({
   const [lapKhac, setLapKhac] = useState(false);
   const [sua, setSua] = useState<{ voucher: PaymentVoucherRow; receipt: PaymentReceiptRow } | null>(null);
 
-  // Nối dây trang sổ (kỳ, thẻ, lọc, URL, tải + cùng kỳ, SSE, liên thông, ngăn): khuôn chung. Không có
-  // endpoint đọc MỘT phiếu thu ⇒ ngăn đang mở nhận bản mới của dòng sau mỗi lần tải.
+  // Nối dây trang sổ (kỳ, thẻ, lọc, URL, tải + cùng kỳ, SSE, liên thông, ngăn): khuôn chung. Ngăn tự
+  // nạp bản mới nhất của phiếu đang mở (route đọc MỘT phiếu thu).
   const cauHinh: CauHinhTrangPhieu<PaymentReceiptRow, TheLocPT, LocPT> = {
     man: MAN,
     moc: MOC_PT,
@@ -84,12 +89,11 @@ export function PaymentReceiptsPage({
     coTrang: PAGE_SIZE,
     coXemTaiKhoan,
     mucDichTaiKhoan: "receive",
-    moTheoBang: true,
   };
   const sp = useTrangPhieu(cauHinh, token, eventTick, focusQuery);
-  const { the, setThe, loc, rows, mo, setMo, load, soThe, soTheCung } = sp;
+  const { the, setThe, loc, rows, mo, setMo, load, soThe } = sp;
 
-  // Thẻ "Chờ thu" chỉ có khi còn phiếu cũ chờ thu: mở từ link `the=cho` lúc đã hết thì về Tất cả.
+  // Tab "Chờ thu" chỉ có khi còn phiếu cũ chờ thu: mở từ link `the=cho` lúc đã hết thì về Tất cả.
   useEffect(() => {
     if (the === "cho" && soThe && soThe.cho === 0) setThe("tat_ca");
   }, [the, soThe, setThe]);
@@ -141,54 +145,59 @@ export function PaymentReceiptsPage({
     }
   }
 
-  const muc = useMemo<TheLocMuc[]>(() => {
-    const chung = theLocSo(soThe, soTheCung, { nhanXong: "Đã thu", phuThieu: "chưa có báo có hoặc biên nhận" });
-    const ds = [chung.tatCa, chung.xong, chung.thieu];
-    if (soThe && soThe.cho > 0) {
-      ds.push({ id: "cho", nhan: "Chờ thu", cham: "amber", so: vietSo(soThe.cho), phu: "phiếu cũ chưa xác nhận" });
-    }
-    ds.push(chung.daHuy);
-    return ds;
-  }, [soThe, soTheCung]);
-  // Trạng thái trong nút Lọc = hàng thẻ lọc (đọc/ghi thẳng thẻ đang chọn).
+  const muc = useMemo<MucLocNhanh[]>(() => [
+    { key: "tat_ca", label: "Tất cả", count: soThe?.tat_ca },
+    { key: "xong", label: "Đã thu", mau: "la", count: soThe?.xong },
+    // Chỉ phiếu CŨ còn chờ thu; hết thì ẩn (trừ khi đang đứng ở mục đó — effect trên tự về Tất cả).
+    ...(!((soThe?.cho ?? 0) > 0) && the !== "cho"
+      ? []
+      : [{ key: "cho", label: "Chờ thu", mau: "cam" as const, count: soThe?.cho }]),
+    { key: "thieu", label: "Thiếu chứng từ gốc", mau: "vang", count: soThe?.thieu_chung_tu },
+    { key: "da_huy", label: "Đã hủy", mau: "xam", count: soThe?.da_huy },
+  ], [soThe, the]);
+  // Trạng thái trong nút Lọc = các mục đang hiện của hàng lọc nhanh (đọc/ghi thẳng mục đang chọn).
   const dieuKien = useMemo(
     () => [
-      dkTrangThaiPhieu({ muc, n: soThe, dang: the, dat: (id) => setThe(id as TheLocPT) }),
+      dkTrangThaiPhieu({
+        muc: muc.map((m) => ({ id: m.key, nhan: m.label })),
+        n: soThe, dang: the, dat: (id) => setThe(id as TheLocPT),
+      }),
       ...dieuKienPhieu(CAU_HINH_LOC_PT, sp.taiKhoan),
     ],
     [muc, soThe, the, setThe, sp.taiKhoan],
   );
+  // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab + ô Chứng từ).
+  const soXong = soPhieuCong({ the, chungTu: loc.chung_tu, n: soThe, tong: sp.tong });
+  const [cotAn, setCotAn] = useCotAn(MAN);
+  const [thuTu, setThuTu] = useThuTuCot(MAN);
+  const cotHien = xepCot(COT_PHIEU_THU, thuTu).filter((c) => !cotAn.has(c.key));
 
   return (
-    <main className="kt-trang">
-      <header className="kt-ph">
-        <div>
-          <h1>Phiếu thu</h1>
-          <p>Sổ tiền vào. Thu cọc lập ở Đơn hàng bán, thu hoá đơn lập ở Công nợ phải thu.</p>
+    <main className="kt-trang lds">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Phiếu thu</h1>
+        <div className="lds-dau__nut">
+          {coLap && (
+            <Button variant="accent" onClick={() => setLapKhac(true)}>
+              <Plus size={15} aria-hidden="true" /> Lập phiếu thu
+            </Button>
+          )}
         </div>
-        {coLap && (
-          <div className="kt-ph__nut">
-            <button type="button" className="kt-btn kt-btn--chinh" onClick={() => setLapKhac(true)}>
-              <Plus size={16} aria-hidden="true" />
-              Lập phiếu thu
-            </button>
-          </div>
-        )}
       </header>
-
-      <TheLoc muc={muc} dangChon={the} onChon={(id) => setThe(id as TheLocPT)} />
-
-      <div className="kt-tb tl-thanh">
-        <label className="kt-tim">
-          <Search size={16} aria-hidden="true" />
-          <input aria-label="Tìm phiếu thu" placeholder="Tìm mã phiếu, người nộp, số hoá đơn, mã đơn bán" value={sp.tim}
-            onChange={(e) => sp.setTim(e.target.value)} />
-        </label>
-        <ThanhLoc ky={sp.ky} moc={MOC_PT} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
-        <span className="kt-tb__dem">{`${vietSo(sp.tong)} phiếu`}</span>
-      </div>
       {loiMo && <p className="kt-o__loi" role="alert">{loiMo}</p>}
+
+      <section className="lds-loc">
+        <LocNhanhTrangThai muc={muc} dang={the} onChon={(k) => setThe(k as TheLocPT)} />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim value={sp.tim} onChange={sp.setTim} placeholder="Tìm số phiếu, người nộp, số hoá đơn"
+            ariaLabel="Tìm phiếu thu" />
+          <ThanhLoc ky={sp.ky} moc={MOC_PT} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
+          <ChonCot cot={COT_PHIEU_THU} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+        </div>
+      </section>
+
       <ReceiptsTable
+        cot={cotHien}
         rows={rows}
         loading={sp.loading}
         loi={sp.loi}
@@ -204,6 +213,8 @@ export function PaymentReceiptsPage({
         onTrang={sp.datTrang}
         onSize={sp.setSize}
         moNguon={moNguon}
+        tongTien={sp.tongTien}
+        soXong={soXong}
       />
       <GoiYPhim />
 
@@ -217,7 +228,6 @@ export function PaymentReceiptsPage({
           onDong={() => setMo(null)}
           onDoi={load}
           onSua={(row) => void moSua(row)}
-          onMoNguon={moNguon}
           onMoDonBan={coXemDonBan ? (orderId) => navigate("don-hang-ban", { openOrderId: orderId }) : undefined}
           onMoPhieuChi={coXemPhieuChi ? (code) => navigate("ke-toan-phieu-chi", { focusVoucherQuery: code }) : undefined}
           onMoCongNo={coXemCongNo ? (khach) => navigate("ke-toan-cong-no-phai-thu", { focusReceivableCustomer: khach }) : undefined}

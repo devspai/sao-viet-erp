@@ -5,27 +5,18 @@ import type {
   DepartmentPurchaseWorkflowStatus,
   PurchaseRequestStatus,
 } from "../../../../api/client";
-import { PHIEU_STATUS_META, SOURCE_STATUS_META } from "../shared/constants";
+import { ChipTT, TT_DON, TT_YEU_CAU } from "../../trang-thai-mua";
 
 export function SourceStatusBadge({
   status,
 }: {
   status: DepartmentPurchaseWorkflowStatus;
 }) {
-  const meta = SOURCE_STATUS_META[status];
-  return (
-    <span className={`purchase__status purchase__status--${meta.tone}`}>
-      <span className={`purchase__status-dot purchase__status-dot--${meta.tone}`} />
-      {meta.label}
-    </span>
-  );
+  return <ChipTT nhan={TT_YEU_CAU[status]} />;
 }
 
 export function StatusBadgePhieu({ status }: { status: PurchaseRequestStatus }) {
-  const meta = PHIEU_STATUS_META[status];
-  return (
-    <span className={`purchase__status purchase__status--${meta.tone}`}>{meta.label}</span>
-  );
+  return <ChipTT nhan={TT_DON[status]} />;
 }
 
 /**

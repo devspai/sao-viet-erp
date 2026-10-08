@@ -1,6 +1,6 @@
 // Khung "Kho" — gộp Yêu cầu + Hộp yêu cầu vào MỘT module, chia tab.
 //
-// Tab VIỆC: Yêu cầu · Phiếu từ yêu cầu (tab sau chỉ hiện cho vai trong kho).
+// Tab VIỆC: Yêu cầu · Phiếu từ yêu cầu (tab sau chỉ hiện cho vai trong kho). Đầu trang `lds-dau` chung.
 // Nhập và Xuất chung MỘT bảng (07/10/2026): bỏ cụm nút chiều Nhập/Xuất, chiều thành điều kiện "Loại"
 // trong nút Lọc (`loc-kho/dieu-kien-yeu-cau-kho.ts`). Tab Điều chuyển vẫn ẩn (`AN_DIEU_CHUYEN`).
 import { useCallback, useEffect, useState } from "react";
@@ -59,6 +59,8 @@ export function KhoPage({
     }
   }, [openRequest]);
   const consumeOpenReq = useCallback(() => setOpenReqId(null), []);
+  // Chỗ nút chính trong đầu trang (state chứ không ref: tab Yêu cầu phải vẽ lại khi chỗ này có mặt).
+  const [slotNut, setSlotNut] = useState<HTMLElement | null>(null);
   // Phản hồi kho chưa xem của NGƯỜI TẠO (Hoàn tất + Không thành) — badge tab "Yêu cầu".
   const phanHoiUnseen = (counts?.done_unseen ?? 0) + (counts?.fail_unseen ?? 0);
   const activeFn: FnTab =
@@ -69,7 +71,15 @@ export function KhoPage({
         : fn;
 
   return (
-    <main className="rc">
+    <main className="rc lds">
+      {/* Đầu trang chung cho cả hai tab. Nút chính ("Tạo yêu cầu") thuộc tab Yêu cầu — màn đó vẽ vào
+          `lds-dau__nut` bằng portal (nó giữ state ngăn); sang tab Phiếu từ yêu cầu thì chỗ này trống. */}
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Yêu cầu nhập xuất</h1>
+        <div className="lds-dau__nut" ref={setSlotNut} />
+      </header>
+      {/* `.kho-shell` GIỮ nguyên là anh em của nội dung tab: luật responsive của tab Phiếu từ yêu cầu
+          neo vào `.kho-shell ~ …`. Khung/viền của nó được gỡ trong `.lds > .kho-shell` (kho-request.css). */}
       <div className="kho-shell">
         <div className="kho-shell__fns">
           {canDeNghi && (
@@ -110,6 +120,7 @@ export function KhoPage({
           onSeen={onSeen}
           openRequestId={openReqId}
           onOpenRequestConsumed={consumeOpenReq}
+          slotNut={slotNut}
         />
       ) : (
         <KhoYeuCauPage

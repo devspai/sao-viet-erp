@@ -65,7 +65,7 @@ from ..services.dong_giay import (
 )
 from ..models.don_vi_do import DonViDo
 from ..services.kho_giay import (
-    DANG_CUON, dong_giay_theo_dau_vao, don_vi_goc_to,
+    DANG_CUON, dong_giay_theo_dau_vao,
 )
 from ..services.bien_cong_thuc import MAC_DINH_TANG_LENH, ngu_canh_lenh, quy_cach_bien
 from ..services.don_vi_do_service import cong_thuc_chu, cong_thuc_the_so
@@ -1696,6 +1696,14 @@ class LsxService:
 
     def thieu_cua(self, lsx: Lsx) -> list[str]:
         """Checklist CHẶN — còn mã nào thì không cho đánh dấu "Sẵn sàng lập kế hoạch" (§12)."""
+        return self.kiem_thieu(lsx)[0]
+
+    def kiem_thieu(self, lsx: Lsx) -> tuple[list[str], dict[str, list[int]]]:
+        """`(mã thiếu, {mã thiếu cấp BƯỚC: [id bước dính]})`.
+
+        Vế hai cho màn lệnh nói ĐÍCH DANH bước nào (07/10/2026): trước đó chỉ có câu "Có công đoạn
+        chưa gán tổ / máy", người dùng phải mở từng bước ra dò mới biết bước nào chặn nút Sẵn sàng.
+        """
         order = self.db.get(Order, lsx.order_id)
         tp = self._thanh_phan(lsx.phieu_thanh_phan_id)
         # Nạp cờ dụng cụ theo LÔ (1 query) — bước của lệnh chỉ giữ `cong_doan_id`, mà hỏi lẻ từng
@@ -1733,17 +1741,17 @@ class LsxService:
             thieu.append("thieu_ngay_giao")
 
         # --- Điều kiện "sẵn sàng xếp lịch" của từng bước (§12) ---
+        buoc: dict[str, list[int]] = {}
         for cd in lsx.cong_doans:
             # Bước MÁY/TỔ phải biết ai/máy nào làm thì Gantt mới có chỗ đặt. Bước THUÊ NGOÀI không
             # tổ, không máy — nó phải có NHÀ GIA CÔNG chọn từ danh mục (spec 2026-09-26 §7); tên
             # gõ tay kiểu cũ (`nha_cung_cap` có chữ mà không có id) không tính.
             if cd.loai_buoc == LB_THUE_NGOAI:
-                if cd.nha_cung_cap_id is None and "thieu_nha_gia_cong" not in thieu:
-                    thieu.append("thieu_nha_gia_cong")
+                if cd.nha_cung_cap_id is None:
+                    buoc.setdefault("thieu_nha_gia_cong", []).append(cd.id)
             elif (cd.loai_buoc in (LB_MAY, LB_TO)
                     and not (cd.department_id or cd.may_id)):
-                if "thieu_to_may" not in thieu:
-                    thieu.append("thieu_to_may")
+                buoc.setdefault("thieu_to_may", []).append(cd.id)
             # Bước cần dụng cụ lưu kho mà chưa trỏ con dao nào → chưa chạy được, chặn Y NHƯ
             # thiếu nhà gia công. Trước 04/09/2026 cửa này im lặng: lệnh qua cửa ngon lành rồi tới
             # lúc thợ ra máy mới biết không có dao. Danh sách dụng cụ đọc từ CỜ của công đoạn
@@ -1753,8 +1761,9 @@ class LsxService:
             can_dc, loai_dc = co_dung_cu.get(cd.cong_doan_id, (False, None))
             if (cd.loai_buoc != LB_THUE_NGOAI and can_chot_khuon(can_dc, loai_dc)
                     and cd.khuon_be_id is None):
-                if "thieu_khuon" not in thieu:
-                    thieu.append("thieu_khuon")
+                buoc.setdefault("thieu_khuon", []).append(cd.id)
+        # Thứ tự mã giữ như trước: nhà gia công → tổ/máy → khuôn, theo bước đầu tiên dính.
+        thieu.extend(buoc)
         # Thiếu NGUỒN của hệ số quy đổi — hai cầu, hai nguồn khác nhau. KHÔNG kiểm `he_so <= 1`
         # như bản cũ: hệ số 1 HỢP LỆ ở cả hai cầu (1 tờ nguyên ra 1 tờ in là chuyện thường; 1
         # con/tờ hiếm nhưng có — poster bằng khổ tờ). Chỉ 0/thiếu mới là chưa khai.
@@ -1777,7 +1786,7 @@ class LsxService:
             thieu.append("thieu_manh_xa")
         # tp chỉ dùng để xác nhận nguồn còn sống — lệnh vẫn chạy được khi PTG đã đổi/xoá.
         del tp
-        return thieu
+        return thieu, buoc
 
     # ================= TÍNH NGƯỢC · LEAD TIME =================
 
@@ -2296,6 +2305,7 @@ class LsxService:
         dept_names = self._dept_names(dept_ids)
         may_names = self._may_names(may_ids)
         khuon_map = self._khuon_map({cd.khuon_be_id for cd in lsx.cong_doans})
+        thieu, thieu_buoc = self.kiem_thieu(lsx)
         ptg_id = ptg_ma = None
         tp = self._thanh_phan(lsx.phieu_thanh_phan_id)
         if tp is not None:
@@ -2351,7 +2361,8 @@ class LsxService:
             "ptg_ma": ptg_ma,
             "may_ten": may_names.get(lsx.may_id),
             "nguoi_phu_trach_ten": self._user_name(lsx.nguoi_phu_trach_id),
-            "thieu": self.thieu_cua(lsx),
+            "thieu": thieu,
+            "thieu_buoc": thieu_buoc,
             "lead_time": self.lead_time(lsx),
             "cong_doans": buoc_dicts,
             # KHÔNG có `khoan_tien_tong` (gỡ 11/09/2026). Tổng công thợ của lệnh là số của kế toán
@@ -3248,8 +3259,9 @@ class LsxService:
                                         or getattr(cu, "vat_tu_ma_snapshot", None) or ""),
                     vat_tu_ten_snapshot=(getattr(mon, "ten", None)
                                          or getattr(cu, "vat_tu_ten_snapshot", None) or ""),
-                    # Giấy đếm TỜ NGUYÊN theo luật (spec §4.2) — không mượn `don_vi_gia` (kg) của mã.
-                    don_vi_snapshot=((getattr(cu, "don_vi_snapshot", None) or don_vi_goc_to())
+                    # Giấy của BƯỚC lệnh mang MÃ CHẶNG tờ nguyên (dữ liệu sản xuất, spec §4.2) —
+                    # không phải đơn vị kho `to`, cũng không mượn `don_vi_gia` (kg) của mã.
+                    don_vi_snapshot=((getattr(cu, "don_vi_snapshot", None) or TRAM_TO_NGUYEN)
                                      if cap[0] == HANG_GIAY else
                                      (getattr(mon, "don_vi_gia", None)
                                       or getattr(cu, "don_vi_snapshot", None) or "")),

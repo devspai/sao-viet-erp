@@ -408,15 +408,44 @@ body {
   padding: 2px 8px;
   white-space: nowrap;
 }
-.badge-sem--rust { background: var(--rule-hair); color: var(--rust-deep); }
+/* Tông chip trạng thái — TƯƠI và mỗi tông một sắc riêng để liếc là phân biệt (07/10/2026: bộ trầm cũ
+   làm "Chờ xử lý"/"Đã hủy" cùng xám). Giữ TÊN tông cũ để mọi màn tự ăn theo; tên ≠ sắc ở hai chỗ:
+   steel = XANH DƯƠNG, plum = TÍM, rust = CAM. Thêm sky/teal/indigo/gray để tách trạng thái trùng màu.
+   Quy ước: chờ người khác = amber · đang xử lý = steel/sky/indigo · xong = moss · lỗi/từ chối = signal
+   · huỷ = gray · nháp = muted. Màu lấy từ bộ --tt-* trong tokens.css. */
+.badge-sem--rust { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
 .badge-sem--rust-solid { background: var(--rust); color: var(--on-charcoal); }
-.badge-sem--plum { background: var(--plum-soft); color: var(--plum-deep); }
+.badge-sem--plum { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }
 .badge-sem--plum-solid { background: var(--plum); color: var(--on-charcoal); }
-.badge-sem--moss { background: var(--moss-soft); color: var(--moss-deep); }
-.badge-sem--amber { background: var(--amber-soft); color: var(--amber-deep); }
-.badge-sem--signal { background: var(--signal-soft); color: var(--signal); }
-.badge-sem--muted { background: var(--rule-soft); color: var(--ash); }
-.badge-sem--steel { background: var(--steel-soft); color: var(--steel); }
+.badge-sem--moss { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.badge-sem--amber { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.badge-sem--signal { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.badge-sem--muted { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
+.badge-sem--steel { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.badge-sem--sky { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); }
+.badge-sem--teal { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); }
+.badge-sem--indigo { background: var(--tt-cham-bg); color: var(--tt-cham-fg); }
+.badge-sem--gray { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
+
+/* Chấm đèn trong chip — cùng sắc với tông chip. */
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.status-dot--rust { background: var(--tt-cam-dot); }
+.status-dot--plum { background: var(--tt-tim-dot); }
+.status-dot--moss { background: var(--tt-la-dot); }
+.status-dot--amber { background: var(--tt-vang-dot); }
+.status-dot--signal { background: var(--tt-do-dot); }
+.status-dot--muted { background: var(--tt-slate-dot); }
+.status-dot--steel { background: var(--tt-xanh-dot); }
+.status-dot--sky { background: var(--tt-cyan-dot); }
+.status-dot--teal { background: var(--tt-ngoc-dot); }
+.status-dot--indigo { background: var(--tt-cham-dot); }
+.status-dot--gray { background: var(--tt-xam-dot); }
 
 /* Chip điểm số (uy tín…) theo ngưỡng — page tự chọn variant theo giá trị. */
 .score-chip {

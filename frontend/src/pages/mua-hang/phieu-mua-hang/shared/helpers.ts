@@ -9,7 +9,7 @@ import type {
   PurchaseRequestRow,
   SupplierRow,
 } from "../../../../api/client";
-import type { DangGiay } from "../../../../lib/khoGiay";
+import { chuanKho, type DangGiay } from "../../../../lib/khoGiay";
 import { SO_NCC_GOI_Y } from "./constants";
 import type { ChaoGia, FormLine, FormState } from "./types";
 
@@ -99,6 +99,9 @@ export function fromRequest(row: PurchaseRequestRow): FormState {
       hang_id: line.hang_id,
       kho_rong: line.kho_rong,
       kho_dai: line.kho_dai,
+      yeu_cau_ma: line.yeu_cau_ma,
+      loai_mua: line.loai_mua,
+      mua_cho: line.mua_cho,
     })),
   };
 }
@@ -153,18 +156,58 @@ export function supplierItemForLine(
  * Không cần gọi API: danh sách NCC nạp cho màn này đã kèm bảng giá mặt hàng của từng người.
  */
 export function chaoGiaChoMatHang(
-  itemName: string,
+  line: Pick<FormLine, "item_name" | "hang_loai" | "hang_id" | "kho_rong" | "kho_dai">,
   suppliers: SupplierRow[],
 ): ChaoGia[] {
-  const ten = normalizeItemName(itemName);
-  if (!ten) return [];
+  const ten = normalizeItemName(line.item_name);
+  if (!ten && !line.hang_id) return [];
+  // Cùng MÃ: dòng có mặt hàng gốc thì khớp theo cặp (loại, id), dòng cũ chỉ có tên thì khớp tên.
+  const cungMa = (i: SupplierRow["items"][number]) =>
+    line.hang_loai && line.hang_id && i.hang_id
+      ? i.hang_loai === line.hang_loai && i.hang_id === line.hang_id
+      : normalizeItemName(i.item_name) === ten;
+  // Giấy so theo DẠNG BÁN (07/10/2026): dòng đủ hai cạnh khổ là Tờ, chỉ so NCC bán tờ ĐÚNG khổ
+  // (đ/tờ); dòng không khổ là Cuộn, so NCC bán cuộn (đ/kg) mọi khổ hoặc đúng khổ rộng.
+  const laGiay = line.hang_loai === "giay";
+  const [r, d] = chuanKho(line.kho_rong, line.kho_dai);
+  const dangDong = r && d ? "to" : "cuon";
+  const hop = (i: SupplierRow["items"][number]) => {
+    if (!laGiay) return true;
+    if (i.dang_ban !== dangDong) return false;
+    if (dangDong === "to") {
+      const [ir, id] = chuanKho(i.kho_rong, i.kho_dai);
+      return ir === r && id === d;
+    }
+    return !i.kho_rong || !r || i.kho_rong === r;
+  };
   const out: ChaoGia[] = [];
+  const khac: ChaoGia[] = [];
   for (const ncc of suppliers) {
     if (ncc.status !== "active") continue;
-    const item = ncc.items.find(
-      (i) => normalizeItemName(i.item_name) === ten && i.is_active !== false,
-    );
-    if (!item) continue;
+    const cung = ncc.items.filter((i) => cungMa(i) && i.is_active !== false);
+    const item = cung.find(hop);
+    if (!item) {
+      const k = cung[0];
+      if (k && laGiay) {
+        const [kr, kd] = chuanKho(k.kho_rong, k.kho_dai);
+        khac.push({
+          supplier_id: ncc.id,
+          supplier_name: ncc.name,
+          unit_price: 0,
+          vat_percent: k.vat_percent ?? 0,
+          unit: k.unit,
+          gia_quy_doi: null,
+          khac_kho: true,
+          nhan_dang:
+            k.dang_ban === "to"
+              ? `Tờ ${kr} × ${kd}`
+              : k.dang_ban === "cuon"
+                ? kr ? `Cuộn khổ ${kr}` : "Cuộn"
+                : "Chưa ghi dạng bán",
+        });
+      }
+      continue;
+    }
     out.push({
       supplier_id: ncc.id,
       supplier_name: ncc.name,
@@ -184,7 +227,7 @@ export function chaoGiaChoMatHang(
       (a.gia_quy_doi ?? Infinity) - (b.gia_quy_doi ?? Infinity) ||
       a.unit_price - b.unit_price,
   );
-  return out.slice(0, SO_NCC_GOI_Y);
+  return [...out.slice(0, SO_NCC_GOI_Y), ...khac];
 }
 
 export function applySupplierPrices(

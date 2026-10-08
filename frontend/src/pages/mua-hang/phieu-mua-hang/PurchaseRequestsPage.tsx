@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -14,6 +15,7 @@ import {
   ApiError,
   api,
   type DepartmentPurchaseRequestRow,
+  type NhomTien,
   type PurchaseDeliveryRow,
   type PurchaseRequestRow,
   type SupplierRow,
@@ -21,10 +23,10 @@ import {
 import { useDebounced } from "../../../utils/useDebounced";
 import { useAuth } from "../../../auth/useAuth";
 import { useKhiTickDoi } from "../../../hooks/useKhiTickDoi";
+import { useMoLenh } from "../mua-cho/OMuaCho";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import type { SeedLine } from "../../KhoDeNghiPage";
-import { StatusTabs } from "../../../components/StatusTabs";
 import { PurchaseDetailDrawer } from "./components/PurchaseDetailDrawer";
 import { PurchaseFormDrawer } from "./components/PurchaseFormDrawer";
 import { PurchaseModals } from "./components/PurchaseModals";
@@ -69,8 +71,8 @@ import type {
 } from "./shared/types";
 import "../../master-data.css";
 import "../../accounting.css";
-// Hộp khai số thực nhận mượn bảng gọn `.pay-table` của màn Công nợ — cùng một loại bảng phụ trong
-// hộp thoại, không dựng bộ lớp thứ hai cho y hệt một việc.
+// Các hộp thoại của phiếu (số thực nhận, gán hoá đơn) vẽ bảng bằng lưới `lds-g`; payables.css còn
+// cấp các lớp khác của hộp (vd `.pay-block__hint`).
 import "../../payables.css";
 import "../../purchase.css";
 import "./phieu-mua-hang-chuan.css";
@@ -91,6 +93,7 @@ export function PurchaseRequestsPage({
   navigate,
   eventTick = 0,
   focusRequestCode = null,
+  lapDonTuYeuCau = false,
   onDataRefreshed,
 }: {
   navigate: NavigateFn;
@@ -99,10 +102,13 @@ export function PurchaseRequestsPage({
    *  Mã `PMH-…` = phiếu mua → tab "phieu"; mã `YCMH-…` = yêu cầu → tab "yeu-cau".
    *  Xem effect "BẪY LIÊN THÔNG" bên dưới trước khi đụng vào. */
   focusRequestCode?: string | null;
+  /** Kèm mã YCMH: mở luôn form lập đơn cho yêu cầu đó khi nó nạp xong (nút ở chi tiết yêu cầu). */
+  lapDonTuYeuCau?: boolean;
   onDataRefreshed?: () => void;
 }) {
   const { token } = useAuth();
   const can = useCan();
+  const moLenh = useMoLenh(can("san_xuat", "read") ? navigate : undefined);
   // Nạp danh mục Đơn vị MỘT lần: mọi chỗ hiện số lượng ở màn này (dòng hàng, đợt giao, hộp ghi
   // đợt, phiếu in) đọc TÊN đơn vị qua `tenDonVi()`. Thiếu dòng này là tất cả rơi về mã trần.
   useNapTenDonVi();
@@ -133,8 +139,10 @@ export function PurchaseRequestsPage({
         sl_de_nghi: dl.quantity,
         don_gia: pl?.expected_unit_price ?? null,
         ghi_chu: [dl.item_name, dl.note].filter(Boolean).join(" — ") || null,
-        // Giấy: nhập đúng dạng + khổ MUA của dòng đơn (form khoá ⇒ thủ kho không phải khai lại).
-        ...khoNhapTuDongMua(pl),
+        // Giấy: nhập đúng dạng + khổ của dòng giao (form khoá ⇒ thủ kho không phải khai lại). Khổ
+        // THỰC NHẬN (07/10/2026): NCC giao khác khổ đặt thì hàng vào tồn theo khổ nhận — dòng giao
+        // đã trả về khổ nhận, không ghi thì là khổ đặt.
+        ...khoNhapTuDongMua(pl ? { ...pl, kho_rong: dl.kho_rong, kho_dai: dl.kho_dai } : pl),
       };
     });
     navigate("kho-main", {
@@ -146,6 +154,8 @@ export function PurchaseRequestsPage({
         deliveryId: dot.id,   // gắn nguồn đợt → yêu cầu chặn nhập trùng
         don_mua_ma: row.code,   // hiện rõ mã đơn mua ở THÔNG TIN CHUNG của form nhập
         dot_so: dot.seq_no,
+        ncc_ten: row.supplier_name || undefined,
+        hoa_don: dot.invoice_number || undefined,
       },
     });
   };
@@ -173,6 +183,8 @@ export function PurchaseRequestsPage({
   const [size, setSize] = useState(PAGE_SIZE);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
+  /** Nhóm cột Tiền — độc lập với `status` (Hàng). "" = không lọc tiền. */
+  const [tien, setTien] = useState<NhomTien | "">("");
   // Thanh lọc chung của HAI danh sách (06/10/2026), ghi lên URL dưới cùng dấu `?man=mua-hang`: khoá
   // của danh sách đơn không tiền tố (`ky`, `ncc`, `coc`…), của danh sách yêu cầu mang `yc_`. Chỉ lọc
   // lên URL — tab đang mở thì KHÔNG (xem ghi chú `tab` ở trên).
@@ -184,6 +196,7 @@ export function PurchaseRequestsPage({
   const setLocYeuCau = (yc: LocManYeuCau) => {
     setLocManGoc({ ...locMan, yc });
     setSourcePage(1);
+    setMonPage(1);
   };
   const dieuKienDon = useDieuKienDonMuaHang();
   const dieuKienYeuCau = useDieuKienYeuCau();
@@ -191,6 +204,7 @@ export function PurchaseRequestsPage({
   const khoaLocYeuCau = JSON.stringify({ ...thamSoKy(locMan.yc.ky), ...thamSoLocYeuCau(locMan.yc.loc) });
   /** Số theo trạng thái của từng danh sách — máy chủ đếm sau lọc, trước tab (`tat_ca` = Tất cả). */
   const [demDon, setDemDon] = useState<Record<string, number> | null>(null);
+  const [demTien, setDemTien] = useState<Record<string, number> | null>(null);
   const [demYeuCau, setDemYeuCau] = useState<Record<string, number> | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
@@ -209,7 +223,15 @@ export function PurchaseRequestsPage({
     somNhat: null,
   });
   const [sourceQ, setSourceQ] = useState("");
-  const [sourceStatus, setSourceStatus] = useState<SourceStatusFilter>("all");
+  // Mặc định "Chờ Thu mua xử lý": tab tên "Yêu cầu chờ xử lý" và con số trên tab đếm đúng nhóm này —
+  // mở ra mà lẫn cả Hoàn tất, Đã huỷ thì tên tab nói một đằng bảng hiện một nẻo (07/10/2026).
+  // Lối mở thẳng một yêu cầu (`focusRequestCode`) vẫn tự trả về "Tất cả" để tìm thấy dòng đó.
+  const [sourceStatus, setSourceStatus] = useState<SourceStatusFilter>("open");
+  // Chế độ "Xem theo: Từng món" (phương án 3): mặc định chip Chờ lập đơn — món Thu mua còn phải gom.
+  const [tinhTrangMon, setTinhTrangMon] = useState("cho_lap");
+  const [monPage, setMonPage] = useState(1);
+  /** Tăng sau mỗi thao tác chạm yêu cầu — bảng Từng món nạp lại (xem `napLaiYeuCau`). */
+  const [monTick, setMonTick] = useState(0);
   const [sourceLoading, setSourceLoading] = useState(true);
   // Ô nhập vẫn bám state gốc (gõ tới đâu hiện tới đó); chỉ lời gọi máy chủ đọc bản đã
   // chậm 300ms — xem `utils/useDebounced`.
@@ -219,6 +241,9 @@ export function PurchaseRequestsPage({
   const [sourcePage, setSourcePage] = useState(1);
   const [sourceSize, setSourceSize] = useState(SOURCE_PAGE_SIZE);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
+  // Đã nạp xong danh sách NCC (kể cả lỗi) — form tự mở từ yêu cầu phải chờ cái này, không thì
+  // bước "gán sẵn NCC bán đúng dạng + khổ" chạy trên danh sách rỗng và mọi dòng ra "Chưa chọn".
+  const [nccDaNap, setNccDaNap] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
@@ -300,7 +325,8 @@ export function PurchaseRequestsPage({
     api.suppliers
       .list(token, { status: "active", sort: "name", page: 1, size: 200 })
       .then((res) => setSuppliers(res.items))
-      .catch(() => setSuppliers([]));
+      .catch(() => setSuppliers([]))
+      .finally(() => setNccDaNap(true));
   }, [token]);
 
   /** Đếm yêu cầu ĐANG CHỜ MUA + ngày cần sớm nhất của nhóm đó.
@@ -354,8 +380,12 @@ export function PurchaseRequestsPage({
       .finally(() => setSourceLoading(false));
   }, [token, loadChoMua, sourceQDebounced, sourceStatus, sourcePage, sourceSize, khoaLocYeuCau]);
 
+  // Lượt gọi mới nhất — response về muộn của lượt cũ (vd lượt chưa có mã khi nhảy từ màn khác
+  // sang kèm mã đơn) không được đè lên kết quả đã lọc.
+  const luotNap = useRef(0);
   const load = useCallback(() => {
     if (!token) return;
+    const luot = ++luotNap.current;
     setLoading(true);
     setError(null);
     setListError(null);
@@ -365,6 +395,7 @@ export function PurchaseRequestsPage({
         {
           q: qDebounced.trim() || undefined,
           status: status === "all" ? null : status,
+          tien: tien || null,
           sort: "-created_at",
           page,
           size,
@@ -372,9 +403,11 @@ export function PurchaseRequestsPage({
         JSON.parse(khoaLocDon),
       )
       .then((res) => {
+        if (luot !== luotNap.current) return;
         setRows(res.items);
         setTotal(res.total);
         setDemDon(res.dem_theo_tab ?? null);
+        setDemTien(res.dem_theo_tien ?? null);
         setSelectedId((current) =>
           current != null && res.items.some((row) => row.id === current)
             ? current
@@ -383,14 +416,18 @@ export function PurchaseRequestsPage({
         onDataRefreshed?.();
       })
       .catch((err) => {
+        if (luot !== luotNap.current) return;
         if (err instanceof ApiError && err.isForbidden) setForbidden(true);
         else setListError("Không tải được danh sách đơn mua hàng.");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (luot === luotNap.current) setLoading(false);
+      });
   }, [
     token,
     qDebounced,
     status,
+    tien,
     khoaLocDon,
     page,
     size,
@@ -432,6 +469,7 @@ export function PurchaseRequestsPage({
     if (code.toUpperCase().startsWith("YCMH")) {
       setSourceQ(code);
       setSourceStatus("all");
+      setTinhTrangMon("all");
       setLocManGoc({ ...locMan, yc: LOC_MAN_YC_TRONG });
       setSourcePage(1);
       setTab("yeu-cau");
@@ -444,6 +482,21 @@ export function PurchaseRequestsPage({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusRequestCode]);
+
+  // "Lập đơn mua cho N món" ở chi tiết yêu cầu: danh sách yêu cầu đã lọc theo mã (effect trên),
+  // nạp xong là mở form một lần. Ref giữ mã đã mở để nạp lại danh sách không bật form lần nữa.
+  const daMoLapDon = useRef<string | null>(null);
+  /** Yêu cầu nguồn của form lập đơn đang mở — thẻ "Từ YCMH-…" cạnh tiêu đề + "Yêu cầu cần …". */
+  const [nguonLapDon, setNguonLapDon] = useState<{ code: string; bo_phan: string | null; needed_date: string }[]>([]);
+  useEffect(() => {
+    const code = (focusRequestCode ?? "").trim();
+    if (!lapDonTuYeuCau || !code || !nccDaNap || daMoLapDon.current === code) return;
+    const src = sourceRows.find((r) => r.code === code);
+    if (!src) return;
+    daMoLapDon.current = code;
+    openCreatePurchaseRequest(src);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lapDonTuYeuCau, focusRequestCode, sourceRows, nccDaNap]);
 
   const selected = useMemo(
     () => rows.find((row) => row.id === selectedId) ?? null,
@@ -468,7 +521,13 @@ export function PurchaseRequestsPage({
   const doiCoTrangYeuCau = (n: number) => {
     setSourceSize(n);
     setSourcePage(1);
+    setMonPage(1);
   };
+  /** Nạp lại CẢ hai cách xem yêu cầu sau một thao tác (lập đơn, huỷ, đóng đơn…). */
+  function napLaiYeuCau() {
+    loadSources();
+    setMonTick((t) => t + 1);
+  }
   // CÓ YÊU CẦU QUÁ HẠN chưa? — điều kiện DUY NHẤT bật tone đỏ ở tab và bật dải nhắc ở tab phiếu.
   // Ngày thường (còn hạn) thì không tô đỏ, không render dải nhắc: không tốn một pixel nào.
   // `minPurchaseDate` chính là HÔM NAY dạng yyyy-mm-dd (memo 1 lần) — dùng lại để khỏi có hai
@@ -484,38 +543,67 @@ export function PurchaseRequestsPage({
     );
   }
 
-  function openCreatePurchaseRequest(pickedSource: DepartmentPurchaseRequestRow) {
-    if (pickedSource.status !== "open") {
+  /** Món đã tick (của MỘT hay NHIỀU yêu cầu, 08/10/2026) ⇒ hỏi lại các yêu cầu mới nhất cùng lúc rồi
+   *  mở MỘT form chỉ tick sẵn đúng các món đó. Món chờ lập đơn khác của các yêu cầu này vẫn nằm trong
+   *  form, bỏ tick. Form tự chia đơn theo nhà cung cấp lúc lưu. */
+  async function lapDonTuMon(theoYeuCau: Map<number, number[]>) {
+    if (!token || theoYeuCau.size === 0) return;
+    try {
+      const srcs = await Promise.all([...theoYeuCau.keys()].map((id) => api.departmentPurchaseRequests.get(token, id)));
+      openCreatePurchaseRequest(srcs, new Set([...theoYeuCau.values()].flat()));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Không mở được yêu cầu để lập đơn.");
+    }
+  }
+
+  function openCreatePurchaseRequest(
+    picked: DepartmentPurchaseRequestRow | DepartmentPurchaseRequestRow[],
+    chiDong?: Set<number>,
+  ) {
+    const tat = Array.isArray(picked) ? picked : [picked];
+    const sources = tat.filter((s) => s.status === "open");
+    if (sources.length === 0) {
       setError("Chỉ lập đơn mua hàng từ yêu cầu đang chờ Thu mua xử lý.");
       return;
     }
-    const source = pickedSource;
-    const lines = source.lines.map((line) => ({
-      // Mọi dòng còn sống được tick sẵn; thu mua bỏ tick dòng không mua ở đơn này. Dòng đã huỷ
-      // không tick được (server chặn lập đơn cho nó).
-      chon: !line.cancelled_at,
-      hang_loai: line.hang_loai,
-      hang_id: line.hang_id,
-      // Khổ MUA mặc định = khổ CẦN; thu mua sửa được (vd mua 80×109 thay 79×109 rồi tề).
-      kho_rong: line.kho_rong,
-      kho_dai: line.kho_dai,
-      item_name: line.item_name,
-      unit: line.unit,
-      quantity: line.quantity,
-      expected_unit_price: line.expected_unit_price,
-      discount_percent: 0,
-      vat_percent: 0,
-      note: line.note ?? `Từ ${source.code}`,
-      // Nối DÒNG ↔ DÒNG. Form dựng từ chính các dòng của yêu cầu nên id có sẵn ngay đây; không
-      // gửi lên thì chi tiết yêu cầu không hiện được tình trạng từng sản phẩm, mà ghép bù theo
-      // tên hàng thì trượt (thu mua sửa được tên cho khớp danh mục NCC).
-      department_request_line_id: line.id,
-    }));
+    setNguonLapDon(sources.map((s) => ({
+      code: s.code,
+      bo_phan: s.requesting_department_name,
+      needed_date: s.needed_date,
+    })));
+    // Chỉ món CÒN CHỜ LẬP ĐƠN: chưa huỷ, chưa nằm trong đơn còn sống (đơn bị trả vẫn giữ món — sửa
+    // đơn đó). Thu mua bỏ tick món không mua ở đơn này; món đó vẫn chờ ở yêu cầu.
+    const lines = sources.flatMap((source) => source.lines
+      .filter((line) => !line.cancelled_at && (!line.fulfilment || line.fulfilment.purchase_status === "cancelled"))
+      .map((line) => ({
+        chon: !chiDong || chiDong.has(line.id),
+        hang_loai: line.hang_loai,
+        hang_id: line.hang_id,
+        // Khổ MUA mặc định = khổ CẦN; thu mua sửa được (vd mua 80×109 thay 79×109 rồi tề).
+        kho_rong: line.kho_rong,
+        kho_dai: line.kho_dai,
+        item_name: line.item_name,
+        unit: line.unit,
+        quantity: line.quantity,
+        expected_unit_price: line.expected_unit_price,
+        discount_percent: 0,
+        vat_percent: 0,
+        note: line.note ?? `Từ ${source.code}`,
+        // Nối DÒNG ↔ DÒNG. Form dựng từ chính các dòng của yêu cầu nên id có sẵn ngay đây; không
+        // gửi lên thì chi tiết yêu cầu không hiện được tình trạng từng sản phẩm, mà ghép bù theo
+        // tên hàng thì trượt (thu mua sửa được tên cho khớp danh mục NCC).
+        department_request_line_id: line.id,
+        // Chỉ để HIỆN (không gửi): món này của yêu cầu nào, mua cho lệnh nào / tồn kho.
+        yeu_cau_ma: source.code,
+        loai_mua: source.loai_mua,
+        mua_cho: line.mua_cho,
+      })));
     // Máy gán sẵn NCC RẺ NHẤT cho TỪNG DÒNG (không phải một NCC cho cả phiếu): phần lớn dòng chỉ
     // có một nơi bán nên tự khớp, người thu mua chỉ phải xử lý mấy chỗ có nhiều lựa chọn.
     // Dòng nào chưa ai bán thì để trống — ô chọn sẽ nói rõ, không im lặng.
     const daGan: FormLine[] = lines.map((line) => {
-      const re = chaoGiaChoMatHang(line.item_name, suppliers)[0];
+      // Chỉ gán sẵn NCC bán CÙNG dạng + khổ — nhóm khác khổ không có giá để so.
+      const re = chaoGiaChoMatHang(line, suppliers).find((c) => !c.khac_kho);
       if (!re) return { ...line, supplier_id: null };
       return {
         ...line,
@@ -525,12 +613,21 @@ export function PurchaseRequestsPage({
         vat_percent: re.vat_percent,
       };
     });
+    // Ngày cần = sớm nhất trong các yêu cầu (đơn gom phải về kịp yêu cầu gấp nhất), nhưng không
+    // sớm hơn hôm nay — yêu cầu đã quá hạn thì ô ngày bị chặn ngay khi lưu.
+    const somNhat = sources.map((s) => s.needed_date).filter(Boolean).sort()[0] ?? "";
+    const canSomNhat = somNhat && somNhat < minPurchaseDate ? minPurchaseDate : somNhat;
     setEditing(null);
     setForm({
       supplier_id: null,
-      source_request_ids: [source.id],
-      content: source.content ?? source.purpose ?? "",
-      needed_date: source.needed_date ?? "",
+      // Gửi CẢ tập; máy chủ gắn mỗi đơn đúng các yêu cầu có món nằm trong đơn đó.
+      source_request_ids: sources.map((s) => s.id),
+      // Nhiều nguồn: không ghi số — form có thể tách ra nhiều đơn theo NCC, mỗi đơn gom số yêu cầu
+      // khác nhau (mã yêu cầu đã nằm ở cột Yêu cầu của từng đơn).
+      content: sources.length === 1
+        ? (sources[0].content ?? sources[0].purpose ?? "")
+        : "Gom yêu cầu mua hàng của các bộ phận",
+      needed_date: canSomNhat,
       expected_receipt_date: "",
       note: null,
       lines: daGan.length ? daGan : [emptyLine()],
@@ -611,8 +708,8 @@ export function PurchaseRequestsPage({
       setFormError("Ngày dự kiến nhận hàng không được nhỏ hơn hôm nay.");
       return;
     }
-    if (payload.source_request_ids.length !== 1) {
-      setFormError("Mỗi đơn mua hàng chỉ được lập từ 1 yêu cầu mua hàng.");
+    if (payload.source_request_ids.length === 0) {
+      setFormError("Đơn mua hàng phải lập từ ít nhất một yêu cầu mua hàng.");
       return;
     }
     if (
@@ -703,7 +800,7 @@ export function PurchaseRequestsPage({
       }
       setMode(null);
       loadSuppliers();
-      loadSources();
+      napLaiYeuCau();
     } catch (err) {
       if (err instanceof ApiError) setFormError(err.message);
       else setFormError("Không lưu được đơn mua hàng.");
@@ -722,7 +819,7 @@ export function PurchaseRequestsPage({
     setError(null);
     try {
       updateRow(await fn());
-      loadSources();
+      napLaiYeuCau();
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError("Không thực hiện được thao tác.");
@@ -740,7 +837,7 @@ export function PurchaseRequestsPage({
       setTotal((t) => Math.max(0, t - 1));
       setSelectedId(null);
       setDeleting(null);
-      loadSources();
+      napLaiYeuCau();
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError("Không xóa được phiếu.");
@@ -766,7 +863,7 @@ export function PurchaseRequestsPage({
       const next = await api.purchaseRequests.cancel(token, row.id, reason.trim());
       updateRow(next);
       setReasonModal(null);
-      loadSources();
+      napLaiYeuCau();
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -790,7 +887,7 @@ export function PurchaseRequestsPage({
         await api.purchaseRequests.deleteDelivery(token, row.id, delivery.id),
       );
       setDeletingDelivery(null);
-      loadSources();
+      napLaiYeuCau();
     } catch (err) {
       // Ca hay gặp: đợt đã có phiếu chi gắn vào ⇒ server chặn. Câu báo của server nói rõ phiếu
       // nào, nên đừng nuốt nó bằng câu chung chung.
@@ -813,7 +910,7 @@ export function PurchaseRequestsPage({
     try {
       updateRow(await api.purchaseRequests.close(token, row.id, reason.trim()));
       setCloseModal(null);
-      loadSources();
+      napLaiYeuCau();
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Không đóng được đơn.";
@@ -855,25 +952,31 @@ export function PurchaseRequestsPage({
   ) : null;
 
   return (
-    <main className="md-page acct-std pmh">
-      {/* Đầu màn theo CHUẨN Đơn mua hàng (Kế toán): chỉ tiêu đề, không eyebrow/mô tả; hai tab lớn
-          cùng hàng bên phải. Số trên tab yêu cầu là số ĐANG CHỜ MUA (`open`), KHÁC số dòng bảng
-          bên trong (bảng lọc "Tất cả") — xem `choMua`. */}
-      <header className="md-page__head pmh__head">
-        <h1 className="md-page__title">Mua hàng</h1>
-        <StatusTabs
-          active={tab}
-          onChange={(key) => setTab(key as PurchaseTab)}
-          tabs={[
-            {
-              key: "yeu-cau",
-              label: "Yêu cầu chờ xử lý",
-              count: choMua.soLuong,
-              tone: coYcQuaHan ? "alert" : "default",
-            },
-            { key: "phieu", label: "Đơn mua hàng", count: demDon?.tat_ca ?? total },
-          ]}
-        />
+    <main className="md-page acct-std pmh mh-trang lds">
+      {/* Đầu màn theo khuôn danh sách Kinh doanh (`lds-dau`): tên màn + hai tab dạng nút đoạn. Tab
+          không mang số đếm (luật chung) — số nằm ở dải lọc nhanh bên dưới; còn yêu cầu đã quá ngày
+          cần hàng thì một chấm đỏ trên tab Yêu cầu chờ xử lý. */}
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Mua hàng</h1>
+        <div className="mh-tab" role="tablist" aria-label="Mua hàng">
+          {(
+            [
+              { key: "yeu-cau", label: "Yêu cầu chờ xử lý", cham: coYcQuaHan },
+              { key: "phieu", label: "Đơn mua hàng", cham: false },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+              {t.cham && <span className="mh-tab__cham" aria-label="Có yêu cầu đã quá ngày cần hàng" />}
+            </button>
+          ))}
+        </div>
       </header>
 
       {/* Chỉ dựng nội dung của tab ĐANG MỞ (bảng kia không nằm dưới mép màn nữa, nó không tồn tại).
@@ -883,6 +986,16 @@ export function PurchaseRequestsPage({
           bannerLoi={bannerLoi}
           sourceQ={sourceQ}
           setSourceQ={setSourceQ}
+          sourceQDebounced={sourceQDebounced}
+          tinhTrang={tinhTrangMon}
+          setTinhTrang={setTinhTrangMon}
+          khoaLoc={khoaLocYeuCau}
+          monTick={monTick + eventTick}
+          monPage={monPage}
+          setMonPage={setMonPage}
+          lapDonTuMon={lapDonTuMon}
+          openYcmh={openYcmh}
+          onMoLenh={moLenh}
           sourceStatus={sourceStatus}
           setSourceStatus={setSourceStatus}
           demTheoTab={demYeuCau}
@@ -909,6 +1022,7 @@ export function PurchaseRequestsPage({
 
       {tab === "phieu" && (
         <PhieuListTab
+          onMoLenh={moLenh}
           coYcQuaHan={coYcQuaHan}
           choMua={choMua}
           setTab={setTab}
@@ -918,7 +1032,10 @@ export function PurchaseRequestsPage({
           setPage={setPage}
           status={status}
           setStatus={setStatus}
+          tien={tien}
+          setTien={setTien}
           demTheoTab={demDon}
+          demTien={demTien}
           ky={locMan.dmh.ky}
           onKy={(ky) => setLocDon({ ...locMan.dmh, ky })}
           dieuKien={dieuKienDon}
@@ -943,6 +1060,7 @@ export function PurchaseRequestsPage({
           xong là màn tự nhảy sang tab phiếu — kéo hộp vào trong tab thì nó bị gỡ giữa chừng). */}
       {selected && (
         <PurchaseDetailDrawer
+          onMoLenh={moLenh}
           selected={selected}
           setSelectedId={setSelectedId}
           openYcmh={openYcmh}
@@ -979,13 +1097,14 @@ export function PurchaseRequestsPage({
           minPurchaseDate={minPurchaseDate}
           expectedReceiptMinDate={expectedReceiptMinDate}
           phieuSeTao={phieuSeTao}
+          nguon={mode === "create" ? nguonLapDon : []}
         />
       )}
 
       <PurchaseModals
         actionBusy={actionBusy}
         updateRow={updateRow}
-        loadSources={loadSources}
+        loadSources={napLaiYeuCau}
         deleting={deleting}
         setDeleting={setDeleting}
         confirmDelete={confirmDelete}

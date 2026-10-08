@@ -2,6 +2,8 @@
 // (tách từ pages/GiaoHangPage.tsx).
 import { useState, type ReactNode } from "react";
 import { Button } from "../../../../components/Button";
+import type { GhTone } from "../shared/helpers";
+import { ChipTT, type MauTT } from "../../../../components/LuoiDs";
 
 /** Nút gọi máy chủ — TỰ KHOÁ khi lệnh đang đi. Bấm "Kho đã nhận lại" hai lần liền từng bắn hai
  *  lệnh: lệnh sau ăn 400 "không có hàng nào phải trả về kho" dù việc đã xong (bấm thử 18/09/2026). */
@@ -27,12 +29,18 @@ export function NutCho({
 }
 
 /** Pill trạng thái — dùng chung ba tab để mắt không phải học hai bảng màu. */
-export function Pill({ text, tone }: { text: string; tone: "on" | "off" | "warn" }) {
+export function Pill({ text, tone }: { text: string; tone: GhTone }) {
   return (
-    <span className={`rc-pill rc-pill--${tone === "warn" ? "off" : tone} gh-pill gh-pill--${tone}`}>
+    <span className={`rc-pill gh-pill gh-pill--${tone}`}>
       {text}
     </span>
   );
+}
+
+/** Chip trạng thái kiểu lưới danh sách chung (chữ thường, chấm màu) — sắc theo `GhTone`. */
+export function ChipGh({ text, tone }: { text: string; tone: GhTone }) {
+  const mau: MauTT = tone === "on" ? "la" : tone === "off" ? "xam" : tone === "warn" ? "cam" : tone;
+  return <ChipTT mau={mau}>{text}</ChipTT>;
 }
 
 /** Khoảng trống có HƯỚNG DẪN. Ô "Chưa có gì" chỉ nói hết chuyện, không nói phải làm gì tiếp. */

@@ -779,18 +779,7 @@
   border-bottom: none;
 }
 
-.ns-badge--warn {
-  background: var(--amber-soft);
-  color: var(--amber-deep);
-}
-.ns-badge--info {
-  background: var(--steel-soft);
-  color: var(--steel);
-}
-.ns-badge--danger {
-  background: var(--signal-soft);
-  color: var(--signal);
-}
+/* .ns-badge--warn/info/danger: định nghĩa DUY NHẤT ở nhan-su.css (gỡ bản đè khác màu 07/10/2026). */
 
 /* Custom selects in toolbar */
 .lg-select-wrapper {

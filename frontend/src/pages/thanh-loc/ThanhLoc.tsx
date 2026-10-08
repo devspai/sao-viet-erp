@@ -503,7 +503,7 @@ export function ThanhLoc<L>({
   loc: L;
   onLoc: (l: L) => void;
 }) {
-  const daDat = dieuKien.filter((d) => daAp(d, loc));
+  const daDat = dieuKien.filter((d) => daAp(d, loc) && !d.anKhoi);
   return (
     <>
       {ky && onKy && <NutKy ky={ky} moc={moc ?? [["tao", "Ngày tạo"]]} onKy={onKy} />}

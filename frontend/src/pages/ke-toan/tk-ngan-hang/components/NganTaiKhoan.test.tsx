@@ -44,7 +44,7 @@ function veNgan(p: Partial<Parameters<typeof NganTaiKhoan>[0]> = {}) {
 }
 
 const moTabPhieu = () => userEvent.click(screen.getByRole("tab", { name: /^Phiếu qua tài khoản/ }));
-const dongBang = () => [...document.querySelectorAll(".kt-nhom tbody tr")].map((tr) => tr.querySelector("td:nth-child(2)")!.textContent);
+const dongBang = () => [...document.querySelectorAll(".lds-bang tbody tr")].map((tr) => tr.querySelector("td:nth-child(2)")!.textContent);
 
 beforeEach(() => {
   goi.vouchers.mockReset();
@@ -106,10 +106,10 @@ describe("NganTaiKhoan — Phiếu qua tài khoản", () => {
       "token-test",
       { tai_khoan_id: 1, tu_ngay: "2026-10-01", den_ngay: "2026-10-06", status: "received", sort: "-receipt_date", page: 1, size: 20 },
     ]]);
-    const hang = document.querySelectorAll(".kt-nhom tbody tr");
-    expect(hang[0].querySelector(".kt-so")).toHaveTextContent("+32.000.000");
-    expect(hang[0].querySelector(".kt-so")).toHaveClass("kt-xanh");
-    expect(hang[1].querySelector(".kt-so")).toHaveTextContent("−45.200.000");
+    const hang = document.querySelectorAll(".lds-bang tbody tr");
+    expect(hang[0].querySelector("td.n")).toHaveTextContent("+32.000.000");
+    expect(hang[0].querySelector("td.n")).toHaveClass("lds-la");
+    expect(hang[1].querySelector("td.n")).toHaveTextContent("−45.200.000");
     expect(hang[1]).toHaveTextContent("05/10/2026");
     expect(hang[1]).toHaveTextContent("Chi 1");
     expect(screen.queryByRole("button", { name: "Xem thêm" })).toBeNull();

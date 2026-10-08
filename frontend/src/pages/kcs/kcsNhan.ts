@@ -29,13 +29,13 @@ export const KCS_TRANG_THAI_GUI_KHO_LABEL: Record<SxKcsTrangThaiGuiKho, string> 
 export const KCS_YC_KHO_TRANG_THAI: Record<string, { nhan: string; cls: string }> = {
   draft: { nhan: "Nháp", cls: "badge-sem--muted" },
   pending: { nhan: "Chờ duyệt", cls: "badge-sem--amber" },
-  approved: { nhan: "Chờ kho nhận", cls: "badge-sem--amber" },
-  received: { nhan: "Kho đã tiếp nhận", cls: "badge-sem--steel" },
-  preparing: { nhan: "Kho đang lập phiếu", cls: "badge-sem--steel" },
-  partial: { nhan: "Kho đã nhận một phần", cls: "badge-sem--steel" },
+  approved: { nhan: "Chờ kho nhận", cls: "badge-sem--steel" },
+  received: { nhan: "Kho đã tiếp nhận", cls: "badge-sem--sky" },
+  preparing: { nhan: "Kho đang lập phiếu", cls: "badge-sem--plum" },
+  partial: { nhan: "Kho đã nhận một phần", cls: "badge-sem--rust" },
   done: { nhan: "Kho đã nhận đủ", cls: "badge-sem--moss" },
   rejected: { nhan: "Kho từ chối", cls: "badge-sem--signal" },
-  cancelled: { nhan: "Đã hủy", cls: "badge-sem--muted" },
+  cancelled: { nhan: "Đã hủy", cls: "badge-sem--gray" },
 };
 
 /** Máy chủ chỉ nhận lần kiểm khi công đoạn đã bắt đầu (đang chạy / tạm dừng / đã xong). */
@@ -58,7 +58,7 @@ export function tinhTrangKiem(
   if (!cuoi) {
     return tongLoi > 0
       ? { nhan: `Có lỗi · ${soLan} lần`, cls: "badge-sem--rust", loai: "loi" }
-      : { nhan: "Không lỗi", cls: "badge-sem--muted", loai: "chua" };
+      : { nhan: "Không lỗi", cls: "badge-sem--moss", loai: "chua" };
   }
   if (soLan <= 0) return { nhan: "Chưa kiểm", cls: "badge-sem--muted", loai: "chua" };
   if (tongLoi > 0) return { nhan: `Có lỗi · ${soLan} lần`, cls: "badge-sem--rust", loai: "loi" };

@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tồn dự kiến — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --tt-cam-bg:#ffedd5; --tt-cam-fg:#c2410c; --tt-cam-dot:#f97316;
+  --tt-xanh-bg:#dbeafe; --tt-xanh-fg:#1d4ed8; --tt-xanh-dot:#3b82f6;
+  --tt-la-bg:#dcfce7; --tt-la-fg:#15803d; --tt-la-dot:#22c55e;
+  --tt-do-bg:#fee2e2; --tt-do-fg:#b91c1c; --tt-do-dot:#ef4444;
+  --tt-vang-bg:#fef3c7; --tt-vang-fg:#b45309; --tt-vang-dot:#f59e0b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1280px;margin:0 auto;padding:28px 16px 96px}
+h1{font-size:22px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:920px}
+.notes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.note{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:14px 18px;color:var(--ash);font-size:13px}
+.note h4{margin:0 0 6px;font-size:13px;color:var(--ink)}
+.note ul{margin:0;padding-left:18px}.note li{margin:3px 0}.note b{color:var(--ink)}
+@media (max-width:900px){.notes{grid-template-columns:1fr}}
+
+.switch{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 14px;margin:0 0 18px;background:rgba(233,237,242,.95);backdrop-filter:blur(6px);border-bottom:1px solid var(--rule)}
+.switch .lbl{font-size:12px;color:var(--ash-2);font-weight:600}
+.seg{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:9px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;font:inherit;font-size:13px;font-weight:600;color:var(--ash);padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.seg button:hover{background:var(--rule-hair)}
+.seg button.on{background:var(--ink);color:#fff}
+
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:4px}
+.opt-head h2{font-size:20px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.why{color:var(--ash);margin:0 0 16px;max-width:1040px;font-size:13.5px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+
+/* ---------- Ngăn chi tiết (khung chung) ---------- */
+.ngan{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:14px;box-shadow:0 10px 30px rgba(15,23,42,.08);padding:20px 24px 0;overflow:hidden}
+.ngan__kho{font-size:13px;color:var(--ash-2)}
+.ngan__ten{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 6px}
+.ngan__ten h3{font-size:22px;margin:0}
+.tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:12px;color:var(--ash);white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--d)}
+.chip--do{background:var(--tt-do-bg);color:var(--tt-do-fg);--d:var(--tt-do-dot)}
+.chip--cam{background:var(--tt-cam-bg);color:var(--tt-cam-fg);--d:var(--tt-cam-dot)}
+.chip--la{background:var(--tt-la-bg);color:var(--tt-la-fg);--d:var(--tt-la-dot)}
+.chip--vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg);--d:var(--tt-vang-dot)}
+.chip--xanh{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg);--d:var(--tt-xanh-dot)}
+.chip--nho{height:20px;font-size:11.5px;padding:0 8px}
+
+.phep{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:16px 0 0;padding-bottom:16px;border-bottom:1px solid var(--rule-soft)}
+.phep>div{padding:0 18px 4px;border-left:1px solid var(--rule-soft);min-width:0}
+.phep>div:first-child{padding-left:0;border-left:0}
+.phep span{display:block;font-size:12px;color:var(--ash-2)}
+.phep .op{display:inline;font-weight:700;color:var(--ash);margin-right:3px}
+.phep b{display:block;font-size:22px;font-weight:700;margin-top:2px;line-height:1.3;font-variant-numeric:tabular-nums}
+.phep small{font-size:12px;color:var(--ash-2);display:block}
+.phep small.cam{color:var(--tt-cam-fg);font-weight:600}
+.phep small.do{color:var(--tt-do-fg);font-weight:600}
+@media (max-width:760px){.phep{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:12px}.phep>div{border-left:0;padding-left:0}}
+
+.than{display:grid;grid-template-columns:minmax(0,1fr) 300px}
+.than__trai{padding:20px 24px 28px 0;border-right:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:22px;min-width:0}
+.than__phai{padding:20px 0 28px 22px;display:flex;flex-direction:column;gap:20px;font-size:13px}
+@media (max-width:900px){.than{grid-template-columns:1fr}.than__trai{border-right:0;padding-right:0;border-bottom:1px solid var(--rule-soft)}.than__phai{padding-left:0}}
+.muc{font-size:13px;font-weight:600;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.muc .sp{flex:1}
+.goi{color:var(--ash-2);font-size:12px;font-weight:400}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0}
+.kv dt{color:var(--ash-2)}.kv dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.lo{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--rule-hair)}
+.lo__so{width:22px;height:22px;border-radius:6px;background:var(--ink);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+.lo b{font-variant-numeric:tabular-nums}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--nho{height:28px;font-size:12px;padding:0 10px}
+.num{font-variant-numeric:tabular-nums}
+.r{text-align:right}
+
+/* ---------- Câu kết luận ---------- */
+.kl{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:start;border:1px solid var(--rule-soft);border-radius:12px;padding:14px 16px}
+.kl--do{background:#fff7f7;border-color:#fecaca}
+.kl--cam{background:#fffaf3;border-color:#fed7aa}
+.kl--la{background:#f7fdf9;border-color:#bbf7d0}
+.kl__ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:16px}
+.kl--do .kl__ic{background:var(--tt-do-bg);color:var(--tt-do-fg)}
+.kl--cam .kl__ic{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}
+.kl--la .kl__ic{background:var(--tt-la-bg);color:var(--tt-la-fg)}
+.kl p{margin:0}
+.kl .tieu{font-weight:700;font-size:15px;margin-bottom:2px}
+.kl .phu{color:var(--ash);font-size:13px}
+.tre{display:flex;gap:10px;align-items:flex-start;border:1px solid #fde68a;background:#fffbeb;border-radius:10px;padding:10px 14px;font-size:13px;color:var(--ink-2)}
+.tre b{color:var(--tt-vang-fg)}
+.tre ul{margin:4px 0 0;padding-left:18px}
+
+/* ---------- Biểu đồ + gợi ý khi rê ---------- */
+.bd{position:relative}
+.bd svg{width:100%;height:auto;display:block;overflow:visible}
+.bd .vung-hover{cursor:crosshair}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;border-radius:10px;padding:10px 12px;font-size:12.5px;min-width:210px;box-shadow:0 8px 24px rgba(15,23,42,.25);opacity:0;transform:translateY(4px);transition:opacity .08s,transform .08s;z-index:5}
+.tip.on{opacity:1;transform:none}
+.tip .t-ngay{font-weight:700;margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.tip .t-dong{display:grid;grid-template-columns:1fr auto;gap:2px 14px;padding:4px 0;border-top:1px solid rgba(255,255,255,.12)}
+.tip .t-dong:first-of-type{border-top:0}
+.tip .t-ma{color:#cbd5e1;font-size:11.5px}
+.tip .t-sl{font-weight:700;text-align:right}
+.tip .t-con{margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.25);display:flex;justify-content:space-between;gap:12px}
+.tip .t-nhan{display:inline-block;margin-left:6px;font-size:11px;padding:1px 6px;border-radius:999px;font-weight:600}
+.t-nhan--do{background:#7f1d1d;color:#fecaca}.t-nhan--cam{background:#7c2d12;color:#fed7aa}.t-nhan--la{background:#14532d;color:#bbf7d0}.t-nhan--vang{background:#78350f;color:#fde68a}
+.hint{font-size:12px;color:var(--ash-2);margin:6px 0 0}
+
+/* ---------- Bảng sự kiện ---------- */
+.ev{display:grid;grid-template-columns:86px minmax(0,1fr) 92px 92px;gap:12px;align-items:center;padding:9px 6px;border-top:1px solid var(--rule-hair);font-size:13px;border-radius:6px}
+.ev--dau{border-top:0;font-size:12px;color:var(--ash-2);padding-top:0}
+.ev.sang{background:var(--rule-hair)}
+.ev .d{font-variant-numeric:tabular-nums;font-weight:600}
+.ev .d small{display:block;font-weight:600;font-size:11px;color:var(--tt-vang-fg)}
+.ev .viec b{font-weight:600}
+.manh{display:inline-block;margin-right:14px}
+.ev .viec .mo{display:block;color:var(--ash-2);font-size:12px}
+.ev .sl,.ev .con{text-align:right;font-variant-numeric:tabular-nums}
+.ev .sl.vao{color:var(--tt-la-fg);font-weight:600}
+.ev .sl.ra{color:var(--ink)}
+.ev .con.do{color:var(--tt-do-fg);font-weight:700}
+.ev .con.cam{color:var(--tt-cam-fg);font-weight:700}
+.ev .con.dau{color:var(--ash-2)}
+
+/* B: danh sách có thước nhỏ từng dòng */
+.evb{display:grid;grid-template-columns:80px minmax(0,1fr) 96px 200px;gap:14px;align-items:center;padding:12px 8px;border-top:1px solid var(--rule-soft);font-size:13px;border-radius:8px}
+.evb:hover,.evb.sang{background:var(--rule-hair)}
+.evb--dau{border-top:0;font-size:12px;color:var(--ash-2);padding:0 8px 6px}
+.evb--dau:hover{background:none}
+.evb .lich{border:1px solid var(--rule-soft);border-radius:8px;text-align:center;padding:4px 0;background:var(--canvas)}
+.evb .lich b{display:block;font-size:17px;line-height:1.1}
+.evb .lich span{display:block;font-size:11px;line-height:1.3;color:var(--ash-2)}
+.evb .lich.tre{border-color:#fcd34d;background:#fffbeb}
+.evb .lich.tre span{color:var(--tt-vang-fg);font-weight:600}
+.evb .sl{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.evb .sl.vao{color:var(--tt-la-fg)}
+.thuoc{display:flex;flex-direction:column;gap:4px}
+.thuoc__so{display:flex;justify-content:space-between;align-items:center;font-variant-numeric:tabular-nums}
+.thuoc__so b{font-size:14px}
+.thuoc__ray{position:relative;height:8px;border-radius:999px;background:var(--rule-hair);overflow:visible}
+.thuoc__vung{position:absolute;top:0;bottom:0;background:#e2e8f0;border-radius:999px}
+.thuoc__dau{position:absolute;top:-3px;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--rule);transform:translateX(-50%)}
+.thuoc__vach{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ash-2)}
+
+/* C: cột theo kỳ */
+.ky{display:grid;gap:10px}
+.ky__cot{border:1px solid var(--rule-soft);border-radius:10px;padding:10px 10px 12px;display:flex;flex-direction:column;gap:8px;position:relative;cursor:default;background:var(--canvas);min-width:0}
+.ky__cot:hover,.ky__cot.sang{border-color:var(--ink-2);box-shadow:0 0 0 1px var(--ink-2)}
+.ky__cot--tre{background:#fffbeb;border-color:#fde68a}
+.ky__ten{font-size:12px;font-weight:700;color:var(--ash)}
+.ky__dau{min-height:52px}
+.ky__ngay{font-size:11px;color:var(--ash-2)}
+.ky__ong{position:relative;height:120px;border-radius:6px;background:var(--rule-hair);overflow:hidden}
+.ky__bar{position:absolute;left:18%;right:18%;bottom:0;border-radius:5px 5px 0 0}
+.ky__vach{position:absolute;left:0;right:0;border-top:1.5px dashed}
+.ky__so{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;text-align:center}
+.ky__vr{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ash-2)}
+.ky__vr .vao{color:var(--tt-la-fg);font-weight:600}
+.ky__vr .ra{color:var(--ink);font-weight:600}
+.ky__trong{font-size:12px;color:var(--ash-2);text-align:center}
+.pop{position:absolute;top:100%;left:50%;transform:translate(-50%,8px);background:var(--ink);color:#fff;border-radius:10px;padding:10px 12px;font-size:12.5px;width:250px;z-index:6;display:none;box-shadow:0 8px 24px rgba(15,23,42,.25)}
+.ky__cot:hover .pop{display:block}
+.pop .t-dong{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:5px 0;border-top:1px solid rgba(255,255,255,.12)}
+.pop .t-dong:first-child{border-top:0}
+.pop .t-ma{color:#cbd5e1;font-size:11.5px}
+.pop .t-sl{font-weight:700;text-align:right}
+.chu-giai{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ash-2)}
+.chu-giai i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Tồn dự kiến trong ngăn mặt hàng — 3 phương án</h1>
+  <p class="lead">Chỉ thay phần TRÁI của tab Tổng quan (câu nhắc, biểu đồ, bảng sắp lĩnh và hàng về) và dòng chữ dưới các ô số. Cột phải (ảnh, ngưỡng, thứ tự lĩnh lô, nhà cung cấp) giữ như hiện tại. Đổi phương án và tình huống ở thanh trên; <b>rê chuột vào biểu đồ</b> để thử phần gợi ý.</p>
+  <div class="notes">
+    <div class="note">
+      <h4>Sửa chung cho cả 3 phương án</h4>
+      <ul>
+        <li>Câu nhắc nói <b>đúng tình huống</b>: không lệnh thì không nhắc chữ "lệnh"; hàng về đẩy tồn qua tối đa thì báo <b>Sẽ vượt tối đa</b> (hiện màn đang báo "Đủ").</li>
+        <li>Chip đầu ngăn có 3 trạng thái: <b>Cần mua</b>, <b>Sẽ vượt tối đa</b>, <b>Đủ</b>.</li>
+        <li>Đơn mua đã qua ngày hẹn mà chưa về, lệnh đã qua hạn mà chưa lĩnh được gom thành dòng <b>Trễ</b> có số ngày trễ, không lặng lẽ dồn vào "hôm nay".</li>
+        <li>Rê chuột ra ngày, việc, mã đơn hoặc lệnh, cộng trừ bao nhiêu, còn lại bao nhiêu và đang ở vùng nào.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h4>Ba tình huống (số trong kho dev, hôm nay 07/10/2026)</h4>
+      <ul>
+        <li><b>1.</b> COUCHE 150GSM 650×860: chưa lệnh nào cần, 16/10 về 2.400 tờ, tồn lên 3.380 vượt tối đa 1.800.</li>
+        <li><b>2.</b> DUPLEX 300-450GSM 650×860: ba lệnh lĩnh xen một đợt hàng về, tồn rơi dưới tối thiểu từ 18/10.</li>
+        <li><b>3.</b> GIẤY IVORY 300-400GSM 720×1020: một đơn mua và một lệnh đã trễ, một đơn mua hẹn tận 20/01/2027 (trục thời gian dài).</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="switch">
+    <span class="lbl">Phương án</span>
+    <div class="seg" id="segOpt">
+      <button data-v="A" class="on">A. Biểu đồ có số</button>
+      <button data-v="B">B. Danh sách là chính</button>
+      <button data-v="C">C. Gom theo tuần</button>
+    </div>
+    <span class="lbl">Tình huống</span>
+    <div class="seg" id="segScn">
+      <button data-v="0" class="on">1. Hàng về vượt tối đa</button>
+      <button data-v="1">2. Lệnh làm thiếu</button>
+      <button data-v="2">3. Có việc trễ, hẹn xa</button>
+    </div>
+  </div>
+
+  <div id="optHead"></div>
+  <div class="ngan" id="ngan"></div>
+</div>
+
+<script>
+const HOM_NAY = "2026-10-07";
+const SCN = [
+  { kho: "Kho giấy", ten: "COUCHE 150GSM", ma: "COUCHE-150", kho_giay: "650 × 860 mm", ke: "Kệ B1", dvt: "tờ nguyên",
+    ton: 980, min: 260, max: 1800, gia: 2009000, binhQuan: 2050,
+    lo: [["PNK00014", "nhập 04/10/2026 tại Kệ B1", 980]],
+    ev: [{ ngay: "2026-10-16", loai: "ve", sl: 2400, ma: "DMH-261007-4ZT6", mo: "Giấy An Phát", ghi: "Đã giao 1.600, còn về 2.400" }] },
+  { kho: "Kho giấy", ten: "DUPLEX 300-450GSM", ma: "DUPLEX-300", kho_giay: "650 × 860 mm", ke: "Pallet 02", dvt: "tờ nguyên",
+    ton: 3360, min: 1200, max: 6000, gia: 11290000, binhQuan: 3360,
+    lo: [["PNK00012", "nhập 02/10/2026 tại Pallet 02", 1360], ["PNK00049", "nhập 05/10/2026 tại Kệ A2", 2000]],
+    ev: [
+      { ngay: "2026-10-09", loai: "lenh", sl: 1450, ma: "LSX26-0007", mo: "Hộp bánh trung thu 4 bánh", khach: "Bibica" },
+      { ngay: "2026-10-12", loai: "ve", sl: 1800, ma: "DMH-261007-29V9", mo: "Giấy An Phát" },
+      { ngay: "2026-10-14", loai: "lenh", sl: 2100, ma: "LSX26-0008", mo: "Hộp trà Phúc Long 100g", khach: "Phúc Long" },
+      { ngay: "2026-10-18", loai: "lenh", sl: 1300, ma: "LSX26-0009", mo: "Hộp giày Tokai size 40", khach: "Tokai" }] },
+  { kho: "Kho giấy", ten: "GIẤY IVORY 300-400GSM", ma: "IVORY-300", kho_giay: "720 × 1020 mm", ke: "Kệ C1", dvt: "tờ nguyên",
+    ton: 3070, min: 800, max: 4000, gia: 20840000, binhQuan: 6790,
+    lo: [["PNK00007", "nhập 26/09/2026 tại Kệ C1", 1070], ["PNK00055", "nhập 03/10/2026 tại Kệ A3", 2000]],
+    ev: [
+      { ngay: "2026-10-03", loai: "ve", sl: 1500, ma: "DMH-261002-K7PA", mo: "Giấy Tân Mai" },
+      { ngay: "2026-10-05", loai: "lenh", sl: 900, ma: "LSX26-0003", mo: "Catalogue sản phẩm 2027", khach: "Cao Lợi Hưng" },
+      { ngay: "2026-10-15", loai: "lenh", sl: 1200, ma: "LSX26-0010", mo: "Hộp serum 30ml in nhũ vàng", khach: "DT Box" },
+      { ngay: "2027-01-20", loai: "ve", sl: 3000, ma: "DMH-261007-T8QR", mo: "Giấy An Phát" }] },
+];
+
+const so = (n) => Math.round(n).toLocaleString("vi-VN");
+const ngayNgan = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+const ngayDu = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const ms = (iso) => new Date(iso + "T00:00:00").getTime();
+const soNgay = (a, b) => Math.round((ms(b) - ms(a)) / 86400000);
+
+/** Trải sự kiện: trễ đứng đầu (tính vào hôm nay), cùng ngày thì lĩnh trước về sau. */
+function tinh(s) {
+  const ev = s.ev.map((e, i) => ({ ...e, i, tre: e.ngay < HOM_NAY ? soNgay(e.ngay, HOM_NAY) : 0 }))
+    .sort((a, b) => (a.ngay < b.ngay ? -1 : a.ngay > b.ngay ? 1 : (a.loai === "lenh" ? 0 : 1) - (b.loai === "lenh" ? 0 : 1)));
+  let con = s.ton;
+  ev.forEach((e) => { con += e.loai === "lenh" ? -e.sl : e.sl; e.con = con; e.vung = con <= s.min ? "do" : con > s.max ? "cam" : "la"; });
+  const lenh = ev.filter((e) => e.loai === "lenh"), ve = ev.filter((e) => e.loai === "ve");
+  const canLenh = lenh.reduce((t, e) => t + e.sl, 0), dangVe = ve.reduce((t, e) => t + e.sl, 0);
+  const duKien = s.ton - canLenh + dangVe;
+  const rot = ev.find((e) => e.con <= s.min);
+  const vuot = ev.find((e) => e.con > s.max);
+  const trangThai = (s.ton <= s.min || rot) ? "can_mua" : vuot ? "vuot" : "du";
+  return { ev, lenh, ve, canLenh, dangVe, duKien, rot, vuot, trangThai, tre: ev.filter((e) => e.tre) };
+}
+
+const CHIP = { can_mua: ["do", "Cần mua"], vuot: ["cam", "Sẽ vượt tối đa"], du: ["la", "Đủ"] };
+
+function ketLuan(s, k) {
+  const dv = s.dvt;
+  if (k.trangThai === "can_mua") {
+    const thieu = s.min - Math.min(...k.ev.map((e) => e.con), s.ton);
+    const deNghi = s.max - k.duKien;
+    return { mau: "do", ic: "↓", tieu: `Thiếu ${so(thieu)} ${dv} so với tối thiểu ${k.rot.tre ? "từ hôm nay" : "từ ngày " + ngayNgan(k.rot.ngay)}`,
+      phu: `${k.lenh.length} lệnh lĩnh và ${k.ve.length} đợt hàng về đưa tồn xuống ${so(k.duKien)} ${dv}, dưới mức tối thiểu ${so(s.min)}. Mua ${so(deNghi)} ${dv} thì về lại mức tối đa ${so(s.max)}.`,
+      nut: `Mua ${so(deNghi)} ${dv}`, pri: true };
+  }
+  if (k.trangThai === "vuot") {
+    const du = Math.max(...k.ev.map((e) => e.con)) - s.max;
+    const dau = k.lenh.length ? "" : "Chưa lệnh nào cần mặt hàng này. ";
+    const tu = k.vuot.tre ? "từ hôm nay" : `từ ngày ${ngayNgan(k.vuot.ngay)}`;
+    return { mau: "cam", ic: "↑", tieu: `Sẽ vượt tối đa ${tu}, cao nhất dư ${so(du)} ${dv}`,
+      phu: `${dau}${k.vuot.tre ? "Đơn trễ" : "Đợt về"} ${k.vuot.ma} mang về ${so(k.vuot.sl)} ${dv}, đẩy tồn lên ${so(k.vuot.con)} ${dv}, trên mức tối đa ${so(s.max)}. Có thể hẹn NCC giao chậm lại hoặc giảm số đặt.`,
+      nut: "Xem đơn mua", pri: false };
+  }
+  return { mau: "la", ic: "✓", tieu: `Đủ cho ${k.lenh.length} lệnh sắp lĩnh`, phu: `Tồn dự kiến ${so(k.duKien)} ${dv}, nằm trong ngưỡng.`, nut: null };
+}
+
+function htmlKetLuan(s, k, gon) {
+  const c = ketLuan(s, k);
+  if (gon) return `<div class="kl kl--${c.mau}" style="grid-template-columns:1fr auto;padding:12px 14px"><div><p class="tieu">${c.tieu}</p><p class="phu">${c.phu}</p></div>${c.nut ? `<button class="btn ${c.pri ? "btn--pri" : ""}">${c.nut}</button>` : "<span></span>"}</div>`;
+  return `<div class="kl kl--${c.mau}"><span class="kl__ic">${c.ic}</span><div><p class="tieu">${c.tieu}</p><p class="phu">${c.phu}</p></div>${c.nut ? `<button class="btn ${c.pri ? "btn--pri" : ""}">${c.nut}</button>` : "<span></span>"}</div>`;
+}
+
+function htmlTre(k) {
+  if (!k.tre.length) return "";
+  return `<div class="tre"><span>⚠</span><div><b>${k.tre.length} việc đã quá hẹn mà chưa xong</b>, máy vẫn tính như sẽ xảy ra ngay hôm nay:
+    <ul>${k.tre.map((e) => `<li>${e.loai === "ve" ? `Đơn mua ${e.ma} hẹn về ${ngayDu(e.ngay)}` : `Lệnh ${e.ma} hạn sản xuất ${ngayDu(e.ngay)} chưa lĩnh`}, trễ ${e.tre} ngày</li>`).join("")}</ul></div></div>`;
+}
+
+function htmlPhep(s, k) {
+  const vuotMax = k.vuot ? Math.max(...k.ev.map((e) => e.con)) - s.max : 0;
+  const lenhGoi = k.lenh.length ? `${k.lenh.length} lệnh từ ${ngayNgan(k.lenh[0].ngay)}` : "chưa lệnh nào cần";
+  const veGoi = k.ve.length ? (k.ve.some((e) => e.tre) ? `${k.ve.length} đơn mua có ${k.ve.filter((e) => e.tre).length} đơn trễ` : `${k.ve.length} đơn mua về từ ${ngayNgan(k.ve[0].ngay)}`) : "chưa có đơn mua";
+  const dkGoi = k.trangThai === "can_mua" ? `<small class="do">dưới tối thiểu ${so(s.min)}</small>`
+    : k.trangThai === "vuot" ? `<small class="cam">vượt tối đa ${so(vuotMax)}</small>` : `<small>trong ngưỡng</small>`;
+  return `<div class="phep">
+    <div><span>Thực có</span><b>${so(s.ton)}</b><small>${s.dvt} trong ${s.lo.length} lô</small></div>
+    <div><span><span class="op">−</span>Lệnh sắp lĩnh</span><b>${so(k.canLenh)}</b><small>${lenhGoi}</small></div>
+    <div><span><span class="op">+</span>Đang về</span><b>${so(k.dangVe)}</b><small>${veGoi}</small></div>
+    <div><span><span class="op">=</span>Dự kiến</span><b style="color:${k.trangThai === "can_mua" ? "var(--tt-do-fg)" : k.trangThai === "vuot" ? "var(--tt-cam-fg)" : "inherit"}">${so(k.duKien)}</b>${dkGoi}</div>
+    <div><span>Giá trị tồn</span><b>${so(s.gia)} đ</b><small>${so(s.binhQuan)} đ/tờ bình quân</small></div>
+  </div>`;
+}
+
+function htmlPhai(s) {
+  return `<div><div class="muc">Ngưỡng tại kho này<span class="sp"></span><button class="btn btn--nho">Sửa</button></div>
+      <dl class="kv"><dt>Tối thiểu</dt><dd>${so(s.min)} ${s.dvt}</dd><dt>Tối đa</dt><dd>${so(s.max)} ${s.dvt}</dd><dt>Cảnh báo</dt><dd>Bật</dd></dl></div>
+    <div><div class="muc">Thứ tự lĩnh lô<span class="sp"></span><span class="goi">lô cũ ra trước</span></div>
+      ${s.lo.map((l, i) => `<div class="lo"><span class="lo__so">${i + 1}</span><div><b>${l[0]}</b><div class="goi">${l[1]}</div></div><span class="num"><b>${so(l[2])}</b> <span class="goi">tờ</span></span></div>`).join("")}</div>
+    <p class="goi" style="margin:0">Ảnh và tem kệ, Nhà cung cấp: giữ nguyên như hiện tại.</p>`;
+}
+
+function dongTip(e, s) {
+  const nhanVung = e.vung === "do" ? `<span class="t-nhan t-nhan--do">dưới tối thiểu</span>` : e.vung === "cam" ? `<span class="t-nhan t-nhan--cam">vượt tối đa</span>` : `<span class="t-nhan t-nhan--la">trong ngưỡng</span>`;
+  return { viec: e.loai === "ve" ? `Hàng về <span class="t-ma">${e.ma}</span><div class="t-ma">${e.mo}${e.ghi ? `<br>${e.ghi}` : ""}</div>` : `Lệnh lĩnh <span class="t-ma">${e.ma}</span><div class="t-ma">${e.mo}<br>khách ${e.khach}</div>`,
+    sl: `${e.loai === "ve" ? "+" : "−"}${so(e.sl)}`, nhanVung };
+}
+
+/* ================= A — biểu đồ có số (Odoo Forecasted Report) ================= */
+function veA(s, k) {
+  const W = 760, H = 250, L = 56, R = 744, T = 30, B = 196;
+  const treW = k.tre.length ? 44 + 44 * k.tre.length : 0;
+  // Trục thời gian có GÃY: khoảng trống > 21 ngày nén còn 46px, có dấu gãy.
+  const moc = [...new Set([HOM_NAY, ...k.ev.filter((e) => !e.tre).map((e) => e.ngay)])].sort();
+  const doan = [];
+  for (let i = 1; i < moc.length; i++) { const g = soNgay(moc[i - 1], moc[i]); doan.push({ g, gay: g > 21 }); }
+  const thuong = doan.filter((d) => !d.gay).reduce((t, d) => t + d.g, 0) + 3;
+  const coGay = doan.filter((d) => d.gay).length;
+  const x0 = L + treW, rongThuong = (R - x0) - coGay * 72;
+  const xs = { [moc[0]]: x0 };
+  let cur = x0;
+  doan.forEach((d, i) => { cur += d.gay ? 72 : (d.g / thuong) * rongThuong; xs[moc[i + 1]] = cur; });
+  const treIdx = new Map(k.tre.map((e, j) => [e.i, j]));
+  const xOf = (e) => (e.tre ? L + (treW * (treIdx.get(e.i) + 1)) / (k.tre.length + 1) : xs[e.ngay]);
+  const vals = [s.ton, ...k.ev.map((e) => e.con), s.min, s.max];
+  const yMax = Math.max(...vals) * 1.15, yMin = Math.min(0, ...vals);
+  const y = (n) => B - ((n - yMin) / (yMax - yMin)) * (B - T);
+  // Đường bậc thang
+  let d = `M${L + (treW ? 4 : 0)} ${y(s.ton)}`;
+  const diem = [];
+  let xTre = null;
+  k.ev.forEach((e) => {
+    const cx = xOf(e);
+    d += ` H${cx} V${y(e.con)}`;
+    diem.push({ e, cx, cy: y(e.con) });
+  });
+  d += ` H${R}`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tồn dự kiến">
+    <rect x="${L}" y="${y(s.max)}" width="${R - L}" height="${y(s.min) - y(s.max)}" fill="#f1f5f9"/>
+    <rect x="${L}" y="${T - 10}" width="${R - L}" height="${Math.max(0, y(s.max) - T + 10)}" fill="#fff7ed"/>
+    <rect x="${L}" y="${y(s.min)}" width="${R - L}" height="${y(Math.max(0, yMin)) - y(s.min)}" fill="#fef2f2"/>
+    <line x1="${L}" x2="${R}" y1="${y(s.max)}" y2="${y(s.max)}" stroke="#fdba74" stroke-dasharray="4 4"/>
+    <line x1="${L}" x2="${R}" y1="${y(s.min)}" y2="${y(s.min)}" stroke="#f87171" stroke-dasharray="4 4"/>
+    <text x="${L - 8}" y="${y(s.max) + 4}" text-anchor="end" font-size="11" fill="#c2410c">${so(s.max)}</text>
+    <text x="${L - 8}" y="${y(s.min) + 4}" text-anchor="end" font-size="11" fill="#b91c1c">${so(s.min)}</text>
+    <text x="${R}" y="${y(s.max) - 6}" text-anchor="end" font-size="11" fill="#c2410c">Tối đa</text>
+    <text x="${R}" y="${y(s.min) + 14}" text-anchor="end" font-size="11" fill="#b91c1c">Tối thiểu</text>
+    <line x1="${L}" x2="${R}" y1="${y(0)}" y2="${y(0)}" stroke="#cbd5e1"/>
+    <text x="${L - 8}" y="${y(0) + 4}" text-anchor="end" font-size="11" fill="#64748b">0</text>`;
+  if (treW) svg += `<rect x="${L}" y="${T - 10}" width="${treW}" height="${B - T + 10}" fill="#fffbeb"/><text x="${L + 4}" y="${H - 22}" font-size="11" font-weight="600" fill="#b45309">Trễ hẹn</text>`;
+  // dấu gãy trục
+  doan.forEach((dd, i) => { if (dd.gay) { const xm = (xs[moc[i]] + xs[moc[i + 1]]) / 2; svg += `<path d="M${xm - 6} ${B + 6} l4 -8 l4 8 l4 -8" stroke="#94a3b8" fill="none"/><text x="${xm}" y="${B + 20}" text-anchor="middle" font-size="10" fill="#94a3b8">cách ${dd.g} ngày</text>`; } });
+  // nhãn ngày
+  moc.forEach((m) => { svg += `<text x="${xs[m]}" y="${H - 22}" text-anchor="${m === HOM_NAY && treW ? "start" : "middle"}" font-size="11" fill="${m === HOM_NAY ? "#0f172a" : "#64748b"}" font-weight="${m === HOM_NAY ? 700 : 400}">${m === HOM_NAY ? "Hôm nay" : ngayNgan(m)}</text>`; });
+  svg += `<path d="${d}" fill="none" stroke="#0f172a" stroke-width="2.4"/>`;
+  // nhãn số: đầu, từng bậc, cuối
+  svg += `<text x="${L + (treW ? 6 : 4)}" y="${y(s.ton) - 8}" font-size="12" font-weight="700" fill="#0f172a">${so(s.ton)}</text>`;
+  diem.forEach((p) => {
+    const mau = p.e.vung === "do" ? "#b91c1c" : p.e.vung === "cam" ? "#c2410c" : "#0f172a";
+    svg += `<circle cx="${p.cx}" cy="${p.cy}" r="4.5" fill="#fff" stroke="${mau}" stroke-width="2.2" data-i="${p.e.i}"/>`;
+    svg += `<text x="${p.cx + 7}" y="${p.cy - 8}" font-size="11.5" font-weight="700" fill="${mau}">${so(p.e.con)}</text>`;
+    svg += `<text x="${p.cx + 7}" y="${p.cy + 15}" font-size="10.5" fill="${p.e.loai === "ve" ? "#15803d" : "#64748b"}">${p.e.loai === "ve" ? "+" : "−"}${so(p.e.sl)}</text>`;
+  });
+  svg += `<line class="truc" x1="0" x2="0" y1="${T - 10}" y2="${B}" stroke="#0f172a" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>`;
+  svg += `<rect class="vung-hover" x="${L}" y="${T - 10}" width="${R - L}" height="${B - T + 10}" fill="transparent"/>`;
+  svg += `</svg>`;
+  return { svg, diem, W };
+}
+
+function ganHover(root, diem, s, W, onSang) {
+  const svgEl = root.querySelector("svg"), tip = root.querySelector(".tip"), truc = svgEl.querySelector(".truc");
+  const nhom = {};
+  diem.forEach((p) => { const key = Math.round(p.cx); (nhom[key] = nhom[key] || []).push(p); });
+  const cot = Object.keys(nhom).map(Number);
+  function an() { tip.classList.remove("on"); truc.setAttribute("opacity", "0"); onSang && onSang([]); }
+  svgEl.querySelector(".vung-hover").addEventListener("mouseleave", an);
+  svgEl.querySelector(".vung-hover").addEventListener("mousemove", (ev) => {
+    const box = svgEl.getBoundingClientRect(), k = W / box.width;
+    const mx = (ev.clientX - box.left) * k;
+    const gan = cot.reduce((a, b) => (Math.abs(b - mx) < Math.abs(a - mx) ? b : a), cot[0]);
+    if (Math.abs(gan - mx) > 60) return an();
+    const ds = nhom[gan];
+    truc.setAttribute("x1", gan); truc.setAttribute("x2", gan); truc.setAttribute("opacity", ".5");
+    const e0 = ds[0].e, cuoi = ds[ds.length - 1].e;
+    const dau = e0.tre ? `<span>Trễ</span><span class="t-nhan t-nhan--vang">quá hẹn</span>` : `<span>${ngayDu(e0.ngay)}</span>`;
+    tip.innerHTML = `<div class="t-ngay">${dau}</div>` + ds.map((p) => { const t = dongTip(p.e, s); return `<div class="t-dong"><div>${t.viec}${p.e.tre ? `<div class="t-ma" style="color:#fde68a">hẹn ${ngayDu(p.e.ngay)}, trễ ${p.e.tre} ngày</div>` : ""}</div><div class="t-sl">${t.sl}</div></div>`; }).join("")
+      + `<div class="t-con"><span>Còn lại</span><b>${so(cuoi.con)} ${s.dvt}${dongTip(cuoi, s).nhanVung}</b></div>`;
+    const px = gan / k, py = ds[0].cy / (H_OF(svgEl) / box.height);
+    tip.classList.add("on");
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.min(Math.max(0, px + 14), box.width - tw) + "px";
+    tip.style.top = Math.max(0, py - 20) + "px";
+    onSang && onSang(ds.map((p) => p.e.i));
+  });
+}
+function H_OF(svgEl) { return svgEl.viewBox.baseVal.height; }
+
+function moTa(e) {
+  const p = e.loai === "ve" ? [`NCC ${e.mo}`, e.ghi] : [e.mo, `khách ${e.khach}`];
+  return p.filter(Boolean).map((x) => `<span class="manh">${x}</span>`).join("");
+}
+function bangSuKien(s, k) {
+  return `<div class="ev ev--dau"><span>Ngày</span><span>Việc</span><span class="r">Số lượng</span><span class="r">Còn lại</span></div>
+    <div class="ev"><span class="d">Hôm nay</span><span class="viec"><b>Tồn hiện có</b></span><span class="sl"></span><span class="con dau">${so(s.ton)}</span></div>`
+    + k.ev.map((e) => `<div class="ev" data-i="${e.i}"><span class="d">${ngayNgan(e.ngay)}${e.tre ? `<small>trễ ${e.tre} ngày</small>` : ""}</span>
+      <span class="viec"><b>${e.loai === "ve" ? "Hàng về" : "Lệnh lĩnh"}</b> ${e.ma}<span class="mo">${moTa(e)}</span></span>
+      <span class="sl ${e.loai === "ve" ? "vao" : "ra"}">${e.loai === "ve" ? "+" : "−"}${so(e.sl)}</span>
+      <span class="con ${e.vung === "do" ? "do" : e.vung === "cam" ? "cam" : ""}">${so(e.con)}</span></div>`).join("");
+}
+
+function renderA(s, k) {
+  const v = veA(s, k);
+  const trai = `${htmlKetLuan(s, k)}${htmlTre(k)}
+    <div><div class="muc">Tồn dự kiến<span class="sp"></span><span class="goi">rê chuột để xem từng ngày</span></div>
+      <div class="bd" id="bdA">${v.svg}<div class="tip"></div></div>
+      <div class="chu-giai" style="margin-top:6px"><span><i style="background:#fef2f2;border:1px solid #fecaca"></i>dưới tối thiểu</span><span><i style="background:#f1f5f9;border:1px solid #e2e8f0"></i>trong ngưỡng</span><span><i style="background:#fff7ed;border:1px solid #fed7aa"></i>vượt tối đa</span>${k.tre.length ? `<span><i style="background:#fffbeb;border:1px solid #fde68a"></i>việc trễ hẹn</span>` : ""}</div></div>
+    <div><div class="muc">Sắp lĩnh và hàng về</div><div id="bangA">${bangSuKien(s, k)}</div></div>`;
+  return { trai, sau: () => ganHover(document.getElementById("bdA"), v.diem, s, v.W, (ids) => {
+    document.querySelectorAll("#bangA .ev[data-i]").forEach((r) => r.classList.toggle("sang", ids.includes(Number(r.dataset.i))));
+  }) };
+}
+
+/* ================= B — danh sách là chính (Business Central "Item Availability by Event") ================= */
+function thuoc(con, s) {
+  const thang = Math.max(s.max * 1.35, con * 1.1, 1);
+  const p = (n) => Math.min(100, Math.max(0, (n / thang) * 100));
+  const mau = con <= s.min ? "var(--tt-do-dot)" : con > s.max ? "var(--tt-cam-dot)" : "var(--tt-la-dot)";
+  return `<div class="thuoc__ray"><div class="thuoc__vung" style="left:${p(s.min)}%;width:${p(s.max) - p(s.min)}%"></div>
+    <div class="thuoc__vach" style="left:${p(s.min)}%;background:#f87171"></div><div class="thuoc__vach" style="left:${p(s.max)}%;background:#fdba74"></div>
+    <div class="thuoc__dau" style="left:${p(Math.max(0, con))}%;background:${mau}"></div></div>`;
+}
+function nhanVung(con, s) {
+  return con <= s.min ? `<span class="chip chip--do chip--nho">dưới tối thiểu</span>` : con > s.max ? `<span class="chip chip--cam chip--nho">vượt tối đa</span>` : `<span class="chip chip--la chip--nho">trong ngưỡng</span>`;
+}
+function veSpark(s, k) {
+  const W = 760, H = 90, L = 8, R = 752, T = 10, B = 70;
+  const moc = [HOM_NAY, ...k.ev.map((e) => (e.tre ? HOM_NAY : e.ngay))];
+  const n = moc.length;
+  // Trục theo THỨ TỰ sự kiện (cách đều), không theo ngày — dài mấy tháng cũng không ép.
+  const xOf = (i) => L + (i / Math.max(1, n - 1 + 0.4)) * (R - L);
+  const vals = [s.ton, ...k.ev.map((e) => e.con), s.min, s.max];
+  const yMax = Math.max(...vals) * 1.12, yMin = Math.min(0, ...vals);
+  const y = (v) => B - ((v - yMin) / (yMax - yMin)) * (B - T);
+  let d = `M${L} ${y(s.ton)}`; const diem = [];
+  k.ev.forEach((e, i) => { const cx = xOf(i + 1); d += ` H${cx} V${y(e.con)}`; diem.push({ e, cx, cy: y(e.con) }); });
+  d += ` H${R}`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}"><rect x="${L}" y="${y(s.max)}" width="${R - L}" height="${y(s.min) - y(s.max)}" fill="#f1f5f9"/>
+    <line x1="${L}" x2="${R}" y1="${y(s.max)}" y2="${y(s.max)}" stroke="#fdba74" stroke-dasharray="4 4"/>
+    <line x1="${L}" x2="${R}" y1="${y(s.min)}" y2="${y(s.min)}" stroke="#f87171" stroke-dasharray="4 4"/>
+    <path d="${d}" fill="none" stroke="#0f172a" stroke-width="2"/>`;
+  diem.forEach((p) => { svg += `<circle cx="${p.cx}" cy="${p.cy}" r="3.5" fill="#fff" stroke="${p.e.vung === "do" ? "#b91c1c" : p.e.vung === "cam" ? "#c2410c" : "#0f172a"}" stroke-width="2"/>`; });
+  svg += `<line class="truc" x1="0" x2="0" y1="${T}" y2="${B}" stroke="#0f172a" stroke-dasharray="3 3" opacity="0"/><rect class="vung-hover" x="${L}" y="0" width="${R - L}" height="${H}" fill="transparent"/></svg>`;
+  return { svg, diem, W };
+}
+function renderB(s, k) {
+  const v = veSpark(s, k);
+  const dong = k.ev.map((e) => `<div class="evb" data-i="${e.i}">
+      <div class="lich ${e.tre ? "tre" : ""}"><b>${e.ngay.slice(8, 10)}</b><span>${e.tre ? `trễ ${e.tre} ngày` : "tháng " + Number(e.ngay.slice(5, 7)) + (e.ngay.slice(0, 4) !== HOM_NAY.slice(0, 4) ? "/" + e.ngay.slice(0, 4) : "")}</span></div>
+      <div><b>${e.loai === "ve" ? "Hàng về" : "Lệnh lĩnh"}</b> <span class="goi">${e.ma}</span><div class="goi">${moTa(e)}</div></div>
+      <div class="sl ${e.loai === "ve" ? "vao" : ""}">${e.loai === "ve" ? "+" : "−"}${so(e.sl)}</div>
+      <div class="thuoc"><div class="thuoc__so"><b>${so(e.con)}</b>${nhanVung(e.con, s)}</div>${thuoc(e.con, s)}</div>
+    </div>`).join("");
+  const trai = `${htmlKetLuan(s, k, true)}
+    <div><div class="muc">Đường tồn<span class="sp"></span><span class="goi">mỗi chấm là một việc, cách đều nhau</span></div>
+      <div class="bd" id="bdB">${v.svg}<div class="tip"></div></div></div>
+    <div><div class="muc">Từng việc theo ngày<span class="sp"></span><span class="goi">thước nhỏ: vạch đỏ tối thiểu, vạch cam tối đa</span></div>
+      <div class="evb evb--dau"><span>Ngày</span><span>Việc</span><span style="text-align:right">Số lượng</span><span>Còn lại sau việc này</span></div>
+      <div class="evb"><div class="lich"><b>${HOM_NAY.slice(8, 10)}</b><span>hôm nay</span></div><div><b>Tồn hiện có</b><div class="goi">${s.lo.length} lô trong kho</div></div><div></div>
+        <div class="thuoc"><div class="thuoc__so"><b>${so(s.ton)}</b>${nhanVung(s.ton, s)}</div>${thuoc(s.ton, s)}</div></div>
+      <div id="bangB">${dong}</div></div>`;
+  return { trai, sau: () => {
+    ganHover(document.getElementById("bdB"), v.diem, s, v.W, (ids) => document.querySelectorAll("#bangB .evb").forEach((r) => r.classList.toggle("sang", ids.includes(Number(r.dataset.i)))));
+    document.querySelectorAll("#bangB .evb").forEach((r) => {
+      r.addEventListener("mouseenter", () => { const p = v.diem.find((d) => d.e.i === Number(r.dataset.i)); document.querySelector(`#bdB circle[cx="${p.cx}"]`)?.setAttribute("r", "6"); });
+      r.addEventListener("mouseleave", () => document.querySelectorAll("#bdB circle").forEach((c) => c.setAttribute("r", "3.5")));
+    });
+  } };
+}
+
+/* ================= C — gom theo tuần (SAP Fiori "Monitor Material Coverage") ================= */
+function renderC(s, k) {
+  const cong = (iso, n) => { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const ky = [
+    { ten: "Trễ hẹn", tre: true, loc: (e) => e.tre },
+    { ten: "Tuần này", tu: HOM_NAY, den: cong(HOM_NAY, 6) },
+    { ten: "Tuần sau", tu: cong(HOM_NAY, 7), den: cong(HOM_NAY, 13) },
+    { ten: "2 đến 4 tuần", tu: cong(HOM_NAY, 14), den: cong(HOM_NAY, 29) },
+    { ten: "1 đến 3 tháng", tu: cong(HOM_NAY, 30), den: cong(HOM_NAY, 89) },
+    { ten: "Xa hơn", tu: cong(HOM_NAY, 90), den: "9999-12-31" },
+  ].filter((c) => c.tre ? k.tre.length : true);
+  let con = s.ton;
+  ky.forEach((c) => {
+    c.ev = k.ev.filter((e) => (c.tre ? e.tre : !e.tre && e.ngay >= c.tu && e.ngay <= c.den));
+    c.vao = c.ev.filter((e) => e.loai === "ve").reduce((t, e) => t + e.sl, 0);
+    c.ra = c.ev.filter((e) => e.loai === "lenh").reduce((t, e) => t + e.sl, 0);
+    c.thap = c.ev.length ? Math.min(con, ...c.ev.map((e) => e.con)) : con;
+    c.cao = c.ev.length ? Math.max(con, ...c.ev.map((e) => e.con)) : con;
+    con = con + c.vao - c.ra; c.cuoi = con;
+  });
+  const thang = Math.max(s.max * 1.25, ...ky.map((c) => c.cuoi), s.ton) * 1.05;
+  const pct = (n) => Math.max(0, Math.min(100, (n / thang) * 100));
+  const cot = ky.map((c, idx) => {
+    const vung = c.thap <= s.min ? "do" : c.cao > s.max ? "cam" : "la";
+    const mau = vung === "do" ? "#ef4444" : vung === "cam" ? "#f97316" : "#22c55e";
+    const pop = c.ev.length ? `<div class="pop">${c.ev.map((e) => `<div class="t-dong"><div>${e.loai === "ve" ? "Hàng về" : "Lệnh lĩnh"} <span class="t-ma">${e.ma}</span><div class="t-ma">${ngayDu(e.ngay)}${e.tre ? ` trễ ${e.tre} ngày` : ""}<br>${e.loai === "ve" ? "NCC " + e.mo : e.mo + "<br>khách " + e.khach}</div></div><div class="t-sl">${e.loai === "ve" ? "+" : "−"}${so(e.sl)}</div></div>`).join("")}<div class="t-dong"><div>Cuối kỳ còn</div><div class="t-sl">${so(c.cuoi)}</div></div></div>` : "";
+    const nhan = c.tre ? "" : `<div class="ky__ngay">${c.den === "9999-12-31" ? "từ " + ngayNgan(c.tu) : ngayNgan(c.tu) + " đến " + ngayNgan(c.den)}</div>`;
+    return `<div class="ky__cot ${c.tre ? "ky__cot--tre" : ""}">
+      <div class="ky__dau"><div class="ky__ten">${c.ten}</div>${nhan}</div>
+      <div class="ky__ong">
+        <div class="ky__vach" style="bottom:${pct(s.max)}%;border-color:#fdba74"></div>
+        <div class="ky__vach" style="bottom:${pct(s.min)}%;border-color:#f87171"></div>
+        <div class="ky__bar" style="height:${pct(c.cuoi)}%;background:${mau};opacity:${c.ev.length ? 1 : .35}"></div>
+      </div>
+      <div class="ky__so" style="color:${vung === "do" ? "var(--tt-do-fg)" : vung === "cam" ? "var(--tt-cam-fg)" : "var(--ink)"}">${so(c.cuoi)}</div>
+      ${c.ev.length ? `<div class="ky__vr">${c.vao ? `<span class="vao">về +${so(c.vao)}</span>` : ""}${c.ra ? `<span class="ra">lĩnh −${so(c.ra)}</span>` : ""}</div>` : `<div class="ky__trong">không có việc</div>`}
+      ${pop}
+    </div>`;
+  }).join("");
+  const trai = `${htmlKetLuan(s, k)}
+    <div><div class="muc">Tồn cuối mỗi kỳ<span class="sp"></span><span class="goi">rê vào một cột để xem các việc trong kỳ</span></div>
+      <div class="chu-giai" style="margin-bottom:10px"><span><i style="background:#ef4444"></i>chạm tối thiểu trong kỳ</span><span><i style="background:#22c55e"></i>trong ngưỡng</span><span><i style="background:#f97316"></i>vượt tối đa</span><span><i style="border-top:2px dashed #f87171;height:0;border-radius:0"></i>tối thiểu ${so(s.min)}</span><span><i style="border-top:2px dashed #fdba74;height:0;border-radius:0"></i>tối đa ${so(s.max)}</span></div>
+      <div class="ky" style="grid-template-columns:repeat(${ky.length},minmax(0,1fr))">${cot}</div></div>
+    <div><div class="muc">Sắp lĩnh và hàng về</div>${bangSuKien(s, k)}</div>`;
+  return { trai, sau: () => {} };
+}
+
+/* ================= Khung ================= */
+const OPT = {
+  A: { ten: "A. Biểu đồ có số", src: "Khuôn: Odoo Inventory, Forecasted Report",
+    why: `<b>Giữ biểu đồ bậc thang hiện có</b> nhưng ghi số ngay trên đường (tồn hôm nay, cộng trừ ở mỗi bậc, còn lại sau bậc), tô ba vùng nền dưới tối thiểu, trong ngưỡng, vượt tối đa. Odoo đặt câu "đủ hay thiếu" lên đầu rồi mới tới đồ thị và bảng từng chứng từ, đúng thứ tự người kho đọc.
+      <ul><li>Trục có <b>gãy</b>: khoảng trống hơn 21 ngày nén lại, ghi "95 ngày", nên đơn mua hẹn tận tháng 1 không ép mọi việc tuần này vào một mép (xem tình huống 3).</li>
+      <li>Việc trễ có cột riêng <b>Trễ</b> ở đầu trục và hộp vàng liệt kê.</li>
+      <li>Rê chuột: thước dọc, hộp gợi ý, và dòng tương ứng ở bảng dưới sáng lên.</li></ul>`, fn: renderA },
+  B: { ten: "B. Danh sách là chính", src: "Khuôn: Microsoft Business Central, Item Availability by Event",
+    why: `<b>Bảng từng việc là phần chính</b>, biểu đồ thu thành một dải mảnh. Mỗi dòng có thước nhỏ cho thấy sau việc đó tồn nằm ở đâu so với tối thiểu và tối đa, kèm nhãn chữ. Business Central dùng đúng kiểu "mỗi sự kiện một dòng, cột tồn dự kiến sau sự kiện" vì người kho đọc theo việc, không đọc theo đồ thị.
+      <ul><li>Dải biểu đồ đặt chấm <b>cách đều theo thứ tự việc</b>, không theo ngày, nên hẹn xa bao lâu cũng không méo.</li>
+      <li>Ô ngày dạng tờ lịch; việc trễ ghi "trễ 4 ngày" ngay trên ô ngày.</li>
+      <li>Rê vào biểu đồ sáng dòng; rê vào dòng phóng to chấm.</li></ul>`, fn: renderB },
+  C: { ten: "C. Gom theo tuần", src: "Khuôn: SAP Fiori, Monitor Material Coverage",
+    why: `<b>Gom việc vào kỳ</b>: Trễ hẹn, Tuần này, Tuần sau, 2 đến 4 tuần, 1 đến 3 tháng, Xa hơn. Mỗi kỳ một cột cho tồn cuối kỳ, tô màu theo vùng, ghi tổng vào và ra. SAP dùng lưới theo kỳ để người lập kế hoạch nhìn một lượt là biết tuần nào hụt, tuần nào dư.
+      <ul><li>Số cột cố định, nên sau vài năm hay vài chục lệnh bố cục vẫn y nguyên.</li>
+      <li>Rê vào một cột hiện danh sách việc trong kỳ đó.</li>
+      <li>Đánh đổi: không thấy được tồn chạm đáy vào đúng ngày nào trong tuần, nên cột tô đỏ nếu <b>trong kỳ</b> có lúc chạm tối thiểu.</li></ul>`, fn: renderC },
+};
+let opt = "A", scn = 0;
+function render() {
+  const s = SCN[scn], k = tinh(s), o = OPT[opt];
+  document.getElementById("optHead").innerHTML = `<div class="opt-head"><h2>${o.ten}</h2><span class="src">${o.src}</span></div><p class="why">${o.why}</p>`;
+  const [cm, cn] = CHIP[k.trangThai];
+  const r = o.fn(s, k);
+  document.getElementById("ngan").innerHTML = `
+    <div class="ngan__kho">${s.kho}</div>
+    <div class="ngan__ten"><h3>${s.ten}</h3><span class="chip chip--${cm}">${cn}</span>${k.tre.length ? `<span class="chip chip--vang">${k.tre.length} việc trễ hẹn</span>` : ""}<span style="flex:1"></span><button class="btn">Tạo yêu cầu mua</button></div>
+    <div class="tags"><span class="goi" style="font-size:13px">${s.ma}</span><span class="tag">${s.kho_giay}</span><span class="tag">${s.ke}</span></div>
+    ${htmlPhep(s, k)}
+    <div class="than"><div class="than__trai">${r.trai}</div><div class="than__phai">${htmlPhai(s)}</div></div>`;
+  r.sau();
+}
+function seg(id, cb) {
+  document.getElementById(id).addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b));
+    cb(b.dataset.v); render();
+  });
+}
+seg("segOpt", (v) => (opt = v));
+seg("segScn", (v) => (scn = Number(v)));
+render();
+</script>
+</body>
+</html>

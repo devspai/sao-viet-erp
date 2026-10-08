@@ -1,11 +1,11 @@
-/** Nối dây màn Công nợ phải trả: URL → kỳ + lọc → tham số máy chủ, lời gọi cùng kỳ, số đếm nhóm nút,
- *  bấm mốc tuổi nợ = lọc + chip, khối tổng quan thay dải KPI cũ. */
+/** Nối dây màn Công nợ phải trả (khuôn lưới chung `lds-*`, 08/10/2026): URL → kỳ + lọc → tham số máy
+ *  chủ, số trên hàng lọc nhanh, lưới hai bộ cột ("Tuổi nợ" | "Trong kỳ và liên hệ") với dòng Cộng cuối
+ *  bảng đọc `tong_loc` của máy chủ. */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PayablesSummary } from "../../../api/client";
-import { homNayVN, kyCungKy, tinhKy } from "../../../utils/ky";
 import { khoangSo } from "../shared/kyKeToan";
 
 const payables = vi.fn();
@@ -55,23 +55,27 @@ function tomTat(p: Partial<PayablesSummary> = {}): PayablesSummary {
     vuot_han_muc_count: 1, aging: AGING, period_months: 3,
     tu_ngay: "2026-01-01", den_ngay: "2026-10-05", as_of: "2026-10-05",
     the_loc: { tat_ca: 18, qua_han: 4, vuot_han_muc: 2 },
+    // Dòng Cộng của bộ lọc (mọi trang) — cố ý khác dòng đang hiện để biết màn đọc đúng `tong_loc`.
+    tong_loc: {
+      so_doi_tac: 2, so_khoan: 7, con_no: 131_700_000,
+      aging: { chua_toi_han: 105_200_000, d1_7: 0, d8_15: 0, d16_30: 0, d31_60: 26_500_000, d60_plus: 0 },
+      qua_han: 26_500_000, trong_ky_1: 63_000_000, trong_ky_2: 55_000_000,
+    },
     ...p,
   };
 }
 
 beforeEach(() => {
   payables.mockReset();
-  payables.mockImplementation(async (_t: string, p: { size?: number; dem_only?: boolean; filter?: string }) => {
-    if (p.size === 1) return tomTat({ total_due: 80_000_000, overdue_amount: 10_000_000 });
-    return tomTat();
-  });
+  payables.mockImplementation(async () => tomTat());
+  window.localStorage.removeItem("kt-cong-no-cot");
 });
 afterEach(() => window.history.replaceState(null, "", "/"));
 
 const goiChinh = () => payables.mock.calls.filter((c) => !c[1].dem_only && c[1].size !== 1);
 
 describe("AccountingPayablesPage — nối dây", () => {
-  it("mở từ link: kỳ, nhóm nút, mốc tuổi, ô tìm, bộ lọc → đúng tham số; cùng kỳ size 1; đếm nhóm nút", async () => {
+  it("mở từ link: kỳ, dải tab, mốc tuổi, ô tìm, bộ lọc → đúng tham số; số trên dải tab từ the_loc", async () => {
     // Bộ nhớ kỳ là Map cấp module (sống qua các test) — đặt kỳ bằng URL cho test này độc lập.
     window.history.replaceState(
       null, "",
@@ -87,64 +91,108 @@ describe("AccountingPayablesPage — nối dây", () => {
       no_tu: 5_000_000, no_den: undefined, han_tra: "7_ngay", han_muc: "vuot", ca_da_tra_het: true,
       page: 1, size: 25,
     });
-    const cung = kyCungKy(tinhKy("nam", homNayVN()));
-    await waitFor(() => expect(payables.mock.calls.some((c) => c[1].size === 1)).toBe(true));
-    const pc = payables.mock.calls.find((c) => c[1].size === 1)![1];
-    expect(pc).toMatchObject({ tu_ngay: cung.tu, den_ngay: cung.den, filter: "overdue", aging: "d31_60", page: 1 });
-    // Lời cùng kỳ chỉ cần số tổng: máy chủ khỏi dựng dòng. Lời của bảng thì không.
-    expect(pc.chi_tong).toBe(true);
     expect(p.chi_tong).toBeUndefined();
 
-    // Số trên nhóm nút: đọc `the_loc` của CHÍNH câu trả lời bảng — không lời đếm riêng nào.
+    // Số trên dải tab: đọc `the_loc` của CHÍNH câu trả lời bảng — không lời đếm riêng, không lời cùng kỳ
+    // (khối tổng quan đã bỏ nên không còn ai đọc số cùng kỳ).
     await waitFor(() => expect(screen.getByRole("button", { name: /^Quá hạn/ })).toHaveTextContent("Quá hạn4"));
     expect(screen.getByRole("button", { name: /^Tất cả/ })).toHaveTextContent("Tất cả18");
     expect(screen.getByRole("button", { name: /^Vượt hạn mức/ })).toHaveTextContent("Vượt hạn mức2");
-    expect(payables.mock.calls.filter((c) => c[1].dem_only)).toEqual([]);
+    expect(payables.mock.calls.filter((c) => c[1].dem_only || c[1].chi_tong || c[1].size === 1)).toEqual([]);
 
-    expect(screen.getByRole("textbox", { name: "Tìm nhà cung cấp" })).toHaveValue("Bình");
+    const tim = screen.getByRole("textbox", { name: "Tìm nhà cung cấp" });
+    expect(tim).toHaveValue("Bình");
+    expect(tim).toHaveAttribute("placeholder", "Tìm nhà cung cấp, kể cả đã trả hết");
     expect(screen.getByRole("button", { name: /^Tuổi nợ:/ })).toHaveAccessibleName("Tuổi nợ: Trễ 31–60 ngày. Bấm để sửa");
     expect(screen.getByRole("button", { name: /^Hạn trả:/ })).toBeInTheDocument();
   });
 
-  it("khối tổng quan thay dải KPI: Còn nợ tới ngày cuối kỳ, cùng kỳ; bấm mốc = lọc aging + chip; × bỏ", async () => {
-    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang");
+  it("không còn khối tổng quan: 'Còn nợ tới' ngày máy chủ; lọc mốc tuổi vẫn ở thanh lọc, × bỏ", async () => {
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang&tuoi=d31_60");
     const { container } = render(<AccountingPayablesPage navigate={() => {}} />);
     await screen.findByText("Còn nợ tới 05/10/2026");
-    expect(container.querySelector(".pay-kpibar")).toBeNull();
-    expect(container.querySelector(".aging-strip")).toBeNull();
-    await waitFor(() => expect(screen.getByText("+21% so cùng kỳ")).toBeInTheDocument());
-    expect(screen.getByText("+165% so cùng kỳ")).toHaveClass("kt-do");
+    expect(container.querySelector(".kt-tq")).toBeNull();
+    expect(screen.queryByText(/so cùng kỳ/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Xuất Excel/ })).toBeNull();
 
     payables.mockClear();
-    const moc = within(screen.getByRole("group", { name: /^Quá hạn theo số ngày trễ tới/ }));
-    await userEvent.click(moc.getByRole("button", { name: /Trễ 31–60 ngày/ }));
-    await waitFor(() => expect(goiChinh().some((c) => c[1].aging === "d31_60")).toBe(true));
-    expect(new URLSearchParams(window.location.search).get("tuoi")).toBe("d31_60");
     await userEvent.click(screen.getByRole("button", { name: "Bỏ lọc Tuổi nợ" }));
     await waitFor(() => expect(goiChinh().at(-1)![1].aging).toBeNull());
   });
 
-  it("bảng đủ cột: mã, số khoản, quá hạn đỏ, hạn trả so với hôm nay, mua thêm / đã trả, trả gần nhất, liên hệ, hạn mức vượt", async () => {
+  it("bộ cột Tuổi nợ: dòng Cộng từ tong_loc, mỗi mốc một cột (0 thành –, quá hạn đỏ), hạn sớm nhất, hạn mức, đã dùng", async () => {
     window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang");
     render(<AccountingPayablesPage navigate={() => {}} />);
     const dong = (await screen.findAllByText("Giấy Bình Minh"))[0].closest("tr")!;
+    // Mỗi mốc trễ là một cột riêng, tiêu đề một hàng (nhãn máy chủ, "> 60" viết thành chữ).
+    for (const ten of ["Nhà cung cấp", "Đợt", "Còn nợ", "Chưa tới hạn", "Trễ 1–7 ngày", "Trễ 31–60 ngày",
+      "Trễ trên 60 ngày", "Hạn sớm nhất", "Hạn mức", "Đã dùng"]) {
+      expect(screen.getByRole("columnheader", { name: ten })).toBeInTheDocument();
+    }
+
+    // Bề rộng tối thiểu = 220 (tên) + 56 + 120 + 112 + 118 × 5 + 184 + 84 + 76; khung hẹp hơn thì cuộn
+    // ngang (cột tên cố định do CuonLuoi ghim).
+    expect(dong.closest("table")).toHaveClass("lds-g");
+    expect(dong.closest("table")).toHaveStyle({ minWidth: "1442px" });
+    const cong = screen.getByText("Cộng 2 nhà cung cấp", { selector: ".lds-dinh-trai" }).closest("tr")!;
+    expect(cong).toHaveClass("lds-cong");
+    expect(dong).toHaveClass("lds-dong");
+    // Dòng Cộng nằm CUỐI tbody, sau dòng nhà cung cấp.
+    expect(cong.parentElement!.lastElementChild).toBe(cong);
+    const oc = within(cong);
+    expect(oc.getByText("7")).toBeInTheDocument();
+    expect(oc.getByText("131.700.000")).toBeInTheDocument();
+    expect(oc.getByText("105.200.000")).toBeInTheDocument();
+    expect(oc.getByText("26.500.000").closest("td")).toHaveClass("lds-do");
+    expect(oc.getAllByText("–")).toHaveLength(4);
+    expect(oc.getByText("quá hạn 26.500.000")).toBeInTheDocument();
+
     const o = within(dong);
-    expect(o.getByText("NCC007")).toHaveClass("kt-the");
-    expect(o.getByText("5 khoản")).toBeInTheDocument();
-    expect(o.getByText("Vượt hạn mức")).toBeInTheDocument();
-    expect(o.getByRole("button", { name: "quá hạn 26.500.000" })).toHaveClass("kt-do");
+    expect(o.getByText("Giấy Bình Minh")).toHaveAttribute("title", "Giấy Bình Minh");
+    expect(o.getByText("5")).toBeInTheDocument();
+    expect(o.getByText("96.500.000")).toBeInTheDocument();
+    expect(o.getByText("70.000.000")).toBeInTheDocument();
+    // Mốc quá hạn có tiền: chữ đỏ, bấm được (mở ngăn lọc sẵn quá hạn); mốc 0 thành gạch mờ.
+    expect(o.getByRole("button", { name: "26.500.000" }).closest("td")).toHaveClass("lds-do");
+    expect(o.getAllByText("–")).toHaveLength(4);
     expect(o.getByText("18/08/2026")).toBeInTheDocument();
-    expect(o.getByText("trễ 48 ngày")).toBeInTheDocument();
-    expect(o.getByText("cho nợ 30 ngày")).toBeInTheDocument();
-    expect(o.getByText("Mua thêm")).toBeInTheDocument();
+    expect(o.getByText("trễ 48 ngày")).toHaveClass("lds-do");
+    expect(o.getByText("80 tr")).toBeInTheDocument();
+    expect(o.getByText("121%")).toHaveClass("lds-do");
+    expect(dong.textContent).not.toMatch(/[·•]|khoản/);
+  });
+
+  it("đổi sang bộ cột Trong kỳ và liên hệ: cột trong kỳ, trả gần nhất, cho nợ, liên hệ; nhớ lựa chọn", async () => {
+    window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang");
+    const { unmount } = render(<AccountingPayablesPage navigate={() => {}} />);
+    await screen.findAllByText("Giấy Bình Minh");
+    const nhom = screen.getByRole("group", { name: "Xem cột" });
+    expect(within(nhom).getByRole("button", { name: "Tuổi nợ" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(within(nhom).getByRole("button", { name: "Trong kỳ và liên hệ" }));
+
+    for (const ten of ["Mua trong kỳ", "Trả trong kỳ", "Trả gần nhất", "Số tiền", "Cho nợ", "Người liên hệ", "Điện thoại"]) {
+      expect(screen.getByRole("columnheader", { name: ten })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("columnheader", { name: "Hạn sớm nhất" })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Phụ trách" })).toBeNull();
+
+    const cong = within(screen.getByText("Cộng 2 nhà cung cấp", { selector: ".lds-dinh-trai" }).closest("tr")!);
+    expect(cong.getByText("63.000.000")).toBeInTheDocument();
+    expect(cong.getByText("55.000.000")).toBeInTheDocument();
+
+    const o = within(screen.getAllByText("Giấy Bình Minh")[0].closest("tr")!);
     expect(o.getByText("51.200.000")).toBeInTheDocument();
     expect(o.getByRole("button", { name: "42.000.000" })).toBeInTheDocument();
     expect(o.getByText("30/09/2026")).toBeInTheDocument();
+    expect(o.getByText("30 ngày")).toBeInTheDocument();
     expect(o.getByText("Nguyễn Lan")).toBeInTheDocument();
     expect(o.getByText("0912 345 678")).toBeInTheDocument();
-    expect(o.getByText("Đã dùng 121%")).toHaveClass("kt-do");
-    expect(dong.textContent).not.toMatch(/[·•]/);
-    expect(screen.getByText("1 nhà cung cấp")).toBeInTheDocument();
+
+    expect(window.localStorage.getItem("kt-cong-no-cot")).toBe("ky");
+    unmount();
+    render(<AccountingPayablesPage navigate={() => {}} />);
+    await screen.findAllByText("Giấy Bình Minh");
+    expect(screen.getByRole("columnheader", { name: "Mua trong kỳ" })).toBeInTheDocument();
   });
 
   it("xem kỳ đã qua: 'còn n ngày' đếm từ HÔM NAY (as_of), không từ cuối kỳ", async () => {
@@ -160,17 +208,16 @@ describe("AccountingPayablesPage — nối dây", () => {
     render(<AccountingPayablesPage navigate={() => {}} />);
     const dong = (await screen.findAllByText("Giấy Bình Minh"))[0].closest("tr")!;
     expect(within(dong).getByText("10/10/2026")).toBeInTheDocument();
-    expect(within(dong).getByText("còn 5 ngày")).toBeInTheDocument();
+    expect(within(dong).getByText("còn 5 ngày")).toHaveClass("lds-mu");
     expect(dong.textContent).not.toMatch(/còn 28\d ngày/);
   });
 
   it("máy chủ kẹp trang (trả trang khác trang hỏi) thì màn nhảy theo trang máy chủ", async () => {
     window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang");
-    payables.mockImplementation(async (_t: string, p: { size?: number; page?: number }) => {
-      if (p.size === 1) return tomTat();
+    payables.mockImplementation(async (_t: string, p: { page?: number }) =>
       // Trang 2 vừa rỗng (danh sách co lại): máy chủ trả trang 1.
-      return tomTat({ total: 60, pages: 3, page: p.page === 2 ? 1 : (p.page ?? 1) });
-    });
+      tomTat({ total: 60, pages: 3, page: p.page === 2 ? 1 : (p.page ?? 1) }),
+    );
     render(<AccountingPayablesPage navigate={() => {}} />);
     const nav = within(await screen.findByRole("navigation", { name: "Phân trang công nợ phải trả" }));
     await userEvent.click(nav.getByRole("button", { name: "2" }));
@@ -179,13 +226,13 @@ describe("AccountingPayablesPage — nối dây", () => {
     expect(goiChinh().at(-1)![1].page).toBe(1);
   });
 
-  it("hạn mức chưa đặt ghi Chưa đặt; dòng không mã nhà cung cấp: thẻ điện thoại không là nút", async () => {
+  it("hạn mức chưa đặt ghi 'chưa đặt', Đã dùng '–'; dòng không mã nhà cung cấp không mở được ngăn", async () => {
     window.history.replaceState(null, "", "/?man=ke-toan-cong-no&ky=thang");
     const goc = tomTat().items[0];
     payables.mockImplementation(async () =>
       tomTat({
         items: [
-          { ...goc, credit_limit: 0, vuot_han_muc: false, vuot_bao_nhieu: 0 },
+          { ...goc, credit_limit: 0, vuot_han_muc: false, vuot_bao_nhieu: 0, han_gan_nhat: null },
           { ...goc, supplier_id: null, supplier_name: "Nhà cung cấp lẻ" },
         ],
         total: 2,
@@ -193,10 +240,17 @@ describe("AccountingPayablesPage — nối dây", () => {
     );
     const { container } = render(<AccountingPayablesPage navigate={() => {}} />);
     const dong = (await screen.findAllByText("Giấy Bình Minh"))[0].closest("tr")!;
-    expect(within(dong).getByText("Chưa đặt hạn mức")).toHaveClass("kt-mo");
-    const the = container.querySelectorAll(".kt-the-dt > div");
-    expect(the[0]).toHaveAttribute("role", "button");
-    expect(the[1]).not.toHaveAttribute("role");
-    expect(the[1]).not.toHaveAttribute("tabindex");
+    const o = within(dong);
+    expect(o.getByText("chưa đặt")).toHaveClass("lds-mu3");
+    expect(o.getByText("chưa đặt hạn nợ")).toHaveClass("lds-mu3");
+    // 4 mốc trễ bằng 0 + ô Đã dùng.
+    expect(o.getAllByText("–")).toHaveLength(5);
+    // Dòng không có mã đối tác không đi được bằng phím (không mở ngăn), dòng có mã thì có.
+    const hang = container.querySelectorAll("tr.lds-dong");
+    expect(hang).toHaveLength(2);
+    expect(hang[0]).toHaveAttribute("tabindex", "0");
+    expect(hang[1]).not.toHaveAttribute("tabindex");
+    // Khuôn lưới chung không còn thẻ điện thoại riêng.
+    expect(container.querySelector(".kt-the-dt")).toBeNull();
   });
 });

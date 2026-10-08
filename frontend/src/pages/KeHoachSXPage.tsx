@@ -10,16 +10,32 @@ import {
   ApiError,
   api,
   type HangChoItem,
+  type LsxListGiaCong,
   type LsxListItem,
   type LsxTongQuanOut,
+  type LsxTrangThai,
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { useCan, useScopeOf } from "../auth/permissions";
-import { Button } from "../components/Button";
-import { Icon } from "../components/Icons";
+import {
+  ChipTT,
+  ChonCot,
+  CuonLuoi,
+  LocNhanhTrangThai,
+  OTim,
+  rongLuoi,
+  soCotGhim,
+  tenKhachGon,
+  useCotAn,
+  useThuTuCot,
+  xepCot,
+  ngayVN,
+  type CotLuoi,
+  type MauTT,
+} from "../components/LuoiDs";
+import { EmptyRow } from "../components/EmptyState";
 import { trangHopLe } from "../components/Pager";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
-import { StatusTabs } from "../components/StatusTabs";
 import {
   LOC_KHSX_TRONG,
   MOC_HANG_CHO,
@@ -37,23 +53,20 @@ import {
 import { ngayDayDu, ngayGioDayDu } from "./loc-san-xuat/ngay";
 import { ThanhLoc } from "./thanh-loc/ThanhLoc";
 import { thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
-import { daAp, dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
+import { daAp, type DieuKien } from "./thanh-loc/thanh-loc";
 import { useLocMan } from "./thanh-loc/useLocMan";
 import { LsxDetailView } from "./LsxDetailView";
 import { LsxPreviewDrawer } from "./LsxPreviewDrawer";
 import { nhanDonVi } from "./lsxBuoc";
-import { ChipMotPhan, OTronGoi, PillTronGoi, laTronGoi } from "./gia-cong/GiaCongDong";
+import { laTronGoi } from "./gia-cong/GiaCongDong";
+import { NHAN_NGAN } from "./gia-cong/giaCong";
 import { useNapTenDonVi } from "./tenDonVi";
 import {
   BangLoi,
-  ChipGap,
-  EmptyState,
-  Skeleton,
   TRANG_THAI_TABS,
-  TrangThaiPill,
   classHan,
   classHanLich,
-  ngay,
+  nhanTrangThaiLsx,
   ngayGio,
   num,
 } from "./keHoachSxShared";
@@ -135,6 +148,7 @@ export function KeHoachSXPage({
     api.lsx
       .hangCho(token, { page: queuePage, size: sizeTrang, loc: JSON.parse(khoaCho) })
       .then((r) => {
+        setErr(null);
         setQueue(r.items);
         setQueueTotal(r.total);
         const ve = trangHopLe(queuePage, r.total, sizeTrang);
@@ -161,6 +175,7 @@ export function KeHoachSXPage({
       })
       .then((r) => {
         if (luot !== luotLenh.current) return;   // đã có lượt mới hơn — bỏ kết quả này
+        setErr(null);
         setLenhs(r.items);
         setTotal(r.total);
         setFacets(r.facets);
@@ -267,69 +282,59 @@ export function KeHoachSXPage({
     );
   }
 
-  // Số trên tab lấy từ `facets` của máy chủ, KHÔNG đếm mảng đang hiện. Tab gộp nhiều trạng thái
-  // (Nháp = "nhap,cho_bo_sung") thì cộng các phần.
+  // Số trên hàng lọc nhanh lấy từ `facets` của máy chủ, KHÔNG đếm mảng đang hiện. Mục gộp nhiều
+  // trạng thái (Nháp = "nhap,cho_bo_sung") thì cộng các phần.
   const demTheoTt = (key: string) =>
     key === "all"
       ? (facets.all ?? 0)
       : key.split(",").reduce((s, k) => s + (facets[k] ?? 0), 0);
 
   return (
-    <main className="khsx">
-      <header className="khsx-page-header">
-        <div className="khsx-page-header__left">
-          <div className="khsx-page-header__eyebrow-row">
-            <span className="khsx-eyebrow-badge">
-              <Icon name="clipboard" size={12} /> Sản xuất &amp; Điều phối
-            </span>
-            <span className="khsx-sync-badge">
-              <span className="khsx-sync-badge__dot" /> Live Sync
-            </span>
-          </div>
-          <h1 className="khsx-page-header__title">Kế hoạch sản xuất</h1>
-          <p className="khsx-page-header__sub">
-            Quản lý và điều phối toàn bộ tiến độ sản xuất từ tiếp nhận đơn hàng đến hoàn thành ra xưởng
-          </p>
+    <main className="khsx lds">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Kế hoạch sản xuất</h1>
+        {/* Hai tab thật (đổi cả bảng bên dưới), đặt cạnh tên màn. Tab không mang số đếm: hàng chờ có
+            đơn thì một chấm nhỏ, số đơn nằm ở chân bảng. */}
+        <div className="khsx-tabman" role="tablist" aria-label="Khu vực làm việc">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "hang-cho"}
+            className={`khsx-tabman__btn${tab === "hang-cho" ? " is-active" : ""}`}
+            onClick={() => setTab("hang-cho")}
+          >
+            Hàng chờ tiếp nhận
+            {queueTotal > 0 && <span className="khsx-tabman__cham" aria-label="Có đơn đang chờ lên lệnh" />}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "lenh"}
+            className={`khsx-tabman__btn${tab === "lenh" ? " is-active" : ""}`}
+            onClick={() => setTab("lenh")}
+          >
+            Lệnh sản xuất
+          </button>
         </div>
       </header>
-
-      <div className="khsx-underline-tabs" role="tablist" aria-label="Khu vực làm việc">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "hang-cho"}
-          className={`khsx-underline-tab ${tab === "hang-cho" ? "is-active" : ""}`}
-          onClick={() => setTab("hang-cho")}
-        >
-          <Icon name="packageCheck" size={15} />
-          <span>Hàng chờ tiếp nhận</span>
-          {queueTotal > 0 && <span className="khsx-tab-count khsx-tab-count--alert">{queueTotal}</span>}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "lenh"}
-          className={`khsx-underline-tab ${tab === "lenh" ? "is-active" : ""}`}
-          onClick={() => setTab("lenh")}
-        >
-          <Icon name="layers" size={15} />
-          <span>Lệnh sản xuất</span>
-          <span className="khsx-tab-count">{total}</span>
-        </button>
-      </div>
 
       {flash && (
         <div className="banner banner--success" role="status" aria-live="polite">
           {flash}
         </div>
       )}
-      {err && <BangLoi text={err} onRetry={doiDuLieu} />}
+      {/* Lượt nạp ĐẦU lỗi (bảng chưa có dòng nào) thì câu lỗi + "Thử lại" nằm ngay trong dòng rỗng của
+          lưới; băng này chỉ cho lỗi xảy ra khi bảng đã có dòng. */}
+      {err && (tab === "hang-cho" ? queue !== null : lenhs !== null) && <BangLoi text={err} onRetry={doiDuLieu} />}
 
       {tab === "hang-cho" ? (
         <QueueTable
           rows={queue}
+          loi={err}
+          onTaiLai={doiDuLieu}
           scopeAll={scopeOf("san_xuat") === "all"}
           onOpen={(id) => setPreviewOrderId(id)}
+          dangMo={previewOrderId}
           total={queueTotal}
           page={queuePage}
           size={sizeTrang}
@@ -345,6 +350,8 @@ export function KeHoachSXPage({
       ) : (
         <LenhTable
           rows={lenhs}
+          loi={err}
+          onTaiLai={doiDuLieu}
           ttFilter={ttFilter}
           onTtFilter={setTtFilter}
           q={q}
@@ -383,11 +390,102 @@ export function KeHoachSXPage({
   );
 }
 
+// --- Lưới danh sách (khuôn chung lds, 08/10/2026) ----------------------------
+// Thứ tự cột theo nhóm nghĩa: Mã, các ngày, Khách, Hàng, Số lượng, Trạng thái, khâu, Người, Ghi chú.
+interface CotKh extends CotLuoi {
+  w?: number;
+  n?: boolean;
+}
+
+/** Chip "Gấp" cạnh mã — thay khối đỏ có chuông của bảng cũ. */
+function ChipGapLuoi() {
+  return (
+    <span className="khsx-cach">
+      <ChipTT mau="do" vuong title="Đơn / lệnh gấp">Gấp</ChipTT>
+    </span>
+  );
+}
+
+/** Hạn quá/sắp tới: dùng màu chữ của lưới (đỏ / vàng), không in đậm. */
+function lopHan(cls: string): string | undefined {
+  return cls === "khsx-date--late" ? "lds-do" : cls === "khsx-date--soon" ? "lds-vang" : undefined;
+}
+
 // --- Tab 1: hàng chờ tiếp nhận ----------------------------------------------
+const COT_CHO: CotKh[] = [
+  { key: "ma", label: "Mã đơn", coDinh: true, w: 150 },
+  { key: "tao", label: "Ngày tạo", w: 104 },
+  { key: "chuyen", label: "Chuyển lúc", w: 140 },
+  { key: "giao", label: "Ngày giao", w: 104 },
+  { key: "khach", label: "Khách hàng", w: 200 },
+  { key: "sp", label: "Sản phẩm / Hạng mục", w: 250 },
+  { key: "tiendo", label: "Tiến độ lệnh", w: 120 },
+  { key: "sale", label: "Sale", w: 140 },
+  { key: "luuy", label: "Lưu ý sản xuất" },
+];
+
+function OCho({ cot, o }: { cot: string; o: HangChoItem }) {
+  switch (cot) {
+    case "ma":
+      return (
+        <td>
+          {o.order_no}
+          {o.is_rush && <ChipGapLuoi />}
+        </td>
+      );
+    case "tao":
+      return <td title={ngayGioDayDu(o.created_at)}>{ngayDayDu(o.created_at)}</td>;
+    case "chuyen":
+      return <td>{ngayGio(o.san_xuat_released_at)}</td>;
+    case "giao":
+      return (
+        <td>
+          <span className={lopHan(classHan(o.delivery_committed_date))}>{ngayVN(o.delivery_committed_date)}</span>
+        </td>
+      );
+    case "khach":
+      return o.customer_name ? (
+        <td title={o.customer_name}>{tenKhachGon(o.customer_name)}</td>
+      ) : (
+        <td>
+          <span className="lds-mu3">—</span>
+        </td>
+      );
+    case "sp": {
+      const muc = o.san_pham_tom_tat ? o.san_pham_tom_tat.split(", ").filter(Boolean) : [];
+      return (
+        <td title={o.san_pham_tom_tat ?? undefined}>
+          {muc.length > 0 ? muc[0] : <span className="lds-mu">{o.so_dong} hạng mục</span>}
+          {muc.length > 1 ? <span className="lds-tag">+{muc.length - 1}</span> : null}
+        </td>
+      );
+    }
+    case "tiendo": {
+      const xong = o.so_dong > 0 && o.so_dong_co_lsx === o.so_dong;
+      return (
+        <td>
+          <ChipTT mau={xong ? "la" : "cam"} vuong>
+            {o.so_dong_co_lsx}/{o.so_dong} dòng
+          </ChipTT>
+        </td>
+      );
+    }
+    case "sale":
+      return o.sale_name ? <td title={o.sale_name}>{o.sale_name}</td> : <td><span className="lds-mu3">—</span></td>;
+    case "luuy":
+      return o.production_note ? <td title={o.production_note}>{o.production_note}</td> : <td><span className="lds-mu3">—</span></td>;
+    default:
+      return <td />;
+  }
+}
+
 function QueueTable({
   rows,
+  loi,
+  onTaiLai,
   scopeAll,
   onOpen,
+  dangMo,
   total,
   page,
   size,
@@ -401,8 +499,13 @@ function QueueTable({
   onXoaLoc,
 }: {
   rows: HangChoItem[] | null;
+  /** Lỗi nạp; chỉ vẽ trong dòng rỗng khi `rows === null` (chưa có lượt nạp nào thành công). */
+  loi: string | null;
+  onTaiLai: () => void;
   scopeAll: boolean;
   onOpen: (orderId: number) => void;
+  /** Đơn đang mở ngăn "lệnh dự kiến" — dòng đó viền đủ cạnh. */
+  dangMo: number | null;
   /** TỔNG đơn chờ trên máy chủ (≠ `rows.length`, vốn chỉ là trang đang xem). */
   total: number;
   page: number;
@@ -417,155 +520,263 @@ function QueueTable({
   /** Kỳ về "Tất cả" + bỏ mọi điều kiện — MỘT lần ghi (hai lần ghi rời thì lần sau đè lần trước). */
   onXoaLoc: () => void;
 }) {
+  const [cotAn, setCotAn] = useCotAn("khsx-hang-cho");
+  const [thuTu, setThuTu] = useThuTuCot("khsx-hang-cho");
+  const cotHien = xepCot(COT_CHO, thuTu).filter((c) => !cotAn.has(c.key));
   const coLoc = ky.loai !== "tat_ca" || dieuKien.some((d) => daAp(d, loc));
-  const thanhLoc = scopeAll ? (
-    <div className="khsx__toolbar tl-thanh">
-      <ThanhLoc ky={ky} moc={MOC_HANG_CHO} onKy={onKy} dieuKien={dieuKien} loc={loc} onLoc={onLoc} />
-    </div>
-  ) : null;
-  if (rows !== null && rows.length === 0) {
-    return (
-      <>
-        {thanhLoc}
-        {coLoc ? (
-          <EmptyState
-            icon="search"
-            title="Không có đơn chờ nào khớp bộ lọc."
-            action={
-              <Button
-                variant="secondary"
-                onClick={onXoaLoc}
-              >
-                Xoá bộ lọc
-              </Button>
-            }
-          />
-        ) : (
-          <EmptyState
-            icon="packageCheck"
-            title={scopeAll ? "Không có đơn nào chờ lên lệnh." : "Bạn chỉ xem được lệnh của mình."}
-            sub={
-              scopeAll
-                ? "Đơn đã chốt và đủ cọc tự hiện ở đây ngay — không cần tải lại trang."
-                : "Hàng chờ tiếp nhận dành cho người có phạm vi toàn bộ (bộ phận Kế hoạch sản xuất)."
-            }
-          />
-        )}
-      </>
-    );
-  }
   return (
     <>
-    {thanhLoc}
-    <div className="khsx__tablewrap">
-      <table className="khsx__table khsx__table--queue">
-        <caption className="sr-only">Đơn hàng đã chuyển xuống sản xuất, chờ lên lệnh</caption>
-        <thead>
-          <tr>
-            <th scope="col" style={{ width: 110 }}>Mã đơn</th>
-            <th scope="col" style={{ width: 200 }}>Khách hàng &amp; Sale</th>
-            <th scope="col" style={{ minWidth: 240 }}>Sản phẩm / Hạng mục</th>
-            <th scope="col" className="khsx-th--center" style={{ width: 110 }}>Ngày giao</th>
-            <th scope="col" className="khsx-th--center" style={{ width: 110 }}>Tiến độ lệnh</th>
-            <th scope="col" className="khsx__col--opt" style={{ minWidth: 140 }}>Lưu ý sản xuất</th>
-            <th scope="col" className="khsx-th--center khsx__col--opt" style={{ width: 150 }}>Chuyển lúc</th>
-            <th scope="col" className="khsx-th--center" style={{ width: 110 }}>Ngày tạo</th>
-            <th scope="col" className="khsx-th--right" style={{ width: 150 }}><span className="sr-only">Hành động</span></th>
-          </tr>
-        </thead>
-        {rows === null ? (
-          <Skeleton rows={4} cols={9} />
-        ) : (
-          <tbody>
-            {rows.map((o) => {
-              const isAllDone = o.so_dong > 0 && o.so_dong_co_lsx === o.so_dong;
-              return (
-                <tr
-                  key={o.order_id}
-                  className={`khsx__row ${o.is_rush ? "khsx__row--rush" : ""}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Xem lệnh dự kiến của đơn ${o.order_no}`}
-                  onClick={() => onOpen(o.order_id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onOpen(o.order_id);
-                    }
-                  }}
-                >
-                  <td>
-                    <div className="khsx-code-cell">
-                      <span className="khsx__code">{o.order_no}</span>
-                      {o.is_rush && <ChipGap />}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="khsx-cust-cell">
-                      <span className="khsx-cust-name">{o.customer_name ?? "—"}</span>
-                      {o.sale_name && (
-                        <span className="khsx-sale-badge">
-                          <Icon name="users" size={10} /> Sale {o.sale_name}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="khsx-prod-tags-wrap" title={o.san_pham_tom_tat ?? undefined}>
-                      {o.san_pham_tom_tat ? (
-                        o.san_pham_tom_tat.split(", ").map((item, idx) => (
-                          <span key={idx} className="khsx-prod-tag">
-                            {item}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="khsx-muted">{o.so_dong} hạng mục</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className={`khsx-td--center ${classHan(o.delivery_committed_date)}`}>
-                    <span className="khsx-date-val">{ngay(o.delivery_committed_date)}</span>
-                  </td>
-                  <td className="khsx-td--center">
-                    <span className={`khsx-prog-pill ${isAllDone ? "is-done" : "is-pending"}`}>
-                      {o.so_dong_co_lsx}/{o.so_dong} dòng
-                    </span>
-                  </td>
-                  <td className="khsx__note khsx__col--opt" title={o.production_note ?? undefined}>
-                    {o.production_note || "—"}
-                  </td>
-                  <td className="khsx-td--center khsx__col--opt">
-                    <span className="khsx-time-val">{ngayGio(o.san_xuat_released_at)}</span>
-                  </td>
-                  <td className="khsx-td--center" title={ngayGioDayDu(o.created_at)}>
-                    <span className="khsx-date-val">{ngayDayDu(o.created_at)}</span>
-                  </td>
-                  <td className="khsx-td--right">
-                    <span className="khsx-cta-btn">
-                      Xem lệnh dự kiến <Icon name="chevron" size={12} />
-                    </span>
+      <section className="lds-loc">
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          {scopeAll && <ThanhLoc ky={ky} moc={MOC_HANG_CHO} onKy={onKy} dieuKien={dieuKien} loc={loc} onLoc={onLoc} />}
+          <ChonCot cot={COT_CHO} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+        </div>
+      </section>
+      <div className="lds-sheet">
+        <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
+            <caption className="sr-only">Đơn hàng đã chuyển xuống sản xuất, chờ lên lệnh</caption>
+            <colgroup>
+              {cotHien.map((c) => (
+                <col key={c.key} style={c.w ? { width: c.w } : undefined} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr>
+                {cotHien.map((c) => (
+                  <th key={c.key} className={c.n ? "n" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows === null && loi ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    <span role="alert" className="lds-do">{loi}</span>{" "}
+                    <button type="button" className="lds-lk" onClick={onTaiLai}>Thử lại</button>
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
+              ) : rows === null ? (
+                <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    {coLoc ? (
+                      <>
+                        Không có đơn chờ nào khớp điều kiện đang lọc.{" "}
+                        <button type="button" className="lds-lk" onClick={onXoaLoc}>
+                          Xoá bộ lọc
+                        </button>
+                      </>
+                    ) : scopeAll ? (
+                      "Không có đơn nào chờ lên lệnh. Đơn đã chốt và đủ cọc tự hiện ở đây ngay, không cần tải lại trang."
+                    ) : (
+                      "Bạn chỉ xem được lệnh của mình. Hàng chờ tiếp nhận dành cho người có phạm vi toàn bộ (bộ phận Kế hoạch sản xuất)."
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((o) => (
+                  <tr
+                    key={o.order_id}
+                    className={`lds-dong${o.order_id === dangMo ? " is-chon" : ""}`}
+                    tabIndex={0}
+                    aria-label={`Xem lệnh dự kiến của đơn ${o.order_no}`}
+                    onClick={() => onOpen(o.order_id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onOpen(o.order_id);
+                      }
+                    }}
+                  >
+                    {cotHien.map((c) => (
+                      <OCho key={c.key} cot={c.key} o={o} />
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </CuonLuoi>
+        {total > 0 && (
+          <PhanTrangDayDu
+            trang={page}
+            size={size}
+            tong={total}
+            soDong={rows?.length ?? 0}
+            onTrang={onPage}
+            onSize={onSize}
+            loading={rows === null}
+            donVi="đơn chờ"
+            ariaLabel="Phân trang đơn chờ lên lệnh"
+          />
         )}
-      </table>
-    </div>
-    {/* Chân đặt NGOÀI khung cuộn ngang (bảng rộng 880px) để không trôi theo bảng; CSS nối nó
-        thành đáy thẻ. */}
-    {total > 0 && (
-      <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows?.length ?? 0}
-        onTrang={onPage} onSize={onSize} loading={rows === null}
-        donVi="đơn chờ" ariaLabel="Phân trang đơn chờ lên lệnh" />
-    )}
+      </div>
     </>
   );
 }
 
 // --- Tab 2: danh sách lệnh ---------------------------------------------------
+const COT_LENH: CotKh[] = [
+  { key: "ma", label: "Mã lệnh", coDinh: true, w: 150 },
+  { key: "tao", label: "Ngày tạo", w: 104 },
+  { key: "hansx", label: "Hạn sản xuất", w: 112 },
+  { key: "hangiao", label: "Hạn giao", w: 104 },
+  { key: "don", label: "Đơn hàng", w: 110 },
+  { key: "khach", label: "Khách hàng", w: 190 },
+  { key: "sp", label: "Sản phẩm / Bộ phận", w: 240 },
+  { key: "sl", label: "Số lượng", w: 110, n: true },
+  { key: "tt", label: "Trạng thái", w: 140 },
+  { key: "cd", label: "Công đoạn" },
+];
+
+// Chip trạng thái lệnh: mỗi trạng thái MỘT sắc (bộ --tt-*), hàng lọc nhanh dùng cùng sắc cho chấm.
+const MAU_TT_LENH: Record<LsxTrangThai, MauTT> = {
+  nhap: "slate",
+  cho_bo_sung: "slate",
+  san_sang: "cyan",
+  da_lap_ke_hoach: "xanh",
+  da_phat_hanh: "la",
+  da_dong: "xam",
+};
+const MAU_LOC_LENH: Record<string, MauTT | undefined> = { "nhap,cho_bo_sung": "slate", san_sang: "cyan" };
+
+const conMoGc = (g: LsxListGiaCong) => g.trang_thai !== "da_xong";
+
+function OLenh({
+  cot,
+  l,
+  tq,
+}: {
+  cot: string;
+  l: LsxListItem;
+  tq: Record<number, LsxTongQuanOut["items"][number]>;
+}) {
+  switch (cot) {
+    case "ma":
+      return (
+        <td>
+          {l.ma}
+          {l.is_rush && <ChipGapLuoi />}
+        </td>
+      );
+    case "tao":
+      return <td title={ngayGioDayDu(l.created_at)}>{ngayDayDu(l.created_at)}</td>;
+    case "hansx": {
+      const slack = tq[l.id]?.slack_ngay;
+      return (
+        <td
+          title={
+            slack != null
+              ? slack < 0
+                ? `Lịch đang vượt hạn ${-slack} ngày làm việc`
+                : `Lịch còn dư ${slack} ngày làm việc`
+              : undefined
+          }
+        >
+          <span className={lopHan(classHanLich(slack, l.han_hoan_thanh_sx))}>{ngayVN(l.han_hoan_thanh_sx)}</span>
+        </td>
+      );
+    }
+    case "hangiao":
+      return <td>{ngayVN(l.han_giao_khach)}</td>;
+    case "don":
+      return l.order_no ? <td title={l.order_no}>{l.order_no}</td> : <td><span className="lds-mu3">—</span></td>;
+    case "khach":
+      return l.customer_name ? (
+        <td title={l.customer_name}>{tenKhachGon(l.customer_name)}</td>
+      ) : (
+        <td>
+          <span className="lds-mu3">—</span>
+        </td>
+      );
+    case "sp":
+      return (
+        <td title={l.nhom ? `${l.nhom} — ${l.ten}` : l.ten}>
+          {l.ten}
+          {l.nhom ? <span className="lds-tag">{l.nhom}</span> : null}
+        </td>
+      );
+    case "sl":
+      return (
+        <td className="n">
+          {num(l.so_luong_dat)}
+          <span className="lds-u">{nhanDonVi(l.don_vi_tinh)}</span>
+        </td>
+      );
+    case "tt":
+      return (
+        <td>
+          {laTronGoi(l.gia_cong) && l.trang_thai === "da_phat_hanh" ? (
+            <ChipTT
+              mau={conMoGc(l.gia_cong) ? "vang" : "ngoc"}
+              title="Lệnh đã giao trọn gói cho nhà gia công, không xuống xưởng"
+            >
+              {conMoGc(l.gia_cong) ? "Ở nhà gia công" : "Đã nhận về"}
+            </ChipTT>
+          ) : (
+            <ChipTT mau={MAU_TT_LENH[l.trang_thai] ?? "slate"}>{nhanTrangThaiLsx(l.trang_thai)}</ChipTT>
+          )}
+        </td>
+      );
+    case "cd": {
+      const g = l.gia_cong;
+      // Kiểm `kieu` trực tiếp (cùng điều kiện với `laTronGoi`) chứ không gọi type guard: guard
+      // `g is LsxListGiaCong` ở nhánh sai thu `g` về null/undefined, rồi `g && conMoGc(g)` thành `never`.
+      if (g?.kieu === "tron_goi") {
+        // Trọn gói: lệnh không xuống tổ — "6 bước / Cắt 2" ở đây là nói sai chỗ.
+        return (
+          <td
+            title={`${g.nha_cung_cap_ten}${g.cho_cap_giay ? "\nChờ cấp giấy: mở lệnh, bấm “Chọn giấy” ở khối Gia công ngoài" : ""}`}
+          >
+            <ChipTT mau={conMoGc(g) ? "ngoc" : "la"} vuong>
+              Gia công trọn gói
+            </ChipTT>
+            <span className="lds-u">{g.nha_cung_cap_ten}</span>
+            {g.cho_cap_giay ? <span className="lds-u lds-vang">Chờ cấp giấy</span> : null}
+          </td>
+        );
+      }
+      const tieuDeGc = g && conMoGc(g)
+        ? [
+            `${g.ten_viec} ở ${g.nha_cung_cap_ten}${g.so_lan_mo > 1 ? ` và ${g.so_lan_mo - 1} lần khác` : ""}`,
+            g.bai_ghep_ma ? `Đi chung bài ghép ${g.bai_ghep_ma}` : null,
+          ].filter(Boolean).join("\n")
+        : undefined;
+      return (
+        <td title={tieuDeGc ?? (l.to_dau_ten ? `Tổ xuất phát: ${l.to_dau_ten}` : undefined)}>
+          {l.so_cong_doan > 0 ? (
+            <>
+              {l.so_cong_doan} bước
+              {l.to_dau_ten ? <span className="lds-u">{l.to_dau_ten}</span> : null}
+            </>
+          ) : (
+            <ChipTT mau="do" vuong>
+              Chưa có công đoạn
+            </ChipTT>
+          )}
+          {g && conMoGc(g) ? (
+            <span className="khsx-cach">
+              <ChipTT mau={g.trang_thai === "cho_mang_di" ? "cham" : "ngoc"} vuong>
+                {g.ten_viec} {NHAN_NGAN[g.trang_thai]}
+              </ChipTT>
+            </span>
+          ) : null}
+        </td>
+      );
+    }
+    default:
+      return <td />;
+  }
+}
+
 function LenhTable({
   rows,
+  loi,
+  onTaiLai,
   ttFilter,
   onTtFilter,
   q,
@@ -587,6 +798,9 @@ function LenhTable({
   onSize,
 }: {
   rows: LsxListItem[] | null;
+  /** Lỗi nạp; chỉ vẽ trong dòng rỗng khi `rows === null` (chưa có lượt nạp nào thành công). */
+  loi: string | null;
+  onTaiLai: () => void;
   ttFilter: string;
   onTtFilter: (k: string) => void;
   q: string;
@@ -609,93 +823,90 @@ function LenhTable({
   tq: Record<number, LsxTongQuanOut["items"][number]>;
   dem: (key: string) => number;
 }) {
+  const [cotAn, setCotAn] = useCotAn("khsx-lenh");
+  const [thuTu, setThuTu] = useThuTuCot("khsx-lenh");
+  const cotHien = xepCot(COT_LENH, thuTu).filter((c) => !cotAn.has(c.key));
   const coLoc = ttFilter !== "all" || q.trim() !== "" || ky.loai !== "tat_ca"
     || dieuKien.some((d) => daAp(d, loc));
-  // Trạng thái trong nút Lọc = chính hàng tab (đọc/ghi `ttFilter`), không đẻ state thứ hai.
-  const dkDu: DieuKien<LocLenhKhsx>[] = [
-    dkTheoTab<LocLenhKhsx>({
-      tabs: TRANG_THAI_TABS.map((t) => ({ id: t.key, nhan: t.label, so: dem(t.key) })),
-      tatCa: "all", dang: ttFilter, dat: onTtFilter,
-    }),
-    ...dieuKien,
-  ];
+  // Số trên hàng lọc nhanh lấy từ `facets` của máy chủ (qua `dem`), cùng bộ lọc trừ trạng thái.
+  const muc = TRANG_THAI_TABS.map((t) => ({ key: t.key, label: t.label, count: dem(t.key), mau: MAU_LOC_LENH[t.key] }));
   return (
     <>
-      <div className="khsx__toolbar tl-thanh">
-        <StatusTabs
-          active={ttFilter}
-          onChange={onTtFilter}
-          tabs={TRANG_THAI_TABS.map((t) => ({ ...t, count: dem(t.key) }))}
-        />
-        <div className="khsx__spacer" />
-        <ThanhLoc ky={ky} moc={MOC_LENH_KHSX} onKy={onKy} dieuKien={dkDu} loc={loc} onLoc={onLoc} />
-        <label className="khsx__search">
-          <Icon name="search" size={14} />
-          <input
+      <section className="lds-loc">
+        <LocNhanhTrangThai muc={muc} dang={ttFilter} onChon={onTtFilter} />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim
             value={q}
-            onChange={(e) => onQ(e.target.value)}
-            placeholder="Tìm mã lệnh / mã đơn / tên sản phẩm"
-            aria-label="Tìm lệnh sản xuất"
+            onChange={onQ}
+            placeholder="Tìm mã lệnh, mã đơn, tên sản phẩm"
+            ariaLabel="Tìm lệnh sản xuất"
           />
-        </label>
-      </div>
-
-      {rows !== null && rows.length === 0 ? (
-        coLoc ? (
-          <EmptyState
-            icon="search"
-            title="Không tìm thấy lệnh khớp bộ lọc."
-            action={
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  onTtFilter("all");
-                  onQ("");
-                  // `coLoc` tính cả kỳ lẫn mọi điều kiện — sót một cái là bấm xong vẫn rỗng.
-                  onXoaLoc();
-                }}
-              >
-                Xoá bộ lọc
-              </Button>
-            }
-          />
-        ) : (
-          <EmptyState
-            icon="clipboard"
-            title="Chưa có lệnh sản xuất nào."
-            sub="Lệnh sinh ra từ đơn Sale đã chuyển xuống sản xuất."
-            action={
-              <Button variant="secondary" onClick={onGoQueue}>
-                Sang Hàng chờ →
-              </Button>
-            }
-          />
-        )
-      ) : (
-        <div className="khsx__tablewrap">
-          <table className="khsx__table khsx__table--lenh">
+          <ThanhLoc ky={ky} moc={MOC_LENH_KHSX} onKy={onKy} dieuKien={dieuKien} loc={loc} onLoc={onLoc} />
+          <ChonCot cot={COT_LENH} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+        </div>
+      </section>
+      <div className="lds-sheet">
+        <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <caption className="sr-only">Danh sách lệnh sản xuất</caption>
+            <colgroup>
+              {cotHien.map((c) => (
+                <col key={c.key} style={c.w ? { width: c.w } : undefined} />
+              ))}
+            </colgroup>
             <thead>
               <tr>
-                <th scope="col" style={{ width: 140 }}>Mã lệnh</th>
-                <th scope="col" style={{ minWidth: 200 }}>Sản phẩm / Bộ phận</th>
-                <th scope="col" style={{ minWidth: 150 }}>Đơn · Khách</th>
-                <th scope="col" className="khsx-th--num" style={{ width: 100 }}>SL</th>
-                <th scope="col" style={{ width: 130 }}>Tiến độ CĐ</th>
-                <th scope="col" style={{ width: 140 }}>Hạn SX &amp; Giao</th>
-                <th scope="col" style={{ width: 110 }}>Ngày tạo</th>
-                <th scope="col" style={{ width: 130 }}>Trạng thái</th>
+                {cotHien.map((c) => (
+                  <th key={c.key} className={c.n ? "n" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
               </tr>
             </thead>
-            {rows === null ? (
-              <Skeleton rows={5} cols={8} />
-            ) : (
-              <tbody>
-                {rows.map((l) => (
+            <tbody>
+              {rows === null && loi ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    <span role="alert" className="lds-do">{loi}</span>{" "}
+                    <button type="button" className="lds-lk" onClick={onTaiLai}>Thử lại</button>
+                  </td>
+                </tr>
+              ) : rows === null ? (
+                <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    {coLoc ? (
+                      <>
+                        Không có lệnh nào khớp điều kiện đang lọc.{" "}
+                        <button
+                          type="button"
+                          className="lds-lk"
+                          onClick={() => {
+                            onTtFilter("all");
+                            onQ("");
+                            // `coLoc` tính cả kỳ lẫn mọi điều kiện — sót một cái là bấm xong vẫn rỗng.
+                            onXoaLoc();
+                          }}
+                        >
+                          Xoá bộ lọc
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        Chưa có lệnh sản xuất nào. Lệnh sinh ra từ đơn Sale đã chuyển xuống sản xuất.{" "}
+                        <button type="button" className="lds-lk" onClick={onGoQueue}>
+                          Sang Hàng chờ →
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((l) => (
                   <tr
                     key={l.id}
-                    className={`khsx__row ${l.is_rush ? "khsx__row--rush" : ""}`}
-                    role="button"
+                    className="lds-dong"
                     tabIndex={0}
                     aria-label={`Mở lệnh ${l.ma}`}
                     onClick={() => onOpen(l.id)}
@@ -706,102 +917,29 @@ function LenhTable({
                       }
                     }}
                   >
-                    <td>
-                      <div className="khsx-code-badge">
-                        <span className="khsx__code">{l.ma}</span>
-                        {l.is_rush && <ChipGap />}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="khsx-cell-prod">
-                        <div className="khsx-prod__title" title={l.nhom ? `${l.nhom} — ${l.ten}` : l.ten}>
-                          {l.ten}
-                        </div>
-                        {l.nhom && (
-                          <div className="khsx-prod__group" title="Thuộc bộ phận / nhóm sản phẩm">
-                            <Icon name="layers" size={11} /> {l.nhom}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="khsx-cell-order">
-                        {l.order_no ? (
-                          <span className="khsx-order-chip">{l.order_no}</span>
-                        ) : (
-                          <span className="khsx-muted">—</span>
-                        )}
-                        {l.customer_name && (
-                          <div className="khsx-order__cust" title={l.customer_name}>
-                            {l.customer_name}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="khsx-num">
-                      <div className="khsx-qty-cell">
-                        <b>{num(l.so_luong_dat)}</b> <small>{nhanDonVi(l.don_vi_tinh)}</small>
-                      </div>
-                    </td>
-                    <td>
-                      {laTronGoi(l.gia_cong) ? (
-                        // Trọn gói: lệnh không xuống tổ — "6 bước / Cắt 2" ở đây là nói sai chỗ.
-                        <OTronGoi g={l.gia_cong} />
-                      ) : (
-                        <div className="khsx-step-cell">
-                          <span className={`khsx-step-pill ${l.so_cong_doan === 0 ? "is-bad" : ""}`}>
-                            {l.so_cong_doan > 0 ? `${l.so_cong_doan} bước` : "Chưa có CĐ"}
-                          </span>
-                          <span className="khsx-step-org" title="Tổ sản xuất xuất phát">
-                            {l.to_dau_ten || "—"}
-                          </span>
-                          {l.gia_cong && <ChipMotPhan g={l.gia_cong} />}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <div className="khsx-cell-date">
-                        <div
-                          className={`khsx-date-line ${classHanLich(tq[l.id]?.slack_ngay, l.han_hoan_thanh_sx)}`}
-                          title={
-                            tq[l.id]?.slack_ngay != null
-                              ? tq[l.id]!.slack_ngay! < 0
-                                ? `Lịch đang vượt hạn ${-tq[l.id]!.slack_ngay!} ngày làm việc`
-                                : `Lịch còn dư ${tq[l.id]!.slack_ngay!} ngày làm việc`
-                              : undefined
-                          }
-                        >
-                          <span className="khsx-date-lbl">SX:</span>
-                          <b>{ngay(l.han_hoan_thanh_sx)}</b>
-                        </div>
-                        <div className="khsx-date-line is-sub">
-                          <span className="khsx-date-lbl">Giao:</span>
-                          <b>{ngay(l.han_giao_khach)}</b>
-                        </div>
-                      </div>
-                    </td>
-                    <td title={ngayGioDayDu(l.created_at)}>
-                      <span className="khsx-date-val">{ngayDayDu(l.created_at)}</span>
-                    </td>
-                    <td>
-                      {laTronGoi(l.gia_cong) && l.trang_thai === "da_phat_hanh" ? (
-                        <PillTronGoi g={l.gia_cong} />
-                      ) : (
-                        <TrangThaiPill tt={l.trang_thai} />
-                      )}
-                    </td>
+                    {cotHien.map((c) => (
+                      <OLenh key={c.key} cot={c.key} l={l} tq={tq} />
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            )}
+                ))
+              )}
+            </tbody>
           </table>
-        </div>
-      )}
-
-      {rows !== null && rows.length > 0 && total > 0 && (
-        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
-          onTrang={onPage} onSize={onSize} donVi="lệnh" ariaLabel="Phân trang lệnh sản xuất" />
-      )}
+        </CuonLuoi>
+        {total > 0 && (
+          <PhanTrangDayDu
+            trang={page}
+            size={size}
+            tong={total}
+            soDong={rows?.length ?? 0}
+            onTrang={onPage}
+            onSize={onSize}
+            loading={rows === null}
+            donVi="lệnh"
+            ariaLabel="Phân trang lệnh sản xuất"
+          />
+        )}
+      </div>
     </>
   );
 }

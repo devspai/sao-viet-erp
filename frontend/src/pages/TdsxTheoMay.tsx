@@ -1,34 +1,46 @@
-// Góc "Theo máy" của màn Theo dõi sản xuất (làm gọn 05/10/2026, đặc tả 3.3): MỘT bảng, mỗi máy một
-// dòng, chia nhóm đúng như máy chủ trả (Chưa có máy → từng nhóm máy theo danh mục → máy không còn
-// trong danh mục → Gia công ngoài). Máy rảnh gập vào một dòng cuối bảng.
+// Góc "Theo máy" của màn Theo dõi sản xuất (làm gọn 05/10/2026, đặc tả 3.3; lên lưới chung 08/10/2026):
+// MỘT bảng, mỗi máy một dòng, chia nhóm đúng như máy chủ trả (Chưa có máy → từng nhóm máy theo danh
+// mục → máy không còn trong danh mục → Gia công ngoài). Máy rảnh gập vào một dòng cuối bảng. Tiêu đề
+// nhóm là hàng `lds-so`. Khung (đầu trang, thẻ lọc, nút Cột) do trang vẽ; ở đây chỉ có tấm lưới.
 //
 // ĐỌC, KHÔNG TÍNH LẠI: tình trạng, nhãn, nhóm, thứ tự đều do máy chủ dựng. Chỗ duy nhất FE quyết là
-// màu pill và cách viết giờ ("14:30 hôm nay").
+// màu chip và cách viết giờ ("14:30 hôm nay").
 import { useState, type MouseEvent, type ReactNode } from "react";
 
 import type { TdsxLsxThamChieu, TdsxMayDong, TdsxSanLuong, TdsxTheoMayOut, TdsxViec } from "../api/client";
+import { EmptyRow } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
-import { Skeleton } from "./keHoachSxShared";
+import { ChipTT, CuonLuoi, rongLuoi, soCotGhim, xepCot, type MauTT } from "../components/LuoiDs";
+import type { CotTdsx } from "./TdsxTheoLenh";
 import { nhanChang } from "./lsxBuoc";
 import { so } from "./lsxHoSoChung";
 import { TheGap } from "./lsxKhau";
 import { ChonLenhPopover, useChonLenh } from "./tdsxChonLenh";
 
-const SO_COT = 6;
+/** Thứ tự: Máy (mã), Tình trạng, Đang chạy, Sản lượng tốt, Kế hoạch xong, Kế tiếp (cột cuối). */
+export const COT_MAY: CotTdsx[] = [
+  { key: "may", label: "Máy", coDinh: true, w: 160 },
+  { key: "tinh_trang", label: "Tình trạng", w: 160 },
+  { key: "dang_chay", label: "Đang chạy", w: 330 },
+  { key: "san_luong", label: "Sản lượng tốt", w: 270 },
+  { key: "ke_hoach", label: "Kế hoạch xong", w: 170 },
+  { key: "ke_tiep", label: "Kế tiếp" },
+];
 
-/** Màu theo `tinh_trang`. Đỏ: máy hỏng, việc tạm dừng. Vàng: máy cần điều độ để ý hoặc việc chờ
- *  xếp. Xám thép: đang chạy, đang ở nhà gia công. Khoá lạ ⇒ xám nhạt. */
-const MAU_TINH_TRANG: Record<string, string> = {
-  may_dung: "lsc-pill--signal",
-  tam_dung: "lsc-pill--signal",
-  bao_tri: "lsc-pill--amber",
-  khoa: "lsc-pill--amber",
-  co_phieu_sua: "lsc-pill--amber",
-  cho_xep_may: "lsc-pill--amber",
-  dang_chay: "lsc-pill--steel",
-  o_nha_gia_cong: "lsc-pill--steel",
-  trong: "lsc-pill--off",
-  cho_mang_di: "lsc-pill--off",
+/** Màu theo `tinh_trang` — mỗi tình trạng một sắc. Đỏ: máy hỏng. Cam: việc tạm dừng. Tím: bảo trì.
+ *  Xám: khoá. Vàng: có phiếu sửa. Cyan: chờ xếp máy. Chàm: chờ mang đi gia công. Xanh: đang chạy.
+ *  Ngọc: đang ở nhà gia công. Khoá lạ / trống ⇒ slate. */
+const MAU_TINH_TRANG: Record<string, MauTT> = {
+  may_dung: "do",
+  tam_dung: "cam",
+  bao_tri: "tim",
+  khoa: "xam",
+  co_phieu_sua: "vang",
+  cho_xep_may: "cyan",
+  dang_chay: "xanh",
+  o_nha_gia_cong: "ngoc",
+  trong: "slate",
+  cho_mang_di: "cham",
 };
 
 /** Đếm dòng của một nhóm theo đúng thứ nhóm chứa. */
@@ -53,22 +65,30 @@ export function gioXuong(v: string | null | undefined, bayGio: Date = new Date()
   return `${hm} ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+const TRONG = new Set<string>();
+
 export function TdsxTheoMay({
   data,
   dangTai,
   rong,
   onMo,
+  cotAn = TRONG,
+  thuTu = [],
 }: {
-  /** `null` = chưa có lượt nào về ⇒ khung xám. */
+  /** `null` = chưa có lượt nào về ⇒ hàng xương. */
   data: TdsxTheoMayOut | null;
   /** Đang tải lại (realtime/đổi lọc) ⇒ giữ nội dung cũ, làm mờ. */
   dangTai: boolean;
   /** Ô báo khi bảng không có dòng nào — trang quyết câu chữ (lỗi, lọc rỗng, chưa có gì). */
   rong: ReactNode;
   onMo: (lsxId: number) => void;
+  cotAn?: Set<string>;
+  thuTu?: string[];
 }) {
   const [moTrong, setMoTrong] = useState(false);
   const [chon, moChon, dongChon] = useChonLenh();
+  const cotHien = xepCot(COT_MAY, thuTu).filter((c) => !cotAn.has(c.key));
+  const soCot = cotHien.length;
 
   /** Một việc phục vụ một lệnh ⇒ mở thẳng; từ hai lệnh ⇒ bật bảng chọn, không đoán. */
   function bam(ds: TdsxLsxThamChieu[], e: MouseEvent<HTMLButtonElement>) {
@@ -81,73 +101,89 @@ export function TdsxTheoMay({
   }
 
   const coDong = !!data && (data.nhom.length > 0 || data.may_trong.length > 0);
+  const mo = dangTai ? "is-mo" : undefined;
 
   return (
     <>
-      <div className="lsc-khung" tabIndex={0} role="group" aria-label="Bảng theo máy, cuộn ngang được bằng phím mũi tên">
-        <table className="lsc-bang tdsx-may">
-          <caption className="sr-only">Máy, việc đang chạy và việc kế tiếp</caption>
-          <thead>
-            <tr>
-              <th scope="col">Máy</th>
-              <th scope="col">Tình trạng</th>
-              <th scope="col">Đang chạy</th>
-              <th scope="col">Sản lượng tốt</th>
-              <th scope="col">Kế hoạch xong</th>
-              <th scope="col">Kế tiếp</th>
-            </tr>
-          </thead>
-          {data === null ? (
-            <Skeleton rows={8} cols={SO_COT} />
-          ) : !coDong ? (
-            <tbody>
-              <tr className="lsc-bang__rong">
-                <td colSpan={SO_COT}>{rong}</td>
-              </tr>
-            </tbody>
-          ) : (
-            <>
-              {data.nhom.map((g) => (
-                <tbody key={`${g.loai}:${g.ten}`} className={dangTai ? "is-mo" : undefined}>
-                  <tr className="lsc-bang__nhom">
-                    <td colSpan={SO_COT}>
-                      {g.ten || "Chưa phân nhóm"}
-                      <span className="tdsx-nhom__dem">{demNhom(g.loai, g.dong.length)}</span>
-                    </td>
-                  </tr>
-                  {g.dong.map((d) => (
-                    <DongMay key={d.khoa} d={d} chuaMay={g.loai === "chua_may"} onBam={bam} />
-                  ))}
-                </tbody>
+      <div className="lds-sheet">
+        <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <table className="lds-g tdsx-may" style={{ minWidth: rongLuoi(cotHien) }}>
+            <caption className="sr-only">Máy, việc đang chạy và việc kế tiếp</caption>
+            <colgroup>
+              {cotHien.map((c) => (
+                <col key={c.key} style={c.w ? { width: c.w } : undefined} />
               ))}
-              {data.nhom.length === 0 && (
-                <tbody>
-                  <tr className="lsc-bang__rong">
-                    <td colSpan={SO_COT}>{rong}</td>
-                  </tr>
-                </tbody>
-              )}
-              {data.may_trong.length > 0 && (
-                <tbody className={dangTai ? "is-mo" : undefined}>
-                  <tr className="tdsx-trong">
-                    <td colSpan={SO_COT}>
-                      <button
-                        type="button"
-                        className="tdsx-trong__nut"
-                        aria-expanded={moTrong}
-                        onClick={() => setMoTrong((v) => !v)}
-                      >
-                        <Icon name="chevron" size={14} className={moTrong ? undefined : "tdsx-trong__gap"} />
-                        {data.may_trong.length} máy đang trống
-                      </button>
-                    </td>
-                  </tr>
-                  {moTrong && data.may_trong.map((d) => <DongMay key={d.khoa} d={d} chuaMay={false} onBam={bam} />)}
-                </tbody>
-              )}
-            </>
-          )}
-        </table>
+            </colgroup>
+            <thead>
+              <tr>
+                {cotHien.map((c) => (
+                  <th key={c.key} scope="col">
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            {data === null ? (
+              <tbody>
+                <EmptyRow colSpan={soCot} trangThai="dang-tai" />
+              </tbody>
+            ) : !coDong ? (
+              <tbody>
+                <tr>
+                  <td colSpan={soCot} className="lds-trong">
+                    {rong}
+                  </td>
+                </tr>
+              </tbody>
+            ) : (
+              <>
+                {data.nhom.map((g) => (
+                  <tbody key={`${g.loai}:${g.ten}`} className={mo}>
+                    <tr className="lds-so">
+                      <td colSpan={soCot}>
+                        {g.ten || "Chưa phân nhóm"}
+                        <span className="tdsx-nhom__dem">{demNhom(g.loai, g.dong.length)}</span>
+                      </td>
+                    </tr>
+                    {g.dong.map((d) => (
+                      <DongMay key={d.khoa} d={d} cot={cotHien} chuaMay={g.loai === "chua_may"} onBam={bam} />
+                    ))}
+                  </tbody>
+                ))}
+                {data.nhom.length === 0 && (
+                  <tbody>
+                    <tr>
+                      <td colSpan={soCot} className="lds-trong">
+                        {rong}
+                      </td>
+                    </tr>
+                  </tbody>
+                )}
+                {data.may_trong.length > 0 && (
+                  <tbody className={mo}>
+                    <tr className="lds-so tdsx-trong">
+                      <td colSpan={soCot}>
+                        <button
+                          type="button"
+                          className="tdsx-trong__nut"
+                          aria-expanded={moTrong}
+                          onClick={() => setMoTrong((v) => !v)}
+                        >
+                          <Icon name="chevron" size={14} className={moTrong ? undefined : "tdsx-trong__gap"} />
+                          {data.may_trong.length} máy đang trống
+                        </button>
+                      </td>
+                    </tr>
+                    {moTrong &&
+                      data.may_trong.map((d) => (
+                        <DongMay key={d.khoa} d={d} cot={cotHien} chuaMay={false} onBam={bam} />
+                      ))}
+                  </tbody>
+                )}
+              </>
+            )}
+          </table>
+        </CuonLuoi>
       </div>
       {chon && <ChonLenhPopover state={chon} onDong={dongChon} onChon={onMo} nhan="Bài ghép" />}
     </>
@@ -156,103 +192,149 @@ export function TdsxTheoMay({
 
 type Bam = (ds: TdsxLsxThamChieu[], e: MouseEvent<HTMLButtonElement>) => void;
 
-function DongMay({ d, chuaMay, onBam }: { d: TdsxMayDong; chuaMay: boolean; onBam: Bam }) {
+/** Dòng máy: không bấm cả dòng (một dòng có thể mang nhiều lệnh) — chỉ các nút mã lệnh trong ô mở hồ sơ.
+ *  Mang `lds-dong` để cột Máy ghim được và rê chuột tô `--rule-hair` như mọi lưới. */
+function DongMay({
+  d,
+  cot,
+  chuaMay,
+  onBam,
+}: {
+  d: TdsxMayDong;
+  cot: CotTdsx[];
+  chuaMay: boolean;
+  onBam: Bam;
+}) {
   const tamDung = d.dang_chay?.trang_thai === "paused";
   return (
-    <tr>
-      <td>
-        {chuaMay ? (
-          "–"
-        ) : (
-          <span className="lsc-cum">
-            <b>{d.ten ?? "–"}</b>
-            {d.ngung_dung && <span className="lsc-tag">Ngừng dùng</span>}
-          </span>
-        )}
-      </td>
-      <td>
-        <span className={`lsc-pill ${MAU_TINH_TRANG[d.tinh_trang] ?? "lsc-pill--off"}`}>{d.nhan_tinh_trang}</span>
-      </td>
-      <td>
-        {d.dang_chay ? <Viec v={d.dang_chay} them={d.dang_chay_them} onBam={onBam} /> : "–"}
-      </td>
-      <td>
-        <SanLuong s={d.san_luong} tamDung={tamDung} />
-      </td>
-      <td className="tdsx-gio">
-        {chuaMay
-          ? d.ke_hoach_bat_dau
-            ? `bắt đầu ${gioXuong(d.ke_hoach_bat_dau)}`
-            : "–"
-          : gioXuong(d.ke_hoach_xong)}
-      </td>
-      <td>
-        {d.ke_tiep.length === 0 ? (
-          "–"
-        ) : (
-          <span className="lsc-cum">
-            {d.ke_tiep.map((v) => (
-              <TheKeTiep key={v.cong_viec_id} v={v} onBam={onBam} />
-            ))}
-            {d.ke_tiep_them > 0 && <span className="lsc-phu">+{d.ke_tiep_them}</span>}
-          </span>
-        )}
-      </td>
+    <tr className="lds-dong">
+      {cot.map((c) => {
+        switch (c.key) {
+          case "may":
+            return (
+              <td key={c.key} title={chuaMay ? undefined : (d.ten ?? undefined)}>
+                {chuaMay ? "–" : (d.ten ?? "–")}
+                {!chuaMay && d.ngung_dung && <span className="lds-tag">Ngừng dùng</span>}
+              </td>
+            );
+          case "tinh_trang":
+            return (
+              <td key={c.key}>
+                <ChipTT mau={MAU_TINH_TRANG[d.tinh_trang] ?? "slate"}>{d.nhan_tinh_trang}</ChipTT>
+              </td>
+            );
+          case "dang_chay":
+            return (
+              <td key={c.key} title={d.dang_chay ? chuViec(d.dang_chay) : undefined}>
+                {d.dang_chay ? <Viec v={d.dang_chay} them={d.dang_chay_them} onBam={onBam} /> : "–"}
+              </td>
+            );
+          case "san_luong":
+            return (
+              <td key={c.key} title={chuSanLuong(d.san_luong)}>
+                <SanLuong s={d.san_luong} tamDung={tamDung} />
+              </td>
+            );
+          case "ke_hoach":
+            return (
+              <td key={c.key}>
+                {chuaMay
+                  ? d.ke_hoach_bat_dau
+                    ? `bắt đầu ${gioXuong(d.ke_hoach_bat_dau)}`
+                    : "–"
+                  : gioXuong(d.ke_hoach_xong)}
+              </td>
+            );
+          default:
+            return (
+              <td key={c.key}>
+                {d.ke_tiep.length === 0 ? (
+                  "–"
+                ) : (
+                  <>
+                    {d.ke_tiep.map((v) => (
+                      <TheKeTiep key={v.cong_viec_id} v={v} onBam={onBam} />
+                    ))}
+                    {d.ke_tiep_them > 0 && <span className="lds-mu tdsx-sau">+{d.ke_tiep_them}</span>}
+                  </>
+                )}
+              </td>
+            );
+        }
+      })}
     </tr>
   );
 }
 
-/** Ô "Đang chạy": việc thường = mã lệnh + GẤP + tên bước + sản phẩm; việc ghép = "Bài <mã>" + số lệnh. */
+/** Chữ đủ của ô "Đang chạy" cho `title` (ô cắt "…"): mã lệnh/bài, tên bước, sản phẩm. Nối bằng " - ". */
+function chuViec(v: TdsxViec): string {
+  const mot = v.lsx.length === 1 ? v.lsx[0] : null;
+  const ma = v.bai_ma && v.lsx.length > 1 ? `Bài ${v.bai_ma}` : (mot?.ma ?? (v.lsx.length > 1 ? `${v.lsx.length} lệnh` : null));
+  return [ma, v.ten_buoc, mot?.ten].filter(Boolean).join(" - ");
+}
+
+/** Chữ đủ của ô "Sản lượng tốt" cho `title`: số + đơn vị, mỗi đơn vị cách nhau bằng khoảng trắng rộng. */
+function chuSanLuong(s: TdsxSanLuong | null): string | undefined {
+  if (!s) return undefined;
+  if (s.tot == null) {
+    const t = s.theo_don_vi.map((x) => `${so(x.tot)} ${nhanChang(x.don_vi)}`.trim()).join("   ");
+    return s.ca_bai ? `${t} (cả bài)` : t;
+  }
+  const dv = nhanChang(s.don_vi);
+  const t = s.ke_hoach != null ? `${so(s.tot)} trên ${so(s.ke_hoach)}` : so(s.tot);
+  return `${t}${dv ? ` ${dv}` : ""}${s.ca_bai ? " (cả bài)" : ""}`;
+}
+
+/** Ô "Đang chạy" trên MỘT dòng: việc thường = mã lệnh + GẤP + tên bước + sản phẩm; việc ghép = "Bài <mã>"
+ *  + số lệnh. Tên bước và sản phẩm mờ, chữ dài cắt "…" (title của ô có đủ). */
 function Viec({ v, them, onBam }: { v: TdsxViec; them: number; onBam: Bam }) {
   const mot = v.lsx.length === 1 ? v.lsx[0] : null;
   const rush = v.lsx.some((l) => l.is_rush);
   return (
     <>
-      <span className="lsc-cum">
-        {v.bai_ma && v.lsx.length > 1 ? (
-          <>
-            <button
-              type="button"
-              className="lsc-ma"
-              onClick={(e) => onBam(v.lsx, e)}
-              aria-label={`Bài ghép ${v.bai_ma}, ${v.lsx.length} lệnh, chọn lệnh để mở hồ sơ`}
-            >
-              Bài {v.bai_ma}
-            </button>
-            <span className="lsc-tag">{v.lsx.length} lệnh</span>
-          </>
-        ) : mot ? (
+      {v.bai_ma && v.lsx.length > 1 ? (
+        <>
           <button
             type="button"
-            className="lsc-ma"
-            data-lsx={mot.lsx_id}
+            className="tdsx-ma"
             onClick={(e) => onBam(v.lsx, e)}
-            aria-label={`Mở hồ sơ lệnh ${mot.ma}${mot.ten ? ` — ${mot.ten}` : ""}`}
+            aria-label={`Bài ghép ${v.bai_ma}, ${v.lsx.length} lệnh, chọn lệnh để mở hồ sơ`}
           >
-            {mot.ma}
+            Bài {v.bai_ma}
           </button>
-        ) : v.lsx.length > 1 ? (
-          <button type="button" className="lsc-ma" onClick={(e) => onBam(v.lsx, e)}>
-            {v.lsx.length} lệnh
-          </button>
-        ) : null}
-        {rush && <TheGap />}
-        {them > 0 && (
-          <span className="lsc-tag" title="Máy đang ghi nhận nhiều việc chạy cùng lúc">
-            +{them}
-          </span>
-        )}
-      </span>
-      {v.ten_buoc && <span className="tdsx-buoc">{v.ten_buoc}</span>}
-      {mot?.ten && <span className="lsc-phu">{mot.ten}</span>}
+          <span className="lds-tag">{v.lsx.length} lệnh</span>
+        </>
+      ) : mot ? (
+        <button
+          type="button"
+          className="tdsx-ma"
+          data-lsx={mot.lsx_id}
+          onClick={(e) => onBam(v.lsx, e)}
+          aria-label={`Mở hồ sơ lệnh ${mot.ma}${mot.ten ? ` — ${mot.ten}` : ""}`}
+        >
+          {mot.ma}
+        </button>
+      ) : v.lsx.length > 1 ? (
+        <button type="button" className="tdsx-ma" onClick={(e) => onBam(v.lsx, e)}>
+          {v.lsx.length} lệnh
+        </button>
+      ) : null}
+      {rush && <TheGap />}
+      {them > 0 && (
+        <span className="lds-tag" title="Máy đang ghi nhận nhiều việc chạy cùng lúc">
+          +{them}
+        </span>
+      )}
+      {v.ten_buoc && <span className="lds-mu tdsx-sau">{v.ten_buoc}</span>}
+      {mot?.ten && <span className="lds-mu tdsx-sau">{mot.ten}</span>}
     </>
   );
 }
 
-/** "x trên y <đơn vị>" + thanh mảnh. Mẻ lẫn đơn vị ⇒ từng dòng theo đơn vị, không thanh, không cộng. */
+/** "x trên y <đơn vị>" + thanh mảnh cùng dòng. Mẻ lẫn đơn vị ⇒ từng đơn vị một mẩu, không thanh, không cộng. */
 function SanLuong({ s, tamDung }: { s: TdsxSanLuong | null; tamDung: boolean }) {
   if (!s) return <>–</>;
-  const caBai = s.ca_bai ? <span className="lsc-phu">(cả bài)</span> : null;
+  const caBai = s.ca_bai ? <span className="lds-mu tdsx-sau">(cả bài)</span> : null;
   if (s.tot == null) {
     return (
       <>
@@ -269,13 +351,13 @@ function SanLuong({ s, tamDung }: { s: TdsxSanLuong | null; tamDung: boolean }) 
   const pct = s.ke_hoach && s.ke_hoach > 0 ? Math.min(100, Math.round((s.tot / s.ke_hoach) * 100)) : null;
   return (
     <>
-      <span className={tamDung ? "lsc-do" : undefined}>
+      <span className={tamDung ? "lds-do" : undefined}>
         {s.ke_hoach != null ? `${so(s.tot)} trên ${so(s.ke_hoach)}` : so(s.tot)}
         {dv && ` ${dv}`}
       </span>
       {pct != null && (
         <span
-          className={`lsc-thanh${tamDung ? " lsc-thanh--do" : ""}`}
+          className={`tdsx-thanh${tamDung ? " tdsx-thanh--do" : ""}`}
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}

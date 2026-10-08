@@ -3,10 +3,11 @@
 // Xếp lịch / KCS chỉ nhìn. Tự nạp lại theo tick SSE — khối không có ô nhập dở dang nào ngoài
 // mini-form đang mở, mà state của mini-form nằm riêng, nạp lại không xoá nó.
 //
-// Bố cục (06/10/2026, làm lại HAI lượt theo lối trang chi tiết đơn của Shopify/Stripe): đầu thẻ
-// (việc + chip trạng thái bên trái, nút bên phải) → thanh tiến độ chia đoạn (lúc nào, ai) → MỘT hàng
-// cặp nhãn–giá trị không đóng hộp (nhà gia công + số gọi, số lượng, giấy, chi tiền; đơn giá
-// không hiện ở đây — 06/10 bỏ theo yêu cầu). Luật:
+// Bố cục (07/10/2026, phương án B của mockup gia-cong-ngoai-gon-3-phuong-an, khối Details của
+// Stripe): đầu thẻ (việc + chip trạng thái + dãy chấm mốc bên trái, nút bên phải) → danh sách chi
+// tiết hai cột, nhãn xám thẳng cột, chữ 13px (nhà gia công, mốc lúc nào/ai, số lượng, giấy, kho,
+// chi tiền) → hàng chân Lịch sử + Đã huỷ. Thanh ba đoạn cũ bỏ vì nói trùng chip. Số đặt / số tờ
+// xin xuất chỉ hiện khi khác băng KPI của hồ sơ lệnh (`daHien`). Luật:
 // mỗi thông tin nói ĐÚNG MỘT lần — lượt đầu lặp "trọn gói" 3 lần, "5.000 cái" 3 lần, mốc vẽ bằng
 // chấm + đường kẻ tuyệt đối nên đè chữ, ô thông tin đóng hộp cao thấp lệch nhau.
 //
@@ -21,6 +22,8 @@ import {
   type GiaCongNoiVe,
 } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
+import { useCan } from "../../auth/permissions";
+import { ChungTuKhoNoi, type ChungTuKho } from "./ChungTuKhoNoi";
 import { Button } from "../../components/Button";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Icon } from "../../components/Icons";
@@ -68,6 +71,7 @@ export function GiaCongNgoaiPanel({
   onLans,
   lansDau,
   lansDauTick,
+  daHien,
 }: {
   /** Đúng MỘT trong hai: khối trên hồ sơ lệnh, hoặc khối trên màn bài ghép. */
   lsxId?: number;
@@ -84,6 +88,9 @@ export function GiaCongNgoaiPanel({
    *  khối vẽ ngay từ đó, không gọi lại tới khi có tick mới. */
   lansDau?: GiaCongNgoaiLan[];
   lansDauTick?: number;
+  /** Số băng KPI của hồ sơ lệnh ĐÃ in (SL đặt, giấy nguyên). Khối chỉ nói lại số đặt / số tờ xin
+   *  xuất khi chúng KHÁC con số ở băng trên — mỗi thông tin nói một lần. */
+  daHien?: { slDat?: number | null; toNguyen?: number | null };
 }) {
   const { token } = useAuth();
   const [lans, setLans] = useState<GiaCongNgoaiLan[] | null>(lansDau ?? null);
@@ -93,6 +100,10 @@ export function GiaCongNgoaiPanel({
   const [slGui, setSlGui] = useState<Record<number, string>>({});
   const [huy, setHuy] = useState<{ lan: GiaCongNgoaiLan; lyDo: string } | null>(null);
   const [giay, setGiay] = useState<Record<number, FormGiay>>({});
+  // Đề nghị xuất giấy / phiếu xuất kho đang mở xem. Máy chủ gate đọc chứng từ bằng ô quyền Kho ⇒
+  // không có ô đó thì mã chỉ là chữ, khỏi mở ra ngăn báo lỗi.
+  const [chungTu, setChungTu] = useState<ChungTuKho | null>(null);
+  const xemKho = useCan()("kho", "read");
   // Mở thẳng màn Bài ghép (chưa màn nào nạp bảng đơn vị) thì `nhanDonVi` in mã trần "2.660 to".
   useNapTenDonVi();
 
@@ -163,6 +174,32 @@ export function GiaCongNgoaiPanel({
   // tiến độ + lịch sử — gom xuống cuối, mỗi lần một dòng, gập sẵn khi còn lần đang chạy.
   const song = lans.filter((l) => l.trang_thai !== "da_huy");
   const daHuy = lans.filter((l) => l.trang_thai === "da_huy");
+  const cuoiSong = song.length > 0 ? song[song.length - 1].id : null;
+  const khoiHuy = daHuy.length > 0 ? (
+    <details className={`gcn__da-huy${song.length === 0 ? " gcn__da-huy--mot-minh" : ""}`} open={song.length === 0}>
+      <summary>Đã huỷ {daHuy.length} lần</summary>
+      <ol>
+        {daHuy.map((l) => (
+          <li key={l.id}>
+            <span className="gcn__luc">{gio(l.huy_luc)}</span>
+            <span className="gcn__ls-viec">
+              <span className="gcn__huy-dong">
+                <b>{l.nha_cung_cap_ten}</b>
+                <span className="gcn__the">{l.kieu === "tron_goi" ? "Trọn gói" : l.ten_viec}</span>
+                {l.sl_dat != null && (
+                  <span className="gcn__phu">{so(l.sl_dat)} {dvTen(l.don_vi)}</span>
+                )}
+              </span>
+              <span className="gcn__phu">
+                {l.huy_boi_ten ? `${l.huy_boi_ten} huỷ` : "Đã huỷ"}
+                {l.ly_do_huy ? ` vì “${l.ly_do_huy}”` : ""}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </details>
+  ) : null;
 
   return (
     <section className="gcn" aria-label="Gia công ngoài">
@@ -193,6 +230,7 @@ export function GiaCongNgoaiPanel({
                   </div>
                 )}
               </header>
+              {l.id === cuoiSong && khoiHuy && <div className="gcn__chan">{khoiHuy}</div>}
             </article>
           );
         }
@@ -209,13 +247,18 @@ export function GiaCongNgoaiPanel({
         const xg = l.xuat_giay;
         return (
           <article key={l.id} className={`gcn__lan gcn__lan--${l.trang_thai}`}>
-            {/* Đầu thẻ: việc + trạng thái bên trái, nút bên phải — như trang chi tiết đơn của
-                Shopify/Stripe. Không icon trang trí, không lặp chữ "trọn gói" ở chip. */}
+            {/* Đầu thẻ: việc + chip trạng thái + dãy chấm mốc bên trái, nút bên phải (khối Details của
+                Stripe, phương án B 07/10/2026). Lúc nào, ai của từng mốc nằm ở hàng thông tin bên dưới. */}
             <header className="gcn__dau">
               <div className="gcn__tieu-de">
                 <div className="gcn__tieu-de-dong">
-                  <strong className="gcn__viec">{tronGoi ? "Trọn gói cả lệnh" : l.ten_viec}</strong>
+                  <strong className="gcn__viec">{tronGoi ? "Trọn gói" : l.ten_viec}</strong>
                   <span className={`gcn__tt gcn__tt--${l.trang_thai}`}>{NHAN_TRANG_THAI[l.trang_thai]}</span>
+                  <ol className="gcn__moc" aria-label={`Tiến độ: ${moc.map((m) => m.nhan).join(" rồi ")}`}>
+                    {moc.map((m) => (
+                      <li key={m.nhan} className={`gcn__moc-cham gcn__moc-cham--${m.muc}`} />
+                    ))}
+                  </ol>
                 </div>
                 {l.bai_ghep_id != null && (
                   <span className="gcn__phu-dong">
@@ -268,30 +311,18 @@ export function GiaCongNgoaiPanel({
                     </>
                   )}
                   {nut.chot && (
-                    <Button variant="accent" onClick={() => setChot((m) => ({ ...m, [l.id]: { ...goiYChot(l), nhan: ngayIsoVn() } }))}>
+                    <Button
+                      variant="accent"
+                      disabled={!!l.ly_do_khong_nhan_ve}
+                      title={l.ly_do_khong_nhan_ve ?? undefined}
+                      onClick={() => setChot((m) => ({ ...m, [l.id]: { ...goiYChot(l), nhan: ngayIsoVn() } }))}
+                    >
                       Nhận hàng về
                     </Button>
                   )}
                 </div>
               )}
             </header>
-
-            {/* Thanh tiến độ chia đoạn: mỗi đoạn là một thanh mảnh + tên mốc + lúc nào, ai. Số
-                lượng KHÔNG nhắc ở đây — nó nằm ở hàng thông tin bên dưới, mỗi thứ nói một lần. */}
-            <ol className="gcn__tiendo" aria-label="Tiến độ">
-              {moc.map((m) => (
-                <li key={m.nhan} className={`gcn__doan gcn__doan--${m.muc}`}>
-                  <span className="gcn__doan-thanh" aria-hidden="true" />
-                  <span className="gcn__doan-nhan">{m.nhan}</span>
-                  {(m.luc || m.ai) && (
-                    <span className="gcn__doan-phu">
-                      {m.luc && <span>{gio(m.luc)}</span>}
-                      {m.ai && <span>{m.ai}</span>}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ol>
 
             {/* Trọn gói xưởng cấp giấy chưa gửi đề nghị xuất: dải hổ phách nói việc còn treo + nút mở
                 phần chọn giấy NGAY TẠI CHỖ (mockup tron-goi-cap-giay-C, phương án C1). Dữ liệu chọn
@@ -322,7 +353,8 @@ export function GiaCongNgoaiPanel({
               />
             )}
 
-            {/* Hàng cặp nhãn–giá trị, không đóng hộp (description list kiểu Stripe). */}
+            {/* Danh sách chi tiết hai cột, nhãn xám thẳng cột (khối Details của Stripe). Số đặt và số
+                tờ xin xuất chỉ hiện khi khác băng KPI phía trên. */}
             <dl className="gcn__dl">
               <div className="gcn__dl-o">
                 <dt>Nhà gia công</dt>
@@ -337,15 +369,23 @@ export function GiaCongNgoaiPanel({
                 </dd>
               </div>
 
-              {tronGoi ? (
+              {(moc[0].luc || moc[0].ai) && (
                 <div className="gcn__dl-o">
-                  <dt>Số đặt</dt>
+                  <dt>{moc[0].nhan}</dt>
                   <dd>
-                    <span className="gcn__gt">
-                      {l.sl_dat != null ? <>{so(l.sl_dat)} <small>{dvTen(l.don_vi)}</small></> : "—"}
-                    </span>
+                    {moc[0].luc && <span className="gcn__gt">{gio(moc[0].luc)}</span>}
+                    {moc[0].ai && <span className="gcn__phu">{moc[0].ai}</span>}
                   </dd>
                 </div>
+              )}
+
+              {tronGoi ? (
+                l.sl_dat != null && l.sl_dat !== daHien?.slDat && (
+                  <div className="gcn__dl-o">
+                    <dt>Số đặt</dt>
+                    <dd><span className="gcn__gt">{so(l.sl_dat)} <small>{dvTen(l.don_vi)}</small></span></dd>
+                  </div>
+                )
               ) : (
                 <div className="gcn__dl-o">
                   <dt>{l.sl_gui != null ? "Đã mang đi" : "Chờ mang đi"}</dt>
@@ -357,6 +397,8 @@ export function GiaCongNgoaiPanel({
                           ? <>{so(l.sl_cho_mang_di)} <small>{dvTen(l.don_vi_gui)}</small></>
                           : "—"}
                     </span>
+                    {l.sl_gui != null && l.mang_di_luc && <span className="gcn__phu">{gio(l.mang_di_luc)}</span>}
+                    {l.sl_gui != null && l.mang_di_boi_ten && <span className="gcn__phu">{l.mang_di_boi_ten}</span>}
                     {l.trang_thai === "dang_o_ngoai" && l.sl_cho_mang_di > 0 && (
                       <span className="gcn__phu gcn__phu--chu-y">
                         Còn {so(l.sl_cho_mang_di)} {dvTen(l.don_vi_gui)} mới bàn giao, chưa mang
@@ -374,7 +416,9 @@ export function GiaCongNgoaiPanel({
                   <dt>Nhận về</dt>
                   <dd>
                     <span className="gcn__gt">{so(l.sl_cuoi)} <small>{dvTen(l.don_vi)}</small></span>
-                    {l.noi_ve && <span className="gcn__phu">{NHAN_NOI_VE[l.noi_ve]}</span>}
+                    {l.noi_ve && <span className="gcn__the">{NHAN_NOI_VE[l.noi_ve]}</span>}
+                    {l.chot_luc && <span className="gcn__phu">{gio(l.chot_luc)}</span>}
+                    {l.chot_boi_ten && <span className="gcn__phu">{l.chot_boi_ten}</span>}
                   </dd>
                 </div>
               )}
@@ -384,25 +428,41 @@ export function GiaCongNgoaiPanel({
                   <dt>Giấy</dt>
                   <dd>
                     <span className="gcn__gt">{l.xuong_cap_giay ? "Xưởng cấp" : "Nhà gia công tự lo"}</span>
-                    {l.xuong_cap_giay && xg && (
-                      <>
-                        {(xg.kho_rong || xg.so_to != null) && (
-                          <span className="gcn__phu-dong">
-                            {xg.kho_rong ? <span className="gcn__the">{nhanKho(xg.kho_rong, xg.kho_dai)}</span> : null}
-                            {xg.so_to != null && (
-                              <span className="gcn__the">{so(xg.so_to)} {dvTen(xg.don_vi ?? null)}</span>
-                            )}
-                          </span>
-                        )}
-                        <span className="gcn__phu-dong">
-                          <span className="gcn__tt gcn__tt--kho">{NHAN_XUAT_GIAY[xg.trang_thai] ?? xg.trang_thai}</span>
-                          <span className="gcn__phu">{xg.ma}</span>
-                        </span>
-                      </>
+                    {l.xuong_cap_giay && xg?.kho_rong ? (
+                      <span className="gcn__the">{nhanKho(xg.kho_rong, xg.kho_dai)}</span>
+                    ) : null}
+                    {l.xuong_cap_giay && xg && xg.so_to != null && xg.so_to !== daHien?.toNguyen && (
+                      <span className="gcn__the">{so(xg.so_to)} {dvTen(xg.don_vi ?? null)}</span>
                     )}
                     {l.xuong_cap_giay && !xg && l.trang_thai === "dang_gia_cong" && (
                       <span className="gcn__phu">Chưa chọn khổ</span>
                     )}
+                  </dd>
+                </div>
+              )}
+
+              {tronGoi && l.xuong_cap_giay && xg && (
+                <div className="gcn__dl-o">
+                  <dt>Kho</dt>
+                  <dd>
+                    <span className="gcn__tt gcn__tt--kho">{NHAN_XUAT_GIAY[xg.trang_thai] ?? xg.trang_thai}</span>
+                    {xemKho ? (
+                      <button type="button" className="gcn__goi" title="Mở đề nghị xuất giấy"
+                        onClick={() => setChungTu({ loai: "de_nghi", id: xg.id })}>
+                        {xg.ma}
+                      </button>
+                    ) : <span className="gcn__phu">{xg.ma}</span>}
+                    {(xg.phieu ?? []).map((p) => (
+                      <span key={p.id} className="gcn__phu-dong">
+                        {xemKho ? (
+                          <button type="button" className="gcn__goi" title="Mở phiếu xuất kho"
+                            onClick={() => setChungTu({ loai: "phieu", id: p.id })}>
+                            {p.ma}
+                          </button>
+                        ) : <span className="gcn__phu">{p.ma}</span>}
+                        {p.trang_thai === "draft" && <span className="gcn__the">Chờ ghi sổ</span>}
+                      </span>
+                    ))}
                   </dd>
                 </div>
               )}
@@ -417,13 +477,17 @@ export function GiaCongNgoaiPanel({
                   </dd>
                 </div>
               )}
-
             </dl>
 
             {canUpdate && l.chi_xem && (
               <p className="gcn__phu">
                 Chỉ xem — bài ghép có lệnh ngoài phạm vi của bạn. Nhờ người phụ trách các lệnh còn lại thao tác.
               </p>
+            )}
+            {/* Chưa chọn giấy thì dải "Chưa cấp giấy" đã nói rồi — chỉ nói thêm khi đề nghị đã gửi mà
+                kho chưa xuất, để biết vì sao nút Nhận hàng về đang khoá. */}
+            {nut.chot && l.ly_do_khong_nhan_ve && xg && thaoTac && (
+              <p className="gcn__phu">Chưa nhận hàng về được: {l.ly_do_khong_nhan_ve}</p>
             )}
             {nut.moLai && l.ly_do_khong_mo_lai && thaoTac && (
               <p className="gcn__phu">Không mở lại được: {l.ly_do_khong_mo_lai}</p>
@@ -529,6 +593,8 @@ export function GiaCongNgoaiPanel({
               </div>
             )}
 
+            {(l.lich_su.length > 0 || (l.id === cuoiSong && khoiHuy)) && (
+              <div className="gcn__chan">
             {l.lich_su.length > 0 && (
               <details className="gcn__lichsu">
                 <summary>Lịch sử ({l.lich_su.length})</summary>
@@ -545,35 +611,15 @@ export function GiaCongNgoaiPanel({
                 </ol>
               </details>
             )}
+                {/* Các lần đã huỷ nằm chung hàng chân với Lịch sử của lần cuối, khỏi thêm hàng kẻ. */}
+                {l.id === cuoiSong && khoiHuy}
+              </div>
+            )}
           </article>
         );
       })}
 
-      {daHuy.length > 0 && (
-        <details className={`gcn__da-huy${song.length === 0 ? " gcn__da-huy--mot-minh" : ""}`} open={song.length === 0}>
-          <summary>Đã huỷ {daHuy.length} lần</summary>
-          <ol>
-            {daHuy.map((l) => (
-              <li key={l.id}>
-                <span className="gcn__luc">{gio(l.huy_luc)}</span>
-                <span className="gcn__ls-viec">
-                  <span className="gcn__huy-dong">
-                    <b>{l.nha_cung_cap_ten}</b>
-                    <span className="gcn__the">{l.kieu === "tron_goi" ? "Trọn gói" : l.ten_viec}</span>
-                    {l.sl_dat != null && (
-                      <span className="gcn__phu">{so(l.sl_dat)} {dvTen(l.don_vi)}</span>
-                    )}
-                  </span>
-                  <span className="gcn__phu">
-                    {l.huy_boi_ten ? `${l.huy_boi_ten} huỷ` : "Đã huỷ"}
-                    {l.ly_do_huy ? ` vì “${l.ly_do_huy}”` : ""}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        </details>
-      )}
+      {song.length === 0 && khoiHuy}
 
       <ConfirmDialog
         open={huy != null}
@@ -601,6 +647,9 @@ export function GiaCongNgoaiPanel({
           />
         </label>
       </ConfirmDialog>
+      {chungTu && token && (
+        <ChungTuKhoNoi mo={chungTu} token={token} onClose={() => setChungTu(null)} />
+      )}
     </section>
   );
 }

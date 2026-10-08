@@ -11,14 +11,17 @@ import { ApiError, api } from "../api/client";
 import type { LenhSxItem, LenhSxTab } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import type { NavigateFn } from "../components/AppShell";
-import { Button } from "../components/Button";
-import { Icon } from "../components/Icons";
+import { EmptyRow } from "../components/EmptyState";
+import {
+  ChipTT, ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, soCotGhim, soVN, tenKhachGon, ngayVN, useCotAn, useThuTuCot, xepCot,
+  type CotLuoi, type MauTT,
+} from "../components/LuoiDs";
 import { trangHopLe } from "../components/Pager";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useTre } from "../lib/useTre";
 import { LenhSxHoSoView } from "./LenhSxHoSoView";
-import { BangLoi, EmptyState, Skeleton, ngay, num } from "./keHoachSxShared";
-import { PillKhau, TheDaDong, TheGap } from "./lsxKhau";
+import { BangLoi } from "./keHoachSxShared";
+import { nhanKhau, TheGap } from "./lsxKhau";
 import {
   LOC_HO_SO_LENH_TRONG,
   MOC_HO_SO_LENH,
@@ -46,6 +49,32 @@ const TABS: { key: LenhSxTab; label: string }[] = [
   { key: "dang_sx", label: "Đang sản xuất" },
   { key: "sau_sx", label: "Sau sản xuất" },
   { key: "da_giao", label: "Đã giao đủ" },
+];
+
+/** Chấm màu hàng lọc nhanh — cùng hệ màu với chip khâu của dòng (`MAU_KHAU`). */
+const MAU_TAB: Record<LenhSxTab, MauTT | undefined> = {
+  tat_ca: undefined,
+  dang_sx: "xanh",
+  sau_sx: "vang",
+  da_giao: "la",
+};
+
+/** Chip khâu của dòng — mỗi khâu một sắc; Sau sản xuất tách theo chi tiết (ba chặng khác việc). */
+const MAU_KHAU: Record<string, MauTT> = { dang_sx: "xanh", da_giao: "la" };
+const MAU_KHAU_CT: Record<string, MauTT> = { dang_kcs: "tim", cho_nhap_kho: "vang", san_sang_giao: "ngoc" };
+
+// --- Lưới danh sách (phương án A). Thứ tự: Mã lệnh, Ngày tạo, Hạn SX (hai cột ngày đứng liền), Khách, Đơn,
+// Sản phẩm, Số lượng, Trạng thái (cột cuối co giãn). Màn không có sắp xếp ở máy chủ nên không cột nào có `sx`.
+interface CotLenh extends CotLuoi { w?: number; n?: boolean }
+const COT_LENH: CotLenh[] = [
+  { key: "ma", label: "Lệnh", coDinh: true, w: 130 },
+  { key: "ngay", label: "Ngày tạo", w: 104 },
+  { key: "han", label: "Hạn SX", w: 104 },
+  { key: "khach", label: "Khách", w: 190 },
+  { key: "don", label: "Đơn", w: 110 },
+  { key: "sp", label: "Sản phẩm", w: 220 },
+  { key: "sl", label: "Số lượng", w: 110, n: true },
+  { key: "tt", label: "Trạng thái" },
 ];
 
 /** Thanh lọc (06/10/2026): kỳ theo ngày tạo / hạn SX / hạn giao + Khách, Đơn, Gia công ngoài.
@@ -79,8 +108,12 @@ export function LenhSanXuatPage({
   const { token } = useAuth();
 
   // --- bộ lọc (chạy ở máy chủ) ------------------------------------------------
-  const searchRef = useRef<HTMLInputElement | null>(null);
+  const timRef = useRef<HTMLInputElement | null>(null);
+  const trangRef = useRef<HTMLElement | null>(null);
   const [q, setQ] = useState("");
+  const [cotAn, setCotAn] = useCotAn("ho-so-lenh");
+  const [thuTu, setThuTu] = useThuTuCot("ho-so-lenh");
+  const cotHien = xepCot(COT_LENH, thuTu).filter((c) => !cotAn.has(c.key));
   const qTre = useTre(q);
   const [locMan, setLocMan] = useLocMan("lenh-san-xuat", LOC_MAN_TRONG, docLocMan, ghiLocMan);
   const dieuKien = useDieuKienHoSoLenh();
@@ -93,7 +126,7 @@ export function LenhSanXuatPage({
     function phim(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        searchRef.current?.focus();
+        timRef.current?.focus();
       }
     }
     window.addEventListener("keydown", phim);
@@ -115,16 +148,15 @@ export function LenhSanXuatPage({
     setHoSoPv(null);
   }, []);
 
-  const khungRef = useRef<HTMLDivElement | null>(null);
   const dongHoSo = useCallback(() => {
     const id = hoSoId;
     setHoSoId(null);
     setHoSoPv(null);
-    // Trả tiêu điểm về đúng nút vừa bấm; dòng có thể đã biến mất (SSE) thì về khung bảng.
+    // Trả tiêu điểm về đúng dòng vừa mở; dòng có thể đã biến mất (SSE) thì về ô tìm.
     requestAnimationFrame(() => {
-      const nut = document.querySelector<HTMLButtonElement>(`.lsc-ma[data-lsx="${id}"]`);
-      if (nut) nut.focus();
-      else khungRef.current?.focus();
+      const dong = trangRef.current?.querySelector<HTMLElement>(`tr[data-lsx="${id}"]`);
+      if (dong) dong.focus();
+      else timRef.current?.focus();
     });
   }, [hoSoId]);
 
@@ -197,26 +229,7 @@ export function LenhSanXuatPage({
     setTab("tat_ca");
   }, [setLocMan, locMan.ky.moc]);
 
-  // --- tab: roving tabindex, kích hoạt THỦ CÔNG (mỗi lần đổi tab là một yêu cầu) ---------------
-  const tabIdx = Math.max(0, TABS.findIndex((t) => t.key === tab));
-  const [tabFocus, setTabFocus] = useState(tabIdx);
-  useEffect(() => {
-    setTabFocus(tabIdx);
-  }, [tabIdx]);
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  function phimTab(e: React.KeyboardEvent, i: number) {
-    let toi = i;
-    if (e.key === "ArrowRight") toi = (i + 1) % TABS.length;
-    else if (e.key === "ArrowLeft") toi = (i - 1 + TABS.length) % TABS.length;
-    else if (e.key === "Home") toi = 0;
-    else if (e.key === "End") toi = TABS.length - 1;
-    else return;
-    e.preventDefault();
-    setTabFocus(toi);
-    tabRefs.current[toi]?.focus();
-  }
-
-  // Trạng thái trong nút Lọc = chính hàng tab khâu (đọc/ghi `tab`), không đẻ state thứ hai.
+  // Trạng thái trong nút Lọc = chính hàng lọc nhanh khâu (đọc/ghi `tab`), không đẻ state thứ hai.
   const dkDu: DieuKien<LocHoSoLenh>[] = [
     dkTheoTab<LocHoSoLenh>({
       tabs: TABS.map((t) => ({ id: t.key, nhan: t.label, so: dem?.[t.key] })),
@@ -225,159 +238,127 @@ export function LenhSanXuatPage({
     ...dieuKien,
   ];
 
-  const tongTheoLoc = dem?.tat_ca ?? null;
-  const nhanTab = TABS[tabIdx]?.label ?? "Tất cả";
+  const nhanTab = TABS.find((t) => t.key === tab)?.label ?? "Tất cả";
+  // Số trên hàng lọc nhanh = `dem_theo_tab` của máy chủ (tập ĐÃ LỌC, không bị chính tab lọc lại).
+  // Đang tải lần đầu ⇒ để trống chỗ số, không hiện 0.
+  const muc = TABS.map((t) => ({
+    key: t.key, label: t.label, count: dem ? dem[t.key] ?? 0 : undefined, mau: MAU_TAB[t.key],
+  }));
 
   return (
-    <main className="lsc">
-      <header className="lsc-head">
-        <h1 className="lsc-title">Hồ sơ lệnh sản xuất</h1>
-        {tongTheoLoc !== null && <span className="lsc-count">{num(tongTheoLoc)} lệnh</span>}
+    <main className="lsc lds" ref={trangRef}>
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Hồ sơ lệnh sản xuất</h1>
       </header>
 
-      <section className="lsc-loc tl-thanh" aria-label="Lọc lệnh">
-        <div className="lsc-search">
-          <Icon name="search" size={15} />
-          <input
-            ref={searchRef}
-            type="search"
+      {loi && rows.length > 0 && <BangLoi text="Không làm mới được danh sách." onRetry={load} />}
+
+      <section className="lds-loc" aria-label="Lọc lệnh">
+        <LocNhanhTrangThai muc={muc} dang={tab} onChon={(k) => setTab(k as LenhSxTab)} ariaLabel="Lọc lệnh theo khâu" />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim
+            inputRef={timRef}
             value={q}
-            onChange={(e) => setQ(e.target.value)}
-            maxLength={200}
+            onChange={setQ}
             placeholder="Tìm mã lệnh, sản phẩm, số đơn, khách"
-            aria-label="Tìm mã lệnh, sản phẩm, số đơn, khách"
+            ariaLabel="Tìm mã lệnh, sản phẩm, số đơn, khách"
           />
-          {q === "" ? (
-            <kbd className="lsc-kbd">Ctrl K</kbd>
-          ) : (
-            <button type="button" className="lsc-xoa" onClick={() => setQ("")} aria-label="Xoá ô tìm">
-              <Icon name="x" size={14} />
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_HO_SO_LENH}
+            onKy={(ky) => setLocMan({ ...locMan, ky })}
+            dieuKien={dkDu}
+            loc={locMan.loc}
+            onLoc={(loc) => setLocMan({ ...locMan, loc })}
+          />
+          {(dangLoc || tab !== "tat_ca") && (
+            <button type="button" className="lds-lk" onClick={xoaLoc}>
+              Xoá bộ lọc
             </button>
           )}
+          <ChonCot cot={COT_LENH} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
         </div>
-
-        <ThanhLoc
-          ky={locMan.ky}
-          moc={MOC_HO_SO_LENH}
-          onKy={(ky) => setLocMan({ ...locMan, ky })}
-          dieuKien={dkDu}
-          loc={locMan.loc}
-          onLoc={(loc) => setLocMan({ ...locMan, loc })}
-        />
-
-        {(dangLoc || tab !== "tat_ca") && (
-          <button type="button" className="lsc-link" onClick={xoaLoc}>
-            Bỏ lọc
-          </button>
-        )}
       </section>
 
-      <div className="lsc-tabs" role="tablist" aria-label="Lọc lệnh theo khâu">
-        {TABS.map((t, i) => (
-          <button
-            key={t.key}
-            ref={(el) => {
-              tabRefs.current[i] = el;
-            }}
-            type="button"
-            role="tab"
-            id={`lsc-tab-${t.key}`}
-            aria-selected={tab === t.key}
-            aria-controls="lsc-panel"
-            tabIndex={i === tabFocus ? 0 : -1}
-            className="lsc-tab"
-            onKeyDown={(e) => phimTab(e, i)}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            {/* Đang tải ⇒ để trống chỗ số, không hiện 0. */}
-            {dem ? <span className="lsc-tab__n">{num(dem[t.key] ?? 0)}</span> : null}
-          </button>
-        ))}
-      </div>
-
-      <div id="lsc-panel" role="tabpanel" aria-labelledby={`lsc-tab-${tab}`}>
-        {loi && rows.length > 0 && <BangLoi text="Không làm mới được danh sách." onRetry={load} />}
-
-        <div
-          className="lsc-khung"
-          ref={khungRef}
-          tabIndex={0}
-          role="group"
-          aria-label="Bảng lệnh sản xuất, cuộn ngang được bằng phím mũi tên"
-        >
-          <table className="lsc-bang">
+      <div className="lds-sheet">
+        <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien, 180) }}>
             <caption className="sr-only">Danh sách lệnh sản xuất đã phát hành</caption>
+            <colgroup>
+              {cotHien.map((c) => (
+                <col key={c.key} style={c.w ? { width: c.w } : undefined} />
+              ))}
+            </colgroup>
             <thead>
               <tr>
-                <th scope="col">Lệnh</th>
-                <th scope="col">Sản phẩm</th>
-                <th scope="col" className="lsc-so">
-                  Số lượng
-                </th>
-                <th scope="col">Khách</th>
-                <th scope="col">Đơn</th>
-                <th scope="col">Hạn SX</th>
-                <th scope="col">Ngày tạo</th>
-                <th scope="col">Trạng thái</th>
+                {cotHien.map((c) => (
+                  <th key={c.key} scope="col" className={c.n ? "n" : undefined}>
+                    {c.label}
+                  </th>
+                ))}
               </tr>
             </thead>
-            {loading && rows.length === 0 && !loi ? (
-              <Skeleton rows={8} cols={8} />
-            ) : (
-              <tbody className={loading ? "is-mo" : undefined}>
-                {rows.length === 0 ? (
-                  <tr className="lsc-bang__rong">
-                    <td colSpan={8}>
-                      {loi ? (
-                        <EmptyState
-                          icon="alert"
-                          title={loi.cam ? loi.text : "Không tải được danh sách lệnh."}
-                          sub={loi.cam ? undefined : loi.text}
-                          action={
-                            loi.cam ? undefined : (
-                              <Button variant="ghost" onClick={load}>
-                                Thử lại
-                              </Button>
-                            )
-                          }
-                        />
-                      ) : daTai && tab !== "tat_ca" && (dem?.tat_ca ?? 0) > 0 ? (
-                        <EmptyState
-                          icon="clipboard"
-                          title={`Tab «${nhanTab}» hiện không có lệnh nào.`}
-                          action={
-                            <Button variant="ghost" onClick={() => setTab("tat_ca")}>
-                              Về tab Tất cả
-                            </Button>
-                          }
-                        />
-                      ) : daTai && dangLoc ? (
-                        <EmptyState
-                          icon="search"
-                          title="Không có lệnh nào khớp bộ lọc."
-                          action={
-                            <Button variant="ghost" onClick={xoaLoc}>
-                              Bỏ lọc
-                            </Button>
-                          }
-                        />
-                      ) : (
-                        <EmptyState
-                          icon="clipboard"
-                          title="Chưa có lệnh sản xuất nào đã phát hành trong phạm vi của bạn."
-                          sub="Lệnh còn đang lập nằm ở màn Kế hoạch sản xuất."
-                        />
-                      )}
-                    </td>
+            <tbody className={loading && rows.length > 0 ? "is-mo" : undefined}>
+              {loading && rows.length === 0 && !loi ? (
+                <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    {loi ? (
+                      <>
+                        <span className="lds-do">{loi.cam ? loi.text : `Không tải được danh sách lệnh. ${loi.text}`}</span>
+                        {loi.cam ? null : (
+                          <>
+                            {" "}
+                            <button type="button" className="lds-lk" onClick={load}>
+                              Thử lại
+                            </button>
+                          </>
+                        )}
+                      </>
+                    ) : daTai && tab !== "tat_ca" && (dem?.tat_ca ?? 0) > 0 ? (
+                      <>
+                        {`Tab «${nhanTab}» hiện không có lệnh nào.`}{" "}
+                        <button type="button" className="lds-lk" onClick={() => setTab("tat_ca")}>
+                          Về tab Tất cả
+                        </button>
+                      </>
+                    ) : daTai && dangLoc ? (
+                      <>
+                        Không có lệnh nào khớp điều kiện đang lọc.{" "}
+                        <button type="button" className="lds-lk" onClick={xoaLoc}>
+                          Xoá bộ lọc
+                        </button>
+                      </>
+                    ) : (
+                      "Chưa có lệnh sản xuất nào đã phát hành trong phạm vi của bạn. Lệnh còn đang lập nằm ở màn Kế hoạch sản xuất."
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((r) => (
+                  <tr
+                    key={r.id}
+                    className={`lds-dong${r.id === hoSoId ? " is-chon" : ""}`}
+                    data-lsx={r.id}
+                    tabIndex={0}
+                    onClick={() => moHoSoTay(r.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        moHoSoTay(r.id);
+                      }
+                    }}
+                  >
+                    {cotHien.map((c) => (
+                      <OLenh key={c.key} cot={c.key} r={r} />
+                    ))}
                   </tr>
-                ) : (
-                  rows.map((r) => <Dong key={r.id} r={r} onMo={moHoSoTay} />)
-                )}
-              </tbody>
-            )}
+                ))
+              )}
+            </tbody>
           </table>
-        </div>
+        </CuonLuoi>
 
         {total > 0 && (
           <PhanTrangDayDu
@@ -410,39 +391,48 @@ export function LenhSanXuatPage({
   );
 }
 
-/** MỘT dòng bảng — tám cột tĩnh. Bấm mã lệnh để mở hồ sơ. */
-function Dong({ r, onMo }: { r: LenhSxItem; onMo: (id: number) => void }) {
-  return (
-    <tr>
-      <td>
-        <span className="lsc-cum">
-          <button
-            type="button"
-            className="lsc-ma"
-            data-lsx={r.id}
-            onClick={() => onMo(r.id)}
-            aria-label={`Mở hồ sơ lệnh ${r.ma}${r.ten ? ` — ${r.ten}` : ""}`}
-          >
-            {r.ma}
-          </button>
+/** Một ô của dòng lệnh, theo khoá cột. Bấm dòng để mở hồ sơ. */
+function OLenh({ cot, r }: { cot: string; r: LenhSxItem }) {
+  switch (cot) {
+    case "ma":
+      return (
+        <td title={r.ma}>
+          {r.ma}
           {r.is_rush && <TheGap />}
-        </span>
-      </td>
-      <td>{r.ten ?? "Chưa đặt tên"}</td>
-      <td className="lsc-so">
-        {num(r.so_luong_dat)}
-        {r.don_vi_tinh && <span className="lsc-phu">{r.don_vi_tinh}</span>}
-      </td>
-      <td>{r.khach_hang ?? "—"}</td>
-      <td>{r.order_no ?? "—"}</td>
-      <td>{ngay(r.han_hoan_thanh_sx)}</td>
-      <td title={ngayGioDayDu(r.created_at)}>{ngayDayDu(r.created_at)}</td>
-      <td>
-        <span className="lsc-cum">
-          <PillKhau khau={r.khau} ct={r.khau_chi_tiet} />
-          {r.da_dong && <TheDaDong />}
-        </span>
-      </td>
-    </tr>
-  );
+        </td>
+      );
+    case "ngay":
+      return <td title={ngayGioDayDu(r.created_at)}>{ngayDayDu(r.created_at)}</td>;
+    case "khach":
+      return r.khach_hang ? (
+        <td title={r.khach_hang}>{tenKhachGon(r.khach_hang)}</td>
+      ) : (
+        <td className="lds-mu3">—</td>
+      );
+    case "don":
+      return <td className={r.order_no ? undefined : "lds-mu3"}>{r.order_no ?? "—"}</td>;
+    case "sp":
+      return r.ten ? <td title={r.ten}>{r.ten}</td> : <td className="lds-mu3">Chưa đặt tên</td>;
+    case "sl":
+      return (
+        <td className="n">
+          {soVN(r.so_luong_dat)}
+          {r.don_vi_tinh ? <span className="lds-u">{r.don_vi_tinh}</span> : null}
+        </td>
+      );
+    case "han":
+      return <td className={r.han_hoan_thanh_sx ? undefined : "lds-mu3"}>{ngayVN(r.han_hoan_thanh_sx)}</td>;
+    case "tt": {
+      const mau = (r.khau === "sau_sx" && r.khau_chi_tiet && MAU_KHAU_CT[r.khau_chi_tiet]) || MAU_KHAU[r.khau] || "xam";
+      return (
+        <td>
+          <ChipTT mau={mau}>{nhanKhau(r.khau, r.khau_chi_tiet)}</ChipTT>
+          {r.da_dong ? <span className="lds-tag">Đã đóng lệnh</span> : null}
+        </td>
+      );
+    }
+    default:
+      return <td />;
+  }
 }
+

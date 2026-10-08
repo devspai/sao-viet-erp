@@ -4,8 +4,9 @@
  *  - kỳ (thanh lọc chung `ThanhLoc`, mặc định "Tháng này"; "Tất cả" = từ đầu sổ tới hôm nay), nhóm
  *    nút, mốc tuổi nợ, ô tìm (trễ 350ms) và các điều kiện — lấy từ URL lúc mở và ghi lên URL khi đổi;
  *  - trang hiệu lực: đổi kỳ / lọc / tìm / cỡ trang thì tự về trang 1;
- *  - tải bảng + số cùng kỳ năm trước (cùng endpoint, kỳ lùi một năm, `size: 1`) song song, câu trả lời
- *    cũ về muộn bị bỏ; tải hỏng thì XOÁ số cũ (im lặng không được giả làm số 0);
+ *  - tải bảng (một lời; dòng Cộng của bảng là `tong_loc` trong chính câu trả lời — số cùng kỳ năm
+ *    trước đã thôi tải từ 07/10/2026 vì khối tổng quan đọc nó đã bỏ), câu trả lời cũ về muộn bị bỏ;
+ *    tải hỏng thì XOÁ số cũ (im lặng không được giả làm số 0);
  *  - số trên nhóm nút "Tất cả n | Quá hạn n | Vượt hạn mức n": máy chủ đếm sẵn trong CHÍNH câu trả
  *    lời của bảng (`the_loc`, sau kỳ + mốc tuổi + tìm + bộ lọc đang áp, trước nút đang chọn) — bấm
  *    nút nào thì bảng ra đúng số đó, không tốn lời gọi riêng;
@@ -14,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, type CotSapXepCongNo, type LocCongNo, type TheLocCongNo } from "../../../api/client";
-import { cungKyCua, khoangSo, useKyKeToan } from "./kyKeToan";
+import { khoangSo, useKyKeToan } from "./kyKeToan";
 import {
   LOC_CONG_NO_TRONG,
   congNoLenUrl,
@@ -62,7 +63,6 @@ export function useTrangCongNo<S extends TomTatCongNo>(
   // Sổ công nợ luôn cần một khoảng ngày thật — "Tất cả" = từ đầu sổ tới hôm nay.
   const khoaKy = JSON.stringify(kyDS);
   const ky = useMemo(() => khoangSo(kyDS), [khoaKy]); // eslint-disable-line react-hooks/exhaustive-deps
-  const cungKy = useMemo(() => cungKyCua(kyDS), [khoaKy]); // eslint-disable-line react-hooks/exhaustive-deps
   const [dauUrl] = useState(() => ch.dau ?? congNoTuUrl(docThamSoMan(ch.man)));
   const [the, setThe] = useState<TheCongNo>(dauUrl.the);
   // Mốc tuổi đang lọc. Tách khỏi `the`: hai bộ lọc CHỒNG nhau được ("vượt hạn mức" + "trễ trên 60 ngày").
@@ -75,8 +75,8 @@ export function useTrangCongNo<S extends TomTatCongNo>(
   const [size, setSize] = useState(ch.coTrang);
   const { trang: page, datTrang } = useTrangTheoKhoa(JSON.stringify([the, tuoi, timTre, loc, ky.tu, ky.den, size, sx]));
 
+  const boSapXep = useCallback(() => setSx(null), []);
   const [data, setData] = useState<S | null>(null);
-  const [dataCung, setDataCung] = useState<S | null>(null);
   // Bộ lọc ĐÃ SINH RA `data` — câu trả lời cũ có thể về sau khi ô tìm / nút đã đổi.
   const [ttData, setTtData] = useState<TrangThaiCongNo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,17 +89,11 @@ export function useTrangCongNo<S extends TomTatCongNo>(
     const lan = ++lanTai.current;
     const tt = { the, tuoi, tim: timTre, loc };
     setLoading(true);
-    const chinh = c.goi(token, { ...thamSoCongNo(tt, ky), page, size, sap_xep: sx?.cot, chieu: sx?.chieu });
-    const cung = cungKy
-      ? // Lời cùng kỳ chỉ đọc các số tổng: `chi_tong` để máy chủ khỏi dựng dòng.
-        c.goi(token, { ...thamSoCongNo(tt, cungKy), page: 1, size: 1, chi_tong: true }).catch(() => null)
-      : Promise.resolve(null);
-    Promise.all([chinh, cung])
-      .then(([r, rc]) => {
+    c.goi(token, { ...thamSoCongNo(tt, ky), page, size, sap_xep: sx?.cot, chieu: sx?.chieu })
+      .then((r) => {
         if (lan !== lanTai.current) return;
         setData(r);
         setTtData(tt);
-        setDataCung(rc);
         setLoi(null);
         // Máy chủ kẹp trang về trang cuối khi danh sách co lại.
         if (r.page !== page) datTrang(r.page);
@@ -108,14 +102,13 @@ export function useTrangCongNo<S extends TomTatCongNo>(
         if (lan !== lanTai.current) return;
         setData(null);
         setTtData(null);
-        setDataCung(null);
         setLoi(e instanceof ApiError ? e.message : c.chuLoi);
       })
       .finally(() => {
         if (lan === lanTai.current) setLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, the, tuoi, timTre, loc, ky, cungKy, page, size, sx]);
+  }, [token, the, tuoi, timTre, loc, ky, page, size, sx]);
 
   useEffect(() => {
     load();
@@ -170,11 +163,11 @@ export function useTrangCongNo<S extends TomTatCongNo>(
     sx,
     /** Bấm tiêu đề cột: cùng cột thì đảo chiều. */
     datSapXep: (cot: CotSapXepCongNo) => setSx((cu) => doiSapXep(cu, cot)),
+    /** Về thứ tự mặc định (còn nợ giảm dần). */
+    boSapXep,
     data,
     /** Bộ lọc (nhóm nút, mốc tuổi, ô tìm, bộ lọc nâng cao) của lượt tải đã sinh ra `data`. */
     ttData,
-    /** Số cùng kỳ năm trước — null khi đã tắt so sánh hoặc lời gọi cùng kỳ hỏng. */
-    dataCung: cungKy ? dataCung : null,
     demThe,
     loading,
     loi,

@@ -1,22 +1,37 @@
-/** Ngăn phiếu chi: dòng "Yêu cầu mua" (mã yêu cầu mua nguồn của đơn) — lối liên thông về màn Yêu
- *  cầu mua hàng; không có quyền xem màn đó thì chỉ hiện mã, không thành link. */
-import { render, screen } from "@testing-library/react";
+/** Ngăn phiếu chi kiểu 3 (phương án A): cột thuộc tính bên phải, bảng đối chiếu đợt giao, dòng
+ *  "Yêu cầu mua" (mã yêu cầu mua nguồn của đơn) — lối liên thông về màn Yêu cầu mua hàng; không có
+ *  quyền xem màn đó thì chỉ hiện mã, không thành link. */
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { phieu } from "./phieuMau";
 
 const P = phieu({
-  id: 7, source_type: "purchase_request", purchase_request_id: 3, purchase_request_code: "DMH-261002-K4P1",
-  payment_stage: "advance", source_request_codes: ["YC-2609-01", "YC-2609-07"],
+  id: 7, doc_no: "PC00018", code: "UNC-261007-MD21", source_type: "purchase_request", purchase_request_id: 3,
+  purchase_request_code: "DMH-261002-K4P1", payment_stage: "advance", source_request_codes: ["YC-2609-01", "YC-2609-07"],
 });
+
+const DOT = phieu({
+  id: 8, doc_no: "PC00019", code: "UNC-261007-AB12", source_type: "purchase_request", purchase_request_id: 3,
+  purchase_request_code: "DMH-261002-K4P1", payment_stage: "partial", delivery_id: 41, delivery_seq_no: 1,
+  voucher_type: "bank_transfer", supplier_name: "Công ty TNHH Thương mại Giấy An Phát",
+  beneficiary_account_holder: "CONG TY TNHH TM GIAY AN PHAT", beneficiary_bank_name: "Techcombank",
+  beneficiary_account_number: "19028765432019", beneficiary_bank_branch: "CN Tân Bình",
+  amount: 31_817_000, amount_vnd: 31_817_000, attachment_count: 0, truoc_do: 0, con_no_sau: 74_239_000,
+});
+
+/** Chuyển khoản mà thiếu hết thông tin tài khoản (phiếu cũ). */
+const TRONG = { ...DOT, id: 9, beneficiary_bank_name: null, beneficiary_account_number: null, beneficiary_bank_branch: null };
+
+const voucher = vi.fn(async (_t: string, id: number) => [DOT, TRONG].find((x) => x.id === id) ?? P);
 
 vi.mock("../../../../auth/useAuth", () => ({ useAuth: () => ({ token: "token-test" }) }));
 vi.mock("../../../../api/client", async (goc) => ({
   ...(await goc<typeof import("../../../../api/client")>()),
   api: {
     accounting: {
-      voucher: vi.fn(async () => P),
+      voucher: (t: string, id: number) => voucher(t, id),
       voucherAttachments: vi.fn(async () => ({ items: [] })),
     },
     purchaseRequests: { get: vi.fn(() => new Promise(() => {})) },
@@ -27,7 +42,53 @@ import { VouchersDrawer } from "./VouchersDrawer";
 
 const QUYEN = { lap: true, huy: true, in: true, xemDonMua: false };
 
-describe("VouchersDrawer — Yêu cầu mua nguồn", () => {
+describe("VouchersDrawer — kiểu 3", () => {
+  it("cột thuộc tính bên phải có Người nhận tiền và Mã hệ thống; số tiền làm tiêu đề", async () => {
+    render(<VouchersDrawer dau={DOT} eventTick={0} quyen={QUYEN} onDong={() => {}} onDoi={() => {}}
+      onMoPhieuThu={() => {}} />);
+    const cot = screen.getByRole("complementary", { name: "Thuộc tính" });
+    expect(within(cot).getByText("Người nhận tiền")).toBeInTheDocument();
+    expect(within(cot).getByText("Công ty TNHH Thương mại Giấy An Phát")).toBeInTheDocument();
+    expect(within(cot).getByText("Chủ tài khoản nhận")).toBeInTheDocument();
+    expect(within(cot).getByText("Mã hệ thống")).toBeInTheDocument();
+    expect(within(cot).getByText("UNC-261007-AB12")).toBeInTheDocument();
+    expect(within(cot).getByText("CN Tân Bình")).toHaveClass("kt-the");
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("31.817.000");
+    // Phiếu đã chi chưa có tệp: tab nói "chưa có" thay con số.
+    expect(screen.getByRole("tab", { name: /Chứng từ gốc/ })).toHaveTextContent("chưa có");
+  });
+
+  it("bảng đợt giao có Trả trước đó và Còn nợ từ máy chủ; số 0 là gạch mờ", async () => {
+    render(<VouchersDrawer dau={DOT} eventTick={0} quyen={QUYEN} onDong={() => {}} onDoi={() => {}}
+      onMoPhieuThu={() => {}} />);
+    expect(screen.getByText("Trả cho đợt giao")).toBeInTheDocument();
+    const bang = screen.getByRole("table");
+    const tieuDe = within(bang).getAllByRole("columnheader").map((th) => th.textContent);
+    expect(tieuDe).toEqual(["Đợt", "Hoá đơn", "Hàng", "Giá trị đợt", "Trừ cọc", "Trả trước đó", "Phiếu này", "Còn nợ"]);
+    await waitFor(() => expect(within(bang).getByText("74.239.000")).toBeInTheDocument());
+    expect(within(bang).getByText("31.817.000")).toBeInTheDocument();
+    const dong = within(bang).getAllByRole("row")[1];
+    expect(within(dong).getAllByText("–").every((o) => o.classList.contains("lds-mu3"))).toBe(true);
+  });
+
+  it("chuyển khoản thiếu hết thông tin tài khoản: không hiện nhãn Từ/Tới tài khoản trơ", async () => {
+    render(<VouchersDrawer dau={TRONG} eventTick={0} quyen={QUYEN} onDong={() => {}} onDoi={() => {}}
+      onMoPhieuThu={() => {}} />);
+    await waitFor(() => expect(voucher).toHaveBeenCalledWith("token-test", TRONG.id));
+    await screen.findByText("Chủ tài khoản nhận");
+    const cot = screen.getByRole("complementary", { name: "Thuộc tính" });
+    expect(within(cot).queryByText("Từ tài khoản")).toBeNull();
+    expect(within(cot).queryByText("Tới tài khoản")).toBeNull();
+  });
+
+  it("phiếu cọc: không bảng đợt, một câu giải thích", () => {
+    render(<VouchersDrawer dau={P} eventTick={0} quyen={QUYEN} onDong={() => {}} onDoi={() => {}}
+      onMoPhieuThu={() => {}} />);
+    expect(screen.getByText("Đặt cọc cho đơn mua")).toBeInTheDocument();
+    expect(screen.getByText("Phiếu đặt cọc không gắn đợt giao. Cọc trừ dần vào công nợ của cả đơn.")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
   it("mỗi mã yêu cầu mua là một link mở màn Yêu cầu mua hàng", async () => {
     const onMoYeuCau = vi.fn();
     render(<VouchersDrawer dau={P} eventTick={0} quyen={QUYEN} onDong={() => {}} onDoi={() => {}}

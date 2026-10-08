@@ -63,6 +63,8 @@ export function cocGoiY(purchase: PurchaseRequestRow): number {
 export function initialForm(
   purchase: PurchaseRequestRow,
   voucher?: PaymentVoucherRow | null,
+  /** Đợt bấm "Lập phiếu chi" ngay tại dòng đợt (ngăn đơn, tab Thanh toán) — gắn sẵn đúng đợt đó. */
+  dotId?: number | null,
 ): PaymentVoucherBaseInput {
   if (voucher) {
     return {
@@ -96,23 +98,25 @@ export function initialForm(
   // Chưa có đợt giao nào ⇒ hàng chưa về ⇒ đây chỉ có thể là tiền ĐẶT CỌC. Có đợt rồi thì mặc định
   // là THANH TOÁN, gắn sẵn đợt còn nợ và điền sẵn số công nợ.
   const chuaCoDot = purchase.deliveries.length === 0;
+  const dot = dotId != null && purchase.deliveries.some((d) => d.id === dotId) ? dotId : dotGoiY(purchase);
   return {
     voucher_type: "cash",
     payment_stage: chuaCoDot ? "advance" : "final",
-    delivery_id: chuaCoDot ? null : dotGoiY(purchase),
+    delivery_id: chuaCoDot ? null : dot,
     voucher_date: isoToday(),
     // DORMANT: hạn trả đã chuyển lên đợt giao, phiếu chi không còn hạn.
     planned_payment_date: null,
     amount: chuaCoDot
       ? cocGoiY(purchase)
-      : conNoDot(purchase, dotGoiY(purchase)),
+      : conNoDot(purchase, dot),
     currency: "VND",
     exchange_rate: 1,
     content: `Thanh toán ${purchase.code}${
       moTaDon(purchase) ? ` - ${moTaDon(purchase)}` : ""
     }`.slice(0, 500),
     invoice_number: null,
-    invoice_date: null,
+    // Chứng từ gốc thường mang ngày hôm nay — điền sẵn, chỉ gửi đi khi có Số chứng từ.
+    invoice_date: isoToday(),
     contract_number: null,
     company_bank_account_id: null,
     supplier_bank_account_id: null,

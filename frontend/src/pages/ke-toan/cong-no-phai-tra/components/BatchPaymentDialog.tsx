@@ -262,14 +262,20 @@ export function BatchPaymentDialog({
             { nhan: "Tổng phải trả", giaTri: tien(total), chot: true },
           ]}
         />
-        <div className="kt-lt">
-          <table aria-label="Các đợt sẽ trả">
+        <div className="lds-bang">
+          <table className="lds-g" style={{ minWidth: 460 }} aria-label="Các đợt sẽ trả">
+            <colgroup>
+              <col style={{ width: 130 }} />
+              <col />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 112 }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Đơn mua</th>
                 <th>Đợt</th>
                 <th>Hạn trả</th>
-                <th className="kt-so">Còn nợ</th>
+                <th className="n">Còn nợ</th>
               </tr>
             </thead>
             <tbody>
@@ -278,7 +284,7 @@ export function BatchPaymentDialog({
                   <td>{it.code}</td>
                   <td>{tenKhoan(it)}</td>
                   <td>{it.due_date ? ngay(it.due_date) : "Chưa đặt hạn"}</td>
-                  <td className="kt-so">{vietSo(it.con_no)}</td>
+                  <td className="n">{vietSo(it.con_no)}</td>
                 </tr>
               ))}
             </tbody>

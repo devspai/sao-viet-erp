@@ -36,153 +36,9 @@
   outline-offset: 2px;
 }
 
-/* ---------- đầu trang ---------- */
-.lsc-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2) var(--sp-3);
-  min-width: 0;
-}
-.lsc-title {
-  margin: 0;
-  font-size: var(--fs-xl);
-  font-weight: var(--fw-bold);
-  line-height: 1.3;
-}
-.lsc-count {
-  color: var(--ash);
-  font-size: var(--fs-sm);
-}
+/* ---------- tiện ích dùng trong hồ sơ ---------- */
 .lsc-spacer {
   flex: 1 1 auto;
-}
-
-/* Nút đổi góc nhìn (Theo máy / Theo lệnh) — đang bật màu rust. */
-.lsc-seg {
-  display: inline-flex;
-  border: 1px solid var(--rule);
-  border-radius: var(--r-3);
-  overflow: hidden;
-  background: var(--canvas);
-}
-.lsc-seg button {
-  padding: 6px 14px;
-  border: 0;
-  background: none;
-  color: var(--ash);
-  font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-bold);
-  cursor: pointer;
-}
-.lsc-seg button + button {
-  border-left: 1px solid var(--rule);
-}
-.lsc-seg button:hover {
-  background: var(--rule-hair);
-}
-.lsc-seg button[aria-pressed="true"] {
-  background: var(--rust);
-  color: var(--canvas);
-}
-
-/* ---------- hàng lọc ---------- */
-.lsc-loc {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  min-width: 0;
-}
-.lsc-search {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex: 1 1 280px;
-  max-width: 420px;
-  min-width: 0;
-  padding: 0 var(--sp-2) 0 var(--sp-3);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-3);
-  background: var(--canvas);
-  color: var(--ash-2);
-}
-.lsc-search input {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 7px 0;
-  border: 0;
-  outline: 0;
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--fs-sm);
-}
-.lsc-search:focus-within {
-  border-color: var(--ash-2);
-}
-.lsc-kbd {
-  padding: 1px 6px;
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-2);
-  font-family: var(--ff-sans);
-  font-size: var(--fs-2xs);
-  color: var(--ash-2);
-  white-space: nowrap;
-}
-.lsc-xoa {
-  display: inline-flex;
-  padding: 2px;
-  border: 0;
-  background: none;
-  color: var(--ash-2);
-  cursor: pointer;
-  border-radius: var(--r-2);
-}
-.lsc-xoa:hover {
-  background: var(--rule-hair);
-  color: var(--ink);
-}
-
-.lsc-field {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-width: 0;
-  padding: 0 var(--sp-2) 0 var(--sp-3);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-3);
-  background: var(--canvas);
-  font-size: var(--fs-sm);
-}
-.lsc-field > span {
-  color: var(--ash-2);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-bold);
-  white-space: nowrap;
-}
-.lsc-field select,
-.lsc-field input {
-  min-width: 0;
-  max-width: 240px;
-  padding: 7px 0;
-  border: 0;
-  outline: 0;
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--fs-sm);
-}
-.lsc-field.is-active {
-  border-color: var(--ink);
-}
-.lsc-field.is-sai {
-  border-color: var(--signal);
-}
-.lsc-field__sep {
-  color: var(--ash-2);
 }
 
 .lsc-link {
@@ -200,112 +56,7 @@
   text-decoration: underline;
 }
 
-/* ---------- tab ---------- */
-.lsc-tabs {
-  display: flex;
-  gap: var(--sp-1);
-  border-bottom: 1px solid var(--rule);
-  overflow-x: auto;
-  min-width: 0;
-}
-.lsc-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: -1px;
-  padding: var(--sp-2) var(--sp-3);
-  border: 1px solid transparent;
-  border-bottom: 0;
-  border-radius: var(--r-3) var(--r-3) 0 0;
-  background: none;
-  color: var(--ash);
-  font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-bold);
-  white-space: nowrap;
-  cursor: pointer;
-}
-.lsc-tab:hover {
-  background: var(--rule-hair);
-}
-.lsc-tab[aria-selected="true"] {
-  border-color: var(--rule);
-  background: var(--canvas);
-  color: var(--ink);
-}
-.lsc-tab__n {
-  color: var(--ash-2);
-  font-size: var(--fs-2xs);
-}
-
-/* ---------- dải bất thường (dải pill gộp) ---------- */
-.lsc-bt {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-1);
-  justify-self: start;
-  max-width: 100%;
-  padding: var(--sp-1);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-pill);
-  background: var(--canvas);
-}
-.lsc-bt__muc {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 3px 12px;
-  border: 1px solid transparent;
-  border-radius: var(--r-pill);
-  background: none;
-  color: var(--signal);
-  font: inherit;
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-bold);
-  white-space: nowrap;
-  cursor: pointer;
-}
-.lsc-bt__muc b {
-  font-size: var(--fs-md);
-}
-.lsc-bt__muc:hover {
-  background: var(--rule-hair);
-}
-.lsc-bt__muc:disabled {
-  color: var(--ash-2);
-  cursor: default;
-  background: none;
-}
-.lsc-bt__muc[aria-pressed="true"] {
-  background: var(--charcoal);
-  border-color: var(--charcoal);
-  color: var(--on-charcoal);
-}
-.lsc-bt--dang-tai .lsc-bt__muc b {
-  visibility: hidden;
-}
-
-/* ---------- khung bảng + bảng ---------- */
-.lsc-khung {
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  border: 1px solid var(--rule);
-  border-radius: var(--r-5);
-  background: var(--canvas);
-  min-width: 0;
-}
-/* Chân phân trang chuẩn đứng ngay sau khung: nối thành MỘT thẻ. */
-.lsc-khung:has(+ .ptdd) {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-.lsc-khung + .ptdd {
-  border: 1px solid var(--rule);
-  border-top: 0;
-  border-radius: 0 0 var(--r-5) var(--r-5);
-}
-
+/* ---------- bảng (các bảng con trong hồ sơ lệnh) ---------- */
 .lsc-bang {
   width: 100%;
   min-width: 760px;
@@ -344,38 +95,6 @@
 .lsc-bang tbody.is-mo {
   opacity: 0.55;
 }
-.lsc-bang__nhom td {
-  padding-top: 7px;
-  padding-bottom: 7px;
-  background: var(--paper);
-  color: var(--ash);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-bold);
-}
-.lsc-bang__nhom:hover td {
-  background: var(--paper) !important;
-}
-.lsc-bang__rong td {
-  padding: 0;
-}
-
-/* Mã lệnh bấm được (mở hồ sơ). */
-.lsc-ma {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  font-weight: var(--fw-bold);
-  white-space: nowrap;
-  text-decoration: underline;
-  text-decoration-color: var(--rule);
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-.lsc-ma:hover {
-  text-decoration-color: var(--ink);
-}
 .lsc-phu {
   display: block;
   color: var(--ash-2);
@@ -411,11 +130,18 @@
   border-radius: 50%;
   background: currentColor;
 }
-.lsc-pill--steel { background: var(--steel-soft); color: var(--steel); }
-.lsc-pill--moss { background: var(--moss-soft); color: var(--moss); }
-.lsc-pill--amber { background: var(--amber-soft); color: var(--amber-deep); }
-.lsc-pill--signal { background: var(--signal-soft); color: var(--signal); }
-.lsc-pill--off { background: var(--rule-hair); color: var(--ash-2); }
+/* Màu từ bộ chip trạng thái chung --tt-* (tokens.css). */
+.lsc-pill--steel { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.lsc-pill--sky { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); }
+.lsc-pill--indigo { background: var(--tt-cham-bg); color: var(--tt-cham-fg); }
+.lsc-pill--plum { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }
+.lsc-pill--teal { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); }
+.lsc-pill--moss { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.lsc-pill--amber { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.lsc-pill--rust { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.lsc-pill--signal { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.lsc-pill--gray { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
+.lsc-pill--off { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
 
 .lsc-tag {
   display: inline-flex;
@@ -491,22 +217,25 @@ button.lsc-tag:hover {
   .lsc {
     padding: var(--sp-3) var(--sp-4);
   }
-  .lsc-search {
-    flex-basis: 100%;
-    max-width: none;
-  }
-  .lsc-kbd {
-    display: none;
-  }
-  .lsc-field {
-    flex: 1 1 100%;
-  }
-  .lsc-field select,
-  .lsc-field input {
-    flex: 1 1 auto;
-    max-width: none;
-  }
-  .lsc-bt {
-    border-radius: var(--r-5);
-  }
+}
+
+/* ---------- lưới danh sách kiểu bảng tính (Hồ sơ lệnh) ----------
+   Màn Hồ sơ lệnh dùng khuôn `lds-*` của components/luoi-ds.css; `.lsc` vẫn giữ lề trang. Các lớp
+   `lsc-bang`, `lsc-pill`, `lsc-tag`... ở trên còn dùng ở các bảng/khối trong hồ sơ lệnh — KHÔNG xoá. */
+.lsc.lds {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* Dòng lệnh nhận tiêu điểm bàn phím: nền hover, không vòng rust của `.lsc :focus-visible`. */
+.lsc.lds .lds-g tbody tr.lds-dong:not(.is-chon):focus-visible {
+  outline: none;
+}
+.lsc.lds .lds-g tbody.is-mo {
+  opacity: 0.55;
+}
+/* Thẻ GẤP cạnh mã lệnh trong ô lưới: chữ thường nét, cách mã một khoảng. */
+.lsc.lds .lds-g .lsc-gap {
+  margin-left: 6px;
+  font-weight: 500;
 }

@@ -2819,6 +2819,27 @@ select.tg-input--sm {
 .rdx-cost .badge.signal .d {
   background: var(--signal);
 }
+/* Trạng thái phiếu — mỗi trạng thái một sắc từ bộ chip chung --tt-* (tokens.css). */
+.rdx-cost .badge.tt-slate { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
+.rdx-cost .badge.tt-slate .d { background: var(--tt-slate-dot); }
+.rdx-cost .badge.tt-vang { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.rdx-cost .badge.tt-vang .d { background: var(--tt-vang-dot); }
+.rdx-cost .badge.tt-xanh { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.rdx-cost .badge.tt-xanh .d { background: var(--tt-xanh-dot); }
+.rdx-cost .badge.tt-cyan { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); }
+.rdx-cost .badge.tt-cyan .d { background: var(--tt-cyan-dot); }
+.rdx-cost .badge.tt-la { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.rdx-cost .badge.tt-la .d { background: var(--tt-la-dot); }
+.rdx-cost .badge.tt-tim { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }
+.rdx-cost .badge.tt-tim .d { background: var(--tt-tim-dot); }
+.rdx-cost .badge.tt-ngoc { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); }
+.rdx-cost .badge.tt-ngoc .d { background: var(--tt-ngoc-dot); }
+.rdx-cost .badge.tt-cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.rdx-cost .badge.tt-cam .d { background: var(--tt-cam-dot); }
+.rdx-cost .badge.tt-do { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.rdx-cost .badge.tt-do .d { background: var(--tt-do-dot); }
+.rdx-cost .badge.tt-xam { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
+.rdx-cost .badge.tt-xam .d { background: var(--tt-xam-dot); }
 
 /* ---- LIST: bảng phiếu ---- */
 .rdx-cost .ptg-table thead th {

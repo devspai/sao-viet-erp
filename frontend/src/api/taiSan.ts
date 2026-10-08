@@ -102,6 +102,8 @@ export interface TaiSanRow {
   con_lai: number;
   /** Phần của `nguyen_gia` đến từ sửa chữa lớn — màn hiện dòng phụ "gồm sửa chữa lớn …". */
   tien_sua_chua_lon: number;
+  /** Mức trích của THÁNG HIỆN TẠI (giờ Việt Nam); 0 nếu đã khấu hao hết hoặc đã thôi dùng. */
+  muc_thang_nay: number;
 }
 
 export interface BienDong {
@@ -192,6 +194,22 @@ export interface DanhSach<T> {
   total: number;
 }
 
+/** Cách sắp + nhóm danh sách (tham số `nhom_theo`): mặc định `loai` — TSCĐ trước CCDC. */
+export type NhomTheo = "loai" | "bo_phan" | "khong";
+
+/** Tổng của một nhóm — cộng trên MỌI dòng khớp bộ lọc, không chỉ trang đang xem. */
+export interface NhomTaiSan {
+  /** `tscd` | `ccdc` (nhóm theo loại), id bộ phận dạng chuỗi, hoặc `chua_gan`. */
+  khoa: string;
+  ten: string;
+  so: number;
+  nguyen_gia: number;
+  hao_mon: number;
+  con_lai: number;
+  /** Tổng mức trích của tháng hiện tại. */
+  muc_thang: number;
+}
+
 /** Danh sách tài sản + dải số đầu màn — máy chủ cộng trên CẢ bộ lọc, không chỉ trang đang xem. */
 export interface DanhSachTaiSan extends DanhSach<TaiSanRow> {
   /** Số tài sản mỗi loại theo các bộ lọc KHÁC loại (nhóm nút Loại hiện số đếm). */
@@ -201,6 +219,12 @@ export interface DanhSachTaiSan extends DanhSach<TaiSanRow> {
   tong_gia: number;
   /** Tài sản đã thôi dùng tính 0. */
   tong_con_lai: number;
+  /** Tổng cột Đã khấu hao (khớp `hao_mon_luy_ke` từng dòng) theo bộ lọc. */
+  tong_hao_mon: number;
+  /** Tổng mức trích tháng hiện tại theo bộ lọc. */
+  tong_muc_thang: number;
+  /** Tổng theo nhóm, đúng thứ tự nhóm của `nhom_theo`; `[]` khi `nhom_theo = "khong"`. */
+  nhom: NhomTaiSan[];
 }
 
 function qs(params: Record<string, unknown>): string {

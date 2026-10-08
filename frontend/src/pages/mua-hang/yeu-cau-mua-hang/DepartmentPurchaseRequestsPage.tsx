@@ -2,8 +2,8 @@
 // Giữ ở đây: state + `load()` + effects liên thông (focus mã · seed từ Kho/Kế hoạch vật tư) +
 // handlers (`openCreate` · `openEdit` · `closeForm` · `setLine` · `save` · `confirmBoMon` ·
 // `confirmCancel`) + chỗ mount.
-// ⚠️ `SOURCE_STATUS_META` của màn này là BẢN RIÊNG, TRÙNG TÊN nhưng khác nội dung với bản ở
-// `mua-hang/phieu-mua-hang/` — đừng gộp, đừng import chéo.
+// Phương án 3 (07/10/2026): bảng `BangYeuCau` và chế độ "Xem theo: Từng món" dùng CHUNG với Mua hàng ›
+// Yêu cầu chờ xử lý; chữ + màu trạng thái lấy từ `trang-thai-mua.tsx`.
 import {
   useCallback,
   useEffect,
@@ -25,7 +25,6 @@ import { useKhiTickDoi } from "../../../hooks/useKhiTickDoi";
 import { RequestDetailDrawer } from "./components/RequestDetailDrawer";
 import { RequestFormDrawer } from "./components/RequestFormDrawer";
 import { RequestModals } from "./components/RequestModals";
-import { RequestsTable } from "./components/RequestsTable";
 import { RequestsToolbar } from "./components/RequestsToolbar";
 import { useNapTenDonVi } from "../../tenDonVi";
 import { thamSoKy } from "../../thanh-loc/ky-danh-sach";
@@ -38,6 +37,14 @@ import {
   useDieuKienYeuCau,
   type LocManYeuCau,
 } from "../loc-mua-hang/dieu-kien-yeu-cau";
+import { tabCoSo } from "../loc-mua-hang/ThanhCongCuMuaHang";
+import { TAB_CHINH_YEU_CAU } from "../loc-mua-hang/dieu-kien-yeu-cau";
+import { TT_YEU_CAU } from "../trang-thai-mua";
+import { useMoLenh } from "../mua-cho/OMuaCho";
+import { ChonCotBang, useCotBang } from "../luoi-mua-hang";
+import { BangMonYeuCau, COT_MON } from "../yeu-cau-chung/BangMonYeuCau";
+import { BangYeuCau, COT_YEU_CAU } from "../yeu-cau-chung/BangYeuCau";
+import { NutXemTheo, tabMon, useMonYeuCau, useXemTheo } from "../yeu-cau-chung/xem-theo";
 import { PAGE_SIZE } from "./shared/constants";
 import { cleanRequest, emptyRequest, noiDungCu, todayInputValue } from "./shared/helpers";
 import type {
@@ -46,12 +53,12 @@ import type {
   StatusFilter,
 } from "./shared/types";
 import "../../master-data.css";
-// Bảng tình trạng từng dòng mượn `.pay-table` của màn Công nợ — cùng loại bảng phụ trong hộp
-// thoại, không dựng bộ lớp thứ hai cho y hệt một việc.
+// Bảng tình trạng từng dòng trong hộp thoại mượn bộ lớp `.pay-*` của màn Công nợ (payables.css).
 import "../../payables.css";
 import "../../purchase.css";
 
 export function DepartmentPurchaseRequestsPage({
+  navigate,
   eventTick = 0,
   focusRequestCode = null,
   seedLines = null,
@@ -61,6 +68,7 @@ export function DepartmentPurchaseRequestsPage({
 }: DepartmentPurchaseRequestsPageProps) {
   const { token, user } = useAuth();
   const can = useCan();
+  const moLenh = useMoLenh(can("san_xuat", "read") ? navigate : undefined);
   // Nạp danh mục Đơn vị MỘT lần — bảng dòng hàng trong drawer chi tiết hiện TÊN, không hiện mã.
   useNapTenDonVi();
   // Huỷ HỘ người khác = ô THAO TÁC của chính màn này (05/10/2026) — máy chủ còn chặn yêu cầu nằm
@@ -89,11 +97,29 @@ export function DepartmentPurchaseRequestsPage({
   const setLocMan = (t: LocManYeuCau) => {
     setLocManGoc(t);
     setPage(1);
+    setMonPage(1);
   };
   const dieuKien = useDieuKienYeuCau();
+  // Cột hiện/ẩn/đổi chỗ của hai lưới — nhớ riêng cho màn này (cùng lưới ở Mua hàng nhớ khoá khác).
+  const cotYc = useCotBang("yc-yeu-cau", COT_YEU_CAU);
+  const cotMon = useCotBang("yc-mon", COT_MON);
   const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYeuCau(locMan.loc) });
   /** Số yêu cầu theo trạng thái hiển thị — máy chủ đếm sau lọc, trước tab (`tat_ca` = tab Tất cả). */
   const [demTheoTab, setDemTheoTab] = useState<Record<string, number> | null>(null);
+  // "Xem theo: Từng món" — bộ phận theo dõi món nào đã có đơn, đã về, đã nhập kho. Cùng ô tìm, kỳ và
+  // điều kiện với chế độ Yêu cầu; chip đổi sang tình trạng món, trang tính riêng.
+  const [xemTheo, setXemTheo] = useXemTheo("svn.yeu-cau-mua-hang.xem-theo", "yc");
+  const [tinhTrang, setTinhTrang] = useState("all");
+  const [monPage, setMonPage] = useState(1);
+  const mon = useMonYeuCau({
+    bat: xemTheo === "mon",
+    q: qDebounced,
+    tinhTrang,
+    page: monPage,
+    size,
+    khoaLoc,
+    tick: eventTick,
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +148,7 @@ export function DepartmentPurchaseRequestsPage({
    *  khoá luôn nút Xác nhận ở đây để người dùng không phải bấm mới biết. */
   const [boMon, setBoMon] = useState<BoMonState | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [drawerTab, setDrawerTab] = useState<"items" | "history">("items");
+  const [drawerTab, setDrawerTab] = useState<"items" | "orders" | "history">("items");
   const minNeededDate = useMemo(() => todayInputValue(), []);
 
   // Lấy lại từ `rows` (không lưu cả object) để sau khi Hủy cập nhật `rows` thì
@@ -144,6 +170,7 @@ export function DepartmentPurchaseRequestsPage({
   const doiCoTrang = (n: number) => {
     setSize(n);
     setPage(1);
+    setMonPage(1);
   };
 
   const load = useCallback(() => {
@@ -219,6 +246,7 @@ export function DepartmentPurchaseRequestsPage({
     if (!focusRequestCode) return;
     setQ(focusRequestCode);
     setStatus("all");
+    setXemTheo("yc");
     // Bỏ kỳ + điều kiện đang nhớ: yêu cầu cần soi có thể nằm ngoài kỳ / ngoài phòng đang lọc.
     setLocManGoc(LOC_MAN_YC_TRONG);
     setPage(1);
@@ -237,6 +265,7 @@ export function DepartmentPurchaseRequestsPage({
     setEditing(null);
     setForm({
       ...emptyRequest(seedHeader?.source_type ?? "kho"),
+      loai_mua: seedNguon?.length ? "cho_lsx" : (seedHeader?.loai_mua ?? "theo_yeu_cau"),
       related_document_type: seedHeader?.related_document_type ?? null,
       related_document_code: seedHeader?.related_document_code ?? null,
       needed_date: seedHeader?.needed_date ?? "",
@@ -260,6 +289,7 @@ export function DepartmentPurchaseRequestsPage({
     setEditing(row);
     setForm({
       source_type: row.source_type,
+      loai_mua: row.loai_mua,
       related_document_type: row.related_document_type,
       related_document_code: row.related_document_code,
       content: row.content ?? noiDungCu(row.purpose, row.note),
@@ -353,6 +383,7 @@ export function DepartmentPurchaseRequestsPage({
       );
       if (!editing) setTotal((current) => current + 1);
       closeForm();
+      mon.nap();
     } catch (err) {
       if (err instanceof ApiError) setFormError(err.message);
       else setFormError("Không tạo được yêu cầu mua hàng.");
@@ -380,6 +411,7 @@ export function DepartmentPurchaseRequestsPage({
       // bị bỏ ⇒ phiếu thành Đã hủy) — thay nguyên dòng, đừng vá tay từng ô.
       setRows((current) => current.map((row) => (row.id === saved.id ? saved : row)));
       setBoMon(null);
+      mon.nap();
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Không bỏ được món này khỏi yêu cầu.";
@@ -402,12 +434,26 @@ export function DepartmentPurchaseRequestsPage({
         current.map((row) => (row.id === saved.id ? saved : row)),
       );
       setCanceling(null);
+      mon.nap();
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError("Không hủy được yêu cầu mua hàng.");
       setCanceling(null);
     } finally {
       setActionBusy(null);
+    }
+  }
+
+  /** Bấm mã yêu cầu ở chế độ Từng món: yêu cầu có thể không nằm trong trang đang nạp ⇒ hỏi riêng
+   *  rồi ghép vào `rows` để ngăn chi tiết (và mọi thao tác trong đó) dùng chung một nguồn. */
+  async function moYeuCau(r: { request_id: number }) {
+    if (!token) return;
+    try {
+      const row = await api.departmentPurchaseRequests.get(token, r.request_id);
+      setRows((cu) => (cu.some((x) => x.id === row.id) ? cu.map((x) => (x.id === row.id ? row : x)) : [...cu, row]));
+      setSelectedId(row.id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Không mở được yêu cầu này.");
     }
   }
 
@@ -422,17 +468,30 @@ export function DepartmentPurchaseRequestsPage({
   }
 
   return (
-    <main className="md-page">
+    <main className="md-page mh-trang lds">
       <RequestsToolbar
-        loading={loading}
-        total={total}
+        tabs={
+          xemTheo === "yc"
+            ? tabCoSo(TAB_CHINH_YEU_CAU, TT_YEU_CAU, demTheoTab, status)
+            : tabMon(mon.data?.dem_theo_tab, tinhTrang)
+        }
+        tab={xemTheo === "yc" ? status : tinhTrang}
+        onTab={(v) => {
+          if (xemTheo === "yc") {
+            setStatus(v as StatusFilter);
+            setPage(1);
+          } else {
+            setTinhTrang(v);
+            setMonPage(1);
+          }
+        }}
+        ariaTabs={xemTheo === "yc" ? "Lọc trạng thái yêu cầu" : "Lọc tình trạng món"}
         q={q}
-        setQ={setQ}
-        status={status}
-        setStatus={setStatus}
-        demTheoTab={demTheoTab}
-        setPage={setPage}
-        load={load}
+        onQ={(v) => {
+          setQ(v);
+          setPage(1);
+          setMonPage(1);
+        }}
         canCreate={canCreate}
         openCreate={openCreate}
         ky={locMan.ky}
@@ -440,34 +499,63 @@ export function DepartmentPurchaseRequestsPage({
         dieuKien={dieuKien}
         loc={locMan.loc}
         onLoc={(loc) => setLocMan({ ...locMan, loc })}
+        ben={<NutXemTheo v={xemTheo} onDoi={setXemTheo} />}
+        chonCot={<ChonCotBang b={xemTheo === "yc" ? cotYc : cotMon} />}
+        banner={
+          error && (
+            <div className="banner banner--error" role="alert">
+              {error}
+            </div>
+          )
+        }
       />
 
-      {error && (
-        <div className="banner banner--error" role="alert">
-          {error}
-        </div>
+      {xemTheo === "yc" ? (
+        <BangYeuCau
+          cot={cotYc}
+          rows={rows}
+          loading={loading}
+          loi={listError}
+          onThuLai={load}
+          chonId={selectedId}
+          onChon={(row) => setSelectedId(row.id)}
+          coLoc={q.trim() !== "" || status !== "all" || khoaLoc !== "{}"}
+          onXoaLoc={() => {
+            setQ("");
+            setStatus("all");
+            setLocMan(LOC_MAN_YC_TRONG);
+          }}
+          goiYTrong="Bộ phận gửi yêu cầu vật tư sang Thu mua tại đây."
+          total={total}
+          page={page}
+          size={size}
+          onPage={setPage}
+          onSize={doiCoTrang}
+          onMoLenh={moLenh}
+        />
+      ) : (
+        <BangMonYeuCau
+          cot={cotMon}
+          rows={mon.data?.items ?? []}
+          loading={mon.loading}
+          loi={mon.loi}
+          onThuLai={mon.nap}
+          coLoc={q.trim() !== "" || tinhTrang !== "all" || khoaLoc !== "{}"}
+          onXoaLoc={() => {
+            setQ("");
+            setTinhTrang("all");
+            setLocMan(LOC_MAN_YC_TRONG);
+          }}
+          goiYTrong="Món trong các yêu cầu của bộ phận hiện ở đây, kèm đơn mua và tiến độ."
+          total={mon.data?.total ?? 0}
+          page={monPage}
+          size={size}
+          onPage={setMonPage}
+          onSize={doiCoTrang}
+          onMoYeuCau={moYeuCau}
+          onMoLenh={moLenh}
+        />
       )}
-
-      <RequestsTable
-        loading={loading}
-        listError={listError}
-        load={load}
-        rows={rows}
-        coLoc={q.trim() !== "" || status !== "all" || khoaLoc !== "{}"}
-        xoaLoc={() => {
-          setQ("");
-          setStatus("all");
-          setLocMan(LOC_MAN_YC_TRONG);
-        }}
-        page={page}
-        setPage={setPage}
-        total={total}
-        size={size}
-        onSize={doiCoTrang}
-        focusRequestCode={focusRequestCode}
-        selectedId={selectedId}
-        setSelectedId={setSelectedId}
-      />
 
       {selected && (
         <RequestDetailDrawer
@@ -481,6 +569,12 @@ export function DepartmentPurchaseRequestsPage({
           canUpdate={canUpdate}
           openEdit={openEdit}
           setCanceling={setCanceling}
+          onMoLenh={moLenh}
+          onLapDon={
+            navigate && can("thu_mua", "create")
+              ? (code) => navigate("mua-hang", { focusRequestCode: code, lapDonTuYeuCau: true })
+              : undefined
+          }
         />
       )}
 

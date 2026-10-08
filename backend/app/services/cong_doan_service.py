@@ -148,16 +148,17 @@ class CongDoanService(CatalogService):
         data["bac_bu_hao"] = sach
 
     def _kiem_to(self, data: dict, obj: CongDoan | None) -> list[int]:
-        """Danh sách tổ SẼ LƯU (vắng = giữ của bản ghi). Tổ MỚI thêm phải có thật trong cây tổ chức;
-        tổ đang lưu mà nay đã bị xoá thì để yên — form nạp lại đúng danh sách cũ, chặn là khoá luôn
-        đường sửa công đoạn đó."""
+        """Danh sách tổ SẼ LƯU (vắng = giữ của bản ghi). Tổ MỚI thêm phải là TỔ — nút lá trong khối
+        Sản xuất (07/10/2026; trước đó chấp nhận mọi phòng ban, kể cả nút cha). Tổ đang lưu mà nay
+        đã bị xoá / thành nút cha thì để yên — chặn là khoá luôn đường sửa công đoạn đó."""
         cu = list(obj.department_ids) if obj is not None else []
         if "department_ids" not in data:
             return cu
         ids = data["department_ids"]
         moi = {i for i in ids if i not in cu}
-        if moi and moi - {d.id for d in self.repo.phong_ban_tat_ca()}:
-            raise CongDoanValidationError("Không tìm thấy tổ phụ trách đã chọn.")
+        if moi and moi - {d.id for d in self.repo.phong_ban_tos()}:
+            raise CongDoanValidationError(
+                "Tổ phụ trách phải là tổ cuối trong cây tổ chức, không chọn phòng ban có tổ con.")
         return ids
 
     def _validate(self, data: dict, obj: CongDoan | None = None) -> None:
@@ -387,23 +388,14 @@ class CongDoanService(CatalogService):
         đây endpoint này đổ CẢ CHA LẪN CON, nên người khai chọn được "Xưởng in" (một tầng giữa)
         làm tổ phụ trách — và quỹ giờ-người ở bàn xếp lịch đếm chồng quân số của chính tổ con.
 
-        ⚠️ KHÔNG phá dữ liệu cũ: công đoạn đã trỏ nút cha thì GIỮ NGUYÊN giá trị đó, chỉ kèm nhãn
-        "(không còn là tổ)" để người khai biết mà sửa dần. Không tự xoá, không chặn lưu, không
-        đụng lệnh đang chạy — đổi định nghĩa mà đi dọn dữ liệu người ta là tự ý sửa số liệu vận
-        hành.
+        CHỈ nút lá, không ngoại lệ (07/10/2026). Trước đó nút cha đang được công đoạn trỏ tới vẫn
+        được kèm vào với nhãn "(không còn là tổ)" — người dùng không muốn thấy nút cha ở ô này.
+        Công đoạn còn trỏ nút cha thì ô chọn bày nó thành chip "không còn trong danh sách" để gỡ.
 
         Ở tầng service chứ không phải router (trước 15/08/2026 nó nằm trong
         `routers/cong_doan.list_phong_ban_options`, và router tự dựng hai repository).
         """
-        tos = self.repo.phong_ban_tos()
-        items = [{"id": d.id, "ma": d.code, "ten": d.name} for d in tos]
-        con_thieu = self.repo.department_ids_dang_dung() - {d.id for d in tos}
-        if con_thieu:
-            items.extend(
-                {"id": d.id, "ma": d.code, "ten": f"{d.name} (không còn là tổ)"}
-                for d in self.repo.phong_ban_tat_ca() if d.id in con_thieu
-            )
-        return items
+        return [{"id": d.id, "ma": d.code, "ten": d.name} for d in self.repo.phong_ban_tos()]
 
     # ⚠️ `dau_viec_options()` GỠ 18/09/2026 (mg `0320`): bảng "Đầu việc và định mức của tổ" đã
     #    biến khỏi drawer Công đoạn nên không còn dropdown nào cần đổ. Việc khoán của tổ nay đọc ở

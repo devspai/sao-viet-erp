@@ -83,10 +83,30 @@ function ve(data: TdsxTheoMayOut | null = DATA, onMo = vi.fn()) {
 }
 
 describe("TdsxTheoMay · bảng theo máy", () => {
-  it("⭐ nhóm theo đúng thứ máy chủ trả, nhóm tên rỗng ghi 'Chưa phân nhóm', có số đếm", () => {
+  it("⭐ sáu cột đúng thứ tự, cột Máy ghim", () => {
     ve();
-    const nhom = [...document.querySelectorAll(".lsc-bang__nhom td")].map((t) => t.textContent);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Máy", "Tình trạng", "Đang chạy", "Sản lượng tốt", "Kế hoạch xong", "Kế tiếp",
+    ]);
+    expect(document.querySelector(".lds-cuon")).toHaveAttribute("data-ghim", "1");
+  });
+
+  it("cột ẩn theo cotAn, thứ tự kéo thả theo thuTu", () => {
+    render(
+      <TdsxTheoMay data={DATA} dangTai={false} rong={<p>RỖNG</p>} onMo={() => {}}
+        cotAn={new Set(["san_luong"])} thuTu={["ke_tiep", "dang_chay"]} />,
+    );
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Máy", "Kế tiếp", "Đang chạy", "Tình trạng", "Kế hoạch xong",
+    ]);
+  });
+
+  it("⭐ nhóm theo đúng thứ máy chủ trả (hàng lds-so), nhóm tên rỗng ghi 'Chưa phân nhóm', có số đếm", () => {
+    ve();
+    const nhom = [...document.querySelectorAll("tr.lds-so:not(.tdsx-trong) td")].map((t) => t.textContent);
     expect(nhom).toEqual(["Chưa có máy1 bước", "Máy in2 máy", "Chưa phân nhóm1 máy"]);
+    // Hàng nhóm trải đủ số cột đang hiện.
+    expect(document.querySelector("tr.lds-so td")).toHaveAttribute("colspan", "6");
   });
 
   it("⭐ dòng Chưa có máy: cột Máy '–', Chờ xếp máy, giờ bắt đầu kế hoạch", () => {
@@ -131,7 +151,7 @@ describe("TdsxTheoMay · bảng theo máy", () => {
     expect(onMo).toHaveBeenCalledWith(42);
   });
 
-  it("⭐ mẻ lẫn đơn vị: mỗi đơn vị một dòng, KHÔNG thanh, KHÔNG cộng; ghép ghi '(cả bài)'", () => {
+  it("⭐ mẻ lẫn đơn vị: mỗi đơn vị một mẩu ngang, KHÔNG thanh, KHÔNG cộng; ghép ghi '(cả bài)'", () => {
     ve();
     const tr = screen.getByText("Máy in B").closest("tr")!;
     expect(within(tr).getByText(/^200 /)).toBeInTheDocument();
@@ -139,7 +159,18 @@ describe("TdsxTheoMay · bảng theo máy", () => {
     expect(within(tr).queryByRole("progressbar")).toBeNull();
     expect(tr.textContent).not.toContain("204");
     expect(within(tr).getByText("(cả bài)")).toBeInTheDocument();
-    expect(within(tr).getByText("Hỏng — chờ sửa").className).toContain("lsc-pill--signal");
+    expect(within(tr).getByText("Hỏng — chờ sửa").className).toContain("lds-chip--do");
+  });
+
+  it("ô Đang chạy và Sản lượng tốt có title đủ chữ (ô cắt '…')", () => {
+    ve();
+    const tr = screen.getByText("Máy in A").closest("tr")!;
+    const tds = tr.querySelectorAll("td");
+    expect(tds[2]).toHaveAttribute("title", "LSX26-0031 - In - Hộp thuốc");
+    expect(tds[3].getAttribute("title")).toMatch(/^480 trên 1\.000/);
+    const trGhep = screen.getByText("Máy in B").closest("tr")!;
+    expect(trGhep.querySelectorAll("td")[2]).toHaveAttribute("title", "Bài GB26-0002 - In");
+    expect(trGhep.querySelectorAll("td")[3].getAttribute("title")).toContain("(cả bài)");
   });
 
   it("⭐ máy rảnh gập ở cuối: '2 máy đang trống', bấm mới hiện", async () => {
@@ -152,9 +183,9 @@ describe("TdsxTheoMay · bảng theo máy", () => {
     expect(screen.getByText("Máy cắt 1")).toBeInTheDocument();
   });
 
-  it("chưa có lượt nào ⇒ khung xám; rỗng ⇒ ô báo của trang", () => {
+  it("chưa có lượt nào ⇒ hàng xương; rỗng ⇒ ô báo của trang", () => {
     const { unmount } = render(<TdsxTheoMay data={null} dangTai rong={<p>RỖNG</p>} onMo={() => {}} />);
-    expect(document.querySelector(".khsx-skel")).not.toBeNull();
+    expect(document.querySelector(".empty-state__skel-row")).not.toBeNull();
     unmount();
     ve({ nhom: [], may_trong: [], bat_thuong: DEM });
     expect(screen.getByText("RỖNG")).toBeInTheDocument();

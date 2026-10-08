@@ -1,19 +1,23 @@
-/** MỘT độ rộng cho mọi ngăn mở từ bên phải của 5 màn kế toán (đặc tả A.5).
+/** MỘT độ rộng cho MỌI ngăn mở từ bên phải của cả hệ thống (kế toán, đơn hàng, giao hàng, tồn kho…).
  *
  *  Độ rộng là biến CSS `--kt-ngan-w` đặt ở gốc tài liệu: kéo ngăn nào thì mọi ngăn đổi theo, kể cả
  *  ngăn chồng (cùng độ rộng nên che kín ngăn dưới). Nhớ trong localStorage một khoá duy nhất; số
- *  lưu rác thì về 920px. Mọi số (kể cả mặc định) đều kẹp trong [480, sát thanh bên].
+ *  lưu rác thì về mặc định.
+ *
+ *  07/10/2026: nới mặc định 920 → 1180px (ngăn Tồn kho cần hai cột: dự báo + ảnh/tem). Đổi luôn khoá
+ *  lưu — số cũ 920 nằm trong localStorage của mọi người, giữ khoá cũ thì không ai thấy chuẩn mới.
+ *  Mọi số (kể cả mặc định) đều kẹp trong [480, sát thanh bên].
  */
-export const DO_RONG_MAC_DINH = 920;
+export const DO_RONG_MAC_DINH = 1180;
 export const DO_RONG_MIN = 480;
-export const KHOA_LUU = "kt-ngan-rong";
+export const KHOA_LUU = "kt-ngan-rong-2";
 
 /** Rộng nhất = sát thanh bên (232px). Màn hẹp hơn 712px thì vẫn giữ tối thiểu 480px. */
 export function doRongToiDa(): number {
   return Math.max(DO_RONG_MIN, window.innerWidth - 232);
 }
 
-/** Mặc định 920px nhưng không vượt mức trần của màn hiện tại (màn 1024px ⇒ 792px). */
+/** Mặc định 1180px nhưng không vượt mức trần của màn hiện tại (màn 1366px ⇒ 1134px). */
 function macDinh(): number {
   return Math.min(DO_RONG_MAC_DINH, doRongToiDa());
 }
