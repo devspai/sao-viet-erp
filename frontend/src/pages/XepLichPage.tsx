@@ -1,16 +1,26 @@
-// XẾP LỊCH 3 — BÀN XẾP LỊCH CẤP LỆNH SẢN XUẤT (BOTTOM DOCK STUDIO LAYOUT)
+// XẾP LỊCH — bàn xếp lịch cấp LỆNH SẢN XUẤT, phương án A cải tiến (08/10/2026).
+// Mockup `docs/mockups/xep-lich-A-cai-tien.html` mục 1–7: đầu màn một hàng (khoảng ngày, tìm, Lọc,
+// Hiển thị, khay), băng tóm tắt + lọc nhanh, lưới không cột nhãn, khay Chờ xếp lịch bên phải, băng
+// Hoàn tác + Ctrl Z, ngăn chi tiết 1180px. Lọc + đếm ở MÁY CHỦ; chỉ `bat_dau_at` được ghi.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Calendar, ChevronLeft, ChevronRight, RotateCcw, Send } from "lucide-react";
+import {
+  Building2, CalendarDays, ChevronLeft, ChevronRight, CircleDot, Clock, Inbox, RotateCcw, Search, Send,
+  SlidersHorizontal, Users, X, Zap, FileText, Package, Printer, Hash,
+} from "lucide-react";
+
 import {
   ApiError, api,
-  type XlChiTiet as XlChiTietData, type XlDong, type XlGoiPhatHanh, type XlThe,
+  type XlChiTiet, type XlCum, type XlDong, type XlGoiPhatHanh, type XlLien, type XlLocLich, type XlNgayDacBiet,
+  type XlThe, type XlVatTu,
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useDebounced } from "../utils/useDebounced";
-import { XlChiTiet } from "./XlChiTiet";
-import { XlGantt } from "./XlGantt";
-import { XlHangCho } from "./XlHangCho";
+import { XlKhay } from "./XlKhay";
+import { XlKhoangNgay } from "./XlKhoangNgay";
+import { XlLuoi, type HienThi } from "./XlLuoi";
+import { XlNgan } from "./XlNgan";
 import {
   LOC_HANG_CHO_TRONG,
   MAN_XEP_LICH,
@@ -21,129 +31,210 @@ import {
   useDieuKienHangCho,
 } from "./loc-san-xuat/dieu-kien-hang-cho";
 import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import type { DieuKien } from "./thanh-loc/thanh-loc";
 import { thamSoKy } from "./thanh-loc/ky-danh-sach";
 import { useLocMan } from "./thanh-loc/useLocMan";
 import {
-  NGAY_NHAP_MAX, NGAY_NHAP_MIN, dauTuan, gioPhut, loiKhoangNgay, phutChayTrongCuaSo, soNgayGiua, themNgay, treHan,
+  dauTuan, gioChu, moc, nhanKhoang, phutChayTrongCuaSo, soNgayGiua, themNgay, thuNgayGio,
 } from "./xlShared";
-import "./xep-lich.css";
+import "./ke-toan/ke-toan.css";
+import "./xep-lich-a.css";
 
 const MOI_TRANG = 20;
+const KHOA_HIEN = "xep-lich.hien-thi";
+const HIEN_GOC: HienThi = {
+  thoang: false, khach: true, may: true, sl: false, gioChay: true, soTo: false, hienXong: false, vatTu: true,
+};
+
+/** Lọc của LƯỚI (khác lọc khay). Trạng thái là nhóm người dùng hiểu, máy chủ nhận mã thật. */
+type LocLuoi = { tt?: string[]; khach?: string; gap?: string };
+const TT_NHOM: Record<string, string[]> = {
+  chua: ["san_sang", "da_lap_ke_hoach"],
+  phat: ["da_phat_hanh"],
+  dong: ["da_dong"],
+};
+
+type Nhanh = "tre" | "muon" | "chua";
+type BuocLui = { lsxId: number; ma: string; truoc: string | null };
+type Bao = { chu: string; loi?: boolean; hoanTac?: boolean };
+
+function docHien(): HienThi {
+  try {
+    const s = window.localStorage.getItem(KHOA_HIEN);
+    return s ? { ...HIEN_GOC, ...JSON.parse(s) } : HIEN_GOC;
+  } catch {
+    return HIEN_GOC;
+  }
+}
+
+function laONhap(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+}
+
+/** Giờ một ca (phút) — Shift + mũi tên dời đúng ngần này. */
+function phutCa(ca: XlLien["cac_ca"]): number {
+  const c = ca[0];
+  if (!c) return 480;
+  const p = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
+  const d = p(c.den) - p(c.tu);
+  return d > 0 ? d : d + 1440;
+}
 
 export function XepLichPage({
   eventTick = 0,
   onBadgeStale,
+  navigate,
 }: {
   eventTick?: number;
   onBadgeStale?: () => void;
+  navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
   const { token } = useAuth();
   const can = useCan();
   const suaDuoc = can("xep_lich", "update");
   const duyetDuoc = can("xep_lich", "approve");
 
-  const [soNgay, setSoNgay] = useState<number>(7);
+  // ---------------------------------------------------------------- khoảng ngày
   const [tu, setTu] = useState<string>(() => dauTuan(new Date()));
-  const den = useMemo(() => themNgay(tu, soNgay - 1), [tu, soNgay]);
-
-  // Ô chọn KHOẢNG ngày tự do. Gõ vào bản nháp `nhapTu/nhapDen`, bấm Áp dụng mới đổi cửa sổ — đổi
-  // theo từng phím thì mỗi ô ngày gõ dở là một lượt `/lich` với khoảng rác.
+  const [den, setDen] = useState<string>(() => themNgay(dauTuan(new Date()), 13));
+  const soNgay = soNgayGiua(tu, den);
   const [moKhoang, setMoKhoang] = useState(false);
-  const [nhapTu, setNhapTu] = useState(tu);
-  const [nhapDen, setNhapDen] = useState(den);
-  const nhanKhoangRef = useRef<HTMLSpanElement>(null);
-  const oKhoangRef = useRef<HTMLFormElement>(null);
-  const loiKhoang = loiKhoangNgay(nhapTu, nhapDen);
-  const batKhoang = () => {
-    if (!moKhoang) { setNhapTu(tu); setNhapDen(den); }
-    setMoKhoang(!moKhoang);
+  const luiTien = (huong: 1 | -1) => {
+    setTu(themNgay(tu, huong * soNgay));
+    setDen(themNgay(den, huong * soNgay));
   };
+  const homNay = () => {
+    const t2 = dauTuan(new Date());
+    setTu(t2);
+    setDen(themNgay(t2, soNgay - 1));
+  };
+
+  // ---------------------------------------------------------------- lọc lưới
+  const [timLuoi, setTimLuoi] = useState("");
+  const timLuoiCho = useDebounced(timLuoi, 300);
+  const [locLuoi, setLocLuoi] = useState<LocLuoi>({});
+  const [nhanh, setNhanh] = useState<Nhanh | null>(null);
+  const oTimRef = useRef<HTMLInputElement>(null);
+
+  const [hien, setHienGoc] = useState<HienThi>(docHien);
+  const setHien = (h: HienThi) => {
+    setHienGoc(h);
+    try { window.localStorage.setItem(KHOA_HIEN, JSON.stringify(h)); } catch { /* trình duyệt chặn lưu thì thôi */ }
+  };
+  const [moHien, setMoHien] = useState(false);
+  const hienRef = useRef<HTMLDivElement>(null);
+  const nutHienRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (!moKhoang) return;
+    if (!moHien) return;
     const ngoai = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (!oKhoangRef.current?.contains(t) && !nhanKhoangRef.current?.contains(t)) setMoKhoang(false);
+      if (!hienRef.current?.contains(t) && !nutHienRef.current?.contains(t)) setMoHien(false);
     };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMoKhoang(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMoHien(false); };
     document.addEventListener("mousedown", ngoai);
     document.addEventListener("keydown", esc);
     return () => {
       document.removeEventListener("mousedown", ngoai);
       document.removeEventListener("keydown", esc);
     };
-  }, [moKhoang]);
+  }, [moHien]);
 
+  // ---------------------------------------------------------------- dữ liệu lưới
   const [dong, setDong] = useState<XlDong[]>([]);
-  // Ngày không làm việc của ĐÚNG cửa sổ đang xem — lễ, làm bù, cấu hình tuần. Đi kèm `/lich` chứ
-  // không hỏi riêng: cùng một lượt, cùng một nguồn với lịch đang vẽ.
   const [ngayNghi, setNgayNghi] = useState<string[]>([]);
+  const [ngayDacBiet, setNgayDacBiet] = useState<XlNgayDacBiet[]>([]);
+  const [cacCa, setCacCa] = useState<XlLien["cac_ca"]>([]);
+  const [cum, setCum] = useState<XlCum[]>([]);
+  const [dem, setDem] = useState<XlLien["dem"]>({ tre: 0, muon: 0, chua: 0 });
+  const [khachLoc, setKhachLoc] = useState<XlLien["khach_loc"]>([]);
+  const [vatTu, setVatTu] = useState<Map<number, XlVatTu>>(new Map());
+
+  // ---------------------------------------------------------------- khay
+  const [khayMo, setKhayMo] = useState(() => !window.matchMedia("(max-width: 900px)").matches);
   const [the, setThe] = useState<XlThe[]>([]);
   const [tongCho, setTongCho] = useState(0);
   const [tim, setTim] = useState("");
   const timCho = useDebounced(tim, 300);
   const [trang, setTrang] = useState(1);
-  // Kỳ + điều kiện của HÀNG CHỜ (lưới Gantt giữ ô Từ/Đến riêng) — ghi lên URL, nhớ theo màn.
+  const [taiCho, setTaiCho] = useState(false);
   const [locCho, setLocCho] = useLocMan(MAN_XEP_LICH, LOC_HANG_CHO_TRONG, locHangChoTuUrl, locHangChoLenUrl);
   const dieuKienCho = useDieuKienHangCho();
   const khoaLocCho = JSON.stringify({ ...thamSoKy(locCho.ky), ...thamSoLocHangCho(locCho.loc) });
+  const [keoTuKhay, setKeoTuKhay] = useState<XlThe | null>(null);
 
+  // ---------------------------------------------------------------- ngăn
   const [chonId, setChonId] = useState<number | null>(null);
-  const [ct, setCt] = useState<XlChiTietData | null>(null);
+  const [ct, setCt] = useState<XlChiTiet | null>(null);
   const [taiCt, setTaiCt] = useState(false);
+  const [goi, setGoi] = useState<XlGoiPhatHanh | null>(null);
   const [dangGhi, setDangGhi] = useState(false);
-  const [taiCho, setTaiCho] = useState(false);
+  const [chePrompt, setChePrompt] = useState<"thu_hoi" | "cap_nhat" | null>(null);
+  const [lyDo, setLyDo] = useState("");
+  const [loiLyDo, setLoiLyDo] = useState<string | null>(null);
 
-  const [loi, setLoi] = useState<string | null>(null);
-  const [bao, setBao] = useState<string | null>(null);
-  const [keoTuHangCho, setKeoTuHangCho] = useState<number | null>(null);
+  // ---------------------------------------------------------------- băng báo + hoàn tác
+  const [bao, setBao] = useState<Bao | null>(null);
+  const [lui, setLui] = useState<BuocLui[]>([]);
+  const luiRef = useRef(lui);
+  luiRef.current = lui;
+  useEffect(() => {
+    if (!bao) return;
+    const h = window.setTimeout(() => setBao(null), bao.loi ? 10_000 : 8_000);
+    return () => window.clearTimeout(h);
+  }, [bao]);
+
   const [nhip, setNhip] = useState(0);
   const lamMoi = useCallback(() => setNhip((n) => n + 1), []);
-  // Đọc trong callback ghi mà không đưa vào deps — `datMoc` đổi danh tính là effect kéo thả của
-  // Gantt gỡ/gắn lại listener giữa chừng.
   const tickRef = useRef(eventTick);
   tickRef.current = eventTick;
   const theRef = useRef(the);
   theRef.current = the;
+  const dongRef = useRef(dong);
+  dongRef.current = dong;
 
-  const hetGio = useRef<number | null>(null);
-  useEffect(() => {
-    if (!bao) return;
-    if (hetGio.current) window.clearTimeout(hetGio.current);
-    hetGio.current = window.setTimeout(() => setBao(null), 6000);
-    return () => {
-      if (hetGio.current) window.clearTimeout(hetGio.current);
-    };
-  }, [bao]);
-
-  // Màn hẹp mở ra là hàng chờ đã THU GỌN sẵn: ở ≤768px nó là ngăn kéo phủ lên lưới (§78
-  // `responsive.css`), để mở sẵn thì người dùng vào màn Xếp lịch mà không thấy cái lịch nào.
-  // Chỉ lấy lúc dựng — sau đó là quyền của người dùng, đổi bề ngang không giật cánh cửa lại.
-  const [choCollapsed, setChoCollapsed] = useState(
-    () => window.matchMedia("(max-width: 768px)").matches,
-  );
-  // Hộp thoại lý do dùng CHUNG cho hai việc trái chiều nhau — rút gói về (`thu_hoi`) và đẩy lịch
-  // mới xuống (`cap_nhat`). Cùng một ô nhập, cùng một ngưỡng 3 ký tự; khác chữ và khác đích.
-  const [chePrompt, setChePrompt] = useState<"thu_hoi" | "cap_nhat" | null>(null);
-  const [lyDo, setLyDo] = useState("");
-  const [loiLyDo, setLoiLyDo] = useState<string | null>(null);
-  const [goi, setGoi] = useState<XlGoiPhatHanh | null>(null);
+  const thamSoLuoi = useMemo<XlLocLich>(() => ({
+    tim: timLuoiCho || undefined,
+    trang_thai: locLuoi.tt?.flatMap((k) => TT_NHOM[k] ?? []),
+    khach_id: locLuoi.khach ? Number(locLuoi.khach) : undefined,
+    gap: locLuoi.gap ? true : undefined,
+    nhanh: nhanh ?? undefined,
+  }), [timLuoiCho, locLuoi, nhanh]);
+  const khoaLuoi = JSON.stringify(thamSoLuoi);
 
   // ---------------------------------------------------------------- nạp
   useEffect(() => {
     if (!token) return;
     let huy = false;
     api.xepLich
-      .lich(token, { tu, den })
+      .lich(token, { tu, den, ...(JSON.parse(khoaLuoi) as XlLocLich) })
       .then((r) => {
         if (huy) return;
         setDong(r.dong);
         setNgayNghi(r.ngay_nghi ?? []);
+        setNgayDacBiet(r.ngay_dac_biet ?? []);
+        setCacCa(r.cac_ca ?? []);
+        setCum(r.cum ?? []);
+        setDem(r.dem);
+        setKhachLoc(r.khach_loc ?? []);
       })
-      .catch((e) => !huy && setLoi(e instanceof ApiError ? e.message : "Không tải được lịch."));
-    return () => {
-      huy = true;
-    };
-  }, [token, tu, den, eventTick, nhip]);
+      .catch((e) => !huy && setBao({ chu: e instanceof ApiError ? e.message : "Không tải được lịch.", loi: true }));
+    return () => { huy = true; };
+  }, [token, tu, den, khoaLuoi, eventTick, nhip]);
+
+  // Đèn vật tư: hỏi riêng sau khi có dòng — câu phụ, hỏng thì lưới vẫn vẽ.
+  const idsVatTu = useMemo(
+    () => dong.filter((d) => d.trang_thai !== "da_dong").map((d) => d.lsx_id).sort((a, b) => a - b).join(","),
+    [dong],
+  );
+  useEffect(() => {
+    if (!token || !hien.vatTu || !idsVatTu) { setVatTu(new Map()); return; }
+    let huy = false;
+    api.xepLich.vatTu(token, idsVatTu.split(",").map(Number))
+      .then((r) => !huy && setVatTu(new Map(r.map((v) => [v.lsx_id, v]))))
+      .catch(() => !huy && setVatTu(new Map()));
+    return () => { huy = true; };
+  }, [token, hien.vatTu, idsVatTu]);
 
   useEffect(() => {
     if (!token) return;
@@ -156,117 +247,119 @@ export function XepLichPage({
         setThe(r.dong);
         setTongCho(r.tong);
       })
-      .catch((e) => !huy && setLoi(e instanceof ApiError ? e.message : "Không tải được hàng chờ."))
+      .catch((e) => !huy && setBao({ chu: e instanceof ApiError ? e.message : "Không tải được lệnh chờ xếp.", loi: true }))
       .finally(() => !huy && setTaiCho(false));
-    return () => {
-      huy = true;
-    };
+    return () => { huy = true; };
   }, [token, timCho, trang, khoaLocCho, eventTick, nhip]);
+  useEffect(() => setTrang(1), [timCho, khoaLocCho]);
 
   useEffect(() => {
-    if (!token || chonId === null) {
-      setCt(null);
-      return;
-    }
+    if (!token || chonId === null) { setCt(null); return; }
     let huy = false;
     setTaiCt(true);
     api.xepLich
       .chiTiet(token, chonId)
       .then((r) => !huy && setCt(r))
-      .catch((e) => !huy && setLoi(e instanceof ApiError ? e.message : "Không tải được chi tiết lệnh."))
+      .catch((e) => !huy && setBao({ chu: e instanceof ApiError ? e.message : "Không tải được chi tiết lệnh.", loi: true }))
       .finally(() => !huy && setTaiCt(false));
-    return () => {
-      huy = true;
-    };
+    return () => { huy = true; };
   }, [token, chonId, eventTick, nhip]);
 
-  // Trạng thái gói đã thả xuống xưởng — hỏi TRƯỚC khi bày nút, không thì màn mời người dùng thu
-  // hồi một gói đã có việc chạy rồi mới ném 409 sau khi họ gõ xong lý do. Câu hỏi PHỤ: hỏng thì
-  // panel vẫn mở bình thường, chỉ mất phần gợi ý (nút quay về dáng cũ).
+  // Trạng thái gói đã thả xuống xưởng — hỏi TRƯỚC khi bày nút Thu hồi / Phát hành cập nhật.
   useEffect(() => {
-    if (!token || chonId === null) {
-      setGoi(null);
-      return;
-    }
+    if (!token || chonId === null) { setGoi(null); return; }
     let huy = false;
-    api.xepLich
-      .goiPhatHanh(token, chonId)
+    api.xepLich.goiPhatHanh(token, chonId)
       .then((r) => !huy && setGoi(r))
       .catch(() => !huy && setGoi(null));
-    return () => {
-      huy = true;
-    };
+    return () => { huy = true; };
   }, [token, chonId, eventTick, nhip]);
 
-  useEffect(() => setTrang(1), [timCho, khoaLocCho]);
-
   // ---------------------------------------------------------------- ghi
-  const sau = useCallback(
-    (lsxId: number) => {
-      setChonId(lsxId);
-      lamMoi();
-      onBadgeStale?.();
-    },
-    [lamMoi, onBadgeStale],
-  );
+  const sau = useCallback((lsxId: number) => {
+    setChonId(lsxId);
+    lamMoi();
+    onBadgeStale?.();
+  }, [lamMoi, onBadgeStale]);
 
-  const datMoc = useCallback(
-    async (lsxId: number, batDauAt: string, expected: string | null) => {
-      if (!token || !suaDuoc) return;
-      setDangGhi(true);
-      setLoi(null);
-      // Nhịp SSE lấy LÚC GỬI: máy chủ phát sự kiện trước khi trả phản hồi, nên nhịp của chính lần
-      // ghi này có thể về trước cả `await` bên dưới.
-      const tickTruoc = tickRef.current;
-      const tuHangCho = theRef.current.some((t) => t.lsx_id === lsxId);
-      try {
-        const r = await api.xepLich.datMoc(token, lsxId, batDauAt, expected);
-        setBao(r.thong_bao ?? null);
-        // VẼ NGAY bằng dòng PUT trả về — máy chủ dựng nó bằng đúng `_dong` của `/lich`. Trước
-        // 14/09/2026 dòng này bị bỏ, thanh nhảy về chỗ cũ rồi đứng đó chờ tải lại cả lịch.
-        setDong((ds) => (ds.some((d) => d.lsx_id === lsxId)
-          ? ds.map((d) => (d.lsx_id === lsxId ? r : d))
-          : [...ds, r]));
-        if (tuHangCho) {
-          setThe((ds) => ds.filter((t) => t.lsx_id !== lsxId));
-          setTongCho((n) => Math.max(0, n - 1));
-        }
-        // KHÔNG chọn lệnh: kéo thả xong chỉ cần thanh dài/ngắn lại, muốn xem chi tiết thì bấm.
-        // KHÔNG tự tải lại: máy chủ phát `xep_lich_changed`, AppShell tăng `eventTick` (màn tải
-        // lại lịch + hàng chờ + chi tiết đang mở) và tự nạp badge khối Sản xuất. Tự gọi thêm ở đây
-        // là mỗi lần thả tải hai lượt, cộng `onBadgeStale` nạp badge của MỌI module (~25 request).
-        // Chỉ khi SSE im quá 3 giây (mất kết nối) mới tự tải, để màn không đứng số cũ.
-        window.setTimeout(() => {
-          if (tickRef.current !== tickTruoc) return;
-          lamMoi();
-          onBadgeStale?.();
-        }, 3000);
-      } catch (e) {
-        setLoi(
-          e instanceof ApiError && e.status === 409
-            ? "Người khác vừa dời lệnh này — màn đang tải lại bản mới nhất."
-            : e instanceof ApiError
-              ? e.message
-              : "Không lưu được giờ bắt đầu.",
-        );
+  /** Ghi giờ bắt đầu. `ghiLui` = đẩy một bước lên chồng Hoàn tác (lần hoàn tác thì không). */
+  const datMoc = useCallback(async (lsxId: number, batDauAt: string, expected: string | null, ghiLui = true) => {
+    if (!token || !suaDuoc) return;
+    setDangGhi(true);
+    // Nhịp SSE lấy LÚC GỬI: máy chủ phát sự kiện trước khi trả phản hồi.
+    const tickTruoc = tickRef.current;
+    const tuKhay = theRef.current.find((t) => t.lsx_id === lsxId);
+    const cu = dongRef.current.find((d) => d.lsx_id === lsxId);
+    try {
+      const r = await api.xepLich.datMoc(token, lsxId, batDauAt, expected);
+      // VẼ NGAY bằng dòng PUT trả về — máy chủ dựng nó bằng đúng `_dong` của `/lich`.
+      setDong((ds) => (ds.some((d) => d.lsx_id === lsxId) ? ds.map((d) => (d.lsx_id === lsxId ? r : d)) : [...ds, r]));
+      if (tuKhay) {
+        setThe((ds) => ds.filter((t) => t.lsx_id !== lsxId));
+        setTongCho((n) => Math.max(0, n - 1));
+      }
+      if (ghiLui) {
+        setLui((s) => [...s.slice(-19), { lsxId, ma: r.ma, truoc: tuKhay ? null : (cu?.bat_dau_at ?? null) }]);
+      }
+      const chu = ghiLui
+        ? `${r.ma} ${tuKhay ? "xếp" : "dời"} sang ${thuNgayGio(r.bat_dau_at)}${r.ket_thuc ? `, xong ${thuNgayGio(r.ket_thuc)}` : ""}`
+        : `Đã hoàn tác ${r.ma} về ${thuNgayGio(r.bat_dau_at)}`;
+      setBao({ chu: r.thong_bao ? `${chu}. ${r.thong_bao}` : chu, hoanTac: ghiLui });
+      // Lệnh trong cụm: dời một lệnh là đoạn chờ của lệnh kia đổi theo ⇒ tải lại cả lịch.
+      if (r.cum_id) lamMoi();
+      // KHÔNG tự tải lại: máy chủ phát `xep_lich_changed`, AppShell tăng `eventTick`. Chỉ khi SSE
+      // im quá 3 giây (mất kết nối) mới tự tải, để màn không đứng số cũ.
+      window.setTimeout(() => {
+        if (tickRef.current !== tickTruoc) return;
         lamMoi();
+        onBadgeStale?.();
+      }, 3000);
+    } catch (e) {
+      setBao({
+        chu: e instanceof ApiError && e.status === 409
+          ? "Người khác vừa dời lệnh này. Màn đang tải lại bản mới nhất."
+          : e instanceof ApiError ? e.message : "Không lưu được giờ bắt đầu.",
+        loi: true,
+      });
+      lamMoi();
+    } finally {
+      setDangGhi(false);
+      setKeoTuKhay(null);
+    }
+  }, [token, suaDuoc, lamMoi, onBadgeStale]);
+
+  const hoanTac = useCallback(async () => {
+    const b = luiRef.current[luiRef.current.length - 1];
+    if (!b || !token) return;
+    setLui((s) => s.slice(0, -1));
+    if (b.truoc === null) {
+      setDangGhi(true);
+      try {
+        await api.xepLich.xoaMoc(token, b.lsxId);
+        setBao({ chu: `Đã hoàn tác: ${b.ma} quay lại khay Chờ xếp lịch` });
+        lamMoi();
+        onBadgeStale?.();
+      } catch (e) {
+        setBao({ chu: e instanceof ApiError ? e.message : "Không hoàn tác được.", loi: true });
       } finally {
         setDangGhi(false);
-        setKeoTuHangCho(null);
       }
-    },
-    [token, suaDuoc, lamMoi, onBadgeStale],
-  );
+      return;
+    }
+    const hienTai = dongRef.current.find((d) => d.lsx_id === b.lsxId);
+    await datMoc(b.lsxId, b.truoc, hienTai?.updated_at ?? null, false);
+  }, [token, datMoc, lamMoi, onBadgeStale]);
 
   const boLich = useCallback(async () => {
     if (!token || chonId === null) return;
     setDangGhi(true);
     try {
       await api.xepLich.xoaMoc(token, chonId);
-      setBao("Đã bỏ lịch — lệnh quay lại hàng chờ.");
+      setBao({ chu: "Đã bỏ lịch, lệnh quay lại khay Chờ xếp lịch." });
+      setLui((s) => s.filter((x) => x.lsxId !== chonId));
       sau(chonId);
     } catch (e) {
-      setLoi(e instanceof ApiError ? e.message : "Không bỏ được lịch.");
+      setBao({ chu: e instanceof ApiError ? e.message : "Không bỏ được lịch.", loi: true });
     } finally {
       setDangGhi(false);
     }
@@ -275,407 +368,361 @@ export function XepLichPage({
   const phatHanh = useCallback(async () => {
     if (!token || chonId === null) return;
     setDangGhi(true);
+    const n = ct?.cum?.lsx.length ?? 1;
     try {
       await api.xepLich.phatHanh(token, chonId);
-      setBao("Đã phát hành xuống xưởng.");
+      setBao({ chu: n > 1 ? `Đã phát hành ${n} lệnh xuống xưởng.` : "Đã phát hành xuống xưởng." });
       sau(chonId);
     } catch (e) {
-      setLoi(e instanceof ApiError ? e.message : "Không phát hành được.");
+      setBao({ chu: e instanceof ApiError ? e.message : "Không phát hành được.", loi: true });
     } finally {
       setDangGhi(false);
     }
-  }, [token, chonId, sau]);
+  }, [token, chonId, ct, sau]);
 
-  const moPrompt = useCallback((che: "thu_hoi" | "cap_nhat") => {
+  const moPrompt = (che: "thu_hoi" | "cap_nhat") => {
     setLyDo("");
     setLoiLyDo(null);
     setChePrompt(che);
-  }, []);
-
-  const xacNhanPrompt = useCallback(async () => {
+  };
+  const dongPrompt = () => {
+    setChePrompt(null);
+    setLyDo("");
+    setLoiLyDo(null);
+  };
+  const xacNhanPrompt = async () => {
     if (!token || chonId === null || chePrompt === null) return;
     const ld = lyDo.trim();
     if (ld.length < 3) {
-      setLoiLyDo(
-        chePrompt === "thu_hoi"
-          ? "Vui lòng nhập lý do thu hồi dài ít nhất 3 ký tự."
-          : "Vui lòng nhập lý do cập nhật dài ít nhất 3 ký tự.",
-      );
+      setLoiLyDo(chePrompt === "thu_hoi"
+        ? "Vui lòng nhập lý do thu hồi dài ít nhất 3 ký tự."
+        : "Vui lòng nhập lý do cập nhật dài ít nhất 3 ký tự.");
       return;
     }
     setDangGhi(true);
     setLoiLyDo(null);
     try {
       if (chePrompt === "thu_hoi") {
-        await api.xepLich.thuHoi(token, chonId, ld);
-        setBao("Đã thu hồi phát hành.");
+        const r = await api.xepLich.thuHoi(token, chonId, ld);
+        const n = r.cum_lsx?.length ?? 1;
+        setBao({ chu: n > 1 ? `Đã thu hồi ${n} lệnh khỏi xưởng.` : "Đã thu hồi phát hành." });
       } else {
         const r = await api.xepLich.phatHanhCapNhat(token, chonId, ld);
-        setBao(
-          `Đã đẩy lịch mới xuống xưởng: cập nhật ${r.so_cong_viec_cap_nhat} việc, giữ nguyên ` +
-            `${r.so_giu_nguyen} việc đã bắt đầu.` +
-            // Việc lệch lần chạy KHÔNG được cập nhật — nuốt con số này là xưởng chạy lịch cũ mà
-            // màn báo "xong".
-            (r.so_lech_phan_doan
-              ? ` Còn ${r.so_lech_phan_doan} việc giữ nguyên lịch cũ vì lần chạy đã tách/gộp lại.`
-              : ""),
-        );
+        setBao({
+          chu: `Đã đẩy lịch mới xuống xưởng: cập nhật ${r.so_cong_viec_cap_nhat} việc, giữ nguyên ${r.so_giu_nguyen} việc đã bắt đầu.`
+            // Việc lệch lần chạy KHÔNG được cập nhật — nuốt con số này là xưởng chạy lịch cũ mà màn báo "xong".
+            + (r.so_lech_phan_doan ? ` Còn ${r.so_lech_phan_doan} việc giữ nguyên lịch cũ vì lần chạy đã tách hoặc gộp lại.` : ""),
+        });
       }
-      setChePrompt(null);
-      setLyDo("");
+      dongPrompt();
       sau(chonId);
     } catch (e) {
-      // Lỗi hiện NGAY TRONG hộp thoại: người dùng đang nhìn vào đây, mà câu server trả về ("gói đã
-      // có việc bắt đầu") là câu trả lời cho đúng nút họ vừa bấm.
       setLoiLyDo(e instanceof ApiError ? e.message : "Không thực hiện được.");
     } finally {
       setDangGhi(false);
     }
-  }, [token, chonId, chePrompt, lyDo, sau]);
+  };
 
-  const dongPrompt = useCallback(() => {
-    setChePrompt(null);
-    setLyDo("");
-    setLoiLyDo(null);
-  }, []);
+  // ---------------------------------------------------------------- phím tắt màn
+  useEffect(() => {
+    const phim = (e: KeyboardEvent) => {
+      if (laONhap(e.target) || document.querySelector(".cdlg-overlay")) return;
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        oTimRef.current?.focus();
+      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+        if (luiRef.current.length === 0) return;
+        e.preventDefault();
+        void hoanTac();
+      }
+    };
+    document.addEventListener("keydown", phim);
+    return () => document.removeEventListener("keydown", phim);
+  }, [hoanTac]);
+
+  // ---------------------------------------------------------------- dẫn xuất
+  const hienLuoi = useMemo<HienThi>(
+    () => ({ ...hien, hienXong: hien.hienXong || !!locLuoi.tt?.includes("dong") }),
+    [hien, locLuoi.tt],
+  );
+  const dongThay = useMemo(
+    () => dong
+      .filter((d) => hienLuoi.hienXong || d.trang_thai !== "da_dong")
+      .sort((a, b) => (moc(a.thuc_bat_dau_lenh ?? a.bat_dau_at) ?? 0) - (moc(b.thuc_bat_dau_lenh ?? b.bat_dau_at) ?? 0)),
+    [dong, hienLuoi.hienXong],
+  );
+  const viTri = chonId === null ? -1 : dongThay.findIndex((d) => d.lsx_id === chonId);
+  const phutChay = useMemo(() => phutChayTrongCuaSo(dong, tu, soNgay), [dong, tu, soNgay]);
+  const caPhut = useMemo(() => phutCa(cacCa), [cacCa]);
+  const truocDo = useMemo(() => {
+    for (let i = lui.length - 1; i >= 0; i -= 1) if (lui[i].lsxId === chonId) return lui[i].truoc;
+    return null;
+  }, [lui, chonId]);
+
+  const dieuKienLuoi = useMemo<DieuKien<LocLuoi>[]>(() => [
+    {
+      khoa: "tt", nhan: "Trạng thái", icon: CircleDot, kieu: "nhieu",
+      giaTri: [
+        { value: "chua", nhan: "Chưa phát hành" },
+        { value: "phat", nhan: "Đã phát hành" },
+        { value: "dong", nhan: "Đã xong" },
+      ],
+      doc: (l) => l.tt ?? [],
+      ghi: (l, v) => ({ ...l, tt: v.length ? v : undefined }),
+    },
+    {
+      khoa: "khach", nhan: "Khách hàng", icon: Building2, kieu: "mot", tim: true,
+      giaTri: khachLoc.map((k) => ({ value: String(k.id), nhan: k.ten, so: k.so })),
+      doc: (l) => l.khach,
+      ghi: (l, v) => ({ ...l, khach: v }),
+    },
+    {
+      khoa: "gap", nhan: "Gấp", icon: Zap, kieu: "mot",
+      giaTri: [{ value: "1", nhan: "Chỉ lệnh gấp" }],
+      doc: (l) => l.gap,
+      ghi: (l, v) => ({ ...l, gap: v }),
+    },
+  ], [khachLoc]);
+
+  const coLoc = !!timLuoi || !!nhanh || !!locLuoi.tt || !!locLuoi.khach || !!locLuoi.gap;
+  const xoaLoc = () => {
+    setTimLuoi("");
+    setNhanh(null);
+    setLocLuoi({});
+  };
+
+  const NHANH: { k: Nhanh; nhan: string; mau: string }[] = [
+    { k: "tre", nhan: "Trễ hạn", mau: "#dc2626" },
+    { k: "muon", nhan: "Có thể xong muộn hơn", mau: "#d97706" },
+    { k: "chua", nhan: "Chưa phát hành", mau: "#2563eb" },
+  ];
+
+  const chip = (k: keyof HienThi, nhan: string, Ic: typeof Building2) => (
+    <button type="button" aria-pressed={hien[k]} onClick={() => setHien({ ...hien, [k]: !hien[k] })}>
+      <Ic size={13} style={{ marginRight: 6 }} />{nhan}
+    </button>
+  );
+  const gat = (k: keyof HienThi, nhan: string, Ic: typeof Building2) => (
+    <button type="button" className="xa-hien__dong" role="switch" aria-checked={hien[k]} onClick={() => setHien({ ...hien, [k]: !hien[k] })}>
+      <span className="k"><Ic size={14} />{nhan}</span>
+      <span className="xa-gian" />
+      <span className={`xa-gat${hien[k] ? " xa-gat--on" : ""}`} />
+    </button>
+  );
 
   const laThuHoi = chePrompt === "thu_hoi";
-  const maLenh = ct?.ma ?? `LSX #${chonId}`;
-
-  const kpi = useMemo(() => {
-    const tong = dong.length;
-    // Đã đóng tách ô riêng: KCS đóng rồi thì không còn là "đang ở xưởng".
-    const daPhatHanh = dong.filter((d) => d.trang_thai === "da_phat_hanh").length;
-    const daDong = dong.filter((d) => d.trang_thai === "da_dong").length;
-    const tre = dong.filter((d) => (treHan(d) ?? 0) > 0).length;
-    const phutChay = phutChayTrongCuaSo(dong, tu, soNgay);
-    return { tong, daPhatHanh, daDong, tre, tongCho, phutChay };
-  }, [dong, tongCho, tu, soNgay]);
-
-  const nhanTuan = `${tu.slice(8)}/${tu.slice(5, 7)}${tu.slice(0, 4) !== den.slice(0, 4) ? `/${tu.slice(0, 4)}` : ""} – ${den.slice(8)}/${den.slice(5, 7)}/${den.slice(0, 4)}`;
+  const maLenh = ct?.ma ?? `lệnh số ${chonId}`;
+  // Thu hồi rút CẢ CỤM đã phát hành chung một gói — hộp hỏi phải kể đủ lệnh sẽ bị rút.
+  const maCum = ct?.cum && ct.cum.lsx.length > 1 ? ct.cum.lsx.map((z) => z.ma).join(" và ") : null;
 
   return (
-    <div className="xl">
-      <header className="xl__dau">
-        <div className="xl__tieu-cum">
-          <div className="xl__tieu">
-            <h1>Xếp lịch</h1>
-          </div>
-
-          <div className="xl-kpi-bar">
-            <span className="xl-kpi-pill">
-              Tuần này: <strong>{kpi.tong}</strong>
-            </span>
-            <span className="xl-kpi-sep" />
-            <span className="xl-kpi-pill xl-kpi-pill--moss">
-              Đã phát hành: <strong>{kpi.daPhatHanh}</strong>
-            </span>
-            <span className="xl-kpi-sep" />
-            {kpi.daDong > 0 && (
-              <>
-                <span className="xl-kpi-pill">
-                  Đã đóng: <strong>{kpi.daDong}</strong>
-                </span>
-                <span className="xl-kpi-sep" />
-              </>
-            )}
-            <span className="xl-kpi-pill xl-kpi-pill--amber">
-              Chờ xếp: <strong>{kpi.tongCho}</strong>
-            </span>
-            <span className="xl-kpi-sep" />
-            <span
-              className="xl-kpi-pill"
-              title="Tổng giờ máy chạy của các lệnh, chỉ tính phần nằm trong khoảng ngày đang xem"
-            >
-              Giờ chạy trong cửa sổ: <strong>{gioPhut(kpi.phutChay)}</strong>
-            </span>
-            {kpi.tre > 0 && (
-              <>
-                <span className="xl-kpi-sep" />
-                <span className="xl-kpi-pill xl-kpi-pill--tre">
-                  Trễ hạn: <strong>{kpi.tre}</strong>
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="xl__tuan">
-          <div className="xl-view-switcher">
-            <button
-              type="button"
-              className={`xl-view-btn${soNgay === 7 ? " xl-view-btn--active" : ""}`}
-              onClick={() => setSoNgay(7)}
-            >
-              7 Ngày
-            </button>
-            <button
-              type="button"
-              className={`xl-view-btn${soNgay === 14 ? " xl-view-btn--active" : ""}`}
-              onClick={() => setSoNgay(14)}
-            >
-              14 Ngày
-            </button>
-            <button
-              type="button"
-              className={`xl-view-btn${soNgay === 30 ? " xl-view-btn--active" : ""}`}
-              onClick={() => setSoNgay(30)}
-            >
-              30 Ngày
-            </button>
-          </div>
-
-          <button
-            type="button"
-            className="xl__nut-nay"
-            onClick={() => setTu(dauTuan(new Date()))}
-          >
-            Hôm nay
+    <div className="xa">
+      <header className="xa-dau">
+        <h1>Xếp lịch</h1>
+        <div className="xa-kn">
+          <button type="button" className="xa-kn__mui" aria-label="Khoảng trước" onClick={() => luiTien(-1)}><ChevronLeft size={16} /></button>
+          <button type="button" className={`xa-kn__giua${moKhoang ? " is-mo" : ""}`} aria-haspopup="dialog" aria-expanded={moKhoang}
+            onClick={() => setMoKhoang((m) => !m)}>
+            <CalendarDays size={15} />{nhanKhoang(tu, den)}<span className="xa-mo">{soNgay} ngày</span>
           </button>
-          <div className="xl__tuan-cum">
-            <button
-              type="button"
-              onClick={() => setTu(themNgay(tu, -soNgay))}
-              aria-label="Kỳ trước"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span
-              ref={nhanKhoangRef}
-              className="xl__tuan-nhan"
-              role="button"
-              tabIndex={0}
-              aria-haspopup="dialog"
-              aria-expanded={moKhoang}
-              title="Chọn từ ngày đến ngày"
-              onClick={batKhoang}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); batKhoang(); } }}
-            >
-              <Calendar size={13} style={{ color: "var(--ash)" }} />
-              {nhanTuan}
-            </span>
-            <button
-              type="button"
-              onClick={() => setTu(themNgay(tu, soNgay))}
-              aria-label="Kỳ sau"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-          {moKhoang && (
-            <form
-              ref={oKhoangRef}
-              className="xl-khoang"
-              role="dialog"
-              aria-label="Chọn khoảng ngày"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (loiKhoang) return;
-                setTu(nhapTu);
-                setSoNgay(soNgayGiua(nhapTu, nhapDen));
-                setMoKhoang(false);
-              }}
-            >
-              <label className="xl-khoang__o">
-                <span>Từ ngày</span>
-                <input
-                  type="date"
-                  value={nhapTu}
-                  min={NGAY_NHAP_MIN}
-                  max={NGAY_NHAP_MAX}
-                  autoFocus
-                  onChange={(e) => setNhapTu(e.target.value)}
-                />
-              </label>
-              <label className="xl-khoang__o">
-                <span>Đến ngày</span>
-                <input
-                  type="date"
-                  value={nhapDen}
-                  min={/^\d{4}-\d{2}-\d{2}$/.test(nhapTu) ? nhapTu : NGAY_NHAP_MIN}
-                  max={NGAY_NHAP_MAX}
-                  onChange={(e) => setNhapDen(e.target.value)}
-                />
-              </label>
-              <div className="xl-khoang__chan">
-                <span className={loiKhoang ? "xl-khoang__loi" : "xl-khoang__dem"} role={loiKhoang ? "alert" : undefined}>
-                  {loiKhoang ?? `${soNgayGiua(nhapTu, nhapDen)} ngày`}
-                </span>
-                <button type="submit" className="xl-khoang__ap" disabled={!!loiKhoang}>
-                  Áp dụng
-                </button>
-              </div>
-            </form>
-          )}
+          <button type="button" className="xa-kn__mui" aria-label="Khoảng sau" onClick={() => luiTien(1)}><ChevronRight size={16} /></button>
         </div>
+        <button type="button" className="xa-btn" onClick={homNay}>Hôm nay</button>
+        {moKhoang && (
+          <XlKhoangNgay tu={tu} den={den} onDong={() => setMoKhoang(false)}
+            onApDung={(a, b) => { setTu(a); setDen(b); setMoKhoang(false); }} />
+        )}
+        <span className="xa-ngan-dung" />
+        <label className="xa-o-tim">
+          <Search size={15} />
+          <input ref={oTimRef} value={timLuoi} placeholder="Tìm mã, tên, khách" aria-label="Tìm lệnh trên lịch"
+            onChange={(e) => setTimLuoi(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") { setTimLuoi(""); (e.target as HTMLInputElement).blur(); } }} />
+          {timLuoi ? (
+            <button type="button" className="xa-btn xa-btn--tron" style={{ height: 22, padding: 0 }} aria-label="Xoá ô tìm" onClick={() => setTimLuoi("")}><X size={13} /></button>
+          ) : <kbd>/</kbd>}
+        </label>
+        <div className="xa-loc tl-thanh">
+          <ThanhLoc dieuKien={dieuKienLuoi} loc={locLuoi} onLoc={setLocLuoi} />
+        </div>
+        <span className="xa-gian" />
+        <button ref={nutHienRef} type="button" className={`xa-btn${moHien ? " xa-btn--bat" : ""}`} aria-expanded={moHien} onClick={() => setMoHien((m) => !m)}>
+          <SlidersHorizontal size={15} />Hiển thị
+        </button>
+        <button type="button" className={`xa-btn${khayMo ? " xa-btn--bat" : ""}`} aria-pressed={khayMo} onClick={() => setKhayMo((m) => !m)}>
+          <Inbox size={15} />Chờ xếp lịch<span className="xa-dem">{tongCho}</span>
+        </button>
+        {moHien && (
+          <div className="xa-hien" ref={hienRef} role="dialog" aria-label="Hiển thị">
+            <div className="xa-hien__khoi">
+              <p className="xa-hien__nhan">Độ cao dòng</p>
+              <div className="xa-seg">
+                <button type="button" aria-pressed={!hien.thoang} onClick={() => setHien({ ...hien, thoang: false })}>Gọn</button>
+                <button type="button" aria-pressed={hien.thoang} onClick={() => setHien({ ...hien, thoang: true })}>Thoáng</button>
+              </div>
+            </div>
+            <div className="xa-hien__khoi">
+              <p className="xa-hien__nhan">Thông tin trên thanh{hien.thoang ? "" : ", hiện khi chọn Thoáng"}</p>
+              <div className="xa-tg">
+                {chip("khach", "Khách hàng", Building2)}
+                {chip("may", "Máy chính", Printer)}
+                {chip("sl", "Sản lượng", Hash)}
+                {chip("gioChay", "Giờ chạy", Clock)}
+                {chip("soTo", "Số tờ in", FileText)}
+              </div>
+            </div>
+            <div className="xa-hien__khoi">
+              {gat("hienXong", "Hiện lệnh đã xong", Users)}
+              {gat("vatTu", "Hiện tình trạng vật tư", Package)}
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* Băng thông báo NỔI trên mọi lớp phủ. Trước đây nó là khối trong dòng chảy ngay dưới
-          header, mà panel lệnh (z-index 100) và hộp lý do (9999) đều là overlay phủ kín + blur —
-          nên mọi câu báo trong lúc panel mở đều rơi lên đỉnh trang, mờ tịt sau lưng người dùng.
-          Câu báo THÀNH CÔNG chịu đúng lỗi đó và không ai từng thấy nó. */}
-      {(loi || bao) && (
-        <div className="xl__bangs">
-          {loi && (
-            <div className="xl__bang xl__bang--loi" role="alert">
-              {loi}
-              <button type="button" onClick={() => setLoi(null)} aria-label="Đóng thông báo lỗi">
-                ×
-              </button>
-            </div>
-          )}
-          {bao && (
-            <div className="xl__bang xl__bang--bao" role="status">
-              {bao}
-            </div>
-          )}
-        </div>
-      )}
+      <div className="xa-tom">
+        <span>Trong khoảng này máy chạy <span className="xa-tom__so">{gioChu(phutChay)}</span></span>
+        {NHANH.filter((n) => dem[n.k] > 0 || nhanh === n.k).map((n) => (
+          <button key={n.k} type="button" className="xa-ln" aria-pressed={nhanh === n.k} onClick={() => setNhanh(nhanh === n.k ? null : n.k)}>
+            <i style={{ background: n.mau }} />{n.nhan}<span className="xa-tom__so">{dem[n.k]}</span>
+          </button>
+        ))}
+        {coLoc && <button type="button" className="xa-lk" onClick={xoaLoc}>Xoá bộ lọc</button>}
+        <span className="xa-gian" />
+        {cacCa.map((c) => (
+          <span key={`${c.ten}${c.tu}`} className="xa-ca"><Clock size={13} />{c.ten} {c.tu} đến {c.den}</span>
+        ))}
+      </div>
 
-      {/* Thân trang: 2 cột ngang (Hàng chờ + Lưới Gantt full chiều ngang) */}
-      <div className="xl__than">
-        <XlHangCho
-          the={the}
-          tong={tongCho}
-          tim={tim}
-          trang={trang}
-          moiTrang={MOI_TRANG}
-          dangTai={taiCho}
-          chonId={chonId}
-          keoDuoc={suaDuoc}
-          isCollapsed={choCollapsed}
-          onToggleCollapse={() => setChoCollapsed((c) => !c)}
-          onTim={setTim}
-          thanhLoc={
-            <ThanhLoc
-              ky={locCho.ky}
-              moc={MOC_HANG_CHO}
-              onKy={(ky) => setLocCho({ ...locCho, ky })}
-              dieuKien={dieuKienCho}
-              loc={locCho.loc}
-              onLoc={(loc) => setLocCho({ ...locCho, loc })}
-            />
-          }
-          dangLoc={khoaLocCho !== "{}"}
-          onTrang={setTrang}
-          onChon={setChonId}
-          onKeo={setKeoTuHangCho}
-        />
-
-        <main className="xl__luoi">
-          <XlGantt
+      <div className="xa-than">
+        <main className="xa-luoi">
+          <XlLuoi
             tu={tu}
             soNgay={soNgay}
             dong={dong}
             ngayNghi={ngayNghi}
+            ngayDacBiet={ngayDacBiet}
+            cum={cum}
+            vatTu={vatTu}
+            hien={hienLuoi}
             chonId={chonId}
-            suaDuoc={suaDuoc}
+            suaDuoc={suaDuoc && !dangGhi}
+            keoTuKhay={keoTuKhay}
+            caPhut={caPhut}
+            trong={coLoc ? "Không có lệnh nào khớp bộ lọc." : undefined}
             onChon={setChonId}
             onDatMoc={datMoc}
-            keoTuHangCho={keoTuHangCho}
+            onThu={(id, gio, signal) => api.xepLich.thuMoc(token ?? "", id, gio, signal)}
           />
         </main>
+        {khayMo && (
+          <XlKhay
+            the={the}
+            tong={tongCho}
+            tim={tim}
+            trang={trang}
+            moiTrang={MOI_TRANG}
+            dangTai={taiCho}
+            keoDuoc={suaDuoc}
+            keoId={keoTuKhay?.lsx_id ?? null}
+            thanhLoc={(
+              <ThanhLoc
+                ky={locCho.ky}
+                moc={MOC_HANG_CHO}
+                onKy={(ky) => setLocCho({ ...locCho, ky })}
+                dieuKien={dieuKienCho}
+                loc={locCho.loc}
+                onLoc={(loc) => setLocCho({ ...locCho, loc })}
+              />
+            )}
+            dangLoc={khoaLocCho !== "{}"}
+            onTim={setTim}
+            onTrang={setTrang}
+            onChon={setChonId}
+            onKeo={setKeoTuKhay}
+            onThu={() => setKhayMo(false)}
+          />
+        )}
       </div>
 
-      {/* BOTTOM DOCK INSPECTOR — Hiện dưới đáy khi có lệnh được chọn */}
+      <footer className="xa-chan">
+        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "#d6e2fc" }} />Chưa phát hành</span>
+        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "#cdebd7" }} />Đã phát hành</span>
+        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "repeating-linear-gradient(135deg, #fde68a 0 4px, #fef3c7 4px 8px)" }} />Chờ lệnh khác</span>
+        <span><i style={{ width: 22, height: 10, borderRadius: 3, boxShadow: "inset 0 0 0 1.5px #8b5cf6" }} />In chung một tờ</span>
+        <span><i style={{ width: 9, height: 9, transform: "rotate(45deg)", background: "#0f172a" }} />Hạn xong sản xuất</span>
+        <span className="xa-gian" />
+        <span className="xa-phim"><kbd>◀</kbd><kbd>▶</kbd>15 phút</span>
+        <span className="xa-phim"><kbd>Shift</kbd><kbd>◀</kbd><kbd>▶</kbd>một ca</span>
+        <span className="xa-phim"><kbd>Ctrl</kbd><kbd>Z</kbd>hoàn tác</span>
+      </footer>
+
+      {bao && (
+        <div className={`xa-toast${bao.loi ? " xa-toast--loi" : ""}`} role={bao.loi ? "alert" : "status"}>
+          <span>{bao.chu}</span>
+          {bao.hoanTac && lui.length > 0 && (
+            <button type="button" onClick={() => { setBao(null); void hoanTac(); }}><RotateCcw size={14} />Hoàn tác<kbd>Ctrl Z</kbd></button>
+          )}
+          <button type="button" className="xa-toast__x" aria-label="Đóng thông báo" onClick={() => setBao(null)}><X size={14} /></button>
+        </div>
+      )}
+
       {chonId !== null && (
-        <XlChiTiet
-          ct={ct}
+        <XlNgan
+          ct={ct && ct.lsx_id === chonId ? ct : null}
           dangTai={taiCt}
           suaDuoc={suaDuoc}
           duyetDuoc={duyetDuoc}
           dangGhi={dangGhi}
-          onDoiGio={(g) => chonId !== null && datMoc(chonId, g, ct?.updated_at ?? null)}
           goi={goi}
+          vatTu={vatTu.get(chonId)}
+          truocDo={truocDo}
+          onDoiGio={(g) => void datMoc(chonId, g, ct?.updated_at ?? null)}
+          onHoanTac={() => void hoanTac()}
           onBoLich={boLich}
           onPhatHanh={phatHanh}
           onThuHoi={() => moPrompt("thu_hoi")}
           onCapNhat={() => moPrompt("cap_nhat")}
           onDong={() => setChonId(null)}
+          onMoLenh={setChonId}
+          onMoHoSo={(id, daPhat) => navigate?.(daPhat ? "lenh-san-xuat" : "ke-hoach-sx", daPhat ? { openHoSoLsxId: id } : { openLsxId: id })}
           onSoSanh={(a, b) => api.xepLich.soSanhPhienBan(token ?? "", chonId, a, b)}
+          len={viTri > 0 ? () => setChonId(dongThay[viTri - 1].lsx_id) : undefined}
+          xuong={viTri >= 0 && viTri < dongThay.length - 1 ? () => setChonId(dongThay[viTri + 1].lsx_id) : undefined}
         />
       )}
 
-      {/* HỘP THOẠI LÝ DO — dùng chung cho Thu hồi (rút gói về) và Phát hành cập nhật (đẩy lịch
-          mới xuống). Hai việc trái chiều nhau nhưng cùng một hình: một ô lý do, cùng ngưỡng 3 ký
-          tự, cùng chỗ hiện lỗi server. */}
-      {chePrompt !== null && (
-        <div
-          className="xl-prompt-overlay"
-          onClick={(e) => e.target === e.currentTarget && dongPrompt()}
-        >
-          <div className="xl-prompt-box" role="dialog" aria-modal="true">
-            <div className="xl-prompt-head">
-              <div className="xl-prompt-icon-wrap">
-                {laThuHoi ? <RotateCcw size={20} /> : <Send size={20} />}
-              </div>
-              <div className="xl-prompt-tieu-wrap">
-                <h3 className="xl-prompt-tieu">
-                  {laThuHoi ? "Thu hồi phát hành" : "Phát hành cập nhật"}
-                </h3>
-                <p className="xl-prompt-sub">
-                  {laThuHoi ? (
-                    <>
-                      Thu hồi lệnh <strong>{maLenh}</strong> khỏi danh sách đã phát hành xuống xưởng.
-                    </>
-                  ) : (
-                    <>
-                      Đẩy lịch mới xuống xưởng cho <strong>{goi?.so_chua_bat_dau ?? 0} việc chưa bắt đầu</strong>{" "}
-                      của lệnh <strong>{maLenh}</strong>. {goi?.so_da_bat_dau ?? 0} việc đã chạy giữ nguyên,
-                      tổ nhận việc cập nhật phải xác nhận lại phân công.
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="xl-prompt-body">
-              <label className="xl-prompt-label" htmlFor="xl-ly-do-input">
-                {laThuHoi ? "Lý do thu hồi" : "Lý do cập nhật"} <span style={{ color: "#dc2626" }}>*</span>
-              </label>
-              <textarea
-                id="xl-ly-do-input"
-                className="xl-prompt-textarea"
-                placeholder={laThuHoi
-                  ? "Nhập lý do cụ thể (vd: Khách yêu cầu thay đổi thông số tờ in, đổi quy cách...)"
-                  : "Nhập lý do cụ thể (vd: Dời giờ chạy do máy in kẹt, đổi sang máy cán 1500...)"}
-                value={lyDo}
-                onChange={(e) => {
-                  setLyDo(e.target.value);
-                  if (loiLyDo && e.target.value.trim().length >= 3) setLoiLyDo(null);
-                }}
-                autoFocus
-              />
-              {loiLyDo && (
-                <div className="xl-prompt-err" id="xl-ly-do-loi" role="alert">
-                  {loiLyDo}
-                </div>
-              )}
-            </div>
-            <div className="xl-prompt-foot">
-              <button type="button" className="xl-nut xl-nut--phu" onClick={dongPrompt} disabled={dangGhi}>
-                Hủy
-              </button>
-              <button
-                type="button"
-                className={`xl-nut ${laThuHoi ? "xl-nut--thu-hoi" : "xl-nut--chinh"}`}
-                onClick={xacNhanPrompt}
-                /* CỐ Ý không khoá theo độ dài lý do: nút xám mà không nói vì sao là màn câm —
-                   câu giải thích nằm trong `xacNhanPrompt`, mà `disabled` thì `onClick` không nổ,
-                   nên người dùng gõ 2 ký tự sẽ kẹt vô hạn. Để nút bấm được, bấm mới hiện lỗi. */
-                disabled={dangGhi}
-                aria-describedby={loiLyDo ? "xl-ly-do-loi" : undefined}
-              >
-                {laThuHoi ? <RotateCcw size={13} /> : <Send size={13} />}
-                {dangGhi
-                  ? "Đang xử lý..."
-                  : laThuHoi
-                    ? "Xác nhận thu hồi"
-                    : "Đẩy lịch mới xuống xưởng"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={chePrompt !== null}
+        title={laThuHoi ? (maCum ? `Thu hồi cả cụm, ${ct?.cum?.lsx.length} lệnh` : "Thu hồi phát hành") : "Phát hành cập nhật"}
+        icon={laThuHoi ? <RotateCcw size={20} /> : <Send size={20} />}
+        message={laThuHoi
+          ? (maCum
+            ? `Các lệnh ${maCum} xuống xưởng cùng một lần nên sẽ rút về cùng nhau. Các lệnh giữ lịch đã xếp nhưng chưa phát hành.`
+            : `Rút lệnh ${maLenh} khỏi xưởng, lệnh quay về có lịch nhưng chưa phát hành.`)
+          : `Đẩy lịch mới xuống xưởng cho ${goi?.so_chua_bat_dau ?? 0} việc chưa bắt đầu của lệnh ${maLenh}. ${goi?.so_da_bat_dau ?? 0} việc đã chạy giữ nguyên, tổ nhận việc cập nhật phải xác nhận lại phân công.`}
+        confirmLabel={dangGhi ? "Đang xử lý" : laThuHoi ? "Thu hồi" : "Đẩy lịch mới xuống xưởng"}
+        cancelLabel="Huỷ"
+        danger={laThuHoi}
+        busy={dangGhi}
+        error={loiLyDo}
+        onConfirm={() => void xacNhanPrompt()}
+        onCancel={dongPrompt}
+      >
+        <label style={{ display: "block", fontSize: 13, marginBottom: 6 }} htmlFor="xa-ly-do">
+          {laThuHoi ? "Lý do thu hồi" : "Lý do cập nhật"}
+        </label>
+        <textarea
+          id="xa-ly-do"
+          className="xa-ly-do"
+          autoFocus
+          value={lyDo}
+          placeholder={laThuHoi ? "Ví dụ: khách đổi quy cách tờ in" : "Ví dụ: dời giờ chạy vì máy in kẹt"}
+          onChange={(e) => {
+            setLyDo(e.target.value);
+            if (loiLyDo && e.target.value.trim().length >= 3) setLoiLyDo(null);
+          }}
+        />
+      </ConfirmDialog>
     </div>
   );
 }

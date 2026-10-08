@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xếp lịch — phương án A chỉnh sửa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8; --chu-5:#cbd5e1;
+  --vien:#e2e8f0; --vien-2:#edf0f4; --vien-3:#f5f7f9;
+  --xanh:#2563eb; --la:#16a34a; --do:#dc2626; --do-chu:#b91c1c; --vang-chu:#a16207; --rust:#c5400a;
+  --bong:0 1px 2px rgba(15,23,42,.06);
+  --bong-noi:0 16px 40px rgba(15,23,42,.16),0 2px 8px rgba(15,23,42,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1440px;margin:0 auto;padding:36px 20px 96px}
+h1{font-size:22px;font-weight:500;margin:0 0 8px}
+.lead{color:var(--chu-2);margin:0 0 18px;max-width:980px}
+.hop{background:var(--trang);border-radius:12px;padding:18px 22px;margin:0 0 36px;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:28px;align-items:start}
+.hop h2{font-size:15px;font-weight:500;margin:0 0 8px}
+.hop ol{margin:0;padding-left:20px;color:var(--chu-2)}
+.hop li{margin:5px 0}
+.hop li b{font-weight:500;color:var(--chu)}
+.hop figure{margin:0}
+.hop img{width:100%;border-radius:8px;display:block}
+.hop figcaption{font-size:12px;color:var(--chu-3);margin-top:6px}
+.buoc{font-size:15px;font-weight:500;margin:44px 0 6px}
+.buoc-mo{color:var(--chu-2);margin:0 0 14px;max-width:960px}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- vỏ ---------- */
+.screen{background:var(--trang);border-radius:14px;box-shadow:0 14px 44px rgba(15,23,42,.12);overflow:hidden;position:relative}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--vien);background:var(--trang);border-radius:8px;font:inherit;font-size:13px;color:var(--chu);cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--vien-3)}
+.btn--chinh{background:var(--chu);border-color:var(--chu);color:#fff}
+.btn--tron{border-color:transparent;background:transparent;color:var(--chu-2)}
+.btn--o{width:32px;padding:0;justify-content:center}
+.dem{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--chu);color:#fff;font-size:11.5px}
+.seg{display:inline-flex;background:var(--vien-3);border-radius:8px;padding:3px}
+.seg button{height:26px;padding:0 12px;border:0;border-radius:6px;background:transparent;font:inherit;font-size:13px;color:var(--chu-3);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--trang);color:var(--chu);box-shadow:var(--bong)}
+.nhom-nut{display:inline-flex;align-items:center;border:1px solid var(--vien);border-radius:8px;height:32px;overflow:hidden}
+.nhom-nut button{height:30px;border:0;background:var(--trang);font:inherit;font-size:13px;color:var(--chu);padding:0 10px;cursor:pointer;display:grid;place-items:center}
+.nhom-nut button + button{border-left:1px solid var(--vien)}
+.nhom-nut button:hover{background:var(--vien-3)}
+.mo{color:var(--chu-3)} .mo2{color:var(--chu-4)}
+.chu-do{color:var(--do-chu)} .chu-vang{color:var(--vang-chu)}
+.gap{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:999px;background:#ffedd5;color:#c2410c;font-size:11.5px}
+.the{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:var(--vien-3);color:var(--chu-2);font-size:12px;white-space:nowrap}
+
+/* ---------- đầu màn ---------- */
+.dau{display:flex;align-items:center;gap:12px;padding:14px 24px;border-bottom:1px solid var(--vien-2)}
+.dau h3{margin:0;font-size:17px;font-weight:500}
+.dau .khoang{font-size:14px;color:var(--chu-2);margin-left:6px}
+.dau .gian{flex:1}
+
+/* ---------- trục ---------- */
+.truc{position:relative;height:52px;margin:0 24px;border-bottom:1px solid var(--vien-2)}
+.truc__thang{position:absolute;top:6px;left:0;font-size:11.5px;color:var(--chu-4)}
+.truc__ngay{position:absolute;bottom:7px;display:flex;justify-content:center;align-items:baseline;gap:4px;font-size:12px;color:var(--chu-4);white-space:nowrap}
+.truc__ngay b{font-weight:400;font-size:13px;color:var(--chu-2)}
+.truc__ngay--nghi b{color:var(--chu-4)}
+.truc__ngay--nay{color:var(--rust)}
+.truc__ngay--nay b{display:inline-grid;place-items:center;height:22px;min-width:24px;padding:0 6px;border-radius:999px;background:var(--rust);color:#fff;margin-bottom:-3px}
+
+/* ---------- vùng lịch ---------- */
+.vung{position:relative;margin:0 24px;padding:6px 0 10px}
+.nen{position:absolute;inset:0;pointer-events:none}
+.ke{position:absolute;top:0;bottom:0;border-left:1px dashed var(--vien-2)}
+.ke--tuan{border-left:1px solid var(--vien)}
+.nghi{position:absolute;top:0;bottom:0;background:#f8fafc}
+.nay{position:absolute;top:0;bottom:0;border-left:1px solid var(--rust);opacity:.35}
+.lane{position:relative;height:80px}
+.ten{position:absolute;top:10px;display:flex;align-items:center;gap:8px;font-size:13.5px;white-space:nowrap;z-index:3;text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 4px #fff}
+.ten .ma{color:var(--chu-3)}
+.ten .xong{color:var(--chu-2);font-size:12.5px;margin-left:8px}
+.ten .xong .gio{color:var(--chu-4)}
+.ten .canh{display:inline-flex;align-items:center;gap:4px;font-size:12.5px}
+.tt{width:14px;height:14px;flex:none}
+.thanh{position:absolute;top:36px;height:22px;border-radius:6px;overflow:hidden;z-index:2;cursor:grab}
+.thanh--chua{background:#eef3fe;box-shadow:inset 0 0 0 1px rgba(37,99,235,.16)}
+.thanh--phat{background:#edf8f1;box-shadow:inset 0 0 0 1px rgba(22,163,74,.18)}
+.thanh--keo{background:rgba(255,255,255,.7);box-shadow:inset 0 0 0 1.5px var(--xanh);border-radius:6px}
+.thanh--chon{box-shadow:inset 0 0 0 1px rgba(37,99,235,.3),0 0 0 2px var(--trang),0 0 0 3.5px var(--xanh)}
+.thanh--cat{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 48px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 48px),transparent);border-top-right-radius:0;border-bottom-right-radius:0}
+.chay{position:absolute;top:0;bottom:0}
+.thanh--chua .chay{background:#d6e2fc}
+.thanh--phat .chay{background:#cdebd7}
+.thanh--keo .chay{background:rgba(37,99,235,.18)}
+.tre{position:absolute;top:36px;height:22px;border-radius:0 6px 6px 0;z-index:1;background:linear-gradient(90deg,rgba(220,38,38,.24),rgba(220,38,38,.04))}
+.du{position:absolute;top:46px;height:0;border-top:1.5px dotted var(--chu-5);z-index:1}
+.moc{position:absolute;top:41px;width:11px;height:11px;margin-left:-5.5px;transform:rotate(45deg);z-index:4;border:1.5px solid var(--chu-2);background:var(--trang);border-radius:2px}
+.moc--giao{border-color:var(--chu-4)}
+.moc--vuot{border-color:var(--do);background:var(--do)}
+.moc-chu{position:absolute;top:58px;transform:translateX(-50%);font-size:11.5px;color:var(--chu-3);white-space:nowrap;z-index:4}
+.moc-chu--vuot{color:var(--do-chu)}
+.chan{display:flex;flex-wrap:wrap;align-items:center;gap:6px 22px;padding:12px 24px;border-top:1px solid var(--vien-2);font-size:12px;color:var(--chu-3)}
+.chan .gian{flex:1}
+.chan i{display:inline-block;vertical-align:middle;margin-right:7px}
+
+/* ---------- lúc kéo ---------- */
+.bong-keo{position:absolute;z-index:6;background:var(--chu);color:#fff;border-radius:10px;padding:9px 12px;font-size:12.5px;line-height:1.5;box-shadow:var(--bong-noi);white-space:nowrap}
+.bong-keo b{font-weight:500;font-size:13.5px}
+.bong-keo .mo{color:#cbd5e1}
+.bong-keo::after{content:"";position:absolute;left:18px;bottom:-5px;width:10px;height:10px;background:var(--chu);transform:rotate(45deg)}
+.bong-keo--duoi::after{bottom:auto;top:-5px}
+.screen--cao{display:flex;flex-direction:column}
+.screen--cao .vung{flex:1}
+.pop{position:absolute;right:24px;top:52px;width:400px;background:var(--trang);border-radius:12px;box-shadow:var(--bong-noi);border:1px solid var(--vien);z-index:8;overflow:hidden}
+.pop__tim{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--vien-2);font-size:13px;color:var(--chu-4)}
+.q{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:1px 10px;padding:10px 14px;border-bottom:1px solid var(--vien-3);cursor:grab;align-items:center}
+.q:hover,.q--keo{background:var(--vien-3)}
+.q--keo{opacity:.45}
+.q__nam{grid-row:1/3;color:var(--chu-5)}
+.q__1{display:flex;align-items:center;gap:8px;font-size:13.5px;white-space:nowrap;min-width:0}
+.q__1 .ma{color:var(--chu-3)}
+.q__2{font-size:12.5px;color:var(--chu-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;grid-column:2}
+.q__p{grid-row:1/3;grid-column:3;text-align:right;font-size:12.5px;color:var(--chu-2);line-height:1.6}
+.pop__chan{padding:10px 14px;font-size:12px;color:var(--chu-3);background:var(--vien-3)}
+
+/* ---------- ngăn phải ---------- */
+/* Khuôn lấy từ hộp chi tiết đang chạy trong app (XlChiTiet): hai cột, ô biểu tượng màu theo loại
+   công đoạn, viên màu cho giờ chạy, thẻ số chạy/nghỉ. Rộng bằng mọi ngăn khác của hệ (1180px). */
+.ngan{position:absolute;top:0;right:0;bottom:0;width:1180px;max-width:calc(100% - 200px);background:#f5f7fa;border-left:1px solid var(--vien);box-shadow:-18px 0 44px rgba(15,23,42,.14);z-index:9;display:flex;flex-direction:column}
+.ngan svg.i{width:15px;height:15px}
+.ng-dau{display:flex;align-items:center;gap:14px;padding:16px 18px 16px 24px;background:var(--trang);border-bottom:1px solid var(--vien)}
+.ng-logo{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;flex:none;background:linear-gradient(135deg,#fff3ea,#ffe1cf);color:var(--rust);border:1px solid #fdd5bd}
+.ngan .ng-logo svg.i{width:22px;height:22px;stroke-width:1.7}
+.ng-dau__giua{flex:1;min-width:0}
+.ng-ma{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--chu-3)}
+.ng-sao{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;color:var(--chu-4);cursor:pointer}
+.ng-sao:hover{background:var(--vien-3);color:var(--chu-2)}
+.ngan .ng-sao svg.i{width:13px;height:13px}
+.ng-ten{font-size:20px;font-weight:500;line-height:1.3;margin:1px 0 7px}
+.ng-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ng-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;background:#f1f5f9;color:var(--chu-2);font-size:12.5px;white-space:nowrap}
+.ngan .ng-chip svg.i{width:13px;height:13px;color:var(--chu-4)}
+.vien{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12.5px;white-space:nowrap}
+.vien--xanh{background:#dbeafe;color:#1d4ed8}
+.vien--xanh::before{content:"";width:7px;height:7px;border-radius:50%;background:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.18)}
+.vien--cam{background:#ffedd5;color:#c2410c}
+.vien--cham{background:#e0e7ff;color:#4338ca}
+.vien--la{background:#dcfce7;color:#15803d}
+.vien--xam{background:#f1f5f9;color:var(--chu-3)}
+.ngan .vien svg.i{width:13px;height:13px}
+.ng-dau__phai{display:flex;align-items:center;gap:6px;align-self:flex-start}
+
+.ng-than{flex:1;overflow:auto;padding:18px 20px 20px;display:grid;grid-template-columns:440px minmax(0,1fr);gap:16px;align-items:start}
+.ng-cot{display:flex;flex-direction:column;gap:14px;min-width:0}
+.ng-the{background:var(--trang);border:1px solid var(--vien);border-radius:14px;padding:16px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.ng-the__dau{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:14px}
+.ng-the__dau .gian{flex:1}
+.ng-the__dau .phu{font-size:12.5px;color:var(--chu-3)}
+.oic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none;border:1px solid transparent}
+.ngan .oic svg.i{width:15px;height:15px}
+.oic--lon{width:42px;height:42px;border-radius:11px}
+.ngan .oic--lon svg.i{width:19px;height:19px}
+/* bộ màu ô biểu tượng: lấy nguyên từ .xl-c-icon--* của app */
+.m-cat{background:#fef3c7;color:#b45309;border-color:#fde68a}
+.m-in{background:#cff4fc;color:#055160;border-color:#9eeaf9}
+.m-can{background:#f3e8ff;color:#6b21a8;border-color:#e9d5ff}
+.m-tp{background:#ffe4e6;color:#be123c;border-color:#fecdd3}
+.m-xanh{background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe}
+.m-cham{background:#e0e7ff;color:#4338ca;border-color:#c7d2fe}
+.m-la{background:#dcfce7;color:#15803d;border-color:#bbf7d0}
+.m-rust{background:#fff1e8;color:var(--rust);border-color:#fdd5bd}
+.m-xam{background:#f1f5f9;color:#475569;border-color:#e2e8f0}
+
+/* khối bắt đầu → xong */
+.ng-moc{display:grid;grid-template-columns:minmax(0,1fr) 32px minmax(0,1fr);align-items:stretch}
+.ng-o{border:1px solid var(--vien);border-radius:11px;padding:10px 12px;min-width:0}
+.ng-o__nhan{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--chu-3);margin-bottom:3px}
+.ngan .ng-o__nhan svg.i{width:13px;height:13px}
+.ng-o__gt{font-size:17px;line-height:1.35;white-space:nowrap}
+.ng-o__gt .mo{font-size:14px}
+.ng-o--nhap{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(37,99,235,.12);cursor:text}
+.ng-o--xong{background:linear-gradient(135deg,#eff6ff,#e3edff);border-color:#bfdbfe}
+.ng-o--xong .ng-o__gt{color:#1e3a8a}
+.ng-o--xong .ng-o__nhan{color:#3b5bab}
+.ng-mui{display:grid;place-items:center;color:var(--chu-4)}
+.ng-mui span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--trang);border:1px solid var(--vien)}
+.ngan .ng-mui svg.i{width:13px;height:13px}
+.ng-doi{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;color:var(--chu-3)}
+.ng-doi .nhom-nut{height:28px}
+.ng-doi .nhom-nut button{height:26px;font-size:12.5px;padding:0 9px;gap:4px;display:inline-flex;align-items:center}
+.ng-canh{display:flex;gap:10px;align-items:flex-start;margin-top:12px;padding:10px 12px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px;line-height:1.5}
+.ngan .ng-canh svg.i{width:16px;height:16px;margin-top:1px;color:#d97706}
+
+/* thời gian chia ra */
+.ng-thanh{display:flex;height:8px;border-radius:999px;overflow:hidden;background:#e2e8f0;margin:0 0 12px}
+.ng-thanh .a{background:linear-gradient(90deg,#3b82f6,#2563eb)}
+.ng-thanh .b{background:#cbd5e1}
+.ng-so{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ng-so__o{border-radius:11px;padding:10px 12px;border:1px solid}
+.ng-so__o--chay{background:#eff6ff;border-color:#dbeafe}
+.ng-so__o--nghi{background:#f8fafc;border-color:#e2e8f0}
+.ng-so__dau{display:flex;align-items:center;gap:6px;font-size:12px}
+.ng-so__o--chay .ng-so__dau{color:#1d4ed8}
+.ng-so__o--nghi .ng-so__dau{color:var(--chu-3)}
+.ngan .ng-so__dau svg.i{width:13px;height:13px}
+.ng-so__dau .pt{margin-left:auto;font-size:12px;padding:0 7px;border-radius:999px;background:rgba(255,255,255,.8)}
+.ng-so__gt{font-size:18px;margin-top:3px}
+.ng-so__o--chay .ng-so__gt{color:#1e3a8a}
+.ng-dong{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:11px;align-items:center;padding:9px 0 0;margin-top:9px;border-top:1px dashed var(--vien)}
+.ng-dong__ten{font-size:13px}
+.ng-dong__phu{display:flex;flex-wrap:wrap;gap:5px;margin-top:3px;font-size:12px;color:var(--chu-3)}
+.ng-dong__gt{font-size:13px;color:var(--chu-2);white-space:nowrap}
+.nho{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:#f1f5f9;color:var(--chu-2);font-size:11.5px;white-space:nowrap}
+.nho--hong{background:#ffe4e6;color:#be123c}
+.nho--la{background:#dcfce7;color:#15803d}
+
+/* hạn */
+.ng-han{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:12px}
+.ng-han__dong{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:4px;font-size:14px}
+.ng-han__o{border:1px solid var(--vien);border-radius:11px;padding:9px 12px}
+.ng-han__o--trong{border-style:dashed;background:#fafbfc}
+.ng-han__nhan{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--chu-3)}
+.ngan .ng-han__nhan svg.i{width:14px;height:14px}
+.ng-han__gt{font-size:16px;margin:4px 0 6px;white-space:nowrap}
+.ng-han__gt .mo{font-size:13px}
+
+/* quy trình */
+.ng-buoc-ds{position:relative;display:flex;flex-direction:column;gap:10px}
+.ng-buoc-ds::before{content:"";position:absolute;left:13px;top:26px;bottom:26px;width:2px;border-radius:2px;background:linear-gradient(#e2e8f0,#cbd5e1)}
+.ng-buoc{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;align-items:center}
+.ng-so-tt{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12.5px;background:var(--trang);border:2px solid;position:relative;z-index:1}
+.ng-buoc__the{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 14px;border:1px solid var(--vien);border-radius:12px;background:var(--trang);transition:transform .15s,box-shadow .15s}
+.ng-buoc__the:hover{transform:translateX(3px);box-shadow:0 4px 14px rgba(15,23,42,.07);border-color:#cbd5e1}
+.ng-buoc__ten{font-size:14px}
+.ng-buoc__phu{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px;font-size:12.5px;color:var(--chu-3)}
+.ng-buoc__may{display:inline-flex;align-items:center;gap:5px;margin-right:4px}
+.ngan .ng-buoc__may svg.i{width:13px;height:13px;color:var(--chu-4)}
+.ng-buoc__phai{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.ng-buoc__ly{font-size:11.5px;color:var(--chu-3)}
+
+/* quy cách */
+.ng-qc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ng-qc__o{background:#f8fafc;border:1px solid #eef1f5;border-radius:11px;padding:10px 12px;min-width:0}
+.ng-qc__o--rong{grid-column:span 2}
+.ng-qc__nhan{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--chu-3)}
+.ngan .ng-qc__nhan svg.i{width:13px;height:13px}
+.ng-qc__gt{font-size:15px;margin-top:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ng-qc__gt .mo{font-size:12.5px}
+.ng-av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#fb923c,#c5400a);color:#fff;font-size:11.5px}
+
+.ng-chan{display:flex;align-items:center;gap:10px;padding:12px 20px 12px 24px;background:var(--trang);border-top:1px solid var(--vien)}
+.ng-chan .gian{flex:1}
+.ng-chan .goi-y{font-size:12.5px;color:var(--chu-3);display:inline-flex;align-items:center;gap:6px}
+.ng-chan .btn{height:36px;padding:0 14px}
+.btn--do{color:#b91c1c;border-color:#fecaca}
+.btn--do:hover{background:#fef2f2;border-color:#fca5a5}
+.btn--xanh{color:#fff;border-color:transparent;background:linear-gradient(135deg,#2563eb,#1d4ed8);box-shadow:0 2px 8px rgba(37,99,235,.32)}
+.btn--xanh:hover{background:linear-gradient(135deg,#1d4ed8,#1e40af)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Xếp lịch: phương án A, bản chỉnh sửa</h1>
+<p class="lead">Giữ khung phương án A anh chọn (tên nằm trên thanh, hạn là hình thoi, ngăn phải), chỉnh lại từng chi tiết theo đúng ảnh Linear Timeline. Bên dưới vẽ ba trạng thái của cùng một màn: lúc mở, lúc kéo lệnh chờ vào lịch, lúc bấm một thanh.</p>
+
+<div class="hop">
+  <div>
+    <h2>Sửa gì so với bản A trước</h2>
+    <ol>
+      <li><b>Thanh hết lốm đốm.</b> Vạch xanh dưới đáy thanh (chuỗi gạch như mã Morse) bỏ. Giờ máy chạy trong ca là các đoạn đậm hơn nền một bậc, cao hết thanh: nhìn ra nhịp chạy và nghỉ mà không thành hoa văn.</li>
+      <li><b>Hạn không còn lơ lửng.</b> Từ đuôi thanh tới hình thoi hạn có một đường chấm mảnh, tức là khoảng dư còn lại. Hạn bị vượt thì hình thoi tô đỏ, đoạn quá hạn đỏ nhạt dần như Linear.</li>
+      <li><b>Hôm nay nhẹ đi.</b> Vạch hôm nay mảnh, màu cam gạch của hệ, mờ 35% và nằm sau chữ; viên tròn trên trục mới là chỗ nhấn.</li>
+      <li><b>Chủ nhật tô phẳng</b> một lớp xám rất nhạt thay cho gạch chéo; kẻ đầu tuần đậm hơn kẻ ngày như Linear chia tuần.</li>
+      <li><b>Trạng thái bằng biểu tượng</b> (nửa vòng xanh: có lịch chưa phát hành; dấu tích xanh lá: đã phát hành) thay chấm màu không ai hiểu.</li>
+      <li><b>Đang chọn</b> là vòng xanh cách thanh 2px, thay viền đen dày.</li>
+      <li><b>Đầu màn một hàng</b>: tên màn, khoảng ngày viết thành chữ, cụm ‹ Hôm nay ›, độ dài khoảng, nút Chờ xếp lịch có số đếm. Bỏ "4 lệnh trong khoảng".</li>
+      <li><b>Ngăn chi tiết theo khuôn hộp đang có trong app</b>: hai cột, mỗi công đoạn một ô biểu tượng màu theo loại và số thứ tự, giờ chạy là viên xanh, chưa tính được giờ là viên cam kèm lý do. Sửa ba chỗ dở của hộp cũ: Bắt đầu và Dự kiến xong chỉ nói một lần; "Tổng khoảng tính" đổi thành "Từ bắt đầu tới xong"; hai chục chip giờ ngoài ca gom thành một dòng "16 đêm".</li>
+    </ol>
+  </div>
+  <figure><img src="tham-khao-xep-lich/ref-linear.png" alt="Linear Timeline"><figcaption>Ảnh gốc Linear Timeline (linear.app/docs/timeline) đối chiếu khi chỉnh.</figcaption></figure>
+</div>
+
+<p class="buoc">1. Lúc mở màn</p>
+<p class="buoc-mo">Ngày xong luôn nằm trên dòng tên; thanh chạy quá khoảng đang xem thì mờ dần ở mép phải. Chữ vàng "có thể muộn hơn" khi còn công đoạn chưa tính được giờ.</p>
+<div class="screen" id="m1"></div>
+
+<p class="buoc">2. Lúc kéo lệnh chờ vào lịch</p>
+<p class="buoc-mo">Bấm "Chờ xếp lịch" mở danh sách nổi. Kéo LSX26-0008 ra lịch: thanh bóng đi theo chuột, bong bóng đen trả ngay ngày xong và khoảng dư so với hạn. Đây là đúng mục tiêu của màn: chọn giờ bắt đầu, thấy ngay ngày xong, trước cả khi thả.</p>
+<div class="screen" id="m2" style="padding-bottom:0"></div>
+
+<p class="buoc">3. Lúc bấm thanh LSX26-0004</p>
+<p class="buoc-mo">Ngăn chi tiết rộng bằng mọi ngăn khác của hệ, khuôn lấy từ hộp chi tiết đang chạy trong app: cột trái là lịch của lệnh (bắt đầu, dự kiến xong, thời gian chia ra sao, hạn), cột phải là quy trình và quy cách. Mép trái vẫn lộ đầu thanh đang chọn; đổi giờ ở ô Bắt đầu thì thanh dời theo.</p>
+<div class="screen screen--cao" id="m3" style="height:900px"></div>
+
+</div>
+
+<script>
+const W0 = new Date(2026, 9, 5), N = 14, NOW = new Date(2026, 9, 8, 9, 40), CA = [14, 22];
+const W1 = new Date(W0.getTime() + N * 864e5);
+const ngay = (a) => new Date(a[0], a[1] - 1, a[2], a[3] || 0, a[4] || 0);
+const laNghi = (d) => d.getDay() === 0;
+const LENH = [
+  { ma: 'LSX26-0004', ten: 'Bìa sách A5', tt: 'chua', bd: [2026,10,5,14,0], buoc: [0, 7941.67, 0, 0], hanGiao: [2026,11,6], chuaGio: 3 },
+  { ma: 'LSX26-0003', ten: 'Ruột sách A5 64 trang', tt: 'chua', bd: [2026,10,5,14,45], buoc: [0, 60075, 0, 0, 0], hanGiao: [2026,11,6], chuaGio: 3 },
+  { ma: 'LSX26-0005', ten: 'Hộp giấy bánh trung thu', tt: 'phat', gap: true, bd: [2026,10,6,14,0], buoc: [540, 240, 390, 300], hanSX: [2026,10,9], hanGiao: [2026,10,12] },
+  { ma: 'LSX26-0006', ten: 'Tem nhãn chai 500ml', tt: 'chua', bd: [2026,10,12,14,0], buoc: [720, 360, 420], hanSX: [2026,10,14], hanGiao: [2026,10,16] },
+];
+const KEO = { ma: 'LSX26-0008', ten: 'Túi giấy kraft quai xoắn', tt: 'keo', bd: [2026,10,12,14,0], buoc: [1120], hanSX: [2026,10,16], hanGiao: [2026,10,19] };
+const CHO = [
+  { ma: 'LSX26-0010', ten: 'Tờ rơi khuyến mãi A4', khach: 'CÔNG TY TNHH THƯƠNG MẠI HẢI ĐĂNG', gap: true, han: '13/10', gio: '6 giờ 30' },
+  { ma: 'LSX26-0008', ten: 'Túi giấy kraft quai xoắn', khach: 'CỬA HÀNG HOA MỘC', han: '16/10', gio: '18 giờ 40' },
+  { ma: 'LSX26-0009', ten: 'Lịch bàn 2027', khach: 'CÔNG TY TNHH THƯƠNG MẠI HẢI ĐĂNG', han: '20/10', gio: '26 giờ 15' },
+];
+function trai(l) {
+  let c = ngay(l.bd); const khoi = [];
+  l.buoc.forEach((phut) => {
+    let con = phut;
+    while (con > 0.01) {
+      const dau = new Date(c); dau.setHours(CA[0], 0, 0, 0);
+      const cuoi = new Date(c); cuoi.setHours(CA[1], 0, 0, 0);
+      if (laNghi(c) || c >= cuoi) { c = new Date(dau.getTime() + 864e5); continue; }
+      if (c < dau) c = dau;
+      const dung = Math.min((cuoi - c) / 6e4, con);
+      const den = new Date(c.getTime() + dung * 6e4);
+      khoi.push({ tu: c, den }); c = den; con -= dung;
+    }
+  });
+  l.khoi = khoi; l.kt = c; l.bdD = ngay(l.bd);
+  l.hSX = l.hanSX ? new Date(ngay(l.hanSX).getTime() + 864e5) : null;
+  l.hGiao = l.hanGiao ? new Date(ngay(l.hanGiao).getTime() + 864e5) : null;
+  l.han = l.hSX || l.hGiao;
+  l.tre = l.han && c > l.han ? Math.ceil((c - l.han) / 864e5) : 0;
+  l.du = l.han && c <= l.han ? Math.floor((l.han - c) / 864e5) : null;
+}
+LENH.forEach(trai); trai(KEO);
+const THU = ['CN','T2','T3','T4','T5','T6','T7'];
+const p2 = (n) => String(n).padStart(2, '0');
+const dm = (d) => `${p2(d.getDate())}/${p2(d.getMonth() + 1)}`;
+const dmy = (d) => d.getFullYear() !== 2026 ? `${dm(d)}/${d.getFullYear()}` : dm(d);
+const hm = (d) => `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+const NGAY = [...Array(N)].map((_, i) => new Date(W0.getTime() + i * 864e5));
+const X = (t) => Math.min(100, Math.max(0, (t - W0) / (W1 - W0) * 100));
+const P = (v) => `${v}%`;
+
+const IC = {
+  chua: '<svg class="tt" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#2563eb" stroke-width="1.5"/><path d="M8 2a6 6 0 0 1 0 12z" fill="#2563eb"/></svg>',
+  phat: '<svg class="tt" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#16a34a"/><path d="m5 8.2 2 2 4-4.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  keo: '<svg class="tt" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="2.5 2.5"/></svg>',
+  canh: '<svg class="i" viewBox="0 0 24 24" style="width:13px;height:13px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>',
+};
+
+// Biểu tượng lucide — đúng bộ app đang dùng (lucide-react).
+const LP = {
+  lich: '<path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/>',
+  chep: '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  khach: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2M10 6h4M10 10h4M10 14h4M10 18h4"/>',
+  don: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8"/>',
+  the: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r="1"/>',
+  mo: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  choi: '<circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4Z"/>',
+  dung: '<circle cx="12" cy="12" r="10"/><path d="M10 15V9M14 15V9"/>',
+  toi: '<path d="M5 12h14M12 5l7 7-7 7"/>',
+  lui: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  dich: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  canh: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>',
+  'dong-ho': '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  nang: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  trang: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  nghi: '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M14 14l-4 4M10 14l4 4"/>',
+  xe: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>',
+  lop: '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+  keo: '<circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/>',
+  in: '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
+  'lap-lanh': '<path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/>',
+  hop: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>',
+  xuong: '<path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1M12 18h1M7 18h1"/>',
+  may: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  to: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  giay: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+  nguoi: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  gui: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+  xoa: '<path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/>',
+};
+const L = (k) => `<svg class="i" viewBox="0 0 24 24">${LP[k]}</svg>`;
+
+function dau(popMo) {
+  return `<div class="dau">
+    <h3>Xếp lịch</h3><span class="khoang">5 đến 18 tháng 10, 2026</span>
+    <div class="gian"></div>
+    <div class="nhom-nut"><button aria-label="Lùi"><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><button>Hôm nay</button><button aria-label="Tới"><svg class="i" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button></div>
+    <div class="seg"><button>Tuần</button><button aria-pressed="true">2 tuần</button><button>Tháng</button></div>
+    <button class="btn"${popMo ? ' style="background:var(--vien-3)"' : ''}>Chờ xếp lịch <span class="dem">3</span><svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+  </div>`;
+}
+function truc() {
+  let s = '<div class="truc"><span class="truc__thang">Tháng 10</span>';
+  NGAY.forEach((d, i) => {
+    const nay = d.toDateString() === NOW.toDateString();
+    s += `<div class="truc__ngay${laNghi(d) ? ' truc__ngay--nghi' : ''}${nay ? ' truc__ngay--nay' : ''}" style="left:${i / N * 100}%;width:${100 / N}%">${THU[d.getDay()]} <b>${d.getDate()}</b></div>`;
+  });
+  return s + '</div>';
+}
+function nen() {
+  let s = '<div class="nen">';
+  NGAY.forEach((d, i) => {
+    if (laNghi(d)) s += `<div class="nghi" style="left:${i / N * 100}%;width:${100 / N}%"></div>`;
+    if (i) s += `<div class="ke${d.getDay() === 1 ? ' ke--tuan' : ''}" style="left:${i / N * 100}%"></div>`;
+  });
+  return s + `<div class="nay" style="left:${X(NOW)}%"></div></div>`;
+}
+function lane(l, o = {}) {
+  const a = X(l.bdD), b = X(l.kt), cat = l.kt > W1;
+  const hanX = l.han && l.han > W0 && l.han < W1 ? X(l.han) : null;
+  const coTre = l.tre && hanX !== null;
+  const duoi = coTre ? hanX : b;
+  let s = `<div class="lane">`;
+  // dòng tên
+  let xong = `<span class="xong">Xong ${THU[l.kt.getDay()]} ${dmy(l.kt)}${cat ? ' ›' : ` <span class="gio">${hm(l.kt)}</span>`}</span>`;
+  let canh = '';
+  if (l.tre) canh = `<span class="canh chu-do">${IC.canh}trễ ${l.tre} ngày${l.hSX ? '' : ' so với hạn giao'}</span>`;
+  else if (l.chuaGio) canh = `<span class="canh chu-vang" title="${l.chuaGio} công đoạn chưa tính được giờ">${IC.canh}có thể muộn hơn</span>`;
+  if (!o.anTen) s += `<div class="ten" style="left:${P(a)}">${IC[l.tt]}<span class="ma">${l.ma}</span>${l.ten}${l.gap ? '<span class="gap">Gấp</span>' : ''}${o.anXong ? '' : xong + canh}</div>`;
+  // thanh
+  let chay = '';
+  l.khoi.forEach((k) => {
+    const x = X(k.tu), y = Math.min(X(k.den), duoi);
+    if (y > x) chay += `<span class="chay" style="left:${(x - a) / (duoi - a) * 100}%;width:${(y - x) / (duoi - a) * 100}%"></span>`;
+  });
+  const lop = `thanh thanh--${l.tt}${o.chon ? ' thanh--chon' : ''}${cat && !coTre && !o.chon ? ' thanh--cat' : ''}`;
+  s += `<div class="${lop}" style="left:${P(a)};width:${duoi - a}%${coTre ? ';border-top-right-radius:0;border-bottom-right-radius:0' : ''}">${chay}</div>`;
+  if (coTre) s += `<div class="tre" style="left:${P(hanX)};width:${b - hanX}%"></div>`;
+  // hạn
+  [[l.hSX, l.hanSX, 'Hạn SX', ''], [l.hGiao, l.hanGiao, 'Giao', 'giao']].forEach(([h, raw, ten, kieu], idx) => {
+    if (!h || h <= W0 || h >= W1) return;
+    if (idx === 1 && l.hSX) {} // vẫn vẽ cả hai
+    const x = X(h), vuot = l.kt > h && (idx === 0 || !l.hSX);
+    if (!vuot && x > b) s += `<div class="du" style="left:${P(b)};width:${x - b}%"></div>`;
+    s += `<div class="moc${vuot ? ' moc--vuot' : kieu ? ' moc--giao' : ''}" style="left:${P(x)}"></div><div class="moc-chu${vuot ? ' moc-chu--vuot' : ''}" style="left:${P(x)}">${ten} ${dm(ngay(raw))}</div>`;
+  });
+  return s + `</div>`;
+}
+function chan() {
+  return `<div class="chan">
+    <span>${IC.chua.replace('class="tt"', 'class="tt" style="vertical-align:-3px;margin-right:6px"')}Có lịch, chưa phát hành</span>
+    <span>${IC.phat.replace('class="tt"', 'class="tt" style="vertical-align:-3px;margin-right:6px"')}Đã phát hành</span>
+    <span><i style="width:30px;height:12px;border-radius:3px;background:linear-gradient(90deg,#d6e2fc 0 40%,#eef3fe 40% 100%)"></i>Đoạn đậm là giờ máy chạy trong ca</span>
+    <span><i style="width:9px;height:9px;border:1.5px solid var(--chu-2);transform:rotate(45deg);border-radius:2px"></i>Hạn xong sản xuất</span>
+    <span><i style="width:9px;height:9px;border:1.5px solid var(--chu-4);transform:rotate(45deg);border-radius:2px"></i>Hạn giao khách</span>
+    <span><i style="width:22px;border-top:1.5px dotted var(--chu-5)"></i>Còn dư tới hạn</span>
+    <div class="gian"></div>
+    <span>Ca đang bật 14:00 đến 22:00, nghỉ Chủ nhật</span>
+  </div>`;
+}
+function man(id, o = {}) {
+  let s = dau(o.pop) + truc() + `<div class="vung"${o.keo ? ' style="padding-bottom:64px"' : ''}>${nen()}`;
+  LENH.forEach((l) => { s += lane(l, { chon: o.chon === l.ma }); });
+  if (o.keo) s += lane(KEO, { anXong: true });
+  s += `</div>` + chan();
+  const el = document.getElementById(id);
+  el.innerHTML = s;
+  if (o.keo) {
+    const vung = el.querySelector('.vung');
+    const b = document.createElement('div');
+    b.className = 'bong-keo';
+    b.style.left = `calc(${X(KEO.bdD)}% - 6px)`;
+    b.style.top = `${4 * 80 + 6 + 66}px`;
+    b.classList.add('bong-keo--duoi');
+    b.innerHTML = `<b>Bắt đầu T2 12/10 14:00</b><br>Xong T4 ${dm(KEO.kt)} ${hm(KEO.kt)} <span class="mo">dư ${KEO.du} ngày tới hạn SX 16/10</span>`;
+    vung.appendChild(b);
+    const pop = document.createElement('div');
+    pop.className = 'pop';
+    pop.innerHTML = `<div class="pop__tim"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Tìm lệnh chờ xếp</div>` +
+      CHO.map((q) => `<div class="q${q.ma === KEO.ma ? ' q--keo' : ''}"><svg class="i q__nam" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg><div class="q__1"><span class="ma">${q.ma}</span>${q.ten}${q.gap ? '<span class="gap">Gấp</span>' : ''}</div><div class="q__2">${q.khach}</div><div class="q__p">hạn ${q.han}<br><span class="mo">${q.gio} chạy</span></div></div>`).join('') +
+      `<div class="pop__chan">Kéo một dòng thả vào ngày muốn bắt đầu.</div>`;
+    el.appendChild(pop);
+    pop.style.top = '60px';
+  }
+  if (o.ngan) {
+    const n = document.createElement('aside');
+    n.className = 'ngan';
+    const buoc = (so, mau, vien, ic, ten, phu, phai) => `
+      <div class="ng-buoc"><span class="ng-so-tt" style="border-color:${vien};color:${vien}">${so}</span>
+        <div class="ng-buoc__the"><span class="oic oic--lon ${mau}">${L(ic)}</span>
+          <div style="min-width:0"><div class="ng-buoc__ten">${ten}</div><div class="ng-buoc__phu">${phu}</div></div>
+          <div class="ng-buoc__phai">${phai}</div></div></div>`;
+    const may = (ic, chu) => `<span class="ng-buoc__may">${L(ic)}${chu}</span>`;
+    n.innerHTML = `
+      <div class="ng-dau">
+        <span class="ng-logo">${L('lich')}</span>
+        <div class="ng-dau__giua">
+          <div class="ng-ma">LSX26-0004<span class="ng-sao" title="Chép mã lệnh">${L('chep')}</span><span class="vien vien--xanh">Có lịch, chưa phát hành</span></div>
+          <div class="ng-ten">Bìa sách A5</div>
+          <div class="ng-chips">
+            <span class="ng-chip">${L('khach')}CÔNG TY CỔ PHẦN BIBICA</span>
+            <span class="ng-chip">${L('don')}Đơn DH002</span>
+            <span class="ng-chip">${L('the')}PO451263</span>
+          </div>
+        </div>
+        <div class="ng-dau__phai">
+          <button class="btn">${L('mo')}Mở hồ sơ lệnh</button>
+          <button class="btn btn--tron btn--o" aria-label="Đóng">${L('x')}</button>
+        </div>
+      </div>
+      <div class="ng-than">
+        <div class="ng-cot">
+          <section class="ng-the">
+            <div class="ng-the__dau"><span class="oic m-rust">${L('choi')}</span>Bắt đầu lệnh</div>
+            <div class="ng-moc">
+              <div class="ng-o ng-o--nhap"><div class="ng-o__nhan">${L('lich')}Bắt đầu</div><div class="ng-o__gt">T2 05/10 <span class="mo">14:00</span></div></div>
+              <div class="ng-mui"><span>${L('toi')}</span></div>
+              <div class="ng-o ng-o--xong"><div class="ng-o__nhan">${L('dich')}Dự kiến xong</div><div class="ng-o__gt">T6 23/10 <span class="mo">18:21</span></div></div>
+            </div>
+            <div class="ng-doi">
+              <div class="nhom-nut"><button>${L('lui')}15 phút</button><button>15 phút${L('toi')}</button></div>
+              <span>hoặc kéo thanh trên lịch</span>
+            </div>
+            <div class="ng-han">
+              <div class="ng-han__o ng-han__o--trong"><div class="ng-han__nhan">${L('dich')}Hạn xong sản xuất</div><div class="ng-han__dong"><span class="mo">Chưa khai</span></div></div>
+              <div class="ng-han__o"><div class="ng-han__nhan">${L('xe')}Hạn giao khách</div><div class="ng-han__dong"><span>T6 06/11</span><span class="nho nho--la">còn dư 14 ngày</span></div></div>
+            </div>
+            <div class="ng-canh">${L('canh')}<span>Ba công đoạn chưa tính được giờ (xem bên phải) nên lệnh có thể xong muộn hơn ngày trên.</span></div>
+          </section>
+
+          <section class="ng-the">
+            <div class="ng-the__dau"><span class="oic m-xanh">${L('dong-ho')}</span>Từ bắt đầu tới xong<span class="gian"></span><span>18 ngày 4 giờ</span></div>
+            <div class="ng-thanh"><span class="a" style="width:30%"></span><span class="b" style="width:70%"></span></div>
+            <div class="ng-so">
+              <div class="ng-so__o ng-so__o--chay"><div class="ng-so__dau">${L('choi')}Máy chạy<span class="pt">30%</span></div><div class="ng-so__gt">132 giờ 22 phút</div></div>
+              <div class="ng-so__o ng-so__o--nghi"><div class="ng-so__dau">${L('dung')}Nghỉ và ngoài ca<span class="pt">70%</span></div><div class="ng-so__gt">304 giờ</div></div>
+            </div>
+            <div class="ng-dong"><span class="oic m-cat">${L('nang')}</span><div><div class="ng-dong__ten">Ca chiều</div><div class="ng-dong__phu">14:00 đến 22:00 mỗi ngày làm</div></div><span class="ng-dong__gt">8 giờ một ngày</span></div>
+            <div class="ng-dong"><span class="oic m-cham">${L('trang')}</span><div><div class="ng-dong__ten">Ngoài ca</div><div class="ng-dong__phu">16 đêm, từ 22:00 tới 14:00 hôm sau</div></div><span class="ng-dong__gt">256 giờ</span></div>
+            <div class="ng-dong"><span class="oic m-tp">${L('nghi')}</span><div><div class="ng-dong__ten">Ngày nghỉ</div><div class="ng-dong__phu"><span class="nho nho--hong">CN 11/10</span><span class="nho nho--hong">CN 18/10</span></div></div><span class="ng-dong__gt">48 giờ</span></div>
+          </section>
+
+        </div>
+
+        <div class="ng-cot">
+          <section class="ng-the">
+            <div class="ng-the__dau"><span class="oic m-rust">${L('lop')}</span>Quy trình sản xuất<span class="gian"></span><span class="phu">4 bước chạy lần lượt</span></div>
+            <div class="ng-buoc-ds">
+              ${buoc(1, 'm-cat', '#d97706', 'keo', 'Cắt tờ', may('to', 'Tổ Cắt 2') + '<span class="nho">350 tờ</span>',
+                `<span class="vien vien--cam">${L('canh')}Chưa tính được giờ</span><span class="ng-buoc__ly">chưa gán máy</span>`)}
+              ${buoc(2, 'm-in', '#0891b2', 'in', 'Bài in 3 màu 4 màu (CMYK)', may('may', 'Máy in 5 màu Mitsubishi 54×79') + '<span class="nho">350 tờ</span><span class="nho">2 người</span>',
+                `<span class="vien vien--xanh" style="padding-left:9px">132 giờ 22 phút</span>`)}
+              ${buoc(3, 'm-can', '#9333ea', 'lap-lanh', 'Cán màng', may('may', 'Máy cán màng 1080 số 1') + '<span class="nho">350 tờ</span>',
+                `<span class="vien vien--cam">${L('canh')}Chưa tính được giờ</span><span class="ng-buoc__ly">chưa quy đổi tờ ra m²</span>`)}
+              ${buoc(4, 'm-tp', '#e11d48', 'hop', 'Cắt thành phẩm', may('xuong', 'Cơ sở Cán màng Thành Công') + '<span class="nho">1.000 cuốn</span>',
+                `<span class="vien vien--cham">${L('xuong')}Gia công ngoài</span><span class="ng-buoc__ly">chưa khai số ngày</span>`)}
+            </div>
+          </section>
+
+          <section class="ng-the">
+            <div class="ng-the__dau"><span class="oic m-can">${L('the')}</span>Quy cách và vật tư</div>
+            <div class="ng-qc">
+              <div class="ng-qc__o"><div class="ng-qc__nhan">${L('hop')}Sản lượng đặt</div><div class="ng-qc__gt">1.000 cuốn</div></div>
+              <div class="ng-qc__o"><div class="ng-qc__nhan">${L('to')}Tờ in</div><div class="ng-qc__gt">350 tờ <span class="nho">4 con một tờ</span></div></div>
+              <div class="ng-qc__o"><div class="ng-qc__nhan">${L('lop')}Kẽm</div><div class="ng-qc__gt">4 tấm</div></div>
+              <div class="ng-qc__o ng-qc__o--rong"><div class="ng-qc__nhan">${L('giay')}Giấy</div><div class="ng-qc__gt">Ivory 210 đến 250gsm <span class="nho">khổ 54×79</span></div></div>
+              <div class="ng-qc__o"><div class="ng-qc__nhan">${L('nguoi')}Kinh doanh</div><div class="ng-qc__gt"><span class="ng-av">H</span>nguyenthihuyen</div></div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div class="ng-chan">
+        <button class="btn">Đóng</button>
+        <span class="gian"></span>
+        <span class="goi-y">${L('gui')}Phát hành xong, thẻ việc tới tay tổ trưởng ngay</span>
+        <button class="btn btn--do">${L('xoa')}Bỏ lịch</button>
+        <button class="btn btn--xanh">${L('gui')}Phát hành ngay</button>
+      </div>`;
+    el.appendChild(n);
+  }
+}
+man('m1');
+man('m2', { keo: true, pop: true });
+man('m3', { chon: 'LSX26-0004', ngan: true });
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 // Ở đây KHÔNG gọi API, KHÔNG giữ state: chỉ số học ngày-giờ + hình học thanh + định dạng. Tách ra
 // để lưới và panel không tự tính lệch nhau — cả hai phải quy ra pixel bằng ĐÚNG một công thức, nếu
 // không thanh vẽ một đằng còn chữ nói một nẻo.
-import type { XlDoan, XlDoanThucTe, XlDong } from "../api/client";
+import type { XlDoan, XlDoanThucTe, XlDong, XlNgayDacBiet } from "../api/client";
 
 /** Số ngày MỘT màn hình. Bảy vì tuần làm việc là đơn vị người điều độ nghĩ bằng — "lệnh này chạy
  *  hết tuần" là câu họ nói, không phải "hết 5,5 ngày". */
@@ -42,9 +42,9 @@ export function nacCuaSo(soNgay: number): 7 | 14 | 30 {
   return soNgay <= 9 ? 7 : soNgay <= 20 ? 14 : 30;
 }
 
-/** Trần một lần xem. `/lich` trải MỌI lệnh chạm cửa sổ, cửa sổ càng dài càng nặng — hai tháng là đủ
- *  cho người điều độ nhìn trước, dài hơn thì lùi/tiến bằng mũi tên. */
-export const SO_NGAY_TOI_DA = 60;
+/** Trần một lần xem — BA THÁNG (mockup A cải tiến, 08/10/2026: "Dài nhất 3 tháng"). `/lich` trải
+ *  MỌI lệnh chạm cửa sổ, cửa sổ càng dài càng nặng; dài hơn thì lùi/tiến bằng mũi tên. */
+export const SO_NGAY_TOI_DA = 92;
 
 export const NGAY_NHAP_MIN = "2000-01-01";
 export const NGAY_NHAP_MAX = "2099-12-31";
@@ -64,7 +64,7 @@ export function loiKhoangNgay(tu: string, den: string): string | null {
   if (!tu || !den) return "Chọn đủ từ ngày và đến ngày.";
   if (!hopLe(tu) || !hopLe(den)) return "Ngày không hợp lệ.";
   if (den < tu) return "Đến ngày phải từ ngày bắt đầu trở đi.";
-  if (soNgayGiua(tu, den) > SO_NGAY_TOI_DA) return `Mỗi lần xem tối đa ${SO_NGAY_TOI_DA} ngày.`;
+  if (soNgayGiua(tu, den) > SO_NGAY_TOI_DA) return "Mỗi lần xem tối đa 3 tháng.";
   return null;
 }
 
@@ -285,8 +285,10 @@ export interface XlPhanTachNghi {
   ngoai_ca_phut: number;
   ngoai_ca: XlKhungLap[];
   ngay_nghi_phut: number;
-  ngay_nghi: { ngay: string; phut: number; ten: string | null }[];
+  ngay_nghi: { ngay: string; phut: number; ten: string | null; loai?: string | null }[];
   gia_cong_ngoai_phut: number;
+  /** Quãng đứng chờ lệnh khác trong cụm (5b) — tách khỏi phần nghỉ. */
+  cho_lenh_khac_phut?: number;
 }
 
 /** Trễ hạn SX bao nhiêu ngày (âm = còn sớm, null = chưa đủ dữ kiện). Màn KHÔNG chặn theo số này —
@@ -313,4 +315,61 @@ export function nhanNgay(d: string): { thu: string; so: string; homNay: boolean 
   const [y, mo, dd] = d.split("-").map(Number);
   const dt = new Date(y, mo - 1, dd);
   return { thu: THU[dt.getDay()], so: `${dd}/${mo}`, homNay: ymd(new Date()) === d };
+}
+
+// ---------------------------------------------------------------- màn A cải tiến (08/10/2026)
+
+/** "T4 14/10 16:40" — mốc đọc theo trục ngày: thứ trước để biết có dính CN không. */
+export function thuNgayGio(iso: string | null | undefined): string {
+  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (!m) return "—";
+  return `${THU[new Date(+m[1], +m[2] - 1, +m[3]).getDay()]} ${m[3]}/${m[2]} ${m[4]}:${m[5]}`;
+}
+
+/** Kiểu một ngày trên trục, đọc từ Lịch làm việc: `le` nghỉ lễ, `khac` nghỉ khác, `bu` làm bù,
+ *  `tuan` nghỉ theo tuần chuẩn, rỗng = ngày làm thường. */
+export type KieuNgay = "" | "tuan" | "le" | "khac" | "bu";
+
+export function kieuNgay(d: string, nghi: Set<string>, dac: Map<string, XlNgayDacBiet>): KieuNgay {
+  const s = dac.get(d);
+  if (s) return s.loai === "work" ? "bu" : s.loai === "off" ? "le" : "khac";
+  return nghi.has(d) ? "tuan" : "";
+}
+
+/** Nhãn khoảng ngày của nút đầu màn: "5 đến 18 tháng 10, 2026", "28 tháng 9 đến 11 tháng 10, 2026",
+ *  qua năm thì ghi năm cả hai đầu. */
+export function nhanKhoang(tu: string, den: string): string {
+  const [y1, m1, d1] = tu.split("-").map(Number);
+  const [y2, m2, d2] = den.split("-").map(Number);
+  if (y1 !== y2) return `${d1} tháng ${m1}, ${y1} đến ${d2} tháng ${m2}, ${y2}`;
+  if (m1 !== m2) return `${d1} tháng ${m1} đến ${d2} tháng ${m2}, ${y2}`;
+  return `${d1} đến ${d2} tháng ${m2}, ${y2}`;
+}
+
+/** Hạn của một lệnh để so trễ: hạn SX, không có thì hạn giao — đúng như mockup. Trả mốc HẾT ngày. */
+export function mocHan(d: { han_hoan_thanh_sx: string | null; han_giao_khach: string | null }): number | null {
+  const h = d.han_hoan_thanh_sx ?? d.han_giao_khach;
+  return h ? mocNgay(h) + NGAY_MS : null;
+}
+
+/** Trễ mấy ngày so với hạn (`mocHan`); 0 = không trễ / không có hạn. Xong theo THỰC TẾ nếu đã chạy. */
+export function soNgayTre(d: XlDong): number {
+  const han = mocHan(d);
+  const kt = moc(veDen(d));
+  return han !== null && kt !== null && kt > han ? Math.ceil((kt - han) / NGAY_MS) : 0;
+}
+
+/** Còn dư mấy ngày tới hết ngày `han` (YYYY-MM-DD) tính từ mốc xong `ketThuc`; âm = trễ. */
+export function soNgayDu(ketThuc: string | null | undefined, han: string | null | undefined): number | null {
+  const kt = moc(ketThuc);
+  if (kt === null || !han) return null;
+  const h = mocNgay(han) + NGAY_MS;
+  return kt <= h ? Math.floor((h - kt) / NGAY_MS) : -Math.ceil((kt - h) / NGAY_MS);
+}
+
+/** Cộng `phut` phút vào ISO naive, trả ISO naive "YYYY-MM-DDTHH:MM:00". */
+export function congPhut(iso: string, phut: number): string {
+  const t = (moc(iso) ?? 0) + phut * 60_000;
+  const d = new Date(t);
+  return `${ymd(d)}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:00`;
 }

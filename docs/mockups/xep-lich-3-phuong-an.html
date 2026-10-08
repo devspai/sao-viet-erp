@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xếp lịch — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8;
+  --vien:#e2e8f0; --vien-2:#eef1f5; --vien-3:#f4f6f8;
+  --xanh:#2563eb; --xanh-nhat:#e8efff;
+  --la:#16a34a;
+  --do:#dc2626; --do-chu:#b91c1c; --do-nhat:#fdecec;
+  --vang-chu:#a16207; --vang-nhat:#fdf6e3; --vang-vien:#f3e2b3;
+  --cam-nhat:#ffedd5; --cam-chu:#c2410c;
+  --bong:0 1px 2px rgba(15,23,42,.06),0 1px 1px rgba(15,23,42,.04);
+  --bong-noi:0 12px 32px rgba(15,23,42,.14),0 2px 6px rgba(15,23,42,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1440px;margin:0 auto;padding:36px 20px 96px}
+h1{font-size:22px;font-weight:500;margin:0 0 8px}
+.lead{color:var(--chu-2);margin:0 0 20px;max-width:960px}
+.hop{background:var(--trang);border-radius:12px;padding:18px 22px;margin:0 0 20px;max-width:1100px}
+.hop h2{font-size:15px;font-weight:500;margin:0 0 8px}
+.hop ol{margin:0;padding-left:20px;color:var(--chu-2)}
+.hop li{margin:5px 0}
+.hop li b{font-weight:500;color:var(--chu)}
+.tk{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:12px}
+.tk figure{margin:0}
+.tk img{width:100%;border-radius:8px;display:block;border:1px solid var(--vien)}
+.tk figcaption{font-size:12.5px;color:var(--chu-2);margin-top:6px}
+.tk figcaption b{font-weight:500;color:var(--chu)}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 44px}
+.toc a{font-size:13px;color:var(--chu);text-decoration:none;border:1px solid #cfd6df;background:var(--trang);border-radius:999px;padding:5px 14px}
+.opt{margin-bottom:96px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:8px}
+.opt-head h2{font-size:19px;font-weight:500;margin:0}
+.src{font-size:12px;color:var(--chu-2);border:1px solid #cfd6df;border-radius:999px;padding:2px 10px;background:var(--trang)}
+.why{color:var(--chu-2);margin:0 0 18px;max-width:960px}
+.why ul{margin:6px 0 0;padding-left:18px}
+.why li{margin:4px 0}
+.why li b{font-weight:500;color:var(--chu)}
+.cap{font-size:12.5px;color:var(--chu-2);margin:28px 0 10px}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- mẩu chung ---------- */
+.screen{background:var(--trang);border-radius:14px;box-shadow:0 14px 44px rgba(15,23,42,.12);overflow:hidden;position:relative}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--vien);background:var(--trang);border-radius:8px;font:inherit;font-size:13px;color:var(--chu);cursor:pointer;white-space:nowrap;box-shadow:var(--bong)}
+.btn:hover{background:var(--vien-3)}
+.btn--chinh{background:var(--chu);border-color:var(--chu);color:#fff;box-shadow:none}
+.btn--chinh:hover{background:#1e293b}
+.btn--tron{border-color:transparent;box-shadow:none;background:transparent;color:var(--chu-2)}
+.btn--o{width:32px;padding:0;justify-content:center}
+.seg{display:inline-flex;background:var(--vien-3);border-radius:8px;padding:3px}
+.seg button{height:26px;padding:0 11px;border:0;border-radius:6px;background:transparent;font:inherit;font-size:13px;color:var(--chu-3);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--trang);color:var(--chu);box-shadow:var(--bong)}
+.mo{color:var(--chu-3)}
+.mo2{color:var(--chu-4)}
+.chu-do{color:var(--do-chu)}
+.chu-vang{color:var(--vang-chu)}
+.cham{display:inline-block;width:7px;height:7px;border-radius:50%;flex:none}
+.cham--chua{background:var(--xanh)}
+.cham--phat{background:var(--la)}
+.the{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:var(--vien-3);color:var(--chu-2);font-size:12px;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:12px;white-space:nowrap}
+.chip--chua{background:#dbeafe;color:#1d4ed8}
+.chip--phat{background:#dcfce7;color:#15803d}
+.chip--gap{background:var(--cam-nhat);color:var(--cam-chu);height:18px;padding:0 7px;font-size:11.5px}
+.o-gio{display:flex;align-items:center;gap:8px;height:36px;padding:0 11px;border:1px solid var(--vien);border-radius:8px;background:var(--trang);font-size:14px;box-shadow:var(--bong)}
+.o-gio--dang{border-color:var(--chu);box-shadow:0 0 0 3px rgba(15,23,42,.07)}
+.goi-y{font-size:12px;color:var(--chu-3);margin-top:5px}
+.call{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:8px;background:var(--vang-nhat);border:1px solid var(--vang-vien);font-size:13px;color:#854d0e}
+.call svg{margin-top:2px}
+.nhan{font-size:12px;color:var(--chu-3);margin:0 0 5px}
+
+/* ---------- trục ngày dùng chung ---------- */
+.truc{position:relative;height:46px;border-bottom:1px solid var(--vien-2)}
+.truc__ngay{position:absolute;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11.5px;color:var(--chu-4);line-height:1.25}
+.truc__ngay b{font-weight:400;font-size:13px;color:var(--chu-2)}
+.truc__ngay--nghi b{color:var(--chu-4)}
+.truc__nay b{display:inline-grid;place-items:center;min-width:24px;height:22px;padding:0 6px;border-radius:999px;background:var(--do);color:#fff}
+.luoi-cot{position:absolute;top:0;bottom:0;border-left:1px dashed var(--vien-2)}
+.luoi-nghi{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,rgba(148,163,184,.10) 0 5px,transparent 5px 10px)}
+.vach-nay{position:absolute;top:0;bottom:0;width:0;border-left:1.5px solid var(--do);opacity:.8;z-index:3}
+
+/* =================== A — Linear =================== */
+.a-dau{display:flex;align-items:center;gap:10px;padding:16px 22px;border-bottom:1px solid var(--vien-2)}
+.a-dau h3{margin:0;font-size:17px;font-weight:500}
+.a-dau .dem{font-size:13px;color:var(--chu-3);margin-left:4px}
+.a-dau .gian{flex:1}
+.a-khoang{font-size:13px;color:var(--chu-2);display:inline-flex;align-items:center;gap:2px}
+.a-than{position:relative;padding:0 0 10px}
+.a-vung{position:relative}
+.a-lane{position:relative;height:88px}
+.a-ten{position:absolute;top:12px;display:flex;align-items:center;gap:8px;font-size:13.5px;white-space:nowrap;z-index:2}
+.a-ten .ma{color:var(--chu-3)}
+.a-tach{width:10px}
+.a-xong-chu{color:var(--chu-2);font-size:12.5px}
+.a-ten .tre{color:var(--do-chu);font-size:12.5px}
+.a-ten .chu-vang{font-size:12.5px}
+.a-thanh{position:absolute;top:38px;height:24px;border-radius:6px;background:#f1f4f8;border:1px solid #dde3ea;z-index:2;cursor:grab;overflow:hidden}
+.a-thanh--chon{border-color:var(--chu);box-shadow:0 0 0 3px rgba(15,23,42,.08)}
+.a-thanh--phat{background:#f0f8f3;border-color:#cfe9d8}
+.a-chay{position:absolute;bottom:3px;height:4px;border-radius:2px;background:var(--xanh);opacity:.7}
+.a-thanh--phat .a-chay{background:var(--la)}
+.a-tre{position:absolute;top:38px;height:24px;border-radius:0 6px 6px 0;z-index:1;background:linear-gradient(90deg,rgba(220,38,38,.28),rgba(220,38,38,.05));border:1px dashed rgba(220,38,38,.55);border-left:0}
+.a-moc{position:absolute;top:44px;width:11px;height:11px;transform:translateX(-50%) rotate(45deg);z-index:3;border:1.5px solid var(--chu);background:var(--trang)}
+.a-moc--giao{border-color:var(--chu-3)}
+.a-moc-nhan{position:absolute;top:65px;transform:translateX(-50%);font-size:11.5px;color:var(--chu-3);white-space:nowrap;z-index:3}
+.a-xong{position:absolute;top:41px;font-size:12.5px;color:var(--chu-2);white-space:nowrap;padding-left:10px;z-index:3}
+.a-xong--phai{transform:translateX(-100%);padding:0 0 0 28px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff 22px)}
+.a-xong .tre{color:var(--do-chu)}
+.a-chan{display:flex;flex-wrap:wrap;gap:6px 22px;padding:12px 22px;border-top:1px solid var(--vien-2);font-size:12px;color:var(--chu-3)}
+.a-chan i{display:inline-block;vertical-align:middle;margin-right:7px}
+.a-pop{position:absolute;right:18px;width:390px;background:var(--trang);border-radius:12px;box-shadow:var(--bong-noi);border:1px solid var(--vien);z-index:10;overflow:hidden}
+.a-pop__dau{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--vien-2);font-size:13px;color:var(--chu-4)}
+.q{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 14px;border-bottom:1px solid var(--vien-3);cursor:grab}
+.q:hover{background:var(--vien-3)}
+.q__1{display:flex;align-items:center;gap:8px;font-size:13.5px;min-width:0;white-space:nowrap}
+.q__1 .ma{color:var(--chu-3)}
+.q__2{font-size:12.5px;color:var(--chu-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q__p{grid-row:1/3;grid-column:2;text-align:right;font-size:12.5px;color:var(--chu-2);line-height:1.6}
+.a-pop__chan{padding:10px 14px;font-size:12px;color:var(--chu-3);background:var(--vien-3)}
+.a-ngan{width:480px;margin-left:auto;background:var(--trang);border-radius:14px;box-shadow:0 14px 44px rgba(15,23,42,.12);overflow:hidden}
+.a-ngan__dau{display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid var(--vien-2);font-size:13px;color:var(--chu-3)}
+.a-ngan__dau .gian{flex:1}
+.a-ngan__than{padding:20px}
+.a-ngan h4{font-size:20px;font-weight:500;margin:4px 0 2px}
+.a-moc2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0 6px}
+.so-lon{font-size:19px;line-height:36px;white-space:nowrap}
+.a-tt{list-style:none;margin:18px 0 0;padding:0}
+.a-tt li{display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:start;padding:9px 0;border-top:1px solid var(--vien-3);font-size:13px}
+.a-tt .tron{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--chu-4);margin-top:5px;background:var(--trang)}
+.a-tt .tron--co{border-color:var(--xanh);background:var(--xanh)}
+.a-tt .phu{display:block;font-size:12px;color:var(--chu-3)}
+.a-tt .gio{color:var(--chu-2);white-space:nowrap}
+.a-tt .gio.chu-vang{color:var(--vang-chu)}
+.kv{display:grid;grid-template-columns:132px 1fr;gap:8px 12px;margin:18px 0 0;font-size:13px}
+.kv dt{color:var(--chu-3)}
+.kv dd{margin:0;min-width:0}
+.a-ngan__chan{display:flex;gap:8px;padding:14px 20px;border-top:1px solid var(--vien-2)}
+.a-ngan__chan .btn--chinh{flex:1;justify-content:center;height:36px}
+
+/* =================== B — Notion =================== */
+.b-than{padding:26px 34px 6px}
+.b-than h3{font-size:28px;font-weight:600;margin:0 0 14px;letter-spacing:-.01em}
+.b-tab{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--vien-2);padding-bottom:10px}
+.b-loc{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border:1px solid var(--vien);border-radius:999px;font-size:12.5px;color:var(--chu-2);background:var(--trang)}
+.b-tab .gian{flex:1}
+.b-thang{display:flex;align-items:center;gap:10px;margin:12px 0 0;font-size:13.5px}
+.b-thang .gian{flex:1}
+.b-luoi{position:relative;padding-bottom:10px}
+.b-truc{position:relative;margin:0 34px}
+.b-nhom{position:relative;border-top:1px solid var(--vien-2);padding:6px 0 10px}
+.b-nhom__nen{position:absolute;top:0;bottom:0;left:34px;right:34px}
+.b-nhom__dau{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--chu-2);height:32px;position:relative;z-index:4;margin:0 34px}
+.b-nhom__dau .dem{color:var(--chu-4)}
+.b-lane{position:relative;height:44px;margin:0 34px}
+.b-thanh{position:absolute;top:7px;height:30px;background:var(--trang);border:1px solid var(--vien);border-radius:6px;box-shadow:0 1px 3px rgba(15,23,42,.08);display:flex;align-items:center;gap:8px;padding:0 10px;font-size:13px;white-space:nowrap;overflow:hidden;z-index:2;cursor:grab}
+.b-thanh .ma{color:var(--chu-3)}
+.b-thanh .phai{margin-left:auto;padding-left:10px;color:var(--chu-3);font-size:12.5px}
+.b-thanh--chon{border-color:var(--chu);box-shadow:0 0 0 3px rgba(15,23,42,.08)}
+.b-thanh--cat{border-top-right-radius:0;border-bottom-right-radius:0;border-right-style:dashed}
+.b-ngoai{position:absolute;top:7px;height:30px;display:flex;align-items:center;gap:8px;padding-left:10px;font-size:13px;white-space:nowrap;z-index:2}
+.b-ngoai .ma{color:var(--chu-3)}
+.b-chay{position:absolute;left:0;right:0;bottom:0;height:3px}
+.b-chay i{position:absolute;top:0;bottom:0;background:var(--xanh);opacity:.5}
+.b-tre{position:absolute;top:7px;height:30px;border-radius:0 6px 6px 0;background:var(--do-nhat);border:1px solid #f5c2c2;border-left:2px solid var(--do);z-index:1}
+.b-co{position:absolute;top:-6px;transform:translateX(-50%);z-index:3;font-size:11px;padding:0 6px;height:17px;line-height:16px;border-radius:4px;background:var(--trang);border:1px solid var(--vien);color:var(--chu-3);white-space:nowrap}
+.b-cho{position:absolute;top:7px;height:30px;left:0;display:flex;align-items:center;gap:8px;padding:0 12px 0 8px;border:1px dashed #cbd5e1;border-radius:6px;background:rgba(255,255,255,.92);font-size:13px;white-space:nowrap;z-index:2;cursor:grab}
+.b-cho .ma{color:var(--chu-3)}
+.b-moi{display:flex;align-items:center;gap:6px;height:28px;font-size:12.5px;color:var(--chu-4);position:relative;z-index:2;margin:0 34px}
+.b-peek{width:760px;margin:0 auto;background:var(--trang);border-radius:12px;box-shadow:var(--bong-noi);overflow:hidden}
+.b-peek__thanh{display:flex;align-items:center;gap:8px;padding:10px 16px;font-size:13px;color:var(--chu-3);border-bottom:1px solid var(--vien-3)}
+.b-peek__thanh .gian{flex:1}
+.b-peek__than{padding:28px 56px 30px}
+.b-peek h4{font-size:30px;font-weight:600;margin:0 0 18px;letter-spacing:-.01em}
+.pr{display:grid;grid-template-columns:180px 1fr;align-items:center;font-size:14px;margin:0}
+.pr dt{display:flex;align-items:center;gap:8px;color:var(--chu-3);min-height:36px}
+.pr dd{margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:36px;padding:3px 8px;border-radius:6px}
+.pr dd:hover{background:var(--vien-3)}
+.pr .trong{color:var(--chu-4)}
+.b-hr{border:0;border-top:1px solid var(--vien-2);margin:20px 0}
+.b-peek h5{font-size:16px;font-weight:500;margin:0 0 8px}
+.bang{width:100%;border-collapse:collapse;font-size:13.5px;table-layout:fixed}
+.bang th{font-weight:400;color:var(--chu-3);text-align:left;font-size:12.5px;padding:7px 10px;border-top:1px solid var(--vien-2);border-bottom:1px solid var(--vien-2)}
+.bang th + th,.bang td + td{border-left:1px solid var(--vien-2)}
+.bang td{padding:9px 10px;border-bottom:1px solid var(--vien-2);vertical-align:top}
+.bang .so{text-align:right}
+.bang .phu{display:block;font-size:12px;color:var(--chu-3)}
+.b-peek__chan{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--vien-2)}
+
+/* =================== C — Float =================== */
+.c-dau{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--vien-2)}
+.c-dau h3{margin:0 6px 0 0;font-size:20px;font-weight:500}
+.c-dau .gian{flex:1}
+.c-than{display:grid;grid-template-columns:280px minmax(0,1fr)}
+.c-trai{border-right:1px solid var(--vien-2)}
+.c-trai__dau{height:46px;border-bottom:1px solid var(--vien-2);display:flex;align-items:center;padding:0 16px;font-size:12.5px;color:var(--chu-3)}
+.c-nguoi{height:92px;padding:14px 16px;border-bottom:1px solid var(--vien-3);display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:1px 12px;align-content:start}
+.c-nguoi--chon{background:#f8fafc}
+.c-o{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:12px;color:#fff;grid-row:1/3}
+.c-nguoi .t1{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-nguoi .t2{font-size:12.5px;color:var(--chu-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;grid-column:2/4}
+.c-nguoi .t3{grid-column:2/4;margin-top:7px;display:flex;gap:6px}
+.c-nguoi .phan{font-size:12.5px;color:var(--chu-3);text-align:right;white-space:nowrap}
+.c-phai{position:relative;min-width:0}
+.c-lane{position:relative;height:92px;border-bottom:1px solid var(--vien-3)}
+.c-khoi{position:absolute;top:10px;bottom:10px;border-radius:8px;overflow:hidden;cursor:grab;z-index:2}
+.c-khoi--chon{box-shadow:0 0 0 2px var(--chu)}
+.c-cot{position:absolute;bottom:0;border-radius:3px 3px 0 0}
+.c-chu{position:absolute;left:10px;top:7px;right:10px;font-size:12.5px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2}
+.c-chu .t2{opacity:.78}
+.c-tre-moc{position:absolute;top:6px;bottom:6px;width:0;border-left:2px solid var(--do);z-index:3}
+.c-tre-moc span{position:absolute;bottom:-1px;left:4px;font-size:11px;color:var(--do-chu);white-space:nowrap;background:var(--trang);padding:0 4px;border-radius:3px}
+.c-cho{position:absolute;top:16px;bottom:16px;border:1.5px dashed #cbd5e1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12.5px;color:var(--chu-4);background:rgba(255,255,255,.7);z-index:2}
+.c-nhom{height:36px;display:flex;align-items:center;gap:8px;padding:0 16px;font-size:12.5px;color:var(--chu-3);background:var(--vien-3);border-bottom:1px solid var(--vien-2);position:relative;z-index:2}
+.c-the{position:absolute;width:390px;background:var(--trang);border-radius:14px;box-shadow:var(--bong-noi);border:1px solid var(--vien);z-index:20;overflow:hidden}
+.c-the__than{padding:18px 20px}
+.c-the__1{display:flex;align-items:flex-start;gap:12px}
+.c-the__1 .gian{flex:1;min-width:0}
+.c-the h4{font-size:19px;font-weight:500;margin:0;line-height:1.3}
+.c-the .phu{font-size:13px;color:var(--chu-3)}
+.c-ngay{display:inline-flex;flex-direction:column;align-items:flex-end;padding:7px 11px;border-radius:10px;background:var(--xanh-nhat);color:#1e40af;line-height:1.25;white-space:nowrap}
+.c-ngay b{font-weight:500;font-size:21px}
+.c-ngay span{font-size:11.5px}
+.c-the__the{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.c-the__moc{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.c-the__ds{margin:14px 0 0;padding:0;list-style:none;font-size:13px}
+.c-the__ds li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--vien-3)}
+.c-the__ds li span:first-child{color:var(--chu-3)}
+.c-the__chan{display:flex;gap:8px;padding:12px 20px;border-top:1px solid var(--vien-2);background:var(--vien-3)}
+.c-the__chan .btn--chinh{flex:1;justify-content:center}
+.c-chan{display:flex;flex-wrap:wrap;gap:6px 22px;padding:12px 18px;border-top:1px solid var(--vien-2);font-size:12px;color:var(--chu-3)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Xếp lịch: làm lại giao diện, 3 phương án (bản 2)</h1>
+<p class="lead">Vẽ lại cả màn lịch lẫn hộp chi tiết lệnh. Logic giữ nguyên như đã chốt: người xếp lịch chỉ quyết giờ bắt đầu, máy trả ngày dự kiến xong; kéo thẻ chờ thả vào lịch, kéo ngang thanh để dời; không chặn gì, Phát hành bấm là đi. LSX26-0003 và 0004 là số thật trên DB dev (đang bật đúng một ca 14:00 đến 22:00, nghỉ Chủ nhật). LSX26-0005, 0006 và ba lệnh chờ là số minh hoạ để thấy đủ trạng thái.</p>
+
+<div class="hop">
+  <h2>Ảnh tham khảo đã mở và chụp thật</h2>
+  <div class="tk">
+    <figure><img src="tham-khao-xep-lich/ref-linear.png" alt="Linear Timeline"><figcaption><b>Linear Timeline</b>, linear.app/docs/timeline. Không có cột nhãn: tên nằm ngay trên thanh. Thanh phẳng, xám nhạt. Mốc là hình thoi, chữ ghi bên dưới. Phần quá hạn là đoạn đỏ nhạt dần nối sau thanh.</figcaption></figure>
+    <figure><img src="tham-khao-xep-lich/ref-notion.png" alt="Notion Timeline"><figcaption><b>Notion Timeline</b>, notion.com, bài Intro to Timeline view. Thanh trắng viền mảnh có bóng nhẹ, chữ nằm trong thanh. Gom theo trạng thái, đầu nhóm gập được. Hôm nay là chấm đỏ trên trục.</figcaption></figure>
+    <figure><img src="tham-khao-xep-lich/ref-float.png" alt="Float Schedule"><figcaption><b>Float Schedule</b>, float.com. Cột trái là thẻ người có số tải ở góc. Khối việc có tiêu đề và dòng phụ bên trong, số giờ ở góc. Cột cuối tuần thu hẹp. Bấm vào ra thẻ nổi ngay tại chỗ.</figcaption></figure>
+  </div>
+</div>
+
+<div class="hop">
+  <h2>Màn hiện tại sai ở đâu (đối chiếu hai ảnh anh gửi)</h2>
+  <ol>
+    <li><b>Không thấy ngày xong.</b> Cả hai thanh chạy quá mép phải nên con số duy nhất màn này phải trả lời không hiện ở đâu. Thực tế LSX26-0004 xong 23/10; LSX26-0003 xong 27/02/2027, trễ hạn giao 06/11 tới 113 ngày, mà màn không báo gì.</li>
+    <li><b>Thanh băm thành ô.</b> Ca chỉ chạy 8 trên 24 giờ nên thanh thành chuỗi ô vuông lốm đốm, chiếm hết thanh, không còn chỗ đọc chữ.</li>
+    <li><b>Hộp chi tiết chồng hộp.</b> Ba lớp viền lồng nhau; nhãn in hoa kèm biểu tượng ở mọi khối; Bắt đầu và Dự kiến xong nói ba lần (ô nhập, khung mũi tên, khối cuối); mỗi khoảng giờ ngoài ca là một chip ("22:00–14:00 14 lần") mà người xếp lịch không cần; chữ "Tổng khoảng tính" khó hiểu.</li>
+    <li><b>Chữ sai hoặc khó hiểu.</b> "Tuần này: 2" khi đang xem 30 ngày; "Chờ xếp: 0" lặp với "HÀNG CHỜ 0"; "Giờ chạy trong cửa sổ"; chip "Sẵn sàng" trên lệnh đã có lịch; nối thông tin bằng dấu chấm giữa.</li>
+    <li><b>Trống mà vẫn chật.</b> Cột hàng chờ rỗng vẫn chiếm 337px; nửa dưới màn trắng; muốn xem chi tiết thì hộp thoại che mất lịch.</li>
+  </ol>
+</div>
+
+<nav class="toc">
+  <a href="#pa-a">A. Kiểu Linear: tên trên thanh, ngăn phải</a>
+  <a href="#pa-b">B. Kiểu Notion: gom nhóm, trang chi tiết ở giữa</a>
+  <a href="#pa-c">C. Kiểu Float: cột lệnh, khối có cột giờ, thẻ nổi</a>
+</nav>
+
+<!-- ============================== A ============================== -->
+<section class="opt" id="pa-a">
+  <div class="opt-head"><h2>Phương án A. Tên nằm trên thanh, hạn là hình thoi</h2><span class="src">Khuôn: Linear Timeline</span></div>
+  <div class="why">
+    Bỏ hẳn cột nhãn 264px: tên lệnh đặt ngay trên đầu thanh như Linear, lịch rộng hết bề ngang.
+    <ul>
+      <li><b>Thanh phẳng xám nhạt</b>; giờ máy chạy trong ca chỉ còn một vạch mảnh dưới đáy thanh. Vẫn đủ hai lớp như spec nhưng không lấn chữ.</li>
+      <li><b>Hạn là hình thoi</b> trên thanh, chữ "Hạn SX 14/10" hay "Giao 16/10" ngay dưới. Hết cảnh hai đường đứt chạy dọc cả hàng.</li>
+      <li><b>Trễ hạn là đoạn đỏ nhạt dần</b> từ hạn tới ngày xong, đúng như Linear vẽ phần quá hạn.</li>
+      <li><b>Ngày xong luôn có mặt</b> ngay trên dòng tên, kèm › khi thanh chạy quá khoảng đang xem; trễ thì chữ đỏ, có công đoạn chưa có giờ thì chữ vàng "có thể muộn hơn".</li>
+      <li><b>Hàng chờ là nút "Chờ xếp lịch 3"</b>, bấm mở danh sách nổi để kéo dòng vào lịch (vẽ ở dưới). Bấm thanh thì ngăn phải trượt ra.</li>
+    </ul>
+  </div>
+  <div class="screen">
+    <div class="a-dau">
+      <h3>Xếp lịch</h3><span class="dem">4 lệnh trong khoảng</span>
+      <div class="gian"></div>
+      <span class="a-khoang"><button class="btn btn--tron btn--o" aria-label="Lùi"><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>05/10 đến 18/10/2026<button class="btn btn--tron btn--o" aria-label="Tới"><svg class="i" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button></span>
+      <button class="btn">Hôm nay</button>
+      <div class="seg"><button>Tuần</button><button aria-pressed="true">2 tuần</button><button>Tháng</button></div>
+      <button class="btn" style="border-color:var(--chu)"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Chờ xếp lịch <span class="mo">3</span></button>
+    </div>
+    <div class="a-than" id="a-than"></div>
+    <div class="a-chan">
+      <span><i style="width:22px;height:12px;border-radius:3px;background:#f1f4f8;border:1px solid #dde3ea"></i>Từ lúc bắt đầu tới lúc xong</span>
+      <span><i style="width:22px;height:4px;border-radius:2px;background:var(--xanh);opacity:.7"></i>Giờ máy chạy trong ca</span>
+      <span><i style="width:9px;height:9px;border:1.5px solid var(--chu);transform:rotate(45deg)"></i>Hạn xong sản xuất</span>
+      <span><i style="width:9px;height:9px;border:1.5px solid var(--chu-3);transform:rotate(45deg)"></i>Hạn giao khách</span>
+      <span><i style="width:22px;height:12px;background:linear-gradient(90deg,rgba(220,38,38,.28),rgba(220,38,38,.05));border:1px dashed rgba(220,38,38,.55)"></i>Phần trễ sau hạn</span>
+      <span>Ca đang bật: 14:00 đến 22:00, nghỉ Chủ nhật</span>
+    </div>
+  </div>
+
+  <p class="cap">Bấm nút "Chờ xếp lịch 3": danh sách nổi mở ngay dưới nút, kéo dòng nào ra lịch là đặt giờ bắt đầu cho lệnh đó. Hết lệnh chờ thì nút mờ đi, không chiếm chỗ.</p>
+  <div id="a-pop" style="width:390px;margin-left:auto"></div>
+  <p class="cap">Bấm thanh LSX26-0004: ngăn chi tiết trượt ra từ mép phải, lịch vẫn thấy bên trái. Thay cho hộp thoại hiện tại.</p>
+  <div class="a-ngan">
+    <div class="a-ngan__dau"><span>LSX26-0004</span><span class="chip chip--chua">Chưa phát hành</span><span class="gian"></span><button class="btn btn--tron btn--o" aria-label="Đóng"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <div class="a-ngan__than">
+      <h4>Bìa sách A5</h4>
+      <div class="mo">CÔNG TY CỔ PHẦN BIBICA</div>
+      <div class="a-moc2">
+        <div><p class="nhan">Bắt đầu</p><div class="o-gio o-gio--dang">05/10/2026 14:00</div><div class="goi-y">◀ ▶ dời 15 phút</div></div>
+        <div><p class="nhan">Dự kiến xong</p><div class="so-lon">Thứ Sáu 23/10 <span class="mo">18:21</span></div><div class="goi-y">18 ngày, máy chạy 132 giờ</div></div>
+      </div>
+      <ul class="a-tt">
+        <li><span class="tron"></span><span>Cắt tờ<span class="phu">Cắt 2 <span class="mo2">175 tờ nguyên</span></span></span><span class="gio chu-vang">chưa gán máy</span></li>
+        <li><span class="tron tron--co"></span><span>Bài in 3 màu 4 màu (CMYK)<span class="phu">Máy in 5 màu Mitsubishi 54×79 <span class="mo2">350 tờ</span></span></span><span class="gio">132 giờ 22 phút</span></li>
+        <li><span class="tron"></span><span>Cán màng<span class="phu">Máy cán màng 1080 số 1 <span class="mo2">250 tờ</span></span></span><span class="gio chu-vang">chưa quy đổi</span></li>
+        <li><span class="tron"></span><span>Cắt thành phẩm<span class="phu">Gia công ngoài ở Cơ sở Cán màng Thành Công</span></span><span class="gio chu-vang">chưa khai ngày</span></li>
+      </ul>
+      <div class="call" style="margin-top:12px"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Ba công đoạn chưa có giờ nên lệnh có thể xong muộn hơn 23/10.</div>
+      <dl class="kv">
+        <dt>Hạn giao khách</dt><dd>06/11 <span class="the">còn dư 14 ngày</span></dd>
+        <dt>Hạn xong sản xuất</dt><dd class="mo2">Chưa khai</dd>
+        <dt>Đơn hàng</dt><dd>DH002 <span class="the">PO451263</span></dd>
+        <dt>Sản lượng</dt><dd>1.000 cuốn <span class="the">350 tờ in</span> <span class="the">4 con/tờ</span></dd>
+        <dt>Giấy</dt><dd>Ivory 210 đến 250gsm <span class="the">4 kẽm</span></dd>
+        <dt>Kinh doanh</dt><dd>nguyenthihuyen</dd>
+      </dl>
+    </div>
+    <div class="a-ngan__chan"><button class="btn">Bỏ lịch</button><button class="btn btn--chinh">Phát hành xuống xưởng</button></div>
+  </div>
+</section>
+
+<!-- ============================== B ============================== -->
+<section class="opt" id="pa-b">
+  <div class="opt-head"><h2>Phương án B. Gom theo việc còn phải làm, chi tiết là một trang</h2><span class="src">Khuôn: Notion Timeline</span></div>
+  <div class="why">
+    Notion chia timeline thành nhóm theo trạng thái, mỗi nhóm gập được. Với mình ba nhóm trả lời ngay câu "còn phải làm gì": chưa có giờ, có giờ nhưng chưa phát hành, đã xuống xưởng.
+    <ul>
+      <li><b>Thanh trắng viền mảnh, chữ ở trong</b>: mã, tên, cuối thanh là ngày xong. Giờ máy chạy là dải 3px dưới đáy.</li>
+      <li><b>Lệnh chờ nằm ngay trong nhóm "Chờ xếp lịch"</b>, thẻ viền đứt ở mép trái, kéo sang ngày nào là bắt đầu ngày đó. Hết lệnh chờ thì nhóm còn đúng một dòng.</li>
+      <li><b>Trễ hạn</b>: đoạn sau hạn tô đỏ nhạt, vạch đỏ ở đúng ngày hạn; hạn chưa bị vượt là cờ nhỏ trên lane.</li>
+      <li><b>Chi tiết mở thành trang ở giữa</b> như Notion: tên to, mỗi thuộc tính một dòng, bảng công đoạn bên dưới. Không hộp lồng hộp, không nhãn in hoa.</li>
+    </ul>
+  </div>
+  <div class="screen">
+    <div class="b-than">
+      <h3>Xếp lịch</h3>
+      <div class="b-tab">
+        <span class="b-loc"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Tìm lệnh</span>
+        <span class="b-loc">Khách hàng <svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+        <span class="b-loc">Lệnh gấp <svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+        <div class="gian"></div>
+        <div class="seg"><button>Tuần</button><button aria-pressed="true">2 tuần</button><button>Tháng</button></div>
+      </div>
+      <div class="b-thang"><span>Tháng 10, 2026</span><div class="gian"></div><button class="btn btn--tron btn--o" aria-label="Lùi"><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><button class="btn btn--tron" style="padding:0 6px">Hôm nay</button><button class="btn btn--tron btn--o" aria-label="Tới"><svg class="i" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button></div>
+    </div>
+    <div class="b-luoi" id="b-luoi"></div>
+  </div>
+
+  <p class="cap">Bấm thanh LSX26-0004: trang chi tiết mở ở giữa màn, lịch mờ phía sau. Thay cho hộp thoại hiện tại.</p>
+  <div class="b-peek">
+    <div class="b-peek__thanh"><span>Xếp lịch</span><span class="mo2">/</span><span>LSX26-0004</span><span class="gian"></span><button class="btn btn--tron btn--o" aria-label="Đóng"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <div class="b-peek__than">
+      <h4>Bìa sách A5</h4>
+      <dl class="pr">
+        <dt><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>Trạng thái</dt><dd><span class="chip chip--chua">Chưa phát hành</span></dd>
+        <dt><svg class="i" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg>Khách hàng</dt><dd>CÔNG TY CỔ PHẦN BIBICA</dd>
+        <dt><svg class="i" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>Đơn hàng</dt><dd>DH002 <span class="the">PO451263</span></dd>
+        <dt><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Bắt đầu</dt><dd><div class="o-gio o-gio--dang" style="width:210px">05/10/2026 14:00</div><span class="goi-y" style="margin:0">◀ ▶ dời 15 phút</span></dd>
+        <dt><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>Dự kiến xong</dt><dd>Thứ Sáu 23/10/2026 <span class="mo">18:21</span></dd>
+        <dt><svg class="i" viewBox="0 0 24 24"><path d="M3 12h18M3 12l4-4M3 12l4 4M21 12l-4-4M21 12l-4 4"/></svg>Chiếm lịch</dt><dd>18 ngày 4 giờ <span class="mo">máy chạy 132 giờ 22 phút, còn lại là ngoài ca và Chủ nhật</span></dd>
+        <dt><svg class="i" viewBox="0 0 24 24"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Hạn giao khách</dt><dd>06/11/2026 <span class="the">còn dư 14 ngày</span></dd>
+        <dt><svg class="i" viewBox="0 0 24 24"><path d="M4 22V4l8 3 8-3v12l-8 3-8-3"/></svg>Hạn xong sản xuất</dt><dd class="trong">Trống</dd>
+        <dt><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>Sản lượng</dt><dd>1.000 cuốn <span class="the">350 tờ in</span> <span class="the">4 con/tờ</span></dd>
+        <dt><svg class="i" viewBox="0 0 24 24"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="8" r="4"/></svg>Kinh doanh</dt><dd>nguyenthihuyen</dd>
+      </dl>
+      <hr class="b-hr">
+      <h5>Công đoạn</h5>
+      <table class="bang">
+        <colgroup><col style="width:33%"><col style="width:35%"><col style="width:13%"><col style="width:19%"></colgroup>
+        <thead><tr><th>Công đoạn</th><th>Máy hoặc tổ</th><th class="so">Vào</th><th class="so">Giờ chạy</th></tr></thead>
+        <tbody>
+          <tr><td>Cắt tờ</td><td>Cắt 2</td><td class="so">175 tờ</td><td class="so chu-vang">Chưa gán máy</td></tr>
+          <tr><td>Bài in 3 màu 4 màu (CMYK)</td><td>Máy in 5 màu Mitsubishi 54×79</td><td class="so">350 tờ</td><td class="so">132 giờ 22 phút</td></tr>
+          <tr><td>Cán màng</td><td>Máy cán màng 1080 số 1</td><td class="so">250 tờ</td><td class="so chu-vang">Chưa quy đổi</td></tr>
+          <tr><td>Cắt thành phẩm</td><td>Cơ sở Gia công Cán màng Thành Công<span class="phu">gia công ngoài</span></td><td class="so">250 tờ</td><td class="so chu-vang">Chưa khai ngày</td></tr>
+        </tbody>
+      </table>
+      <div class="call" style="margin-top:14px;background:#f6f6f4;border-color:#ecebe7;color:var(--chu-2)"><span>⚠</span>Ba công đoạn chưa có giờ nên lệnh có thể xong muộn hơn 23/10. Gán máy và khai quy đổi ở hồ sơ lệnh là ngày xong tự tính lại.</div>
+    </div>
+    <div class="b-peek__chan"><button class="btn">Bỏ lịch</button><button class="btn btn--chinh">Phát hành xuống xưởng</button></div>
+  </div>
+</section>
+
+<!-- ============================== C ============================== -->
+<section class="opt" id="pa-c">
+  <div class="opt-head"><h2>Phương án C. Cột lệnh bên trái, khối có cột giờ từng ngày</h2><span class="src">Khuôn: Float Schedule</span></div>
+  <div class="why">
+    Float vẽ mỗi người một hàng, khối việc có chữ bên trong, ngày nghỉ thu hẹp. Mình thay "người" bằng "lệnh".
+    <ul>
+      <li><b>Cột trái là thẻ lệnh</b>: ô màu có số lệnh, tên sản phẩm, khách; góc phải là tổng giờ máy chạy, đúng chỗ Float để số tải.</li>
+      <li><b>Mỗi ngày trong khối là một cột cao theo giờ máy chạy ngày đó</b>: chạy trọn ca thì cao hết, ngày cuối chạy dở thì thấp. Hai lớp của spec đọc được như biểu đồ, không còn lốm đốm.</li>
+      <li><b>Chủ nhật thu hẹp</b> như Float thu hẹp cuối tuần, nhường chỗ cho ngày làm.</li>
+      <li><b>Bấm khối là thẻ nổi tại chỗ</b>: ngày xong to ở góc, đổi giờ bắt đầu ngay trong thẻ, Phát hành ở chân thẻ.</li>
+      <li><b>Lệnh chờ là nhóm cuối</b>, mỗi lệnh một hàng có ô viền đứt để kéo vào ngày bắt đầu.</li>
+    </ul>
+  </div>
+  <div class="screen">
+    <div class="c-dau">
+      <h3>Xếp lịch</h3>
+      <button class="btn"><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M7 12h10M10 18h4"/></svg>Lọc</button>
+      <div class="gian"></div>
+      <button class="btn btn--tron btn--o" aria-label="Lùi"><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+      <button class="btn btn--tron btn--o" aria-label="Tới"><svg class="i" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+      <button class="btn">Hôm nay</button>
+      <button class="btn">2 tuần <svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+    </div>
+    <div class="c-than">
+      <div class="c-trai" id="c-trai"></div>
+      <div class="c-phai" id="c-phai"></div>
+    </div>
+    <div class="c-chan">
+      <span>Cột trong khối cao theo giờ máy chạy ngày đó, cao hết là chạy trọn ca 8 giờ</span>
+      <span><i style="display:inline-block;width:0;height:12px;border-left:2px solid var(--do);vertical-align:middle;margin-right:6px"></i>Hạn đã bị vượt</span>
+      <span>Ngày hẹp gạch chéo là ngày nghỉ</span>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+const W0 = new Date(2026, 9, 5), N = 14, NOW = new Date(2026, 9, 8, 9, 40), CA = [14, 22];
+const W1 = new Date(W0.getTime() + N * 864e5);
+const ngay = (a) => new Date(a[0], a[1] - 1, a[2], a[3] || 0, a[4] || 0);
+const laNghi = (d) => d.getDay() === 0;
+const LENH = [
+  { ma: 'LSX26-0004', so: '0004', ten: 'Bìa sách A5', khach: 'CÔNG TY CỔ PHẦN BIBICA', tt: 'chua', bd: [2026,10,5,14,0], buoc: [0, 7941.67, 0, 0], hanSX: null, hanGiao: [2026,11,6], chuaGio: 3 },
+  { ma: 'LSX26-0003', so: '0003', ten: 'Ruột sách A5 64 trang', khach: 'CÔNG TY CỔ PHẦN BIBICA', tt: 'chua', bd: [2026,10,5,14,45], buoc: [0, 60075, 0, 0, 0], hanSX: null, hanGiao: [2026,11,6], chuaGio: 3 },
+  { ma: 'LSX26-0005', so: '0005', ten: 'Hộp giấy bánh trung thu', khach: 'CÔNG TY TNHH BAO BÌ AN PHÁT', tt: 'phat', gap: true, bd: [2026,10,6,14,0], buoc: [540, 240, 390, 300], hanSX: [2026,10,9], hanGiao: [2026,10,12], chuaGio: 0 },
+  { ma: 'LSX26-0006', so: '0006', ten: 'Tem nhãn chai 500ml', khach: 'CÔNG TY TNHH NƯỚC GIẢI KHÁT SAO MAI', tt: 'chua', bd: [2026,10,12,14,0], buoc: [720, 360, 420], hanSX: [2026,10,14], hanGiao: [2026,10,16], chuaGio: 0 },
+];
+const CHO = [
+  { ma: 'LSX26-0010', so: '0010', ten: 'Tờ rơi khuyến mãi A4', khach: 'CÔNG TY TNHH THƯƠNG MẠI HẢI ĐĂNG', gap: true, han: '13/10', gio: '6 giờ 30' },
+  { ma: 'LSX26-0008', so: '0008', ten: 'Túi giấy kraft quai xoắn', khach: 'CỬA HÀNG HOA MỘC', han: '16/10', gio: '18 giờ 40' },
+  { ma: 'LSX26-0009', so: '0009', ten: 'Lịch bàn 2027', khach: 'CÔNG TY TNHH THƯƠNG MẠI HẢI ĐĂNG', han: '20/10', gio: '26 giờ 15' },
+];
+function trai(l) {
+  let c = ngay(l.bd); const khoi = [];
+  l.buoc.forEach((phut) => {
+    let con = phut;
+    while (con > 0.01) {
+      const dau = new Date(c); dau.setHours(CA[0], 0, 0, 0);
+      const cuoi = new Date(c); cuoi.setHours(CA[1], 0, 0, 0);
+      if (laNghi(c) || c >= cuoi) { c = new Date(dau.getTime() + 864e5); continue; }
+      if (c < dau) c = dau;
+      const dung = Math.min((cuoi - c) / 6e4, con);
+      const den = new Date(c.getTime() + dung * 6e4);
+      khoi.push({ tu: c, den }); c = den; con -= dung;
+    }
+  });
+  l.khoi = khoi; l.kt = c; l.bdD = ngay(l.bd); l.chay = l.buoc.reduce((s, b) => s + b, 0);
+  l.hSX = l.hanSX ? new Date(ngay(l.hanSX).getTime() + 864e5) : null;
+  l.hGiao = l.hanGiao ? new Date(ngay(l.hanGiao).getTime() + 864e5) : null;
+  l.han = l.hSX || l.hGiao;
+  l.tre = l.han && c > l.han ? Math.ceil((c - l.han) / 864e5) : 0;
+  l.theoNgay = {};
+  khoi.forEach((k) => { const key = k.tu.toDateString(); l.theoNgay[key] = (l.theoNgay[key] || 0) + (k.den - k.tu) / 6e4; });
+}
+LENH.forEach(trai); LENH.sort((a, b) => a.bdD - b.bdD);
+const THU = ['CN','T2','T3','T4','T5','T6','T7'];
+const p2 = (n) => String(n).padStart(2, '0');
+const dm = (d) => `${p2(d.getDate())}/${p2(d.getMonth() + 1)}`;
+const dmy = (d) => d.getFullYear() !== 2026 ? `${dm(d)}/${d.getFullYear()}` : dm(d);
+const hm = (d) => `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+const NGAY = [...Array(N)].map((_, i) => new Date(W0.getTime() + i * 864e5));
+const pct = (v) => `${v}%`;
+
+function thang(hepNghi) {
+  const w = NGAY.map((d) => (hepNghi && laNghi(d) ? 0.32 : 1));
+  const tong = w.reduce((a, b) => a + b, 0);
+  const dau = []; let s = 0; w.forEach((x) => { dau.push(s); s += x; });
+  const x = (t) => {
+    const f = (t - W0) / 864e5;
+    if (f <= 0) return 0; if (f >= N) return 100;
+    const i = Math.floor(f);
+    return ((dau[i] + (f - i) * w[i]) / tong) * 100;
+  };
+  return { x, cot: (i) => [dau[i] / tong * 100, w[i] / tong * 100], hep: hepNghi };
+}
+function truc(t) {
+  let s = '<div class="truc">';
+  NGAY.forEach((d, i) => {
+    const [l, w] = t.cot(i);
+    const nay = d.toDateString() === NOW.toDateString();
+    const thu = t.hep && laNghi(d) ? 'CN' : THU[d.getDay()];
+    s += `<div class="truc__ngay${laNghi(d) ? ' truc__ngay--nghi' : ''}${nay ? ' truc__nay' : ''}" style="left:${l}%;width:${w}%"><b>${d.getDate()}</b>${thu}</div>`;
+  });
+  return s + '</div>';
+}
+function nen(t) {
+  let s = '';
+  NGAY.forEach((d, i) => {
+    const [l, w] = t.cot(i);
+    if (i) s += `<div class="luoi-cot" style="left:${l}%"></div>`;
+    if (laNghi(d)) s += `<div class="luoi-nghi" style="left:${l}%;width:${w}%"></div>`;
+  });
+  return s + `<div class="vach-nay" style="left:${t.x(NOW)}%"></div>`;
+}
+const gap = (l) => l.gap ? '<span class="chip chip--gap">Gấp</span>' : '';
+
+/* ---------------- A — Linear ---------------- */
+(function () {
+  const t = thang(false);
+  let s = `<div style="padding:0 22px">${truc(t)}</div><div class="a-vung" style="margin:0 22px">` + nen(t);
+  LENH.forEach((l) => {
+    const a = t.x(l.bdD), b = t.x(l.kt), cat = l.kt > W1;
+    const hanX = l.han ? t.x(l.han) : null;
+    const coTre = l.tre && hanX > 0 && hanX < 100;
+    const duoi = coTre ? hanX : b;
+    s += `<div class="a-lane">`;
+    const treChu = l.tre ? `<span class="tre">trễ ${l.tre} ngày${l.hSX ? '' : ' so với hạn giao'}</span>` : '';
+    const muon = l.chuaGio && !l.tre ? `<span class="chu-vang" title="${l.chuaGio} công đoạn chưa có giờ">có thể muộn hơn</span>` : '';
+    const xongChu = `<span class="a-xong-chu">Xong ${THU[l.kt.getDay()]} ${dmy(l.kt)} ${cat ? '›' : `<span class="mo2">${hm(l.kt)}</span>`}</span>`;
+    s += `<div class="a-ten" style="left:${pct(a)}"><span class="cham cham--${l.tt}" title="${l.tt === 'phat' ? 'Đã phát hành' : 'Chưa phát hành'}"></span><span class="ma">${l.ma}</span>${l.ten}${gap(l)}<span class="a-tach"></span>${xongChu}${treChu}${muon}</div>`;
+    let chay = '';
+    l.khoi.forEach((k) => {
+      const x = t.x(k.tu), y = t.x(k.den); if (y <= x || x >= duoi) return;
+      const y2 = Math.min(y, duoi);
+      chay += `<span class="a-chay" style="left:${(x - a) / (duoi - a) * 100}%;width:${(y2 - x) / (duoi - a) * 100}%"></span>`;
+    });
+    const cuoiPhang = coTre || cat ? ';border-top-right-radius:0;border-bottom-right-radius:0' : '';
+    s += `<div class="a-thanh${l.tt === 'phat' ? ' a-thanh--phat' : ''}${l.ma === 'LSX26-0004' ? ' a-thanh--chon' : ''}" style="left:${pct(a)};width:${duoi - a}%${cuoiPhang}">${chay}</div>`;
+    if (coTre) s += `<div class="a-tre" style="left:${pct(hanX)};width:${b - hanX}%"></div>`;
+    [[l.hSX, l.hanSX, 'Hạn SX', ''], [l.hGiao, l.hanGiao, 'Giao', ' a-moc--giao']].forEach(([h, raw, ten, lop]) => {
+      if (!h) return; const x = t.x(h); if (x <= 0 || x >= 100) return;
+      s += `<div class="a-moc${lop}" style="left:${pct(x)}"></div><div class="a-moc-nhan" style="left:${pct(x)}">${ten} ${dm(ngay(raw))}</div>`;
+    });
+    s += `</div>`;
+  });
+  s += `</div>`;
+  document.getElementById('a-than').innerHTML = s;
+  document.getElementById('a-pop').innerHTML = `<div class="a-pop" style="position:static"><div class="a-pop__dau"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Tìm lệnh chờ xếp</div>` +
+    CHO.map((q) => `<div class="q"><div class="q__1"><span class="ma">${q.ma}</span>${q.ten}${gap(q)}</div><div class="q__2">${q.khach}</div><div class="q__p">Hạn ${q.han}<br><span class="mo">${q.gio} chạy</span></div></div>`).join('') +
+    `<div class="a-pop__chan">Kéo một dòng thả vào ngày muốn bắt đầu.</div></div>`;
+})();
+
+/* ---------------- B — Notion ---------------- */
+(function () {
+  const t = thang(false);
+  let s = `<div class="b-truc">${truc(t)}</div>`;
+  const nhom = [
+    ['cho', 'Chờ xếp lịch', '<svg class="i" viewBox="0 0 24 24" style="color:#94a3b8"><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>'],
+    ['chua', 'Có lịch, chưa phát hành', '<svg class="i" viewBox="0 0 24 24" style="color:#2563eb"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>'],
+    ['phat', 'Đã phát hành xuống xưởng', '<svg class="i" viewBox="0 0 24 24" style="color:#16a34a"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>'],
+  ];
+  nhom.forEach(([k, ten, ic]) => {
+    const ds = k === 'cho' ? CHO : LENH.filter((l) => l.tt === k);
+    s += `<div class="b-nhom"><div class="b-nhom__nen">${nen(t)}</div>`;
+    s += `<div class="b-nhom__dau"><svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>${ic}${ten}<span class="dem">${ds.length}</span></div>`;
+    ds.forEach((l) => {
+      s += `<div class="b-lane">`;
+      if (k === 'cho') {
+        s += `<div class="b-cho"><svg class="i" viewBox="0 0 24 24" style="color:#94a3b8"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg><span class="ma">${l.ma}</span>${l.ten}${gap(l)}<span class="mo" style="margin-left:6px">hạn ${l.han}</span><span class="mo2">${l.gio} chạy</span></div>`;
+      } else {
+        const a = t.x(l.bdD), b = t.x(l.kt), cat = l.kt > W1;
+        const hanX = l.han ? t.x(l.han) : null;
+        const coTre = l.tre && hanX > 0 && hanX < 100;
+        const duoi = coTre ? hanX : b;
+        let chay = '';
+        l.khoi.forEach((kk) => { const x = t.x(kk.tu), y = Math.min(t.x(kk.den), duoi); if (y > x) chay += `<i style="left:${(x - a) / (duoi - a) * 100}%;width:${(y - x) / (duoi - a) * 100}%"></i>`; });
+        let phai = '';
+        if (!coTre) {
+          phai = cat ? `xong ${dmy(l.kt)} ›` : `xong ${dm(l.kt)} ${hm(l.kt)}`;
+          if (l.tre) phai = `<span class="chu-do">trễ ${l.tre} ngày so với hạn giao, ${phai}</span>`;
+          else if (l.chuaGio) phai = `<span class="chu-vang" title="Có công đoạn chưa có giờ">có thể muộn hơn</span>&ensp;${phai}`;
+        }
+        if (coTre) s += `<div class="b-tre" style="left:${pct(hanX)};width:${b - hanX}%"></div>`;
+        const ngan = (duoi - a) < 30;
+        const ten = `<span class="ma">${l.ma}</span>${l.ten}${gap(l)}`;
+        s += `<div class="b-thanh${l.ma === 'LSX26-0004' ? ' b-thanh--chon' : ''}${cat ? ' b-thanh--cat' : ''}" style="left:${pct(a)};width:${duoi - a}%${coTre ? ';border-top-right-radius:0;border-bottom-right-radius:0' : ''}">${ngan ? '' : ten + `<span class="phai">${phai}</span>`}<div class="b-chay">${chay}</div></div>`;
+        if (ngan) s += `<div class="b-ngoai" style="${b > 62 ? `right:${100 - a}%;padding:0 10px 0 0` : `left:${pct(b)}`}">${ten}<span class="${coTre ? 'chu-do' : 'mo'}">${coTre ? `trễ ${l.tre} ngày, xong ${dm(l.kt)} ${hm(l.kt)}` : phai}</span></div>`;
+        if (!ngan && !coTre && l.hSX && t.x(l.hSX) > 0 && t.x(l.hSX) < 100) s += `<div class="b-co" style="left:${pct(t.x(l.hSX))}">hạn ${dm(ngay(l.hanSX))}</div>`;
+      }
+      s += `</div>`;
+    });
+    if (k === 'cho') s += `<div class="b-moi"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Kéo thẻ sang ngày muốn bắt đầu</div>`;
+    s += `</div>`;
+  });
+  document.getElementById('b-luoi').innerHTML = s;
+})();
+
+/* ---------------- C — Float ---------------- */
+(function () {
+  const t = thang(true);
+  const MAU = { chua: ['#e8efff', '#a9c1f7', '#1e3a8a'], phat: ['#e7f6ec', '#9bd9b1', '#14532d'], tre: ['#fdecec', '#f3b0b0', '#7f1d1d'] };
+  const O = ['#2563eb', '#7c3aed', '#16a34a', '#0891b2'];
+  let trai = `<div class="c-trai__dau">Lệnh sản xuất</div>`;
+  let phai = truc(t) + `<div style="position:relative"><div style="position:absolute;inset:0">${nen(t)}</div>`;
+  LENH.forEach((l, i) => {
+    const chon = l.ma === 'LSX26-0004';
+    trai += `<div class="c-nguoi${chon ? ' c-nguoi--chon' : ''}"><div class="c-o" style="background:${O[i]}">${l.so}</div>
+      <div class="t1">${l.ten}</div><div class="phan">${Math.round(l.chay / 60)} giờ</div>
+      <div class="t2">${l.khach}</div>
+      <div class="t3">${l.tt === 'phat' ? '<span class="chip chip--phat" style="height:20px">Đã phát hành</span>' : '<span class="chip chip--chua" style="height:20px">Chưa phát hành</span>'}${l.gap ? '<span class="chip chip--gap" style="height:20px">Gấp</span>' : ''}</div></div>`;
+    const a = t.x(l.bdD), b = t.x(l.kt), cat = l.kt > W1;
+    const m = l.tre ? MAU.tre : MAU[l.tt];
+    let cot = '';
+    NGAY.forEach((d, j) => {
+      const phut = l.theoNgay[d.toDateString()]; if (!phut) return;
+      const [cl, cw] = t.cot(j);
+      const x0 = Math.max(cl, a), x1 = Math.min(cl + cw, b);
+      cot += `<span class="c-cot" style="left:calc(${(x0 - a) / (b - a) * 100}% + 2px);width:calc(${(x1 - x0) / (b - a) * 100}% - 4px);height:${Math.max(10, phut / 480 * 62)}%;background:${m[1]}"></span>`;
+    });
+    const treChu = l.tre ? `trễ ${l.tre} ngày${l.hSX ? '' : ' so với hạn giao'}, ` : '';
+    phai += `<div class="c-lane"><div class="c-khoi${chon ? ' c-khoi--chon' : ''}" style="left:${pct(a)};width:${b - a}%;background:${m[0]};color:${m[2]}${cat ? ';border-top-right-radius:0;border-bottom-right-radius:0' : ''}">${cot}
+      <div class="c-chu">${l.ma}<br><span class="t2">${treChu}xong ${THU[l.kt.getDay()]} ${dmy(l.kt)} ${cat ? '›' : hm(l.kt)}</span></div></div>`;
+    if (l.tre && t.x(l.han) > 0 && t.x(l.han) < 100) phai += `<div class="c-tre-moc" style="left:${pct(t.x(l.han))}"><span>hạn ${dm(new Date(l.han.getTime() - 864e5))}</span></div>`;
+    phai += `</div>`;
+  });
+  trai += `<div class="c-nhom">Chờ xếp lịch <span class="mo2">${CHO.length}</span></div>`;
+  phai += `<div class="c-nhom"></div>`;
+  CHO.forEach((q) => {
+    trai += `<div class="c-nguoi"><div class="c-o" style="background:#e2e8f0;color:#334155">${q.so}</div><div class="t1">${q.ten}</div><div class="phan">${q.gio}</div><div class="t2">${q.khach}</div><div class="t3"><span class="the">hạn ${q.han}</span>${q.gap ? '<span class="chip chip--gap" style="height:20px">Gấp</span>' : ''}</div></div>`;
+    phai += `<div class="c-lane"><div class="c-cho" style="left:${pct(t.x(NOW) + 1)};width:26%">Kéo vào ngày bắt đầu</div></div>`;
+  });
+  phai += `</div>`;
+  document.getElementById('c-trai').innerHTML = trai;
+  document.getElementById('c-phai').innerHTML = phai;
+
+  const the = document.createElement('div');
+  the.className = 'c-the';
+  the.style.left = '14%'; the.style.top = '150px';
+  the.innerHTML = `<div class="c-the__than">
+      <div class="c-the__1"><div class="gian"><div class="phu">LSX26-0004</div><h4>Bìa sách A5</h4><div class="phu">CÔNG TY CỔ PHẦN BIBICA</div></div>
+        <div class="c-ngay"><span>dự kiến xong</span><b>23/10</b><span>thứ Sáu 18:21</span></div></div>
+      <div class="c-the__the"><span class="the">1.000 cuốn</span><span class="the">350 tờ in</span><span class="the">132 giờ máy chạy</span></div>
+      <div class="c-the__moc">
+        <div><p class="nhan">Bắt đầu</p><div class="o-gio o-gio--dang">05/10 14:00</div></div>
+        <div><p class="nhan">Hạn giao khách</p><div style="line-height:36px">06/11 <span class="the">dư 14 ngày</span></div></div>
+      </div>
+      <ul class="c-the__ds">
+        <li><span>Bài in 3 màu 4 màu (CMYK)</span><span>132 giờ 22 phút</span></li>
+        <li><span>Cắt tờ</span><span class="chu-vang">chưa gán máy</span></li>
+        <li><span>Cán màng</span><span class="chu-vang">chưa quy đổi</span></li>
+        <li><span>Cắt thành phẩm</span><span class="chu-vang">gia công ngoài, chưa khai ngày</span></li>
+      </ul>
+      <div class="goi-y chu-vang" style="margin-top:8px">Ba công đoạn chưa có giờ nên có thể xong muộn hơn.</div>
+    </div>
+    <div class="c-the__chan"><button class="btn">Bỏ lịch</button><button class="btn">Hồ sơ lệnh</button><button class="btn btn--chinh">Phát hành</button></div>`;
+  document.getElementById('c-phai').appendChild(the);
+})();
+</script>
+</body>
+</html>

@@ -1171,6 +1171,59 @@ export interface XlDoanThucTe {
   den: string;
 }
 
+/** Quãng lệnh ĐỨNG CHỜ lệnh khác trong cụm (5b) — bước đã sẵn sàng nhưng đợi lệnh kia. */
+export interface XlDoanCho {
+  tu: string;
+  den: string;
+  cong_doan_id: number;
+}
+
+/** Một bước của lệnh này dính một bước của lệnh khác — đường nối trên lưới + dải trong ngăn.
+ *  `cho` = bước này đợi bước kia xong · `doi` = bước kia đợi bước này · `chung` = in chung bài ghép.
+ *  `luc_nay`/`luc_khac` là hai đầu đường nối; `luc_khac = null` khi lệnh kia chưa xếp lịch. */
+export interface XlNoi {
+  loai: "cho" | "doi" | "chung";
+  cong_doan_id: number;
+  thu_tu: number;
+  ten_buoc: string;
+  lsx_id_khac: number;
+  ma_khac: string;
+  ten_lenh_khac: string;
+  cong_doan_id_khac: number;
+  thu_tu_khac: number;
+  ten_buoc_khac: string;
+  luc_nay: string | null;
+  luc_khac: string | null;
+  bai_ghep_ma: string | null;
+  /** Giờ của chính bước BÊN NÀY — viền tím quanh bước in chung trên lưới. */
+  bat_dau_nay: string | null;
+  ket_thuc_nay: string | null;
+}
+
+/** Cụm lệnh PHÁT HÀNH CÙNG NHAU — hàng tiêu đề cụm trên lưới + thẻ "Phát hành cùng nhau". */
+export interface XlCum {
+  id: number;
+  ten: string;
+  /** Câu phụ, vd "cùng đơn DH015". */
+  phu: string | null;
+  bai_ghep_ma: string[];
+  lsx: { lsx_id: number; ma: string; ten: string; trang_thai: string; co_lich: boolean; ket_thuc: string | null }[];
+}
+
+/** Ngày khai ở Lịch làm việc: `off` nghỉ lễ · `work` làm bù · `off1x` nghỉ khác. */
+export interface XlNgayDacBiet {
+  ngay: string;
+  loai: "off" | "work" | "off1x" | string;
+  ten: string | null;
+}
+
+/** Đèn vật tư của một lệnh — `muc`: `ok` · `vang` · `do`. */
+export interface XlVatTu {
+  lsx_id: number;
+  muc: "ok" | "vang" | "do" | string;
+  chu: string;
+}
+
 /** Phần LỊCH dùng chung giữa dòng Gantt và panel chi tiết. `bat_dau_at` rỗng = lệnh chưa xếp. */
 export interface XlLich {
   bat_dau_at: string | null;
@@ -1179,9 +1232,15 @@ export interface XlLich {
   /** Nghỉ giữa ca + ngoài ca + ngày nghỉ. Trả lời đúng câu người dùng hỏi khi nhìn thanh:
    *  "vì sao nó dài hơn giờ chạy?". Tổng thanh = `chay_phut` + số này. */
   nghi_ngoai_ca_phut: number;
+  /** Quãng đứng chờ lệnh khác trong cụm — KHÔNG nằm trong `nghi_ngoai_ca_phut`. */
+  cho_phut: number;
   doan: XlDoan[];
+  cho: XlDoanCho[];
   ghi_chu: string[];
   updated_at: string | null;
+  /** Id cụm phát hành cùng nhau; `null` = lệnh đứng một mình. */
+  cum_id: number | null;
+  lien: XlNoi[];
 }
 
 /** Một dòng trên bàn Gantt = MỘT lệnh sản xuất. `da_doi`/`thong_bao` CHỈ có ở phản hồi của PUT. */
@@ -1199,6 +1258,8 @@ export interface XlDong extends XlLich {
   han_hoan_thanh_sx: string | null;
   han_giao_khach: string | null;
   may_ten: string | null;
+  /** Số bước chưa tính được giờ (thiếu máy / quy đổi) — lệnh "có thể xong muộn hơn". */
+  so_buoc_chua_gio: number;
   /** Mép thanh của lệnh ĐÃ CHẠY DỞ — `null` khi lệnh chưa vào việc.
    *  Thanh vẽ từ `thuc_bat_dau_lenh ?? bat_dau_at` tới `ket_thuc_thuc_te ?? ket_thuc`; đoạn
    *  `thuc_bat_dau_lenh → bat_dau_at` là phần đã chạy, KHOÁ không kéo được. `bat_dau_at` vẫn là
@@ -1213,13 +1274,30 @@ export interface XlDong extends XlLich {
   thong_bao?: string | null;
 }
 
+/** Lọc lưới Xếp lịch — gửi lên máy chủ. `nhanh`: nút lọc nhanh đầu màn. */
+export interface XlLocLich {
+  tim?: string;
+  trang_thai?: string[];
+  khach_id?: number;
+  gap?: boolean;
+  nhanh?: "tre" | "muon" | "chua";
+}
+
 export interface XlLien {
+  /** Số lệnh của ba nút lọc nhanh, trên tập đã qua tìm + Lọc (chưa qua `nhanh`). */
+  dem: { tre: number; muon: number; chua: number };
+  /** Khách đang có lệnh trong cửa sổ — giá trị của ô lọc Khách hàng. */
+  khach_loc: { id: number; ten: string; so: number }[];
   dong: XlDong[];
   tong: number;
   /** Ngày KHÔNG làm việc trong đúng cửa sổ vừa hỏi (YYYY-MM-DD): lễ, ngày làm bù, cấu hình tuần
    *  của xưởng. ĐỪNG tự suy "T7 + CN" — xưởng này khai làm thứ 7, đoán kiểu đó tô sai ngay cột
    *  đầu tiên, còn lễ với làm bù thì không có đường nào đoán. */
   ngay_nghi: string[];
+  ngay_dac_biet: XlNgayDacBiet[];
+  /** Ca xưởng — đầu màn ghi giờ ca. */
+  cac_ca: { ten: string; tu: string; den: string; nghi_tu: string | null; nghi_den: string | null }[];
+  cum: XlCum[];
 }
 
 /** Thẻ hàng chờ — lệnh đủ điều kiện xếp mà CHƯA có mốc. */
@@ -1293,6 +1371,12 @@ export interface XlCongDoan {
   /** Chênh mốc KẾT THÚC, phút. DƯƠNG = xong muộn, ÂM = xong sớm. Server tính trên mốc gốc —
    *  ĐỪNG trừ `thuc_ket_thuc - ke_hoach_ket_thuc` ở đây để dựng lại. */
   lech_phut: number | null;
+  /** Giờ DẪN XUẤT của bước theo lịch kế hoạch (đã trải theo cụm). */
+  du_kien_bat_dau: string | null;
+  du_kien_ket_thuc: string | null;
+  /** Bước sẵn sàng lúc này nhưng đợi lệnh khác tới `du_kien_bat_dau`. */
+  cho_tu: string | null;
+  lien: XlNoi[];
 }
 
 export interface XlChiTiet extends XlLich {
@@ -1332,6 +1416,7 @@ export interface XlChiTiet extends XlLich {
   thuc_bat_dau_lenh: string | null;
   so_buoc_xong: number;
   so_buoc: number;
+  cum: XlCum | null;
 }
 
 /** Một bước trong bảng so sánh hai phiên bản lịch. `a` là phiên bản NHỎ hơn (server tự sắp). */
@@ -13874,12 +13959,25 @@ export const api = {
       return authed<LuaChonLoc[]>("/api/xep-lich/hang-cho/khach-loc", token);
     },
     /** Lệnh CHẠM cửa sổ [tu, den] (YYYY-MM-DD). Hai mốc BẮT BUỘC — không có đường trải cả lịch sử. */
-    lich(token: string, params: { tu: string; den: string }): Promise<XlLien> {
-      return authed<XlLien>(`/api/xep-lich/lich${qs({ tu: params.tu, den: params.den })}`, token);
+    lich(token: string, params: { tu: string; den: string } & XlLocLich): Promise<XlLien> {
+      return authed<XlLien>(`/api/xep-lich/lich${qs({
+        tu: params.tu, den: params.den,
+        tim: params.tim?.trim() || undefined,
+        trang_thai: params.trang_thai?.length ? params.trang_thai.join(",") : undefined,
+        khach_id: params.khach_id, gap: params.gap, nhanh: params.nhanh,
+      })}`, token);
+    },
+    /** Xem trước lúc kéo: thả ở `batDau` thì bắt đầu / xong lúc nào. Không ghi gì. */
+    thuMoc(token: string, lsxId: number, batDau: string, signal?: AbortSignal) {
+      return authed<{ bat_dau: string; ket_thuc: string; da_doi: boolean; cho_phut: number }>(
+        `/api/xep-lich/lenh/${lsxId}/thu${qs({ bat_dau: batDau })}`, token, { signal });
     },
     /** Panel dưới: thông tin thật của một lệnh + bảng công đoạn. Lệnh chưa xếp vẫn mở được. */
     chiTiet(token: string, lsxId: number): Promise<XlChiTiet> {
       return authed<XlChiTiet>(`/api/xep-lich/lenh/${lsxId}`, token);
+    },
+    vatTu(token: string, lsxIds: number[]) {
+      return authed<XlVatTu[]>(`/api/xep-lich/vat-tu${qs({ lsx_ids: lsxIds.join(",") })}`, token);
     },
     /** So HAI phiên bản lịch đã phát hành, từng bước một. Dữ liệu chỉ có từ 10/09/2026 — phiên
      *  bản cũ hơn đọc ra dòng sống nên bảng sẽ nói "không đổi"; đó là đúng theo dữ liệu còn lại,
@@ -13912,8 +14010,9 @@ export const api = {
       return authed<{ ok: boolean }>(`/api/xep-lich/phat-hanh/${lsxId}`, token, { method: "POST" });
     },
     /** Thu hồi phát hành. BẮT gõ lý do (≥3 ký tự) — thiếu thì 400, đã có việc chạy thì 409. */
-    thuHoi(token: string, lsxId: number, lyDo: string): Promise<{ ok: boolean }> {
-      return authed<{ ok: boolean }>(
+    /** Thu hồi CẢ CỤM đã phát hành chung một gói; `cum_lsx` = mọi lệnh vừa lùi. */
+    thuHoi(token: string, lsxId: number, lyDo: string): Promise<{ ok: boolean; cum_lsx: number[] }> {
+      return authed<{ ok: boolean; cum_lsx: number[] }>(
         `/api/xep-lich/phat-hanh/${lsxId}${qs({ ly_do: lyDo })}`, token, { method: "DELETE" },
       );
     },

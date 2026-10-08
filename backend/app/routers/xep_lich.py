@@ -15,7 +15,7 @@ Router CHỈ điều phối + kiểm quyền + đẩy SSE. Mọi luật nằm �
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -40,6 +40,8 @@ from ..schemas.xep_lich import (
     HangChoOut,
     LichOut,
     PhatHanhCapNhatIn,
+    ThuMocOut,
+    VatTuLenhOut,
 )
 from ..services.xep_lich import (
     XepLichLenhConflict,
@@ -131,11 +133,32 @@ def lich(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     tu: date = Query(..., description="Ngày ĐẦU cửa sổ"),
     den: date = Query(..., description="Ngày CUỐI cửa sổ"),
+    tim: str | None = Query(None, description="Mã / tên lệnh / khách — lọc Ở MÁY CHỦ"),
+    trang_thai: str | None = Query(None, description="Trạng thái lệnh, cách nhau dấu phẩy"),
+    khach_id: int | None = Query(None),
+    gap: bool | None = Query(None),
+    nhanh: str | None = Query(None, pattern="^(tre|muon|chua)$", description="Nút lọc nhanh"),
 ) -> dict:
     """Các lệnh CHẠM cửa sổ. `tu`/`den` BẮT BUỘC — không mở đường trải cả lịch sử (spec §4.1)."""
     if den < tu:
         raise HTTPException(status_code=400, detail="Cửa sổ không hợp lệ: ngày cuối trước ngày đầu.")
-    return _svc(db).lich(tu=tu, den=den)
+    tt = [x.strip() for x in (trang_thai or "").split(",") if x.strip()] or None
+    return _svc(db).lich(tu=tu, den=den, tim=tim, trang_thai=tt, khach_id=khach_id, gap=gap,
+                         nhanh=nhanh)
+
+
+@router.get("/vat-tu", response_model=list[VatTuLenhOut])
+def vat_tu(
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    lsx_ids: str = Query("", description="Id lệnh, cách nhau dấu phẩy (tối đa 300)"),
+) -> list[dict]:
+    """Đèn vật tư của các lệnh đang hiện — màn gọi SAU khi lưới đã vẽ (bảng cân đối đắt)."""
+    try:
+        ids = [int(x) for x in lsx_ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Danh sách lệnh không hợp lệ.") from None
+    return _svc(db).vat_tu(ids)
 
 
 @router.get("/lenh/{lsx_id}", response_model=ChiTietOut)
@@ -146,6 +169,20 @@ def chi_tiet(
 ) -> dict:
     try:
         return _svc(db).chi_tiet(lsx_id)
+    except Exception as exc:
+        raise _map(exc)
+
+
+@router.get("/lenh/{lsx_id}/thu", response_model=ThuMocOut)
+def thu_moc(
+    lsx_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    bat_dau: datetime = Query(..., description="Mốc thử — chưa lưu"),
+) -> dict:
+    """Xem trước lúc kéo: thả ở `bat_dau` thì lệnh bắt đầu / xong lúc nào. CHỈ ĐỌC."""
+    try:
+        return _svc(db).thu_moc(lsx_id, bat_dau)
     except Exception as exc:
         raise _map(exc)
 
@@ -293,11 +330,13 @@ def thu_hoi(
     user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
     ly_do: str | None = Query(None, max_length=500),
 ) -> dict:
+    """Thu hồi CẢ CỤM đã phát hành chung một gói — mọi lệnh trong cụm quay lại khay chờ xếp."""
     try:
-        _svc(db).thu_hoi(lsx_id, actor=user, ly_do=ly_do)
+        kq = _svc(db).thu_hoi(lsx_id, actor=user, ly_do=ly_do)
     except Exception as exc:
         raise _map(exc)
     xoa_cache_can_doi()
     _phat_goi_xuong_xuong(lsx_id)
-    _cham_cho_xep(db, lsx_id, user.id)
-    return {"ok": True}
+    for i in kq["cum_lsx"]:
+        _cham_cho_xep(db, i, user.id)
+    return {"ok": True, "cum_lsx": kq["cum_lsx"]}

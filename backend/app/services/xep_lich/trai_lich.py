@@ -57,6 +57,18 @@ class MocBuoc:
     chay_phut: float
     # Quãng `bat_dau → ket_thuc` của bước này là NGÀY LỊCH nhà cung cấp giữ, không phải giờ nghỉ.
     la_thue_ngoai: bool = False
+    # Bước SẴN SÀNG theo chuỗi của chính lệnh lúc `cho_tu` nhưng phải đợi lệnh khác tới `bat_dau`
+    # (mục 5b, 08/10/2026). None = không chờ ai.
+    cho_tu: datetime | None = None
+
+
+@dataclass(frozen=True)
+class DoanCho:
+    """Quãng lệnh ĐỨNG CHỜ lệnh khác trong cụm — lớp vàng trên thanh. Dẫn xuất, không lưu."""
+
+    tu: datetime
+    den: datetime
+    lsx_cong_doan_id: int
 
 
 @dataclass(frozen=True)
@@ -68,12 +80,23 @@ class KetQuaTrai:
     doan: list[DoanChay] = field(default_factory=list)
     buoc: list[MocBuoc] = field(default_factory=list)
     ghi_chu: list[str] = field(default_factory=list)
+    cho: list[DoanCho] = field(default_factory=list)
+
+    @property
+    def cho_phut(self) -> float:
+        return sum(_phut(c.tu, c.den) for c in self.cho)
 
 
-def trai_lich(moc: datetime, buoc: list[BuocVao], lich) -> KetQuaTrai:
+def trai_lich(moc: datetime, buoc: list[BuocVao], lich,
+              som: dict[int, datetime] | None = None) -> KetQuaTrai:
     """Trải `buoc` (sắp theo `thu_tu`) từ `moc`; trả mốc lệnh + mốc từng bước + các đoạn chạy.
 
     Chuỗi bám `thu_tu`, KHÔNG bám `phu_thuoc` và cũng không bám thứ tự người gọi truyền vào.
+
+    `som[lsx_cong_doan_id]` = giờ sớm nhất bước đó được bắt đầu vì phải đợi LỆNH KHÁC (bước trước
+    ở lệnh khác, hoặc bước in chung bài ghép). Tới bước đó mà chuỗi của lệnh xong sớm hơn thì lệnh
+    đứng CHỜ — quãng chờ ghi vào `cho`, không phải giờ chạy cũng không phải nghỉ. `trai_cum` lo
+    tính `som`; gọi lẻ thì bỏ trống như trước.
 
     Mốc rơi vào nghỉ giữa ca / ngoài ca / ngày nghỉ thì TRƯỢT tới đầu khoảng chạy được gần nhất và
     bật `da_doi` — đây là làm tròn cho phép cộng có nghĩa, KHÔNG phải cửa chặn: module này không
@@ -86,8 +109,18 @@ def trai_lich(moc: datetime, buoc: list[BuocVao], lich) -> KetQuaTrai:
     moc_buoc: list[MocBuoc] = []
     ghi_chu: list[str] = []
     tong_chay = 0.0
+    cho: list[DoanCho] = []
+    som = som or {}
 
     for i, b in enumerate(sorted(buoc, key=lambda x: (x.thu_tu, x.lsx_cong_doan_id))):
+        cho_tu = None
+        doi = som.get(b.lsx_cong_doan_id)
+        if doi is not None:
+            doi_aw = _vao_gio_lam(_aware(doi), lich)
+            if doi_aw > con:
+                cho_tu = _naive(con)
+                cho.append(DoanCho(tu=cho_tu, den=_naive(doi_aw), lsx_cong_doan_id=b.lsx_cong_doan_id))
+                con = doi_aw
         b_dau = con
         if b.la_thue_ngoai:
             # Gia công ngoài KHÔNG chiếm thời gian trên lịch (spec 2026-09-26 §8): ngày kết thúc là
@@ -108,13 +141,70 @@ def trai_lich(moc: datetime, buoc: list[BuocVao], lich) -> KetQuaTrai:
         moc_buoc.append(MocBuoc(
             lsx_cong_doan_id=b.lsx_cong_doan_id, thu_tu=b.thu_tu,
             bat_dau=_naive(b_dau), ket_thuc=_naive(con), chay_phut=b.chay_phut,
-            la_thue_ngoai=b.la_thue_ngoai,
+            la_thue_ngoai=b.la_thue_ngoai, cho_tu=cho_tu,
         ))
 
     return KetQuaTrai(
         bat_dau=_naive(dau), ket_thuc=_naive(con), da_doi=da_doi,
-        chay_phut=tong_chay, doan=doan, buoc=moc_buoc, ghi_chu=ghi_chu,
+        chay_phut=tong_chay, doan=doan, buoc=moc_buoc, ghi_chu=ghi_chu, cho=cho,
     )
+
+
+CAU_VONG = "Các lệnh trong cụm chờ vòng tròn lẫn nhau nên giờ chờ có thể chưa đúng. Kiểm lại quy trình."
+
+
+def trai_cum(
+    dau_vao: dict[int, tuple[datetime, list[BuocVao]]],
+    canh: list[tuple[int, int]],
+    chung: list[set[int]],
+    lich,
+    max_luot: int = 8,
+) -> dict[int, KetQuaTrai]:
+    """Trải CẢ CỤM lệnh có ràng buộc chéo (mục 5b, 08/10/2026) — trả `{lsx_id: KetQuaTrai}`.
+
+    `dau_vao[lsx_id] = (mốc bắt đầu, các bước)` — chỉ lệnh ĐÃ có mốc; lệnh chưa xếp không có giờ
+    nên không ràng buộc ai. `canh` = cặp `(bước trước, bước sau)` nằm ở hai lệnh khác nhau: bước sau
+    không bắt đầu trước khi bước trước xong. `chung` = các nhóm bước in chung một bài ghép: cả nhóm
+    bắt đầu cùng lúc, lúc thành viên sẵn sàng MUỘN NHẤT.
+
+    Mỗi lượt trải từng lệnh với `som` hiện có rồi tính `som` mới từ kết quả. `som` chỉ tăng nên
+    lặp tới khi đứng yên; vòng phụ thuộc thì không bao giờ đứng ⇒ dừng sau `max_luot` lượt và ghi
+    chú lên các lệnh còn đang xê dịch — báo, không chặn (module này không chặn gì).
+    """
+    som: dict[int, datetime] = {}
+    kq: dict[int, KetQuaTrai] = {}
+    for _ in range(max_luot):
+        kq = {lid: trai_lich(m, b, lich, som) for lid, (m, b) in dau_vao.items()}
+        xong: dict[int, datetime] = {}
+        san_sang: dict[int, datetime] = {}
+        for k in kq.values():
+            for mb in k.buoc:
+                xong[mb.lsx_cong_doan_id] = mb.ket_thuc
+                san_sang[mb.lsx_cong_doan_id] = mb.cho_tu or mb.bat_dau
+        moi: dict[int, datetime] = {}
+        for truoc, sau in canh:
+            if truoc in xong and sau in xong:
+                if sau not in moi or xong[truoc] > moi[sau]:
+                    moi[sau] = xong[truoc]
+        for nhom in chung:
+            co = [c for c in nhom if c in san_sang]
+            if len(co) < 2:
+                continue
+            # Sẵn sàng của từng thành viên = chuỗi của chính nó, hoặc bước trước ở lệnh khác.
+            muon = max(max(san_sang[c], moi.get(c, san_sang[c])) for c in co)
+            for c in co:
+                moi[c] = muon
+        if moi == som:
+            return kq
+        som = moi
+    lech = {lid for lid, k in kq.items() if any(mb.lsx_cong_doan_id in som for mb in k.buoc)}
+    return {
+        lid: (KetQuaTrai(
+            bat_dau=k.bat_dau, ket_thuc=k.ket_thuc, da_doi=k.da_doi, chay_phut=k.chay_phut,
+            doan=k.doan, buoc=k.buoc, ghi_chu=[*k.ghi_chu, CAU_VONG], cho=k.cho,
+        ) if lid in lech else k)
+        for lid, k in kq.items()
+    }
 
 
 def _cat_doan(tu: datetime, chay_phut: float, buoc_index: int, lich) -> list[DoanChay]:
@@ -228,15 +318,16 @@ def phan_tach_nghi(kq: KetQuaTrai, lich) -> dict:
     """Tách phần KHÔNG CHẠY của thanh (`ket_thuc - bat_dau - chay_phut`) ra từng loại, kèm giờ cụ thể.
 
     Con số gộp "nghỉ" không trả lời được câu người điều độ hỏi tiếp: nghỉ giữa ca bao lâu, từ mấy
-    giờ; ngày nghỉ là những ngày nào. Bốn loại, cộng lại ĐÚNG bằng con số gộp:
+    giờ; ngày nghỉ là những ngày nào. Năm loại, cộng lại ĐÚNG bằng con số gộp:
 
       · gia công ngoài — quãng ngày lịch của bước thuê ngoài (không phải nghỉ, nhưng cũng không chạy)
+      · chờ lệnh khác  — quãng `kq.cho` (5b): bước đã sẵn sàng nhưng đợi lệnh khác trong cụm
       · ngày nghỉ      — phần rơi vào ngày `is_working_day = False`, theo ngày lịch
       · nghỉ giữa ca   — phần nằm TRONG khung ca (chưa khoét bữa nghỉ) của ngày làm việc
       · ngoài ca       — phần còn lại của ngày làm việc (tối/đêm ngoài giờ ca)
 
     Khoảng hở = `[bat_dau, ket_thuc]` trừ hợp các đoạn chạy; tổng các đoạn luôn bằng `chay_phut`
-    (`_cat_doan`), nên tổng bốn loại khớp `nghi_ngoai_ca_phut` của `_so_lich`. Hàm thuần: chỉ đọc
+    (`_cat_doan`), nên tổng năm loại khớp `nghi_ngoai_ca_phut` của `_so_lich`. Hàm thuần: chỉ đọc
     `lich.cal.is_working_day` (đã cache theo năm) và khung ca — không thêm truy vấn nào.
     """
     ho: list[tuple[datetime, datetime]] = []
@@ -250,13 +341,22 @@ def phan_tach_nghi(kq: KetQuaTrai, lich) -> dict:
 
     thue = sorted((b.bat_dau, b.ket_thuc) for b in kq.buoc
                   if b.la_thue_ngoai and b.ket_thuc > b.bat_dau)
+    # Chờ lệnh khác (5b) tách trước như gia công ngoài: cả quãng là "đứng đợi", kể cả đêm nằm trong
+    # nó — ô "Ngoài ca N đêm" chỉ đếm những đêm lệnh đang dở việc của chính mình.
+    doi = sorted((c.tu, c.den) for c in kq.cho if c.den > c.tu)
+    cho_phut = 0.0
     gia_cong = 0.0
     giua_ca: list[tuple[datetime, datetime]] = []
     ngoai_ca: list[tuple[datetime, datetime]] = []
     ngay_nghi: dict[date, float] = {}
     for a, b in ho:
-        trong_thue, con_lai = _giao(a, b, thue)
+        trong_thue, sau_thue = _giao(a, b, thue)
         gia_cong += sum(_phut(s, e) for s, e in trong_thue)
+        con_lai: list[tuple[datetime, datetime]] = []
+        for a2, b2 in sau_thue:
+            trong_cho, ngoai_cho = _giao(a2, b2, doi)
+            cho_phut += sum(_phut(s, e) for s, e in trong_cho)
+            con_lai += ngoai_cho
         for x, y in con_lai:
             ngay = x.date()
             while True:
@@ -292,4 +392,5 @@ def phan_tach_nghi(kq: KetQuaTrai, lich) -> dict:
         "ngay_nghi_phut": round(sum(ngay_nghi.values()), 2),
         "ngay_nghi": [{"ngay": d, "phut": round(p, 2)} for d, p in sorted(ngay_nghi.items())],
         "gia_cong_ngoai_phut": round(gia_cong, 2),
+        "cho_lenh_khac_phut": round(cho_phut, 2),
     }

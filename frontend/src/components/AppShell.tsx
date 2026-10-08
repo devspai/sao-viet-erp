@@ -1380,7 +1380,7 @@ export function AppShell() {
           />
         );
       case "xep-lich":
-        return <XepLichPage eventTick={tickCua("san_xuat")} onBadgeStale={reloadBadges} />;
+        return <XepLichPage eventTick={tickCua("san_xuat")} onBadgeStale={reloadBadges} navigate={navigate} />;
       case "sua-chua-may":
         // `eventTick` nhích theo sự kiện nhóm kỹ thuật ⇒ danh sách yêu cầu tự nạp lại khi có lời báo mới
         // hoặc khi người khác vừa tiếp nhận — không để hai người cùng lập phiếu cho một cái máy.
